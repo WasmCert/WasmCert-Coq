@@ -551,7 +551,46 @@ Record global : Type := {
 Definition global_eqb (g1 g2 : global) : bool :=
   (g_mut g1 == g_mut g2) && (g_val g1 == g_val g2).
 
-Axiom eqglobalP : Equality.axiom global_eqb.
+Lemma eqglobalP : Equality.axiom global_eqb.
+Proof.
+  move => g1 g2.
+  case: g1 => m1 t1; case g2 => m2 t2.
+  case_eq (m1 == m2) => [Hm|Hm].
+  {
+    case_eq (t1 == t2) => [Ht|Ht].
+    {
+      rewrite /global_eqb /=.
+      rewrite Hm Ht.
+      apply ReflectT.
+      move/eqP: Hm => Hm.
+      move/eqP: Ht => Ht.
+      rewrite Hm Ht.
+      reflexivity.
+    }
+    {
+      rewrite /global_eqb /=.
+      rewrite Hm Ht.
+      apply ReflectF.
+      move => H.
+      injection H => Ht2 Hm2.
+      rewrite Ht2 in Ht.
+      rewrite eq_refl in Ht.
+      move/eqP: Ht => Ht.
+      discriminate Ht.
+    }
+  }
+  {
+    rewrite /global_eqb /=.
+    rewrite Hm.
+    apply ReflectF.
+    move => H.
+    injection H => _ Hm2.
+    rewrite Hm2 in Hm.
+    rewrite eq_refl in Hm.
+    move/eqP: Hm => Hm.
+    discriminate Hm.
+  }
+Qed.
 (* TODO *)
 Canonical global_eqMixin := EqMixin eqglobalP.
 Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
