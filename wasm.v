@@ -76,18 +76,62 @@ Definition int_ne (e : type) : sort e -> sort e -> bool :=
   let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ int_eq _ _ _ _ _ _ _ _ _ _)) := e in
     fun x => fun y => negb (int_eq x y).
 
-(*Arguments Class {T}.*)
-
 End Wasm_int.
 
-(*
-Definition option_eqb {A : Type} (eqb : A -> A -> bool) (o1 o2 : option A) : bool :=
-  match (o1, o2) with
-  | (None, None) => true
-  | (Some x1, Some x2) => eqb x1 x2
-  | _ => false
-  end.
-*)
+
+
+
+Module Wasm_float.
+
+Record mixin_of (float_t : Type) := Mixin {
+  float_zero : float_t;
+  float_neg : float_t -> float_t;
+  float_abs : float_t -> float_t;
+  float_ceil : float_t -> float_t;
+  float_floor : float_t -> float_t;
+  float_trunc : float_t -> float_t;
+  float_nearest : float_t -> float_t;
+  float_sqrt : float_t -> float_t;
+  float_add : float_t -> float_t -> float_t;
+  float_sub : float_t -> float_t -> float_t;
+  float_mul : float_t -> float_t -> float_t;
+  float_div : float_t -> float_t -> float_t;
+  float_min : float_t -> float_t -> float_t;
+  float_max : float_t -> float_t -> float_t;
+  float_copysign : float_t -> float_t -> float_t;
+  float_eq : float_t -> float_t -> bool;
+  float_lt : float_t -> float_t -> bool;
+  float_gt : float_t -> float_t -> bool;
+  float_le : float_t -> float_t -> bool;
+  float_ge : float_t -> float_t -> bool;
+                                      }.
+
+
+Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
+Local Coercion base : class_of >->  Equality.class_of.
+
+Structure type := Pack {sort; _ : class_of sort}.
+Local Coercion sort : type >-> Sortclass.
+
+Variables (T : Type) (cT : type).
+Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
+Definition clone c of phant_id class c := @Pack T c.
+Let xT := let: Pack T _ := cT in T.
+Notation xclass := (class : class_of xT).
+
+Definition pack m :=
+  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
+
+Definition eqType := @Equality.Pack cT xclass.
+
+Definition float_ne (e : type) : sort e -> sort e -> bool :=
+  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
+    fun x => fun y => negb (float_eq x y).
+
+End Wasm_float.
+
+
+
 
 Module Wasm.
 
@@ -134,9 +178,6 @@ Definition msbyte (bs : bytes) : option byte :=
 
 Definition mem := list byte.
 
-Definition mem_eqb (m1 m2 : mem) :=
-  m1 == m2.
-
 Definition read_bytes (m : mem) (n : nat) (l : nat) : bytes :=
   List.firstn l (List.skipn n m).
 
@@ -147,7 +188,9 @@ Definition mem_append (m : mem) (bs : bytes) := app m bs.
 
 Variable host : Type.
 Variable host_eqb : host -> host -> bool.
-Axiom host_eqbP : forall h1 h2, host_eqb h1 h2 = true <-> h1 = h2.
+Axiom eqhostP : Equality.axiom host_eqb.
+Canonical host_eqMixin := EqMixin eqhostP.
+Canonical host_eqType := Eval hnf in EqType host host_eqMixin.
 Variable host_state : Type.
 
 Inductive value_type : Type := (* t *)
@@ -205,11 +248,51 @@ Record global_type := (* tg *)
   { tg_mut : mutability; tg_t : value_type}.
 
 Definition global_type_eqb (tg1 tg2 : global_type) : bool :=
-  (mutability_eqb (tg_mut tg1) (tg_mut tg2))
-    && (value_type_eqb (tg_t tg1) (tg_t tg2)).
+  (tg_mut tg1 == tg_mut tg2)
+    && (tg_t tg1 == tg_t tg2).
 
-Axiom eqglobal_typeP : Equality.axiom global_type_eqb.
-(* TODO *)
+Lemma eqglobal_typeP : Equality.axiom global_type_eqb.
+Proof.
+  move => g1 g2.
+  case: g1 => m1 t1; case g2 => m2 t2.
+  case_eq (m1 == m2) => [Hm|Hm].
+  {
+    case_eq (t1 == t2) => [Ht|Ht].
+    {
+      rewrite /global_type_eqb /=.
+      rewrite Hm Ht.
+      apply ReflectT.
+      move/eqP: Hm => Hm.
+      move/eqP: Ht => Ht.
+      rewrite Hm Ht.
+      reflexivity.
+    }
+    {
+      rewrite /global_type_eqb /=.
+      rewrite Hm Ht.
+      apply ReflectF.
+      move => H.
+      injection H => Ht2 Hm2.
+      rewrite Ht2 in Ht.
+      rewrite eq_refl in Ht.
+      move/eqP: Ht => Ht.
+      discriminate Ht.
+    }
+  }
+  {
+    rewrite /global_type_eqb /=.
+    rewrite Hm.
+    apply ReflectF.
+    move => H.
+    injection H => _ Hm2.
+    rewrite Hm2 in Hm.
+    rewrite eq_refl in Hm.
+    move/eqP: Hm => Hm.
+    discriminate Hm.
+  }
+Qed.
+
+(* Todo *)
 Canonical global_type_eqMixin := EqMixin eqglobal_typeP.
 Canonical global_type_eqType := Eval hnf in EqType global_type global_type_eqMixin.
 
@@ -355,11 +438,6 @@ Axiom eqf64P : Equality.axiom f64_eqb.
 Canonical f64_eqMixin := EqMixin eqf64P.
 Canonical f64_eqType := Eval hnf in EqType f64 f64_eqMixin. 
 
-(*Variable f32 : (* TODO *) Type.
-Variable f32_eqb : f32 -> f32 -> bool.
-Variable f64 : (* TODO *) Type.
-Variable f64_eqb : f64 -> f64 -> bool.*)
-
 Inductive value : Type := (* v *)
 | ConstInt32 : i32 -> value
 | ConstInt64 : i64 -> value
@@ -427,12 +505,9 @@ Inductive function_closure : Type := (* cl *)
 Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
   match (cl1, cl2) with
   | (Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2) =>
-    (Nat.eqb i1 i2) &&
-    (function_type_eqb tf1 tf2) &&
-    (vs1 == vs2) &&
-    (eis1 == eis2)
+    (i1 == i2) && (tf1 == tf2) && (vs1 == vs2) && (eis1 == eis2)
   | (Func_host tf1 h1, Func_host tf2 h2) =>
-    (function_type_eqb tf1 tf2) && (host_eqb h1 h2)
+    (tf1 == tf2) && (h1 == h2)
   | _ => false
   end.
 
@@ -467,11 +542,6 @@ Canonical instance_eqMixin := EqMixin eqinstanceP.
 Canonical instance_eqType := Eval hnf in EqType instance instance_eqMixin.
 
 Definition tabinst := list (option function_closure).
-
-(*
-Definition tabinst_eqb (t1 t2 : tabinst) : bool :=
-  t1 == t2.
-*)
 
 Record global : Type := {
   g_mut : mutability;
@@ -519,19 +589,19 @@ Inductive administrative_instruction : Type := (* e *)
 | Local : nat -> immediate -> list value -> list administrative_instruction -> administrative_instruction.
 
 Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : bool :=
-  let fff := (fix f (l1 l2 : list administrative_instruction) :=
-match (l1, l2) with
-  | (nil, nil) => true
-  | (cons _ _, nil) => false
-  | (nil, cons _ _) => false
-  | (cons x xs, cons y ys) =>
-   (administrative_instruction_eqb x y) && (f xs ys)
-  end
-) in
+  let fff :=
+      (fix f (l1 l2 : list administrative_instruction) :=
+         match (l1, l2) with
+         | (nil, nil) => true
+         | (cons _ _, nil) => false
+         | (nil, cons _ _) => false
+         | (cons x xs, cons y ys) => (administrative_instruction_eqb x y) && (f xs ys)
+         end
+      ) in
   match (e1, e2) with
-  | (Basic be1, Basic be2) => basic_instruction_eqb be1 be2
+  | (Basic be1, Basic be2) => be1 == be2
   | (Trap, Trap) => true
-  | (Callcl cl1, Callcl cl2) => function_closure_eqb cl1 cl2
+  | (Callcl cl1, Callcl cl2) => cl1 == cl2
   | (Label n1 es11 es12, Label n2 es21 es22) =>
     (Nat.eqb n1 n2) &&
     (fff es11 es21) &&
@@ -553,55 +623,6 @@ Canonical administrative_instruction_eqType := Eval hnf in EqType administrative
 Inductive lholed : Type :=
 | LBase : list administrative_instruction -> list administrative_instruction -> lholed
 | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed.
-
-Module Wasm_float.
-
-Record mixin_of (float_t : Type) := Mixin {
-  float_zero : float_t;
-  float_neg : float_t -> float_t;
-  float_abs : float_t -> float_t;
-  float_ceil : float_t -> float_t;
-  float_floor : float_t -> float_t;
-  float_trunc : float_t -> float_t;
-  float_nearest : float_t -> float_t;
-  float_sqrt : float_t -> float_t;
-  float_add : float_t -> float_t -> float_t;
-  float_sub : float_t -> float_t -> float_t;
-  float_mul : float_t -> float_t -> float_t;
-  float_div : float_t -> float_t -> float_t;
-  float_min : float_t -> float_t -> float_t;
-  float_max : float_t -> float_t -> float_t;
-  float_copysign : float_t -> float_t -> float_t;
-  float_eq : float_t -> float_t -> bool;
-  float_lt : float_t -> float_t -> bool;
-  float_gt : float_t -> float_t -> bool;
-  float_le : float_t -> float_t -> bool;
-  float_ge : float_t -> float_t -> bool;
-                                      }.
-
-
-Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
-Local Coercion base : class_of >->  Equality.class_of.
-
-Structure type := Pack {sort; _ : class_of sort}.
-Local Coercion sort : type >-> Sortclass.
-
-Variables (T : Type) (cT : type).
-Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
-Definition clone c of phant_id class c := @Pack T c.
-Let xT := let: Pack T _ := cT in T.
-Notation xclass := (class : class_of xT).
-
-Definition pack m :=
-  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
-
-Definition eqType := @Equality.Pack cT xclass.
-
-Definition float_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
-    fun x => fun y => negb (float_eq x y).
-
-End Wasm_float.
 
 Variable i32_r : Wasm_int.class_of i32.
 Definition i32_t : Wasm_int.type := Wasm_int.Pack i32_r.
@@ -825,7 +846,7 @@ Definition cl_type (cl : function_closure) : function_type :=
   end.
 
 Definition rglob_is_mut (g : global) : bool :=
-  mutability_eqb (g_mut g) T_mut.
+  g_mut g == T_mut.
 
 Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   match x with
@@ -1108,9 +1129,9 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
-| bet_convert : forall C t1 t2 sx, value_type_eqb t1 t2 = false -> plop sx t1 t2 ->
+| bet_convert : forall C t1 t2 sx, t1 != t2 -> plop sx t1 t2 ->
   be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1])
-| bet_reinterpret : forall C t1 t2, value_type_eqb t1 t2 = false -> Nat.eqb (t_length t1) (t_length t2) ->
+| bet_reinterpret : forall C t1 t2, t1 != t2 -> Nat.eqb (t_length t1) (t_length t2) ->
   be_typing C [::Cvtop t1 Reinterpret t2 None] (Tf [::t2] [::t1])
 | bet_unreachable : forall C ts ts',
   be_typing C [::Unreachable] (Tf ts ts')
@@ -1364,8 +1385,7 @@ Definition inst_typing (S : s_context) (inst : instance) (C : t_context) :=
   end.
 
 Definition glob_agree (g : global) (tg : global_type) : bool :=
-  mutability_eqb (tg_mut tg) (g_mut g) &&
-  value_type_eqb (tg_t tg) (typeof (g_val g)).
+  (tg_mut tg == g_mut g) && (tg_t tg == typeof (g_val g)).
 
 Definition tab_agree (S : s_context) (tcl : option function_closure) : bool :=
   match tcl with
