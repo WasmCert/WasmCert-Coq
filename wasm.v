@@ -131,9 +131,10 @@ Definition float_ne (e : type) : sort e -> sort e -> bool :=
 End Wasm_float.
 
 
-
-
 Module Wasm.
+
+  Variable host : eqType.
+  Variable host_state : eqType.
 
 Definition immediate := nat. (* i *)
 
@@ -185,13 +186,6 @@ Definition write_bytes (m : mem) (n : nat) (bs : bytes) : mem :=
   app (List.firstn n m) (app bs (List.skipn (n + length bs) m)).
 
 Definition mem_append (m : mem) (bs : bytes) := app m bs.
-
-Variable host : Type.
-Variable host_eqb : host -> host -> bool.
-Axiom eqhostP : Equality.axiom host_eqb.
-Canonical host_eqMixin := EqMixin eqhostP.
-Canonical host_eqType := Eval hnf in EqType host host_eqMixin.
-Variable host_state : Type.
 
 Inductive value_type : Type := (* t *)
 | T_i32
@@ -302,11 +296,40 @@ Inductive function_type := (* tf *)
 
 Definition function_type_eqb (tf1 tf2 : function_type) : bool :=
   match (tf1, tf2) with
-  | (Tf vt11 vt12, Tf vt21 vt22) =>
-    (vt11 == vt21) && (vt12 == vt22)
+  | (Tf vt11 vt12, Tf vt21 vt22) => (vt11 == vt21) && (vt12 == vt22)
   end.
 
-Axiom eqfunction_typeP : Equality.axiom function_type_eqb.
+Lemma eqfunction_typeP : Equality.axiom function_type_eqb.
+Proof.
+  case => tf11 tf12.
+  case => tf21 tf22.
+  rewrite /function_type_eqb.
+  case_eq (tf11 == tf21) => /= [/eqP-Hm|/eqP-Hm].
+  {
+    case_eq (tf12 == tf22) => /= [/eqP-Ht|/eqP-Ht].
+    {
+      apply ReflectT.
+      rewrite Hm Ht.
+      reflexivity.
+    }
+    {
+      apply ReflectF.
+      move => H.
+      injection H => {H} Ht2 Hm2.
+      rewrite Ht2 in Ht.
+      apply: Ht.
+      reflexivity.
+    }
+  }
+  {
+    apply ReflectF.
+    move => H.
+    injection H => {H} _ Hm2.
+    rewrite Hm2 in Hm.
+    apply: Hm.
+    reflexivity.
+  }
+Qed.
 Canonical function_type_eqMixin := EqMixin eqfunction_typeP.
 Canonical function_type_eqType := Eval hnf in EqType function_type function_type_eqMixin.
 
@@ -413,30 +436,10 @@ Inductive cvtop : Type :=
 | Convert
 | Reinterpret.
 
-(* TODO: is this the right way to do things? *)
-Variable i32 : (* TODO *) Type.
-Variable i32_eqb : i32 -> i32 -> bool.
-Axiom eqi32P : Equality.axiom i32_eqb.
-Canonical i32_eqMixin := EqMixin eqi32P.
-Canonical i32_eqType := Eval hnf in EqType i32 i32_eqMixin.
-(*Variable i32_eqb : i32 -> i32 -> bool.*)
-Variable i64 : (* TODO *) Type.
-Variable i64_eqb : i64 -> i64 -> bool.
-Axiom eqi64P : Equality.axiom i64_eqb.
-Canonical i64_eqMixin := EqMixin eqi64P.
-Canonical i64_eqType := Eval hnf in EqType i64 i64_eqMixin.
-
-Variable f32 : (* TODO *) Type.
-Variable f32_eqb : f32 -> f32 -> bool.
-Axiom eqf32P : Equality.axiom f32_eqb.
-Canonical f32_eqMixin := EqMixin eqf32P.
-Canonical f32_eqType := Eval hnf in EqType f32 f32_eqMixin.
-(*Variable f32_eqb : f32 -> f32 -> bool.*)
-Variable f64 : (* TODO *) Type.
-Variable f64_eqb : f64 -> f64 -> bool.
-Axiom eqf64P : Equality.axiom f64_eqb.
-Canonical f64_eqMixin := EqMixin eqf64P.
-Canonical f64_eqType := Eval hnf in EqType f64 f64_eqMixin. 
+Variable i32 : eqType.
+Variable i64 : eqType.
+Variable f32 : eqType.
+Variable f64 : eqType.
 
 Inductive value : Type := (* v *)
 | ConstInt32 : i32 -> value
@@ -783,8 +786,8 @@ Definition is_float_t (t : value_type) : bool :=
   | T_f64 => true
   end.
 
-Definition is_mut (tg : global_type) :=
-  tg_mut tg = T_mut.
+Definition is_mut (tg : global_type) : bool :=
+  tg_mut tg == T_mut.
 
 Check Wasm_int.int_ctz.
 Check Wasm_int.class.
@@ -1141,9 +1144,12 @@ Definition n_zeros (ts : list value_type) : list value :=
 
 (* TODO: lots of lemmas *)
 
-Definition plop (sxo : option sx) t1 t2 : bool :=
+Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   (sxo == None) ==
-  ((is_float_t t1) && (is_float_t t2)) || (is_int_t t1) && (is_int_t t2) && (t_length t1 < t_length t2).
+  ((is_float_t t1 && is_float_t t2) || (is_int_t t1 && is_int_t t2 && (t_length t1 < t_length t2))).
+
+Definition convert_cond t1 t2 (sxo : option sx) : bool :=
+  (t1 != t2) && convert_helper sxo t1 t2.
 
 Definition upd_label C lab :=
   Build_t_context
@@ -1168,7 +1174,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
-| bet_convert : forall C t1 t2 sx, t1 != t2 -> plop sx t1 t2 ->
+| bet_convert : forall C t1 t2 sx, t1 != t2 -> convert_helper sx t1 t2 ->
   be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1])
 | bet_reinterpret : forall C t1 t2, t1 != t2 -> Nat.eqb (t_length t1) (t_length t2) ->
   be_typing C [::Cvtop t1 Reinterpret t2 None] (Tf [::t2] [::t1])
@@ -1255,6 +1261,8 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   be_typing C es (Tf t1s t2s) ->
   be_typing C es (Tf (app ts t1s) (app ts t2s)).
 
+
+
 Definition upd_local_return C loc ret :=
   Build_t_context
     (tc_types_t C)
@@ -1282,11 +1290,26 @@ Inductive cl_typing : s_context -> function_closure -> function_type -> Prop :=
   i < length (sc_inst S) ->
   (List.nth_error (sc_inst S) i) = (Some C) ->
   tf = Tf t1s t2s ->
-  let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s)  in
+  let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
   be_typing C' es (Tf [::] t2s) ->
   cl_typing S (Func_native i tf ts es) (Tf t1s t2s)
 | cl_typing_host : forall S tf h,
-  cl_typing S (Func_host tf h) tf.
+    cl_typing S (Func_host tf h) tf.
+
+Lemma cl_typing_unique : forall S cl tf, cl_typing S cl tf -> tf = cl_type cl.
+Proof.
+  move => S.
+  case.
+  { move => i tf ts bes t H.
+    rewrite /=.
+    inversion H.
+    done. }
+  { move => f h tf H.
+    inversion H.
+      by rewrite /=. }
+Qed.
+
+
 
 Section Type_checking.
 
@@ -1324,20 +1347,6 @@ Axiom eqchecker_typeP : Equality.axiom checker_type_eqb.
 Canonical checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
-Variable cl_type_check : s_context -> function_closure -> bool.
-
-Lemma cl_typing_unique : forall S cl tf, cl_typing S cl tf -> tf = cl_type cl.
-Proof.
-  move => S.
-  case.
-  { move => i tf ts bes t H.
-    rewrite /=.
-    inversion H.
-    done. }
-  { move => f h tf H.
-    inversion H.
-      by rewrite /=. }
-Qed.
 
 Definition to_ct_list (ts : list value_type) : list checker_type_aux :=
   map CTA_some ts.
@@ -1350,11 +1359,318 @@ Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
   | _ :: ts'' => ct_suffix ts ts''
   end.
 
+Definition consume (t : checker_type) (cons : list checker_type_aux) : checker_type :=
+  match t with
+  | CT_type ts =>
+    if ct_suffix cons (to_ct_list ts)
+    then CT_type (List.firstn (length ts - length cons) ts)
+    else CT_bot
+  | CT_top_type cts =>
+    if ct_suffix cons cts
+    then CT_top_type (take (length cts - length cons) cts)
+    else
+      (if ct_suffix cts cons
+       then CT_top_type [::]
+       else CT_bot)
+  | _ => CT_bot
+  end.
+
+Definition produce (t1 t2 : checker_type) : checker_type :=
+  match (t1, t2) with
+  | (CT_top_type ts, CT_type ts') => CT_top_type (ts ++ (to_ct_list ts'))
+  | (CT_type ts, CT_type ts') => CT_type (ts ++ ts')
+  | (CT_type ts', CT_top_type ts) => CT_top_type ts
+  | (CT_top_type ts', CT_top_type ts) => CT_top_type ts
+  | _ => CT_bot
+  end.
+
+Definition type_update (curr_type : checker_type) (cons : list checker_type_aux) (prods : checker_type) : checker_type :=
+  produce (consume curr_type cons) prods.
+
+Definition select_return_top (ts : list checker_type_aux) (cta1 cta2 : checker_type_aux) : checker_type :=
+  match (cta1, cta2) with
+  | (_, CTA_any) => CT_top_type (List.firstn (length ts - 3) ts ++ [::cta1])
+  | (CTA_any, _) => CT_top_type (List.firstn (length ts - 3) ts ++ [::cta2])
+  | (CTA_some t1, CTA_some t2) =>
+    if t1 == t2
+    then CT_top_type (take (length ts - 3) ts ++ [::CTA_some t1])
+    else CT_bot
+  end.
+
+Definition type_update_select (t : checker_type) : checker_type :=
+  match t with
+  | CT_type ts =>
+    if (length ts >= 3) && (List.nth_error ts (length ts - 2) == List.nth_error ts (length ts - 3))
+    then (consume (CT_type ts) [::CTA_any; CTA_some T_i32])
+    else CT_bot
+  | CT_top_type ts =>
+    match length ts with
+    | 0 => CT_top_type [::CTA_any]
+    | 1 => type_update (CT_top_type ts) [::CTA_some T_i32] (CT_top_type [::CTA_any])
+    | 2 => consume (CT_top_type ts) [::CTA_some T_i32]
+    | _ =>
+      match (List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3)) with
+      | (Some ts_at_2, Some ts_at_3) =>
+        type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
+                    (select_return_top ts ts_at_2 ts_at_3)
+      | _ => CT_bot (* TODO: is that OK? *)
+      end
+    end
+  | CT_bot => CT_bot
+  end.
+
+Fixpoint same_lab_h (iss : list nat) (lab_c : list (list value_type)) (ts : list value_type) : option (list value_type) :=
+  match iss with
+  | [::] => Some ts
+  | i :: iss' =>
+    if i >= length lab_c
+    then None
+    else
+      match List.nth_error lab_c i with
+      | None => None (* TODO *)
+      | Some xx =>
+        if xx == ts then same_lab_h iss' lab_c xx
+        else None
+      end
+  end.
+
+Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (list value_type) :=
+  match iss with
+  | [::] => None
+  | i :: iss' =>
+    if i >= length lab_c
+    then None
+    else
+      match List.nth_error lab_c i with
+      | Some xx => same_lab_h iss' lab_c xx
+      | None => None (* TODO: ??? *)
+      end
+  end.
+
+
 Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
   match ct with
   | CT_type ts => ts == ts'
   | CT_top_type ts => ct_suffix ts (to_ct_list ts')
   | CT_bot => false
+  end.
+
+Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {struct be} : checker_type :=
+  let check := fix check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
+      match es with
+      | [::] => ts
+      | e :: es' =>
+        match ts with
+        | CT_bot => CT_bot
+        | _ => check C es' (check_single C e ts)
+        end
+      end in
+  let b_e_type_checker C (es : list basic_instruction) tf :=
+       match tf with
+       | Tf tn tm =>
+         c_types_agree (check C es (CT_type tn)) tm
+       end in 
+  match be with
+  | EConst v => type_update ts [::] (CT_type [::typeof v])
+  | Unop_i t _ =>
+    if is_int_t t
+    then type_update ts [::CTA_some t] (CT_type [::t])
+    else CT_bot
+  | Unop_f t _ =>
+    if is_float_t t
+    then  type_update ts [::CTA_some t] (CT_type [::t])
+    else CT_bot
+  | Binop_i t _ =>
+    if is_int_t t
+    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
+    else CT_bot
+  | Binop_f t _ =>
+    if is_int_t t
+    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
+    else CT_bot
+  | Testop t _ =>
+    if is_int_t t
+    then type_update ts [::CTA_some t] (CT_type [::T_i32])
+    else CT_bot
+  | Relop_i t _ =>
+    if is_int_t t
+    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
+    else CT_bot
+  | Relop_f t _ =>
+    if is_int_t t
+    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
+    else CT_bot
+  | Cvtop t1 Convert t2 sx =>
+    if convert_cond t1 t2 sx
+    then type_update ts [::CTA_some t2] (CT_type [::t1])
+    else CT_bot
+  | Cvtop t1 Reinterpret t2 sxo =>
+    if (t1 != t2) && (t_length t1 == t_length t2) && (sxo == None)
+    then type_update ts [::CTA_some t2] (CT_type [::t1])
+    else CT_bot
+  | Unreachable => type_update ts [::] (CT_top_type [::])
+  | Nop => ts
+  | Drop => type_update ts [::CTA_any] (CT_type [::])
+  | Select => type_update_select ts
+  | Block tf es =>
+    match tf with
+    | Tf tn tm =>
+      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+      then type_update ts (to_ct_list tn) (CT_type tm)
+      else CT_bot
+    end
+  | Loop tf es =>
+    match tf with
+    | Tf tn tm =>
+      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+      then type_update ts (to_ct_list tn) (CT_type tm)
+      else CT_bot
+    end
+  | If tf es1 es2 =>
+    match tf with
+    | Tf tn tm =>
+      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
+                          && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
+      then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
+      else CT_bot
+    end
+  | Br i =>
+    if i < length (tc_label C)
+    then
+      match List.nth_error (tc_label C) i with
+      | Some xx => type_update ts (to_ct_list xx) (CT_top_type [::])
+      | None => CT_bot (* Isa mismatch *)
+      end
+    else CT_bot
+  | Br_if i =>
+    if i < length (tc_label C)
+    then
+      match List.nth_error (tc_label C) i with
+      | Some xx => type_update ts (to_ct_list (xx ++ [::T_i32])) (CT_type xx)
+      | None => CT_bot (* Isa mismatch *)
+      end
+    else CT_bot
+  | Br_table iss i =>
+    match same_lab (iss ++ [::i]) (tc_label C) with
+    | None => CT_bot
+    | Some tls => type_update ts (to_ct_list (tls ++ [::T_i32])) (CT_top_type [::])
+    end
+  | Return =>
+    match tc_return C with
+    | None => CT_bot
+    | Some tls => type_update ts (to_ct_list tls) (CT_top_type [::])
+    end
+  | Call i =>
+    if i < length (tc_func_t C)
+    then
+      match List.nth_error (tc_func_t C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some (Tf tn tm) =>
+        type_update ts (to_ct_list tn) (CT_type tm)
+      end
+    else CT_bot
+  | Call_indirect i =>
+    if (tc_table C != None) && (i < length (tc_types_t C))
+    then
+      match List.nth_error (tc_func_t C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some (Tf tn tm) =>
+        type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
+      end
+    else CT_bot
+  | Get_local i =>
+    if i < length (tc_func_t C)
+    then
+      match List.nth_error (tc_local C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some xx => type_update ts [::] (CT_type [::xx])
+      end
+    else CT_bot
+  | Set_local i =>
+    if i < length (tc_local C)
+    then
+      match List.nth_error (tc_local C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some xx => type_update ts [::CTA_some xx] (CT_type [::])
+      end
+    else CT_bot
+  | Tee_local i =>
+    if i < length (tc_local C)
+    then
+      match List.nth_error (tc_local C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some xx => type_update ts [::CTA_some xx] (CT_type [::xx])
+      end
+    else CT_bot
+  | Get_global i =>
+    if i < length (tc_global C)
+    then
+      match List.nth_error (tc_global C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some xx => type_update ts [::] (CT_type [::tg_t xx])
+      end
+    else CT_bot
+  | Set_global i =>
+    if i < length (tc_global C)
+    then
+      match List.nth_error (tc_global C) i with
+      | None => CT_bot (* Isa mismatch *)
+      | Some xx =>
+        if is_mut xx
+        then type_update ts [::CTA_some (tg_t xx)] (CT_type [::])
+        else CT_bot
+      end
+    else CT_bot
+  | Load t tp_sx a off =>
+    if (tc_memory C != None) && load_store_t_bounds a (option_projl tp_sx) t
+    then type_update ts [::CTA_some T_i32] (CT_type [::t])
+    else CT_bot
+  | Store t tp a off =>
+    if (tc_memory C != None) && load_store_t_bounds a tp t
+    then type_update ts [::CTA_some T_i32; CTA_some t] (CT_type [::])
+    else CT_bot
+  | Current_memory =>
+    if tc_memory C != None
+    then type_update ts [::] (CT_type [::T_i32])
+    else CT_bot
+  | Grow_memory =>
+    if tc_memory C != None
+    then type_update ts [::CTA_some T_i32] (CT_type [::T_i32])
+    else CT_bot
+  end.
+
+(* TODO: try to avoid repetition *)
+Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
+  match es with
+  | [::] => ts
+  | e :: es' =>
+    match ts with
+    | CT_bot => CT_bot
+    | _ => check C es' (check_single C e ts)
+    end
+  end.
+
+(* TODO: try to avoid repetition *)
+Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+  match tf with
+  | Tf tn tm => c_types_agree (check C es (CT_type tn)) tm
+  end.
+
+Definition cl_type_check (S : s_context) (cl : function_closure) : bool :=
+  match cl with
+  | Func_native i tf ts es =>
+    match tf with
+    | Tf t1s t2s =>
+      (i < length (sc_inst S))
+        && match List.nth_error (sc_inst S) i with
+           | Some C =>
+             let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
+             b_e_type_checker C' es (Tf [::] t2s)
+           | None => false
+        end
+(*| cl_typing_native : forall i S C ts t1s t2s es tf,*)
+    end
+  | Func_host tf h => true
   end.
 
 Inductive e_typing : s_context -> t_context -> list administrative_instruction -> function_type -> Prop :=
@@ -1453,6 +1769,11 @@ Inductive config_typing : nat -> store_record -> list value -> list administrati
   s_typing S None i vs es ts ->
   config_typing i s vs es ts.
 
+End Type_checking.
+
+
+Module Opsem.
+
 Inductive reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
 (* unop *)
 | rs_unop_i32 :
@@ -1488,14 +1809,12 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
   forall c1 c2 c fop,
   @app_binop_f f32_t fop c1 c2 = Some c ->
   reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 c))]
-| rs_binop_f32_failure :
-  forall c1 c2 fop,
-  @app_binop_f f32_t fop c1 c2 = None ->
-  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Trap]
-| rs_binop_f64_success :
-  forall c1 c2 c fop,
-  @app_binop_f f64_t fop c1 c2 = Some c ->
-  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 c))]
+| rs_binop_f32_failure : forall c1 c2 fop,
+    @app_binop_f f32_t fop c1 c2 = None ->
+    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Trap]
+| rs_binop_f64_success : forall c1 c2 c fop,
+    @app_binop_f f64_t fop c1 c2 = Some c ->
+    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 c))]
 | rs_binop_f64_failure :
   forall c1 c2 fop,
   @app_binop_f f64_t fop c1 c2 = None ->
@@ -1778,6 +2097,559 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es']
 .
 
-End Type_checking.
+End Opsem.
+
+Module Interpreter.
+
+  Inductive res_crash : Type :=
+  | C_error : res_crash
+  | C_exhaustion : res_crash.
+
+  Inductive res : Type :=
+  | R_crash : res_crash -> res
+  | R_trap : res
+  | R_value : list value -> res.
+
+  Inductive res_step : Type :=
+  | RS_crash : res_crash -> res_step
+  | RS_break : nat -> list value -> res_step
+  | RS_return : list value -> res_step
+  | RS_normal : list administrative_instruction -> res_step.
+
+  Definition crash_error := RS_crash C_error.
+
+  Definition depth := nat.
+
+  Definition fuel := nat.
+
+  Definition config_tuple := ((store_record * list value * list administrative_instruction) % type).
+
+  Definition config_one_tuple_without_e := (store_record * list value * list value) % type.
+
+  Definition res_tuple := (store_record * list value * res_step) % type.
+
+  Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction)) % type :=
+    match es with
+    | (EConst v) :: es' =>
+      let (vs', es'') := split_vals es' in
+      (v :: vs', es'')
+    | _ => ([::], es)
+    end.
+
+  Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction)) % type :=
+    match es with
+    | (Basic (EConst v)) :: es' =>
+      let (vs', es'') := split_vals_e es' in
+      (v :: vs', es'')
+    | _ => ([::], es)
+    end.
+
+  Fixpoint split_n (es : list value) (n : nat) : ((list value) * (list value)) % type :=
+    match (es, n) with
+    | ([::], _) => ([::], [::])
+    | (_, 0) => ([::], es)
+    | (e :: esX, n.+1) =>
+      let (es', es'') := split_n esX n in
+      (e :: es', es'')
+    end.
+
+  Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
+    match ao with
+    | Some a => f a
+    | None => b
+    end.
+
+  Definition vs_to_es (vs : list value) : list administrative_instruction :=
+    v_to_e_list (rev vs).
+
+  Definition e_is_trap (e : administrative_instruction) : bool :=
+    match e with
+    | Trap => true
+    | _ => false
+    end.
+
+  Lemma foo : forall e, reflect (e = Trap) (e_is_trap e).
+  Proof.
+    case => /=;
+              try
+                by (intros; apply: ReflectF).
+    by apply: ReflectT.
+  Qed.
+
+  Definition es_is_trap (es : list administrative_instruction) : bool :=
+    match es with
+    | e :: _ => e_is_trap e
+    | [::] => false
+    end.
+
+  Variable mem_grow_impl : mem -> nat -> option mem.
+  Axiom mem_grow_impl_correct :
+    forall m n m',
+      mem_grow_impl m n = Some m' ->
+      mem_grow m n = m'.
+
+  Variable host_apply_impl : store_record -> function_type -> host -> list value -> option (store_record * list value).
+  Axiom host_apply_impl_correct :
+    forall s tf h vs m',
+    host_apply_impl s tf h vs = Some m' ->
+    exists hs, host_apply s tf h vs hs = Some m'.
+
+  Fixpoint run_one_step (d : depth) (i : nat) (tt : config_one_tuple_without_e) (e : administrative_instruction) {struct d} : res_tuple :=
+    let run_step :=
+        fix run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
+          match tt with
+          | (s, vs, es) =>
+            let (ves, es') := split_vals_e es in
+            match es' with
+            | [::] => (s, vs, crash_error)
+            | e :: es'' =>
+              if e_is_trap e
+              then
+                (if (es'' != [::]) || (ves != [::])
+                 then (s, vs, RS_normal [::Trap])
+                 else (s, vs, crash_error))
+              else
+                (let '(s', vs', r) := run_one_step d i (s, vs, (rev ves)) e in
+                 match r with
+                 | RS_normal res => (s', vs', RS_normal (res ++ es''))
+                 | _ => (s', vs', r)
+                 end)
+            end
+          end
+    in
+    match tt with
+    | (s, vs, ves) =>
+      match e with
+      (* unop *)
+      | Basic (Unop_i T_i32 iop) =>
+        match ves with
+        | (ConstInt32 c) :: ves' =>
+          (s, vs, RS_normal (vs_to_es ((ConstInt32 (@app_unop_i i32_t iop c)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Unop_i T_i64 iop) =>
+        match ves with
+        | (ConstInt64 c) :: ves' =>
+          (s, vs, RS_normal (vs_to_es ((ConstInt64 (@app_unop_i i64_t iop c)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Unop_i _ _) => (s, vs, crash_error)
+      | Basic (Unop_f T_f32 iop) =>
+        match ves with
+        | (ConstFloat32 c) :: ves' =>
+          (s, vs, RS_normal (vs_to_es ((ConstFloat32 (@app_unop_f f32_t iop c)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Unop_f T_f64 iop) =>
+        match ves with
+        | (ConstFloat64 c) :: ves' =>
+          (s, vs, RS_normal (vs_to_es ((ConstFloat64 (@app_unop_f f64_t iop c)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Unop_f _ _) => (s, vs, crash_error)
+      (* binop *)
+      | Basic (Binop_i T_i32 iop) =>
+        match ves with
+        | (ConstInt32 c2) :: (ConstInt32 c1) :: ves' =>
+          expect (@app_binop_i i32_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Binop_i T_i64 iop) =>
+        match ves with
+        | (ConstInt64 c2) :: (ConstInt64 c1) :: ves' =>
+          expect (@app_binop_i i64_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Binop_i _ _) => (s, vs, crash_error)
+      | Basic (Binop_f T_i32 iop) =>
+        match ves with
+        | (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' =>
+          expect (@app_binop_f f32_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Binop_f T_i64 iop) =>
+        match ves with
+        | (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' =>
+          expect (@app_binop_f f64_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Binop_f _ _) => (s, vs, crash_error)
+      (* testops *)
+      | Basic (Testop T_i32 testop) =>
+        match ves with
+        | (ConstInt32 c) :: ves' =>
+          (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i32_t testop c))) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Testop T_i64 testop) =>
+        match ves with
+        | (ConstInt64 c) :: ves' =>
+          (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i64_t testop c))) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Testop _ _) => (s, vs, crash_error)
+      (* relops *)
+      | Basic (Relop_i T_i32 iop) =>
+        match ves with
+        | (ConstInt32 c2) :: (ConstInt32 c1) :: ves' =>
+          (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i32_t iop c1 c2)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Relop_i T_i64 iop) =>
+        match ves with
+        | (ConstInt64 c2) :: (ConstInt64 c1) :: ves' =>
+          (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i64_t iop c1 c2)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Relop_i _ _) => (s, vs, crash_error)
+      | Basic (Relop_f T_i32 iop) =>
+        match ves with
+        | (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' =>
+          (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f32_t iop c1 c2)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Relop_f T_i64 iop) =>
+        match ves with
+        | (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' =>
+          (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f64_t iop c1 c2)) :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Relop_f _ _) => (s, vs, crash_error)
+      (* convert *)
+      | Basic (Cvtop t2 Convert t1 sx) =>
+        match ves with
+        | v :: ves' =>
+          if types_agree t1 v
+          then expect (cvt t2 sx v) (fun v' => (s, vs, RS_normal (vs_to_es (v' :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+          else (s, vs, crash_error)
+        | [::] => (s, vs, crash_error)
+        end
+      | Basic (Cvtop t2 Reinterpret t1 sx) =>
+        match ves with
+        | v :: ves' =>
+          if types_agree t1 v && (sx == None)
+          then (s, vs, RS_normal (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))
+          else (s, vs, crash_error)
+        | [::] => (s, vs, crash_error)
+        end
+      (**)
+      | Basic Unreachable => (s, vs, RS_normal ((vs_to_es ves) ++ [::Trap]))
+      | Basic Nop => (s, vs, RS_normal (vs_to_es ves))
+      | Basic Drop =>
+        match ves with
+        | v :: ves' => (s, vs, RS_normal (vs_to_es ves'))
+        | [::] => (s, vs, crash_error)
+        end
+      | Basic Select =>
+        match ves with
+        | (ConstInt32 c) :: v2 :: v1 :: ves' =>
+          if c == Wasm_int.int_zero (Wasm_int.mixin i32_r)
+          then (s, vs, RS_normal (vs_to_es (v2 :: ves')))
+          else (s, vs, RS_normal (vs_to_es (v1 :: ves')))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Block (Tf t1s t2s) es) =>
+        if length ves >= length t1s
+        then
+          let (ves', ves'')  := split_n ves (length t1s) in
+          (s, vs, RS_normal (vs_to_es ves'' ++ [::Label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
+        else (s, vs, crash_error)
+      | Basic (Loop (Tf t1s t2s) es) =>
+        if length ves >= length t1s
+        then
+          let (ves', ves'') := split_n ves (length t1s) in
+          (s, vs, RS_normal (vs_to_es ves'' ++ [::Label (length t1s) [::Basic (Loop (Tf t1s t2s) es)] (vs_to_es ves' ++ to_e_list es)]))
+        else (s, vs, crash_error)
+      | Basic (If tf es1 es2) =>
+        match ves with
+        | ConstInt32 c :: ves' =>
+          if c == Wasm_int.int_zero (Wasm_int.mixin i32_r)
+          then (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es2)]))
+          else (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es1)]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Br j) => (s, vs, RS_break j ves)
+      | Basic (Br_if j) =>
+        match ves with
+        | ConstInt32 c :: ves' =>
+          if c == Wasm_int.int_zero (Wasm_int.mixin i32_r)
+          then (s, vs, RS_normal (vs_to_es ves'))
+          else (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Br_table js j) =>
+        match ves with
+        | ConstInt32 c :: ves' =>
+          let k := Wasm_int.nat_of_int (Wasm_int.mixin i32_r) c in
+          if k < length js
+          then
+            match List.nth_error js k with
+            | Some js_at_k => (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br js_at_k)]))
+            | None => (s, vs, crash_error) (* Isa mismatch *)
+            end
+          else (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Call j) =>
+        match sfunc s i j with
+        | Some sfunc_i_j =>
+          (s, vs, RS_normal (vs_to_es ves ++ [::Callcl sfunc_i_j]))
+        | None => (s, vs, crash_error) (* Isa mismatch *)
+        end
+      | Basic (Call_indirect j) =>
+        match ves with
+        | ConstInt32 c :: ves' =>
+          match stab s i (Wasm_int.nat_of_int (Wasm_int.mixin i32_r) c) with
+          | Some cl =>
+            if stypes s i j == Some (cl_type cl)
+            then (s, vs, RS_normal (vs_to_es ves' ++ [::Callcl cl]))
+            else (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
+          | None => (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
+          end
+        | _ => (s, vs, crash_error)
+        end
+      | Basic Return => (s, vs, RS_return ves)
+      | Basic (Get_local j) =>
+        if j < length vs
+        then
+          match List.nth_error vs j with
+          | Some vs_at_j =>(s, vs, RS_normal (vs_to_es (vs_at_j :: ves)))
+          | None => (s, vs, crash_error) (* Isa mismatch *)
+          end
+        else (s, vs, crash_error)
+      | Basic (Set_local j) =>
+        match ves with
+        | v :: ves' =>
+          if j < length vs
+          then (s, update_list_at vs j v, RS_normal (vs_to_es ves'))
+          else (s, vs, crash_error)
+        | [::] => (s, vs, crash_error)
+        end
+      | Basic (Tee_local j) =>
+        match ves with
+        | v :: ves' =>
+          (s, vs, RS_normal (vs_to_es (v :: ves) ++ [::Basic (Set_local j)]))
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Get_global j) =>
+        match sglob_val s i j with
+        | Some xx => (s, vs, RS_normal (vs_to_es (xx :: ves)))
+        | None => (s, vs, crash_error) (* Isa mismatch *)
+        end
+      | Basic (Set_global j) =>
+        match ves with
+        | v :: ves' =>
+          match supdate_glob s i j v with
+          | Some xx =>
+            (xx, vs, RS_normal (vs_to_es ves'))
+          | None => (s, vs, crash_error)
+          end
+        | [::] => (s, vs, crash_error)
+        end
+      | Basic (Load t None a off) =>
+        match ves with
+        | ConstInt32 k :: ves' =>
+          expect
+            (smem_ind s i)
+            (fun j =>
+               match List.nth_error (s_mem s) j with
+               | Some mem_s_j =>
+                 expect
+                   (load (mem_s_j) (Wasm_int.nat_of_int (Wasm_int.mixin i32_r) k) off (t_length t))
+                   (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
+                   (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
+               | None => (s, vs, crash_error) (* Isa mismatch *)
+               end)
+            (s, vs, crash_error)
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Load t (Some (tp, sx)) a off) =>
+        match ves with
+        | ConstInt32 k :: ves' =>
+          expect
+            (smem_ind s i)
+            (fun j =>
+               match List.nth_error (s_mem s) j with
+               | Some mem_s_j =>
+                 expect
+                   (load_packed sx (mem_s_j) (Wasm_int.nat_of_int (Wasm_int.mixin i32_r) k) off (tp_length tp) (t_length t))
+                   (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
+                   (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
+               | None => (s, vs, crash_error) (* Isa mismatch *)
+               end)
+            (s, vs, crash_error)
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Store t None a off) =>
+        match ves with
+        | v :: ConstInt32 k :: ves' =>
+          if types_agree t v
+          then
+            expect
+              (smem_ind s i)
+              (fun j =>
+                 match List.nth_error (s_mem s) j with
+                 | Some mem_s_j =>
+                   expect
+                     (store mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin i32_r) k) off (bits v) (t_length t))
+                     (fun mem' =>
+                        (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
+                     (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
+                 | None => (s, vs, crash_error) (* Isa mismatch *)
+                 end)
+              (s, vs, crash_error)
+          else (s, vs, crash_error)
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (Store t (Some tp) a off) =>
+        match ves with
+        | v :: ConstInt32 k :: ves' =>
+          if types_agree t v
+          then
+            expect
+              (smem_ind s i)
+              (fun j =>
+                 match List.nth_error (s_mem s) j with
+                 | Some mem_s_j =>
+                   expect
+                     (store_packed mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin i32_r) k) off (bits v) (tp_length tp))
+                     (fun mem' =>
+                        (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
+                     (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
+                 | None => (s, vs, crash_error) (* Isa mismatch *)
+                 end)
+              (s, vs, crash_error)
+          else (s, vs, crash_error)
+        | _ => (s, vs, crash_error)
+        end
+      | Basic Current_memory =>
+        expect
+          (smem_ind s i)
+          (fun j =>
+             match List.nth_error (s_mem s) j with
+             | Some s_mem_s_j =>
+               (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin i32_r) (mem_size s_mem_s_j)) :: ves)))
+             | None =>
+               (s, vs, crash_error) (* Isa mismatch *)
+             end)
+          (s, vs, crash_error)
+      | Basic Grow_memory =>
+        match ves with
+        | ConstInt32 c :: ves' =>
+          expect
+            (smem_ind s i)
+            (fun j =>
+               match List.nth_error (s_mem s) j with
+               | Some s_mem_s_j =>
+                 let l := mem_size s_mem_s_j in
+                 expect
+                   (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin i32_r) c))
+                   (fun mem' =>
+                      (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin i32_r) l) :: ves')))
+                   )
+                   (s, vs, crash_error)
+               | None => (s, vs, crash_error) (* Isa mismatch *)
+               end)
+            (s, vs, crash_error)
+        | _ => (s, vs, crash_error)
+        end
+      | Basic (EConst _) => (s, vs, crash_error)
+      | Callcl cl =>
+        match cl with
+        | Func_native i' (Tf t1s t2s) ts es =>
+          let n := length t1s in
+          let m := length t2s in
+          if length ves >= n
+          then
+            let (ves', ves'') := split_n ves n in
+            let zs := n_zeros ts in
+            (s, vs, RS_normal (vs_to_es ves'' ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
+          else (s, vs, crash_error)
+        | Func_host (Tf t1s t2s) f =>
+          let n := length t1s in
+          let m := length t2s in
+          if length ves >= n
+          then
+            let (ves', ves'') := split_n ves n in
+            match host_apply_impl s (Tf t1s t2s) f (rev ves') with
+            | Some (s', rves) =>
+              if all2 types_agree t2s rves
+              then (s', vs, RS_normal (vs_to_es ves'' ++ v_to_e_list rves))
+              else (s, vs, crash_error)
+            | None => (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
+            end
+          else (s, vs, crash_error)
+        end
+      | Label ln les es =>
+        if es_is_trap es
+        then (s, vs, RS_normal (vs_to_es ves ++ [::Trap]))
+        else
+          if const_list es
+          then (s, vs, RS_normal (vs_to_es ves ++ es))
+          else
+            let '(s', vs', res) := run_step d i (s, vs, es) in
+            match res with
+            | RS_break 0 bvs =>
+              if length bvs >= ln
+              then (s', vs', RS_normal ((vs_to_es ((List.firstn ln bvs) ++ ves)) ++ les))
+              else (s', vs', crash_error)
+            | RS_break (n.+1) bvs => (s', vs', RS_break n bvs)
+            | RS_return rvs => (s', vs', RS_return rvs)
+            | RS_normal es' =>
+              (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
+            | _ => (s', vs', crash_error)
+            end
+      | Local ln j vls es =>
+        if es_is_trap es
+        then (s, vs, RS_normal (vs_to_es ves ++ [::Trap]))
+        else
+          if const_list es
+          then
+            (if length es == ln
+             then (s, vs, RS_normal (vs_to_es ves ++ es))
+             else (s, vs, crash_error))
+          else
+            match d with
+            | 0 => (s, vs, crash_error)
+            | d'.+1 =>
+              let '(s', vls', res) := run_step d' j (s, vls, es) in
+              match res with
+              | RS_return rvs =>
+                if length rvs >= ln
+                then (s', vs, RS_normal (vs_to_es (List.firstn ln rvs ++ ves)))
+                else (s', vs, crash_error)
+              | RS_normal es' =>
+                (s', vs, RS_normal (vs_to_es ves ++ [::Local ln j vls' es']))
+              | _ => (s', vs, RS_crash C_exhaustion)
+              end
+            end
+      | Trap => (s, vs, crash_error)
+      end
+    end.
+
+  
+  (* TODO: avoid repetition *)
+  Fixpoint run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
+    match tt with
+    | (s, vs, es) =>
+      let (ves, es') := split_vals_e es in
+      match es' with
+      | [::] => (s, vs, crash_error)
+      | e :: es'' =>
+        if e_is_trap e
+        then
+          (if (es'' != [::]) || (ves != [::])
+           then (s, vs, RS_normal [::Trap])
+           else (s, vs, crash_error))
+        else
+          (let '(s', vs', r) := run_one_step d i (s, vs, (rev ves), e) in
+           match r with
+           | RS_normal res => (s', vs', RS_normal (res ++ es''))
+           | _ => (s', vs', r)
+           end)
+      end
+    end.
+  
+End Interpreter.
 
 End Wasm.
