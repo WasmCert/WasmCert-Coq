@@ -2194,7 +2194,7 @@ Module Interpreter.
     host_apply_impl s tf h vs = Some m' ->
     exists hs, host_apply s tf h vs hs = Some m'.
 
-  Fixpoint run_one_step (d : depth) (i : nat) (tt : config_one_tuple_without_e) (e : administrative_instruction) {struct d} : res_tuple :=
+  Fixpoint run_one_step (d : depth) (i : nat) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
     let run_step :=
         fix run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
           match tt with
@@ -2587,17 +2587,21 @@ Module Interpreter.
           if const_list es
           then (s, vs, RS_normal (vs_to_es ves ++ es))
           else
-            let '(s', vs', res) := run_step d i (s, vs, es) in
-            match res with
-            | RS_break 0 bvs =>
-              if length bvs >= ln
-              then (s', vs', RS_normal ((vs_to_es ((List.firstn ln bvs) ++ ves)) ++ les))
-              else (s', vs', crash_error)
-            | RS_break (n.+1) bvs => (s', vs', RS_break n bvs)
-            | RS_return rvs => (s', vs', RS_return rvs)
-            | RS_normal es' =>
-              (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
-            | _ => (s', vs', crash_error)
+            match d with
+            | 0 => (s, vs, crash_error)
+            | d'.+1 => (* TODO: we diverge from the Isabelle model here, which does not take a step *)
+              let '(s', vs', res) := run_step d' i (s, vs, es) in
+              match res with
+              | RS_break 0 bvs =>
+                if length bvs >= ln
+                then (s', vs', RS_normal ((vs_to_es ((List.firstn ln bvs) ++ ves)) ++ les))
+                else (s', vs', crash_error)
+              | RS_break (n.+1) bvs => (s', vs', RS_break n bvs)
+              | RS_return rvs => (s', vs', RS_return rvs)
+              | RS_normal es' =>
+                (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
+              | _ => (s', vs', crash_error)
+              end
             end
       | Local ln j vls es =>
         if es_is_trap es
@@ -2626,7 +2630,6 @@ Module Interpreter.
       | Trap => (s, vs, crash_error)
       end
     end.
-
   
   (* TODO: avoid repetition *)
   Fixpoint run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
@@ -2642,11 +2645,32 @@ Module Interpreter.
            then (s, vs, RS_normal [::Trap])
            else (s, vs, crash_error))
         else
-          (let '(s', vs', r) := run_one_step d i (s, vs, (rev ves), e) in
+          (let '(s', vs', r) := run_one_step d i (s, vs, (rev ves)) e in
            match r with
            | RS_normal res => (s', vs', RS_normal (res ++ es''))
            | _ => (s', vs', r)
            end)
+      end
+    end.
+
+  Fixpoint run_v (n : fuel) (d : depth) (i : nat) (tt : config_tuple) : ((store_record * res) % type) :=
+    match tt with
+    | (s, vs, es) =>
+      match n with
+      | 0 => (s, R_crash C_exhaustion)
+      | n'.+1 =>
+        if es_is_trap es
+        then (s, R_trap)
+        else
+          if const_list es
+          then (s, R_value (fst (split_vals_e es)))
+          else
+            let '(s', vs', res) := run_step d i (s, vs, es) in
+            match res with
+            | RS_normal es' => run_v n' d i (s', vs', es')
+            | RS_crash error => (s, R_crash error)
+            | _ => (s, R_crash C_error)
+            end
       end
     end.
   
