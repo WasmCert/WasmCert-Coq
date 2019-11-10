@@ -9,15 +9,20 @@ Unset Printing Implicit Defensive.
 Require Import wasm wasm_opsem wasm_interpreter.
 
 Definition expr := list administrative_instruction.
-Definition val := value.
+Definition val := list value.
 Definition state := store_record.
 Definition observation := unit. (* TODO: maybe change? *)
 
-Definition of_val (v : val) : expr := [Basic (EConst v)].
+Definition of_val (v : val) : expr := map (fun v => Basic (EConst v)) v.
 
-Definition to_val (e : expr) : option val :=
+Fixpoint to_val (e : expr) : option val :=
   match e with
-  | [Basic (EConst v)] => Some v
+  | [::] => Some [::]
+  | Basic (EConst v) :: e' =>
+    match to_val e' with
+    | Some v' => Some (v :: v')
+    | None => None
+    end
   | _ => None
   end.
 
@@ -28,21 +33,59 @@ Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) 
     reduce s vs es i s' vs' es' /\ os = [] /\ fork_es' = [].
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
-Proof. by destruct v. Qed.
+Proof.
+  move: v.
+  elim => //=.
+  move => v0 v IH.
+  by rewrite IH.
+Qed.
 
+Definition is_none_or {A : Type} (p : A -> bool) (x : option A) : bool :=
+  match x with
+  | None => true
+  | Some y => p y
+  end.
+
+Lemma to_val_cons_is_none_or_cons : forall e0 e r, to_val (e0 :: e)%SEQ = r -> is_none_or (fun l => l != []) r.
+Proof.
+  move => e0 e.
+  rewrite /=.
+  case.
+  { rewrite /=.
+    case: e0 => //=.
+    case => //=.
+    move => v0 v.
+    case: (to_val e) => //=.
+    move => a H.
+    case: v H => //=. }
+  { case: e0 => //=. }
+Qed.
 
 Lemma of_to_val e v : to_val e = Some v → of_val v = e.
 Proof.
   move: e v.
-  case => //=.
-  case => //=.
-  case => //=.
-  move => v.
-  case => //=.
-  move => v' H.
-  injection H => {H} H.
-  rewrite H {H v}.
-  done.
+  elim.
+  { move => v /= H.
+    injection H => {H} H2.
+      by rewrite -H2. }
+  { move => e0 e IH.
+    case.
+    { move => {IH} H.
+      exfalso.
+      move: (to_val_cons_is_none_or_cons H) => {H} H.
+      discriminate H. }
+    { move => v0 v.
+      case: e0 => //=.
+      case => //=.
+      move => v1.
+      case_eq (to_val e) => //=.
+      move => v' Hve H.
+      injection H => {H} Hv' Hv1.
+      rewrite Hv' in Hve => {v' Hv'}.
+      rewrite Hv1 => {v1 Hv1}.
+      rewrite (IH _ Hve) => {IH Hve}.
+      done. }
+  }
 Qed.
 
 Lemma split_vals_not_empty_res : forall es v vs es', split_vals_e es = (v :: vs, es') -> es <> [].
@@ -50,15 +93,19 @@ Proof.
   case => //=.
 Qed.
 
-Lemma foo : forall e1 es, split_vals_e e1 = ([], es) -> to_val e1 = None.
+Lemma foo : forall e1 e es vs, split_vals_e e1 = (vs, e :: es) -> to_val e1 = None.
 Proof.
-  case => //=.
-  case => //=.
-  case => //=.
-  move => v es1 es2.
-  case: (split_vals_e es1).
-  move => a b H.
-  discriminate H.
+  elim; first done.
+  case; try done.
+  case; try done.
+  move => v es1 IH e es vs H.
+  rewrite /= in H.
+  move: vs H.
+  case_eq (split_vals_e es1) => x xs H1 H2 [H3 H4].
+  rewrite /=.
+  rewrite H4 in H1.
+  rewrite (IH _ _ _ H1).
+  done.
 Qed.
 
 Lemma foo3 : forall T xs y ys,
@@ -207,20 +254,16 @@ Proof.
   rewrite /prim_step.
   case_eq (split_vals_e e1) => vs es H.
   case_eq (split_vals_e e2) => vs' es' _ [i [Hred _]].
-  case: es H Hred.
-  { move => _ Hred.
+  move: vs vs' es' H Hred.
+  elim: es.
+  { move => vs vs' es' _ Hred.
     exfalso.
     apply: foo4.
     apply: Hred.
     done. }
-  { move => e es H1 _ {i vs' es' e2 efs}.
-    case: e1 H1 => //=.
-    move => e' es'.
-    case e' => //=.
-    move => b.
-    case b => //=.
-    move => v.
-    case es' => //=. }
+  { move => e es _ vs vs' _ H1 _ {e2 efs}.
+    apply: foo.
+    apply: H1. }
 Qed.
 
 Lemma wasm_mixin : LanguageMixin of_val to_val prim_step.
