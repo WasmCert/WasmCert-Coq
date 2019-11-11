@@ -1,0 +1,34 @@
+{
+  "name": "wasm_coq",
+  "version": "1.0",
+  "description": "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt",
+  "license": "CeCILL-B",
+  "esy": {
+    "build": "dune build @all",
+    "buildsInSource": "_build"
+  },
+  "dependencies": {
+    "@opam/menhir": "*",
+    "@opam/dune": "*",
+    "@opam/coq": "8.10.1",
+    "@opam/coq-mathcomp-ssreflect": "*"
+  },
+  "resolutions": {
+    "@opam/coq-mathcomp-ssreflect": {
+      "source": "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39",
+      "override": {
+        "dependencies": {
+          "@opam/coq": "8.10.1"
+        },
+        "buildEnv": {
+          "COQBIN": "#{@opam/coq.bin}/"
+        },
+        "build": [
+          ["make", "-C", "mathcomp", "-j", "3"],
+          ["make", "-C", "mathcomp", "install"]
+        ]
+      }
+    }
+  }
+}
+
