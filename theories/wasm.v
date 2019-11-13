@@ -7,6 +7,7 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
+Require Import ZArith.Int.
 
 From mathcomp
 Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -59,10 +60,25 @@ Record mixin_of (int_t : Type) := Mixin {
 Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
 Local Coercion base : class_of >-> Equality.class_of.
 
-Structure type := Pack {sort; _ : class_of sort}.
+Structure type := Pack {sort : Type; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
-Variables (T : Type) (cT : type).
+Definition T := Z_as_Int.t. (* Is it this, or the ones that are less than a given value? *)
+
+Definition Tmixin : mixin_of T.
+  refine {|
+     int_zero := Z_as_Int._0 ;
+     int_add := Z_as_Int.add ;
+     int_sub := Z_as_Int.sub ;
+     int_mul := Z_as_Int.mul ;
+     int_eq := Z_as_Int.eqb
+   |}.
+Admitted. (* TODO *)
+
+Definition cT : type.
+  refine (@Pack T {| mixin := Tmixin |}).
+Admitted.
+
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
 Let xT := let: Pack T _ := cT in T.

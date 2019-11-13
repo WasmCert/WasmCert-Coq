@@ -11,7 +11,8 @@
     "@opam/menhir": "*",
     "@opam/dune": "*",
     "@opam/coq": "8.10.1",
-    "@opam/coq-mathcomp-ssreflect": "*"
+    "@opam/coq-mathcomp-ssreflect": "*",
+    "coq-flocq": "*"
   },
   "resolutions": {
     "@opam/coq-mathcomp-ssreflect": {
@@ -28,6 +29,23 @@
           ["make", "-C", "mathcomp", "install"]
         ]
       }
+    },
+    "coq-flocq": {
+      "source": "git:git@gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
+      "override": {
+         "dependencies": {
+            "@opam/coq": "8.10.1"
+          },
+        "buildEnv": {
+          "COQBIN": "#{@opam/coq.bin}"
+        },
+        "build": [
+            ["./autogen.sh"],
+            ["./configure"],
+            ["./remake", "--jobs=2"],
+            ["./remake", "install"]
+          ]
+        }
     }
   }
 }

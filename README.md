@@ -2,3 +2,12 @@
 Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt.
 
 (C) J. Pichon 2019 - see LICENSE.txt
+
+Usage: `esy` to install the dependencies and compile everything.
+
+Installing `esy` itself can look like something like that:
+```bash
+sudo apt install npm
+npm install --global esy
+```
+
