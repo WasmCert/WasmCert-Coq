@@ -1,3 +1,4 @@
+From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre.
 Require Export wasm_iris.
@@ -41,8 +42,39 @@ Definition my_add : wasm_iris.expr :=
      Basic (EConst (xx 2));
      Basic (Binop_i T_i32 Add)].
 
-(* problem here :-( *)
-Lemma myadd_spec `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) (v : val) :
-  WP my_add @ s;E {{ fun v => exists v', v = xx 5 :: v' }}%I.
+Lemma wp_nil `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
+  Φ -∗ WP ([] : wasm_iris.expr) @ s ; E {{ fun v => Φ }}%I.
+Proof.
+  iIntros "H".
+  
+Qed.
+
+Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es1 es2 : wasm_iris.expr) :
+  WP (es2 : wasm_iris.expr) @ s ; E {{ fun v => WP (es1 : wasm_iris.expr) @ s ; E {{ fun v' => Φ (v ++ v') }}%I }}%I -∗ WP ((es1 ++ es2) : wasm_iris.expr) @ s ; E {{ Φ }}%I.
+Proof.
+  elim: es1.
+  { iIntros "H".
+    iSimpl.
+    admit. }
+  { move => e es H.
+    iIntros "H".
+    iSimpl.
+    iSimpl "H".
+Qed.
+
+Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : wasm.value) (es : wasm_iris.expr) (v : val) :
+  WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I -∗ WP (((Basic (EConst v0)) :: es) : wasm_iris.expr) @ s ; E {{ v, Φ v }}%I.
 Proof.
 Qed.
+
+Lemma myadd_spec `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : val) :
+  (Φ (xx 5 :: v)) -∗ WP my_add @ s;E {{ Φ }}%I.
+Proof.
+  iIntros "HΦ".
+  unfold my_add.
+
+  iApply wp_value.
+  simpl.
+  iApply.
+Qed.
+  
