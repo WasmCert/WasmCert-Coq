@@ -8,7 +8,7 @@
  *)
 
 Require Import ZArith.Int.
-Require Import Flocq.Appli.Fappli_IEEE Flocq.Appli.Fappli_IEEE_bits.
+From Flocq Require Import Binary Bits Core. (* Flocq.Appli.Fappli_IEEE Flocq.Appli.Fappli_IEEE_bits. *)
 
 From mathcomp
 Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.

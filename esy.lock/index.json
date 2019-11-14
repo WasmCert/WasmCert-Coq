@@ -1,5 +1,5 @@
 {
-  "checksum": "e7f30ec4390ab2264cb852feb177dd95",
+  "checksum": "5eaf96e4f6f2a29f1264dd586f859ddc",
   "root": "wasm_coq@link-dev:./esy.json",
   "node": {
     "wasm_coq@link-dev:./esy.json": {
@@ -9,7 +9,7 @@
       "source": { "type": "link-dev", "path": ".", "manifest": "esy.json" },
       "overrides": [],
       "dependencies": [
-        "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@e5c1503c",
+        "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@40e6b77e",
         "@opam/menhir@opam:20190924@004407ff",
         "@opam/dune@opam:1.11.4@21d66ccd",
         "@opam/coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@6a6ba713",
@@ -31,9 +31,9 @@
       "dependencies": [],
       "devDependencies": []
     },
-    "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@e5c1503c": {
+    "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@40e6b77e": {
       "id":
-        "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@e5c1503c",
+        "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@40e6b77e",
       "name": "coq-flocq",
       "version":
         "git:git@gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
@@ -49,7 +49,10 @@
           "buildEnv": { "COQBIN": "#{@opam/coq.bin}" },
           "build": [
             [ "./autogen.sh" ],
-            [ "./configure" ],
+            [
+              "./configure",
+              "--libdir=#{@opam/coq.lib}/coq/user-contrib/Flocq"
+            ],
             [ "./remake", "--jobs=2" ],
             [ "./remake", "install" ]
           ]
