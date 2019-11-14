@@ -8,7 +8,8 @@
  *)
 
 Require Import ZArith.Int.
-From Flocq Require Import Binary Bits Core. (* Flocq.Appli.Fappli_IEEE Flocq.Appli.Fappli_IEEE_bits. *)
+From Flocq Require Calc Core.
+From compcert Require Integers Floats.
 
 From mathcomp
 Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -54,7 +55,7 @@ Record mixin_of (int_t : Type) := Mixin {
   int_ge_u : int_t -> int_t -> bool;
   int_ge_s : int_t -> int_t -> bool;
   (**)
-  int_of_nat : nat -> int_t; (* TODO: ??? *)
+  int_of_nat : nat -> int_t;
   nat_of_int : int_t -> nat;
 }.
 
@@ -64,21 +65,7 @@ Local Coercion base : class_of >-> Equality.class_of.
 Structure type := Pack {sort : Type; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
-Definition T := Z_as_Int.t. (* Is it this, or the ones that are less than a given value? *)
-
-Definition Tmixin : mixin_of T.
-  refine {|
-     int_zero := Z_as_Int._0 ;
-     int_add := Z_as_Int.add ;
-     int_sub := Z_as_Int.sub ;
-     int_mul := Z_as_Int.mul ;
-     int_eq := Z_as_Int.eqb
-   |}.
-Admitted. (* TODO *)
-
-Definition cT : type.
-  refine (@Pack T {| mixin := Tmixin |}).
-Admitted.
+Parameters (T : Type) (cT : type).
 
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
@@ -131,7 +118,7 @@ Local Coercion base : class_of >->  Equality.class_of.
 Structure type := Pack {sort; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
-Variables (T : Type) (cT : type).
+Parameters (T : Type) (cT : type).
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
 Let xT := let: Pack T _ := cT in T.
@@ -147,6 +134,136 @@ Definition float_ne (e : type) : sort e -> sort e -> bool :=
     fun x => fun y => negb (float_eq x y).
 
 End Wasm_float.
+
+Module Make_Wasm_int (WS: Integers.WORDSIZE).
+
+Import Integers.
+
+Include Make (WS).
+
+Definition T := int.
+
+Definition Tmixin : mixin_of T.
+  refine {|
+     int_zero := zero ;
+     (**)
+     int_add := add ;
+     int_sub := sub ;
+     int_mul := mul ;
+     int_div_u := divu ;
+     int_div_s := divs ;
+     int_rem_u := modu ;
+     int_rem_s := mods ;
+     int_and := and ;
+     int_or := or ;
+     int_xor := xor ;
+     int_shl := shl ;
+     int_shr_u := shru ;
+     int_shr_s := shr ;
+     int_rotl := rol ;
+     int_rotr := ror ;
+     (**)
+     int_eqz := eq zero ;
+     (**)
+     int_eq := eq ;
+     int_lt_u := ltu ;
+     int_lt_s := lt ;
+     int_gt_u x y := ltu y x ;
+     int_gt_s x y := lt y x ;
+     int_le_u x y := negb (ltu y x) ;
+     int_le_s x y := negb (lt y x) ;
+     int_ge_u x y := negb (ltu x y) ;
+     int_ge_s x y := negb (lt x y) ;
+     (**)
+     int_of_nat := Z.of_nat
+   |}.
+Admitted. (* TODO: clz, ctz, popcnt, and nat_of_int *)
+
+Definition cT : type.
+  refine (@Pack T {| mixin := Tmixin |}).
+Admitted. (* TODO *)
+
+End Make_Wasm_int.
+
+Module Wasm_int32.
+Include Make_Wasm_int(Wordsize_32).
+End Wasm_int32.
+
+Module Wasm_int64.
+Include Make_Wasm_int(Wordsize_64).
+End Wasm_int64.
+
+Module Make_Wasm_float32.
+
+Import Calc Core.
+Import Floats.
+
+Include Float.
+
+Definition T := float32.
+
+Definition Tmixin : mixin_of T.
+  refine {|
+      float_zero := zero ;
+      float_neg := neg ;
+      float_abs := abs ;
+      float_ceil := Raux.Zceil ;
+      float_floor := Raux.Zfloor ;
+      float_trunc := Raux.Ztrunc ;
+      float_nearest := Raux.ZnearestE ;
+      float_sqrt := Sqrt.Fsqrt ;
+      float_add := add ;
+      float_sub := sub ;
+      float_mul := mul ;
+      float_div := mul ;
+      float_min x y := if cmp Clt x y then x else y ;
+      float_max := if cmp Cgt x y then x else y ;
+      float_copysign := _ (* TODO *) ;
+      float_eq := cmp Ceq ;
+      float_lt := cmp Clt ;
+      float_gt := cmp Cgt ;
+      float_le := cmp Cle ;
+      float_ge := cmp Cge
+    |}.
+Admitted. (* TODO *)
+
+End Make_Wasm_float32.
+
+Module Make_Wasm_float64.
+
+Import Calc Core.
+Import Floats.
+
+Include Float.
+
+Definition T := float.
+
+Definition Tmixin : mixin_of T.
+  refine {|
+      float_zero := zero ;
+      float_neg := neg ;
+      float_abs := abs ;
+      float_ceil := Raux.Zceil ;
+      float_floor := Raux.Zfloor ;
+      float_trunc := Raux.Ztrunc ;
+      float_nearest := Raux.ZnearestE ;
+      float_sqrt := Sqrt.Fsqrt ;
+      float_add := add ;
+      float_sub := sub ;
+      float_mul := mul ;
+      float_div := mul ;
+      float_min x y := if cmp Clt x y then x else y ;
+      float_max := if cmp Cgt x y then x else y ;
+      float_copysign := _ (* TODO *) ;
+      float_eq := cmp Ceq ;
+      float_lt := cmp Clt ;
+      float_gt := cmp Cgt ;
+      float_le := cmp Cle ;
+      float_ge := cmp Cge
+    |}.
+Admitted. (* TODO *)
+
+End Make_Wasm_float64.
 
 
 Variable host : eqType.
