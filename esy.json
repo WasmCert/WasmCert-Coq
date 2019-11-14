@@ -3,6 +3,10 @@
   "version": "1.0",
   "description": "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt",
   "license": "CeCILL-B",
+  "buildEnv": {
+    "COQBIN": "#{@opam/coq.bin}/",
+    "COQLIB": "#{@opam/coq.lib}/coq/user-contrib/"
+  },
   "esy": {
     "build": "dune build @all",
     "buildsInSource": "_build"
@@ -46,7 +50,8 @@
             ["./remake", "install"]
           ]
         }
-    }
+    },
+    "compcert": "github:Mbodin/CompCert#edda145045463c7fe6d9e316391b275334a51b59"
   }
 }
 

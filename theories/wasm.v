@@ -8,6 +8,7 @@
  *)
 
 Require Import ZArith.Int.
+Require Import Flocq.Appli.Fappli_IEEE Flocq.Appli.Fappli_IEEE_bits.
 
 From mathcomp
 Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -121,7 +122,7 @@ Record mixin_of (float_t : Type) := Mixin {
   float_gt : float_t -> float_t -> bool;
   float_le : float_t -> float_t -> bool;
   float_ge : float_t -> float_t -> bool;
-                                      }.
+}.
 
 
 Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
