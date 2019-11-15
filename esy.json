@@ -17,7 +17,7 @@
     "@opam/coq": "8.10.1",
     "@opam/coq-mathcomp-ssreflect": "*",
     "coq-flocq": "3.2.0",
-    "coq-iris": "*"
+    "coq-iris": "3.2.0"
   },
   "resolutions": {
     "@opam/coq-mathcomp-ssreflect": {
@@ -54,21 +54,10 @@
         }
     },
     "compcert": "github:Mbodin/CompCert#edda145045463c7fe6d9e316391b275334a51b59",
-    "coq-iris": {
-      "source": "git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2",
-      "version": "3.2.0",
-      "override": {
-        "dependencies": {
-          "@opam/coq": "8.10.1",
-          "@opam/coq-stdpp": "*"
-        },
-        "buildEnv": {
-          "COQBIN": "#{@opam/coq.bin}"
-        }
-      }
-    },
+    "coq-iris": "git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2",
     "@opam/coq-stdpp": {
       "source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb",
+      "version": "1.2.1",
       "override": {
         "dependencies": {
           "@opam/coq": "8.10.1",

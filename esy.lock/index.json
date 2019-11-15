@@ -1,5 +1,5 @@
 {
-  "checksum": "f35e824edbf474f226539a633c499070",
+  "checksum": "7e899e12f459b39dbcdb2f15675d2c6f",
   "root": "wasm_coq@link-dev:./esy.json",
   "node": {
     "wasm_coq@link-dev:./esy.json": {
@@ -9,7 +9,7 @@
       "source": { "type": "link-dev", "path": ".", "manifest": "esy.json" },
       "overrides": [],
       "dependencies": [
-        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2@b71610c3",
+        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2@d41d8cd9",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@40e6b77e",
         "@opam/menhir@opam:20190924@004407ff",
         "@opam/dune@opam:1.11.4@21d66ccd",
@@ -32,9 +32,9 @@
       "dependencies": [],
       "devDependencies": []
     },
-    "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2@b71610c3": {
+    "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2@d41d8cd9": {
       "id":
-        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2@b71610c3",
+        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2@d41d8cd9",
       "name": "coq-iris",
       "version":
         "git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2",
@@ -44,12 +44,7 @@
           "git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2"
         ]
       },
-      "overrides": [
-        {
-          "dependencies": { "@opam/coq": "8.10.1", "@opam/coq-stdpp": "*" },
-          "buildEnv": { "COQBIN": "#{@opam/coq.bin}" }
-        }
-      ],
+      "overrides": [],
       "dependencies": [
         "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@b71610c3",
         "@opam/coq@opam:8.10.1@e04e5c77", "@esy-ocaml/substs@0.0.1@d41d8cd9"
