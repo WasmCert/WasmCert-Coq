@@ -36,7 +36,7 @@
       }
     },
     "coq-flocq": {
-      "source": "git:git@gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
+      "source": "git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
       "version": "3.2.0",
       "override": {
         "dependencies": {
@@ -53,9 +53,9 @@
           ]
         }
     },
-    "compcert": "github:Mbodin/CompCert#028741f448013c7a59c9b9fe609797b7e63efbcb",
+    "compcert": "github:Mbodin/CompCert#edda145045463c7fe6d9e316391b275334a51b59",
     "coq-iris": {
-      "source": "git://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2",
+      "source": "git:https://gitlab.mpi-sws.org/iris/iris.git#e1f6efa017c745791718cab075d7170720b5b5b2",
       "version": "3.2.0",
       "override": {
         "dependencies": {
@@ -68,7 +68,7 @@
       }
     },
     "@opam/coq-stdpp": {
-      "source": "git://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb",
+      "source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb",
       "override": {
         "dependencies": {
           "@opam/coq": "8.10.1",
