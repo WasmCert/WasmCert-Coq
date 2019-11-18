@@ -11,7 +11,7 @@ Require Import ZArith.Int.
 From compcert Require Integers Floats.
 
 From mathcomp
-Require Import ssreflect.all_ssreflect.
+Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -136,6 +136,8 @@ End Wasm_float.
 
 Module Make_Wasm_int (WS: Integers.WORDSIZE).
 
+Import Wasm_int.
+
 Import Integers.
 
 Include Make (WS).
@@ -145,14 +147,17 @@ Definition T := int.
 Definition Tmixin : mixin_of T.
   refine {|
      int_zero := zero ;
+     int_clz := _ ;
+     int_ctz := _ ;
+     int_popcnt := _ ;
      (**)
      int_add := add ;
      int_sub := sub ;
      int_mul := mul ;
-     int_div_u := divu ;
-     int_div_s := divs ;
-     int_rem_u := modu ;
-     int_rem_s := mods ;
+     int_div_u := _ (* divu *) ;
+     int_div_s := _ (* divs *) ;
+     int_rem_u := _ (* modu *) ;
+     int_rem_s := _ (* mods *) ;
      int_and := and ;
      int_or := or ;
      int_xor := xor ;
@@ -174,63 +179,40 @@ Definition Tmixin : mixin_of T.
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
      (**)
-     int_of_nat := Z.of_nat
+     int_of_nat := _ ;
+     nat_of_int := _
    |}.
-Admitted. (* TODO: clz, ctz, popcnt, and nat_of_int *)
+Admitted.
 
 Definition cT : type.
   refine (@Pack T {| mixin := Tmixin |}).
+  apply Equality.Mixin with (op := eq).
+  intros x y. unfold eq. destruct Coqlib.zeq as [E|E].
+  - constructor. destruct x as [x Rx], y as [y Ry]. simpl in E. subst. apply f_equal.
+    admit. (* Proof irrelevance, come on! *)
+  - constructor. intro E'. subst. apply E. auto.
 Admitted. (* TODO *)
 
 End Make_Wasm_int.
 
 Module Wasm_int32.
-Include Make_Wasm_int(Wordsize_32).
+Include Make_Wasm_int(Integers.Wordsize_32).
 End Wasm_int32.
 
 Module Wasm_int64.
-Include Make_Wasm_int(Wordsize_64).
+Include Make_Wasm_int(Integers.Wordsize_64).
 End Wasm_int64.
 
-Module Make_Wasm_float32.
+(* TODO: Wasm_float32 *)
 
-Import Calc Core.
-Import Floats.
+Module Wasm_float64.
 
-Include Float.
+Import Integers.
 
-Definition T := float32.
+Import Raux.
 
-Definition Tmixin : mixin_of T.
-  refine {|
-      float_zero := zero ;
-      float_neg := neg ;
-      float_abs := abs ;
-      float_ceil := Raux.Zceil ;
-      float_floor := Raux.Zfloor ;
-      float_trunc := Raux.Ztrunc ;
-      float_nearest := Raux.ZnearestE ;
-      float_sqrt := Sqrt.Fsqrt ;
-      float_add := add ;
-      float_sub := sub ;
-      float_mul := mul ;
-      float_div := mul ;
-      float_min x y := if cmp Clt x y then x else y ;
-      float_max := if cmp Cgt x y then x else y ;
-      float_copysign := _ (* TODO *) ;
-      float_eq := cmp Ceq ;
-      float_lt := cmp Clt ;
-      float_gt := cmp Cgt ;
-      float_le := cmp Cle ;
-      float_ge := cmp Cge
-    |}.
-Admitted. (* TODO *)
+Import Wasm_float.
 
-End Make_Wasm_float32.
-
-Module Make_Wasm_float64.
-
-Import Calc Core.
 Import Floats.
 
 Include Float.
@@ -242,17 +224,17 @@ Definition Tmixin : mixin_of T.
       float_zero := zero ;
       float_neg := neg ;
       float_abs := abs ;
-      float_ceil := Raux.Zceil ;
-      float_floor := Raux.Zfloor ;
-      float_trunc := Raux.Ztrunc ;
-      float_nearest := Raux.ZnearestE ;
-      float_sqrt := Sqrt.Fsqrt ;
+      float_ceil := _ (* Zceil *) ;
+      float_floor := _ (* Zfloor *) ;
+      float_trunc := _ (* Ztrunc *) ;
+      float_nearest := _ (* ZnearestE *) ;
+      float_sqrt := _ (* Sqrt.sqrt *) ;
       float_add := add ;
       float_sub := sub ;
       float_mul := mul ;
       float_div := mul ;
       float_min x y := if cmp Clt x y then x else y ;
-      float_max := if cmp Cgt x y then x else y ;
+      float_max x y := if cmp Cgt x y then x else y ;
       float_copysign := _ (* TODO *) ;
       float_eq := cmp Ceq ;
       float_lt := cmp Clt ;
@@ -262,7 +244,13 @@ Definition Tmixin : mixin_of T.
     |}.
 Admitted. (* TODO *)
 
-End Make_Wasm_float64.
+Definition cT : type.
+  refine (@Pack T {| mixin := Tmixin |}).
+  apply Equality.Mixin with (op := cmp Ceq).
+  intros x y. (* FIXME: [unfold cmp] doesn’t work. Why? *)
+Admitted. (* TODO *)
+
+End Wasm_float64.
 
 
 Variable host : eqType.

@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect.all_ssreflect.
+From mathcomp Require Import ssreflect ssrbool eqtype seq.
 
 From iris.program_logic Require Import language.
 

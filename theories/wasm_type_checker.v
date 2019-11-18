@@ -1,7 +1,7 @@
 (* Wasm type checker *)
 (* (C) J. Pichon - see LICENSE.txt *)
 From mathcomp
-Require Import ssreflect.all_ssreflect.
+Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
