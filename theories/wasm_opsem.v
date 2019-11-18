@@ -2,7 +2,7 @@
 (* The interpreter in wasm_interpreter.v is an executable version of this operational semantics. *)
 (* (C) J. Pichon - see LICENSE.txt *)
 From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+Require Import ssreflect.all_ssreflect.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -8,11 +8,10 @@
  *)
 
 Require Import ZArith.Int.
-From Flocq Require Calc Core.
 From compcert Require Integers Floats.
 
 From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+Require Import ssreflect.all_ssreflect.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
