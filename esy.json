@@ -5,11 +5,11 @@
   "license": "CeCILL-B",
   "esy": {
     "buildEnv": {
+      "HOME": "#{self.target_dir}",
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
-      "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+      "COQPATH": "#{@opam/coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq"
     },
-    "buildsInSource": "_build",
     "build": "make"
   },
   "dependencies": {
@@ -29,6 +29,7 @@
           "@opam/coq": "8.10.1"
         },
         "buildEnv": {
+          "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
           "COQLIB": "#{@opam/coq.lib}/coq/",
           "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
@@ -40,26 +41,27 @@
       }
     },
     "coq-flocq": {
-      "source": "git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
+      "source": "git:git@gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
       "version": "3.2.0",
       "override": {
-        "dependencies": {
-           "@opam/coq": "8.10.1"
-        },
+         "dependencies": {
+            "@opam/coq": "8.10.1"
+          },
         "buildEnv": {
+          "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+          "COQPATH": "#{self.install}:#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
             ["./autogen.sh"],
-            ["./configure", "--libdir=#{@opam/coq.lib}/coq/user-contrib/Flocq"],
+            ["./configure", "--libdir=#{self.install}/coq/Flocq"],
             ["./remake", "--jobs=2"],
             ["./remake", "install"]
           ]
         }
     },
-    "compcert": "github:Mbodin/CompCert#09d3560d65864a5444c8aa2bcda20b46a32bba2c",
+    "compcert": "github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83",
     "coq-iris": {
       "source": "git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c",
       "override": {
@@ -69,9 +71,10 @@
           "@opam/coq-stdpp": "1.2.1"
         },
         "buildEnv": {
+          "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+          "COQPATH": "#{self.install}:#{@opam/coq-stdpp.install}:#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
           ["make", "-j4"],
@@ -87,9 +90,10 @@
           "@opam/coq": "8.10.1"
         },
         "buildEnv": {
+          "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+          "COQPATH": "#{self.install}:#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
           ["make", "-j4"],
