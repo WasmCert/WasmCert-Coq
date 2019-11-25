@@ -1,19 +1,23 @@
 {
-  "checksum": "9d6a3f3890d719f3f5168fbfbaf3c770",
-  "root": "wasm_coq@link-dev:./esy.json",
+  "checksum": "8daa01a2345719ca4053ee8b96832f80",
+  "root": "wasm_coq@link-dev:./package.json",
   "node": {
-    "wasm_coq@link-dev:./esy.json": {
-      "id": "wasm_coq@link-dev:./esy.json",
+    "wasm_coq@link-dev:./package.json": {
+      "id": "wasm_coq@link-dev:./package.json",
       "name": "wasm_coq",
-      "version": "link-dev:./esy.json",
-      "source": { "type": "link-dev", "path": ".", "manifest": "esy.json" },
+      "version": "link-dev:./package.json",
+      "source": {
+        "type": "link-dev",
+        "path": ".",
+        "manifest": "package.json"
+      },
       "overrides": [],
       "dependencies": [
         "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@99dc7a81",
         "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
-        "compcert@github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83@d41d8cd9",
+        "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:1.11.4@21d66ccd",
+        "@opam/dune@opam:2.0.0@14a8b4f4",
         "@opam/coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@a29e91f7",
         "@opam/coq@opam:8.10.1@e04e5c77"
       ],
@@ -103,16 +107,16 @@
       "dependencies": [ "@opam/coq@opam:8.10.1@e04e5c77" ],
       "devDependencies": []
     },
-    "compcert@github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83@d41d8cd9": {
+    "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9": {
       "id":
-        "compcert@github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83@d41d8cd9",
+        "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
       "name": "compcert",
       "version":
-        "github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83",
+        "github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064",
       "source": {
         "type": "install",
         "source": [
-          "github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83"
+          "github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064"
         ]
       },
       "overrides": [],
@@ -120,7 +124,7 @@
         "ocaml@4.8.0@d41d8cd9",
         "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:1.11.4@21d66ccd",
+        "@opam/dune@opam:2.0.0@14a8b4f4",
         "@opam/depgraph@opam:0.1.0@bc9dcbeb",
         "@opam/coq@opam:8.10.1@e04e5c77"
       ],
@@ -283,28 +287,23 @@
       ],
       "devDependencies": [ "ocaml@4.8.0@d41d8cd9" ]
     },
-    "@opam/dune@opam:1.11.4@21d66ccd": {
-      "id": "@opam/dune@opam:1.11.4@21d66ccd",
+    "@opam/dune@opam:2.0.0@14a8b4f4": {
+      "id": "@opam/dune@opam:2.0.0@14a8b4f4",
       "name": "@opam/dune",
-      "version": "opam:1.11.4",
+      "version": "opam:2.0.0",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/77/77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6#sha256:77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6",
-          "archive:https://github.com/ocaml/dune/releases/download/1.11.4/dune-build-info-1.11.4.tbz#sha256:77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6"
+          "archive:https://opam.ocaml.org/cache/sha256/9f/9f993b8263775a2236fd4308e2fe2413d3ee925a52858e4d9e18e7f170c4b3f6#sha256:9f993b8263775a2236fd4308e2fe2413d3ee925a52858e4d9e18e7f170c4b3f6",
+          "archive:https://github.com/ocaml/dune/releases/download/2.0.0/dune-2.0.0.tbz#sha256:9f993b8263775a2236fd4308e2fe2413d3ee925a52858e4d9e18e7f170c4b3f6"
         ],
         "opam": {
           "name": "dune",
-          "version": "1.11.4",
-          "path": "esy.lock/opam/dune.1.11.4"
+          "version": "2.0.0",
+          "path": "esy.lock/opam/dune.2.0.0"
         }
       },
-      "overrides": [
-        {
-          "opamoverride":
-            "esy.lock/overrides/opam__s__dune_opam__c__1.11.4_opam_override"
-        }
-      ],
+      "overrides": [],
       "dependencies": [
         "ocaml@4.8.0@d41d8cd9", "@opam/base-unix@opam:base@87d0b2eb",
         "@opam/base-threads@opam:base@36803084",

@@ -61,7 +61,7 @@
           ]
         }
     },
-    "compcert": "github:Mbodin/CompCert#514f538778e4dfe86ff5a70572ee72979306ab83",
+    "compcert": "github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064",
     "coq-iris": {
       "source": "git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c",
       "override": {
