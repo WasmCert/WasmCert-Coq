@@ -4,6 +4,7 @@
   "description": "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt",
   "license": "CeCILL-B",
   "esy": {
+    "buildsInSource": "_build",
     "buildEnv": {
       "HOME": "#{self.target_dir}",
       "COQBIN": "#{@opam/coq.bin}/",
@@ -28,6 +29,7 @@
         "dependencies": {
           "@opam/coq": "8.10.1"
         },
+        "buildsInSource": true,
         "buildEnv": {
           "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
@@ -35,8 +37,8 @@
           "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
-          ["make", "-C", "mathcomp", "-j", "3"],
-          ["make", "-C", "mathcomp", "install"]
+          ["make", "-C", "mathcomp/ssreflect", "-j", "3"],
+          ["make", "-C", "mathcomp/ssreflect", "install"]
         ]
       }
     },
