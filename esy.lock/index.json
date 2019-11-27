@@ -1,5 +1,5 @@
 {
-  "checksum": "045cbbfe6193d0ec16591afeb94020ff",
+  "checksum": "2ba690336ffb24a9fe14d5f40f23d05e",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -17,7 +17,7 @@
         "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
         "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:2.0.0@14a8b4f4",
+        "@opam/dune@opam:1.11.4@a7ccb7ae",
         "@opam/coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3",
         "@opam/coq@opam:8.10.1@e04e5c77"
       ],
@@ -124,7 +124,7 @@
         "ocaml@4.8.0@d41d8cd9",
         "coq-flocq@git:git__AT__gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:2.0.0@14a8b4f4",
+        "@opam/dune@opam:1.11.4@a7ccb7ae",
         "@opam/depgraph@opam:0.1.0@bc9dcbeb",
         "@opam/coq@opam:8.10.1@e04e5c77"
       ],
@@ -287,20 +287,20 @@
       ],
       "devDependencies": [ "ocaml@4.8.0@d41d8cd9" ]
     },
-    "@opam/dune@opam:2.0.0@14a8b4f4": {
-      "id": "@opam/dune@opam:2.0.0@14a8b4f4",
+    "@opam/dune@opam:1.11.4@a7ccb7ae": {
+      "id": "@opam/dune@opam:1.11.4@a7ccb7ae",
       "name": "@opam/dune",
-      "version": "opam:2.0.0",
+      "version": "opam:1.11.4",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/9f/9f993b8263775a2236fd4308e2fe2413d3ee925a52858e4d9e18e7f170c4b3f6#sha256:9f993b8263775a2236fd4308e2fe2413d3ee925a52858e4d9e18e7f170c4b3f6",
-          "archive:https://github.com/ocaml/dune/releases/download/2.0.0/dune-2.0.0.tbz#sha256:9f993b8263775a2236fd4308e2fe2413d3ee925a52858e4d9e18e7f170c4b3f6"
+          "archive:https://opam.ocaml.org/cache/sha256/77/77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6#sha256:77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6",
+          "archive:https://github.com/ocaml/dune/releases/download/1.11.4/dune-build-info-1.11.4.tbz#sha256:77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6"
         ],
         "opam": {
           "name": "dune",
-          "version": "2.0.0",
-          "path": "esy.lock/opam/dune.2.0.0"
+          "version": "1.11.4",
+          "path": "esy.lock/opam/dune.1.11.4"
         }
       },
       "overrides": [],

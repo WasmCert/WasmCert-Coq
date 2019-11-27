@@ -6,7 +6,6 @@
   "esy": {
     "buildsInSource": "_build",
     "buildEnv": {
-      "HOME": "#{self.target_dir}",
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
       "COQPATH": "#{@opam/coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq"
@@ -15,7 +14,7 @@
   },
   "dependencies": {
     "@opam/menhir": "20181113",
-    "@opam/dune": "*",
+    "@opam/dune": "1.11.4",
     "@opam/coq": "8.10.1",
     "@opam/coq-mathcomp-ssreflect": "*",
     "coq-flocq": "3.2.0",

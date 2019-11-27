@@ -144,20 +144,24 @@ Include Make (WS).
 
 Definition T := int.
 
+Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
+  if eq i2 zero then None
+  else Some (op i1 i2).
+
 Definition Tmixin : mixin_of T.
   refine {|
      int_zero := zero ;
-     int_clz := _ ;
-     int_ctz := _ ;
-     int_popcnt := _ ;
+     int_clz := _ (* TODO *) ;
+     int_ctz := _ (* TODO *) ;
+     int_popcnt := _ (* TODO *) ;
      (**)
      int_add := add ;
      int_sub := sub ;
      int_mul := mul ;
-     int_div_u := _ (* divu *) ;
-     int_div_s := _ (* divs *) ;
-     int_rem_u := _ (* modu *) ;
-     int_rem_s := _ (* mods *) ;
+     int_div_u := fail_on_zero divu ;
+     int_div_s := fail_on_zero divs ;
+     int_rem_u := fail_on_zero modu ;
+     int_rem_s := fail_on_zero mods ;
      int_and := and ;
      int_or := or ;
      int_xor := xor ;
@@ -179,19 +183,27 @@ Definition Tmixin : mixin_of T.
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
      (**)
-     int_of_nat := _ ;
-     nat_of_int := _
+     int_of_nat := _ (* fun n => {| valint := BinInt.Z.of_nat n |} (* What do we do when bigger than the size? *) *) ;
+     nat_of_int i := BinInt.Z.to_nat (intval i)
    |}.
 Admitted.
 
+Lemma BinInt_Z_lt_irrelevant : forall x y (p1 p2 : BinInt.Z.lt x y), p1 = p2.
+Proof.
+  rewrite /BinInt.Z.lt. move=> x y p1 p2.
+  apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; (by left) || (right; discriminate).
+Qed.
+
 Definition cT : type.
-  refine (@Pack T {| mixin := Tmixin |}).
+  apply: Pack {| mixin := Tmixin |}.
   apply Equality.Mixin with (op := eq).
-  intros x y. unfold eq. destruct Coqlib.zeq as [E|E].
-  - constructor. destruct x as [x Rx], y as [y Ry]. simpl in E. subst. apply f_equal.
-    admit. (* Proof irrelevance, come on! *)
-  - constructor. intro E'. subst. apply E. auto.
-Admitted. (* TODO *)
+  move=> x y. rewrite /eq. case Coqlib.zeq as [E|E].
+  - constructor. move: E. case x => x_ [Vx Rx]. case y => y_ [Vy Ry].
+    simpl. move=> E //=. subst. apply f_equal.
+    rewrite (BinInt_Z_lt_irrelevant Vx Vy).
+    by rewrite (BinInt_Z_lt_irrelevant Rx Ry).
+  - constructor. move=> ?. subst. exact: E.
+Qed.
 
 End Make_Wasm_int.
 
