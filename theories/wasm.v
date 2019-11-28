@@ -148,6 +148,97 @@ Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
   if eq i2 zero then None
   else Some (op i1 i2).
 
+Lemma BinNums_Z_eqP : Equality.axiom Coqlib.zeq.
+Proof.
+  move=> x y. case: Coqlib.zeq.
+  - by left.
+  - by right.
+Qed.
+
+Definition BinNums_Z_eqMixin := EqMixin BinNums_Z_eqP.
+
+Canonical Structure BinNums_Z_eqType := EqType BinNums.Z BinNums_Z_eqMixin.
+
+Fixpoint power_index_to_bits (c : nat) (l : seq BinNums.Z) : seq bool :=
+  match c with
+  | 0 => [::]
+  | c.+1 => (Zpower.two_power_nat c \in l) :: power_index_to_bits c l
+  end.
+
+Definition convert_to_bits (x : T) : seq bool :=
+  let l := Zbits.Z_one_bits wordsize (intval x) BinNums.Z0 in
+  (** [l] is the list of positions (unitary position being the position [0]) where
+      the value [x] has a bit as true. **)
+  power_index_to_bits wordsize l.
+
+Lemma power_index_to_bits_size : forall c x,
+  seq.size (power_index_to_bits c x) = c.
+Proof.
+  move=> c. elim c; first by [].
+  move=> n + x /=. by move=> ->.
+Qed.
+
+Lemma convert_to_bits_size : forall x,
+  seq.size (convert_to_bits x) = wordsize.
+Proof.
+  move=> x. by apply: power_index_to_bits_size.
+Qed.
+
+Lemma convert_to_bits_zero : convert_to_bits zero = seq.nseq wordsize false.
+Proof.
+  rewrite /convert_to_bits. rewrite Zbits.Z_one_bits_zero /=.
+  elim wordsize; first by [].
+  by move=> n /= ->.
+Qed.
+
+Lemma convert_to_bits_one :
+  convert_to_bits one
+  = rcons (seq.nseq (wordsize - 1) false) true.
+Proof.
+
+  assert (E: intval one = Zpower.two_p BinNums.Z0).
+  { compute. move: WS.wordsize_not_zero. by elim WS.wordsize => //. }
+  rewrite /convert_to_bits E Zbits.Z_one_bits_two_p /=.
+  - rewrite /convert_to_bits /wordsize.
+    move: WS.wordsize_not_zero. elim WS.wordsize => //.
+    move=> ws IH _ /=.
+    assert (Rws: ws.+1 - 1 = ws).
+    { rewrite -> PeanoNat.Nat.sub_succ. by rewrite PeanoNat.Nat.sub_0_r. }
+    rewrite {} Rws. move: IH. elim Ews: ws.
+    + move=> _. compute. admit. (* FIXME: Something is very wrong here in my definition. *)
+    + assert (N : Zpower.two_power_nat ws \in [:: BinNums.Z0] = false).
+      { admit. }
+      move=> ? ? /=.
+  
+Admitted.
+
+(*
+Lemma convert_to_bits_two_p : forall p,
+  BinInt.Z.le p (BinInt.Z.of_nat wordsize) ->
+  convert_to_bits (Zpower.two_p p)
+  = seq.nseq (wordsize - 1 - p) false ++ true ++ seq.nseq p false.
+Proof.
+  rewrite /convert_to_bits. rewrite Zbits.Z_one_bits_two_p /=.
+  elim wordsize; first by [].
+  by move=> n /= ->.
+Qed.
+*)
+
+(*
+Lemma convert_to_bits_testbit : forall n x,
+  n < wordsize ->
+  seq.nth false (convert_to_bits x) n
+  = BinInt.Z.testbit (intval x) (BinInt.Z.of_nat (wordsize - 1 - n)).
+Proof.
+  rewrite /convert_to_bits. elim wordsize => ws; first by [].
+  move=> IH n x I. elim n => /=.
+  /=.
+  simpl. rewrite <- IHws.
+  destruct n.
+  - simpl. case O: BinInt.Z.odd.
+Qed.
+*)
+
 Definition Tmixin : mixin_of T.
   refine {|
      int_zero := zero ;
@@ -183,7 +274,8 @@ Definition Tmixin : mixin_of T.
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
      (**)
-     int_of_nat := _ (* fun n => {| valint := BinInt.Z.of_nat n |} (* What do we do when bigger than the size? *) *) ;
+     int_of_nat n := repr (BinInt.Z.of_nat n)
+       (* Note that [repr] takes the modulus of the number modulo the range. *) ;
      nat_of_int i := BinInt.Z.to_nat (intval i)
    |}.
 Admitted.
