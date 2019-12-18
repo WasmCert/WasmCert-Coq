@@ -10,4 +10,5 @@
 *.vo
 *.glob
 *.aux
+.lia.cache
 

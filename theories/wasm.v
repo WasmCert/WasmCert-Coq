@@ -7,7 +7,8 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
-Require Import ZArith.Int.
+Require Import ZArith.Int Lia.
+Require Coq.ZArith.BinInt.
 From compcert Require Integers Floats.
 
 From mathcomp
@@ -136,6 +137,8 @@ End Wasm_float.
 
 Module Make_Wasm_int (WS: Integers.WORDSIZE).
 
+Import Coq.ZArith.BinInt.
+
 Import Wasm_int.
 
 Import Integers.
@@ -148,28 +151,24 @@ Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
   if eq i2 zero then None
   else Some (op i1 i2).
 
-Lemma BinNums_Z_eqP : Equality.axiom Coqlib.zeq.
+Lemma Z_eqP : Equality.axiom Coqlib.zeq.
 Proof.
   move=> x y. case: Coqlib.zeq.
   - by left.
   - by right.
 Qed.
 
-Definition BinNums_Z_eqMixin := EqMixin BinNums_Z_eqP.
+Definition Z_eqMixin := EqMixin Z_eqP.
 
-Canonical Structure BinNums_Z_eqType := EqType BinNums.Z BinNums_Z_eqMixin.
+Canonical Structure Z_eqType := EqType Z Z_eqMixin.
 
-Fixpoint power_index_to_bits (c : nat) (l : seq BinNums.Z) : seq bool :=
+Coercion Z.of_nat : nat >-> Z.
+
+Fixpoint power_index_to_bits (c : nat) (l : seq Z) : seq bool :=
   match c with
   | 0 => [::]
-  | c.+1 => (Zpower.two_power_nat c \in l) :: power_index_to_bits c l
+  | c.+1 => ((c : Z) \in l) :: power_index_to_bits c l
   end.
-
-Definition convert_to_bits (x : T) : seq bool :=
-  let l := Zbits.Z_one_bits wordsize (intval x) BinNums.Z0 in
-  (** [l] is the list of positions (unitary position being the position [0]) where
-      the value [x] has a bit as true. **)
-  power_index_to_bits wordsize l.
 
 Lemma power_index_to_bits_size : forall c x,
   seq.size (power_index_to_bits c x) = c.
@@ -177,6 +176,18 @@ Proof.
   move=> c. elim c; first by [].
   move=> n + x /=. by move=> ->.
 Qed.
+
+Lemma power_index_to_bits_none : forall c l,
+  (forall i, i < c -> ~ (i : Z) \in l) ->
+  power_index_to_bits c l = nseq c false.
+Proof.
+Admitted. (* TODO *)
+
+Definition convert_to_bits (x : T) : seq bool :=
+  let l := Zbits.Z_one_bits wordsize (intval x) Z0 in
+  (** [l] is the list of positions (unitary position being the position [0]) where
+      the value [x] has a bit as true. **)
+  power_index_to_bits wordsize l.
 
 Lemma convert_to_bits_size : forall x,
   seq.size (convert_to_bits x) = wordsize.
@@ -195,47 +206,82 @@ Lemma convert_to_bits_one :
   convert_to_bits one
   = rcons (seq.nseq (wordsize - 1) false) true.
 Proof.
-
-  assert (E: intval one = Zpower.two_p BinNums.Z0).
-  { compute. move: WS.wordsize_not_zero. by elim WS.wordsize => //. }
+  assert (E: intval one = Zpower.two_p Z0).
+  { compute. move: WS.wordsize_not_zero. by elim WS.wordsize. }
   rewrite /convert_to_bits E Zbits.Z_one_bits_two_p /=.
   - rewrite /convert_to_bits /wordsize.
-    move: WS.wordsize_not_zero. elim WS.wordsize => //.
-    move=> ws IH _ /=.
+    move: WS.wordsize_not_zero. case WS.wordsize => //.
+    move=> ws _ /=.
     assert (Rws: ws.+1 - 1 = ws).
     { rewrite -> PeanoNat.Nat.sub_succ. by rewrite PeanoNat.Nat.sub_0_r. }
-    rewrite {} Rws. move: IH. elim Ews: ws.
-    + move=> _. compute. admit. (* FIXME: Something is very wrong here in my definition. *)
-    + assert (N : Zpower.two_power_nat ws \in [:: BinNums.Z0] = false).
-      { admit. }
-      move=> ? ? /=.
-  
-Admitted.
-
-(*
-Lemma convert_to_bits_two_p : forall p,
-  BinInt.Z.le p (BinInt.Z.of_nat wordsize) ->
-  convert_to_bits (Zpower.two_p p)
-  = seq.nseq (wordsize - 1 - p) false ++ true ++ seq.nseq p false.
-Proof.
-  rewrite /convert_to_bits. rewrite Zbits.Z_one_bits_two_p /=.
-  elim wordsize; first by [].
-  by move=> n /= ->.
+    rewrite {} Rws. elim Ews: ws => [|ws]; first by [].
+    move=> IH /=.
+    assert (Rf: Zpos (BinPos.Pos.of_succ_nat ws) \in [:: Z0] = false).
+    { by []. }
+    rewrite {} Rf. rewrite IH //.
+  - split=> //. rewrite /wordsize.
+    move: WS.wordsize_not_zero. by case WS.wordsize => //.
 Qed.
-*)
+
+Lemma nat_Z_lt_neq : forall a b,
+  a < b ->
+  ((a : Z) == (b : Z)) = false.
+Proof.
+Admitted. (* TODO *)
+
+Lemma nat_Z_gt_neq : forall a b,
+  a < b ->
+  ((b : Z) == (a : Z)) = false.
+Proof.
+  move=> ? ? ?. by rewrite eqtype.eq_sym nat_Z_lt_neq.
+Qed.
+
+Lemma convert_to_bits_two_p : forall p : nat,
+  p < wordsize ->
+  convert_to_bits (repr (Zpower.two_p p))
+  = seq.nseq (wordsize - 1 - p) false ++ [:: true] ++ seq.nseq p false.
+Proof.
+  rewrite /convert_to_bits /repr /intval.
+  move => p I.
+  assert (Rm: Z_mod_modulus (Zpower.two_p p) = Zpower.two_p p).
+  { rewrite /Z_mod_modulus. case Epp: Zpower.two_p => //=.
+    - rewrite Zbits.P_mod_two_p_eq. rewrite Z.mod_small //.
+      split=> //. rewrite <- Epp. clear Epp.
+      rewrite Coqlib.two_power_nat_two_p. apply Coqlib.two_p_monotone_strict.
+      split=> //.
+      + by apply: Zorder.Zle_0_nat.
+      + apply Znat.inj_lt. by apply/leP.
+    - exfalso. move: Epp. by case p. }
+  rewrite {} Rm. rewrite Zbits.Z_one_bits_two_p /=.
+  - assert (I': (p < wordsize)%coq_nat); first by apply/ltP. elim I'.
+    + clear I I' => /=. assert (Ez: p.+1 - 1 - p = 0).
+      { rewrite <- add1n. admit. (* TODO *) }
+      rewrite {} Ez. rewrite in_cons in_nil eqxx /=. f_equal.
+      rewrite power_index_to_bits_none //.
+      move=> i I. by rewrite in_cons in_nil nat_Z_lt_neq.
+    + move=> ws Ip E /=. rewrite E /=.
+      rewrite in_cons in_nil nat_Z_gt_neq.
+      * assert (Rw: ws.+1 - 1 - p = (ws - 1 - p).+1).
+        { clear - Ip. admit. (* TODO *) }
+          by rewrite {} Rw.
+      * apply/ltP. lia.
+  - split.
+    + by apply: Znat.Nat2Z.is_nonneg.
+    + apply: Znat.inj_lt. by apply/leP.
+Admitted. (* TODO *)
 
 (*
 Lemma convert_to_bits_testbit : forall n x,
   n < wordsize ->
   seq.nth false (convert_to_bits x) n
-  = BinInt.Z.testbit (intval x) (BinInt.Z.of_nat (wordsize - 1 - n)).
+  = Z.testbit (intval x) (Z.of_nat (wordsize - 1 - n)).
 Proof.
   rewrite /convert_to_bits. elim wordsize => ws; first by [].
   move=> IH n x I. elim n => /=.
   /=.
   simpl. rewrite <- IHws.
   destruct n.
-  - simpl. case O: BinInt.Z.odd.
+  - simpl. case O: Z.odd.
 Qed.
 *)
 
@@ -274,15 +320,15 @@ Definition Tmixin : mixin_of T.
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
      (**)
-     int_of_nat n := repr (BinInt.Z.of_nat n)
+     int_of_nat n := repr n
        (* Note that [repr] takes the modulus of the number modulo the range. *) ;
-     nat_of_int i := BinInt.Z.to_nat (intval i)
+     nat_of_int i := Z.to_nat (intval i)
    |}.
-Admitted.
+Admitted. (* TODO *)
 
-Lemma BinInt_Z_lt_irrelevant : forall x y (p1 p2 : BinInt.Z.lt x y), p1 = p2.
+Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
 Proof.
-  rewrite /BinInt.Z.lt. move=> x y p1 p2.
+  rewrite /Z.lt. move=> x y p1 p2.
   apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; (by left) || (right; discriminate).
 Qed.
 
@@ -292,8 +338,8 @@ Definition cT : type.
   move=> x y. rewrite /eq. case Coqlib.zeq as [E|E].
   - constructor. move: E. case x => x_ [Vx Rx]. case y => y_ [Vy Ry].
     simpl. move=> E //=. subst. apply f_equal.
-    rewrite (BinInt_Z_lt_irrelevant Vx Vy).
-    by rewrite (BinInt_Z_lt_irrelevant Rx Ry).
+    rewrite (Z_lt_irrelevant Vx Vy).
+    by rewrite (Z_lt_irrelevant Rx Ry).
   - constructor. move=> ?. subst. exact: E.
 Qed.
 
