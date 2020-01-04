@@ -363,6 +363,7 @@ Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
   | [::] => [::]
   end.
 
+(* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
 Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
   Build_t_context
     (i_types i)
