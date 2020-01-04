@@ -183,7 +183,7 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
       lfilled 0 lh [::Trap] es ->
       reduce_simple es [::Trap].
 
-Inductive reduce : store_record -> list value -> list administrative_instruction -> nat -> store_record -> list value -> list administrative_instruction -> Prop :=
+Inductive reduce : store_record -> list value -> list administrative_instruction -> instance -> store_record -> list value -> list administrative_instruction -> Prop :=
 | r_basic :
     forall e e' s vs i,
       reduce_simple e e' ->

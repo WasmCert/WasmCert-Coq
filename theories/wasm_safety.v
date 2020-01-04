@@ -25,7 +25,7 @@ Axiom preservation :
   reduce s vs es i s' vs' es' ->
   config_typing i s' vs' es' ts.
 
-Inductive reduce_star : store_record -> list value -> list administrative_instruction -> nat -> store_record -> list value -> list administrative_instruction -> Prop :=
+Inductive reduce_star : store_record -> list value -> list administrative_instruction -> instance -> store_record -> list value -> list administrative_instruction -> Prop :=
 | reduce_refl : forall s vs es i, reduce_star s vs es i s vs es
 | reduce_step : forall s vs es i s' vs' es' s'' vs'' es'',
     reduce s vs es i s' vs' es' ->
