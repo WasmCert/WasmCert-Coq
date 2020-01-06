@@ -42,7 +42,7 @@
       }
     },
     "coq-flocq": {
-      "source": "git:git@gitlab.inria.fr:flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
+      "source": "git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
       "version": "3.2.0",
       "override": {
          "dependencies": {
