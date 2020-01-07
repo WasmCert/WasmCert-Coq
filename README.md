@@ -7,11 +7,15 @@ Usage: `esy` to install the dependencies and compile everything.
 Type `esy shell` to open a shell with the right compilation environment.
 Type `esy emacs theories/wasm.v` to open Emacs with the right environment (assuming that Emacs is installed with Proof general in your system).
 
-The following programs are assumed to be installed: `git`, `curl`, and `m4`.
+The following programs are assumed to be installed: `git`, `curl`, `m4`, and `autoconf`.
+These programs are used to fetch and compile dependencies.
 
-Installing `esy` itself should look like something like that:
+Installing `esy` itself can be done through `npm`.
+It should then look like something like that:
 ```bash
 sudo apt install npm git curl m4 autoconf
-npm install --global @esy-nightly/esy # Tested with version 0.6.0-8b3dfe of esy.
+npm install --global esy@latest # Tested with version 0.6.0-8b3dfe of esy.
 ```
+Note that despite using `npm` to be installed, `esy` is not JavaScript-based.
+There are other ways to install `esy`: see <https://esy.sh/> for more information.
 
