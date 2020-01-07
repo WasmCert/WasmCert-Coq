@@ -11,7 +11,7 @@ The following programs are assumed to be installed: `git`, `curl`, and `m4`.
 
 Installing `esy` itself should look like something like that:
 ```bash
-sudo apt install npm git curl m4
+sudo apt install npm git curl m4 autoconf
 npm install --global @esy-nightly/esy # Tested with version 0.6.0-8b3dfe of esy.
 ```
 
