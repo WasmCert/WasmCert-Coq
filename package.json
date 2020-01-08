@@ -8,7 +8,7 @@
     "buildEnv": {
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
-      "COQPATH": "#{@opam/coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq"
+      "COQPATH": "#{coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq"
     },
     "build": "make"
   },
@@ -16,13 +16,16 @@
     "@opam/menhir": "20181113",
     "@opam/dune": "1.11.4",
     "@opam/coq": "8.10.1",
-    "@opam/coq-mathcomp-ssreflect": "*",
+    "coq-mathcomp-ssreflect": "*",
     "coq-flocq": "3.2.0",
     "coq-iris": "*",
     "compcert": "3.6"
   },
+  "devDependencies": {
+    "@opam/coqide": "*"
+  },
   "resolutions": {
-    "@opam/coq-mathcomp-ssreflect": {
+    "coq-mathcomp-ssreflect": {
       "source": "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39",
       "override": {
         "dependencies": {
