@@ -220,6 +220,8 @@ Proof.
   - clear. move=> c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply IH.
 Qed.
 
+(** Given a [T], return a sequence of bits representing the integer.
+  The first bit is the most significant bit. **)
 Definition convert_to_bits (x : T) : seq bool :=
   let l := Zbits.Z_one_bits wordsize (intval x) 0 in
   (** [l] is the list of positions (unitary position being the position [0]) where
@@ -304,6 +306,25 @@ Proof.
     + apply: Znat.inj_lt. by apply/leP.
 Qed.
 
+(* FIXME: Stuffs that we might want to prove.
+Fixpoint convert_from_bits l : T :=
+  match l with
+  | [::] => repr 0
+  | b :: l =>
+    let i :=
+      if b then
+        Zpower.two_p (seq.size l)
+      else 0 in
+    add (repr i) (convert_from_bits l)
+  end.
+
+Lemma convert_to_from_bits : forall a,
+  lt a (repr (Zpower.two_p wordsize)) ->
+  a = convert_from_bits (convert_to_bits a).
+Proof.
+  (* TODO *)
+Admitted.
+
 Lemma convert_to_bits_disjunct_sum : forall a b,
   seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
   convert_to_bits (repr (a + b))
@@ -315,11 +336,10 @@ Proof.
   move=> ws IH a b E.
 Admitted. (* TODO *)
 
-(*
 Lemma convert_to_bits_testbit : forall n x,
   n < wordsize ->
-  seq.nth false (rev (convert_to_bits x)) n
-  = Z.testbit (intval x) n.
+  seq.nth false (convert_to_bits x) n
+  = Z.testbit (intval x) (wordsize - n - 1).
 Proof.
   rewrite /convert_to_bits.
 
@@ -334,14 +354,52 @@ Proof.
   destruct n.
   - simpl. case O: Z.odd.
 Qed.
+
+Lemma convert_to_bits_eq : forall a b,
+  convert_to_bits a = convert_to_bits b ->
+  eq a b.
 *)
 
-Definition Tmixin : mixin_of T.
-  refine {|
+(** Return the count of leading zero bits. **)
+Definition clz i :=
+  let l := convert_to_bits i in
+  repr (seq.find (fun b => b == false) l).
+
+(** Return the count of trailing zero bits. **)
+Definition ctz i :=
+  let l := convert_to_bits i in
+  repr (seq.find (fun b => b == false) (seq.rev l)).
+
+(** Return the count of non-zero bits. **)
+Definition popcnt i :=
+  let l := convert_to_bits i in
+  repr (seq.count (fun b => b == true) l).
+
+(* FIXME: stuff that we probably want to prove.
+Lemma clz_wordsize : forall i,
+  clz i = repr wordsize ->
+  i = repr 0.
+
+Lemma ctz_wordsize : forall i,
+  ctz i = repr wordsize ->
+  i = repr 0.
+
+Lemma popcnt_wordsize : forall i,
+  popcnt i = repr wordsize ->
+  i = repr 0.
+
+Lemma ctz_shl : forall i k,
+  ctz (shl i k) = min wordsize (ctz i + k).
+
+Lemma clz_shr : forall i k,
+  clz (shr i k) = min wordsize (clz i + k).
+*)
+
+Definition Tmixin : mixin_of T := {|
      int_zero := zero ;
-     int_clz := _ (* TODO *) ;
-     int_ctz := _ (* TODO *) ;
-     int_popcnt := _ (* TODO *) ;
+     int_clz := clz ;
+     int_ctz := ctz ;
+     int_popcnt := popcnt ;
      (**)
      int_add := add ;
      int_sub := sub ;
@@ -355,7 +413,7 @@ Definition Tmixin : mixin_of T.
      int_xor := xor ;
      int_shl := shl ;
      int_shr_u := shru ;
-     int_shr_s := shr ;
+     int_shr_s := shr ; (* FIXME: Possibly not the right value. *)
      int_rotl := rol ;
      int_rotr := ror ;
      (**)
@@ -375,7 +433,6 @@ Definition Tmixin : mixin_of T.
        (* Note that [repr] takes the modulus of the number modulo the range. *) ;
      nat_of_int i := Z.to_nat (intval i)
    |}.
-Admitted. (* TODO *)
 
 Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
 Proof.
