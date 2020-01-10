@@ -8,6 +8,7 @@
  *)
 
 Require Import ZArith.Int Lia.
+From ExtLib Require Import Data.HList.
 Require Coq.ZArith.BinInt.
 From compcert Require Integers Floats.
 
@@ -18,6 +19,29 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(** An extension of [lia] that just tries to rewrite things in the way [lia] that expects.
+  Not very optimised. **)
+Ltac lias :=
+  let rec iter f l :=
+    match l with
+    | @Hnil _ _ => idtac
+    | @Hcons _ _ _ _ ?t ?l' =>
+      try f t; iter f l'
+    end in
+  iter ltac:(fun t => rewrite /t)
+    (Hcons subn (Hcons subn_rec (Hcons addn (Hcons addn_rec Hnil))) : hlist id _);
+  let reflects :=
+    constr:(Hcons (@ltP) (Hcons (@leP) Hnil : hlist id _)) in
+  iter ltac:(fun t => move/t) reflects;
+  iter ltac:(fun t => apply/t; try lia) reflects;
+  lia.
+
+(** Rewrite an arithmetic equality. **)
+Ltac rewrite_by E :=
+  let R := fresh "R" in
+  assert (R : E);
+    [ by [auto|lias]
+    | rewrite {} R ].
 
 Module Wasm_int.
 
@@ -187,8 +211,17 @@ Proof.
   rewrite IH //. move=> i I. apply: A. by apply: leq_trans I.
 Qed.
 
+Lemma power_index_to_bits_in : forall c l n,
+  n < c ->
+  seq.nth false (power_index_to_bits c l) (c - n - 1) = ((n : Z) \in l).
+Proof.
+  move=> c l n => /leP I. move: l. elim I.
+  - move=> l /=. by rewrite_by (n.+1 - n - 1 = 0).
+  - clear. move=> c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply IH.
+Qed.
+
 Definition convert_to_bits (x : T) : seq bool :=
-  let l := Zbits.Z_one_bits wordsize (intval x) Z0 in
+  let l := Zbits.Z_one_bits wordsize (intval x) 0 in
   (** [l] is the list of positions (unitary position being the position [0]) where
       the value [x] has a bit as true. **)
   power_index_to_bits wordsize l.
@@ -231,7 +264,7 @@ Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
 Proof.
-  move=> a b. move/leP => I. apply/Z_eqP. lia.
+  move=> a b. move/leP => I. apply/Z_eqP. lias.
 Qed.
 
 Lemma nat_Z_gt_neq : forall a b,
@@ -246,7 +279,7 @@ Lemma convert_to_bits_two_p : forall p : nat,
   convert_to_bits (repr (Zpower.two_p p))
   = seq.nseq (wordsize - 1 - p) false ++ [:: true] ++ seq.nseq p false.
 Proof.
-  rewrite /convert_to_bits /repr /intval. move => p I.
+  rewrite /convert_to_bits /repr /intval. move=> p I.
   assert (Rm: Z_mod_modulus (Zpower.two_p p) = Zpower.two_p p).
   { rewrite /Z_mod_modulus. case Epp: Zpower.two_p => //=.
     - rewrite Zbits.P_mod_two_p_eq. rewrite Z.mod_small //.
@@ -258,21 +291,29 @@ Proof.
     - exfalso. move: Epp. by case p. }
   rewrite {} Rm. rewrite Zbits.Z_one_bits_two_p /=.
   - assert (I': (p < wordsize)%coq_nat); first by apply/ltP. elim I'.
-    + clear I I' => /=. assert (Ez: p.+1 - 1 - p = 0).
-      { rewrite <- add1n. rewrite /subn /subn_rec /addn /addn_rec. lia. }
-      rewrite {} Ez. rewrite in_cons in_nil eqxx /=. f_equal.
+    + clear I I' => /=. rewrite_by (p.+1 - 1 - p = 0).
+      rewrite in_cons in_nil eqxx /=. f_equal.
       rewrite power_index_to_bits_none //.
       move=> i I. by rewrite in_cons in_nil nat_Z_lt_neq.
     + move=> ws Ip E /=. rewrite E /=.
       rewrite in_cons in_nil nat_Z_gt_neq.
-      * assert (Rw: ws.+1 - 1 - p = (ws - 1 - p).+1).
-        { clear - Ip. rewrite /subn /subn_rec. lia. }
-          by rewrite {} Rw.
-      * apply/ltP. lia.
+      * by rewrite_by (ws.+1 - 1 - p = (ws - 1 - p).+1).
+      * lias.
   - split.
     + by apply: Znat.Nat2Z.is_nonneg.
     + apply: Znat.inj_lt. by apply/leP.
 Qed.
+
+Lemma convert_to_bits_disjunct_sum : forall a b,
+  seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
+  convert_to_bits (repr (a + b))
+  = allpairs orb (convert_to_bits (repr a)) (convert_to_bits (repr b)).
+Proof.
+  rewrite /convert_to_bits /repr /intval.
+
+  elim wordsize; first by [].
+  move=> ws IH a b E.
+Admitted. (* TODO *)
 
 (*
 Lemma convert_to_bits_testbit : forall n x,
@@ -509,7 +550,7 @@ Definition mutability_eqb (m1 m2 : mutability) : bool :=
 
 Lemma eqmutabilityP : Equality.axiom mutability_eqb.
 Proof.
-  move => m1 m2.
+  move=> m1 m2.
   by case: m1; case: m2; (apply/ReflectT || (apply/ReflectF; move=> H; case H)).
 Qed.
 
@@ -827,7 +868,7 @@ Definition global_eqb (g1 g2 : global) : bool :=
 
 Lemma eqglobalP : Equality.axiom global_eqb.
 Proof.
-  move => g1 g2.
+  move=> g1 g2.
   case: g1 => m1 t1; case g2 => m2 t2.
   case_eq (m1 == m2) => [Hm|Hm].
   {

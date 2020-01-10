@@ -22,7 +22,8 @@ One `esy` has been run, you can start editing the files.
 Type `esy emacs theories/wasm.v` to open Emacs with the right environment (assuming that Emacs is installed with Proof general in your system).
 To use CoqIDE in this developpment, you first need to install its system dependencies:
 ```bash
-libcairo2-dev libexpat1-dev libgtk-3-dev libgtksourceview-3.0-dev
+sudo apt install libcairo2-dev libexpat1-dev libgtk-3-dev libgtksourceview-3.0-dev
 ```
-Then, similarly, type `esy coqide theories/wasm.v` to edit the files.
+Then, add the line `"@opam/coqide": "*"` in `devDependencies` in [package.json](./package.json), and run `esy` again.
+Typing `esy coqide theories/wasm.v` should now work.
 
