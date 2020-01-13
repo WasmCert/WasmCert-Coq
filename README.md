@@ -4,6 +4,7 @@ Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt.
 (C) J. Pichon 2019 - see LICENSE.txt
 
 Usage: `esy` to install the dependencies and compile everything.
+Warning: compiling the dependencies requires having between about 3 and 4 GB of RAM on your computer.
 Type `esy shell` to open a shell with the right compilation environment.
 
 The following programs are assumed to be installed: `git`, `curl`, `m4`, and `autoconf`.

@@ -477,16 +477,48 @@ Include Float.
 
 Definition T := float.
 
+(** An unspecified positive, whose content is made opaque to avoid overspecification. **)
+Definition unspec_nan_pl : { pl | Binary.nan_pl 53 pl = true }.
+  assert (pl : { pl | Binary.nan_pl 53 pl = true
+                      /\ exists b E,
+                           proj1_sig Archi.default_nan_64 = Binary.B754_nan _ _ b pl E }).
+  { case Archi.default_nan_64 => f. case f => // b pl Epl Inan. by repeat eexists. }
+  case pl. clear pl. move=> pl [E _]. by exists pl.
+Qed.
+
+(** An unspecified nan, whose content is made opaque to avoid overspecification. **)
+Definition unspec_nan : T :=
+  Binary.B754_nan _ _ ltac:(abstract exact true) _ (proj2_sig unspec_nan_pl).
+
+Definition nans : T -> T :=
+  let set_bit_sign default f :=
+    if f is Binary.B754_nan b pl E then Binary.B754_nan _ _ true pl E
+    else default in
+  set_bit_sign (set_bit_sign unspec_nan unspec_nan).
+
+Definition is_zero (f : T) :=
+  if f is Binary.B754_zero _ then true else false.
+
+Definition is_infinity (f : T) :=
+  if f is Binary.B754_infinity _ then true else false.
+
+Definition fceil (f : float) :=
+  if Binary.is_nan _ _ f then nans f
+  else if is_infinity f then f
+  else if is_zero f then f
+  else if true (* TODO: f < 0 && f >= -1 *) then Binary.B754_zero _ _ true
+  else (* TODO: Binary.binary_normalize mode_DN *) f.
+
 Definition Tmixin : mixin_of T.
   refine {|
       float_zero := zero ;
       float_neg := neg ;
       float_abs := abs ;
-      float_ceil := _ (* Zceil *) ;
-      float_floor := _ (* Zfloor *) ;
-      float_trunc := _ (* Ztrunc *) ;
-      float_nearest := _ (* ZnearestE *) ;
-      float_sqrt := _ (* Sqrt.sqrt *) ;
+      float_ceil := fceil ;
+      float_floor := _ (* TODO: Zfloor *) ;
+      float_trunc := _ (* TODO: Ztrunc *) ;
+      float_nearest := _ (* TODO: ZnearestE *) ;
+      float_sqrt := _ (* TODO: Sqrt.sqrt, Binary.Bsqrt *) ;
       float_add := add ;
       float_sub := sub ;
       float_mul := mul ;
@@ -599,10 +631,10 @@ Inductive mutability : Type := (* mut *)
 | T_mut.
 
 Definition mutability_eqb (m1 m2 : mutability) : bool :=
-  match (m1, m2) with
-  | (T_immut, T_immut) => true
-  | (T_mut, T_mut) => true
-  | _ => false
+  match m1, m2 with
+  | T_immut, T_immut => true
+  | T_mut, T_mut => true
+  | _, _ => false
   end.
 
 Lemma eqmutabilityP : Equality.axiom mutability_eqb.
@@ -669,8 +701,8 @@ Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
 
 Definition function_type_eqb (tf1 tf2 : function_type) : bool :=
-  match (tf1, tf2) with
-  | (Tf vt11 vt12, Tf vt21 vt22) => (vt11 == vt21) && (vt12 == vt22)
+  match tf1, tf2 with
+  | Tf vt11 vt12, Tf vt21 vt22 => (vt11 == vt21) && (vt12 == vt22)
   end.
 
 Lemma eqfunction_typeP : Equality.axiom function_type_eqb.
@@ -730,10 +762,10 @@ Inductive sx : Type :=
 | sx_U.
 
 Definition sx_eqb (s1 s2 : sx) : bool :=
-  match (s1, s2) with
-  | (sx_S, sx_S) => true
-  | (sx_U, sx_U) => true
-  | _ => false
+  match s1, s2 with
+  | sx_S, sx_S => true
+  | sx_U, sx_U => true
+  | _, _ => false
   end.
 
 Lemma eqsxP : Equality.axiom sx_eqb.
@@ -817,12 +849,12 @@ Inductive value : Type := (* v *)
 | ConstFloat64 : f64 -> value.
 
 Definition value_eqb (v1 v2 : value) : bool :=
-  match (v1, v2) with
-  | (ConstInt32 i1, ConstInt32 i2) => i1 == i2
-  | (ConstInt64 i1, ConstInt64 i2) => i1 == i2
-  | (ConstFloat32 f1, ConstFloat32 f2) => f1 == f2
-  | (ConstFloat64 f1, ConstFloat64 f2) => f1 == f2
-  | _ => false
+  match v1, v2 with
+  | ConstInt32 i1, ConstInt32 i2 => i1 == i2
+  | ConstInt64 i1, ConstInt64 i2 => i1 == i2
+  | ConstFloat32 f1, ConstFloat32 f2 => f1 == f2
+  | ConstFloat64 f1, ConstFloat64 f2 => f1 == f2
+  | _, _ => false
   end.
 
 Axiom eqvalueP : Equality.axiom value_eqb.
@@ -875,12 +907,12 @@ Inductive function_closure : Type := (* cl *)
 | Func_host : function_type -> host -> function_closure.
 
 Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
-  match (cl1, cl2) with
-  | (Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2) =>
+  match cl1, cl2 with
+  | Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2 =>
     (i1 == i2) && (tf1 == tf2) && (vs1 == vs2) && (eis1 == eis2)
-  | (Func_host tf1 h1, Func_host tf2 h2) =>
+  | Func_host tf1 h1, Func_host tf2 h2 =>
     (tf1 == tf2) && (h1 == h2)
-  | _ => false
+  | _, _ => false
   end.
 
 Axiom eqfunction_closureP : Equality.axiom function_closure_eqb.
@@ -997,27 +1029,27 @@ Inductive administrative_instruction : Type := (* e *)
 Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : bool :=
   let fff :=
       (fix f (l1 l2 : list administrative_instruction) :=
-         match (l1, l2) with
-         | (nil, nil) => true
-         | (cons _ _, nil) => false
-         | (nil, cons _ _) => false
-         | (cons x xs, cons y ys) => (administrative_instruction_eqb x y) && (f xs ys)
+         match l1, l2 with
+         | nil, nil => true
+         | cons _ _, nil => false
+         | nil, cons _ _ => false
+         | cons x xs, cons y ys => (administrative_instruction_eqb x y) && (f xs ys)
          end
       ) in
-  match (e1, e2) with
-  | (Basic be1, Basic be2) => be1 == be2
-  | (Trap, Trap) => true
-  | (Callcl cl1, Callcl cl2) => cl1 == cl2
-  | (Label n1 es11 es12, Label n2 es21 es22) =>
+  match e1, e2 with
+  | Basic be1, Basic be2 => be1 == be2
+  | Trap, Trap => true
+  | Callcl cl1, Callcl cl2 => cl1 == cl2
+  | Label n1 es11 es12, Label n2 es21 es22 =>
     (Nat.eqb n1 n2) &&
     (fff es11 es21) &&
     (fff es12 es22)
-  | (Local n1 i1 vs1 es1, Local n2 i2 vs2 es2) =>
+  | Local n1 i1 vs1 es1, Local n2 i2 vs2 es2 =>
     (Nat.eqb n1 n2) &&
     (Nat.eqb i1 i2) &&
     (vs1 == vs2) &&
     (fff es1 es2)
-  | _ => (* TODO *) false
+  | _, _ => (* TODO *) false
   end.
 
 Axiom eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
@@ -1344,57 +1376,40 @@ Definition v_to_e_list (ves : list value) : list administrative_instruction :=
 Fixpoint lfill (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
   match k with
   | O =>
-   match lh with
-    | LBase vs es' => if const_list vs then Some (app vs (app es es')) else None
-    | LRec _ _ _ _ _ => None
-   end
+    if lh is LBase vs es' then
+      if const_list vs then Some (app vs (app es es')) else None
+    else None
   | S k' =>
-   match lh with
-   | LBase _ _ => None
-   | LRec vs n es' lh' es'' =>
+   if lh is LRec vs n es' lh' es'' then
      if const_list vs then
-       match lfill k' lh' es with
-       | Some lfilledk => Some (app vs (cons (Label n es' lfilledk) es''))
-       | None => None
-       end
+       if lfill k' lh' es is Some lfilledk then
+         Some (app vs (cons (Label n es' lfilledk) es''))
+       else None
      else None
-   end
+   else None
   end.
 
 Definition lfilled (k : nat) (lh : lholed) (es : list administrative_instruction) (es' : list administrative_instruction) : bool :=
-  match lfill k lh es with
-  | None => false
-  | Some es'' => es' == es''
-  end.
+  if lfill k lh es is Some es'' then es' == es'' else false.
 
 (* TODO: also inductive definition? *)
 
 Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
   match k with
   | O =>
-   match lh with
-    | LBase nil nil => Some es
-    | LBase _ _ => None
-    | LRec _ _ _ _ _ => None
-   end
+    if lh is LBase nil nil then Some es else None
   | S k' =>
-   match lh with
-   | LBase _ _ => None
-   | LRec vs n es' lh' es'' =>
-     if const_list vs then
-       match lfill_exact k' lh' es with
-       | Some lfilledk => Some (app vs (cons (Label n es' lfilledk) es''))
-       | None => None
-       end
-     else None
-   end
+    if lh is LRec vs n es' lh' es'' then
+      if const_list vs then
+        if lfill_exact k' lh' es is Some lfilledk then
+          Some (app vs (cons (Label n es' lfilledk) es''))
+        else None
+      else None
+    else None
   end.
 
 Definition lfilled_exact (k : nat) (lh : lholed) (es : list administrative_instruction) (es' : list administrative_instruction) : bool :=
-  match lfill_exact k lh es with
-  | None => false
-  | Some es'' => es' == es''
-  end.
+  if lfill_exact k lh es is Some es'' then es' == es'' else false.
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : value_type) : bool :=
   match tp with
