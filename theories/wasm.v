@@ -34,7 +34,10 @@ Ltac lias :=
     constr:(Hcons (@ltP) (Hcons (@leP) Hnil : hlist id _)) in
   iter ltac:(fun t => move/t) reflects;
   iter ltac:(fun t => apply/t; try lia) reflects;
-  lia.
+  try lia;
+  match goal with
+  | |- ?f _ => unfold f; lia
+  end.
 
 (** Rewrite an arithmetic equality. **)
 Ltac rewrite_by E :=
@@ -477,7 +480,34 @@ Include Float.
 
 Definition T := float.
 
-(** An unspecified positive, whose content is made opaque to avoid overspecification. **)
+(** State whether the given float is a NaN. **)
+Definition is_nan : T -> bool := Binary.is_nan _ _.
+
+(** State whether the given float is negative. **)
+Definition sign : T -> bool := Binary.Bsign _ _.
+
+(** State whether the given float is a zero. **)
+Definition is_zero (f : T) :=
+  if f is Binary.B754_zero _ then true else false.
+
+(** State whether the given float is an infinity. **)
+Definition is_infinity (f : T) :=
+  if f is Binary.B754_infinity _ then true else false.
+
+(** +∞ **)
+Definition pos_infinity : T := Binary.B754_infinity _ _ false.
+
+(** -∞ **)
+Definition neg_infinity : T := Binary.B754_infinity _ _ true.
+
+(** +0 **)
+Definition pos_zero : T := Binary.B754_zero _ _ false.
+
+(** -0 **)
+Definition neg_zero : T := Binary.B754_zero _ _ true.
+
+(** An unspecified positive unsed in [unspec_nan], whose value is made opaque to
+  avoid overspecification. **)
 Definition unspec_nan_pl : { pl | Binary.nan_pl 53 pl = true }.
   assert (pl : { pl | Binary.nan_pl 53 pl = true
                       /\ exists b E,
@@ -486,7 +516,7 @@ Definition unspec_nan_pl : { pl | Binary.nan_pl 53 pl = true }.
   case pl. clear pl. move=> pl [E _]. by exists pl.
 Qed.
 
-(** An unspecified nan, whose content is made opaque to avoid overspecification. **)
+(** An unspecified nan. **)
 Definition unspec_nan : T :=
   Binary.B754_nan _ _ ltac:(abstract exact true) _ (proj2_sig unspec_nan_pl).
 
@@ -496,29 +526,43 @@ Definition nans : T -> T :=
     else default in
   set_bit_sign (set_bit_sign unspec_nan unspec_nan).
 
-Definition is_zero (f : T) :=
-  if f is Binary.B754_zero _ then true else false.
+Lemma nans_is_nan : forall f,
+  is_nan (nans f) = true.
+Proof.
+  move=> f. rewrite /nans. case f => //.
+Qed.
 
-Definition is_infinity (f : T) :=
-  if f is Binary.B754_infinity _ then true else false.
+(** Importing the square root of floats from the Flocq library with the
+  round-to-nearest ties-to-even mode. **)
+Definition sqrt (f : T) : T.
+  refine (Binary.Bsqrt _ _ _ _ (fun f => exist _ _ (nans_is_nan f)) Binary.mode_NE f);
+    abstract lias.
+Defined.
+
+Definition fsqrt (f : float) :=
+  if is_nan f then nans f
+  else if sign f then nans zero
+  else if f is Binary.B754_infinity false then pos_infinity
+  else if is_zero f then f
+  else sqrt f.
 
 Definition fceil (f : float) :=
-  if Binary.is_nan _ _ f then nans f
+  if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
-  else if true (* TODO: f < 0 && f >= -1 *) then Binary.B754_zero _ _ true
-  else (* TODO: Binary.binary_normalize mode_DN *) f.
+  else if cmp Clt f neg_zero && cmp Cge f (of_int (Int.repr (-1))) then neg_zero
+  else (* TODO: Core.Generic_fmt.round ; Fdiv_core *) f.
 
 Definition Tmixin : mixin_of T.
   refine {|
-      float_zero := zero ;
+      float_zero := pos_zero ;
       float_neg := neg ;
       float_abs := abs ;
       float_ceil := fceil ;
       float_floor := _ (* TODO: Zfloor *) ;
       float_trunc := _ (* TODO: Ztrunc *) ;
       float_nearest := _ (* TODO: ZnearestE *) ;
-      float_sqrt := _ (* TODO: Sqrt.sqrt, Binary.Bsqrt *) ;
+      float_sqrt := fsqrt ;
       float_add := add ;
       float_sub := sub ;
       float_mul := mul ;
