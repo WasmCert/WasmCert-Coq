@@ -520,6 +520,43 @@ Qed.
 Definition unspec_nan : T :=
   Binary.B754_nan _ _ ltac:(abstract exact true) _ (proj2_sig unspec_nan_pl).
 
+(** Taking the opposite of a floating point number. **)
+Definition opp : T -> T.
+  refine (Binary.Bopp _ _ (fun _ => exist _ unspec_nan _)); reflexivity.
+Defined.
+
+(** Given a mantissa and an exponent (in radix two), produce a representation for a float.
+  The sign is not specified if given 0 as a mantissa. **)
+Definition normalise (m e : Z) : T.
+  refine (Binary.binary_normalize _ _ _ _ Binary.mode_NE m e ltac:(abstract exact false));
+    reflexivity.
+Defined.
+
+(** As Flocq is completely undocumented, let us introduce a unit test here, to check
+  that indeed we have the correct understanding of definitions.
+  We define [half] to be [0.5], adds it to itself, then check that the result is one.
+  (Note that because of rounding errors, it may actually not be equal for some parameters,
+  but it seems to be fine here.) **)
+Definition unit_test_1 : Prop.
+  refine (let half := normalise 1 (-1) in _).
+  refine (let twice_half : T :=
+            Binary.Bplus _ _ _ _ (fun _ _ => exist _ unspec_nan _) Binary.mode_NE half half in _).
+  refine (let one := Binary.Bone _ _ _ _ in _).
+  refine (cmp Ceq twice_half one = true).
+Grab Existential Variables.
+  reflexivity.
+  reflexivity.
+  reflexivity.
+  reflexivity.
+  reflexivity.
+Defined.
+Lemma unit_test_1_ok : unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+(** In contrary to the Wasm specification, we consider that [nans] only takes one parameter
+  instead of a set. **)
 Definition nans : T -> T :=
   let set_bit_sign default f :=
     if f is Binary.B754_nan b pl E then Binary.B754_nan _ _ true pl E
@@ -546,12 +583,72 @@ Definition fsqrt (f : float) :=
   else if is_zero f then f
   else sqrt f.
 
+(** It seems that Flocq does not define any ceil and floor functions on floating point numbers
+  (it does define it on the [R] type, but it is not really useful for us.
+  Instead, we base ourselves on CompCert and its operation converting floating point numbers
+  to integers.
+  It returns the integer, rounded towards -∞. **)
+Definition ZofB : T -> option Z := IEEE754_extra.ZofB _ _.
+
+(** This function does the countrary: it translates an integer to floating point number. **)
+Definition BofZ : Z -> T.
+  refine (IEEE754_extra.BofZ _ _ _ _); abstract lias.
+Defined.
+
+(** As above, here are two unit test to be sure that we are indeed expecting the right thing. **)
+Definition unit_test_2 : Prop :=
+  let half := normalise 1 (-1) in
+  ZofB half = Some 0%Z.
+Lemma unit_test_2_ok : unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Definition unit_test_3 : Prop :=
+  let half := normalise (-5) (-1) in
+  ZofB half = Some (-2)%Z.
+Lemma unit_test_3_ok : unit_test_3.
+Proof.
+  reflexivity.
+Qed.
+
+(** [BofZ] is actually just the same thing than calling [normalise] with an empty exponent. **)
+Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
+Proof.
+  rewrite /BofZ /IEEE754_extra.BofZ /normalise => i.
+  f_equal; apply Logic.Eqdep_dec.eq_proofs_unicity_on;
+    move=> c; case c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
+Qed.
+
+(* FIXME: Actually considions my apply for this lemma to be correct.
+(** [ZofB] is the inverse of [BofZ]. **)
+Lemma ZofB_BofZ : forall f i,
+  ZofB f = Some i ->
+  BofZ i = f.
+ *)
+
+(** If the float is finite, then return the integer rounded towards -∞,
+  otherwise leave as-is. **)
+Definition trunc (f : float) :=
+  if ZofB f is Some i then BofZ i else f.
+
+(** If the float is finite, then return the integer rounded towards +∞,
+  otherwise leave as-is. **)
+Definition up (* TODO: name *) (f : float) :=
+  opp (trunc (opp f)).
+
+(** If the float is finite, then return the integer rounded towards zero,
+  otherwise leave as-is. **)
+Definition ceil (f : float) :=
+  if sign f then up f else trunc f.
+
 Definition fceil (f : float) :=
   if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
-  else if cmp Clt f neg_zero && cmp Cge f (of_int (Int.repr (-1))) then neg_zero
-  else (* TODO: Core.Generic_fmt.round ; Fdiv_core *) f.
+  else if cmp Clt f neg_zero && cmp Cgt f (of_int (Int.repr (-1))) then neg_zero
+  else ceil f.
+
 
 Definition Tmixin : mixin_of T.
   refine {|
