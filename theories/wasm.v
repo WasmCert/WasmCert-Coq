@@ -553,7 +553,7 @@ Defined.
   We define [half] to be [0.5], adds it to itself, then check that the result is one.
   (Note that because of rounding errors, it may actually not be equal for some parameters,
   but it seems to be fine here.) **)
-Definition unit_test_1 : Prop.
+Definition normalise_unit_test : Prop.
   refine (let half := normalise 1 (-1) in _).
   refine (let twice_half : T :=
             Binary.Bplus _ _ _ _ (fun _ _ => exist _ unspec_nan _) Binary.mode_NE half half in _).
@@ -566,7 +566,7 @@ Grab Existential Variables.
   reflexivity.
   reflexivity.
 Defined.
-Lemma unit_test_1_ok : unit_test_1.
+Lemma normalise_unit_test_ok : normalise_unit_test.
 Proof.
   reflexivity.
 Qed.
@@ -603,7 +603,7 @@ Definition fsqrt (f : float) :=
   (it does define it on the [R] type, but it is not really useful for us.
   Instead, we base ourselves on CompCert and its operation converting floating point numbers
   to integers.
-  It returns the integer, rounded towards -∞. **)
+  It returns the integer, rounded towards zero. **)
 Definition ZofB : T -> option Z := IEEE754_extra.ZofB _ _.
 
 (** This function does the countrary: it translates an integer to floating point number. **)
@@ -611,19 +611,19 @@ Definition BofZ : Z -> T.
   refine (IEEE754_extra.BofZ _ _ _ _); abstract lias.
 Defined.
 
-(** As above, here are two unit test to be sure that we are indeed expecting the right thing. **)
-Definition unit_test_2 : Prop :=
+(** As above, here are two unit tests to be sure that we are indeed expecting the right thing. **)
+Definition BofZ_unit_test_1 : Prop :=
   let half := normalise 1 (-1) in
   ZofB half = Some 0%Z.
-Lemma unit_test_2_ok : unit_test_2.
+Lemma BofZ_unit_test_1_ok : BofZ_unit_test_1.
 Proof.
   reflexivity.
 Qed.
 
-Definition unit_test_3 : Prop :=
-  let half := normalise (-5) (-1) in
-  ZofB half = Some (-2)%Z.
-Lemma unit_test_3_ok : unit_test_3.
+Definition BofZ_unit_test_2 : Prop :=
+  let minus_two_point_five := normalise (-5) (-1) in
+  ZofB minus_two_point_five = Some (-2)%Z.
+Lemma BofZ_unit_test_2_ok : BofZ_unit_test_2.
 Proof.
   reflexivity.
 Qed.
@@ -643,20 +643,44 @@ Lemma ZofB_BofZ : forall f i,
   BofZ i = f.
  *)
 
-(** If the float is finite, then return the integer rounded towards -∞,
+(** If the float is finite, then return the integer rounded towards zero,
   otherwise leave as-is. **)
 Definition trunc (f : float) :=
   if ZofB f is Some i then BofZ i else f.
 
+(** If the float is finite, then return the integer rounded away from zero,
+  otherwise leave as-is. **)
+Definition away (f : float) :=
+  opp (trunc (opp f)). (* TODO *)
+
 (** If the float is finite, then return the integer rounded towards +∞,
   otherwise leave as-is. **)
-Definition up (* TODO: name *) (f : float) :=
-  opp (trunc (opp f)).
-
-(** If the float is finite, then return the integer rounded towards zero,
-  otherwise leave as-is. **)
 Definition ceil (f : float) :=
-  if sign f then up f else trunc f.
+  if sign f then away f else trunc f.
+
+(** If the float is finite, then return the integer rounded towards -∞,
+  otherwise leave as-is. **)
+Definition floor (f : float) :=
+  if sign f then trunc f else away f.
+
+(** As above, here are some unit tests to be sure that we are indeed expecting the right thing. **)
+Definition trunc_unit_test : Prop :=
+  let minus_two_point_five := normalise (-5) (-1) in
+  trunc minus_two_point_five = BofZ (-2).
+Lemma trunc_unit_test_ok : trunc_unit_test.
+Proof.
+  reflexivity.
+Qed.
+
+Eval compute in ZofB (away (normalise (-5) (-1))).
+
+Definition away_unit_test : Prop :=
+  let minus_two_point_five := normalise (-5) (-1) in
+  away minus_two_point_five = BofZ (-3).
+Lemma away_unit_test_ok : away_unit_test.
+Proof.
+  reflexivity.
+Qed.
 
 Definition fceil (f : float) :=
   if is_nan f then nans f
