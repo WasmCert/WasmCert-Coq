@@ -19,6 +19,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(** * Prerequisites **)
+
 (** An extension of [lia] that just tries to rewrite things in the way [lia] that expects.
   Not very optimised. **)
 Ltac lias :=
@@ -42,9 +44,25 @@ Ltac lias :=
 (** Rewrite an arithmetic equality. **)
 Ltac rewrite_by E :=
   let R := fresh "R" in
-  assert (R : E);
+  have R: E;
     [ by [auto|lias]
     | rewrite {} R ].
+
+(** A useful lemma to link the results of [Scheme Equality] to [Equality.axiom]. **)
+Lemma Equality_axiom_eq_dec : forall t (eq_dec : forall x y : t, {x = y} + {x <> y}),
+  let eqb v1 v2 := is_left (eq_dec v1 v2) in
+  Equality.axiom eqb.
+Proof.
+  move=> t eq_dec eqb x y. rewrite /eqb. case: (eq_dec x y).
+  - move=> E. by apply/ReflectT.
+  - move=> E. by apply/ReflectF.
+Qed.
+
+(** A useful lemma for the converse: getting a [_dec_eq] from an [Equality.axiom]. **)
+Definition eq_dec_Equality_axiom t (eqb : t -> t -> bool) (A : Equality.axiom eqb) :
+    forall x y : t, {x = y} + {x <> y}.
+  move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
+Defined.
 
 
 (** * Numerics **)
@@ -159,7 +177,7 @@ Fixpoint power_index_to_bits (c : nat) (l : seq Z) : seq bool :=
 Lemma power_index_to_bits_size : forall c x,
   seq.size (power_index_to_bits c x) = c.
 Proof.
-  move=> c. elim c; first by [].
+  move=> c. elim: c; first by [].
   move=> n + x /=. by move=> ->.
 Qed.
 
@@ -167,8 +185,8 @@ Lemma power_index_to_bits_none : forall c (l : seq Z),
   (forall i, i < c -> (i : Z) \notin l) ->
   power_index_to_bits c l = nseq c false.
 Proof.
-  move=> c. elim c; first by [].
-  clear c. move=> c IH l A /=.
+  move=> c. elim: c; first by [].
+  move=> c IH l A /=.
   rewrite (Bool.negb_involutive_reverse (_ \in l)) A //=.
   rewrite IH //. move=> i I. apply: A. by apply: leq_trans I.
 Qed.
@@ -177,7 +195,7 @@ Lemma power_index_to_bits_in : forall c l n,
   n < c ->
   seq.nth false (power_index_to_bits c l) (c - n - 1) = ((n : Z) \in l).
 Proof.
-  move=> c l n => /leP I. move: l. elim I.
+  move=> c l n => /leP I. move: l. elim: I.
   - move=> l /=. by rewrite_by (n.+1 - n - 1 = 0).
   - clear. move=> c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply IH.
 Qed.
@@ -199,7 +217,7 @@ Qed.
 Lemma convert_to_bits_zero : convert_to_bits zero = seq.nseq wordsize false.
 Proof.
   rewrite /convert_to_bits. rewrite Zbits.Z_one_bits_zero /=.
-  elim wordsize; first by [].
+  elim: wordsize; first by [].
   by move=> n /= ->.
 Qed.
 
@@ -207,21 +225,19 @@ Lemma convert_to_bits_one :
   convert_to_bits one
   = rcons (seq.nseq (wordsize - 1) false) true.
 Proof.
-  assert (E: intval one = Zpower.two_p Z0).
-  { compute. move: WS.wordsize_not_zero. by elim WS.wordsize. }
+  have E: intval one = Zpower.two_p Z0.
+  { compute. move: WS.wordsize_not_zero. by elim: WS.wordsize. }
   rewrite /convert_to_bits E Zbits.Z_one_bits_two_p /=.
   - rewrite /convert_to_bits /wordsize.
-    move: WS.wordsize_not_zero. case WS.wordsize => //.
+    move: WS.wordsize_not_zero. case: WS.wordsize => //.
     move=> ws _ /=.
-    assert (Rws: ws.+1 - 1 = ws).
-    { rewrite -> PeanoNat.Nat.sub_succ. by rewrite PeanoNat.Nat.sub_0_r. }
-    rewrite {} Rws. elim Ews: ws => [|ws]; first by [].
+    rewrite_by (ws.+1 - 1 = ws).
+    elim Ews: ws => [|ws]; first by [].
     move=> IH /=.
-    assert (Rf: Zpos (BinPos.Pos.of_succ_nat ws) \in [:: Z0] = false).
-    { by []. }
+    have Rf: Zpos (BinPos.Pos.of_succ_nat ws) \in [:: Z0] = false; first by [].
     rewrite {} Rf. rewrite IH //.
   - split=> //. rewrite /wordsize.
-    move: WS.wordsize_not_zero. by case WS.wordsize => //.
+    move: WS.wordsize_not_zero. by case: WS.wordsize => //.
 Qed.
 
 Lemma nat_Z_lt_neq : forall a b,
@@ -244,7 +260,7 @@ Lemma convert_to_bits_two_p : forall p : nat,
   = seq.nseq (wordsize - 1 - p) false ++ [:: true] ++ seq.nseq p false.
 Proof.
   rewrite /convert_to_bits /repr /intval. move=> p I.
-  assert (Rm: Z_mod_modulus (Zpower.two_p p) = Zpower.two_p p).
+  have Rm: Z_mod_modulus (Zpower.two_p p) = Zpower.two_p p.
   { rewrite /Z_mod_modulus. case Epp: Zpower.two_p => //=.
     - rewrite Zbits.P_mod_two_p_eq. rewrite Z.mod_small //.
       split=> //. rewrite <- Epp. clear Epp.
@@ -252,13 +268,13 @@ Proof.
       split=> //.
       + by apply: Zorder.Zle_0_nat.
       + apply: Znat.inj_lt. by apply/leP.
-    - exfalso. move: Epp. by case p. }
+    - exfalso. move: Epp. by case: (p). }
   rewrite {} Rm. rewrite Zbits.Z_one_bits_two_p /=.
-  - assert (I': (p < wordsize)%coq_nat); first by apply/ltP. elim I'.
-    + clear I I' => /=. rewrite_by (p.+1 - 1 - p = 0).
+  - have I': (p < wordsize)%coq_nat; first by apply/ltP. elim: I'.
+    + move=> /=. rewrite_by (p.+1 - 1 - p = 0).
       rewrite in_cons in_nil eqxx /=. f_equal.
       rewrite power_index_to_bits_none //.
-      move=> i I. by rewrite in_cons in_nil nat_Z_lt_neq.
+      move=> i I'. by rewrite in_cons in_nil nat_Z_lt_neq.
     + move=> ws Ip E /=. rewrite E /=.
       rewrite in_cons in_nil nat_Z_gt_neq.
       * by rewrite_by (ws.+1 - 1 - p = (ws - 1 - p).+1).
@@ -294,7 +310,7 @@ Lemma convert_to_bits_disjunct_sum : forall a b,
 Proof.
   rewrite /convert_to_bits /repr /intval.
 
-  elim wordsize; first by [].
+  elim: wordsize; first by [].
   move=> ws IH a b E.
 Admitted. (* TODO *)
 
@@ -305,12 +321,12 @@ Lemma convert_to_bits_testbit : forall n x,
 Proof.
   rewrite /convert_to_bits.
 
-  move=> n. elim n.
+  move=> n. elim: n.
   - move=> x _. admit.
   - clear n. move=> n IH x I. simpl.
   
-  elim wordsize => ws; first by [].
-  move=> IH n x I. elim n => /=.
+  elim: wordsize => ws; first by [].
+  move=> IH n x I. elim: n => /=.
   /=.
   simpl. rewrite <- IHws.
   destruct n.
@@ -402,16 +418,17 @@ Proof.
   apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; (by left) || (right; discriminate).
 Qed.
 
-Definition cT : type.
-  apply: Pack {| mixin := Tmixin |}.
-  apply Equality.Mixin with (op := eq).
-  move=> x y. rewrite /eq. case Coqlib.zeq as [E|E].
-  - constructor. move: E. case x => x_ [Vx Rx]. case y => y_ [Vy Ry].
+Lemma eq_eqP : Equality.axiom eq.
+Proof.
+  move=> x y. rewrite /eq. case: Coqlib.zeq => [E|E].
+  - apply/ReflectT. move: E. case: x => x [Vx Rx]. case: y => y [Vy Ry].
     simpl. move=> E //=. subst. f_equal.
     rewrite (Z_lt_irrelevant Vx Vy).
     by rewrite (Z_lt_irrelevant Rx Ry).
-  - constructor. move=> ?. subst. exact: E.
+  - apply/ReflectF. move=> ?. subst. exact: E.
 Qed.
+
+Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
 
 End Make_Wasm_int.
 
@@ -525,11 +542,11 @@ Definition neg_zero : T := Binary.B754_zero _ _ true.
 (** An unspecified positive unsed in [unspec_nan], whose value is made opaque to
   avoid overspecification. **)
 Definition unspec_nan_pl : { pl | Binary.nan_pl 53 pl = true }.
-  assert (pl : { pl | Binary.nan_pl 53 pl = true
-                      /\ exists b E,
-                           proj1_sig Archi.default_nan_64 = Binary.B754_nan _ _ b pl E }).
-  { case Archi.default_nan_64 => f. case f => // b pl Epl Inan. by repeat eexists. }
-  case pl. clear pl. move=> pl [E _]. by exists pl.
+  have pl: { pl | Binary.nan_pl 53 pl = true
+                  /\ exists b E,
+                       proj1_sig Archi.default_nan_64 = Binary.B754_nan _ _ b pl E }.
+  { case: Archi.default_nan_64 => f. case: f => // b pl Epl Inan. by repeat eexists. }
+  case: pl. move=> pl [E _]. by exists pl.
 Qed.
 
 (** An unspecified nan. **)
@@ -582,7 +599,7 @@ Definition nans : T -> T :=
 Lemma nans_is_nan : forall f,
   is_nan (nans f) = true.
 Proof.
-  move=> f. rewrite /nans. case f => //.
+  move=> f. rewrite /nans. case: f => //.
 Qed.
 
 (** Importing the square root of floats from the Flocq library with the
@@ -641,7 +658,7 @@ Definition nearesto := ZofB_param div_near div_near.
 Lemma trunco_is_ZofB : forall f,
   trunco f = IEEE754_extra.ZofB _ _ f.
 Proof.
-  move=> f. case f => // s m e. by case s.
+  move=> f. case: f => // s m e. by case: s.
 Qed.
 
 (** This function does the countrary: it translates an integer to floating point number. **)
@@ -654,7 +671,7 @@ Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
 Proof.
   rewrite /BofZ /IEEE754_extra.BofZ /normalise => i.
   f_equal; apply Logic.Eqdep_dec.eq_proofs_unicity_on;
-    move=> c; case c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
+    move=> c; case: c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
 Qed.
 
 (** We can then define versions of these operators directly from float to float,
@@ -816,6 +833,7 @@ Definition Tmixin : mixin_of T := {|
     float_ge := cmp Cge
   |}.
 
+
 Definition cT : type.
   refine (@Pack T {| mixin := Tmixin |}).
   apply Equality.Mixin with (op := cmp Ceq). (* TODO: This is wrong *)
@@ -885,20 +903,8 @@ Inductive value_type : Type := (* t *)
 | T_f32
 | T_f64.
 
-Definition value_type_eqb (v1 v2 : value_type) :=
-  match (v1, v2) with
-  | (T_i32, T_i32) => true
-  | (T_i64, T_i64) => true
-  | (T_f32, T_f32) => true
-  | (T_f64, T_f64) => true
-  | _ => false
-  end.
-
-Lemma eqvalue_typeP : Equality.axiom value_type_eqb.
-Proof.
-  move=> v1 v2.
-  by case: v1; case: v2; (apply/ReflectT || apply/ReflectF).
-Qed.
+Scheme Equality for value_type.
+Definition eqvalue_typeP := Equality_axiom_eq_dec value_type_eq_dec.
 
 Canonical value_type_eqMixin := EqMixin eqvalue_typeP.
 Canonical value_type_eqType := Eval hnf in EqType value_type value_type_eqMixin.
@@ -912,18 +918,8 @@ Inductive mutability : Type := (* mut *)
 | T_immut
 | T_mut.
 
-Definition mutability_eqb (m1 m2 : mutability) : bool :=
-  match m1, m2 with
-  | T_immut, T_immut => true
-  | T_mut, T_mut => true
-  | _, _ => false
-  end.
-
-Lemma eqmutabilityP : Equality.axiom mutability_eqb.
-Proof.
-  move=> m1 m2.
-  by case: m1; case: m2; (apply/ReflectT || (apply/ReflectF; move=> H; case H)).
-Qed.
+Scheme Equality for mutability.
+Definition eqmutabilityP := Equality_axiom_eq_dec mutability_eq_dec.
 
 Canonical mutability_eqMixin := EqMixin eqmutabilityP.
 Canonical mutability_eqType := Eval hnf in EqType mutability mutability_eqMixin.
@@ -932,65 +928,24 @@ Canonical mutability_eqType := Eval hnf in EqType mutability mutability_eqMixin.
 Record global_type := (* tg *)
   { tg_mut : mutability; tg_t : value_type}.
 
-Definition global_type_eqb (tg1 tg2 : global_type) : bool :=
-  (tg_mut tg1 == tg_mut tg2)
-    && (tg_t tg1 == tg_t tg2).
+Scheme Equality for global_type.
+Definition eqglobal_typeP := Equality_axiom_eq_dec global_type_eq_dec.
 
-Lemma eqglobal_typeP : Equality.axiom global_type_eqb.
-Proof.
-  move=> g1 g2.
-  case: g1 => m1 t1; case g2 => m2 t2.
-  case_eq (m1 == m2) => [Hm|Hm].
-  {
-    case_eq (t1 == t2) => [Ht|Ht].
-    {
-      rewrite /global_type_eqb /=.
-      rewrite Hm Ht.
-      apply/ReflectT.
-      move/eqP: Hm => Hm.
-      move/eqP: Ht => Ht.
-      by rewrite Hm Ht.
-    }
-    {
-      rewrite /global_type_eqb /=.
-      rewrite Hm Ht.
-      apply/ReflectF.
-      move=> H.
-      injection H => Ht2 Hm2.
-      subst.
-      move: Ht.
-      by rewrite eqxx.
-    }
-  }
-  {
-    rewrite /global_type_eqb /=.
-    rewrite Hm.
-    apply/ReflectF.
-    move=> H.
-    injection H => _ Hm2.
-    subst.
-    move: Hm.
-    by rewrite eqxx.
-  }
-Qed.
-
-(* Todo *)
 Canonical global_type_eqMixin := EqMixin eqglobal_typeP.
 Canonical global_type_eqType := Eval hnf in EqType global_type global_type_eqMixin.
-
 
 Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
 
-Definition function_type_eqb (tf1 tf2 : function_type) : bool :=
-  match tf1, tf2 with
-  | Tf vt11 vt12, Tf vt21 vt22 => (vt11 == vt21) && (vt12 == vt22)
-  end.
+Definition function_type_eqb (tf1 tf2 : function_type) :=
+  let: Tf vt11 vt12 := tf1 in
+  let: Tf vt21 vt22 := tf2 in
+  (vt11 == vt21) && (vt12 == vt22).
 
 Lemma eqfunction_typeP : Equality.axiom function_type_eqb.
 Proof.
-  case => tf11 tf12.
-  case => tf21 tf22.
+  case=> tf11 tf12.
+  case=> tf21 tf22.
   rewrite /function_type_eqb.
   case_eq (tf11 == tf21) => /= [/eqP-Hm|/eqP-Hm].
   {
@@ -1014,6 +969,8 @@ Proof.
   }
 Qed.
 
+Definition function_eq_dec := eq_dec_Equality_axiom eqfunction_typeP.
+
 Canonical function_type_eqMixin := EqMixin eqfunction_typeP.
 Canonical function_type_eqType := Eval hnf in EqType function_type function_type_eqMixin.
 
@@ -1028,8 +985,9 @@ Record t_context := {
   tc_return : option (list value_type);
 }.
 
-Variable t_context_eqb : t_context -> t_context -> bool.
-(* TODO *)
+Parameter t_context_eq_dec : forall x y : t_context, {x = y} + {x <> y}. (* TODO *)
+
+Definition eqt_contextP := Equality_axiom_eq_dec t_context_eq_dec.
 
 Record s_context := {
   sc_inst : list t_context;
@@ -1043,18 +1001,8 @@ Inductive sx : Type :=
 | sx_S
 | sx_U.
 
-Definition sx_eqb (s1 s2 : sx) : bool :=
-  match s1, s2 with
-  | sx_S, sx_S => true
-  | sx_U, sx_U => true
-  | _, _ => false
-  end.
-
-Lemma eqsxP : Equality.axiom sx_eqb.
-Proof.
-  move=> v1 v2.
-  by case: v1; case: v2; (apply/ReflectT || apply/ReflectF).
-Qed.
+Scheme Equality for sx.
+Definition eqsxP := Equality_axiom_eq_dec sx_eq_dec.
 
 Canonical sx_eqMixin := EqMixin eqsxP.
 Canonical sx_eqType := Eval hnf in EqType sx sx_eqMixin.
@@ -1139,8 +1087,15 @@ Definition value_eqb (v1 v2 : value) : bool :=
   | _, _ => false
   end.
 
-Axiom eqvalueP : Equality.axiom value_eqb.
-(* TODO *)
+Lemma eqvalueP : Equality.axiom value_eqb.
+Proof.
+  do 2 case=> ?;
+    by [ apply/ReflectF
+       | apply/iffP; [ move=> /=; apply/eqP | move=> E; f_equal; exact: E | inversion 1] ].
+Qed.
+
+Definition value_eq_dec := eq_dec_Equality_axiom eqvalueP.
+
 Canonical value_eqMixin := EqMixin eqvalueP.
 Canonical value_eqType := Eval hnf in EqType value value_eqMixin.
 
@@ -1177,10 +1132,14 @@ Inductive basic_instruction : Type := (* be *)
 | Relop_f : value_type -> relop_f -> basic_instruction
 | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction.
 
+(* TODO:
+Scheme Equality for basic_instruction.
+Definition eqglobal_typeP := Equality_axiom_eq_dec global_type_eq_dec.
+*)
 Variable basic_instruction_eqb : basic_instruction -> basic_instruction -> bool.
-(* TODO: write this... *)
 
 Axiom eqbasic_instructionP : Equality.axiom basic_instruction_eqb.
+
 Canonical basic_instruction_eqMixin := EqMixin eqbasic_instructionP.
 Canonical basic_instruction_eqType := Eval hnf in EqType basic_instruction basic_instruction_eqMixin.
 
@@ -1197,8 +1156,18 @@ Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
   | _, _ => false
   end.
 
-Axiom eqfunction_closureP : Equality.axiom function_closure_eqb.
-(* TODO *)
+Lemma eqfunction_closureP : Equality.axiom function_closure_eqb.
+Proof.
+  move=> cl1 cl2. case: cl1; case: cl2; intros;
+    by [ apply/ReflectF
+       | move=> /=; apply/iffP;
+         [ apply andP
+         | repeat (case; move/andP); case; repeat move/eqP => ?; f_equal
+         | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
+Qed.
+
+Definition function_closure_eq_dec := eq_dec_Equality_axiom eqfunction_closureP.
+
 Canonical function_closure_eqMixin := EqMixin eqfunction_closureP.
 Canonical function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
 
@@ -1222,8 +1191,18 @@ Definition instance_eqb (i1 i2 : instance) : bool :=
     (i_globs i1 == i_globs i2)
 .
 
-Axiom eqinstanceP : Equality.axiom instance_eqb.
-(* TODO *)
+Lemma eqinstanceP : Equality.axiom instance_eqb.
+Proof.
+  move=> i1 i2. case: i1; case: i2; intros;
+    by [ apply/ReflectF
+       | move=> /=; apply/iffP;
+         [ apply andP
+         | repeat (case; move/andP); case; repeat move/eqP => ?; f_equal
+         | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
+Qed.
+
+Definition instance_eq_dec := eq_dec_Equality_axiom eqinstanceP.
+
 Canonical instance_eqMixin := EqMixin eqinstanceP.
 Canonical instance_eqType := Eval hnf in EqType instance instance_eqMixin.
 
@@ -1240,7 +1219,7 @@ Definition global_eqb (g1 g2 : global) : bool :=
 Lemma eqglobalP : Equality.axiom global_eqb.
 Proof.
   move=> g1 g2.
-  case: g1 => m1 t1; case g2 => m2 t2.
+  case: g1 => m1 t1; case: g2 => m2 t2.
   case_eq (m1 == m2) => [Hm|Hm].
   {
     case_eq (t1 == t2) => [Ht|Ht].
@@ -1273,6 +1252,8 @@ Proof.
   }
 Qed.
 
+Definition global_eq_dec := eq_dec_Equality_axiom eqglobalP.
+
 Canonical global_eqMixin := EqMixin eqglobalP.
 Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
 
@@ -1288,8 +1269,18 @@ Record store_record : Type := (* s *) {
 Definition store_record_eqb (s1 s2 : store_record) : bool :=
   (s_inst s1 == s_inst s2) && (s_funcs s1 == s_funcs s2) && (s_tab s1 == s_tab s2) && (s_mem s1 == s_mem s2) && (s_globs s1 == s_globs s2).
 
-Axiom eqstore_recordP : Equality.axiom store_record_eqb.
-(* TODO *)
+Lemma eqstore_recordP : Equality.axiom store_record_eqb.
+Proof.
+  move=> s1 s2. case: s1; case: s2; intros;
+    by [ apply/ReflectF
+       | move=> /=; apply/iffP;
+         [ apply andP
+         | repeat (case; move/andP); case; repeat move/eqP => ?; f_equal
+         | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
+Qed.
+
+Definition store_record_eq_dec := eq_dec_Equality_axiom eqstore_recordP.
+
 Canonical store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
 
