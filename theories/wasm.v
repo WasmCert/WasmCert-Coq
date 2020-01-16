@@ -46,6 +46,15 @@ Ltac rewrite_by E :=
     [ by [auto|lias]
     | rewrite {} R ].
 
+
+(** * Numerics **)
+
+(** Most of what follows comes from https://webassembly.github.io/spec/core/exec/numerics.html **)
+
+(** ** Integers **)
+
+(** *** Declaration of Operations **)
+
 Module Wasm_int.
 
 Record mixin_of (int_t : Type) := Mixin {
@@ -92,7 +101,7 @@ Local Coercion base : class_of >-> Equality.class_of.
 Structure type := Pack {sort : Type; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
-Parameters (T : Type) (cT : type).
+Parameters (T : Type) (cT : type). (* TODO: This is really problematical as it implicitely adds an axiom.  We want to change all this module into a module type instead. *)
 
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
@@ -110,57 +119,7 @@ Definition int_ne (e : type) : sort e -> sort e -> bool :=
 
 End Wasm_int.
 
-
-
-
-Module Wasm_float.
-
-Record mixin_of (float_t : Type) := Mixin {
-  float_zero : float_t;
-  float_neg : float_t -> float_t;
-  float_abs : float_t -> float_t;
-  float_ceil : float_t -> float_t;
-  float_floor : float_t -> float_t;
-  float_trunc : float_t -> float_t;
-  float_nearest : float_t -> float_t;
-  float_sqrt : float_t -> float_t;
-  float_add : float_t -> float_t -> float_t;
-  float_sub : float_t -> float_t -> float_t;
-  float_mul : float_t -> float_t -> float_t;
-  float_div : float_t -> float_t -> float_t;
-  float_min : float_t -> float_t -> float_t;
-  float_max : float_t -> float_t -> float_t;
-  float_copysign : float_t -> float_t -> float_t;
-  float_eq : float_t -> float_t -> bool;
-  float_lt : float_t -> float_t -> bool;
-  float_gt : float_t -> float_t -> bool;
-  float_le : float_t -> float_t -> bool;
-  float_ge : float_t -> float_t -> bool;
-}.
-
-
-Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
-Local Coercion base : class_of >->  Equality.class_of.
-
-Structure type := Pack {sort; _ : class_of sort}.
-Local Coercion sort : type >-> Sortclass.
-
-Parameters (T : Type) (cT : type).
-Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
-Definition clone c of phant_id class c := @Pack T c.
-Let xT := let: Pack T _ := cT in T.
-Notation xclass := (class : class_of xT).
-
-Definition pack m :=
-  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
-
-Definition eqType := @Equality.Pack cT xclass.
-
-Definition float_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
-    fun x => fun y => negb (float_eq x y).
-
-End Wasm_float.
+(** *** Instantiations **)
 
 Module Make_Wasm_int (WS: Integers.WORDSIZE).
 
@@ -463,6 +422,63 @@ End Wasm_int32.
 Module Wasm_int64.
 Include Make_Wasm_int(Integers.Wordsize_64).
 End Wasm_int64.
+
+
+(** ** FLoats **)
+
+(** *** Declaration of Operations **)
+
+Module Wasm_float.
+
+Record mixin_of (float_t : Type) := Mixin {
+  float_zero : float_t;
+  float_neg : float_t -> float_t;
+  float_abs : float_t -> float_t;
+  float_ceil : float_t -> float_t;
+  float_floor : float_t -> float_t;
+  float_trunc : float_t -> float_t;
+  float_nearest : float_t -> float_t;
+  float_sqrt : float_t -> float_t;
+  float_add : float_t -> float_t -> float_t;
+  float_sub : float_t -> float_t -> float_t;
+  float_mul : float_t -> float_t -> float_t;
+  float_div : float_t -> float_t -> float_t;
+  float_min : float_t -> float_t -> float_t;
+  float_max : float_t -> float_t -> float_t;
+  float_copysign : float_t -> float_t -> float_t;
+  float_eq : float_t -> float_t -> bool;
+  float_lt : float_t -> float_t -> bool;
+  float_gt : float_t -> float_t -> bool;
+  float_le : float_t -> float_t -> bool;
+  float_ge : float_t -> float_t -> bool;
+}.
+
+
+Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
+Local Coercion base : class_of >->  Equality.class_of.
+
+Structure type := Pack {sort; _ : class_of sort}.
+Local Coercion sort : type >-> Sortclass.
+
+Parameters (T : Type) (cT : type). (* TODO: Same as Wasm_int, this is not the way to go. *)
+
+Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
+Definition clone c of phant_id class c := @Pack T c.
+Let xT := let: Pack T _ := cT in T.
+Notation xclass := (class : class_of xT).
+
+Definition pack m :=
+  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
+
+Definition eqType := @Equality.Pack cT xclass.
+
+Definition float_ne (e : type) : sort e -> sort e -> bool :=
+  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
+    fun x => fun y => negb (float_eq x y).
+
+End Wasm_float.
+
+(** *** Instantiations **)
 
 (* TODO: Wasm_float32 *)
 
