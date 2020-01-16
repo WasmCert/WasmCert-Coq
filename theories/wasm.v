@@ -601,32 +601,53 @@ Definition fsqrt (f : float) :=
 
 (** It seems that Flocq does not define any ceil and floor functions on floating point numbers
   (it does define it on the [R] type, but it is not really useful for us.
-  Instead, we base ourselves on CompCert and its operation converting floating point numbers
-  to integers.
-  It returns the integer, rounded towards zero. **)
-Definition ZofB : T -> option Z := IEEE754_extra.ZofB _ _.
+  Inspired by CompCert’s [IEEE754_extra.ZofB], we build this operation, parameterised by two
+  divisions functions (one for negative numbers and one for positive numbers).
+  These divisions functions only differ in the way they round numbers (up, down, or nearest).
+  Note that these parameters are used to compute the absolute value of the resulting integer. **)
+Definition ZofB_param (divP divN : Z -> Z -> Z) (f : T) :=
+  match f with
+  | Binary.B754_zero _ => Some 0%Z
+  | @Binary.B754_finite _ _ s m 0 _ => Some (cond_Zopp s (Z.pos m))
+  | Binary.B754_finite s m (Z.pos e) _ => Some (cond_Zopp s (Z.pos m) * Z.pow_pos radix2 e)%Z
+  | Binary.B754_finite s m (Z.neg e) _ =>
+    let div := if s then divN else divP in
+    Some (cond_Zopp s (div (Z.pos m) (Z.pow_pos radix2 e)))
+  | _ => None
+  end.
+
+(** We now instantiate this function with the following three division operations, only
+  differenciated in how they round numbers. **)
+Definition div_down : Z -> Z -> Z := Z.div.
+Definition div_up (a b : Z) : Z :=
+  ((if Zeq_bool (a mod b) 0 then 0 else 1) + a / b)%Z.
+Definition div_near (a b : Z) : Z :=
+  (if Z.ltb (a mod b) (b / 2) then div_down a b
+   else if Z.gtb (a mod b) (b / 2) then div_up a b
+   else (** Ties to even **)
+     let d := div_down a b in
+     let u := div_up a b in
+     if Z.even d then d else u)%Z.
+
+(** From these functions, we can define the usual ceil, floor, trunc, and nearest functions.
+  A -o suffix has been added as these function return an option type (returning [None] for
+  non-finite and NaN values). **)
+Definition ceilo := ZofB_param div_up div_down.
+Definition flooro := ZofB_param div_down div_up.
+Definition trunco := ZofB_param div_down div_down.
+Definition nearesto := ZofB_param div_near div_near.
+
+(** CompCert’s function [IEEE754_extra.ZofB] is exactly [trunco]. **)
+Lemma trunco_is_ZofB : forall f,
+  trunco f = IEEE754_extra.ZofB _ _ f.
+Proof.
+  move=> f. case f => // s m e. by case s.
+Qed.
 
 (** This function does the countrary: it translates an integer to floating point number. **)
 Definition BofZ : Z -> T.
   refine (IEEE754_extra.BofZ _ _ _ _); abstract lias.
 Defined.
-
-(** As above, here are two unit tests to be sure that we are indeed expecting the right thing. **)
-Definition BofZ_unit_test_1 : Prop :=
-  let half := normalise 1 (-1) in
-  ZofB half = Some 0%Z.
-Lemma BofZ_unit_test_1_ok : BofZ_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
-
-Definition BofZ_unit_test_2 : Prop :=
-  let minus_two_point_five := normalise (-5) (-1) in
-  ZofB minus_two_point_five = Some (-2)%Z.
-Lemma BofZ_unit_test_2_ok : BofZ_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
 
 (** [BofZ] is actually just the same thing than calling [normalise] with an empty exponent. **)
 Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
@@ -636,89 +657,169 @@ Proof.
     move=> c; case c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
 Qed.
 
-(* FIXME: Actually considions my apply for this lemma to be correct.
-(** [ZofB] is the inverse of [BofZ]. **)
-Lemma ZofB_BofZ : forall f i,
-  ZofB f = Some i ->
-  BofZ i = f.
- *)
-
-(** If the float is finite, then return the integer rounded towards zero,
-  otherwise leave as-is. **)
-Definition trunc (f : float) :=
-  if ZofB f is Some i then BofZ i else f.
-
-(** If the float is finite, then return the integer rounded away from zero,
-  otherwise leave as-is. **)
-Definition away (f : float) :=
-  opp (trunc (opp f)). (* TODO *)
-
-(** If the float is finite, then return the integer rounded towards +∞,
-  otherwise leave as-is. **)
-Definition ceil (f : float) :=
-  if sign f then away f else trunc f.
-
-(** If the float is finite, then return the integer rounded towards -∞,
-  otherwise leave as-is. **)
-Definition floor (f : float) :=
-  if sign f then trunc f else away f.
+(** We can then define versions of these operators directly from float to float,
+  leaving the float as-is if not a finite value. **)
+Definition floatify F (f : T) :=
+  if F f is Some i then BofZ i else f.
+Definition ceil := floatify ceilo.
+Definition floor := floatify flooro.
+Definition trunc := floatify trunco.
+Definition nearest := floatify nearesto.
 
 (** As above, here are some unit tests to be sure that we are indeed expecting the right thing. **)
-Definition trunc_unit_test : Prop :=
-  let minus_two_point_five := normalise (-5) (-1) in
-  trunc minus_two_point_five = BofZ (-2).
-Lemma trunc_unit_test_ok : trunc_unit_test.
+Definition ceil_unit_test_1 : Prop :=
+  let half := normalise 1 (-1) in
+  ceil half = BofZ 1.
+Lemma ceil_unit_test_1_ok : ceil_unit_test_1.
 Proof.
   reflexivity.
 Qed.
 
-Eval compute in ZofB (away (normalise (-5) (-1))).
-
-Definition away_unit_test : Prop :=
-  let minus_two_point_five := normalise (-5) (-1) in
-  away minus_two_point_five = BofZ (-3).
-Lemma away_unit_test_ok : away_unit_test.
+Definition ceil_unit_test_2 : Prop :=
+  let mhalf := normalise (-1) (-1) in
+  ceil mhalf = BofZ 0.
+Lemma ceil_unit_test_2_ok : ceil_unit_test_2.
 Proof.
   reflexivity.
 Qed.
+
+Definition floor_unit_test_1 : Prop :=
+  let half := normalise 1 (-1) in
+  floor half = BofZ 0.
+Lemma floor_unit_test_1_ok : floor_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Definition floor_unit_test_2 : Prop :=
+  let mhalf := normalise (-1) (-1) in
+  floor mhalf = BofZ (-1).
+Lemma floor_unit_test_2_ok : floor_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Definition trunc_unit_test_1 : Prop :=
+  let half := normalise 1 (-1) in
+  trunc half = BofZ 0.
+Lemma trunc_unit_test_1_ok : trunc_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Definition trunc_unit_test_2 : Prop :=
+  let mhalf := normalise (-1) (-1) in
+  trunc mhalf = BofZ 0.
+Lemma trunc_unit_test_2_ok : trunc_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Definition nearest_unit_test_1 : Prop :=
+  let half := normalise 1 (-1) in
+  nearest half = BofZ 0.
+Lemma nearest_unit_test_1_ok : nearest_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Definition nearest_unit_test_2 : Prop :=
+  let mhalf := normalise (-1) (-1) in
+  nearest mhalf = BofZ 0.
+Lemma nearest_unit_test_2_ok : nearest_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Definition nearest_unit_test_3 : Prop :=
+  let one_pfive := normalise 3 (-1) in
+  nearest one_pfive = BofZ 2.
+Lemma nearest_unit_test_3_ok : nearest_unit_test_3.
+Proof.
+  reflexivity.
+Qed.
+
+Definition nearest_unit_test_4 : Prop :=
+  let mone_pfive := normalise (-3) (-1) in
+  nearest mone_pfive = BofZ (-2).
+Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
+Proof.
+  reflexivity.
+Qed.
+
+(** We now define the operators [fceil], [ffloor], [ftrunc], and [fnearest] as defined
+  in the Wasm standartd. **)
 
 Definition fceil (f : float) :=
   if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
-  else if cmp Clt f neg_zero && cmp Cgt f (of_int (Int.repr (-1))) then neg_zero
+  else if cmp Clt f neg_zero && cmp Cgt f (BofZ (-1)) then neg_zero
   else ceil f.
 
+Definition ffloor (f : float) :=
+  if is_nan f then nans f
+  else if is_infinity f then f
+  else if is_zero f then f
+  else if cmp Cgt f pos_zero && cmp Clt f (BofZ 1) then pos_zero
+  else floor f.
 
-Definition Tmixin : mixin_of T.
-  refine {|
-      float_zero := pos_zero ;
-      float_neg := neg ;
-      float_abs := abs ;
-      float_ceil := fceil ;
-      float_floor := _ (* TODO: Zfloor *) ;
-      float_trunc := _ (* TODO: Ztrunc *) ;
-      float_nearest := _ (* TODO: ZnearestE *) ;
-      float_sqrt := fsqrt ;
-      float_add := add ;
-      float_sub := sub ;
-      float_mul := mul ;
-      float_div := mul ;
-      float_min x y := if cmp Clt x y then x else y ;
-      float_max x y := if cmp Cgt x y then x else y ;
-      float_copysign := _ (* TODO *) ;
-      float_eq := cmp Ceq ;
-      float_lt := cmp Clt ;
-      float_gt := cmp Cgt ;
-      float_le := cmp Cle ;
-      float_ge := cmp Cge
-    |}.
-Admitted. (* TODO *)
+Definition ftrunc (f : float) :=
+  if is_nan f then nans f
+  else if is_infinity f then f
+  else if is_zero f then f
+  else if cmp Cgt f pos_zero && cmp Clt f (BofZ 1) then pos_zero
+  else if cmp Clt f neg_zero && cmp Cgt f (BofZ (-1)) then neg_zero
+  else trunc f.
+
+Definition fnearest (f : float) :=
+  if is_nan f then nans f
+  else if is_infinity f then f
+  else if is_zero f then f
+  else if cmp Cgt f pos_zero && cmp Clt f (normalise 1 (-1)) then pos_zero
+  else if cmp Clt f neg_zero && cmp Cgt f (normalise (-1) (-1)) then neg_zero
+  else nearest f.
+
+(** Negate the sign bit of a float. **)
+Definition negate_sign (f : T) : T :=
+  match f with
+  | Binary.B754_zero s => Binary.B754_zero _ _ (~~ s)
+  | Binary.B754_infinity s => Binary.B754_infinity _ _ (~~ s)
+  | Binary.B754_nan s pl E => Binary.B754_nan _ _ (~~ s) pl E
+  | Binary.B754_finite s m e E => Binary.B754_finite _ _ (~~ s) m e E
+  end.
+
+Definition fcopysign (f1 f2 : T) :=
+  if sign f1 == sign f2 then f1
+  else negate_sign f1.
+
+Definition Tmixin : mixin_of T := {|
+    float_zero := pos_zero ;
+    float_neg := neg ;
+    float_abs := abs ;
+    float_ceil := fceil ;
+    float_floor := ffloor ;
+    float_trunc := ftrunc ;
+    float_nearest := fnearest ;
+    float_sqrt := fsqrt ;
+    float_add := add ;
+    float_sub := sub ;
+    float_mul := mul ;
+    float_div := mul ;
+    float_min x y := if cmp Clt x y then x else y ;
+    float_max x y := if cmp Cgt x y then x else y ;
+    float_copysign := fcopysign ;
+    float_eq := cmp Ceq ;
+    float_lt := cmp Clt ;
+    float_gt := cmp Cgt ;
+    float_le := cmp Cle ;
+    float_ge := cmp Cge
+  |}.
 
 Definition cT : type.
   refine (@Pack T {| mixin := Tmixin |}).
-  apply Equality.Mixin with (op := cmp Ceq).
-  intros x y. (* FIXME: [unfold cmp] doesn’t work. Why? *)
+  apply Equality.Mixin with (op := cmp Ceq). (* TODO: This is wrong *)
+  move=> x y.
 Admitted. (* TODO *)
 
 End Wasm_float64.
