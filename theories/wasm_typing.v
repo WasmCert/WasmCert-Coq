@@ -150,23 +150,56 @@ Definition upd_local_label_return C loc lab ret :=
     lab
     ret.
 
-Inductive cl_typing : s_context -> function_closure -> function_type -> Prop :=
-| cl_typing_native : forall i S C ts t1s t2s es tf,
-  i < length (sc_inst S) ->
-  (List.nth_error (sc_inst S) i) = (Some C) ->
+Definition glob_agree (g : global) (tg : global_type) : bool :=
+  (tg_mut tg == g_mut g) && (tg_t tg == typeof (g_val g)).
+
+Definition globi_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
+  (n < length gs) && (option_map (fun g => glob_agree g tg) (List.nth_error gs n) == Some true).
+
+Definition memi_agree (sm : list mem) (j : option nat) (m : option nat) : bool :=
+  (match (j, m) with
+   | (None, _) => false
+   | (_, None) => false
+   | (Some j', Some m') =>
+     (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
+   end)
+  ||
+  ((j == None) && (m == None)).
+
+Definition funci_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
+  (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
+
+Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
+  match (inst, C) with
+  | (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None) =>
+      (ts == ts') && 
+         (all2 (funci_agree (s_funcs s)) fs tfs) &&
+         (all2 (globi_agree (s_globs s)) gs tgs) &&
+            (match (i, n) with
+               | (None, None) => true
+               | (None, Some _) => false | (Some _, None) => false
+               | (Some i', Some n') => (i' < length (s_tab s)) && (option_map (@length (option function_closure)) (List.nth_error (s_tab s) i') == Some n')
+               end) &&
+            (memi_agree (s_mem s) j m)
+  | _ => false
+  end.
+
+Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
+| cl_typing_native : forall i s C ts t1s t2s es tf,
+  inst_typing s i C ->
   tf = Tf t1s t2s ->
   let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
   be_typing C' es (Tf [::] t2s) ->
-  cl_typing S (Func_native i tf ts es) (Tf t1s t2s)
-| cl_typing_host : forall S tf h,
-    cl_typing S (Func_host tf h) tf.
+  cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
+| cl_typing_host : forall s tf h,
+    cl_typing s (Func_host tf h) tf.
 
-Definition cl_typing_self (C : s_context) (fc : function_closure) : Prop :=
-  cl_typing C fc (cl_type fc).
+Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
+  cl_typing s fc (cl_type fc).
 
-Lemma cl_typing_unique : forall S cl tf, cl_typing S cl tf -> tf = cl_type cl.
+Lemma cl_typing_unique : forall s cl tf, cl_typing s cl tf -> tf = cl_type cl.
 Proof.
-  move => S.
+  move => s.
   case.
   { move => i tf ts bes t H.
     rewrite /=.

@@ -103,9 +103,9 @@ Axiom host_apply_impl_correct :
     host_apply_impl s tf h vs = Some m' ->
     exists hs, wasm.host_apply s tf h vs hs = Some m'.
 
-Fixpoint run_one_step (d : depth) (i : nat) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
+Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
   let run_step :=
-      fix run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
+      fix run_step (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
         match tt with
         | (s, vs, es) =>
           let (ves, es') := split_vals_e es in
@@ -541,7 +541,7 @@ Fixpoint run_one_step (d : depth) (i : nat) (tt : config_one_tuple_without_e) (e
   end.
 
 (* TODO: avoid repetition *)
-Fixpoint run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
+Fixpoint run_step (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   match tt with
   | (s, vs, es) =>
     let (ves, es') := split_vals_e es in
@@ -562,7 +562,7 @@ Fixpoint run_step (d : depth) (i : nat) (tt : config_tuple) : res_tuple :=
     end
   end.
 
-Fixpoint run_v (n : fuel) (d : depth) (i : nat) (tt : config_tuple) : ((store_record * res) % type) :=
+Fixpoint run_v (n : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res) % type) :=
   match tt with
   | (s, vs, es) =>
     match n with

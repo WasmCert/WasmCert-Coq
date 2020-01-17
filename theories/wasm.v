@@ -989,6 +989,8 @@ Parameter t_context_eq_dec : forall x y : t_context, {x = y} + {x <> y}. (* TODO
 
 Definition eqt_contextP := Equality_axiom_eq_dec t_context_eq_dec.
 
+(*
+
 Record s_context := {
   sc_inst : list t_context;
   sc_funcs : list function_type;
@@ -996,6 +998,8 @@ Record s_context := {
   sc_mem : list nat;
   sc_globs : list global_type;
 }.
+
+*)
 
 Inductive sx : Type :=
 | sx_S
@@ -1143,34 +1147,6 @@ Axiom eqbasic_instructionP : Equality.axiom basic_instruction_eqb.
 Canonical basic_instruction_eqMixin := EqMixin eqbasic_instructionP.
 Canonical basic_instruction_eqType := Eval hnf in EqType basic_instruction basic_instruction_eqMixin.
 
-Inductive function_closure : Type := (* cl *)
-| Func_native : immediate -> function_type -> list value_type -> list basic_instruction -> function_closure
-| Func_host : function_type -> host -> function_closure.
-
-Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
-  match cl1, cl2 with
-  | Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2 =>
-    (i1 == i2) && (tf1 == tf2) && (vs1 == vs2) && (eis1 == eis2)
-  | Func_host tf1 h1, Func_host tf2 h2 =>
-    (tf1 == tf2) && (h1 == h2)
-  | _, _ => false
-  end.
-
-Lemma eqfunction_closureP : Equality.axiom function_closure_eqb.
-Proof.
-  move=> cl1 cl2. case: cl1; case: cl2; intros;
-    by [ apply/ReflectF
-       | move=> /=; apply/iffP;
-         [ apply andP
-         | repeat (case; move/andP); case; repeat move/eqP => ?; f_equal
-         | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
-Qed.
-
-Definition function_closure_eq_dec := eq_dec_Equality_axiom eqfunction_closureP.
-
-Canonical function_closure_eqMixin := EqMixin eqfunction_closureP.
-Canonical function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
-
 Record instance : Type := (* inst *) {
   i_types : list function_type;
   i_funcs : list immediate;
@@ -1205,6 +1181,25 @@ Definition instance_eq_dec := eq_dec_Equality_axiom eqinstanceP.
 
 Canonical instance_eqMixin := EqMixin eqinstanceP.
 Canonical instance_eqType := Eval hnf in EqType instance instance_eqMixin.
+
+Inductive function_closure : Type := (* cl *)
+| Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
+| Func_host : function_type -> host -> function_closure.
+
+Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
+  match (cl1, cl2) with
+  | (Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2) =>
+    (i1 == i2) && (tf1 == tf2) && (vs1 == vs2) && (eis1 == eis2)
+  | (Func_host tf1 h1, Func_host tf2 h2) =>
+    (tf1 == tf2) && (h1 == h2)
+  | _ => false
+  end.
+
+Axiom eqfunction_closureP : Equality.axiom function_closure_eqb.
+(* TODO *)
+Canonical function_closure_eqMixin := EqMixin eqfunction_closureP.
+Canonical function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
+
 
 Definition tabinst := list (option function_closure).
 
@@ -1259,7 +1254,6 @@ Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
 
 
 Record store_record : Type := (* s *) {
-  s_inst : list instance;
   s_funcs : list function_closure;
   s_tab : list tabinst;
   s_mem : list mem;
@@ -1267,7 +1261,7 @@ Record store_record : Type := (* s *) {
 }.
 
 Definition store_record_eqb (s1 s2 : store_record) : bool :=
-  (s_inst s1 == s_inst s2) && (s_funcs s1 == s_funcs s2) && (s_tab s1 == s_tab s2) && (s_mem s1 == s_mem s2) && (s_globs s1 == s_globs s2).
+  (s_funcs s1 == s_funcs s2) && (s_tab s1 == s_tab s2) && (s_mem s1 == s_mem s2) && (s_globs s1 == s_globs s2).
 
 Lemma eqstore_recordP : Equality.axiom store_record_eqb.
 Proof.
@@ -1286,7 +1280,6 @@ Canonical store_record_eqType := Eval hnf in EqType store_record store_record_eq
 
 Definition upd_s_mem (s : store_record) (m : list mem) : store_record :=
   Build_store_record
-    (s_inst s)
     (s_funcs s)
     (s_tab s)
     m
@@ -1297,7 +1290,7 @@ Inductive administrative_instruction : Type := (* e *)
 | Trap
 | Callcl : function_closure -> administrative_instruction
 | Label : nat -> list administrative_instruction -> list administrative_instruction -> administrative_instruction
-| Local : nat -> immediate -> list value -> list administrative_instruction -> administrative_instruction.
+| Local : nat -> instance -> list value -> list administrative_instruction -> administrative_instruction.
 
 Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : bool :=
   let fff :=
@@ -1319,7 +1312,7 @@ Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : b
     (fff es12 es22)
   | Local n1 i1 vs1 es1, Local n2 i2 vs2 es2 =>
     (Nat.eqb n1 n2) &&
-    (Nat.eqb i1 i2) &&
+    (instance_eqb i1 i2) &&
     (vs1 == vs2) &&
     (fff es1 es2)
   | _, _ => (* TODO *) false
@@ -1565,30 +1558,28 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   | Some y => f y
   end.
 
-Definition stypes (s : store_record) (i j : nat) : option function_type :=
-  option_bind (fun l => List.nth_error l j)
-   (option_map (i_types) (List.nth_error (s_inst s) i)).
+Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
+  (List.nth_error (i_types i) j).
 (* TODO: optioned *)
 
-Definition sfunc_ind (s : store_record) (i j : nat) : option nat :=
-  option_bind (fun l => List.nth_error l j) (option_map i_funcs (List.nth_error (s_inst s) i)).
+Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option nat :=
+  (List.nth_error (i_funcs i) j).
 
-Definition sfunc (s : store_record) (i j : nat) : option function_closure :=
+Definition sfunc (s : store_record) (i : instance) (j : nat) : option function_closure :=
   option_bind (List.nth_error (s_funcs s)) (sfunc_ind s i j).
 
-Definition sglob_ind (s : store_record) (i j : nat) : option nat :=
-  option_bind (fun l => List.nth_error l j)
-   (option_map i_globs (List.nth_error (s_inst s) i)).
+Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option nat :=
+  (List.nth_error (i_globs i) j).
 
-Definition sglob (s : store_record) (i j : nat) : option global :=
+Definition sglob (s : store_record) (i : instance) (j : nat) : option global :=
   option_bind (List.nth_error (s_globs s))
     (sglob_ind s i j).
 
-Definition sglob_val (s : store_record) (i j : nat) : option value :=
+Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value :=
   option_map g_val (sglob s i j).
 
-Definition smem_ind (s : store_record) (i : nat) : option nat :=
-  option_bind i_mem (List.nth_error (s_inst s) i).
+Definition smem_ind (s : store_record) (i : instance) : option nat :=
+  (i_mem i).
 
 Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
   let stabinst := List.nth_error (s_tab s) i in
@@ -1597,8 +1588,8 @@ Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
     (fun stabinst => if length stabinst > j then List.nth_error stabinst j else None)
     stabinst).
 
-Definition stab (s : store_record) (i j : nat) : option function_closure :=
-  match option_bind i_tab (List.nth_error (s_inst s) i) with
+Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
+  match i_tab i with
   | Some k => stab_s s k j
   | None => None
   end.
@@ -1612,14 +1603,13 @@ Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option stor
    let g' := Build_global (g_mut g) v in 
    let gs' := update_list_at (s_globs s) k g' in 
   Build_store_record
-  (s_inst s)
   (s_funcs s)
   (s_tab s)
   (s_mem s)
   gs')
   (List.nth_error (s_globs s) k).
 
-Definition supdate_glob (s : store_record) (i j : nat) (v : value) : option store_record :=
+Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
   option_bind
     (fun k => supdate_glob_s s k v)
     (sglob_ind s i j).
@@ -1634,7 +1624,6 @@ Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
 
 Definition store_extension (s s' : store_record) : bool :=
-  ((s_inst s) == (s_inst s')) &&
   ((s_funcs s) == (s_funcs s')) &&
   ((s_tab s) == (s_tab s')) &&
   (all2 (fun bs bs' => mem_size bs <= mem_size bs') (s_mem s) (s_mem s')) &&
