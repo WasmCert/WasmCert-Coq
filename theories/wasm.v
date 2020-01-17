@@ -7,7 +7,7 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
-Require Export common numerics.
+Require Export wasm_common wasm_numerics.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
@@ -623,8 +623,6 @@ Definition is_float_t (t : value_type) : bool :=
 Definition is_mut (tg : global_type) : bool :=
   tg_mut tg == T_mut.
 
-Check Wasm_int.int_ctz.
-Check Wasm_int.class.
 
 Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) (c : Wasm_int.sort e) : Wasm_int.sort e :=
   (let: Wasm_int.Pack u (Wasm_int.Class eqmx intmx) as e' := e return Wasm_int.sort e' -> Wasm_int.sort e' in

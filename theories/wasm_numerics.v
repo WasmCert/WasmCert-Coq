@@ -1,7 +1,7 @@
 (** Common useful definitions **)
-(* (C) M. Bodin - see LICENSE.txt *)
+(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Import common.
+Require Import wasm_common.
 Require Import ZArith.Int.
 Require Coq.ZArith.BinInt.
 From compcert Require Integers Floats.
@@ -16,9 +16,9 @@ Unset Printing Implicit Defensive.
 
 (** * Integers **)
 
-(** ** Declaration of Operations **)
-
 Module Wasm_int.
+
+(** ** Declaration of Operations **)
 
 Record mixin_of (int_t : Type) := Mixin {
   int_zero : int_t;
@@ -64,31 +64,15 @@ Local Coercion base : class_of >-> Equality.class_of.
 Structure type := Pack {sort : Type; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
-Parameters (T : Type) (cT : type). (* TODO: This is really problematical as it implicitely adds an axiom.  We want to change all this module into a module type instead. *)
-
-Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
-Definition clone c of phant_id class c := @Pack T c.
-Let xT := let: Pack T _ := cT in T.
-Notation xclass := (class : class_of xT).
-
-Definition pack m :=
-  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
-
-Definition eqType := @Equality.Pack cT xclass.
-
 Definition int_ne (e : type) : sort e -> sort e -> bool :=
   let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ int_eq _ _ _ _ _ _ _ _ _ _)) := e in
     fun x => fun y => negb (int_eq x y).
 
-End Wasm_int.
-
 (** ** Instantiations **)
 
-Module Make_Wasm_int (WS: Integers.WORDSIZE).
+Module Make (WS: Integers.WORDSIZE).
 
 Import Coq.ZArith.BinInt.
-
-Import Wasm_int.
 
 Import Integers.
 
@@ -375,15 +359,27 @@ Qed.
 
 Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
 
-End Make_Wasm_int.
+Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
+Definition clone c of phant_id class c := @Pack T c.
+Let xT := let: Pack T _ := cT in T.
+Notation xclass := (class : class_of xT).
 
-Module Wasm_int32.
-Include Make_Wasm_int(Integers.Wordsize_32).
-End Wasm_int32.
+Definition pack m :=
+  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
 
-Module Wasm_int64.
-Include Make_Wasm_int(Integers.Wordsize_64).
-End Wasm_int64.
+Definition eqType := @Equality.Pack cT xclass.
+
+End Make.
+
+Module Int32.
+Include Make(Integers.Wordsize_32).
+End Int32.
+
+Module Int64.
+Include Make(Integers.Wordsize_64).
+End Int64.
+
+End Wasm_int.
 
 
 (** * FLoats **)
@@ -415,12 +411,15 @@ Record mixin_of (float_t : Type) := Mixin {
   float_ge : float_t -> float_t -> bool;
 }.
 
-
 Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
 Local Coercion base : class_of >->  Equality.class_of.
 
 Structure type := Pack {sort; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
+
+Definition float_ne (e : type) : sort e -> sort e -> bool :=
+  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
+    fun x => fun y => negb (float_eq x y).
 
 Parameters (T : Type) (cT : type). (* TODO: Same as Wasm_int, this is not the way to go. *)
 
@@ -433,10 +432,6 @@ Definition pack m :=
   fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
 
 Definition eqType := @Equality.Pack cT xclass.
-
-Definition float_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
-    fun x => fun y => negb (float_eq x y).
 
 End Wasm_float.
 
@@ -778,12 +773,15 @@ Definition Tmixin : mixin_of T := {|
     float_ge := cmp Cge
   |}.
 
+Definition eqTP := Equality_axiom_eq_dec eq_dec.
+
+Canonical T_eqMixin := EqMixin eqTP. (* LATER: Frustration: Coq ignores this one because [fun v1 v2 : float => is_left (eq_dec v1 v2)] is not named. *)
+Canonical T_eqType := Eval hnf in EqType T T_eqMixin.
 
 Definition cT : type.
   refine (@Pack T {| mixin := Tmixin |}).
-  apply Equality.Mixin with (op := cmp Ceq). (* TODO: This is wrong *)
-  move=> x y.
-Admitted. (* TODO *)
+  apply T_eqMixin.
+Defined.
 
 End Wasm_float64.
 
