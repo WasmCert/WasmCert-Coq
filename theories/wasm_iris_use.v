@@ -1,3 +1,6 @@
+(** Example of Iris usage **)
+(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre.

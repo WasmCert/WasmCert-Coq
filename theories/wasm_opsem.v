@@ -1,14 +1,13 @@
 (* Wasm operational semantics *)
 (* The interpreter in wasm_interpreter.v is an executable version of this operational semantics. *)
-(* (C) J. Pichon - see LICENSE.txt *)
-From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+Require Export wasm.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Require Import wasm.
 
 Inductive reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
 (* unop *)

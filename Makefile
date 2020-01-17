@@ -4,6 +4,6 @@ all :
 	dune build @all
 
 clean :
-	rm -rf _build
-	rm theories/*.vo theories/*.glob theories/*.aux
+	rm -rf _build || true
+	rm theories/*.{vo,glob,aux} || true
 
