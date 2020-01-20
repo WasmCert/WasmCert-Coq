@@ -344,7 +344,7 @@ Definition Tmixin : mixin_of T := {|
 Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
 Proof.
   rewrite /Z.lt. move=> x y p1 p2.
-  apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; (by left) || (right; discriminate).
+  apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; by [ left | right; discriminate ].
 Qed.
 
 Lemma eq_eqP : Equality.axiom eq.

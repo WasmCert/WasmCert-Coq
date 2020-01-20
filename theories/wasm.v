@@ -807,18 +807,18 @@ Definition v_to_e_list (ves : list value) : list administrative_instruction :=
 
 Fixpoint lfill (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
   match k with
-  | O =>
+  | 0 =>
     if lh is LBase vs es' then
       if const_list vs then Some (app vs (app es es')) else None
     else None
-  | S k' =>
-   if lh is LRec vs n es' lh' es'' then
-     if const_list vs then
-       if lfill k' lh' es is Some lfilledk then
-         Some (app vs (cons (Label n es' lfilledk) es''))
-       else None
-     else None
-   else None
+  | k'.+1 =>
+    if lh is LRec vs n es' lh' es'' then
+      if const_list vs then
+        if lfill k' lh' es is Some lfilledk then
+          Some (app vs (cons (Label n es' lfilledk) es''))
+        else None
+      else None
+    else None
   end.
 
 Definition lfilled (k : nat) (lh : lholed) (es : list administrative_instruction) (es' : list administrative_instruction) : bool :=
@@ -828,9 +828,9 @@ Definition lfilled (k : nat) (lh : lholed) (es : list administrative_instruction
 
 Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
   match k with
-  | O =>
+  | 0 =>
     if lh is LBase nil nil then Some es else None
-  | S k' =>
+  | k'.+1 =>
     if lh is LRec vs n es' lh' es'' then
       if const_list vs then
         if lfill_exact k' lh' es is Some lfilledk then
