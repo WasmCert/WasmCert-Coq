@@ -1,6 +1,6 @@
 (** Wasm base definitions **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
-(* in serious need of cleaning up
+(* TODO: in serious need of cleaning up
  * - proofs have not been ported
  * - lots of axioms
  * - no validation
@@ -243,8 +243,8 @@ Inductive cvtop : Type :=
 | Convert
 | Reinterpret.
 
-Variable i32 : eqType.
-Variable i64 : eqType.
+Definition i32 : eqType := Wasm_int.Int32.eqType.
+Definition i64 : eqType :=  Wasm_int.Int64.eqType.
 Variable f32 : eqType.
 Variable f64 : eqType.
 
@@ -500,47 +500,47 @@ Inductive lholed : Type :=
 | LBase : list administrative_instruction -> list administrative_instruction -> lholed
 | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed.
 
-Variable i32_r : Wasm_int.class_of i32.
+Definition i32_r : Wasm_int.class_of i32 := Wasm_int.Int32.class.
 Definition i32_t : Wasm_int.type := Wasm_int.Pack i32_r.
-Variable i64_r : Wasm_int.class_of i64.
+Definition i64_r : Wasm_int.class_of i64 := Wasm_int.Int64.class.
 Definition i64_t : Wasm_int.type := Wasm_int.Pack i64_r.
-Variable f32_r : Wasm_float.class_of f32.
+Parameter f32_r : Wasm_float.class_of f32.
 Definition f32_t : Wasm_float.type := Wasm_float.Pack f32_r.
-Variable f64_r : Wasm_float.class_of f64.
+Parameter f64_r : Wasm_float.class_of f64.
 Definition f64_t : Wasm_float.type := Wasm_float.Pack f64_r.
 
-Variable ui32_trunc_f32 : f32 -> option i32.
-Variable si32_trunc_f32 : f32 -> option i32.
-Variable ui32_trunc_f64 : f64 -> option i32.
-Variable si32_trunc_f64 : f64 -> option i32.
+Parameter ui32_trunc_f32 : f32 -> option i32.
+Parameter si32_trunc_f32 : f32 -> option i32.
+Parameter ui32_trunc_f64 : f64 -> option i32.
+Parameter si32_trunc_f64 : f64 -> option i32.
 
-Variable ui64_trunc_f32 : f32 -> option i64.
-Variable si64_trunc_f32 : f32 -> option i64.
-Variable ui64_trunc_f64 : f64 -> option i64.
-Variable si64_trunc_f64 : f64 -> option i64.
+Parameter ui64_trunc_f32 : f32 -> option i64.
+Parameter si64_trunc_f32 : f32 -> option i64.
+Parameter ui64_trunc_f64 : f64 -> option i64.
+Parameter si64_trunc_f64 : f64 -> option i64.
 
-Variable f32_convert_ui32 : i32 -> f32.
-Variable f32_convert_si32 : i32 -> f32.
-Variable f32_convert_ui64 : i64 -> f32.
-Variable f32_convert_si64 : i64 -> f32.
+Parameter f32_convert_ui32 : i32 -> f32.
+Parameter f32_convert_si32 : i32 -> f32.
+Parameter f32_convert_ui64 : i64 -> f32.
+Parameter f32_convert_si64 : i64 -> f32.
 
-Variable f64_convert_ui32 : i32 -> f64.
-Variable f64_convert_si32 : i32 -> f64.
-Variable f64_convert_ui64 : i64 -> f64.
-Variable f64_convert_si64 : i64 -> f64.
+Parameter f64_convert_ui32 : i32 -> f64.
+Parameter f64_convert_si32 : i32 -> f64.
+Parameter f64_convert_ui64 : i64 -> f64.
+Parameter f64_convert_si64 : i64 -> f64.
 
-Variable wasm_wrap : i64 -> i32.
-Variable wasm_extend_u : i32 -> i64.
-Variable wasm_extend_s : i32 -> i64.
-Variable wasm_demote : f64 -> f32.
-Variable wasm_promote : f32 -> f64.
+Parameter wasm_wrap : i64 -> i32.
+Parameter wasm_extend_u : i32 -> i64.
+Parameter wasm_extend_s : i32 -> i64.
+Parameter wasm_demote : f64 -> f32.
+Parameter wasm_promote : f32 -> f64.
 
-Variable serialise_i32 : i32 -> bytes.
-Variable serialise_i64 : i64 -> bytes.
-Variable serialise_f32 : f32 -> bytes.
-Variable serialise_f64 : f64 -> bytes.
-Variable wasm_bool : bool -> i32.
-Variable int32_minus_one : i32.
+Parameter serialise_i32 : i32 -> bytes.
+Parameter serialise_i64 : i64 -> bytes.
+Parameter serialise_f32 : f32 -> bytes.
+Parameter serialise_f64 : f64 -> bytes.
+Parameter wasm_bool : bool -> i32.
+Parameter int32_minus_one : i32.
 
 Definition mem_size (m : mem) :=
   length m.
@@ -571,9 +571,10 @@ Definition store (m : mem) (n : nat) (off : static_offset) (bs : bytes) (l : nat
 
 Definition store_packed := store.
 
-Variable wasm_deserialise : bytes -> value_type -> value.
+(* TODO: The whole host should be defined as a mixin in a separate file. *)
+Parameter wasm_deserialise : bytes -> value_type -> value.
 
-Variable host_apply : store_record -> function_type -> host -> list value -> host_state -> option (store_record * list value).
+Parameter host_apply : store_record -> function_type -> host -> list value -> host_state -> option (store_record * list value).
 
 Definition typeof (v : value) : value_type :=
   match v with

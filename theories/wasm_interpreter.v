@@ -9,7 +9,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-Inductive res_crash : Type := (* FIXME: Suggestion: error and termination monad, with a text for the error to ease debugging. *)
+Inductive res_crash : Type :=
 | C_error : res_crash
 | C_exhaustion : res_crash.
 
@@ -78,10 +78,7 @@ Definition e_is_trap (e : administrative_instruction) : bool :=
 
 Lemma foo : forall e, reflect (e = Trap) (e_is_trap e).
 Proof.
-  case => /=;
-            try
-    by (intros; apply: ReflectF).
-    by apply: ReflectT.
+  case => /=; intros; by [ apply: ReflectF | apply: ReflectT ].
 Qed.
 
 Definition es_is_trap (es : list administrative_instruction) : bool :=
@@ -90,17 +87,11 @@ Definition es_is_trap (es : list administrative_instruction) : bool :=
   | [::] => false
   end.
 
+Section Host.
+
 Variable mem_grow_impl : mem -> nat -> option mem.
-Axiom mem_grow_impl_correct :
-  forall m n m',
-    mem_grow_impl m n = Some m' ->
-    mem_grow m n = m'.
 
 Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
-Axiom host_apply_impl_correct :
-  forall s tf h vs m',
-    host_apply_impl s tf h vs = Some m' ->
-    exists hs, wasm.host_apply s tf h vs hs = Some m'.
 
 Definition run_step_param run_one_step (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in
@@ -120,7 +111,7 @@ Definition run_step_param run_one_step (d : depth) (i : instance) (tt : config_t
       else (s', vs', r)
   end.
 
-Fixpoint run_one_step (d : depth)(* TODO: Replace with a termination monad or an optimal fixpoint. *) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
+Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
   let run_step := run_step_param run_one_step in
   let: (s, vs, ves) := tt in
   match e with
@@ -367,15 +358,15 @@ Fixpoint run_one_step (d : depth)(* TODO: Replace with a termination monad or an
       expect
         (smem_ind s i)
         (fun j =>
-           if List.nth_error (s_mem s) j is Some s_mem_s_j then
-             let l := mem_size s_mem_s_j in
-             expect
-               (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c))
-               (fun mem' =>
-                  (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) l) :: ves')))
-               )
-               (s, vs, crash_error)
-           else (s, vs, crash_error) (* Isa mismatch *))
+          if List.nth_error (s_mem s) j is Some s_mem_s_j then
+            let l := mem_size s_mem_s_j in
+            expect
+              (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c))
+              (fun mem' =>
+                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) l) :: ves')))
+              )
+              (s, vs, crash_error)
+          else (s, vs, crash_error) (* Isa mismatch *))
         (s, vs, crash_error)
     else (s, vs, crash_error)
   | Basic (EConst _) => (s, vs, crash_error)
@@ -413,7 +404,7 @@ Fixpoint run_one_step (d : depth)(* TODO: Replace with a termination monad or an
       then (s, vs, RS_normal (vs_to_es ves ++ es))
       else
         match d with
-        | 0 => (s, vs, crash_error)
+        | 0 => (s, vs, RS_crash C_exhaustion)
         | d'.+1 => (* TODO: we diverge from the Isabelle model here, which does not take a step *)
           let: (s', vs', res) := run_step d' i (s, vs, es) in
           match res with
@@ -434,12 +425,12 @@ Fixpoint run_one_step (d : depth)(* TODO: Replace with a termination monad or an
     else
       if const_list es
       then
-        (if length es == ln
-         then (s, vs, RS_normal (vs_to_es ves ++ es))
-         else (s, vs, crash_error))
+        if length es == ln
+        then (s, vs, RS_normal (vs_to_es ves ++ es))
+        else (s, vs, crash_error)
       else
         match d with
-        | 0 => (s, vs, crash_error) (* FIXME: Looks suspicious. *)
+        | 0 => (s, vs, RS_crash C_exhaustion)
         | d'.+1 =>
           let: (s', vls', res) := run_step d' j (s, vls, es) in
           match res with
@@ -449,7 +440,8 @@ Fixpoint run_one_step (d : depth)(* TODO: Replace with a termination monad or an
             else (s', vs, crash_error)
           | RS_normal es' =>
             (s', vs, RS_normal (vs_to_es ves ++ [::Local ln j vls' es']))
-          | _ => (s', vs, RS_crash C_exhaustion) (* FIXME: Looks suspicious. *)
+          | RS_crash error => (s', vs, RS_crash error)
+          | RS_break _ _ => (s', vs, crash_error)
           end
         end
   | Trap => (s, vs, crash_error)
@@ -457,12 +449,12 @@ Fixpoint run_one_step (d : depth)(* TODO: Replace with a termination monad or an
 
 Definition run_step := run_step_param run_one_step.
 
-Fixpoint run_v (n : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res) % type) :=
+Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res) % type) :=
   match tt with
   | (s, vs, es) =>
-    match n with
+    match fuel with
     | 0 => (s, R_crash C_exhaustion)
-    | n'.+1 =>
+    | fuel.+1 =>
       if es_is_trap es
       then (s, R_trap)
       else
@@ -471,9 +463,11 @@ Fixpoint run_v (n : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((sto
         else
           let '(s', vs', res) := run_step d i (s, vs, es) in
           match res with
-          | RS_normal es' => run_v n' d i (s', vs', es')
+          | RS_normal es' => run_v fuel d i (s', vs', es')
           | RS_crash error => (s, R_crash error)
           | _ => (s, R_crash C_error)
           end
     end
   end.
+
+End Host.
