@@ -1,5 +1,5 @@
 (* Wasm type checker *)
-(* (C) J. Pichon - see LICENSE.txt *)
+(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 From mathcomp
 Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
@@ -14,10 +14,13 @@ Inductive checker_type_aux : Type :=
 | CTA_some : value_type -> checker_type_aux.
 
 Scheme Equality for checker_type_aux.
-Definition eqchecker_type_auxP := Equality_axiom_eq_dec checker_type_aux_eq_dec.
+Definition checker_type_aux_eqb v1 v2 := is_left (checker_type_aux_eq_dec v1 v2).
+Definition eqchecker_type_auxP  : Equality.axiom checker_type_aux_eqb :=
+  Equality_axiom_eq_dec checker_type_aux_eq_dec.
 
-Canonical checker_type_aux_eqMixin := EqMixin eqchecker_type_auxP.
-Canonical checker_type_aux_eqType := Eval hnf in EqType checker_type_aux checker_type_aux_eqMixin.
+Canonical Structure checker_type_aux_eqMixin := EqMixin eqchecker_type_auxP.
+Canonical Structure checker_type_aux_eqType :=
+  Eval hnf in EqType checker_type_aux checker_type_aux_eqMixin.
 
 Inductive checker_type : Type :=
 | CT_top_type : list checker_type_aux -> checker_type
@@ -34,8 +37,8 @@ Definition checker_type_eqb (ct1 ct2 : checker_type) : bool :=
 
 Parameter eqchecker_typeP : Equality.axiom checker_type_eqb.
 (* TODO *)
-Canonical checker_type_eqMixin := EqMixin eqchecker_typeP.
-Canonical checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
+Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
+Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
 
 Definition to_ct_list (ts : list value_type) : list checker_type_aux :=

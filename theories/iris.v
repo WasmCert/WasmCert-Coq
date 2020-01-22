@@ -67,12 +67,12 @@ Proof.
   elim.
   { move => v /= H.
     injection H => {H} H2.
-      by rewrite -H2. }
+    by rewrite -H2. }
   { move => e0 e IH.
     case.
     { move => {IH} H.
       exfalso.
-      move: (to_val_cons_is_none_or_cons H) => {H} H.
+      move: (to_val_cons_is_none_or_cons H) => {} H.
       discriminate H. }
     { move => v0 v.
       case: e0 => //=.
@@ -159,15 +159,15 @@ Lemma foo6 : forall i lh es es' e es0, lfill i lh es = es' -> es = e :: es0 -> e
 Proof.
   elim.
   { elim; last by intros; subst.
-    move => l l0 es es' /=.
+    move=> l l0 es es' /=.
     case: (const_list l).
     { move => Hfill H1 H2 H3 H4.
       rewrite H4 in H2.
       injection H2 => H5 {H2}.
       rewrite H3 in H5.
-        by apply: foo7. }
+      by apply: foo7. }
     { intros; subst; discriminate. } }
-  { move => n IH.
+  { move=> n IH.
     elim; first by intros; subst.
     intros.
     rewrite /= in H0.
@@ -175,10 +175,10 @@ Proof.
     case: (const_list l).
     { rewrite H1 {H1}.
       case_eq (lfill n l1 (e :: es0)).
-      { move => l3 H1 H2 H3.
+      { move=> l3 H1 H2 H3.
         rewrite H3 in H2.
         injection H2.
-        move => {H2} H2.
+        move=> {} H2.
         apply: foo7.
         done. }
       { intros; subst; discriminate. } }
@@ -238,10 +238,10 @@ Proof.
   (* there must be a better way *)
   { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H8.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
-      by apply: foo3. }
+    by apply: foo3. }
   { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
-      by apply: foo3. }
+    by apply: foo3. }
   { move => cl _ _ _ es _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
       by apply: foo3. }

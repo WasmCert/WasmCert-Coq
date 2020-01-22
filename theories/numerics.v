@@ -139,7 +139,7 @@ Lemma power_index_to_bits_in : forall c l n,
 Proof.
   move=> c l n => /leP I. move: l. elim: I.
   - move=> l /=. by rewrite_by (n.+1 - n - 1 = 0).
-  - clear. move=> c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply IH.
+  - move=> {} c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply IH.
 Qed.
 
 (** Given a [T], return a sequence of bits representing the integer.
@@ -205,7 +205,7 @@ Proof.
   have Rm: Z_mod_modulus (Zpower.two_p p) = Zpower.two_p p.
   { rewrite /Z_mod_modulus. case Epp: Zpower.two_p => //=.
     - rewrite Zbits.P_mod_two_p_eq. rewrite Z.mod_small //.
-      split=> //. rewrite <- Epp. clear Epp.
+      split=> //. rewrite -Epp => {Epp}.
       rewrite Coqlib.two_power_nat_two_p. apply: Coqlib.two_p_monotone_strict.
       split=> //.
       + by apply: Zorder.Zle_0_nat.
@@ -265,7 +265,7 @@ Proof.
 
   move=> n. elim: n.
   - move=> x _. admit.
-  - clear n. move=> n IH x I. simpl.
+  - move=> {} n IH x I. simpl.
   
   elim: wordsize => ws; first by [].
   move=> IH n x I. elim: n => /=.
@@ -377,7 +377,7 @@ Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
 
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
-Let xT := let: Pack T _ := cT in T.
+Local Definition xT := let: Pack T _ := cT in T.
 Notation xclass := (class : class_of xT).
 
 Definition pack m :=
@@ -402,7 +402,7 @@ End Int64.
 End Wasm_int.
 
 
-(** * FLoats **)
+(** * Floats **)
 
 (** ** Declaration of Operations **)
 
@@ -834,16 +834,17 @@ Definition Tmixin : mixin_of T := {|
     float_ge := cmp Cge
   |}.
 
-Definition eqTP := Equality_axiom_eq_dec eq_dec.
+Definition eqb v1 v2 := is_left (eq_dec v1 v2).
+Definition eqTP : Equality.axiom eqb := Equality_axiom_eq_dec eq_dec.
 
-Canonical T_eqMixin := EqMixin eqTP. (* LATER: Frustration: Coq ignores this one because [fun v1 v2 : float => is_left (eq_dec v1 v2)] is not named. *)
-Canonical T_eqType := Eval hnf in EqType T T_eqMixin.
+Canonical Structure T_eqMixin := EqMixin eqTP.
+Canonical Structure T_eqType := Eval hnf in EqType T T_eqMixin.
 
 Definition cT : type := Pack {| base := T_eqMixin; mixin := Tmixin |}.
 
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
-Let xT := let: Pack T _ := cT in T.
+Local Definition xT := let: Pack T _ := cT in T.
 Notation xclass := (class : class_of xT).
 
 Definition pack m :=
@@ -855,18 +856,18 @@ End Make.
 
 (** ** Instantiations **)
 
-Module FLoat32.
+Module Float32.
 Include Make(FloatSize32).
-End FLoat32.
+End Float32.
 
-Module FLoat64.
+Module Float64.
 Include Make(FloatSize64).
-End FLoat64.
+End Float64.
 
 (** ** Unit Tests **)
 
 (* FIXME: Frustration
-Lemma normalise_unit_test_64 : FLoat64.normalise_unit_test.
+Lemma normalise_unit_test_64 : Float64.normalise_unit_test.
 Proof.
   reflexivity.
 Qed.

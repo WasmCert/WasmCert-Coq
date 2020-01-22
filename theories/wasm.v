@@ -15,7 +15,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-Variable host : eqType.
+Variable host : eqType. (* TODO: Do the same as integers and floats. *)
 Variable host_state : eqType.
 
 Definition immediate := nat. (* i *)
@@ -24,7 +24,7 @@ Definition static_offset := nat. (* off *)
 
 Definition alignment_exponent := nat. (* a *)
 
-Definition uint8 := nat. (* TODO *)
+Definition uint8 := nat. (* TODO: What about [Byte.byte]? *)
 
 Definition byte := uint8.
 Variable byte_eqb : byte -> byte -> bool.
@@ -76,10 +76,12 @@ Inductive value_type : Type := (* t *)
 | T_f64.
 
 Scheme Equality for value_type.
-Definition eqvalue_typeP := Equality_axiom_eq_dec value_type_eq_dec.
+Definition value_type_eqb v1 v2 := is_left (value_type_eq_dec v1 v2).
+Definition eqvalue_typeP  : Equality.axiom value_type_eqb :=
+  Equality_axiom_eq_dec value_type_eq_dec.
 
-Canonical value_type_eqMixin := EqMixin eqvalue_typeP.
-Canonical value_type_eqType := Eval hnf in EqType value_type value_type_eqMixin.
+Canonical Structure value_type_eqMixin := EqMixin eqvalue_typeP.
+Canonical Structure value_type_eqType := Eval hnf in EqType value_type value_type_eqMixin.
 
 Inductive packed_type : Type := (* tp *)
 | Tp_i8
@@ -91,20 +93,24 @@ Inductive mutability : Type := (* mut *)
 | T_mut.
 
 Scheme Equality for mutability.
-Definition eqmutabilityP := Equality_axiom_eq_dec mutability_eq_dec.
+Definition mutability_eqb v1 v2 := is_left (mutability_eq_dec v1 v2).
+Definition eqmutabilityP  : Equality.axiom mutability_eqb :=
+  Equality_axiom_eq_dec mutability_eq_dec.
 
-Canonical mutability_eqMixin := EqMixin eqmutabilityP.
-Canonical mutability_eqType := Eval hnf in EqType mutability mutability_eqMixin.
+Canonical Structure mutability_eqMixin := EqMixin eqmutabilityP.
+Canonical Structure mutability_eqType := Eval hnf in EqType mutability mutability_eqMixin.
 
 
 Record global_type := (* tg *)
   { tg_mut : mutability; tg_t : value_type}.
 
 Scheme Equality for global_type.
-Definition eqglobal_typeP := Equality_axiom_eq_dec global_type_eq_dec.
+Definition global_type_eqb v1 v2 := is_left (global_type_eq_dec v1 v2).
+Definition eqglobal_typeP  : Equality.axiom global_type_eqb :=
+  Equality_axiom_eq_dec global_type_eq_dec.
 
-Canonical global_type_eqMixin := EqMixin eqglobal_typeP.
-Canonical global_type_eqType := Eval hnf in EqType global_type global_type_eqMixin.
+Canonical Structure global_type_eqMixin := EqMixin eqglobal_typeP.
+Canonical Structure global_type_eqType := Eval hnf in EqType global_type global_type_eqMixin.
 
 Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
@@ -143,8 +149,9 @@ Qed.
 
 Definition function_eq_dec := eq_dec_Equality_axiom eqfunction_typeP.
 
-Canonical function_type_eqMixin := EqMixin eqfunction_typeP.
-Canonical function_type_eqType := Eval hnf in EqType function_type function_type_eqMixin.
+Canonical Structure function_type_eqMixin := EqMixin eqfunction_typeP.
+Canonical Structure function_type_eqType :=
+  Eval hnf in EqType function_type function_type_eqMixin.
 
 Record t_context := {
   tc_types_t : list function_type;
@@ -178,10 +185,12 @@ Inductive sx : Type :=
 | sx_U.
 
 Scheme Equality for sx.
-Definition eqsxP := Equality_axiom_eq_dec sx_eq_dec.
+Definition sx_eqb v1 v2 := is_left (sx_eq_dec v1 v2).
+Definition eqsxP  : Equality.axiom sx_eqb :=
+  Equality_axiom_eq_dec sx_eq_dec.
 
-Canonical sx_eqMixin := EqMixin eqsxP.
-Canonical sx_eqType := Eval hnf in EqType sx sx_eqMixin.
+Canonical Structure sx_eqMixin := EqMixin eqsxP.
+Canonical Structure sx_eqType := Eval hnf in EqType sx sx_eqMixin.
 
 Inductive unop_i : Type :=
 | Clz
@@ -245,8 +254,8 @@ Inductive cvtop : Type :=
 
 Definition i32 : eqType := Wasm_int.Int32.eqType.
 Definition i64 : eqType :=  Wasm_int.Int64.eqType.
-Variable f32 : eqType.
-Variable f64 : eqType.
+Definition f32 : eqType := Wasm_float.Float32.eqType.
+Definition f64 : eqType := Wasm_float.Float32.eqType.
 
 Inductive value : Type := (* v *)
 | ConstInt32 : i32 -> value
@@ -272,8 +281,8 @@ Qed.
 
 Definition value_eq_dec := eq_dec_Equality_axiom eqvalueP.
 
-Canonical value_eqMixin := EqMixin eqvalueP.
-Canonical value_eqType := Eval hnf in EqType value value_eqMixin.
+Canonical Structure value_eqMixin := EqMixin eqvalueP.
+Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
 
 Inductive basic_instruction : Type := (* be *)
 | Unreachable
@@ -316,8 +325,9 @@ Variable basic_instruction_eqb : basic_instruction -> basic_instruction -> bool.
 
 Parameter eqbasic_instructionP : Equality.axiom basic_instruction_eqb.
 
-Canonical basic_instruction_eqMixin := EqMixin eqbasic_instructionP.
-Canonical basic_instruction_eqType := Eval hnf in EqType basic_instruction basic_instruction_eqMixin.
+Canonical Structure basic_instruction_eqMixin := EqMixin eqbasic_instructionP.
+Canonical Structure basic_instruction_eqType :=
+  Eval hnf in EqType basic_instruction basic_instruction_eqMixin.
 
 Record instance : Type := (* inst *) {
   i_types : list function_type;
@@ -351,8 +361,8 @@ Qed.
 
 Definition instance_eq_dec := eq_dec_Equality_axiom eqinstanceP.
 
-Canonical instance_eqMixin := EqMixin eqinstanceP.
-Canonical instance_eqType := Eval hnf in EqType instance instance_eqMixin.
+Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
+Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
 
 Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
@@ -369,8 +379,8 @@ Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
 
 Parameter eqfunction_closureP : Equality.axiom function_closure_eqb.
 (* TODO *)
-Canonical function_closure_eqMixin := EqMixin eqfunction_closureP.
-Canonical function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
+Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
+Canonical Structure function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
 
 
 Definition tabinst := list (option function_closure).
@@ -421,8 +431,8 @@ Qed.
 
 Definition global_eq_dec := eq_dec_Equality_axiom eqglobalP.
 
-Canonical global_eqMixin := EqMixin eqglobalP.
-Canonical global_eqType := Eval hnf in EqType global global_eqMixin.
+Canonical Structure global_eqMixin := EqMixin eqglobalP.
+Canonical Structure global_eqType := Eval hnf in EqType global global_eqMixin.
 
 
 Record store_record : Type := (* s *) {
@@ -447,8 +457,8 @@ Qed.
 
 Definition store_record_eq_dec := eq_dec_Equality_axiom eqstore_recordP.
 
-Canonical store_record_eqMixin := EqMixin eqstore_recordP.
-Canonical store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
+Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
+Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
 
 Definition upd_s_mem (s : store_record) (m : list mem) : store_record :=
   Build_store_record
@@ -492,8 +502,8 @@ Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : b
 
 Parameter eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
 (* TODO *)
-Canonical administrative_instruction_eqMixin := EqMixin eqadministrative_instructionP.
-Canonical administrative_instruction_eqType := Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
+Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrative_instructionP.
+Canonical Structure administrative_instruction_eqType := Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
 
 Inductive lholed : Type :=
