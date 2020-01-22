@@ -7,21 +7,15 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm wasm_typing.
+Require Import wasm typing.
 
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux
 | CTA_some : value_type -> checker_type_aux.
 
-Definition checker_type_aux_eqb (cta1 cta2 : checker_type_aux) : bool :=
-  match (cta1, cta2) with
-  | (CTA_any, CTA_any) => true
-  | (CTA_some t1, CTA_some t2) => t1 == t2
-  | _ => false
-  end.
+Scheme Equality for checker_type_aux.
+Definition eqchecker_type_auxP := Equality_axiom_eq_dec checker_type_aux_eq_dec.
 
-Axiom eqchecker_type_auxP : Equality.axiom checker_type_aux_eqb.
-(* TODO *)
 Canonical checker_type_aux_eqMixin := EqMixin eqchecker_type_auxP.
 Canonical checker_type_aux_eqType := Eval hnf in EqType checker_type_aux checker_type_aux_eqMixin.
 
@@ -38,7 +32,7 @@ Definition checker_type_eqb (ct1 ct2 : checker_type) : bool :=
   | _ => false
   end.
 
-Axiom eqchecker_typeP : Equality.axiom checker_type_eqb.
+Parameter eqchecker_typeP : Equality.axiom checker_type_eqb.
 (* TODO *)
 Canonical checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
@@ -197,7 +191,7 @@ Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_typ
     then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
     else CT_bot
   | Cvtop t1 Convert t2 sx =>
-    if wasm_typing.convert_cond t1 t2 sx
+    if typing.convert_cond t1 t2 sx
     then type_update ts [::CTA_some t2] (CT_type [::t1])
     else CT_bot
   | Cvtop t1 Reinterpret t2 sxo =>

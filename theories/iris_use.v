@@ -4,12 +4,12 @@
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre.
-Require Export wasm_iris.
+Require Export iris.
 Set Default Proof Using "Type". (* what is this? *)
 
 Record loc := { loc_car : Z }.
 Instance loc_eq_decision : EqDecision loc.
-Proof. solve_decision. Qed.
+Proof. solve_decision. Defined.
 
 Instance loc_inhabited : Inhabited loc := populate {|loc_car := 0 |}.
 
@@ -38,20 +38,20 @@ Instance heapG_irisG `{!heapG Σ} : irisG wasm_lang Σ := {
 
 Definition xx i := (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) i)).
 
-Definition my_add : wasm_iris.expr :=
+Definition my_add : expr :=
   [Basic (EConst (xx 3));
      Basic (EConst (xx 2));
      Basic (Binop_i T_i32 Add)].
 
 Lemma wp_nil `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
-  Φ -∗ WP ([] : wasm_iris.expr) @ s ; E {{ fun v => Φ }}%I.
+  Φ -∗ WP ([] : expr) @ s ; E {{ fun v => Φ }}%I.
 Proof.
   iIntros "H".
   
 Admitted. (* TODO *)
 
-Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es1 es2 : wasm_iris.expr) :
-  WP (es2 : wasm_iris.expr) @ s ; E {{ fun v => WP (es1 : wasm_iris.expr) @ s ; E {{ fun v' => Φ (v ++ v') }}%I }}%I -∗ WP ((es1 ++ es2) : wasm_iris.expr) @ s ; E {{ Φ }}%I.
+Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es1 es2 : expr) :
+  WP (es2 : expr) @ s ; E {{ fun v => WP (es1 : expr) @ s ; E {{ fun v' => Φ (v ++ v') }}%I }}%I -∗ WP ((es1 ++ es2) : expr) @ s ; E {{ Φ }}%I.
 Proof.
   elim: es1.
   { iIntros "H".
@@ -63,8 +63,8 @@ Proof.
     (* FIXME: iSimpl "H". *)
 Admitted. (* TODO *)
 
-Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : wasm.value) (es : wasm_iris.expr) (v : val) :
-  WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I -∗ WP (((Basic (EConst v0)) :: es) : wasm_iris.expr) @ s ; E {{ v, Φ v }}%I.
+Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : wasm.value) (es : expr) (v : val) :
+  WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I -∗ WP (((Basic (EConst v0)) :: es) : expr) @ s ; E {{ v, Φ v }}%I.
 Proof.
 Admitted. (* TODO *)
 

@@ -7,7 +7,7 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
-Require Export wasm_common wasm_numerics.
+Require Export numerics.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
@@ -314,7 +314,7 @@ Definition eqglobal_typeP := Equality_axiom_eq_dec global_type_eq_dec.
 *)
 Variable basic_instruction_eqb : basic_instruction -> basic_instruction -> bool.
 
-Axiom eqbasic_instructionP : Equality.axiom basic_instruction_eqb.
+Parameter eqbasic_instructionP : Equality.axiom basic_instruction_eqb.
 
 Canonical basic_instruction_eqMixin := EqMixin eqbasic_instructionP.
 Canonical basic_instruction_eqType := Eval hnf in EqType basic_instruction basic_instruction_eqMixin.
@@ -367,7 +367,7 @@ Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
   | _ => false
   end.
 
-Axiom eqfunction_closureP : Equality.axiom function_closure_eqb.
+Parameter eqfunction_closureP : Equality.axiom function_closure_eqb.
 (* TODO *)
 Canonical function_closure_eqMixin := EqMixin eqfunction_closureP.
 Canonical function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
@@ -490,7 +490,7 @@ Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : b
   | _, _ => (* TODO *) false
   end.
 
-Axiom eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
+Parameter eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
 (* TODO *)
 Canonical administrative_instruction_eqMixin := EqMixin eqadministrative_instructionP.
 Canonical administrative_instruction_eqType := Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.

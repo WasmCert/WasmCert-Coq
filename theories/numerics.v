@@ -1,7 +1,7 @@
 (** Common useful definitions **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Import wasm_common.
+Require Export common.
 Require Import ZArith.Int.
 Require Coq.ZArith.BinInt.
 From compcert Require Integers Floats.

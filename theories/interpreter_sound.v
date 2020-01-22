@@ -8,7 +8,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm wasm_opsem wasm_interpreter.
+Require Import wasm opsem interpreter.
 
 Section Host.
 
