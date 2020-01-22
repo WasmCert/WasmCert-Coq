@@ -20,6 +20,14 @@ Module Wasm_int.
 
 (** ** Declaration of Operations **)
 
+(** These operations follow the standard straightforwardly.
+  Some of these operations are sometimes said to be undefined
+  in the standard: such operations have been translated by
+  returning an option type. **)
+(** Two operations have been added converting to and from [nat].
+  These are typically used in the specification to convert to and
+  from list lengths.  The corresponding encoding is the unsigned one. **)
+
 Record mixin_of (int_t : Type) := Mixin {
   int_zero : int_t;
   int_clz : int_t -> int_t;
@@ -58,7 +66,7 @@ Record mixin_of (int_t : Type) := Mixin {
   nat_of_int : int_t -> nat;
 }.
 
-Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
+Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
 Local Coercion base : class_of >-> Equality.class_of.
 
 Structure type := Pack {sort : Type; _ : class_of sort}.
@@ -68,7 +76,7 @@ Definition int_ne (e : type) : sort e -> sort e -> bool :=
   let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ int_eq _ _ _ _ _ _ _ _ _ _)) := e in
     fun x => fun y => negb (int_eq x y).
 
-(** ** Instantiations **)
+(** ** Definitions **)
 
 Module Make (WS: Integers.WORDSIZE).
 
@@ -78,6 +86,8 @@ Import Integers.
 
 Include Make (WS).
 
+(** We use CompCert’s [int] as a representation, as CompCert is associated
+  with very similar operations than Wasm, and has already been overly tested. **)
 Definition T := int.
 
 Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
@@ -86,9 +96,7 @@ Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
 
 Lemma Z_eqP : Equality.axiom Coqlib.zeq.
 Proof.
-  move=> x y. case: Coqlib.zeq.
-  - by left.
-  - by right.
+  move=> x y. case: Coqlib.zeq; by [ left | right ].
 Qed.
 
 Definition Z_eqMixin := EqMixin Z_eqP.
@@ -96,6 +104,11 @@ Definition Z_eqMixin := EqMixin Z_eqP.
 Canonical Structure Z_eqType := EqType Z Z_eqMixin.
 
 Coercion Z.of_nat : nat >-> Z.
+
+(** An operation that we did not find in CompCert was a way to convert
+  an integer to its representation as a list of booleans.
+  We thus define all the operations needed to get this list of booleans
+  and the corresponding properties. **)
 
 Fixpoint power_index_to_bits (c : nat) (l : seq Z) : seq bool :=
   match c with
@@ -267,6 +280,9 @@ Lemma convert_to_bits_eq : forall a b,
   eq a b.
 *)
 
+(** Once the conversion to and from lists of bits have been defined,
+  the bit-related functions are easy to define. **)
+
 (** Return the count of leading zero bits. **)
 Definition clz i :=
   let l := convert_to_bits i in
@@ -371,6 +387,10 @@ Definition eqType := @Equality.Pack cT xclass.
 
 End Make.
 
+(** ** Instantiations **)
+
+(** Instantiations to 32 and 64 bits. **)
+
 Module Int32.
 Include Make(Integers.Wordsize_32).
 End Int32.
@@ -387,6 +407,11 @@ End Wasm_int.
 (** ** Declaration of Operations **)
 
 Module Wasm_float.
+
+(** The operations on floats follow the standard.  In particular,
+  [float_eq] is the floating-point equality [feq] defined in the
+  standard and not the Leibniz equality: we have
+  [float_eq NaN NaN = false] and [float_eq (+0) (-0) = true]. **)
 
 Record mixin_of (float_t : Type) := Mixin {
   float_zero : float_t;
@@ -411,8 +436,8 @@ Record mixin_of (float_t : Type) := Mixin {
   float_ge : float_t -> float_t -> bool;
 }.
 
-Record class_of T := Class {base : Equality.class_of T; mixin : mixin_of T}.
-Local Coercion base : class_of >->  Equality.class_of.
+Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
+Local Coercion base : class_of >-> Equality.class_of.
 
 Structure type := Pack {sort; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
@@ -421,37 +446,114 @@ Definition float_ne (e : type) : sort e -> sort e -> bool :=
   let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
     fun x => fun y => negb (float_eq x y).
 
-Parameters (T : Type) (cT : type). (* TODO: Same as Wasm_int, this is not the way to go. *)
+(** ** Architectures **)
 
-Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
-Definition clone c of phant_id class c := @Pack T c.
-Let xT := let: Pack T _ := cT in T.
-Notation xclass := (class : class_of xT).
+(** To avoid repeating definitions, we define this module type [FloatSize]
+  specifying the [prec] (precision) and [emax] (maximum exponent) parameters
+  of floating-point numbers.
+  We also add in the module type all useful definitions not parameterised by
+  [prec] and [emax] for defining the Wasm float operations. **)
 
-Definition pack m :=
-  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
-
-Definition eqType := @Equality.Pack cT xclass.
-
-End Wasm_float.
-
-(** ** Instantiations **)
-
-(* TODO: Wasm_float32 *)
-
-Module Wasm_float64.
+Module Type FloatSize.
 
 Import Integers.
 
 Import Raux.
 
-Import Wasm_float.
+Import Floats.
+
+Parameters prec emax : Z.
+
+Parameter prec_gt_0 : FLX.Prec_gt_0 prec.
+Parameter Hmax : (prec < emax)%Z.
+
+Definition T := Binary.binary_float prec emax.
+
+Parameter default_nan : {x : T | Binary.is_nan _ _ x = true}.
+
+Definition compare := Binary.Bcompare prec emax.
+
+Definition cmp (c : comparison) (f1 f2 : T) :=
+  cmp_of_comparison c (compare f1 f2).
+
+Definition eq_dec := IEEE754_extra.Beq_dec prec emax.
+
+Parameter neg : T -> T.
+Parameter abs : T -> T.
+Parameter add : T -> T -> T.
+Parameter sub : T -> T -> T.
+Parameter mul : T -> T -> T.
+Parameter div : T -> T -> T.
+
+End FloatSize.
+
+(** We then instanciate it with CompCert’s types. **)
+
+Module FloatSize32 : FloatSize.
+
+Import Raux.
+
+Import Floats.
+
+Include Float32.
+
+Definition prec : BinNums.Z := 24.
+Definition emax : BinNums.Z := 128.
+
+Definition T := float32.
+
+Definition default_nan := Archi.default_nan_32.
+
+Lemma prec_gt_0 : FLX.Prec_gt_0 prec.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma Hmax : (prec < emax)%Z.
+Proof.
+  reflexivity.
+Qed.
+
+End FloatSize32.
+
+Module FloatSize64 : FloatSize.
+
+Import Raux.
 
 Import Floats.
 
 Include Float.
 
+Definition prec : BinNums.Z := 53.
+Definition emax : BinNums.Z := 1024.
+
 Definition T := float.
+
+Definition default_nan := Archi.default_nan_64.
+
+Lemma prec_gt_0 : FLX.Prec_gt_0 prec.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma Hmax : (prec < emax)%Z.
+Proof.
+  reflexivity.
+Qed.
+
+End FloatSize64.
+
+(** ** Definitions **)
+
+Module Make (FS : FloatSize).
+
+Import Integers.
+
+Import Raux.
+
+Import Floats.
+
+Export FS.
 
 (** State whether the given float is a NaN. **)
 Definition is_nan : T -> bool := Binary.is_nan _ _.
@@ -481,17 +583,21 @@ Definition neg_zero : T := Binary.B754_zero _ _ true.
 
 (** An unspecified positive unsed in [unspec_nan], whose value is made opaque to
   avoid overspecification. **)
-Definition unspec_nan_pl : { pl | Binary.nan_pl 53 pl = true }.
-  have pl: { pl | Binary.nan_pl 53 pl = true
-                  /\ exists b E,
-                       proj1_sig Archi.default_nan_64 = Binary.B754_nan _ _ b pl E }.
-  { case: Archi.default_nan_64 => f. case: f => // b pl Epl Inan. by repeat eexists. }
+Definition unspec_nan_pl : { pl | Binary.nan_pl prec pl = true }.
+  have pl: { pl | Binary.nan_pl prec pl = true
+                  /\ exists b E, proj1_sig default_nan = Binary.B754_nan _ _ b pl E }.
+  { case: default_nan => f. case: f => // b pl Epl Inan. exists pl. split => //.
+    repeat eexists. }
   case: pl. move=> pl [E _]. by exists pl.
 Qed.
 
 (** An unspecified nan. **)
 Definition unspec_nan : T :=
   Binary.B754_nan _ _ ltac:(abstract exact true) _ (proj2_sig unspec_nan_pl).
+
+(** The same definition, but within a type that guarantees that it is a NaN. **)
+Definition unspec_nan_nan : {x : T | Binary.is_nan _ _ x = true} :=
+  exist _ unspec_nan (eqxx true).
 
 (** Taking the opposite of a floating point number. **)
 Definition opp : T -> T.
@@ -500,36 +606,28 @@ Defined.
 
 (** Given a mantissa and an exponent (in radix two), produce a representation for a float.
   The sign is not specified if given 0 as a mantissa. **)
-Definition normalise (m e : Z) : T.
-  refine (Binary.binary_normalize _ _ _ _ Binary.mode_NE m e ltac:(abstract exact false));
-    reflexivity.
-Defined.
+Definition normalise (m e : Z) : T :=
+  Binary.binary_normalize _ _ prec_gt_0 Hmax
+    Binary.mode_NE m e ltac:(abstract exact false).
 
 (** As Flocq is completely undocumented, let us introduce a unit test here, to check
   that indeed we have the correct understanding of definitions.
   We define [half] to be [0.5], adds it to itself, then check that the result is one.
   (Note that because of rounding errors, it may actually not be equal for some parameters,
-  but it seems to be fine here.) **)
-Definition normalise_unit_test : Prop.
-  refine (let half := normalise 1 (-1) in _).
-  refine (let twice_half : T :=
-            Binary.Bplus _ _ _ _ (fun _ _ => exist _ unspec_nan _) Binary.mode_NE half half in _).
-  refine (let one := Binary.Bone _ _ _ _ in _).
-  refine (cmp Ceq twice_half one = true).
-Grab Existential Variables.
-  reflexivity.
-  reflexivity.
-  reflexivity.
-  reflexivity.
-  reflexivity.
-Defined.
-Lemma normalise_unit_test_ok : normalise_unit_test.
-Proof.
-  reflexivity.
-Qed.
+  but it is fine here.)
+  These unit tests are tested once the module is instantiated below, to be able to
+  compute. **)
+Definition normalise_unit_test :=
+  let half := normalise 1 (-1) in
+  let twice_half : T :=
+    Binary.Bplus _ _ prec_gt_0 Hmax (fun _ _ => unspec_nan_nan)
+      Binary.mode_NE half half in
+  let one := Binary.Bone _ _ prec_gt_0 Hmax in
+  cmp Ceq twice_half one = true.
 
-(** In contrary to the Wasm specification, we consider that [nans] only takes one parameter
-  instead of a set. **)
+(** In contrary to the Wasm specification, we consider that [nans] only takes one
+  parameter instead of a set.
+  This does not much change the specification. **)
 Definition nans : T -> T :=
   let set_bit_sign default f :=
     if f is Binary.B754_nan b pl E then Binary.B754_nan _ _ true pl E
@@ -544,24 +642,27 @@ Qed.
 
 (** Importing the square root of floats from the Flocq library with the
   round-to-nearest ties-to-even mode. **)
-Definition sqrt (f : T) : T.
-  refine (Binary.Bsqrt _ _ _ _ (fun f => exist _ _ (nans_is_nan f)) Binary.mode_NE f);
-    abstract lias.
-Defined.
+Definition sqrt (f : T) : T :=
+  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun f => exist _ _ (nans_is_nan f)) Binary.mode_NE f.
 
-Definition fsqrt (f : float) :=
+Definition fsqrt (f : T) :=
   if is_nan f then nans f
-  else if sign f then nans zero
+  else if sign f then nans pos_zero
   else if f is Binary.B754_infinity false then pos_infinity
   else if is_zero f then f
   else sqrt f.
 
-(** It seems that Flocq does not define any ceil and floor functions on floating point numbers
-  (it does define it on the [R] type, but it is not really useful for us.
-  Inspired by CompCert’s [IEEE754_extra.ZofB], we build this operation, parameterised by two
-  divisions functions (one for negative numbers and one for positive numbers).
-  These divisions functions only differ in the way they round numbers (up, down, or nearest).
-  Note that these parameters are used to compute the absolute value of the resulting integer. **)
+(** It seems that Flocq does not define any ceil and floor functions on
+  floating point numbers (it does define it on the [R] type, but it is not
+  really useful for us).
+  Inspired by CompCert’s [IEEE754_extra.ZofB], we build this operation,
+  parameterised by two divisions functions (one for negative numbers and
+  one for positive numbers).
+  These divisions functions only differ in the way they round numbers (up,
+  down, or nearest).
+  Note that these parameters are used to compute the absolute value of the
+  resulting integer. **)
+
 Definition ZofB_param (divP divN : Z -> Z -> Z) (f : T) :=
   match f with
   | Binary.B754_zero _ => Some 0%Z
@@ -602,9 +703,8 @@ Proof.
 Qed.
 
 (** This function does the countrary: it translates an integer to floating point number. **)
-Definition BofZ : Z -> T.
-  refine (IEEE754_extra.BofZ _ _ _ _); abstract lias.
-Defined.
+Definition BofZ : Z -> T :=
+  IEEE754_extra.BofZ _ _ prec_gt_0 Hmax.
 
 (** [BofZ] is actually just the same thing than calling [normalise] with an empty exponent. **)
 Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
@@ -623,105 +723,66 @@ Definition floor := floatify flooro.
 Definition trunc := floatify trunco.
 Definition nearest := floatify nearesto.
 
-(** As above, here are some unit tests to be sure that we are indeed expecting the right thing. **)
+(** As above, here are some unit tests to be sure that we are indeed expecting
+  the right thing. **)
 Definition ceil_unit_test_1 : Prop :=
   let half := normalise 1 (-1) in
   ceil half = BofZ 1.
-Lemma ceil_unit_test_1_ok : ceil_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
 
 Definition ceil_unit_test_2 : Prop :=
   let mhalf := normalise (-1) (-1) in
   ceil mhalf = BofZ 0.
-Lemma ceil_unit_test_2_ok : ceil_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
 
 Definition floor_unit_test_1 : Prop :=
   let half := normalise 1 (-1) in
   floor half = BofZ 0.
-Lemma floor_unit_test_1_ok : floor_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
 
 Definition floor_unit_test_2 : Prop :=
   let mhalf := normalise (-1) (-1) in
   floor mhalf = BofZ (-1).
-Lemma floor_unit_test_2_ok : floor_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
 
 Definition trunc_unit_test_1 : Prop :=
   let half := normalise 1 (-1) in
   trunc half = BofZ 0.
-Lemma trunc_unit_test_1_ok : trunc_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
 
 Definition trunc_unit_test_2 : Prop :=
   let mhalf := normalise (-1) (-1) in
   trunc mhalf = BofZ 0.
-Lemma trunc_unit_test_2_ok : trunc_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
 
 Definition nearest_unit_test_1 : Prop :=
   let half := normalise 1 (-1) in
   nearest half = BofZ 0.
-Lemma nearest_unit_test_1_ok : nearest_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
 
 Definition nearest_unit_test_2 : Prop :=
   let mhalf := normalise (-1) (-1) in
   nearest mhalf = BofZ 0.
-Lemma nearest_unit_test_2_ok : nearest_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
 
 Definition nearest_unit_test_3 : Prop :=
   let one_pfive := normalise 3 (-1) in
   nearest one_pfive = BofZ 2.
-Lemma nearest_unit_test_3_ok : nearest_unit_test_3.
-Proof.
-  reflexivity.
-Qed.
 
 Definition nearest_unit_test_4 : Prop :=
   let mone_pfive := normalise (-3) (-1) in
   nearest mone_pfive = BofZ (-2).
-Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
-Proof.
-  reflexivity.
-Qed.
 
 (** We now define the operators [fceil], [ffloor], [ftrunc], and [fnearest] as defined
   in the Wasm standartd. **)
 
-Definition fceil (f : float) :=
+Definition fceil (f : T) :=
   if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
   else if cmp Clt f neg_zero && cmp Cgt f (BofZ (-1)) then neg_zero
   else ceil f.
 
-Definition ffloor (f : float) :=
+Definition ffloor (f : T) :=
   if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
   else if cmp Cgt f pos_zero && cmp Clt f (BofZ 1) then pos_zero
   else floor f.
 
-Definition ftrunc (f : float) :=
+Definition ftrunc (f : T) :=
   if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
@@ -729,7 +790,7 @@ Definition ftrunc (f : float) :=
   else if cmp Clt f neg_zero && cmp Cgt f (BofZ (-1)) then neg_zero
   else trunc f.
 
-Definition fnearest (f : float) :=
+Definition fnearest (f : T) :=
   if is_nan f then nans f
   else if is_infinity f then f
   else if is_zero f then f
@@ -762,7 +823,7 @@ Definition Tmixin : mixin_of T := {|
     float_add := add ;
     float_sub := sub ;
     float_mul := mul ;
-    float_div := mul ;
+    float_div := div ;
     float_min x y := if cmp Clt x y then x else y ;
     float_max x y := if cmp Cgt x y then x else y ;
     float_copysign := fcopysign ;
@@ -778,10 +839,87 @@ Definition eqTP := Equality_axiom_eq_dec eq_dec.
 Canonical T_eqMixin := EqMixin eqTP. (* LATER: Frustration: Coq ignores this one because [fun v1 v2 : float => is_left (eq_dec v1 v2)] is not named. *)
 Canonical T_eqType := Eval hnf in EqType T T_eqMixin.
 
-Definition cT : type.
-  refine (@Pack T {| mixin := Tmixin |}).
-  apply T_eqMixin.
-Defined.
+Definition cT : type := Pack {| base := T_eqMixin; mixin := Tmixin |}.
 
-End Wasm_float64.
+Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
+Definition clone c of phant_id class c := @Pack T c.
+Let xT := let: Pack T _ := cT in T.
+Notation xclass := (class : class_of xT).
 
+Definition pack m :=
+  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
+
+Definition eqType := @Equality.Pack cT xclass.
+
+End Make.
+
+(** ** Instantiations **)
+
+Module FLoat32.
+Include Make(FloatSize32).
+End FLoat32.
+
+Module FLoat64.
+Include Make(FloatSize64).
+End FLoat64.
+
+(** ** Unit Tests **)
+
+(* FIXME: Frustration
+Lemma normalise_unit_test_64 : FLoat64.normalise_unit_test.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma ceil_unit_test_1_ok : ceil_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma ceil_unit_test_2_ok : ceil_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma floor_unit_test_1_ok : floor_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma floor_unit_test_2_ok : floor_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma trunc_unit_test_1_ok : trunc_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma trunc_unit_test_2_ok : trunc_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma nearest_unit_test_1_ok : nearest_unit_test_1.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma nearest_unit_test_2_ok : nearest_unit_test_2.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma nearest_unit_test_3_ok : nearest_unit_test_3.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
+Proof.
+  reflexivity.
+Qed.
+ *)
+
+End Wasm_float.
