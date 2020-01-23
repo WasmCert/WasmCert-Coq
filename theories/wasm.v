@@ -33,6 +33,13 @@ Variable byte_eqb : byte -> byte -> bool.
 
 Definition bytes := list byte.
 
+Parameter serialise_i32 : i32 -> bytes.
+Parameter serialise_i64 : i64 -> bytes.
+Parameter serialise_f32 : f32 -> bytes.
+Parameter serialise_f64 : f64 -> bytes.
+Parameter wasm_bool : bool -> i32.
+Parameter int32_minus_one : i32.
+
 Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
   match n with
   | O => nil
@@ -78,7 +85,7 @@ Inductive value_type : Type := (* t *)
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 := is_left (value_type_eq_dec v1 v2).
 Definition eqvalue_typeP  : Equality.axiom value_type_eqb :=
-  Equality_axiom_eq_dec value_type_eq_dec.
+  eq_dec_Equality_axiom value_type_eq_dec.
 
 Canonical Structure value_type_eqMixin := EqMixin eqvalue_typeP.
 Canonical Structure value_type_eqType := Eval hnf in EqType value_type value_type_eqMixin.
@@ -95,7 +102,7 @@ Inductive mutability : Type := (* mut *)
 Scheme Equality for mutability.
 Definition mutability_eqb v1 v2 := is_left (mutability_eq_dec v1 v2).
 Definition eqmutabilityP  : Equality.axiom mutability_eqb :=
-  Equality_axiom_eq_dec mutability_eq_dec.
+  eq_dec_Equality_axiom mutability_eq_dec.
 
 Canonical Structure mutability_eqMixin := EqMixin eqmutabilityP.
 Canonical Structure mutability_eqType := Eval hnf in EqType mutability mutability_eqMixin.
@@ -107,7 +114,7 @@ Record global_type := (* tg *)
 Scheme Equality for global_type.
 Definition global_type_eqb v1 v2 := is_left (global_type_eq_dec v1 v2).
 Definition eqglobal_typeP  : Equality.axiom global_type_eqb :=
-  Equality_axiom_eq_dec global_type_eq_dec.
+  eq_dec_Equality_axiom global_type_eq_dec.
 
 Canonical Structure global_type_eqMixin := EqMixin eqglobal_typeP.
 Canonical Structure global_type_eqType := Eval hnf in EqType global_type global_type_eqMixin.
@@ -147,7 +154,7 @@ Proof.
   }
 Qed.
 
-Definition function_eq_dec := eq_dec_Equality_axiom eqfunction_typeP.
+Definition function_eq_dec := Equality_axiom_eq_dec eqfunction_typeP.
 
 Canonical Structure function_type_eqMixin := EqMixin eqfunction_typeP.
 Canonical Structure function_type_eqType :=
@@ -166,7 +173,7 @@ Record t_context := {
 
 Parameter t_context_eq_dec : forall x y : t_context, {x = y} + {x <> y}. (* TODO *)
 
-Definition eqt_contextP := Equality_axiom_eq_dec t_context_eq_dec.
+Definition eqt_contextP := eq_dec_Equality_axiom t_context_eq_dec.
 
 (*
 
@@ -187,7 +194,7 @@ Inductive sx : Type :=
 Scheme Equality for sx.
 Definition sx_eqb v1 v2 := is_left (sx_eq_dec v1 v2).
 Definition eqsxP  : Equality.axiom sx_eqb :=
-  Equality_axiom_eq_dec sx_eq_dec.
+  eq_dec_Equality_axiom sx_eq_dec.
 
 Canonical Structure sx_eqMixin := EqMixin eqsxP.
 Canonical Structure sx_eqType := Eval hnf in EqType sx sx_eqMixin.
@@ -252,11 +259,6 @@ Inductive cvtop : Type :=
 | Convert
 | Reinterpret.
 
-Definition i32 : eqType := Wasm_int.Int32.eqType.
-Definition i64 : eqType :=  Wasm_int.Int64.eqType.
-Definition f32 : eqType := Wasm_float.Float32.eqType.
-Definition f64 : eqType := Wasm_float.Float32.eqType.
-
 Inductive value : Type := (* v *)
 | ConstInt32 : i32 -> value
 | ConstInt64 : i64 -> value
@@ -279,7 +281,7 @@ Proof.
        | apply/iffP; [ move=> /=; apply/eqP | move=> E; f_equal; exact: E | inversion 1] ].
 Qed.
 
-Definition value_eq_dec := eq_dec_Equality_axiom eqvalueP.
+Definition value_eq_dec := Equality_axiom_eq_dec eqvalueP.
 
 Canonical Structure value_eqMixin := EqMixin eqvalueP.
 Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
@@ -319,7 +321,7 @@ Inductive basic_instruction : Type := (* be *)
 
 (* TODO:
 Scheme Equality for basic_instruction.
-Definition eqglobal_typeP := Equality_axiom_eq_dec global_type_eq_dec.
+Definition eqglobal_typeP := eq_dec_Equality_axiom global_type_eq_dec.
 *)
 Variable basic_instruction_eqb : basic_instruction -> basic_instruction -> bool.
 
@@ -359,7 +361,7 @@ Proof.
          | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
 Qed.
 
-Definition instance_eq_dec := eq_dec_Equality_axiom eqinstanceP.
+Definition instance_eq_dec := Equality_axiom_eq_dec eqinstanceP.
 
 Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
 Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
@@ -429,7 +431,7 @@ Proof.
   }
 Qed.
 
-Definition global_eq_dec := eq_dec_Equality_axiom eqglobalP.
+Definition global_eq_dec := Equality_axiom_eq_dec eqglobalP.
 
 Canonical Structure global_eqMixin := EqMixin eqglobalP.
 Canonical Structure global_eqType := Eval hnf in EqType global global_eqMixin.
@@ -455,7 +457,7 @@ Proof.
          | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
 Qed.
 
-Definition store_record_eq_dec := eq_dec_Equality_axiom eqstore_recordP.
+Definition store_record_eq_dec := Equality_axiom_eq_dec eqstore_recordP.
 
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
@@ -510,47 +512,6 @@ Inductive lholed : Type :=
 | LBase : list administrative_instruction -> list administrative_instruction -> lholed
 | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed.
 
-Definition i32_r : Wasm_int.class_of i32 := Wasm_int.Int32.class.
-Definition i32_t : Wasm_int.type := Wasm_int.Pack i32_r.
-Definition i64_r : Wasm_int.class_of i64 := Wasm_int.Int64.class.
-Definition i64_t : Wasm_int.type := Wasm_int.Pack i64_r.
-Parameter f32_r : Wasm_float.class_of f32.
-Definition f32_t : Wasm_float.type := Wasm_float.Pack f32_r.
-Parameter f64_r : Wasm_float.class_of f64.
-Definition f64_t : Wasm_float.type := Wasm_float.Pack f64_r.
-
-Parameter ui32_trunc_f32 : f32 -> option i32.
-Parameter si32_trunc_f32 : f32 -> option i32.
-Parameter ui32_trunc_f64 : f64 -> option i32.
-Parameter si32_trunc_f64 : f64 -> option i32.
-
-Parameter ui64_trunc_f32 : f32 -> option i64.
-Parameter si64_trunc_f32 : f32 -> option i64.
-Parameter ui64_trunc_f64 : f64 -> option i64.
-Parameter si64_trunc_f64 : f64 -> option i64.
-
-Parameter f32_convert_ui32 : i32 -> f32.
-Parameter f32_convert_si32 : i32 -> f32.
-Parameter f32_convert_ui64 : i64 -> f32.
-Parameter f32_convert_si64 : i64 -> f32.
-
-Parameter f64_convert_ui32 : i32 -> f64.
-Parameter f64_convert_si32 : i32 -> f64.
-Parameter f64_convert_ui64 : i64 -> f64.
-Parameter f64_convert_si64 : i64 -> f64.
-
-Parameter wasm_wrap : i64 -> i32.
-Parameter wasm_extend_u : i32 -> i64.
-Parameter wasm_extend_s : i32 -> i64.
-Parameter wasm_demote : f64 -> f32.
-Parameter wasm_promote : f32 -> f64.
-
-Parameter serialise_i32 : i32 -> bytes.
-Parameter serialise_i64 : i64 -> bytes.
-Parameter serialise_f32 : f32 -> bytes.
-Parameter serialise_f64 : f64 -> bytes.
-Parameter wasm_bool : bool -> i32.
-Parameter int32_minus_one : i32.
 
 Definition mem_size (m : mem) :=
   length m.
@@ -955,10 +916,10 @@ Definition bits (v : value) : bytes :=
 
 Definition bitzero (t : value_type) : value :=
   match t with
-  | T_i32 => ConstInt32 (Wasm_int.int_zero (Wasm_int.mixin i32_r))
-  | T_i64 => ConstInt64 (Wasm_int.int_zero (Wasm_int.mixin i64_r))
-  | T_f32 => ConstFloat32 (Wasm_float.float_zero (Wasm_float.mixin f32_r))
-  | T_f64 => ConstFloat64 (Wasm_float.float_zero (Wasm_float.mixin f64_r))
+  | T_i32 => ConstInt32 (Wasm_int.int_zero i32m)
+  | T_i64 => ConstInt64 (Wasm_int.int_zero i64m)
+  | T_f32 => ConstFloat32 (Wasm_float.float_zero f32m)
+  | T_f64 => ConstFloat64 (Wasm_float.float_zero f64m)
   end.
 
 Definition n_zeros (ts : list value_type) : list value :=

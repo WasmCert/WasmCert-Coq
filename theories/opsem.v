@@ -13,67 +13,67 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
 (* unop *)
 | rs_unop_i32 :
   forall c iop,
-  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Unop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (@app_unop_i i32_t iop c)))]
+  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Unop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (@app_unop_i i32t iop c)))]
 | rs_unop_i64 :
   forall c iop,
-  reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Unop_i T_i64 iop)] [::Basic (EConst (ConstInt64 (@app_unop_i i64_t iop c)))]
+  reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Unop_i T_i64 iop)] [::Basic (EConst (ConstInt64 (@app_unop_i i64t iop c)))]
 | rs_unop_f32 :
   forall c fop,
-  reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32_t fop c)))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32t fop c)))]
 | rs_unop_f64 :
   forall c fop,
-  reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64_t fop c)))]
+  reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64t fop c)))]
 (* binop *)
 | rs_binop_i32_success :
   forall c1 c2 c iop,
-  @app_binop_i i32_t iop c1 c2 = Some c ->
+  @app_binop_i i32t iop c1 c2 = Some c ->
   reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Binop_i T_i32 iop)] [::Basic (EConst (ConstInt32 c))]
 | rs_binop_i32_failure :
   forall c1 c2 iop,
-  @app_binop_i i32_t iop c1 c2 = None ->
+  @app_binop_i i32t iop c1 c2 = None ->
   reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Binop_i T_i32 iop)] [::Trap]
 | rs_binop_i64_success :
   forall c1 c2 c iop,
-  @app_binop_i i64_t iop c1 c2 = Some c ->
+  @app_binop_i i64t iop c1 c2 = Some c ->
   reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Binop_i T_i64 iop)] [::Basic (EConst (ConstInt64 c))]
 | rs_binop_i64_failure :
   forall c1 c2 iop,
-  @app_binop_i i64_t iop c1 c2 = None ->
+  @app_binop_i i64t iop c1 c2 = None ->
   reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Binop_i T_i64 iop)] [::Trap]
 | rs_binop_f32_success :
   forall c1 c2 c fop,
-  @app_binop_f f32_t fop c1 c2 = Some c ->
+  @app_binop_f f32t fop c1 c2 = Some c ->
   reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 c))]
 | rs_binop_f32_failure : forall c1 c2 fop,
-    @app_binop_f f32_t fop c1 c2 = None ->
+    @app_binop_f f32t fop c1 c2 = None ->
     reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Trap]
 | rs_binop_f64_success : forall c1 c2 c fop,
-    @app_binop_f f64_t fop c1 c2 = Some c ->
+    @app_binop_f f64t fop c1 c2 = Some c ->
     reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 c))]
 | rs_binop_f64_failure :
   forall c1 c2 fop,
-  @app_binop_f f64_t fop c1 c2 = None ->
+  @app_binop_f f64t fop c1 c2 = None ->
   reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Trap]
 (* testops *)
 | rs_testop_i32 :
   forall c testop,
-  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Testop T_i32 testop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_testop_i i32_t testop c))))]
+  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Testop T_i32 testop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_testop_i i32t testop c))))]
 | rs_testop_i64 :
   forall c testop,
-  reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Testop T_i64 testop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_testop_i i64_t testop c))))]
+  reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Testop T_i64 testop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_testop_i i64t testop c))))]
 (* relops *)
 | rs_relop_i32 :
   forall c1 c2 iop,
-  reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Relop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_i i32_t iop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Relop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_i i32t iop c1 c2))))]
 | rs_relop_i64 :
   forall c1 c2 iop,
-  reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Relop_i T_i64 iop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_i i64_t iop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Relop_i T_i64 iop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_i i64t iop c1 c2))))]
 | rs_relop_f32 :
   forall c1 c2 fop,
-  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Relop_f T_f32 fop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_f f32_t fop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Relop_f T_f32 fop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_f f32t fop c1 c2))))]
 | rs_relop_f64 :
   forall c1 c2 fop,
-  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Relop_f T_f64 fop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_f f64_t fop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Relop_f T_f64 fop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_f f64t fop c1 c2))))]
 (* convert & reinterpret *)
 | rs_convert_success :
   forall t1 t2 v v' sx,
@@ -99,11 +99,11 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
   reduce_simple [::Basic (EConst v); Basic Drop] [::]
 | rs_select_true :
   forall n v1 v2,
-  n == (Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r)) ->
+  n == (Wasm_int.int_zero i32m) ->
   reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic (EConst v2)]
 | rs_select_false :
   forall n v1 v2,
-  n != (Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r)) ->
+  n != (Wasm_int.int_zero i32m) ->
   reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic (EConst v1)]
 | rs_block :
     forall vs es n m t1s t2s,
@@ -121,11 +121,11 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
       reduce_simple (vs ++ [::Basic (Loop (Tf t1s t2s) es)]) [::Label n [::Basic (Loop (Tf t1s t2s) es)] (vs ++ to_e_list es)]
 | rs_if_false :
     forall n tf e1s e2s,
-      n == Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r) ->
+      n == Wasm_int.int_zero i32m ->
       reduce_simple ([::Basic (EConst (ConstInt32 n)); Basic (If tf e1s e2s)]) [::Basic (Block tf e2s)]
 | rs_if_true :
     forall n tf e1s e2s,
-      n != Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r) ->
+      n != Wasm_int.int_zero i32m ->
       reduce_simple ([::Basic (EConst (ConstInt32 n)); Basic (If tf e1s e2s)]) [::Basic (Block tf e1s)]
 | rs_label_const :
     forall n es vs,
@@ -142,20 +142,20 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
       reduce_simple [::Label n es LI] (vs ++ es)
 | rs_br_if_false :
     forall n i,
-      n == Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r) ->
+      n == Wasm_int.int_zero i32m ->
       reduce_simple [::Basic (EConst (ConstInt32 n)); Basic (Br_if i)] [::]
 | rs_br_if_true :
     forall n i,
-      n != Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r) ->
+      n != Wasm_int.int_zero i32m ->
       reduce_simple [::Basic (EConst (ConstInt32 n)); Basic (Br_if i)] [::Basic (Br i)]
 | rs_br_table : (* ??? *)
     forall iss c i j,
-      length iss > Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c ->
-      List.nth_error iss (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) == Some j ->
+      length iss > Wasm_int.nat_of_int i32m c ->
+      List.nth_error iss (Wasm_int.nat_of_int i32m c) == Some j ->
       reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br j)]
 | rs_br_table_length :
     forall iss c i j,
-      List.nth_error iss (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) == Some j ->
+      List.nth_error iss (Wasm_int.nat_of_int i32m c) == Some j ->
       length iss <= j ->
       reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br i)]
 | rs_local_const :
@@ -193,18 +193,18 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       reduce s vs [::Basic (Call j)] i s vs [::Callcl f]
 | r_call_indirect_success :
     forall s i j cl c vs tf,
-      stab s i (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) == Some cl ->
+      stab s i (Wasm_int.nat_of_int i32m c) == Some cl ->
       stypes s i j == Some tf ->
       cl_type cl == tf ->
       reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i s vs [::Callcl cl]
 | r_call_indirect_failure1 :
     forall s i j c cl vs,
-      stab s i (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) == Some cl ->
+      stab s i (Wasm_int.nat_of_int i32m c) == Some cl ->
       stypes s i j != Some (cl_type cl) ->
       reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i s vs [::Trap]
 | r_call_indirect_failure2 :
     forall s i j c vs,
-      stab s i (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) == None ->
+      stab s i (Wasm_int.nat_of_int i32m c) == None ->
       reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i s vs [::Trap]
 | r_callcl_native :
     forall cl t1s t2s ts es ves vcs n m k zs vs s i j,
@@ -253,67 +253,67 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
     forall s i t bs vs k a off m j,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
-      load m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (t_length t) == Some bs ->
+      load m (Wasm_int.nat_of_int i32m k) off (t_length t) == Some bs ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Basic (EConst (wasm.wasm_deserialise bs t))]
 | r_load_failure :
     forall s i t vs k a off m j,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j = Some m ->
-      load m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (t_length t) == None ->
+      load m (Wasm_int.nat_of_int i32m k) off (t_length t) == None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Trap]
 | r_load_packed_sucess :
     forall s i t tp vs k a off m j bs sx,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
-      load_packed sx m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (tp_length tp) (t_length t) = Some bs ->
+      load_packed sx m (Wasm_int.nat_of_int i32m k) off (tp_length tp) (t_length t) = Some bs ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i s vs [::Basic (EConst (wasm.wasm_deserialise bs t))]
 | r_load_packed_failure :
     forall s i t tp vs k a off m j sx,
       smem_ind s i == Some j ->
       List.nth_error (s_mem s) j = Some m ->
-      load_packed sx m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (tp_length tp) (t_length t) = None ->
+      load_packed sx m (Wasm_int.nat_of_int i32m k) off (tp_length tp) (t_length t) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i s vs [::Trap]
 | r_store_success :
     forall t v s i j vs mem' k a off m,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j = Some m ->
-      store m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (bits v) (t_length t) = Some mem' ->
+      store m (Wasm_int.nat_of_int i32m k) off (bits v) (t_length t) = Some mem' ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::]
 | r_store_failure :
     forall t v s i j m k off a vs,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
-      store m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (bits v) (t_length t) = None ->
+      store m (Wasm_int.nat_of_int i32m k) off (bits v) (t_length t) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i s vs [::Trap]
 | r_store_packed_sucess :
     forall t v s i j m k off a vs mem' tp,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
-      store_packed m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (bits v) (tp_length tp) == Some mem' ->
+      store_packed m (Wasm_int.nat_of_int i32m k) off (bits v) (tp_length tp) == Some mem' ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::]
 | r_store_packed_failure :
     forall t v s i j m k off a vs tp,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j = Some m ->
-      store_packed m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (bits v) (tp_length tp) = None ->
+      store_packed m (Wasm_int.nat_of_int i32m k) off (bits v) (tp_length tp) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i s vs [::Trap]
 | r_current_memory :
     forall i j m n s vs,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j = Some m ->
       mem_size m = n ->
-      reduce s vs [::Basic (Current_memory)] i s vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) n)))]
+      reduce s vs [::Basic (Current_memory)] i s vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_nat i32m n)))]
 | r_grow_memory_success :
     forall s i j m n mem' vs c,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j = Some m ->
       mem_size m = n ->
-      mem_grow m (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) = mem' ->
-      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) n)))]
+      mem_grow m (Wasm_int.nat_of_int i32m c) = mem' ->
+      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_nat i32m n)))]
 | r_grow_memory_failure :
     forall i j m n s vs c,
       smem_ind s i == Some j ->

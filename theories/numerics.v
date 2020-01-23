@@ -30,10 +30,11 @@ Module Wasm_int.
 
 Record mixin_of (int_t : Type) := Mixin {
   int_zero : int_t;
+  (** Bit operations **)
   int_clz : int_t -> int_t;
   int_ctz : int_t -> int_t;
   int_popcnt : int_t -> int_t;
-  (**)
+  (** Binary operators **)
   int_add : int_t -> int_t -> int_t;
   int_sub : int_t -> int_t -> int_t;
   int_mul : int_t -> int_t -> int_t;
@@ -41,6 +42,7 @@ Record mixin_of (int_t : Type) := Mixin {
   int_div_s : int_t -> int_t -> option int_t;
   int_rem_u : int_t -> int_t -> option int_t;
   int_rem_s : int_t -> int_t -> option int_t;
+  (** Binary operators about bits **)
   int_and : int_t -> int_t -> int_t;
   int_or : int_t -> int_t -> int_t;
   int_xor : int_t -> int_t -> int_t;
@@ -49,10 +51,10 @@ Record mixin_of (int_t : Type) := Mixin {
   int_shr_s : int_t -> int_t -> int_t;
   int_rotl : int_t -> int_t -> int_t;
   int_rotr : int_t -> int_t -> int_t;
-  (**)
-  int_eqz : int_t -> bool;
-  (**)
+  (** Equalities **)
   int_eq : int_t -> int_t -> bool;
+  int_eqz : int_t -> bool;
+  (** Comparisons **)
   int_lt_u : int_t -> int_t -> bool;
   int_lt_s : int_t -> int_t -> bool;
   int_gt_u : int_t -> int_t -> bool;
@@ -61,7 +63,7 @@ Record mixin_of (int_t : Type) := Mixin {
   int_le_s : int_t -> int_t -> bool;
   int_ge_u : int_t -> int_t -> bool;
   int_ge_s : int_t -> int_t -> bool;
-  (**)
+  (** Conversion to and from [nat] **)
   int_of_nat : nat -> int_t;
   nat_of_int : int_t -> nat;
 }.
@@ -73,8 +75,8 @@ Structure type := Pack {sort : Type; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
 Definition int_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ int_eq _ _ _ _ _ _ _ _ _ _)) := e in
-    fun x => fun y => negb (int_eq x y).
+  let 'Pack _ (Class _ m) := e in
+    fun x => fun y => negb (int_eq m x y).
 
 (** ** Definitions **)
 
@@ -320,10 +322,11 @@ Lemma clz_shr : forall i k,
 
 Definition Tmixin : mixin_of T := {|
      int_zero := zero ;
+     (** Bit operations **)
      int_clz := clz ;
      int_ctz := ctz ;
      int_popcnt := popcnt ;
-     (**)
+     (** Binary operators **)
      int_add := add ;
      int_sub := sub ;
      int_mul := mul ;
@@ -331,6 +334,7 @@ Definition Tmixin : mixin_of T := {|
      int_div_s := fail_on_zero divs ;
      int_rem_u := fail_on_zero modu ;
      int_rem_s := fail_on_zero mods ;
+     (** Binary operators about bits **)
      int_and := and ;
      int_or := or ;
      int_xor := xor ;
@@ -339,10 +343,10 @@ Definition Tmixin : mixin_of T := {|
      int_shr_s := shr ; (* FIXME: Possibly not the right value. *)
      int_rotl := rol ;
      int_rotr := ror ;
-     (**)
-     int_eqz := eq zero ;
-     (**)
+     (** Equalities **)
      int_eq := eq ;
+     int_eqz := eq zero ;
+     (** Comparisons **)
      int_lt_u := ltu ;
      int_lt_s := lt ;
      int_gt_u x y := ltu y x ;
@@ -351,7 +355,7 @@ Definition Tmixin : mixin_of T := {|
      int_le_s x y := negb (lt y x) ;
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
-     (**)
+     (** Conversion to and from [nat] **)
      int_of_nat n := repr n
        (* Note that [repr] takes the modulus of the number modulo the range. *) ;
      nat_of_int i := Z.to_nat (intval i)
@@ -401,6 +405,15 @@ End Int64.
 
 End Wasm_int.
 
+Definition i32 : eqType := Wasm_int.Int32.eqType.
+Definition i32r : Wasm_int.class_of i32 := Wasm_int.Int32.class.
+Definition i32t : Wasm_int.type := Wasm_int.Pack i32r.
+Definition i32m := Wasm_int.mixin i32r.
+Definition i64 : eqType :=  Wasm_int.Int64.eqType.
+Definition i64r : Wasm_int.class_of i64 := Wasm_int.Int64.class.
+Definition i64t : Wasm_int.type := Wasm_int.Pack i64r.
+Definition i64m := Wasm_int.mixin i64r.
+
 
 (** * Floats **)
 
@@ -412,28 +425,43 @@ Module Wasm_float.
   [float_eq] is the floating-point equality [feq] defined in the
   standard and not the Leibniz equality: we have
   [float_eq NaN NaN = false] and [float_eq (+0) (-0) = true]. **)
+(** Conversions functions to and from the two integers types are
+  also listed in this type. **)
 
 Record mixin_of (float_t : Type) := Mixin {
   float_zero : float_t;
-  float_neg : float_t -> float_t;
-  float_abs : float_t -> float_t;
-  float_ceil : float_t -> float_t;
-  float_floor : float_t -> float_t;
-  float_trunc : float_t -> float_t;
-  float_nearest : float_t -> float_t;
-  float_sqrt : float_t -> float_t;
-  float_add : float_t -> float_t -> float_t;
-  float_sub : float_t -> float_t -> float_t;
-  float_mul : float_t -> float_t -> float_t;
-  float_div : float_t -> float_t -> float_t;
-  float_min : float_t -> float_t -> float_t;
-  float_max : float_t -> float_t -> float_t;
-  float_copysign : float_t -> float_t -> float_t;
-  float_eq : float_t -> float_t -> bool;
-  float_lt : float_t -> float_t -> bool;
-  float_gt : float_t -> float_t -> bool;
-  float_le : float_t -> float_t -> bool;
-  float_ge : float_t -> float_t -> bool;
+  (** Unuary operators **)
+  float_neg : float_t -> float_t ;
+  float_abs : float_t -> float_t ;
+  float_sqrt : float_t -> float_t ;
+  (** Rounding **)
+  float_ceil : float_t -> float_t ;
+  float_floor : float_t -> float_t ;
+  float_trunc : float_t -> float_t ;
+  float_nearest : float_t -> float_t ;
+  (** Binary operators **)
+  float_add : float_t -> float_t -> float_t ;
+  float_sub : float_t -> float_t -> float_t ;
+  float_mul : float_t -> float_t -> float_t ;
+  float_div : float_t -> float_t -> float_t ;
+  float_min : float_t -> float_t -> float_t ;
+  float_max : float_t -> float_t -> float_t ;
+  float_copysign : float_t -> float_t -> float_t ;
+  (** Comparisons **)
+  float_eq : float_t -> float_t -> bool ;
+  float_lt : float_t -> float_t -> bool ;
+  float_gt : float_t -> float_t -> bool ;
+  float_le : float_t -> float_t -> bool ;
+  float_ge : float_t -> float_t -> bool ;
+  (** Conversions **)
+  float_ui32_trunc : float_t -> option i32 ;
+  float_si32_trunc : float_t -> option i32 ;
+  float_ui64_trunc : float_t -> option i64 ;
+  float_si64_trunc : float_t -> option i64 ;
+  float_convert_ui32 : i32 -> float_t ;
+  float_convert_si32 : i32 -> float_t ;
+  float_convert_ui64 : i64 -> float_t ;
+  float_convert_si64 : i64 -> float_t ;
 }.
 
 Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
@@ -443,8 +471,8 @@ Structure type := Pack {sort; _ : class_of sort}.
 Local Coercion sort : type >-> Sortclass.
 
 Definition float_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ (Mixin _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ float_eq _ _ _ _)) := e in
-    fun x => fun y => negb (float_eq x y).
+  let 'Pack _ (Class _ m) := e in
+    fun x => fun y => negb (float_eq m x y).
 
 (** ** Architectures **)
 
@@ -798,6 +826,29 @@ Definition fnearest (f : T) :=
   else if cmp Clt f neg_zero && cmp Cgt f (normalise (-1) (-1)) then neg_zero
   else nearest f.
 
+(** We also define the conversions to integers using the same operations. **)
+
+(* TODO: Reimplement this: this is not right as-is. *)
+Definition Z_to_ui32 (i : Z) := Wasm_int.int_of_nat i32m (Z.to_nat i).
+Definition Z_to_si32 (i : Z) := Wasm_int.int_of_nat i32m (Z.to_nat i).
+Definition Z_to_ui64 (i : Z) := Wasm_int.int_of_nat i64m (Z.to_nat i).
+Definition Z_to_si64 (i : Z) := Wasm_int.int_of_nat i64m (Z.to_nat i).
+
+Definition ui32_trunc f :=
+  Option.map Z_to_ui32 (trunco f).
+Definition si32_trunc f :=
+  Option.map Z_to_si32 (trunco f).
+Definition ui64_trunc f :=
+  Option.map Z_to_ui64 (trunco f).
+Definition si64_trunc f :=
+  Option.map Z_to_si64 (trunco f).
+
+(* TODO: Reimplement this: this is not right as-is. *)
+Definition convert_ui32 (i : i32) := BofZ (Z.of_nat (Wasm_int.nat_of_int i32m i)).
+Definition convert_si32 (i : i32) := BofZ (Z.of_nat (Wasm_int.nat_of_int i32m i)).
+Definition convert_ui64 (i : i64) := BofZ (Z.of_nat (Wasm_int.nat_of_int i64m i)).
+Definition convert_si64 (i : i64) := BofZ (Z.of_nat (Wasm_int.nat_of_int i64m i)).
+
 (** Negate the sign bit of a float. **)
 Definition negate_sign (f : T) : T :=
   match f with
@@ -813,13 +864,16 @@ Definition fcopysign (f1 f2 : T) :=
 
 Definition Tmixin : mixin_of T := {|
     float_zero := pos_zero ;
+    (** Unuary operators **)
     float_neg := neg ;
     float_abs := abs ;
+    float_sqrt := fsqrt ;
+    (** Rounding **)
     float_ceil := fceil ;
     float_floor := ffloor ;
     float_trunc := ftrunc ;
     float_nearest := fnearest ;
-    float_sqrt := fsqrt ;
+    (** Binary operators **)
     float_add := add ;
     float_sub := sub ;
     float_mul := mul ;
@@ -827,17 +881,27 @@ Definition Tmixin : mixin_of T := {|
     float_min x y := if cmp Clt x y then x else y ;
     float_max x y := if cmp Cgt x y then x else y ;
     float_copysign := fcopysign ;
+    (** Comparisons **)
     float_eq := cmp Ceq ;
     float_lt := cmp Clt ;
     float_gt := cmp Cgt ;
     float_le := cmp Cle ;
-    float_ge := cmp Cge
+    float_ge := cmp Cge ;
+    (** Conversions **)
+    float_ui32_trunc := ui32_trunc ;
+    float_si32_trunc := si32_trunc ;
+    float_ui64_trunc := ui64_trunc ;
+    float_si64_trunc := si64_trunc ;
+    float_convert_ui32 := convert_ui32 ;
+    float_convert_si32 := convert_si32 ;
+    float_convert_ui64 := convert_ui64 ;
+    float_convert_si64 := convert_si64 ;
   |}.
 
 Definition eqb v1 v2 := is_left (eq_dec v1 v2).
-Definition eqTP : Equality.axiom eqb := Equality_axiom_eq_dec eq_dec.
+Definition eqbP : Equality.axiom eqb := eq_dec_Equality_axiom eq_dec.
 
-Canonical Structure T_eqMixin := EqMixin eqTP.
+Canonical Structure T_eqMixin := EqMixin eqbP.
 Canonical Structure T_eqType := Eval hnf in EqType T T_eqMixin.
 
 Definition cT : type := Pack {| base := T_eqMixin; mixin := Tmixin |}.
@@ -924,3 +988,40 @@ Qed.
  *)
 
 End Wasm_float.
+
+Definition f32 : eqType := Wasm_float.Float32.eqType.
+Definition f32r : Wasm_float.class_of f32 := Wasm_float.Float32.class.
+Definition f32t : Wasm_float.type := Wasm_float.Pack f32r.
+Definition f32m := Wasm_float.mixin f32r.
+Definition f64 : eqType := Wasm_float.Float64.eqType.
+Definition f64r : Wasm_float.class_of f64 := Wasm_float.Float64.class.
+Definition f64t : Wasm_float.type := Wasm_float.Pack f64r.
+Definition f64m := Wasm_float.mixin f64r.
+
+(* TODO: Remove the following and inline definition. *)
+
+Definition ui32_trunc_f32 : f32 -> option i32 := Wasm_float.float_ui32_trunc f32m.
+Definition si32_trunc_f32 : f32 -> option i32 := Wasm_float.float_ui32_trunc f32m.
+Definition ui32_trunc_f64 : f64 -> option i32 := Wasm_float.float_ui32_trunc f64m.
+Definition si32_trunc_f64 : f64 -> option i32 := Wasm_float.float_ui32_trunc f64m.
+
+Definition ui64_trunc_f32 : f32 -> option i64 := Wasm_float.float_ui64_trunc f32m.
+Definition si64_trunc_f32 : f32 -> option i64 := Wasm_float.float_si64_trunc f32m.
+Definition ui64_trunc_f64 : f64 -> option i64 := Wasm_float.float_ui64_trunc f64m.
+Definition si64_trunc_f64 : f64 -> option i64 := Wasm_float.float_si64_trunc f64m.
+
+Definition f32_convert_ui32 : i32 -> f32 := Wasm_float.float_convert_ui32 f32m.
+Definition f32_convert_si32 : i32 -> f32 := Wasm_float.float_convert_si32 f32m.
+Definition f32_convert_ui64 : i64 -> f32 := Wasm_float.float_convert_ui64 f32m.
+Definition f32_convert_si64 : i64 -> f32 := Wasm_float.float_convert_si64 f32m.
+
+Definition f64_convert_ui32 : i32 -> f64 := Wasm_float.float_convert_ui32 f64m.
+Definition f64_convert_si32 : i32 -> f64 := Wasm_float.float_convert_si32 f64m.
+Definition f64_convert_ui64 : i64 -> f64 := Wasm_float.float_convert_ui64 f64m.
+Definition f64_convert_si64 : i64 -> f64 := Wasm_float.float_convert_si64 f64m.
+
+Parameter wasm_wrap : i64 -> i32.
+Parameter wasm_extend_u : i32 -> i64.
+Parameter wasm_extend_s : i32 -> i64.
+Parameter wasm_demote : f64 -> f32.
+Parameter wasm_promote : f32 -> f64.

@@ -37,7 +37,7 @@ Ltac rewrite_by E :=
     | rewrite {} R ].
 
 (** A useful lemma to link the results of [Scheme Equality] to [Equality.axiom]. **)
-Lemma Equality_axiom_eq_dec : forall t (eq_dec : forall x y : t, {x = y} + {x <> y}),
+Lemma eq_dec_Equality_axiom : forall t (eq_dec : forall x y : t, {x = y} + {x <> y}),
   let eqb v1 v2 := is_left (eq_dec v1 v2) in
   Equality.axiom eqb.
 Proof.
@@ -47,7 +47,7 @@ Proof.
 Qed.
 
 (** A useful lemma for the converse: getting a [_dec_eq] from an [Equality.axiom]. **)
-Definition eq_dec_Equality_axiom t (eqb : t -> t -> bool) (A : Equality.axiom eqb) :
+Definition Equality_axiom_eq_dec t (eqb : t -> t -> bool) (A : Equality.axiom eqb) :
     forall x y : t, {x = y} + {x <> y}.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.

@@ -16,7 +16,7 @@ Inductive checker_type_aux : Type :=
 Scheme Equality for checker_type_aux.
 Definition checker_type_aux_eqb v1 v2 := is_left (checker_type_aux_eq_dec v1 v2).
 Definition eqchecker_type_auxP  : Equality.axiom checker_type_aux_eqb :=
-  Equality_axiom_eq_dec checker_type_aux_eq_dec.
+  eq_dec_Equality_axiom checker_type_aux_eq_dec.
 
 Canonical Structure checker_type_aux_eqMixin := EqMixin eqchecker_type_auxP.
 Canonical Structure checker_type_aux_eqType :=

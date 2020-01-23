@@ -118,68 +118,68 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
   (* unop *)
   | Basic (Unop_i T_i32 iop) =>
     if ves is ConstInt32 c :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstInt32 (@app_unop_i i32_t iop c)) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstInt32 (@app_unop_i i32t iop c)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Unop_i T_i64 iop) =>
     if ves is (ConstInt64 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstInt64 (@app_unop_i i64_t iop c)) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstInt64 (@app_unop_i i64t iop c)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Unop_i _ _) => (s, vs, crash_error)
   | Basic (Unop_f T_f32 iop) =>
     if ves is (ConstFloat32 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstFloat32 (@app_unop_f f32_t iop c)) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstFloat32 (@app_unop_f f32t iop c)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Unop_f T_f64 iop) =>
     if ves is (ConstFloat64 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstFloat64 (@app_unop_f f64_t iop c)) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstFloat64 (@app_unop_f f64t iop c)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Unop_f _ _) => (s, vs, crash_error)
   (* binop *)
   | Basic (Binop_i T_i32 iop) =>
     if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-      expect (@app_binop_i i32_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_i i32t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_i T_i64 iop) =>
     if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-      expect (@app_binop_i i64_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_i i64t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_i _ _) => (s, vs, crash_error)
   | Basic (Binop_f T_i32 iop) =>
     if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      expect (@app_binop_f f32_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_f f32t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_f T_i64 iop) =>
     if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      expect (@app_binop_f f64_t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_f f64t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_f _ _) => (s, vs, crash_error)
   (* testops *)
   | Basic (Testop T_i32 testop) =>
     if ves is (ConstInt32 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm.wasm_bool (@app_testop_i i32_t testop c))) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm.wasm_bool (@app_testop_i i32t testop c))) :: ves')))
     else (s, vs, crash_error)
   | Basic (Testop T_i64 testop) =>
     if ves is (ConstInt64 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm.wasm_bool (@app_testop_i i64_t testop c))) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm.wasm_bool (@app_testop_i i64t testop c))) :: ves')))
     else (s, vs, crash_error)
   | Basic (Testop _ _) => (s, vs, crash_error)
   (* relops *)
   | Basic (Relop_i T_i32 iop) =>
     if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_i i32_t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_i i32t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_i T_i64 iop) =>
     if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_i i64_t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_i _ _) => (s, vs, crash_error)
   | Basic (Relop_f T_i32 iop) =>
     if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_f f32_t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_f T_i64 iop) =>
     if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_f f64_t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_f _ _) => (s, vs, crash_error)
   (* convert *)
@@ -204,7 +204,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     else (s, vs, crash_error)
   | Basic Select =>
     if ves is (ConstInt32 c) :: v2 :: v1 :: ves' then
-      if c == Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r)
+      if c == Wasm_int.int_zero i32m
       then (s, vs, RS_normal (vs_to_es (v2 :: ves')))
       else (s, vs, RS_normal (vs_to_es (v1 :: ves')))
     else (s, vs, crash_error)
@@ -222,20 +222,20 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     else (s, vs, crash_error)
   | Basic (If tf es1 es2) =>
     if ves is ConstInt32 c :: ves' then
-      if c == Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r)
+      if c == Wasm_int.int_zero i32m
       then (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es2)]))
       else (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es1)]))
     else (s, vs, crash_error)
   | Basic (Br j) => (s, vs, RS_break j ves)
   | Basic (Br_if j) =>
     if ves is ConstInt32 c :: ves' then
-      if c == Wasm_int.int_zero (Wasm_int.mixin wasm.i32_r)
+      if c == Wasm_int.int_zero i32m
       then (s, vs, RS_normal (vs_to_es ves'))
       else (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
     else (s, vs, crash_error)
   | Basic (Br_table js j) =>
     if ves is ConstInt32 c :: ves' then
-      let k := Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c in
+      let k := Wasm_int.nat_of_int i32m c in
       if k < length js
       then
         expect (List.nth_error js k) (fun js_at_k =>
@@ -249,7 +249,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     else (s, vs, crash_error) (* Isa mismatch *)
   | Basic (Call_indirect j) =>
     if ves is ConstInt32 c :: ves' then
-      match stab s i (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c) with
+      match stab s i (Wasm_int.nat_of_int i32m c) with
       | Some cl =>
         if stypes s i j == Some (cl_type cl)
         then (s, vs, RS_normal (vs_to_es ves' ++ [::Callcl cl]))
@@ -292,7 +292,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
         (fun j =>
            if List.nth_error (s_mem s) j is Some mem_s_j then
              expect
-               (load (mem_s_j) (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (t_length t))
+               (load (mem_s_j) (Wasm_int.nat_of_int i32m k) off (t_length t))
                (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
                (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
            else (s, vs, crash_error) (* Isa mismatch *))
@@ -305,7 +305,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
         (fun j =>
            if List.nth_error (s_mem s) j is Some mem_s_j then
              expect
-               (load_packed sx (mem_s_j) (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (tp_length tp) (t_length t))
+               (load_packed sx (mem_s_j) (Wasm_int.nat_of_int i32m k) off (tp_length tp) (t_length t))
                (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
                (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
            else (s, vs, crash_error) (* Isa mismatch *))
@@ -320,7 +320,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
           (fun j =>
              if List.nth_error (s_mem s) j is Some mem_s_j then
                expect
-                 (store mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (bits v) (t_length t))
+                 (store mem_s_j (Wasm_int.nat_of_int i32m k) off (bits v) (t_length t))
                  (fun mem' =>
                     (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
@@ -337,7 +337,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
           (fun j =>
              if List.nth_error (s_mem s) j is Some mem_s_j then
                expect
-                 (store_packed mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) k) off (bits v) (tp_length tp))
+                 (store_packed mem_s_j (Wasm_int.nat_of_int i32m k) off (bits v) (tp_length tp))
                  (fun mem' =>
                     (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
@@ -350,7 +350,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       (smem_ind s i)
       (fun j =>
          if List.nth_error (s_mem s) j is Some s_mem_s_j then
-           (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) (mem_size s_mem_s_j)) :: ves)))
+           (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat i32m (mem_size s_mem_s_j)) :: ves)))
          else (s, vs, crash_error) (* Isa mismatch *))
       (s, vs, crash_error)
   | Basic Grow_memory =>
@@ -361,9 +361,9 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
           if List.nth_error (s_mem s) j is Some s_mem_s_j then
             let l := mem_size s_mem_s_j in
             expect
-              (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_int (Wasm_int.mixin wasm.i32_r) c))
+              (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_int i32m c))
               (fun mem' =>
-                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) l) :: ves')))
+                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat i32m l) :: ves')))
               )
               (s, vs, crash_error)
           else (s, vs, crash_error) (* Isa mismatch *))

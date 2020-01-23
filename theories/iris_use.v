@@ -36,7 +36,7 @@ Instance heapG_irisG `{!heapG Σ} : irisG wasm_lang Σ := {
   fork_post _ := True%I;
                                                        }.
 
-Definition xx i := (ConstInt32 (Wasm_int.int_of_nat (Wasm_int.mixin wasm.i32_r) i)).
+Definition xx i := (ConstInt32 (Wasm_int.int_of_nat i32m i)).
 
 Definition my_add : expr :=
   [Basic (EConst (xx 3));
