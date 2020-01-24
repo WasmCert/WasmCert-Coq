@@ -18,54 +18,64 @@ Unset Printing Implicit Defensive.
 
 Module Wasm_int.
 
+Import Coq.ZArith.BinInt.
+
 (** ** Declaration of Operations **)
 
 (** These operations follow the standard straightforwardly.
   Some of these operations are sometimes said to be undefined
   in the standard: such operations have been translated by
   returning an option type. **)
-(** Two operations have been added converting to and from [nat].
+(** Operations have been added converting to and from [nat] and [Z].
   These are typically used in the specification to convert to and
-  from list lengths.  The corresponding encoding is the unsigned one. **)
+  from list lengths and other computed values.  The corresponding
+  encoding (signed or unsigned) is undicated by the presence of
+  [sint] or [uint] in the function name.  Note that the modulus
+  will be taken for each conversion to [int_t] to fit the number
+  in the requested range. **)
 
 Record mixin_of (int_t : Type) := Mixin {
-  int_zero : int_t;
+  int_zero : int_t ;
   (** Bit operations **)
-  int_clz : int_t -> int_t;
-  int_ctz : int_t -> int_t;
-  int_popcnt : int_t -> int_t;
+  int_clz : int_t -> int_t ;
+  int_ctz : int_t -> int_t ;
+  int_popcnt : int_t -> int_t ;
   (** Binary operators **)
-  int_add : int_t -> int_t -> int_t;
-  int_sub : int_t -> int_t -> int_t;
-  int_mul : int_t -> int_t -> int_t;
-  int_div_u : int_t -> int_t -> option int_t;
-  int_div_s : int_t -> int_t -> option int_t;
-  int_rem_u : int_t -> int_t -> option int_t;
-  int_rem_s : int_t -> int_t -> option int_t;
+  int_add : int_t -> int_t -> int_t ;
+  int_sub : int_t -> int_t -> int_t ;
+  int_mul : int_t -> int_t -> int_t ;
+  int_div_u : int_t -> int_t -> option int_t ;
+  int_div_s : int_t -> int_t -> option int_t ;
+  int_rem_u : int_t -> int_t -> option int_t ;
+  int_rem_s : int_t -> int_t -> option int_t ;
   (** Binary operators about bits **)
-  int_and : int_t -> int_t -> int_t;
-  int_or : int_t -> int_t -> int_t;
-  int_xor : int_t -> int_t -> int_t;
-  int_shl : int_t -> int_t -> int_t;
-  int_shr_u : int_t -> int_t -> int_t;
-  int_shr_s : int_t -> int_t -> int_t;
-  int_rotl : int_t -> int_t -> int_t;
-  int_rotr : int_t -> int_t -> int_t;
+  int_and : int_t -> int_t -> int_t ;
+  int_or : int_t -> int_t -> int_t ;
+  int_xor : int_t -> int_t -> int_t ;
+  int_shl : int_t -> int_t -> int_t ;
+  int_shr_u : int_t -> int_t -> int_t ;
+  int_shr_s : int_t -> int_t -> int_t ;
+  int_rotl : int_t -> int_t -> int_t ;
+  int_rotr : int_t -> int_t -> int_t ;
   (** Equalities **)
-  int_eq : int_t -> int_t -> bool;
-  int_eqz : int_t -> bool;
+  int_eq : int_t -> int_t -> bool ;
+  int_eqz : int_t -> bool ;
   (** Comparisons **)
-  int_lt_u : int_t -> int_t -> bool;
-  int_lt_s : int_t -> int_t -> bool;
-  int_gt_u : int_t -> int_t -> bool;
-  int_gt_s : int_t -> int_t -> bool;
-  int_le_u : int_t -> int_t -> bool;
-  int_le_s : int_t -> int_t -> bool;
-  int_ge_u : int_t -> int_t -> bool;
-  int_ge_s : int_t -> int_t -> bool;
-  (** Conversion to and from [nat] **)
-  int_of_nat : nat -> int_t;
-  nat_of_int : int_t -> nat;
+  int_lt_u : int_t -> int_t -> bool ;
+  int_lt_s : int_t -> int_t -> bool ;
+  int_gt_u : int_t -> int_t -> bool ;
+  int_gt_s : int_t -> int_t -> bool ;
+  int_le_u : int_t -> int_t -> bool ;
+  int_le_s : int_t -> int_t -> bool ;
+  int_ge_u : int_t -> int_t -> bool ;
+  int_ge_s : int_t -> int_t -> bool ;
+  (** Conversion to and from [nat] and [Z] **)
+  uint_of_nat : nat -> int_t ;
+  nat_of_uint : int_t -> nat ;
+  uint_of_Z : Z -> int_t ;
+  Z_of_uint : int_t -> Z ;
+  sint_of_Z : Z -> int_t ;
+  Z_of_sint : int_t -> Z ;
 }.
 
 Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
@@ -81,8 +91,6 @@ Definition int_ne (e : type) : sort e -> sort e -> bool :=
 (** ** Definitions **)
 
 Module Make (WS: Integers.WORDSIZE).
-
-Import Coq.ZArith.BinInt.
 
 Import Integers.
 
@@ -268,7 +276,7 @@ Proof.
   move=> n. elim: n.
   - move=> x _. admit.
   - move=> {} n IH x I. simpl.
-  
+
   elim: wordsize => ws; first by [].
   move=> IH n x I. elim: n => /=.
   /=.
@@ -356,9 +364,12 @@ Definition Tmixin : mixin_of T := {|
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
      (** Conversion to and from [nat] **)
-     int_of_nat n := repr n
-       (* Note that [repr] takes the modulus of the number modulo the range. *) ;
-     nat_of_int i := Z.to_nat (intval i)
+     uint_of_nat n := repr n ;
+     nat_of_uint i := Z.to_nat (unsigned i) ;
+     uint_of_Z n := repr n ;
+     Z_of_uint i := unsigned i ;
+     sint_of_Z n := repr n ; (* TODO: Check *)
+     Z_of_sint i := signed i ;
    |}.
 
 Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
@@ -828,26 +839,15 @@ Definition fnearest (f : T) :=
 
 (** We also define the conversions to integers using the same operations. **)
 
-(* TODO: Reimplement this: this is not right as-is. *)
-Definition Z_to_ui32 (i : Z) := Wasm_int.int_of_nat i32m (Z.to_nat i).
-Definition Z_to_si32 (i : Z) := Wasm_int.int_of_nat i32m (Z.to_nat i).
-Definition Z_to_ui64 (i : Z) := Wasm_int.int_of_nat i64m (Z.to_nat i).
-Definition Z_to_si64 (i : Z) := Wasm_int.int_of_nat i64m (Z.to_nat i).
+Definition ui32_trunc f := Option.map (Wasm_int.uint_of_Z i32m) (trunco f).
+Definition si32_trunc f := Option.map (Wasm_int.sint_of_Z i32m) (trunco f).
+Definition ui64_trunc f := Option.map (Wasm_int.uint_of_Z i64m) (trunco f).
+Definition si64_trunc f := Option.map (Wasm_int.sint_of_Z i64m) (trunco f).
 
-Definition ui32_trunc f :=
-  Option.map Z_to_ui32 (trunco f).
-Definition si32_trunc f :=
-  Option.map Z_to_si32 (trunco f).
-Definition ui64_trunc f :=
-  Option.map Z_to_ui64 (trunco f).
-Definition si64_trunc f :=
-  Option.map Z_to_si64 (trunco f).
-
-(* TODO: Reimplement this: this is not right as-is. *)
-Definition convert_ui32 (i : i32) := BofZ (Z.of_nat (Wasm_int.nat_of_int i32m i)).
-Definition convert_si32 (i : i32) := BofZ (Z.of_nat (Wasm_int.nat_of_int i32m i)).
-Definition convert_ui64 (i : i64) := BofZ (Z.of_nat (Wasm_int.nat_of_int i64m i)).
-Definition convert_si64 (i : i64) := BofZ (Z.of_nat (Wasm_int.nat_of_int i64m i)).
+Definition convert_ui32 (i : i32) := BofZ (Wasm_int.Z_of_uint i32m i).
+Definition convert_si32 (i : i32) := BofZ (Wasm_int.Z_of_sint i32m i).
+Definition convert_ui64 (i : i64) := BofZ (Wasm_int.Z_of_uint i64m i).
+Definition convert_si64 (i : i64) := BofZ (Wasm_int.Z_of_sint i64m i).
 
 (** Negate the sign bit of a float. **)
 Definition negate_sign (f : T) : T :=
@@ -1000,28 +1000,9 @@ Definition f64m := Wasm_float.mixin f64r.
 
 (* TODO: Remove the following and inline definition. *)
 
-Definition ui32_trunc_f32 : f32 -> option i32 := Wasm_float.float_ui32_trunc f32m.
-Definition si32_trunc_f32 : f32 -> option i32 := Wasm_float.float_ui32_trunc f32m.
-Definition ui32_trunc_f64 : f64 -> option i32 := Wasm_float.float_ui32_trunc f64m.
-Definition si32_trunc_f64 : f64 -> option i32 := Wasm_float.float_ui32_trunc f64m.
-
-Definition ui64_trunc_f32 : f32 -> option i64 := Wasm_float.float_ui64_trunc f32m.
-Definition si64_trunc_f32 : f32 -> option i64 := Wasm_float.float_si64_trunc f32m.
-Definition ui64_trunc_f64 : f64 -> option i64 := Wasm_float.float_ui64_trunc f64m.
-Definition si64_trunc_f64 : f64 -> option i64 := Wasm_float.float_si64_trunc f64m.
-
-Definition f32_convert_ui32 : i32 -> f32 := Wasm_float.float_convert_ui32 f32m.
-Definition f32_convert_si32 : i32 -> f32 := Wasm_float.float_convert_si32 f32m.
-Definition f32_convert_ui64 : i64 -> f32 := Wasm_float.float_convert_ui64 f32m.
-Definition f32_convert_si64 : i64 -> f32 := Wasm_float.float_convert_si64 f32m.
-
-Definition f64_convert_ui32 : i32 -> f64 := Wasm_float.float_convert_ui32 f64m.
-Definition f64_convert_si32 : i32 -> f64 := Wasm_float.float_convert_si32 f64m.
-Definition f64_convert_ui64 : i64 -> f64 := Wasm_float.float_convert_ui64 f64m.
-Definition f64_convert_si64 : i64 -> f64 := Wasm_float.float_convert_si64 f64m.
-
 Parameter wasm_wrap : i64 -> i32.
 Parameter wasm_extend_u : i32 -> i64.
 Parameter wasm_extend_s : i32 -> i64.
 Parameter wasm_demote : f64 -> f32.
 Parameter wasm_promote : f32 -> f64.
+

@@ -278,7 +278,7 @@ Lemma eqvalueP : Equality.axiom value_eqb.
 Proof.
   do 2 case=> ?;
     by [ apply/ReflectF
-       | apply/iffP; [ move=> /=; apply/eqP | move=> E; f_equal; exact: E | inversion 1] ].
+       | apply/iffP; [ move=> /=; apply/eqP | move=> E; f_equal; exact: E | case ] ].
 Qed.
 
 Definition value_eq_dec := Equality_axiom_eq_dec eqvalueP.
@@ -705,7 +705,7 @@ Definition stypes (s : store_record) (i : instance) (j : nat) : option function_
 (* TODO: optioned *)
 
 Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option nat :=
-  (List.nth_error (i_funcs i) j).
+  List.nth_error (i_funcs i) j.
 
 Definition sfunc (s : store_record) (i : instance) (j : nat) : option function_closure :=
   option_bind (List.nth_error (s_funcs s)) (sfunc_ind s i j).
@@ -721,7 +721,7 @@ Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value 
   option_map g_val (sglob s i j).
 
 Definition smem_ind (s : store_record) (i : instance) : option nat :=
-  (i_mem i).
+  i_mem i.
 
 Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
   let stabinst := List.nth_error (s_tab s) i in
@@ -731,25 +731,18 @@ Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
     stabinst).
 
 Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
-  match i_tab i with
-  | Some k => stab_s s k j
-  | None => None
-  end.
+  if i_tab i is Some k then stab_s s k j else None.
 
 Definition update_list_at {A : Type} (l : list A) (k : nat) (a : A) :=
   List.firstn k l ++ [::a] ++ List.skipn (k + 1) l.
 
 Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option store_record :=
   option_map
-  (fun g =>
-   let g' := Build_global (g_mut g) v in 
-   let gs' := update_list_at (s_globs s) k g' in 
-  Build_store_record
-  (s_funcs s)
-  (s_tab s)
-  (s_mem s)
-  gs')
-  (List.nth_error (s_globs s) k).
+    (fun g =>
+      let g' := Build_global (g_mut g) v in
+      let gs' := update_list_at (s_globs s) k g' in
+      Build_store_record (s_funcs s) (s_tab s) (s_mem s) gs')
+    (List.nth_error (s_globs s) k).
 
 Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
   option_bind
@@ -757,19 +750,16 @@ Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) 
     (sglob_ind s i j).
 
 Definition is_const (e : administrative_instruction) : bool :=
-  match e with
-  | Basic _ => true
-  | _ => false
-  end.
+  if e is Basic _ then true else false.
 
 Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
 
 Definition store_extension (s s' : store_record) : bool :=
-  ((s_funcs s) == (s_funcs s')) &&
-  ((s_tab s) == (s_tab s')) &&
+  (s_funcs s == s_funcs s') &&
+  (s_tab s == s_tab s') &&
   (all2 (fun bs bs' => mem_size bs <= mem_size bs') (s_mem s) (s_mem s')) &&
-  ((s_globs s) == (s_globs s')).
+  (s_globs s == s_globs s').
 
 Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=
   map Basic bes.
@@ -827,14 +817,14 @@ Definition cvt_i32 (s : option sx) (v : value) : option i32 :=
   | ConstInt64 c => Some (wasm_wrap c)
   | ConstFloat32 c =>
     match s with
-    | Some sx_U => ui32_trunc_f32 c
-    | Some sx_S => si32_trunc_f32 c
+    | Some sx_U => Wasm_float.float_ui32_trunc f32m c
+    | Some sx_S => Wasm_float.float_ui32_trunc f32m c
     | None => None
     end
   | ConstFloat64 c =>
     match s with
-    | Some sx_U => ui32_trunc_f64 c
-    | Some sx_S => si32_trunc_f64 c
+    | Some sx_U => Wasm_float.float_ui32_trunc f64m c
+    | Some sx_S => Wasm_float.float_ui32_trunc f64m c
     | None => None
     end
   end.
@@ -850,14 +840,14 @@ Definition cvt_i64 (s : option sx) (v : value) : option i64 :=
   | ConstInt64 c => None
   | ConstFloat32 c =>
     match s with
-    | Some sx_U => ui64_trunc_f32 c
-    | Some sx_S => si64_trunc_f32 c
+    | Some sx_U => Wasm_float.float_ui64_trunc f32m c
+    | Some sx_S => Wasm_float.float_si64_trunc f32m c
     | None => None
     end
   | ConstFloat64 c =>
     match s with
-    | Some sx_U => ui64_trunc_f64 c
-    | Some sx_S => si64_trunc_f64 c
+    | Some sx_U => Wasm_float.float_ui64_trunc f64m c
+    | Some sx_S => Wasm_float.float_si64_trunc f64m c
     | None => None
     end
   end.
@@ -866,14 +856,14 @@ Definition cvt_f32 (s : option sx) (v : value) : option f32 :=
   match v with
   | ConstInt32 c =>
     match s with
-    | Some sx_U => Some (f32_convert_ui32 c)
-    | Some sx_S => Some (f32_convert_si32 c)
+    | Some sx_U => Some (Wasm_float.float_convert_ui32 f32m c)
+    | Some sx_S => Some (Wasm_float.float_convert_si32 f32m c)
     | None => None
     end
   | ConstInt64 c =>
     match s with
-    | Some sx_U => Some (f32_convert_ui64 c)
-    | Some sx_S => Some (f32_convert_si64 c)
+    | Some sx_U => Some (Wasm_float.float_convert_ui64 f32m c)
+    | Some sx_S => Some (Wasm_float.float_convert_si64 f32m c)
     | None => None
     end
   | ConstFloat32 c => None
@@ -884,19 +874,20 @@ Definition cvt_f64 (s : option sx) (v : value) : option f64 :=
   match v with
   | ConstInt32 c =>
     match s with
-    | Some sx_U => Some (f64_convert_ui32 c)
-    | Some sx_S => Some (f64_convert_si32 c)
+    | Some sx_U => Some (Wasm_float.float_convert_ui32 f64m c)
+    | Some sx_S => Some (Wasm_float.float_convert_si32 f64m c)
     | None => None
     end
   | ConstInt64 c =>
     match s with
-    | Some sx_U => Some (f64_convert_ui64 c)
-    | Some sx_S => Some (f64_convert_si64 c)
+    | Some sx_U => Some (Wasm_float.float_convert_ui64 f64m c)
+    | Some sx_S => Some (Wasm_float.float_convert_si64 f64m c)
     | None => None
     end
   | ConstFloat32 c => Some (wasm_promote c)
   | ConstFloat64 c => None
   end.
+
 
 Definition cvt (t : value_type) (s : option sx) (v : value) : option value :=
   match t with
