@@ -1,6 +1,7 @@
 (* Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
+From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Export wasm.
 
@@ -235,7 +236,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     else (s, vs, crash_error)
   | Basic (Br_table js j) =>
     if ves is ConstInt32 c :: ves' then
-      let k := Wasm_int.nat_of_int i32m c in
+      let k := Wasm_int.nat_of_uint i32m c in
       if k < length js
       then
         expect (List.nth_error js k) (fun js_at_k =>
@@ -249,7 +250,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     else (s, vs, crash_error) (* Isa mismatch *)
   | Basic (Call_indirect j) =>
     if ves is ConstInt32 c :: ves' then
-      match stab s i (Wasm_int.nat_of_int i32m c) with
+      match stab s i (Wasm_int.nat_of_uint i32m c) with
       | Some cl =>
         if stypes s i j == Some (cl_type cl)
         then (s, vs, RS_normal (vs_to_es ves' ++ [::Callcl cl]))
@@ -292,7 +293,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
         (fun j =>
            if List.nth_error (s_mem s) j is Some mem_s_j then
              expect
-               (load (mem_s_j) (Wasm_int.nat_of_int i32m k) off (t_length t))
+               (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
                (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
                (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
            else (s, vs, crash_error) (* Isa mismatch *))
@@ -305,7 +306,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
         (fun j =>
            if List.nth_error (s_mem s) j is Some mem_s_j then
              expect
-               (load_packed sx (mem_s_j) (Wasm_int.nat_of_int i32m k) off (tp_length tp) (t_length t))
+               (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
                (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
                (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
            else (s, vs, crash_error) (* Isa mismatch *))
@@ -320,7 +321,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
           (fun j =>
              if List.nth_error (s_mem s) j is Some mem_s_j then
                expect
-                 (store mem_s_j (Wasm_int.nat_of_int i32m k) off (bits v) (t_length t))
+                 (store mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t))
                  (fun mem' =>
                     (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
@@ -337,7 +338,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
           (fun j =>
              if List.nth_error (s_mem s) j is Some mem_s_j then
                expect
-                 (store_packed mem_s_j (Wasm_int.nat_of_int i32m k) off (bits v) (tp_length tp))
+                 (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp))
                  (fun mem' =>
                     (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
@@ -350,7 +351,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       (smem_ind s i)
       (fun j =>
          if List.nth_error (s_mem s) j is Some s_mem_s_j then
-           (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat i32m (mem_size s_mem_s_j)) :: ves)))
+           (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
          else (s, vs, crash_error) (* Isa mismatch *))
       (s, vs, crash_error)
   | Basic Grow_memory =>
@@ -361,9 +362,9 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
           if List.nth_error (s_mem s) j is Some s_mem_s_j then
             let l := mem_size s_mem_s_j in
             expect
-              (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_int i32m c))
+              (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_uint i32m c))
               (fun mem' =>
-                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_nat i32m l) :: ves')))
+                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               )
               (s, vs, crash_error)
           else (s, vs, crash_error) (* Isa mismatch *))

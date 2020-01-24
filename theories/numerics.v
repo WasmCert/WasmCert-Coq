@@ -2,8 +2,7 @@
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 Require Export common.
-Require Import ZArith.Int.
-Require Coq.ZArith.BinInt.
+From Coq Require ZArith.Int ZArith.BinInt.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
@@ -18,7 +17,7 @@ Unset Printing Implicit Defensive.
 
 Module Wasm_int.
 
-Import Coq.ZArith.BinInt.
+Import ZArith.BinInt.
 
 (** ** Declaration of Operations **)
 
@@ -28,11 +27,17 @@ Import Coq.ZArith.BinInt.
   returning an option type. **)
 (** Operations have been added converting to and from [nat] and [Z].
   These are typically used in the specification to convert to and
-  from list lengths and other computed values.  The corresponding
-  encoding (signed or unsigned) is undicated by the presence of
-  [sint] or [uint] in the function name.  Note that the modulus
-  will be taken for each conversion to [int_t] to fit the number
-  in the requested range. **)
+  from list lengths and other computed values:
+  - [int_of_Z] converts a [Z] into [int_t].  The number is considered
+    modulo the size.  It doesn’t matter if the number is meant to be
+    considered as signed or unsigned: such matters are only important
+    when interpreting the stored integer.
+  - [nat_of_uint] considers an [int_t] as an unsigned interpretation
+    and converts it into a natural number.
+  - [Z_of_uint] returns the same result than [nat_of_uint], but
+    encoded in [Z].
+  - [Z_of_sint] considers an [int_t] as a signed interpretation and
+    converts it into a [Z]. **)
 
 Record mixin_of (int_t : Type) := Mixin {
   int_zero : int_t ;
@@ -70,11 +75,9 @@ Record mixin_of (int_t : Type) := Mixin {
   int_ge_u : int_t -> int_t -> bool ;
   int_ge_s : int_t -> int_t -> bool ;
   (** Conversion to and from [nat] and [Z] **)
-  uint_of_nat : nat -> int_t ;
+  int_of_Z : Z -> int_t ;
   nat_of_uint : int_t -> nat ;
-  uint_of_Z : Z -> int_t ;
   Z_of_uint : int_t -> Z ;
-  sint_of_Z : Z -> int_t ;
   Z_of_sint : int_t -> Z ;
 }.
 
@@ -364,13 +367,22 @@ Definition Tmixin : mixin_of T := {|
      int_ge_u x y := negb (ltu x y) ;
      int_ge_s x y := negb (lt x y) ;
      (** Conversion to and from [nat] **)
-     uint_of_nat n := repr n ;
+     int_of_Z n := repr n ;
      nat_of_uint i := Z.to_nat (unsigned i) ;
-     uint_of_Z n := repr n ;
      Z_of_uint i := unsigned i ;
-     sint_of_Z n := repr n ; (* TODO: Check *)
      Z_of_sint i := signed i ;
    |}.
+
+Lemma nat_of_uint_Z_of_uint : forall i,
+  (nat_of_uint Tmixin i : Z) = Z_of_uint Tmixin i.
+Proof.
+  move=> [i R] /=. move: R. case=> I1 I2.
+  have: (i >= 0)%Z; first by lias.
+  move=> {I1 I2}. case i.
+  - reflexivity.
+  - move=> p. by rewrite Znat.positive_nat_Z.
+  - move=> p. lias.
+Qed.
 
 Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
 Proof.
@@ -424,6 +436,15 @@ Definition i64 : eqType :=  Wasm_int.Int64.eqType.
 Definition i64r : Wasm_int.class_of i64 := Wasm_int.Int64.class.
 Definition i64t : Wasm_int.type := Wasm_int.Pack i64r.
 Definition i64m := Wasm_int.mixin i64r.
+
+Definition wasm_wrap (i : i64) : i32 :=
+  Wasm_int.int_of_Z i32m (Wasm_int.Z_of_uint i64m i).
+
+Definition wasm_extend_u (i : i32) : i64 :=
+  Wasm_int.int_of_Z i64m (Wasm_int.Z_of_uint i32m i).
+
+Definition wasm_extend_s (i : i32) : i64 :=
+  Wasm_int.int_of_Z i64m (Wasm_int.Z_of_sint i32m i).
 
 
 (** * Floats **)
@@ -705,8 +726,10 @@ Definition fsqrt (f : T) :=
 Definition ZofB_param (divP divN : Z -> Z -> Z) (f : T) :=
   match f with
   | Binary.B754_zero _ => Some 0%Z
-  | @Binary.B754_finite _ _ s m 0 _ => Some (cond_Zopp s (Z.pos m))
-  | Binary.B754_finite s m (Z.pos e) _ => Some (cond_Zopp s (Z.pos m) * Z.pow_pos radix2 e)%Z
+  | Binary.B754_finite s m 0%Z _ =>
+    Some (cond_Zopp s (Z.pos m))
+  | Binary.B754_finite s m (Z.pos e) _ =>
+    Some (cond_Zopp s (Z.pos m) * Z.pow_pos radix2 e)%Z
   | Binary.B754_finite s m (Z.neg e) _ =>
     let div := if s then divN else divP in
     Some (cond_Zopp s (div (Z.pos m) (Z.pow_pos radix2 e)))
@@ -839,10 +862,21 @@ Definition fnearest (f : T) :=
 
 (** We also define the conversions to integers using the same operations. **)
 
-Definition ui32_trunc f := Option.map (Wasm_int.uint_of_Z i32m) (trunco f).
-Definition si32_trunc f := Option.map (Wasm_int.sint_of_Z i32m) (trunco f).
-Definition ui64_trunc f := Option.map (Wasm_int.uint_of_Z i64m) (trunco f).
-Definition si64_trunc f := Option.map (Wasm_int.sint_of_Z i64m) (trunco f).
+(** The [trunc] operations are undefined if outside their respective range.
+  This function thus checks these ranges. **)
+Definition to_int_range t m (min max i : Z) : option t :=
+  if Z.geb i min && Z.leb i max then
+    Some (Wasm_int.int_of_Z m i)
+  else None.
+
+Definition ui32_trunc f :=
+  Option.bind (to_int_range i32m 0 Wasm_int.Int32.max_unsigned) (trunco f).
+Definition si32_trunc f :=
+  Option.bind (to_int_range i32m Wasm_int.Int32.min_signed Wasm_int.Int32.max_signed) (trunco f).
+Definition ui64_trunc f :=
+  Option.bind (to_int_range i64m 0 Wasm_int.Int64.max_unsigned) (trunco f).
+Definition si64_trunc f :=
+  Option.bind (to_int_range i64m Wasm_int.Int64.min_signed Wasm_int.Int32.max_signed) (trunco f).
 
 Definition convert_ui32 (i : i32) := BofZ (Wasm_int.Z_of_uint i32m i).
 Definition convert_si32 (i : i32) := BofZ (Wasm_int.Z_of_sint i32m i).
@@ -985,7 +1019,7 @@ Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
 Proof.
   reflexivity.
 Qed.
- *)
+*)
 
 End Wasm_float.
 
@@ -998,11 +1032,7 @@ Definition f64r : Wasm_float.class_of f64 := Wasm_float.Float64.class.
 Definition f64t : Wasm_float.type := Wasm_float.Pack f64r.
 Definition f64m := Wasm_float.mixin f64r.
 
-(* TODO: Remove the following and inline definition. *)
-
-Parameter wasm_wrap : i64 -> i32.
-Parameter wasm_extend_u : i32 -> i64.
-Parameter wasm_extend_s : i32 -> i64.
+(* TODO: IEEE754_extra.Bconv *)
 Parameter wasm_demote : f64 -> f32.
 Parameter wasm_promote : f32 -> f64.
 

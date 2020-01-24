@@ -10,7 +10,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (** An extension of [lia] that just tries to rewrite things in the way [lia] that expects.
-  Not very optimised. **)
+  Not optimised at all. **)
 Ltac lias :=
   let rec iter f l :=
     match l with

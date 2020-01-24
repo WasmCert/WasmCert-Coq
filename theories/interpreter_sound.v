@@ -39,45 +39,19 @@ End Host.
 (* TODO: Here are all what we need to implement.
 Print Assumptions run_step.
 [[
-wasm.wasm_wrap : wasm.i64 -> wasm.i32
-wasm.wasm_promote : wasm.f32 -> wasm.f64
-wasm.wasm_extend_u : wasm.i32 -> wasm.i64
-wasm.wasm_extend_s : wasm.i32 -> wasm.i64
-wasm.wasm_deserialise : bytes -> value_type -> value
-wasm.wasm_demote : wasm.f64 -> wasm.f32
-wasm.wasm_bool : bool -> wasm.i32
-wasm.ui64_trunc_f64 : wasm.f64 -> option wasm.i64
-wasm.ui64_trunc_f32 : wasm.f32 -> option wasm.i64
-wasm.ui32_trunc_f64 : wasm.f64 -> option wasm.i32
-wasm.ui32_trunc_f32 : wasm.f32 -> option wasm.i32
-wasm.si64_trunc_f64 : wasm.f64 -> option wasm.i64
-wasm.si64_trunc_f32 : wasm.f32 -> option wasm.i64
-wasm.si32_trunc_f64 : wasm.f64 -> option wasm.i32
-wasm.si32_trunc_f32 : wasm.f32 -> option wasm.i32
-wasm.serialise_i64 : wasm.i64 -> bytes
-wasm.serialise_i32 : wasm.i32 -> bytes
-wasm.serialise_f64 : wasm.f64 -> bytes
-wasm.serialise_f32 : wasm.f32 -> bytes
-wasm.i64_r : Wasm_int.class_of wasm.i64
-wasm.i64 : eqType
-wasm.i32_r : Wasm_int.class_of wasm.i32
-wasm.i32 : eqType
+wasm_promote : f32 -> f64
+wasm_deserialise : bytes -> value_type -> value
+wasm_demote : f64 -> f32
+wasm_bool : bool -> i32
+Rdefinitions.up : Rdefinitions.R -> BinNums.Z
+Raxioms.total_order_T : forall r1 r2 : Rdefinitions.R,
+                        {Rdefinitions.Rlt r1 r2} + {r1 = r2} + {Rdefinitions.Rgt r1 r2}
+serialise_i64 : i64 -> bytes
+serialise_i32 : i32 -> bytes
+serialise_f64 : f64 -> bytes
+serialise_f32 : f32 -> bytes
 wasm.host : eqType
-wasm.f64_r : Wasm_float.class_of wasm.f64
-wasm.f64_convert_ui64 : wasm.i64 -> wasm.f64
-wasm.f64_convert_ui32 : wasm.i32 -> wasm.f64
-wasm.f64_convert_si64 : wasm.i64 -> wasm.f64
-wasm.f64_convert_si32 : wasm.i32 -> wasm.f64
-wasm.f64 : eqType
-wasm.f32_r : Wasm_float.class_of wasm.f32
-wasm.f32_convert_ui64 : wasm.i64 -> wasm.f32
-wasm.f32_convert_ui32 : wasm.i32 -> wasm.f32
-wasm.f32_convert_si64 : wasm.i64 -> wasm.f32
-wasm.f32_convert_si32 : wasm.i32 -> wasm.f32
-wasm.f32 : eqType
-eqfunction_closureP : Equality.axiom function_closure_eqb
-eqbasic_instructionP : Equality.axiom wasm.basic_instruction_eqb
-eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb
-wasm.basic_instruction_eqb : basic_instruction -> basic_instruction -> bool
+(* A whole bunch of axioms.  It seems that they come from Flocq, mainly as an axiomatisation of [R].
+  Just that we can see things like classical logic and so on. *)
 ]]
 *)
