@@ -13,11 +13,23 @@ Unset Printing Implicit Defensive.
 (** Most of the content of this file follows comes from
   https://webassembly.github.io/spec/core/exec/numerics.html **)
 
+Lemma Z_eqP : Equality.axiom Coqlib.zeq.
+Proof.
+  move=> x y. case: Coqlib.zeq; by [ left | right ].
+Qed.
+
+Definition Z_eqMixin := EqMixin Z_eqP.
+
+Canonical Structure Z_eqType := EqType BinNums.Z Z_eqMixin.
+
+
 (** * Integers **)
 
 Module Wasm_int.
 
 Import ZArith.BinInt.
+
+Coercion Z.of_nat : nat >-> Z.
 
 (** ** Declaration of Operations **)
 
@@ -106,17 +118,6 @@ Definition T := int.
 Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
   if eq i2 zero then None
   else Some (op i1 i2).
-
-Lemma Z_eqP : Equality.axiom Coqlib.zeq.
-Proof.
-  move=> x y. case: Coqlib.zeq; by [ left | right ].
-Qed.
-
-Definition Z_eqMixin := EqMixin Z_eqP.
-
-Canonical Structure Z_eqType := EqType Z Z_eqMixin.
-
-Coercion Z.of_nat : nat >-> Z.
 
 (** An operation that we did not find in CompCert was a way to convert
   an integer to its representation as a list of booleans.
@@ -641,6 +642,39 @@ Definition pos_zero : T := Binary.B754_zero _ _ false.
 (** -0 **)
 Definition neg_zero : T := Binary.B754_zero _ _ true.
 
+(** States whether a NaN is canonical according to the Wasm specification,
+  that is whether its payload’s most significant bit is [1]. **)
+Definition is_canonical (f : T) :=
+  if f is Binary.B754_nan _ pl _ then
+    Z.pos (Digits.digits2_pos pl) == (prec - 1)%Z
+  else false.
+
+Lemma is_canonical_is_nan : forall f,
+  is_canonical f ->
+  is_nan f.
+Proof.
+  by case.
+Qed.
+
+Import Lia.
+
+(** Given a payload, update its most significant bit to [1]. **)
+Definition make_canonical :
+    { pl | Binary.nan_pl prec pl = true } ->
+    { pl | exists b N, is_canonical (Binary.B754_nan _ _ b pl N) }.
+  move=> [pl E]. case C: (is_canonical (Binary.B754_nan _ _ true pl E)).
+  - exists pl. by repeat eexists.
+  - move: C => /= C. move: prec_gt_0. case Eprec: prec => [|precn|] // _.
+    exists (pl + shift_pos (precn - 1) 1)%positive.
+    exists true. have N: Binary.nan_pl (Z.pos precn) (pl + shift_pos (precn - 1) 1) = true.
+    { move: E C => /=. rewrite/Binary.nan_pl Eprec => {Eprec}.
+      move /Pos.ltb_spec0 /Pos2Nat.inj_lt. elim precn => /=.
+      - (*lias. TODO*)
+
+    (*Z.log2_add_le
+Z.add_log2_lt Z.log2_lor*)
+Admitted.
+
 (** An unspecified positive unsed in [unspec_nan], whose value is made opaque to
   avoid overspecification. **)
 Definition unspec_nan_pl : { pl | Binary.nan_pl prec pl = true }.
@@ -962,6 +996,10 @@ Module Float64.
 Include Make(FloatSize64).
 End Float64.
 
+(* TODO: IEEE754_extra.Bconv *)
+Parameter wasm_demote : f64 -> f32.
+Parameter wasm_promote : f32 -> f64.
+
 (** ** Unit Tests **)
 
 (* FIXME: Frustration
@@ -1031,8 +1069,4 @@ Definition f64 : eqType := Wasm_float.Float64.eqType.
 Definition f64r : Wasm_float.class_of f64 := Wasm_float.Float64.class.
 Definition f64t : Wasm_float.type := Wasm_float.Pack f64r.
 Definition f64m := Wasm_float.mixin f64r.
-
-(* TODO: IEEE754_extra.Bconv *)
-Parameter wasm_demote : f64 -> f32.
-Parameter wasm_promote : f32 -> f64.
 
