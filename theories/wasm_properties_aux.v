@@ -1,4 +1,4 @@
-Require Export wasm wasm_common wasm_numerics.
+Require Export wasm common numerics.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Bool.
 
