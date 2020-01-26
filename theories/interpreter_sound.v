@@ -32,6 +32,13 @@ Lemma run_step_soundness : forall d i s vs es s' vs' es',
     exists j,
       reduce s vs es j s' vs' es'.
 Proof.
+  move => d i s vs es s' vs' es' HStep. inversion HStep. 
+  destruct (split_vals_e es) eqn:He. destruct l0.
+  - inversion H0.
+  - destruct (e_is_trap a). Focus 2.
+    induction a; unfold run_one_step in H0.
+    + destruct b. simpl in H0.
+      (* for some reason Coq refuses to reduce the fixpoint function run_one_step here *)   
 Admitted. (* TODO *)
 
 End Host.
