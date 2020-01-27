@@ -18,12 +18,7 @@ Inductive lfilledInd : nat -> lholed -> list administrative_instruction -> list 
 Lemma eqseq_eq: forall {T:eqType} (s1 s2: seq T),
     s1 == s2 -> s1=s2.
 Proof.
-  move => T s1 s2 H.
-  unfold "==" in H. simpl in H.
-  assert (ssrbool.reflect (s1=s2) (eqseq s1 s2) ).
-  apply eqseqP.
-  apply reflect_iff in H0.
-  apply H0. by inversion H.
+  move => T s1 s2. by move/eqseqP.
 Qed.
 
 Lemma lfilled_Ind_Equivalent: forall k lh es LI,
@@ -56,8 +51,8 @@ Lemma const_list_concat: forall vs1 vs2,
     const_list vs2 ->
     const_list (vs1 ++ vs2).
 Proof.
-  move => vs1 vs2. induction vs1 => //=.
-  - move => H1 H2. simpl in H1. simpl.
+  move => vs1 vs2. elim vs1 => {vs1} //=.
+  - move => a vs1' IHvs1 H1 H2. simpl in H1. simpl.
     apply andb_true_iff in H1. destruct H1. rewrite IHvs1 //=. by rewrite andbT.
 Qed.      
 
@@ -85,9 +80,9 @@ Proof.
     replace (vs0++(vs++es)++es') with ((vs0++take (length vs - l) vs) ++ (drop (length vs - l) vs ++ es) ++ es').
     { apply LfilledBase. apply const_list_concat => //=.
       by apply const_list_take. }
-    rewrite <- catA. rewrite <- catA. rewrite catA. rewrite catA. replace ((vs0 ++ take (length vs - l) vs) ++ drop (length vs - l) vs) with (vs0 ++ vs).
-    { rewrite <- catA. by rewrite <- catA. }
-    rewrite <- catA. by rewrite cat_take_drop.
+    repeat rewrite -catA. f_equal.
+    repeat rewrite catA. do 2 f_equal.
+    by apply cat_take_drop. 
   - destruct IHHLF => //. eexists (LRec _ _ _ _ _). apply LfilledRec => //. by apply H0.
 Qed.
 
@@ -116,6 +111,7 @@ Lemma lfilled_deterministic: forall k lh es les les',
     lfilledInd k lh es les' ->
     les = les'.
 Proof.
+  (*TODO: prove this by equivalence and use lfill.*)
   move => k lh es les les' HLF. move: les'. induction HLF; subst; move => les' HLF'.
   - by inversion HLF'.
   - inversion HLF'; subst.
