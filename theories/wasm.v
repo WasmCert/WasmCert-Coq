@@ -802,14 +802,14 @@ Proof.
   - move: lh es LI. induction k; move => lh es LI HFix.
     + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
       * destruct (const_list l) eqn:HConst => //=.
-        { replace LI with (l++es++l0). by apply LfilledBase.
+        { replace LI with (l++es++l0); first by apply LfilledBase.
           symmetry. move: HFix. by apply/eqseqP. }
     + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
       * destruct (const_list l) eqn:HConst => //=.
         { destruct (lfill k lh es) eqn:HLF => //=.
           { replace LI with (l ++ [ :: (Label n l0 l2)] ++ l1).
-          apply LfilledRec. by [].
-          apply IHk. unfold lfilled. by rewrite HLF.
+          apply LfilledRec; first by [].
+          apply IHk. unfold lfilled; first by rewrite HLF.
           symmetry. move: HFix. by apply/eqseqP. }
         }
   - move => HLF. induction HLF.
@@ -818,6 +818,14 @@ Proof.
       unfold lfilled in IHHLF. destruct (lfill k lh' es) => //=.
       * replace LI with l => //=.
         symmetry. by apply/eqseqP.
+Qed.
+
+Lemma lfilledP: forall k lh es LI,
+    reflect (lfilledInd k lh es LI) (lfilled k lh es LI).
+Proof.
+  move => k lh es LI. destruct (lfilled k lh es LI) eqn:HLFBool.
+  - apply ReflectT. by apply lfilled_Ind_Equivalent.
+  - apply ReflectF. move => HContra. apply lfilled_Ind_Equivalent in HContra. by rewrite HLFBool in HContra.
 Qed.
 
 Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
