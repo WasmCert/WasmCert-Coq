@@ -6,46 +6,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Inductive lfilledInd : nat -> lholed -> list administrative_instruction -> list administrative_instruction -> Prop :=
-| LfilledBase: forall vs es es',
-    const_list vs ->
-    lfilledInd 0 (LBase vs es') es (vs ++ es ++ es')
-| LfilledRec: forall k vs n es' lh' es'' es LI,
-    const_list vs ->
-    lfilledInd k lh' es LI ->
-    lfilledInd (k.+1) (LRec vs n es' lh' es'') es (vs ++ [ :: (Label n es' LI) ] ++ es'').
-
-Lemma eqseq_eq: forall {T:eqType} (s1 s2: seq T),
-    s1 == s2 -> s1=s2.
-Proof.
-  move => T s1 s2. by move/eqseqP.
-Qed.
-
-Lemma lfilled_Ind_Equivalent: forall k lh es LI,
-    lfilled k lh es LI <-> lfilledInd k lh es LI.
-Proof.
-  move => k. split.
-  - move: lh es LI. induction k; move => lh es LI HFix.
-    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
-      * destruct (const_list l) eqn:HConst => //=.
-        { replace LI with (l++es++l0). by apply LfilledBase.
-          symmetry. by apply eqseq_eq. }
-    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
-      * destruct (const_list l) eqn:HConst => //=.
-        { destruct (lfill k lh es) eqn:HLF => //=.
-          { replace LI with (l ++ [ :: (Label n l0 l2)] ++ l1).
-          apply LfilledRec. by [].
-          apply IHk. unfold lfilled. by rewrite HLF.
-          symmetry. by apply eqseq_eq. }
-        }
-  - move => HLF. induction HLF.
-    + unfold lfilled. unfold lfill. by rewrite H.
-    + unfold lfilled. unfold lfill. rewrite H. fold lfill.
-      unfold lfilled in IHHLF. destruct (lfill k lh' es) => //=.
-      * replace LI with l => //=.
-        symmetry. by apply eqseq_eq.
-Qed.
-
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
@@ -111,10 +71,11 @@ Lemma lfilled_deterministic: forall k lh es les les',
     lfilledInd k lh es les' ->
     les = les'.
 Proof.
-  (*TODO: prove this by equivalence and use lfill.*)
-  move => k lh es les les' HLF. move: les'. induction HLF; subst; move => les' HLF'.
-  - by inversion HLF'.
-  - inversion HLF'; subst.
-    replace LI0 with LI => //.
-    by apply IHHLF.
-Qed.
+  move => k lh es les les' HLF HLF'.
+  apply lfilled_Ind_Equivalent in HLF. unfold lfilled in HLF.
+  apply lfilled_Ind_Equivalent in HLF'. unfold lfilled in HLF'.
+  destruct (lfill k lh es) => //.
+  replace les' with l.
+  { move: HLF. by apply/eqseqP. }
+  symmetry. move: HLF'. by apply/eqseqP. 
+Qed.  
