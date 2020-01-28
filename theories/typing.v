@@ -28,7 +28,7 @@ Definition upd_label C lab :=
     (tc_return C).
 
 Definition plop2 C i ts :=
-  (List.nth_error (tc_label C) i) == (Some ts).
+  List.nth_error (tc_label C) i == Some ts.
 
 Inductive be_typing : t_context -> list basic_instruction -> function_type -> Prop :=
 | bet_const : forall C v, be_typing C [::EConst v] (Tf [::] [::typeof v])
@@ -40,7 +40,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
 | bet_convert : forall C t1 t2 sx, t1 != t2 -> convert_helper sx t1 t2 ->
-  be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1])
+  be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1]) (* FIXME: Difference from the Isabelle formalisation: why merge the two rules here? *)
 | bet_reinterpret : forall C t1 t2, t1 != t2 -> Nat.eqb (t_length t1) (t_length t2) ->
   be_typing C [::Cvtop t1 Reinterpret t2 None] (Tf [::t2] [::t1])
 | bet_unreachable : forall C ts ts',
@@ -109,7 +109,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_store : forall C n a off tp t,
   (tc_memory C) = (Some n) ->
   load_store_t_bounds a tp t ->
-  be_typing C [::Store t tp a off] (Tf [::T_i32; t] [::])
+  be_typing C [::Store t tp a off] (Tf [::T_i32; t] [::]) (* FIXME: Same here: two Isabelle rules have been merged here. *)
 | bet_current_memory : forall C n,
   (tc_memory C) = (Some n) ->
   be_typing C [::Current_memory] (Tf [::] [::T_i32])
@@ -157,32 +157,31 @@ Definition globi_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => glob_agree g tg) (List.nth_error gs n) == Some true).
 
 Definition memi_agree (sm : list mem) (j : option nat) (m : option nat) : bool :=
-  (match (j, m) with
-   | (None, _) => false
-   | (_, None) => false
-   | (Some j', Some m') =>
-     (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
-   end)
-  ||
-  ((j == None) && (m == None)).
+  match j, m with
+  | None, None => true
+  | None, Some _ => false
+  | Some _, None => false
+  | Some j', Some m' =>
+    (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
+  end.
 
 Definition funci_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
 
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
-  match (inst, C) with
-  | (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None) =>
-      (ts == ts') && 
-         (all2 (funci_agree (s_funcs s)) fs tfs) &&
-         (all2 (globi_agree (s_globs s)) gs tgs) &&
-            (match (i, n) with
-               | (None, None) => true
-               | (None, Some _) => false | (Some _, None) => false
-               | (Some i', Some n') => (i' < length (s_tab s)) && (option_map (@length (option function_closure)) (List.nth_error (s_tab s) i') == Some n')
-               end) &&
-            (memi_agree (s_mem s) j m)
-  | _ => false
-  end.
+  if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
+  then
+    (ts == ts') &&
+       (all2 (funci_agree (s_funcs s)) fs tfs) &&
+       (all2 (globi_agree (s_globs s)) gs tgs) &&
+          (match i, n with
+             | None, None => true
+             | None, Some _ => false
+             | Some _, None => false
+             | Some i', Some n' => (i' < length (s_tab s)) && (option_map (@length (option function_closure)) (List.nth_error (s_tab s) i') == Some n')
+             end) &&
+          (memi_agree (s_mem s) j m)
+  else false.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
 | cl_typing_native : forall i s C ts t1s t2s es tf,
@@ -207,5 +206,6 @@ Proof.
     done. }
   { move => f h tf H.
     inversion H.
-      by rewrite /=. }
+    by rewrite /=. }
 Qed.
+
