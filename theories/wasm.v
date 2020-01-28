@@ -37,8 +37,6 @@ Parameter serialise_i32 : i32 -> bytes.
 Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.
 Parameter serialise_f64 : f64 -> bytes.
-Parameter wasm_bool : bool -> i32.
-Parameter int32_minus_one : i32.
 
 Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
   match n with

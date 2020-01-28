@@ -58,23 +58,23 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
 (* testops *)
 | rs_testop_i32 :
   forall c testop,
-  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Testop T_i32 testop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_testop_i i32t testop c))))]
+  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Testop T_i32 testop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_testop_i i32t testop c))))]
 | rs_testop_i64 :
   forall c testop,
-  reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Testop T_i64 testop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_testop_i i64t testop c))))]
+  reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Testop T_i64 testop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_testop_i i64t testop c))))]
 (* relops *)
 | rs_relop_i32 :
   forall c1 c2 iop,
-  reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Relop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_i i32t iop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Relop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_i i32t iop c1 c2))))]
 | rs_relop_i64 :
   forall c1 c2 iop,
-  reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Relop_i T_i64 iop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_i i64t iop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Relop_i T_i64 iop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2))))]
 | rs_relop_f32 :
   forall c1 c2 fop,
-  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Relop_f T_f32 fop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_f f32t fop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Relop_f T_f32 fop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_f f32t fop c1 c2))))]
 | rs_relop_f64 :
   forall c1 c2 fop,
-  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Relop_f T_f64 fop)] [::Basic (EConst (ConstInt32 (wasm.wasm_bool (@app_relop_f f64t fop c1 c2))))]
+  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Relop_f T_f64 fop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_f f64t fop c1 c2))))]
 (* convert & reinterpret *)
 | rs_convert_success :
   forall t1 t2 v v' sx,
@@ -320,7 +320,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       smem_ind s i == Some j ->
       List.nth_error (s_mem s) j == Some m ->
       mem_size m = n ->
-      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i s vs [::Basic (EConst (ConstInt32 wasm.int32_minus_one))]
+      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i s vs [::Basic (EConst (ConstInt32 int32_minus_one))]
 | r_label :
     forall s vs es les i s' vs' es' les' k lh,
       reduce s vs es i s' vs' es' ->

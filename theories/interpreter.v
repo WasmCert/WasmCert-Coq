@@ -157,30 +157,30 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
   (* testops *)
   | Basic (Testop T_i32 testop) =>
     if ves is (ConstInt32 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm.wasm_bool (@app_testop_i i32t testop c))) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
     else (s, vs, crash_error)
   | Basic (Testop T_i64 testop) =>
     if ves is (ConstInt64 c) :: ves' then
-      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm.wasm_bool (@app_testop_i i64t testop c))) :: ves')))
+      (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
     else (s, vs, crash_error)
   | Basic (Testop _ _) => (s, vs, crash_error)
   (* relops *)
   | Basic (Relop_i T_i32 iop) =>
     if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_i i32t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i32t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_i T_i64 iop) =>
     if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_i _ _) => (s, vs, crash_error)
   | Basic (Relop_f T_i32 iop) =>
     if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_f T_i64 iop) =>
     if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm.wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
+      (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_f _ _) => (s, vs, crash_error)
   (* convert *)

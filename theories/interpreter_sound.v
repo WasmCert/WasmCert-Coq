@@ -39,18 +39,14 @@ End Host.
 (* TODO: Here are all what we need to implement.
 Print Assumptions run_step.
 [[
-wasm_promote : f32 -> f64
 wasm_deserialise : bytes -> value_type -> value
-wasm_demote : f64 -> f32
-wasm_bool : bool -> i32
-Rdefinitions.up : Rdefinitions.R -> BinNums.Z
-Raxioms.total_order_T : forall r1 r2 : Rdefinitions.R,
-                        {Rdefinitions.Rlt r1 r2} + {r1 = r2} + {Rdefinitions.Rgt r1 r2}
 serialise_i64 : i64 -> bytes
 serialise_i32 : i32 -> bytes
 serialise_f64 : f64 -> bytes
 serialise_f32 : f32 -> bytes
 wasm.host : eqType
+(* Some [Equality.axiom] in the wasm module. *)
+Classical_Prop.classic : forall P : Prop, P \/ ~ P
 (* A whole bunch of axioms.  It seems that they come from Flocq, mainly as an axiomatisation of [R].
   Just that we can see things like classical logic and so on. *)
 ]]

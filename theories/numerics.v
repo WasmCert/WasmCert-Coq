@@ -205,6 +205,24 @@ Proof.
     move: WS.wordsize_not_zero. by case: WS.wordsize => //.
 Qed.
 
+(** As the definitions [zero], [one], and [mone] are used later on,
+  let us ensure that some basic properties exist about them. **)
+
+Lemma repr_0 : repr 0 = zero.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma repr_1 : repr 1 = one.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma repr_m1 : repr (-1) = mone.
+Proof.
+  reflexivity.
+Qed.
+
 Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
@@ -701,19 +719,24 @@ Proof.
   have EI: ((pl >= canonical_pl)%positive <-> (Z.pos pl >= Z.pos canonical_pl)%Z); first by lias.
   rewrite EI => {EI}.
   rewrite /Binary.nan_pl /pl_arithmetic /canonical_pl.
-  move: prec_gt_0. case Eprec: prec => [|precn|] // _.
+  move: prec_gt_0 prec_gt_2. case: prec => [|precn|] // _ G2.
   rewrite digits2_log2. rewrite shift_pos_correct. rewrite Z.pow_pos_fold.
-  rewrite_by (2 ^ Z.pos (precn - 2) * 1 = 1 * 2 ^ Z.pos (precn - 2))%Z.
-(*
-  rewrite Z.log2_mul_pow2 => //.
-  rewrite_by (Z.pos (Z.to_pos prec - 2) + Z.log2 1 = Z.pos (Z.to_pos prec - 2))%Z.
-  apply/eqP.
-  move: prec_gt_2. lias.
-  have: (Z.max (Z.log2 (Z.pos pl)) (Z.pos (precn - 2)) = Z.pos precn - 2)%Z; last by lias.
-  move/Z.ltb_spec0. lias. }
-  Z.pos (Digits.digits2_pos (shift_pos (Z.to_pos prec - 2) 1)) == (prec - 1)%Z
-*)
-Admitted. (* TODO *)
+  rewrite_by (2 ^ Z.pos (precn - 2) * 1 = 2 ^ Z.pos (precn - 2))%Z.
+  move/Z.ltb_spec0 => I.
+  have R: (Z.pos pl >= 2 ^ Z.pos (precn - 2)
+           <-> Z.succ (Z.log2 (Z.pos pl)) >= Z.pos precn - 1)%Z.
+  {
+    move {I}. have R: (Z.pos pl < 2 ^ Z.pos (precn - 2)
+                       <-> Z.succ (Z.log2 (Z.pos pl)) < Z.pos precn - 1)%Z.
+    { rewrite Z.log2_lt_pow2 => //. lias. }
+    by apply not_iff_compat.
+  }
+  rewrite R {R}.
+  have R: Z.succ (Z.log2 (Z.pos pl)) == (Z.pos precn - 1)%Z
+          <-> Z.succ (Z.log2 (Z.pos pl)) = (Z.pos precn - 1)%Z.
+  { by split; move/Z_eqP. }
+  rewrite R {R}. lias.
+Qed.
 
 Lemma canonical_pl_is_arithmetic : pl_arithmetic canonical_pl.
 Proof.
@@ -1184,17 +1207,24 @@ Definition f64r : Wasm_float.class_of f64 := Wasm_float.Float64.class.
 Definition f64t : Wasm_float.type := Wasm_float.Pack f64r.
 Definition f64m := Wasm_float.mixin f64r.
 
-Parameter wasm_demote : f64 -> f32.
-Parameter wasm_promote : f32 -> f64.
+Definition wasm_demote (z : f64) : f32 :=
+  if Wasm_float.Float64.is_canonical z then
+    Wasm_float.Float32.nans Wasm_float.Float32.unspec_canonical_nan
+  else if Wasm_float.Float64.is_nan z then
+    Wasm_float.Float32.nans Wasm_float.Float32.pos_zero
+  else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize32.prec_gt_0 Wasm_float.FloatSize32.Hmax
+         (fun _ => Wasm_float.Float32.unspec_nan_nan) Binary.mode_NE z.
 
-(* TODO
-Definition wasm_promote (z : f32) : f64.
-  refine (if Wasm_float.Float32.is_arithmetic z then
-            Wasm_float.Float64.nans Wasm_float.Float64.unspec_canonical_nan
-          else if Wasm_float.Float32.is_nan z then
-            Wasm_float.Float64.nans Wasm_float.Float64.pos_zero
-          else IEEE754_extra.Bconv _ _ _ _ _ _
-                 (fun _ => Wasm_float.Float64.unspec_nan_nan) Binary.mode_NE z).
-  lias.
-Defined.
-*)
+Definition wasm_promote (z : f32) : f64 :=
+  if Wasm_float.Float32.is_canonical z then
+    Wasm_float.Float64.nans Wasm_float.Float64.unspec_canonical_nan
+  else if Wasm_float.Float32.is_nan z then
+    Wasm_float.Float64.nans Wasm_float.Float64.pos_zero
+  else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize64.prec_gt_0 Wasm_float.FloatSize64.Hmax
+         (fun _ => Wasm_float.Float64.unspec_nan_nan) Binary.mode_NE z.
+
+Definition wasm_bool (b : bool) : i32 :=
+  if b then Wasm_int.Int32.one else Wasm_int.Int32.zero.
+
+Definition int32_minus_one : i32 := Wasm_int.Int32.mone.
+
