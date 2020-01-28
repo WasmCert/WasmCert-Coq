@@ -427,6 +427,11 @@ Definition irem_s i1 i2 :=
   if j2 == 0 then None
   else Some (repr (j1 mod j2)%Z).
 
+Lemma modulus_gt_0 : (modulus > 0)%Z.
+Proof.
+  apply: Coqlib.two_power_nat_pos.
+Qed.
+
 (* TODO: Make this work.
 (** This property of [idiv_s] and [irem_s] is stated in the Wasm standard. **)
 Lemma idiv_s_irem_s : forall i1 i2 d r,
@@ -451,11 +456,15 @@ Proof.
     rewrite_by (modulus - v1 = - (v1 - modulus))%Z.
     case DM: ((v1 - modulus) mod v2 == 0)%Z; move/eqP: DM => DM.
     + rewrite Z.div_opp_l_z => //. repeat rewrite Z.opp_involutive.
-      rewrite -E. rewrite Zdiv.Zmod_small.
-      (* FIXME: This is wrong! *)
+      rewrite -E. rewrite Z.mod_eq; last by lias.
+      rewrite_by (v1 - modulus = - (modulus - v1))%Z. rewrite Z.div_opp_l_nz => //.
+      * by rewrite Zdiv.Zdiv_small; lias.
+      * by rewrite Zdiv.Zmod_small; lias.
+    + rewrite Z.div_opp_l_nz => //. rewrite Z.opp_involutive.
+      rewrite_by (v2 * - (- ((v1 - modulus) / v2) - 1) + (v1 - modulus) mod v2
+                  = v1 + v2 - modulus)%Z.
+      (* TODO: Something is wrong here. *)
 
-    (* rewrite either [Z.div_opp_l_z] or [Z.div_opp_l_nz]. *)
-    admit. (* FIXME: it seems that there is an off-by-one rounding issue here. *)
   - rewrite_by (v2 - modulus = - (modulus - v2))%Z. rewrite Z.quot_opp_r; last by lias.
     rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
     admit. (* FIXME: it seems that there is an off-by-one rounding issue here. *)
