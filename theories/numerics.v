@@ -24,7 +24,7 @@ Canonical Structure Z_eqType := EqType BinNums.Z Z_eqMixin.
 
 Lemma Pos_eqP : Equality.axiom BinPosDef.Pos.eqb.
 Proof.
-  move=> x y. apply Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
+  move=> x y. apply: Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
 Qed.
                                                                       
 Definition Pos_eqMixin := EqMixin Pos_eqP.
@@ -124,6 +124,26 @@ Include Make (WS).
   with very similar operations than Wasm, and has already been overly tested. **)
 Definition T := int.
 
+Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
+Proof.
+  rewrite /Z.lt. move=> x y p1 p2.
+  apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; by [ left | right; discriminate ].
+Qed.
+
+Lemma eq_T_intval : forall x y : T, intval x = intval y -> x = y.
+Proof.
+  move=> [x [Vx Rx]] [y [Vy Ry]]. move=> /= E. subst. f_equal.
+  rewrite (Z_lt_irrelevant Vx Vy).
+  by rewrite (Z_lt_irrelevant Rx Ry).
+Qed.
+
+Lemma eq_eqP : Equality.axiom (eq : T -> T -> bool).
+Proof.
+  move=> x y. rewrite /eq. case: Coqlib.zeq => [E|E].
+  - apply/ReflectT. by apply: eq_T_intval.
+  - apply/ReflectF. move=> ?. subst. exact: E.
+Qed.
+
 Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
   if eq i2 zero then None
   else Some (op i1 i2).
@@ -162,7 +182,7 @@ Lemma power_index_to_bits_in : forall c l n,
 Proof.
   move=> c l n => /leP I. move: l. elim: I.
   - move=> l /=. by rewrite_by (n.+1 - n - 1 = 0).
-  - move=> {} c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply IH.
+  - move=> {} c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply: IH.
 Qed.
 
 (** Given a [T], return a sequence of bits representing the integer.
@@ -227,7 +247,7 @@ Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
 Proof.
-  move=> a b. move/leP => I. apply/Z_eqP. lias.
+  move=> a b. move/leP => I. apply/Z_eqP. by lias.
 Qed.
 
 Lemma nat_Z_gt_neq : forall a b,
@@ -261,7 +281,7 @@ Proof.
     + move=> ws Ip E /=. rewrite E /=.
       rewrite in_cons in_nil nat_Z_gt_neq.
       * by rewrite_by (ws.+1 - 1 - p = (ws - 1 - p).+1).
-      * lias.
+      * by lias.
   - split.
     + by apply: Znat.Nat2Z.is_nonneg.
     + apply: Znat.inj_lt. by apply/leP.
@@ -359,6 +379,100 @@ Lemma clz_shr : forall i k,
   clz (shr i k) = min wordsize (clz i + k).
 *)
 
+(** Return the result of adding two numbers modulo [max_unsigned]. **)
+Definition iadd := add.
+
+(** Return the result of substracting two numbers modulo [max_unsigned]. **)
+Definition isub := sub.
+
+(** Return the result of multiplicating two numbers modulo [max_unsigned]. **)
+Definition imul := mul.
+
+(** Return the result of dividing two numbers towards zero, undefined if the second
+  number is zero. **)
+Definition idiv_u := fail_on_zero divu.
+
+Definition idiv_s i1 i2 :=
+  let j1 := signed i1 in
+  let j2 := signed i2 in
+  if j2 == 0 then None
+  else
+    let d := (j1 ÷ j2)%Z in
+    if d == half_modulus then None
+    else Some (repr d).
+
+(** Return the quotient of two numbers, undefined if the second number is zero. **)
+Definition irem_u := fail_on_zero modu.
+
+(** This property of [idiv_u] and [irem_u] is stated in the Wasm standard. **)
+Lemma idiv_u_irem_u : forall i1 i2 d r,
+  idiv_u i1 i2 = Some d ->
+  irem_u i1 i2 = Some r ->
+  i1 = add (mul i2 d) r.
+Proof.
+  rewrite /idiv_u /irem_u /fail_on_zero. move=> i1 i2 d r. case E: (eq i2 zero) => //.
+  case=> ED. rewrite -ED {ED}. case=> ER. rewrite -ER {ER}.
+  move: E. rewrite /add /mul /divu /modu /eq.
+  case i1 => {i1} v1 R1. case i2 => {i2} v2 R2 /=. case: Coqlib.zeq => // D _.
+  apply: eq_T_intval => /=.
+  have := Zdiv.Z_div_mod_full v1 _ D. rewrite Zaux.Zdiv_eucl_unique. move=> [E R].
+  repeat rewrite Z_mod_modulus_eq. rewrite Z.mul_mod_idemp_r => //.
+  rewrite Z.add_mod_idemp_l => //. rewrite Z.add_mod_idemp_r => //.
+  rewrite -E. rewrite Zdiv.Zmod_small => //. by lias.
+Qed.
+
+Definition irem_s i1 i2 :=
+  let j1 := signed i1 in
+  let j2 := signed i2 in
+  if j2 == 0 then None
+  else Some (repr (j1 mod j2)%Z).
+
+(* TODO: Make this work.
+(** This property of [idiv_s] and [irem_s] is stated in the Wasm standard. **)
+Lemma idiv_s_irem_s : forall i1 i2 d r,
+  idiv_s i1 i2 = Some d ->
+  irem_s i1 i2 = Some r ->
+  i1 = add (mul i2 d) r.
+Proof.
+  rewrite /idiv_s /irem_s. move=> i1 i2 d r. case E1: (signed i2 == 0) => //.
+  case E2: ((signed i1 ÷ signed i2)%Z == half_modulus) => //.
+  case=> ED. rewrite -ED {ED}. case=> ER. rewrite -ER {ER}.
+  apply: eq_T_intval. move: E1 E2. rewrite /add /mul /=.
+  case i1 => {i1} v1 R1. case i2 => {i2} v2 R2 /=.
+  move/eqP => D. have := Zdiv.Z_div_mod_full (signed {| intval := v1; intrange := R1 |}) _ D.
+  rewrite Zaux.Zdiv_eucl_unique. move=> [E R]. move/eqP.
+  repeat rewrite Z_mod_modulus_eq. rewrite Z.mul_mod_idemp_r => //.
+  rewrite Z.add_mod_idemp_l => //. rewrite Z.add_mod_idemp_r => //.
+  move: D E R. rewrite /signed. do 2 case: Coqlib.zlt; move=> /= I1 I2 D E R DH.
+  - rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+    rewrite -E. rewrite Zdiv.Zmod_small => //. by lias.
+  - rewrite_by (v1 - modulus = - (modulus - v1))%Z. rewrite Z.quot_opp_l => //.
+    rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+    rewrite_by (modulus - v1 = - (v1 - modulus))%Z.
+    case DM: ((v1 - modulus) mod v2 == 0)%Z; move/eqP: DM => DM.
+    + rewrite Z.div_opp_l_z => //. repeat rewrite Z.opp_involutive.
+      rewrite -E. rewrite Zdiv.Zmod_small.
+      (* FIXME: This is wrong! *)
+
+    (* rewrite either [Z.div_opp_l_z] or [Z.div_opp_l_nz]. *)
+    admit. (* FIXME: it seems that there is an off-by-one rounding issue here. *)
+  - rewrite_by (v2 - modulus = - (modulus - v2))%Z. rewrite Z.quot_opp_r; last by lias.
+    rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+    admit. (* FIXME: it seems that there is an off-by-one rounding issue here. *)
+  -
+
+    Zquot.Zquot_Zdiv_pos
+    Z.quot_div_nonneg
+    Z.quot_opp_r
+    Z.quot_opp_l
+
+  rewrite -E.
+  apply: eq_T_intval => /=.
+  rewrite -E. rewrite Zdiv.Zmod_small => //. by lias.
+
+Qed.
+*)
+
 Definition Tmixin : mixin_of T := {|
      int_zero := zero ;
      (** Bit operations **)
@@ -366,13 +480,13 @@ Definition Tmixin : mixin_of T := {|
      int_ctz := ctz ;
      int_popcnt := popcnt ;
      (** Binary operators **)
-     int_add := add ;
-     int_sub := sub ;
-     int_mul := mul ;
-     int_div_u := fail_on_zero divu ;
-     int_div_s := fail_on_zero divs ;
-     int_rem_u := fail_on_zero modu ;
-     int_rem_s := fail_on_zero mods ;
+     int_add := iadd ;
+     int_sub := isub ;
+     int_mul := imul ;
+     int_div_u := idiv_u ;
+     int_div_s := idiv_s ;
+     int_rem_u := irem_u ;
+     int_rem_s := irem_s ;
      (** Binary operators about bits **)
      int_and := and ;
      int_or := or ;
@@ -409,23 +523,7 @@ Proof.
   move=> {I1 I2}. case i.
   - reflexivity.
   - move=> p. by rewrite Znat.positive_nat_Z.
-  - move=> p. lias.
-Qed.
-
-Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
-Proof.
-  rewrite /Z.lt. move=> x y p1 p2.
-  apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; by [ left | right; discriminate ].
-Qed.
-
-Lemma eq_eqP : Equality.axiom eq.
-Proof.
-  move=> x y. rewrite /eq. case: Coqlib.zeq => [E|E].
-  - apply/ReflectT. move: E. case: x => x [Vx Rx]. case: y => y [Vy Ry].
-    simpl. move=> E //=. subst. f_equal.
-    rewrite (Z_lt_irrelevant Vx Vy).
-    by rewrite (Z_lt_irrelevant Rx Ry).
-  - apply/ReflectF. move=> ?. subst. exact: E.
+  - move=> p. by lias.
 Qed.
 
 Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
@@ -697,7 +795,7 @@ Lemma pl_arithmetic_is_nan : forall pl,
   pl_arithmetic pl ->
   Binary.nan_pl prec pl.
 Proof.
-  rewrite /pl_arithmetic /Binary.nan_pl. move=> pl /eqP C. apply/Z.ltb_spec0. lias.
+  rewrite /pl_arithmetic /Binary.nan_pl. move=> pl /eqP C. apply/Z.ltb_spec0. by lias.
 Qed.
 
 (** State whether a NaN is an arithmetical NaN. **)
@@ -728,14 +826,14 @@ Proof.
   {
     move {I}. have R: (Z.pos pl < 2 ^ Z.pos (precn - 2)
                        <-> Z.succ (Z.log2 (Z.pos pl)) < Z.pos precn - 1)%Z.
-    { rewrite Z.log2_lt_pow2 => //. lias. }
-    by apply not_iff_compat.
+    { rewrite Z.log2_lt_pow2 => //. by lias. }
+    by apply: not_iff_compat.
   }
   rewrite R {R}.
   have R: Z.succ (Z.log2 (Z.pos pl)) == (Z.pos precn - 1)%Z
           <-> Z.succ (Z.log2 (Z.pos pl)) = (Z.pos precn - 1)%Z.
   { by split; move/Z_eqP. }
-  rewrite R {R}. lias.
+  rewrite R {R}. by lias.
 Qed.
 
 Lemma canonical_pl_is_arithmetic : pl_arithmetic canonical_pl.
@@ -745,7 +843,7 @@ Proof.
   rewrite_by (2 ^ Z.pos (Z.to_pos prec - 2) * 1 = 1 * 2 ^ Z.pos (Z.to_pos prec - 2))%Z.
   rewrite Z.log2_mul_pow2 => //=. apply/Z.ltb_spec0.
   move: prec_gt_0. case Eprec: prec => [|precn|] // _.
-  move: prec_gt_2. rewrite Eprec => {Eprec} /=. lias.
+  move: prec_gt_2. rewrite Eprec => {Eprec} /=. by lias.
 Qed.
 
 (** There are exactly two canonical NaNs: a positive one, and a negative one. **)
@@ -763,7 +861,7 @@ Proof.
   - exists pl. by repeat eexists.
   - move: C => /= C. move: prec_gt_0. case Eprec: prec => [|precn|] // _.
     set pl' := (Pos.lor pl canonical_pl)%positive. exists pl'.
-    have Cpl: pl_arithmetic pl'; last by split; first (rewrite -Eprec; apply pl_arithmetic_is_nan).
+    have Cpl: pl_arithmetic pl'; last by split; first (rewrite -Eprec; apply: pl_arithmetic_is_nan).
     rewrite /pl' /Binary.nan_pl /pl_arithmetic => {pl'} /=.
     rewrite digits2_log2.
     rewrite_by (Z.pos (Pos.lor pl canonical_pl) = Z.lor (Z.pos pl) (Z.pos canonical_pl)).
@@ -772,7 +870,7 @@ Proof.
     rewrite_by (2 ^ Z.pos (precn - 2) * 1 = 1 * 2 ^ Z.pos (precn - 2))%Z.
     rewrite Z.log2_mul_pow2 => //.
     have Lpl: (Z.log2 (Z.pos pl) < prec - 1)%Z.
-    { move: E. rewrite /Binary.nan_pl digits2_log2. move/Z.ltb_spec0. lias. }
+    { move: E. rewrite /Binary.nan_pl digits2_log2. move/Z.ltb_spec0. by lias. }
     rewrite_by (Z.pos (precn - 2) + Z.log2 1 = Z.pos (precn - 2))%Z.
     apply/eqP.
     have: (Z.max (Z.log2 (Z.pos pl)) (Z.pos (precn - 2)) = Z.pos precn - 2)%Z; last by lias.
@@ -803,12 +901,12 @@ Definition unspec_arithmetic_nan := make_arithmetic unspec_nan_pl.
 
 Lemma unspec_arithmetic_nan_canonical : pl_arithmetic (sval unspec_arithmetic_nan).
 Proof.
-  apply make_arithmetic_arithmetic.
+  apply: make_arithmetic_arithmetic.
 Qed.
 
 Lemma unspec_arithmetic_nan_nan : Binary.nan_pl prec (sval unspec_arithmetic_nan).
 Proof.
-  apply make_arithmetic_nan.
+  apply: make_arithmetic_nan.
 Qed.
 
 (** An unspecified nan. **)
@@ -945,7 +1043,7 @@ Definition BofZ : Z -> T :=
 Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
 Proof.
   rewrite /BofZ /IEEE754_extra.BofZ /normalise => i.
-  f_equal; apply Logic.Eqdep_dec.eq_proofs_unicity_on;
+  f_equal; apply: Logic.Eqdep_dec.eq_proofs_unicity_on;
     move=> c; case: c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
 Qed.
 
