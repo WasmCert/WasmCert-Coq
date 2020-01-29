@@ -33,7 +33,7 @@ Ltac lias :=
 Ltac rewrite_by E :=
   let R := fresh "R" in
   have R: E;
-    [ by [auto|lias]
+    [ by [ auto | lias ]
     | rewrite {} R ].
 
 (** A useful lemma to link the results of [Scheme Equality] to [Equality.axiom]. **)
@@ -51,4 +51,34 @@ Definition Equality_axiom_eq_dec t (eqb : t -> t -> bool) (A : Equality.axiom eq
     forall x y : t, {x = y} + {x <> y}.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.
+
+(** A lemma to move from [BoolSpec] to [reflect] predicates. **)
+Lemma BoolSpec_reflect : forall P b,
+  BoolSpec P (~P) b ->
+  reflect P b.
+Proof.
+  move=> P b. case: b => S.
+  - apply: ReflectT. by inversion S.
+  - apply: ReflectF. by inversion S.
+Qed.
+
+(** And conversely. **)
+Lemma reflect_BoolSpec : forall P b,
+  reflect P b ->
+  BoolSpec P (~P) b.
+Proof.
+  move=> P b. case; by [ apply: BoolSpecT | apply: BoolSpecF ].
+Qed.
+
+Import ZArith.BinInt.
+
+Lemma gtb_spec0 : forall x y, reflect (x > y)%Z (x >? y)%Z.
+Proof.
+  move=> x y. apply: Bool.iff_reflect. rewrite Z.gtb_lt. by lias.
+Qed.
+
+Lemma geb_spec0 : forall x y, reflect (x >= y)%Z (x >=? y)%Z.
+Proof.
+  move=> x y. apply: Bool.iff_reflect. rewrite Z.geb_le. by lias.
+Qed.
 

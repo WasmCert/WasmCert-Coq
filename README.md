@@ -1,7 +1,7 @@
 # wasm_coq
 Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt.
 
-(C) J. Pichon 2019 - see LICENSE.txt
+(C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
 
 Usage: `esy` to install the dependencies and compile everything.
 Warning: compiling the dependencies requires having between about 3 and 4 GB of RAM on your computer.
