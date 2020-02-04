@@ -34,7 +34,7 @@ Hint Constructors reduce_simple.
 
 (* Check with Martin for these two: I think they should be in opsem for reduce,
    but they are currently not. Missing this it's impossible to prove quite a number
-   of cases -- unless I've overlooked something *)
+   of cases (edit: in fact all cases) -- unless I've overlooked something *)
 Axiom r_unchangedl: forall s vs es es' i l,
     reduce s vs es i s vs es' ->
     reduce s vs (l++es) i s vs (l++es').
@@ -112,7 +112,7 @@ Proof.
 Qed.
 
 (* Very interestingly, the following lemma has EXACTLY the same proof as the
-   lemma above, although they are not related at all! *)
+   lemma split_n_is_take_drop, although they are not related at all! *)
 Lemma v_to_e_take_exchange: forall vs n,
     v_to_e_list (take n vs) = take n (v_to_e_list vs).
 Proof.
@@ -175,7 +175,8 @@ Proof.
           apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
           rewrite <- cat1s. rewrite catA.
           apply r_unchangedr. apply r_unchangedl.
-          by apply r_basic.
+            by apply r_basic.
+            
         - (* Basic Nop *) move => H. inversion H; subst.
           clear H. eexists. unfold vs_to_es.
           assert (rev (rev lconst) = lconst ) as H; first by apply revK.
@@ -184,7 +185,8 @@ Proof.
           (* The same situation as above. *)
           rewrite <- cat1s. apply r_unchangedl. replace les' with ([::] ++ les').
           apply r_unchangedr. by apply r_basic.
-          by apply cat0s.
+            by apply cat0s.
+            
         - (* Basic Drop *) move => H. inversion H; subst.
           destruct (rev lconst) eqn:HRLConst => //.
           inversion H1. subst. clear H H1. unfold vs_to_es.
@@ -201,8 +203,7 @@ Proof.
             rewrite <- catrevE. rewrite <- (revK lconst). by rewrite HRLConst.
 
           (* Let's move on to something less trivial*)
-          Focus 3.
-          (* Basic loop *)
+          Focus 3. (* Basic loop *)
           destruct f.
           (* so it seems that lconst is a stack of numbers; then f is a function
              which takes l0 as the list of arguments, therefore the length 
@@ -275,7 +276,6 @@ Proof.
           destruct p => //.
           destruct r => //.
           destruct (length l1 <= length (rev lconst)) eqn:HLen => //.
-          (* split_n is equivalent to take + drop. I proved a lemma previously*)
           rewrite split_n_is_take_drop in H. inversion H. subst. clear H.
           move => H. inversion H. subst. clear H.
           apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals. clear HSplitVals.
@@ -300,10 +300,69 @@ Proof.
           admit.
       }
       { (* Label *)
+        (* This should be an interesting case because it relates to our previous work
+           on lfilled *)
         simpl.
         (* es_is_trap: the name is a bit misleading -- it actually means if the first
            element of es is a trap (rather than the entire list es). *)
-        destruct l0 => //=.
+        (* edit: after careful research (because a case in the proof later doesn't go
+           through, I realized that this is wrong. es_is_trap should only be true
+           if es is just [::Trap] ! *)
+        apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals. clear HSplitVals.
+        destruct (es_is_trap l0) eqn:HTrap.
+        - unfold es_is_trap in HTrap. destruct l0 => //. destruct l0 => //.
+          destruct a => //=.
+          move => H. inversion H. subst.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+          apply r_basic. by eapply rs_label_trap.
+        - destruct l0 => //=.
+          + move => H. inversion H. subst.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+          apply r_basic. by apply rs_label_const.
+          + destruct (is_const a) eqn:HConsta => //=.
+            destruct (const_list l0) eqn:HConstList => //=.
+            move => H. inversion H. subst.
+            eexists. unfold vs_to_es. rewrite revK.
+            rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+            apply r_basic. apply rs_label_const.
+            simpl. rewrite HConsta. by apply HConstList.
+
+        (* The following is useless work (before I identified the error in es_is_trap) *)
+
+        (* destruct l0 => //=.
+        - move => H. inversion H. subst.
+          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
+          clear H. clear HSplitVals.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+          apply r_basic. by apply rs_label_const.
+        - destruct a => //=.
+          + destruct (const_list l0) eqn:HConst => //.
+            (* These two lines have become a pattern everywhere. Maybe we can
+               put it before the large destruct *)
+            move => H. inversion H. subst. clear H.
+            apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
+            clear HSplitVals.
+            eexists. unfold vs_to_es. rewrite revK.
+            rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+            apply r_basic. by apply rs_label_const.
+          + move => H. inversion H. subst. clear H.
+            apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
+            clear HSplitVals.
+            eexists. unfold vs_to_es. rewrite revK.
+            rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+            assert (lfilledInd 0 (LBase [::] l0) [::Trap] ([::]++[::Trap]++l0)) as LF0; first by apply LfilledBase.
+            assert (lfilledInd 1 (LRec [::] n l (LBase [::] l0) [::]) [::Trap] ([::]++[::(Label n l ([::]++[::Trap]++l0))] ++ [::])) as LF1.
+            apply LfilledRec; first by []. by [].
+            simpl in LF0. simpl in LF1.
+            apply r_label. *)
+            
+
+      }
+
+      {
       }
          
 Admitted. (* TODO *)

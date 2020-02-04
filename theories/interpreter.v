@@ -84,8 +84,8 @@ Qed.
 
 Definition es_is_trap (es : list administrative_instruction) : bool :=
   match es with
-  | e :: _ => e_is_trap e
-  | [::] => false
+  | [::e] => e_is_trap e
+  | _ => false
   end.
 
 Section Host.
