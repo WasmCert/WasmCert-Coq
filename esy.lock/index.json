@@ -1,5 +1,5 @@
 {
-  "checksum": "febfb8d63b0e8810cbc09363355d8ab5",
+  "checksum": "328c86d2dd7aa72d42adb0b31f4f9e6a",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -19,7 +19,7 @@
         "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
         "@opam/menhir@opam:20181113@0c8257a8",
         "@opam/dune@opam:1.11.4@a7ccb7ae",
-        "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ad61bb3ded245792e337bde632e51df62f184ce7@d41d8cd9",
+        "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6@d41d8cd9",
         "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
@@ -404,16 +404,16 @@
       ],
       "devDependencies": [ "@opam/coq@opam:8.10.1@cabcd98d" ]
     },
-    "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ad61bb3ded245792e337bde632e51df62f184ce7@d41d8cd9": {
+    "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6@d41d8cd9": {
       "id":
-        "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ad61bb3ded245792e337bde632e51df62f184ce7@d41d8cd9",
+        "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6@d41d8cd9",
       "name": "@opam/coq-ext-lib",
       "version":
-        "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ad61bb3ded245792e337bde632e51df62f184ce7",
+        "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6",
       "source": {
         "type": "install",
         "source": [
-          "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ad61bb3ded245792e337bde632e51df62f184ce7"
+          "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6"
         ]
       },
       "overrides": [],
