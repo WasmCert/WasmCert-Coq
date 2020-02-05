@@ -80,18 +80,6 @@ Proof.
     destruct (split_vals_e es) eqn:Heqn. inversion HSplit; subst.
     simpl. f_equal. by auto.
 Qed.
-      
-Lemma split_vals_e_lfilled0: forall es vs es' es1 es2,
-    split_vals_e es = (vs,es') ->
-    es1 ++ es2 = es' ->
-    lfilled 0 (LBase (v_to_e_list vs) es2) es1 es.
-Proof.
-  move => es vs es' es1 es2 HSplitVals HApp.
-  apply lfilled_Ind_Equivalent.
-  replace es with (v_to_e_list vs ++ es1 ++ es2).
-  { apply LfilledBase. by apply v_to_e_is_const_list. }
-  rewrite HApp. symmetry. by apply split_vals_e_v_to_e_duality.
-Qed.
 
 (* Check with Martin for split_n: it's just take+drop *)
 Lemma split_n_is_take_drop: forall es n,
@@ -155,9 +143,11 @@ Proof.
      and vs is not empty; or crash otherwise. Else if e is not trap then try to execute
      e and see what happens, according to run_one_step. *)
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
+  apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals. clear HSplitVals.
   destruct les as [|a les'] eqn:Hles => //.
   - unfold run_one_step. elim: d.
-    * destruct a as [b| | | |].
+    + (* Base case *)
+      destruct a as [b| | | |].
       { (* Basic b *)
         destruct b => //=.
         - (* Basic Unreachable *) move => H. inversion H; subst.
@@ -172,7 +162,6 @@ Proof.
              Then we're done for this case. But there doesn't seem to be such a rule? *)
           (* I've added two axioms for the above to make this work. I believe they should
              be part of the opsem. *)
-          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
           rewrite <- cat1s. rewrite catA.
           apply r_unchangedr. apply r_unchangedl.
             by apply r_basic.
@@ -181,7 +170,6 @@ Proof.
           clear H. eexists. unfold vs_to_es.
           assert (rev (rev lconst) = lconst ) as H; first by apply revK.
           rewrite H.
-          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
           (* The same situation as above. *)
           rewrite <- cat1s. apply r_unchangedl. replace les' with ([::] ++ les').
           apply r_unchangedr. by apply r_basic.
@@ -192,7 +180,6 @@ Proof.
           inversion H1. subst. clear H H1. unfold vs_to_es.
           eexists. 
           (* Similar, although this case is a bit more tedious *)
-          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
           rewrite <- cat1s. rewrite catA. apply r_unchangedr.
           replace lconst with (rev l ++ [::v]).
           rewrite <- v_to_e_cat.
@@ -213,7 +200,6 @@ Proof.
           rewrite split_n_is_take_drop. unfold vs_to_es.
           rewrite drop_rev. rewrite take_rev. repeat rewrite revK.
           move => H. inversion H. subst. clear H.
-          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
           eexists.
           rewrite <- cat1s. repeat rewrite catA. apply r_unchangedr.
           replace (v_to_e_list lconst) with (v_to_e_list (take (size lconst - length l0) lconst) ++ v_to_e_list (drop (size lconst - length l0) lconst)).
@@ -249,13 +235,20 @@ Proof.
         - destruct lconst => //=.
           simpl in H. inversion H. subst. clear H.
           eexists. apply r_basic. eapply rs_trap.
-          + unfold split_vals_e in HSplitVals. destruct es => //. by destruct a => //.
-          + eapply (split_vals_e_lfilled0). apply HSplitVals. by apply cats0.
+          + by destruct es => //.
+          + apply lfilled_Ind_Equivalent.
+            assert (lfilledInd 0 (LBase ((Basic (EConst v)) :: (v_to_e_list lconst)) [::]) [::Trap] (Basic (EConst v)::v_to_e_list lconst ++ [::Trap] ++ [::])) as LF0.
+            * apply LfilledBase. simpl. by apply v_to_e_is_const_list.
+              simpl in LF0.
+              apply LF0.
         - simpl in H. inversion H. subst. clear H.
-          eexists. apply r_basic. eapply rs_trap.
-          + unfold split_vals_e in HSplitVals. destruct es => //. destruct a0 => //.
-              by inversion HSplitVals.
-          + eapply split_vals_e_lfilled0. apply HSplitVals. by f_equal.
+          eexists. apply r_basic. eapply rs_trap => //=.
+          + destruct lconst => //=.
+          + apply lfilled_Ind_Equivalent.
+            assert (lfilledInd 0 (LBase (v_to_e_list lconst) ([::a]++les')) [::Trap] (v_to_e_list lconst ++ [::Trap] ++ [::a]++les')) as LF0.
+            * apply LfilledBase. simpl. by apply v_to_e_is_const_list.
+              simpl in LF0.
+              apply LF0.
       }
       { (* Callcl *)
         simpl.
@@ -278,7 +271,6 @@ Proof.
           destruct (length l1 <= length (rev lconst)) eqn:HLen => //.
           rewrite split_n_is_take_drop in H. inversion H. subst. clear H.
           move => H. inversion H. subst. clear H.
-          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals. clear HSplitVals.
           eexists. replace ((Callcl (Func_native i0 (Tf l1 l2) l l0)) :: les') with (([:: Callcl (Func_native i0 (Tf l1 l2) l l0)] ++ les')).
           rewrite catA. apply (r_unchangedr les'). unfold vs_to_es.
           (* Check with Martin: how to replace only one occurrence *)
@@ -308,7 +300,6 @@ Proof.
         (* edit: after careful research (because a case in the proof later doesn't go
            through, I realized that this is wrong. es_is_trap should only be true
            if es is just [::Trap] ! *)
-        apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals. clear HSplitVals.
         destruct (es_is_trap l0) eqn:HTrap.
         - unfold es_is_trap in HTrap. destruct l0 => //. destruct l0 => //.
           destruct a => //=.
@@ -362,8 +353,26 @@ Proof.
 
       }
 
-      {
+      { (* Local *)
+        simpl.
+        destruct (es_is_trap l0) eqn:HTrap.
+        - move => H. inversion H. subst.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite <- catA. apply r_unchangedl. apply r_unchangedr.
+          unfold es_is_trap in HTrap. destruct l0 => //=. destruct l0 => //=.
+          destruct a => //=.
+          apply r_basic. apply rs_local_trap.
+        - destruct (const_list l0) eqn:HConstList => //=.
+          destruct (length l0 == n) eqn:HLen => //=.
+          move => H. inversion H. subst.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite <- catA. apply r_unchangedl. apply r_unchangedr.
+          apply r_basic. by apply rs_local_const.
       }
+    + (* This has grown to an extent that I'm no longer sure where I am *)
+      move => n IH. admit.
+  (* ???? *)
+    
          
 Admitted. (* TODO *)
 
