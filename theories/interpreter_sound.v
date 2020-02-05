@@ -299,7 +299,7 @@ Proof.
            element of es is a trap (rather than the entire list es). *)
         (* edit: after careful research (because a case in the proof later doesn't go
            through, I realized that this is wrong. es_is_trap should only be true
-           if es is just [::Trap] ! *)
+           if es is just [::Trap] ! See Conrad's outline page 63-64 *)
         destruct (es_is_trap l0) eqn:HTrap.
         - unfold es_is_trap in HTrap. destruct l0 => //. destruct l0 => //.
           destruct a => //=.
@@ -370,9 +370,47 @@ Proof.
           apply r_basic. by apply rs_local_const.
       }
     + (* This has grown to an extent that I'm no longer sure where I am *)
-      move => n IH. admit.
-  (* ???? *)
-    
+      move => n IH. destruct a as [b | | | |].
+      * (* Basic *) admit.
+      * (* Trap: the exact proof flows through -- I've checked.*) admit.
+      * (* Callcl: same *) admit.
+      * (* Label *)
+        (* Some of the same proof can be reused, but now there are more cases *)
+        simpl.
+        destruct (es_is_trap l0) eqn:HTrap.
+        - unfold es_is_trap in HTrap. destruct l0 => //. destruct l0 => //.
+          destruct a => //=.
+          move => H. inversion H. subst.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+          apply r_basic. by eapply rs_label_trap.
+        - destruct l0 => //=.
+          + move => H. inversion H. subst.
+          eexists. unfold vs_to_es. rewrite revK.
+          rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+          apply r_basic. by apply rs_label_const.
+          + destruct (is_const a) eqn:HConsta => //=.
+            destruct (const_list l0) eqn:HConstList => //=.
+            move => H. inversion H. subst.
+            eexists. unfold vs_to_es. rewrite revK.
+            rewrite <- cat1s. rewrite catA. apply r_unchangedr. apply r_unchangedl.
+            apply r_basic. apply rs_label_const.
+            simpl. rewrite HConsta. by apply HConstList.
+
+          (* inductive cases *)  
+            admit.
+            admit.
+        
+      * (* Local *) admit.
+        
+      (* ???? *)
+      (* ok, these are uninstantiated eexsits *)
+      Unshelve.
+      (* Again there must be better methods*)
+      exact i. exact i. exact i. exact i.
+      exact i. exact i. exact i. exact i.
+      exact i. exact i. exact i. exact i.
+      exact i. exact i. exact i.
          
 Admitted. (* TODO *)
 
