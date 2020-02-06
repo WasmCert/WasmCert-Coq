@@ -43,6 +43,16 @@ Axiom r_unchangedr: forall s vs es es' i l,
     reduce s vs es i s vs es' ->
     reduce s vs (es++l) i s vs (es'++l).
 
+(* After some thoughts, I think we need these two sensible things *)
+Axiom r_clear_stack: forall s vs es s' vs' es' lconst i,
+    const_list lconst ->
+    reduce s vs es i s' vs' es' ->
+    reduce s vs (lconst ++ es) i s' vs' (lconst ++ es').
+
+Axiom r_queue_operation: forall s vs es s' vs' es' i les,
+    reduce s vs es i s' vs' es' ->
+    reduce s vs (es ++ les) i s' vs' (es' ++ les).
+
 Lemma v_to_e_is_const_list: forall vs,
     const_list (v_to_e_list vs).
 Proof.
@@ -89,6 +99,16 @@ Proof.
   - move => es. destruct es => //=.
   - move => n IH es'. destruct es' => //=.
     + by rewrite IH.
+Qed.
+
+(* Ask Martin *)
+Lemma update_list_at_is_set_nth: forall {X:Type} (l:list X) n x,
+    n < size l ->
+    set_nth x l n x = update_list_at l n x.
+Proof.
+  move => X l n x. move: n. elim: l => //=.
+  move => a l IH n HLen. destruct n => //=.
+  unfold update_list_at. simpl. f_equal. by apply IH.
 Qed.
 
 (* Check with Martin: size is the standard function used in ssreflect.seq; should we
@@ -190,7 +210,7 @@ Proof.
             rewrite <- catrevE. rewrite <- (revK lconst). by rewrite HRLConst.
 
           (* Let's move on to something less trivial*)
-          Focus 3. (* Basic loop *)
+          - Focus 3. (* Basic loop *)
           destruct f.
           (* so it seems that lconst is a stack of numbers; then f is a function
              which takes l0 as the list of arguments, therefore the length 
@@ -213,6 +233,33 @@ Proof.
             by rewrite subKn.
           rewrite v_to_e_take_exchange. rewrite v_to_e_drop_exchange.
             by apply cat_take_drop.
+
+          - Focus 9. (* Basic Set_local i0 *)
+            destruct (rev lconst) eqn:HConst => //=.
+            destruct (i0 < length vs) eqn:HLen => //=.
+            move => H. inversion H. subst. clear H.
+            rewrite <- update_list_at_is_set_nth => //=.
+            
+            unfold vs_to_es. rewrite <- cat1s.
+            eexists. rewrite catA. apply r_queue_operation.
+            replace lconst with (rev l ++ [::v]).
+            replace (v_to_e_list (rev l)) with (v_to_e_list (rev l) ++ [::]).
+            rewrite <- v_to_e_cat. rewrite <- catA.
+            apply r_clear_stack => //=; first by apply v_to_e_is_const_list.
+            (* Ask martin if we can change opsem here *)
+            assert (forall x, (reduce s' ((take i0 vs) ++ [::x] ++ (drop (size vs - i0 - 1) vs)) [::Basic (EConst v); Basic (Set_local i0)] i s' ((take i0 vs) ++ [::v] ++ (drop (size vs - i0 - 1) vs)) [::])) as HGoal.
+            move => x. apply r_set_local.
+            + rewrite length_is_size. rewrite length_is_size in HLen. rewrite size_take.
+              by rewrite HLen.
+              (* too much hassle, probably just change opsem *)
+            + admit.
+            + by apply cats0.
+            + admit.
+            
+    
+            
+            
+            
           
         (* It feels like most cases in this branch (Basic b) can be done via an
            application of r_basic followed by some rs_xxx rule and rewriting 
@@ -226,7 +273,7 @@ Proof.
           admit. admit. admit. admit.
           admit. admit. admit. admit.
           admit. admit. admit. admit.
-          admit. admit. admit. admit.
+          admit. admit. admit. 
       }
       {  (* Trap *)
         simpl.
@@ -410,7 +457,7 @@ Proof.
       exact i. exact i. exact i. exact i.
       exact i. exact i. exact i. exact i.
       exact i. exact i. exact i. exact i.
-      exact i. exact i. exact i.
+      exact i. exact i. exact i. exact i.
          
 Admitted. (* TODO *)
 
