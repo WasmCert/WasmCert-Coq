@@ -165,7 +165,7 @@ Proof.
       { (* Basic b *)
         destruct b => //=.
         - (* Basic Unreachable *) move => H. inversion H; subst.
-          clear H. eexists. unfold vs_to_es.
+          clear H. exists i. unfold vs_to_es.
           rewrite revK.
           (* The rule rs_unreachable in reduce_simple gives that Basic Unreachable
              reduces to Trap; v_to_e_list lconst obviously refers to the initial 
@@ -180,7 +180,7 @@ Proof.
             by apply r_simple.
             
         - (* Basic Nop *) move => H. inversion H; subst.
-          clear H. eexists. unfold vs_to_es.
+          clear H. exists i. unfold vs_to_es.
           rewrite revK.
           (* The same situation as above. *)
           rewrite - cat1s. apply r_eliml; first by apply v_to_e_is_const_list. replace les' with ([::] ++ les').
@@ -190,7 +190,7 @@ Proof.
         - (* Basic Drop *) move => H. inversion H; subst.
           destruct (rev lconst) eqn:HRLConst => //.
           inversion H1. subst. clear H H1. unfold vs_to_es.
-          eexists. 
+          exists i. 
           (* Similar, although this case is a bit more tedious *)
           rewrite - cat1s. rewrite catA. apply r_elimr.
           replace lconst with (rev l ++ [::v]).
@@ -212,7 +212,7 @@ Proof.
           rewrite split_n_is_take_drop. unfold vs_to_es.
           rewrite drop_rev. rewrite take_rev. repeat rewrite revK.
           move => H. inversion H. subst. clear H.
-          eexists.
+          exists i.
           rewrite - cat1s. repeat rewrite catA. apply r_elimr.
           replace (v_to_e_list lconst) with (v_to_e_list (take (size lconst - length l0) lconst) ++ v_to_e_list (drop (size lconst - length l0) lconst)).
           rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list.
@@ -233,7 +233,7 @@ Proof.
             rewrite - update_list_at_is_set_nth => //=.
             
             unfold vs_to_es. rewrite - cat1s.
-            eexists. rewrite catA. apply r_elimr.
+            exists i. rewrite catA. apply r_elimr.
             replace lconst with (rev l ++ [::v]).
             replace (v_to_e_list (rev l)) with (v_to_e_list (rev l) ++ [::]).
             rewrite - v_to_e_cat. rewrite - catA.
@@ -273,14 +273,14 @@ Proof.
         move => H. destruct les' => //=.
         - destruct lconst => //=.
           simpl in H. inversion H. subst. clear H.
-          eexists. apply r_simple. eapply rs_trap.
+          exists i. apply r_simple. eapply rs_trap.
           + by destruct es => //.
           + apply lfilled_Ind_Equivalent.
             assert (lfilledInd 0 (LBase ((Basic (EConst v)) :: (v_to_e_list lconst)) [::]) [::Trap] (Basic (EConst v)::v_to_e_list lconst ++ [::Trap] ++ [::])) as LF0.
             { apply LfilledBase. simpl. by apply v_to_e_is_const_list. }
             by apply LF0.
         - simpl in H. inversion H. subst. clear H.
-          eexists. apply r_simple. eapply rs_trap => //=.
+          exists i. apply r_simple. eapply rs_trap => //=.
           + destruct lconst => //=.
           + apply lfilled_Ind_Equivalent.
             assert (lfilledInd 0 (LBase (v_to_e_list lconst) ([::a0]++les')) [::Trap] (v_to_e_list lconst ++ [::Trap] ++ [::a0]++les')) as LF0.
@@ -308,7 +308,7 @@ Proof.
           destruct (length l1 <= length (rev lconst)) eqn:HLen => //.
           rewrite split_n_is_take_drop in H. inversion H. subst. clear H.
           move => H. inversion H. subst. clear H.
-          eexists. replace ((Callcl (Func_native i0 (Tf l1 l2) l l0)) :: les') with (([:: Callcl (Func_native i0 (Tf l1 l2) l l0)] ++ les')).
+          exists i. replace ((Callcl (Func_native i0 (Tf l1 l2) l l0)) :: les') with (([:: Callcl (Func_native i0 (Tf l1 l2) l l0)] ++ les')).
           rewrite catA. apply (r_unchangedr les'). unfold vs_to_es.
           (* Check with Martin: how to replace only one occurrence *)
           replace (v_to_e_list lconst) with (take (size lconst - length l1) (v_to_e_list lconst) ++ drop (size lconst - length l1) (v_to_e_list lconst)).
@@ -343,18 +343,18 @@ Proof.
         - unfold es_is_trap in HTrap. destruct l0 => //. destruct l0 => //.
           destruct a0 => //=.
           move => H. inversion H. subst.
-          eexists. unfold vs_to_es. rewrite revK.
+          exists i. unfold vs_to_es. rewrite revK.
           rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
           apply r_simple. by eapply rs_label_trap.
         - destruct l0 => //=.
           + move => H. inversion H. subst.
-          eexists. unfold vs_to_es. rewrite revK.
+          exists i. unfold vs_to_es. rewrite revK.
           rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
           apply r_simple. by apply rs_label_const.
           + destruct (is_const a0) eqn:HConsta => //=.
             destruct (const_list l0) eqn:HConstList => //=.
             move => H. inversion H. subst.
-            eexists. unfold vs_to_es. rewrite revK.
+            exists i. unfold vs_to_es. rewrite revK.
             rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
             apply r_simple. apply rs_label_const.
             simpl. rewrite HConsta. by apply HConstList.
@@ -365,7 +365,7 @@ Proof.
         - move => H. inversion H. subst.
           apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
           clear H. clear HSplitVals.
-          eexists. unfold vs_to_es. rewrite revK.
+          exists i. unfold vs_to_es. rewrite revK.
           rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml.
           apply r_simple. by apply rs_label_const.
         - destruct a => //=.
@@ -375,13 +375,13 @@ Proof.
             move => H. inversion H. subst. clear H.
             apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
             clear HSplitVals.
-            eexists. unfold vs_to_es. rewrite revK.
+            exists i. unfold vs_to_es. rewrite revK.
             rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml.
             apply r_simple. by apply rs_label_const.
           + move => H. inversion H. subst. clear H.
             apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
             clear HSplitVals.
-            eexists. unfold vs_to_es. rewrite revK.
+            exists i. unfold vs_to_es. rewrite revK.
             rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml.
             assert (lfilledInd 0 (LBase [::] l0) [::Trap] ([::]++[::Trap]++l0)) as LF0; first by apply LfilledBase.
             assert (lfilledInd 1 (LRec [::] n l (LBase [::] l0) [::]) [::Trap] ([::]++[::(Label n l ([::]++[::Trap]++l0))] ++ [::])) as LF1.
@@ -397,7 +397,7 @@ Proof.
         move => n i0 l l0.
         destruct (es_is_trap l0) eqn:HTrap.
         - move => H. inversion H. subst.
-          eexists. unfold vs_to_es. rewrite revK.
+          exists i. unfold vs_to_es. rewrite revK.
           rewrite - cat1s. rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_elimr.
           unfold es_is_trap in HTrap. destruct l0 => //=. destruct l0 => //=.
           destruct a0 => //=.
@@ -405,7 +405,7 @@ Proof.
         - destruct (const_list l0) eqn:HConstList => //=.
           destruct (length l0 == n) eqn:HLen => //=.
           move => H. inversion H. subst.
-          eexists. unfold vs_to_es. rewrite revK.
+          exists i. unfold vs_to_es. rewrite revK.
           rewrite - cat1s. rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_elimr.
           apply r_simple. by apply rs_local_const.
       }
@@ -421,14 +421,6 @@ Proof.
         
       * (* Local *) admit.
         
-      (* ???? *)
-      (* ok, these are uninstantiated eexsits *)
-      Unshelve.
-      (* Again there must be better methods*)
-      exact i. exact i. exact i. exact i.
-      exact i. exact i. exact i. exact i.
-      exact i. exact i. exact i. exact i.
-      exact i. 
          
 Admitted. (* TODO *)
 
