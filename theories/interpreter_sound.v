@@ -44,14 +44,30 @@ Axiom r_unchangedr: forall s vs es es' i l,
     reduce s vs (es++l) i s vs (es'++l).
 
 (* After some thoughts, I think we need these two sensible things instead *)
-Axiom r_eliml: forall s vs es s' vs' es' lconst i,
+Lemma r_eliml: forall s vs es s' vs' es' lconst i,
     const_list lconst ->
     reduce s vs es i s' vs' es' ->
     reduce s vs (lconst ++ es) i s' vs' (lconst ++ es').
-
-Axiom r_elimr: forall s vs es s' vs' es' i les,
+Proof.
+  move => s vs es s' vs' es' lconst i HConst H.
+  eapply r_label; try (apply lfilled_Ind_Equivalent).
+  - apply H.
+  - replace (lconst++es) with (lconst++es++[::]); first by apply LfilledBase.
+    f_equal. by apply cats0.
+  - replace (lconst++es') with (lconst++es'++[::]); first by apply LfilledBase.
+    f_equal. by apply cats0.
+Qed.
+    
+Lemma r_elimr: forall s vs es s' vs' es' i les,
     reduce s vs es i s' vs' es' ->
     reduce s vs (es ++ les) i s' vs' (es' ++ les).
+Proof.
+  move => s vs es s' vs' es' i les H.
+  eapply r_label; try (apply lfilled_Ind_Equivalent).
+  - apply H.
+  - replace (es++les) with ([::]++es++les) => //. by apply LfilledBase.
+  - replace (es'++les) with ([::]++es'++les) => //. by apply LfilledBase.
+Qed.
 
 Lemma v_to_e_is_const_list: forall vs,
     const_list (v_to_e_list vs).
