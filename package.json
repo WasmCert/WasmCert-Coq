@@ -25,7 +25,7 @@
   "devDependencies": {
   },
   "resolutions": {
-    "@opam/coq-ext-lib": "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ad61bb3ded245792e337bde632e51df62f184ce7",
+    "@opam/coq-ext-lib": "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6",
     "coq-mathcomp-ssreflect": {
       "source": "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39",
       "override": {

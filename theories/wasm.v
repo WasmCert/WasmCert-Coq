@@ -37,8 +37,6 @@ Parameter serialise_i32 : i32 -> bytes.
 Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.
 Parameter serialise_f64 : f64 -> bytes.
-Parameter wasm_bool : bool -> i32.
-Parameter int32_minus_one : i32.
 
 Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
   match n with
@@ -786,7 +784,47 @@ Fixpoint lfill (k : nat) (lh : lholed) (es : list administrative_instruction) : 
 Definition lfilled (k : nat) (lh : lholed) (es : list administrative_instruction) (es' : list administrative_instruction) : bool :=
   if lfill k lh es is Some es'' then es' == es'' else false.
 
-(* TODO: also inductive definition? *)
+Inductive lfilledInd : nat -> lholed -> list administrative_instruction -> list administrative_instruction -> Prop :=
+| LfilledBase: forall vs es es',
+    const_list vs ->
+    lfilledInd 0 (LBase vs es') es (vs ++ es ++ es')
+| LfilledRec: forall k vs n es' lh' es'' es LI,
+    const_list vs ->
+    lfilledInd k lh' es LI ->
+    lfilledInd (k.+1) (LRec vs n es' lh' es'') es (vs ++ [ :: (Label n es' LI) ] ++ es'').
+
+Lemma lfilled_Ind_Equivalent: forall k lh es LI,
+    lfilled k lh es LI <-> lfilledInd k lh es LI.
+Proof.
+  move => k. split.
+  - move: lh es LI. induction k; move => lh es LI HFix.
+    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
+      * destruct (const_list l) eqn:HConst => //=.
+        { replace LI with (l++es++l0); first by apply LfilledBase.
+          symmetry. move: HFix. by apply/eqseqP. }
+    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
+      * destruct (const_list l) eqn:HConst => //=.
+        { destruct (lfill k lh es) eqn:HLF => //=.
+          { replace LI with (l ++ [ :: (Label n l0 l2)] ++ l1).
+          apply LfilledRec; first by [].
+          apply IHk. unfold lfilled; first by rewrite HLF.
+          symmetry. move: HFix. by apply/eqseqP. }
+        }
+  - move => HLF. induction HLF.
+    + unfold lfilled. unfold lfill. by rewrite H.
+    + unfold lfilled. unfold lfill. rewrite H. fold lfill.
+      unfold lfilled in IHHLF. destruct (lfill k lh' es) => //=.
+      * replace LI with l => //=.
+        symmetry. by apply/eqseqP.
+Qed.
+
+Lemma lfilledP: forall k lh es LI,
+    reflect (lfilledInd k lh es LI) (lfilled k lh es LI).
+Proof.
+  move => k lh es LI. destruct (lfilled k lh es LI) eqn:HLFBool.
+  - apply ReflectT. by apply lfilled_Ind_Equivalent.
+  - apply ReflectF. move => HContra. apply lfilled_Ind_Equivalent in HContra. by rewrite HLFBool in HContra.
+Qed.
 
 Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
   match k with
