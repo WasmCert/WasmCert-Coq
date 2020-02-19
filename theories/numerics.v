@@ -132,7 +132,7 @@ Qed.
 
 Lemma eq_T_intval : forall x y : T, intval x = intval y -> x = y.
 Proof.
-  move=> [x [Vx Rx]] [y [Vy Ry]]. move=> /= E. subst. f_equal.
+  move=> [x [Vx Rx]] [y [Vy Ry]] /= E. subst. f_equal.
   rewrite (Z_lt_irrelevant Vx Vy).
   by rewrite (Z_lt_irrelevant Rx Ry).
 Qed.
@@ -180,9 +180,19 @@ Lemma power_index_to_bits_in : forall c l n,
   n < c ->
   seq.nth false (power_index_to_bits c l) (c - n - 1) = ((n : Z) \in l).
 Proof.
-  move=> c l n => /leP I. move: l. elim: I.
+  move=> c l n /leP I. move: l. elim: I.
   - move=> l /=. by rewrite_by (n.+1 - n - 1 = 0).
   - move=> {} c I IH l. rewrite_by (c.+1 - n - 1 = 1 + (c - n - 1)). by apply: IH.
+Qed.
+
+Lemma power_index_to_bits_nth : forall c l n,
+  n < c ->
+  seq.nth false (power_index_to_bits c l) n = ((c - n - 1 : Z) \in l).
+Proof.
+  move=> c l n I. have E: (n = c - (c - n - 1) - 1).
+  { move/leP: I. lias. (* FIXME: [lias] probably needs to be rewritten. *) }
+  rewrite {1} E. apply: power_index_to_bits_in.
+  apply/leP. move/leP: I. lias.
 Qed.
 
 (** Given a [T], return a sequence of bits representing the integer.
@@ -206,10 +216,38 @@ Proof.
   by move=> n /= ->.
 Qed.
 
+Lemma convert_to_bits_nth : forall (p : nat) x,
+  p < wordsize ->
+  seq.nth false (convert_to_bits x) p
+  = ((wordsize - p - 1 : Z) \in Zbits.Z_one_bits wordsize (intval x) 0).
+Proof.
+  move=> p x I. rewrite /convert_to_bits. by rewrite power_index_to_bits_nth.
+Qed.
+
 Lemma convert_to_bits_one :
   convert_to_bits one
   = rcons (seq.nseq (wordsize - 1) false) true.
 Proof.
+(* FIXME: An alternative proof, which might be adaptable for other similar proofs.
+  apply: (@eq_from_nth _ false).
+  - rewrite convert_to_bits_size size_rcons size_nseq /wordsize.
+    move: WS.wordsize_not_zero. lias.
+  - move=> i. rewrite convert_to_bits_size => I. rewrite convert_to_bits_nth //.
+    have E: intval one = Zpower.two_p Z0.
+    { compute. move: WS.wordsize_not_zero. by elim: WS.wordsize. }
+    rewrite {} E Zbits.Z_one_bits_two_p /=.
+    + rewrite nth_rcons nth_nseq size_nseq.
+      case E: (i == wordsize - 1); move/ssrnat.eqnP: E => E.
+      * rewrite {} E. rewrite_by (wordsize - (wordsize - 1) - 1 = 0).
+        by rewrite_by (wordsize - 1 < wordsize - 1 = false).
+      * have Ei: i < wordsize - 1 = true.
+        { apply/leP. move/leP: I E. lias. }
+        rewrite {} Ei in_cons in_nil Bool.orb_false_r.
+        have Ed: ((wordsize - i - 1 : Z) == 0) = (wordsize - i - 1 == 0).
+        { admit (* TODO *). }
+        rewrite {} Ed.
+        apply gtn_eqF. move/leP: I E. move: WS.wordsize_not_zero. rewrite/wordsize. lias.
+ *)
   have E: intval one = Zpower.two_p Z0.
   { compute. move: WS.wordsize_not_zero. by elim: WS.wordsize. }
   rewrite /convert_to_bits E Zbits.Z_one_bits_two_p /=.
@@ -247,7 +285,7 @@ Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
 Proof.
-  move=> a b. move/leP => I. apply/Z_eqP. by lias.
+  move=> a b /leP => I. apply/Z_eqP. by lias.
 Qed.
 
 Lemma nat_Z_gt_neq : forall a b,
@@ -303,6 +341,7 @@ Lemma convert_to_from_bits : forall a,
   lt a (repr (Zpower.two_p wordsize)) ->
   a = convert_from_bits (convert_to_bits a).
 Proof.
+  move=> a I. rewrite/convert_to_bits.
   (* TODO *)
 Admitted.
 
@@ -454,7 +493,7 @@ Proof.
   apply: eq_T_intval. move: E1 E2. rewrite /add /mul /=.
   case i1 => {i1} v1 R1. case i2 => {i2} v2 R2 /=.
   move/eqP => D. have := Zdiv.Z_div_mod_full (signed {| intval := v1; intrange := R1 |}) _ D.
-  rewrite Zaux.Zdiv_eucl_unique. move=> [E R]. move/eqP.
+  rewrite Zaux.Zdiv_eucl_unique. move=> [E R] /eqP.
   repeat rewrite Z_mod_modulus_eq. rewrite Z.mul_mod_idemp_r => //.
   rewrite Z.add_mod_idemp_l => //. rewrite Z.add_mod_idemp_r => //.
   move: D E R. rewrite /signed. do 2 case: Coqlib.zlt; move=> /= I1 I2 D E R DH.
@@ -619,7 +658,7 @@ Definition Tmixin : mixin_of T := {|
 Lemma nat_of_uint_Z_of_uint : forall i,
   (nat_of_uint Tmixin i : Z) = Z_of_uint Tmixin i.
 Proof.
-  move=> [i R] /=. move: R. case=> I1 I2.
+  move=> [i +] /=. case=> I1 I2.
   have: (i >= 0)%Z; first by lias.
   move=> {I1 I2}. case i.
   - reflexivity.
