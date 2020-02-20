@@ -77,9 +77,9 @@ Definition e_is_trap (e : administrative_instruction) : bool :=
   | _ => false
   end.
 
-Lemma foo : forall e, reflect (e = Trap) (e_is_trap e).
+Lemma e_is_trapP : forall e, reflect (e = Trap) (e_is_trap e).
 Proof.
-  case => /=; intros; by [ apply: ReflectF | apply: ReflectT ].
+  case => //= >; by [ apply: ReflectF | apply: ReflectT ].
 Qed.
 
 Definition es_is_trap (es : list administrative_instruction) : bool :=
@@ -87,6 +87,15 @@ Definition es_is_trap (es : list administrative_instruction) : bool :=
   | [::e] => e_is_trap e
   | _ => false
   end.
+
+Lemma es_is_trapP : forall l, reflect (l = [::Trap]) (es_is_trap l).
+Proof.
+  case; first by apply: ReflectF.
+  move=> // a l. case l => //=.
+  - apply: (iffP (e_is_trapP _)); first by elim.
+    by inversion 1.
+  - move=> >. by apply: ReflectF.
+Qed.
 
 Section Host.
 
