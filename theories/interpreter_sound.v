@@ -104,6 +104,13 @@ Ltac explode_and_simplify :=
     | rewrite take_rev
     | rewrite revK ].
 
+Ltac pattern_match :=
+  lazymatch goal with
+  | |- (_, _, _) = (_, _, _) -> _ =>
+    let H := fresh in
+    move=> H; inversion H; subst; clear H
+  end.
+
 Lemma run_step_soundness : forall d i s vs es s' vs' es',
     run_step d i (s, vs, es) = (s', vs', RS_normal es') ->
     reduce s vs es i s' vs' es'.
@@ -130,8 +137,7 @@ Proof.
         destruct b => //=.
         - (* Basic Unreachable *)
           explode_and_simplify.
-          move => H. inversion H; subst.
-          clear H.
+          pattern_match.
           (* The rule rs_unreachable in reduce_simple gives that Basic Unreachable
              reduces to Trap; v_to_e_list lconst obviously refers to the initial 
              segment of Basic EConst, so if we have a rule saying something like
@@ -140,14 +146,13 @@ Proof.
              Then we're done for this case. But there doesn't seem to be such a rule? *)
           (* I've added two axioms for the above to make this work. I believe they should
              be part of the opsem. *)
-          rewrite - cat1s. rewrite catA.
+          rewrite -cat1s. rewrite catA.
           apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
             by apply r_simple.
             
         - (* Basic Nop *)
           explode_and_simplify.
-          move => H. inversion H; subst.
-          clear H.
+          pattern_match.
           (* The same situation as above. *)
           rewrite - cat1s. apply r_eliml; first by apply v_to_e_is_const_list. replace les' with ([::] ++ les').
           apply r_elimr. by apply r_simple.
@@ -155,9 +160,9 @@ Proof.
             
         - (* Basic Drop *)
           explode_and_simplify.
-          move => H. inversion H; subst.
           destruct (rev lconst) eqn:HRLConst => //.
-          inversion H1. subst. clear H H1. unfold vs_to_es.
+          pattern_match.
+          unfold vs_to_es.
           
           (* Similar, although this case is a bit more tedious *)
           rewrite - cat1s. rewrite catA. apply r_elimr.
@@ -178,8 +183,8 @@ Proof.
           (* Ask Martin how to do this nicely *)
 
           explode_and_simplify.
+          pattern_match.
 
-          move => H. inversion H. subst. clear H.
           rewrite - cat1s. repeat rewrite catA. apply r_elimr.
           replace (v_to_e_list lconst) with (v_to_e_list (take (size lconst - length l0) lconst) ++ v_to_e_list (drop (size lconst - length l0) lconst)).
           rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list.
@@ -196,7 +201,7 @@ Proof.
             explode_and_simplify.
             destruct (rev lconst) eqn:HConst => //=.
             destruct (i0 < length vs) eqn:HLen => //=.
-            move => H. inversion H. subst. clear H.
+            pattern_match.
             rewrite - update_list_at_is_set_nth => //=.
             
             unfold vs_to_es. rewrite - cat1s.
@@ -309,15 +314,15 @@ Proof.
         explode_and_simplify.
 
         (*destruct (es_is_trap l0) eqn:HTrap.*)
-        - move => H. inversion H. subst.
+        - pattern_match.
           rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
           apply r_simple. by eapply rs_label_trap.
         - destruct l0 => //=.
-          + move => H. inversion H. subst.
+          + pattern_match.
             rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
             apply r_simple. by apply rs_label_const.
           + simplify_goal. move/andP: if_expr0 => [HConsta HConstList].
-            move => H. inversion H. subst.
+            pattern_match.
             rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
             apply r_simple. apply rs_label_const.
             simpl. rewrite HConsta. by apply HConstList.
@@ -359,10 +364,10 @@ Proof.
         move => n i0 l l0.
         explode_and_simplify.
         (*destruct (es_is_trap l0) eqn:HTrap.*)
-        - move => H. inversion H. subst.
+        - pattern_match.
           rewrite - cat1s. rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_elimr.
           apply r_simple. apply rs_local_trap.
-        - move => H. inversion H. subst.
+        - pattern_match.
           rewrite - cat1s. rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_elimr.
           apply r_simple. by apply rs_local_const.
       }
