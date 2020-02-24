@@ -33,7 +33,6 @@ Let run_step := run_step mem_grow_impl host_apply_impl.
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
 
-(* After some thoughts, I think we need these two sensible things instead *)
 Lemma r_eliml: forall s vs es s' vs' es' lconst i,
     const_list lconst ->
     reduce s vs es i s' vs' es' ->
@@ -59,6 +58,16 @@ Proof.
   - replace (es'++les) with ([::]++es'++les) => //. by apply LfilledBase.
 Qed.
 
+Lemma r_eliml_empty: forall s vs es s' vs' lconst i,
+    const_list lconst ->
+    reduce s vs es i s' vs' [::] ->
+    reduce s vs (lconst ++ es) i s' vs' lconst.
+Proof.
+  move => s vs es s' vs' lconst i HConst H.
+  assert (reduce s vs (lconst++es) i s' vs' (lconst++[::])); first by apply r_eliml.
+  by rewrite cats0 in H0.
+Qed.
+
 Lemma r_elimr_empty: forall s vs es s' vs' i les,
     reduce s vs es i s' vs' [::] ->
     reduce s vs (es ++ les) i s' vs' les.
@@ -68,10 +77,22 @@ Proof.
   by rewrite cat0s in H0.
 Qed.
 
+Lemma rev_move: forall {X:Type} (l1 l2:seq X),
+  rev l1 = l2 -> l1 = rev l2.
+Proof.
+  move => X l1 l2 HRev. rewrite -HRev. symmetry. by apply revK.
+Qed.
+
 Lemma const_list_cons : forall a l,
   const_list (a :: l) = is_const a && const_list l.
 Proof.
   by [].
+Qed.
+
+Lemma v_to_e_take_drop_split: forall l n,
+  v_to_e_list l = v_to_e_list (take n l) ++ v_to_e_list (drop n l).
+Proof.
+  move => l n. rewrite v_to_e_cat. by rewrite cat_take_drop.
 Qed.
 
 Ltac simplify_hypothesis Hb :=
@@ -112,20 +133,25 @@ Ltac pattern_match :=
     move=> H; inversion H; subst; clear H
   end.
 
-Ltac frame_stack :=
-  lazymatch goal with
-  | |- reduce _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ ((?l1 ++ ?l4) ++ ?l3) =>
+Ltac stack_frame :=
+  repeat lazymatch goal with
+  | |- reduce _ _ (_ :: ?l) _ _ _ _ =>
+    rewrite - cat1s
+  | |- reduce _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ ((?l5 ++ ?l4) ++ ?l3) =>
     rewrite -cat1s; rewrite catA;
-    try apply r_elimr; try apply r_eliml; try apply v_to_e_is_const_list
-  | |- reduce _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ (?l1 ++ ?l3) =>
-    rewrite -cat1s;
-    try apply r_eliml; try apply v_to_e_is_const_list; try apply r_elimr_empty
+    apply r_elimr; try apply r_eliml; try apply v_to_e_is_const_list
+  | |- reduce _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ (?l5 ++ ?l3) =>
+    rewrite -cat1s; rewrite catA;
+    apply r_elimr; try apply r_eliml_empty; try apply v_to_e_is_const_list
+  | |- reduce _ _ (v_to_e_list ?l1 ++ _) _ _ _ (v_to_e_list (take ?n ?l1) ++ _) =>
+    rewrite (v_to_e_take_drop_split l1 n); rewrite -catA;
+    apply r_eliml; try apply v_to_e_is_const_list
   end.
 
 Lemma run_step_soundness : forall d i s vs es s' vs' es',
     run_step d i (s, vs, es) = (s', vs', RS_normal es') ->
     reduce s vs es i s' vs' es'.
-Proof.
+Proof with eauto.
   move => d i s vs es s' vs' es'. simpl.
   (* split_vals_e es: takes the maximum initial segment of es whose elements
      are all of the form Basic EConst v; returns a pair of list (ves, es') where
@@ -149,13 +175,13 @@ Proof.
         - (* Basic Unreachable *)
           explode_and_simplify.
           pattern_match.
-          frame_stack.
+          stack_frame.
           by eauto.
             
         - (* Basic Nop *)
           explode_and_simplify.
           pattern_match.
-          frame_stack.
+          stack_frame.
           by eauto.
             
         - (* Basic Drop *)
@@ -163,49 +189,74 @@ Proof.
           destruct (rev lconst) eqn:HRLConst => //.
           pattern_match.
           unfold vs_to_es.
+          stack_frame.
+          apply rev_move in HRLConst. rewrite HRLConst.
+          rewrite -cat1s. rewrite rev_cat.
+          rewrite -v_to_e_cat. simpl.
+          rewrite -catA.
+          apply r_eliml_empty; first by apply v_to_e_is_const_list.
+          simpl. by eauto.
           
-          (* Similar, although this case is a bit more tedious *)
-          rewrite - cat1s. rewrite catA. apply r_elimr.
-          replace lconst with (rev l ++ [::v]).
-          rewrite - v_to_e_cat.
-          replace (v_to_e_list (rev l)) with (v_to_e_list (rev l) ++ [::]).
-          repeat rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_simple.
-          rewrite cat0s. by rewrite cat1s.
-            by apply cats0.
-            rewrite - catrevE. rewrite - (revK lconst). by rewrite HRLConst.
+        - (* Basic Select *)
+          destruct (rev lconst) eqn:HRLConst => //.
+          destruct v => //.
+          destruct l => //.
+          destruct l => //.
+          explode_and_simplify; pattern_match; stack_frame;
+            apply rev_move in HRLConst; rewrite HRLConst.
+          + (* Select_true *)
+            do 3 (rewrite -cat1s; rewrite rev_cat).
+            do 2 rewrite -catA.
+            replace (rev (v::l)) with (rev l ++ [::v]).
+            repeat rewrite -v_to_e_cat.
+            rewrite -catA.
+            apply r_eliml; first by apply v_to_e_is_const_list.
+            simpl. by eauto.
+            (* replace *) rewrite rev_cons. by rewrite -cats1.
+          + (* Select_false *)    
+            do 3 (rewrite -cat1s; rewrite rev_cat).
+            do 2 rewrite -catA.
+            replace (rev (v::l)) with (rev l ++ [::v]).
+            repeat rewrite -v_to_e_cat.
+            rewrite -catA.
+            apply r_eliml; first by apply v_to_e_is_const_list.
+            simpl. apply r_simple. apply rs_select_false.
+            move/eqP in if_expr. by apply/eqP.
+            (* replace *) rewrite rev_cons. by rewrite -cats1.          
 
-          (* Let's move on to something less trivial*)
-        - Focus 3. (* Basic loop *)
+        - (* Basic Block *) destruct f.
+          explode_and_simplify.
+          pattern_match.
+          stack_frame.
+    
+          apply r_simple. eapply rs_block; first by apply v_to_e_is_const_list.
+          eauto. repeat rewrite length_is_size.
+          rewrite v_to_e_drop_exchange. rewrite size_drop. rewrite v_to_e_size.
+          by rewrite subKn.
+          by [].
+                        
+        - (* Basic loop *)
           destruct f.
-          (* so it seems that lconst is a stack of numbers; then f is a function
-             which takes l0 as the list of arguments, therefore the length 
-             requirement. *)
-          (* Ask Martin how to do this nicely *)
 
           explode_and_simplify.
           pattern_match.
-
-          rewrite - cat1s. repeat rewrite catA. apply r_elimr.
-          replace (v_to_e_list lconst) with (v_to_e_list (take (size lconst - length l0) lconst) ++ v_to_e_list (drop (size lconst - length l0) lconst)).
-          rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list.
+          stack_frame.
           apply r_simple.
           eapply rs_loop => //=. (* generates 4 subgoals but most are trivial *)
           +(*1*) by apply v_to_e_is_const_list.
           +(*2*) repeat rewrite length_is_size.
             rewrite v_to_e_drop_exchange. rewrite size_drop. rewrite v_to_e_size.
             by rewrite subKn.
-          + rewrite v_to_e_take_exchange. rewrite v_to_e_drop_exchange.
-            by apply cat_take_drop.
-
-          - Focus 9. (* Basic Set_local i0 *)
+        
+        - Focus 7. (* Basic Set_local i0 *)
             explode_and_simplify.
             destruct (rev lconst) eqn:HConst => //=.
             destruct (i0 < length vs) eqn:HLen => //=.
             pattern_match.
             rewrite - update_list_at_is_set_nth => //=.
             
-            unfold vs_to_es. rewrite - cat1s.
-            rewrite catA. apply r_elimr.
+            unfold vs_to_es.
+            stack_frame.
             replace lconst with (rev l ++ [::v]).
             replace (v_to_e_list (rev l)) with (v_to_e_list (rev l) ++ [::]).
             rewrite - v_to_e_cat. rewrite - catA.
@@ -240,7 +291,7 @@ Proof.
           admit. admit. admit. admit.
           admit. admit. admit. admit.
           admit. admit. admit. admit.
-          admit. admit. admit. 
+          admit. 
       }
       {  (* Trap *)
         explode_and_simplify.
@@ -284,7 +335,7 @@ Proof.
           rewrite split_n_is_take_drop in H. inversion H. subst. clear H.
           move => H. inversion H. subst. clear H.
           replace ((Callcl (Func_native i0 (Tf l1 l2) l l0)) :: les') with (([:: Callcl (Func_native i0 (Tf l1 l2) l l0)] ++ les')).
-          rewrite catA. apply (r_unchangedr les'). unfold vs_to_es.
+          rewrite catA. apply r_elimr. unfold vs_to_es.
           (* Check with Martin: how to replace only one occurrence *)
           replace (v_to_e_list lconst) with (take (size lconst - length l1) (v_to_e_list lconst) ++ drop (size lconst - length l1) (v_to_e_list lconst)).
           rewrite drop_rev. rewrite revK. rewrite take_rev. rewrite revK.
