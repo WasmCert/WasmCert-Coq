@@ -31,17 +31,7 @@ Hypothesis host_apply_impl_correct :
 Let run_step := run_step mem_grow_impl host_apply_impl.
 
 Hint Constructors reduce_simple : core.
-
-(* Check with Martin for these two: I think they should be in opsem for reduce,
-   but they are currently not. Missing this it's impossible to prove quite a number
-   of cases (edit: in fact all cases) -- unless I've overlooked something *)
-Axiom r_unchangedl: forall s vs es es' i l,
-    reduce s vs es i s vs es' ->
-    reduce s vs (l++es) i s vs (l++es').
-
-Axiom r_unchangedr: forall s vs es es' i l,
-    reduce s vs es i s vs es' ->
-    reduce s vs (es++l) i s vs (es'++l).
+Hint Constructors reduce : core.
 
 (* After some thoughts, I think we need these two sensible things instead *)
 Lemma r_eliml: forall s vs es s' vs' es' lconst i,
@@ -69,9 +59,20 @@ Proof.
   - replace (es'++les) with ([::]++es'++les) => //. by apply LfilledBase.
 Qed.
 
+Lemma r_elimr_empty: forall s vs es s' vs' i les,
+    reduce s vs es i s' vs' [::] ->
+    reduce s vs (es ++ les) i s' vs' les.
+Proof.
+  move => s vs es s' vs' i les H.
+  assert (reduce s vs (es++les) i s' vs' ([::] ++les)); first by apply r_elimr.
+  by rewrite cat0s in H0.
+Qed.
+
 Lemma const_list_cons : forall a l,
   const_list (a :: l) = is_const a && const_list l.
-Admitted.
+Proof.
+  by [].
+Qed.
 
 Ltac simplify_hypothesis Hb :=
   repeat rewrite length_is_size in Hb;
@@ -111,6 +112,16 @@ Ltac pattern_match :=
     move=> H; inversion H; subst; clear H
   end.
 
+Ltac frame_stack :=
+  lazymatch goal with
+  | |- reduce _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ ((?l1 ++ ?l4) ++ ?l3) =>
+    rewrite -cat1s; rewrite catA;
+    try apply r_elimr; try apply r_eliml; try apply v_to_e_is_const_list
+  | |- reduce _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ (?l1 ++ ?l3) =>
+    rewrite -cat1s;
+    try apply r_eliml; try apply v_to_e_is_const_list; try apply r_elimr_empty
+  end.
+
 Lemma run_step_soundness : forall d i s vs es s' vs' es',
     run_step d i (s, vs, es) = (s', vs', RS_normal es') ->
     reduce s vs es i s' vs' es'.
@@ -138,25 +149,14 @@ Proof.
         - (* Basic Unreachable *)
           explode_and_simplify.
           pattern_match.
-          (* The rule rs_unreachable in reduce_simple gives that Basic Unreachable
-             reduces to Trap; v_to_e_list lconst obviously refers to the initial 
-             segment of Basic EConst, so if we have a rule saying something like
-               reduce s vs es ?j s vs es' ->
-               reduce s vs (ves++es) ?j s vs (ves++es')
-             Then we're done for this case. But there doesn't seem to be such a rule? *)
-          (* I've added two axioms for the above to make this work. I believe they should
-             be part of the opsem. *)
-          rewrite -cat1s. rewrite catA.
-          apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
-            by apply r_simple.
+          frame_stack.
+          by eauto.
             
         - (* Basic Nop *)
           explode_and_simplify.
           pattern_match.
-          (* The same situation as above. *)
-          rewrite - cat1s. apply r_eliml; first by apply v_to_e_is_const_list. replace les' with ([::] ++ les').
-          apply r_elimr. by apply r_simple.
-            by apply cat0s.
+          frame_stack.
+          by eauto.
             
         - (* Basic Drop *)
           explode_and_simplify.
@@ -211,14 +211,17 @@ Proof.
             rewrite - v_to_e_cat. rewrite - catA.
             apply r_eliml => //=; first by apply v_to_e_is_const_list.
             (* Ask martin if we can change opsem here *)
-            assert (forall x, (reduce s' ((take i0 vs) ++ [::x] ++ (drop (size vs - i0 - 1) vs)) [::Basic (EConst v); Basic (Set_local i0)] i s' ((take i0 vs) ++ [::v] ++ (drop (size vs - i0 - 1) vs)) [::])) as HGoal.
+            admit.
+            apply cats0.
+            admit.
+            (*assert (forall x, (reduce s' ((take i0 vs) ++ [::x] ++ (drop (size vs - i0 - 1) vs)) [::Basic (EConst v); Basic (Set_local i0)] i s' ((take i0 vs) ++ [::v] ++ (drop (size vs - i0 - 1) vs)) [::])) as HGoal.
             move => x. apply r_set_local.
             + rewrite length_is_size. rewrite length_is_size in HLen. rewrite size_take.
               by rewrite HLen.
               (* too much hassle, probably just change opsem *)
             + admit.
             + by apply cats0.
-            + admit.
+            + admit.*)
             
     
             
@@ -242,16 +245,16 @@ Proof.
       {  (* Trap *)
         explode_and_simplify.
         (* Check with Martin for how to do this nicely *)
-        move => H. destruct les' => //=.
+        destruct les' => //=.
         - destruct lconst => //=.
-          simpl in H. inversion H. subst. clear H.
+          pattern_match.
           apply r_simple. eapply rs_trap.
           + by destruct es => //.
           + apply lfilled_Ind_Equivalent.
             assert (lfilledInd 0 (LBase ((Basic (EConst v)) :: (v_to_e_list lconst)) [::]) [::Trap] (Basic (EConst v)::v_to_e_list lconst ++ [::Trap] ++ [::])) as LF0.
             { apply LfilledBase. simpl. by apply v_to_e_is_const_list. }
             by apply LF0.
-        - simpl in H. inversion H. subst. clear H.
+        - pattern_match.
           apply r_simple. eapply rs_trap => //=.
           + destruct lconst => //=.
           + apply lfilled_Ind_Equivalent.
