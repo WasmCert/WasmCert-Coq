@@ -155,9 +155,8 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
       List.nth_error iss (Wasm_int.nat_of_uint i32m c) == Some j ->
       reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br j)]
 | rs_br_table_length :
-    forall iss c i j,
-      List.nth_error iss (Wasm_int.nat_of_uint i32m c) == Some j ->
-      length iss <= j ->
+    forall iss c i,
+      length iss <= (Wasm_int.nat_of_uint i32m c) ->
       reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br i)]
 | rs_local_const :
     forall vs es n i,
@@ -239,9 +238,9 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       length vi == j ->
       reduce s (vi ++ [::v] ++ vs) [::Basic (Get_local j)] i s (vi ++ [::v] ++ vs) [::Basic (EConst v)]
 | r_set_local :
-    forall vi vs j v v' i s,
-      length vi == j ->
-      reduce s (vi ++ [::v] ++ vs) [::Basic (EConst v'); Basic (Set_local j)] i s (vi ++ [::v'] ++ vs) [::]
+    forall vs j v i s vd,
+      length vs > j ->
+      reduce s vs [::Basic (EConst v); Basic (Set_local j)] i s (set_nth vd vs j v) [::]
 | r_get_global :
     forall s vs j i v,
       sglob_val s i j == Some v ->
@@ -262,7 +261,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       List.nth_error (s_mem s) j = Some m ->
       load m (Wasm_int.nat_of_uint i32m k) off (t_length t) == None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Trap]
-| r_load_packed_sucess :
+| r_load_packed_success :
     forall s i t tp vs k a off m j bs sx,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
@@ -288,7 +287,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       List.nth_error (s_mem s) j == Some m ->
       store m (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i s vs [::Trap]
-| r_store_packed_sucess :
+| r_store_packed_success :
     forall t v s i j m k off a vs mem' tp,
       types_agree t v ->
       smem_ind s i = Some j ->
