@@ -438,49 +438,18 @@ Proof with eauto.
       }
       { (* Callcl *)
         simpl.
-        destruct f.
-        (* This is a bit inconvenient as another 'f' is generated *)
+        destruct f => //=; destruct f; explode_and_simplify; try (apply host_apply_impl_correct in option_expr; destruct option_expr as [x H]); try destruct p; explode_and_simplify; pattern_match; stack_frame.
         - (* Func_native *)
-          destruct f.
-          (* check with Martin for how to work with this kind of ifs *)
-          destruct ((if length l1 <= length (rev lconst)
-     then
-      let (ves', ves'') := split_n (rev lconst) (length l1) in
-      (s, vs,
-      RS_normal
-        (vs_to_es ves'' ++
-         [:: Local (length l2) i0 (rev ves' ++ n_zeros l)
-               [:: Basic (Block (Tf [::] l2) l0)]]))
-                     else (s, vs, crash_error))) eqn:H => //.
-          destruct p => //.
-          destruct r => //.
-          destruct (length l1 <= length (rev lconst)) eqn:HLen => //.
-          rewrite split_n_is_take_drop in H. inversion H. subst. clear H.
-          move => H. inversion H. subst. clear H.
-          replace ((Callcl (Func_native i0 (Tf l1 l2) l l0)) :: les') with (([:: Callcl (Func_native i0 (Tf l1 l2) l l0)] ++ les')).
-          rewrite catA. apply r_elimr. unfold vs_to_es.
-          (* Check with Martin: how to replace only one occurrence *)
-          replace (v_to_e_list lconst) with (take (size lconst - length l1) (v_to_e_list lconst) ++ drop (size lconst - length l1) (v_to_e_list lconst)).
-          rewrite drop_rev. rewrite revK. rewrite take_rev. rewrite revK.
-          rewrite v_to_e_take_exchange.
-          rewrite - catA.
-          apply r_eliml.
-          { apply const_list_take. by apply v_to_e_is_const_list. }
-          (* The eapply below generates 7 subgoals, but most are trivial. *)
           eapply r_callcl_native => //=.
-          (*2*) symmetry. by apply v_to_e_drop_exchange.
-          (*5*) repeat rewrite length_is_size. rewrite size_drop.
-          repeat rewrite length_is_size in HLen. rewrite size_rev in HLen.
-            by rewrite subKn.
-              by apply cat_take_drop.
-                by [].
+          + repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
         - (* Func_host *)
-          (* This should be very similar with the case above. *)
-          admit.
+          + eapply r_callcl_host_success => //=.
+            * repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
+            * rewrite take_rev in H. rewrite revK in H. rewrite length_is_size. apply/eqP. by apply H.
+          + eapply r_callcl_host_failure => //=.
+            repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
       }
       { (* Label *)
-        (* This should be an interesting case because it relates to our previous work
-           on lfilled *)
         simpl.
         (* es_is_trap: the name is a bit misleading -- it actually means if the first
            element of es is a trap (rather than the entire list es). *)
@@ -488,77 +457,18 @@ Proof with eauto.
            through, I realized that this is wrong. es_is_trap should only be true
            if es is just [::Trap] ! See Conrad's outline page 63-64 *)
         move => n l l0.
-        explode_and_simplify.
-
-        (*destruct (es_is_trap l0) eqn:HTrap.*)
-        - pattern_match.
-          rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
-          apply r_simple. by eapply rs_label_trap.
-        - destruct l0 => //=.
-          + pattern_match.
-            rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
-            apply r_simple. by apply rs_label_const.
-          + simplify_goal. move/andP: if_expr0 => [HConsta HConstList].
-            pattern_match.
-            rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml; first by apply v_to_e_is_const_list.
-            apply r_simple. apply rs_label_const.
-            simpl. rewrite HConsta. by apply HConstList.
-
-        (* The following is useless work (before I identified the error in es_is_trap) *)
-
-        (* destruct l0 => //=.
-        - move => H. inversion H. subst.
-          apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
-          clear H. clear HSplitVals.
-          unfold vs_to_es. rewrite revK.
-          rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml.
-          apply r_simple. by apply rs_label_const.
-        - destruct a => //=.
-          + destruct (const_list l0) eqn:HConst => //.
-            (* These two lines have become a pattern everywhere. Maybe we can
-               put it before the large destruct *)
-            move => H. inversion H. subst. clear H.
-            apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
-            clear HSplitVals.
-            unfold vs_to_es. rewrite revK.
-            rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml.
-            apply r_simple. by apply rs_label_const.
-          + move => H. inversion H. subst. clear H.
-            apply split_vals_e_v_to_e_duality in HSplitVals. rewrite HSplitVals.
-            clear HSplitVals.
-            unfold vs_to_es. rewrite revK.
-            rewrite - cat1s. rewrite catA. apply r_elimr. apply r_eliml.
-            assert (lfilledInd 0 (LBase [::] l0) [::Trap] ([::]++[::Trap]++l0)) as LF0; first by apply LfilledBase.
-            assert (lfilledInd 1 (LRec [::] n l (LBase [::] l0) [::]) [::Trap] ([::]++[::(Label n l ([::]++[::Trap]++l0))] ++ [::])) as LF1.
-            apply LfilledRec; first by []. by [].
-            simpl in LF0. simpl in LF1.
-            apply r_label. *)
-            
-
+        explode_and_simplify; pattern_match; stack_frame; apply r_simple.
+        - by eapply rs_label_trap.
+        - by apply rs_label_const.
       }
-
       { (* Local *)
         move => n i0 l l0.
-        explode_and_simplify.
-        (*destruct (es_is_trap l0) eqn:HTrap.*)
-        - pattern_match.
-          rewrite - cat1s. rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_elimr.
-          apply r_simple. apply rs_local_trap.
-        - pattern_match.
-          rewrite - cat1s. rewrite - catA. apply r_eliml; first by apply v_to_e_is_const_list. apply r_elimr.
-          apply r_simple. by apply rs_local_const.
+        explode_and_simplify; pattern_match; stack_frame; simpl; apply r_simple.
+        + by apply rs_local_trap.
+        + by apply rs_local_const.
       }
-    + (* This has grown to an extent that I'm no longer sure where I am *)
-      move => n IH. destruct a as [b | | | |].
-      * (* Basic *) admit.
-      * (* Trap: the exact proof flows through -- I've checked.*) admit.
-      * (* Callcl: same *) admit.
-      * (* Label *)
-        (* Some of the same proof can be reused, but now there are more cases *)
-
-            admit.
-        
-      * (* Local *) admit.
+    + (* Inductive cases *)
+      admit.
         
          
 Admitted. (* TODO *)
