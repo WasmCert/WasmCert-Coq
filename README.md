@@ -30,3 +30,5 @@ sudo apt install libcairo2-dev libexpat1-dev libgtk-3-dev libgtksourceview-3.0-d
 Then, add the line `"@opam/coqide": "*"` in `devDependencies` in [package.json](./package.json), and run `esy` again.
 Typing `esy coqide theories/wasm.v` should now work.
 
+
+To use VSCoq in this development, you will need to adapt the .vscode/settings file.
