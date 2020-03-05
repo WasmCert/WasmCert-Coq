@@ -20,10 +20,10 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
   reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Unop_i T_i64 iop)] [::Basic (EConst (ConstInt64 (@app_unop_i i64t iop c)))]
 | rs_unop_f32 :
   forall c fop,
-  reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32t fop c)))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_f32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32t fop c)))]
 | rs_unop_f64 :
   forall c fop,
-  reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64t fop c)))]
+  reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_f64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64t fop c)))]
 (* binop *)
 | rs_binop_i32_success :
   forall c1 c2 c iop,
@@ -44,17 +44,17 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
 | rs_binop_f32_success :
   forall c1 c2 c fop,
   @app_binop_f f32t fop c1 c2 = Some c ->
-  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 c))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_f32 fop)] [::Basic (EConst (ConstFloat32 c))]
 | rs_binop_f32_failure : forall c1 c2 fop,
     @app_binop_f f32t fop c1 c2 = None ->
-    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Trap]
+    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_f32 fop)] [::Trap]
 | rs_binop_f64_success : forall c1 c2 c fop,
     @app_binop_f f64t fop c1 c2 = Some c ->
-    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 c))]
+    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_f64 fop)] [::Basic (EConst (ConstFloat64 c))]
 | rs_binop_f64_failure :
   forall c1 c2 fop,
   @app_binop_f f64t fop c1 c2 = None ->
-  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Trap]
+  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_f64 fop)] [::Trap]
 (* testops *)
 | rs_testop_i32 :
   forall c testop,
@@ -80,16 +80,16 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
   forall t1 t2 v v' sx,
   types_agree t1 v ->
   cvt t2 sx v = Some v' ->
-  reduce_simple [::Basic (Cvtop t2 Convert t1 sx)] [::Basic (EConst v')]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Convert t1 sx)] [::Basic (EConst v')]
 | rs_convert_failure :
   forall t1 t2 v sx,
   types_agree t1 v ->
   cvt t2 sx v == None ->
-  reduce_simple [::Basic (Cvtop t2 Convert t1 sx)] [::Trap]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Convert t1 sx)] [::Trap]
 | rs_reinterpret :
   forall t1 t2 v,
   types_agree t1 v ->
-  reduce_simple [::Basic (Cvtop t2 Reinterpret t1 None)] [::Basic (EConst (wasm.wasm_deserialise (bits v) t2))]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Reinterpret t1 None)] [::Basic (EConst (wasm.wasm_deserialise (bits v) t2))]
 (* *)
 | rs_unreachable :
   reduce_simple [::Basic Unreachable] [::Trap]
