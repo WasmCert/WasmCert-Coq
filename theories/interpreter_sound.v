@@ -118,12 +118,18 @@ Qed.
 
 Ltac simplify_hypothesis Hb :=
   repeat rewrite length_is_size in Hb;
-  repeat lazymatch type of Hb with
-  | ?b = true => fold (is_true b) in Hb
+  repeat match type of Hb with
   | is_true (es_is_trap _) => move/es_is_trapP: Hb => Hb
   | is_true (const_list (_ :: _)) => rewrite const_list_cons in Hb
-  | _ = _ => rewrite Hb
+  | host_apply_impl _ _ _ _ = Some _ =>
+    apply host_apply_impl_correct in Hb;
+    let hs := fresh "hs" in
+    destruct Hb as [hs Hb]
+  | ?b = true => fold (is_true b) in Hb
   | context C' [size (rev _)] => rewrite size_rev in Hb
+  | context C' [take _ (rev _)] => rewrite take_rev in Hb
+  | context C' [rev (rev _)] => rewrite revK in Hb
+  | _ = _ => rewrite Hb
   end.
 
 Ltac simplify_goal :=
@@ -139,7 +145,7 @@ Ltac explode_and_simplify :=
       let Hb := fresh "if_expr" in
       destruct b eqn:Hb;
       simplify_hypothesis Hb;
-      try by []
+      try by [|apply Hb]
     | context C [match (rev ?lconst) with
                  | _ :: _ => _ 
                  | _ => _
@@ -147,7 +153,7 @@ Ltac explode_and_simplify :=
       let HRevConst := fresh "HRevConst" in 
       destruct (rev lconst) eqn:HRevConst;
       simplify_hypothesis HRevConst;
-      try by []
+      try by [|apply HRevConst]
     | context C [match ?v with
                  | ConstInt32 _ => _
                  | _ => _
@@ -161,13 +167,13 @@ Ltac explode_and_simplify :=
       let Hv := fresh "option_expr" in
       destruct v eqn:Hv;
       simplify_hypothesis Hv;
-      try by []
+      try by [|apply Hv]
     | context C [expect (?X) ?f ?err] =>
        let HExpect := fresh "HExpect" in
        destruct X eqn:HExpect;
        simplify_hypothesis HExpect;
        simpl;
-       try by []
+       try by [|apply HExpect]
     | context C [match ?l with
                  | _ :: _ => _
                  | _ => _
@@ -179,7 +185,9 @@ Ltac explode_and_simplify :=
   repeat first [
       rewrite drop_rev
     | rewrite take_rev
-    | rewrite revK ].
+    | rewrite revK
+    | rewrite length_is_size
+    | rewrite size_drop ].
 
 Ltac subst_rev_const_list :=
  lazymatch goal with
@@ -282,7 +290,8 @@ Proof with eauto.
               by rewrite subKn.
 
         - (* Basic If *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list; try (apply r_eliml; first by apply v_to_e_is_const_list) => //=.
+          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list;
+            (apply r_eliml; first by apply v_to_e_is_const_list) => //=.
           + apply r_simple. by apply rs_if_false.
           + apply r_simple. apply rs_if_true. apply/eqP.
             by move/eqP in if_expr0.
@@ -352,25 +361,32 @@ Proof with eauto.
 
         - (* Basic (Load v o a0 s0) *)
           explode_and_simplify; try (pattern_match; stack_frame; subst_rev_const_list).
-          destruct p => //=.
-          destruct p => //=; explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list; simpl; try (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; simpl); try (apply r_eliml; first by apply v_to_e_is_const_list).
-          + eapply r_load_packed_success. by eauto. apply/eqP. by eauto. by [].
-          + eapply r_load_packed_failure. apply/eqP. by eauto. by eauto. by [].
-          + simpl. rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; simpl.
+          + by destruct p => //=.
+          + destruct p => //=.
+            explode_and_simplify; pattern_match; stack_frame;
+              subst_rev_const_list; simpl;
+              try (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; simpl);
+              (apply r_eliml; first by apply v_to_e_is_const_list).
+            * eapply r_load_packed_success; try eassumption. by apply/eqP.
+            * eapply r_load_packed_failure; try eassumption. by apply/eqP.
+          + simpl. rewrite rev_cons. rewrite -cats1. rewrite -v_to_e_cat. simpl.
             apply r_eliml; first by apply v_to_e_is_const_list.
-            eapply r_load_success. by eauto. apply/eqP. by eauto. by apply/eqP.
-          + apply r_eliml; first by apply v_to_e_is_const_list.
-            simpl. eapply r_load_failure. by eauto. by eauto. by apply/eqP.
+            by eapply r_load_success; try eassumption; try apply/eqP; eauto.
+          + apply r_eliml => /=; first by apply v_to_e_is_const_list.
+            eapply r_load_failure; try eassumption. by apply/eqP.
           + by destruct p => //=.
           + by destruct p => //=.
           + by destruct p => //=.
             
         - (* Basic (Store v o a0 s0) *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list => //=; rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; rewrite -catA; simpl; try (apply r_eliml; first by apply v_to_e_is_const_list); try (apply r_eliml_empty; first by apply v_to_e_is_const_list).
-          + eapply r_store_packed_success => //=. apply/eqP. by eauto. by apply/eqP.
-          + eapply r_store_packed_failure => //=. by eauto. by eauto. by [].
-          + eapply r_store_success => //=. by eauto. by [].
-          + eapply r_store_failure => //=. by eauto. apply/eqP. by eauto. by [].
+          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list => //=;
+            rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; rewrite -catA => /=;
+            first [ apply r_eliml; first by apply v_to_e_is_const_list
+                  | apply r_eliml_empty; first by apply v_to_e_is_const_list ].
+          + by eapply r_store_packed_success => //=; try eassumption; try apply/eqP; eauto.
+          + by eapply r_store_packed_failure => //=; eauto.
+          + by eapply r_store_success => //=; eauto.
+          + eapply r_store_failure => //=; try eassumption. by apply/eqP.
 
         - (* Basic Current_memory *)
           explode_and_simplify; pattern_match; stack_frame.
@@ -437,17 +453,20 @@ Proof with eauto.
             (* replace *) by [].
       }
       { (* Callcl *)
-        simpl.
-        destruct f => //=; destruct f; explode_and_simplify; try (apply host_apply_impl_correct in option_expr; destruct option_expr as [x H]); try destruct p; explode_and_simplify; pattern_match; stack_frame.
+        move=> [? f ? ?|f ?] //=; destruct f.
         - (* Func_native *)
+          explode_and_simplify. pattern_match. stack_frame.
           eapply r_callcl_native => //=.
           + repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
         - (* Func_host *)
-          + eapply r_callcl_host_success => //=.
+          explode_and_simplify.
+          + destruct p. explode_and_simplify. pattern_match. stack_frame.
+            eapply r_callcl_host_success => //=.
             * repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
-            * rewrite take_rev in H. rewrite revK in H. rewrite length_is_size. apply/eqP. by apply H.
-          + eapply r_callcl_host_failure => //=.
-            repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
+            * apply/eqP. by eauto.
+          + pattern_match. stack_frame.
+            eapply r_callcl_host_failure => //=.
+            explode_and_simplify. by rewrite subKn.
       }
       { (* Label *)
         simpl.
