@@ -1,5 +1,5 @@
 {
-  "checksum": "328c86d2dd7aa72d42adb0b31f4f9e6a",
+  "checksum": "11535b34fe4d9ec620e6d0c4229a356a",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -20,6 +20,7 @@
         "@opam/menhir@opam:20181113@0c8257a8",
         "@opam/dune@opam:1.11.4@a7ccb7ae",
         "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6@d41d8cd9",
+        "@opam/coq-equations@github:mattam82/Coq-Equations#cede6e3526991667c11f86ab23dc6d85efc9dea1@863005b6",
         "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
@@ -424,6 +425,38 @@
       "devDependencies": [
         "ocaml@4.8.0@d41d8cd9", "@opam/coq@opam:8.10.1@cabcd98d"
       ]
+    },
+    "@opam/coq-equations@github:mattam82/Coq-Equations#cede6e3526991667c11f86ab23dc6d85efc9dea1@863005b6": {
+      "id":
+        "@opam/coq-equations@github:mattam82/Coq-Equations#cede6e3526991667c11f86ab23dc6d85efc9dea1@863005b6",
+      "name": "@opam/coq-equations",
+      "version":
+        "github:mattam82/Coq-Equations#cede6e3526991667c11f86ab23dc6d85efc9dea1",
+      "source": {
+        "type": "install",
+        "source": [
+          "github:mattam82/Coq-Equations#cede6e3526991667c11f86ab23dc6d85efc9dea1"
+        ]
+      },
+      "overrides": [
+        {
+          "dependencies": { "@opam/coq": "8.10.1" },
+          "buildsInSource": true,
+          "buildEnv": {
+            "HOME": "#{self.target_dir}",
+            "COQBIN": "#{@opam/coq.bin}/",
+            "COQLIB": "#{@opam/coq.lib}/coq/",
+            "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+          },
+          "build": [
+            [ "./configure.sh" ],
+            [ "make", "-j2" ],
+            [ "make", "install" ]
+          ]
+        }
+      ],
+      "dependencies": [ "@opam/coq@opam:8.10.1@cabcd98d" ],
+      "devDependencies": []
     },
     "@opam/coq@opam:8.10.1@cabcd98d": {
       "id": "@opam/coq@opam:8.10.1@cabcd98d",
