@@ -3,6 +3,7 @@
 
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From Equations Require Import Equations.
 Require Export wasm.
 
 Set Implicit Arguments.
@@ -103,7 +104,16 @@ Variable mem_grow_impl : mem -> nat -> option mem.
 
 Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
 
-Definition run_step_param run_one_step (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
+Inductive run_next_step : administrative_instruction -> administrative_instruction -> Prop :=
+  | run_next_step_label : forall ln les es e,
+    e \in es ->
+    run_next_step (Label ln les es) e
+  | run_next_step_local : forall ln j vls es e,
+    e \in es ->
+    run_next_step (Local ln j vls es) e
+  .
+
+Program Fixpoint run_step_param (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in
   let: (ves, es') := split_vals_e es in
   match es' with
@@ -119,10 +129,9 @@ Definition run_step_param run_one_step (d : depth) (i : instance) (tt : config_t
       if r is RS_normal res
       then (s', vs', RS_normal (res ++ es''))
       else (s', vs', r)
-  end.
+  end
 
-Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
-  let run_step := run_step_param run_one_step in
+with run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) { wf run_next_step e } : res_tuple :=
   let: (s, vs, ves) := tt in
   match e with
   (* unop *)
@@ -413,21 +422,17 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       if const_list es
       then (s, vs, RS_normal (vs_to_es ves ++ es))
       else
-        match d with
-        | 0 => (s, vs, RS_crash C_exhaustion)
-        | d'.+1 => (* TODO: we diverge from the Isabelle model here, which does not take a step *)
-          let: (s', vs', res) := run_step d' i (s, vs, es) in
-          match res with
-          | RS_break 0 bvs =>
-            if length bvs >= ln
-            then (s', vs', RS_normal ((vs_to_es ((List.firstn ln bvs) ++ ves)) ++ les))
-            else (s', vs', crash_error)
-          | RS_break (n.+1) bvs => (s', vs', RS_break n bvs)
-          | RS_return rvs => (s', vs', RS_return rvs)
-          | RS_normal es' =>
-            (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
-          | _ => (s', vs', crash_error)
-          end
+        let: (s', vs', res) := run_step d i (s, vs, es) in
+        match res with
+        | RS_break 0 bvs =>
+          if length bvs >= ln
+          then (s', vs', RS_normal ((vs_to_es ((List.firstn ln bvs) ++ ves)) ++ les))
+          else (s', vs', crash_error)
+        | RS_break (n.+1) bvs => (s', vs', RS_break n bvs)
+        | RS_return rvs => (s', vs', RS_return rvs)
+        | RS_normal es' =>
+          (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
+        | _ => (s', vs', crash_error)
         end
   | Local ln j vls es =>
     if es_is_trap es
@@ -439,20 +444,16 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
         then (s, vs, RS_normal (vs_to_es ves ++ es))
         else (s, vs, crash_error)
       else
-        match d with
-        | 0 => (s, vs, RS_crash C_exhaustion)
-        | d'.+1 =>
-          let: (s', vls', res) := run_step d' j (s, vls, es) in
-          match res with
-          | RS_return rvs =>
-            if length rvs >= ln
-            then (s', vs, RS_normal (vs_to_es (List.firstn ln rvs ++ ves)))
-            else (s', vs, crash_error)
-          | RS_normal es' =>
-            (s', vs, RS_normal (vs_to_es ves ++ [::Local ln j vls' es']))
-          | RS_crash error => (s', vs, RS_crash error)
-          | RS_break _ _ => (s', vs, crash_error)
-          end
+        let: (s', vls', res) := run_step d j (s, vls, es) in
+        match res with
+        | RS_return rvs =>
+          if length rvs >= ln
+          then (s', vs, RS_normal (vs_to_es (List.firstn ln rvs ++ ves)))
+          else (s', vs, crash_error)
+        | RS_normal es' =>
+          (s', vs, RS_normal (vs_to_es ves ++ [::Local ln j vls' es']))
+        | RS_crash error => (s', vs, RS_crash error)
+        | RS_break _ _ => (s', vs, crash_error)
         end
   | Trap => (s, vs, crash_error)
   end.

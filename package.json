@@ -18,6 +18,7 @@
     "@opam/coq": "8.10.1",
     "@opam/coq-ext-lib": "*",
     "coq-mathcomp-ssreflect": "*",
+    "@opam/coq-equations": "*",
     "coq-flocq": "3.2.0",
     "coq-iris": "*",
     "compcert": "3.6"
@@ -26,6 +27,7 @@
   },
   "resolutions": {
     "@opam/coq-ext-lib": "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6",
+    "@opam/coq-equations": "https://coq.inria.fr/opam/released/packages/coq-equations/coq-equations.1.2.1+8.11/opam#sha512:63e75a5d9d0573c081062e87311fb013627d07aeef0f16e2efb4ca231724bb57e58ea19d39969bd1436d23093d41b22ed3147d3eab4a47c5842a385fb5313193",
     "coq-mathcomp-ssreflect": {
       "source": "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39",
       "override": {
