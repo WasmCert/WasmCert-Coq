@@ -77,16 +77,25 @@ Definition e_is_trap (e : administrative_instruction) : bool :=
   | _ => false
   end.
 
-Lemma foo : forall e, reflect (e = Trap) (e_is_trap e).
+Lemma e_is_trapP : forall e, reflect (e = Trap) (e_is_trap e).
 Proof.
-  case => /=; intros; by [ apply: ReflectF | apply: ReflectT ].
+  case => //= >; by [ apply: ReflectF | apply: ReflectT ].
 Qed.
 
 Definition es_is_trap (es : list administrative_instruction) : bool :=
   match es with
-  | e :: _ => e_is_trap e
-  | [::] => false
+  | [::e] => e_is_trap e
+  | _ => false
   end.
+
+Lemma es_is_trapP : forall l, reflect (l = [::Trap]) (es_is_trap l).
+Proof.
+  case; first by apply: ReflectF.
+  move=> // a l. case l => //=.
+  - apply: (iffP (e_is_trapP _)); first by elim.
+    by inversion 1.
+  - move=> >. by apply: ReflectF.
+Qed.
 
 Section Host.
 
@@ -145,13 +154,13 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       expect (@app_binop_i i64t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_i _ _) => (s, vs, crash_error)
-  | Basic (Binop_f T_i32 iop) =>
+  | Basic (Binop_f T_f32 fop) =>
     if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      expect (@app_binop_f f32t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_f f32t fop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
-  | Basic (Binop_f T_i64 iop) =>
+  | Basic (Binop_f T_f64 fop) =>
     if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      expect (@app_binop_f f64t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_f f64t fop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_f _ _) => (s, vs, crash_error)
   (* testops *)
@@ -174,16 +183,16 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_i _ _) => (s, vs, crash_error)
-  | Basic (Relop_f T_i32 iop) =>
+  | Basic (Relop_f T_f32 iop) =>
     if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
       (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
-  | Basic (Relop_f T_i64 iop) =>
+  | Basic (Relop_f T_f64 iop) =>
     if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
       (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
     else (s, vs, crash_error)
   | Basic (Relop_f _ _) => (s, vs, crash_error)
-  (* convert *)
+  (* convert & reinterpret *)
   | Basic (Cvtop t2 Convert t1 sx) =>
     if ves is v :: ves' then
       if types_agree t1 v

@@ -14,7 +14,7 @@ Installing `esy` itself can be done through `npm`.
 It should then look like something like that:
 ```bash
 sudo apt install npm git curl m4 autoconf
-npm install --global esy@latest # Tested with version 0.6.0-8b3dfe of esy.
+sudo npm install --global esy@latest # Tested with version 0.6.0-8b3dfe of esy.
 ```
 Note that despite using `npm` to be installed, `esy` is not JavaScript-based.
 There are other ways to install `esy`: see <https://esy.sh/> for more information.

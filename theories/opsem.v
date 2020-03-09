@@ -20,10 +20,10 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
   reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Unop_i T_i64 iop)] [::Basic (EConst (ConstInt64 (@app_unop_i i64t iop c)))]
 | rs_unop_f32 :
   forall c fop,
-  reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32t fop c)))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_f32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32t fop c)))]
 | rs_unop_f64 :
   forall c fop,
-  reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64t fop c)))]
+  reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_f64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64t fop c)))]
 (* binop *)
 | rs_binop_i32_success :
   forall c1 c2 c iop,
@@ -44,17 +44,17 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
 | rs_binop_f32_success :
   forall c1 c2 c fop,
   @app_binop_f f32t fop c1 c2 = Some c ->
-  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Basic (EConst (ConstFloat32 c))]
+  reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_f32 fop)] [::Basic (EConst (ConstFloat32 c))]
 | rs_binop_f32_failure : forall c1 c2 fop,
     @app_binop_f f32t fop c1 c2 = None ->
-    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_i32 fop)] [::Trap]
+    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_f32 fop)] [::Trap]
 | rs_binop_f64_success : forall c1 c2 c fop,
     @app_binop_f f64t fop c1 c2 = Some c ->
-    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Basic (EConst (ConstFloat64 c))]
+    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_f64 fop)] [::Basic (EConst (ConstFloat64 c))]
 | rs_binop_f64_failure :
   forall c1 c2 fop,
   @app_binop_f f64t fop c1 c2 = None ->
-  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_i64 fop)] [::Trap]
+  reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_f64 fop)] [::Trap]
 (* testops *)
 | rs_testop_i32 :
   forall c testop,
@@ -80,16 +80,16 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
   forall t1 t2 v v' sx,
   types_agree t1 v ->
   cvt t2 sx v = Some v' ->
-  reduce_simple [::Basic (Cvtop t2 Convert t1 sx)] [::Basic (EConst v')]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Convert t1 sx)] [::Basic (EConst v')]
 | rs_convert_failure :
   forall t1 t2 v sx,
   types_agree t1 v ->
   cvt t2 sx v == None ->
-  reduce_simple [::Basic (Cvtop t2 Convert t1 sx)] [::Trap]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Convert t1 sx)] [::Trap]
 | rs_reinterpret :
   forall t1 t2 v,
   types_agree t1 v ->
-  reduce_simple [::Basic (Cvtop t2 Reinterpret t1 None)] [::Basic (EConst (wasm.wasm_deserialise (bits v) t2))]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Reinterpret t1 None)] [::Basic (EConst (wasm.wasm_deserialise (bits v) t2))]
 (* *)
 | rs_unreachable :
   reduce_simple [::Basic Unreachable] [::Trap]
@@ -155,9 +155,8 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
       List.nth_error iss (Wasm_int.nat_of_uint i32m c) == Some j ->
       reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br j)]
 | rs_br_table_length :
-    forall iss c i j,
-      List.nth_error iss (Wasm_int.nat_of_uint i32m c) == Some j ->
-      length iss <= j ->
+    forall iss c i,
+      length iss <= (Wasm_int.nat_of_uint i32m c) ->
       reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br i)]
 | rs_local_const :
     forall vs es n i,
@@ -184,7 +183,7 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
       reduce_simple es [::Trap].
 
 Inductive reduce : store_record -> list value -> list administrative_instruction -> instance -> store_record -> list value -> list administrative_instruction -> Prop :=
-| r_basic :
+| r_simple :
     forall e e' s vs i,
       reduce_simple e e' ->
       reduce s vs e i s vs e'
@@ -239,9 +238,9 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       length vi == j ->
       reduce s (vi ++ [::v] ++ vs) [::Basic (Get_local j)] i s (vi ++ [::v] ++ vs) [::Basic (EConst v)]
 | r_set_local :
-    forall vi vs j v v' i s,
-      length vi == j ->
-      reduce s (vi ++ [::v] ++ vs) [::Basic (EConst v'); Basic (Set_local j)] i s (vi ++ [::v'] ++ vs) [::]
+    forall vs j v i s vd,
+      length vs > j ->
+      reduce s vs [::Basic (EConst v); Basic (Set_local j)] i s (set_nth vd vs j v) [::]
 | r_get_global :
     forall s vs j i v,
       sglob_val s i j == Some v ->
@@ -262,7 +261,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       List.nth_error (s_mem s) j = Some m ->
       load m (Wasm_int.nat_of_uint i32m k) off (t_length t) == None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Trap]
-| r_load_packed_sucess :
+| r_load_packed_success :
     forall s i t tp vs k a off m j bs sx,
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
@@ -288,7 +287,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       List.nth_error (s_mem s) j == Some m ->
       store m (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i s vs [::Trap]
-| r_store_packed_sucess :
+| r_store_packed_success :
     forall t v s i j m k off a vs mem' tp,
       types_agree t v ->
       smem_ind s i = Some j ->
