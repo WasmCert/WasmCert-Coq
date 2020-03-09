@@ -138,9 +138,16 @@ Ltac simplify_hypothesis Hb :=
     let hs := fresh "hs" in
     destruct Hb as [hs Hb]
   | ?b = true => fold (is_true b) in Hb
-  | context C' [size (rev _)] => rewrite size_rev in Hb
-  | context C' [take _ (rev _)] => rewrite take_rev in Hb
-  | context C' [rev (rev _)] => rewrite revK in Hb
+  | context C [size (rev _)] => rewrite size_rev in Hb
+  | context C [take _ (rev _)] => rewrite take_rev in Hb
+  | context C [rev (rev _)] => rewrite revK in Hb
+  | context C [true && _] => rewrite Bool.andb_true_l in Hb
+  | context C [_ && true] => rewrite Bool.andb_true_r in Hb
+  | context C [false || _] => rewrite Bool.orb_false_l in Hb
+  | context C [_ || false] => rewrite Bool.orb_false_r in Hb
+  | is_true true => clear Hb
+  | is_true false => exfalso; apply notF; apply Hb
+  | is_true (_ == _) => move/eqP in Hb
   | ?x = ?x => clear Hb
   | _ = _ => rewrite Hb in *
   end.
@@ -316,20 +323,10 @@ Ltac frame_out l r :=
             try by repeat constructor ] ]
   end.
 
-(** Same as [frame_out], by the frames are inferred. **)
+(** Same as [frame_out], by the frames are inferred (syntactically). **)
 Ltac auto_frame :=
   simplify_lists;
   let empty := constr:([::] : list administrative_instruction) in
-  let right :=
-    repeat rewrite catA;
-    repeat lazymatch goal with
-    | |- reduce _ _ (_ ++ ?r) _ _ _ (_ ++ ?r) =>
-      frame_out empty r
-    | |- reduce _ _ (_ ++ ?r) _ _ _ ?r =>
-      frame_out empty r
-    | |- reduce _ _ ?r _ _ _ (_ ++ ?r) =>
-      frame_out empty r
-    end in
   let left :=
     repeat rewrite -catA;
     repeat lazymatch goal with
@@ -340,6 +337,18 @@ Ltac auto_frame :=
     | |- reduce _ _ ?l _ _ _ (?l ++ _) =>
       frame_out l empty
     end in
+  let right :=
+    repeat rewrite catA;
+    repeat lazymatch goal with
+    | |- reduce _ _ (_ ++ ?r) _ _ _ (_ ++ ?r) =>
+      frame_out empty r
+    | |- reduce _ _ (_ ++ ?r) _ _ _ ?r =>
+      frame_out empty r
+    | |- reduce _ _ ?r _ _ _ (_ ++ ?r) =>
+      frame_out empty r
+    end;
+    (** Renormalising back. **)
+    repeat (rewrite -catA) in
   repeat first [ progress left | progress right ].
 
 (** Same as [frame_out], by the frames are existential variables. **)
@@ -435,151 +444,114 @@ Proof with eauto.
           apply r_call. by apply/eqP.
 
         - (* Basic (Call_indirect i0) *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list;
-            (apply r_eliml; first by apply v_to_e_is_const_list) => //=.
-          + eapply r_call_indirect_success. simpl. by apply/eqP.
-              by eauto. by auto.
-          + eapply r_call_indirect_failure1. simpl. apply/eqP. by eauto.
-            move/eqP in if_expr0. by apply/eqP.
+          explode_and_simplify; pattern_match; auto_frame.
+          + eapply r_call_indirect_success.
+            * simpl. by apply/eqP.
+            * apply/eqP. by eauto.
+            * by [].
+          + eapply r_call_indirect_failure1.
+            * simpl. apply/eqP. by eauto.
+            * move/eqP in if_expr0. by apply/eqP.
           + eapply r_call_indirect_failure2. simpl. by apply/eqP.
             
         - (* Basic (Get_local i0) *)
-          explode_and_simplify; pattern_match; stack_frame.
-          rewrite rev_cons. rewrite revK. rewrite -cats1. rewrite -v_to_e_cat.
-          apply r_eliml; first by apply v_to_e_is_const_list.
+          explode_and_simplify. pattern_match. auto_frame.
           rewrite (split3 if_expr0 HExpect).
           apply r_get_local. rewrite length_is_size. rewrite size_take.
           by rewrite if_expr0.
-            
+
         - (* Basic (Set_local i0) *)
-          explode_and_simplify; pattern_match.
-          rewrite - update_list_at_is_set_nth => //=.         
-          stack_frame; subst_rev_const_list => //=.
-          apply r_eliml_empty; first by apply v_to_e_is_const_list.
-          apply r_set_local. by rewrite length_is_size.
-          
+          explode_and_simplify. pattern_match.
+          rewrite -update_list_at_is_set_nth => //=.         
+          by auto_frame.
+
         - (* Basic (Tee_local i0) *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list.
-          simpl. repeat rewrite rev_cons. repeat rewrite -cats1.
-          repeat rewrite -v_to_e_cat. repeat rewrite -catA.
-          apply r_eliml; first by apply v_to_e_is_const_list.
-          apply r_simple. by apply rs_tee_local.
-    
+          explode_and_simplify. pattern_match.
+          by frame_out (v_to_e_list (rev l)) les'.
+
         - (* Basic (Get_global i0) *)
-          explode_and_simplify; pattern_match; stack_frame.
-          rewrite rev_cons. rewrite -cats1. rewrite revK. rewrite -v_to_e_cat.
-          apply r_eliml; first by apply v_to_e_is_const_list.
+          explode_and_simplify. pattern_match. auto_frame. stack_frame.
           apply r_get_global. by apply/eqP.
 
         - (* Basic (Set_global i0) *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list.
-          simpl. apply r_eliml_empty; first by apply v_to_e_is_const_list.
-            by apply r_set_global.
+          explode_and_simplify. pattern_match. by auto_frame.
 
         - (* Basic (Load v o a0 s0) *)
-          explode_and_simplify; try (pattern_match; stack_frame; subst_rev_const_list).
-          + by destruct p => //=.
+          explode_and_simplify; try (pattern_match; auto_frame); try by destruct p => //=.
           + destruct p => //=.
-            explode_and_simplify; pattern_match; stack_frame;
-              subst_rev_const_list; simpl;
-              try (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; simpl);
-              (apply r_eliml; first by apply v_to_e_is_const_list).
+            explode_and_simplify; pattern_match; auto_frame.
             * eapply r_load_packed_success; try eassumption. by apply/eqP.
             * eapply r_load_packed_failure; try eassumption. by apply/eqP.
-          + simpl. rewrite rev_cons. rewrite -cats1. rewrite -v_to_e_cat. simpl.
-            apply r_eliml; first by apply v_to_e_is_const_list.
-            by eapply r_load_success; try eassumption; try apply/eqP; eauto.
-          + apply r_eliml => /=; first by apply v_to_e_is_const_list.
-            eapply r_load_failure; try eassumption. by apply/eqP.
-          + by destruct p => //=.
-          + by destruct p => //=.
-          + by destruct p => //=.
-            
+          + simpl. by eapply r_load_success; try eassumption; try apply/eqP; eauto.
+          + eapply r_load_failure; try eassumption. by apply/eqP.
+
         - (* Basic (Store v o a0 s0) *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list => //=;
-            rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; rewrite -catA => /=;
-            first [ apply r_eliml; first by apply v_to_e_is_const_list
-                  | apply r_eliml_empty; first by apply v_to_e_is_const_list ].
+          explode_and_simplify; pattern_match; auto_frame.
           + by eapply r_store_packed_success => //=; try eassumption; try apply/eqP; eauto.
           + by eapply r_store_packed_failure => //=; eauto.
           + by eapply r_store_success => //=; eauto.
           + eapply r_store_failure => //=; try eassumption. by apply/eqP.
 
         - (* Basic Current_memory *)
-          explode_and_simplify; pattern_match; stack_frame.
-          rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat; rewrite revK.
-          apply r_eliml; first by apply v_to_e_is_const_list.
-          eapply r_current_memory => //=. by eauto. by [].
+          explode_and_simplify. pattern_match. auto_frame.
+          eapply r_current_memory => //=.
+          + by eauto.
+          + by [].
 
         - (* Basic Grow_memory *)
-          explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list => //=.
-          rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat.
-          apply r_eliml; first by apply v_to_e_is_const_list.
-          simpl. eapply r_grow_memory_success => //=. by [].
-            by apply mem_grow_impl_correct in HExpect0.
+          explode_and_simplify. pattern_match. auto_frame.
+          eapply r_grow_memory_success => //=.
+          + by [].
+          + by apply mem_grow_impl_correct.
 
         - (* Basic Unop_i v u *)
-          explode_and_simplify; destruct v => //=; pattern_match; stack_frame; subst_rev_const_list => //=; try (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); try apply r_eliml; try apply v_to_e_is_const_list; try apply r_simple.
-          (* Somehow the constructor hints no longer work *)
-          + by apply rs_unop_i32.
-          + by apply rs_unop_i64.
+          by explode_and_simplify; destruct v => //=; pattern_match; auto_frame.
 
         - (* Basic Unop_f v u *)
-          explode_and_simplify. destruct v => //; pattern_match; stack_frame; subst_rev_const_list => //; try (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); try apply r_eliml; try apply v_to_e_is_const_list; try (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); try apply r_eliml; try apply v_to_e_is_const_list; try apply r_simple.
-          + by apply rs_unop_f32.
-          + by apply rs_unop_f64.
+          by explode_and_simplify; destruct v => //=; pattern_match; auto_frame.
 
         - (* Basic Binop_i v b *)
-          explode_and_simplify; destruct v => //; pattern_match; stack_frame; subst_rev_const_list => //; repeat (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); repeat rewrite -catA; try apply r_eliml; try apply v_to_e_is_const_list; apply r_simple; simpl; by eauto.
+          by explode_and_simplify; destruct v => //; pattern_match; auto_frame.
 
         - (* Basic Binop_f v b *)         
-          explode_and_simplify; destruct v => //; pattern_match; stack_frame; subst_rev_const_list => //; repeat (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); repeat rewrite -catA; try apply r_eliml; try apply v_to_e_is_const_list; apply r_simple; simpl; by eauto.
+          by explode_and_simplify; destruct v => //; pattern_match; auto_frame.
 
         - (* Basic (Testop v t) *)
-          explode_and_simplify; destruct v => //; pattern_match; stack_frame; subst_rev_const_list => //; repeat (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); try apply r_eliml; try apply v_to_e_is_const_list; apply r_simple; simpl.
-          + by apply rs_testop_i32.
-          + by apply rs_testop_i64.
+          by explode_and_simplify; destruct v => //; pattern_match; auto_frame.
 
         - (* Basic (Relop_i v r) *)
-          explode_and_simplify; destruct v => //; pattern_match; stack_frame; subst_rev_const_list => //; repeat (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); repeat rewrite -catA; try apply r_eliml; try apply v_to_e_is_const_list; apply r_simple; simpl.
-          + by apply rs_relop_i32.
-          + by apply rs_relop_i64.
+          by explode_and_simplify; destruct v => //; pattern_match; auto_frame.
 
         - (* Basic (relop_f v r) *)
-          explode_and_simplify; destruct v => //; pattern_match; stack_frame; subst_rev_const_list => //; repeat (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); repeat rewrite -catA; try apply r_eliml; try apply v_to_e_is_const_list; apply r_simple; simpl.
-          + by apply rs_relop_f32.
-          + by apply rs_relop_f64.
+          by explode_and_simplify; destruct v => //; pattern_match; auto_frame.
 
         - (* Basic (Cvtop v c v0 o) *)
-          explode_and_simplify; destruct c => //; pattern_match; stack_frame; subst_rev_const_list => //; repeat (rewrite rev_cons; rewrite -cats1; rewrite -v_to_e_cat); try apply r_eliml; try apply v_to_e_is_const_list; apply r_simple; simpl; try by apply rs_convert_success.
-          + simpl in if_expr1. move/eqP in if_expr1. subst. by apply rs_reinterpret.
-          + simpl in if_expr1. move/eqP in if_expr1. subst. apply rs_convert_failure. by []. by apply/eqP.
-          + simpl in if_expr1. move/eqP in if_expr1. subst. by apply rs_reinterpret.
-          + apply rs_convert_failure. by []. by apply/eqP.
+          explode_and_simplify; destruct c => //; pattern_match; auto_frame.
+          + apply r_simple. apply rs_convert_failure => //. by apply/eqP.
+          + apply r_simple. apply rs_convert_failure => //. by apply/eqP.
       }
       {  (* Trap *)
-        explode_and_simplify.
-        pattern_match.
+        explode_and_simplify. pattern_match.
         apply r_simple. eapply rs_trap => //=.
-          + destruct lconst => //=. simpl in if_expr0. destruct les' => //=.
-          + apply lfilled_Ind_Equivalent.
-            replace (Trap :: les') with ([::Trap] ++ les').
-            apply LfilledBase; first by apply v_to_e_is_const_list.
-            (* replace *) by [].
+        + destruct lconst => //=. simpl in if_expr0. destruct les' => //=.
+        + apply lfilled_Ind_Equivalent.
+          replace (Trap :: les') with ([::Trap] ++ les').
+          apply LfilledBase; first by apply v_to_e_is_const_list.
+          (* replace *) by [].
       }
       { (* Callcl *)
         move=> [? f ? ?|f ?] //=; destruct f.
         - (* Func_native *)
-          explode_and_simplify. pattern_match. stack_frame.
+          explode_and_simplify. pattern_match. stack_frame. auto_frame.
           eapply r_callcl_native => //=.
-          + repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
+          simplify_lists. by rewrite subKn.
         - (* Func_host *)
           explode_and_simplify.
-          + destruct p. explode_and_simplify. pattern_match. stack_frame.
+          + destruct p. explode_and_simplify. pattern_match. stack_frame. auto_frame.
             eapply r_callcl_host_success => //=.
-            * repeat rewrite length_is_size. rewrite size_drop. by rewrite subKn.
+            * simplify_lists. by rewrite subKn.
             * apply/eqP. by eauto.
-          + pattern_match. stack_frame.
+          + pattern_match. stack_frame. auto_frame.
             eapply r_callcl_host_failure => //=.
             explode_and_simplify. by rewrite subKn.
       }
@@ -591,15 +563,13 @@ Proof with eauto.
            through, I realized that this is wrong. es_is_trap should only be true
            if es is just [::Trap] ! See Conrad's outline page 63-64 *)
         move => n l l0.
-        explode_and_simplify; pattern_match; stack_frame; apply r_simple.
-        - by eapply rs_label_trap.
-        - by apply rs_label_const.
+        explode_and_simplify; pattern_match; auto_frame.
+        apply r_simple. by eapply rs_label_trap.
       }
       { (* Local *)
         move => n i0 l l0.
-        explode_and_simplify; pattern_match; stack_frame; simpl; apply r_simple.
-        + by apply rs_local_trap.
-        + by apply rs_local_const.
+        explode_and_simplify; pattern_match; auto_frame.
+        apply r_simple. by apply rs_local_trap.
       }
     + (* Inductive cases *)
       admit.
