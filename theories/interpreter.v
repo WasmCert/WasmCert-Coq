@@ -103,7 +103,7 @@ Variable mem_grow_impl : mem -> nat -> option mem.
 
 Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
 
-Definition run_step_param run_one_step (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
+Fixpoint run_step (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in
   let: (ves, es') := split_vals_e es in
   match es' with
@@ -115,14 +115,17 @@ Definition run_step_param run_one_step (d : depth) (i : instance) (tt : config_t
       then (s, vs, RS_normal [::Trap])
       else (s, vs, crash_error)
     else
-      let '(s', vs', r) := run_one_step d i (s, vs, (rev ves)) e in
-      if r is RS_normal res
-      then (s', vs', RS_normal (res ++ es''))
-      else (s', vs', r)
-  end.
+      match fuel with
+      | 0 => (s, vs, RS_crash C_exhaustion)
+      | fuel.+1 =>
+        let '(s', vs', r) := run_one_step fuel d i (s, vs, (rev ves)) e in
+        if r is RS_normal res
+        then (s', vs', RS_normal (res ++ es''))
+        else (s', vs', r)
+      end
+  end
 
-Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
-  let run_step := run_step_param run_one_step in
+with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
   let: (s, vs, ves) := tt in
   match e with
   (* unop *)
@@ -147,20 +150,28 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
   (* binop *)
   | Basic (Binop_i T_i32 iop) =>
     if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-      expect (@app_binop_i i32t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_i i32t iop c1 c2) (fun c =>
+          (s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves'))))
+        (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_i T_i64 iop) =>
     if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-      expect (@app_binop_i i64t iop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_i i64t iop c1 c2) (fun c =>
+          (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves'))))
+        (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_i _ _) => (s, vs, crash_error)
   | Basic (Binop_f T_f32 fop) =>
     if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      expect (@app_binop_f f32t fop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_f f32t fop c1 c2) (fun c =>
+          (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves'))))
+        (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_f T_f64 fop) =>
     if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      expect (@app_binop_f f64t fop c1 c2) (fun c => (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      expect (@app_binop_f f64t fop c1 c2) (fun c =>
+           (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves'))))
+        (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
     else (s, vs, crash_error)
   | Basic (Binop_f _ _) => (s, vs, crash_error)
   (* testops *)
@@ -196,7 +207,10 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
   | Basic (Cvtop t2 Convert t1 sx) =>
     if ves is v :: ves' then
       if types_agree t1 v
-      then expect (cvt t2 sx v) (fun v' => (s, vs, RS_normal (vs_to_es (v' :: ves')))) (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+      then
+        expect (cvt t2 sx v) (fun v' =>
+             (s, vs, RS_normal (vs_to_es (v' :: ves'))))
+          (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
       else (s, vs, crash_error)
     else (s, vs, crash_error)
   | Basic (Cvtop t2 Reinterpret t1 sx) =>
@@ -222,13 +236,16 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     if length ves >= length t1s
     then
       let: (ves', ves'')  := split_n ves (length t1s) in
-      (s, vs, RS_normal (vs_to_es ves'' ++ [::Label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
+      (s, vs, RS_normal (vs_to_es ves''
+              ++ [::Label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
     else (s, vs, crash_error)
   | Basic (Loop (Tf t1s t2s) es) =>
     if length ves >= length t1s
     then
       let: (ves', ves'') := split_n ves (length t1s) in
-      (s, vs, RS_normal (vs_to_es ves'' ++ [::Label (length t1s) [::Basic (Loop (Tf t1s t2s) es)] (vs_to_es ves' ++ to_e_list es)]))
+      (s, vs, RS_normal (vs_to_es ves''
+              ++ [::Label (length t1s) [::Basic (Loop (Tf t1s t2s) es)]
+                      (vs_to_es ves' ++ to_e_list es)]))
     else (s, vs, crash_error)
   | Basic (If tf es1 es2) =>
     if ves is ConstInt32 c :: ves' then
@@ -250,13 +267,13 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       then
         expect (List.nth_error js k) (fun js_at_k =>
             (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br js_at_k)])))
-          (s, vs, crash_error) (* Isa mismatch *)
+          (s, vs, crash_error)
       else (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
     else (s, vs, crash_error)
   | Basic (Call j) =>
     if sfunc s i j is Some sfunc_i_j then
       (s, vs, RS_normal (vs_to_es ves ++ [::Callcl sfunc_i_j]))
-    else (s, vs, crash_error) (* Isa mismatch *)
+    else (s, vs, crash_error)
   | Basic (Call_indirect j) =>
     if ves is ConstInt32 c :: ves' then
       match stab s i (Wasm_int.nat_of_uint i32m c) with
@@ -273,7 +290,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
     then
       expect (List.nth_error vs j) (fun vs_at_j =>
           (s, vs, RS_normal (vs_to_es (vs_at_j :: ves))))
-        (s, vs, crash_error) (* Isa mismatch *)
+        (s, vs, crash_error)
     else (s, vs, crash_error)
   | Basic (Set_local j) =>
     if ves is v :: ves' then
@@ -288,7 +305,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
   | Basic (Get_global j) =>
     if sglob_val s i j is Some xx
     then (s, vs, RS_normal (vs_to_es (xx :: ves)))
-    else (s, vs, crash_error) (* Isa mismatch *)
+    else (s, vs, crash_error)
   | Basic (Set_global j) =>
     if ves is v :: ves' then
       if supdate_glob s i j v is Some xx
@@ -305,7 +322,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
                (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
                (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
                (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
-           else (s, vs, crash_error) (* Isa mismatch *))
+           else (s, vs, crash_error))
         (s, vs, crash_error)
     else (s, vs, crash_error)
   | Basic (Load t (Some (tp, sx)) a off) =>
@@ -318,7 +335,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
                (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
                (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
                (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
-           else (s, vs, crash_error) (* Isa mismatch *))
+           else (s, vs, crash_error))
         (s, vs, crash_error)
     else (s, vs, crash_error)
   | Basic (Store t None a off) =>
@@ -334,7 +351,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
                  (fun mem' =>
                     (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
-             else (s, vs, crash_error) (* Isa mismatch *))
+             else (s, vs, crash_error))
           (s, vs, crash_error)
       else (s, vs, crash_error)
     else (s, vs, crash_error)
@@ -351,7 +368,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
                  (fun mem' =>
                     (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
-             else (s, vs, crash_error) (* Isa mismatch *))
+             else (s, vs, crash_error))
           (s, vs, crash_error)
       else (s, vs, crash_error)
     else (s, vs, crash_error)
@@ -361,7 +378,7 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       (fun j =>
          if List.nth_error (s_mem s) j is Some s_mem_s_j then
            (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
-         else (s, vs, crash_error) (* Isa mismatch *))
+         else (s, vs, crash_error))
       (s, vs, crash_error)
   | Basic Grow_memory =>
     if ves is ConstInt32 c :: ves' then
@@ -373,10 +390,11 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
             expect
               (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_uint i32m c))
               (fun mem' =>
-                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
+                 (upd_s_mem s (update_list_at (s_mem s) j mem'), vs,
+                  RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               )
               (s, vs, crash_error)
-          else (s, vs, crash_error) (* Isa mismatch *))
+          else (s, vs, crash_error))
         (s, vs, crash_error)
     else (s, vs, crash_error)
   | Basic (EConst _) => (s, vs, crash_error)
@@ -389,7 +407,8 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       then
         let (ves', ves'') := split_n ves n in
         let zs := n_zeros ts in
-        (s, vs, RS_normal (vs_to_es ves'' ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
+        (s, vs, RS_normal (vs_to_es ves''
+                ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
       else (s, vs, crash_error)
     | Func_host (Tf t1s t2s) f =>
       let n := length t1s in
@@ -413,10 +432,10 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
       if const_list es
       then (s, vs, RS_normal (vs_to_es ves ++ es))
       else
-        match d with
+        match fuel with
         | 0 => (s, vs, RS_crash C_exhaustion)
-        | d'.+1 => (* TODO: we diverge from the Isabelle model here, which does not take a step *)
-          let: (s', vs', res) := run_step d' i (s, vs, es) in
+        | fuel.+1 =>
+          let: (s', vs', res) := run_step fuel d i (s, vs, es) in
           match res with
           | RS_break 0 bvs =>
             if length bvs >= ln
@@ -439,10 +458,10 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
         then (s, vs, RS_normal (vs_to_es ves ++ es))
         else (s, vs, crash_error)
       else
-        match d with
+        match fuel with
         | 0 => (s, vs, RS_crash C_exhaustion)
-        | d'.+1 =>
-          let: (s', vls', res) := run_step d' j (s, vls, es) in
+        | fuel.+1 =>
+          let: (s', vls', res) := run_step fuel d j (s, vls, es) in
           match res with
           | RS_return rvs =>
             if length rvs >= ln
@@ -457,7 +476,13 @@ Fixpoint run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_
   | Trap => (s, vs, crash_error)
   end.
 
-Definition run_step := run_step_param run_one_step.
+(* TODO: use [administrative_instruction_rect'] *)
+Fixpoint needed_fuel es :=
+  match es with
+  | Label ln les es :: _ => 1 + needed_fuel es
+  | Local ln j vls es :: _ => 1 + needed_fuel es
+  | _ => 0
+  end.
 
 Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res) % type) :=
   match tt with
