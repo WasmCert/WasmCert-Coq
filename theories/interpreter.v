@@ -1,10 +1,11 @@
 (* Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
+From Equations Require Import Equations.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Equations Require Import Equations.
 Require Export wasm.
+
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -98,24 +99,51 @@ Proof.
   - move=> >. by apply: ReflectF.
 Qed.
 
+Set Universe Polymorphism.
+
 Section Host.
 
 Variable mem_grow_impl : mem -> nat -> option mem.
 
 Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
 
-Inductive run_step_next : administrative_instruction -> administrative_instruction -> Prop :=
-  | run_step_next_label : forall ln les es e,
+(** We use the usual trick to make equations accept mutually recursive definitions. **)
+Inductive equation_computations : forall (A : Type) (P : A -> Type), Set :=
+  | computation_run_one_step :
+    @equation_computations
+      (depth * instance * config_one_tuple_without_e * administrative_instruction)%type
+      (fun _ => res_tuple)
+  | computation_run_step :
+    @equation_computations
+      (depth * instance * config_tuple)%type
+      (fun _ => res_tuple)
+  .
+Derive Signature NoConfusion for equation_computations.
+Arguments equation_computations A P : clear implicits.
+
+Definition equation_type : Type := administrative_instruction + seq administrative_instruction.
+
+Inductive run_step_next : equation_type -> equation_type -> Prop :=
+  | run_step_next_label : forall ln les es,
+    run_step_next (inl (Label ln les es)) (inr es)
+  | run_step_next_local : forall ln j vls es,
+    run_step_next (inl (Local ln j vls es)) (inr es)
+  | run_step_next_step : forall es e,
     e \in es ->
-    run_step_next (Label ln les es) e
-  | run_step_next_local : forall ln j vls es e,
-    e \in es ->
-    run_step_next (Local ln j vls es) e
+    run_step_next (inr es) (inl e)
   .
 
-Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without_e)
-            (e : administrative_instruction) : res_tuple by wf e run_step_next := {
-    run_one_step d i (s, vs, ves) e with e =>
+Definition equation_pack {A} {P} (x : A) (t : equation_computations A P) : equation_type :=
+  match t in equation_computations A' _ return A' -> equation_type with
+  | computation_run_one_step => fun x => let: (_, _, _, e) := x in inl e
+  | computation_run_step => fun x => let: (_, _, (_, _, e)) := x in inr e
+  end x.
+
+Unset Implicit Arguments.
+Equations eval_run_step {A} {P} (t : equation_computations A P) (x : A) : P x
+  by wf equation_pack run_step_next := {
+
+    eval_run_step computation_run_one_step d i (s, vs, ves) e with e => {
       (* unop *)
       | Basic (Unop_i T_i32 iop) =>
         if ves is ConstInt32 c :: ves' then
@@ -125,7 +153,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
         if ves is (ConstInt64 c) :: ves' then
           (s, vs, RS_normal (vs_to_es ((ConstInt64 (@app_unop_i i64t iop c)) :: ves')))
         else (s, vs, crash_error) ;
-      | Basic (Unop_i _ _) => (s, vs, crash_error) ;
+      (*| Basic (Unop_i _ _) => (s, vs, crash_error) ;*)
       | Basic (Unop_f T_f32 iop) =>
         if ves is (ConstFloat32 c) :: ves' then
           (s, vs, RS_normal (vs_to_es ((ConstFloat32 (@app_unop_f f32t iop c)) :: ves')))
@@ -134,7 +162,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
         if ves is (ConstFloat64 c) :: ves' then
           (s, vs, RS_normal (vs_to_es ((ConstFloat64 (@app_unop_f f64t iop c)) :: ves')))
         else (s, vs, crash_error) ;
-      | Basic (Unop_f _ _) => (s, vs, crash_error) ;
+      (*| Basic (Unop_f _ _) => (s, vs, crash_error) ;*)
       (* binop *)
       | Basic (Binop_i T_i32 iop) =>
         if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
@@ -148,7 +176,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
               (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves'))))
             (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
         else (s, vs, crash_error) ;
-      | Basic (Binop_i _ _) => (s, vs, crash_error) ;
+      (*| Basic (Binop_i _ _) => (s, vs, crash_error) ;*)
       | Basic (Binop_f T_f32 fop) =>
         if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
           expect (@app_binop_f f32t fop c1 c2) (fun c =>
@@ -161,7 +189,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
               (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves'))))
             (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
         else (s, vs, crash_error) ;
-      | Basic (Binop_f _ _) => (s, vs, crash_error) ;
+      (*| Basic (Binop_f _ _) => (s, vs, crash_error) ;*)
       (* testops *)
       | Basic (Testop T_i32 testop) =>
         if ves is (ConstInt32 c) :: ves' then
@@ -171,7 +199,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
         if ves is (ConstInt64 c) :: ves' then
           (s, vs, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
         else (s, vs, crash_error) ;
-      | Basic (Testop _ _) => (s, vs, crash_error) ;
+      (*| Basic (Testop _ _) => (s, vs, crash_error) ;*)
       (* relops *)
       | Basic (Relop_i T_i32 iop) =>
         if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
@@ -181,7 +209,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
         if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
           (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
         else (s, vs, crash_error) ;
-      | Basic (Relop_i _ _) => (s, vs, crash_error) ;
+      (*| Basic (Relop_i _ _) => (s, vs, crash_error) ;*)
       | Basic (Relop_f T_f32 iop) =>
         if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
           (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
@@ -190,7 +218,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
         if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
           (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
         else (s, vs, crash_error) ;
-      | Basic (Relop_f _ _) => (s, vs, crash_error) ;
+      (*| Basic (Relop_f _ _) => (s, vs, crash_error) ;*)
       (* convert & reinterpret *)
       | Basic (Cvtop t2 Convert t1 sx) =>
         if ves is v :: ves' then
@@ -451,14 +479,13 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
             | RS_break _ _ => (s', vs, crash_error)
             end ;
       | Trap => (s, vs, crash_error)
-  }
+    } ;
 
-  where run_step (d : depth) (i : instance) (tt : config_tuple) : res_tuple := {
-    run_step d i (s, vs, es) :=
-      let: (ves, es') := split_vals_e es in
-      match es' with
-      | [::] => (s, vs, crash_error)
-      | e :: es'' =>
+    @eval_run_step run_step d i (s, vs, es) :=
+        let: (ves, es') := split_vals_e es in
+        match es' with
+        | [::] => (s, vs, crash_error)
+        | e :: es'' =>
         if e_is_trap e
         then
           if (es'' != [::]) || (ves != [::])
@@ -469,7 +496,7 @@ Equations run_one_step (d : depth) (i : instance) (tt : config_one_tuple_without
           if r is RS_normal res
           then (s', vs', RS_normal (res ++ es''))
           else (s', vs', r)
-      end
+        end
   }.
 
 Definition run_step := run_step_param run_one_step.
