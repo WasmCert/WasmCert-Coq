@@ -1,6 +1,5 @@
 From compcert Require Import Integers.
-Require Import Parseque.
-Require Import Running.
+From parseque Require Import Parseque Running.
 Require Import Coq.Arith.Le.
 
 Section Check.

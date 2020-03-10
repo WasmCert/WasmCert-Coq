@@ -8,7 +8,7 @@ Add Rec LoadPath "/home/xy/wasm_coq/_build/default/theories" as Wasm.
 
 From Wasm Require Import wasm.
 From compcert Require Import Integers.
-Require Import Parseque.
+From parseque Require Import Parseque.
 (*Require Import Running.*)
 Require Import bytes.
 Require Import leb128.
@@ -26,7 +26,7 @@ Definition w_parser A n := Parser Toks Integers.Byte.int M A n.
 Definition be_parser n := w_parser basic_instruction n.
 
 Definition u32 {n} : w_parser Wasm_int.Int32.int n :=
-  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_nat x)) <$> unsigned_ n. (* TODO: limit size *)
+  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_nat x)) <$> (extract unsigned_ n). (* TODO: limit size *)
   
 Definition u32_zero {n} : w_parser Wasm_int.Int32.int n :=
   exact #00 $> Wasm_int.Int32.zero.

@@ -1,7 +1,7 @@
 (* TODO: more tests *)
 Require Import leb128.
 Require Import bytes.
-Require Import Running Induction.
+From parseque Require Import Running Induction.
 Require Import check_toks.
 
 Definition byte_of_bits_check (bs : list bool) :=

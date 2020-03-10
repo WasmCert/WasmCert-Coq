@@ -2,8 +2,7 @@ Require Import binary.
 Require Import bytes.
 Require Import wasm.
 Require Import bytes.
-Require Import Parseque.
-Require Import Running.
+From parseque Require Import Parseque Running.
 Require Import check_toks.
 
 Definition test_unreachable : check_toks (cons #00 nil) be := MkSingleton Unreachable.
