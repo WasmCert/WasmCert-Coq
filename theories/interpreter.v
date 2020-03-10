@@ -45,6 +45,10 @@ Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_
   | _ => ([::], es)
   end.
 
+(** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
+    are all of the form [Basic (EConst v)];
+    returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
+    segment and [es] is the remainder of the original [es]. **)
 Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction)) % type :=
   match es with
   | (Basic (EConst v)) :: es' =>
@@ -82,6 +86,7 @@ Proof.
   case => //= >; by [ apply: ReflectF | apply: ReflectT ].
 Qed.
 
+(** [es_is_trap es] is equivalent to [es == [:: Trap]]. **)
 Definition es_is_trap (es : list administrative_instruction) : bool :=
   match es with
   | [::e] => e_is_trap e
@@ -103,9 +108,9 @@ Variable mem_grow_impl : mem -> nat -> option mem.
 
 Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
 
-Fixpoint run_step (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
+Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in
-  let: (ves, es') := split_vals_e es in
+  let: (ves, es') := split_vals_e es in (** Framing out constants. **)
   match es' with
   | [::] => (s, vs, crash_error)
   | e :: es'' =>
@@ -435,7 +440,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         match fuel with
         | 0 => (s, vs, RS_crash C_exhaustion)
         | fuel.+1 =>
-          let: (s', vs', res) := run_step fuel d i (s, vs, es) in
+          let: (s', vs', res) := run_step_with_fuel fuel d i (s, vs, es) in
           match res with
           | RS_break 0 bvs =>
             if length bvs >= ln
@@ -461,7 +466,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         match fuel with
         | 0 => (s, vs, RS_crash C_exhaustion)
         | fuel.+1 =>
-          let: (s', vls', res) := run_step fuel d j (s, vls, es) in
+          let: (s', vls', res) := run_step_with_fuel fuel d j (s, vls, es) in
           match res with
           | RS_return rvs =>
             if length rvs >= ln
@@ -476,13 +481,30 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
   | Trap => (s, vs, crash_error)
   end.
 
-(* TODO: use [administrative_instruction_rect'] *)
-Fixpoint needed_fuel es :=
-  match es with
-  | Label ln les es :: _ => 1 + needed_fuel es
-  | Local ln j vls es :: _ => 1 + needed_fuel es
-  | _ => 0
-  end.
+(** Enough fuel so that [run_one_step] does not run out of exhaustion. **)
+Definition run_one_step_fuel : administrative_instruction -> nat.
+Proof.
+  move=> es. induction es using administrative_instruction_rect';
+    let rec aux v :=
+      lazymatch goal with
+      | F : TProp.Forall _ _ |- _ =>
+        apply TProp.max in F;
+        move: F;
+        let n := fresh "n" in
+        move=> n;
+        aux (n + v)
+      | |- _ => exact v
+      end in
+    aux (1 : nat).
+Defined.
+
+(** Enough fuel so that [run_step] does not run out of exhaustion. **)
+Definition run_step_fuel (tt : config_tuple) :=
+  let: (s, vs, es) := tt in
+  List.fold_left max (List.map run_one_step_fuel es) 1.
+
+Definition run_step d j tt :=
+  run_step_with_fuel (run_step_fuel tt) d j tt.
 
 Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res) % type) :=
   match tt with

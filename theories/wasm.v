@@ -7,7 +7,7 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
-Require Export numerics.
+Require Export utils numerics.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
@@ -398,35 +398,27 @@ Proof.
   move=> g1 g2.
   case: g1 => m1 t1; case: g2 => m2 t2.
   case_eq (m1 == m2) => [Hm|Hm].
-  {
-    case_eq (t1 == t2) => [Ht|Ht].
-    {
-      rewrite /global_eqb /=.
+  - case_eq (t1 == t2) => [Ht|Ht].
+    + rewrite /global_eqb /=.
       rewrite Hm Ht.
       apply ReflectT.
       move/eqP: Hm => Hm.
       move/eqP: Ht => Ht.
       by subst.
-    }
-    {
-      rewrite /global_eqb /=.
+    + rewrite /global_eqb /=.
       rewrite Hm Ht.
       apply ReflectF.
       move=> H.
       injection H => Ht2 Hm2.
       subst.
       by rewrite eqxx in Ht.
-    }
-  }
-  {
-    rewrite /global_eqb /=.
+  - rewrite /global_eqb /=.
     rewrite Hm.
     apply/ReflectF.
     move=> H.
     injection H => _ Hm2.
     subst.
     by rewrite eqxx in Hm.
-  }
 Qed.
 
 Definition global_eq_dec := Equality_axiom_eq_dec eqglobalP.
@@ -472,15 +464,11 @@ Inductive administrative_instruction : Type := (* e *)
   | Trap
   | Callcl : function_closure -> administrative_instruction
   | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
-  | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction.
+  | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
+  .
 
 (** Induction scheme for [administrative_instruction]. **)
 Section administrative_instruction_rect'.
-
-  Inductive Forall (A : Type) (P : A -> Type) : seq A -> Type :=
-    | Forall_nil : Forall P nil
-    | Forall_cons : forall e l, P e -> Forall P l -> Forall P (e :: l)
-  .
 
   Variable P : administrative_instruction -> Type.
 
@@ -488,19 +476,19 @@ Section administrative_instruction_rect'.
   Hypothesis trap : P Trap.
   Hypothesis callcl : forall f, P (Callcl f).
   Hypothesis label : forall n es1 es2,
-    Forall P es1 ->
-    Forall P es2 ->
+    TProp.Forall P es1 ->
+    TProp.Forall P es2 ->
     P (Label n es1 es2).
   Hypothesis local : forall n i vs es,
-    Forall P es ->
+    TProp.Forall P es ->
     P (Local n i vs es).
 
   Fixpoint administrative_instruction_rect' e : P e :=
     let rect_list :=
-      fix rect_list es : Forall P es :=
+      fix rect_list es : TProp.Forall P es :=
         match es with
-        | [::] => Forall_nil _
-        | e :: l => Forall_cons (administrative_instruction_rect' e) (rect_list l)
+        | [::] => TProp.Forall_nil _
+        | e :: l => TProp.Forall_cons _ (administrative_instruction_rect' e) (rect_list l)
         end in
     match e with
     | Basic b => basic b
@@ -544,7 +532,7 @@ Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : b
 Lemma eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
 Proof.
   assert (IH: forall es es',
-    Forall (fun x => forall y, reflect (x = y) (administrative_instruction_eqb x y)) es ->
+    TProp.Forall (fun x => forall y, reflect (x = y) (administrative_instruction_eqb x y)) es ->
     reflect (es = es')
       ((fix f (l1 l2 : list administrative_instruction) :=
          match l1, l2 with
@@ -606,15 +594,16 @@ Canonical Structure administrative_instruction_eqType :=
 
 
 Inductive lholed : Type :=
-| LBase : list administrative_instruction -> list administrative_instruction -> lholed
-| LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed.
+  | LBase : list administrative_instruction -> list administrative_instruction -> lholed
+  | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+  .
 
 
 Definition mem_size (m : mem) :=
   length m.
 
 Definition mem_grow (m : mem) (n : nat) :=
- m ++ bytes_replicate (n * 64000) 0.
+  m ++ bytes_replicate (n * 64000) 0.
 
 Definition load (m : mem) (n : nat) (off : static_offset) (l : nat) : option bytes :=
   if mem_size m >= (n + off + l)
@@ -861,6 +850,8 @@ Definition store_extension (s s' : store_record) : bool :=
 Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=
   map Basic bes.
 
+(** [v_to_e_list]: some kind of the opposite of [split_vals_e] (see [interperter.v]:
+    takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
 Definition v_to_e_list (ves : list value) : list administrative_instruction :=
   map (fun v => Basic (EConst v)) ves.
 
