@@ -1,6 +1,7 @@
+(* TODO: more tests *)
 Require Import leb128.
 Require Import bytes.
-Require Import Running.
+Require Import Running Induction.
 Require Import check_toks.
 
 Definition byte_of_bits_check (bs : list bool) :=
@@ -29,7 +30,9 @@ Definition test_wikipedia : list Integers.Byte.int := (cons ( #E5 ) (cons ( #8E 
 
 Compute encode_unsigned_check 624485.
 
+(*
 Definition test_wikipedia_decode : check_toks test_wikipedia unsigned_ := MkSingleton 624485.
+*)
 
 (*
 Definition test_wikipedia_encode :
