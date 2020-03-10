@@ -1,18 +1,15 @@
 (* Parser for the binary Wasm format *)
 (* TODO: hook up to an OCaml harness and test!!! *)
 (* TODO: move a few types to wasm.v *)
-From compcert Require Import Integers.
 
 (* TODO: make this more robust *)
 Add Rec LoadPath "/home/xy/wasm_coq/_build/default/theories" as Wasm.
 
 From Wasm Require Import wasm.
-
+From compcert Require Import Integers.
 Require Import Parseque.
 Require Import Running.
-
 Require Import bytes.
-
 Require Import Coq.Arith.Le.
 
 Instance: EqDec.EqDec Integers.byte := {
@@ -30,9 +27,40 @@ Context
 Definition w_parser A n := Parser Toks Integers.Byte.int M A n.
 Definition be_parser n := w_parser basic_instruction n.
 
-Definition u32 {n} : w_parser Wasm_int.Int32.int n :=
-  exact #00 $> Wasm_int.Int32.zero (* TODO: implement LEB128 *).
+Definition byte_as_nat {n} : w_parser nat n :=
+  (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) <$> anyTok.
 
+Definition unsigned_end_ {n} : w_parser nat n :=
+  guardM (fun n => if Nat.leb 128 n then None else Some n) byte_as_nat.
+
+Definition unsigned_ctd_ {n} : w_parser nat n :=
+  guardM (fun n => if Nat.leb 128 n then Some (n - 128) else None) byte_as_nat.
+
+  Section Unsigned_sec.
+
+  Record Unsigned (n : nat) : Type := MkUnsigned
+  { _unsigned : w_parser nat n;
+  }.
+  
+  Arguments MkUnsigned {_}.
+  
+  Context
+    {Tok : Type} {A B : Type} {n : nat}.
+  
+  Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
+    let aux := Induction.map _unsigned _ rec in
+    let unsigned_ :=
+      unsigned_end_ <|>
+      (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
+    MkUnsigned unsigned_).
+  
+  Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
+
+  End Unsigned_sec.
+
+Definition u32 {n} : w_parser Wasm_int.Int32.int n :=
+  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_nat x)) <$> unsigned_ n. (* TODO: limit size *)
+  
 Definition u32_zero {n} : w_parser Wasm_int.Int32.int n :=
   exact #00 $> Wasm_int.Int32.zero.
 
@@ -725,20 +753,23 @@ Record module : Type := {
   mod_exports : list export;
 }.
 
-Definition tail_ {n} : w_parser _ n :=
-  elemsec <&>
-  codesec <&>
-  datasec.
-
-Inductive either (A B : Type) :=
-| Left : A -> either A B
-| Right : B -> either A B.
-
 Definition customsec_forget_ {A n} : w_parser (A -> A) n :=
   (fun _ x => x) <$> customsec.
 
 Definition with_customsec_star_before {A : Type} {n} :=
   @iterater _ _ _ _ _ _ _ _ _ A n customsec_forget_.
+
+Definition with_customsec_star_after {A : Type} {n} f :=
+  @iteratel _ _ _ _ _ _ _ _ _ A n f customsec_forget_.
+
+Definition tail_ {n} : w_parser _ n :=
+  (with_customsec_star_before elemsec) <&>
+  (with_customsec_star_before codesec) <&>
+  (with_customsec_star_before (with_customsec_star_after datasec)).
+
+Inductive either (A B : Type) :=
+| Left : A -> either A B
+| Right : B -> either A B.
 
 Definition module_ {n} : w_parser module n :=
 (* TODO: this is missing all the customsecs! *)
@@ -761,7 +792,7 @@ Definition module_ {n} : w_parser module n :=
   (with_customsec_star_before memsec) <*>
   (with_customsec_star_before globalsec) <*>
   (with_customsec_star_before exportsec) <*>
-  ((Left _ _ <$> startsec <&> tail_) <|> (Right _ _ <$> tail_)).
+  ((Left _ _ <$> (with_customsec_star_before startsec) <&> tail_) <|> (Right _ _ <$> tail_)).
 
 End Language.
 
@@ -817,10 +848,5 @@ End Check.
 
 Definition parse_wasm (bs : list Integers.Byte.int) : option basic_instruction :=
   run bs be.
-
-Compute run (cons #00 nil) be.
-
-Definition test1 : check (cons #00 nil) be := MkSingleton
-  (Unreachable).
 
 Extraction "parse_wasm" parse_wasm.
