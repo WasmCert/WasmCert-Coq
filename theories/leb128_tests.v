@@ -1,6 +1,7 @@
 Require Import leb128.
 Require Import bytes.
 Require Import Running.
+Require Import check_toks.
 
 Definition byte_of_bits_check (bs : list bool) :=
   Singleton (byte_of_bits bs).
@@ -24,5 +25,14 @@ Definition plop n :=
   List.map (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) (encode_unsigned n).
 
 (* test from Wikipedia article *)
-Definition testX :
-  encode_unsigned_check 624485 := MkSingleton (cons ( #E5 ) (cons ( #8E ) (cons ( #26 ) nil) ) ).
+Definition test_wikipedia : list Integers.Byte.int := (cons ( #E5 ) (cons ( #8E ) (cons ( #26 ) nil) ) ).
+
+Compute encode_unsigned_check 624485.
+
+Definition test_wikipedia_decode : check_toks test_wikipedia unsigned_ := MkSingleton 624485.
+
+(*
+Definition test_wikipedia_encode :
+  encode_unsigned_check 624485 := MkSingleton test_wikipedia.
+*)
+
