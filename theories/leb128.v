@@ -5,7 +5,7 @@ Require Import bytes.
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
 From compcert Require Import Integers.
-Require Import Parseque.
+From parseque Require Import Sized Category Combinators.
 
 Fixpoint binary_of_aux (acc : list bool) (n : positive) : list bool :=
   match n with
@@ -108,7 +108,7 @@ Definition unsigned_ctd_ {n} : w_parser nat n :=
       unsigned_end_ <|>
       (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
     MkUnsigned unsigned_).
-  
+
   Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
 
   End Unsigned_sec.
