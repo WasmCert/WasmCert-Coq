@@ -8,19 +8,20 @@
     "buildEnv": {
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
-      "COQPATH": "#{coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq:#{@opam/coq-ext-lib.install}/coq"
+      "COQPATH": "#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/"
     },
     "build": "make"
   },
   "dependencies": {
     "@opam/menhir": "20181113",
-    "@opam/dune": "1.11.4",
+    "@opam/dune": ">=2.3",
     "@opam/coq": "8.10.1",
     "@opam/coq-ext-lib": "*",
     "coq-mathcomp-ssreflect": "*",
     "coq-flocq": "3.2.0",
     "coq-iris": "*",
-    "compcert": "3.6"
+    "compcert": "3.6",
+		"strong-induction": "*"
   },
   "devDependencies": {
   },
@@ -56,7 +57,7 @@
           "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{self.install}:#{@opam/coq.lib}/coq/user-contrib/"
+          "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
             ["./autogen.sh"],
@@ -79,7 +80,7 @@
           "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{self.install}:#{@opam/coq-stdpp.install}:#{@opam/coq.lib}/coq/user-contrib/"
+          "COQPATH": "#{@opam/coq-stdpp.install}:#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
           ["make", "-j4"],
@@ -98,14 +99,15 @@
           "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{self.install}:#{@opam/coq.lib}/coq/user-contrib/"
+          "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
         },
         "build": [
           ["make", "-j4"],
           ["make", "install"]
         ]
       }
-    }
+    },
+		"strong-induction": "github:Mbodin/strong-induction#b969d2cc71505d9203dcba662a40b1ac6f2bedb3"
   }
 }
 

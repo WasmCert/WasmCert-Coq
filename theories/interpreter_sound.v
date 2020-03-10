@@ -1,10 +1,10 @@
 (* soundness of the Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
-From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Require Import Omega.
+From StrongInduction Require Import StrongInduction.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -374,15 +374,13 @@ Ltac eframe :=
   evar (r : seq administrative_instruction);
   frame_out l r.
 
-Theorem run_step_soundness : forall d i s vs es s' vs' es',
-    run_step d i (s, vs, es) = (s', vs', RS_normal es') ->
-    reduce s vs es i s' vs' es'.
+Local Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_normal es') ->
+  reduce s vs es i s' vs' es'.
 Proof.
-  move=> d i s vs es s' vs' es'.
-  rewrite/run_step /interpreter.run_step.
-  set (fuel := run_step_fuel (s, vs, es)). clearbody fuel.
-  move: d i s vs es s' vs' es'. induction fuel => //. (* TODO: Strong induction here *)
-  move=> d i s vs es s' vs' es' /=.
+  strong induction fuel.
+  move=> d i s vs es s' vs' es' /=. destruct fuel as [|fuel] => //=.
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
   apply split_vals_e_v_to_e_duality in HSplitVals. rewrite {} HSplitVals.
   destruct les as [|a les'] eqn:Hles => //.
@@ -393,7 +391,7 @@ Proof.
     - admit. (* TODO *)
     - rewrite/lfilled/lfill. rewrite v_to_e_is_const_list. show_list_equality.
   }
-  destruct fuel => //=. destruct a as [b| |f|n es1 es2|n j vls ess] => /=.
+  destruct fuel as [|fuel] => //=. destruct a as [b| |f|n es1 es2|n j vls ess] => /=.
     { (** [Basic b] **) (* TODO: Separate this case as a lemma. *)
       destruct b.
       - (** [Basic Unreachable] **)
@@ -575,14 +573,34 @@ Proof.
     { (** [Label] **)
       explode_and_simplify; try (pattern_match; auto_frame).
       + apply: r_simple. by apply: rs_label_trap.
-      + admit. (* TODO *)
+      + destruct run_step_with_fuel as [[s'' vs''] r] eqn: EH.
+        destruct r as [|nd es''| |es''] => //.
+        * (** [RS_break] **)
+          destruct nd => //. explode_and_simplify. pattern_match.
+          admit. (* TODO *)
+        * (** [RS_normal] **)
+          pattern_match. auto_frame. apply H in EH; last by lias.
+          admit. (* TODO *)
     }
     { (** [Local] **)
       explode_and_simplify; try (pattern_match; auto_frame).
       + apply: r_simple. by apply: rs_local_trap.
-      + admit. (* TODO *)
+      + destruct run_step_with_fuel as [[s'' vs''] r] eqn: EH.
+        destruct r as [| |vs'''|es''] => //.
+        * (** [RS_return] **)
+          explode_and_simplify. pattern_match.
+          admit. (* TODO *)
+        * (** [RS_normal] **)
+          pattern_match. auto_frame. apply H in EH; last by lias.
+          admit. (* TODO *)
     }
-
 Admitted. (* TODO *)
+
+Theorem run_step_soundness : forall d i s vs es s' vs' es',
+  run_step d i (s, vs, es) = (s', vs', RS_normal es') ->
+  reduce s vs es i s' vs' es'.
+Proof.
+  move=> d i s vs es s' vs' es'. apply run_step_soundness_aux.
+Qed.
 
 End Host.
