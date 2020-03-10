@@ -1,6 +1,7 @@
 (* LEB128 integer format *)
 (* TODO: size bound *)
 (* TODO: signed integers *)
+(* TODO: write a relational spec, and prove they correspond *)
 Require Import bytes.
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.

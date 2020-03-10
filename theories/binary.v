@@ -1,6 +1,7 @@
 (* Parser for the binary Wasm format *)
 (* TODO: hook up to an OCaml harness and test!!! *)
 (* TODO: move a few types to wasm.v *)
+(* TODO: write a relational spec, and prove they correspond *)
 
 (* TODO: make this more robust *)
 Add Rec LoadPath "/home/xy/wasm_coq/_build/default/theories" as Wasm.

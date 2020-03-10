@@ -12,13 +12,6 @@ Context
   {Tok : Type} `{Tokenizer Tok}
   {A : Type}.
 
-  (*
-Context
-  {Tok : Type} `{Tokenizer Tok}
-  {M : Type -> Type} `
-  {A : Type}.
-  *)
-
 Definition check : list Integers.Byte.int -> [ Parser (SizedList Tok) Tok M A ] -> Type := fun s p =>
   let tokens := (fromText s : list Tok) in
   let n      := List.length tokens in
