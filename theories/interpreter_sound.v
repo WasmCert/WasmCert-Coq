@@ -85,11 +85,11 @@ Lemma split3: forall {X:Type} (l:seq X) n v,
     List.nth_error l n = Some v ->
     l = (take n l) ++ [::v] ++ (drop (n+1) l).
 Proof.
-  move => X l. elim: l => //=.
-  move => a l IH n v HLen HNth.
-  destruct n => //=.
-  - simpl in HNth. inversion HNth. f_equal. by rewrite drop0.
-  - f_equal. apply: IH => //=.
+  move => X.
+  elim => //= a l IH n v.
+  elim: n => [_ [H]|n IH2 Ha Hb].
+  - by rewrite /= H drop0.
+  - by rewrite /= -(IH _ _ Ha Hb).
 Qed.
 
 Lemma run_step_fuel_not_zero : forall tt,
