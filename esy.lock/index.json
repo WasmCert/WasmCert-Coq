@@ -1,5 +1,5 @@
 {
-  "checksum": "328c86d2dd7aa72d42adb0b31f4f9e6a",
+  "checksum": "a8d9f2cb70a9fc72d2ae0dd54d7de4c8",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -13,14 +13,33 @@
       },
       "overrides": [],
       "dependencies": [
+        "parseque@github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53@d41d8cd9",
         "coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3",
         "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@99dc7a81",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
         "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:1.11.4@a7ccb7ae",
+        "@opam/dune@opam:2.4.0@639d28a3",
         "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6@d41d8cd9",
         "@opam/coq@opam:8.10.1@cabcd98d"
+      ],
+      "devDependencies": []
+    },
+    "parseque@github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53@d41d8cd9": {
+      "id":
+        "parseque@github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53@d41d8cd9",
+      "name": "parseque",
+      "version":
+        "github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53",
+      "source": {
+        "type": "install",
+        "source": [
+          "github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53"
+        ]
+      },
+      "overrides": [],
+      "dependencies": [
+        "@opam/dune@opam:2.4.0@639d28a3", "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
     },
@@ -156,7 +175,7 @@
         "ocaml@4.8.0@d41d8cd9",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:1.11.4@a7ccb7ae",
+        "@opam/dune@opam:2.4.0@639d28a3",
         "@opam/depgraph@opam:0.1.0@bc9dcbeb",
         "@opam/coq@opam:8.10.1@cabcd98d"
       ],
@@ -319,20 +338,20 @@
       ],
       "devDependencies": [ "ocaml@4.8.0@d41d8cd9" ]
     },
-    "@opam/dune@opam:1.11.4@a7ccb7ae": {
-      "id": "@opam/dune@opam:1.11.4@a7ccb7ae",
+    "@opam/dune@opam:2.4.0@639d28a3": {
+      "id": "@opam/dune@opam:2.4.0@639d28a3",
       "name": "@opam/dune",
-      "version": "opam:1.11.4",
+      "version": "opam:2.4.0",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/77/77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6#sha256:77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6",
-          "archive:https://github.com/ocaml/dune/releases/download/1.11.4/dune-build-info-1.11.4.tbz#sha256:77cb5f483221b266ded2b85fc84173ae0089a25134a086be922e82c131456ce6"
+          "archive:https://opam.ocaml.org/cache/sha256/28/28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24#sha256:28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24",
+          "archive:https://github.com/ocaml/dune/releases/download/2.4.0/dune-2.4.0.tbz#sha256:28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24"
         ],
         "opam": {
           "name": "dune",
-          "version": "1.11.4",
-          "path": "esy.lock/opam/dune.1.11.4"
+          "version": "2.4.0",
+          "path": "esy.lock/opam/dune.2.4.0"
         }
       },
       "overrides": [],

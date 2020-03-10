@@ -1,6 +1,6 @@
 From compcert Require Import Integers.
 Require Import Coq.Arith.Le.
-Require Import Parseque.
+From parseque Require Import Char.
 
 Instance: EqDec.EqDec Integers.byte := {
   eq_dec := Integers.Byte.eq_dec;

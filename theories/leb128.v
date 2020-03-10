@@ -1,11 +1,11 @@
 (* LEB128 integer format *)
 (* TODO: size bound *)
-(* TODO: write a relational spec, and prove they correspond *)
+(* TODO: signed integers *)
 Require Import bytes.
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
 From compcert Require Import Integers.
-Require Import Parseque.
+From parseque Require Import Sized Category Combinators.
 
 Fixpoint binary_of_aux (acc : list bool) (n : positive) : list bool :=
   match n with
@@ -74,7 +74,7 @@ Definition binary_of (n : N) : list Integers.Byte.int :=
 Definition encode_unsigned (n : nat) : list Integers.Byte.int :=
   List.rev (binary_of (N.of_nat n)).
 
-Section Language.
+  Section Language.
 
   Context
     {Toks : nat -> Type} `{Sized Toks Integers.Byte.int}
@@ -85,66 +85,34 @@ Section Language.
   Definition byte_as_nat {n} : w_parser nat n :=
   (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) <$> anyTok.
 
-  Definition unsigned_end_ {n} : w_parser nat n :=
-    guardM (fun n => if Nat.leb 128 n then None else Some n) byte_as_nat.
+Definition unsigned_end_ {n} : w_parser nat n :=
+  guardM (fun n => if Nat.leb 128 n then None else Some n) byte_as_nat.
 
-  Definition unsigned_ctd_ {n} : w_parser nat n :=
-    guardM (fun n => if Nat.leb 128 n then Some (n - 128) else None) byte_as_nat.
+Definition unsigned_ctd_ {n} : w_parser nat n :=
+  guardM (fun n => if Nat.leb 128 n then Some (n - 128) else None) byte_as_nat.
 
   Section Unsigned_sec.
 
-    Record Unsigned (n : nat) : Type := MkUnsigned
-    { _unsigned : w_parser nat n;
-    }.
-    
-    Arguments MkUnsigned {_}.
-    
-    Context
-      {Tok : Type} {A B : Type} {n : nat}.
-    
-    Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
-      let aux := Induction.map _unsigned _ rec in
-      let unsigned_ :=
-        unsigned_end_ <|>
-        (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
-      MkUnsigned unsigned_).
-    
-    Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
+  Record Unsigned (n : nat) : Type := MkUnsigned
+  { _unsigned : w_parser nat n;
+  }.
+  
+  Arguments MkUnsigned {_}.
+  
+  Context
+    {Tok : Type} {A B : Type} {n : nat}.
+  
+  Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
+    let aux := Induction.map _unsigned _ rec in
+    let unsigned_ :=
+      unsigned_end_ <|>
+      (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
+    MkUnsigned unsigned_).
+
+  Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
 
   End Unsigned_sec.
 
-  Definition signed_end_ {n} : w_parser Z n :=
-  guardM (fun n => if Nat.leb 128 n then None
-                   else
-                     let z := ZArith.BinInt.Z_of_nat n in
-                     if Nat.leb 64 n then Some (ZArith.BinInt.Zminus z (ZArith.BinInt.Z_of_nat 128))
-                   else Some z) byte_as_nat.
-
-Definition signed_ctd_ {n} : w_parser Z n :=
-  guardM (fun n => if Nat.leb 128 n then Some (ZArith.BinInt.Z_of_nat (n - 128)) else None) byte_as_nat.
-
-  Section Signed_sec.
-
-    Record Signed (n : nat) : Type := MkSigned
-    { _signed : w_parser BinNums.Z n;
-    }.
-    
-    Arguments MkUnsigned {_}.
-    
-    Context
-      {Tok : Type} {A B : Type} {n : nat}.
-    
-    Definition signed_aux : [ Signed ] := Fix Signed (fun _ rec =>
-      let aux := Induction.map _signed _ rec in
-      let signed_ :=
-        signed_end_ <|>
-        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult (ZArith.BinInt.Z_of_nat 128) rest)) <$> signed_ctd_) <*> aux) in
-      MkSigned _ signed_).
-    
-    Definition signed_ : [ w_parser Z ] := fun n => _signed n (signed_aux n).
-
-  End Signed_sec.
-
 End Language.
 
-(* TODO: signed encoding *)
+(* TODO: signed *)
