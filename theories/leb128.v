@@ -1,7 +1,11 @@
+(* LEB128 integer format *)
+(* TODO: size bound *)
+(* TODO: signed integers *)
 Require Import bytes.
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
-Require Import Running.
+From compcert Require Import Integers.
+Require Import Parseque.
 
 Fixpoint binary_of_aux (acc : list bool) (n : positive) : list bool :=
   match n with
@@ -23,21 +27,9 @@ Fixpoint byte_of_bits_aux (acc : Integers.Byte.int) (bs : list bool) : Integers.
   | cons true bs' => byte_of_bits_aux (Integers.Byte.add (Integers.Byte.mul byte_two acc) Integers.Byte.one) bs'
   end.
 
-(** expects 7 bits, with MSB??? at head *)
+(** expects 7 bits, with MSB at head *)
 Definition byte_of_bits (bs : list bool) : Integers.Byte.int :=
   byte_of_bits_aux Integers.Byte.zero bs.
-
-Definition byte_of_bits_check (bs : list bool) :=
-  Singleton (byte_of_bits bs).
-
-Definition test0 : byte_of_bits_check nil := MkSingleton #00.
-Definition test1 : byte_of_bits_check (true :: nil) := MkSingleton #01.
-Definition test2 : byte_of_bits_check (true :: false :: nil) := MkSingleton #02.
-Definition test3 : byte_of_bits_check (true :: true :: nil) := MkSingleton #03.
-Definition testB : byte_of_bits_check (true :: false :: true :: true :: nil) := MkSingleton #0B.
-Definition testDB : byte_of_bits_check (true :: true :: false :: true :: true :: false :: true :: true :: nil) := MkSingleton #DB.
-Definition testE5 : byte_of_bits_check (true :: true :: true :: false :: false :: true :: false :: true :: nil) := MkSingleton #E5.
-Definition testF : byte_of_bits_check (List.repeat true 8) := MkSingleton #FF.
 
 Definition rebalance acc1 acc2 b :=
   if Nat.eqb (List.length acc2) 6 then (cons (byte_of_bits (cons b acc2)) acc1, nil)
@@ -82,21 +74,45 @@ Definition binary_of (n : N) : list Integers.Byte.int :=
 Definition encode_unsigned (n : nat) : list Integers.Byte.int :=
   List.rev (binary_of (N.of_nat n)).
 
-Definition encode_unsigned_check (n : nat) :=
-  Singleton (encode_unsigned n).
+  Section Language.
 
-Definition test2_0 : encode_unsigned_check 0 := MkSingleton (cons #00 nil).
-Definition test2_1 : encode_unsigned_check 1 := MkSingleton (cons #01 nil).
+  Context
+    {Toks : nat -> Type} `{Sized Toks Integers.Byte.int}
+    {M : Type -> Type} `{RawMonad M} `{RawAlternative M}.
+  
+  Definition w_parser A n := Parser Toks Integers.Byte.int M A n.
 
-Definition plop n :=
-  List.map (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) (encode_unsigned n).
+  Definition byte_as_nat {n} : w_parser nat n :=
+  (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) <$> anyTok.
 
-Compute plop 255.
+Definition unsigned_end_ {n} : w_parser nat n :=
+  guardM (fun n => if Nat.leb 128 n then None else Some n) byte_as_nat.
 
-Compute plop 624485.
+Definition unsigned_ctd_ {n} : w_parser nat n :=
+  guardM (fun n => if Nat.leb 128 n then Some (n - 128) else None) byte_as_nat.
 
-(* test from Wikipedia article *)
-Definition testX :
-  encode_unsigned_check 624485 := MkSingleton (cons ( #E5 ) (cons ( #8E ) (cons ( #26 ) nil) ) ).
+  Section Unsigned_sec.
+
+  Record Unsigned (n : nat) : Type := MkUnsigned
+  { _unsigned : w_parser nat n;
+  }.
+  
+  Arguments MkUnsigned {_}.
+  
+  Context
+    {Tok : Type} {A B : Type} {n : nat}.
+  
+  Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
+    let aux := Induction.map _unsigned _ rec in
+    let unsigned_ :=
+      unsigned_end_ <|>
+      (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
+    MkUnsigned unsigned_).
+  
+  Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
+
+  End Unsigned_sec.
+
+End Language.
 
 (* TODO: signed *)

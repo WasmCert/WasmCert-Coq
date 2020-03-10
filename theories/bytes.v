@@ -1,4 +1,10 @@
 From compcert Require Import Integers.
+Require Import Coq.Arith.Le.
+Require Import Parseque.
+
+Instance: EqDec.EqDec Integers.byte := {
+  eq_dec := Integers.Byte.eq_dec;
+}.
 
 Fixpoint encode (n : nat) :=
   match n with

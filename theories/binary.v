@@ -8,13 +8,10 @@ Add Rec LoadPath "/home/xy/wasm_coq/_build/default/theories" as Wasm.
 From Wasm Require Import wasm.
 From compcert Require Import Integers.
 Require Import Parseque.
-Require Import Running.
+(*Require Import Running.*)
 Require Import bytes.
+Require Import leb128.
 Require Import Coq.Arith.Le.
-
-Instance: EqDec.EqDec Integers.byte := {
-  eq_dec := Integers.Byte.eq_dec;
-}.
 
 Notation "p $> b" := (cmap b p) (at level 59, right associativity).
 
@@ -26,37 +23,6 @@ Context
 
 Definition w_parser A n := Parser Toks Integers.Byte.int M A n.
 Definition be_parser n := w_parser basic_instruction n.
-
-Definition byte_as_nat {n} : w_parser nat n :=
-  (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) <$> anyTok.
-
-Definition unsigned_end_ {n} : w_parser nat n :=
-  guardM (fun n => if Nat.leb 128 n then None else Some n) byte_as_nat.
-
-Definition unsigned_ctd_ {n} : w_parser nat n :=
-  guardM (fun n => if Nat.leb 128 n then Some (n - 128) else None) byte_as_nat.
-
-  Section Unsigned_sec.
-
-  Record Unsigned (n : nat) : Type := MkUnsigned
-  { _unsigned : w_parser nat n;
-  }.
-  
-  Arguments MkUnsigned {_}.
-  
-  Context
-    {Tok : Type} {A B : Type} {n : nat}.
-  
-  Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
-    let aux := Induction.map _unsigned _ rec in
-    let unsigned_ :=
-      unsigned_end_ <|>
-      (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
-    MkUnsigned unsigned_).
-  
-  Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
-
-  End Unsigned_sec.
 
 Definition u32 {n} : w_parser Wasm_int.Int32.int n :=
   (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_nat x)) <$> unsigned_ n. (* TODO: limit size *)
@@ -815,23 +781,12 @@ Definition fromText {A : Type} `{Tokenizer A} (s : list Integers.Byte.int) : lis
 
 Instance tokBytes : Tokenizer Integers.Byte.int := MkTokenizer (fun x => x).
 
-Section Check.
+Section Run.
 
 Context
+  {M : Type -> Type} `{RawMonad M} `{RawAlternative M} `{RawMonadRun M}
   {Tok : Type} `{Tokenizer Tok}
-  {M : Type -> Type} `{RawMonadRun M}
   {A : Type}.
-
-Definition check : list Integers.Byte.int -> [ Parser (SizedList Tok) Tok M A ] -> Type := fun s p =>
-  let tokens := (fromText s : list Tok) in
-  let n      := List.length tokens in
-  let input  := mkSizedList tokens in
-  let result := runParser (p n) (le_refl n) input in
-  let valid  := fun s => match Success.size s with | O => Some (Success.value s) | _ => None end in
-  match mapM valid (runMonad result) with
-    | Some (cons hd _) => @Singleton A hd
-    | _                => False
-  end.
 
 Definition run : list Integers.Byte.int -> [ Parser (SizedList Tok) Tok M A ] -> option A := fun s p =>
   let tokens := (fromText s : list Tok) in
@@ -844,7 +799,7 @@ Definition run : list Integers.Byte.int -> [ Parser (SizedList Tok) Tok M A ] ->
     | _                => None
   end.
 
-End Check.
+End Run.
 
 Definition parse_wasm (bs : list Integers.Byte.int) : option basic_instruction :=
   run bs be.
