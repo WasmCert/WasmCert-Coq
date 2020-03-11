@@ -7,29 +7,24 @@ Require Import check_toks.
 Definition plop n :=
   List.map (fun x => byte_of_ascii x) (encode_unsigned n).
 
-(* test from Wikipedia article: https://en.wikipedia.org/wiki/LEB128#Unsigned_LEB128 *)
+(* Test from Wikipedia article: https://en.wikipedia.org/wiki/LEB128#Unsigned_LEB128
+   This is the representation of the number [624485]. *)
 Definition test_wikipedia : list byte :=
   xe5 :: x8e :: x26 :: nil.
 
 Definition encode_unsigned_check (n : nat) :=
   Singleton (plop n).
 
-Eval vm_compute in encode_unsigned_check 624485.
+Lemma test_wikipedia_correct :
+  encode_unsigned_check 624485 = Singleton test_wikipedia.
+Proof.
+  vm_compute. reflexivity.
+Qed.
 
-Eval vm_compute in test_wikipedia.
-
-(* TODO: this is way too slow :-( *)
-
-(* Disabled because it takes a while to compute.
-Definition test_wikipedia_encode :
-  encode_unsigned_check 624485 := MkSingleton test_wikipedia.
+(* Quickly raises a stack overflow.
+Definition test_wikipedia_decode :
+  check_toks test_wikipedia unsigned_ = Singleton 624485.
+Proof.
+  vm_compute. reflexivity.
+Qed.
 *)
-
-(* Disabled because it raises a stack overflow.
-Definition test_wikipedia_decode : check_toks test_wikipedia unsigned_ := MkSingleton 624485.
-*)
-
-
-
-
-
