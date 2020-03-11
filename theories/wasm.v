@@ -7,7 +7,8 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
-Require Export utils numerics.
+Require Import common.
+Require Export numerics.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
@@ -488,7 +489,7 @@ Section administrative_instruction_rect'.
       fix rect_list es : TProp.Forall P es :=
         match es with
         | [::] => TProp.Forall_nil _
-        | e :: l => TProp.Forall_cons _ (administrative_instruction_rect' e) (rect_list l)
+        | e :: l => TProp.Forall_cons (administrative_instruction_rect' e) (rect_list l)
         end in
     match e with
     | Basic b => basic b

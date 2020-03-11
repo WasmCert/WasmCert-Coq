@@ -1,6 +1,7 @@
 (* Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
+Require Import common.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Export wasm.
@@ -450,7 +451,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           | RS_return rvs => (s', vs', RS_return rvs)
           | RS_normal es' =>
             (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
-          | _ => (s', vs', crash_error)
+          | RS_crash error => (s', vs', RS_crash error)
           end
     | Local ln j vls es =>
       if es_is_trap es

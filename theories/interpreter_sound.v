@@ -1,6 +1,7 @@
 (* soundness of the Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
+Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Require Import Omega.
@@ -28,6 +29,7 @@ Hypothesis host_apply_impl_correct :
     host_apply_impl s tf h vs = Some m' ->
     exists hs, wasm.host_apply s tf h vs hs = Some m'.
 
+Let run_one_step := run_one_step mem_grow_impl host_apply_impl.
 Let run_step := run_step mem_grow_impl host_apply_impl.
 
 Hint Constructors reduce_simple : core.
@@ -209,6 +211,18 @@ Ltac simplify_lists :=
   end;
   try subst_rev_const_list.
 
+(** Explode a tuple into all its components. **)
+Ltac explode_value v :=
+  lazymatch type of v with
+  | (_ * _)%type =>
+    let v1 := fresh "v1" in
+    let v2 := fresh "v2" in
+    destruct v as [v1 v2];
+    explode_value v1;
+    explode_value v2
+  | _ => idtac
+  end.
+
 (** Try to find which variable to pattern match on, destruct it,
   then simplify the destructing equality. **)
 Ltac explode_and_simplify :=
@@ -243,7 +257,8 @@ Ltac explode_and_simplify :=
                  | _ => _
                  end] =>
       let Hv := fresh "option_expr" in
-      destruct v eqn:Hv;
+      let v' := fresh "v" in
+      destruct v as [v'|] eqn:Hv; [ explode_value v' |];
       simplify_hypothesis Hv;
       try by [|apply: Hv]
     | context C [match ?v with
@@ -374,6 +389,95 @@ Ltac eframe :=
   evar (r : seq administrative_instruction);
   frame_out l r.
 
+Local Lemma run_one_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel',
+  fuel <= fuel' ->
+  TProp.Forall
+    (fun e : administrative_instruction =>
+     forall (d : depth) (i : instance) (tt : config_one_tuple_without_e) 
+       (s : store_record) (vs : seq value) (r : res_step) (fuel fuel' : nat),
+     fuel <= fuel' ->
+     run_one_step fuel d i tt e = (s, vs, r) ->
+     r = RS_crash C_exhaustion \/ run_one_step fuel' d i tt e = (s, vs, r)) es ->
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es) = (s', vs', r') ->
+  r' = RS_crash C_exhaustion
+  \/ run_step_with_fuel mem_grow_impl host_apply_impl fuel' d i (s, vs, es) = (s', vs', r').
+Proof.
+  move=> d i es s vs s' vs' r' fuel fuel' I F. destruct fuel as [|fuel].
+  - pattern_match. by left.
+  - destruct fuel' as [|fuel'] => /=.
+    + inversion I.
+    + destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
+      apply split_vals_e_v_to_e_duality in HSplitVals.
+      destruct les as [|e les'] eqn:Hles.
+      * pattern_match. by right.
+      * explode_and_simplify; try by pattern_match; right.
+        apply TProp.Forall_forall with (e := e) in F.
+        -- destruct interpreter.run_one_step as [[s'' vs''] r''] eqn:E.
+           eapply F in E; [|by apply I|..]. destruct E as [E|E].
+           ++ subst. pattern_match. by left.
+           ++ unfold run_one_step in E. rewrite E. by right.
+        -- rewrite HSplitVals. apply Coqlib.in_app. right. by left.
+Qed.
+
+Lemma run_one_step_fuel_increase : forall d i tt e s vs r fuel fuel',
+  fuel <= fuel' ->
+  run_one_step fuel d i tt e = (s, vs, r) ->
+  r = RS_crash C_exhaustion \/ run_one_step fuel' d i tt e = (s, vs, r).
+Proof.
+  move=> + + + e. induction e using administrative_instruction_ind';
+    move=> d j [[tt_s tt_vs] tt_es] s' vs' r;
+    (case; first by move=> ? ?; pattern_match; left) => fuel;
+    (case; first by []) => fuel' I /=.
+  - by destruct b; explode_and_simplify; try pattern_match; right.
+  - pattern_match. by right.
+  - by destruct f as [? f ? ?|f ?] => //=; destruct f; explode_and_simplify; pattern_match; right.
+  - explode_and_simplify; try by pattern_match; right.
+    destruct run_step_with_fuel as [[s'' vs''] r''] eqn: E.
+    eapply run_one_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
+    + subst. pattern_match. by left.
+    + rewrite E. by right.
+  - explode_and_simplify; try by pattern_match; right.
+    destruct run_step_with_fuel as [[s'' vs''] r''] eqn: E.
+    eapply run_one_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
+    + subst. pattern_match. by left.
+    + rewrite E. by right.
+Qed.
+
+Lemma run_step_fuel_increase : forall d i tt s vs r fuel fuel',
+  fuel <= fuel' ->
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i tt = (s, vs, r) ->
+  r = RS_crash C_exhaustion
+  \/ run_step_with_fuel mem_grow_impl host_apply_impl fuel' d i tt = (s, vs, r).
+Proof.
+  move=> d i [[s vs] es] s' vs' r' fuel fuel' I. apply: run_one_step_fuel_increase_aux => //.
+  apply: TProp.forall_Forall => e Ie.
+  move=> > I' E'.
+  apply: run_one_step_fuel_increase.
+  + by apply: I'.
+  + by apply: E'.
+Qed.
+
+(** [run_one_step_fuel] is indeed enough fuel to run [run_one_step]. **)
+Lemma run_one_step_fuel_enough : forall d i tt e s vs r,
+  run_one_step (run_one_step_fuel e) d i tt e = (s, vs, r) ->
+  r <> RS_crash C_exhaustion.
+Proof.
+  move=> + + + e. induction e using administrative_instruction_ind';
+    move=> d j [[tt_s tt_vs] tt_es] s' vs' r /=.
+  - admit.
+  - by pattern_match.
+  - by destruct f as [? f ? ?|f ?] => //=; destruct f; explode_and_simplify; pattern_match.
+  - admit. (* TODO: Use [run_one_step_fuel_increase] *)
+  - admit. (* TODO *)
+Admitted.
+
+(** [run_step_fuel] is indeed enough fuel to run [run_step]. **)
+Lemma run_step_fuel_enough : forall d i tt s vs r,
+  run_step d i tt = (s, vs, r) ->
+  r <> RS_crash C_exhaustion.
+Proof.
+Admitted. (* TODO *)
+
 Local Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
   = (s', vs', RS_normal es') ->
@@ -383,15 +487,15 @@ Proof.
   move=> d i s vs es s' vs' es' /=. destruct fuel as [|fuel] => //=.
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
   apply split_vals_e_v_to_e_duality in HSplitVals. rewrite {} HSplitVals.
-  destruct les as [|a les'] eqn:Hles => //.
+  destruct les as [|e les'] eqn:Hles => //.
   explode_and_simplify.
   {
-    pattern_match. destruct a => //. apply: r_simple.
+    pattern_match. destruct e => //. apply: r_simple.
     apply rs_trap with (lh := LBase (v_to_e_list lconst) les').
     - admit. (* TODO *)
     - rewrite/lfilled/lfill. rewrite v_to_e_is_const_list. show_list_equality.
   }
-  destruct fuel as [|fuel] => //=. destruct a as [b| |f|n es1 es2|n j vls ess] => /=.
+  destruct fuel as [|fuel] => //=. destruct e as [b| |f|n es1 es2|n j vls ess] => /=.
     { (** [Basic b] **) (* TODO: Separate this case as a lemma. *)
       destruct b.
       - (** [Basic Unreachable] **)
@@ -495,11 +599,9 @@ Proof.
         explode_and_simplify. pattern_match. by auto_frame.
 
       - (** [Basic (Load v o a0 s0)] **)
-        explode_and_simplify; try (pattern_match; auto_frame); try by destruct p => //=.
-        + destruct p => //=.
-          explode_and_simplify; pattern_match; auto_frame.
-          * apply: r_load_packed_success; try eassumption. by apply/eqP.
-          * apply: r_load_packed_failure; try eassumption. by apply/eqP.
+        explode_and_simplify; try (pattern_match; auto_frame).
+        + apply: r_load_packed_success; try eassumption. by apply/eqP.
+        + apply: r_load_packed_failure; try eassumption. by apply/eqP.
         + simpl. by apply: r_load_success; try eassumption; try apply/eqP; eauto.
         + apply: r_load_failure; try eassumption. by apply/eqP.
 
@@ -561,13 +663,11 @@ Proof.
         apply: r_callcl_native => //=.
         simplify_lists. by rewrite subKn.
       - (** [Func_host] **)
-        explode_and_simplify.
-        + destruct p. explode_and_simplify. pattern_match. stack_frame. auto_frame.
-          apply: r_callcl_host_success => //=.
+        explode_and_simplify; pattern_match; stack_frame; auto_frame.
+        + apply: r_callcl_host_success => //=.
           * simplify_lists. by rewrite subKn.
           * apply/eqP. by eauto.
-        + pattern_match. stack_frame. auto_frame.
-          apply: r_callcl_host_failure => //=.
+        + apply: r_callcl_host_failure => //=.
           explode_and_simplify. by rewrite subKn.
     }
     { (** [Label] **)

@@ -3,7 +3,7 @@
 
 Require Import Lia.
 From ExtLib Require Import Data.HList.
-From mathcomp Require Import ssreflect ssrnat ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -82,3 +82,48 @@ Proof.
   move=> x y. apply: Bool.iff_reflect. rewrite Z.geb_le. by lias.
 Qed.
 
+
+(** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
+
+Module TProp.
+
+Inductive Forall (A : Type) (P : A -> Type) : seq A -> Type :=
+  | Forall_nil : Forall P nil
+  | Forall_cons : forall e l, P e -> Forall P l -> Forall P (e :: l)
+  .
+
+Fixpoint max A l (F : Forall (fun (_ : A) => nat) l) : nat :=
+  match F with
+  | Forall_nil => 0
+  | Forall_cons _ _ n F => Nat.max n (max F)
+  end.
+
+Fixpoint map A P Q (f : forall a, P a -> Q a) (l : seq A) (F : Forall P l) : Forall Q l :=
+  match F with
+  | Forall_nil => Forall_nil _
+  | Forall_cons _ _ p F => Forall_cons (f _ p) (map f F)
+  end.
+
+Lemma Forall_forall : forall A (P : A -> Prop) l,
+  Forall P l ->
+  forall e, List.In e l -> P e.
+Proof.
+  move=> A P l. elim {l}.
+  - by [].
+  - move=> e l Pe F IH e' /=. case.
+    + move=> E. by subst.
+    + by apply: IH.
+Qed.
+
+Lemma forall_Forall : forall A (P : A -> Prop) l,
+  (forall e, List.In e l -> P e) ->
+  Forall P l.
+Proof.
+  move=> A P. elim.
+  - move=> _. by apply: Forall_nil.
+  - move=> e l IH H. apply: Forall_cons.
+    + apply: H. by left.
+    + apply: IH => e' I. apply: H. by right.
+Defined.
+
+End TProp.
