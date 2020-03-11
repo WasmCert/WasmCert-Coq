@@ -1,5 +1,5 @@
 {
-  "checksum": "a8d9f2cb70a9fc72d2ae0dd54d7de4c8",
+  "checksum": "2f8c71b9df55dfbf8fd2154169db95c1",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -13,7 +13,7 @@
       },
       "overrides": [],
       "dependencies": [
-        "parseque@github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53@d41d8cd9",
+        "parseque@github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0@d41d8cd9",
         "coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3",
         "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@99dc7a81",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@cf5b16bf",
@@ -25,16 +25,16 @@
       ],
       "devDependencies": []
     },
-    "parseque@github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53@d41d8cd9": {
+    "parseque@github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0@d41d8cd9": {
       "id":
-        "parseque@github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53@d41d8cd9",
+        "parseque@github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0@d41d8cd9",
       "name": "parseque",
       "version":
-        "github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53",
+        "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0",
       "source": {
         "type": "install",
         "source": [
-          "github:Mbodin/parseque#34b01e0b0c16c9b85fd5e8f100008b3301654e53"
+          "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0"
         ]
       },
       "overrides": [],

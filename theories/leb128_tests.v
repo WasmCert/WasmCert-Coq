@@ -25,16 +25,17 @@ Definition test2_1 : encode_unsigned_check 1 := MkSingleton (cons #01 nil).
 Definition plop n :=
   List.map (fun x => BinIntDef.Z.to_nat (Integers.Byte.intval x)) (encode_unsigned n).
 
-(* test from Wikipedia article *)
-Definition test_wikipedia : list Integers.Byte.int := (cons ( #E5 ) (cons ( #8E ) (cons ( #26 ) nil) ) ).
+(* test from Wikipedia article: https://en.wikipedia.org/wiki/LEB128#Unsigned_LEB128 *)
+Definition test_wikipedia : list Integers.Byte.int :=
+  #E5 :: #8E :: #26 :: nil.
 
-Compute encode_unsigned_check 624485.
+(* Compute encode_unsigned_check 624485. *)
 
-(*
+(* Disabled because it raises a stack overflow.
 Definition test_wikipedia_decode : check_toks test_wikipedia unsigned_ := MkSingleton 624485.
 *)
 
-(*
+(* Disabled because it takes a while to compute.
 Definition test_wikipedia_encode :
   encode_unsigned_check 624485 := MkSingleton test_wikipedia.
 *)

@@ -3,9 +3,6 @@
 (* TODO: move a few types to wasm.v *)
 (* TODO: write a relational spec, and prove they correspond *)
 
-(* TODO: make this more robust *)
-Add Rec LoadPath "/home/xy/wasm_coq/_build/default/theories" as Wasm.
-
 From Wasm Require Import wasm.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
@@ -734,20 +731,16 @@ Definition tail_ {n} : w_parser _ n :=
   (with_customsec_star_before codesec) <&>
   (with_customsec_star_before (with_customsec_star_after datasec)).
 
-Inductive either (A B : Type) :=
-| Left : A -> either A B
-| Right : B -> either A B.
-
 Definition module_ {n} : w_parser module n :=
 (* TODO: this is missing all the customsecs! *)
   magic &>
   version &>
   (((fun functype import typeidx table mem global export secd_ecd =>
     match secd_ecd with
-    | Left (start, (elem, code, data)) =>
+    | inl (start, (elem, code, data)) =>
       let func := nil in
       Build_module functype func table mem global elem data (Some start) import export
-    | Right (elem, code, data) =>
+    | inr (elem, code, data) =>
       let func := nil in
       Build_module functype func table mem global elem data None import export
     end
@@ -759,7 +752,7 @@ Definition module_ {n} : w_parser module n :=
   (with_customsec_star_before memsec) <*>
   (with_customsec_star_before globalsec) <*>
   (with_customsec_star_before exportsec) <*>
-  ((Left _ _ <$> (with_customsec_star_before startsec) <&> tail_) <|> (Right _ _ <$> tail_)).
+  ((inl <$> (with_customsec_star_before startsec) <&> tail_) <|> (inr <$> tail_)).
 
 End Language.
 
@@ -802,7 +795,13 @@ Definition run : list Integers.Byte.int -> [ Parser (SizedList Tok) Tok M A ] ->
 
 End Run.
 
-Definition parse_wasm (bs : list Integers.Byte.int) : option basic_instruction :=
+Definition parse_wasm_byte (bs : list Integers.Byte.int) : option basic_instruction :=
   run bs be.
+
+Definition parse_wasm (l : list Ascii.ascii) : option basic_instruction :=
+  parse_wasm_byte (List.map (fun b =>
+    let n := Ascii.N_of_ascii b in
+    let z := BinInt.Z.of_N n in
+    Integers.Byte.repr z) l).
 
 Extraction "parse_wasm" parse_wasm.
