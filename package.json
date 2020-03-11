@@ -8,19 +8,20 @@
     "buildEnv": {
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
-      "COQPATH": "#{coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq:#{@opam/coq-ext-lib.install}/coq"
+      "COQPATH": "#{coq-flocq.install}/coq:#{compcert.install}/coq:#{parseque.install}/lib/coq/user-contrib/"
     },
     "build": "make"
   },
   "dependencies": {
     "@opam/menhir": "20181113",
-    "@opam/dune": "1.11.4",
+    "@opam/dune": "*",
     "@opam/coq": "8.10.1",
     "@opam/coq-ext-lib": "*",
     "coq-mathcomp-ssreflect": "*",
     "coq-flocq": "3.2.0",
     "coq-iris": "*",
-    "compcert": "3.6"
+    "compcert": "3.6",
+		"parseque": "*"
   },
   "devDependencies": {
   },
@@ -105,7 +106,8 @@
           ["make", "install"]
         ]
       }
-    }
+    },
+		"parseque": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0"
   }
 }
 
