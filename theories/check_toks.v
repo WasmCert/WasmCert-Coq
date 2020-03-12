@@ -21,4 +21,15 @@ Definition check_toks : list Byte.byte -> [ Parser (SizedList Ascii.ascii) Ascii
     | _                => False
   end.
 
+  Definition run : list Byte.byte -> [ Parser (SizedList Ascii.ascii) Ascii.ascii M A ] -> option A := fun s p =>
+  let tokens := List.map Ascii.ascii_of_byte s in
+  let n      := List.length tokens in
+  let input  := mkSizedList tokens in
+  let result := runParser (p n) (le_refl n) input in
+  let valid  := fun s => match Success.size s with | O => Some (Success.value s) | _ => None end in
+  match mapM valid (runMonad result) with
+    | Some (cons hd _) => Some hd
+    | _                => None
+  end.
+
 End Check.
