@@ -492,13 +492,13 @@ Proof.
         aux (n + v)
       | |- _ => exact v
       end in
-    aux (1 : nat).
+    aux (2 : nat).
 Defined.
 
 (** Enough fuel so that [run_step] does not run out of exhaustion. **)
 Definition run_step_fuel (tt : config_tuple) :=
   let: (s, vs, es) := tt in
-  List.fold_left max (List.map run_one_step_fuel es) 1.
+  1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
 Definition run_step d j tt :=
   run_step_with_fuel (run_step_fuel tt) d j tt.

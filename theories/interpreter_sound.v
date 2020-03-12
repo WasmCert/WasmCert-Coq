@@ -97,11 +97,7 @@ Qed.
 Lemma run_step_fuel_not_zero : forall tt,
   run_step_fuel tt <> 0.
 Proof.
-  move=> [[st vs] es].
-  rewrite/run_step_fuel. rewrite -List.fold_left_rev_right.
-  induction List.rev => //=.
-  fold max in *. destruct List.fold_right => //.
-  move: (Nat.le_max_l p.+1 a). lias.
+  move=> [[st vs] es]. rewrite/run_step_fuel. by lias.
 Qed.
 
 
@@ -271,6 +267,23 @@ Ltac explode_and_simplify :=
       destruct v eqn:Hv;
       simplify_hypothesis Hv;
       try by []
+    | context C [match ?v with
+                 | Convert => _
+                 | Reinterpret => _
+                 end] =>
+      let Hv := fresh "Ecvtop" in
+      destruct v eqn:Hv;
+      simplify_hypothesis Hv;
+      try by []
+    | context C [match ?v with
+                 | Tf _ _ => _
+                 end] =>
+      let vs1 := fresh "vs" in
+      let vs2 := fresh "vs" in
+      let Hv := fresh "Eft" in
+      destruct v as [vs1 vs2] eqn:Hv;
+      simplify_hypothesis Hv;
+      try by []
     | context C [expect ?X ?f ?err] =>
        let HExpect := fresh "HExpect" in
        destruct X eqn:HExpect;
@@ -389,12 +402,9 @@ Ltac eframe :=
   evar (r : seq administrative_instruction);
   frame_out l r.
 
-Local Lemma run_one_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel',
+Local Lemma run_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel',
   fuel <= fuel' ->
-  TProp.Forall
-    (fun e : administrative_instruction =>
-     forall (d : depth) (i : instance) (tt : config_one_tuple_without_e) 
-       (s : store_record) (vs : seq value) (r : res_step) (fuel fuel' : nat),
+  TProp.Forall (fun e => forall d i tt s vs r fuel fuel',
      fuel <= fuel' ->
      run_one_step fuel d i tt e = (s, vs, r) ->
      r = RS_crash C_exhaustion \/ run_one_step fuel' d i tt e = (s, vs, r)) es ->
@@ -433,12 +443,12 @@ Proof.
   - by destruct f as [? f ? ?|f ?] => //=; destruct f; explode_and_simplify; pattern_match; right.
   - explode_and_simplify; try by pattern_match; right.
     destruct run_step_with_fuel as [[s'' vs''] r''] eqn: E.
-    eapply run_one_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
+    eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
     + subst. pattern_match. by left.
     + rewrite E. by right.
   - explode_and_simplify; try by pattern_match; right.
     destruct run_step_with_fuel as [[s'' vs''] r''] eqn: E.
-    eapply run_one_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
+    eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
     + subst. pattern_match. by left.
     + rewrite E. by right.
 Qed.
@@ -449,13 +459,35 @@ Lemma run_step_fuel_increase : forall d i tt s vs r fuel fuel',
   r = RS_crash C_exhaustion
   \/ run_step_with_fuel mem_grow_impl host_apply_impl fuel' d i tt = (s, vs, r).
 Proof.
-  move=> d i [[s vs] es] s' vs' r' fuel fuel' I. apply: run_one_step_fuel_increase_aux => //.
+  move=> d i [[s vs] es] s' vs' r' fuel fuel' I. apply: run_step_fuel_increase_aux => //.
   apply: TProp.forall_Forall => e Ie.
   move=> > I' E'.
   apply: run_one_step_fuel_increase.
   + by apply: I'.
   + by apply: E'.
 Qed.
+
+Local Lemma max_fold_left_run_step_fuel : forall es,
+  List.fold_left Init.Nat.max (List.map run_one_step_fuel es) 0
+  <= TProp.max
+       ((fix rect_list (es : seq administrative_instruction) : TProp.Forall (fun=> nat) es :=
+          match es as es' return (TProp.Forall (fun=> nat) es') with
+          | [::] => TProp.Forall_nil (fun=> nat)
+          | e :: l => TProp.Forall_cons (run_one_step_fuel e) (rect_list l)
+          end) es).
+Proof.
+  move=> es. match goal with |- is_true (_ <= TProp.max ?F) => set Fm := F end.
+  rewrite -(Nat.max_0_l (TProp.max Fm)). move: 0. induction es => n /=.
+  - lias.
+  - rewrite Nat.max_assoc. by apply: IHes.
+Qed.
+
+Local Lemma run_step_fuel_enough_aux : forall d i s vs es s' vs' r',
+  TProp.Forall (fun e => forall d i tt s vs r,
+     run_one_step (run_one_step_fuel e) d i tt e = (s, vs, r) -> r <> RS_crash C_exhaustion) es ->
+  run_step d i (s, vs, es) = (s', vs', r') ->
+  r' <> RS_crash C_exhaustion.
+Admitted (* TODO *).
 
 (** [run_one_step_fuel] is indeed enough fuel to run [run_one_step]. **)
 Lemma run_one_step_fuel_enough : forall d i tt e s vs r,
@@ -464,12 +496,38 @@ Lemma run_one_step_fuel_enough : forall d i tt e s vs r,
 Proof.
   move=> + + + e. induction e using administrative_instruction_ind';
     move=> d j [[tt_s tt_vs] tt_es] s' vs' r /=.
-  - admit.
+  - by destruct b; explode_and_simplify; pattern_match.
   - by pattern_match.
   - by destruct f as [? f ? ?|f ?] => //=; destruct f; explode_and_simplify; pattern_match.
-  - admit. (* TODO: Use [run_one_step_fuel_increase] *)
-  - admit. (* TODO *)
-Admitted.
+  - match goal with |- run_one_step ?fuel _ _ _ _ = _ -> _ => set f := fuel end.
+    assert (f >= 1 + run_step_fuel (tt_s, tt_vs, es2)).
+    {
+      apply/leP. rewrite/f /=.
+      move: (max_fold_left_run_step_fuel es2). clear. lias.
+    }
+    destruct f as [|f'] eqn:Ef => //. simpl.
+    explode_and_simplify; try by pattern_match.
+    destruct (run_step d j (tt_s, tt_vs, es2)) as [[s'' vs''] r''] eqn:E1.
+    move: (E1) => D. apply run_step_fuel_enough_aux in D => //.
+    move: (E1) => E2. apply run_step_fuel_increase with (fuel' := f') in E2.
+    + destruct E2 as [E2|E2] => //. rewrite E2.
+      by destruct r'' as [|[|]| |] => //; explode_and_simplify; pattern_match.
+    + apply/leP. move: H. move/leP. by lias.
+  - match goal with |- run_one_step ?fuel _ _ _ _ = _ -> _ => set f := fuel end.
+    assert (f >= 1 + run_step_fuel (tt_s, vs, es)).
+    {
+      apply/leP. rewrite/f /=.
+      move: (max_fold_left_run_step_fuel es). clear. lias.
+    }
+    destruct f as [|f'] eqn:Ef => //. simpl.
+    explode_and_simplify; try by pattern_match.
+    destruct (run_step d i (tt_s, vs, es)) as [[s'' vs''] r''] eqn:E1.
+    move: (E1) => D. apply run_step_fuel_enough_aux in D => //.
+    move: (E1) => E2. apply run_step_fuel_increase with (fuel' := f') in E2.
+    + destruct E2 as [E2|E2] => //. rewrite E2.
+      by destruct r'' as [|[|]| |] => //; explode_and_simplify; pattern_match.
+    + apply/leP. move: H. move/leP. by lias.
+Qed.
 
 (** [run_step_fuel] is indeed enough fuel to run [run_step]. **)
 Lemma run_step_fuel_enough : forall d i tt s vs r,

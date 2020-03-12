@@ -104,6 +104,18 @@ Fixpoint map A P Q (f : forall a, P a -> Q a) (l : seq A) (F : Forall P l) : For
   | Forall_cons _ _ p F => Forall_cons (f _ p) (map f F)
   end.
 
+Fixpoint to_list A B (l : list A) (F : Forall (fun _ => B) l) :=
+  match F with
+  | Forall_nil => [::]
+  | Forall_cons _ _ p F => p :: to_list F
+  end.
+
+Fixpoint from_list A (l : list A) : Forall (fun _ => A) l :=
+  match l with
+  | [::] => Forall_nil _
+  | e :: l => Forall_cons e (from_list l)
+  end.
+
 Lemma Forall_forall : forall A (P : A -> Prop) l,
   Forall P l ->
   forall e, List.In e l -> P e.
@@ -125,5 +137,46 @@ Proof.
     + apply: H. by left.
     + apply: IH => e' I. apply: H. by right.
 Defined.
+
+Lemma Forall_List_Forall : forall A (P : A -> Prop) l,
+  Forall P l ->
+  List.Forall P l.
+Proof.
+  move=> > F. apply List.Forall_forall. by apply: Forall_forall F.
+Qed.
+
+Definition List_Forall_Forall : forall A (P : A -> Prop) l,
+  List.Forall P l ->
+  Forall P l.
+Proof.
+  move=> > F. apply: forall_Forall. by apply List.Forall_forall.
+Defined.
+
+Definition Forall_cat A (P : A -> Prop) (l1 l2 : list A) (F1 : Forall P l1) (F2 : Forall P l2)
+  : Forall P (l1 ++ l2).
+Proof.
+  induction F1 => //. by apply: Forall_cons.
+Defined.
+
+Definition Forall_catrev A (P : A -> Prop) : forall (l1 l2 : list A),
+  Forall P l1 -> Forall P l2 -> Forall P (rev l1 ++ l2).
+Proof.
+  move=> l1 + F1. induction F1 => // l2 F2.
+  rewrite rev_cons -cats1 -catA. apply: IHF1. by apply: Forall_cons.
+Defined.
+
+Definition Forall_rev A (P : A -> Prop) (l : list A) (F : Forall P l) : Forall P (rev l).
+Proof.
+  rewrite -(cats0 (rev l)). apply: Forall_catrev => //. by apply: Forall_nil.
+Defined.
+
+(* FIXME: There are too many opaque things there: I’m afraid that this is not correct.
+Definition Forall_catrevE : forall A (P : A -> Prop) l1 l2 (F1 : Forall P l1) (F2 : Forall P l2),
+  Forall_catrev F1 F2 = Forall_cat (Forall_rev F1) F2.
+Proof.
+  move=> A P l1 + F1. induction F1 => l2 F2.
+  - rewrite/Forall_rev /eq_rect => /=.
+Qed.
+*)
 
 End TProp.
