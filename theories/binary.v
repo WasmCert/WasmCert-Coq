@@ -23,7 +23,7 @@ Definition be_parser n := w_parser basic_instruction n.
 
 Definition u32 {n} : w_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
-  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_nat x)) <$> (extract unsigned_ n).
+  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract unsigned_ n).
 
 Definition exact_byte (x : byte) {n} : w_parser ascii n :=
   exact (ascii_of_byte x).
