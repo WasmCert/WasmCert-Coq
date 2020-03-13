@@ -23,8 +23,7 @@ Proof.
 Qed.
 
 Definition test_wikipedia_decode :
-  check_toks test_wikipedia unsigned_ = Singleton (624485%N).
+  check_toks test_wikipedia unsigned_ = Singleton 624485%N.
 Proof.
-  vm_compute.
-   reflexivity.
+  vm_compute. reflexivity.
 Qed.

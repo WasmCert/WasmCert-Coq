@@ -85,8 +85,6 @@ Section Language.
     Context
       {Tok : Type} {A B : Type} {n : nat}.
 
-      SearchAbout (N -> N -> N).
-    
     Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
       let aux := Induction.map _unsigned _ rec in
       let unsigned_ :=
