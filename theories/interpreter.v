@@ -489,10 +489,10 @@ Proof.
         move: F;
         let n := fresh "n" in
         move=> n;
-        aux (n + v)
+        aux (1 + n + v)
       | |- _ => exact v
       end in
-    aux (2 : nat).
+    aux (1 : nat).
 Defined.
 
 (** Enough fuel so that [run_step] does not run out of exhaustion. **)
