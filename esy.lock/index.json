@@ -1,5 +1,5 @@
 {
-  "checksum": "2f8c71b9df55dfbf8fd2154169db95c1",
+  "checksum": "fce89d3a15db8e9dd63cad4123885d7e",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -21,7 +21,8 @@
         "@opam/menhir@opam:20181113@0c8257a8",
         "@opam/dune@opam:2.4.0@639d28a3",
         "@opam/coq-ext-lib@github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6@d41d8cd9",
-        "@opam/coq@opam:8.10.1@cabcd98d"
+        "@opam/coq@opam:8.10.1@cabcd98d",
+        "@opam/cmdliner@opam:1.0.4@93208aac"
       ],
       "devDependencies": []
     },
