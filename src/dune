@@ -8,3 +8,10 @@
   (section bin)
   (files (wasm_interpreter.exe as wasm_interpreter)))
 
+(rule
+	(targets "parse_wasm.ml" "parse_wasm.mli")
+	(deps "../theories/binary.vo")
+	(action (run cp "../theories/parse_wasm.ml" "../theories/parse_wasm.mli" "./")))
+
+(env (dev (flags (:standard -warn-error -A)))) ; The extracted OCaml code runs into a lot of warnings.
+

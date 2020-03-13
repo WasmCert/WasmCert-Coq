@@ -1,20 +1,41 @@
 (** Main file for the Wasm interpreter **)
 
-let cp verbose recurse force srcs dest =
-  if List.length srcs > 1 &&
-  (not (Sys.file_exists dest) || not (Sys.is_directory dest))
-  then
-    `Error (false, dest ^ " is not a directory")
-  else
-    `Ok (Printf.printf
-     "verbose = %B\nrecurse = %B\nforce = %B\nsrcs = %s\ndest = %s\n"
-      verbose recurse force (String.concat ", " srcs) dest)
+(** Converts a [bool] to [Parse_wasm.bool]. **)
+let to_bool = function
+  | true -> Parse_wasm.True
+  | false -> Parse_wasm.False
 
-let interpret_wasm verbose text no_exec srcs fname =
-  (* TODO: do something *)
-  `Ok (Printf.printf
-    "verbose = %B\ntext = %B\nno_exec = %B\nsrcs = %s\nfname = %s\n"
-    verbose text no_exec (String.concat ", " srcs) fname)
+(** Converts a [list] to [Parse_wasm.list]. **)
+let rec to_list = function
+  | [] -> Parse_wasm.Nil
+  | e :: l -> Parse_wasm.Cons (e, to_list l)
+
+(** Converts a [char] to [Parse_wasm.ascii]. **)
+let to_ascii c =
+  let c = Char.code c in
+  let h i = to_bool ((c land (1 lsl i)) <> 0) in
+  Parse_wasm.Ascii (h 0, h 1, h 2, h 3, h 4, h 5, h 6, h 7)
+
+let interpret verbose text no_exec srcs fname =
+  try
+    let files =
+      List.map (fun dest ->
+        if not (Sys.file_exists dest) || Sys.is_directory dest then
+          invalid_arg (Printf.sprintf "No file %s found." dest)
+        else
+          let in_channel = open_in_bin dest in
+          let rec aux acc =
+            match try Some (input_char in_channel)
+                  with End_of_file -> None with
+            | Some c -> aux (to_ascii c :: acc)
+            | None ->
+              close_in in_channel ;
+              List.rev acc in
+          aux []) srcs in
+    match Parse_wasm.parse_wasm (to_list (List.concat files)) with
+    | None -> `Error (false, "Syntax error")
+    | Some e -> `Ok (Printf.printf "Parsing successful") (* TODO: Actually run something. *)
+  with Invalid_argument msg -> `Error (false, msg)
 
 (* Command line interface *)
 
@@ -48,7 +69,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/rems-project/wasm_coq/issues"; ]
   in
-  (Term.(ret (const cp $ verbose $ text $ no_exec $ srcs $ fname)),
+  (Term.(ret (const interpret $ verbose $ text $ no_exec $ srcs $ fname)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
