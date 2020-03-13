@@ -31,7 +31,7 @@ index 8ad0e2c..d41d63c 100644
  install:
 -	$(INSTALL_DIR) $(DESTDIR)$(STDLIBDIR)
 +	$(INSTALL_DIR) $(LIBDIR)
- 	sed -e 's/%%VERSION%%/$(VERSION)/g' META.in > META
+ 	sed -e 's/88a1b47-dirty/$(VERSION)/g' META.in > META
  	$(OCAMLFIND) install num META
  	rm -f META
 -	$(INSTALL_DATA) $(TOINSTALL) $(DESTDIR)$(STDLIBDIR)

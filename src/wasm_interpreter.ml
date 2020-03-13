@@ -1,3 +1,5 @@
+(** Main file for the Wasm interpreter **)
+
 let cp verbose recurse force srcs dest =
   if List.length srcs > 1 &&
   (not (Sys.file_exists dest) || not (Sys.is_directory dest))
@@ -27,7 +29,7 @@ let text =
   Arg.(value & flag & info ["text"] ~doc)
 
 let no_exec =
-  let doc = "Stop before executing (only go up to typechecking)."in
+  let doc = "Stop before executing (only go up to typechecking)." in
   Arg.(value & flag & info ["no-exec"] ~doc)
 
 let srcs =
@@ -35,20 +37,19 @@ let srcs =
   Arg.(non_empty & pos_left ~rev:true 0 file [] & info [] ~docv:"FILE" ~doc)
 
 let fname =
-  let doc = "Name of the function to run." in
-  Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"NAME"
-         ~doc)
+  let doc = "Name of the Wasm function to run." in
+  Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"NAME" ~doc)
 
 let cmd =
-  let doc = "interpret WebAssembly" in
-  let man_xrefs = [ ]
-  in
+  let doc = "Interpret WebAssembly files" in
+  let man_xrefs = [] in
   let exits = Term.default_exits in
   let man =
     [ `S Manpage.s_bugs;
-      `P "Email them to <hehey at example.org>."; ]
+      `P "Report them at https://github.com/rems-project/wasm_coq/issues"; ]
   in
-  Term.(ret (const cp $ verbose $ text $ no_exec $ srcs $ fname)),
-  Term.info "wasm_interpreter" ~version:"v0.1" ~doc ~exits ~man ~man_xrefs
+  (Term.(ret (const cp $ verbose $ text $ no_exec $ srcs $ fname)),
+   Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
+

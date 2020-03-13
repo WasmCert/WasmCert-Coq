@@ -1,3 +1,10 @@
 (executable
   (name wasm_interpreter)
-  (libraries cmdliner))
+  (libraries cmdliner)
+  (modes (best exe)))
+
+(install
+  (package wasm_interpreter)
+  (section bin)
+  (files (wasm_interpreter.exe as wasm_interpreter)))
+

@@ -1,3 +1,18 @@
 (lang dune 1.11)
 (using coq 0.1)
-(name wasm)
+(name Wasm)
+(version 88a1b47-dirty)
+
+(generate_opam_files true)
+(license CeCILL-B)
+(source (github rems-project/wasm_coq))
+
+(package
+  (name Wasm)
+  (synopsis "Wasm formalisation in Coq")
+  (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt"))
+
+(package
+  (name wasm_interpreter)
+  (synopsis "Wasm interpreter extracted from the Coq formalisation"))
+
