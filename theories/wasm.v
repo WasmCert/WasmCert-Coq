@@ -7,6 +7,7 @@
  * - variable order in inductive definitions is pretty much random
  *)
 
+Require Import common.
 Require Export numerics.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
@@ -398,35 +399,27 @@ Proof.
   move=> g1 g2.
   case: g1 => m1 t1; case: g2 => m2 t2.
   case_eq (m1 == m2) => [Hm|Hm].
-  {
-    case_eq (t1 == t2) => [Ht|Ht].
-    {
-      rewrite /global_eqb /=.
+  - case_eq (t1 == t2) => [Ht|Ht].
+    + rewrite /global_eqb /=.
       rewrite Hm Ht.
       apply ReflectT.
       move/eqP: Hm => Hm.
       move/eqP: Ht => Ht.
       by subst.
-    }
-    {
-      rewrite /global_eqb /=.
+    + rewrite /global_eqb /=.
       rewrite Hm Ht.
       apply ReflectF.
       move=> H.
       injection H => Ht2 Hm2.
       subst.
       by rewrite eqxx in Ht.
-    }
-  }
-  {
-    rewrite /global_eqb /=.
+  - rewrite /global_eqb /=.
     rewrite Hm.
     apply/ReflectF.
     move=> H.
     injection H => _ Hm2.
     subst.
     by rewrite eqxx in Hm.
-  }
 Qed.
 
 Definition global_eq_dec := Equality_axiom_eq_dec eqglobalP.
@@ -468,11 +461,48 @@ Definition upd_s_mem (s : store_record) (m : list mem) : store_record :=
     (s_globs s).
 
 Inductive administrative_instruction : Type := (* e *)
-| Basic : basic_instruction -> administrative_instruction
-| Trap
-| Callcl : function_closure -> administrative_instruction
-| Label : nat -> list administrative_instruction -> list administrative_instruction -> administrative_instruction
-| Local : nat -> instance -> list value -> list administrative_instruction -> administrative_instruction.
+  | Basic : basic_instruction -> administrative_instruction
+  | Trap
+  | Callcl : function_closure -> administrative_instruction
+  | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
+  | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
+  .
+
+(** Induction scheme for [administrative_instruction]. **)
+Section administrative_instruction_rect'.
+
+  Variable P : administrative_instruction -> Type.
+
+  Hypothesis basic : forall b, P (Basic b).
+  Hypothesis trap : P Trap.
+  Hypothesis callcl : forall f, P (Callcl f).
+  Hypothesis label : forall n es1 es2,
+    TProp.Forall P es1 ->
+    TProp.Forall P es2 ->
+    P (Label n es1 es2).
+  Hypothesis local : forall n i vs es,
+    TProp.Forall P es ->
+    P (Local n i vs es).
+
+  Fixpoint administrative_instruction_rect' e : P e :=
+    let rect_list :=
+      fix rect_list es : TProp.Forall P es :=
+        match es with
+        | [::] => TProp.Forall_nil _
+        | e :: l => TProp.Forall_cons (administrative_instruction_rect' e) (rect_list l)
+        end in
+    match e with
+    | Basic b => basic b
+    | Trap => trap
+    | Callcl f => callcl f
+    | Label n es1 es2 => label n (rect_list es1) (rect_list es2)
+    | Local n i vs es => local n i vs (rect_list es)
+    end.
+
+End administrative_instruction_rect'.
+
+Definition administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
+  @administrative_instruction_rect' P.
 
 Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : bool :=
   let fff :=
@@ -497,25 +527,84 @@ Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : b
     (instance_eqb i1 i2) &&
     (vs1 == vs2) &&
     (fff es1 es2)
-  | _, _ => (* TODO *) false
+  | _, _ => false
   end.
 
-Parameter eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
-(* TODO *)
+Lemma eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
+Proof.
+  assert (IH: forall es es',
+    TProp.Forall (fun x => forall y, reflect (x = y) (administrative_instruction_eqb x y)) es ->
+    reflect (es = es')
+      ((fix f (l1 l2 : list administrative_instruction) :=
+         match l1, l2 with
+         | nil, nil => true
+         | cons _ _, nil => false
+         | nil, cons _ _ => false
+         | cons x xs, cons y ys => (administrative_instruction_eqb x y) && (f xs ys)
+         end) es es')).
+  { elim.
+    - case.
+      + move=> IH. by apply ReflectT.
+      + move=> a l IH. by apply ReflectF.
+    - move=> a l IH. case.
+      + move=> IH'. by apply ReflectF.
+      + move=> a' l' IH'. inversion_clear IH' as [|? ? IH1 IH2].
+        eapply iffP; first by apply andP.
+        * case => ? ?. f_equal.
+          -- by apply/IH1.
+          -- by apply/IH.
+        * case=> ? ?. split.
+          -- by apply/IH1.
+          -- by apply/IH.
+  }
+  move=> x. induction x using administrative_instruction_rect';
+    move=> y; destruct y; simpl;
+    try (apply ReflectF; discriminate).
+  - eapply iffP; first by apply/eqP.
+    + by elim.
+    + by case.
+  - by apply ReflectT.
+  - eapply iffP; first by apply/eqP.
+    + by elim.
+    + by case.
+  - apply iffP with (P := n = n0 /\ es1 = l /\ es2 = l0).
+    + move: (IH es1 l X) (IH es2 l0 X0) => {IH X X0} R1 R2.
+      eapply iffP; first by apply andP.
+      * case. move/andP. case=> ? ? ?. split; first by apply/eqP.
+        split; first by apply/R1. by apply/R2.
+      * intros (?&?&?). subst. split; last by apply/R2.
+        apply/andP. split; last by apply/R1. by apply/eqP.
+    + by repeat (case; elim).
+    + by case.
+  - apply iffP with (P := n = n0 /\ i = i0 /\ vs = l /\ es = l0).
+    + move: (IH es l0 X) => {IH X} R.
+      eapply iffP; first by apply andP.
+      * case. move/andP. case. move/andP. case=> ? ? ? ?.
+        repeat (split; first by apply/eqP). by apply/R.
+      * intros (?&?&?&?). subst. split; last by apply/R.
+        apply/andP. split; last by apply/eqP.
+        apply/andP. split; first by apply/eqP.
+        by apply/eqinstanceP.
+    + by repeat (case; elim).
+    + by case.
+Qed.
+
 Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrative_instructionP.
-Canonical Structure administrative_instruction_eqType := Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
+Canonical Structure administrative_instruction_eqType :=
+  Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
 
 Inductive lholed : Type :=
-| LBase : list administrative_instruction -> list administrative_instruction -> lholed
-| LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed.
+  | LBase : list administrative_instruction -> list administrative_instruction -> lholed
+  | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+  .
 
 
 Definition mem_size (m : mem) :=
   length m.
 
 Definition mem_grow (m : mem) (n : nat) :=
- m ++ bytes_replicate (n * 64000) 0.
+  m ++ bytes_replicate (n * 64000) 0.
 
 Definition load (m : mem) (n : nat) (off : static_offset) (l : nat) : option bytes :=
   if mem_size m >= (n + off + l)
@@ -762,6 +851,8 @@ Definition store_extension (s s' : store_record) : bool :=
 Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=
   map Basic bes.
 
+(** [v_to_e_list]: some kind of the opposite of [split_vals_e] (see [interperter.v]:
+    takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
 Definition v_to_e_list (ves : list value) : list administrative_instruction :=
   map (fun v => Basic (EConst v)) ves.
 

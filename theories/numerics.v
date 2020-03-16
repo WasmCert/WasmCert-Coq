@@ -1,7 +1,7 @@
 (** Common useful definitions **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Export common.
+Require Import common.
 From Coq Require ZArith.Int ZArith.BinInt.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
