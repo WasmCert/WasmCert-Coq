@@ -489,8 +489,8 @@ Proof.
         move: F;
         let n := fresh "n" in
         move=> n;
-        aux (1 + n + v)
-      | |- _ => exact v
+        aux (n + v)
+      | |- _ => exact (v.+1)
       end in
     aux (1 : nat).
 Defined.

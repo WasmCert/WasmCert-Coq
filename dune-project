@@ -1,7 +1,6 @@
 (lang dune 1.11)
 (using coq 0.1)
 (name Wasm)
-(version 7ea890f-dirty)
 
 (generate_opam_files true)
 (license CeCILL-B)
