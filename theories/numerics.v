@@ -10,7 +10,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(** Most of the content of this file follows comes from
+(** Most of the content of this file follows the specification from
   https://webassembly.github.io/spec/core/exec/numerics.html **)
 
 Lemma Z_eqP : Equality.axiom Coqlib.zeq.
@@ -45,14 +45,19 @@ Coercion Z.of_nat : nat >-> Z.
 (** These operations follow the standard straightforwardly.
   Some of these operations are sometimes said to be undefined
   in the standard: such operations have been translated by
-  returning an option type. **)
+  returning an option type, as is usual in Coq. **)
 (** Operations have been added converting to and from [nat] and [Z].
   These are typically used in the specification to convert to and
   from list lengths and other computed values:
   - [int_of_Z] converts a [Z] into [int_t].  The number is considered
-    modulo the size.  It doesn’t matter if the number is meant to be
-    considered as signed or unsigned: such matters are only important
-    when interpreting the stored integer.
+    modulo the maximum representable interger.  It doesn’t matter
+    whether the number is meant to be considered as signed or unsigned,
+    as both would return the same representation: signedness is only
+    important when interpreting the stored integer, not when converting
+    to it.  This is due to the fact that converting any representation to
+    a signed or unsigned one, then back to its original signed or unsigned
+    interpretation leaves it unchanged: see Lemma [signed_unsigned] and
+    [unsigned_signed] below.
   - [nat_of_uint] considers an [int_t] as an unsigned interpretation
     and converts it into a natural number.
   - [Z_of_uint] returns the same result than [nat_of_uint], but
@@ -144,9 +149,104 @@ Proof.
   - apply/ReflectF. move=> ?. subst. exact: E.
 Qed.
 
-Definition fail_on_zero (op : T -> T -> T) i1 i2 :=
-  if eq i2 zero then None
-  else Some (op i1 i2).
+Lemma Z_mod_modulus_intval : forall i : T,
+  Z_mod_modulus (intval i) = intval i.
+Proof.
+  move=> [i C]. rewrite/Z_mod_modulus /=. destruct i; try by lias.
+  rewrite Zbits.P_mod_two_p_eq. apply: Z.mod_small. unfold modulus in C.
+  by lias.
+Qed.
+
+Lemma Z_mod_modulus_add_modulus : forall i,
+  Z_mod_modulus i = Z_mod_modulus (i + modulus).
+Proof.
+  move=> i. destruct i as [|i|i].
+  - rewrite /= Zbits.P_mod_two_p_eq. rewrite/Zpower.two_power_nat.
+    rewrite -(Zdiv.Z_mod_plus _ (-1)) => //.
+    by rewrite Z.mod_small; lias.
+  - repeat rewrite /= Zbits.P_mod_two_p_eq /Zpower.two_power_nat.
+    by rewrite -(Zdiv.Z_mod_plus _ 1).
+  - rewrite {1}/Z_mod_modulus. rewrite Zbits.P_mod_two_p_eq. case: Coqlib.zeq => [E|E].
+    + rewrite/Z_mod_modulus. destruct (_ + _)%Z as [|p|p] eqn:Ep.
+      * by lias.
+      * rewrite Zbits.P_mod_two_p_eq. rewrite -Ep /modulus.
+        rewrite -(Zdiv.Z_mod_plus _ (-1)) => //.
+        rewrite_by (Z.neg i + Zpower.two_power_nat wordsize
+                    + -1 * Zpower.two_power_nat wordsize = Z.neg i)%Z.
+        apply Zdiv.Z_mod_zero_opp_full in E. by lias.
+      * rewrite Zbits.P_mod_two_p_eq. destruct Coqlib.zeq as [E'|E'] => //.
+        apply Zdiv.Z_mod_zero_opp_full in E. simpl in E.
+        unfold modulus, Zpower.two_power_nat in *.
+        rewrite -(Zdiv.Z_mod_plus _ 1) in E; last by lias.
+        rewrite Z.mul_1_l in E. rewrite Ep in E.
+        by rewrite -Z.mod_opp_l_nz; lias.
+    + rewrite/Z_mod_modulus. rewrite /modulus /Zpower.two_power_nat.
+      destruct (_ + _)%Z as [|p|p] eqn:Ep.
+      * exfalso. apply: E.
+        rewrite_by (Z.pos i = Z.pos (Zpower.shift_nat wordsize 1)).
+        by apply: Zdiv.Z_mod_same_full.
+      * rewrite Zbits.P_mod_two_p_eq. rewrite -Ep.
+        rewrite -(Zdiv.Z_mod_plus (_ + _)%Z (-1)) => //.
+        rewrite_by (Z.neg i + Zpower.two_power_nat wordsize
+                    + -1 * Zpower.two_power_nat wordsize = Z.neg i)%Z.
+        rewrite_by (Z.neg i mod Zpower.two_power_nat wordsize
+                    = - Z.pos i mod Zpower.two_power_nat wordsize)%Z.
+        by rewrite Zdiv.Z_mod_nz_opp_full; last by lias.
+      * rewrite Zbits.P_mod_two_p_eq.
+        rewrite_by (Z.pos p = Z.pos i - Z.pos (Zpower.shift_nat wordsize 1))%Z.
+        destruct Coqlib.zeq as [E'|E'].
+        -- unfold Zpower.two_power_nat in *.
+           rewrite Zdiv.Zplus_mod in E'.
+           rewrite Zdiv.Z_mod_zero_opp_full in E'; last by rewrite Zdiv.Z_mod_same_full.
+           rewrite Z.add_0_r in E'. by rewrite Zdiv.Zmod_mod in E'.
+        -- rewrite Zdiv.Zplus_mod. rewrite/Zpower.two_power_nat.
+           rewrite Zdiv.Z_mod_zero_opp_full; last by rewrite Zdiv.Z_mod_same_full.
+           rewrite Z.add_0_r. by rewrite Zdiv.Zmod_mod.
+Qed.
+
+Lemma repr_add_modulus : forall i,
+  repr i = repr (i + modulus).
+Proof.
+  move=> i. apply: eq_T_intval => /=. by rewrite Z_mod_modulus_add_modulus.
+Qed.
+
+Lemma repr_add_modulus_rev : forall i,
+  repr (i - modulus) = repr i.
+Proof.
+  move=> i. rewrite repr_add_modulus. f_equal. by lias.
+Qed.
+
+(** The following four lemmas justifies to not care about the sigedness of numbers
+  when converting to [T]. **)
+
+Lemma unsigned_repr_unsigned : forall i : T,
+  unsigned (repr (unsigned i)) = unsigned i.
+Proof.
+  move=> i /=. by apply: Z_mod_modulus_intval.
+Qed.
+
+Lemma signed_repr_signed : forall i : T,
+  signed (repr (signed i)) = signed i.
+Proof.
+  move=> i /=. rewrite/signed. destruct (Coqlib.zlt (unsigned i) half_modulus) eqn:E.
+  - by rewrite unsigned_repr_unsigned E.
+  - by rewrite repr_add_modulus_rev unsigned_repr_unsigned E.
+Qed.
+
+Lemma signed_repr_unsigned : forall i : T,
+  signed (repr (unsigned i)) = signed i.
+Proof.
+  move=> i. by rewrite/signed unsigned_repr_unsigned.
+Qed.
+
+Lemma unsigned_repr_signed : forall i : T,
+  unsigned (repr (signed i)) = unsigned i.
+Proof.
+  move=> i. rewrite/signed. destruct Coqlib.zlt as [E|E].
+  - by rewrite unsigned_repr_unsigned.
+  - by rewrite repr_add_modulus_rev unsigned_repr_unsigned.
+Qed.
+
 
 (** An operation that we did not find in CompCert was a way to convert
   an integer to its representation as a list of booleans.
@@ -190,7 +290,7 @@ Lemma power_index_to_bits_nth : forall c l n,
   seq.nth false (power_index_to_bits c l) n = ((c - n - 1 : Z) \in l).
 Proof.
   move=> c l n I. have E: (n = c - (c - n - 1) - 1).
-  { move/leP: I. lias. (* FIXME: [lias] probably needs to be rewritten. *) }
+  { move/leP: I. lias. (* FIXME: [lias] probably needs to be rewritten to avoid this [leP]. *) }
   rewrite {1} E. apply: power_index_to_bits_in.
   apply/leP. move/leP: I. lias.
 Qed.
@@ -285,14 +385,14 @@ Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
 Proof.
-  move=> a b /leP => I. apply/Z_eqP. by lias.
+  move=> > /leP => I. apply/Z_eqP. by lias.
 Qed.
 
 Lemma nat_Z_gt_neq : forall a b,
   a < b ->
   (b == a :> Z) = false.
 Proof.
-  move=> ? ? ?. by rewrite eqtype.eq_sym nat_Z_lt_neq.
+  move=> > ?. by rewrite eqtype.eq_sym nat_Z_lt_neq.
 Qed.
 
 Lemma convert_to_bits_two_p : forall p : nat,
@@ -398,7 +498,7 @@ Definition popcnt i :=
   let l := convert_to_bits i in
   repr (seq.count (fun b => b == true) l).
 
-(* FIXME: stuff that we probably want to prove.
+(* FIXME: stuff that we may want to prove.
 Lemma clz_wordsize : forall i,
   clz i = repr wordsize ->
   i = repr 0.
@@ -427,10 +527,13 @@ Definition isub := sub.
 (** Return the result of multiplicating two numbers modulo [max_unsigned]. **)
 Definition imul := mul.
 
-(** Return the result of dividing two numbers towards zero, undefined if the second
-  number is zero. **)
-Definition idiv_u := fail_on_zero divu.
+(** Return the result of dividing two numbers towards zero,
+  undefined if the second number is zero. **)
+Definition idiv_u i1 i2 :=
+  if eq i2 zero then None
+  else Some (divu i1 i2).
 
+(** Signed division, following the Wasm standard. **)
 Definition idiv_s i1 i2 :=
   let j1 := signed i1 in
   let j2 := signed i2 in
@@ -441,7 +544,9 @@ Definition idiv_s i1 i2 :=
     else Some (repr d).
 
 (** Return the quotient of two numbers, undefined if the second number is zero. **)
-Definition irem_u := fail_on_zero modu.
+Definition irem_u i1 i2 :=
+  if eq i2 zero then None
+  else Some (modu i1 i2).
 
 (** This property of [idiv_u] and [irem_u] is stated in the Wasm standard. **)
 Lemma idiv_u_irem_u : forall i1 i2 d r,
@@ -449,7 +554,7 @@ Lemma idiv_u_irem_u : forall i1 i2 d r,
   irem_u i1 i2 = Some r ->
   i1 = add (mul i2 d) r.
 Proof.
-  rewrite /idiv_u /irem_u /fail_on_zero. move=> i1 i2 d r. case E: (eq i2 zero) => //.
+  rewrite /idiv_u /irem_u. move=> i1 i2 d r. case E: (eq i2 zero) => //.
   case=> ED. rewrite - {} ED. case=> ER. rewrite - {} ER.
   move: E. rewrite /add /mul /divu /modu /eq.
   case i1 => {i1} v1 R1. case i2 => {i2} v2 R2 /=. case: Coqlib.zeq => // D _.
