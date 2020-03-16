@@ -15,6 +15,6 @@
 *.aux
 .lia.cache
 
-/theories/parse_wasm.ml
-/theories/parse_wasm.mli
+/theories/extract.ml
+/theories/extract.mli
 
