@@ -49,8 +49,8 @@ Definition binary_of (n : N) : list ascii :=
   | Npos n' => make_msb_of_non_first_byte_one (binary_of_aux2 nil nil n')
   end.
 
-Definition encode_unsigned (n : nat) : list ascii :=
-  List.rev (binary_of (N.of_nat n)).
+Definition encode_unsigned (n : N) : list ascii :=
+  List.rev (binary_of n).
 
 Section Language.
 
@@ -60,46 +60,64 @@ Section Language.
   
   Definition w_parser A n := Parser Toks ascii M A n.
 
-  Definition byte_as_nat {n} : w_parser nat n :=
-  (fun x => nat_of_ascii x) <$> anyTok.
+  Definition byte_as_N {n} : w_parser N n :=
+  (fun x => N_of_ascii x) <$> anyTok.
 
-  Definition unsigned_end_ {n} : w_parser nat n :=
-    guardM (fun n => if Nat.leb 128 n then None else Some n) byte_as_nat.
+  Definition unsigned_end_ {n} : w_parser N n :=
+    guardM (fun k => match k with
+        | Ascii _ _ _ _ _ _ _ msb => if msb then None else Some (N_of_ascii k) end) anyTok.
 
-  Definition unsigned_ctd_ {n} : w_parser nat n :=
-    guardM (fun n => if Nat.leb 128 n then Some (n - 128) else None) byte_as_nat.
+  Definition unsigned_ctd_ {n} : w_parser N n :=
+    guardM (fun k => match k with
+      | Ascii b1 b2 b3 b4 b5 b6 b7 msb =>
+        if msb then Some (N_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 false))
+        else None
+        end) anyTok.
 
   Section Unsigned_sec.
 
     Record Unsigned (n : nat) : Type := MkUnsigned
-    { _unsigned : w_parser nat n;
+    { _unsigned : w_parser N n;
     }.
     
     Arguments MkUnsigned {_}.
     
     Context
       {Tok : Type} {A B : Type} {n : nat}.
-    
+
     Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
       let aux := Induction.map _unsigned _ rec in
       let unsigned_ :=
         unsigned_end_ <|>
-        (((fun lsb rest => lsb + 128 * rest) <$> unsigned_ctd_) <*> aux) in
+        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128 rest)) <$> unsigned_ctd_) <*> aux) in
       MkUnsigned unsigned_).
     
-    Definition unsigned_ : [ w_parser nat ] := fun n => _unsigned n (unsigned_aux n).
+    Definition unsigned_ : [ w_parser N ] := fun n => _unsigned n (unsigned_aux n).
 
   End Unsigned_sec.
 
+Definition sub_2_7 (k : N) :=
+  BinIntDef.Z.sub (BinInt.Z_of_N k) (BinIntDef.Z.pow (BinInt.Z.of_nat 2) (BinInt.Z.of_nat 7)).
+
   Definition signed_end_ {n} : w_parser Z n :=
-  guardM (fun n => if Nat.leb 128 n then None
-                   else
-                     let z := ZArith.BinInt.Z_of_nat n in
-                     if Nat.leb 64 n then Some (ZArith.BinInt.Zminus z (ZArith.BinInt.Z_of_nat 128))
-                   else Some z) byte_as_nat.
+  guardM
+    (fun k =>
+      match k with
+      | Ascii _ _ _ _ _ _ _ true => None
+      | Ascii _ _ _ _ _ _ true false => Some (sub_2_7 (N_of_ascii k))
+      | Ascii _ _ _ _ _ _ false false => Some (ZArith.BinInt.Z_of_N (N_of_ascii k))
+      end)
+    anyTok.
 
 Definition signed_ctd_ {n} : w_parser Z n :=
-  guardM (fun n => if Nat.leb 128 n then Some (ZArith.BinInt.Z_of_nat (n - 128)) else None) byte_as_nat.
+  guardM
+    (fun k =>
+      match k with
+      | Ascii _ _ _ _ _ _ _  true =>
+        Some (sub_2_7 (N_of_ascii k))
+      | Ascii _ _ _ _ _ _ _ false => None
+      end)
+    anyTok.
 
   Section Signed_sec.
 
