@@ -9,4 +9,5 @@ clean:
 	rm theories/*.vo || true
 	rm theories/*.glob || true
 	rm theories/*.aux || true
+	rm theories/extract.{ml,mli} || true
 

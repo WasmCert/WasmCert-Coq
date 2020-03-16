@@ -8,8 +8,8 @@ Require Import check_toks.
 Definition plop n :=
   List.map (fun x => byte_of_ascii x) (encode_unsigned n).
 
-(* Test from Wikipedia article: https://en.wikipedia.org/wiki/LEB128#Unsigned_LEB128
-   This is the representation of the number [624485]. *)
+(** Example from Wikipedia article: https://en.wikipedia.org/wiki/LEB128#Unsigned_LEB128
+   This is the representation of the number [624485]. **)
 Definition test_wikipedia : list byte :=
   xe5 :: x8e :: x26 :: nil.
 

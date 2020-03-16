@@ -1,5 +1,4 @@
-(* Parser for the binary Wasm format *)
-(* TODO: hook up to an OCaml harness and test!!! *)
+(** Parser for the binary Wasm format **)
 (* TODO: move a few types to wasm.v *)
 (* TODO: write a relational spec, and prove they correspond *)
 
@@ -804,5 +803,3 @@ Definition parse_wasm (bs : list Ascii.ascii) : option basic_instruction :=
 
 Definition parse_wasm_bytes (bs : list byte) : option basic_instruction :=
   run (List.map ascii_of_byte bs) be.
-
-Extraction "parse_wasm" parse_wasm.
