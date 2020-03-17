@@ -130,13 +130,18 @@ Proof.
   - apply/ReflectF. move=> ?. subst. exact: E.
 Qed.
 
-Lemma Z_mod_modulus_intval : forall i : T,
-  Z_mod_modulus (intval i) = intval i.
+Lemma Z_mod_modulus_id : forall i,
+  (-1 < i < modulus)%Z ->
+  Z_mod_modulus i = i.
 Proof.
-  move=> [i C]. rewrite/Z_mod_modulus /=. destruct i; try by lias.
+  move=> i C. rewrite/Z_mod_modulus /=. destruct i; try by lias.
   rewrite Zbits.P_mod_two_p_eq. apply: Z.mod_small.
   unfold modulus in C. by lias.
 Qed.
+
+Lemma Z_mod_modulus_intval : forall i : T,
+  Z_mod_modulus (intval i) = intval i.
+Proof. move=> [i C]. by apply: Z_mod_modulus_id. Qed.
 
 Lemma Z_mod_modulus_add_modulus : forall i,
   Z_mod_modulus i = Z_mod_modulus (i + modulus).
@@ -184,6 +189,36 @@ Proof.
            rewrite Zdiv.Z_mod_zero_opp_full; last by rewrite Zdiv.Z_mod_same_full.
            rewrite Z.add_0_r. by rewrite Zdiv.Zmod_mod.
 Qed.
+
+Lemma modulus_mod_2 : (modulus mod 2 = 0)%Z.
+Proof.
+  rewrite /modulus /Zpower.two_power_nat Zpower.shift_nat_correct Zpower.Zpower_nat_Z.
+  move: WS.wordsize_not_zero => N. rewrite/wordsize.
+  destruct WS.wordsize as [|ws] => //=. destruct ws as [|ws] => //=.
+  rewrite /Z.pow_pos Pos.iter_succ. apply: Znumtheory.Zdivide_mod.
+  rewrite_by (2 * Pos.iter (Z.mul 2) 1 (Pos.of_succ_nat ws) * 1
+              = 2 * Pos.iter (Z.mul 2) 1 (Pos.of_succ_nat ws))%Z.
+  by apply: Z.divide_factor_l.
+Qed.
+
+Lemma modulus_ge_2 : (modulus >= 2)%Z.
+Proof.
+  rewrite /modulus /Zpower.two_power_nat Zpower.shift_nat_correct Zpower.Zpower_nat_Z.
+  move: WS.wordsize_not_zero. rewrite/wordsize. destruct WS.wordsize as [|ws] => //= _.
+  rewrite /Z.pow_pos. destruct ws as [|ws] => //.
+  rewrite Pos.iter_succ. replace 2%Z with (2 * 1)%Z at 3; last by lias.
+  rewrite -> Z.mul_1_r. apply: Zorder.Zmult_ge_compat_l; last by lias.
+  fold (Pos.of_succ_nat ws). move: (Zaux.Zpower_pos_gt_0 2 (Pos.of_succ_nat ws)).
+  rewrite /Z.pow_pos. by lias.
+Qed.
+
+Lemma modulus_minus_half_modulus : (modulus - half_modulus = half_modulus)%Z.
+Proof.
+  rewrite /half_modulus. move: modulus_mod_2 (Zdiv.Zmod_eq_full modulus 2). by lias.
+Qed.
+
+Lemma modulus_twice_half_modulus : (modulus = 2 * half_modulus)%Z.
+Proof. move: modulus_minus_half_modulus. by lias. Qed.
 
 Lemma repr_add_modulus : forall i,
   repr i = repr (i + modulus).
@@ -329,33 +364,23 @@ Qed.
   let us ensure that some basic properties exist about them. **)
 
 Lemma repr_0 : repr 0 = zero.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma repr_1 : repr 1 = one.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma repr_m1 : repr (-1) = mone.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
-Proof.
-  by lias.
-Qed.
+Proof. by lias. Qed.
 
 Lemma nat_Z_gt_neq : forall a b,
   a < b ->
   (b == a :> Z) = false.
-Proof.
-  by lias.
-Qed.
+Proof. by lias. Qed.
 
 Lemma convert_to_bits_two_p : forall p : nat,
   p < wordsize ->
@@ -480,23 +505,34 @@ Lemma clz_shr : forall i k,
   clz (shr i k) = min wordsize (clz i + k).
 *)
 
+(** The following definitions mirrors as close as possible the specification
+  of the corresponding operation in
+  https://webassembly.github.io/spec/core/exec/numerics.html
+  In the case of functions like [iadd] whose specification is just
+  “Return the result of adding i1 and i2 modulo 2^N.”, this may not
+  be obvious, but for more complex operations like [idiv_s], a great
+  care has been taken to explicitely write all steps, even if these
+  were redundant.
+  This explicitness is a direct application of the line-by-line
+  closeness of our specification. **)
+
 (** Return the result of adding two numbers modulo [max_unsigned]. **)
-Definition iadd := add.
+Definition iadd : T -> T -> T := add.
 
 (** Return the result of substracting two numbers modulo [max_unsigned]. **)
-Definition isub := sub.
+Definition isub : T -> T -> T := sub.
 
 (** Return the result of multiplicating two numbers modulo [max_unsigned]. **)
-Definition imul := mul.
+Definition imul : T -> T -> T := mul.
 
 (** Return the result of dividing two numbers towards zero,
   undefined if the second number is zero. **)
-Definition idiv_u i1 i2 :=
+Definition idiv_u (i1 i2 : T) : option T :=
   if eq i2 zero then None
   else Some (divu i1 i2).
 
 (** Signed division, following the Wasm standard. **)
-Definition idiv_s i1 i2 :=
+Definition idiv_s (i1 i2 : T) : option T :=
   let j1 := signed i1 in
   let j2 := signed i2 in
   if j2 == 0 then None
@@ -505,8 +541,44 @@ Definition idiv_s i1 i2 :=
     if d == half_modulus then None
     else Some (repr d).
 
+(** The standard states as a property that [-2^(N-1)/-1] is not representable,
+  and thus that [idiv_s] should not be defined on it. **)
+Lemma idiv_s_2_wordsize_m1_m1 : idiv_s (repr (- Zpower.two_p (wordsize - 1))) (repr (-1)) = None.
+Proof.
+  rewrite /idiv_s /signed.
+  have Em1: (unsigned (repr (-1)) = modulus - 1)%Z.
+  {
+    move: WS.wordsize_not_zero => N.
+    by rewrite /= /wordsize Zbits.P_mod_two_p_eq Zdiv.Zmod_small; destruct WS.wordsize.
+  }
+  rewrite Em1.
+  have Emhm: (modulus - 1 >= half_modulus)%Z.
+  {
+    apply: (Zorder.Zmult_ge_reg_r _ _ 2); first by lias.
+    move: modulus_ge_2 (Zdiv.Zmod_eq modulus 2).
+    rewrite modulus_mod_2 /half_modulus /modulus.
+    lias.
+  }
+  destruct Coqlib.zlt as [?|?] => //.
+  rewrite_by (modulus - 1 - modulus = -1)%Z.
+  rewrite_by ((-1 == 0)%Z = false).
+  rewrite -Pos2Z.opp_pos Z.quot_opp_r // Z.quot_1_r.
+  have E: (unsigned (repr (- Zpower.two_p (wordsize - 1))) = half_modulus)%Z.
+  {
+    rewrite -half_modulus_power /= Z_mod_modulus_add_modulus.
+    rewrite_by (-half_modulus + modulus = modulus - half_modulus)%Z.
+    rewrite modulus_minus_half_modulus. apply: Z_mod_modulus_id.
+    rewrite modulus_twice_half_modulus.
+    move: half_modulus_pos. by lias.
+  }
+  rewrite E. destruct Coqlib.zlt as [E'|E'].
+  - by lias.
+  - rewrite_by ((-(half_modulus - modulus)) = modulus - half_modulus)%Z.
+    rewrite modulus_minus_half_modulus. by rewrite_by (half_modulus == half_modulus).
+Qed.
+
 (** Return the quotient of two numbers, undefined if the second number is zero. **)
-Definition irem_u i1 i2 :=
+Definition irem_u (i1 i2 : T) : option T :=
   if eq i2 zero then None
   else Some (modu i1 i2).
 
@@ -527,7 +599,9 @@ Proof.
   rewrite -E. rewrite Zdiv.Zmod_small => //. by lias.
 Qed.
 
-Definition irem_s i1 i2 :=
+(** Return the quotient of two numbers, with the sign of the dividend.
+  Note that the sign convention differs from the [%] operator in C. **)
+Definition irem_s (i1 i2 : T) : option T :=
   let j1 := signed i1 in
   let j2 := signed i2 in
   if j2 == 0 then None
@@ -542,11 +616,6 @@ Definition irem_s i1 i2 :=
         | true, false | false, true => r - j2
         end%Z in
     Some (repr r).
-
-Lemma modulus_gt_0 : (modulus > 0)%Z.
-Proof.
-  apply: Coqlib.two_power_nat_pos.
-Qed.
 
 (** This property of [idiv_s] and [irem_s] is stated in the Wasm standard. **)
 Lemma idiv_s_irem_s : forall i1 i2 d r,
@@ -651,12 +720,28 @@ Proof.
       by rewrite Zdiv.Zmod_small; lias.
 Qed.
 
-Definition iand := and.
-Definition ior := or.
-Definition ixor := xor.
+(** Return the bitwise conjunction of two numbers. **)
+Definition iand : T -> T -> T := and.
 
-Definition ishl := shl.
-Definition ishr_u := shru.
+(** Return the bitwise disjunction of two numbers. **)
+Definition ior : T -> T -> T := or.
+
+(** Return the bitwise exclusive disjunction of two numbers. **)
+Definition ixor : T -> T -> T := xor.
+
+(** Return the result of shifting left the first number by the second. **)
+Definition ishl (i1 i2 : T) : T :=
+(* TODO: We would like to better the specification here.  Something like:
+[[
+  let k := (unsigned i1 mod wordsize)%Z in
+  shl k i2.
+]]
+*)
+  shl i1 i2.
+
+(** Return the result of shifting right the first number by the second. **)
+(* TODO: Make it match better the specification. *)
+Definition ishr_u : T -> T -> T := shru.
 
 (* TODO
 (** Shift [i] by [k] bits, extended with the most significant bit of the original value. **)
@@ -722,15 +807,39 @@ Definition Tmixin : mixin_of T := {|
      Z_of_sint i := signed i ;
    |}.
 
+(** The operations [int_of_Z], [nat_of_uint], [Z_of_uint], and [Z_of_sint] are implicit
+  in the Wasm specification.
+  We prove here some properties showing that our implementation of these functions
+  makes sense. **)
+
+Lemma int_of_Z_nat_of_uint : forall i,
+  int_of_Z Tmixin (nat_of_uint Tmixin i : Z) = i.
+Proof.
+  move=> [i ?]. apply: eq_T_intval => /=.
+  rewrite Coqlib.Z_to_nat_max. rewrite Z.max_l; last by lias.
+  by rewrite Z_mod_modulus_id.
+Qed.
+
+Lemma int_of_Z_Z_of_uint : forall i,
+  int_of_Z Tmixin (Z_of_uint Tmixin i : Z) = i.
+Proof.
+  move=> [i ?]. apply: eq_T_intval => /=.
+  by rewrite Z_mod_modulus_id.
+Qed.
+
+Lemma int_of_Z_Z_of_sint : forall i,
+  int_of_Z Tmixin (Z_of_sint Tmixin i : Z) = i.
+Proof.
+  move=> [i ?]. apply: eq_T_intval => /=.
+  rewrite /signed /=. destruct Coqlib.zlt as [E|E].
+  - by rewrite Z_mod_modulus_id.
+  - rewrite Z_mod_modulus_add_modulus. by rewrite Z_mod_modulus_id; lias.
+Qed.
+
 Lemma nat_of_uint_Z_of_uint : forall i,
   (nat_of_uint Tmixin i : Z) = Z_of_uint Tmixin i.
 Proof.
-  move=> [i +] /=. case=> I1 I2.
-  have: (i >= 0)%Z; first by lias.
-  move=> {I1 I2}. case i.
-  - reflexivity.
-  - move=> p. by rewrite Znat.positive_nat_Z.
-  - by lias.
+  move=> [i ?] /=. rewrite Coqlib.Z_to_nat_max. by rewrite Z.max_l; lias.
 Qed.
 
 Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
@@ -901,19 +1010,13 @@ Definition T := float32.
 Definition default_nan := Archi.default_nan_32.
 
 Lemma prec_gt_0 : FLX.Prec_gt_0 prec.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma Hmax : (prec < emax)%Z.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma prec_gt_2 : (prec > 2)%Z.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 End FloatSize32.
 
@@ -933,19 +1036,13 @@ Definition T := float.
 Definition default_nan := Archi.default_nan_64.
 
 Lemma prec_gt_0 : FLX.Prec_gt_0 prec.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma Hmax : (prec < emax)%Z.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma prec_gt_2 : (prec > 2)%Z.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 End FloatSize64.
 
@@ -961,7 +1058,7 @@ Import Floats.
 
 Export FS.
 
-(** State whether the given float is a NaN. **)
+(** State whether the given float is a [NaN]. **)
 Definition is_nan : T -> bool := Binary.is_nan _ _.
 
 (** State whether the given float is negative. **)
@@ -975,26 +1072,26 @@ Definition is_zero (z : T) :=
 Definition is_infinity (z : T) :=
   if z is Binary.B754_infinity _ then true else false.
 
-(** +∞ **)
+(** [+∞] **)
 Definition pos_infinity : T := Binary.B754_infinity _ _ false.
 
-(** -∞ **)
+(** [-∞] **)
 Definition neg_infinity : T := Binary.B754_infinity _ _ true.
 
-(** +0 **)
+(** [+0] **)
 Definition pos_zero : T := Binary.B754_zero _ _ false.
 
-(** -0 **)
+(** [-0] **)
 Definition neg_zero : T := Binary.B754_zero _ _ true.
 
-(** The canonical NaN payload. **)
+(** The canonical [NaN] payload. **)
 Definition canonical_pl := shift_pos (Z.to_pos prec - 2) 1.
 
-(** States whether a NaN is canonical. **)
+(** States whether a [NaN] is canonical. **)
 Definition is_canonical (z : T) :=
   if z is Binary.B754_nan _ pl _ then pl == canonical_pl else false.
 
-(** State whether a NaN payload [pl] is an arithmetic NaN.
+(** State whether a [NaN] payload [pl] is an arithmetic [NaN].
   that is whether its most significant bit is [1]. **)
 Definition pl_arithmetic (pl : positive) := Z.pos (Digits.digits2_pos pl) == (prec - 1)%Z.
 
@@ -1005,7 +1102,7 @@ Proof.
   rewrite /pl_arithmetic /Binary.nan_pl. move=> pl C. apply/Z.ltb_spec0. by lias.
 Qed.
 
-(** State whether a NaN is an arithmetical NaN. **)
+(** State whether a [NaN] is an arithmetical [NaN]. **)
 Definition is_arithmetic (z : T) :=
   if z is Binary.B754_nan _ pl _ then pl_arithmetic pl else false.
 
@@ -1051,7 +1148,7 @@ Proof.
   move: prec_gt_2. rewrite {} Eprec => /=. by lias.
 Qed.
 
-(** There are exactly two canonical NaNs: a positive one, and a negative one. **)
+(** There are exactly two canonical [NaN]s: a positive one, and a negative one. **)
 Definition canonical_nan s : T :=
   Binary.B754_nan _ _ s canonical_pl  (pl_arithmetic_is_nan canonical_pl_is_arithmetic).
 
@@ -1105,20 +1202,16 @@ Qed.
 Definition unspec_arithmetic_nan := make_arithmetic unspec_nan_pl.
 
 Lemma unspec_arithmetic_nan_canonical : pl_arithmetic (sval unspec_arithmetic_nan).
-Proof.
-  apply: make_arithmetic_arithmetic.
-Qed.
+Proof. apply: make_arithmetic_arithmetic. Qed.
 
 Lemma unspec_arithmetic_nan_nan : Binary.nan_pl prec (sval unspec_arithmetic_nan).
-Proof.
-  apply: make_arithmetic_nan.
-Qed.
+Proof. apply: make_arithmetic_nan. Qed.
 
 (** An unspecified nan. **)
 Definition unspec_nan : T :=
   Binary.B754_nan _ _ ltac:(abstract exact true) _ unspec_arithmetic_nan_nan.
 
-(** The same definition, but within a type that guarantees that it is a NaN. **)
+(** The same definition, but within a type that guarantees that it is a [NaN]. **)
 Definition unspec_nan_nan : {x : T | Binary.is_nan _ _ x = true} :=
   exist _ unspec_nan (eqxx true).
 
@@ -1133,7 +1226,7 @@ Definition normalise (m e : Z) : T :=
   Binary.binary_normalize _ _ prec_gt_0 Hmax
     Binary.mode_NE m e ltac:(abstract exact false).
 
-(** As Flocq is completely undocumented, let us introduce a unit test here, to check
+(** As Flocq is unfortunately undocumented, let us introduce a unit test here, to check
   that indeed we have the correct understanding of definitions.
   We define [half] to be [0.5], adds it to itself, then check that the result is one.
   (Note that because of rounding errors, it may actually not be equal for some parameters,
@@ -1189,8 +1282,9 @@ Definition fsqrt (z : T) :=
   else sqrt z.
 
 (** It seems that Flocq does not define any ceil and floor functions on
-  floating point numbers (it does define it on the [R] type, but it is not
-  really useful for us).
+  floating point numbers (it does define some on the [R] type, but it is not
+  really useful for us as they are only used for specifications of floating
+  point operations).
   Inspired by CompCert’s [IEEE754_extra.ZofB], we build this operation,
   parameterised by two divisions functions (one for negative numbers and
   one for positive numbers).
@@ -1227,7 +1321,7 @@ Definition div_near (a b : Z) : Z :=
 
 (** From these functions, we can define the usual ceil, floor, trunc, and nearest functions.
   A -o suffix has been added as these function return an option type (returning [None] for
-  non-finite and NaN values). **)
+  non-finite and [NaN] values). **)
 Definition ceilo := ZofB_param div_up div_down.
 Definition flooro := ZofB_param div_down div_up.
 Definition trunco := ZofB_param div_down div_down.
@@ -1303,10 +1397,14 @@ Definition nearest_unit_test_4 : Prop :=
   let mone_pfive := normalise (-3) (-1) in
   nearest mone_pfive = BofZ (-2).
 
+(** We now define the floating-point operators as defined in the Wasm standard. **)
+
 (* TODO: fadd, etc. *)
 
-(** We now define the operators [fceil], [ffloor], [ftrunc], and [fnearest] as defined
-  in the Wasm standartd. **)
+(*
+Definition fadd (z1 z2 : T) :=
+  if is_nan z1 || is_nan z2 then (* FIXME: We need to update [nans] so that it takes a list here. *)
+*)
 
 Definition fceil (z : T) :=
   if is_nan z then nans z
@@ -1442,61 +1540,39 @@ End Float64.
 
 (** ** Unit Tests **)
 
-(* FIXME: Frustration
+(* FIXME: Frustration: these tests seem not to compute well, even with a [vm_compute].
 Lemma normalise_unit_test_64 : Float64.normalise_unit_test.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma ceil_unit_test_1_ok : ceil_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma ceil_unit_test_2_ok : ceil_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma floor_unit_test_1_ok : floor_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma floor_unit_test_2_ok : floor_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma trunc_unit_test_1_ok : trunc_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma trunc_unit_test_2_ok : trunc_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma nearest_unit_test_1_ok : nearest_unit_test_1.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma nearest_unit_test_2_ok : nearest_unit_test_2.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma nearest_unit_test_3_ok : nearest_unit_test_3.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 *)
 
 End Wasm_float.
