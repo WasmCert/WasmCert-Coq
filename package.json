@@ -16,7 +16,6 @@
   "dependencies": {
     "@opam/cmdliner": "1.0.4",
     "@opam/coq": "8.10.1",
-    "@opam/coq-ext-lib": "*",
     "@opam/dune": "*",
     "@opam/menhir": "20181113",
     "compcert": "3.6",

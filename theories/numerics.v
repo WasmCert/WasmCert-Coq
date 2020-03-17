@@ -13,25 +13,6 @@ Unset Printing Implicit Defensive.
 (** Most of the content of this file follows the specification from
   https://webassembly.github.io/spec/core/exec/numerics.html **)
 
-Lemma Z_eqP : Equality.axiom Coqlib.zeq.
-Proof.
-  move=> x y. case: Coqlib.zeq; by [ left | right ].
-Qed.
-
-Definition Z_eqMixin := EqMixin Z_eqP.
-
-Canonical Structure Z_eqType := EqType BinNums.Z Z_eqMixin.
-
-Lemma Pos_eqP : Equality.axiom BinPosDef.Pos.eqb.
-Proof.
-  move=> x y. apply: Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
-Qed.
-                                                                      
-Definition Pos_eqMixin := EqMixin Pos_eqP.
-
-Canonical Structure Pos_eqType := EqType BinNums.positive Pos_eqMixin.
-
-
 (** * Integers **)
 
 Module Wasm_int.
@@ -56,8 +37,8 @@ Coercion Z.of_nat : nat >-> Z.
     important when interpreting the stored integer, not when converting
     to it.  This is due to the fact that converting any representation to
     a signed or unsigned one, then back to its original signed or unsigned
-    interpretation leaves it unchanged: see Lemma [signed_unsigned] and
-    [unsigned_signed] below.
+    interpretation leaves it unchanged: see Lemma [signed_repr_unsigned] and
+    [unsigned_repr_signed] below.
   - [nat_of_uint] considers an [int_t] as an unsigned interpretation
     and converts it into a natural number.
   - [Z_of_uint] returns the same result than [nat_of_uint], but
@@ -153,8 +134,8 @@ Lemma Z_mod_modulus_intval : forall i : T,
   Z_mod_modulus (intval i) = intval i.
 Proof.
   move=> [i C]. rewrite/Z_mod_modulus /=. destruct i; try by lias.
-  rewrite Zbits.P_mod_two_p_eq. apply: Z.mod_small. unfold modulus in C.
-  by lias.
+  rewrite Zbits.P_mod_two_p_eq. apply: Z.mod_small.
+  unfold modulus in C. by lias.
 Qed.
 
 Lemma Z_mod_modulus_add_modulus : forall i,
@@ -289,10 +270,8 @@ Lemma power_index_to_bits_nth : forall c l n,
   n < c ->
   seq.nth false (power_index_to_bits c l) n = ((c - n - 1 : Z) \in l).
 Proof.
-  move=> c l n I. have E: (n = c - (c - n - 1) - 1).
-  { move/leP: I. lias. (* FIXME: [lias] probably needs to be rewritten to avoid this [leP]. *) }
-  rewrite {1} E. apply: power_index_to_bits_in.
-  apply/leP. move/leP: I. lias.
+  move=> c l n I. have E: (n = c - (c - n - 1) - 1); first by lias.
+  rewrite {1} E. apply: power_index_to_bits_in. by lias.
 Qed.
 
 (** Given a [T], return a sequence of bits representing the integer.
@@ -328,10 +307,9 @@ Lemma convert_to_bits_one :
   convert_to_bits one
   = rcons (seq.nseq (wordsize - 1) false) true.
 Proof.
-(* FIXME: An alternative proof, which might be adaptable for other similar proofs.
   apply: (@eq_from_nth _ false).
   - rewrite convert_to_bits_size size_rcons size_nseq /wordsize.
-    move: WS.wordsize_not_zero. lias.
+    move: WS.wordsize_not_zero. by lias.
   - move=> i. rewrite convert_to_bits_size => I. rewrite convert_to_bits_nth //.
     have E: intval one = Zpower.two_p Z0.
     { compute. move: WS.wordsize_not_zero. by elim: WS.wordsize. }
@@ -340,27 +318,11 @@ Proof.
       case E: (i == wordsize - 1); move/ssrnat.eqnP: E => E.
       * rewrite {} E. rewrite_by (wordsize - (wordsize - 1) - 1 = 0).
         by rewrite_by (wordsize - 1 < wordsize - 1 = false).
-      * have Ei: i < wordsize - 1 = true.
-        { apply/leP. move/leP: I E. lias. }
-        rewrite {} Ei in_cons in_nil Bool.orb_false_r.
-        have Ed: ((wordsize - i - 1 : Z) == 0) = (wordsize - i - 1 == 0).
-        { admit (* TODO *). }
-        rewrite {} Ed.
-        apply gtn_eqF. move/leP: I E. move: WS.wordsize_not_zero. rewrite/wordsize. lias.
- *)
-  have E: intval one = Zpower.two_p Z0.
-  { compute. move: WS.wordsize_not_zero. by elim: WS.wordsize. }
-  rewrite /convert_to_bits E Zbits.Z_one_bits_two_p /=.
-  - rewrite /convert_to_bits /wordsize.
-    move: WS.wordsize_not_zero. case: WS.wordsize => //.
-    move=> ws _ /=.
-    rewrite_by (ws.+1 - 1 = ws).
-    elim Ews: ws => [|ws]; first by [].
-    move=> IH /=.
-    have Rf: Zpos (BinPos.Pos.of_succ_nat ws) \in [:: Z0] = false; first by [].
-    rewrite {} Rf. rewrite IH //.
-  - split=> //. rewrite /wordsize.
-    move: WS.wordsize_not_zero. by case: WS.wordsize.
+      * rewrite_by (i < wordsize - 1 = true).
+        rewrite in_cons in_nil Bool.orb_false_r.
+        rewrite_by (((wordsize - i - 1 : Z) == 0) = (wordsize - i - 1 == 0)).
+        apply gtn_eqF. move/leP: I E. move: WS.wordsize_not_zero. rewrite/wordsize. by lias.
+    + by lias.
 Qed.
 
 (** As the definitions [zero], [one], and [mone] are used later on,
@@ -385,14 +347,14 @@ Lemma nat_Z_lt_neq : forall a b,
   a < b ->
   (a == b :> Z) = false.
 Proof.
-  move=> > /leP => I. apply/Z_eqP. by lias.
+  by lias.
 Qed.
 
 Lemma nat_Z_gt_neq : forall a b,
   a < b ->
   (b == a :> Z) = false.
 Proof.
-  move=> > ?. by rewrite eqtype.eq_sym nat_Z_lt_neq.
+  by lias.
 Qed.
 
 Lemma convert_to_bits_two_p : forall p : nat,
@@ -768,7 +730,7 @@ Proof.
   move=> {I1 I2}. case i.
   - reflexivity.
   - move=> p. by rewrite Znat.positive_nat_Z.
-  - move=> p. by lias.
+  - by lias.
 Qed.
 
 Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
@@ -1040,7 +1002,7 @@ Lemma pl_arithmetic_is_nan : forall pl,
   pl_arithmetic pl ->
   Binary.nan_pl prec pl.
 Proof.
-  rewrite /pl_arithmetic /Binary.nan_pl. move=> pl /eqP C. apply/Z.ltb_spec0. by lias.
+  rewrite /pl_arithmetic /Binary.nan_pl. move=> pl C. apply/Z.ltb_spec0. by lias.
 Qed.
 
 (** State whether a NaN is an arithmetical NaN. **)
@@ -1059,8 +1021,7 @@ Lemma canonical_pl_arithmetic : forall pl,
   pl_arithmetic pl <-> (pl >= canonical_pl)%positive.
 Proof.
   move=> pl.
-  have EI: ((pl >= canonical_pl)%positive <-> (Z.pos pl >= Z.pos canonical_pl)%Z); first by lias.
-  rewrite {} EI.
+  rewrite_by ((pl >= canonical_pl)%positive <-> (Z.pos pl >= Z.pos canonical_pl)%Z).
   rewrite /Binary.nan_pl /pl_arithmetic /canonical_pl.
   move: prec_gt_0 prec_gt_2. case: prec => [|precn|] // _ G2.
   rewrite digits2_log2. rewrite shift_pos_correct. rewrite Z.pow_pos_fold.
@@ -1075,10 +1036,9 @@ Proof.
     by apply: not_iff_compat.
   }
   rewrite {} R.
-  have R: Z.succ (Z.log2 (Z.pos pl)) == (Z.pos precn - 1)%Z
-          <-> Z.succ (Z.log2 (Z.pos pl)) = (Z.pos precn - 1)%Z.
-  { by split; move/Z_eqP. }
-  rewrite {} R. by lias.
+  rewrite_by (Z.succ (Z.log2 (Z.pos pl)) == (Z.pos precn - 1)%Z
+              <-> Z.succ (Z.log2 (Z.pos pl)) = (Z.pos precn - 1)%Z).
+  by lias.
 Qed.
 
 Lemma canonical_pl_is_arithmetic : pl_arithmetic canonical_pl.

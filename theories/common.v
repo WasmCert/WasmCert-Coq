@@ -2,32 +2,81 @@
 (* (C) M. Bodin - see LICENSE.txt *)
 
 Require Import Lia.
-From ExtLib Require Import Data.HList.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
+From compcert Require Integers.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(** An extension of [lia] that just tries to rewrite things in the way [lia] that expects.
-  Not optimised at all. **)
+(** * Structures **)
+
+Lemma Z_eqP : Equality.axiom Coqlib.zeq.
+Proof.
+  move=> x y. case: Coqlib.zeq; by [ left | right ].
+Qed.
+
+Definition Z_eqMixin := EqMixin Z_eqP.
+
+Canonical Structure Z_eqType := EqType BinNums.Z Z_eqMixin.
+
+Lemma Pos_eqP : Equality.axiom BinPosDef.Pos.eqb.
+Proof.
+  move=> x y. apply: Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
+Qed.
+                                                                      
+Definition Pos_eqMixin := EqMixin Pos_eqP.
+
+Canonical Structure Pos_eqType := EqType BinNums.positive Pos_eqMixin.
+
+(** * Equalities **)
+
+(** Try to rewrite the goal such that [lia] has more chance to deal with it. **)
+Ltac lias_simpl :=
+  intros;
+  repeat lazymatch goal with
+  | |- context C [subn] => rewrite /subn /subn_rec
+  | |- context C [addn] => rewrite /addn /addn_rec
+  | H: context C [subn] |- _ => unfold subn, subn_rec in H
+  | H: context C [addn] |- _ => unfold addn, addn_rec in H
+  | |- ?x = true => fold (is_true x)
+  | |- ?x = false => apply/negP => ?
+  | |- is_true (leq _ _) => apply/leP
+  | |- is_true (@eq_op nat_eqType _ _) => rewrite -eqnE; apply/eqnP
+  | |- is_true (@eq_op Z_eqType _ _) => apply/Z_eqP
+  | |- is_true (@eq_op Pos_eqType _ _) => apply/Pos_eqP
+  | H: context C [?x = true] |- _ => fold (is_true x) in H
+  | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
+  | H: context C [is_true (@eq_op nat_eqType _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
+  | H: context C [is_true (@eq_op Z_eqType _ _)] |- _ => move: H => /Z_eqP H
+  | H: context C [is_true (@eq_op Pos_eqType _ _)] |- _ => move: H => /Pos_eqP H
+  | H: context C [?x = false] |- _ => move: H => /negP H
+  | |- _ /\ _ => split
+  | |- _ <-> _ => split; intros
+  | H: _ /\ _ |- _ => move: H => [? ?]
+  | H: _ <-> _ |- _ => move: H => [? ?]
+  end;
+  repeat rewrite <- PeanoNat.Nat.add_1_l in *;
+  try unfold Logic.not in *.
+
+(** An extension of [lia] that just tries to rewrite things in the way [lia] that expects. **)
 Ltac lias :=
-  let rec iter f l :=
-    match l with
-    | @Hnil _ _ => idtac
-    | @Hcons _ _ _ _ ?t ?l' =>
-      try f t; iter f l'
+  lias_simpl;
+  let unfold_head _ :=
+    let rec aux f :=
+      lazymatch f with
+      | ?g _ => aux g
+      | _ => unfold f
+      end in
+    lazymatch goal with
+    | |- ?f => aux f
     end in
-  iter ltac:(fun t => rewrite /t)
-    (Hcons subn (Hcons subn_rec (Hcons addn (Hcons addn_rec Hnil))) : hlist id _);
-  let reflects :=
-    constr:(Hcons (@ltP) (Hcons (@leP) Hnil : hlist id _)) in
-  iter ltac:(fun t => move/t) reflects;
-  iter ltac:(fun t => apply/t; try lia) reflects;
-  try lia;
-  match goal with
-  | |- ?f _ => unfold f; lia
-  end.
+  let rec aux _ :=
+    solve [ lia
+          | nia
+          | unfold_head tt; aux tt
+          | apply: Bool.eq_true_iff_eq; lias_simpl; aux tt ] in
+  aux tt.
 
 (** Rewrite an arithmetic equality. **)
 Ltac rewrite_by E :=

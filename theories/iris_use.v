@@ -18,6 +18,9 @@ Proof. by apply (inj_countable' loc_car (λ i, {| loc_car := i |})); intros []. 
 
 Program Instance loc_infinite : Infinite loc :=
   inj_infinite (λ p, {| loc_car := p |}) (λ l, Some (loc_car l)) _.
+Next Obligation.
+  admit. (* TODO *)
+Admitted.
 
 Definition proph_id := positive.
 

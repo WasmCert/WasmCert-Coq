@@ -3,8 +3,6 @@
 
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-
-Require Import Omega.
 From StrongInduction Require Import StrongInduction.
 
 Set Implicit Arguments.
@@ -476,9 +474,9 @@ Local Lemma max_fold_left_run_step_fuel : forall es,
           end) es).
 Proof.
   move=> es. match goal with |- is_true (_ <= TProp.max ?F) => set Fm := F end.
-  rewrite -(Nat.max_0_l (TProp.max Fm)). move: 0. induction es => n /=.
-  - lias.
-  - rewrite Nat.max_assoc. by apply: IHes.
+  rewrite -(Max.max_0_l (TProp.max Fm)). move: 0. induction es => n /=.
+  - by lias.
+  - rewrite Max.max_assoc. by apply: IHes.
 Qed.
 
 Local Lemma run_step_fuel_enough_aux : forall d i s vs es s' vs' r',
@@ -508,9 +506,9 @@ Proof.
         move=> E. have: (exists v, n = Nat.max (run_one_step_fuel e) v).
         {
           move: E. clear. move: (List.fold_left _ _ 0). induction les' => /=.
-          - move=> v E. exists v. move: E. by lias.
+          - move=> v E. exists v. by lias.
           - move=> v E. apply: IHles'.
-            rewrite Nat.max_comm in E. rewrite Nat.max_assoc in E. by apply: E.
+            rewrite Max.max_comm in E. rewrite Max.max_assoc in E. by apply: E.
         }
         move=> [v E']. by lias.
     + rewrite HSplitVals. apply Coqlib.in_app. right. by left.
@@ -642,7 +640,7 @@ Proof.
           * by apply/eqP.
         + apply: r_simple. apply: rs_br_table_length.
           rewrite length_is_size. move/ltP in if_expr0.
-          apply/leP => /=. omega.
+          apply/leP => /=. by lias.
 
       - (** [Basic Return] **)
         by pattern_match.
