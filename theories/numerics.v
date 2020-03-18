@@ -1058,6 +1058,12 @@ Import Floats.
 
 Export FS.
 
+Definition eqb v1 v2 := is_left (eq_dec v1 v2).
+Definition eqbP : Equality.axiom eqb := eq_dec_Equality_axiom eq_dec.
+
+Canonical Structure T_eqMixin := EqMixin eqbP.
+Canonical Structure T_eqType := Eval hnf in EqType T T_eqMixin.
+
 (** State whether the given float is a [NaN]. **)
 Definition is_nan : T -> bool := Binary.is_nan _ _.
 
@@ -1109,9 +1115,7 @@ Definition is_arithmetic (z : T) :=
 Lemma is_arithmetic_is_nan : forall z,
   is_arithmetic z ->
   is_nan z.
-Proof.
-  by case.
-Qed.
+Proof. by case. Qed.
 
 Lemma canonical_pl_arithmetic : forall pl,
   Binary.nan_pl prec pl ->
@@ -1152,12 +1156,21 @@ Qed.
 Definition canonical_nan s : T :=
   Binary.B754_nan _ _ s canonical_pl  (pl_arithmetic_is_nan canonical_pl_is_arithmetic).
 
+Lemma is_canonical_nan_disj : forall z,
+  is_canonical z ->
+  exists s, z = canonical_nan s.
+Proof.
+  case=> //= s pl N /eqP C. exists s.
+  rewrite /canonical_nan. subst. f_equal.
+  apply: Eqdep_dec.eq_proofs_unicity. move=> [] []; by [ left | right; discriminate ].
+Qed.
+
 Definition unspec_canonical_nan := canonical_nan ltac:(abstract exact false).
 
 (** Given a payload, update its most significant bit to [1]. **)
 Definition make_arithmetic :
-    { pl | Binary.nan_pl prec pl } ->
-    { pl | Binary.nan_pl prec pl /\ pl_arithmetic pl }.
+  { pl | Binary.nan_pl prec pl } ->
+  { pl | Binary.nan_pl prec pl /\ pl_arithmetic pl }.
 Proof.
   move=> [pl E]. case C: (pl_arithmetic pl).
   - exists pl. by repeat eexists.
@@ -1192,6 +1205,7 @@ Qed.
 (** An unspecified positive used in [unspec_nan], whose value is made opaque to
   avoid overspecification. **)
 Definition unspec_nan_pl : { pl | Binary.nan_pl prec pl }.
+Proof.
   have pl: { pl | Binary.nan_pl prec pl
                   /\ exists b E, sval default_nan = Binary.B754_nan _ _ b pl E }.
   { case: default_nan => z. case: z => // b pl Epl Inan. exists pl. split => //.
@@ -1199,25 +1213,33 @@ Definition unspec_nan_pl : { pl | Binary.nan_pl prec pl }.
   case: pl. move=> pl [E _]. by exists pl.
 Qed.
 
-Definition unspec_arithmetic_nan := make_arithmetic unspec_nan_pl.
+Definition unspec_arithmetic_nan_pl := make_arithmetic unspec_nan_pl.
 
-Lemma unspec_arithmetic_nan_canonical : pl_arithmetic (sval unspec_arithmetic_nan).
+Lemma unspec_arithmetic_nan_pl_canonical : pl_arithmetic (sval unspec_arithmetic_nan_pl).
 Proof. apply: make_arithmetic_arithmetic. Qed.
 
-Lemma unspec_arithmetic_nan_nan : Binary.nan_pl prec (sval unspec_arithmetic_nan).
+Lemma unspec_arithmetic_nan_pl_nan : Binary.nan_pl prec (sval unspec_arithmetic_nan_pl).
 Proof. apply: make_arithmetic_nan. Qed.
 
-(** An unspecified nan. **)
-Definition unspec_nan : T :=
-  Binary.B754_nan _ _ ltac:(abstract exact true) _ unspec_arithmetic_nan_nan.
+(** An unspecified arithmetic [NaN]. **)
+Definition unspec_arithmetic_nan : T :=
+  Binary.B754_nan _ _ ltac:(abstract exact true) _ unspec_arithmetic_nan_pl_nan.
 
-(** The same definition, but within a type that guarantees that it is a [NaN]. **)
-Definition unspec_nan_nan : {x : T | Binary.is_nan _ _ x = true} :=
-  exist _ unspec_nan (eqxx true).
+(** An opaque definition for an unspecified [NaN]. **)
+Definition unspec_nan_nan : {x : T | Binary.is_nan _ _ x = true}.
+Proof.
+  by refine (exist _ unspec_arithmetic_nan (eqxx true)).
+Qed.
 
-(** Taking the opposite of a floating point number. **)
+(** An unspecified [NaN]. **)
+Definition unspec_nan : T := sval unspec_nan_nan.
+
+(** Taking the opposite of a floating point number.
+  Its action on [NaN] is not specified. **)
 Definition opp : T -> T.
-  refine (Binary.Bopp _ _ (fun _ => exist _ unspec_nan _)); reflexivity.
+Proof.
+  refine (Binary.Bopp _ _ (fun _ => exist _ unspec_nan _)).
+  by apply: (svalP unspec_nan_nan).
 Defined.
 
 (** Given a mantissa and an exponent (in radix two), produce a representation for a float.
@@ -1241,45 +1263,35 @@ Definition normalise_unit_test :=
   let one := Binary.Bone _ _ prec_gt_0 Hmax in
   cmp Ceq twice_half one = true.
 
-(** In contrary to the Wasm specification, we consider that [nans] only takes one
-  parameter instead of a set.
-  This does not change much the specification.
-  Note that this function is deterministic, always returning the opaque value [unspec_nan]
-  when in doubt. **)
-Definition nans : T -> T :=
-  let try_with default z :=
-    if is_canonical z then z
-    else if z is Binary.B754_nan b pl E then
-      let Cpl := make_arithmetic (exist _ pl E) in
-      Binary.B754_nan _ _ b (sval Cpl) (make_arithmetic_nan _)
-    else default in
-  let: default := try_with unspec_nan unspec_nan in
-  try_with default.
+(** Following the specification about [NaN] propagation, we define the function [nans]
+  below.
+  In the Wasm specification, it took a set of values: we translate this here as a list
+  for simplicity.
+  To keep the specification readable, we made this function deterministic, always
+  returning the opaque value [unspec_nan] when in doubt.
+  Because the value is opaque, one can’t use its actual value in any proof, but it may
+  be misused in tests.
+  Note that the opaque mechanism can be reversed in Coq: we are assuming here that users
+  won’t try to do this. **)
+Definition nans (zs : list T) : T :=
+  let: zs := seq.filter is_nan zs in
+  if seq.all is_canonical zs then
+    unspec_canonical_nan
+  else unspec_arithmetic_nan.
 
-Lemma nans_is_nan : forall z,
-  is_nan (nans z) = true.
+Lemma nans_is_nan : forall zs,
+  is_nan (nans zs) = true.
 Proof.
-  move=> z. rewrite /nans /is_nan. case C: (is_canonical z).
-  - move: C. by case: z.
-  - move {C}. case N: (is_nan z).
-    + move: N. by case: z.
-    + case C: (is_canonical unspec_nan).
-      * move: N C. case: z; case: unspec_nan => //.
-      * move: N C. have: (is_nan unspec_nan); first done.
-        by case: z; case: unspec_nan.
+  move=> zs. rewrite /nans.
+  by case: (seq.all is_canonical (seq.filter is_nan zs)).
 Qed.
 
 (** Importing the square root of floats from the Flocq library with the
   round-to-nearest ties-to-even mode. **)
 Definition sqrt (z : T) : T :=
-  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun z => exist _ _ (nans_is_nan z)) Binary.mode_NE z.
+  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun z => exist _ _ (nans_is_nan [:: z])) Binary.mode_NE z.
 
-Definition fsqrt (z : T) :=
-  if is_nan z then nans z
-  else if sign z then nans unspec_canonical_nan
-  else if z is Binary.B754_infinity false then pos_infinity
-  else if is_zero z then z
-  else sqrt z.
+(** Square root following the Wasm standard. **)
 
 (** It seems that Flocq does not define any ceil and floor functions on
   floating point numbers (it does define some on the [R] type, but it is not
@@ -1307,7 +1319,8 @@ Definition ZofB_param (divP divN : Z -> Z -> Z) (z : T) :=
   end.
 
 (** We now instantiate this function with the following three division operations, only
-  differenciated in how they round numbers. **)
+  differenciated in how they round numbers: [div_down] rounds down, [div_up] up, and
+  [div_near] rounds to the nearest, ties to even. **)
 Definition div_down : Z -> Z -> Z := Z.div.
 Definition div_up (a b : Z) : Z :=
   ((if Zeq_bool (a mod b) 0 then 0 else 1) + a / b)%Z.
@@ -1397,31 +1410,143 @@ Definition nearest_unit_test_4 : Prop :=
   let mone_pfive := normalise (-3) (-1) in
   nearest mone_pfive = BofZ (-2).
 
+(** Set the sign of a float. **)
+Definition set_sign s (z : T) : T :=
+  match z with
+  | Binary.B754_zero _ => Binary.B754_zero _ _ s
+  | Binary.B754_infinity _ => Binary.B754_infinity _ _ s
+  | Binary.B754_nan _ pl ok => Binary.B754_nan _ _ s pl ok
+  | Binary.B754_finite _ m e ok => Binary.B754_finite _ _ s m e ok
+  end.
+
+Lemma set_sign_sign : forall s z,
+  sign (set_sign s z) = s.
+Proof. move=> s. by case. Qed.
+
+Lemma set_sign_opp : forall z,
+  ~~ is_nan z ->
+  opp z = set_sign (~~ sign z) z.
+Proof. by case. Qed.
+
+
 (** We now define the floating-point operators as defined in the Wasm standard. **)
 
-(* TODO: fadd, etc. *)
-
-(*
 Definition fadd (z1 z2 : T) :=
-  if is_nan z1 || is_nan z2 then (* FIXME: We need to update [nans] so that it takes a list here. *)
-*)
+  if is_nan z1 || is_nan z2 then nans [:: z1; z2]
+  else if is_infinity z1 && is_infinity z2 then
+    if sign z1 != sign z2 then nans [:: ]
+    else (** [z1 = z2 = ±∞] **) z1
+  else if is_infinity z1 then z1
+  else if is_infinity z2 then z2
+  else if is_zero z1 && is_zero z2 then
+    if sign z1 != sign z2 then pos_zero
+    else (** [z1 = z2 = ±0] **) z1
+  else if is_zero z1 then z2
+  else if is_zero z2 then z1
+  else if z1 == opp z2 then pos_zero
+  else add z1 z2.
+
+Definition fsub (z1 z2 : T) :=
+  if is_nan z1 || is_nan z2 then nans [:: z1; z2]
+  else if is_infinity z1 && is_infinity z2 then
+    if sign z1 == sign z2 then nans [:: ]
+    else (** [z1 = ±∞], [z2 = ∓∞] **) z1
+  else if is_infinity z1 then z1
+  else if is_infinity z2 then opp z2
+  else if is_zero z1 && is_zero z2 then
+    if sign z1 == sign z2 then pos_zero
+    else (** [z1 = ±0], [z2 = ∓0] **) z1
+  else if is_zero z2 then z1
+  else if is_zero z1 then opp z2
+  else if z1 == z2 then pos_zero
+  else sub z1 z2.
+
+Definition fmul (z1 z2 : T) :=
+  if is_nan z1 || is_nan z2 then nans [:: z1; z2]
+  else if is_infinity z1 && is_zero z2 then nans [:: ]
+  else if is_infinity z2 && is_zero z1 then nans [:: ]
+  else if is_infinity z1 && is_infinity z2 then
+    if sign z1 == sign z2 then pos_infinity
+    else neg_infinity
+  else if is_infinity z2 && sign z1 == sign z2 then pos_infinity
+  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
+  else if is_infinity z2 && sign z1 != sign z2 then neg_infinity
+  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
+  else if is_zero z1 && is_zero z2 then
+    if sign z1 == sign z2 then pos_zero
+    else (** [z1 = ±0], [z2 = ∓0] **) neg_zero
+  else mul z1 z2.
+
+Definition fdiv (z1 z2 : T) :=
+  if is_nan z1 || is_nan z2 then nans [:: z1; z2]
+  else if is_infinity z1 && is_infinity z2 then nans [:: ]
+  else if is_zero z2 && is_zero z1 then nans [:: z1; z2]
+  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
+  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
+  else if is_infinity z2 && sign z1 == sign z2 then pos_zero
+  else if is_infinity z2 && sign z1 != sign z2 then neg_zero
+  else if is_zero z1 && sign z1 == sign z2 then pos_zero
+  else if is_zero z1 && sign z1 != sign z2 then neg_zero
+  else if is_zero z2 && sign z1 == sign z2 then pos_infinity
+  else if is_zero z2 && sign z1 != sign z2 then pos_infinity
+  else div z1 z2.
+
+Definition fmin (z1 z2 : T) :=
+  if is_nan z1 || is_nan z2 then nans [:: z1; z2]
+  else if (z1 == neg_infinity) || (z2 == neg_infinity) then neg_infinity
+  else if z1 == pos_infinity then z2
+  else if z2 == pos_infinity then z1
+  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then neg_zero
+  else if cmp Clt z1 z2 then z1 else z2.
+
+Definition fmax (z1 z2 : T) :=
+  if is_nan z1 || is_nan z2 then nans [:: z1; z2]
+  else if (z1 == pos_infinity) || (z2 == pos_infinity) then pos_infinity
+  else if z1 == neg_infinity then z2
+  else if z2 == neg_infinity then z1
+  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then pos_zero
+  else if cmp Cgt z1 z2 then z1 else z2.
+
+Definition fcopysign (f1 f2 : T) :=
+  if sign f1 == sign f2 then f1
+  else opp f1.
+
+Definition fabs (z : T) :=
+  if is_nan z then set_sign false z
+  else if is_infinity z then pos_infinity
+  else if is_zero z then pos_zero
+  else if cmp Cgt z pos_zero then z
+  else opp z.
+
+Definition fneg (z : T) :=
+  if is_nan z then set_sign (~~ sign z) z
+  else if is_infinity z then opp z
+  else if is_zero z then opp z
+  else opp z.
+
+Definition fsqrt (z : T) :=
+  if is_nan z then nans [:: z]
+  else if sign z then nans [::]
+  else if z == pos_infinity then pos_infinity
+  else if is_zero z then z
+  else sqrt z.
 
 Definition fceil (z : T) :=
-  if is_nan z then nans z
+  if is_nan z then nans [:: z]
   else if is_infinity z then z
   else if is_zero z then z
   else if cmp Clt z neg_zero && cmp Cgt z (BofZ (-1)) then neg_zero
   else ceil z.
 
 Definition ffloor (z : T) :=
-  if is_nan z then nans z
+  if is_nan z then nans [:: z]
   else if is_infinity z then z
   else if is_zero z then z
   else if cmp Cgt z pos_zero && cmp Clt z (BofZ 1) then pos_zero
   else floor z.
 
 Definition ftrunc (z : T) :=
-  if is_nan z then nans z
+  if is_nan z then nans [:: z]
   else if is_infinity z then z
   else if is_zero z then z
   else if cmp Cgt z pos_zero && cmp Clt z (BofZ 1) then pos_zero
@@ -1429,7 +1554,7 @@ Definition ftrunc (z : T) :=
   else trunc z.
 
 Definition fnearest (z : T) :=
-  if is_nan z then nans z
+  if is_nan z then nans [:: z]
   else if is_infinity z then z
   else if is_zero z then z
   else if cmp Cgt z pos_zero && cmp Clt z (normalise 1 (-1)) then pos_zero
@@ -1459,24 +1584,11 @@ Definition convert_si32 (i : i32) := BofZ (Wasm_int.Z_of_sint i32m i).
 Definition convert_ui64 (i : i64) := BofZ (Wasm_int.Z_of_uint i64m i).
 Definition convert_si64 (i : i64) := BofZ (Wasm_int.Z_of_sint i64m i).
 
-(** Negate the sign bit of a float. **)
-Definition negate_sign (z : T) : T :=
-  match z with
-  | Binary.B754_zero s => Binary.B754_zero _ _ (~~ s)
-  | Binary.B754_infinity s => Binary.B754_infinity _ _ (~~ s)
-  | Binary.B754_nan s pl E => Binary.B754_nan _ _ (~~ s) pl E
-  | Binary.B754_finite s m e E => Binary.B754_finite _ _ (~~ s) m e E
-  end.
-
-Definition fcopysign (f1 f2 : T) :=
-  if sign f1 == sign f2 then f1
-  else negate_sign f1.
-
 Definition Tmixin : mixin_of T := {|
     float_zero := pos_zero ;
     (** Unuary operators **)
-    float_neg := neg ;
-    float_abs := abs ;
+    float_neg := fneg ;
+    float_abs := fabs ;
     float_sqrt := fsqrt ;
     (** Rounding **)
     float_ceil := fceil ;
@@ -1484,12 +1596,12 @@ Definition Tmixin : mixin_of T := {|
     float_trunc := ftrunc ;
     float_nearest := fnearest ;
     (** Binary operators **)
-    float_add := add ;
-    float_sub := sub ;
-    float_mul := mul ;
-    float_div := div ;
-    float_min x y := if cmp Clt x y then x else y ;
-    float_max x y := if cmp Cgt x y then x else y ;
+    float_add := fadd ;
+    float_sub := fsub ;
+    float_mul := fmul ;
+    float_div := fdiv ;
+    float_min := fmin ;
+    float_max := fmax ;
     float_copysign := fcopysign ;
     (** Comparisons **)
     float_eq := cmp Ceq ;
@@ -1507,12 +1619,6 @@ Definition Tmixin : mixin_of T := {|
     float_convert_ui64 := convert_ui64 ;
     float_convert_si64 := convert_si64 ;
   |}.
-
-Definition eqb v1 v2 := is_left (eq_dec v1 v2).
-Definition eqbP : Equality.axiom eqb := eq_dec_Equality_axiom eq_dec.
-
-Canonical Structure T_eqMixin := EqMixin eqbP.
-Canonical Structure T_eqType := Eval hnf in EqType T T_eqMixin.
 
 Definition cT : type := Pack {| base := T_eqMixin; mixin := Tmixin |}.
 
@@ -1587,18 +1693,16 @@ Definition f64t : Wasm_float.type := Wasm_float.Pack f64r.
 Definition f64m := Wasm_float.mixin f64r.
 
 Definition wasm_demote (z : f64) : f32 :=
-  if Wasm_float.Float64.is_canonical z then
-    Wasm_float.Float32.nans Wasm_float.Float32.unspec_canonical_nan
+  if Wasm_float.Float64.is_canonical z then Wasm_float.Float32.nans [::]
   else if Wasm_float.Float64.is_nan z then
-    Wasm_float.Float32.nans Wasm_float.Float32.pos_zero
+    Wasm_float.Float32.nans [:: Wasm_float.Float32.BofZ (BinIntDef.Z.of_nat 1)]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize32.prec_gt_0 Wasm_float.FloatSize32.Hmax
          (fun _ => Wasm_float.Float32.unspec_nan_nan) Binary.mode_NE z.
 
 Definition wasm_promote (z : f32) : f64 :=
-  if Wasm_float.Float32.is_canonical z then
-    Wasm_float.Float64.nans Wasm_float.Float64.unspec_canonical_nan
+  if Wasm_float.Float32.is_canonical z then Wasm_float.Float64.nans [::]
   else if Wasm_float.Float32.is_nan z then
-    Wasm_float.Float64.nans Wasm_float.Float64.pos_zero
+    Wasm_float.Float64.nans [:: Wasm_float.Float64.BofZ (BinIntDef.Z.of_nat 1)]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize64.prec_gt_0 Wasm_float.FloatSize64.Hmax
          (fun _ => Wasm_float.Float64.unspec_nan_nan) Binary.mode_NE z.
 
