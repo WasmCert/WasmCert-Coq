@@ -212,6 +212,16 @@ Proof.
   rewrite /Z.pow_pos. by lias.
 Qed.
 
+Lemma wordsize_modulus : (wordsize < modulus)%Z.
+Proof.
+  move: WS.wordsize_not_zero. rewrite /modulus /wordsize.
+  case: WS.wordsize => [|ws] //= _.
+  rewrite Zpower.two_power_nat_equiv -Pos2Z.inj_pow .
+  apply: Pos2Z.pos_lt_pos. elim ws; first by [].
+  move=> n. rewrite SuccNat2Pos.inj_succ.
+  rewrite /Pos.pow Pos.iter_succ => IH. lias.
+Qed.
+
 Lemma modulus_minus_half_modulus : (modulus - half_modulus = half_modulus)%Z.
 Proof.
   rewrite /half_modulus. move: modulus_mod_2 (Zdiv.Zmod_eq_full modulus 2). by lias.
@@ -230,6 +240,16 @@ Lemma repr_add_modulus_rev : forall i,
   repr (i - modulus) = repr i.
 Proof.
   move=> i. rewrite repr_add_modulus. f_equal. by lias.
+Qed.
+
+Lemma repr_inv : forall i j : Z,
+  (-1 < i < modulus)%Z ->
+  (-1 < j < modulus)%Z ->
+  repr i = repr j ->
+  i = j.
+Proof.
+  move=> i j I J. rewrite /repr. case.
+  by rewrite (Z_mod_modulus_id I) (Z_mod_modulus_id J).
 Qed.
 
 (** The following four lemmas justifies to not care about the sigedness of numbers
@@ -473,23 +493,55 @@ Lemma convert_to_bits_eq : forall a b,
 (** Return the count of leading zero bits. **)
 Definition clz i :=
   let l := convert_to_bits i in
-  repr (seq.find (fun b => b == false) l).
+  repr (seq.find (fun b => b == true) l).
 
 (** Return the count of trailing zero bits. **)
 Definition ctz i :=
   let l := convert_to_bits i in
-  repr (seq.find (fun b => b == false) (seq.rev l)).
+  repr (seq.find (fun b => b == true) (seq.rev l)).
 
 (** Return the count of non-zero bits. **)
 Definition popcnt i :=
   let l := convert_to_bits i in
   repr (seq.count (fun b => b == true) l).
 
-(* FIXME: stuff that we may want to prove.
+Lemma convert_to_bits_inj : forall a b,
+  convert_to_bits a = convert_to_bits b ->
+  a = b.
+Admitted (* TODO *).
+
+Lemma list_all_eq : forall A (d : A) l1 l2,
+  seq.size l1 = seq.size l2 ->
+  (forall n, n < seq.size l1 -> seq.nth d l1 n = seq.nth d l2 n) ->
+  l1 = l2.
+Admitted (* TODO *).
+
 Lemma clz_wordsize : forall i,
   clz i = repr wordsize ->
   i = repr 0.
+Proof.
+  rewrite/clz. move=> i E.
+  apply repr_inv in E.
+  - have: (~~ seq.has (fun b => b == true) (convert_to_bits i)).
+    { rewrite has_find. rewrite convert_to_bits_size. by lias. }
+    rewrite -all_predC => N.
+    have Ec: (convert_to_bits i = convert_to_bits zero).
+    {
+      move/all_nthP: N => /= F. rewrite convert_to_bits_size in F.
+      apply (@list_all_eq _ false).
+      - by repeat rewrite convert_to_bits_size.
+      - rewrite convert_to_bits_size => n I. rewrite convert_to_bits_zero nth_nseq.
+        move: (F false n I). move/eqP. destruct nth => //.
+          by destruct leq.
+    }
+    apply: convert_to_bits_inj Ec.
+  - split; first by lias. apply: (Z.le_lt_trans _ _ _ _ wordsize_modulus).
+    match goal with |- context C [find ?p ?l] => move: (find_size p l) end.
+    rewrite convert_to_bits_size. by lias.
+  - move: wordsize_modulus. by lias.
+Qed.
 
+(* FIXME: stuff that we may want to prove.
 Lemma ctz_wordsize : forall i,
   ctz i = repr wordsize ->
   i = repr 0.

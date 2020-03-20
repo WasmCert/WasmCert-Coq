@@ -35,6 +35,8 @@ Canonical Structure Pos_eqType := EqType BinNums.positive Pos_eqMixin.
 Ltac lias_simpl :=
   intros;
   repeat lazymatch goal with
+  | |- ~ _ => intro
+  | |- is_true (~~ _) => apply/negP
   | |- context C [subn] => rewrite /subn /subn_rec
   | |- context C [addn] => rewrite /addn /addn_rec
   | H: context C [subn] |- _ => unfold subn, subn_rec in H
