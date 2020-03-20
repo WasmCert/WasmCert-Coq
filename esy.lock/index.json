@@ -1,5 +1,5 @@
 {
-  "checksum": "47ad84c0038c38096573b235839ebd23",
+  "checksum": "e80ec0c11c58c20bc68d81927df5d1e0",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -13,7 +13,7 @@
       },
       "overrides": [],
       "dependencies": [
-        "strong-induction@github:Mbodin/strong-induction#b969d2cc71505d9203dcba662a40b1ac6f2bedb3@d41d8cd9",
+        "strong-induction@github:Mbodin/strong-induction#e705f24eeb237b35ee0b2a5f33efd0d8efd0f31e@d41d8cd9",
         "parseque@github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0@d41d8cd9",
         "coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3",
         "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@8699cf10",
@@ -25,16 +25,16 @@
       ],
       "devDependencies": []
     },
-    "strong-induction@github:Mbodin/strong-induction#b969d2cc71505d9203dcba662a40b1ac6f2bedb3@d41d8cd9": {
+    "strong-induction@github:Mbodin/strong-induction#e705f24eeb237b35ee0b2a5f33efd0d8efd0f31e@d41d8cd9": {
       "id":
-        "strong-induction@github:Mbodin/strong-induction#b969d2cc71505d9203dcba662a40b1ac6f2bedb3@d41d8cd9",
+        "strong-induction@github:Mbodin/strong-induction#e705f24eeb237b35ee0b2a5f33efd0d8efd0f31e@d41d8cd9",
       "name": "strong-induction",
       "version":
-        "github:Mbodin/strong-induction#b969d2cc71505d9203dcba662a40b1ac6f2bedb3",
+        "github:Mbodin/strong-induction#e705f24eeb237b35ee0b2a5f33efd0d8efd0f31e",
       "source": {
         "type": "install",
         "source": [
-          "github:Mbodin/strong-induction#b969d2cc71505d9203dcba662a40b1ac6f2bedb3"
+          "github:Mbodin/strong-induction#e705f24eeb237b35ee0b2a5f33efd0d8efd0f31e"
         ]
       },
       "overrides": [],
