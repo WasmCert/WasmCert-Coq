@@ -1,7 +1,7 @@
 (* soundness of the Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
-Require Import common.
+Require Import common List Omega.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction.
 
@@ -92,6 +92,14 @@ Proof.
   - by rewrite /= -(IH _ _ Ha Hb).
 Qed.
 
+Lemma firstn_is_take_n: forall {X:Type} (l:seq X) n,
+    List.firstn n l = take n l.
+Proof.
+  move => + + n. induction n.
+  - symmetry. by apply take0.
+  - move => X l. destruct l => //=. by f_equal.
+Qed.
+
 Lemma run_step_fuel_not_zero : forall tt,
   run_step_fuel tt <> 0.
 Proof.
@@ -133,6 +141,53 @@ Proof. reflexivity. Qed.
 
 Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: Basic (EConst v)].
 Proof. reflexivity. Qed.
+
+Lemma lfilled0: forall es,
+    lfilledInd 0 (LBase [::] [::]) es es.
+Proof.
+  move => es.
+  assert (lfilledInd 0 (LBase [::] [::]) es ([::]++es++[::])) as H; first by apply LfilledBase.
+  simpl in H. by rewrite cats0 in H.
+Qed.
+
+Lemma lfilled0_frame_l: forall vs es es' LI vs',
+  lfilledInd 0 (LBase vs es') es LI ->
+  const_list vs' ->
+  lfilledInd 0 (LBase (vs' ++ vs) es') es (vs' ++ LI).
+Proof.
+  move => vs es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
+  rewrite catA.
+  apply LfilledBase. by rewrite const_list_concat.
+Qed.
+
+Lemma lfilled0_frame_l_empty: forall es es' LI vs',
+  lfilledInd 0 (LBase [::] es') es LI ->
+  const_list vs' ->
+  lfilledInd 0 (LBase vs' es') es (vs' ++ LI).
+Proof.
+  move => es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
+  rewrite catA.
+  rewrite cats0.
+  by apply LfilledBase.
+Qed.
+
+Lemma lfilled0_frame_r: forall vs es es' LI es'',
+  lfilledInd 0 (LBase vs es') es LI ->
+  lfilledInd 0 (LBase vs (es' ++ es'')) es (LI ++ es'').
+Proof.
+  move => vs es es' LI es'' HLF. inversion HLF; subst; clear HLF.
+  repeat rewrite -catA.
+  by apply LfilledBase.
+Qed.
+      
+Lemma lfilled0_frame_r_empty: forall vs es LI es'',
+  lfilledInd 0 (LBase vs [::]) es LI ->
+  lfilledInd 0 (LBase vs es'') es (LI ++ es'').
+Proof.
+  move => vs es LI es'' HLF. inversion HLF; subst; clear HLF.
+  repeat rewrite -catA.
+  by apply LfilledBase.
+Qed.
 
 (** The following tactics are meant to help the proof of [run_step_soundness] below. **)
 
@@ -225,6 +280,7 @@ Ltac explode_and_simplify :=
     lazymatch T with
     | context C [split_n ?l ?n] => rewrite (split_n_is_take_drop l n)
     | context C [vs_to_es ?l] => rewrite/vs_to_es
+    | context C [List.firstn ?n ?l] => rewrite (firstn_is_take_n)
     | context C [match ?b with true => ?v1 | false => ?v2 end] =>
       let Hb := fresh "if_expr" in
       destruct b eqn:Hb;
@@ -564,6 +620,71 @@ Proof.
   move=> >. by apply: run_one_step_fuel_enough.
 Qed.
 
+(* Ask martin why this won't compile
+Lemma rs_break_trace_bool: forall fuel d i s vs es s' vs' n es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_break n es') -> 
+  let: (ves, es'') := split_vals_e es in
+  exists e es2 ln les es3, (es'' == e :: es2) &&
+   ((e == Basic (Br n)) && (es' == rev ves) ||
+    (e == Label ln les es3) &&
+    ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) == (s', vs', RS_break n.+1 es'))
+   ) == true.
+*)
+Lemma rs_break_trace: forall fuel d i s vs es s' vs' n es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_break n es') -> 
+  let: (ves, es'') := split_vals_e es in
+  exists e es2 ln les es3, (es'' = e :: es2) /\
+   ((e = Basic (Br n)) /\ ((s, vs, es') = (s', vs', rev ves)) \/
+    (e = Label ln les es3) /\
+    ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) = (s', vs', RS_break n.+1 es'))
+   ).
+Proof.
+  (*move => fuel d i s vs es s' vs' n es' e es2 ln les es3 H.
+  destruct fuel => //.
+  unfold run_step_with_fuel in H.
+  destruct (split_vals_e es) as [lconst les'] eqn:HSplitVals.
+  destruct les' as [|e' les''] eqn:Hles => //.
+  move: H. explode_and_simplify.
+  destruct fuel => //.*)
+  (* wtf.. *)
+  admit.
+Admitted.
+
+(* Probably need something like this for induction
+Fixpoint is_label_sequence (fuel: fuel) (d: depth) (i: instance) tt: bool :=
+  match es with
+  | (Label ln les es2) :: es' => (run_step_with_fuel mem_grow_impl host_apply_impl 
+.
+*)
+
+(*
+Lemma rs_break_origin: forall fuel d i s vs es s' vs' n es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_break 0 es') -> 
+  is_label_sequence fuel d i (s vs es).
+*)
+
+
+Lemma rs_return_trace: forall fuel d i s vs es s' vs' rvs,
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_return rvs) ->
+  let: (ves, es') := split_vals_e es in
+  exists e es'' ln les es2,
+    (es' = e :: es'') /\
+    ((e = Basic Return) /\ ((s, vs, rvs) = (s', vs', rev ves)) \/
+     (e = Label ln les es2) /\
+     ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es2)) = (s', vs', RS_return rvs))
+    ).
+Proof.
+  admit.
+Admitted.
+  
+  
+    
+                       
+
 Local Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
   = (s', vs', RS_normal es') ->
@@ -578,7 +699,9 @@ Proof.
   {
     pattern_match. destruct e => //. apply: r_simple.
     apply rs_trap with (lh := LBase (v_to_e_list lconst) les').
-    - admit. (* TODO *)
+    - move/orP in if_expr0. inversion if_expr0 => //=.
+      + move/eqP in H0. destruct lconst => //=. by destruct les'.
+      + move/eqP in H0. by destruct lconst.
     - rewrite/lfilled/lfill. rewrite v_to_e_is_const_list. show_list_equality.
   }
   destruct fuel as [|fuel] => //=. destruct e as [b| |f|n es1 es2|n j vls ess] => /=.
@@ -738,7 +861,7 @@ Proof.
         + apply: r_simple. apply: rs_convert_failure => //. by apply/eqP.
     }
     { (** [Trap] **)
-      explode_and_simplify. pattern_match.
+      pattern_match.
     }
     { (** [Callcl] **)
       destruct f => //=.
@@ -760,11 +883,76 @@ Proof.
       + destruct run_step_with_fuel as [[s'' vs''] r] eqn: EH.
         destruct r as [|nd es''| |es''] => //.
         * (** [RS_break] **)
+          (* There are only two possible commands that could lead to this case.*)
           destruct nd => //. explode_and_simplify. pattern_match.
-          admit. (* TODO *)
+          apply rs_break_trace in EH.
+          destruct (split_vals_e es2) eqn:HSplit.
+          apply split_vals_e_v_to_e_duality in HSplit. rewrite HSplit.
+          (* ???? ask martin *)
+          destruct EH as [e [es3 [ln [les [es4 E]]]]].
+          destruct E as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
+          -- inversion HBasicR. subst; clear HBasicR.
+             auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+             ++ rewrite length_is_size. rewrite v_to_e_size. rewrite size_drop.
+                rewrite subKn; first by apply/eqP. by simplify_goal.
+             ++ apply/lfilledP.
+                simplify_lists.
+                rewrite (v_to_e_take_drop_split l (size l - n)).
+                instantiate (1:=0).
+                instantiate (1:= LBase (v_to_e_list (take (size l - n) l)) es3).
+                repeat rewrite catA.
+                apply lfilled0_frame_r_empty.
+                repeat rewrite -catA.
+                apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
+                by apply lfilled0.
+          -- rewrite HES. rewrite HLabelE. simplify_lists.
+             (* looks like an induction. need to restructure. sleep *) admit.        
+(*          apply rs_break_trace in EH.
+          destruct EH as [e es2 ln les es3 [E]].
+          
+          induction fuel => //.
+          move: EH.
+          unfold run_step_with_fuel.
+          destruct (split_vals_e es2) eqn: HL => //=.
+          explode_and_simplify.
+          destruct fuel => //=.
+          destruct a eqn:Ha => //=.
+          -- destruct b => //=; explode_and_simplify => //=.
+            - pattern_match. auto_frame.
+              apply split_vals_e_v_to_e_duality in HL. rewrite HL.
+              auto_frame.
+              apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+              + simplify_goal. rewrite length_is_size. rewrite v_to_e_size.
+              rewrite size_drop. rewrite subKn => //=.
+              + apply/lfilledP.
+                assert (lfilledInd 0 (LBase (v_to_e_list (take (size l - n) l)) l0) (v_to_e_list (drop (size l - n) l) ++ [::Basic (Br 0)]) (v_to_e_list (take (size l - n) l) ++ (v_to_e_list (drop (size l - n) l) ++ [::Basic (Br 0)]) ++ l0)) as L0.
+                { apply LfilledBase; first by apply v_to_e_is_const_list. }
+                repeat rewrite catA in L0. rewrite -v_to_e_take_drop_split in L0.
+                rewrite -catA in L0. by apply L0.
+            - destruct f => //=. destruct f => //=. by explode_and_simplify.
+              destruct f => //=. by explode_and_simplify.
+          -- 
+              
+              
+              
+          unfold run_step_with_fuel in EH.
+          destruct (split_vals_e es2) as [vs3 es3] eqn:ES2 => //.
+          destruct es3 as [|e es3'] eqn:ES3 => //.
+          destruct (e_is_trap e) eqn:ETrap => //.
+          destruct es3' => //=. destruct vs3 => //=.*)
         * (** [RS_normal] **)
-          pattern_match. auto_frame. apply H in EH; last by lias.
-          admit. (* TODO *)
+          pattern_match.
+          (* We actually want to keep the frame here for later use in lfilled.*)
+          apply H in EH; last by lias.
+          eapply r_label.
+          - by eauto.
+          - apply lfilled_Ind_Equivalent.
+            eapply LfilledRec; first by apply v_to_e_is_const_list.
+            by apply lfilled0.
+          - apply lfilled_Ind_Equivalent.
+            rewrite -catA.
+            apply LfilledRec; first by apply v_to_e_is_const_list.
+            by apply lfilled0.
     }
     { (** [Local] **)
       explode_and_simplify; try (pattern_match; auto_frame).
@@ -772,11 +960,38 @@ Proof.
       + destruct run_step_with_fuel as [[s'' vs''] r] eqn: EH.
         destruct r as [| |vs'''|es''] => //.
         * (** [RS_return] **)
-          explode_and_simplify. pattern_match.
-          admit. (* TODO *)
+          explode_and_simplify. pattern_match. auto_frame.
+          apply rs_return_trace in EH.
+          destruct (split_vals_e ess) eqn:HSplit.
+          apply split_vals_e_v_to_e_duality in HSplit. rewrite HSplit.
+          destruct EH as [e [es'' [ln [les [es2 E]]]]].
+          destruct E as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
+          -- inversion HBasicR; subst; clear HBasicR.
+             apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
+             ++ rewrite length_is_size. rewrite v_to_e_size. rewrite size_rev.
+                rewrite size_take. rewrite leq_eqVlt in if_expr2.
+                move/orP in if_expr2. destruct if_expr2 as [HSize|HSize].
+                ** move/eqP in HSize. rewrite HSize. apply/eqP. by rewrite ltnn.
+                ** apply/eqP. by rewrite HSize.
+             ++ apply/lfilledP.
+                simplify_lists.
+                rewrite (v_to_e_take_drop_split l (size l - n)).
+                simplify_lists.
+                (* Ask Martin on indexing -- order reversed???*)
+                instantiate (2 := 0).
+                instantiate (1 := LBase (v_to_e_list (take (size l - n) l)) es'').
+                repeat rewrite -catA. 
+                apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
+                repeat rewrite catA.
+                apply lfilled0_frame_r_empty.
+                by apply lfilled0.
+          -- rewrite HES. rewrite HLabelE.
+             simplify_lists.
+           (* the same induction *)
+          admit.
         * (** [RS_normal] **)
           pattern_match. auto_frame. apply H in EH; last by lias.
-          admit. (* TODO *)
+          by apply r_local.
     }
 Admitted. (* TODO *)
 
