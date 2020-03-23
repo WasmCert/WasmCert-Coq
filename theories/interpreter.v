@@ -15,16 +15,80 @@ Inductive res_crash : Type :=
 | C_error : res_crash
 | C_exhaustion : res_crash.
 
+Scheme Equality for res_crash.
+Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
+Definition eqres_crashP : Equality.axiom res_crash_eqb :=
+  eq_dec_Equality_axiom res_crash_eq_dec.
+
+Canonical Structure res_crash_eqMixin := EqMixin eqres_crashP.
+Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_eqMixin.
+
 Inductive res : Type :=
 | R_crash : res_crash -> res
 | R_trap : res
 | R_value : list value -> res.
+
+Definition res_eqb r1 r2 :=
+  match r1, r2 with
+  | R_crash c1, R_crash c2 => c1 == c2
+  | R_trap, R_trap => true
+  | R_value vs1, R_value vs2 => vs1 == vs2
+  | _, _ => false
+  end.
+
+Lemma eqresP : Equality.axiom res_eqb.
+Proof.
+  move=> r1 r2. rewrite /res_eqb.
+  destruct r1 as [c1| |vs1], r2 as [c2| |vs2]; try by apply/ReflectF.
+  - case_eq (c1 == c2) => /= [/eqP Ht|/eqP Ht].
+    + subst. by apply/ReflectT.
+    + apply/ReflectF => E. by inversion E.
+  - by apply/ReflectT.
+  - case_eq (vs1 == vs2) => /= [/eqP Ht|/eqP Ht].
+    + subst. by apply/ReflectT.
+    + apply/ReflectF => E. by inversion E.
+Qed.
+
+Canonical Structure res_eqMixin := EqMixin eqresP.
+Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
 
 Inductive res_step : Type :=
 | RS_crash : res_crash -> res_step
 | RS_break : nat -> list value -> res_step
 | RS_return : list value -> res_step
 | RS_normal : list administrative_instruction -> res_step.
+
+Definition res_step_eqb r1 r2 :=
+  match r1, r2 with
+  | RS_crash c1, RS_crash c2 => c1 == c2
+  | RS_break n1 vs1, RS_break n2 vs2 => (n1 == n2) && (vs1 == vs2)
+  | RS_return vs1, RS_return vs2 => vs1 == vs2
+  | RS_normal es1, RS_normal es2 => es1 == es2
+  | _, _ => false
+  end.
+
+Lemma eqres_stepP : Equality.axiom res_step_eqb.
+Proof.
+  move=> r1 r2. rewrite /res_step_eqb.
+  destruct r1 as [c1|n1 vs1|vs1|es1], r2 as [c2|n2 vs2|vs2|es2]; try by apply/ReflectF.
+  - case_eq (c1 == c2) => /= [/eqP Ht|/eqP Ht].
+    + subst. by apply/ReflectT.
+    + apply/ReflectF => E. by inversion E.
+  - case_eq (n1 == n2) => /= [/eqP Ht|/eqP Ht].
+    + subst. case_eq (vs1 == vs2) => /= [/eqP Ht|/eqP Ht].
+      * subst. by apply/ReflectT.
+      * apply/ReflectF => E. by inversion E.
+    + apply/ReflectF => E. by inversion E.
+  - case_eq (vs1 == vs2) => /= [/eqP Ht|/eqP Ht].
+    + subst. by apply/ReflectT.
+    + apply/ReflectF => E. by inversion E.
+  - case_eq (es1 == es2) => /= [/eqP Ht|/eqP Ht].
+    + subst. by apply/ReflectT.
+    + apply/ReflectF => E. by inversion E.
+Qed.
+
+Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
+Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
 
 Definition crash_error := RS_crash C_error.
 

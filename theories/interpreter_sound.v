@@ -620,7 +620,6 @@ Proof.
   move=> >. by apply: run_one_step_fuel_enough.
 Qed.
 
-(* Ask martin why this won't compile
 Lemma rs_break_trace_bool: forall fuel d i s vs es s' vs' n es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
   = (s', vs', RS_break n es') -> 
@@ -629,8 +628,9 @@ Lemma rs_break_trace_bool: forall fuel d i s vs es s' vs' n es',
    ((e == Basic (Br n)) && (es' == rev ves) ||
     (e == Label ln les es3) &&
     ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) == (s', vs', RS_break n.+1 es'))
-   ) == true.
-*)
+   ).
+Admitted. (* TODO: Chose between [rs_break_trace_bool] and [rs_break_trace] ☺ *)
+
 Lemma rs_break_trace: forall fuel d i s vs es s' vs' n es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
   = (s', vs', RS_break n es') -> 
