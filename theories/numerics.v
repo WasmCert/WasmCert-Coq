@@ -468,52 +468,25 @@ Proof.
               rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //.
               exfalso. rewrite Znat.Zpos_P_of_succ_nat in L'. by lias.
           + move=> [+|I].
-            * move/eqP => ?. subst. admit. (* TODO *)
+            * move/eqP => ?. subst. destruct Coqlib.zlt as [L'|L'] => //=.
+              -- by rewrite filter_out_zlt.
+              -- rewrite Znat.Zpos_P_of_succ_nat in L'. by lias.
             * rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //=.
               exfalso. rewrite Znat.Zpos_P_of_succ_nat in L'.
               have ?: (a = ws); first by lias. subst. by rewrite I in N.
       }
-    + have R: [seq x <- l | Coqlib.zlt x ws]
-              = [seq x <- l | Coqlib.zlt x (Z.pos (Pos.of_succ_nat ws))].
-      { admit. (* TODO *) }
-      by rewrite -R IH.
-  (* TODO *)
-Admitted.
-
-(*
-Lemma convert_from_bits_to_Z_one_bits_power_index_to_bits : forall l : seq Z,
-  List.Forall (fun x => x < wordsize)%Z l ->
-  Zbits.powerserie (convert_from_bits_to_Z_one_bits (power_index_to_bits wordsize l))
-  = Zbits.powerserie l.
-Proof.
-  elim wordsize.
-  - move=> /=. elim.
-    + by [].
-    + move=> a l IH F /=. inversion_clear F. rewrite -IH => //. by destruct a; try lias.
-  - move=> ws IH l F /=. rewrite power_index_to_bits_size. rewrite IH.
-    + admit.
-    + apply: List.Forall_impl F.
-  (* TODO *)
-Admitted.
-*)
-
-(*
-Lemma convert_from_bits_to_Z_one_bits_spec : forall x,
-  convert_from_bits_to_Z_one_bits (convert_to_bits x) = Zbits.Z_one_bits wordsize (intval x) 0.
-Proof.
-  move=> x. apply: convert_from_bits_to_Z_one_bits_power_index_to_bits.
+    + rewrite -filter_out_zlt; last by rewrite E. by rewrite IH.
 Qed.
- *)
 
 (** Converting a sequence of bits back to [T]. **)
 Definition convert_from_bits l :=
   repr (Zbits.powerserie (convert_from_bits_to_Z_one_bits l)).
 
-Lemma Zbits_Z_one_bits_range : forall x i b,
+Lemma Zbits_Z_one_bits_range : forall wordsize x i b,
   b \in Zbits.Z_one_bits wordsize x i ->
   (i <= b < i + wordsize)%Z.
 Proof.
-  elim wordsize.
+  elim.
   - by [].
   - move=> ws IH x i b /=.
     have L: (b \in Zbits.Z_one_bits ws (Z.div2 x) (i + 1) ->
@@ -528,19 +501,28 @@ Qed.
 
 Lemma Zbits_Z_one_bits_uniq : forall x i,
   uniq (Zbits.Z_one_bits wordsize x i).
-Admitted. (* TODO *)
+Proof.
+  elim wordsize.
+  - by [].
+  - move=> ws IH x i /=. destruct Z.odd => //=.
+    apply/andP. split => //.
+    apply/negP => I. apply Zbits_Z_one_bits_range in I. by lias.
+Qed.
 
 Lemma convert_to_from_bits : forall a,
   a = convert_from_bits (convert_to_bits a).
 Proof.
   move=> a. rewrite/convert_from_bits convert_from_bits_to_Z_one_bits_power_index_to_bits.
-  - rewrite -Zbits.Z_one_bits_powerserie.
+  - have E: [seq x <- Zbits.Z_one_bits wordsize (intval a) 0 | Coqlib.zlt x wordsize]
+            = Zbits.Z_one_bits wordsize (intval a) 0.
+    { admit. (* TODO: Using [Zbits_Z_one_bits_range]. *) }
+    rewrite E -Zbits.Z_one_bits_powerserie.
     + apply: eq_T_intval => /=. by rewrite Z_mod_modulus_intval.
-    + destruct a as [a C] => /=. move: C. rewrite/modulus. by lias.
-  - apply List.Forall_forall => e I. apply List_In_in_mem in I.
-    apply Zbits_Z_one_bits_range in I. by lias.
-Qed.
+    + destruct a as [a C] => /=. move: {E} C. rewrite/modulus. by lias.
+  - by apply: Zbits_Z_one_bits_uniq.
+Admitted.
 
+(* TODO
 Lemma convert_to_bits_disjunct_sum : forall a b,
   seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
   convert_to_bits (repr (a + b))
@@ -570,10 +552,6 @@ Proof.
   destruct n.
   - simpl. case O: Z.odd.
 Qed.
-
-Lemma convert_to_bits_eq : forall a b,
-  convert_to_bits a = convert_to_bits b ->
-  eq a b.
 *)
 
 (** Once the conversion to and from lists of bits have been defined,
@@ -599,7 +577,7 @@ Lemma convert_to_bits_inj : forall a b,
   a = b.
 Proof.
   move=> a b E.
-Zbits.Z_one_bits_powerserie
+  (* TODO: Zbits.Z_one_bits_powerserie *)
 Admitted (* TODO *).
 
 Lemma list_all_eq : forall A (d : A) l1 l2,

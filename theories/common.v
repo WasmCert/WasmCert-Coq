@@ -144,6 +144,30 @@ Proof.
     + move=> [E|I]; apply/orP; [ left | right => // ]. by apply/eqP.
 Qed.
 
+Lemma filter_notin : forall (A : eqType) a (l : seq A) p,
+  a \notin l ->
+  filter p l = filter (fun b => (b != a) && p b) l.
+Proof.
+  move=> A a. elim.
+  - by [].
+  - move=> a' l' IH p /=. rewrite in_cons => /orP N.
+    case_eq (a' == a) => /=; move/eqP => E.
+    + subst. exfalso. apply N. by left.
+    + rewrite IH => //. apply/negP => N'. apply: N. by right.
+Qed.
+
+Lemma filter_out_zlt : forall (a : nat) l,
+  (Z.of_nat a) \notin l ->
+  [seq x <- l | Coqlib.zlt x (Z.of_nat a)]
+  = [seq x <- l | Coqlib.zlt x (Z.pos (Pos.of_succ_nat a))].
+Proof.
+  move=> a l N. rewrite (filter_notin _ N). apply: eq_in_filter.
+  move=> x I. rewrite Znat.Zpos_P_of_succ_nat -Znat.Nat2Z.inj_succ.
+  case_eq (x == Z.of_nat a) => /eqP.
+  - move=> E. subst. exfalso. by move/negP: N.
+  - move=> D. by destruct Coqlib.zlt as [L|L], Coqlib.zlt as [L'|L'] => //; exfalso; lias.
+Qed.
+
 
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 
