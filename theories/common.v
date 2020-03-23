@@ -134,6 +134,17 @@ Proof.
 Qed.
 
 
+Lemma List_In_in_mem : forall (A : eqType) e (l : seq A),
+  e \in l <-> List.In e l.
+Proof.
+  induction l.
+  - by [].
+  - rewrite in_cons /= -IHl. split.
+    + move/orP => [E|I]; [ left | right => // ]. symmetry. by apply/eqP.
+    + move=> [E|I]; apply/orP; [ left | right => // ]. by apply/eqP.
+Qed.
+
+
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 
 Module TProp.
@@ -221,7 +232,7 @@ Proof.
   rewrite -(cats0 (rev l)). apply: Forall_catrev => //. by apply: Forall_nil.
 Defined.
 
-(* FIXME: There are too many opaque things there: I’m afraid that this is not correct.
+(* FIXME: There are too many opaque things there: I’m afraid that this is not provable.
 Definition Forall_catrevE : forall A (P : A -> Prop) l1 l2 (F1 : Forall P l1) (F2 : Forall P l2),
   Forall_catrev F1 F2 = Forall_cat (Forall_rev F1) F2.
 Proof.

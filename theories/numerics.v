@@ -432,25 +432,114 @@ Proof.
     + apply: Znat.inj_lt. by apply/leP.
 Qed.
 
-(* FIXME: Stuffs that we might want to prove.
-Fixpoint convert_from_bits l : T :=
+(** Auxiliary function for [convert_from_bits]. **)
+Fixpoint convert_from_bits_to_Z_one_bits l : seq Z :=
   match l with
-  | [::] => repr 0
+  | [::] => [::]
   | b :: l =>
-    let i :=
-      if b then
-        Zpower.two_p (seq.size l)
-      else 0 in
-    add (repr i) (convert_from_bits l)
+    let c := convert_from_bits_to_Z_one_bits l in
+    if b then
+      (seq.size l : Z) :: c
+    else c
   end.
 
-Lemma convert_to_from_bits : forall a,
-  lt a (repr (Zpower.two_p wordsize)) ->
-  a = convert_from_bits (convert_to_bits a).
+Lemma convert_from_bits_to_Z_one_bits_power_index_to_bits : forall l : seq Z,
+  uniq l ->
+  Zbits.powerserie (convert_from_bits_to_Z_one_bits (power_index_to_bits wordsize l))
+  = Zbits.powerserie (filter (fun x => Coqlib.zlt x wordsize) l).
 Proof.
-  move=> a I. rewrite/convert_to_bits.
+  elim wordsize.
+  - move=> /=. elim.
+    + by [].
+    + move=> a l IH /=. move/andP => [N U].
+      by destruct a => //=; rewrite -IH.
+  - move=> ws IH l U /=. rewrite power_index_to_bits_size. destruct in_mem eqn:E => /=.
+    + rewrite IH => //.
+      {
+        move: l U E. clear. elim.
+        - by [].
+        - move=> a l IH /= /andP [N U]. rewrite in_cons => /orP. destruct Coqlib.zlt as [L|L] => /=.
+          + move=> [+|I].
+            * move/eqP => ?. subst. by lias.
+            * rewrite_by (Zpower.two_p ws + (Zpower.two_p a
+                          + Zbits.powerserie [seq x <- l | Coqlib.zlt x ws])
+                          = Zpower.two_p a + (Zpower.two_p ws
+                          + Zbits.powerserie [seq x <- l | Coqlib.zlt x ws]))%Z.
+              rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //.
+              exfalso. rewrite Znat.Zpos_P_of_succ_nat in L'. by lias.
+          + move=> [+|I].
+            * move/eqP => ?. subst. admit. (* TODO *)
+            * rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //=.
+              exfalso. rewrite Znat.Zpos_P_of_succ_nat in L'.
+              have ?: (a = ws); first by lias. subst. by rewrite I in N.
+      }
+    + have R: [seq x <- l | Coqlib.zlt x ws]
+              = [seq x <- l | Coqlib.zlt x (Z.pos (Pos.of_succ_nat ws))].
+      { admit. (* TODO *) }
+      by rewrite -R IH.
   (* TODO *)
 Admitted.
+
+(*
+Lemma convert_from_bits_to_Z_one_bits_power_index_to_bits : forall l : seq Z,
+  List.Forall (fun x => x < wordsize)%Z l ->
+  Zbits.powerserie (convert_from_bits_to_Z_one_bits (power_index_to_bits wordsize l))
+  = Zbits.powerserie l.
+Proof.
+  elim wordsize.
+  - move=> /=. elim.
+    + by [].
+    + move=> a l IH F /=. inversion_clear F. rewrite -IH => //. by destruct a; try lias.
+  - move=> ws IH l F /=. rewrite power_index_to_bits_size. rewrite IH.
+    + admit.
+    + apply: List.Forall_impl F.
+  (* TODO *)
+Admitted.
+*)
+
+(*
+Lemma convert_from_bits_to_Z_one_bits_spec : forall x,
+  convert_from_bits_to_Z_one_bits (convert_to_bits x) = Zbits.Z_one_bits wordsize (intval x) 0.
+Proof.
+  move=> x. apply: convert_from_bits_to_Z_one_bits_power_index_to_bits.
+Qed.
+ *)
+
+(** Converting a sequence of bits back to [T]. **)
+Definition convert_from_bits l :=
+  repr (Zbits.powerserie (convert_from_bits_to_Z_one_bits l)).
+
+Lemma Zbits_Z_one_bits_range : forall x i b,
+  b \in Zbits.Z_one_bits wordsize x i ->
+  (i <= b < i + wordsize)%Z.
+Proof.
+  elim wordsize.
+  - by [].
+  - move=> ws IH x i b /=.
+    have L: (b \in Zbits.Z_one_bits ws (Z.div2 x) (i + 1) ->
+             (i <= b < i + Z.pos (Pos.of_succ_nat ws))%Z).
+    { move=> I. apply IH in I. rewrite Znat.Zpos_P_of_succ_nat -Z.add_1_r. by lias. }
+    destruct Z.odd.
+    + rewrite in_cons. move/orP. move=> [E|I'].
+      * by lias.
+      * by apply: L.
+    + by apply: L.
+Qed.
+
+Lemma Zbits_Z_one_bits_uniq : forall x i,
+  uniq (Zbits.Z_one_bits wordsize x i).
+Admitted. (* TODO *)
+
+Lemma convert_to_from_bits : forall a,
+  a = convert_from_bits (convert_to_bits a).
+Proof.
+  move=> a. rewrite/convert_from_bits convert_from_bits_to_Z_one_bits_power_index_to_bits.
+  - rewrite -Zbits.Z_one_bits_powerserie.
+    + apply: eq_T_intval => /=. by rewrite Z_mod_modulus_intval.
+    + destruct a as [a C] => /=. move: C. rewrite/modulus. by lias.
+  - apply List.Forall_forall => e I. apply List_In_in_mem in I.
+    apply Zbits_Z_one_bits_range in I. by lias.
+Qed.
 
 Lemma convert_to_bits_disjunct_sum : forall a b,
   seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
@@ -508,6 +597,9 @@ Definition popcnt i :=
 Lemma convert_to_bits_inj : forall a b,
   convert_to_bits a = convert_to_bits b ->
   a = b.
+Proof.
+  move=> a b E.
+Zbits.Z_one_bits_powerserie
 Admitted (* TODO *).
 
 Lemma list_all_eq : forall A (d : A) l1 l2,
