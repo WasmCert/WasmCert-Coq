@@ -39,27 +39,38 @@ Ltac lias_simpl :=
   | |- is_true (~~ _) => apply/negP
   | |- context C [subn] => rewrite /subn /subn_rec
   | |- context C [addn] => rewrite /addn /addn_rec
-  | H: context C [subn] |- _ => unfold subn, subn_rec in H
-  | H: context C [addn] |- _ => unfold addn, addn_rec in H
-  | |- ?x = true => fold (is_true x)
-  | |- ?x = false => apply/negP => ?
   | |- is_true (leq _ _) => apply/leP
   | |- is_true (@eq_op nat_eqType _ _) => rewrite -eqnE; apply/eqnP
   | |- is_true (@eq_op Z_eqType _ _) => apply/Z_eqP
   | |- is_true (@eq_op Pos_eqType _ _) => apply/Pos_eqP
-  | H: context C [?x = true] |- _ => fold (is_true x) in H
+  | |- context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] =>
+    rewrite -> (Znat.Zpos_P_of_succ_nat n);
+    rewrite <- (Znat.Nat2Z.inj_succ n)
+  | |- _ /\ _ => split
+  | |- is_true (_ && _) => apply/andP; split
+  | |- _ <-> _ => split; intros
+  | H: context C [subn] |- _ => unfold subn, subn_rec in H
+  | H: context C [addn] |- _ => unfold addn, addn_rec in H
+  | H: is_true (~~ _) |- _ => move/negP: H => H
+  | H: _ /\ _ |- _ => move: H; intros [? ?]
+  | H: _ <-> _ |- _ => move: H; intros [? ?]
+  | H: is_true (_ && _) |- _ => move/andP: H; intros [? ?]
   | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
   | H: context C [is_true (@eq_op nat_eqType _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
   | H: context C [is_true (@eq_op Z_eqType _ _)] |- _ => move: H => /Z_eqP H
   | H: context C [is_true (@eq_op Pos_eqType _ _)] |- _ => move: H => /Pos_eqP H
+  | H: context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] |- _ =>
+    rewrite -> (Znat.Zpos_P_of_succ_nat n) in H;
+    rewrite <- (Znat.Nat2Z.inj_succ n) in H
+  (* The following cases have a higher chance of failing, and should be kept after this comment. *)
+  | |- ?x = false => apply/negP; intro
   | H: context C [?x = false] |- _ => move: H => /negP H
-  | |- _ /\ _ => split
-  | |- _ <-> _ => split; intros
-  | H: _ /\ _ |- _ => move: H => [? ?]
-  | H: _ <-> _ |- _ => move: H => [? ?]
+  | |- ?x = true => fold (is_true x)
+  | H: context C [?x = true] |- _ => fold (is_true x) in H
   end;
   repeat rewrite <- PeanoNat.Nat.add_1_l in *;
-  try unfold Logic.not in *.
+  try unfold Logic.not in *;
+  try by [].
 
 (** An extension of [lia] that just tries to rewrite things in the way [lia] that expects. **)
 Ltac lias :=
@@ -78,7 +89,7 @@ Ltac lias :=
           | nia
           | unfold_head tt; aux tt
           | apply: Bool.eq_true_iff_eq; lias_simpl; aux tt ] in
-  aux tt.
+  aux tt || (simpl; lias_simpl; aux tt).
 
 (** Rewrite an arithmetic equality. **)
 Ltac rewrite_by E :=
@@ -134,6 +145,14 @@ Proof.
 Qed.
 
 
+(** * Lemmas about lists. **)
+
+Lemma is_true_bool : forall b1 b2 : bool,
+  (b1 = b2) <-> (b1 <-> b2).
+Proof.
+  by do 2 case => /=; split=> //> [H1 H2]; exfalso; eauto.
+Qed.
+
 Lemma List_In_in_mem : forall (A : eqType) e (l : seq A),
   e \in l <-> List.In e l.
 Proof.
@@ -148,12 +167,10 @@ Lemma filter_notin : forall (A : eqType) a (l : seq A) p,
   a \notin l ->
   filter p l = filter (fun b => (b != a) && p b) l.
 Proof.
-  move=> A a. elim.
-  - by [].
-  - move=> a' l' IH p /=. rewrite in_cons => /orP N.
-    case_eq (a' == a) => /=; move/eqP => E.
-    + subst. exfalso. apply N. by left.
-    + rewrite IH => //. apply/negP => N'. apply: N. by right.
+  move=> A a l p N. apply: eq_in_filter => x I.
+  rewrite is_true_bool. split.
+  - move=> P. apply/andP. split => //. apply/eqP => ?. subst. by move/negP: N.
+  - by move/andP => [? ?].
 Qed.
 
 Lemma filter_out_zlt : forall (a : nat) l,
@@ -166,6 +183,43 @@ Proof.
   case_eq (x == Z.of_nat a) => /eqP.
   - move=> E. subst. exfalso. by move/negP: N.
   - move=> D. by destruct Coqlib.zlt as [L|L], Coqlib.zlt as [L'|L'] => //; exfalso; lias.
+Qed.
+
+Lemma all_filter : forall A p (l : seq A),
+  all p l ->
+  filter p l = l.
+Proof. move=> A p l F. by apply/all_filterP. Qed.
+
+Lemma list_all_forall : forall A p (l : seq A),
+  all p l <-> forall a, List.In a l -> p a.
+Proof.
+  move=> A p. elim => /=.
+  - by split.
+  - move=> a l IH. split.
+    + move/andP => [P F] e [?|I].
+      * by subst.
+      * move: F. rewrite {} IH => AP. by apply: AP.
+    + move=> F. apply/andP. rewrite IH. split.
+      * apply: F. by left.
+      * move=> e I. apply: F. by right.
+Qed.
+
+Lemma filter_none : forall A p (l : seq A),
+  all (fun b => ~~ p b) l ->
+  filter p l = [::].
+Proof.
+  move=> A p. elim.
+  - by [].
+  - move=> a l IH /= /andP [N F]. destruct p => //. by rewrite IH.
+Qed.
+
+Lemma filter_and : forall A p1 p2 (l : seq A),
+  filter (fun a => p1 a && p2 a) l
+  = filter p1 (filter p2 l).
+Proof.
+  move=> A p1 p2. elim.
+  - by [].
+  - move=> a l E /=. destruct p2 => /=; destruct p1 => //=. by rewrite E.
 Qed.
 
 

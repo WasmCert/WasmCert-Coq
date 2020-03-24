@@ -219,7 +219,7 @@ Proof.
   rewrite Zpower.two_power_nat_equiv -Pos2Z.inj_pow .
   apply: Pos2Z.pos_lt_pos. elim ws; first by [].
   move=> n. rewrite SuccNat2Pos.inj_succ.
-  rewrite /Pos.pow Pos.iter_succ => IH. lias.
+  rewrite /Pos.pow Pos.iter_succ => IH. by lias.
 Qed.
 
 Lemma modulus_minus_half_modulus : (modulus - half_modulus = half_modulus)%Z.
@@ -466,14 +466,13 @@ Proof.
                           = Zpower.two_p a + (Zpower.two_p ws
                           + Zbits.powerserie [seq x <- l | Coqlib.zlt x ws]))%Z.
               rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //.
-              exfalso. rewrite Znat.Zpos_P_of_succ_nat in L'. by lias.
+              exfalso. by lias.
           + move=> [+|I].
             * move/eqP => ?. subst. destruct Coqlib.zlt as [L'|L'] => //=.
               -- by rewrite filter_out_zlt.
-              -- rewrite Znat.Zpos_P_of_succ_nat in L'. by lias.
+              -- by lias.
             * rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //=.
-              exfalso. rewrite Znat.Zpos_P_of_succ_nat in L'.
-              have ?: (a = ws); first by lias. subst. by rewrite I in N.
+              exfalso. have ?: (a = ws); first by lias. subst. by rewrite I in N.
       }
     + rewrite -filter_out_zlt; last by rewrite E. by rewrite IH.
 Qed.
@@ -491,7 +490,7 @@ Proof.
   - move=> ws IH x i b /=.
     have L: (b \in Zbits.Z_one_bits ws (Z.div2 x) (i + 1) ->
              (i <= b < i + Z.pos (Pos.of_succ_nat ws))%Z).
-    { move=> I. apply IH in I. rewrite Znat.Zpos_P_of_succ_nat -Z.add_1_r. by lias. }
+    { move=> I. apply IH in I. by lias. }
     destruct Z.odd.
     + rewrite in_cons. move/orP. move=> [E|I'].
       * by lias.
@@ -515,14 +514,19 @@ Proof.
   move=> a. rewrite/convert_from_bits convert_from_bits_to_Z_one_bits_power_index_to_bits.
   - have E: [seq x <- Zbits.Z_one_bits wordsize (intval a) 0 | Coqlib.zlt x wordsize]
             = Zbits.Z_one_bits wordsize (intval a) 0.
-    { admit. (* TODO: Using [Zbits_Z_one_bits_range]. *) }
+    {
+      rewrite all_filter => //.
+      rewrite list_all_forall => e. rewrite -List_In_in_mem => I.
+      apply Zbits_Z_one_bits_range in I. destruct Coqlib.zlt => //.
+      lias.
+    }
     rewrite E -Zbits.Z_one_bits_powerserie.
     + apply: eq_T_intval => /=. by rewrite Z_mod_modulus_intval.
     + destruct a as [a C] => /=. move: {E} C. rewrite/modulus. by lias.
   - by apply: Zbits_Z_one_bits_uniq.
-Admitted.
+Qed.
 
-(* TODO
+(* FIXME: We might want to prove these lemmas.
 Lemma convert_to_bits_disjunct_sum : forall a b,
   seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
   convert_to_bits (repr (a + b))
@@ -572,13 +576,72 @@ Definition popcnt i :=
   let l := convert_to_bits i in
   repr (seq.count (fun b => b == true) l).
 
+Lemma Zbits_powerserie_uniq_in : forall z l,
+  uniq l ->
+  z \in l ->
+  Zbits.powerserie l = (Zpower.two_p z + Zbits.powerserie (filter (fun x => x != z) l))%Z.
+Proof.
+Admitted. (* TODO *)
+
+Lemma power_index_to_bits_Zbits_powerserie : forall (wordsize : nat) l1 l2,
+  uniq l1 ->
+  uniq l2 ->
+  power_index_to_bits wordsize l1 = power_index_to_bits wordsize l2 ->
+  Zbits.powerserie (filter (fun b => Coqlib.zlt (-1) b && Coqlib.zlt b wordsize)%Z l1)
+  = Zbits.powerserie (filter (fun b => Coqlib.zlt (-1) b && Coqlib.zlt b wordsize)%Z l2).
+Proof.
+  elim => /=.
+  - move=> l1 l2 U1 U2 _. rewrite filter_none.
+    + rewrite filter_none.
+      * by [].
+      * rewrite list_all_forall => a I.
+        repeat destruct Coqlib.zlt => //. exfalso. by lias.
+    + rewrite list_all_forall => a I.
+      repeat destruct Coqlib.zlt => //. exfalso. by lias.
+  - move=> ws IH l1 l2 U1 U2. case => E1 E2.
+    repeat rewrite filter_and. destruct in_mem eqn: E1'.
+    + rewrite (Zbits_powerserie_uniq_in (z := ws)).
+      * rewrite (Zbits_powerserie_uniq_in (z := ws) (l := filter _ (filter _ l2))).
+        -- f_equal. repeat rewrite -filter_and. erewrite eq_in_filter.
+           ++ erewrite IH; try eassumption.
+              f_equal. apply: eq_in_filter.
+              move=> x I2. apply is_true_bool.
+              by repeat destruct Coqlib.zlt => /=;
+                (try by lias_simpl; have ?: (x = ws); [ lias | subst; eauto ]);
+                lias.
+           ++ move=> x I1. apply is_true_bool.
+              by repeat destruct Coqlib.zlt => /=;
+                (try by lias_simpl; have ?: (x = ws); [ lias | subst; eauto ]);
+                lias.
+        -- by repeat apply: filter_uniq.
+        -- repeat rewrite mem_filter. by repeat destruct Coqlib.zlt => //=; lias.
+      * by repeat apply filter_uniq.
+      * repeat rewrite mem_filter. by repeat destruct Coqlib.zlt => //=; lias.
+    + rewrite -filter_out_zlt; last by rewrite E1'.
+      rewrite -filter_out_zlt; last by rewrite -E1.
+      repeat rewrite -filter_and. by apply: IH.
+Qed.
+
 Lemma convert_to_bits_inj : forall a b,
   convert_to_bits a = convert_to_bits b ->
   a = b.
 Proof.
-  move=> a b E.
-  (* TODO: Zbits.Z_one_bits_powerserie *)
-Admitted (* TODO *).
+  move=> [a Ra] [b Rb] E. apply: eq_T_intval => /=.
+  unfold modulus in Ra, Rb.
+  rewrite (Zbits.Z_one_bits_powerserie wordsize a); last by lias.
+  rewrite (Zbits.Z_one_bits_powerserie wordsize b); last by lias.
+  unfold convert_to_bits in E. move: E => /= E.
+  apply power_index_to_bits_Zbits_powerserie in E.
+  {
+    move: E. repeat rewrite all_filter => //.
+    - rewrite list_all_forall => e I. apply Zbits.Z_one_bits_range in I.
+      apply/andP. repeat destruct Coqlib.zlt => //; by lias.
+    - rewrite list_all_forall => e I. apply Zbits.Z_one_bits_range in I.
+      apply/andP. repeat destruct Coqlib.zlt => //; by lias.
+  }
+  - by apply: Zbits_Z_one_bits_uniq.
+  - by apply: Zbits_Z_one_bits_uniq.
+Qed.
 
 Lemma list_all_eq : forall A (d : A) l1 l2,
   seq.size l1 = seq.size l2 ->
@@ -708,7 +771,7 @@ Definition irem_u (i1 i2 : T) : option T :=
 Lemma idiv_u_irem_u : forall i1 i2 d r,
   idiv_u i1 i2 = Some d ->
   irem_u i1 i2 = Some r ->
-  i1 = add (mul i2 d) r.
+  i1 = iadd (imul i2 d) r.
 Proof.
   rewrite /idiv_u /irem_u. move=> i1 i2 d r. case E: (eq i2 zero) => //.
   case=> ED. rewrite - {} ED. case=> ER. rewrite - {} ER.
@@ -743,7 +806,7 @@ Definition irem_s (i1 i2 : T) : option T :=
 Lemma idiv_s_irem_s : forall i1 i2 d r,
   idiv_s i1 i2 = Some d ->
   irem_s i1 i2 = Some r ->
-  i1 = add (mul i2 d) r.
+  i1 = iadd (imul i2 d) r.
 Proof.
   rewrite /idiv_s /irem_s. move=> i1 i2 d r. case E1: (signed i2 == 0) => //.
   case E2: ((signed i1 ÷ signed i2)%Z == half_modulus) => //.
