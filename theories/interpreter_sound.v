@@ -125,6 +125,22 @@ Proof.
   move => l n. rewrite v_to_e_cat. by rewrite cat_take_drop.
 Qed.
 
+Lemma v_to_e_take: forall l n,
+  v_to_e_list (take n l) = take n (v_to_e_list l).
+Proof.
+  move => + n. induction n => //.
+  - move => l. by repeat rewrite take0.
+  - move => l. destruct l => //. simpl. f_equal. by apply IHn.
+Qed.
+
+Lemma v_to_e_drop: forall l n,
+  v_to_e_list (drop n l) = drop n (v_to_e_list l).
+Proof.
+  move => + n. induction n => //.
+  - move => l. by repeat rewrite drop0.
+  - move => l. destruct l => //. simpl. f_equal. by apply IHn.
+Qed.
+
 Lemma v_to_e_rev: forall l,
   v_to_e_list (rev l) = rev (v_to_e_list l).
 Proof.
@@ -187,6 +203,17 @@ Proof.
   move => vs es LI es'' HLF. inversion HLF; subst; clear HLF.
   repeat rewrite -catA.
   by apply LfilledBase.
+Qed.
+
+Lemma lfilled0_take_drop: forall vs es n es',
+  const_list vs ->
+  n <= size vs ->
+  lfilledInd 0 (LBase (take n vs) es') (drop n vs ++ es) (vs ++ es ++ es').
+Proof.
+  move => vs es n es' HConst HSize.
+  replace (vs++es++es') with (take n vs ++ (drop n vs ++ es) ++ es').
+  apply LfilledBase. by apply const_list_take.
+  { repeat rewrite catA. by rewrite cat_take_drop. }
 Qed.
 
 (** The following tactics are meant to help the proof of [run_step_soundness] below. **)
@@ -620,19 +647,1206 @@ Proof.
   move=> >. by apply: run_one_step_fuel_enough.
 Qed.
 
+Lemma ves_projection: forall vs e es vs' e' es',
+  const_list vs ->
+  const_list vs' ->
+  ~ is_const e ->
+  ~ is_const e' ->
+  vs ++ e :: es = vs' ++ e' :: es' ->
+  e = e'.
+Proof.
+  move => vs. induction vs => //=.
+  - move => e es vs' e' es' _ HConstList HNConst HNConst'.
+    destruct vs' => //=.
+    + move => H. by inversion H.
+    + simpl in HConstList. move => H. inversion H. subst.
+      move/andP in HConstList. destruct HConstList as [Ha _].
+      rewrite Ha in HNConst. exfalso. by apply HNConst.
+  - move => e es vs' e' es' HConstList HConstList' HNConst HNConst'.
+    destruct vs' => //=.
+    + move => H. inversion H. subst.
+      move/andP in HConstList. destruct HConstList as [He' _].
+      exfalso. by apply HNConst'.
+    + simpl in HConstList'. move => H. inversion H. subst.
+      move/andP in HConstList. move/andP in HConstList'.
+      destruct HConstList as [Ha Hvs]. destruct HConstList' as [Ha' Hvs'].
+      eapply IHvs => //=.
+      * by apply Hvs'.
+      * by apply H2.
+Qed.
+
+
+(*
+Fixpoint label_level (es:seq administrative_instruction) : option nat :=
+  let: (vs, es) := split_vals_e es in
+  match es with
+  | (Basic (Br _)) :: _ => Some 0
+  | (Label ln les es) :: _ =>
+    match label_level es with
+    | Some n => Some (n + 1)
+    | None => None
+    end
+  | _ => None
+  end.
+*)
+
+    
+
 Lemma rs_break_trace_bool: forall fuel d i s vs es s' vs' n es',
-  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel.+2 d i (s, vs, es)
   = (s', vs', RS_break n es') -> 
   let: (ves, es'') := split_vals_e es in
   exists e es2 ln les es3, (es'' == e :: es2) &&
-   ((e == Basic (Br n)) && (es' == rev ves) ||
+   ((e == Basic (Br n)) && ((s', vs', es') == (s, vs, rev ves)) ||
     (e == Label ln les es3) &&
     ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) == (s', vs', RS_break n.+1 es'))
    ).
-Admitted. (* TODO: Chose between [rs_break_trace_bool] and [rs_break_trace] ☺ *)
+Proof.
+  move => fuel d i s vs es s' vs' n es' H.
+  unfold run_step_with_fuel in H.
+  destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct es2 as [|e es2']=> //.
+  destruct e as [b| | | |]=> //; unfold e_is_trap in H.
+  - destruct b => //; move:H; try explode_and_simplify.
+    + (* Basic (Br i0) *)
+      pattern_match.
+      exists (Basic (Br n)). exists es2'.
+      (* unused ones *) exists 0. exists [::]. exists [::].
+      simpl. apply/andP. split => //=. apply/orP. left. apply/andP. by split => //=.
+  - move:H. by explode_and_simplify.
+  - move:H. destruct f; destruct f; by explode_and_simplify.
+  - (* Label *) exists (Label n0 l l0). exists es2'. exists n0. exists l. exists l0.
+    apply/andP. split => //.
+    apply/andP. split => //.
+    apply/eqP.
+    move:H. explode_and_simplify.
+  (* Coq doesn't want to fold this huge expression. *)
+    fold (run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, l0)).
+  (* TODO: Ask martin on how to not use this *)
+    destruct ((fix
+       run_step_with_fuel (fuel0 : interpreter.fuel) (d0 : depth) 
+                          (i0 : instance) (tt : config_tuple) {struct fuel0} :
+         res_tuple :=
+         let
+         '(s0, vs0, es0) := tt in
+          match fuel0 with
+          | 0 => (s0, vs0, RS_crash C_exhaustion)
+          | fuel1.+1 =>
+              match split_vals_e es0 with
+              | (ves, [::]) => (s0, vs0, crash_error)
+              | (ves, e :: es'') =>
+                  if match e with
+                     | Trap => true
+                     | _ => false
+                     end
+                  then
+                   if (es'' != [::]) || (ves != [::])
+                   then (s0, vs0, RS_normal [:: Trap])
+                   else (s0, vs0, crash_error)
+                  else
+                   match run_one_step0 fuel1 d0 i0 (s0, vs0, rev ves) e with
+                   | (s'0, vs'0, RS_crash _ as r) | (s'0, vs'0, RS_break _ _ as r) |
+                     (s'0, vs'0, RS_return _ as r) => (s'0, vs'0, r)
+                   | (s'0, vs'0, RS_normal res) => (s'0, vs'0, RS_normal (res ++ es''))
+                   end
+              end
+          end
+       with
+       run_one_step0 (fuel0 : interpreter.fuel) (d0 : depth) 
+                     (i0 : instance) (tt : config_one_tuple_without_e)
+                     (e : administrative_instruction) {struct fuel0} : res_tuple :=
+         let
+         '(s0, vs0, ves) := tt in
+          match fuel0 with
+          | 0 => (s0, vs0, RS_crash C_exhaustion)
+          | fuel1.+1 =>
+              match e with
+              | Basic Unreachable =>
+                  (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ [:: Trap]))
+              | Basic Nop => (s0, vs0, RS_normal (v_to_e_list (rev ves)))
+              | Basic Drop =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | _ :: ves' => (s0, vs0, RS_normal (v_to_e_list (rev ves')))
+                  end
+              | Basic Select =>
+                  match ves with
+                  | [:: ConstInt32 c] => (s0, vs0, crash_error)
+                  | [:: ConstInt32 c; v2] => (s0, vs0, crash_error)
+                  | [:: ConstInt32 c, v2, v1 & ves'] =>
+                      if c == Wasm_int.int_zero i32m
+                      then (s0, vs0, RS_normal (v_to_e_list (rev (v2 :: ves'))))
+                      else (s0, vs0, RS_normal (v_to_e_list (rev (v1 :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Block (Tf t1s t2s) es0) =>
+                  if length t1s <= length ves
+                  then
+                   let
+                   '(ves', ves'') := split_n ves (length t1s) in
+                    (s0, vs0,
+                    RS_normal
+                      (v_to_e_list (rev ves'') ++
+                       [:: Label (length t2s) [::]
+                             (v_to_e_list (rev ves') ++ to_e_list es0)]))
+                  else (s0, vs0, crash_error)
+              | Basic (Loop (Tf t1s t2s) es0) =>
+                  if length t1s <= length ves
+                  then
+                   let
+                   '(ves', ves'') := split_n ves (length t1s) in
+                    (s0, vs0,
+                    RS_normal
+                      (v_to_e_list (rev ves'') ++
+                       [:: Label (length t1s) [:: Basic (Loop (Tf t1s t2s) es0)]
+                             (v_to_e_list (rev ves') ++ to_e_list es0)]))
+                  else (s0, vs0, crash_error)
+              | Basic (If tf es1 es2) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      if c == Wasm_int.int_zero i32m
+                      then
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Block tf es2)]))
+                      else
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Block tf es1)]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Br j) => (s0, vs0, RS_break j ves)
+              | Basic (Br_if j) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      if c == Wasm_int.int_zero i32m
+                      then (s0, vs0, RS_normal (v_to_e_list (rev ves')))
+                      else
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Br j)]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Br_table js j) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      if Wasm_int.nat_of_uint i32m c < length js
+                      then
+                       expect (nth_error js (Wasm_int.nat_of_uint i32m c))
+                         (fun js_at_k : immediate =>
+                          (s0, vs0,
+                          RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Br js_at_k)])))
+                         (s0, vs0, crash_error)
+                      else
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Br j)]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic Return => (s0, vs0, RS_return ves)
+              | Basic (Call j) =>
+                  match sfunc s0 i0 j with
+                  | Some sfunc_i_j =>
+                      (s0, vs0,
+                      RS_normal (v_to_e_list (rev ves) ++ [:: Callcl sfunc_i_j]))
+                  | None => (s0, vs0, crash_error)
+                  end
+              | Basic (Call_indirect j) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      match stab s0 i0 (Wasm_int.nat_of_uint i32m c) with
+                      | Some cl =>
+                          if stypes s0 i0 j == Some (cl_type cl)
+                          then
+                           (s0, vs0,
+                           RS_normal (v_to_e_list (rev ves') ++ [:: Callcl cl]))
+                          else
+                           (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                      | None =>
+                          (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                      end
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Get_local j) =>
+                  if j < length vs0
+                  then
+                   expect (nth_error vs0 j)
+                     (fun vs_at_j : value =>
+                      (s0, vs0, RS_normal (v_to_e_list (rev (vs_at_j :: ves)))))
+                     (s0, vs0, crash_error)
+                  else (s0, vs0, crash_error)
+              | Basic (Set_local j) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      if j < length vs0
+                      then
+                       (s0, update_list_at vs0 j v, RS_normal (v_to_e_list (rev ves')))
+                      else (s0, vs0, crash_error)
+                  end
+              | Basic (Tee_local j) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: _ =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (v :: ves)) ++ [:: Basic (Set_local j)]))
+                  end
+              | Basic (Get_global j) =>
+                  match sglob_val s0 i0 j with
+                  | Some xx => (s0, vs0, RS_normal (v_to_e_list (rev (xx :: ves))))
+                  | None => (s0, vs0, crash_error)
+                  end
+              | Basic (Set_global j) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      match supdate_glob s0 i0 j v with
+                      | Some xx => (xx, vs0, RS_normal (v_to_e_list (rev ves')))
+                      | None => (s0, vs0, crash_error)
+                      end
+                  end
+              | Basic (Load t (Some (tp, sx)) _ off) =>
+                  match ves with
+                  | ConstInt32 k :: ves' =>
+                      expect (smem_ind s0 i0)
+                        (fun j : nat =>
+                         match nth_error (s_mem s0) j with
+                         | Some mem_s_j =>
+                             expect
+                               (load_packed sx mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                  (tp_length tp) (t_length t))
+                               (fun bs : bytes =>
+                                (s0, vs0,
+                                RS_normal
+                                  (v_to_e_list (rev (wasm_deserialise bs t :: ves')))))
+                               (s0, vs0,
+                               RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                         | None => (s0, vs0, crash_error)
+                         end) (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Load t None _ off) =>
+                  match ves with
+                  | ConstInt32 k :: ves' =>
+                      expect (smem_ind s0 i0)
+                        (fun j : nat =>
+                         match nth_error (s_mem s0) j with
+                         | Some mem_s_j =>
+                             expect
+                               (load mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                  (t_length t))
+                               (fun bs : bytes =>
+                                (s0, vs0,
+                                RS_normal
+                                  (v_to_e_list (rev (wasm_deserialise bs t :: ves')))))
+                               (s0, vs0,
+                               RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                         | None => (s0, vs0, crash_error)
+                         end) (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Store t (Some tp) _ off) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | [:: v, ConstInt32 k & ves'] =>
+                      if types_agree t v
+                      then
+                       expect (smem_ind s0 i0)
+                         (fun j : nat =>
+                          match nth_error (s_mem s0) j with
+                          | Some mem_s_j =>
+                              expect
+                                (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                   (bits v) (tp_length tp))
+                                (fun mem' : mem =>
+                                 (upd_s_mem s0 (update_list_at (s_mem s0) j mem'), vs0,
+                                 RS_normal (v_to_e_list (rev ves'))))
+                                (s0, vs0,
+                                RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                          | None => (s0, vs0, crash_error)
+                          end) (s0, vs0, crash_error)
+                      else (s0, vs0, crash_error)
+                  | [:: v] | [:: v, ConstInt64 _ & _] | [:: v, ConstFloat32 _ & _] |
+                    [:: v, ConstFloat64 _ & _] => (s0, vs0, crash_error)
+                  end
+              | Basic (Store t None _ off) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | [:: v, ConstInt32 k & ves'] =>
+                      if types_agree t v
+                      then
+                       expect (smem_ind s0 i0)
+                         (fun j : nat =>
+                          match nth_error (s_mem s0) j with
+                          | Some mem_s_j =>
+                              expect
+                                (store mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                   (bits v) (t_length t))
+                                (fun mem' : mem =>
+                                 (upd_s_mem s0 (update_list_at (s_mem s0) j mem'), vs0,
+                                 RS_normal (v_to_e_list (rev ves'))))
+                                (s0, vs0,
+                                RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                          | None => (s0, vs0, crash_error)
+                          end) (s0, vs0, crash_error)
+                      else (s0, vs0, crash_error)
+                  | [:: v] | [:: v, ConstInt64 _ & _] | [:: v, ConstFloat32 _ & _] |
+                    [:: v, ConstFloat64 _ & _] => (s0, vs0, crash_error)
+                  end
+              | Basic Current_memory =>
+                  expect (smem_ind s0 i0)
+                    (fun j : nat =>
+                     match nth_error (s_mem s0) j with
+                     | Some s_mem_s_j =>
+                         (s0, vs0,
+                         RS_normal
+                           (v_to_e_list
+                              (rev
+                                 (ConstInt32
+                                    (Wasm_int.int_of_Z i32m
+                                       (Z.of_nat (mem_size s_mem_s_j))) :: ves))))
+                     | None => (s0, vs0, crash_error)
+                     end) (s0, vs0, crash_error)
+              | Basic Grow_memory =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      expect (smem_ind s0 i0)
+                        (fun j : nat =>
+                         match nth_error (s_mem s0) j with
+                         | Some s_mem_s_j =>
+                             expect
+                               (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_uint i32m c))
+                               (fun mem' : mem =>
+                                (upd_s_mem s0 (update_list_at (s_mem s0) j mem'), vs0,
+                                RS_normal
+                                  (v_to_e_list
+                                     (rev
+                                        (ConstInt32
+                                           (Wasm_int.int_of_Z i32m
+                                              (Z.of_nat (mem_size s_mem_s_j))) :: ves')))))
+                               (s0, vs0, crash_error)
+                         | None => (s0, vs0, crash_error)
+                         end) (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_i T_i32 iop) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstInt32 (app_unop_i iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_i T_i64 iop) =>
+                  match ves with
+                  | ConstInt64 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstInt64 (app_unop_i iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_f T_f32 iop) =>
+                  match ves with
+                  | ConstFloat32 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstFloat32 (app_unop_f iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_f T_f64 iop) =>
+                  match ves with
+                  | ConstFloat64 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstFloat64 (app_unop_f iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_i T_i32 iop) =>
+                  match ves with
+                  | [:: ConstInt32 c2, ConstInt32 c1 & ves'] =>
+                      expect (app_binop_i iop c1 c2)
+                        (fun c : Wasm_int.sort i32t =>
+                         (s0, vs0, RS_normal (v_to_e_list (rev (ConstInt32 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | [:: ConstInt32 c2] | [:: ConstInt32 c2, ConstInt64 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_i T_i64 iop) =>
+                  match ves with
+                  | [:: ConstInt64 c2, ConstInt64 c1 & ves'] =>
+                      expect (app_binop_i iop c1 c2)
+                        (fun c : Wasm_int.sort i64t =>
+                         (s0, vs0, RS_normal (v_to_e_list (rev (ConstInt64 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | [:: ConstInt64 c2] | [:: ConstInt64 c2, ConstInt32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_f T_f32 fop) =>
+                  match ves with
+                  | [:: ConstFloat32 c2, ConstFloat32 c1 & ves'] =>
+                      expect (app_binop_f fop c1 c2)
+                        (fun c : Wasm_float.sort f32t =>
+                         (s0, vs0,
+                         RS_normal (v_to_e_list (rev (ConstFloat32 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | [:: ConstFloat32 c2] | [:: ConstFloat32 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat32 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_f T_f64 fop) =>
+                  match ves with
+                  | [:: ConstFloat64 c2] | [:: ConstFloat64 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat64 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat64 c2, ConstFloat32 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | [:: ConstFloat64 c2, ConstFloat64 c1 & ves'] =>
+                      expect (app_binop_f fop c1 c2)
+                        (fun c : Wasm_float.sort f64t =>
+                         (s0, vs0,
+                         RS_normal (v_to_e_list (rev (ConstFloat64 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Testop T_i32 testop) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_testop_i testop c)) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Testop T_i64 testop) =>
+                  match ves with
+                  | ConstInt64 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_testop_i testop c)) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_i T_i32 iop) =>
+                  match ves with
+                  | [:: ConstInt32 c2, ConstInt32 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_i iop c1 c2)) :: ves'))))
+                  | [:: ConstInt32 c2] | [:: ConstInt32 c2, ConstInt64 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_i T_i64 iop) =>
+                  match ves with
+                  | [:: ConstInt64 c2, ConstInt64 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_i iop c1 c2)) :: ves'))))
+                  | [:: ConstInt64 c2] | [:: ConstInt64 c2, ConstInt32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_f T_f32 iop) =>
+                  match ves with
+                  | [:: ConstFloat32 c2, ConstFloat32 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_f iop c1 c2)) :: ves'))))
+                  | [:: ConstFloat32 c2] | [:: ConstFloat32 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat32 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_f T_f64 iop) =>
+                  match ves with
+                  | [:: ConstFloat64 c2] | [:: ConstFloat64 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat64 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat64 c2, ConstFloat32 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | [:: ConstFloat64 c2, ConstFloat64 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_f iop c1 c2)) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Cvtop t2 Convert t1 sx) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      if types_agree t1 v
+                      then
+                       expect (cvt t2 sx v)
+                         (fun v' : value =>
+                          (s0, vs0, RS_normal (v_to_e_list (rev (v' :: ves')))))
+                         (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                      else (s0, vs0, crash_error)
+                  end
+              | Basic (Cvtop t2 Reinterpret t1 sx) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      if types_agree t1 v && (sx == None)
+                      then
+                       (s0, vs0,
+                       RS_normal
+                         (v_to_e_list (rev (wasm_deserialise (bits v) t2 :: ves'))))
+                      else (s0, vs0, crash_error)
+                  end
+              | Callcl (Func_native i' (Tf t1s t2s) ts es0) =>
+                  if length t1s <= length ves
+                  then
+                   let (ves', ves'') := split_n ves (length t1s) in
+                   (s0, vs0,
+                   RS_normal
+                     (v_to_e_list (rev ves'') ++
+                      [:: Local (length t2s) i' (rev ves' ++ n_zeros ts)
+                            [:: Basic (Block (Tf [::] t2s) es0)]]))
+                  else (s0, vs0, crash_error)
+              | Callcl (Func_host (Tf t1s t2s) f) =>
+                  if length t1s <= length ves
+                  then
+                   let (ves', ves'') := split_n ves (length t1s) in
+                   match host_apply_impl s0 (Tf t1s t2s) f (rev ves') with
+                   | Some (s'0, rves) =>
+                       if all2 types_agree t2s rves
+                       then
+                        (s'0, vs0,
+                        RS_normal (v_to_e_list (rev ves'') ++ v_to_e_list rves))
+                       else (s0, vs0, crash_error)
+                   | None => (s0, vs0, RS_normal (v_to_e_list (rev ves'') ++ [:: Trap]))
+                   end
+                  else (s0, vs0, crash_error)
+              | Label ln les es0 =>
+                  if es_is_trap es0
+                  then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ [:: Trap]))
+                  else
+                   if const_list es0
+                   then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ es0))
+                   else
+                    match run_step_with_fuel fuel1 d0 i0 (s0, vs0, es0) with
+                    | (s'0, vs'0, RS_crash error) => (s'0, vs'0, RS_crash error)
+                    | (s'0, vs'0, RS_break 0 bvs) =>
+                        if ln <= length bvs
+                        then
+                         (s'0, vs'0,
+                         RS_normal (v_to_e_list (rev (firstn ln bvs ++ ves)) ++ les))
+                        else (s'0, vs'0, crash_error)
+                    | (s'0, vs'0, RS_break n2.+1 bvs) => (s'0, vs'0, RS_break n2 bvs)
+                    | (s'0, vs'0, RS_return rvs) => (s'0, vs'0, RS_return rvs)
+                    | (s'0, vs'0, RS_normal es'0) =>
+                        (s'0, vs'0,
+                        RS_normal (v_to_e_list (rev ves) ++ [:: Label ln les es'0]))
+                    end
+              | Local ln j vls es0 =>
+                  if es_is_trap es0
+                  then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ [:: Trap]))
+                  else
+                   if const_list es0
+                   then
+                    if length es0 == ln
+                    then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ es0))
+                    else (s0, vs0, crash_error)
+                   else
+                    match run_step_with_fuel fuel1 d0 j (s0, vls, es0) with
+                    | (s'0, vls', RS_crash error) => (s'0, vs0, RS_crash error)
+                    | (s'0, vls', RS_break _ _) => (s'0, vs0, crash_error)
+                    | (s'0, vls', RS_return rvs) =>
+                        if ln <= length rvs
+                        then
+                         (s'0, vs0,
+                         RS_normal (v_to_e_list (rev (firstn ln rvs ++ ves))))
+                        else (s'0, vs0, crash_error)
+                    | (s'0, vls', RS_normal es'0) =>
+                        (s'0, vs0,
+                        RS_normal (v_to_e_list (rev ves) ++ [:: Local ln j vls' es'0]))
+                    end
+              | _ => (s0, vs0, crash_error)
+              end
+          end
+            for run_step_with_fuel) fuel d i (s, vs, l0)) eqn:HDestruct.
+    destruct p => //. rewrite HDestruct.
+    destruct r => //.
+    destruct n1 => //.
+    destruct (n0 <= length l2) => //. pattern_match. assumption.
+                     
+  - (* Local *)
+    move:H. explode_and_simplify.
+    (* Same as above, although the thing being destructed is in fact slightly diffefent *)
+    destruct ((fix
+       run_step_with_fuel (fuel0 : interpreter.fuel) (d0 : depth) 
+                          (i1 : instance) (tt : config_tuple) {struct fuel0} :
+         res_tuple :=
+         let
+         '(s0, vs0, es0) := tt in
+          match fuel0 with
+          | 0 => (s0, vs0, RS_crash C_exhaustion)
+          | fuel1.+1 =>
+              match split_vals_e es0 with
+              | (ves, [::]) => (s0, vs0, crash_error)
+              | (ves, e :: es'') =>
+                  if match e with
+                     | Trap => true
+                     | _ => false
+                     end
+                  then
+                   if (es'' != [::]) || (ves != [::])
+                   then (s0, vs0, RS_normal [:: Trap])
+                   else (s0, vs0, crash_error)
+                  else
+                   match run_one_step0 fuel1 d0 i1 (s0, vs0, rev ves) e with
+                   | (s'0, vs'0, RS_crash _ as r) | (s'0, vs'0, RS_break _ _ as r) |
+                     (s'0, vs'0, RS_return _ as r) => (s'0, vs'0, r)
+                   | (s'0, vs'0, RS_normal res) => (s'0, vs'0, RS_normal (res ++ es''))
+                   end
+              end
+          end
+       with
+       run_one_step0 (fuel0 : interpreter.fuel) (d0 : depth) 
+                     (i1 : instance) (tt : config_one_tuple_without_e)
+                     (e : administrative_instruction) {struct fuel0} : res_tuple :=
+         let
+         '(s0, vs0, ves) := tt in
+          match fuel0 with
+          | 0 => (s0, vs0, RS_crash C_exhaustion)
+          | fuel1.+1 =>
+              match e with
+              | Basic Unreachable =>
+                  (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ [:: Trap]))
+              | Basic Nop => (s0, vs0, RS_normal (v_to_e_list (rev ves)))
+              | Basic Drop =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | _ :: ves' => (s0, vs0, RS_normal (v_to_e_list (rev ves')))
+                  end
+              | Basic Select =>
+                  match ves with
+                  | [:: ConstInt32 c] => (s0, vs0, crash_error)
+                  | [:: ConstInt32 c; v2] => (s0, vs0, crash_error)
+                  | [:: ConstInt32 c, v2, v1 & ves'] =>
+                      if c == Wasm_int.int_zero i32m
+                      then (s0, vs0, RS_normal (v_to_e_list (rev (v2 :: ves'))))
+                      else (s0, vs0, RS_normal (v_to_e_list (rev (v1 :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Block (Tf t1s t2s) es0) =>
+                  if length t1s <= length ves
+                  then
+                   let
+                   '(ves', ves'') := split_n ves (length t1s) in
+                    (s0, vs0,
+                    RS_normal
+                      (v_to_e_list (rev ves'') ++
+                       [:: Label (length t2s) [::]
+                             (v_to_e_list (rev ves') ++ to_e_list es0)]))
+                  else (s0, vs0, crash_error)
+              | Basic (Loop (Tf t1s t2s) es0) =>
+                  if length t1s <= length ves
+                  then
+                   let
+                   '(ves', ves'') := split_n ves (length t1s) in
+                    (s0, vs0,
+                    RS_normal
+                      (v_to_e_list (rev ves'') ++
+                       [:: Label (length t1s) [:: Basic (Loop (Tf t1s t2s) es0)]
+                             (v_to_e_list (rev ves') ++ to_e_list es0)]))
+                  else (s0, vs0, crash_error)
+              | Basic (If tf es1 es2) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      if c == Wasm_int.int_zero i32m
+                      then
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Block tf es2)]))
+                      else
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Block tf es1)]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Br j) => (s0, vs0, RS_break j ves)
+              | Basic (Br_if j) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      if c == Wasm_int.int_zero i32m
+                      then (s0, vs0, RS_normal (v_to_e_list (rev ves')))
+                      else
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Br j)]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Br_table js j) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      if Wasm_int.nat_of_uint i32m c < length js
+                      then
+                       expect (nth_error js (Wasm_int.nat_of_uint i32m c))
+                         (fun js_at_k : immediate =>
+                          (s0, vs0,
+                          RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Br js_at_k)])))
+                         (s0, vs0, crash_error)
+                      else
+                       (s0, vs0,
+                       RS_normal (v_to_e_list (rev ves') ++ [:: Basic (Br j)]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic Return => (s0, vs0, RS_return ves)
+              | Basic (Call j) =>
+                  match sfunc s0 i1 j with
+                  | Some sfunc_i_j =>
+                      (s0, vs0,
+                      RS_normal (v_to_e_list (rev ves) ++ [:: Callcl sfunc_i_j]))
+                  | None => (s0, vs0, crash_error)
+                  end
+              | Basic (Call_indirect j) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      match stab s0 i1 (Wasm_int.nat_of_uint i32m c) with
+                      | Some cl =>
+                          if stypes s0 i1 j == Some (cl_type cl)
+                          then
+                           (s0, vs0,
+                           RS_normal (v_to_e_list (rev ves') ++ [:: Callcl cl]))
+                          else
+                           (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                      | None =>
+                          (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                      end
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Get_local j) =>
+                  if j < length vs0
+                  then
+                   expect (nth_error vs0 j)
+                     (fun vs_at_j : value =>
+                      (s0, vs0, RS_normal (v_to_e_list (rev (vs_at_j :: ves)))))
+                     (s0, vs0, crash_error)
+                  else (s0, vs0, crash_error)
+              | Basic (Set_local j) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      if j < length vs0
+                      then
+                       (s0, update_list_at vs0 j v, RS_normal (v_to_e_list (rev ves')))
+                      else (s0, vs0, crash_error)
+                  end
+              | Basic (Tee_local j) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: _ =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (v :: ves)) ++ [:: Basic (Set_local j)]))
+                  end
+              | Basic (Get_global j) =>
+                  match sglob_val s0 i1 j with
+                  | Some xx => (s0, vs0, RS_normal (v_to_e_list (rev (xx :: ves))))
+                  | None => (s0, vs0, crash_error)
+                  end
+              | Basic (Set_global j) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      match supdate_glob s0 i1 j v with
+                      | Some xx => (xx, vs0, RS_normal (v_to_e_list (rev ves')))
+                      | None => (s0, vs0, crash_error)
+                      end
+                  end
+              | Basic (Load t (Some (tp, sx)) _ off) =>
+                  match ves with
+                  | ConstInt32 k :: ves' =>
+                      expect (smem_ind s0 i1)
+                        (fun j : nat =>
+                         match nth_error (s_mem s0) j with
+                         | Some mem_s_j =>
+                             expect
+                               (load_packed sx mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                  (tp_length tp) (t_length t))
+                               (fun bs : bytes =>
+                                (s0, vs0,
+                                RS_normal
+                                  (v_to_e_list (rev (wasm_deserialise bs t :: ves')))))
+                               (s0, vs0,
+                               RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                         | None => (s0, vs0, crash_error)
+                         end) (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Load t None _ off) =>
+                  match ves with
+                  | ConstInt32 k :: ves' =>
+                      expect (smem_ind s0 i1)
+                        (fun j : nat =>
+                         match nth_error (s_mem s0) j with
+                         | Some mem_s_j =>
+                             expect
+                               (load mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                  (t_length t))
+                               (fun bs : bytes =>
+                                (s0, vs0,
+                                RS_normal
+                                  (v_to_e_list (rev (wasm_deserialise bs t :: ves')))))
+                               (s0, vs0,
+                               RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                         | None => (s0, vs0, crash_error)
+                         end) (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Store t (Some tp) _ off) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | [:: v, ConstInt32 k & ves'] =>
+                      if types_agree t v
+                      then
+                       expect (smem_ind s0 i1)
+                         (fun j : nat =>
+                          match nth_error (s_mem s0) j with
+                          | Some mem_s_j =>
+                              expect
+                                (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                   (bits v) (tp_length tp))
+                                (fun mem' : mem =>
+                                 (upd_s_mem s0 (update_list_at (s_mem s0) j mem'), vs0,
+                                 RS_normal (v_to_e_list (rev ves'))))
+                                (s0, vs0,
+                                RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                          | None => (s0, vs0, crash_error)
+                          end) (s0, vs0, crash_error)
+                      else (s0, vs0, crash_error)
+                  | [:: v] | [:: v, ConstInt64 _ & _] | [:: v, ConstFloat32 _ & _] |
+                    [:: v, ConstFloat64 _ & _] => (s0, vs0, crash_error)
+                  end
+              | Basic (Store t None _ off) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | [:: v, ConstInt32 k & ves'] =>
+                      if types_agree t v
+                      then
+                       expect (smem_ind s0 i1)
+                         (fun j : nat =>
+                          match nth_error (s_mem s0) j with
+                          | Some mem_s_j =>
+                              expect
+                                (store mem_s_j (Wasm_int.nat_of_uint i32m k) off
+                                   (bits v) (t_length t))
+                                (fun mem' : mem =>
+                                 (upd_s_mem s0 (update_list_at (s_mem s0) j mem'), vs0,
+                                 RS_normal (v_to_e_list (rev ves'))))
+                                (s0, vs0,
+                                RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                          | None => (s0, vs0, crash_error)
+                          end) (s0, vs0, crash_error)
+                      else (s0, vs0, crash_error)
+                  | [:: v] | [:: v, ConstInt64 _ & _] | [:: v, ConstFloat32 _ & _] |
+                    [:: v, ConstFloat64 _ & _] => (s0, vs0, crash_error)
+                  end
+              | Basic Current_memory =>
+                  expect (smem_ind s0 i1)
+                    (fun j : nat =>
+                     match nth_error (s_mem s0) j with
+                     | Some s_mem_s_j =>
+                         (s0, vs0,
+                         RS_normal
+                           (v_to_e_list
+                              (rev
+                                 (ConstInt32
+                                    (Wasm_int.int_of_Z i32m
+                                       (Z.of_nat (mem_size s_mem_s_j))) :: ves))))
+                     | None => (s0, vs0, crash_error)
+                     end) (s0, vs0, crash_error)
+              | Basic Grow_memory =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      expect (smem_ind s0 i1)
+                        (fun j : nat =>
+                         match nth_error (s_mem s0) j with
+                         | Some s_mem_s_j =>
+                             expect
+                               (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_uint i32m c))
+                               (fun mem' : mem =>
+                                (upd_s_mem s0 (update_list_at (s_mem s0) j mem'), vs0,
+                                RS_normal
+                                  (v_to_e_list
+                                     (rev
+                                        (ConstInt32
+                                           (Wasm_int.int_of_Z i32m
+                                              (Z.of_nat (mem_size s_mem_s_j))) :: ves')))))
+                               (s0, vs0, crash_error)
+                         | None => (s0, vs0, crash_error)
+                         end) (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_i T_i32 iop) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstInt32 (app_unop_i iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_i T_i64 iop) =>
+                  match ves with
+                  | ConstInt64 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstInt64 (app_unop_i iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_f T_f32 iop) =>
+                  match ves with
+                  | ConstFloat32 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstFloat32 (app_unop_f iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Unop_f T_f64 iop) =>
+                  match ves with
+                  | ConstFloat64 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list (rev (ConstFloat64 (app_unop_f iop c) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_i T_i32 iop) =>
+                  match ves with
+                  | [:: ConstInt32 c2, ConstInt32 c1 & ves'] =>
+                      expect (app_binop_i iop c1 c2)
+                        (fun c : Wasm_int.sort i32t =>
+                         (s0, vs0, RS_normal (v_to_e_list (rev (ConstInt32 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | [:: ConstInt32 c2] | [:: ConstInt32 c2, ConstInt64 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_i T_i64 iop) =>
+                  match ves with
+                  | [:: ConstInt64 c2, ConstInt64 c1 & ves'] =>
+                      expect (app_binop_i iop c1 c2)
+                        (fun c : Wasm_int.sort i64t =>
+                         (s0, vs0, RS_normal (v_to_e_list (rev (ConstInt64 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | [:: ConstInt64 c2] | [:: ConstInt64 c2, ConstInt32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_f T_f32 fop) =>
+                  match ves with
+                  | [:: ConstFloat32 c2, ConstFloat32 c1 & ves'] =>
+                      expect (app_binop_f fop c1 c2)
+                        (fun c : Wasm_float.sort f32t =>
+                         (s0, vs0,
+                         RS_normal (v_to_e_list (rev (ConstFloat32 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | [:: ConstFloat32 c2] | [:: ConstFloat32 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat32 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Binop_f T_f64 fop) =>
+                  match ves with
+                  | [:: ConstFloat64 c2] | [:: ConstFloat64 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat64 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat64 c2, ConstFloat32 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | [:: ConstFloat64 c2, ConstFloat64 c1 & ves'] =>
+                      expect (app_binop_f fop c1 c2)
+                        (fun c : Wasm_float.sort f64t =>
+                         (s0, vs0,
+                         RS_normal (v_to_e_list (rev (ConstFloat64 c :: ves')))))
+                        (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Testop T_i32 testop) =>
+                  match ves with
+                  | ConstInt32 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_testop_i testop c)) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Testop T_i64 testop) =>
+                  match ves with
+                  | ConstInt64 c :: ves' =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_testop_i testop c)) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_i T_i32 iop) =>
+                  match ves with
+                  | [:: ConstInt32 c2, ConstInt32 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_i iop c1 c2)) :: ves'))))
+                  | [:: ConstInt32 c2] | [:: ConstInt32 c2, ConstInt64 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_i T_i64 iop) =>
+                  match ves with
+                  | [:: ConstInt64 c2, ConstInt64 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_i iop c1 c2)) :: ves'))))
+                  | [:: ConstInt64 c2] | [:: ConstInt64 c2, ConstInt32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat32 _ & _] |
+                    [:: ConstInt64 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_f T_f32 iop) =>
+                  match ves with
+                  | [:: ConstFloat32 c2, ConstFloat32 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_f iop c1 c2)) :: ves'))))
+                  | [:: ConstFloat32 c2] | [:: ConstFloat32 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat32 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat32 c2, ConstFloat64 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Relop_f T_f64 iop) =>
+                  match ves with
+                  | [:: ConstFloat64 c2] | [:: ConstFloat64 c2, ConstInt32 _ & _] |
+                    [:: ConstFloat64 c2, ConstInt64 _ & _] |
+                    [:: ConstFloat64 c2, ConstFloat32 _ & _] => 
+                      (s0, vs0, crash_error)
+                  | [:: ConstFloat64 c2, ConstFloat64 c1 & ves'] =>
+                      (s0, vs0,
+                      RS_normal
+                        (v_to_e_list
+                           (rev (ConstInt32 (wasm_bool (app_relop_f iop c1 c2)) :: ves'))))
+                  | _ => (s0, vs0, crash_error)
+                  end
+              | Basic (Cvtop t2 Convert t1 sx) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      if types_agree t1 v
+                      then
+                       expect (cvt t2 sx v)
+                         (fun v' : value =>
+                          (s0, vs0, RS_normal (v_to_e_list (rev (v' :: ves')))))
+                         (s0, vs0, RS_normal (v_to_e_list (rev ves') ++ [:: Trap]))
+                      else (s0, vs0, crash_error)
+                  end
+              | Basic (Cvtop t2 Reinterpret t1 sx) =>
+                  match ves with
+                  | [::] => (s0, vs0, crash_error)
+                  | v :: ves' =>
+                      if types_agree t1 v && (sx == None)
+                      then
+                       (s0, vs0,
+                       RS_normal
+                         (v_to_e_list (rev (wasm_deserialise (bits v) t2 :: ves'))))
+                      else (s0, vs0, crash_error)
+                  end
+              | Callcl (Func_native i' (Tf t1s t2s) ts es0) =>
+                  if length t1s <= length ves
+                  then
+                   let (ves', ves'') := split_n ves (length t1s) in
+                   (s0, vs0,
+                   RS_normal
+                     (v_to_e_list (rev ves'') ++
+                      [:: Local (length t2s) i' (rev ves' ++ n_zeros ts)
+                            [:: Basic (Block (Tf [::] t2s) es0)]]))
+                  else (s0, vs0, crash_error)
+              | Callcl (Func_host (Tf t1s t2s) f) =>
+                  if length t1s <= length ves
+                  then
+                   let (ves', ves'') := split_n ves (length t1s) in
+                   match host_apply_impl s0 (Tf t1s t2s) f (rev ves') with
+                   | Some (s'0, rves) =>
+                       if all2 types_agree t2s rves
+                       then
+                        (s'0, vs0,
+                        RS_normal (v_to_e_list (rev ves'') ++ v_to_e_list rves))
+                       else (s0, vs0, crash_error)
+                   | None => (s0, vs0, RS_normal (v_to_e_list (rev ves'') ++ [:: Trap]))
+                   end
+                  else (s0, vs0, crash_error)
+              | Label ln les es0 =>
+                  if es_is_trap es0
+                  then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ [:: Trap]))
+                  else
+                   if const_list es0
+                   then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ es0))
+                   else
+                    match run_step_with_fuel fuel1 d0 i1 (s0, vs0, es0) with
+                    | (s'0, vs'0, RS_crash error) => (s'0, vs'0, RS_crash error)
+                    | (s'0, vs'0, RS_break 0 bvs) =>
+                        if ln <= length bvs
+                        then
+                         (s'0, vs'0,
+                         RS_normal (v_to_e_list (rev (firstn ln bvs ++ ves)) ++ les))
+                        else (s'0, vs'0, crash_error)
+                    | (s'0, vs'0, RS_break n2.+1 bvs) => (s'0, vs'0, RS_break n2 bvs)
+                    | (s'0, vs'0, RS_return rvs) => (s'0, vs'0, RS_return rvs)
+                    | (s'0, vs'0, RS_normal es'0) =>
+                        (s'0, vs'0,
+                        RS_normal (v_to_e_list (rev ves) ++ [:: Label ln les es'0]))
+                    end
+              | Local ln j vls es0 =>
+                  if es_is_trap es0
+                  then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ [:: Trap]))
+                  else
+                   if const_list es0
+                   then
+                    if length es0 == ln
+                    then (s0, vs0, RS_normal (v_to_e_list (rev ves) ++ es0))
+                    else (s0, vs0, crash_error)
+                   else
+                    match run_step_with_fuel fuel1 d0 j (s0, vls, es0) with
+                    | (s'0, vls', RS_crash error) => (s'0, vs0, RS_crash error)
+                    | (s'0, vls', RS_break _ _) => (s'0, vs0, crash_error)
+                    | (s'0, vls', RS_return rvs) =>
+                        if ln <= length rvs
+                        then
+                         (s'0, vs0,
+                         RS_normal (v_to_e_list (rev (firstn ln rvs ++ ves))))
+                        else (s'0, vs0, crash_error)
+                    | (s'0, vls', RS_normal es'0) =>
+                        (s'0, vs0,
+                        RS_normal (v_to_e_list (rev ves) ++ [:: Local ln j vls' es'0]))
+                    end
+              | _ => (s0, vs0, crash_error)
+              end
+          end
+       for run_step_with_fuel) fuel d i0 (s, l, l0)) eqn:HDestruct.
+    destruct p => //. rewrite HDestruct.
+    destruct r => //.
+    by destruct (n0 <= length l2).
+Qed.
 
 Lemma rs_break_trace: forall fuel d i s vs es s' vs' n es',
-  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel.+2 d i (s, vs, es)
   = (s', vs', RS_break n es') -> 
   let: (ves, es'') := split_vals_e es in
   exists e es2 ln les es3, (es'' = e :: es2) /\
@@ -641,32 +1855,20 @@ Lemma rs_break_trace: forall fuel d i s vs es s' vs' n es',
     ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) = (s', vs', RS_break n.+1 es'))
    ).
 Proof.
-  (*move => fuel d i s vs es s' vs' n es' e es2 ln les es3 H.
-  destruct fuel => //.
-  unfold run_step_with_fuel in H.
+  move => fuel d i s vs es s' vs' n es' H.
+  apply rs_break_trace_bool in H.
   destruct (split_vals_e es) as [lconst les'] eqn:HSplitVals.
-  destruct les' as [|e' les''] eqn:Hles => //.
-  move: H. explode_and_simplify.
-  destruct fuel => //.*)
-  (* wtf.. *)
-  admit.
-Admitted.
-
-(* Probably need something like this for induction
-Fixpoint is_label_sequence (fuel: fuel) (d: depth) (i: instance) tt: bool :=
-  match es with
-  | (Label ln les es2) :: es' => (run_step_with_fuel mem_grow_impl host_apply_impl 
-.
-*)
-
-(*
-Lemma rs_break_origin: forall fuel d i s vs es s' vs' n es',
-  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
-  = (s', vs', RS_break 0 es') -> 
-  is_label_sequence fuel d i (s vs es).
-*)
-
-
+  destruct H as [e [es2 [ln [les [es3 EH]]]]].
+  exists e. exists es2. exists ln. exists les. exists es3.
+  move/andP in EH. destruct EH as [HES EH2]. split; first by move/eqP in HES.
+  move/orP in EH2. destruct EH2 as [HBasic|HLabel].
+  - left. move/andP in HBasic. destruct HBasic as [HBasicE HBasicR].
+    move/eqP in HBasicE. move/eqP in HBasicR. split => //. by inversion HBasicR.
+  - right. move/andP in HLabel. destruct HLabel as [HLabelE HLabelR].
+    move/eqP in HLabelE. move/eqP in HLabelR. by split => //.
+Qed.
+    
+(* TODO *)
 Lemma rs_return_trace: forall fuel d i s vs es s' vs' rvs,
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
   = (s', vs', RS_return rvs) ->
@@ -680,10 +1882,253 @@ Lemma rs_return_trace: forall fuel d i s vs es s' vs' rvs,
 Proof.
   admit.
 Admitted.
+
+Lemma rs_break_lfilled: forall fuel d i s vs es s' vs' n es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel.+2 d i (s, vs, es)
+  = (s', vs', RS_break n es') -> 
+(*  lfilledInd k.+1 lh les es ->*)
+  let: (ves, es'') := split_vals_e es in
+  exists e es2 ln les es3, (es'' = e :: es2) /\
+    (((e = Basic (Br n)) /\ ((s, vs, es') = (s', vs', rev ves) /\
+      (lfilledInd 0 (LBase (v_to_e_list ves) es2) [::Basic (Br n)] es) /\
+      (es' = rev ves))
+    ) \/
+    ((e = Label ln les es3) /\ 
+    ((forall k lh les', lfilledInd k lh les' es3 -> lfilledInd k.+1 (LRec (v_to_e_list ves) ln les lh es2) les' es)) /\
+    ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) = (s', vs', RS_break n.+1 es')))
+   ).
+Proof.
+  move => fuel d i s vs es s' vs' n es' H.
+  apply rs_break_trace in H.
+  destruct (split_vals_e es) as [vs1 es1] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct H as [e [es2 [ln [les [es3 EH]]]]].
+  destruct EH as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
+  - exists e. exists es2. inversion HBasicR. subst.
+    exists 0. exists [::]. exists [::].
+    split => //. left. repeat split => //.
+    simplify_lists. apply LfilledBase; by apply v_to_e_is_const_list.
+  - exists e. exists es2. exists ln. exists les. exists es3. 
+    subst. split => //. right.
+    split => //. split => //.
+    move => k lh les' HLF.
+    apply LfilledRec => //; by apply v_to_e_is_const_list. 
+Qed.
   
+Lemma rs_break_takes_2_fuel: forall fuel d i s vs es s' vs' n es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_break n es') ->
+  exists fuel', fuel = fuel'.+2 .
+Proof.
+  (* fuel = 0 is automatically eliminated *)
+  destruct fuel => //.
+  move => d i s vs es s' vs' n es'.
+  unfold run_step_with_fuel.
+  destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct es2 as [|e es2'] => //.
+  destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
+  explode_and_simplify.
+Qed.                   
+
+(* Probably has a better proof *)
+Lemma induction2: forall P:nat -> Prop,
+  P 0 -> P 1 ->
+  (forall n, P n -> P (n.+2)) ->
+  forall n, P n.
+Proof.
+  move => P H0 H1 IH.
+  fix self 1.
+  move => n.
+  destruct n as [| [| n']].
+  - by [].
+  - by [].
+  - apply IH. by apply self. 
+Qed.
+
+Inductive Label_sequence: nat -> nat -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
+  | LS_Break: forall n vs es,
+           const_list vs ->
+           Label_sequence 0 n vs (vs ++ [::Basic (Br n)] ++ es)
+  | LS_Label: forall k n m vs0 vs es bs es',
+           const_list vs ->
+           Label_sequence k n vs0 bs ->
+           Label_sequence (k.+1) n vs0 (vs ++ [::Label m es' bs] ++ es).
+
+(* unused *)
+Lemma Label_sequence_lfilled_exists: forall k n vs bs,
+  Label_sequence k n vs bs ->
+  exists lh es, lfilledInd k lh es bs.
+Proof.
+  move => k. induction k.
+  - move => n vs0 bs H. inversion H. subst. exists (LBase vs0 es). exists [::Basic (Br n)].
+    apply LfilledBase => //.
+  - subst. move => n vs0 bs H. inversion H. subst.
+    apply IHk in H2. destruct H2 as [lh [es2 HLF]].
+    exists (LRec vs m es' lh es). exists es2.
+    apply LfilledRec => //.
+Qed.
+
+Lemma Label_sequence_lfilledk: forall k n vs bs m,
+  Label_sequence k n vs bs ->
+  m <= size vs ->
+  exists lh, lfilledInd k lh (drop m vs ++ [::Basic (Br n)]) bs.
+Proof.
+  move => k. induction k.
+  - move => n vs bs m HLS HSize. inversion HLS. subst.
+    exists (LBase (take m vs) es).
+    by apply lfilled0_take_drop.
+  - move => n vs bs m HLS HSize.  inversion HLS. subst.
+    eapply IHk in H1. destruct H1 as [lh EH].
+    eexists. apply LfilledRec => //.
+    apply EH.
+    assumption.
+Qed.
   
-    
-                       
+Lemma rs_break_wellfounded: forall fuel d i s vs es s' vs' n es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_break n es') ->
+  s = s' /\ vs = vs' /\ (exists k m vs0, k+n=m /\ Label_sequence k m vs0 es /\
+  v_to_e_list es' = rev vs0). 
+Proof.
+  induction fuel using induction2 => //.
+  - (* fuel = 1 *)
+    move => d i s vs es s' vs' n es' H.
+    apply rs_break_takes_2_fuel in H. by inversion H.
+  - (* fuel >= 2 *)    
+    move => d i s vs es s' vs' n es' H.
+    eapply rs_break_lfilled in H.
+    destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
+    apply split_vals_e_v_to_e_duality in HSplit.
+    destruct H as [e [es3 [ln [les [es4 EH]]]]].
+    destruct EH as [HES [[HBasicE [HBasicR [HBasicLF HES']]] | [HLabelE [HLabelLF HLabelR]]]].
+    + inversion HBasicR. subst. repeat split => //.
+      exists 0. exists n. exists (v_to_e_list vs2). repeat split => //.
+      * apply LS_Break. by apply v_to_e_is_const_list.
+      * by apply v_to_e_rev.
+    + apply IHfuel in HLabelR.
+      destruct HLabelR as [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]. subst.
+      repeat split => //.
+      exists (k.+1). exists (k.+1+n). exists vs0. repeat split => //.
+      apply LS_Label => //. by apply v_to_e_is_const_list.
+      replace (k.+1+n) with (k+n.+1) => //.
+      by lias.
+Qed.
+      
+Lemma reduce_label: forall fuel d i s vs es es' s' vs' es'' les0 n lconst,
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es') =
+  (s', vs', RS_break 0 es'') ->
+  n <= size es'' ->
+  reduce s vs (v_to_e_list lconst ++ [:: Label n es es'] ++ les0) i s' vs'
+   (v_to_e_list lconst ++ v_to_e_list (rev (take n es'')) ++ es ++ les0).
+Proof.
+  move => fuel d i s vs es es' s' vs' es'' les0 n lconst H HSize.
+  apply rs_break_wellfounded in H.
+  destruct H as [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]. subst.
+  destruct k.
+  - inversion HLS. subst. auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      * move/eqP in H0. subst. apply /eqP. by rewrite ltnn.
+      * by rewrite H0.
+    + apply/lfilledP.
+      symmetry in HES'. apply rev_move in HES'. rewrite HES'.
+      rewrite -v_to_e_rev. replace (rev es'') with (rev (drop n es'') ++ rev (take n es'')).
+      rewrite -v_to_e_cat. repeat rewrite v_to_e_rev.
+      repeat rewrite -catA. apply lfilled0_frame_l_empty.
+      repeat rewrite catA. apply lfilled0_frame_r_empty.
+      apply lfilled0.
+      { rewrite -v_to_e_rev.  apply v_to_e_is_const_list. }
+      { rewrite -rev_cat. by rewrite cat_take_drop. }
+  - subst.
+    eapply Label_sequence_lfilledk in HLS.
+    destruct HLS as [lh EH].
+    auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
+      * by rewrite H.
+    + apply/lfilledP.
+      replace (v_to_e_list (rev (take n es''))) with (drop (size vs0 - n) vs0).
+      replace (k.+1+0) with (k.+1) in EH.
+      apply EH.
+      { by lias. }
+      {
+        symmetry in HES'. apply rev_move in HES'. rewrite HES'.
+        rewrite drop_rev. rewrite v_to_e_rev. f_equal.
+        rewrite size_rev. rewrite subKn. by rewrite v_to_e_take.
+        by rewrite v_to_e_size.
+      }
+      { by lias. }
+Qed.
+      
+(*
+  move => fuel d i s vs es es' s' vs' es'' les0 n lconst H HSize.
+  remember H as H'. clear HeqH'.
+  apply rs_break_wellfounded in H.
+  do 2 destruct fuel => //; first (apply rs_break_takes_2_fuel in H'; by inversion H').
+  apply rs_break_trace in H'.
+  destruct H as [Hs [Hvs [k [lh [les HLF]]]]].
+  destruct (split_vals_e es') as [vs2 es2] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct H' as [e [es3 [ln [les' [es4 EH]]]]].
+  subst.
+  induction HLF.
+     - admit.
+  - 
+  auto_frame.
+  apply r_simple.
+  eapply rs_br; first by apply v_to_e_is_const_list.
+  - simplify_lists. rewrite v_to_e_size. rewrite size_rev.
+    rewrite size_take. rewrite leq_eqVlt in HSize. move/orP in HSize.
+    destruct HSize.
+    + move/eqP in H. subst. apply/eqP. by rewrite ltnn.
+    + by rewrite H.
+  - apply/lfilledP.
+    destruct EH as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
+    + inversion HBasicR. subst. admit.
+    + 
+
+  move => fuel. induction fuel using induction2 => //.
+  - (* fuel = 1 *)
+    move => d i s vs es es' s' vs' es'' les0 n lconst H HSize.
+    apply rs_break_takes_2_fuel in H. by inversion H.
+  - (* fuel = 2 *)
+    move => d i s vs es es' s' vs' es'' les0 n lconst H HSize.
+    apply rs_break_lfilled in H.
+    destruct (split_vals_e es') as [vs2 es2] eqn:HSplit.
+    apply split_vals_e_v_to_e_duality in HSplit.
+    destruct H as [e [es3 [ln [les [es4 EH]]]]].
+    destruct EH as [HES [[HBasicE [HBasicR HBasicLF]] | [HLabelE [HLabelLF HLabelR]]]].
+    + inversion HBasicR. subst.
+      auto_frame.
+      apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+      * simplify_lists. rewrite v_to_e_size. rewrite size_drop. rewrite subKn => //.
+      by rewrite size_rev in HSize.
+      * apply/lfilledP.
+        rewrite (v_to_e_take_drop_split vs2 (size vs2 - n)) => //.
+        repeat rewrite catA.
+        apply lfilled0_frame_r_empty.
+        repeat rewrite -catA.
+        apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
+        by apply lfilled0.
+    + subst.
+      do 2 destruct fuel => //.
+      * apply rs_break_takes_2_fuel in HLabelR. by inversion HLabelR.
+      * apply rs_break_lfilled in HLabelR.
+        destruct (split_vals_e es4) eqn:HSplit4.
+        apply split_vals_e_v_to_e_duality in HSplit4.
+        destruct HLabelR as [e' [es3' [ln' [les' [es4' EH']]]]].
+        destruct EH' as [HES' [[BE' [BR' BLF']] | [LE' [LLF' LR']]]].
+        -- inversion BR'. subst.
+           auto_frame.
+           apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+           ++ simplify_lists. rewrite v_to_e_size. rewrite size_drop. rewrite subKn => //.
+              by rewrite size_rev in HSize.
+           ++ apply/lfilledP.
+              apply LfilledRec; first by apply v_to_e_is_const_list.
+              rewrite (v_to_e_take_drop_split l (size l - n)).
+Admitted.*)
 
 Local Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
@@ -883,63 +2328,9 @@ Proof.
       + destruct run_step_with_fuel as [[s'' vs''] r] eqn: EH.
         destruct r as [|nd es''| |es''] => //.
         * (** [RS_break] **)
-          (* There are only two possible commands that could lead to this case.*)
           destruct nd => //. explode_and_simplify. pattern_match.
-          apply rs_break_trace in EH.
-          destruct (split_vals_e es2) eqn:HSplit.
-          apply split_vals_e_v_to_e_duality in HSplit. rewrite HSplit.
-          (* ???? ask martin *)
-          destruct EH as [e [es3 [ln [les [es4 E]]]]].
-          destruct E as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
-          -- inversion HBasicR. subst; clear HBasicR.
-             auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
-             ++ rewrite length_is_size. rewrite v_to_e_size. rewrite size_drop.
-                rewrite subKn; first by apply/eqP. by simplify_goal.
-             ++ apply/lfilledP.
-                simplify_lists.
-                rewrite (v_to_e_take_drop_split l (size l - n)).
-                instantiate (1:=0).
-                instantiate (1:= LBase (v_to_e_list (take (size l - n) l)) es3).
-                repeat rewrite catA.
-                apply lfilled0_frame_r_empty.
-                repeat rewrite -catA.
-                apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
-                by apply lfilled0.
-          -- rewrite HES. rewrite HLabelE. simplify_lists.
-             (* looks like an induction. need to restructure. sleep *) admit.        
-(*          apply rs_break_trace in EH.
-          destruct EH as [e es2 ln les es3 [E]].
-          
-          induction fuel => //.
-          move: EH.
-          unfold run_step_with_fuel.
-          destruct (split_vals_e es2) eqn: HL => //=.
-          explode_and_simplify.
-          destruct fuel => //=.
-          destruct a eqn:Ha => //=.
-          -- destruct b => //=; explode_and_simplify => //=.
-            - pattern_match. auto_frame.
-              apply split_vals_e_v_to_e_duality in HL. rewrite HL.
-              auto_frame.
-              apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
-              + simplify_goal. rewrite length_is_size. rewrite v_to_e_size.
-              rewrite size_drop. rewrite subKn => //=.
-              + apply/lfilledP.
-                assert (lfilledInd 0 (LBase (v_to_e_list (take (size l - n) l)) l0) (v_to_e_list (drop (size l - n) l) ++ [::Basic (Br 0)]) (v_to_e_list (take (size l - n) l) ++ (v_to_e_list (drop (size l - n) l) ++ [::Basic (Br 0)]) ++ l0)) as L0.
-                { apply LfilledBase; first by apply v_to_e_is_const_list. }
-                repeat rewrite catA in L0. rewrite -v_to_e_take_drop_split in L0.
-                rewrite -catA in L0. by apply L0.
-            - destruct f => //=. destruct f => //=. by explode_and_simplify.
-              destruct f => //=. by explode_and_simplify.
-          -- 
-              
-              
-              
-          unfold run_step_with_fuel in EH.
-          destruct (split_vals_e es2) as [vs3 es3] eqn:ES2 => //.
-          destruct es3 as [|e es3'] eqn:ES3 => //.
-          destruct (e_is_trap e) eqn:ETrap => //.
-          destruct es3' => //=. destruct vs3 => //=.*)
+          eapply reduce_label => //. apply EH.
+             
         * (** [RS_normal] **)
           pattern_match.
           (* We actually want to keep the frame here for later use in lfilled.*)
@@ -977,7 +2368,6 @@ Proof.
                 simplify_lists.
                 rewrite (v_to_e_take_drop_split l (size l - n)).
                 simplify_lists.
-                (* Ask Martin on indexing -- order reversed???*)
                 instantiate (2 := 0).
                 instantiate (1 := LBase (v_to_e_list (take (size l - n) l)) es'').
                 repeat rewrite -catA. 
