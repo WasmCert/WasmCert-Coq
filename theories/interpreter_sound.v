@@ -765,6 +765,8 @@ Proof.
     exists (Label n l l0). exists es2'. exists n. exists l. exists l0.
     split => //. right. split => //.
     move:H. explode_and_simplify.
+    (* TODO: This match seems to be a frequent scheme in this proof:
+       it may be worth defining a tactic for it. *)
     lazymatch goal with
     | |- ?T -> _ =>
          lazymatch T with
@@ -893,7 +895,7 @@ Proof.
   apply split_vals_e_v_to_e_duality in HSplit.
   destruct es2 as [|e es2'] => //.
   destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
-  explode_and_simplify.
+  by explode_and_simplify.
 Qed.                   
 
 Lemma rs_return_takes_2_fuel: forall fuel d i s vs es s' vs' rvs,
@@ -909,22 +911,17 @@ Proof.
   apply split_vals_e_v_to_e_duality in HSplit.
   destruct es2 as [|e es2'] => //.
   destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
-  explode_and_simplify.
+  by explode_and_simplify.
 Qed.
 
-(* Probably has a better proof *)
 Lemma induction2: forall P:nat -> Prop,
   P 0 -> P 1 ->
   (forall n, P n -> P (n.+2)) ->
   forall n, P n.
 Proof.
-  move => P H0 H1 IH.
-  fix self 1.
-  move => n.
-  destruct n as [| [| n']].
-  - by [].
-  - by [].
-  - apply IH. by apply self. 
+  move => P H0 H1 IH n. strong induction n.
+  do 2 destruct n as [|n] => //.
+  apply: IH. apply: H. by lias.
 Qed.
 
 Inductive Label_sequence: nat -> seq administrative_instruction -> administrative_instruction -> seq administrative_instruction -> Prop :=
