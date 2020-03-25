@@ -166,6 +166,34 @@ Proof.
   simpl in H. by rewrite cats0 in H.
 Qed.
 
+Lemma ves_projection: forall vs e es vs' e' es',
+  const_list vs ->
+  const_list vs' ->
+  ~ is_const e ->
+  ~ is_const e' ->
+  vs ++ e :: es = vs' ++ e' :: es' ->
+  e = e'.
+Proof.
+  move => vs. induction vs => //=.
+  - move => e es vs' e' es' _ HConstList HNConst HNConst'.
+    destruct vs' => //=.
+    + move => H. by inversion H.
+    + simpl in HConstList. move => H. inversion H. subst.
+      move/andP in HConstList. destruct HConstList as [Ha _].
+      rewrite Ha in HNConst. exfalso. by apply HNConst.
+  - move => e es vs' e' es' HConstList HConstList' HNConst HNConst'.
+    destruct vs' => //=.
+    + move => H. inversion H. subst.
+      move/andP in HConstList. destruct HConstList as [He' _].
+      exfalso. by apply HNConst'.
+    + simpl in HConstList'. move => H. inversion H. subst.
+      move/andP in HConstList. move/andP in HConstList'.
+      destruct HConstList as [Ha Hvs]. destruct HConstList' as [Ha' Hvs'].
+      eapply IHvs => //=.
+      * by apply Hvs'.
+      * by apply H2.
+Qed.
+
 Lemma lfilled0_frame_l: forall vs es es' LI vs',
   lfilledInd 0 (LBase vs es') es LI ->
   const_list vs' ->
@@ -263,10 +291,16 @@ Ltac simplify_lists :=
     | rewrite take_rev
     | rewrite revK
     | rewrite length_is_size
+    | rewrite size_take
     | rewrite size_drop
+    | rewrite size_rev
+    | rewrite v_to_e_size
     | rewrite rev_cat
     | rewrite rev_cons -cats1
-    | rewrite -v_to_e_cat ];
+    | rewrite -v_to_e_cat
+    | rewrite -v_to_e_rev
+    | rewrite -v_to_e_take
+    | rewrite -v_to_e_drop];
   (** Putting all the lists into a normal form, as concatenations of as many things.
     Because [cat1s] conflicts with [cats0], replacing any occurence of [[X]] to
     [[X] ++ [::]], it has to be done separately.
@@ -647,34 +681,6 @@ Proof.
   move=> >. by apply: run_one_step_fuel_enough.
 Qed.
 
-Lemma ves_projection: forall vs e es vs' e' es',
-  const_list vs ->
-  const_list vs' ->
-  ~ is_const e ->
-  ~ is_const e' ->
-  vs ++ e :: es = vs' ++ e' :: es' ->
-  e = e'.
-Proof.
-  move => vs. induction vs => //=.
-  - move => e es vs' e' es' _ HConstList HNConst HNConst'.
-    destruct vs' => //=.
-    + move => H. by inversion H.
-    + simpl in HConstList. move => H. inversion H. subst.
-      move/andP in HConstList. destruct HConstList as [Ha _].
-      rewrite Ha in HNConst. exfalso. by apply HNConst.
-  - move => e es vs' e' es' HConstList HConstList' HNConst HNConst'.
-    destruct vs' => //=.
-    + move => H. inversion H. subst.
-      move/andP in HConstList. destruct HConstList as [He' _].
-      exfalso. by apply HNConst'.
-    + simpl in HConstList'. move => H. inversion H. subst.
-      move/andP in HConstList. move/andP in HConstList'.
-      destruct HConstList as [Ha Hvs]. destruct HConstList' as [Ha' Hvs'].
-      eapply IHvs => //=.
-      * by apply Hvs'.
-      * by apply H2.
-Qed.
-
 (** If the result of the interpreter is a [RS_break], then we were executing
   either a [Br] or [Label] instruction. **)
 Local Lemma rs_break_trace_bool: forall fuel d i s vs es s' vs' n es',
@@ -1024,19 +1030,19 @@ Proof.
       apply LS_Label => //. by apply v_to_e_is_const_list.
 Qed.
 
-Lemma reduce_label_break: forall fuel d i s vs es es' s' vs' es'' les0 n lconst,
+Lemma reduce_label_break: forall fuel d i s vs es es' s' vs' es'' n,
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es') =
   (s', vs', RS_break 0 es'') ->
   n <= size es'' ->
-  reduce s vs (v_to_e_list lconst ++ [:: Label n es es'] ++ les0) i s' vs'
-   (v_to_e_list lconst ++ v_to_e_list (rev (take n es'')) ++ es ++ les0).
+  reduce s vs ([:: Label n es es']) i s' vs'
+   (v_to_e_list (rev (take n es'')) ++ es).
 Proof.
-  move => fuel d i s vs es es' s' vs' es'' les0 n lconst H HSize.
+  move => fuel d i s vs es es' s' vs' es'' n H HSize.
   apply rs_break_wellfounded in H.
   destruct H as [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]. subst.
   destruct k.
-  - inversion HLS. subst. auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
-    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+  - inversion HLS. subst. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+    + simplify_lists. 
       rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
       * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H.
@@ -1052,8 +1058,8 @@ Proof.
   - subst.
     eapply Label_sequence_lfilledk in HLS.
     destruct HLS as [lh EH].
-    auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
-    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+    apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+    + simplify_lists. 
       rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
       * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H.
@@ -1064,9 +1070,8 @@ Proof.
       { by lias. }
       {
         symmetry in HES'. apply rev_move in HES'. rewrite HES'.
-        rewrite drop_rev. rewrite v_to_e_rev. f_equal.
-        rewrite size_rev. rewrite subKn. by rewrite v_to_e_take.
-        by rewrite v_to_e_size.
+        simplify_lists.
+        by rewrite subKn.
       }
       { by lias. }
 Qed.
@@ -1083,7 +1088,7 @@ Proof.
   destruct H as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
   destruct k.
   - inversion HLS. subst. auto_frame. apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
-    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+    + simplify_lists.
       rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
       * move/eqP in H0. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H0.
@@ -1093,14 +1098,14 @@ Proof.
       rewrite -v_to_e_cat. repeat rewrite v_to_e_rev.
       repeat rewrite -catA. apply lfilled0_frame_l_empty.
       repeat rewrite catA. apply lfilled0_frame_r_empty.
-      apply lfilled0.
+      simplify_lists. apply lfilled0.
       { rewrite -v_to_e_rev.  apply v_to_e_is_const_list. }
       { rewrite -rev_cat. by rewrite cat_take_drop. }
   - subst.
     eapply Label_sequence_lfilledk in HLS.
     destruct HLS as [lh EH].
     auto_frame. apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
-    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+    + simplify_lists. 
       rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
       * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H.
@@ -1110,10 +1115,10 @@ Proof.
       apply EH.
       { by lias. }
       {
-        symmetry in HES'. apply rev_move in HES'. rewrite HES'.
-        rewrite drop_rev. rewrite v_to_e_rev. f_equal.
-        rewrite size_rev. rewrite subKn. by rewrite v_to_e_take.
-        by rewrite v_to_e_size.
+        symmetry in HES'.
+        apply rev_move in HES'. rewrite HES'.
+        simplify_lists.
+        by rewrite subKn.
       }
       { by lias. }
 Qed.
@@ -1316,7 +1321,7 @@ Proof.
       + destruct run_step_with_fuel as [[s'' vs''] r] eqn: EH.
         destruct r as [|nd es''| |es''] => //.
         * (** [RS_break] **)
-          destruct nd => //. explode_and_simplify. pattern_match.
+          destruct nd => //. explode_and_simplify. pattern_match. auto_frame.
           eapply reduce_label_break => //. apply EH.
              
         * (** [RS_normal] **)
