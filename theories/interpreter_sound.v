@@ -1,7 +1,7 @@
 (* soundness of the Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
-Require Import common List Omega.
+Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction.
 
@@ -675,22 +675,6 @@ Proof.
       * by apply H2.
 Qed.
 
-
-(*
-Fixpoint label_level (es:seq administrative_instruction) : option nat :=
-  let: (vs, es) := split_vals_e es in
-  match es with
-  | (Basic (Br _)) :: _ => Some 0
-  | (Label ln les es) :: _ =>
-    match label_level es with
-    | Some n => Some (n + 1)
-    | None => None
-    end
-  | _ => None
-  end.
-*)
-
-    
 (** If the result of the interpreter is a [RS_break], then we were executing
   either a [Br] or [Label] instruction. **)
 Local Lemma rs_break_trace_bool: forall fuel d i s vs es s' vs' n es',
@@ -753,9 +737,8 @@ Proof.
     move/eqP in HLabelE. move/eqP in HLabelR. by split => //.
 Qed.
     
-(* TODO *)
 Lemma rs_return_trace: forall fuel d i s vs es s' vs' rvs,
-  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel.+2 d i (s, vs, es)
   = (s', vs', RS_return rvs) ->
   let: (ves, es') := split_vals_e es in
   exists e es'' ln les es2,
@@ -765,8 +748,74 @@ Lemma rs_return_trace: forall fuel d i s vs es s' vs' rvs,
      ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es2)) = (s', vs', RS_return rvs))
     ).
 Proof.
-  admit.
-Admitted.
+  move => fuel d i s vs es s' vs' rvs H.
+  unfold run_step_with_fuel in H.
+  destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct es2 as [|e es2']=> //.
+  destruct e as [b| | | |]=> //; unfold e_is_trap in H.
+  - destruct b => //; move:H; try explode_and_simplify.
+    + (* Basic Return *)
+      exists (Basic Return). exists es2'.
+      exists 0. exists [::]. exists [::].
+      split => //. left. split => //. by inversion H.
+  - move:H. by explode_and_simplify.
+  - move:H. repeat destruct f; by explode_and_simplify.
+  - (* Label *)
+    exists (Label n l l0). exists es2'. exists n. exists l. exists l0.
+    split => //. right. split => //.
+    move:H. explode_and_simplify.
+    lazymatch goal with
+    | |- ?T -> _ =>
+         lazymatch T with
+         | context C [match ?exp with
+                      | _ => _
+                      end] =>
+           destruct exp as [p r] eqn:HDestruct;
+           destruct p; destruct r; try by []
+         end
+    end.
+    move => H. inversion H. subst. clear H.
+    move: HDestruct.
+    lazymatch goal with
+    | |- ?T -> _ =>
+         lazymatch T with
+         | context C [match ?exp with
+                      | _ => _
+                      end] =>
+           destruct exp as [p r] eqn:HDestruct;
+           destruct p; destruct r; try by []
+         end
+    end.
+    destruct n0 => //.
+    destruct (n <= length l2) => //.
+    move => H. inversion H. by subst.
+  - (* Local *)
+    move:H. explode_and_simplify.
+    lazymatch goal with
+    | |- ?T -> _ =>
+         lazymatch T with
+         | context C [match ?exp with
+                      | _ => _
+                      end] =>
+           destruct exp as [p r] eqn:HDestruct;
+           destruct p; destruct r; try by []
+         end
+    end.
+    move => H. inversion H. subst. clear H.
+    move: HDestruct.
+    lazymatch goal with
+    | |- ?T -> _ =>
+         lazymatch T with
+         | context C [match ?exp with
+                      | _ => _
+                      end] =>
+           destruct exp as [p r] eqn:HDestruct;
+           destruct p; destruct r; try by []
+         end
+    end.
+    by destruct (n <= length l2).
+Qed.
 
 Lemma rs_break_lfilled: forall fuel d i s vs es s' vs' n es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel.+2 d i (s, vs, es)
@@ -799,6 +848,38 @@ Proof.
     move => k lh les' HLF.
     apply LfilledRec => //; by apply v_to_e_is_const_list. 
 Qed.
+
+Lemma rs_return_lfilled: forall fuel d i s vs es s' vs' rvs,
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel.+2 d i (s, vs, es)
+  = (s', vs', RS_return rvs) -> 
+(*  lfilledInd k.+1 lh les es ->*)
+  let: (ves, es'') := split_vals_e es in
+  exists e es2 ln les es3, (es'' = e :: es2) /\
+    (((e = Basic Return) /\ ((s, vs, rvs) = (s', vs', rev ves) /\
+      (lfilledInd 0 (LBase (v_to_e_list ves) es2) [::Basic Return] es) /\
+      (rvs = rev ves))
+    ) \/
+    ((e = Label ln les es3) /\ 
+    ((forall k lh les', lfilledInd k lh les' es3 -> lfilledInd k.+1 (LRec (v_to_e_list ves) ln les lh es2) les' es)) /\
+    ((run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es3)) = (s', vs', RS_return rvs)))
+   ).
+Proof.
+  move => fuel d i s vs es s' vs' rvs H.
+  apply rs_return_trace in H.
+  destruct (split_vals_e es) as [vs1 es1] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct H as [e [es2 [ln [les [es3 EH]]]]].
+  destruct EH as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
+  - exists e. exists es2. inversion HBasicR. subst.
+    exists 0. exists [::]. exists [::].
+    split => //. left. repeat split => //.
+    simplify_lists. apply LfilledBase; by apply v_to_e_is_const_list.
+  - exists e. exists es2. exists ln. exists les. exists es3. 
+    subst. split => //. right.
+    split => //. split => //.
+    move => k lh les' HLF.
+    apply LfilledRec => //; by apply v_to_e_is_const_list. 
+Qed.
   
 Lemma rs_break_takes_2_fuel: forall fuel d i s vs es s' vs' n es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
@@ -815,6 +896,22 @@ Proof.
   explode_and_simplify.
 Qed.                   
 
+Lemma rs_return_takes_2_fuel: forall fuel d i s vs es s' vs' rvs,
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_return rvs) ->
+  exists fuel', fuel = fuel'.+2 .
+Proof.
+  (* fuel = 0 is automatically eliminated *)
+  destruct fuel => //.
+  move => d i s vs es s' vs' rvs.
+  unfold run_step_with_fuel.
+  destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
+  apply split_vals_e_v_to_e_duality in HSplit.
+  destruct es2 as [|e es2'] => //.
+  destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
+  explode_and_simplify.
+Qed.
+
 (* Probably has a better proof *)
 Lemma induction2: forall P:nat -> Prop,
   P 0 -> P 1 ->
@@ -830,39 +927,42 @@ Proof.
   - apply IH. by apply self. 
 Qed.
 
-Inductive Label_sequence: nat -> nat -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
+Inductive Label_sequence: nat -> seq administrative_instruction -> administrative_instruction -> seq administrative_instruction -> Prop :=
   | LS_Break: forall n vs es,
            const_list vs ->
-           Label_sequence 0 n vs (vs ++ [::Basic (Br n)] ++ es)
-  | LS_Label: forall k n m vs0 vs es bs es',
+           Label_sequence 0 vs (Basic (Br n)) (vs ++ [::Basic (Br n)] ++ es)
+  | LS_Return: forall vs es,
            const_list vs ->
-           Label_sequence k n vs0 bs ->
-           Label_sequence (k.+1) n vs0 (vs ++ [::Label m es' bs] ++ es).
+           Label_sequence 0 vs (Basic Return) (vs ++ [::Basic Return] ++ es)
+  | LS_Label: forall k m vs0 e0 vs es bs es',
+           const_list vs ->
+           Label_sequence k vs0 e0 bs ->
+           Label_sequence (k.+1) vs0 e0 (vs ++ [::Label m es' bs] ++ es).
 
 (* unused *)
-Lemma Label_sequence_lfilled_exists: forall k n vs bs,
-  Label_sequence k n vs bs ->
+Lemma Label_sequence_lfilled_exists: forall k vs e bs,
+  Label_sequence k vs e bs ->
   exists lh es, lfilledInd k lh es bs.
 Proof.
   move => k. induction k.
-  - move => n vs0 bs H. inversion H. subst. exists (LBase vs0 es). exists [::Basic (Br n)].
-    apply LfilledBase => //.
-  - subst. move => n vs0 bs H. inversion H. subst.
+  - move => vs0 e0 bs H. inversion H; subst.
+    + exists (LBase vs0 es). exists [::Basic (Br n)]. apply LfilledBase => //.
+    + exists (LBase vs0 es). exists [::Basic Return]. apply LfilledBase => //.
+  - subst. move => vs0 e0 bs H. inversion H. subst.
     apply IHk in H2. destruct H2 as [lh [es2 HLF]].
     exists (LRec vs m es' lh es). exists es2.
     apply LfilledRec => //.
 Qed.
 
-Lemma Label_sequence_lfilledk: forall k n vs bs m,
-  Label_sequence k n vs bs ->
+Lemma Label_sequence_lfilledk: forall k vs e bs m,
+  Label_sequence k vs e bs ->
   m <= size vs ->
-  exists lh, lfilledInd k lh (drop m vs ++ [::Basic (Br n)]) bs.
+  exists lh, lfilledInd k lh (drop m vs ++ [::e]) bs.
 Proof.
   move => k. induction k.
-  - move => n vs bs m HLS HSize. inversion HLS. subst.
-    exists (LBase (take m vs) es).
-    by apply lfilled0_take_drop.
-  - move => n vs bs m HLS HSize.  inversion HLS. subst.
+  - move => vs e bs m HLS HSize.
+    inversion HLS; subst; exists (LBase (take m vs) es); by apply lfilled0_take_drop.
+  - move => vs e bs m HLS HSize. inversion HLS. subst.
     eapply IHk in H1. destruct H1 as [lh EH].
     eexists. apply LfilledRec => //.
     apply EH.
@@ -872,7 +972,7 @@ Qed.
 Lemma rs_break_wellfounded: forall fuel d i s vs es s' vs' n es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
   = (s', vs', RS_break n es') ->
-  s = s' /\ vs = vs' /\ (exists k m vs0, k+n=m /\ Label_sequence k m vs0 es /\
+  s = s' /\ vs = vs' /\ (exists k m vs0, k+n=m /\ Label_sequence k vs0 (Basic (Br m)) es /\
   v_to_e_list es' = rev vs0). 
 Proof.
   induction fuel using induction2 => //.
@@ -898,8 +998,36 @@ Proof.
       replace (k.+1+n) with (k+n.+1) => //.
       by lias.
 Qed.
-      
-Lemma reduce_label: forall fuel d i s vs es es' s' vs' es'' les0 n lconst,
+
+Lemma rs_return_wellfounded: forall fuel d i s vs es s' vs' es',
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
+  = (s', vs', RS_return es') ->
+  s = s' /\ vs = vs' /\ (exists k vs0, Label_sequence k vs0 (Basic Return) es /\
+  v_to_e_list es' = rev vs0). 
+Proof.
+  induction fuel using induction2 => //.
+  - (* fuel = 1 *)
+    move => d i s vs es s' vs' es' H.
+    apply rs_return_takes_2_fuel in H. by inversion H.
+  - (* fuel >= 2 *)    
+    move => d i s vs es s' vs' es' H.
+    eapply rs_return_lfilled in H.
+    destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
+    apply split_vals_e_v_to_e_duality in HSplit.
+    destruct H as [e [es3 [ln [les [es4 EH]]]]].
+    destruct EH as [HES [[HBasicE [HBasicR [HBasicLF HES']]] | [HLabelE [HLabelLF HLabelR]]]].
+    + inversion HBasicR. subst. repeat split => //.
+      exists 0. exists (v_to_e_list vs2). repeat split => //.
+      * apply LS_Return. by apply v_to_e_is_const_list.
+      * by apply v_to_e_rev.
+    + apply IHfuel in HLabelR.
+      destruct HLabelR as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
+      repeat split => //.
+      exists (k.+1). exists vs0. repeat split => //.
+      apply LS_Label => //. by apply v_to_e_is_const_list.
+Qed.
+
+Lemma reduce_label_break: forall fuel d i s vs es es' s' vs' es'' les0 n lconst,
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es') =
   (s', vs', RS_break 0 es'') ->
   n <= size es'' ->
@@ -913,8 +1041,8 @@ Proof.
   - inversion HLS. subst. auto_frame. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
     + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
       rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
-      * move/eqP in H0. subst. apply /eqP. by rewrite ltnn.
-      * by rewrite H0.
+      * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
+      * by rewrite H.
     + apply/lfilledP.
       symmetry in HES'. apply rev_move in HES'. rewrite HES'.
       rewrite -v_to_e_rev. replace (rev es'') with (rev (drop n es'') ++ rev (take n es'')).
@@ -946,73 +1074,52 @@ Proof.
       { by lias. }
 Qed.
       
-(*
-  move => fuel d i s vs es es' s' vs' es'' les0 n lconst H HSize.
-  remember H as H'. clear HeqH'.
-  apply rs_break_wellfounded in H.
-  do 2 destruct fuel => //; first (apply rs_break_takes_2_fuel in H'; by inversion H').
-  apply rs_break_trace in H'.
-  destruct H as [Hs [Hvs [k [lh [les HLF]]]]].
-  destruct (split_vals_e es') as [vs2 es2] eqn:HSplit.
-  apply split_vals_e_v_to_e_duality in HSplit.
-  destruct H' as [e [es3 [ln [les' [es4 EH]]]]].
-  subst.
-  induction HLF.
-     - admit.
-  - 
-  auto_frame.
-  apply r_simple.
-  eapply rs_br; first by apply v_to_e_is_const_list.
-  - simplify_lists. rewrite v_to_e_size. rewrite size_rev.
-    rewrite size_take. rewrite leq_eqVlt in HSize. move/orP in HSize.
-    destruct HSize.
-    + move/eqP in H. subst. apply/eqP. by rewrite ltnn.
-    + by rewrite H.
-  - apply/lfilledP.
-    destruct EH as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
-    + inversion HBasicR. subst. admit.
-    + 
-
-  move => fuel. induction fuel using induction2 => //.
-  - (* fuel = 1 *)
-    move => d i s vs es es' s' vs' es'' les0 n lconst H HSize.
-    apply rs_break_takes_2_fuel in H. by inversion H.
-  - (* fuel = 2 *)
-    move => d i s vs es es' s' vs' es'' les0 n lconst H HSize.
-    apply rs_break_lfilled in H.
-    destruct (split_vals_e es') as [vs2 es2] eqn:HSplit.
-    apply split_vals_e_v_to_e_duality in HSplit.
-    destruct H as [e [es3 [ln [les [es4 EH]]]]].
-    destruct EH as [HES [[HBasicE [HBasicR HBasicLF]] | [HLabelE [HLabelLF HLabelR]]]].
-    + inversion HBasicR. subst.
-      auto_frame.
-      apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
-      * simplify_lists. rewrite v_to_e_size. rewrite size_drop. rewrite subKn => //.
-      by rewrite size_rev in HSize.
-      * apply/lfilledP.
-        rewrite (v_to_e_take_drop_split vs2 (size vs2 - n)) => //.
-        repeat rewrite catA.
-        apply lfilled0_frame_r_empty.
-        repeat rewrite -catA.
-        apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
-        by apply lfilled0.
-    + subst.
-      do 2 destruct fuel => //.
-      * apply rs_break_takes_2_fuel in HLabelR. by inversion HLabelR.
-      * apply rs_break_lfilled in HLabelR.
-        destruct (split_vals_e es4) eqn:HSplit4.
-        apply split_vals_e_v_to_e_duality in HSplit4.
-        destruct HLabelR as [e' [es3' [ln' [les' [es4' EH']]]]].
-        destruct EH' as [HES' [[BE' [BR' BLF']] | [LE' [LLF' LR']]]].
-        -- inversion BR'. subst.
-           auto_frame.
-           apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
-           ++ simplify_lists. rewrite v_to_e_size. rewrite size_drop. rewrite subKn => //.
-              by rewrite size_rev in HSize.
-           ++ apply/lfilledP.
-              apply LfilledRec; first by apply v_to_e_is_const_list.
-              rewrite (v_to_e_take_drop_split l (size l - n)).
-Admitted.*)
+Lemma reduce_label_return: forall fuel d i s vs ess s' vs' vs'' vs2 n j,
+  run_step_with_fuel mem_grow_impl host_apply_impl fuel d j (s, vs, ess) =
+  (s', vs', RS_return vs'') ->
+  n <= size vs'' ->
+  reduce s vs2 ([:: Local n j vs ess]) i s' vs2
+   (v_to_e_list (rev (take n vs''))).
+Proof.
+  move => fuel d i s vs ess s' vs' vs'' vs2 n j H HSize.
+  apply rs_return_wellfounded in H.
+  destruct H as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
+  destruct k.
+  - inversion HLS. subst. auto_frame. apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
+    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      * move/eqP in H0. subst. apply /eqP. by rewrite ltnn.
+      * by rewrite H0.
+    + apply/lfilledP.
+      symmetry in HES'. apply rev_move in HES'. rewrite HES'.
+      rewrite -v_to_e_rev. replace (rev vs'') with (rev (drop n vs'') ++ rev (take n vs'')).
+      rewrite -v_to_e_cat. repeat rewrite v_to_e_rev.
+      repeat rewrite -catA. apply lfilled0_frame_l_empty.
+      repeat rewrite catA. apply lfilled0_frame_r_empty.
+      apply lfilled0.
+      { rewrite -v_to_e_rev.  apply v_to_e_is_const_list. }
+      { rewrite -rev_cat. by rewrite cat_take_drop. }
+  - subst.
+    eapply Label_sequence_lfilledk in HLS.
+    destruct HLS as [lh EH].
+    auto_frame. apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
+    + simplify_lists. rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
+      * by rewrite H.
+    + apply/lfilledP.
+      replace (v_to_e_list (rev (take n vs''))) with (drop (size vs0 - n) vs0).
+      replace (k.+1+0) with (k.+1) in EH.
+      apply EH.
+      { by lias. }
+      {
+        symmetry in HES'. apply rev_move in HES'. rewrite HES'.
+        rewrite drop_rev. rewrite v_to_e_rev. f_equal.
+        rewrite size_rev. rewrite subKn. by rewrite v_to_e_take.
+        by rewrite v_to_e_size.
+      }
+      { by lias. }
+Qed.
 
 Local Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
   run_step_with_fuel mem_grow_impl host_apply_impl fuel d i (s, vs, es)
@@ -1213,7 +1320,7 @@ Proof.
         destruct r as [|nd es''| |es''] => //.
         * (** [RS_break] **)
           destruct nd => //. explode_and_simplify. pattern_match.
-          eapply reduce_label => //. apply EH.
+          eapply reduce_label_break => //. apply EH.
              
         * (** [RS_normal] **)
           pattern_match.
@@ -1236,38 +1343,12 @@ Proof.
         destruct r as [| |vs'''|es''] => //.
         * (** [RS_return] **)
           explode_and_simplify. pattern_match. auto_frame.
-          apply rs_return_trace in EH.
-          destruct (split_vals_e ess) eqn:HSplit.
-          apply split_vals_e_v_to_e_duality in HSplit. rewrite HSplit.
-          destruct EH as [e [es'' [ln [les [es2 E]]]]].
-          destruct E as [HES [[HBasicE HBasicR] | [HLabelE HLabelR]]].
-          -- inversion HBasicR; subst; clear HBasicR.
-             apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
-             ++ rewrite length_is_size. rewrite v_to_e_size. rewrite size_rev.
-                rewrite size_take. rewrite leq_eqVlt in if_expr2.
-                move/orP in if_expr2. destruct if_expr2 as [HSize|HSize].
-                ** move/eqP in HSize. rewrite HSize. apply/eqP. by rewrite ltnn.
-                ** apply/eqP. by rewrite HSize.
-             ++ apply/lfilledP.
-                simplify_lists.
-                rewrite (v_to_e_take_drop_split l (size l - n)).
-                simplify_lists.
-                instantiate (2 := 0).
-                instantiate (1 := LBase (v_to_e_list (take (size l - n) l)) es'').
-                repeat rewrite -catA. 
-                apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
-                repeat rewrite catA.
-                apply lfilled0_frame_r_empty.
-                by apply lfilled0.
-          -- rewrite HES. rewrite HLabelE.
-             simplify_lists.
-           (* the same induction *)
-          admit.
+          eapply reduce_label_return => //; try by eauto. 
         * (** [RS_normal] **)
           pattern_match. auto_frame. apply H in EH; last by lias.
           by apply r_local.
     }
-Admitted. (* TODO *)
+Qed.
 
 Theorem run_step_soundness : forall d i s vs es s' vs' es',
   run_step d i (s, vs, es) = (s', vs', RS_normal es') ->
