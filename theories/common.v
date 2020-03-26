@@ -222,6 +222,36 @@ Proof.
   - move=> a l E /=. destruct p2 => /=; destruct p1 => //=. by rewrite E.
 Qed.
 
+Lemma firstn_is_take_n: forall {X:Type} (l:seq X) n,
+    List.firstn n l = take n l.
+Proof.
+  move => + + n. induction n.
+  - symmetry. by apply take0.
+  - move => X l. destruct l => //=. by f_equal.
+Qed.
+
+(** If [List.nth_error] succeeds, then the list can be split into three parts. **)
+Lemma split3: forall {X:Type} (l:seq X) n v,
+    n < size l ->
+    List.nth_error l n = Some v ->
+    l = take n l ++ [::v] ++ drop (n+1) l.
+Proof.
+  move => X.
+  elim => //= a l IH n v.
+  elim: n => [_ [H]|n IH2 Ha Hb].
+  - by rewrite /= H drop0.
+  - by rewrite /= -(IH _ _ Ha Hb).
+Qed.
+
+Lemma rev_move: forall {X:Type} (l1 l2:seq X),
+  rev l1 = l2 -> l1 = rev l2.
+Proof.
+  move => X l1 l2 HRev. rewrite -HRev. symmetry. by apply: revK.
+Qed.
+
+Lemma rev0 : forall A, rev [::] = ([::] : seq A).
+Proof. reflexivity. Qed.
+
 
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 

@@ -56,7 +56,7 @@ Definition consume (t : checker_type) (cons : list checker_type_aux) : checker_t
   match t with
   | CT_type ts =>
     if ct_suffix cons (to_ct_list ts)
-    then CT_type (List.firstn (length ts - length cons) ts)
+    then CT_type (take (length ts - length cons) ts)
     else CT_bot
   | CT_top_type cts =>
     if ct_suffix cons cts
@@ -82,8 +82,8 @@ Definition type_update (curr_type : checker_type) (cons : list checker_type_aux)
 
 Definition select_return_top (ts : list checker_type_aux) (cta1 cta2 : checker_type_aux) : checker_type :=
   match (cta1, cta2) with
-  | (_, CTA_any) => CT_top_type (List.firstn (length ts - 3) ts ++ [::cta1])
-  | (CTA_any, _) => CT_top_type (List.firstn (length ts - 3) ts ++ [::cta2])
+  | (_, CTA_any) => CT_top_type (take (length ts - 3) ts ++ [::cta1])
+  | (CTA_any, _) => CT_top_type (take (length ts - 3) ts ++ [::cta2])
   | (CTA_some t1, CTA_some t2) =>
     if t1 == t2
     then CT_top_type (take (length ts - 3) ts ++ [::CTA_some t1])

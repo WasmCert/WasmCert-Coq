@@ -509,7 +509,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           match res with
           | RS_break 0 bvs =>
             if length bvs >= ln
-            then (s', vs', RS_normal ((vs_to_es ((List.firstn ln bvs) ++ ves)) ++ les))
+            then (s', vs', RS_normal ((vs_to_es ((take ln bvs) ++ ves)) ++ les))
             else (s', vs', crash_error)
           | RS_break (n.+1) bvs => (s', vs', RS_break n bvs)
           | RS_return rvs => (s', vs', RS_return rvs)
@@ -531,7 +531,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           match res with
           | RS_return rvs =>
             if length rvs >= ln
-            then (s', vs, RS_normal (vs_to_es (List.firstn ln rvs ++ ves)))
+            then (s', vs, RS_normal (vs_to_es (take ln rvs ++ ves)))
             else (s', vs, crash_error)
           | RS_normal es' =>
             (s', vs, RS_normal (vs_to_es ves ++ [::Local ln j vls' es']))

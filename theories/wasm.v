@@ -68,10 +68,10 @@ Definition msbyte (bs : bytes) : option byte :=
 Definition mem := list byte.
 
 Definition read_bytes (m : mem) (n : nat) (l : nat) : bytes :=
-  List.firstn l (List.skipn n m).
+  take l (List.skipn n m).
 
 Definition write_bytes (m : mem) (n : nat) (bs : bytes) : mem :=
-  app (List.firstn n m) (app bs (List.skipn (n + length bs) m)).
+  app (take n m) (app bs (List.skipn (n + length bs) m)).
 
 Definition mem_append (m : mem) (bs : bytes) := app m bs.
 
@@ -821,7 +821,7 @@ Definition stab (s : store_record) (i : instance) (j : nat) : option function_cl
   if i_tab i is Some k then stab_s s k j else None.
 
 Definition update_list_at {A : Type} (l : list A) (k : nat) (a : A) :=
-  List.firstn k l ++ [::a] ++ List.skipn (k + 1) l.
+  take k l ++ [::a] ++ List.skipn (k + 1) l.
 
 Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option store_record :=
   option_map
