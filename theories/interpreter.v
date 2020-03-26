@@ -28,26 +28,12 @@ Inductive res : Type :=
 | R_trap : res
 | R_value : list value -> res.
 
-Definition res_eqb r1 r2 :=
-  match r1, r2 with
-  | R_crash c1, R_crash c2 => c1 == c2
-  | R_trap, R_trap => true
-  | R_value vs1, R_value vs2 => vs1 == vs2
-  | _, _ => false
-  end.
+Definition res_eq_dec : forall r1 r2 : res, {r1 = r2} + {r1 <> r2}.
+Proof. decidable_equality. Defined.
 
-Lemma eqresP : Equality.axiom res_eqb.
-Proof.
-  move=> r1 r2. rewrite /res_eqb.
-  destruct r1 as [c1| |vs1], r2 as [c2| |vs2]; try by apply/ReflectF.
-  - case_eq (c1 == c2) => /= [/eqP Ht|/eqP Ht].
-    + subst. by apply/ReflectT.
-    + apply/ReflectF => E. by inversion E.
-  - by apply/ReflectT.
-  - case_eq (vs1 == vs2) => /= [/eqP Ht|/eqP Ht].
-    + subst. by apply/ReflectT.
-    + apply/ReflectF => E. by inversion E.
-Qed.
+Definition res_eqb (r1 r2 : res) : bool := res_eq_dec r1 r2.
+Definition eqresP : Equality.axiom res_eqb :=
+  eq_dec_Equality_axiom res_eq_dec.
 
 Canonical Structure res_eqMixin := EqMixin eqresP.
 Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
@@ -58,34 +44,12 @@ Inductive res_step : Type :=
 | RS_return : list value -> res_step
 | RS_normal : list administrative_instruction -> res_step.
 
-Definition res_step_eqb r1 r2 :=
-  match r1, r2 with
-  | RS_crash c1, RS_crash c2 => c1 == c2
-  | RS_break n1 vs1, RS_break n2 vs2 => (n1 == n2) && (vs1 == vs2)
-  | RS_return vs1, RS_return vs2 => vs1 == vs2
-  | RS_normal es1, RS_normal es2 => es1 == es2
-  | _, _ => false
-  end.
+Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
+Proof. decidable_equality. Defined.
 
-Lemma eqres_stepP : Equality.axiom res_step_eqb.
-Proof.
-  move=> r1 r2. rewrite /res_step_eqb.
-  destruct r1 as [c1|n1 vs1|vs1|es1], r2 as [c2|n2 vs2|vs2|es2]; try by apply/ReflectF.
-  - case_eq (c1 == c2) => /= [/eqP Ht|/eqP Ht].
-    + subst. by apply/ReflectT.
-    + apply/ReflectF => E. by inversion E.
-  - case_eq (n1 == n2) => /= [/eqP Ht|/eqP Ht].
-    + subst. case_eq (vs1 == vs2) => /= [/eqP Ht|/eqP Ht].
-      * subst. by apply/ReflectT.
-      * apply/ReflectF => E. by inversion E.
-    + apply/ReflectF => E. by inversion E.
-  - case_eq (vs1 == vs2) => /= [/eqP Ht|/eqP Ht].
-    + subst. by apply/ReflectT.
-    + apply/ReflectF => E. by inversion E.
-  - case_eq (es1 == es2) => /= [/eqP Ht|/eqP Ht].
-    + subst. by apply/ReflectT.
-    + apply/ReflectF => E. by inversion E.
-Qed.
+Definition res_step_eqb (r1 r2 : res_step) : bool := res_step_eq_dec r1 r2.
+Definition eqres_stepP : Equality.axiom res_step_eqb :=
+  eq_dec_Equality_axiom res_step_eq_dec.
 
 Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
 Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
@@ -96,13 +60,13 @@ Definition depth := nat.
 
 Definition fuel := nat.
 
-Definition config_tuple := ((store_record * list value * list administrative_instruction) % type).
+Definition config_tuple := ((store_record * list value * list administrative_instruction)%type).
 
-Definition config_one_tuple_without_e := (store_record * list value * list value) % type.
+Definition config_one_tuple_without_e := (store_record * list value * list value)%type.
 
-Definition res_tuple := (store_record * list value * res_step) % type.
+Definition res_tuple := (store_record * list value * res_step)%type.
 
-Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction)) % type :=
+Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction))%type :=
   match es with
   | (EConst v) :: es' =>
     let (vs', es'') := split_vals es' in
@@ -114,7 +78,7 @@ Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_
     are all of the form [Basic (EConst v)];
     returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
     segment and [es] is the remainder of the original [es]. **)
-Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction)) % type :=
+Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction))%type :=
   match es with
   | (Basic (EConst v)) :: es' =>
     let (vs', es'') := split_vals_e es' in
@@ -122,7 +86,7 @@ Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (
   | _ => ([::], es)
   end.
 
-Fixpoint split_n (es : list value) (n : nat) : ((list value) * (list value)) % type :=
+Fixpoint split_n (es : list value) (n : nat) : ((list value) * (list value))%type :=
   match (es, n) with
   | ([::], _) => ([::], [::])
   | (_, 0) => ([::], es)
@@ -567,7 +531,7 @@ Definition run_step_fuel (tt : config_tuple) :=
 Definition run_step d j tt :=
   run_step_with_fuel (run_step_fuel tt) d j tt.
 
-Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res) % type) :=
+Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res)%type) :=
   let: (s, vs, es) := tt in
   match fuel with
   | 0 => (s, R_crash C_exhaustion)

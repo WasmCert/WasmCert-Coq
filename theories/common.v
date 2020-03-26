@@ -108,11 +108,35 @@ Proof.
   - move=> E. by apply/ReflectF.
 Qed.
 
-(** A useful lemma for the converse: getting a [_dec_eq] from an [Equality.axiom]. **)
+(** A useful lemma for the converse: getting a [_ep_dec] from an [Equality.axiom]. **)
 Definition Equality_axiom_eq_dec t (eqb : t -> t -> bool) (A : Equality.axiom eqb) :
     forall x y : t, {x = y} + {x <> y}.
+Proof.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.
+
+(** As [eqType] can be inferred thanks to canonical instance, this lemma provides
+  another way of building a [_eq_dec]. **)
+Lemma eqType_eq_dec : forall (A : eqType) (a1 a2 : A),
+  {a1 = a2} + {a1 <> a2}.
+Proof.
+  move=> A a1 a2. case_eq (a1 == a2) => /eqP.
+  - by left.
+  - by right.
+Defined.
+
+Ltac decidable_equality_step :=
+  first [
+      by apply: eqType_eq_dec
+    | apply: List.list_eq_dec
+    | apply: Coqlib.option_eq
+    | apply: PeanoNat.Nat.eq_dec
+    | by eauto
+    | decide equality ].
+
+(** Solve a goal of the form [forall a1 a2, {a1 = a2} + {a1 <> a2}]. **)
+Ltac decidable_equality :=
+  repeat decidable_equality_step.
 
 (** A lemma to move from [BoolSpec] to [reflect] predicates. **)
 Lemma BoolSpec_reflect : forall P b,
@@ -129,7 +153,7 @@ Lemma reflect_BoolSpec : forall P b,
   reflect P b ->
   BoolSpec P (~P) b.
 Proof.
-  move=> P b. case; by [ apply: BoolSpecT | apply: BoolSpecF ].
+  move=> P b. by case; [ apply: BoolSpecT | apply: BoolSpecF ].
 Qed.
 
 Import ZArith.BinInt.

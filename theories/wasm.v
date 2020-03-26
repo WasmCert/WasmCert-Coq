@@ -8,7 +8,7 @@
  *)
 
 Require Import common.
-Require Export numerics.
+Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
@@ -16,7 +16,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-Variable host : eqType. (* TODO: Do the same as integers and floats. *)
+Variable host : eqType. (* TODO: Do the same than for integers and floats. *)
 Variable host_state : eqType.
 
 Definition immediate := nat. (* i *)
@@ -25,15 +25,8 @@ Definition static_offset := nat. (* off *)
 
 Definition alignment_exponent := nat. (* a *)
 
-Definition uint8 := nat. (* TODO: What about [Byte.byte]? *)
 
-Definition byte := uint8.
-Variable byte_eqb : byte -> byte -> bool.
-
-(* TODO: lots of stuff *)
-
-Definition bytes := list byte.
-
+(* TODO *)
 Parameter serialise_i32 : i32 -> bytes.
 Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.
@@ -82,7 +75,7 @@ Inductive value_type : Type := (* t *)
 | T_f64.
 
 Scheme Equality for value_type.
-Definition value_type_eqb v1 v2 := is_left (value_type_eq_dec v1 v2).
+Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
 Definition eqvalue_typeP : Equality.axiom value_type_eqb :=
   eq_dec_Equality_axiom value_type_eq_dec.
 
@@ -94,13 +87,21 @@ Inductive packed_type : Type := (* tp *)
 | Tp_i16
 | Tp_i32.
 
+Scheme Equality for packed_type.
+Definition packed_type_eqb v1 v2 : bool := packed_type_eq_dec v1 v2.
+Definition eqpacked_typeP : Equality.axiom packed_type_eqb :=
+  eq_dec_Equality_axiom packed_type_eq_dec.
+
+Canonical Structure packed_type_eqMixin := EqMixin eqpacked_typeP.
+Canonical Structure packed_type_eqType := Eval hnf in EqType packed_type packed_type_eqMixin.
+
 Inductive mutability : Type := (* mut *)
 | T_immut
 | T_mut.
 
 Scheme Equality for mutability.
-Definition mutability_eqb v1 v2 := is_left (mutability_eq_dec v1 v2).
-Definition eqmutabilityP  : Equality.axiom mutability_eqb :=
+Definition mutability_eqb v1 v2 : bool := mutability_eq_dec v1 v2.
+Definition eqmutabilityP : Equality.axiom mutability_eqb :=
   eq_dec_Equality_axiom mutability_eq_dec.
 
 Canonical Structure mutability_eqMixin := EqMixin eqmutabilityP.
@@ -111,8 +112,8 @@ Record global_type := (* tg *)
   { tg_mut : mutability; tg_t : value_type}.
 
 Scheme Equality for global_type.
-Definition global_type_eqb v1 v2 := is_left (global_type_eq_dec v1 v2).
-Definition eqglobal_typeP  : Equality.axiom global_type_eqb :=
+Definition global_type_eqb v1 v2 : bool := global_type_eq_dec v1 v2.
+Definition eqglobal_typeP : Equality.axiom global_type_eqb :=
   eq_dec_Equality_axiom global_type_eq_dec.
 
 Canonical Structure global_type_eqMixin := EqMixin eqglobal_typeP.
@@ -122,15 +123,10 @@ Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
 
 Definition function_type_eq_dec : forall tf1 tf2 : function_type,
-  { tf1 = tf2 } + { tf1 <> tf2 }.
-Proof.
-  repeat first [
-      apply: value_type_eq_dec
-    | apply: List.list_eq_dec
-    | decide equality ].
-Defined.
+  {tf1 = tf2} + {tf1 <> tf2}.
+Proof. decidable_equality. Defined.
 
-Definition function_type_eqb v1 v2 := is_left (function_type_eq_dec v1 v2).
+Definition function_type_eqb v1 v2 : bool := function_type_eq_dec v1 v2.
 Definition eqfunction_typeP : Equality.axiom function_type_eqb :=
   eq_dec_Equality_axiom function_type_eq_dec.
 
@@ -150,20 +146,14 @@ Record t_context := {
 }.
 
 Definition t_context_eq_dec : forall x y : t_context, {x = y} + {x <> y}.
-Proof.
-  repeat first [
-      apply: function_type_eq_dec
-    | apply: global_type_eq_dec
-    | apply: value_type
-    | apply: PeanoNat.Nat.eq_dec
-    | apply: Coqlib.option_eq
-    | apply: List.list_eq_dec
-    | decide equality ].
-Defined.
+Proof. decidable_equality. Defined.
 
-Definition t_context_eqb v1 v2 := is_left (t_context_eq_dec v1 v2).
+Definition t_context_eqb v1 v2 : bool := t_context_eq_dec v1 v2.
 Definition eqt_contextP : Equality.axiom t_context_eqb :=
   eq_dec_Equality_axiom t_context_eq_dec.
+
+Canonical Structure t_context_eqMixin := EqMixin eqt_contextP.
+Canonical Structure t_context_eqType := Eval hnf in EqType t_context t_context_eqMixin.
 
 (*
 
@@ -182,8 +172,8 @@ Inductive sx : Type :=
 | sx_U.
 
 Scheme Equality for sx.
-Definition sx_eqb v1 v2 := is_left (sx_eq_dec v1 v2).
-Definition eqsxP  : Equality.axiom sx_eqb :=
+Definition sx_eqb v1 v2 : bool := sx_eq_dec v1 v2.
+Definition eqsxP : Equality.axiom sx_eqb :=
   eq_dec_Equality_axiom sx_eq_dec.
 
 Canonical Structure sx_eqMixin := EqMixin eqsxP.
@@ -194,6 +184,14 @@ Inductive unop_i : Type :=
 | Ctz
 | Popcnt.
 
+Scheme Equality for unop_i.
+Definition unop_i_eqb v1 v2 : bool := unop_i_eq_dec v1 v2.
+Definition equnop_iP : Equality.axiom unop_i_eqb :=
+  eq_dec_Equality_axiom unop_i_eq_dec.
+
+Canonical Structure unop_i_eqMixin := EqMixin equnop_iP.
+Canonical Structure unop_i_eqType := Eval hnf in EqType unop_i unop_i_eqMixin.
+
 Inductive unop_f : Type :=
 | Neg
 | Abs
@@ -202,6 +200,14 @@ Inductive unop_f : Type :=
 | Trunc
 | Nearest
 | Sqrt.
+
+Scheme Equality for unop_f.
+Definition unop_f_eqb v1 v2 : bool := unop_f_eq_dec v1 v2.
+Definition equnop_fP : Equality.axiom unop_f_eqb :=
+  eq_dec_Equality_axiom unop_f_eq_dec.
+
+Canonical Structure unop_f_eqMixin := EqMixin equnop_fP.
+Canonical Structure unop_f_eqType := Eval hnf in EqType unop_f unop_f_eqMixin.
 
 Inductive binop_i : Type :=
 | Add
@@ -217,6 +223,14 @@ Inductive binop_i : Type :=
 | Rotl
 | Rotr.
 
+Scheme Equality for binop_i.
+Definition binop_i_eqb v1 v2 : bool := binop_i_eq_dec v1 v2.
+Definition eqbinop_iP : Equality.axiom binop_i_eqb :=
+  eq_dec_Equality_axiom binop_i_eq_dec.
+
+Canonical Structure binop_i_eqMixin := EqMixin eqbinop_iP.
+Canonical Structure binop_i_eqType := Eval hnf in EqType binop_i binop_i_eqMixin.
+
 Inductive binop_f : Type :=
 | Addf
 | Subf
@@ -226,8 +240,24 @@ Inductive binop_f : Type :=
 | Max
 | Copysign.
 
+Scheme Equality for binop_f.
+Definition binop_f_eqb v1 v2 : bool := binop_f_eq_dec v1 v2.
+Definition eqbinop_fP : Equality.axiom binop_f_eqb :=
+  eq_dec_Equality_axiom binop_f_eq_dec.
+
+Canonical Structure binop_f_eqMixin := EqMixin eqbinop_fP.
+Canonical Structure binop_f_eqType := Eval hnf in EqType binop_f binop_f_eqMixin.
+
 Inductive testop : Type :=
 | Eqz.
+
+Scheme Equality for testop.
+Definition testop_eqb v1 v2 : bool := testop_eq_dec v1 v2.
+Definition eqtestopP : Equality.axiom testop_eqb :=
+  eq_dec_Equality_axiom testop_eq_dec.
+
+Canonical Structure testop_eqMixin := EqMixin eqtestopP.
+Canonical Structure testop_eqType := Eval hnf in EqType testop testop_eqMixin.
 
 Inductive relop_i : Type :=
 | Eq
@@ -237,6 +267,14 @@ Inductive relop_i : Type :=
 | Le : sx -> relop_i
 | Ge : sx -> relop_i.
 
+Scheme Equality for relop_i.
+Definition relop_i_eqb v1 v2 : bool := relop_i_eq_dec v1 v2.
+Definition eqrelop_iP : Equality.axiom relop_i_eqb :=
+  eq_dec_Equality_axiom relop_i_eq_dec.
+
+Canonical Structure relop_i_eqMixin := EqMixin eqrelop_iP.
+Canonical Structure relop_i_eqType := Eval hnf in EqType relop_i relop_i_eqMixin.
+
 Inductive relop_f : Type :=
 | Eqf
 | Nef
@@ -245,9 +283,25 @@ Inductive relop_f : Type :=
 | Lef
 | Gef.
 
+Scheme Equality for relop_f.
+Definition relop_f_eqb v1 v2 : bool := relop_f_eq_dec v1 v2.
+Definition eqrelop_fP : Equality.axiom relop_f_eqb :=
+  eq_dec_Equality_axiom relop_f_eq_dec.
+
+Canonical Structure relop_f_eqMixin := EqMixin eqrelop_fP.
+Canonical Structure relop_f_eqType := Eval hnf in EqType relop_f relop_f_eqMixin.
+
 Inductive cvtop : Type :=
 | Convert
 | Reinterpret.
+
+Scheme Equality for cvtop.
+Definition cvtop_eqb v1 v2 : bool := cvtop_eq_dec v1 v2.
+Definition eqcvtopP : Equality.axiom cvtop_eqb :=
+  eq_dec_Equality_axiom cvtop_eq_dec.
+
+Canonical Structure cvtop_eqMixin := EqMixin eqcvtopP.
+Canonical Structure cvtop_eqType := Eval hnf in EqType cvtop cvtop_eqMixin.
 
 Inductive value : Type := (* v *)
 | ConstInt32 : i32 -> value
@@ -255,23 +309,12 @@ Inductive value : Type := (* v *)
 | ConstFloat32 : f32 -> value
 | ConstFloat64 : f64 -> value.
 
-Definition value_eqb (v1 v2 : value) : bool :=
-  match v1, v2 with
-  | ConstInt32 i1, ConstInt32 i2 => i1 == i2
-  | ConstInt64 i1, ConstInt64 i2 => i1 == i2
-  | ConstFloat32 f1, ConstFloat32 f2 => f1 == f2
-  | ConstFloat64 f1, ConstFloat64 f2 => f1 == f2
-  | _, _ => false
-  end.
+Definition value_eq_dec : forall v1 v2 : value, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
 
-Lemma eqvalueP : Equality.axiom value_eqb.
-Proof.
-  do 2 case=> ?;
-    by [ apply/ReflectF
-       | apply/iffP; [ move=> /=; apply/eqP | move=> E; f_equal; exact: E | case ] ].
-Qed.
-
-Definition value_eq_dec := Equality_axiom_eq_dec eqvalueP.
+Definition value_eqb v1 v2 : bool := value_eq_dec v1 v2.
+Definition eqvalueP : Equality.axiom value_eqb :=
+  eq_dec_Equality_axiom value_eq_dec.
 
 Canonical Structure value_eqMixin := EqMixin eqvalueP.
 Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
@@ -309,11 +352,13 @@ Inductive basic_instruction : Type := (* be *)
 | Relop_f : value_type -> relop_f -> basic_instruction
 | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction.
 
+(* TODO: [basic_instruction_rect'] *)
+
 (* TODO:
 Scheme Equality for basic_instruction.
 Definition eqglobal_typeP := eq_dec_Equality_axiom global_type_eq_dec.
 *)
-Variable basic_instruction_eqb : basic_instruction -> basic_instruction -> bool.
+Parameter basic_instruction_eqb : basic_instruction -> basic_instruction -> bool.
 
 Parameter eqbasic_instructionP : Equality.axiom basic_instruction_eqb.
 
@@ -329,17 +374,10 @@ Record instance : Type := (* inst *) {
   i_globs : list immediate;
 }.
 
-Definition instance_eq_dec : forall (i1 i2 : instance), { i1 = i2 } + { i1 <> i2 }.
-Proof.
-  repeat first [
-      apply: function_type_eq_dec
-    | apply: PeanoNat.Nat.eq_dec
-    | apply: Coqlib.option_eq
-    | apply: List.list_eq_dec
-    | decide equality ].
-Defined.
+Definition instance_eq_dec : forall (i1 i2 : instance), {i1 = i2} + {i1 <> i2}.
+Proof. decidable_equality. Defined.
 
-Definition instance_eqb i1 i2 := is_left (instance_eq_dec i1 i2).
+Definition instance_eqb i1 i2 : bool := instance_eq_dec i1 i2.
 
 Definition eqinstanceP : Equality.axiom instance_eqb :=
   eq_dec_Equality_axiom instance_eq_dec.
@@ -351,32 +389,14 @@ Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
-(* TODO
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
-  { cl1 = cl2 } + { cl1 <> cl2 }.
-Proof.
-  repeat first [
-      apply: function_type_eq_dec
-    | apply: instance_eq_dec
-    | apply: basic_instruction_eq_dec
-    | apply: host_eq_dec
-    | apply: Coqlib.option_eq
-    | apply: List.list_eq_dec
-    | decide equality ].
-Defined.
- *)
+  {cl1 = cl2} + {cl1 <> cl2}.
+Proof. decidable_equality. Defined.
 
-Definition function_closure_eqb (cl1 cl2 : function_closure) :=
-  match (cl1, cl2) with
-  | (Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2) =>
-    (i1 == i2) && (tf1 == tf2) && (vs1 == vs2) && (eis1 == eis2)
-  | (Func_host tf1 h1, Func_host tf2 h2) =>
-    (tf1 == tf2) && (h1 == h2)
-  | _ => false
-  end.
+Definition function_closure_eqb cl1 cl2 : bool := function_closure_eq_dec cl1 cl2.
+Definition eqfunction_closureP : Equality.axiom function_closure_eqb :=
+  eq_dec_Equality_axiom function_closure_eq_dec.
 
-Parameter eqfunction_closureP : Equality.axiom function_closure_eqb.
-(* TODO *)
 Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
 Canonical Structure function_closure_eqType :=
   Eval hnf in EqType function_closure function_closure_eqMixin.
@@ -389,38 +409,12 @@ Record global : Type := {
   g_val : value;
 }.
 
-Definition global_eqb (g1 g2 : global) : bool :=
-  (g_mut g1 == g_mut g2) && (g_val g1 == g_val g2).
+Definition global_eq_dec : forall v1 v2 : global, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
 
-Lemma eqglobalP : Equality.axiom global_eqb.
-Proof.
-  move=> g1 g2.
-  case: g1 => m1 t1; case: g2 => m2 t2.
-  case_eq (m1 == m2) => [Hm|Hm].
-  - case_eq (t1 == t2) => [Ht|Ht].
-    + rewrite /global_eqb /=.
-      rewrite Hm Ht.
-      apply ReflectT.
-      move/eqP: Hm => Hm.
-      move/eqP: Ht => Ht.
-      by subst.
-    + rewrite /global_eqb /=.
-      rewrite Hm Ht.
-      apply ReflectF.
-      move=> H.
-      injection H => Ht2 Hm2.
-      subst.
-      by rewrite eqxx in Ht.
-  - rewrite /global_eqb /=.
-    rewrite Hm.
-    apply/ReflectF.
-    move=> H.
-    injection H => _ Hm2.
-    subst.
-    by rewrite eqxx in Hm.
-Qed.
-
-Definition global_eq_dec := Equality_axiom_eq_dec eqglobalP.
+Definition global_eqb v1 v2 : bool := global_eq_dec v1 v2.
+Definition eqglobalP : Equality.axiom global_eqb :=
+  eq_dec_Equality_axiom global_eq_dec.
 
 Canonical Structure global_eqMixin := EqMixin eqglobalP.
 Canonical Structure global_eqType := Eval hnf in EqType global global_eqMixin.
@@ -433,20 +427,12 @@ Record store_record : Type := (* s *) {
   s_globs : list global;
 }.
 
-Definition store_record_eqb (s1 s2 : store_record) : bool :=
-  (s_funcs s1 == s_funcs s2) && (s_tab s1 == s_tab s2) && (s_mem s1 == s_mem s2) && (s_globs s1 == s_globs s2).
+Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
 
-Lemma eqstore_recordP : Equality.axiom store_record_eqb.
-Proof.
-  move=> s1 s2. case: s1; case: s2; intros;
-    by [ apply/ReflectF
-       | move=> /=; apply/iffP;
-         [ apply andP
-         | repeat (case; move/andP); case; repeat move/eqP => ?; f_equal
-         | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
-Qed.
-
-Definition store_record_eq_dec := Equality_axiom_eq_dec eqstore_recordP.
+Definition store_record_eqb v1 v2 : bool := store_record_eq_dec v1 v2.
+Definition eqstore_recordP : Equality.axiom store_record_eqb :=
+  eq_dec_Equality_axiom store_record_eq_dec.
 
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
@@ -597,12 +583,24 @@ Inductive lholed : Type :=
   | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
   .
 
+Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
+Definition eqlholedP : Equality.axiom lholed_eqb :=
+  eq_dec_Equality_axiom lholed_eq_dec.
+
+Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
+Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
+
 
 Definition mem_size (m : mem) :=
   length m.
 
 Definition mem_grow (m : mem) (n : nat) :=
-  m ++ bytes_replicate (n * 64000) 0.
+  m ++ bytes_replicate (n * 64000) #00.
+
+(* TODO: We crucially need documentation here. *)
 
 Definition load (m : mem) (n : nat) (off : static_offset) (l : nat) : option bytes :=
   if mem_size m >= (n + off + l)
@@ -622,7 +620,7 @@ Definition load_packed (s : sx) (m : mem) (n : nat) (off : static_offset) (lp : 
 
 Definition store (m : mem) (n : nat) (off : static_offset) (bs : bytes) (l : nat) : option mem :=
   if (mem_size m) >= (n + off + l)
-  then Some (write_bytes m (n + off) (bytes_takefill O l bs))
+  then Some (write_bytes m (n + off) (bytes_takefill #00 l bs))
   else None.
 
 Definition store_packed := store.
@@ -681,16 +679,18 @@ Definition is_mut (tg : global_type) : bool :=
   tg_mut tg == T_mut.
 
 
-Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) (c : Wasm_int.sort e) : Wasm_int.sort e :=
-  (let: Wasm_int.Pack u (Wasm_int.Class eqmx intmx) as e' := e return Wasm_int.sort e' -> Wasm_int.sort e' in
+Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) : Wasm_int.sort e -> Wasm_int.sort e :=
+  let: Wasm_int.Pack u (Wasm_int.Class eqmx intmx) as e' := e
+    return Wasm_int.sort e' -> Wasm_int.sort e' in
   match iop with
   | Ctz => Wasm_int.int_ctz intmx
   | Clz => Wasm_int.int_clz intmx
   | Popcnt => Wasm_int.int_popcnt intmx
-  end) c.
+  end.
 
-Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) (c : Wasm_float.sort e) : Wasm_float.sort e :=
-  (let: Wasm_float.Pack u (Wasm_float.Class eqmx mx) as e' := e return Wasm_float.sort e' -> Wasm_float.sort e' in
+Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -> Wasm_float.sort e :=
+  let: Wasm_float.Pack u (Wasm_float.Class eqmx mx) as e' := e
+    return Wasm_float.sort e' -> Wasm_float.sort e' in
   match fop with
   | Neg => Wasm_float.float_neg mx
   | Abs => Wasm_float.float_abs mx
@@ -699,73 +699,81 @@ Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) (c : Wasm_float.sort 
   | Trunc => Wasm_float.float_trunc mx
   | Nearest => Wasm_float.float_nearest mx
   | Sqrt => Wasm_float.float_sqrt mx
-  end) c.
+  end.
 
-(* TODO: can't be bothered to make this nicer *)
-Definition app_binop_i (e : Wasm_int.type) (iop : binop_i) (c1 c2 : Wasm_int.sort e) : option (Wasm_int.sort e) :=
-  (let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> Wasm_int.sort e' -> option (Wasm_int.sort e') in
+Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
+    : Wasm_int.sort e -> Wasm_int.sort e -> option (Wasm_int.sort e) :=
+  let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e
+    return Wasm_int.sort e' -> Wasm_int.sort e' -> option (Wasm_int.sort e') in
+  let: add_some := fun f c1 c2 => Some (f c1 c2) in
   match iop with
-  | Add => fun c1 c2 => Some (Wasm_int.int_add mx c1 c2)
-  | Sub => fun c1 c2 => Some (Wasm_int.int_sub mx c1 c2)
-  | Mul => fun c1 c2 => Some (Wasm_int.int_mul mx c1 c2)
+  | Add => add_some (Wasm_int.int_add mx)
+  | Sub => add_some (Wasm_int.int_sub mx)
+  | Mul => add_some (Wasm_int.int_mul mx)
   | Div sx_U => Wasm_int.int_div_u mx
   | Div sx_S => Wasm_int.int_div_s mx
   | Rem sx_U => Wasm_int.int_rem_u mx
   | Rem sx_S => Wasm_int.int_rem_s mx
-  | And => fun c1 c2 => Some (Wasm_int.int_and mx c1 c2)
-  | Or => fun c1 c2 => Some (Wasm_int.int_or mx c1 c2)
-  | Xor => fun c1 c2 => Some (Wasm_int.int_xor mx c1 c2)
-  | Shl => fun c1 c2 => Some (Wasm_int.int_shl mx c1 c2)
-  | Shr sx_U => fun c1 c2 => Some (Wasm_int.int_shr_u mx c1 c2)
-  | Shr sx_S => fun c1 c2 => Some (Wasm_int.int_shr_s mx c1 c2)
-  | Rotl => fun c1 c2 => Some (Wasm_int.int_rotl mx c1 c2)
-  | Rotr => fun c1 c2 => Some (Wasm_int.int_rotr mx c1 c2)
-  end) c1 c2.
+  | And => add_some (Wasm_int.int_and mx)
+  | Or => add_some (Wasm_int.int_or mx)
+  | Xor => add_some (Wasm_int.int_xor mx)
+  | Shl => add_some (Wasm_int.int_shl mx)
+  | Shr sx_U => add_some (Wasm_int.int_shr_u mx)
+  | Shr sx_S => add_some (Wasm_int.int_shr_s mx)
+  | Rotl => add_some (Wasm_int.int_rotl mx)
+  | Rotr => add_some (Wasm_int.int_rotr mx)
+  end.
 
-(* TODO: can't be bothered to make this nicer *)
-Definition app_binop_f (e : Wasm_float.type) (fop : binop_f) (c1 c2 : Wasm_float.sort e) : option (Wasm_float.sort e) :=
-    (let: Wasm_float.Pack u (Wasm_float.Class _ mx) as e' := e return Wasm_float.sort e' -> Wasm_float.sort e' -> option (Wasm_float.sort e') in
+Definition app_binop_f (e : Wasm_float.type) (fop : binop_f)
+    : Wasm_float.sort e -> Wasm_float.sort e -> option (Wasm_float.sort e) :=
+  let: Wasm_float.Pack u (Wasm_float.Class _ mx) as e' := e
+    return Wasm_float.sort e' -> Wasm_float.sort e' -> option (Wasm_float.sort e') in
+  let: add_some := fun f c1 c2 => Some (f c1 c2) in
   match fop with
-  | Addf => fun c1 c2 => Some (Wasm_float.float_add mx c1 c2)
-  | Subf => fun c1 c2 => Some (Wasm_float.float_sub mx c1 c2)
-  | Mulf => fun c1 c2 => Some (Wasm_float.float_mul mx c1 c2)
-  | Divf => fun c1 c2 => Some (Wasm_float.float_div mx c1 c2)
-  | Min => fun c1 c2 => Some (Wasm_float.float_min mx c1 c2)
-  | Max => fun c1 c2 => Some (Wasm_float.float_max mx c1 c2)
-  | Copysign => fun c1 c2 => Some (Wasm_float.float_copysign mx c1 c2)
-  end) c1 c2.
+  | Addf => add_some (Wasm_float.float_add mx)
+  | Subf => add_some (Wasm_float.float_sub mx)
+  | Mulf => add_some (Wasm_float.float_mul mx)
+  | Divf => add_some (Wasm_float.float_div mx)
+  | Min => add_some (Wasm_float.float_min mx)
+  | Max => add_some (Wasm_float.float_max mx)
+  | Copysign => add_some (Wasm_float.float_copysign mx)
+  end.
 
-Definition app_testop_i (e : Wasm_int.type) (o : testop) (c : Wasm_int.sort e) : bool :=
-  (let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> bool in
+Definition app_testop_i (e : Wasm_int.type) (o : testop) : Wasm_int.sort e -> bool :=
+  let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> bool in
   match o with
-  | Eqz => fun c => Wasm_int.int_eqz mx c
-  end) c.
+  | Eqz => Wasm_int.int_eqz mx
+  end.
 
-Definition app_relop_i (e : Wasm_int.type) (rop : relop_i) (c1 c2 : Wasm_int.sort e) : bool :=
-  (let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> Wasm_int.sort e' -> bool in
+Definition app_relop_i (e : Wasm_int.type) (rop : relop_i)
+    : Wasm_int.sort e -> Wasm_int.sort e -> bool :=
+  let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e
+    return Wasm_int.sort e' -> Wasm_int.sort e' -> bool in
   match rop with
-  | Eq => fun c1 c2 => Wasm_int.int_eq mx c1 c2
-  | Ne => fun c1 c2 => Wasm_int.int_ne c1 c2
-  | Lt sx_U => fun c1 c2 => Wasm_int.int_lt_u mx c1 c2
-  | Lt sx_S => fun c1 c2 => Wasm_int.int_lt_s mx c1 c2
-  | Gt sx_U => fun c1 c2 => Wasm_int.int_gt_u mx c1 c2
-  | Gt sx_S => fun c1 c2 => Wasm_int.int_gt_s mx c1 c2
-  | Le sx_U => fun c1 c2 => Wasm_int.int_le_u mx c1 c2
-  | Le sx_S => fun c1 c2 => Wasm_int.int_le_s mx c1 c2
-  | Ge sx_U => fun c1 c2 => Wasm_int.int_ge_u mx c1 c2
-  | Ge sx_S => fun c1 c2 => Wasm_int.int_ge_s mx c1 c2
-  end) c1 c2.
+  | Eq => Wasm_int.int_eq mx
+  | Ne => @Wasm_int.int_ne _
+  | Lt sx_U => Wasm_int.int_lt_u mx
+  | Lt sx_S => Wasm_int.int_lt_s mx
+  | Gt sx_U => Wasm_int.int_gt_u mx
+  | Gt sx_S => Wasm_int.int_gt_s mx
+  | Le sx_U => Wasm_int.int_le_u mx
+  | Le sx_S => Wasm_int.int_le_s mx
+  | Ge sx_U => Wasm_int.int_ge_u mx
+  | Ge sx_S => Wasm_int.int_ge_s mx
+  end.
 
-Definition app_relop_f (e : Wasm_float.type) (rop : relop_f) (c1 c2 : Wasm_float.sort e) : bool :=
-  (let: Wasm_float.Pack u (Wasm_float.Class _ mx) as e' := e return Wasm_float.sort e' -> Wasm_float.sort e' -> bool in
+Definition app_relop_f (e : Wasm_float.type) (rop : relop_f)
+    : Wasm_float.sort e -> Wasm_float.sort e -> bool :=
+  let: Wasm_float.Pack u (Wasm_float.Class _ mx) as e' := e
+    return Wasm_float.sort e' -> Wasm_float.sort e' -> bool in
   match rop with
-  | Eqf => fun c1 c2 => Wasm_float.float_eq mx c1 c2
-  | Nef => fun c1 c2 => Wasm_float.float_ne c1 c2
-  | Ltf => fun c1 c2 => Wasm_float.float_lt mx c1 c2
-  | Gtf => fun c1 c2 => Wasm_float.float_gt mx c1 c2
-  | Lef => fun c1 c2 => Wasm_float.float_le mx c1 c2
-  | Gef => fun c1 c2 => Wasm_float.float_ge mx c1 c2
-  end) c1 c2.
+  | Eqf => Wasm_float.float_eq mx
+  | Nef => @Wasm_float.float_ne _
+  | Ltf => Wasm_float.float_lt mx
+  | Gtf => Wasm_float.float_gt mx
+  | Lef => Wasm_float.float_le mx
+  | Gef => Wasm_float.float_ge mx
+  end.
 
 Definition types_agree (t : value_type) (v : value) : bool :=
   (typeof v) == t.
@@ -786,7 +794,7 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   end.
 
 Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
-  (List.nth_error (i_types i) j).
+  List.nth_error (i_types i) j.
 (* TODO: optioned *)
 
 Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option nat :=
@@ -796,7 +804,7 @@ Definition sfunc (s : store_record) (i : instance) (j : nat) : option function_c
   option_bind (List.nth_error (s_funcs s)) (sfunc_ind s i j).
 
 Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option nat :=
-  (List.nth_error (i_globs i) j).
+  List.nth_error (i_globs i) j.
 
 Definition sglob (s : store_record) (i : instance) (j : nat) : option global :=
   option_bind (List.nth_error (s_globs s))
@@ -912,7 +920,8 @@ Lemma lfilledP: forall k lh es LI,
 Proof.
   move => k lh es LI. destruct (lfilled k lh es LI) eqn:HLFBool.
   - apply ReflectT. by apply lfilled_Ind_Equivalent.
-  - apply ReflectF. move => HContra. apply lfilled_Ind_Equivalent in HContra. by rewrite HLFBool in HContra.
+  - apply ReflectF. move=> HContra. apply lfilled_Ind_Equivalent in HContra.
+    by rewrite HLFBool in HContra.
 Qed.
 
 Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=

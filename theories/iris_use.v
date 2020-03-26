@@ -7,6 +7,8 @@ From iris.program_logic Require Export weakestpre.
 Require Export iris.
 Set Default Proof Using "Type". (* what is this? *)
 
+Close Scope byte_scope.
+
 Record loc := { loc_car : Z }.
 Instance loc_eq_decision : EqDecision loc.
 Proof. solve_decision. Defined.
