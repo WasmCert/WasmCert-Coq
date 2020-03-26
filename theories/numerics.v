@@ -576,14 +576,24 @@ Definition popcnt i :=
   let l := convert_to_bits i in
   repr (seq.count (fun b => b == true) l).
 
-Lemma Zbits_powerserie_uniq_in : forall z l,
+Local Lemma Zbits_powerserie_uniq_in : forall z l,
   uniq l ->
   z \in l ->
   Zbits.powerserie l = (Zpower.two_p z + Zbits.powerserie (filter (fun x => x != z) l))%Z.
 Proof.
-Admitted. (* TODO *)
+  move=> z. elim.
+  - by [].
+  - move=> z' l IH /= /andP [N U]. rewrite in_cons => /orP [+|I].
+    + move/eqP => ?. subst.
+      f_equal. rewrite eq_refl => /=. rewrite all_filter => //.
+      rewrite list_all_forall => z''. rewrite -List_In_in_mem => I.
+      apply/eqP => ?. subst. by rewrite I in N.
+    + case_eq (z' == z) => /eqP D /=.
+      * subst. by rewrite I in N.
+      * rewrite IH => //. lias.
+Qed.
 
-Lemma power_index_to_bits_Zbits_powerserie : forall (wordsize : nat) l1 l2,
+Local Lemma power_index_to_bits_Zbits_powerserie : forall (wordsize : nat) l1 l2,
   uniq l1 ->
   uniq l2 ->
   power_index_to_bits wordsize l1 = power_index_to_bits wordsize l2 ->
@@ -643,12 +653,6 @@ Proof.
   - by apply: Zbits_Z_one_bits_uniq.
 Qed.
 
-Lemma list_all_eq : forall A (d : A) l1 l2,
-  seq.size l1 = seq.size l2 ->
-  (forall n, n < seq.size l1 -> seq.nth d l1 n = seq.nth d l2 n) ->
-  l1 = l2.
-Admitted (* TODO *).
-
 Lemma clz_wordsize : forall i,
   clz i = repr wordsize ->
   i = repr 0.
@@ -661,7 +665,7 @@ Proof.
     have Ec: (convert_to_bits i = convert_to_bits zero).
     {
       move/all_nthP: N => /= F. rewrite convert_to_bits_size in F.
-      apply (@list_all_eq _ false).
+      apply (@seq_nth_eq _ false).
       - by repeat rewrite convert_to_bits_size.
       - rewrite convert_to_bits_size => n I. rewrite convert_to_bits_zero nth_nseq.
         move: (F false n I). move/eqP. destruct nth => //.

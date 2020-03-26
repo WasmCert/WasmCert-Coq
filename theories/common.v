@@ -252,6 +252,21 @@ Qed.
 Lemma rev0 : forall A, rev [::] = ([::] : seq A).
 Proof. reflexivity. Qed.
 
+Lemma seq_nth_eq : forall A (d : A) l1 l2,
+  seq.size l1 = seq.size l2 ->
+  (forall n, n < seq.size l1 -> seq.nth d l1 n = seq.nth d l2 n) ->
+  l1 = l2.
+Proof.
+  move=> A d. elim.
+  - by case.
+  - move=> e1 l1 IH. case => //= e2 l2 E F. f_equal.
+    + fold (nth d (e1 :: l1) 0). by rewrite F.
+    + apply: IH.
+      * by lias.
+      * move=> n I. have I': (n.+1 < (size l1).+1); first by lias.
+        by apply F in I'.
+Qed.
+
 
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 

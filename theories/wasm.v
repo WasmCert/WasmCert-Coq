@@ -83,7 +83,7 @@ Inductive value_type : Type := (* t *)
 
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 := is_left (value_type_eq_dec v1 v2).
-Definition eqvalue_typeP  : Equality.axiom value_type_eqb :=
+Definition eqvalue_typeP : Equality.axiom value_type_eqb :=
   eq_dec_Equality_axiom value_type_eq_dec.
 
 Canonical Structure value_type_eqMixin := EqMixin eqvalue_typeP.
@@ -121,39 +121,18 @@ Canonical Structure global_type_eqType := Eval hnf in EqType global_type global_
 Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
 
-Definition function_type_eqb (tf1 tf2 : function_type) :=
-  let: Tf vt11 vt12 := tf1 in
-  let: Tf vt21 vt22 := tf2 in
-  (vt11 == vt21) && (vt12 == vt22).
-
-Lemma eqfunction_typeP : Equality.axiom function_type_eqb.
+Definition function_type_eq_dec : forall tf1 tf2 : function_type,
+  { tf1 = tf2 } + { tf1 <> tf2 }.
 Proof.
-  case=> tf11 tf12.
-  case=> tf21 tf22.
-  rewrite /function_type_eqb.
-  case_eq (tf11 == tf21) => /= [/eqP-Hm|/eqP-Hm].
-  {
-    case_eq (tf12 == tf22) => /= [/eqP-Ht|/eqP-Ht].
-    {
-      apply/ReflectT.
-      by subst.
-    }
-    {
-      apply/ReflectF.
-      move=> H.
-      injection H => Ht2 Hm2.
-      by subst.
-    }
-  }
-  {
-    apply/ReflectF.
-    move=> H.
-    injection H => _ Hm2.
-    by subst.
-  }
-Qed.
+  repeat first [
+      apply: value_type_eq_dec
+    | apply: List.list_eq_dec
+    | decide equality ].
+Defined.
 
-Definition function_eq_dec := Equality_axiom_eq_dec eqfunction_typeP.
+Definition function_type_eqb v1 v2 := is_left (function_type_eq_dec v1 v2).
+Definition eqfunction_typeP : Equality.axiom function_type_eqb :=
+  eq_dec_Equality_axiom function_type_eq_dec.
 
 Canonical Structure function_type_eqMixin := EqMixin eqfunction_typeP.
 Canonical Structure function_type_eqType :=
@@ -170,9 +149,21 @@ Record t_context := {
   tc_return : option (list value_type);
 }.
 
-Parameter t_context_eq_dec : forall x y : t_context, {x = y} + {x <> y}. (* TODO *)
+Definition t_context_eq_dec : forall x y : t_context, {x = y} + {x <> y}.
+Proof.
+  repeat first [
+      apply: function_type_eq_dec
+    | apply: global_type_eq_dec
+    | apply: value_type
+    | apply: PeanoNat.Nat.eq_dec
+    | apply: Coqlib.option_eq
+    | apply: List.list_eq_dec
+    | decide equality ].
+Defined.
 
-Definition eqt_contextP := eq_dec_Equality_axiom t_context_eq_dec.
+Definition t_context_eqb v1 v2 := is_left (t_context_eq_dec v1 v2).
+Definition eqt_contextP : Equality.axiom t_context_eqb :=
+  eq_dec_Equality_axiom t_context_eq_dec.
 
 (*
 
@@ -338,29 +329,20 @@ Record instance : Type := (* inst *) {
   i_globs : list immediate;
 }.
 
-Definition instance_eqb (i1 i2 : instance) : bool :=
-  (i_types i1 == i_types i2)
-    &&
-    (i_funcs i1 == i_funcs i2)
-    &&
-    (i_tab i1 == i_tab i2)
-    &&
-    (i_mem i1 == i_mem i2)
-    &&
-    (i_globs i1 == i_globs i2)
-.
-
-Lemma eqinstanceP : Equality.axiom instance_eqb.
+Definition instance_eq_dec : forall (i1 i2 : instance), { i1 = i2 } + { i1 <> i2 }.
 Proof.
-  move=> i1 i2. case: i1; case: i2; intros;
-    by [ apply/ReflectF
-       | move=> /=; apply/iffP;
-         [ apply andP
-         | repeat (case; move/andP); case; repeat move/eqP => ?; f_equal
-         | inversion 1; subst; repeat (split=> //; apply/andP) ] ].
-Qed.
+  repeat first [
+      apply: function_type_eq_dec
+    | apply: PeanoNat.Nat.eq_dec
+    | apply: Coqlib.option_eq
+    | apply: List.list_eq_dec
+    | decide equality ].
+Defined.
 
-Definition instance_eq_dec := Equality_axiom_eq_dec eqinstanceP.
+Definition instance_eqb i1 i2 := is_left (instance_eq_dec i1 i2).
+
+Definition eqinstanceP : Equality.axiom instance_eqb :=
+  eq_dec_Equality_axiom instance_eq_dec.
 
 Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
 Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
@@ -369,7 +351,22 @@ Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
-Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
+(* TODO
+Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
+  { cl1 = cl2 } + { cl1 <> cl2 }.
+Proof.
+  repeat first [
+      apply: function_type_eq_dec
+    | apply: instance_eq_dec
+    | apply: basic_instruction_eq_dec
+    | apply: host_eq_dec
+    | apply: Coqlib.option_eq
+    | apply: List.list_eq_dec
+    | decide equality ].
+Defined.
+ *)
+
+Definition function_closure_eqb (cl1 cl2 : function_closure) :=
   match (cl1, cl2) with
   | (Func_native i1 tf1 vs1 eis1, Func_native i2 tf2 vs2 eis2) =>
     (i1 == i2) && (tf1 == tf2) && (vs1 == vs2) && (eis1 == eis2)
@@ -381,7 +378,8 @@ Definition function_closure_eqb (cl1 cl2 : function_closure) : bool :=
 Parameter eqfunction_closureP : Equality.axiom function_closure_eqb.
 (* TODO *)
 Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
-Canonical Structure function_closure_eqType := Eval hnf in EqType function_closure function_closure_eqMixin.
+Canonical Structure function_closure_eqType :=
+  Eval hnf in EqType function_closure function_closure_eqMixin.
 
 
 Definition tabinst := list (option function_closure).
