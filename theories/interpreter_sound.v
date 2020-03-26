@@ -3,7 +3,7 @@
 
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From StrongInduction Require Import StrongInduction.
+From StrongInduction Require Import StrongInduction Inductions.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -876,17 +876,6 @@ Proof.
   destruct es2 as [|e es2'] => //.
   destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
   by explode_and_simplify.
-Qed.
-
-(* Induction with step-size of 2 *)
-Lemma induction2: forall P:nat -> Prop,
-  P 0 -> P 1 ->
-  (forall n, P n -> P (n.+2)) ->
-  forall n, P n.
-Proof.
-  move => P H0 H1 IH n. strong induction n.
-  do 2 destruct n as [|n] => //.
-  apply: IH. apply: H. by lias.
 Qed.
 
 (* A sequence of labels with a break/return inside the inner most level. This 

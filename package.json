@@ -99,7 +99,7 @@
         "build": [ [ "make", "-j4" ], [ "make", "install" ] ]
       }
     },
-		"strong-induction": "github:Mbodin/strong-induction#e705f24eeb237b35ee0b2a5f33efd0d8efd0f31e",
+		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"parseque": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0"
   }
 }
