@@ -1,5 +1,5 @@
 (** Tests for the binary parser. **)
-Require Import binary.
+Require Import binary_parser.
 Require Import bytes datatypes_properties.
 Require Import Byte.
 From parseque Require Import Parseque Running.

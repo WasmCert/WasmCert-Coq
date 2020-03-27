@@ -1,7 +1,7 @@
 (** Extraction to OCaml. **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import binary type_checker interpreter.
+From Wasm Require Import binary_parser type_checker interpreter.
 
 Extraction Language OCaml.
 
