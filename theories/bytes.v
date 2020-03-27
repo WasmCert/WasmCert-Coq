@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import common.
 From compcert Require Import Integers.
 Require Import Coq.Arith.Le.
@@ -32,6 +32,25 @@ Proof. apply: List.list_eq_dec. apply: byte_eq_dec. Defined.
 Definition bytes_eqb (a b : bytes) := is_left (bytes_eq_dec a b).
 Definition eqbytesP : Equality.axiom bytes_eqb :=
   eq_dec_Equality_axiom bytes_eq_dec.
+
+Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
+  match n with
+  | O => nil
+  | S n' =>
+    match aas with
+    | nil => cons a (bytes_takefill a n' aas)
+    | cons a' aas' => cons a' (bytes_takefill a n' aas')
+    end
+  end.
+
+Fixpoint bytes_replicate (n : nat) (b : byte) : bytes :=
+  match n with
+  | 0 => [::]
+  | n'.+1 => b :: bytes_replicate n' b
+  end.
+
+Definition msbyte (bs : bytes) : option byte :=
+  last_error bs.
 
 Declare Scope byte_scope.
 Delimit Scope byte_scope with byte.
@@ -300,3 +319,4 @@ Notation "#FC" := (encode (#F * 16 + #C)) : byte_scope.
 Notation "#FD" := (encode (#F * 16 + #D)) : byte_scope.
 Notation "#FE" := (encode (#F * 16 + #E)) : byte_scope.
 Notation "#FF" := (encode (#F * 16 + #F)) : byte_scope.
+

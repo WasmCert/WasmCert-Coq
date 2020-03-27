@@ -291,6 +291,51 @@ Proof.
         by apply F in I'.
 Qed.
 
+Lemma nil_rcons : forall A l (a : A),
+  [::] <> rcons l a.
+Proof. move=> A. by case. Qed.
+
+Fixpoint last_error {A} (l : list A) : option A :=
+  match l with
+  | [::] => None
+  | [::x] => Some x
+  | _ :: l' => last_error l'
+  end.
+
+Lemma last_error_rcons : forall A l (a : A),
+  last_error (rcons l a) = Some a.
+Proof.
+  move=> A. elim; first by [].
+  move=> e l IH a /=. rewrite IH.
+  move: (@nil_rcons _ l a). by destruct rcons.
+Qed.
+
+Lemma rcons_last_error : forall A l (a : A),
+  last_error l = Some a ->
+  exists l', l = rcons l' a.
+Proof.
+  move=> A l. induction l using last_ind; first by [].
+  move=> a. rewrite last_error_rcons. case=> ?. subst. by eexists.
+Qed.
+
+Lemma last_error_nil : forall A (l : list A),
+  last_error l = None <-> l = [::].
+Proof.
+  move=> A. case => //= a l.
+  induction l using last_ind; first by [].
+  split=> //. rewrite last_error_rcons. by destruct rcons.
+Qed.
+
+Lemma last_error_last : forall A l (a : A),
+  last_error l = Some a ->
+  exists e l', l = e :: l' /\ a = last e l'.
+Proof.
+  move=> A. case=> // e l' a E.
+  exists e. exists l'. split => //.
+  move: (rcons_last_error E) => [l'' E'].
+  by rewrite -(last_cons e) E' last_rcons.
+Qed.
+
 
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 

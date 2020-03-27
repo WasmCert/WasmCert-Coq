@@ -7,7 +7,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm typing.
+Require Import operations typing.
 
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux

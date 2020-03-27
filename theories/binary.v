@@ -1,8 +1,8 @@
-(** Parser for the binary Wasm format **)
-(* TODO: move a few types to wasm.v *)
+(** Parser for the binary Wasm format. **)
+(* TODO: move a few types to wasm.v or bytes.v *)
 (* TODO: write a relational spec, and prove they correspond *)
 
-From Wasm Require Import wasm.
+From Wasm Require Import datatypes_properties.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Ascii Byte.

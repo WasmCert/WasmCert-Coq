@@ -8,7 +8,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm typing type_checker.
+Require Import operations typing type_checker.
 
 Lemma wasm_type_checker_reflects_typing:
   forall C es,

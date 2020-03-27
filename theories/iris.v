@@ -6,7 +6,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm opsem interpreter.
+Require Import operations opsem interpreter.
 
 Definition expr := list administrative_instruction.
 Definition val := list value.
@@ -268,9 +268,7 @@ Qed.
 
 Lemma wasm_mixin : LanguageMixin of_val to_val prim_step.
 Proof.
-  split; apply _ || eauto using to_of_val, of_to_val, val_head_stuck.
+  split; exact _ || eauto using to_of_val, of_to_val, val_head_stuck.
 Qed.
 
 Canonical Structure wasm := Language wasm_mixin.
-
-Export wasm.

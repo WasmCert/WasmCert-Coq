@@ -8,7 +8,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm typing type_checker opsem.
+Require Import operations typing type_checker opsem.
 
 Lemma progress :
   forall i s vs es ts,

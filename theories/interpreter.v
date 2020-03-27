@@ -4,7 +4,7 @@
 Require Import common.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Export wasm.
+Require Export operations.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -135,7 +135,7 @@ Section Host.
 
 Variable mem_grow_impl : mem -> nat -> option mem.
 
-Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
+Variable host_apply_impl : store_record -> function_type -> datatypes.host -> list value -> option (store_record * list value).
 
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in
@@ -253,7 +253,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
     | Basic (Cvtop t2 Reinterpret t1 sx) =>
       if ves is v :: ves' then
         if types_agree t1 v && (sx == None)
-        then (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise (bits v) t2 :: ves')))
+        then (s, vs, RS_normal (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))
         else (s, vs, crash_error)
       else (s, vs, crash_error)
     (**)
@@ -357,7 +357,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
              if List.nth_error (s_mem s) j is Some mem_s_j then
                expect
                  (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
-                 (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
+                 (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
              else (s, vs, crash_error))
           (s, vs, crash_error)
@@ -370,7 +370,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
              if List.nth_error (s_mem s) j is Some mem_s_j then
                expect
                  (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
-                 (fun bs => (s, vs, RS_normal (vs_to_es (wasm.wasm_deserialise bs t :: ves'))))
+                 (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
              else (s, vs, crash_error))
           (s, vs, crash_error)

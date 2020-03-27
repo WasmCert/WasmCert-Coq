@@ -4,7 +4,7 @@
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre.
-Require Export iris.
+Require Export operations iris.
 Set Default Proof Using "Type". (* what is this? *)
 
 Close Scope byte_scope.
@@ -68,7 +68,7 @@ Proof.
     (* FIXME: iSimpl "H". *)
 Admitted. (* TODO *)
 
-Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : wasm.value) (es : expr) (v : val) :
+Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : expr) (v : val) :
   WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I -∗ WP (((Basic (EConst v0)) :: es) : expr) @ s ; E {{ v, Φ v }}%I.
 Proof.
 Admitted. (* TODO *)

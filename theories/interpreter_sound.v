@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import wasm opsem interpreter wasm_properties_aux.
+Require Import operations opsem interpreter wasm_properties_aux.
 
 
 Section Host.
@@ -21,11 +21,11 @@ Hypothesis mem_grow_impl_correct :
     mem_grow_impl m n = Some m' ->
     mem_grow m n = m'.
 
-Variable host_apply_impl : store_record -> function_type -> wasm.host -> list value -> option (store_record * list value).
+Variable host_apply_impl : store_record -> function_type -> datatypes.host -> list value -> option (store_record * list value).
 Hypothesis host_apply_impl_correct :
   forall s tf h vs m',
     host_apply_impl s tf h vs = Some m' ->
-    exists hs, wasm.host_apply s tf h vs hs = Some m'.
+    exists hs, host_apply s tf h vs hs = Some m'.
 
 Let run_one_step := run_one_step mem_grow_impl host_apply_impl.
 Let run_step := run_step mem_grow_impl host_apply_impl.

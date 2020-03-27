@@ -4,7 +4,7 @@
 
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Export wasm.
+Require Export operations.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -89,7 +89,7 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
 | rs_reinterpret :
   forall t1 t2 v,
   types_agree t1 v ->
-  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Reinterpret t1 None)] [::Basic (EConst (wasm.wasm_deserialise (bits v) t2))]
+  reduce_simple [::Basic (EConst v); Basic (Cvtop t2 Reinterpret t1 None)] [::Basic (EConst (wasm_deserialise (bits v) t2))]
 (* *)
 | rs_unreachable :
   reduce_simple [::Basic Unreachable] [::Trap]
@@ -223,7 +223,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       length vcs == n ->
       length t1s == n ->
       length t2s == m ->
-      wasm.host_apply s (Tf t1s t2s) f vcs hs == Some (s', vcs') ->
+      host_apply s (Tf t1s t2s) f vcs hs == Some (s', vcs') ->
       reduce s vs (ves ++ [::Callcl cl]) i s' vs (v_to_e_list vcs')
 | r_callcl_host_failure :
     forall cl t1s t2s f ves vcs n m s vs i,
@@ -254,7 +254,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
       load m (Wasm_int.nat_of_uint i32m k) off (t_length t) == Some bs ->
-      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Basic (EConst (wasm.wasm_deserialise bs t))]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Basic (EConst (wasm_deserialise bs t))]
 | r_load_failure :
     forall s i t vs k a off m j,
       smem_ind s i = Some j ->
@@ -266,7 +266,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       smem_ind s i = Some j ->
       List.nth_error (s_mem s) j == Some m ->
       load_packed sx m (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t) = Some bs ->
-      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i s vs [::Basic (EConst (wasm.wasm_deserialise bs t))]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i s vs [::Basic (EConst (wasm_deserialise bs t))]
 | r_load_packed_failure :
     forall s i t tp vs k a off m j sx,
       smem_ind s i == Some j ->

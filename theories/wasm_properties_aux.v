@@ -1,4 +1,4 @@
-Require Export wasm typing opsem interpreter.
+Require Export operations typing opsem interpreter.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Bool.
 

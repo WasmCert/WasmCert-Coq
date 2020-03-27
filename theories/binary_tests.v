@@ -1,19 +1,15 @@
+(** Tests for the binary parser. **)
 Require Import binary.
-Require Import bytes.
-Require Import wasm.
+Require Import bytes datatypes_properties.
 Require Import Byte.
 From parseque Require Import Parseque Running.
 Require Import check_toks.
 
 Lemma test_unreachable : check_toks (x00 :: nil) be = Singleton Unreachable.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma test_nop : check_toks (x01 :: nil) be = Singleton Nop.
-Proof.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
 (** Example from Wikipedia: https://en.wikipedia.org/wiki/WebAssembly#Code_representation
   This is the representation of a factorial function. **)

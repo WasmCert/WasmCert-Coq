@@ -1,13 +1,11 @@
 (* Wasm typing rules *)
 (* (C) J. Pichon - see LICENSE.txt *)
-From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+Require Import operations.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Require Import wasm.
 
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   (sxo == None) ==
