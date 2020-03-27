@@ -2,7 +2,7 @@
 (* TODO: move a few types to the [datatypes] or [bytes] modules. *)
 (* TODO: write a relational spec, and prove they correspond *)
 
-From Wasm Require Import datatypes_properties.
+From Wasm Require Import datatypes datatypes_properties.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Ascii Byte.
@@ -40,10 +40,13 @@ Definition s64 {n} : w_parser Wasm_int.Int64.int n :=
   (fun x => Wasm_int.Int64.repr x) <$> (extract signed_ n).
 
 Definition f32 {n} : w_parser Wasm_float.FloatSize32.T n :=
-  exact_byte x00 $> Wasm_float.Float32.pos_zero (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *).
+  (* TODO: use  Flocq.IEEE754.Bits.b32_of_bits *)
+  (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *)
+  exact_byte x00 $> Wasm_float.Float32.pos_zero.
 
 Definition f64 {n} : w_parser Wasm_float.FloatSize64.T n :=
-  exact_byte x00 $> Wasm_float.Float64.pos_zero (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *).
+  (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *)
+  exact_byte x00 $> Wasm_float.Float64.pos_zero.
 
 Definition u32_nat {n} : w_parser nat n :=
   (fun x => (Wasm_int.nat_of_uint i32m x)) <$> u32.
@@ -65,32 +68,17 @@ Definition vec {B} {n} (f : w_parser B n)
   (u32_zero $> nil) <|>
   (veclen >>= (fun k => vec_aux f k)).
 
-Inductive labelidx : Type :=
-| Mk_labelidx : nat -> labelidx.
-
 Definition labelidx_ {n} : w_parser labelidx n :=
   (fun x => Mk_labelidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
-
-Inductive funcidx : Type :=
-| Mk_funcidx : nat -> funcidx.
 
 Definition funcidx_ {n} : w_parser funcidx n :=
   (fun x => Mk_funcidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
 
-Inductive typeidx : Type :=
-| Mk_typeidx : nat -> typeidx.
-
 Definition typeidx_ {n} : w_parser typeidx n :=
   (fun x => Mk_typeidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
 
-Inductive localidx : Type :=
-| Mk_localidx : nat -> localidx.
-
 Definition localidx_ {n} : w_parser localidx n :=
   (fun x => Mk_localidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
-
-Inductive globalidx : Type :=
-| Mk_globalidx : nat -> globalidx.
 
 Definition globalidx_ {n} : w_parser globalidx n :=
   (fun x => Mk_globalidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
@@ -487,8 +475,6 @@ Definition bes : [ w_parser (list basic_instruction) ] := fun n => _bes n (langu
 Definition end_ {n} : w_parser unit n :=
   cmap tt (exact_byte x0b).
 
-Definition expr := list basic_instruction.
-
 Definition expr_ {n} : w_parser (list basic_instruction) n :=
   extract bes n. (* TODO: is that right? *)
 
@@ -498,36 +484,18 @@ Definition byte_ {n} : w_parser ascii n :=
 Definition function_type_ {n} : w_parser function_type n :=
   exact_byte x60 &> (prod_curry Tf <$> vec value_type_ <&> vec value_type_).
 
-Record limits := Mk_limits { lim_min : nat; lim_max : option nat; }.
-
 Definition limits_ {n} : w_parser limits n :=
   exact_byte x00 &> ((fun min => Mk_limits min None) <$> u32_nat) <|>
   exact_byte x01 &> ((fun min max => Mk_limits min (Some max)) <$> u32_nat) <*> u32_nat.
 
-Inductive elem_type : Type :=
-| elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
-
 Definition elem_type_ {n} : w_parser elem_type n :=
   exact_byte x70 $> elem_type_tt.
-
-Record table_type : Type := Mk_table_type {
-  tt_limits : limits;
-  tt_elem_type : elem_type;
-}.
 
 Definition table_type_ {n} : w_parser table_type n :=
   prod_curry Mk_table_type <$> (limits_ <&> elem_type_).
 
-Record mem_type : Type := Mk_mem_type { mem_type_lims : limits }.
-
 Definition mem_type_ {n} : w_parser mem_type n :=
-Mk_mem_type <$> limits_.
-
-Inductive import_desc : Type :=
-| ID_func : nat -> import_desc
-| ID_table : table_type -> import_desc
-| ID_mem : mem_type -> import_desc
-| ID_global : global_type -> import_desc.
+  Mk_mem_type <$> limits_.
 
 Definition mut_ {n} : w_parser mutability n :=
   exact_byte x00 $> T_immut <|>
@@ -542,37 +510,13 @@ Definition import_desc_ {n} : w_parser import_desc n :=
   exact_byte x02 &> (ID_mem <$> mem_type_) <|>
   exact_byte x03 &> (ID_global <$> global_type_).
 
-Definition name := list ascii.
 
-Record import : Type := Mk_import {
-  imp_module : name;
-  imp_name : name;
-  imp_desc : import_desc;
-}.
 
 Definition import_ {n} : w_parser import n :=
   (Mk_import <$> vec byte_) <*> vec byte_ <*> import_desc_.
 
-Record table := Mk_table { t_type : table_type }.
-
-Definition table_ {n} : w_parser table n :=
-  Mk_table <$> table_type_.
-
-Definition mem := limits.
-
-Record global2 : Type := {
-  g_type : global_type;
-  g_init : expr;
-}.
-
 Definition global2_ {n} : w_parser global2 n :=
   (Build_global2 <$> global_type_) <*> expr_.
-
-Inductive export_desc : Type :=
-| ED_func : nat -> export_desc
-| ED_table : nat -> export_desc
-| ED_mem : nat -> export_desc
-| ED_global : nat -> export_desc.
 
 Definition export_desc_ {n} : w_parser export_desc n :=
   exact_byte x00 &> (ED_func <$> u32_nat) <|>
@@ -580,32 +524,14 @@ Definition export_desc_ {n} : w_parser export_desc n :=
   exact_byte x02 &> (ED_mem <$> u32_nat) <|>
   exact_byte x03 &> (ED_global <$> u32_nat).
 
-Record export : Type := {
-  exp_name : name;
-  exp_desc : export_desc;
-}.
-
 Definition export_ {n} : w_parser export n :=
   (Build_export <$> vec byte_) <*> export_desc_.
-
-Record start := { start_func : nat; }.
 
 Definition start_ {n} : w_parser start n :=
   Build_start <$> u32_nat.
 
-Record element : Type := {
-  elem_table : nat;
-  elem_offset : expr;
-  elem_init : list nat;
-}.
-
 Definition element_ {n} : w_parser element n :=
   (Build_element <$> u32_nat) <*> expr_ <*> vec u32_nat.
-
-Record func : Type := {
-  fc_locals : list value_type;
-  fc_expr : expr;
-}.
 
 Definition locals_ {n} : w_parser (list value_type) n :=
   vec value_type_.
@@ -622,28 +548,11 @@ Definition code_ {n} : w_parser func n :=
       end)
     (u32_nat <&> func_).
 
-Record data : Type := {
-  dt_data : nat;
-  dt_offset : expr;
-  dt_init : list ascii;
-}.
+Definition table_ {n} : w_parser table n :=
+  Mk_table <$> table_type_.
 
 Definition data_ {n} : w_parser data n :=
   (Build_data <$> u32_nat) <*> expr_ <*> vec byte_.
-
-Inductive section : Type :=
-| Sec_custom : list ascii -> section
-| Sec_type : list function_type -> section
-| Sec_import : list import -> section
-| Sec_function : list typeidx -> section
-| Sec_table : list table -> section
-| Sec_memory : list mem -> section
-| Sec_global : list global2 -> section
-| Sec_export : list export -> section
-| Sec_start : start -> section
-| Sec_element : list element -> section
-| Sec_code : list func -> section
-| Sec_data : list data -> section.
 
 Definition customsec {n} : w_parser (list ascii) n :=
   exact_byte x00 &> vec byte_.
@@ -700,25 +609,6 @@ Definition magic {n} : w_parser unit n :=
 
 Definition version {n} : w_parser unit n :=
   (exact_byte x01 &> exact_byte x00 &> exact_byte x00 &> exact_byte x00) $> tt.
-
-Record func2 : Type := {
-  fc2_type : typeidx;
-  fc2_locals : list value_type;
-  fc2_body : expr;
-}.
-
-Record module : Type := {
-  mod_types : list function_type;
-  mod_funcs : list func2;
-  mod_tables : list table;
-  mod_mems : list mem;
-  mod_globals : list global2;
-  mod_elements : list element;
-  mod_data : list data;
-  mod_start : option start;
-  mod_imports : list import;
-  mod_exports : list export;
-}.
 
 Definition customsec_forget_ {A n} : w_parser (A -> A) n :=
   (fun _ x => x) <$> customsec.
