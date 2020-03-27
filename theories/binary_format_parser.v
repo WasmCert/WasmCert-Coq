@@ -133,7 +133,7 @@ Definition br_table {n} : w_parser basic_instruction n :=
 Definition return_ {n} : w_parser basic_instruction n :=
   exact_byte x0f $> Return.
 
-Definition call {n} : w_parser basic_instruction n :=
+Definition parse_call {n} : w_parser basic_instruction n :=
   exact_byte x10 &> (extract_funcidx Call <$> funcidx_).
 
 Definition call_indirect {n} : w_parser basic_instruction n :=
@@ -434,7 +434,9 @@ Definition numeric_instruction {n} : be_parser n :=
 
 Record Language (n : nat) : Type := MkLanguage
 { _be : w_parser basic_instruction n;
-  _bes : w_parser (list basic_instruction) n;
+  _bes_end_with_x0b : w_parser (list basic_instruction) n;
+  _bes_end_with_x05 : w_parser (list basic_instruction) n;
+  _if_body : w_parser ((list basic_instruction) * (list basic_instruction)) n;
 }.
 
 Arguments MkLanguage {_}.
@@ -442,32 +444,46 @@ Arguments MkLanguage {_}.
 Context
   {Tok : Type} {A B : Type} {n : nat}.
 
-Definition language : [ Language ] := Fix Language (fun _ rec =>
-  let bes_aux := Induction.map _bes _ rec in
-  let block := exact_byte x02 &> ((Block <$> block_type_as_function_type) <*> bes_aux) <& exact_byte x0b in
-  let loop := exact_byte x03 &> ((Loop <$> block_type_as_function_type) <*> bes_aux) <& exact_byte x0b in
-  let if_rest :=
-    (exact_byte x0b $> nil) <|>
-    ((exact_byte x05 &> bes_aux) <& exact_byte x0b) in
-  let if_ := exact_byte x04 &> ((If <$> block_type_as_function_type) <*> bes_aux <*> if_rest) in
-  let be :=
+Definition language : [ Language ] := Fix Language (fun k rec =>
+  let be_aux := Induction.map _be _ rec in
+  let bes_end_with_x0b_aux := Induction.map _bes_end_with_x0b _ rec in
+  let bes_end_with_x05_aux := Induction.map _bes_end_with_x05 _ rec in
+  let parse_block :=
+    exact_byte x02 &> ((Block <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
+  let parse_loop :=
+    exact_byte x03 &> ((Loop <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
+  let parse_if_body :=
+    (* TODO: make this work! the problem is that the LHS of <&> needs to be a Parser, not a Box Parser, to guarantee productivity;
+      however, I don't know how to do that  *)
+    (bes_end_with_x05_aux <&> bes_end_with_x0b_aux) <|>
+    ((fun x => (x, nil)) <$> bes_end_with_x0b_aux)
+     in
+  let parse_if :=
+    (fun x '(y, z) => If x y z) <$>
+    (exact_byte x04 &> block_type_as_function_type) <*> parse_if_body in
+  let parse_be :=
     unreachable <|>
     nop <|>
-    block <|>
-    loop <|>
-    if_ <|>
+    parse_block <|>
+    parse_loop <|>
+    parse_if <|>
     br <|>
     br_if <|>
     br_table <|>
     return_ <|>
-    call <|>
+    parse_call <|>
     call_indirect <|>
     parametric_instruction <|>
     variable_instruction <|>
     memory_instruction <|>
     numeric_instruction in
-  let bes := (fun l => NEList.toList l) <$> nelist be in
-  MkLanguage be bes).
+  let parse_bes_end_with_x0b :=
+    (exact_byte x0b $> nil) <|>
+    ((cons <$> parse_be) <*> bes_end_with_x0b_aux) in
+    let parse_bes_end_with_x05 :=
+    (exact_byte x05 $> nil) <|>
+    ((cons <$> parse_be) <*> bes_end_with_x05_aux) in
+  MkLanguage parse_be parse_bes_end_with_x0b parse_bes_end_with_x05).
 
 Definition be : [ w_parser basic_instruction ] := fun n => _be n (language n).
 Definition bes : [ w_parser (list basic_instruction) ] := fun n => _bes n (language n).
@@ -476,7 +492,8 @@ Definition end_ {n} : w_parser unit n :=
   cmap tt (exact_byte x0b).
 
 Definition expr_ {n} : w_parser (list basic_instruction) n :=
-  extract bes n. (* TODO: is that right? *)
+  (* TODO: is that right? *)
+  extract bes n <& end_.
 
 Definition byte_ {n} : w_parser ascii n :=
   anyTok.
@@ -509,8 +526,6 @@ Definition import_desc_ {n} : w_parser import_desc n :=
   exact_byte x01 &> (ID_table <$> table_type_) <|>
   exact_byte x02 &> (ID_mem <$> mem_type_) <|>
   exact_byte x03 &> (ID_global <$> global_type_).
-
-
 
 Definition import_ {n} : w_parser import n :=
   (Mk_import <$> vec byte_) <*> vec byte_ <*> import_desc_.
@@ -688,8 +703,14 @@ Definition run : list ascii -> [ Parser (SizedList Tok) Tok M A ] -> option A :=
 
 End Run.
 
-Definition parse_wasm (bs : list Ascii.ascii) : option basic_instruction :=
+Definition parse_be (bs : list Ascii.ascii) : option basic_instruction :=
   run bs be.
 
-Definition parse_wasm_bytes (bs : list byte) : option basic_instruction :=
+Definition parse_be_from_bytes (bs : list byte) : option basic_instruction :=
   run (List.map ascii_of_byte bs) be.
+
+Definition parse_expr_from_bytes (bs : list byte) : option (list basic_instruction) :=
+  run (List.map ascii_of_byte bs) (fun n => expr_).
+
+Definition parse_module_from_bytes (bs : list byte) : option module :=
+  run (List.map ascii_of_byte bs) (fun n => module_).

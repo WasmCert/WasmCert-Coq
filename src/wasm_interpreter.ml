@@ -16,7 +16,7 @@ let interpret verbose text no_exec srcs fname =
               close_in in_channel ;
               List.rev acc in
           aux []) srcs in
-    match Extract.parse_wasm (Convert.to_list (List.concat files)) with
+    match Extract.parse_be (Convert.to_list (List.concat files)) with
     | None -> `Error (false, "Syntax error")
     | Some e ->
       `Ok (Printf.printf "Parsing successful")
