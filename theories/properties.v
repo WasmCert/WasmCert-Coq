@@ -1,3 +1,6 @@
+(** Miscellaneous properties about Wasm operations **)
+(* (C) Rao Xiaojia - see LICENSE.txt *)
+
 Require Export operations typing opsem interpreter.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Bool.

@@ -1,4 +1,4 @@
-(* the Wasm type checker reflects typing (soundness and completeness) *)
+(** The Wasm type checker reflects typing (soundness and completeness) **)
 (* (C) J. Pichon - see LICENSE.txt *)
 
 From mathcomp

@@ -10,30 +10,30 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-Definition read_bytes (m : mem) (n : nat) (l : nat) : bytes :=
+Definition read_bytes (m : memory) (n : nat) (l : nat) : bytes :=
   take l (List.skipn n m).
 
-Definition write_bytes (m : mem) (n : nat) (bs : bytes) : mem :=
+Definition write_bytes (m : memory) (n : nat) (bs : bytes) : memory :=
   app (take n m) (app bs (List.skipn (n + length bs) m)).
 
-Definition mem_append (m : mem) (bs : bytes) := app m bs.
+Definition mem_append (m : memory) (bs : bytes) := app m bs.
 
-Definition upd_s_mem (s : store_record) (m : list mem) : store_record :=
+Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
   Build_store_record
     (s_funcs s)
     (s_tab s)
     m
     (s_globs s).
 
-Definition mem_size (m : mem) :=
+Definition mem_size (m : memory) :=
   length m.
 
-Definition mem_grow (m : mem) (n : nat) :=
+Definition mem_grow (m : memory) (n : nat) :=
   m ++ bytes_replicate (n * 64000) #00.
 
 (* TODO: We crucially need documentation here. *)
 
-Definition load (m : mem) (n : nat) (off : static_offset) (l : nat) : option bytes :=
+Definition load (m : memory) (n : nat) (off : static_offset) (l : nat) : option bytes :=
   if mem_size m >= (n + off + l)
   then Some (read_bytes m (n + off) l)
   else None.
@@ -46,10 +46,10 @@ Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
   bytes_takefill byte l bytes
 *)
 
-Definition load_packed (s : sx) (m : mem) (n : nat) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
+Definition load_packed (s : sx) (m : memory) (n : nat) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
   option_map (sign_extend s l) (load m n off lp).
 
-Definition store (m : mem) (n : nat) (off : static_offset) (bs : bytes) (l : nat) : option mem :=
+Definition store (m : memory) (n : nat) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
   if (mem_size m) >= (n + off + l)
   then Some (write_bytes m (n + off) (bytes_takefill #00 l bs))
   else None.
@@ -245,7 +245,7 @@ Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value 
   option_map g_val (sglob s i j).
 
 Definition smem_ind (s : store_record) (i : instance) : option nat :=
-  i_mem i.
+  i_memory i.
 
 Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
   let: stabinst := List.nth_error (s_tab s) i in
@@ -265,7 +265,7 @@ Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option stor
     (fun g =>
       let: g' := Build_global (g_mut g) v in
       let: gs' := update_list_at (s_globs s) k g' in
-      Build_store_record (s_funcs s) (s_tab s) (s_mem s) gs')
+      Build_store_record (s_funcs s) (s_tab s) (s_memory s) gs')
     (List.nth_error (s_globs s) k).
 
 Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
@@ -282,7 +282,7 @@ Definition const_list (es : list administrative_instruction) : bool :=
 Definition store_extension (s s' : store_record) : bool :=
   (s_funcs s == s_funcs s') &&
   (s_tab s == s_tab s') &&
-  (all2 (fun bs bs' => mem_size bs <= mem_size bs') (s_mem s) (s_mem s')) &&
+  (all2 (fun bs bs' => mem_size bs <= mem_size bs') (s_memory s) (s_memory s')) &&
   (s_globs s == s_globs s').
 
 Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=

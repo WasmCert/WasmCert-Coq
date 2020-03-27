@@ -1,4 +1,4 @@
-(* Wasm type checker *)
+(** Wasm type checker **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -367,7 +367,7 @@ Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
     (collect_at_inds (map cl_type (s_funcs s)) (i_funcs i))
     (collect_at_inds (map (fun glob => Build_global_type (g_mut glob) (typeof (g_val glob))) (s_globs s)) (i_globs i))
     (option_map (@length (option function_closure)) (match (i_tab i) with | Some n => List.nth_error (s_tab s) n | None => None end))
-    (option_map (@length (byte)) (match (i_mem i) with | Some n => List.nth_error (s_mem s) n | None => None end))
+    (option_map (@length (byte)) (option_bind (List.nth_error (s_memory s)) (i_memory i)))
     [::]
     [::]
     None.

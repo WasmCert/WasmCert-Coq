@@ -1,5 +1,5 @@
-(* Wasm operational semantics *)
-(* The interpreter in wasm_interpreter.v is an executable version of this operational semantics. *)
+(** Wasm operational semantics **)
+(** The interpreter in the [interpreter] module is an executable version of this operational semantics. **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Coq Require Import ZArith.BinInt.
@@ -252,72 +252,72 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
 | r_load_success :
     forall s i t bs vs k a off m j,
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j == Some m ->
+      List.nth_error (s_memory s) j == Some m ->
       load m (Wasm_int.nat_of_uint i32m k) off (t_length t) == Some bs ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Basic (EConst (wasm_deserialise bs t))]
 | r_load_failure :
     forall s i t vs k a off m j,
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j = Some m ->
+      List.nth_error (s_memory s) j = Some m ->
       load m (Wasm_int.nat_of_uint i32m k) off (t_length t) == None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i s vs [::Trap]
 | r_load_packed_success :
     forall s i t tp vs k a off m j bs sx,
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j == Some m ->
+      List.nth_error (s_memory s) j == Some m ->
       load_packed sx m (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t) = Some bs ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i s vs [::Basic (EConst (wasm_deserialise bs t))]
 | r_load_packed_failure :
     forall s i t tp vs k a off m j sx,
       smem_ind s i == Some j ->
-      List.nth_error (s_mem s) j = Some m ->
+      List.nth_error (s_memory s) j = Some m ->
       load_packed sx m (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i s vs [::Trap]
 | r_store_success :
     forall t v s i j vs mem' k a off m,
       types_agree t v ->
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j = Some m ->
+      List.nth_error (s_memory s) j = Some m ->
       store m (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t) = Some mem' ->
-      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i (upd_s_mem s (update_list_at (s_memory s) j mem')) vs [::]
 | r_store_failure :
     forall t v s i j m k off a vs,
       types_agree t v ->
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j == Some m ->
+      List.nth_error (s_memory s) j == Some m ->
       store m (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i s vs [::Trap]
 | r_store_packed_success :
     forall t v s i j m k off a vs mem' tp,
       types_agree t v ->
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j == Some m ->
+      List.nth_error (s_memory s) j == Some m ->
       store_packed m (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp) == Some mem' ->
-      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i (upd_s_mem s (update_list_at (s_memory s) j mem')) vs [::]
 | r_store_packed_failure :
     forall t v s i j m k off a vs tp,
       types_agree t v ->
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j = Some m ->
+      List.nth_error (s_memory s) j = Some m ->
       store_packed m (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i s vs [::Trap]
 | r_current_memory :
     forall i j m n s vs,
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j = Some m ->
+      List.nth_error (s_memory s) j = Some m ->
       mem_size m = n ->
       reduce s vs [::Basic (Current_memory)] i s vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
 | r_grow_memory_success :
     forall s i j m n mem' vs c,
       smem_ind s i = Some j ->
-      List.nth_error (s_mem s) j = Some m ->
+      List.nth_error (s_memory s) j = Some m ->
       mem_size m = n ->
       mem_grow m (Wasm_int.nat_of_uint i32m c) = mem' ->
-      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i (upd_s_mem s (update_list_at (s_mem s) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
+      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i (upd_s_mem s (update_list_at (s_memory s) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
 | r_grow_memory_failure :
     forall i j m n s vs c,
       smem_ind s i == Some j ->
-      List.nth_error (s_mem s) j == Some m ->
+      List.nth_error (s_memory s) j == Some m ->
       mem_size m = n ->
       reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i s vs [::Basic (EConst (ConstInt32 int32_minus_one))]
 | r_label :

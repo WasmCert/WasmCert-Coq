@@ -1,4 +1,4 @@
-(* safety of Wasm *)
+(** safety of Wasm **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp

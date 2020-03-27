@@ -1,3 +1,6 @@
+(** Definition of bytes **)
+(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import common.
 From compcert Require Import Integers.

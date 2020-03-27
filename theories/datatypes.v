@@ -29,7 +29,7 @@ Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.
 Parameter serialise_f64 : f64 -> bytes.
 
-Definition mem := list byte.
+Definition memory := list byte.
 
 Inductive value_type : Type := (* t *)
 | T_i32
@@ -69,7 +69,7 @@ Record s_context := {
   sc_inst : list t_context;
   sc_funcs : list function_type;
   sc_tab : list nat;
-  sc_mem : list nat;
+  sc_memory : list nat;
   sc_globs : list global_type;
 }.
 
@@ -182,7 +182,7 @@ Record instance : Type := (* inst *) {
   i_types : list function_type;
   i_funcs : list immediate;
   i_tab : option immediate;
-  i_mem : option immediate;
+  i_memory : option immediate;
   i_globs : list immediate;
 }.
 
@@ -200,7 +200,7 @@ Record global : Type := {
 Record store_record : Type := (* s *) {
   s_funcs : list function_closure;
   s_tab : list tabinst;
-  s_mem : list mem;
+  s_memory : list memory;
   s_globs : list global;
 }.
 

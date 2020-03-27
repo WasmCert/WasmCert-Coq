@@ -350,7 +350,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         expect
           (smem_ind s i)
           (fun j =>
-             if List.nth_error (s_mem s) j is Some mem_s_j then
+             if List.nth_error (s_memory s) j is Some mem_s_j then
                expect
                  (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
                  (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
@@ -363,7 +363,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         expect
           (smem_ind s i)
           (fun j =>
-             if List.nth_error (s_mem s) j is Some mem_s_j then
+             if List.nth_error (s_memory s) j is Some mem_s_j then
                expect
                  (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
                  (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
@@ -378,11 +378,11 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           expect
             (smem_ind s i)
             (fun j =>
-               if List.nth_error (s_mem s) j is Some mem_s_j then
+               if List.nth_error (s_memory s) j is Some mem_s_j then
                  expect
                    (store mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t))
                    (fun mem' =>
-                      (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
+                      (upd_s_mem s (update_list_at (s_memory s) j mem'), vs, RS_normal (vs_to_es ves')))
                    (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
                else (s, vs, crash_error))
             (s, vs, crash_error)
@@ -395,11 +395,11 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           expect
             (smem_ind s i)
             (fun j =>
-               if List.nth_error (s_mem s) j is Some mem_s_j then
+               if List.nth_error (s_memory s) j is Some mem_s_j then
                  expect
                    (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
-                      (upd_s_mem s (update_list_at (s_mem s) j mem'), vs, RS_normal (vs_to_es ves')))
+                      (upd_s_mem s (update_list_at (s_memory s) j mem'), vs, RS_normal (vs_to_es ves')))
                    (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
                else (s, vs, crash_error))
             (s, vs, crash_error)
@@ -409,7 +409,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
       expect
         (smem_ind s i)
         (fun j =>
-           if List.nth_error (s_mem s) j is Some s_mem_s_j then
+           if List.nth_error (s_memory s) j is Some s_mem_s_j then
              (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
            else (s, vs, crash_error))
         (s, vs, crash_error)
@@ -418,10 +418,10 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         expect
           (smem_ind s i)
           (fun j =>
-            if List.nth_error (s_mem s) j is Some s_mem_s_j then
+            if List.nth_error (s_memory s) j is Some s_mem_s_j then
               let: l := mem_size s_mem_s_j in
               let: mem' := mem_grow s_mem_s_j (Wasm_int.nat_of_uint i32m c) in
-              (upd_s_mem s (update_list_at (s_mem s) j mem'), vs,
+              (upd_s_mem s (update_list_at (s_memory s) j mem'), vs,
                RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
             else (s, vs, crash_error))
           (s, vs, crash_error)

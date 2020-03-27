@@ -1,4 +1,4 @@
-(* soundness of the Wasm interpreter *)
+(** soundness of the Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
 Require Import common.
@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations opsem interpreter wasm_properties_aux.
+Require Import operations opsem interpreter properties.
 
 
 Section Host.

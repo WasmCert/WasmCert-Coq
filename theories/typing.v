@@ -1,4 +1,4 @@
-(* Wasm typing rules *)
+(** Wasm typing rules **)
 (* (C) J. Pichon - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import operations.
@@ -154,7 +154,7 @@ Definition glob_agree (g : global) (tg : global_type) : bool :=
 Definition globi_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => glob_agree g tg) (List.nth_error gs n) == Some true).
 
-Definition memi_agree (sm : list mem) (j : option nat) (m : option nat) : bool :=
+Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : bool :=
   match j, m with
   | None, None => true
   | None, Some _ => false
@@ -178,7 +178,7 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
              | Some _, None => false
              | Some i', Some n' => (i' < length (s_tab s)) && (option_map (@length (option function_closure)) (List.nth_error (s_tab s) i') == Some n')
              end) &&
-          (memi_agree (s_mem s) j m)
+          (memi_agree (s_memory s) j m)
   else false.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
