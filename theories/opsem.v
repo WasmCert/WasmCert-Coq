@@ -217,13 +217,13 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       n_zeros ts == zs ->
       reduce s vs (ves ++ [::Callcl cl]) i s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
 | r_callcl_host_success :
-    forall cl f t1s t2s ves vcs m n s s' vcs' vs i hs,
+    forall cl f t1s t2s ves vcs m n s s' vcs' vs i,
       cl == Func_host (Tf t1s t2s) f ->
       ves = v_to_e_list vcs ->
       length vcs == n ->
       length t1s == n ->
       length t2s == m ->
-      host_apply s (Tf t1s t2s) f vcs hs == Some (s', vcs') ->
+      host_apply s (Tf t1s t2s) f vcs (* FIXME: hs *) == Some (s', vcs') ->
       reduce s vs (ves ++ [::Callcl cl]) i s' vs (v_to_e_list vcs')
 | r_callcl_host_failure :
     forall cl t1s t2s f ves vcs n m s vs i,

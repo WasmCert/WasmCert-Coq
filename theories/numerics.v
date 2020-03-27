@@ -332,7 +332,7 @@ Qed.
 (** Given a [T], return a sequence of bits representing the integer.
   The first bit is the most significant bit. **)
 Definition convert_to_bits (x : T) : seq bool :=
-  let l := Zbits.Z_one_bits wordsize (intval x) 0 in
+  let: l := Zbits.Z_one_bits wordsize (intval x) 0 in
   (** [l] is the list of positions (unitary position being the position [0]) where
       the value [x] has a bit as true. **)
   power_index_to_bits wordsize l.
@@ -437,7 +437,7 @@ Fixpoint convert_from_bits_to_Z_one_bits l : seq Z :=
   match l with
   | [::] => [::]
   | b :: l =>
-    let c := convert_from_bits_to_Z_one_bits l in
+    let: c := convert_from_bits_to_Z_one_bits l in
     if b then
       (seq.size l : Z) :: c
     else c
@@ -563,17 +563,17 @@ Qed.
 
 (** Return the count of leading zero bits. **)
 Definition clz i :=
-  let l := convert_to_bits i in
+  let: l := convert_to_bits i in
   repr (seq.find (fun b => b == true) l).
 
 (** Return the count of trailing zero bits. **)
 Definition ctz i :=
-  let l := convert_to_bits i in
+  let: l := convert_to_bits i in
   repr (seq.find (fun b => b == true) (seq.rev l)).
 
 (** Return the count of non-zero bits. **)
 Definition popcnt i :=
-  let l := convert_to_bits i in
+  let: l := convert_to_bits i in
   repr (seq.count (fun b => b == true) l).
 
 Local Lemma Zbits_powerserie_uniq_in : forall z l,
@@ -722,11 +722,11 @@ Definition idiv_u (i1 i2 : T) : option T :=
 
 (** Signed division, following the Wasm standard. **)
 Definition idiv_s (i1 i2 : T) : option T :=
-  let j1 := signed i1 in
-  let j2 := signed i2 in
+  let: j1 := signed i1 in
+  let: j2 := signed i2 in
   if j2 == 0 then None
   else
-    let d := (j1 ÷ j2)%Z in
+    let: d := (j1 ÷ j2)%Z in
     if d == half_modulus then None
     else Some (repr d).
 
@@ -791,13 +791,13 @@ Qed.
 (** Return the quotient of two numbers, with the sign of the dividend.
   Note that the sign convention differs from the [%] operator in C. **)
 Definition irem_s (i1 i2 : T) : option T :=
-  let j1 := signed i1 in
-  let j2 := signed i2 in
+  let: j1 := signed i1 in
+  let: j2 := signed i2 in
   if j2 == 0 then None
   else
     (** We then return the remainder of dividing [j1] by [j2], with the sign of [j1]. **)
-    let r := (j1 mod j2)%Z in
-    let r :=
+    let: r := (j1 mod j2)%Z in
+    let: r :=
       if r == 0 then r
       else
         match r >=? 0, j1 >=? 0 with
@@ -922,7 +922,7 @@ Definition ixor : T -> T -> T := xor.
 Definition ishl (i1 i2 : T) : T :=
 (* TODO: We would like to better the specification here.  Something like:
 [[
-  let k := (unsigned i1 mod wordsize)%Z in
+  let: k := (unsigned i1 mod wordsize)%Z in
   shl k i2.
 ]]
 *)
@@ -937,14 +937,14 @@ Definition ishr_u : T -> T -> T := shru.
 Definition shift_signed l k :=
   if k is k.+1 then
     if l is d :: l then
-      let l := d :: d :: l (* TODO: Drop the last one. *) in
+      let: l := d :: d :: l (* TODO: Drop the last one. *) in
       shift_signed l k
     else l
   else l.
 
 Definition ishr_s (i1 i2 : T) :=
-  let k := unsigned i2 mod wordsize in
-  let r := shift_signed (convert_to_bits i1) k in
+  let: k := unsigned i2 mod wordsize in
+  let: r := shift_signed (convert_to_bits i1) k in
   (* TODO: convert back to a number. *)
 
 (* LATER
@@ -1445,11 +1445,11 @@ Definition normalise (m e : Z) : T :=
   These unit tests are tested once the module is instantiated below, to be able to
   compute. **)
 Definition normalise_unit_test :=
-  let half := normalise 1 (-1) in
-  let twice_half : T :=
+  let: half := normalise 1 (-1) in
+  let: twice_half :=
     Binary.Bplus _ _ prec_gt_0 Hmax (fun _ _ => unspec_nan_nan)
-      Binary.mode_NE half half in
-  let one := Binary.Bone _ _ prec_gt_0 Hmax in
+      Binary.mode_NE half half : T in
+  let: one := Binary.Bone _ _ prec_gt_0 Hmax in
   cmp Ceq twice_half one = true.
 
 (** Following the specification about [NaN] propagation, we define the function [nans]
@@ -1502,7 +1502,7 @@ Definition ZofB_param (divP divN : Z -> Z -> Z) (z : T) :=
   | Binary.B754_finite s m (Z.pos e) _ =>
     Some (cond_Zopp s (Z.pos m) * Z.pow_pos radix2 e)%Z
   | Binary.B754_finite s m (Z.neg e) _ =>
-    let div := if s then divN else divP in
+    let: div := if s then divN else divP in
     Some (cond_Zopp s (div (Z.pos m) (Z.pow_pos radix2 e)))
   | _ => None
   end.
@@ -1517,8 +1517,8 @@ Definition div_near (a b : Z) : Z :=
   (if a mod b <? b / 2 then div_down a b
    else if a mod b >? b / 2 then div_up a b
    else (** Ties to even **)
-     let d := div_down a b in
-     let u := div_up a b in
+     let: d := div_down a b in
+     let: u := div_up a b in
      if Z.even d then d else u)%Z.
 
 (** From these functions, we can define the usual ceil, floor, trunc, and nearest functions.
@@ -1560,43 +1560,43 @@ Definition nearest := floatify nearesto.
 (** As above, here are some unit tests to be sure that we are indeed expecting
   the right thing. **)
 Definition ceil_unit_test_1 : Prop :=
-  let half := normalise 1 (-1) in
+  let: half := normalise 1 (-1) in
   ceil half = BofZ 1.
 
 Definition ceil_unit_test_2 : Prop :=
-  let mhalf := normalise (-1) (-1) in
+  let: mhalf := normalise (-1) (-1) in
   ceil mhalf = BofZ 0.
 
 Definition floor_unit_test_1 : Prop :=
-  let half := normalise 1 (-1) in
+  let: half := normalise 1 (-1) in
   floor half = BofZ 0.
 
 Definition floor_unit_test_2 : Prop :=
-  let mhalf := normalise (-1) (-1) in
+  let: mhalf := normalise (-1) (-1) in
   floor mhalf = BofZ (-1).
 
 Definition trunc_unit_test_1 : Prop :=
-  let half := normalise 1 (-1) in
+  let: half := normalise 1 (-1) in
   trunc half = BofZ 0.
 
 Definition trunc_unit_test_2 : Prop :=
-  let mhalf := normalise (-1) (-1) in
+  let: mhalf := normalise (-1) (-1) in
   trunc mhalf = BofZ 0.
 
 Definition nearest_unit_test_1 : Prop :=
-  let half := normalise 1 (-1) in
+  let: half := normalise 1 (-1) in
   nearest half = BofZ 0.
 
 Definition nearest_unit_test_2 : Prop :=
-  let mhalf := normalise (-1) (-1) in
+  let: mhalf := normalise (-1) (-1) in
   nearest mhalf = BofZ 0.
 
 Definition nearest_unit_test_3 : Prop :=
-  let one_pfive := normalise 3 (-1) in
+  let: one_pfive := normalise 3 (-1) in
   nearest one_pfive = BofZ 2.
 
 Definition nearest_unit_test_4 : Prop :=
-  let mone_pfive := normalise (-3) (-1) in
+  let: mone_pfive := normalise (-3) (-1) in
   nearest mone_pfive = BofZ (-2).
 
 (** Set the sign of a float. **)

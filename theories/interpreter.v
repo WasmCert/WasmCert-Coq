@@ -69,7 +69,7 @@ Definition res_tuple := (store_record * list value * res_step)%type.
 Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction))%type :=
   match es with
   | (EConst v) :: es' =>
-    let (vs', es'') := split_vals es' in
+    let: (vs', es'') := split_vals es' in
     (v :: vs', es'')
   | _ => ([::], es)
   end.
@@ -81,7 +81,7 @@ Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_
 Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction))%type :=
   match es with
   | (Basic (EConst v)) :: es' =>
-    let (vs', es'') := split_vals_e es' in
+    let: (vs', es'') := split_vals_e es' in
     (v :: vs', es'')
   | _ => ([::], es)
   end.
@@ -91,7 +91,7 @@ Fixpoint split_n (es : list value) (n : nat) : ((list value) * (list value))%typ
   | ([::], _) => ([::], [::])
   | (_, 0) => ([::], es)
   | (e :: esX, n.+1) =>
-    let (es', es'') := split_n esX n in
+    let: (es', es'') := split_n esX n in
     (e :: es', es'')
   end.
 
@@ -133,10 +133,6 @@ Qed.
 
 Section Host.
 
-Variable mem_grow_impl : mem -> nat -> option mem.
-
-Variable host_apply_impl : store_record -> function_type -> datatypes.host -> list value -> option (store_record * list value).
-
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in
   match fuel with
@@ -152,7 +148,7 @@ Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : confi
         then (s, vs, RS_normal [::Trap])
         else (s, vs, crash_error)
       else
-        let '(s', vs', r) := run_one_step fuel d i (s, vs, (rev ves)) e in
+        let: (s', vs', r) := run_one_step fuel d i (s, vs, (rev ves)) e in
         if r is RS_normal res
         then (s', vs', RS_normal (res ++ es''))
         else (s', vs', r)
@@ -299,7 +295,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
       else (s, vs, crash_error)
     | Basic (Br_table js j) =>
       if ves is ConstInt32 c :: ves' then
-        let k := Wasm_int.nat_of_uint i32m c in
+        let: k := Wasm_int.nat_of_uint i32m c in
         if k < length js
         then
           expect (List.nth_error js k) (fun js_at_k =>
@@ -423,14 +419,10 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           (smem_ind s i)
           (fun j =>
             if List.nth_error (s_mem s) j is Some s_mem_s_j then
-              let l := mem_size s_mem_s_j in
-              expect
-                (mem_grow_impl s_mem_s_j (Wasm_int.nat_of_uint i32m c))
-                (fun mem' =>
-                   (upd_s_mem s (update_list_at (s_mem s) j mem'), vs,
-                    RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
-                )
-                (s, vs, crash_error)
+              let: l := mem_size s_mem_s_j in
+              let: mem' := mem_grow s_mem_s_j (Wasm_int.nat_of_uint i32m c) in
+              (upd_s_mem s (update_list_at (s_mem s) j mem'), vs,
+               RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
             else (s, vs, crash_error))
           (s, vs, crash_error)
       else (s, vs, crash_error)
@@ -438,22 +430,22 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
     | Callcl cl =>
       match cl with
       | Func_native i' (Tf t1s t2s) ts es =>
-        let n := length t1s in
-        let m := length t2s in
+        let: n := length t1s in
+        let: m := length t2s in
         if length ves >= n
         then
-          let (ves', ves'') := split_n ves n in
-          let zs := n_zeros ts in
+          let: (ves', ves'') := split_n ves n in
+          let: zs := n_zeros ts in
           (s, vs, RS_normal (vs_to_es ves''
                   ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
         else (s, vs, crash_error)
       | Func_host (Tf t1s t2s) f =>
-        let n := length t1s in
-        let m := length t2s in
+        let: n := length t1s in
+        let: m := length t2s in
         if length ves >= n
         then
-          let (ves', ves'') := split_n ves n in
-          match host_apply_impl s (Tf t1s t2s) f (rev ves') with
+          let: (ves', ves'') := split_n ves n in
+          match host_apply s (Tf t1s t2s) f (rev ves') with
           | Some (s', rves) =>
             if all2 types_agree t2s rves
             then (s', vs, RS_normal (vs_to_es ves'' ++ v_to_e_list rves))
@@ -542,7 +534,7 @@ Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((
       if const_list es
       then (s, R_value (fst (split_vals_e es)))
       else
-        let '(s', vs', res) := run_step d i (s, vs, es) in
+        let: (s', vs', res) := run_step d i (s, vs, es) in
         match res with
         | RS_normal es' => run_v fuel d i (s', vs', es')
         | RS_crash error => (s, R_crash error)

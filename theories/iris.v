@@ -236,10 +236,10 @@ Proof.
     apply: foo2.
     apply: Hreds. }
   (* there must be a better way *)
-  { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H8.
+  { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
     by apply: foo3. }
-  { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ _ _ _ _ H.
+  { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
     by apply: foo3. }
   { move => cl _ _ _ es _ _ _ _ _ _ _ _ _ _ _ H.

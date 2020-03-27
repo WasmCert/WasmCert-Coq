@@ -41,8 +41,8 @@ Definition load (m : mem) (n : nat) (off : static_offset) (l : nat) : option byt
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
   (* TODO *) bs.
 (* TODO
-  let msb := msb (msbyte bytes) in
-  let byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
+  let: msb := msb (msbyte bytes) in
+  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
   bytes_takefill byte l bytes
 *)
 
@@ -59,7 +59,7 @@ Definition store_packed := store.
 (* TODO: The whole host should be defined as a mixin in a separate file. *)
 Parameter wasm_deserialise : bytes -> value_type -> value.
 
-Parameter host_apply : store_record -> function_type -> datatypes.host -> list value -> datatypes.host_state -> option (store_record * list value).
+Parameter host_apply : store_record -> function_type -> datatypes.host -> list value -> (* FIXME: datatypes.host_state -> *) option (store_record * list value).
 
 Definition typeof (v : value) : value_type :=
   match v with
@@ -248,7 +248,7 @@ Definition smem_ind (s : store_record) (i : instance) : option nat :=
   i_mem i.
 
 Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
-  let stabinst := List.nth_error (s_tab s) i in
+  let: stabinst := List.nth_error (s_tab s) i in
   option_bind (fun x => x) (
   option_bind
     (fun stabinst => if length stabinst > j then List.nth_error stabinst j else None)
@@ -263,8 +263,8 @@ Definition update_list_at {A : Type} (l : list A) (k : nat) (a : A) :=
 Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option store_record :=
   option_map
     (fun g =>
-      let g' := Build_global (g_mut g) v in
-      let gs' := update_list_at (s_globs s) k g' in
+      let: g' := Build_global (g_mut g) v in
+      let: gs' := update_list_at (s_globs s) k g' in
       Build_store_record (s_funcs s) (s_tab s) (s_mem s) gs')
     (List.nth_error (s_globs s) k).
 
