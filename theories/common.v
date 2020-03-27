@@ -433,4 +433,47 @@ Proof.
 Qed.
 *)
 
+Definition Forall_forall_eq_dec : forall A l1 l2,
+  Forall (fun x : A => forall y, {x = y} + {x <> y}) l1 ->
+  {l1 = l2} + {l1 <> l2}.
+Proof.
+  move=> A l1 + F. elim F.
+  - by elim; [ left | right ].
+  - clear. move=> e1 l1 C F IH. case; first by right.
+    move=> e2 l2. destruct (C e2); last by right; inversion 1.
+    destruct (IH l2); last by right; inversion 1.
+    left. by subst.
+Defined.
+
 End TProp.
+
+(** Given a goal of the form [{C a1 … an = C a1' … an'} + {C a1 … an <> C a1' … an'}],
+  replaces it with the goals [{a1 = a1'} + {a1 <> a1'}], …, [{an = an'} + {an <> an'}]. **)
+Ltac decide_equality_injection :=
+  lazymatch goal with
+  | |- {?c1 = ?c2} + {_} =>
+    let rec aux c1 c2 next :=
+      lazymatch constr:((c1, c2)) with
+      | (?c, ?c) => next tt
+      | (?c1 ?a1, ?c2 ?a2) =>
+        let H := fresh "decide" in
+        assert (H : {a1 = a2} + {a1 <> a2});
+          [| aux c1 c2 ltac:(fun _ =>
+               destruct H as [H|H];
+                 [ rewrite H; next tt
+                 | right; by inversion 1 ]) ]
+      end in
+    aux c1 c2 ltac:(fun _ => by left)
+  end.
+
+(** Similar than [decidable_equality], but based on another induction principle.
+  It will make use of hypotheses based on [TProp.Forall]. **)
+Ltac decidable_equality_using rect :=
+  let x := fresh "x" in
+  let y := fresh "y" in
+  move=> x; induction x using rect => y; destruct y;
+    first [ by right; discriminate
+          | decide_equality_injection;
+            first [ by apply: TProp.Forall_forall_eq_dec
+                  | decidable_equality ] ].
+

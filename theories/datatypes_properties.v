@@ -239,90 +239,13 @@ End administrative_instruction_rect'.
 Definition administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
   @administrative_instruction_rect' P.
 
-Fixpoint administrative_instruction_eqb (e1 e2 : administrative_instruction) : bool :=
-  let fff :=
-      (fix f (l1 l2 : list administrative_instruction) :=
-         match l1, l2 with
-         | nil, nil => true
-         | cons _ _, nil => false
-         | nil, cons _ _ => false
-         | cons x xs, cons y ys => (administrative_instruction_eqb x y) && (f xs ys)
-         end
-      ) in
-  match e1, e2 with
-  | Basic be1, Basic be2 => be1 == be2
-  | Trap, Trap => true
-  | Callcl cl1, Callcl cl2 => cl1 == cl2
-  | Label n1 es11 es12, Label n2 es21 es22 =>
-    (Nat.eqb n1 n2) &&
-    (fff es11 es21) &&
-    (fff es12 es22)
-  | Local n1 i1 vs1 es1, Local n2 i2 vs2 es2 =>
-    (Nat.eqb n1 n2) &&
-    (instance_eqb i1 i2) &&
-    (vs1 == vs2) &&
-    (fff es1 es2)
-  | _, _ => false
-  end.
+Definition administrative_instruction_eq_dec : forall e1 e2 : administrative_instruction,
+  {e1 = e2} + {e1 <> e2}.
+Proof. decidable_equality_using administrative_instruction_rect'. Defined.
 
-Lemma eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb.
-Proof.
-  assert (IH: forall es es',
-    TProp.Forall (fun x => forall y, reflect (x = y) (administrative_instruction_eqb x y)) es ->
-    reflect (es = es')
-      ((fix f (l1 l2 : list administrative_instruction) :=
-         match l1, l2 with
-         | nil, nil => true
-         | cons _ _, nil => false
-         | nil, cons _ _ => false
-         | cons x xs, cons y ys => (administrative_instruction_eqb x y) && (f xs ys)
-         end) es es')).
-  { elim.
-    - case.
-      + move=> IH. by apply ReflectT.
-      + move=> a l IH. by apply ReflectF.
-    - move=> a l IH. case.
-      + move=> IH'. by apply ReflectF.
-      + move=> a' l' IH'. inversion_clear IH' as [|? ? IH1 IH2].
-        eapply iffP; first by apply andP.
-        * case => ? ?. f_equal.
-          -- by apply/IH1.
-          -- by apply/IH.
-        * case=> ? ?. split.
-          -- by apply/IH1.
-          -- by apply/IH.
-  }
-  move=> x. induction x using administrative_instruction_rect';
-    move=> y; destruct y; simpl;
-    try (apply ReflectF; discriminate).
-  - eapply iffP; first by apply/eqP.
-    + by elim.
-    + by case.
-  - by apply ReflectT.
-  - eapply iffP; first by apply/eqP.
-    + by elim.
-    + by case.
-  - apply iffP with (P := n = n0 /\ es1 = l /\ es2 = l0).
-    + move: (IH es1 l X) (IH es2 l0 X0) => {IH X X0} R1 R2.
-      eapply iffP; first by apply andP.
-      * case. move/andP. case=> ? ? ?. split; first by apply/eqP.
-        split; first by apply/R1. by apply/R2.
-      * intros (?&?&?). subst. split; last by apply/R2.
-        apply/andP. split; last by apply/R1. by apply/eqP.
-    + by repeat (case; elim).
-    + by case.
-  - apply iffP with (P := n = n0 /\ i = i0 /\ vs = l /\ es = l0).
-    + move: (IH es l0 X) => {IH X} R.
-      eapply iffP; first by apply andP.
-      * case. move/andP. case. move/andP. case=> ? ? ? ?.
-        repeat (split; first by apply/eqP). by apply/R.
-      * intros (?&?&?&?). subst. split; last by apply/R.
-        apply/andP. split; last by apply/eqP.
-        apply/andP. split; first by apply/eqP.
-        by apply/eqinstanceP.
-    + by repeat (case; elim).
-    + by case.
-Qed.
+Definition administrative_instruction_eqb cl1 cl2 : bool := administrative_instruction_eq_dec cl1 cl2.
+Definition eqadministrative_instructionP : Equality.axiom administrative_instruction_eqb :=
+  eq_dec_Equality_axiom administrative_instruction_eq_dec.
 
 Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrative_instructionP.
 Canonical Structure administrative_instruction_eqType :=
