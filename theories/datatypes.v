@@ -77,6 +77,7 @@ Record s_context := {
 *)
 
 Inductive sx : Type :=
+(* TODO: the fact that these start with lowercase has made me waste too much time already *)
 | sx_S
 | sx_U.
 

@@ -1,6 +1,6 @@
 (* TODO: work in progress; let's wait for Conrad to finish his analysis of it *)
 Require Import datatypes.
-Require binary_parser.
+Require binary_format_parser.
 
 (*
 

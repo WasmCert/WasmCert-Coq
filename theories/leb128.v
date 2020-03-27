@@ -1,6 +1,6 @@
 (* LEB128 integer format *)
 (* TODO: size bound *)
-(* TODO: write a relational spec, and prove they correspond *)
+(* TODO: make it use byte (x00, ...) more extensively to consume less memory *)
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
 Require Import Ascii.
@@ -142,5 +142,3 @@ Definition signed_ctd_ {n} : w_parser Z n :=
   End Signed_sec.
 
 End Language.
-
-(* TODO: signed encoding *)
