@@ -1,7 +1,7 @@
 .PHONY: all clean subst
 
 all:
-	dune build @all
+	export HOME=`pwd`; dune build @all
 	dune build -p wasm_interpreter
 
 clean:

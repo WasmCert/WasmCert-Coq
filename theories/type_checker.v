@@ -27,16 +27,13 @@ Inductive checker_type : Type :=
 | CT_type : list value_type -> checker_type
 | CT_bot : checker_type.
 
-Definition checker_type_eqb (ct1 ct2 : checker_type) : bool :=
-  match (ct1, ct2) with
-  | (CT_top_type ctas1, CT_top_type ctas2) => ctas1 == ctas2
-  | (CT_type ts1, CT_type ts2) => ts1 == ts2
-  | (CT_bot, CT_bot) => true
-  | _ => false
-  end.
+Definition checker_type_eq_dec : forall v1 v2 : checker_type, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
 
-Parameter eqchecker_typeP : Equality.axiom checker_type_eqb.
-(* TODO *)
+Definition checker_type_eqb v1 v2 : bool := checker_type_eq_dec v1 v2.
+Definition eqchecker_typeP : Equality.axiom checker_type_eqb :=
+  eq_dec_Equality_axiom checker_type_eq_dec.
+
 Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
@@ -102,11 +99,11 @@ Definition type_update_select (t : checker_type) : checker_type :=
     | 1 => type_update (CT_top_type ts) [::CTA_some T_i32] (CT_top_type [::CTA_any])
     | 2 => consume (CT_top_type ts) [::CTA_some T_i32]
     | _ =>
-      match (List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3)) with
-      | (Some ts_at_2, Some ts_at_3) =>
+      match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
+      | Some ts_at_2, Some ts_at_3 =>
         type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
                     (select_return_top ts ts_at_2 ts_at_3)
-      | _ => CT_bot (* TODO: is that OK? *)
+      | _, _ => CT_bot (* TODO: is that OK? *)
       end
     end
   | CT_bot => CT_bot
