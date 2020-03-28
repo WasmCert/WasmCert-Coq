@@ -8,18 +8,20 @@ Require Import Coq.Init.Byte.
 From parseque Require Import Parseque.
 
 (** expects 7 bits, with MSB at head *)
-Definition byte_of_7_bits (bs : list bool) : ascii :=
+Definition byte_of_7_bits (bs : list bool) : byte :=
+  (* TODO: using lists is very inefficient *)
   match bs with
   | cons b1 (cons b2 (cons b3 (cons b4 (cons b5 (cons b6 (cons b7 nil)))))) =>
-    Ascii b7 b6 b5 b4 b3 b2 b1 false
-  | _ => Ascii false false false false false false false false
+    byte_of_ascii (Ascii b7 b6 b5 b4 b3 b2 b1 false)
+  | _ => (* TODO: should never happen *) x00
   end.
 
 Definition rebalance acc1 acc2 b :=
   if Nat.eqb (List.length acc2) 6 then (cons (byte_of_7_bits (cons b acc2)) acc1, nil)
   else (acc1, cons b acc2).
 
-Fixpoint binary_of_aux2 (acc1 : list ascii) (acc2 : list bool (* MSB at head *)) (n : positive) : list ascii :=
+Fixpoint binary_of_aux2 (acc1 : list byte) (acc2 : list bool (* MSB at head *)) (n : positive) : list byte :=
+  (* TODO: using lists is very inefficient *)
   match n with
   | xH =>
     let (acc1', acc2') := rebalance acc1 acc2 true in
@@ -33,8 +35,11 @@ Fixpoint binary_of_aux2 (acc1 : list ascii) (acc2 : list bool (* MSB at head *))
     binary_of_aux2 acc1' acc2' n'
   end.
 
-Definition make_msb_one '(Ascii b1 b2 b3 b4 b5 b6 b7 _ : ascii) : ascii :=
-  Ascii b1 b2 b3 b4 b5 b6 b7 true.
+Definition make_msb_one b : byte :=
+  match ascii_of_byte b with
+  | Ascii b1 b2 b3 b4 b5 b6 b7 _ =>
+    byte_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 true)
+  end.
 
 Definition make_msb_of_non_first_byte_one bs :=
   match bs with
@@ -43,41 +48,50 @@ Definition make_msb_of_non_first_byte_one bs :=
   end.
 
 (** LSB at head of list *)
-Definition binary_of (n : N) : list ascii :=
+Definition binary_of (n : N) : list byte :=
   match n with
-  | N0 => cons (ascii_of_byte x00) nil
+  | N0 => cons x00 nil
   | Npos n' => make_msb_of_non_first_byte_one (binary_of_aux2 nil nil n')
   end.
 
-Definition encode_unsigned (n : N) : list ascii :=
+Definition encode_unsigned (n : N) : list byte :=
   List.rev (binary_of n).
 
 Section Language.
 
   Context
-    {Toks : nat -> Type} `{Sized Toks ascii}
+    {Toks : nat -> Type} `{Sized Toks byte}
     {M : Type -> Type} `{RawMonad M} `{RawAlternative M}.
   
-  Definition w_parser A n := Parser Toks ascii M A n.
+  Definition byte_parser A n := Parser Toks byte M A n.
 
-  Definition byte_as_N {n} : w_parser N n :=
-  (fun x => N_of_ascii x) <$> anyTok.
+  Definition byte_as_N {n} : byte_parser N n :=
+  (fun x => N_of_ascii (ascii_of_byte x)) <$> anyTok.
 
-  Definition unsigned_end_ {n} : w_parser N n :=
-    guardM (fun k => match k with
-        | Ascii _ _ _ _ _ _ _ msb => if msb then None else Some (N_of_ascii k) end) anyTok.
+  Definition unsigned_end_ {n} : byte_parser N n :=
+    guardM
+      (fun b =>
+        let a := ascii_of_byte b in
+        match a with
+        | Ascii _ _ _ _ _ _ _ msb => if msb then None else Some (N_of_ascii a)
+        end)
+      anyTok.
 
-  Definition unsigned_ctd_ {n} : w_parser N n :=
-    guardM (fun k => match k with
-      | Ascii b1 b2 b3 b4 b5 b6 b7 msb =>
-        if msb then Some (N_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 false))
-        else None
-        end) anyTok.
+  Definition unsigned_ctd_ {n} : byte_parser N n :=
+    guardM
+      (fun b =>
+        let a := ascii_of_byte b in
+        match a with
+        | Ascii b1 b2 b3 b4 b5 b6 b7 msb =>
+          if msb then Some (N_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 false))
+          else None
+        end)
+      anyTok.
 
   Section Unsigned_sec.
 
     Record Unsigned (n : nat) : Type := MkUnsigned
-    { _unsigned : w_parser N n;
+    { _unsigned : byte_parser N n;
     }.
     
     Arguments MkUnsigned {_}.
@@ -92,29 +106,31 @@ Section Language.
         (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128 rest)) <$> unsigned_ctd_) <*> aux) in
       MkUnsigned unsigned_).
     
-    Definition unsigned_ : [ w_parser N ] := fun n => _unsigned n (unsigned_aux n).
+    Definition unsigned_ : [ byte_parser N ] := fun n => _unsigned n (unsigned_aux n).
 
   End Unsigned_sec.
 
 Definition sub_2_7 (k : N) :=
   BinIntDef.Z.sub (BinInt.Z_of_N k) (BinIntDef.Z.pow (BinInt.Z.of_nat 2) (BinInt.Z.of_nat 7)).
 
-  Definition signed_end_ {n} : w_parser Z n :=
+  Definition signed_end_ {n} : byte_parser Z n :=
   guardM
-    (fun k =>
-      match k with
+    (fun b =>
+      let a := ascii_of_byte b in
+      match a with
       | Ascii _ _ _ _ _ _ _ true => None
-      | Ascii _ _ _ _ _ _ true false => Some (sub_2_7 (N_of_ascii k))
-      | Ascii _ _ _ _ _ _ false false => Some (ZArith.BinInt.Z_of_N (N_of_ascii k))
+      | Ascii _ _ _ _ _ _ true false => Some (sub_2_7 (N_of_ascii a))
+      | Ascii _ _ _ _ _ _ false false => Some (ZArith.BinInt.Z_of_N (N_of_ascii a))
       end)
     anyTok.
 
-Definition signed_ctd_ {n} : w_parser Z n :=
+Definition signed_ctd_ {n} : byte_parser Z n :=
   guardM
-    (fun k =>
-      match k with
+    (fun b =>
+      let a := ascii_of_byte b in
+      match a with
       | Ascii _ _ _ _ _ _ _  true =>
-        Some (sub_2_7 (N_of_ascii k))
+        Some (sub_2_7 (N_of_ascii a))
       | Ascii _ _ _ _ _ _ _ false => None
       end)
     anyTok.
@@ -122,7 +138,7 @@ Definition signed_ctd_ {n} : w_parser Z n :=
   Section Signed_sec.
 
     Record Signed (n : nat) : Type := MkSigned
-    { _signed : w_parser BinNums.Z n;
+    { _signed : byte_parser BinNums.Z n;
     }.
     
     Arguments MkUnsigned {_}.
@@ -137,7 +153,7 @@ Definition signed_ctd_ {n} : w_parser Z n :=
         (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult (ZArith.BinInt.Z_of_nat 128) rest)) <$> signed_ctd_) <*> aux) in
       MkSigned _ signed_).
     
-    Definition signed_ : [ w_parser Z ] := fun n => _signed n (signed_aux n).
+    Definition signed_ : [ byte_parser Z ] := fun n => _signed n (signed_aux n).
 
   End Signed_sec.
 

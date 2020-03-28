@@ -9,7 +9,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
 Definition eqvalue_typeP : Equality.axiom value_type_eqb :=
