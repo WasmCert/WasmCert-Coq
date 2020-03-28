@@ -436,6 +436,7 @@ Record Language (n : nat) : Type := MkLanguage
 { _be : w_parser basic_instruction n;
   _bes_end_with_x0b : w_parser (list basic_instruction) n;
   _bes_end_with_x05 : w_parser (list basic_instruction) n;
+  _bes_end_with_x0b_or_x05_ctd : w_parser (list basic_instruction * list basic_instruction) n;
 }.
 
 Arguments MkLanguage {_}.
@@ -447,14 +448,13 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
   let be_aux := Induction.map _be _ rec in
   let bes_end_with_x0b_aux := Induction.map _bes_end_with_x0b _ rec in
   let bes_end_with_x05_aux := Induction.map _bes_end_with_x05 _ rec in
+  let bes_end_with_x0b_or_x05_ctd_aux := Induction.map _bes_end_with_x0b_or_x05_ctd _ rec in
   let parse_block :=
     exact_byte x02 &> ((Block <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
   let parse_loop :=
     exact_byte x03 &> ((Loop <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
   let parse_if_body :=
-    (((fun x y => (x, (y, nil))) <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) <|>
-    ((((fun x y z => (x, (y, z))) <$> block_type_as_function_type) <*> bes_end_with_x05_aux) <*> bes_end_with_x0b_aux)
-    in
+    (((fun x y => (x, y)) <$> block_type_as_function_type) <*> bes_end_with_x0b_or_x05_ctd_aux) in
   let parse_if :=
     (fun '(x, (y, z)) => If x y z) <$> (exact_byte x04 &> parse_if_body) in
   let parse_be :=
@@ -479,7 +479,11 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
   let parse_bes_end_with_x05 :=
     (exact_byte x05 $> nil) <|>
     ((cons <$> parse_be) <*> bes_end_with_x05_aux) in
-  MkLanguage parse_be parse_bes_end_with_x0b parse_bes_end_with_x05).
+  let parse_bes_end_with_x0b_or_x05_ctd :=
+    ((nil, nil) <$ exact_byte x0b) <|>
+    (((fun x => (nil, x)) <$ exact_byte x05) <*> parse_bes_end_with_x0b) <|>
+    (((fun x '(y, z) => (cons x y, z)) <$> parse_be) <*> bes_end_with_x0b_or_x05_ctd_aux) in
+  MkLanguage parse_be parse_bes_end_with_x0b parse_bes_end_with_x05 parse_bes_end_with_x0b_or_x05_ctd).
 
 Definition parse_be : [ w_parser basic_instruction ] := fun n => _be n (language n).
 Definition parse_bes_end_with_x0b : [ w_parser (list basic_instruction) ] := fun n => _bes_end_with_x0b n (language n).
