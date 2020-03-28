@@ -285,10 +285,10 @@ Require Import datatypes_properties.
 From parseque Require Import Parseque Running.
 Require Import check_toks.
 
-Lemma test_unreachable : check_toks (x00 :: nil) be = Singleton Unreachable.
+Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Singleton Unreachable.
 Proof. reflexivity. Qed.
 
-Lemma test_nop : check_toks (x01 :: nil) be = Singleton Nop.
+Lemma test_nop : check_toks (x01 :: nil) parse_be = Singleton Nop.
 Proof. reflexivity. Qed.
 
 Definition plop (x : list Byte.byte) :=
@@ -305,7 +305,7 @@ Definition test2 : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute parse_expr_from_bytes test2.
+Compute run_parse_expr_from_bytes test2.
 
 (** Example from Wikipedia: https://en.wikipedia.org/wiki/WebAssembly#Code_representation
   This is the representation of a factorial function. **)
@@ -324,7 +324,7 @@ Definition test_wikipedia : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute parse_expr_from_bytes test_wikipedia.
+Compute run_parse_expr_from_bytes test_wikipedia.
 
 (*
 Definition test_factorial :=
