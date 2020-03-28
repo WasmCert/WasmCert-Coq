@@ -254,7 +254,7 @@ Inductive import_desc : Type :=
 | ID_mem : mem_type -> import_desc
 | ID_global : global_type -> import_desc.
 
-Definition name := list ascii.
+Definition name := list Byte.byte.
 
 Record import : Type := Mk_import {
   imp_module : name;
@@ -287,7 +287,7 @@ Record func : Type := {
 Record data : Type := {
   dt_data : nat;
   dt_offset : expr;
-  dt_init : list ascii;
+  dt_init : list Byte.byte;
 }.
 
 Inductive export_desc : Type :=
@@ -302,7 +302,7 @@ Record export : Type := {
 }.
 
 Inductive section : Type :=
-| Sec_custom : list ascii -> section
+| Sec_custom : list Byte.byte -> section
 | Sec_type : list function_type -> section
 | Sec_import : list import -> section
 | Sec_function : list typeidx -> section

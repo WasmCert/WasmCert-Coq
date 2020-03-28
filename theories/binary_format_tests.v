@@ -22,7 +22,7 @@ Definition test2 : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute run_parse_expr_from_bytes test2.
+Compute run_parse_expr test2.
 
 (** Example from Wikipedia: https://en.wikipedia.org/wiki/WebAssembly#Code_representation
   This is the representation of a factorial function. **)
@@ -41,7 +41,7 @@ Definition test_wikipedia : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute run_parse_bes_from_bytes test_wikipedia.
+Compute run_parse_bes test_wikipedia.
 
 (*
 Definition test_factorial :=

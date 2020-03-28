@@ -28,7 +28,7 @@ Definition binary_of_block_type (ft : function_type) : list byte :=
   end.
 
 Definition binary_of_u32_nat (n : nat) :=
-  List.map (byte_of_ascii) (encode_unsigned (BinNatDef.N.of_nat n)).
+  encode_unsigned (BinNatDef.N.of_nat n).
 
 Definition binary_of_idx n := binary_of_u32_nat n.
 
