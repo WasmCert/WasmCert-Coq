@@ -452,8 +452,6 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
   let parse_loop :=
     exact_byte x03 &> ((Loop <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
   let parse_if_body :=
-    ((fun x => (x, (nil, nil))) <$> (block_type_as_function_type <& exact_byte x0b)) <|>
-    ((fun x => (x, (nil, nil))) <$> (block_type_as_function_type <& (exact_byte x05 <& exact_byte x0b))) <|>
     (((fun x y => (x, (y, nil))) <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) <|>
     ((((fun x y z => (x, (y, z))) <$> block_type_as_function_type) <*> bes_end_with_x05_aux) <*> bes_end_with_x0b_aux)
     in
