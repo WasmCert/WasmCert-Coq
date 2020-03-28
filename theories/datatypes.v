@@ -1,6 +1,9 @@
 (** Definition of Wasm datatypes **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
+(* TODO: use better representations that "nat", which is expensive;
+   maybe N? maybe a 32-bit word type? *)
+
 Require Import common.
 Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -13,7 +16,7 @@ Unset Printing Implicit Defensive.
 
 (* TODO: Documentation. *)
 
-
+(* TODO: having these as axioms is a problem for extraction *)
 Variable host : eqType. (* TODO: Do the same than for integers and floats. *)
 Variable host_state : eqType.
 
@@ -24,7 +27,7 @@ Definition static_offset := nat. (* off *)
 Definition alignment_exponent := nat. (* a *)
 
 
-(* TODO *)
+(* TODO: link up with leb128.v *)
 Parameter serialise_i32 : i32 -> bytes.
 Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.

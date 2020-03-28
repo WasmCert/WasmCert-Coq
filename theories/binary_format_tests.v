@@ -1,14 +1,15 @@
 (** Tests for the binary parser. **)
-Require Import Byte.
-Require Import binary_format_parser binary_format_printer bytes_pp.
-Require Import datatypes_properties.
-From parseque Require Import Parseque Running.
-Require Import check_toks.
+Require Import Byte Ascii.
+From parseque Require Import Parseque.
+Require Import binary_format_parser binary_format_printer bytes_pp
+  datatypes_properties check_toks pp.
+Open Scope string_scope.
+Import Coq.Strings.String.StringSyntax.
 
-Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Singleton Unreachable.
+Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Running.Singleton Unreachable.
 Proof. reflexivity. Qed.
 
-Lemma test_nop : check_toks (x01 :: nil) parse_be = Singleton Nop.
+Lemma test_nop : check_toks (x01 :: nil) parse_be = Running.Singleton Nop.
 Proof. reflexivity. Qed.
 
 Compute hex_small_no_prefix_of_bytes (binary_of_be (If (Tf nil nil) (Testop T_i64 Eqz :: nil) (Testop T_i64 Eqz :: nil))).
@@ -23,6 +24,7 @@ Definition test2 : list Byte.byte :=
   :: nil.
 
 Compute run_parse_expr test2.
+Compute option_map pp_basic_instructions (run_parse_expr test2).
 
 (** Example from Wikipedia: https://en.wikipedia.org/wiki/WebAssembly#Code_representation
   This is the representation of a factorial function. **)
@@ -41,7 +43,7 @@ Definition test_wikipedia : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute run_parse_bes test_wikipedia.
+Compute option_map pp_basic_instructions (run_parse_bes test_wikipedia).
 
 (*
 Definition test_factorial :=

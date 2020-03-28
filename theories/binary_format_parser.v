@@ -705,6 +705,9 @@ End Run.
 Definition run_parse_be (bs : list byte) : option basic_instruction :=
   run bs parse_be.
 
+Definition run_parse_be_from_asciis (bs : list ascii) : option basic_instruction :=
+  run (List.map byte_of_ascii bs) parse_be.
+
 Definition run_parse_expr (bs : list byte) : option (list basic_instruction) :=
   run bs (fun n => parse_expr).
 
