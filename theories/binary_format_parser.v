@@ -1,5 +1,5 @@
 (** Parser for the binary Wasm format. **)
-(* TODO: move a few types to the [datatypes] or [bytes] modules. *)
+(* TODO: make this use byte. *)
 (* TODO: write a relational spec, and prove they correspond *)
 
 From Wasm Require Import datatypes datatypes_properties.
