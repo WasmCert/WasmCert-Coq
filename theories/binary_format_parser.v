@@ -709,5 +709,8 @@ Definition run_parse_be_from_bytes (bs : list byte) : option basic_instruction :
 Definition run_parse_expr_from_bytes (bs : list byte) : option (list basic_instruction) :=
   run (List.map ascii_of_byte bs) (fun n => parse_expr).
 
+Definition run_parse_bes_from_bytes (bs : list byte) : option (list basic_instruction) :=
+  run_parse_expr_from_bytes (bs ++ (x0b :: nil)).
+
 Definition run_parse_module_from_bytes (bs : list byte) : option module :=
   run (List.map ascii_of_byte bs) (fun n => parse_module).
