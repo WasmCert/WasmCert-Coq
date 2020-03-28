@@ -436,7 +436,6 @@ Record Language (n : nat) : Type := MkLanguage
 { _be : w_parser basic_instruction n;
   _bes_end_with_x0b : w_parser (list basic_instruction) n;
   _bes_end_with_x05 : w_parser (list basic_instruction) n;
-  _if_body : w_parser ((list basic_instruction) * (list basic_instruction)) n;
 }.
 
 Arguments MkLanguage {_}.
@@ -453,14 +452,13 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
   let parse_loop :=
     exact_byte x03 &> ((Loop <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
   let parse_if_body :=
-    (* TODO: make this work! the problem is that the LHS of <&> needs to be a Parser, not a Box Parser, to guarantee productivity;
-      however, I don't know how to do that  *)
-    (bes_end_with_x05_aux <&> bes_end_with_x0b_aux) <|>
-    ((fun x => (x, nil)) <$> bes_end_with_x0b_aux)
-     in
+    ((fun x => (x, (nil, nil))) <$> (block_type_as_function_type <& exact_byte x0b)) <|>
+    ((fun x => (x, (nil, nil))) <$> (block_type_as_function_type <& (exact_byte x05 <& exact_byte x0b))) <|>
+    (((fun x y => (x, (y, nil))) <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) <|>
+    ((((fun x y z => (x, (y, z))) <$> block_type_as_function_type) <*> bes_end_with_x05_aux) <*> bes_end_with_x0b_aux)
+    in
   let parse_if :=
-    (fun x '(y, z) => If x y z) <$>
-    (exact_byte x04 &> block_type_as_function_type) <*> parse_if_body in
+    (fun '(x, (y, z)) => If x y z) <$> (exact_byte x04 &> parse_if_body) in
   let parse_be :=
     unreachable <|>
     nop <|>
@@ -480,20 +478,17 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
   let parse_bes_end_with_x0b :=
     (exact_byte x0b $> nil) <|>
     ((cons <$> parse_be) <*> bes_end_with_x0b_aux) in
-    let parse_bes_end_with_x05 :=
+  let parse_bes_end_with_x05 :=
     (exact_byte x05 $> nil) <|>
     ((cons <$> parse_be) <*> bes_end_with_x05_aux) in
   MkLanguage parse_be parse_bes_end_with_x0b parse_bes_end_with_x05).
 
-Definition be : [ w_parser basic_instruction ] := fun n => _be n (language n).
-Definition bes : [ w_parser (list basic_instruction) ] := fun n => _bes n (language n).
+Definition parse_be : [ w_parser basic_instruction ] := fun n => _be n (language n).
+Definition parse_bes_end_with_x0b : [ w_parser (list basic_instruction) ] := fun n => _bes_end_with_x0b n (language n).
 
-Definition end_ {n} : w_parser unit n :=
-  cmap tt (exact_byte x0b).
-
-Definition expr_ {n} : w_parser (list basic_instruction) n :=
+Definition parse_expr {n} : w_parser (list basic_instruction) n :=
   (* TODO: is that right? *)
-  extract bes n <& end_.
+  parse_bes_end_with_x0b n.
 
 Definition byte_ {n} : w_parser ascii n :=
   anyTok.
@@ -531,7 +526,7 @@ Definition import_ {n} : w_parser import n :=
   (Mk_import <$> vec byte_) <*> vec byte_ <*> import_desc_.
 
 Definition global2_ {n} : w_parser global2 n :=
-  (Build_global2 <$> global_type_) <*> expr_.
+  (Build_global2 <$> global_type_) <*> parse_expr.
 
 Definition export_desc_ {n} : w_parser export_desc n :=
   exact_byte x00 &> (ED_func <$> u32_nat) <|>
@@ -546,13 +541,13 @@ Definition start_ {n} : w_parser start n :=
   Build_start <$> u32_nat.
 
 Definition element_ {n} : w_parser element n :=
-  (Build_element <$> u32_nat) <*> expr_ <*> vec u32_nat.
+  (Build_element <$> u32_nat) <*> parse_expr <*> vec u32_nat.
 
 Definition locals_ {n} : w_parser (list value_type) n :=
   vec value_type_.
 
 Definition func_ {n} : w_parser func n :=
-  ((fun xs => Build_func (List.concat xs)) <$> vec locals_) <*> expr_.
+  ((fun xs => Build_func (List.concat xs)) <$> vec locals_) <*> parse_expr.
 
 Definition code_ {n} : w_parser func n :=
   guardM
@@ -567,7 +562,7 @@ Definition table_ {n} : w_parser table n :=
   Mk_table <$> table_type_.
 
 Definition data_ {n} : w_parser data n :=
-  (Build_data <$> u32_nat) <*> expr_ <*> vec byte_.
+  (Build_data <$> u32_nat) <*> parse_expr <*> vec byte_.
 
 Definition customsec {n} : w_parser (list ascii) n :=
   exact_byte x00 &> vec byte_.
@@ -639,8 +634,7 @@ Definition tail_ {n} : w_parser _ n :=
   (with_customsec_star_before codesec) <&>
   (with_customsec_star_before (with_customsec_star_after datasec)).
 
-Definition module_ {n} : w_parser module n :=
-(* TODO: this is missing all the customsecs! *)
+Definition parse_module {n} : w_parser module n :=
   magic &>
   version &>
   (((fun functype import typeidx table mem global export secd_ecd =>
@@ -703,14 +697,17 @@ Definition run : list ascii -> [ Parser (SizedList Tok) Tok M A ] -> option A :=
 
 End Run.
 
-Definition parse_be (bs : list Ascii.ascii) : option basic_instruction :=
-  run bs be.
+Definition run_parse_be (bs : list Ascii.ascii) : option basic_instruction :=
+  run bs parse_be.
 
-Definition parse_be_from_bytes (bs : list byte) : option basic_instruction :=
-  run (List.map ascii_of_byte bs) be.
+Definition run_parse_be_from_bytes (bs : list byte) : option basic_instruction :=
+  run (List.map ascii_of_byte bs) parse_be.
 
-Definition parse_expr_from_bytes (bs : list byte) : option (list basic_instruction) :=
-  run (List.map ascii_of_byte bs) (fun n => expr_).
+  Definition run_parse_be_from_asciis (aa : list ascii) : option basic_instruction :=
+  run aa parse_be.
 
-Definition parse_module_from_bytes (bs : list byte) : option module :=
-  run (List.map ascii_of_byte bs) (fun n => module_).
+Definition run_parse_expr_from_bytes (bs : list byte) : option (list basic_instruction) :=
+  run (List.map ascii_of_byte bs) (fun n => parse_expr).
+
+Definition run_parse_module_from_bytes (bs : list byte) : option module :=
+  run (List.map ascii_of_byte bs) (fun n => parse_module).

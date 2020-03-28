@@ -16,6 +16,6 @@ Inductive repr_module : list ascii -> module -> Prop :=
 
 Lemma encode_decode_is_identity : forall m,
 (* TODO: probably need some well-formedness condition, for example of block types *)
-  parse_module_from_bytes (binary_of_module m) = Some m.
+  run_parse_module_from_bytes (binary_of_module m) = Some m.
 (* TODO *)
 Admitted.

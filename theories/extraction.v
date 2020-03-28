@@ -5,5 +5,5 @@ From Wasm Require Import binary_format_parser type_checker interpreter.
 
 Extraction Language OCaml.
 
-Extraction "extract" parse_be cl_type_check run_v.
+Extraction "extract" run_parse_be_from_asciis cl_type_check run_v.
 
