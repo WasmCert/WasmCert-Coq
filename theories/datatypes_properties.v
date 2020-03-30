@@ -220,13 +220,14 @@ Lemma uncurry_curry : forall A B C (f : A -> B -> C) a b,
   uncurry (curry f) a b = f a b.
 Proof. by []. Qed.
 
+(** Given an induction principle, return the number of cases of the type. **)
 Ltac count_cases rect :=
   let rec count_args rectf :=
     lazymatch rectf with
+    | forall a, False => constr:(0)
     | _ -> ?rectf' =>
       let r := count_args rectf' in
       constr:(r.+1)
-    | _ => constr:(0)
     end in
   lazymatch type of rect with
   | forall P : ?t -> Type, @?rectf P =>
@@ -235,8 +236,59 @@ Ltac count_cases rect :=
     count_args r
   end.
 
+Ltac rect'_type rect :=
+  let add_hyp t ta :=
+    lazymatch ta with
+    | list t => constr:(@TProp.Forall t)
+    | option t => constr:(fun P (o : ta) => forall a, o = Some a -> P a)
+    | _ => constr:(fun (_ : t -> Type) (_ : ta) => True)
+    end in
+  let update_hyp t hyp :=
+    lazymatch hyp with
+    | fun P => P _ => constr:(hyp)
+    | fun P => forall a1 : ?t1, P (?C a1) =>
+      let h1 := add_hyp t t1 in
+      constr:(fun P => forall a1, h1 P a1 -> P (C a1))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
+      let h1 := add_hyp t t1 in
+      let h2 := add_hyp t t2 in
+      constr:(fun P => forall a1 a2, h1 P a1 -> h2 P a2 -> P (C a1 a2))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
+      let h1 := add_hyp t t1 in
+      let h2 := add_hyp t t2 in
+      let h3 := add_hyp t t3 in
+      constr:(fun P => forall a1 a2 a3, h1 P a1 -> h2 P a2 -> h3 P a3 -> P (C a1 a2 a3))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
+      let h1 := add_hyp t t1 in
+      let h2 := add_hyp t t2 in
+      let h3 := add_hyp t t3 in
+      let h4 := add_hyp t t4 in
+      constr:(fun P => forall a1 a2 a3 a4, h1 P a1 -> h2 P a2 -> h3 P a3 -> h4 P a4 -> P (C a1 a2 a3 a4))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
+      let h1 := add_hyp t t1 in
+      let h2 := add_hyp t t2 in
+      let h3 := add_hyp t t3 in
+      let h4 := add_hyp t t4 in
+      let h5 := add_hyp t t5 in
+      constr:(fun P => forall a1 a2 a3 a4, h1 P a1 -> h2 P a2 -> h3 P a3 -> h4 P a4 -> h5 P a5 -> P (C a1 a2 a3 a4 a5))
+    end in
+  let rec map_hyps t rectf :=
+    lazymatch rectf with
+    | fun P => forall a : t, P a => constr:(rectf)
+    | fun P => @?hyp P -> @?rectf' P =>
+      let r := update_hyp t hyp in
+      let r' := map_hyps t rectf' in
+      constr:(fun P => r P -> r' P)
+    end in
+  lazymatch type of rect with
+  | forall P : ?t -> Type, @?rectf P =>
+    let r := map_hyps t rectf in
+    let r := eval simpl in r in
+    constr:(forall P, r P)
+  end.
+
 Definition test :=
-  ltac:(let n := count_cases administrative_instruction_rect in exact n).
+  ltac:(let n := rect'_type administrative_instruction_rect in exact n).
 
 Goal False.
   evar (a : Type).
