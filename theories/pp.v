@@ -1,9 +1,11 @@
 (* pretty-printer *)
-Require Import datatypes bytes_pp.
 Require Import Coq.Strings.String.
 From compcert Require Import Floats.
-Open Scope string_scope.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+Require Import Coq.Init.Decimal.
+Require Import bytes_pp datatypes.
+
+Open Scope string_scope.
 
 Fixpoint indent (i : nat) (s : string) : string :=
   match i with
@@ -26,8 +28,6 @@ Definition pp_block_tf tf : string :=
   | Tf nil _ => " error!"
   | Tf _ _ => " error!"
   end.
-
-Require Import Coq.Init.Decimal.
 
 Fixpoint string_of_uint (i : uint) : string :=
   match i with
@@ -60,7 +60,7 @@ Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
   match p with
   | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
   | BinNums.xO p' => bool_list_of_pos (false :: acc) p'
-  | BinNums.xH => cons true acc (* TODO: why can I use :: on the line above, but not here? *)
+  | BinNums.xH => true :: acc
   end.
 
 Open Scope list.
@@ -102,7 +102,6 @@ Definition pp_f64 (f : float) : string :=
   end.
 
 Definition pp_const (v : value) : string :=
-  (* TODO: don't know how to print values *)
   match v with
   | ConstInt32 i => "i32.const " ++ pp_i32 i ++ "\n"
   | ConstInt64 i => "i64.const " ++ pp_i64 i ++ "\n"
@@ -119,7 +118,7 @@ Definition pp_unary_op_i (uoi : unop_i) : string :=
 
 Definition pp_unary_op_f (uof : unop_f) : string :=
   match uof with
-  | datatypes.Neg => "neg"
+  | Neg => "neg"
   | Abs => "abs"
   | Ceil => "ceil"
   | Floor => "floor"
@@ -182,7 +181,7 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   end.
 
 Definition pp_ao a o : string :=
-  pp_immediate a  ++ " " ++ pp_immediate o.
+  pp_immediate a ++ " " ++ pp_immediate o.
 
 Definition pp_packing (p : packed_type) :=
   match p with
@@ -191,7 +190,8 @@ Definition pp_packing (p : packed_type) :=
   | Tp_i32 => "32"
   end.
 
-Definition pp_ps '(p, s) : string :=
+Definition pp_ps (ps : packed_type * sx) : string :=
+  let '(p, s) := ps in
   pp_packing p ++ "_" ++ pp_sx s.
 
 Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
