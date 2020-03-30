@@ -281,3 +281,6 @@ end.
 
 Definition hex_small_no_prefix_of_bytes (x : list Byte.byte) :=
   String.concat " " (List.map hex_small_no_prefix_of_byte x).
+
+Definition hex_small_no_prefix_of_bytes_compact (x : list Byte.byte) :=
+  String.concat "" (List.map hex_small_no_prefix_of_byte x).
