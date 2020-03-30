@@ -1,7 +1,9 @@
 (* pretty-printer *)
-Require Import datatypes.
+Require Import datatypes bytes_pp.
 Require Import Coq.Strings.String.
+From compcert Require Import Floats.
 Open Scope string_scope.
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Fixpoint indent (i : nat) (s : string) : string :=
   match i with
@@ -43,15 +45,69 @@ Fixpoint string_of_uint (i : uint) : string :=
   end.
 
 Definition pp_immediate (i : immediate) : string :=
+  (* TODO: it's not clear that's the right way to print it, but hey *)
   string_of_uint (Nat.to_uint i).
+
+Definition pp_i32 i :=
+  pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int32.unsigned i)).
+
+Definition pp_i64 i :=
+  pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int64.unsigned i)).
+
+(* TODO: all this printing of floats business is highly dubious,
+ * and completely untested *)
+Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
+  match p with
+  | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
+  | BinNums.xO p' => bool_list_of_pos (false :: acc) p'
+  | BinNums.xH => cons true acc (* TODO: why can I use :: on the line above, but not here? *)
+  end.
+
+Open Scope list.
+
+Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
+  (* TODO: I am ashamed I wrote this *)
+  match bools with
+  | nil => acc
+  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: bools' =>
+    pp_bools (Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 b8) :: acc) bools'
+  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 ::  nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 false) :: acc
+  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 false false) :: acc
+  | b1 :: b2 :: b3 :: b4 :: b5 :: nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 false false false) :: acc
+  | b1 :: b2 :: b3 :: b4 :: nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 false false false false) :: acc
+  | b1 :: b2 :: b3 :: nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 false false false false false) :: acc
+  | b1 :: b2 :: nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 false false false false false false) :: acc
+  | b1 :: nil =>
+    Ascii.byte_of_ascii (Ascii.Ascii b1 false false false false false false false) :: acc
+  end.
+
+Definition pp_f32 (f : float32) : string :=
+  match BinIntDef.Z.to_N ((Float32.to_bits f).(Integers.Int.intval)) with
+  | BinNums.N0 => "0"
+  | BinNums.Npos p =>
+    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (bool_list_of_pos nil p))
+  end.
+
+Definition pp_f64 (f : float) : string :=
+  match BinIntDef.Z.to_N ((Float.to_bits f).(Integers.Int64.intval)) with
+  | BinNums.N0 => "0"
+  | BinNums.Npos p =>
+    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (bool_list_of_pos nil p))
+  end.
 
 Definition pp_const (v : value) : string :=
   (* TODO: don't know how to print values *)
   match v with
-  | ConstInt32 i => "i32.const " ++ "<num>" ++ "\n"
-  | ConstInt64 i => "i64.const " ++ "<num>" ++ "\n"
-  | ConstFloat32 i => "f32.const " ++ "<num>" ++ "\n"
-  | ConstFloat64 i => "f64.const " ++ "<num>" ++ "\n"
+  | ConstInt32 i => "i32.const " ++ pp_i32 i ++ "\n"
+  | ConstInt64 i => "i64.const " ++ pp_i64 i ++ "\n"
+  | ConstFloat32 f => "f32.const " ++ pp_f32 f ++ "\n"
+  | ConstFloat64 f => "f64.const " ++ pp_f64 f ++ "\n"
   end.
 
 Definition pp_unary_op_i (uoi : unop_i) : string :=
@@ -72,12 +128,26 @@ Definition pp_unary_op_f (uof : unop_f) : string :=
   | Sqrt => "sqrt"
   end.
 
+Definition pp_sx (s : sx) : string :=
+  match s with
+  | sx_U => "u"
+  | sx_S => "s"
+  end.
+
 Definition pp_binary_op_i (boi : binop_i) : string :=
   match boi with
   | Add => "add"
   | Sub => "sub"
   | Mul => "mul"
-  | _ => "<TODO: pp_binary_op_i>" (* TODO *)
+  | Div s => "div_" ++ pp_sx s
+  | Rem s => "rem_" ++ pp_sx s
+  | And => "and"
+  | Or => "or"
+  | Xor => "xor"
+  | Shl => "shl"
+  | Shr s => "shr_" ++ pp_sx s
+  | Rotl => "rotl"
+  | Rotr => "rotr"
   end.
 
 Definition pp_binary_op_f (bof : binop_f) : string :=
@@ -95,7 +165,10 @@ Definition pp_rel_op_i (roi : relop_i) : string :=
   match roi with
   | Eq => "eq"
   | Ne => "ne"
-  | _ => "<TODO: pp_rel_op_i>" (* TODO *)
+  | Lt s => "lt_" ++ pp_sx s
+  | Gt s => "gt_" ++ pp_sx s
+  | Le s => "le_" ++ pp_sx s
+  | Ge s => "ge_" ++ pp_sx s
   end.
 
 Definition pp_rel_op_f (rof : relop_f) : string :=
@@ -107,7 +180,20 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   | Lef => "ne"
   | Gef => "ge"
   end.
-  
+
+Definition pp_ao a o : string :=
+  pp_immediate a  ++ " " ++ pp_immediate o.
+
+Definition pp_packing (p : packed_type) :=
+  match p with
+  | Tp_i8 => "8"
+  | Tp_i16 => "16"
+  | Tp_i32 => "32"
+  end.
+
+Definition pp_ps '(p, s) : string :=
+  pp_packing p ++ "_" ++ pp_sx s.
+
 Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
   let pp_basic_instructions bes i :=
     String.concat "" (List.map (pp_basic_instruction (S i)) bes) in
@@ -156,8 +242,14 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
     indent i ("global.get " ++ pp_immediate x ++ "\n")
   | Set_global x =>
     indent i ("global.set " ++ pp_immediate x ++ "\n")
-  | Load _ _ _ _ => "TODO: load"
-  | Store _ _ _ _ => "TODO: store"
+  | Load vt None a o =>
+    pp_value_type vt ++ ".load " ++ pp_ao a o
+  | Load vt (Some ps) a o =>
+    pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o
+  | Store vt None a o =>
+    pp_value_type vt ++ ".store " ++ pp_ao a o
+  | Store vt (Some p) a o =>
+    pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o
   | Current_memory =>
     indent i "memory.size\n"
   | Grow_memory =>
