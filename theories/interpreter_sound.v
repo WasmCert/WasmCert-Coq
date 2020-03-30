@@ -593,7 +593,8 @@ Proof.
   - by destruct b; explode_and_simplify; pattern_match.
   - by pattern_match.
   - by destruct f; explode_and_simplify; pattern_match.
-  - match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.
+  - rename l0 into es2.
+    match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.
     assert (run_step_fuel (tt_s, tt_vs, es2) <= f).
     {
       apply/leP. rewrite/f /=.
@@ -608,6 +609,7 @@ Proof.
       by destruct r'' as [|[|]| |] => //; explode_and_simplify; pattern_match.
     + by [].
   - (* LATER: This proof might be factorised somehow. *)
+    rename l into vs. rename l0 into es.
     match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.
     assert (run_step_fuel (tt_s, vs, es) <= f).
     {
@@ -998,7 +1000,8 @@ Proof.
   apply rs_return_wellfounded in H.
   destruct H as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
   destruct k.
-  - inversion HLS. subst. auto_frame. apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
+  - inversion HLS. subst. auto_frame. apply r_simple.
+    eapply rs_return; first by apply v_to_e_is_const_list.
     + simplify_lists.
       rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
       * move/eqP in H0. subst. apply /eqP. by rewrite ltnn.
