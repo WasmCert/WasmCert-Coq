@@ -220,6 +220,85 @@ Lemma uncurry_curry : forall A B C (f : A -> B -> C) a b,
   uncurry (curry f) a b = f a b.
 Proof. by []. Qed.
 
+Ltac count_cases rect :=
+  let rec count_args rectf :=
+    lazymatch rectf with
+    | _ -> ?rectf' =>
+      let r := count_args rectf' in
+      constr:(r.+1)
+    | _ => constr:(0)
+    end in
+  lazymatch type of rect with
+  | forall P : ?t -> Type, @?rectf P =>
+    let r := constr:(rectf (fun _ : t => False)) in
+    let r := eval simpl in r in
+    count_args r
+  end.
+
+Definition test :=
+  ltac:(let n := count_cases administrative_instruction_rect in exact n).
+
+Goal False.
+  evar (a : Type).
+  assert a.
+  unfold a. clear a.
+
+  intros P basic trap callcl label local.
+  assert (G: forall a : administrative_instruction, P a); [| exact G ].
+  intro a. elim a => {a}.
+  - exact basic.
+  - exact trap.
+  - exact callcl.
+  - intros n l1 l2.
+    assert (G: TProp.Forall P l1 -> TProp.Forall P l2 -> P (Label n l1 l2)); [ apply label |].
+
+Ltac rect'_type rect :=
+  let n := count_cases rect in
+  let 
+
+
+  Fixpoint administrative_instruction_rect' e : P e :=
+    let rect_list :=
+      fix rect_list es : TProp.Forall P es :=
+        match es with
+        | [::] => TProp.Forall_nil _
+        | e :: l => TProp.Forall_cons (administrative_instruction_rect' e) (rect_list l)
+        end in
+    match e with
+    | Basic b => basic b
+    | Trap => trap
+    | Callcl f => callcl f
+    | Label n es1 es2 => label n (rect_list es1) (rect_list es2)
+    | Local n i vs es => local n i vs (rect_list es)
+    end.
+
+
+Ltac rect'_type rect :=
+  let rec parse_arg t P hypf :=
+    lazymatch hypf with
+    | forall a : ?ta, _ (* @?hypf' a*) =>
+      constr:(forall a : ta, False) (*ltac:(exact ltac:(parse_arg t P (hypf' a))))*)
+    | _ => constr:(hypf)
+    end in
+  let rec parse_args t P rectf :=
+    lazymatch rectf with
+    | ?hypf -> ?rectf' =>
+      let r' := parse_args t P rectf' in
+      let r := parse_arg t P hypf in
+      constr:(r -> r')
+    | _ => constr:(rectf)
+    end in
+  lazymatch type of rect with
+  | forall P : ?t -> Type, @?rectf P =>
+    let r :=
+      constr:(forall P : t -> Type,
+        ltac:(let r := parse_args t P (rectf P) in exact r)) in
+    eval simpl in r
+  end.
+
+Definition test :=
+  ltac:(let n := rect'_type administrative_instruction_rect in exact n).
+
 Ltac rect'_type rect :=
   let rec parse_argf t hypf :=
     lazymatch hypf with
