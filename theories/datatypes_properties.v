@@ -206,6 +206,68 @@ Canonical Structure store_record_eqType := Eval hnf in EqType store_record store
 (** Induction scheme for [administrative_instruction]. **)
 Section administrative_instruction_rect'.
 
+Definition curry A B C (f : A -> B -> C) (ab : A * B) :=
+  let: (a, b) := ab in
+  f a b.
+
+Definition uncurry A B C (f : A * B -> C) a b := f (a, b).
+
+Lemma curry_uncurry : forall A B C (f : A * B -> C) ab,
+  curry (uncurry f) ab = f ab.
+Proof. by move=> A B C f [a b]. Qed.
+
+Lemma uncurry_curry : forall A B C (f : A -> B -> C) a b,
+  uncurry (curry f) a b = f a b.
+Proof. by []. Qed.
+
+Ltac rect'_type rect :=
+  let rec parse_argf t hypf :=
+    lazymatch hypf with
+    | fun P args => ?H -> forall a, @?hypf' P args a =>
+      let f := constr:(fun P args => forall a, H -> hypf' P args a) in
+      parse_argf t f
+    | fun P (args : ?targs) => forall a : ?ta, @?hypf' P args a =>
+      let hypf' :=
+        lazymatch ta with
+        | list t =>
+          constr:(fun P args a => TProp.Forall P a -> hypf' P args a)
+        | _ => hypf'
+        end in
+      let hypf'' :=
+        constr:(fun P (args : (targs * _)%type) => hypf' P args.1 args.2) in
+      let hypf'' := eval simpl in hypf'' in
+      parse_argf t hypf''
+    | _ => constr:(hypf)
+    end in
+  let parse_arg t hypf :=
+    lazymatch hypf with
+    | fun P => forall a, @?hypf' P a =>
+      let r := parse_argf t hypf' in
+      constr:(fun P => forall a, r P a)
+    | _ => constr:(hypf)
+    end in
+  let rec parse_args t rectf :=
+    lazymatch rectf with
+    | fun P => @?hypf P -> @?rectf' P =>
+      let r' := parse_args t rectf' in
+      let r := parse_arg t hypf in
+      constr:(fun P => r P -> r' P)
+    | _ => constr:(rectf)
+    end in
+  lazymatch type of rect with
+  | forall P : ?t -> Type, @?rectf P =>
+    let r := parse_args t rectf in
+    let r := constr:(forall P : t -> Type, r P) in
+    eval simpl in r
+  end.
+
+Definition test :=
+  ltac:(let n := rect'_type administrative_instruction_rect in exact n).
+
+let rec curry f :=
+    lazymatch f with
+    | fun (args : _ * _)%type => let (arg1, args2) := args in @?f' arg1 args2 =>
+
   Variable P : administrative_instruction -> Type.
 
   Hypothesis basic : forall b, P (Basic b).
