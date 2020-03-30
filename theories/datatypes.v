@@ -20,7 +20,9 @@ Unset Printing Implicit Defensive.
 Variable host : eqType. (* TODO: Do the same than for integers and floats. *)
 Variable host_state : eqType.
 
-Definition immediate := nat. (* i *)
+Definition immediate (* i *) :=
+  (* TODO: this is not a great representation *)
+  nat.
 
 Definition static_offset := nat. (* off *)
 
