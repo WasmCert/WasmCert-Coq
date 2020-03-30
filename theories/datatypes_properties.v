@@ -237,40 +237,59 @@ Ltac count_cases rect :=
   end.
 
 Ltac rect'_type rect :=
-  let add_hyp t ta :=
+  let added_hyp t ta :=
     lazymatch ta with
     | list t => constr:(@TProp.Forall t)
-    | option t => constr:(fun P (o : ta) => forall a, o = Some a -> P a)
+    | option t => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
     | _ => constr:(fun (_ : t -> Type) (_ : ta) => True)
     end in
+  let add_hyp t ta P a r :=
+    let h := added_hyp t ta in
+    let h := constr:(h P a) in
+    let h := eval simpl in h in
+    lazymatch h with
+    | True => r
+    | _ => constr:(h -> r)
+    end in
+  let set_hyp t ta P a r :=
+    let r := add_hyp t ta P a r in
+    exact r in
   let update_hyp t hyp :=
     lazymatch hyp with
     | fun P => P _ => constr:(hyp)
     | fun P => forall a1 : ?t1, P (?C a1) =>
-      let h1 := add_hyp t t1 in
-      constr:(fun P => forall a1, h1 P a1 -> P (C a1))
+      constr:(fun P : t -> Type => forall a1 : t1,
+        ltac:(set_hyp t t1 P a1 (P (C a1))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
-      let h1 := add_hyp t t1 in
-      let h2 := add_hyp t t2 in
-      constr:(fun P => forall a1 a2, h1 P a1 -> h2 P a2 -> P (C a1 a2))
+      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2),
+        ltac:(set_hyp t t1 P a1
+          ltac:(add_hyp t t2 P a2 (P (C a1 a2)))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
-      let h1 := add_hyp t t1 in
-      let h2 := add_hyp t t2 in
-      let h3 := add_hyp t t3 in
-      constr:(fun P => forall a1 a2 a3, h1 P a1 -> h2 P a2 -> h3 P a3 -> P (C a1 a2 a3))
+      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
+        ltac:(set_hyp t t1 P a1
+          ltac:(add_hyp t t2 P a2
+            ltac:(add_hyp t t3 P a3 (P (C a1 a2 a3))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
-      let h1 := add_hyp t t1 in
-      let h2 := add_hyp t t2 in
-      let h3 := add_hyp t t3 in
-      let h4 := add_hyp t t4 in
-      constr:(fun P => forall a1 a2 a3 a4, h1 P a1 -> h2 P a2 -> h3 P a3 -> h4 P a4 -> P (C a1 a2 a3 a4))
+      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
+        ltac:(set_hyp t t1 P a1
+          ltac:(add_hyp t t2 P a2
+            ltac:(add_hyp t t3 P a3
+              ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4)))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
-      let h1 := add_hyp t t1 in
-      let h2 := add_hyp t t2 in
-      let h3 := add_hyp t t3 in
-      let h4 := add_hyp t t4 in
-      let h5 := add_hyp t t5 in
-      constr:(fun P => forall a1 a2 a3 a4, h1 P a1 -> h2 P a2 -> h3 P a3 -> h4 P a4 -> h5 P a5 -> P (C a1 a2 a3 a4 a5))
+      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
+        ltac:(set_hyp t t1 P a1
+          ltac:(add_hyp t t2 P a2
+            ltac:(add_hyp t t3 P a3
+              ltac:(add_hyp t t4 P a4
+                ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4 a5))))))))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
+      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
+        ltac:(set_hyp t t1 P a1
+          ltac:(add_hyp t t2 P a2
+            ltac:(add_hyp t t3 P a3
+              ltac:(add_hyp t t4 P a4
+                ltac:(add_hyp t t5 P a5
+                  ltac:(add_hyp t t6 P a6 (P (C a1 a2 a3 a4 a5 a6)))))))))
     end in
   let rec map_hyps t rectf :=
     lazymatch rectf with
@@ -283,151 +302,53 @@ Ltac rect'_type rect :=
   lazymatch type of rect with
   | forall P : ?t -> Type, @?rectf P =>
     let r := map_hyps t rectf in
-    let r := eval simpl in r in
-    constr:(forall P, r P)
+    let r := constr:(forall P, r P) in
+    eval simpl in r
   end.
 
-Definition test :=
-  ltac:(let n := rect'_type administrative_instruction_rect in exact n).
-
-Goal False.
-  evar (a : Type).
-  assert a.
-  unfold a. clear a.
-
-  intros P basic trap callcl label local.
-  assert (G: forall a : administrative_instruction, P a); [| exact G ].
-  intro a. elim a => {a}.
-  - exact basic.
-  - exact trap.
-  - exact callcl.
-  - intros n l1 l2.
-    assert (G: TProp.Forall P l1 -> TProp.Forall P l2 -> P (Label n l1 l2)); [ apply label |].
-
-Ltac rect'_type rect :=
-  let n := count_cases rect in
-  let 
-
-
-  Fixpoint administrative_instruction_rect' e : P e :=
+Ltac rect'_build rect :=
+  let t :=
+    lazymatch type of rect with
+    | forall P : ?t -> Type, _ => t
+    end in
+  let g := rect'_type rect in
+  refine (_ : g);
+  let P := fresh "P" in
+  intro P;
+  repeat lazymatch goal with
+  | |- forall a : t, P a => idtac
+  | |- _ -> _ => intro
+  end;
+  let rect := fresh "rect" in
+  fix rect 1;
+  let rect_list := fresh "rect_list" in
+  refine (
     let rect_list :=
       fix rect_list es : TProp.Forall P es :=
         match es with
         | [::] => TProp.Forall_nil _
-        | e :: l => TProp.Forall_cons (administrative_instruction_rect' e) (rect_list l)
-        end in
-    match e with
-    | Basic b => basic b
-    | Trap => trap
-    | Callcl f => callcl f
-    | Label n es1 es2 => label n (rect_list es1) (rect_list es2)
-    | Local n i vs es => local n i vs (rect_list es)
-    end.
-
-
-Ltac rect'_type rect :=
-  let rec parse_arg t P hypf :=
-    lazymatch hypf with
-    | forall a : ?ta, _ (* @?hypf' a*) =>
-      constr:(forall a : ta, False) (*ltac:(exact ltac:(parse_arg t P (hypf' a))))*)
-    | _ => constr:(hypf)
+        | e :: l => TProp.Forall_cons (rect e) (rect_list l)
+        end in _);
+  let do_it := clear rect rect_list; auto in
+  let use_hyps :=
+    intros;
+    repeat match goal with
+    | a : t |- _ =>
+      lazymatch goal with
+      | H : P a |- _ => fail
+      | _ => move: (rect a) => ?
+      end
+    | l : list t |- _ =>
+      lazymatch goal with
+      | H : TProp.Forall P l |- _ => fail
+      | _ => move: (rect_list l) => ?
+      end
+    | o : option t |- _ => destruct o
     end in
-  let rec parse_args t P rectf :=
-    lazymatch rectf with
-    | ?hypf -> ?rectf' =>
-      let r' := parse_args t P rectf' in
-      let r := parse_arg t P hypf in
-      constr:(r -> r')
-    | _ => constr:(rectf)
-    end in
-  lazymatch type of rect with
-  | forall P : ?t -> Type, @?rectf P =>
-    let r :=
-      constr:(forall P : t -> Type,
-        ltac:(let r := parse_args t P (rectf P) in exact r)) in
-    eval simpl in r
-  end.
-
-Definition test :=
-  ltac:(let n := rect'_type administrative_instruction_rect in exact n).
-
-Ltac rect'_type rect :=
-  let rec parse_argf t hypf :=
-    lazymatch hypf with
-    | fun P args => ?H -> forall a, @?hypf' P args a =>
-      let f := constr:(fun P args => forall a, H -> hypf' P args a) in
-      parse_argf t f
-    | fun P (args : ?targs) => forall a : ?ta, @?hypf' P args a =>
-      let hypf' :=
-        lazymatch ta with
-        | list t =>
-          constr:(fun P args a => TProp.Forall P a -> hypf' P args a)
-        | _ => hypf'
-        end in
-      let hypf'' :=
-        constr:(fun P (args : (targs * _)%type) => hypf' P args.1 args.2) in
-      let hypf'' := eval simpl in hypf'' in
-      parse_argf t hypf''
-    | _ => constr:(hypf)
-    end in
-  let parse_arg t hypf :=
-    lazymatch hypf with
-    | fun P => forall a, @?hypf' P a =>
-      let r := parse_argf t hypf' in
-      constr:(fun P => forall a, r P a)
-    | _ => constr:(hypf)
-    end in
-  let rec parse_args t rectf :=
-    lazymatch rectf with
-    | fun P => @?hypf P -> @?rectf' P =>
-      let r' := parse_args t rectf' in
-      let r := parse_arg t hypf in
-      constr:(fun P => r P -> r' P)
-    | _ => constr:(rectf)
-    end in
-  lazymatch type of rect with
-  | forall P : ?t -> Type, @?rectf P =>
-    let r := parse_args t rectf in
-    let r := constr:(forall P : t -> Type, r P) in
-    eval simpl in r
-  end.
-
-Definition test :=
-  ltac:(let n := rect'_type administrative_instruction_rect in exact n).
-
-let rec curry f :=
-    lazymatch f with
-    | fun (args : _ * _)%type => let (arg1, args2) := args in @?f' arg1 args2 =>
-
-  Variable P : administrative_instruction -> Type.
-
-  Hypothesis basic : forall b, P (Basic b).
-  Hypothesis trap : P Trap.
-  Hypothesis callcl : forall f, P (Callcl f).
-  Hypothesis label : forall n es1 es2,
-    TProp.Forall P es1 ->
-    TProp.Forall P es2 ->
-    P (Label n es1 es2).
-  Hypothesis local : forall n i vs es,
-    TProp.Forall P es ->
-    P (Local n i vs es).
-
-  Fixpoint administrative_instruction_rect' e : P e :=
-    let rect_list :=
-      fix rect_list es : TProp.Forall P es :=
-        match es with
-        | [::] => TProp.Forall_nil _
-        | e :: l => TProp.Forall_cons (administrative_instruction_rect' e) (rect_list l)
-        end in
-    match e with
-    | Basic b => basic b
-    | Trap => trap
-    | Callcl f => callcl f
-    | Label n es1 es2 => label n (rect_list es1) (rect_list es2)
-    | Local n i vs es => local n i vs (rect_list es)
-    end.
-
-End administrative_instruction_rect'.
+  case; try solve [ do_it | use_hyps; do_it ].
+  
+Definition administrative_instruction_rect' :=
+  ltac:(rect'_build administrative_instruction_rect).
 
 Definition administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
   @administrative_instruction_rect' P.
