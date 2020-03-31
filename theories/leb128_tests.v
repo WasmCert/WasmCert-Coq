@@ -13,14 +13,14 @@ Definition test_wikipedia : list Byte.byte :=
 Definition encode_unsigned_check (k : N) :=
   Singleton (encode_unsigned k).
 
-Lemma test_wikipedia_correct :
+Lemma test_wikipedia_encode :
   encode_unsigned_check 624485 = Singleton test_wikipedia.
 Proof.
   vm_compute. reflexivity.
 Qed.
 
 Definition test_wikipedia_decode :
-  check_toks test_wikipedia unsigned_ = Singleton 624485%N.
+  check_toks test_wikipedia parse_unsigned = Singleton 624485%N.
 Proof.
   vm_compute. reflexivity.
 Qed.
