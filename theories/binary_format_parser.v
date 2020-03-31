@@ -29,83 +29,83 @@ Definition exact_byte (b : byte) {n}: byte_parser byte n :=
       else None)
     anyTok.
 
-Definition u32 {n} : byte_parser Wasm_int.Int32.int n :=
+Definition parse_u32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
-  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract unsigned_ n).
+  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
 
-Definition u32_zero {n} : byte_parser Wasm_int.Int32.int n :=
+Definition parse_u32_zero {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   exact_byte x00 $> Wasm_int.Int32.zero.
 
-Definition s32 {n} : byte_parser Wasm_int.Int32.int n :=
+Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
-  (fun x => Wasm_int.Int32.repr x) <$> (extract signed_ n).
+  (fun x => Wasm_int.Int32.repr x) <$> (extract parse_signed n).
 
-Definition s64 {n} : byte_parser Wasm_int.Int64.int n :=
+Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
   (* TODO: limit size *)
-  (fun x => Wasm_int.Int64.repr x) <$> (extract signed_ n).
+  (fun x => Wasm_int.Int64.repr x) <$> (extract parse_signed n).
 
-Definition f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
+Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
   (* TODO: use  Flocq.IEEE754.Bits.b32_of_bits *)
   (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *)
   exact_byte x00 $> Wasm_float.Float32.pos_zero.
 
-Definition f64 {n} : byte_parser Wasm_float.FloatSize64.T n :=
+Definition parse_f64 {n} : byte_parser Wasm_float.FloatSize64.T n :=
   (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *)
   exact_byte x00 $> Wasm_float.Float64.pos_zero.
 
-Definition u32_nat {n} : byte_parser nat n :=
-  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_u32_nat {n} : byte_parser nat n :=
+  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition veclen {n} : byte_parser nat n :=
-  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_vec_length {n} : byte_parser nat n :=
+  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Fixpoint vec_aux {B} {n} (f : byte_parser B n) (k : nat)
+Fixpoint parse_vec_aux {B} {n} (f : byte_parser B n) (k : nat)
   : byte_parser (list B) n :=
   match k with
   | 0 => (fun x => cons x nil) <$> f (* TODO: this is wrong in general, but OK with `vec`?!? *)
   | S 0 => (fun x => cons x nil) <$> f
-  | S k' => (cons <$> f) <*> vec_aux f k'
+  | S k' => (cons <$> f) <*> parse_vec_aux f k'
   end.
 
-Definition vec {B} {n} (f : byte_parser B n)
+Definition parse_vec {B} {n} (f : byte_parser B n)
   : byte_parser (list B) n :=
   (* TODO: this is vomit-inducingly bad, but I have no clue how to avoid this :-( *)
-  (u32_zero $> nil) <|>
-  (veclen >>= (fun k => vec_aux f k)).
+  (parse_u32_zero $> nil) <|>
+  (parse_vec_length >>= (fun k => parse_vec_aux f k)).
 
-Definition labelidx_ {n} : byte_parser labelidx n :=
-  (fun x => Mk_labelidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_labelidx {n} : byte_parser labelidx n :=
+  (fun x => Mk_labelidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition funcidx_ {n} : byte_parser funcidx n :=
-  (fun x => Mk_funcidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_funcidx {n} : byte_parser funcidx n :=
+  (fun x => Mk_funcidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition typeidx_ {n} : byte_parser typeidx n :=
-  (fun x => Mk_typeidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_typeidx {n} : byte_parser typeidx n :=
+  (fun x => Mk_typeidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition localidx_ {n} : byte_parser localidx n :=
-  (fun x => Mk_localidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_localidx {n} : byte_parser localidx n :=
+  (fun x => Mk_localidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition globalidx_ {n} : byte_parser globalidx n :=
-  (fun x => Mk_globalidx (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_globalidx {n} : byte_parser globalidx n :=
+  (fun x => Mk_globalidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition value_type_ {n} : byte_parser value_type n :=
+Definition parse_value_type {n} : byte_parser value_type n :=
   (exact_byte x7f $> T_i32) <|>
   (exact_byte x7e $> T_i64) <|>
   (exact_byte x7d $> T_f32) <|>
   (exact_byte x7c $> T_f64).
 
-Definition block_type_ {n} : byte_parser (list value_type) n :=
-  (fun x => cons x nil) <$> value_type_.
+Definition parse_block_type {n} : byte_parser (list value_type) n :=
+  (fun x => cons x nil) <$> parse_value_type.
 
-Definition block_type_as_function_type {n} : byte_parser function_type n :=
+Definition parse_block_type_as_function_type {n} : byte_parser function_type n :=
   (exact_byte x40 $> Tf nil nil) <|>
-  (Tf nil <$> block_type_).
+  (Tf nil <$> parse_block_type).
 
-Definition unreachable {n} : byte_parser basic_instruction n :=
+Definition parse_unreachable {n} : byte_parser basic_instruction n :=
   exact_byte x00 $> Unreachable.
 
-Definition nop {n} : byte_parser basic_instruction n :=
+Definition parse_nop {n} : byte_parser basic_instruction n :=
   exact_byte x01 $> Nop.
 
 Definition extract_labelidx {B} (f : nat -> B) (x : labelidx) : B :=
@@ -123,188 +123,188 @@ Definition extract_localidx {B} (f : nat -> B) (x : localidx) : B :=
 Definition extract_globalidx {B} (f : nat -> B) (x : globalidx) : B :=
   match x with Mk_globalidx n => f n end.
 
-Definition br {n} : byte_parser basic_instruction n :=
-  exact_byte x0c &> (extract_labelidx Br <$> labelidx_).
+Definition parse_br {n} : byte_parser basic_instruction n :=
+  exact_byte x0c &> (extract_labelidx Br <$> parse_labelidx).
 
-Definition br_if {n} : byte_parser basic_instruction n :=
-  exact_byte x0d &> (extract_labelidx Br_if <$> labelidx_).
+Definition parse_br_if {n} : byte_parser basic_instruction n :=
+  exact_byte x0d &> (extract_labelidx Br_if <$> parse_labelidx).
 
-Definition br_table_aux (xs : list labelidx) (x : labelidx) :=
+Definition parse_br_table_aux (xs : list labelidx) (x : labelidx) :=
   Br_table (List.map (extract_labelidx (fun x => x)) xs) (extract_labelidx (fun x => x) x).
 
-Definition br_table {n} : byte_parser basic_instruction n :=
+Definition parse_br_table {n} : byte_parser basic_instruction n :=
   exact_byte x0e &>
-  ((br_table_aux <$> vec labelidx_) <*> labelidx_).
+  ((parse_br_table_aux <$> parse_vec parse_labelidx) <*> parse_labelidx).
 
-Definition return_ {n} : byte_parser basic_instruction n :=
+Definition parse_return {n} : byte_parser basic_instruction n :=
   exact_byte x0f $> Return.
 
 Definition parse_call {n} : byte_parser basic_instruction n :=
-  exact_byte x10 &> (extract_funcidx Call <$> funcidx_).
+  exact_byte x10 &> (extract_funcidx Call <$> parse_funcidx).
 
-Definition call_indirect {n} : byte_parser basic_instruction n :=
-  exact_byte x11 &> (extract_typeidx Call <$> typeidx_ <& exact_byte x00).
+Definition parse_call_indirect {n} : byte_parser basic_instruction n :=
+  exact_byte x11 &> (extract_typeidx Call <$> parse_typeidx <& exact_byte x00).
 
-Definition drop {n} : byte_parser basic_instruction n :=
+Definition parse_drop {n} : byte_parser basic_instruction n :=
   exact_byte x1a $> Drop.
 
-Definition select {n} : byte_parser basic_instruction n :=
+Definition parse_select {n} : byte_parser basic_instruction n :=
   exact_byte x1b $> Select.
 
-Definition parametric_instruction {n} : byte_parser basic_instruction n :=
-  drop <|> select.
+Definition parse_parametric_instruction {n} : byte_parser basic_instruction n :=
+  parse_drop <|> parse_select.
 
-Definition local_get {n} : byte_parser basic_instruction n :=
-  exact_byte x20 &> (extract_localidx Get_local <$> localidx_).
+Definition parse_local_get {n} : byte_parser basic_instruction n :=
+  exact_byte x20 &> (extract_localidx Get_local <$> parse_localidx).
 
-Definition local_set {n} : byte_parser basic_instruction n :=
-  exact_byte x21 &> (extract_localidx Set_local <$> localidx_).
+Definition parse_local_set {n} : byte_parser basic_instruction n :=
+  exact_byte x21 &> (extract_localidx Set_local <$> parse_localidx).
 
-Definition local_tee {n} : byte_parser basic_instruction n :=
-  exact_byte x22 &> (extract_localidx Tee_local <$> localidx_).
+Definition parse_local_tee {n} : byte_parser basic_instruction n :=
+  exact_byte x22 &> (extract_localidx Tee_local <$> parse_localidx).
 
-Definition global_get {n} : byte_parser basic_instruction n :=
-  exact_byte x23 &> (extract_globalidx Get_global <$> globalidx_).
+Definition parse_global_get {n} : byte_parser basic_instruction n :=
+  exact_byte x23 &> (extract_globalidx Get_global <$> parse_globalidx).
 
-Definition global_set {n} : byte_parser basic_instruction n :=
-  exact_byte x24 &> (extract_globalidx Set_global <$> globalidx_).
+Definition parse_global_set {n} : byte_parser basic_instruction n :=
+  exact_byte x24 &> (extract_globalidx Set_global <$> parse_globalidx).
 
-Definition variable_instruction {n} : byte_parser basic_instruction n :=
-  local_get <|>
-  local_set <|>
-  local_tee <|>
-  global_get <|>
-  global_set.
+Definition parse_variable_instruction {n} : byte_parser basic_instruction n :=
+  parse_local_get <|>
+  parse_local_set <|>
+  parse_local_tee <|>
+  parse_global_get <|>
+  parse_global_set.
 
-Definition alignment_exponent_ {n} : byte_parser nat n :=
-  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_alignment_exponent {n} : byte_parser nat n :=
+  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition static_offset_ {n} : byte_parser nat n :=
-  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> u32.
+Definition parse_static_offset {n} : byte_parser nat n :=
+  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
-Definition memarg {n} : byte_parser (alignment_exponent * static_offset) n :=
-  alignment_exponent_ <&> static_offset_.
+Definition parse_memarg {n} : byte_parser (alignment_exponent * static_offset) n :=
+  parse_alignment_exponent <&> parse_static_offset.
 
-Definition i32_load {n} : byte_parser basic_instruction n :=
-  exact_byte x28 &> (prod_curry (Load T_i32 None) <$> memarg).
+Definition parse_i32_load {n} : byte_parser basic_instruction n :=
+  exact_byte x28 &> (prod_curry (Load T_i32 None) <$> parse_memarg).
 
-Definition i64_load {n} : byte_parser basic_instruction n :=
-  exact_byte x29 &> (prod_curry (Load T_i64 None) <$> memarg).
+Definition parse_i64_load {n} : byte_parser basic_instruction n :=
+  exact_byte x29 &> (prod_curry (Load T_i64 None) <$> parse_memarg).
 
-Definition f32_load {n} : byte_parser basic_instruction n :=
-  exact_byte x2a &> (prod_curry (Load T_f32 None) <$> memarg).
+Definition parse_f32_load {n} : byte_parser basic_instruction n :=
+  exact_byte x2a &> (prod_curry (Load T_f32 None) <$> parse_memarg).
 
-Definition f64_load {n} : byte_parser basic_instruction n :=
-  exact_byte x2b &> (prod_curry (Load T_f64 None) <$> memarg).
+Definition parse_f64_load {n} : byte_parser basic_instruction n :=
+  exact_byte x2b &> (prod_curry (Load T_f64 None) <$> parse_memarg).
 
-Definition i32_load8_s {n} : byte_parser basic_instruction n :=
-  exact_byte x2c &> (prod_curry (Load T_i32 (Some (Tp_i8, sx_S))) <$> memarg).
+Definition parse_i32_load8_s {n} : byte_parser basic_instruction n :=
+  exact_byte x2c &> (prod_curry (Load T_i32 (Some (Tp_i8, sx_S))) <$> parse_memarg).
 
-Definition i32_load8_u {n} : byte_parser basic_instruction n :=
-  exact_byte x2d &> (prod_curry (Load T_i32 (Some (Tp_i8, sx_U))) <$> memarg).
+Definition parse_i32_load8_u {n} : byte_parser basic_instruction n :=
+  exact_byte x2d &> (prod_curry (Load T_i32 (Some (Tp_i8, sx_U))) <$> parse_memarg).
 
-Definition i32_load16_s {n} : byte_parser basic_instruction n :=
-  exact_byte x2e &> (prod_curry (Load T_i32 (Some (Tp_i16, sx_S))) <$> memarg).
+Definition parse_i32_load16_s {n} : byte_parser basic_instruction n :=
+  exact_byte x2e &> (prod_curry (Load T_i32 (Some (Tp_i16, sx_S))) <$> parse_memarg).
 
-Definition i32_load16_u {n} : byte_parser basic_instruction n :=
-  exact_byte x2f &> (prod_curry (Load T_i32 (Some (Tp_i16, sx_U))) <$> memarg).
+Definition parse_i32_load16_u {n} : byte_parser basic_instruction n :=
+  exact_byte x2f &> (prod_curry (Load T_i32 (Some (Tp_i16, sx_U))) <$> parse_memarg).
 
-Definition i64_load8_s {n} : byte_parser basic_instruction n :=
-  exact_byte x30 &> (prod_curry (Load T_i64 (Some (Tp_i8, sx_S))) <$> memarg).
+Definition parse_i64_load8_s {n} : byte_parser basic_instruction n :=
+  exact_byte x30 &> (prod_curry (Load T_i64 (Some (Tp_i8, sx_S))) <$> parse_memarg).
 
-Definition i64_load8_u {n} : byte_parser basic_instruction n :=
-  exact_byte x31 &> (prod_curry (Load T_i64 (Some (Tp_i8, sx_U))) <$> memarg).
+Definition parse_i64_load8_u {n} : byte_parser basic_instruction n :=
+  exact_byte x31 &> (prod_curry (Load T_i64 (Some (Tp_i8, sx_U))) <$> parse_memarg).
 
-Definition i64_load16_s {n} : byte_parser basic_instruction n :=
-  exact_byte x32 &> (prod_curry (Load T_i64 (Some (Tp_i16, sx_S))) <$> memarg).
+Definition parse_i64_load16_s {n} : byte_parser basic_instruction n :=
+  exact_byte x32 &> (prod_curry (Load T_i64 (Some (Tp_i16, sx_S))) <$> parse_memarg).
 
-Definition i64_load16_u {n} : byte_parser basic_instruction n :=
-  exact_byte x33 &> (prod_curry (Load T_i64 (Some (Tp_i16, sx_U))) <$> memarg).
+Definition parse_i64_load16_u {n} : byte_parser basic_instruction n :=
+  exact_byte x33 &> (prod_curry (Load T_i64 (Some (Tp_i16, sx_U))) <$> parse_memarg).
 
-Definition i64_load32_s {n} : byte_parser basic_instruction n :=
-  exact_byte x34 &> (prod_curry (Load T_i64 (Some (Tp_i32, sx_S))) <$> memarg).
+Definition parse_i64_load32_s {n} : byte_parser basic_instruction n :=
+  exact_byte x34 &> (prod_curry (Load T_i64 (Some (Tp_i32, sx_S))) <$> parse_memarg).
 
-Definition i64_load32_u {n} : byte_parser basic_instruction n :=
-  exact_byte x35 &> (prod_curry (Load T_i64 (Some (Tp_i32, sx_U))) <$> memarg).
+Definition parse_i64_load32_u {n} : byte_parser basic_instruction n :=
+  exact_byte x35 &> (prod_curry (Load T_i64 (Some (Tp_i32, sx_U))) <$> parse_memarg).
 
-Definition i32_store {n} : byte_parser basic_instruction n :=
-  exact_byte x36 &> (prod_curry (Store T_i32 None) <$> memarg).
+Definition parse_i32_store {n} : byte_parser basic_instruction n :=
+  exact_byte x36 &> (prod_curry (Store T_i32 None) <$> parse_memarg).
 
-Definition i64_store {n} : byte_parser basic_instruction n :=
-  exact_byte x37 &> (prod_curry (Store T_i64 None) <$> memarg).
+Definition parse_i64_store {n} : byte_parser basic_instruction n :=
+  exact_byte x37 &> (prod_curry (Store T_i64 None) <$> parse_memarg).
 
-Definition f32_store {n} : byte_parser basic_instruction n :=
-  exact_byte x38 &> (prod_curry (Store T_f32 None) <$> memarg).
+Definition parse_f32_store {n} : byte_parser basic_instruction n :=
+  exact_byte x38 &> (prod_curry (Store T_f32 None) <$> parse_memarg).
 
-Definition f64_store {n} : byte_parser basic_instruction n :=
-  exact_byte x39 &> (prod_curry (Store T_f64 None) <$> memarg).
+Definition parse_f64_store {n} : byte_parser basic_instruction n :=
+  exact_byte x39 &> (prod_curry (Store T_f64 None) <$> parse_memarg).
 
-Definition i32_store8 {n} : byte_parser basic_instruction n :=
-  exact_byte x3a &> (prod_curry (Store T_i32 (Some Tp_i8)) <$> memarg).
+Definition parse_i32_store8 {n} : byte_parser basic_instruction n :=
+  exact_byte x3a &> (prod_curry (Store T_i32 (Some Tp_i8)) <$> parse_memarg).
 
-Definition i32_store16 {n} : byte_parser basic_instruction n :=
-  exact_byte x3b &> (prod_curry (Store T_i32 (Some Tp_i16)) <$> memarg).
+Definition parse_i32_store16 {n} : byte_parser basic_instruction n :=
+  exact_byte x3b &> (prod_curry (Store T_i32 (Some Tp_i16)) <$> parse_memarg).
 
-Definition i64_store8 {n} : byte_parser basic_instruction n :=
-  exact_byte x3c &> (prod_curry (Store T_i32 (Some Tp_i8)) <$> memarg).
+Definition parse_i64_store8 {n} : byte_parser basic_instruction n :=
+  exact_byte x3c &> (prod_curry (Store T_i32 (Some Tp_i8)) <$> parse_memarg).
 
-Definition i64_store16 {n} : byte_parser basic_instruction n :=
-  exact_byte x3d &> (prod_curry (Store T_i32 (Some Tp_i16)) <$> memarg).
+Definition parse_i64_store16 {n} : byte_parser basic_instruction n :=
+  exact_byte x3d &> (prod_curry (Store T_i32 (Some Tp_i16)) <$> parse_memarg).
 
-Definition i64_store32 {n} : byte_parser basic_instruction n :=
-  exact_byte x3e &> (prod_curry (Store T_i32 (Some Tp_i32)) <$> memarg).
+Definition parse_i64_store32 {n} : byte_parser basic_instruction n :=
+  exact_byte x3e &> (prod_curry (Store T_i32 (Some Tp_i32)) <$> parse_memarg).
 
-Definition memory_size {n} : byte_parser basic_instruction n :=
+Definition parse_memory_size {n} : byte_parser basic_instruction n :=
   exact_byte x3f &> (exact_byte x00 $> Current_memory).
 
-Definition memory_grow {n} : byte_parser basic_instruction n :=
+Definition parse_memory_grow {n} : byte_parser basic_instruction n :=
   exact_byte x40 &> (exact_byte x00 $> Grow_memory).
 
-Definition memory_instruction {n} : byte_parser basic_instruction n :=
-  i32_load <|>
-  i64_load <|>
-  f32_load <|>
-  f64_load <|>
-  i32_load8_s <|>
-  i32_load8_u <|>
-  i32_load16_s <|>
-  i32_load16_u <|>
-  i64_load8_s <|>
-  i64_load8_u <|>
-  i64_load16_s <|>
-  i64_load16_u <|>
-  i64_load32_s <|>
-  i64_load32_u <|>
-  i32_store <|>
-  i64_store <|>
-  f32_store <|>
-  f64_store <|>
-  i32_store8 <|>
-  i32_store16 <|>
-  i64_store8 <|>
-  i64_store16 <|>
-  i64_store32 <|>
-  memory_size <|>
-  memory_grow.
+Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
+  parse_i32_load <|>
+  parse_i64_load <|>
+  parse_f32_load <|>
+  parse_f64_load <|>
+  parse_i32_load8_s <|>
+  parse_i32_load8_u <|>
+  parse_i32_load16_s <|>
+  parse_i32_load16_u <|>
+  parse_i64_load8_s <|>
+  parse_i64_load8_u <|>
+  parse_i64_load16_s <|>
+  parse_i64_load16_u <|>
+  parse_i64_load32_s <|>
+  parse_i64_load32_u <|>
+  parse_i32_store <|>
+  parse_i64_store <|>
+  parse_f32_store <|>
+  parse_f64_store <|>
+  parse_i32_store8 <|>
+  parse_i32_store16 <|>
+  parse_i64_store8 <|>
+  parse_i64_store16 <|>
+  parse_i64_store32 <|>
+  parse_memory_size <|>
+  parse_memory_grow.
 
-Definition i32_const {n} : be_parser n :=
-  exact_byte x41 &> ((fun x => EConst (ConstInt32 x)) <$> s32).
+Definition parse_i32_const {n} : be_parser n :=
+  exact_byte x41 &> ((fun x => EConst (ConstInt32 x)) <$> parse_s32).
 
-Definition i64_const {n} : be_parser n :=
-  exact_byte x42 &> ((fun x => EConst (ConstInt64 x)) <$> s64).
+Definition parse_i64_const {n} : be_parser n :=
+  exact_byte x42 &> ((fun x => EConst (ConstInt64 x)) <$> parse_s64).
 
-Definition f32_const {n} : be_parser n :=
-  exact_byte x43 &> ((fun x => EConst (ConstFloat32 x)) <$> f32).
+Definition parse_f32_const {n} : be_parser n :=
+  exact_byte x43 &> ((fun x => EConst (ConstFloat32 x)) <$> parse_f32).
 
-Definition f64_const {n} : be_parser n :=
-  exact_byte x44 &> ((fun x => EConst (ConstFloat64 x)) <$> f64).
+Definition parse_f64_const {n} : be_parser n :=
+  exact_byte x44 &> ((fun x => EConst (ConstFloat64 x)) <$> parse_f64).
 
 (* :-( *)
-Definition numeric_instruction {n} : be_parser n :=
-  i32_const <|>
-  i64_const <|>
-  f32_const <|>
-  f64_const <|>
+Definition parse_numeric_instruction {n} : be_parser n :=
+  parse_i32_const <|>
+  parse_i64_const <|>
+  parse_f32_const <|>
+  parse_f64_const <|>
   exact_byte x45 $> Testop T_i32 Eqz <|>
   exact_byte x46 $> Relop_i T_i32 Eq <|>
   exact_byte x47 $> Relop_i T_i32 Ne <|>
@@ -438,8 +438,8 @@ Definition numeric_instruction {n} : be_parser n :=
   exact_byte xbe $> Cvtop T_f32 Reinterpret T_i32 None <|>
   exact_byte xbf $> Cvtop T_f64 Reinterpret T_i64 None.
 
-Record Language (n : nat) : Type := MkLanguage
-{ _be : byte_parser basic_instruction n;
+Record Language (n : nat) : Type := MkLanguage {
+  _be : byte_parser basic_instruction n;
   _bes_end_with_x0b : byte_parser (list basic_instruction) n;
   _bes_end_with_x05 : byte_parser (list basic_instruction) n;
   _bes_end_with_x0b_or_x05_ctd : byte_parser (list basic_instruction * list basic_instruction) n;
@@ -456,29 +456,29 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
   let bes_end_with_x05_aux := Induction.map _bes_end_with_x05 _ rec in
   let bes_end_with_x0b_or_x05_ctd_aux := Induction.map _bes_end_with_x0b_or_x05_ctd _ rec in
   let parse_block :=
-    exact_byte x02 &> ((Block <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
+    exact_byte x02 &> ((Block <$> parse_block_type_as_function_type) <*> bes_end_with_x0b_aux) in
   let parse_loop :=
-    exact_byte x03 &> ((Loop <$> block_type_as_function_type) <*> bes_end_with_x0b_aux) in
+    exact_byte x03 &> ((Loop <$> parse_block_type_as_function_type) <*> bes_end_with_x0b_aux) in
   let parse_if_body :=
-    (((fun x y => (x, y)) <$> block_type_as_function_type) <*> bes_end_with_x0b_or_x05_ctd_aux) in
+    (((fun x y => (x, y)) <$> parse_block_type_as_function_type) <*> bes_end_with_x0b_or_x05_ctd_aux) in
   let parse_if :=
     (fun '(x, (y, z)) => If x y z) <$> (exact_byte x04 &> parse_if_body) in
   let parse_be :=
-    unreachable <|>
-    nop <|>
+    parse_unreachable <|>
+    parse_nop <|>
     parse_block <|>
     parse_loop <|>
     parse_if <|>
-    br <|>
-    br_if <|>
-    br_table <|>
-    return_ <|>
+    parse_br <|>
+    parse_br_if <|>
+    parse_br_table <|>
+    parse_return <|>
     parse_call <|>
-    call_indirect <|>
-    parametric_instruction <|>
-    variable_instruction <|>
-    memory_instruction <|>
-    numeric_instruction in
+    parse_call_indirect <|>
+    parse_parametric_instruction <|>
+    parse_variable_instruction <|>
+    parse_memory_instruction <|>
+    parse_numeric_instruction in
   let parse_bes_end_with_x0b :=
     (exact_byte x0b $> nil) <|>
     ((cons <$> parse_be) <*> bes_end_with_x0b_aux) in
@@ -498,150 +498,150 @@ Definition parse_expr {n} : byte_parser (list basic_instruction) n :=
   (* TODO: is that right? *)
   parse_bes_end_with_x0b n.
 
-Definition function_type_ {n} : byte_parser function_type n :=
-  exact_byte x60 &> (prod_curry Tf <$> vec value_type_ <&> vec value_type_).
+Definition parse_function_type {n} : byte_parser function_type n :=
+  exact_byte x60 &> (prod_curry Tf <$> parse_vec parse_value_type <&> parse_vec parse_value_type).
 
-Definition limits_ {n} : byte_parser limits n :=
-  exact_byte x00 &> ((fun min => Mk_limits min None) <$> u32_nat) <|>
-  exact_byte x01 &> ((fun min max => Mk_limits min (Some max)) <$> u32_nat) <*> u32_nat.
+Definition parse_limits {n} : byte_parser limits n :=
+  exact_byte x00 &> ((fun min => Mk_limits min None) <$> parse_u32_nat) <|>
+  exact_byte x01 &> ((fun min max => Mk_limits min (Some max)) <$> parse_u32_nat) <*> parse_u32_nat.
 
-Definition elem_type_ {n} : byte_parser elem_type n :=
+Definition parse_elem_type {n} : byte_parser elem_type n :=
   exact_byte x70 $> elem_type_tt.
 
-Definition table_type_ {n} : byte_parser table_type n :=
-  prod_curry Mk_table_type <$> (limits_ <&> elem_type_).
+Definition parse_table_type {n} : byte_parser table_type n :=
+  prod_curry Mk_table_type <$> (parse_limits <&> parse_elem_type).
 
-Definition mem_type_ {n} : byte_parser mem_type n :=
-  Mk_mem_type <$> limits_.
+Definition parse_mem_type {n} : byte_parser mem_type n :=
+  Mk_mem_type <$> parse_limits.
 
-Definition mut_ {n} : byte_parser mutability n :=
+Definition parse_mut {n} : byte_parser mutability n :=
   exact_byte x00 $> T_immut <|>
   exact_byte x01 $> T_mut.
 
-Definition global_type_ {n} : byte_parser global_type n :=
-  ((fun x y => Build_global_type y x) <$> value_type_) <*> mut_.
+Definition parse_global_type {n} : byte_parser global_type n :=
+  ((fun x y => Build_global_type y x) <$> parse_value_type) <*> parse_mut.
 
-Definition import_desc_ {n} : byte_parser import_desc n :=
-  exact_byte x00 &> (extract_typeidx ID_func <$> typeidx_) <|>
-  exact_byte x01 &> (ID_table <$> table_type_) <|>
-  exact_byte x02 &> (ID_mem <$> mem_type_) <|>
-  exact_byte x03 &> (ID_global <$> global_type_).
+Definition parse_import_desc {n} : byte_parser import_desc n :=
+  exact_byte x00 &> (extract_typeidx ID_func <$> parse_typeidx) <|>
+  exact_byte x01 &> (ID_table <$> parse_table_type) <|>
+  exact_byte x02 &> (ID_mem <$> parse_mem_type) <|>
+  exact_byte x03 &> (ID_global <$> parse_global_type).
 
-Definition import_ {n} : byte_parser import n :=
-  (Mk_import <$> vec anyTok) <*> vec anyTok <*> import_desc_.
+Definition parse_import {n} : byte_parser import n :=
+  (Mk_import <$> parse_vec anyTok) <*> parse_vec anyTok <*> parse_import_desc.
 
-Definition global2_ {n} : byte_parser global2 n :=
-  (Build_global2 <$> global_type_) <*> parse_expr.
+Definition parse_global2 {n} : byte_parser global2 n :=
+  (Build_global2 <$> parse_global_type) <*> parse_expr.
 
-Definition export_desc_ {n} : byte_parser export_desc n :=
-  exact_byte x00 &> (ED_func <$> u32_nat) <|>
-  exact_byte x01 &> (ED_table <$> u32_nat) <|>
-  exact_byte x02 &> (ED_mem <$> u32_nat) <|>
-  exact_byte x03 &> (ED_global <$> u32_nat).
+Definition parse_export_desc {n} : byte_parser export_desc n :=
+  exact_byte x00 &> (ED_func <$> parse_u32_nat) <|>
+  exact_byte x01 &> (ED_table <$> parse_u32_nat) <|>
+  exact_byte x02 &> (ED_mem <$> parse_u32_nat) <|>
+  exact_byte x03 &> (ED_global <$> parse_u32_nat).
 
-Definition export_ {n} : byte_parser export n :=
-  (Build_export <$> vec anyTok) <*> export_desc_.
+Definition parse_export {n} : byte_parser export n :=
+  (Build_export <$> parse_vec anyTok) <*> parse_export_desc.
 
-Definition start_ {n} : byte_parser start n :=
-  Build_start <$> u32_nat.
+Definition parse_start {n} : byte_parser start n :=
+  Build_start <$> parse_u32_nat.
 
-Definition element_ {n} : byte_parser element n :=
-  (Build_element <$> u32_nat) <*> parse_expr <*> vec u32_nat.
+Definition parse_element {n} : byte_parser element n :=
+  (Build_element <$> parse_u32_nat) <*> parse_expr <*> parse_vec parse_u32_nat.
 
-Definition locals_ {n} : byte_parser (list value_type) n :=
-  vec value_type_.
+Definition parse_locals {n} : byte_parser (list value_type) n :=
+  parse_vec parse_value_type.
 
-Definition func_ {n} : byte_parser func n :=
-  ((fun xs => Build_func (List.concat xs)) <$> vec locals_) <*> parse_expr.
+Definition parse_func {n} : byte_parser func n :=
+  ((fun xs => Build_func (List.concat xs)) <$> parse_vec parse_locals) <*> parse_expr.
 
-Definition code_ {n} : byte_parser func n :=
+Definition parse_code {n} : byte_parser func n :=
   guardM
     (fun sf =>
       match sf with
       (* TODO: we are supposed to check that the size matches *)
       | (s, f) => (* if Nat.eqb s (func_size f) then *) Some f (* else None *)
       end)
-    (u32_nat <&> func_).
+    (parse_u32_nat <&> parse_func).
 
-Definition table_ {n} : byte_parser table n :=
-  Mk_table <$> table_type_.
+Definition parse_table {n} : byte_parser table n :=
+  Mk_table <$> parse_table_type.
 
-Definition data_ {n} : byte_parser data n :=
-  (Build_data <$> u32_nat) <*> parse_expr <*> vec anyTok.
+Definition parse_data {n} : byte_parser data n :=
+  (Build_data <$> parse_u32_nat) <*> parse_expr <*> parse_vec anyTok.
 
-Definition customsec {n} : byte_parser (list byte) n :=
-  exact_byte x00 &> vec anyTok.
+Definition parse_customsec {n} : byte_parser (list byte) n :=
+  exact_byte x00 &> parse_vec anyTok.
 
-Definition typesec {n} : byte_parser (list function_type) n :=
-  exact_byte x01 &> vec function_type_.
+Definition parse_typesec {n} : byte_parser (list function_type) n :=
+  exact_byte x01 &> parse_vec parse_function_type.
 
-Definition importsec {n} : byte_parser (list import) n :=
-  exact_byte x02 &> vec import_.
+Definition parse_importsec {n} : byte_parser (list import) n :=
+  exact_byte x02 &> parse_vec parse_import.
 
-Definition funcsec {n} : byte_parser (list typeidx) n :=
-  exact_byte x03 &> vec typeidx_.
+Definition parse_funcsec {n} : byte_parser (list typeidx) n :=
+  exact_byte x03 &> parse_vec parse_typeidx.
 
-Definition tablesec {n} : byte_parser (list table) n :=
-  exact_byte x04 &>  vec table_.
+Definition parse_tablesec {n} : byte_parser (list table) n :=
+  exact_byte x04 &>  parse_vec parse_table.
 
-Definition memsec {n} : byte_parser (list mem) n :=
-  exact_byte x05 &> vec limits_.
+Definition parse_memsec {n} : byte_parser (list mem) n :=
+  exact_byte x05 &> parse_vec parse_limits.
 
-Definition globalsec {n} : byte_parser (list global2) n :=
-  exact_byte x06 &> vec global2_.
+Definition parse_globalsec {n} : byte_parser (list global2) n :=
+  exact_byte x06 &> parse_vec parse_global2.
 
-Definition exportsec {n} : byte_parser (list export) n :=
-  exact_byte x07 &> vec export_.
+Definition parse_exportsec {n} : byte_parser (list export) n :=
+  exact_byte x07 &> parse_vec parse_export.
 
-Definition startsec {n} : byte_parser start n :=
-  exact_byte x08 &> start_.
+Definition parse_startsec {n} : byte_parser start n :=
+  exact_byte x08 &> parse_start.
 
-Definition elemsec {n} : byte_parser (list element) n :=
-  exact_byte x09 &> vec element_.
+Definition parse_elemsec {n} : byte_parser (list element) n :=
+  exact_byte x09 &> parse_vec parse_element.
 
-Definition codesec {n} : byte_parser (list func) n :=
-  exact_byte x0a &> vec code_.
+Definition parse_codesec {n} : byte_parser (list func) n :=
+  exact_byte x0a &> parse_vec parse_code.
 
-Definition datasec {n} : byte_parser (list data) n :=
-  exact_byte x0b &> (vec data_).
+Definition parse_datasec {n} : byte_parser (list data) n :=
+  exact_byte x0b &> (parse_vec parse_data).
 
 Definition section_ {n} : byte_parser section n :=
-  Sec_custom <$> customsec <|>
-  Sec_type <$> typesec <|>
-  Sec_import <$> importsec <|>
-  Sec_function <$> funcsec <|>
-  Sec_table <$> tablesec <|>
-  Sec_memory <$> memsec <|>
-  Sec_global <$> globalsec <|>
-  Sec_export <$> exportsec <|>
-  Sec_start <$> startsec <|>
-  Sec_element <$> elemsec <|>
-  Sec_code <$> codesec <|>
-  Sec_data <$> datasec.
+  Sec_custom <$> parse_customsec <|>
+  Sec_type <$> parse_typesec <|>
+  Sec_import <$> parse_importsec <|>
+  Sec_function <$> parse_funcsec <|>
+  Sec_table <$> parse_tablesec <|>
+  Sec_memory <$> parse_memsec <|>
+  Sec_global <$> parse_globalsec <|>
+  Sec_export <$> parse_exportsec <|>
+  Sec_start <$> parse_startsec <|>
+  Sec_element <$> parse_elemsec <|>
+  Sec_code <$> parse_codesec <|>
+  Sec_data <$> parse_datasec.
 
-Definition magic {n} : byte_parser unit n :=
+Definition parse_magic {n} : byte_parser unit n :=
   (exact_byte x00 &> exact_byte x61 &> exact_byte x73 &> exact_byte x6d) $> tt.
 
-Definition version {n} : byte_parser unit n :=
+Definition parse_version {n} : byte_parser unit n :=
   (exact_byte x01 &> exact_byte x00 &> exact_byte x00 &> exact_byte x00) $> tt.
 
-Definition customsec_forget_ {A n} : byte_parser (A -> A) n :=
-  (fun _ x => x) <$> customsec.
+Definition parse_customsec_forget {A n} : byte_parser (A -> A) n :=
+  (fun _ x => x) <$> parse_customsec.
 
-Definition with_customsec_star_before {A : Type} {n} :=
-  @iterater _ _ _ _ _ _ _ _ _ A n customsec_forget_.
+Definition parse_with_customsec_star_before {A : Type} {n} :=
+  @iterater _ _ _ _ _ _ _ _ _ A n parse_customsec_forget.
 
-Definition with_customsec_star_after {A : Type} {n} f :=
-  @iteratel _ _ _ _ _ _ _ _ _ A n f customsec_forget_.
+Definition parse_with_customsec_star_after {A : Type} {n} f :=
+  @iteratel _ _ _ _ _ _ _ _ _ A n f parse_customsec_forget.
 
-Definition tail_ {n} : byte_parser _ n :=
-  (with_customsec_star_before elemsec) <&>
-  (with_customsec_star_before codesec) <&>
-  (with_customsec_star_before (with_customsec_star_after datasec)).
+Definition parse_module_tail {n} : byte_parser _ n :=
+  (parse_with_customsec_star_before parse_elemsec) <&>
+  (parse_with_customsec_star_before parse_codesec) <&>
+  (parse_with_customsec_star_before (parse_with_customsec_star_after parse_datasec)).
 
 Definition parse_module {n} : byte_parser module n :=
-  magic &>
-  version &>
+  parse_magic &>
+  parse_version &>
   (((fun functype import typeidx table mem global export secd_ecd =>
     match secd_ecd with
     | inl (start, (elem, code, data)) =>
@@ -652,14 +652,14 @@ Definition parse_module {n} : byte_parser module n :=
       Build_module functype func table mem global elem data None import export
     end
   ) <$>
-  (with_customsec_star_before typesec)) <*>
-  (with_customsec_star_before importsec)) <*>
-  (with_customsec_star_before funcsec) <*>
-  (with_customsec_star_before tablesec) <*>
-  (with_customsec_star_before memsec) <*>
-  (with_customsec_star_before globalsec) <*>
-  (with_customsec_star_before exportsec) <*>
-  ((inl <$> (with_customsec_star_before startsec) <&> tail_) <|> (inr <$> tail_)).
+  (parse_with_customsec_star_before parse_typesec)) <*>
+  (parse_with_customsec_star_before parse_importsec)) <*>
+  (parse_with_customsec_star_before parse_funcsec) <*>
+  (parse_with_customsec_star_before parse_tablesec) <*>
+  (parse_with_customsec_star_before parse_memsec) <*>
+  (parse_with_customsec_star_before parse_globalsec) <*>
+  (parse_with_customsec_star_before parse_exportsec) <*>
+  ((inl <$> (parse_with_customsec_star_before parse_startsec) <&> parse_module_tail) <|> (inr <$> parse_module_tail)).
 
 End Language.
 
