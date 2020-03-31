@@ -56,10 +56,15 @@ Definition store (m : memory) (n : nat) (off : static_offset) (bs : bytes) (l : 
 
 Definition store_packed := store.
 
-(* TODO: The whole host should be defined as a mixin in a separate file. *)
+
+(* TODO *)
+Parameter serialise_i32 : i32 -> bytes.
+Parameter serialise_i64 : i64 -> bytes.
+Parameter serialise_f32 : f32 -> bytes.
+Parameter serialise_f64 : f64 -> bytes.
+
 Parameter wasm_deserialise : bytes -> value_type -> value.
 
-Parameter host_apply : store_record -> function_type -> datatypes.host -> list value -> (* FIXME: datatypes.host_state -> *) option (store_record * list value).
 
 Definition typeof (v : value) : value_type :=
   match v with

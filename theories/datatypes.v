@@ -2,7 +2,7 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 Require Import common.
-Require Export numerics bytes.
+Require Export numerics bytes host.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Ascii.
 
@@ -14,21 +14,11 @@ Unset Printing Implicit Defensive.
 (* TODO: Documentation. *)
 
 
-Variable host : eqType. (* TODO: Do the same than for integers and floats. *)
-Variable host_state : eqType.
-
 Definition immediate := nat. (* i *)
 
 Definition static_offset := nat. (* off *)
 
 Definition alignment_exponent := nat. (* a *)
-
-
-(* TODO *)
-Parameter serialise_i32 : i32 -> bytes.
-Parameter serialise_i64 : i64 -> bytes.
-Parameter serialise_f32 : f32 -> bytes.
-Parameter serialise_f64 : f64 -> bytes.
 
 Definition memory := list byte.
 
@@ -189,7 +179,7 @@ Record instance : Type := (* inst *) {
 
 Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
-| Func_host : function_type -> host -> function_closure.
+| Func_host : function_type -> host_function function_closure.
 
 Definition tabinst := list (option function_closure).
 

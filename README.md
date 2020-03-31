@@ -1,5 +1,5 @@
 # wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, following the AFP formalisation of Conrad Watt.
+WebAssembly (aka Wasm) formalisation in Coq, following its [official specification](https://webassembly.github.io/spec/core/index.html), as well as the AFP formalisation of Conrad Watt.
 
 (C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
 
