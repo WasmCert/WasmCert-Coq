@@ -7,14 +7,17 @@ Open Scope string_scope.
 Import Coq.Strings.String.StringSyntax.
 
 Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Running.Singleton Unreachable.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 Lemma test_nop : check_toks (x01 :: nil) parse_be = Running.Singleton Nop.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
-Compute hex_small_no_prefix_of_bytes (binary_of_be (If (Tf nil nil) (Testop T_i64 Eqz :: nil) (Testop T_i64 Eqz :: nil))).
+(** An example program. **)
+Definition test :=
+  If (Tf nil nil) (Testop T_i64 Eqz :: nil) (Testop T_i64 Eqz :: nil).
 
-Definition test2 : list Byte.byte :=
+(** Its byte representation. **)
+Definition test_bytes : list Byte.byte :=
   x04 :: x40
   :: x50
   :: x05
@@ -23,12 +26,27 @@ Definition test2 : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute run_parse_expr test2.
-Compute option_map pp_basic_instructions (run_parse_expr test2).
+(** It is possible to display lists of bytes in a nice way using the following command:
+[[
+Compute hex_small_no_prefix_of_bytes test_bytes.
+]]
+**)
+
+Lemma text_binary_correct : binary_of_be test ++ x0b :: nil (* FIXME: This looks like a mistake in binary_of_be. *) = test_bytes.
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma text_parse_correct : run_parse_expr test_bytes = Some (test :: nil).
+Proof. vm_compute. reflexivity. Qed.
+
+(** It is possible to display programs in a nice way using the following command:
+[[
+Compute option_map pp_basic_instructions (run_parse_expr test_bytes).
+]]
+**)
 
 (** Example from Wikipedia: https://en.wikipedia.org/wiki/WebAssembly#Code_representation
   This is the representation of a factorial function. **)
-Definition test_wikipedia : list Byte.byte :=
+Definition test_wikipedia_byte : list Byte.byte :=
   x20 :: x00
   :: x50
   :: x04 :: x7e
@@ -43,31 +61,17 @@ Definition test_wikipedia : list Byte.byte :=
   :: x0b
   :: nil.
 
-Compute option_map pp_basic_instructions (run_parse_bes test_wikipedia).
+Definition test_wikipedia :=
+  (Get_local 0
+   :: Testop T_i64 Eqz
+   :: If (Tf nil (T_i64 :: nil))
+        (EConst (ConstInt64 Wasm_int.Int64.one) :: nil)
+        (Get_local 0
+         :: Get_local 0
+         :: EConst (ConstInt64 Wasm_int.Int64.one)
+         :: Binop_i T_i64 Sub
+         :: Call 0
+         :: Binop_i T_i64 Mul :: nil) :: nil).
 
-(*
-Definition test_factorial :=
-  Block (
-    Get_local 0
-    :: Get_local 0
-    :: Testop T_i64 Eqz
-    (* TODO: continue the translation: I don’t know how to encode this. *)
-if (result i64)
-    i64.const 1
-else
-    local.get 0
-    local.get 0
-    i64.const 1
-    i64.sub
-    call 0
-    i64.mul
-end
-*)
-
-(* TODO: The parser fails here! So either Wikipedia is wrong (and we have to update the article),
-  or the parser is (and we have to update it) ☺
-Lemma test_wikipedia_correct : check_toks test_wikipedia be = Singleton test_factorial.
-Proof.
-  reflexivity.
-Qed.
-*)
+Lemma test_wikipedia_correct : run_parse_bes test_wikipedia_byte = Some test_wikipedia.
+Proof. vm_compute. reflexivity. Qed.
