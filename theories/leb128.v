@@ -1,6 +1,6 @@
 (* LEB128 integer format *)
+(* https://en.wikipedia.org/wiki/LEB128 *)
 (* TODO: size bound *)
-(* TODO: make it use byte (x00, ...) more extensively to consume less memory *)
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
 Require Import Ascii.
@@ -48,14 +48,14 @@ Definition make_msb_of_non_first_byte_one bs :=
   end.
 
 (** LSB at head of list *)
-Definition binary_of (n : N) : list byte :=
+Definition encode_unsigned_aux (n : N) : list byte :=
   match n with
   | N0 => cons x00 nil
   | Npos n' => make_msb_of_non_first_byte_one (binary_of_aux2 nil nil n')
   end.
 
 Definition encode_unsigned (n : N) : list byte :=
-  List.rev (binary_of n).
+  List.rev (encode_unsigned_aux n).
 
 Section Language.
 
@@ -66,9 +66,10 @@ Section Language.
   Definition byte_parser A n := Parser Toks byte M A n.
 
   Definition byte_as_N {n} : byte_parser N n :=
-  (fun x => N_of_ascii (ascii_of_byte x)) <$> anyTok.
+    (fun x => N_of_ascii (ascii_of_byte x)) <$> anyTok.
 
-  Definition unsigned_end_ {n} : byte_parser N n :=
+  (* parse a final byte *)
+  Definition parse_unsigned_end {n} : byte_parser N n :=
     guardM
       (fun b =>
         let a := ascii_of_byte b in
@@ -77,7 +78,8 @@ Section Language.
         end)
       anyTok.
 
-  Definition unsigned_ctd_ {n} : byte_parser N n :=
+  (* parse a non-final byte *)
+  Definition parse_unsigned_ctd {n} : byte_parser N n :=
     guardM
       (fun b =>
         let a := ascii_of_byte b in
@@ -99,32 +101,35 @@ Section Language.
     Context
       {Tok : Type} {A B : Type} {n : nat}.
 
-    Definition unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
+    Definition parse_unsigned_aux : [ Unsigned ] := Fix Unsigned (fun _ rec =>
       let aux := Induction.map _unsigned _ rec in
       let unsigned_ :=
-        unsigned_end_ <|>
-        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128 rest)) <$> unsigned_ctd_) <*> aux) in
+        parse_unsigned_end <|>
+        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128 rest)) <$> parse_unsigned_ctd) <*> aux) in
       MkUnsigned unsigned_).
     
-    Definition unsigned_ : [ byte_parser N ] := fun n => _unsigned n (unsigned_aux n).
+    (** top-level function *)
+    Definition parse_unsigned : [ byte_parser N ] := fun n => _unsigned n (parse_unsigned_aux n).
 
   End Unsigned_sec.
 
 Definition sub_2_7 (k : N) :=
   BinIntDef.Z.sub (BinInt.Z_of_N k) (BinIntDef.Z.pow (BinInt.Z.of_nat 2) (BinInt.Z.of_nat 7)).
 
-  Definition signed_end_ {n} : byte_parser Z n :=
-  guardM
-    (fun b =>
-      let a := ascii_of_byte b in
-      match a with
-      | Ascii _ _ _ _ _ _ _ true => None
-      | Ascii _ _ _ _ _ _ true false => Some (sub_2_7 (N_of_ascii a))
-      | Ascii _ _ _ _ _ _ false false => Some (ZArith.BinInt.Z_of_N (N_of_ascii a))
-      end)
-    anyTok.
+(* parse a non-final byte *)
+Definition parse_signed_end {n} : byte_parser Z n :=
+guardM
+  (fun b =>
+    let a := ascii_of_byte b in
+    match a with
+    | Ascii _ _ _ _ _ _ _ true => None
+    | Ascii _ _ _ _ _ _ true false => Some (sub_2_7 (N_of_ascii a))
+    | Ascii _ _ _ _ _ _ false false => Some (ZArith.BinInt.Z_of_N (N_of_ascii a))
+    end)
+  anyTok.
 
-Definition signed_ctd_ {n} : byte_parser Z n :=
+(* parse a final byte *)
+Definition parse_signed_ctd {n} : byte_parser Z n :=
   guardM
     (fun b =>
       let a := ascii_of_byte b in
@@ -135,25 +140,25 @@ Definition signed_ctd_ {n} : byte_parser Z n :=
       end)
     anyTok.
 
-  Section Signed_sec.
+Section Signed_sec.
 
-    Record Signed (n : nat) : Type := MkSigned
-    { _signed : byte_parser BinNums.Z n;
-    }.
+  Record Signed (n : nat) : Type := MkSigned
+  { _signed : byte_parser BinNums.Z n;
+  }.
     
-    Arguments MkUnsigned {_}.
+  Arguments MkUnsigned {_}.
     
-    Context
-      {Tok : Type} {A B : Type} {n : nat}.
+  Context
+    {Tok : Type} {A B : Type} {n : nat}.
     
     Definition signed_aux : [ Signed ] := Fix Signed (fun _ rec =>
       let aux := Induction.map _signed _ rec in
       let signed_ :=
-        signed_end_ <|>
-        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult (ZArith.BinInt.Z_of_nat 128) rest)) <$> signed_ctd_) <*> aux) in
+        parse_signed_end <|>
+        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult (ZArith.BinInt.Z_of_nat 128) rest)) <$> parse_signed_ctd) <*> aux) in
       MkSigned _ signed_).
     
-    Definition signed_ : [ byte_parser Z ] := fun n => _signed n (signed_aux n).
+    Definition parse_signed : [ byte_parser Z ] := fun n => _signed n (signed_aux n).
 
   End Signed_sec.
 
