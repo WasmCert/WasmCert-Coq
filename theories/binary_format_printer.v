@@ -54,9 +54,9 @@ Definition binary_of_f64 (x : f64) : list byte :=
   (* TODO *)
   x00 :: x00 :: x00 :: nil.
 
-Definition dummy :=
-  (* for impossible cases *)
-  x00 :: x00 :: x00 :: nil.
+(** An opaque definition for cases that can’t happen because of the well-formed properties. **)
+Definition dummy : list byte.
+Proof. exact (x00 :: x00 :: x00 :: nil). Qed.
 
 Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   let binary_of_instrs bes := List.concat (List.map binary_of_be bes) in
