@@ -27,7 +27,7 @@ Definition binary_of_block_type (ft : function_type) : list byte :=
   | _ => (* TODO: should never happen *) nil
   end.
 
-Definition binary_of_u32_nat (n : nat) :=
+Definition binary_of_u32_nat (n : nat) : list byte :=
   encode_unsigned (BinNatDef.N.of_nat n).
 
 Definition binary_of_idx n := binary_of_u32_nat n.
@@ -36,7 +36,7 @@ Definition binary_of_vec {A} (f : A -> list byte) (es : list A) : list byte :=
   (binary_of_u32_nat (List.length es)) ++ (List.concat (List.map f es)).
 
 Definition binary_of_memarg a o : list byte :=
-binary_of_u32_nat a ++ binary_of_u32_nat o.
+  binary_of_u32_nat a ++ binary_of_u32_nat o.
 
 Definition binary_of_i32 (x : i32) : list byte :=
   (* TODO *)
@@ -60,20 +60,20 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   | Unreachable => x00 :: nil
   | Nop => x01 :: nil
   | Block rt ins =>
-    (x02 :: nil) ++ binary_of_block_type rt ++ binary_of_instrs ins ++ (x0b :: nil)
+    x02 :: binary_of_block_type rt ++ binary_of_instrs ins ++ x0b :: nil
   | Loop rt ins =>
-    (x03 :: nil) ++ binary_of_block_type rt ++ binary_of_instrs ins ++ (x0b :: nil)
+    x03 :: binary_of_block_type rt ++ binary_of_instrs ins ++ x0b :: nil
   | If rt ins nil =>
-    (x04 :: nil) ++ binary_of_block_type rt ++ binary_of_instrs ins ++ (x0b :: nil)
+    x04 :: binary_of_block_type rt ++ binary_of_instrs ins ++ x0b :: nil
   | If rt ins1 ins2 =>
-    (x04 :: nil) ++ binary_of_block_type rt ++ binary_of_instrs ins1 ++ (x05 :: nil) ++ binary_of_instrs ins2 ++ (cons x0b nil)
+    x04 :: binary_of_block_type rt ++ binary_of_instrs ins1 ++ x05 :: nil ++ binary_of_instrs ins2 ++ x0b :: nil
   | Br l => x0c :: binary_of_idx l
   | Br_if l => x0d :: binary_of_idx l
   | Br_table ls l_N =>
-    x0e :: ((binary_of_vec binary_of_idx ls) ++ binary_of_idx l_N)
+    x0e :: binary_of_vec binary_of_idx ls ++ binary_of_idx l_N
   | Return => x0f :: nil
   | Call x => x10 :: binary_of_idx x
-  | Call_indirect x => x11 :: (binary_of_idx x ++ (x00 :: nil))
+  | Call_indirect x => x11 :: binary_of_idx x ++ x00 :: nil
   | Drop => x1a :: nil
   | Select => x1b :: nil
   | Get_local x => x20 :: binary_of_idx x
@@ -147,6 +147,8 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
 
   | _ => (* TODO: deal with all the other cases *) x00 :: x00 :: x00 :: nil
   end.
+
+Definition binary_of_expr bes := List.concat (List.map binary_of_be bes) ++ x0b :: nil.
 
 Definition binary_of_module (m : module) : list byte :=
   (* TODO *)

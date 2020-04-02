@@ -32,7 +32,7 @@ Compute hex_small_no_prefix_of_bytes test_bytes.
 ]]
 **)
 
-Lemma text_binary_correct : binary_of_be test ++ x0b :: nil (* FIXME: This looks like a mistake in binary_of_be. *) = test_bytes.
+Lemma text_binary_correct : binary_of_expr (test :: nil) = test_bytes.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma text_parse_correct : run_parse_expr test_bytes = Some (test :: nil).
