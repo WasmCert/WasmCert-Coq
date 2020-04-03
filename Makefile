@@ -12,5 +12,5 @@ clean:
 	rm theories/extract.{ml,mli} || true
 
 .vscode/settings.json:
-	echo $(VSCODE) > $@
+	echo $(VSCODESETTINGS) > $@
 
