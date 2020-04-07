@@ -2,14 +2,14 @@
 (* (C) M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Import common.
+Require Import common datatypes.
 
 Set Implicit Arguments.
 
 Section Parameterised.
 
-(** To avoid circular dependencies, we assume the types declared in the [datatypes] module. **)
-Variables store_record value : Type.
+(** To avoid circular dependencies, we assume the type declared in the [datatypes] module. **)
+Variables store_record : Type.
 
 (** We assume a set of host functions. **)
 Variable host_function : eqType.
@@ -30,8 +30,8 @@ Record monadic_host := {
     host_monad : Type -> Type ;
     host_apply : forall A : Type,
       store_record -> host_function -> list value ->
-      (option (store_record * list value (* TODO: This is more than just [value]: it can be [Trap]. *)) -> host_monad A)
-      host_monad -> A ;
+      (option (store_record * list result) -> host_monad A) ->
+      host_monad A ;
     (* TODO: induction property stating that if the host keeps its promise about types,
        and that the property is somehow compatible with the state, then we can infer the
        property. *)
@@ -39,7 +39,7 @@ Record monadic_host := {
 
 Record host := {
     host_state : eqType ;
-    host_application : store_record -> host_function -> list value -> option (store_record * list value (* TODO *)) -> Prop
+    host_application : store_record -> host_function -> list value -> option (store_record * list result) -> Prop
   }.
 
 (* TODO: Relation between [monadic_host] and [host] *)

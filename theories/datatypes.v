@@ -1,8 +1,8 @@
-(** Definition of Wasm datatypes **)
+(** Definition of Wasm base datatypes **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 Require Import common.
-Require Export numerics bytes host.
+Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Ascii.
 
@@ -136,6 +136,11 @@ Inductive value : Type := (* v *)
 | ConstFloat32 : f32 -> value
 | ConstFloat64 : f64 -> value.
 
+Inductive result : Type :=
+  | result_values : list value -> result
+  | result_trap : result
+  .
+
 Inductive basic_instruction : Type := (* be *)
 | Unreachable
 | Nop
@@ -169,44 +174,7 @@ Inductive basic_instruction : Type := (* be *)
 | Relop_f : value_type -> relop_f -> basic_instruction
 | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction.
 
-Record instance : Type := (* inst *) {
-  i_types : list function_type;
-  i_funcs : list immediate;
-  i_tab : option immediate;
-  i_memory : option immediate;
-  i_globs : list immediate;
-}.
 
-Inductive function_closure : Type := (* cl *)
-| Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
-| Func_host : function_type -> host_function function_closure.
-
-Definition tabinst := list (option function_closure).
-
-Record global : Type := {
-  g_mut : mutability;
-  g_val : value;
-}.
-
-Record store_record : Type := (* s *) Build_store_record {
-  s_funcs : list function_closure;
-  s_tab : list tabinst;
-  s_memory : list memory;
-  s_globs : list global;
-}.
-
-Inductive administrative_instruction : Type := (* e *)
-  | Basic : basic_instruction -> administrative_instruction
-  | Trap
-  | Callcl : function_closure -> administrative_instruction
-  | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
-  | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
-  .
-
-Inductive lholed : Type :=
-  | LBase : list administrative_instruction -> list administrative_instruction -> lholed
-  | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
-  .
 
 (* TODO: these types were moved from parsing *)
 Definition expr := list basic_instruction.
