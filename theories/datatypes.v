@@ -197,7 +197,7 @@ Inductive basic_instruction : Type := (* be *)
 Section Host.
 
 (** We assume a family of host functions. **)
-Variable host_function : Type.
+Context `(host_function : Type).
 
 Record instance : Type := (* inst *) {
   i_types : list function_type;
@@ -242,3 +242,8 @@ Inductive lholed : Type :=
   .
 
 End Host.
+
+Arguments Func_native [host_function].
+Arguments Basic {host_function}.
+Arguments Trap {host_function}.
+

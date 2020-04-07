@@ -10,7 +10,18 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Inductive reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let to_e_list := to_e_list host_function.
+Let v_to_e_list := v_to_e_list host_function.
+
+
+Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
 (* unop *)
 | rs_unop_i32 :
   forall c iop,
@@ -180,9 +191,10 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
     forall es lh,
       es != [::Trap] ->
       lfilled 0 lh [::Trap] es ->
-      reduce_simple es [::Trap].
+      reduce_simple es [::Trap]
+.
 
-Inductive reduce : store_record -> list value -> list administrative_instruction -> instance -> store_record -> list value -> list administrative_instruction -> Prop :=
+Inductive reduce : store_record -> seq value -> seq administrative_instruction -> instance -> store_record -> seq value -> seq administrative_instruction -> Prop :=
 | r_simple :
     forall e e' s vs i,
       reduce_simple e e' ->
@@ -233,6 +245,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       length t1s == n ->
       length t2s == m ->
       reduce s vs (ves ++ [::Callcl cl]) i s vs [::Trap]
+  (* TODO: We are missing the diverging-host rule! *)
 | r_get_local :
     forall vi v vs i j s,
       length vi == j ->
@@ -329,4 +342,9 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
 | r_local :
     forall s vs es i s' vs' es' n v0s j,
       reduce s vs es i s' vs' es' ->
-      reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
+      reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es']
+.
+
+
+End Host.
+

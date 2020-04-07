@@ -10,6 +10,16 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+Section Host.
+
+Context `(host_function : eqType).
+
+Let function_closure := function_closure host_function.
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let lholed := lholed host_function.
+
+
 Definition read_bytes (m : memory) (n : nat) (l : nat) : bytes :=
   take l (List.skipn n m).
 
@@ -18,7 +28,7 @@ Definition write_bytes (m : memory) (n : nat) (bs : bytes) : memory :=
 
 Definition mem_append (m : memory) (bs : bytes) := app m bs.
 
-Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
+Definition upd_s_mem (s : store_record) (m : seq memory) : store_record :=
   Build_store_record
     (s_funcs s)
     (s_tab s)
@@ -262,7 +272,7 @@ Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
 Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
   if i_tab i is Some k then stab_s s k j else None.
 
-Definition update_list_at {A : Type} (l : list A) (k : nat) (a : A) :=
+Definition update_list_at {A : Type} (l : seq A) (k : nat) (a : A) :=
   take k l ++ [::a] ++ List.skipn (k + 1) l.
 
 Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option store_record :=
@@ -281,7 +291,7 @@ Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) 
 Definition is_const (e : administrative_instruction) : bool :=
   if e is Basic _ then true else false.
 
-Definition const_list (es : list administrative_instruction) : bool :=
+Definition const_list (es : seq administrative_instruction) : bool :=
   List.forallb is_const es.
 
 Definition store_extension (s s' : store_record) : bool :=
@@ -290,15 +300,15 @@ Definition store_extension (s s' : store_record) : bool :=
   (all2 (fun bs bs' => mem_size bs <= mem_size bs') (s_memory s) (s_memory s')) &&
   (s_globs s == s_globs s').
 
-Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=
+Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruction :=
   map Basic bes.
 
 (** [v_to_e_list]: some kind of the opposite of [split_vals_e] (see [interperter.v]:
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
-Definition v_to_e_list (ves : list value) : list administrative_instruction :=
+Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
   map (fun v => Basic (EConst v)) ves.
 
-Fixpoint lfill (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
+Fixpoint lfill (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
   match k with
   | 0 =>
     if lh is LBase vs es' then
@@ -314,10 +324,10 @@ Fixpoint lfill (k : nat) (lh : lholed) (es : list administrative_instruction) : 
     else None
   end.
 
-Definition lfilled (k : nat) (lh : lholed) (es : list administrative_instruction) (es' : list administrative_instruction) : bool :=
+Definition lfilled (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
   if lfill k lh es is Some es'' then es' == es'' else false.
 
-Inductive lfilledInd : nat -> lholed -> list administrative_instruction -> list administrative_instruction -> Prop :=
+Inductive lfilledInd : nat -> lholed -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
 | LfilledBase: forall vs es es',
     const_list vs ->
     lfilledInd 0 (LBase vs es') es (vs ++ es ++ es')
@@ -360,7 +370,7 @@ Proof.
     by rewrite HLFBool in HContra.
 Qed.
 
-Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
+Fixpoint lfill_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
   match k with
   | 0 =>
     if lh is LBase nil nil then Some es else None
@@ -374,7 +384,7 @@ Fixpoint lfill_exact (k : nat) (lh : lholed) (es : list administrative_instructi
     else None
   end.
 
-Definition lfilled_exact (k : nat) (lh : lholed) (es : list administrative_instruction) (es' : list administrative_instruction) : bool :=
+Definition lfilled_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
   if lfill_exact k lh es is Some es'' then es' == es'' else false.
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : value_type) : bool :=
@@ -485,8 +495,10 @@ Definition bitzero (t : value_type) : value :=
   | T_f64 => ConstFloat64 (Wasm_float.float_zero f64m)
   end.
 
-Definition n_zeros (ts : list value_type) : list value :=
+Definition n_zeros (ts : seq value_type) : seq value :=
   map bitzero ts.
 
 (* TODO: lots of lemmas *)
+
+End Host.
 

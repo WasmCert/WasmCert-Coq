@@ -1,11 +1,22 @@
 (** Wasm typing rules **)
-(* (C) J. Pichon - see LICENSE.txt *)
+(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import operations.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let function_closure := function_closure host_function.
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let lholed := lholed host_function.
+
 
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   (sxo == None) ==
@@ -28,7 +39,7 @@ Definition upd_label C lab :=
 Definition plop2 C i ts :=
   List.nth_error (tc_label C) i == Some ts.
 
-Inductive be_typing : t_context -> list basic_instruction -> function_type -> Prop :=
+Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 | bet_const : forall C v, be_typing C [::EConst v] (Tf [::] [::typeof v])
 | bet_unop_i : forall C t op, is_int_t t -> be_typing C [::Unop_i t op] (Tf [::t] [::t])
 | bet_unop_f : forall C t op, is_float_t t -> be_typing C [::Unop_f t op] (Tf [::t] [::t])
@@ -151,10 +162,10 @@ Definition upd_local_label_return C loc lab ret :=
 Definition glob_agree (g : global) (tg : global_type) : bool :=
   (tg_mut tg == g_mut g) && (tg_t tg == typeof (g_val g)).
 
-Definition globi_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
+Definition globi_agree (gs : seq global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => glob_agree g tg) (List.nth_error gs n) == Some true).
 
-Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : bool :=
+Definition memi_agree (sm : seq memory) (j : option nat) (m : option nat) : bool :=
   match j, m with
   | None, None => true
   | None, Some _ => false
@@ -163,8 +174,8 @@ Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : boo
     (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
   end.
 
-Definition funci_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
-  (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
+Definition funci_agree (fs : seq function_closure) (n : nat) (f : function_type) : bool :=
+  (n < length fs) && (option_map (@cl_type _) (List.nth_error fs n) == Some f).
 
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
   if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
@@ -182,28 +193,25 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
   else false.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
-| cl_typing_native : forall i s C ts t1s t2s es tf,
-  inst_typing s i C ->
-  tf = Tf t1s t2s ->
-  let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
-  be_typing C' es (Tf [::] t2s) ->
-  cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
-| cl_typing_host : forall s tf h,
-    cl_typing s (Func_host tf h) tf.
+  | cl_typing_native : forall i s C ts t1s t2s es tf,
+    inst_typing s i C ->
+    tf = Tf t1s t2s ->
+    let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
+    be_typing C' es (Tf [::] t2s) ->
+    cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
+  | cl_typing_host : forall s tf h,
+    cl_typing s (Func_host tf h) tf
+  .
 
 Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
   cl_typing s fc (cl_type fc).
 
 Lemma cl_typing_unique : forall s cl tf, cl_typing s cl tf -> tf = cl_type cl.
 Proof.
-  move => s.
-  case.
-  { move => i tf ts bes t H.
-    rewrite /=.
-    inversion H.
-    done. }
-  { move => f h tf H.
-    inversion H.
-    by rewrite /=. }
+  move=> s + tf. case.
+  - move => i ts bes t H /=. by inversion H.
+  - move => f h H. by inversion H.
 Qed.
+
+End Host.
 

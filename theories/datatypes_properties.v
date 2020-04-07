@@ -179,7 +179,7 @@ Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMi
 
 Section Host.
 
-Variable host_function : eqType.
+Context `(host_function : eqType).
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.

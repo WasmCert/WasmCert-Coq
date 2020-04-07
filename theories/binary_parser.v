@@ -2,7 +2,7 @@
 (* TODO: move a few types to the [datatypes] or [bytes] modules. *)
 (* TODO: write a relational spec, and prove they correspond *)
 
-From Wasm Require Import datatypes datatypes_properties.
+From Wasm Require Import datatypes datatypes_properties binary_parser_types.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Ascii Byte.

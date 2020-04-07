@@ -1,4 +1,4 @@
-From Wasm Require Import datatypes_properties.
+From Wasm Require Import binary_parser_types.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Ascii Byte.
