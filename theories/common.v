@@ -462,6 +462,12 @@ Defined.
 
 End TProp.
 
+(** Try to fold an expression everywhere.
+  More robust than [fold e in *]. **)
+Ltac efold e :=
+  repeat match goal with H : _ |- _ => progress fold e in H end;
+  fold e.
+
 (** Given a goal of the form [{C a1 … an = C a1' … an'} + {C a1 … an <> C a1' … an'}],
   replaces it with the goals [{a1 = a1'} + {a1 <> a1'}], …, [{an = an'} + {an <> an'}]. **)
 Ltac decide_equality_injection :=
@@ -508,12 +514,38 @@ Ltac count_cases rect :=
     count_args r
   end.
 
+(** Returns a boolean depending on whether [t] and [t'] are reducible to one each other. **)
+Ltac is_reducible t t' :=
+  match t with
+  | _ => let r := constr:((fun (_ : t = t') => true) (ltac:(reflexivity))) in
+         eval simpl in r
+  | _ => constr:(false)
+  end.
+
 (** Given an induction principle, return the type of a stronger induction principle. **)
 Ltac rect'_type rect :=
+  let normalise_type t ta :=
+    match ta with
+    | ?f ?t' =>
+      lazymatch is_reducible t t' with
+      | true => constr:(f t)
+      end
+    | ?t' =>
+      lazymatch is_reducible t t' with
+      | true => constr:(t)
+      end
+    | _ => constr:(ta)
+    end in
   let added_hyp t ta :=
-    lazymatch ta with
-    | list t => constr:(@TProp.Forall t)
-    | option t => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
+    match ta with
+    | list ?t' =>
+      lazymatch is_reducible t t' with
+      | true => constr:(@TProp.Forall t)
+      end
+    | option ?t' =>
+      lazymatch is_reducible t t' with
+      | true => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
+      end
     | _ => constr:(fun (_ : t -> Type) (_ : ta) => True)
     end in
   let add_hyp t ta P a r :=
@@ -531,24 +563,39 @@ Ltac rect'_type rect :=
     lazymatch hyp with
     | fun P => P _ => constr:(hyp)
     | fun P => forall a1 : ?t1, P (?C a1) =>
+      let t1 := normalise_type t t1 in
       constr:(fun P : t -> Type => forall a1 : t1,
         ltac:(set_hyp t t1 P a1 (P (C a1))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
+      let t1 := normalise_type t t1 in
+      let t2 := normalise_type t t2 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2 (P (C a1 a2)))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
+      let t1 := normalise_type t t1 in
+      let t2 := normalise_type t t2 in
+      let t3 := normalise_type t t3 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
             ltac:(add_hyp t t3 P a3 (P (C a1 a2 a3))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
+      let t1 := normalise_type t t1 in
+      let t2 := normalise_type t t2 in
+      let t3 := normalise_type t t3 in
+      let t4 := normalise_type t t4 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
             ltac:(add_hyp t t3 P a3
               ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4)))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
+      let t1 := normalise_type t t1 in
+      let t2 := normalise_type t t2 in
+      let t3 := normalise_type t t3 in
+      let t4 := normalise_type t t4 in
+      let t5 := normalise_type t t5 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
@@ -556,6 +603,12 @@ Ltac rect'_type rect :=
               ltac:(add_hyp t t4 P a4
                 ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4 a5))))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
+      let t1 := normalise_type t t1 in
+      let t2 := normalise_type t t2 in
+      let t3 := normalise_type t t3 in
+      let t4 := normalise_type t t4 in
+      let t5 := normalise_type t t5 in
+      let t6 := normalise_type t t6 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
@@ -566,7 +619,7 @@ Ltac rect'_type rect :=
     end in
   let rec map_hyps t rectf :=
     lazymatch rectf with
-    | fun P => forall a : t, P a => constr:(rectf)
+    | fun P => forall a, P a => constr:(fun P => forall a : t, P a)
     | fun P => @?hyp P -> @?rectf' P =>
       let r := update_hyp t hyp in
       let r' := map_hyps t rectf' in
@@ -590,7 +643,10 @@ Ltac rect'_build rect :=
   let P := fresh "P" in
   intro P;
   repeat lazymatch goal with
-  | |- forall a : t, P a => idtac
+  | |- forall a, P a =>
+    (** Enforcing [a]’s type to be exactly [t]. **)
+    let G := fresh in
+    assert (G: forall a : t, P a); last exact G
   | |- _ -> _ => intro
   end;
   let rect := fresh "rect" in
@@ -612,10 +668,20 @@ Ltac rect'_build rect :=
       | H : P a |- _ => fail
       | _ => move: (rect a) => ?
       end
-    | l : list t |- _ =>
-      lazymatch goal with
-      | H : TProp.Forall P l |- _ => fail
-      | _ => move: (rect_list l) => ?
+    | l : list ?t' |- _ =>
+      lazymatch t' with
+      | t =>
+        lazymatch goal with
+        | H : TProp.Forall P l |- _ => fail
+        | _ => move: (rect_list l) => ?
+        end
+      | _ =>
+        lazymatch is_reducible t t' with
+        | true =>
+          let l' := fresh l in
+          refine (let l' := l : seq t in _);
+          efold l'; clearbody l'; clear l
+        end
       end
     | o : option t |- _ => destruct o
     end in

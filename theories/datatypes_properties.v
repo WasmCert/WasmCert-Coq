@@ -177,6 +177,15 @@ Definition eqinstanceP : Equality.axiom instance_eqb :=
 Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
 Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
 
+Section Host.
+
+Variable host_function : eqType.
+
+Let function_closure := function_closure host_function.
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let lholed := lholed host_function.
+
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
   {cl1 = cl2} + {cl1 <> cl2}.
 Proof. decidable_equality. Defined.
@@ -209,6 +218,10 @@ Definition eqstore_recordP : Equality.axiom store_record_eqb :=
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
 
+Let administrative_instruction_rect :=
+  @administrative_instruction_rect host_function
+  : forall (P : administrative_instruction -> Type), _.
+
 (** Induction scheme for [administrative_instruction]. **)
 Definition administrative_instruction_rect' :=
   ltac:(rect'_build administrative_instruction_rect).
@@ -230,7 +243,7 @@ Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
 Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality. Defined.
+Proof. decidable_equality_step; efold administrative_instruction; decidable_equality. Defined.
 
 Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
 Definition eqlholedP : Equality.axiom lholed_eqb :=
@@ -238,4 +251,6 @@ Definition eqlholedP : Equality.axiom lholed_eqb :=
 
 Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
 Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
+
+End Host.
 
