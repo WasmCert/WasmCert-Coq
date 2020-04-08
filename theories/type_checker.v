@@ -9,6 +9,16 @@ Unset Printing Implicit Defensive.
 
 Require Import operations typing.
 
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let function_closure := function_closure host_function.
+Let administrative_instruction := administrative_instruction host_function.
+
+
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux
 | CTA_some : value_type -> checker_type_aux.
@@ -23,8 +33,8 @@ Canonical Structure checker_type_aux_eqType :=
   Eval hnf in EqType checker_type_aux checker_type_aux_eqMixin.
 
 Inductive checker_type : Type :=
-| CT_top_type : list checker_type_aux -> checker_type
-| CT_type : list value_type -> checker_type
+| CT_top_type : seq checker_type_aux -> checker_type
+| CT_type : seq value_type -> checker_type
 | CT_bot : checker_type.
 
 Definition checker_type_eq_dec : forall v1 v2 : checker_type, {v1 = v2} + {v1 <> v2}.
@@ -38,10 +48,10 @@ Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
 
-Definition to_ct_list (ts : list value_type) : list checker_type_aux :=
+Definition to_ct_list (ts : seq value_type) : seq checker_type_aux :=
   map CTA_some ts.
 
-Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
+Fixpoint ct_suffix (ts ts' : seq checker_type_aux) : bool :=
   (ts == ts')
   ||
   match ts' with
@@ -49,7 +59,7 @@ Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
   | _ :: ts'' => ct_suffix ts ts''
   end.
 
-Definition consume (t : checker_type) (cons : list checker_type_aux) : checker_type :=
+Definition consume (t : checker_type) (cons : seq checker_type_aux) : checker_type :=
   match t with
   | CT_type ts =>
     if ct_suffix cons (to_ct_list ts)
@@ -74,10 +84,10 @@ Definition produce (t1 t2 : checker_type) : checker_type :=
   | _ => CT_bot
   end.
 
-Definition type_update (curr_type : checker_type) (cons : list checker_type_aux) (prods : checker_type) : checker_type :=
+Definition type_update (curr_type : checker_type) (cons : seq checker_type_aux) (prods : checker_type) : checker_type :=
   produce (consume curr_type cons) prods.
 
-Definition select_return_top (ts : list checker_type_aux) (cta1 cta2 : checker_type_aux) : checker_type :=
+Definition select_return_top (ts : seq checker_type_aux) (cta1 cta2 : checker_type_aux) : checker_type :=
   match (cta1, cta2) with
   | (_, CTA_any) => CT_top_type (take (length ts - 3) ts ++ [::cta1])
   | (CTA_any, _) => CT_top_type (take (length ts - 3) ts ++ [::cta2])
@@ -109,7 +119,7 @@ Definition type_update_select (t : checker_type) : checker_type :=
   | CT_bot => CT_bot
   end.
 
-Fixpoint same_lab_h (iss : list nat) (lab_c : list (list value_type)) (ts : list value_type) : option (list value_type) :=
+Fixpoint same_lab_h (iss : seq nat) (lab_c : seq (seq value_type)) (ts : seq value_type) : option (seq value_type) :=
   match iss with
   | [::] => Some ts
   | i :: iss' =>
@@ -124,7 +134,7 @@ Fixpoint same_lab_h (iss : list nat) (lab_c : list (list value_type)) (ts : list
       end
   end.
 
-Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (list value_type) :=
+Definition same_lab (iss : seq nat) (lab_c : seq (seq value_type)) : option (seq value_type) :=
   match iss with
   | [::] => None
   | i :: iss' =>
@@ -138,7 +148,7 @@ Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (
   end.
 
 
-Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
+Definition c_types_agree (ct : checker_type) (ts' : seq value_type) : bool :=
   match ct with
   | CT_type ts => ts == ts'
   | CT_top_type ts => ct_suffix ts (to_ct_list ts')
@@ -146,7 +156,7 @@ Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
   end.
 
 Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {struct be} : checker_type :=
-  let check := fix check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
+  let check := fix check (C : t_context) (es : seq basic_instruction) (ts : checker_type) {struct es} : checker_type :=
       match es with
       | [::] => ts
       | e :: es' =>
@@ -155,7 +165,7 @@ Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_typ
         | _ => check C es' (check_single C e ts)
         end
       end in
-  let b_e_type_checker C (es : list basic_instruction) tf :=
+  let b_e_type_checker C (es : seq basic_instruction) tf :=
        match tf with
        | Tf tn tm =>
          c_types_agree (check C es (CT_type tn)) tm
@@ -331,7 +341,7 @@ Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_typ
 
 
 (* TODO: try to avoid repetition *)
-Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
+Fixpoint check (C : t_context) (es : seq basic_instruction) (ts : checker_type) {struct es} : checker_type :=
   match es with
   | [::] => ts
   | e :: es' =>
@@ -342,12 +352,12 @@ Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type)
   end.
 
 (* TODO: try to avoid repetition *)
-Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+Definition b_e_type_checker (C : t_context) (es : seq basic_instruction) (tf : function_type) : bool :=
   match tf with
   | Tf tn tm => c_types_agree (check C es (CT_type tn)) tm
   end.
 
-Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
+Fixpoint collect_at_inds A (l : seq A) (ns : seq nat) : seq A :=
   match ns with
   | n :: ns' =>
     match (List.nth_error l n) with
@@ -358,7 +368,7 @@ Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
   end.
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
-Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
+Definition inst_type_check (s : store_record) (i : instance) : t_context :=
   Build_t_context
     (i_types i)
     (collect_at_inds (map cl_type (s_funcs s)) (i_funcs i))
@@ -382,7 +392,8 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
   | Func_host tf h => true
   end.
 
-Inductive e_typing : store_record -> t_context -> list administrative_instruction -> function_type -> Prop :=
+(* FIXME: Isn’t this supposed to be in [typing.v] instead? *)
+Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
 | ety_composition : forall s C es e t1s t2s t3s,
@@ -406,14 +417,16 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
   Nat.eqb (length ts) n ->
   e_typing s C [::Label n e0s es] (Tf [::] t2s)
-with s_typing : store_record -> option (list value_type) -> instance -> list value -> list administrative_instruction -> list value_type -> Prop :=
+
+with s_typing : store_record -> option (seq value_type) -> instance -> seq value -> seq administrative_instruction -> seq value_type -> Prop :=
 | mk_s_typing : forall s i vs es rs ts C C0 tvs0,
   let tvs := map typeof vs in
   inst_typing s i C0 ->
   C = upd_local_return C0 ((tc_local tvs0) ++ tvs) rs ->
   e_typing s C es (Tf [::] ts) ->
-  (rs == Some ts) || (rs == None) ->
-  s_typing s rs i vs es ts.
+  (rs = Some ts \/ rs = None) ->
+  s_typing s rs i vs es ts
+.
 
 Definition tab_agree (s : store_record) (tcl : option function_closure) : bool :=
   match tcl with
@@ -424,16 +437,19 @@ Definition tab_agree (s : store_record) (tcl : option function_closure) : bool :
 Definition mem_agree bs m : bool :=
   m <= mem_size bs.
 
-Definition store_typing (s : store_record) : Prop :=
+Definition store_typing (s : store_record) : bool :=
   match s with
   | Build_store_record fs tclss bss gs =>
     all (fun f => cl_type_check s f) fs &&
     all (tab_agree s) (flatten tclss)
   end.
 
-Inductive config_typing : instance -> store_record -> list value -> list administrative_instruction -> list value_type -> Prop :=
+Inductive config_typing : instance -> store_record -> seq value -> seq administrative_instruction -> seq value_type -> Prop :=
 | mk_config_typing :
   forall i s vs es ts,
   store_typing s ->
   s_typing s None i vs es ts ->
   config_typing i s vs es ts.
+
+End Host.
+

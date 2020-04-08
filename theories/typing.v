@@ -18,6 +18,9 @@ Let administrative_instruction := administrative_instruction host_function.
 Let lholed := lholed host_function.
 
 
+(* TODO: Documentation *)
+
+
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   (sxo == None) ==
   ((is_float_t t1 && is_float_t t2) || (is_int_t t1 && is_int_t t2 && (t_length t1 < t_length t2))).
@@ -38,6 +41,11 @@ Definition upd_label C lab :=
 
 Definition plop2 C i ts :=
   List.nth_error (tc_label C) i == Some ts.
+
+Inductive result_typing : result -> result_type -> Prop :=
+  | result_typing_values : forall vs, result_typing (result_values vs) (map typeof vs)
+  | result_typing_trap : forall ts, result_typing result_trap ts
+  .
 
 Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 | bet_const : forall C v, be_typing C [::EConst v] (Tf [::] [::typeof v])
@@ -133,7 +141,8 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
   be_typing C (app es [::e]) (Tf t1s t3s)
 | bet_weakening : forall C es ts t1s t2s,
   be_typing C es (Tf t1s t2s) ->
-  be_typing C es (Tf (app ts t1s) (app ts t2s)).
+  be_typing C es (Tf (app ts t1s) (app ts t2s))
+.
 
 
 

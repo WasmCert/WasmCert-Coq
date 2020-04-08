@@ -17,8 +17,6 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
-Let to_e_list := to_e_list host_function.
-Let v_to_e_list := v_to_e_list host_function.
 
 
 Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=

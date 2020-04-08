@@ -11,6 +11,16 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+
+
+(** * Types used by the interpreter **)
+
 Inductive res_crash : Type :=
 | C_error : res_crash
 | C_exhaustion : res_crash.
@@ -26,7 +36,7 @@ Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_e
 Inductive res : Type :=
 | R_crash : res_crash -> res
 | R_trap : res
-| R_value : list value -> res.
+| R_value : seq value -> res.
 
 Definition res_eq_dec : forall r1 r2 : res, {r1 = r2} + {r1 <> r2}.
 Proof. decidable_equality. Defined.
@@ -40,9 +50,9 @@ Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
 
 Inductive res_step : Type :=
 | RS_crash : res_crash -> res_step
-| RS_break : nat -> list value -> res_step
-| RS_return : list value -> res_step
-| RS_normal : list administrative_instruction -> res_step.
+| RS_break : nat -> seq value -> res_step
+| RS_return : seq value -> res_step
+| RS_normal : seq administrative_instruction -> res_step.
 
 Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
 Proof. decidable_equality. Defined.
@@ -58,15 +68,20 @@ Definition crash_error := RS_crash C_error.
 
 Definition depth := nat.
 
+(** As Coq programs have to terminate, but Wasm programs don’t, we force termination
+  but relying on fuel. **)
 Definition fuel := nat.
 
-Definition config_tuple := ((store_record * list value * list administrative_instruction)%type).
+Definition config_tuple := ((store_record * seq value * seq administrative_instruction)%type).
 
-Definition config_one_tuple_without_e := (store_record * list value * list value)%type.
+Definition config_one_tuple_without_e := (store_record * seq value * seq value)%type.
 
-Definition res_tuple := (store_record * list value * res_step)%type.
+Definition res_tuple := (store_record * seq value * res_step)%type.
 
-Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction))%type :=
+
+(** * The interpreter itself. **)
+
+Fixpoint split_vals (es : seq basic_instruction) : (seq value * seq basic_instruction)%type :=
   match es with
   | (EConst v) :: es' =>
     let: (vs', es'') := split_vals es' in
@@ -78,7 +93,7 @@ Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_
     are all of the form [Basic (EConst v)];
     returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
     segment and [es] is the remainder of the original [es]. **)
-Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction))%type :=
+Fixpoint split_vals_e (es : seq administrative_instruction) : ((seq value) * (seq administrative_instruction))%type :=
   match es with
   | (Basic (EConst v)) :: es' =>
     let: (vs', es'') := split_vals_e es' in
@@ -86,7 +101,7 @@ Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (
   | _ => ([::], es)
   end.
 
-Fixpoint split_n (es : list value) (n : nat) : ((list value) * (list value))%type :=
+Fixpoint split_n (es : seq value) (n : nat) : (seq value * seq value)%type :=
   match (es, n) with
   | ([::], _) => ([::], [::])
   | (_, 0) => ([::], es)
@@ -101,7 +116,7 @@ Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   | None => b
   end.
 
-Definition vs_to_es (vs : list value) : list administrative_instruction :=
+Definition vs_to_es (vs : seq value) : seq administrative_instruction :=
   v_to_e_list (rev vs).
 
 Definition e_is_trap (e : administrative_instruction) : bool :=
@@ -116,7 +131,7 @@ Proof.
 Qed.
 
 (** [es_is_trap es] is equivalent to [es == [:: Trap]]. **)
-Definition es_is_trap (es : list administrative_instruction) : bool :=
+Definition es_is_trap (es : seq administrative_instruction) : bool :=
   match es with
   | [::e] => e_is_trap e
   | _ => false
@@ -130,8 +145,6 @@ Proof.
     by inversion 1.
   - move=> >. by apply: ReflectF.
 Qed.
-
-Section Host.
 
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
   let: (s, vs, es) := tt in

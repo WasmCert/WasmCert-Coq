@@ -29,6 +29,13 @@ Inductive value_type : Type := (* t *)
   | T_f64
   .
 
+
+Definition result_type := seq value_type.
+(** Note from the specification:
+  In the current version of WebAssembly, at most one value is allowed as a result.
+  However, this may be generalized to sequences of values in future versions. **)
+(* FIXME: Do we want to enforce it? *)
+
 Inductive packed_type : Type := (* tp *)
   | Tp_i8
   | Tp_i16
@@ -45,6 +52,9 @@ Record global_type := (* tg *)
 
 Inductive function_type := (* tf *)
   | Tf : list value_type -> list value_type -> function_type
+  (** Note from the specification:
+    In the current version of Wasm, the result list has an arity of at most [1]. **)
+  (* FIXME: Shouldn’t we enforce it? *)
   .
 
 (** Typing context. **)
@@ -80,6 +90,8 @@ Inductive value : Type := (* v *)
 
 Inductive result : Type :=
   | result_values : list value -> result
+  (** Note from the specification:
+    In the current version of WebAssembly, a result can consist of at most one value. **)
   | result_trap : result
   .
 
@@ -197,7 +209,7 @@ Inductive basic_instruction : Type := (* be *)
 Section Host.
 
 (** We assume a family of host functions. **)
-Context `(host_function : Type).
+Variable host_function : Type.
 
 Record instance : Type := (* inst *) {
   i_types : list function_type;

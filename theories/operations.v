@@ -12,7 +12,7 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Context `(host_function : eqType).
+Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
@@ -501,4 +501,8 @@ Definition n_zeros (ts : seq value_type) : seq value :=
 (* TODO: lots of lemmas *)
 
 End Host.
+
+Arguments cl_type {host_function}.
+Arguments to_e_list [host_function].
+Arguments v_to_e_list [host_function].
 
