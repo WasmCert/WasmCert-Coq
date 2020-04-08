@@ -48,6 +48,13 @@ Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
 
+Definition result_types_agree ts r :=
+  match r with
+  | result_values vs => all2 types_agree ts vs
+  | result_trap => true
+  end.
+
+
 Definition to_ct_list (ts : seq value_type) : seq checker_type_aux :=
   map CTA_some ts.
 

@@ -4,7 +4,7 @@
 Require Import common.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Export operations.
+Require Export operations host type_checker.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -17,6 +17,12 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
+Let monadic_host := monadic_host host_function.
+
+Variable host_instance : monadic_host.
+
+Let host_return := host_return host_instance.
+Let host_apply := host_apply host_instance.
 
 
 (** * Types used by the interpreter **)
@@ -458,13 +464,19 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         if length ves >= n
         then
           let: (ves', ves'') := split_n ves n in
-          match host_apply s (Tf t1s t2s) f (rev ves') with
-          | Some (s', rves) =>
-            if all2 types_agree t2s rves
-            then (s', vs, RS_normal (vs_to_es ves'' ++ v_to_e_list rves))
-            else (s, vs, crash_error)
-          | None => (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
-          end
+          host_apply s f (rev ves') (fun r =>
+            host_return
+              (match r with
+               | Some (s', r) =>
+                 (** We here double-check the types.
+                   Note that this is not a requirement of the Wasm specification. **)
+                 if result_types_agree t2s r
+                 then
+                   let: rves := result_to_stack r in
+                   (s', vs, RS_normal (vs_to_es ves'' ++ rves))
+                 else (s, vs, crash_error)
+               | None => (s, vs, crash_error) (* TODO *)
+               end))
         else (s, vs, crash_error)
       end
     | Label ln les es =>

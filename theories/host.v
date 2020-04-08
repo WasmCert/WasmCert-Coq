@@ -24,7 +24,8 @@ Let store_record := store_record host_function.
 
 Record monadic_host := {
     host_monad : Type -> Type ;
-    host_apply : forall A : Type,
+    host_return : forall A, A -> host_monad A ;
+    host_apply : forall A,
       store_record -> host_function -> seq value ->
       (option (store_record * result) -> host_monad A) ->
       host_monad A ;

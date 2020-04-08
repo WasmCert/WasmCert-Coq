@@ -351,6 +351,57 @@ Proof.
   by rewrite -(last_cons e) E' last_rcons.
 Qed.
 
+Lemma all2_swap : forall A B (f : A -> B -> bool) l1 l2,
+  all2 f l1 l2 = all2 (fun x y => f y x) l2 l1.
+Proof.
+  move=> A B f. elim.
+  - by case.
+  - move=> a1 l1 IH. case=> //= a2 l2. by rewrite IH.
+Qed.
+
+Lemma all2_eq : forall A B (f1 f2 : A -> B -> bool) l1 l2,
+  (forall a b, f1 a b = f2 a b) ->
+  all2 f1 l1 l2 = all2 f2 l1 l2.
+Proof.
+  move=> A B f1 f2. elim.
+  - by case.
+  - move=> a1 l1 IH. case=> //= a2 l2 E. by rewrite E IH.
+Qed.
+
+Lemma map_all2 : forall A (B : eqType) (f : A -> B) l,
+  all2 (fun a1 a2 => f a1 == a2) l (map f l).
+Proof.
+  move=> A B f. elim => //=.
+  move=> a1 l1 IH. by apply/andP.
+Qed.
+
+Lemma all2_map_left : forall A (B : eqType) (f : A -> B) l1 l2,
+  all2 (fun a1 a2 => f a1 == a2) l1 l2 ->
+  map f l1 = l2.
+Proof.
+  move=> A B f. elim.
+  - by case.
+  - move=> a1 l1 IH. case=> //= a2 l2 /andP [E F]. f_equal.
+    + by move/eqP: E.
+    + by apply: IH.
+Qed.
+
+Lemma all2_map_right : forall A (B : eqType) (f : A -> B) l1 l2,
+  all2 (fun a1 a2 => a1 == f a2) l1 l2 ->
+  l1 = map f l2.
+Proof.
+  move=> > F. symmetry. apply: all2_map_left. rewrite all2_swap.
+  by erewrite all2_eq; first apply: F.
+Qed.
+
+Lemma all2_mapP : forall A (B : eqType) (f : A -> B) l1 l2,
+  reflect (map f l1 = l2) (all2 (fun a1 a2 => f a1 == a2) l1 l2).
+Proof.
+  move=> >. apply: Bool.iff_reflect. split.
+  - move=> ?. subst. by rewrite map_all2.
+  - by apply: all2_map_left.
+Qed.
+
 
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 
@@ -461,6 +512,9 @@ Proof.
 Defined.
 
 End TProp.
+
+
+(** * Stronger Induction Principles **)
 
 (** Try to fold an expression everywhere.
   More robust than [fold e in *]. **)
