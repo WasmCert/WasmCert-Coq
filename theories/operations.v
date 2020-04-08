@@ -308,6 +308,13 @@ Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruct
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
   map (fun v => Basic (EConst v)) ves.
 
+(** Converting a result into a stack. **)
+Definition result_to_stack (r : result) :=
+  match r with
+  | result_values vs => v_to_e_list vs
+  | result_trap => [:: Trap]
+  end.
+
 Fixpoint lfill (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
   match k with
   | 0 =>
@@ -505,4 +512,5 @@ End Host.
 Arguments cl_type {host_function}.
 Arguments to_e_list [host_function].
 Arguments v_to_e_list [host_function].
+Arguments result_to_stack [host_function].
 
