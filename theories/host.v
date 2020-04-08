@@ -25,10 +25,10 @@ Let store_record := store_record host_function.
 Record monadic_host := {
     host_monad : Type -> Type ;
     host_return : forall A, A -> host_monad A ;
-    host_apply : forall A,
+    host_bind : forall A B, host_monad A -> (A -> host_monad B) -> host_monad B ;
+    host_apply :
       store_record -> host_function -> seq value ->
-      (option (store_record * result) -> host_monad A) ->
-      host_monad A ;
+      host_monad (option (store_record * result)) ;
     (* FIXME: Should it be defined after the typing, to get some notions of correctness? *)
   }.
 
