@@ -15,7 +15,6 @@ Section Host.
 
 Variable host_function : eqType.
 
-
 Lemma result_typingP : forall r ts,
   reflect (result_typing r ts) (result_types_agree ts r).
 Proof.

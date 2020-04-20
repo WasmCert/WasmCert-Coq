@@ -8,6 +8,32 @@ Unset Printing Implicit Defensive.
 
 Require Import operations opsem interpreter.
 
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let host := host host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let store_record := store_record host_function.
+Let lholed := lholed host_function.
+
+Let lfilled : nat -> lholed -> list administrative_instruction -> list administrative_instruction -> bool :=
+  @lfilled _.
+Let split_vals_e : list administrative_instruction -> list value * list administrative_instruction :=
+  @split_vals_e _.
+
+Variable host_instance : host.
+
+Let host_state := host_state host_instance.
+Let reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
+  @reduce_simple _.
+Let reduce : host_state -> store_record -> list value -> list administrative_instruction -> instance ->
+             host_state -> store_record -> list value -> list administrative_instruction -> Prop :=
+  @reduce _ _.
+Let lfill : nat -> lholed -> list administrative_instruction -> option (list administrative_instruction) :=
+  @lfill _.
+
 Definition expr := list administrative_instruction.
 Definition val := list value.
 Definition state := store_record.
@@ -26,11 +52,11 @@ Fixpoint to_val (e : expr) : option val :=
   | _ => None
   end.
 
-Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) (s' : state) (fork_es' : list expr) : Prop :=
+Definition prim_step (e : expr) (hs : host_state) (s : state) (os : list observation) (e' : expr) (s' : state) (hs' : host_state) (fork_es' : list expr) : Prop :=
   let '(vs, es) := split_vals_e e in
   let '(vs', es') := split_vals_e e' in
   exists i,
-    reduce s vs es i s' vs' es' /\ os = [] /\ fork_es' = [].
+    reduce hs s vs es i hs' s' vs' es' /\ os = [] /\ fork_es' = [].
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
 Proof.
@@ -46,7 +72,8 @@ Definition is_none_or {A : Type} (p : A -> bool) (x : option A) : bool :=
   | Some y => p y
   end.
 
-Lemma to_val_cons_is_none_or_cons : forall e0 e r, to_val (e0 :: e)%SEQ = r -> is_none_or (fun l => l != []) r.
+Lemma to_val_cons_is_none_or_cons : forall e0 e r,
+  to_val (e0 :: e)%SEQ = r -> is_none_or (fun l => l != []) r.
 Proof.
   move => e0 e.
   rewrite /=.
@@ -57,8 +84,8 @@ Proof.
     move => v0 v.
     case: (to_val e) => //=.
     move => a H.
-    case: v H => //=. }
-  { case: e0 => //=. }
+    by case: v H. }
+  { by case: e0. }
 Qed.
 
 Lemma of_to_val e v : to_val e = Some v → of_val v = e.
@@ -88,12 +115,12 @@ Proof.
   }
 Qed.
 
-Lemma split_vals_not_empty_res : forall es v vs es', split_vals_e es = (v :: vs, es') -> es <> [].
-Proof.
-  case => //=.
-Qed.
+Lemma split_vals_not_empty_res : forall es v vs es',
+  split_vals_e es = (v :: vs, es') -> es <> [].
+Proof. by case. Qed.
 
-Lemma foo : forall e1 e es vs, split_vals_e e1 = (vs, e :: es) -> to_val e1 = None.
+Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
+  split_vals_e e1 = (vs, e :: es) -> to_val e1 = None.
 Proof.
   elim; first done.
   case; try done.
@@ -122,7 +149,7 @@ Lemma foo7 : forall T (xs : list T) y ys,
 Proof.
   move => T xs y ys.
   assert (seq.size (seq.cat xs (y :: ys)) <> @seq.size T []).
-  { move => /= H; by apply: foo3. }
+  { by move => /= H; apply: foo3. }
   {move => H2.
    apply: H.
    by f_equal. }
@@ -138,24 +165,19 @@ Proof.
     { move => vs es _ _ t1s t2s _ _ _ _ H.
       by apply: foo7. }
     { move => es lh _ H Hes.
-      rewrite Hes {es Hes} /lfilled /= in H.
+      rewrite Hes {es Hes} /lfilled /operations.lfilled /= in H.
       case: lh H => //=.
       { move => es es2.
         case_eq (const_list es) => //=.
-        move => _ H.
-        assert (seq.size (es ++ Trap :: es2) = @seq.size administrative_instruction []) as Hx.
-        { f_equal.
-          symmetry.
-          by move/eqP: H. }
-        { move => {H}.
-          by apply: foo3. } } } }
+        move=> _ /eqP H.
+        symmetry in H.
+        move: (app_eq_nil _ _ H) => [_ _] //. } } }
   { move => es' H2.
-    apply: H.
-    apply: H2.
-    done. }
+    by apply: H. }
 Qed.
 
-Lemma foo6 : forall i lh es es' e es0, lfill i lh es = es' -> es = e :: es0 -> es' <> Some [].
+Lemma foo6 : forall i lh (es : list administrative_instruction) es' e es0,
+  lfill i lh es = es' -> es = e :: es0 -> es' <> Some [].
 Proof.
   elim.
   { elim; last by intros; subst.
@@ -185,7 +207,8 @@ Proof.
     { intros; subst; discriminate. } }
 Qed.
 
-Lemma foo10 : forall i lh es es' e es0, lfill i lh es = es' -> es = e :: es0 -> es' <> Some [].
+Lemma foo10 : forall i lh (es : list administrative_instruction) es' e es0,
+  lfill i lh es = es' -> es = e :: es0 -> es' <> Some [].
 Proof.
   intros.
   apply: foo6.
@@ -208,8 +231,8 @@ Proof.
   move: (exists_last Hes) => [e [e0 H']].
   rewrite H' in H.
   move: H.
-  rewrite /lfilled.
-  case_eq (lfill i lh es).
+  rewrite /lfilled /operations.lfilled.
+  case_eq (operations.lfill i lh es).
   { intros; subst.
     rewrite H in H0.
     assert ([] = l) as H0'.
@@ -227,31 +250,34 @@ Proof.
     done. }
 Qed.
 
-Lemma foo4 : forall σ1 vs es i σ2 vs' es', reduce σ1 vs es i σ2 vs' es' -> es = [] -> False.
+Lemma foo4 : forall hs1 σ1 vs es i hs2 σ2 vs' es',
+  reduce hs1 σ1 vs es i hs2 σ2 vs' es' -> es = [] -> False.
 Proof.
-  move => σ1 vs es i σ2 vs' es' Hred.
-  elim: {σ1 vs es i es' σ2 vs'} Hred => //=.
-  { move => e e' _ _ _ Hreds He.
+  move => hs1 σ1 vs es i hs2 σ2 vs' es' Hred.
+  elim: {hs1 σ1 vs es i hs2 es' σ2 vs'} Hred => //=.
+  { move => e e' _ _ _ _ Hreds He.
     rewrite He in Hreds.
     apply: foo2.
     apply: Hreds. }
   (* there must be a better way *)
-  { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
+  { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
     by apply: foo3. }
-  { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ _ _ _ H.
+  { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
     by apply: foo3. }
-  { move => cl _ _ _ es _ _ _ _ _ _ _ _ _ _ _ H.
+  { move => cl _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
     assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
-      by apply: foo3. }
-  { move => s vs es les i s' vs' le's les' k lh Hred Hes Hfill Hfill' Hles.
+    by apply: foo3. }
+  { move => s vs es les i s' vs' le's les' k lh hs hs' Hred Hes Hfill Hfill' Hles.
     by apply: (foo5 Hfill). }
 Qed.
 
-Lemma val_head_stuck e1 σ1 κ e2 σ2 efs : prim_step e1 σ1 κ e2 σ2 efs → to_val e1 = None.
+Lemma val_head_stuck : forall e1 hs1 σ1 κ e2 hs2 σ2 efs,
+  prim_step e1 hs1 σ1 κ e2 hs2 σ2 efs →
+  to_val e1 = None.
 Proof.
-  rewrite /prim_step.
+  rewrite /prim_step => e1 hs1 σ1 κ e2 hs2 σ2 efs.
   case_eq (split_vals_e e1) => vs es H.
   case_eq (split_vals_e e2) => vs' es' _ [i [Hred _]].
   move: vs vs' es' H Hred.
@@ -262,7 +288,7 @@ Proof.
     apply: Hred.
     done. }
   { move => e es _ vs vs' _ H1 _ {e2 efs}.
-    apply: foo.
+    apply: splits_vals_e_to_val_hd.
     apply: H1. }
 Qed.
 
@@ -272,3 +298,5 @@ Proof.
 Qed.
 
 Canonical Structure wasm := Language wasm_mixin.
+
+End Host.
