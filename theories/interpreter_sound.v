@@ -805,7 +805,11 @@ Proof.
     move => k lh les' HLF.
     apply LfilledRec => //; by apply v_to_e_is_const_list. 
 Qed.
-  
+
+(** If the result of the interpreter is a [RS_break], then we must have
+  started with at least 2 fuel. 
+    The lemma is stated in this way to make application of other lemmas
+  easier. **)
 Lemma rs_break_takes_2_fuel: forall fuel d i s vs es s' vs' n es',
   run_step_with_fuel fuel d i (s, vs, es)
   = (s', vs', RS_break n es') ->
@@ -817,7 +821,7 @@ Proof.
   destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
   apply split_vals_e_v_to_e_duality in HSplit.
   destruct es2 as [|e es2'] => //.
-  destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
+  destruct e => //=; try (destruct fuel => //; by exists fuel).
   by explode_and_simplify.
 Qed.                   
 
@@ -832,7 +836,7 @@ Proof.
   destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
   apply split_vals_e_v_to_e_duality in HSplit.
   destruct es2 as [|e es2'] => //.
-  destruct e as [b| | | |] => //=; try (destruct fuel => //; by exists fuel).
+  destruct e => //=; try (destruct fuel => //; by exists fuel).
   by explode_and_simplify.
 Qed.
 
@@ -856,14 +860,14 @@ Lemma Label_sequence_lfilled_exists: forall k vs e bs,
   Label_sequence k vs e bs ->
   exists lh es, lfilledInd k lh es bs.
 Proof.
-  move => k. induction k.
+  elim.
   - move => vs0 e0 bs H. inversion H; subst.
     + exists (LBase vs0 es). exists [::Basic (Br n)]. apply LfilledBase => //.
     + exists (LBase vs0 es). exists [::Basic Return]. apply LfilledBase => //.
-  - subst. move => vs0 e0 bs H. inversion H. subst.
+  - subst. move => k IHk vs0 e0 bs H. inversion H. subst.
     apply IHk in H2. destruct H2 as [lh [es2 HLF]].
-    exists (LRec vs m es' lh es). exists es2.
-    apply LfilledRec => //.
+    repeat eexists. apply LfilledRec => //.
+    eassumption.
 Qed.
 
 Lemma Label_sequence_lfilledk: forall k vs e bs m,
@@ -881,7 +885,7 @@ Proof.
     assumption.
 Qed.
 
-(** If the interpreter successfully finishes execution given stack [es] and [ends]
+(** If the interpreter successfully finishes execution given stack [es] and ends
   up with [RS_break n es'], then [es] is well-founded, i.e. the recursive case
   [Label _ _ _] cannot take place infinitely often. In fact we even know exactly 
   how many times the recursive case takes place. **)
@@ -954,10 +958,11 @@ Proof.
   move => fuel d i s vs es es' s' vs' es'' n H HSize.
   apply rs_break_wellfounded in H.
   destruct H as [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]. subst.
+  rewrite addn0 in HLS.
   destruct k.
-  - inversion HLS. subst. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+  - inversion HLS as [n1 vs1 es1 HConst| |]. subst. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
     + simplify_lists. 
-      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize as [H|H].
       * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H.
     + apply/lfilledP.
@@ -967,20 +972,18 @@ Proof.
       simplify_lists.
       repeat rewrite -catA. apply lfilled0_frame_l_empty; last by apply v_to_e_is_const_list.
       repeat rewrite catA. apply lfilled0_frame_r_empty.
-      apply lfilled0.
+      by apply lfilled0.
       { rewrite -rev_cat. by rewrite cat_take_drop. }
   - eapply Label_sequence_lfilledk in HLS.
     destruct HLS as [lh EH].
     apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
     + simplify_lists. 
-      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize as [H|H].
       * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H.
     + apply/lfilledP.
       replace (v_to_e_list (rev (take n es''))) with (drop (size vs0 - n) vs0).
-      replace (k.+1+0) with (k.+1) in EH.
       apply EH.
-      { by lias. }
       {
         symmetry in HES'. apply rev_move in HES'. rewrite HES'.
         simplify_lists.
@@ -1000,34 +1003,32 @@ Proof.
   apply rs_return_wellfounded in H.
   destruct H as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
   destruct k.
-  - inversion HLS. subst. auto_frame. apply r_simple.
+  - inversion HLS as [|vs es HConst|]. subst. apply r_simple.
     eapply rs_return; first by apply v_to_e_is_const_list.
     + simplify_lists.
-      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
-      * move/eqP in H0. subst. apply /eqP. by rewrite ltnn.
-      * by rewrite H0.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize as [H|H].
+      * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
+      * by rewrite H.
     + apply/lfilledP.
       symmetry in HES'. apply rev_move in HES'. rewrite HES'.
       rewrite -v_to_e_rev. replace (rev vs'') with (rev (drop n vs'') ++ rev (take n vs'')).
       rewrite -v_to_e_cat. repeat rewrite v_to_e_rev.
       repeat rewrite -catA. apply lfilled0_frame_l_empty.
       repeat rewrite catA. apply lfilled0_frame_r_empty.
-      simplify_lists. apply lfilled0.
-      { rewrite -v_to_e_rev.  apply v_to_e_is_const_list. }
+      simplify_lists. by apply lfilled0.
+      { rewrite -v_to_e_rev.  by apply v_to_e_is_const_list. }
       { rewrite -rev_cat. by rewrite cat_take_drop. }
   - subst.
     eapply Label_sequence_lfilledk in HLS.
     destruct HLS as [lh EH].
-    auto_frame. apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
+    apply r_simple. eapply rs_return; first by apply v_to_e_is_const_list.
     + simplify_lists. 
-      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize.
+      rewrite leq_eqVlt in HSize. move/orP in HSize. destruct HSize as [H|H].
       * move/eqP in H. subst. apply /eqP. by rewrite ltnn.
       * by rewrite H.
     + apply/lfilledP.
       replace (v_to_e_list (rev (take n vs''))) with (drop (size vs0 - n) vs0).
-      replace (k.+1+0) with (k.+1) in EH.
       apply EH.
-      * by lias.
       * symmetry in HES'.
         apply rev_move in HES'. rewrite HES'.
         simplify_lists.
