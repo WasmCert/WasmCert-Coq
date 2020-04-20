@@ -135,35 +135,19 @@ Proof.
   done.
 Qed.
 
-Lemma foo3 : forall T xs y ys,
-    seq.size (@seq.cat T xs (y :: ys)) <> 0.
-Proof.
-  move => T xs y ys.
-  change 0 with (@seq.size T []).
-  rewrite seq.size_cat /= ssrnat.addnS.
-  done.
-Qed.
+Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
+  xs ++ (y :: ys) <> [].
+Proof. move => T xs y ys E. by move: (app_eq_nil _ _ E) => [? ?]. Qed.
 
-Lemma foo7 : forall T (xs : list T) y ys,
-    xs ++ (y :: ys) <> [].
-Proof.
-  move => T xs y ys.
-  assert (seq.size (seq.cat xs (y :: ys)) <> @seq.size T []).
-  { by move => /= H; apply: foo3. }
-  {move => H2.
-   apply: H.
-   by f_equal. }
-Qed.
-
-Lemma foo2 : forall es', ~ (reduce_simple [] es').
+Lemma not_reduce_simple_nil : forall es', ~ reduce_simple [] es'.
 Proof.
   assert (forall es es', reduce_simple es es' -> es = [] -> False) as H.
   { move => es es' H.
     elim: {es es'} H => //=.
     { move => vs es _ _ t1s t2s _ _ _ _ H.
-      by apply: foo7. }
+      by apply: cat_cons_not_nil. }
     { move => vs es _ _ t1s t2s _ _ _ _ H.
-      by apply: foo7. }
+      by apply: cat_cons_not_nil. }
     { move => es lh _ H Hes.
       rewrite Hes {es Hes} /lfilled /operations.lfilled /= in H.
       case: lh H => //=.
@@ -171,12 +155,12 @@ Proof.
         case_eq (const_list es) => //=.
         move=> _ /eqP H.
         symmetry in H.
-        move: (app_eq_nil _ _ H) => [_ _] //. } } }
+        by move: (app_eq_nil _ _ H) => [? ?]. } } }
   { move => es' H2.
     by apply: H. }
 Qed.
 
-Lemma foo6 : forall i lh (es : list administrative_instruction) es' e es0,
+Lemma lfill_cons_not_Some_nil : forall i lh es es' e es0,
   lfill i lh es = es' -> es = e :: es0 -> es' <> Some [].
 Proof.
   elim.
@@ -187,7 +171,7 @@ Proof.
       rewrite H4 in H2.
       injection H2 => H5 {H2}.
       rewrite H3 in H5.
-      by apply: foo7. }
+      by apply: cat_cons_not_nil. }
     { intros; subst; discriminate. } }
   { move=> n IH.
     elim; first by intros; subst.
@@ -201,31 +185,13 @@ Proof.
         rewrite H3 in H2.
         injection H2.
         move=> {} H2.
-        apply: foo7.
+        apply: cat_cons_not_nil.
         done. }
       { intros; subst; discriminate. } }
     { intros; subst; discriminate. } }
 Qed.
 
-Lemma foo10 : forall i lh (es : list administrative_instruction) es' e es0,
-  lfill i lh es = es' -> es = e :: es0 -> es' <> Some [].
-Proof.
-  intros.
-  apply: foo6.
-  apply: H.
-  done.
-Qed.
-
-Lemma foo11 : forall T (xs : list T) (y : T) (ys : list T), exists x xs', xs ++ (y :: ys) = x :: xs'.
-Proof.
-  move => T.
-  case.
-  { intros. eexists. eexists.
-    reflexivity. }
-  { intros. eexists. eexists. reflexivity. }
-Qed.
-  
-Lemma foo5 : forall i lh es es', lfilled i lh es es' -> es <> [] -> es' = [] -> False.
+Lemma lfilled_not_nil : forall i lh es es', lfilled i lh es es' -> es <> [] -> es' <> [].
 Proof.
   move => i lh es es' H Hes Hes'.
   move: (exists_last Hes) => [e [e0 H']].
@@ -240,37 +206,31 @@ Proof.
       apply H0. }
     { rewrite H0' in H.
       rewrite /= in H.
-      move: (foo11 e e0 l) => [x [xs Hxs]].
-      apply: foo6.
+      case E: (e ++ (e0 :: l)%SEQ)%list; first by move: (app_eq_nil _ _ E) => [? ?].
+      apply: lfill_cons_not_Some_nil.
       apply: H.
-      apply: Hxs.
-        by rewrite H0'. } }
+      apply: E.
+      by rewrite H0'. } }
   { intros; subst.
     rewrite H in H0.
     done. }
 Qed.
 
-Lemma foo4 : forall hs1 σ1 vs es i hs2 σ2 vs' es',
-  reduce hs1 σ1 vs es i hs2 σ2 vs' es' -> es = [] -> False.
+Lemma reduce_not_nil : forall hs1 σ1 vs es i hs2 σ2 vs' es',
+  reduce hs1 σ1 vs es i hs2 σ2 vs' es' -> es <> [].
 Proof.
   move => hs1 σ1 vs es i hs2 σ2 vs' es' Hred.
-  elim: {hs1 σ1 vs es i hs2 es' σ2 vs'} Hred => //=.
+  elim: {hs1 σ1 vs es i hs2 es' σ2 vs'} Hred => //;
+    try solve [ repeat intro;
+                match goal with
+                | H : (_ ++ _)%SEQ = [] |- _ =>
+                  by move: (app_eq_nil _ _ H) => [? ?]
+                end ].
   { move => e e' _ _ _ _ Hreds He.
     rewrite He in Hreds.
-    apply: foo2.
+    apply: not_reduce_simple_nil.
     apply: Hreds. }
-  (* there must be a better way *)
-  { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
-    assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
-    by apply: foo3. }
-  { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
-    assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
-    by apply: foo3. }
-  { move => cl _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
-    assert (seq.size (es ++ [Callcl cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
-    by apply: foo3. }
-  { move => s vs es les i s' vs' le's les' k lh hs hs' Hred Hes Hfill Hfill' Hles.
-    by apply: (foo5 Hfill). }
+  { intros. by apply: lfilled_not_nil. }
 Qed.
 
 Lemma val_head_stuck : forall e1 hs1 σ1 κ e2 hs2 σ2 efs,
@@ -284,7 +244,7 @@ Proof.
   elim: es.
   { move => vs vs' es' _ Hred.
     exfalso.
-    apply: foo4.
+    apply: reduce_not_nil.
     apply: Hred.
     done. }
   { move => e es _ vs vs' _ H1 _ {e2 efs}.
