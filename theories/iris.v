@@ -1,3 +1,6 @@
+(** Iris bindings **)
+(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+
 From mathcomp Require Import ssreflect ssrbool eqtype seq.
 
 From iris.program_logic Require Import language.
@@ -36,7 +39,7 @@ Let lfill : nat -> lholed -> list administrative_instruction -> option (list adm
 
 Definition expr := list administrative_instruction.
 Definition val := list value.
-Definition state := store_record.
+Definition state : Type := host_state * store_record.
 Definition observation := unit. (* TODO: maybe change? *)
 
 Definition of_val (v : val) : expr := map (fun v => Basic (EConst v)) v.
@@ -52,11 +55,13 @@ Fixpoint to_val (e : expr) : option val :=
   | _ => None
   end.
 
-Definition prim_step (e : expr) (hs : host_state) (s : state) (os : list observation) (e' : expr) (s' : state) (hs' : host_state) (fork_es' : list expr) : Prop :=
+Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) (s' : state) (fork_es' : list expr) : Prop :=
+  let '(hs, σ) := s in
+  let '(hs', σ') := s' in
   let '(vs, es) := split_vals_e e in
   let '(vs', es') := split_vals_e e' in
   exists i,
-    reduce hs s vs es i hs' s' vs' es' /\ os = [] /\ fork_es' = [].
+    reduce hs σ vs es i hs' σ' vs' es' /\ os = [] /\ fork_es' = [].
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
 Proof.
@@ -233,11 +238,11 @@ Proof.
   { intros. by apply: lfilled_not_nil. }
 Qed.
 
-Lemma val_head_stuck : forall e1 hs1 σ1 κ e2 hs2 σ2 efs,
-  prim_step e1 hs1 σ1 κ e2 hs2 σ2 efs →
+Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,
+  prim_step e1 s1 κ e2 s2 efs →
   to_val e1 = None.
 Proof.
-  rewrite /prim_step => e1 hs1 σ1 κ e2 hs2 σ2 efs.
+  rewrite /prim_step => e1 [hs1 σ1] κ e2 [hs2 σ2] efs.
   case_eq (split_vals_e e1) => vs es H.
   case_eq (split_vals_e e2) => vs' es' _ [i [Hred _]].
   move: vs vs' es' H Hred.
@@ -253,10 +258,7 @@ Proof.
 Qed.
 
 Lemma wasm_mixin : LanguageMixin of_val to_val prim_step.
-Proof.
-  split; exact _ || eauto using to_of_val, of_to_val, val_head_stuck.
-Qed.
-
-Canonical Structure wasm := Language wasm_mixin.
+Proof. split; eauto using to_of_val, of_to_val, val_head_stuck. Qed.
 
 End Host.
+
