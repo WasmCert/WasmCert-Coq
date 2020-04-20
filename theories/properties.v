@@ -9,6 +9,15 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Host.
+
+Variable host_function : eqType.
+
+Let administrative_instruction := administrative_instruction host_function.
+Let const_list : seq administrative_instruction -> bool := @const_list _.
+Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
+Let lfilledInd := @lfilledInd host_function.
+
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
@@ -42,7 +51,7 @@ Proof.
   - move => a l IH vs2. by rewrite IH.
 Qed.
 
-(* Check with Martin for split_vals *)
+(* TODO: Check with Martin for split_vals *)
 Lemma split_vals_e_v_to_e_duality: forall es vs es',
     split_vals_e es = (vs, es') ->
     es = (v_to_e_list vs) ++ es'.
@@ -51,14 +60,16 @@ Proof.
   - unfold split_vals_e. destruct es => //=.
     + move => es' H. by inversion H.
     + move => es'.
-      case a; try by inversion 1; [idtac]. move => b. case b; try by inversion 1.
+      case a; try by inversion 1; [idtac].
+      move => b. case b; try by inversion 1.
       (* ask *)
-      fold split_vals_e. move => v H.
+      fold (@split_vals_e host_function). move => v H.
       by destruct (split_vals_e es).
   - move => a l H es es' HSplit. unfold split_vals_e in HSplit.
-    destruct es => //. destruct a0 => //. destruct b => //. fold split_vals_e in HSplit.
+    destruct es => //. destruct a0 => //. destruct b => //.
+    fold (@split_vals_e host_function) in HSplit.
     destruct (split_vals_e es) eqn:Heqn. inversion HSplit; subst.
-    simpl. f_equal. by auto.
+    simpl. f_equal. by apply: H.
 Qed.
 
 (* Check with Martin for split_n: it's just take+drop *)
@@ -168,3 +179,6 @@ Proof.
   { move: HLF. by apply/eqseqP. }
   symmetry. move: HLF'. by apply/eqseqP. 
 Qed.  
+
+End Host.
+
