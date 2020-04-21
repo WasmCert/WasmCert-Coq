@@ -44,3 +44,8 @@ Record monadic_host := {
 
 End Parameterised.
 
+Arguments host_application [_ _].
+
+Arguments host_return [_ _ _].
+Arguments host_bind [_ _ _ _].
+Arguments host_apply [_ _].

@@ -1444,7 +1444,7 @@ Definition normalise (m e : Z) : T :=
   but it is fine here.)
   These unit tests are tested once the module is instantiated below, to be able to
   compute. **)
-Definition normalise_unit_test :=
+Local Definition normalise_unit_test :=
   let: half := normalise 1 (-1) in
   let: twice_half :=
     Binary.Bplus _ _ prec_gt_0 Hmax (fun _ _ => unspec_nan_nan)
@@ -1559,43 +1559,43 @@ Definition nearest := floatify nearesto.
 
 (** As above, here are some unit tests to be sure that we are indeed expecting
   the right thing. **)
-Definition ceil_unit_test_1 : Prop :=
+Local Definition ceil_unit_test_1 : Prop :=
   let: half := normalise 1 (-1) in
   ceil half = BofZ 1.
 
-Definition ceil_unit_test_2 : Prop :=
+Local Definition ceil_unit_test_2 : Prop :=
   let: mhalf := normalise (-1) (-1) in
   ceil mhalf = BofZ 0.
 
-Definition floor_unit_test_1 : Prop :=
+Local Definition floor_unit_test_1 : Prop :=
   let: half := normalise 1 (-1) in
   floor half = BofZ 0.
 
-Definition floor_unit_test_2 : Prop :=
+Local Definition floor_unit_test_2 : Prop :=
   let: mhalf := normalise (-1) (-1) in
   floor mhalf = BofZ (-1).
 
-Definition trunc_unit_test_1 : Prop :=
+Local Definition trunc_unit_test_1 : Prop :=
   let: half := normalise 1 (-1) in
   trunc half = BofZ 0.
 
-Definition trunc_unit_test_2 : Prop :=
+Local Definition trunc_unit_test_2 : Prop :=
   let: mhalf := normalise (-1) (-1) in
   trunc mhalf = BofZ 0.
 
-Definition nearest_unit_test_1 : Prop :=
+Local Definition nearest_unit_test_1 : Prop :=
   let: half := normalise 1 (-1) in
   nearest half = BofZ 0.
 
-Definition nearest_unit_test_2 : Prop :=
+Local Definition nearest_unit_test_2 : Prop :=
   let: mhalf := normalise (-1) (-1) in
   nearest mhalf = BofZ 0.
 
-Definition nearest_unit_test_3 : Prop :=
+Local Definition nearest_unit_test_3 : Prop :=
   let: one_pfive := normalise 3 (-1) in
   nearest one_pfive = BofZ 2.
 
-Definition nearest_unit_test_4 : Prop :=
+Local Definition nearest_unit_test_4 : Prop :=
   let: mone_pfive := normalise (-3) (-1) in
   nearest mone_pfive = BofZ (-2).
 

@@ -21,7 +21,6 @@ Variable host_instance : host.
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let host_state := host_state host_instance.
-Let host_application := host_application host_instance.
 
 
 Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=

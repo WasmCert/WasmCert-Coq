@@ -22,12 +22,6 @@ Let monadic_host := monadic_host host_function.
 Variable host_instance : monadic_host.
 
 Let host_monad := host_monad host_instance.
-Let host_return : forall A, A -> host_monad A :=
-  host_return host_instance.
-Let host_bind : forall A B, host_monad A -> (A -> host_monad B) -> host_monad B :=
-  host_bind host_instance.
-Let host_apply : store_record -> host_function -> seq value -> host_monad (option (store_record * result)) :=
-  host_apply host_instance.
 
 
 (** * Types used by the interpreter **)
@@ -602,3 +596,6 @@ Classical_Prop.classic : forall P : Prop, P \/ ~ P
 ]]
 *)
 
+Arguments RS_crash [_].
+Arguments RS_break [_].
+Arguments RS_return [_].

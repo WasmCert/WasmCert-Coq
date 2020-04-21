@@ -14,18 +14,53 @@ Require Import operations opsem interpreter properties.
 
 Section Host.
 
+Variable host_function : eqType.
+Let host := host host_function.
+
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let monadic_host := monadic_host host_function.
+Let config_tuple := config_tuple host_function.
+Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
+Let res_tuple := res_tuple host_function.
+
+Let const_list := @const_list host_function.
+Let v_to_e_list := @v_to_e_list host_function.
+Let lfilledInd := @lfilledInd host_function.
+
+Variable host_instance : host.
+Variable host_monadic_instance : monadic_host.
+
+Let host_state := host_state host_instance.
+Let host_monad := host_monad host_monadic_instance.
+
+Let run_step_fuel : config_tuple -> nat := @run_step_fuel host_function.
+Let run_step_with_fuel : fuel -> depth -> instance -> config_tuple -> host_monad res_tuple :=
+  run_step_with_fuel host_monadic_instance.
+Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
+                   administrative_instruction -> host_monad res_tuple :=
+  run_one_step host_monadic_instance.
+Let run_v : fuel -> depth -> instance -> config_tuple -> host_monad (store_record * res)%type :=
+  run_v host_monadic_instance.
+
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
+
+Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
+  @reduce_simple _.
+Let reduce : host_state -> store_record -> seq value -> seq administrative_instruction -> instance ->
+             host_state -> store_record -> seq value -> seq administrative_instruction -> Prop :=
+  @reduce _ _.
 
 (** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
   They enable to focus on parts of the stack, ignoring the context. **)
 
-Lemma r_eliml: forall s vs es s' vs' es' lconst i,
-    const_list lconst ->
-    reduce s vs es i s' vs' es' ->
-    reduce s vs (lconst ++ es) i s' vs' (lconst ++ es').
+Lemma r_eliml: forall hs s vs es hs' s' vs' es' lconst i,
+  const_list lconst ->
+  reduce hs s vs es i hs' s' vs' es' ->
+  reduce hs s vs (lconst ++ es) i hs' s' vs' (lconst ++ es').
 Proof.
-  move => s vs es s' vs' es' lconst i HConst H.
+  move => hs s vs es hs' s' vs' es' lconst i HConst H.
   apply: r_label; try apply/lfilledP.
   - by apply: H.
   - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
@@ -34,11 +69,11 @@ Proof.
     f_equal. by apply: cats0.
 Qed.
 
-Lemma r_elimr: forall s vs es s' vs' es' i les,
-    reduce s vs es i s' vs' es' ->
-    reduce s vs (es ++ les) i s' vs' (es' ++ les).
+Lemma r_elimr: forall hs s vs es hs' s' vs' es' i les,
+    reduce hs s vs es i hs' s' vs' es' ->
+    reduce hs s vs (es ++ les) i hs' s' vs' (es' ++ les).
 Proof.
-  move => s vs es s' vs' es' i les H.
+  move => hs s vs es hs' s' vs' es' i les H.
   apply: r_label; try apply/lfilledP.
   - apply: H.
   - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
@@ -47,30 +82,26 @@ Qed.
 
 (** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
 
-Lemma r_eliml_empty: forall s vs es s' vs' lconst i,
+Lemma r_eliml_empty: forall hs s vs es hs' s' vs' lconst i,
     const_list lconst ->
-    reduce s vs es i s' vs' [::] ->
-    reduce s vs (lconst ++ es) i s' vs' lconst.
+    reduce hs s vs es i hs' s' vs' [::] ->
+    reduce hs s vs (lconst ++ es) i hs' s' vs' lconst.
 Proof.
-  move => s vs es s' vs' lconst i HConst H.
-  assert (reduce s vs (lconst++es) i s' vs' (lconst++[::])); first by apply: r_eliml.
-  by rewrite cats0 in H0.
+  move => hs s vs es hs' s' vs' lconst i HConst H.
+  rewrite -{2}(cats0 lconst). by apply: r_eliml.
 Qed.
 
-Lemma r_elimr_empty: forall s vs es s' vs' i les,
-    reduce s vs es i s' vs' [::] ->
-    reduce s vs (es ++ les) i s' vs' les.
+Lemma r_elimr_empty: forall hs s vs es hs' s' vs' i les,
+    reduce hs s vs es i hs' s' vs' [::] ->
+    reduce hs s vs (es ++ les) i hs' s' vs' les.
 Proof.
-  move => s vs es s' vs' i les H.
-  assert (reduce s vs (es++les) i s' vs' ([::] ++les)); first by apply: r_elimr.
-  by rewrite cat0s in H0.
+  move => hs s vs es hs' s' vs' i les H.
+  rewrite -{2}(cat0s les). by apply: r_elimr.
 Qed.
 
 Lemma run_step_fuel_not_zero : forall tt,
   run_step_fuel tt <> 0.
-Proof.
-  move=> [[st vs] es]. rewrite/run_step_fuel. by lias.
-Qed.
+Proof. move=> [[st vs] es]. by lias. Qed.
 
 
 Lemma const_list_cons : forall a l,
@@ -106,8 +137,8 @@ Lemma v_to_e_rev: forall l,
   v_to_e_list (rev l) = rev (v_to_e_list l).
 Proof.
   elim => //=.
-  move => a l IH. rewrite rev_cons. rewrite -cats1. rewrite -v_to_e_cat.
-  rewrite rev_cons. rewrite -cats1. by rewrite -IH.
+  move => a l IH. rewrite rev_cons.
+  by rewrite -cats1 /v_to_e_list -v_to_e_cat rev_cons -cats1 -IH.
 Qed.
 
 Lemma v_to_e_list0 : v_to_e_list [::] = [::].
@@ -116,7 +147,7 @@ Proof. reflexivity. Qed.
 Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: Basic (EConst v)].
 Proof. reflexivity. Qed.
 
-Local Lemma ves_projection: forall vs e es vs' e' es',
+Lemma ves_projection: forall vs e es vs' e' es',
   const_list vs ->
   const_list vs' ->
   ~ is_const e ->
@@ -474,11 +505,12 @@ Local Lemma run_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel'
   fuel <= fuel' ->
   TProp.Forall (fun e => forall d i tt s vs r fuel fuel',
      fuel <= fuel' ->
-     run_one_step fuel d i tt e = (s, vs, r) ->
-     r = RS_crash C_exhaustion \/ run_one_step fuel' d i tt e = (s, vs, r)) es ->
-  run_step_with_fuel fuel d i (s, vs, es) = (s', vs', r') ->
+     run_one_step fuel d i tt e = host_return (s, vs, r) ->
+     r = RS_crash C_exhaustion
+     \/ run_one_step fuel' d i tt e = host_return (s, vs, r)) es ->
+  run_step_with_fuel fuel d i (s, vs, es) = host_return (s', vs', r') ->
   r' = RS_crash C_exhaustion
-  \/ run_step_with_fuel fuel' d i (s, vs, es) = (s', vs', r').
+  \/ run_step_with_fuel fuel' d i (s, vs, es) = host_return (s', vs', r').
 Proof.
   move=> d i es s vs s' vs' r' fuel fuel' I F. destruct fuel as [|fuel].
   - pattern_match. by left.
