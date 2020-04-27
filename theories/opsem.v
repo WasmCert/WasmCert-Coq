@@ -101,7 +101,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     n = Wasm_int.int_zero i32m ->
     reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic (EConst v2)]
   | rs_select_false : forall n v1 v2,
-    n != (Wasm_int.int_zero i32m) ->
+    n <> Wasm_int.int_zero i32m ->
     reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic (EConst v1)]
   | rs_block : forall vs es n m t1s t2s,
     const_list vs ->
@@ -181,7 +181,7 @@ Inductive reduce : host_state -> store_record -> seq value -> seq administrative
     reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Callcl cl]
   | r_call_indirect_failure1 : forall s i j c cl vs hs,
     stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
-    stypes s i j != Some (cl_type cl) ->
+    stypes s i j <> Some (cl_type cl) ->
     reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Trap]
   | r_call_indirect_failure2 : forall s i j c vs hs,
     stab s i (Wasm_int.nat_of_uint i32m c) = None ->
