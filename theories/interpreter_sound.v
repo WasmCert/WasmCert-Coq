@@ -211,6 +211,7 @@ Ltac simplify_hypothesis Hb :=
   | is_true (es_is_trap _) => move/es_is_trapP: Hb => Hb
   | is_true (const_list (_ :: _)) => rewrite const_list_cons in Hb
   | ?b = true => fold (is_true b) in Hb
+  | (_ == _) = false => move/eqP in Hb
   | context C [size (rev _)] => rewrite size_rev in Hb
   | context C [take _ (rev _)] => rewrite take_rev in Hb
   | context C [rev (rev _)] => rewrite revK in Hb
@@ -1072,9 +1073,7 @@ Proof.
         + (** [Select_true] **)
           by auto_frame.
         + (** [Select_false] **)
-          frame_out (v_to_e_list (rev l)) les'.
-          simpl. apply: r_simple. apply: rs_select_false.
-          move/eqP in if_expr0. by apply/eqP.
+          by frame_out (v_to_e_list (rev l)) les'.
 
       - (** [Basic Block] **)
         explode_and_simplify. pattern_match. auto_frame. stack_frame.
@@ -1094,24 +1093,16 @@ Proof.
           by rewrite subKn.
 
       - (** [Basic If] **)
-        explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list.
-        + auto_frame.
-        + auto_frame. apply: r_simple. apply: rs_if_true.
-          apply/eqP. by move/eqP in if_expr0.
+        by explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list; auto_frame.
 
       - (** [Basic (Br i0)] **)
         by pattern_match.
 
       - (** [Basic Br_if] **)
-        explode_and_simplify; pattern_match; auto_frame.
-        simpl. apply: r_simple. apply: rs_br_if_true.
-        apply/eqP. by move/eqP in if_expr0.
+        by explode_and_simplify; pattern_match; auto_frame.
 
       - (** [Basic Br_table] **)
         explode_and_simplify; pattern_match; auto_frame.
-        + apply: r_simple. apply: rs_br_table.
-          * by rewrite length_is_size.
-          * by apply/eqP.
         + apply: r_simple. apply: rs_br_table_length.
           rewrite length_is_size. move/ltP in if_expr0.
           apply/leP => /=. by lias.
@@ -1121,18 +1112,15 @@ Proof.
 
       - (** [Basic (Call i0)] **)
         explode_and_simplify. pattern_match. auto_frame.
-        apply: r_call. by apply/eqP.
+        by apply: r_call.
 
       - (** [Basic (Call_indirect i0)] **)
         explode_and_simplify; pattern_match; auto_frame.
-        + apply: r_call_indirect_success.
-          * simpl. by apply/eqP.
-          * apply/eqP. by eauto.
-          * by [].
+        + by apply: r_call_indirect_success; eauto.
         + apply: r_call_indirect_failure1.
-          * simpl. apply/eqP. by eauto.
+          * by eauto.
           * move/eqP in if_expr0. by apply/eqP.
-        + apply: r_call_indirect_failure2. simpl. by apply/eqP.
+        + by apply: r_call_indirect_failure2.
 
       - (** [Basic (Get_local i0)] **)
         explode_and_simplify. pattern_match. auto_frame.
@@ -1151,30 +1139,28 @@ Proof.
 
       - (** [Basic (Get_global i0)] **)
         explode_and_simplify. pattern_match. auto_frame. stack_frame.
-        apply: r_get_global. by apply/eqP.
+        by apply: r_get_global.
 
       - (** [Basic (Set_global i0)] **)
         explode_and_simplify. pattern_match. by auto_frame.
 
       - (** [Basic (Load v o a0 s0)] **)
         explode_and_simplify; try (pattern_match; auto_frame).
-        + apply: r_load_packed_success; try eassumption. by apply/eqP.
-        + apply: r_load_packed_failure; try eassumption. by apply/eqP.
-        + simpl. by apply: r_load_success; try eassumption; try apply/eqP; eauto.
-        + apply: r_load_failure; try eassumption. by apply/eqP.
+        + by apply: r_load_packed_success; eassumption.
+        + by apply: r_load_packed_failure; eassumption.
+        + by apply: r_load_success; eassumption.
+        + by apply: r_load_failure; eassumption.
 
       - (** [Basic (Store v o a0 s0)] **)
         explode_and_simplify; pattern_match; auto_frame.
         + by apply: r_store_packed_success => //=; try eassumption; try apply/eqP; eauto.
         + by apply: r_store_packed_failure => //=; eauto.
         + by apply: r_store_success => //=; eauto.
-        + apply: r_store_failure => //=; try eassumption. by apply/eqP.
+        + by apply: r_store_failure => //=; eassumption.
 
       - (** [Basic Current_memory] **)
         explode_and_simplify. pattern_match. auto_frame.
-        apply: r_current_memory => //=.
-        + by eauto.
-        + by [].
+        by apply: r_current_memory; eauto.
 
       - (** [Basic Grow_memory] **)
         explode_and_simplify. pattern_match. auto_frame.
@@ -1205,9 +1191,7 @@ Proof.
         by explode_and_simplify; pattern_match; auto_frame.
 
       - (** [Basic (Cvtop v c v0 o)] **)
-        explode_and_simplify; pattern_match; auto_frame.
-        + apply: r_simple. apply: rs_convert_failure => //. by apply/eqP.
-        + apply: r_simple. apply: rs_convert_failure => //. by apply/eqP.
+        by explode_and_simplify; pattern_match; auto_frame.
     }
     { (** [Trap] **)
       by pattern_match.
@@ -1221,8 +1205,7 @@ Proof.
       - (** [Func_host] **)
         explode_and_simplify; pattern_match; stack_frame; auto_frame.
         + apply: r_callcl_host_success => //=.
-          * simplify_lists. by rewrite subKn.
-          * apply/eqP. by eauto.
+          simplify_lists. by rewrite subKn.
         + apply: r_callcl_host_failure => //=.
           explode_and_simplify. by rewrite subKn.
     }

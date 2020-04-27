@@ -74,11 +74,11 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   all (fun i => (i < length (tc_label C)) && (plop2 C i ts)) (app ins [::i])  ->
   be_typing C [::Br_table ins i] (Tf (app t1s (app ts [::T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
-  (tc_return C) = (Some ts) ->
+  tc_return C = Some ts ->
   be_typing C [::Return] (Tf (app t1s ts) t2s)
 | bet_call : forall C i tf,
   i < length (tc_func_t C) ->
-  (List.nth_error (tc_func_t C) i) = (Some tf) ->
+  List.nth_error (tc_func_t C) i = Some tf ->
   be_typing C [::Call i] tf
 | bet_call_indirect : forall C i t1s t2s,
   i < length (tc_types_t C) ->
@@ -87,37 +87,37 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   be_typing C [::Call_indirect i] (Tf (app t1s [::T_i32]) t2s)
 | bet_get_local : forall C i t,
   i < length (tc_local C) ->
-  (List.nth_error (tc_local C) i) = (Some t) ->
+  List.nth_error (tc_local C) i = Some t ->
   be_typing C [::Get_local i] (Tf [::] [::t])
 | bet_set_local : forall C i t,
   i < length (tc_local C) ->
-  (List.nth_error (tc_local C) i) = (Some t) ->
+  List.nth_error (tc_local C) i = Some t ->
   be_typing C [::Set_local i] (Tf [::t] [::])
 | bet_tee_local : forall C i t,
   i < length (tc_local C) ->
-  (List.nth_error (tc_local C) i) = (Some t) ->
+  List.nth_error (tc_local C) i = Some t ->
   be_typing C [::Tee_local i] (Tf [::t] [::t])
 | bet_get_global : forall C i t,
   i < length (tc_global C) ->
-  (option_map tg_t (List.nth_error (tc_global C) i)) = (Some t) ->
+  option_map tg_t (List.nth_error (tc_global C) i) = Some t ->
   be_typing C [::Get_global i] (Tf [::] [::t])
 | bet_set_global : forall C i t,
   i < length (tc_global C) ->
-  (option_map tg_t (List.nth_error (tc_global C) i)) = (Some t) ->
+  option_map tg_t (List.nth_error (tc_global C) i) = Some t ->
   be_typing C [::Set_global i] (Tf [::t] [::])
 | bet_load : forall C n a off tp_sx t,
-  (tc_memory C) = (Some n) ->
+  tc_memory C = Some n ->
   load_store_t_bounds a (option_projl tp_sx) t ->
   be_typing C [::Load t tp_sx a off] (Tf [::T_i32] [::t])
 | bet_store : forall C n a off tp t,
-  (tc_memory C) = (Some n) ->
+  tc_memory C = Some n ->
   load_store_t_bounds a tp t ->
   be_typing C [::Store t tp a off] (Tf [::T_i32; t] [::]) (* FIXME: Same here: two Isabelle rules have been merged here. *)
 | bet_current_memory : forall C n,
-  (tc_memory C) = (Some n) ->
+  tc_memory C = Some n ->
   be_typing C [::Current_memory] (Tf [::] [::T_i32])
 | bet_grow_memory : forall C n,
-  (tc_memory C) = (Some n) ->
+  tc_memory C = Some n ->
   be_typing C [::Grow_memory] (Tf [::T_i32] [::T_i32])
 | bet_empty : forall C,
   be_typing C [::] (Tf [::] [::])
