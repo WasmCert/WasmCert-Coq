@@ -7,6 +7,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* FIXME: To which function in the Wasm specification does this correspond to? *)
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   (sxo == None) ==
   ((is_float_t t1 && is_float_t t2) || (is_int_t t1 && is_int_t t2 && (t_length t1 < t_length t2))).
@@ -25,6 +26,10 @@ Definition upd_label C lab :=
     lab
     (tc_return C).
 
+(* FIXME: Change name *)
+(** This definition corresponds to the sentence
+    “The label C.labels[l] must be defined in the context.”
+    in the specification. **)
 Definition plop2 C i ts :=
   List.nth_error (tc_label C) i == Some ts.
 
@@ -37,9 +42,9 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
-| bet_convert : forall C t1 t2 sx, t1 != t2 -> convert_helper sx t1 t2 ->
+| bet_convert : forall C t1 t2 sx, t1 <> t2 -> convert_helper sx t1 t2 ->
   be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1]) (* FIXME: Difference from the Isabelle formalisation: why merge the two rules here? *)
-| bet_reinterpret : forall C t1 t2, t1 != t2 -> Nat.eqb (t_length t1) (t_length t2) ->
+| bet_reinterpret : forall C t1 t2, t1 <> t2 -> Nat.eqb (t_length t1) (t_length t2) ->
   be_typing C [::Cvtop t1 Reinterpret t2 None] (Tf [::t2] [::t1])
 | bet_unreachable : forall C ts ts',
   be_typing C [::Unreachable] (Tf ts ts')
@@ -69,7 +74,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   all (fun i => (i < length (tc_label C)) && (plop2 C i ts)) (app ins [::i])  ->
   be_typing C [::Br_table ins i] (Tf (app t1s (app ts [::T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
-  (tc_return C) == (Some ts) ->
+  (tc_return C) = (Some ts) ->
   be_typing C [::Return] (Tf (app t1s ts) t2s)
 | bet_call : forall C i tf,
   i < length (tc_func_t C) ->
@@ -77,20 +82,20 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   be_typing C [::Call i] tf
 | bet_call_indirect : forall C i t1s t2s,
   i < length (tc_types_t C) ->
-  (List.nth_error (tc_types_t C) i) == (Some (Tf t1s t2s)) ->
-  (tc_table C) != None ->
+  List.nth_error (tc_types_t C) i = Some (Tf t1s t2s) ->
+  tc_table C <> None ->
   be_typing C [::Call_indirect i] (Tf (app t1s [::T_i32]) t2s)
 | bet_get_local : forall C i t,
   i < length (tc_local C) ->
-  (List.nth_error (tc_local C) i) == (Some t) ->
+  (List.nth_error (tc_local C) i) = (Some t) ->
   be_typing C [::Get_local i] (Tf [::] [::t])
 | bet_set_local : forall C i t,
   i < length (tc_local C) ->
-  (List.nth_error (tc_local C) i) == (Some t) ->
+  (List.nth_error (tc_local C) i) = (Some t) ->
   be_typing C [::Set_local i] (Tf [::t] [::])
 | bet_tee_local : forall C i t,
   i < length (tc_local C) ->
-  (List.nth_error (tc_local C) i) == (Some t) ->
+  (List.nth_error (tc_local C) i) = (Some t) ->
   be_typing C [::Tee_local i] (Tf [::t] [::t])
 | bet_get_global : forall C i t,
   i < length (tc_global C) ->
@@ -148,11 +153,11 @@ Definition upd_local_label_return C loc lab ret :=
     lab
     ret.
 
-Definition glob_agree (g : global) (tg : global_type) : bool :=
+Definition global_agree (g : global) (tg : global_type) : bool :=
   (tg_mut tg == g_mut g) && (tg_t tg == typeof (g_val g)).
 
-Definition globi_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
-  (n < length gs) && (option_map (fun g => glob_agree g tg) (List.nth_error gs n) == Some true).
+Definition globals_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
+  (n < length gs) && (option_map (fun g => global_agree g tg) (List.nth_error gs n) == Some true).
 
 Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : bool :=
   match j, m with
@@ -163,15 +168,15 @@ Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : boo
     (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
   end.
 
-Definition funci_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
+Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
 
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
   if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
   then
     (ts == ts') &&
-       (all2 (funci_agree (s_funcs s)) fs tfs) &&
-       (all2 (globi_agree (s_globs s)) gs tgs) &&
+       (all2 (functions_agree (s_funcs s)) fs tfs) &&
+       (all2 (globals_agree (s_globs s)) gs tgs) &&
           (match i, n with
              | None, None => true
              | None, Some _ => false
@@ -182,14 +187,14 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
   else false.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
-| cl_typing_native : forall i s C ts t1s t2s es tf,
+| cl_typing_native : forall i s C C' ts t1s t2s es tf,
   inst_typing s i C ->
   tf = Tf t1s t2s ->
-  let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
+  C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) ->
   be_typing C' es (Tf [::] t2s) ->
   cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
 | cl_typing_host : forall s tf h,
-    cl_typing s (Func_host tf h) tf.
+  cl_typing s (Func_host tf h) tf.
 
 Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
   cl_typing s fc (cl_type fc).
@@ -200,8 +205,7 @@ Proof.
   case.
   { move => i tf ts bes t H.
     rewrite /=.
-    inversion H.
-    done. }
+    by inversion H. }
   { move => f h tf H.
     inversion H.
     by rewrite /=. }
