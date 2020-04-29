@@ -3,6 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import common datatypes.
+From ExtLib Require Import Monad.
 
 Set Implicit Arguments.
 
@@ -32,8 +33,7 @@ Record host := {
 
 Record monadic_host := {
     host_monad : Type -> Type ;
-    host_return : forall A, A -> host_monad A ;
-    host_bind : forall A B, host_monad A -> (A -> host_monad B) -> host_monad B ;
+    host_Monad : Monad host_monad ;
     host_apply : store_record -> host_function -> seq value ->
                  host_monad (option (store_record * result))
   }.

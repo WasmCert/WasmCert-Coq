@@ -16,18 +16,19 @@
   "dependencies": {
     "@opam/cmdliner": "1.0.4",
     "@opam/coq": "8.10.1",
-    "@opam/dune": "*",
+    "@opam/dune": "~2.3",
     "@opam/menhir": "20181113",
     "compcert": "3.6",
     "coq-flocq": "3.2.0",
     "coq-iris": "*",
 		"strong-induction": "*",
     "coq-mathcomp-ssreflect": "*",
-		"parseque": "*"
+		"parseque": "*",
+		"coq-ext-lib": "*"
   },
   "devDependencies": {},
   "resolutions": {
-    "@opam/coq-ext-lib":
+    "coq-ext-lib":
       "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6",
     "coq-mathcomp-ssreflect": {
       "source":
