@@ -4,6 +4,7 @@
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction Inductions.
+From Prelude Require Import Control.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -506,12 +507,12 @@ Local Lemma run_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel'
   fuel <= fuel' ->
   TProp.Forall (fun e => forall d i tt s vs r fuel fuel',
      fuel <= fuel' ->
-     run_one_step fuel d i tt e = host_return (s, vs, r) ->
+     run_one_step fuel d i tt e = pure (s, vs, r) ->
      r = RS_crash C_exhaustion
-     \/ run_one_step fuel' d i tt e = host_return (s, vs, r)) es ->
-  run_step_with_fuel fuel d i (s, vs, es) = host_return (s', vs', r') ->
+     \/ run_one_step fuel' d i tt e = pure (s, vs, r)) es ->
+  run_step_with_fuel fuel d i (s, vs, es) = pure (s', vs', r') ->
   r' = RS_crash C_exhaustion
-  \/ run_step_with_fuel fuel' d i (s, vs, es) = host_return (s', vs', r').
+  \/ run_step_with_fuel fuel' d i (s, vs, es) = pure (s', vs', r').
 Proof.
   move=> d i es s vs s' vs' r' fuel fuel' I F. destruct fuel as [|fuel].
   - pattern_match. by left.

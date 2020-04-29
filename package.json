@@ -9,14 +9,14 @@
     "buildEnv": {
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
-      "COQPATH": "#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
+      "COQPATH": "#{coq-prelude.lib}/coq/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
     },
     "build": "make"
   },
   "dependencies": {
     "@opam/cmdliner": "1.0.4",
     "@opam/coq": "8.10.1",
-    "@opam/dune": "~2.3",
+    "@opam/dune": "~2.4",
     "@opam/menhir": "20181113",
     "compcert": "3.6",
     "coq-flocq": "3.2.0",
@@ -24,12 +24,10 @@
 		"strong-induction": "*",
     "coq-mathcomp-ssreflect": "*",
 		"parseque": "*",
-		"coq-ext-lib": "*"
+		"coq-prelude": "*"
   },
   "devDependencies": {},
   "resolutions": {
-    "coq-ext-lib":
-      "github:coq-community/coq-ext-lib:coq-ext-lib.opam#ddeab06b09115f66db54b2997df390cd7599eec6",
     "coq-mathcomp-ssreflect": {
       "source":
         "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39",
@@ -101,6 +99,7 @@
       }
     },
 		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
-		"parseque": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0"
+		"parseque": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0",
+		"coq-prelude": "github:Mbodin/coq-prelude#73ac9ecd71d279e4b0c8172db42e712a997e600e"
   }
 }
