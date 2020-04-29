@@ -38,6 +38,35 @@ Record monadic_host := {
                  host_monad (option (store_record * result))
   }.
 
+(** We introduce this structure to be able to reason about monads,
+  and in particular to be able to relate a monadic interpreter with
+  a usual small-step semantics.
+  It is based on a special high-order predicate that transpose a
+  predicate about inside the monad. **)
+Record ReasonMonad m (M : Monad m) := {
+    reason_predicate : forall A : Type, (A -> Prop) -> m A -> Prop ;
+    reason_predicate_ret : forall A (p : A -> Prop) (a : A), p a -> reason_predicate p (ret a) ;
+    reason_predicate_bind : forall A B (p : A -> Prop) (q : B -> Prop) (f : A -> m B) (m : m A),
+      (forall a : A, p a -> reason_predicate q (f a)) ->
+      reason_predicate p m ->
+      reason_predicate q (bind m f)
+  }.
+Arguments ReasonMonad m {M}.
+
+(** In particular, any injective monad can be reasonned as-is. **)
+Program Definition injective_ReasonMonad : forall m (M : Monad m),
+  (forall A, injective (ret : A -> m A)) ->
+  ReasonMonad m :=
+  fun m M I => {|
+      reason_predicate := fun A p m => forall r, m = ret r -> p r
+    |}.
+Next Obligation.
+  apply I in H0. by subst.
+Qed.
+Next Obligation.
+  admit (* FIXME: Where are the axioms on [bind]? *)
+Qed.
+
 (** Relation between [monadic_host] and [host]. **)
 
 (* TODO *)
