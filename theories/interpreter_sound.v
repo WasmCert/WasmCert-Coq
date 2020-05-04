@@ -1070,7 +1070,7 @@ Proof.
       * by lias.
 Qed.
 
-Local Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
+Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
   run_step_with_fuel fuel d i (s, vs, es)
   = (s', vs', RS_normal es') ->
   reduce s vs es i s' vs' es'.
