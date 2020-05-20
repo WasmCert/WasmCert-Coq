@@ -11,12 +11,17 @@ Unset Printing Implicit Defensive.
 
 
 Definition read_bytes (m : memory) (n : nat) (l : nat) : bytes :=
-  take l (List.skipn n m).
+  take l (List.skipn n (mem_data m)).
 
 Definition write_bytes (m : memory) (n : nat) (bs : bytes) : memory :=
-  app (take n m) (app bs (List.skipn (n + length bs) m)).
+  Build_memory
+    (app (take n (mem_data m)) (app bs (List.skipn (n + length bs) (mem_data m))))
+    (mem_limit m).
 
-Definition mem_append (m : memory) (bs : bytes) := app m bs.
+Definition mem_append (m : memory) (bs : bytes) :=
+  Build_memory
+    (app (mem_data m) bs)
+    (mem_limit m).
 
 Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
   Build_store_record
@@ -26,10 +31,12 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
     (s_globs s).
 
 Definition mem_size (m : memory) :=
-  length m.
+  length (mem_data m).
 
 Definition mem_grow (m : memory) (n : nat) :=
-  m ++ bytes_replicate (n * 64000) #00.
+  Build_memory
+    (mem_data m ++ bytes_replicate (n * 64000) #00)
+    (mem_limit m).
 
 (* TODO: We crucially need documentation here. *)
 
@@ -247,12 +254,29 @@ Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value 
 Definition smem_ind (s : store_record) (i : instance) : option nat :=
   i_memory i.
 
-Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
+Definition tab_size (t: tabinst) : nat :=
+  length (table_data t).
+
+(**
+  Get the ith table in the store s, and then get the jth index in the table;
+  in the end, retrieve the corresponding function closure from the store.
+ **)
+(**
+  There is the interesting use of option_bind (fun x => x) to convert an element
+  of type option (option x) to just option x.
+**)
+Definition stab_index (s: store_record) (i j: nat) : option nat :=
   let: stabinst := List.nth_error (s_tab s) i in
   option_bind (fun x => x) (
+    option_bind
+      (fun stab_i => List.nth_error (table_data stab_i) j)
+  stabinst).
+
+Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
+  let n := stab_index s i j in
   option_bind
-    (fun stabinst => if length stabinst > j then List.nth_error stabinst j else None)
-    stabinst).
+    (fun id => List.nth_error (s_funcs s) id)
+  n.
 
 Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
   if i_tab i is Some k then stab_s s k j else None.
@@ -278,6 +302,29 @@ Definition is_const (e : administrative_instruction) : bool :=
 
 Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
+
+(**
+  Coq isn't happy on giving a boolean from comparing list of records (tabinst)
+    and will throw an error if I ask it to do so: in (s_tab s == s_tab s') later.
+    However this wasn't an issue when tables were just lists of function closures.
+
+  My guess is that Coq is able to compare lists of simpler objects and give a
+    boolean as the result; however, for lists of non-trivial objects we have
+    to define how their equality is defined/prove that the equality is decidable?
+
+  TODO: Ask Martin. Anyway, I figured out in the end that the entire thing would work
+    if I insert the following piece of mysterious code.
+**)
+Definition tab_eq_dec: forall (t1 t2: tabinst), {t1 = t2} + {t1 <> t2}.
+Proof. decidable_equality. Defined.
+
+Definition tab_eqb (t1 t2: tabinst): bool := tab_eq_dec t1 t2.
+
+Definition eqtabP: Equality.axiom tab_eqb := eq_dec_Equality_axiom tab_eq_dec.
+
+Canonical Structure tab_eqMixin := EqMixin eqtabP.
+Canonical Structure tab_eqType := Eval hnf in EqType tabinst tab_eqMixin.
+(** End of mysterious code **)
 
 Definition store_extension (s s' : store_record) : bool :=
   (s_funcs s == s_funcs s') &&

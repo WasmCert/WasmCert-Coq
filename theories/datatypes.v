@@ -30,7 +30,10 @@ Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.
 Parameter serialise_f64 : f64 -> bytes.
 
-Definition memory := list byte.
+Record limits := Mk_limits { lim_min : nat; lim_max : option nat; }.
+
+Record memory : Type :=
+  {mem_data : list byte; mem_limit: limits;}.
 
 Inductive value_type : Type := (* t *)
 | T_i32
@@ -191,7 +194,8 @@ Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
-Definition tabinst := list (option function_closure).
+Record tabinst : Type :=
+  {table_data: list (option nat); table_limit: limits;}.
 
 Record global : Type := {
   g_mut : mutability;
@@ -234,8 +238,6 @@ Inductive localidx : Type :=
 
 Inductive globalidx : Type :=
 | Mk_globalidx : nat -> globalidx.
-
-Record limits := Mk_limits { lim_min : nat; lim_max : option nat; }.
 
 Inductive elem_type : Type :=
 | elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
