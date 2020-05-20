@@ -190,13 +190,13 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
 | r_call :
     forall s vs i j f,
       sfunc s i j = Some f ->
-      reduce s vs [::Basic (Call j)] i s vs [::Callcl f]
+      reduce s vs [::Basic (Call j)] i s vs [::Invoke f]
 | r_call_indirect_success :
     forall s i j cl c vs tf,
       stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
       stypes s i j = Some tf ->
       cl_type cl = tf ->
-      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i s vs [::Callcl cl]
+      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i s vs [::Invoke cl]
 | r_call_indirect_failure1 :
     forall s i j c cl vs,
       stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
@@ -206,7 +206,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
     forall s i j c vs,
       stab s i (Wasm_int.nat_of_uint i32m c) = None ->
       reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i s vs [::Trap]
-| r_callcl_native :
+| r_invoke_native :
     forall cl t1s t2s ts es ves vcs n m k zs vs s i j,
       cl = Func_native j (Tf t1s t2s) ts es ->
       ves = v_to_e_list vcs ->
@@ -215,8 +215,8 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       length t1s = n ->
       length t2s = m ->
       n_zeros ts = zs ->
-      reduce s vs (ves ++ [::Callcl cl]) i s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
-| r_callcl_host_success :
+      reduce s vs (ves ++ [::Invoke cl]) i s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
+| r_invoke_host_success :
     forall cl f t1s t2s ves vcs m n s s' vcs' vs i,
       cl = Func_host (Tf t1s t2s) f ->
       ves = v_to_e_list vcs ->
@@ -224,15 +224,15 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       length t1s = n ->
       length t2s = m ->
       host_apply s (Tf t1s t2s) f vcs (* FIXME: hs *) = Some (s', vcs') ->
-      reduce s vs (ves ++ [::Callcl cl]) i s' vs (v_to_e_list vcs')
-| r_callcl_host_failure :
+      reduce s vs (ves ++ [::Invoke cl]) i s' vs (v_to_e_list vcs')
+| r_invoke_host_failure :
     forall cl t1s t2s f ves vcs n m s vs i,
       cl = Func_host (Tf t1s t2s) f ->
       ves = v_to_e_list vcs ->
       length vcs = n ->
       length t1s = n ->
       length t2s = m ->
-      reduce s vs (ves ++ [::Callcl cl]) i s vs [::Trap]
+      reduce s vs (ves ++ [::Invoke cl]) i s vs [::Trap]
 | r_get_local :
     forall vi v vs i j s,
       length vi = j ->
