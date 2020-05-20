@@ -312,7 +312,7 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       smem_ind s i = Some j ->
       List.nth_error (s_memory s) j = Some m ->
       mem_size m = n ->
-      mem_grow m (Wasm_int.nat_of_uint i32m c) = mem' ->
+      mem_grow m (Wasm_int.nat_of_uint i32m c) = Some mem' ->
       reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i (upd_s_mem s (update_list_at (s_memory s) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
 | r_grow_memory_failure :
     forall i j m n s vs c,
