@@ -212,7 +212,7 @@ Record store_record : Type := (* s *) Build_store_record {
 Inductive administrative_instruction : Type := (* e *)
   | Basic : basic_instruction -> administrative_instruction
   | Trap
-  | Callcl : function_closure -> administrative_instruction
+  | Invoke : function_closure -> administrative_instruction
   | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
   | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
   .

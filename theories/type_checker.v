@@ -398,9 +398,9 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
   s_typing s (Some ts) i vs es ts ->
   Nat.eqb (length ts) n ->
   e_typing s C [::Local n i vs es] (Tf [::] ts)
-| ety_callcl : forall s C cl tf,
+| ety_invoke : forall s C cl tf,
   cl_typing s cl tf ->
-  e_typing s C [::Callcl cl] tf
+  e_typing s C [::Invoke cl] tf
 | ety_lanel : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->

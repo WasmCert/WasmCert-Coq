@@ -305,14 +305,14 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
       else (s, vs, crash_error)
     | Basic (Call j) =>
       if sfunc s i j is Some sfunc_i_j then
-        (s, vs, RS_normal (vs_to_es ves ++ [::Callcl sfunc_i_j]))
+        (s, vs, RS_normal (vs_to_es ves ++ [::Invoke sfunc_i_j]))
       else (s, vs, crash_error)
     | Basic (Call_indirect j) =>
       if ves is ConstInt32 c :: ves' then
         match stab s i (Wasm_int.nat_of_uint i32m c) with
         | Some cl =>
           if stypes s i j == Some (cl_type cl)
-          then (s, vs, RS_normal (vs_to_es ves' ++ [::Callcl cl]))
+          then (s, vs, RS_normal (vs_to_es ves' ++ [::Invoke cl]))
           else (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
         | None => (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
         end
@@ -429,7 +429,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           (s, vs, crash_error)
       else (s, vs, crash_error)
     | Basic (EConst _) => (s, vs, crash_error)
-    | Callcl cl =>
+    | Invoke cl =>
       match cl with
       | Func_native i' (Tf t1s t2s) ts es =>
         let: n := length t1s in
