@@ -33,10 +33,13 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
 Definition mem_size (m : memory) :=
   length (mem_data m).
 
-Definition mem_grow (m : memory) (n : nat) :=
-  Build_memory
-    (mem_data m ++ bytes_replicate (n * 64000) #00)
-    (mem_limit m).
+Definition mem_grow (m : memory) (n : nat) : option memory:=
+  let new_mem_data := (mem_data m ++ bytes_replicate (n * 64000) #00) in
+  if length new_mem_data > (lim_max (mem_limit m)) * 64000 then None
+  else
+    Some (Build_memory
+            new_mem_data
+            (mem_limit m)).
 
 (* TODO: We crucially need documentation here. *)
 
