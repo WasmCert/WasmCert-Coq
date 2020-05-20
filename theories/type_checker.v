@@ -363,8 +363,8 @@ Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
     (i_types i)
     (collect_at_inds (map cl_type (s_funcs s)) (i_funcs i))
     (collect_at_inds (map (fun glob => Build_global_type (g_mut glob) (typeof (g_val glob))) (s_globs s)) (i_globs i))
-    (option_map (@length (option function_closure)) (match (i_tab i) with | Some n => List.nth_error (s_tab s) n | None => None end))
-    (option_map (@length (byte)) (option_bind (List.nth_error (s_memory s)) (i_memory i)))
+    (option_map tab_size (match (i_tab i) with | Some n => List.nth_error (s_tab s) n | None => None end))
+    (option_map mem_size (option_bind (List.nth_error (s_memory s)) (i_memory i)))
     [::]
     [::]
     None.
@@ -415,11 +415,19 @@ with s_typing : store_record -> option (list value_type) -> instance -> list val
   (rs == Some ts) || (rs == None) ->
   s_typing s rs i vs es ts.
 
-Definition tab_agree (s : store_record) (tcl : option function_closure) : bool :=
-  match tcl with
+Definition tabcl_agree (s : store_record) (tcl_index : option nat) : bool :=
+  match tcl_index with
   | None => true
-  | Some cl => cl_type_check s cl
+  | Some n => let tcl := List.nth_error (s_funcs s) n in
+    match tcl with
+    | None => true
+    | Some cl => cl_type_check s cl
+    end
   end.
+
+Definition tab_agree (s: store_record) (t: tabinst): bool :=
+  let t_data := table_data t in
+    all (tabcl_agree s) (t_data).
 
 Definition mem_agree bs m : bool :=
   m <= mem_size bs.
@@ -428,7 +436,7 @@ Definition store_typing (s : store_record) : Prop :=
   match s with
   | Build_store_record fs tclss bss gs =>
     all (fun f => cl_type_check s f) fs &&
-    all (tab_agree s) (flatten tclss)
+    all (tab_agree s) (tclss)
   end.
 
 Inductive config_typing : instance -> store_record -> list value -> list administrative_instruction -> list value_type -> Prop :=
