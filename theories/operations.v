@@ -329,11 +329,37 @@ Canonical Structure tab_eqMixin := EqMixin eqtabP.
 Canonical Structure tab_eqType := Eval hnf in EqType tabinst tab_eqMixin.
 (** End of mysterious code **)
 
+Definition glob_extension (g1 g2: global) : bool.
+Proof.
+  destruct (g_mut g1).
+  - (* Immut *)
+    exact ((g_mut g2 == T_immut) && (g_val g1 == g_val g2)).
+  - (* Mut *)
+    destruct (g_mut g2).
+    + exact false.
+    + destruct (g_val g1) eqn:T1;
+      lazymatch goal with
+      | H1: g_val g1 = ?T1 _ |- _ =>
+        destruct (g_val g2) eqn:T2;
+          lazymatch goal with
+          | H2: g_val g2 = T1 _ |- _ => exact true
+          | _ => exact false
+          end
+      | _ => exact false
+      end.
+Defined.
+
+Definition tab_extension (t1 t2: tabinst) :=
+  (tab_size t1 <= tab_size t2) && (lim_max (table_limit t1) == lim_max (table_limit t2)).
+
+Definition mem_extension (m1 m2 : memory) :=
+  (mem_size m1 <= mem_size m2) && (lim_max (mem_limit m1) == lim_max (mem_limit m2)).
+
 Definition store_extension (s s' : store_record) : bool :=
   (s_funcs s == s_funcs s') &&
-  (s_tab s == s_tab s') &&
-  (all2 (fun bs bs' => mem_size bs <= mem_size bs') (s_memory s) (s_memory s')) &&
-  (s_globs s == s_globs s').
+  (all2 tab_extension (s_tab s) (s_tab s')) &&
+  (all2 mem_extension (s_memory s) (s_memory s')) &&
+  (all2 glob_extension (s_globs s) (s_globs s')).
 
 Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=
   map Basic bes.
