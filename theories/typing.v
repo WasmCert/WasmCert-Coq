@@ -165,7 +165,7 @@ Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : boo
   | None, Some _ => false
   | Some _, None => false
   | Some j', Some m' =>
-    (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
+    (j' < length sm) && (option_map mem_size (List.nth_error sm j') == Some m')
   end.
 
 Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
@@ -181,7 +181,7 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
              | None, None => true
              | None, Some _ => false
              | Some _, None => false
-             | Some i', Some n' => (i' < length (s_tab s)) && (option_map (@length (option function_closure)) (List.nth_error (s_tab s) i') == Some n')
+             | Some i', Some n' => (i' < length (s_tab s)) && (option_map tab_size (List.nth_error (s_tab s) i') == Some n')
              end) &&
           (memi_agree (s_memory s) j m)
   else false.
