@@ -17,7 +17,7 @@
 		"@opam/coq": "~8.11",
 		"@opam/dune": "~2.4",
 		"@opam/menhir": "20190626",
-		"compcert": "3.6",
+		"compcert": "*",
 		"coq-flocq": "3.2.0",
 		"coq-iris": "*",
 		"strong-induction": "*",
@@ -68,7 +68,7 @@
 				]
 			}
 		},
-		"compcert": "github:Mbodin/CompCert#dbf04e61fd16db96f92b862337801e62851c0d2b",
+		"compcert": "github:Mbodin/CompCert#538526866f718f34fb634ef82717a22579e88736",
 		"coq-iris": {
 			"source": "git:https://gitlab.mpi-sws.org/iris/iris.git#69dfcc7191e4cd1954fd6a00e192ad0ebb0697b9",
 			"override": {
