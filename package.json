@@ -1,36 +1,34 @@
 {
 	"name": "wasm_coq",
 	"version": "1.0",
-	"description":
-		"Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt",
+	"description": "Wasm formalisation in Coq",
 	"license": "CeCILL-B",
 	"esy": {
 		"buildsInSource": "_build",
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-prelude.lib}/coq/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
+			"COQPATH": "#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{dijkstra-monads-for-all.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
 		},
 		"build": "make"
 	},
 	"dependencies": {
 		"@opam/cmdliner": "1.0.4",
-		"@opam/coq": "8.10.1",
+		"@opam/coq": "~8.11",
 		"@opam/dune": "~2.4",
-		"@opam/menhir": "20181113",
+		"@opam/menhir": "20190626",
 		"compcert": "3.6",
 		"coq-flocq": "3.2.0",
 		"coq-iris": "*",
 		"strong-induction": "*",
 		"coq-mathcomp-ssreflect": "*",
 		"parseque": "*",
-		"coq-prelude": "*"
+		"dijkstra-monads-for-all": "*"
 	},
 	"devDependencies": {},
 	"resolutions": {
 		"coq-mathcomp-ssreflect": {
-			"source":
-				"github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c",
+			"source": "github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c",
 			"override": {
 				"dependencies": {
 					"@opam/coq": "*"
@@ -50,11 +48,12 @@
 			}
 		},
 		"coq-flocq": {
-			"source":
-				"git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
+			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
 			"version": "3.2.0",
 			"override": {
-				"dependencies": { "@opam/coq": "8.10.1" },
+				"dependencies": {
+					"@opam/coq": "*"
+				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}",
@@ -69,16 +68,14 @@
 				]
 			}
 		},
-		"compcert":
-			"github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064",
+		"compcert": "github:Mbodin/CompCert#dbf04e61fd16db96f92b862337801e62851c0d2b",
 		"coq-iris": {
-			"source":
-				"git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c",
+			"source": "git:https://gitlab.mpi-sws.org/iris/iris.git#69dfcc7191e4cd1954fd6a00e192ad0ebb0697b9",
 			"override": {
 				"buildsInSource": true,
 				"dependencies": {
-					"@opam/coq": "*",
-					"@opam/coq-stdpp": "1.2.1"
+					"@opam/coq": "~8.11",
+					"@opam/coq-stdpp": "*"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
@@ -95,12 +92,10 @@
 			}
 		},
 		"@opam/coq-stdpp": {
-			"source":
-				"git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb",
-			"version": "1.2.1",
+			"source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#6eb05dfc40feef58063bb537fb742eb16bbf86d1",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "*"
+					"@opam/coq": "~8.11"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
@@ -117,7 +112,34 @@
 			}
 		},
 		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
-		"parseque": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0",
-		"coq-prelude": "github:Mbodin/coq-prelude#73ac9ecd71d279e4b0c8172db42e712a997e600e"
+		"parseque": {
+			"source": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0",
+			"override": {
+				"dependencies": {
+					"@opam/dune": ">=2.3",
+					"@opam/coq": "*"
+				}
+			}
+		},
+		"dijkstra-monads-for-all": "github:Mbodin/dijkstra-monads-for-all#a39aea8503f473544025194ba282e0ca71916669",
+		"coq-equations": {
+			"source": "github:mattam82/Coq-Equations#136e2babe0399867ed4ddc2e89857d773bc92ddb",
+			"override": {
+				"dependencies": {
+					"@opam/coq": "~8.11"
+				},
+				"buildsInSource": true,
+				"buildEnv": {
+					"HOME": "#{self.target_dir}",
+					"COQBIN": "#{@opam/coq.bin}/",
+					"COQLIB": "#{@opam/coq.lib}/coq/"
+				},
+				"build": [
+					[ "coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq", "-install", "user", "DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq" ],
+					[ "make", "-j2" ],
+					[ "make", "install" ]
+				]
+			}
+		}
 	}
 }

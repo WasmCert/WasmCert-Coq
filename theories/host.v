@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import common datatypes.
-From Prelude Require Import Classes.
+From Mon.sprop Require Import SPropMonadicStructures
 
 Set Implicit Arguments.
 
