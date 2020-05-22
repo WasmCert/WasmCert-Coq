@@ -515,7 +515,7 @@ Proof.
   - have E: [seq x <- Zbits.Z_one_bits wordsize (intval a) 0 | Coqlib.zlt x wordsize]
             = Zbits.Z_one_bits wordsize (intval a) 0.
     {
-      rewrite all_filter => //.
+      rewrite filter_for_all => //.
       rewrite list_all_forall => e. rewrite -List_In_in_mem => I.
       apply Zbits_Z_one_bits_range in I. destruct Coqlib.zlt => //.
       lias.
@@ -585,7 +585,7 @@ Proof.
   - by [].
   - move=> z' l IH /= /andP [N U]. rewrite in_cons => /orP [+|I].
     + move/eqP => ?. subst.
-      f_equal. rewrite eq_refl => /=. rewrite all_filter => //.
+      f_equal. rewrite eq_refl => /=. rewrite filter_for_all => //.
       rewrite list_all_forall => z''. rewrite -List_In_in_mem => I.
       apply/eqP => ?. subst. by rewrite I in N.
     + case_eq (z' == z) => /eqP D /=.
@@ -643,7 +643,7 @@ Proof.
   unfold convert_to_bits in E. move: E => /= E.
   apply power_index_to_bits_Zbits_powerserie in E.
   {
-    move: E. repeat rewrite all_filter => //.
+    move: E. repeat rewrite filter_for_all => //.
     - rewrite list_all_forall => e I. apply Zbits.Z_one_bits_range in I.
       apply/andP. repeat destruct Coqlib.zlt => //; by lias.
     - rewrite list_all_forall => e I. apply Zbits.Z_one_bits_range in I.

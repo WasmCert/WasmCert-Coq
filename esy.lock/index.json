@@ -1,5 +1,5 @@
 {
-  "checksum": "54f73c5278388390591ec5af2dcf96a2",
+  "checksum": "9fee398f7f7fd0d6f072b6aaa1d7c8e5",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -15,12 +15,14 @@
       "dependencies": [
         "strong-induction@github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a@d41d8cd9",
         "parseque@github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0@d41d8cd9",
-        "coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3",
-        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@8699cf10",
+        "coq-mathcomp-ssreflect@github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c@fbf69c7a",
+        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@1a9447e3",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@3ac46b9e",
         "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:2.4.0@639d28a3", "@opam/coq@opam:8.10.1@cabcd98d",
+        "@opam/dune@opam:2.5.1@b0c2bbef",
+        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@6e6737bf",
+        "@opam/coq@opam:8.10.1@cabcd98d",
         "@opam/cmdliner@opam:1.0.4@93208aac"
       ],
       "devDependencies": []
@@ -39,7 +41,7 @@
       },
       "overrides": [],
       "dependencies": [
-        "@opam/dune@opam:2.4.0@639d28a3", "@opam/coq@opam:8.10.1@cabcd98d"
+        "@opam/dune@opam:2.5.1@b0c2bbef", "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
     },
@@ -57,7 +59,7 @@
       },
       "overrides": [],
       "dependencies": [
-        "@opam/dune@opam:2.4.0@639d28a3", "@opam/coq@opam:8.10.1@cabcd98d"
+        "@opam/dune@opam:2.5.1@b0c2bbef", "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
     },
@@ -75,27 +77,29 @@
       "dependencies": [],
       "devDependencies": []
     },
-    "coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3": {
+    "coq-mathcomp-ssreflect@github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c@fbf69c7a": {
       "id":
-        "coq-mathcomp-ssreflect@github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39@0bafd7d3",
+        "coq-mathcomp-ssreflect@github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c@fbf69c7a",
       "name": "coq-mathcomp-ssreflect",
       "version":
-        "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39",
+        "github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c",
       "source": {
         "type": "install",
         "source": [
-          "github:math-comp/math-comp#748d716efb2f2f75946c8386e441ce1789806a39"
+          "github:math-comp/math-comp#ab54764c15886289107ec43b94bc355ada662c4c"
         ]
       },
       "overrides": [
         {
-          "dependencies": { "@opam/coq": "8.10.1" },
+          "dependencies": { "@opam/coq": "*" },
           "buildsInSource": true,
           "buildEnv": {
             "HOME": "#{self.target_dir}",
             "COQBIN": "#{@opam/coq.bin}/",
             "COQLIB": "#{@opam/coq.lib}/coq/",
-            "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+            "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/",
+            "COQMAKEFILEOPTIONS":
+              "DESTDIR = '#{self.install}' COQMF_WINDRIVE = '#{@opam/coq.lib}/coq'"
           },
           "build": [
             [ "make", "-C", "mathcomp/ssreflect", "-j", "3" ],
@@ -106,9 +110,9 @@
       "dependencies": [ "@opam/coq@opam:8.10.1@cabcd98d" ],
       "devDependencies": []
     },
-    "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@8699cf10": {
+    "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@1a9447e3": {
       "id":
-        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@8699cf10",
+        "coq-iris@git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c@1a9447e3",
       "name": "coq-iris",
       "version":
         "git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c",
@@ -121,26 +125,30 @@
       "overrides": [
         {
           "buildsInSource": true,
-          "dependencies": {
-            "@opam/coq": "8.10.1",
-            "@opam/coq-stdpp": "1.2.1"
-          },
+          "dependencies": { "@opam/coq": "*", "@opam/coq-stdpp": "1.2.1" },
           "buildEnv": {
             "HOME": "#{self.target_dir}",
             "COQBIN": "#{@opam/coq.bin}/",
             "COQLIB": "#{@opam/coq.lib}/coq/",
-            "COQPATH":
-              "#{@opam/coq-stdpp.install}:#{@opam/coq.lib}/coq/user-contrib/"
+            "COQPATH": "#{@opam/coq-stdpp.install}/user-contrib/"
           },
-          "build": [ [ "make", "-j4" ], [ "make", "install" ] ]
+          "build": [
+            [
+              "#{@opam/coq.bin}/coq_makefile", "-f", "_CoqProject", "-o",
+              "Makefile.coq", "DESTDIR", "=", "#{self.install}",
+              "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq"
+            ],
+            [ "make", "-j4" ],
+            [ "make", "install" ]
+          ]
         }
       ],
       "dependencies": [
-        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@2588ffa0",
+        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@6e6737bf",
         "@opam/coq@opam:8.10.1@cabcd98d", "@esy-ocaml/substs@0.0.1@d41d8cd9"
       ],
       "devDependencies": [
-        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@2588ffa0",
+        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@6e6737bf",
         "@opam/coq@opam:8.10.1@cabcd98d"
       ]
     },
@@ -193,7 +201,7 @@
         "ocaml@4.8.0@d41d8cd9",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@3ac46b9e",
         "@opam/menhir@opam:20181113@0c8257a8",
-        "@opam/dune@opam:2.4.0@639d28a3",
+        "@opam/dune@opam:2.5.1@b0c2bbef",
         "@opam/depgraph@opam:0.1.0@bc9dcbeb",
         "@opam/coq@opam:8.10.1@cabcd98d"
       ],
@@ -356,23 +364,28 @@
       ],
       "devDependencies": [ "ocaml@4.8.0@d41d8cd9" ]
     },
-    "@opam/dune@opam:2.4.0@639d28a3": {
-      "id": "@opam/dune@opam:2.4.0@639d28a3",
+    "@opam/dune@opam:2.5.1@b0c2bbef": {
+      "id": "@opam/dune@opam:2.5.1@b0c2bbef",
       "name": "@opam/dune",
-      "version": "opam:2.4.0",
+      "version": "opam:2.5.1",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/28/28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24#sha256:28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24",
-          "archive:https://github.com/ocaml/dune/releases/download/2.4.0/dune-2.4.0.tbz#sha256:28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24"
+          "archive:https://opam.ocaml.org/cache/sha256/8f/8f77d3a87f208e0d7cccaa1c48c4bb1bb87d62d07c3f25e9b8ba298e028ce52b#sha256:8f77d3a87f208e0d7cccaa1c48c4bb1bb87d62d07c3f25e9b8ba298e028ce52b",
+          "archive:https://github.com/ocaml/dune/releases/download/2.5.1/dune-2.5.1.tbz#sha256:8f77d3a87f208e0d7cccaa1c48c4bb1bb87d62d07c3f25e9b8ba298e028ce52b"
         ],
         "opam": {
           "name": "dune",
-          "version": "2.4.0",
-          "path": "esy.lock/opam/dune.2.4.0"
+          "version": "2.5.1",
+          "path": "esy.lock/opam/dune.2.5.1"
         }
       },
-      "overrides": [],
+      "overrides": [
+        {
+          "opamoverride":
+            "esy.lock/overrides/opam__s__dune_opam__c__2.5.1_opam_override"
+        }
+      ],
       "dependencies": [
         "ocaml@4.8.0@d41d8cd9", "@opam/base-unix@opam:base@87d0b2eb",
         "@opam/base-threads@opam:base@36803084",
@@ -412,9 +425,9 @@
         "@opam/cmdliner@opam:1.0.4@93208aac"
       ]
     },
-    "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@2588ffa0": {
+    "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@6e6737bf": {
       "id":
-        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@2588ffa0",
+        "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@6e6737bf",
       "name": "@opam/coq-stdpp",
       "version":
         "git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb",
@@ -426,14 +439,22 @@
       },
       "overrides": [
         {
-          "dependencies": { "@opam/coq": "8.10.1" },
+          "dependencies": { "@opam/coq": "*" },
           "buildEnv": {
             "HOME": "#{self.target_dir}",
             "COQBIN": "#{@opam/coq.bin}/",
             "COQLIB": "#{@opam/coq.lib}/coq/",
             "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
           },
-          "build": [ [ "make", "-j4" ], [ "make", "install" ] ]
+          "build": [
+            [
+              "#{@opam/coq.bin}/coq_makefile", "-f", "_CoqProject", "-o",
+              "Makefile.coq", "DESTDIR", "=", "#{self.install}",
+              "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq"
+            ],
+            [ "make", "-j4" ],
+            [ "make", "install" ]
+          ]
         }
       ],
       "dependencies": [
