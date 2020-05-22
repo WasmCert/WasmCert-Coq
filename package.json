@@ -24,14 +24,14 @@
 		"@opam/coq": "8.10.2",
 		"@opam/dune": "~2.4",
 		"@opam/odoc": "*",
-		"@opam/menhir": "*",
-		"compcert": "3.6",
+		"@opam/menhir": "20190626",
+		"compcert": "github:Mbodin/CompCert#b004de92d4b2e4a1190855e2190485a89250e366",
 		"coq-flocq": "3.2.0",
 		"coq-iris": "*",
 		"@opam/coq-stdpp": "*",
-		"strong-induction": "*",
+		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"coq-mathcomp-ssreflect": "*",
-		"parseque": "*",
+		"parseque": "github:Mbodin/parseque#11685019ec17d62480fe6f56a45f4a97f739f00d",
 		"@opam/linenoise": "*",
 		"@opam/mdx": "*"
 	},
@@ -78,7 +78,6 @@
 				]
 			}
 		},
-		"compcert": "github:Mbodin/CompCert#b004de92d4b2e4a1190855e2190485a89250e366",
 		"coq-iris": {
 			"source":
 				"git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c",
@@ -123,8 +122,6 @@
 					[ "make", "install" ]
 				]
 			}
-		},
-		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
-		"parseque": "github:Mbodin/parseque#11685019ec17d62480fe6f56a45f4a97f739f00d"
+		}
 	}
 }

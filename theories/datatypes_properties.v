@@ -276,15 +276,10 @@ Fixpoint f' (v : test) :=
   | C l => f l
   end.
 
-Fixpoint f (l : list test) :=
-  let f' :=
-    fix f' (t : test) :=
-      match t with
-      | C l => f l
-      end in
+Fixpoint f (l : list test) {struct l} :=
   match l with
   | nil => 0
-  | v :: _ => f' v
+  | C v :: _ => f v
   end.
 
 

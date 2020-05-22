@@ -1165,7 +1165,7 @@ Parameter prec_gt_2 : (prec > 2)%Z.
 
 Definition T := Binary.binary_float prec emax.
 
-Parameter default_nan : {x : T | Binary.is_nan _ _ x}.
+Parameter default_nan : { x : T | Binary.is_nan _ _ x }.
 
 Definition compare := Binary.Bcompare prec emax.
 
@@ -1198,7 +1198,7 @@ Definition emax : BinNums.Z := 128.
 
 Definition T := float32.
 
-Definition default_nan := Archi.default_nan_32.
+Definition default_nan := Bits.default_nan_pl32.
 
 Lemma prec_gt_0 : FLX.Prec_gt_0 prec.
 Proof. reflexivity. Qed.
@@ -1224,7 +1224,7 @@ Definition emax : BinNums.Z := 1024.
 
 Definition T := float.
 
-Definition default_nan := Archi.default_nan_64.
+Definition default_nan := Bits.default_nan_pl64.
 
 Lemma prec_gt_0 : FLX.Prec_gt_0 prec.
 Proof. reflexivity. Qed.
@@ -1316,7 +1316,7 @@ Proof.
   rewrite_by ((pl >= canonical_pl)%positive <-> (Z.pos pl >= Z.pos canonical_pl)%Z).
   rewrite /Binary.nan_pl /pl_arithmetic /canonical_pl.
   move: prec_gt_0 prec_gt_2. case: prec => [|precn|] // _ G2.
-  rewrite digits2_log2. rewrite shift_pos_correct. rewrite Z.pow_pos_fold.
+  rewrite shift_pos_correct Z.pow_pos_fold.
   rewrite_by (2 ^ Z.pos (precn - 2) * 1 = 2 ^ Z.pos (precn - 2))%Z.
   move/Z.ltb_spec0 => I.
   have R: (Z.pos pl >= 2 ^ Z.pos (precn - 2)
@@ -1328,19 +1328,33 @@ Proof.
     by apply: not_iff_compat.
   }
   rewrite {} R.
-  rewrite_by (Z.succ (Z.log2 (Z.pos pl)) == (Z.pos precn - 1)%Z
-              <-> Z.succ (Z.log2 (Z.pos pl)) = (Z.pos precn - 1)%Z).
-  by lias.
+  move: I. rewrite Digits.Zpos_digits2_pos.
+  rewrite (Digits.Zdigits_unique _ _ (Z.succ (Z.log2 (Z.pos pl)))); first by lias.
+  rewrite_by (Z.succ (Z.log2 (Z.pos pl)) - 1 = Z.log2 (Z.pos pl)).
+  apply Z.log2_spec. by lias.
 Qed.
 
 Lemma canonical_pl_is_arithmetic : pl_arithmetic canonical_pl.
 Proof.
   apply/canonical_pl_arithmetic; last by lias.
-  rewrite /Binary.nan_pl /canonical_pl digits2_log2 shift_pos_correct Z.pow_pos_fold.
+  rewrite /Binary.nan_pl /canonical_pl.
+  rewrite Digits.Zpos_digits2_pos.
+  rewrite shift_pos_correct Z.pow_pos_fold.
   rewrite_by (2 ^ Z.pos (Z.to_pos prec - 2) * 1 = 1 * 2 ^ Z.pos (Z.to_pos prec - 2))%Z.
-  rewrite Z.log2_mul_pow2 => //=. apply/Z.ltb_spec0.
+  apply/Z.ltb_spec0.
   move: prec_gt_0. case Eprec: prec => [|precn|] // _.
-  move: prec_gt_2. rewrite {} Eprec => /=. by lias.
+  move: prec_gt_2. rewrite {} Eprec => precn2.
+  rewrite (Digits.Zdigits_unique _ _ (Z.pos precn - 1)); first by lias.
+  rewrite Pos2Z.id. rewrite_by (1 * 2 ^ Z.pos (precn - 2) = 2 ^ Z.pos (precn - 2)).
+  rewrite Z.abs_eq; last by apply Z.pow_nonneg; lias.
+  rewrite_by (radix_val radix2 = 2).
+  rewrite_by (Z.pos precn - 1 - 1 = Z.pos (precn - 2)).
+  split; first by lias.
+  rewrite_by (Z.pos precn - 1 = 1 + Z.pos (precn - 2)).
+  rewrite Zpower_plus => //.
+  rewrite_by (2 ^ 1 = 2).
+  assert (0 < 2 ^ Z.pos (precn - 2)); last by lias.
+  by apply Z.pow_pos_nonneg.
 Qed.
 
 (** There are exactly two canonical [NaN]s: a positive one, and a negative one. **)
@@ -1369,18 +1383,31 @@ Proof.
     set pl' := (Pos.lor pl canonical_pl)%positive. exists pl'.
     have Cpl: pl_arithmetic pl'; last by split; first (rewrite -Eprec; apply: pl_arithmetic_is_nan).
     rewrite /pl' /Binary.nan_pl /pl_arithmetic => {pl'} /=.
-    rewrite digits2_log2.
-    rewrite_by (Z.pos (Pos.lor pl canonical_pl) = Z.lor (Z.pos pl) (Z.pos canonical_pl)).
-    rewrite Z.log2_lor => //. rewrite shift_pos_correct Z.pow_pos_fold.
-    rewrite /canonical_pl Eprec.
-    rewrite_by (2 ^ Z.pos (precn - 2) * 1 = 1 * 2 ^ Z.pos (precn - 2))%Z.
-    rewrite Z.log2_mul_pow2 => //.
-    have Lpl: (Z.log2 (Z.pos pl) < prec - 1)%Z.
-    { move: E. rewrite /Binary.nan_pl digits2_log2. move/Z.ltb_spec0. by lias. }
-    rewrite_by (Z.pos (precn - 2) + Z.log2 1 = Z.pos (precn - 2))%Z.
-    apply/eqP.
-    have: (Z.max (Z.log2 (Z.pos pl)) (Z.pos (precn - 2)) = Z.pos precn - 2)%Z; last by lias.
-    by rewrite Z.max_r; move: prec_gt_2; lias.
+    rewrite Digits.Zpos_digits2_pos.
+    rewrite (Digits.Zdigits_unique _ _ (Z.succ (Z.log2 (Z.pos (Pos.lor pl canonical_pl))))).
+    + rewrite_by (Z.pos (Pos.lor pl canonical_pl) = Z.lor (Z.pos pl) (Z.pos canonical_pl)).
+      rewrite Z.log2_lor => //. rewrite shift_pos_correct Z.pow_pos_fold.
+      rewrite /canonical_pl Eprec.
+      rewrite_by (2 ^ Z.pos (precn - 2) * 1 = 1 * 2 ^ Z.pos (precn - 2))%Z.
+      rewrite Z.log2_mul_pow2 => //.
+      have Lpl: (Z.log2 (Z.pos pl) < prec - 1)%Z.
+      {
+        move: E. rewrite /Binary.nan_pl. move/Z.ltb_spec0.
+        rewrite Digits.Zpos_digits2_pos.
+        rewrite (Digits.Zdigits_unique _ _ (Z.succ (Z.log2 (Z.pos pl)))).
+        - by lias.
+        - rewrite_by (Z.succ (Z.log2 (Z.pos pl)) - 1
+                      = Z.log2 (Z.pos pl)).
+          apply Z.log2_spec. by lias.
+      }
+      rewrite_by (Z.pos (precn - 2) + Z.log2 1 = Z.pos (precn - 2))%Z.
+      apply/eqP.
+      have: (Z.max (Z.log2 (Z.pos pl)) (Z.pos (precn - 2)) = Z.pos precn - 2)%Z; last by lias.
+      by rewrite Z.max_r; move: prec_gt_2; lias.
+    + rewrite_by (Z.succ (Z.log2 (Z.pos (Pos.lor pl canonical_pl))) - 1
+                  = Z.log2 (Z.pos (Pos.lor pl canonical_pl))).
+      apply Z.log2_spec.
+      by lias.
 Defined.
 
 Lemma make_arithmetic_arithmetic : forall pl, pl_arithmetic (sval (make_arithmetic pl)).
