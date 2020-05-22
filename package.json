@@ -8,7 +8,7 @@
     "buildEnv": {
       "COQBIN": "#{@opam/coq.bin}/",
       "COQLIB": "#{@opam/coq.lib}/coq/",
-      "COQPATH": "#{coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq:#{@opam/coq-ext-lib.install}/coq"
+      "COQPATH": "#{@opam/coq-equations.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/coq:#{coq-flocq.install}/coq:#{coq-iris.install}/coq:#{compcert.install}/coq:#{@opam/coq-ext-lib.install}/coq"
     },
     "build": "make"
   },
@@ -38,10 +38,10 @@
           "HOME": "#{self.target_dir}",
           "COQBIN": "#{@opam/coq.bin}/",
           "COQLIB": "#{@opam/coq.lib}/coq/",
-          "COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+					"DESTDIR": "#{self.install}"
         },
         "build": [
-          ["./configure.sh"],
+					["coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq", "-install", "user", "DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq"],
           ["make", "-j2"],
           ["make", "install"]
         ]
