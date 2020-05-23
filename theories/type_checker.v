@@ -41,6 +41,7 @@ Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type check
 Definition to_ct_list (ts : list value_type) : list checker_type_aux :=
   map CTA_some ts.
 
+(**
 Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
   (ts == ts')
   ||
@@ -48,16 +49,29 @@ Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
   | [::] => false
   | _ :: ts'' => ct_suffix ts ts''
   end.
+**)
+
+Definition ct_suffix (ts ts' : list checker_type_aux) : bool :=
+  (size ts <= size ts') && (drop (size ts' - size ts) ts' == ts).
+
+(**
+  It looks like CT_bot stands for an error in typing.
+
+  CT_top_type xyz means a stack with the top part being xyz??? This is guessed
+    by looking at 'produce'... CT_type should refer to the type of the entire stack.
+
+  produce seems to be for the result of a concatenation of two stacks. 
+**)
 
 Definition consume (t : checker_type) (cons : list checker_type_aux) : checker_type :=
   match t with
   | CT_type ts =>
     if ct_suffix cons (to_ct_list ts)
-    then CT_type (take (length ts - length cons) ts)
+    then CT_type (take (size ts - size cons) ts)
     else CT_bot
   | CT_top_type cts =>
     if ct_suffix cons cts
-    then CT_top_type (take (length cts - length cons) cts)
+    then CT_top_type (take (size cts - size cons) cts)
     else
       (if ct_suffix cts cons
        then CT_top_type [::]
@@ -101,8 +115,19 @@ Definition type_update_select (t : checker_type) : checker_type :=
     | _ =>
       match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
       | Some ts_at_2, Some ts_at_3 =>
-        type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
+        type_update (CT_top_type ts) [::ts_at_3; ts_at_2; CTA_some T_i32]
                     (select_return_top ts ts_at_2 ts_at_3)
+      (* I don't think the original expression is correct. The desired behaviour
+           is to remove the top three elements and insert an element of type
+           of the 2nd/3rd element (which should be the same, else an error is thrown).
+           This is dealt with by select_return_top. However, the original code would
+           fail to update if ts_at_3/ts_at_2 are some CTA_some xyz, since the
+           consumption would fail -- or is this actually desired in the code later?
+
+         This is only my understanding from reading the code prior to this point and 
+           is subject to changes in the future. Maybe the original code is correct
+           but I need to read more code below. *)
+                    
       | _, _ => CT_bot (* TODO: is that OK? *)
       end
     end
@@ -118,12 +143,17 @@ Fixpoint same_lab_h (iss : list nat) (lab_c : list (list value_type)) (ts : list
     else
       match List.nth_error lab_c i with
       | None => None (* TODO *)
+                  (* See comment to the same_lab predicate below in the same place. *)
       | Some xx =>
         if xx == ts then same_lab_h iss' lab_c xx
         else None
       end
   end.
 
+(**
+   So Br_table iss i needs to make sure that Br (each element in iss) and Br i would 
+     consume the same type. Look at section 3.3.5.8 in the official spec.
+**)
 Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (list value_type) :=
   match iss with
   | [::] => None
@@ -134,6 +164,8 @@ Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (
       match List.nth_error lab_c i with
       | Some xx => same_lab_h iss' lab_c xx
       | None => None (* TODO: ??? *)
+                  (* I think this case will never happen, since we've already
+                       checked the length. Or we can remove the previous if. *)
       end
   end.
 
@@ -230,6 +262,11 @@ Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_typ
       match List.nth_error (tc_label C) i with
       | Some xx => type_update ts (to_ct_list xx) (CT_top_type [::])
       | None => CT_bot (* Isa mismatch *)
+                  (* There are many cases of this 'Isa mismatch'. What does it 
+                       mean exactly? I checked and in each of this cases there's a 
+                       length comparison immediately before and a call to
+                       List.nth_error, which would never give None since we've already
+                       checked the length. Maybe this is the reason for the comment? *)
       end
     else CT_bot
   | Br_if i =>
