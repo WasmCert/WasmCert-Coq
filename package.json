@@ -16,8 +16,8 @@
 		"@opam/cmdliner": "1.0.4",
 		"@opam/coq": "~8.11",
 		"@opam/dune": "~2.4",
-		"@opam/menhir": "20190626",
-		"compcert": "*",
+		"@opam/menhir": ">=20190626",
+		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"coq-flocq": "3.2.0",
 		"coq-iris": "*",
 		"strong-induction": "*",
@@ -52,7 +52,7 @@
 			"version": "3.2.0",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "*"
+					"@opam/coq": "~8.11"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
@@ -68,7 +68,6 @@
 				]
 			}
 		},
-		"compcert": "github:Mbodin/CompCert#538526866f718f34fb634ef82717a22579e88736",
 		"coq-iris": {
 			"source": "git:https://gitlab.mpi-sws.org/iris/iris.git#69dfcc7191e4cd1954fd6a00e192ad0ebb0697b9",
 			"override": {

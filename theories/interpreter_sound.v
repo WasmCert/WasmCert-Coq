@@ -4,7 +4,6 @@
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction Inductions.
-From Prelude Require Import Control.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

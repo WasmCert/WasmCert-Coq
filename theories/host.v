@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import common datatypes.
-From Mon.sprop Require Import SPropMonadicStructures
+From Mon.sprop Require Import SPropMonadicStructures.
 
 Set Implicit Arguments.
 
@@ -34,20 +34,13 @@ Record host := {
   }.
 
 Record monadic_host := {
-    host_monad : Type -> Type ;
-    host_Monad :> Monad host_monad ;
+    host_monad :> Monad ;
     host_apply : store_record -> host_function -> seq value ->
                  host_monad (option (store_record * result))
   }.
 
-Global Instance monadic_host_Monad : forall mh, Monad (host_monad mh).
-Proof. move=> mh. exact mh. Defined.
-
 (** Relation between [monadic_host] and [host]. **)
-Record monad_host_match (h : host) (mh : monadic_host) := {
-    host_reason : ReasonMonad (host_monad mh)
-    (* TODO: Can we make it a reader monad just there? *)
-  }.
+(* TODO: This is probably a specification monad. *)
 
 End Parameterised.
 
