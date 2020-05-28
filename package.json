@@ -8,7 +8,7 @@
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{dijkstra-monads-for-all.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
+			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{dijkstra-monads-for-all.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
 		},
 		"build": "make"
 	},
@@ -19,11 +19,12 @@
 		"@opam/menhir": ">=20190626",
 		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"coq-flocq": "3.2.0",
+		"@opam/coq-stdpp": "*",
 		"coq-iris": "*",
-		"strong-induction": "*",
+		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"coq-mathcomp-ssreflect": "*",
-		"parseque": "*",
-		"dijkstra-monads-for-all": "*"
+		"parseque": "github:Mbodin/parseque#22b98cc4235266d3c3d2b2eef7ff95b677aaf21c",
+		"dijkstra-monads-for-all": "github:Mbodin/dijkstra-monads-for-all#d5aed3c6ce8930cdd9ee702bd438456918e92eca"
 	},
 	"devDependencies": {},
 	"resolutions": {
@@ -110,17 +111,6 @@
 				]
 			}
 		},
-		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
-		"parseque": {
-			"source": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0",
-			"override": {
-				"dependencies": {
-					"@opam/dune": ">=2.3",
-					"@opam/coq": "*"
-				}
-			}
-		},
-		"dijkstra-monads-for-all": "github:Mbodin/dijkstra-monads-for-all#a39aea8503f473544025194ba282e0ca71916669",
 		"coq-equations": {
 			"source": "github:mattam82/Coq-Equations#136e2babe0399867ed4ddc2e89857d773bc92ddb",
 			"override": {
