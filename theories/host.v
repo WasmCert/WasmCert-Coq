@@ -40,7 +40,10 @@ Record monadic_host := {
   }.
 
 (** Relation between [monadic_host] and [host]. **)
-(* TODO: This is probably a specification monad. *)
+Record monadic_host_spec := {
+    (** The specification monad used to specify the program. **)
+    monadic_host_spec_monad :> OrderedMonad
+  }.
 
 End Parameterised.
 
