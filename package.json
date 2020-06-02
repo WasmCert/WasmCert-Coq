@@ -8,13 +8,13 @@
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-itree.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib/:#{parseque.install}/lib/coq/user-contrib/"
+			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-itree.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib:#{parseque.install}/lib/coq/user-contrib"
 		},
 		"build": "make"
 	},
 	"dependencies": {
 		"@opam/cmdliner": "1.0.4",
-		"@opam/coq": "~8.11",
+		"@opam/coq": "~8.10",
 		"@opam/dune": "~2.4",
 		"@opam/menhir": ">=20190626",
 		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
@@ -24,7 +24,7 @@
 		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"coq-mathcomp-ssreflect": "*",
 		"parseque": "github:Mbodin/parseque#22b98cc4235266d3c3d2b2eef7ff95b677aaf21c",
-		"coq-itree": "1.0.0"
+		"coq-itree": "github:Mbodin/InteractionTrees#238cbdd6dce3d3f3f9431f1d0c6117ba42674007"
 	},
 	"devDependencies": {},
 	"resolutions": {
@@ -39,7 +39,7 @@
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}/",
 					"COQLIB": "#{@opam/coq.lib}/coq/",
-					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib/",
+					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib",
 					"COQMAKEFILEOPTIONS": "DESTDIR = '#{self.install}' COQMF_WINDRIVE = '#{@opam/coq.lib}/coq'"
 				},
 				"build": [
@@ -53,13 +53,13 @@
 			"version": "3.2.0",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "~8.11"
+					"@opam/coq": "8.10.1"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}",
 					"COQLIB": "#{@opam/coq.lib}/coq/",
-					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib"
 				},
 				"build": [
 					[ "./autogen.sh" ],
@@ -74,14 +74,14 @@
 			"override": {
 				"buildsInSource": true,
 				"dependencies": {
-					"@opam/coq": "~8.11",
+					"@opam/coq": "8.10.1",
 					"@opam/coq-stdpp": "*"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}/",
 					"COQLIB": "#{@opam/coq.lib}/coq/",
-					"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib/:#{@opam/coq.lib}/coq/user-contrib/"
+					"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{@opam/coq.lib}/coq/user-contrib"
 				},
 				"build": [
 					[ "#{@opam/coq.bin}/coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq",
@@ -95,37 +95,18 @@
 			"source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#6eb05dfc40feef58063bb537fb742eb16bbf86d1",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "~8.11"
+					"@opam/coq": "8.10.1"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}/",
 					"COQLIB": "#{@opam/coq.lib}/coq/",
-					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib/"
+					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib"
 				},
 				"build": [
 					[ "#{@opam/coq.bin}/coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq",
 						"DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq" ],
 					[ "make", "-j4" ],
-					[ "make", "install" ]
-				]
-			}
-		},
-		"coq-equations": {
-			"source": "github:mattam82/Coq-Equations#136e2babe0399867ed4ddc2e89857d773bc92ddb",
-			"override": {
-				"dependencies": {
-					"@opam/coq": "~8.11"
-				},
-				"buildsInSource": true,
-				"buildEnv": {
-					"HOME": "#{self.target_dir}",
-					"COQBIN": "#{@opam/coq.bin}/",
-					"COQLIB": "#{@opam/coq.lib}/coq/"
-				},
-				"build": [
-					[ "coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq", "-install", "user", "DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq" ],
-					[ "make", "-j2" ],
 					[ "make", "install" ]
 				]
 			}
@@ -147,51 +128,6 @@
 				"build": [
 					[ "coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq", "-install", "user", "DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq" ],
 					[ "make", "-j2", "theories" ],
-					[ "make", "install" ]
-				]
-			}
-		},
-		"coq-paco": {
-			"source": "github:snu-sf/paco#53eccbd47106204286d8b8f934866ff06be3bc81",
-			"version": "4.0.0",
-			"override": {
-				"dependencies": {
-					"@opam/coq": "*"
-				},
-				"buildsInSource": true,
-				"buildEnv": {
-					"HOME": "#{self.target_dir}",
-					"COQBIN": "#{@opam/coq.bin}/",
-					"COQLIB": "#{@opam/coq.lib}/coq/"
-				},
-				"build": [
-					[ "make", "-C", "src", "Makefile.coq" ],
-					[ "rm", "src/Makefile.coq" ],
-					[ "coq_makefile", "-f", "src/_CoqProject", "-o", "Makefile.coq", "-install", "user", "DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq" ],
-					[ "make", "-f", "Makefile.coq", "all" ],
-					[ "make", "-f", "Makefile.coq", "install" ]
-				]
-			}
-		},
-		"coq-itree": {
-			"source": "github:DeepSpec/InteractionTrees#521e54f1a227609fe75389305fa898c775dc0332",
-			"version": "1.0.0",
-			"override": {
-				"dependencies": {
-					"@opam/coq": "*",
-					"coq-paco": "*",
-					"coq-ext-lib": "*"
-				},
-				"buildsInSource": true,
-				"buildEnv": {
-					"HOME": "#{self.target_dir}",
-					"COQBIN": "#{@opam/coq.bin}/",
-					"COQLIB": "#{@opam/coq.lib}/coq/:#{coq-paco.install}/user-contrib:#{coq-ext-lib.install}/user-contrib"
-				},
-				"build": [
-					[ "make", "_CoqProject" ],
-					[ "coq_makefile", "-f", "_CoqProject", "-o", "Makefile.coq", "-install", "user", "DESTDIR", "=", "#{self.install}", "COQMF_WINDRIVE", "=", "#{@opam/coq.lib}/coq" ],
-					[ "make", "-j2" ],
 					[ "make", "install" ]
 				]
 			}
