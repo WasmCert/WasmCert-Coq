@@ -7,7 +7,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations typing.
+Require Import operations typing datatypes_properties.
 
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux
@@ -192,7 +192,13 @@ Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
     source currently.
  *)
 
-Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
+(*
+  Actually there is a very interesting general pattern here -- a fixpoint taking a 
+    single instruction (with recursion) would work, but a fixpoint taking a list
+    of instructions would not... Let's put it back to this anyway.
+*)
+Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_type) : checker_type :=
+let fix check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
   match es with
   | [::] => ts
   | e :: es' =>
@@ -201,8 +207,11 @@ Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type)
     | _ => check C es' (check_single C e ts)
     end
   end
-
-with check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {struct be} : checker_type :=
+in 
+let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+  let: (Tf tn tm) := tf in
+  c_types_agree (check C es (CT_type tn)) tm
+in
   match be with
   | EConst v => type_update ts [::] (CT_type [::typeof v])
   | Unop_i t _ =>
@@ -245,28 +254,19 @@ with check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {
   | Nop => ts
   | Drop => type_update ts [::CTA_any] (CT_type [::])
   | Select => type_update_select ts
-  | Block tf es =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
-      then type_update ts (to_ct_list tn) (CT_type tm)
-      else CT_bot
-    end
-  | Loop tf es =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
-      then type_update ts (to_ct_list tn) (CT_type tm)
-      else CT_bot
-    end
-  | If tf es1 es2 =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
-                          && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
-      then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
-      else CT_bot
-    end
+  | Block (Tf tn tm) es =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    then type_update ts (to_ct_list tn) (CT_type tm)
+    else CT_bot
+  | Loop (Tf tn tm) es =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    then type_update ts (to_ct_list tn) (CT_type tm)
+    else CT_bot
+  | If (Tf tn tm) es1 es2 =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
+                        && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
+    then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
+    else CT_bot
   | Br i =>
     if i < length (tc_label C)
     then
@@ -375,11 +375,6 @@ with check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {
     if tc_memory C != None
     then type_update ts [::CTA_some T_i32] (CT_type [::T_i32])
     else CT_bot
-  end
-
-with b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) {struct es}: bool :=
-  match tf with
-  | Tf tn tm => c_types_agree (check C es (CT_type tn)) tm
   end.
 
 Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
@@ -391,6 +386,20 @@ Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
     end
   | [::] => [::]
   end.
+
+Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
+  match es with
+  | [::] => ts
+  | e :: es' =>
+    match ts with
+    | CT_bot => CT_bot
+    | _ => check C es' (check_single C e ts)
+    end
+  end.
+
+Fixpoint b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+  let: (Tf tn tm) := tf in
+  c_types_agree (check C es (CT_type tn)) tm.
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
 Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
