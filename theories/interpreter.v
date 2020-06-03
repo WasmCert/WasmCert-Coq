@@ -4,8 +4,12 @@
 Require Import common.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From ExtLib Require Import Structures.Monad.
+From ITree Require Import ITree ITreeFacts.
 Require Export operations host type_checker.
-From Mon.sprop Require Import SPropMonadicStructures.
+
+Import Monads.
+Import MonadNotation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -21,11 +25,16 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
-Let monadic_host := monadic_host host_function.
+Let executable_host := executable_host host_function.
 
-Variable host_instance : monadic_host.
+Variable host_instance : executable_host.
 
-Let host_monad := host_monad host_instance.
+Let host_event := host_event host_instance.
+
+(* TODO: See ITree/tutorial/Imp.v
+Context {eff : Type -> Type}.
+Context {HasHostState : host_event -< eff}.
+*)
 
 
 (** * Types used by the interpreter **)
@@ -156,7 +165,7 @@ Proof.
 Qed.
 
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple)
-    : host_monad res_tuple :=
+    : itree host_event res_tuple :=
   let: (s, vs, es) := tt in
   match fuel with
   | 0 => ret (s, vs, RS_crash C_exhaustion)
@@ -171,7 +180,7 @@ Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : confi
         then ret (s, vs, RS_normal [::Trap])
         else ret (s, vs, crash_error)
       else
-        rosf <- run_one_step fuel d i (s, vs, (rev ves)) e ;
+        rosf <- run_one_step fuel d i (s, vs, (rev ves)) e ;;
         let: (s', vs', r) := rosf in
         if r is RS_normal res
         then ret (s', vs', RS_normal (res ++ es''))
@@ -180,7 +189,7 @@ Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : confi
   end
 
 with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction)
-    : host_monad res_tuple :=
+    : itree host_event res_tuple :=
   let: (s, vs, ves) := tt in
   match fuel with
   | 0 => ret (s, vs, RS_crash C_exhaustion)
@@ -478,7 +487,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         if length ves >= n
         then
           let (ves', ves'') := split_n ves n in
-          r <- host_apply s f (rev ves') ;
+          r <- host_apply s f (rev ves') ;;
           match r with
           | Some (s', r) =>
             (** We here double-check the types.
@@ -499,7 +508,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         if const_list es
         then ret (s, vs, RS_normal (vs_to_es ves ++ es))
         else
-          rswf <- run_step_with_fuel fuel d i (s, vs, es) ;
+          rswf <- run_step_with_fuel fuel d i (s, vs, es) ;;
           let: (s', vs', res) := rswf in
           match res with
           | RS_break 0 bvs =>
@@ -522,7 +531,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           then ret (s, vs, RS_normal (vs_to_es ves ++ es))
           else ret (s, vs, crash_error)
         else
-          rswf <- run_step_with_fuel fuel d j (s, vls, es) ;
+          rswf <- run_step_with_fuel fuel d j (s, vls, es) ;;
           let: (s', vls', res) := rswf in
           match res with
           | RS_return rvs =>
@@ -564,7 +573,7 @@ Definition run_step d j tt :=
   run_step_with_fuel (run_step_fuel tt) d j tt.
 
 Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple)
-    : host_monad (store_record * res)%type :=
+    : itree host_event (store_record * res) :=
   let: (s, vs, es) := tt in
   match fuel with
   | 0 => ret (s, R_crash C_exhaustion)
@@ -575,7 +584,7 @@ Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple)
       if const_list es
       then ret (s, R_value (fst (split_vals_e es)))
       else
-        rs <- run_step d i (s, vs, es) ;
+        rs <- run_step d i (s, vs, es) ;;
         let: (s', vs', res) := rs in
         match res with
         | RS_normal es' => run_v fuel d i (s', vs', es')
@@ -590,19 +599,12 @@ End Host.
 Print Assumptions run_step.
 [[
 wasm_deserialise : bytes -> value_type -> value
-ClassicalDedekindReals.sig_not_dec : forall P : Prop, {~ ~ P} + {~ P}
-ClassicalDedekindReals.sig_forall_dec : forall P : nat -> Prop,
-                                        (forall n : nat, {P n} + {~ P n}) ->
-                                        {n : nat | ~ P n} + {forall n : nat, P n}
 serialise_i64 : i64 -> bytes
 serialise_i32 : i32 -> bytes
 serialise_f64 : f64 -> bytes
 serialise_f32 : f32 -> bytes
-FunctionalExtensionality.functional_extensionality_dep : forall (A : Type) 
-                                                           (B : A -> Type) 
-                                                           (f g : forall x : A, B x),
-                                                         (forall x : A, f x = g x) -> f = g
 Classical_Prop.classic : forall P : Prop, P \/ ~ P
+(* Lots of axioms from Flocq. *)
 ]]
 *)
 

@@ -8,7 +8,7 @@
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-itree.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib:#{parseque.install}/lib/coq/user-contrib"
+			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-itree.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib:#{parseque.install}/lib/coq/user-contrib:#{coq-ext-lib.install}/user-contrib:#{coq-paco.install}/user-contrib"
 		},
 		"build": "make"
 	},
@@ -24,7 +24,9 @@
 		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"coq-mathcomp-ssreflect": "*",
 		"parseque": "github:Mbodin/parseque#22b98cc4235266d3c3d2b2eef7ff95b677aaf21c",
-		"coq-itree": "github:Mbodin/InteractionTrees#238cbdd6dce3d3f3f9431f1d0c6117ba42674007"
+		"coq-itree": "github:Mbodin/InteractionTrees#238cbdd6dce3d3f3f9431f1d0c6117ba42674007",
+		"coq-ext-lib": "*",
+		"coq-paco": "github:Mbodin/coq-paco#ca6a4b5f12a5fedac6a47ee775bc2e1b36ce7520"
 	},
 	"devDependencies": {},
 	"resolutions": {

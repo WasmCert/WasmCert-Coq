@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import common datatypes.
-From Mon.sprop Require Import SPropMonadicStructures.
+From ITree Require Import Simple.
 
 Set Implicit Arguments.
 
@@ -33,17 +33,17 @@ Record host := {
        for a discussion about this.) *)
   }.
 
-Record monadic_host := {
-    host_monad :> Monad ;
+Record executable_host := {
+    host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_apply : store_record -> host_function -> seq value ->
-                 host_monad (option (store_record * result))
+                 itree host_event (option (store_record * result))
   }.
 
 (** Relation between [monadic_host] and [host]. **)
-Record monadic_host_spec := {
-    (** The specification monad used to specify the program. **)
-    monadic_host_spec_monad :> OrderedMonad
+(* TODO
+Record host_spec := {
   }.
+ *)
 
 End Parameterised.
 
