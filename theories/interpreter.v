@@ -27,18 +27,18 @@ Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let executable_host := executable_host host_function.
 
-Variable host_instance : executable_host.
+Variable executable_host_instance : executable_host.
 
-Let host_event := host_event host_instance.
+Let host_event := host_event executable_host_instance.
 Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
-  @host_apply _ host_instance.
+  @host_apply _ executable_host_instance.
 
 
 (** * Types used by the interpreter **)
 
 Inductive res_crash : Type :=
-| C_error : res_crash
-| C_exhaustion : res_crash.
+  | C_error : res_crash
+  .
 
 Scheme Equality for res_crash.
 Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
@@ -49,9 +49,10 @@ Canonical Structure res_crash_eqMixin := EqMixin eqres_crashP.
 Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_eqMixin.
 
 Inductive res : Type :=
-| R_crash : res_crash -> res
-| R_trap : res
-| R_value : seq value -> res.
+  | R_crash : res_crash -> res
+  | R_trap : res
+  | R_value : seq value -> res
+  .
 
 Definition res_eq_dec : forall r1 r2 : res, {r1 = r2} + {r1 <> r2}.
 Proof. decidable_equality. Defined.
@@ -64,10 +65,11 @@ Canonical Structure res_eqMixin := EqMixin eqresP.
 Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
 
 Inductive res_step : Type :=
-| RS_crash : res_crash -> res_step
-| RS_break : nat -> seq value -> res_step
-| RS_return : seq value -> res_step
-| RS_normal : seq administrative_instruction -> res_step.
+  | RS_crash : res_crash -> res_step
+  | RS_break : nat -> seq value -> res_step
+  | RS_return : seq value -> res_step
+  | RS_normal : seq administrative_instruction -> res_step
+  .
 
 Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
 Proof. decidable_equality. Defined.
@@ -580,6 +582,8 @@ Definition run_step_fuel (tt : config_tuple) :=
   let: (s, vs, es) := tt in
   1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
+(** [run_step] is defined by calling [run_step_base], whilst burning enough fuel
+   for it to be fully computed. **)
 Definition run_step d j tt :=
   burn (run_step_fuel tt) (run_step_call (call_run_step_base d j tt)).
 
