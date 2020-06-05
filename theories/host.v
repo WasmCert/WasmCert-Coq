@@ -36,7 +36,7 @@ Record host := {
 Record executable_host := {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_apply : store_record -> host_function -> seq value ->
-                 itree host_event (option (store_record * result))
+                 host_event (option (store_record * result))
   }.
 
 (** Relation between [monadic_host] and [host]. **)
