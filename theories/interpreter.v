@@ -33,11 +33,6 @@ Let host_event := host_event host_instance.
 Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
   @host_apply _ host_instance.
 
-(* TODO: See ITree/tutorial/Imp.v
-Context {eff : Type -> Type}.
-Context {HasHostState : host_event -< eff}.
-*)
-
 
 (** * Types used by the interpreter **)
 
@@ -173,9 +168,15 @@ Inductive run_stepE : Type -> Type :=
     run_stepE res_tuple
   .
 
-Definition run_step_base (call : run_stepE ~> itree (run_stepE +' host_event))
+Section RunStep.
+
+(** See ITree/tutorial/Imp.v: these commands are used to enable other events to be mangled in. **)
+Context {eff : Type -> Type}.
+Context {eff_has_host_event : host_event -< eff}.
+
+Definition run_step_base (call : run_stepE ~> itree (run_stepE +' eff))
     (d : depth) (i : instance) (tt : config_tuple)
-  : itree (run_stepE +' host_event) res_tuple :=
+  : itree (run_stepE +' eff) res_tuple :=
   let: (s, vs, es) := tt in
   let: (ves, es') := split_vals_e es in (** Framing out constants. **)
   match es' with
@@ -193,9 +194,9 @@ Definition run_step_base (call : run_stepE ~> itree (run_stepE +' host_event))
       else ret (s', vs', r)
   end.
 
-Definition run_one_step (call : run_stepE ~> itree (run_stepE +' host_event))
+Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction)
-    : itree (run_stepE +' host_event) res_tuple :=
+    : itree (run_stepE +' eff) res_tuple :=
   let: (s, vs, ves) := tt in
   match e with
 
@@ -534,7 +535,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' host_event))
         else ret (s, vs, crash_error)
       else
         '(s', vls', res) <- call _ (call_run_step_base d j (s, vls, es)) ;;
-        match res return itree (run_stepE +' host_event) res_tuple with
+        match res return itree (run_stepE +' eff) res_tuple with
         | RS_return rvs =>
           if length rvs >= ln
           then ret (s', vs, RS_normal (vs_to_es (take ln rvs ++ ves)))
@@ -547,7 +548,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' host_event))
   | Trap => ret (s, vs, crash_error)
   end.
 
-Definition run_step_call : run_stepE ~> itree host_event :=
+Definition run_step_call : run_stepE ~> itree eff :=
   mrec (fun T (f : run_stepE T) =>
     let call _ f := trigger f in
     match f with
@@ -582,23 +583,31 @@ Definition run_step_fuel (tt : config_tuple) :=
 Definition run_step d j tt :=
   burn (run_step_fuel tt) (run_step_call (call_run_step_base d j tt)).
 
-Definition run_v : depth -> instance -> config_tuple -> itree host_event (store_record * res) :=
+End RunStep.
+
+Section Run.
+
+Context {eff : Type -> Type}.
+Context {eff_has_host_event : host_event -< eff}.
+
+Definition run_v : depth -> instance -> config_tuple -> itree eff (store_record * res) :=
   let run_v :=
     rec-fix run_v (d, i, (s, vs, es)) :=
       if es_is_trap es
-      then ret (s, R_trap) : 
-itree (callE (depth * instance * config_tuple) (store_record * res) +' host_event) (store_record * res)
+      then ret (s, R_trap)
       else
         if const_list es
         then ret (s, R_value (fst (split_vals_e es)))
         else
           '(s', vs', r) <- run_step d i (s, vs, es) ;;
-          match r return itree (callE (depth * instance * config_tuple) (store_record * res) +' host_event) (store_record * res) with
+          match r with
           | RS_normal es' => run_v (d, i, (s', vs', es'))
           | RS_crash error => ret (s, R_crash error)
           | _ => ret (s, R_crash C_error)
           end in
   fun d i tt => run_v (d, i, tt).
+
+End Run.
 
 End Host.
 
