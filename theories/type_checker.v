@@ -177,41 +177,13 @@ Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
   | CT_bot => false
   end.
 
-(* TODO ----
-  An attempt to fix the type checker. However, after getting to this point, we are in
-    the same situation as the actual interpreter -- the following does not work as is
-    due to syntactic termination, so either we add a fuel or use some other methods.
-  
-  I don't want to use fuel every time and want to learn how to do this properly. There
-    is a reference which seems to be a good learning source:
-      http://adam.chlipala.net/cpdt/html/Cpdt.GeneralRec.html
-  This uses merge sort as an example, and gives two approaches: 
-      - well-founded recursion, or
-      - a monadic approach.
-  The second might be what Martin is trying to do. I'm trying to learn from this 
-    source currently.
- *)
-
-(*
-  Actually there is a very interesting general pattern here -- a fixpoint taking a 
-    single instruction (with recursion) would work, but a fixpoint taking a list
-    of instructions would not... Let's put it back to this anyway.
-*)
-Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_type) : checker_type :=
-let fix check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
-  match es with
-  | [::] => ts
-  | e :: es' =>
-    match ts with
-    | CT_bot => CT_bot
-    | _ => check C es' (check_single C e ts)
-    end
-  end
-in 
-let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
-  let: (Tf tn tm) := tf in
-  c_types_agree (check C es (CT_type tn)) tm
+Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
+  let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+    let: (Tf tn tm) := tf in
+      c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm 
 in
+  if ts == CT_bot then CT_bot
+  else
   match be with
   | EConst v => type_update ts [::] (CT_type [::typeof v])
   | Unop_i t _ =>
@@ -387,19 +359,12 @@ Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
   | [::] => [::]
   end.
 
-Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
-  match es with
-  | [::] => ts
-  | e :: es' =>
-    match ts with
-    | CT_bot => CT_bot
-    | _ => check C es' (check_single C e ts)
-    end
-  end.
+Definition check (C : t_context) (es : list basic_instruction) (ts : checker_type): checker_type :=
+  List.fold_left (check_single C) es ts.
 
-Fixpoint b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
   let: (Tf tn tm) := tf in
-  c_types_agree (check C es (CT_type tn)) tm.
+  c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm  .
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
 Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
