@@ -384,7 +384,7 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
     match tf with
     | Tf t1s t2s =>
       let C := inst_type_check s i in
-      let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
+      let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) in
       b_e_type_checker C' es (Tf [::] t2s)
     end
 (*| cl_typing_native : forall i S C ts t1s t2s es tf,*)

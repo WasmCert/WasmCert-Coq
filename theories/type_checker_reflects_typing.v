@@ -2,7 +2,9 @@
 (* (C) J. Pichon - see LICENSE.txt *)
 
 From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+     Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+
+Require Import Coq.Program.Equality.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -61,6 +63,28 @@ Proof.
   - admit.
 Admitted.
 
+Lemma be_typing_empty: forall C t1s t2s,
+  be_typing C [::] (Tf t1s t2s) -> t1s = t2s.
+Proof.
+  move => C t1s t2s H.
+  (*
+  (* This is extremely stupid... just why do I have to do this??? *)
+  remember [::] as es.
+
+  remember (Tf t1s t2s) as tf.  
+  induction H; try by [].
+  - by inversion Heqtf.
+  - by destruct es => //=.
+  - inversion Heqtf. subst. apply IHbe_typing => //=. (* ??? *) admit. *)
+
+  (* dependent induction seems to be much more clever than induction! *)
+  (* TODO: check out what dependent induction actually does. Currently I only
+     know it as a 'better induction'. *)
+  dependent induction H => //=.
+  - by destruct es => //=.
+  - f_equal. by apply IHbe_typing => //=.
+Qed.
+
 (* 
   This seems really non-trivial. The structrue might also change after we fix
     the duplication in the definition of be_type_check. How about we leave this
@@ -68,37 +92,57 @@ Admitted.
 *)
 
 Lemma wasm_type_checker_reflects_typing:
-  forall C es,
-    reflect (cl_typing_self C es) (cl_type_check C es).
+  forall C cl,
+    reflect (cl_typing_self C cl) (cl_type_check C cl).
 Proof.
-  move => C es. destruct (cl_type_check C es) eqn:tc_bool.
+  move => C cl. destruct (cl_type_check C cl) eqn:tc_bool.
   - apply ReflectT. move: tc_bool.
     unfold cl_type_check.
-    destruct es.
+    destruct cl.
     + destruct f.
-      admit.
+      unfold b_e_type_checker.
+      unfold c_types_agree.
+      move: l l0 l1 l2.
+      induction l0 => //=.
+      -- move => l1 l2 H.
+         move/eqP in H; subst.
+         unfold cl_typing_self.
+         eapply cl_typing_native => //=.
+         ++ apply/inst_typeP. by eauto.
+         ++ apply bet_empty.
+      -- move => l1 l2.
+         match goal with
+         | |- context C [match ?exp with
+                         | CT_top_type _ => _
+                         | CT_type _ => _
+                         | CT_bot => _ end]
+           => destruct exp eqn:HDestruct
+                                 end.
+      
+         admit.
+      -- admit.
+      -- by [].
     + move => _. by apply cl_typing_host.
   - apply ReflectF. move => tc_prop.
-    assert (cl_type_check C es = true) as HTest; last by rewrite tc_bool in HTest.
-    clear tc_bool. move:tc_prop. move:es.
+    assert (cl_type_check C cl = true) as HTest; last by rewrite tc_bool in HTest.
+    clear tc_bool. 
     
-    unfold cl_typing_self.
-    move => es tc_prop.
-    inversion tc_prop; subst => //=.
+    unfold cl_typing_self in tc_prop.
+    inversion tc_prop; subst => //.
     clear H5.
-    (* This is important as otherwise Coq will fail to remember this information
-         and the proof cannot be done otherwise. It's in SF but this is also a 
-         good reference:
-https://stackoverflow.com/questions/4519692/keeping-information-when-using-induction
-    *)
-    remember (Tf [::] t2s) as tf.
-    unfold cl_type in tc_prop.
-    induction H2; subst => //.
-    + inversion Heqtf. by apply/eqP.
-    + simpl. unfold type_update => /=. rewrite ct_suffix_empty => /=.
-      by rewrite ct_suffix_empty.
-    + inversion Heqtf; subst. admit.
-    + simpl. admit.
+    Print be_typing_ind.
+    clear tc_prop.
+    
+    dependent induction H2; try (inversion Heqtf; subst; clear Heqtf) => //.
+    + by apply/eqP.
+    + simpl. by rewrite ct_suffix_empty.
+    + simpl. by apply/eqP.
+    + rewrite upd_label_overwrite in H2. simpl in H2.
+      rewrite upd_label_overwrite in IHbe_typing. simpl in IHbe_typing.
+      simpl. rewrite upd_label_overwrite.
+      
+      
+      
 
     
 Admitted. (* TODO *)
