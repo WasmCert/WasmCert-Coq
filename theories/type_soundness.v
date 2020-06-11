@@ -35,11 +35,6 @@ Definition t_be_value (es: seq basic_instruction) : Prop :=
 
 Print tc_global.
 
-(*
-  It is less trivial than thought to state this theorem because typing and opsem used
-    different parameters in their corresponding formulation.
- *)
-
 Print value.
 
 Print value_type.
@@ -55,27 +50,11 @@ Definition v_to_vt (v: value) :=
 Definition vs_to_vts (vs: list value) :=
   map v_to_vt vs.
 
-(* Questionable formulation on b_e only. cl_typing seems to already include 
-     be_typing and inst_typing?*)
-
-Theorem t_be_progress: forall C i s vs bes tf,
-    be_typing C bes tf ->
-    inst_typing s i C ->
-    vs_to_vts vs = tc_local C ->
-    (t_be_value bes \/
-     exists s' vs' es', reduce s vs (b_to_a bes) i s' vs' es').
-Proof.
-Admitted.
-
-Ltac b_to_a_revert :=
-  repeat lazymatch goal with
-         | H: _ = b_to_a ?bes |- _ =>
-           apply b_a_elim in H
-         end.
+Print instance.
 
 (* This has a 0% chance of being the correct statement. I just wanted to see
      how the opsem condition works when we do inversion on it. *)
-Theorem t_be_preservation: forall s vs bes i s' vs' bes' C C' tf,
+Theorem t_preservation: forall s vs bes i s' vs' bes' C C' tf,
     reduce s vs (b_to_a bes) i s' vs' (b_to_a bes') ->
     be_typing C bes tf ->
     inst_typing s i C ->
@@ -88,3 +67,10 @@ Proof.
   inversion HOpsem; subst.
   - (* reduce_simple *)
 Admitted.
+
+Ltac b_to_a_revert :=
+  repeat lazymatch goal with
+         | H: _ = b_to_a ?bes |- _ =>
+           apply b_a_elim in H
+         end.
+

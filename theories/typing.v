@@ -256,6 +256,101 @@ Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : boo
 Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
 
+Print instance.
+Print immediate.
+Print t_context.
+Print plop2.
+Print value_type.
+Print store_record.
+Print global_type.
+Print global.
+Print memory.
+Print tabinst.
+Print function_closure.
+(*
+  This is the main point where the typing context in the typing system and the 
+    store in the operational semantics are connected. Writting my understanding down
+    for future reference since I'll definitely forget the meaning of some of them
+    at a point.
+
+  store_record and instance are from the operational semantics. 
+  Store_record contains 4 
+    components: 
+     - s_funcs, a sequence of function_closure;
+        function_closure is either a host, whose behaviour seems to be out of our
+          control; or a native function, which is of the form (Func_native i tf ts es).
+          here i is an instance, tf is the function type of this closure, ts is a 
+          sequence of value type (?) and es is a sequence of basic instruction.
+        Currently I don't see what this ts does (since basic instruction has EConst).
+          
+     - s_tab, a sequence of tabinst (tables);
+        Each table instance is basically a sequence of nat, with a limit on size.
+
+     - s_memory, a sequence of memory;
+        Similar to the above, though each memory is a sequence of byte instead of nat.
+
+     - s_glob, a sequence of global (global variables).
+        I think each is just one variable, could be either mutable/immutable, and could
+          be of the four wasm basic types (i/f 32/64).
+
+   Instance is for some reason very similar. It also has funcs, tab, memory and globs,
+     although they are all natural numbers or sequence of natural numbers (and for
+     some reason was named 'immediate'. There's an additional i_types which is a 
+     sequence of function_type (Tf t1s t2s).
+
+   t_context is the typing context used for the typing predicate. It contains
+     tc_types_t and tc_func_t which are both sequence of function_type; it also
+     contains tc_global, tc_table and tc_memory, although in t_context we only need
+     to know the types of these components. Tables and memories are typed by its 
+     size limit (TODO: need to update the definition in t_context), therefore 
+     tc_table and tc_memory are option of nat. tc_global is a sequence of global_type,
+     where each global_type is the type of one global (mutability + type).
+   The main difference is that t_context also contains tc_local, tc_label and tc_return.
+     I think this is what makes is really a 'context', as this implies that the current
+     sequence of instructions were taken from a larger overall picture. tc_local is 
+     a sequence of value_type (which turns out to be the 4 wasm basic types);
+     tc_label is a sequence of sequence of value_type (????), and tc_return is an
+     option on sequence of value_type.
+   I think we can try to deduce that by looking at the typing predicate above.
+   For tc_local we should probably look at instructions that manipulate local storage,
+     e.g. get/set/tee_local. We see in bet_get_local that get_local i would result in
+     function type [] -> [t] if the ith element of (tc_local C) is of type t. So
+     t_local stores the type of all local variables.
+   For tc_label, we should look at some control flow instructions that introduce new
+     labels. From the instruction 'Block': if we have an instruction 'Block tf es', and
+     tf = Tf tn tm, then the type of 'Block tf es' under context C is tn -> tm: but
+     this is at the condition that, in the modified typing context C', where we prepend
+     a 'tm' to tc_label of C, the instruction list es must be of type (Tf tn tm) as 
+     well. So it seems that tc_label keeps track of the resulting type of each label
+     in a stack?
+   It's probably better to look at where it is actually used. Check 'br': when we
+     see a 'Br i', we need that the length of tc_label C to be at least (i+1). This is
+     consistent with the above understanding since we need to have at least i+1 labels
+     present for the Br i instruction to be valid. We know Br i breaks from i labels and
+     continue execution at the continuation of the (i+1)th label. Then we find the 
+     ith entry of tc_label (0-indexed here), call it ts. The type of the break command
+     is then actually Tf (t1s ++ ts) t2s for arbitrary t1s and t2s!!?? This is actually
+     not a mistake (3.3.5.6). It is also weird that br_if doesn't have this 
+     polymorphism: it is always of type ts ++ [i32] -> ts. br_table is, however,
+     polymorphic again. ????????
+   OK THIS ACTUALLY MAKES SENSE! br_if is the only command that might not actually
+     break: if the top value is zero then we don't break. I think in Wasm, any if
+     command of this type must have the same type in both cases, therefore the case
+     that it actually breaks must also have the same type. The ts at the top of the
+     consumption is only there to demonstrate that this label indeed finishes with
+     a type of ts. The t2s can be whatever type that fits which makes the overall typing
+     consistent (I think): it is like in the separation logic course, where we give
+     br a reduction result of False (basically meaning that we never reach there, and
+     false deduces everything -- so if there are later commands we could be consistent).
+     The t1s part is to fit the accumulated type of the previous instructions, due to
+     definition of types of instruction sequences (3.3.6.2). In practice t1s will only
+     have one appropriate value that makes the overall typing work (and t2s also, if 
+     I'm correct).
+
+   Ok now tc_return becomes obvious: it is the return type of the current function.
+     There is an analogy in the type of the return instruction which is very similar
+     to the 'Br i' instruction, being also polymorphic.
+*)
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
   if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
   then
