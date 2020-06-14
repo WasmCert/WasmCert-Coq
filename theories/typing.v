@@ -112,7 +112,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_unop_i : forall C t op, is_int_t t -> be_typing C [::Unop_i t op] (Tf [::t] [::t])
 | bet_unop_f : forall C t op, is_float_t t -> be_typing C [::Unop_f t op] (Tf [::t] [::t])
 | bet_binop_i : forall C t op, is_int_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
-| bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
+| bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_f t op] (Tf [::t; t] [::t])
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
@@ -203,9 +203,17 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   be_typing C es (Tf t1s t2s) ->
   be_typing C es (Tf (app ts t1s) (app ts t2s)).
 
+Definition upd_local C loc :=
+  Build_t_context
+    (tc_types_t C)
+    (tc_func_t C)
+    (tc_global C)
+    (tc_table C)
+    (tc_memory C)
+    loc
+    (tc_label C)
+    (tc_return C).
 
-(** There are several of these for updating multiple components
-    in the typing context. Maybe they can be refactored somehow?**)
 Definition upd_local_return C loc ret :=
   Build_t_context
     (tc_types_t C)
@@ -345,7 +353,8 @@ Print function_closure.
      The t1s part is to fit the accumulated type of the previous instructions, due to
      definition of types of instruction sequences (3.3.6.2). In practice t1s will only
      have one appropriate value that makes the overall typing work (and t2s also, if 
-     I'm correct).
+     I'm correct). I think I'm indeed correct: later in the proof I should be able to
+     choose the correct t1s and t2s for the proof to work.
 
    Ok now tc_return becomes obvious: it is the return type of the current function.
      There is an analogy in the type of the return instruction which is very similar
