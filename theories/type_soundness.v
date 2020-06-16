@@ -51,23 +51,6 @@ Definition v_to_vt (v: value) :=
   | ConstFloat64 _ => T_f64
   end.
 
-(* These two definitions are very questionable *)
-Definition v_to_wasm_int_type (v: value) :=
-  match v with
-  | ConstInt32 _ => i32t
-  | ConstInt64 _ => i64t
-  | ConstFloat32 _ => i32t
-  | ConstFloat64 _ => i64t
-  end.
-
-Definition v_to_wasm_float_type (v: value) :=
-  match v with
-  | ConstInt32 _ => f32t
-  | ConstInt64 _ => f64t
-  | ConstFloat32 _ => f32t
-  | ConstFloat64 _ => f64t
-  end.
-
 Definition vs_to_vts (vs: list value) :=
   map v_to_vt vs.
 
@@ -81,14 +64,23 @@ Ltac b_to_a_revert :=
 
 (* Maybe there are better/standard tactics for dealing with these, but I didn't find
      anything helpful *)
+Lemma concat_cancel_last: forall {X:Type} (l1 l2: seq X) (e1 e2:X),
+    l1 ++ [::e1] = l2 ++ [::e2] ->
+    l1 = l2 /\ e1 = e2.
+Proof.
+  move => X l1 l2 e1 e2 H.
+  assert (rev (l1 ++ [::e1]) = rev (l2 ++ [::e2])); first by rewrite H.
+  repeat rewrite rev_cat in H0. inversion H0.
+  rewrite - (revK l1). rewrite H3. split => //. by apply revK.
+Qed.
+
 Lemma extract_list1 : forall {X:Type} (es: seq X) (e1 e2:X),
     es ++ [::e1] = [::e2] ->
     es = [::] /\ e1 = e2.
 Proof.
   move => X es e1 e2 H.
-  destruct es => //=.
-  - split => //=. by inversion H.
-  - by destruct es => //=.
+  apply concat_cancel_last.
+  by apply H.
 Qed.
 
 Lemma extract_list2 : forall {X:Type} (es: seq X) (e1 e2 e3:X),
@@ -96,10 +88,8 @@ Lemma extract_list2 : forall {X:Type} (es: seq X) (e1 e2 e3:X),
     es = [::e2] /\ e1 = e3.
 Proof.
   move => X es e1 e2 e3 H.
-  destruct es => //=.
-  simpl in H. inversion H; subst.
-  apply extract_list1 in H2.
-  by destruct H2; subst.
+  apply concat_cancel_last.
+  by apply H.
 Qed.    
 
 Lemma extract_list3 : forall {X:Type} (es: seq X) (e1 e2 e3 e4:X),
@@ -107,10 +97,17 @@ Lemma extract_list3 : forall {X:Type} (es: seq X) (e1 e2 e3 e4:X),
     es = [::e2; e3] /\ e1 = e4.
 Proof.
   move => X es e1 e2 e3 e4 H.
-  destruct es => //=.
-  simpl in H. inversion H; subst.
-  apply extract_list2 in H2.
-  by destruct H2; subst.
+  apply concat_cancel_last.
+  by apply H.
+Qed.
+
+Lemma extract_list4 : forall {X:Type} (es: seq X) (e1 e2 e3 e4 e5:X),
+    es ++ [::e1] = [::e2; e3; e4; e5] ->
+    es = [::e2; e3; e4] /\ e1 = e5.
+Proof.
+  move => X es e1 e2 e3 e4 e5 H.
+  apply concat_cancel_last.
+  by apply H.
 Qed.
 
 (* 
@@ -166,6 +163,21 @@ Proof.
     + move => _ _ H. by subst.
     + by apply IHHType => //=.
 Qed.    
+
+Lemma EConst3_typing: forall C econst1 econst2 econst3 t1s t2s,
+    be_typing C [::EConst econst1; EConst econst2; EConst econst3] (Tf t1s t2s) ->
+    t2s = t1s ++ [::typeof econst1; typeof econst2; typeof econst3].
+Proof.
+  move => C econst1 econst2 econst3 t1s t2s HType.
+  dependent induction HType; subst => //=.
+  - apply extract_list3 in x; destruct x; subst.
+    apply EConst2_typing in HType1; subst.
+    apply EConst_typing in HType2; subst.
+    by rewrite -catA.
+  - rewrite - catA. f_equal.
+    + move => _ _ H. by subst.
+    + by apply IHHType => //=.
+Qed.
 
 Lemma Unop_i_typing: forall C t op t1s t2s,
     be_typing C [::Unop_i t op] (Tf t1s t2s) ->
@@ -308,6 +320,47 @@ Proof.
     by repeat rewrite - catA.
 Qed.
 
+Lemma Nop_typing: forall C t1s t2s,
+    be_typing C [::Nop] (Tf t1s t2s) ->
+    t1s = t2s.
+Proof.
+  move => C t1s t2s HType.
+  dependent induction HType; subst => //=.
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1; subst.
+    by apply IHHType2 => //=.
+  - f_equal. by apply IHHType => //=.
+Qed.
+
+Lemma Drop_typing: forall C t1s t2s,
+    be_typing C [::Drop] (Tf t1s t2s) ->
+    exists t, t1s = t2s ++ [::t].
+Proof.
+  move => C t1s t2s HType.
+  dependent induction HType; subst => //=.
+  - by eauto.
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1; subst.
+    by apply IHHType2 => //=.
+  - edestruct IHHType => //=; subst.
+    exists x. repeat rewrite -catA. by f_equal.
+Qed.
+
+Lemma Select_typing: forall C t1s t2s,
+    be_typing C [::Select] (Tf t1s t2s) ->
+    exists ts t, t1s = ts ++ [::t; t; T_i32] /\ t2s = ts ++ [::t].
+Proof.
+  move => C t1s t2s HType.
+  dependent induction HType; subst => //=.
+  - by exists [::], t.
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1; subst.
+    by apply IHHType2 => //=.
+  - edestruct IHHType => //=; subst.
+    edestruct H => //=; destruct H as [x1 [H1 H2]]; subst.
+    exists (ts ++ x), x1. split => //=; by repeat rewrite -catA.
+Qed.
+
 (* Some quality of life lemmas *)
 Lemma bet_weakening_empty_1: forall C es ts t2s,
     be_typing C es (Tf [::] t2s) ->
@@ -327,14 +380,13 @@ Proof.
   by rewrite cats0 in H.
 Qed.
 
-Lemma concat_cancel_last: forall {X:Type} (l1 l2: seq X) (e1 e2:X),
-    l1 ++ [::e1] = l2 ++ [::e2] ->
-    l1 = l2 /\ e1 = e2.
+Lemma bet_weakening_empty_both: forall C es ts,
+    be_typing C es (Tf [::] [::]) ->
+    be_typing C es (Tf ts ts).
 Proof.
-  move => X l1 l2 e1 e2 H.
-  assert (rev (l1 ++ [::e1]) = rev (l2 ++ [::e2])); first by rewrite H.
-  repeat rewrite rev_cat in H0. inversion H0.
-  rewrite - (revK l1). rewrite H3. split => //. by apply revK.
+  move => C es ts HType.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
+  by rewrite cats0 in H.
 Qed.
 
 (*
@@ -351,10 +403,14 @@ Ltac invert_be_typing:=
     apply extract_list2 in H; destruct H; subst
   | H: (?es ++ [::?e])%list = [::_; _; _] |- _ =>
     apply extract_list3 in H; destruct H; subst
+  | H: (?es ++ [::?e])%list = [::_; _; _; _] |- _ =>
+    apply extract_list4 in H; destruct H; subst
   | H: be_typing _ [:: EConst _] _ |- _ =>
     apply EConst_typing in H; subst
   | H: be_typing _ [:: EConst _; EConst _] _ |- _ =>
     apply EConst2_typing in H; subst
+  | H: be_typing _ [:: EConst _; EConst _; EConst _] _ |- _ =>
+    apply EConst3_typing in H; subst
   | H: be_typing _ [::Unop_i _ _] _ |- _ =>
     apply Unop_i_typing in H; destruct H; subst
   | H: be_typing _ [::Unop_f _ _] _ |- _ =>
@@ -377,6 +433,16 @@ Ltac invert_be_typing:=
     let H1 := fresh "H1" in
     let H2 := fresh "H2" in
     apply Cvtop_typing in H; destruct H as [ts [H1 H2]]; subst
+  | H: be_typing _ [::Drop] _ |- _ =>
+    apply Drop_typing in H; destruct H; subst
+  | H: be_typing _ [::Select] _ |- _ =>
+    let ts := fresh "ts" in
+    let t := fresh "t" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    apply Select_typing in H; destruct H as [ts [t [H1 H2]]]; subst
+  | H: _ ++ [::_] = _ ++ [::_] |- _ =>
+    apply concat_cancel_last in H; destruct H; subst
   end.
 
 (* Both 32bit and 64bit *)
@@ -534,7 +600,6 @@ Proof.
   dependent induction HType; subst.
   - (* Composition *)
     invert_be_typing.
-    apply concat_cancel_last in H1; destruct H1; subst.
     apply bet_weakening_empty_1. simpl.
     apply bet_const.
   - (* Weakening *)
@@ -550,9 +615,8 @@ Proof.
   dependent induction HType; subst.
   - (* Composition *)
     invert_be_typing.
-    apply concat_cancel_last in H1; destruct H1; subst.
     apply bet_weakening_empty_1. simpl.
-    apply bet_const.
+    by apply bet_const.
   - (* Weakening *)
     apply bet_weakening.
     by apply IHHType.
@@ -652,7 +716,6 @@ Proof.
   dependent induction HType; subst.
   - (* Composition *)
     invert_be_typing.
-    apply concat_cancel_last in H0; destruct H0; subst.
     apply bet_weakening_empty_1.
     unfold cvt in H5.
     destruct t2; unfold option_map in H5.
@@ -676,13 +739,59 @@ Proof.
   dependent induction HType; subst.
   - (* Composition *)
     invert_be_typing.
-    apply concat_cancel_last in H1; destruct H1; subst.
     apply bet_weakening_empty_1.
     apply be_typing_const_deserialise.
   - (* Weakening *)
     apply bet_weakening.
     by eapply IHHType.
-Qed.  
+Qed.
+
+Lemma t_Drop_preserve: forall C v tf,
+    be_typing C [::EConst v; Drop] tf ->
+    be_typing C [::] tf.
+Proof.
+  move => C v tf HType.
+  dependent induction HType; subst.
+  - invert_be_typing.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - apply bet_weakening. by eapply IHHType.  
+Qed.
+
+Lemma t_Select_preserve: forall C v1 v2 n tf be,
+    be_typing C [::EConst v1; EConst v2; EConst (ConstInt32 n); Select] tf ->
+    reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic be]->
+    be_typing C [::be] tf.
+Proof.
+  move => C v1 v2 n tf be HType HReduce.
+  inversion HReduce; subst.
+  - (* n = 0 : Select second *)
+    dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      replace [::t; t; T_i32] with ([::t] ++ [::t] ++ [::T_i32]) in H1 => //=.
+      replace [::typeof v1; typeof v2; typeof (ConstInt32 (Wasm_int.int_zero i32m))] with
+          ([::typeof v1] ++ [::typeof v2] ++ [::typeof (ConstInt32 (Wasm_int.int_zero i32m))]) in H1 => //=.
+      repeat rewrite catA in H1.
+      repeat (apply concat_cancel_last in H1; let H2 := fresh "H2" in destruct H1 as [H1 H2]). subst.
+      apply bet_weakening_empty_1.
+      rewrite -H0. by apply bet_const.
+    + apply bet_weakening. by eapply IHHType => //=.
+  - (* n = 1 : Select first *)
+    dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      replace [::t; t; T_i32] with ([::t] ++ [::t] ++ [::T_i32]) in H1 => //=.
+      replace [::typeof v1; typeof v2; typeof (ConstInt32 n)] with
+          ([::typeof v1] ++ [::typeof v2] ++ [::typeof (ConstInt32 n)]) in H1 => //=.
+      repeat rewrite catA in H1.
+      repeat (apply concat_cancel_last in H1; let H2 := fresh "H2" in destruct H1 as [H1 H2]). subst.
+      apply bet_weakening_empty_1.
+      by apply bet_const.
+    + apply bet_weakening. by eapply IHHType => //=.
+Qed.
+
+
 
 (* I think this is the correct statement for instructions within r_simple which do
      not change the typing context (no control flow instructions). *)
@@ -692,20 +801,22 @@ Theorem t_simple_preservation: forall s vs bes i bes' es es' C Cl tf,
     Cl = upd_local C (vs_to_vts vs) ->
     be_typing Cl bes tf ->
     reduce_simple es es' ->
+    (* A better treatment is to let Trap be valid with any type -- see appendix 5
+       in the official spec. *)
     es' != [::Trap] ->
     b_to_a bes = es ->
     b_to_a bes' = es' ->
     be_typing Cl bes' tf.
 Proof.
   move => s vs bes i bes' es es' C Cl tf HInstType HContext HType HReduce HNTrap HBES1 HBES2.
-  dependent induction HReduce; b_to_a_revert; subst; simpl in HType => //.
+  inversion HReduce; b_to_a_revert; subst; simpl in HType => //; destruct tf.
   - (* Unop_i32 *)
     eapply t_Unop_i_preserve => //=.
     + replace T_i32 with (v_to_vt (ConstInt32 c)) in HType => //=.
       by apply HType.
     + by apply rs_unop_i32.
   - (* Unop_i64 *)
-    eapply t_Unop_i_preserve.
+    eapply t_Unop_i_preserve => //=.
     + replace T_i64 with (v_to_vt (ConstInt64 c)) in HType => //=.
       by apply HType.
     + by apply rs_unop_i64.
@@ -771,6 +882,23 @@ Proof.
     eapply t_Reinterpret_preserve => //=.
     apply HType.
     by apply rs_reinterpret => //=.
+  - (* Nop *)
+    apply Nop_typing in HType; subst => /=.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - (* Drop *)
+    eapply t_Drop_preserve => //=.
+    by apply HType.
+  - (* Select_false *)
+    eapply t_Select_preserve => //=.
+    + by apply HType.
+    + by apply rs_select_false.
+  - (* Select_true *)
+    eapply t_Select_preserve => //=.
+    + by apply HType.
+    + by apply rs_select_true.
+  - (* Block *)
+    
     
     
         
@@ -784,20 +912,5 @@ Admitted.
     
     
 
-(* This has a 0% chance of being the correct statement. I just wanted to see
-     how the opsem condition works when we do inversion on it. *)
-Theorem t_be_preservation: forall s vs bes i s' vs' bes' C C' tf,
-    reduce s vs (b_to_a bes) i s' vs' (b_to_a bes') ->
-    be_typing C bes tf ->
-    inst_typing s i C ->
-    vs_to_vts vs = tc_local C ->
-    inst_typing s' i C' ->
-    vs_to_vts vs' = tc_local C' ->
-    be_typing C' bes' tf.
-Proof.
-  move => s vs bes i s' vs' bes' C C' tf HOpsem HBET HInstT HLocalT HInstT' HLocalT'.
-  inversion HOpsem; subst.
-  - (* reduce_simple *)
-Admitted.
 
 
