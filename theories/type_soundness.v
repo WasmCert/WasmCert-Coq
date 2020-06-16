@@ -898,6 +898,7 @@ Proof.
     + by apply HType.
     + by apply rs_select_true.
   - (* Block *)
+    simpl.
     
     
     

@@ -359,6 +359,25 @@ Print function_closure.
    Ok now tc_return becomes obvious: it is the return type of the current function.
      There is an analogy in the type of the return instruction which is very similar
      to the 'Br i' instruction, being also polymorphic.
+ *)
+
+Print Build_t_context.
+Print Build_instance.
+Print memi_agree.
+(*
+  This basically says: an instance of a store_record has type C iff:
+  - i_types of instance is the same as tc_types_t of C;
+    It is unclear what this component actually is. What is this sequence of types?
+  - i_funcs of instance are indices of functions in the store. The type of the
+      each corresponding function in the store needs to have the same type as the
+      function in the typing_context;
+  - i_globs of instance are indices of globals in the store, and the same requirement
+      must be satisfied;
+  - i_tab specifies one index in the table sequence of the store. This table must be
+      of the same type as the table type in the typing context (typed by size limit);
+  - i_memory specifies one index in the memory sequence of the store, and the same
+      requirement must be satisfied;
+  - Then, the typing context has local vars, labels, and returns to be all empty.
 *)
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
   if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
@@ -375,14 +394,84 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
           (memi_agree (s_memory s) j m)
   else false.
 
+(*
+Lemma functions_agree_injective: forall s i t t',
+  functions_agree s i t ->
+  functions_agree s i t' ->
+  t = t'.
+Proof.
+  move => s i t t' H1 H2.
+  unfold functions_agree in H1. unfold functions_agree in H2.
+  move/andP in H1. move/andP in H2.
+  destruct H1. destruct H2.
+  move/eqP in H0. move/eqP in H2.
+  rewrite H2 in H0. by inversion H0.
+Qed.
+
+Lemma all2_injective_unique: forall f i t t',
+    (forall a b b',
+        f a b = true -> f a b' = true -> b = b') ->
+    all2 f i t ->
+    all2 f i t' ->
+    t = t'.
+Proof.
+  move => s i t t' H1 H2.
+  generalize dependent t.
+  generalize dependent t'.
+  induction i => //=.
+  - move => t H1 t' H2.
+    destruct t; destruct t' => //=.
+  - move => t H1 t' H2. destruct t; destruct t' => //=.
+    apply IHi => //=.
+                                      
+
+Lemma inst_typing_unique: forall s i C C',
+    inst_typing s i C ->
+    inst_typing s i C' ->
+    C = C'.
+Proof.
+  move => s i C C' HType1 HType2.
+  unfold inst_typing in HType1.
+  unfold inst_typing in HType2.
+  destruct i. destruct C. destruct C'.
+  destruct tc_local; destruct tc_local0 => //=.
+  destruct tc_label; destruct tc_label0 => //=.
+  destruct tc_return; destruct tc_return0 => //=.
+  destruct (i_types == tc_types_t) eqn:H1; destruct (i_types == tc_types_t0) eqn:H2 => //=. move/eqP in H1. move/eqP in H2. subst.
+  simpl in HType1. simpl in HType2.
+  destruct (all2 (functions_agree (s_funcs s)) i_funcs tc_func_t) eqn:H1;
+    destruct (all2 (functions_agree (s_funcs s)) i_funcs tc_func_t0) eqn:H2 => //=.
+*)
+
 (**
   Main predicate used for typing, but most of the typing are done in be_typing
-**)
+ **)
+
+Print Func_native.
+(*
+  Here we're typing a function closure. The second case where we have a host function
+    is obvious: it can be anything.
+  However, if it is a native function, then we should be able to deduce its type.
+    Suppose we have a store s. The function is based on an instance i, and claims to
+    have type tf = (T1s -> T2s). It also comes with a sequence of local variables of
+    type ts (think parameters). The body of the function is es.
+  Let C be a typing context for the instance i of the store s. Because of the local
+    variables, we append ts to the local part of the typing context C. Then we 
+    prepend a t1s in the local section and a t2s in the label section since that is the
+    outermost block (think reduction result of admin instruction [::Local ...]). The
+    result, which is t2s, is also updated into the typing context. Let this modified
+    typing context be C' (I'm not sure why these are necessary though).
+  Then, this native function Func_native i tf ts es indeed has its claimed type 
+    t1s -> t2s iff under this typing context C', its function body es has type
+    [::] -> t2s, i.e. consuming nothing (since there's nothing in the stack) and 
+    producing some results with type t2s. The type of the body es is fully determined
+    by be_typing.
+*)
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
 | cl_typing_native : forall i s C C' ts t1s t2s es tf,
   inst_typing s i C ->
   tf = Tf t1s t2s ->
-  C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) ->
+  C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) ->
   be_typing C' es (Tf [::] t2s) ->
   cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
 | cl_typing_host : forall s tf h,
