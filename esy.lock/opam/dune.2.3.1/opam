@@ -46,9 +46,9 @@ depends: [
   "base-threads"
 ]
 url {
-  src: "https://github.com/ocaml/dune/releases/download/2.5.1/dune-2.5.1.tbz"
+  src: "https://github.com/ocaml/dune/releases/download/2.3.1/dune-2.3.1.tbz"
   checksum: [
-    "sha256=8f77d3a87f208e0d7cccaa1c48c4bb1bb87d62d07c3f25e9b8ba298e028ce52b"
-    "sha512=f209f12ced10c1abf8782bdb0143f4cec77795f7174d2cc75130afb1e01550b01f2f77b9e3ec4888efdad83d2f9878d179b39126f824f4e522f3ef4da34bf27e"
+    "sha256=b2b3dd9cdfd34ef8c4583ea8c52c3503c2395bf94c264af19d6450547e12f5cb"
+    "sha512=023fe4ddf743b8de24de0d7d2e6d5d0f85e459c5044aa4ba3de02cf63113d54d79004cc8ea8f7a958b324e9cbeef0845ec6a0f65454bc6a2e635e8944d28a0f9"
   ]
 }
