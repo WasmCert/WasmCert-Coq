@@ -1,15 +1,19 @@
 # wasm_coq
-WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the AFP formalisation of Conrad Watt.
+WebAssembly (aka Wasm) formalisation in Coq, based on the Isabelle formalisation of Conrad Watt (https://www.isa-afp.org/entries/WebAssembly.html).
 
 https://www.w3.org/TR/wasm-core-1/
 
 (C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
 
+This is work in progress, containing the language definitions and the core of a verified interpreter. We intend to faithfully mechanise "Wasm 1.0"; the specification as ratified by the W3C, and achieve proof-parity with the existing Isabelle mechanisation, which is based on an older version of the Wasm specification.
+
 # TODOs
 
-This is work in progress.
-- [ ] Reformulate the step relation to match the 1.0 standard.
-- [ ] Finish the proofs.
+- [x] Core definitions as they appear in the Isabelle mechanisation.
+- [x] Complete the soundness proof for the interpreter.
+- [x] Update the definition of WebAssembly's global store to match the 1.0 standard.
+- [ ] Update the function frame and related definitions to match the 1.0 standard.
+- [ ] Finish the type soundness proofs.
 
 # Installation
 
