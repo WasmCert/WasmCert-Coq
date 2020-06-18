@@ -13,6 +13,8 @@ This is work in progress, containing the language definitions and the core of a 
 - [ ] Update the function frame and related definitions to match the 1.0 standard.
 - [ ] Finish the type soundness proofs.
 
+This repository also contains some experimental work on a binary parser and Iris integration. 
+
 # Installation
 
 The project comes with an `esy` packaging.
