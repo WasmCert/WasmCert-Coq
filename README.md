@@ -1,7 +1,7 @@
 # wasm_coq
 WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the AFP formalisation of Conrad Watt.
 
-[[https://www.w3.org/TR/wasm-core-1/]]
+https://www.w3.org/TR/wasm-core-1/
 
 (C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
 
