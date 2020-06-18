@@ -1,19 +1,22 @@
 # wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, based on both the offical formalisation (https://www.w3.org/TR/wasm-core-1/), and the Isabelle mechanisation of Conrad Watt (https://www.isa-afp.org/entries/WebAssembly.html).
+WebAssembly (aka Wasm) formalisation in Coq, based on the offical formalisation (https://www.w3.org/TR/wasm-core-1/).
+Our definitions and proofs draw from those given in the Isabelle mechanisation of Conrad Watt (https://www.isa-afp.org/entries/WebAssembly.html).
 
 (C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
 
-This is work in progress, containing the language definitions and the core of a verified interpreter. We intend to faithfully mechanise "Wasm 1.0"; the specification as ratified by the W3C, and achieve proof-parity with the existing Isabelle mechanisation (verified executable interpreter, type soundness proof), which is based on an older version of the Wasm specification.
+This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. Our initial work used the definitions published in PLDI'17 and we are now adapting the definitions to Wasm 1.0., the specification as ratified by W35. 
 
 # TODOs
 
-- [x] Core definitions as they appear in the Isabelle mechanisation.
-- [x] Complete the soundness proof for the interpreter.
+- [x] Give core definitions of WasmCert and WasmRef.
+- [x] Prove soundness result for WasmRef with respect to WasmCert.
 - [x] Update the definition of WebAssembly's global store to match the 1.0 standard.
 - [ ] Update the function frame and related definitions to match the 1.0 standard.
-- [ ] Finish the type soundness proofs.
+- [ ] Finish type soundness result.
+- [ ] Link WasmCert to CompCert.
+- [ ] Provide Iris Wasm.
 
-This repository also contains some experimental work on a binary parser and Iris integration. 
+This repository contains some experimental work on a binary parser and Iris integration. 
 
 # Installation
 
