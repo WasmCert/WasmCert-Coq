@@ -2,7 +2,7 @@
 WebAssembly (aka Wasm) formalisation in Coq, based on the offical formalisation (https://www.w3.org/TR/wasm-core-1/).
 Our definitions and proofs draw from those given in the Isabelle mechanisation of Conrad Watt (https://www.isa-afp.org/entries/WebAssembly.html).
 
-(C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
+(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, R. Xiaojia 2019-2020 - see LICENSE.txt
 
 This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. Our initial work used the definitions published in PLDI'17 and we are now adapting the definitions to Wasm 1.0., the specification as ratified by W35. 
 
