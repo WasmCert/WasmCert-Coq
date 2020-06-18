@@ -1,7 +1,16 @@
 # wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, following the AFP formalisation of Conrad Watt.
+WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the AFP formalisation of Conrad Watt.
+
+[[https://www.w3.org/TR/wasm-core-1/]]
 
 (C) J. Pichon, M. Bodin, R. Xiaojia, C. Watt 2019-2020 - see LICENSE.txt
+
+# TODOs
+
+This is work in progress.
+- [ ] Reformulate the step relation to match the 1.0 standard.
+
+# Installation
 
 Usage: `esy` to download and install the dependencies and compile everything.
 Warning: compiling the dependencies requires having about 3 or 4 GB of RAM on your computer.
