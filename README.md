@@ -9,6 +9,7 @@ WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the AFP formalisation 
 
 This is work in progress.
 - [ ] Reformulate the step relation to match the 1.0 standard.
+- [ ] Finish the proofs.
 
 # Installation
 
