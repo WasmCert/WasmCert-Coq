@@ -443,10 +443,6 @@ Proof.
     destruct (all2 (functions_agree (s_funcs s)) i_funcs tc_func_t0) eqn:H2 => //=.
 *)
 
-(**
-  Main predicate used for typing, but most of the typing are done in be_typing
- **)
-
 Print Func_native.
 (*
   Here we're typing a function closure. The second case where we have a host function
@@ -466,7 +462,10 @@ Print Func_native.
     [::] -> t2s, i.e. consuming nothing (since there's nothing in the stack) and 
     producing some results with type t2s. The type of the body es is fully determined
     by be_typing.
-*)
+
+  I think the main use of this is for typing the Callcl (now renamed to Invoke)
+    instructions.
+ *)
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
 | cl_typing_native : forall i s C C' ts t1s t2s es tf,
   inst_typing s i C ->
@@ -492,3 +491,54 @@ Proof.
     by rewrite /=. }
 Qed.
 
+(*
+  I think we're missing the following two important definitions of typing for admin
+    instructions -- without which we can't really prove the type soundness theorem.
+  An analogous version is at the appendix 5 of the official spec. The following
+    is (more or less) from Conrad's version.
+
+  These should be the main predicates that our work is based on.
+ *)
+(*
+  It turns out that this has already been done in another file.
+*)
+
+(*Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+| be_list: forall s C bes tf,
+    be_typing C bes tf -> e_typing s C (b_to_a bes) tf
+| e_composition: forall es e t1s t2s t3s s C,
+    e_typing s C es (Tf t1s t2s) ->
+    e_typing s C [::e] (Tf t2s t3s) ->
+    e_typing s C (es ++ [::e]) (Tf t1s t3s)
+| e_weakening: forall es t1s t2s ts s C,
+    e_typing s C es (Tf t1s t2s) ->
+    e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s))
+| invoke_typing: forall s C cl tf,
+    cl_typing s cl tf ->
+    e_typing s C [::Invoke cl] tf
+| trap_typing: forall s C tf,
+    e_typing s C [::Trap] tf
+| local_typing: forall s C ts i vs es n,
+    s_typing s (Some ts) i vs es ts ->
+    size ts = n ->
+    e_typing s C [::Local n i vs es] (Tf [::] ts)
+(* See 'Label' under administrative instructions of appendix 5 *)
+| label_typing: forall s C es0 es ts ts' n,
+    e_typing s C es0 (Tf ts ts') ->
+    e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] ts') ->
+    size ts = n ->
+    e_typing s C [::Label n es0 es] (Tf [::] ts')
+with
+(*
+  Our treatment on the interaction between store and instance is different to Conrad's version. In Conrad's version, the instance is a natural number which is an index in the store_inst (and yes store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
+ *)
+s_typing: store_record -> option (seq value_type) -> instance -> seq value -> seq administrative_instruction -> seq value_type -> Prop :=
+| return_typing: forall s i C C' ts vs es rvs tvs,
+    tvs = vs_to_vts vs ->
+    inst_typing s i C ->
+    C' = upd_local_return C ((tc_local C) ++ tvs) rvs ->
+    (rvs = None \/ rvs = Some ts) ->
+    e_typing s C es (Tf [::] ts) ->
+    s_typing s rvs i vs es ts.
+
+*)

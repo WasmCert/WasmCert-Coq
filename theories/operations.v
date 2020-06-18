@@ -559,5 +559,20 @@ Definition bitzero (t : value_type) : value :=
 Definition n_zeros (ts : list value_type) : list value :=
   map bitzero ts.
 
+Definition b_to_a (bes: seq basic_instruction) : seq administrative_instruction :=
+  map (fun x => (Basic x)) bes.
+
+(* Convert a value to its value_type. *)
+Definition v_to_vt (v: value) :=
+  match v with
+  | ConstInt32 _ => T_i32
+  | ConstInt64 _ => T_i64
+  | ConstFloat32 _ => T_f32
+  | ConstFloat64 _ => T_f64
+  end.
+
+Definition vs_to_vts (vs: list value) :=
+  map v_to_vt vs.
+
 (* TODO: lots of lemmas *)
 

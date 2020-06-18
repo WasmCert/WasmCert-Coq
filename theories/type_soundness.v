@@ -7,10 +7,7 @@ Unset Printing Implicit Defensive.
 
 Require Import Program.Equality.
 
-Require Import operations typing datatypes_properties typing opsem.
-
-Definition b_to_a (bes: seq basic_instruction) : seq administrative_instruction :=
-  map (fun x => (Basic x)) bes.
+Require Import operations typing type_checker datatypes_properties typing opsem.
 
 Definition a_to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
@@ -20,6 +17,16 @@ Definition a_to_b_single (e: administrative_instruction) : basic_instruction :=
 
 Definition a_to_b (es: seq administrative_instruction) : seq basic_instruction :=
   map a_to_b_single es.
+
+Definition e_is_basic (e: administrative_instruction) :=
+  exists be, e = Basic be.
+
+Fixpoint es_is_basic (es: seq administrative_instruction) :=
+  match es with
+  | [::] => True
+  | e :: es' =>
+    e_is_basic e /\ es_is_basic es'
+  end.
 
 Lemma b_a_elim: forall bes es,
     b_to_a bes = es ->
@@ -40,19 +47,6 @@ Print tc_global.
 Print value.
 
 Print value_type.
-
-(* Convert a value to its value_type. *)
-
-Definition v_to_vt (v: value) :=
-  match v with
-  | ConstInt32 _ => T_i32
-  | ConstInt64 _ => T_i64
-  | ConstFloat32 _ => T_f32
-  | ConstFloat64 _ => T_f64
-  end.
-
-Definition vs_to_vts (vs: list value) :=
-  map v_to_vt vs.
 
 Print instance.
 
@@ -790,7 +784,23 @@ Proof.
       by apply bet_const.
     + apply bet_weakening. by eapply IHHType => //=.
 Qed.
-
+(*
+Lemma t_If_preserve: forall c C tf es1 es2 ts1 ts2 be,
+  be_typing C [::EConst (ConstInt32 c); If tf es1 es2] (Tf ts1 ts2) ->
+  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (If tf es1 es2)] [::Basic be] ->
+  be_typing C [::be] (Tf ts1 ts2).
+Proof.
+  move => c C tf es1 es2 ts1 ts2 be HType HReduce.
+  inversion HReduce; subst.
+  - (* If_0 *)
+    dependent induction HType; subst => //=.
+    invert_be_typing.
+*)  
+Ltac invert_non_be:=
+  repeat lazymatch goal with
+  | H: exists e, _ = Basic e |- _ =>
+    try by destruct H
+  end.
 
 
 (* I think this is the correct statement for instructions within r_simple which do
@@ -803,13 +813,14 @@ Theorem t_simple_preservation: forall s vs bes i bes' es es' C Cl tf,
     reduce_simple es es' ->
     (* A better treatment is to let Trap be valid with any type -- see appendix 5
        in the official spec. *)
-    es' != [::Trap] ->
+    es_is_basic es' ->
     b_to_a bes = es ->
     b_to_a bes' = es' ->
     be_typing Cl bes' tf.
 Proof.
-  move => s vs bes i bes' es es' C Cl tf HInstType HContext HType HReduce HNTrap HBES1 HBES2.
-  inversion HReduce; b_to_a_revert; subst; simpl in HType => //; destruct tf.
+  move => s vs bes i bes' es es' C Cl tf HInstType HContext HType HReduce HBasic HBES1 HBES2.
+  inversion HReduce; b_to_a_revert; subst; simpl in HType => //; try (unfold es_is_basic in HBasic; unfold e_is_basic in HBasic; inversion HBasic => //); invert_non_be; destruct tf.
+(* The proof itself should be refactorable further into tactics as well. *)
   - (* Unop_i32 *)
     eapply t_Unop_i_preserve => //=.
     + replace T_i32 with (v_to_vt (ConstInt32 c)) in HType => //=.
@@ -874,7 +885,7 @@ Proof.
     + replace T_f64 with (v_to_vt (ConstFloat64 c1)) in HType => //=.
       by apply HType.
     + by apply rs_relop_f64.
-  - (* Cvtop Convert *)
+  - (* Cvtop Convert success *)
     eapply t_Convert_preserve => //=.
     apply HType.
     by apply rs_convert_success => //=.
@@ -897,20 +908,23 @@ Proof.
     eapply t_Select_preserve => //=.
     + by apply HType.
     + by apply rs_select_true.
-  - (* Block *)
-    simpl.
     
     
     
         
     
-      
-    
-    
-    
 Admitted.  
-    
-    
+
+(* Needs further checking *)
+Theorem t_preservation: forall s vs es i s' vs' es' C C' tf,
+    inst_typing s i C ->
+    inst_typing s' i C' ->
+    reduce s vs es i s' vs' es' ->
+    s_typing s None i vs es tf ->
+    s_typing s' None i vs es' tf.
+Proof.
+Admitted.
+
     
 
 
