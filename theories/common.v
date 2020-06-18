@@ -224,7 +224,7 @@ Proof.
   - move=> D. by destruct Coqlib.zlt as [L|L], Coqlib.zlt as [L'|L'] => //; exfalso; lias.
 Qed.
 
-Lemma all_filter : forall A p (l : seq A),
+Lemma filter_for_all : forall A p (l : seq A),
   all p l ->
   filter p l = l.
 Proof. move=> A p l F. by apply/all_filterP. Qed.

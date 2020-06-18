@@ -5,6 +5,7 @@
 
 .merlin
 *.install
+.vscode/settings.json
 
 *~
 \#*\#
