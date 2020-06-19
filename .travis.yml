@@ -16,5 +16,5 @@ install:
   - esy install
 
 script:
-  - ( while true; do echo 'Compilation takes a while: keeping Travis alive.'; sleep 60; done ) & esy
+  - make travis-hook
 
