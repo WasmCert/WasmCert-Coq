@@ -188,6 +188,16 @@ Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
 Canonical Structure function_closure_eqType :=
   Eval hnf in EqType function_closure function_closure_eqMixin.
 
+Definition tabinst_eq_dec : forall v1 v2 : tabinst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+  
+Definition tabinst_eqb v1 v2 : bool := tabinst_eq_dec v1 v2.
+Definition eqtabinstP : Equality.axiom tabinst_eqb :=
+  eq_dec_Equality_axiom tabinst_eq_dec.
+
+Canonical Structure tabinst_eqMixin := EqMixin eqtabinstP.
+Canonical Structure tabinst_eqType := Eval hnf in EqType tabinst tabinst_eqMixin.
+
 Definition global_eq_dec : forall v1 v2 : global, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 

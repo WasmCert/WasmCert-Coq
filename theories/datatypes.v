@@ -4,6 +4,8 @@
 (* TODO: use better representations that "nat", which is expensive;
    maybe N? maybe a 32-bit word type? *)
 
+(* TODO: sanitise names *)
+
 Require Import common.
 Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -253,7 +255,7 @@ Record table_type : Type := Mk_table_type {
   tt_elem_type : elem_type;
 }.
 
-Record mem_type : Type := Mk_mem_type { mem_type_lims : limits }.
+Definition mem_type : Type := limits.
 
 Inductive import_desc : Type :=
 | ID_func : nat -> import_desc
@@ -271,11 +273,9 @@ Record import : Type := Mk_import {
 
 Record table := Mk_table { t_type : table_type }.
 
-Definition mem := limits.
-
-Record global2 : Type := {
-  g_type : global_type;
-  g_init : expr;
+Record module_glob : Type := {
+  mg_type : global_type;
+  mg_init : expr;
 }.
 
 Record start := { start_func : nat; }.
@@ -314,26 +314,26 @@ Inductive section : Type :=
 | Sec_import : list import -> section
 | Sec_function : list typeidx -> section
 | Sec_table : list table -> section
-| Sec_memory : list mem -> section
-| Sec_global : list global2 -> section
+| Sec_memory : list mem_type -> section
+| Sec_global : list module_glob -> section
 | Sec_export : list export -> section
 | Sec_start : start -> section
 | Sec_element : list element -> section
 | Sec_code : list func -> section
 | Sec_data : list data -> section.
 
-Record func2 : Type := {
-  fc2_type : typeidx;
-  fc2_locals : list value_type;
-  fc2_body : expr;
+Record module_func : Type := {
+  mf_type : typeidx;
+  mf_locals : list value_type;
+  mf_body : expr;
 }.
 
 Record module : Type := {
   mod_types : list function_type;
-  mod_funcs : list func2;
+  mod_funcs : list module_func;
   mod_tables : list table;
-  mod_mems : list mem;
-  mod_globals : list global2;
+  mod_mems : list mem_type;
+  mod_globals : list module_glob;
   mod_elements : list element;
   mod_data : list data;
   mod_start : option start;

@@ -512,7 +512,7 @@ Definition parse_table_type {n} : byte_parser table_type n :=
   prod_curry Mk_table_type <$> (parse_limits <&> parse_elem_type).
 
 Definition parse_mem_type {n} : byte_parser mem_type n :=
-  Mk_mem_type <$> parse_limits.
+  parse_limits.
 
 Definition parse_mut {n} : byte_parser mutability n :=
   exact_byte x00 $> T_immut <|>
@@ -530,8 +530,8 @@ Definition parse_import_desc {n} : byte_parser import_desc n :=
 Definition parse_import {n} : byte_parser import n :=
   (Mk_import <$> parse_vec anyTok) <*> parse_vec anyTok <*> parse_import_desc.
 
-Definition parse_global2 {n} : byte_parser global2 n :=
-  (Build_global2 <$> parse_global_type) <*> parse_expr.
+Definition parse_module_glob {n} : byte_parser module_glob n :=
+  (Build_module_glob <$> parse_global_type) <*> parse_expr.
 
 Definition parse_export_desc {n} : byte_parser export_desc n :=
   exact_byte x00 &> (ED_func <$> parse_u32_nat) <|>
@@ -584,11 +584,11 @@ Definition parse_funcsec {n} : byte_parser (list typeidx) n :=
 Definition parse_tablesec {n} : byte_parser (list table) n :=
   exact_byte x04 &>  parse_vec parse_table.
 
-Definition parse_memsec {n} : byte_parser (list mem) n :=
+Definition parse_memsec {n} : byte_parser (list mem_type) n :=
   exact_byte x05 &> parse_vec parse_limits.
 
-Definition parse_globalsec {n} : byte_parser (list global2) n :=
-  exact_byte x06 &> parse_vec parse_global2.
+Definition parse_globalsec {n} : byte_parser (list module_glob) n :=
+  exact_byte x06 &> parse_vec parse_module_glob.
 
 Definition parse_exportsec {n} : byte_parser (list export) n :=
   exact_byte x07 &> parse_vec parse_export.
