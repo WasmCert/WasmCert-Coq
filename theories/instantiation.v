@@ -82,7 +82,8 @@ Definition alloc_mem (S_ : store_record) (m_m : mem_type) : store_record * nat :
 Definition alloc_mems (S_ : store_record) (ms : list mem_type) : store_record * list nat :=
   alloc_Xs alloc_mem S_ ms.
 
-Definition allocate_module (S : wasm.store_record) (m : binary.module) (evs : list externval) (vals : list wasm.value) : wasm.store_record * wasm.instance :=
+  (*
+Definition allocate_module (S_ : store_record) (m : module) (evs : list externval) (vals : list value) : store_record * instance :=
   let moduleinst :=
     wasm.Build_instance
         m.(binary.mod_types) in
