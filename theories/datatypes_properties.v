@@ -1,7 +1,7 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-Require Import common.
+Require Import bytes common.
 Require Export datatypes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
@@ -217,6 +217,26 @@ Definition eqstore_recordP : Equality.axiom store_record_eqb :=
 
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
+
+
+Definition export_desc_eq_dec : forall v1 v2 : export_desc, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition export_desc_eqb v1 v2 : bool := export_desc_eq_dec v1 v2.
+Definition eqexport_descP : Equality.axiom export_desc_eqb :=
+  eq_dec_Equality_axiom export_desc_eq_dec.
+
+Canonical Structure export_desc_eqMixin := EqMixin eqexport_descP.
+Canonical Structure export_desc_eqType := Eval hnf in EqType export_desc export_desc_eqMixin.
+
+Definition export_eq_dec : forall v1 v2 : export, {v1 = v2} + {v1 <> v2}.
+Admitted. (* TODO: ??? *)
+Definition export_eqb v1 v2 : bool := export_eq_dec v1 v2.
+Definition eqexportP : Equality.axiom export_eqb :=
+  eq_dec_Equality_axiom export_eq_dec.
+
+Canonical Structure export_eqMixin := EqMixin eqexportP.
+Canonical Structure export_eqType := Eval hnf in EqType export export_eqMixin.
 
 (** Induction scheme for [administrative_instruction]. **)
 Definition administrative_instruction_rect' :=

@@ -255,7 +255,10 @@ Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value 
   option_map g_val (sglob s i j).
 
 Definition smem_ind (s : store_record) (i : instance) : option nat :=
-  i_memory i.
+  match i.(i_memory) with
+  | nil => None
+  | cons k _ => Some k
+  end.
 
 Definition tab_size (t: tabinst) : nat :=
   length (table_data t).
@@ -282,7 +285,10 @@ Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
   n.
 
 Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
-  if i_tab i is Some k then stab_s s k j else None.
+  match i.(i_tab) with
+  | nil => None
+  | k :: _ => stab_s s k j
+  end.
 
 Definition update_list_at {A : Type} (l : list A) (k : nat) (a : A) :=
   take k l ++ [::a] ++ List.skipn (k + 1) l.

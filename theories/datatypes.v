@@ -37,10 +37,15 @@ Parameter serialise_i64 : i64 -> bytes.
 Parameter serialise_f32 : f32 -> bytes.
 Parameter serialise_f64 : f64 -> bytes.
 
-Record limits := Mk_limits { lim_min : nat; lim_max : option nat; }.
+Record limits := {
+  lim_min : nat;
+  lim_max : option nat;
+}.
 
-Record memory : Type :=
-  {mem_data : list byte; mem_limit: limits;}.
+Record memory : Type := {
+  mem_data : list byte;
+  mem_limit: limits;
+}.
 
 Inductive value_type : Type := (* t *)
 | T_i32
@@ -57,8 +62,10 @@ Inductive mutability : Type := (* mut *)
 | T_immut
 | T_mut.
 
-Record global_type := (* tg *)
-  { tg_mut : mutability; tg_t : value_type }.
+Record global_type := (* tg *) {
+  tg_mut : mutability;
+  tg_t : value_type
+}.
 
 Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
@@ -67,7 +74,7 @@ Record t_context := {
   tc_types_t : list function_type;
   tc_func_t : list function_type;
   tc_global : list global_type;
-  tc_table : option nat;
+  tc_table : list limits (* TODO: ??? *);
   tc_memory : option nat;
   tc_local : list value_type;
   tc_label : list (list value_type);
@@ -193,8 +200,8 @@ Inductive basic_instruction : Type := (* be *)
 Record instance : Type := (* inst *) {
   i_types : list function_type;
   i_funcs : list immediate;
-  i_tab : option immediate;
-  i_memory : option immediate;
+  i_tab : list immediate;
+  i_memory : list immediate;
   i_globs : list immediate;
 }.
 
@@ -202,15 +209,19 @@ Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
-Record tabinst : Type :=
-  {table_data: list (option nat); table_limit: limits;}.
+Record tabinst : Type := {
+  table_data: list (option nat);
+    (* TODO: there seems to be a type mismatch with the Isabelle formalisation,
+       where table_limit is an `option nat` *)
+  table_limit: limits;
+}.
 
 Record global : Type := {
   g_mut : mutability;
   g_val : value;
 }.
 
-Record store_record : Type := (* s *) Build_store_record {
+Record store_record : Type := (* s *) {
   s_funcs : list function_closure;
   s_tab : list tabinst;
   s_memory : list memory;
@@ -218,17 +229,17 @@ Record store_record : Type := (* s *) Build_store_record {
 }.
 
 Inductive administrative_instruction : Type := (* e *)
-  | Basic : basic_instruction -> administrative_instruction
-  | Trap
-  | Invoke : function_closure -> administrative_instruction
-  | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
-  | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
-  .
+| Basic : basic_instruction -> administrative_instruction
+| Trap
+| Invoke : function_closure -> administrative_instruction
+| Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
+| Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
+.
 
 Inductive lholed : Type :=
-  | LBase : list administrative_instruction -> list administrative_instruction -> lholed
-  | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
-  .
+| LBase : list administrative_instruction -> list administrative_instruction -> lholed
+| LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+.
 
 (* TODO: these types were moved from parsing *)
 Definition expr := list basic_instruction.
@@ -250,7 +261,7 @@ Inductive globalidx : Type :=
 Inductive elem_type : Type :=
 | elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
 
-Record table_type : Type := Mk_table_type {
+Record table_type : Type := {
   tt_limits : limits;
   tt_elem_type : elem_type;
 }.
@@ -265,20 +276,24 @@ Inductive import_desc : Type :=
 
 Definition name := list Byte.byte.
 
-Record import : Type := Mk_import {
+Record import : Type := {
   imp_module : name;
   imp_name : name;
   imp_desc : import_desc;
 }.
 
-Record table := Mk_table { t_type : table_type }.
+Record table := {
+  t_type : table_type
+}.
 
 Record module_glob : Type := {
   mg_type : global_type;
   mg_init : expr;
 }.
 
-Record start := { start_func : nat; }.
+Record start := {
+  start_func : nat;
+}.
 
 Record element : Type := {
   elem_table : nat;
@@ -340,3 +355,9 @@ Record module : Type := {
   mod_imports : list import;
   mod_exports : list export;
 }.
+
+Inductive extern_t : Type :=
+| ET_func : function_type -> extern_t
+| ET_tab : table_type -> extern_t
+| ET_mem : mem_type -> extern_t
+| ET_glob : global_type -> extern_t.

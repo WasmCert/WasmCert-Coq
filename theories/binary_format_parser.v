@@ -502,14 +502,14 @@ Definition parse_function_type {n} : byte_parser function_type n :=
   exact_byte x60 &> (prod_curry Tf <$> parse_vec parse_value_type <&> parse_vec parse_value_type).
 
 Definition parse_limits {n} : byte_parser limits n :=
-  exact_byte x00 &> ((fun min => Mk_limits min None) <$> parse_u32_nat) <|>
-  exact_byte x01 &> ((fun min max => Mk_limits min (Some max)) <$> parse_u32_nat) <*> parse_u32_nat.
+  exact_byte x00 &> ((fun min => {| lim_min := min; lim_max := None |}) <$> parse_u32_nat) <|>
+  exact_byte x01 &> ((fun min max => {| lim_min := min; lim_max := Some max |}) <$> parse_u32_nat) <*> parse_u32_nat.
 
 Definition parse_elem_type {n} : byte_parser elem_type n :=
   exact_byte x70 $> elem_type_tt.
 
 Definition parse_table_type {n} : byte_parser table_type n :=
-  prod_curry Mk_table_type <$> (parse_limits <&> parse_elem_type).
+  ((fun lims ety => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_limits) <*> parse_elem_type.
 
 Definition parse_mem_type {n} : byte_parser mem_type n :=
   parse_limits.
@@ -528,7 +528,8 @@ Definition parse_import_desc {n} : byte_parser import_desc n :=
   exact_byte x03 &> (ID_global <$> parse_global_type).
 
 Definition parse_import {n} : byte_parser import n :=
-  (Mk_import <$> parse_vec anyTok) <*> parse_vec anyTok <*> parse_import_desc.
+  ((fun mod name desc => {| imp_module := mod; imp_name := name; imp_desc := desc; |}) <$> parse_vec anyTok) <*>
+  parse_vec anyTok <*> parse_import_desc.
 
 Definition parse_module_glob {n} : byte_parser module_glob n :=
   (Build_module_glob <$> parse_global_type) <*> parse_expr.
@@ -564,10 +565,11 @@ Definition parse_code {n} : byte_parser func n :=
     (parse_u32_nat <&> parse_func).
 
 Definition parse_table {n} : byte_parser table n :=
-  Mk_table <$> parse_table_type.
+  (fun tty => {| t_type := tty |}) <$> parse_table_type.
 
 Definition parse_data {n} : byte_parser data n :=
-  (Build_data <$> parse_u32_nat) <*> parse_expr <*> parse_vec anyTok.
+  ((fun data offset init => {| dt_data := data; dt_offset := offset; dt_init := init |}) <$>
+  parse_u32_nat) <*> parse_expr <*> parse_vec anyTok.
 
 Definition parse_customsec {n} : byte_parser (list byte) n :=
   exact_byte x00 &> parse_vec anyTok.

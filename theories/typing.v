@@ -171,19 +171,25 @@ Definition memi_agree (sm : list memory) (j : option nat) (m : option nat) : boo
 Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
 
-Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
+Definition tab_typing t tt : bool :=
+  (tt.(lim_min) <= tab_size t) &&
+  (t.(table_limit).(lim_max) < tt.(lim_max)) (* TODO: mismatch *).
+
+Definition tabi_agree ts n tab_t : bool :=
+  (n < List.length ts) &&
+  match List.nth_error ts n with
+  | None => false
+  | Some x => tab_typing x tab_t
+  end.
+
+Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bool :=
   if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
   then
     (ts == ts') &&
-       (all2 (functions_agree (s_funcs s)) fs tfs) &&
-       (all2 (globals_agree (s_globs s)) gs tgs) &&
-          (match i, n with
-             | None, None => true
-             | None, Some _ => false
-             | Some _, None => false
-             | Some i', Some n' => (i' < length (s_tab s)) && (option_map tab_size (List.nth_error (s_tab s) i') == Some n')
-             end) &&
-          (memi_agree (s_memory s) j m)
+    (all2 (functions_agree (s_funcs s)) fs tfs) &&
+    (all2 (globals_agree (s_globs s)) gs tgs) &&
+    (all2 (tabi_agree s.(s_tab)) i n) &&
+    (memi_agree (s_memory s) j m)
   else false.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
