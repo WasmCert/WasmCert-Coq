@@ -198,34 +198,34 @@ Definition parse_f64_load {n} : byte_parser basic_instruction n :=
   exact_byte x2b &> (prod_curry (Load T_f64 None) <$> parse_memarg).
 
 Definition parse_i32_load8_s {n} : byte_parser basic_instruction n :=
-  exact_byte x2c &> (prod_curry (Load T_i32 (Some (Tp_i8, sx_S))) <$> parse_memarg).
+  exact_byte x2c &> (prod_curry (Load T_i32 (Some (Tp_i8, SX_S))) <$> parse_memarg).
 
 Definition parse_i32_load8_u {n} : byte_parser basic_instruction n :=
-  exact_byte x2d &> (prod_curry (Load T_i32 (Some (Tp_i8, sx_U))) <$> parse_memarg).
+  exact_byte x2d &> (prod_curry (Load T_i32 (Some (Tp_i8, SX_U))) <$> parse_memarg).
 
 Definition parse_i32_load16_s {n} : byte_parser basic_instruction n :=
-  exact_byte x2e &> (prod_curry (Load T_i32 (Some (Tp_i16, sx_S))) <$> parse_memarg).
+  exact_byte x2e &> (prod_curry (Load T_i32 (Some (Tp_i16, SX_S))) <$> parse_memarg).
 
 Definition parse_i32_load16_u {n} : byte_parser basic_instruction n :=
-  exact_byte x2f &> (prod_curry (Load T_i32 (Some (Tp_i16, sx_U))) <$> parse_memarg).
+  exact_byte x2f &> (prod_curry (Load T_i32 (Some (Tp_i16, SX_U))) <$> parse_memarg).
 
 Definition parse_i64_load8_s {n} : byte_parser basic_instruction n :=
-  exact_byte x30 &> (prod_curry (Load T_i64 (Some (Tp_i8, sx_S))) <$> parse_memarg).
+  exact_byte x30 &> (prod_curry (Load T_i64 (Some (Tp_i8, SX_S))) <$> parse_memarg).
 
 Definition parse_i64_load8_u {n} : byte_parser basic_instruction n :=
-  exact_byte x31 &> (prod_curry (Load T_i64 (Some (Tp_i8, sx_U))) <$> parse_memarg).
+  exact_byte x31 &> (prod_curry (Load T_i64 (Some (Tp_i8, SX_U))) <$> parse_memarg).
 
 Definition parse_i64_load16_s {n} : byte_parser basic_instruction n :=
-  exact_byte x32 &> (prod_curry (Load T_i64 (Some (Tp_i16, sx_S))) <$> parse_memarg).
+  exact_byte x32 &> (prod_curry (Load T_i64 (Some (Tp_i16, SX_S))) <$> parse_memarg).
 
 Definition parse_i64_load16_u {n} : byte_parser basic_instruction n :=
-  exact_byte x33 &> (prod_curry (Load T_i64 (Some (Tp_i16, sx_U))) <$> parse_memarg).
+  exact_byte x33 &> (prod_curry (Load T_i64 (Some (Tp_i16, SX_U))) <$> parse_memarg).
 
 Definition parse_i64_load32_s {n} : byte_parser basic_instruction n :=
-  exact_byte x34 &> (prod_curry (Load T_i64 (Some (Tp_i32, sx_S))) <$> parse_memarg).
+  exact_byte x34 &> (prod_curry (Load T_i64 (Some (Tp_i32, SX_S))) <$> parse_memarg).
 
 Definition parse_i64_load32_u {n} : byte_parser basic_instruction n :=
-  exact_byte x35 &> (prod_curry (Load T_i64 (Some (Tp_i32, sx_U))) <$> parse_memarg).
+  exact_byte x35 &> (prod_curry (Load T_i64 (Some (Tp_i32, SX_U))) <$> parse_memarg).
 
 Definition parse_i32_store {n} : byte_parser basic_instruction n :=
   exact_byte x36 &> (prod_curry (Store T_i32 None) <$> parse_memarg).
@@ -308,26 +308,26 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte x45 $> Testop T_i32 Eqz <|>
   exact_byte x46 $> Relop_i T_i32 Eq <|>
   exact_byte x47 $> Relop_i T_i32 Ne <|>
-  exact_byte x48 $> Relop_i T_i32 (Lt sx_S) <|>
-  exact_byte x49 $> Relop_i T_i32 (Lt sx_U) <|>
-  exact_byte x4a $> Relop_i T_i32 (Gt sx_S) <|>
-  exact_byte x4b $> Relop_i T_i32 (Gt sx_U) <|>
-  exact_byte x4c $> Relop_i T_i32 (Le sx_S) <|>
-  exact_byte x4d $> Relop_i T_i32 (Le sx_U) <|>
-  exact_byte x4e $> Relop_i T_i32 (Ge sx_S) <|>
-  exact_byte x4f $> Relop_i T_i32 (Ge sx_U) <|>
+  exact_byte x48 $> Relop_i T_i32 (Lt SX_S) <|>
+  exact_byte x49 $> Relop_i T_i32 (Lt SX_U) <|>
+  exact_byte x4a $> Relop_i T_i32 (Gt SX_S) <|>
+  exact_byte x4b $> Relop_i T_i32 (Gt SX_U) <|>
+  exact_byte x4c $> Relop_i T_i32 (Le SX_S) <|>
+  exact_byte x4d $> Relop_i T_i32 (Le SX_U) <|>
+  exact_byte x4e $> Relop_i T_i32 (Ge SX_S) <|>
+  exact_byte x4f $> Relop_i T_i32 (Ge SX_U) <|>
 
   exact_byte x50 $> Testop T_i64 Eqz <|>
   exact_byte x51 $> Relop_i T_i64 Eq <|>
   exact_byte x52 $> Relop_i T_i64 Ne <|>
-  exact_byte x53 $> Relop_i T_i64 (Lt sx_S) <|>
-  exact_byte x54 $> Relop_i T_i64 (Lt sx_U) <|>
-  exact_byte x55 $> Relop_i T_i64 (Gt sx_S) <|>
-  exact_byte x56 $> Relop_i T_i64 (Gt sx_U) <|>
-  exact_byte x57 $> Relop_i T_i64 (Le sx_S) <|>
-  exact_byte x58 $> Relop_i T_i64 (Le sx_U) <|>
-  exact_byte x59 $> Relop_i T_i64 (Ge sx_S) <|>
-  exact_byte x5a $> Relop_i T_i64 (Ge sx_U) <|>
+  exact_byte x53 $> Relop_i T_i64 (Lt SX_S) <|>
+  exact_byte x54 $> Relop_i T_i64 (Lt SX_U) <|>
+  exact_byte x55 $> Relop_i T_i64 (Gt SX_S) <|>
+  exact_byte x56 $> Relop_i T_i64 (Gt SX_U) <|>
+  exact_byte x57 $> Relop_i T_i64 (Le SX_S) <|>
+  exact_byte x58 $> Relop_i T_i64 (Le SX_U) <|>
+  exact_byte x59 $> Relop_i T_i64 (Ge SX_S) <|>
+  exact_byte x5a $> Relop_i T_i64 (Ge SX_U) <|>
 
   exact_byte x5b $> Relop_f T_f32 Eqf <|>
   exact_byte x5c $> Relop_f T_f32 Nef <|>
@@ -349,16 +349,16 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte x6a $> Binop_i T_i32 Add <|>
   exact_byte x6b $> Binop_i T_i32 Sub <|>
   exact_byte x6c $> Binop_i T_i32 Mul <|>
-  exact_byte x6d $> Binop_i T_i32 (Div sx_S) <|>
-  exact_byte x6e $> Binop_i T_i32 (Div sx_U) <|>
-  exact_byte x6f $> Binop_i T_i32 (Rem sx_S) <|>
-  exact_byte x70 $> Binop_i T_i32 (Rem sx_U) <|>
+  exact_byte x6d $> Binop_i T_i32 (Div SX_S) <|>
+  exact_byte x6e $> Binop_i T_i32 (Div SX_U) <|>
+  exact_byte x6f $> Binop_i T_i32 (Rem SX_S) <|>
+  exact_byte x70 $> Binop_i T_i32 (Rem SX_U) <|>
   exact_byte x71 $> Binop_i T_i32 And <|>
   exact_byte x72 $> Binop_i T_i32 Or <|>
   exact_byte x73 $> Binop_i T_i32 Xor <|>
   exact_byte x74 $> Binop_i T_i32 Shl <|>
-  exact_byte x75 $> Binop_i T_i32 (Shr sx_S) <|>
-  exact_byte x76 $> Binop_i T_i32 (Shr sx_U) <|>
+  exact_byte x75 $> Binop_i T_i32 (Shr SX_S) <|>
+  exact_byte x76 $> Binop_i T_i32 (Shr SX_U) <|>
   exact_byte x77 $> Binop_i T_i32 Rotl <|>
   exact_byte x78 $> Binop_i T_i32 Rotr <|>
 
@@ -368,16 +368,16 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte x7c $> Binop_i T_i64 Add <|>
   exact_byte x7d $> Binop_i T_i64 Sub <|>
   exact_byte x7e $> Binop_i T_i64 Mul <|>
-  exact_byte x7f $> Binop_i T_i64 (Div sx_S) <|>
-  exact_byte x80 $> Binop_i T_i64 (Div sx_U) <|>
-  exact_byte x81 $> Binop_i T_i64 (Rem sx_S) <|>
-  exact_byte x82 $> Binop_i T_i64 (Rem sx_U) <|>
+  exact_byte x7f $> Binop_i T_i64 (Div SX_S) <|>
+  exact_byte x80 $> Binop_i T_i64 (Div SX_U) <|>
+  exact_byte x81 $> Binop_i T_i64 (Rem SX_S) <|>
+  exact_byte x82 $> Binop_i T_i64 (Rem SX_U) <|>
   exact_byte x83 $> Binop_i T_i64 And <|>
   exact_byte x84 $> Binop_i T_i64 Or <|>
   exact_byte x85 $> Binop_i T_i64 Xor <|>
   exact_byte x86 $> Binop_i T_i64 Shl <|>
-  exact_byte x87 $> Binop_i T_i64 (Shr sx_S) <|>
-  exact_byte x88 $> Binop_i T_i64 (Shr sx_U) <|>
+  exact_byte x87 $> Binop_i T_i64 (Shr SX_S) <|>
+  exact_byte x88 $> Binop_i T_i64 (Shr SX_U) <|>
   exact_byte x89 $> Binop_i T_i64 Rotl <|>
   exact_byte x8a $> Binop_i T_i64 Rotr <|>
 
@@ -412,26 +412,26 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte xa6 $> Binop_f T_f64 Copysign <|>
 
   (* TODO: I am really not sure whether this is right :-s *)
-  exact_byte xa7 $> Cvtop T_i32 Convert T_i64 (Some sx_U) <|>
-  exact_byte xa8 $> Cvtop T_i32 Convert T_f32 (Some sx_S) <|>
-  exact_byte xa9 $> Cvtop T_i32 Convert T_f32 (Some sx_U) <|>
-  exact_byte xaa $> Cvtop T_i32 Convert T_f64 (Some sx_S) <|>
-  exact_byte xab $> Cvtop T_i32 Convert T_f64 (Some sx_U) <|>
-  exact_byte xac $> Cvtop T_i64 Convert T_i32 (Some sx_S) <|>
-  exact_byte xad $> Cvtop T_i64 Convert T_i32 (Some sx_U) <|>
-  exact_byte xae $> Cvtop T_i64 Convert T_f32 (Some sx_S) <|>
-  exact_byte xaf $> Cvtop T_i64 Convert T_f32 (Some sx_U) <|>
-  exact_byte xb0 $> Cvtop T_i64 Convert T_f64 (Some sx_S) <|>
-  exact_byte xb1 $> Cvtop T_i64 Convert T_f64 (Some sx_U) <|>
-  exact_byte xb2 $> Cvtop T_f32 Convert T_i32 (Some sx_S) <|>
-  exact_byte xb3 $> Cvtop T_f32 Convert T_i32 (Some sx_U) <|>
-  exact_byte xb4 $> Cvtop T_f32 Convert T_i64 (Some sx_S) <|>
-  exact_byte xb5 $> Cvtop T_f32 Convert T_i64 (Some sx_U) <|>
+  exact_byte xa7 $> Cvtop T_i32 Convert T_i64 (Some SX_U) <|>
+  exact_byte xa8 $> Cvtop T_i32 Convert T_f32 (Some SX_S) <|>
+  exact_byte xa9 $> Cvtop T_i32 Convert T_f32 (Some SX_U) <|>
+  exact_byte xaa $> Cvtop T_i32 Convert T_f64 (Some SX_S) <|>
+  exact_byte xab $> Cvtop T_i32 Convert T_f64 (Some SX_U) <|>
+  exact_byte xac $> Cvtop T_i64 Convert T_i32 (Some SX_S) <|>
+  exact_byte xad $> Cvtop T_i64 Convert T_i32 (Some SX_U) <|>
+  exact_byte xae $> Cvtop T_i64 Convert T_f32 (Some SX_S) <|>
+  exact_byte xaf $> Cvtop T_i64 Convert T_f32 (Some SX_U) <|>
+  exact_byte xb0 $> Cvtop T_i64 Convert T_f64 (Some SX_S) <|>
+  exact_byte xb1 $> Cvtop T_i64 Convert T_f64 (Some SX_U) <|>
+  exact_byte xb2 $> Cvtop T_f32 Convert T_i32 (Some SX_S) <|>
+  exact_byte xb3 $> Cvtop T_f32 Convert T_i32 (Some SX_U) <|>
+  exact_byte xb4 $> Cvtop T_f32 Convert T_i64 (Some SX_S) <|>
+  exact_byte xb5 $> Cvtop T_f32 Convert T_i64 (Some SX_U) <|>
   exact_byte xb6 $> Cvtop T_f32 Convert T_f64 None <|>
-  exact_byte xb7 $> Cvtop T_f64 Convert T_i32 (Some sx_S) <|>
-  exact_byte xb8 $> Cvtop T_f64 Convert T_i32 (Some sx_U) <|>
-  exact_byte xb9 $> Cvtop T_f64 Convert T_i64 (Some sx_S) <|>
-  exact_byte xba $> Cvtop T_f64 Convert T_i64 (Some sx_U) <|>
+  exact_byte xb7 $> Cvtop T_f64 Convert T_i32 (Some SX_S) <|>
+  exact_byte xb8 $> Cvtop T_f64 Convert T_i32 (Some SX_U) <|>
+  exact_byte xb9 $> Cvtop T_f64 Convert T_i64 (Some SX_S) <|>
+  exact_byte xba $> Cvtop T_f64 Convert T_i64 (Some SX_U) <|>
   exact_byte xbb $> Cvtop T_f32 Convert T_f64 None <|>
   exact_byte xbc $> Cvtop T_i32 Reinterpret T_f32 None <|>
   exact_byte xbd $> Cvtop T_i64 Reinterpret T_f64 None <|>

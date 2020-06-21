@@ -129,8 +129,8 @@ Definition pp_unary_op_f (uof : unop_f) : string :=
 
 Definition pp_sx (s : sx) : string :=
   match s with
-  | sx_U => "u"
-  | sx_S => "s"
+  | SX_U => "u"
+  | SX_S => "s"
   end.
 
 Definition pp_binary_op_i (boi : binop_i) : string :=

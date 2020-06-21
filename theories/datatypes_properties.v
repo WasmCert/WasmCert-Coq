@@ -188,15 +188,15 @@ Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
 Canonical Structure function_closure_eqType :=
   Eval hnf in EqType function_closure function_closure_eqMixin.
 
-Definition tabinst_eq_dec : forall v1 v2 : tabinst, {v1 = v2} + {v1 <> v2}.
+Definition tableinst_eq_dec : forall v1 v2 : tableinst, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
   
-Definition tabinst_eqb v1 v2 : bool := tabinst_eq_dec v1 v2.
-Definition eqtabinstP : Equality.axiom tabinst_eqb :=
-  eq_dec_Equality_axiom tabinst_eq_dec.
+Definition tableinst_eqb v1 v2 : bool := tableinst_eq_dec v1 v2.
+Definition eqtableinstP : Equality.axiom tableinst_eqb :=
+  eq_dec_Equality_axiom tableinst_eq_dec.
 
-Canonical Structure tabinst_eqMixin := EqMixin eqtabinstP.
-Canonical Structure tabinst_eqType := Eval hnf in EqType tabinst tabinst_eqMixin.
+Canonical Structure tableinst_eqMixin := EqMixin eqtableinstP.
+Canonical Structure tableinst_eqType := Eval hnf in EqType tableinst tableinst_eqMixin.
 
 Definition global_eq_dec : forall v1 v2 : global, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
@@ -230,7 +230,8 @@ Canonical Structure export_desc_eqMixin := EqMixin eqexport_descP.
 Canonical Structure export_desc_eqType := Eval hnf in EqType export_desc export_desc_eqMixin.
 
 Definition export_eq_dec : forall v1 v2 : export, {v1 = v2} + {v1 <> v2}.
-Admitted. (* TODO: ??? *)
+(* TODO: "decidable equality" diverges; why? *)
+Admitted. 
 Definition export_eqb v1 v2 : bool := export_eq_dec v1 v2.
 Definition eqexportP : Equality.axiom export_eqb :=
   eq_dec_Equality_axiom export_eq_dec.
@@ -268,3 +269,11 @@ Definition eqlholedP : Equality.axiom lholed_eqb :=
 Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
 Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
 
+Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.
+Definition eqlimitsP : Equality.axiom limits_eqb :=
+  eq_dec_Equality_axiom limits_eq_dec.
+
+Canonical Structure limits_eqMixin := EqMixin eqlimitsP.
+Canonical Structure limits_eqType := Eval hnf in EqType limits limits_eqMixin.

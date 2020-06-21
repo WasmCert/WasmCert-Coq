@@ -1,6 +1,8 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import datatypes datatypes_properties.
-Require binary_format_parser operations.
+Require binary_format_parser operations typing.
+
+(* TODO: get rid of old notation that doesn't follow standard *)
 
 Definition addr := nat.
 Definition funaddr := addr.
@@ -8,15 +10,15 @@ Definition tableaddr := addr.
 Definition memaddr := addr.
 Definition globaladdr := addr.
 
-Definition alloc_Xs {A} f (S_ : store_record) (xs : list A) : store_record * list nat :=
-  let '(S', fas) :=
+Definition alloc_Xs {A} f (s : store_record) (xs : list A) : store_record * list nat :=
+  let '(s', fas) :=
     List.fold_left
-      (fun '(S_, ys) x =>
-        let '(S', y) := f S_ x in
-        (S', cons y ys))
+      (fun '(s, ys) x =>
+        let '(s', y) := f s x in
+        (s', cons y ys))
         xs
-        (S_, nil) in
-  (S', List.rev fas).
+        (s, nil) in
+  (s', List.rev fas).
 
 Inductive externval : Type :=
 | ev_func : funaddr -> externval
@@ -36,56 +38,72 @@ Definition mems_of_externals (evs : list externval) : list addr :=
 Definition globals_of_externals (evs : list externval) : list addr :=
   seq.pmap (fun ev => match ev with | ev_global ta => Some ta | _ => None end) evs.
 
-Definition add_func S_ funcinst :=
-  Build_store_record (List.app S_.(s_funcs) (cons funcinst nil)) S_.(s_tab) S_.(s_memory) S_.(s_globs).
+Definition add_func (s : store_record) funcinst := {|
+  s_funcs := List.app s.(s_funcs) (cons funcinst nil);
+  s_tables := s.(s_tables);
+  s_mems := s.(s_mems);
+  s_globals := s.(s_globals);
+|}.
 
-Definition alloc_func (S_ : store_record) (m_f : module_func) (mi : instance) : store_record * nat :=
-  let funcaddr := List.length S_.(s_funcs) in
+Definition alloc_func (s : store_record) (m_f : module_func) (mi : instance) : store_record * nat :=
+  let funcaddr := List.length s.(s_funcs) in
   let functype := List.nth (match m_f.(mf_type) with | Mk_typeidx n => n end) mi.(i_types) (Tf nil nil (* TODO: partiality problem *) ) in
   let funcinst := Func_native mi functype m_f.(mf_locals) m_f.(mf_body) in
-  let S' := add_func S_ funcinst in
+  let S' := add_func s funcinst in
   (S', funcaddr).
 
-Definition alloc_funcs (S_ : store_record) (m_fs : list module_func) (mi : instance) : store_record * list nat :=
-  alloc_Xs (fun S_ m_f => alloc_func S_ m_f mi) S_ m_fs.
+Definition alloc_funcs (s : store_record) (m_fs : list module_func) (mi : instance) : store_record * list nat :=
+  alloc_Xs (fun s m_f => alloc_func s m_f mi) s m_fs.
 
-Definition add_table S_ ti :=
-  Build_store_record S_.(s_funcs) (List.app S_.(s_tab) (cons ti nil)) S_.(s_memory) S_.(s_globs).
+Definition add_table (s : store_record) (ti : tableinst) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := List.app s.(s_tables) (cons ti nil);
+  s_mems := s.(s_mems);
+  s_globals := s.(s_globals);
+|}.
 
-Definition alloc_tab (S_ : store_record) (tty : table_type) : store_record * nat :=
+Definition alloc_tab (s : store_record) (tty : table_type) : store_record * nat :=
   let '{| tt_limits := {| lim_min := min; lim_max := maxo |} as lim; tt_elem_type := ety |} := tty in
-  let tableaddr := List.length S_.(s_tab) in
-  let tableinst := {| table_data := (List.repeat None min); table_limit := lim; |} in
-  (add_table S_ tableinst, tableaddr).
+  let tableaddr := List.length s.(s_tables) in
+  let tableinst := {| table_data := (List.repeat None min); table_max_opt := maxo; |} in
+  (add_table s tableinst, tableaddr).
 
-Definition alloc_tabs (S_ : store_record) (ts : list table_type) : store_record * list nat :=
-  alloc_Xs alloc_tab S_ ts.
+Definition alloc_tabs (s : store_record) (ts : list table_type) : store_record * list nat :=
+  alloc_Xs alloc_tab s ts.
 
-Definition ki64 := 65536.
+Definition ki64 : nat := 65536.
 
 Definition mem_mk (lim : limits) : memory :=
   Build_memory (bytes_replicate (lim.(lim_min) * ki64) #00) lim.
 
-Definition add_mem S_ m_m :=
-  Build_store_record S_.(s_funcs) S_.(s_tab) (List.app S_.(s_memory) (cons m_m nil)) S_.(s_globs).
+Definition add_mem (s : store_record) (m_m : memory) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := s.(s_tables);
+  s_mems := List.app s.(s_mems) (cons m_m nil);
+  s_globals := s.(s_globals);
+|}.
 
-Definition alloc_mem (S_ : store_record) (m_m : mem_type) : store_record * nat :=
+Definition alloc_mem (s : store_record) (m_m : mem_type) : store_record * nat :=
   let '{| lim_min := min; lim_max := maxo |} := m_m in
-  let memaddr := List.length S_.(s_memory) in
+  let memaddr := List.length s.(s_mems) in
   let meminst := mem_mk m_m in
-  (add_mem S_ meminst, memaddr).
+  (add_mem s meminst, memaddr).
 
-Definition alloc_mems (S_ : store_record) (m_ms : list mem_type) : store_record * list nat :=
-  alloc_Xs alloc_mem S_ m_ms.
+Definition alloc_mems (s : store_record) (m_ms : list mem_type) : store_record * list nat :=
+  alloc_Xs alloc_mem s m_ms.
 
-Definition add_glob S_ m_g :=
-Build_store_record S_.(s_funcs) S_.(s_tab) S_.(s_memory) (List.app S_.(s_globs) (cons m_g nil)) .
+Definition add_glob (s : store_record) (m_g : global) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := s.(s_tables);
+  s_mems := s.(s_mems);
+  s_globals := List.app s.(s_globals) (cons m_g nil);
+|}.
 
-Definition alloc_glob (S_ : store_record) (m_g_v : module_glob * value) : store_record * nat :=
+Definition alloc_glob (s : store_record) (m_g_v : module_glob * value) : store_record * nat :=
   let '(m_g, v) := m_g_v in
-  let globaddr := List.length S_.(s_globs) in
+  let globaddr := List.length s.(s_globals) in
   let globinst := Build_global m_g.(mg_type).(tg_mut) v in
-  (add_glob S_ globinst, globaddr).
+  (add_glob s globinst, globaddr).
 
 Definition alloc_globs s m_gs vs :=
   alloc_Xs alloc_glob s (List.combine m_gs vs).
@@ -182,9 +200,9 @@ Definition alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs
 
 Definition interp_alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value) : (store_record * instance * list export) :=
   let i_fs := seq.iota (List.length s.(s_funcs)) (List.length m.(mod_funcs)) in
-  let i_ts := seq.iota (List.length s.(s_tab)) (List.length m.(mod_tables)) in
-  let i_ms := seq.iota (List.length s.(s_memory)) (List.length m.(mod_mems)) in
-  let i_gs := seq.iota (List.length s.(s_globs)) (min (List.length m.(mod_globals)) (List.length gvs)) in
+  let i_ts := seq.iota (List.length s.(s_tables)) (List.length m.(mod_tables)) in
+  let i_ms := seq.iota (List.length s.(s_mems)) (List.length m.(mod_mems)) in
+  let i_gs := seq.iota (List.length s.(s_globals)) (min (List.length m.(mod_globals)) (List.length gvs)) in
   let inst := {|
     i_types := m.(mod_types);
     i_funcs := List.app (ext_funcs imps) i_fs;
@@ -204,18 +222,17 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list v_ex
 Definition insert_at {A} (v : A) (n : nat) (l : list A) : list A :=
 List.app (List.firstn n l) (List.app (cons v nil) (List.skipn (n + 1) l)).
 
+Definition dummy_table := {| table_data := nil; table_max_opt := None; |}.
+
 Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : element) : store_record :=
   let t_ind := List.nth e.(elem_table) inst.(i_tab) 0 in
-  let '{|table_data := tab_e; table_limit := lim |} :=
-    (* TODO: mismatch *)
-    let dummy := {| table_data := nil; table_limit := {| lim_min := 0; lim_max := None; |} |} in
-    List.nth t_ind s.(s_tab) dummy in
+  let '{|table_data := tab_e; table_max_opt := maxo |} := List.nth t_ind s.(s_tables) dummy_table in
   let e_pay := List.map (fun i => List.nth_error inst.(i_funcs) i) e.(elem_init) in
   let tab'_e := List.app (List.firstn e_ind tab_e) (List.app e_pay (List.skipn (e_ind + length e_pay) tab_e)) in
   {| s_funcs := s.(s_funcs);
-     s_tab := insert_at {| table_data := tab'_e; table_limit := lim |} e_ind s.(s_tab);
-     s_memory := s.(s_memory);
-     s_globs := s.(s_globs) |}.
+     s_tables := insert_at {| table_data := tab'_e; table_max_opt := maxo |} e_ind s.(s_tables);
+     s_mems := s.(s_mems);
+     s_globals := s.(s_globals) |}.
 
 Definition init_tabs (s : store_record) (inst : instance) (e_inds : list nat) (es : list element) : store_record :=
   List.fold_left (fun s' '(e_ind, e) => init_tab s' inst e_ind e) (List.combine e_inds es) s.
@@ -224,16 +241,16 @@ Definition compcert_byte_of_byte (b : Byte.byte) : byte :=
   (* TODO: this is not great *)
   encode (Byte.to_nat b).
 
+Definition dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None; |} |}.
+
 Definition init_mem (s : store_record) (inst : instance) (d_ind : nat) (d : data) : store_record :=
   let m_ind := List.nth d.(dt_data) inst.(i_memory) 0 in
-  let mem :=
-    let dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None; |} |} in
-    List.nth m_ind s.(s_memory) dummy_mem in
+  let mem := List.nth m_ind s.(s_mems) dummy_mem in
   let mem' := operations.write_bytes mem d_ind (List.map compcert_byte_of_byte d.(dt_init)) in
   {| s_funcs := s.(s_funcs);
-     s_tab := s.(s_tab);
-     s_memory := insert_at mem' m_ind s.(s_memory);
-     s_globs := s.(s_globs); |}.
+     s_tables := s.(s_tables);
+     s_mems := insert_at mem' m_ind s.(s_mems);
+     s_globals := s.(s_globals); |}.
 
 Definition init_mems (s : store_record) (inst : instance) (d_inds : list nat) (ds : list data) : store_record :=
   List.fold_left (fun s' '(d_ind, d) => init_mem s' inst d_ind d) (List.combine d_inds ds) s.
@@ -253,7 +270,7 @@ Definition module_func_typing (c : t_context) (m : module_func) (tf : function_t
     tc_label := cons tm c.(tc_label);
     tc_return := Some tm;
   |} in
-  be_typing c' b_es tf.
+  typing.be_typing c' b_es tf.
 
 
 Definition module_typing (m : module) (impts : list extern_t) (expts : list extern_t) : Prop :=
@@ -264,7 +281,7 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
     mod_tables := ts;
     mod_mems := ms;
     mod_globals := gs;
-    mod_elements := els;
+    mod_elem := els;
     mod_data := ds;
     mod_start := i_opt;
     mod_imports := imps;
@@ -278,16 +295,54 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
     tc_types_t := tfs;
     tc_func_t := List.app ifts fts;
     tc_global := List.app igs gts;
-    tc_table := List.app its ts;
+    tc_table := List.app its (List.map (fun t => t.(t_type)) ts);
     tc_memory := List.app ims ms;
     tc_local := nil;
     tc_label := nil;
     tc_return := None;
   |} in
-  seq.all2 (module_func_typing c) fs fts &&
+  let c' := {|
+    tc_types_t := nil;
+    tc_func_t := nil;
+    tc_global := igs;
+    tc_table := nil;
+    tc_memory := nil;
+    tc_local := nil;
+    tc_label := nil;
+    tc_return := None;
+  |} in
+  List.Forall2 (module_func_typing c) fs fts /\
   true (* TODO*).
 
-Definition instantiate (s : store_record) (m : module) (t_imps : list v_ext) (t_exps : (store_record * instance * list export) * option nat) : bool :=
-  module_typing m t_imps t_exps &&
-  seq.allb (external_typing c) v_imps t_imps &&
-  ???.
+Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
+| ETY_func :
+  forall (s : store_record) (i : nat) cl (tf : function_type),
+  i < List.length s.(s_funcs) ->
+  List.nth_error s.(s_funcs) i = Some cl ->
+  tf = operations.cl_type cl ->
+  external_typing s (ED_func i) (ET_func tf)
+| ETY_tab :
+  forall (s : store_record) (i : nat) (ti : tableinst) lim,
+  i < List.length s.(s_tables) ->
+  List.nth_error s.(s_tables) i = Some ti ->
+  typing.tab_typing ti lim ->
+  external_typing s (ED_table i) (ET_tab {| tt_limits := lim; tt_elem_type := elem_type_tt |})
+| ETY_mem :
+  forall (s : store_record) (i : nat) (m : memory) (mt : mem_type),
+  i < List.length s.(s_mems) ->
+  List.nth_error s.(s_mems) i = Some m ->
+  typing.mem_typing m mt ->
+  external_typing s (ED_mem i) (ET_mem mt)
+| ETY_glob :
+  forall (s : store_record) (i : nat) (g : global) (gt : global_type),
+  i < List.length s.(s_globals) ->
+  List.nth_error s.(s_globals) i = Some g ->
+  typing.global_agree g gt ->
+  external_typing s (ED_global i) (ET_glob gt).
+
+Definition instantiate (s : store_record) (m : module) (v_imps : list v_ext) (z : (store_record * instance * list export) * option nat) : Prop :=
+  let '((s_end, imp, v_exps), start) := z in
+  exists t_imps t_exps,
+  module_typing m t_imps t_exps /\
+  List.Forall2 (external_typing s) v_imps t_imps /\
+  true (* TODO *).

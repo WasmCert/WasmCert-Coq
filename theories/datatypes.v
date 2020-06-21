@@ -70,12 +70,20 @@ Record global_type := (* tg *) {
 Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
 
+Inductive elem_type : Type :=
+| elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
+
+Record table_type : Type := {
+  tt_limits : limits;
+  tt_elem_type : elem_type;
+}.
+
 Record t_context := {
   tc_types_t : list function_type;
   tc_func_t : list function_type;
   tc_global : list global_type;
-  tc_table : list limits (* TODO: ??? *);
-  tc_memory : option nat;
+  tc_table : list table_type (* TODO: follows the spec; mismatch with the isabelle version *);
+  tc_memory : list limits;
   tc_local : list value_type;
   tc_label : list (list value_type);
   tc_return : option (list value_type);
@@ -94,9 +102,8 @@ Record s_context := {
 *)
 
 Inductive sx : Type :=
-(* TODO: the fact that these start with lowercase has made me waste too much time already *)
-| sx_S
-| sx_U.
+| SX_S
+| SX_U.
 
 Inductive unop_i : Type :=
 | Clz
@@ -209,11 +216,11 @@ Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
-Record tabinst : Type := {
-  table_data: list (option nat);
-    (* TODO: there seems to be a type mismatch with the Isabelle formalisation,
-       where table_limit is an `option nat` *)
-  table_limit: limits;
+Definition funcelem := option nat.
+
+Record tableinst : Type := {
+  table_data: list funcelem;
+  table_max_opt: option nat;
 }.
 
 Record global : Type := {
@@ -223,9 +230,9 @@ Record global : Type := {
 
 Record store_record : Type := (* s *) {
   s_funcs : list function_closure;
-  s_tab : list tabinst;
-  s_memory : list memory;
-  s_globs : list global;
+  s_tables : list tableinst;
+  s_mems : list memory;
+  s_globals : list global;
 }.
 
 Inductive administrative_instruction : Type := (* e *)
@@ -258,14 +265,6 @@ Inductive localidx : Type :=
 Inductive globalidx : Type :=
 | Mk_globalidx : nat -> globalidx.
 
-Inductive elem_type : Type :=
-| elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
-
-Record table_type : Type := {
-  tt_limits : limits;
-  tt_elem_type : elem_type;
-}.
-
 Definition mem_type : Type := limits.
 
 Inductive import_desc : Type :=
@@ -283,7 +282,7 @@ Record import : Type := {
 }.
 
 Record table := {
-  t_type : table_type
+  t_type : table_type;
 }.
 
 Record module_glob : Type := {
@@ -349,7 +348,7 @@ Record module : Type := {
   mod_tables : list table;
   mod_mems : list mem_type;
   mod_globals : list module_glob;
-  mod_elements : list element;
+  mod_elem : list element;
   mod_data : list data;
   mod_start : option start;
   mod_imports : list import;
