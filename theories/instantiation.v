@@ -318,7 +318,8 @@ Definition module_data_typing (c : t_context) (m_d : module_data) : Prop :=
   typing.be_typing c es (Tf nil (cons T_i32 nil)) /\
   d < List.length c.(tc_memory).
 
-Definition module_start_typing (c : t_context) (i : nat) : bool :=
+Definition module_start_typing (c : t_context) (ms : module_start) : bool :=
+  let i := ms.(start_func) in
   (i < length c.(tc_func_t)) &&
   match List.nth_error c.(tc_func_t) i with
   | None => false
@@ -370,6 +371,12 @@ Definition module_export_typing (c : t_context) (d : module_export_desc) (e : ex
   | (_, _) => false
   end.
 
+Definition pred_option {A} (p : A -> bool) (a_opt : option A) : bool :=
+  match a_opt with
+  | None => true
+  | Some a => p a
+  end.
+
 Definition module_typing (m : module) (impts : list extern_t) (expts : list extern_t) : Prop :=
   exists fts gts,
   let '{| 
@@ -414,7 +421,8 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
   List.Forall2 (module_glob_typing c') gs gts /\
   List.Forall (module_elem_typing c) els /\
   List.Forall (module_data_typing c) ds /\
-  match i_opt with None => true | Some i => module_start_typing c i.(start_func) end /\
+  pred_option (module_start_typing c) i_opt /\
+  (*match i_opt with None => true | Some i => module_start_typing c i.(start_func) end /\*)
   List.Forall2 (fun imp => module_import_typing c imp.(imp_desc)) imps impts /\
   List.Forall2 (fun exp => module_export_typing c exp.(exp_desc)) exps expts.
 
@@ -444,11 +452,358 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   typing.global_agree g gt ->
   external_typing s (ED_global i) (ET_glob gt).
 
+Definition instantiate_globals inst s' m g_inits : Prop :=
+  List.Forall2 (fun g v => opsem.reduce_trans inst (s', nil, operations.to_e_list g.(mg_init) ) (s', nil, cons (Basic (EConst v)) nil)) m.(mod_globals) g_inits.
+
+Definition instantiate_elem inst s' m e_offs : Prop :=
+  List.Forall2
+    (fun e c =>
+      opsem.reduce_trans inst (s', nil, operations.to_e_list e.(elem_offset)) (s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
+    m.(mod_elem)
+    e_offs.
+
+Definition instantiate_data inst s' m d_offs : Prop :=
+  List.Forall2
+    (fun d c =>
+      opsem.reduce_trans inst (s', nil, operations.to_e_list d.(dt_offset)) (s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
+    m.(mod_data)
+    d_offs.
+
+Definition nat_of_int (i : i32) : nat :=
+  BinInt.Z.to_nat i.(Wasm_int.Int32.intval).
+
+Definition check_bounds_elem (inst : instance) (s : store_record) (m : module) (e_offs : seq i32) : bool :=
+  seq.all2
+    (fun e_off e =>
+      match List.nth_error inst.(i_tab) e.(elem_table) with
+      | None => false
+      | Some i =>
+        match List.nth_error s.(s_tables) i with
+        | None => false
+        | Some ti =>
+          nat_of_int e_off + List.length e.(elem_init) <= List.length ti.(table_data)
+        end
+      end)
+      e_offs
+      m.(mod_elem).
+
+Definition mem_length (m : memory) :=
+  List.length m.(mem_data).
+
+Definition check_bounds_data (inst : instance) (s : store_record) (m : module) (d_offs : seq i32) : bool :=
+  seq.all2
+    (fun d_off d =>
+      match List.nth_error inst.(i_memory) d.(dt_data) with
+      | None => false
+      | Some i =>
+        match List.nth_error s.(s_mems) i with
+        | None => false
+        | Some mem =>
+          nat_of_int d_off + List.length d.(dt_init) <= mem_length mem
+        end
+      end)
+      d_offs
+      m.(mod_data).
+
+Definition check_start m inst start : bool :=
+  let start' :=
+    operations.option_bind
+    (fun i_s => match List.nth_error inst.(i_funcs) i_s.(start_func) with None => None | Some f => Some f end)
+    m.(mod_start) in
+  start' == start.
+
 Definition instantiate (s : store_record) (m : module) (v_imps : list v_ext) (z : (store_record * instance * list module_export) * option nat) : Prop :=
   let '((s_end, inst, v_exps), start) := z in
-  exists t_imps t_exps s' g_inits,
-  module_typing m t_imps t_exps /\
-  List.Forall2 (external_typing s) v_imps t_imps /\
-  alloc_module s m v_imps g_inits (s', inst, v_exps) /\
-  List.Forall2 (fun g v => opsem.reduce_trans inst (s', nil, operations.to_e_list g.(mg_init) ) (s', nil, cons (Basic (EConst v)) nil)) m.(mod_globals) g_inits /\
-  true (* TODO *).
+  exists t_imps t_exps s' g_inits e_offs d_offs,
+    module_typing m t_imps t_exps /\
+    List.Forall2 (external_typing s) v_imps t_imps /\
+    alloc_module s m v_imps g_inits (s', inst, v_exps) /\
+    instantiate_globals inst s' m g_inits /\
+    instantiate_elem inst s' m e_offs /\
+    instantiate_data inst s' m d_offs /\
+    check_bounds_elem inst s m e_offs /\
+    check_bounds_data inst s m e_offs /\
+    check_start m inst start /\
+    let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
+    s_end == init_mems s'' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
+
+Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
+  let '(Mk_typeidx i) := m_f.(mf_type) in
+  if i < List.length tfs then List.nth_error tfs i
+  else None.
+
+Fixpoint those0 {A} (l : list (option A)) : option (list A) :=
+  match l with
+  | nil => Some nil
+  | cons x xs =>
+    match x with
+    | None => None
+    | Some y =>
+      match those0 xs with
+      | None => None
+      | Some ys => Some (cons y ys)
+      end
+    end
+  end.
+
+Fixpoint those_aux {A} (acc : option (list A)) (l : list (option A)) : option (list A) :=
+  match acc with
+  | None => None
+  | Some ys_rev =>
+    match l with
+    | nil => Some ys_rev
+    | cons x xs =>
+      match x with
+      | None => None
+      | Some y => those_aux (Some (cons y ys_rev)) xs
+      end
+    end
+  end.
+
+Definition those {A} (l : list (option A)) : option (list A) :=
+  match those_aux (Some nil) l with
+  | None => None
+  | Some l => Some (List.rev l)
+  end.
+
+Lemma those_those0 : forall A (l : list (option A)),
+  those0 l = those l.
+Proof.
+(* TODO *)
+Admitted.
+
+Definition gather_m_f_types (tfs : list function_type) (m_fs : list module_func) : option (list function_type) :=
+  those (List.map (gather_m_f_type tfs) m_fs).
+
+Definition module_import_typer (tfs : list function_type) (imp : import_desc) : option extern_t :=
+  match imp with
+  | ID_func i =>
+    if i < List.length tfs then
+      match List.nth_error tfs i with
+      | None => None
+      | Some ft => Some (ET_func ft)
+      end
+    else None
+  | ID_table t_t =>
+    if module_tab_typing {| t_type := t_t |} then Some (ET_tab t_t) else None
+  | ID_mem mt =>
+    if module_mem_typing mt then Some (ET_mem mt) else None
+  | ID_global gt => Some (ET_glob gt)
+  end.
+
+Definition module_imports_typer (tfs : list function_type) (imps : list module_import) : option (list extern_t) :=
+  those (List.map (fun imp => module_import_typer tfs imp.(imp_desc)) imps).
+
+Definition module_export_typer (c : t_context) (exp : module_export_desc) : option extern_t :=
+  match exp with
+  | ED_func i =>
+    if i < List.length c.(tc_func_t) then
+      match List.nth_error c.(tc_func_t) i with
+      | None => None
+      | Some ft => Some (ET_func ft)
+      end
+    else None
+  | ED_table i =>
+    if i < List.length c.(tc_table) then
+      match List.nth_error c.(tc_table) i with
+      | None => None
+      | Some t_t => Some (ET_tab t_t)
+      end
+    else None
+  | ED_mem i =>
+    if i < List.length c.(tc_memory) then
+      match List.nth_error c.(tc_memory) i with
+      | None => None
+      | Some m => Some (ET_mem m)
+      end
+    else None
+  | ED_global i =>
+    if i < List.length c.(tc_global) then
+      match List.nth_error c.(tc_global) i with
+      | None => None
+      | Some g => Some (ET_glob g)
+      end
+    else None
+  end.
+
+Definition module_exports_typer (c : t_context) exps :=
+  those (List.map (fun exp => module_export_typer c exp.(exp_desc)) exps).
+
+Definition gather_m_g_types (mgs : list module_glob) : list global_type :=
+  List.map (fun mg => mg.(mg_type)) mgs.
+
+Require type_checker.
+
+Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
+  let '{| mf_type := Mk_typeidx i; mf_locals := t_locs; mf_body := b_es |} := m in
+  (i < List.length c.(tc_types_t)) &&
+  match List.nth_error c.(tc_types_t) i with
+  | None => false
+  | Some (Tf tn tm) =>
+    let c' := {|
+      tc_types_t := c.(tc_types_t);
+      tc_func_t := c.(tc_func_t);
+      tc_global := c.(tc_global);
+      tc_table := c.(tc_table);
+      tc_memory := c.(tc_memory);
+      tc_local := List.app c.(tc_local) (List.app tn t_locs);
+      tc_label := cons tm c.(tc_label);
+      tc_return := Some tm;
+    |} in
+    type_checker.b_e_type_checker c' b_es (Tf tn tm)
+  end.
+
+Definition module_tab_type_checker := module_tab_typing.
+Definition module_mem_type_checker := module_mem_typing.
+
+Definition module_glob_type_checker (c : t_context) (mg : module_glob) : bool :=
+  let '{| mg_type := tg; mg_init := es |} := mg in
+  const_exprs c es &&
+  type_checker.b_e_type_checker c es (Tf nil (cons tg.(tg_t) nil)).
+
+Definition module_elem_type_checker (c : t_context) (e : module_element) : bool :=
+  let '{| elem_table := t; elem_offset := es; elem_init := is_ |} := e in
+  const_exprs c es &&
+  type_checker.b_e_type_checker c es (Tf nil (cons T_i32 nil)) &&
+  (t < List.length c.(tc_table)) &&
+  seq.all (fun i => i < List.length c.(tc_func_t)) is_.
+
+Definition module_data_type_checker (c : t_context) (d : module_data) : bool :=
+  let '{| dt_data := d; dt_offset := es; dt_init := bs |} := d in
+  const_exprs c es &&
+  type_checker.b_e_type_checker c es (Tf nil (cons T_i32 nil)) &&
+  (d < List.length c.(tc_memory)).
+
+Definition module_start_type_checker (c : t_context) (ms : module_start) : bool :=
+  module_start_typing c ms.
+
+Definition module_type_checker (m : module) : option ((list extern_t) * (list extern_t)) :=
+  let '{|
+    mod_types := tfs;
+    mod_funcs := fs;
+    mod_tables := ts;
+    mod_mems := ms;
+    mod_globals := gs;
+    mod_elem := els;
+    mod_data := ds;
+    mod_start := i_opt;
+    mod_imports := imps;
+    mod_exports := exps;
+    |} := m in
+  match (gather_m_f_types tfs fs, module_imports_typer tfs imps) with
+  | (Some fts, Some impts) =>
+    let ifts := ext_t_funcs impts in
+    let its := ext_t_tabs impts in
+    let ims := ext_t_mems impts in
+    let igs := ext_t_globs impts in
+    let gts := gather_m_g_types gs in
+    let c := {| tc_types_t := tfs; tc_func_t := List.app ifts fts; tc_global := List.app igs gts; tc_table := List.app its (List.map (fun t => t.(t_type)) ts); tc_memory := List.app ims ms; tc_local := nil; tc_label := nil; tc_return := None |} in
+    let c' := {| tc_types_t := nil; tc_func_t := nil; tc_global := igs; tc_table := nil; tc_memory := nil; tc_local := nil; tc_label := nil; tc_return := None |} in
+    if seq.all (module_func_type_checker c) fs &&
+       seq.all module_tab_type_checker ts &&
+       seq.all module_mem_type_checker ms &&
+       seq.all (module_glob_type_checker c') gs &&
+       seq.all (module_elem_type_checker c) els &&
+       seq.all (module_data_type_checker c) ds &&
+       pred_option (module_start_type_checker c) i_opt then
+       match module_exports_typer c exps with
+       | Some expts => Some (impts, expts)
+       | None => None
+       end
+    else None
+  | (Some _, None) | (None, Some _) | (None, None) => None
+  end.
+
+Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) : bool :=
+  match (v, e) with
+  | (ED_func i, ET_func tf) =>
+    (i < List.length s.(s_funcs)) &&
+    match List.nth_error s.(s_funcs) i with
+    | None => false
+    | Some cl => tf == operations.cl_type cl
+    end
+  | (ED_table i, ET_tab tf) =>
+    let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in
+    (i < List.length s.(s_tables)) &&
+    match List.nth_error s.(s_tables) i with
+    | None => false
+    | Some ti => typing.tab_typing ti lim
+    end
+  | (ED_mem i, ET_mem mt) =>
+    (i < List.length s.(s_mems)) &&
+    match List.nth_error s.(s_mems) i with
+    | None => false
+    | Some m => typing.mem_typing m mt
+    end
+  | (ED_global i, ET_glob gt) =>
+    (i < List.length s.(s_globals)) &&
+    match List.nth_error s.(s_globals) i with
+    | None => false
+    | Some g => typing.global_agree g gt
+    end
+  | (_, _) => false
+  end.
+
+Require interpreter.
+
+Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value (* TODO: isa mismatch *) :=
+  match interpreter.run_v 2 0 inst (s, nil, operations.to_e_list b_es) with
+  | (_, interpreter.R_value vs) =>
+    match vs with
+    | cons v nil => Some v
+    | _ => None
+    end
+  | _ => None
+  end.
+
+Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction) : option i32 (* TODO: isa mismatch *) :=
+  match interp_get_v s inst b_es with
+  | Some (ConstInt32 c) => Some c
+  | _ => None
+  end.
+
+Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext) : option ((store_record * instance * list module_export) * option nat) :=
+  match module_type_checker m with
+  | None => None
+  | Some (t_imps, t_exps) =>
+    if seq.all2 (external_type_checker s) v_imps t_imps then
+      let g_inits_opt :=
+        let c := {|
+          i_types := nil;
+          i_funcs := nil;
+          i_tab := nil;
+          i_memory := nil;
+          i_globs := ext_globs v_imps;
+        |} in
+        those (map (fun g => interp_get_v s c g.(mg_init)) m.(mod_globals)) in
+      match g_inits_opt with
+      | None => None
+      | Some g_inits =>
+        let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
+        let e_offs_opt := those (map (fun e => interp_get_i32 s' inst e.(elem_offset)) m.(mod_elem)) in
+        match e_offs_opt with
+        | None => None
+        | Some e_offs =>
+          let d_offs_opt := those (map (fun d => interp_get_i32 s' inst d.(dt_offset)) m.(mod_data)) in
+          match d_offs_opt with
+          | None => None
+          | Some d_offs =>
+            if check_bounds_elem inst s m e_offs &&
+               check_bounds_data inst s m d_offs then
+              let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(i_funcs) i_s.(start_func)) m.(mod_start) in
+              let s'' := init_tabs s' inst (map nat_of_int e_offs) m.(mod_elem) in
+              let s_end := init_mems s' inst (map nat_of_int d_offs) m.(mod_data) in
+              Some ((s_end, inst, v_exps), start)
+            else None
+          end
+        end
+      end
+    else None
+  end.
+
+Lemma interp_instantiate_imp_instantiate :
+  forall s m v_imps s_end inst v_exps start,
+  interp_instantiate s m v_imps = Some ((s_end, inst, v_exps), start) ->
+  instantiate s m v_imps ((s_end, inst, v_exps), start).
+Proof.
+Admitted.
