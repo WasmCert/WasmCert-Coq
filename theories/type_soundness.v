@@ -1103,20 +1103,59 @@ Proof.
     + (* Composition *)
       invert_be_typing.
       rewrite catA in H0. apply concat_cancel_last in H0. destruct H0. subst.
-      move/allP in H2. 
-      admit.
-    
+      move/allP in H2.
+      assert ((j < length (tc_label C)) && plop2 C j ts').
+      -- apply H2. rewrite mem_cat. apply/orP. left.
+         eapply list_nth_error_in. by eauto.
+      move/andP in H. destruct H.
+      by apply bet_br => //.         
     + (* Weakening *)
       apply bet_weakening.
       by eapply IHHType => //=.
-  - admit.        
-Admitted.
+  (* out of range *)
+  - dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      rewrite catA in H1. apply concat_cancel_last in H1. destruct H1. subst.
+      move/allP in H2.
+      assert ((i0 < length (tc_label C)) && plop2 C i0 ts').
+      -- apply H2. rewrite mem_cat. apply/orP. right. by rewrite mem_seq1. 
+      move/andP in H. destruct H.
+      by apply bet_br => //.         
+    + (* Weakening *)
+      apply bet_weakening.
+      by eapply IHHType => //=.
+Qed.
 
+Lemma t_Tee_local_preserve: forall C v i tf,
+    be_typing C ([::EConst v; Tee_local i]) tf ->
+    be_typing C [::EConst v; EConst v; Set_local i] tf.
+Proof.
+  move => C v i tf HType.
+  dependent induction HType; subst.
+  - (* Composition *)
+    invert_be_typing.
+    replace ([::EConst v; EConst v; Set_local i]) with ([::EConst v] ++ [::EConst v] ++ [::Set_local i]) => //.
+    repeat (try rewrite catA; eapply bet_composition) => //.
+    + instantiate (1 := (ts ++ [::typeof v])).
+      apply bet_weakening_empty_1. by apply bet_const.
+    + instantiate (1 := (ts ++ [::typeof v] ++ [::typeof v])).
+      apply bet_weakening. apply bet_weakening_empty_1. by apply bet_const.
+    + apply bet_weakening. apply bet_weakening_empty_2. by apply bet_set_local.
+  - (* Weakening *)
+    apply bet_weakening.
+    by eapply IHHType => //=.
+Qed.
+    
 Ltac invert_non_be:=
   repeat lazymatch goal with
   | H: exists e, _ = Basic e |- _ =>
     try by destruct H
   end.
+
+(*
+  Preservation for all be_typeable reductions.
+*)
 
 Theorem t_be_preservation: forall s bes i bes' es es' C tf,
     inst_typing s i C ->
@@ -1237,13 +1276,18 @@ Proof.
     + by apply HType.
     + by apply rs_br_if_true.
   - (* br_table -- in range *)
-    admit.
+    eapply t_Br_table_preserve => //=.
+    + by apply HType.
+    + by apply rs_br_table.
   - (* br_table -- out of range default *)
-    admit.
+    eapply t_Br_table_preserve => //=.
+    + by apply HType.
+    + by apply rs_br_table_length.
   - (* tee_local *)
-    admit.    
-    
-Admitted.  
+    unfold is_const in H.
+    destruct v => //. destruct b => //.
+    eapply t_Tee_local_preserve => //=.
+Qed.
 
 (* Needs further checking *)
 Theorem t_preservation: forall s vs es i s' vs' es' C C' tf,
