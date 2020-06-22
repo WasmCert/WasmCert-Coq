@@ -19,9 +19,9 @@ Unset Printing Implicit Defensive.
 
 (* TODO: Documentation. *)
 
-(* TODO: having these as axioms is a problem for extraction *)
-Variable host : eqType. (* TODO: Do the same than for integers and floats. *)
-Variable host_state : eqType.
+(* TODO: make these have structure; this will require monad-ifying the whole thing *)
+Definition host := unit.
+Definition host_state := unit.
 
 Definition immediate (* i *) :=
   (* TODO: this is not a great representation *)
@@ -171,6 +171,10 @@ Inductive cvtop : Type :=
 | Convert
 | Reinterpret.
 
+(**
+WebAssembly computations manipulate values of the four basic value types:
+integers and floating-point data of 32 or 64 bit width each, respectively.
+*)
 Inductive value : Type := (* v *)
 | ConstInt32 : i32 -> value
 | ConstInt64 : i64 -> value
@@ -210,6 +214,20 @@ Inductive basic_instruction : Type := (* be *)
 | Relop_f : value_type -> relop_f -> basic_instruction
 | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction.
 
+(**
+A module instance is the runtime representation of a module. It is created by
+instantiating a module, and collects runtime representations of all entities
+that are imported, defined, or exported by the module.
+
+Each component references runtime instances corresponding to respective
+declarations from the original module – whether imported or defined – in the
+order of their static indices. Function instances, table instances, memory
+instances, and global instances are referenced with an indirection through
+their respective addresses in the store.
+
+It is an invariant of the semantics that all export instances in a given module
+instance have different names.
+*)
 Record instance : Type := (* inst *) {
   i_types : list function_type;
   i_funcs : list immediate;
@@ -222,8 +240,21 @@ Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
+(**
+Each function element is either empty, representing an uninitialized table
+entry, or a function address. Function elements can be mutated through the
+execution of an element segment or by external means provided by the embedder.
+*)
 Definition funcelem := option nat.
 
+(**
+A table instance is the runtime representation of a table. It holds a vector of
+function elements and an optional maximum size, if one was specified in the
+table type at the table’s definition site.
+
+It is an invariant of the semantics that the length of the element vector never
+exceeds the maximum size, if present.
+*)
 Record tableinst : Type := {
   table_data: list funcelem;
   table_max_opt: option nat;
@@ -234,6 +265,12 @@ Record global : Type := {
   g_val : value;
 }.
 
+(**
+The store represents all global state that can be manipulated by WebAssembly
+programs. It consists of the runtime representation of all instances of
+functions, tables, memories, and globals that have been allocated during the
+life time of the abstract machine
+*)
 Record store_record : Type := (* s *) {
   s_funcs : list function_closure;
   s_tables : list tableinst;

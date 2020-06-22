@@ -75,7 +75,8 @@ Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
   | T_f64 => ConstFloat64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
   end.
 
-Parameter host_apply : store_record -> function_type -> datatypes.host -> list value -> (* FIXME: datatypes.host_state -> *) option (store_record * list value).
+Definition host_apply (s : store_record) (ft : function_type) (h : datatypes.host) (vs : list value) : (* FIXME: datatypes.host_state -> *) option (store_record * list value) :=
+  None (* TODO: make this once once `host` has a structure *).
 
 Definition typeof (v : value) : value_type :=
   match v with
