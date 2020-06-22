@@ -275,13 +275,13 @@ Inductive import_desc : Type :=
 
 Definition name := list Byte.byte.
 
-Record import : Type := {
+Record module_import : Type := {
   imp_module : name;
   imp_name : name;
   imp_desc : import_desc;
 }.
 
-Record table := {
+Record module_table := {
   t_type : table_type;
 }.
 
@@ -290,11 +290,11 @@ Record module_glob : Type := {
   mg_init : expr;
 }.
 
-Record start := {
+Record module_start := {
   start_func : nat;
 }.
 
-Record element : Type := {
+Record module_element : Type := {
   elem_table : nat;
   elem_offset : expr;
   elem_init : list nat;
@@ -305,36 +305,36 @@ Record func : Type := {
   fc_expr : expr;
 }.
 
-Record data : Type := {
+Record module_data : Type := {
   dt_data : nat;
   dt_offset : expr;
   dt_init : list Byte.byte;
 }.
 
-Inductive export_desc : Type :=
-| ED_func : nat -> export_desc
-| ED_table : nat -> export_desc
-| ED_mem : nat -> export_desc
-| ED_global : nat -> export_desc.
+Inductive module_export_desc : Type :=
+| ED_func : nat -> module_export_desc
+| ED_table : nat -> module_export_desc
+| ED_mem : nat -> module_export_desc
+| ED_global : nat -> module_export_desc.
 
-Record export : Type := {
+Record module_export : Type := {
   exp_name : name;
-  exp_desc : export_desc;
+  exp_desc : module_export_desc;
 }.
 
-Inductive section : Type :=
-| Sec_custom : list Byte.byte -> section
-| Sec_type : list function_type -> section
-| Sec_import : list import -> section
-| Sec_function : list typeidx -> section
-| Sec_table : list table -> section
-| Sec_memory : list mem_type -> section
-| Sec_global : list module_glob -> section
-| Sec_export : list export -> section
-| Sec_start : start -> section
-| Sec_element : list element -> section
-| Sec_code : list func -> section
-| Sec_data : list data -> section.
+Inductive module_section : Type :=
+| Sec_custom : list Byte.byte -> module_section
+| Sec_type : list function_type -> module_section
+| Sec_import : list module_import -> module_section
+| Sec_function : list typeidx -> module_section
+| Sec_table : list module_table -> module_section
+| Sec_memory : list mem_type -> module_section
+| Sec_global : list module_glob -> module_section
+| Sec_export : list module_export -> module_section
+| Sec_start : module_start -> module_section
+| Sec_element : list module_element -> module_section
+| Sec_code : list func -> module_section
+| Sec_data : list module_data -> module_section.
 
 Record module_func : Type := {
   mf_type : typeidx;
@@ -345,14 +345,14 @@ Record module_func : Type := {
 Record module : Type := {
   mod_types : list function_type;
   mod_funcs : list module_func;
-  mod_tables : list table;
+  mod_tables : list module_table;
   mod_mems : list mem_type;
   mod_globals : list module_glob;
-  mod_elem : list element;
-  mod_data : list data;
-  mod_start : option start;
-  mod_imports : list import;
-  mod_exports : list export;
+  mod_elem : list module_element;
+  mod_data : list module_data;
+  mod_start : option module_start;
+  mod_imports : list module_import;
+  mod_exports : list module_export;
 }.
 
 Inductive extern_t : Type :=

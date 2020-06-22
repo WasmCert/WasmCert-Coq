@@ -330,3 +330,11 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
     forall s vs es i s' vs' es' n v0s j,
       reduce s vs es i s' vs' es' ->
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
+
+Definition reduce_tuple (i : instance) s_vs_es s'_vs'_es' : Prop :=
+  let '(s, vs, es) := s_vs_es in
+  let '(s', vs', es') := s'_vs'_es' in
+  reduce s vs es i s' vs' es'.
+      
+Definition reduce_trans (i : instance) s_vs_es s'_vs'_es' : Prop :=
+  Relations.Relation_Operators.clos_refl_trans _ (reduce_tuple i) s_vs_es s'_vs'_es'.
