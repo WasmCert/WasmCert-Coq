@@ -1,5 +1,17 @@
 (** Main file for the Wasm interpreter **)
 
+let run files =
+  match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
+  | None -> `Error (false, "Syntax error")
+  | Some m ->
+    Printf.printf "Parsing successful\n";
+    (match Extract.interp_instantiate_wrapper m with
+     | None -> `Error (false, "instantiation error")
+     | Some inst ->
+       Printf.printf "instantiation successful\n";
+       `Ok ())
+    (* TODO: Link to [Extract.run_v]. *)
+
 let interpret verbose text no_exec srcs fname =
   try
     let files =
@@ -13,14 +25,10 @@ let interpret verbose text no_exec srcs fname =
                   with End_of_file -> None with
             | Some c -> aux (Convert.to_ascii c :: acc)
             | None ->
-              close_in in_channel ;
+              close_in in_channel;
               List.rev acc in
           aux []) srcs in
-    match Extract.run_parse_be_from_asciis (Convert.to_list (List.concat files)) with
-    | None -> `Error (false, "Syntax error")
-    | Some e ->
-      `Ok (Printf.printf "Parsing successful")
-      (* TODO: Link to [Extract.cl_type_check] and [Extract.run_v]. *)
+    run files
   with Invalid_argument msg -> `Error (false, msg)
 
 (* Command line interface *)
@@ -53,7 +61,7 @@ let cmd =
   let exits = Term.default_exits in
   let man =
     [ `S Manpage.s_bugs;
-      `P "Report them at https://github.com/rems-project/wasm_coq/issues"; ]
+      `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
   (Term.(ret (const interpret $ verbose $ text $ no_exec $ srcs $ fname)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)

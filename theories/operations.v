@@ -3,6 +3,7 @@
 
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From compcert Require lib.Floats.
 Require Export datatypes_properties.
 
 Set Implicit Arguments.
@@ -66,8 +67,13 @@ Definition store (m : memory) (n : nat) (off : static_offset) (bs : bytes) (l : 
 
 Definition store_packed := store.
 
-(* TODO: The whole host should be defined as a mixin in a separate file. *)
-Parameter wasm_deserialise : bytes -> value_type -> value.
+Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
+  match vt with
+  | T_i32 => ConstInt32 (Wasm_int.Int32.repr (common.Memdata.decode_int bs))
+  | T_i64 => ConstInt64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
+  | T_f32 => ConstFloat32 (Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int bs)))
+  | T_f64 => ConstFloat64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
+  end.
 
 Parameter host_apply : store_record -> function_type -> datatypes.host -> list value -> (* FIXME: datatypes.host_state -> *) option (store_record * list value).
 

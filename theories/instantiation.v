@@ -807,3 +807,13 @@ Lemma interp_instantiate_imp_instantiate :
   instantiate s m v_imps ((s_end, inst, v_exps), start).
 Proof.
 Admitted.
+
+Definition empty_store_record := {|
+  s_funcs := nil;
+  s_tables := nil;
+  s_mems := nil;
+  s_globals := nil;
+|}.
+
+Definition interp_instantiate_wrapper (m : module) : option ((store_record * instance * list module_export) * option nat) :=
+  interp_instantiate empty_store_record m nil.

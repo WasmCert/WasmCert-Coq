@@ -522,8 +522,8 @@ Definition run_step_fuel (tt : config_tuple) :=
   let: (s, vs, es) := tt in
   1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
-Definition run_step d j tt :=
-  run_step_with_fuel (run_step_fuel tt) d j tt.
+Definition run_step (d : depth) (inst : instance) (tt : config_tuple) :=
+  run_step_with_fuel (run_step_fuel tt) d inst tt.
 
 Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res)%type) :=
   let: (s, vs, es) := tt in

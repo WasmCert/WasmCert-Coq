@@ -9,6 +9,7 @@
 Require Import common.
 Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From compcert Require common.Memdata.
 Require Import Ascii.
 
 Set Implicit Arguments.
@@ -26,16 +27,21 @@ Definition immediate (* i *) :=
   (* TODO: this is not a great representation *)
   nat.
 
-Definition static_offset := nat. (* off *)
+Definition static_offset := (* off *) nat.
 
-Definition alignment_exponent := nat. (* a *)
+Definition alignment_exponent := (* a *) nat.
 
+Definition serialise_i32 (i : i32) : bytes :=
+  common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
 
-(* TODO: link up with leb128.v *)
-Parameter serialise_i32 : i32 -> bytes.
-Parameter serialise_i64 : i64 -> bytes.
-Parameter serialise_f32 : f32 -> bytes.
-Parameter serialise_f64 : f64 -> bytes.
+Definition serialise_i64 (i : i64) : bytes :=
+  common.Memdata.encode_int 8%nat (numerics.Wasm_int.Int64.unsigned i).
+
+Definition serialise_f32 (f : f32) : bytes :=
+  common.Memdata.encode_int 4%nat (Integers.Int.unsigned (numerics.Wasm_float.FloatSize32.to_bits f)).
+
+Definition serialise_f64 (f : f64) : bytes :=
+  common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
 
 Record limits := {
   lim_min : nat;

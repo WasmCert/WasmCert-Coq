@@ -719,3 +719,6 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
 
 Definition run_parse_module (bs : list byte) : option module :=
   run bs (fun n => parse_module).
+
+Definition run_parse_module_from_asciis (bs : list ascii) : option module :=
+  run (List.map byte_of_ascii bs) (fun n => parse_module).
