@@ -3,7 +3,7 @@
 	"version": "1.0",
 	"description":
 		"Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt",
-	"license": "CeCILL-B",
+	"license": "MIT",
 	"esy": {
 		"buildsInSource": "_build",
 		"buildEnv": {
