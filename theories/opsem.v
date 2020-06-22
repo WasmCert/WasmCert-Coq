@@ -98,11 +98,11 @@ Inductive reduce_simple : list administrative_instruction -> list administrative
 | rs_drop :
   forall v,
   reduce_simple [::Basic (EConst v); Basic Drop] [::]
-| rs_select_true :
+| rs_select_false :
   forall n v1 v2,
   n = Wasm_int.int_zero i32m ->
   reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic (EConst v2)]
-| rs_select_false :
+| rs_select_true :
   forall n v1 v2,
   n <> Wasm_int.int_zero i32m ->
   reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (EConst (ConstInt32 n)); Basic Select] [::Basic (EConst v1)]
