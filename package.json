@@ -2,20 +2,21 @@
 	"name": "wasm_coq",
 	"version": "1.0",
 	"description": "Wasm formalisation in Coq",
-	"license": "CeCILL-B",
+	"license": "MIT",
 	"esy": {
 		"buildsInSource": "_build",
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-itree.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib:#{parseque.install}/lib/coq/user-contrib:#{coq-ext-lib.install}/user-contrib:#{coq-paco.install}/user-contrib"
+			"COQPATH": "#{@opam/coq-stdpp.install}/user-contrib:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{coq-itree.install}/user-contrib:#{coq-flocq.install}/coq:#{compcert.install}/coq:#{strong-induction.install}/lib/coq/user-contrib:#{parseque.install}/lib/coq/user-contrib:#{coq-ext-lib.install}/user-contrib:#{coq-paco.install}/user-contrib",
+			"VSCODESETTINGS": "{\"coqtop.binPath\": \"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{@opam/coq-stdpp.install}/user-contrib\",\"stdpp\",\"-R\",\"#{coq-iris.install}/user-contrib\",\"iris\",\"-R\",\"#{coq-mathcomp-ssreflect.root}/mathcomp\",\"mathcomp\",\"-R\",\"#{coq-itree.install}/user-contrib\",\"ITree\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{compcert.install}\",\"compcert\",\"-R\",\"#{strong-induction.root}\",\"StringInduction\",\"-R\",\"#{parseque.root}\",\"parseque\",\"-R\",\"#{self.root}/_build/default/theories\",\"\"]}"
 		},
 		"build": "make"
 	},
 	"dependencies": {
 		"@opam/cmdliner": "1.0.4",
-		"@opam/coq": "~8.10",
-		"@opam/dune": "~2.4",
+		"@opam/coq": "8.10.1",
+		"@opam/dune": "~2.3",
 		"@opam/menhir": ">=20190626",
 		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"coq-flocq": "3.2.0",

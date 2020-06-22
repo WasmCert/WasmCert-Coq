@@ -5,6 +5,7 @@
 
 .merlin
 *.install
+.vscode/settings.json
 
 *~
 \#*\#
@@ -20,4 +21,6 @@
 
 /theories/extract.ml
 /theories/extract.mli
+
+.saves
 

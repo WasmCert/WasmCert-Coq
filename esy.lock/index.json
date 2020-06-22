@@ -1,5 +1,5 @@
 {
-  "checksum": "298fadfef7a80530b4c993999242534b",
+  "checksum": "b5199f44368695528fdf9223abb44624",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -23,7 +23,7 @@
         "coq-ext-lib@github:coq-community/coq-ext-lib#ddeab06b09115f66db54b2997df390cd7599eec6@65e3b9aa",
         "compcert@github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275@d41d8cd9",
         "@opam/menhir@opam:20190924@004407ff",
-        "@opam/dune@opam:2.4.0@639d28a3",
+        "@opam/dune@opam:2.3.1@b10b59bf",
         "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#6eb05dfc40feef58063bb537fb742eb16bbf86d1@751b68c1",
         "@opam/coq@opam:8.10.1@cabcd98d",
         "@opam/cmdliner@opam:1.0.4@93208aac"
@@ -44,7 +44,7 @@
       },
       "overrides": [],
       "dependencies": [
-        "@opam/dune@opam:2.4.0@639d28a3", "@opam/coq@opam:8.10.1@cabcd98d"
+        "@opam/dune@opam:2.3.1@b10b59bf", "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
     },
@@ -62,7 +62,7 @@
       },
       "overrides": [],
       "dependencies": [
-        "@opam/dune@opam:2.4.0@639d28a3", "@opam/coq@opam:8.10.1@cabcd98d"
+        "@opam/dune@opam:2.3.1@b10b59bf", "@opam/coq@opam:8.10.1@cabcd98d"
       ],
       "devDependencies": []
     },
@@ -277,7 +277,7 @@
         "ocaml@4.8.1000@d41d8cd9",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@c6503a40",
         "@opam/menhir@opam:20190924@004407ff",
-        "@opam/dune@opam:2.4.0@639d28a3",
+        "@opam/dune@opam:2.3.1@b10b59bf",
         "@opam/depgraph@opam:0.1.0@bc9dcbeb",
         "@opam/coq@opam:8.10.1@cabcd98d"
       ],
@@ -440,20 +440,20 @@
       ],
       "devDependencies": [ "ocaml@4.8.1000@d41d8cd9" ]
     },
-    "@opam/dune@opam:2.4.0@639d28a3": {
-      "id": "@opam/dune@opam:2.4.0@639d28a3",
+    "@opam/dune@opam:2.3.1@b10b59bf": {
+      "id": "@opam/dune@opam:2.3.1@b10b59bf",
       "name": "@opam/dune",
-      "version": "opam:2.4.0",
+      "version": "opam:2.3.1",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/28/28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24#sha256:28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24",
-          "archive:https://github.com/ocaml/dune/releases/download/2.4.0/dune-2.4.0.tbz#sha256:28f1484a798103021833d544f1a79b0234cca77add49bba073013eae94b9dc24"
+          "archive:https://opam.ocaml.org/cache/sha256/b2/b2b3dd9cdfd34ef8c4583ea8c52c3503c2395bf94c264af19d6450547e12f5cb#sha256:b2b3dd9cdfd34ef8c4583ea8c52c3503c2395bf94c264af19d6450547e12f5cb",
+          "archive:https://github.com/ocaml/dune/releases/download/2.3.1/dune-2.3.1.tbz#sha256:b2b3dd9cdfd34ef8c4583ea8c52c3503c2395bf94c264af19d6450547e12f5cb"
         ],
         "opam": {
           "name": "dune",
-          "version": "2.4.0",
-          "path": "esy.lock/opam/dune.2.4.0"
+          "version": "2.3.1",
+          "path": "esy.lock/opam/dune.2.3.1"
         }
       },
       "overrides": [],
