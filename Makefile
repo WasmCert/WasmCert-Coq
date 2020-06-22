@@ -1,6 +1,6 @@
 .PHONY: all clean subst
 
-all:
+all: .vscode/settings.json
 	export HOME=`pwd`; dune build @all
 	dune build -p wasm_interpreter
 
@@ -10,4 +10,7 @@ clean:
 	rm theories/*.glob || true
 	rm theories/*.aux || true
 	rm theories/extract.{ml,mli} || true
+
+.vscode/settings.json:
+	echo $(VSCODESETTINGS) > $@
 

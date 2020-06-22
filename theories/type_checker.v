@@ -7,7 +7,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations typing.
+Require Import operations typing datatypes_properties.
 
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux
@@ -177,32 +177,13 @@ Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
   | CT_bot => false
   end.
 
-(* TODO ----
-  An attempt to fix the type checker. However, after getting to this point, we are in
-    the same situation as the actual interpreter -- the following does not work as is
-    due to syntactic termination, so either we add a fuel or use some other methods.
-  
-  I don't want to use fuel every time and want to learn how to do this properly. There
-    is a reference which seems to be a good learning source:
-      http://adam.chlipala.net/cpdt/html/Cpdt.GeneralRec.html
-  This uses merge sort as an example, and gives two approaches: 
-      - well-founded recursion, or
-      - a monadic approach.
-  The second might be what Martin is trying to do. I'm trying to learn from this 
-    source currently.
- *)
-
-Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
-  match es with
-  | [::] => ts
-  | e :: es' =>
-    match ts with
-    | CT_bot => CT_bot
-    | _ => check C es' (check_single C e ts)
-    end
-  end
-
-with check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {struct be} : checker_type :=
+Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
+  let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+    let: (Tf tn tm) := tf in
+      c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm 
+in
+  if ts == CT_bot then CT_bot
+  else
   match be with
   | EConst v => type_update ts [::] (CT_type [::typeof v])
   | Unop_i t _ =>
@@ -245,28 +226,19 @@ with check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {
   | Nop => ts
   | Drop => type_update ts [::CTA_any] (CT_type [::])
   | Select => type_update_select ts
-  | Block tf es =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
-      then type_update ts (to_ct_list tn) (CT_type tm)
-      else CT_bot
-    end
-  | Loop tf es =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
-      then type_update ts (to_ct_list tn) (CT_type tm)
-      else CT_bot
-    end
-  | If tf es1 es2 =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
-                          && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
-      then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
-      else CT_bot
-    end
+  | Block (Tf tn tm) es =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    then type_update ts (to_ct_list tn) (CT_type tm)
+    else CT_bot
+  | Loop (Tf tn tm) es =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    then type_update ts (to_ct_list tn) (CT_type tm)
+    else CT_bot
+  | If (Tf tn tm) es1 es2 =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
+                        && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
+    then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
+    else CT_bot
   | Br i =>
     if i < length (tc_label C)
     then
@@ -375,11 +347,6 @@ with check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {
     if tc_memory C != None
     then type_update ts [::CTA_some T_i32] (CT_type [::T_i32])
     else CT_bot
-  end
-
-with b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) {struct es}: bool :=
-  match tf with
-  | Tf tn tm => c_types_agree (check C es (CT_type tn)) tm
   end.
 
 Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
@@ -391,6 +358,13 @@ Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
     end
   | [::] => [::]
   end.
+
+Definition check (C : t_context) (es : list basic_instruction) (ts : checker_type): checker_type :=
+  List.fold_left (check_single C) es ts.
+
+Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+  let: (Tf tn tm) := tf in
+  c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm  .
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
 Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
@@ -410,12 +384,17 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
     match tf with
     | Tf t1s t2s =>
       let C := inst_type_check s i in
-      let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
+      let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) in
       b_e_type_checker C' es (Tf [::] t2s)
     end
 (*| cl_typing_native : forall i S C ts t1s t2s es tf,*)
   | Func_host tf h => true
   end.
+
+(*
+  e_typing is the extension of typing to administrative instructions. See appendix 5 for
+    some of them.
+*)
 
 Inductive e_typing : store_record -> t_context -> list administrative_instruction -> function_type -> Prop :=
 | ety_a : forall s C bes tf,
@@ -431,16 +410,19 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
   e_typing s C [::Trap] tf
 | ety_local : forall s C n i vs es ts,
   s_typing s (Some ts) i vs es ts ->
-  Nat.eqb (length ts) n ->
+  (length ts) = n ->
   e_typing s C [::Local n i vs es] (Tf [::] ts)
 | ety_invoke : forall s C cl tf,
   cl_typing s cl tf ->
   e_typing s C [::Invoke cl] tf
-| ety_lanel : forall s C e0s es ts t2s n,
+| ety_label : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
-  Nat.eqb (length ts) n ->
+  (length ts) = n ->
   e_typing s C [::Label n e0s es] (Tf [::] t2s)
+(*
+  Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
+ *)
 with s_typing : store_record -> option (list value_type) -> instance -> list value -> list administrative_instruction -> list value_type -> Prop :=
 | mk_s_typing : forall s i vs es rs ts C C0 tvs0,
   let tvs := map typeof vs in
