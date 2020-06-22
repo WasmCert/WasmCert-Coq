@@ -16,5 +16,5 @@ install:
   - esy install
 
 script:
-  - esy
+  - travis_wait esy
 

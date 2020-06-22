@@ -1,4 +1,4 @@
-.PHONY: all clean subst
+.PHONY: all clean
 
 all: .vscode/settings.json
 	export HOME=`pwd`; dune build @all
