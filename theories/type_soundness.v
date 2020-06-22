@@ -18,6 +18,13 @@ Definition a_to_b_single (e: administrative_instruction) : basic_instruction :=
 Definition a_to_b (es: seq administrative_instruction) : seq basic_instruction :=
   map a_to_b_single es.
 
+Lemma a_to_b_concat: forall es1 es2,
+    a_to_b (es1 ++ es2) = a_to_b es1 ++ a_to_b es2.
+Proof.
+  induction es1 => //=.
+  move => es2. by f_equal.
+Qed.
+
 Definition e_is_basic (e: administrative_instruction) :=
   exists be, e = Basic be.
 
@@ -28,19 +35,64 @@ Fixpoint es_is_basic (es: seq administrative_instruction) :=
     e_is_basic e /\ es_is_basic es'
   end.
 
+Lemma to_e_list_basic: forall bes,
+    es_is_basic (to_e_list bes).
+Proof.
+  induction bes => //=.
+  split => //=.
+  unfold e_is_basic. by eauto.
+Qed.
+
+Lemma basic_concat: forall es1 es2,
+    es_is_basic (es1 ++ es2) ->
+    es_is_basic es1 /\ es_is_basic es2.
+Proof.
+  induction es1 => //=.
+  move => es2 H. destruct H.
+  apply IHes1 in H0. destruct H0.
+  by repeat split => //=.
+Qed.
+
 Lemma b_a_elim: forall bes es,
-    b_to_a bes = es ->
-    bes = a_to_b es.
+    to_e_list bes = es ->
+    bes = a_to_b es /\ es_is_basic es.
 Proof.
   induction bes; move => es H => //=.
   - by rewrite -H.
-  - simpl in H. assert (es = b_to_a (a :: bes)) as H1.
+  - simpl in H. assert (es = to_e_list (a :: bes)) as H1.
     + by rewrite -H.
-    + rewrite H1. simpl. f_equal. by apply IHbes.
-Qed.   
+    + rewrite H1. split.
+      -- simpl. f_equal. by apply IHbes.
+      -- by apply to_e_list_basic.
+Qed.
 
-Definition t_be_value (es: seq basic_instruction) : Prop :=
-  const_list (b_to_a es).
+Lemma a_b_elim: forall bes es,
+    bes = a_to_b es ->
+    es_is_basic es ->
+    es = to_e_list bes.
+Proof.
+  induction bes; move => es H1 H2 => //=.
+  - by destruct es => //=.
+  - destruct es => //=. simpl in H1. simpl in H2. destruct H2.
+    inversion H1; subst.
+    inversion H; subst => //=.
+    f_equal. apply IHbes => //=.
+Qed.
+    
+Lemma to_e_list_injective: forall bes bes',
+    to_e_list bes = to_e_list bes' ->
+    bes = bes'.
+Proof.
+  move => bes bes' H.
+  apply b_a_elim in H; destruct H; subst => //=.
+  induction bes' => //=.
+  f_equal. apply IHbes'. by apply to_e_list_basic.
+Qed.
+
+Definition vs_to_vts (vs : seq value) := map typeof vs.
+
+Definition t_be_value (bes: seq basic_instruction) : Prop :=
+  const_list (to_e_list bes).
 
 Print tc_global.
 
@@ -52,8 +104,8 @@ Print instance.
 
 Ltac b_to_a_revert :=
   repeat lazymatch goal with
-         | H:  b_to_a ?bes = _ |- _ =>
-           apply b_a_elim in H
+         | H:  to_e_list ?bes = _ |- _ =>
+           apply b_a_elim in H; destruct H
          end.
 
 (* Maybe there are better/standard tactics for dealing with these, but I didn't find
@@ -104,6 +156,25 @@ Proof.
   by apply H.
 Qed.
 
+Lemma list_nth_error_in: forall {l:list nat} i c,
+    List.nth_error l i = Some c ->
+    c \in l.
+Proof.
+  move => l i c HLookup.
+  generalize dependent i.
+  induction l => //=; move => i HLookup.
+  - by destruct i => //=.
+  - destruct i => //=.
+    + simpl in HLookup. inversion HLookup => //=.
+      by apply mem_head.
+    + simpl in HLookup.
+      assert (c \in l).
+      eapply IHl => //=.
+      apply HLookup.
+      rewrite in_cons.
+      apply/orP. by right.
+Qed.
+  
 (* 
   This is actually very non-trivial to prove, unlike I first thought.
   The main difficulty arises due to the two rules bet_composition and bet_weakening,
@@ -355,6 +426,81 @@ Proof.
     exists (ts ++ x), x1. split => //=; by repeat rewrite -catA.
 Qed.
 
+Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
+    be_typing C [::If (Tf t1s t2s) e1s e2s] (Tf ts ts') ->
+    exists ts0, ts = ts0 ++ t1s ++ [::T_i32] /\ ts' = ts0 ++ t2s /\
+                be_typing (upd_label C ([:: t2s] ++ tc_label C)) e1s (Tf t1s t2s) /\
+                be_typing (upd_label C ([:: t2s] ++ tc_label C)) e2s (Tf t1s t2s).
+Proof.
+  move => C t1s t2s e1s e2s ts ts' HType.
+  dependent induction HType; subst => //=.
+  - by exists [::].
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1. subst.
+    by eapply IHHType2 => //=.
+  - edestruct IHHType => //=; subst.
+    destruct H as [H1 [H2 [H3 H4]]]. subst.
+    exists (ts0 ++ x).
+    repeat rewrite -catA.
+    repeat split => //=.
+Qed.
+
+Lemma Br_if_typing: forall C ts1 ts2 i,
+    be_typing C [::Br_if i] (Tf ts1 ts2) ->
+    exists ts ts', ts2 = ts ++ ts' /\ ts1 = ts2 ++ [::T_i32] /\ i < length (tc_label C) /\ plop2 C i ts'.
+Proof.
+  move => C ts1 ts2 i HType.
+  dependent induction HType; subst => //=.
+  - unfold plop2 in H0.
+    by exists [::], ts2 => //=.
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1; subst.
+    by eapply IHHType2 => //=.
+  - rewrite -catA. f_equal => //=.
+    edestruct IHHType => //=.
+    destruct H as [ts' [H1 [H2 [H3 H4]]]].
+    exists (ts ++ x), ts'. subst.
+    split.
+    + repeat rewrite -catA. by f_equal => //=.
+    + split => //=.
+Qed.
+
+Lemma Br_table_typing: forall C ts1 ts2 ids i0,
+    be_typing C [::Br_table ids i0] (Tf ts1 ts2) ->
+    exists ts1' ts, ts1 = ts1' ++ ts ++ [::T_i32] /\
+                         all (fun i => (i < length (tc_label C)) && (plop2 C i ts)) (ids ++ [::i0]).
+Proof.
+  move => C ts1 ts2 ids i0 HType.
+  dependent induction HType; subst => //=.
+  - by exists t1s, ts => //=.
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1; subst.
+    by eapply IHHType2 => //=.
+  - edestruct IHHType => //=.
+    destruct H as [ts' [H1 H2]].
+    exists (ts ++ x), ts'. subst.
+    split => //=.
+    + repeat rewrite -catA. by f_equal => //=.
+Qed.
+
+Lemma Tee_local_typing: forall C i ts1 ts2,
+    be_typing C [::Tee_local i] (Tf ts1 ts2) ->
+    exists ts t, ts1 = ts2 /\ ts1 = ts ++ [::t] /\ i < length (tc_local C) /\
+                 List.nth_error (tc_local C) i = Some t.
+Proof.
+  move => C i ts1 ts2 HType.
+  dependent induction HType; subst => //=.
+  - by exists [::], t.
+  - apply extract_list1 in x; destruct x; subst.
+    apply empty_typing in HType1; subst.
+    by eapply IHHType2 => //=.
+  - edestruct IHHType => //=.
+    destruct H as [t [H1 [H2 [H3 H4]]]]. subst.
+    exists (ts ++ x), t. subst.
+    repeat (try split => //=).
+    by rewrite -catA.
+Qed.
+      
 (* Some quality of life lemmas *)
 Lemma bet_weakening_empty_1: forall C es ts t2s,
     be_typing C es (Tf [::] t2s) ->
@@ -381,6 +527,34 @@ Proof.
   move => C es ts HType.
   assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
   by rewrite cats0 in H.
+Qed.
+
+Lemma et_to_bet: forall s C bes ts,
+    e_typing s C (to_e_list bes) ts ->
+    be_typing C bes ts.
+Proof.
+  move => s C bes ts HType.
+  dependent induction HType; subst => //=.
+  + by apply to_e_list_injective in x; subst.
+  + symmetry in x. apply b_a_elim in x. destruct x.
+    apply basic_concat in H0. destruct H0.
+    subst. rewrite a_to_b_concat.
+    eapply bet_composition.
+    -- apply IHHType1.
+       by apply a_b_elim => //=.
+    -- apply IHHType2.
+       by apply a_b_elim => //=.
+  + apply bet_weakening.
+    by apply IHHType.
+  (* The following four cases are non-basic list cases. *) 
+  + symmetry in x. apply b_a_elim in x. destruct x.
+    inversion H0. by inversion H1 => //=. 
+  + symmetry in x. apply b_a_elim in x. destruct x.
+    inversion H1. by inversion H2 => //=.
+  + symmetry in x. apply b_a_elim in x. destruct x.
+    inversion H1. by inversion H2 => //=. 
+  + symmetry in x. apply b_a_elim in x. destruct x.
+    inversion H0. by inversion H1 => //=.
 Qed.
 
 (*
@@ -435,14 +609,43 @@ Ltac invert_be_typing:=
     let H1 := fresh "H1" in
     let H2 := fresh "H2" in
     apply Select_typing in H; destruct H as [ts [t [H1 H2]]]; subst
+  | H: be_typing _ [::If _ _ _] _ |- _ =>
+    let ts := fresh "ts" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply If_typing in H; destruct H as [ts [H1 [H2 [H3 H4]]]]; subst
+  | H: be_typing _ [::Br_if _] _ |- _ =>
+    let ts := fresh "ts" in
+    let ts' := fresh "ts'" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply Br_if_typing in H; destruct H as [ts [ts' [H1 [H2 [H3 H4]]]]]; subst
+  | H: be_typing _ [::Br_table _ _] _ |- _ =>
+    let ts := fresh "ts" in
+    let ts' := fresh "ts'" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    apply Br_table_typing in H; destruct H as [ts [ts' [H1 H2]]]; subst
+  | H: be_typing _ [::Tee_local _] _ |- _ =>
+    let ts := fresh "ts" in
+    let t := fresh "t" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply Tee_local_typing in H; destruct H as [ts [t [H1 [H2 [H3 H4]]]]]; subst
   | H: _ ++ [::_] = _ ++ [::_] |- _ =>
     apply concat_cancel_last in H; destruct H; subst
   end.
 
 (* Both 32bit and 64bit *)
 Lemma t_Unop_i_preserve: forall C v iop be tf,
-    be_typing C [:: EConst v; Unop_i (v_to_vt v) iop] tf ->
-    reduce_simple (b_to_a [::EConst v; Unop_i (v_to_vt v) iop]) (b_to_a [::be]) ->
+    be_typing C [:: EConst v; Unop_i (typeof v) iop] tf ->
+    reduce_simple (to_e_list [::EConst v; Unop_i (typeof v) iop]) (to_e_list [::be]) ->
     be_typing C [::be] tf.
 Proof.
   move => C v iop be tf HType HReduce.
@@ -453,7 +656,7 @@ Proof.
     dependent induction HType; subst.
     + (* Composition -- the right one *)
     invert_be_typing.
-    (* Due to the existence of bet_composition and bet_weakening, a direction
+    (* Due to the existence of bet_composition and bet_weakening, a direct
          inversion of those be_typing rules won't work. 
        As a result we have to prove them as separate lemmas.
        Is there a way to avoid this? *)
@@ -477,8 +680,8 @@ Qed.
 
 (* Both 32bit and 64bit *)
 Lemma t_Unop_f_preserve: forall C v fop be tf,
-    be_typing C [:: EConst v; Unop_f (v_to_vt v) fop] tf ->
-    reduce_simple (b_to_a [::EConst v; Unop_f (v_to_vt v) fop]) (b_to_a [::be]) ->
+    be_typing C [:: EConst v; Unop_f (typeof v) fop] tf ->
+    reduce_simple (to_e_list [::EConst v; Unop_f (typeof v) fop]) (to_e_list [::be]) ->
     be_typing C [::be] tf.
 Proof.
   move => C v fop be tf HType HReduce.
@@ -506,8 +709,8 @@ Proof.
 Qed.
 
 Lemma t_Binop_i_preserve_success: forall C v1 v2 iop be tf,
-    be_typing C [:: EConst v1; EConst v2; Binop_i (v_to_vt v1) iop] tf ->
-    reduce_simple (b_to_a [::EConst v1; EConst v2; Binop_i (v_to_vt v2) iop]) (b_to_a [::be]) ->
+    be_typing C [:: EConst v1; EConst v2; Binop_i (typeof v1) iop] tf ->
+    reduce_simple (to_e_list[::EConst v1; EConst v2; Binop_i (typeof v2) iop]) (to_e_list [::be]) ->
     be_typing C [::be] tf.
 Proof.
   move => C v1 v2 iop be tf HType HReduce.
@@ -546,8 +749,8 @@ Qed.
 
 
 Lemma t_Binop_f_preserve_success: forall C v1 v2 fop be tf,
-    be_typing C [:: EConst v1; EConst v2; Binop_f (v_to_vt v1) fop] tf ->
-    reduce_simple (b_to_a [::EConst v1; EConst v2; Binop_f (v_to_vt v2) fop]) (b_to_a [::be]) ->
+    be_typing C [:: EConst v1; EConst v2; Binop_f (typeof v1) fop] tf ->
+    reduce_simple (to_e_list[::EConst v1; EConst v2; Binop_f (typeof v2) fop]) (to_e_list [::be]) ->
     be_typing C [::be] tf.
 Proof.
   move => C v1 v2 iop be tf HType HReduce.
@@ -618,8 +821,8 @@ Qed.
 
 
 Lemma t_Relop_i_preserve: forall C v1 v2 be iop tf,
-    be_typing C [::EConst v1; EConst v2; Relop_i (v_to_vt v1) iop] tf ->
-    reduce_simple [:: Basic (EConst v1); Basic (EConst v2); Basic (Relop_i (v_to_vt v1) iop)] [::Basic be] ->
+    be_typing C [::EConst v1; EConst v2; Relop_i (typeof v1) iop] tf ->
+    reduce_simple [:: Basic (EConst v1); Basic (EConst v2); Basic (Relop_i (typeof v1) iop)] [::Basic be] ->
     be_typing C [::be] tf.
 Proof.
   move => C v1 v2 be iop tf HType HReduce.
@@ -653,8 +856,8 @@ Proof.
 Qed.
         
 Lemma t_Relop_f_preserve: forall C v1 v2 be fop tf,
-    be_typing C [::EConst v1; EConst v2; Relop_f (v_to_vt v1) fop] tf ->
-    reduce_simple [:: Basic (EConst v1); Basic (EConst v2); Basic (Relop_f (v_to_vt v1) fop)] [::Basic be] ->
+    be_typing C [::EConst v1; EConst v2; Relop_f (typeof v1) fop] tf ->
+    reduce_simple [:: Basic (EConst v1); Basic (EConst v2); Basic (Relop_f (typeof v1) fop)] [::Basic be] ->
     be_typing C [::be] tf.
 Proof.
   move => C v1 v2 be fop tf HType HReduce.
@@ -784,81 +987,190 @@ Proof.
       by apply bet_const.
     + apply bet_weakening. by eapply IHHType => //=.
 Qed.
-(*
-Lemma t_If_preserve: forall c C tf es1 es2 ts1 ts2 be,
-  be_typing C [::EConst (ConstInt32 c); If tf es1 es2] (Tf ts1 ts2) ->
-  reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (If tf es1 es2)] [::Basic be] ->
-  be_typing C [::be] (Tf ts1 ts2).
+
+(* Try phrasing in e_typing? There's actually not much difference.
+   We might want to only prove for be_typing for these separate lemmas since I believe
+     in the end when we want results on e_typing, we can just simply use the 
+     et_to_bet lemma to change e_typing to be_typing (and use ety_a for the other
+     direction).
+ *)
+Lemma t_If_e_preserve: forall s C c tf0 es1 es2 tf be,
+  e_typing s C (to_e_list [::EConst (ConstInt32 c); If tf0 es1 es2]) tf ->
+  reduce_simple (to_e_list [::EConst (ConstInt32 c); If tf0 es1 es2]) [::Basic be] ->
+  e_typing s C [::Basic be] tf.
 Proof.
-  move => c C tf es1 es2 ts1 ts2 be HType HReduce.
+  move => s C c tf0 es1 es2 tf be HType HReduce. destruct tf. destruct tf0.
   inversion HReduce; subst.
-  - (* If_0 *)
+  - (* if_0 *)
+    apply et_to_bet in HType.
     dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      rewrite catA in H1. apply concat_cancel_last in H1. destruct H1. subst.
+      apply ety_weakening.
+      replace [::Basic (Block (Tf l1 l2) es2)] with (to_e_list [::Block (Tf l1 l2) es2]) => //.
+      apply ety_a.
+      by apply bet_block.
+    + (* Weakening *)
+      apply ety_weakening.
+      by eapply IHHType => //=.
+  - (* if_n0 *)
+    apply et_to_bet in HType.
+    dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      rewrite catA in H1. apply concat_cancel_last in H1. destruct H1. subst.
+      apply ety_weakening.
+      replace [::Basic (Block (Tf l1 l2) es1)] with (to_e_list [::Block (Tf l1 l2) es1]) => //.
+      apply ety_a.
+      by apply bet_block.
+    + (* Weakening *)
+      apply ety_weakening.
+      by eapply IHHType => //=.
+Qed.
+      
+Lemma t_If_be_preserve: forall C c tf0 es1 es2 tf be,
+  be_typing C ([::EConst (ConstInt32 c); If tf0 es1 es2]) tf ->
+  reduce_simple (to_e_list [::EConst (ConstInt32 c); If tf0 es1 es2]) [::Basic be] ->
+  be_typing C [::be] tf.
+Proof.
+  move => C c tf0 es1 es2 tf be HType HReduce. destruct tf. destruct tf0.
+  inversion HReduce; subst.
+  - (* if_0 *)
+    dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      rewrite catA in H1. apply concat_cancel_last in H1. destruct H1. subst.
+      apply bet_weakening.
+      by apply bet_block.
+    + (* Weakening *)
+      apply bet_weakening.
+      by eapply IHHType => //=.
+  - (* if_n0 *)
+    dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      rewrite catA in H1. apply concat_cancel_last in H1. destruct H1. subst.
+      apply bet_weakening.
+      by apply bet_block.
+    + (* Weakening *)
+      apply bet_weakening.
+      by eapply IHHType => //=.
+Qed.
+
+Lemma t_Br_if_true_preserve: forall C c i tf be,
+    be_typing C ([::EConst (ConstInt32 c); Br_if i]) tf ->
+    reduce_simple (to_e_list [::EConst (ConstInt32 c); Br_if i]) [::Basic be] ->
+    be_typing C [::be] tf.
+Proof.
+  move => C c i tf be HType HReduce.
+  inversion HReduce; subst.
+  dependent induction HType; subst => //=.
+  - (* Composition *)
     invert_be_typing.
-*)  
+    by apply bet_br => //=. (* Surprisingly convenient! *)
+  - (* Weakening *)
+    apply bet_weakening.
+    by eapply IHHType => //=.
+Qed.
+
+Lemma t_Br_if_false_preserve: forall C c i tf,
+    be_typing C ([::EConst (ConstInt32 c); Br_if i]) tf ->
+    reduce_simple (to_e_list [::EConst (ConstInt32 c); Br_if i]) [::] ->
+    be_typing C [::] tf.
+Proof.
+  move => C c i tf HType HReduce.
+  inversion HReduce; subst.
+  dependent induction HType; subst => //=.
+  - (* Composition *)
+    invert_be_typing.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - (* Weakening *)
+    apply bet_weakening.
+    by eapply IHHType => //=.
+Qed.
+    
+Lemma t_Br_table_preserve: forall C c ids i0 tf be,
+    be_typing C ([::EConst (ConstInt32 c); Br_table ids i0]) tf ->
+    reduce_simple (to_e_list [::EConst (ConstInt32 c); Br_table ids i0]) [::Basic be] ->
+    be_typing C [::be] tf.
+Proof.
+  move => C c ids i0 tf be HType HReduce.
+  inversion HReduce; subst.
+  (* in range *)
+  - dependent induction HType; subst => //=.
+    + (* Composition *)
+      invert_be_typing.
+      rewrite catA in H0. apply concat_cancel_last in H0. destruct H0. subst.
+      move/allP in H2. 
+      admit.
+    
+    + (* Weakening *)
+      apply bet_weakening.
+      by eapply IHHType => //=.
+  - admit.        
+Admitted.
+
 Ltac invert_non_be:=
   repeat lazymatch goal with
   | H: exists e, _ = Basic e |- _ =>
     try by destruct H
   end.
 
-
-(* I think this is the correct statement for instructions within r_simple which do
-     not change the typing context (no control flow instructions). *)
-
-Theorem t_simple_preservation: forall s vs bes i bes' es es' C Cl tf,
+Theorem t_be_preservation: forall s bes i bes' es es' C tf,
     inst_typing s i C ->
-    Cl = upd_local C (vs_to_vts vs) ->
-    be_typing Cl bes tf ->
+    be_typing C bes tf ->
     reduce_simple es es' ->
     (* A better treatment is to let Trap be valid with any type -- see appendix 5
        in the official spec. *)
+    es_is_basic es ->
     es_is_basic es' ->
-    b_to_a bes = es ->
-    b_to_a bes' = es' ->
-    be_typing Cl bes' tf.
+    to_e_list bes = es ->
+    to_e_list bes' = es' ->
+    be_typing C bes' tf.
 Proof.
-  move => s vs bes i bes' es es' C Cl tf HInstType HContext HType HReduce HBasic HBES1 HBES2.
-  inversion HReduce; b_to_a_revert; subst; simpl in HType => //; try (unfold es_is_basic in HBasic; unfold e_is_basic in HBasic; inversion HBasic => //); invert_non_be; destruct tf.
+  move => s bes i bes' es es' C tf HInstType HType HReduce HBasic1 HBasic2 HBES1 HBES2.
+  inversion HReduce; b_to_a_revert; subst; simpl in HType => //; try (unfold es_is_basic in HBasic1; unfold e_is_basic in HBasic1; inversion HBasic1 => //); try (unfold es_is_basic in HBasic2; unfold e_is_basic in HBasic2; inversion HBasic2 => //); invert_non_be; destruct tf.
 (* The proof itself should be refactorable further into tactics as well. *)
   - (* Unop_i32 *)
     eapply t_Unop_i_preserve => //=.
-    + replace T_i32 with (v_to_vt (ConstInt32 c)) in HType => //=.
+    + replace T_i32 with (typeof (ConstInt32 c)) in HType => //=.
       by apply HType.
     + by apply rs_unop_i32.
   - (* Unop_i64 *)
     eapply t_Unop_i_preserve => //=.
-    + replace T_i64 with (v_to_vt (ConstInt64 c)) in HType => //=.
+    + replace T_i64 with (typeof (ConstInt64 c)) in HType => //=.
       by apply HType.
     + by apply rs_unop_i64.
   - (* Unop_f32 *)
     eapply t_Unop_f_preserve => //=.
-    + replace T_f32 with (v_to_vt (ConstFloat32 c)) in HType => //=.
+    + replace T_f32 with (typeof (ConstFloat32 c)) in HType => //=.
       by apply HType.
     + by apply rs_unop_f32.
   - (* Unop_f64 *)
     eapply t_Unop_f_preserve => //=.
-    + replace T_f64 with (v_to_vt (ConstFloat64 c)) in HType => //=.
+    + replace T_f64 with (typeof (ConstFloat64 c)) in HType => //=.
       by apply HType.
     + by apply rs_unop_f64.
   - (* Binop_i32_success *)
     eapply t_Binop_i_preserve_success => //=.
-    + replace T_i32 with (v_to_vt (ConstInt32 c1)) in HType => //=.
+    + replace T_i32 with (typeof (ConstInt32 c1)) in HType => //=.
       by apply HType.
     + by apply rs_binop_i32_success.
   - (* Binop_i64_success *)
     eapply t_Binop_i_preserve_success => //=.
-    + replace T_i64 with (v_to_vt (ConstInt64 c1)) in HType => //=.
+    + replace T_i64 with (typeof (ConstInt64 c1)) in HType => //=.
       by apply HType.
     + by apply rs_binop_i64_success.
   - (* Binop_f32_success *)
     eapply t_Binop_f_preserve_success => //=.
-    + replace T_f32 with (v_to_vt (ConstFloat32 c1)) in HType => //=.
+    + replace T_f32 with (typeof (ConstFloat32 c1)) in HType => //=.
       by apply HType.
     + by apply rs_binop_f32_success.
   - (* Binop_f64_success *)
     eapply t_Binop_f_preserve_success => //=.
-    + replace T_f64 with (v_to_vt (ConstFloat64 c1)) in HType => //=.
+    + replace T_f64 with (typeof (ConstFloat64 c1)) in HType => //=.
       by apply HType.
     + by apply rs_binop_f64_success.
   - (* testop_i T_i32 *)
@@ -867,22 +1179,22 @@ Proof.
     apply t_Testop_i64_preserve => //.
   - (* relop T_i32 *)
     eapply t_Relop_i_preserve => //=.
-    + replace T_i32 with (v_to_vt (ConstInt32 c1)) in HType => //=.
+    + replace T_i32 with (typeof (ConstInt32 c1)) in HType => //=.
       by apply HType.
     + by apply rs_relop_i32.
   - (* relop T_i64 *)
     eapply t_Relop_i_preserve => //=.
-    + replace T_i64 with (v_to_vt (ConstInt64 c1)) in HType => //=.
+    + replace T_i64 with (typeof (ConstInt64 c1)) in HType => //=.
       by apply HType.
     + by apply rs_relop_i64.
   - (* relop T_f32 *)
     eapply t_Relop_f_preserve => //=.
-    + replace T_f32 with (v_to_vt (ConstFloat32 c1)) in HType => //=.
+    + replace T_f32 with (typeof (ConstFloat32 c1)) in HType => //=.
       by apply HType.
     + by apply rs_relop_f32.
   - (* relop T_f64 *)
     eapply t_Relop_f_preserve => //=.
-    + replace T_f64 with (v_to_vt (ConstFloat64 c1)) in HType => //=.
+    + replace T_f64 with (typeof (ConstFloat64 c1)) in HType => //=.
       by apply HType.
     + by apply rs_relop_f64.
   - (* Cvtop Convert success *)
@@ -908,10 +1220,28 @@ Proof.
     eapply t_Select_preserve => //=.
     + by apply HType.
     + by apply rs_select_true.
-    
-    
-    
-        
+  - (* If_0 *)
+    eapply t_If_be_preserve => //=.
+    + by apply HType.
+    + by apply rs_if_false.
+  - (* If_n0 *)
+    eapply t_If_be_preserve => //=.
+    + by apply HType.
+    + by apply rs_if_true.
+  - (* br_if_0 *)
+    eapply t_Br_if_false_preserve => //=.
+    + by apply HType.
+    + by apply rs_br_if_false.
+  - (* br_if_n0 *)
+    eapply t_Br_if_true_preserve => //=.
+    + by apply HType.
+    + by apply rs_br_if_true.
+  - (* br_table -- in range *)
+    admit.
+  - (* br_table -- out of range default *)
+    admit.
+  - (* tee_local *)
+    admit.    
     
 Admitted.  
 
