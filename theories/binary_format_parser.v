@@ -637,32 +637,278 @@ Definition parse_with_customsec_star_before {A : Type} {n} :=
 Definition parse_with_customsec_star_after {A : Type} {n} f :=
   @iteratel _ _ _ _ _ _ _ _ _ A n f parse_customsec_forget.
 
-Definition parse_module_tail {n} : byte_parser _ n :=
-  (parse_with_customsec_star_before parse_elemsec) <&>
-  (parse_with_customsec_star_before parse_codesec) <&>
-  (parse_with_customsec_star_before (parse_with_customsec_star_after parse_datasec)).
+Record parsing_module : Type := {
+  pmod_types : list function_type;
+  pmod_funcs : list typeidx;
+  pmod_tables : list module_table;
+  pmod_mems : list mem_type;
+  pmod_globals : list module_glob;
+  pmod_elem : list module_element;
+  pmod_data : list module_data;
+  pmod_start : option module_start;
+  pmod_imports : list module_import;
+  pmod_exports : list module_export;
+  pmod_code : list func;
+}.
+
+Definition merge_parsing_modules (m1 m2 : parsing_module) : parsing_module := {|
+  pmod_types := List.app m1.(pmod_types) m2.(pmod_types);
+  pmod_funcs := List.app m1.(pmod_funcs) m2.(pmod_funcs);
+  pmod_tables := List.app m1.(pmod_tables) m2.(pmod_tables);
+  pmod_mems := List.app m1.(pmod_mems) m2.(pmod_mems);
+  pmod_globals := List.app m1.(pmod_globals) m2.(pmod_globals);
+  pmod_elem := List.app m1.(pmod_elem) m2.(pmod_elem);
+  pmod_data := List.app m1.(pmod_data) m2.(pmod_data);
+  pmod_start :=
+    match (m1.(pmod_start), m2.(pmod_start)) with
+    | (None, Some st) => Some st
+    | (Some st, _) => Some st (* we break the tie *)
+    | (None, None) => None
+    end;
+  pmod_imports := List.app m1.(pmod_imports) m2.(pmod_imports);
+  pmod_exports := List.app m1.(pmod_exports) m2.(pmod_exports);
+  pmod_code := List.app m1.(pmod_code) m2.(pmod_code);
+|}.
+
+Definition parse_typesec_wrapper {n} : byte_parser parsing_module n :=
+  (fun types => {|
+    pmod_types := types;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_typesec).
+
+Definition parse_importsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun imports => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := imports;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_importsec).
+
+Definition parse_funcsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun funcs => {|
+    pmod_types := nil;
+    pmod_funcs := funcs;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_funcsec).
+
+Definition parse_tablesec_wrapper {n} : byte_parser parsing_module n :=
+  (fun tables => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := tables;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_tablesec).
+
+Definition parse_memsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun mems => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := mems;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_memsec).
+
+Definition parse_globalsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun globals => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := globals;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_globalsec).
+
+Definition parse_exportsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun exports => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := exports;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_exportsec).
+
+Definition parse_startsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun start => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := Some start;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_startsec).
+
+Definition parse_elemsec_wrapper {n} : byte_parser parsing_module n :=
+  (fun elem => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := elem;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_elemsec).
+
+Definition parse_codesec_wrapper {n} : byte_parser parsing_module n :=
+  (fun code => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := code;
+  |}) <$>
+  (parse_with_customsec_star_before parse_codesec).
+
+Definition parse_datasec_wrapper {n} : byte_parser parsing_module n :=
+  (fun data => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := data;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before parse_datasec).
+
+Definition parse_codesec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_datasec_wrapper) <|>
+  parse_datasec_wrapper.
+
+Definition parse_elemsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_codesec_onwards) <|>
+  parse_codesec_onwards.
+
+Definition parse_startsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_startsec_wrapper) <*> parse_elemsec_onwards) <|>
+  parse_elemsec_onwards.
+
+Definition parse_exportsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_globalsec_wrapper) <*> parse_startsec_onwards) <|>
+  parse_startsec_onwards.
+
+Definition parse_globalsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_globalsec_wrapper) <*> parse_exportsec_onwards) <|>
+  parse_exportsec_onwards.
+
+Definition parse_memsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_memsec_wrapper) <*> parse_globalsec_onwards) <|>
+  parse_globalsec_onwards.
+
+Definition parse_tablesec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_tablesec_wrapper) <*> parse_memsec_onwards) <|>
+  parse_memsec_onwards.
+
+Definition parse_funcsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_funcsec_wrapper) <*> parse_tablesec_onwards) <|>
+  parse_tablesec_onwards.
+
+Definition parse_importsec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_importsec_wrapper) <*> parse_funcsec_onwards) <|>
+  parse_funcsec_onwards.
+
+Definition parse_typesec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_typesec_wrapper) <*> parse_importsec_onwards) <|>
+  parse_importsec_onwards.
+
+Definition module_of_parsing_module (m : parsing_module) : module := {|
+  mod_types := m.(pmod_types);
+  mod_funcs :=
+    (* TODO: what if these lists are of different length? *)
+    List.map
+      (fun '(a, b) =>
+        {| mf_type := a; mf_locals := b.(fc_locals); mf_body := b.(fc_expr) |})
+      (List.combine m.(pmod_funcs) m.(pmod_code));
+  mod_tables := m.(pmod_tables);
+  mod_mems := m.(pmod_mems);
+  mod_globals := m.(pmod_globals);
+  mod_elem := m.(pmod_elem);
+  mod_data := m.(pmod_data);
+  mod_start := m.(pmod_start);
+  mod_imports := m.(pmod_imports);
+  mod_exports := m.(pmod_exports);
+|}.
 
 Definition parse_module {n} : byte_parser module n :=
-  parse_magic &>
+  module_of_parsing_module <$>
+  (parse_magic &>
   parse_version &>
-  (((fun functype import typeidx table mem global export secd_ecd =>
-    match secd_ecd with
-    | inl (start, (elem, code, data)) =>
-      let func := nil in
-      Build_module functype func table mem global elem data (Some start) import export
-    | inr (elem, code, data) =>
-      let func := nil in
-      Build_module functype func table mem global elem data None import export
-    end
-  ) <$>
-  (parse_with_customsec_star_before parse_typesec)) <*>
-  (parse_with_customsec_star_before parse_importsec)) <*>
-  (parse_with_customsec_star_before parse_funcsec) <*>
-  (parse_with_customsec_star_before parse_tablesec) <*>
-  (parse_with_customsec_star_before parse_memsec) <*>
-  (parse_with_customsec_star_before parse_globalsec) <*>
-  (parse_with_customsec_star_before parse_exportsec) <*>
-  ((inl <$> (parse_with_customsec_star_before parse_startsec) <&> parse_module_tail) <|> (inr <$> parse_module_tail)).
+  parse_typesec_onwards).
 
 End Language.
 
