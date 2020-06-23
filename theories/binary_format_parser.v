@@ -68,8 +68,7 @@ Fixpoint parse_vec_aux {B} {n} (f : byte_parser B n) (k : nat)
   | S k' => (cons <$> f) <*> parse_vec_aux f k'
   end.
 
-Definition parse_vec {B} {n} (f : byte_parser B n)
-  : byte_parser (list B) n :=
+Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
   (* TODO: this is vomit-inducingly bad, but I have no clue how to avoid this :-( *)
   (parse_u32_zero $> nil) <|>
   (parse_vec_length >>= (fun k => parse_vec_aux f k)).
@@ -506,7 +505,7 @@ Definition parse_limits {n} : byte_parser limits n :=
   exact_byte x01 &> ((fun min max => {| lim_min := min; lim_max := Some max |}) <$> parse_u32_nat) <*> parse_u32_nat.
 
 Definition parse_elem_type {n} : byte_parser elem_type n :=
-  exact_byte x70 $> elem_type_tt.
+  exact_byte x70 $> ELT_funcref.
 
 Definition parse_table_type {n} : byte_parser table_type n :=
   ((fun lims ety => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_limits) <*> parse_elem_type.
@@ -515,8 +514,8 @@ Definition parse_mem_type {n} : byte_parser mem_type n :=
   parse_limits.
 
 Definition parse_mut {n} : byte_parser mutability n :=
-  exact_byte x00 $> T_immut <|>
-  exact_byte x01 $> T_mut.
+  exact_byte x00 $> MUT_immut <|>
+  exact_byte x01 $> MUT_mut.
 
 Definition parse_global_type {n} : byte_parser global_type n :=
   ((fun x y => Build_global_type y x) <$> parse_value_type) <*> parse_mut.
@@ -553,10 +552,10 @@ Definition parse_module_element {n} : byte_parser module_element n :=
 Definition parse_locals {n} : byte_parser (list value_type) n :=
   parse_vec parse_value_type.
 
-Definition parse_func {n} : byte_parser func n :=
-  ((fun xs => Build_func (List.concat xs)) <$> parse_vec parse_locals) <*> parse_expr.
+Definition parse_func {n} : byte_parser code_func n :=
+  ((fun locals e => {| fc_locals := List.concat locals; fc_expr := e |})  <$> parse_vec parse_locals) <*> parse_expr.
 
-Definition parse_code {n} : byte_parser func n :=
+Definition parse_code {n} : byte_parser code_func n :=
   guardM
     (fun sf =>
       match sf with
@@ -602,25 +601,11 @@ Definition parse_startsec {n} : byte_parser module_start n :=
 Definition parse_elemsec {n} : byte_parser (list module_element) n :=
   exact_byte x09 &> parse_vec parse_module_element.
 
-Definition parse_codesec {n} : byte_parser (list func) n :=
+Definition parse_codesec {n} : byte_parser (list code_func) n :=
   exact_byte x0a &> parse_vec parse_code.
 
 Definition parse_datasec {n} : byte_parser (list module_data) n :=
   exact_byte x0b &> (parse_vec parse_module_data).
-
-Definition parse_module_section {n} : byte_parser module_section n :=
-  Sec_custom <$> parse_customsec <|>
-  Sec_type <$> parse_typesec <|>
-  Sec_import <$> parse_importsec <|>
-  Sec_function <$> parse_funcsec <|>
-  Sec_table <$> parse_tablesec <|>
-  Sec_memory <$> parse_memsec <|>
-  Sec_global <$> parse_globalsec <|>
-  Sec_export <$> parse_exportsec <|>
-  Sec_start <$> parse_startsec <|>
-  Sec_element <$> parse_elemsec <|>
-  Sec_code <$> parse_codesec <|>
-  Sec_data <$> parse_datasec.
 
 Definition parse_magic {n} : byte_parser unit n :=
   (exact_byte x00 &> exact_byte x61 &> exact_byte x73 &> exact_byte x6d) $> tt.
@@ -648,7 +633,7 @@ Record parsing_module : Type := {
   pmod_start : option module_start;
   pmod_imports : list module_import;
   pmod_exports : list module_export;
-  pmod_code : list func;
+  pmod_code : list code_func;
 }.
 
 Definition merge_parsing_modules (m1 m2 : parsing_module) : parsing_module := {|
@@ -846,9 +831,32 @@ Definition parse_datasec_wrapper {n} : byte_parser parsing_module n :=
   |}) <$>
   (parse_with_customsec_star_before parse_datasec).
 
+(** this is not in the spec, it is here to force productivity *)
+Definition end_marker : byte := x0b.
+
+Definition parse_module_end {n} : byte_parser parsing_module n :=
+  (fun _ => {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elem := nil;
+    pmod_data := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+  |}) <$>
+  (parse_with_customsec_star_before (exact_byte end_marker)).
+
+Definition parse_datasec_onwards {n} : byte_parser parsing_module n :=
+  ((merge_parsing_modules <$> parse_datasec_wrapper) <*> parse_module_end) <|>
+  parse_module_end.
+
 Definition parse_codesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_datasec_wrapper) <|>
-  parse_datasec_wrapper.
+  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_datasec_onwards) <|>
+  parse_datasec_onwards.
 
 Definition parse_elemsec_onwards {n} : byte_parser parsing_module n :=
   ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_codesec_onwards) <|>
@@ -964,7 +972,7 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
   run_parse_expr (bs ++ (x0b :: nil)).
 
 Definition run_parse_module (bs : list byte) : option module :=
-  run bs (fun n => parse_module).
+  run (bs ++ cons end_marker nil) (fun n => parse_module).
 
 Definition run_parse_module_from_asciis (bs : list ascii) : option module :=
-  run (List.map byte_of_ascii bs) (fun n => parse_module).
+  run_parse_module (List.map byte_of_ascii bs).

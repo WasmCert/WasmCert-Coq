@@ -371,7 +371,7 @@ Definition inst_type_check (s : store_record) (i : instance) : t_context := {|
       (map
         (fun t =>
           (* TODO: this is probably wrong? *)
-          {| tt_limits := {| lim_min := 0; lim_max := Some (List.length t.(table_data)) |}; tt_elem_type := elem_type_tt |})
+          {| tt_limits := {| lim_min := 0; lim_max := Some (List.length t.(table_data)) |}; tt_elem_type := ELT_funcref |})
           s.(s_tables))
       i.(i_tab);
   tc_memory :=

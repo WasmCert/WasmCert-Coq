@@ -124,7 +124,7 @@ Definition is_float_t (t : value_type) : bool :=
   end.
 
 Definition is_mut (tg : global_type) : bool :=
-  tg_mut tg == T_mut.
+  tg_mut tg == MUT_mut.
 
 
 Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) : Wasm_int.sort e -> Wasm_int.sort e :=
@@ -233,7 +233,7 @@ Definition cl_type (cl : function_closure) : function_type :=
   end.
 
 Definition rglob_is_mut (g : global) : bool :=
-  g_mut g == T_mut.
+  g_mut g == MUT_mut.
 
 Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   match x with
@@ -323,7 +323,7 @@ Definition glob_extension (g1 g2: global) : bool.
 Proof.
   destruct (g_mut g1).
   - (* Immut *)
-    exact ((g_mut g2 == T_immut) && (g_val g1 == g_val g2)).
+    exact ((g_mut g2 == MUT_immut) && (g_val g1 == g_val g2)).
   - (* Mut *)
     destruct (g_mut g2).
     + exact false.

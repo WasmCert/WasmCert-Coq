@@ -75,3 +75,39 @@ Definition test_wikipedia :=
 
 Lemma test_wikipedia_correct : run_parse_bes test_wikipedia_byte = Some test_wikipedia.
 Proof. vm_compute. reflexivity. Qed.
+
+Definition empty_module := {|
+  mod_types := nil;
+  mod_funcs := nil;
+  mod_tables := nil;
+  mod_mems := nil;
+  mod_globals := nil;
+  mod_elem := nil;
+  mod_data := nil;
+  mod_start := None;
+  mod_imports := nil;
+  mod_exports := nil;
+|}.
+
+Lemma empty_module_round_trip : run_parse_module (binary_of_module empty_module) = Some empty_module.
+Proof. vm_compute. reflexivity. Qed.
+
+Definition module_42 := {|
+  mod_types := cons (Tf nil (cons T_i32 nil)) nil;
+  mod_funcs :=
+  (*
+    let e := EConst (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    *)
+    cons {| mf_type := Mk_typeidx 0; mf_locals := nil; mf_body := nil |} nil;
+  mod_tables := nil;
+  mod_mems := nil;
+  mod_globals := nil;
+  mod_elem := nil;
+  mod_data := nil;
+  mod_start := None;
+  mod_imports := nil;
+  mod_exports := nil;
+|}.
+
+Lemma module_42_round_trip : run_parse_module (binary_of_module module_42) = Some module_42.
+Proof. vm_compute. reflexivity. Qed.

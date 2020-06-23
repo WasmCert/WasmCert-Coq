@@ -2,9 +2,11 @@ Require Import datatypes_properties numerics.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Ascii Byte.
-Require Import leb128.
+Require leb128.
 Require Import Coq.Arith.Le.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+
+(* TODO: because LEB128 is nondeterministic, we should also have a relational version *)
 
 Definition binary_of_value_type (t : value_type) : byte :=
   match t with
@@ -28,7 +30,7 @@ Definition binary_of_block_type (ft : function_type) : list byte :=
   end.
 
 Definition binary_of_u32_nat (n : nat) : list byte :=
-  encode_unsigned (BinNatDef.N.of_nat n).
+  leb128.encode_unsigned (BinNatDef.N.of_nat n).
 
 Definition binary_of_idx n := binary_of_u32_nat n.
 
@@ -291,6 +293,120 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
 
 Definition binary_of_expr bes := List.concat (List.map binary_of_be bes) ++ x0b :: nil.
 
+Definition magic : list byte :=
+  x00 :: x61 :: x73 :: x6d:: nil.
+
+Definition version : list byte :=
+  x01 :: x00 :: x00 :: x00 :: nil.
+
+Definition binary_of_result_type rt : list byte :=
+  binary_of_vec(fun v => binary_of_value_type v :: nil) rt.
+
+Definition binary_of_functype (ft : function_type) : list byte :=
+  let 'Tf rt1 rt2 := ft in
+  x60 :: binary_of_result_type rt1 ++ binary_of_result_type rt2.
+
+Definition binary_of_typesec (ts : list function_type) : list byte :=
+  x01 :: binary_of_vec binary_of_functype ts.
+
+Definition binary_of_typeidx (t : typeidx) : list byte :=
+  let 'Mk_typeidx i := t in
+  leb128.encode_unsigned (bin_of_nat i).
+
+Definition binary_of_name (n : name) : list byte :=
+  binary_of_vec (fun n => cons n nil) n.
+
+Definition binary_of_elem_type (et : elem_type) : list byte :=
+  match et with
+  | ET_funcref => cons x70 nil
+  end.
+
+Definition binary_of_limits (l : limits) : list byte :=
+  match l.(lim_max) with
+  | None => x00 :: leb128.encode_unsigned (bin_of_nat l.(lim_min))
+  | Some max =>
+    x01 ::
+    leb128.encode_unsigned (bin_of_nat l.(lim_min)) ++
+    leb128.encode_unsigned (bin_of_nat max)
+  end.
+
+Definition binary_of_table_type (t_ty : table_type) : list byte :=
+  binary_of_elem_type t_ty.(tt_elem_type) ++
+  binary_of_limits t_ty.(tt_limits).
+
+Definition binary_of_mutability (m : mutability) : list byte :=
+  match m with
+  | MUT_immut => cons x00 nil
+  | MUT_mut => cons x01 nil
+  end.
+
+Definition binary_of_global_type (g_ty : global_type) : list byte :=
+  cons (binary_of_value_type g_ty.(tg_t)) nil ++
+  binary_of_mutability g_ty.(tg_mut).
+
+Definition binary_of_import_desc (imp_desc : import_desc) : list byte :=
+  match imp_desc with
+  | ID_func tidx => x00 :: binary_of_typeidx (Mk_typeidx tidx)
+  | ID_table t_ty => x01 :: binary_of_table_type t_ty
+  | ID_mem m_ty => x02 :: binary_of_limits m_ty
+  | ID_global g_ty => x03 :: binary_of_global_type g_ty
+  end.
+
+Definition binary_of_module_import (imp : module_import) : list byte :=
+  binary_of_name imp.(imp_module) ++
+  binary_of_name imp.(imp_name) ++
+  binary_of_import_desc imp.(imp_desc).
+
+Definition binary_of_importsec (imps : list module_import) : list byte :=
+  x02 :: binary_of_vec binary_of_module_import imps.
+
+Definition binary_of_funcsec (fs : list module_func) : list byte :=
+  x03 :: binary_of_vec binary_of_typeidx (List.map (fun f => f.(mf_type)) fs).
+
+Definition binary_of_local (n_t : nat * value_type) : list byte :=
+  let '(n, t) := n_t in
+  leb128.encode_unsigned (bin_of_nat n) ++
+  cons (binary_of_value_type t) nil.
+
+Fixpoint bunch_locals_aux (cur_ty : value_type) (cur_count : nat) (acc : list (nat * value_type)) (tys : list value_type) : list (nat * value_type) :=
+  match tys with
+  | nil => List.rev ((cur_count, cur_ty) :: acc)
+  | cons ty tys' =>
+    if cur_ty == ty then bunch_locals_aux cur_ty (cur_count + 1) acc tys'
+    else bunch_locals_aux ty 1 ((cur_count, cur_ty) :: acc) tys'
+  end.
+
+Definition bunch_locals (tys : list value_type) : list (nat * value_type) :=
+  match tys with
+  | nil => nil
+  | cons ty tys' => bunch_locals_aux ty 1 nil tys'
+  end.
+
+Definition binary_of_code_func (cf : code_func) : list byte :=
+  binary_of_vec binary_of_local (bunch_locals cf.(fc_locals)) ++
+  binary_of_expr cf.(fc_expr).
+
+Definition binary_of_code (mf : module_func) : list byte :=
+  let func := {| fc_locals := mf.(mf_locals); fc_expr := mf.(mf_body) |} in
+  let func_bin := binary_of_code_func func in
+  let func_len := List.length func_bin in
+  leb128.encode_unsigned (bin_of_nat func_len) ++
+  func_bin.
+
+Definition binary_of_codesec (fs : list module_func) : list byte :=
+  x0a :: binary_of_vec binary_of_code fs.
+
+Definition only_if_non_nil {A} (f : list A -> list byte) (xs : list A) : list byte :=
+  match xs with
+  | nil => nil
+  | _ :: _ => f xs
+  end.
+
 Definition binary_of_module (m : module) : list byte :=
-  (* TODO *)
-  nil.
+  magic ++ version ++
+  only_if_non_nil binary_of_typesec m.(mod_types) ++
+  only_if_non_nil binary_of_importsec m.(mod_imports) ++
+  only_if_non_nil binary_of_funcsec m.(mod_funcs) ++
+  nil (* TODO *) ++
+  only_if_non_nil binary_of_codesec m.(mod_funcs) ++
+  nil (* TODO *).

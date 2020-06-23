@@ -2,9 +2,9 @@
 
 let run files =
   match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
-  | None -> `Error (false, "Syntax error")
+  | None -> `Error (false, "syntax error")
   | Some m ->
-    Printf.printf "Parsing successful\n";
+    Printf.printf "parsing successful\n";
     (match Extract.interp_instantiate_wrapper m with
      | None -> `Error (false, "instantiation error")
      | Some inst ->

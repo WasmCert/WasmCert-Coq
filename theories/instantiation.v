@@ -292,7 +292,7 @@ Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
     (k < length c.(tc_global)) &&
     match List.nth_error c.(tc_global) k with
     | None => false
-    | Some t => t.(tg_mut) == T_immut
+    | Some t => t.(tg_mut) == MUT_immut
     end
   | _ => false
   end.
@@ -438,7 +438,7 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   i < List.length s.(s_tables) ->
   List.nth_error s.(s_tables) i = Some ti ->
   typing.tab_typing ti lim ->
-  external_typing s (ED_table i) (ET_tab {| tt_limits := lim; tt_elem_type := elem_type_tt |})
+  external_typing s (ED_table i) (ET_tab {| tt_limits := lim; tt_elem_type := ELT_funcref |})
 | ETY_mem :
   forall (s : store_record) (i : nat) (m : memory) (mt : mem_type),
   i < List.length s.(s_mems) ->

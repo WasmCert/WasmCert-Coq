@@ -65,8 +65,8 @@ Inductive packed_type : Type := (* tp *)
 | Tp_i32.
 
 Inductive mutability : Type := (* mut *)
-| T_immut
-| T_mut.
+| MUT_immut
+| MUT_mut.
 
 Record global_type := (* tg *) {
   tg_mut : mutability;
@@ -76,8 +76,12 @@ Record global_type := (* tg *) {
 Inductive function_type := (* tf *)
 | Tf : list value_type -> list value_type -> function_type.
 
+(*
+The element type funcref is the infinite union of all function types. A table
+of that type thus contains references to functions of heterogeneous type.
+*)
 Inductive elem_type : Type :=
-| elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
+| ELT_funcref : elem_type.
 
 Record table_type : Type := {
   tt_limits : limits;
@@ -343,7 +347,7 @@ Record module_element : Type := {
   elem_init : list nat;
 }.
 
-Record func : Type := {
+Record code_func : Type := {
   fc_locals : list value_type;
   fc_expr : expr;
 }.
@@ -364,20 +368,6 @@ Record module_export : Type := {
   exp_name : name;
   exp_desc : module_export_desc;
 }.
-
-Inductive module_section : Type :=
-| Sec_custom : list Byte.byte -> module_section
-| Sec_type : list function_type -> module_section
-| Sec_import : list module_import -> module_section
-| Sec_function : list typeidx -> module_section
-| Sec_table : list module_table -> module_section
-| Sec_memory : list mem_type -> module_section
-| Sec_global : list module_glob -> module_section
-| Sec_export : list module_export -> module_section
-| Sec_start : module_start -> module_section
-| Sec_element : list module_element -> module_section
-| Sec_code : list func -> module_section
-| Sec_data : list module_data -> module_section.
 
 Record module_func : Type := {
   mf_type : typeidx;
