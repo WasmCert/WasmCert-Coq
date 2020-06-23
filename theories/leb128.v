@@ -16,32 +16,33 @@ Definition byte_of_7_bits (bs : list bool) : byte :=
   | _ => (* TODO: should never happen *) x00
   end.
 
-Definition rebalance acc1 acc2 b :=
-  if Nat.eqb (List.length acc2) 6 then (cons (byte_of_7_bits (cons b acc2)) acc1, nil)
-  else (acc1, cons b acc2).
+Definition rebalance (bytes_produced : list byte) (bits_produced : list bool) (the_bit : bool) :
+  ((list byte) * (list bool)) :=
+  if Nat.eqb (List.length bits_produced) 6 then (cons (byte_of_7_bits (cons the_bit bits_produced)) bytes_produced, nil)
+  else (bytes_produced, cons the_bit bits_produced).
 
-Fixpoint binary_of_aux2 (acc1 : list byte) (acc2 : list bool (* MSB at head *)) (n : positive) : list byte :=
+Fixpoint binary_of_aux2 (is_neg : bool) (acc1 : list byte) (acc2 : list bool (* MSB at head *)) (n : positive) : list byte :=
   (* TODO: using lists is very inefficient *)
   match n with
   | xH =>
     let (acc1', acc2') := rebalance acc1 acc2 true in
-    let acc2'' := List.app (List.repeat false (7 - List.length acc2')) acc2' in
+    let acc2'' := List.app (List.repeat is_neg (7 - List.length acc2')) acc2' in
     cons (byte_of_7_bits acc2'') acc1'
   | xI n' =>
     let (acc1', acc2') := rebalance acc1 acc2 true in
-    binary_of_aux2 acc1' acc2' n'
+    binary_of_aux2 is_neg acc1' acc2' n'
   | xO n' =>
     let (acc1', acc2') := rebalance acc1 acc2 false in
-    binary_of_aux2 acc1' acc2' n'
+    binary_of_aux2 is_neg acc1' acc2' n'
   end.
 
-Definition make_msb_one b : byte :=
+Definition make_msb_one (b : byte) : byte :=
   match ascii_of_byte b with
   | Ascii b1 b2 b3 b4 b5 b6 b7 _ =>
     byte_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 true)
   end.
 
-Definition make_msb_of_non_first_byte_one bs :=
+Definition make_msb_of_non_first_byte_one (bs : list byte) : list byte :=
   match bs with
   | nil => nil
   | cons b bs' => cons b (List.map make_msb_one bs')
@@ -51,11 +52,21 @@ Definition make_msb_of_non_first_byte_one bs :=
 Definition encode_unsigned_aux (n : N) : list byte :=
   match n with
   | N0 => cons x00 nil
-  | Npos n' => make_msb_of_non_first_byte_one (binary_of_aux2 nil nil n')
+  | Npos n' => make_msb_of_non_first_byte_one (binary_of_aux2 false nil nil n')
   end.
 
 Definition encode_unsigned (n : N) : list byte :=
   List.rev (encode_unsigned_aux n).
+
+Definition encode_signed_aux (z : Z) : list byte :=
+  match z with
+  | Z0 => cons x00 nil
+  | Zpos n' => make_msb_of_non_first_byte_one (binary_of_aux2 false nil nil n')
+  | Zneg n' => make_msb_of_non_first_byte_one (binary_of_aux2 true nil nil n')
+  end.
+
+Definition encode_signed (z : Z) : list byte :=
+  List.rev (encode_signed_aux z).
 
 Section Language.
 

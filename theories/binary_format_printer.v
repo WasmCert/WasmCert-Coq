@@ -1,3 +1,7 @@
+(* TODO: (1) print all the sections!
+(2) print floats!
+*)
+
 Require Import datatypes_properties numerics.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
@@ -41,12 +45,10 @@ Definition binary_of_memarg a o : list byte :=
   binary_of_u32_nat a ++ binary_of_u32_nat o.
 
 Definition binary_of_i32 (x : i32) : list byte :=
-  (* TODO *)
-  x00 :: x00 :: x00 :: nil.
+  leb128.encode_signed x.(Wasm_int.Int32.intval).
 
 Definition binary_of_i64 (x : i64) : list byte :=
-  (* TODO *)
-  x00 :: x00 :: x00 :: nil.
+leb128.encode_signed x.(Wasm_int.Int64.intval).
 
 Definition binary_of_f32 (x : f32) : list byte :=
   (* TODO *)
@@ -291,13 +293,19 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   | Cvtop _ Reinterpret _ (Some _) => dummy
   end.
 
-Definition binary_of_expr bes := List.concat (List.map binary_of_be bes) ++ x0b :: nil.
+(** Expressions are encoded by their instruction sequence terminated with an
+explicit `0x0B` opcode for `end`. *)
+Definition binary_of_expr (bes : list basic_instruction) : list byte  :=
+  List.concat (List.map binary_of_be bes) ++ x0b :: nil.
 
 Definition magic : list byte :=
   x00 :: x61 :: x73 :: x6d:: nil.
 
 Definition version : list byte :=
   x01 :: x00 :: x00 :: x00 :: nil.
+
+Definition with_length (bs : list byte) : list byte :=
+  leb128.encode_unsigned (bin_of_nat (List.length bs)) ++ bs.
 
 Definition binary_of_result_type rt : list byte :=
   binary_of_vec(fun v => binary_of_value_type v :: nil) rt.
@@ -307,7 +315,7 @@ Definition binary_of_functype (ft : function_type) : list byte :=
   x60 :: binary_of_result_type rt1 ++ binary_of_result_type rt2.
 
 Definition binary_of_typesec (ts : list function_type) : list byte :=
-  x01 :: binary_of_vec binary_of_functype ts.
+  x01 :: with_length (binary_of_vec binary_of_functype ts).
 
 Definition binary_of_typeidx (t : typeidx) : list byte :=
   let 'Mk_typeidx i := t in
@@ -358,10 +366,10 @@ Definition binary_of_module_import (imp : module_import) : list byte :=
   binary_of_import_desc imp.(imp_desc).
 
 Definition binary_of_importsec (imps : list module_import) : list byte :=
-  x02 :: binary_of_vec binary_of_module_import imps.
+  x02 :: with_length (binary_of_vec binary_of_module_import imps).
 
 Definition binary_of_funcsec (fs : list module_func) : list byte :=
-  x03 :: binary_of_vec binary_of_typeidx (List.map (fun f => f.(mf_type)) fs).
+  x03 :: with_length (binary_of_vec binary_of_typeidx (List.map (fun f => f.(mf_type)) fs)).
 
 Definition binary_of_local (n_t : nat * value_type) : list byte :=
   let '(n, t) := n_t in
@@ -394,7 +402,7 @@ Definition binary_of_code (mf : module_func) : list byte :=
   func_bin.
 
 Definition binary_of_codesec (fs : list module_func) : list byte :=
-  x0a :: binary_of_vec binary_of_code fs.
+  x0a :: with_length (binary_of_vec binary_of_code fs).
 
 Definition only_if_non_nil {A} (f : list A -> list byte) (xs : list A) : list byte :=
   match xs with

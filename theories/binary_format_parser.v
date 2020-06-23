@@ -549,8 +549,11 @@ Definition parse_module_element {n} : byte_parser module_element n :=
   ((fun table offset init => {| elem_table := table; elem_offset := offset; elem_init := init |}) <$>
   parse_u32_nat) <*> parse_expr <*> parse_vec parse_u32_nat.
 
+Definition parse_nat_value_type {n} : byte_parser (list value_type) n :=
+  ((fun k t => List.repeat t k) <$> parse_u32_nat) <*> parse_value_type.
+
 Definition parse_locals {n} : byte_parser (list value_type) n :=
-  parse_vec parse_value_type.
+  (fun tss => List.concat tss) <$> (parse_vec parse_nat_value_type).
 
 Definition parse_func {n} : byte_parser code_func n :=
   ((fun locals e => {| fc_locals := List.concat locals; fc_expr := e |})  <$> parse_vec parse_locals) <*> parse_expr.
@@ -572,40 +575,40 @@ Definition parse_module_data {n} : byte_parser module_data n :=
   parse_u32_nat) <*> parse_expr <*> parse_vec anyTok.
 
 Definition parse_customsec {n} : byte_parser (list byte) n :=
-  exact_byte x00 &> parse_vec anyTok.
+  exact_byte x00 &> parse_u32 &> parse_vec anyTok.
 
 Definition parse_typesec {n} : byte_parser (list function_type) n :=
-  exact_byte x01 &> parse_vec parse_function_type.
+  exact_byte x01 &> parse_u32 &> parse_vec parse_function_type.
 
 Definition parse_importsec {n} : byte_parser (list module_import) n :=
-  exact_byte x02 &> parse_vec parse_module_import.
+  exact_byte x02 &> parse_u32 &> parse_vec parse_module_import.
 
 Definition parse_funcsec {n} : byte_parser (list typeidx) n :=
-  exact_byte x03 &> parse_vec parse_typeidx.
+  exact_byte x03 &> parse_u32 &> parse_vec parse_typeidx.
 
 Definition parse_tablesec {n} : byte_parser (list module_table) n :=
-  exact_byte x04 &>  parse_vec parse_module_table.
+  exact_byte x04 &> parse_u32 &> parse_vec parse_module_table.
 
 Definition parse_memsec {n} : byte_parser (list mem_type) n :=
-  exact_byte x05 &> parse_vec parse_limits.
+  exact_byte x05 &> parse_u32 &> parse_vec parse_limits.
 
 Definition parse_globalsec {n} : byte_parser (list module_glob) n :=
-  exact_byte x06 &> parse_vec parse_module_glob.
+  exact_byte x06 &> parse_u32 &> parse_vec parse_module_glob.
 
 Definition parse_exportsec {n} : byte_parser (list module_export) n :=
-  exact_byte x07 &> parse_vec parse_module_export.
+  exact_byte x07 &> parse_u32 &> parse_vec parse_module_export.
 
 Definition parse_startsec {n} : byte_parser module_start n :=
-  exact_byte x08 &> parse_module_start.
+  exact_byte x08 &> parse_u32 &> parse_module_start.
 
 Definition parse_elemsec {n} : byte_parser (list module_element) n :=
-  exact_byte x09 &> parse_vec parse_module_element.
+  exact_byte x09 &> parse_u32 &> parse_vec parse_module_element.
 
 Definition parse_codesec {n} : byte_parser (list code_func) n :=
-  exact_byte x0a &> parse_vec parse_code.
+  exact_byte x0a &> parse_u32 &> parse_vec parse_code.
 
 Definition parse_datasec {n} : byte_parser (list module_data) n :=
-  exact_byte x0b &> (parse_vec parse_module_data).
+  exact_byte x0b &> parse_u32 &> parse_vec parse_module_data.
 
 Definition parse_magic {n} : byte_parser unit n :=
   (exact_byte x00 &> exact_byte x61 &> exact_byte x73 &> exact_byte x6d) $> tt.
@@ -855,7 +858,7 @@ Definition parse_datasec_onwards {n} : byte_parser parsing_module n :=
   parse_module_end.
 
 Definition parse_codesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_datasec_onwards) <|>
+  ((merge_parsing_modules <$> parse_codesec_wrapper) <*> parse_datasec_onwards) <|>
   parse_datasec_onwards.
 
 Definition parse_elemsec_onwards {n} : byte_parser parsing_module n :=
