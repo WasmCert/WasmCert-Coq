@@ -17,8 +17,20 @@ Proof.
   move => vs1 vs2. elim vs1 => {vs1} //=.
   - move => a vs1' IHvs1 H1 H2. simpl in H1. simpl.
     apply andb_true_iff in H1. destruct H1. rewrite IHvs1 //=. by rewrite andbT.
-Qed.      
+Qed.
 
+Lemma const_list_split: forall vs1 vs2,
+    const_list (vs1 ++ vs2) ->
+    const_list vs1 /\
+    const_list vs2.
+Proof.
+  induction vs1 => //=; move => vs2 HConst.
+  move/andP in HConst. destruct HConst.
+  apply IHvs1 in H0. destruct H0.
+  split => //.
+  by apply/andP.
+Qed.    
+    
 Lemma const_list_take: forall vs l,
     const_list vs ->
     const_list (take l vs).
