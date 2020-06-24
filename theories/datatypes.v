@@ -43,7 +43,7 @@ Definition serialise_f32 (f : f32) : bytes :=
 Definition serialise_f64 (f : f64) : bytes :=
   common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
 
-Record limits := {
+Record limits : Type := {
   lim_min : nat;
   lim_max : option nat;
 }.
@@ -68,18 +68,18 @@ Inductive mutability : Type := (* mut *)
 | MUT_immut
 | MUT_mut.
 
-Record global_type := (* tg *) {
+Record global_type : Type := (* tg *) {
   tg_mut : mutability;
   tg_t : value_type
 }.
 
-(**
+(** std-doc:
 Result types classify the result of executing instructions or functions, which is a sequence of values written with brackets.
 *)
 Definition result_type : Type :=
   list value_type.
 
-(**
+(** std-doc:
 Function types classify the signature of functions, mapping a vector of
 parameters to a vector of results. They are also used to classify the inputs
 and outputs of instructions.
@@ -87,14 +87,14 @@ and outputs of instructions.
 Inductive function_type := (* tf *)
 | Tf : result_type -> result_type -> function_type.
 
-(**
+(** std-doc:
 The element type funcref is the infinite union of all function types. A table
 of that type thus contains references to functions of heterogeneous type.
 *)
 Inductive elem_type : Type :=
 | ELT_funcref : elem_type.
 
-(**
+(** std-doc:
 Table types classify tables over elements of element types within a size range.
 
 Like memories, tables are constrained by limits for their minimum and
@@ -105,7 +105,7 @@ Record table_type : Type := {
   tt_elem_type : elem_type;
 }.
 
-(**
+(** std-doc:
 Validity of an individual definition is specified relative to a context, which
 collects relevant information about the surrounding module and the definitions
 in scope:
@@ -131,7 +131,7 @@ type are only used for validating instructions in function bodies, and are left
 empty elsewhere. The label stack is the only part of the context that changes
 as validation of an instruction sequence proceeds.
 *)
-Record t_context := {
+Record t_context : Type := {
   tc_types_t : list function_type;
   tc_func_t : list function_type;
   tc_global : list global_type;
@@ -206,7 +206,7 @@ Inductive cvtop : Type :=
 | Convert
 | Reinterpret.
 
-(**
+(** std-doc:
 WebAssembly computations manipulate values of the four basic value types:
 integers and floating-point data of 32 or 64 bit width each, respectively.
 *)
@@ -249,7 +249,13 @@ Inductive basic_instruction : Type := (* be *)
 | Relop_f : value_type -> relop_f -> basic_instruction
 | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction.
 
-(**
+Definition funcaddr := immediate (* TODO: should be funcidx *).
+Definition tableaddr := immediate (* TODO: should be tableidx *).
+Definition memaddr := immediate. (* TODO: should be memidx *)
+Definition globaladdr := immediate. (* TODO: should be globalidx *)
+
+
+(** std-doc:
 A module instance is the runtime representation of a module. It is created by
 instantiating a module, and collects runtime representations of all entities
 that are imported, defined, or exported by the module.
@@ -265,24 +271,25 @@ instance have different names.
 *)
 Record instance : Type := (* inst *) {
   i_types : list function_type;
-  i_funcs : list immediate;
-  i_tab : list immediate;
-  i_memory : list immediate;
-  i_globs : list immediate;
+  i_funcs : list funcaddr;
+  i_tab : list tableaddr;
+  i_memory : list memaddr;
+  i_globs : list globaladdr;
+  (* TODO: exports field? *)
 }.
 
 Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.
 
-(**
+(** std-doc:
 Each function element is either empty, representing an uninitialized table
 entry, or a function address. Function elements can be mutated through the
 execution of an element segment or by external means provided by the embedder.
 *)
 Definition funcelem := option nat.
 
-(**
+(** std-doc:
 A table instance is the runtime representation of a table. It holds a vector of
 function elements and an optional maximum size, if one was specified in the
 table type at the table’s definition site.
@@ -300,7 +307,7 @@ Record global : Type := {
   g_val : value;
 }.
 
-(**
+(** std-doc:
 The store represents all global state that can be manipulated by WebAssembly
 programs. It consists of the runtime representation of all instances of
 functions, tables, memories, and globals that have been allocated during the
@@ -326,7 +333,6 @@ Inductive lholed : Type :=
 | LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
 .
 
-(* TODO: these types were moved from parsing *)
 Definition expr := list basic_instruction.
 
 Inductive labelidx : Type :=
@@ -334,6 +340,13 @@ Inductive labelidx : Type :=
 
 Inductive funcidx : Type :=
 | Mk_funcidx : nat -> funcidx.
+
+Inductive tableidx : Type :=
+| Mk_tableidx : nat -> tableidx.
+
+Inductive memidx : Type :=
+| Mk_memidx : nat -> memidx.
+
 Inductive typeidx : Type :=
 | Mk_typeidx : nat -> typeidx.
 
@@ -343,7 +356,8 @@ Inductive localidx : Type :=
 Inductive globalidx : Type :=
 | Mk_globalidx : nat -> globalidx.
 
-Definition mem_type : Type := limits.
+Inductive mem_type : Type :=
+| Mk_mem_type : limits -> mem_type.
 
 Inductive import_desc : Type :=
 | ID_func : nat -> import_desc
@@ -359,7 +373,7 @@ Record module_import : Type := {
   imp_desc : import_desc;
 }.
 
-Record module_table := {
+Record module_table : Type := {
   t_type : table_type;
 }.
 
@@ -368,14 +382,14 @@ Record module_glob : Type := {
   mg_init : expr;
 }.
 
-Record module_start := {
-  start_func : nat;
+Record module_start : Type := {
+  start_func : funcidx;
 }.
 
 Record module_element : Type := {
-  elem_table : nat;
+  elem_table : tableidx;
   elem_offset : expr;
-  elem_init : list nat;
+  elem_init : list funcidx;
 }.
 
 Record code_func : Type := {
@@ -384,16 +398,16 @@ Record code_func : Type := {
 }.
 
 Record module_data : Type := {
-  dt_data : nat;
+  dt_data : memidx;
   dt_offset : expr;
   dt_init : list Byte.byte;
 }.
 
 Inductive module_export_desc : Type :=
-| ED_func : nat -> module_export_desc
-| ED_table : nat -> module_export_desc
-| ED_mem : nat -> module_export_desc
-| ED_global : nat -> module_export_desc.
+| ED_func : funcidx -> module_export_desc
+| ED_table : tableidx -> module_export_desc
+| ED_mem : memidx -> module_export_desc
+| ED_global : globalidx -> module_export_desc.
 
 Record module_export : Type := {
   exp_name : name;

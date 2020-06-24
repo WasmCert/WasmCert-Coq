@@ -145,3 +145,29 @@ Definition module_42 := {|
 Lemma module_42_round_trip :
   run_parse_module (binary_of_module module_42) = Some module_42.
 Proof. vm_compute. reflexivity. Qed.
+
+Definition module_42_exported := {|
+  mod_types := cons (Tf nil (cons T_i32 nil)) nil;
+  mod_funcs :=
+    let e := EConst (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    cons {| mf_type := Mk_typeidx 0; mf_locals := nil; mf_body := cons e nil |} nil;
+  mod_tables := nil;
+  mod_mems := nil;
+  mod_globals := nil;
+  mod_elem := nil;
+  mod_data := nil;
+  mod_start := None;
+  mod_imports := nil;
+  mod_exports := cons {| exp_name := String.list_byte_of_string "hello"; exp_desc := ED_func (Mk_funcidx 0); |} nil;
+|}.
+
+Lemma module_42_exported_round_trip :
+  run_parse_module (binary_of_module module_42_exported) = Some module_42_exported.
+Proof.
+vm_compute. reflexivity. Qed.
+(**)
+Eval vm_compute in binary_of_u32_nat 0.
+Eval vm_compute in binary_format_parser.run (binary_of_u32_nat 0) (fun n => parse_u32).
+Eval vm_compute in binary_format_parser.run (binary_of_exportssec module_42_exported.(mod_exports)) (fun n => parse_exportsec).
+Eval vm_compute in hex_small_no_prefix_of_bytes (binary_of_module module_42_exported).
+

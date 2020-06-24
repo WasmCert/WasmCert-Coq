@@ -159,11 +159,12 @@ Definition global_agree (g : global) (tg : global_type) : bool :=
 Definition globals_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => global_agree g tg) (List.nth_error gs n) == Some true).
 
-Definition mem_typing (m : memory) (mt : limits) : bool :=
-  (mt.(lim_min) <= mem_size m) &&
-  (m.(mem_limit).(lim_max) == mt.(lim_max)) (* TODO: mismatch *).
+Definition mem_typing (m : memory) (m_t : mem_type) : bool :=
+  let '(Mk_mem_type lim) := m_t in
+  (lim.(lim_min) <= mem_size m) &&
+  (m.(mem_limit).(lim_max) == lim.(lim_max)) (* TODO: mismatch *).
 
-Definition memi_agree (ms : list memory) (n : nat) (mem_t : limits) : bool :=
+Definition memi_agree (ms : list memory) (n : nat) (mem_t : mem_type) : bool :=
   (n < length ms) &&
   let dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None |} |} in
   mem_typing (List.nth n ms dummy_mem) mem_t.
@@ -190,7 +191,7 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bo
     (all2 (functions_agree s.(s_funcs)) fs tfs) &&
     (all2 (globals_agree s.(s_globals)) gs tgs) &&
     (all2 (tabi_agree s.(s_tables)) tbs tabs_t) &&
-    (all2 (memi_agree s.(s_mems)) ms mems_t)
+    (all2 (memi_agree s.(s_mems)) ms (List.map (fun lim => Mk_mem_type lim) mems_t))
   | _ => false
   end.
 

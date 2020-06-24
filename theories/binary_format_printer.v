@@ -1,15 +1,11 @@
-(* TODO: print all the sections!!!
-*)
-
+(** Wasm AST to binary.
+Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
 Require Import datatypes_properties numerics.
 From compcert Require Integers.
-From parseque Require Import Parseque.
 Require Import Ascii Byte.
 Require leb128.
 Require Import Coq.Arith.Le.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-
-(* TODO: because LEB128 is nondeterministic, we should also have a relational version *)
 
 Definition binary_of_value_type (t : value_type) : byte :=
   match t with
@@ -318,6 +314,22 @@ Definition binary_of_typeidx (t : typeidx) : list byte :=
   let 'Mk_typeidx i := t in
   leb128.encode_unsigned (bin_of_nat i).
 
+Definition binary_of_funcidx (t : funcidx) : list byte :=
+  let 'Mk_funcidx i := t in
+  leb128.encode_unsigned (bin_of_nat i).
+
+Definition binary_of_tableidx (t : tableidx) : list byte :=
+  let 'Mk_tableidx i := t in
+  leb128.encode_unsigned (bin_of_nat i).
+
+Definition binary_of_memidx (t : memidx) : list byte :=
+  let 'Mk_memidx i := t in
+  leb128.encode_unsigned (bin_of_nat i).
+
+Definition binary_of_globalidx (t : globalidx) : list byte :=
+  let 'Mk_globalidx i := t in
+  leb128.encode_unsigned (bin_of_nat i).
+
 Definition binary_of_name (n : name) : list byte :=
   binary_of_vec (fun n => cons n nil) n.
 
@@ -349,11 +361,15 @@ Definition binary_of_global_type (g_ty : global_type) : list byte :=
   cons (binary_of_value_type g_ty.(tg_t)) nil ++
   binary_of_mutability g_ty.(tg_mut).
 
+Definition binary_of_mem_type (m : mem_type) : list byte :=
+  let 'Mk_mem_type lim := m in
+  binary_of_limits lim.
+
 Definition binary_of_import_desc (imp_desc : import_desc) : list byte :=
   match imp_desc with
   | ID_func tidx => x00 :: binary_of_typeidx (Mk_typeidx tidx)
   | ID_table t_ty => x01 :: binary_of_table_type t_ty
-  | ID_mem m_ty => x02 :: binary_of_limits m_ty
+  | ID_mem m_ty => x02 :: binary_of_mem_type m_ty
   | ID_global g_ty => x03 :: binary_of_global_type g_ty
   end.
 
@@ -367,6 +383,51 @@ Definition binary_of_importsec (imps : list module_import) : list byte :=
 
 Definition binary_of_funcsec (fs : list module_func) : list byte :=
   x03 :: with_length (binary_of_vec binary_of_typeidx (List.map (fun f => f.(mf_type)) fs)).
+
+Definition binary_of_module_table (t : module_table) : list byte :=
+  binary_of_table_type t.(t_type).
+
+Definition binary_of_tablesec (ts : list module_table) : list byte :=
+  x04 :: with_length (binary_of_vec binary_of_module_table ts).
+
+Definition binary_of_memsec (ms : list mem_type) : list byte :=
+  x05 :: with_length (binary_of_vec binary_of_mem_type ms).
+
+Definition binary_of_module_glob (g : module_glob) : list byte :=
+  binary_of_global_type g.(mg_type) ++
+  binary_of_expr g.(mg_init).
+
+Definition binary_of_globalsec (gs : list module_glob) : list byte :=
+  x06 :: with_length (binary_of_vec binary_of_module_glob gs).
+
+Definition binary_of_export_desc (ed : module_export_desc) : list byte :=
+  match ed with
+  | ED_func n => x00 :: binary_of_funcidx n
+  | ED_table n => x01 :: binary_of_tableidx n
+  | ED_mem n => x02 :: binary_of_memidx n
+  | ED_global n => x03 :: binary_of_globalidx n
+  end.
+
+Definition binary_of_module_export (e : module_export) : list byte :=
+  binary_of_name e.(exp_name) ++
+  binary_of_export_desc e.(exp_desc).
+
+Definition binary_of_exportssec (es : list module_export) : list byte :=
+  x07 :: with_length (binary_of_vec binary_of_module_export es).
+
+Definition binary_of_module_start (s : module_start) : list byte :=
+  binary_of_funcidx s.(start_func).
+
+Definition binary_of_startsec (s : module_start) : list byte :=
+  x08 :: with_length (binary_of_vec binary_of_module_start (cons s nil)).
+
+Definition binary_of_module_elem (e : module_element) : list byte :=
+  binary_of_tableidx e.(elem_table) ++
+  binary_of_expr e.(elem_offset) ++
+  binary_of_vec binary_of_funcidx e.(elem_init).
+
+Definition binary_of_elemsec (es : list module_element) : list byte :=
+  x09 :: with_length (binary_of_vec binary_of_module_elem es).
 
 Definition binary_of_local (n_t : nat * value_type) : list byte :=
   let '(n, t) := n_t in
@@ -401,10 +462,24 @@ Definition binary_of_code (mf : module_func) : list byte :=
 Definition binary_of_codesec (fs : list module_func) : list byte :=
   x0a :: with_length (binary_of_vec binary_of_code fs).
 
+Definition binary_of_data (d : module_data) : list byte :=
+  binary_of_memidx d.(dt_data) ++
+  binary_of_expr d.(dt_offset) ++
+  binary_of_vec (fun x => cons x nil) d.(dt_init).
+
+Definition binary_of_datasec (ds : list module_data) : list byte :=
+  x0b :: with_length (binary_of_vec binary_of_data ds).
+
 Definition only_if_non_nil {A} (f : list A -> list byte) (xs : list A) : list byte :=
   match xs with
   | nil => nil
   | _ :: _ => f xs
+  end.
+
+Definition only_if_non_none {A} (f : A -> list byte) (xo : option A) : list byte :=
+  match xo with
+  | None => nil
+  | Some x => f x
   end.
 
 Definition binary_of_module (m : module) : list byte :=
@@ -412,6 +487,11 @@ Definition binary_of_module (m : module) : list byte :=
   only_if_non_nil binary_of_typesec m.(mod_types) ++
   only_if_non_nil binary_of_importsec m.(mod_imports) ++
   only_if_non_nil binary_of_funcsec m.(mod_funcs) ++
-  nil (* TODO *) ++
+  only_if_non_nil binary_of_tablesec m.(mod_tables) ++
+  only_if_non_nil binary_of_memsec m.(mod_mems) ++
+  only_if_non_nil binary_of_globalsec m.(mod_globals) ++
+  only_if_non_nil binary_of_exportssec m.(mod_exports) ++
+  only_if_non_none binary_of_startsec m.(mod_start) ++
+  only_if_non_nil binary_of_elemsec m.(mod_elem) ++
   only_if_non_nil binary_of_codesec m.(mod_funcs) ++
-  nil (* TODO *).
+  only_if_non_nil binary_of_datasec m.(mod_data).

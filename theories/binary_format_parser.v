@@ -1,6 +1,4 @@
 (** Parser for the binary Wasm format. **)
-(* TODO: make this use byte. *)
-(* TODO: write a relational spec, and prove they correspond *)
 
 From Wasm Require Import datatypes datatypes_properties.
 From compcert Require Import Integers.
@@ -45,14 +43,17 @@ Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int64.repr x) <$> (extract parse_signed n).
 
+Fixpoint k_plus_one_anyTok (k : nat) {n} : byte_parser (list byte) n :=
+  match k with
+  | 0 => (fun x => cons x nil) <$> anyTok
+  | S k' => ((fun x xs => cons x xs) <$> anyTok) <*> k_plus_one_anyTok k'
+  end.
+
 Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
-  (* TODO: use  Flocq.IEEE754.Bits.b32_of_bits *)
-  (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *)
-  exact_byte x00 $> Wasm_float.Float32.pos_zero.
+  (fun bs => Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 3).
 
 Definition parse_f64 {n} : byte_parser Wasm_float.FloatSize64.T n :=
-  (* TODO: steal IEEE 754-2019 (Section 3.4) bit pattern in little endian from Flocq? *)
-  exact_byte x00 $> Wasm_float.Float64.pos_zero.
+(fun bs => Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 7).
 
 Definition parse_u32_nat {n} : byte_parser nat n :=
   (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
@@ -78,6 +79,12 @@ Definition parse_labelidx {n} : byte_parser labelidx n :=
 
 Definition parse_funcidx {n} : byte_parser funcidx n :=
   (fun x => Mk_funcidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
+
+Definition parse_tableidx {n} : byte_parser tableidx n :=
+  (fun x => Mk_tableidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
+
+Definition parse_memidx {n} : byte_parser memidx n :=
+  (fun x => Mk_memidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
 
 Definition parse_typeidx {n} : byte_parser typeidx n :=
   (fun x => Mk_typeidx (Wasm_int.nat_of_uint i32m x)) <$> parse_u32.
@@ -511,7 +518,7 @@ Definition parse_table_type {n} : byte_parser table_type n :=
   ((fun lims ety => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_limits) <*> parse_elem_type.
 
 Definition parse_mem_type {n} : byte_parser mem_type n :=
-  parse_limits.
+  (fun lim => Mk_mem_type lim) <$> parse_limits.
 
 Definition parse_mut {n} : byte_parser mutability n :=
   exact_byte x00 $> MUT_immut <|>
@@ -534,20 +541,21 @@ Definition parse_module_glob {n} : byte_parser module_glob n :=
   ((fun ty e => {| mg_type := ty; mg_init := e |}) <$> parse_global_type) <*> parse_expr.
 
 Definition parse_module_export_desc {n} : byte_parser module_export_desc n :=
-  exact_byte x00 &> (ED_func <$> parse_u32_nat) <|>
-  exact_byte x01 &> (ED_table <$> parse_u32_nat) <|>
-  exact_byte x02 &> (ED_mem <$> parse_u32_nat) <|>
-  exact_byte x03 &> (ED_global <$> parse_u32_nat).
+  (exact_byte x00 &> (ED_func <$> parse_funcidx)) <|>
+  (exact_byte x01 &> (ED_table <$> parse_tableidx)) <|>
+  (exact_byte x02 &> (ED_mem <$> parse_memidx)) <|>
+  (exact_byte x03 &> (ED_global <$> parse_globalidx)).
 
 Definition parse_module_export {n} : byte_parser module_export n :=
-  ((fun name desc => {| exp_name := name; exp_desc := desc |}) <$> parse_vec anyTok) <*> parse_module_export_desc.
+  ((fun name desc => {| exp_name := name; exp_desc := desc |}) <$>
+  parse_vec anyTok) <*> parse_module_export_desc.
 
 Definition parse_module_start {n} : byte_parser module_start n :=
-  (fun func => {| start_func := func |}) <$> parse_u32_nat.
+  (fun func => {| start_func := func |}) <$> parse_funcidx.
 
 Definition parse_module_element {n} : byte_parser module_element n :=
   ((fun table offset init => {| elem_table := table; elem_offset := offset; elem_init := init |}) <$>
-  parse_u32_nat) <*> parse_expr <*> parse_vec parse_u32_nat.
+  parse_tableidx) <*> parse_expr <*> parse_vec parse_funcidx.
 
 Definition parse_nat_value_type {n} : byte_parser (list value_type) n :=
   ((fun k t => List.repeat t k) <$> parse_u32_nat) <*> parse_value_type.
@@ -572,10 +580,10 @@ Definition parse_module_table {n} : byte_parser module_table n :=
 
 Definition parse_module_data {n} : byte_parser module_data n :=
   ((fun data offset init => {| dt_data := data; dt_offset := offset; dt_init := init |}) <$>
-  parse_u32_nat) <*> parse_expr <*> parse_vec anyTok.
+  parse_memidx) <*> parse_expr <*> parse_vec anyTok.
 
 Definition parse_customsec {n} : byte_parser (list byte) n :=
-  exact_byte x00 &> parse_u32 &> parse_vec anyTok.
+  exact_byte x00 &> parse_vec anyTok.
 
 Definition parse_typesec {n} : byte_parser (list function_type) n :=
   exact_byte x01 &> parse_u32 &> parse_vec parse_function_type.
@@ -590,7 +598,7 @@ Definition parse_tablesec {n} : byte_parser (list module_table) n :=
   exact_byte x04 &> parse_u32 &> parse_vec parse_module_table.
 
 Definition parse_memsec {n} : byte_parser (list mem_type) n :=
-  exact_byte x05 &> parse_u32 &> parse_vec parse_limits.
+  exact_byte x05 &> parse_memidx &> parse_vec parse_mem_type.
 
 Definition parse_globalsec {n} : byte_parser (list module_glob) n :=
   exact_byte x06 &> parse_u32 &> parse_vec parse_module_glob.
@@ -619,11 +627,13 @@ Definition parse_version {n} : byte_parser unit n :=
 Definition parse_customsec_forget {A n} : byte_parser (A -> A) n :=
   (fun _ x => x) <$> parse_customsec.
 
-Definition parse_with_customsec_star_before {A : Type} {n} :=
-  @iterater _ _ _ _ _ _ _ _ _ A n parse_customsec_forget.
+Definition parse_with_customsec_star_before {A : Type} {n} f :=
+  @iterater _ _ _ _ _ _ _ _ _ A n parse_customsec_forget f.
 
+(*
 Definition parse_with_customsec_star_after {A : Type} {n} f :=
   @iteratel _ _ _ _ _ _ _ _ _ A n f parse_customsec_forget.
+*)
 
 Record parsing_module : Type := {
   pmod_types : list function_type;
@@ -834,8 +844,9 @@ Definition parse_datasec_wrapper {n} : byte_parser parsing_module n :=
   |}) <$>
   (parse_with_customsec_star_before parse_datasec).
 
-(** this is not in the spec, it is here to force productivity *)
-Definition end_marker : byte := x0b.
+(** this is not in the spec, it is here to force productivity;
+    we make it be different from all section markers *)
+Definition end_marker : byte := x0c.
 
 Definition parse_module_end {n} : byte_parser parsing_module n :=
   (fun _ => {|
@@ -870,7 +881,7 @@ Definition parse_startsec_onwards {n} : byte_parser parsing_module n :=
   parse_elemsec_onwards.
 
 Definition parse_exportsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_globalsec_wrapper) <*> parse_startsec_onwards) <|>
+  ((merge_parsing_modules <$> parse_exportsec_wrapper) <*> parse_startsec_onwards) <|>
   parse_startsec_onwards.
 
 Definition parse_globalsec_onwards {n} : byte_parser parsing_module n :=
