@@ -73,21 +73,64 @@ Record global_type := (* tg *) {
   tg_t : value_type
 }.
 
-Inductive function_type := (* tf *)
-| Tf : list value_type -> list value_type -> function_type.
+(**
+Result types classify the result of executing instructions or functions, which is a sequence of values written with brackets.
+*)
+Definition result_type : Type :=
+  list value_type.
 
-(*
+(**
+Function types classify the signature of functions, mapping a vector of
+parameters to a vector of results. They are also used to classify the inputs
+and outputs of instructions.
+*)
+Inductive function_type := (* tf *)
+| Tf : result_type -> result_type -> function_type.
+
+(**
 The element type funcref is the infinite union of all function types. A table
 of that type thus contains references to functions of heterogeneous type.
 *)
 Inductive elem_type : Type :=
 | ELT_funcref : elem_type.
 
+(**
+Table types classify tables over elements of element types within a size range.
+
+Like memories, tables are constrained by limits for their minimum and
+optionally maximum size. The limits are given in numbers of entries.
+*)
 Record table_type : Type := {
   tt_limits : limits;
   tt_elem_type : elem_type;
 }.
 
+(**
+Validity of an individual definition is specified relative to a context, which
+collects relevant information about the surrounding module and the definitions
+in scope:
+- Types: the list of types defined in the current module.
+- Functions: the list of functions declared in the current module, represented
+  by their function type.
+- Tables: the list of tables declared in the current module, represented by
+  their table type.
+- Memories: the list of memories declared in the current module, represented by
+  their memory type.
+- Globals: the list of globals declared in the current module, represented by
+  their global type.
+- Locals: the list of locals declared in the current function (including
+  parameters), represented by their value type.
+- Labels: the stack of labels accessible from the current position, represented
+  by their result type.
+- Return: the return type of the current function, represented as an optional
+  result type that is absent when no return is allowed, as in free-standing
+  expressions.
+In other words, a context contains a sequence of suitable types for each index
+space, describing each defined entry in that space. Locals, labels and return
+type are only used for validating instructions in function bodies, and are left
+empty elsewhere. The label stack is the only part of the context that changes
+as validation of an instruction sequence proceeds.
+*)
 Record t_context := {
   tc_types_t : list function_type;
   tc_func_t : list function_type;
@@ -98,18 +141,6 @@ Record t_context := {
   tc_label : list (list value_type);
   tc_return : option (list value_type);
 }.
-
-(* FIXME: Should we remove it?
-
-Record s_context := {
-  sc_inst : list t_context;
-  sc_funcs : list function_type;
-  sc_tab : list nat;
-  sc_memory : list nat;
-  sc_globs : list global_type;
-}.
-
-*)
 
 Inductive sx : Type :=
 | SX_S

@@ -1,9 +1,8 @@
-(* TODO: (1) print all the sections!
-(2) print floats!
+(* TODO: print all the sections!!!
 *)
 
 Require Import datatypes_properties numerics.
-From compcert Require Import Integers.
+From compcert Require Integers.
 From parseque Require Import Parseque.
 Require Import Ascii Byte.
 Require leb128.
@@ -48,15 +47,13 @@ Definition binary_of_i32 (x : i32) : list byte :=
   leb128.encode_signed x.(Wasm_int.Int32.intval).
 
 Definition binary_of_i64 (x : i64) : list byte :=
-leb128.encode_signed x.(Wasm_int.Int64.intval).
+  leb128.encode_signed x.(Wasm_int.Int64.intval).
 
 Definition binary_of_f32 (x : f32) : list byte :=
-  (* TODO *)
-  x00 :: x00 :: x00 :: nil.
+  List.map byte_of_compcert_byte (serialise_f32 x).
 
 Definition binary_of_f64 (x : f64) : list byte :=
-  (* TODO *)
-  x00 :: x00 :: x00 :: nil.
+  List.map byte_of_compcert_byte (serialise_f64 x).
 
 (** An opaque definition for cases that can’t happen because of the well-formed properties. **)
 Definition dummy : list byte.

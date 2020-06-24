@@ -238,10 +238,6 @@ Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : modu
 Definition init_tabs (s : store_record) (inst : instance) (e_inds : list nat) (es : list module_element) : store_record :=
   List.fold_left (fun s' '(e_ind, e) => init_tab s' inst e_ind e) (List.combine e_inds es) s.
 
-Definition compcert_byte_of_byte (b : Byte.byte) : byte :=
-  (* TODO: this is not great *)
-  encode (Byte.to_nat b).
-
 Definition dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None; |} |}.
 
 Definition init_mem (s : store_record) (inst : instance) (d_ind : nat) (d : module_data) : store_record :=

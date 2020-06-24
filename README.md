@@ -4,6 +4,8 @@ Our definitions and proofs draw from those given in the [Isabelle mechanisation 
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, R. Xiaojia 2019-2020 - see LICENSE.txt
 
+The quotes from the WebAssembly standard are (C) their respective authors.
+
 This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. Our initial work used the definitions published in PLDI'17 and we are now adapting the definitions to Wasm 1.0., the specification as ratified by W35. 
 
 # TODOs

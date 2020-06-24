@@ -2,7 +2,7 @@ From Flocq Require Import Bits.
 Require Import Ascii Byte.
 Require Import BinNums ZArith.BinInt.
 
-(* TODO: this to circumvent Flocq's terrible "binary" representation of floats *)
+(* TODO: this to circumvent Flocq's "binary" representation of floats *)
 
 Definition Z_of_ascii (a : ascii) : Z :=
   match a with

@@ -55,6 +55,17 @@ Fixpoint bytes_replicate (n : nat) (b : byte) : bytes :=
 Definition msbyte (bs : bytes) : option byte :=
   last_error bs.
 
+Definition compcert_byte_of_byte (b : Byte.byte) : byte :=
+  (* TODO: this is not great *)
+  encode (Byte.to_nat b).
+
+Definition byte_of_compcert_byte (b : byte) : Byte.byte :=
+  (* TODO: is that correct? *)
+  match Byte.of_nat (BinInt.Z.to_nat b.(Byte.intval)) with
+  | None => Byte.x00
+  | Some b' => b'
+  end.
+
 Declare Scope byte_scope.
 Delimit Scope byte_scope with byte.
 Open Scope byte_scope.
