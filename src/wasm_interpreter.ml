@@ -99,9 +99,9 @@ let process_args_and_run verbosity text no_exec func_name depth srcs =
 
 open Cmdliner
 
-let verbose =
+let verbosity =
   let doc = "Verbosity level; default = 1.\n\t0: print nothing.\n\t1: print stage.\n\t2: also print intermediate states." in
-  Arg.(value & opt int 1 & info ["v"; "verbose"] ~doc)
+  Arg.(value & opt int 1 & info ["v"; "verbosity"] ~doc)
 
 let text =
   let doc = "Read text format." in
@@ -131,7 +131,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
-  (Term.(ret (const process_args_and_run $ verbose $ text $ no_exec $ func_name $ depth $ srcs)),
+  (Term.(ret (const process_args_and_run $ verbosity $ text $ no_exec $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
