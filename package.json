@@ -14,10 +14,16 @@
 		},
 		"build": "make"
 	},
+	"scripts": {
+		"clean": "make clean",
+		"doc": "dune build @doc",
+		"test": "dune runtest"
+	},
 	"dependencies": {
 		"@opam/cmdliner": "1.0.4",
 		"@opam/coq": "8.10.1",
 		"@opam/dune": "~2.3",
+		"@opam/odoc": "*",
 		"@opam/menhir": "20181113",
 		"compcert": "3.6",
 		"coq-flocq": "3.2.0",

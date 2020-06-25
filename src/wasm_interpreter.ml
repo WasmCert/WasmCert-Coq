@@ -1,5 +1,6 @@
 (** Main file for the Wasm interpreter **)
 
+(** Convert a string to a list of characters. *)
 let explode s = List.init (String.length s) (String.get s)
 
 let ansi_bold = Convert.from_string (Extract.ansi_bold)
@@ -50,6 +51,7 @@ let run verbose files name depth =
 
 let interpret verbose text no_exec func_name depth srcs =
   try
+    (** Preparing the files. *)
     let files =
       List.map (fun dest ->
         if not (Sys.file_exists dest) || Sys.is_directory dest then
@@ -64,16 +66,34 @@ let interpret verbose text no_exec func_name depth srcs =
               close_in in_channel;
               List.rev acc in
           aux []) srcs in
-    run verbose files func_name depth
+    (** Parsing. *)
+    if not quiet then Printf.printf "Parsing… ";
+    let m =
+      if text then
+        invalid_arg "Text mode not yet implemented."
+      else
+        match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
+        | Extract.None -> invalid_arg "syntax error"
+        | Extract.Some m -> m in
+    if not quiet then Printf.printf "Done.\n%!";
+    (** Running. *)
+    if no_exec then
+      (if not quiet then Printf.printf "Skipping the execution because of the --no-exec argument.\n%!";
+       `Ok ())
+    else instantiate_and_run m verbose quiet func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
-(* Command line interface *)
+(** Command line interface *)
 
 open Cmdliner
 
 let verbose =
   let doc = "Print intermediate states." in
   Arg.(value & flag & info ["v"; "verbose"] ~doc)
+
+let quiet =
+  let doc = "Do not print what the interpreter is doing as it does it." in
+  Arg.(value & flag & info ["q"; "quiet"] ~doc)
 
 let text =
   let doc = "Read text format." in
@@ -103,7 +123,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
-  (Term.(ret (const interpret $ verbose $ text $ no_exec $ func_name $ depth $ srcs)),
+  (Term.(ret (const interpret $ verbose $ quiet $ text $ no_exec $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)

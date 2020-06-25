@@ -17,4 +17,6 @@ install:
 
 script:
   - make travis-hook
+  - esy test
+  - esy doc
 
