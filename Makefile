@@ -1,7 +1,7 @@
 .PHONY: all clean travis-hook
 
 all: .vscode/settings.json
-	export HOME=`pwd`; dune build @all
+	export HOME=`pwd`; dune build @all --verbose
 	dune build -p wasm_interpreter
 
 clean:

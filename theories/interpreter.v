@@ -133,8 +133,8 @@ Qed.
 
 Section Host.
 
-Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
-  let: (s, vs, es) := tt in
+Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (cfg : config_tuple) : res_tuple :=
+  let: (s, vs, es) := cfg in
   match fuel with
   | 0 => (s, vs, RS_crash C_exhaustion)
   | fuel.+1 =>
@@ -155,8 +155,8 @@ Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : confi
     end
   end
 
-with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
-  let: (s, vs, ves) := tt in
+with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
+  let: (s, vs, ves) := cfg in
   match fuel with
   | 0 => (s, vs, RS_crash C_exhaustion)
   | fuel.+1 =>
@@ -518,15 +518,15 @@ Proof.
 Defined.
 
 (** Enough fuel so that [run_step] does not run out of exhaustion. **)
-Definition run_step_fuel (tt : config_tuple) :=
-  let: (s, vs, es) := tt in
+Definition run_step_fuel (cfg : config_tuple) : nat :=
+  let: (s, vs, es) := cfg in
   1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
-Definition run_step (d : depth) (inst : instance) (tt : config_tuple) :=
-  run_step_with_fuel (run_step_fuel tt) d inst tt.
+Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : res_tuple :=
+  run_step_with_fuel (run_step_fuel cfg) d inst cfg.
 
-Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res)%type) :=
-  let: (s, vs, es) := tt in
+Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (cfg : config_tuple) : ((store_record * res)%type) :=
+  let: (s, vs, es) := cfg in
   match fuel with
   | 0 => (s, R_crash C_exhaustion)
   | fuel.+1 =>

@@ -9,6 +9,26 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Definition ascii_eq_dec : forall tf1 tf2 : Ascii.ascii,
+  {tf1 = tf2} + {tf1 <> tf2}.
+Proof. decidable_equality. Defined.
+
+Definition ascii_eqb v1 v2 : bool := ascii_eq_dec v1 v2.
+Definition eqasciiP : Equality.axiom ascii_eqb :=
+  eq_dec_Equality_axiom ascii_eq_dec.
+
+Canonical Structure ascii_eqMixin := EqMixin eqasciiP.
+Canonical Structure ascii_eqType :=
+  Eval hnf in EqType Ascii.ascii ascii_eqMixin.
+
+Definition byte_eqb v1 v2 : bool := Byte.byte_eq_dec v1 v2.
+Definition eqbyteP : Equality.axiom byte_eqb :=
+  eq_dec_Equality_axiom Byte.byte_eq_dec.
+
+Canonical Structure byte_eqMixin := EqMixin eqbyteP.
+Canonical Structure byte_eqType :=
+  Eval hnf in EqType Byte.byte byte_eqMixin.
+
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
 Definition eqvalue_typeP : Equality.axiom value_type_eqb :=

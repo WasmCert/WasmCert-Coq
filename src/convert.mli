@@ -15,6 +15,9 @@ val from_list : 'a Extract.list -> 'a list
 (** Converts [char] to [Extract.ascii]. **)
 val to_ascii : char -> Extract.ascii
 
+(** Converts [Extract.ascii] to [char]. **)
+val from_ascii : Extract.ascii -> char
+
 (** Converts [int] to [Extract.nat]. **)
 val to_nat : int -> Extract.nat
 

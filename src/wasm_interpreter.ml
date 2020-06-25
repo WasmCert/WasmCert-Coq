@@ -1,18 +1,37 @@
 (** Main file for the Wasm interpreter **)
 
-let run files =
+let explode s = List.init (String.length s) (String.get s)
+
+let run2 (verbose : bool) sies (name : string) (depth : int) =
+  let name' = Convert.to_list (List.map (fun c -> Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
+  let depth' = Convert.to_nat depth in
+  match Extract.lookup_exported_function name' sies with
+  | None -> `Error (false, "unknown function `" ^ name ^ "`")
+  | Some cfg0 ->
+    let Extract.Pair (Extract.Pair (_, i), _) = sies in
+    let rec f cfg =
+      (match Extract.run_step depth' i cfg with
+      | Extract.Pair (Extract.Pair (_, _), RS_crash _) -> `Error (false, "crash!?")
+      | Extract.Pair (Extract.Pair (_, _), RS_break _) -> `Error (false, "break!?")
+      | Extract.Pair (Extract.Pair (_, _), RS_return vs) -> `Ok (Printf.printf "yay!")
+      | Extract.Pair (Extract.Pair (s', vs'), RS_normal es) ->
+        if verbose then (Printf.fprintf stdout ".\n"; flush stdout) else ();
+        f (Extract.Pair (Extract.Pair (s', vs'), es))) in
+    (if verbose then (Printf.fprintf stdout ".\n"; flush stdout) else ());
+    f cfg0
+
+let run verbose files name depth =
   match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
   | None -> `Error (false, "syntax error")
   | Some m ->
-    Printf.printf "parsing successful\n";
+    Printf.printf "parsing successful\n"; flush stdout; flush stderr;
     (match Extract.interp_instantiate_wrapper m with
      | None -> `Error (false, "instantiation error")
-     | Some inst ->
-       Printf.printf "instantiation successful\n";
-       `Ok ())
-    (* TODO: Link to [Extract.run_v]. *)
+     | Some (Extract.Pair (store_inst_exps, _)) ->
+       Printf.printf "instantiation successful\n"; flush stdout; flush stderr;
+       run2 verbose store_inst_exps name depth)
 
-let interpret verbose text no_exec srcs fname =
+let interpret verbose text no_exec func_name depth srcs =
   try
     let files =
       List.map (fun dest ->
@@ -28,7 +47,7 @@ let interpret verbose text no_exec srcs fname =
               close_in in_channel;
               List.rev acc in
           aux []) srcs in
-    run files
+    run verbose files func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
 (* Command line interface *)
@@ -47,13 +66,17 @@ let no_exec =
   let doc = "Stop before executing (only go up to typechecking)." in
   Arg.(value & flag & info ["no-exec"] ~doc)
 
+let func_name =
+  let doc = "Name of the Wasm function to run." in
+  Arg.(required & pos ~rev:true 1 (some string) None & info [] ~docv:"NAME" ~doc)
+
+let depth =
+  let doc = "Depth to which to run the Wasm evaluator." in
+  Arg.(required & pos ~rev:true 0 (some int) None & info [] ~docv:"DEPTH" ~doc)
+
 let srcs =
   let doc = "Source file(s) to interpret." in
-  Arg.(non_empty & pos_left ~rev:true 0 file [] & info [] ~docv:"FILE" ~doc)
-
-let fname =
-  let doc = "Name of the Wasm function to run." in
-  Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"NAME" ~doc)
+  Arg.(non_empty & pos_left ~rev:true 1 file [] & info [] ~docv:"FILE" ~doc)
 
 let cmd =
   let doc = "Interpret WebAssembly files" in
@@ -63,7 +86,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
-  (Term.(ret (const interpret $ verbose $ text $ no_exec $ srcs $ fname)),
+  (Term.(ret (const interpret $ verbose $ text $ no_exec $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)

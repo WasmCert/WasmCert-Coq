@@ -165,9 +165,4 @@ Lemma module_42_exported_round_trip :
   run_parse_module (binary_of_module module_42_exported) = Some module_42_exported.
 Proof.
 vm_compute. reflexivity. Qed.
-(**)
-Eval vm_compute in binary_of_u32_nat 0.
-Eval vm_compute in binary_format_parser.run (binary_of_u32_nat 0) (fun n => parse_u32).
-Eval vm_compute in binary_format_parser.run (binary_of_exportssec module_42_exported.(mod_exports)) (fun n => parse_exportsec).
-Eval vm_compute in hex_small_no_prefix_of_bytes (binary_of_module module_42_exported).
 

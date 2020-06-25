@@ -832,3 +832,24 @@ Definition empty_store_record := {|
 
 Definition interp_instantiate_wrapper (m : module) : option ((store_record * instance * list module_export) * option nat) :=
   interp_instantiate empty_store_record m nil.
+
+Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export) : option interpreter.config_tuple :=
+  let '(s, inst, exps) := store_inst_exps in
+  List.fold_left
+    (fun acc e =>
+      match acc with
+      | Some cfg => Some cfg
+      | None =>
+        if e.(exp_name) == n then
+          match e.(exp_desc) with
+          | ED_func (Mk_funcidx fi) =>
+            match List.nth_error s.(s_funcs) fi with
+            | None => None
+            | Some fc => Some (s, nil, cons (Invoke fc) nil)
+            end
+          | _ => None
+          end
+        else None
+      end)
+    exps
+    None.
