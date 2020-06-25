@@ -31,9 +31,20 @@ let rec from_string = function
 
 let rec to_nat = function
   | 0 -> Extract.O
-  | n -> Extract.S (to_nat (n - 1))
+  | n when n > 0 -> Extract.S (to_nat (n - 1))
+  | _ -> failwith "not a nat"
 
 let rec from_nat = function
   | Extract.O -> 0
   | Extract.S n -> 1 + from_nat n
+
+let from_pair = function
+| Extract.Pair (a, b) -> (a, b)
+
+let to_pair (a, b) = Extract.Pair (a, b)
+
+let from_triple = function
+| Extract.Pair (Extract.Pair (a, b), c) -> (a, b, c)
+
+let to_triple (a, b, c) = Extract.Pair (Extract.Pair (a, b), c)
 

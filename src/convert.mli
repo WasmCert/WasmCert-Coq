@@ -27,3 +27,11 @@ val to_nat : int -> Extract.nat
 (** Converts [Extract.nat] to [int]. **)
 val from_nat : Extract.nat -> int
 
+val from_pair : ('a, 'b) Extract.prod -> ('a * 'b)
+
+val to_pair : ('a * 'b) -> ('a, 'b) Extract.prod
+
+val from_triple : (('a, 'b) Extract.prod, 'c) Extract.prod -> ('a * 'b * 'c)
+
+val to_triple : ('a * 'b * 'c) -> (('a, 'b) Extract.prod, 'c) Extract.prod
+

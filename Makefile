@@ -3,6 +3,7 @@
 all: .vscode/settings.json
 	export HOME=`pwd`; dune build @all --verbose
 	dune build -p wasm_interpreter
+	ln -f -s ./_build/install/default/bin/wasm_interpreter ./wasm_interpreter
 
 clean:
 	rm -rf _build || true

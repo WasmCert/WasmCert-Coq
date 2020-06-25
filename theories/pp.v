@@ -5,22 +5,13 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
 Require Import bytes_pp datatypes interpreter.
 Require BinNatDef.
+Require Import ansi.
 
 Open Scope string_scope.
 
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
 
 Definition newline : string := String newline_char EmptyString.
-
-Definition ansi_escape_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x1b.
-
-Definition ansi_escape : string := String ansi_escape_char EmptyString.
-
-Definition ansi_reset : string := ansi_escape ++ "[0m".
-Definition ansi_bold : string := ansi_escape ++ "[1m".
-Definition ansi_red : string := ansi_escape ++ "[31m".
-Definition ansi_green : string := ansi_escape ++ "[32m".
-
 
 Fixpoint indent (i : nat) (s : string) : string :=
   match i with
@@ -310,7 +301,7 @@ Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction
   | Label k es1 es2 =>
     indent n ("label " ++ string_of_nat k ++ newline) ++
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es1) ++
-    indent n "label2" ++ (* TODO: ??? *)
+    indent n "label2" ++ newline ++ (* TODO: ??? *)
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es1) ++
     indent n ("end" ++ newline)
   | Local n i vs es =>
@@ -320,23 +311,44 @@ Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
   String.concat "" (List.map (pp_administrative_instruction n) es).
 
+Definition pp_values (vs : list value) : string :=
+  String.concat " " (List.map pp_const vs).
+
+Definition pp_values_hint_empty (vs : list value) : string :=
+  match vs with
+  | nil => "(empty)"
+  | _ => pp_values vs
+  end.
+
+Definition pp_store (n : nat) (s : store_record) : string :=
+  indent n ("TODO: store"). (* TODO *)
+
 Definition pp_config_tuple (cfg : interpreter.config_tuple) : string :=
   let '(s, vs, es) := cfg in
-  (* TODO: show the rest *)
-  pp_administrative_instructions 0 es.
+  pp_administrative_instructions 0 es ++
+  "with values " ++ pp_values_hint_empty vs ++ newline ++
+  "and store" ++ newline ++
+  pp_store 1 s.
 
 Definition pp_res_tuple (res_cfg : interpreter.res_tuple) : string :=
   let '(s, vs, res) := res_cfg in
-  (* TODO: print s *)
   match res with
   | RS_crash _ => "crash" ++ newline ++
-    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
-  | RS_break n vs => "break " ++ string_of_nat n ++ "  " ++ String.concat " " (List.map pp_const vs) ++ newline ++
-    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
-  | RS_return vs => "return " ++ String.concat " " (List.map pp_const vs) ++ newline ++
-    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
+    "with values " ++ pp_values_hint_empty vs ++ newline ++
+    "and store" ++ newline ++
+    pp_store 1 s
+  | RS_break n vs => "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
+    "with values " ++ pp_values_hint_empty vs ++ newline ++
+    "and store" ++ newline ++
+    pp_store 1 s
+  | RS_return vs_res => "return " ++ pp_values_hint_empty vs_res ++ newline ++
+    "with values " ++ pp_values_hint_empty vs ++ newline ++
+    "and store" ++ newline ++
+    pp_store 1 s
   | RS_normal es =>
     "normal" ++ newline ++
     String.concat "" (List.map (pp_administrative_instruction 1) es) ++
-    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
+    "with values " ++ pp_values_hint_empty vs ++ newline ++
+    "and store" ++ newline ++
+    pp_store 1 s
   end.

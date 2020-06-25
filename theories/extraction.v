@@ -14,7 +14,8 @@ Extraction "extract"
   Ascii.byte_of_ascii
   pp.pp_config_tuple
   pp.pp_res_tuple
-  pp.ansi_bold
-  pp.ansi_reset
-  pp.ansi_green
-  pp.ansi_red.
+  pp.pp_values
+  ansi.ansi_bold
+  ansi.ansi_reset
+  ansi.ansi_green
+  ansi.ansi_red.
