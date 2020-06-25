@@ -6,6 +6,12 @@ let explode s = List.init (String.length s) (String.get s)
 (** Given the first part of a configuration tuple [Extract.((store_record, value0 list) prod)],
    run it. *)
 let run verbose sies (name : string) (depth : int) =
+  let print_step gen tuple =
+    Printf.printf "%sstep %d:%s\n%s\n%!"
+      (Convert.from_string (Extract.ansi_bold))
+      gen
+      (Convert.from_string (Extract.ansi_reset))
+      (Convert.from_string tuple) in
   let name' =
     Convert.to_list (List.map (fun c ->
       Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
@@ -16,26 +22,22 @@ let run verbose sies (name : string) (depth : int) =
     let Extract.Pair (Extract.Pair (_, i), _) = sies in
     let rec f gen cfg =
       (let res = Extract.run_step depth' i cfg in
-       if verbose then
-         Printf.fprintf stdout "%sstep %d:%s\n%s\n%!"
-           (Convert.from_string (Extract.ansi_bold))
-           gen
-           (Convert.from_string (Extract.ansi_reset))
-           (Convert.from_string (Extract.pp_res_tuple res));
+       if verbose then print_step gen (Extract.pp_res_tuple res);
        match res with
        | Extract.(Pair (Pair (_, _), RS_crash _)) -> `Error (false, "crash")
        | Extract.(Pair (Pair (_, _), RS_break _)) -> `Error (false, "break")
-       | Extract.(Pair (Pair (_, _), RS_return vs)) -> `Ok (Printf.printf "result")
+       | Extract.(Pair (Pair (_, _), RS_return vs)) ->
+         let vs = Convert.from_list vs in
+         `Ok (Printf.printf "%s" (String.concat ", " (List.map Convert.string_of_value vs)))
        | Extract.(Pair (Pair (s', vs'), RS_normal es)) ->
+         (** The execution must keep on. *)
          f (gen + 1) (Extract.Pair (Extract.Pair (s', vs'), es))) in
-    if verbose then
-      Printf.printf "step %d:\n%s\n%!" 0
-        (Convert.from_string (Extract.pp_config_tuple cfg0));
+    if verbose then print_step 0 (Extract.pp_config_tuple cfg0);
     f 1 cfg0
 
 (** Given the Wasm parsed program (currently [Extract.module0] in the extraction,
    instantiate and run it. *)
-let instantiate_and_run m verbose quiet files name depth =
+let instantiate_and_run m verbose quiet name depth =
   if not quiet then Printf.printf "Instantiating… ";
   match Extract.interp_instantiate_wrapper m with
   | Extract.None -> `Error (false, "instantiation error")
@@ -62,7 +64,7 @@ let interpret verbose quiet text no_exec func_name depth srcs =
               List.rev acc in
           aux []) srcs in
     (** Parsing. *)
-    if not quiet then Printf.printf "Now parsing… ";
+    if not quiet then Printf.printf "Parsing… ";
     let m =
       if text then
         invalid_arg "Text mode not yet implemented."
@@ -73,9 +75,9 @@ let interpret verbose quiet text no_exec func_name depth srcs =
     if not quiet then Printf.printf "Done.\n%!";
     (** Running. *)
     if no_exec then
-      (if not quiet then Printf.printf "Skipping the execution because of the --no-exec argument.";
+      (if not quiet then Printf.printf "Skipping the execution because of the --no-exec argument.\n%!";
        `Ok ())
-    else instantiate_and_run m verbose quiet files func_name depth
+    else instantiate_and_run m verbose quiet func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
 (** Command line interface *)
