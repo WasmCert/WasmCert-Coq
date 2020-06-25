@@ -3,9 +3,24 @@ Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
-Require Import bytes_pp datatypes.
+Require Import bytes_pp datatypes interpreter.
+Require BinNatDef.
 
 Open Scope string_scope.
+
+Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
+
+Definition newline : string := String newline_char EmptyString.
+
+Definition ansi_escape_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x1b.
+
+Definition ansi_escape : string := String ansi_escape_char EmptyString.
+
+Definition ansi_reset : string := ansi_escape ++ "[0m".
+Definition ansi_bold : string := ansi_escape ++ "[1m".
+Definition ansi_red : string := ansi_escape ++ "[31m".
+Definition ansi_green : string := ansi_escape ++ "[32m".
+
 
 Fixpoint indent (i : nat) (s : string) : string :=
   match i with
@@ -103,10 +118,10 @@ Definition pp_f64 (f : float) : string :=
 
 Definition pp_const (v : value) : string :=
   match v with
-  | ConstInt32 i => "i32.const " ++ pp_i32 i ++ "\n"
-  | ConstInt64 i => "i64.const " ++ pp_i64 i ++ "\n"
-  | ConstFloat32 f => "f32.const " ++ pp_f32 f ++ "\n"
-  | ConstFloat64 f => "f64.const " ++ pp_f64 f ++ "\n"
+  | ConstInt32 i => "i32.const " ++ pp_i32 i ++ newline
+  | ConstInt64 i => "i64.const " ++ pp_i64 i ++ newline
+  | ConstFloat32 f => "f32.const " ++ pp_f32 f ++ newline
+  | ConstFloat64 f => "f64.const " ++ pp_f64 f ++ newline
   end.
 
 Definition pp_unary_op_i (uoi : unop_i) : string :=
@@ -198,50 +213,50 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
   let pp_basic_instructions bes i :=
     String.concat "" (List.map (pp_basic_instruction (S i)) bes) in
   match be with
-  | Unreachable => indent i "unreachable\n"
-  | Nop => indent i "nop\n"
-  | Drop => indent i "drop\n"
-  | Select => indent i "select\n"
+  | Unreachable => indent i "unreachable" ++ newline
+  | Nop => indent i "nop" ++ newline
+  | Drop => indent i "drop" ++ newline
+  | Select => indent i "select" ++ newline
   | Block tf bes =>
-    indent i ("block" ++ pp_block_tf tf ++ "\n")
+    indent i ("block" ++ pp_block_tf tf ++ newline)
     ++ pp_basic_instructions bes (S i)
-    ++ indent i "end\n"
+    ++ indent i "end" ++ newline
   | Loop tf bes =>
-    indent i ("loop" ++ pp_block_tf tf ++ "\n")
+    indent i ("loop" ++ pp_block_tf tf ++ newline)
     ++ pp_basic_instructions bes (S i)
-    ++ indent i "end\n"
+    ++ indent i "end" ++ newline
   | If tf bes nil =>
-    indent i ("if" ++ pp_block_tf tf ++ "\n")
+    indent i ("if" ++ pp_block_tf tf ++ newline)
     ++ pp_basic_instructions bes (S i)
-    ++ indent i "end\n"
+    ++ indent i "end" ++ newline
   | If tf bes1 bes2 =>
-    indent i ("if" ++ pp_block_tf tf ++ "\n")
+    indent i ("if" ++ pp_block_tf tf ++ newline)
     ++ pp_basic_instructions bes1 (S i)
-    ++ indent i "else\n"
+    ++ indent i "else" ++ newline
     ++ pp_basic_instructions bes2 (S i)
-    ++ indent i "end\n"
+    ++ indent i "end" ++ newline
   | Br x =>
-    indent i ("br " ++ pp_immediate x ++ "\n")
+    indent i ("br " ++ pp_immediate x ++ newline)
   | Br_if x =>
-    indent i ("br_if " ++ pp_immediate x ++ "\n")
+    indent i ("br_if " ++ pp_immediate x ++ newline)
   | Br_table is_ i =>
-    indent i ("br_table " ++ String.concat " " (List.map pp_immediate is_) ++ " " ++ pp_immediate i ++ "\n")
+    indent i ("br_table " ++ String.concat " " (List.map pp_immediate is_) ++ " " ++ pp_immediate i ++ newline)
   | Return =>
-    indent i "return\n"
+    indent i "return" ++ newline
   | Call x =>
-    indent i ("call " ++ pp_immediate x ++ "\n")
+    indent i ("call " ++ pp_immediate x ++ newline)
   | Call_indirect x =>
-    indent i ("call_indirect " ++ pp_immediate x ++ "\n")
+    indent i ("call_indirect " ++ pp_immediate x ++ newline)
   | Get_local x =>
-    indent i ("local.get " ++ pp_immediate x ++ "\n")
+    indent i ("local.get " ++ pp_immediate x ++ newline)
   | Set_local x =>
-    indent i ("local.set " ++ pp_immediate x ++ "\n")
+    indent i ("local.set " ++ pp_immediate x ++ newline)
   | Tee_local x =>
-    indent i ("local.tee " ++ pp_immediate x ++ "\n")
+    indent i ("local.tee " ++ pp_immediate x ++ newline)
   | Get_global x =>
-    indent i ("global.get " ++ pp_immediate x ++ "\n")
+    indent i ("global.get " ++ pp_immediate x ++ newline)
   | Set_global x =>
-    indent i ("global.set " ++ pp_immediate x ++ "\n")
+    indent i ("global.set " ++ pp_immediate x ++ newline)
   | Load vt None a o =>
     pp_value_type vt ++ ".load " ++ pp_ao a o
   | Load vt (Some ps) a o =>
@@ -251,28 +266,77 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
   | Store vt (Some p) a o =>
     pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o
   | Current_memory =>
-    indent i "memory.size\n"
+    indent i "memory.size" ++ newline
   | Grow_memory =>
-    indent i "memory.grow\n"
+    indent i "memory.grow" ++ newline
   | EConst v =>
     indent i (pp_const v)
   | Unop_i vt uoi =>
-    indent i (pp_value_type vt ++ "." ++ pp_unary_op_i uoi ++ "\n")
+    indent i (pp_value_type vt ++ "." ++ pp_unary_op_i uoi ++ newline)
   | Unop_f vt uof =>
-    indent i (pp_value_type vt ++ "." ++ pp_unary_op_f uof ++ "\n")
+    indent i (pp_value_type vt ++ "." ++ pp_unary_op_f uof ++ newline)
   | Binop_i vt boi =>
-    indent i (pp_value_type vt ++ "." ++ pp_binary_op_i boi ++ "\n")
+    indent i (pp_value_type vt ++ "." ++ pp_binary_op_i boi ++ newline)
   | Binop_f vt bof =>
-    indent i (pp_value_type vt ++ "." ++ pp_binary_op_f bof ++ "\n")
+    indent i (pp_value_type vt ++ "." ++ pp_binary_op_f bof ++ newline)
   | Testop vt Eqz =>
-    indent i (pp_value_type vt ++ ".eqz\n")
+    indent i (pp_value_type vt ++ ".eqz" ++ newline)
   | Relop_i vt roi =>
-    indent i (pp_value_type vt ++ "." ++ pp_rel_op_i roi ++ "\n")
+    indent i (pp_value_type vt ++ "." ++ pp_rel_op_i roi ++ newline)
   | Relop_f vt rof =>
-    indent i (pp_value_type vt ++ "." ++ pp_rel_op_f rof ++ "\n")
-  | Cvtop vt1 cvtop vt2 sxo => "?\n"
+    indent i (pp_value_type vt ++ "." ++ pp_rel_op_f rof ++ newline)
+  | Cvtop vt1 cvtop vt2 sxo => "?" ++ newline (* TODO: ??? *)
   end.
 
 Definition pp_basic_instructions bes :=
   String.concat "" (List.map (pp_basic_instruction 0) bes).
 
+Definition pp_function_closure (n : nat) (fc : function_closure) : string :=
+  match fc with
+  | Func_native i ft vs bes => indent n ("native" ++ newline) (* TODO: show *)
+  | Func_host ft h => indent n ("host" ++ newline) (* TODO: show *)
+  end.
+
+Definition string_of_nat (n : nat) : string :=
+  string_of_uint (Nat.to_uint (BinNatDef.N.of_nat n)).
+
+Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction) : string :=
+  match e with
+  | Basic be => pp_basic_instruction n be
+  | Trap => indent n ("trap" ++ newline)
+  | Invoke fc =>
+    indent n ("invoke" ++ newline) ++
+    pp_function_closure (n.+1) fc
+  | Label k es1 es2 =>
+    indent n ("label " ++ string_of_nat k ++ newline) ++
+    String.concat "" (List.map (pp_administrative_instruction (n.+1)) es1) ++
+    indent n "label2" ++ (* TODO: ??? *)
+    String.concat "" (List.map (pp_administrative_instruction (n.+1)) es1) ++
+    indent n ("end" ++ newline)
+  | Local n i vs es =>
+    indent n ("local" ++ newline) (* TODO: ??? *)
+  end.
+
+Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
+  String.concat "" (List.map (pp_administrative_instruction n) es).
+
+Definition pp_config_tuple (cfg : interpreter.config_tuple) : string :=
+  let '(s, vs, es) := cfg in
+  (* TODO: show the rest *)
+  pp_administrative_instructions 0 es.
+
+Definition pp_res_tuple (res_cfg : interpreter.res_tuple) : string :=
+  let '(s, vs, res) := res_cfg in
+  (* TODO: print s *)
+  match res with
+  | RS_crash _ => "crash" ++ newline ++
+    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
+  | RS_break n vs => "break " ++ string_of_nat n ++ "  " ++ String.concat " " (List.map pp_const vs) ++ newline ++
+    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
+  | RS_return vs => "return " ++ String.concat " " (List.map pp_const vs) ++ newline ++
+    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
+  | RS_normal es =>
+    "normal" ++ newline ++
+    String.concat "" (List.map (pp_administrative_instruction 1) es) ++
+    "with " ++ String.concat " " (List.map pp_const vs) ++ newline
+  end.

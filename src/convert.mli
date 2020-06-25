@@ -18,6 +18,9 @@ val to_ascii : char -> Extract.ascii
 (** Converts [Extract.ascii] to [char]. **)
 val from_ascii : Extract.ascii -> char
 
+(** Converts [Extract.string] to [string]. **)
+val from_string : Extract.string -> string
+
 (** Converts [int] to [Extract.nat]. **)
 val to_nat : int -> Extract.nat
 

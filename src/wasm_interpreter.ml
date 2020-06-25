@@ -9,16 +9,17 @@ let run2 (verbose : bool) sies (name : string) (depth : int) =
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     let Extract.Pair (Extract.Pair (_, i), _) = sies in
-    let rec f cfg =
-      (match Extract.run_step depth' i cfg with
-      | Extract.Pair (Extract.Pair (_, _), RS_crash _) -> `Error (false, "crash!?")
-      | Extract.Pair (Extract.Pair (_, _), RS_break _) -> `Error (false, "break!?")
-      | Extract.Pair (Extract.Pair (_, _), RS_return vs) -> `Ok (Printf.printf "yay!")
-      | Extract.Pair (Extract.Pair (s', vs'), RS_normal es) ->
-        if verbose then (Printf.fprintf stdout ".\n"; flush stdout) else ();
-        f (Extract.Pair (Extract.Pair (s', vs'), es))) in
-    (if verbose then (Printf.fprintf stdout ".\n"; flush stdout) else ());
-    f cfg0
+    let rec f gen cfg =
+      (let res = Extract.run_step depth' i cfg in
+       if verbose then (Printf.fprintf stdout "%sstep %d:%s\n%s\n" (Convert.from_string (Extract.ansi_bold)) gen (Convert.from_string (Extract.ansi_reset)) (Convert.from_string (Extract.pp_res_tuple res)); flush stdout) else ();
+       match res with
+       | Extract.Pair (Extract.Pair (_, _), RS_crash _) -> `Error (false, "crash!?")
+       | Extract.Pair (Extract.Pair (_, _), RS_break _) -> `Error (false, "break!?")
+       | Extract.Pair (Extract.Pair (_, _), RS_return vs) -> `Ok (Printf.printf "yay!")
+       | Extract.Pair (Extract.Pair (s', vs'), RS_normal es) ->
+         f (gen + 1) (Extract.Pair (Extract.Pair (s', vs'), es))) in
+    (if verbose then (Printf.fprintf stdout "step %d:\n%s\n" 0 (Convert.from_string (Extract.pp_config_tuple cfg0)); flush stdout) else ());
+    f 1 cfg0
 
 let run verbose files name depth =
   match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
