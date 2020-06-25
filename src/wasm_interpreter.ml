@@ -20,7 +20,7 @@ let run verbose sies (name : string) (depth : int) =
   | Extract.None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Extract.Some cfg0 ->
     let Extract.Pair (Extract.Pair (_, i), _) = sies in
-    let rec f gen cfg =
+    let rec loop gen cfg =
       (let res = Extract.run_step depth' i cfg in
        if verbose then print_step gen (Extract.pp_res_tuple res);
        match res with
@@ -31,9 +31,9 @@ let run verbose sies (name : string) (depth : int) =
          `Ok (Printf.printf "%s" (String.concat ", " (List.map Convert.string_of_value vs)))
        | Extract.(Pair (Pair (s', vs'), RS_normal es)) ->
          (** The execution must keep on. *)
-         f (gen + 1) (Extract.Pair (Extract.Pair (s', vs'), es))) in
+         loop (gen + 1) (Extract.Pair (Extract.Pair (s', vs'), es))) in
     if verbose then print_step 0 (Extract.pp_config_tuple cfg0);
-    f 1 cfg0
+    loop 1 cfg0
 
 (** Given the Wasm parsed program (currently [Extract.module0] in the extraction,
    instantiate and run it. *)
