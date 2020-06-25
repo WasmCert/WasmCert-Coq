@@ -1,5 +1,5 @@
 {
-  "checksum": "5b58ceab788b1b580139e3952217e7e6",
+  "checksum": "8735ec0eff01dcdd4bb9e06b6b6abe4b",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -21,6 +21,7 @@
         "compcert@github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064@d41d8cd9",
         "@opam/odoc@opam:1.5.1@dae60787",
         "@opam/menhir@opam:20181113@0c8257a8",
+        "@opam/linenoise@opam:1.3.1@d0b372a4",
         "@opam/dune@opam:2.3.1@b10b59bf",
         "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#0e698840c2d4fb589fb327c6a53feca50cda21cb@6e6737bf",
         "@opam/coq@opam:8.10.1@cabcd98d",
@@ -573,6 +574,32 @@
         "@esy-ocaml/substs@0.0.1@d41d8cd9"
       ],
       "devDependencies": [ "ocaml@4.8.0@d41d8cd9" ]
+    },
+    "@opam/linenoise@opam:1.3.1@d0b372a4": {
+      "id": "@opam/linenoise@opam:1.3.1@d0b372a4",
+      "name": "@opam/linenoise",
+      "version": "opam:1.3.1",
+      "source": {
+        "type": "install",
+        "source": [
+          "archive:https://opam.ocaml.org/cache/md5/56/56b9354fd2a1b5ff0c4b7bccd82ad60b#md5:56b9354fd2a1b5ff0c4b7bccd82ad60b",
+          "archive:https://github.com/ocaml-community/ocaml-linenoise/archive/v1.3.1.tar.gz#md5:56b9354fd2a1b5ff0c4b7bccd82ad60b"
+        ],
+        "opam": {
+          "name": "linenoise",
+          "version": "1.3.1",
+          "path": "esy.lock/opam/linenoise.1.3.1"
+        }
+      },
+      "overrides": [],
+      "dependencies": [
+        "ocaml@4.8.0@d41d8cd9", "@opam/result@opam:1.5@6b753c82",
+        "@opam/dune@opam:2.3.1@b10b59bf", "@esy-ocaml/substs@0.0.1@d41d8cd9"
+      ],
+      "devDependencies": [
+        "ocaml@4.8.0@d41d8cd9", "@opam/result@opam:1.5@6b753c82",
+        "@opam/dune@opam:2.3.1@b10b59bf"
+      ]
     },
     "@opam/fpath@opam:0.7.2@45477b93": {
       "id": "@opam/fpath@opam:0.7.2@45477b93",

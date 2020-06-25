@@ -12,10 +12,12 @@ Extraction "extract"
   type_checker.cl_type_check
   interpreter.run_step
   Ascii.byte_of_ascii
-  pp.pp_config_tuple
-  pp.pp_res_tuple
+  pp.pp_config_tuple_except_store
+  pp.pp_res_tuple_except_store
   pp.pp_values
+  pp.pp_store
+  (*
   ansi.ansi_bold
   ansi.ansi_reset
   ansi.ansi_green
-  ansi.ansi_red.
+  ansi.ansi_red *).

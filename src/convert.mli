@@ -21,6 +21,9 @@ val from_ascii : Extract.ascii -> char
 (** Convert [Extract.string] to [string]. **)
 val from_string : Extract.string -> string
 
+(** Convert [string] to [Extract.byte Extract.list]. **)
+val to_byte_list : string -> Extract.byte Extract.list
+
 (** Convert [int] to [Extract.nat]. **)
 val to_nat : int -> Extract.nat
 

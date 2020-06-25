@@ -1,6 +1,6 @@
 (executable
   (name wasm_interpreter)
-  (libraries cmdliner)
+  (libraries cmdliner linenoise)
   (modes (best exe)))
 
 (install

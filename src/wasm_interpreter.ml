@@ -1,10 +1,7 @@
 (** Main file for the Wasm interpreter **)
 
-(** Convert a string to a list of characters. *)
-let explode s = List.init (String.length s) (String.get s)
-
-let ansi_bold = Convert.from_string (Extract.ansi_bold)
-let ansi_reset = Convert.from_string (Extract.ansi_reset)
+let ansi_bold = "\x1b[1m"
+let ansi_reset = "\x1b[0m"
 
 let debug_info verbosity this_level f =
   if verbosity >= this_level then (f (); flush stdout; flush stderr) else ()
@@ -25,7 +22,7 @@ let terminal_magic verbosity =
 let interpret (verbosity : int) sies (name : string) (depth : int) =
   debug_info verbosity 1 (fun () -> Printf.printf "interpreting...");
   debug_info verbosity 2 (fun () -> Printf.printf "\x1b[3D\n"); (* yuck *)
-  let name_coq = Convert.to_list (List.map (fun c -> Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
+  let name_coq = Convert.to_byte_list name in
   let depth_coq = Convert.to_nat depth in
   match Extract.lookup_exported_function name_coq sies with
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
@@ -33,7 +30,12 @@ let interpret (verbosity : int) sies (name : string) (depth : int) =
     let (_, i, _) = Convert.from_triple sies in
     let rec f gen cfg =
       (let res = Extract.run_step depth_coq i cfg in
-       debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold gen ansi_reset (Convert.from_string (Extract.pp_res_tuple res)));
+       debug_info verbosity 2
+        (fun () ->
+          Printf.printf "%sstep %d:%s\n%s\n"
+            ansi_bold gen
+            ansi_reset
+            (Convert.from_string (Extract.pp_res_tuple_except_store res)));
        match Convert.from_triple res with
        | (_, _, RS_crash crash) ->
          terminal_magic verbosity;
@@ -49,19 +51,20 @@ let interpret (verbosity : int) sies (name : string) (depth : int) =
         ()
        | (s', vs', RS_normal es) ->
          f (gen + 1) (Convert.to_triple (s', vs', es))) in
-    debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple cfg0)));
+    debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple_except_store cfg0)));
     f 1 cfg0;
     `Ok ()
 
-let instantiate_interpret verbosity m name depth =
+let instantiate_interpret verbosity interactive m name depth =
   debug_info verbosity 1 (fun () -> Printf.printf "instantiation...");
   match Extract.interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (Extract.Pair (store_inst_exps, _)) ->
     debug_info verbosity 1 (fun () -> Printf.printf "\x1b[3D \x1b[32mOK\x1b[0m\n");
-    interpret verbosity store_inst_exps name depth
+    if interactive then Repl.repl store_inst_exps name depth
+    else interpret verbosity store_inst_exps name depth
 
-let process_args_and_run verbosity text no_exec func_name depth srcs =
+let process_args_and_run verbosity text no_exec interactive func_name depth srcs =
   try
     (** Preparing the files. *)
     let files =
@@ -92,7 +95,7 @@ let process_args_and_run verbosity text no_exec func_name depth srcs =
     if no_exec then
       (debug_info verbosity 1 (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");
        `Ok ())
-    else instantiate_interpret verbosity m func_name depth
+    else instantiate_interpret verbosity interactive m func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
 (** Command line interface *)
@@ -110,6 +113,10 @@ let text =
 let no_exec =
   let doc = "Stop before executing (only go up to typechecking)." in
   Arg.(value & flag & info ["no-exec"] ~doc)
+
+let interactive =
+  let doc = "Interactive execution." in
+  Arg.(value & flag & info ["i"; "interactive"] ~doc)
 
 let func_name =
   let doc = "Name of the Wasm function to run." in
@@ -131,7 +138,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
-  (Term.(ret (const process_args_and_run $ verbosity $ text $ no_exec $ func_name $ depth $ srcs)),
+  (Term.(ret (const process_args_and_run $ verbosity $ text $ no_exec $ interactive $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)

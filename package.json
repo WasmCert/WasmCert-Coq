@@ -31,7 +31,8 @@
 		"@opam/coq-stdpp": "*",
 		"strong-induction": "*",
 		"coq-mathcomp-ssreflect": "*",
-		"parseque": "*"
+		"parseque": "*",
+		"@opam/linenoise": "*"
 	},
 	"devDependencies": {},
 	"resolutions": {
