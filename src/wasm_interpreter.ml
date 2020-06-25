@@ -13,6 +13,7 @@ let string_of_crash_reason = function
 | Extract.C_error -> "error"
 | Extract.C_exhaustion -> "exhaustion"
 
+(** Adding the bash string to remove characters. *)
 let ansi_delete_chars n =
   "\x1b[" ^ string_of_int n ^ "D"
 
@@ -22,9 +23,10 @@ let terminal_magic verbosity =
   debug_info verbosity 1 (fun () -> Printf.printf "%s " (ansi_delete_chars 3));
   debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
 
-let interpret (verbosity : int) sies (name : string) (depth : int) =
+(** Given a verbosity level, a configuration truple, a function name, and a depth, interpret the Wasm function. *)
+let interpret verbosity sies (name : string) (depth : int) =
   debug_info verbosity 1 (fun () -> Printf.printf "interpreting...");
-  debug_info verbosity 2 (fun () -> Printf.printf "\x1b[3D\n"); (* yuck *)
+  debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 3)); (* yuck *)
   let name_coq = Convert.to_list (List.map (fun c -> Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
   let depth_coq = Convert.to_nat depth in
   match Extract.lookup_exported_function name_coq sies with
@@ -53,14 +55,16 @@ let interpret (verbosity : int) sies (name : string) (depth : int) =
     f 1 cfg0;
     `Ok ()
 
+(** Instantiate, then interpret the Wasm program. *)
 let instantiate_interpret verbosity m name depth =
   debug_info verbosity 1 (fun () -> Printf.printf "instantiation...");
   match Extract.interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (Extract.Pair (store_inst_exps, _)) ->
-    debug_info verbosity 1 (fun () -> Printf.printf "\x1b[3D \x1b[32mOK\x1b[0m\n");
+    debug_info verbosity 1 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
     interpret verbosity store_inst_exps name depth
 
+(** Main function *)
 let process_args_and_run verbosity text no_exec func_name depth srcs =
   try
     (** Preparing the files. *)
@@ -87,7 +91,7 @@ let process_args_and_run verbosity text no_exec func_name depth srcs =
         match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
         | Extract.None -> invalid_arg "syntax error"
         | Extract.Some m -> m in
-    debug_info verbosity 1 (fun () -> Printf.printf "\x1b[3D \x1b[32mOK\x1b[0m\n%!");
+    debug_info verbosity 1 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n%!" (ansi_delete_chars 3));
     (** Running. *)
     if no_exec then
       (debug_info verbosity 1 (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");

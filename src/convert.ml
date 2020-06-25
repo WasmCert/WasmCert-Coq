@@ -60,12 +60,11 @@ let from_z = function
 
 let string_of_value = function
   | Extract.ConstInt32 v ->
-    let v = Extract.Wasm_int.Int32.repr (Obj.magic v) in
-    Printf.sprintf "Int32: %d" (from_z v)
+    Printf.sprintf "Int32: %s" (from_string (Extract.pp_i32 (Obj.magic v)))
   | Extract.ConstInt64 v ->
-    let v = Extract.Wasm_int.Int64.repr (Obj.magic v) in
-    Printf.sprintf "Int64: %d" (from_z v)
+    Printf.sprintf "Int64: %s" (from_string (Extract.pp_i64 (Obj.magic v)))
   | Extract.ConstFloat32 v ->
-    Printf.sprintf "Float32: ??" (* TODO *)
+    Printf.sprintf "Float32: %s" (from_string (Extract.pp_f32 (Obj.magic v)))
   | Extract.ConstFloat64 v ->
-    Printf.sprintf "Float64: ??" (* TODO *)
+    Printf.sprintf "Float64: %s" (from_string (Extract.pp_f64 (Obj.magic v)))
+
