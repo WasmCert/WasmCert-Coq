@@ -6,14 +6,14 @@ let explode s = List.init (String.length s) (String.get s)
 let ansi_bold = Convert.from_string (Extract.ansi_bold)
 let ansi_reset = Convert.from_string (Extract.ansi_reset)
 
-let debug_info verbose f =
-  if verbose then (f (); flush stdout; flush stderr) else ()
+let debug_info verbosity this_level f =
+  if verbosity >= this_level then (f (); flush stdout; flush stderr) else ()
 
 let string_of_crash_reason = function
 | Extract.C_error -> "error"
 | Extract.C_exhaustion -> "exhaustion"
 
-let run2 (verbose : bool) sies (name : string) (depth : int) =
+let interpret (verbosity : int) sies (name : string) (depth : int) =
   let name_coq = Convert.to_list (List.map (fun c -> Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
   let depth_coq = Convert.to_nat depth in
   match Extract.lookup_exported_function name_coq sies with
@@ -22,7 +22,7 @@ let run2 (verbose : bool) sies (name : string) (depth : int) =
     let (_, i, _) = Convert.from_triple sies in
     let rec f gen cfg =
       (let res = Extract.run_step depth_coq i cfg in
-       debug_info verbose (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold gen ansi_reset (Convert.from_string (Extract.pp_res_tuple res)));
+       debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold gen ansi_reset (Convert.from_string (Extract.pp_res_tuple res)));
        match Convert.from_triple res with
        | (_, _, RS_crash crash) ->
          Printf.printf "crash: %s\n" (string_of_crash_reason crash);
@@ -35,21 +35,18 @@ let run2 (verbose : bool) sies (name : string) (depth : int) =
         `Ok ()
        | (s', vs', RS_normal es) ->
          f (gen + 1) (Convert.to_triple (s', vs', es))) in
-    debug_info verbose (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple cfg0)));
+    debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple cfg0)));
     f 1 cfg0
 
-let run verbose files name depth =
-  match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
-  | None -> `Error (false, "syntax error")
-  | Some m ->
-    debug_info verbose (fun () -> Printf.printf "parsing successful\n");
-    (match Extract.interp_instantiate_wrapper m with
-     | None -> `Error (false, "instantiation error")
-     | Some (Extract.Pair (store_inst_exps, _)) ->
-       debug_info verbose (fun () -> Printf.printf "instantiation successful\n");
-       run2 verbose store_inst_exps name depth)
+let instantiate_interpret verbosity m name depth =
+  debug_info verbosity 1 (fun () -> Printf.printf "instantiation...");
+  match Extract.interp_instantiate_wrapper m with
+  | None -> `Error (false, "instantiation error")
+  | Some (Extract.Pair (store_inst_exps, _)) ->
+    debug_info verbosity 1 (fun () -> Printf.printf " successful\n");
+    interpret verbosity store_inst_exps name depth
 
-let interpret verbose text no_exec func_name depth srcs =
+let process_args_and_run verbosity text no_exec func_name depth srcs =
   try
     (** Preparing the files. *)
     let files =
@@ -67,7 +64,7 @@ let interpret verbose text no_exec func_name depth srcs =
               List.rev acc in
           aux []) srcs in
     (** Parsing. *)
-    if not quiet then Printf.printf "Parsing… ";
+    debug_info verbosity 1 (fun () -> Printf.printf "parsing...");
     let m =
       if text then
         invalid_arg "Text mode not yet implemented."
@@ -75,12 +72,12 @@ let interpret verbose text no_exec func_name depth srcs =
         match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
         | Extract.None -> invalid_arg "syntax error"
         | Extract.Some m -> m in
-    if not quiet then Printf.printf "Done.\n%!";
+    debug_info verbosity 1 (fun () -> Printf.printf " successful.\n%!");
     (** Running. *)
     if no_exec then
-      (if not quiet then Printf.printf "Skipping the execution because of the --no-exec argument.\n%!";
+      (debug_info verbosity 1 (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");
        `Ok ())
-    else instantiate_and_run m verbose quiet func_name depth
+    else instantiate_interpret verbosity m func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
 (** Command line interface *)
@@ -88,12 +85,8 @@ let interpret verbose text no_exec func_name depth srcs =
 open Cmdliner
 
 let verbose =
-  let doc = "Print intermediate states." in
-  Arg.(value & flag & info ["v"; "verbose"] ~doc)
-
-let quiet =
-  let doc = "Do not print what the interpreter is doing as it does it." in
-  Arg.(value & flag & info ["q"; "quiet"] ~doc)
+  let doc = "Verbosity level; default = 1.\n\t0: print nothing.\n\t1: print stage.\n\t2: also print intermediate states." in
+  Arg.(value & opt int 1 & info ["v"; "verbose"] ~doc)
 
 let text =
   let doc = "Read text format." in
@@ -123,7 +116,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
-  (Term.(ret (const interpret $ verbose $ quiet $ text $ no_exec $ func_name $ depth $ srcs)),
+  (Term.(ret (const process_args_and_run $ verbose $ text $ no_exec $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
