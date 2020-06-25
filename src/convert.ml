@@ -48,3 +48,24 @@ let from_triple = function
 
 let to_triple (a, b, c) = Extract.Pair (Extract.Pair (a, b), c)
 
+let rec from_positive = function
+  | Extract.XH -> 1
+  | Extract.XO p -> 2 * from_positive p
+  | Extract.XI p -> 1 + 2 * from_positive p
+
+let from_z = function
+  | Extract.Z0 -> 0
+  | Extract.Zpos p -> from_positive p
+  | Extract.Zneg p -> - from_positive p
+
+let string_of_value = function
+  | Extract.ConstInt32 v ->
+    let v = Extract.Wasm_int.Int32.repr (Obj.magic v) in
+    Printf.sprintf "Int32: %d" (from_z v)
+  | Extract.ConstInt64 v ->
+    let v = Extract.Wasm_int.Int64.repr (Obj.magic v) in
+    Printf.sprintf "Int64: %d" (from_z v)
+  | Extract.ConstFloat32 v ->
+    Printf.sprintf "Float32: ??" (* TODO *)
+  | Extract.ConstFloat64 v ->
+    Printf.sprintf "Float64: ??" (* TODO *)

@@ -35,3 +35,12 @@ val from_triple : (('a, 'b) Extract.prod, 'c) Extract.prod -> ('a * 'b * 'c)
 
 val to_triple : ('a * 'b * 'c) -> (('a, 'b) Extract.prod, 'c) Extract.prod
 
+(** Convert [Extract.positive] to [int]. **)
+val from_positive : Extract.positive -> int
+
+(** Convert [Extract.z] to [int]. **)
+val from_z : Extract.z -> int
+
+(** Pretty-print a value. *)
+val string_of_value : Extract.value0 -> string
+
