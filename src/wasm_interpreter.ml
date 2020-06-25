@@ -13,7 +13,18 @@ let string_of_crash_reason = function
 | Extract.C_error -> "error"
 | Extract.C_exhaustion -> "exhaustion"
 
+let ansi_delete_chars n =
+  "\x1b[" ^ string_of_int n ^ "D"
+
+let terminal_magic verbosity =
+  (* yuck *)
+  debug_info verbosity 2 (fun () -> Printf.printf "...");
+  debug_info verbosity 1 (fun () -> Printf.printf "%s " (ansi_delete_chars 3));
+  debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
+
 let interpret (verbosity : int) sies (name : string) (depth : int) =
+  debug_info verbosity 1 (fun () -> Printf.printf "interpreting...");
+  debug_info verbosity 2 (fun () -> Printf.printf "\x1b[3D\n"); (* yuck *)
   let name_coq = Convert.to_list (List.map (fun c -> Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
   let depth_coq = Convert.to_nat depth in
   match Extract.lookup_exported_function name_coq sies with
@@ -25,25 +36,29 @@ let interpret (verbosity : int) sies (name : string) (depth : int) =
        debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold gen ansi_reset (Convert.from_string (Extract.pp_res_tuple res)));
        match Convert.from_triple res with
        | (_, _, RS_crash crash) ->
-         Printf.printf "crash: %s\n" (string_of_crash_reason crash);
-         `Ok ()
+         terminal_magic verbosity;
+         Printf.printf "\x1b[31mcrash\x1b[0m: %s\n" (string_of_crash_reason crash);
+         ()
        | (_, _, RS_break _) ->
-         Printf.printf "break!?\n";
-         `Ok ()
+         terminal_magic verbosity;
+         Printf.printf "\x1b[33mbreak\x1b[0m\n";
+         ()
        | (_, _, RS_return vs) ->
-        Printf.printf "returned %s\n" (Convert.from_string (Extract.pp_values vs));
-        `Ok ()
+         terminal_magic verbosity;
+        Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Convert.from_string (Extract.pp_values vs));
+        ()
        | (s', vs', RS_normal es) ->
          f (gen + 1) (Convert.to_triple (s', vs', es))) in
     debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple cfg0)));
-    f 1 cfg0
+    f 1 cfg0;
+    `Ok ()
 
 let instantiate_interpret verbosity m name depth =
   debug_info verbosity 1 (fun () -> Printf.printf "instantiation...");
   match Extract.interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (Extract.Pair (store_inst_exps, _)) ->
-    debug_info verbosity 1 (fun () -> Printf.printf " successful\n");
+    debug_info verbosity 1 (fun () -> Printf.printf "\x1b[3D \x1b[32mOK\x1b[0m\n");
     interpret verbosity store_inst_exps name depth
 
 let process_args_and_run verbosity text no_exec func_name depth srcs =
@@ -72,7 +87,7 @@ let process_args_and_run verbosity text no_exec func_name depth srcs =
         match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
         | Extract.None -> invalid_arg "syntax error"
         | Extract.Some m -> m in
-    debug_info verbosity 1 (fun () -> Printf.printf " successful.\n%!");
+    debug_info verbosity 1 (fun () -> Printf.printf "\x1b[3D \x1b[32mOK\x1b[0m\n%!");
     (** Running. *)
     if no_exec then
       (debug_info verbosity 1 (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");
