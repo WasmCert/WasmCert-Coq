@@ -58,13 +58,10 @@ let from_z = function
   | Extract.Zpos p -> from_positive p
   | Extract.Zneg p -> - from_positive p
 
-let string_of_value = function
-  | Extract.ConstInt32 v ->
-    Printf.sprintf "Int32: %s" (from_string (Extract.pp_i32 (Obj.magic v)))
-  | Extract.ConstInt64 v ->
-    Printf.sprintf "Int64: %s" (from_string (Extract.pp_i64 (Obj.magic v)))
-  | Extract.ConstFloat32 v ->
-    Printf.sprintf "Float32: %s" (from_string (Extract.pp_f32 (Obj.magic v)))
-  | Extract.ConstFloat64 v ->
-    Printf.sprintf "Float64: %s" (from_string (Extract.pp_f64 (Obj.magic v)))
+let string_of_value =
+  Extract.value_rec_safe
+    (fun v -> Printf.sprintf "Int32: %s" (from_string (Extract.pp_i32 v)))
+    (fun v -> Printf.sprintf "Int64: %s" (from_string (Extract.pp_i64 v)))
+    (fun v -> Printf.sprintf "Float32: %s" (from_string (Extract.pp_f32 v)))
+    (fun v -> Printf.sprintf "Float64: %s" (from_string (Extract.pp_f64 v)))
 
