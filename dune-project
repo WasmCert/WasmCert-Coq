@@ -3,7 +3,7 @@
 (name Wasm)
 
 (generate_opam_files true)
-(license CeCILL-B)
+(license MIT)
 (source (github rems-project/wasm_coq))
 
 (package
