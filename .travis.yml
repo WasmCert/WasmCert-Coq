@@ -16,5 +16,5 @@ install:
   - esy install
 
 script:
-  - travis_wait esy build
+  - make travis-hook
 

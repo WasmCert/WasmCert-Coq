@@ -1,5 +1,7 @@
 
 -arg -w -arg -notation-overridden
 -arg -w -arg -abstract-large-number
+-arg -w -arg -extraction-reserved-identifier
 
 -R _build/default/theories Wasm
+
