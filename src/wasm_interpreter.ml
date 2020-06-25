@@ -1,39 +1,52 @@
 (** Main file for the Wasm interpreter **)
 
+(** Convert a string to a list of characters. *)
 let explode s = List.init (String.length s) (String.get s)
 
-let run2 (verbose : bool) sies (name : string) (depth : int) =
-  let name' = Convert.to_list (List.map (fun c -> Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
+(** Given the first part of a configuration tuple [Extract.((store_record, value0 list) prod)],
+   run it. *)
+let run verbose sies (name : string) (depth : int) =
+  let name' =
+    Convert.to_list (List.map (fun c ->
+      Extract.byte_of_ascii (Convert.to_ascii c)) (explode name)) in
   let depth' = Convert.to_nat depth in
   match Extract.lookup_exported_function name' sies with
-  | None -> `Error (false, "unknown function `" ^ name ^ "`")
-  | Some cfg0 ->
+  | Extract.None -> `Error (false, "unknown function `" ^ name ^ "`")
+  | Extract.Some cfg0 ->
     let Extract.Pair (Extract.Pair (_, i), _) = sies in
     let rec f gen cfg =
       (let res = Extract.run_step depth' i cfg in
-       if verbose then (Printf.fprintf stdout "%sstep %d:%s\n%s\n" (Convert.from_string (Extract.ansi_bold)) gen (Convert.from_string (Extract.ansi_reset)) (Convert.from_string (Extract.pp_res_tuple res)); flush stdout) else ();
+       if verbose then
+         Printf.fprintf stdout "%sstep %d:%s\n%s\n%!"
+           (Convert.from_string (Extract.ansi_bold))
+           gen
+           (Convert.from_string (Extract.ansi_reset))
+           (Convert.from_string (Extract.pp_res_tuple res));
        match res with
-       | Extract.Pair (Extract.Pair (_, _), RS_crash _) -> `Error (false, "crash!?")
-       | Extract.Pair (Extract.Pair (_, _), RS_break _) -> `Error (false, "break!?")
-       | Extract.Pair (Extract.Pair (_, _), RS_return vs) -> `Ok (Printf.printf "yay!")
-       | Extract.Pair (Extract.Pair (s', vs'), RS_normal es) ->
+       | Extract.(Pair (Pair (_, _), RS_crash _)) -> `Error (false, "crash")
+       | Extract.(Pair (Pair (_, _), RS_break _)) -> `Error (false, "break")
+       | Extract.(Pair (Pair (_, _), RS_return vs)) -> `Ok (Printf.printf "result")
+       | Extract.(Pair (Pair (s', vs'), RS_normal es)) ->
          f (gen + 1) (Extract.Pair (Extract.Pair (s', vs'), es))) in
-    (if verbose then (Printf.fprintf stdout "step %d:\n%s\n" 0 (Convert.from_string (Extract.pp_config_tuple cfg0)); flush stdout) else ());
+    if verbose then
+      Printf.printf "step %d:\n%s\n%!" 0
+        (Convert.from_string (Extract.pp_config_tuple cfg0));
     f 1 cfg0
 
-let run verbose files name depth =
-  match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
-  | None -> `Error (false, "syntax error")
-  | Some m ->
-    Printf.printf "parsing successful\n"; flush stdout; flush stderr;
-    (match Extract.interp_instantiate_wrapper m with
-     | None -> `Error (false, "instantiation error")
-     | Some (Extract.Pair (store_inst_exps, _)) ->
-       Printf.printf "instantiation successful\n"; flush stdout; flush stderr;
-       run2 verbose store_inst_exps name depth)
+(** Given the Wasm parsed program (currently [Extract.module0] in the extraction,
+   instantiate and run it. *)
+let instantiate_and_run m verbose quiet files name depth =
+  if not quiet then Printf.printf "Instantiating… ";
+  match Extract.interp_instantiate_wrapper m with
+  | Extract.None -> `Error (false, "instantiation error")
+  | Extract.Some (Extract.Pair (store_inst_exps, _)) ->
+    if not quiet then Printf.printf "Done.\n%!";
+    run verbose store_inst_exps name depth
 
-let interpret verbose text no_exec func_name depth srcs =
+(** The function called from [Cmdliner]. *)
+let interpret verbose quiet text no_exec func_name depth srcs =
   try
+    (** Preparing the files. *)
     let files =
       List.map (fun dest ->
         if not (Sys.file_exists dest) || Sys.is_directory dest then
@@ -48,16 +61,34 @@ let interpret verbose text no_exec func_name depth srcs =
               close_in in_channel;
               List.rev acc in
           aux []) srcs in
-    run verbose files func_name depth
+    (** Parsing. *)
+    if not quiet then Printf.printf "Now parsing… ";
+    let m =
+      if text then
+        invalid_arg "Text mode not yet implemented."
+      else
+        match Extract.run_parse_module_from_asciis (Convert.to_list (List.concat files)) with
+        | Extract.None -> invalid_arg "syntax error"
+        | Extract.Some m -> m in
+    if not quiet then Printf.printf "Done.\n%!";
+    (** Running. *)
+    if no_exec then
+      (if not quiet then Printf.printf "Skipping the execution because of the --no-exec argument.";
+       `Ok ())
+    else instantiate_and_run m verbose quiet files func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
-(* Command line interface *)
+(** Command line interface *)
 
 open Cmdliner
 
 let verbose =
   let doc = "Print intermediate states." in
   Arg.(value & flag & info ["v"; "verbose"] ~doc)
+
+let quiet =
+  let doc = "Do not print what the interpreter is doing as it does it." in
+  Arg.(value & flag & info ["q"; "quiet"] ~doc)
 
 let text =
   let doc = "Read text format." in
@@ -87,7 +118,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
   in
-  (Term.(ret (const interpret $ verbose $ text $ no_exec $ func_name $ depth $ srcs)),
+  (Term.(ret (const interpret $ verbose $ quiet $ text $ no_exec $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
