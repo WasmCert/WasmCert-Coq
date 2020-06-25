@@ -337,13 +337,16 @@ Definition pp_config_tuple_except_store (cfg : interpreter.config_tuple) : strin
 Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple) : string :=
   let '(s, vs, res) := res_cfg in
   match res with
-  | RS_crash _ => "crash" ++ newline ++
+  | RS_crash _ =>
+    "crash" ++ newline ++
     "with values " ++ pp_values_hint_empty vs ++ newline
-  | RS_break n vs => "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
+  | RS_break n vs =>
+    "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
     "with values " ++ pp_values_hint_empty vs ++ newline ++
     "and store" ++ newline ++
     pp_store 1 s
-  | RS_return vs_res => "return " ++ pp_values_hint_empty vs_res ++ newline ++
+  | RS_return vs_res =>
+		"return " ++ pp_values_hint_empty vs_res ++ newline ++
     "with values " ++ pp_values_hint_empty vs ++ newline ++
     "and store" ++ newline ++
     pp_store 1 s
@@ -354,3 +357,4 @@ Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple) : string 
     "and store" ++ newline ++
     pp_store 1 s
   end.
+

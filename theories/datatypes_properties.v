@@ -165,6 +165,14 @@ Definition eqvalueP : Equality.axiom value_eqb :=
 Canonical Structure value_eqMixin := EqMixin eqvalueP.
 Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
 
+(** Some helper functions for [value] that can safely extract. **)
+Definition value_rec_safe (P : Type)
+           (i32 : Wasm_int.Int32.int -> P)
+           (i64 : Wasm_int.Int64.int -> P)
+           (f32 : Wasm_float.FloatSize32.T -> P)
+           (f64 : Wasm_float.FloatSize64.T -> P) v : P :=
+  value_rect i32 i64 f32 f64 v.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
