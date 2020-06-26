@@ -9,88 +9,6 @@ Require Import Program.Equality.
 
 Require Import operations typing type_checker datatypes_properties typing opsem properties.
 
-Definition a_to_b_single (e: administrative_instruction) : basic_instruction :=
-  match e with
-  | Basic x => x
-  | _ => EConst (ConstInt32 (Wasm_int.Int32.zero))
-  end.
-
-Definition a_to_b (es: seq administrative_instruction) : seq basic_instruction :=
-  map a_to_b_single es.
-
-Lemma a_to_b_concat: forall es1 es2,
-    a_to_b (es1 ++ es2) = a_to_b es1 ++ a_to_b es2.
-Proof.
-  induction es1 => //=.
-  move => es2. by f_equal.
-Qed.
-
-Definition e_is_basic (e: administrative_instruction) :=
-  exists be, e = Basic be.
-
-Fixpoint es_is_basic (es: seq administrative_instruction) :=
-  match es with
-  | [::] => True
-  | e :: es' =>
-    e_is_basic e /\ es_is_basic es'
-  end.
-
-Lemma to_e_list_basic: forall bes,
-    es_is_basic (to_e_list bes).
-Proof.
-  induction bes => //=.
-  split => //=.
-  unfold e_is_basic. by eauto.
-Qed.
-
-Lemma basic_concat: forall es1 es2,
-    es_is_basic (es1 ++ es2) ->
-    es_is_basic es1 /\ es_is_basic es2.
-Proof.
-  induction es1 => //=.
-  move => es2 H. destruct H.
-  apply IHes1 in H0. destruct H0.
-  by repeat split => //=.
-Qed.
-
-Lemma b_a_elim: forall bes es,
-    to_e_list bes = es ->
-    bes = a_to_b es /\ es_is_basic es.
-Proof.
-  induction bes; move => es H => //=.
-  - by rewrite -H.
-  - simpl in H. assert (es = to_e_list (a :: bes)) as H1.
-    + by rewrite -H.
-    + rewrite H1. split.
-      -- simpl. f_equal. by apply IHbes.
-      -- by apply to_e_list_basic.
-Qed.
-
-Lemma a_b_elim: forall bes es,
-    bes = a_to_b es ->
-    es_is_basic es ->
-    es = to_e_list bes.
-Proof.
-  induction bes; move => es H1 H2 => //=.
-  - by destruct es => //=.
-  - destruct es => //=. simpl in H1. simpl in H2. destruct H2.
-    inversion H1; subst.
-    inversion H; subst => //=.
-    f_equal. apply IHbes => //=.
-Qed.
-    
-Lemma to_e_list_injective: forall bes bes',
-    to_e_list bes = to_e_list bes' ->
-    bes = bes'.
-Proof.
-  move => bes bes' H.
-  apply b_a_elim in H; destruct H; subst => //=.
-  induction bes' => //=.
-  f_equal. apply IHbes'. by apply to_e_list_basic.
-Qed.
-
-Definition vs_to_vts (vs : seq value) := map typeof vs.
-
 Definition t_be_value (bes: seq basic_instruction) : Prop :=
   const_list (to_e_list bes).
 
@@ -105,7 +23,7 @@ Print instance.
 Ltac b_to_a_revert :=
   repeat lazymatch goal with
          | H:  to_e_list ?bes = _ |- _ =>
-           apply b_a_elim in H; destruct H
+           apply b_e_elim in H; destruct H
          end.
 
 (* Maybe there are better/standard tactics for dealing with these, but I didn't find
@@ -120,7 +38,7 @@ Proof.
   rewrite - (revK l1). rewrite H3. split => //. by apply revK.
 Qed.
 
-Lemma extract_list1 : forall {X:Type} (es: seq X) (e1 e2:X),
+Local Lemma extract_list1 : forall {X:Type} (es: seq X) (e1 e2:X),
     es ++ [::e1] = [::e2] ->
     es = [::] /\ e1 = e2.
 Proof.
@@ -129,7 +47,7 @@ Proof.
   by apply H.
 Qed.
 
-Lemma extract_list2 : forall {X:Type} (es: seq X) (e1 e2 e3:X),
+Local Lemma extract_list2 : forall {X:Type} (es: seq X) (e1 e2 e3:X),
     es ++ [::e1] = [::e2; e3] ->
     es = [::e2] /\ e1 = e3.
 Proof.
@@ -138,7 +56,7 @@ Proof.
   by apply H.
 Qed.    
 
-Lemma extract_list3 : forall {X:Type} (es: seq X) (e1 e2 e3 e4:X),
+Local Lemma extract_list3 : forall {X:Type} (es: seq X) (e1 e2 e3 e4:X),
     es ++ [::e1] = [::e2; e3; e4] ->
     es = [::e2; e3] /\ e1 = e4.
 Proof.
@@ -147,7 +65,7 @@ Proof.
   by apply H.
 Qed.
 
-Lemma extract_list4 : forall {X:Type} (es: seq X) (e1 e2 e3 e4 e5:X),
+Local Lemma extract_list4 : forall {X:Type} (es: seq X) (e1 e2 e3 e4 e5:X),
     es ++ [::e1] = [::e2; e3; e4; e5] ->
     es = [::e2; e3; e4] /\ e1 = e5.
 Proof.
@@ -203,7 +121,51 @@ Proof.
   move => C es e t1s t2s HType.
   dependent induction HType; subst => //=.
 Admitted.
-  
+
+Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
+    be_typing C es1 (Tf t1s t2s) ->
+    be_typing C es2 (Tf t2s t3s) ->
+    be_typing C (es1 ++ es2) (Tf t1s t3s).
+Proof.
+Admitted.  
+
+(* Some quality of life lemmas *)
+Lemma bet_weakening_empty_1: forall C es ts t2s,
+    be_typing C es (Tf [::] t2s) ->
+    be_typing C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => C es ts t2s HType.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply bet_weakening.
+  by rewrite cats0 in H.
+Qed.
+
+Lemma et_weakening_empty_1: forall s C es ts t2s,
+    e_typing s C es (Tf [::] t2s) ->
+    e_typing s C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => s C es ts t2s HType.
+  assert (e_typing s C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply ety_weakening.
+  by rewrite cats0 in H.
+Qed.
+
+Lemma bet_weakening_empty_2: forall C es ts t1s,
+    be_typing C es (Tf t1s [::]) ->
+    be_typing C es (Tf (ts ++ t1s) ts).
+Proof.
+  move => C es ts t1s HType.
+  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))); first by apply bet_weakening.
+  by rewrite cats0 in H.
+Qed.
+
+Lemma bet_weakening_empty_both: forall C es ts,
+    be_typing C es (Tf [::] [::]) ->
+    be_typing C es (Tf ts ts).
+Proof.
+  move => C es ts HType.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
+  by rewrite cats0 in H.
+Qed.
+
 (*
   These proofs are largely similar.
   A sensible thing to do is to make tactics for all of them.
@@ -238,7 +200,7 @@ Proof.
   - rewrite - catA. f_equal.
     + move => _ _ H. by subst.
     + by apply IHHType => //=.
-Qed.    
+Qed.
 
 Lemma EConst3_typing: forall C econst1 econst2 econst3 t1s t2s,
     be_typing C [::EConst econst1; EConst econst2; EConst econst3] (Tf t1s t2s) ->
@@ -254,6 +216,42 @@ Proof.
     + move => _ _ H. by subst.
     + by apply IHHType => //=.
 Qed.
+
+Lemma Const_list_typing_empty: forall C vs,
+    be_typing C (to_b_list (v_to_e_list vs)) (Tf [::] (vs_to_vts vs)).
+Proof.
+  move => C vs.
+  remember (rev vs) as vs'.
+  assert (vs = rev vs'). rewrite Heqvs'. symmetry. by apply revK.
+  rewrite H.
+
+  generalize dependent vs.
+  
+  induction vs' => //=; move => vs HRev1 HRev2.
+  - by apply bet_empty.
+  - rewrite rev_cons. rewrite -cats1.
+    rewrite -v_to_e_cat.
+    rewrite to_b_list_concat.
+    eapply bet_composition.
+    + eapply IHvs' => //.
+      symmetry. by apply revK.
+    + simpl.
+      rewrite vs_to_vts_cat.      
+      apply bet_weakening_empty_1.
+      by apply bet_const.
+Qed.
+
+Lemma Const_list_typing: forall C vs t1s t2s,
+    be_typing C (to_b_list (v_to_e_list vs)) (Tf t1s t2s) ->
+    t2s = t1s ++ (vs_to_vts vs).
+Proof.
+  move => C vs t1s t2s HType.
+  dependent induction HType => //=; try by (destruct vs => //=; simpl in x).
+  - (* EConst *)
+    destruct vs => //=. simpl in x. destruct vs => //=. simpl in x.
+    by inversion x.
+  - (* Composition *)
+Admitted.
 
 Lemma Unop_i_typing: forall C t op t1s t2s,
     be_typing C [::Unop_i t op] (Tf t1s t2s) ->
@@ -512,34 +510,6 @@ Proof.
     by rewrite -catA.
 Qed.
       
-(* Some quality of life lemmas *)
-Lemma bet_weakening_empty_1: forall C es ts t2s,
-    be_typing C es (Tf [::] t2s) ->
-    be_typing C es (Tf ts (ts ++ t2s)).
-Proof.
-  move => C es ts t2s HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply bet_weakening.
-  by rewrite cats0 in H.
-Qed.
-
-Lemma bet_weakening_empty_2: forall C es ts t1s,
-    be_typing C es (Tf t1s [::]) ->
-    be_typing C es (Tf (ts ++ t1s) ts).
-Proof.
-  move => C es ts t1s HType.
-  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))); first by apply bet_weakening.
-  by rewrite cats0 in H.
-Qed.
-
-Lemma bet_weakening_empty_both: forall C es ts,
-    be_typing C es (Tf [::] [::]) ->
-    be_typing C es (Tf ts ts).
-Proof.
-  move => C es ts HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
-  by rewrite cats0 in H.
-Qed.
-
 Ltac basic_inversion :=
    repeat lazymatch goal with
          | H: True |- _ =>
@@ -560,13 +530,13 @@ Ltac basic_inversion :=
 Lemma et_to_bet: forall s C es ts,
     es_is_basic es ->
     e_typing s C es ts ->
-    be_typing C (a_to_b es) ts.
+    be_typing C (to_b_list es) ts.
 Proof.
   move => s C es ts HBasic HType. subst.
   dependent induction HType; subst => //=; basic_inversion.
-  + replace (a_to_b (to_e_list bes)) with bes => //.
-    by apply b_a_elim.
-  + rewrite a_to_b_concat.
+  + replace (to_b_list (to_e_list bes)) with bes => //.
+    by apply b_e_elim.
+  + rewrite to_b_list_concat.
     eapply bet_composition.
     apply IHHType1 => //.
     apply IHHType2 => //.
@@ -576,13 +546,13 @@ Qed.
 (* A reformulation of ety_a that is easier to be used. *)
 Lemma ety_a': forall s C es ts,
     es_is_basic es ->
-    be_typing C (a_to_b es) ts ->
+    be_typing C (to_b_list es) ts ->
     e_typing s C es ts.
 Proof.
   move => s C es ts HBasic HType.
-  replace es with (to_e_list (a_to_b es)).
+  replace es with (to_e_list (to_b_list es)).
   - by apply ety_a.
-  - symmetry. by apply a_b_elim.
+  - symmetry. by apply e_b_elim.
 Qed.
     
 (*
@@ -1331,29 +1301,7 @@ Ltac auto_basic :=
   | |- e_is_basic (Basic ?e) =>
     unfold e_is_basic; by exists e
   end.
-
-Lemma const_list_is_basic: forall es,
-    const_list es ->
-    es_is_basic es.
-Proof.
-  induction es => //=.
-  move => H. move/andP in H. destruct H.
-  split.
-  - destruct a => //.
-    unfold e_is_basic. by eauto.
-  - by apply IHes.                                 
-Qed.
-
-Lemma a_to_b_rev_dist: forall es,
-    rev (a_to_b es) = a_to_b (rev es).
-Proof.
-  induction es => //=.
-  repeat rewrite rev_cons.
-  rewrite IHes.
-  repeat rewrite -cats1.
-  by rewrite a_to_b_concat.
-Qed.  
-
+    
 Lemma t_const_ignores_context: forall s s' C C' es tf,
     const_list es ->
     e_typing s C es tf ->
@@ -1374,9 +1322,9 @@ Proof.
   - subst. simpl in HType. apply empty_typing in HType; subst.
     apply bet_weakening_empty_both. by apply bet_empty.
   - subst.
-    rewrite -a_to_b_rev_dist.
+    rewrite -to_b_list_rev.
     simpl. rewrite rev_cons. rewrite -cats1.
-    rewrite -a_to_b_rev_dist in HType.
+    rewrite -to_b_list_rev in HType.
     simpl in HType. rewrite rev_cons in HType. rewrite -cats1 in HType.
     apply composition_typing in HType.
     destruct HType as [ts [t1s' [t2s' [t3s H]]]].
@@ -1386,11 +1334,11 @@ Proof.
     rewrite rev_cons in HConst. rewrite -cats1 in HConst.
     apply const_list_split in HConst. destruct HConst.
     eapply bet_composition.
-    + rewrite a_to_b_rev_dist.
+    + rewrite to_b_list_rev.
       eapply IHes' => //.
       -- by apply H.
       -- by rewrite revK.
-      -- rewrite a_to_b_rev_dist in H3. by apply H3.
+      -- rewrite to_b_list_rev in H3. by apply H3.
     + (* The main reason that this holds *)
       simpl in H0. move/andP in H0. destruct H0.
       destruct a => //=.
@@ -1400,6 +1348,24 @@ Proof.
       by apply bet_const.
 Qed.
 
+
+Lemma Block_typing: forall C t1s t2s es tn tm,
+    be_typing C [::Block (Tf t1s t2s) es] (Tf tn tm) ->
+    exists ts, tn = ts ++ t1s /\ tm = ts ++ t2s /\
+               be_typing (upd_label C ([::t2s] ++ (tc_label C))) es (Tf t1s t2s).
+Proof.
+  move => C t1s t2s es tn tm HType.
+  dependent induction HType => //=.
+  - by exists [::].
+  - invert_be_typing.
+    by apply IHHType2 => //=.
+  - edestruct IHHType => //=.
+    destruct H as [H1 [H2 H3]]. subst.
+    exists (ts ++ x).
+    repeat rewrite -catA.
+    by repeat split => //=.
+Qed.
+    
 (* I think we should allow label to be arbitrary as well here -- or maybe not? *)
 
 Theorem t_simple_preservation: forall s i es es' C loc ret tf,
@@ -1412,7 +1378,46 @@ Proof.
   inversion HReduce; subst; try (by (apply et_to_bet in HType => //; auto_basic; apply ety_a' => //; auto_basic; eapply t_be_simple_preservation; try by eauto; auto_basic)); try by apply ety_trap.
   (* Though only a few cases, these cases are expected to be much more difficult. *)
   - (* Block *)
-    admit.
+    destruct tf.
+    apply et_to_bet in HType.
+    2: {
+      apply basic_split => //=.
+      + by apply const_list_is_basic.
+      + split => //=. unfold e_is_basic. by eauto.
+      }
+    rewrite to_b_list_concat in HType. simpl in HType.
+    apply composition_typing in HType.
+    destruct HType as [ts [t1s' [t2s' [t3s [H2 [H3 [H4 H5]]]]]]]. subst.
+    apply const_es_exists in H. destruct H. subst.
+    apply Const_list_typing in H4. subst.
+    apply Block_typing in H5.
+    destruct H5 as [t3s [H6 [H7 H8]]].
+    subst.
+    repeat rewrite length_is_size in H1. rewrite v_to_e_size in H1.
+    assert ((t1s' == t3s) && ((vs_to_vts x) == t1s)) => //=.
+    + rewrite -eqseq_cat; first by apply/eqP.
+      assert (size (t1s' ++ vs_to_vts x) = size (t3s ++ t1s)); first by rewrite H6.
+      repeat rewrite size_cat in H. unfold vs_to_vts in H. rewrite size_map in H.
+      rewrite H1 in H. by lias.
+    + move/andP in H. destruct H.
+      move/eqP in H. move/eqP in H0. subst. clear H6. clear H1.
+      rewrite catA. apply et_weakening_empty_1.
+      eapply ety_label.
+      -- apply ety_a' => //=.
+         instantiate (1:= t2s).
+         apply bet_weakening_empty_both.
+         by apply bet_empty.
+      -- apply ety_a' => //=.
+         ++ apply basic_split.
+            * apply const_list_is_basic. by apply v_to_e_is_const_list.
+            * by apply to_e_list_basic.
+         ++ rewrite to_b_list_concat. simpl in H8.
+            eapply bet_composition'; first by apply Const_list_typing_empty.
+            remember (to_e_list es0) as es'.
+            symmetry in Heqes'.
+            apply b_e_elim in Heqes'.
+            destruct Heqes'. by subst.
+      -- by [].
   - (* Loop *)
     admit.
   - (* Label_const *)
@@ -1478,8 +1483,8 @@ Proof.
     + by apply H.
     + by [].
     + by [].
-    + symmetry. by apply a_b_elim.
-    + symmetry. by apply a_b_elim.
+    + symmetry. by apply e_b_elim.
+    + symmetry. by apply e_b_elim.
   - (* Invoke -- not be typeable *)
     + apply basic_concat in H15. destruct H15.
       inversion H0. inversion H1. discriminate H5.
@@ -1618,8 +1623,4 @@ Proof.
     admit.
         
 Admitted.
-
-    
-
-
 
