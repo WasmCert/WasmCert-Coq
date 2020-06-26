@@ -6,7 +6,7 @@ use warnings ;
 my %packages = (
 		iris => '#{coq-iris.install}/user-contrib',
 		stdpp => '#{@opam/coq-stdpp.install}/user-contrib',
-		mathcomp => '#{coq-mathcomp-ssreflect.install}/usercontrib',
+		mathcomp => '#{coq-mathcomp-ssreflect.install}/user-contrib',
 		Flocq => '#{coq-flocq.install}/coq',
 		compcert => '#{compcert.install}/coq',
 		StrongInduction => '#{strong-induction.install}/lib/coq/user-contrib',
