@@ -20,3 +20,5 @@
 /theories/extract.ml
 /theories/extract.mli
 
+.saves
+

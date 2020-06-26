@@ -1,6 +1,6 @@
 # wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, based on the offical formalisation (https://www.w3.org/TR/wasm-core-1/).
-Our definitions and proofs draw from those given in the Isabelle mechanisation of Conrad Watt (https://www.isa-afp.org/entries/WebAssembly.html).
+WebAssembly (aka Wasm) formalisation in Coq, based on the [offical formalisation](https://www.w3.org/TR/wasm-core-1/).
+Our definitions and proofs draw from those given in the [Isabelle mechanisation of Conrad Watt](https://www.isa-afp.org/entries/WebAssembly.html).
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, R. Xiaojia 2019-2020 - see LICENSE.txt
 
