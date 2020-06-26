@@ -9,8 +9,8 @@
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{coq-iris.install}/user-contrib:#{compcert.root}:#{parseque.root}:#{coq-flocq.install}/coq:#{strong-induction.root}:#{@opam/coq-stdpp.install}/user-contrib:#{coq-mathcomp-ssreflect.root}/mathcomp",
-			"VSCODESETTINGS": "{\"coqtop.binPath\":\"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{coq-iris.install}/user-contrib\",\"iris\",\"-R\",\"#{compcert.root}\",\"compcert\",\"-R\",\"#{parseque.root}\",\"parseque\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{strong-induction.root}\",\"StrongInduction\",\"-R\",\"#{@opam/coq-stdpp.install}/user-contrib\",\"stdpp\",\"-R\",\"#{coq-mathcomp-ssreflect.root}/mathcomp\",\"mathcomp\",\"-R\",\"#{self.root}/_build/default/theories\",\"\"]}"
+			"COQPATH": "#{parseque.root}:#{coq-iris.install}/user-contrib:#{@opam/coq-stdpp.install}/user-contrib:#{coq-mathcomp-ssreflect.root}/mathcomp:#{strong-induction.root}:#{compcert.root}:#{coq-flocq.install}/coq",
+			"VSCODESETTINGS": "{\"coqtop.binPath\":\"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{parseque.root}\",\"parseque\",\"-R\",\"#{coq-iris.install}/user-contrib\",\"iris\",\"-R\",\"#{@opam/coq-stdpp.install}/user-contrib\",\"stdpp\",\"-R\",\"#{coq-mathcomp-ssreflect.root}/mathcomp\",\"mathcomp\",\"-R\",\"#{strong-induction.root}\",\"StrongInduction\",\"-R\",\"#{compcert.root}\",\"compcert\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{self.root}/_build/default/theories\",\"\"]}"
 		},
 		"build": "make"
 	},
