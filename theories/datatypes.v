@@ -20,7 +20,10 @@ Definition static_offset := nat. (* off *)
 
 Definition alignment_exponent := nat. (* a *)
 
-Definition memory := list byte.
+Record limits := Mk_limits { lim_min : nat; lim_max : option nat; }.
+
+Record memory : Type :=
+  {mem_data : list byte; mem_limit: limits;}.
 
 Inductive value_type : Type := (* t *)
   | T_i32
@@ -224,7 +227,8 @@ Inductive function_closure : Type := (* cl *)
   | Func_host : function_type -> host_function -> function_closure
   .
 
-Definition tabinst := list (option function_closure).
+Record tabinst : Type :=
+  {table_data: list (option nat); table_limit: limits;}.
 
 Record global : Type := {
   g_mut : mutability;
@@ -243,7 +247,7 @@ Record store_record : Type := (* s *) Build_store_record {
 Inductive administrative_instruction : Type := (* e *)
   | Basic : basic_instruction -> administrative_instruction
   | Trap
-  | Callcl : function_closure -> administrative_instruction
+  | Invoke : function_closure -> administrative_instruction
   | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
   | Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
   .
@@ -258,4 +262,59 @@ End Host.
 Arguments Func_native [host_function].
 Arguments Basic {host_function}.
 Arguments Trap {host_function}.
+
+
+(* TODO: these types were moved from parsing *)
+Definition expr := list basic_instruction.
+
+Inductive labelidx : Type :=
+| Mk_labelidx : nat -> labelidx.
+
+Inductive funcidx : Type :=
+| Mk_funcidx : nat -> funcidx.
+Inductive typeidx : Type :=
+| Mk_typeidx : nat -> typeidx.
+
+Inductive localidx : Type :=
+| Mk_localidx : nat -> localidx.
+
+Inductive globalidx : Type :=
+| Mk_globalidx : nat -> globalidx.
+
+Inductive elem_type : Type :=
+| elem_type_tt : elem_type (* TODO: am I interpreting the spec correctly? *).
+
+Record table_type : Type := Mk_table_type {
+  tt_limits : limits;
+  tt_elem_type : elem_type;
+}.
+
+Record mem_type : Type := Mk_mem_type { mem_type_lims : limits }.
+
+Inductive import_desc : Type :=
+| ID_func : nat -> import_desc
+| ID_table : table_type -> import_desc
+| ID_mem : mem_type -> import_desc
+| ID_global : global_type -> import_desc.
+
+Definition name := list ascii.
+
+Record import : Type := Mk_import {
+  imp_module : name;
+  imp_name : name;
+  imp_desc : import_desc;
+}.
+
+Record module : Type := {
+  mod_types : list function_type;
+  mod_funcs : list func2;
+  mod_tables : list table;
+  mod_mems : list mem;
+  mod_globals : list global2;
+  mod_elements : list element;
+  mod_data : list data;
+  mod_start : option start;
+  mod_imports : list import;
+  mod_exports : list export;
+}.
 

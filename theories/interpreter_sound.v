@@ -1237,17 +1237,17 @@ Proof.
     { (** [Trap] **)
       by pattern_match.
     }
-    { (** [Callcl] **)
+    { (** [Invoke] **)
       destruct f => //=.
       - (** [Func_native] **)
         explode_and_simplify. pattern_match. stack_frame. auto_frame.
-        apply: r_callcl_native => //=.
+        apply: r_invoke_native => //=.
         simplify_lists. by rewrite subKn.
       - (** [Func_host] **)
         explode_and_simplify; pattern_match; stack_frame; auto_frame.
-        + apply: r_callcl_host_success => //=.
+        + apply: r_invoke_host_success => //=.
           simplify_lists. by rewrite subKn.
-        + apply: r_callcl_host_failure => //=.
+        + apply: r_invoke_host_failure => //=.
           explode_and_simplify. by rewrite subKn.
     }
     { (** [Label] **)

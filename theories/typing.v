@@ -56,7 +56,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
 | bet_unop_i : forall C t op, is_int_t t -> be_typing C [::Unop_i t op] (Tf [::t] [::t])
 | bet_unop_f : forall C t op, is_float_t t -> be_typing C [::Unop_f t op] (Tf [::t] [::t])
 | bet_binop_i : forall C t op, is_int_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
-| bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
+| bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_f t op] (Tf [::t; t] [::t])
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
@@ -184,7 +184,7 @@ Definition memi_agree (sm : seq memory) (j : option nat) (m : option nat) : bool
   | None, Some _ => false
   | Some _, None => false
   | Some j', Some m' =>
-    (j' < length sm) && (option_map (@length byte) (List.nth_error sm j') == Some m')
+    (j' < length sm) && (option_map mem_size (List.nth_error sm j') == Some m')
   end.
 
 Definition functions_agree (fs : seq function_closure) (n : nat) (f : function_type) : bool :=
@@ -200,21 +200,21 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
              | None, None => true
              | None, Some _ => false
              | Some _, None => false
-             | Some i', Some n' => (i' < length (s_tab s)) && (option_map (@length (option function_closure)) (List.nth_error (s_tab s) i') == Some n')
+             | Some i', Some n' => (i' < length (s_tab s)) && (option_map tab_size (List.nth_error (s_tab s) i') == Some n')
              end) &&
           (memi_agree (s_memory s) j m)
   else false.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
-  | cl_typing_native : forall i s C C' ts t1s t2s es tf,
-    inst_typing s i C ->
-    tf = Tf t1s t2s ->
-    C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) ->
-    be_typing C' es (Tf [::] t2s) ->
-    cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
-  | cl_typing_host : forall s tf h,
-    cl_typing s (Func_host tf h) tf
-  .
+	| cl_typing_native : forall i s C C' ts t1s t2s es tf,
+		inst_typing s i C ->
+		tf = Tf t1s t2s ->
+		C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) ->
+		be_typing C' es (Tf [::] t2s) ->
+		cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
+	| cl_typing_host : forall s tf h,
+		cl_typing s (Func_host tf h) tf
+	.
 
 Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
   cl_typing s fc (cl_type fc).
