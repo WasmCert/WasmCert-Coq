@@ -64,6 +64,7 @@ Inductive packed_type : Type := (* tp *)
 | Tp_i16
 | Tp_i32.
 
+(* TODO: the standard calls those const and var *)
 Inductive mutability : Type := (* mut *)
 | MUT_immut
 | MUT_mut.

@@ -342,8 +342,39 @@ Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
   String.concat "" (List.map (pp_administrative_instruction n) es).
 
+Definition pp_mutability (m : mutability) : string :=
+  match m with
+  | MUT_immut => "const"
+  | MUT_mut => "var"
+  end.
+
+Definition pp_global (g : global) : string :=
+  pp_mutability g.(g_mut) ++ " " ++ pp_value g.(g_val).
+
+Fixpoint mapi_aux {A B} (acc : nat * list B) (f : nat -> A -> B) (xs : list A) : list B :=
+  let '(i, ys_rev) := acc in
+  match xs with
+  | nil =>
+    List.rev ys_rev
+  | cons x xs' =>
+    let y := f i x in
+    mapi_aux (i.+1, y :: ys_rev) f xs'
+  end.
+
+Definition mapi {A B} (f : nat -> A -> B) (xs : list A) : list B :=
+  mapi_aux (0, nil) f xs.
+
+Definition pp_globals (n : nat) (gs : list global) : string :=
+  String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ pp_global g ++ newline)) gs).
+
+Definition pp_memories (n : nat) (ms : list memory) : string :=
+String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ "TODO: memory" ++ newline)) ms).
+
 Definition pp_store (n : nat) (s : store_record) : string :=
-  indent n ("TODO: store" ++ newline). (* TODO *)
+  indent n ("globals" ++ newline) ++
+  pp_globals (n.+1) s.(s_globals) ++
+  indent n ("memories" ++ newline) ++
+  pp_memories (n.+1) s.(s_mems).
 
 Definition pp_config_tuple_except_store (cfg : interpreter.config_tuple) : string :=
   let '(s, vs, es) := cfg in
