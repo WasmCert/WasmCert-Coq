@@ -1,16 +1,23 @@
 (** Main file for the Wasm interpreter **)
 
+(* TODO: refactor *)
+
 let ansi_bold = "\x1b[1m"
 let ansi_reset = "\x1b[0m"
 
-let debug_info verbosity this_level f =
-  if verbosity >= this_level then (f (); flush stdout; flush stderr) else ()
+let debug_info verbosity min_level (f : unit -> unit) =
+  if verbosity >= min_level then (f (); flush stdout; flush stderr) else ()
+
+let debug_info_span verbosity min_level max_level (f : unit -> unit) =
+  if verbosity >= min_level && verbosity <= max_level then
+    (f (); flush stdout; flush stderr)
+  else ()
 
 let string_of_crash_reason = function
 | Extract.C_error -> "error"
 | Extract.C_exhaustion -> "exhaustion"
 
-(** Adding the bash string to remove characters. *)
+(** ANSI escape sequence to delete [n] characters. *)
 let ansi_delete_chars n =
   "\x1b[" ^ string_of_int n ^ "D"
 
@@ -20,7 +27,7 @@ let terminal_magic verbosity =
   debug_info verbosity 1 (fun () -> Printf.printf "%s " (ansi_delete_chars 3));
   debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
 
-(** Given a verbosity level, a configuration truple, a function name, and a depth, interpret the Wasm function. *)
+(** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 let interpret verbosity sies (name : string) (depth : int) =
   debug_info verbosity 1 (fun () -> Printf.printf "interpreting...");
   debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 3)); (* yuck *)
@@ -29,15 +36,26 @@ let interpret verbosity sies (name : string) (depth : int) =
   match Extract.lookup_exported_function name_coq sies with
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Some cfg0 ->
-    let (_, i, _) = Convert.from_triple sies in
+    let (_, inst, _) = Convert.from_triple sies in
     let rec f gen cfg =
-      (let res = Extract.run_step depth_coq i cfg in
+      (let res = Extract.run_step depth_coq inst cfg in
        debug_info verbosity 2
         (fun () ->
-          Printf.printf "%sstep %d:%s\n%s\n"
+          Printf.printf "%sstep %d%s:%s"
             ansi_bold gen
             ansi_reset
             (Convert.from_string (Extract.pp_res_tuple_except_store res)));
+      debug_info_span verbosity 2 2
+        (fun () ->
+          let (s, _, _)  = Convert.from_triple cfg in
+          let (s', _, _)  = Convert.from_triple res in
+          let store_status = if s = s' then "unchanged" else "changed" in
+          Printf.printf "and store %s\n" store_status);
+      debug_info verbosity 3
+        (fun () ->
+          let (s', _, _)  = Convert.from_triple res in
+          Printf.printf "and store\n%s"
+            (Convert.from_string (Extract.pp_store (Convert.to_nat 1) s')));
        match Convert.from_triple res with
        | (_, _, RS_crash crash) ->
          terminal_magic verbosity;
@@ -53,7 +71,7 @@ let interpret verbosity sies (name : string) (depth : int) =
         ()
        | (s', vs', RS_normal es) ->
          f (gen + 1) (Convert.to_triple (s', vs', es))) in
-    debug_info verbosity 2 (fun () -> Printf.printf "%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple_except_store cfg0)));
+    debug_info verbosity 2 (fun () -> Printf.printf "\n%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple_except_store cfg0)));
     f 1 cfg0;
     `Ok ()
 
@@ -106,7 +124,11 @@ let process_args_and_run verbosity text no_exec interactive func_name depth srcs
 open Cmdliner
 
 let verbosity =
-  let doc = "Verbosity level; default = 1.\n\t0: print nothing.\n\t1: print stage.\n\t2: also print intermediate states." in
+  let doc = "Verbosity level; default = 1.\n" ^
+  "\t0: print nothing.\n" ^
+  "\t1: print stage.\n" ^
+  "\t2: also print intermediate states, without stores.\n" ^
+  "\t3 also print stores." in
   Arg.(value & opt int 1 & info ["v"; "verbosity"] ~doc)
 
 let text =

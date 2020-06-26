@@ -278,6 +278,12 @@ Record instance : Type := (* inst *) {
   (* TODO: exports field? *)
 }.
 
+(** std-doc:
+A function instance is the runtime representation of a function. It effectively
+is a closure of the original function over the runtime module instance of its
+originating module. The module instance is used to resolve references to other
+definitions during execution of the function.
+*)
 Inductive function_closure : Type := (* cl *)
 | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
 | Func_host : function_type -> host -> function_closure.

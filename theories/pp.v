@@ -19,15 +19,26 @@ Fixpoint indent (i : nat) (s : string) : string :=
   | S i' => "  " ++ indent i' s
   end.
 
-Definition pp_value_type (vt : value_type) : string :=
-  match vt with
-  | T_i32 => "i32"
-  | T_i64 => "i64"
-  | T_f32 => "f32"
-  | T_f64 => "f64"
-  end.
+Definition type_style := FG_cyan.
 
-Definition pp_block_tf tf : string :=
+Definition pp_value_type (vt : value_type) : string :=
+  let s :=
+    match vt with
+    | T_i32 => "i32"
+    | T_i64 => "i64"
+    | T_f32 => "f32"
+    | T_f64 => "f64"
+    end in
+  with_fg type_style s.
+
+Definition pp_value_types (vts : list value_type) : string :=
+  "[" ++ String.concat ", " (List.map pp_value_type vts) ++ "]".
+
+Definition pp_function_type (tf : function_type) : string :=
+  let '(Tf ts1 ts2) := tf in
+  pp_value_types ts1 ++ " -> " ++ pp_value_types ts2.
+
+Definition pp_block_tf (tf : function_type) : string :=
   match tf with
   | Tf nil nil => ""
   | Tf nil (cons vt nil) => " " ++ pp_value_type vt
@@ -107,14 +118,21 @@ Definition pp_f64 (f : float) : string :=
     bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (bool_list_of_pos nil p))
   end.
 
-Definition type_style := FG_cyan.
-
-Definition pp_const (v : value) : string :=
+Definition pp_value (v : value) : string :=
   match v with
-  | ConstInt32 i => with_fg type_style "i32" ++ ".const " ++ with_fg FG_green (pp_i32 i) ++ newline
-  | ConstInt64 i => with_fg type_style "i64" ++ ".const " ++ with_fg FG_green (pp_i64 i) ++ newline
-  | ConstFloat32 f => with_fg type_style "f32" ++ ".const " ++ with_fg FG_green (pp_f32 f) ++ newline
-  | ConstFloat64 f => with_fg type_style "f64" ++ ".const " ++ with_fg FG_green (pp_f64 f) ++ newline
+  | ConstInt32 i => pp_value_type T_i32 ++ ".const " ++ with_fg FG_green (pp_i32 i) ++ newline
+  | ConstInt64 i => pp_value_type T_i64 ++ ".const " ++ with_fg FG_green (pp_i64 i) ++ newline
+  | ConstFloat32 f => pp_value_type T_f32 ++ ".const " ++ with_fg FG_green (pp_f32 f) ++ newline
+  | ConstFloat64 f => pp_value_type T_f64 ++ ".const " ++ with_fg FG_green (pp_f64 f) ++ newline
+  end.
+
+Definition pp_values (vs : list value) : string :=
+  String.concat " " (List.map pp_value vs).
+
+Definition pp_values_hint_empty (vs : list value) : string :=
+  match vs with
+  | nil => "(empty)"
+  | _ => pp_values vs
   end.
 
 Definition pp_unary_op_i (uoi : unop_i) : string :=
@@ -253,19 +271,19 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
   | Set_global x =>
     indent i (with_fg be_style "global.set " ++ pp_immediate x ++ newline)
   | Load vt None a o =>
-    with_fg type_style (pp_value_type vt) ++ ".load " ++ pp_ao a o
+    pp_value_type vt ++ ".load " ++ pp_ao a o
   | Load vt (Some ps) a o =>
-    with_fg type_style (pp_value_type vt) ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o
+    pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o
   | Store vt None a o =>
-    with_fg type_style (pp_value_type vt) ++ ".store " ++ pp_ao a o
+    pp_value_type vt ++ ".store " ++ pp_ao a o
   | Store vt (Some p) a o =>
-    with_fg type_style (pp_value_type vt) ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o
+    pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o
   | Current_memory =>
     indent i (with_fg be_style "memory.size" ++ newline)
   | Grow_memory =>
     indent i (with_fg be_style "memory.grow" ++ newline)
   | EConst v =>
-    indent i (pp_const v)
+    indent i (pp_value v)
   | Unop_i vt uoi =>
     indent i (pp_value_type vt ++ "." ++ pp_unary_op_i uoi ++ newline)
   | Unop_f vt uof =>
@@ -283,13 +301,20 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
   | Cvtop vt1 cvtop vt2 sxo => "?" ++ newline (* TODO: ??? *)
   end.
 
-Definition pp_basic_instructions bes :=
-  String.concat "" (List.map (pp_basic_instruction 0) bes).
+Definition pp_basic_instructions n bes :=
+  String.concat "" (List.map (pp_basic_instruction n) bes).
 
 Definition pp_function_closure (n : nat) (fc : function_closure) : string :=
   match fc with
-  | Func_native i ft vs bes => indent n ("native TODO" ++ newline) (* TODO: show *)
-  | Func_host ft h => indent n ("host TODO" ++ newline) (* TODO: show *)
+  | Func_native i ft vs bes =>
+    (* TODO: show instance? *)
+    indent n ("native " ++ pp_function_type ft ++ newline) ++
+    indent n ("value types " ++ pp_value_types vs ++ newline) ++
+    indent n ("body" ++ newline) ++
+    pp_basic_instructions (n.+1) bes ++
+    indent n ("end native" ++ newline)
+  | Func_host ft h =>
+    indent n ("host " ++ pp_function_type ft ++ newline) (* TODO: show *)
   end.
 
 Definition string_of_nat (n : nat) : string :=
@@ -317,15 +342,6 @@ Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
   String.concat "" (List.map (pp_administrative_instruction n) es).
 
-Definition pp_values (vs : list value) : string :=
-  String.concat " " (List.map pp_const vs).
-
-Definition pp_values_hint_empty (vs : list value) : string :=
-  match vs with
-  | nil => "(empty)"
-  | _ => pp_values vs
-  end.
-
 Definition pp_store (n : nat) (s : store_record) : string :=
   indent n ("TODO: store" ++ newline). (* TODO *)
 
@@ -342,19 +358,13 @@ Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple) : string 
     "with values " ++ pp_values_hint_empty vs ++ newline
   | RS_break n vs =>
     "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
-    "with values " ++ pp_values_hint_empty vs ++ newline ++
-    "and store" ++ newline ++
-    pp_store 1 s
+    "with values " ++ pp_values_hint_empty vs ++ newline
   | RS_return vs_res =>
 		"return " ++ pp_values_hint_empty vs_res ++ newline ++
-    "with values " ++ pp_values_hint_empty vs ++ newline ++
-    "and store" ++ newline ++
-    pp_store 1 s
+    "with values " ++ pp_values_hint_empty vs ++ newline
   | RS_normal es =>
     "normal" ++ newline ++
     String.concat "" (List.map (pp_administrative_instruction 1) es) ++
-    "with values " ++ pp_values_hint_empty vs ++ newline ++
-    "and store" ++ newline ++
-    pp_store 1 s
+    "with values " ++ pp_values_hint_empty vs ++ newline
   end.
 
