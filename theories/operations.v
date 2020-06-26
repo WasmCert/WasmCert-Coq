@@ -314,7 +314,7 @@ Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) 
     (sglob_ind s i j).
 
 Definition is_const (e : administrative_instruction) : bool :=
-  if e is Basic _ then true else false.
+  if e is Basic (EConst _) then true else false.
 
 Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.

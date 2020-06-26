@@ -38,7 +38,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
 | bet_unop_i : forall C t op, is_int_t t -> be_typing C [::Unop_i t op] (Tf [::t] [::t])
 | bet_unop_f : forall C t op, is_float_t t -> be_typing C [::Unop_f t op] (Tf [::t] [::t])
 | bet_binop_i : forall C t op, is_int_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
-| bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
+| bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_f t op] (Tf [::t; t] [::t])
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
@@ -199,7 +199,7 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
 | cl_typing_native : forall i s C C' ts t1s t2s es tf,
   inst_typing s i C ->
   tf = Tf t1s t2s ->
-  C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) ->
+  C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) ->
   be_typing C' es (Tf [::] t2s) ->
   cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
 | cl_typing_host : forall s tf h,
