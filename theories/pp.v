@@ -323,6 +323,8 @@ Definition string_of_nat (n : nat) : string :=
 Definition ae_style := FG_blue.
 
 Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction) : string :=
+  let pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
+    String.concat "" (List.map (pp_administrative_instruction n) es) in
   match e with
   | Basic be => pp_basic_instruction n be
   | Trap => indent n (with_fg ae_style "trap" ++ newline)
@@ -334,9 +336,13 @@ Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es1) ++
     indent n (with_fg ae_style "label_cont" ++ newline) ++
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es2) ++
-    indent n (with_fg ae_style "end" ++ newline)
-  | Local n i vs es =>
-    indent n (with_fg ae_style "local TODO" ++ newline) (* TODO: ??? *)
+    indent n (with_fg ae_style "end label" ++ newline)
+  | Local n inst vs es =>
+    indent n (with_fg ae_style "local " ++ string_of_nat n ++ newline) ++
+    (* TODO: inst? *)
+    indent n (with_fg ae_style "with values " ++ pp_values_hint_empty vs ++ newline) ++
+    pp_administrative_instructions (n.+1) es ++
+    indent n (with_fg ae_style "end local" ++ newline)
   end.
 
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
