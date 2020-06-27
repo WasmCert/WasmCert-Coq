@@ -63,8 +63,8 @@ To use VSCoq in this development, a [.vscode/settings.json](.vscode/settings.jso
 
 A file `wasm_interpreter` will have been generated.
 It takes as argument a list of Wasm files, followed by a function name, followed by a depth.
-For instance, to interpret the function `hello` defined in [tests/42.wasm](tests/42.wasm), run:
+For instance, to interpret the function `hello` defined in [tests/const.wasm](tests/const.wasm), run:
 ```bash
-./wasm_interpreter tests/42.wasm hello 10
+./wasm_interpreter tests/const.wasm hello 10
 ```
 
