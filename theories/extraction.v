@@ -22,4 +22,5 @@ Extraction "extract"
   pp.pp_config_tuple_except_store
   pp.pp_res_tuple_except_store
   pp.pp_values
-  pp.pp_store.
+  pp.pp_store
+  operations.const_list.

@@ -67,11 +67,12 @@ let interpret verbosity sies (name : string) (depth : int) =
          ()
        | (_, _, RS_return vs) ->
          terminal_magic verbosity;
-        Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Convert.from_string (Extract.pp_values vs));
-        ()
+         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Convert.from_string (Extract.pp_values vs));
+         ()
        | (s', vs', RS_normal es) ->
-         f (gen + 1) (Convert.to_triple (s', vs', es))) in
-    debug_info verbosity 2 (fun () -> Printf.printf "\n%sstep %d:%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple_except_store cfg0)));
+         if Convert.from_bool (Extract.const_list es) then ()
+         else f (gen + 1) (Convert.to_triple (s', vs', es))) in
+    debug_info verbosity 2 (fun () -> Printf.printf "\n%sstep %d:\n%s\n%s\n" ansi_bold 0 ansi_reset (Convert.from_string (Extract.pp_config_tuple_except_store cfg0)));
     f 1 cfg0;
     `Ok ()
 
