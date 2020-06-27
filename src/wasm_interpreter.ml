@@ -41,7 +41,7 @@ let interpret verbosity sies (name : string) (depth : int) =
       (let res = Extract.run_step depth_coq inst cfg in
        debug_info verbosity 2
         (fun () ->
-          Printf.printf "%sstep %d%s:%s"
+          Printf.printf "%sstep %d%s:\n%s"
             ansi_bold gen
             ansi_reset
             (Convert.from_string (Extract.pp_res_tuple_except_store res)));
