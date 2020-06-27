@@ -22,7 +22,7 @@
 	"dependencies": {
 		"@opam/cmdliner": "1.0.4",
 		"@opam/coq": "8.10.1",
-		"@opam/dune": "~2.3",
+		"@opam/dune": "~2.4",
 		"@opam/odoc": "*",
 		"@opam/menhir": "20181113",
 		"compcert": "3.6",
@@ -32,7 +32,8 @@
 		"strong-induction": "*",
 		"coq-mathcomp-ssreflect": "*",
 		"parseque": "*",
-		"@opam/linenoise": "*"
+		"@opam/linenoise": "*",
+		"@opam/mdx": "*"
 	},
 	"devDependencies": {},
 	"resolutions": {

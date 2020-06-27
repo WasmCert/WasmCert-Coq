@@ -1,7 +1,6 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-Require Import datatypes datatypes_properties.
-Require interpreter.
-Require binary_format_parser operations typing opsem.
+Require Import list_extra datatypes datatypes_properties interpreter binary_format_parser
+  operations typing opsem.
 (* TODO: separate algorithmic aspects from specification, incl. dependencies *)
 
 (* TODO: get rid of old notation that doesn't follow standard *)
@@ -532,48 +531,8 @@ Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : opti
   if i < List.length tfs then List.nth_error tfs i
   else None.
 
-Fixpoint those0 {A} (l : list (option A)) : option (list A) :=
-  match l with
-  | nil => Some nil
-  | cons x xs =>
-    match x with
-    | None => None
-    | Some y =>
-      match those0 xs with
-      | None => None
-      | Some ys => Some (cons y ys)
-      end
-    end
-  end.
-
-Fixpoint those_aux {A} (acc : option (list A)) (l : list (option A)) : option (list A) :=
-  match acc with
-  | None => None
-  | Some ys_rev =>
-    match l with
-    | nil => Some ys_rev
-    | cons x xs =>
-      match x with
-      | None => None
-      | Some y => those_aux (Some (cons y ys_rev)) xs
-      end
-    end
-  end.
-
-Definition those {A} (l : list (option A)) : option (list A) :=
-  match those_aux (Some nil) l with
-  | None => None
-  | Some l => Some (List.rev l)
-  end.
-
-Lemma those_those0 : forall A (l : list (option A)),
-  those0 l = those l.
-Proof.
-(* TODO *)
-Admitted.
-
 Definition gather_m_f_types (tfs : list function_type) (m_fs : list module_func) : option (list function_type) :=
-  those (List.map (gather_m_f_type tfs) m_fs).
+  list_extra.those (List.map (gather_m_f_type tfs) m_fs).
 
 Definition module_import_typer (tfs : list function_type) (imp : import_desc) : option extern_t :=
   match imp with

@@ -4,7 +4,7 @@
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
-Require Export datatypes_properties.
+Require Export datatypes_properties list_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -318,6 +318,9 @@ Definition is_const (e : administrative_instruction) : bool :=
 
 Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
+
+Definition those_const_list (es : list administrative_instruction) : option (list value) :=
+  those (List.map (fun e => match e with | Basic (EConst v) => Some v | _ => None end) es).
 
 Definition glob_extension (g1 g2: global) : bool.
 Proof.
