@@ -130,7 +130,7 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   be_typing (upd_label C (app [::tm] (tc_label C))) es (Tf tn tm) ->
   be_typing C [::Block tf es] (Tf tn tm)
 | bet_loop : forall C tn tm es,
-  be_typing (upd_label C (app [::tm] (tc_label C))) es (Tf tn tm) ->
+  be_typing (upd_label C (app [::tn] (tc_label C))) es (Tf tn tm) ->
   be_typing C [::Loop (Tf tn tm) es] (Tf tn tm)
 | bet_if_wasm : forall C tn tm es1 es2,
   be_typing (upd_label C (app [::tm] (tc_label C))) es1 (Tf tn tm) ->
