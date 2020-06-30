@@ -14,20 +14,21 @@
 		"build": "make"
 	},
 	"dependencies": {
-		"@opam/cmdliner": "1.0.4",
+		"ocaml": "4.8.1000",
 		"@opam/coq": "8.10.1",
-		"@opam/dune": "~2.3",
-		"@opam/menhir": ">=20190626",
-		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"coq-flocq": "3.2.0",
+		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"@opam/coq-stdpp": "*",
 		"coq-iris": "*",
-		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"coq-mathcomp-ssreflect": "*",
+		"@opam/cmdliner": "1.0.4",
+		"@opam/dune": "~2.3",
+		"@opam/menhir": ">=20190626",
 		"parseque": "github:Mbodin/parseque#22b98cc4235266d3c3d2b2eef7ff95b677aaf21c",
 		"coq-itree": "github:Mbodin/InteractionTrees#238cbdd6dce3d3f3f9431f1d0c6117ba42674007",
+		"coq-paco": "github:Mbodin/coq-paco#ca6a4b5f12a5fedac6a47ee775bc2e1b36ce7520",
 		"coq-ext-lib": "*",
-		"coq-paco": "github:Mbodin/coq-paco#ca6a4b5f12a5fedac6a47ee775bc2e1b36ce7520"
+		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a"
 	},
 	"devDependencies": {},
 	"resolutions": {
