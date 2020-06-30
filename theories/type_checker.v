@@ -410,7 +410,7 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
   e_typing s C [::Trap] tf
 | ety_local : forall s C n i vs es ts,
   s_typing s (Some ts) i vs es ts ->
-  (length ts) = n ->
+  length ts = n ->
   e_typing s C [::Local n i vs es] (Tf [::] ts)
 | ety_invoke : forall s C cl tf,
   cl_typing s cl tf ->
@@ -418,7 +418,7 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
 | ety_label : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
-  (length ts) = n ->
+  length ts = n ->
   e_typing s C [::Label n e0s es] (Tf [::] t2s)
 (*
   Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
