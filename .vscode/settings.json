@@ -1,4 +1,0 @@
-{
-    "coqtop.binPath": "/home/xy/.esy/3/b/opam__s__coq-opam__c__8.10.1-bb7457b1/bin",
-    "coqtop.args": ["-coqlib","/home/xy/.esy/3/b/opam__s__coq-opam__c__8.10.1-bb7457b1","-R","/home/xy/.esy/3/b/coq_mathcomp_ssreflect-56e4f760/mathcomp","mathcomp","-R","/home/xy/.esy/3/b/opam__s__coq_ext_lib-e536ff17/theories","ExtLib","-R","/home/xy/.esy/3/b/compcert-bba429f4","compcert","-R","/home/xy/.esy/source/i/coq_flocq__7cdd8565/src/","Flocq","-R","/home/xy/.esy/3/b/parseque-78201539/_build/default/theories","parseque","-R","/home/xy/wasm_coq/_build/default/theories ",""]
-}

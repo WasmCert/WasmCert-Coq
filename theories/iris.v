@@ -236,6 +236,16 @@ Proof.
     apply: not_reduce_simple_nil.
     apply: Hreds. }
   { intros. by apply: lfilled_not_nil. }
+	(* FIXME
+  (* there must be a better way *)
+  { move => cl _ _ _ _ es _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H.
+    assert (seq.size (es ++ [Invoke cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
+    by apply: foo3. }
+  { move => cl f t1s t2s es ves vcs _ _ _ _ _ _ _ _ _ H.
+    assert (seq.size (es ++ [Invoke cl]) = @seq.size administrative_instruction []) as Hx; first by f_equal.
+    by apply: foo3. }
+  { move => s vs es les i s' vs' le's les' k lh Hred Hes Hfill Hfill' Hles.
+    by apply: (foo5 Hfill). } *)
 Qed.
 
 Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,

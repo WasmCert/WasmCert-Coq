@@ -1183,7 +1183,7 @@ End FloatSize.
 
 (** We then instanciate it with CompCert’s types. **)
 
-Module FloatSize32 : FloatSize.
+Module FloatSize32.
 
 Import Raux.
 
@@ -1209,7 +1209,7 @@ Proof. reflexivity. Qed.
 
 End FloatSize32.
 
-Module FloatSize64 : FloatSize.
+Module FloatSize64.
 
 Import Raux.
 
@@ -1926,4 +1926,3 @@ Definition wasm_bool (b : bool) : i32 :=
   if b then Wasm_int.Int32.one else Wasm_int.Int32.zero.
 
 Definition int32_minus_one : i32 := Wasm_int.Int32.mone.
-

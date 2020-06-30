@@ -1,6 +1,6 @@
 (executable
   (name wasm_interpreter)
-  (libraries cmdliner)
+  (libraries cmdliner linenoise)
   (modes (best exe)))
 
 (install
@@ -13,5 +13,5 @@
 	(deps "../theories/extraction.vo")
 	(action (run cp "../theories/extract.ml" "../theories/extract.mli" "./")))
 
-(env (dev (flags (:standard -warn-error -A)))) ; The extracted OCaml code yields a lot of warnings.
+(env (dev (flags (:standard -warn-error -A -w -39 -w -50)))) ; The extracted OCaml code yields a lot of warnings.
 

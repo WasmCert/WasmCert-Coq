@@ -177,9 +177,9 @@ Context {eff : Type -> Type}.
 Context {eff_has_host_event : host_event -< eff}.
 
 Definition run_step_base (call : run_stepE ~> itree (run_stepE +' eff))
-    (d : depth) (i : instance) (tt : config_tuple)
+    (d : depth) (i : instance) (cgf : config_tuple)
   : itree (run_stepE +' eff) res_tuple :=
-  let: (s, vs, es) := tt in
+  let: (s, vs, es) := cgf in
   let: (ves, es') := split_vals_e es in (** Framing out constants. **)
   match es' with
   | [::] => ret (s, vs, crash_error)
@@ -197,9 +197,9 @@ Definition run_step_base (call : run_stepE ~> itree (run_stepE +' eff))
   end.
 
 Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
-      (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction)
+      (d : depth) (i : instance) (cgf : config_one_tuple_without_e) (e : administrative_instruction)
     : itree (run_stepE +' eff) res_tuple :=
-  let: (s, vs, ves) := tt in
+  let: (s, vs, ves) := cgf in
   match e with
 
   (** unop **)
@@ -396,7 +396,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       expect
         (smem_ind s i)
         (fun j =>
-           if List.nth_error (s_memory s) j is Some mem_s_j then
+           if List.nth_error s.(s_mems) j is Some mem_s_j then
              expect
                (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
                (fun bs =>
@@ -410,7 +410,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       expect
         (smem_ind s i)
         (fun j =>
-           if List.nth_error (s_memory s) j is Some mem_s_j then
+           if List.nth_error s.(s_mems) j is Some mem_s_j then
              expect
                (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
                (fun bs =>
@@ -426,11 +426,11 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         expect
           (smem_ind s i)
           (fun j =>
-             if List.nth_error (s_memory s) j is Some mem_s_j then
+             if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
                  (store mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t))
                  (fun mem' =>
-                    ret (upd_s_mem s (update_list_at (s_memory s) j mem'), vs, RS_normal (vs_to_es ves')))
+                    ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves')))
                  (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
              else ret (s, vs, crash_error))
           (ret (s, vs, crash_error))
@@ -443,11 +443,11 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         expect
           (smem_ind s i)
           (fun j =>
-             if List.nth_error (s_memory s) j is Some mem_s_j then
+             if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
                  (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp))
                  (fun mem' =>
-                    ret (upd_s_mem s (update_list_at (s_memory s) j mem'), vs, RS_normal (vs_to_es ves')))
+                    ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves')))
                  (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
              else ret (s, vs, crash_error))
           (ret (s, vs, crash_error))
@@ -457,18 +457,18 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     expect
       (smem_ind s i)
       (fun j =>
-         if List.nth_error (s_memory s) j is Some s_mem_s_j then
+         if List.nth_error s.(s_mems) j is Some s_mem_s_j then
            ret (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
          else ret (s, vs, crash_error))
       (ret (s, vs, crash_error))
   | Basic Grow_memory =>
     if ves is ConstInt32 c :: ves' then
       expect (smem_ind s i) (fun j =>
-          if List.nth_error (s_memory s) j is Some s_mem_s_j then
+          if List.nth_error s.(s_mems) j is Some s_mem_s_j then
             let: l := mem_size s_mem_s_j in
             let: mem' := mem_grow s_mem_s_j (Wasm_int.nat_of_uint i32m c) in
             if mem' is Some mem'' then
-              ret (upd_s_mem s (update_list_at (s_memory s) j mem''), vs,
+              ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), vs,
                    RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
             else ret (s, vs, crash_error)
           else ret (s, vs, crash_error))
@@ -503,7 +503,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
               let: rves := result_to_stack r in
               ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
             else ret (s, vs, crash_error)
-          | None => ret (s, vs, crash_error) (* TODO *)
+          | None => ret (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
           end
       else ret (s, vs, crash_error)
     end
@@ -551,10 +551,10 @@ Definition run_step_call : run_stepE ~> itree eff :=
   mrec (fun T (f : run_stepE T) =>
     let call _ f := trigger f in
     match f with
-    | call_run_step_base d i tt' =>
-      run_step_base call d i tt'
-    | call_run_one_step d i tt' e =>
-      run_one_step call d i tt' e
+    | call_run_step_base d i cgf =>
+      run_step_base call d i cgf
+    | call_run_one_step d i cgf e =>
+      run_one_step call d i cgf e
     end).
 
 (** Enough fuel so that [run_one_step] does not run out of exhaustion. **)
@@ -575,14 +575,14 @@ Proof.
 Defined.
 
 (** Enough fuel so that [run_step] does not run out of exhaustion. **)
-Definition run_step_fuel (tt : config_tuple) :=
-  let: (s, vs, es) := tt in
+Definition run_step_fuel (cfg : config_tuple) : nat :=
+  let: (s, vs, es) := cfg in
   1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
 (** [run_step] is defined by calling [run_step_base], whilst burning enough fuel
    for it to be fully computed. **)
-Definition run_step d j tt :=
-  burn (run_step_fuel tt) (run_step_call (call_run_step_base d j tt)).
+Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : res_tuple :=
+  burn (run_step_fuel cfg) (run_step_call (call_run_step_base d inst cfg)).
 
 End RunStep.
 
@@ -596,9 +596,9 @@ Definition run_v : depth -> instance -> config_tuple -> itree eff (store_record 
     rec-fix run_v (d, i, (s, vs, es)) :=
       if es_is_trap es
       then ret (s, R_trap)
-      else
-        if const_list es
-        then ret (s, R_value (fst (split_vals_e es)))
+		  else
+      if const_list es
+      then ret (s, R_value (fst (split_vals_e es)))
         else
           '(s', vs', r) <- run_step d i (s, vs, es) ;;
           match r with
@@ -606,7 +606,7 @@ Definition run_v : depth -> instance -> config_tuple -> itree eff (store_record 
           | RS_crash error => ret (s, R_crash error)
           | _ => ret (s, R_crash C_error)
           end in
-  fun d i tt => run_v (d, i, tt).
+  fun d i cfg => run_v (d, i, cfg).
 
 End Run.
 

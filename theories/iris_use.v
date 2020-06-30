@@ -36,6 +36,7 @@ Instance loc_inhabited : Inhabited loc := populate {|loc_car := 0 |}.
 Instance loc_countable : Countable loc.
 Proof. by apply (inj_countable' loc_car (λ i, {| loc_car := i |})); intros []. Qed.
 
+(* FIXME
 Program Instance loc_infinite : Infinite loc :=
   inj_infinite (λ p, {| loc_car := p |}) (λ l, Some (loc_car l)) _.
 Next Obligation.
@@ -102,6 +103,7 @@ Proof.
   simpl.
   (* FIXME: iApply. *)
 Admitted.
+*)
 
 End Host.
 

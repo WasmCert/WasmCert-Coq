@@ -3,6 +3,7 @@
 all: .vscode/settings.json
 	export HOME=`pwd`; dune build @all --verbose
 	dune build -p wasm_interpreter
+	ln -f -s ./_build/install/default/bin/wasm_interpreter ./wasm_interpreter
 
 clean:
 	rm -rf _build || true
@@ -12,6 +13,7 @@ clean:
 	rm theories/extract.{ml,mli} || true
 
 .vscode/settings.json:
+	mkdir -p .vscode
 	echo $(VSCODESETTINGS) > $@
 
 # Some dependencies take quite a while to compile, and Travis consider them as failing because of this.
