@@ -3,7 +3,7 @@
 From Wasm Require Import datatypes datatypes_properties.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
-Require Import Ascii Byte.
+Require Import Byte.
 Require Import leb128.
 Require Import Coq.Arith.Le.
 
@@ -18,12 +18,10 @@ Context
 Definition byte_parser A n := Parser Toks byte M A n.
 Definition be_parser n := byte_parser basic_instruction n.
 
-Definition exact_byte (b : byte) {n}: byte_parser byte n :=
-  (* TODO: this is a horrible hack to avoid the fact that `Scheme Equality for byte`
-     does not terminate in a reasonable amount of time. *)
+Definition exact_byte (b : byte) {n} : byte_parser byte n :=
   guardM
     (fun b' =>
-      if Ascii.eqb (ascii_of_byte b') (ascii_of_byte b) then Some b'
+      if byte_eqb b' b then Some b'
       else None)
     anyTok.
 
@@ -976,9 +974,6 @@ End Run.
 Definition run_parse_be (bs : list byte) : option basic_instruction :=
   run bs parse_be.
 
-Definition run_parse_be_from_asciis (bs : list ascii) : option basic_instruction :=
-  run (List.map byte_of_ascii bs) parse_be.
-
 Definition run_parse_expr (bs : list byte) : option (list basic_instruction) :=
   run bs (fun n => parse_expr).
 
@@ -987,6 +982,3 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
 
 Definition run_parse_module (bs : list byte) : option module :=
   run (bs ++ cons end_marker nil) (fun n => parse_module).
-
-Definition run_parse_module_from_asciis (bs : list ascii) : option module :=
-  run_parse_module (List.map byte_of_ascii bs).

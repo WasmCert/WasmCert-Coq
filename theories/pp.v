@@ -87,21 +87,21 @@ Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
   match bools with
   | nil => acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: bools' =>
-    pp_bools (Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 b8) :: acc) bools'
+    pp_bools (Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, b8))))))) :: acc) bools'
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 ::  nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, false))))))) :: acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (false, false))))))) :: acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 false false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (false, (false, false))))))) :: acc
   | b1 :: b2 :: b3 :: b4 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 false false false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (false, (false, (false, false))))))) :: acc
   | b1 :: b2 :: b3 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 false false false false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (false, (false, (false, (false, false))))))) :: acc
   | b1 :: b2 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 false false false false false false) :: acc
+    Byte.of_bits (b1, (b2, (false, (false, (false, (false, (false, false))))))) :: acc
   | b1 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 false false false false false false false) :: acc
+    Byte.of_bits (b1, (false, (false, (false, (false, (false, (false, false))))))) :: acc
   end.
 
 Definition pp_f32 (f : float32) : string :=

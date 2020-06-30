@@ -3,7 +3,6 @@
 (* TODO: size bound *)
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
-Require Import Ascii.
 Require Import Coq.Init.Byte.
 From parseque Require Import Parseque.
 
@@ -12,7 +11,7 @@ Definition byte_of_7_bits (bs : list bool) : byte :=
   (* TODO: using lists is very inefficient *)
   match bs with
   | cons b1 (cons b2 (cons b3 (cons b4 (cons b5 (cons b6 (cons b7 nil)))))) =>
-    byte_of_ascii (Ascii b7 b6 b5 b4 b3 b2 b1 false)
+    Byte.of_bits (b7, (b6, (b5, (b4, (b3, (b2, (b1, false)))))))
   | _ => (* TODO: should never happen *) x00
   end.
 
@@ -37,10 +36,12 @@ Fixpoint binary_of_aux2 (is_neg : bool) (acc1 : list byte) (acc2 : list bool (* 
   end.
 
 Definition make_msb_one (b : byte) : byte :=
-  match ascii_of_byte b with
-  | Ascii b1 b2 b3 b4 b5 b6 b7 _ =>
-    byte_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 true)
-  end.
+  let '(b1, (b2, (b3, (b4, (b5, (b6, (b7, _))))))) := Byte.to_bits b in
+  Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, true))))))).
+
+Definition make_msb_zero (b : byte) : byte :=
+  let '(b1, (b2, (b3, (b4, (b5, (b6, (b7, _))))))) := Byte.to_bits b in
+  Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, false))))))).
 
 Definition make_msb_of_non_first_byte_one (bs : list byte) : list byte :=
   match bs with
@@ -77,28 +78,23 @@ Section Language.
   Definition byte_parser A n := Parser Toks byte M A n.
 
   Definition byte_as_N {n} : byte_parser N n :=
-    (fun x => N_of_ascii (ascii_of_byte x)) <$> anyTok.
+    Coq.Strings.Byte.to_N <$> anyTok.
 
   (* parse a final byte *)
   Definition parse_unsigned_end {n} : byte_parser N n :=
     guardM
       (fun b =>
-        let a := ascii_of_byte b in
-        match a with
-        | Ascii _ _ _ _ _ _ _ msb => if msb then None else Some (N_of_ascii a)
-        end)
+        let '(_, (_, (_, (_, (_, (_, (_, msb))))))) := Byte.to_bits b in
+        if msb then None else Some (Coq.Strings.Byte.to_N b))
       anyTok.
 
   (* parse a non-final byte *)
   Definition parse_unsigned_ctd {n} : byte_parser N n :=
     guardM
       (fun b =>
-        let a := ascii_of_byte b in
-        match a with
-        | Ascii b1 b2 b3 b4 b5 b6 b7 msb =>
-          if msb then Some (N_of_ascii (Ascii b1 b2 b3 b4 b5 b6 b7 false))
-          else None
-        end)
+       let '(b1, (b2, (b3, (b4, (b5, (b6, (b7, msb))))))) := Byte.to_bits b in
+       if msb then Some (Coq.Strings.Byte.to_N (make_msb_zero b))
+       else None)
       anyTok.
 
   Section Unsigned_sec.
@@ -131,24 +127,19 @@ Definition sub_2_7 (k : N) :=
 Definition parse_signed_end {n} : byte_parser Z n :=
 guardM
   (fun b =>
-    let a := ascii_of_byte b in
-    match a with
-    | Ascii _ _ _ _ _ _ _ true => None
-    | Ascii _ _ _ _ _ _ true false => Some (sub_2_7 (N_of_ascii a))
-    | Ascii _ _ _ _ _ _ false false => Some (ZArith.BinInt.Z_of_N (N_of_ascii a))
-    end)
+    let '(_, (_, (_, (_, (_, (_, (b7, b8))))))) := Byte.to_bits b in
+    if b8 then None
+    else if b7 then  Some (sub_2_7 (Coq.Strings.Byte.to_N b))
+    else Some (ZArith.BinInt.Z_of_N (Coq.Strings.Byte.to_N b)))
   anyTok.
 
 (* parse a final byte *)
 Definition parse_signed_ctd {n} : byte_parser Z n :=
   guardM
     (fun b =>
-      let a := ascii_of_byte b in
-      match a with
-      | Ascii _ _ _ _ _ _ _  true =>
-        Some (sub_2_7 (N_of_ascii a))
-      | Ascii _ _ _ _ _ _ _ false => None
-      end)
+      let '(_, (_, (_, (_, (_, (_, (_, msb))))))) := Byte.to_bits b in
+      if msb then Some (sub_2_7 (Coq.Strings.Byte.to_N b))
+      else None)
     anyTok.
 
 Section Signed_sec.

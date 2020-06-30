@@ -10,7 +10,6 @@ Require Import common.
 Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require common.Memdata.
-Require Import Ascii.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
