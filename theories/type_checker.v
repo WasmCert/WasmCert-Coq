@@ -424,10 +424,10 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
   Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
  *)
 with s_typing : store_record -> option (list value_type) -> instance -> list value -> list administrative_instruction -> list value_type -> Prop :=
-| mk_s_typing : forall s i vs es rs ts C C0 tvs0,
+| mk_s_typing : forall s i vs es rs ts C C0,
   let tvs := map typeof vs in
   inst_typing s i C0 ->
-  C = upd_local_return C0 ((tc_local tvs0) ++ tvs) rs ->
+  C = upd_local_return C0 ((tc_local C0) ++ tvs) rs ->
   e_typing s C es (Tf [::] ts) ->
   (rs == Some ts) || (rs == None) ->
   s_typing s rs i vs es ts.
