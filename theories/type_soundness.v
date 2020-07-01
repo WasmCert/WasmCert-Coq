@@ -1835,7 +1835,7 @@ Proof.
   destruct HType as [ts [H1 [H2 H3]]]. subst.
   inversion H2. subst. clear H4. clear H2.
   apply et_weakening_empty_1.
-  assert (e_typing s (upd_local_return C1 (tc_local tvs0 ++ tvs) (Some ts)) vs (Tf [::] ts)).
+  assert (e_typing s (upd_local_return C1 (tc_local C1 ++ tvs) (Some ts)) vs (Tf [::] ts)).
   { eapply Lfilled_return_typing; eauto. }
   apply et_to_bet in H0; last by apply const_list_is_basic.
   apply const_es_exists in HConst. destruct HConst.
@@ -1992,7 +1992,7 @@ Proof.
       eapply t_const_ignores_context; try by eauto.
   - (* Local_lfilled_Return *)
     eapply Local_return_typing; by eauto.
-  - (* Set_local -- this is actually be_typeable *)
+  - (* Tee_local -- actually a simple reduction *)
     destruct v => //.
     destruct b => //.
     apply et_to_bet in HType => //; auto_basic.
@@ -2080,7 +2080,61 @@ Lemma inst_typeP: forall s i C,
     reflect (inst_type_check s i = C) (inst_typing s i C).
 Proof.
 Admitted.         
-   
+
+(* Don't think this is actually correct. *)
+Lemma collect_at_inds_split: forall {X:Type} i j iss (fs: seq X) f,
+  List.nth_error iss i = Some j ->
+  List.nth_error fs j = Some f ->
+  i < length (collect_at_inds fs iss) ->
+  List.nth_error (collect_at_inds fs iss) i = Some f.
+Proof.
+  move => X.
+  induction i => //=; move => j iss fs f HN1 HN2 HLength.
+  - destruct iss => //=.
+    inversion HN1. subst. clear HN1.
+    by rewrite HN2.
+  - destruct iss => //=.
+    simpl in HLength.
+    destruct (List.nth_error fs n) eqn:HN3 => //=.
+    + by eapply IHi; eauto.
+    + admit.
+Admitted.
+
+Lemma Invoke_func_host_typing: forall s C h tn tm t1s t2s,
+    e_typing s C [::Invoke (Func_host (Tf tn tm) h)] (Tf t1s t2s) ->
+    exists ts, t1s = ts ++ tn /\ t2s = ts ++ tm.
+Proof.
+  move => s C h tn tm t1s t2s HType.
+  dependent induction HType; subst.
+  - by destruct bes => //=.
+  - apply extract_list1 in x. destruct x. subst.
+    apply et_to_bet in HType1 => //=.
+    apply empty_typing in HType1. subst.
+    by eapply IHHType2 => //=.
+  - edestruct IHHType => //=.
+    exists (ts ++ x). destruct H. subst.
+    by split; repeat rewrite catA.
+  - inversion H. subst. by exists [::].
+Qed.
+
+Lemma Get_local_typing: forall C i t1s t2s,
+    be_typing C [::Get_local i] (Tf t1s t2s) ->
+    exists t, List.nth_error (tc_local C) i = Some t /\
+    t2s = t1s ++ [::t] /\
+    i < length (tc_local C).
+Proof.
+  move => C i t1s t2s HType.
+  dependent induction HType; subst => //=.
+  - by exists t.
+  - invert_be_typing.
+    by apply IHHType2.
+  - edestruct IHHType => //=.
+    destruct H as [H1 [H2 H3]]. subst.
+    exists x.
+    repeat split => //=.
+    by rewrite -catA.
+Qed.
+
 Theorem t_preservation: forall s vs es i s' vs' es' tf,
     reduce s vs es i s' vs' es' ->
     s_typing s None i vs es tf ->
@@ -2088,20 +2142,20 @@ Theorem t_preservation: forall s vs es i s' vs' es' tf,
 Proof.
   move => s vs es i s' vs' es' tf HReduce HType.
   inversion HType; subst.
+  clear HType.
+  clear H2.
   inversion HReduce; subst; try (by (eapply mk_s_typing; try by eauto; try instantiate (1 := tvs0); by apply ety_trap)).
   - (* reduce_simple *)
     eapply mk_s_typing; try by eauto.
-    eapply t_simple_preservation; try by eauto.
+    eapply t_simple_preservation; by eauto.
   - (* Call *)
     eapply mk_s_typing; try by eauto.
-    instantiate (1 := tvs0).
     apply ety_invoke.
     apply et_to_bet in H1; try auto_basic. simpl in H1.
     apply Call_typing in H1.
     destruct H1 as [ts [t1s' [t2s' [H3 [H4 [H5 H6]]]]]].
-    subst.
     destruct ts => //=.
-    destruct t1s' => //=.
+    destruct t1s' => //=. subst. clear H5.
     simpl in H4.
     simpl in H3.
     unfold sfunc in H0.
@@ -2110,6 +2164,13 @@ Proof.
     unfold option_bind in H0.
     destruct (sfunc_ind s' i j) eqn:Hsf => //=.
     unfold sfunc_ind in Hsf.
+    Print collect_at_inds.
+    Print i_funcs.
+    Print cl_type.
+    (* I think something is wrong with the formulation. I'll delay this and a few
+         following cases for now. *)
+    admit.
+    (*
     destruct f => //=.
     + (* Native *)
       eapply cl_typing_native; try by eauto => //=.
@@ -2123,15 +2184,41 @@ Proof.
       replace f with (Tf [::] t2s'); first by apply cl_typing_host.
       (* replace *)
       admit.
-      
+     *) 
   - (* Call_indirect *)
     admit.
   - (* Invoke native *)
     admit.
   - (* Invoke host *)
+    apply e_composition_typing in H1.
+    destruct H1 as [ts' [t1s' [t2s' [t3s' [H8 [H9 [H10 H11]]]]]]].
+    destruct ts' => //=. destruct t1s' => //=.
+    subst. clear H8.
+    apply Invoke_func_host_typing in H11.
+    destruct H11 as [ts [H12 H13]]. subst.
+    apply et_to_bet in H10; last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply Const_list_typing in H10.
+    apply concat_cancel_last_n in H10.
+    move/andP in H10. destruct H10.
+    move/eqP in H0. move/eqP in H1. subst.
+    (* We require more knowledge of the host at this point. *)
+    admit.
     admit.
   - (* Get_local *)
-    admit.
+    apply et_to_bet in H1; auto_basic.
+    apply Get_local_typing in H1.
+    destruct H1 as [t [H2 [H3 H4]]]. subst.
+    eapply mk_s_typing; eauto.
+    apply ety_a'; auto_basic => //=.
+    assert (tc_local C0 = [::]).
+    move/inst_typeP in H. unfold inst_type_check in H. by subst.
+    rewrite H0 in H2. rewrite H0 in H4. rewrite H0.
+    simpl in H2. simpl in H4. simpl.
+    unfold tvs in H2. repeat rewrite map_cat in H2.
+    simpl in H2. rewrite -cat1s in H2.
+    replace (length vi) with (length (map typeof vi)) in H2; last by rewrite length_is_size; rewrite size_map.
+    rewrite list_nth_prefix in H2. inversion H2. subst. clear H2.
+    by apply bet_const.
   - (* Set_local *)
     admit.
   - (* Get_global *)
