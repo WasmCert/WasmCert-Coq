@@ -17,8 +17,8 @@ Section Host.
 
 Variable host_function : eqType.
 
-Let host := host host_function.
-Let expr := expr host_function.
+Let host := host.host host_function.
+(* FIXME: Let expr := expr host_function. *)
 
 Variable host_instance : host.
 
@@ -36,12 +36,9 @@ Instance loc_inhabited : Inhabited loc := populate {|loc_car := 0 |}.
 Instance loc_countable : Countable loc.
 Proof. by apply (inj_countable' loc_car (λ i, {| loc_car := i |})); intros []. Qed.
 
-(* FIXME
+(* FIXME *)
 Program Instance loc_infinite : Infinite loc :=
   inj_infinite (λ p, {| loc_car := p |}) (λ l, Some (loc_car l)) _.
-Next Obligation.
-  admit. (* TODO *)
-Admitted.
 
 Definition proph_id := positive.
 
@@ -60,6 +57,7 @@ Instance heapG_irisG `{!heapG Σ} : irisG wasm_lang Σ := {
 
 Definition xx i := (ConstInt32 (Wasm_int.int_of_Z i32m i)).
 
+(* FIXME: Mismatch on [expr]?
 Definition my_add : expr :=
   [Basic (EConst (xx 3));
      Basic (EConst (xx 2));

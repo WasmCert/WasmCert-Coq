@@ -63,12 +63,6 @@ Inductive value_type : Type := (* t *)
   .
 
 
-Definition result_type := seq value_type.
-(** Note from the specification:
-  In the current version of WebAssembly, at most one value is allowed as a result.
-  However, this may be generalized to sequences of values in future versions. **)
-(* FIXME: Do we want to enforce it? *)
-
 Inductive packed_type : Type := (* tp *)
   | Tp_i8
   | Tp_i16
@@ -77,9 +71,9 @@ Inductive packed_type : Type := (* tp *)
 
 (* TODO: the standard calls those const and var *)
 Inductive mutability : Type := (* mut *)
-	| MUT_immut
-	| MUT_mut
-	.
+  | MUT_immut
+  | MUT_mut
+  .
 
 Record global_type : Type := (* tg *) {
   tg_mut : mutability;
@@ -91,6 +85,11 @@ Result types classify the result of executing instructions or functions, which i
 *)
 Definition result_type : Type :=
   list value_type.
+(** Note from the specification:
+  In the current version of WebAssembly, at most one value is allowed as a result.
+  However, this may be generalized to sequences of values in future versions. **)
+(* FIXME: Do we want to enforce it? *)
+
 
 (** std-doc:
 Function types classify the signature of functions, mapping a vector of
@@ -98,7 +97,7 @@ parameters to a vector of results. They are also used to classify the inputs
 and outputs of instructions.
 *)
 Inductive function_type := (* tf *)
-	| Tf : result_type -> result_type -> function_type
+  | Tf : result_type -> result_type -> function_type
   (** Note from the specification:
     In the current version of Wasm, the result list has an arity of at most [1]. **)
   (* FIXME: Shouldn’t we enforce it? *)
@@ -172,6 +171,11 @@ Record s_context := {
 
 *)
 
+
+(** std-doc:
+WebAssembly computations manipulate values of the four basic value types:
+integers and floating-point data of 32 or 64 bit width each, respectively.
+*)
 Inductive value : Type := (* v *)
   | ConstInt32 : i32 -> value
   | ConstInt64 : i64 -> value
@@ -189,8 +193,8 @@ Inductive result : Type :=
 (** * Basic Instructions **)
 
 Inductive sx : Type :=
-	| SX_S
-	| SX_U
+  | SX_S
+  | SX_U
   .
 
 Inductive unop_i : Type :=
@@ -257,20 +261,9 @@ Inductive relop_f : Type :=
   .
 
 Inductive cvtop : Type :=
-	| Convert
-	| Reinterpret
-	.
-
-(** std-doc:
-WebAssembly computations manipulate values of the four basic value types:
-integers and floating-point data of 32 or 64 bit width each, respectively.
-*)
-Inductive value : Type := (* v *)
-	| ConstInt32 : i32 -> value
-	| ConstInt64 : i64 -> value
-	| ConstFloat32 : f32 -> value
-	| ConstFloat64 : f64 -> value
-	.
+  | Convert
+  | Reinterpret
+  .
 
 Inductive basic_instruction : Type := (* be *)
   | Unreachable

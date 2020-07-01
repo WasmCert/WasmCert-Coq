@@ -215,15 +215,15 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bo
   end.
 
 Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
-	| cl_typing_native : forall i s C C' ts t1s t2s es tf,
-		inst_typing s i C ->
-		tf = Tf t1s t2s ->
-		C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) ->
-		be_typing C' es (Tf [::] t2s) ->
-		cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
-	| cl_typing_host : forall s tf h,
-		cl_typing s (Func_host tf h) tf
-	.
+  | cl_typing_native : forall i s C C' ts t1s t2s es tf,
+    inst_typing s i C ->
+    tf = Tf t1s t2s ->
+    C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) ->
+    be_typing C' es (Tf [::] t2s) ->
+    cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
+  | cl_typing_host : forall s tf h,
+    cl_typing s (Func_host tf h) tf
+  .
 
 Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
   cl_typing s fc (cl_type fc).

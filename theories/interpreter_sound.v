@@ -1,7 +1,7 @@
 (** soundness of the Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
-Require Import common.
+From Wasm Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction Inductions.
 From ITree Require Import ITree ITreeFacts.
@@ -10,7 +10,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations opsem interpreter properties.
+From Wasm Require Import operations opsem interpreter properties.
 
 
 Section Host.

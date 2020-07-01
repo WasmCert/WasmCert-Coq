@@ -581,7 +581,7 @@ Definition run_step_fuel (cfg : config_tuple) : nat :=
 
 (** [run_step] is defined by calling [run_step_base], whilst burning enough fuel
    for it to be fully computed. **)
-Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : res_tuple :=
+Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : itree eff res_tuple :=
   burn (run_step_fuel cfg) (run_step_call (call_run_step_base d inst cfg)).
 
 End RunStep.
@@ -596,7 +596,7 @@ Definition run_v : depth -> instance -> config_tuple -> itree eff (store_record 
     rec-fix run_v (d, i, (s, vs, es)) :=
       if es_is_trap es
       then ret (s, R_trap)
-		  else
+      else
       if const_list es
       then ret (s, R_value (fst (split_vals_e es)))
         else

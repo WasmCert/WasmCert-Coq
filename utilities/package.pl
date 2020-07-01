@@ -12,11 +12,12 @@ my %packages = (
 		StrongInduction => '#{strong-induction.install}/lib/coq/user-contrib',
 		parseque => '#{parseque.install}/lib/coq/user-contrib',
 		ITree => '#{coq-itree.install}/user-contrib',
-		ExtLib => '#{coq-ext-lib.install}/user-contrib'
+		ExtLib => '#{coq-ext-lib.install}/user-contrib',
+		Paco => '#{coq-paco.install}/user-contrib'
 	) ;
 
 my $coqpath = "" ;
-foreach my $key (keys %packages){
+foreach my $key (sort keys %packages){
 	if ($coqpath eq ""){
 		$coqpath .= $packages{$key} ;
 	} else {
@@ -37,7 +38,7 @@ my $vscodesettings_suffix =
 my $vscodesettings = "" ;
 
 $vscodesettings .= $vscodesettings_prefix ;
-foreach my $key (keys %packages){
+foreach my $key (sort keys %packages){
 	$vscodesettings .= '\\"-R\\",\\"' . $packages{$key} . '\\",\\"' . $key . '\\",' ;
 }
 $vscodesettings .= $vscodesettings_suffix ;

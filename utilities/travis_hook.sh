@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Any error in this file should immediately stop the build.
+set -e
+
 # Some dependencies take quite a while to compile, and Travis fails because of this.
 # These lines solve this issue by regularly printing on the terminal.
 ( sleep 60;

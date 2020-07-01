@@ -397,7 +397,7 @@ Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple) : string 
     "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
     "with values " ++ pp_values_hint_empty vs ++ newline
   | RS_return vs_res =>
-		"return " ++ pp_values_hint_empty vs_res ++ newline ++
+    "return " ++ pp_values_hint_empty vs_res ++ newline ++
     "with values " ++ pp_values_hint_empty vs ++ newline
   | RS_normal es =>
     "normal" ++ newline ++

@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-Require Import list_extra datatypes datatypes_properties interpreter binary_format_parser
-  operations typing opsem.
+From Wasm Require Import list_extra datatypes datatypes_properties
+                         interpreter binary_format_parser operations typing opsem.
 (* TODO: separate algorithmic aspects from specification, incl. dependencies *)
 
 (* TODO: get rid of old notation that doesn't follow standard *)

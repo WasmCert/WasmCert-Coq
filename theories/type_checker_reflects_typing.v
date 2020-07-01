@@ -1,14 +1,13 @@
 (** The Wasm type checker reflects typing (soundness and completeness) **)
 (* (C) J. Pichon - see LICENSE.txt *)
 
-From mathcomp
-Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import common operations typing type_checker.
+From Wasm Require Import common operations typing type_checker.
 
 
 Section Host.
