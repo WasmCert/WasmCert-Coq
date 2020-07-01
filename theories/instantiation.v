@@ -5,6 +5,12 @@ From Wasm Require Import list_extra datatypes datatypes_properties
 
 (* TODO: get rid of old notation that doesn't follow standard *)
 
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+
 Definition addr := nat.
 Definition funaddr := addr.
 Definition tableaddr := addr.
@@ -187,7 +193,8 @@ Definition ext_t_globs :=
       | _ => None
       end).
 
-Definition alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value) s'_inst_exps : bool :=
+Definition alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value)
+    (s'_inst_exps : store_record * instance * seq module_export) : bool :=
   let '(s, inst, exps) := s'_inst_exps in
   let '(s1, i_fs) := alloc_funcs s m.(mod_funcs) inst in
   let '(s2, i_ts) := alloc_tabs s1 (List.map (fun t => t.(t_type)) m.(mod_tables)) in
@@ -198,7 +205,7 @@ Definition alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs
   (inst.(i_tab) == List.map (fun '(Mk_tableidx i) => i) (List.app (ext_tabs imps) i_ts)) &&
   (inst.(i_memory) == List.map (fun '(Mk_memidx i) => i) (List.app (ext_mems imps) i_ms)) &&
   (inst.(i_globs) == List.map (fun '(Mk_globalidx i) => i) (List.app (ext_globs imps) i_gs)) &&
-  (exps == List.map (fun m_exp => {| exp_name := m_exp.(exp_name); exp_desc := (export_get_v_ext inst m_exp.(exp_desc)) |}) m.(mod_exports)).
+  (exps == (List.map (fun m_exp => {| exp_name := m_exp.(exp_name); exp_desc := (export_get_v_ext inst m_exp.(exp_desc)) |}) m.(mod_exports) : seq module_export)).
 
 Definition interp_alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value) : (store_record * instance * list module_export) :=
   let i_fs := List.map (fun i => Mk_funcidx i) (seq.iota (List.length s.(s_funcs)) (List.length m.(mod_funcs))) in
@@ -812,3 +819,5 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
       end)
     exps
     None.
+
+End Host.

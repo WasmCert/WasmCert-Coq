@@ -12,6 +12,7 @@
 *.swp
 
 *.vo
+*.vio
 *.vos
 *.vok
 *.glob

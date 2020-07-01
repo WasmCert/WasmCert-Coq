@@ -267,11 +267,12 @@ Definition eqmodule_export_descP : Equality.axiom module_export_desc_eqb :=
   eq_dec_Equality_axiom module_export_desc_eq_dec.
 
 Canonical Structure module_export_desc_eqMixin := EqMixin eqmodule_export_descP.
-Canonical Structure module_export_desc_eqType := Eval hnf in EqType module_export_desc module_export_desc_eqMixin.
+Canonical Structure module_export_desc_eqType :=
+  Eval hnf in EqType module_export_desc module_export_desc_eqMixin.
 
 Definition module_export_eq_dec : forall v1 v2 : module_export, {v1 = v2} + {v1 <> v2}.
-(* TODO: "decidable equality" diverges; why? *)
-Admitted. 
+Proof. decidable_equality. Defined.
+
 Definition module_export_eqb v1 v2 : bool := module_export_eq_dec v1 v2.
 Definition eqmodule_exportP : Equality.axiom module_export_eqb :=
   eq_dec_Equality_axiom module_export_eq_dec.
