@@ -1,10 +1,10 @@
 #!/bin/bash
 
-KEEPTRAVISALIVE=0
-
 # Some dependencies take quite a while to compile, and Travis fails because of this.
 # These lines solve this issue by regularly printing on the terminal.
-( while true; do
+( sleep 60;
+	KEEPTRAVISALIVE=1
+	while true; do
 		sleep 60;
 		let "KEEPTRAVISALIVE+=1";
 		echo "Compilation takes a while (currently $KEEPTRAVISALIVE minutes): keeping Travis alive.";
@@ -23,7 +23,15 @@ if [ -z ${TRAVISONLYBUILDDEPS+x} ]; then
 	echo '+esy doc';
 	esy doc
 else
-	echo 'Variable $TRAVISONLYBUILDDEPS is set: only building dependencies.';
-	esy build-dependencies
+	case $TRAVISONLYBUILDDEPS in
+		all|"")
+			echo 'Variable $TRAVISONLYBUILDDEPS is set: only building dependencies.';
+			esy build-dependencies
+			;;
+		*)
+			echo "Variable \$TRAVISONLYBUILDDEPS is set to '$TRAVISONLYBUILDDEPS': only building this dependency.";
+			esy build-dependencies --package=$TRAVISONLYBUILDDEPS
+			;;
+	esac
 fi
 
