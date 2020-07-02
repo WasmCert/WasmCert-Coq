@@ -763,6 +763,8 @@ Import MonadNotation.
 Inductive instantiation_error (T : Type) : Type :=
   | Instantiation_error : instantiation_error T.
 
+Arguments Instantiation_error {T}.
+
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction)
   : itree (instantiation_error +' eff) value (* FIXME: isa mismatch *) :=
   res <- burn 2 (run_v 0 inst (s, nil, operations.to_e_list b_es)) ;;
@@ -770,9 +772,9 @@ Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_
   | (_, interpreter.R_value vs) =>
     match vs with
     | v :: nil => ret v
-    | _ => trigger_inl1 (Instantiation_error _)
+    | _ => trigger_inl1 Instantiation_error
     end
-  | _ => trigger_inl1 (Instantiation_error _)
+  | _ => trigger_inl1 Instantiation_error
   end.
 
 Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction)
@@ -780,13 +782,13 @@ Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basi
   v <- interp_get_v s inst b_es ;;
   match v with
   | ConstInt32 c => ret c
-  | _ => trigger_inl1 (Instantiation_error _)
+  | _ => trigger_inl1 Instantiation_error
   end.
 
 Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext)
   : itree (instantiation_error +' eff) ((store_record * instance * list module_export) * option nat) :=
   match module_type_checker m with
-  | None => trigger_inl1 (Instantiation_error _)
+  | None => trigger_inl1 Instantiation_error
   | Some (t_imps, t_exps) =>
     if seq.all2 (external_type_checker s) v_imps t_imps then
       let g_inits_opt :=
@@ -799,18 +801,18 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
         |} in
         those (map (fun g => interp_get_v s c g.(mg_init)) m.(mod_globals)) in
       match g_inits_opt with
-      | None => trigger_inl1 (Instantiation_error _)
+      | None => trigger_inl1 Instantiation_error
       | Some g_inits =>
         let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
         let e_offs_opt :=
           those (map (fun e => interp_get_i32 s' inst e.(elem_offset)) m.(mod_elem)) in
         match e_offs_opt with
-        | None => trigger_inl1 (Instantiation_error _)
+        | None => trigger_inl1 Instantiation_error
         | Some e_offs =>
           let d_offs_opt :=
             those (map (fun d => interp_get_i32 s' inst d.(dt_offset)) m.(mod_data)) in
           match d_offs_opt with
-          | None => trigger_inl1 (Instantiation_error _)
+          | None => trigger_inl1 Instantiation_error
           | Some d_offs =>
             if check_bounds_elem inst s m e_offs &&
                check_bounds_data inst s m d_offs then
@@ -818,11 +820,11 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
               let s'' := init_tabs s' inst (map nat_of_int e_offs) m.(mod_elem) in
               let s_end := init_mems s' inst (map nat_of_int d_offs) m.(mod_data) in
               Some ((s_end, inst, v_exps), start)
-            else trigger_inl1 (Instantiation_error _)
+            else trigger_inl1 Instantiation_error
           end
         end
       end
-    else trigger_inl1 (Instantiation_error _)
+    else trigger_inl1 Instantiation_error
   end.
 
 Lemma interp_instantiate_imp_instantiate :
