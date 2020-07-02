@@ -1,12 +1,12 @@
 (* Wasm interpreter *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-Require Import common.
+From Wasm Require Import common.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From ExtLib Require Import Structures.Monad.
 From ITree Require Import ITree ITreeFacts.
-Require Export operations host type_checker.
+From Wasm Require Export operations host type_checker.
 
 Import Monads.
 Import MonadNotation.
@@ -30,8 +30,25 @@ Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
 
 Let host_event := host_event executable_host_instance.
+Let host_monad := host_monad executable_host_instance.
 Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
   @host_apply _ executable_host_instance.
+
+Section ITreeExtract.
+(** Some helper functions to extract an interactive tree to a simple-to-interact-with function,
+  in order to reduce the shim. **)
+
+Definition option_of_itree_void {A} (t : itree void1 A) : option A :=
+  match observe t with
+  | RetF r => Some r (** We got a return. **)
+  | TauF i => None (** Exhaustion. **)
+  | VisF _ a _ => match a with end (** Void, by definition. **)
+  end.
+
+Definition from_event_monad {T : Type} : itree host_event T -> host_event T :=
+  interp (M := host_event) (MM := host_monad) (fun _ => id). (* FIXME: Universe inconsistency! *)
+
+End ITreeExtract.
 
 
 (** * Types used by the interpreter **)
@@ -628,3 +645,4 @@ Classical_Prop.classic : forall P : Prop, P \/ ~ P
 Arguments RS_crash [_].
 Arguments RS_break [_].
 Arguments RS_return [_].
+
