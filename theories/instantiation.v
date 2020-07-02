@@ -791,60 +791,46 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
   | None => trigger_inl1 Instantiation_error
   | Some (t_imps, t_exps) =>
     if seq.all2 (external_type_checker s) v_imps t_imps then
-      let g_inits_opt :=
-        let c := {|
-          i_types := nil;
-          i_funcs := nil;
-          i_tab := nil;
-          i_memory := nil;
-          i_globs := List.map (fun '(Mk_globalidx i) => i) (ext_globs v_imps);
-        |} in
-        those (map (fun g => interp_get_v s c g.(mg_init)) m.(mod_globals)) in
-      match g_inits_opt with
-      | None => trigger_inl1 Instantiation_error
-      | Some g_inits =>
-        let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
-        let e_offs_opt :=
-          those (map (fun e => interp_get_i32 s' inst e.(elem_offset)) m.(mod_elem)) in
-        match e_offs_opt with
-        | None => trigger_inl1 Instantiation_error
-        | Some e_offs =>
-          let d_offs_opt :=
-            those (map (fun d => interp_get_i32 s' inst d.(dt_offset)) m.(mod_data)) in
-          match d_offs_opt with
-          | None => trigger_inl1 Instantiation_error
-          | Some d_offs =>
-            if check_bounds_elem inst s m e_offs &&
-               check_bounds_data inst s m d_offs then
-              let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(i_funcs) (match i_s.(start_func) with Mk_funcidx i => i end)) m.(mod_start) in
-              let s'' := init_tabs s' inst (map nat_of_int e_offs) m.(mod_elem) in
-              let s_end := init_mems s' inst (map nat_of_int d_offs) m.(mod_data) in
-              Some ((s_end, inst, v_exps), start)
-            else trigger_inl1 Instantiation_error
-          end
-        end
-      end
+      let inst_c := {|
+            i_types := nil;
+            i_funcs := nil;
+            i_tab := nil;
+            i_memory := nil;
+            i_globs := List.map (fun '(Mk_globalidx i) => i) (ext_globs v_imps);
+          |} in
+      g_inits <- bind_list (fun g => interp_get_v s inst_c g.(mg_init)) m.(mod_globals) ;;
+      let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
+      e_offs <- bind_list (fun e => interp_get_i32 s' inst e.(elem_offset)) m.(mod_elem) ;;
+      d_offs <- bind_list (fun d => interp_get_i32 s' inst d.(dt_offset)) m.(mod_data) ;;
+      if check_bounds_elem inst s m e_offs &&
+         check_bounds_data inst s m d_offs then
+        let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(i_funcs) (match i_s.(start_func) with Mk_funcidx i => i end)) m.(mod_start) in
+        let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
+        let s_end := init_mems s' inst (List.map nat_of_int d_offs) m.(mod_data) in
+        ret ((s_end, inst, v_exps), start)
+      else trigger_inl1 Instantiation_error
     else trigger_inl1 Instantiation_error
   end.
 
 Lemma interp_instantiate_imp_instantiate :
   forall s m v_imps s_end inst v_exps start,
-  interp_instantiate s m v_imps = Some ((s_end, inst, v_exps), start) ->
+  interp_instantiate s m v_imps ≈ ret ((s_end, inst, v_exps), start) ->
   instantiate s m v_imps ((s_end, inst, v_exps), start).
 Proof.
-Admitted.
+Admitted. (* TODO *)
 
-Definition empty_store_record := {|
-  s_funcs := nil;
-  s_tables := nil;
-  s_mems := nil;
-  s_globals := nil;
-|}.
+Definition empty_store_record : store_record := {|
+    s_funcs := nil;
+    s_tables := nil;
+    s_mems := nil;
+    s_globals := nil;
+  |}.
 
-Definition interp_instantiate_wrapper (m : module) : option ((store_record * instance * list module_export) * option nat) :=
+Definition interp_instantiate_wrapper (m : module)
+  : itree _ ((store_record * instance * list module_export) * option nat) :=
   interp_instantiate empty_store_record m nil.
 
-Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export) : option interpreter.config_tuple :=
+Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export) : option (interpreter.config_tuple _) :=
   let '(s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>

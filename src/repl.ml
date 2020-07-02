@@ -7,8 +7,7 @@ let rec user_input prompt cb st =
     user_input prompt cb st'
 
 let string_of_crash_reason = function
-| Extract.C_error -> "error"
-| Extract.C_exhaustion -> "exhaustion"
+  | () -> "error"
 
 let take_step depth_coq i cfg =
   let (s, _, _)  = Convert.from_triple cfg in
@@ -17,8 +16,8 @@ let take_step depth_coq i cfg =
   let store_status = if s = s' then "unchanged" else "changed" in
   Printf.printf "%sand store %s\n%!" (Convert.from_string (Extract.pp_res_tuple_except_store res)) store_status;
   match Convert.from_triple res with
-  | (_, _, RS_crash crash) ->
-    Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason crash);
+  | (_, _, RS_crash) ->
+    Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason ());
     cfg
   | (_, _, RS_break _) ->
     Printf.printf "\x1b[33mbreak\x1b[0m\n%!";

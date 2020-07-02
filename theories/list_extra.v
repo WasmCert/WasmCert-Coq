@@ -1,6 +1,8 @@
 (* Some extra operations on lists. *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
+Set Implicit Arguments.
+
 Require Import List.
 
 (** Given list of option types, check that all options are [Some]
@@ -73,6 +75,7 @@ Proof.
       rewrite rev_app_distr. rewrite <- app_assoc. reflexivity.
 Qed.
 
+(** [those0] and [those] are indeed equivalent. **)
 Lemma those_those0 : forall A (l : list (option A)),
   those0 l = those l.
 Proof.
@@ -89,3 +92,39 @@ Proof.
       reflexivity.
 Qed.
 
+
+From ITree Require ITree ITreeFacts.
+
+Section Monad.
+
+Import ITree ITreeFacts.
+Import Monads.
+Import MonadNotation.
+
+(** Let us assume a monad. **)
+Variable m : Type -> Type.
+Context {M : Monad m}.
+
+(** Calls a function to each of the elements of a list, bindings the results into a new list. **)
+Fixpoint bind_list0 {A B} (f : A -> m B) (l : list A) : m (list B) :=
+  match l with
+  | nil => ret nil
+  | a :: l =>
+    r <- f a ;;
+    l' <- bind_list0 f l ;;
+    ret (r :: l')
+  end.
+
+Fixpoint bind_list_aux {A B} (f : A -> m B) acc (l : list A) : m (list B) :=
+  match l with
+  | nil => ret (List.rev acc)
+  | a :: l =>
+    r <- f a ;;
+    bind_list_aux f (r :: acc) l
+  end.
+
+(** A tail-recursive version of [bind_list0]. **)
+Definition bind_list {A B} (f : A -> m B) :=
+  bind_list_aux f nil.
+
+End Monad.
