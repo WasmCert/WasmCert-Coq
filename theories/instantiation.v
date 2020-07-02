@@ -1,4 +1,5 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
+From ITree Require Import ITree.
 From Wasm Require Import list_extra datatypes datatypes_properties
                          interpreter binary_format_parser operations typing opsem.
 (* TODO: separate algorithmic aspects from specification, incl. dependencies *)
@@ -8,8 +9,22 @@ From Wasm Require Import list_extra datatypes datatypes_properties
 Section Host.
 
 Variable host_function : eqType.
+Let host := host host_function.
+
+Variable host_instance : host.
 
 Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let host_state := host_state host_instance.
+Let executable_host := executable_host host_function.
+
+Variable executable_host_instance : executable_host.
+
+Let host_event := host_event executable_host_instance.
+Context {eff : Type -> Type}.
+Context {eff_has_host_event : host_event -< eff}.
+
+Let run_v := @interpreter.run_v host_function executable_host_instance eff eff_has_host_event.
 
 Definition addr := nat.
 Definition funaddr := addr.
@@ -457,20 +472,23 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   typing.global_agree g gt ->
   external_typing s (ED_global (Mk_globalidx i)) (ET_glob gt).
 
-Definition instantiate_globals inst s' m g_inits : Prop :=
-  List.Forall2 (fun g v => opsem.reduce_trans inst (s', nil, operations.to_e_list g.(mg_init) ) (s', nil, cons (Basic (EConst v)) nil)) m.(mod_globals) g_inits.
+Definition instantiate_globals inst (hs' : host_state) (s' : store_record) m g_inits : Prop :=
+  List.Forall2 (fun g v =>
+      opsem.reduce_trans inst (hs', s', nil, operations.to_e_list g.(mg_init))
+                              (hs', s', nil, cons (Basic (EConst v)) nil))
+    m.(mod_globals) g_inits.
 
-Definition instantiate_elem inst s' m e_offs : Prop :=
-  List.Forall2
-    (fun e c =>
-      opsem.reduce_trans inst (s', nil, operations.to_e_list e.(elem_offset)) (s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
+Definition instantiate_elem inst (hs' : host_state) (s' : store_record) m e_offs : Prop :=
+  List.Forall2 (fun e c =>
+      opsem.reduce_trans inst (hs', s', nil, operations.to_e_list e.(elem_offset))
+                              (hs', s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
     m.(mod_elem)
     e_offs.
 
-Definition instantiate_data inst s' m d_offs : Prop :=
-  List.Forall2
-    (fun d c =>
-      opsem.reduce_trans inst (s', nil, operations.to_e_list d.(dt_offset)) (s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
+Definition instantiate_data inst (hs' : host_state) (s' : store_record) m d_offs : Prop :=
+  List.Forall2 (fun d c =>
+      opsem.reduce_trans inst (hs', s', nil, operations.to_e_list d.(dt_offset))
+                              (hs', s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
     m.(mod_data)
     d_offs.
 
@@ -518,15 +536,17 @@ Definition check_start m inst start : bool :=
     m.(mod_start) in
   start' == start.
 
-Definition instantiate (s : store_record) (m : module) (v_imps : list v_ext) (z : (store_record * instance * list module_export) * option nat) : Prop :=
+Definition instantiate (* FIXME: Do we need to use this? (hs : host_state) *)
+                       (s : store_record) (m : module) (v_imps : list v_ext)
+                       (z : (store_record * instance * list module_export) * option nat) : Prop :=
   let '((s_end, inst, v_exps), start) := z in
-  exists t_imps t_exps s' g_inits e_offs d_offs,
+  exists t_imps t_exps hs' s' g_inits e_offs d_offs,
     module_typing m t_imps t_exps /\
     List.Forall2 (external_typing s) v_imps t_imps /\
     alloc_module s m v_imps g_inits (s', inst, v_exps) /\
-    instantiate_globals inst s' m g_inits /\
-    instantiate_elem inst s' m e_offs /\
-    instantiate_data inst s' m d_offs /\
+    instantiate_globals inst hs' s' m g_inits /\
+    instantiate_elem inst hs' s' m e_offs /\
+    instantiate_data inst hs' s' m d_offs /\
     check_bounds_elem inst s m e_offs /\
     check_bounds_data inst s m e_offs /\
     check_start m inst start /\
@@ -728,7 +748,7 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   end.
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value (* TODO: isa mismatch *) :=
-  match interpreter.run_v 2 0 inst (s, nil, operations.to_e_list b_es) with
+  match run_v (* FIXME: Which of the two is the depth, and which is the now-removed fuel? *)2 0 inst (s, nil, operations.to_e_list b_es) with
   | (_, interpreter.R_value vs) =>
     match vs with
     | cons v nil => Some v
