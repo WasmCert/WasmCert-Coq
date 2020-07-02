@@ -1,10 +1,12 @@
 (** Tests for the binary parser. **)
 Require Import Byte Ascii.
 From parseque Require Import Parseque.
-Require Import binary_format_parser binary_format_printer bytes_pp
-  datatypes_properties check_toks pp.
+From Wasm Require Import binary_format_parser binary_format_printer bytes_pp
+                         datatypes_properties check_toks pp.
+
 Open Scope string_scope.
 Import Coq.Strings.String.StringSyntax.
+Open Scope list_scope.
 
 Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Running.Singleton Unreachable.
 Proof. vm_compute. reflexivity. Qed.
@@ -163,6 +165,4 @@ Definition module_42_exported := {|
 
 Lemma module_42_exported_round_trip :
   run_parse_module (binary_of_module module_42_exported) = Some module_42_exported.
-Proof.
-vm_compute. reflexivity. Qed.
-
+Proof. vm_compute. reflexivity. Qed.

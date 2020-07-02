@@ -9,6 +9,14 @@ Require Import ansi.
 
 Open Scope string_scope.
 
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let function_closure := function_closure host_function.
+
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
 
 Definition newline : string := String newline_char EmptyString.
@@ -382,12 +390,12 @@ Definition pp_store (n : nat) (s : store_record) : string :=
   indent n ("memories" ++ newline) ++
   pp_memories (n.+1) s.(s_mems).
 
-Definition pp_config_tuple_except_store (cfg : interpreter.config_tuple) : string :=
+Definition pp_config_tuple_except_store (cfg : interpreter.config_tuple _) : string :=
   let '(s, vs, es) := cfg in
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty vs ++ newline.
 
-Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple) : string :=
+Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple _) : string :=
   let '(s, vs, res) := res_cfg in
   match res with
   | RS_crash _ =>
@@ -405,3 +413,4 @@ Definition pp_res_tuple_except_store (res_cfg : interpreter.res_tuple) : string 
     "with values " ++ pp_values_hint_empty vs ++ newline
   end.
 
+End Host.
