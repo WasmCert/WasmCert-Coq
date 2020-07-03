@@ -45,8 +45,71 @@ Definition option_of_itree_void {A} (t : itree void1 A) : option A :=
   | VisF _ a _ => match a with end (** Void, by definition. **)
   end.
 
-Definition from_event_monad {T : Type} : itree host_event T -> host_event T :=
-  interp (M := host_event) (MM := host_monad) (fun _ => id). (* FIXME: Universe inconsistency! *)
+Set Printing Universes.
+
+Fail Definition from_event_monad : itree host_event ~> host_event :=
+  interp (M := host_event) (MM := host_monad) (fun _ => id).
+  (* FIXME: Universe inconsistency!
+     - It seems that the issue has nothing to due with previous definitions:
+       moving this definition doesn’t change the error or even re-copy/pasting the definition
+       of interp here doesn’t change anything.
+     - It seems that the issue is in the second argument of [interp] ([M] and not [E], despite
+       both are here set to [host_event].
+     - The universe of the argument of [M] must be less than its result.  This makes sense.
+     - But who Coq doesn’t want the type of [host_event] to be like this?
+   *)
+
+(* FIXME: Testing with another event monad. *)
+Variable executable_host_instance' : executable_host.
+Let host_event' := host.host_event executable_host_instance'.
+Let host_monad' := host.host_monad executable_host_instance'.
+Fail Definition from_event_monad : itree host_event ~> host_event' :=
+  interp (M := host_event') (MM := host_monad') _. (* Still failing *)
+
+Section TestMonad.
+(* FIXME: Testing with a completely different monad. *)
+Variable m : Type -> Type.
+Hypothesis M : Monad m.
+Hypothesis MI : MonadIter m.
+Variable f : host_event ~> m.
+Definition from_event_monad : itree host_event ~> m :=
+  interp (M := m) (MM := M) f. (* Passes! *)
+End TestMonad.
+
+(* FIXME: Is it because they share the argument [host_function]? *)
+Variable host_function'' : eqType.
+Let executable_host'' := host.executable_host host_function''.
+Variable executable_host_instance'' : executable_host''.
+Let host_event'' := host.host_event executable_host_instance''.
+Let host_monad'' := host.host_monad executable_host_instance''.
+Fail Definition from_event_monad : itree host_event ~> host_event'' :=
+  interp (M := host_event'') (MM := host_monad'') _. (* No, still failing. *)
+(* It seems to really be [host.executable_host] that creates the conflict. *)
+
+(* Let us test to do the know with a super generic monad. *)
+Section Monad.
+
+Variable m : Type -> Type.
+Hypothesis M : Monad m.
+Hypothesis MI : MonadIter m.
+
+Set Universe Polymorphism.
+
+Fail Definition from_event_monad : itree m ~> m :=
+  interp (M := m) (MM := M) (fun _ => id). (* OK, I misunderstood, then: the issue is thus really the loop right here. *)
+
+Unset Printing Universes.
+
+(* What if we try to define a simpler version of [interp]? *)
+Fail Definition interp' {E M : Type -> Type} (MM : Monad M) (h : E ~> (fun T => M (option T))) : itree E ~> (fun T => M (option T)) :=
+  fun R t =>
+    match observe t with
+    | RetF r => ret (Some r)
+    | TauF t => ret None (** exhaustion **)
+    | VisF X e k => Functor.fmap (F := fun T => M (option T)) k (h X e) (* FIXME: To be worked on *)
+    end.
+
+End Monad.
 
 End ITreeExtract.
 

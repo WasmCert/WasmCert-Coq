@@ -8,6 +8,7 @@ From ITree Require Import ITree ITreeFacts.
 Import Monads.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 Section Parameterised.
 
