@@ -367,6 +367,9 @@ Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : 
   c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm  .
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
+
+(* UPD: This in fact makes the soundness proof extremely tedious and dependent on the type_checker reflecting typing.
+  I have edited the later functions to avoid using these. *)
 Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
   Build_t_context
     (i_types i)
@@ -449,10 +452,13 @@ Definition tab_agree (s: store_record) (t: tabinst): bool :=
 Definition mem_agree bs m : bool :=
   m <= mem_size bs.
 
+Definition cl_type_check_single (s:store_record) (f:function_closure):=
+  exists tf, cl_typing s f tf.
+
 Definition store_typing (s : store_record) : Prop :=
   match s with
   | Build_store_record fs tclss bss gs =>
-    all (fun f => cl_type_check s f) fs &&
+    List.Forall (cl_type_check_single s) fs /\
     all (tab_agree s) (tclss)
   end.
 
