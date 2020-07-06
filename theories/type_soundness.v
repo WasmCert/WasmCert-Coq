@@ -568,6 +568,18 @@ Lemma e_composition_typing: forall s C es1 es2 t1s t2s,
                              e_typing s C es1 (Tf t1s' t3s) /\
                              e_typing s C es2 (Tf t3s t2s').
 Proof.
+  move => s C es1 es2 t1s t2s HType.
+  dependent induction HType; subst => //=.
+  - (* basic *)
+    apply b_e_elim in x. destruct x. subst.
+    rewrite to_b_list_concat in H.
+    apply composition_typing in H.
+    Search es_is_basic.
+    apply basic_concat in H1. destruct H1.
+    destruct H as [ts' [t1s' [t2s' [t3s' [H2 [H3 [H4 H5]]]]]]]. subst.
+    exists ts', t1s', t2s', t3s'.
+    repeat split => //=; by apply ety_a' => //=.    
+
 Admitted.
 
 Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
