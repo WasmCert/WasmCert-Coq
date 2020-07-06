@@ -175,9 +175,11 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   i < length (tc_global C) ->
   option_map tg_t (List.nth_error (tc_global C) i) = Some t ->
   be_typing C [::Get_global i] (Tf [::] [::t])
-| bet_set_global : forall C i t,
+| bet_set_global : forall C i g t,
   i < length (tc_global C) ->
-  option_map tg_t (List.nth_error (tc_global C) i) = Some t ->
+  List.nth_error (tc_global C) i = Some g ->  
+  tg_t g = t ->
+  is_mut g ->
   be_typing C [::Set_global i] (Tf [::t] [::])
 | bet_load : forall C n a off tp_sx t,
   tc_memory C = Some n ->

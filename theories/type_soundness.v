@@ -2526,18 +2526,20 @@ Qed.
 
 Lemma Set_global_typing: forall C i t1s t2s,
     be_typing C [::Set_global i] (Tf t1s t2s) ->
-    exists t, option_map tg_t (List.nth_error (tc_global C) i) = Some t /\
+    exists g t, List.nth_error (tc_global C) i = Some g /\
+    tg_t g = t /\
+    is_mut g /\                    
     t1s = t2s ++ [::t] /\
     i < length (tc_global C).
 Proof.
   move => C i t1s t2s HType.
   dependent induction HType; subst => //=.
-  - by exists t.
+  - by exists g, (tg_t g).
   - invert_be_typing.
     by apply IHHType2.
   - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists x.
+    destruct H as [t [H1 [H2 [H3 [H4 H5]]]]]. subst.
+    exists x, (tg_t x).
     repeat split => //=.
     by rewrite -catA.
 Qed.
@@ -2734,11 +2736,108 @@ Lemma inst_typing_reduce_exists: forall s vs es i s' vs' es' C,
 Proof.
 Admitted.
 
-Lemma store_typing_reduce: forall s vs es i s' vs' es',
-    reduce s vs es i s' vs' es' ->
-    store_typing s ->
-    store_typing s'.
+Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
+    reflexive f ->
+    all2 f l l.
 Proof.
+  move => X f l.
+  induction l; move => H; unfold reflexive in H => //=.
+  apply/andP. split => //=.
+  by apply IHl.
+Qed.
+
+Lemma all2_tab_extension_same: forall t,
+    all2 tab_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive. move => x. unfold tab_extension.
+  by apply/andP.   
+Qed.
+
+Lemma all2_mem_extension_same: forall t,
+    all2 mem_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive. move => x. unfold mem_extension.
+  by apply/andP.   
+Qed.
+
+Lemma all2_glob_extension_same: forall t,
+    all2 glob_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive. move => x. unfold glob_extension.
+  destruct (g_mut x) => //=.
+  by destruct (g_val x).
+Qed.
+
+Lemma store_extension_same: forall s,
+    store_extension s s.
+Proof.
+  move => s. unfold store_extension.
+  repeat (apply/andP; split).
+  + by apply/eqP.
+  + by apply all2_tab_extension_same.
+  + by apply all2_mem_extension_same.
+  + by apply all2_glob_extension_same.
+Qed.
+
+Lemma glob_extension_update_nth: forall sglobs n g g',
+  List.nth_error sglobs n = Some g ->
+  glob_extension g g' ->
+  all2 glob_extension sglobs (update_list_at sglobs n g').
+Proof.
+Admitted.
+
+Lemma tc_reference_glob_type: forall s i C n m gt g,
+    inst_typing s i C ->
+    List.nth_error (i_globs i) n = Some m ->
+    List.nth_error (s_globs s) m = Some g ->
+    List.nth_error (tc_global C) n = Some gt ->
+    global_agree g gt.
+Proof.
+Admitted.
+
+Lemma store_extension_reduce: forall s vs es i s' vs' es' C tf,
+    reduce s vs es i s' vs' es' ->
+    inst_typing s i C ->
+    e_typing s C es tf ->
+    store_typing s ->
+    store_extension s s'.
+Proof.
+  move => s vs es i s' vs' es' C tf HReduce.
+  generalize dependent C. generalize dependent tf.
+  induction HReduce => //=; try move => tf C HIT HType HST; try intros; destruct tf; try by apply store_extension_same.
+  - (* host *)
+    apply host_apply_store in H4. subst. by apply store_extension_same.
+  - (* update glob *)
+    apply et_to_bet in HType; auto_basic. simpl in HType.
+    replace [::EConst v; Set_global j] with ([::EConst v] ++ [::Set_global j]) in HType => //=.
+    apply composition_typing in HType.
+    destruct HType as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]. subst.
+    invert_be_typing.
+    apply Set_global_typing in H4.
+    destruct H4 as [g [t [H5 [H6 [H7 [H8 H9]]]]]].
+    apply concat_cancel_last in H8. destruct H8. subst.
+    unfold supdate_glob in H.
+    unfold option_bind in H.
+    unfold supdate_glob_s in H.
+    unfold option_map in H.
+    remove_messes.
+    unfold sglob_ind in Hoption.
+    eapply tc_reference_glob_type in H5; eauto.
+    destruct g => //=.
+    destruct g0 => //=.
+    simpl in H1. unfold global_agree in H5. simpl in H5.
+    unfold is_mut in H7. simpl in H7. remove_messes. subst.
+    unfold store_extension => //=.
+    repeat (apply/andP; split) => //=.
+    + by apply all2_tab_extension_same.
+    + by apply all2_mem_extension_same.
+    + eapply glob_extension_update_nth; eauto => //=.
+      unfold glob_extension => //=.
+      by destruct v => //=; destruct g_val => //=.
+  -         
 Admitted.
 
 (* This is the only questionable lemma that I'm not >99% sure of it's correctness.
