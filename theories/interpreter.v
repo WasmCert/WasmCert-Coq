@@ -13,6 +13,16 @@ Import MonadNotation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
+
+Polymorphic Definition interp'' {E M : Type -> Type} (MM : Monad M) (IM : MonadIter M)
+                    (h : E ~> (fun T => M T)) R : itree E R -> (fun T => M (_ + T)%type) R :=
+  (*Basics.iter*)
+    (fun t : itree E R =>
+      match observe t with
+      | RetF r => ret (inr r)
+      | TauF t0 => ret (inl t0)
+      | VisF X e k => Functor.fmap (fun x : X => inl (k x)) (h X e)
+      end).
 Unset Printing Implicit Defensive.
 
 Section Host.
@@ -45,10 +55,13 @@ Definition option_of_itree_void {A} (t : itree void1 A) : option A :=
   | VisF _ a _ => match a with end (** Void, by definition. **)
   end.
 
+Hypothesis MIe : MonadIter host_event.
+Hypothesis FMe : Functor.Functor host_event.
+
 Set Printing Universes.
 
-Fail Definition from_event_monad : itree host_event ~> host_event :=
-  interp (M := host_event) (MM := host_monad) (fun _ => id).
+Fail Definition from_event_monad : itree host_event ~> _ (*host_event*) :=
+  @interp'' host_event host_event host_monad (fun _ => id).
   (* FIXME: Universe inconsistency!
      - It seems that the issue has nothing to due with previous definitions:
        moving this definition doesn’t change the error or even re-copy/pasting the definition
@@ -72,7 +85,7 @@ Variable m : Type -> Type.
 Hypothesis M : Monad m.
 Hypothesis MI : MonadIter m.
 Variable f : host_event ~> m.
-Definition from_event_monad : itree host_event ~> m :=
+Fail Fail Definition from_event_monad : itree host_event ~> m :=
   interp (M := m) (MM := M) f. (* Passes! *)
 End TestMonad.
 
@@ -108,6 +121,8 @@ Fail Definition interp' {E M : Type -> Type} (MM : Monad M) (h : E ~> (fun T => 
     | TauF t => ret None (** exhaustion **)
     | VisF X e k => Functor.fmap (F := fun T => M (option T)) k (h X e) (* FIXME: To be worked on *)
     end.
+
+Unset Universe Polymorphism.
 
 End Monad.
 

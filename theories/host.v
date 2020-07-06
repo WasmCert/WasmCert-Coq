@@ -8,7 +8,8 @@ From ITree Require Import ITree ITreeFacts.
 Import Monads.
 
 Set Implicit Arguments.
-Set Universe Polymorphism.
+
+(** * General host definitions **)
 
 Section Parameterised.
 
@@ -56,3 +57,30 @@ End Parameterised.
 Arguments host_application [_ _].
 Arguments host_apply [_ _].
 
+
+(** * Host instantiations **)
+
+(** ** Dummy host **)
+
+From ExtLib Require Import IdentityMonad.
+
+Section DummyHost.
+
+(** This host is associated with no function. **)
+
+Definition dummy_host_function := void.
+
+Let host := host dummy_host_function.
+Let executable_host := executable_host dummy_host_function.
+
+Definition dummy_host : host := {|
+    host_state := unit_eqType ;
+    host_application _ _ _ _ _ _ := False
+  |}.
+
+Definition dummy_executable_host  : executable_host := {|
+    host_monad := Monad_ident ;
+    host_apply _ := of_void _
+  |}.
+
+End DummyHost.
