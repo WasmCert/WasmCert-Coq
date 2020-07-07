@@ -181,19 +181,19 @@ Inductive be_typing : t_context -> list basic_instruction -> function_type -> Pr
   tg_t g = t ->
   is_mut g ->
   be_typing C [::Set_global i] (Tf [::t] [::])
-| bet_load : forall C lim a off tp_sx t,
-  tc_memory C = Some lim ->
+| bet_load : forall C a off tp_sx t,
+  tc_memory C <> nil ->
   load_store_t_bounds a (option_projl tp_sx) t ->
   be_typing C [::Load t tp_sx a off] (Tf [::T_i32] [::t])
-| bet_store : forall C lim a off tp t,
-  tc_memory C = Some lim ->
+| bet_store : forall C a off tp t,
+  tc_memory C <> nil ->
   load_store_t_bounds a tp t ->
   be_typing C [::Store t tp a off] (Tf [::T_i32; t] [::]) (* FIXME: Same here: two Isabelle rules have been merged here. *)
-| bet_current_memory : forall C lim,
-  tc_memory C = Some lim ->
+| bet_current_memory : forall C,
+  tc_memory C <> nil ->
   be_typing C [::Current_memory] (Tf [::] [::T_i32])
-| bet_grow_memory : forall C lim,
-  tc_memory C = Some lim ->
+| bet_grow_memory : forall C,
+  tc_memory C <> nil ->
   be_typing C [::Grow_memory] (Tf [::T_i32] [::T_i32])
 | bet_empty : forall C,
   be_typing C [::] (Tf [::] [::])
@@ -256,36 +256,29 @@ Definition global_agree (g : global) (tg : global_type) : bool :=
 Definition globals_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => global_agree g tg) (List.nth_error gs n) == Some true).
 
-Definition memi_agree (sm : list memory) (j : option nat) (m : option limits) : bool :=
-  match j, m with
-  | None, None => true
-  | None, Some _ => false
-  | Some _, None => false
-  | Some j', Some m' =>
-    (j' < length sm) &&
-    match List.nth_error sm j' with
-    | Some mem =>
-      (lim_min m' <= mem_size mem) && (lim_max m' == lim_max (mem_limit mem))
-    | None => false
-    end
-  end.
+Definition mem_typing (m : memory) (m_t : mem_type) : bool :=
+  let '(Mk_mem_type lim) := m_t in
+  (lim.(lim_min) <= mem_size m) &&
+  (m.(mem_limit).(lim_max) == lim.(lim_max)) (* TODO: mismatch *).
 
-Definition tabi_agree (st : list tabinst) (i : option nat) (m : option limits) : bool :=
-  match i, m with
-  | None, None => true
-  | None, Some _ => false
-  | Some _, None => false
-  | Some i', Some m' =>
-    (i' < length st) &&
-    match List.nth_error st i' with
-    | Some tab =>
-      (lim_min m' <= tab_size tab) && (lim_max m' == lim_max (table_limit tab))
-    | None => false
-    end
-  end.
+Definition memi_agree (ms : list memory) (n : nat) (mem_t : mem_type) : bool :=
+  (n < length ms) &&
+  let dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None |} |} in
+  mem_typing (List.nth n ms dummy_mem) mem_t.
 
 Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
+
+Definition tab_typing (t : tableinst) (tt : limits) : bool :=
+  (tt.(lim_min) <= tab_size t) &&
+  (t.(table_max_opt) < tt.(lim_max)).
+
+Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool :=
+  (n < List.length ts) &&
+  match List.nth_error ts n with
+  | None => false
+  | Some x => tab_typing x tab_t.(tt_limits)
+  end.
 
 Print instance.
 Print immediate.
@@ -296,7 +289,7 @@ Print store_record.
 Print global_type.
 Print global.
 Print memory.
-Print tabinst.
+Print tableinst.
 Print function_closure.
 (*
   This is the main point where the typing context in the typing system and the 
@@ -402,15 +395,17 @@ Print memi_agree.
       requirement must be satisfied;
   - Then, the typing context has local vars, labels, and returns to be all empty.
 *)
-Definition inst_typing (s : store_record) (inst : instance) (C : t_context) :=
-  if (inst, C) is (Build_instance ts fs i j gs, Build_t_context ts' tfs tgs n m [::] [::] None)
-  then
+Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bool :=
+  let '{| i_types := ts; i_funcs := fs; i_tab := tbs; i_memory := ms; i_globs := gs; |} := inst in
+  match C with
+  | {| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t; tc_local := nil; tc_label := nil; tc_return := None |} =>
     (ts == ts') &&
-       (all2 (functions_agree (s_funcs s)) fs tfs) &&
-       (all2 (globals_agree (s_globs s)) gs tgs) &&
-       (tabi_agree (s_tab s) i n) &&
-       (memi_agree (s_memory s) j m)
-  else false.
+    (all2 (functions_agree s.(s_funcs)) fs tfs) &&
+    (all2 (globals_agree s.(s_globals)) gs tgs) &&
+    (all2 (tabi_agree s.(s_tables)) tbs tabs_t) &&
+    (all2 (memi_agree s.(s_mems)) ms (List.map (fun lim => Mk_mem_type lim) mems_t))
+  | _ => false
+  end.
 
 (*
 Lemma functions_agree_injective: forall s i t t',

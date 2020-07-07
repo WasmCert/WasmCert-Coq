@@ -447,7 +447,7 @@ with s_typing : store_record -> option (list value_type) -> instance -> list val
   (rs == Some ts) || (rs == None) ->
   s_typing s rs i vs es ts.
 
-Definition cl_type_check_single (s:store_record) (f:function_closure):=
+Definition cl_type_check_single (s:store_record) (f:function_closure) : Prop :=
   exists tf, cl_typing s f tf.
 
 Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
@@ -460,9 +460,9 @@ Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
     end
   end.
 
-Definition tab_agree (s: store_record) (t: tableinst): bool :=
+Definition tab_agree (s : store_record) (t : tableinst) : Prop :=
   let t_data := table_data t in
-    List.Forall (tabcl_agree s) (t_data).
+  List.Forall (tabcl_agree s) (t_data).
 
 Definition mem_agree bs m : bool :=
   m <= mem_size bs.
