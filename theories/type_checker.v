@@ -7,7 +7,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations typing.
+Require Import operations typing datatypes_properties.
 
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux
@@ -41,6 +41,7 @@ Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type check
 Definition to_ct_list (ts : list value_type) : list checker_type_aux :=
   map CTA_some ts.
 
+(**
 Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
   (ts == ts')
   ||
@@ -48,16 +49,29 @@ Fixpoint ct_suffix (ts ts' : list checker_type_aux) : bool :=
   | [::] => false
   | _ :: ts'' => ct_suffix ts ts''
   end.
+**)
+
+Definition ct_suffix (ts ts' : list checker_type_aux) : bool :=
+  (size ts <= size ts') && (drop (size ts' - size ts) ts' == ts).
+
+(**
+  It looks like CT_bot stands for an error in typing.
+
+  CT_top_type xyz means a stack with the top part being xyz??? This is guessed
+    by looking at 'produce'... CT_type should refer to the type of the entire stack.
+
+  produce seems to be for the result of a concatenation of two stacks. 
+**)
 
 Definition consume (t : checker_type) (cons : list checker_type_aux) : checker_type :=
   match t with
   | CT_type ts =>
     if ct_suffix cons (to_ct_list ts)
-    then CT_type (take (length ts - length cons) ts)
+    then CT_type (take (size ts - size cons) ts)
     else CT_bot
   | CT_top_type cts =>
     if ct_suffix cons cts
-    then CT_top_type (take (length cts - length cons) cts)
+    then CT_top_type (take (size cts - size cons) cts)
     else
       (if ct_suffix cts cons
        then CT_top_type [::]
@@ -101,8 +115,19 @@ Definition type_update_select (t : checker_type) : checker_type :=
     | _ =>
       match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
       | Some ts_at_2, Some ts_at_3 =>
-        type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
+        type_update (CT_top_type ts) [::ts_at_3; ts_at_2; CTA_some T_i32]
                     (select_return_top ts ts_at_2 ts_at_3)
+      (* I don't think the original expression is correct. The desired behaviour
+           is to remove the top three elements and insert an element of type
+           of the 2nd/3rd element (which should be the same, else an error is thrown).
+           This is dealt with by select_return_top. However, the original code would
+           fail to update if ts_at_3/ts_at_2 are some CTA_some xyz, since the
+           consumption would fail -- or is this actually desired in the code later?
+
+         This is only my understanding from reading the code prior to this point and 
+           is subject to changes in the future. Maybe the original code is correct
+           but I need to read more code below. *)
+                    
       | _, _ => CT_bot (* TODO: is that OK? *)
       end
     end
@@ -118,12 +143,17 @@ Fixpoint same_lab_h (iss : list nat) (lab_c : list (list value_type)) (ts : list
     else
       match List.nth_error lab_c i with
       | None => None (* TODO *)
+                  (* See comment to the same_lab predicate below in the same place. *)
       | Some xx =>
         if xx == ts then same_lab_h iss' lab_c xx
         else None
       end
   end.
 
+(**
+   So Br_table iss i needs to make sure that Br (each element in iss) and Br i would 
+     consume the same type. Look at section 3.3.5.8 in the official spec.
+**)
 Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (list value_type) :=
   match iss with
   | [::] => None
@@ -134,6 +164,8 @@ Definition same_lab (iss : list nat) (lab_c : list (list value_type)) : option (
       match List.nth_error lab_c i with
       | Some xx => same_lab_h iss' lab_c xx
       | None => None (* TODO: ??? *)
+                  (* I think this case will never happen, since we've already
+                       checked the length. Or we can remove the previous if. *)
       end
   end.
 
@@ -145,21 +177,13 @@ Definition c_types_agree (ct : checker_type) (ts' : list value_type) : bool :=
   | CT_bot => false
   end.
 
-Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_type) {struct be} : checker_type :=
-  let check := fix check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
-      match es with
-      | [::] => ts
-      | e :: es' =>
-        match ts with
-        | CT_bot => CT_bot
-        | _ => check C es' (check_single C e ts)
-        end
-      end in
-  let b_e_type_checker C (es : list basic_instruction) tf :=
-       match tf with
-       | Tf tn tm =>
-         c_types_agree (check C es (CT_type tn)) tm
-       end in 
+Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
+  let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+    let: (Tf tn tm) := tf in
+      c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm 
+in
+  if ts == CT_bot then CT_bot
+  else
   match be with
   | EConst v => type_update ts [::] (CT_type [::typeof v])
   | Unop_i t _ =>
@@ -202,34 +226,30 @@ Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_typ
   | Nop => ts
   | Drop => type_update ts [::CTA_any] (CT_type [::])
   | Select => type_update_select ts
-  | Block tf es =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
-      then type_update ts (to_ct_list tn) (CT_type tm)
-      else CT_bot
-    end
-  | Loop tf es =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
-      then type_update ts (to_ct_list tn) (CT_type tm)
-      else CT_bot
-    end
-  | If tf es1 es2 =>
-    match tf with
-    | Tf tn tm =>
-      if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
-                          && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
-      then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
-      else CT_bot
-    end
+  | Block (Tf tn tm) es =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    then type_update ts (to_ct_list tn) (CT_type tm)
+    else CT_bot
+  | Loop (Tf tn tm) es =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    then type_update ts (to_ct_list tn) (CT_type tm)
+    else CT_bot
+  | If (Tf tn tm) es1 es2 =>
+    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
+                        && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
+    then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
+    else CT_bot
   | Br i =>
     if i < length (tc_label C)
     then
       match List.nth_error (tc_label C) i with
       | Some xx => type_update ts (to_ct_list xx) (CT_top_type [::])
       | None => CT_bot (* Isa mismatch *)
+                  (* There are many cases of this 'Isa mismatch'. What does it 
+                       mean exactly? I checked and in each of this cases there's a 
+                       length comparison immediately before and a call to
+                       List.nth_error, which would never give None since we've already
+                       checked the length. Maybe this is the reason for the comment? *)
       end
     else CT_bot
   | Br_if i =>
@@ -329,24 +349,6 @@ Fixpoint check_single (C : t_context) (be : basic_instruction) (ts : checker_typ
     else CT_bot
   end.
 
-
-(* TODO: try to avoid repetition *)
-Fixpoint check (C : t_context) (es : list basic_instruction) (ts : checker_type) {struct es} : checker_type :=
-  match es with
-  | [::] => ts
-  | e :: es' =>
-    match ts with
-    | CT_bot => CT_bot
-    | _ => check C es' (check_single C e ts)
-    end
-  end.
-
-(* TODO: try to avoid repetition *)
-Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
-  match tf with
-  | Tf tn tm => c_types_agree (check C es (CT_type tn)) tm
-  end.
-
 Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
   match ns with
   | n :: ns' =>
@@ -356,6 +358,13 @@ Fixpoint collect_at_inds A (l : list A) (ns : list nat) : (list A) :=
     end
   | [::] => [::]
   end.
+
+Definition check (C : t_context) (es : list basic_instruction) (ts : checker_type): checker_type :=
+  List.fold_left (check_single C) es ts.
+
+Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+  let: (Tf tn tm) := tf in
+  c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm  .
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
 Definition inst_type_check (s : store_record) (i : instance) : t_context := {|
@@ -397,6 +406,11 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
   | Func_host tf h => true
   end.
 
+(*
+  e_typing is the extension of typing to administrative instructions. See appendix 5 for
+    some of them.
+*)
+
 Inductive e_typing : store_record -> t_context -> list administrative_instruction -> function_type -> Prop :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
@@ -421,28 +435,34 @@ Inductive e_typing : store_record -> t_context -> list administrative_instructio
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
   length ts = n ->
   e_typing s C [::Label n e0s es] (Tf [::] t2s)
+(*
+  Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
+ *)
 with s_typing : store_record -> option (list value_type) -> instance -> list value -> list administrative_instruction -> list value_type -> Prop :=
-| mk_s_typing : forall s i vs es rs ts C C0 tvs0,
+| mk_s_typing : forall s i vs es rs ts C C0,
   let tvs := map typeof vs in
   inst_typing s i C0 ->
-  C = upd_local_return C0 ((tc_local tvs0) ++ tvs) rs ->
+  C = upd_local_return C0 ((tc_local C0) ++ tvs) rs ->
   e_typing s C es (Tf [::] ts) ->
   (rs == Some ts) || (rs == None) ->
   s_typing s rs i vs es ts.
 
-Definition tabcl_agree (s : store_record) (tcl_index : option nat) : bool :=
+Definition cl_type_check_single (s:store_record) (f:function_closure):=
+  exists tf, cl_typing s f tf.
+
+Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
   match tcl_index with
-  | None => true
+  | None => True
   | Some n => let tcl := List.nth_error (s_funcs s) n in
     match tcl with
-    | None => true
-    | Some cl => cl_type_check s cl
+    | None => True
+    | Some cl => cl_type_check_single s cl
     end
   end.
 
 Definition tab_agree (s: store_record) (t: tableinst): bool :=
   let t_data := table_data t in
-    all (tabcl_agree s) (t_data).
+    List.Forall (tabcl_agree s) (t_data).
 
 Definition mem_agree bs m : bool :=
   m <= mem_size bs.
@@ -450,8 +470,8 @@ Definition mem_agree bs m : bool :=
 Definition store_typing (s : store_record) : Prop :=
   match s with
   | Build_store_record fs tclss bss gs =>
-    all (fun f => cl_type_check s f) fs &&
-    all (tab_agree s) (tclss)
+    List.Forall (cl_type_check_single s) fs /\
+    List.Forall (tab_agree s) (tclss)
   end.
 
 Inductive config_typing : instance -> store_record -> list value -> list administrative_instruction -> list value_type -> Prop :=

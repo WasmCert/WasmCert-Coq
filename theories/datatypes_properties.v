@@ -294,7 +294,6 @@ Definition eqlimitsP : Equality.axiom limits_eqb :=
 Canonical Structure limits_eqMixin := EqMixin eqlimitsP.
 Canonical Structure limits_eqType := Eval hnf in EqType limits limits_eqMixin.
 
-
 Definition table_type_eq_dec : forall v1 v2 : table_type, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 Definition table_type_eqb v1 v2 : bool := table_type_eq_dec v1 v2.

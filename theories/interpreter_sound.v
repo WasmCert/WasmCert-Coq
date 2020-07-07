@@ -77,39 +77,6 @@ Lemma const_list_cons : forall a l,
   const_list (a :: l) = is_const a && const_list l.
 Proof. by []. Qed.
 
-(** This lemma is useful when an instruction consumes some expressions on the stack:
-  we usually have to split a list of expressions by the expressions effectively
-  consumed by the instructions and the one left. **)
-Lemma v_to_e_take_drop_split: forall l n,
-  v_to_e_list l = v_to_e_list (take n l) ++ v_to_e_list (drop n l).
-Proof.
-  move => l n. rewrite v_to_e_cat. by rewrite cat_take_drop.
-Qed.
-
-Lemma v_to_e_take: forall l n,
-  v_to_e_list (take n l) = take n (v_to_e_list l).
-Proof.
-  move => + n. induction n => //.
-  - move => l. by repeat rewrite take0.
-  - move => l. destruct l => //. simpl. f_equal. by apply IHn.
-Qed.
-
-Lemma v_to_e_drop: forall l n,
-  v_to_e_list (drop n l) = drop n (v_to_e_list l).
-Proof.
-  move => + n. induction n => //.
-  - move => l. by repeat rewrite drop0.
-  - move => l. destruct l => //. simpl. f_equal. by apply IHn.
-Qed.
-
-Lemma v_to_e_rev: forall l,
-  v_to_e_list (rev l) = rev (v_to_e_list l).
-Proof.
-  elim => //=.
-  move => a l IH. rewrite rev_cons. rewrite -cats1. rewrite -v_to_e_cat.
-  rewrite rev_cons. rewrite -cats1. by rewrite -IH.
-Qed.
-
 Lemma v_to_e_list0 : v_to_e_list [::] = [::].
 Proof. reflexivity. Qed.
 

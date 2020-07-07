@@ -355,8 +355,29 @@ Definition store_extension (s s' : store_record) : bool :=
   (all2 mem_extension s.(s_mems) s'.(s_mems)) &&
   (all2 glob_extension s.(s_globals) s'.(s_globals)).
 
+Definition vs_to_vts (vs : seq value) := map typeof vs.
+
 Definition to_e_list (bes : list basic_instruction) : list administrative_instruction :=
   map Basic bes.
+
+Definition to_b_single (e: administrative_instruction) : basic_instruction :=
+  match e with
+  | Basic x => x
+  | _ => EConst (ConstInt32 (Wasm_int.Int32.zero))
+  end.
+
+Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
+  map to_b_single es.
+
+Definition e_is_basic (e: administrative_instruction) :=
+  exists be, e = Basic be.
+
+Fixpoint es_is_basic (es: seq administrative_instruction) :=
+  match es with
+  | [::] => True
+  | e :: es' =>
+    e_is_basic e /\ es_is_basic es'
+  end.
 
 (** [v_to_e_list]: some kind of the opposite of [split_vals_e] (see [interperter.v]:
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)

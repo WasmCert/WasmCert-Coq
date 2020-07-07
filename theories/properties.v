@@ -1,7 +1,7 @@
 (** Miscellaneous properties about Wasm operations **)
 (* (C) Rao Xiaojia - see LICENSE.txt *)
 
-Require Export operations typing opsem interpreter.
+Require Export operations typing opsem interpreter common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Bool.
 
@@ -17,8 +17,20 @@ Proof.
   move => vs1 vs2. elim vs1 => {vs1} //=.
   - move => a vs1' IHvs1 H1 H2. simpl in H1. simpl.
     apply andb_true_iff in H1. destruct H1. rewrite IHvs1 //=. by rewrite andbT.
-Qed.      
+Qed.
 
+Lemma const_list_split: forall vs1 vs2,
+    const_list (vs1 ++ vs2) ->
+    const_list vs1 /\
+    const_list vs2.
+Proof.
+  induction vs1 => //=; move => vs2 HConst.
+  move/andP in HConst. destruct HConst.
+  apply IHvs1 in H0. destruct H0.
+  split => //.
+  by apply/andP.
+Qed.    
+    
 Lemma const_list_take: forall vs l,
     const_list vs ->
     const_list (take l vs).
@@ -115,6 +127,164 @@ Proof.
   - move => a l IH. by f_equal.
 Qed.      
       
+(** This lemma is useful when an instruction consumes some expressions on the stack:
+  we usually have to split a list of expressions by the expressions effectively
+  consumed by the instructions and the one left. **)
+Lemma v_to_e_take_drop_split: forall l n,
+  v_to_e_list l = v_to_e_list (take n l) ++ v_to_e_list (drop n l).
+Proof.
+  move => l n. rewrite v_to_e_cat. by rewrite cat_take_drop.
+Qed.
+
+Lemma v_to_e_take: forall l n,
+  v_to_e_list (take n l) = take n (v_to_e_list l).
+Proof.
+  move => + n. induction n => //.
+  - move => l. by repeat rewrite take0.
+  - move => l. destruct l => //. simpl. f_equal. by apply IHn.
+Qed.
+
+Lemma v_to_e_drop: forall l n,
+  v_to_e_list (drop n l) = drop n (v_to_e_list l).
+Proof.
+  move => + n. induction n => //.
+  - move => l. by repeat rewrite drop0.
+  - move => l. destruct l => //. simpl. f_equal. by apply IHn.
+Qed.
+
+Lemma v_to_e_rev: forall l,
+  v_to_e_list (rev l) = rev (v_to_e_list l).
+Proof.
+  elim => //=.
+  move => a l IH. rewrite rev_cons. rewrite -cats1. rewrite -v_to_e_cat.
+  rewrite rev_cons. rewrite -cats1. by rewrite -IH.
+Qed.
+
+Lemma to_b_list_concat: forall es1 es2,
+    to_b_list (es1 ++ es2) = to_b_list es1 ++ to_b_list es2.
+Proof.
+  induction es1 => //=.
+  move => es2. by f_equal.
+Qed.
+
+Lemma to_e_list_basic: forall bes,
+    es_is_basic (to_e_list bes).
+Proof.
+  induction bes => //=.
+  split => //=.
+  unfold e_is_basic. by eauto.
+Qed.
+
+Lemma basic_concat: forall es1 es2,
+    es_is_basic (es1 ++ es2) ->
+    es_is_basic es1 /\ es_is_basic es2.
+Proof.
+  induction es1 => //=.
+  move => es2 H. destruct H.
+  apply IHes1 in H0. destruct H0.
+  by repeat split => //=.
+Qed.
+
+Lemma basic_split: forall es1 es2,
+    es_is_basic es1 ->
+    es_is_basic es2 ->
+    es_is_basic (es1 ++ es2).
+Proof.
+  induction es1 => //=.
+  move => es2 H1 H2.
+  destruct H1.
+  split => //=.
+  by apply IHes1.
+Qed.
+
+Lemma const_list_is_basic: forall es,
+    const_list es ->
+    es_is_basic es.
+Proof.
+  induction es => //=.
+  move => H. move/andP in H. destruct H.
+  split.
+  - destruct a => //.
+    unfold e_is_basic. by eauto.
+  - by apply IHes.                                 
+Qed.
+
+Lemma to_b_list_rev: forall es,
+    rev (to_b_list es) = to_b_list (rev es).
+Proof.
+  induction es => //=.
+  repeat rewrite rev_cons.
+  rewrite IHes.
+  repeat rewrite -cats1.
+  by rewrite to_b_list_concat.
+Qed.
+
+Lemma vs_to_vts_cat: forall vs1 vs2,
+    vs_to_vts (vs1 ++ vs2) = vs_to_vts vs1 ++ vs_to_vts vs2.
+Proof.
+  induction vs1 => //=.
+  move => vs2. by rewrite IHvs1.
+Qed.
+  
+Lemma vs_to_vts_rev: forall vs,
+    vs_to_vts (rev vs) = rev (vs_to_vts vs).
+Proof.
+  induction vs => //=.
+  repeat rewrite rev_cons.
+  repeat rewrite -cats1.
+  rewrite vs_to_vts_cat.
+  by rewrite IHvs.
+Qed.
+  
+Lemma const_es_exists: forall es,
+    const_list es ->
+    exists vs, es = v_to_e_list vs.
+Proof.
+  induction es => //=.
+  - by exists [::].
+  - move => HConst.
+    move/andP in HConst. destruct HConst.
+    destruct a => //=. destruct b => //=.
+    edestruct IHes => //=.
+    exists (v :: x). simpl. by rewrite H1.
+Qed.
+
+Lemma b_e_elim: forall bes es,
+    to_e_list bes = es ->
+    bes = to_b_list es /\ es_is_basic es.
+Proof.
+  induction bes; move => es H => //=.
+  - by rewrite -H.
+  - simpl in H. assert (es = to_e_list (a :: bes)) as H1.
+    + by rewrite -H.
+    + rewrite H1. split.
+      -- simpl. f_equal. by apply IHbes.
+      -- by apply to_e_list_basic.
+Qed.
+
+Lemma e_b_elim: forall bes es,
+    bes = to_b_list es ->
+    es_is_basic es ->
+    es = to_e_list bes.
+Proof.
+  induction bes; move => es H1 H2 => //=.
+  - by destruct es => //=.
+  - destruct es => //=. simpl in H1. simpl in H2. destruct H2.
+    inversion H1; subst.
+    inversion H; subst => //=.
+    f_equal. apply IHbes => //=.
+Qed.
+    
+Lemma to_e_list_injective: forall bes bes',
+    to_e_list bes = to_e_list bes' ->
+    bes = bes'.
+Proof.
+  move => bes bes' H.
+  apply b_e_elim in H; destruct H; subst => //=.
+  induction bes' => //=.
+  f_equal. apply IHbes'. by apply to_e_list_basic.
+Qed.
+
 Lemma lfilled_collapse1: forall n lh vs es LI l,
     lfilledInd n lh (vs++es) LI ->
     const_list vs ->
@@ -168,3 +338,54 @@ Proof.
   { move: HLF. by apply/eqseqP. }
   symmetry. move: HLF'. by apply/eqseqP. 
 Qed.  
+
+Lemma all_projection: forall {X:Type} f (l:seq X) n x,
+    all f l ->
+    List.nth_error l n = Some x ->
+    f x.
+Proof.
+  move => X f l n x.
+  generalize dependent l.
+  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //.
+  eapply IHn; by eauto.
+Qed.
+
+Lemma all2_projection: forall {X Y:Type} f (l1:seq X) (l2:seq Y) n x1 x2,
+    all2 f l1 l2 ->
+    List.nth_error l1 n = Some x1 ->
+    List.nth_error l2 n = Some x2 ->
+    f x1 x2.
+Proof.
+  move => X Y f l1 l2 n.
+  generalize dependent l1.
+  generalize dependent l2.
+  induction n => //=; move => l2 l1 x1 x2 HALL HN1 HN2.
+  - destruct l1 => //=. destruct l2 => //=.
+    inversion HN1. inversion HN2. subst. clear HN1. clear HN2.
+    simpl in HALL. move/andP in HALL. by destruct HALL.
+  - destruct l1 => //=. destruct l2 => //=.
+    simpl in HALL. move/andP in HALL. destruct HALL.
+    eapply IHn; by eauto.
+Qed.
+
+Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
+  forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
+
+Lemma all2_function_unique: forall {X Y:Type} f (l1:seq X) (l2 l3:seq Y),
+    all2 f l1 l2 ->
+    all2 f l1 l3 ->
+    function f ->
+    l2 = l3.
+Proof.
+  move => X Y f l1.
+  induction l1 => //=; move => l2 l3 HA1 HA2 HF.
+  - destruct l2 => //. by destruct l3 => //.
+  - destruct l2 => //=; destruct l3 => //=.
+    simpl in HA1. simpl in HA2.
+    move/andP in HA1. move/andP in HA2.
+    destruct HA1. destruct HA2.
+    unfold function in HF.
+    assert (y = y0); first by eapply HF; eauto.
+    rewrite H3. f_equal.
+    by apply IHl1.
+Qed.
