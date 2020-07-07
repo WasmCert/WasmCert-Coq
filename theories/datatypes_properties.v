@@ -304,11 +304,11 @@ Definition eqtable_typeP : Equality.axiom table_type_eqb :=
 Canonical Structure table_type_eqMixin := EqMixin eqtable_typeP.
 Canonical Structure table_type_eqType := Eval hnf in EqType table_type table_type_eqMixin.
 
-Definition mem_type_eq_dec : forall v1 v2 : mem_type, {v1 = v2} + {v1 <> v2}.
+Definition memory_type_eq_dec : forall v1 v2 : memory_type, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
-Definition mem_type_eqb v1 v2 : bool := mem_type_eq_dec v1 v2.
-Definition eqmem_typeP : Equality.axiom mem_type_eqb :=
-  eq_dec_Equality_axiom mem_type_eq_dec.
+Definition memory_type_eqb v1 v2 : bool := memory_type_eq_dec v1 v2.
+Definition eqmemory_typeP : Equality.axiom memory_type_eqb :=
+  eq_dec_Equality_axiom memory_type_eq_dec.
 
-Canonical Structure mem_type_eqMixin := EqMixin eqmem_typeP.
-Canonical Structure mem_type_eqType := Eval hnf in EqType mem_type mem_type_eqMixin.
+Canonical Structure memory_type_eqMixin := EqMixin eqmemory_typeP.
+Canonical Structure memory_type_eqType := Eval hnf in EqType memory_type memory_type_eqMixin.

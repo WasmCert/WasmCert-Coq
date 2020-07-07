@@ -32,15 +32,24 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
     (s_globals s).
 
 Definition mem_size (m : memory) :=
-  length (mem_data m).
+  Nat.div (length (mem_data m)) 64000.
+
+Check (lim_max (mem_limit _)).
 
 Definition mem_grow (m : memory) (n : nat) : option memory:=
   let new_mem_data := (mem_data m ++ bytes_replicate (n * 64000) #00) in
-  if length new_mem_data > (lim_max (mem_limit m)) * 64000 then None
-  else
-    Some (Build_memory
-            new_mem_data
-            (mem_limit m)).
+  match (lim_max (mem_limit m)) with
+    | Some maxlim =>
+       if mem_size m + n <= maxlim then 
+         Some (Build_memory
+               new_mem_data
+               (mem_limit m))
+       else None
+    | None =>
+         Some (Build_memory
+               new_mem_data
+               (mem_limit m))
+  end.
 
 (* TODO: We crucially need documentation here. *)
 

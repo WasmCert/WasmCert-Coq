@@ -464,18 +464,30 @@ Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
     end
   end.
 
-Definition tab_agree (s: store_record) (t: tabinst): Prop :=
-  let t_data := table_data t in
-    List.Forall (tabcl_agree s) (t_data).
+Definition tabsize_agree (t: tableinst) : Prop :=
+  match table_max_opt t with
+  | None => True
+  | Some n => tab_size t <= n
+  end.
 
-Definition mem_agree bs m : bool :=
-  m <= mem_size bs.
+Definition tab_agree (s: store_record) (t: tableinst): Prop :=
+  List.Forall (tabcl_agree s) (t.(table_data)) /\
+  tabsize_agree t.
+
+Print memory.
+
+Definition mem_agree (m : memory) : Prop :=
+  match lim_max (mem_limit m) with
+  | None => True
+  | Some n => mem_size m <= n
+  end.
 
 Definition store_typing (s : store_record) : Prop :=
   match s with
-  | Build_store_record fs tclss bss gs =>
+  | Build_store_record fs tclss mss gs =>
     List.Forall (cl_type_check_single s) fs /\
-    List.Forall (tab_agree s) (tclss)
+    List.Forall (tab_agree s) tclss /\
+    List.Forall mem_agree mss
   end.
 
 Inductive config_typing : instance -> store_record -> list value -> list administrative_instruction -> list value_type -> Prop :=

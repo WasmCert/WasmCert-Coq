@@ -1,6 +1,6 @@
 (** Parser for the binary Wasm format. **)
 
-From Wasm Require Import datatypes datatypes_properties.
+From Wasm Require Import datatypes datatypes_properties typing.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Byte.
@@ -515,8 +515,8 @@ Definition parse_elem_type {n} : byte_parser elem_type n :=
 Definition parse_table_type {n} : byte_parser table_type n :=
   ((fun lims ety => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_limits) <*> parse_elem_type.
 
-Definition parse_mem_type {n} : byte_parser mem_type n :=
-  (fun lim => Mk_mem_type lim) <$> parse_limits.
+Definition parse_memory_type {n} : byte_parser memory_type n :=
+  (fun lim => lim) <$> parse_limits.
 
 Definition parse_mut {n} : byte_parser mutability n :=
   exact_byte x00 $> MUT_immut <|>
@@ -528,7 +528,7 @@ Definition parse_global_type {n} : byte_parser global_type n :=
 Definition parse_import_desc {n} : byte_parser import_desc n :=
   exact_byte x00 &> (extract_typeidx ID_func <$> parse_typeidx) <|>
   exact_byte x01 &> (ID_table <$> parse_table_type) <|>
-  exact_byte x02 &> (ID_mem <$> parse_mem_type) <|>
+  exact_byte x02 &> (ID_mem <$> parse_memory_type) <|>
   exact_byte x03 &> (ID_global <$> parse_global_type).
 
 Definition parse_module_import {n} : byte_parser module_import n :=
@@ -595,8 +595,8 @@ Definition parse_funcsec {n} : byte_parser (list typeidx) n :=
 Definition parse_tablesec {n} : byte_parser (list module_table) n :=
   exact_byte x04 &> parse_u32 &> parse_vec parse_module_table.
 
-Definition parse_memsec {n} : byte_parser (list mem_type) n :=
-  exact_byte x05 &> parse_memidx &> parse_vec parse_mem_type.
+Definition parse_memsec {n} : byte_parser (list memory_type) n :=
+  exact_byte x05 &> parse_memidx &> parse_vec parse_memory_type.
 
 Definition parse_globalsec {n} : byte_parser (list module_glob) n :=
   exact_byte x06 &> parse_u32 &> parse_vec parse_module_glob.
@@ -637,7 +637,7 @@ Record parsing_module : Type := {
   pmod_types : list function_type;
   pmod_funcs : list typeidx;
   pmod_tables : list module_table;
-  pmod_mems : list mem_type;
+  pmod_mems : list memory_type;
   pmod_globals : list module_glob;
   pmod_elem : list module_element;
   pmod_data : list module_data;

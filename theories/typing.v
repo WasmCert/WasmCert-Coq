@@ -256,15 +256,16 @@ Definition global_agree (g : global) (tg : global_type) : bool :=
 Definition globals_agree (gs : list global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => global_agree g tg) (List.nth_error gs n) == Some true).
 
-Definition mem_typing (m : memory) (m_t : mem_type) : bool :=
-  let '(Mk_mem_type lim) := m_t in
-  (lim.(lim_min) <= mem_size m) &&
-  (m.(mem_limit).(lim_max) == lim.(lim_max)) (* TODO: mismatch *).
+Definition mem_typing (m : memory) (m_t : memory_type) : bool :=
+  (m_t.(lim_min) <= mem_size m) &&
+  (m.(mem_limit).(lim_max) == m_t.(lim_max)) (* TODO: mismatch *).
 
-Definition memi_agree (ms : list memory) (n : nat) (mem_t : mem_type) : bool :=
+Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool :=
   (n < length ms) &&
-  let dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None |} |} in
-  mem_typing (List.nth n ms dummy_mem) mem_t.
+  match List.nth_error ms n with
+  | Some mem => mem_typing mem mem_t
+  | None => false
+  end.
 
 Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
@@ -278,7 +279,6 @@ Print store_record.
 Print global_type.
 Print global.
 Print memory.
-Print tabinst.
 Print function_closure.
 (*
   This is the main point where the typing context in the typing system and the 
@@ -368,7 +368,6 @@ Print function_closure.
 
 Print Build_t_context.
 Print Build_instance.
-Print memi_agree.
 (*
   This basically says: an instance of a store_record has type C iff:
   - i_types of instance is the same as tc_types_t of C;
@@ -383,16 +382,17 @@ Print memi_agree.
   - i_memory specifies one index in the memory sequence of the store, and the same
       requirement must be satisfied;
   - Then, the typing context has local vars, labels, and returns to be all empty.
-*)
-Definition tab_typing (t : tableinst) (tt : limits) : bool :=
-  (tt.(lim_min) <= tab_size t) &&
-  (t.(table_max_opt) < tt.(lim_max)).
+ *)
+
+Definition tab_typing (t : tableinst) (tt : table_type) : bool :=
+  (tt.(tt_limits).(lim_min) <= tab_size t) &&
+  (t.(table_max_opt) < tt.(tt_limits).(lim_max)).
 
 Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool :=
   (n < List.length ts) &&
   match List.nth_error ts n with
   | None => false
-  | Some x => tab_typing x tab_t.(tt_limits)
+  | Some x => tab_typing x tab_t
   end.
 
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bool :=
@@ -403,7 +403,7 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bo
     (all2 (functions_agree s.(s_funcs)) fs tfs) &&
     (all2 (globals_agree s.(s_globals)) gs tgs) &&
     (all2 (tabi_agree s.(s_tables)) tbs tabs_t) &&
-    (all2 (memi_agree s.(s_mems)) ms (List.map (fun lim => Mk_mem_type lim) mems_t))
+    (all2 (memi_agree s.(s_mems)) ms mems_t)
   | _ => false
   end.
 

@@ -84,14 +84,13 @@ Definition add_mem (s : store_record) (m_m : memory) : store_record := {|
   s_globals := s.(s_globals);
 |}.
 
-Definition alloc_mem (s : store_record) (m_m : mem_type) : store_record * memidx :=
-  let 'Mk_mem_type lims := m_m in
-  let '{| lim_min := min; lim_max := maxo |} := lims in
+Definition alloc_mem (s : store_record) (m_m : memory_type) : store_record * memidx :=
+  let '{| lim_min := min; lim_max := maxo |} := m_m in
   let memaddr := Mk_memidx (List.length s.(s_mems)) in
-  let meminst := mem_mk lims in
+  let meminst := mem_mk m_m in
   (add_mem s meminst, memaddr).
 
-Definition alloc_mems (s : store_record) (m_ms : list mem_type) : store_record * list memidx :=
+Definition alloc_mems (s : store_record) (m_ms : list memory_type) : store_record * list memidx :=
   alloc_Xs alloc_mem s m_ms.
 
 Definition add_glob (s : store_record) (m_g : global) : store_record := {|
@@ -279,9 +278,8 @@ Definition limit_typing (lim : limits) (k : nat) : bool :=
 Definition module_tab_typing (t : module_table) : bool :=
   limit_typing t.(t_type).(tt_limits) (expn_rec 2 32).
 
-Definition module_mem_typing (m : mem_type) : bool :=
-  let '(Mk_mem_type lim) := m in
-  limit_typing lim (expn_rec 2 32).
+Definition module_mem_typing (m : memory_type) : bool :=
+  limit_typing m (expn_rec 2 32).
 
 Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
   match b_e with
@@ -352,13 +350,14 @@ Definition module_export_typing (c : t_context) (d : module_export_desc) (e : ex
     (i < List.length c.(tc_table)) &&
     match List.nth_error c.(tc_table) i with
     | None => false
-    | Some t_t' => t_t == t_t'
+    | Some lim' => t_t == lim'
     end
-  | (ED_mem (Mk_memidx i), ET_mem (Mk_mem_type lim)) =>
+  | (ED_mem (Mk_memidx i), ET_mem t_m) =>
     (i < List.length c.(tc_memory)) &&
     match List.nth_error c.(tc_memory) i with
     | None => false
-    | Some lim' => lim == lim' (* TODO: should check for equality of `mem_type`s *)
+    | Some lim' => t_m == lim' (* TODO: should check for equality of `memory_type`s *)
+                            (* UPD: changed a bit *)
     end
   | (ED_global (Mk_globalidx i), ET_glob gt) =>
     (i < List.length c.(tc_global)) &&
@@ -398,7 +397,7 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
     tc_func_t := List.app ifts fts;
     tc_global := List.app igs gts;
     tc_table := List.app its (List.map (fun t => t.(t_type)) ts);
-    tc_memory := List.map (fun '(Mk_mem_type lim) => lim) (List.app ims ms); (* TODO: should use `mem_type`s *)
+    tc_memory := List.app ims ms; (* TODO: should use `mem_type`s *) (* UPD: fixed? *)
     tc_local := nil;
     tc_label := nil;
     tc_return := None;
@@ -432,13 +431,13 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   tf = operations.cl_type cl ->
   external_typing s (ED_func (Mk_funcidx i)) (ET_func tf)
 | ETY_tab :
-  forall (s : store_record) (i : nat) (ti : tableinst) lim,
+  forall (s : store_record) (i : nat) (ti : tableinst) tt,
   i < List.length s.(s_tables) ->
   List.nth_error s.(s_tables) i = Some ti ->
-  typing.tab_typing ti lim ->
-  external_typing s (ED_table (Mk_tableidx i)) (ET_tab {| tt_limits := lim; tt_elem_type := ELT_funcref |})
+  typing.tab_typing ti tt ->
+  external_typing s (ED_table (Mk_tableidx i)) (ET_tab tt) (* {| tt_limits := lim; tt_elem_type := ELT_funcref |})*)
 | ETY_mem :
-  forall (s : store_record) (i : nat) (m : memory) (mt : mem_type),
+  forall (s : store_record) (i : nat) (m : memory) (mt : memory_type),
   i < List.length s.(s_mems) ->
   List.nth_error s.(s_mems) i = Some m ->
   typing.mem_typing m mt ->
@@ -573,7 +572,7 @@ Definition module_export_typer (c : t_context) (exp : module_export_desc) : opti
     if i < List.length c.(tc_memory) then
       match List.nth_error c.(tc_memory) i with
       | None => None
-      | Some lim => Some (ET_mem (Mk_mem_type lim))
+      | Some lim => Some (ET_mem lim)
       end
     else None
   | ED_global (Mk_globalidx i) =>
@@ -613,7 +612,7 @@ Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
   end.
 
 Definition module_tab_type_checker := module_tab_typing.
-Definition module_mem_type_checker := module_mem_typing.
+Definition module_memory_type_checker := module_mem_typing.
 
 Definition module_glob_type_checker (c : t_context) (mg : module_glob) : bool :=
   let '{| mg_type := tg; mg_init := es |} := mg in
@@ -661,7 +660,7 @@ Definition module_type_checker (m : module) : option ((list extern_t) * (list ex
       tc_func_t := List.app ifts fts;
       tc_global := List.app igs gts;
       tc_table := List.app its (List.map (fun t => t.(t_type)) ts);
-      tc_memory := List.map (fun '(Mk_mem_type lim) => lim) (List.app ims ms);
+      tc_memory := List.app ims ms;
       tc_local := nil;
       tc_label := nil;
       tc_return := None |} in
@@ -677,7 +676,7 @@ Definition module_type_checker (m : module) : option ((list extern_t) * (list ex
     |} in
     if seq.all (module_func_type_checker c) fs &&
        seq.all module_tab_type_checker ts &&
-       seq.all module_mem_type_checker ms &&
+       seq.all module_memory_type_checker ms &&
        seq.all (module_glob_type_checker c') gs &&
        seq.all (module_elem_type_checker c) els &&
        seq.all (module_data_type_checker c) ds &&
@@ -699,11 +698,11 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
     | Some cl => tf == operations.cl_type cl
     end
   | (ED_table (Mk_tableidx i), ET_tab tf) =>
-    let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in
+(*    let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in*)
     (i < List.length s.(s_tables)) &&
     match List.nth_error s.(s_tables) i with
     | None => false
-    | Some ti => typing.tab_typing ti lim
+    | Some ti => typing.tab_typing ti tf
     end
   | (ED_mem (Mk_memidx i), ET_mem mt) =>
     (i < List.length s.(s_mems)) &&

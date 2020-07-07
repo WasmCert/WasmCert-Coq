@@ -52,6 +52,8 @@ Record memory : Type := {
   mem_limit: limits;
 }.
 
+Definition memory_type := limits.
+
 Inductive value_type : Type := (* t *)
 | T_i32
 | T_i64
@@ -135,8 +137,8 @@ Record t_context : Type := {
   tc_types_t : list function_type;
   tc_func_t : list function_type;
   tc_global : list global_type;
-  tc_table : list limits;
-  tc_memory : list limits;
+  tc_table : list table_type;
+  tc_memory : list memory_type;
   tc_local : list value_type;
   tc_label : list (list value_type);
   tc_return : option (list value_type);
@@ -362,13 +364,10 @@ Inductive localidx : Type :=
 Inductive globalidx : Type :=
 | Mk_globalidx : nat -> globalidx.
 
-Inductive mem_type : Type :=
-| Mk_mem_type : limits -> mem_type.
-
 Inductive import_desc : Type :=
 | ID_func : nat -> import_desc
 | ID_table : table_type -> import_desc
-| ID_mem : mem_type -> import_desc
+| ID_mem : memory_type -> import_desc
 | ID_global : global_type -> import_desc.
 
 Definition name := list Byte.byte.
@@ -430,7 +429,7 @@ Record module : Type := {
   mod_types : list function_type;
   mod_funcs : list module_func;
   mod_tables : list module_table;
-  mod_mems : list mem_type;
+  mod_mems : list memory_type;
   mod_globals : list module_glob;
   mod_elem : list module_element;
   mod_data : list module_data;
@@ -442,5 +441,5 @@ Record module : Type := {
 Inductive extern_t : Type :=
 | ET_func : function_type -> extern_t
 | ET_tab : table_type -> extern_t
-| ET_mem : mem_type -> extern_t
+| ET_mem : memory_type -> extern_t
 | ET_glob : global_type -> extern_t.
