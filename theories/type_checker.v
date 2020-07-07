@@ -280,7 +280,7 @@ in
       end
     else CT_bot
   | Call_indirect i =>
-    if (tc_table C != None) && (i < length (tc_types_t C))
+    if i < length C.(tc_types_t)
     then
       match List.nth_error (tc_func_t C) i with
       | None => CT_bot (* Isa mismatch *)
@@ -332,19 +332,19 @@ in
       end
     else CT_bot
   | Load t tp_sx a off =>
-    if (tc_memory C != None) && load_store_t_bounds a (option_projl tp_sx) t
+    if (C.(tc_memory) != nil) && load_store_t_bounds a (option_projl tp_sx) t
     then type_update ts [::CTA_some T_i32] (CT_type [::t])
     else CT_bot
   | Store t tp a off =>
-    if (tc_memory C != None) && load_store_t_bounds a tp t
+    if (C.(tc_memory) != nil) && load_store_t_bounds a tp t
     then type_update ts [::CTA_some T_i32; CTA_some t] (CT_type [::])
     else CT_bot
   | Current_memory =>
-    if tc_memory C != None
+    if C.(tc_memory) != nil
     then type_update ts [::] (CT_type [::T_i32])
     else CT_bot
   | Grow_memory =>
-    if tc_memory C != None
+    if C.(tc_memory) != nil
     then type_update ts [::CTA_some T_i32] (CT_type [::T_i32])
     else CT_bot
   end.
@@ -371,27 +371,42 @@ Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : 
 (* UPD: This in fact makes the soundness proof extremely tedious and dependent on the type_checker reflecting typing.
   I have edited the later functions to avoid using these. *)
 (*
-Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
-  Build_t_context
-    (i_types i)
-    (collect_at_inds (map cl_type (s_funcs s)) (i_funcs i))
-    (collect_at_inds (map (fun glob => Build_global_type (g_mut glob) (typeof (g_val glob))) (s_globs s)) (i_globs i))
-    (option_map tab_size (match (i_tab i) with | Some n => List.nth_error (s_tab s) n | None => None end))
-    (option_map mem_size (option_bind (List.nth_error (s_memory s)) (i_memory i)))
-    [::]
-    [::]
-    None.
+Definition inst_type_check (s : store_record) (i : instance) : t_context := {|
+  (* TODO: ported this from option to list, but not too sure it's right *)
+  tc_types_t := i_types i;
+  tc_func_t := collect_at_inds (map cl_type (s_funcs s)) (i_funcs i);
+  tc_global :=
+    collect_at_inds
+      (map (fun glob => {| tg_mut := glob.(g_mut); tg_t := typeof glob.(g_val) |}) s.(s_globals))
+      i.(i_globs);
+  tc_table :=
+    collect_at_inds
+      (map
+        (fun t =>
+          (* TODO: this is probably wrong? *)
+          {| tt_limits := {| lim_min := 0; lim_max := Some (List.length t.(table_data)) |}; tt_elem_type := ELT_funcref |})
+          s.(s_tables))
+      i.(i_tab);
+  tc_memory :=
+    collect_at_inds
+      (map
+        (fun m =>
+          (* TODO: this is probably wrong? *)
+          {| lim_min := 0; lim_max := Some (List.length m.(mem_data)) |})
+        s.(s_mems))
+      i.(i_memory);
+  tc_local := nil;
+  tc_label := nil;
+  tc_return := None;
+|}.
 
 Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
   match cl with
   | Func_native i tf ts es =>
-    match tf with
-    | Tf t1s t2s =>
-      let C := inst_type_check s i in
-      let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) in
-      b_e_type_checker C' es (Tf [::] t2s)
-    end
-(*| cl_typing_native : forall i S C ts t1s t2s es tf,*)
+    let '(Tf t1s t2s) := tf in
+    let C := inst_type_check s i in
+    let C' := upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label  C)) (Some t2s) in
+    b_e_type_checker C' es (Tf [::] t2s)
   | Func_host tf h => true
   end.
 *)

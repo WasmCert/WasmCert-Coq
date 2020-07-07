@@ -22,3 +22,6 @@
 
 .saves
 
+/wasm_interpreter
+/history.txt
+

@@ -3,7 +3,8 @@
 
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Export datatypes_properties.
+From compcert Require lib.Floats.
+Require Export datatypes_properties list_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -26,9 +27,9 @@ Definition mem_append (m : memory) (bs : bytes) :=
 Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
   Build_store_record
     (s_funcs s)
-    (s_tab s)
+    (s_tables s)
     m
-    (s_globs s).
+    (s_globals s).
 
 Definition mem_size (m : memory) :=
   length (mem_data m).
@@ -66,10 +67,16 @@ Definition store (m : memory) (n : nat) (off : static_offset) (bs : bytes) (l : 
 
 Definition store_packed := store.
 
-(* TODO: The whole host should be defined as a mixin in a separate file. *)
-Parameter wasm_deserialise : bytes -> value_type -> value.
+Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
+  match vt with
+  | T_i32 => ConstInt32 (Wasm_int.Int32.repr (common.Memdata.decode_int bs))
+  | T_i64 => ConstInt64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
+  | T_f32 => ConstFloat32 (Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int bs)))
+  | T_f64 => ConstFloat64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
+  end.
 
-Parameter host_apply : store_record -> function_type -> datatypes.host -> list value -> (* FIXME: datatypes.host_state -> *) option (store_record * list value).
+Definition host_apply (s : store_record) (ft : function_type) (h : datatypes.host) (vs : list value) : (* FIXME: datatypes.host_state -> *) option (store_record * list value) :=
+  None (* TODO: make this once once `host` has a structure *).
 
 Definition typeof (v : value) : value_type :=
   match v with
@@ -117,7 +124,7 @@ Definition is_float_t (t : value_type) : bool :=
   end.
 
 Definition is_mut (tg : global_type) : bool :=
-  tg_mut tg == T_mut.
+  tg_mut tg == MUT_mut.
 
 
 Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) : Wasm_int.sort e -> Wasm_int.sort e :=
@@ -151,16 +158,16 @@ Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
   | Add => add_some (Wasm_int.int_add mx)
   | Sub => add_some (Wasm_int.int_sub mx)
   | Mul => add_some (Wasm_int.int_mul mx)
-  | Div sx_U => Wasm_int.int_div_u mx
-  | Div sx_S => Wasm_int.int_div_s mx
-  | Rem sx_U => Wasm_int.int_rem_u mx
-  | Rem sx_S => Wasm_int.int_rem_s mx
+  | Div SX_U => Wasm_int.int_div_u mx
+  | Div SX_S => Wasm_int.int_div_s mx
+  | Rem SX_U => Wasm_int.int_rem_u mx
+  | Rem SX_S => Wasm_int.int_rem_s mx
   | And => add_some (Wasm_int.int_and mx)
   | Or => add_some (Wasm_int.int_or mx)
   | Xor => add_some (Wasm_int.int_xor mx)
   | Shl => add_some (Wasm_int.int_shl mx)
-  | Shr sx_U => add_some (Wasm_int.int_shr_u mx)
-  | Shr sx_S => add_some (Wasm_int.int_shr_s mx)
+  | Shr SX_U => add_some (Wasm_int.int_shr_u mx)
+  | Shr SX_S => add_some (Wasm_int.int_shr_s mx)
   | Rotl => add_some (Wasm_int.int_rotl mx)
   | Rotr => add_some (Wasm_int.int_rotr mx)
   end.
@@ -193,14 +200,14 @@ Definition app_relop_i (e : Wasm_int.type) (rop : relop_i)
   match rop with
   | Eq => Wasm_int.int_eq mx
   | Ne => @Wasm_int.int_ne _
-  | Lt sx_U => Wasm_int.int_lt_u mx
-  | Lt sx_S => Wasm_int.int_lt_s mx
-  | Gt sx_U => Wasm_int.int_gt_u mx
-  | Gt sx_S => Wasm_int.int_gt_s mx
-  | Le sx_U => Wasm_int.int_le_u mx
-  | Le sx_S => Wasm_int.int_le_s mx
-  | Ge sx_U => Wasm_int.int_ge_u mx
-  | Ge sx_S => Wasm_int.int_ge_s mx
+  | Lt SX_U => Wasm_int.int_lt_u mx
+  | Lt SX_S => Wasm_int.int_lt_s mx
+  | Gt SX_U => Wasm_int.int_gt_u mx
+  | Gt SX_S => Wasm_int.int_gt_s mx
+  | Le SX_U => Wasm_int.int_le_u mx
+  | Le SX_S => Wasm_int.int_le_s mx
+  | Ge SX_U => Wasm_int.int_ge_u mx
+  | Ge SX_S => Wasm_int.int_ge_s mx
   end.
 
 Definition app_relop_f (e : Wasm_float.type) (rop : relop_f)
@@ -226,7 +233,7 @@ Definition cl_type (cl : function_closure) : function_type :=
   end.
 
 Definition rglob_is_mut (g : global) : bool :=
-  g_mut g == T_mut.
+  g_mut g == MUT_mut.
 
 Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   match x with
@@ -248,16 +255,19 @@ Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option nat :=
   List.nth_error (i_globs i) j.
 
 Definition sglob (s : store_record) (i : instance) (j : nat) : option global :=
-  option_bind (List.nth_error (s_globs s))
+  option_bind (List.nth_error (s_globals s))
     (sglob_ind s i j).
 
 Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value :=
   option_map g_val (sglob s i j).
 
 Definition smem_ind (s : store_record) (i : instance) : option nat :=
-  i_memory i.
+  match i.(i_memory) with
+  | nil => None
+  | cons k _ => Some k
+  end.
 
-Definition tab_size (t: tabinst) : nat :=
+Definition tab_size (t: tableinst) : nat :=
   length (table_data t).
 
 (**
@@ -269,7 +279,7 @@ Definition tab_size (t: tabinst) : nat :=
   of type option (option x) to just option x.
 **)
 Definition stab_index (s: store_record) (i j: nat) : option nat :=
-  let: stabinst := List.nth_error (s_tab s) i in
+  let: stabinst := List.nth_error (s_tables s) i in
   option_bind (fun x => x) (
     option_bind
       (fun stab_i => List.nth_error (table_data stab_i) j)
@@ -282,7 +292,10 @@ Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
   n.
 
 Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
-  if i_tab i is Some k then stab_s s k j else None.
+  match i.(i_tab) with
+  | nil => None
+  | k :: _ => stab_s s k j
+  end.
 
 Definition update_list_at {A : Type} (l : list A) (k : nat) (a : A) :=
   take k l ++ [::a] ++ List.skipn (k + 1) l.
@@ -291,9 +304,9 @@ Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option stor
   option_map
     (fun g =>
       let: g' := Build_global (g_mut g) v in
-      let: gs' := update_list_at (s_globs s) k g' in
-      Build_store_record (s_funcs s) (s_tab s) (s_memory s) gs')
-    (List.nth_error (s_globs s) k).
+      let: gs' := update_list_at (s_globals s) k g' in
+      Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs')
+    (List.nth_error (s_globals s) k).
 
 Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
   option_bind
@@ -306,34 +319,14 @@ Definition is_const (e : administrative_instruction) : bool :=
 Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
 
-(**
-  Coq isn't happy on giving a boolean from comparing list of records (tabinst)
-    and will throw an error if I ask it to do so: in (s_tab s == s_tab s') later.
-    However this wasn't an issue when tables were just lists of function closures.
-
-  My guess is that Coq is able to compare lists of simpler objects and give a
-    boolean as the result; however, for lists of non-trivial objects we have
-    to define how their equality is defined/prove that the equality is decidable?
-
-  TODO: Ask Martin. Anyway, I figured out in the end that the entire thing would work
-    if I insert the following piece of mysterious code.
-**)
-Definition tab_eq_dec: forall (t1 t2: tabinst), {t1 = t2} + {t1 <> t2}.
-Proof. decidable_equality. Defined.
-
-Definition tab_eqb (t1 t2: tabinst): bool := tab_eq_dec t1 t2.
-
-Definition eqtabP: Equality.axiom tab_eqb := eq_dec_Equality_axiom tab_eq_dec.
-
-Canonical Structure tab_eqMixin := EqMixin eqtabP.
-Canonical Structure tab_eqType := Eval hnf in EqType tabinst tab_eqMixin.
-(** End of mysterious code **)
+Definition those_const_list (es : list administrative_instruction) : option (list value) :=
+  those (List.map (fun e => match e with | Basic (EConst v) => Some v | _ => None end) es).
 
 Definition glob_extension (g1 g2: global) : bool.
 Proof.
   destruct (g_mut g1).
   - (* Immut *)
-    exact ((g_mut g2 == T_immut) && (g_val g1 == g_val g2)).
+    exact ((g_mut g2 == MUT_immut) && (g_val g1 == g_val g2)).
   - (* Mut *)
     destruct (g_mut g2).
     + exact false.
@@ -349,17 +342,18 @@ Proof.
       end.
 Defined.
 
-Definition tab_extension (t1 t2: tabinst) :=
-  (tab_size t1 <= tab_size t2) && (lim_max (table_limit t1) == lim_max (table_limit t2)).
+Definition tab_extension (t1 t2 : tableinst) :=
+  (tab_size t1 <= tab_size t2) &&
+  (t1.(table_max_opt) == t2.(table_max_opt)).
 
 Definition mem_extension (m1 m2 : memory) :=
   (mem_size m1 <= mem_size m2) && (lim_max (mem_limit m1) == lim_max (mem_limit m2)).
 
 Definition store_extension (s s' : store_record) : bool :=
   (s_funcs s == s_funcs s') &&
-  (all2 tab_extension (s_tab s) (s_tab s')) &&
-  (all2 mem_extension (s_memory s) (s_memory s')) &&
-  (all2 glob_extension (s_globs s) (s_globs s')).
+  (all2 tab_extension s.(s_tables) s'.(s_tables)) &&
+  (all2 mem_extension s.(s_mems) s'.(s_mems)) &&
+  (all2 glob_extension s.(s_globals) s'.(s_globals)).
 
 Definition vs_to_vts (vs : seq value) := map typeof vs.
 
@@ -481,14 +475,14 @@ Definition cvt_i32 (s : option sx) (v : value) : option i32 :=
   | ConstInt64 c => Some (wasm_wrap c)
   | ConstFloat32 c =>
     match s with
-    | Some sx_U => Wasm_float.float_ui32_trunc f32m c
-    | Some sx_S => Wasm_float.float_ui32_trunc f32m c
+    | Some SX_U => Wasm_float.float_ui32_trunc f32m c
+    | Some SX_S => Wasm_float.float_ui32_trunc f32m c
     | None => None
     end
   | ConstFloat64 c =>
     match s with
-    | Some sx_U => Wasm_float.float_ui32_trunc f64m c
-    | Some sx_S => Wasm_float.float_ui32_trunc f64m c
+    | Some SX_U => Wasm_float.float_ui32_trunc f64m c
+    | Some SX_S => Wasm_float.float_ui32_trunc f64m c
     | None => None
     end
   end.
@@ -497,21 +491,21 @@ Definition cvt_i64 (s : option sx) (v : value) : option i64 :=
   match v with
   | ConstInt32 c =>
     match s with
-    | Some sx_U => Some (wasm_extend_u c)
-    | Some sx_S => Some (wasm_extend_s c)
+    | Some SX_U => Some (wasm_extend_u c)
+    | Some SX_S => Some (wasm_extend_s c)
     | None => None
     end
   | ConstInt64 c => None
   | ConstFloat32 c =>
     match s with
-    | Some sx_U => Wasm_float.float_ui64_trunc f32m c
-    | Some sx_S => Wasm_float.float_si64_trunc f32m c
+    | Some SX_U => Wasm_float.float_ui64_trunc f32m c
+    | Some SX_S => Wasm_float.float_si64_trunc f32m c
     | None => None
     end
   | ConstFloat64 c =>
     match s with
-    | Some sx_U => Wasm_float.float_ui64_trunc f64m c
-    | Some sx_S => Wasm_float.float_si64_trunc f64m c
+    | Some SX_U => Wasm_float.float_ui64_trunc f64m c
+    | Some SX_S => Wasm_float.float_si64_trunc f64m c
     | None => None
     end
   end.
@@ -520,14 +514,14 @@ Definition cvt_f32 (s : option sx) (v : value) : option f32 :=
   match v with
   | ConstInt32 c =>
     match s with
-    | Some sx_U => Some (Wasm_float.float_convert_ui32 f32m c)
-    | Some sx_S => Some (Wasm_float.float_convert_si32 f32m c)
+    | Some SX_U => Some (Wasm_float.float_convert_ui32 f32m c)
+    | Some SX_S => Some (Wasm_float.float_convert_si32 f32m c)
     | None => None
     end
   | ConstInt64 c =>
     match s with
-    | Some sx_U => Some (Wasm_float.float_convert_ui64 f32m c)
-    | Some sx_S => Some (Wasm_float.float_convert_si64 f32m c)
+    | Some SX_U => Some (Wasm_float.float_convert_ui64 f32m c)
+    | Some SX_S => Some (Wasm_float.float_convert_si64 f32m c)
     | None => None
     end
   | ConstFloat32 c => None
@@ -538,14 +532,14 @@ Definition cvt_f64 (s : option sx) (v : value) : option f64 :=
   match v with
   | ConstInt32 c =>
     match s with
-    | Some sx_U => Some (Wasm_float.float_convert_ui32 f64m c)
-    | Some sx_S => Some (Wasm_float.float_convert_si32 f64m c)
+    | Some SX_U => Some (Wasm_float.float_convert_ui32 f64m c)
+    | Some SX_S => Some (Wasm_float.float_convert_si32 f64m c)
     | None => None
     end
   | ConstInt64 c =>
     match s with
-    | Some sx_U => Some (Wasm_float.float_convert_ui64 f64m c)
-    | Some sx_S => Some (Wasm_float.float_convert_si64 f64m c)
+    | Some SX_U => Some (Wasm_float.float_convert_ui64 f64m c)
+    | Some SX_S => Some (Wasm_float.float_convert_si64 f64m c)
     | None => None
     end
   | ConstFloat32 c => Some (wasm_promote c)

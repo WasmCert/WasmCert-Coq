@@ -1171,10 +1171,11 @@ Proof.
         simplify_lists. by rewrite subKn.
       - (** [Func_host] **)
         explode_and_simplify; pattern_match; stack_frame; auto_frame.
+        (* TODO: why did this case disappear?
         + apply: r_invoke_host_success => //=.
-          simplify_lists. by rewrite subKn.
-        + apply: r_invoke_host_failure => //=.
-          explode_and_simplify. by rewrite subKn.
+          simplify_lists. by rewrite subKn. *)
+        + { apply: r_invoke_host_failure => //=.
+        explode_and_simplify. by rewrite subKn. }
     }
     { (** [Label] **)
       explode_and_simplify; try (pattern_match; auto_frame).
