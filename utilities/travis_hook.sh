@@ -29,7 +29,7 @@ else
 	case $TRAVISONLYBUILDDEPS in
 		all|"")
 			echo 'Variable $TRAVISONLYBUILDDEPS is set: only building dependencies.';
-			esy build-dependencies
+			esy build-dependencies --all
 			;;
 		*)
 			echo "Variable \$TRAVISONLYBUILDDEPS is set to '$TRAVISONLYBUILDDEPS': only building this dependency.";

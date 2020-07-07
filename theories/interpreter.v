@@ -14,15 +14,65 @@ Import MonadNotation.
 Set Implicit Arguments.
 Unset Strict Implicit.
 
-Polymorphic Definition interp'' {E M : Type -> Type} (MM : Monad M) (IM : MonadIter M)
-                    (h : E ~> (fun T => M T)) R : itree E R -> (fun T => M (_ + T)%type) R :=
-  (*Basics.iter*)
+Unset Printing Universes.
+
+Polymorphic Definition interp'' {E M : Type -> Type} (MM : Monad M) (*IM : MonadIter M*)
+                                (iter : forall R I : Type, (I -> M (I + R)%type) -> I -> M R)
+                                (h : forall X T R, E X -> (X -> T) -> M (_ + R)%type) R
+  : itree E R -> (fun T => M T%type) R :=
+  (*Basics.*)iter _ _
     (fun t : itree E R =>
       match observe t with
       | RetF r => ret (inr r)
       | TauF t0 => ret (inl t0)
-      | VisF X e k => Functor.fmap (fun x : X => inl (k x)) (h X e)
+      | VisF X e k => (*ret (inl tt)*) h X _ _ e k
+        (*x <- h X e ;;
+        ret (inl (k x))*)
       end).
+
+Polymorphic Fixpoint interp_fuel {E M : Type -> Type} (MM : Monad M) (fail : forall R, M R)
+                                 (h : E ~> M) (fuel : nat)
+  : itree E ~> M := fun R t =>
+  match fuel with
+  | 0 => fail _
+  | fuel.+1 =>
+    match observe t with
+    | RetF r => ret r
+    | TauF t0 => interp_fuel MM fail h fuel t0
+    | VisF X e k =>
+      x <- h X e ;;
+      interp_fuel MM fail h fuel (k x)
+    end
+  end.
+
+Fixpoint interp_monad (E : Type -> Type) (ME : Monad E) (fail : forall R, E R) (fuel : nat) : itree E ~> E := fun R t =>
+  match fuel with
+  | 0 => fail _
+  | fuel.+1 =>
+    match observe t with
+    | RetF r => ret r
+    | TauF t0 => interp_monad ME fail fuel t0
+    | VisF X e k =>
+      x <- e ;;
+      interp_monad ME fail fuel (k x)
+    end
+  end.
+
+(*
+Fixpoint interp_monad_option (E : Type -> Type) (ME : Monad E) (fuel : nat) : itree E ~> (fun T => option (E T)) := fun R t =>
+  match fuel with
+  | 0 => None
+  | fuel.+1 =>
+    match observe t with
+    | RetF r => Some (ret r)
+    | TauF t0 => interp_monad_option ME fuel t0
+    | VisF X e k =>
+      x <- e ;;
+      interp_monad_option ME fuel (k x)
+    end
+  end.
+ *)
+
 Unset Printing Implicit Defensive.
 
 Section Host.
@@ -40,7 +90,7 @@ Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
 
 Let host_event := host_event executable_host_instance.
-Let host_monad := host_monad executable_host_instance.
+Let host_monad : Monad host_event := host_monad _.
 Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
   @host_apply _ executable_host_instance.
 
@@ -55,13 +105,22 @@ Definition option_of_itree_void {A} (t : itree void1 A) : option A :=
   | VisF _ a _ => match a with end (** Void, by definition. **)
   end.
 
-Hypothesis MIe : MonadIter host_event.
-Hypothesis FMe : Functor.Functor host_event.
+(*Hypothesis MIe : MonadIter host_event.*)
+(*Hypothesis FMe : Functor.Functor host_event.*)
 
-Set Printing Universes.
+Local Instance MO : Monad (OptionMonad.optionT host_event).
+Proof.
+  apply OptionMonad.Monad_optionT. apply host_monad.
+Defined.
 
-Fail Definition from_event_monad : itree host_event ~> _ (*host_event*) :=
-  @interp'' host_event host_event host_monad (fun _ => id).
+Unset Printing Universes.
+
+Definition from_event_monad : nat -> itree host_event ~> (fun T => option (host_event T)).
+  Fail apply interp_monad.
+Abort.
+
+Fail Definition from_event_monad : nat -> itree host_event ~> OptionMonad.optionT host_event :=
+  interp_monad MO (fun T => @ret _ host_monad (option T) None : OptionMonad.optionT host_event T) _ (*fun X T R e f => x <- e ;; ret (inl (f x))*).
   (* FIXME: Universe inconsistency!
      - It seems that the issue has nothing to due with previous definitions:
        moving this definition doesn’t change the error or even re-copy/pasting the definition
@@ -85,7 +144,7 @@ Variable m : Type -> Type.
 Hypothesis M : Monad m.
 Hypothesis MI : MonadIter m.
 Variable f : host_event ~> m.
-Fail Fail Definition from_event_monad : itree host_event ~> m :=
+Fail Definition from_event_monad : itree host_event ~> m :=
   interp (M := m) (MM := M) f. (* Passes! *)
 End TestMonad.
 
