@@ -133,8 +133,8 @@ Qed.
 
 Section Host.
 
-Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : res_tuple :=
-  let: (s, vs, es) := tt in
+Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (cfg : config_tuple) : res_tuple :=
+  let: (s, vs, es) := cfg in
   match fuel with
   | 0 => (s, vs, RS_crash C_exhaustion)
   | fuel.+1 =>
@@ -155,8 +155,8 @@ Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (tt : confi
     end
   end
 
-with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
-  let: (s, vs, ves) := tt in
+with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
+  let: (s, vs, ves) := cfg in
   match fuel with
   | 0 => (s, vs, RS_crash C_exhaustion)
   | fuel.+1 =>
@@ -350,7 +350,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         expect
           (smem_ind s i)
           (fun j =>
-             if List.nth_error (s_memory s) j is Some mem_s_j then
+             if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
                  (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
                  (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
@@ -363,7 +363,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         expect
           (smem_ind s i)
           (fun j =>
-             if List.nth_error (s_memory s) j is Some mem_s_j then
+             if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
                  (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
                  (fun bs => (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
@@ -378,11 +378,11 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           expect
             (smem_ind s i)
             (fun j =>
-               if List.nth_error (s_memory s) j is Some mem_s_j then
+               if List.nth_error s.(s_mems) j is Some mem_s_j then
                  expect
                    (store mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t))
                    (fun mem' =>
-                      (upd_s_mem s (update_list_at (s_memory s) j mem'), vs, RS_normal (vs_to_es ves')))
+                      (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves')))
                    (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
                else (s, vs, crash_error))
             (s, vs, crash_error)
@@ -395,11 +395,11 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
           expect
             (smem_ind s i)
             (fun j =>
-               if List.nth_error (s_memory s) j is Some mem_s_j then
+               if List.nth_error s.(s_mems) j is Some mem_s_j then
                  expect
                    (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
-                      (upd_s_mem s (update_list_at (s_memory s) j mem'), vs, RS_normal (vs_to_es ves')))
+                      (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves')))
                    (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
                else (s, vs, crash_error))
             (s, vs, crash_error)
@@ -409,7 +409,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
       expect
         (smem_ind s i)
         (fun j =>
-           if List.nth_error (s_memory s) j is Some s_mem_s_j then
+           if List.nth_error s.(s_mems) j is Some s_mem_s_j then
              (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
            else (s, vs, crash_error))
         (s, vs, crash_error)
@@ -418,11 +418,11 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (tt : config_one_tupl
         expect
           (smem_ind s i)
           (fun j =>
-            if List.nth_error (s_memory s) j is Some s_mem_s_j then
+            if List.nth_error s.(s_mems) j is Some s_mem_s_j then
               let: l := mem_size s_mem_s_j in
               let: mem' := mem_grow s_mem_s_j (Wasm_int.nat_of_uint i32m c) in
               if mem' is Some mem'' then
-                (upd_s_mem s (update_list_at (s_memory s) j mem''), vs,
+                (upd_s_mem s (update_list_at s.(s_mems) j mem''), vs,
                  RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               else (s, vs, crash_error)
             else (s, vs, crash_error))
@@ -518,15 +518,15 @@ Proof.
 Defined.
 
 (** Enough fuel so that [run_step] does not run out of exhaustion. **)
-Definition run_step_fuel (tt : config_tuple) :=
-  let: (s, vs, es) := tt in
+Definition run_step_fuel (cfg : config_tuple) : nat :=
+  let: (s, vs, es) := cfg in
   1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
-Definition run_step d j tt :=
-  run_step_with_fuel (run_step_fuel tt) d j tt.
+Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : res_tuple :=
+  run_step_with_fuel (run_step_fuel cfg) d inst cfg.
 
-Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (tt : config_tuple) : ((store_record * res)%type) :=
-  let: (s, vs, es) := tt in
+Fixpoint run_v (fuel : fuel) (d : depth) (i : instance) (cfg : config_tuple) : ((store_record * res)%type) :=
+  let: (s, vs, es) := cfg in
   match fuel with
   | 0 => (s, R_crash C_exhaustion)
   | fuel.+1 =>

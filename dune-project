@@ -1,5 +1,6 @@
-(lang dune 1.11)
+(lang dune 2.4)
 (using coq 0.1)
+(using mdx 0.1)
 (name Wasm)
 
 (generate_opam_files true)
@@ -14,4 +15,3 @@
 (package
   (name wasm_interpreter)
   (synopsis "Wasm interpreter extracted from the Coq formalisation"))
-

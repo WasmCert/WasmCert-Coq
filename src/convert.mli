@@ -1,23 +1,14 @@
 (** Conversion between OCaml types and the Coq ones. **)
 
-(** Converts [bool] to [Extract.bool]. **)
-val to_bool : bool -> Extract.bool
-
-(** Converts [Extract.bool] to [bool]. **)
-val from_bool : Extract.bool -> bool
-
-(** Converts [list] to [Extract.list]. **)
-val to_list : 'a list -> 'a Extract.list
-
-(** Converts [Extract.list] to [list]. **)
-val from_list : 'a Extract.list -> 'a list
-
-(** Converts [char] to [Extract.ascii]. **)
-val to_ascii : char -> Extract.ascii
-
-(** Converts [int] to [Extract.nat]. **)
+(** Convert [int] to [Extract.nat]. **)
 val to_nat : int -> Extract.nat
 
-(** Converts [Extract.nat] to [int]. **)
+(** Convert [Extract.nat] to [int]. **)
 val from_nat : Extract.nat -> int
+
+(** Convert [Extract.positive] to [int]. **)
+val from_positive : Extract.positive -> int
+
+(** Convert [Extract.z] to [int]. **)
+val from_z : Extract.z -> int
 

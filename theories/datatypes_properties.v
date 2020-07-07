@@ -1,7 +1,7 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
-(* (C) M. Bodin - see LICENSE.txt *)
+(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Import common.
+Require Import bytes common.
 Require Export datatypes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
@@ -9,6 +9,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Definition byte_eqb v1 v2 : bool := Byte.byte_eq_dec v1 v2.
+Definition eqbyteP : Equality.axiom byte_eqb :=
+  eq_dec_Equality_axiom Byte.byte_eq_dec.
+
+Canonical Structure byte_eqMixin := EqMixin eqbyteP.
+Canonical Structure byte_eqType :=
+  Eval hnf in EqType Byte.byte byte_eqMixin.
 
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
@@ -146,6 +153,14 @@ Definition eqvalueP : Equality.axiom value_eqb :=
 Canonical Structure value_eqMixin := EqMixin eqvalueP.
 Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
 
+(** Some helper functions for [value] that can safely extract. **)
+Definition value_rec_safe (P : Type)
+           (i32 : Wasm_int.Int32.int -> P)
+           (i64 : Wasm_int.Int64.int -> P)
+           (f32 : Wasm_float.FloatSize32.T -> P)
+           (f64 : Wasm_float.FloatSize64.T -> P) v : P :=
+  value_rect i32 i64 f32 f64 v.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
@@ -189,6 +204,16 @@ Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
 Canonical Structure function_closure_eqType :=
   Eval hnf in EqType function_closure function_closure_eqMixin.
 
+Definition tableinst_eq_dec : forall v1 v2 : tableinst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+  
+Definition tableinst_eqb v1 v2 : bool := tableinst_eq_dec v1 v2.
+Definition eqtableinstP : Equality.axiom tableinst_eqb :=
+  eq_dec_Equality_axiom tableinst_eq_dec.
+
+Canonical Structure tableinst_eqMixin := EqMixin eqtableinstP.
+Canonical Structure tableinst_eqType := Eval hnf in EqType tableinst tableinst_eqMixin.
+
 Definition global_eq_dec : forall v1 v2 : global, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 
@@ -208,6 +233,27 @@ Definition eqstore_recordP : Equality.axiom store_record_eqb :=
 
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
+
+
+Definition module_export_desc_eq_dec : forall v1 v2 : module_export_desc, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition module_export_desc_eqb v1 v2 : bool := module_export_desc_eq_dec v1 v2.
+Definition eqmodule_export_descP : Equality.axiom module_export_desc_eqb :=
+  eq_dec_Equality_axiom module_export_desc_eq_dec.
+
+Canonical Structure module_export_desc_eqMixin := EqMixin eqmodule_export_descP.
+Canonical Structure module_export_desc_eqType := Eval hnf in EqType module_export_desc module_export_desc_eqMixin.
+
+Definition module_export_eq_dec : forall v1 v2 : module_export, {v1 = v2} + {v1 <> v2}.
+(* TODO: "decidable equality" diverges; why? *)
+Admitted. 
+Definition module_export_eqb v1 v2 : bool := module_export_eq_dec v1 v2.
+Definition eqmodule_exportP : Equality.axiom module_export_eqb :=
+  eq_dec_Equality_axiom module_export_eq_dec.
+
+Canonical Structure module_export_eqMixin := EqMixin eqmodule_exportP.
+Canonical Structure module_export_eqType := Eval hnf in EqType module_export module_export_eqMixin.
 
 (** Induction scheme for [administrative_instruction]. **)
 Definition administrative_instruction_rect' :=
@@ -239,3 +285,30 @@ Definition eqlholedP : Equality.axiom lholed_eqb :=
 Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
 Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
 
+Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.
+Definition eqlimitsP : Equality.axiom limits_eqb :=
+  eq_dec_Equality_axiom limits_eq_dec.
+
+Canonical Structure limits_eqMixin := EqMixin eqlimitsP.
+Canonical Structure limits_eqType := Eval hnf in EqType limits limits_eqMixin.
+
+
+Definition table_type_eq_dec : forall v1 v2 : table_type, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+Definition table_type_eqb v1 v2 : bool := table_type_eq_dec v1 v2.
+Definition eqtable_typeP : Equality.axiom table_type_eqb :=
+  eq_dec_Equality_axiom table_type_eq_dec.
+
+Canonical Structure table_type_eqMixin := EqMixin eqtable_typeP.
+Canonical Structure table_type_eqType := Eval hnf in EqType table_type table_type_eqMixin.
+
+Definition mem_type_eq_dec : forall v1 v2 : mem_type, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+Definition mem_type_eqb v1 v2 : bool := mem_type_eq_dec v1 v2.
+Definition eqmem_typeP : Equality.axiom mem_type_eqb :=
+  eq_dec_Equality_axiom mem_type_eq_dec.
+
+Canonical Structure mem_type_eqMixin := EqMixin eqmem_typeP.
+Canonical Structure mem_type_eqType := Eval hnf in EqType mem_type mem_type_eqMixin.
