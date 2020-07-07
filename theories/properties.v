@@ -1,7 +1,7 @@
 (** Miscellaneous properties about Wasm operations **)
 (* (C) Rao Xiaojia - see LICENSE.txt *)
 
-Require Export operations typing opsem interpreter.
+Require Export operations typing opsem interpreter common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Bool.
 
@@ -338,3 +338,54 @@ Proof.
   { move: HLF. by apply/eqseqP. }
   symmetry. move: HLF'. by apply/eqseqP. 
 Qed.  
+
+Lemma all_projection: forall {X:Type} f (l:seq X) n x,
+    all f l ->
+    List.nth_error l n = Some x ->
+    f x.
+Proof.
+  move => X f l n x.
+  generalize dependent l.
+  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //.
+  eapply IHn; by eauto.
+Qed.
+
+Lemma all2_projection: forall {X Y:Type} f (l1:seq X) (l2:seq Y) n x1 x2,
+    all2 f l1 l2 ->
+    List.nth_error l1 n = Some x1 ->
+    List.nth_error l2 n = Some x2 ->
+    f x1 x2.
+Proof.
+  move => X Y f l1 l2 n.
+  generalize dependent l1.
+  generalize dependent l2.
+  induction n => //=; move => l2 l1 x1 x2 HALL HN1 HN2.
+  - destruct l1 => //=. destruct l2 => //=.
+    inversion HN1. inversion HN2. subst. clear HN1. clear HN2.
+    simpl in HALL. move/andP in HALL. by destruct HALL.
+  - destruct l1 => //=. destruct l2 => //=.
+    simpl in HALL. move/andP in HALL. destruct HALL.
+    eapply IHn; by eauto.
+Qed.
+
+Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
+  forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
+
+Lemma all2_function_unique: forall {X Y:Type} f (l1:seq X) (l2 l3:seq Y),
+    all2 f l1 l2 ->
+    all2 f l1 l3 ->
+    function f ->
+    l2 = l3.
+Proof.
+  move => X Y f l1.
+  induction l1 => //=; move => l2 l3 HA1 HA2 HF.
+  - destruct l2 => //. by destruct l3 => //.
+  - destruct l2 => //=; destruct l3 => //=.
+    simpl in HA1. simpl in HA2.
+    move/andP in HA1. move/andP in HA2.
+    destruct HA1. destruct HA2.
+    unfold function in HF.
+    assert (y = y0); first by eapply HF; eauto.
+    rewrite H3. f_equal.
+    by apply IHl1.
+Qed.
