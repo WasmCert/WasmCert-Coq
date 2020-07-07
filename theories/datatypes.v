@@ -60,8 +60,8 @@ Record t_context := {
   tc_types_t : list function_type;
   tc_func_t : list function_type;
   tc_global : list global_type;
-  tc_table : option nat;
-  tc_memory : option nat;
+  tc_table : option limits;
+  tc_memory : option limits;
   tc_local : list value_type;
   tc_label : list (list value_type);
   tc_return : option (list value_type);

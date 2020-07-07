@@ -370,6 +370,7 @@ Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : 
 
 (* UPD: This in fact makes the soundness proof extremely tedious and dependent on the type_checker reflecting typing.
   I have edited the later functions to avoid using these. *)
+(*
 Definition inst_type_check (s : store_record) (i : instance) : (t_context) :=
   Build_t_context
     (i_types i)
@@ -393,7 +394,7 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
 (*| cl_typing_native : forall i S C ts t1s t2s es tf,*)
   | Func_host tf h => true
   end.
-
+*)
 (*
   e_typing is the extension of typing to administrative instructions. See appendix 5 for
     some of them.
@@ -435,31 +436,31 @@ with s_typing : store_record -> option (list value_type) -> instance -> list val
   (rs == Some ts) || (rs == None) ->
   s_typing s rs i vs es ts.
 
-Definition tabcl_agree (s : store_record) (tcl_index : option nat) : bool :=
+Definition cl_type_check_single (s:store_record) (f:function_closure):=
+  exists tf, cl_typing s f tf.
+
+Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
   match tcl_index with
-  | None => true
+  | None => True
   | Some n => let tcl := List.nth_error (s_funcs s) n in
     match tcl with
-    | None => true
-    | Some cl => cl_type_check s cl
+    | None => True
+    | Some cl => cl_type_check_single s cl
     end
   end.
 
-Definition tab_agree (s: store_record) (t: tabinst): bool :=
+Definition tab_agree (s: store_record) (t: tabinst): Prop :=
   let t_data := table_data t in
-    all (tabcl_agree s) (t_data).
+    List.Forall (tabcl_agree s) (t_data).
 
 Definition mem_agree bs m : bool :=
   m <= mem_size bs.
-
-Definition cl_type_check_single (s:store_record) (f:function_closure):=
-  exists tf, cl_typing s f tf.
 
 Definition store_typing (s : store_record) : Prop :=
   match s with
   | Build_store_record fs tclss bss gs =>
     List.Forall (cl_type_check_single s) fs /\
-    all (tab_agree s) (tclss)
+    List.Forall (tab_agree s) (tclss)
   end.
 
 Inductive config_typing : instance -> store_record -> list value -> list administrative_instruction -> list value_type -> Prop :=

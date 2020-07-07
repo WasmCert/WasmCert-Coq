@@ -38,52 +38,7 @@ Ltac bool_to_prop_and:=
          | H: _ && _ |- _ =>
            move/andP in H; destruct H
 end.
-
 (*
-  Let's first state this lemma which naturally sounds correct.
-*)
-
-Lemma inst_typeP:
-  forall s i C,
-    reflect (inst_type_check s i = C) (inst_typing s i C).
-Proof.
-  move => s i C. destruct (inst_typing s i C) eqn:itc_bool => //=.
-  - apply ReflectT. unfold inst_typing in itc_bool.
-    destruct i. destruct C. destruct tc_local => //=. destruct tc_label => //=.
-    destruct tc_return => //=.
-    unfold inst_type_check => /=.
-    bool_to_prop_and.
-    (**TODO**)
-    move/andP in H. destruct H as [H H1].
-    move/andP in H. destruct H as [H H2].
-    move/andP in H. destruct H as [H H3].
-    move/eqP in H. rewrite H. clear H.
-    (**---**)
-    admit.
-  - admit.
-Admitted.
-
-Lemma be_typing_empty: forall C t1s t2s,
-  be_typing C [::] (Tf t1s t2s) -> t1s = t2s.
-Proof.
-  move => C t1s t2s H.
-  (*
-  (* This is extremely stupid... just why do I have to do this??? *)
-  remember [::] as es.
-
-  remember (Tf t1s t2s) as tf.  
-  induction H; try by [].
-  - by inversion Heqtf.
-  - by destruct es => //=.
-  - inversion Heqtf. subst. apply IHbe_typing => //=. (* ??? *) admit. *)
-
-  (* dependent induction seems to be much more clever than induction! *)
-  (* TODO: check out what dependent induction actually does. Currently I only
-     know it as a 'better induction'. *)
-  dependent induction H => //=.
-  - by destruct es => //=.
-  - f_equal. by apply IHbe_typing => //=.
-Qed.
 
 (* 
   This seems really non-trivial. The structrue might also change after we fix
@@ -147,3 +102,4 @@ Proof.
     
 Admitted. (* TODO *)
 
+*)

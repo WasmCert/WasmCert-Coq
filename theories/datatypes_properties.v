@@ -239,3 +239,12 @@ Definition eqlholedP : Equality.axiom lholed_eqb :=
 Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
 Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
 
+Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.
+Definition eqlimitsP : Equality.axiom limits_eqb :=
+  eq_dec_Equality_axiom limits_eq_dec.
+
+Canonical Structure limits_eqMixin := EqMixin eqlimitsP.
+Canonical Structure limits_eqType := Eval hnf in EqType limits limits_eqMixin.
