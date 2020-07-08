@@ -31,13 +31,18 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
     m
     (s_globals s).
 
+(* TODO : fix page size later -- setting it to the correct number 65536 currently
+     causes stack overflow *)
+
+Definition page_size := 5.
+
 Definition mem_size (m : memory) :=
-  Nat.div (length (mem_data m)) 64000.
+  Nat.div (length (mem_data m)) page_size.
 
 Check (lim_max (mem_limit _)).
 
 Definition mem_grow (m : memory) (n : nat) : option memory:=
-  let new_mem_data := (mem_data m ++ bytes_replicate (n * 64000) #00) in
+  let new_mem_data := (mem_data m ++ bytes_replicate (n * page_size) #00) in
   match (lim_max (mem_limit m)) with
     | Some maxlim =>
        if mem_size m + n <= maxlim then 

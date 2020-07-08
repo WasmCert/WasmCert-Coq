@@ -2980,6 +2980,32 @@ Proof.
       * simpl in H. rewrite length_is_size in H. by lias.
 Qed.       
 
+Lemma bytes_takefill_size: forall c l vs,
+    size (bytes_takefill c l vs) = l.
+Proof.
+  move => c l. induction l => //=.
+  destruct vs => //=; by f_equal.  
+Qed.
+
+Lemma bytes_replicate_size: forall n b,
+    size (bytes_replicate n b) = n.
+Proof.
+  induction n => //=.
+  move => b; by f_equal.
+Qed.
+
+
+Lemma div_le: forall a b, b > 0 -> a/b <= a.
+Proof.
+  move => a b H.
+  destruct b => //.
+  destruct b => //; first by rewrite Nat.div_1_r; lias.
+  destruct a => //.
+  assert (a.+1/b.+2 < a.+1)%coq_nat.
+  { apply Nat.div_lt; omega. (* lias doesn't solve this. *) }
+  by lias.
+Qed.
+
 Lemma mem_extension_store: forall m k off v tlen mem,
     store m k off (bits v) tlen = Some mem ->
     mem_extension m mem.
@@ -2998,7 +3024,14 @@ Proof.
   rewrite List.skipn_length.
   repeat rewrite length_is_size.
   rewrite size_take.
-  destruct (k+off<size (mem_data m)) eqn:H => //=; by lias.
+  unfold mem_size in HMemSize.
+  rewrite length_is_size in HMemSize.
+  rewrite bytes_takefill_size.
+  assert (size (mem_data m) / page_size <= size (mem_data m)); first by apply div_le.
+  assert (k+off <= size (mem_data m)); first by lias.
+  apply/leP.
+  apply Nat.div_le_mono => //.
+  destruct (k+off < size (mem_data m)) eqn:H2; by lias.
 Qed.
 
 Lemma mem_extension_grow_memory: forall m c mem,
@@ -3009,19 +3042,19 @@ Proof.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
   destruct (lim_max (mem_limit m)) eqn:HLimMax => //=.
-  - destruct (
-             length
-               (mem_data m ++
-                bytes_replicate
-                  (c * 64000)
-                  #00) <= n * 64000) eqn:HLT => //=.
+  - destruct (mem_size m + c <= n) eqn:HLT => //.
     inversion HMGrow; subst; clear HMGrow.
-    apply/andP; split => //=.
-    + unfold mem_size. simpl. repeat rewrite length_is_size. rewrite size_cat. by lias.
+    apply/andP; split => //.
+    + unfold mem_size. repeat rewrite length_is_size. rewrite size_cat.
+      rewrite bytes_replicate_size.
+      apply/leP. apply Nat.div_le_mono => //.
+      by lias.
     + by apply/eqP.
   - inversion HMGrow; subst; clear HMGrow.
-    apply/andP; split => //=.
-    + unfold mem_size. simpl. repeat rewrite length_is_size. rewrite size_cat. by lias.
+    apply/andP; split => //.
+    + unfold mem_size. repeat rewrite length_is_size. rewrite size_cat.
+      apply/leP. apply Nat.div_le_mono => //.
+      by lias.      
     + by apply/eqP.
 Qed.
 
@@ -3192,13 +3225,6 @@ Proof.
   apply H. by eapply List.nth_error_In; eauto.
 Qed.
 
-Lemma bytes_takefill_length: forall c l vs,
-    length (bytes_takefill c l vs) = l.
-Proof.
-  move => c l. induction l => //=.
-  destruct vs => //=; by f_equal.  
-Qed.
-
 Lemma store_mem_agree: forall s n m k off vs tl mem,
     store_typing s ->
     List.nth_error (s_mems s) n = Some m ->
@@ -3212,26 +3238,28 @@ Proof.
   inversion HStore. subst. clear HStore.
   unfold mem_agree => //=.
   destruct (lim_max (mem_limit m)) eqn:HLimMax => //=.
-  unfold mem_size. simpl.
+  unfold mem_size.
   rewrite length_is_size. repeat rewrite size_cat.
   rewrite size_take.
   repeat rewrite -length_is_size. rewrite List.skipn_length.
   destruct tl => //.
   unfold mem_size in H. 
-  assert (k+off<length (mem_data m)); first by lias.
-  rewrite H0.
   assert (mem_agree m); first by eapply store_typed_mem_agree; eauto.
-  unfold mem_agree in H1. rewrite HLimMax in H1.
-  unfold mem_size in H1.
-  assert ((k + off + length (bytes_takefill #00 tl.+1 vs) <= length (mem_data m))); last by lias.
-  rewrite bytes_takefill_length. by lias.
-Qed.
-
-Lemma bytes_replicate_size: forall n b,
-    size (bytes_replicate n b) = n.
-Proof.
-  induction n => //=.
-  move => b; by f_equal.
+  unfold mem_agree in H0. rewrite HLimMax in H0.
+  unfold mem_size in H0.
+  repeat rewrite length_is_size. rewrite length_is_size in H.
+  rewrite length_is_size in H0.
+  rewrite bytes_takefill_size.
+  assert (size (mem_data m) / page_size <= size (mem_data m)).
+  { by apply div_le. }
+  assert (k + off < size (mem_data m)).
+  { by lias. }
+  rewrite H2.
+  assert (k+off+(tl.+1 + (size (mem_data m) - (k+off+tl.+1))) <= size (mem_data m)).
+  { by lias. }
+  move/leP in H3.
+  eapply Nat.div_le_mono in H3; last by instantiate (1 := page_size).
+  by lias.
 Qed.
 
 Lemma mem_grow_mem_agree: forall s n m c mem,
@@ -3247,23 +3275,21 @@ Proof.
   unfold mem_agree in H.
   destruct (lim_max (mem_limit m)) eqn:HLimMax => //=.
   (* allow some stupidity here *)
-  - destruct (
-            length
-              (mem_data m ++
-               bytes_replicate
-                 (c * 64000)
-                 #00) <= n0 * 64000) eqn:H1 => //=.
+  - destruct (mem_size m + c <= n0) eqn:H1 => //.
     inversion HGrow; subst; clear HGrow.
-    unfold mem_size. simpl.
-    repeat rewrite length_is_size in H1; rewrite size_cat in H1.
-    repeat rewrite length_is_size. rewrite size_cat.
-    rewrite bytes_replicate_size in H1.
+    unfold mem_size.
+    rewrite HLimMax.
+    rewrite length_is_size.
+    rewrite size_cat.
     rewrite bytes_replicate_size.
-    rewrite HLimMax. by lias.
+    unfold mem_size in H1.
+    rewrite length_is_size in H1.
+    by rewrite Nat.div_add.
+   
   - inversion HGrow; subst; clear HGrow.
     by rewrite HLimMax.
-Admitted.
-
+Qed.
+    
 Lemma store_extension_reduce: forall s vs es i s' vs' es' C tf loc lab ret,
     reduce s vs es i s' vs' es' ->
     inst_typing s i C ->
