@@ -1,4 +1,6 @@
-(** Definition of Wasm datatypes **)
+(** Definition of Wasm datatypes
+    See https://webassembly.github.io/spec/core/syntax/index.html
+    and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 (* TODO: use better representations that "nat", which is expensive;
@@ -6,7 +8,8 @@
 
 (* TODO: sanitise names *)
 
-Require Import common.
+Require Import BinNat.
+Require Import array common.
 Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require common.Memdata.
@@ -26,9 +29,9 @@ Definition immediate (* i *) :=
   (* TODO: this is not a great representation *)
   nat.
 
-Definition static_offset := (* off *) nat.
+Definition static_offset := (* off *) N. (* TODO: should be u32 *)
 
-Definition alignment_exponent := (* a *) nat.
+Definition alignment_exponent := (* a *) N. (* TODO: should be u32 *)
 
 Definition serialise_i32 (i : i32) : bytes :=
   common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
@@ -43,12 +46,25 @@ Definition serialise_f64 (f : f64) : bytes :=
   common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
 
 Record limits : Type := {
-  lim_min : nat;
-  lim_max : option nat;
+  lim_min : N; (* TODO: should be u32 *)
+  lim_max : option N; (* TODO: should be u32 *)
+}.
+
+Module Byte_Index <: array.Index_Sig.
+Definition Index := N.
+Definition Value := byte.
+Definition index_eqb := N.eqb.
+End Byte_Index.
+
+Module Byte_array := array.Make Byte_Index.
+
+Record data_vec : Type := {
+  dv_length : N;
+  dv_array : Byte_array.array;
 }.
 
 Record memory : Type := {
-  mem_data : list byte;
+  mem_data : data_vec;
   mem_limit: limits;
 }.
 
@@ -307,7 +323,7 @@ exceeds the maximum size, if present.
 *)
 Record tableinst : Type := {
   table_data: list funcelem;
-  table_max_opt: option nat;
+  table_max_opt: option N; (* TODO: should be u32 *)
 }.
 
 Record global : Type := {
@@ -328,6 +344,11 @@ Record store_record : Type := (* s *) {
   s_globals : list global;
 }.
 
+(** std-doc:
+In order to express the reduction of traps, calls, and control instructions,
+the syntax of instructions is extended to include the following administrative
+instructions:
+*)
 Inductive administrative_instruction : Type := (* e *)
 | Basic : basic_instruction -> administrative_instruction
 | Trap

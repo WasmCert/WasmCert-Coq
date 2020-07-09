@@ -1,6 +1,11 @@
+(** instantiation
+    see https://webassembly.github.io/spec/core/exec/modules.html#exec-instantiation
+*)
+(* (C) J. Pichon - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import list_extra datatypes datatypes_properties interpreter binary_format_parser
   operations typing opsem.
+Require Import BinNat.
 (* TODO: separate algorithmic aspects from specification, incl. dependencies *)
 
 (* TODO: get rid of old notation that doesn't follow standard *)
@@ -66,16 +71,22 @@ Definition add_table (s : store_record) (ti : tableinst) : store_record := {|
 Definition alloc_tab (s : store_record) (tty : table_type) : store_record * tableidx :=
   let '{| tt_limits := {| lim_min := min; lim_max := maxo |} as lim; tt_elem_type := ety |} := tty in
   let tableaddr := Mk_tableidx (List.length s.(s_tables)) in
-  let tableinst := {| table_data := (List.repeat None min); table_max_opt := maxo; |} in
+  let tableinst := {|
+    table_data := (List.repeat None min);
+    table_max_opt := maxo;
+  |} in
   (add_table s tableinst, tableaddr).
 
 Definition alloc_tabs (s : store_record) (ts : list table_type) : store_record * list tableidx :=
   alloc_Xs alloc_tab s ts.
 
-Definition ki64 : nat := 65536.
-
-Definition mem_mk (lim : limits) : memory :=
-  Build_memory (bytes_replicate (lim.(lim_min) * ki64) #00) lim.
+Definition mem_mk (lim : limits) : memory := {|
+  mem_data := {|
+    dv_length := BinNatDef.N.mul page_size lim.(lim_min);
+    dv_array := Byte_array.make Integers.Byte.zero;
+  |};
+  mem_limit := lim;
+|}.
 
 Definition add_mem (s : store_record) (m_m : memory) : store_record := {|
   s_funcs := s.(s_funcs);
@@ -238,9 +249,17 @@ Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : modu
 Definition init_tabs (s : store_record) (inst : instance) (e_inds : list nat) (es : list module_element) : store_record :=
   List.fold_left (fun s' '(e_ind, e) => init_tab s' inst e_ind e) (List.combine e_inds es) s.
 
-Definition dummy_mem := {| mem_data := nil; mem_limit := {| lim_min := 0; lim_max := None; |} |}.
+Definition dummy_data_vec := {|
+  dv_length := 0;
+  dv_array := Byte_array.make Integers.Byte.zero;
+|}.
 
-Definition init_mem (s : store_record) (inst : instance) (d_ind : nat) (d : module_data) : store_record :=
+Definition dummy_mem := {|
+  mem_data := dummy_data_vec;
+  mem_limit := {| lim_min := 0; lim_max := None; |};
+|}.
+
+Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module_data) : store_record :=
   let m_ind := List.nth (match d.(dt_data) with Mk_memidx i => i end) inst.(i_memory) 0 in
   let mem := List.nth m_ind s.(s_mems) dummy_mem in
   let mem' := operations.write_bytes mem d_ind (List.map compcert_byte_of_byte d.(dt_init)) in
@@ -249,7 +268,7 @@ Definition init_mem (s : store_record) (inst : instance) (d_ind : nat) (d : modu
      s_mems := insert_at mem' m_ind s.(s_mems);
      s_globals := s.(s_globals); |}.
 
-Definition init_mems (s : store_record) (inst : instance) (d_inds : list nat) (ds : list module_data) : store_record :=
+Definition init_mems (s : store_record) (inst : instance) (d_inds : list N) (ds : list module_data) : store_record :=
   List.fold_left (fun s' '(d_ind, d) => init_mem s' inst d_ind d) (List.combine d_inds ds) s.
 
 Definition module_func_typing (c : t_context) (m : module_func) (tf : function_type) : Prop :=
@@ -269,17 +288,19 @@ Definition module_func_typing (c : t_context) (m : module_func) (tf : function_t
   |} in
   typing.be_typing c' b_es tf.
 
-Definition limit_typing (lim : limits) (k : nat) : bool :=
+  SearchAbout (N -> N -> N).
+
+Definition limit_typing (lim : limits) (k : N) : bool :=
   let '{| lim_min := min; lim_max := maxo |} := lim in
-  (k <= expn_rec 2 32) &&
-  (match maxo with None => true | Some max => max <= k end) &&
-  (match maxo with None => true | Some max => min <= k end).
+  (N.leb k (N.pow 2 32)) &&
+  (match maxo with None => true | Some max => N.leb max k end) &&
+  (match maxo with None => true | Some max => N.leb min k end).
 
 Definition module_tab_typing (t : module_table) : bool :=
-  limit_typing t.(t_type).(tt_limits) (expn_rec 2 32).
+  limit_typing t.(t_type).(tt_limits) (N.pow 2 32).
 
 Definition module_mem_typing (m : memory_type) : bool :=
-  limit_typing m (expn_rec 2 32).
+  limit_typing m (N.pow 2 32).
 
 Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
   match b_e with
@@ -469,6 +490,9 @@ Definition instantiate_data inst s' m d_offs : Prop :=
 Definition nat_of_int (i : i32) : nat :=
   BinInt.Z.to_nat i.(Wasm_int.Int32.intval).
 
+Definition N_of_int (i : i32) : N :=
+  BinInt.Z.to_N i.(Wasm_int.Int32.intval).
+
 Definition check_bounds_elem (inst : instance) (s : store_record) (m : module) (e_offs : seq i32) : bool :=
   seq.all2
     (fun e_off e =>
@@ -478,14 +502,14 @@ Definition check_bounds_elem (inst : instance) (s : store_record) (m : module) (
         match List.nth_error s.(s_tables) i with
         | None => false
         | Some ti =>
-          nat_of_int e_off + List.length e.(elem_init) <= List.length ti.(table_data)
+          N.leb (N.add (N_of_int e_off) (N.of_nat (List.length e.(elem_init)))) (N.of_nat (List.length ti.(table_data)))
         end
       end)
       e_offs
       m.(mod_elem).
 
-Definition mem_length (m : memory) :=
-  List.length m.(mem_data).
+Definition mem_length (m : memory) : N :=
+  m.(mem_data).(dv_length).
 
 Definition check_bounds_data (inst : instance) (s : store_record) (m : module) (d_offs : seq i32) : bool :=
   seq.all2
@@ -496,7 +520,7 @@ Definition check_bounds_data (inst : instance) (s : store_record) (m : module) (
         match List.nth_error s.(s_mems) i with
         | None => false
         | Some mem =>
-          nat_of_int d_off + List.length d.(dt_init) <= mem_length mem
+          N.leb (N.add (N_of_int d_off) (N.of_nat (List.length d.(dt_init)))) (mem_length mem)
         end
       end)
       d_offs
@@ -523,7 +547,7 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list v_ext) (z 
     check_bounds_data inst s m e_offs /\
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
-    s_end == init_mems s'' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
+    s_end == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
 
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   let '(Mk_typeidx i) := m_f.(mf_type) in
@@ -698,7 +722,7 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
     | Some cl => tf == operations.cl_type cl
     end
   | (ED_table (Mk_tableidx i), ET_tab tf) =>
-(*    let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in*)
+(* TODO   let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in*)
     (i < List.length s.(s_tables)) &&
     match List.nth_error s.(s_tables) i with
     | None => false
@@ -765,7 +789,7 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
                check_bounds_data inst s m d_offs then
               let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(i_funcs) (match i_s.(start_func) with Mk_funcidx i => i end)) m.(mod_start) in
               let s'' := init_tabs s' inst (map nat_of_int e_offs) m.(mod_elem) in
-              let s_end := init_mems s' inst (map nat_of_int d_offs) m.(mod_data) in
+              let s_end := init_mems s' inst (map N_of_int d_offs) m.(mod_data) in
               Some ((s_end, inst, v_exps), start)
             else None
           end

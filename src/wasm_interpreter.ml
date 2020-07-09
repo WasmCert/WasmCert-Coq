@@ -61,7 +61,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
        match cfg_res with
        | (_, RS_crash crash) ->
          terminal_magic verbosity;
-         Printf.printf "%scrash%s: %s\n" ansi_green ansi_reset (string_of_crash_reason crash);
+         Printf.printf "%scrash%s: %s\n" ansi_red ansi_reset (string_of_crash_reason crash);
          None
        | (_, RS_break _) ->
          terminal_magic verbosity;

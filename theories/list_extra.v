@@ -40,3 +40,25 @@ those0 l = those l.
 Proof.
 (* TODO *)
 Admitted.
+
+Fixpoint mapi_aux {A B} (acc : nat * list B) (f : nat -> A -> B) (xs : list A) : list B :=
+  let '(i, ys_rev) := acc in
+  match xs with
+  | nil =>
+    List.rev ys_rev
+  | cons x xs' =>
+    let y := f i x in
+    mapi_aux (i + 1, cons y ys_rev) f xs'
+  end.
+
+Definition mapi {A B} (f : nat -> A -> B) (xs : list A) : list B :=
+  mapi_aux (0, nil) f xs.
+
+Definition fold_lefti {A B} (f : nat -> A -> B -> A) (xs : list B) (acc0 : A) : A :=
+  let '(_, acc_end) :=
+    List.fold_left
+      (fun '(k, acc) x =>
+        (k + 1, f k acc x))
+      xs
+      (0, acc0) in
+  acc_end.
