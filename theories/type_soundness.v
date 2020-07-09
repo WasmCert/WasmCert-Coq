@@ -3034,7 +3034,7 @@ Proof.
   apply Nat.div_le_mono => //.
   destruct (k+off < size (mem_data m)) eqn:H2; by lias.
   *)
-Qed.
+Admitted.
 
 Lemma mem_extension_grow_memory: forall m c mem,
     mem_grow m c = (Some mem) ->

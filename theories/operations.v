@@ -38,8 +38,11 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
 
 Definition page_size : N := (64 % N) * (1024 % N).
 
+Definition mem_length (m : memory) : N :=
+  m.(mem_data).(dv_length).
+
 Definition mem_size (m : memory) : N :=
-  N.div m.(mem_data).(dv_length) page_size.
+  N.div (mem_length m) page_size.
 
 Definition mem_grow (m : memory) (n : N) : option memory:=
   let new_mem_data :=
@@ -63,8 +66,8 @@ Definition mem_grow (m : memory) (n : N) : option memory:=
 (* TODO: We crucially need documentation here. *)
 
 Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
-  if (mem_size m % N) >= (n + off + l)
-  then Some (read_bytes m (n + off) l)
+  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+  then Some (read_bytes m (N.add n off) l)
   else None.
 
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
@@ -79,7 +82,7 @@ Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp :
   option_map (sign_extend s l) (load m n off lp).
 
 Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
-  if (mem_size m) >= (n + off + l)
+  if N.leb (n + off + N.of_nat l) (mem_length m)
   then Some (write_bytes m (n + off) (bytes_takefill #00 l bs))
   else None.
 
