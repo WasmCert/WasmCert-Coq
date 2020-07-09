@@ -4,77 +4,81 @@
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
-Require Export datatypes_properties list_extra.
+Require Export datatypes_properties.
+Require Import BinNat list_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Definition read_bytes (m : memory) (n : N) (l : nat) : bytes :=
+  List.map
+    (fun k => Byte_array.get m.(mem_data).(dv_array) (BinNatDef.N.add n (N.of_nat k)))
+    (iota 0 l).
 
-Definition read_bytes (m : memory) (n : nat) (l : nat) : bytes :=
-  take l (List.skipn n (mem_data m)).
+Definition write_bytes (m : memory) (n : N) (bs : bytes) : memory := {|
+  mem_data := {|
+    dv_length := m.(mem_data).(dv_length);
+    dv_array :=
+      list_extra.fold_lefti
+        (fun i arr b =>
+          Byte_array.set arr (BinNatDef.N.add n (N.of_nat i)) b)
+        bs
+        m.(mem_data).(dv_array);
+  |};
+  mem_limit := m.(mem_limit);
+|}.
 
-Definition write_bytes (m : memory) (n : nat) (bs : bytes) : memory :=
-  Build_memory
-    (app (take n (mem_data m)) (app bs (List.skipn (n + length bs) (mem_data m))))
-    (mem_limit m).
+Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := s.(s_tables);
+  s_mems := m;
+  s_globals := s.(s_globals);
+|}.
 
-Definition mem_append (m : memory) (bs : bytes) :=
-  Build_memory
-    (app (mem_data m) bs)
-    (mem_limit m).
+Definition page_size : N := (64 % N) * (1024 % N).
 
-Definition upd_s_mem (s : store_record) (m : list memory) : store_record :=
-  Build_store_record
-    (s_funcs s)
-    (s_tables s)
-    m
-    (s_globals s).
+Definition mem_size (m : memory) : N :=
+  N.div m.(mem_data).(dv_length) page_size.
 
-(* TODO : fix page size later -- setting it to the correct number 65536 currently
-     causes stack overflow *)
-
-Definition page_size := 5.
-
-Definition mem_size (m : memory) :=
-  Nat.div (length (mem_data m)) page_size.
-
-Check (lim_max (mem_limit _)).
-
-Definition mem_grow (m : memory) (n : nat) : option memory:=
-  let new_mem_data := (mem_data m ++ bytes_replicate (n * page_size) #00) in
-  match (lim_max (mem_limit m)) with
-    | Some maxlim =>
-       if mem_size m + n <= maxlim then 
-         Some (Build_memory
-               new_mem_data
-               (mem_limit m))
-       else None
-    | None =>
-         Some (Build_memory
-               new_mem_data
-               (mem_limit m))
+Definition mem_grow (m : memory) (n : N) : option memory:=
+  let new_mem_data :=
+    (* with our array representation, there are no bounds to extend *)
+    m.(mem_data) in
+  match m.(mem_limit).(lim_max) with
+  | Some maxlim =>
+    if N.leb (N.add (mem_size m) n) maxlim then
+      Some {|
+        mem_data := new_mem_data;
+        mem_limit := m.(mem_limit);
+      |}
+    else None
+  | None =>
+    Some {|
+      mem_data := new_mem_data;
+      mem_limit := m.(mem_limit);
+    |}
   end.
 
 (* TODO: We crucially need documentation here. *)
 
-Definition load (m : memory) (n : nat) (off : static_offset) (l : nat) : option bytes :=
-  if mem_size m >= (n + off + l)
+Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
+  if (mem_size m % N) >= (n + off + l)
   then Some (read_bytes m (n + off) l)
   else None.
 
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO *) bs.
+  (* TODO: implement sign extension *) bs.
 (* TODO
   let: msb := msb (msbyte bytes) in
   let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
   bytes_takefill byte l bytes
 *)
 
-Definition load_packed (s : sx) (m : memory) (n : nat) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
+Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
   option_map (sign_extend s l) (load m n off lp).
 
-Definition store (m : memory) (n : nat) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
+Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
   if (mem_size m) >= (n + off + l)
   then Some (write_bytes m (n + off) (bytes_takefill #00 l bs))
   else None.
