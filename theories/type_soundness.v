@@ -3826,3 +3826,31 @@ Proof.
   by eapply t_preservation_e; eauto.
 Qed.
   
+Definition normal_form (es: seq administrative_instruction) :=
+  (const_list es) \/ (es = [::Trap]).
+
+Lemma t_progress_be: forall C bes ts,
+    be_typing C bes (Tf [::] ts) ->
+    const_list (to_e_list bes) \/
+    exists es', reduce_simple (to_e_list bes) es'.
+Proof.
+  move => C bes tf HType.
+  dependent induction HType; subst => //=.
+  - (* EConst *)
+      by left.
+  - (* Unreachable *)
+    right. exists [::Trap]. by apply rs_unreachable.
+  - (* Nop *)
+    right. exists [::]. by apply rs_nop.
+  - (* 
+Qed.
+
+
+Lemma t_progress: forall s vs es i ts,
+    config_typing i s vs es ts ->
+    normal_form es \/
+    exists s' vs' es', reduce s vs es i s' vs' es'.
+Proof.
+  move => s vs es i ts.
+Admitted.
+     
