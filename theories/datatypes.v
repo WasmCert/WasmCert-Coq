@@ -507,7 +507,25 @@ Inductive extern_t : Type :=
 | ET_mem : mem_type -> extern_t
 | ET_glob : global_type -> extern_t.
 
+
+(** Some types used in the interpreter. **)
+
 Definition config_tuple : Type := store_record * seq value * seq administrative_instruction.
+
+Definition config_one_tuple_without_e : Type := store_record * seq value * seq value.
+
+Inductive res_crash : Type :=
+  | C_error : res_crash
+  .
+
+Inductive res_step : Type :=
+  | RS_crash : res_crash -> res_step
+  | RS_break : nat -> seq value -> res_step
+  | RS_return : seq value -> res_step
+  | RS_normal : seq administrative_instruction -> res_step
+  .
+
+Definition res_tuple : Type := store_record * seq value * res_step.
 
 End Host.
 
@@ -515,3 +533,6 @@ Arguments Func_native [host_function].
 Arguments Basic {host_function}.
 Arguments Trap {host_function}.
 
+Arguments RS_crash [host_function].
+Arguments RS_break [host_function].
+Arguments RS_return [host_function].

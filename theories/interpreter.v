@@ -71,18 +71,6 @@ End ITreeExtract.
 
 (** * Types used by the interpreter **)
 
-Inductive res_crash : Type :=
-  | C_error : res_crash
-  .
-
-Scheme Equality for res_crash.
-Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
-Definition eqres_crashP : Equality.axiom res_crash_eqb :=
-  eq_dec_Equality_axiom res_crash_eq_dec.
-
-Canonical Structure res_crash_eqMixin := EqMixin eqres_crashP.
-Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_eqMixin.
-
 Inductive res : Type :=
   | R_crash : res_crash -> res
   | R_trap : res
@@ -99,28 +87,11 @@ Definition eqresP : Equality.axiom res_eqb :=
 Canonical Structure res_eqMixin := EqMixin eqresP.
 Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
 
-Inductive res_step : Type :=
-  | RS_crash : res_crash -> res_step
-  | RS_break : nat -> seq value -> res_step
-  | RS_return : seq value -> res_step
-  | RS_normal : seq administrative_instruction -> res_step
-  .
+Let res_step := res_step host_function.
+Let res_tuple := res_tuple host_function.
+Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
 
-Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
-Proof. decidable_equality. Defined.
-
-Definition res_step_eqb (r1 r2 : res_step) : bool := res_step_eq_dec r1 r2.
-Definition eqres_stepP : Equality.axiom res_step_eqb :=
-  eq_dec_Equality_axiom res_step_eq_dec.
-
-Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
-Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
-
-Definition crash_error := RS_crash C_error.
-
-Definition config_one_tuple_without_e : Type := store_record * seq value * seq value.
-
-Definition res_tuple : Type := store_record * seq value * res_step.
+Definition crash_error : res_step := RS_crash C_error.
 
 
 (** * The interpreter itself. **)
@@ -659,10 +630,6 @@ Classical_Prop.classic : forall P : Prop, P \/ ~ P
 ]]
 *)
 
-Arguments RS_crash [_].
-Arguments RS_break [_].
-Arguments RS_return [_].
-
 
 Section EqType.
 
@@ -693,10 +660,14 @@ Variable MIi : forall R I : Type, (I -> M (I + R)%type) -> I -> M R.
 Local Definition MF : Functor.Functor M := {| Functor.fmap := MFi |}.
 Local Definition MI : MonadIter M := MIi.
 
-Definition run_step_extraction :=
-  @run_step_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI.
-Definition run_v_extraction :=
-  @run_v_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI.
+Variable convert : host_event ~> M.
+
+Definition run_step_extraction
+  : depth -> instance -> config_tuple host_function -> M (res_tuple host_function) :=
+  @run_step_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI convert.
+Definition run_v_extraction
+  : depth -> instance -> config_tuple host_function -> M (store_record host_function * res) :=
+  @run_v_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI convert.
 
 End EqType.
 

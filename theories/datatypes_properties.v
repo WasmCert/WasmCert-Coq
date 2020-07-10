@@ -223,6 +223,7 @@ Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let lholed := lholed host_function.
+Let res_step := res_step host_function.
 
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
   {cl1 = cl2} + {cl1 <> cl2}.
@@ -348,6 +349,28 @@ Definition eqmem_typeP : Equality.axiom mem_type_eqb :=
 
 Canonical Structure mem_type_eqMixin := EqMixin eqmem_typeP.
 Canonical Structure mem_type_eqType := Eval hnf in EqType mem_type mem_type_eqMixin.
+
+Scheme Equality for res_crash.
+Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
+Definition eqres_crashP : Equality.axiom res_crash_eqb :=
+  eq_dec_Equality_axiom res_crash_eq_dec.
+
+Canonical Structure res_crash_eqMixin := EqMixin eqres_crashP.
+Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_eqMixin.
+
+Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
+Proof.
+  (decidable_equality_step;
+    last by apply: (eqType_eq_dec (_ : seq administrative_instruction)));
+    decidable_equality.
+Defined.
+
+Definition res_step_eqb (r1 r2 : res_step) : bool := res_step_eq_dec r1 r2.
+Definition eqres_stepP : Equality.axiom res_step_eqb :=
+  eq_dec_Equality_axiom res_step_eq_dec.
+
+Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
+Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
 
 End Host.
 

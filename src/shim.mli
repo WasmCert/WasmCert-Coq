@@ -4,8 +4,8 @@
 val run_v :
   ('host_function -> 'host_function -> bool) (** Comparison of host functions. *) ->
   ('host_function, 'host_event) Extract.executable_host (** An interface for the host. *) ->
-  'monad Extract.monad -> 'monad Extract.functor0 -> (** A monad to project into. *)
-  'monad Extract.monadIter (** This monad should be iterable. *) ->
+  'monad Extract.monad (** A monad to project into. *) ->
+  (('a -> 'b) -> (*'a*) 'monad -> (*'b*) 'monad) (** A [fmap] operation on the monad. *) ->
   ('host_event -> 'monad) (** The projection function. *) ->
   int (** The depth *) ->
   Extract.instance (** The instance *) ->
@@ -16,8 +16,8 @@ val run_v :
 val run_step :
   ('host_function -> 'host_function -> bool) (** Comparison of host functions. *) ->
   ('host_function, 'host_event) Extract.executable_host (** An interface for the host. *) ->
-  'monad Extract.monad -> 'monad Extract.functor0 -> (** A monad to project into. *)
-  'monad Extract.monadIter (** This monad should be iterable. *) ->
+  'monad Extract.monad (** A monad to project into. *) ->
+  (('a -> 'b) -> (*'a*) 'monad -> (*'b*) 'monad) (** A [fmap] operation on the monad. *) ->
   ('host_event -> 'monad) (** The projection function. *) ->
   int (** The depth *) ->
   Extract.instance (** The instance *) ->
