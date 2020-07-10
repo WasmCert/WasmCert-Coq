@@ -16,7 +16,8 @@ Extraction "extract"
   interp_instantiate_wrapper
   lookup_exported_function
   cl_type_check
-  run_step
+  run_step_extraction
+  run_v_extraction
   value_rec_safe
   Ascii.byte_of_ascii
   pp.pp_config_tuple_except_store

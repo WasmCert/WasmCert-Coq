@@ -14,65 +14,6 @@ Import MonadNotation.
 Set Implicit Arguments.
 Unset Strict Implicit.
 
-Unset Printing Universes.
-
-Polymorphic Definition interp'' {E M : Type -> Type} (MM : Monad M) (*IM : MonadIter M*)
-                                (iter : forall R I : Type, (I -> M (I + R)%type) -> I -> M R)
-                                (h : forall X T R, E X -> (X -> T) -> M (_ + R)%type) R
-  : itree E R -> (fun T => M T%type) R :=
-  (*Basics.*)iter _ _
-    (fun t : itree E R =>
-      match observe t with
-      | RetF r => ret (inr r)
-      | TauF t0 => ret (inl t0)
-      | VisF X e k => (*ret (inl tt)*) h X _ _ e k
-        (*x <- h X e ;;
-        ret (inl (k x))*)
-      end).
-
-Polymorphic Fixpoint interp_fuel {E M : Type -> Type} (MM : Monad M) (fail : forall R, M R)
-                                 (h : E ~> M) (fuel : nat)
-  : itree E ~> M := fun R t =>
-  match fuel with
-  | 0 => fail _
-  | fuel.+1 =>
-    match observe t with
-    | RetF r => ret r
-    | TauF t0 => interp_fuel MM fail h fuel t0
-    | VisF X e k =>
-      x <- h X e ;;
-      interp_fuel MM fail h fuel (k x)
-    end
-  end.
-
-Fixpoint interp_monad (E : Type -> Type) (ME : Monad E) (fail : forall R, E R) (fuel : nat) : itree E ~> E := fun R t =>
-  match fuel with
-  | 0 => fail _
-  | fuel.+1 =>
-    match observe t with
-    | RetF r => ret r
-    | TauF t0 => interp_monad ME fail fuel t0
-    | VisF X e k =>
-      x <- e ;;
-      interp_monad ME fail fuel (k x)
-    end
-  end.
-
-(*
-Fixpoint interp_monad_option (E : Type -> Type) (ME : Monad E) (fuel : nat) : itree E ~> (fun T => option (E T)) := fun R t =>
-  match fuel with
-  | 0 => None
-  | fuel.+1 =>
-    match observe t with
-    | RetF r => Some (ret r)
-    | TauF t0 => interp_monad_option ME fuel t0
-    | VisF X e k =>
-      x <- e ;;
-      interp_monad_option ME fuel (k x)
-    end
-  end.
- *)
-
 Unset Printing Implicit Defensive.
 
 Section Host.
@@ -83,6 +24,7 @@ Local Notation "x <- m1 ; m2" :=
 
 Variable host_function : eqType.
 
+Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let executable_host := executable_host host_function.
@@ -105,85 +47,24 @@ Definition option_of_itree_void {A} (t : itree void1 A) : option A :=
   | VisF _ a _ => match a with end (** Void, by definition. **)
   end.
 
-(*Hypothesis MIe : MonadIter host_event.*)
-(*Hypothesis FMe : Functor.Functor host_event.*)
+Context {R : Type}.
+(** We assume an interpreter, as defined by the end of this file. **)
+Variable run : forall (eff : Type -> Type),
+  host_event -< eff -> depth -> instance -> config_tuple -> itree eff R.
 
-Local Instance MO : Monad (OptionMonad.optionT host_event).
-Proof.
-  apply OptionMonad.Monad_optionT. apply host_monad.
-Defined.
+Variable M : Type -> Type.
+Hypothesis FM : Functor.Functor M.
+Hypothesis MM : Monad M.
+Hypothesis IM : MonadIter M.
+Variable convert : host_event ~> M.
 
-Unset Printing Universes.
+Definition from_event_monad : itree host_event ~> M :=
+  interp convert.
 
-Definition from_event_monad : nat -> itree host_event ~> (fun T => option (host_event T)).
-  Fail apply interp_monad.
-Abort.
-
-Fail Definition from_event_monad : nat -> itree host_event ~> OptionMonad.optionT host_event :=
-  interp_monad MO (fun T => @ret _ host_monad (option T) None : OptionMonad.optionT host_event T) _ (*fun X T R e f => x <- e ;; ret (inl (f x))*).
-  (* FIXME: Universe inconsistency!
-     - It seems that the issue has nothing to due with previous definitions:
-       moving this definition doesn’t change the error or even re-copy/pasting the definition
-       of interp here doesn’t change anything.
-     - It seems that the issue is in the second argument of [interp] ([M] and not [E], despite
-       both are here set to [host_event].
-     - The universe of the argument of [M] must be less than its result.  This makes sense.
-     - But who Coq doesn’t want the type of [host_event] to be like this?
-   *)
-
-(* FIXME: Testing with another event monad. *)
-Variable executable_host_instance' : executable_host.
-Let host_event' := host.host_event executable_host_instance'.
-Let host_monad' := host.host_monad executable_host_instance'.
-Fail Definition from_event_monad : itree host_event ~> host_event' :=
-  interp (M := host_event') (MM := host_monad') _. (* Still failing *)
-
-Section TestMonad.
-(* FIXME: Testing with a completely different monad. *)
-Variable m : Type -> Type.
-Hypothesis M : Monad m.
-Hypothesis MI : MonadIter m.
-Variable f : host_event ~> m.
-Fail Definition from_event_monad : itree host_event ~> m :=
-  interp (M := m) (MM := M) f. (* Passes! *)
-End TestMonad.
-
-(* FIXME: Is it because they share the argument [host_function]? *)
-Variable host_function'' : eqType.
-Let executable_host'' := host.executable_host host_function''.
-Variable executable_host_instance'' : executable_host''.
-Let host_event'' := host.host_event executable_host_instance''.
-Let host_monad'' := host.host_monad executable_host_instance''.
-Fail Definition from_event_monad : itree host_event ~> host_event'' :=
-  interp (M := host_event'') (MM := host_monad'') _. (* No, still failing. *)
-(* It seems to really be [host.executable_host] that creates the conflict. *)
-
-(* Let us test to do the know with a super generic monad. *)
-Section Monad.
-
-Variable m : Type -> Type.
-Hypothesis M : Monad m.
-Hypothesis MI : MonadIter m.
-
-Set Universe Polymorphism.
-
-Fail Definition from_event_monad : itree m ~> m :=
-  interp (M := m) (MM := M) (fun _ => id). (* OK, I misunderstood, then: the issue is thus really the loop right here. *)
-
-Unset Printing Universes.
-
-(* What if we try to define a simpler version of [interp]? *)
-Fail Definition interp' {E M : Type -> Type} (MM : Monad M) (h : E ~> (fun T => M (option T))) : itree E ~> (fun T => M (option T)) :=
-  fun R t =>
-    match observe t with
-    | RetF r => ret (Some r)
-    | TauF t => ret None (** exhaustion **)
-    | VisF X e k => Functor.fmap (F := fun T => M (option T)) k (h X e) (* FIXME: To be worked on *)
-    end.
-
-Unset Universe Polymorphism.
-
-End Monad.
+(** This function instantiates the interpreter [run] to a function that does not
+  manipulate interaction trees, making it easier to link it to the OCaml shim. **)
+Definition run_extraction d i cfg : M R :=
+  from_event_monad (run _ d i cfg).
 
 End ITreeExtract.
 
@@ -236,10 +117,6 @@ Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
 Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
 
 Definition crash_error := RS_crash C_error.
-
-Definition depth := nat.
-
-Definition config_tuple : Type := store_record * seq value * seq administrative_instruction.
 
 Definition config_one_tuple_without_e : Type := store_record * seq value * seq value.
 
@@ -763,6 +640,9 @@ Definition run_v : depth -> instance -> config_tuple -> itree eff (store_record 
   fun d i cfg => run_v (d, i, cfg).
 
 End Run.
+
+Definition run_step_extraction := run_extraction (@run_step).
+Definition run_v_extraction := run_extraction (@run_v).
 
 End Host.
 

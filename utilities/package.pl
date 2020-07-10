@@ -16,13 +16,9 @@ my %packages = (
 		Paco => '#{coq-paco.install}/user-contrib'
 	) ;
 
-my $coqpath = "" ;
+my $coqpath = "./theories" ;
 foreach my $key (sort keys %packages){
-	if ($coqpath eq ""){
-		$coqpath .= $packages{$key} ;
-	} else {
-		$coqpath .= ':' . $packages{$key} ;
-	}
+	$coqpath .= ':' . $packages{$key} ;
 }
 
 print '"COQPATH": "' . $coqpath . '",' . "\n" ;

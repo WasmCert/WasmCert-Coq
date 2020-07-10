@@ -830,7 +830,7 @@ Definition interp_instantiate_wrapper (m : module)
   : itree _ ((store_record * instance * list module_export) * option nat) :=
   interp_instantiate empty_store_record m nil.
 
-Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export) : option (interpreter.config_tuple _) :=
+Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export) : option (config_tuple _) :=
   let '(s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>

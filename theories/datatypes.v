@@ -25,6 +25,8 @@ Unset Printing Implicit Defensive.
 Definition host := unit.
 Definition host_state := unit.
 
+Definition depth := nat.
+
 Definition immediate (* i *) :=
   (* TODO: this is not a great representation *)
   nat.
@@ -504,6 +506,8 @@ Inductive extern_t : Type :=
 | ET_tab : table_type -> extern_t
 | ET_mem : mem_type -> extern_t
 | ET_glob : global_type -> extern_t.
+
+Definition config_tuple : Type := store_record * seq value * seq administrative_instruction.
 
 End Host.
 
