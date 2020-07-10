@@ -641,8 +641,8 @@ Definition run_v : depth -> instance -> config_tuple -> itree eff (store_record 
 
 End Run.
 
-Definition run_step_extraction := run_extraction (@run_step).
-Definition run_v_extraction := run_extraction (@run_v).
+Definition run_step_extraction_eqType := run_extraction (@run_step).
+Definition run_v_extraction_eqType := run_extraction (@run_v).
 
 End Host.
 
@@ -662,4 +662,26 @@ Classical_Prop.classic : forall P : Prop, P \/ ~ P
 Arguments RS_crash [_].
 Arguments RS_break [_].
 Arguments RS_return [_].
+
+
+Section EqType.
+
+(** [eqType] doesn’t extract nicely, so we provide the following hooks that better extract. **)
+
+Variable host_function : Type.
+Hypothesis host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+
+Local Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+
+Local Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Local Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Local Canonical Structure host_function_eqType :=
+  Eval hnf in EqType host_function host_function_eqMixin.
+
+Definition run_step_extraction := @run_step_extraction_eqType host_function_eqType.
+Definition run_v_extraction := @run_v_extraction_eqType host_function_eqType.
+
+End EqType.
 

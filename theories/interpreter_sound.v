@@ -47,7 +47,7 @@ Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
   run_one_step executable_host_instance.
 *)
 Let run_v : depth -> instance -> config_tuple -> itree eff (store_record * res)%type :=
-  run_v (eff := _).
+  @run_v _ _ _ eff_has_host_event.
 
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.

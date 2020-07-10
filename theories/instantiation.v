@@ -21,6 +21,11 @@ Let host := host host_function.
 
 Variable host_instance : host.
 
+Let store_record_eq_dec := @store_record_eq_dec host_function.
+Let store_record_eqType := @store_record_eqType host_function.
+
+Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
+
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let host_state := host_state host_instance.
@@ -451,7 +456,6 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
   List.Forall (module_elem_typing c) els /\
   List.Forall (module_data_typing c) ds /\
   pred_option (module_start_typing c) i_opt /\
-  (*match i_opt with None => true | Some i => module_start_typing c i.(start_func) end /\*)
   List.Forall2 (fun imp => module_import_typing c imp.(imp_desc)) imps impts /\
   List.Forall2 (fun exp => module_export_typing c exp.(exp_desc)) exps expts.
 
@@ -545,7 +549,7 @@ Definition check_start m inst start : bool :=
     m.(mod_start) in
   start' == start.
 
-Definition instantiate (* FIXME: Do we need to use this? (hs : host_state) *)
+Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *)
                        (s : store_record) (m : module) (v_imps : list v_ext)
                        (z : (store_record * instance * list module_export) * option nat) : Prop :=
   let '((s_end, inst, v_exps), start) := z in
@@ -560,7 +564,8 @@ Definition instantiate (* FIXME: Do we need to use this? (hs : host_state) *)
     check_bounds_data inst s m e_offs /\
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
-    s_end == init_mems s'' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
+    (s_end : store_record_eqType)
+      == init_mems s'' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
 
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   let '(Mk_typeidx i) := m_f.(mf_type) in
@@ -830,7 +835,8 @@ Definition interp_instantiate_wrapper (m : module)
   : itree _ ((store_record * instance * list module_export) * option nat) :=
   interp_instantiate empty_store_record m nil.
 
-Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export) : option (config_tuple _) :=
+Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export)
+    : option (config_tuple host_function) :=
   let '(s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>

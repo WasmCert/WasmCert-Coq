@@ -9,6 +9,17 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Canonical Structure immediate_eqType :=
+  Eval hnf in EqType immediate nat_eqMixin.
+Canonical Structure funcaddr_eqType :=
+  Eval hnf in EqType funcaddr nat_eqMixin.
+Canonical Structure tableaddr_eqType :=
+  Eval hnf in EqType tableaddr nat_eqMixin.
+Canonical Structure memaddr_eqType :=
+  Eval hnf in EqType memaddr nat_eqMixin.
+Canonical Structure globaladdr_eqType :=
+  Eval hnf in EqType globaladdr nat_eqMixin.
+
 Definition ascii_eq_dec : forall tf1 tf2 : Ascii.ascii,
   {tf1 = tf2} + {tf1 <> tf2}.
 Proof. decidable_equality. Defined.
