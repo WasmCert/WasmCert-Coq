@@ -29,16 +29,16 @@ Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _)
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let host_state := host_state host_instance.
-Let executable_host := executable_host host_function.
 
+Variable host_event : Type -> Type.
+Let executable_host := executable_host host_function host_event.
 Variable executable_host_instance : executable_host.
 
-Let host_event := host_event executable_host_instance.
 Context {eff : Type -> Type}.
 Context {eff_has_host_event : host_event -< eff}.
 
 Let run_v {eff' eff'_has_host_event} :=
-  @interpreter.run_v host_function executable_host_instance eff' eff'_has_host_event.
+  @interpreter.run_v _ _ executable_host_instance eff' eff'_has_host_event.
 
 Definition addr := nat.
 Definition funaddr := addr.

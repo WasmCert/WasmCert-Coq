@@ -27,14 +27,14 @@ Variable host_function : eqType.
 Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
-Let executable_host := executable_host host_function.
 
+Variable host_event : Type -> Type.
+Let executable_host := executable_host host_function host_event.
 Variable executable_host_instance : executable_host.
 
-Let host_event := host_event executable_host_instance.
-Let host_monad : Monad host_event := host_monad _.
+Let host_monad : Monad host_event := host_monad executable_host_instance.
 Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
-  @host_apply _ executable_host_instance.
+  @host_apply _ _ executable_host_instance.
 
 Section ITreeExtract.
 (** Some helper functions to extract an interactive tree to a simple-to-interact-with function,
@@ -680,8 +680,23 @@ Local Canonical Structure host_function_eqMixin := EqMixin host_functionP.
 Local Canonical Structure host_function_eqType :=
   Eval hnf in EqType host_function host_function_eqMixin.
 
-Definition run_step_extraction := @run_step_extraction_eqType host_function_eqType.
-Definition run_v_extraction := @run_v_extraction_eqType host_function_eqType.
+Variable host_event : Type -> Type.
+Let executable_host := executable_host host_function host_event.
+Variable executable_host_instance : executable_host.
+
+(** The following hypotheses are there to ensure a nicer extraction. **)
+Variable M : Type -> Type.
+Hypothesis MM : Monad M.
+Variable MFi : forall A B : Type, (A -> B) -> M A -> M B.
+Variable MIi : forall R I : Type, (I -> M (I + R)%type) -> I -> M R.
+
+Local Definition MF : Functor.Functor M := {| Functor.fmap := MFi |}.
+Local Definition MI : MonadIter M := MIi.
+
+Definition run_step_extraction :=
+  @run_step_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI.
+Definition run_v_extraction :=
+  @run_v_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI.
 
 End EqType.
 

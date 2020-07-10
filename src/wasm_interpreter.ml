@@ -17,8 +17,7 @@ let debug_info_span verbosity min_level max_level (f : unit -> unit) =
   else ()
 
 let string_of_crash_reason = function
-| Extract.C_error -> "error"
-| Extract.C_exhaustion -> "exhaustion"
+| () -> "error"
 
 (** ANSI escape sequence to delete [n] characters. *)
 let ansi_delete_chars n =

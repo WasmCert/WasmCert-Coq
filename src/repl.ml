@@ -11,7 +11,7 @@ let string_of_crash_reason = function
 
 let take_step depth_coq i cfg =
   let (s, _, _)  = Convert.from_triple cfg in
-  let res = Extract.run_step depth_coq i cfg in
+  let res = Extract.run_step depth_coq i cfg in (* TODO: Use [Shim.run_step] instead. Use monadic style. *)
   let (s', _, _)  = Convert.from_triple res in
   let store_status = if s = s' then "unchanged" else "changed" in
   Printf.printf "%sand store %s\n%!" (Convert.from_string (Extract.pp_res_tuple_except_store res)) store_status;

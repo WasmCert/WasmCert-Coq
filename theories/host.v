@@ -38,8 +38,9 @@ Record host := {
        for a discussion about this.) *)
   }.
 
-Record executable_host := {
-    host_event : Type -> Type (** The events that the host actions can yield. **) ;
+(** The executable host is parameterised by the events that the host actions can yield.
+   It could be placed internally, but this way of doing provides nicer extraction. **)
+Record executable_host host_event := {
     host_monad : Monad host_event (** They form a monad. **) ;
     host_apply : store_record -> host_function -> seq value ->
                  host_event (option (store_record * result))
@@ -78,7 +79,7 @@ Definition dummy_host : host := {|
     host_application _ _ _ _ _ _ := False
   |}.
 
-Definition dummy_executable_host  : executable_host := {|
+Definition dummy_executable_host : executable_host ident := {|
     host_monad := Monad_ident ;
     host_apply _ := of_void _
   |}.

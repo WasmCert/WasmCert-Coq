@@ -20,7 +20,6 @@ Let host := host host_function.
 
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
-Let executable_host := executable_host host_function.
 Let config_tuple := config_tuple host_function.
 Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
 Let res_tuple := res_tuple host_function.
@@ -30,10 +29,12 @@ Let v_to_e_list := @v_to_e_list host_function.
 Let lfilledInd := @lfilledInd host_function.
 
 Variable host_instance : host.
+
+Variable host_event : Type -> Type.
+Let executable_host := executable_host host_function host_event.
 Variable executable_host_instance : executable_host.
 
 Let host_state := host_state host_instance.
-Let host_event := host_event executable_host_instance.
 
 Context {eff : Type -> Type}.
 Context {eff_has_host_event : host_event -< eff}.
@@ -47,7 +48,7 @@ Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
   run_one_step executable_host_instance.
 *)
 Let run_v : depth -> instance -> config_tuple -> itree eff (store_record * res)%type :=
-  @run_v _ _ _ eff_has_host_event.
+  @run_v _ _ executable_host_instance _ eff_has_host_event.
 
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
