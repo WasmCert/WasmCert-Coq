@@ -285,6 +285,13 @@ Proof.
   f_equal. apply IHbes'. by apply to_e_list_basic.
 Qed.
 
+Lemma to_e_list_cat: forall bes1 bes2,
+    to_e_list (bes1 ++ bes2) = to_e_list bes1 ++ to_e_list bes2.
+Proof.
+  induction bes1 => //.
+  move => bes2. simpl. by f_equal.
+Qed.
+
 Lemma lfilled_collapse1: forall n lh vs es LI l,
     lfilledInd n lh (vs++es) LI ->
     const_list vs ->
