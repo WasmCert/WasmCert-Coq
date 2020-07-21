@@ -4730,9 +4730,9 @@ Qed.
 Axiom Excluded_Middle: forall P, P \/ ~P.
 
 Lemma t_progress_e: forall s i C vs vcs es ts1 ts2 lab ret,
+    e_typing s (upd_label (upd_local_return C (map typeof vs) ret) lab) es (Tf ts1 ts2) ->
     inst_typing s i C ->
     map typeof vcs = ts1 ->
-    e_typing s (upd_label (upd_local_return C (map typeof vs) ret) lab) es (Tf ts1 ts2) ->
     store_typing s ->
     (forall n lh k, lfilled n lh [::Basic (Br k)] es -> k < n) ->
     (forall n, not_lf_return es n) ->
@@ -4750,9 +4750,9 @@ Lemma t_progress_e: forall s i C vs vcs es ts1 ts2 lab ret,
 Proof.
   (* e_typing *)
   clear t_progress_e.
-  move => s i C vs vcs es ts1 ts2 lab ret HIT HConstType HType.
+  move => s i C vs vcs es ts1 ts2 lab ret HType.
   generalize dependent vcs.
-  dependent induction HType; subst; move => vcs HConstType HST HBrDepth HNRet.
+  dependent induction HType; subst; move => vcs HIT HConstType HST HBrDepth HNRet.
   - (* Basic *)
     eapply t_progress_be in H; try instantiate (1 := vs) in H; try by eauto.
     destruct H as [H | [s' [vs' [es' H]]]].
@@ -5023,8 +5023,8 @@ Proof.
       rewrite v_to_e_size. by rewrite size_map.
     + (* Trap *)
       right. by left.
-    + (* reduce *)
-      right. by right.
+  - (* reduce *)
+    right. by right.
   (* vcs type *)
   by [].
   (* replace *)
@@ -5038,6 +5038,7 @@ Proof.
   (* UPD: That's because the original proof has an error: in proving the s_typing case,
        the eauto tactic used itself. However, the error still persists and I'm pretty sure
      there's no cyclic proof anymore. *)
+Qed.
 Admitted.
   
 Theorem t_progress: forall s vs es i ts,
