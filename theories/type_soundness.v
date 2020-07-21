@@ -4744,14 +4744,15 @@ Lemma t_progress_e: forall s i C vs vcs es ts1 ts2 lab ret,
       store_typing s ->
       (forall n lh k, lfilled n lh [::Basic (Br k)] es -> k < n) ->
       (forall n, not_lf_return es n) ->
-      (exists cs, const_list es /\ rs = Some cs /\ length cs = length es) \/
+      (const_list es /\ length es = length ts) \/
       es = [::Trap] \/
       exists s' vs' es', reduce s vs es i s' vs' es'.
 Proof.
   (* e_typing *)
-  move => s i C vs vcs es ts1 ts2 lab ret HIT HConstType HType HST HBrDepth HNRet.
+  clear t_progress_e.
+  move => s i C vs vcs es ts1 ts2 lab ret HIT HConstType HType.
   generalize dependent vcs.
-  dependent induction HType; subst; move => vcs HConstType.
+  dependent induction HType; subst; move => vcs HConstType HST HBrDepth HNRet.
   - (* Basic *)
     eapply t_progress_be in H; try instantiate (1 := vs) in H; try by eauto.
     destruct H as [H | [s' [vs' [es' H]]]].
@@ -4781,6 +4782,7 @@ Proof.
         destruct HC2 as [esv HC2]. subst.
         apply Const_list_typing in HType1. subst.
         edestruct IHHType2; eauto.
+        { by apply map_cat. }
         { move => n lh k HLF.
           eapply lf_composition_left in HLF.
           instantiate (1 := v_to_e_list esv) in HLF.
@@ -4791,7 +4793,6 @@ Proof.
           eapply nlfret_left.
           instantiate (1 := v_to_e_list esv); first by apply v_to_e_is_const_list.
           by apply HNRet. }
-        -- (* type *) instantiate (1 := (vcs ++ esv)). by apply map_cat.
         -- (* Terminal *)
           unfold terminal_form in H. destruct H.
           ++ left. unfold terminal_form. left.
@@ -4889,14 +4890,13 @@ Proof.
       by [].
     }
     apply t_progress_s in H => //.
-    destruct H as [ | [|]].
+    destruct H as [ | [ | ] ].
     + (* Const *)
-      destruct H as [cs [H1 [H2 H3]]].
-      inversion H2. subst.
-      exists s, vs, (v_to_e_list vcs ++ es).
-      apply reduce_composition_left; first by apply v_to_e_is_const_list.
+      destruct H.
+      invert_typeof_vcs.
+      exists s, vs, es.
       apply r_simple.
-      by apply rs_local_const => //.
+      by apply rs_local_const.
     + (* Trap *)
       subst.
       exists s, vs, (v_to_e_list vcs ++ [::Trap]).
@@ -5002,14 +5002,31 @@ Proof.
       exists s', vs', [::Label (length ts) e0s es'].
       eapply r_label; eauto; by apply label_lfilled1.
   (* s_typing *)
+  clear t_progress_s.    
   move => s rs i vs es ts HType HST HBrDepth HNRet.
   inversion HType; subst.
   assert (tc_local C0  = [::]); first by eapply inst_t_context_local_empty; eauto.
   rewrite H0 in H1. simpl in H1.
   replace (upd_local_return C0 tvs rs) with
       (upd_label (upd_local_return C0 tvs rs) [::]) in H1.
+  remember H1 as H3; clear HeqH3.
   eapply t_progress_e in H1; eauto.
-  instantiate (1 := [::]). by [].
+  instantiate (1 := [::]) in H1. simpl in H1.
+  destruct H1.
+  - unfold terminal_form in H1. destruct H1.
+    + (* Const *)
+      left. split => //.
+      apply et_to_bet in H3; last by apply const_list_is_basic.
+      apply const_es_exists in H1. destruct H1 as [es' H1]. subst.
+      apply Const_list_typing in H3. subst.
+      repeat rewrite length_is_size. simpl.
+      rewrite v_to_e_size. by rewrite size_map.
+    + (* Trap *)
+      right. by left.
+    + (* reduce *)
+      right. by right.
+  (* vcs type *)
+  by [].
   (* replace *)
   assert (tc_label (upd_local_return C0 tvs rs) = [::]).
   { simpl. by eapply inst_t_context_label_empty; eauto. }
@@ -5017,7 +5034,10 @@ Proof.
   by apply upd_label_unchanged.
 (* TODO: Coq refuses to let me Qed this as it's unable to guess the decreasing argument of fix
     (which is es here). 
-     *)
+ *)
+  (* UPD: That's because the original proof has an error: in proving the s_typing case,
+       the eauto tactic used itself. However, the error still persists and I'm pretty sure
+     there's no cyclic proof anymore. *)
 Admitted.
   
 Theorem t_progress: forall s vs es i ts,
