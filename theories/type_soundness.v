@@ -5038,7 +5038,7 @@ Proof.
   (* UPD: That's because the original proof has an error: in proving the s_typing case,
        the eauto tactic used itself. However, the error still persists and I'm pretty sure
      there's no cyclic proof anymore. *)
-Qed.
+(* Qed. *)
 Admitted.
   
 Theorem t_progress: forall s vs es i ts,
@@ -5049,9 +5049,9 @@ Proof.
   move => s vs es i ts HType.
   inversion HType. subst.
   apply t_progress_s in H0 => //.
-  - destruct H0 as [ | [|]].
-    + by destruct H0 as [cs [H1 [H2 H3]]].
-    + subst. left. by apply terminal_trap.
+  - destruct H0 as [ | [|]]; unfold terminal_form.
+    + left. left. by destruct H0.
+    + left. by right.
     + destruct H0 as [s' [vs' [es' HReduce]]].
       right. by eauto.
   - by eapply s_typing_lf_br; eauto.
