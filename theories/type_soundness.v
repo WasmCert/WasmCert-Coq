@@ -4519,8 +4519,39 @@ Traceback:
 Definition br_reduce (es: seq administrative_instruction) :=
   exists n lh, lfilled n lh [::Basic (Br n)] es.
 
+(** [br_reduce] is decidable. **)
+Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
+Proof.
+(* TODO: Defined. *)
+Admitted.
+
 Definition return_reduce (es: seq administrative_instruction) :=
   exists n lh, lfilled n lh [::Basic Return] es.
+
+(** [return_reduce] is decidable. **)
+Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
+Proof.
+  move=> es. rewrite /return_reduce.
+  destruct (split_vals_e es) as [vs es'] eqn:Ees'.
+  rewrite (split_vals_e_v_to_e_duality Ees').
+  (* Not correct, actually.
+  suffices: (decidable (exists n lh, lfilled n lh [:: Basic Return] es')).
+  {
+    move=> [D|nF].
+    - left. destruct D as (n&lh&F). exists n.
+      apply: lf_composition_left F. by apply: v_to_e_is_const_list.
+    - right. move=> [n [lh F]]. apply: nF. exists n.
+      SearchAbout lfilled.
+  }
+  *)
+  (* TODO: Consider the first element of [es]: if it is anything other than either [Basic Return]
+    or [Label _ _ _], then [lfilled] doesn't hold.
+    If it is [Basic Return], then necessarily [n = 0], and we just have to check whether
+    [LfilledBase] applies.
+    If it is a [Label _ _ LI], we call ourselves recursively on [LI], and check that
+    [LfilledRec] applies. *)
+(* TODO: Defined. *)
+Admitted.
 
 Lemma cat_abcd_a_bc_d: forall {X:Type} (a b c d: seq X),
     a ++ b ++ c ++ d = a ++ (b ++ c) ++ d.
@@ -4727,8 +4758,6 @@ Proof.
   by eapply return_reduce_return_some in H1; eauto.
 Qed.
 
-Axiom Excluded_Middle: forall P, P \/ ~P.
-
 Lemma t_progress_e: forall s i C vs vcs es ts1 ts2 lab ret,
     e_typing s (upd_label (upd_local_return C (map typeof vs) ret) lab) es (Tf ts1 ts2) ->
     inst_typing s i C ->
@@ -4872,8 +4901,8 @@ Proof.
     by apply v_to_e_is_const_list.
   - (* Local *)
     right.
-    assert (return_reduce es \/ ~ return_reduce es) as HEM; first by apply Excluded_Middle.
-    destruct HEM as [HEMT | HEMF].
+    SearchAbout return_reduce.
+    destruct (return_reduce_decidable es) as [HEMT | HEMF].
     { invert_typeof_vcs.
       inversion H; subst.
       unfold return_reduce in HEMT.
@@ -4936,8 +4965,7 @@ Proof.
       by rewrite size_map.
   - (* Label *)
     rewrite upd_label_overwrite in HType2. simpl in HType2.
-    assert (br_reduce es \/ ~ br_reduce es) as HEM; first by apply Excluded_Middle.
-    destruct HEM as [HEMT | HEMF].
+    destruct (br_reduce_decidable es) as [HEMT | HEMF].
     { unfold br_reduce in HEMT.
       destruct HEMT as [n [lh HLF]].
       right. invert_typeof_vcs.
@@ -5038,7 +5066,7 @@ Proof.
   (* UPD: That's because the original proof has an error: in proving the s_typing case,
        the eauto tactic used itself. However, the error still persists and I'm pretty sure
      there's no cyclic proof anymore. *)
-(* Qed. *)
+(* Qed. TODO: Proper mutual induction principle over [e/s_typing]. *)
 Admitted.
   
 Theorem t_progress: forall s vs es i ts,
