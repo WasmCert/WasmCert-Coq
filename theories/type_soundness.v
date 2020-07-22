@@ -4519,19 +4519,108 @@ Traceback:
 Definition br_reduce (es: seq administrative_instruction) :=
   exists n lh, lfilled n lh [::Basic (Br n)] es.
 
+Definition return_reduce (es: seq administrative_instruction) :=
+  exists n lh, lfilled n lh [::Basic Return] es.
+
+(** A helper definition for [lfilled_decidable_rec]. **)
+Definition lfilled_decidable_rec_gen : forall fes,
+  (forall es' lh0 n0, decidable (exists lh, lfilled 0 lh (fes n0 lh0) es')) ->
+  forall es', decidable (exists n lh, lfilled n lh (fes n lh) es').
+Admitted (* TODO *).
+
+Lemma cat0_inv : forall T (s1 s2 : seq T),
+  s1 ++ s2 = [::] ->
+  s1 = [::] /\ s2 = [::].
+Proof.
+  move=> T s1 s2 E.
+  move: (size_cat s1 s2). rewrite {} E => /=. case s1.
+  - case s2 => E.
+    + done.
+    + move => ? A. inversion A.
+  - move => ? ? A. inversion A.
+Qed.
+
+Lemma list_search_prefix_decidable : forall A (P : seq A -> Prop),
+  comparable A ->
+  (forall l, decidable (P l)) ->
+  forall l l', decidable (exists lf, l' = l ++ lf /\ P lf).
+Proof.
+  move=> A + C + l. elim l.
+  - move=> P D l'. case (D l') => d.
+    + left. by exists l'.
+    + right. move=> [lf [E nd]]. by subst.
+  - move {l} => a l IH P D l'. case l'.
+    + right. by move => [lf [E _]].
+    + move {l'} => a' l'. case (C a a') => E.
+      * subst. case (IH _ D l').
+        -- move=> E. left. destruct E as (lf&E'&p). exists lf. by rewrite E'.
+        -- move=> nE. right. move=> [lf [E p]]. apply: nE. exists lf. by inversion E.
+      * right. move=> [lf [E' _]]. inversion E'. by apply: E.
+Defined.
+
+Lemma list_search_suffix_decidable : forall A (P : seq A -> Prop),
+  comparable A ->
+  (forall l, decidable (P l)) ->
+  forall l l', decidable (exists ls, l' = ls ++ l /\ P ls).
+Proof.
+  move=> A P C D l l'.
+  have Dr: (forall l, decidable (P (rev l))).
+  { clear - D. move=> l. by apply: D. }
+  case (list_search_prefix_decidable C Dr (rev l) (rev l')) => E.
+  - left. destruct E as (lf&E&p). exists (rev lf). split => //.
+    by rewrite -(revK l') E rev_cat revK.
+  - right. move=> [ls [El' p]]. apply: E. exists (rev ls).
+    by rewrite revK El' rev_cat.
+Defined.
+
+Lemma list_search_split_3_decidable : forall A (P1 P2 : seq A -> Prop),
+  (forall l, decidable (P1 l)) ->
+  (forall l, decidable (P2 l)) ->
+  forall l l', decidable (exists l1 l2, l' = l1 ++ l ++ l2 /\ P1 l1 /\ P2 l2).
+Proof.
+  (*
+  move=> A P1 P2 D1 D2 l l'. elim l'.
+  - let false_case :=
+      right; move=> [l1 [l2 [E [Y1' Y2']]]]; symmetry in E;
+      repeat match goal with
+      | E: _ ++ _ = [::] |- _ => move: (cat0_inv E) => [? ?]; clear E
+      end; by subst in
+    (case l; last by false_case);
+      (case (D1 [::]) => Y1; last by false_case);
+      (case (D2 [::]) => Y2; last by false_case).
+    left. by repeat exists [::].
+  - move {l'} => a' l' IH.
+    case (list_search_split_decidable P2).
+Defined.
+*)
+Admitted.
+
+Lemma lfilled_decidable_base : forall es es',
+  decidable (exists lh, lfilled 0 lh es es').
+Proof.
+Defined.
+
+(** A helper definition for the decidability of [br_reduce] and [return_reduce]. **)
+Definition lfilled_decidable_rec : forall es,
+  (forall es', decidable (exists lh, lfilled 0 lh es es')) ->
+  forall es', decidable (exists n lh, lfilled n lh es es').
+Proof.
+  move=> es D. by apply: lfilled_decidable_rec_gen => + _ _.
+Defined.
+
 (** [br_reduce] is decidable. **)
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
 Proof.
+  move=> es. apply lfilled_decidable_rec_gen => es' _ n.
 (* TODO: Defined. *)
 Admitted.
-
-Definition return_reduce (es: seq administrative_instruction) :=
-  exists n lh, lfilled n lh [::Basic Return] es.
 
 (** [return_reduce] is decidable. **)
 Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
 Proof.
-  move=> es. rewrite /return_reduce.
+  move=> es.
+  apply lfilled_decidable_rec.
+
   destruct (split_vals_e es) as [vs es'] eqn:Ees'.
   rewrite (split_vals_e_v_to_e_duality Ees').
   (* Not correct, actually.
