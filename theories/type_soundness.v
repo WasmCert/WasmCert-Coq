@@ -458,7 +458,7 @@ Proof.
     by apply IHHType2 => //=.
   - edestruct IHHType => //=; subst.
     edestruct H => //=; destruct H as [x1 [H1 H2]]; subst.
-    exists (ts ++ x), x1. split => //=; by repeat rewrite -catA.
+    exists (ts ++ x), x1. by split => //=; repeat rewrite -catA.
 Qed.
 
 Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
@@ -612,7 +612,7 @@ Proof with auto_prove_bet.
   + edestruct IHHType; eauto.
     destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
     exists (ts ++ x), t1s', t2s', t3s'.
-    repeat split => //=; by rewrite -catA.
+    by repeat split => //=; rewrite -catA.
 Qed.
 
 Lemma composition_typing: forall C es1 es2 t1s t2s,
@@ -665,7 +665,7 @@ Proof.
     apply basic_concat in H1. destruct H1.
     destruct H as [ts' [t1s' [t2s' [t3s' [H2 [H3 [H4 H5]]]]]]]. subst.
     exists ts', t1s', t2s', t3s'.
-    repeat split => //=; by apply ety_a' => //=.
+    by repeat split => //=; apply ety_a' => //=.
   - (* composition *)
     apply concat_cancel_last in x. destruct x. subst.
     by exists [::], t1s, t2s, t2s0.
@@ -673,7 +673,7 @@ Proof.
     edestruct IHHType; eauto.
     destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
     exists (ts ++ x), t1s', t2s', t3s'.
-    repeat split => //; by rewrite catA.
+    by repeat split => //; rewrite catA.
   - (* Trap *)
     symmetry in x. apply extract_list1 in x. destruct x. subst.
     exists [::], t1s, t2s, t1s.
@@ -1574,7 +1574,7 @@ Ltac auto_basic :=
   | |- es_is_basic [::Basic _] =>
     simpl; repeat split
   | |- e_is_basic (Basic ?e) =>
-    unfold e_is_basic; by exists e
+    by unfold e_is_basic; exists e
   end.
     
 Lemma t_const_ignores_context: forall s s' C C' es tf,
@@ -2162,13 +2162,13 @@ Proof.
       inversion H. subst.
       eapply t_const_ignores_context; try by eauto.
   - (* Local_lfilled_Return *)
-    eapply Local_return_typing; by eauto.
+    by eapply Local_return_typing; eauto.
   - (* Tee_local -- actually a simple reduction *)
     destruct v => //.
     destruct b => //.
     apply et_to_bet in HType => //; auto_basic.
     apply ety_a' => //; auto_basic.
-    eapply t_be_simple_preservation; try by eauto; by auto_basic.
+    by eapply t_be_simple_preservation; try by eauto; auto_basic.
 Qed.
 
 Lemma Call_typing: forall j C t1s t2s,
@@ -2290,7 +2290,7 @@ Proof.
   - edestruct IHHType => //=.
     destruct H as [C' [H1 [H2 [H3 H4]]]]. subst.
     exists (ts0 ++ x), C'.
-    repeat split => //; by rewrite catA.
+    by repeat split => //; rewrite catA.
   - inversion H. subst. inversion H8. subst.
     exists [::], C0.
     repeat split => //.
@@ -2482,7 +2482,7 @@ Proof.
   unfold inst_typing in HInstType.
   destruct i => //=.
   destruct C => //=.
-  destruct tc_local; by destruct tc_label.  
+  by destruct tc_local; destruct tc_label.  
 Qed.
 
 Lemma global_type_reference: forall s i j C v t,
@@ -2626,7 +2626,7 @@ Proof.
       unfold option_map. rewrite HGlob.
       apply/eqP. f_equal.
       by eapply global_agree_extension; eauto.
-    + eapply IHig; by eauto.
+    + by eapply IHig; eauto.
 Qed.
 
 (* NOTE: weird behaviour in this lemma *)
@@ -2909,12 +2909,12 @@ Proof.
     + apply ety_local => //.
       eapply store_extension_s_typing; try apply HST1 => //; try by [].
     + apply ety_invoke => //.
-      eapply store_extension_cl_typing; by eauto.
+      by eapply store_extension_cl_typing; eauto.
     + by eapply ety_label => //; eauto.
   - move => s s' rs i vs es ts HST1 HST2 Hext HType.
     inversion HType. subst.
     eapply mk_s_typing; eauto.
-    eapply inst_typing_extension; by eauto. 
+    by eapply inst_typing_extension; eauto. 
 Qed.
 
 Lemma glob_extension_update_nth: forall sglobs n g g',
@@ -2986,14 +2986,14 @@ Lemma bytes_takefill_size: forall c l vs,
     size (bytes_takefill c l vs) = l.
 Proof.
   move => c l. induction l => //=.
-  destruct vs => //=; by f_equal.  
+  by destruct vs => //=; f_equal.  
 Qed.
 
 Lemma bytes_replicate_size: forall n b,
     size (bytes_replicate n b) = n.
 Proof.
   induction n => //=.
-  move => b; by f_equal.
+  by move => b; f_equal.
 Qed.
 
 
@@ -3059,7 +3059,7 @@ Proof.
     apply H in HIN. unfold cl_type_check_single in HIN.
     destruct HIN.
     unfold cl_type_check_single.
-    exists x0. eapply store_extension_cl_typing; by eauto.
+    exists x0. by eapply store_extension_cl_typing; eauto.
   - split => //.
     + rewrite -> List.Forall_forall. move => x HIN.
       apply H0 in HIN. unfold tab_agree in HIN.
@@ -3077,7 +3077,7 @@ Proof.
       unfold cl_type_check_single in HIN'.
       destruct HIN'.
       unfold cl_type_check_single.
-      exists x0. eapply store_extension_cl_typing; by eauto.
+      exists x0. by eapply store_extension_cl_typing; eauto.
     + unfold store_extension in Hext. simpl in Hext.
       remove_bools_options.
       rewrite List.Forall_forall.
@@ -3111,7 +3111,7 @@ Proof.
     apply H in HIN. unfold cl_type_check_single in HIN.
     destruct HIN.
     unfold cl_type_check_single.
-    exists x0. eapply store_extension_cl_typing; by eauto.
+    exists x0. by eapply store_extension_cl_typing; eauto.
   - split => //.
     rewrite -> List.Forall_forall. move => x HIN.
     apply H0 in HIN. unfold tab_agree in HIN.
@@ -3129,7 +3129,7 @@ Proof.
     unfold cl_type_check_single in HIN'.
     destruct HIN'.
     unfold cl_type_check_single.
-    exists x0. eapply store_extension_cl_typing; by eauto.
+    exists x0. by eapply store_extension_cl_typing; eauto.
 Qed.
 
 Lemma nth_error_update_list_hit: forall {X:Type} l n {x:X},
@@ -3161,7 +3161,7 @@ Proof.
     + by destruct l => //=.
     + destruct l => //=.
       simpl in HLength.
-      apply IHn; by lias.
+      by apply IHn; lias.
 Qed.
       
 Print update_list_at.
@@ -3183,11 +3183,11 @@ Proof.
   move/ltP in H.  
   destruct (n == n') eqn:H1 => //=.
   - move/eqP in H1. subst.
-    rewrite nth_error_update_list_hit in HN => //=. inversion HN; by subst.
+    rewrite nth_error_update_list_hit in HN => //=. by inversion HN; subst.
   - move/eqP in H1.
     rewrite nth_error_update_list_others in HN => //=.
     apply HA.
-    eapply List.nth_error_In; by eauto.
+    by eapply List.nth_error_In; eauto.
 Qed.
 
 Lemma store_typed_mem_agree: forall s n m,
@@ -3281,7 +3281,8 @@ Proof.
          unfold glob_extension => //=.
          by destruct v => //=; destruct g_val => //=.
     split => //.
-    eapply store_global_extension_store_typed; eauto; destruct s => //=; destruct s' => //=; by remove_bools_options.
+    by eapply store_global_extension_store_typed; eauto;
+      destruct s => //=; destruct s' => //=; remove_bools_options.
   - (* update memory : store none *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::EConst (ConstInt32 k); EConst v; Store t None a off] with ([::EConst (ConstInt32 k); EConst v] ++ [::Store t None a off]) in HType => //.
@@ -3447,7 +3448,7 @@ Proof.
     apply ety_invoke.
     assert ((Tf t1s' t2s') = cl_type f) as HFType; first by eapply tc_func_reference1; eauto.
     rewrite HFType.
-    eapply store_typed_cl_typed; by eauto.
+    by eapply store_typed_cl_typed; eauto.
   - (* Call_indirect *)
     convert_et_to_bet.
     replace [::EConst (ConstInt32 c); Call_indirect j] with ([::EConst (ConstInt32 c)] ++ [::Call_indirect j]) in HType => //=.
@@ -3476,7 +3477,7 @@ Proof.
     destruct (List.nth_error (s_tables s) t) eqn:HN1 => //.
     destruct (List.nth_error (table_data t0) (Wasm_int.nat_of_uint i32m c)) eqn:HN2 => //.
     subst.
-    eapply store_typed_cl_typed; by eauto.
+    by eapply store_typed_cl_typed; eauto.
   - (* Invoke native *)
     apply e_composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
@@ -3762,7 +3763,7 @@ Proof.
   inversion HType. inversion H0. subst.
   assert (store_extension s s' /\ store_typing s').
   { apply upd_label_unchanged_typing in H8.
-    eapply store_extension_reduce; by eauto. }
+    by eapply store_extension_reduce; eauto. }
   destruct H1.
   assert (inst_typing s' i C0); first by eapply inst_typing_extension; eauto.
   apply mk_config_typing; eauto.
@@ -4155,10 +4156,10 @@ Proof.
   dependent induction HType; (try by left); move => vcs HConstType.
   - (* Unop_i *)
     right. invert_typeof_vcs.
-    destruct v => //=; repeat eexists; by apply r_simple.
+    by destruct v => //=; repeat eexists; apply r_simple.
   - (* Unop_f *)
     right. invert_typeof_vcs.
-    destruct v => //=; repeat eexists; by apply r_simple.
+    by destruct v => //=; repeat eexists; apply r_simple.
   - (* binop_i *)
     right. invert_typeof_vcs.
     destruct v => //=; destruct v0 => //=.
@@ -4175,13 +4176,13 @@ Proof.
         by repeat eexists; apply r_simple; eauto.
   - (* testop *)
     right. invert_typeof_vcs.
-    destruct v => //=; repeat eexists; by apply r_simple.
+    by destruct v => //=; repeat eexists; apply r_simple.
   - (* relop_i *)
     right. invert_typeof_vcs.
-    destruct v => //=; destruct v0 => //=; repeat eexists; by apply r_simple.
+    by destruct v => //=; destruct v0 => //=; repeat eexists; apply r_simple.
   - (* relop_f *)
     right. invert_typeof_vcs.
-    destruct v => //=; destruct v0 => //=; repeat eexists; by apply r_simple.
+    by destruct v => //=; destruct v0 => //=; repeat eexists; apply r_simple.
   - (* cvtop *)
     right. invert_typeof_vcs.
     destruct (cvt t1 sx v) eqn:HConvert; repeat eexists; apply r_simple; destruct v => //=; eauto.
@@ -4200,12 +4201,12 @@ Proof.
     by apply r_simple.
   - (* Drop *)
     right. invert_typeof_vcs.
-    repeat eexists; by apply r_simple.
+    by repeat eexists; apply r_simple.
   - (* Select *)
     right. invert_typeof_vcs.
     destruct v1 => //=.
-    destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0;
-      repeat eexists; by apply r_simple; eauto.
+    by destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0;
+      repeat eexists; apply r_simple; eauto.
   - (* Block *)
     right.
     exists s, vs, [::Label (length ts2) [::] (v_to_e_list vcs ++ to_e_list es)].
@@ -4272,7 +4273,7 @@ Proof.
       destruct (List.nth_error ins (Wasm_int.nat_of_uint i32m s0)) eqn:HN => //=.
       exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br n)]).
       apply reduce_composition_left.
-      { apply const_list_concat; by apply v_to_e_is_const_list. }
+      { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table => //.
       by lias.
     + assert (length ins <= Wasm_int.nat_of_uint i32m s0); first by lias.
@@ -4281,7 +4282,7 @@ Proof.
       apply List.nth_error_None in H6.
       exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br i0)]).
       apply reduce_composition_left.
-      { apply const_list_concat; by apply v_to_e_is_const_list. }
+      { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table_length => //.
       by lias.
   - (* Return *)
@@ -4461,7 +4462,7 @@ Proof.
       { by eapply nlfret_left; try apply v_to_e_is_const_list; eauto. }
       { by rewrite -map_cat. }
       * left. rewrite to_e_list_cat. apply const_list_concat => //.
-        rewrite e_b_inverse => //; by apply v_to_e_is_const_list.
+        by rewrite e_b_inverse => //; apply v_to_e_is_const_list.
       * destruct H as [es' HReduce].
         right.
         rewrite to_e_list_cat.
@@ -4573,31 +4574,86 @@ Proof.
     by rewrite revK El' rev_cat.
 Defined.
 
+Lemma decidable_equiv : forall P1 P2,
+  (P1 <-> P2) ->
+  decidable P1 ->
+  decidable P2.
+Proof.
+  move=> P1 P2 [I1 I2] [H | nH].
+  - by left; auto.
+  - by right; auto.
+Defined.
+
+Lemma list_search_split_decidable : forall A (P1 P2 : seq A -> Prop),
+  (forall l, decidable (P1 l)) ->
+  (forall l, decidable (P2 l)) ->
+  forall l, decidable (exists l1 l2, l = l1 ++ l2 /\ P1 l1 /\ P2 l2).
+Proof.
+  move=> A + + + + l. elim l.
+  - move=> P1 P2 D1 D2. let no :=
+      by right; move=> [l1 [l2 [E [H1 H2]]]]; symmetry in E; move: (cat0_inv E) => [? ?]; subst in
+    (case (D1 [::]) => Y1; last by no); (case (D2 [::]) => Y2; last by no).
+    left. by repeat exists [::].
+  - move {l} => a l IH P1 P2 D1 D2.
+    have Da: (forall l, decidable (P1 (a :: l))).
+    { clear - D1. move=> l. apply: D1. }
+    apply: (@decidable_equiv (P1 [::] /\ P2 (a :: l)
+                              \/ exists l1 l2, a :: l = (a :: l1) ++ l2 /\ P1 (a :: l1) /\ P2 l2)).
+    {
+      split.
+      - move=> [[H1 H2] | [l1 [l2 [E [H1 H2]]]]].
+        + exists [::]. by exists (a :: l).
+        + exists (a :: l1). exists l2. by inversion E.
+      - move=> [l1 [l2 [E [H1 H2]]]]. destruct l1.
+        + left. simpl in E. by subst.
+        + right. exists l1. exists l2. by inversion E.
+    }
+    let no :=
+      by (apply: decidable_equiv; last by apply: (IH _ _ Da D2)); split;
+        [ move=> [l1 [l2 [E [H1 H2]]]]; right; exists l1; exists l2; subst
+        | move=> [[H1 H2] | [l1 [l2 [E [H1 H2]]]]];
+          [| exists l1; exists l2; inversion E ] ] in
+    (case (D1 [::]) => Y1; last by no); (case (D2 (a :: l)) => Y2; last by no).
+    by repeat left.
+Defined.
+
 Lemma list_search_split_3_decidable : forall A (P1 P2 : seq A -> Prop),
+  comparable A ->
   (forall l, decidable (P1 l)) ->
   (forall l, decidable (P2 l)) ->
   forall l l', decidable (exists l1 l2, l' = l1 ++ l ++ l2 /\ P1 l1 /\ P2 l2).
 Proof.
-  (*
-  move=> A P1 P2 D1 D2 l l'. elim l'.
-  - let false_case :=
-      right; move=> [l1 [l2 [E [Y1' Y2']]]]; symmetry in E;
-      repeat match goal with
-      | E: _ ++ _ = [::] |- _ => move: (cat0_inv E) => [? ?]; clear E
-      end; by subst in
-    (case l; last by false_case);
-      (case (D1 [::]) => Y1; last by false_case);
-      (case (D2 [::]) => Y2; last by false_case).
-    left. by repeat exists [::].
-  - move {l'} => a' l' IH.
-    case (list_search_split_decidable P2).
+  move=> A P1 P2 C D1 D2 l l'.
+  move: (list_search_split_decidable (P1 := P1) (P2 := fun l2 => exists l2', l2 = l ++ l2' /\ P2 l2')) => D.
+  apply: decidable_equiv; last apply: (D D1 _ l').
+  {
+    split.
+    - move=> [l1 [l2 [E1 [H1 [l2' [E2 H2]]]]]]. exists l1. exists l2'. by subst.
+    - move=> [l1 [l2 [E [H1 H2]]]]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
+  }
+  by apply: list_search_prefix_decidable.
 Defined.
-*)
-Admitted.
+
+Lemma is_true_decidable : forall b : bool, decidable b.
+Proof.
+  by case; [ left | right ].
+Defined.
 
 Lemma lfilled_decidable_base : forall es es',
   decidable (exists lh, lfilled 0 lh es es').
 Proof.
+  move=> es es'. apply: (@decidable_equiv (exists lh, lfilledInd 0 lh es es')).
+  { by split; move=> [lh H]; exists lh; apply lfilled_Ind_Equivalent. }
+  apply: (@decidable_equiv (exists vs es'', es' = vs ++ es ++ es'' /\ const_list vs /\ True)).
+  {
+    split.
+    - move=> [vs [es'' [E [C _]]]]. eexists. subst. by constructor.
+    - move=> [lh I]. inversion I. subst. by repeat eexists.
+  }
+  apply: list_search_split_3_decidable.
+  - by apply: administrative_instruction_eq_dec.
+  - move=> ?. by apply: is_true_decidable.
+  - by left.
 Defined.
 
 (** A helper definition for the decidability of [br_reduce] and [return_reduce]. **)
@@ -4612,35 +4668,15 @@ Defined.
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
 Proof.
   move=> es. apply lfilled_decidable_rec_gen => es' _ n.
-(* TODO: Defined. *)
-Admitted.
+  by apply: lfilled_decidable_base.
+Defined.
 
 (** [return_reduce] is decidable. **)
 Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
 Proof.
-  move=> es.
-  apply lfilled_decidable_rec.
-
-  destruct (split_vals_e es) as [vs es'] eqn:Ees'.
-  rewrite (split_vals_e_v_to_e_duality Ees').
-  (* Not correct, actually.
-  suffices: (decidable (exists n lh, lfilled n lh [:: Basic Return] es')).
-  {
-    move=> [D|nF].
-    - left. destruct D as (n&lh&F). exists n.
-      apply: lf_composition_left F. by apply: v_to_e_is_const_list.
-    - right. move=> [n [lh F]]. apply: nF. exists n.
-      SearchAbout lfilled.
-  }
-  *)
-  (* TODO: Consider the first element of [es]: if it is anything other than either [Basic Return]
-    or [Label _ _ _], then [lfilled] doesn't hold.
-    If it is [Basic Return], then necessarily [n = 0], and we just have to check whether
-    [LfilledBase] applies.
-    If it is a [Label _ _ LI], we call ourselves recursively on [LI], and check that
-    [LfilledRec] applies. *)
-(* TODO: Defined. *)
-Admitted.
+  move=> es. apply lfilled_decidable_rec => es'.
+  by apply: lfilled_decidable_base.
+Defined.
 
 Lemma cat_abcd_a_bc_d: forall {X:Type} (a b c d: seq X),
     a ++ b ++ c ++ d = a ++ (b ++ c) ++ d.
@@ -4732,7 +4768,7 @@ Proof.
     + apply/lfilledP.
       rewrite -v_to_e_cat. rewrite -catA.
       rewrite cat_abcd_a_bc_d.
-      apply LfilledBase; by apply v_to_e_is_const_list.
+      by apply LfilledBase; apply v_to_e_is_const_list.
     + rewrite H0.
       repeat rewrite length_is_size.
       rewrite v_to_e_size. rewrite -map_drop.
@@ -4785,7 +4821,7 @@ Proof.
     + apply/lfilledP.
       rewrite -v_to_e_cat. rewrite -catA.
       rewrite cat_abcd_a_bc_d.
-      apply LfilledBase; by apply v_to_e_is_const_list.
+      by apply LfilledBase; apply v_to_e_is_const_list.
     + rewrite H0.
       repeat rewrite length_is_size.
       rewrite v_to_e_size. rewrite -map_drop.
@@ -4934,7 +4970,7 @@ Proof.
         eapply rs_trap => //.
         instantiate (1 := (LBase [::] [::e])).
         apply/lfilledP.
-        apply LfilledBase => //=; by apply v_to_e_is_const_list.
+        by apply LfilledBase => //=; apply v_to_e_is_const_list.
     + (* reduce *)
       destruct H as [s' [vs' [es' HReduce]]].
       right.
@@ -4980,7 +5016,7 @@ Proof.
       right.
       exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es').
       rewrite -catA.
-      apply reduce_composition_left => //; by apply v_to_e_is_const_list.      
+      by apply reduce_composition_left => //; apply v_to_e_is_const_list.      
   - (* Trap *)
     destruct vcs => //; first by left; apply terminal_trap.
     right.
@@ -5117,7 +5153,7 @@ Proof.
       right.
       destruct vcs => //=. simpl in HReduce.
       exists s', vs', [::Label (length ts) e0s es'].
-      eapply r_label; eauto; by apply label_lfilled1.
+      by eapply r_label; eauto; apply label_lfilled1.
   (* s_typing *)
   clear t_progress_s.    
   move => s rs i vs es ts HType HST HBrDepth HNRet.

@@ -146,23 +146,14 @@ Proof.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.
 
-(** As [eqType] can be inferred thanks to canonical instance, this lemma provides
-  another way of building a [_eq_dec]. **)
-Lemma eqType_eq_dec : forall (A : eqType) (a1 a2 : A),
-  {a1 = a2} + {a1 <> a2}.
-Proof.
-  move=> A a1 a2. case_eq (a1 == a2) => /eqP.
-  - by left.
-  - by right.
-Defined.
-
 Ltac decidable_equality_step :=
   first [
-      by apply: eqType_eq_dec
+      by apply: eq_comparable
     | apply: List.list_eq_dec
     | apply: Coqlib.option_eq
     | apply: PeanoNat.Nat.eq_dec
     | by eauto
+    | intros; apply: decP; by (exact _ || eauto)
     | decide equality ].
 
 (** Solve a goal of the form [forall a1 a2, {a1 = a2} + {a1 <> a2}]. **)
