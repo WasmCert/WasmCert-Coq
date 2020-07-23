@@ -1,4 +1,5 @@
 Require Import common.
+From StrongInduction Require Import StrongInduction.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
@@ -1184,18 +1185,15 @@ Lemma t_Convert_preserve: forall C v t1 t2 sx be tf,
     be_typing C [::be] tf.
 Proof.
   move => C v t1 t2 sx be tf HType HReduce.
-  inversion HReduce; subst.
+  inversion HReduce; subst. rename H5 into E.
   dependent induction HType; subst.
   - (* Composition *)
     invert_be_typing.
     apply bet_weakening_empty_1.
-    unfold cvt in H5.
-    destruct t2; unfold option_map in H5.
-    (* TODO: maybe refactor this destruct *)
-    + destruct (cvt_i32 sx v) eqn:HDestruct => //=. inversion H5. by apply bet_const.
-    + destruct (cvt_i64 sx v) eqn:HDestruct => //=. inversion H5. by apply bet_const.
-    + destruct (cvt_f32 sx v) eqn:HDestruct => //=. inversion H5. by apply bet_const.
-    + destruct (cvt_f64 sx v) eqn:HDestruct => //=. inversion H5. by apply bet_const.
+    by destruct t2; simpl in E;
+      match type of E with
+        option_map _ ?e = _ => destruct e eqn:HDestruct => //=
+      end; inversion E; apply bet_const.
   - (* Weakening *)
     apply bet_weakening.
     by eapply IHHType.
@@ -4523,11 +4521,15 @@ Definition br_reduce (es: seq administrative_instruction) :=
 Definition return_reduce (es: seq administrative_instruction) :=
   exists n lh, lfilled n lh [::Basic Return] es.
 
-(** A helper definition for [lfilled_decidable_rec]. **)
-Definition lfilled_decidable_rec_gen : forall fes,
-  (forall es' lh0 n0, decidable (exists lh, lfilled 0 lh (fes n0 lh0) es')) ->
-  forall es', decidable (exists n lh, lfilled n lh (fes n lh) es').
-Admitted (* TODO *).
+Lemma decidable_equiv : forall P1 P2,
+  (P1 <-> P2) ->
+  decidable P1 ->
+  decidable P2.
+Proof.
+  move=> P1 P2 [I1 I2] [H | nH].
+  - by left; auto.
+  - by right; auto.
+Defined.
 
 Lemma cat0_inv : forall T (s1 s2 : seq T),
   s1 ++ s2 = [::] ->
@@ -4572,16 +4574,6 @@ Proof.
     by rewrite -(revK l') E rev_cat revK.
   - right. move=> [ls [El' p]]. apply: E. exists (rev ls).
     by rewrite revK El' rev_cat.
-Defined.
-
-Lemma decidable_equiv : forall P1 P2,
-  (P1 <-> P2) ->
-  decidable P1 ->
-  decidable P2.
-Proof.
-  move=> P1 P2 [I1 I2] [H | nH].
-  - by left; auto.
-  - by right; auto.
 Defined.
 
 Lemma list_search_split_decidable : forall A (P1 P2 : seq A -> Prop),
@@ -4638,6 +4630,31 @@ Lemma is_true_decidable : forall b : bool, decidable b.
 Proof.
   by case; [ left | right ].
 Defined.
+
+(** A helper definition for [lfilled_decidable_rec]. **)
+Definition lfilled_decidable_rec_gen : forall fes,
+  (forall es' lh0 n0, decidable (exists lh, lfilled 0 lh (fes n0 lh0) es')) ->
+  forall es', decidable (exists n lh, lfilled n lh (fes n lh) es').
+Proof.
+  move=> fes D0 es'.
+  apply: (@decidable_equiv (exists n lh, lfilledInd n lh (fes n lh) es')).
+  { by split; move=> [n [lh H]]; exists n; exists lh; apply lfilled_Ind_Equivalent. }
+  have [len E]: ({ len | size es' = len }); first by eexists.
+  strong induction len.
+  have Dcl: (forall vs, decidable (const_list vs)).
+  { move=> vs. by apply: is_true_decidable. }
+  have Dparse: (forall es', decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2)).
+  {
+    clear.
+    let no := by intros; right; intros (?&?&?&?&?) in
+    (case; first by no); case; try by no.
+    move=> n l1 l2 l3. left. exists n. exists l1. exists l2. by exists l3.
+  }
+  case (list_search_split_decidable Dcl Dparse es').
+  (*- move=> Ex. (* TODO: We need slightly more than [decidable]. *)
+  - case D0.
+    move=> nEx. right. move=> [n [lh I]]. apply: nEx. inversion I.*)
+Admitted (* TODO *).
 
 Lemma lfilled_decidable_base : forall es es',
   decidable (exists lh, lfilled 0 lh es es').
