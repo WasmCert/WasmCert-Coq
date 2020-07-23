@@ -4543,10 +4543,191 @@ Proof.
   - move => ? ? A. inversion A.
 Qed.
 
-Lemma list_search_prefix_decidable : forall A (P : seq A -> Prop),
+Lemma is_true_decidable : forall b : bool, decidable b.
+Proof.
+  by case; [ left | right ].
+Defined.
+
+(** A variant of [decidable] in which we provide a witness. **)
+Definition pickable A (P : A -> Prop) :=
+  { x | P x } + { ~ exists x, P x }.
+
+Definition pickable2 A1 A2 (P : A1 -> A2 -> Prop) :=
+  { x | let '(x1, x2) := x in P x1 x2 } + { ~ exists x1 x2, P x1 x2 }.
+
+Definition pickable3 A1 A2 A3 (P : A1 -> A2 -> A3 -> Prop) :=
+  { x | let '(x1, x2, x3) := x in P x1 x2 x3 } + { ~ exists x1 x2 x3, P x1 x2 x3 }.
+
+Definition pickable4 A1 A2 A3 A4 (P : A1 -> A2 -> A3 -> A4 -> Prop) :=
+  { x | let '(x1, x2, x3, x4) := x in P x1 x2 x3 x4 } + { ~ exists x1 x2 x3 x4, P x1 x2 x3 x4 }.
+
+Definition pickable5 A1 A2 A3 A4 A5 (P : A1 -> A2 -> A3 -> A4 -> A5 -> Prop) :=
+  { x | let '(x1, x2, x3, x4, x5) := x in P x1 x2 x3 x4 x5 } + { ~ exists x1 x2 x3 x4 x5, P x1 x2 x3 x4 x5 }.
+
+Lemma pickable_decidable : forall A (P : A -> Prop),
+  pickable P ->
+  decidable (exists x, P x).
+Proof.
+  move=> A P. case.
+  - move=> [x p]. left. by exists x.
+  - move=> N. by right.
+Defined.
+
+Lemma pickable2_decidable : forall A1 A2 (P : A1 -> A2 -> Prop),
+  pickable2 P ->
+  decidable (exists x1 x2, P x1 x2).
+Proof.
+  move=> A1 A2 P. case.
+  - move=> [[x1 x2] p]. left. by exists x1; exists x2.
+  - move=> N. by right.
+Defined.
+
+Lemma pickable3_decidable : forall A1 A2 A3 (P : A1 -> A2 -> A3 -> Prop),
+  pickable3 P ->
+  decidable (exists x1 x2 x3, P x1 x2 x3).
+Proof.
+  move=> A1 A2 A3 P. case.
+  - move=> [[[x1 x2] x3] p]. left. by exists x1; exists x2; exists x3.
+  - move=> N. by right.
+Defined.
+
+Lemma pickable4_decidable : forall A1 A2 A3 A4 (P : A1 -> A2 -> A3 -> A4 -> Prop),
+  pickable4 P ->
+  decidable (exists x1 x2 x3 x4, P x1 x2 x3 x4).
+Proof.
+  move=> A1 A2 A3 A4 P. case.
+  - move=> [[[[x1 x2] x3] x4] p]. left. by exists x1; exists x2; exists x3; exists x4.
+  - move=> N. by right.
+Defined.
+
+Lemma pickable5_decidable : forall A1 A2 A3 A4 A5 (P : A1 -> A2 -> A3 -> A4 -> A5 -> Prop),
+  pickable5 P ->
+  decidable (exists x1 x2 x3 x4 x5, P x1 x2 x3 x4 x5).
+Proof.
+  move=> A1 A2 A3 A4 A5 P. case.
+  - move=> [[[[[x1 x2] x3] x4] x5] p]. left. by exists x1; exists x2; exists x3; exists x4; exists x5.
+  - move=> N. by right.
+Defined.
+
+Lemma pickable_equiv : forall A (P1 P2 : A -> Prop),
+  (forall a, P1 a <-> P2 a) ->
+  pickable P1 ->
+  pickable P2.
+Proof.
+  move=> A P1 P2 E. case.
+  - move=> [x p]. left. exists x. by apply E.
+  - move=> N. right. move=> [x p]. apply: N. exists x. by apply E.
+Defined.
+
+Lemma pickable2_equiv : forall A1 A2 (P1 P2 : A1 -> A2 -> Prop),
+  (forall a1 a2, P1 a1 a2 <-> P2 a1 a2) ->
+  pickable2 P1 ->
+  pickable2 P2.
+Proof.
+  move=> A1 A2 P1 P2 E. case.
+  - move=> [[x1 x2] p]. left. exists (x1, x2). by apply E.
+  - move=> N. right. move=> [x1 [x2 p]]. apply: N. exists x1. exists x2. by apply E.
+Defined.
+
+Lemma pickable3_equiv : forall A1 A2 A3 (P1 P2 : A1 -> A2 -> A3 -> Prop),
+  (forall a1 a2 a3, P1 a1 a2 a3 <-> P2 a1 a2 a3) ->
+  pickable3 P1 ->
+  pickable3 P2.
+Proof.
+  move=> A1 A2 A3 P1 P2 E. case.
+  - move=> [[[x1 x2] x3] p]. left. exists (x1, x2, x3). by apply E.
+  - move=> N. right. move=> [x1 [x2 [x3 p]]]. apply: N.
+    exists x1. exists x2. exists x3. by apply E.
+Defined.
+
+Lemma pickable4_equiv : forall A1 A2 A3 A4 (P1 P2 : A1 -> A2 -> A3 -> A4 -> Prop),
+  (forall a1 a2 a3 a4, P1 a1 a2 a3 a4 <-> P2 a1 a2 a3 a4) ->
+  pickable4 P1 ->
+  pickable4 P2.
+Proof.
+  move=> A1 A2 A3 A4 P1 P2 E. case.
+  - move=> [[[[x1 x2] x3] x4] p]. left. exists (x1, x2, x3, x4). by apply E.
+  - move=> N. right. move=> [x1 [x2 [x3 [x4 p]]]]. apply: N.
+    exists x1. exists x2. exists x3. exists x4. by apply E.
+Defined.
+
+Lemma pickable5_equiv : forall A1 A2 A3 A4 A5 (P1 P2 : A1 -> A2 -> A3 -> A4 -> A5 -> Prop),
+  (forall a1 a2 a3 a4 a5, P1 a1 a2 a3 a4 a5 <-> P2 a1 a2 a3 a4 a5) ->
+  pickable5 P1 ->
+  pickable5 P2.
+Proof.
+  move=> A1 A2 A3 A4 A5 P1 P2 E. case.
+  - move=> [[[[[x1 x2] x3] x4] x5] p]. left. exists (x1, x2, x3, x4, x5). by apply E.
+  - move=> N. right. move=> [x1 [x2 [x3 [x4 [x5 p]]]]]. apply: N.
+    exists x1. exists x2. exists x3. exists x4. exists x5. by apply E.
+Defined.
+
+Lemma pickable_convert : forall A B (P1 P2 : _ -> Prop) (f : A -> B),
+  (forall a, P1 a -> P2 (f a)) ->
+  (forall b, P2 b -> exists a, P1 a) ->
+  pickable P1 ->
+  pickable P2.
+Proof.
+  move=> A B P1 P2 f E1 E2. case.
+  - move=> [x p]. left. exists (f x). by apply: E1.
+  - move=> N. right. move=> [x p]. apply: N. move: (E2 _ p) => [a p']. by exists a.
+Defined.
+
+Lemma pickable2_convert : forall A1 A2 B1 B2 (P1 P2 : _ -> _ -> Prop) (f : A1 * A2 -> B1 * B2),
+  (forall a1 a2, P1 a1 a2 -> let (b1, b2) := f (a1, a2) in P2 b1 b2) ->
+  (forall b1 b2, P2 b1 b2 -> exists a1 a2, P1 a1 a2) ->
+  pickable2 P1 ->
+  pickable2 P2.
+Proof.
+  move=> A1 A2 B1 B2 P1 P2 f E1 E2. case.
+  - move=> [[x1 x2] p]. left. exists (f (x1, x2)). by apply: E1.
+  - move=> N. right. move=> [x1 [x2 p]]. apply: N. move: (E2 _ _ p) => [a1 [a2 p']].
+    exists a1. by exists a2.
+Defined.
+
+Lemma pickable2_weaken : forall A1 A2 (P : A1 -> A2 -> Prop),
+  pickable2 P ->
+  pickable (fun a1 => exists a2, P a1 a2).
+Proof.
+  move=> A1 A2 P. case.
+  - move=> [[x1 x2] p]. left. exists x1. by exists x2.
+  - move=> nE. right. move=> [x1 [x2 p]]. apply: nE. exists x1. by exists x2.
+Qed.
+
+Lemma pickable3_weaken : forall A1 A2 A3 (P : A1 -> A2 -> A3 -> Prop),
+  pickable3 P ->
+  pickable2 (fun a1 a2 => exists a3, P a1 a2 a3).
+Proof.
+  move=> A1 A2 A3 P. case.
+  - move=> [[[x1 x2] x3] p]. left. exists (x1, x2). by exists x3.
+  - move=> nE. right. move=> [x1 [x2 [x3 p]]]. apply: nE. exists x1. exists x2. by exists x3.
+Qed.
+
+Lemma pickable4_weaken : forall A1 A2 A3 A4 (P : A1 -> A2 -> A3 -> A4 -> Prop),
+  pickable4 P ->
+  pickable3 (fun a1 a2 a3 => exists a4, P a1 a2 a3 a4).
+Proof.
+  move=> A1 A2 A3 A4 P. case.
+  - move=> [[[[x1 x2] x3] x4] p]. left. exists (x1, x2, x3). by exists x4.
+  - move=> nE. right. move=> [x1 [x2 [x3 [x4 p]]]]. apply: nE.
+    exists x1. exists x2. exists x3. by exists x4.
+Qed.
+
+Lemma pickable5_weaken : forall A1 A2 A3 A4 A5 (P : A1 -> A2 -> A3 -> A4 -> A5 -> Prop),
+  pickable5 P ->
+  pickable4 (fun a1 a2 a3 a4 => exists a5, P a1 a2 a3 a4 a5).
+Proof.
+  move=> A1 A2 A3 A4 A5 P. case.
+  - move=> [[[[[x1 x2] x3] x4] x5] p]. left. exists (x1, x2, x3, x4). by exists x5.
+  - move=> nE. right. move=> [x1 [x2 [x3 [x4 [x5 p]]]]]. apply: nE.
+    exists x1. exists x2. exists x3. exists x4. by exists x5.
+Qed.
+
+
+Lemma list_search_prefix_pickable : forall A (P : seq A -> Prop),
   comparable A ->
   (forall l, decidable (P l)) ->
-  forall l l', decidable (exists lf, l' = l ++ lf /\ P lf).
+  forall l l', pickable (fun lf => l' = l ++ lf /\ P lf).
 Proof.
   move=> A + C + l. elim l.
   - move=> P D l'. case (D l') => d.
@@ -4561,138 +4742,149 @@ Proof.
       * right. move=> [lf [E' _]]. inversion E'. by apply: E.
 Defined.
 
-Lemma list_search_suffix_decidable : forall A (P : seq A -> Prop),
+Lemma list_search_suffix_pickable : forall A (P : seq A -> Prop),
   comparable A ->
   (forall l, decidable (P l)) ->
-  forall l l', decidable (exists ls, l' = ls ++ l /\ P ls).
+  forall l l', pickable (fun ls => l' = ls ++ l /\ P ls).
 Proof.
   move=> A P C D l l'.
-  have Dr: (forall l, decidable (P (rev l))).
+  have Dr: forall l, decidable (P (rev l)).
   { clear - D. move=> l. by apply: D. }
-  case (list_search_prefix_decidable C Dr (rev l) (rev l')) => E.
+  case (list_search_prefix_pickable C Dr (rev l) (rev l')) => E.
   - left. destruct E as (lf&E&p). exists (rev lf). split => //.
     by rewrite -(revK l') E rev_cat revK.
   - right. move=> [ls [El' p]]. apply: E. exists (rev ls).
     by rewrite revK El' rev_cat.
 Defined.
 
-Lemma list_search_split_decidable : forall A (P1 P2 : seq A -> Prop),
+Lemma list_split_pickable2 : forall A (P1 P2 : seq A -> Prop),
   (forall l, decidable (P1 l)) ->
   (forall l, decidable (P2 l)) ->
-  forall l, decidable (exists l1 l2, l = l1 ++ l2 /\ P1 l1 /\ P2 l2).
+  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P1 l1 /\ P2 l2).
 Proof.
   move=> A + + + + l. elim l.
   - move=> P1 P2 D1 D2. let no :=
       by right; move=> [l1 [l2 [E [H1 H2]]]]; symmetry in E; move: (cat0_inv E) => [? ?]; subst in
     (case (D1 [::]) => Y1; last by no); (case (D2 [::]) => Y2; last by no).
-    left. by repeat exists [::].
+    left. by exists ([::], [::]).
   - move {l} => a l IH P1 P2 D1 D2.
-    have Da: (forall l, decidable (P1 (a :: l))).
+    have Da: forall l, decidable (P1 (a :: l)).
     { clear - D1. move=> l. apply: D1. }
-    apply: (@decidable_equiv (P1 [::] /\ P2 (a :: l)
-                              \/ exists l1 l2, a :: l = (a :: l1) ++ l2 /\ P1 (a :: l1) /\ P2 l2)).
+    have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P1 l1 /\ l1 <> [::] /\ P2 l2).
     {
-      split.
-      - move=> [[H1 H2] | [l1 [l2 [E [H1 H2]]]]].
-        + exists [::]. by exists (a :: l).
-        + exists (a :: l1). exists l2. by inversion E.
-      - move=> [l1 [l2 [E [H1 H2]]]]. destruct l1.
-        + left. simpl in E. by subst.
-        + right. exists l1. exists l2. by inversion E.
+      have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P1 (a :: l1) /\ P2 l2).
+      {
+        apply: pickable2_equiv; last by apply (IH _ _ Da D2). move=> l1 l2. split.
+        - move=> [E [H1 H2]]. by subst.
+        - move=> [E [H1 H2]]. by inversion E.
+      }
+      case Pa.
+      - move=> [[l1 l2] [E [H1 H2]]]. left. exists (a :: l1, l2). by split.
+      - move=> Ex. right. move=> [l1 [l2 [E [p1 [D p2]]]]].
+        apply: Ex. destruct l1 as [|a' l1] => //. inversion E.
+        exists l1. exists l2. by subst.
     }
-    let no :=
-      by (apply: decidable_equiv; last by apply: (IH _ _ Da D2)); split;
-        [ move=> [l1 [l2 [E [H1 H2]]]]; right; exists l1; exists l2; subst
-        | move=> [[H1 H2] | [l1 [l2 [E [H1 H2]]]]];
-          [| exists l1; exists l2; inversion E ] ] in
-    (case (D1 [::]) => Y1; last by no); (case (D2 (a :: l)) => Y2; last by no).
-    by repeat left.
+    case Pa.
+    + move=> [[l1 l2] [E [p1 [D p2]]]]. left. by exists (l1, l2).
+    + move=> nE.
+      let no :=
+        by right; move=> [l1 [l2 [E [p1 p2]]]]; apply: nE;
+        exists l1; exists l2; repeat split => //;
+        destruct l1 => //; simpl in E; subst in
+      (case (D1 [::]) => Y1; last by no); case (D2 (a :: l)) => Y2; last by no.
+      left. exists ([::], a :: l). by split.
 Defined.
 
-Lemma list_search_split_3_decidable : forall A (P1 P2 : seq A -> Prop),
+Lemma list_search_split_pickable2 : forall A (P1 P2 : seq A -> Prop),
   comparable A ->
   (forall l, decidable (P1 l)) ->
   (forall l, decidable (P2 l)) ->
-  forall l l', decidable (exists l1 l2, l' = l1 ++ l ++ l2 /\ P1 l1 /\ P2 l2).
+  forall l l', pickable2 (fun l1 l2 => l' = l1 ++ l ++ l2 /\ P1 l1 /\ P2 l2).
 Proof.
   move=> A P1 P2 C D1 D2 l l'.
-  move: (list_search_split_decidable (P1 := P1) (P2 := fun l2 => exists l2', l2 = l ++ l2' /\ P2 l2')) => D.
-  apply: decidable_equiv; last apply: (D D1 _ l').
-  {
-    split.
-    - move=> [l1 [l2 [E1 [H1 [l2' [E2 H2]]]]]]. exists l1. exists l2'. by subst.
-    - move=> [l1 [l2 [E [H1 H2]]]]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
-  }
-  by apply: list_search_prefix_decidable.
-Defined.
-
-Lemma is_true_decidable : forall b : bool, decidable b.
-Proof.
-  by case; [ left | right ].
+  move: (list_split_pickable2 (P1 := P1) (P2 := fun l2 => exists l2', l2 = l ++ l2' /\ P2 l2')) => D.
+  apply: (pickable2_convert (f := fun '(l1, l2) => (l1, drop (size l) l2))); last apply: (D D1 _ l').
+  - move=> l1 l2 [E1 [p1 [l2' [E2 p2]]]]. subst. rewrite drop_cat.
+    rewrite_by ((size l < size l) = false). rewrite_by (size l - size l = 0). by rewrite drop0.
+  - move=> l1 l2 [E [p1 p2]]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
+  - move=> l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
 Defined.
 
 (** A helper definition for [lfilled_decidable_rec]. **)
-Definition lfilled_decidable_rec_gen : forall fes,
-  (forall es' lh0 n0, decidable (exists lh, lfilled 0 lh (fes n0 lh0) es')) ->
-  forall es', decidable (exists n lh, lfilled n lh (fes n lh) es').
+Definition lfilled_pickable_rec_gen : forall fes,
+  (forall es' lh0 n0, pickable (fun lh => lfilled 0 lh (fes n0 lh0) es')) ->
+  forall es', pickable2 (fun n lh => lfilled n lh (fes n lh) es').
 Proof.
   move=> fes D0 es'.
-  apply: (@decidable_equiv (exists n lh, lfilledInd n lh (fes n lh) es')).
-  { by split; move=> [n [lh H]]; exists n; exists lh; apply lfilled_Ind_Equivalent. }
-  have [len E]: ({ len | size es' = len }); first by eexists.
+  apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes n lh) es')).
+  { move=> n lh. by split; apply lfilled_Ind_Equivalent. }
+  have [len E]: { len | size es' = len }; first by eexists.
   strong induction len.
-  have Dcl: (forall vs, decidable (const_list vs)).
+  have Dcl: forall vs, decidable (const_list vs).
   { move=> vs. by apply: is_true_decidable. }
-  have Dparse: (forall es', decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2)).
+  have Dparse: forall es', decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2).
   {
-    clear.
-    let no := by intros; right; intros (?&?&?&?&?) in
-    (case; first by no); case; try by no.
-    move=> n l1 l2 l3. left. exists n. exists l1. exists l2. by exists l3.
+    clear. move=> es'.
+    have Pparse: pickable4 (fun n es1 LI es2 => es' = [:: Label n es1 LI] ++ es2).
+    {
+      let no := by intros; right; intros (?&?&?&?&?) in
+      (case es'; first by no); case; try by no.
+      move=> n l1 l2 l3. left. by exists (n, l1, l2, l3).
+    }
+    apply: pickable_decidable. apply: pickable2_weaken.
+    apply: pickable3_weaken. by apply: pickable4_weaken.
   }
-  case (list_search_split_decidable Dcl Dparse es').
-  (*- move=> Ex. (* TODO: We need slightly more than [decidable]. *)
-  - case D0.
-    move=> nEx. right. move=> [n [lh I]]. apply: nEx. inversion I.*)
+  (* TODO: case (D0 ??) *)
+  case: (list_split_pickable2 Dcl Dparse es').
+  - move=> [[vs es''] [E1 [C Ex]]].
+    have inspect: (pickable4 (fun n es1 LI es2 => es' = vs ++ [:: Label n es1 LI] ++ es2)).
+    {
+      let no := by exfalso; destruct Ex as (?&?&?&?&E'); (inversion E') in
+      (destruct es'' as [|a es'']; first by no); destruct a; try by no.
+      left. exists (n, l, l0, es''). by subst.
+    }
+    admit. (* TODO *)
 Admitted (* TODO *).
 
-Lemma lfilled_decidable_base : forall es es',
-  decidable (exists lh, lfilled 0 lh es es').
+Lemma lfilled_pickable_base : forall es es',
+  pickable (fun lh => lfilled 0 lh es es').
 Proof.
-  move=> es es'. apply: (@decidable_equiv (exists lh, lfilledInd 0 lh es es')).
-  { by split; move=> [lh H]; exists lh; apply lfilled_Ind_Equivalent. }
-  apply: (@decidable_equiv (exists vs es'', es' = vs ++ es ++ es'' /\ const_list vs /\ True)).
+  move=> es es'. apply: (@pickable_equiv _ (fun lh => lfilledInd 0 lh es es')).
+  { move=> lh. by split; apply lfilled_Ind_Equivalent. }
+  have: (pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ True)).
   {
-    split.
-    - move=> [vs [es'' [E [C _]]]]. eexists. subst. by constructor.
-    - move=> [lh I]. inversion I. subst. by repeat eexists.
+    apply: list_search_split_pickable2.
+    - by apply: administrative_instruction_eq_dec.
+    - move=> ?. by apply: is_true_decidable.
+    - by left.
   }
-  apply: list_search_split_3_decidable.
-  - by apply: administrative_instruction_eq_dec.
-  - move=> ?. by apply: is_true_decidable.
-  - by left.
+  case.
+  - move=> [[vs es''] [E [C _]]]. left. eexists. subst. by constructor.
+  - move=> nE. right. move=> [lh I]. apply: nE. inversion I. subst. by repeat eexists.
 Defined.
 
 (** A helper definition for the decidability of [br_reduce] and [return_reduce]. **)
-Definition lfilled_decidable_rec : forall es,
-  (forall es', decidable (exists lh, lfilled 0 lh es es')) ->
-  forall es', decidable (exists n lh, lfilled n lh es es').
+Definition lfilled_pickable_rec : forall es,
+  (forall es', pickable (fun lh => lfilled 0 lh es es')) ->
+  forall es', pickable2 (fun n lh => lfilled n lh es es').
 Proof.
-  move=> es D. by apply: lfilled_decidable_rec_gen => + _ _.
+  move=> es D. by apply: lfilled_pickable_rec_gen => + _ _.
 Defined.
 
 (** [br_reduce] is decidable. **)
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
 Proof.
-  move=> es. apply lfilled_decidable_rec_gen => es' _ n.
-  by apply: lfilled_decidable_base.
+  move=> es. apply: pickable_decidable. apply: pickable2_weaken.
+  apply lfilled_pickable_rec_gen => es' _ n.
+  by apply: lfilled_pickable_base.
 Defined.
 
 (** [return_reduce] is decidable. **)
 Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
 Proof.
-  move=> es. apply lfilled_decidable_rec => es'.
-  by apply: lfilled_decidable_base.
+  move=> es. apply: pickable_decidable. apply: pickable2_weaken.
+  apply lfilled_pickable_rec => es'.
+  by apply: lfilled_pickable_base.
 Defined.
 
 Lemma cat_abcd_a_bc_d: forall {X:Type} (a b c d: seq X),
