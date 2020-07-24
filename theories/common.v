@@ -4,6 +4,7 @@
 Require Import Lia.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
+From Wasm Require Export pickability.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -208,12 +209,6 @@ Proof. by []. Qed.
 
 (** * Lemmas about lists. **)
 
-Lemma is_true_bool : forall b1 b2 : bool,
-  (b1 = b2) <-> (b1 <-> b2).
-Proof.
-  by do 2 case => /=; split=> //> [H1 H2]; exfalso; eauto.
-Qed.
-
 Lemma List_In_in_mem : forall (A : eqType) e (l : seq A),
   e \in l <-> List.In e l.
 Proof.
@@ -371,6 +366,18 @@ Proof.
   exists e. exists l'. split => //.
   move: (rcons_last_error E) => [l'' E'].
   by rewrite -(last_cons e) E' last_rcons.
+Qed.
+
+Lemma cat0_inv : forall T (s1 s2 : seq T),
+  s1 ++ s2 = [::] ->
+  s1 = [::] /\ s2 = [::].
+Proof.
+  move=> T s1 s2 E.
+  move: (size_cat s1 s2). rewrite {} E => /=. case s1.
+  - case s2 => E.
+    + done.
+    + move => ? A. inversion A.
+  - move => ? ? A. inversion A.
 Qed.
 
 
@@ -642,3 +649,4 @@ Ltac rect'_build rect :=
     | o : option t |- _ => destruct o
     end in
   case; try solve [ do_it | use_hyps; do_it ].
+
