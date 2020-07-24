@@ -17,3 +17,4 @@ Instance loc_inhabited : Inhabited loc := populate {|loc_car := 0 |}.
 
 Instance loc_countable : Countable loc.
 Proof. by apply (inj_countable' loc_car (λ i, {| loc_car := i |})); intros []. Qed.
+

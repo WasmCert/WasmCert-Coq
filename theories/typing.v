@@ -22,8 +22,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Print sx.
-
 (* FIXME: To which function in the Wasm specification does this correspond to? *)
 
 (** Answer to above
@@ -85,8 +83,6 @@ Definition convert_helper (sxo : option sx) t1 t2 : bool :=
 
 Definition convert_cond t1 t2 (sxo : option sx) : bool :=
   (t1 != t2) && convert_helper sxo t1 t2.
-
-Print t_context.
 
 Definition upd_label C lab :=
   Build_t_context
@@ -270,6 +266,7 @@ Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool 
 Definition functions_agree (fs : list function_closure) (n : nat) (f : function_type) : bool :=
   (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
 
+(*
 Print instance.
 Print immediate.
 Print t_context.
@@ -280,7 +277,7 @@ Print global_type.
 Print global.
 Print memory.
 Print function_closure.
-(*
+
   This is the main point where the typing context in the typing system and the 
     store in the operational semantics are connected. Writting my understanding down
     for future reference since I'll definitely forget the meaning of some of them
@@ -366,9 +363,10 @@ Print function_closure.
      to the 'Br i' instruction, being also polymorphic.
  *)
 
+(*
 Print Build_t_context.
 Print Build_instance.
-(*
+
   This basically says: an instance of a store_record has type C iff:
   - i_types of instance is the same as tc_types_t of C;
     It is unclear what this component actually is. What is this sequence of types?
@@ -456,8 +454,9 @@ Proof.
     destruct (all2 (functions_agree (s_funcs s)) i_funcs tc_func_t0) eqn:H2 => //=.
 *)
 
-Print Func_native.
 (*
+Print Func_native.
+
   Here we're typing a function closure. The second case where we have a host function
     is obvious: it can be anything.
   However, if it is a native function, then we should be able to deduce its type.

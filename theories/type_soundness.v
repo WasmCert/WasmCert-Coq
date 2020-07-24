@@ -17,14 +17,6 @@ Require Import operations typing type_checker datatypes_properties typing opsem 
 Definition t_be_value (bes: seq basic_instruction) : Prop :=
   const_list (to_e_list bes).
 
-Print tc_global.
-
-Print value.
-
-Print value_type.
-
-Print instance.
-
 Ltac b_to_a_revert :=
   repeat lazymatch goal with
          | H:  to_e_list ?bes = _ |- _ =>
@@ -584,7 +576,7 @@ Qed.
 
 Section composition_typing_proofs.
 
-Hint Constructors be_typing.
+Hint Constructors be_typing : core.
 
 Ltac auto_prove_bet:=
   repeat lazymatch goal with
@@ -2724,8 +2716,6 @@ Proof.
   by eapply tabi_agree_extension; eauto.
 Qed.
 
-Print Build_t_context.
-
 Lemma inst_typing_extension: forall s s' i C,
     store_extension s s' ->
     inst_typing s i C ->
@@ -3162,8 +3152,6 @@ Proof.
       by apply IHn; lias.
 Qed.
       
-Print update_list_at.
-
 Lemma Forall_update: forall {X:Type} f l n {x:X},
     List.Forall f l ->
     f x ->
@@ -3914,7 +3902,7 @@ Proof.
   rewrite -HDrop. by rewrite cat_take_drop.
 Qed.
 
-Hint Constructors reduce_simple.
+Hint Constructors reduce_simple : core.
 
 Ltac invert_typeof_vcs :=
   lazymatch goal with
@@ -4489,8 +4477,6 @@ Proof.
     by apply reduce_composition_left => //; apply v_to_e_is_const_list.    
 Qed.
 
-Print tc_label.
-
 (*
 Traceback:
   WTP: config_typing i s vs es ts <=
@@ -4554,57 +4540,51 @@ Proof.
     by rewrite revK El' rev_cat.
 Defined.
 
-Lemma list_split_pickable2 : forall A (P1 P2 : seq A -> Prop),
-  (forall l, decidable (P1 l)) ->
-  (forall l, decidable (P2 l)) ->
-  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P1 l1 /\ P2 l2).
+Lemma list_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
 Proof.
-  move=> A + + + + l. elim l.
-  - move=> P1 P2 D1 D2. let no :=
-      by right; move=> [l1 [l2 [E [H1 H2]]]]; symmetry in E; move: (cat0_inv E) => [? ?]; subst in
-    (case (D1 [::]) => Y1; last by no); (case (D2 [::]) => Y2; last by no).
-    left. by exists ([::], [::]).
-  - move {l} => a l IH P1 P2 D1 D2.
-    have Da: forall l, decidable (P1 (a :: l)).
-    { clear - D1. move=> l. apply: D1. }
-    have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P1 l1 /\ l1 <> [::] /\ P2 l2).
+  move=> A + + l. elim l.
+  - move=> P D. case (D [::] [::]) => Y.
+    + left. by exists ([::], [::]).
+    + right. move=> [l1 [l2 [E p]]]. symmetry in E. move: (cat0_inv E) => [? ?]. by subst.
+  - move {l} => a l IH P D.
+    have Da: forall l1 l2, decidable (P (a :: l1) l2).
+    { clear - D. move=> l1 l2. by apply: D. }
+    have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P l1 l2 /\ l1 <> [::]).
     {
-      have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P1 (a :: l1) /\ P2 l2).
+      have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P (a :: l1) l2).
       {
-        apply: pickable2_equiv; last by apply (IH _ _ Da D2). move=> l1 l2. split.
-        - move=> [E [H1 H2]]. by subst.
-        - move=> [E [H1 H2]]. by inversion E.
+        apply: pickable2_equiv; last by apply (IH _ Da). move=> l1 l2. split.
+        - move=> [E p]. by subst.
+        - move=> [E p]. by inversion E.
       }
       case Pa.
-      - move=> [[l1 l2] [E [H1 H2]]]. left. exists (a :: l1, l2). by split.
-      - move=> Ex. right. move=> [l1 [l2 [E [p1 [D p2]]]]].
+      - move=> [[l1 l2] [E p]]. left. exists (a :: l1, l2). by split.
+      - move=> Ex. right. move=> [l1 [l2 [E [p d]]]].
         apply: Ex. destruct l1 as [|a' l1] => //. inversion E.
         exists l1. exists l2. by subst.
     }
     case Pa.
-    + move=> [[l1 l2] [E [p1 [D p2]]]]. left. by exists (l1, l2).
-    + move=> nE.
-      let no :=
-        by right; move=> [l1 [l2 [E [p1 p2]]]]; apply: nE;
-        exists l1; exists l2; repeat split => //;
-        destruct l1 => //; simpl in E; subst in
-      (case (D1 [::]) => Y1; last by no); case (D2 (a :: l)) => Y2; last by no.
-      left. exists ([::], a :: l). by split.
+    + move=> [[l1 l2] [E [p d]]]. left. by exists (l1, l2).
+    + move=> nE. case (D [::] (a :: l)).
+      * left. exists ([::], a :: l). by split.
+      * move=> np. right. move=> [l1 [l2 [E p]]]. apply: nE.
+        exists l1. exists l2. repeat split => //. move=> ?. subst. simpl in E. by subst.
 Defined.
 
-Lemma list_search_split_pickable2 : forall A (P1 P2 : seq A -> Prop),
+Lemma list_search_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
   comparable A ->
-  (forall l, decidable (P1 l)) ->
-  (forall l, decidable (P2 l)) ->
-  forall l l', pickable2 (fun l1 l2 => l' = l1 ++ l ++ l2 /\ P1 l1 /\ P2 l2).
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l l', pickable2 (fun l1 l2 => l' = l1 ++ l ++ l2 /\ P l1 l2).
 Proof.
-  move=> A P1 P2 C D1 D2 l l'.
-  move: (list_split_pickable2 (P1 := P1) (P2 := fun l2 => exists l2', l2 = l ++ l2' /\ P2 l2')) => D.
-  apply: (pickable2_convert _ (fun '(l1, l2) => (l1, drop (size l) l2))); last apply: (D D1 _ l').
-  - move=> l1 l2 [E1 [p1 [l2' [E2 p2]]]]. subst. rewrite drop_cat.
+  move=> A P C D l l'.
+  move: (list_split_pickable2 (P := fun l1 l2 => exists l2', l2 = l ++ l2' /\ P l1 l2')) => D'.
+  apply: (pickable2_convert _ (fun '(l1, l2) => (l1, drop (size l) l2))); last apply: (D' _ l').
+  - move=> l1 l2 [E1 [l2' [E2 p]]]. subst. rewrite drop_cat.
     rewrite_by ((size l < size l) = false). rewrite_by (size l - size l = 0). by rewrite drop0.
-  - move=> l1 l2 [E [p1 p2]]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
-  - move=> l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
+  - move=> l1 l2 [E p]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
+  - move=> l1 l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
 Defined.
 
 (** A helper definition for [lfilled_decidable_rec]. **)
@@ -4613,12 +4593,27 @@ Definition lfilled_pickable_rec_gen : forall fes,
   forall es', pickable2 (fun n lh => lfilled n lh (fes n lh) es').
 Proof.
   move=> fes D0 es'.
-  apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes n lh) es')).
+  apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')).
   { move=> n lh. by split; apply lfilled_Ind_Equivalent. }
-  have [len E]: { len | size es' = len }; first by eexists.
-  strong induction len.
+  move: 0 => k. have [len E]: { len | size es' = len }; first by eexists.
+  move: es' E k. strong induction len. rename X into IH. move=> es' E k.
   have Dcl: forall vs, decidable (const_list vs).
   { move=> vs. by apply: is_true_decidable. }
+  (** First, we check whether we can set [n = 0]. **)
+  have P0: (pickable2 (fun vs es'' =>
+                        let lh := LBase vs es'' in
+                        let es := fes k lh in
+                        es' = vs ++ es ++ es'' /\ const_list vs /\ lfilledInd 0 lh es es')).
+  {
+    admit. (* TODO *)
+  }
+  case P0.
+  {
+    move=> [[vs es''] [E' [Cvs I]]]. left. exists (0, LBase vs es'').
+    subst. rewrite_by (k + 0 = k). by apply: LfilledBase.
+  }
+  move=> nE.
+  (** Otherwise, we have to apply [LfilledRec]. **)
   have Dparse: forall es', decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2).
   {
     clear. move=> es'.
@@ -4628,19 +4623,18 @@ Proof.
       (case es'; first by no); case; try by no.
       move=> n l1 l2 l3. left. by exists (n, l1, l2, l3).
     }
-    apply: pickable_decidable. apply: pickable2_weaken.
-    apply: pickable3_weaken. by apply: pickable4_weaken.
+    convert_pickable Pparse.
   }
-  (* TODO: case (D0 ??) *)
-  case: (list_split_pickable2 Dcl Dparse es').
+  case: (list_split_pickable2 (fun vs es => decidable_and (Dcl vs) (Dparse es)) es').
   - move=> [[vs es''] [E1 [C Ex]]].
-    have inspect: (pickable4 (fun n es1 LI es2 => es' = vs ++ [:: Label n es1 LI] ++ es2)).
-    {
-      let no := by exfalso; destruct Ex as (?&?&?&?&E'); (inversion E') in
-      (destruct es'' as [|a es'']; first by no); destruct a; try by no.
-      left. exists (n, l, l0, es''). by subst.
-    }
-    admit. (* TODO *)
+    destruct es'' as [| [| | | n es1 LI |] es2];
+      try solve [ exfalso; move: Ex => [? [? [? [? E']]]]; inversion E' ].
+    clear Ex.
+    admit. (* TODO: the decreasing argument is not [size es'], but the size plus the sum of all the inner [LI]. *)
+  - move=> nE'. right. move=> [n [lh I]]. inversion I; subst.
+    + apply: nE. do 2 eexists. rewrite_by (k + 0 = k). repeat split; try eassumption.
+      by apply: LfilledBase.
+    + apply: nE'. by repeat eexists.
 Admitted (* TODO *).
 
 Lemma lfilled_pickable_base : forall es es',
@@ -4652,8 +4646,9 @@ Proof.
   {
     apply: list_search_split_pickable2.
     - by apply: administrative_instruction_eq_dec.
-    - move=> ?. by apply: is_true_decidable.
-    - by left.
+    - move=> ? ?. apply: decidable_and.
+      + by apply: is_true_decidable.
+      + by left.
   }
   case.
   - move=> [[vs es''] [E [C _]]]. left. eexists. subst. by constructor.
