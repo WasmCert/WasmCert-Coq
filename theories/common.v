@@ -650,3 +650,86 @@ Ltac rect'_build rect :=
     end in
   case; try solve [ do_it | use_hyps; do_it ].
 
+
+(** * Lemmas about pickability. **)
+
+Lemma list_search_prefix_pickable : forall A (P : seq A -> Prop),
+  comparable A ->
+  (forall l, decidable (P l)) ->
+  forall l l', pickable (fun lf => l' = l ++ lf /\ P lf).
+Proof.
+  move=> A + C + l. elim l.
+  - move=> P D l'. case (D l') => d.
+    + left. by exists l'.
+    + right. move=> [lf [E nd]]. by subst.
+  - move {l} => a l IH P D l'. case l'.
+    + right. by move => [lf [E _]].
+    + move {l'} => a' l'. case (C a a') => E.
+      * subst. case (IH _ D l').
+        -- move=> E. left. destruct E as (lf&E'&p). exists lf. by rewrite E'.
+        -- move=> nE. right. move=> [lf [E p]]. apply: nE. exists lf. by inversion E.
+      * right. move=> [lf [E' _]]. inversion E'. by apply: E.
+Defined.
+
+Lemma list_search_suffix_pickable : forall A (P : seq A -> Prop),
+  comparable A ->
+  (forall l, decidable (P l)) ->
+  forall l l', pickable (fun ls => l' = ls ++ l /\ P ls).
+Proof.
+  move=> A P C D l l'.
+  have Dr: forall l, decidable (P (rev l)).
+  { clear - D. move=> l. by apply: D. }
+  case (list_search_prefix_pickable C Dr (rev l) (rev l')) => E.
+  - left. destruct E as (lf&E&p). exists (rev lf). split => //.
+    by rewrite -(revK l') E rev_cat revK.
+  - right. move=> [ls [El' p]]. apply: E. exists (rev ls).
+    by rewrite revK El' rev_cat.
+Defined.
+
+Lemma list_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
+Proof.
+  move=> A + + l. elim l.
+  - move=> P D. case (D [::] [::]) => Y.
+    + left. by exists ([::], [::]).
+    + right. move=> [l1 [l2 [E p]]]. symmetry in E. move: (cat0_inv E) => [? ?]. by subst.
+  - move {l} => a l IH P D.
+    have Da: forall l1 l2, decidable (P (a :: l1) l2).
+    { clear - D. move=> l1 l2. by apply: D. }
+    have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P l1 l2 /\ l1 <> [::]).
+    {
+      have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P (a :: l1) l2).
+      {
+        apply: pickable2_equiv; last by apply (IH _ Da). move=> l1 l2. split.
+        - move=> [E p]. by subst.
+        - move=> [E p]. by inversion E.
+      }
+      case Pa.
+      - move=> [[l1 l2] [E p]]. left. exists (a :: l1, l2). by split.
+      - move=> Ex. right. move=> [l1 [l2 [E [p d]]]].
+        apply: Ex. destruct l1 as [|a' l1] => //. inversion E.
+        exists l1. exists l2. by subst.
+    }
+    case Pa.
+    + move=> [[l1 l2] [E [p d]]]. left. by exists (l1, l2).
+    + move=> nE. case (D [::] (a :: l)).
+      * left. exists ([::], a :: l). by split.
+      * move=> np. right. move=> [l1 [l2 [E p]]]. apply: nE.
+        exists l1. exists l2. repeat split => //. move=> ?. subst. simpl in E. by subst.
+Defined.
+
+Lemma list_search_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
+  comparable A ->
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l l', pickable2 (fun l1 l2 => l' = l1 ++ l ++ l2 /\ P l1 l2).
+Proof.
+  move=> A P C D l l'.
+  move: (list_split_pickable2 (P := fun l1 l2 => exists l2', l2 = l ++ l2' /\ P l1 l2')) => D'.
+  apply: (pickable2_convert (f := fun '(l1, l2) => (l1, drop (size l) l2))); last apply: (D' _ l').
+  - move=> l1 l2 [E1 [l2' [E2 p]]]. subst. rewrite drop_cat.
+    rewrite_by ((size l < size l) = false). rewrite_by (size l - size l = 0). by rewrite drop0.
+  - move=> l1 l2 [E p]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
+  - move=> l1 l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
+Defined.
+

@@ -477,8 +477,6 @@ Definition tab_agree (s: store_record) (t: tableinst): Prop :=
   List.Forall (tabcl_agree s) (t.(table_data)) /\
   tabsize_agree t.
 
-Print memory.
-
 Definition mem_agree (m : memory) : Prop :=
   match lim_max (mem_limit m) with
   | None => True

@@ -4,6 +4,8 @@
 From mathcomp Require Import ssreflect ssrbool.
 
 Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
 (** * General lemmas about decidability **)
 

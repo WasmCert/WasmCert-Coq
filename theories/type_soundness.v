@@ -126,21 +126,12 @@ Proof.
   move => X x l.
   induction l => //=.
   - rewrite in_nil. by apply ReflectF.
-  - rewrite in_cons.
-    destruct ((x == a) || (x \in l)) eqn:HBool; move/orP in HBool.
-    + (* !! this does not work until I apply a lemma to the goal which
-              doesn't change HBool at all?? *)
-      (* destruct HBool. *)
-      apply ReflectT.
-      destruct HBool.
-      * move/eqP in H. subst. by left.
-      * right. by apply/IHl.
-    + apply ReflectF.
-      move => HContra. apply HBool.
-      destruct HContra.
-      * subst. by left.
-      * right. by move/IHl in H.
-Qed.
+  - rewrite in_cons. destruct IHl.
+    + rewrite orbT. apply ReflectT. by right.
+    + rewrite orbF. eapply iffP; first by apply eqP.
+      * by left.
+      * by inversion 1.
+Defined.
 
 (*
   This is actually very non-trivial to prove, unlike I first thought.
@@ -2641,16 +2632,14 @@ Proof.
   destruct (List.nth_error m1 n) eqn:HN => //=.
   unfold mem_typing. simpl.
   (* eauto is unbearably slow for some reason. *)
-  eapply all2_projection in H2.
-  2: { apply Hoption. }
-  2: { apply HN. }
+  eapply all2_projection in H2; [| by apply Hoption | by apply HN ].
   unfold mem_typing in H0. simpl in H0.
   remove_bools_options.
   apply/andP; split.
   (* even auto takes incredibly long... lias takes shorter somehow *)
   - by lias.
   (* it seems that any automatic tactic takes very long *)
-  - rewrite H3 in H2. rewrite H2. apply/eqP. reflexivity.
+  - rewrite H3 in H2. rewrite H2. by apply/eqP.
 Qed.
 
 Lemma mem_extension_C: forall sm sm' im tcm,
@@ -2877,7 +2866,6 @@ Lemma store_extension_e_typing: forall s s' C es tf,
     e_typing s C es tf -> e_typing s' C es tf.
 Proof.
   move=> s s' C es tf HST1 HST2 Hext HType. move: s' HST1 HST2 Hext.
-  Print e_typing_ind'.
   apply e_typing_ind' with (e := HType)
     (P := fun s C es tf (_ : e_typing s C es tf) => forall s',
             store_typing s ->
@@ -4516,86 +4504,6 @@ Definition br_reduce (es: seq administrative_instruction) :=
 Definition return_reduce (es: seq administrative_instruction) :=
   exists n lh, lfilled n lh [::Basic Return] es.
 
-Lemma list_search_prefix_pickable : forall A (P : seq A -> Prop),
-  comparable A ->
-  (forall l, decidable (P l)) ->
-  forall l l', pickable (fun lf => l' = l ++ lf /\ P lf).
-Proof.
-  move=> A + C + l. elim l.
-  - move=> P D l'. case (D l') => d.
-    + left. by exists l'.
-    + right. move=> [lf [E nd]]. by subst.
-  - move {l} => a l IH P D l'. case l'.
-    + right. by move => [lf [E _]].
-    + move {l'} => a' l'. case (C a a') => E.
-      * subst. case (IH _ D l').
-        -- move=> E. left. destruct E as (lf&E'&p). exists lf. by rewrite E'.
-        -- move=> nE. right. move=> [lf [E p]]. apply: nE. exists lf. by inversion E.
-      * right. move=> [lf [E' _]]. inversion E'. by apply: E.
-Defined.
-
-Lemma list_search_suffix_pickable : forall A (P : seq A -> Prop),
-  comparable A ->
-  (forall l, decidable (P l)) ->
-  forall l l', pickable (fun ls => l' = ls ++ l /\ P ls).
-Proof.
-  move=> A P C D l l'.
-  have Dr: forall l, decidable (P (rev l)).
-  { clear - D. move=> l. by apply: D. }
-  case (list_search_prefix_pickable C Dr (rev l) (rev l')) => E.
-  - left. destruct E as (lf&E&p). exists (rev lf). split => //.
-    by rewrite -(revK l') E rev_cat revK.
-  - right. move=> [ls [El' p]]. apply: E. exists (rev ls).
-    by rewrite revK El' rev_cat.
-Defined.
-
-Lemma list_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
-  (forall l1 l2, decidable (P l1 l2)) ->
-  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
-Proof.
-  move=> A + + l. elim l.
-  - move=> P D. case (D [::] [::]) => Y.
-    + left. by exists ([::], [::]).
-    + right. move=> [l1 [l2 [E p]]]. symmetry in E. move: (cat0_inv E) => [? ?]. by subst.
-  - move {l} => a l IH P D.
-    have Da: forall l1 l2, decidable (P (a :: l1) l2).
-    { clear - D. move=> l1 l2. by apply: D. }
-    have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P l1 l2 /\ l1 <> [::]).
-    {
-      have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P (a :: l1) l2).
-      {
-        apply: pickable2_equiv; last by apply (IH _ Da). move=> l1 l2. split.
-        - move=> [E p]. by subst.
-        - move=> [E p]. by inversion E.
-      }
-      case Pa.
-      - move=> [[l1 l2] [E p]]. left. exists (a :: l1, l2). by split.
-      - move=> Ex. right. move=> [l1 [l2 [E [p d]]]].
-        apply: Ex. destruct l1 as [|a' l1] => //. inversion E.
-        exists l1. exists l2. by subst.
-    }
-    case Pa.
-    + move=> [[l1 l2] [E [p d]]]. left. by exists (l1, l2).
-    + move=> nE. case (D [::] (a :: l)).
-      * left. exists ([::], a :: l). by split.
-      * move=> np. right. move=> [l1 [l2 [E p]]]. apply: nE.
-        exists l1. exists l2. repeat split => //. move=> ?. subst. simpl in E. by subst.
-Defined.
-
-Lemma list_search_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
-  comparable A ->
-  (forall l1 l2, decidable (P l1 l2)) ->
-  forall l l', pickable2 (fun l1 l2 => l' = l1 ++ l ++ l2 /\ P l1 l2).
-Proof.
-  move=> A P C D l l'.
-  move: (list_split_pickable2 (P := fun l1 l2 => exists l2', l2 = l ++ l2' /\ P l1 l2')) => D'.
-  apply: (pickable2_convert _ (fun '(l1, l2) => (l1, drop (size l) l2))); last apply: (D' _ l').
-  - move=> l1 l2 [E1 [l2' [E2 p]]]. subst. rewrite drop_cat.
-    rewrite_by ((size l < size l) = false). rewrite_by (size l - size l = 0). by rewrite drop0.
-  - move=> l1 l2 [E p]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
-  - move=> l1 l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
-Defined.
-
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
   (forall es' lh0 n0, pickable (fun lh => lfilled 0 lh (fes n0 lh0) es')) ->
@@ -4688,7 +4596,7 @@ Proof.
   by apply: lfilled_pickable_base.
 Defined.
 
-Lemma cat_abcd_a_bc_d: forall {X:Type} (a b c d: seq X),
+Local Lemma cat_abcd_a_bc_d: forall {X:Type} (a b c d: seq X),
     a ++ b ++ c ++ d = a ++ (b ++ c) ++ d.
 Proof.
   move => X a b c d.
@@ -4908,7 +4816,6 @@ Proof.
   (* e_typing *)
   move => s i C C' vs vcs es tf ts1 ts2 lab ret HType.
   move: i C' vs vcs ts1 ts2 lab ret.
-  Print e_typing_ind'.
   (* Initially I had the wrong order of lab and ret --
        The error message here is extremely misleading *)
   apply e_typing_ind' with (e := HType)
