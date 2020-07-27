@@ -47,7 +47,6 @@ Local Lemma concat_cancel_last_n: forall (l1 l2 l3 l4: seq value_type),
     (l1 == l3) && (l2 == l4).
 Proof.
   move => l1 l2 l3 l4 HCat HSize.
-
   rewrite -eqseq_cat; first by apply/eqP.
   assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
   repeat rewrite size_cat in H.
@@ -4506,7 +4505,7 @@ Definition return_reduce (es: seq administrative_instruction) :=
 
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
-  (forall es' lh0 n0, pickable (fun lh => lfilled 0 lh (fes n0 lh0) es')) ->
+  (forall es' lh n0, decidable (lfilled 0 lh (fes n0 lh) es')) ->
   forall es', pickable2 (fun n lh => lfilled n lh (fes n lh) es').
 Proof.
   move=> fes D0 es'.
@@ -4517,12 +4516,26 @@ Proof.
   have Dcl: forall vs, decidable (const_list vs).
   { move=> vs. by apply: is_true_decidable. }
   (** First, we check whether we can set [n = 0]. **)
-  have P0: (pickable2 (fun vs es'' =>
-                        let lh := LBase vs es'' in
-                        let es := fes k lh in
-                        es' = vs ++ es ++ es'' /\ const_list vs /\ lfilledInd 0 lh es es')).
+  have P0: pickable2 (fun vs es'' =>
+                       let lh := LBase vs es'' in
+                       let es := fes k lh in
+                       es' = vs ++ es ++ es'' /\ const_list vs /\ lfilledInd 0 lh es es').
   {
-    admit. (* TODO *)
+    have: pickable3 (fun vs es es'' =>
+      es' = vs ++ es ++ es'' /\ let lh := LBase vs es'' in
+      es = fes k lh /\ const_list vs /\ lfilledInd 0 lh es es').
+    {
+      apply: list_split_pickable3_gen. move=> vs es es'' Ees /=.
+      case E': (es == fes k (LBase vs es'')); move/eqP: E' => E'.
+      - rewrite E'. repeat apply: decidable_and => //.
+        + by apply: eq_comparable.
+        + by apply: decidable_equiv; first by apply: lfilled_Ind_Equivalent.
+      - right. by move=> [Ees2 [Cl I]].
+    }
+    case.
+    - move=> [[[vs es] es''] [E1 [E2 [Cl I]]]]. left. exists (vs, es''). by subst.
+    - move=> Ex. right. move=> [vs [es'' [E' [Cl I]]]]. apply: Ex.
+      by repeat eexists; eassumption.
   }
   case P0.
   {
@@ -4554,12 +4567,31 @@ Proof.
     + apply: nE'. by repeat eexists.
 Admitted (* TODO *).
 
+Lemma lfilled_decidable_base : forall es es' lh,
+  decidable (lfilled 0 lh es es').
+Proof.
+  move=> es es' lh. apply: (@decidable_equiv (lfilledInd 0 lh es es')).
+  { by split; apply lfilled_Ind_Equivalent. }
+  case lh.
+  - move=> vsh esh.
+    have: pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ vs = vsh /\ es'' = esh).
+    {
+      apply: list_search_split_pickable2.
+      - by apply: administrative_instruction_eq_dec.
+      - move=> ? ?. by repeat apply: decidable_and; apply: eq_comparable.
+    }
+    case.
+    + move=> [[vs es''] [E [C [E1 E2]]]]. left. subst. by constructor.
+    + move=> nE. right. move=> I. apply: nE. inversion I. subst. by repeat eexists.
+  - move=> vs n es'' lh' es'''. right. move=> I. by inversion I.
+Defined.
+
 Lemma lfilled_pickable_base : forall es es',
   pickable (fun lh => lfilled 0 lh es es').
 Proof.
   move=> es es'. apply: (@pickable_equiv _ (fun lh => lfilledInd 0 lh es es')).
   { move=> lh. by split; apply lfilled_Ind_Equivalent. }
-  have: (pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ True)).
+  have: pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ True).
   {
     apply: list_search_split_pickable2.
     - by apply: administrative_instruction_eq_dec.
@@ -4574,18 +4606,18 @@ Defined.
 
 (** A helper definition for the decidability of [br_reduce] and [return_reduce]. **)
 Definition lfilled_pickable_rec : forall es,
-  (forall es', pickable (fun lh => lfilled 0 lh es es')) ->
+  (forall es' lh, decidable (lfilled 0 lh es es')) ->
   forall es', pickable2 (fun n lh => lfilled n lh es es').
 Proof.
-  move=> es D. by apply: lfilled_pickable_rec_gen => + _ _.
+  move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
 
 (** [br_reduce] is decidable. **)
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
 Proof.
   move=> es. apply: pickable_decidable. apply: pickable2_weaken.
-  apply lfilled_pickable_rec_gen => es' _ n.
-  by apply: lfilled_pickable_base.
+  apply lfilled_pickable_rec_gen => es' lh n.
+  by apply: lfilled_decidable_base.
 Defined.
 
 (** [return_reduce] is decidable. **)
@@ -4593,8 +4625,9 @@ Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
 Proof.
   move=> es. apply: pickable_decidable. apply: pickable2_weaken.
   apply lfilled_pickable_rec => es'.
-  by apply: lfilled_pickable_base.
+  by apply: lfilled_decidable_base.
 Defined.
+
 
 Local Lemma cat_abcd_a_bc_d: forall {X:Type} (a b c d: seq X),
     a ++ b ++ c ++ d = a ++ (b ++ c) ++ d.

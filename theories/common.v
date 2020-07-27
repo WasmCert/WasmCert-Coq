@@ -319,7 +319,7 @@ Proof.
     + fold (nth d (e1 :: l1) 0). by rewrite F.
     + apply: IH.
       * by lias.
-      * move=> n I. have I': (n.+1 < (size l1).+1); first by lias.
+      * move=> n I. have I': n.+1 < (size l1).+1; first by lias.
         by apply F in I'.
 Qed.
 
@@ -686,17 +686,17 @@ Proof.
     by rewrite revK El' rev_cat.
 Defined.
 
-Lemma list_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
-  (forall l1 l2, decidable (P l1 l2)) ->
-  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
+Lemma list_split_pickable2_gen : forall A (P : seq A -> seq A -> Prop) l,
+  (forall l1 l2, l = l1 ++ l2 -> decidable (P l1 l2)) ->
+  pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
 Proof.
-  move=> A + + l. elim l.
-  - move=> P D. case (D [::] [::]) => Y.
+  move=> A + l. elim l.
+  - move=> P D. case (D [::] [::]) => // Y.
     + left. by exists ([::], [::]).
     + right. move=> [l1 [l2 [E p]]]. symmetry in E. move: (cat0_inv E) => [? ?]. by subst.
   - move {l} => a l IH P D.
-    have Da: forall l1 l2, decidable (P (a :: l1) l2).
-    { clear - D. move=> l1 l2. by apply: D. }
+    have Da: forall l1 l2, l = l1 ++ l2 -> decidable (P (a :: l1) l2).
+    { clear - D. move=> l1 l2 ?. apply: D. by subst. }
     have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P l1 l2 /\ l1 <> [::]).
     {
       have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P (a :: l1) l2).
@@ -713,10 +713,17 @@ Proof.
     }
     case Pa.
     + move=> [[l1 l2] [E [p d]]]. left. by exists (l1, l2).
-    + move=> nE. case (D [::] (a :: l)).
+    + move=> nE. case (D [::] (a :: l)) => //.
       * left. exists ([::], a :: l). by split.
       * move=> np. right. move=> [l1 [l2 [E p]]]. apply: nE.
         exists l1. exists l2. repeat split => //. move=> ?. subst. simpl in E. by subst.
+Defined.
+
+Lemma list_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
+Proof.
+  move=> A P D l. by apply: list_split_pickable2_gen.
 Defined.
 
 Lemma list_search_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
@@ -732,4 +739,29 @@ Proof.
   - move=> l1 l2 [E p]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
   - move=> l1 l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
 Defined.
+
+Lemma list_split_pickable3_gen : forall A (P : seq A -> seq A -> seq A -> Prop) l,
+  (forall l1 l2 l3, l = l1 ++ l2 ++ l3 -> decidable (P l1 l2 l3)) ->
+  pickable3 (fun l1 l2 l3 => l = l1 ++ l2 ++ l3 /\ P l1 l2 l3).
+Proof.
+  move=> A P l D.
+  have D1: forall l23 l1, l = l1 ++ l23 -> pickable2 (fun l2 l3 => l23 = l2 ++ l3 /\ P l1 l2 l3).
+  { move=> l23 l1 E. apply: list_split_pickable2_gen. move=> ? ? E'. subst. by apply D. }
+  have: pickable2 (fun l1 l23 => l = l1 ++ l23 /\ exists l2 l3, l23 = l2 ++ l3 /\ P l1 l2 l3).
+  { apply: list_split_pickable2_gen. move=> l1 l23 E. by convert_pickable (D1 _ _ E). }
+  case.
+  - move=> [[l1 l23] [E1 H]]. left. case (D1 _ _ E1).
+    + move=> [[l2 l3] [E2 p]]. exists (l1, l2, l3). by subst.
+    + move=> Ex. exfalso. apply: Ex. move: H => [l2 [l3 [E2 p]]]. exists l2. by exists l3.
+  - move=> Ex. right. move=> [l1 [l2 [l3 [E p]]]]. apply: Ex. exists l1. exists (l2 ++ l3).
+    split => //. by repeat eexists.
+Defined.
+
+Lemma list_split_pickable3 : forall A (P : seq A -> seq A -> seq A -> Prop),
+  (forall l1 l2 l3, decidable (P l1 l2 l3)) ->
+  forall l, pickable3 (fun l1 l2 l3 => l = l1 ++ l2 ++ l3 /\ P l1 l2 l3).
+Proof.
+  move=> A P D l. by apply: list_split_pickable3_gen.
+Defined.
+
 

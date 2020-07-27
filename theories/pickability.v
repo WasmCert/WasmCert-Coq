@@ -1,7 +1,7 @@
 (** Definitions to build computable functions. **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-From mathcomp Require Import ssreflect ssrbool.
+From mathcomp Require Import ssreflect ssrbool eqtype.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -39,7 +39,7 @@ Qed.
 
 Lemma is_true_decidable : forall b : bool, decidable b.
 Proof.
-  by case; [ left | right ].
+  move=> b. by apply: eq_comparable.
 Defined.
 
 (** * Definition of Pickability **)
