@@ -1,5 +1,5 @@
 (** Miscellaneous properties about Wasm operations **)
-(* (C) Rao Xiaojia - see LICENSE.txt *)
+(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 Require Export operations typing opsem interpreter common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -396,3 +396,120 @@ Proof.
     rewrite H3. f_equal.
     by apply IHl1.
 Qed.
+
+
+From StrongInduction Require Import StrongInduction.
+
+(** A helper definition for [lfilled_decidable_rec]. **)
+Definition lfilled_pickable_rec_gen : forall fes,
+  (forall es' lh n0, decidable (lfilled 0 lh (fes n0 lh) es')) ->
+  forall es', pickable2 (fun n lh => lfilled n lh (fes n lh) es').
+Proof.
+  move=> fes D0 es'.
+  apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')).
+  { move=> n lh. by split; apply lfilled_Ind_Equivalent. }
+  move: 0 => k. have [len E]: { len | size es' = len }; first by eexists.
+  move: es' E k. strong induction len. rename X into IH. move=> es' E k.
+  have Dcl: forall vs, decidable (const_list vs).
+  { move=> vs. by apply: is_true_decidable. }
+  (** First, we check whether we can set [n = 0]. **)
+  have P0: pickable2 (fun vs es'' =>
+                       let lh := LBase vs es'' in
+                       let es := fes k lh in
+                       es' = vs ++ es ++ es'' /\ const_list vs /\ lfilledInd 0 lh es es').
+  {
+    have: pickable3 (fun vs es es'' =>
+      es' = vs ++ es ++ es'' /\ let lh := LBase vs es'' in
+      es = fes k lh /\ const_list vs /\ lfilledInd 0 lh es es').
+    {
+      apply: list_split_pickable3_gen. move=> vs es es'' Ees /=.
+      case E': (es == fes k (LBase vs es'')); move/eqP: E' => E'.
+      - rewrite E'. repeat apply: decidable_and => //.
+        + by apply: eq_comparable.
+        + by apply: decidable_equiv; first by apply: lfilled_Ind_Equivalent.
+      - right. by move=> [Ees2 [Cl I]].
+    }
+    case.
+    - move=> [[[vs es] es''] [E1 [E2 [Cl I]]]]. left. exists (vs, es''). by subst.
+    - move=> Ex. right. move=> [vs [es'' [E' [Cl I]]]]. apply: Ex.
+      by repeat eexists; eassumption.
+  }
+  case P0.
+  {
+    move=> [[vs es''] [E' [Cvs I]]]. left. exists (0, LBase vs es'').
+    subst. rewrite_by (k + 0 = k). by apply: LfilledBase.
+  }
+  move=> nE.
+  (** Otherwise, we have to apply [LfilledRec]. **)
+  have Dparse: forall es', decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2).
+  {
+    clear. move=> es'.
+    have Pparse: pickable4 (fun n es1 LI es2 => es' = [:: Label n es1 LI] ++ es2).
+    {
+      let no := by intros; right; intros (?&?&?&?&?) in
+      (case es'; first by no); case; try by no.
+      move=> n l1 l2 l3. left. by exists (n, l1, l2, l3).
+    }
+    convert_pickable Pparse.
+  }
+  case: (list_split_pickable2 (fun vs es => decidable_and (Dcl vs) (Dparse es)) es').
+  - move=> [[vs es''] [E1 [C Ex]]].
+    destruct es'' as [| [| | | n es1 LI |] es2];
+      try solve [ exfalso; move: Ex => [? [? [? [? E']]]]; inversion E' ].
+    clear Ex.
+    (* apply: IH. *)
+    admit. (* TODO: the decreasing argument is not [size es'], but the size plus the sum of all the inner [LI]. *)
+  - move=> nE'. right. move=> [n [lh I]]. inversion I; subst.
+    + apply: nE. do 2 eexists. rewrite_by (k + 0 = k). repeat split; try eassumption.
+      by apply: LfilledBase.
+    + apply: nE'. by repeat eexists.
+Admitted (* TODO *).
+
+(** We can always decide [lfilled 0]. **)
+Lemma lfilled_decidable_base : forall es es' lh,
+  decidable (lfilled 0 lh es es').
+Proof.
+  move=> es es' lh. apply: (@decidable_equiv (lfilledInd 0 lh es es')).
+  { by split; apply lfilled_Ind_Equivalent. }
+  case lh.
+  - move=> vsh esh.
+    have: pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ vs = vsh /\ es'' = esh).
+    {
+      apply: list_search_split_pickable2.
+      - by apply: administrative_instruction_eq_dec.
+      - move=> ? ?. by repeat apply: decidable_and; apply: eq_comparable.
+    }
+    case.
+    + move=> [[vs es''] [E [C [E1 E2]]]]. left. subst. by constructor.
+    + move=> nE. right. move=> I. apply: nE. inversion I. subst. by repeat eexists.
+  - move=> vs n es'' lh' es'''. right. move=> I. by inversion I.
+Defined.
+
+(** We can furthermore rebuild the stack [lh] for any [lfilled 0] predicate. **)
+Lemma lfilled_pickable_base : forall es es',
+  pickable (fun lh => lfilled 0 lh es es').
+Proof.
+  move=> es es'. apply: (@pickable_equiv _ (fun lh => lfilledInd 0 lh es es')).
+  { move=> lh. by split; apply lfilled_Ind_Equivalent. }
+  have: pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ True).
+  {
+    apply: list_search_split_pickable2.
+    - by apply: administrative_instruction_eq_dec.
+    - move=> ? ?. apply: decidable_and.
+      + by apply: is_true_decidable.
+      + by left.
+  }
+  case.
+  - move=> [[vs es''] [E [C _]]]. left. eexists. subst. by constructor.
+  - move=> nE. right. move=> [lh I]. apply: nE. inversion I. subst. by repeat eexists.
+Defined.
+
+(** A helper definition for the decidability of [br_reduce] and [return_reduce]
+  (see type_soundness.v). **)
+Definition lfilled_pickable_rec : forall es,
+  (forall es' lh, decidable (lfilled 0 lh es es')) ->
+  forall es', pickable2 (fun n lh => lfilled n lh es es').
+Proof.
+  move=> es D. by apply: lfilled_pickable_rec_gen.
+Defined.
+

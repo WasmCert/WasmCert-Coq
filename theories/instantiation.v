@@ -288,8 +288,6 @@ Definition module_func_typing (c : t_context) (m : module_func) (tf : function_t
   |} in
   typing.be_typing c' b_es tf.
 
-  SearchAbout (N -> N -> N).
-
 Definition limit_typing (lim : limits) (k : N) : bool :=
   let '{| lim_min := min; lim_max := maxo |} := lim in
   (N.leb k (N.pow 2 32)) &&
