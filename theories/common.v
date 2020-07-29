@@ -537,28 +537,69 @@ Ltac count_cases rect :=
     count_args r
   end.
 
+(* FIXME
+forall P : t -> Type,
+(forall a1, P (C1 a1)) ->
+(forall v, P v -> P (C2 v)) ->
+(forall l, TProp.Forall P l -> P (C3 l)) ->
+forall v : t, P v.
+
+forall P : list t -> Type,
+P [::] ->
+(forall l a1, P l -> P (C1 a1 :: l)) ->
+(forall l v, P l -> P [:: v] -> P (C2 v :: l)) ->
+(forall l0 l, P l0 -> P l -> P (C3 l :: l0)) ->
+forall l : list t, P l.
+
+forall P : option t -> Type,
+P None ->
+(forall a1, P (Some (C1 a1))) ->
+(forall v, P (Some v) -> P (Some (C2 v))) ->
+(forall l, TProp.Forall (fun v => P (Some v)) l -> P (Some (C3 l)) ->
+forall o : option t, P o.
+*)
+
 (** Given an induction principle, return the type of a stronger induction principle.
   The projection is there to focus the induction principle on a different type (e.g. [list t]
   instead of [t]): possible values are [@id], [list], and [option]. **)
 Ltac rect'_type_projection proj rect :=
-  let added_hyp t ta :=
-    lazymatch ta with
-    | list t => constr:(@TProp.Forall t)
-    | option t => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
-    | _ => constr:(fun (_ : t -> Type) (_ : ta) => True)
+  let t := (* The type the induction is on. *)
+    lazymatch type of rect with
+    | forall P : ?t -> _, _ => constr:(t)
     end in
-  let add_hyp t ta P a r :=
-    let h := added_hyp t ta in
+  let get_unit := (* Given [v : t], build an object of type [proj t] containing exactly [v]. *)
+    lazymatch proj with
+    | @id => constr:(fun v : t => v)
+    | list => constr:(fun v : t => [:: v])
+    | option => constr:(fun v : t => Some v)
+    end in
+  let added_hyp ta :=
+    (* The inductive hypothesis that corresponds to a value of type [ta].
+      Return a value of type [(proj t -> Type) -> ta -> Type]. *)
+    lazymatch ta with
+    | proj t => constr:(@id (proj t -> Type))
+    | t => constr:(fun (P : proj t -> Type) (v : t) => P (get_unit v))
+    | list t => constr:(fun (P : proj t -> Type) => TProp.Forall (fun v : t => P (get_unit v)))
+    | option t =>
+      constr:(fun (P : proj t -> Type) (o : ta) => forall a : t, o = Some a -> P (get_unit a))
+    | _ => (* Unrecognised type: we won’t add any useful hypothesis, but still accept it. *)
+      constr:(fun (_ : t -> Type) (_ : ta) => True)
+    end in
+  let add_hyp ta P a r :=
+    (* Given [a : ta] of an argument, the value [P : proj t -> Type], as well as the
+    continuation type [r], add the hypothesis built by [added_hyp] to [r]. *)
+    let h := added_hyp ta in
     let h := constr:(h P a) in
     let h := eval simpl in h in
     lazymatch h with
-    | True => r
+    | True => r (* We remove useless hypotheses. *)
     | _ => constr:(h -> r)
     end in
-  let set_hyp t ta P a r :=
-    let r := add_hyp t ta P a r in
+  let set_hyp ta P a r :=
+    (* Similar to [add_hyp], but apply the result to the goal instead of returning it. *)
+    let r := add_hyp ta P a r in
     exact r in
-  let update_hyp t hyp :=
+  let update_hyp hyp :=
     lazymatch hyp with
     | fun P => P _ => constr:(hyp)
     | fun P => forall a1 : ?t1, P (?C a1) =>
@@ -595,7 +636,7 @@ Ltac rect'_type_projection proj rect :=
                 ltac:(add_hyp t t5 P a5
                   ltac:(add_hyp t t6 P a6 (P (C a1 a2 a3 a4 a5 a6)))))))))
     end in
-  let conclusion t rectf :=
+  let conclusion rectf :=
     lazymatch rectf with
     | fun P => forall a : t, P a =>
       lazymatch proj with
@@ -604,17 +645,17 @@ Ltac rect'_type_projection proj rect :=
       | option => constr:(fun P => forall (o : option t) (a : t), o = Some a -> P a)
       end
     end in
-  let rec map_hyps t rectf :=
+  let rec map_hyps rectf :=
     lazymatch rectf with
-    | fun P => forall a : t, P a => conclusion t rectf
+    | fun P => forall a : t, P a => conclusion rectf
     | fun P => @?hyp P -> @?rectf' P =>
-      let r := update_hyp t hyp in
-      let r' := map_hyps t rectf' in
+      let r := update_hyp hyp in
+      let r' := map_hyps rectf' in
       constr:(fun P => r P -> r' P)
     end in
   lazymatch type of rect with
-  | forall P : ?t -> Type, @?rectf P =>
-    let r := map_hyps t rectf in
+  | forall P : _ -> _, @?rectf P =>
+    let r := map_hyps rectf in
     let r := constr:(forall P, r P) in
     eval simpl in r
   end.

@@ -398,8 +398,6 @@ Proof.
 Qed.
 
 
-From StrongInduction Require Import StrongInduction.
-
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
   (forall es' lh n0, decidable (lfilled 0 lh (fes n0 lh) es')) ->
@@ -408,6 +406,7 @@ Proof.
   move=> fes D0 es'.
   apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')).
   { move=> n lh. by split; apply lfilled_Ind_Equivalent. }
+  induction es' using seq_administrative_instruction_ind'. (* TODO: This is not a nice induction principle. *)
   move: 0 => k. have [len E]: { len | size es' = len }; first by eexists.
   move: es' E k. strong induction len. rename X into IH. move=> es' E k.
   have Dcl: forall vs, decidable (const_list vs).
