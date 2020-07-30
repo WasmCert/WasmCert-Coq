@@ -261,12 +261,98 @@ Definition administrative_instruction_rect' :=
 Definition administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
   @administrative_instruction_rect' P.
 
-Definition seq_administrative_instruction_rect' : ltac:(set_rect'_type_list administrative_instruction_rect).
-  ltac:(rect'_build_list administrative_instruction_rect).
-Show Proof.
-Defined.
+(* FIXME *)
+Inductive test :=
+  | C : list test -> test.
 
-Check
+Fixpoint f' (v : test) :=
+  let f :=
+    fix f l :=
+      match l with
+      | nil => 0
+      | v :: _ => f' v
+      end in
+  match v with
+  | C l => f l
+  end.
+
+Fixpoint f (l : list test) :=
+  let f' :=
+    fix f' (t : test) :=
+      match t with
+      | C l => f l
+      end in
+  match l with
+  | nil => 0
+  | v :: _ => f' v
+  end.
+
+
+Ltac rect'_build_projection' proj rect :=
+  let t :=
+    lazymatch type of rect with
+    | forall P : ?t -> Type, _ => t
+    end in
+  let g := rect'_type_projection proj rect in
+  refine (_ : g);
+  let P := fresh "P" in
+  intro P;
+  repeat lazymatch goal with
+  | |- forall a : proj t, P a => idtac
+  | |- forall a : t, P a => idtac
+  | |- _ -> _ => intro
+  end;
+  let rect := fresh "rect" in
+  fix rect 1;
+  let rect_list := fresh "rect_list" in
+  refine (
+    let rect_list :=
+      fix rect_list es : TProp.Forall P es :=
+        match es with
+        | [::] => TProp.Forall_nil _
+        | e :: l => TProp.Forall_cons (rect e) (rect_list l)
+        end in _);
+  let do_it := solve [ clear rect rect_list; auto ] in
+  let use_hyps :=
+    intros;
+    repeat match goal with
+    | v : proj t |- _ =>
+      lazymatch goal with
+      | H : P v |- _ => fail
+      | _ => move: (rect v) => ?
+      end
+    | a : t |- _ =>
+      lazymatch goal with
+      | H : P a |- _ => fail
+      | _ => move: (rect a) => ?
+      end
+    | l : list t |- _ =>
+      lazymatch goal with
+      | H : TProp.Forall P l |- _ => fail
+      | _ => move: (rect_list l) => ?
+      end
+    | o : option t |- _ =>
+      lazymatch proj with
+      | option => fail
+      | _ => destruct o
+      end
+    end in
+  let go_on := first [ do_it | use_hyps; try do_it ] in
+  let special_cases :=
+    intros;
+    lazymatch goal with
+    | Split : forall l1 l2, P l1 -> P l2 -> P (l1 ++ l2) |- ?P (?a :: ?l) =>
+      refine (Split [:: a] l _ (rect l));
+      case a; go_on
+    end in
+  let a := fresh "v" in
+  intro a; destruct a; first [ special_cases | go_on ].
+
+Ltac rect'_build_list' rect := rect'_build_projection' list rect.
+
+Definition seq_administrative_instruction_rect' : ltac:(set_rect'_type_list administrative_instruction_rect).
+
+  refine (
 ((fun (P : seq administrative_instruction -> Type) 
     (X : P [::])
     (X0 : forall l1 l2 : seq administrative_instruction,
@@ -280,42 +366,27 @@ Check
     (X5 : forall (n : nat) (i : instance) (l : seq value)
             (l0 : seq administrative_instruction),
           P l0 -> P [:: Local n i l l0]) =>
-
-  fix rect (rect_list :
-        forall es : seq (seq administrative_instruction), TProp.Forall P es :=
-        fix rect_list (es : seq (seq administrative_instruction)) :
-          TProp.Forall P es :=
-          match es as es0 return (TProp.Forall P es0) with
-          | [::] => TProp.Forall_nil P
-          | e :: l => TProp.Forall_cons (rect e) (rect_list l)
-          end) (l : seq administrative_instruction) : 
+  fix rect (l : seq administrative_instruction) : 
   P l :=
-    (fun __top_assumption_ : seq administrative_instruction =>
-     (fun (_evar_0_ : [eta P] [::])
-        (_evar_0_0 : forall (a : administrative_instruction)
-                       (l0 : seq administrative_instruction),
-                     [eta P] (a :: l0)) =>
-      match __top_assumption_ as l0 return ([eta P] l0) with
-      | [::] => _evar_0_
-      | x :: x0 => _evar_0_0 x x0
-      end) X
-       (fun (a : administrative_instruction)
-          (l0 : seq administrative_instruction) =>
-        X0 [:: a] l0
-          match a as a0 return (P [:: a0]) with
-          | Basic x => X1 x
-          | Trap => X2
-          | Invoke x => X3 x
-          | Label n l1 l2 =>
-              (fun _rect_ : P l2 =>
-               (fun _rect1_ : P l1 =>
-                (fun=> X4 n l1 _rect1_ l2 _rect_) (rect l0)) 
-                 (rect l1)) (rect l2)
-          | Local n i l1 l2 =>
-              (fun _rect_ : P l2 => (fun=> X5 n i l1 l2 _rect_) (rect l0))
-                (rect l2)
-          end (rect l0))) l)
-
+     match l as l0 return (P l0) with
+     | [::] => X
+     | a :: v0 =>
+         X0 [:: a] v0
+           match a as a0 return (P [:: a0]) with
+           | Basic x => X1 x
+           | Trap => X2
+           | Invoke x => X3 x
+           | Label n l0 l1 =>
+               let r_rect_ := (rect l1) in
+               let r_rect1_ := (rect l0) in
+               _(*(*let _ := (rect v0) in*)
+               X4 n l0 r_rect1_ l1 r_rect_*)
+           | Local n i l0 l1 =>
+               (*let r_rect_ := rect l1 in
+               (*let _ := (rect v0) in*)
+               X5 n i l0 l1 r_rect_*) _
+           end (rect v0)
+     end)
    : (forall P : seq administrative_instruction -> Type,
       P [::] ->
       (forall l1 l2 : seq administrative_instruction,
@@ -329,7 +400,15 @@ Check
        P l0 -> P [:: Label n l l0]) ->
       (forall (n : nat) (i : instance) (l : seq value)
          (l0 : seq administrative_instruction), P l0 -> P [:: Local n i l l0]) ->
-      forall l : seq administrative_instruction, P l))
+      forall l : seq administrative_instruction, P l))).
+
+clearbody r_rect_ r_rect1_. clear rect. auto.
+
+Guarded.
+
+  ltac:(rect'_build_list' administrative_instruction_rect).
+Show Proof.
+Defined.
 
 
 (** Administrative instructions frequently come in lists.
