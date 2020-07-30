@@ -161,6 +161,12 @@ Definition value_rec_safe (P : Type)
            (f64 : Wasm_float.FloatSize64.T -> P) v : P :=
   value_rect i32 i64 f32 f64 v.
 
+Definition basic_instruction_rect'_test :
+  ltac:(let t := rect'_type basic_instruction_rect in exact t).
+  rect'_build basic_instruction_rect.
+  move=> f l l'.
+-- The induction principle is slightly wrong there because of names.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
@@ -319,3 +325,4 @@ Definition eqmemory_typeP : Equality.axiom memory_type_eqb :=
 
 Canonical Structure memory_type_eqMixin := EqMixin eqmemory_typeP.
 Canonical Structure memory_type_eqType := Eval hnf in EqType memory_type memory_type_eqMixin.
+

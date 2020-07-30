@@ -537,31 +537,9 @@ Ltac count_cases rect :=
     count_args r
   end.
 
-(* FIXME
-forall P : t -> Type,
-(forall a1, P (C1 a1)) ->
-(forall v, P v -> P (C2 v)) ->
-(forall l, TProp.Forall P l -> P (C3 l)) ->
-forall v : t, P v.
-
-forall P : list t -> Type,
-P [::] ->
-(forall l a1, P l -> P (C1 a1 :: l)) ->
-(forall l v, P l -> P [:: v] -> P (C2 v :: l)) ->
-(forall l0 l, P l0 -> P l -> P (C3 l :: l0)) ->
-forall l : list t, P l.
-
-forall P : option t -> Type,
-P None ->
-(forall a1, P (Some (C1 a1))) ->
-(forall v, P (Some v) -> P (Some (C2 v))) ->
-(forall l, TProp.Forall (fun v => P (Some v)) l -> P (Some (C3 l)) ->
-forall o : option t, P o.
-*)
-
 (** Given an induction principle, return the type of a stronger induction principle.
   The projection is there to focus the induction principle on a different type (e.g. [list t]
-  instead of [t]): possible values are [@id], [list], and [option]. **)
+  instead of [t]): possible values are [@id Type], [list], and [option]. **)
 Ltac rect'_type_projection proj rect :=
   let t := (* The type the induction is on. *)
     lazymatch type of rect with
@@ -569,105 +547,188 @@ Ltac rect'_type_projection proj rect :=
     end in
   let get_unit := (* Given [v : t], build an object of type [proj t] containing exactly [v]. *)
     lazymatch proj with
-    | @id => constr:(fun v : t => v)
+    | @id Type => constr:(fun v : t => v)
     | list => constr:(fun v : t => [:: v])
     | option => constr:(fun v : t => Some v)
+    end in
+  let map_unit :=
+    (* The function [fun (P : proj t -> Type) (v : t) => P (get_unit v)],
+      but optimised for clarity. *)
+    lazymatch proj with
+    | @id Type => constr:(@id (t -> Type))
+    | _ => constr:(fun (P : proj t -> Type) (v : t) => P (get_unit v))
     end in
   let added_hyp ta :=
     (* The inductive hypothesis that corresponds to a value of type [ta].
       Return a value of type [(proj t -> Type) -> ta -> Type]. *)
     lazymatch ta with
     | proj t => constr:(@id (proj t -> Type))
-    | t => constr:(fun (P : proj t -> Type) (v : t) => P (get_unit v))
-    | list t => constr:(fun (P : proj t -> Type) => TProp.Forall (fun v : t => P (get_unit v)))
+    | t => constr:(map_unit)
+    | list t => constr:(fun (P : proj t -> Type) => TProp.Forall (map_unit P))
     | option t =>
-      constr:(fun (P : proj t -> Type) (o : ta) => forall a : t, o = Some a -> P (get_unit a))
+      constr:(fun (P : proj t -> Type) (o : ta) => forall a : t, o = Some a -> map_unit P a)
     | _ => (* Unrecognised type: we won’t add any useful hypothesis, but still accept it. *)
-      constr:(fun (_ : t -> Type) (_ : ta) => True)
+      constr:(fun (_ : proj t -> Type) (_ : ta) => True)
     end in
-  let add_hyp ta P a r :=
+  let add_hyp ta a P r :=
     (* Given [a : ta] of an argument, the value [P : proj t -> Type], as well as the
     continuation type [r], add the hypothesis built by [added_hyp] to [r]. *)
     let h := added_hyp ta in
     let h := constr:(h P a) in
-    let h := eval simpl in h in
+    let h := eval compute in h in
     lazymatch h with
     | True => r (* We remove useless hypotheses. *)
     | _ => constr:(h -> r)
     end in
-  let set_hyp ta P a r :=
+  let set_hyp ta a P r :=
     (* Similar to [add_hyp], but apply the result to the goal instead of returning it. *)
-    let r := add_hyp ta P a r in
+    let r := add_hyp ta a P r in
     exact r in
-  let update_hyp hyp :=
+  let rec update_hyp hyp := (* The main function doing all the transformations. *)
     lazymatch hyp with
-    | fun P => P _ => constr:(hyp)
-    | fun P => forall a1 : ?t1, P (?C a1) =>
-      constr:(fun P : t -> Type => forall a1 : t1,
-        ltac:(set_hyp t t1 P a1 (P (C a1))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2 (P (C a1 a2)))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3 (P (C a1 a2 a3))))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3
-              ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4)))))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3
-              ltac:(add_hyp t t4 P a4
-                ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4 a5))))))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3
-              ltac:(add_hyp t t4 P a4
-                ltac:(add_hyp t t5 P a5
-                  ltac:(add_hyp t t6 P a6 (P (C a1 a2 a3 a4 a5 a6)))))))))
+    | fun P => P ?v => constr:(fun P : proj t -> Type => map_unit P v)
+    | fun P => forall a1 : t, P a1 -> @?hyp' a1 P =>
+      let hyp := constr:(fun P => forall a1 : t, hyp' a1 P) in
+      update_hyp hyp
+    | fun P => forall a1 : ?t1, @?hyp' a1 P =>
+      constr:(fun P : proj t -> Type => forall a1 : t1,
+        ltac:(
+          let hyp' := constr:(hyp' a1) in
+          let hyp' := eval compute in hyp' in
+          let cont := update_hyp hyp' in
+          let cont := constr:(cont P) in
+          set_hyp t1 a1 P cont))
     end in
-  let conclusion rectf :=
+  (* let update_hyp hyp := (* The main function doing all the transformations. *)
+    lazymatch hyp with
+    | fun P => P ?v => constr:(fun P : proj t -> Type => map_unit P v)
+    | fun P => forall a1 : ?t1, P (?C a1) =>
+      constr:(fun P : proj t -> Type => forall a1 : t1,
+        ltac:(set_hyp t1 a1 P (map_unit P (C a1))))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
+      constr:(fun P : proj t -> Type => forall (a1 : t1) (a2 : t2),
+        ltac:(set_hyp t1 a1 P
+          ltac:(add_hyp t2 a2 P (map_unit P (C a1 a2)))))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
+      constr:(fun P : proj t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
+        ltac:(set_hyp t1 a1 P
+          ltac:(add_hyp t2 a2 P
+            ltac:(add_hyp t3 a3 P (map_unit P (C a1 a2 a3))))))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
+      constr:(fun P : proj t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
+        ltac:(set_hyp t1 a1 P
+          ltac:(add_hyp t2 a2 P
+            ltac:(add_hyp t3 a3 P
+              ltac:(add_hyp t4 a4 P (map_unit P (C a1 a2 a3 a4)))))))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
+      constr:(fun P : proj t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
+        ltac:(set_hyp t1 a1 P
+          ltac:(add_hyp t2 a2 P
+            ltac:(add_hyp t3 a3 P
+              ltac:(add_hyp t4 a4 P
+                ltac:(add_hyp t5 a5 P (map_unit P (C a1 a2 a3 a4 a5))))))))
+    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
+      constr:(fun P : proj t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
+        ltac:(set_hyp t1 a1 P
+          ltac:(add_hyp t2 a2 P
+            ltac:(add_hyp t3 a3 P
+              ltac:(add_hyp t4 a4 P
+                ltac:(add_hyp t5 a5 P
+                  ltac:(add_hyp t6 a6 P (map_unit P (C a1 a2 a3 a4 a5 a6)))))))))
+    | _ => fail "DEBUG: test: " hyp
+    end in *)
+  let conclusion rectf := (* Build the final conclusion of the inductive principle. *)
     lazymatch rectf with
     | fun P => forall a : t, P a =>
-      lazymatch proj with
-      | @id => constr:(rectf)
-      | list => constr:(fun P => forall l : list t, TProp.Forall P l)
-      | option => constr:(fun P => forall (o : option t) (a : t), o = Some a -> P a)
-      end
+      let n :=
+        lazymatch proj with
+        | @id Type => fresh a
+        | list => fresh "l"
+        | option => fresh "o"
+        end in
+      constr:(fun P : proj t -> Type => forall n : proj t, P n)
     end in
   let rec map_hyps rectf :=
+    (* Call the function [update_hyp] to all the hypotheses all the provided induction hypothesis. *)
     lazymatch rectf with
     | fun P => forall a : t, P a => conclusion rectf
     | fun P => @?hyp P -> @?rectf' P =>
       let r := update_hyp hyp in
       let r' := map_hyps rectf' in
-      constr:(fun P => r P -> r' P)
+      constr:(fun P : proj t -> Type => r P -> r' P)
     end in
-  lazymatch type of rect with
+  let add_specific_hyp r := (* Add the additionnal hypotheses specific to the projection. *)
+    lazymatch proj with
+    | @id Type => constr:(r)
+    | list => constr:(fun P : list t -> Type => P nil -> r P)
+    | option => constr:(fun P : option t -> Type => P None -> r P)
+    end in
+  lazymatch type of rect with (* Extract the given induction principle and all [map_hyps]. *)
   | forall P : _ -> _, @?rectf P =>
     let r := map_hyps rectf in
-    let r := constr:(forall P, r P) in
-    eval simpl in r
+    let r := add_specific_hyp r in
+    let r := constr:(forall P : proj t -> Type, r P) in
+    eval compute in r
   end.
 
 (** The main instantiation. **)
-Ltac rect'_type rect := rect'_type_projection @id rect.
+Ltac rect'_type rect := rect'_type_projection (@id Type) rect.
 
 (** Instantiation for lists. **)
 Ltac rect'_type_list rect := rect'_type_projection list rect.
 
 (** Instantiation for option types. **)
 Ltac rect'_type_option rect := rect'_type_projection option rect.
+
+(** For instance, given the type t defined below:
+[[
+Inductive t :=
+  | C1 : A -> t
+  | C2 : t -> t
+  | C3 : list t -> t
+  .
+]]
+
+Calling [rect'_type t_rect] would provide the following type:
+[[
+forall P : t -> Type,
+(forall a1, P (C1 a1)) ->
+(forall v, P v -> P (C2 v)) ->
+(forall l, TProp.Forall P l -> P (C3 l)) ->
+forall v : t, P v.
+]]
+This type is very similar to [t_rect], but has the additional [TProp.Forall P l] in the list case,
+which is usually extremely useful.
+
+Calling [rect'_type_list t_rect] would return the following type:
+[[
+forall P : list t -> Type,
+P [::] ->
+(forall l a1, P l -> P (C1 a1 :: l)) ->
+(forall l v, P l -> P [:: v] -> P (C2 v :: l)) ->
+(forall l0 l, P l0 -> P l -> P (C3 l :: l0)) ->
+forall l : list t, P l.
+]]
+
+And finally, [rect'_type_option t_rect]:
+[[
+forall P : option t -> Type,
+P None ->
+(forall a1, P (Some (C1 a1))) ->
+(forall v, P (Some v) -> P (Some (C2 v))) ->
+(forall l, TProp.Forall (fun v => P (Some v)) l -> P (Some (C3 l)) ->
+forall o : option t, P o.
+]]
+**)
+
+Inductive t :=
+  | C1 : nat -> t
+  | C2 : nat -> t -> nat -> t
+  | C3 : list t -> t
+  .
+
+Definition basic_instruction_rect' :=
+  ltac:(let t := rect'_type_list t_rect in exact t).
 
 (** Prove a goal whose type matches the type generated by [rect'_type] with the same parameter. **)
 Ltac rect'_build_projection proj rect :=
@@ -725,7 +786,7 @@ Ltac rect'_build_projection proj rect :=
   case; try solve [ do_it | use_hyps; do_it ].
 
 (** The main instantiation. **)
-Ltac rect'_build rect := rect'_build_projection @id rect.
+Ltac rect'_build rect := rect'_build_projection (@id Type) rect.
 
 (** Instantiation for lists. **)
 Ltac rect'_build_list rect := rect'_build_projection list rect.
