@@ -161,12 +161,6 @@ Definition value_rec_safe (P : Type)
            (f64 : Wasm_float.FloatSize64.T -> P) v : P :=
   value_rect i32 i64 f32 f64 v.
 
-Definition basic_instruction_rect'_test :
-  ltac:(let t := rect'_type basic_instruction_rect in exact t).
-  rect'_build basic_instruction_rect.
-  move=> f l l'.
--- The induction principle is slightly wrong there because of names.
-
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
@@ -266,6 +260,77 @@ Definition administrative_instruction_rect' :=
 
 Definition administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
   @administrative_instruction_rect' P.
+
+Definition seq_administrative_instruction_rect' : ltac:(set_rect'_type_list administrative_instruction_rect).
+  ltac:(rect'_build_list administrative_instruction_rect).
+Show Proof.
+Defined.
+
+Check
+((fun (P : seq administrative_instruction -> Type) 
+    (X : P [::])
+    (X0 : forall l1 l2 : seq administrative_instruction,
+          P l1 -> P l2 -> P (l1 ++ l2))
+    (X1 : forall b : basic_instruction, P [:: Basic b]) 
+    (X2 : P [:: Trap]) (X3 : forall f : function_closure, P [:: Invoke f])
+    (X4 : forall (n : nat) (l : seq administrative_instruction),
+          P l ->
+          forall l0 : seq administrative_instruction,
+          P l0 -> P [:: Label n l l0])
+    (X5 : forall (n : nat) (i : instance) (l : seq value)
+            (l0 : seq administrative_instruction),
+          P l0 -> P [:: Local n i l l0]) =>
+
+  fix rect (rect_list :
+        forall es : seq (seq administrative_instruction), TProp.Forall P es :=
+        fix rect_list (es : seq (seq administrative_instruction)) :
+          TProp.Forall P es :=
+          match es as es0 return (TProp.Forall P es0) with
+          | [::] => TProp.Forall_nil P
+          | e :: l => TProp.Forall_cons (rect e) (rect_list l)
+          end) (l : seq administrative_instruction) : 
+  P l :=
+    (fun __top_assumption_ : seq administrative_instruction =>
+     (fun (_evar_0_ : [eta P] [::])
+        (_evar_0_0 : forall (a : administrative_instruction)
+                       (l0 : seq administrative_instruction),
+                     [eta P] (a :: l0)) =>
+      match __top_assumption_ as l0 return ([eta P] l0) with
+      | [::] => _evar_0_
+      | x :: x0 => _evar_0_0 x x0
+      end) X
+       (fun (a : administrative_instruction)
+          (l0 : seq administrative_instruction) =>
+        X0 [:: a] l0
+          match a as a0 return (P [:: a0]) with
+          | Basic x => X1 x
+          | Trap => X2
+          | Invoke x => X3 x
+          | Label n l1 l2 =>
+              (fun _rect_ : P l2 =>
+               (fun _rect1_ : P l1 =>
+                (fun=> X4 n l1 _rect1_ l2 _rect_) (rect l0)) 
+                 (rect l1)) (rect l2)
+          | Local n i l1 l2 =>
+              (fun _rect_ : P l2 => (fun=> X5 n i l1 l2 _rect_) (rect l0))
+                (rect l2)
+          end (rect l0))) l)
+
+   : (forall P : seq administrative_instruction -> Type,
+      P [::] ->
+      (forall l1 l2 : seq administrative_instruction,
+       P l1 -> P l2 -> P (l1 ++ l2)) ->
+      (forall b : basic_instruction, P [:: Basic b]) ->
+      P [:: Trap] ->
+      (forall f : function_closure, P [:: Invoke f]) ->
+      (forall (n : nat) (l : seq administrative_instruction),
+       P l ->
+       forall l0 : seq administrative_instruction,
+       P l0 -> P [:: Label n l l0]) ->
+      (forall (n : nat) (i : instance) (l : seq value)
+         (l0 : seq administrative_instruction), P l0 -> P [:: Local n i l l0]) ->
+      forall l : seq administrative_instruction, P l))
+
 
 (** Administrative instructions frequently come in lists.
   Here is the corresponding induction principle. **)
