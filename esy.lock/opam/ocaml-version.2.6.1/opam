@@ -40,9 +40,9 @@ functionality:
 """
 url {
   src:
-    "https://github.com/ocurrent/ocaml-version/releases/download/v2.5.0/ocaml-version-v2.5.0.tbz"
+    "https://github.com/ocurrent/ocaml-version/releases/download/v2.6.1/ocaml-version-v2.6.1.tbz"
   checksum: [
-    "sha256=93fec97584cb8ea0a1325742e586c3247f56b28b3ddadc6026d664c25940414b"
-    "sha512=ab9def76ba47e1e2d12f6f0f684fdd8d620b2a15e5c9549e77e60ac83839352fe88aca2a04adf46a5b985c7dc44b25cd6c14e5549f73b287066689b0f9a9d291"
+    "sha256=a986eb48c55b85d4df001a88c3d5bb28188079811a3714af9cb90bf6d9f88964"
+    "sha512=be42e1d0036146fe597700257da3904b76b55de87d77beeae272c584ceb6d8520ef08c63ae8634bfd2008d96b79b74edf93d63c4c784d232e7291a4d2e625bb7"
   ]
 }

@@ -21,10 +21,10 @@
 	},
 	"dependencies": {
 		"@opam/cmdliner": "1.0.4",
-		"@opam/coq": "8.10.1",
+		"@opam/coq": "8.10.2",
 		"@opam/dune": "~2.4",
 		"@opam/odoc": "*",
-		"@opam/menhir": "20181113",
+		"@opam/menhir": "*",
 		"compcert": "3.6",
 		"coq-flocq": "3.2.0",
 		"coq-iris": "*",
@@ -63,7 +63,7 @@
 				"git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
 			"version": "3.2.0",
 			"override": {
-				"dependencies": { "@opam/coq": "8.10.1" },
+				"dependencies": { "@opam/coq": "8.10.2" },
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}",
@@ -78,15 +78,14 @@
 				]
 			}
 		},
-		"compcert":
-			"github:Mbodin/CompCert#db71ae2cb478db5a7914123c42c69ec9a5731064",
+		"compcert": "github:Mbodin/CompCert#b004de92d4b2e4a1190855e2190485a89250e366",
 		"coq-iris": {
 			"source":
 				"git:https://gitlab.mpi-sws.org/iris/iris.git#fad7bbcf97bf47131c934e54f53fd8f178be568c",
 			"override": {
 				"buildsInSource": true,
 				"dependencies": {
-					"@opam/coq": "*",
+					"@opam/coq": "8.10.2",
 					"@opam/coq-stdpp": "1.2.1"
 				},
 				"buildEnv": {
@@ -109,7 +108,7 @@
 			"version": "1.2.1",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "*"
+					"@opam/coq": "8.10.2"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
@@ -126,6 +125,6 @@
 			}
 		},
 		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
-		"parseque": "github:Mbodin/parseque#c33d4ae040714c7d880d036c396a07cf849b4ff0"
+		"parseque": "github:Mbodin/parseque#11685019ec17d62480fe6f56a45f4a97f739f00d"
 	}
 }
