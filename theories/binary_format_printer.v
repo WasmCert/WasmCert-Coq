@@ -2,7 +2,7 @@
 Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
 Require Import datatypes_properties numerics.
 From compcert Require Integers.
-Require Import Ascii Byte.
+Require Import Byte.
 Require leb128.
 Require Import Coq.Arith.Le.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -361,15 +361,14 @@ Definition binary_of_global_type (g_ty : global_type) : list byte :=
   cons (binary_of_value_type g_ty.(tg_t)) nil ++
   binary_of_mutability g_ty.(tg_mut).
 
-Definition binary_of_mem_type (m : mem_type) : list byte :=
-  let 'Mk_mem_type lim := m in
-  binary_of_limits lim.
+Definition binary_of_memory_type (m : memory_type) : list byte :=
+  binary_of_limits m.
 
 Definition binary_of_import_desc (imp_desc : import_desc) : list byte :=
   match imp_desc with
   | ID_func tidx => x00 :: binary_of_typeidx (Mk_typeidx tidx)
   | ID_table t_ty => x01 :: binary_of_table_type t_ty
-  | ID_mem m_ty => x02 :: binary_of_mem_type m_ty
+  | ID_mem m_ty => x02 :: binary_of_memory_type m_ty
   | ID_global g_ty => x03 :: binary_of_global_type g_ty
   end.
 
@@ -390,8 +389,8 @@ Definition binary_of_module_table (t : module_table) : list byte :=
 Definition binary_of_tablesec (ts : list module_table) : list byte :=
   x04 :: with_length (binary_of_vec binary_of_module_table ts).
 
-Definition binary_of_memsec (ms : list mem_type) : list byte :=
-  x05 :: with_length (binary_of_vec binary_of_mem_type ms).
+Definition binary_of_memsec (ms : list memory_type) : list byte :=
+  x05 :: with_length (binary_of_vec binary_of_memory_type ms).
 
 Definition binary_of_module_glob (g : module_glob) : list byte :=
   binary_of_global_type g.(mg_type) ++

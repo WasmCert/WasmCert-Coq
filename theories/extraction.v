@@ -9,19 +9,23 @@ From Wasm Require Import
   interpreter
   pp.
 
+Require Import
+  Coq.extraction.ExtrOcamlBasic
+  Coq.extraction.ExtrOcamlString.
+
 Extraction Language OCaml.
 
 Extraction "extract"
-  run_parse_module_from_asciis
+  run_parse_module
   interp_instantiate_wrapper
   lookup_exported_function
-  cl_type_check
+  cl_type_check_single
   run_step_extraction
   run_v_extraction
   value_rec_safe
-  Ascii.byte_of_ascii
   pp.pp_config_tuple_except_store
   pp.pp_res_tuple_except_store
   pp.pp_values
   pp.pp_store
   operations.those_const_list.
+

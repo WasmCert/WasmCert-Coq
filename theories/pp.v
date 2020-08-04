@@ -5,7 +5,7 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
 Require Import bytes_pp datatypes interpreter.
 Require BinNatDef.
-Require Import ansi.
+Require Import ansi list_extra.
 
 Open Scope string_scope.
 
@@ -95,21 +95,21 @@ Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
   match bools with
   | nil => acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: bools' =>
-    pp_bools (Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 b8) :: acc) bools'
+    pp_bools (Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, b8))))))) :: acc) bools'
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 ::  nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 b7 false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, false))))))) :: acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 b6 false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (false, false))))))) :: acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 b5 false false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (false, (false, false))))))) :: acc
   | b1 :: b2 :: b3 :: b4 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 b4 false false false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (b4, (false, (false, (false, false))))))) :: acc
   | b1 :: b2 :: b3 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 b3 false false false false false) :: acc
+    Byte.of_bits (b1, (b2, (b3, (false, (false, (false, (false, false))))))) :: acc
   | b1 :: b2 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 b2 false false false false false false) :: acc
+    Byte.of_bits (b1, (b2, (false, (false, (false, (false, (false, false))))))) :: acc
   | b1 :: nil =>
-    Ascii.byte_of_ascii (Ascii.Ascii b1 false false false false false false false) :: acc
+    Byte.of_bits (b1, (false, (false, (false, (false, (false, (false, false))))))) :: acc
   end.
 
 Definition pp_f32 (f : float32) : string :=
@@ -279,15 +279,15 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
   | Set_global x =>
     indent i (with_fg be_style "global.set " ++ pp_immediate x ++ newline)
   | Load vt None a o =>
-    pp_value_type vt ++ ".load " ++ pp_ao a o
+    indent i (pp_value_type vt ++ ".load " ++ pp_ao a o ++ newline)
   | Load vt (Some ps) a o =>
-    pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o
+    indent i (pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o ++ newline)
   | Store vt None a o =>
-    pp_value_type vt ++ ".store " ++ pp_ao a o
+    indent i (pp_value_type vt ++ ".store " ++ pp_ao a o ++ newline)
   | Store vt (Some p) a o =>
-    pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o
+    indent i (pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o ++ newline)
   | Current_memory =>
-    indent i (with_fg be_style "memory.size" ++ newline)
+    indent i (with_fg be_style "memory.size" ++ newline ++ newline)
   | Grow_memory =>
     indent i (with_fg be_style "memory.grow" ++ newline)
   | EConst v =>
@@ -364,19 +364,6 @@ Definition pp_mutability (m : mutability) : string :=
 
 Definition pp_global (g : global) : string :=
   pp_mutability g.(g_mut) ++ " " ++ pp_value g.(g_val).
-
-Fixpoint mapi_aux {A B} (acc : nat * list B) (f : nat -> A -> B) (xs : list A) : list B :=
-  let '(i, ys_rev) := acc in
-  match xs with
-  | nil =>
-    List.rev ys_rev
-  | cons x xs' =>
-    let y := f i x in
-    mapi_aux (i.+1, y :: ys_rev) f xs'
-  end.
-
-Definition mapi {A B} (f : nat -> A -> B) (xs : list A) : list B :=
-  mapi_aux (0, nil) f xs.
 
 Definition pp_globals (n : nat) (gs : list global) : string :=
   String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ pp_global g ++ newline)) gs).

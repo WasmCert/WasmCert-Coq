@@ -307,12 +307,14 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     if ves is v :: ves' then
       ret (s, vs, RS_normal (vs_to_es ves'))
     else ret (s, vs, crash_error)
+
   | Basic Select =>
     if ves is (ConstInt32 c) :: v2 :: v1 :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, vs, RS_normal (vs_to_es (v2 :: ves')))
       else ret (s, vs, RS_normal (vs_to_es (v1 :: ves')))
     else ret (s, vs, crash_error)
+
   | Basic (Block (Tf t1s t2s) es) =>
     if length ves >= length t1s
     then
@@ -320,6 +322,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       ret (s, vs, RS_normal (vs_to_es ves''
                             ++ [::Label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
     else ret (s, vs, crash_error)
+
   | Basic (Loop (Tf t1s t2s) es) =>
     if length ves >= length t1s
     then
@@ -328,12 +331,14 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                             ++ [::Label (length t1s) [::Basic (Loop (Tf t1s t2s) es)]
                                     (vs_to_es ves' ++ to_e_list es)]))
     else ret (s, vs, crash_error)
+
   | Basic (If tf es1 es2) =>
     if ves is ConstInt32 c :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es2)]))
       else ret (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es1)]))
     else ret (s, vs, crash_error)
+
   | Basic (Br j) => ret (s, vs, RS_break j ves)
   | Basic (Br_if j) =>
     if ves is ConstInt32 c :: ves' then
@@ -351,10 +356,12 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           (ret (s, vs, crash_error))
       else ret (s, vs, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
     else ret (s, vs, crash_error)
+
   | Basic (Call j) =>
     if sfunc s i j is Some sfunc_i_j then
       ret (s, vs, RS_normal (vs_to_es ves ++ [::Invoke sfunc_i_j]))
     else ret (s, vs, crash_error)
+
   | Basic (Call_indirect j) =>
     if ves is ConstInt32 c :: ves' then
       match stab s i (Wasm_int.nat_of_uint i32m c) with
@@ -365,7 +372,9 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       | None => ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap]))
       end
     else ret (s, vs, crash_error)
+
   | Basic Return => ret (s, vs, RS_return ves)
+
   | Basic (Get_local j) =>
     if j < length vs
     then
@@ -373,142 +382,161 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           ret (s, vs, RS_normal (vs_to_es (vs_at_j :: ves))))
         (ret (s, vs, crash_error))
     else ret (s, vs, crash_error)
+
   | Basic (Set_local j) =>
     if ves is v :: ves' then
       if j < length vs
       then ret (s, update_list_at vs j v, RS_normal (vs_to_es ves'))
       else ret (s, vs, crash_error)
     else ret (s, vs, crash_error)
+
   | Basic (Tee_local j) =>
     if ves is v :: ves' then
       ret (s, vs, RS_normal (vs_to_es (v :: ves) ++ [::Basic (Set_local j)]))
     else ret (s, vs, crash_error)
+
   | Basic (Get_global j) =>
     if sglob_val s i j is Some xx
     then ret (s, vs, RS_normal (vs_to_es (xx :: ves)))
     else ret (s, vs, crash_error)
+
   | Basic (Set_global j) =>
     if ves is v :: ves' then
       if supdate_glob s i j v is Some xx
       then ret (xx, vs, RS_normal (vs_to_es ves'))
       else ret (s, vs, crash_error)
     else ret (s, vs, crash_error)
-  | Basic (Load t None a off) =>
-    if ves is ConstInt32 k :: ves' then
-      expect
-        (smem_ind s i)
-        (fun j =>
-           if List.nth_error s.(s_mems) j is Some mem_s_j then
-             expect
-               (load (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (t_length t))
-               (fun bs =>
-                  ret (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
-               (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
-           else ret (s, vs, crash_error))
-        (ret (s, vs, crash_error))
-    else ret (s, vs, crash_error)
-  | Basic (Load t (Some (tp, sx)) a off) =>
-    if ves is ConstInt32 k :: ves' then
-      expect
-        (smem_ind s i)
-        (fun j =>
-           if List.nth_error s.(s_mems) j is Some mem_s_j then
-             expect
-               (load_packed sx (mem_s_j) (Wasm_int.nat_of_uint i32m k) off (tp_length tp) (t_length t))
-               (fun bs =>
-                  ret (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
-               (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
-           else ret (s, vs, crash_error))
-        (ret (s, vs, crash_error))
-    else ret (s, vs, crash_error)
-  | Basic (Store t None a off) =>
-    if ves is v :: ConstInt32 k :: ves' then
-      if types_agree t v
-      then
+
+    | Basic (Load t None a off) =>
+      if ves is ConstInt32 k :: ves' then
         expect
           (smem_ind s i)
           (fun j =>
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
-                 (store mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (t_length t))
-                 (fun mem' =>
-                    ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves')))
+                 (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (t_length t))
+                 (fun bs => ret (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
              else ret (s, vs, crash_error))
           (ret (s, vs, crash_error))
       else ret (s, vs, crash_error)
-    else ret (s, vs, crash_error)
-  | Basic (Store t (Some tp) a off) =>
-    if ves is v :: ConstInt32 k :: ves' then
-      if types_agree t v
-      then
+
+    | Basic (Load t (Some (tp, sx)) a off) =>
+      if ves is ConstInt32 k :: ves' then
         expect
           (smem_ind s i)
           (fun j =>
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
-                 (store_packed mem_s_j (Wasm_int.nat_of_uint i32m k) off (bits v) (tp_length tp))
-                 (fun mem' =>
-                    ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves')))
+                 (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t))
+                 (fun bs => ret (s, vs, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
              else ret (s, vs, crash_error))
           (ret (s, vs, crash_error))
       else ret (s, vs, crash_error)
-    else ret (s, vs, crash_error)
-  | Basic Current_memory =>
-    expect
-      (smem_ind s i)
-      (fun j =>
-         if List.nth_error s.(s_mems) j is Some s_mem_s_j then
-           ret (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
-         else ret (s, vs, crash_error))
-      (ret (s, vs, crash_error))
-  | Basic Grow_memory =>
-    if ves is ConstInt32 c :: ves' then
-      expect (smem_ind s i) (fun j =>
-          if List.nth_error s.(s_mems) j is Some s_mem_s_j then
-            let: l := mem_size s_mem_s_j in
-            let: mem' := mem_grow s_mem_s_j (Wasm_int.nat_of_uint i32m c) in
-            if mem' is Some mem'' then
-              ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), vs,
-                   RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
+
+    | Basic (Store t None a off) =>
+      if ves is v :: ConstInt32 k :: ves' then
+        if types_agree t v
+        then
+          expect
+            (smem_ind s i)
+            (fun j =>
+               if List.nth_error s.(s_mems) j is Some mem_s_j then
+                 expect
+                   (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
+                   (fun mem' =>
+                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves'))))
+                   (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
+               else ret (s, vs, crash_error))
+            (ret (s, vs, crash_error))
+        else ret (s, vs, crash_error)
+      else ret (s, vs, crash_error)
+
+    | Basic (Store t (Some tp) a off) =>
+      if ves is v :: ConstInt32 k :: ves' then
+        if types_agree t v
+        then
+          expect
+            (smem_ind s i)
+            (fun j =>
+               if List.nth_error s.(s_mems) j is Some mem_s_j then
+                 expect
+                   (store_packed mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp))
+                   (fun mem' =>
+                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), vs, RS_normal (vs_to_es ves'))))
+                   (ret (s, vs, RS_normal (vs_to_es ves' ++ [::Trap])))
+               else ret (s, vs, crash_error))
+            (ret (s, vs, crash_error))
+        else ret (s, vs, crash_error)
+      else ret (s, vs, crash_error)
+
+    | Basic Current_memory =>
+      expect
+        (smem_ind s i)
+        (fun j =>
+           if List.nth_error s.(s_mems) j is Some s_mem_s_j then
+             (ret (s, vs, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves))))
+           else ret (s, vs, crash_error))
+        (ret (s, vs, crash_error))
+
+    | Basic Grow_memory =>
+      if ves is ConstInt32 c :: ves' then
+        expect
+          (smem_ind s i)
+          (fun j =>
+            if List.nth_error s.(s_mems) j is Some s_mem_s_j then
+              let: l := mem_size s_mem_s_j in
+              let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
+              if mem' is Some mem'' then
+                ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), vs,
+                     RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
+              else ret (s, vs, crash_error)
+            else ret (s, vs, crash_error))
+          (ret (s, vs, crash_error))
+      else ret (s, vs, crash_error)
+
+    | Basic (EConst _) => ret (s, vs, crash_error)
+
+    | Invoke cl =>
+      match cl with
+      | Func_native i' (Tf t1s t2s) ts es =>
+        let: n := length t1s in
+        let: m := length t2s in
+        if length ves >= n
+        then
+          let: (ves', ves'') := split_n ves n in
+          let: zs := n_zeros ts in
+          ret (s, vs, RS_normal (vs_to_es ves''
+                        ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
+        else ret (s, vs, crash_error)
+      | Func_host (Tf t1s t2s) f =>
+        let: n := length t1s in
+        let: m := length t2s in
+        if length ves >= n
+        then
+         let: (ves', ves'') := split_n ves n in
+         r <- trigger (host_apply s f (rev ves')) ;;
+          match (r : option (store_record * result)) with
+  (* FIXME: Checking of these lines take forever.
+          | Some (s', rves) =>
+             (** We here double-check the types.
+             Note that this is not a requirement of the Wasm specification. **)
+            if all2 types_agree t2s rves
+            then ret (s', vs, RS_normal (vs_to_es ves'' ++ v_to_e_list rves))
             else ret (s, vs, crash_error)
-          else ret (s, vs, crash_error))
-        (ret (s, vs, crash_error))
-    else ret (s, vs, crash_error)
-  | Basic (EConst _) => ret (s, vs, crash_error)
-  | Invoke cl =>
-    match cl with
-    | Func_native i' (Tf t1s t2s) ts es =>
-      let: n := length t1s in
-      let: m := length t2s in
-      if length ves >= n
-      then
-        let: (ves', ves'') := split_n ves n in
-        let: zs := n_zeros ts in
-        ret (s, vs, RS_normal (vs_to_es ves''
-                      ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
-      else ret (s, vs, crash_error)
-    | Func_host (Tf t1s t2s) f =>
-      let: n := length t1s in
-      let: m := length t2s in
-      if length ves >= n
-      then
-        let (ves', ves'') := split_n ves n in
-        r <- trigger (host_apply s f (rev ves')) ;;
-          match r with
+    *)
           | Some (s', r) =>
-            (** We here double-check the types.
-            Note that this is not a requirement of the Wasm specification. **)
-            if result_types_agree t2s r
-            then
-              let: rves := result_to_stack r in
-              ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
-            else ret (s, vs, crash_error)
+           if result_types_agree t2s r
+           then
+             let: rves := result_to_stack r in
+             ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
+           else ret (s, vs, crash_error)
           | None => ret (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
           end
       else ret (s, vs, crash_error)
     end
+
   | Label ln les es =>
     if es_is_trap es
     then ret (s, vs, RS_normal (vs_to_es ves ++ [::Trap]))
@@ -525,6 +553,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         ret (s', vs', RS_normal (vs_to_es ves ++ [::Label ln les es']))
       | RS_crash error => ret (s', vs', RS_crash error)
       end
+
   | Local ln j vls es =>
     if es_is_trap es
     then ret (s, vs, RS_normal (vs_to_es ves ++ [::Trap]))
@@ -546,6 +575,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         | RS_crash error => ret (s', vs, RS_crash error)
         | RS_break _ _ => ret (s', vs, crash_error)
         end
+
   | Trap => ret (s, vs, crash_error)
   end.
 

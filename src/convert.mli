@@ -49,6 +49,3 @@ val from_positive : Extract.positive -> int
 (** Convert [Extract.z] to [int]. *)
 val from_z : Extract.z -> int
 
-(** Pretty-print a value. *)
-val string_of_value : Extract.value0 -> string
-

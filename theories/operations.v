@@ -4,12 +4,12 @@
 Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
-Require Export datatypes_properties list_extra.
+Require Export datatypes_properties.
+Require Import BinNat list_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
 
 Section Host.
 
@@ -21,57 +21,78 @@ Let administrative_instruction := administrative_instruction host_function.
 Let lholed := lholed host_function.
 
 
-Definition read_bytes (m : memory) (n : nat) (l : nat) : bytes :=
-  take l (List.skipn n (mem_data m)).
+Definition read_bytes (m : memory) (n : N) (l : nat) : bytes :=
+  List.map
+    (fun k => Byte_array.get m.(mem_data).(dv_array) (BinNatDef.N.add n (N.of_nat k)))
+    (iota 0 l).
 
-Definition write_bytes (m : memory) (n : nat) (bs : bytes) : memory :=
-  Build_memory
-    (app (take n (mem_data m)) (app bs (List.skipn (n + length bs) (mem_data m))))
-    (mem_limit m).
+Definition write_bytes (m : memory) (n : N) (bs : bytes) : memory := {|
+  mem_data := {|
+    dv_length := m.(mem_data).(dv_length);
+    dv_array :=
+      list_extra.fold_lefti
+        (fun i arr b =>
+          Byte_array.set arr (BinNatDef.N.add n (N.of_nat i)) b)
+        bs
+        m.(mem_data).(dv_array);
+  |};
+  mem_limit := m.(mem_limit);
+|}.
 
-Definition mem_append (m : memory) (bs : bytes) :=
-  Build_memory
-    (app (mem_data m) bs)
-    (mem_limit m).
+Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := s.(s_tables);
+  s_mems := m;
+  s_globals := s.(s_globals);
+|}.
 
-Definition upd_s_mem (s : store_record) (m : seq memory) : store_record :=
-  Build_store_record
-    (s_funcs s)
-    (s_tables s)
-    m
-    (s_globals s).
+Definition page_size : N := (64 % N) * (1024 % N).
 
-Definition mem_size (m : memory) :=
-  length (mem_data m).
+Definition mem_length (m : memory) : N :=
+  m.(mem_data).(dv_length).
 
-Definition mem_grow (m : memory) (n : nat) : option memory:=
-  let new_mem_data := (mem_data m ++ bytes_replicate (n * 64000) #00) in
-  if length new_mem_data > (lim_max (mem_limit m)) * 64000 then None
-  else
-    Some (Build_memory
-            new_mem_data
-            (mem_limit m)).
+Definition mem_size (m : memory) : N :=
+  N.div (mem_length m) page_size.
+
+Definition mem_grow (m : memory) (n : N) : option memory:=
+  let new_mem_data :=
+    (* with our array representation, there are no bounds to extend *)
+    m.(mem_data) in
+  match m.(mem_limit).(lim_max) with
+  | Some maxlim =>
+    if N.leb (N.add (mem_size m) n) maxlim then
+      Some {|
+        mem_data := new_mem_data;
+        mem_limit := m.(mem_limit);
+      |}
+    else None
+  | None =>
+    Some {|
+      mem_data := new_mem_data;
+      mem_limit := m.(mem_limit);
+    |}
+  end.
 
 (* TODO: We crucially need documentation here. *)
 
-Definition load (m : memory) (n : nat) (off : static_offset) (l : nat) : option bytes :=
-  if mem_size m >= (n + off + l)
-  then Some (read_bytes m (n + off) l)
+Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
+  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+  then Some (read_bytes m (N.add n off) l)
   else None.
 
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO *) bs.
+  (* TODO: implement sign extension *) bs.
 (* TODO
   let: msb := msb (msbyte bytes) in
   let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
   bytes_takefill byte l bytes
 *)
 
-Definition load_packed (s : sx) (m : memory) (n : nat) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
+Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
   option_map (sign_extend s l) (load m n off lp).
 
-Definition store (m : memory) (n : nat) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
-  if (mem_size m) >= (n + off + l)
+Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
+  if N.leb (n + off + N.of_nat l) (mem_length m)
   then Some (write_bytes m (n + off) (bytes_takefill #00 l bs))
   else None.
 
@@ -369,8 +390,29 @@ Definition store_extension (s s' : store_record) : bool :=
   (all2 mem_extension s.(s_mems) s'.(s_mems)) &&
   (all2 glob_extension s.(s_globals) s'.(s_globals)).
 
+Definition vs_to_vts (vs : seq value) := map typeof vs.
+
 Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruction :=
   map Basic bes.
+
+Definition to_b_single (e: administrative_instruction) : basic_instruction :=
+  match e with
+  | Basic x => x
+  | _ => EConst (ConstInt32 (Wasm_int.Int32.zero))
+  end.
+
+Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
+  map to_b_single es.
+
+Definition e_is_basic (e: administrative_instruction) :=
+  exists be, e = Basic be.
+
+Fixpoint es_is_basic (es: seq administrative_instruction) :=
+  match es with
+  | [::] => True
+  | e :: es' =>
+    e_is_basic e /\ es_is_basic es'
+  end.
 
 (** [v_to_e_list]: some kind of the opposite of [split_vals_e] (see [interperter.v]:
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)

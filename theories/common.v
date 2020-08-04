@@ -98,6 +98,37 @@ Ltac rewrite_by E :=
     [ by [ auto | lias ]
     | rewrite {} R ].
 
+Ltac remove_bools_options :=
+  repeat lazymatch goal with
+  | H: is_true (_ && _ ) |- _ =>
+    move/andP in H; destruct H
+  | H: (_ && _) = true |- _ =>
+    move/andP in H; destruct H                                    
+  | H: is_true (_ == _) |- _ =>
+    move/eqP in H
+  | H: is_true (_ || _) |- _=>
+    move/orP in H; destruct H
+  | H: Some _ = Some _ |- _ =>
+    inversion H; subst; clear H
+  | H: option_map _ _ = _ |- _ =>
+    unfold option_map in H
+  | H: match ?exp with
+       | Some _ => _
+       | None => _
+       end = _
+    |- _ =>
+    let Hoption := fresh "Hoption" in
+    destruct exp eqn:Hoption; try by []
+  | H: is_true match ?exp with
+       | Some _ => _
+       | None => _
+       end
+    |- _ =>
+    let Hoption := fresh "Hoption" in
+    destruct exp eqn:Hoption; try by []
+  end.
+
+
 (** A useful lemma to link the results of [Scheme Equality] to [Equality.axiom]. **)
 Lemma eq_dec_Equality_axiom : forall t (eq_dec : forall x y : t, {x = y} + {x <> y}),
   let eqb v1 v2 := is_left (eq_dec v1 v2) in

@@ -84,6 +84,7 @@ Record mixin_of (int_t : Type) := Mixin {
   (** Conversion to and from [nat] and [Z] **)
   int_of_Z : Z -> int_t ;
   nat_of_uint : int_t -> nat ;
+  N_of_uint : int_t -> N ;
   Z_of_uint : int_t -> Z ;
   Z_of_sint : int_t -> Z ;
 }.
@@ -992,6 +993,7 @@ Definition Tmixin : mixin_of T := {|
      (** Conversion to and from [nat] **)
      int_of_Z n := repr n ;
      nat_of_uint i := Z.to_nat (unsigned i) ;
+     N_of_uint i := Z.to_N (unsigned i) ;
      Z_of_uint i := unsigned i ;
      Z_of_sint i := signed i ;
    |}.
