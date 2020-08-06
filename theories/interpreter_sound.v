@@ -30,9 +30,9 @@ Let lfilledInd := @lfilledInd host_function.
 
 Variable host_instance : host.
 
-Variable host_event : Type -> Type.
-Let executable_host := executable_host host_function host_event.
+Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
+Let host_event := host_event executable_host_instance.
 
 Let host_state := host_state host_instance.
 
@@ -48,7 +48,7 @@ Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
   run_one_step executable_host_instance.
 *)
 Let run_v : depth -> instance -> config_tuple -> itree eff (store_record * res)%type :=
-  @run_v _ _ executable_host_instance _ eff_has_host_event.
+  @run_v _ executable_host_instance _ eff_has_host_event.
 
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.

@@ -35,7 +35,6 @@ Proof.
   rewrite subn0. apply/eqP. by apply drop_size.
 Qed.
 
-Print upd_local_label_return.
 
 Lemma upd_label_overwrite: forall C loc lab ret lab',
   upd_label (upd_local_label_return C loc lab ret) lab'
@@ -119,4 +118,6 @@ Proof.
 Admitted. (* TODO *)
 
 *)
+
+End Host.
 

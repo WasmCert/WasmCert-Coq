@@ -18,12 +18,12 @@ let explode s =
   List.init (String.length s) (String.get s)
 
 let take_step depth_coq i cfg =
-  let (s, _, _)  = Convert.from_triple cfg in
+  let ((s, _), _)  = (*Convert.from_triple*) cfg in
   let res = Extract.run_step depth_coq i cfg in (* TODO: Use [Shim.run_step] instead. Use monadic style. *)
-  let (s', _, _)  = Convert.from_triple res in
+  let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
   Printf.printf "%sand store %s\n%!" (Convert.from_string (Extract.pp_res_tuple_except_store res)) store_status;
-  match Convert.from_triple res with
+  match (*Convert.from_triple*) res with
   | ((_, _), RS_crash crash) ->
     Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason crash);
     cfg

@@ -11,16 +11,24 @@ Require Import Omega.
 
 Require Import operations typing type_checker datatypes_properties typing opsem properties.
 
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let function_closure := function_closure host_function.
+Let administrative_instruction := administrative_instruction host_function.
+
+Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
+Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.
+Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+  @e_typing _.
+Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
+  @reduce_simple _.
+
+
 Definition t_be_value (bes: seq basic_instruction) : Prop :=
   const_list (to_e_list bes).
-
-Print tc_global.
-
-Print value.
-
-Print value_type.
-
-Print instance.
 
 Ltac b_to_a_revert :=
   repeat lazymatch goal with
@@ -266,7 +274,7 @@ Proof.
   induction vs' => //=; move => vs HRev1 HRev2.
   - by apply bet_empty.
   - rewrite rev_cons. rewrite -cats1.
-    rewrite -v_to_e_cat.
+    rewrite -v_to_e_cat /to_b_list.
     rewrite to_b_list_concat.
     eapply bet_composition.
     + eapply IHvs' => //.
@@ -558,9 +566,9 @@ Lemma et_to_bet: forall s C es ts,
 Proof.
   move => s C es ts HBasic HType. subst.
   dependent induction HType; subst => //=; basic_inversion.
-  + replace (to_b_list (to_e_list bes)) with bes => //.
+  + replace (to_b_list (operations.to_e_list bes)) with bes => //.
     by apply b_e_elim.
-  + rewrite to_b_list_concat.
+  + rewrite /to_b_list to_b_list_concat.
     eapply bet_composition.
     apply IHHType1 => //.
     apply IHHType2 => //.
@@ -647,6 +655,7 @@ Proof.
       by apply bet_weakening.
 Qed.
 
+(* FIXME: [Variable p should be bound to a term but is bound to a ident] error.
 Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
     e_typing s C (es1 ++ [::e]) (Tf t1s t2s) ->
     exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
@@ -786,6 +795,7 @@ Proof.
     by apply HType1.
     by apply ety_weakening.
 Qed.
+*)
 
 End composition_typing_proofs.
 
@@ -808,7 +818,7 @@ Proof.
     rewrite rev_cons in H0. rewrite -cats1 in H0.
     rewrite H0 in HType.
     rewrite -v_to_e_cat in HType.
-    rewrite to_b_list_concat in HType.
+    rewrite /to_b_list to_b_list_concat in HType.
     apply composition_typing in HType.
     destruct HType as [ts [ts1' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]].
     apply IHvs' in H3; last by (symmetry; apply revK). subst.
@@ -1156,6 +1166,7 @@ Qed.
 Axiom typeof_deserialise: forall v t,
     typeof (wasm_deserialise v t) = t.
 
+(* FIXME: This axiom no longer makes sense in this branch.
 Axiom host_apply_typing: forall s vs1 vs2 ts f s',
     host_apply s (Tf (vs_to_vts vs1) ts) f vs1 = Some (s', vs2) ->
     map typeof vs2 = ts.
@@ -3825,4 +3836,8 @@ Proof.
   eapply mk_s_typing; eauto.
   by eapply t_preservation_e; eauto.
 Qed.
-  
+
+*)
+
+End Host.
+

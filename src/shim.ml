@@ -1,7 +1,6 @@
 
 (** Convert a function [t -> t -> bool] to a Coq function [forall x y : t, {x = y} + {x <> y}]. *)
-let comparison comp x y =
-  if comp x y then Extract.Left else Extract.Right
+let comparison comp x y = comp x y
 
 (** Convert a function [('a -> 'b) -> 'monad -> 'monad] to a [Extract.functor0]. *)
 let build_functor (f : ('a -> 'b) -> 'monad -> 'monad) _ _ map =
@@ -20,14 +19,14 @@ let monadIter monad _ _ f =
 let run_v comp exec monad funct project d i cfg =
   let comp = comparison comp in
   let funct = build_functor funct in
-  let project _ = project in
+  let project _ = Obj.magic project in
   let monadIter = monadIter monad in
   Extract.run_v_extraction comp exec monad funct monadIter project (Convert.to_nat d) i cfg
 
 let run_step comp exec monad funct project d i cfg =
   let comp = comparison comp in
   let funct = build_functor funct in
-  let project _ = project in
+  let project _ = Obj.magic project in
   let monadIter = monadIter monad in
   Extract.run_step_extraction comp exec monad funct monadIter project (Convert.to_nat d) i cfg
 

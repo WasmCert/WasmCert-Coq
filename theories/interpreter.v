@@ -28,13 +28,13 @@ Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 
-Variable host_event : Type -> Type.
-Let executable_host := executable_host host_function host_event.
+Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
+Let host_event := host_event executable_host_instance.
 
 Let host_monad : Monad host_event := host_monad executable_host_instance.
 Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
-  @host_apply _ _ executable_host_instance.
+  @host_apply _ executable_host_instance.
 
 Section ITreeExtract.
 (** Some helper functions to extract an interactive tree to a simple-to-interact-with function,
@@ -517,21 +517,13 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         then
          let: (ves', ves'') := split_n ves n in
          r <- trigger (host_apply s f (rev ves')) ;;
-          match (r : option (store_record * result)) with
-  (* FIXME: Checking of these lines take forever.
-          | Some (s', rves) =>
-             (** We here double-check the types.
-             Note that this is not a requirement of the Wasm specification. **)
-            if all2 types_agree t2s rves
-            then ret (s', vs, RS_normal (vs_to_es ves'' ++ v_to_e_list rves))
-            else ret (s, vs, crash_error)
-    *)
+          match r with
           | Some (s', r) =>
-           if result_types_agree t2s r
-           then
-             let: rves := result_to_stack r in
-             ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
-           else ret (s, vs, crash_error)
+            if result_types_agree t2s r
+            then
+              let: rves := result_to_stack r in
+              ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
+            else ret (s (* FIXME: Why not [s']? *), vs, crash_error)
           | None => ret (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
           end
       else ret (s, vs, crash_error)
@@ -677,9 +669,9 @@ Local Canonical Structure host_function_eqMixin := EqMixin host_functionP.
 Local Canonical Structure host_function_eqType :=
   Eval hnf in EqType host_function host_function_eqMixin.
 
-Variable host_event : Type -> Type.
-Let executable_host := executable_host host_function host_event.
+Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
+Let host_event := host_event executable_host_instance.
 
 (** The following hypotheses are there to ensure a nicer extraction. **)
 Variable M : Type -> Type.
@@ -694,10 +686,10 @@ Variable convert : host_event ~> M.
 
 Definition run_step_extraction
   : depth -> instance -> config_tuple host_function -> M (res_tuple host_function) :=
-  @run_step_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI convert.
+  @run_step_extraction_eqType host_function_eqType executable_host_instance M MF MM MI convert.
 Definition run_v_extraction
   : depth -> instance -> config_tuple host_function -> M (store_record host_function * res) :=
-  @run_v_extraction_eqType host_function_eqType _ executable_host_instance M MF MM MI convert.
+  @run_v_extraction_eqType host_function_eqType executable_host_instance M MF MM MI convert.
 
 End EqType.
 
