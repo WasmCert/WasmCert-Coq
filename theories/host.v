@@ -38,7 +38,7 @@ Record host := {
        for a discussion about this.) *)
   }.
 
-Record executable_host := {
+Record executable_host := make_executable_host {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_monad : Monad host_event (** They form a monad. **) ;
     host_apply : store_record -> host_function -> seq value ->
@@ -50,12 +50,44 @@ Record executable_host := {
 (* TODO
 Record host_spec := {
   }.
- *)
+*)
 
 End Parameterised.
 
 Arguments host_application [_ _].
 Arguments host_apply [_ _].
+
+
+(** * Extractible module **)
+
+(** The definitions of the previous section are based on dependent types, which are very
+  practical to manipulate them in Coq, but do not extract very well.
+  The following is an extract-friendly adaptation using modules. **)
+
+Module Type Executable_Host.
+
+Parameter host_function : Type.
+Parameter host_event : Type -> Type.
+Parameter host_monad : Monad host_event.
+
+Parameter host_apply : store_record host_function -> host_function -> seq value ->
+                       host_event (option (store_record host_function * result)).
+
+End Executable_Host.
+
+(** Such a module can easily be converted into an [executable_host] definition. **)
+
+Module convert_to_executable_host (H : Executable_Host).
+
+Export H.
+
+Definition executable_host := executable_host host_function.
+Definition store_record := store_record host_function.
+
+Definition executable_host_instance : executable_host :=
+  make_executable_host host_monad host_apply.
+
+End convert_to_executable_host.
 
 
 (** * Host instantiations **)
@@ -64,24 +96,32 @@ Arguments host_apply [_ _].
 
 From ExtLib Require Import IdentityMonad.
 
-Section DummyHost.
+(** This host provides no function. **)
 
-(** This host is associated with no function. **)
+Module DummyHost : Executable_Host.
 
-Definition dummy_host_function := void.
+Definition host_function := void.
+Definition host_event := ident.
+Definition host_monad := Monad_ident.
+Definition store_record := store_record host_function.
+Definition host_apply (_ : store_record) :=
+  of_void (seq value -> ident (option (store_record * result))).
 
-Let host := host dummy_host_function.
-Let executable_host := executable_host dummy_host_function.
+End DummyHost.
 
-Definition dummy_host : host := {|
+Module DummyHosts.
+
+Module Exec := convert_to_executable_host DummyHost.
+Export Exec.
+
+Definition host := host host_function.
+
+Definition host_instance : host := {|
     host_state := unit_eqType ;
     host_application _ _ _ _ _ _ := False
   |}.
 
-Definition dummy_executable_host : executable_host := {|
-    host_monad := Monad_ident ;
-    host_apply _ := of_void _
-  |}.
+(* TODO: host_spec *)
 
-End DummyHost.
+End DummyHosts.
 
