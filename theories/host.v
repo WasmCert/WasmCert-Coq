@@ -62,13 +62,17 @@ Arguments host_apply [_ _].
 
 (** The definitions of the previous section are based on dependent types, which are very
   practical to manipulate them in Coq, but do not extract very well.
-  The following is an extract-friendly adaptation using modules. **)
+  The following is an extract-friendly adaptation using modules.
+  We also require other useful hypotheses **)
 
 Module Type Executable_Host.
 
 Parameter host_function : Type.
+Parameter host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
 Parameter host_event : Type -> Type.
-Parameter host_monad : Monad host_event.
+Parameter host_ret : forall t : Type, t -> host_event t.
+Parameter host_bind : forall t u : Type, host_event t -> (t -> host_event u) -> host_event u.
+(* FIXME: Parameter host_iter : forall R I : Type, (I -> host_event (I + R)%type) -> I -> host_event R. *)
 
 Parameter host_apply : store_record host_function -> host_function -> seq value ->
                        host_event (option (store_record host_function * result)).
@@ -84,8 +88,22 @@ Export H.
 Definition executable_host := executable_host host_function.
 Definition store_record := store_record host_function.
 
+Definition host_monad : Monad host_event := {|
+    ret := host_ret ;
+    bind := host_bind
+  |}.
+
 Definition executable_host_instance : executable_host :=
   make_executable_host host_monad host_apply.
+
+Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+
+Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Canonical Structure host_function_eqType :=
+  Eval hnf in EqType host_function host_function_eqMixin.
 
 End convert_to_executable_host.
 
@@ -102,10 +120,14 @@ Module DummyHost : Executable_Host.
 
 Definition host_function := void.
 Definition host_event := ident.
-Definition host_monad := Monad_ident.
+Definition host_ret := @ret _ Monad_ident.
+Definition host_bind := @bind _ Monad_ident.
 Definition store_record := store_record host_function.
 Definition host_apply (_ : store_record) :=
   of_void (seq value -> ident (option (store_record * result))).
+
+Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+Proof. decidable_equality. Defined.
 
 End DummyHost.
 
