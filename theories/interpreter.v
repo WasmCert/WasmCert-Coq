@@ -653,43 +653,55 @@ Classical_Prop.classic : forall P : Prop, P \/ ~ P
 *)
 
 
-Section EqType.
+(** The following module is designed to fit OCaml’s types, and thus to better extract. **)
 
-(** [eqType] doesn’t extract nicely, so we provide the following hooks that better extract. **)
+(** First, due to universe inconsistencies, we are not allowed to extract directly to
+  the same monad [host_event].
+  We thus assume another monad with the right assumption.
+  Again, this module type is designed to extract nicely to OCaml. **)
+Module Type TargetMonad (EH : Executable_Host).
 
-Variable host_function : Type.
-Hypothesis host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+Parameter monad : Type -> Type.
+Parameter monad_ret : forall t : Type, t -> monad t.
+Parameter monad_bind : forall t u : Type, monad t -> (t -> monad u) -> monad u.
+Parameter monad_iter : forall R I : Type, (I -> monad (I + R)%type) -> I -> monad R.
 
-Local Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+Parameter convert : EH.host_event ~> monad.
 
-Local Definition host_functionP : Equality.axiom host_function_eqb :=
-  eq_dec_Equality_axiom host_function_eq_dec.
+End TargetMonad.
 
-Local Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Local Canonical Structure host_function_eqType :=
-  Eval hnf in EqType host_function host_function_eqMixin.
+(** The following module converts the module type above into a proper Coq monad. **)
+Module convert_target_monad (EH : Executable_Host) (M : TargetMonad EH).
 
-Let executable_host := executable_host host_function.
-Variable executable_host_instance : executable_host.
-Let host_event := host_event executable_host_instance.
+Export M.
 
-(** The following hypotheses are there to ensure a nicer extraction. **)
-Variable M : Type -> Type.
-Hypothesis MM : Monad M.
-Variable MFi : forall A B : Type, (A -> B) -> M A -> M B.
-Variable MIi : forall R I : Type, (I -> M (I + R)%type) -> I -> M R.
+Definition monad_monad : Monad monad := {|
+    ret := monad_ret ;
+    bind := monad_bind
+  |}.
 
-Local Definition MF : Functor.Functor M := {| Functor.fmap := MFi |}.
-Local Definition MI : MonadIter M := MIi.
+Definition monad_Iter : MonadIter monad := monad_iter.
 
-Variable convert : host_event ~> M.
+Definition monad_functor := Functor_Monad (M := monad_monad).
 
-Definition run_step_extraction
-  : depth -> instance -> config_tuple host_function -> M (res_tuple host_function) :=
-  @run_step_extraction_eqType host_function_eqType executable_host_instance M MF MM MI convert.
-Definition run_v_extraction
-  : depth -> instance -> config_tuple host_function -> M (store_record host_function * res) :=
-  @run_v_extraction_eqType host_function_eqType executable_host_instance M MF MM MI convert.
+End convert_target_monad.
 
-End EqType.
+Module Interpreter (EH : Executable_Host) (TM : TargetMonad EH).
+
+Module Exec := convert_to_executable_host EH.
+Import Exec.
+
+Module Target := convert_target_monad EH TM.
+Import Target.
+
+Definition run_step
+  : depth -> instance -> config_tuple host_function -> monad (res_tuple host_function) :=
+  @run_step_extraction_eqType host_function_eqType executable_host_instance
+    monad monad_functor monad_monad monad_Iter convert.
+Definition run_v
+  : depth -> instance -> config_tuple host_function -> monad (store_record * res) :=
+  @run_v_extraction_eqType host_function_eqType executable_host_instance
+    monad monad_functor monad_monad monad_Iter convert.
+
+End Interpreter.
 

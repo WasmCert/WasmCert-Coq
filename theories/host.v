@@ -72,7 +72,6 @@ Parameter host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <
 Parameter host_event : Type -> Type.
 Parameter host_ret : forall t : Type, t -> host_event t.
 Parameter host_bind : forall t u : Type, host_event t -> (t -> host_event u) -> host_event u.
-(* FIXME: Parameter host_iter : forall R I : Type, (I -> host_event (I + R)%type) -> I -> host_event R. *)
 
 Parameter host_apply : store_record host_function -> host_function -> seq value ->
                        host_event (option (store_record host_function * result)).
@@ -104,6 +103,8 @@ Definition host_functionP : Equality.axiom host_function_eqb :=
 Canonical Structure host_function_eqMixin := EqMixin host_functionP.
 Canonical Structure host_function_eqType :=
   Eval hnf in EqType host_function host_function_eqMixin.
+
+Definition host_functor := Functor_Monad (M := host_monad).
 
 End convert_to_executable_host.
 

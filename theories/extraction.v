@@ -20,8 +20,7 @@ Extraction "extract"
   interp_instantiate_wrapper
   lookup_exported_function
   cl_type_check_single
-  run_step_extraction
-  run_v_extraction
+  Interpreter
   value_rec_safe
   pp.pp_config_tuple_except_store
   pp.pp_res_tuple_except_store
