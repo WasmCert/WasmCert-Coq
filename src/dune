@@ -11,7 +11,12 @@
 (rule
 	(targets "extract.ml" "extract.mli")
 	(deps "../theories/extraction.vo")
-	(action (run cp "../theories/extract.ml" "../theories/extract.mli" "./")))
+	(action
+		(progn
+			(run cp "../theories/extract.ml" "../theories/extract.mli" "./")
+			(run sed "-ie" "s/Coq__5/Coq__3/g" "extract.ml") ; Dirty way of locally fixing Coq’s bug 12813, waiting for my PR to be accepted.
+			; (run rm "extract.mli") ; Another dirty fix to avoid having OCaml rightfully complaining that Coq is not doing its job.
+		)))
 
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50)))) ; The extracted OCaml code yields a lot of warnings.
 

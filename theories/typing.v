@@ -96,7 +96,6 @@ Definition convert_helper (sxo : option sx) t1 t2 : bool :=
 Definition convert_cond t1 t2 (sxo : option sx) : bool :=
   (t1 != t2) && convert_helper sxo t1 t2.
 
-Print t_context.
 
 Definition upd_label C lab :=
   Build_t_context

@@ -1,6 +1,8 @@
 (** Extraction to OCaml. **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
+From Coq Require Extraction.
+
 From Wasm Require Import
   datatypes_properties
   binary_format_parser
@@ -14,6 +16,7 @@ Require Import
   Coq.extraction.ExtrOcamlString.
 
 Extraction Language OCaml.
+Set Extraction Conservative Types.
 
 Extraction "extract"
   run_parse_module
