@@ -9,14 +9,6 @@ let rec user_input prompt cb st =
 let string_of_crash_reason = function
   | () -> "error"
 
-let string_of_char c = String.make 1 c
-let rec implode = function
-| [] -> ""
-| c :: cs -> string_of_char c ^ (implode cs)
-
-let explode s =
-  List.init (String.length s) (String.get s)
-
 let take_step depth_coq i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
   let res = Extract.run_step depth_coq i cfg in (* TODO: Use [Shim.run_step] instead. Use monadic style. *)

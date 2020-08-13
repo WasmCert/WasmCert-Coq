@@ -11,12 +11,12 @@ From Wasm Require Import
   interpreter
   pp.
 
-Require Import
-  Coq.extraction.ExtrOcamlBasic
-  Coq.extraction.ExtrOcamlString.
+From Coq Require Import
+  extraction.ExtrOcamlBasic
+  extraction.ExtrOcamlString.
 
 Extraction Language OCaml.
-Set Extraction Conservative Types.
+(*Set Extraction Conservative Types.*)
 
 Extraction "extract"
   run_parse_module

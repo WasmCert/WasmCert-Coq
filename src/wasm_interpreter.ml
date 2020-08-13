@@ -32,20 +32,20 @@ let terminal_magic verbosity =
 (** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
   debug_info verbosity 2 (fun () -> Printf.printf "interpreting...");
-  let name_coq = Repl.explode name in
+  let name_coq = Utils.explode name in
   let depth_coq = Convert.to_nat depth in
-  match Extract.lookup_exported_function name_coq sies with
+  match (* TODO: No longer call [Extract] directly, relying on [Shim] instead: this is better future proof. In particular, we should *never* call a function not explicitely extracted in [theory/extraction]. *) Extract.lookup_exported_function name_coq sies with
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     let ((_, inst), _) = sies in
     let rec eval gen cfg =
-      (let cfg_res = Extract.run_step depth_coq inst cfg in
+      (let cfg_res = (* TODO: This really should be in [Repl]. *) Extract.run_step depth_coq inst cfg in
        debug_info verbosity 3
         (fun () ->
           Printf.printf "%sstep %d%s:\n%s"
             ansi_bold gen
             ansi_reset
-            (Repl.implode (Extract.pp_res_tuple_except_store cfg_res)));
+            (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_res_tuple_except_store cfg_res)));
       debug_info_span verbosity 3 3
         (fun () ->
           let ((s, _), _)  = cfg in
@@ -56,7 +56,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
         (fun () ->
           let ((s', _), _)  = cfg_res in
           Printf.printf "and store\n%s"
-            (Repl.implode (Extract.pp_store (Convert.to_nat 1) s')));
+            (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_store (Convert.to_nat 1) s')));
        match cfg_res with
        | (_, RS_crash crash) ->
          terminal_magic verbosity;
@@ -68,22 +68,22 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
          None
        | (_, RS_return vs) ->
          terminal_magic verbosity;
-         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Repl.implode (Extract.pp_values vs));
+         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_values vs));
          Some vs
        | ((s', vs'), RS_normal es) ->
-         begin match Extract.those_const_list es with
+         begin match (* TODO: Use [Shim]. *) Extract.those_const_list es with
          | Some vs -> Some vs
          | None -> eval (gen + 1) (((s', vs'), es))
          end) in
     debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 3));
     debug_info_span verbosity 2 2 (fun () -> Printf.printf " %sOK%s\n" ansi_green ansi_reset);
-    debug_info verbosity 3 (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (Repl.implode (Extract.pp_config_tuple_except_store cfg0)));
+    debug_info verbosity 3 (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_config_tuple_except_store cfg0)));
     let res = eval 1 cfg0 in
     debug_info_span verbosity 1 2
       (fun () ->
         match res with
         | Some vs ->
-          Printf.printf "%s%!" (Repl.implode (Extract.pp_values vs))
+          Printf.printf "%s%!" (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_values vs))
         | None -> ()
       );
     if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
@@ -91,7 +91,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
 
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
   debug_info verbosity 2 (fun () -> Printf.printf "instantiation...");
-  match Extract.interp_instantiate_wrapper m with
+  match (* TODO: Use [Shim]. *) Extract.interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (store_inst_exps, _) ->
     debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
@@ -122,7 +122,7 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
       if text then
         invalid_arg "Text mode not yet implemented."
       else
-        match Extract.run_parse_module (List.concat files) with
+        match (* TODO: Use [Shim]. *) Extract.run_parse_module (List.concat files) with
         | None -> invalid_arg "syntax error"
         | Some m -> m in
     debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n%!" (ansi_delete_chars 3));

@@ -14,8 +14,9 @@
 	(action
 		(progn
 			(run cp "../theories/extract.ml" "../theories/extract.mli" "./")
-			(run sed "-ie" "s/Coq__5/Coq__3/g" "extract.ml") ; Dirty way of locally fixing Coq’s bug 12813, waiting for my PR to be accepted.
-			; (run rm "extract.mli") ; Another dirty fix to avoid having OCaml rightfully complaining that Coq is not doing its job.
+			; What follows are dirty tricks to try to fix Coq’s output and make it accepted by OCaml… but they don’t work as expected.
+			; (run sed "-ie" "s/Coq__5/Coq__3/g" "extract.ml")
+			; (run rm "extract.mli")
 		)))
 
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50)))) ; The extracted OCaml code yields a lot of warnings.
