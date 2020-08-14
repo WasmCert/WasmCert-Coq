@@ -705,10 +705,12 @@ Definition run_v
 
 (** A useful definition for converting [itree] to [option] without executing anything,
   assuming a way to remove events.
-  Warning: this breaks the semantics of [itree]s by mapping any event to [None]. **)
-Definition itree_to_option (E : Type -> Type) (tr : forall T, E T -> void1 T) :
+  Warning: this breaks the semantics of [itree]s by mapping any event to [None].
+  The function [tr] has an unusual type [forall T A, E T -> A] instead of [E ~> void1],
+  otherwise it is simply and brutally removed in the extraction process. **)
+Definition itree_to_option (E : Type -> Type) (tr : forall T A, E T -> A) :
     forall R, itree E R -> option R :=
-  fun _ tree => option_of_itree_void (translate tr tree).
+  fun _ tree => option_of_itree_void (translate (fun T => tr T _) tree).
 
 End Interpreter.
 

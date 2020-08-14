@@ -44,7 +44,10 @@ module Interpreter =
     let interp_instantiate_wrapper m =
       Option.map (fun (store_inst_exps, start) ->
           (store_inst_exps, Option.map Convert.from_nat start))
-        (Interpreter.itree_to_option (Instantiation.interp_instantiate_wrapper m))
+        (Interpreter.itree_to_option (fun _ _ _ ->
+          (* Normally, this interaction tree should already have been evaluated at this point. *)
+            assert false)
+          (Instantiation.interp_instantiate_wrapper m))
 
   end
 

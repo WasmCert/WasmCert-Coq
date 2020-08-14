@@ -139,12 +139,15 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
 open Cmdliner
 
 let verbosity =
-  let doc = "Verbosity level; default = 1.\n" ^
-  "\t0: print nothing.\n" ^
-  "\t1: print result.\n" ^
-  "\t2: also print stage.\n" ^
-  "\t3: also print intermediate states, without stores.\n" ^
-  "\t4 also print stores." in
+  let doc =
+    String.concat "\n\t" [
+      "Verbosity level; default = 1." ;
+      "0: print nothing." ;
+      "1: print result." ;
+      "2: also print stage." ;
+      "3: also print intermediate states, without stores." ;
+      "4 also print stores."
+    ] in
   Arg.(value & opt int 3 & info ["v"; "verbosity"] ~doc)
 
 let text =
