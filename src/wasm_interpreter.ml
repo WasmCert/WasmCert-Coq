@@ -29,12 +29,13 @@ let terminal_magic verbosity =
   debug_info verbosity 1 (fun () -> Printf.printf "%s " (ansi_delete_chars 3));
   debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
 
+module Interpreter = Shim.Interpreter (Extract.DummyHost)
+
 (** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
   debug_info verbosity 2 (fun () -> Printf.printf "interpreting...");
-  let name_coq = Utils.explode name in
   let depth_coq = Convert.to_nat depth in
-  match (* TODO: No longer call [Extract] directly, relying on [Shim] instead: this is better future proof. In particular, we should *never* call a function not explicitely extracted in [theory/extraction]. *) Extract.lookup_exported_function name_coq sies with
+  match Interpreter.lookup_exported_function name sies with
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     let ((_, inst), _) = sies in
@@ -91,7 +92,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
 
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
   debug_info verbosity 2 (fun () -> Printf.printf "instantiation...");
-  match (* TODO: Use [Shim]. *) Extract.interp_instantiate_wrapper m with
+  match Interpreter.interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (store_inst_exps, _) ->
     debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));

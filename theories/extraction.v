@@ -20,8 +20,7 @@ Extraction Language OCaml.
 
 Extraction "extract"
   run_parse_module
-  interp_instantiate_wrapper
-  lookup_exported_function
+  Instantiation
   cl_type_check_single
   Interpreter
   value_rec_safe

@@ -15,6 +15,7 @@
 		(progn
 			(run cp "../theories/extract.ml" "../theories/extract.mli" "./")
 			; What follows are dirty tricks to try to fix Coq’s output and make it accepted by OCaml… but they don’t work as expected.
+			; TODO: Just provide a patch.
 			; (run sed "-ie" "s/Coq__5/Coq__3/g" "extract.ml")
 			; (run rm "extract.mli")
 		)))

@@ -26,6 +26,7 @@ Variable host_instance : host.
 Let store_record_eq_dec := @store_record_eq_dec host_function.
 Let store_record_eqType := @store_record_eqType host_function.
 
+(* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
 Let store_record := store_record host_function.
@@ -876,4 +877,24 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
     None.
 
 End Host.
+
+(** As-is, [eqType] tends not to extract well.
+  This section provides alternative definitions for better extraction. **)
+Module Instantiation (EH : Executable_Host).
+
+Module Exec := convert_to_executable_host EH.
+Import Exec.
+
+Definition lookup_exported_function :
+    name -> store_record * instance * seq module_export ->
+    option config_tuple :=
+  @lookup_exported_function _.
+
+Definition interp_instantiate_wrapper :
+  module ->
+  itree (instantiation_error +' host_event)
+    (store_record * instance * seq module_export * option nat) :=
+  @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
+
+End Instantiation.
 

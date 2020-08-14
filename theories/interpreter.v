@@ -695,13 +695,20 @@ Module Target := convert_target_monad EH TM.
 Import Target.
 
 Definition run_step
-  : depth -> instance -> config_tuple host_function -> monad (res_tuple host_function) :=
+  : depth -> instance -> config_tuple -> monad res_tuple :=
   @run_step_extraction_eqType host_function_eqType executable_host_instance
     monad monad_functor monad_monad monad_Iter convert.
 Definition run_v
-  : depth -> instance -> config_tuple host_function -> monad (store_record * res) :=
+  : depth -> instance -> config_tuple -> monad (store_record * res) :=
   @run_v_extraction_eqType host_function_eqType executable_host_instance
     monad monad_functor monad_monad monad_Iter convert.
+
+(** A useful definition for converting [itree] to [option] without executing anything,
+  assuming a way to remove events.
+  Warning: this breaks the semantics of [itree]s by mapping any event to [None]. **)
+Definition itree_to_option (E : Type -> Type) (tr : forall T, E T -> void1 T) :
+    forall R, itree E R -> option R :=
+  fun _ tree => option_of_itree_void (translate tr tree).
 
 End Interpreter.
 

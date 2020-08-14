@@ -29,12 +29,22 @@ module Interpreter =
   functor (EH : Extract.Executable_Host) -> struct
 
     module Interpreter = Extract.Interpreter (EH) (TargetMonad (EH))
+    module Instantiation = Extract.Instantiation (EH)
 
     type store_record = EH.host_function Extract.store_record
+    type config_tuple = EH.host_function Extract.config_tuple
 
     let run_v d i cfg = Interpreter.run_v (Convert.to_nat d) i cfg
 
     let run_step d i cfg = Interpreter.run_step (Convert.to_nat d) i cfg
+
+    let lookup_exported_function name =
+      Instantiation.lookup_exported_function (Utils.explode name)
+
+    let interp_instantiate_wrapper m =
+      Option.map (fun (store_inst_exps, start) ->
+          (store_inst_exps, Option.map Convert.from_nat start))
+        (Interpreter.itree_to_option (Instantiation.interp_instantiate_wrapper m))
 
   end
 
