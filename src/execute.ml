@@ -1,3 +1,7 @@
+
+module Host = Extract.DummyHost
+module Interpreter = Shim.Interpreter (Host)
+
 (* read-eval-print loop; work in progress *)
 let rec user_input prompt cb st =
   match LNoise.linenoise prompt with

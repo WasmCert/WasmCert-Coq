@@ -1,8 +1,30 @@
 
-(* FIXME: Do we still need it?
-(** Convert a function [t -> t -> bool] to a Coq function [forall x y : t, {x = y} + {x <> y}]. *)
-let comparison comp x y = comp x y
-*)
+module type InterpreterType = sig
+
+  module Host : Extract.Executable_Host
+  include module type of Host
+
+  type store_record = host_function Extract.store_record
+  type config_tuple = host_function Extract.config_tuple
+
+  val run_v :
+    int -> Extract.instance -> config_tuple ->
+    (store_record * Extract.res) host_event
+
+  val run_step :
+    int -> Extract.instance -> config_tuple ->
+    host_function Extract.res_tuple host_event
+
+  val lookup_exported_function :
+    string -> ((store_record * Extract.instance) * Extract.module_export list) ->
+    config_tuple option
+
+  val interp_instantiate_wrapper :
+    Extract.module0 ->
+    (((store_record * Extract.instance) * Extract.module_export list) * int option) option
+
+  end
+
 
 (** We set the target monad to be exactly the host events.
    This is not possible in Coq due to universe inconsistencies as it might in some very specific
@@ -27,6 +49,9 @@ module TargetMonad =
 
 module Interpreter =
   functor (EH : Extract.Executable_Host) -> struct
+
+    module Host = EH
+    include Host
 
     module Interpreter = Extract.Interpreter (EH) (TargetMonad (EH))
     module Instantiation = Extract.Instantiation (EH)

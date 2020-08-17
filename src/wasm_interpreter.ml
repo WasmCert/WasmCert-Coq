@@ -29,8 +29,6 @@ let terminal_magic verbosity =
   debug_info verbosity 1 (fun () -> Printf.printf "%s " (ansi_delete_chars 3));
   debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
 
-module Interpreter = Shim.Interpreter (Extract.DummyHost)
-
 (** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
   debug_info verbosity 2 (fun () -> Printf.printf "interpreting...");
@@ -40,7 +38,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
   | Some cfg0 ->
     let ((_, inst), _) = sies in
     let rec eval gen cfg =
-      (let cfg_res = (* TODO: This really should be in [Repl]. *) Extract.run_step depth_coq inst cfg in
+      (let cfg_res = (* TODO: This really should be in [Execute]. *) Extract.run_step depth_coq inst cfg in
        debug_info verbosity 3
         (fun () ->
           Printf.printf "%sstep %d%s:\n%s"
@@ -96,7 +94,7 @@ let instantiate_interpret verbosity interactive error_code_on_crash m name depth
   | None -> `Error (false, "instantiation error")
   | Some (store_inst_exps, _) ->
     debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
-    if interactive then Repl.repl store_inst_exps name depth
+    if interactive then Execute.repl store_inst_exps name depth
     else interpret verbosity error_code_on_crash store_inst_exps name depth
 
 (** Main function *)
