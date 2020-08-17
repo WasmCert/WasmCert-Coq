@@ -1,4 +1,5 @@
-(* pretty-printer *)
+(** Pretty-printer **)
+
 Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -17,11 +18,16 @@ Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let function_closure := function_closure host_function.
 
+Variable show_host_function : host_function -> string.
+
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
 
 Definition newline : string := String newline_char EmptyString.
 
-Fixpoint indent (i : nat) (s : string) : string :=
+(** Describe an indentation level. **)
+Definition indentation := nat.
+
+Fixpoint indent (i : indentation) (s : string) : string :=
   match i with
   | 0 => s
   | S i' => "  " ++ indent i' s
@@ -80,7 +86,7 @@ Definition pp_i64 i :=
   pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int64.unsigned i)).
 
 (* TODO: all this printing of floats business is highly dubious,
- * and completely untested *)
+   and completely untested *)
 Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
   match p with
   | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
@@ -230,7 +236,7 @@ Definition pp_ps (ps : packed_type * sx) : string :=
 
 Definition be_style := FG_magenta.
 
-Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
+Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : string :=
   let pp_basic_instructions bes i :=
     String.concat "" (List.map (pp_basic_instruction (S i)) bes) in
   match be with
@@ -312,7 +318,7 @@ Fixpoint pp_basic_instruction (i : nat) (be : basic_instruction) : string :=
 Definition pp_basic_instructions n bes :=
   String.concat "" (List.map (pp_basic_instruction n) bes).
 
-Definition pp_function_closure (n : nat) (fc : function_closure) : string :=
+Definition pp_function_closure (n : indentation) (fc : function_closure) : string :=
   match fc with
   | Func_native i ft vs bes =>
     (* TODO: show instance? *)
@@ -322,7 +328,8 @@ Definition pp_function_closure (n : nat) (fc : function_closure) : string :=
     pp_basic_instructions (n.+1) bes ++
     indent n ("end native" ++ newline)
   | Func_host ft h =>
-    indent n ("host " ++ pp_function_type ft ++ newline) (* TODO: show *)
+    indent n ("host " ++ show_host_function h
+              ++ " : " ++ pp_function_type ft ++ newline)
   end.
 
 Definition string_of_nat (n : nat) : string :=
@@ -330,7 +337,7 @@ Definition string_of_nat (n : nat) : string :=
 
 Definition ae_style := FG_blue.
 
-Fixpoint pp_administrative_instruction (n : nat) (e : administrative_instruction) : string :=
+Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_instruction) : string :=
   let pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
     String.concat "" (List.map (pp_administrative_instruction n) es) in
   match e with
@@ -365,13 +372,13 @@ Definition pp_mutability (m : mutability) : string :=
 Definition pp_global (g : global) : string :=
   pp_mutability g.(g_mut) ++ " " ++ pp_value g.(g_val).
 
-Definition pp_globals (n : nat) (gs : list global) : string :=
+Definition pp_globals (n : indentation) (gs : list global) : string :=
   String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ pp_global g ++ newline)) gs).
 
-Definition pp_memories (n : nat) (ms : list memory) : string :=
+Definition pp_memories (n : indentation) (ms : list memory) : string :=
 String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ "TODO: memory" ++ newline)) ms).
 
-Definition pp_store (n : nat) (s : store_record) : string :=
+Definition pp_store (n : indentation) (s : store_record) : string :=
   indent n ("globals" ++ newline) ++
   pp_globals (n.+1) s.(s_globals) ++
   indent n ("memories" ++ newline) ++
@@ -401,3 +408,29 @@ Definition pp_res_tuple_except_store (res_cfg : res_tuple _) : string :=
   end.
 
 End Host.
+
+(** As-is, [eqType] tends not to extract well.
+  This section provides alternative definitions for better extraction. **)
+Module PP (EH : Executable_Host).
+
+Module Exec := convert_to_executable_host EH.
+Import Exec.
+
+Section Show.
+
+Variable show_host_function : host_function -> string.
+
+Definition pp_values : list value -> string := pp_values.
+
+Definition pp_store : nat -> store_record -> string := pp_store _.
+
+Definition pp_res_tuple_except_store : res_tuple -> string :=
+  pp_res_tuple_except_store _ show_host_function.
+
+Definition pp_config_tuple_except_store : config_tuple -> string :=
+  pp_config_tuple_except_store _ show_host_function.
+
+End Show.
+
+End PP.
+

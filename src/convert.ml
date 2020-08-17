@@ -44,7 +44,7 @@ let from_triple = function
 let to_triple (a, b, c) = Extract.Pair (Extract.Pair (a, b), c)
 *)
 
-let from_string l = String.concat "" (List.map (fun c -> String.make 1 c) l)
+let from_string str = Utils.implode str
 
 let string_of_value =
   Extract.value_rec_safe

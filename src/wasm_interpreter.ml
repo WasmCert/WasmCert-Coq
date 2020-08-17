@@ -30,32 +30,31 @@ let terminal_magic verbosity =
   debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
 
 (** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
-let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
+let interpret verbosity error_code_on_crash sies (name : string) (depth : int) = (* TODO: This function really should be in [Execute]. *)
   debug_info verbosity 2 (fun () -> Printf.printf "interpreting...");
-  let depth_coq = Convert.to_nat depth in
-  match Interpreter.lookup_exported_function name sies with
+  match Execute.Interpreter.lookup_exported_function name sies with
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     let ((_, inst), _) = sies in
     let rec eval gen cfg =
-      (let cfg_res = (* TODO: This really should be in [Execute]. *) Extract.run_step depth_coq inst cfg in
+      (let cfg_res = Execute.Interpreter.run_step depth inst cfg in
        debug_info verbosity 3
         (fun () ->
           Printf.printf "%sstep %d%s:\n%s"
             ansi_bold gen
             ansi_reset
-            (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_res_tuple_except_store cfg_res)));
+            (Execute.Interpreter.pp_res_tuple_except_store cfg_res));
       debug_info_span verbosity 3 3
         (fun () ->
-          let ((s, _), _)  = cfg in
-          let ((s', _), _)  = cfg_res in
+          let ((s, _), _) = cfg in
+          let ((s', _), _) = cfg_res in
           let store_status = if s = s' then "unchanged" else "changed" in
           Printf.printf "and store %s\n" store_status);
       debug_info verbosity 4
         (fun () ->
-          let ((s', _), _)  = cfg_res in
+          let ((s', _), _) = cfg_res in
           Printf.printf "and store\n%s"
-            (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_store (Convert.to_nat 1) s')));
+            (Execute.Interpreter.pp_store (Convert.to_nat 1) s'));
        match cfg_res with
        | (_, RS_crash crash) ->
          terminal_magic verbosity;
@@ -67,7 +66,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
          None
        | (_, RS_return vs) ->
          terminal_magic verbosity;
-         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_values vs));
+         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (Execute.Interpreter.pp_values vs);
          Some vs
        | ((s', vs'), RS_normal es) ->
          begin match (* TODO: Use [Shim]. *) Extract.those_const_list es with
@@ -76,13 +75,13 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
          end) in
     debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 3));
     debug_info_span verbosity 2 2 (fun () -> Printf.printf " %sOK%s\n" ansi_green ansi_reset);
-    debug_info verbosity 3 (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_config_tuple_except_store cfg0)));
+    debug_info verbosity 3 (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (Execute.Interpreter.pp_config_tuple_except_store cfg0));
     let res = eval 1 cfg0 in
     debug_info_span verbosity 1 2
       (fun () ->
         match res with
         | Some vs ->
-          Printf.printf "%s%!" (Utils.implode ((* TODO: Use [Shim]. *) Extract.pp_values vs))
+          Printf.printf "%s%!" (Execute.Interpreter.pp_values vs)
         | None -> ()
       );
     if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
@@ -90,7 +89,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
 
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
   debug_info verbosity 2 (fun () -> Printf.printf "instantiation...");
-  match Interpreter.interp_instantiate_wrapper m with
+  match Execute.Interpreter.interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (store_inst_exps, _) ->
     debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
@@ -182,7 +181,7 @@ let cmd =
   let exits = Term.default_exits in
   let man =
     [ `S Manpage.s_bugs;
-      `P "Report them at https://github.com/Imperial-Wasm/wasm_coq/issues"; ]
+      `P "Report them at https://github.com/WasmCert/WasmCert-Coq/issues"; ]
   in
   (Term.(ret (const process_args_and_run $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ depth $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)

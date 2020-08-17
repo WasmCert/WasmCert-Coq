@@ -24,10 +24,7 @@ Extraction "extract"
   cl_type_check_single
   Interpreter
   value_rec_safe
-  pp.pp_config_tuple_except_store
-  pp.pp_res_tuple_except_store
-  pp.pp_values
-  pp.pp_store
+  PP
   operations.those_const_list
   DummyHost.
 

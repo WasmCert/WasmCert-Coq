@@ -1,6 +1,7 @@
+(** Functions to execute the definitions of the [Shim] module. *)
 
 (** A host implementation. *)
-module Host : Extract.Executable_Host
+module Host : Shim.Host
 
 module Interpreter : Shim.InterpreterType with module Host = Host
 

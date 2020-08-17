@@ -1,5 +1,5 @@
 
-module Host = Extract.DummyHost
+module Host = Shim.DummyHost
 module Interpreter = Shim.Interpreter (Host)
 
 (* read-eval-print loop; work in progress *)
@@ -13,27 +13,26 @@ let rec user_input prompt cb st =
 let string_of_crash_reason = function
   | () -> "error"
 
-let take_step depth_coq i cfg =
+let take_step depth i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
-  let res = Extract.run_step depth_coq i cfg in (* TODO: Use [Shim.run_step] instead. Use monadic style. *)
+  let res = Interpreter.run_step depth i cfg in (* TODO: Use monadic style. *)
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
-  Printf.printf "%sand store %s\n%!" (Convert.from_string (Extract.pp_res_tuple_except_store res)) store_status;
+  Printf.printf "%sand store %s\n%!" (Interpreter.pp_res_tuple_except_store res) store_status;
   match (*Convert.from_triple*) res with
-  | ((_, _), RS_crash crash) ->
+  | ((_, _), Extract.RS_crash crash) ->
     Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason crash);
     cfg
-  | ((_, _), RS_break _) ->
+  | ((_, _), Extract.RS_break _) ->
     Printf.printf "\x1b[33mbreak\x1b[0m\n%!";
     cfg
-  | ((_, _), RS_return vs) ->
-    Printf.printf "\x1b[32mreturn\x1b[0m %s\n%!" (implode (Extract.pp_values vs));
+  | ((_, _), Extract.RS_return vs) ->
+    Printf.printf "\x1b[32mreturn\x1b[0m %s\n%!" (Interpreter.pp_values vs);
     cfg
-  | ((s', vs'), RS_normal es) ->
+  | ((s', vs'), Extract.RS_normal es) ->
     ((s', vs'), es)
 
 let repl sies (name : string) (depth : int) : [> `Ok of unit] =
-  let name_coq = explode name in
   let depth_coq = Convert.to_nat depth in
   LNoise.set_hints_callback (fun line ->
       if line <> "git remote add " then None
@@ -56,12 +55,12 @@ let repl sies (name : string) (depth : int) : [> `Ok of unit] =
    "type quit to exit gracefully"]
   |> List.iter print_endline;
   let ((s, i), _) = sies in
-  match Extract.lookup_exported_function name_coq sies with
+  match Interpreter.lookup_exported_function name sies with
   | None -> `Error (false, "unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     Printf.printf "\n%sand store\n%s\n%!"
-      (implode (Extract.pp_config_tuple_except_store cfg0))
-      (implode (Extract.pp_store (Convert.to_nat 1) s));
+      (Interpreter.pp_config_tuple_except_store cfg0)
+      (Interpreter.pp_store (Convert.to_nat 1) s);
     (fun from_user cfg ->
       if from_user = "quit" then exit 0;
       LNoise.history_add from_user |> ignore;
@@ -69,7 +68,7 @@ let repl sies (name : string) (depth : int) : [> `Ok of unit] =
       if from_user = "" || from_user = "step" then take_step depth_coq i cfg
       else if from_user = "s" || from_user = "store" then
         (let ((s, _), _) = cfg in
-         Printf.sprintf "%s%!" (implode (Extract.pp_store (Convert.to_nat 0) s)) |> print_endline;
+         Printf.sprintf "%s%!" (Interpreter.pp_store 0 s) |> print_endline;
          cfg)
       else if from_user = "help" then
         (Printf.sprintf "commands:\nstep: take a step\nstore: display the store\nquit: quit\nhelp: this help message" |> print_endline;
