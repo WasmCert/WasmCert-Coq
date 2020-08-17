@@ -29,6 +29,13 @@ module type InterpreterType = sig
     module Host : Host
     include module type of Host
 
+    (** The usual monadic notations. *)
+    val ( >>= ) : 'a host_event -> ('a -> 'b host_event) -> 'b host_event
+    val ( let* ) : 'a host_event -> ('a -> 'b host_event) -> 'b host_event
+    val ( let+ ) : 'a host_event -> ('a -> 'b) -> 'b host_event
+    val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
+    val pure : 'a -> 'a host_event
+
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple

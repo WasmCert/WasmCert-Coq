@@ -14,6 +14,12 @@ module type InterpreterType = sig
     module Host : Host
     include module type of Host
 
+    val ( >>= ) : 'a host_event -> ('a -> 'b host_event) -> 'b host_event
+    val ( let* ) : 'a host_event -> ('a -> 'b host_event) -> 'b host_event
+    val ( let+ ) : 'a host_event -> ('a -> 'b) -> 'b host_event
+    val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
+    val pure : 'a -> 'a host_event
+
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
@@ -68,6 +74,17 @@ module Interpreter =
 
     module Host = EH
     include Host
+
+    let ( >>= ) = host_bind
+    let ( let* ) = host_bind
+    let pure = host_ret
+    let ( let+ ) a f =
+      let* a = a in
+      pure (f a)
+    let ( and+ ) a b =
+      let* a = a in
+      let* b = b in
+      pure (a, b)
 
     module Interpreter = Extract.Interpreter (EH) (TargetMonad (EH))
     module Instantiation = Extract.Instantiation (EH)

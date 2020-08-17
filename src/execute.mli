@@ -9,6 +9,5 @@ module Interpreter : Shim.InterpreterType with module Host = Host
    perform side effects, and thus incorporate most of [Wasm_interpreter.interpret]. *)
 
 (** Read-eval-print-loop. *)
-val repl : ((Extract.Equality.sort Extract.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> [> `Ok of unit]
-
+val repl : ((Interpreter.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> [> `Ok of unit] Interpreter.host_event
 

@@ -2,12 +2,14 @@
 module Host = Shim.DummyHost
 module Interpreter = Shim.Interpreter (Host)
 
+open Interpreter
+
 (* read-eval-print loop; work in progress *)
-let rec user_input prompt cb st =
+let rec user_input prompt cb st : [> `Ok of unit ] host_event =
   match LNoise.linenoise prompt with
-  | None -> `Ok ()
+  | None -> pure (`Ok ())
   | Some v ->
-    let st' = cb v st in
+    let* st' = cb v st in
     user_input prompt cb st'
 
 let string_of_crash_reason = function
@@ -15,25 +17,24 @@ let string_of_crash_reason = function
 
 let take_step depth i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
-  let res = Interpreter.run_step depth i cfg in (* TODO: Use monadic style. *)
+  let* res = run_step depth i cfg in
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
-  Printf.printf "%sand store %s\n%!" (Interpreter.pp_res_tuple_except_store res) store_status;
+  Printf.printf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status;
   match (*Convert.from_triple*) res with
-  | ((_, _), Extract.RS_crash crash) ->
-    Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason crash);
-    cfg
+  | ((_, _), Extract.RS_crash) ->
+    Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason ());
+    pure cfg
   | ((_, _), Extract.RS_break _) ->
     Printf.printf "\x1b[33mbreak\x1b[0m\n%!";
-    cfg
+    pure cfg
   | ((_, _), Extract.RS_return vs) ->
-    Printf.printf "\x1b[32mreturn\x1b[0m %s\n%!" (Interpreter.pp_values vs);
-    cfg
+    Printf.printf "\x1b[32mreturn\x1b[0m %s\n%!" (pp_values vs);
+    pure cfg
   | ((s', vs'), Extract.RS_normal es) ->
-    ((s', vs'), es)
+    pure ((s', vs'), es)
 
-let repl sies (name : string) (depth : int) : [> `Ok of unit] =
-  let depth_coq = Convert.to_nat depth in
+let repl sies (name : string) (depth : int) : [> `Ok of unit] host_event =
   LNoise.set_hints_callback (fun line ->
       if line <> "git remote add " then None
       else Some (" <this is the remote name> <this is the remote URL>",
@@ -55,24 +56,24 @@ let repl sies (name : string) (depth : int) : [> `Ok of unit] =
    "type quit to exit gracefully"]
   |> List.iter print_endline;
   let ((s, i), _) = sies in
-  match Interpreter.lookup_exported_function name sies with
-  | None -> `Error (false, "unknown function `" ^ name ^ "`")
+  match lookup_exported_function name sies with
+  | None -> pure (`Error (false, "unknown function `" ^ name ^ "`") : [> `Ok of unit])
   | Some cfg0 ->
     Printf.printf "\n%sand store\n%s\n%!"
-      (Interpreter.pp_config_tuple_except_store cfg0)
-      (Interpreter.pp_store (Convert.to_nat 1) s);
+      (pp_config_tuple_except_store cfg0)
+      (pp_store 1 s);
     (fun from_user cfg ->
       if from_user = "quit" then exit 0;
       LNoise.history_add from_user |> ignore;
       LNoise.history_save ~filename:"history.txt" |> ignore;
-      if from_user = "" || from_user = "step" then take_step depth_coq i cfg
+      if from_user = "" || from_user = "step" then take_step depth i cfg
       else if from_user = "s" || from_user = "store" then
         (let ((s, _), _) = cfg in
-         Printf.sprintf "%s%!" (Interpreter.pp_store 0 s) |> print_endline;
-         cfg)
+         Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
+         pure cfg)
       else if from_user = "help" then
         (Printf.sprintf "commands:\nstep: take a step\nstore: display the store\nquit: quit\nhelp: this help message" |> print_endline;
-         cfg)
-      else (Printf.sprintf "unknown command" |> print_endline; cfg))
+         pure cfg)
+      else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
     |> (fun cb -> user_input "> " cb cfg0)
 
