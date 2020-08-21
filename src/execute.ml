@@ -1,9 +1,4 @@
 
-(** The output associated with the functions of this module. *)
-type 'a out =
-  | OK of 'a
-  | Error of string
-
 module Host = struct
 
     (* We build on top of this host, wrapping it inside the type [out]. *)
@@ -11,6 +6,11 @@ module Host = struct
 
     type host_function = Host.host_function
     let host_function_eq_dec = Host.host_function_eq_dec
+
+    (** An output type, returning either a success with a value or an error message. *)
+    type 'a out =
+      | OK of 'a
+      | Error of string
 
     type 'a host_event = 'a out Host.host_event
     let host_ret v = Host.host_ret (OK v)
@@ -24,16 +24,24 @@ module Host = struct
 
     let show_host_function = Host.show_host_function
 
+    let error msg = Host.host_ret (Error msg)
+
+    let pmatch ok error v =
+      Host.host_bind v (function
+        | OK v -> host_ret (ok v)
+        | Error msg -> host_ret (error msg))
+
   end
 
 module Interpreter = Shim.Interpreter (Host)
 
+open Host
 open Interpreter
 
 (* read-eval-print loop; work in progress *)
 let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
-  | None -> pure (OK ())
+  | None -> pure ()
   | Some v ->
     let* st' = cb v st in
     user_input prompt cb st'
@@ -83,7 +91,7 @@ let repl sies (name : string) (depth : int) =
   |> List.iter print_endline;
   let ((s, i), _) = sies in
   match lookup_exported_function name sies with
-  | None -> pure (Error ("unknown function `" ^ name ^ "`"))
+  | None -> error ("unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     Printf.printf "\n%sand store\n%s\n%!"
       (pp_config_tuple_except_store cfg0)

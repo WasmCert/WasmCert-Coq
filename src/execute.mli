@@ -1,15 +1,21 @@
 (** Functions to execute the definitions of the [Shim] module. *)
 
 (** A host implementation. *)
-module Host : Shim.Host
+module Host : sig
+    include Shim.Host
 
-module Interpreter : Shim.InterpreterType with module Host = Host
+    (** We add the ability to throw error in the monad. *)
+    val error : string -> 'a host_event
 
-(** The output associated with the functions of this module. *)
-type 'a out =
-  | OK of 'a
-  | Error of string
+    (** We also add a way to pattern-match the monad. *)
+    val pmatch :
+      ('a -> 'b) (** Normal case *) ->
+      (string -> 'b) (** Error case *) ->
+      'a host_event -> 'b host_event
+  end
+
+module Interpreter : Shim.InterpreterType with type 'a Host.host_event = 'a Host.host_event
 
 (** Read-eval-print-loop. *)
-val repl : ((Interpreter.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> unit out Interpreter.host_event
+val repl : ((Interpreter.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> unit Host.host_event
 

@@ -31,6 +31,7 @@ let terminal_magic verbosity =
 
 (** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 let interpret verbosity error_code_on_crash sies (name : string) (depth : int) = (* TODO: This function really should be in [Execute]. *)
+  let open Execute.Host in
   let open Execute.Interpreter in
   debug_info verbosity 2 (fun () -> Printf.printf "interpreting...");
   match lookup_exported_function name sies with
@@ -70,7 +71,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (pp_values vs);
         pure (Some vs)
       | ((s', vs'), RS_normal es) ->
-        begin match (* TODO: Use [Shim]. *) None (* TODO FIXME Extract.those_const_list es *) with
+        begin match (* TODO: Use [Shim]. *) Extract.those_const_list es with
         | Some vs -> pure (Some vs)
         | None -> eval (gen + 1) (((s', vs'), es))
         end in
