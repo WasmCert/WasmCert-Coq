@@ -1,13 +1,39 @@
 
-module Host = Shim.DummyHost
+(** The output associated with the functions of this module. *)
+type 'a out =
+  | OK of 'a
+  | Error of string
+
+module Host = struct
+
+    (* We build on top of this host, wrapping it inside the type [out]. *)
+    module Host = Shim.DummyHost
+
+    type host_function = Host.host_function
+    let host_function_eq_dec = Host.host_function_eq_dec
+
+    type 'a host_event = 'a out Host.host_event
+    let host_ret v = Host.host_ret (OK v)
+    let host_bind v cont =
+      Host.host_bind v (function
+        | OK v -> cont v
+        | Error msg -> Host.host_ret (Error msg))
+
+    let host_apply st f vs =
+      Host.host_bind (Host.host_apply st f vs) (fun r -> host_ret r)
+
+    let show_host_function = Host.show_host_function
+
+  end
+
 module Interpreter = Shim.Interpreter (Host)
 
 open Interpreter
 
 (* read-eval-print loop; work in progress *)
-let rec user_input prompt cb st : [> `Ok of unit ] host_event =
+let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
-  | None -> pure (`Ok ())
+  | None -> pure (OK ())
   | Some v ->
     let* st' = cb v st in
     user_input prompt cb st'
@@ -34,7 +60,7 @@ let take_step depth i cfg =
   | ((s', vs'), Extract.RS_normal es) ->
     pure ((s', vs'), es)
 
-let repl sies (name : string) (depth : int) : [> `Ok of unit] host_event =
+let repl sies (name : string) (depth : int) =
   LNoise.set_hints_callback (fun line ->
       if line <> "git remote add " then None
       else Some (" <this is the remote name> <this is the remote URL>",
@@ -57,7 +83,7 @@ let repl sies (name : string) (depth : int) : [> `Ok of unit] host_event =
   |> List.iter print_endline;
   let ((s, i), _) = sies in
   match lookup_exported_function name sies with
-  | None -> pure (`Error (false, "unknown function `" ^ name ^ "`") : [> `Ok of unit])
+  | None -> pure (Error ("unknown function `" ^ name ^ "`"))
   | Some cfg0 ->
     Printf.printf "\n%sand store\n%s\n%!"
       (pp_config_tuple_except_store cfg0)

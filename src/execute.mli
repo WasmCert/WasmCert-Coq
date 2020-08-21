@@ -5,9 +5,11 @@ module Host : Shim.Host
 
 module Interpreter : Shim.InterpreterType with module Host = Host
 
-(* TODO: This file really should deal with the execution of the interpreter in a monad that can
-   perform side effects, and thus incorporate most of [Wasm_interpreter.interpret]. *)
+(** The output associated with the functions of this module. *)
+type 'a out =
+  | OK of 'a
+  | Error of string
 
 (** Read-eval-print-loop. *)
-val repl : ((Interpreter.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> [> `Ok of unit] Interpreter.host_event
+val repl : ((Interpreter.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> unit out Interpreter.host_event
 
