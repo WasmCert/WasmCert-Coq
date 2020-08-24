@@ -39,6 +39,7 @@ module type InterpreterType = sig
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
+    type administrative_instruction = host_function Extract.Coq__6.administrative_instruction (* FIXME: This is bad. Extract a global module for types? *)
 
     (** Run the interpreter until reaching a result. *)
     val run_v :
@@ -49,6 +50,9 @@ module type InterpreterType = sig
     val run_step :
       int (** The depth *) -> Extract.instance -> config_tuple ->
       host_function Extract.res_tuple host_event
+
+    (** State whether a list of administrative instructions is actually just a list of values. *)
+    val is_const_list : administrative_instruction list -> Extract.value0 list option
 
     (** Look-up a specific extracted function of the instantiation. *)
     val lookup_exported_function :

@@ -23,6 +23,7 @@ module type InterpreterType = sig
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
+    type administrative_instruction = host_function Extract.Coq__6.administrative_instruction (* FIXME: bad *)
 
     val run_v :
       int -> Extract.instance -> config_tuple ->
@@ -31,6 +32,8 @@ module type InterpreterType = sig
     val run_step :
       int -> Extract.instance -> config_tuple ->
       host_function Extract.res_tuple host_event
+
+    val is_const_list : administrative_instruction list -> Extract.value0 list option
 
     val lookup_exported_function :
       string -> ((store_record * Extract.instance) * Extract.module_export list) ->
@@ -93,10 +96,13 @@ module Interpreter =
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
+    type administrative_instruction = host_function Extract.Coq__6.administrative_instruction (* FIXME: bad *)
 
     let run_v d i cfg = Interpreter.run_v (Convert.to_nat d) i cfg
 
     let run_step d i cfg = Interpreter.run_step (Convert.to_nat d) i cfg
+
+    let is_const_list = Interpreter.is_const_list
 
     let lookup_exported_function name =
       Instantiation.lookup_exported_function (Utils.explode name)

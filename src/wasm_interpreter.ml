@@ -71,7 +71,7 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
         Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (pp_values vs);
         pure (Some vs)
       | ((s', vs'), RS_normal es) ->
-        begin match (* TODO: Use [Shim]. *) Extract.those_const_list es with
+        begin match is_const_list es with
         | Some vs -> pure (Some vs)
         | None -> eval (gen + 1) (((s', vs'), es))
         end in

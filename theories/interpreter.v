@@ -703,6 +703,10 @@ Definition run_v
   @run_v_extraction_eqType host_function_eqType executable_host_instance
     monad monad_functor monad_monad monad_Iter convert.
 
+(** State whether a list of administrative instruction is a final value. **)
+Definition is_const_list : list administrative_instruction -> option (list value) :=
+  @those_const_list _.
+
 (** A useful definition for converting [itree] to [option] without executing anything,
   assuming a way to remove events.
   Warning: this breaks the semantics of [itree]s by mapping any event to [None].

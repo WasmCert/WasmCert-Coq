@@ -21,10 +21,8 @@ Extraction Language OCaml.
 Extraction "extract"
   run_parse_module
   Instantiation
-  cl_type_check_single
   Interpreter
   value_rec_safe
   PP
-  operations.those_const_list
   DummyHost.
 
