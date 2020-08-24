@@ -10,15 +10,20 @@
 
 (rule
 	(targets "extract.ml" "extract.mli")
-	(deps "../theories/extraction.vo")
+	(deps "../theories/extraction.vo" "extract.patch")
 	(action
 		(progn
 			(run cp "../theories/extract.ml" "../theories/extract.mli" "./")
-			; What follows are dirty tricks to try to fix Coq’s output and make it accepted by OCaml… but they don’t work as expected.
-			; TODO: Just provide a patch.
-			; (run sed "-ie" "s/Coq__5/Coq__3/g" "extract.ml")
-			; (run rm "extract.mli")
+			; What follows is a dirty trick to try to fix Coq’s output and make it accepted by OCaml…
+			(run patch extract.ml extract.patch)
 		)))
 
-(env (dev (flags (:standard -warn-error -A -w -39 -w -50)))) ; The extracted OCaml code yields a lot of warnings.
+(env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
+; Removing the following warnings:
+; - 50: unattached documentation comment, as it doesn’t fit the way we document our code.
+; - 39: unused rec flag, as Coq generates a lot of these in its extraction.
+; We could also remove the following, as Coq generates a lot of these in its extraction, but these are useful to track issues in the shim:
+; - 20: this argument will not be used by the function.
+; - 34: unused type
+; - 32: unused value.
 

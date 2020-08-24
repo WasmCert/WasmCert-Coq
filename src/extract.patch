@@ -1,0 +1,31 @@
+--- src/extract0.ml	2020-08-24 11:09:08.021620482 +0100
++++ src/extract2.ml	2020-08-24 11:10:05.909957749 +0100
+@@ -15433,8 +15433,8 @@
+ 
+   (** val executable_host_instance : executable_host **)
+ 
+-  let executable_host_instance =
+-    { Coq__9.host_monad = (Obj.magic host_monad); host_apply =
++  let executable_host_instance : executable_host =
++    { Coq__3.host_monad = (Obj.magic host_monad); Coq__3.host_apply =
+       (Obj.magic H.host_apply) }
+ 
+   (** val host_function_eqb : H.host_function -> H.host_function -> bool **)
+@@ -15459,7 +15459,7 @@
+ 
+   (** val host_functor : __ H.host_event functor0 **)
+ 
+-  let host_functor =
++  let host_functor : __ H.host_event functor0 =
+     functor_Monad host_monad
+  end
+ 
+@@ -17027,7 +17027,7 @@
+ 
+   (** val monad_functor : __ M.monad functor0 **)
+ 
+-  let monad_functor =
++  let monad_functor : __ M.monad functor0 =
+     functor_Monad monad_monad
+  end
+ 
