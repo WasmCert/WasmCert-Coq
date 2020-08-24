@@ -38,3 +38,6 @@ val vpending : verbosity -> verbosity -> (unit -> 'a) -> 'a
    or ["failure"] message depending on the function. *)
 val ovpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> ([< `Ok of 'a | `Error of bool * string] as 'r)) -> 'r
 
+(** Similarly to [ovpending], but the success is provided by the boolean. *)
+val bvpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> bool * 'a) -> 'a
+

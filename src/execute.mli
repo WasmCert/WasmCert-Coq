@@ -19,3 +19,9 @@ module Interpreter : Shim.InterpreterType with type 'a Host.host_event = 'a Host
 (** Read-eval-print-loop. *)
 val repl : (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
 
+(* TODO
+(** Given a verbosity level, a boolean stating whether the program should crash if the interpreted
+   code does, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
+val interpret : Output.verbosity -> bool -> (store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
+*)
+

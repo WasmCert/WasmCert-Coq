@@ -6,15 +6,19 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
   let open Output in
   let open Execute.Host in
   let open Execute.Interpreter in
-  debug_info verbosity stage (fun () -> "interpreting...");
-  match lookup_exported_function name sies with
-  | None -> error ("unknown function `" ^ name ^ "`")
-  | Some cfg0 ->
+  let print_step_header gen =
+    debug_info verbosity intermediate ~style:bold
+      (fun () -> Printf.sprintf "step %d:\n" gen) in
+  match ovpending verbosity stage "interpreting" (fun _ ->
+    match lookup_exported_function name sies with
+    | None -> `Error (false, "unknown function `" ^ name ^ "`")
+    | Some cfg0 -> `Ok cfg0) with
+  | `Error e -> `Error e
+  | `Ok cfg0 ->
     let ((_, inst), _) = sies in
     let rec eval gen cfg =
       let* cfg_res = run_step depth inst cfg in
-      debug_info verbosity intermediate ~style:bold
-        (fun () -> Printf.sprintf "step %d:\n" gen);
+      print_step_header gen ;
       debug_info verbosity intermediate
         (fun _ -> pp_res_tuple_except_store cfg_res);
       debug_info_span verbosity intermediate intermediate
@@ -46,17 +50,14 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
         | Some vs -> pure (Some vs)
         | None -> eval (gen + 1) (((s', vs'), es))
         end in
-    debug_info verbosity stage (fun () -> Printf.printf "%s" (ansi_delete_chars 3));
-    debug_info_span verbosity stage stage (fun () -> Printf.printf " %sOK%s\n" ansi_green ansi_reset);
-    debug_info verbosity intermediate (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (pp_config_tuple_except_store cfg0));
+    print_step_header 0 ;
+    debug_info verbosity intermediate (fun _ ->
+      Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
     let* res = eval 1 cfg0 in
-    debug_info_span verbosity result stage
-      (fun () ->
-        match res with
-        | Some vs ->
-          Printf.printf "%s%!" (pp_values vs)
-        | None -> ()
-      );
+    debug_info_span verbosity result stage (fun _ ->
+      match res with
+      | Some vs -> pp_values vs
+      | None -> "");
     if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
     else pure ()
 
