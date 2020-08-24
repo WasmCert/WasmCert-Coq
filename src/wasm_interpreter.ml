@@ -14,64 +14,69 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
     | None -> `Error (false, "unknown function `" ^ name ^ "`")
     | Some cfg0 -> `Ok cfg0) with
   | `Error e -> `Error e
-  | `Ok cfg0 ->
-    let ((_, inst), _) = sies in
-    let rec eval gen cfg =
-      let* cfg_res = run_step depth inst cfg in
-      print_step_header gen ;
-      debug_info verbosity intermediate
-        (fun _ -> pp_res_tuple_except_store cfg_res);
-      debug_info_span verbosity intermediate intermediate
-        (fun () ->
-          let ((s, _), _) = cfg in
-          let ((s', _), _) = cfg_res in
-          let store_status = if s = s' then "unchanged" else "changed" in
-          Printf.sprintf "and store %s\n" store_status);
-      debug_info verbosity store
-        (fun () ->
-          let ((s', _), _) = cfg_res in
-          Printf.sprintf "and store\n%s" (pp_store 1 s'));
-      match cfg_res with
-      | (_, RS_crash) ->
-        wait_message verbosity;
-        debug_info verbosity result ~style:red (fun _ -> "crash");
-        pure None
-      | (_, RS_break _) ->
-        wait_message verbosity;
-        debug_info verbosity result ~style:bold (fun _ -> "break");
-        pure None
-      | (_, RS_return vs) ->
-        wait_message verbosity;
-        debug_info verbosity result ~style:green (fun _ -> "return");
-        debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
-        pure (Some vs)
-      | ((s', vs'), RS_normal es) ->
-        begin match is_const_list es with
-        | Some vs -> pure (Some vs)
-        | None -> eval (gen + 1) (((s', vs'), es))
-        end in
-    print_step_header 0 ;
-    debug_info verbosity intermediate (fun _ ->
-      Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
-    let* res = eval 1 cfg0 in
-    debug_info_span verbosity result stage (fun _ ->
-      match res with
-      | Some vs -> pp_values vs
-      | None -> "");
-    if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
-    else pure ()
+  | `Ok cfg0 -> `OK (
+      let ((_, inst), _) = sies in
+      let rec eval gen cfg =
+        let* cfg_res = run_step depth inst cfg in
+        print_step_header gen ;
+        debug_info verbosity intermediate
+          (fun _ -> pp_res_tuple_except_store cfg_res);
+        debug_info_span verbosity intermediate intermediate
+          (fun () ->
+            let ((s, _), _) = cfg in
+            let ((s', _), _) = cfg_res in
+            let store_status = if s = s' then "unchanged" else "changed" in
+            Printf.sprintf "and store %s\n" store_status);
+        debug_info verbosity store
+          (fun () ->
+            let ((s', _), _) = cfg_res in
+            Printf.sprintf "and store\n%s" (pp_store 1 s'));
+        match cfg_res with
+        | (_, RS_crash) ->
+          wait_message verbosity;
+          debug_info verbosity result ~style:red (fun _ -> "crash");
+          pure None
+        | (_, RS_break _) ->
+          wait_message verbosity;
+          debug_info verbosity result ~style:bold (fun _ -> "break");
+          pure None
+        | (_, RS_return vs) ->
+          wait_message verbosity;
+          debug_info verbosity result ~style:green (fun _ -> "return");
+          debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
+          pure (Some vs)
+        | ((s', vs'), RS_normal es) ->
+          begin match is_const_list es with
+          | Some vs -> pure (Some vs)
+          | None -> eval (gen + 1) (((s', vs'), es))
+          end in
+      print_step_header 0 ;
+      debug_info verbosity intermediate (fun _ ->
+        Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
+      let* res = eval 1 cfg0 in
+      debug_info_span verbosity result stage (fun _ ->
+        match res with
+        | Some vs -> pp_values vs
+        | None -> "");
+      if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
+      else pure ()
+    )
 
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
-  debug_info verbosity stage (fun () -> Printf.printf "instantiation...");
-  match interp_instantiate_wrapper m with
-  | None -> `Error (false, "instantiation error")
-  | Some (store_inst_exps, _) ->
-    debug_info verbosity stage (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
-    if interactive then Execute.repl store_inst_exps name depth
+  let open Output in
+  let open Execute.Interpreter in
+  match ovpending verbosity stage "instantiation" (fun _ ->
+    match interp_instantiate_wrapper m with
+    | None -> `Error (false, "instantiation error")
+    | Some (store_inst_exps, _) -> `Ok store_inst_exps) with
+  | `Error e -> `Error e
+  | `Ok store_inst_exps ->
+    if interactive then `Ok (Execute.repl store_inst_exps name depth)
     else interpret verbosity error_code_on_crash store_inst_exps name depth
 
 (** Main function *)
 let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
+  let open Output in
   try
     (** Preparing the files. *)
     let files =
@@ -89,20 +94,21 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
               List.rev acc in
           aux []) srcs in
     (** Parsing. *)
-    debug_info verbosity stage (fun () -> Printf.printf "parsing...");
-    let m =
+    match ovpending verbosity stage "parsing" (fun _ ->
       if text then
-        invalid_arg "Text mode not yet implemented."
+        `Error (false, "Text mode not yet implemented.")
       else
         match (* TODO: Use [Shim]. *) Extract.run_parse_module (List.concat files) with
-        | None -> invalid_arg "syntax error"
-        | Some m -> m in
-    debug_info verbosity stage (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n%!" (ansi_delete_chars 3));
-    (** Running. *)
-    if no_exec then
-      (debug_info verbosity stage (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");
-       `Ok ())
-    else instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
+        | None -> `Error (false, "syntax error")
+        | Some m -> `Ok m) with
+    | `Error e -> `Error e
+    | `Ok m ->
+      (** Running. *)
+      if no_exec then
+        (debug_info verbosity stage (fun _ ->
+          "skipping interpretation because of --no-exec.\n") ;
+         `Ok (Execute.Interpreter.pure ()))
+      else instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
   with Invalid_argument msg -> `Error (false, msg)
 
 (** Command line interface *)

@@ -34,6 +34,8 @@ val pending : verbosity -> verbosity -> unit -> unit -> unit
 (** Same as [pending], but does it during the computation of the prodived function. *)
 val vpending : verbosity -> verbosity -> (unit -> 'a) -> 'a
 
+(* TODO: Migrate Execute’s [out] type here, with its monad. *)
+
 (** Same as [vpending], but print the action given with the string, and append an ["OK"]
    or ["failure"] message depending on the function. *)
 val ovpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> ([< `Ok of 'a | `Error of bool * string] as 'r)) -> 'r
