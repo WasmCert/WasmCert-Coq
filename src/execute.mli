@@ -17,5 +17,5 @@ module Host : sig
 module Interpreter : Shim.InterpreterType with type 'a Host.host_event = 'a Host.host_event
 
 (** Read-eval-print-loop. *)
-val repl : ((Interpreter.store_record * Extract.instance) * Extract.module_export list) -> string -> int -> unit Host.host_event
+val repl : (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
 

@@ -56,7 +56,7 @@ module type InterpreterType = sig
 
     (** Look-up a specific extracted function of the instantiation. *)
     val lookup_exported_function :
-      string -> ((store_record * Extract.instance) * Extract.module_export list) ->
+      string -> (store_record * Extract.instance) * Extract.module_export list ->
       config_tuple option
 
     (** Perform the instantiation of a module. *)
@@ -73,5 +73,8 @@ module type InterpreterType = sig
 
   end
 
-module Interpreter : functor (EH : Host) -> InterpreterType with module Host = EH
+module Interpreter : functor (EH : Host) ->
+  InterpreterType
+    with module Host = EH
+    and type 'a host_event = 'a EH.host_event
 

@@ -2,84 +2,55 @@
 
 (* TODO: refactor *)
 
-(* TODO: use notty rather than this ad-hoc mess *)
-let ansi_bold = "\x1b[1m"
-let ansi_reset = "\x1b[0m"
-let ansi_green = "\x1b[32m"
-let ansi_red = "\x1b[31m"
-
-let debug_info verbosity min_level (f : unit -> unit) =
-  if verbosity >= min_level then (f (); flush stdout; flush stderr) else ()
-
-let debug_info_span verbosity min_level max_level (f : unit -> unit) =
-  if verbosity >= min_level && verbosity <= max_level then
-    (f (); flush stdout; flush stderr)
-  else ()
-
-let string_of_crash_reason = function
-| () -> "error"
-
-(** ANSI escape sequence to delete [n] characters. *)
-let ansi_delete_chars n =
-  "\x1b[" ^ string_of_int n ^ "D"
-
-let terminal_magic verbosity =
-  (* yuck *)
-  debug_info verbosity 2 (fun () -> Printf.printf "...");
-  debug_info verbosity 1 (fun () -> Printf.printf "%s " (ansi_delete_chars 3));
-  debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 1))
-
-(** Given a verbosity level, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 let interpret verbosity error_code_on_crash sies (name : string) (depth : int) = (* TODO: This function really should be in [Execute]. *)
+  let open Output in
   let open Execute.Host in
   let open Execute.Interpreter in
-  debug_info verbosity 2 (fun () -> Printf.printf "interpreting...");
+  debug_info verbosity stage (fun () -> "interpreting...");
   match lookup_exported_function name sies with
   | None -> error ("unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     let ((_, inst), _) = sies in
     let rec eval gen cfg =
       let* cfg_res = run_step depth inst cfg in
-      debug_info verbosity 3
-       (fun () ->
-         Printf.printf "%sstep %d%s:\n%s"
-           ansi_bold gen
-           ansi_reset
-           (pp_res_tuple_except_store cfg_res));
-      debug_info_span verbosity 3 3
+      debug_info verbosity intermediate ~style:bold
+        (fun () -> Printf.sprintf "step %d:\n" gen);
+      debug_info verbosity intermediate
+        (fun _ -> pp_res_tuple_except_store cfg_res);
+      debug_info_span verbosity intermediate intermediate
         (fun () ->
           let ((s, _), _) = cfg in
           let ((s', _), _) = cfg_res in
           let store_status = if s = s' then "unchanged" else "changed" in
-          Printf.printf "and store %s\n" store_status);
-      debug_info verbosity 4
+          Printf.sprintf "and store %s\n" store_status);
+      debug_info verbosity store
         (fun () ->
           let ((s', _), _) = cfg_res in
-          Printf.printf "and store\n%s"
-            (pp_store 1 s'));
+          Printf.sprintf "and store\n%s" (pp_store 1 s'));
       match cfg_res with
       | (_, RS_crash) ->
-        terminal_magic verbosity;
-        Printf.printf "%scrash%s: %s\n" ansi_red ansi_reset (string_of_crash_reason ());
+        wait_message verbosity;
+        debug_info verbosity result ~style:red (fun _ -> "crash");
         pure None
       | (_, RS_break _) ->
-        terminal_magic verbosity;
-        Printf.printf "\x1b[33mbreak\x1b[0m\n";
+        wait_message verbosity;
+        debug_info verbosity result ~style:bold (fun _ -> "break");
         pure None
       | (_, RS_return vs) ->
-        terminal_magic verbosity;
-        Printf.printf "\x1b[32mreturn\x1b[0m %s\n" (pp_values vs);
+        wait_message verbosity;
+        debug_info verbosity result ~style:green (fun _ -> "return");
+        debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
         pure (Some vs)
       | ((s', vs'), RS_normal es) ->
         begin match is_const_list es with
         | Some vs -> pure (Some vs)
         | None -> eval (gen + 1) (((s', vs'), es))
         end in
-    debug_info verbosity 2 (fun () -> Printf.printf "%s" (ansi_delete_chars 3));
-    debug_info_span verbosity 2 2 (fun () -> Printf.printf " %sOK%s\n" ansi_green ansi_reset);
-    debug_info verbosity 3 (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (pp_config_tuple_except_store cfg0));
+    debug_info verbosity stage (fun () -> Printf.printf "%s" (ansi_delete_chars 3));
+    debug_info_span verbosity stage stage (fun () -> Printf.printf " %sOK%s\n" ansi_green ansi_reset);
+    debug_info verbosity intermediate (fun () -> Printf.printf "\n%sstep 0:\n%s\n%s\n" ansi_bold ansi_reset (pp_config_tuple_except_store cfg0));
     let* res = eval 1 cfg0 in
-    debug_info_span verbosity 1 2
+    debug_info_span verbosity result stage
       (fun () ->
         match res with
         | Some vs ->
@@ -90,11 +61,11 @@ let interpret verbosity error_code_on_crash sies (name : string) (depth : int) =
     else pure ()
 
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
-  debug_info verbosity 2 (fun () -> Printf.printf "instantiation...");
+  debug_info verbosity stage (fun () -> Printf.printf "instantiation...");
   match interp_instantiate_wrapper m with
   | None -> `Error (false, "instantiation error")
   | Some (store_inst_exps, _) ->
-    debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
+    debug_info verbosity stage (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n" (ansi_delete_chars 3));
     if interactive then Execute.repl store_inst_exps name depth
     else interpret verbosity error_code_on_crash store_inst_exps name depth
 
@@ -117,7 +88,7 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
               List.rev acc in
           aux []) srcs in
     (** Parsing. *)
-    debug_info verbosity 2 (fun () -> Printf.printf "parsing...");
+    debug_info verbosity stage (fun () -> Printf.printf "parsing...");
     let m =
       if text then
         invalid_arg "Text mode not yet implemented."
@@ -125,10 +96,10 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
         match (* TODO: Use [Shim]. *) Extract.run_parse_module (List.concat files) with
         | None -> invalid_arg "syntax error"
         | Some m -> m in
-    debug_info verbosity 2 (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n%!" (ansi_delete_chars 3));
+    debug_info verbosity stage (fun () -> Printf.printf "%s \x1b[32mOK\x1b[0m\n%!" (ansi_delete_chars 3));
     (** Running. *)
     if no_exec then
-      (debug_info verbosity 2 (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");
+      (debug_info verbosity stage (fun () -> Printf.printf "skipping interpretation because of --no-exec.\n%!");
        `Ok ())
     else instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
   with Invalid_argument msg -> `Error (false, msg)
@@ -138,16 +109,16 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
 open Cmdliner
 
 let verbosity =
-  let doc =
-    String.concat "\n\t" [
-      "Verbosity level; default = 1." ;
-      "0: print nothing." ;
-      "1: print result." ;
-      "2: also print stage." ;
-      "3: also print intermediate states, without stores." ;
-      "4 also print stores."
-    ] in
-  Arg.(value & opt int 3 & info ["v"; "verbosity"] ~doc)
+  let mk v str doc =
+    (v, Arg.info str ~doc) in
+  let doc = "Verbosity level" in
+  Arg.(value & Output.(vflag result [
+      mk none ["n"; "nothing"] "Print nothing" ;
+      mk result ["r"; "result"] "Only print the result" ;
+      mk stage ["s"; "stage"] "Also print stage" ;
+      mk intermediate ["i"; "intermediate"] "Also print intermediate states, without stores" ;
+      mk store ["a"; "all"; "store"] "Also print stores" ;
+    ]) & info ["v"; "verbosity"] ~doc)
 
 let text =
   let doc = "Read text format." in
