@@ -34,12 +34,29 @@ val pending : verbosity -> verbosity -> unit -> unit -> unit
 (** Same as [pending], but does it during the computation of the prodived function. *)
 val vpending : verbosity -> verbosity -> (unit -> 'a) -> 'a
 
-(* TODO: Migrate Execute’s [out] type here, with its monad. *)
+(** Similarly to [ovpending], but the success is provided by the boolean. *)
+val bvpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> bool * 'a) -> 'a
+
+(** An output type, returning either a success with a value or an error message. *)
+type 'a out =
+  | OK of 'a
+  | Error of string
 
 (** Same as [vpending], but print the action given with the string, and append an ["OK"]
    or ["failure"] message depending on the function. *)
-val ovpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> ([< `Ok of 'a | `Error of bool * string] as 'r)) -> 'r
+val ovpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> 'a out) -> 'a out
 
-(** Similarly to [ovpending], but the success is provided by the boolean. *)
-val bvpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> bool * 'a) -> 'a
+(** A monad for [out]. *)
+module Out : sig
+
+    val ( >>= ) : 'a out -> ('a -> 'b out) -> 'b out
+    val ( let* ) : 'a out -> ('a -> 'b out) -> 'b out
+    val ( let+ ) : 'a out -> ('a -> 'b) -> 'b out
+    val ( and+ ) : 'a out -> 'b out -> ('a * 'b) out
+    val pure : 'a -> 'a out
+
+    (** Conversion function to the usual output of Cmdliner. *)
+    val convert : 'a out -> [> `Ok of 'a | `Error of bool * string ]
+
+  end
 

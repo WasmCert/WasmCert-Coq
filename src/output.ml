@@ -59,10 +59,39 @@ let bvpending verbosity min_level ?(style=normal) msg f =
     else Printf.printf " %sfailure%s\n" ansi_red ansi_reset in
   r
 
+type 'a out =
+  | OK of 'a
+  | Error of string
+
+module Out = struct
+
+    let ( >>= ) = function
+      | OK a -> fun f -> f a
+      | Error msg -> fun _ -> Error msg
+
+    let ( let* ) = ( >>= )
+
+    let pure a = OK a
+
+    let ( let+ ) a f =
+      let* a = a in
+      pure (f a)
+
+    let ( and+ ) a b =
+      let* a = a in
+      let* b = b in
+      pure (a, b)
+
+    let convert = function
+      | OK a -> `Ok a
+      | Error msg -> `Error (false, msg)
+
+  end
+
 let ovpending verbosity min_level ?(style=normal) msg f =
   bvpending verbosity min_level ~style msg (fun _ ->
     let r = f () in
     match r with
-    | `Ok _ -> (true, r)
-    | `Error _ -> (false, r))
+    | OK _ -> (true, r)
+    | Error _ -> (false, r))
 

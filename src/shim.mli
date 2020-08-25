@@ -39,7 +39,7 @@ module type InterpreterType = sig
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
-    type administrative_instruction = host_function Extract.Coq__6.administrative_instruction (* FIXME: This is bad. Extract a global module for types? *)
+    type administrative_instruction = host_function Extract.administrative_instruction
 
     (** Run the interpreter until reaching a result. *)
     val run_v :

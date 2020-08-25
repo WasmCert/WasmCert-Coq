@@ -23,7 +23,7 @@ module type InterpreterType = sig
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
-    type administrative_instruction = host_function Extract.Coq__6.administrative_instruction (* FIXME: bad *)
+    type administrative_instruction = host_function Extract.administrative_instruction
 
     val run_v :
       int -> Extract.instance -> config_tuple ->
@@ -79,11 +79,15 @@ module Interpreter =
     include Host
 
     let ( >>= ) = host_bind
+
     let ( let* ) = host_bind
+
     let pure = host_ret
+
     let ( let+ ) a f =
       let* a = a in
       pure (f a)
+
     let ( and+ ) a b =
       let* a = a in
       let* b = b in
@@ -96,7 +100,7 @@ module Interpreter =
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
-    type administrative_instruction = host_function Extract.Coq__6.administrative_instruction (* FIXME: bad *)
+    type administrative_instruction = host_function Extract.administrative_instruction
 
     let run_v d i cfg = Interpreter.run_v (Convert.to_nat d) i cfg
 

@@ -7,29 +7,24 @@ module Host = struct
     type host_function = Host.host_function
     let host_function_eq_dec = Host.host_function_eq_dec
 
-    (** An output type, returning either a success with a value or an error message. *)
-    type 'a out =
-      | OK of 'a
-      | Error of string
-
-    type 'a host_event = 'a out Host.host_event
-    let host_ret v = Host.host_ret (OK v)
+    type 'a host_event = 'a Output.out Host.host_event
+    let host_ret v = Host.host_ret (Output.OK v)
     let host_bind v cont =
       Host.host_bind v (function
-        | OK v -> cont v
-        | Error msg -> Host.host_ret (Error msg))
+        | Output.OK v -> cont v
+        | Output.Error msg -> Host.host_ret (Output.Error msg))
 
     let host_apply st f vs =
       Host.host_bind (Host.host_apply st f vs) (fun r -> host_ret r)
 
     let show_host_function = Host.show_host_function
 
-    let error msg = Host.host_ret (Error msg)
+    let error msg = Host.host_ret (Output.Error msg)
 
     let pmatch ok error v =
       Host.host_bind v (function
-        | OK v -> host_ret (ok v)
-        | Error msg -> host_ret (error msg))
+        | Output.OK v -> host_ret (ok v)
+        | Output.Error msg -> host_ret (error msg))
 
   end
 
