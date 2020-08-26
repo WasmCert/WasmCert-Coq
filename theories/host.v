@@ -2,7 +2,7 @@
 (* (C) M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Import common datatypes.
+From Wasm Require Import common datatypes operations type_checker.
 From ITree Require Import ITree ITreeFacts.
 
 Import Monads.
@@ -17,6 +17,7 @@ Section Parameterised.
 Variable host_function : Type.
 
 Let store_record := store_record host_function.
+Let store_extension : store_record -> store_record -> bool := @store_extension host_function. (* FIXME: Not an [eqType]… but I don’t want it to be an [eqType]: it wouldn’t extract nicely. *)
 
 (** The application of a host function either:
   - returns [Some (st', result)], returning a new Wasm store and a result (which can be [Trap]),
@@ -30,27 +31,39 @@ Let store_record := store_record host_function.
 
 Record host := {
     host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
-    host_application : host_state -> store_record -> host_function -> seq value ->
+    host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
                        host_state -> option (store_record * result) -> Prop
                        (** An application of the host function. **)
     (* FIXME: Should the resulting [host_state] be part of the [option]?
       (See https://github.com/rems-project/wasm_coq/issues/16#issuecomment-616402508
-       for a discussion about this.) *)
+       for a discussion about this.) *) ;
+
+    host_application_extension : forall s t st f vs s' st' r,
+      host_application s st t f vs s' (Some (st', r)) ->
+      store_extension st st' (** The returned store must be an extension of the original one. **) ;
+    host_application_typing : forall s t st f vs s' st' r,
+      host_application s st t f vs s' (Some (st', r)) ->
+      store_typing st ->
+      store_typing st' (** [host_application] preserves store typing. **) ;
+    host_application_respect : forall s t1s t2s st f vs s' st' r,
+      all2 types_agree t1s vs ->
+      host_application s st (Tf t1s t2s) f vs s' (Some (st', r)) ->
+      result_types_agree t2s r (** [host_application] respects types. **)
   }.
 
 Record executable_host := make_executable_host {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_monad : Monad host_event (** They form a monad. **) ;
-    host_apply : store_record -> host_function -> seq value ->
+    host_apply : store_record -> function_type -> host_function -> seq value ->
                  host_event (option (store_record * result))
                  (** The application of a host function, returning a value in the monad. **)
   }.
 
 (** Relation between [host] and [executable_host]. **)
-(* TODO
-Record host_spec := {
-  }.
-*)
+Definition host_spec (host : host) (ehost : executable_host) :=
+  forall st t f vs st' r,
+    host_apply ehost st t f vs = Some (st', r) -> (* FIXME: under the [host_event] monad! *)
+    host_application host st t f vs st' r.
 
 End Parameterised.
 
