@@ -2,66 +2,6 @@
 
 (* TODO: refactor *)
 
-let interpret verbosity error_code_on_crash sies (name : string) (depth : int) = (* TODO: This function really should be in [Execute]. *)
-  let open Output in
-  let open Execute.Interpreter in
-  let print_step_header gen =
-    debug_info verbosity intermediate ~style:bold
-      (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let open Out in
-  let* cfg0 =
-    ovpending verbosity stage "interpreting" (fun _ ->
-      match lookup_exported_function name sies with
-      | None -> Error ("unknown function `" ^ name ^ "`")
-      | Some cfg0 -> OK cfg0) in
-  let ((_, inst), _) = sies in
-  let rec eval gen cfg =
-    let open Execute.Interpreter in
-    let* cfg_res = run_step depth inst cfg in
-    print_step_header gen ;
-    debug_info verbosity intermediate
-      (fun _ -> pp_res_tuple_except_store cfg_res);
-    debug_info_span verbosity intermediate intermediate
-      (fun () ->
-        let ((s, _), _) = cfg in
-        let ((s', _), _) = cfg_res in
-        let store_status = if s = s' then "unchanged" else "changed" in
-        Printf.sprintf "and store %s\n" store_status);
-    debug_info verbosity store
-      (fun () ->
-        let ((s', _), _) = cfg_res in
-        Printf.sprintf "and store\n%s" (pp_store 1 s'));
-    match cfg_res with
-    | (_, RS_crash) ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:red (fun _ -> "crash");
-      pure None
-    | (_, RS_break _) ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:bold (fun _ -> "break");
-      pure None
-    | (_, RS_return vs) ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:green (fun _ -> "return");
-      debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
-      pure (Some vs)
-    | ((s', vs'), RS_normal es) ->
-      begin match is_const_list es with
-      | Some vs -> pure (Some vs)
-      | None -> eval (gen + 1) (((s', vs'), es))
-      end in
-  print_step_header 0 ;
-  debug_info verbosity intermediate (fun _ ->
-    Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
-  (let open Execute.Interpreter in
-   let* res = eval 1 cfg0 in
-   debug_info_span verbosity result stage (fun _ ->
-     match res with
-     | Some vs -> pp_values vs
-     | None -> "");
-   if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
-   else pure ()) |> Out.pure
-
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
   let open Output in
   let open Execute.Interpreter in
@@ -72,7 +12,7 @@ let instantiate_interpret verbosity interactive error_code_on_crash m name depth
       | None -> Error "instantiation error"
       | Some (store_inst_exps, _) -> OK store_inst_exps) in
   if interactive then Obj.magic (* TODO FIXME *) (OK (Execute.repl store_inst_exps name depth))
-  else interpret verbosity error_code_on_crash store_inst_exps name depth
+  else Execute.interpret verbosity error_code_on_crash store_inst_exps name depth
 
 (** Main function *)
 let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
