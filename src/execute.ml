@@ -1,4 +1,6 @@
 
+open Output
+
 module Host = struct
 
     (* We build on top of this host, wrapping it inside the type [out]. *)
@@ -7,39 +9,42 @@ module Host = struct
     type host_function = Host.host_function
     let host_function_eq_dec = Host.host_function_eq_dec
 
-    type 'a host_event = 'a Output.out Host.host_event
-    let host_ret v = Host.host_ret (Output.OK v)
+    type 'a host_event = 'a out Host.host_event
+    let host_ret v = Host.host_ret (OK v)
     let host_bind v cont =
       Host.host_bind v (function
-        | Output.OK v -> cont v
-        | Output.Error msg -> Host.host_ret (Output.Error msg))
+        | OK v -> cont v
+        | Error msg -> Host.host_ret (Error msg))
 
     let host_apply st t h vs =
       Host.host_bind (Host.host_apply st t h vs) (fun r -> host_ret r)
 
     let show_host_function = Host.show_host_function
 
-    let error msg = Host.host_ret (Output.Error msg)
+    let error msg = Host.host_ret (Error msg)
 
     let pmatch ok error v =
       Host.host_bind v (function
-        | Output.OK v -> host_ret (ok v)
-        | Output.Error msg -> host_ret (error msg))
+        | OK v -> host_ret (ok v)
+        | Error msg -> host_ret (error msg))
 
     let from_out = function
-      | Output.OK v -> host_ret v
-      | Output.Error msg -> error msg
+      | OK v -> host_ret v
+      | Error msg -> error msg
 
     exception ToOut of string
 
     let to_out v =
       (* FIXME: This is not the nicest code ever. *)
-      try Output.OK (pmatch (fun x -> x) (fun msg -> raise (ToOut msg)) v)
-      with ToOut msg -> Output.Error msg
+      try OK (pmatch (fun x -> x) (fun msg -> raise (ToOut msg)) v)
+      with ToOut msg -> Error msg
 
   end
 
 module Interpreter = Shim.Interpreter (Host)
+
+(** An alias of [Host] to be able to retrieve it later. *)
+module TopHost = Host
 
 open Host
 open Interpreter
@@ -118,20 +123,17 @@ let repl sies (name : string) (depth : int) =
     |> (fun cb -> user_input "> " cb cfg0)
 
 let interpret verbosity error_code_on_crash sies name depth =
-  let open Output in
-  let open Interpreter in
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let open Out in
   let* cfg0 =
-    ovpending verbosity stage "interpreting" (fun _ ->
-      match lookup_exported_function name sies with
-      | None -> Error ("unknown function `" ^ name ^ "`")
-      | Some cfg0 -> OK cfg0) in
+    TopHost.from_out (
+      ovpending verbosity stage "interpreting" (fun _ ->
+        match lookup_exported_function name sies with
+        | None -> Error ("unknown function `" ^ name ^ "`")
+        | Some cfg0 -> OK cfg0)) in
   let ((_, inst), _) = sies in
   let rec eval gen cfg =
-    let open Interpreter in
     let* cfg_res = run_step depth inst cfg in
     print_step_header gen ;
     debug_info verbosity intermediate
@@ -168,12 +170,11 @@ let interpret verbosity error_code_on_crash sies name depth =
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
-  (let open Interpreter in
-   let* res = eval 1 cfg0 in
-   debug_info_span verbosity result stage (fun _ ->
-     match res with
-     | Some vs -> pp_values vs
-     | None -> "");
-   if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
-   else pure ()) |> Out.pure
+  let* res = eval 1 cfg0 in
+  debug_info_span verbosity result stage (fun _ ->
+    match res with
+    | Some vs -> pp_values vs
+    | None -> "");
+  if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
+  else pure ()
 
