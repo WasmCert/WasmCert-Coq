@@ -14,8 +14,8 @@ module Host = struct
         | Output.OK v -> cont v
         | Output.Error msg -> Host.host_ret (Output.Error msg))
 
-    let host_apply st f vs =
-      Host.host_bind (Host.host_apply st f vs) (fun r -> host_ret r)
+    let host_apply st t h vs =
+      Host.host_bind (Host.host_apply st t h vs) (fun r -> host_ret r)
 
     let show_host_function = Host.show_host_function
 

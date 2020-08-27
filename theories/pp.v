@@ -418,7 +418,7 @@ Import Exec.
 
 Section Show.
 
-Variable show_host_function : host_function -> string.
+Variable show_host_function : EH.host_function -> string.
 
 Definition pp_values : list value -> string := pp_values.
 

@@ -142,12 +142,12 @@ Canonical Structure host_function_eqMixin := EqMixin host_functionP.
 Canonical Structure host_function :=
   Eval hnf in EqType _ host_function_eqMixin.
 
-Definition executable_host := executable_host host_function.
-Definition store_record := store_record host_function.
-Definition config_tuple := config_tuple host_function.
-Definition administrative_instruction := administrative_instruction host_function.
-Definition function_closure := function_closure host_function.
-Definition res_tuple := res_tuple host_function.
+Definition executable_host := executable_host H.host_function.
+Definition store_record := store_record H.host_function.
+Definition config_tuple := config_tuple H.host_function.
+Definition administrative_instruction := administrative_instruction H.host_function.
+Definition function_closure := function_closure H.host_function.
+Definition res_tuple := res_tuple H.host_function.
 
 Definition host_monad : Monad host_event := {|
     ret := host_ret ;

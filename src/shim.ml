@@ -43,6 +43,8 @@ module type InterpreterType = sig
       Extract.module0 ->
       (((store_record * Extract.instance) * Extract.module_export list) * int option) option
 
+    val run_parse_module : string -> Extract.module0 option
+
     val pp_values : Extract.value0 list -> string
     val pp_store : int -> store_record -> string
     val pp_res_tuple_except_store : res_tuple -> string
@@ -120,6 +122,8 @@ module Interpreter =
           (Instantiation.interp_instantiate_wrapper m))
 
     let show_host_function_char_list h = Utils.explode (show_host_function h)
+
+    let run_parse_module m = Extract.run_parse_module (Utils.explode m)
 
     let pp_values l =
       Utils.implode (PP.pp_values l)

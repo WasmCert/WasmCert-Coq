@@ -64,6 +64,10 @@ module type InterpreterType = sig
       Extract.module0 ->
       (((store_record * Extract.instance) * Extract.module_export list) * int option) option
 
+    (** Parsing. *)
+
+    val run_parse_module : string -> Extract.module0 option
+
     (** Pretty-printing. *)
 
     val pp_values : Extract.value0 list -> string

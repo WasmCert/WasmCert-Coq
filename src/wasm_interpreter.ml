@@ -1,7 +1,5 @@
 (** Main file for the Wasm interpreter **)
 
-(* TODO: refactor *)
-
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
   let open Output in
   let open Execute.Interpreter in
@@ -25,14 +23,9 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           invalid_arg (Printf.sprintf "No file %s found." dest)
         else
           let in_channel = open_in_bin dest in
-          let rec aux acc =
-            match try Some (input_char in_channel)
-                  with End_of_file -> None with
-            | Some c -> aux (c :: acc)
-            | None ->
-              close_in in_channel;
-              List.rev acc in
-          aux []) srcs in
+          let s = really_input_string ch (in_channel_length in_channel) in
+          close_in in_channel;
+          s) srcs in
     (** Parsing. *)
     let open Out in
     let* m =
@@ -40,7 +33,7 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
         if text then
           Error "Text mode not yet implemented."
         else
-          match (* TODO: Use [Shim]. *) Extract.run_parse_module (List.concat files) with
+          match Execute.Interpreter.run_parse_module (String.concat "" files) with
           | None -> Error "syntax error"
           | Some m -> OK m) in
     (** Running. *)
