@@ -33,7 +33,8 @@ Variable executable_host_instance : executable_host.
 Let host_event := host_event executable_host_instance.
 
 Let host_monad : Monad host_event := host_monad executable_host_instance.
-Let host_apply : store_record -> host_function -> seq value -> host_event (option (store_record * result)) :=
+Let host_apply : store_record -> function_type -> host_function -> seq value ->
+                 host_event (option (store_record * result)) :=
   @host_apply _ executable_host_instance.
 
 Section ITreeExtract.
@@ -510,13 +511,13 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           ret (s, vs, RS_normal (vs_to_es ves''
                         ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
         else ret (s, vs, crash_error)
-      | Func_host (Tf t1s t2s) f =>
+      | Func_host (Tf t1s t2s) h =>
         let: n := length t1s in
         let: m := length t2s in
         if length ves >= n
         then
          let: (ves', ves'') := split_n ves n in
-         r <- trigger (host_apply s f (rev ves')) ;;
+         r <- trigger (host_apply s (Tf t1s t2s) h (rev ves')) ;;
           match r with
           | Some (s', r) =>
             if result_types_agree t2s r
@@ -696,11 +697,11 @@ Import Target.
 
 Definition run_step
   : depth -> instance -> config_tuple -> monad res_tuple :=
-  @run_step_extraction_eqType host_function_eqType executable_host_instance
+  @run_step_extraction_eqType host_function executable_host_instance
     monad monad_functor monad_monad monad_Iter convert.
 Definition run_v
   : depth -> instance -> config_tuple -> monad (store_record * res) :=
-  @run_v_extraction_eqType host_function_eqType executable_host_instance
+  @run_v_extraction_eqType host_function executable_host_instance
     monad monad_functor monad_monad monad_Iter convert.
 
 (** State whether a list of administrative instruction is a final value. **)

@@ -15,7 +15,7 @@ module type Host = sig
 
     (** Application of a host function in the host monad. *)
     val host_apply :
-      host_function Extract.store_record -> host_function -> Extract.value0 list ->
+      host_function Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
       (host_function Extract.store_record * Extract.result) option host_event
 
     (** Printing a host function. *)

@@ -11,23 +11,27 @@ Set Implicit Arguments.
 
 (** * General host definitions **)
 
-Section Parameterised.
+(** We provide two versions of the host.
+  One based on a relation, to be used in the operational semantics,
+  and one computable based on the [host_monad] monad, to be used in the interpreter.
+  There is no host state in the host monad: it is entirely caught by the (state) monad. **)
+
+(** ** Predicate Host **)
+
+(** We start with a host expressed as a predicate, useful for proofs. **)
+
+Section Predicate.
 
 (** We assume a set of host functions. **)
-Variable host_function : Type.
+Variable host_function : eqType.
 
 Let store_record := store_record host_function.
-Let store_extension : store_record -> store_record -> bool := @store_extension host_function. (* FIXME: Not an [eqType]… but I don’t want it to be an [eqType]: it wouldn’t extract nicely. *)
+Let store_extension : store_record -> store_record -> bool := @store_extension _.
 
 (** The application of a host function either:
   - returns [Some (st', result)], returning a new Wasm store and a result (which can be [Trap]),
   - diverges, represented as [None].
   This can be non-deterministic. **)
-
-(** We provide two versions of the host.
-  One based on a relation, to be used in the operational semantics,
-  and one computable based on the [host_monad] monad, to be used in the interpreter.
-  There is no host state in the host monad: it is entirely caught by the (state) monad. **)
 
 Record host := {
     host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
@@ -38,19 +42,34 @@ Record host := {
       (See https://github.com/rems-project/wasm_coq/issues/16#issuecomment-616402508
        for a discussion about this.) *) ;
 
-    host_application_extension : forall s t st f vs s' st' r,
-      host_application s st t f vs s' (Some (st', r)) ->
+    host_application_extension : forall s t st h vs s' st' r,
+      host_application s st t h vs s' (Some (st', r)) ->
       store_extension st st' (** The returned store must be an extension of the original one. **) ;
-    host_application_typing : forall s t st f vs s' st' r,
-      host_application s st t f vs s' (Some (st', r)) ->
+    host_application_typing : forall s t st h vs s' st' r,
+      host_application s st t h vs s' (Some (st', r)) ->
       store_typing st ->
       store_typing st' (** [host_application] preserves store typing. **) ;
-    host_application_respect : forall s t1s t2s st f vs s' st' r,
+    host_application_respect : forall s t1s t2s st h vs s' st' r,
       all2 types_agree t1s vs ->
-      host_application s st (Tf t1s t2s) f vs s' (Some (st', r)) ->
+      host_application s st (Tf t1s t2s) h vs s' (Some (st', r)) ->
       result_types_agree t2s r (** [host_application] respects types. **)
   }.
 
+End Predicate.
+
+Arguments host_application [_ _].
+
+(** ** Executable Host **)
+
+(** We start with a host expressed as a predicate, useful for proofs. **)
+
+Section Executable.
+
+(** We assume a set of host functions.
+  To help with the extraction, it is expressed as a [Type] and not an [eqType]. **)
+Variable host_function : Type.
+
+Let store_record := store_record host_function.
 Record executable_host := make_executable_host {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_monad : Monad host_event (** They form a monad. **) ;
@@ -59,16 +78,33 @@ Record executable_host := make_executable_host {
                  (** The application of a host function, returning a value in the monad. **)
   }.
 
+End Executable.
+
+Arguments host_apply [_ _].
+
+(** ** Relation between both versions **)
+
+Section Parameterised.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+
+Let host : Type := host host_function.
+Let executable_host : Type := executable_host host_function.
+
+Variable phost : host.
+Variable ehost : executable_host.
+
+(* TODO. What we really need is the property with the interactive tree interpretation.
 (** Relation between [host] and [executable_host]. **)
-Definition host_spec (host : host) (ehost : executable_host) :=
-  forall st t f vs st' r,
-    host_apply ehost st t f vs = Some (st', r) -> (* FIXME: under the [host_event] monad! *)
-    host_application host st t f vs st' r.
+Definition host_spec :=
+  forall st t h vs st' r,
+    host_apply ehost st t h vs = Some (st', r) -> (* FIXME: under the [host_event] monad! *)
+    host_application host st t h vs st' r.
+*)
 
 End Parameterised.
-
-Arguments host_application [_ _].
-Arguments host_apply [_ _].
 
 
 (** * Extractible module **)
@@ -86,7 +122,7 @@ Parameter host_event : Type -> Type.
 Parameter host_ret : forall t : Type, t -> host_event t.
 Parameter host_bind : forall t u : Type, host_event t -> (t -> host_event u) -> host_event u.
 
-Parameter host_apply : store_record host_function -> host_function -> seq value ->
+Parameter host_apply : store_record host_function -> function_type -> host_function -> seq value ->
                        host_event (option (store_record host_function * result)).
 
 End Executable_Host.
@@ -96,6 +132,15 @@ End Executable_Host.
 Module convert_to_executable_host (H : Executable_Host).
 
 Export H.
+
+Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+
+Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Canonical Structure host_function :=
+  Eval hnf in EqType _ host_function_eqMixin.
 
 Definition executable_host := executable_host host_function.
 Definition store_record := store_record host_function.
@@ -111,15 +156,6 @@ Definition host_monad : Monad host_event := {|
 
 Definition executable_host_instance : executable_host :=
   make_executable_host host_monad host_apply.
-
-Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
-
-Definition host_functionP : Equality.axiom host_function_eqb :=
-  eq_dec_Equality_axiom host_function_eq_dec.
-
-Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Canonical Structure host_function_eqType :=
-  Eval hnf in EqType host_function host_function_eqMixin.
 
 Definition host_functor := Functor_Monad (M := host_monad).
 
@@ -141,7 +177,7 @@ Definition host_event := ident.
 Definition host_ret := @ret _ Monad_ident.
 Definition host_bind := @bind _ Monad_ident.
 Definition store_record := store_record host_function.
-Definition host_apply (_ : store_record) :=
+Definition host_apply (_ : store_record) (_ : function_type) :=
   of_void (seq value -> ident (option (store_record * result))).
 
 Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
@@ -154,12 +190,15 @@ Module DummyHosts.
 Module Exec := convert_to_executable_host DummyHost.
 Export Exec.
 
-Definition host := host host_function.
+Definition host : Type := host host_function.
 
-Definition host_instance : host := {|
-    host_state := unit_eqType ;
-    host_application _ _ _ _ _ _ := False
-  |}.
+Definition host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}; intros; exfalso; auto.
+Defined.
 
 (* TODO: host_spec *)
 

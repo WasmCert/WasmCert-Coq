@@ -383,22 +383,22 @@ Inductive reduce : host_state -> store_record -> list value -> list administrati
         n_zeros ts = zs ->
         reduce hs s vs (ves ++ [::Invoke cl]) i hs s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
   | r_invoke_host_success :
-      forall cl f t1s t2s ves vcs m n s s' r vs i hs hs',
-        cl = Func_host (Tf t1s t2s) f ->
+      forall cl h t1s t2s ves vcs m n s s' r vs i hs hs',
+        cl = Func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
-        host_application hs s f vcs hs' (Some (s', r)) ->
+        host_application hs s (Tf t1s t2s) h vcs hs' (Some (s', r)) ->
         reduce hs s vs (ves ++ [::Invoke cl]) i hs' s' vs (result_to_stack r)
   | r_invoke_host_diverge :
-      forall cl t1s t2s f ves vcs n m s vs i hs hs',
-        cl = Func_host (Tf t1s t2s) f ->
+      forall cl t1s t2s h ves vcs n m s vs i hs hs',
+        cl = Func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
-        host_application hs s f vcs hs' None ->
+        host_application hs s (Tf t1s t2s) h vcs hs' None ->
         reduce hs s vs (ves ++ [::Invoke cl]) i hs' s vs (ves ++ [::Invoke cl])
 
   (** get, set, load, and store operations **)
