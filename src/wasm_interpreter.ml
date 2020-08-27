@@ -1,20 +1,22 @@
 (** Main file for the Wasm interpreter **)
 
+(** Instantiate, then interpret a parsed Wasm module. *)
 let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
-  let open Output in
   let open Execute.Interpreter in
-  let open Out in
   let* store_inst_exps =
-    ovpending verbosity stage "instantiation" (fun _ ->
-      match interp_instantiate_wrapper m with
-      | None -> Error "instantiation error"
-      | Some (store_inst_exps, _) -> OK store_inst_exps) in
-  if interactive then Obj.magic (* TODO FIXME *) (OK (Execute.repl store_inst_exps name depth))
+    Execute.Host.from_out (
+      let open Output in
+      ovpending verbosity stage "instantiation" (fun _ ->
+        match interp_instantiate_wrapper m with
+        | None -> Error "instantiation error"
+        | Some (store_inst_exps, _) -> OK store_inst_exps)) in
+  if interactive then Execute.repl store_inst_exps name depth
   else Execute.interpret verbosity error_code_on_crash store_inst_exps name depth
 
 (** Main function *)
 let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
-  let open Output in
+  let open Execute.Host in
+  let open Execute.Interpreter in
   try
     (** Preparing the files. *)
     let files =
@@ -23,31 +25,34 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           invalid_arg (Printf.sprintf "No file %s found." dest)
         else
           let in_channel = open_in_bin dest in
-          let s = really_input_string ch (in_channel_length in_channel) in
+          let s = really_input_string in_channel (in_channel_length in_channel) in
           close_in in_channel;
           s) srcs in
     (** Parsing. *)
-    let open Out in
     let* m =
-      ovpending verbosity stage "parsing" (fun _ ->
-        if text then
-          Error "Text mode not yet implemented."
-        else
-          match Execute.Interpreter.run_parse_module (String.concat "" files) with
-          | None -> Error "syntax error"
-          | Some m -> OK m) in
+      from_out (
+        let open Output in
+        ovpending verbosity stage "parsing" (fun _ ->
+          if text then
+            Error "Text mode not yet implemented."
+          else
+            match Execute.Interpreter.run_parse_module (String.concat "" files) with
+            | None -> Error "syntax error"
+            | Some m -> OK m)) in
     (** Running. *)
     if no_exec then
-      (debug_info verbosity stage (fun _ ->
-        "skipping interpretation because of --no-exec.\n") ;
-       OK (Execute.Interpreter.pure ()))
+      Output.(
+        debug_info verbosity stage (fun _ ->
+          "skipping interpretation because of --no-exec.\n") ;
+        Execute.Interpreter.pure ()
+      )
     else instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
-  with Invalid_argument msg -> Error msg
+  with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
 let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
   process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs
-  |> Output.Out.convert
+  |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
 

@@ -26,6 +26,17 @@ module Host = struct
         | Output.OK v -> host_ret (ok v)
         | Output.Error msg -> host_ret (error msg))
 
+    let from_out = function
+      | Output.OK v -> host_ret v
+      | Output.Error msg -> error msg
+
+    exception ToOut of string
+
+    let to_out v =
+      (* FIXME: This is not the nicest code ever. *)
+      try Output.OK (pmatch (fun x -> x) (fun msg -> raise (ToOut msg)) v)
+      with ToOut msg -> Output.Error msg
+
   end
 
 module Interpreter = Shim.Interpreter (Host)

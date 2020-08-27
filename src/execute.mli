@@ -12,9 +12,14 @@ module Host : sig
       ('a -> 'b) (** Normal case *) ->
       (string -> 'b) (** Error case *) ->
       'a host_event -> 'b host_event
+
+    (** Helper functions to convert between similar monads. *)
+    val from_out : 'a Output.out -> 'a host_event
+    val to_out : 'a host_event -> 'a host_event Output.out
+
   end
 
-module Interpreter : Shim.InterpreterType with type 'a Host.host_event = 'a Host.host_event
+module Interpreter : Shim.InterpreterType with type 'a host_event = 'a Host.host_event
 
 (** Read-eval-print-loop. *)
 val repl : (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
