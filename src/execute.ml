@@ -60,27 +60,31 @@ let rec user_input prompt cb st =
 let string_of_crash_reason = function
   | () -> "error"
 
-let take_step depth i cfg =
+let take_step verbosity depth i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
   let* res = run_step depth i cfg in
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
-  Printf.printf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status;
+  debug_info result verbosity (fun _ ->
+    Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status) ;
   match (*Convert.from_triple*) res with
   | ((_, _), Extract.RS_crash) ->
-    Printf.printf "\x1b[31mcrash\x1b[0m: %s\n%!" (string_of_crash_reason ());
+    debug_info result verbosity ~style:red (fun _ -> "crash:") ;
+    debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
     pure cfg
   | ((_, _), Extract.RS_break _) ->
-    Printf.printf "\x1b[33mbreak\x1b[0m\n%!";
+    debug_info result verbosity ~style:red (fun _ -> "break") ;
     pure cfg
   | ((_, _), Extract.RS_return vs) ->
-    Printf.printf "\x1b[32mreturn\x1b[0m %s\n%!" (pp_values vs);
+    debug_info result verbosity ~style:green (fun _ -> "return:") ;
+    debug_info result verbosity (fun _ -> " " ^ pp_values vs) ;
     pure cfg
   | ((s', vs'), Extract.RS_normal es) ->
     pure ((s', vs'), es)
 
-let repl sies (name : string) (depth : int) =
+let repl verbosity sies (name : string) (depth : int) =
   LNoise.set_hints_callback (fun line ->
+      (* FIXME: Documentation is needed here. I don’t know what these lines do. *)
       if line <> "git remote add " then None
       else Some (" <this is the remote name> <this is the remote URL>",
                  LNoise.Yellow,
@@ -104,14 +108,15 @@ let repl sies (name : string) (depth : int) =
   match lookup_exported_function name sies with
   | None -> error ("unknown function `" ^ name ^ "`")
   | Some cfg0 ->
-    Printf.printf "\n%sand store\n%s\n%!"
-      (pp_config_tuple_except_store cfg0)
-      (pp_store 1 s);
+    debug_info result verbosity (fun _ ->
+      Printf.sprintf "\n%sand store\n%s\n%!"
+        (pp_config_tuple_except_store cfg0)
+        (pp_store 1 s)) ;
     (fun from_user cfg ->
       if from_user = "quit" then exit 0;
       LNoise.history_add from_user |> ignore;
       LNoise.history_save ~filename:"history.txt" |> ignore;
-      if from_user = "" || from_user = "step" then take_step depth i cfg
+      if from_user = "" || from_user = "step" then take_step verbosity depth i cfg
       else if from_user = "s" || from_user = "store" then
         (let ((s, _), _) = cfg in
          Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
@@ -177,4 +182,14 @@ let interpret verbosity error_code_on_crash sies name depth =
     | None -> "");
   if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
   else pure ()
+
+let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
+  let* store_inst_exps =
+    TopHost.from_out (
+      ovpending verbosity stage "instantiation" (fun _ ->
+        match interp_instantiate_wrapper m with
+        | None -> Error "instantiation error"
+        | Some (store_inst_exps, _) -> OK store_inst_exps)) in
+  if interactive then repl verbosity store_inst_exps name depth
+  else interpret verbosity error_code_on_crash store_inst_exps name depth
 

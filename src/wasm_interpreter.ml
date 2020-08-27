@@ -1,18 +1,5 @@
 (** Main file for the Wasm interpreter **)
 
-(** Instantiate, then interpret a parsed Wasm module. *)
-let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
-  let open Execute.Interpreter in
-  let* store_inst_exps =
-    Execute.Host.from_out (
-      let open Output in
-      ovpending verbosity stage "instantiation" (fun _ ->
-        match interp_instantiate_wrapper m with
-        | None -> Error "instantiation error"
-        | Some (store_inst_exps, _) -> OK store_inst_exps)) in
-  if interactive then Execute.repl store_inst_exps name depth
-  else Execute.interpret verbosity error_code_on_crash store_inst_exps name depth
-
 (** Main function *)
 let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
   let open Execute.Host in
@@ -46,7 +33,7 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
+    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)

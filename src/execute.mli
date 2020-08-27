@@ -22,9 +22,14 @@ module Host : sig
 module Interpreter : Shim.InterpreterType with type 'a host_event = 'a Host.host_event
 
 (** Read-eval-print-loop. *)
-val repl : (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
+val repl : Output.verbosity -> (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
 
 (** Given a verbosity level, a boolean stating whether the program should crash if the interpreted
    code does, a configuration tuple, a function name, and a depth, interpret the Wasm function. *)
 val interpret : Output.verbosity -> bool -> (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
+
+(** Given a verbosity level, a boolean stating whether interactive mode is enable, another boolan
+   stating whether the program should crash if the interpreted code does, a module, a function name,
+  and a depth, instantiate, then interpret a parsed Wasm module. *)
+val instantiate_interpret : Output.verbosity -> bool -> bool -> Extract.module0 -> string -> int -> unit Host.host_event
 
