@@ -98,12 +98,6 @@ Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : na
 
 Definition store_packed := store.
 
-(* TODO *)
-Parameter serialise_i32 : i32 -> bytes.
-Parameter serialise_i64 : i64 -> bytes.
-Parameter serialise_f32 : f32 -> bytes.
-Parameter serialise_f64 : f64 -> bytes.
-
 Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
   match vt with
   | T_i32 => ConstInt32 (Wasm_int.Int32.repr (common.Memdata.decode_int bs))
