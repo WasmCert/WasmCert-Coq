@@ -342,7 +342,6 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
     forall s vs es i s' vs' es' n v0s j,
       reduce s vs es i s' vs' es' ->
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
->>>>>>> origin/memory
 *)
 
 Inductive reduce : host_state -> store_record -> list value -> list administrative_instruction -> instance ->

@@ -473,6 +473,9 @@ with s_typing : store_record -> option (seq value_type) -> instance -> seq value
   s_typing s rs i vs es ts
 .
 
+Scheme e_typing_ind' := Induction for e_typing Sort Prop
+  with s_typing_ind' := Induction for s_typing Sort Prop.
+
 Definition cl_type_check_single (s:store_record) (f:function_closure):=
   exists tf, cl_typing s f tf.
 

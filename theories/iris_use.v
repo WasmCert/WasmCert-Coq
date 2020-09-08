@@ -42,6 +42,7 @@ Program Instance loc_infinite : Infinite loc :=
 
 Definition proph_id := positive.
 
+(* FIXME: This code was removed in branch type_soundness? *)
 Class heapG Σ := HeapG {
   heapG_invG : invG Σ;
   heapG_gen_heapG :> gen_heapG loc val Σ;

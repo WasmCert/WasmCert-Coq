@@ -4,6 +4,7 @@
 Require Import Lia.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
+From Wasm Require Export pickability.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -146,23 +147,14 @@ Proof.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.
 
-(** As [eqType] can be inferred thanks to canonical instance, this lemma provides
-  another way of building a [_eq_dec]. **)
-Lemma eqType_eq_dec : forall (A : eqType) (a1 a2 : A),
-  {a1 = a2} + {a1 <> a2}.
-Proof.
-  move=> A a1 a2. case_eq (a1 == a2) => /eqP.
-  - by left.
-  - by right.
-Defined.
-
 Ltac decidable_equality_step :=
   first [
-      by apply: eqType_eq_dec
+      by apply: eq_comparable
     | apply: List.list_eq_dec
     | apply: Coqlib.option_eq
     | apply: PeanoNat.Nat.eq_dec
     | by eauto
+    | intros; apply: decP; by (exact _ || eauto)
     | decide equality ].
 
 (** Solve a goal of the form [forall a1 a2, {a1 = a2} + {a1 <> a2}]. **)
@@ -216,12 +208,6 @@ Proof. by []. Qed.
 
 
 (** * Lemmas about lists. **)
-
-Lemma is_true_bool : forall b1 b2 : bool,
-  (b1 = b2) <-> (b1 <-> b2).
-Proof.
-  by do 2 case => /=; split=> //> [H1 H2]; exfalso; eauto.
-Qed.
 
 Lemma List_In_in_mem : forall (A : eqType) e (l : seq A),
   e \in l <-> List.In e l.
@@ -333,7 +319,7 @@ Proof.
     + fold (nth d (e1 :: l1) 0). by rewrite F.
     + apply: IH.
       * by lias.
-      * move=> n I. have I': (n.+1 < (size l1).+1); first by lias.
+      * move=> n I. have I': n.+1 < (size l1).+1; first by lias.
         by apply F in I'.
 Qed.
 
@@ -431,6 +417,18 @@ Proof.
   move=> >. apply: Bool.iff_reflect. split.
   - move=> ?. subst. by rewrite map_all2.
   - by apply: all2_map_left.
+Qed.
+
+Lemma cat0_inv : forall T (s1 s2 : seq T),
+  s1 ++ s2 = [::] ->
+  s1 = [::] /\ s2 = [::].
+Proof.
+  move=> T s1 s2 E.
+  move: (size_cat s1 s2). rewrite {} E => /=. case s1.
+  - case s2 => E.
+    + done.
+    + move => ? A. inversion A.
+  - move => ? ? A. inversion A.
 Qed.
 
 
@@ -607,30 +605,15 @@ Ltac is_reducible t t' :=
   | _ => constr:(false)
   end.
 
-(** Given an induction principle, return the type of a stronger induction principle. **)
-Ltac rect'_type rect :=
-  let normalise_type t ta :=
-    match ta with
-    | ?f ?t' =>
-      lazymatch is_reducible t t' with
-      | true => constr:(f t)
-      end
-    | ?t' =>
-      lazymatch is_reducible t t' with
-      | true => constr:(t)
-      end
-    | _ => constr:(ta)
-    end in
+(* FIXME: Warning: large git conflict here, and git really wasn’t helpful ☹ *)
+(** Given an induction principle, return the type of a stronger induction principle.
+  The projection is there to focus the induction principle on a different type (e.g. [list t]
+  instead of [t]): possible values are [@id], [list], and [option]. **)
+Ltac rect'_type_projection proj rect :=
   let added_hyp t ta :=
-    match ta with
-    | list ?t' =>
-      lazymatch is_reducible t t' with
-      | true => constr:(@TProp.Forall t)
-      end
-    | option ?t' =>
-      lazymatch is_reducible t t' with
-      | true => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
-      end
+    lazymatch ta with
+    | list t => constr:(@TProp.Forall t)
+    | option t => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
     | _ => constr:(fun (_ : t -> Type) (_ : ta) => True)
     end in
   let add_hyp t ta P a r :=
@@ -648,39 +631,24 @@ Ltac rect'_type rect :=
     lazymatch hyp with
     | fun P => P _ => constr:(hyp)
     | fun P => forall a1 : ?t1, P (?C a1) =>
-      let t1 := normalise_type t t1 in
       constr:(fun P : t -> Type => forall a1 : t1,
         ltac:(set_hyp t t1 P a1 (P (C a1))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
-      let t1 := normalise_type t t1 in
-      let t2 := normalise_type t t2 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2 (P (C a1 a2)))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
-      let t1 := normalise_type t t1 in
-      let t2 := normalise_type t t2 in
-      let t3 := normalise_type t t3 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
             ltac:(add_hyp t t3 P a3 (P (C a1 a2 a3))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
-      let t1 := normalise_type t t1 in
-      let t2 := normalise_type t t2 in
-      let t3 := normalise_type t t3 in
-      let t4 := normalise_type t t4 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
             ltac:(add_hyp t t3 P a3
               ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4)))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
-      let t1 := normalise_type t t1 in
-      let t2 := normalise_type t t2 in
-      let t3 := normalise_type t t3 in
-      let t4 := normalise_type t t4 in
-      let t5 := normalise_type t t5 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
@@ -688,12 +656,6 @@ Ltac rect'_type rect :=
               ltac:(add_hyp t t4 P a4
                 ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4 a5))))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
-      let t1 := normalise_type t t1 in
-      let t2 := normalise_type t t2 in
-      let t3 := normalise_type t t3 in
-      let t4 := normalise_type t t4 in
-      let t5 := normalise_type t t5 in
-      let t6 := normalise_type t t6 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
@@ -702,9 +664,18 @@ Ltac rect'_type rect :=
                 ltac:(add_hyp t t5 P a5
                   ltac:(add_hyp t t6 P a6 (P (C a1 a2 a3 a4 a5 a6)))))))))
     end in
+  let conclusion t rectf :=
+    lazymatch rectf with
+    | fun P => forall a : t, P a =>
+      lazymatch proj with
+      | @id => constr:(rectf)
+      | list => constr:(fun P => forall l : list t, TProp.Forall P l)
+      | option => constr:(fun P => forall (o : option t) (a : t), o = Some a -> P a)
+      end
+    end in
   let rec map_hyps t rectf :=
     lazymatch rectf with
-    | fun P => forall a, P a => constr:(fun P => forall a : t, P a)
+    | fun P => forall a : t, P a => conclusion t rectf
     | fun P => @?hyp P -> @?rectf' P =>
       let r := update_hyp t hyp in
       let r' := map_hyps t rectf' in
@@ -717,21 +688,42 @@ Ltac rect'_type rect :=
     eval simpl in r
   end.
 
+
+(** The main instantiation. **)
+Ltac rect'_type rect := rect'_type_projection @id rect.
+
+(** Instantiation for lists. **)
+Ltac rect'_type_list rect := rect'_type_projection list rect.
+
+(** Instantiation for option types. **)
+Ltac rect'_type_option rect := rect'_type_projection option rect.
+
+(* FIXME: Warning: large git conflict here, and git really wasn’t helpful ☹ *)
 (** Prove a goal whose type matches the type generated by [rect'_type] with the same parameter. **)
-Ltac rect'_build rect :=
+Ltac rect'_build_projection proj rect :=
   let t :=
     lazymatch type of rect with
     | forall P : ?t -> Type, _ => t
     end in
-  let g := rect'_type rect in
+  let g := rect'_type_projection proj rect in
   refine (_ : g);
   let P := fresh "P" in
   intro P;
   repeat lazymatch goal with
-  | |- forall a, P a =>
-    (** Enforcing [a]’s type to be exactly [t]. **)
-    let G := fresh in
-    assert (G: forall a : t, P a); last exact G
+  | |- forall a : t, P a => idtac
+  | |- forall l : list t, TProp.Forall P l =>
+    let l := fresh "l" in
+    let a := fresh "a" in
+    intro l; induction l as [| a l ];
+    [ solve [ apply TProp.Forall_nil ]
+    | apply TProp.Forall_cons; [ generalize a | assumption ] ]
+  | |- forall (o : option t) (a : t), o = Some a -> P a =>
+    let o := fresh "o" in
+    let a := fresh "a" in
+    intros o a; destruct o;
+      let E := fresh "E" in
+      intro E; inversion E;
+      generalize a
   | |- _ -> _ => intro
   end;
   let rect := fresh "rect" in
@@ -753,21 +745,136 @@ Ltac rect'_build rect :=
       | H : P a |- _ => fail
       | _ => move: (rect a) => ?
       end
-    | l : list ?t' |- _ =>
-      lazymatch t' with
-      | t =>
-        lazymatch goal with
-        | H : TProp.Forall P l |- _ => fail
-        | _ => move: (rect_list l) => ?
-        end
-      | _ =>
-        lazymatch is_reducible t t' with
-        | true =>
-          let l' := fresh l in
-          refine (let l' := l : seq t in _);
-          efold l'; clearbody l'; clear l
-        end
+    | l : list t |- _ =>
+      lazymatch goal with
+      | H : TProp.Forall P l |- _ => fail
+      | _ => move: (rect_list l) => ?
       end
     | o : option t |- _ => destruct o
     end in
   case; try solve [ do_it | use_hyps; do_it ].
+
+(** The main instantiation. **)
+Ltac rect'_build rect := rect'_build_projection @id rect.
+
+(** Instantiation for lists. **)
+Ltac rect'_build_list rect := rect'_build_projection list rect.
+
+(** Instantiation for option types. **)
+Ltac rect'_build_option rect := rect'_build_projection option rect.
+
+
+(** * Lemmas about pickability. **)
+
+Lemma list_search_prefix_pickable : forall A (P : seq A -> Prop),
+  comparable A ->
+  (forall l, decidable (P l)) ->
+  forall l l', pickable (fun lf => l' = l ++ lf /\ P lf).
+Proof.
+  move=> A + C + l. elim l.
+  - move=> P D l'. case (D l') => d.
+    + left. by exists l'.
+    + right. move=> [lf [E nd]]. by subst.
+  - move {l} => a l IH P D l'. case l'.
+    + right. by move => [lf [E _]].
+    + move {l'} => a' l'. case (C a a') => E.
+      * subst. case (IH _ D l').
+        -- move=> E. left. destruct E as (lf&E'&p). exists lf. by rewrite E'.
+        -- move=> nE. right. move=> [lf [E p]]. apply: nE. exists lf. by inversion E.
+      * right. move=> [lf [E' _]]. inversion E'. by apply: E.
+Defined.
+
+Lemma list_search_suffix_pickable : forall A (P : seq A -> Prop),
+  comparable A ->
+  (forall l, decidable (P l)) ->
+  forall l l', pickable (fun ls => l' = ls ++ l /\ P ls).
+Proof.
+  move=> A P C D l l'.
+  have Dr: forall l, decidable (P (rev l)).
+  { clear - D. move=> l. by apply: D. }
+  case (list_search_prefix_pickable C Dr (rev l) (rev l')) => E.
+  - left. destruct E as (lf&E&p). exists (rev lf). split => //.
+    by rewrite -(revK l') E rev_cat revK.
+  - right. move=> [ls [El' p]]. apply: E. exists (rev ls).
+    by rewrite revK El' rev_cat.
+Defined.
+
+Lemma list_split_pickable2_gen : forall A (P : seq A -> seq A -> Prop) l,
+  (forall l1 l2, l = l1 ++ l2 -> decidable (P l1 l2)) ->
+  pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
+Proof.
+  move=> A + l. elim l.
+  - move=> P D. case (D [::] [::]) => // Y.
+    + left. by exists ([::], [::]).
+    + right. move=> [l1 [l2 [E p]]]. symmetry in E. move: (cat0_inv E) => [? ?]. by subst.
+  - move {l} => a l IH P D.
+    have Da: forall l1 l2, l = l1 ++ l2 -> decidable (P (a :: l1) l2).
+    { clear - D. move=> l1 l2 ?. apply: D. by subst. }
+    have Pa: pickable2 (fun l1 l2 => a :: l = l1 ++ l2 /\ P l1 l2 /\ l1 <> [::]).
+    {
+      have Pa: pickable2 (fun l1 l2 => a :: l = (a :: l1) ++ l2 /\ P (a :: l1) l2).
+      {
+        apply: pickable2_equiv; last by apply (IH _ Da). move=> l1 l2. split.
+        - move=> [E p]. by subst.
+        - move=> [E p]. by inversion E.
+      }
+      case Pa.
+      - move=> [[l1 l2] [E p]]. left. exists (a :: l1, l2). by split.
+      - move=> Ex. right. move=> [l1 [l2 [E [p d]]]].
+        apply: Ex. destruct l1 as [|a' l1] => //. inversion E.
+        exists l1. exists l2. by subst.
+    }
+    case Pa.
+    + move=> [[l1 l2] [E [p d]]]. left. by exists (l1, l2).
+    + move=> nE. case (D [::] (a :: l)) => //.
+      * left. exists ([::], a :: l). by split.
+      * move=> np. right. move=> [l1 [l2 [E p]]]. apply: nE.
+        exists l1. exists l2. repeat split => //. move=> ?. subst. simpl in E. by subst.
+Defined.
+
+Lemma list_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l, pickable2 (fun l1 l2 => l = l1 ++ l2 /\ P l1 l2).
+Proof.
+  move=> A P D l. by apply: list_split_pickable2_gen.
+Defined.
+
+Lemma list_search_split_pickable2 : forall A (P : seq A -> seq A -> Prop),
+  comparable A ->
+  (forall l1 l2, decidable (P l1 l2)) ->
+  forall l l', pickable2 (fun l1 l2 => l' = l1 ++ l ++ l2 /\ P l1 l2).
+Proof.
+  move=> A P C D l l'.
+  move: (list_split_pickable2 (P := fun l1 l2 => exists l2', l2 = l ++ l2' /\ P l1 l2')) => D'.
+  apply: (pickable2_convert (f := fun '(l1, l2) => (l1, drop (size l) l2))); last apply: (D' _ l').
+  - move=> l1 l2 [E1 [l2' [E2 p]]]. subst. rewrite drop_cat.
+    rewrite_by ((size l < size l) = false). rewrite_by (size l - size l = 0). by rewrite drop0.
+  - move=> l1 l2 [E p]. exists l1. exists (l ++ l2). repeat split => //. by exists l2.
+  - move=> l1 l2. apply pickable_decidable. by apply: list_search_prefix_pickable.
+Defined.
+
+Lemma list_split_pickable3_gen : forall A (P : seq A -> seq A -> seq A -> Prop) l,
+  (forall l1 l2 l3, l = l1 ++ l2 ++ l3 -> decidable (P l1 l2 l3)) ->
+  pickable3 (fun l1 l2 l3 => l = l1 ++ l2 ++ l3 /\ P l1 l2 l3).
+Proof.
+  move=> A P l D.
+  have D1: forall l23 l1, l = l1 ++ l23 -> pickable2 (fun l2 l3 => l23 = l2 ++ l3 /\ P l1 l2 l3).
+  { move=> l23 l1 E. apply: list_split_pickable2_gen. move=> ? ? E'. subst. by apply D. }
+  have: pickable2 (fun l1 l23 => l = l1 ++ l23 /\ exists l2 l3, l23 = l2 ++ l3 /\ P l1 l2 l3).
+  { apply: list_split_pickable2_gen. move=> l1 l23 E. by convert_pickable (D1 _ _ E). }
+  case.
+  - move=> [[l1 l23] [E1 H]]. left. case (D1 _ _ E1).
+    + move=> [[l2 l3] [E2 p]]. exists (l1, l2, l3). by subst.
+    + move=> Ex. exfalso. apply: Ex. move: H => [l2 [l3 [E2 p]]]. exists l2. by exists l3.
+  - move=> Ex. right. move=> [l1 [l2 [l3 [E p]]]]. apply: Ex. exists l1. exists (l2 ++ l3).
+    split => //. by repeat eexists.
+Defined.
+
+Lemma list_split_pickable3 : forall A (P : seq A -> seq A -> seq A -> Prop),
+  (forall l1 l2 l3, decidable (P l1 l2 l3)) ->
+  forall l, pickable3 (fun l1 l2 l3 => l = l1 ++ l2 ++ l3 /\ P l1 l2 l3).
+Proof.
+  move=> A P D l. by apply: list_split_pickable3_gen.
+Defined.
+
+

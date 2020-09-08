@@ -100,7 +100,6 @@ Proof.
     unfold cl_typing_self in tc_prop.
     inversion tc_prop; subst => //.
     clear H5.
-    Print be_typing_ind.
     clear tc_prop.
     
     dependent induction H2; try (inversion Heqtf; subst; clear Heqtf) => //.

@@ -463,6 +463,8 @@ Admitted.
 *)
 
 (*
+Print Func_native.
+
   Here we're typing a function closure. The second case where we have a host function
     is obvious: it can be anything.
   However, if it is a native function, then we should be able to deduce its type.

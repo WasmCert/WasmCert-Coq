@@ -292,12 +292,21 @@ Definition eqmodule_exportP : Equality.axiom module_export_eqb :=
 Canonical Structure module_export_eqMixin := EqMixin eqmodule_exportP.
 Canonical Structure module_export_eqType := Eval hnf in EqType module_export module_export_eqMixin.
 
+(* FIXME: After the git conflict, this no longer works… despite working in both merged branches! *)
 (** Induction scheme for [administrative_instruction]. **)
 Definition administrative_instruction_rect' :=
   ltac:(rect'_build administrative_instruction_rect).
 
 Definition administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
   @administrative_instruction_rect' P.
+
+(** Administrative instructions frequently come in lists.
+  Here is the corresponding induction principle. **)
+Definition seq_administrative_instruction_rect' :=
+  ltac:(rect'_build_list administrative_instruction_rect).
+
+Definition seq_administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
+  @seq_administrative_instruction_rect' P.
 
 Definition administrative_instruction_eq_dec : forall e1 e2 : administrative_instruction,
   {e1 = e2} + {e1 <> e2}.
