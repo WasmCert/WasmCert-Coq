@@ -32,6 +32,13 @@ Canonical Structure Pos_eqType := EqType BinNums.positive Pos_eqMixin.
 
 (** * Equalities **)
 
+(** Similar to [set (name := term)], but introduce an equality instead of a local definition. **)
+Ltac set_eq name term :=
+  set (name := term);
+  have: name = term; [
+      reflexivity
+    | clearbody name ].
+
 (** Try to rewrite the goal such that [lia] has more chance to deal with it. **)
 Ltac lias_simpl :=
   intros;
@@ -918,4 +925,14 @@ Proof.
   move=> A P D l. by apply: list_split_pickable3_gen.
 Defined.
 
+
+(** * Miscellaneous **)
+
+(** Calls [cont1] or [cont2] depending on whether [x] is a variable or not. **)
+Ltac is_variable x cont1 cont2 :=
+  match tt with
+  | _ => (* Sorry for the hack. Only a variable be cleared. *)
+    (exfalso; clear - x; fail 1) || cont2
+  | _ => cont1
+  end.
 
