@@ -4187,7 +4187,18 @@ Proof.
   by [].
 Qed.
 
-Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s vs i hs hs',
+(** A common scheme in the progress proof, with a continuation. **)
+Ltac solve_progress_cont cont :=
+  repeat eexists;
+  solve [
+      apply r_simple; solve [ eauto | constructor; eauto | cont; eauto ]
+    | cont ].
+
+(** The same, but without continuation. **)
+Ltac solve_progress :=
+  solve_progress_cont ltac:(fail).
+
+Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s vs i hs,
     store_typing s ->
     inst_typing s i C ->
     be_typing (upd_label (upd_local_return C (map typeof vs) ret) lab) bes (Tf ts1 ts2) ->
@@ -4195,76 +4206,72 @@ Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s vs i hs hs',
     not_lf_br (to_e_list bes) 0 ->
     not_lf_return (to_e_list bes) 0 ->
     const_list (to_e_list bes) \/
-    exists s' vs' es', reduce hs s vs (v_to_e_list vcs ++ to_e_list bes) i hs' s' vs' es'.
+    exists s' vs' es' hs', reduce hs s vs (v_to_e_list vcs ++ to_e_list bes) i hs' s' vs' es'.
 Proof.
-  move => C bes ts1 ts2 vcs lab ret s vs i hs hs' HST HIT HType HConstType HNBr HNRet.
+  move => C bes ts1 ts2 vcs lab ret s vs i hs HST HIT HType HConstType HNBr HNRet.
   generalize dependent vcs.
-  dependent induction HType; (try by left); move => vcs HConstType.
+  be_typing_ind HType; try by left.
   - (* Unop_i *)
     right. invert_typeof_vcs.
-    by destruct v => //=; repeat eexists; apply r_simple.
+    by destruct v => //=; solve_progress.
   - (* Unop_f *)
     right. invert_typeof_vcs.
-    by destruct v => //=; repeat eexists; apply r_simple.
+    by destruct v => //=; solve_progress.
   - (* binop_i *)
     right. invert_typeof_vcs.
     destruct v => //=; destruct v0 => //=.
-    + destruct (@app_binop_i i32t op s0 s1) eqn:HBinary;
-        by repeat eexists; apply r_simple; eauto.
-    + destruct (@app_binop_i i64t op s0 s1) eqn:HBinary;
-        by repeat eexists; apply r_simple; eauto.
+    + destruct (@app_binop_i i32t op s0 s1) eqn:HBinary; solve_progress.
+    + destruct (@app_binop_i i64t op s0 s1) eqn:HBinary; solve_progress.
   - (* binop_f *)
     right. invert_typeof_vcs.
     destruct v => //=; destruct v0 => //=.
-    + destruct (@app_binop_f f32t op s0 s1) eqn:HBinary;
-        by repeat eexists; apply r_simple; eauto.
-    + destruct (@app_binop_f f64t op s0 s1) eqn:HBinary;
-        by repeat eexists; apply r_simple; eauto.
+    + destruct (@app_binop_f f32t op s0 s1) eqn:HBinary; solve_progress.
+    + destruct (@app_binop_f f64t op s0 s1) eqn:HBinary; solve_progress.
   - (* testop *)
     right. invert_typeof_vcs.
-    by destruct v => //=; repeat eexists; apply r_simple.
+    by destruct v => //=; solve_progress.
   - (* relop_i *)
     right. invert_typeof_vcs.
-    by destruct v => //=; destruct v0 => //=; repeat eexists; apply r_simple.
+    by destruct v => //=; destruct v0 => //=; solve_progress.
   - (* relop_f *)
     right. invert_typeof_vcs.
-    by destruct v => //=; destruct v0 => //=; repeat eexists; apply r_simple.
+    by destruct v => //=; destruct v0 => //=; solve_progress.
   - (* cvtop *)
     right. invert_typeof_vcs.
-    destruct (cvt t1 sx v) eqn:HConvert; repeat eexists; apply r_simple; destruct v => //=; eauto.
+    destruct (cvt t1 sx v) eqn:HConvert; destruct v => //=; solve_progress.
   - (* reinterpret *)
     right. invert_typeof_vcs.
-    by destruct v => //=; repeat eexists; apply r_simple; apply rs_reinterpret.
+    by destruct v => //=; solve_progress_cont ltac:(apply rs_reinterpret).
   - (* Unreachable *)
     right.
-    exists s, vs, (v_to_e_list vcs ++ [::Trap]).
+    exists s, vs0, (v_to_e_list vcs ++ [::Trap]), hs.
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
-    by apply r_simple.
+    apply r_simple. by constructor.
   - (* Nop *)
     right.
-    exists s, vs, (v_to_e_list vcs ++ [::]).
+    exists s, vs0, (v_to_e_list vcs ++ [::]), hs.
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
-    by apply r_simple.
+    apply r_simple. by constructor.
   - (* Drop *)
-    right. invert_typeof_vcs.
-    by repeat eexists; apply r_simple.
+    right. invert_typeof_vcs. solve_progress.
   - (* Select *)
     right. invert_typeof_vcs.
     destruct v1 => //=.
-    by destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0;
-      repeat eexists; apply r_simple; eauto.
+    by destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0; solve_progress.
   - (* Block *)
     right.
-    exists s, vs, [::Label (length ts2) [::] (v_to_e_list vcs ++ to_e_list es)].
+    exists s, vs0, [::Label (length ts2) [::] (v_to_e_list vcs ++ to_e_list es)], hs.
     apply r_simple. eapply rs_block; eauto.
     + by apply v_to_e_is_const_list.
     + repeat rewrite length_is_size.
       rewrite v_to_e_size.
-      rewrite -HConstType.
+      subst.
       by rewrite size_map.
+    + repeat rewrite length_is_size.
+      admit. (* TODO *)
   - (* Loop *)
     right.
-    exists s, vs, [::Label (length vcs) [::Basic (Loop (Tf ts1 ts2) es)] (v_to_e_list vcs ++ to_e_list es)].
+    exists s, vs0, [::Label (length vcs) [::Basic (Loop (Tf ts1 ts2) es)] (v_to_e_list vcs ++ to_e_list es)], hs.
     apply r_simple. eapply rs_loop; eauto; repeat rewrite length_is_size.
     + by apply v_to_e_is_const_list.
     + by rewrite v_to_e_size.
@@ -4277,10 +4284,10 @@ Proof.
     rewrite -catA.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
-    + exists s, vs, (v_to_e_list (take (size tn) vcs) ++ [::Basic (Block (Tf tn ts2) es2)]).
+    + exists s, vs0, (v_to_e_list (take (size tn) vcs) ++ [::Basic (Block (Tf tn ts2) es2)]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
-    + exists s, vs, (v_to_e_list (take (size tn) vcs) ++ [::Basic (Block (Tf tn ts2) es1)]).
+    + exists s, vs0, (v_to_e_list (take (size tn) vcs) ++ [::Basic (Block (Tf tn ts2) es1)]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
   - (* Br *)
@@ -4296,10 +4303,10 @@ Proof.
     rewrite -catA.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
-    + exists s, vs, (v_to_e_list (take (size ts2) vcs) ++ [::]).
+    + exists s, vs0, (v_to_e_list (take (size ts2) vcs) ++ [::]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
-    + exists s, vs, (v_to_e_list (take (size ts2) vcs) ++ [::Basic (Br i0)]).
+    + exists s, vs0, (v_to_e_list (take (size ts2) vcs) ++ [::Basic (Br i0)]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
   - (* Br_table *)
@@ -4317,7 +4324,7 @@ Proof.
     + remember HLength as H6. clear HeqH6.
       apply List.nth_error_Some in H6.
       destruct (List.nth_error ins (Wasm_int.nat_of_uint i32m s0)) eqn:HN => //=.
-      exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br n)]).
+      exists s, vs0, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br n)]), hs.
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table => //.
@@ -4326,7 +4333,7 @@ Proof.
       move/leP in H1.
       remember H1 as H6. clear HeqH6.
       apply List.nth_error_None in H6.
-      exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br i0)]).
+      exists s, vs0, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br i0)]), hs.
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table_length => //.
@@ -4341,7 +4348,7 @@ Proof.
     simpl in H. simpl in H0.
     eapply func_context_store in H; eauto.
     destruct (sfunc s i i0) eqn:HCL => //.
-    exists s, vs, (v_to_e_list vcs ++ [:: (Invoke f)]).
+    exists s, vs0, (v_to_e_list vcs ++ [:: (Invoke f)]), hs.
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
     apply r_call => //.
   - (* Call_indirect *)
@@ -4352,19 +4359,19 @@ Proof.
     apply typeof_append in HConstType. destruct HConstType as [v [H2 [H3 H4]]].
     destruct v => //=.
     rewrite H2. rewrite -v_to_e_cat. rewrite -catA.
-    exists s, vs.
+    exists s, vs0.
     destruct (stab s i (Wasm_int.nat_of_uint i32m s0)) eqn:Hstab.
     + (* Some cl *)
       destruct (stypes s i i0 == Some (cl_type f)) eqn:Hclt; move/eqP in Hclt.
-      * exists (v_to_e_list (take (size t1s) vcs) ++ [::Invoke f]).
+      * exists (v_to_e_list (take (size t1s) vcs) ++ [::Invoke f]), hs.
         apply reduce_composition_left; first by apply v_to_e_is_const_list.
         simpl.
         eapply r_call_indirect_success; eauto.
-      * exists (v_to_e_list (take (size t1s) vcs) ++ [::Trap]).
+      * exists (v_to_e_list (take (size t1s) vcs) ++ [::Trap]), hs.
         apply reduce_composition_left; first by apply v_to_e_is_const_list.
         by eapply r_call_indirect_failure1; eauto.
     + (* None *)
-      exists (v_to_e_list (take (size t1s) vcs) ++ [::Trap]).
+      exists (v_to_e_list (take (size t1s) vcs) ++ [::Trap]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_call_indirect_failure2.
 
@@ -4376,7 +4383,7 @@ Proof.
     rewrite length_is_size in H.
     rewrite size_map in H.
     apply split3 in HN => //.
-    exists s, vs, [::Basic (EConst x)].
+    exists s, vs0, [::Basic (EConst x)], hs.
     rewrite HN.
     apply r_get_local.
     rewrite length_is_size.
@@ -4386,12 +4393,12 @@ Proof.
     right. invert_typeof_vcs.
     simpl in H.
     rewrite length_is_size in H. rewrite size_map in H. rewrite -length_is_size in H.
-    exists s, (set_nth v vs i0 v), [::].
+    exists s, (set_nth v vs0 i0 v), [::], hs.
     by apply r_set_local.
 
   - (* Tee_local *)
     right. invert_typeof_vcs.
-    exists s, vs, [::Basic (EConst v); Basic (EConst v); Basic (Set_local i0)].
+    exists s, vs0, [::Basic (EConst v); Basic (EConst v); Basic (Set_local i0)], hs.
     by apply r_simple; eauto.
 
   - (* Get_global *)
@@ -4403,13 +4410,13 @@ Proof.
     assert (sglob_val s i i0 <> None).
     unfold sglob_val. unfold option_map. by destruct (sglob s i i0).
     destruct (sglob_val s i i0) eqn:Hglobval => //=.
-    exists s, vs, [::Basic (EConst v)].
+    exists s, vs0, [::Basic (EConst v)], hs.
     by apply r_get_global.
 
   - (* Set_global *)
     right. invert_typeof_vcs.
     destruct (supdate_glob s i i0 v) eqn:Hs.
-    + exists s0, vs, [::].
+    + exists s0, vs0, [::], hs.
       by apply r_set_global.
     + unfold supdate_glob in Hs. unfold option_bind in Hs.
       simpl in H. simpl in H0.
@@ -4422,7 +4429,7 @@ Proof.
   - (* Load *)
     right.
     simpl in H.
-    exists s, vs.
+    exists s, vs0.
     invert_typeof_vcs. destruct v => //=.
     eapply mem_context_store in H; eauto.
     destruct H as [n [HMenInd HMem]].
@@ -4432,16 +4439,16 @@ Proof.
       destruct p as [tp sx].
       simpl in H0. remove_bools_options.
       destruct (load_packed sx m (Wasm_int.N_of_uint i32m s0) off (tp_length tp) (t_length t)) eqn:HLoadResult.
-      * exists [::Basic (EConst (wasm_deserialise b t))].
+      * exists [::Basic (EConst (wasm_deserialise b t))], hs.
         by eapply r_load_packed_success; eauto.
-      * exists [::Trap].
+      * exists [::Trap], hs.
         by eapply r_load_packed_failure; eauto.
     + (* Load None *)
       simpl in H0.
       destruct (load m (Wasm_int.N_of_uint i32m s0) off (t_length t)) eqn:HLoadResult.
-      * exists [::Basic (EConst (wasm_deserialise b t))].
+      * exists [::Basic (EConst (wasm_deserialise b t))], hs.
         by eapply r_load_success; eauto.
-      * exists [::Trap].
+      * exists [::Trap], hs.
         by eapply r_load_failure; eauto.
 
   - (* Store *)
@@ -4455,19 +4462,19 @@ Proof.
     + (* Store Some *)
       simpl in H0. remove_bools_options.
       destruct (store_packed m (Wasm_int.N_of_uint i32m s0) off (bits v0) (tp_length tp)) eqn:HStoreResult.
-      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), vs, [::].
+      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), vs0, [::], hs.
         eapply r_store_packed_success; eauto.
         by unfold types_agree; apply/eqP.
-      * exists s, vs, [::Trap].
+      * exists s, vs0, [::Trap], hs.
         eapply r_store_packed_failure; eauto.
         by unfold types_agree; apply/eqP.
     + (* Store None *)
       simpl in H0.
       destruct (store m (Wasm_int.N_of_uint i32m s0) off (bits v0) (t_length (typeof v0))) eqn:HStoreResult.
-      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), vs, [::].
+      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), vs0, [::], hs.
         eapply r_store_success; eauto.
         by unfold types_agree; apply/eqP.
-      * exists s, vs, [::Trap].
+      * exists s, vs0, [::Trap], hs.
         eapply r_store_failure; eauto.
         by unfold types_agree; apply/eqP.
 
@@ -4477,7 +4484,7 @@ Proof.
     eapply mem_context_store in H; eauto.
     destruct H as [n [HMemInd HMem]].
     destruct (List.nth_error (s_mems s) n) eqn:HN => //=.
-    exists s, vs, [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size m)))))].
+    exists s, vs0, [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size m)))))], hs.
     by eapply r_current_memory; eauto.
 
   - (* Grow_memory *)
@@ -4488,7 +4495,7 @@ Proof.
     destruct (List.nth_error (s_mems s) n) eqn:HN => //=.
     destruct v => //=.
     (* Similarly, for this proof we can just use trap and use the failure case. *)
-    exists s, vs, [::Basic (EConst (ConstInt32 int32_minus_one))].
+    exists s, vs0, [::Basic (EConst (ConstInt32 int32_minus_one))], hs.
     by eapply r_grow_memory_failure; eauto.
 
   - (* Composition *)
@@ -4520,7 +4527,7 @@ Proof.
       destruct H as [s' [vs' [es' HReduce]]].
       right.
       rewrite to_e_list_cat.
-      exists s', vs', (es' ++ to_e_list [::e]).
+      exists s', vs', (es' ++ to_e_list [::e]), hs.
       rewrite catA.
       by apply reduce_composition_right.
 
@@ -4533,7 +4540,7 @@ Proof.
     right.
     replace vcs with (take (size ts) vcs ++ drop (size ts) vcs); last by apply cat_take_drop.
     rewrite -v_to_e_cat. rewrite -catA.
-    exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es').
+    exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es'), hs.
     by apply reduce_composition_left => //; apply v_to_e_is_const_list.
 Qed.
 
