@@ -225,6 +225,16 @@ Let administrative_instruction := administrative_instruction host_function.
 Let lholed := lholed host_function.
 Let res_step := res_step host_function.
 
+Let administrative_instruction_rect :=
+  @administrative_instruction_rect host_function
+  : forall (P : administrative_instruction -> Type),
+      (forall b : basic_instruction, P (Basic b)) ->
+      P Trap ->
+      (forall f1 : function_closure, P (Invoke f1)) ->
+      (forall (n : nat) (l l0 : seq administrative_instruction), P (Label n l l0)) ->
+      (forall (n : nat) (i : instance) (l : seq value) (l0 : seq administrative_instruction), P (Local n i l l0)) ->
+      forall a : administrative_instruction, P a.
+
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
   {cl1 = cl2} + {cl1 <> cl2}.
 Proof. decidable_equality. Defined.
@@ -267,10 +277,6 @@ Definition eqstore_recordP : Equality.axiom store_record_eqb :=
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
 
-Let administrative_instruction_rect :=
-  @administrative_instruction_rect host_function
-  : forall (P : administrative_instruction -> Type), _.
-
 Definition module_export_desc_eq_dec : forall v1 v2 : module_export_desc, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 
@@ -292,7 +298,6 @@ Definition eqmodule_exportP : Equality.axiom module_export_eqb :=
 Canonical Structure module_export_eqMixin := EqMixin eqmodule_exportP.
 Canonical Structure module_export_eqType := Eval hnf in EqType module_export module_export_eqMixin.
 
-(* FIXME: After the git conflict, this no longer works… despite working in both merged branches! *)
 (** Induction scheme for [administrative_instruction]. **)
 Definition administrative_instruction_rect' :=
   ltac:(rect'_build administrative_instruction_rect).
