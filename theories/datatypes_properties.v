@@ -369,7 +369,7 @@ Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_e
 Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
 Proof.
   (decidable_equality_step;
-    last by apply: (eqType_eq_dec (_ : seq administrative_instruction)));
+    last by apply: (eq_comparable (_ : seq administrative_instruction)));
     decidable_equality.
 Defined.
 

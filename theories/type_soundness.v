@@ -27,9 +27,25 @@ Let e_typing : store_record -> t_context -> seq administrative_instruction -> fu
   @e_typing _.
 Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @reduce_simple _.
+Let const_list : seq administrative_instruction -> bool := @const_list _.
+Let lholed := lholed host_function.
+Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
+  @lfilled _.
+Let sfunc : store_record -> instance -> nat -> option function_closure := @sfunc _.
+Let sglob : store_record -> instance -> nat -> option global := @sglob _.
+
+Let host := host host_function.
+
+Variable host_instance : host.
+
+Let host_state := host_state host_instance.
+
+Let reduce : host_state -> store_record -> seq value -> seq administrative_instruction -> instance ->
+             host_state -> store_record -> seq value -> seq administrative_instruction -> Prop
+  := @reduce _ _.
 
 
-Definition t_be_value (bes: seq basic_instruction) : Prop :=
+Definition t_be_value bes : Prop :=
   const_list (to_e_list bes).
 
 Ltac b_to_a_revert :=
@@ -2573,16 +2589,6 @@ Proof.
   by destruct a => //=; f_equal.
 Qed.
 
-Lemma all2_size: forall {X Y:Type} (f:X -> Y -> bool) l1 l2,
-    all2 f l1 l2 ->
-    size l1 = size l2.
-Proof.
-  move => X Y f. induction l1; destruct l2 => //=.
-  move => H. remove_bools_options.
-  f_equal.
-  by apply IHl1.
-Qed.
-
 Lemma global_agree_extension: forall g0 g1 g,
     global_agree g0 g ->
     glob_extension g0 g1 ->
@@ -3774,8 +3780,6 @@ Qed.
 
 *)
 
-End Host.
-
 Definition terminal_form (es: seq administrative_instruction) :=
   const_list es \/ es = [::Trap].
 
@@ -3785,7 +3789,7 @@ Lemma reduce_trap_left: forall vs,
     reduce_simple (vs ++ [::Trap]) [::Trap].
 Proof.
   move => vs HConst H.
-  eapply rs_trap; destruct vs => //=; try by destruct vs => //=.
+  destruct vs => //=; eapply rs_trap; try by destruct vs => //=.
   assert (lfilledInd 0 (LBase (a::vs) [::]) [::Trap] (a::vs++[::Trap])); first by apply LfilledBase.
   apply/lfilledP.
   by apply H0.
@@ -3817,23 +3821,23 @@ Proof.
     by f_equal.
 Qed.
 
-Lemma reduce_composition: forall s cs vs es es0 i s' vs' es',
+Lemma reduce_composition: forall s cs vs es es0 i s' vs' es' hs hs',
     const_list cs ->
-    reduce s vs es i s' vs' es' ->
-    reduce s vs (cs ++ es ++ es0) i s' vs' (cs ++ es' ++ es0).
+    reduce hs s vs es i hs' s' vs' es' ->
+    reduce hs s vs (cs ++ es ++ es0) i hs' s' vs' (cs ++ es' ++ es0).
 Proof.
-  move => s cs vs es es0 i s' vs' es' HConst HReduce.
+  move => s cs vs es es0 i s' vs' es' hs hs' HConst HReduce.
   eapply r_label; eauto; apply/lfilledP.
   - instantiate (1 := (LBase cs es0)). instantiate (1 := 0).
     by apply LfilledBase.
   - by apply LfilledBase.
 Qed.
 
-Lemma reduce_composition_right: forall s vs es es0 i s' vs' es',
-    reduce s vs es i s' vs' es' ->
-    reduce s vs (es ++ es0) i s' vs' (es' ++ es0).
+Lemma reduce_composition_right: forall s vs es es0 i s' vs' es' hs hs',
+    reduce hs s vs es i hs' s' vs' es' ->
+    reduce hs s vs (es ++ es0) i hs' s' vs' (es' ++ es0).
 Proof.
-  move => s vs es es0 i s' vs' es' HReduce.
+  move => s vs es es0 i s' vs' es' hs hs' HReduce.
   eapply reduce_composition in HReduce.
   instantiate (1 := es0) in HReduce.
   instantiate (1 := [::]) in HReduce.
@@ -3841,12 +3845,12 @@ Proof.
   by [].
 Qed.
 
-Lemma reduce_composition_left: forall s cs vs es i s' vs' es',
+Lemma reduce_composition_left: forall s cs vs es i s' vs' es' hs hs',
     const_list cs ->
-    reduce s vs es i s' vs' es' ->
-    reduce s vs (cs ++ es) i s' vs' (cs ++ es').
+    reduce hs s vs es i hs' s' vs' es' ->
+    reduce hs s vs (cs ++ es) i hs' s' vs' (cs ++ es').
 Proof.
-  move => s vs es es0 i s' vs' es' HConst HReduce.
+  move => s vs es es0 i s' vs' es' hs hs' HConst HReduce.
   eapply reduce_composition in HReduce; eauto.
   instantiate (1 := [::]) in HReduce.
   by repeat rewrite cats0 in HReduce.
@@ -3921,7 +3925,8 @@ Proof.
   rewrite -HDrop. by rewrite cat_take_drop.
 Qed.
 
-Hint Constructors reduce_simple : core.
+Hint Unfold reduce_simple : core.
+Hint Constructors opsem.reduce_simple : core.
 
 Ltac invert_typeof_vcs :=
   lazymatch goal with
@@ -3972,7 +3977,7 @@ Lemma func_context_store: forall s i C j x,
     sfunc s i j <> None.
 Proof.
   move => s i C j x HIT HLength HN.
-  unfold sfunc. unfold option_bind.
+  unfold sfunc. unfold operations.sfunc. unfold option_bind.
   unfold sfunc_ind.
   unfold inst_typing in HIT.
   destruct i => //=. destruct C => //=.
@@ -5097,4 +5102,6 @@ Proof.
   - by eapply s_typing_lf_br; eauto.
   - by eapply s_typing_lf_return; eauto.
 Qed.
+
+End Host.
 

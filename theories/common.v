@@ -147,16 +147,6 @@ Proof.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.
 
-(** As [eqType] can be inferred thanks to canonical instance, this lemma provides
-  another way of building a [_eq_dec]. **)
-Lemma eqType_eq_dec : forall (A : eqType) (a1 a2 : A),
-  {a1 = a2} + {a1 <> a2}.
-Proof.
-  move=> A a1 a2. case_eq (a1 == a2) => /eqP.
-  - by left.
-  - by right.
-Defined.
-
 Ltac decidable_equality_step :=
   first [
       by apply: eq_comparable
@@ -393,6 +383,16 @@ Proof.
   move=> A B f1 f2. elim.
   - by case.
   - move=> a1 l1 IH. case=> //= a2 l2 E. by rewrite E IH.
+Qed.
+
+Lemma all2_size: forall {X Y:Type} (f:X -> Y -> bool) l1 l2,
+    all2 f l1 l2 ->
+    size l1 = size l2.
+Proof.
+  move => X Y f. induction l1; destruct l2 => //=.
+  move => H. remove_bools_options.
+  f_equal.
+  by apply IHl1.
 Qed.
 
 Lemma map_all2 : forall A (B : eqType) (f : A -> B) l,

@@ -3,6 +3,7 @@
 
 Require Export operations typing opsem interpreter common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From StrongInduction Require Import StrongInduction.
 Require Import Bool.
 
 Set Implicit Arguments.
@@ -16,6 +17,7 @@ Variable host_function : eqType.
 Let administrative_instruction := administrative_instruction host_function.
 Let const_list : seq administrative_instruction -> bool := @const_list _.
 Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
+Let lfilled := @lfilled host_function.
 Let lfilledInd := @lfilledInd host_function.
 Let es_is_basic := @es_is_basic host_function.
 Let to_e_list := @to_e_list host_function.
@@ -352,15 +354,13 @@ Lemma lfilled_deterministic: forall k lh es les les',
     les = les'.
 Proof.
   move => k lh es les les' HLF HLF'.
-  apply lfilled_Ind_Equivalent in HLF. unfold lfilled in HLF.
-  apply lfilled_Ind_Equivalent in HLF'. unfold lfilled in HLF'.
+  apply lfilled_Ind_Equivalent in HLF. unfold operations.lfilled in HLF.
+  apply lfilled_Ind_Equivalent in HLF'. unfold operations.lfilled in HLF'.
   destruct (lfill k lh es) => //.
   replace les' with l.
   { move: HLF. by apply/eqseqP. }
   symmetry. move: HLF'. by apply/eqseqP. 
 Qed.  
-
-End Host.
 
 Lemma all_projection: forall {X:Type} f (l:seq X) n x,
     all f l ->
@@ -414,8 +414,6 @@ Proof.
 Qed.
 
 
-From StrongInduction Require Import StrongInduction.
-
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
   (forall es' lh n0, decidable (lfilled 0 lh (fes n0 lh) es')) ->
@@ -457,7 +455,8 @@ Proof.
   }
   move=> nE.
   (** Otherwise, we have to apply [LfilledRec]. **)
-  have Dparse: forall es', decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2).
+  have Dparse: forall es' : seq administrative_instruction,
+    decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2).
   {
     clear. move=> es'.
     have Pparse: pickable4 (fun n es1 LI es2 => es' = [:: Label n es1 LI] ++ es2).
@@ -528,4 +527,6 @@ Definition lfilled_pickable_rec : forall es,
 Proof.
   move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
+
+End Host.
 
