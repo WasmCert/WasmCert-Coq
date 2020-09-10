@@ -147,6 +147,16 @@ Proof.
   move=> x y. move: (A x y). case E: (eqb x y); inversion 1; by [ left | right ].
 Defined.
 
+(** As [eqType] can be inferred thanks to canonical instance, this lemma provides
+  another way of building a [_eq_dec]. **)
+Lemma eqType_eq_dec : forall (A : eqType) (a1 a2 : A),
+  {a1 = a2} + {a1 <> a2}.
+Proof.
+  move=> A a1 a2. case_eq (a1 == a2) => /eqP.
+  - by left.
+  - by right.
+Defined.
+
 Ltac decidable_equality_step :=
   first [
       by apply: eq_comparable
@@ -609,13 +619,13 @@ Ltac is_reducible t t' :=
   The projection is there to focus the induction principle on a different type (e.g. [list t]
   instead of [t]): possible values are [@id], [list], and [option]. **)
 Ltac rect'_type_projection proj rect :=
+  let fold_type t ta :=
+    (* Try to fold [t] in [ta]. *)
+    match tt with
+    | _ => eval fold t in ta
+    | _ => constr:(ta)
+    end in
   let added_hyp t ta :=
-    let ta :=
-      (* Trying to fold [t] in [ta]. *)
-      match tt with
-      | _ => eval fold t in ta
-      | _ => constr:(ta)
-      end in
     lazymatch ta with
     | list t => constr:(@TProp.Forall t)
     | option t => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
@@ -636,24 +646,39 @@ Ltac rect'_type_projection proj rect :=
     lazymatch hyp with
     | fun P => P _ => constr:(hyp)
     | fun P => forall a1 : ?t1, P (?C a1) =>
+      let t1 :=  fold_type t t1 in
       constr:(fun P : t -> Type => forall a1 : t1,
         ltac:(set_hyp t t1 P a1 (P (C a1))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
+      let t1 :=  fold_type t t1 in
+      let t2 :=  fold_type t t2 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2 (P (C a1 a2)))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
+      let t1 :=  fold_type t t1 in
+      let t2 :=  fold_type t t2 in
+      let t3 :=  fold_type t t3 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
             ltac:(add_hyp t t3 P a3 (P (C a1 a2 a3))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
+      let t1 :=  fold_type t t1 in
+      let t2 :=  fold_type t t2 in
+      let t3 :=  fold_type t t3 in
+      let t4 :=  fold_type t t4 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
             ltac:(add_hyp t t3 P a3
               ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4)))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
+      let t1 :=  fold_type t t1 in
+      let t2 :=  fold_type t t2 in
+      let t3 :=  fold_type t t3 in
+      let t4 :=  fold_type t t4 in
+      let t5 :=  fold_type t t5 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
@@ -661,6 +686,12 @@ Ltac rect'_type_projection proj rect :=
               ltac:(add_hyp t t4 P a4
                 ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4 a5))))))))
     | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
+      let t1 :=  fold_type t t1 in
+      let t2 :=  fold_type t t2 in
+      let t3 :=  fold_type t t3 in
+      let t4 :=  fold_type t t4 in
+      let t5 :=  fold_type t t5 in
+      let t6 :=  fold_type t t6 in
       constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
         ltac:(set_hyp t t1 P a1
           ltac:(add_hyp t t2 P a2
@@ -716,23 +747,25 @@ Ltac rect'_build_projection proj rect :=
   refine (_ : g);
   let P := fresh "P" in
   intro P;
-  repeat lazymatch goal with
-  | |- forall a : t, P a => idtac
-  | |- forall l : list t, TProp.Forall P l =>
-    let l := fresh "l" in
-    let a := fresh "a" in
-    intro l; induction l as [| a l ];
-    [ solve [ apply TProp.Forall_nil ]
-    | apply TProp.Forall_cons; [ generalize a | assumption ] ]
-  | |- forall (o : option t) (a : t), o = Some a -> P a =>
-    let o := fresh "o" in
-    let a := fresh "a" in
-    intros o a; destruct o;
-      let E := fresh "E" in
-      intro E; inversion E;
-      generalize a
-  | |- _ -> _ => intro
-  end;
+  repeat (
+    try fold t;
+    lazymatch goal with
+    | |- forall a : t, P a => idtac
+    | |- forall l : list t, TProp.Forall P l =>
+      let l := fresh "l" in
+      let a := fresh "a" in
+      intro l; induction l as [| a l ];
+      [ solve [ apply TProp.Forall_nil ]
+      | apply TProp.Forall_cons; [ generalize a | assumption ] ]
+    | |- forall (o : option t) (a : t), o = Some a -> P a =>
+      let o := fresh "o" in
+      let a := fresh "a" in
+      intros o a; destruct o;
+        let E := fresh "E" in
+        intro E; inversion E;
+        generalize a
+    | |- _ -> _ => intro
+    end);
   let rect := fresh "rect" in
   fix rect 1;
   let rect_list := fresh "rect_list" in
@@ -743,11 +776,11 @@ Ltac rect'_build_projection proj rect :=
         | [::] => TProp.Forall_nil _
         | e :: l => TProp.Forall_cons (rect e) (rect_list l)
         end in _);
-  let do_it :=
-    clear rect rect_list;
-    solve [ auto | fold t in *; auto | unfold t in *; auto ] in
+  let do_it := clear rect rect_list; auto in
   let use_hyps :=
+    try fold t;
     intros;
+    try fold t in *;
     repeat match goal with
     | a : t |- _ =>
       lazymatch goal with

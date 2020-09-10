@@ -227,13 +227,7 @@ Let res_step := res_step host_function.
 
 Let administrative_instruction_rect :=
   @administrative_instruction_rect host_function
-  : forall (P : administrative_instruction -> Type),
-      (forall b : basic_instruction, P (Basic b)) ->
-      P Trap ->
-      (forall f1 : function_closure, P (Invoke f1)) ->
-      (forall (n : nat) (l l0 : seq administrative_instruction), P (Label n l l0)) ->
-      (forall (n : nat) (i : instance) (l : seq value) (l0 : seq administrative_instruction), P (Local n i l l0)) ->
-      forall a : administrative_instruction, P a.
+  : forall (P : administrative_instruction -> Type), _.
 
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
   {cl1 = cl2} + {cl1 <> cl2}.
