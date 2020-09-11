@@ -1,7 +1,7 @@
 (** Common useful definitions **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-Require Import Lia.
+From Coq Require Import Lia.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
 From Wasm Require Export pickability.

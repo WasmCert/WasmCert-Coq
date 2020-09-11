@@ -3,7 +3,7 @@
 
 Set Implicit Arguments.
 
-Require Import List.
+From Coq Require Import List.
 
 (** Given list of option types, check that all options are [Some]
    and return the corresponding list of values. **)

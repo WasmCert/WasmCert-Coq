@@ -1,4 +1,4 @@
-(** soundness of the Wasm interpreter **)
+(** Soundness of the Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
 From Wasm Require Import common.

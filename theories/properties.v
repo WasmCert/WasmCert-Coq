@@ -1,10 +1,10 @@
 (** Miscellaneous properties about Wasm operations **)
 (* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
-Require Export operations typing opsem interpreter common.
+From Wasm Require Export operations typing opsem interpreter common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction.
-Require Import Bool.
+From Coq Require Import Bool.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -1,11 +1,11 @@
 (** Basic operations over Wasm datatypes **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-Require Import common.
+From Wasm Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
-Require Export datatypes_properties.
-Require Import BinNat list_extra.
+From Wasm Require Export datatypes_properties list_extra.
+From Coq Require Import BinNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

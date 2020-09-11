@@ -1,7 +1,7 @@
 (** Wasm typing rules **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Import operations.
+From Wasm Require Import operations.
 
 (**
 There are three files related to typing:
