@@ -14,9 +14,9 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [x] Prove soundness result for WasmRef with respect to WasmCert.
 - [x] Update the definition of WebAssembly's global store to match the 1.0 standard.
 - [ ] Update the function frame and related definitions to match the 1.0 standard.
-- [ ] Finish type soundness result.
+- [ ] Finish type soundness result [type soundness branch](https://github.com/WasmCert/WasmCert-Coq/tree/type_soundness).
 - [ ] Link WasmCert to CompCert.
-- [ ] Provide Iris Wasm.
+- [ ] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris).
 
 This repository contains some experimental work on a binary parser and Iris integration. 
 
