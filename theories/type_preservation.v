@@ -1203,16 +1203,16 @@ Qed.
 
 (* FIXME: This axiom no longer makes sense in this branch.
 Axiom host_apply_typing: forall s vs1 vs2 ts f s',
-    host_apply s (Tf (vs_to_vts vs1) ts) f vs1 = Some (s', vs2) ->
+    host_apply s (Tf (map typeof vs1) ts) f vs1 = Some (s', vs2) ->
     map typeof vs2 = ts.
 
-(* While the above two are reasonable assumptions, this one is definitely too strong.
-   This is stated in the current form for the proof to the case of host functions.
-   Since there is going to be a huge update on host, I don't think it's currently
-     worth it to put a lot of time into finding a sensible hypothesis here. *)
-Axiom host_apply_store: forall s vs1 vs2 ts1 ts2 f s',
+Axiom host_apply_store_extension: forall s vs1 vs2 ts1 ts2 f s',
     host_apply s (Tf ts1 ts2) f vs1 = Some (s', vs2) ->
-    s = s'.
+    store_extension s s'.
+
+Axiom host_apply_store_valid: forall s vs1 vs2 ts1 ts2 f s',
+    host_apply s (Tf ts1 ts2) f vs1 = Some (s', vs2) ->
+    store_typing s'.
 
 Lemma be_typing_const_deserialise: forall C v t,
     be_typing C [:: EConst (wasm_deserialise (bits v) t)] (Tf [::] [:: t]).
