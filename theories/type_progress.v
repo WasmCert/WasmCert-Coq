@@ -501,24 +501,26 @@ Proof.
   - (* Loop *)
     right.
     exists s, vs0, [::Label (length vcs) [::Basic (Loop (Tf ts1 ts2) es)] (v_to_e_list vcs ++ to_e_list es)], hs.
-    apply r_simple. eapply rs_loop; eauto; repeat rewrite length_is_size.
+    apply r_simple. rewrite HConstType.
+    admit. (* FIXME: This is unexpected: we are missing hypotheses on [ts2].
+    eapply rs_loop. eauto; repeat rewrite length_is_size.
     + by apply v_to_e_is_const_list.
     + by rewrite v_to_e_size.
-    + rewrite -HConstType. by rewrite size_map.
+    + rewrite -HConstType. by rewrite size_map. *)
   - (* if *)
     right.
     apply typeof_append in HConstType.
-    destruct HConstType as [v [H1 [H2 H3]]].
-    rewrite H1. rewrite -v_to_e_cat.
+    destruct HConstType as [v [Ha [Hb Hc]]].
+    rewrite Ha. rewrite -v_to_e_cat.
     rewrite -catA.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
     + exists s, vs0, (v_to_e_list (take (size tn) vcs) ++ [::Basic (Block (Tf tn ts2) es2)]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
-      by apply r_simple; eauto.
+      apply r_simple. admit. (* FIXME: Same problem with [ts2]. by eapply rs_if_false. *)
     + exists s, vs0, (v_to_e_list (take (size tn) vcs) ++ [::Basic (Block (Tf tn ts2) es1)]), hs.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
-      by apply r_simple; eauto.
+      admit. (* FIXME: [ts2]. by apply r_simple; eauto. *)
   - (* Br *)
     exfalso.
     unfold not_lf_br in HNBr.
