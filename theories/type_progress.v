@@ -574,14 +574,13 @@ Proof.
     apply (HNRet (LBase [::] [::])).
     by apply lfilled0_empty. *)
   - (* Call *)
-    admit. (* TODO:
-    right.
+    right. subst.
     simpl in H. simpl in H0.
     eapply func_context_store in H; eauto.
     destruct (sfunc s i i0) eqn:HCL => //.
     exists s, vs, (v_to_e_list vcs ++ [:: (Invoke f)]), hs.
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
-    by apply r_call => //. *)
+    by apply r_call => //. 
   - (* Call_indirect *)
     right.
     simpl in H.
@@ -658,15 +657,13 @@ Proof.
       destruct (List.nth_error (s_globals s) n) => //.
 
   - (* Load *)
-    right.
+    right. subst.
     simpl in H.
     exists s, vs.
     invert_typeof_vcs. destruct v => //=.
     eapply mem_context_store in H; eauto.
-    2: admit. (* FIXME *)
     destruct H as [n [HMenInd HMem]].
     destruct (List.nth_error (s_mems s) n) eqn:HN => //=.
-    2: admit. (* FIXME *)
     destruct tp_sx.
     + (* Load Some *)
       destruct p as [tp sx].
@@ -685,14 +682,12 @@ Proof.
         by eapply r_load_failure; eauto.
 
   - (* Store *)
-    right.
+    right. subst.
     simpl in H.
     invert_typeof_vcs. destruct v => //=.
     eapply mem_context_store in H; eauto.
-    2: admit. (* FIXME *)
     destruct H as [n [HMenInd HMem]].
     destruct (List.nth_error (s_mems s) n) eqn:HN => //=.
-    2: admit. (* FIXME *)
     destruct tp as [tp |].
     + (* Store Some *)
       simpl in H0. remove_bools_options.
