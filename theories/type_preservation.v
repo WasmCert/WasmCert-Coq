@@ -17,22 +17,22 @@ Ltac be_typing_ind H :=
   let rec try_generalize t :=
     lazymatch t with
     | ?f ?x => try_generalize f; try_generalize x
-    | ?x => is_variable x ltac:(generalize x) ltac:(idtac)
+    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
     end in
   lazymatch type of H with
   | be_typing ?C ?l ?t =>
     move: H;
     let C' := fresh "C" in
-    let l' := fresh "l" in
-    let t' := fresh "t" in
     set_eq C' C;
     move=> + H;
     try_generalize C;
     move: H;
+    let l' := fresh "l" in
     set_eq l' l;
     move=> + H;
     try_generalize l;
     move: H;
+    let t' := fresh "t" in
     set_eq t' t;
     move=> + H;
     try_generalize t;
