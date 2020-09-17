@@ -119,25 +119,23 @@ Ltac extract_listn :=
   repeat lazymatch goal with
   | H: (?es ++ [::?e])%list = [::_] |- _ =>
     apply extract_list1 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_] |- _ =>
+    apply extract_list1 in H; destruct H; subst
   | H: (?es ++ [::?e])%list = [::_; _] |- _ =>
     apply extract_list2 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_; _] |- _ =>
+    apply extract_list2 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_; _; _] |- _ =>
+    apply extract_list3 in H; destruct H; subst
   | H: (?es ++ [::?e])%list = [::_; _; _] |- _ =>
     apply extract_list3 in H; destruct H; subst
   | H: (?es ++ [::?e])%list = [::_; _; _; _] |- _ =>
     apply extract_list4 in H; destruct H; subst
-  end.
-
-Ltac extract_listn' :=
-  repeat lazymatch goal with
-  | H: (?es ++ [::?e]) = [::_] |- _ =>
-    apply extract_list1 in H; destruct H; subst
-  | H: (?es ++ [::?e]) = [::_; _] |- _ =>
-    apply extract_list2 in H; destruct H; subst
-  | H: (?es ++ [::?e]) = [::_; _; _] |- _ =>
-    apply extract_list3 in H; destruct H; subst
-  | H: (?es ++ [::?e]) = [::_; _; _; _] |- _ =>
+  | H: ?es ++ [::?e] = [::_; _; _; _] |- _ =>
     apply extract_list4 in H; destruct H; subst
-end.
+  | H: _ :: _ = (_ ++ _)%list |- _ => symmetry in H
+  | H: _ :: _ = _ ++ _ |- _ => symmetry in H
+  end.
 
 Lemma list_nth_prefix: forall {X:Type} (l1 l2: seq X) x,
     List.nth_error (l1 ++ [::x] ++ l2) (length l1) = Some x.
@@ -170,7 +168,7 @@ Lemma empty_typing: forall C t1s t2s,
     t1s = t2s.
 Proof.
   move => C t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType => //.
   - by destruct es.
   - f_equal. by eapply IHHType.
 Qed.
@@ -223,8 +221,8 @@ Lemma EConst_typing: forall C econst t1s t2s,
     t2s = t1s ++ [::typeof econst].
 Proof.
   move => C econst t1s t2s HType.
-  gen_ind HType; subst => //=.
-  - apply extract_list1 in H0; inversion H0; subst.
+  gen_ind_subst HType => //.
+  - apply extract_list1 in H1; inversion H1; subst.
     apply empty_typing in HType1; subst.
     by eapply IHHType2.
   - rewrite - catA. f_equal.
@@ -237,8 +235,8 @@ Lemma EConst2_typing: forall C econst1 econst2 t1s t2s,
     t2s = t1s ++ [::typeof econst1; typeof econst2].
 Proof.
   move => C econst1 econst2 t1s t2s HType.
-  gen_ind HType; subst => //=.
-  - apply extract_list2 in H0; inversion H0; subst.
+  gen_ind_subst HType => //.
+  - apply extract_list2 in H1; inversion H1; subst.
     apply EConst_typing in HType1; subst.
     apply EConst_typing in HType2; subst.
     by rewrite -catA.
@@ -252,8 +250,8 @@ Lemma EConst3_typing: forall C econst1 econst2 econst3 t1s t2s,
     t2s = t1s ++ [::typeof econst1; typeof econst2; typeof econst3].
 Proof.
   move => C econst1 econst2 econst3 t1s t2s HType.
-  gen_ind HType; subst => //=.
-  - apply extract_list3 in H0; inversion H0; subst.
+  gen_ind_subst HType => //.
+  - apply extract_list3 in H1; inversion H1; subst.
     apply EConst2_typing in HType1; subst.
     apply EConst_typing in HType2; subst.
     by rewrite -catA.
@@ -291,17 +289,17 @@ Lemma Unop_i_typing: forall C t op t1s t2s,
     t1s = t2s /\ exists ts, t1s = ts ++ [::t].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => /=.
+  gen_ind_subst HType.
   - split => //=. by exists [::].
-  - apply extract_list1 in H0; destruct H0; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
     split => //=.
-    destruct H1 as [ts' H1].
+    destruct H0 as [ts' H0].
     exists (ts ++ ts').
     rewrite - catA.
-    by rewrite H1.
+    by rewrite H0.
 Qed.
 
 Lemma Binop_i_typing: forall C t op t1s t2s,
@@ -309,16 +307,16 @@ Lemma Binop_i_typing: forall C t op t1s t2s,
     t1s = t2s ++ [::t] /\ exists ts, t2s = ts ++ [::t].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - split => //=. by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
     split => //=.
-    + destruct H1 as [ts' H1].
+    + destruct H0 as [ts' H0].
       by rewrite - catA.
-    + destruct H1 as [ts' H1].
+    + destruct H0 as [ts' H0].
       exists (ts ++ ts').
       subst.
       by rewrite - catA.
@@ -329,16 +327,16 @@ Lemma Binop_f_typing: forall C t op t1s t2s,
     t1s = t2s ++ [::t] /\ exists ts, t2s = ts ++ [::t].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - split => //=. by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
     split => //=.
-    + destruct H1 as [ts' ?].
+    + destruct H0 as [ts' ?].
       by rewrite - catA.
-    + destruct H1 as [ts' ?].
+    + destruct H0 as [ts' ?].
       exists (ts ++ ts').
       subst.
       by rewrite - catA.
@@ -349,17 +347,17 @@ Lemma Unop_f_typing: forall C t op t1s t2s,
     t1s = t2s /\ exists ts, t1s = ts ++ [::t].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - split => //=. by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
     split => //=.
-    destruct H1 as [ts' H1].
+    destruct H0 as [ts' H0].
     exists (ts ++ ts').
     rewrite - catA.
-    by rewrite H1.
+    by rewrite H0.
 Qed.
 
 Lemma Testop_typing: forall C t op t1s t2s,
@@ -367,13 +365,13 @@ Lemma Testop_typing: forall C t op t1s t2s,
     exists ts, t1s = ts ++ [::t] /\ t2s = ts ++ [::T_i32].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    destruct H0 as [ts' H0]. subst.
+    destruct H as [ts' H]. subst.
     exists (ts ++ x).
     by repeat rewrite - catA.
 Qed.
@@ -383,13 +381,13 @@ Lemma Relop_i_typing: forall C t op t1s t2s,
     exists ts, t1s = ts ++ [::t; t] /\ t2s = ts ++ [::T_i32].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    destruct H0 as [ts' H0]. subst.
+    destruct H as [ts' H]. subst.
     exists (ts ++ x).
     by repeat rewrite - catA.
 Qed.
@@ -399,13 +397,13 @@ Lemma Relop_f_typing: forall C t op t1s t2s,
     exists ts, t1s = ts ++ [::t; t] /\ t2s = ts ++ [::T_i32].
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    destruct H0 as [ts' H0]. subst.
+    destruct H as [ts' H]. subst.
     exists (ts ++ x).
     by repeat rewrite - catA.
 Qed.
@@ -415,14 +413,14 @@ Lemma Cvtop_typing: forall C t1 t2 op sx t1s t2s,
     exists ts, t1s = ts ++ [::t1] /\ t2s = ts ++ [::t2].
 Proof.
   move => C t1 t2 op sx t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - by exists [::].
   - by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    destruct H0 as [ts' H0]. subst.
+    destruct H as [ts' H]. subst.
     exists (ts ++ x).
     by repeat rewrite - catA.
 Qed.
@@ -432,11 +430,11 @@ Lemma Nop_typing: forall C t1s t2s,
     t1s = t2s.
 Proof.
   move => C t1s t2s HType.
-  gen_ind HType; subst => //=.
-  - apply extract_list1 in x; destruct x; subst.
+  gen_ind_subst HType => //.
+  - apply extract_list1 in Econs; destruct Econs; subst.
     apply empty_typing in HType1; subst.
-    by apply IHHType2 => //=.
-  - f_equal. by apply IHHType => //=.
+    by eapply IHHType2.
+  - f_equal. by eapply IHHType.
 Qed.
 
 Lemma Drop_typing: forall C t1s t2s,
@@ -444,11 +442,11 @@ Lemma Drop_typing: forall C t1s t2s,
     exists t, t1s = t2s ++ [::t].
 Proof.
   move => C t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType => //=.
   - by eauto.
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in Econs; destruct Econs; subst.
     apply empty_typing in HType1; subst.
-    by apply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
     exists x. repeat rewrite -catA. by f_equal.
 Qed.
@@ -458,14 +456,14 @@ Lemma Select_typing: forall C t1s t2s,
     exists ts t, t1s = ts ++ [::t; t; T_i32] /\ t2s = ts ++ [::t].
 Proof.
   move => C t1s t2s HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType => //.
   - by exists [::], t.
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in Econs; destruct Econs; subst.
     apply empty_typing in HType1; subst.
-    by apply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    edestruct H0 => //=; destruct H0 as [x2 [H3 H4]]; subst.
-    exists (ts ++ x), x2. by split => //=; repeat rewrite -catA.
+    edestruct H as [x2 [H3 H4]]; subst.
+    exists (ts ++ x), x2. by split; repeat rewrite -catA.
 Qed.
 
 Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
@@ -475,13 +473,13 @@ Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
                 be_typing (upd_label C ([:: t2s] ++ tc_label C)) e2s (Tf t1s t2s).
 Proof.
   move => C t1s t2s e1s e2s ts ts' HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1. subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    destruct H0 as [H1 [H2 [H3 H4]]]. subst.
+    destruct H as [H1 [H2 [H3 H4]]]. subst.
     exists (ts ++ x).
     repeat rewrite -catA.
     repeat split => //=.
@@ -492,18 +490,18 @@ Lemma Br_if_typing: forall C ts1 ts2 i,
     exists ts ts', ts2 = ts ++ ts' /\ ts1 = ts2 ++ [::T_i32] /\ i < length (tc_label C) /\ plop2 C i ts'.
 Proof.
   move => C ts1 ts2 i HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - unfold plop2 in H0.
-    by exists [::], ts2 => //=.
-  - apply extract_list1 in x; destruct x; subst.
+    by exists [::], ts2.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - rewrite -catA. f_equal => //=.
     edestruct IHHType => //=.
-    destruct H0 as [ts' [H1 [H2 [H3 H4]]]].
+    destruct H as [ts' [H1 [H2 [H3 H4]]]].
     exists (ts ++ x), ts'. subst.
     split.
-    + repeat rewrite -catA. by f_equal => //=.
+    + repeat rewrite -catA. by f_equal.
     + split => //=.
 Qed.
 
@@ -513,13 +511,13 @@ Lemma Br_table_typing: forall C ts1 ts2 ids i0,
                          all (fun i => (i < length (tc_label C)) && (plop2 C i ts)) (ids ++ [::i0]).
 Proof.
   move => C ts1 ts2 ids i0 HType.
-  gen_ind HType; subst => //=.
-  - by exists t1s, ts => //=.
-  - apply extract_list1 in x; destruct x; subst.
+  gen_ind_subst HType.
+  - by exists t1s, ts.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
+    by eapply IHHType2.
   - edestruct IHHType => //=.
-    destruct H0 as [ts' [H1 H2]].
+    destruct H as [ts' [H1 H2]].
     exists (ts ++ x), ts'. subst.
     split => //=.
     + repeat rewrite -catA. by f_equal => //=.
@@ -531,13 +529,13 @@ Lemma Tee_local_typing: forall C i ts1 ts2,
                  List.nth_error (tc_local C) i = Some t.
 Proof.
   move => C i ts1 ts2 HType.
-  gen_ind HType; subst => //=.
+  gen_ind_subst HType.
   - by exists [::], t.
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H1; destruct H1; subst.
     apply empty_typing in HType1; subst.
     by eapply IHHType2 => //=.
   - edestruct IHHType => //=.
-    destruct H0 as [t [H1 [H2 [H3 H4]]]]. subst.
+    destruct H as [t [H1 [H2 [H3 H4]]]]. subst.
     exists (ts ++ x), t. subst.
     repeat (try split => //=).
     by rewrite -catA.
@@ -550,14 +548,14 @@ Lemma et_to_bet: forall s C es ts,
     be_typing C (to_b_list es) ts.
 Proof.
   move => s C es ts HBasic HType. subst.
-  gen_ind HType; subst => //=; basic_inversion.
+  gen_ind_subst HType; basic_inversion.
   + replace (to_b_list (operations.to_e_list bes)) with bes => //.
     by apply b_e_elim.
   + rewrite /to_b_list to_b_list_concat.
     eapply bet_composition.
-    apply IHHType1 => //.
-    apply IHHType2 => //.
-  + apply bet_weakening. by apply IHHType.
+    * by eapply IHHType1 => //.
+    * by eapply IHHType2 => //.
+  + apply bet_weakening. by eapply IHHType => //.
 Qed.
 
 (* A reformulation of ety_a that is easier to be used. *)
@@ -596,13 +594,13 @@ Lemma composition_typing_single: forall C es1 e t1s t2s,
                              be_typing C [::e] (Tf t3s t2s').
 Proof.
   move => C es1 e t1s t2s HType.
-  gen_ind HType; subst => //=; try (symmetry in x; extract_listn'); auto_prove_bet.
+  gen_ind_subst HType; extract_listn; auto_prove_bet.
   + by apply bet_block.
   + by destruct es1 => //=.
-  + apply concat_cancel_last in x. destruct x. subst.
+  + apply concat_cancel_last in H1. destruct H1. subst.
     by exists [::], t1s0, t2s0, t2s.
   + edestruct IHHType; eauto.
-    destruct H0 as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
+    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
     exists (ts ++ x), t1s', t2s', t3s'.
     by repeat split => //=; rewrite -catA.
 Qed.
@@ -650,7 +648,10 @@ Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
                              e_typing s C [::e] (Tf t3s t2s').
 Proof.
   move => s C es1 es2 t1s t2s HType.
-  gen_ind_base HType. subst => //=.
+  gen_ind_pre HType.
+  is_variable administrative_instruction ltac:(idtac "yes") ltac:(idtac "no"). (* FIXME: Wrongly returns “yes”. *)
+  gen_ind_gen HType.
+  gen_ind_subst HType. subst => //=.
   - (* basic *)
     apply b_e_elim in x. destruct x. subst.
     rewrite to_b_list_concat in H.
@@ -2579,7 +2580,9 @@ Proof.
   destruct g0 => //=.
   destruct g1 => //=.
   simpl in H2. simpl in H1.
-  by destruct g_mut => //=; remove_bools_options; apply/andP => //=; subst; split => //=; destruct g_mut0 => //=; destruct g_val => //=; destruct g_val0 => //=.
+  by destruct g_mut => //=; remove_bools_options;
+    apply/andP => //=; subst; split => //=;
+    destruct g_mut0 => //=; destruct g_val => //=; destruct g_val0 => //=.
 Qed.
 
 Lemma glob_extension_C: forall sg sg' ig tcg,

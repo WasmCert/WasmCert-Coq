@@ -535,16 +535,13 @@ End Host.
 
 (** * Tactics **)
 
-(** Perform an induction over predicates like [be_typing], generalising its parameters,
+(** [gen_ind] perform an induction over predicates like [be_typing], generalising its parameters,
   but not generalising any section variables such as [host_function].
   The reason for this tactic is that [dependent induction] is far too aggressive
   in its generalisation, and prevents the use of some lemmas. **)
-Ltac gen_ind_base H :=
-  let rec try_generalize t :=
-    lazymatch t with
-    | ?f ?x => try_generalize f; try_generalize x
-    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
-    end in
+
+(** The first step is to name each parameter of the predicate. **)
+Ltac gen_ind_pre H :=
   let rec aux v :=
     lazymatch v with
     | ?f ?x =>
@@ -552,7 +549,7 @@ Ltac gen_ind_base H :=
         lazymatch t with
         | Type => idtac
         | host _ => idtac
-        | _ => is_variable x ltac:(idtac) ltac:(cont tt)
+        | _ => cont tt
         end in
       let t := type of x in
       only_do_if_ok_direct t ltac:(fun _ =>
@@ -573,25 +570,55 @@ Ltac gen_ind_base H :=
             get_name x in
           move: H;
           set_eq x' x;
-          move=> + H;
-          try_generalize x));
+          let E := fresh "E" x' in
+          move=> E H));
       aux f
     | _ => idtac
     end in
   let Ht := type of H in
   aux Ht.
 
-(** Introducing the principle prepared by [gen_ind_base]. **)
+(** Then, each of the associated parameters can be generalised. **)
+Ltac gen_ind_gen H :=
+  let rec try_generalize t :=
+    lazymatch t with
+    | ?f ?x => try_generalize f; try_generalize x
+    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
+    end in
+  let rec aux v :=
+    lazymatch v with
+    | ?f ?x =>
+      lazymatch goal with
+      | _ : x = ?y |- _ => try_generalize y
+      end;
+      aux f
+    | _ => idtac
+    end in
+  let Ht := type of H in
+  aux Ht.
+
+(** After the induction, one can inverse them again (and do some cleaning). **)
 Ltac gen_ind_post :=
-  repeat match goal with
+  repeat lazymatch goal with
   | |- _ = _ -> _ => inversion 1
   | |- _ -> _ => intro
+  end;
+  repeat lazymatch goal with
+  | H: True |- _ => clear H
+  | H: ?x = ?x |- _ => clear H
   end.
 
 (** Wrapping every part of the generalised induction together. **)
 Ltac gen_ind H :=
-  gen_ind_base H;
+  gen_ind_pre H;
+  gen_ind_gen H;
   induction H;
+  gen_ind_post.
+
+(** Similar to [gen_ind H; subst], but cleaning just a little bit more. **)
+Ltac gen_ind_subst H :=
+  gen_ind H;
+  subst;
   gen_ind_post.
 
 (** Calls the continuation on [v] or, if it failed, on [v] whose root has been unfolded.
