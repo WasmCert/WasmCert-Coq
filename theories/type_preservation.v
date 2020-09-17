@@ -10,39 +10,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(** Perform an induction over [be_typing], generalising its parameter.
-  The reason for this tactic is that [dependent induction] is far too aggressive
-  in its generalisation, and prevents the use of some lemmas. **)
-Ltac be_typing_ind H :=
-  let rec try_generalize t :=
-    lazymatch t with
-    | ?f ?x => try_generalize f; try_generalize x
-    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
-    end in
-  lazymatch type of H with
-  | be_typing ?C ?l ?t =>
-    move: H;
-    let C' := fresh "C" in
-    set_eq C' C;
-    move=> + H;
-    try_generalize C;
-    move: H;
-    let l' := fresh "l" in
-    set_eq l' l;
-    move=> + H;
-    try_generalize l;
-    move: H;
-    let t' := fresh "t" in
-    set_eq t' t;
-    move=> + H;
-    try_generalize t;
-    induction H;
-    repeat lazymatch goal with
-    | |- _ = _ -> _ => inversion 1
-    | |- _ -> _ => intro
-    end
-  end.
-
 Section Host.
 
 Variable host_function : eqType.
@@ -203,7 +170,7 @@ Lemma empty_typing: forall C t1s t2s,
     t1s = t2s.
 Proof.
   move => C t1s t2s HType.
-  be_typing_ind HType; subst => //=.
+  gen_ind HType; subst => //=.
   - by destruct es.
   - f_equal. by eapply IHHType.
 Qed.
@@ -256,8 +223,8 @@ Lemma EConst_typing: forall C econst t1s t2s,
     t2s = t1s ++ [::typeof econst].
 Proof.
   move => C econst t1s t2s HType.
-  be_typing_ind HType; subst => //=.
-  - apply extract_list1 in H2; inversion H2; subst.
+  gen_ind HType; subst => //=.
+  - apply extract_list1 in H0; inversion H0; subst.
     apply empty_typing in HType1; subst.
     by eapply IHHType2.
   - rewrite - catA. f_equal.
@@ -270,8 +237,8 @@ Lemma EConst2_typing: forall C econst1 econst2 t1s t2s,
     t2s = t1s ++ [::typeof econst1; typeof econst2].
 Proof.
   move => C econst1 econst2 t1s t2s HType.
-  be_typing_ind HType; subst => //=.
-  - apply extract_list2 in H2; inversion H2; subst.
+  gen_ind HType; subst => //=.
+  - apply extract_list2 in H0; inversion H0; subst.
     apply EConst_typing in HType1; subst.
     apply EConst_typing in HType2; subst.
     by rewrite -catA.
@@ -285,8 +252,8 @@ Lemma EConst3_typing: forall C econst1 econst2 econst3 t1s t2s,
     t2s = t1s ++ [::typeof econst1; typeof econst2; typeof econst3].
 Proof.
   move => C econst1 econst2 econst3 t1s t2s HType.
-  be_typing_ind HType; subst => //=.
-  - apply extract_list3 in H2; inversion H2; subst.
+  gen_ind HType; subst => //=.
+  - apply extract_list3 in H0; inversion H0; subst.
     apply EConst2_typing in HType1; subst.
     apply EConst_typing in HType2; subst.
     by rewrite -catA.
@@ -324,17 +291,18 @@ Lemma Unop_i_typing: forall C t op t1s t2s,
     t1s = t2s /\ exists ts, t1s = ts ++ [::t].
 Proof.
   move => C t op t1s t2s HType.
-  dependent induction HType; subst => //=.
+  gen_ind_base HType.
+  gen_ind HType; subst => /=.
   - split => //=. by exists [::].
-  - apply extract_list1 in x; destruct x; subst.
+  - apply extract_list1 in H0; destruct H0; subst.
     apply empty_typing in HType1; subst.
     by eapply IHHType2 => //=.
   - edestruct IHHType => //=; subst.
     split => //=.
-    destruct H0 as [ts' H].
+    destruct H1 as [ts' H1].
     exists (ts ++ ts').
     rewrite - catA.
-    by rewrite H.
+    by rewrite H1.
 Qed.
 
 Lemma Binop_i_typing: forall C t op t1s t2s,

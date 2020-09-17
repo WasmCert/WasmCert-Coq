@@ -12,6 +12,8 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
+(** * Lemmas **)
+
 Variable host_function : eqType.
 
 Let administrative_instruction := administrative_instruction host_function.
@@ -529,4 +531,67 @@ Proof.
 Defined.
 
 End Host.
+
+
+(** * Tactics **)
+
+(** Perform an induction over predicates like [be_typing], generalising its parameters,
+  but not generalising any section variables such as [host_function].
+  The reason for this tactic is that [dependent induction] is far too aggressive
+  in its generalisation, and prevents the use of some lemmas. **)
+Ltac gen_ind_base H :=
+  let rec try_generalize t :=
+    lazymatch t with
+    | ?f ?x => try_generalize f; try_generalize x
+    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
+    end in
+  let rec aux v :=
+    lazymatch v with
+    | ?f ?x =>
+      let only_do_if_ok_direct t cont :=
+        lazymatch t with
+        | eqType => idtac
+        | Type => idtac
+        | host _ => idtac
+        | _ => is_variable x ltac:(idtac) ltac:(cont tt)
+        end in
+      let t := type of x in
+      only_do_if_ok_direct t ltac:(fun _ =>
+        let t :=
+          match t with
+          | _ _ => t
+          | ?t => eval unfold x in t
+          | _ => t
+          end in
+        only_do_if_ok_direct t ltac:(fun _ =>
+          let x' :=
+            let rec get_name x :=
+              match x with
+              | ?f _ => get_name f
+              | _ => fresh x
+              | _ => fresh "x"
+              end in
+            get_name x in
+          move: H;
+          set_eq x' x;
+          move=> + H;
+          try_generalize x));
+      aux f
+    | _ => idtac
+    end in
+  let Ht := type of H in
+  aux Ht.
+
+(** Introducing the principle prepared by [gen_ind_base]. **)
+Ltac gen_ind_post :=
+  repeat match goal with
+  | |- _ = _ -> _ => inversion 1
+  | |- _ -> _ => intro
+  end.
+
+(** Wrapping every part of the generalised induction together. **)
+Ltac gen_ind H :=
+  gen_ind_base H;
+  induction H;
+  gen_ind_post.
 

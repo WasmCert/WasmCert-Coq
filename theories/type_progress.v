@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Import type_preservation.
+From Wasm Require Export operations typing type_checker datatypes_properties typing opsem properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -439,7 +439,7 @@ Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s vs i hs,
 Proof.
   move => C bes ts1 ts2 vcs lab ret s vs i hs HST HIT HType HConstType HNBr HNRet.
   generalize dependent vcs.
-  be_typing_ind HType; try by left.
+  gen_ind HType; try by left.
   - (* Unop_i *)
     right. invert_typeof_vcs.
     by destruct v => //=; solve_progress.
@@ -542,16 +542,16 @@ Proof.
     right.
     apply cat_split in HConstType. destruct HConstType.
     assert (vcs = take (size t1s) vcs ++ drop (size t1s) vcs); first by rewrite cat_take_drop.
-    rewrite H7.
-    symmetry in H6. rewrite -map_drop in H6. apply typeof_append in H6.
-    destruct H6 as [v [Ha [Hb Hc]]].
+    rewrite H6.
+    symmetry in H5. rewrite -map_drop in H5. apply typeof_append in H5.
+    destruct H5 as [v [Ha [Hb Hc]]].
     destruct v => //=.
     rewrite Ha.
     repeat rewrite -v_to_e_cat.
     repeat rewrite -catA. rewrite catA.
     destruct (length ins > Wasm_int.nat_of_uint i32m s0) eqn:HLength; move/ltP in HLength.
-    + remember HLength as H6. clear HeqH6.
-      apply List.nth_error_Some in H6.
+    + remember HLength as H7. clear HeqH7.
+      apply List.nth_error_Some in H7.
       destruct (List.nth_error ins (Wasm_int.nat_of_uint i32m s0)) eqn:HN => //=.
       exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br n)]), hs.
       apply reduce_composition_left.
@@ -559,9 +559,9 @@ Proof.
       apply r_simple. apply rs_br_table => //.
       by lias.
     + assert (length ins <= Wasm_int.nat_of_uint i32m s0); first by lias.
-      move/leP in H6.
-      remember H6 as H6'. clear HeqH6'.
-      apply List.nth_error_None in H6.
+      move/leP in H5.
+      remember H5 as H5'. clear HeqH5'.
+      apply List.nth_error_None in H5.
       exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br i0)]), hs.
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
@@ -765,11 +765,11 @@ Proof.
   - (* Weakening *)
     apply cat_split in HConstType.
     destruct HConstType.
-    rewrite -map_take in H3. rewrite -map_drop in H5.
+    rewrite -map_take in H0. rewrite -map_drop in H4.
     subst.
     edestruct IHHType; eauto.
     right.
-    destruct H0 as [s' [vs' [es' [hs' HReduce]]]].
+    destruct H1 as [s' [vs' [es' [hs' HReduce]]]].
     replace vcs with (take (size ts) vcs ++ drop (size ts) vcs); last by apply cat_take_drop.
     rewrite -v_to_e_cat. rewrite -catA.
     exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es'), hs'.
