@@ -51,9 +51,10 @@ Lemma reduce_trap_left: forall vs,
 Proof.
   move => vs HConst H.
   destruct vs => //=; eapply rs_trap; try by destruct vs => //=.
-  assert (lfilledInd 0 (LBase (a::vs) [::]) [::Trap] (a::vs++[::Trap])); first by apply LfilledBase.
+  assert (LF : lfilledInd 0 (LBase (a::vs) [::]) [::Trap] (a::vs++[::Trap])).
+  { by apply LfilledBase. }
   apply/lfilledP.
-  by apply H0.
+  by apply LF.
 Qed.
 
 Lemma v_e_trap: forall vs es,
@@ -122,8 +123,8 @@ Lemma lfilled0_empty: forall es,
 Proof.
   move => es.
   apply/lfilledP.
-  assert (lfilledInd 0 (LBase [::] [::]) es ([::] ++ es ++ [::])); first by apply LfilledBase.
-  by rewrite cats0 in H.
+  assert (LF : lfilledInd 0 (LBase [::] [::]) es ([::] ++ es ++ [::])); first by apply LfilledBase.
+  by rewrite cats0 in LF.
 Qed.
 
 Lemma label_lfilled1: forall n es es0,
@@ -133,8 +134,8 @@ Proof.
   apply/lfilledP.
   replace [:: Label n es0 es] with ([::] ++ [::Label n es0 es] ++ [::]) => //.
   apply LfilledRec => //.
-  assert (lfilledInd 0 (LBase [::] [::]) es ([::] ++ es ++ [::])); first by apply LfilledBase.
-  simpl in H. by rewrite cats0 in H.
+  assert (LF : lfilledInd 0 (LBase [::] [::]) es ([::] ++ es ++ [::])); first by apply LfilledBase.
+  simpl in LF. by rewrite cats0 in LF.
 Qed.
 
 Lemma terminal_form_v_e: forall vs es,
@@ -541,27 +542,27 @@ Proof.
   - (* Br_table *)
     right.
     apply cat_split in HConstType. destruct HConstType.
-    assert (vcs = take (size t1s) vcs ++ drop (size t1s) vcs); first by rewrite cat_take_drop.
-    rewrite H6.
-    symmetry in H5. rewrite -map_drop in H5. apply typeof_append in H5.
-    destruct H5 as [v [Ha [Hb Hc]]].
+    assert (Evcs : vcs = take (size t1s) vcs ++ drop (size t1s) vcs); first by rewrite cat_take_drop.
+    rewrite Evcs.
+    symmetry in H6. rewrite -map_drop in H6. apply typeof_append in H6.
+    destruct H6 as [v [Ha [Hb Hc]]].
     destruct v => //=.
     rewrite Ha.
     repeat rewrite -v_to_e_cat.
     repeat rewrite -catA. rewrite catA.
     destruct (length ins > Wasm_int.nat_of_uint i32m s0) eqn:HLength; move/ltP in HLength.
-    + remember HLength as H7. clear HeqH7.
-      apply List.nth_error_Some in H7.
+    + remember HLength as H8. clear HeqH8.
+      apply List.nth_error_Some in H8.
       destruct (List.nth_error ins (Wasm_int.nat_of_uint i32m s0)) eqn:HN => //=.
       exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br n)]), hs.
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table => //.
       by lias.
-    + assert (length ins <= Wasm_int.nat_of_uint i32m s0); first by lias.
-      move/leP in H5.
-      remember H5 as H5'. clear HeqH5'.
-      apply List.nth_error_None in H5.
+    + assert (Inf : length ins <= Wasm_int.nat_of_uint i32m s0); first by lias.
+      move/leP in Inf.
+      remember Inf as Inf'. clear HeqInf'.
+      apply List.nth_error_None in Inf.
       exists s, vs, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::Basic (Br i0)]), hs.
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
@@ -637,7 +638,7 @@ Proof.
     unfold option_map in H0.
     destruct (List.nth_error (tc_global C0) i0) eqn:HN => //=.
     eapply glob_context_store in HN; eauto.
-    assert (sglob_val s i i0 <> None).
+    assert (D : sglob_val s i i0 <> None).
     { unfold sglob_val. unfold sglob in HN. unfold option_map. by destruct (operations.sglob s i i0). }
     destruct (sglob_val s i i0) eqn:Hglobval => //=.
     exists s, vs, [::Basic (EConst v)], hs.
@@ -765,11 +766,11 @@ Proof.
   - (* Weakening *)
     apply cat_split in HConstType.
     destruct HConstType.
-    rewrite -map_take in H0. rewrite -map_drop in H4.
+    rewrite -map_take in H1. rewrite -map_drop in H5.
     subst.
     edestruct IHHType; eauto.
     right.
-    destruct H1 as [s' [vs' [es' [hs' HReduce]]]].
+    destruct H2 as [s' [vs' [es' [hs' HReduce]]]].
     replace vcs with (take (size ts) vcs ++ drop (size ts) vcs); last by apply cat_take_drop.
     rewrite -v_to_e_cat. rewrite -catA.
     exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es'), hs'.
@@ -852,10 +853,10 @@ Proof.
     apply List.nth_error_Some. by rewrite H8.
   - invert_e_typing.
     destruct ts => //=; destruct t1s => //=; clear H1.
-    assert (k+1 < length (tc_label (upd_label C ([::ts1] ++ tc_label C)))).
+    assert (Inf : k+1 < length (tc_label (upd_label C ([::ts1] ++ tc_label C)))).
     { eapply IHHLF; eauto.
       repeat (f_equal; try by lias). }
-    simpl in H0. by lias.
+    simpl in Inf. by lias.
 Qed.
 
 Lemma return_reduce_return_some: forall n lh es s C ts2,
@@ -875,8 +876,9 @@ Proof.
     by rewrite H8.
   - invert_e_typing.
     destruct ts; destruct t1s => //=; clear H1.
-    assert (tc_return (upd_label C ([::ts1] ++ tc_label C)) <> None); first by eapply IHHLF; eauto.
-    by simpl in H0.
+    assert (R : tc_return (upd_label C ([::ts1] ++ tc_label C)) <> None);
+    { by eapply IHHLF; eauto. }
+    by simpl in R.
 Qed.
 
 Lemma br_reduce_extract_vs: forall n k lh es s C ts ts2,
@@ -1009,14 +1011,14 @@ Proof.
   inversion HType; subst.
   destruct (k<n) eqn: H3 => //=.
   move/ltP in H3.
-  assert (n <= k); first by lias.
-  apply le_add in H0.
-  destruct H0 as [j H0]. subst.
+  assert (Inf : n <= k); first by lias.
+  apply le_add in Inf.
+  destruct Inf as [j Inf]. subst.
   clear H3.
   eapply br_reduce_label_length in H1; eauto.
   simpl in H1.
-  assert (tc_label C0 = [::]); first by eapply inst_t_context_label_empty; eauto.
-  by rewrite H0 in H1.
+  assert (E : tc_label C0 = [::]); first by eapply inst_t_context_label_empty; eauto.
+  by rewrite Inf in H1.
 Qed.
 
 Lemma s_typing_lf_return: forall s i vs es ts,
@@ -1142,8 +1144,9 @@ Proof.
       right.
       exists s', vs', (es' ++ [::e]).
       eapply r_label; eauto; try apply/lfilledP.
-      * assert (lfilledInd 0 (LBase [::] [::e]) (v_to_e_list vcs ++ es) ([::] ++ (v_to_e_list vcs ++ es) ++ [::e])); first by apply LfilledBase.
-        simpl in H. rewrite -catA in H. by apply H.
+      * assert (LF : lfilledInd 0 (LBase [::] [::e]) (v_to_e_list vcs ++ es) ([::] ++ (v_to_e_list vcs ++ es) ++ [::e]));
+          first by apply LfilledBase.
+        simpl in LF. rewrite -catA in LF. by apply LF.
       * by apply LfilledBase.
   - (* Weakening *)
     (* This is interetingly easy. Think more carefully: the only part that is
@@ -1156,8 +1159,9 @@ Proof.
     symmetry in H0. apply cat_split in H0. destruct H0 as [HCT1 HCT2].
     rewrite - map_take in HCT1.
     rewrite - map_drop in HCT2.
-    assert (vcs = take (size ts) vcs ++ drop (size ts) vcs); first by symmetry; apply cat_take_drop.
-    rewrite H. rewrite - v_to_e_cat.
+    assert (Evcs : vcs = take (size ts) vcs ++ drop (size ts) vcs).
+    { symmetry. by apply cat_take_drop. }
+    rewrite Evcs. rewrite - v_to_e_cat.
     edestruct IHHType; eauto.
     + (* Terminal *)
       unfold terminal_form in H0.
@@ -1269,7 +1273,7 @@ Proof.
     { unfold br_reduce in HEMT.
       destruct HEMT as [n [lh HLF]].
       right. 
-      assert (lfilled n lh [::Basic (Br (n+0))] es); first by rewrite addn0.
+      assert (LF : lfilled n lh [::Basic (Br (n+0))] es); first by rewrite addn0.
       eapply br_reduce_extract_vs in H => //; eauto.
       instantiate (1 := ts) in H.
       destruct H as [cs [lh' [HConst [HLF2 HLength]]]].
@@ -1283,11 +1287,12 @@ Proof.
     { rewrite upd_label_overwrite. simpl. eauto. }
     { unfold br_reduce in HEMF.
       move => n lh k HLF.
-      assert (k < n.+1).
+      assert (Inf : k < n.+1). (* FIXME: Proof items to be added here. *)
       eapply HBrDepth.
       move/lfilledP in HLF.
       apply/lfilledP.
-      assert (lfilledInd (n.+1) (LRec [::] (length ts) e0s lh [::]) [::Basic (Br k)] ([::] ++ [::Label (length ts) e0s es] ++ [::])); first by apply LfilledRec.
+      assert (LF : lfilledInd (n.+1) (LRec [::] (length ts) e0s lh [::]) [::Basic (Br k)] ([::] ++ [::Label (length ts) e0s es] ++ [::]));
+        first by apply LfilledRec.
       rewrite cats0 in H. simpl in H.
       apply H.
       rewrite ltnS in H.
@@ -1303,7 +1308,8 @@ Proof.
       eapply HNRet.
       move/lfilledP in HContra.
       apply/lfilledP.
-      assert (lfilledInd (n.+1) (LRec [::] (length ts) e0s lh [::]) [::Basic Return] ([::] ++ [::Label (length ts) e0s es] ++ [::])); first by apply LfilledRec.
+      assert (LF : lfilledInd (n.+1) (LRec [::] (length ts) e0s lh [::]) [::Basic Return] ([::] ++ [::Label (length ts) e0s es] ++ [::]));
+        first by apply LfilledRec.
       by apply H.
     }
     + (* Terminal *)
@@ -1332,14 +1338,15 @@ Proof.
     subst.
     edestruct IHHType; eauto.
     { (* Context *)
-      assert (tc_local C0  = [::]); first by eapply inst_t_context_local_empty; eauto.
-      rewrite H. simpl.
+      assert (E : tc_local C0 = [::]).
+      { by eapply inst_t_context_local_empty; eauto. }
+      rewrite E. simpl.
       replace (upd_local_return C0 tvs rs) with
           (upd_label (upd_local_return C0 tvs rs) [::]); first by eauto.
       (* replace *)
-      assert (tc_label (upd_local_return C0 tvs rs) = [::]).
+      assert (E' : tc_label (upd_local_return C0 tvs rs) = [::]).
       { simpl. by eapply inst_t_context_label_empty; eauto. }
-      rewrite -H0.
+      rewrite -E'.
       by apply upd_label_unchanged. }
     { by instantiate (1 := [::]). }
     + unfold terminal_form in H. destruct H.
@@ -1366,14 +1373,14 @@ Proof.
   inversion HType. subst.
   inversion H0. subst.
   eapply t_progress_e with (vcs := [::]) (ret := None) (lab := [::]) in H3; eauto.
-  - assert (tc_local C0 = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite H2. simpl.
+  - assert (E : tc_local C0 = [::]).
+    { by eapply inst_t_context_local_empty; eauto. }
+    rewrite E. simpl.
     replace (upd_local_return C0 tvs None) with
         (upd_label (upd_local_return C0 tvs None) [::]); first by eauto.
-    (* replace *)
-    assert (tc_label (upd_local_return C0 tvs None) = [::]).
+    assert (E' : tc_label (upd_local_return C0 tvs None) = [::]).
     { simpl. by eapply inst_t_context_label_empty; eauto. }
-    rewrite -H5.
+    rewrite -E'.
     by apply upd_label_unchanged. 
   - by eapply s_typing_lf_br; eauto.
   - by eapply s_typing_lf_return; eauto.

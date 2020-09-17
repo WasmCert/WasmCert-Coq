@@ -928,11 +928,15 @@ Defined.
 
 (** * Miscellaneous **)
 
-(** Calls [cont1] or [cont2] depending on whether [x] is a variable or not. **)
+(** Calls [cont1] or [cont2] depending on whether [x] is a variable or not.
+  This tactic assumes that neither [cont1] nor [cont2] fail. **)
 Ltac is_variable x cont1 cont2 :=
   match tt with
-  | _ => (* Sorry for the hack. Only a variable be cleared. *)
-    (exfalso; clear - x; fail 1) || cont2
+  | _ =>
+    (* Sorry for the hack.
+      Only a variable be cleared.
+      Local definitions are not considered variables by this tactic. *)
+    (exfalso; clear - x; assert_fails clearbody x; fail 1) || cont2
   | _ => cont1
   end.
 
