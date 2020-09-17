@@ -12,7 +12,7 @@ cache:
     - ${HOME}/.esy
 
 install:
-  - npm install --global esy@latest
+  - npm install --global esy@0.6.6 # esy@latest
   - esy install
 
 script:

@@ -14,9 +14,9 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [x] Prove soundness result for WasmRef with respect to WasmCert.
 - [x] Update the definition of WebAssembly's global store to match the 1.0 standard.
 - [ ] Update the function frame and related definitions to match the 1.0 standard.
-- [ ] Finish type soundness result.
+- [ ] Finish type soundness result [type soundness branch](https://github.com/WasmCert/WasmCert-Coq/tree/type_soundness).
 - [ ] Link WasmCert to CompCert.
-- [ ] Provide Iris Wasm.
+- [ ] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris).
 
 This repository contains some experimental work on a binary parser and Iris integration. 
 
@@ -33,7 +33,7 @@ Installing `esy` itself can be done through `npm`.
 It should then look like something like that:
 ```bash
 sudo apt install npm git curl m4 autoconf
-sudo npm install --global esy@latest # Tested with version 0.6.2 of esy.
+sudo npm install --global esy@latest # Tested with version 0.6.6 of esy.
 ```
 Note that despite using `npm` to be installed, `esy` is not JavaScript-based.
 If you prefer to avoid `npm` altogether, there are other ways to install `esy`: see <https://esy.sh/> for more information.
