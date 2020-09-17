@@ -550,7 +550,6 @@ Ltac gen_ind_base H :=
     | ?f ?x =>
       let only_do_if_ok_direct t cont :=
         lazymatch t with
-        | eqType => idtac
         | Type => idtac
         | host _ => idtac
         | _ => is_variable x ltac:(idtac) ltac:(cont tt)
@@ -560,7 +559,7 @@ Ltac gen_ind_base H :=
         let t :=
           match t with
           | _ _ => t
-          | ?t => eval unfold x in t
+          | ?t => eval unfold t in t
           | _ => t
           end in
         only_do_if_ok_direct t ltac:(fun _ =>
@@ -594,4 +593,37 @@ Ltac gen_ind H :=
   gen_ind_base H;
   induction H;
   gen_ind_post.
+
+(** Calls the continuation on [v] or, if it failed, on [v] whose root has been unfolded.
+  This is useful for tactics with pattern mtaching recognising a predicate which is
+  frequently folded in a section, like [be_typing]. **)
+Ltac call_unfold v cont :=
+  let rec unfold_root :=
+    lazymatch v with
+    | ?f ?x =>
+      let f := unfold_root f in
+      constr:(f x)
+    | ?x => eval unfold x in x
+    end in
+  first [
+      cont v
+    | let v := unfold_root v in
+      cont v ].
+
+(** Perform basic simplifications of [es_is_basic]. **)
+Ltac basic_inversion :=
+   repeat lazymatch goal with
+         | H: True |- _ =>
+           clear H
+         | H: es_is_basic (_ ++ _) |- _ =>
+           apply basic_concat in H; destruct H
+         | H: es_is_basic [::] |- _ =>
+           clear H
+         | H: es_is_basic [::_] |- _ =>
+           let H1 := fresh "H1" in
+           let H2 := fresh "H2" in
+           try by (unfold es_is_basic in H; destruct H as [H1 H2]; inversion H1)
+         | H: e_is_basic _ |- _ =>
+           inversion H; try by []
+         end.
 
