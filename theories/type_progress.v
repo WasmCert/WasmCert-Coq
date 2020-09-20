@@ -417,6 +417,27 @@ Proof.
   by [].
 Qed.
 
+(*
+The version in properties.v cannot be applied since we need to apply this lemma
+  on the version of to_e_list with host (defined in this section).
+*)
+Lemma to_e_list_cat: forall l1 l2,
+    to_e_list (l1 ++ l2) = to_e_list l1 ++ to_e_list l2.
+Proof.
+Admitted.
+
+(*
+This lemma is already proved in preservation.v. However, it's less trivial to move
+  that to properties.v, since it has a lot of dependencies on the previous proofs
+  in preservation. So we either move all of them to a common file, or is it sensible
+  to just import presevation here?
+*)
+Lemma Const_list_typing: forall C vs t1s t2s,
+    be_typing C (to_b_list (v_to_e_list vs)) (Tf t1s t2s) ->
+    t2s = t1s ++ (map typeof vs).
+Proof.
+Admitted.
+
 (** A common scheme in the progress proof, with a continuation. **)
 Ltac solve_progress_cont cont :=
   repeat eexists;
@@ -520,11 +541,11 @@ Proof.
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
   - (* Br *)
-    admit. (* TODO:
+    subst.
     exfalso.
     unfold not_lf_br in HNBr.
     apply (HNBr i0 (LBase [::] [::])).
-    by apply lfilled0_empty. *)
+    by apply lfilled0_empty. 
   - (* Br_if *)
     right.
     apply typeof_append in HConstType.
@@ -569,11 +590,11 @@ Proof.
       apply r_simple. apply rs_br_table_length => //.
       by lias.
   - (* Return *)
-    admit. (* TODO:
+    subst.
     exfalso.
     unfold not_lf_return in HNRet.
     apply (HNRet (LBase [::] [::])).
-    by apply lfilled0_empty. *)
+    by apply lfilled0_empty.
   - (* Call *)
     right. subst.
     simpl in H. simpl in H0.
@@ -730,9 +751,10 @@ Proof.
     by eapply r_grow_memory_failure; eauto.
 
   - (* Composition *)
-    admit. (* TODO:
+    subst.
     rewrite to_e_list_cat in HNBr.
     rewrite to_e_list_cat in HNRet.
+    clear H.
     edestruct IHHType1; eauto.
     { by eapply nlfbr_right; eauto. }
     { by eapply nlfret_right; eauto. }
@@ -756,12 +778,12 @@ Proof.
         rewrite catA.
         by rewrite v_to_e_cat.
     + (* reduce *)
-      destruct H as [s' [vs' [es' HReduce]]].
+      destruct H as [s' [vs' [es' [hs' HReduce]]]].
       right.
       rewrite to_e_list_cat.
-      exists s', vs', (es' ++ to_e_list [::e]), hs.
+      exists s', vs', (es' ++ to_e_list [::e]), hs'.
       rewrite catA.
-      by apply reduce_composition_right. *)
+      by apply reduce_composition_right.
 
   - (* Weakening *)
     apply cat_split in HConstType.
@@ -776,7 +798,7 @@ Proof.
     exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es'), hs'.
     apply reduce_composition_left => //.
     by apply v_to_e_is_const_list.
-Admitted. (* TODO *)
+Qed. (* TODO *)
 
 (*
 Traceback:
