@@ -854,6 +854,7 @@ Proof.
   f_equal. by rewrite catA.
 Qed.
 
+(* FIXME
 Lemma br_reduce_label_length: forall n k lh es s C ts2,
     lfilled n lh [::Basic (Br (n + k))] es ->
     e_typing s C es (Tf [::] ts2) ->
@@ -1407,6 +1408,7 @@ Proof.
   - by eapply s_typing_lf_br; eauto.
   - by eapply s_typing_lf_return; eauto.
 Qed.
+*)
 
 End Host.
 
