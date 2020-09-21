@@ -226,6 +226,14 @@ Proof.
     + move=> [E|I]; apply/orP; [ left | right => // ]. by apply/eqP.
 Qed.
 
+Lemma inP: forall {X:eqType} (x:X) l,
+  reflect (List.In x l) (x \in l).
+Proof.
+  move => X x l. eapply equivP.
+  - by apply idP.
+  - by apply List_In_in_mem.
+Defined.
+
 Lemma filter_notin : forall (A : eqType) a (l : seq A) p,
   a \notin l ->
   filter p l = filter (fun b => (b != a) && p b) l.

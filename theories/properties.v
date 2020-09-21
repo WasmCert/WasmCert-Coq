@@ -10,9 +10,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
+(** * Basic Lemmas **)
 
-(** * Lemmas **)
+Section Host.
 
 Variable host_function : eqType.
 
@@ -310,6 +310,240 @@ Proof.
   move => bes2. simpl. by f_equal.
 Qed.
 
+(* Maybe there are better/standard tactics for dealing with these, but I didn't find
+     anything helpful *)
+Lemma concat_cancel_last: forall {X:Type} (l1 l2: seq X) (e1 e2:X),
+    l1 ++ [::e1] = l2 ++ [::e2] ->
+    l1 = l2 /\ e1 = e2.
+Proof.
+  move => X l1 l2 e1 e2 H.
+  assert (rev (l1 ++ [::e1]) = rev (l2 ++ [::e2])); first by rewrite H.
+  repeat rewrite rev_cat in H0. inversion H0.
+  rewrite - (revK l1). rewrite H3. split => //. by apply revK.
+Qed.
+
+Lemma concat_cancel_last_n: forall (l1 l2 l3 l4: seq value_type),
+    l1 ++ l2 = l3 ++ l4 ->
+    size l2 = size l4 ->
+    (l1 == l3) && (l2 == l4).
+Proof.
+  move => l1 l2 l3 l4 HCat HSize.
+  rewrite -eqseq_cat; first by apply/eqP.
+  assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
+  repeat rewrite size_cat in H.
+  rewrite HSize in H. by lias.
+Qed.
+
+Lemma extract_list1 : forall {X:Type} (es: seq X) (e1 e2:X),
+    es ++ [::e1] = [::e2] ->
+    es = [::] /\ e1 = e2.
+Proof.
+  move => X es e1 e2 H.
+  apply concat_cancel_last.
+  by apply H.
+Qed.
+
+Lemma extract_list2 : forall {X:Type} (es: seq X) (e1 e2 e3:X),
+    es ++ [::e1] = [::e2; e3] ->
+    es = [::e2] /\ e1 = e3.
+Proof.
+  move => X es e1 e2 e3 H.
+  apply concat_cancel_last.
+  by apply H.
+Qed.
+
+Lemma extract_list3 : forall {X:Type} (es: seq X) (e1 e2 e3 e4:X),
+    es ++ [::e1] = [::e2; e3; e4] ->
+    es = [::e2; e3] /\ e1 = e4.
+Proof.
+  move => X es e1 e2 e3 e4 H.
+  apply concat_cancel_last.
+  by apply H.
+Qed.
+
+Lemma extract_list4 : forall {X:Type} (es: seq X) (e1 e2 e3 e4 e5:X),
+    es ++ [::e1] = [::e2; e3; e4; e5] ->
+    es = [::e2; e3; e4] /\ e1 = e5.
+Proof.
+  move => X es e1 e2 e3 e4 e5 H.
+  apply concat_cancel_last.
+  by apply H.
+Qed.
+
+Lemma list_nth_prefix: forall {X:Type} (l1 l2: seq X) x,
+    List.nth_error (l1 ++ [::x] ++ l2) (length l1) = Some x.
+Proof.
+  move => X. induction l1 => //=.
+Qed.
+
+End Host.
+
+
+(** * Tactics **)
+
+(** [gen_ind] perform an induction over predicates like [be_typing], generalising its parameters,
+  but not generalising any section variables such as [host_function].
+  The reason for this tactic is that [dependent induction] is far too aggressive
+  in its generalisation, and prevents the use of some lemmas. **)
+
+(** The first step is to name each parameter of the predicate. **)
+Ltac gen_ind_pre H :=
+  let rec aux v :=
+    lazymatch v with
+    | ?f ?x =>
+      let only_do_if_ok_direct t cont :=
+        lazymatch t with
+        | Type => idtac
+        | host _ => idtac
+        | _ => cont tt
+        end in
+      let t := type of x in
+      only_do_if_ok_direct t ltac:(fun _ =>
+        let t :=
+          match t with
+          | _ _ => t
+          | ?t => eval unfold t in t
+          | _ => t
+          end in
+        only_do_if_ok_direct t ltac:(fun _ =>
+          let x' :=
+            let rec get_name x :=
+              match x with
+              | ?f _ => get_name f
+              | _ => fresh x
+              | _ => fresh "x"
+              end in
+            get_name x in
+          move: H;
+          set_eq x' x;
+          let E := fresh "E" x' in
+          move=> E H));
+      aux f
+    | _ => idtac
+    end in
+  let Ht := type of H in
+  aux Ht.
+
+(** Then, each of the associated parameters can be generalised. **)
+Ltac gen_ind_gen H :=
+  let rec try_generalize t :=
+    lazymatch t with
+    | ?f ?x => try_generalize f; try_generalize x
+    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
+    end in
+  let rec aux v :=
+    lazymatch v with
+    | ?f ?x =>
+      lazymatch goal with
+      | _ : x = ?y |- _ => try_generalize y
+      end;
+      aux f
+    | _ => idtac
+    end in
+  let Ht := type of H in
+  aux Ht.
+
+(** After the induction, one can inverse them again (and do some cleaning). **)
+Ltac gen_ind_post :=
+  repeat lazymatch goal with
+  | |- _ = _ -> _ => inversion 1
+  | |- _ -> _ => intro
+  end;
+  repeat lazymatch goal with
+  | H: True |- _ => clear H
+  | H: ?x = ?x |- _ => clear H
+  end.
+
+(** Wrapping every part of the generalised induction together. **)
+Ltac gen_ind H :=
+  gen_ind_pre H;
+  gen_ind_gen H;
+  induction H;
+  gen_ind_post.
+
+(** Similar to [gen_ind H; subst], but cleaning just a little bit more. **)
+Ltac gen_ind_subst H :=
+  gen_ind H;
+  subst;
+  gen_ind_post.
+
+(** Calls the continuation on [v] or, if it failed, on [v] whose root has been unfolded.
+  This is useful for tactics with pattern mtaching recognising a predicate which is
+  frequently folded in a section, like [be_typing]. **)
+Ltac call_unfold v cont :=
+  let rec unfold_root :=
+    lazymatch v with
+    | ?f ?x =>
+      let f := unfold_root f in
+      constr:(f x)
+    | ?x => eval unfold x in x
+    end in
+  first [
+      cont v
+    | let v := unfold_root v in
+      cont v ].
+
+(** Perform basic simplifications of [es_is_basic]. **)
+Ltac basic_inversion :=
+   repeat lazymatch goal with
+         | H: True |- _ =>
+           clear H
+         | H: es_is_basic (_ ++ _) |- _ =>
+           let Ha := fresh H in
+           let Hb := fresh H in
+           apply basic_concat in H; destruct H as [Ha Hb]
+         | H: es_is_basic [::] |- _ =>
+           clear H
+         | H: es_is_basic [::_] |- _ =>
+           let H1 := fresh H in
+           let H2 := fresh H in
+           try by (unfold es_is_basic in H; destruct H as [H1 H2]; inversion H1)
+         | H: e_is_basic _ |- _ =>
+           inversion H; try by []
+         end.
+
+(** Rewrite hypotheses on the form [_ ++ [:: _] = _] as some easier to use equalities. **)
+Ltac extract_listn :=
+  repeat lazymatch goal with
+  | H: (?es ++ [::?e])%list = [::_] |- _ =>
+    apply extract_list1 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_] |- _ =>
+    apply extract_list1 in H; destruct H; subst
+  | H: (?es ++ [::?e])%list = [::_; _] |- _ =>
+    apply extract_list2 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_; _] |- _ =>
+    apply extract_list2 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_; _; _] |- _ =>
+    apply extract_list3 in H; destruct H; subst
+  | H: (?es ++ [::?e])%list = [::_; _; _] |- _ =>
+    apply extract_list3 in H; destruct H; subst
+  | H: (?es ++ [::?e])%list = [::_; _; _; _] |- _ =>
+    apply extract_list4 in H; destruct H; subst
+  | H: ?es ++ [::?e] = [::_; _; _; _] |- _ =>
+    apply extract_list4 in H; destruct H; subst
+  | H: _ :: _ = (_ ++ _)%list |- _ => symmetry in H
+  | H: _ :: _ = _ ++ _ |- _ => symmetry in H
+  end.
+
+
+(** * More Advanced Lemmas **)
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let function_closure := function_closure host_function.
+Let administrative_instruction := administrative_instruction host_function.
+Let const_list : seq administrative_instruction -> bool := @const_list _.
+Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
+Let lfilled := @lfilled host_function.
+Let lfilledInd := @lfilledInd host_function.
+Let es_is_basic := @es_is_basic host_function.
+Let to_e_list := @to_e_list host_function.
+Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+  @e_typing _.
+
 Lemma lfilled_collapse1: forall n lh vs es LI l,
     lfilledInd n lh (vs++es) LI ->
     const_list vs ->
@@ -530,127 +764,295 @@ Proof.
   move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
 
-End Host.
+(* A reformulation of [ety_a] that is easier to be used. *)
+Lemma ety_a': forall s C es ts,
+    es_is_basic es ->
+    be_typing C (to_b_list es) ts ->
+    e_typing s C es ts.
+Proof.
+  move => s C es ts HBasic HType.
+  replace es with (to_e_list (to_b_list es)).
+  - by apply ety_a.
+  - symmetry. by apply e_b_elim.
+Qed.
 
+(* Some quality of life lemmas *)
+Lemma bet_weakening_empty_1: forall C es ts t2s,
+    be_typing C es (Tf [::] t2s) ->
+    be_typing C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => C es ts t2s HType.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply bet_weakening.
+  by rewrite cats0 in H.
+Qed.
 
-(** * Tactics **)
+Lemma et_weakening_empty_1: forall s C es ts t2s,
+    e_typing s C es (Tf [::] t2s) ->
+    e_typing s C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => s C es ts t2s HType.
+  assert (e_typing s C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply ety_weakening.
+  by rewrite cats0 in H.
+Qed.
 
-(** [gen_ind] perform an induction over predicates like [be_typing], generalising its parameters,
-  but not generalising any section variables such as [host_function].
-  The reason for this tactic is that [dependent induction] is far too aggressive
-  in its generalisation, and prevents the use of some lemmas. **)
+Lemma bet_weakening_empty_2: forall C es ts t1s,
+    be_typing C es (Tf t1s [::]) ->
+    be_typing C es (Tf (ts ++ t1s) ts).
+Proof.
+  move => C es ts t1s HType.
+  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))); first by apply bet_weakening.
+  by rewrite cats0 in H.
+Qed.
 
-(** The first step is to name each parameter of the predicate. **)
-Ltac gen_ind_pre H :=
-  let rec aux v :=
-    lazymatch v with
-    | ?f ?x =>
-      let only_do_if_ok_direct t cont :=
-        lazymatch t with
-        | Type => idtac
-        | host _ => idtac
-        | _ => cont tt
-        end in
-      let t := type of x in
-      only_do_if_ok_direct t ltac:(fun _ =>
-        let t :=
-          match t with
-          | _ _ => t
-          | ?t => eval unfold t in t
-          | _ => t
-          end in
-        only_do_if_ok_direct t ltac:(fun _ =>
-          let x' :=
-            let rec get_name x :=
-              match x with
-              | ?f _ => get_name f
-              | _ => fresh x
-              | _ => fresh "x"
-              end in
-            get_name x in
-          move: H;
-          set_eq x' x;
-          let E := fresh "E" x' in
-          move=> E H));
-      aux f
-    | _ => idtac
-    end in
-  let Ht := type of H in
-  aux Ht.
+Lemma bet_weakening_empty_both: forall C es ts,
+    be_typing C es (Tf [::] [::]) ->
+    be_typing C es (Tf ts ts).
+Proof.
+  move => C es ts HType.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
+  by rewrite cats0 in H.
+Qed.
 
-(** Then, each of the associated parameters can be generalised. **)
-Ltac gen_ind_gen H :=
-  let rec try_generalize t :=
-    lazymatch t with
-    | ?f ?x => try_generalize f; try_generalize x
-    | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
-    end in
-  let rec aux v :=
-    lazymatch v with
-    | ?f ?x =>
-      lazymatch goal with
-      | _ : x = ?y |- _ => try_generalize y
-      end;
-      aux f
-    | _ => idtac
-    end in
-  let Ht := type of H in
-  aux Ht.
+(*
+  This is actually very non-trivial to prove, unlike I first thought.
+  The main difficulty arises due to the two rules bet_composition and bet_weakening,
+    which will apply for EVERY hypothesis of be_typing when doing inversion/induction.
+  Moreover, bet_weakening has a reversed inductive structure, so the proof in fact
+    required induction (where one would hardly expect an induction here!).
+*)
+Lemma empty_typing: forall C t1s t2s,
+    be_typing C [::] (Tf t1s t2s) ->
+    t1s = t2s.
+Proof.
+  move => C t1s t2s HType.
+  gen_ind_subst HType => //.
+  - by destruct es.
+  - f_equal. by eapply IHHType.
+Qed.
 
-(** After the induction, one can inverse them again (and do some cleaning). **)
-Ltac gen_ind_post :=
+(* A convenient lemma to invert e_typing back to be_typing. *)
+Lemma et_to_bet: forall s C es ts,
+    es_is_basic es ->
+    e_typing s C es ts ->
+    be_typing C (to_b_list es) ts.
+Proof.
+  move => s C es ts HBasic HType.
+  gen_ind_subst HType; unfold es_is_basic in *; basic_inversion.
+  + replace (to_b_list (operations.to_e_list bes)) with bes => //.
+    by apply b_e_elim.
+  + rewrite to_b_list_concat.
+    eapply bet_composition.
+    * by eapply IHHType1 => //.
+    * by eapply IHHType2 => //.
+  + apply bet_weakening. by eapply IHHType => //.
+Qed.
+
+Section composition_typing_proofs.
+
+Hint Constructors be_typing : core.
+
+(** A helper tactic for proving [composition_typing_single]. **)
+Ltac auto_prove_bet:=
   repeat lazymatch goal with
-  | |- _ = _ -> _ => inversion 1
-  | |- _ -> _ => intro
-  end;
-  repeat lazymatch goal with
-  | H: True |- _ => clear H
-  | H: ?x = ?x |- _ => clear H
+  | H: _ |- exists ts t1s t2s t3s, ?tn = ts ++ t1s /\ ?tm = ts ++ t2s /\
+                                   be_typing _ [::] (Tf _ _) /\ _ =>
+    try exists [::], tn, tm, tn; try eauto
+  | H: _ |- _ /\ _ =>
+    split => //=; try eauto
+  | H: _ |- be_typing _ [::] (Tf ?es ?es) =>
+    apply bet_weakening_empty_both; try by []
   end.
 
-(** Wrapping every part of the generalised induction together. **)
-Ltac gen_ind H :=
-  gen_ind_pre H;
-  gen_ind_gen H;
-  induction H;
-  gen_ind_post.
+Lemma composition_typing_single: forall C es1 e t1s t2s,
+    be_typing C (es1 ++ [::e]) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             be_typing C es1 (Tf t1s' t3s) /\
+                             be_typing C [::e] (Tf t3s t2s').
+Proof.
+  move => C es1 e t1s t2s HType.
+  gen_ind_subst HType; extract_listn; auto_prove_bet.
+  + by apply bet_block.
+  + by destruct es1 => //=.
+  + apply concat_cancel_last in H1. destruct H1. subst.
+    by exists [::], t1s0, t2s0, t2s.
+  + edestruct IHHType; eauto.
+    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
+    exists (ts ++ x), t1s', t2s', t3s'.
+    by repeat split => //=; rewrite -catA.
+Qed.
 
-(** Similar to [gen_ind H; subst], but cleaning just a little bit more. **)
-Ltac gen_ind_subst H :=
-  gen_ind H;
-  subst;
-  gen_ind_post.
+Lemma composition_typing: forall C es1 es2 t1s t2s,
+    be_typing C (es1 ++ es2) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             be_typing C es1 (Tf t1s' t3s) /\
+                             be_typing C es2 (Tf t3s t2s').
+Proof.
+  move => C es1 es2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1.
+  clear Heqes2'. subst.
+  induction es2' => //=; move => es1 t1s t2s HType.
+  - unfold rev in HType; simpl in HType. subst.
+    rewrite cats0 in HType.
+    exists [::], t1s, t2s, t2s.
+    repeat split => //=.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - rewrite rev_cons in HType.
+    rewrite -cats1 in HType. subst.
+    rewrite catA in HType.
+    apply composition_typing_single in HType.
+    destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]]. subst.
+    apply IHes2' in H3.
+    destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
+    exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
+    repeat split => //.
+    + by apply bet_weakening.
+    + rewrite rev_cons. rewrite -cats1.
+      eapply bet_composition; eauto.
+      by apply bet_weakening.
+Qed.
 
-(** Calls the continuation on [v] or, if it failed, on [v] whose root has been unfolded.
-  This is useful for tactics with pattern mtaching recognising a predicate which is
-  frequently folded in a section, like [be_typing]. **)
-Ltac call_unfold v cont :=
-  let rec unfold_root :=
-    lazymatch v with
-    | ?f ?x =>
-      let f := unfold_root f in
-      constr:(f x)
-    | ?x => eval unfold x in x
-    end in
-  first [
-      cont v
-    | let v := unfold_root v in
-      cont v ].
+Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
+    e_typing s C (es1 ++ [::e]) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             e_typing s C es1 (Tf t1s' t3s) /\
+                             e_typing s C [::e] (Tf t3s t2s').
+Proof.
+  move => s C es1 es2 t1s t2s HType.
+  gen_ind_subst HType; extract_listn.
+  - (* basic *)
+    apply b_e_elim in H3. destruct H3. subst.
+    rewrite to_b_list_concat in H.
+    apply composition_typing in H.
+    apply basic_concat in H1. destruct H1.
+    destruct H as [ts' [t1s' [t2s' [t3s' [H2 [H3 [H4 H5]]]]]]]. subst.
+    exists ts', t1s', t2s', t3s'.
+    by repeat split => //=; apply ety_a' => //=.
+  - (* composition *)
+    apply concat_cancel_last in H2. destruct H2. subst.
+    by exists [::], t1s0, t2s0, t2s.
+  - (* weakening *)
+    edestruct IHHType; eauto.
+    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
+    exists (ts ++ x), t1s', t2s', t3s'.
+    by repeat split => //; rewrite catA.
+  - (* Trap *)
+    exists [::], t1s, t2s, t1s.
+    repeat split => //=.
+    + apply ety_a' => //. apply bet_weakening_empty_both. by apply bet_empty.
+    + by apply ety_trap.
+  - (* Local *)
+    exists [::], [::], t2s, [::]. repeat split => //=.
+    + by apply ety_a' => //.
+    + by apply ety_local.
+  - (* Invoke *)
+    exists [::], t1s, t2s, t1s. repeat split => //=.
+    + apply ety_a' => //. apply bet_weakening_empty_both. by apply bet_empty.
+    + by apply ety_invoke.
+  - (* Label *)
+    exists [::], [::], t2s0, [::]. repeat split => //=.
+    + by apply ety_a' => //.
+    + by eapply ety_label; eauto.
+Qed.
 
-(** Perform basic simplifications of [es_is_basic]. **)
-Ltac basic_inversion :=
-   repeat lazymatch goal with
-         | H: True |- _ =>
-           clear H
-         | H: es_is_basic (_ ++ _) |- _ =>
-           apply basic_concat in H; destruct H
-         | H: es_is_basic [::] |- _ =>
-           clear H
-         | H: es_is_basic [::_] |- _ =>
-           let H1 := fresh "H1" in
-           let H2 := fresh "H2" in
-           try by (unfold es_is_basic in H; destruct H as [H1 H2]; inversion H1)
-         | H: e_is_basic _ |- _ =>
-           inversion H; try by []
-         end.
+Lemma e_composition_typing: forall s C es1 es2 t1s t2s,
+    e_typing s C (es1 ++ es2) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             e_typing s C es1 (Tf t1s' t3s) /\
+                             e_typing s C es2 (Tf t3s t2s').
+Proof.
+  move => s C es1 es2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1.
+  clear Heqes2'. subst.
+  induction es2' => //=; move => es1 t1s t2s HType.
+  - unfold rev in HType; simpl in HType. subst.
+    rewrite cats0 in HType.
+    exists [::], t1s, t2s, t2s.
+    repeat split => //=.
+    apply ety_a' => //=.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - rewrite rev_cons in HType.
+    rewrite -cats1 in HType. subst.
+    rewrite catA in HType.
+    apply e_composition_typing_single in HType.
+    destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]]. subst.
+    apply IHes2' in H3.
+    destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
+    exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
+    repeat split => //.
+    + by apply ety_weakening.
+    + rewrite rev_cons. rewrite -cats1.
+      eapply ety_composition; eauto.
+      by apply ety_weakening.
+Qed.
+
+Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
+    be_typing C es1 (Tf t1s t2s) ->
+    be_typing C es2 (Tf t2s t3s) ->
+    be_typing C (es1 ++ es2) (Tf t1s t3s).
+Proof.
+  move => C es1 es2 t1s t2s t3s HType1 HType2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1. generalize dependent es2.
+  generalize dependent t1s. generalize dependent t2s.
+  generalize dependent t3s.
+  induction es2' => //=.
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1. destruct es2 => //=. rewrite cats0.
+    apply empty_typing in HType2. by subst.
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1.
+    rewrite rev_cons in H2. rewrite -cats1 in H2.
+    rewrite H2 in HType2.
+    apply composition_typing in HType2.
+    destruct HType2 as [ts [t1s' [t2s' [t3s' [H3 [H4 [H5 H6]]]]]]]. subst.
+    rewrite catA. eapply bet_composition => //=.
+    instantiate (1 := (ts ++ t3s')).
+    eapply IHes2' => //.
+    instantiate (1 := (ts ++ t1s')); first by apply bet_weakening.
+    symmetry. by apply revK.
+    by apply HType1.
+    by apply bet_weakening.
+Qed.
+
+Lemma et_composition': forall s C es1 es2 t1s t2s t3s,
+    e_typing s C es1 (Tf t1s t2s) ->
+    e_typing s C es2 (Tf t2s t3s) ->
+    e_typing s C (es1 ++ es2) (Tf t1s t3s).
+Proof.
+  move => s C es1 es2 t1s t2s t3s HType1 HType2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1. generalize dependent es2.
+  generalize dependent t1s. generalize dependent t2s.
+  generalize dependent t3s.
+  induction es2' => //=.
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1. destruct es2 => //=. rewrite cats0.
+    apply et_to_bet in HType2. apply empty_typing in HType2. by subst.
+  - by [].
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1.
+    rewrite rev_cons in H2. rewrite -cats1 in H2.
+    rewrite H2 in HType2.
+    apply e_composition_typing in HType2.
+    destruct HType2 as [ts [t1s' [t2s' [t3s' [H3 [H4 [H5 H6]]]]]]]. subst.
+    rewrite catA. eapply ety_composition => //=.
+    instantiate (1 := (ts ++ t3s')).
+    eapply IHes2' => //.
+    instantiate (1 := (ts ++ t1s')); first by apply ety_weakening.
+    symmetry. by apply revK.
+    by apply HType1.
+    by apply ety_weakening.
+Qed.
+
+End composition_typing_proofs.
+
+End Host.
 
