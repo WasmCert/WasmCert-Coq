@@ -22,6 +22,7 @@ Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e
 Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
+Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
 Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @reduce_simple _.
 Let const_list : seq administrative_instruction -> bool := @const_list _.
@@ -1253,7 +1254,7 @@ Proof.
     repeat rewrite -catA.
     by repeat split => //=.
 Qed.
-
+*)
 Lemma Break_typing: forall n C t1s t2s,
     be_typing C [::Br n] (Tf t1s t2s) ->
     exists ts ts0, n < size (tc_label C) /\
@@ -1271,7 +1272,7 @@ Proof.
     repeat split => //=.
     by rewrite -catA.
 Qed.
-*)
+
 Lemma Label_typing: forall s C n es0 es ts1 ts2,
     e_typing s C [::Label n es0 es] (Tf ts1 ts2) ->
     exists ts ts2', ts2 = ts1 ++ ts2' /\
@@ -1505,7 +1506,7 @@ Proof.
   - (* ety_local *)
     by exists t2s.
 Qed.
-
+*)
 Lemma Return_typing: forall C t1s t2s,
     be_typing C [::Return] (Tf t1s t2s) ->
     exists ts ts', t1s = ts' ++ ts /\
@@ -1522,7 +1523,7 @@ Proof.
     split => //=.
     by rewrite -catA.
 Qed.
-
+(*
 (*
   Similarly, Local does not involve in induction either. So what we want to prove
     is also slightly different from what we desire. However, this one is easier
@@ -2060,7 +2061,7 @@ Proof.
   apply H in HN. unfold cl_type_check_single in HN. destruct HN.
   by inversion H1; subst.
 Qed.
-
+*)
 Lemma inst_t_context_local_empty: forall s i C,
     inst_typing s i C ->
     tc_local C = [::].
@@ -2082,7 +2083,7 @@ Proof.
   destruct C => //=.
   by destruct tc_local; destruct tc_label.
 Qed.
-
+(*
 Lemma global_type_reference: forall s i j C v t,
     inst_typing s i C ->
     sglob_val s i j = Some v ->

@@ -426,6 +426,73 @@ Lemma to_e_list_cat: forall l1 l2,
 Proof.
 Admitted.
 
+(* TODO: find better fixes than the current duplication. *)
+Ltac split_et_composition:=
+  lazymatch goal with
+  | H: e_typing _ _ (_ ++ _) _ |- _ =>
+    let ts := fresh "ts" in
+    let t1s := fresh "t1s" in
+    let t2s := fresh "t2s" in
+    let t3s := fresh "t3s" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply e_composition_typing in H;
+    destruct H as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]; subst
+  | H: type_checker.e_typing _ _ (_ ++ _) _ |- _ =>
+    let ts := fresh "ts" in
+    let t1s := fresh "t1s" in
+    let t2s := fresh "t2s" in
+    let t3s := fresh "t3s" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply e_composition_typing in H;
+    destruct H as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]; subst
+  end.
+
+Ltac invert_e_typing:=
+  repeat lazymatch goal with
+  | H: e_typing _ _ (_ ++ _) _ |- _ =>
+    split_et_composition
+  | H: type_checker.e_typing _ _ (_ ++ _) _ |- _ =>
+    split_et_composition
+  | H: e_typing _ _ [::Label _ _ _] _ |- _ =>
+    let ts := fresh "ts" in
+    let t1s := fresh "t1s" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply Label_typing in H;
+    destruct H as [ts [t1s [H1 [H2 [H3 H4]]]]]; subst
+  | H: type_checker.e_typing _ _ [::Label _ _ _] _ |- _ =>
+    let ts := fresh "ts" in
+    let t1s := fresh "t1s" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    eapply Label_typing in H; eauto;
+    destruct H as [ts [t1s [H1 [H2 [H3 H4]]]]]; subst
+         end.
+
+Ltac auto_basic :=
+  repeat lazymatch goal with
+  | |- es_is_basic [::Basic _; Basic _; Basic _; Basic _] =>
+    simpl; repeat split
+  | |- es_is_basic [::Basic _; Basic _; Basic _] =>
+    simpl; repeat split
+  | |- es_is_basic [::Basic _; Basic _] =>
+    simpl; repeat split
+  | |- es_is_basic [::Basic _] =>
+    simpl; repeat split
+  | |- e_is_basic (Basic ?e) =>
+    by unfold e_is_basic; exists e
+  end.
+
 (** A common scheme in the progress proof, with a continuation. **)
 Ltac solve_progress_cont cont :=
   repeat eexists;
@@ -856,12 +923,13 @@ Proof.
     destruct ts => //=; destruct t1s => //=; clear H1.
     rewrite add0n in H5.
     apply et_to_bet in H5; auto_basic.
-    simpl in H5. apply Break_typing in H5.
+    simpl in H5. eapply Break_typing in H5; eauto.
     destruct H5 as [ts [ts2 [H7 [H8 H9]]]].
     unfold plop2 in H8. move/eqP in H8.
     apply/ltP.
     apply List.nth_error_Some. by rewrite H8.
   - invert_e_typing.
+    (* the above tactic somehow does not recognize H5. *)
     destruct ts => //=; destruct t1s => //=; clear H1.
     assert (Inf : k+1 < length (tc_label (upd_label C ([::ts1] ++ tc_label C)))).
     { eapply IHHLF; eauto.
@@ -881,12 +949,11 @@ Proof.
   - invert_e_typing.
     destruct ts; destruct t1s => //=; clear H1.
     apply et_to_bet in H5; auto_basic.
-    simpl in H5. apply Return_typing in H5.
+    simpl in H5. eapply Return_typing in H5; eauto.
     destruct H5 as [ts [ts' [H7 H8]]]. subst.
     by rewrite H8.
   - invert_e_typing.
-    destruct ts; destruct t1s => //=; clear H1.
-    assert (R : tc_return (upd_label C ([::ts1] ++ tc_label C)) <> None);
+    assert (R : tc_return (upd_label C ([::ts1] ++ tc_label C)) <> None).
     { by eapply IHHLF; eauto. }
     by simpl in R.
 Qed.
@@ -909,7 +976,7 @@ Proof.
     rewrite add0n in H5.
     apply et_to_bet in H5; auto_basic.
     simpl in H5.
-    apply Break_typing in H5.
+    eapply Break_typing in H5; eauto.
     destruct H5 as [ts3 [ts3' [H7 [H8 H9]]]]. subst.
     unfold plop2 in H8. move/eqP in H8.
     rewrite HN in H8. inversion H8. subst.
@@ -963,7 +1030,7 @@ Proof.
     destruct ts0; destruct t1s => //; clear H1.
     apply et_to_bet in H5; auto_basic.
     simpl in H5.
-    apply Return_typing in H5.
+    eapply Return_typing in H5; eauto.
     destruct H5 as [ts2 [ts2' [H7 H8]]]. subst.
     rewrite HN in H8. inversion H8. subst.
     apply et_to_bet in H3; last by apply const_list_is_basic.
@@ -1028,7 +1095,7 @@ Proof.
   eapply br_reduce_label_length in H1; eauto.
   simpl in H1.
   assert (E : tc_label C0 = [::]); first by eapply inst_t_context_label_empty; eauto.
-  by rewrite Inf in H1.
+  by rewrite E in H1.
 Qed.
 
 Lemma s_typing_lf_return: forall s i vs es ts,
@@ -1041,7 +1108,9 @@ Proof.
   by eapply return_reduce_return_some in H1; eauto.
 Qed.
 
-Lemma t_progress_e: forall s i C C' vs vcs es tf ts1 ts2 lab ret,
+(*
+
+Lemma t_progress_e: forall s i C C' vs vcs es tf ts1 ts2 lab ret hs,
     e_typing s C es tf ->
     tf = Tf ts1 ts2 ->
     C = (upd_label (upd_local_return C' (map typeof vs) ret) lab) ->
@@ -1051,10 +1120,10 @@ Lemma t_progress_e: forall s i C C' vs vcs es tf ts1 ts2 lab ret,
     (forall n lh k, lfilled n lh [::Basic (Br k)] es -> k < n) ->
     (forall n, not_lf_return es n) ->
     terminal_form (v_to_e_list vcs ++ es) \/
-    exists s' vs' es', reduce s vs (v_to_e_list vcs ++ es) i s' vs' es'.
+    exists s' vs' es' hs', reduce hs s vs (v_to_e_list vcs ++ es) i hs' s' vs' es'.
 Proof.
   (* e_typing *)
-  move => s i C C' vs vcs es tf ts1 ts2 lab ret HType.
+  move => s i C C' vs vcs es tf ts1 ts2 lab ret hs HType.
   move: i C' vs vcs ts1 ts2 lab ret.
   (* Initially I had the wrong order of lab and ret --
        The error message here is extremely misleading *)
@@ -1068,14 +1137,14 @@ Proof.
               (forall n lh k, lfilled n lh [::Basic (Br k)] es -> k < n) ->
               (forall n, not_lf_return es n) ->
               terminal_form (v_to_e_list vcs ++ es) \/
-              exists s' vs' es', reduce s vs (v_to_e_list vcs ++ es) i s' vs' es')
+              exists s' vs' es' hs', reduce hs s vs (v_to_e_list vcs ++ es) i hs' s' vs' es')
     (P0 := fun s rs i vs es ts (_ : s_typing s rs i vs es ts) =>
               store_typing s ->
               (forall n lh k, lfilled n lh [::Basic (Br k)] es -> k < n) ->
               (forall n, not_lf_return es n) ->
               (const_list es /\ length es = length ts) \/
               es = [::Trap] \/
-              exists s' vs' es', reduce s vs es i s' vs' es'); clear.
+              exists s' vs' es' hs', reduce hs s vs es i hs' s' vs' es'); clear.
   (* The previous variables s/C/es/tf still lingers here so we need to clear *)
 (*  generalize dependent vcs.
   dependent induction HType; subst; move => vcs HIT HConstType HST HBrDepth HNRet. *)
