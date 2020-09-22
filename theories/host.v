@@ -34,24 +34,24 @@ Let store_extension : store_record -> store_record -> bool := @store_extension _
   This can be non-deterministic. **)
 
 Record host := {
-    host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
-    host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
-                       host_state -> option (store_record * result) -> Prop
-                       (** An application of the host function. **)
-    (* FIXME: Should the resulting [host_state] be part of the [option]?
+    host_action : eqType (** An action sent to the host. **) ;
+    host_application : store_record -> function_type -> host_function -> seq value ->
+                       option (host_action * store_record * result) -> Prop
+                       (** An application of the host function, resulting in an action. **)
+    (* FIXME: Should the resulting [host_action] be out of the [option]?
       (See https://github.com/rems-project/wasm_coq/issues/16#issuecomment-616402508
        for a discussion about this.) *) ;
 
-    host_application_extension : forall s t st h vs s' st' r,
-      host_application s st t h vs s' (Some (st', r)) ->
+    host_application_extension : forall t st h vs alpha st' r,
+      host_application st t h vs (Some (alpha, st', r)) ->
       store_extension st st' (** The returned store must be an extension of the original one. **) ;
-    host_application_typing : forall s t st h vs s' st' r,
-      host_application s st t h vs s' (Some (st', r)) ->
+    host_application_typing : forall t st h vs alpha st' r,
+      host_application st t h vs (Some (alpha, st', r)) ->
       store_typing st ->
       store_typing st' (** [host_application] preserves store typing. **) ;
-    host_application_respect : forall s t1s t2s st h vs s' st' r,
+    host_application_respect : forall t1s t2s st h vs alpha st' r,
       all2 types_agree t1s vs ->
-      host_application s st (Tf t1s t2s) h vs s' (Some (st', r)) ->
+      host_application st (Tf t1s t2s) h vs (Some (alpha, st', r)) ->
       result_types_agree t2s r (** [host_application] respects types. **)
   }.
 
@@ -195,8 +195,8 @@ Definition host : Type := host host_function.
 Definition host_instance : host.
 Proof.
   by refine {|
-      host_state := unit_eqType ;
-      host_application _ _ _ _ _ _ _ := False
+      host_action := unit_eqType ;
+      host_application _ _ _ _ _ := False
     |}; intros; exfalso; auto.
 Defined.
 

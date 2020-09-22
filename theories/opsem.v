@@ -20,8 +20,10 @@ Variable host_instance : host.
 
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
-Let host_state := host_state host_instance.
-
+Let host_action := host_action host_instance.
+Let host_application : store_record -> function_type -> host_function -> seq value ->
+                       option (host_action * store_record * result) -> Prop :=
+  @host_application _ _.
 
 Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
 
@@ -344,35 +346,36 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
 *)
 
-Inductive reduce : host_state -> store_record -> list value -> list administrative_instruction -> instance ->
-                   host_state -> store_record -> list value -> list administrative_instruction -> Prop :=
+Inductive reduce : store_record -> list value -> list administrative_instruction ->
+                   instance -> option host_action ->
+                   store_record -> list value -> list administrative_instruction -> Prop :=
   | r_simple :
-      forall e e' s vs i hs,
+      forall e e' s vs i,
         reduce_simple e e' ->
-        reduce hs s vs e i hs s vs e'
+        reduce s vs e i None s vs e'
 
   (** calling operations **)
   | r_call :
-      forall s vs i j f hs,
+      forall s vs i j f,
         sfunc s i j = Some f ->
-        reduce hs s vs [::Basic (Call j)] i hs s vs [::Invoke f]
+        reduce s vs [::Basic (Call j)] i None s vs [::Invoke f]
   | r_call_indirect_success :
-      forall s i j cl c vs tf hs,
+      forall s i j cl c vs tf,
         stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
         stypes s i j = Some tf ->
         cl_type cl = tf ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Invoke cl]
+        reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i None s vs [::Invoke cl]
   | r_call_indirect_failure1 :
-      forall s i j c cl vs hs,
+      forall s i j c cl vs,
         stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
         stypes s i j <> Some (cl_type cl) ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Trap]
+        reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i None s vs [::Trap]
   | r_call_indirect_failure2 :
-      forall s i j c vs hs,
+      forall s i j c vs,
         stab s i (Wasm_int.nat_of_uint i32m c) = None ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Trap]
+        reduce s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i None s vs [::Trap]
   | r_invoke_native :
-      forall cl t1s t2s ts es ves vcs n m k zs vs s i j hs,
+      forall cl t1s t2s ts es ves vcs n m k zs vs s i j,
         cl = Func_native j (Tf t1s t2s) ts es ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
@@ -380,139 +383,139 @@ Inductive reduce : host_state -> store_record -> list value -> list administrati
         length t1s = n ->
         length t2s = m ->
         n_zeros ts = zs ->
-        reduce hs s vs (ves ++ [::Invoke cl]) i hs s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
+        reduce s vs (ves ++ [::Invoke cl]) i None s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
   | r_invoke_host_success :
-      forall cl h t1s t2s ves vcs m n s s' r vs i hs hs',
+      forall cl h t1s t2s ves vcs m n s s' r vs i alpha,
         cl = Func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
-        host_application hs s (Tf t1s t2s) h vcs hs' (Some (s', r)) ->
-        reduce hs s vs (ves ++ [::Invoke cl]) i hs' s' vs (result_to_stack r)
+        host_application s (Tf t1s t2s) h vcs (Some (alpha, s', r)) ->
+        reduce s vs (ves ++ [::Invoke cl]) i (Some alpha) s' vs (result_to_stack r)
   | r_invoke_host_diverge :
-      forall cl t1s t2s h ves vcs n m s vs i hs hs',
+      forall cl t1s t2s h ves vcs n m s vs i,
         cl = Func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
-        host_application hs s (Tf t1s t2s) h vcs hs' None ->
-        reduce hs s vs (ves ++ [::Invoke cl]) i hs' s vs (ves ++ [::Invoke cl])
+        host_application s (Tf t1s t2s) h vcs None ->
+        reduce s vs (ves ++ [::Invoke cl]) i None s vs (ves ++ [::Invoke cl])
 
   (** get, set, load, and store operations **)
   | r_get_local :
-      forall vi v vs i j s hs,
+      forall vi v vs i j s,
         length vi = j ->
-        reduce hs s (vi ++ [::v] ++ vs) [::Basic (Get_local j)] i hs s (vi ++ [::v] ++ vs) [::Basic (EConst v)]
+        reduce s (vi ++ [::v] ++ vs) [::Basic (Get_local j)] i None s (vi ++ [::v] ++ vs) [::Basic (EConst v)]
   | r_set_local :
-      forall vs j v i s vd hs,
+      forall vs j v i s vd,
         length vs > j ->
-        reduce hs s vs [::Basic (EConst v); Basic (Set_local j)] i hs s (set_nth vd vs j v) [::]
+        reduce s vs [::Basic (EConst v); Basic (Set_local j)] i None s (set_nth vd vs j v) [::]
   | r_get_global :
-      forall s vs j i v hs,
+      forall s vs j i v,
         sglob_val s i j = Some v ->
-        reduce hs s vs [::Basic (Get_global j)] i hs s vs [::Basic (EConst v)]
+        reduce s vs [::Basic (Get_global j)] i None s vs [::Basic (EConst v)]
   | r_set_global :
-      forall s i j v s' vs hs,
+      forall s i j v s' vs,
         supdate_glob s i j v = Some s' ->
-        reduce hs s vs [::Basic (EConst v); Basic (Set_global j)] i hs s' vs [::]
+        reduce s vs [::Basic (EConst v); Basic (Set_global j)] i None s' vs [::]
   | r_load_success :
-    forall s i t bs vs k a off m j hs,
+    forall s i t bs vs k a off m j,
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       load m (Wasm_int.N_of_uint i32m k) off (t_length t) = Some bs ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i hs s vs [::Basic (EConst (wasm_deserialise bs t))]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i None s vs [::Basic (EConst (wasm_deserialise bs t))]
   | r_load_failure :
-    forall s i t vs k a off m j hs,
+    forall s i t vs k a off m j,
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       load m (Wasm_int.N_of_uint i32m k) off (t_length t) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i hs s vs [::Trap]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i None s vs [::Trap]
   | r_load_packed_success :
-    forall s i t tp vs k a off m j bs sx hs,
+    forall s i t tp vs k a off m j bs sx,
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t) = Some bs ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i hs s vs [::Basic (EConst (wasm_deserialise bs t))]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i None s vs [::Basic (EConst (wasm_deserialise bs t))]
   | r_load_packed_failure :
-    forall s i t tp vs k a off m j sx hs,
+    forall s i t tp vs k a off m j sx,
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i hs s vs [::Trap]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i None s vs [::Trap]
   | r_store_success :
-    forall t v s i j vs mem' k a off m hs,
+    forall t v s i j vs mem' k a off m,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       store m (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = Some mem' ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i None (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::]
   | r_store_failure :
-    forall t v s i j m k off a vs hs,
+    forall t v s i j m k off a vs,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       store m (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i hs s vs [::Trap]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i None s vs [::Trap]
   | r_store_packed_success :
-    forall t v s i j m k off a vs mem' tp hs,
+    forall t v s i j m k off a vs mem' tp,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = Some mem' ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i None (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::]
   | r_store_packed_failure :
-    forall t v s i j m k off a vs tp hs,
+    forall t v s i j m k off a vs tp,
       types_agree t v ->
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i hs s vs [::Trap]
+      reduce s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i None s vs [::Trap]
 
   (** memory **)
   | r_current_memory :
-      forall i j m n s vs hs,
+      forall i j m n s vs,
         smem_ind s i = Some j ->
         List.nth_error s.(s_mems) j = Some m ->
         mem_size m = n ->
-        reduce hs s vs [::Basic (Current_memory)] i hs s vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
+        reduce s vs [::Basic (Current_memory)] i None s vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
   | r_grow_memory_success :
-    forall s i j m n mem' vs c hs,
+    forall s i j m n mem' vs c,
       smem_ind s i = Some j ->
       List.nth_error s.(s_mems) j = Some m ->
       mem_size m = n ->
       mem_grow m (Wasm_int.N_of_uint i32m c) = Some mem' ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
+      reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i None (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
   | r_grow_memory_failure :
-      forall i j m n s vs c hs,
+      forall i j m n s vs c,
         smem_ind s i = Some j ->
         List.nth_error s.(s_mems) j = Some m ->
         mem_size m = n ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i hs s vs [::Basic (EConst (ConstInt32 int32_minus_one))]
+        reduce s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i None s vs [::Basic (EConst (ConstInt32 int32_minus_one))]
 
   (** label and local **)
   | r_label :
-      forall s vs es les i s' vs' es' les' k lh hs hs',
-        reduce hs s vs es i hs' s' vs' es' ->
+      forall s vs es les i s' vs' es' les' k lh alpha,
+        reduce s vs es i alpha s' vs' es' ->
         lfilled k lh es les ->
         lfilled k lh es' les' ->
-        reduce hs s vs les i hs' s' vs' les'
+        reduce s vs les i alpha s' vs' les'
   | r_local :
-      forall s vs es i s' vs' es' n v0s j hs hs',
-        reduce hs s vs es i hs' s' vs' es' ->
-        reduce hs s v0s [::Local n i vs es] j hs' s' v0s [::Local n i vs' es']
+      forall s vs es i s' vs' es' n v0s j alpha,
+        reduce s vs es i alpha s' vs' es' ->
+        reduce s v0s [::Local n i vs es] j alpha s' v0s [::Local n i vs' es']
   .
 
-Definition reduce_tuple (i : instance) hs_s_vs_es hs'_s'_vs'_es' : Prop :=
-  let '(hs, s, vs, es) := hs_s_vs_es in
-  let '(hs', s', vs', es') := hs'_s'_vs'_es' in
-  reduce hs s vs es i hs' s' vs' es'.
+Definition reduce_tuple i alpha s_vs_es s'_vs'_es' : Prop :=
+  let '(s, vs, es) := s_vs_es in
+  let '(s', vs', es') := s'_vs'_es' in
+  reduce s vs es i alpha s' vs' es'.
       
-Definition reduce_trans (i : instance)
-  : host_state * store_record * seq value * seq administrative_instruction ->
-    host_state * store_record * seq value * seq administrative_instruction -> Prop :=
-  Relations.Relation_Operators.clos_refl_trans _ (reduce_tuple i).
+Definition reduce_trans i alpha
+  : store_record * seq value * seq administrative_instruction ->
+    store_record * seq value * seq administrative_instruction -> Prop :=
+  Relations.Relation_Operators.clos_refl_trans _ (reduce_tuple i alpha).
 
 End Host.
 
