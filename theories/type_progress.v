@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Export operations typing type_checker datatypes_properties typing opsem properties.
+From Wasm Require Export operations typing type_checker datatypes_properties typing opsem properties type_preservation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -426,18 +426,6 @@ Lemma to_e_list_cat: forall l1 l2,
 Proof.
 Admitted.
 
-(*
-This lemma is already proved in preservation.v. However, it's less trivial to move
-  that to properties.v, since it has a lot of dependencies on the previous proofs
-  in preservation. So we either move all of them to a common file, or is it sensible
-  to just import presevation here?
-*)
-Lemma Const_list_typing: forall C vs t1s t2s,
-    be_typing C (to_b_list (v_to_e_list vs)) (Tf t1s t2s) ->
-    t2s = t1s ++ (map typeof vs).
-Proof.
-Admitted.
-
 (** A common scheme in the progress proof, with a continuation. **)
 Ltac solve_progress_cont cont :=
   repeat eexists;
@@ -798,7 +786,7 @@ Proof.
     exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es'), hs'.
     apply reduce_composition_left => //.
     by apply v_to_e_is_const_list.
-Qed. (* TODO *)
+Qed. 
 
 (*
 Traceback:
@@ -854,7 +842,6 @@ Proof.
   f_equal. by rewrite catA.
 Qed.
 
-(* FIXME
 Lemma br_reduce_label_length: forall n k lh es s C ts2,
     lfilled n lh [::Basic (Br (n + k))] es ->
     e_typing s C es (Tf [::] ts2) ->

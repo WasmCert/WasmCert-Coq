@@ -770,6 +770,7 @@ Axiom host_apply_store_extension: forall s vs1 vs2 ts1 ts2 f s',
 Axiom host_apply_store_valid: forall s vs1 vs2 ts1 ts2 f s',
     host_apply s (Tf ts1 ts2) f vs1 = Some (s', vs2) ->
     store_typing s'.
+ *)
 
 Lemma be_typing_const_deserialise: forall C v t,
     be_typing C [:: EConst (wasm_deserialise (bits v) t)] (Tf [::] [:: t]).
@@ -796,7 +797,7 @@ Proof.
       end; inversion E; apply bet_const.
   - (* Weakening *)
     apply bet_weakening.
-    by eapply IHHType.
+    by eapply IHHType; eauto.
 Qed.
 
 Lemma t_Reinterpret_preserve: forall C v t1 t2 be tf,
@@ -813,7 +814,7 @@ Proof.
     apply be_typing_const_deserialise.
   - (* Weakening *)
     apply bet_weakening.
-    by eapply IHHType.
+    by eapply IHHType; eauto.
 Qed.
 
 Lemma t_Drop_preserve: forall C v tf,
@@ -839,24 +840,21 @@ Proof.
     gen_ind_subst HType => //=.
     + (* Composition *)
       invert_be_typing.
-      replace [::t; t; T_i32] with ([::t] ++ [::t] ++ [::T_i32]) in H1 => //=.
-      replace [::typeof v1; typeof v2; typeof (ConstInt32 (Wasm_int.int_zero i32m))] with
-          ([::typeof v1] ++ [::typeof v2] ++ [::typeof (ConstInt32 (Wasm_int.int_zero i32m))]) in H1 => //=.
-      repeat rewrite catA in H1.
-      repeat (apply concat_cancel_last in H1; let H2 := fresh "H2" in destruct H1 as [H1 H2]). subst.
+      apply concat_cancel_last_n in H1 => //.
+      remove_bools_options.
+      inversion H2. subst.
       apply bet_weakening_empty_1.
-      rewrite -H0. by apply bet_const.
+      by apply bet_const.
     + apply bet_weakening. by eapply IHHType => //=.
   - (* n = 1 : Select first *)
     gen_ind_subst HType => //=.
     + (* Composition *)
       invert_be_typing.
-      replace [::t; t; T_i32] with ([::t] ++ [::t] ++ [::T_i32]) in H1 => //=.
-      replace [::typeof v1; typeof v2; typeof (ConstInt32 n)] with
-          ([::typeof v1] ++ [::typeof v2] ++ [::typeof (ConstInt32 n)]) in H1 => //=.
-      repeat rewrite catA in H1.
-      repeat (apply concat_cancel_last in H1; let H2 := fresh "H2" in destruct H1 as [H1 H2]). subst.
+      apply concat_cancel_last_n in H2 => //.
+      remove_bools_options.
+      inversion H3. subst.
       apply bet_weakening_empty_1.
+      rewrite H6.
       by apply bet_const.
     + apply bet_weakening. by eapply IHHType => //=.
 Qed.
@@ -924,7 +922,7 @@ Proof.
     gen_ind_subst HType => //=.
     + (* Composition *)
       invert_be_typing.
-      rewrite catA in H1. apply concat_cancel_last in H1. destruct H1. subst.
+      rewrite catA in H2. apply concat_cancel_last in H2. destruct H2. subst.
       apply bet_weakening.
       by apply bet_block.
     + (* Weakening *)
@@ -964,7 +962,7 @@ Proof.
     apply bet_weakening.
     by eapply IHHType => //=.
 Qed.
-
+(*
 Lemma t_Br_table_preserve: forall C c ids i0 tf be,
     be_typing C ([::EConst (ConstInt32 c); Br_table ids i0]) tf ->
     reduce_simple (to_e_list [::EConst (ConstInt32 c); Br_table ids i0]) [::Basic be] ->
@@ -976,8 +974,8 @@ Proof.
   - gen_ind_subst HType => //=.
     + (* Composition *)
       invert_be_typing.
-      rewrite catA in H0. apply concat_cancel_last in H0. destruct H0. subst.
-      move/allP in H2.
+      rewrite catA in H3. apply concat_cancel_last in H3. destruct H3. subst.
+      move/allP in H5.
       assert ((j < length (tc_label C)) && plop2 C j ts').
       -- apply H2. rewrite mem_cat. apply/orP. left. apply/inP.
          eapply List.nth_error_In. by eauto.
@@ -1273,7 +1271,7 @@ Proof.
     repeat split => //=.
     by rewrite -catA.
 Qed.
-
+*)
 Lemma Label_typing: forall s C n es0 es ts1 ts2,
     e_typing s C [::Label n es0 es] (Tf ts1 ts2) ->
     exists ts ts2', ts2 = ts1 ++ ts2' /\
@@ -1281,6 +1279,8 @@ Lemma Label_typing: forall s C n es0 es ts1 ts2,
                     e_typing s (upd_label C ([::ts] ++ (tc_label C))) es (Tf [::] ts2') /\
                     length ts = n.
 Proof.
+Admitted.
+(*
   move => s C n es0 es ts1 ts2 HType.
   dependent induction HType.
   - (* ety_a *)
@@ -2372,7 +2372,7 @@ Ltac convert_et_to_bet:=
   | H: e_typing _ _ _ _ |- _ =>
     apply et_to_bet in H; try auto_basic; simpl in H
   end.
-
+*)
 Ltac split_et_composition:=
   lazymatch goal with
   | H: e_typing _ _ (_ ++ _) _ |- _ =>
@@ -2401,8 +2401,9 @@ Ltac invert_e_typing:=
     let H4 := fresh "H4" in
     apply Label_typing in H;
     destruct H as [ts [t1s [H1 [H2 [H3 H4]]]]]; subst
-  end.
+   end.
 
+(*
 Lemma lfilled_es_type_exists: forall k lh es les s C tf,
     lfilled k lh es les ->
     e_typing s C les tf ->
@@ -3366,4 +3367,3 @@ Qed.
 *)
 
 End Host.
-
