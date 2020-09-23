@@ -1446,12 +1446,12 @@ Proof.
        simpl in H. right. right. by eapply H.
 Admitted. (* TODO *)
 
-Theorem t_progress: forall s vs es i ts,
+Theorem t_progress: forall s vs es i ts hs,
     config_typing i s vs es ts ->
     terminal_form es \/
-    exists s' vs' es', reduce s vs es i s' vs' es'.
+    exists s' vs' es' hs', reduce hs s vs es i hs' s' vs' es'.
 Proof.
-  move => s vs es i ts HType.
+  move => s vs es i ts hs HType.
   inversion HType. subst.
   inversion H0. subst.
   eapply t_progress_e with (vcs := [::]) (ret := None) (lab := [::]) in H3; eauto.
@@ -1463,11 +1463,10 @@ Proof.
     assert (E' : tc_label (upd_local_return C0 tvs None) = [::]).
     { simpl. by eapply inst_t_context_label_empty; eauto. }
     rewrite -E'.
-    by apply upd_label_unchanged. 
+    by destruct C0.
   - by eapply s_typing_lf_br; eauto.
   - by eapply s_typing_lf_return; eauto.
 Qed.
-*)
 
 End Host.
 
