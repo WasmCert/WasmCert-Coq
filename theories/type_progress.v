@@ -1108,8 +1108,6 @@ Proof.
   by eapply return_reduce_return_some in H1; eauto.
 Qed.
 
-(*
-
 Lemma t_progress_e: forall s i C C' vs vcs es tf ts1 ts2 lab ret hs,
     e_typing s C es tf ->
     tf = Tf ts1 ts2 ->
@@ -1124,11 +1122,11 @@ Lemma t_progress_e: forall s i C C' vs vcs es tf ts1 ts2 lab ret hs,
 Proof.
   (* e_typing *)
   move => s i C C' vs vcs es tf ts1 ts2 lab ret hs HType.
-  move: i C' vs vcs ts1 ts2 lab ret.
+  move: i C' vs vcs ts1 ts2 lab ret hs.
   (* Initially I had the wrong order of lab and ret --
        The error message here is extremely misleading *)
   apply e_typing_ind' with (e := HType)
-    (P := fun s C es tf (_ : e_typing s C es tf) => forall i C' vs vcs ts1 ts2 lab ret,
+    (P := fun s C es tf (_ : e_typing s C es tf) => forall i C' vs vcs ts1 ts2 lab ret hs,
               tf = Tf ts1 ts2 ->
               C = (upd_label (upd_local_return C' (map typeof vs) ret) lab) ->
               inst_typing s i C' ->
@@ -1138,22 +1136,24 @@ Proof.
               (forall n, not_lf_return es n) ->
               terminal_form (v_to_e_list vcs ++ es) \/
               exists s' vs' es' hs', reduce hs s vs (v_to_e_list vcs ++ es) i hs' s' vs' es')
-    (P0 := fun s rs i vs es ts (_ : s_typing s rs i vs es ts) =>
+    (P0 := fun s rs i vs es ts (_ : s_typing s rs i vs es ts) => forall hs,
               store_typing s ->
               (forall n lh k, lfilled n lh [::Basic (Br k)] es -> k < n) ->
               (forall n, not_lf_return es n) ->
               (const_list es /\ length es = length ts) \/
               es = [::Trap] \/
-              exists s' vs' es' hs', reduce hs s vs es i hs' s' vs' es'); clear.
+              exists s' vs' es' hs', reduce hs s vs es i hs' s' vs' es'); clear HType s C es tf.
   (* The previous variables s/C/es/tf still lingers here so we need to clear *)
-(*  generalize dependent vcs.
-  dependent induction HType; subst; move => vcs HIT HConstType HST HBrDepth HNRet. *)
+  (* UPD (23 Sep 2020): with the new wrapper approach to deal with host, we can no longer
+     clear everything like we did originally: this is because the clear tactic also 
+     removes some section variables which make application of t_progress_be impossible
+     (in this case, it's function_closure). See https://github.com/coq/coq/pull/883*)
   - (* Basic *)
     move => s C bes tf HType.
-    move => i C' vs vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBrDepth HNRet.
+    move => i C' vs vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBrDepth HNRet.
     subst.
     eapply t_progress_be in HType; try instantiate (1 := vs) in HType; try by eauto.
-    destruct HType as [HType | [s' [vs' [es' HType]]]].
+    destruct HType as [HType | [s' [vs' [es' [hs' HType]]]]].
     + left.
       unfold terminal_form; left.
       apply const_list_concat => //. by apply v_to_e_is_const_list.
@@ -1163,7 +1163,7 @@ Proof.
       by apply HBrDepth in HContra.
   - (* Composition *)
     move => s C es e t1s t2s t3s HType1 IHHType1 HType2 IHHType2.
-    move => i C' vs vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBrDepth HNRet.
+    move => i C' vs vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBrDepth HNRet.
     inversion HTF; subst.
     edestruct IHHType1; eauto.
     { move => n lh k HLF.
@@ -1207,21 +1207,22 @@ Proof.
         -- (* reduce *)
           rewrite -v_to_e_cat in H.
           rewrite -catA in H.
-          by right.
+          right.
+          by eapply H.
       * (* Trap *)
         destruct vcs => //=; destruct es => //=; destruct es => //=.
         simpl in H. inversion H. subst.
         right.
-        exists s, vs, [::Trap].
+        exists s, vs, [::Trap], hs.
         apply r_simple.
         eapply rs_trap => //.
         instantiate (1 := (LBase [::] [::e])).
         apply/lfilledP.
         by apply LfilledBase => //=; apply v_to_e_is_const_list.
     + (* reduce *)
-      destruct H as [s' [vs' [es' HReduce]]].
+      destruct H as [s' [vs' [es' [hs' HReduce]]]].
       right.
-      exists s', vs', (es' ++ [::e]).
+      exists s', vs', (es' ++ [::e]), hs'.
       eapply r_label; eauto; try apply/lfilledP.
       * assert (LF : lfilledInd 0 (LBase [::] [::e]) (v_to_e_list vcs ++ es) ([::] ++ (v_to_e_list vcs ++ es) ++ [::e]));
           first by apply LfilledBase.
@@ -1233,7 +1234,7 @@ Proof.
        const list. So we just separate the new const list into 2 parts and add
        the first part to the result correspondingly! *)
     move => s C es ts t1s t2s HType IHHType.
-    move => i C' vs vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBrDepth HNRet.
+    move => i C' vs vcs ts1 ts2 lab ret hs' HTF HContext HInst HConstType HST HBrDepth HNRet.
     inversion HTF; subst.
     symmetry in H0. apply cat_split in H0. destruct H0 as [HCT1 HCT2].
     rewrite - map_take in HCT1.
@@ -1243,42 +1244,44 @@ Proof.
     rewrite Evcs. rewrite - v_to_e_cat.
     edestruct IHHType; eauto.
     + (* Terminal *)
-      unfold terminal_form in H0.
-      destruct H0 => //=.
+      unfold terminal_form in H.
+      destruct H => //=.
       * (* Const *)
         left. unfold terminal_form. left.
         rewrite -catA. apply const_list_concat => //.
         by apply v_to_e_is_const_list.
       * (* Trap *)
-        apply v_e_trap in H0; last by apply v_to_e_is_const_list.
-        destruct H0. subst.
-        rewrite H0.
+        apply v_e_trap in H; last by apply v_to_e_is_const_list.
+        destruct H. subst.
+        rewrite H.
         destruct (drop (size ts) vcs) eqn:HDrop => //=.
-        clear H0. rewrite cats0 in H. rewrite -H.
+        clear H. rewrite cats0 in Evcs. rewrite -Evcs.
         rewrite cats0.
         destruct vcs => //.
         -- left. by apply terminal_trap.
         -- right.
-           exists s, vs, [::Trap].
+           exists s, vs, [::Trap], hs'.
            apply r_simple.
            apply reduce_trap_left => //.
            by apply v_to_e_is_const_list.
     + (* reduce *)
-      destruct H0 as [s' [vs' [es' HReduce]]].
+      destruct H as [s' [vs' [es' [hs'' HReduce]]]].
       right.
-      exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es').
+      exists s', vs', (v_to_e_list (take (size ts) vcs) ++ es'), hs''.
       rewrite -catA.
-      by apply reduce_composition_left => //; apply v_to_e_is_const_list.
+      apply reduce_composition_left => //; first by apply v_to_e_is_const_list.
+      by eapply HReduce.
+      
   - (* Trap *)
     destruct vcs => //; first by left; apply terminal_trap.
     right.
-    exists s, vs, [::Trap].
+    exists s, vs, [::Trap], hs.
     apply r_simple.
     apply reduce_trap_left => //.
     by apply v_to_e_is_const_list.
   - (* Local *)
     move => s C n j vs0 es ts HType IHHType HLength.
-    move => i C' vs vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBrDepth HNRet.
+    move => i C' vs vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBrDepth HNRet.
     inversion HTF; subst; clear HTF.
     symmetry in H0.
     invert_typeof_vcs.
@@ -1309,28 +1312,28 @@ Proof.
     }
     + (* Const *)
       destruct H.
-      exists s, vs, es.
+      exists s, vs, es, hs.
       apply r_simple.
       by apply rs_local_const.
     + (* Trap *)
       subst.
-      exists s, vs, [::Trap].
+      exists s, vs, [::Trap], hs.
       apply r_simple.
       by apply rs_local_trap.
     + (* reduce *)
-      destruct H as [s' [vs' [es' HReduce]]].
-      exists s', vs, [::Local (length ts2) j vs' es'].
+      destruct H as [s' [vs' [es' [hs' HReduce]]]].
+      exists s', vs, [::Local (length ts2) j vs' es'], hs'.
       by apply r_local; apply HReduce.
   - (* Invoke *)
     move => s C cl tf HType.
-    move => i C' vs vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBrDepth HNRet.
+    move => i C' vs vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBrDepth HNRet.
     inversion HType; subst.
     inversion H5; subst; clear H5.
     + (* Native *)
       (* Very weirdly, this case requires almost nothing.
          Take some time and look at this again later. *)
       right.
-      exists s, vs, [:: Local (length ts2) i0 (vcs ++ n_zeros ts) [::Basic (Block (Tf [::] ts2) es)]].
+      exists s, vs, [:: Local (length ts2) i0 (vcs ++ n_zeros ts) [::Basic (Block (Tf [::] ts2) es)]], hs.
       eapply r_invoke_native; eauto.
       repeat rewrite length_is_size. by rewrite size_map.
     + (* Host *)
@@ -1338,13 +1341,13 @@ Proof.
       (* There are two possible reduction paths dependning on whether the host
          call was successful. However for the proof here we just have to show that
          on exists -- so just use the easier failure case. *)
-      exists s, vs, [::Trap].
-      eapply r_invoke_host_failure; eauto.
-      repeat rewrite length_is_size.
-      by rewrite size_map.
+      (* UPD: with the new host and the related reductions, this shortcut no longer
+         works. We will now need to consider the result of host execution and 
+         specify the reduction resultion result in either case. *)
+      admit.
   - (* Label *)
     move => s C e0s es ts t2s n HType1 IHHType1 HType2 IHHType2 HLength.
-    move => i C' vs vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBrDepth HNRet.
+    move => i C' vs vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBrDepth HNRet.
     inversion HTF; subst.
     symmetry in H0. invert_typeof_vcs.
     rewrite upd_label_overwrite in HType2. simpl in HType2.
@@ -1353,9 +1356,9 @@ Proof.
       destruct HEMT as [n [lh HLF]].
       right. 
       assert (LF : lfilled n lh [::Basic (Br (n+0))] es); first by rewrite addn0.
-      eapply br_reduce_extract_vs in H => //; eauto.
-      instantiate (1 := ts) in H.
-      destruct H as [cs [lh' [HConst [HLF2 HLength]]]].
+      eapply br_reduce_extract_vs in LF => //; eauto.
+      instantiate (1 := ts) in LF.
+      destruct LF as [cs [lh' [HConst [HLF2 HLength]]]].
       rewrite addn0 in HLF2.
       repeat eexists.
       apply r_simple.
@@ -1367,15 +1370,15 @@ Proof.
     { unfold br_reduce in HEMF.
       move => n lh k HLF.
       assert (Inf : k < n.+1). (* FIXME: Proof items to be added here. *)
-      eapply HBrDepth.
+      { eapply HBrDepth.
       move/lfilledP in HLF.
       apply/lfilledP.
       assert (LF : lfilledInd (n.+1) (LRec [::] (length ts) e0s lh [::]) [::Basic (Br k)] ([::] ++ [::Label (length ts) e0s es] ++ [::]));
         first by apply LfilledRec.
-      rewrite cats0 in H. simpl in H.
-      apply H.
-      rewrite ltnS in H.
-      rewrite leq_eqVlt in H.
+      rewrite cats0 in LF. simpl in LF.
+      by apply LF. }
+      rewrite ltnS in Inf.
+      rewrite leq_eqVlt in Inf.
       remove_bools_options => //.
       subst.
       exfalso.
@@ -1389,31 +1392,31 @@ Proof.
       apply/lfilledP.
       assert (LF : lfilledInd (n.+1) (LRec [::] (length ts) e0s lh [::]) [::Basic Return] ([::] ++ [::Label (length ts) e0s es] ++ [::]));
         first by apply LfilledRec.
-      by apply H.
+      by apply LF.
     }
     + (* Terminal *)
       apply terminal_form_v_e in H.
       unfold terminal_form in H. destruct H.
       * (* Const *)
         right.
-        exists s, vs, es.
+        exists s, vs, es, hs.
         apply r_simple.
         by apply rs_label_const.
       * (* Trap *)
         right. subst.
-        exists s, vs, [::Trap].
+        exists s, vs, [::Trap], hs.
         apply r_simple.
         by apply rs_label_trap.
         by apply v_to_e_is_const_list.
     + (* reduce *)
       (* This is also surprisingly easy... *)
-      destruct H as [s' [vs' [es' HReduce]]].
+      destruct H as [s' [vs' [es' [hs' HReduce]]]].
       right.
       simpl in HReduce.
-      exists s', vs', [::Label (length ts) e0s es'].
+      exists s', vs', [::Label (length ts) e0s es'], hs'.
       by eapply r_label; eauto; apply label_lfilled1.
   - (* s_typing *)
-    move => s j vs0 es rs ts C C0 tvs HIT HContext HType IHHType HRetType HST HBrDepth HNRet.
+    move => s j vs0 es rs ts C C0 tvs HIT HContext HType IHHType HRetType hs HST HBrDepth HNRet.
     subst.
     edestruct IHHType; eauto.
     { (* Context *)
@@ -1426,7 +1429,7 @@ Proof.
       assert (E' : tc_label (upd_local_return C0 tvs rs) = [::]).
       { simpl. by eapply inst_t_context_label_empty; eauto. }
       rewrite -E'.
-      by apply upd_label_unchanged. }
+      by destruct C0. }
     { by instantiate (1 := [::]). }
     + unfold terminal_form in H. destruct H.
       * (* Const *)
@@ -1440,8 +1443,8 @@ Proof.
       * (* Trap *)
         right. by left.
     + (* reduce *)
-       simpl in H. right. by right.
-Qed.
+       simpl in H. right. right. by eapply H.
+Admitted. (* TODO *)
 
 Theorem t_progress: forall s vs es i ts,
     config_typing i s vs es ts ->
