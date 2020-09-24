@@ -420,13 +420,17 @@ Proof.
 Qed.
 
 (*
-The version in properties.v cannot be applied since we need to apply this lemma
-  on the version of to_e_list with host (defined in this section).
+  The version in properties.v cannot be applied since we need to apply this lemma
+    on the version of to_e_list with host (defined in this section).
+  Interestingly enough, Coq somehow allows the statement to be proved trivially
+    by invoking the same lemma in properties.v (but not allowing the application
+    of that lemma directly?... 
 *)
 Lemma to_e_list_cat: forall l1 l2,
     to_e_list (l1 ++ l2) = to_e_list l1 ++ to_e_list l2.
 Proof.
-Admitted.
+    by apply properties.to_e_list_cat.
+Qed.
 
 (* TODO: find better fixes than the current duplication. *)
 Ltac split_et_composition:=

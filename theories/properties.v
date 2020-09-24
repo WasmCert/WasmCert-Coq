@@ -430,14 +430,15 @@ Ltac gen_ind_gen H :=
     lazymatch t with
     | ?f ?x => try_generalize f; try_generalize x
     | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
+    | _ => idtac
     end in
   let rec aux v :=
     lazymatch v with
     | ?f ?x =>
       lazymatch goal with
-      | _ : x = ?y |- _ => try_generalize y
-      end;
-      aux f
+      | _ : x = ?y |- _ => try_generalize y; aux f
+      | _ => idtac
+      end
     | _ => idtac
     end in
   let Ht := type of H in
