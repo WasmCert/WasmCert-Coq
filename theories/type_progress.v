@@ -37,6 +37,8 @@ Variable host_instance : host.
 
 Let host_state := host_state host_instance.
 
+Let host_application := @host_application host_function host_instance.
+
 Let reduce : host_state -> store_record -> seq value -> seq administrative_instruction -> instance ->
              host_state -> store_record -> seq value -> seq administrative_instruction -> Prop
   := @reduce _ _.
@@ -1108,6 +1110,9 @@ Proof.
   by eapply return_reduce_return_some in H1; eauto.
 Qed.
 
+Axiom host_application_exists: forall hs s tf hf vcs,
+    exists hs' res, host_application hs s tf hf vcs hs' res.
+
 Lemma t_progress_e: forall s i C C' vs vcs es tf ts1 ts2 lab ret hs,
     e_typing s C es tf ->
     tf = Tf ts1 ts2 ->
@@ -1344,7 +1349,18 @@ Proof.
       (* UPD: with the new host and the related reductions, this shortcut no longer
          works. We will now need to consider the result of host execution and 
          specify the reduction resultion result in either case. *)
-      admit.
+      assert (HApply: exists hs' res, host_application hs s (Tf (map typeof vcs) ts2) h vcs hs' res). apply host_application_exists.
+      destruct HApply as [hs' [res HApply]].
+      destruct res as [opres |].
+      destruct opres as [p r].
+      * (* Some *)
+        repeat eexists.
+        eapply r_invoke_host_success; eauto.
+        repeat rewrite length_is_size. by apply size_map.
+      * (* None *)
+        repeat eexists.
+        eapply r_invoke_host_diverge; eauto.
+        repeat rewrite length_is_size. by apply size_map.
   - (* Label *)
     move => s C e0s es ts t2s n HType1 IHHType1 HType2 IHHType2 HLength.
     move => i C' vs vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBrDepth HNRet.
@@ -1443,8 +1459,8 @@ Proof.
       * (* Trap *)
         right. by left.
     + (* reduce *)
-       simpl in H. right. right. by eapply H.
-Admitted. (* TODO *)
+      simpl in H. right. right. by eapply H.
+Qed.
 
 Theorem t_progress: forall s vs es i ts hs,
     config_typing i s vs es ts ->
