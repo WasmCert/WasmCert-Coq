@@ -424,21 +424,23 @@ Ltac gen_ind_pre H :=
   let Ht := type of H in
   aux Ht.
 
+Print is_variable.
 (** Then, each of the associated parameters can be generalised. **)
 Ltac gen_ind_gen H :=
   let rec try_generalize t :=
     lazymatch t with
     | ?f ?x => try_generalize f; try_generalize x
     | ?x => is_variable x ltac:(generalize dependent x) ltac:(idtac)
-    | _ => idtac
+    | _ => fail "unable to generalize" t
     end in
   let rec aux v :=
     lazymatch v with
-    | ?f ?x =>
-      lazymatch goal with
-      | _ : x = ?y |- _ => try_generalize y; aux f
-      | _ => idtac
-      end
+    | ?f ?x => 
+    lazymatch goal with
+      | _ : x = ?y |- _ => try_generalize y
+      | _ => fail "unexpected term" v
+      end;
+      aux f
     | _ => idtac
     end in
   let Ht := type of H in
