@@ -91,6 +91,16 @@ Proof.
     simpl. f_equal. by apply: H.
 Qed.
 
+Lemma const_list_cons : forall a l,
+  const_list (a :: l) = is_const a && const_list l.
+Proof. by []. Qed.
+
+Lemma v_to_e_list0 : v_to_e_list [::] = [::].
+Proof. reflexivity. Qed.
+
+Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: Basic (EConst v)].
+Proof. reflexivity. Qed.
+
 (* Check with Martin for split_n: it's just take+drop *)
 Lemma split_n_is_take_drop: forall es n,
     split_n es n = (take n es, drop n es).
