@@ -1072,6 +1072,17 @@ Lemma le_add: forall n m,
     n <= m ->
     exists k, m = n+k.
 Proof.
+  move => n m. move: m n.
+  elim => [|m].
+  - move => n Hn. exists 0.
+    case: n Hn => //=.
+  - move => IHm.
+    case => [|n] Hn.
+    + by exists (m.+1).
+    + move: (IHm n Hn) => [k Hk].
+      exists k.
+      by lias.
+(*
   move => n m. generalize dependent n.
   induction m => //=; move => n H.
   - destruct n => //=. by exists 0.
@@ -1079,6 +1090,7 @@ Proof.
     + by exists (m.+1).
     + apply IHm in H. destruct H as [k H].
       exists k. by lias.
+*)
 Qed.
 
 (*
