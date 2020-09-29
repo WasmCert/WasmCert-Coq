@@ -482,13 +482,10 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
         if length ves >= n
         then
           let: (ves', ves'') := split_n ves n in
-(*   FIXME: This is inconsistent with the opsem: the 'None' case is supposed to be a
-           'diverge' case. The monadic interpreter -- attached in the comment above --
-           is still using host_apply. Do we need to revert this change? *)
           match host_application_impl hs s (Tf t1s t2s) f (rev ves') with
           | (hs', Some (s', rves)) =>
             (hs', s', vs, RS_normal (vs_to_es ves'' ++ (result_to_stack rves)))
-        | (hs', None) => (hs', s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
+        | (hs', None) => (hs', s, vs, RS_normal (vs_to_es ves ++ [::Invoke]))
           end
         else (hs, s, vs, crash_error)
       end
