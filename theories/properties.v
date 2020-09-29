@@ -1,7 +1,7 @@
 (** Miscellaneous properties about Wasm operations **)
 (* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Export operations typing opsem interpreter common.
+From Wasm Require Export operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction.
 From Coq Require Import Bool.
@@ -23,6 +23,8 @@ Let lfilled := @lfilled host_function.
 Let lfilledInd := @lfilledInd host_function.
 Let es_is_basic := @es_is_basic host_function.
 Let to_e_list := @to_e_list host_function.
+Let e_is_trap := @e_is_trap host_function.
+Let es_is_trap := @es_is_trap host_function.
 
 
 Lemma const_list_concat: forall vs1 vs2,
@@ -100,6 +102,21 @@ Proof. reflexivity. Qed.
 
 Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: Basic (EConst v)].
 Proof. reflexivity. Qed.
+
+Lemma e_is_trapP : forall e, reflect (e = Trap) (e_is_trap e).
+Proof.
+  case => //= >; by [ apply: ReflectF | apply: ReflectT ].
+Qed.
+
+Lemma es_is_trapP : forall l, reflect (l = [::Trap]) (es_is_trap l).
+Proof.
+  case; first by apply: ReflectF.
+  move=> // a l. case l => //=.
+  - apply: (iffP (e_is_trapP _)); first by elim.
+    by inversion 1.
+  - move=> >. by apply: ReflectF.
+Qed.
+
 
 (* Check with Martin for split_n: it's just take+drop *)
 Lemma split_n_is_take_drop: forall es n,

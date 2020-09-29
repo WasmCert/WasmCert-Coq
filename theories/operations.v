@@ -408,10 +408,65 @@ Fixpoint es_is_basic (es: seq administrative_instruction) :=
     e_is_basic e /\ es_is_basic es'
   end.
 
-(** [v_to_e_list]: some kind of the opposite of [split_vals_e] (see [interperter.v]:
+(** [v_to_e_list]: 
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
   map (fun v => Basic (EConst v)) ves.
+
+(* interpreter related *)
+
+Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruction :=
+  match es with
+  | (EConst v) :: es' =>
+    let: (vs', es'') := split_vals es' in
+    (v :: vs', es'')
+  | _ => ([::], es)
+  end.
+
+(** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
+    are all of the form [Basic (EConst v)];
+    returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
+    segment and [es] is the remainder of the original [es]. **)
+Fixpoint split_vals_e (es : seq administrative_instruction) : seq value * seq administrative_instruction :=
+  match es with
+  | (Basic (EConst v)) :: es' =>
+    let: (vs', es'') := split_vals_e es' in
+    (v :: vs', es'')
+  | _ => ([::], es)
+  end.
+
+Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
+  match (es, n) with
+  | ([::], _) => ([::], [::])
+  | (_, 0) => ([::], es)
+  | (e :: esX, n.+1) =>
+    let: (es', es'') := split_n esX n in
+    (e :: es', es'')
+  end.
+
+Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
+  match ao with
+  | Some a => f a
+  | None => b
+  end.
+
+Definition vs_to_es (vs : seq value) : seq administrative_instruction :=
+  v_to_e_list (rev vs).
+
+Definition e_is_trap (e : administrative_instruction) : bool :=
+  match e with
+  | Trap => true
+  | _ => false
+  end.
+
+(** [es_is_trap es] is equivalent to [es == [:: Trap]]. **)
+Definition es_is_trap (es : seq administrative_instruction) : bool :=
+  match es with
+  | [::e] => e_is_trap e
+  | _ => false
+  end.
+
+
 
 (** Converting a result into a stack. **)
 Definition result_to_stack (r : result) :=

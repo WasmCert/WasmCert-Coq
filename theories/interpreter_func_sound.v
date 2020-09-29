@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations opsem interpreter properties.
+Require Import operations opsem interpreter_func properties.
 
 
 Section Host.
@@ -18,7 +18,6 @@ Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
 
 Variable host_function : eqType.
-  
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
 Let administrative_instruction := administrative_instruction host_function.
@@ -37,12 +36,15 @@ Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administr
 Let lfilledInd : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @lfilledInd _.
 Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.
-Let run_step_fuel := @run_step_fuel host_function.
-Let run_one_step_fuel := @run_one_step_fuel host_function.
 
 Let host := host host_function.
 
+Let run_one_step_fuel := @run_one_step_fuel host_function.
+
 Variable host_instance : host.
+
+Let run_step_fuel := @run_step_fuel host_function host_instance.
+Let run_one_step := @run_one_step host_function host_instance.
 
 Let host_state := host_state host_instance.
 
@@ -102,7 +104,11 @@ Qed.
 Lemma run_step_fuel_not_zero : forall tt,
   run_step_fuel tt <> 0.
 Proof.
-  move=> [[st vs] es]. rewrite/run_step_fuel. by lias.
+  move=> [[st vs] es].
+  rewrite/run_step_fuel.
+  unfold interpreter_func.run_step_fuel.
+  destruct st.
+  by lias.    
 Qed.
 
 Local Lemma ves_projection: forall vs e es vs' e' es',

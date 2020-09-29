@@ -2507,7 +2507,7 @@ Ltac split_et_composition:=
     let H4 := fresh "H4" in
     apply e_composition_typing in H;
     destruct H as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]; subst
-  | H: type_checker.e_typing _ _ (_ ++ _) _ |- _ =>
+  | H: typing.e_typing _ _ (_ ++ _) _ |- _ =>
     let ts := fresh "ts" in
     let t1s := fresh "t1s" in
     let t2s := fresh "t2s" in
@@ -2524,7 +2524,7 @@ Ltac invert_e_typing:=
   repeat lazymatch goal with
   | H: e_typing _ _ (_ ++ _) _ |- _ =>
     split_et_composition
-  | H: type_checker.e_typing _ _ (_ ++ _) _ |- _ =>
+  | H: typing.e_typing _ _ (_ ++ _) _ |- _ =>
     split_et_composition
   | H: e_typing _ _ [::Label _ _ _] _ |- _ =>
     let ts := fresh "ts" in
@@ -2535,7 +2535,7 @@ Ltac invert_e_typing:=
     let H4 := fresh "H4" in
     apply Label_typing in H;
     destruct H as [ts [t1s [H1 [H2 [H3 H4]]]]]; subst
-  | H: type_checker.e_typing _ _ [::Label _ _ _] _ |- _ =>
+  | H: typing.e_typing _ _ [::Label _ _ _] _ |- _ =>
     let ts := fresh "ts" in
     let t1s := fresh "t1s" in
     let H1 := fresh "H1" in

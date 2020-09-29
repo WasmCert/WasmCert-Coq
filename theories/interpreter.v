@@ -28,6 +28,8 @@ Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 
+Let vs_to_es := @vs_to_es host_function.
+
 Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
 Let host_event := host_event executable_host_instance.
@@ -96,71 +98,6 @@ Definition crash_error : res_step := RS_crash C_error.
 
 
 (** * The interpreter itself. **)
-
-Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruction :=
-  match es with
-  | (EConst v) :: es' =>
-    let: (vs', es'') := split_vals es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
-  end.
-
-(** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
-    are all of the form [Basic (EConst v)];
-    returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
-    segment and [es] is the remainder of the original [es]. **)
-Fixpoint split_vals_e (es : seq administrative_instruction) : seq value * seq administrative_instruction :=
-  match es with
-  | (Basic (EConst v)) :: es' =>
-    let: (vs', es'') := split_vals_e es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
-  end.
-
-Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
-  match (es, n) with
-  | ([::], _) => ([::], [::])
-  | (_, 0) => ([::], es)
-  | (e :: esX, n.+1) =>
-    let: (es', es'') := split_n esX n in
-    (e :: es', es'')
-  end.
-
-Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
-  match ao with
-  | Some a => f a
-  | None => b
-  end.
-
-Definition vs_to_es (vs : seq value) : seq administrative_instruction :=
-  v_to_e_list (rev vs).
-
-Definition e_is_trap (e : administrative_instruction) : bool :=
-  match e with
-  | Trap => true
-  | _ => false
-  end.
-
-Lemma e_is_trapP : forall e, reflect (e = Trap) (e_is_trap e).
-Proof.
-  case => //= >; by [ apply: ReflectF | apply: ReflectT ].
-Qed.
-
-(** [es_is_trap es] is equivalent to [es == [:: Trap]]. **)
-Definition es_is_trap (es : seq administrative_instruction) : bool :=
-  match es with
-  | [::e] => e_is_trap e
-  | _ => false
-  end.
-
-Lemma es_is_trapP : forall l, reflect (l = [::Trap]) (es_is_trap l).
-Proof.
-  case; first by apply: ReflectF.
-  move=> // a l. case l => //=.
-  - apply: (iffP (e_is_trapP _)); first by elim.
-    by inversion 1.
-  - move=> >. by apply: ReflectF.
-Qed.
 
 (** An inductive for the [mrec] fixed-point combinator, expressing the signature of the
    functions [run_step_base] and [run_one_step]. **)

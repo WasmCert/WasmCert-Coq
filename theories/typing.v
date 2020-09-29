@@ -497,6 +497,47 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
     cl_typing s (Func_host tf h) tf
   .
 
+Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+| ety_a : forall s C bes tf,
+  be_typing C bes tf -> e_typing s C (to_e_list bes) tf
+| ety_composition : forall s C es e t1s t2s t3s,
+  e_typing s C es (Tf t1s t2s) ->
+  e_typing s C [::e] (Tf t2s t3s) ->
+  e_typing s C (es ++ [::e]) (Tf t1s t3s)
+| ety_weakening : forall s C es ts t1s t2s,
+  e_typing s C es (Tf t1s t2s) ->
+  e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s))
+| ety_trap : forall s C tf,
+  e_typing s C [::Trap] tf
+| ety_local : forall s C n i vs es ts,
+  s_typing s (Some ts) i vs es ts ->
+  length ts = n ->
+  e_typing s C [::Local n i vs es] (Tf [::] ts)
+| ety_invoke : forall s C cl tf,
+  cl_typing s cl tf ->
+  e_typing s C [::Invoke cl] tf
+| ety_label : forall s C e0s es ts t2s n,
+  e_typing s C e0s (Tf ts t2s) ->
+  e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
+  length ts = n ->
+  e_typing s C [::Label n e0s es] (Tf [::] t2s)
+
+(*
+  Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
+ *)
+with s_typing : store_record -> option (seq value_type) -> instance -> seq value -> seq administrative_instruction -> seq value_type -> Prop :=
+| mk_s_typing : forall s i vs es rs ts C C0,
+  let tvs := map typeof vs in
+  inst_typing s i C0 ->
+  C = upd_local_return C0 ((tc_local C0) ++ tvs) rs ->
+  e_typing s C es (Tf [::] ts) ->
+  (rs = Some ts \/ rs = None) ->
+  s_typing s rs i vs es ts
+.
+
+Scheme e_typing_ind' := Induction for e_typing Sort Prop
+  with s_typing_ind' := Induction for s_typing Sort Prop.
+
 Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
   cl_typing s fc (cl_type fc).
 
