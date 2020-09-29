@@ -50,6 +50,8 @@ Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let host_state := host_state host_instance.
 
+Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.
+
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
 
@@ -83,7 +85,7 @@ Definition config_tuple := ((host_state * store_record * list value * list admin
 Definition config_one_tuple_without_e := (host_state * store_record * list value * list value)%type.
 
 Definition res_tuple := (host_state * store_record * list value * res_step)%type.
-
+(*
 Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction))%type :=
   match es with
   | (EConst v) :: es' =>
@@ -147,7 +149,7 @@ Proof.
   - apply: (iffP (e_is_trapP _)); first by elim.
     by inversion 1.
   - move=> >. by apply: ReflectF.
-Qed.
+Qed.*)
 
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (i : instance) (cfg : config_tuple) : res_tuple :=
   let: (hs, s, vs, es) := cfg in
@@ -325,7 +327,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
       else (hs, s, vs, crash_error)
     | Basic (Call_indirect j) =>
       if ves is ConstInt32 c :: ves' then
-        match stab s i (Wasm_int.N_of_uint i32m c) with
+        match stab s i (Wasm_int.nat_of_uint i32m c) with
         | Some cl =>
           if stypes s i j == Some (cl_type cl)
           then (hs, s, vs, RS_normal (vs_to_es ves' ++ [::Invoke cl]))
@@ -457,16 +459,36 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
           (hs, s, vs, RS_normal (vs_to_es ves''
                   ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
         else (hs, s, vs, crash_error)
+     (* | Func_host (Tf t1s t2s) h =>
+        let: n := length t1s in
+        let: m := length t2s in
+        if length ves >= n
+        then
+         let: (ves', ves'') := split_n ves n in
+         r <- trigger (host_apply s (Tf t1s t2s) h (rev ves')) ;;
+          match r with
+          | Some (s', r) =>
+            if result_types_agree t2s r
+            then
+              let: rves := result_to_stack r in
+              ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
+            else ret (s (* FIXME: Why not [s']? *), vs, crash_error)
+          | None => ret (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
+          end
+      else ret (s, vs, crash_error)*)
       | Func_host (Tf t1s t2s) f =>
         let: n := length t1s in
         let: m := length t2s in
         if length ves >= n
         then
           let: (ves', ves'') := split_n ves n in
+(*   FIXME: This is inconsistent with the opsem: the 'None' case is supposed to be a
+           'diverge' case. The monadic interpreter -- attached in the comment above --
+           is still using host_apply. Do we need to revert this change? *)
           match host_application_impl hs s (Tf t1s t2s) f (rev ves') with
           | (hs', Some (s', rves)) =>
             (hs', s', vs, RS_normal (vs_to_es ves'' ++ (result_to_stack rves)))
-          | (hs', None) => (hs', s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
+        | (hs', None) => (hs', s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
           end
         else (hs, s, vs, crash_error)
       end
