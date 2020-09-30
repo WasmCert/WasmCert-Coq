@@ -623,7 +623,9 @@ Proof.
       rewrite/f /=.
       move: (max_fold_left_run_step_fuel es2). clear.
       unfold run_one_step_fuel.
-      admit.  (* by lias. *)
+      (* lias needs some help to establish the inequality here. *)
+      match goal with |- context [?a <= ?b] => set x := a; set y := b end.
+      by lias.
     }
     simpl.
     explode_and_simplify; try by pattern_match.
@@ -640,12 +642,15 @@ Proof.
     rename l into vs. rename l0 into es.
     set f := (run_one_step_fuel (Local n i vs es)) .-1.
     simpl in f.
-    (*match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.*)
+    (* match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.*)
     assert (run_step_fuel (tt_hs, tt_s, vs, es) <= f).
     {
       apply/leP. rewrite/f /=.
       move: (max_fold_left_run_step_fuel es). clear.
-        admit. (* by lias. *)
+      unfold run_one_step_fuel.
+      (* Same as above, lias needs some help to establish the inequality here too. *)
+      match goal with |- context [?a <= ?b] => set x := a; set y := b end.
+      by lias.
     }
     simpl.
     explode_and_simplify; try by pattern_match.
@@ -657,7 +662,7 @@ Proof.
       rewrite E2.
       by destruct r'' as [|[|]| |] => //; explode_and_simplify; pattern_match.
     + by [].
-Admitted. (* TODO *)
+Qed.
       
 (** [run_step_fuel] is indeed enough fuel to run [run_step]. **)
 Lemma run_step_fuel_enough : forall d i tt hs s vs r,
@@ -1249,18 +1254,19 @@ Proof.
         simplify_lists. by rewrite subKn.
       - (** [Func_host] **)
         explode_and_simplify.
-        destruct host_application_impl eqn:HHost; explode_and_simplify; pattern_match; frame_cat; auto_frame.
-        + apply host_application_impl_correct in HHost.
+        destruct host_application_impl eqn:HHost; explode_and_simplify; try pattern_match; try frame_cat.
+        + auto_frame.
+          apply host_application_impl_correct in HHost.
           eapply r_invoke_host_success => //=; eauto.
           simplify_lists. by rewrite subKn.
-        + (* This case is unprovable as is due to an error in the interpreter.
- 
+        + simplify_lists.
           apply host_application_impl_correct in HHost.
-          replace [::Trap] with (@result_to_stack host_function result_trap) => //.
-          eapply r_invoke_host_success => //=.
-          { explode_and_simplify. by rewrite subKn. } *)
-          admit.
-          
+          repeat rewrite catA.
+          apply r_elimr.
+          rewrite (v_to_e_take_drop_split _ lconst (size lconst - size r)); rewrite -catA;
+          apply: r_eliml; try apply: v_to_e_is_const_list.
+          eapply r_invoke_host_diverge => //=.          
+          { explode_and_simplify. by rewrite subKn. } 
     }
     { (** [Label] **)
       explode_and_simplify; try (pattern_match; auto_frame).
@@ -1297,7 +1303,7 @@ Proof.
           pattern_match. auto_frame. apply H in EH; last by lias.
           by apply r_local.
     }
-Admitted. (* TODO: fix the invoke_host case of interpreter and the proof *)
+Qed.
 
 Theorem run_step_soundness : forall d i hs s vs es hs' s' vs' es',
   run_step d i (hs, s, vs, es) = (hs', s', vs', RS_normal es') ->

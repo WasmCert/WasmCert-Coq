@@ -485,7 +485,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
           match host_application_impl hs s (Tf t1s t2s) f (rev ves') with
           | (hs', Some (s', rves)) =>
             (hs', s', vs, RS_normal (vs_to_es ves'' ++ (result_to_stack rves)))
-        | (hs', None) => (hs', s, vs, RS_normal (vs_to_es ves ++ [::Invoke]))
+        | (hs', None) => (hs', s, vs, RS_normal (vs_to_es ves ++ [::Invoke cl]))
           end
         else (hs, s, vs, crash_error)
       end
