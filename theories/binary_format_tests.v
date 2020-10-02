@@ -71,9 +71,9 @@ Definition test_wikipedia :=
         (Get_local 0
          :: Get_local 0
          :: EConst (ConstInt64 Wasm_int.Int64.one)
-         :: Binop_i T_i64 Sub
+         :: Binop T_i64 (Binop_i Sub)
          :: Call 0
-         :: Binop_i T_i64 Mul :: nil) :: nil).
+         :: Binop T_i64 (Binop_i Mul) :: nil) :: nil).
 
 Lemma test_wikipedia_correct : run_parse_bes test_wikipedia_byte = Some test_wikipedia.
 Proof. vm_compute. reflexivity. Qed.

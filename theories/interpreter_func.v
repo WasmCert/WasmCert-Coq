@@ -180,51 +180,17 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
   | fuel.+1 =>
     match e with
     (* unop *)
-    | Basic (Unop_i T_i32 iop) =>
-      if ves is ConstInt32 c :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es ((ConstInt32 (@app_unop_i i32t iop c)) :: ves')))
+    | Basic (Unop t op) =>
+      if ves is v :: ves' then
+        (hs, s, vs, RS_normal (vs_to_es (app_unop op v :: ves')))
       else (hs, s, vs, crash_error)
-    | Basic (Unop_i T_i64 iop) =>
-      if ves is (ConstInt64 c) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es ((ConstInt64 (@app_unop_i i64t iop c)) :: ves')))
-      else (hs, s, vs, crash_error)
-    | Basic (Unop_i _ _) => (hs, s, vs, crash_error)
-    | Basic (Unop_f T_f32 iop) =>
-      if ves is (ConstFloat32 c) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es ((ConstFloat32 (@app_unop_f f32t iop c)) :: ves')))
-      else (hs, s, vs, crash_error)
-    | Basic (Unop_f T_f64 iop) =>
-      if ves is (ConstFloat64 c) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es ((ConstFloat64 (@app_unop_f f64t iop c)) :: ves')))
-      else (hs, s, vs, crash_error)
-    | Basic (Unop_f _ _) => (hs, s, vs, crash_error)
     (* binop *)
-    | Basic (Binop_i T_i32 iop) =>
-      if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-        expect (@app_binop_i i32t iop c1 c2) (fun c =>
-            (hs, s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves'))))
-          (hs, s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
+    | Basic (Binop t op) =>
+      if ves is v1 :: v2 :: ves' then
+        expect (app_binop op v1 v2)
+               (fun v => (hs, s, vs, RS_normal (vs_to_es (v :: ves'))))
+               (hs, s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
       else (hs, s, vs, crash_error)
-    | Basic (Binop_i T_i64 iop) =>
-      if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-        expect (@app_binop_i i64t iop c1 c2) (fun c =>
-            (hs, s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves'))))
-          (hs, s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
-      else (hs, s, vs, crash_error)
-    | Basic (Binop_i _ _) => (hs, s, vs, crash_error)
-    | Basic (Binop_f T_f32 fop) =>
-      if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-        expect (@app_binop_f f32t fop c1 c2) (fun c =>
-            (hs, s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves'))))
-          (hs, s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
-      else (hs, s, vs, crash_error)
-    | Basic (Binop_f T_f64 fop) =>
-      if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-        expect (@app_binop_f f64t fop c1 c2) (fun c =>
-             (hs, s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves'))))
-          (hs, s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
-      else (hs, s, vs, crash_error)
-    | Basic (Binop_f _ _) => (hs, s, vs, crash_error)
     (* testops *)
     | Basic (Testop T_i32 testop) =>
       if ves is (ConstInt32 c) :: ves' then
@@ -236,24 +202,10 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
       else (hs, s, vs, crash_error)
     | Basic (Testop _ _) => (hs, s, vs, crash_error)
     (* relops *)
-    | Basic (Relop_i T_i32 iop) =>
-      if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i32t iop c1 c2)) :: ves')))
+    | Basic (Relop t op) =>
+      if ves is v1 :: v2 :: ves' then
+        (hs, s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
       else (hs, s, vs, crash_error)
-    | Basic (Relop_i T_i64 iop) =>
-      if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
-      else (hs, s, vs, crash_error)
-    | Basic (Relop_i _ _) => (hs, s, vs, crash_error)
-    | Basic (Relop_f T_f32 iop) =>
-      if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
-      else (hs, s, vs, crash_error)
-    | Basic (Relop_f T_f64 iop) =>
-      if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-        (hs, s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
-      else (hs, s, vs, crash_error)
-    | Basic (Relop_f _ _) => (hs, s, vs, crash_error)
     (* convert & reinterpret *)
     | Basic (Cvtop t2 Convert t1 sx) =>
       if ves is v :: ves' then
@@ -459,23 +411,6 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
           (hs, s, vs, RS_normal (vs_to_es ves''
                   ++ [::Local m i' (rev ves' ++ zs) [::Basic (Block (Tf [::] t2s) es)]]))
         else (hs, s, vs, crash_error)
-     (* | Func_host (Tf t1s t2s) h =>
-        let: n := length t1s in
-        let: m := length t2s in
-        if length ves >= n
-        then
-         let: (ves', ves'') := split_n ves n in
-         r <- trigger (host_apply s (Tf t1s t2s) h (rev ves')) ;;
-          match r with
-          | Some (s', r) =>
-            if result_types_agree t2s r
-            then
-              let: rves := result_to_stack r in
-              ret (s', vs, RS_normal (vs_to_es ves'' ++ rves))
-            else ret (s (* FIXME: Why not [s']? *), vs, crash_error)
-          | None => ret (s, vs, RS_normal (vs_to_es ves'' ++ [::Trap]))
-          end
-      else ret (s, vs, crash_error)*)
       | Func_host (Tf t1s t2s) f =>
         let: n := length t1s in
         let: m := length t2s in

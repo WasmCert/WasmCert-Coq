@@ -298,19 +298,19 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
     indent i (with_fg be_style "memory.grow" ++ newline)
   | EConst v =>
     indent i (pp_value v)
-  | Unop_i vt uoi =>
+  | Unop vt (Unop_i uoi) =>
     indent i (pp_value_type vt ++ "." ++ pp_unary_op_i uoi ++ newline)
-  | Unop_f vt uof =>
+  | Unop vt (Unop_f uof) =>
     indent i (pp_value_type vt ++ "." ++ pp_unary_op_f uof ++ newline)
-  | Binop_i vt boi =>
+  | Binop vt (Binop_i boi) =>
     indent i (pp_value_type vt ++ "." ++ pp_binary_op_i boi ++ newline)
-  | Binop_f vt bof =>
+  | Binop vt (Binop_f bof) =>
     indent i (pp_value_type vt ++ "." ++ pp_binary_op_f bof ++ newline)
   | Testop vt Eqz =>
     indent i (pp_value_type vt ++ ".eqz" ++ newline)
-  | Relop_i vt roi =>
+  | Relop vt (Relop_i roi) =>
     indent i (pp_value_type vt ++ "." ++ pp_rel_op_i roi ++ newline)
-  | Relop_f vt rof =>
+  | Relop vt (Relop_f rof) =>
     indent i (pp_value_type vt ++ "." ++ pp_rel_op_f rof ++ newline)
   | Cvtop vt1 cvtop vt2 sxo => "?" ++ newline (* TODO: ??? *)
   end.
