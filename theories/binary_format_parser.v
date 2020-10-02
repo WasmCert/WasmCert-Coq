@@ -318,110 +318,110 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   parse_f32_const <|>
   parse_f64_const <|>
   exact_byte x45 $> Testop T_i32 Eqz <|>
-  exact_byte x46 $> Relop_i T_i32 Eq <|>
-  exact_byte x47 $> Relop_i T_i32 Ne <|>
-  exact_byte x48 $> Relop_i T_i32 (Lt SX_S) <|>
-  exact_byte x49 $> Relop_i T_i32 (Lt SX_U) <|>
-  exact_byte x4a $> Relop_i T_i32 (Gt SX_S) <|>
-  exact_byte x4b $> Relop_i T_i32 (Gt SX_U) <|>
-  exact_byte x4c $> Relop_i T_i32 (Le SX_S) <|>
-  exact_byte x4d $> Relop_i T_i32 (Le SX_U) <|>
-  exact_byte x4e $> Relop_i T_i32 (Ge SX_S) <|>
-  exact_byte x4f $> Relop_i T_i32 (Ge SX_U) <|>
+  exact_byte x46 $> Relop T_i32 (Relop_i Eq) <|>
+  exact_byte x47 $> Relop T_i32 (Relop_i Ne) <|>
+  exact_byte x48 $> Relop T_i32 (Relop_i (Lt SX_S)) <|>
+  exact_byte x49 $> Relop T_i32 (Relop_i (Lt SX_U)) <|>
+  exact_byte x4a $> Relop T_i32 (Relop_i (Gt SX_S)) <|>
+  exact_byte x4b $> Relop T_i32 (Relop_i (Gt SX_U)) <|>
+  exact_byte x4c $> Relop T_i32 (Relop_i (Le SX_S)) <|>
+  exact_byte x4d $> Relop T_i32 (Relop_i (Le SX_U)) <|>
+  exact_byte x4e $> Relop T_i32 (Relop_i (Ge SX_S)) <|>
+  exact_byte x4f $> Relop T_i32 (Relop_i (Ge SX_U)) <|>
 
   exact_byte x50 $> Testop T_i64 Eqz <|>
-  exact_byte x51 $> Relop_i T_i64 Eq <|>
-  exact_byte x52 $> Relop_i T_i64 Ne <|>
-  exact_byte x53 $> Relop_i T_i64 (Lt SX_S) <|>
-  exact_byte x54 $> Relop_i T_i64 (Lt SX_U) <|>
-  exact_byte x55 $> Relop_i T_i64 (Gt SX_S) <|>
-  exact_byte x56 $> Relop_i T_i64 (Gt SX_U) <|>
-  exact_byte x57 $> Relop_i T_i64 (Le SX_S) <|>
-  exact_byte x58 $> Relop_i T_i64 (Le SX_U) <|>
-  exact_byte x59 $> Relop_i T_i64 (Ge SX_S) <|>
-  exact_byte x5a $> Relop_i T_i64 (Ge SX_U) <|>
+  exact_byte x51 $> Relop T_i64 (Relop_i Eq) <|>
+  exact_byte x52 $> Relop T_i64 (Relop_i Ne) <|>
+  exact_byte x53 $> Relop T_i64 (Relop_i (Lt SX_S)) <|>
+  exact_byte x54 $> Relop T_i64 (Relop_i (Lt SX_U)) <|>
+  exact_byte x55 $> Relop T_i64 (Relop_i (Gt SX_S)) <|>
+  exact_byte x56 $> Relop T_i64 (Relop_i (Gt SX_U)) <|>
+  exact_byte x57 $> Relop T_i64 (Relop_i (Le SX_S)) <|>
+  exact_byte x58 $> Relop T_i64 (Relop_i (Le SX_U)) <|>
+  exact_byte x59 $> Relop T_i64 (Relop_i (Ge SX_S)) <|>
+  exact_byte x5a $> Relop T_i64 (Relop_i (Ge SX_U)) <|>
 
-  exact_byte x5b $> Relop_f T_f32 Eqf <|>
-  exact_byte x5c $> Relop_f T_f32 Nef <|>
-  exact_byte x5d $> Relop_f T_f32 Ltf <|>
-  exact_byte x5e $> Relop_f T_f32 Gtf <|>
-  exact_byte x5f $> Relop_f T_f32 Lef <|>
-  exact_byte x60 $> Relop_f T_f32 Gef <|>
+  exact_byte x5b $> Relop T_f32 (Relop_f Eqf) <|>
+  exact_byte x5c $> Relop T_f32 (Relop_f Nef) <|>
+  exact_byte x5d $> Relop T_f32 (Relop_f Ltf) <|>
+  exact_byte x5e $> Relop T_f32 (Relop_f Gtf) <|>
+  exact_byte x5f $> Relop T_f32 (Relop_f Lef) <|>
+  exact_byte x60 $> Relop T_f32 (Relop_f Gef) <|>
 
-  exact_byte x61 $> Relop_f T_f64 Eqf <|>
-  exact_byte x62 $> Relop_f T_f64 Nef <|>
-  exact_byte x63 $> Relop_f T_f64 Ltf <|>
-  exact_byte x64 $> Relop_f T_f64 Gtf <|>
-  exact_byte x65 $> Relop_f T_f64 Lef <|>
-  exact_byte x66 $> Relop_f T_f64 Gef <|>
+  exact_byte x61 $> Relop T_f64 (Relop_f Eqf) <|>
+  exact_byte x62 $> Relop T_f64 (Relop_f Nef) <|>
+  exact_byte x63 $> Relop T_f64 (Relop_f Ltf) <|>
+  exact_byte x64 $> Relop T_f64 (Relop_f Gtf) <|>
+  exact_byte x65 $> Relop T_f64 (Relop_f Lef) <|>
+  exact_byte x66 $> Relop T_f64 (Relop_f Gef) <|>
 
-  exact_byte x67 $> Unop_i T_i32 Clz <|>
-  exact_byte x68 $> Unop_i T_i32 Ctz <|>
-  exact_byte x69 $> Unop_i T_i32 Popcnt <|>
-  exact_byte x6a $> Binop_i T_i32 Add <|>
-  exact_byte x6b $> Binop_i T_i32 Sub <|>
-  exact_byte x6c $> Binop_i T_i32 Mul <|>
-  exact_byte x6d $> Binop_i T_i32 (Div SX_S) <|>
-  exact_byte x6e $> Binop_i T_i32 (Div SX_U) <|>
-  exact_byte x6f $> Binop_i T_i32 (Rem SX_S) <|>
-  exact_byte x70 $> Binop_i T_i32 (Rem SX_U) <|>
-  exact_byte x71 $> Binop_i T_i32 And <|>
-  exact_byte x72 $> Binop_i T_i32 Or <|>
-  exact_byte x73 $> Binop_i T_i32 Xor <|>
-  exact_byte x74 $> Binop_i T_i32 Shl <|>
-  exact_byte x75 $> Binop_i T_i32 (Shr SX_S) <|>
-  exact_byte x76 $> Binop_i T_i32 (Shr SX_U) <|>
-  exact_byte x77 $> Binop_i T_i32 Rotl <|>
-  exact_byte x78 $> Binop_i T_i32 Rotr <|>
+  exact_byte x67 $> Unop T_i32 (Unop_i Clz) <|>
+  exact_byte x68 $> Unop T_i32 (Unop_i Ctz) <|>
+  exact_byte x69 $> Unop T_i32 (Unop_i Popcnt) <|>
+  exact_byte x6a $> Binop T_i32 (Binop_i Add) <|>
+  exact_byte x6b $> Binop T_i32 (Binop_i Sub) <|>
+  exact_byte x6c $> Binop T_i32 (Binop_i Mul) <|>
+  exact_byte x6d $> Binop T_i32 (Binop_i (Div SX_S)) <|>
+  exact_byte x6e $> Binop T_i32 (Binop_i (Div SX_U)) <|>
+  exact_byte x6f $> Binop T_i32 (Binop_i (Rem SX_S)) <|>
+  exact_byte x70 $> Binop T_i32 (Binop_i (Rem SX_U)) <|>
+  exact_byte x71 $> Binop T_i32 (Binop_i And) <|>
+  exact_byte x72 $> Binop T_i32 (Binop_i Or) <|>
+  exact_byte x73 $> Binop T_i32 (Binop_i Xor) <|>
+  exact_byte x74 $> Binop T_i32 (Binop_i Shl) <|>
+  exact_byte x75 $> Binop T_i32 (Binop_i (Shr SX_S)) <|>
+  exact_byte x76 $> Binop T_i32 (Binop_i (Shr SX_U)) <|>
+  exact_byte x77 $> Binop T_i32 (Binop_i Rotl) <|>
+  exact_byte x78 $> Binop T_i32 (Binop_i Rotr) <|>
 
-  exact_byte x79 $> Unop_i T_i64 Clz <|>
-  exact_byte x7a $> Unop_i T_i64 Ctz <|>
-  exact_byte x7b $> Unop_i T_i64 Popcnt <|>
-  exact_byte x7c $> Binop_i T_i64 Add <|>
-  exact_byte x7d $> Binop_i T_i64 Sub <|>
-  exact_byte x7e $> Binop_i T_i64 Mul <|>
-  exact_byte x7f $> Binop_i T_i64 (Div SX_S) <|>
-  exact_byte x80 $> Binop_i T_i64 (Div SX_U) <|>
-  exact_byte x81 $> Binop_i T_i64 (Rem SX_S) <|>
-  exact_byte x82 $> Binop_i T_i64 (Rem SX_U) <|>
-  exact_byte x83 $> Binop_i T_i64 And <|>
-  exact_byte x84 $> Binop_i T_i64 Or <|>
-  exact_byte x85 $> Binop_i T_i64 Xor <|>
-  exact_byte x86 $> Binop_i T_i64 Shl <|>
-  exact_byte x87 $> Binop_i T_i64 (Shr SX_S) <|>
-  exact_byte x88 $> Binop_i T_i64 (Shr SX_U) <|>
-  exact_byte x89 $> Binop_i T_i64 Rotl <|>
-  exact_byte x8a $> Binop_i T_i64 Rotr <|>
+  exact_byte x79 $> Unop T_i64 (Unop_i Clz) <|>
+  exact_byte x7a $> Unop T_i64 (Unop_i Ctz) <|>
+  exact_byte x7b $> Unop T_i64 (Unop_i Popcnt) <|>
+  exact_byte x7c $> Binop T_i64 (Binop_i Add) <|>
+  exact_byte x7d $> Binop T_i64 (Binop_i Sub) <|>
+  exact_byte x7e $> Binop T_i64 (Binop_i Mul) <|>
+  exact_byte x7f $> Binop T_i64 (Binop_i (Div SX_S)) <|>
+  exact_byte x80 $> Binop T_i64 (Binop_i (Div SX_U)) <|>
+  exact_byte x81 $> Binop T_i64 (Binop_i (Rem SX_S)) <|>
+  exact_byte x82 $> Binop T_i64 (Binop_i (Rem SX_U)) <|>
+  exact_byte x83 $> Binop T_i64 (Binop_i And) <|>
+  exact_byte x84 $> Binop T_i64 (Binop_i Or) <|>
+  exact_byte x85 $> Binop T_i64 (Binop_i Xor) <|>
+  exact_byte x86 $> Binop T_i64 (Binop_i Shl) <|>
+  exact_byte x87 $> Binop T_i64 (Binop_i (Shr SX_S)) <|>
+  exact_byte x88 $> Binop T_i64 (Binop_i (Shr SX_U)) <|>
+  exact_byte x89 $> Binop T_i64 (Binop_i Rotl) <|>
+  exact_byte x8a $> Binop T_i64 (Binop_i Rotr) <|>
 
-  exact_byte x8b $> Unop_f T_f32 Abs <|>
-  exact_byte x8c $> Unop_f T_f32 Neg <|>
-  exact_byte x8d $> Unop_f T_f32 Ceil <|>
-  exact_byte x8e $> Unop_f T_f32 Floor <|>
-  exact_byte x8f $> Unop_f T_f32 Trunc <|>
-  exact_byte x90 $> Unop_f T_f32 Nearest <|>
-  exact_byte x91 $> Unop_f T_f32 Sqrt <|>
-  exact_byte x92 $> Binop_f T_f32 Addf <|>
-  exact_byte x93 $> Binop_f T_f32 Subf <|>
-  exact_byte x94 $> Binop_f T_f32 Mulf <|>
-  exact_byte x95 $> Binop_f T_f32 Divf <|>
-  exact_byte x96 $> Binop_f T_f32 Min <|>
-  exact_byte x97 $> Binop_f T_f32 Max <|>
-  exact_byte x98 $> Binop_f T_f32 Copysign <|>
+  exact_byte x8b $> Unop T_f32 (Unop_f Abs) <|>
+  exact_byte x8c $> Unop T_f32 (Unop_f Neg) <|>
+  exact_byte x8d $> Unop T_f32 (Unop_f Ceil) <|>
+  exact_byte x8e $> Unop T_f32 (Unop_f Floor) <|>
+  exact_byte x8f $> Unop T_f32 (Unop_f Trunc) <|>
+  exact_byte x90 $> Unop T_f32 (Unop_f Nearest) <|>
+  exact_byte x91 $> Unop T_f32 (Unop_f Sqrt) <|>
+  exact_byte x92 $> Binop T_f32 (Binop_f Addf) <|>
+  exact_byte x93 $> Binop T_f32 (Binop_f Subf) <|>
+  exact_byte x94 $> Binop T_f32 (Binop_f Mulf) <|>
+  exact_byte x95 $> Binop T_f32 (Binop_f Divf) <|>
+  exact_byte x96 $> Binop T_f32 (Binop_f Min) <|>
+  exact_byte x97 $> Binop T_f32 (Binop_f Max) <|>
+  exact_byte x98 $> Binop T_f32 (Binop_f Copysign) <|>
 
-  exact_byte x99 $> Unop_f T_f64 Abs <|>
-  exact_byte x9a $> Unop_f T_f64 Neg <|>
-  exact_byte x9b $> Unop_f T_f64 Ceil <|>
-  exact_byte x9c $> Unop_f T_f64 Floor <|>
-  exact_byte x9d $> Unop_f T_f64 Trunc <|>
-  exact_byte x9e $> Unop_f T_f64 Nearest <|>
-  exact_byte x9f $> Unop_f T_f64 Sqrt <|>
-  exact_byte xa0 $> Binop_f T_f64 Addf <|>
-  exact_byte xa1 $> Binop_f T_f64 Subf <|>
-  exact_byte xa2 $> Binop_f T_f64 Mulf <|>
-  exact_byte xa3 $> Binop_f T_f64 Divf <|>
-  exact_byte xa4 $> Binop_f T_f64 Min <|>
-  exact_byte xa5 $> Binop_f T_f64 Max <|>
-  exact_byte xa6 $> Binop_f T_f64 Copysign <|>
+  exact_byte x99 $> Unop T_f64 (Unop_f Abs) <|>
+  exact_byte x9a $> Unop T_f64 (Unop_f Neg) <|>
+  exact_byte x9b $> Unop T_f64 (Unop_f Ceil) <|>
+  exact_byte x9c $> Unop T_f64 (Unop_f Floor) <|>
+  exact_byte x9d $> Unop T_f64 (Unop_f Trunc) <|>
+  exact_byte x9e $> Unop T_f64 (Unop_f Nearest) <|>
+  exact_byte x9f $> Unop T_f64 (Unop_f Sqrt) <|>
+  exact_byte xa0 $> Binop T_f64 (Binop_f Addf) <|>
+  exact_byte xa1 $> Binop T_f64 (Binop_f Subf) <|>
+  exact_byte xa2 $> Binop T_f64 (Binop_f Mulf) <|>
+  exact_byte xa3 $> Binop T_f64 (Binop_f Divf) <|>
+  exact_byte xa4 $> Binop T_f64 (Binop_f Min) <|>
+  exact_byte xa5 $> Binop T_f64 (Binop_f Max) <|>
+  exact_byte xa6 $> Binop T_f64 (Binop_f Copysign) <|>
 
   (* TODO: I am really not sure whether this is right :-s *)
   exact_byte xa7 $> Cvtop T_i32 Convert T_i64 (Some SX_U) <|>
