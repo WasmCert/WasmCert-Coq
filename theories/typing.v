@@ -123,13 +123,22 @@ Inductive result_typing : result -> result_type -> Prop :=
 Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 (** Corresponding to section 3.3 **)
 | bet_const : forall C v, be_typing C [::EConst v] (Tf [::] [::typeof v])
+| bet_unop : forall C t op, be_typing C [::Unop t op] (Tf [::t] [::t])
+                                          (*
 | bet_unop_i : forall C t op, is_int_t t -> be_typing C [::Unop_i t op] (Tf [::t] [::t])
 | bet_unop_f : forall C t op, is_float_t t -> be_typing C [::Unop_f t op] (Tf [::t] [::t])
+                                           *)                                         
+| bet_binop : forall C t op, be_typing C [::Binop t op] (Tf [::t; t] [::t])
+                                       (*
 | bet_binop_i : forall C t op, is_int_t t -> be_typing C [::Binop_i t op] (Tf [::t; t] [::t])
 | bet_binop_f : forall C t op, is_float_t t -> be_typing C [::Binop_f t op] (Tf [::t; t] [::t])
+*)
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
+| bet_relop: forall C t op, be_typing C [::Relop t op] (Tf [::t; t] [::T_i32])
+                                      (*
 | bet_relop_i : forall C t op, is_int_t t -> be_typing C [::Relop_i t op] (Tf [::t; t] [::T_i32])
 | bet_relop_f : forall C t op, is_float_t t -> be_typing C [::Relop_f t op] (Tf [::t; t] [::T_i32])
+*)
 | bet_convert : forall C t1 t2 sx, t1 <> t2 -> convert_helper sx t1 t2 ->
   be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1]) (* FIXME: Difference from the Isabelle formalisation: why merge the two rules here? *)
 | bet_reinterpret : forall C t1 t2, t1 <> t2 -> Nat.eqb (t_length t1) (t_length t2) ->

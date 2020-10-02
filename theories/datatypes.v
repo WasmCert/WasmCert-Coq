@@ -233,6 +233,11 @@ Inductive unop_f : Type :=
   | Sqrt
   .
 
+Inductive unop : Type :=
+  | Unop_i : unop_i -> unop
+  | Unop_f : unop_f -> unop
+  .
+
 Inductive binop_i : Type :=
   | Add
   | Sub
@@ -258,6 +263,11 @@ Inductive binop_f : Type :=
   | Copysign
   .
 
+Inductive binop : Type :=
+  | Binop_i : binop_i -> binop
+  | Binop_f : binop_f -> binop
+  .
+  
 Inductive testop : Type :=
   | Eqz
   .
@@ -278,6 +288,11 @@ Inductive relop_f : Type :=
   | Gtf
   | Lef
   | Gef
+  .
+  
+Inductive relop : Type :=
+  | Relop_i : relop_i -> relop
+  | Relop_f : relop_f -> relop
   .
 
 Inductive cvtop : Type :=
@@ -309,13 +324,10 @@ Inductive basic_instruction : Type := (* be *)
   | Current_memory
   | Grow_memory
   | EConst : value -> basic_instruction
-  | Unop_i : value_type -> unop_i -> basic_instruction
-  | Unop_f : value_type -> unop_f -> basic_instruction
-  | Binop_i : value_type -> binop_i -> basic_instruction
-  | Binop_f : value_type -> binop_f -> basic_instruction
+  | Unop : value_type -> unop -> basic_instruction
+  | Binop : value_type -> binop -> basic_instruction
   | Testop : value_type -> testop -> basic_instruction
-  | Relop_i : value_type -> relop_i -> basic_instruction
-  | Relop_f : value_type -> relop_f -> basic_instruction
+  | Relop : value_type -> relop -> basic_instruction
   | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction
   .
 

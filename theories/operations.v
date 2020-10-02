@@ -178,6 +178,22 @@ Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -
   | Sqrt => Wasm_float.float_sqrt mx
   end.
 
+Definition app_unop (op: unop) (v: value) :=
+  match op with
+  | Unop_i iop =>
+    match v with
+    | ConstInt32 c => ConstInt32 (@app_unop_i i32t iop c)
+    | ConstInt64 c => ConstInt64 (@app_unop_i i64t iop c)
+    | _ => v
+    end
+  | Unop_f fop =>
+    match v with
+    | ConstFloat32 c => ConstFloat32 (@app_unop_f f32t fop c)
+    | ConstFloat64 c => ConstFloat64 (@app_unop_f f64t fop c)
+    | _ => v
+    end
+  end.
+
 Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
     : Wasm_int.sort e -> Wasm_int.sort e -> option (Wasm_int.sort e) :=
   let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e
@@ -216,6 +232,38 @@ Definition app_binop_f (e : Wasm_float.type) (fop : binop_f)
   | Copysign => add_some (Wasm_float.float_copysign mx)
   end.
 
+Definition app_binop (op: binop) (v1: value) (v2: value) :=
+  match op with
+  | Binop_i iop =>
+    match v1 with
+    | ConstInt32 c1 =>
+      match v2 with
+      | ConstInt32 c2 => option_map (fun v => ConstInt32 v) (@app_binop_i i32t iop c1 c2)
+      |  _ => None
+      end                              
+    | ConstInt64 c1 =>
+      match v2 with
+      | ConstInt64 c2 => option_map (fun v => ConstInt64 v) (@app_binop_i i64t iop c1 c2)
+      |  _ => None
+      end                              
+    | _ => None
+    end
+  | Binop_f fop =>
+    match v1 with
+    | ConstFloat32 c1 =>
+      match v2 with
+      | ConstFloat32 c2 => option_map (fun v => ConstFloat32 v) (@app_binop_f f32t fop c1 c2)
+      |  _ => None
+      end                              
+    | ConstFloat64 c1 =>
+      match v2 with
+      | ConstFloat64 c2 => option_map (fun v => ConstFloat64 v) (@app_binop_f f64t fop c1 c2)
+      |  _ => None
+      end                              
+    | _ => None
+    end
+  end.
+
 Definition app_testop_i (e : Wasm_int.type) (o : testop) : Wasm_int.sort e -> bool :=
   let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> bool in
   match o with
@@ -250,6 +298,38 @@ Definition app_relop_f (e : Wasm_float.type) (rop : relop_f)
   | Gtf => Wasm_float.float_gt mx
   | Lef => Wasm_float.float_le mx
   | Gef => Wasm_float.float_ge mx
+  end.
+
+Definition app_relop (op: relop) (v1: value) (v2: value) :=
+  match op with
+  | Relop_i iop =>
+    match v1 with
+    | ConstInt32 c1 =>
+      match v2 with
+      | ConstInt32 c2 => @app_relop_i i32t iop c1 c2
+      |  _ => false
+      end                              
+    | ConstInt64 c1 =>
+      match v2 with
+      | ConstInt64 c2 => @app_relop_i i64t iop c1 c2
+      |  _ => false
+      end                              
+    | _ => false
+    end
+  | Relop_f fop =>
+    match v1 with
+    | ConstFloat32 c1 =>
+      match v2 with
+      | ConstFloat32 c2 => @app_relop_f f32t fop c1 c2
+      |  _ => false
+      end                              
+    | ConstFloat64 c1 =>
+      match v2 with
+      | ConstFloat64 c2 => @app_relop_f f64t fop c1 c2
+      |  _ => false
+      end                              
+    | _ => false
+    end
   end.
 
 Definition types_agree (t : value_type) (v : value) : bool :=
