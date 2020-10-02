@@ -22,14 +22,6 @@ Let store_record := store_record host_function.
 Let administrative_instruction := administrative_instruction host_function.
 Let host_state := host_state host_instance.
 
-Inductive unop_i : Type :=
-  | Clz
-  | Ctz
-  | Popcnt
-.
-
-Check Unop_i.
-
 Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
 
 (** unop **)
