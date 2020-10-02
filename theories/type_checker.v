@@ -205,6 +205,8 @@ in
   else
   match be with
   | EConst v => type_update ts [::] (CT_type [::typeof v])
+  | Unop t _ => type_update ts [::CTA_some t] (CT_type [::t])
+                            (*
   | Unop_i t _ =>
     if is_int_t t
     then type_update ts [::CTA_some t] (CT_type [::t])
@@ -213,6 +215,9 @@ in
     if is_float_t t
     then  type_update ts [::CTA_some t] (CT_type [::t])
     else CT_bot
+                             *)
+  | Binop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
+                             (*
   | Binop_i t _ =>
     if is_int_t t
     then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
@@ -221,10 +226,14 @@ in
     if is_int_t t
     then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
     else CT_bot
+                              *)
+
   | Testop t _ =>
     if is_int_t t
     then type_update ts [::CTA_some t] (CT_type [::T_i32])
     else CT_bot
+  | Relop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
+                             (*
   | Relop_i t _ =>
     if is_int_t t
     then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
@@ -233,6 +242,7 @@ in
     if is_int_t t
     then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
     else CT_bot
+                              *)
   | Cvtop t1 Convert t2 sx =>
     if typing.convert_cond t1 t2 sx
     then type_update ts [::CTA_some t2] (CT_type [::t1])

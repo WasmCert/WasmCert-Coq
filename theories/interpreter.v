@@ -143,53 +143,19 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
   match e with
 
   (** unop **)
-  | Basic (Unop_i T_i32 iop) =>
-    if ves is ConstInt32 c :: ves' then
-      ret (s, vs, RS_normal (vs_to_es ((ConstInt32 (@app_unop_i i32t iop c)) :: ves')))
+  | Basic (Unop t op) =>
+    if ves is v :: ves' then
+      ret (s, vs, RS_normal (vs_to_es ((app_unop op v) :: ves')))
     else ret (s, vs, crash_error)
-  | Basic (Unop_i T_i64 iop) =>
-    if ves is (ConstInt64 c) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es ((ConstInt64 (@app_unop_i i64t iop c)) :: ves')))
-    else ret (s, vs, crash_error)
-  | Basic (Unop_i _ _) => ret (s, vs, crash_error)
-  | Basic (Unop_f T_f32 iop) =>
-    if ves is (ConstFloat32 c) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es ((ConstFloat32 (@app_unop_f f32t iop c)) :: ves')))
-    else ret (s, vs, crash_error)
-  | Basic (Unop_f T_f64 iop) =>
-    if ves is (ConstFloat64 c) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es ((ConstFloat64 (@app_unop_f f64t iop c)) :: ves')))
-    else ret (s, vs, crash_error)
-  | Basic (Unop_f _ _) => ret (s, vs, crash_error)
-
+             
   (** binop **)
-  | Basic (Binop_i T_i32 iop) =>
-    if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-      expect (@app_binop_i i32t iop c1 c2) (fun c =>
-          ret (s, vs, RS_normal (vs_to_es ((ConstInt32 c) :: ves'))))
-        (ret (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap])))
+  | Basic (Binop t op) =>
+    if ves is v1 :: v2 :: ves' then
+      expect (app_binop op v1 v2)
+             (fun v => ret (s, vs, RS_normal (vs_to_es (v :: ves'))))
+             (ret (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap])))
     else ret (s, vs, crash_error)
-  | Basic (Binop_i T_i64 iop) =>
-    if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-      expect (@app_binop_i i64t iop c1 c2) (fun c =>
-          ret (s, vs, RS_normal (vs_to_es ((ConstInt64 c) :: ves'))))
-        (ret (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap])))
-    else ret (s, vs, crash_error)
-  | Basic (Binop_i _ _) => ret (s, vs, crash_error)
-  | Basic (Binop_f T_f32 fop) =>
-    if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      expect (@app_binop_f f32t fop c1 c2) (fun c =>
-          ret (s, vs, RS_normal (vs_to_es ((ConstFloat32 c) :: ves'))))
-        (ret (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap])))
-    else ret (s, vs, crash_error)
-  | Basic (Binop_f T_f64 fop) =>
-    if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      expect (@app_binop_f f64t fop c1 c2) (fun c =>
-           ret (s, vs, RS_normal (vs_to_es ((ConstFloat64 c) :: ves'))))
-        (ret (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap])))
-    else ret (s, vs, crash_error)
-  | Basic (Binop_f _ _) => ret (s, vs, crash_error)
-
+          
   (** testops **)
   | Basic (Testop T_i32 testop) =>
     if ves is (ConstInt32 c) :: ves' then
@@ -202,25 +168,11 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
   | Basic (Testop _ _) => ret (s, vs, crash_error)
 
   (** relops **)
-  | Basic (Relop_i T_i32 iop) =>
-    if ves is (ConstInt32 c2) :: (ConstInt32 c1) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i32t iop c1 c2)) :: ves')))
+  | Basic (Relop t op) =>
+    if ves is v1 :: v2 :: ves' then
+      ret (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
     else ret (s, vs, crash_error)
-  | Basic (Relop_i T_i64 iop) =>
-    if ves is (ConstInt64 c2) :: (ConstInt64 c1) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2)) :: ves')))
-    else ret (s, vs, crash_error)
-  | Basic (Relop_i _ _) => ret (s, vs, crash_error)
-  | Basic (Relop_f T_f32 iop) =>
-    if ves is (ConstFloat32 c2) :: (ConstFloat32 c1) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f32t iop c1 c2)) :: ves')))
-    else ret (s, vs, crash_error)
-  | Basic (Relop_f T_f64 iop) =>
-    if ves is (ConstFloat64 c2) :: (ConstFloat64 c1) :: ves' then
-      ret (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (@app_relop_f f64t iop c1 c2)) :: ves')))
-    else ret (s, vs, crash_error)
-  | Basic (Relop_f _ _) => ret (s, vs, crash_error)
-
+             
   (** convert and reinterpret **)
   | Basic (Cvtop t2 Convert t1 sx) =>
     if ves is v :: ves' then
