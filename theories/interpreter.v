@@ -150,7 +150,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
              
   (** binop **)
   | Basic (Binop t op) =>
-    if ves is v1 :: v2 :: ves' then
+    if ves is v2 :: v1 :: ves' then
       expect (app_binop op v1 v2)
              (fun v => ret (s, vs, RS_normal (vs_to_es (v :: ves'))))
              (ret (s, vs, RS_normal ((vs_to_es ves') ++ [::Trap])))
@@ -169,7 +169,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
 
   (** relops **)
   | Basic (Relop t op) =>
-    if ves is v1 :: v2 :: ves' then
+    if ves is v2 :: v1 :: ves' then
       ret (s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
     else ret (s, vs, crash_error)
              

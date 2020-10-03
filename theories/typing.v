@@ -119,14 +119,38 @@ Inductive result_typing : result -> result_type -> Prop :=
   | result_typing_values : forall vs, result_typing (result_values vs) (map typeof vs)
   | result_typing_trap : forall ts, result_typing result_trap ts
   .
+
+Inductive unop_type_agree: value_type -> unop -> Prop :=
+  | Unop_i32_agree: forall op, unop_type_agree T_i32 (Unop_i op)
+  | Unop_i64_agree: forall op, unop_type_agree T_i64 (Unop_i op)
+  | Unop_f32_agree: forall op, unop_type_agree T_f32 (Unop_f op)
+  | Unop_f64_agree: forall op, unop_type_agree T_f64 (Unop_f op)
+  .
+   
+Inductive binop_type_agree: value_type -> binop -> Prop :=
+  | Binop_i32_agree: forall op, binop_type_agree T_i32 (Binop_i op)
+  | Binop_i64_agree: forall op, binop_type_agree T_i64 (Binop_i op)
+  | Binop_f32_agree: forall op, binop_type_agree T_f32 (Binop_f op)
+  | Binop_f64_agree: forall op, binop_type_agree T_f64 (Binop_f op)
+  .
+  
+Inductive relop_type_agree: value_type -> relop -> Prop :=
+  | Relop_i32_agree: forall op, relop_type_agree T_i32 (Relop_i op)
+  | Relop_i64_agree: forall op, relop_type_agree T_i64 (Relop_i op)
+  | Relop_f32_agree: forall op, relop_type_agree T_f32 (Relop_f op)
+  | Relop_f64_agree: forall op, relop_type_agree T_f64 (Relop_f op)
+  .
   
 Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 (** Corresponding to section 3.3 **)
 | bet_const : forall C v, be_typing C [::EConst v] (Tf [::] [::typeof v])
-| bet_unop : forall C t op, be_typing C [::Unop t op] (Tf [::t] [::t])
-| bet_binop : forall C t op, be_typing C [::Binop t op] (Tf [::t; t] [::t])
+| bet_unop : forall C t op,
+    unop_type_agree t op -> be_typing C [::Unop t op] (Tf [::t] [::t])
+| bet_binop : forall C t op,
+    binop_type_agree t op -> be_typing C [::Binop t op] (Tf [::t; t] [::t])
 | bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
-| bet_relop: forall C t op, be_typing C [::Relop t op] (Tf [::t; t] [::T_i32])
+| bet_relop: forall C t op,
+    relop_type_agree t op -> be_typing C [::Relop t op] (Tf [::t; t] [::T_i32])
 | bet_convert : forall C t1 t2 sx, t1 <> t2 -> convert_helper sx t1 t2 ->
   be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1]) (* FIXME: Difference from the Isabelle formalisation: why merge the two rules here? *)
 | bet_reinterpret : forall C t1 t2, t1 <> t2 -> Nat.eqb (t_length t1) (t_length t2) ->

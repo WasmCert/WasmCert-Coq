@@ -1219,25 +1219,16 @@ Proof.
       - (** [Basic (Econst _)] **)
         by pattern_match.
 
-      - (** [Basic Unop_i v u] **)
+      - (** [Basic Unop v u] **)
         by explode_and_simplify;  pattern_match; auto_frame.
 
-      - (** [Basic Unop_f v u] **)
-        by explode_and_simplify;  pattern_match; auto_frame.
-
-      - (** [Basic Binop_i v b] **)
-        by explode_and_simplify; pattern_match; auto_frame.
-
-      - (** [Basic Binop_f v b] **)
+      - (** [Basic Binop v2 v1 b] **)
         by explode_and_simplify; pattern_match; auto_frame.
 
       - (** [Basic (Testop v t)] **)
         by explode_and_simplify; pattern_match; auto_frame.
 
-      - (** [Basic (Relop_i v r)] **)
-        by explode_and_simplify; pattern_match; auto_frame.
-
-      - (** [Basic (relop_f v r)] **)
+      - (** [Basic (Relop v2 v1 r)] **)
         by explode_and_simplify; pattern_match; auto_frame.
 
       - (** [Basic (Cvtop v c v0 o)] **)

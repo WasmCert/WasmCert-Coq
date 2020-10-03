@@ -399,16 +399,25 @@ Ltac invert_be_typing:=
   | H: be_typing _ [:: EConst _; EConst _; EConst _] _ |- _ =>
     apply EConst3_typing in H; subst
   | H: be_typing _ [::Unop _ _] _ |- _ =>
-    apply Unop_typing in H; destruct H; subst
+    let ts := fresh "ts" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    apply Unop_typing in H; destruct H as [H1 [ts H2]]; subst
   | H: be_typing _ [::Binop _ _] _ |- _ =>
-    apply Binop_typing in H; destruct H; subst
+    let ts := fresh "ts" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    apply Binop_typing in H; destruct H as [H1 [ts H2]]; subst
   | H: be_typing _ [::Testop _ _] _ |- _ =>
     let ts := fresh "ts" in
     let H1 := fresh "H1" in
     let H2 := fresh "H2" in
     apply Testop_typing in H; destruct H as [ts [H1 H2]]; subst
   | H: be_typing _ [::Relop _ _] _ |- _ =>
-    apply Relop_typing in H; destruct H; subst
+    let ts := fresh "ts" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    apply Relop_typing in H; destruct H as [ts [H1 H2]]; subst
   | H: be_typing _ [::Cvtop _ _ _ _] _ |- _ =>
     let ts := fresh "ts" in
     let H1 := fresh "H1" in
@@ -451,6 +460,22 @@ Ltac invert_be_typing:=
     let H3 := fresh "H3" in
     let H4 := fresh "H4" in
     apply Tee_local_typing in H; destruct H as [ts [t [H1 [H2 [H3 H4]]]]]; subst
+  | H: be_typing _ (_ ++ _) _ |- _ =>
+    let ts1 := fresh "ts1" in
+    let ts2 := fresh "ts2" in
+    let ts3 := fresh "ts3" in
+    let ts4 := fresh "ts4" in
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    apply composition_typing in H; destruct H as [ts1 [ts2 [ts3 [ts4 [H1 [H2 [H3 H4]]]]]]]
+  | H: be_typing _ [::_;_] _ |- _ =>
+    rewrite -cat1s in H
+  | H: be_typing _ [::_;_;_] _ |- _ =>
+    rewrite -cat1s in H
+  | H: be_typing _ [::_;_;_;_] _ |- _ =>
+    rewrite -cat1s in H
   | H: _ ++ [::_] = _ ++ [::_] |- _ =>
     apply concat_cancel_last in H; destruct H; subst
   end.
@@ -463,52 +488,36 @@ Proof.
   by elim: op; elim: v1; elim: v2 => //=; move => c1 c2 op H; destruct op; remove_bools_options.
 Qed.
 
-Lemma t_Unop_preserve: forall C v op be tf,
-    be_typing C [:: EConst v; Unop (typeof v) op] tf ->
-    reduce_simple (to_e_list [::EConst v; Unop (typeof v) op]) (to_e_list [::be]) ->
+Lemma t_Unop_preserve: forall C v t op be tf,
+    be_typing C [:: EConst v; Unop t op] tf ->
+    reduce_simple (to_e_list [::EConst v; Unop t op]) (to_e_list [::be]) ->
     be_typing C [::be] tf.
 Proof.
-  move => C v op be tf HType HReduce.
+  move => C v t op be tf HType HReduce.
+  destruct tf as [ts1 ts2].
   inversion HReduce; b_to_a_revert; subst.
-  (* This is actually very troublesome: we have to use induction just because of
-       bet_weakening every time...... *)
-  dependent induction HType.
-  + (* Composition -- the right one *)
-    invert_be_typing.
-    (* Due to the existence of bet_composition and bet_weakening, a direct
-         inversion of those be_typing rules won't work.
-       As a result we have to prove them as separate lemmas.
-       Is there a way to avoid this? *)
-    apply bet_weakening_empty_1.
-    replace (typeof v) with (typeof (app_unop op v)); first by apply bet_const.
-    by destruct op; destruct v.        
-  + (* Weakening *)
-    apply bet_weakening.
-    by eapply IHHType.
+  invert_be_typing.
+  rewrite catA.
+  apply bet_weakening_empty_1.
+  replace (typeof v) with (typeof (app_unop op v)); first by apply bet_const.
+  by destruct op; destruct v.
 Qed.
 
-Lemma t_Binop_preserve_success: forall C v1 v2 op be tf,
-    be_typing C [:: EConst v1; EConst v2; Binop (typeof v1) op] tf ->
-    reduce_simple (to_e_list [::EConst v1; EConst v2; Binop (typeof v2) op]) (to_e_list [::be]) ->
+Lemma t_Binop_preserve_success: forall C v1 v2 t op be tf,
+    be_typing C [:: EConst v1; EConst v2; Binop t op] tf ->
+    reduce_simple (to_e_list [::EConst v1; EConst v2; Binop t op]) (to_e_list [::be]) ->
     be_typing C [::be] tf.
 Proof.
-  move => C v1 v2 op be tf HType HReduce.
+  move => C v1 v2 t op be tf HType HReduce.
+  destruct tf as [ts1 ts2].
   inversion HReduce; b_to_a_revert; subst.
-  dependent induction HType.
-  - (* Composition *)
-    invert_be_typing.
-    replace t3s with (t1s ++ [::typeof v]).
-    {
-      apply bet_weakening_empty_1.
-      by apply bet_const.
-    }
-    replace [::typeof v1; typeof v2] with ([::typeof v1] ++ [::typeof v2]) in H => //.
-    rewrite catA in H.
-    apply concat_cancel_last in H; inversion H. subst.
-    by apply app_binop_type_preserve in H0; rewrite H0.    
-  + (* Weakening *)
-    apply bet_weakening.
-    by eapply IHHType => //=.
+  invert_be_typing.
+  rewrite catA in H1. apply concat_cancel_last in H1. destruct H1; subst.
+  repeat rewrite catA.
+  apply bet_weakening_empty_1.
+  apply app_binop_type_preserve in H0.
+  rewrite -H1. rewrite -H0.
+  by apply bet_const.
 Qed.
 
 (* It seems very hard to refactor the i32 and i64 cases into one because of
@@ -543,24 +552,23 @@ Proof.
     by eapply IHHType.
 Qed.
 
-Lemma t_Relop_preserve: forall C v1 v2 be op tf,
-    be_typing C [::EConst v1; EConst v2; Relop (typeof v1) op] tf ->
-    reduce_simple [:: Basic (EConst v1); Basic (EConst v2); Basic (Relop (typeof v1) op)] [::Basic be] ->
+Lemma t_Relop_preserve: forall C v1 v2 t be op tf,
+    be_typing C [::EConst v1; EConst v2; Relop t op] tf ->
+    reduce_simple [:: Basic (EConst v1); Basic (EConst v2); Basic (Relop t op)] [::Basic be] ->
     be_typing C [::be] tf.
 Proof.
-  move => C v1 v2 be op tf HType HReduce.
+  move => C v1 v2 t be op tf HType HReduce.
+  destruct tf as [ts1 ts2].
   inversion HReduce; subst.
-  gen_ind_subst HType.
-  - (* Composition *)
-    invert_be_typing.
-    destruct H1; subst.
-    apply concat_cancel_last_n in H1 => //=.
-    remove_bools_options. subst.
-    apply bet_weakening_empty_1.
-    by apply bet_const.
-  - (* Weakening *)
-    apply bet_weakening.
-    by eapply IHHType.
+  invert_be_typing.
+  replace ([::t;t]) with ([::t] ++ [::t]) in H2 => //.
+  rewrite catA in H2.
+  apply concat_cancel_last in H2. destruct H2 as [H3 H4]. subst.
+  rewrite catA in H1.
+  apply concat_cancel_last in H1. destruct H1 as [H5 H6]. subst.
+  repeat rewrite catA.
+  apply bet_weakening_empty_1.
+  by apply bet_const.
 Qed.
 
 Lemma typeof_deserialise: forall v t,
@@ -798,69 +806,15 @@ Proof.
   inversion HReduce; b_to_a_revert; subst; simpl in HType => //; basic_inversion.
 (* The proof itself should be refactorable further into tactics as well. *)
   - (* Unop *)
-    eapply t_Unop_preserve => //=.
-    + replace T_i32 with (typeof (ConstInt32 c)) in HType => //=.
-      by apply HType.
-    + by apply rs_unop_i32.
-  - (* Unop_i64 *)
-    eapply t_Unop_i_preserve => //=.
-    + replace T_i64 with (typeof (ConstInt64 c)) in HType => //=.
-      by apply HType.
-    + by apply rs_unop_i64.
-  - (* Unop_f32 *)
-    eapply t_Unop_f_preserve => //=.
-    + replace T_f32 with (typeof (ConstFloat32 c)) in HType => //=.
-      by apply HType.
-    + by apply rs_unop_f32.
-  - (* Unop_f64 *)
-    eapply t_Unop_f_preserve => //=.
-    + replace T_f64 with (typeof (ConstFloat64 c)) in HType => //=.
-      by apply HType.
-    + by apply rs_unop_f64.
-  - (* Binop_i32_success *)
-    eapply t_Binop_i_preserve_success => //=.
-    + replace T_i32 with (typeof (ConstInt32 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_binop_i32_success.
-  - (* Binop_i64_success *)
-    eapply t_Binop_i_preserve_success => //=.
-    + replace T_i64 with (typeof (ConstInt64 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_binop_i64_success.
-  - (* Binop_f32_success *)
-    eapply t_Binop_f_preserve_success => //=.
-    + replace T_f32 with (typeof (ConstFloat32 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_binop_f32_success.
-  - (* Binop_f64_success *)
-    eapply t_Binop_f_preserve_success => //=.
-    + replace T_f64 with (typeof (ConstFloat64 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_binop_f64_success.
+    by eapply t_Unop_preserve; eauto => //=.
+  - (* Binop_success *)
+    by eapply t_Binop_preserve_success; eauto => //=.
   - (* testop_i T_i32 *)
-    apply t_Testop_i32_preserve => //.
+    by apply t_Testop_i32_preserve => //.
   - (* testop_i T_i64 *)
-    apply t_Testop_i64_preserve => //.
-  - (* relop T_i32 *)
-    eapply t_Relop_i_preserve => //=.
-    + replace T_i32 with (typeof (ConstInt32 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_relop_i32.
-  - (* relop T_i64 *)
-    eapply t_Relop_i_preserve => //=.
-    + replace T_i64 with (typeof (ConstInt64 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_relop_i64.
-  - (* relop T_f32 *)
-    eapply t_Relop_f_preserve => //=.
-    + replace T_f32 with (typeof (ConstFloat32 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_relop_f32.
-  - (* relop T_f64 *)
-    eapply t_Relop_f_preserve => //=.
-    + replace T_f64 with (typeof (ConstFloat64 c1)) in HType => //=.
-      by apply HType.
-    + by apply rs_relop_f64.
+    by apply t_Testop_i64_preserve => //.
+  - (* relop *)
+    by eapply t_Relop_preserve => //=; eauto.
   - (* Cvtop Convert success *)
     eapply t_Convert_preserve => //=.
     apply HType.

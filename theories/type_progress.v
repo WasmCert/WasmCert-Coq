@@ -523,29 +523,16 @@ Proof.
   move => C bes ts1 ts2 vcs lab ret s vs i hs HST HIT HType HConstType HNBr HNRet.
   generalize dependent vcs.
   gen_ind HType; try by left.
-  - (* Unop_i *)
+  - (* Unop *)
     right. invert_typeof_vcs.
     by destruct v => //=; solve_progress.
-  - (* Unop_f *)
+  - (* Binop *)
     right. invert_typeof_vcs.
-    by destruct v => //=; solve_progress.
-  - (* binop_i *)
-    right. invert_typeof_vcs.
-    destruct v => //=; destruct v0 => //=.
-    + destruct (@app_binop_i i32t op s0 s1) eqn:HBinary; solve_progress.
-    + destruct (@app_binop_i i64t op s0 s1) eqn:HBinary; solve_progress.
-  - (* binop_f *)
-    right. invert_typeof_vcs.
-    destruct v => //=; destruct v0 => //=.
-    + destruct (@app_binop_f f32t op s0 s1) eqn:HBinary; solve_progress.
-    + destruct (@app_binop_f f64t op s0 s1) eqn:HBinary; solve_progress.
+    by destruct (app_binop op v v0) eqn:HBinary; solve_progress.
   - (* testop *)
     right. invert_typeof_vcs.
     by destruct v => //=; solve_progress.
   - (* relop_i *)
-    right. invert_typeof_vcs.
-    by destruct v => //=; destruct v0 => //=; solve_progress.
-  - (* relop_f *)
     right. invert_typeof_vcs.
     by destruct v => //=; destruct v0 => //=; solve_progress.
   - (* cvtop *)

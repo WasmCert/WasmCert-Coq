@@ -186,7 +186,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
       else (hs, s, vs, crash_error)
     (* binop *)
     | Basic (Binop t op) =>
-      if ves is v1 :: v2 :: ves' then
+      if ves is v2 :: v1 :: ves' then
         expect (app_binop op v1 v2)
                (fun v => (hs, s, vs, RS_normal (vs_to_es (v :: ves'))))
                (hs, s, vs, RS_normal ((vs_to_es ves') ++ [::Trap]))
@@ -203,7 +203,7 @@ with run_one_step (fuel : fuel) (d : depth) (i : instance) (cfg : config_one_tup
     | Basic (Testop _ _) => (hs, s, vs, crash_error)
     (* relops *)
     | Basic (Relop t op) =>
-      if ves is v1 :: v2 :: ves' then
+      if ves is v2 :: v1 :: ves' then
         (hs, s, vs, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
       else (hs, s, vs, crash_error)
     (* convert & reinterpret *)
