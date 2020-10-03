@@ -254,6 +254,17 @@ Definition upd_local C loc :=
     (tc_label C)
     (tc_return C).
 
+Definition upd_return C ret :=
+  Build_t_context
+    (tc_types_t C)
+    (tc_func_t C)
+    (tc_global C)
+    (tc_table C)
+    (tc_memory C)
+    (tc_local C)
+    (tc_label C)
+    ret.
+
 Definition upd_local_return C loc ret :=
   Build_t_context
     (tc_types_t C)
@@ -518,6 +529,14 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
     cl_typing s (Func_host tf h) tf
   .
 
+Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
+| f_typing: forall s i tvs C f,
+    inst_typing s i C ->
+    f.(f_inst) = i ->
+    map typeof f.(f_locs) = tvs ->
+    frame_typing s f (upd_local C tvs)
+  .
+  
 Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
@@ -543,14 +562,10 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   length ts = n ->
   e_typing s C [::Label n e0s es] (Tf [::] t2s)
 
-(*
-  Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
- *)
 with s_typing : store_record -> option (seq value_type) -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
 | mk_s_typing : forall s f es rs ts C C0,
-  let tvs := map typeof f.(f_locs) in
-  inst_typing s f.(f_inst) C0 ->
-  C = upd_local_return C0 ((tc_local C0) ++ tvs) rs ->
+  frame_typing s f C0 ->
+  C = upd_return C0 rs ->
   e_typing s C es (Tf [::] ts) ->
   (rs = Some ts \/ rs = None) ->
   s_typing s rs f es ts

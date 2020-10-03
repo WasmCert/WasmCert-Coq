@@ -2692,6 +2692,14 @@ Proof.
     by rewrite HLimMax.
 Qed.
 
+Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
+    reduce hs s f es hs' s' f' es' ->
+    f.(f_inst) = f'.(f_inst).
+Proof.
+  move => hs s f es hs' s' f' es' HReduce.
+  by induction HReduce.
+Qed.
+
 Lemma store_extension_reduce: forall s f es s' f' es' C tf loc lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     inst_typing s f.(f_inst) C ->
@@ -2838,8 +2846,8 @@ Proof.
     apply Local_typing in HType.
     destruct HType as [ts [H1 [H2 H3]]]. subst.
     inversion H2. subst.
-    eapply IHHReduce; eauto.
-    by apply H3.
+    apply upd_label_unchanged_typing in H1.
+    eapply IHHReduce => //=; eauto.
 Qed.
 
 Lemma result_e_type: forall r ts s C,
@@ -2897,8 +2905,8 @@ Proof.
     rewrite set_nth_map => //.
     by rewrite set_nth_same_unchanged.
   - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
-    destruct H2 as [lab' [t1s' [t2s' H2]]].
-    rewrite upd_label_overwrite in H2.
+    destruct H1 as [lab' [t1s' [t2s' H1]]].
+    rewrite upd_label_overwrite in H1.
     by eapply IHHReduce; eauto.
 Qed.
 
@@ -3162,7 +3170,7 @@ Proof.
     generalize dependent ty. generalize dependent tx. generalize dependent lab.
     induction k; move => lab tx ty les' les HType lh HLF1 HLF2; move/lfilledP in HLF1; move/lfilledP in HLF2.
     + inversion HLF1. inversion HLF2. subst. clear HLF1. clear HLF2.
-      inversion H6. subst. clear H6. clear H0.
+      inversion H5. subst. clear H5. clear H0.
       apply e_composition_typing in HType.
       destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H2 [H3 [H4 H5]]]]]]]. subst.
       apply e_composition_typing in H5.
@@ -3183,12 +3191,13 @@ Proof.
             eapply store_extension_reduce; eauto.
             by eapply t_preservation_vs_type; eauto.
     + inversion HLF1. inversion HLF2. subst.
-      inversion H9. subst. clear H9.
-      move/lfilledP in H2. move/lfilledP in H8.
+      inversion H8. subst. clear H8.
+      clear H6.
+      move/lfilledP in H1. move/lfilledP in H7.
       apply e_composition_typing in HType.
-      destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H3 [H4 [H5 H6]]]]]]]. subst.
-      apply e_composition_typing in H6.
-      destruct H6 as [ts1 [t1s1 [t2s1 [t3s1 [H10 [H11 [H12 H13]]]]]]]. subst.
+      destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H2 [H3 [H4 H5]]]]]]]. subst.
+      apply e_composition_typing in H5.
+      destruct H5 as [ts1 [t1s1 [t2s1 [t3s1 [H10 [H11 [H12 H13]]]]]]]. subst.
       apply Label_typing in H12.
       destruct H12 as [ts2 [t2s2 [H14 [H15 [H16 H17]]]]]. subst.
       eapply et_composition'.
@@ -3230,22 +3239,14 @@ Proof.
     apply et_weakening_empty_1.
     apply ety_local => //.
     inversion H2. subst.
-    apply upd_label_unchanged_typing in H3.
+    apply upd_label_unchanged_typing in H1.
     eapply mk_s_typing; eauto.
     + eapply inst_typing_extension; eauto.
       eapply store_extension_reduce; eauto.
-      rewrite -H; eauto.
+      replace (f_inst f') with (f_inst f); eauto; first by eapply reduce_inst_unchanged; eauto.
     + eapply IHHReduce; eauto.
       eapply inst_typing_extension; eauto.
       eapply store_extension_reduce; eauto.
-Qed.
-
-Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
-    reduce hs s f es hs' s' f' es' ->
-    f.(f_inst) = f'.(f_inst).
-Proof.
-  move => hs s f es hs' s' f' es' HReduce.
-  by inversion HReduce.
 Qed.
   
 Theorem t_preservation: forall s f es s' f' es' ts hs hs',

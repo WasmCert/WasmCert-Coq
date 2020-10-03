@@ -461,14 +461,12 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
   (** label and local **)
   | r_label :
       forall s f es les s' f' es' les' k lh hs hs',
-        f.(f_inst) = f'.(f_inst) ->
         reduce hs s f es hs' s' f' es' ->
         lfilled k lh es les ->
         lfilled k lh es' les' ->
         reduce hs s f les hs' s' f' les'
   | r_local :
       forall s f es s' f' es' n f0 hs hs',
-        f.(f_inst) = f'.(f_inst) ->
         reduce hs s f es hs' s' f' es' ->
         reduce hs s f0 [::Local n f es] hs' s' f0 [::Local n f' es']
   .
