@@ -27,16 +27,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
 (** unop **)
   | rs_unop : forall v op t,
     reduce_simple [::Basic (EConst v); Basic (Unop t op)] [::Basic (EConst (@app_unop op v))]
-    (*
-  | rs_unop_i32 : forall c iop,
-    reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Unop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (@app_unop_i i32t iop c)))]
-  | rs_unop_i64 : forall c iop,
-    reduce_simple [::Basic (EConst (ConstInt64 c)); Basic (Unop_i T_i64 iop)] [::Basic (EConst (ConstInt64 (@app_unop_i i64t iop c)))]
-  | rs_unop_f32 : forall c fop,
-    reduce_simple [::Basic (EConst (ConstFloat32 c)); Basic (Unop_f T_f32 fop)] [::Basic (EConst (ConstFloat32 (@app_unop_f f32t fop c)))]
-  | rs_unop_f64 : forall c fop,
-    reduce_simple [::Basic (EConst (ConstFloat64 c)); Basic (Unop_f T_f64 fop)] [::Basic (EConst (ConstFloat64 (@app_unop_f f64t fop c)))]
-*)
+                   
 (** binop **)
   | rs_binop_success : forall v1 v2 v op t,
     app_binop op v1 v2 = Some v ->
@@ -44,33 +35,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
   | rs_binop_failure : forall v1 v2 op t,
     app_binop op v1 v2 = None ->
     reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (Binop t op)] [::Trap]
-                  (*
-  | rs_binop_i32_success : forall c1 c2 c iop,
-    @app_binop_i i32t iop c1 c2 = Some c ->
-    reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Binop_i T_i32 iop)] [::Basic (EConst (ConstInt32 c))]
-  | rs_binop_i32_failure : forall c1 c2 iop,
-    @app_binop_i i32t iop c1 c2 = None ->
-    reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Binop_i T_i32 iop)] [::Trap]
-  | rs_binop_i64_success : forall c1 c2 c iop,
-    @app_binop_i i64t iop c1 c2 = Some c ->
-    reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Binop_i T_i64 iop)] [::Basic (EConst (ConstInt64 c))]
-  | rs_binop_i64_failure : forall c1 c2 iop,
-    @app_binop_i i64t iop c1 c2 = None ->
-    reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Binop_i T_i64 iop)] [::Trap]
-  | rs_binop_f32_success : forall c1 c2 c fop,
-    @app_binop_f f32t fop c1 c2 = Some c ->
-    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_f32 fop)] [::Basic (EConst (ConstFloat32 c))]
-  | rs_binop_f32_failure : forall c1 c2 fop,
-    @app_binop_f f32t fop c1 c2 = None ->
-    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Binop_f T_f32 fop)] [::Trap]
-  | rs_binop_f64_success : forall c1 c2 c fop,
-    @app_binop_f f64t fop c1 c2 = Some c ->
-    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_f64 fop)] [::Basic (EConst (ConstFloat64 c))]
-  | rs_binop_f64_failure :
-    forall c1 c2 fop,
-    @app_binop_f f64t fop c1 c2 = None ->
-    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Binop_f T_f64 fop)] [::Trap]*)
-
+                  
   (** testops **)
   | rs_testop_i32 :
     forall c testop,
@@ -82,20 +47,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
   (** relops **)
   | rs_relop: forall v1 v2 t op,
     reduce_simple [::Basic (EConst v1); Basic (EConst v2); Basic (Relop t op)] [::Basic (EConst (ConstInt32 (wasm_bool (app_relop op v1 v2))))]
-                  (*
-  | rs_relop_i32 :
-    forall c1 c2 iop,
-    reduce_simple [::Basic (EConst (ConstInt32 c1)); Basic (EConst (ConstInt32 c2)); Basic (Relop_i T_i32 iop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_i i32t iop c1 c2))))]
-  | rs_relop_i64 :
-    forall c1 c2 iop,
-    reduce_simple [::Basic (EConst (ConstInt64 c1)); Basic (EConst (ConstInt64 c2)); Basic (Relop_i T_i64 iop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_i i64t iop c1 c2))))]
-  | rs_relop_f32 :
-    forall c1 c2 fop,
-    reduce_simple [::Basic (EConst (ConstFloat32 c1)); Basic (EConst (ConstFloat32 c2)); Basic (Relop_f T_f32 fop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_f f32t fop c1 c2))))]
-  | rs_relop_f64 :
-    forall c1 c2 fop,
-    reduce_simple [::Basic (EConst (ConstFloat64 c1)); Basic (EConst (ConstFloat64 c2)); Basic (Relop_f T_f64 fop)] [::Basic (EConst (ConstInt32 (wasm_bool (@app_relop_f f64t fop c1 c2))))]
-*)
+                    
   (** convert and reinterpret **)
   | rs_convert_success :
     forall t1 t2 v v' sx,
@@ -181,19 +133,19 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
         length iss <= (Wasm_int.nat_of_uint i32m c) ->
         reduce_simple [::Basic (EConst (ConstInt32 c)); Basic (Br_table iss i)] [::Basic (Br i)]
   | rs_local_const :
-      forall vs es n i,
+      forall es n f,
         const_list es ->
         length es = n ->
-        reduce_simple [::Local n i vs es] es
+        reduce_simple [::Local n f es] es
   | rs_local_trap :
-      forall n i vs,
-        reduce_simple [::Local n i vs [::Trap]] [::Trap]
+      forall n f,
+        reduce_simple [::Local n f [::Trap]] [::Trap]
   | rs_return : (* ??? *)
-      forall n i j vs es vls lh,
+      forall n i vs es lh f,
         const_list vs ->
         length vs = n ->
-        lfilled j lh (vs ++ [::Basic Return]) es ->
-        reduce_simple [::Local n i vls es] vs
+        lfilled i lh (vs ++ [::Basic Return]) es ->
+        reduce_simple [::Local n f es] vs
   | rs_tee_local :
       forall i v,
         is_const v ->
@@ -356,61 +308,63 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
 *)
 
-Inductive reduce : host_state -> store_record -> list value -> list administrative_instruction -> instance ->
-                   host_state -> store_record -> list value -> list administrative_instruction -> Prop :=
+Inductive reduce : host_state -> store_record -> frame -> list administrative_instruction ->
+                   host_state -> store_record -> frame -> list administrative_instruction -> Prop :=
   | r_simple :
-      forall e e' s vs i hs,
+      forall e e' s f hs,
         reduce_simple e e' ->
-        reduce hs s vs e i hs s vs e'
+        reduce hs s f e hs s f e'
 
   (** calling operations **)
   | r_call :
-      forall s vs i j f hs,
-        sfunc s i j = Some f ->
-        reduce hs s vs [::Basic (Call j)] i hs s vs [::Invoke f]
+      forall s f i cl hs,
+        sfunc s f.(f_inst) i = Some cl ->
+        reduce hs s f [::Basic (Call i)] hs s f [::Invoke cl]
   | r_call_indirect_success :
-      forall s i j cl c vs tf hs,
-        stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
-        stypes s i j = Some tf ->
+      forall s f i cl c vs tf hs,
+        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->
+        stypes s f.(f_inst) i = Some tf ->
         cl_type cl = tf ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Invoke cl]
+        reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect i)] hs s f [::Invoke cl]
   | r_call_indirect_failure1 :
-      forall s i j c cl vs hs,
-        stab s i (Wasm_int.nat_of_uint i32m c) = Some cl ->
-        stypes s i j <> Some (cl_type cl) ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Trap]
+      forall s f i c cl vs hs,
+        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->
+        stypes s f.(f_inst) i <> Some (cl_type cl) ->
+        reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect i)] hs s f [::Trap]
   | r_call_indirect_failure2 :
-      forall s i j c vs hs,
-        stab s i (Wasm_int.nat_of_uint i32m c) = None ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect j)] i hs s vs [::Trap]
+      forall s f i c vs hs,
+        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = None ->
+        reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect i)] hs s f [::Trap]
   | r_invoke_native :
-      forall cl t1s t2s ts es ves vcs n m k zs vs s i j hs,
-        cl = Func_native j (Tf t1s t2s) ts es ->
+      forall cl t1s t2s ts es ves vcs n m k zs vs s f f' i hs,
+        cl = Func_native i (Tf t1s t2s) ts es ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length ts = k ->
         length t1s = n ->
         length t2s = m ->
         n_zeros ts = zs ->
-        reduce hs s vs (ves ++ [::Invoke cl]) i hs s vs [::Local m j (vcs ++ zs) [::Basic (Block (Tf [::] t2s) es)]]
+        f'.(f_inst) = i ->
+        f'.(f_locs) = vcs ++ zs ->
+        reduce hs s f (ves ++ [::Invoke cl]) hs s f [::Local m f' [::Basic (Block (Tf [::] t2s) es)]]
   | r_invoke_host_success :
-      forall cl h t1s t2s ves vcs m n s s' r vs i hs hs',
+      forall cl h t1s t2s ves vcs m n s s' r f hs hs',
         cl = Func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
         host_application hs s (Tf t1s t2s) h vcs hs' (Some (s', r)) ->
-        reduce hs s vs (ves ++ [::Invoke cl]) i hs' s' vs (result_to_stack r)
+        reduce hs s f (ves ++ [::Invoke cl]) hs' s' f (result_to_stack r)
   | r_invoke_host_diverge :
-      forall cl t1s t2s h ves vcs n m s vs i hs hs',
+      forall cl t1s t2s h ves vcs n m s f hs hs',
         cl = Func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
         host_application hs s (Tf t1s t2s) h vcs hs' None ->
-        reduce hs s vs (ves ++ [::Invoke cl]) i hs' s vs (ves ++ [::Invoke cl])
+        reduce hs s f (ves ++ [::Invoke cl]) hs' s f (ves ++ [::Invoke cl])
 
   (** get, set, load, and store operations **)
   | r_get_local :

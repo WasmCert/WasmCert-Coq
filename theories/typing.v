@@ -530,10 +530,10 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s))
 | ety_trap : forall s C tf,
   e_typing s C [::Trap] tf
-| ety_local : forall s C n i vs es ts,
-  s_typing s (Some ts) i vs es ts ->
+| ety_local : forall s C n f es ts,
+  s_typing s (Some ts) f es ts ->
   length ts = n ->
-  e_typing s C [::Local n i vs es] (Tf [::] ts)
+  e_typing s C [::Local n f es] (Tf [::] ts)
 | ety_invoke : forall s C cl tf,
   cl_typing s cl tf ->
   e_typing s C [::Invoke cl] tf
@@ -546,14 +546,14 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
 (*
   Our treatment on the interaction between store and instance differs from the Isabelle version. In the Isabelle version, the instance is a natural number which is an index in the store_inst (and store had a component storing all instances). Here our instance is a record storing indices of each component in the store.
  *)
-with s_typing : store_record -> option (seq value_type) -> instance -> seq value -> seq administrative_instruction -> seq value_type -> Prop :=
-| mk_s_typing : forall s i vs es rs ts C C0,
-  let tvs := map typeof vs in
-  inst_typing s i C0 ->
+with s_typing : store_record -> option (seq value_type) -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
+| mk_s_typing : forall s f es rs ts C C0,
+  let tvs := map typeof f.(f_locs) in
+  inst_typing s f.(f_inst) C0 ->
   C = upd_local_return C0 ((tc_local C0) ++ tvs) rs ->
   e_typing s C es (Tf [::] ts) ->
   (rs = Some ts \/ rs = None) ->
-  s_typing s rs i vs es ts
+  s_typing s rs f es ts
 .
 
 Scheme e_typing_ind' := Induction for e_typing Sort Prop

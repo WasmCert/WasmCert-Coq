@@ -416,6 +416,11 @@ Record store_record : Type := (* s *) {
   s_globals : list global;
 }.
 
+Record frame : Type := (* f *) {
+  f_locs: list value;
+  f_inst: instance
+}.
+
 (** * Administrative Instructions **)
 
 (** std-doc:
@@ -428,7 +433,7 @@ Inductive administrative_instruction : Type := (* e *)
 | Trap
 | Invoke : function_closure -> administrative_instruction
 | Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
-| Local : nat -> instance -> list value -> seq administrative_instruction -> administrative_instruction
+| Local : nat -> frame -> seq administrative_instruction -> administrative_instruction
 .
 
 Inductive lholed : Type :=
@@ -543,9 +548,9 @@ Inductive extern_t : Type :=
 
 (** Some types used in the interpreter. **)
 
-Definition config_tuple : Type := store_record * seq value * seq administrative_instruction.
+Definition config_tuple : Type := store_record * frame * seq administrative_instruction.
 
-Definition config_one_tuple_without_e : Type := store_record * seq value * seq value.
+Definition config_one_tuple_without_e : Type := store_record * frame * seq value.
 
 Inductive res_crash : Type :=
   | C_error : res_crash
@@ -558,7 +563,7 @@ Inductive res_step : Type :=
   | RS_normal : seq administrative_instruction -> res_step
   .
 
-Definition res_tuple : Type := store_record * seq value * res_step.
+Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
 

@@ -481,12 +481,12 @@ Definition store_typing (s : store_record) : Prop :=
     List.Forall mem_agree mss
   end.
 
-Inductive config_typing : instance -> store_record -> seq value -> seq administrative_instruction -> seq value_type -> Prop :=
+Inductive config_typing : store_record -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
 | mk_config_typing :
-  forall i s vs es ts,
+  forall s f es ts,
   store_typing s ->
-  s_typing s None i vs es ts ->
-  config_typing i s vs es ts.
+  s_typing s None f es ts ->
+  config_typing s f es ts.
 
 End Host.
 
