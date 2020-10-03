@@ -37,8 +37,8 @@ Variable host_instance : host.
 
 Let host_state := host_state host_instance.
 
-Let reduce : host_state -> store_record -> seq value -> seq administrative_instruction -> instance ->
-             host_state -> store_record -> seq value -> seq administrative_instruction -> Prop
+Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
+             host_state -> store_record -> frame -> seq administrative_instruction -> Prop
   := @reduce _ _.
 
 Let s_globals : store_record -> seq global := @s_globals _.
@@ -1256,14 +1256,14 @@ Proof.
 
  *)
 
-Lemma Local_typing: forall s C n i vs es t1s t2s,
-    e_typing s C [::Local n i vs es] (Tf t1s t2s) ->
+Lemma Local_typing: forall s C n f es t1s t2s,
+    e_typing s C [::Local n f es] (Tf t1s t2s) ->
     exists ts, t2s = t1s ++ ts /\
-               s_typing s (Some ts) i vs es ts /\
+               s_typing s (Some ts) f es ts /\
                length ts = n.
 Proof.
-  move => s C n i vs es t1s t2s HType.
-  remember ([::Local n i vs es]) as les.
+  move => s C n f es t1s t2s HType.
+  remember ([::Local n f es]) as les.
   remember (Tf t1s t2s) as tf.
   generalize dependent Heqtf. generalize dependent t1s. generalize dependent t2s.
   induction HType; subst => //.
@@ -1377,13 +1377,13 @@ Proof.
     by apply H1.
 Qed.
 
-Lemma Local_return_typing: forall s C vs i vls LI tf n lh,
-    e_typing s C [:: Local (length vs) i vls LI] tf ->
+Lemma Local_return_typing: forall s C vs f LI tf n lh,
+    e_typing s C [:: Local (length vs) f LI] tf ->
     const_list vs ->
     lfilled n lh (vs ++ [::Basic Return]) LI ->
     e_typing s C vs tf.
 Proof.
-  move => s C vs i vls LI tf n lh HType HConst HLF.
+  move => s C vs f LI tf n lh HType HConst HLF.
   destruct tf as [t1s t2s].
   apply Local_typing in HType.
   destruct HType as [ts [H1 [H2 H3]]]. subst.
@@ -2319,11 +2319,11 @@ Proof.
             store_typing s' ->
             store_extension s s' ->
             e_typing s' C es tf)
-    (P0 := fun s rs i vs es ts (_ : s_typing s rs i vs es ts) => forall s',
+    (P0 := fun s rs f es ts (_ : s_typing s rs f es ts) => forall s',
              store_typing s ->
              store_typing s' ->
              store_extension s s' ->
-             s_typing s' rs i vs es ts); clear HType s C es tf.
+             s_typing s' rs f es ts); clear HType s C es tf.
   - move=> s C bes tf HType s' HST1 HST2 Hext.
     apply ety_a'; first by apply to_e_list_basic.
     replace (operations.to_b_list (operations.to_e_list bes)) with bes => //.
@@ -2336,7 +2336,7 @@ Proof.
     eapply ety_weakening. by apply IHHType.
   - move=> s C tf s' HST1 HST2 Hext.
     by apply ety_trap.
-  - move=> s C es tf vs es' vts HType IHHType E s' HST1 HST2 Hext.
+  - move=> s C n f es ts HType IHHType E s' HST1 HST2 Hext.
     apply ety_local => //.
     by eapply IHHType; try apply HST1 => //.
   - move=> s C cl tf Cl s' HST1 HST2 Hext.
@@ -2346,7 +2346,7 @@ Proof.
     eapply ety_label => //; eauto.
     + by apply IHHType1.
     + by apply IHHType2.
-  - move=> s i vs es rs ts C C' tvs Inst E HType IHHType E' s' HST1 HST2 Hext.
+  - move=> s f es rs ts C C' tvs Inst E HType IHHType E' s' HST1 HST2 Hext.
     eapply mk_s_typing; eauto.
     + by eapply inst_typing_extension; eauto.
     + by apply IHHType.
@@ -2567,6 +2567,24 @@ Proof.
     exists x0. by eapply store_extension_cl_typing; eauto.
 Qed.
 
+Lemma nth_error_map: forall {X Y:Type} l n (f: X -> Y) fv,
+    List.nth_error (map f l) n = Some fv ->
+    exists v,
+      List.nth_error l n = Some v /\
+      f v = fv.
+Proof.
+  move => X Y l n.
+  generalize dependent l.
+  induction n => //=; move => l f fv HNth; destruct l => //=.
+  - destruct (map f (x::l)) eqn:HMap => //=.
+    inversion HNth; subst.
+    simpl in HMap. inversion HMap. subst.
+    by eexists.
+  - destruct (map f (x::l)) eqn:HMap => //=.
+    simpl in HMap. inversion HMap. subst.
+    by apply IHn.
+Qed.
+    
 Lemma nth_error_update_list_hit: forall {X:Type} l n {x:X},
     n < length l ->
     List.nth_error (update_list_at l n x) n = Some x.
@@ -2674,14 +2692,14 @@ Proof.
     by rewrite HLimMax.
 Qed.
 
-Lemma store_extension_reduce: forall s vs es i s' vs' es' C tf loc lab ret hs hs',
-    reduce hs s vs es i hs' s' vs' es' ->
-    inst_typing s i C ->
+Lemma store_extension_reduce: forall s f es s' f' es' C tf loc lab ret hs hs',
+    reduce hs s f es hs' s' f' es' ->
+    inst_typing s f.(f_inst) C ->
     e_typing s (upd_label (upd_local_return C loc ret) lab) es tf ->
     store_typing s ->
     store_extension s s' /\ store_typing s'.
 Proof.
-  move => s vs es i s' vs' es' C tf loc lab ret hs hs' HReduce.
+  move => s f es s' f' es' C tf loc lab ret hs hs' HReduce.
   generalize dependent C. generalize dependent tf.
   generalize dependent loc. generalize dependent lab. generalize dependent ret.
   induction HReduce => //; try move => ret lab loc tf C HIT HType HST; try intros; destruct tf; try by (split => //; apply store_extension_same).
@@ -2692,7 +2710,7 @@ Proof.
     + by eapply host_application_typing; eauto.
   - (* update glob *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
-    replace [::EConst v; Set_global j] with ([::EConst v] ++ [::Set_global j]) in HType => //=.
+    replace [::EConst v; Set_global i] with ([::EConst v] ++ [::Set_global i]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]. subst.
     invert_be_typing.
@@ -2732,7 +2750,7 @@ Proof.
     apply concat_cancel_last_n in H7 => //.
     remove_bools_options.
     inversion H4. subst. clear H4.
-    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) j mem'))) as Hext.
+    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
     + unfold store_extension => //=.
       repeat (apply/andP; split) => //=.
       * by apply all2_tab_extension_same.
@@ -2746,7 +2764,7 @@ Proof.
     destruct s => //=.
     destruct HST as [_ [_ H11]].
     simpl in H1.
-    assert (j < length s_mems0)%coq_nat.
+    assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite H1. }
     inversion H0; subst. clear H0.
     apply Forall_update => //=.
@@ -2764,7 +2782,7 @@ Proof.
     apply concat_cancel_last_n in H7 => //.
     remove_bools_options.
     inversion H4. subst. clear H4.
-    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) j mem'))) as Hext.
+    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
     + unfold store_extension => //=.
       repeat (apply/andP; split) => //=.
       * by apply all2_tab_extension_same.
@@ -2778,7 +2796,7 @@ Proof.
     destruct s => //=.
     destruct HST as [_ [_ H11]].
     simpl in H1.
-    assert (j < length s_mems0)%coq_nat.
+    assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite H1. }
     apply Forall_update => //=.
     eapply store_mem_agree; eauto.
@@ -2793,7 +2811,7 @@ Proof.
     apply Grow_memory_typing in H6.
     destruct H6 as [ts' [H7 [H8 H9]]]. subst.
     apply concat_cancel_last in H9 => //. destruct H9. subst.
-    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) j mem'))) as Hext.
+    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
     + unfold store_extension => //=.
       repeat (apply/andP; split) => //=.
       * by apply all2_tab_extension_same.
@@ -2807,7 +2825,7 @@ Proof.
     destruct s => //=.
     destruct HST as [_ [_ H11]].
     simpl in H0.
-    assert (j < length s_mems0)%coq_nat.
+    assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite H0. }
     apply Forall_update => //=.
     eapply mem_grow_mem_agree; eauto. by move/ltP in H1.
@@ -2821,7 +2839,7 @@ Proof.
     destruct HType as [ts [H1 [H2 H3]]]. subst.
     inversion H2. subst.
     eapply IHHReduce; eauto.
-    by apply H1.
+    by apply H3.
 Qed.
 
 Lemma result_e_type: forall r ts s C,
@@ -2850,49 +2868,50 @@ Proof.
       by apply IHl.
 Qed.
 
-Lemma t_preservation_vs_type: forall s vs es i s' vs' es' C C' lab ret t1s t2s hs hs',
-    reduce hs s vs es i hs' s' vs' es' ->
+Lemma t_preservation_vs_type: forall s f es s' f' es' C C' lab ret t1s t2s hs hs',
+    reduce hs s f es hs' s' f' es' ->
     store_typing s ->
     store_typing s' ->
-    inst_typing s i C ->
-    inst_typing s' i C' ->
-    e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof vs) ret) lab) es (Tf t1s t2s) ->
-    map typeof vs = map typeof vs'.
+    inst_typing s f.(f_inst) C ->
+    inst_typing s' f.(f_inst) C' ->
+    e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) es (Tf t1s t2s) ->
+    map typeof f.(f_locs) = map typeof f'.(f_locs).
 Proof.
-  move => s vs es i s' vs' es' C C' lab ret t1s t2s hs hs' HReduce HST1 HST2 HIT1 HIT2 HType.
+  move => s f es s' f' es' C C' lab ret t1s t2s hs hs' HReduce HST1 HST2 HIT1 HIT2 HType.
   generalize dependent t2s. generalize dependent t1s.
   generalize dependent lab.
   induction HReduce => //; move => lab t1s t2s HType.
   - convert_et_to_bet.
-    replace [::EConst v; Set_local j] with ([::EConst v] ++ [::Set_local j]) in HType => //=.
+    replace [::EConst v; Set_local i] with ([::EConst v] ++ [::Set_local i]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
     apply Set_local_typing in H10.
     destruct H10 as [t [H4 [H5 H6]]]. subst.
     apply concat_cancel_last in H5. destruct H5. subst.
-    assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite H0 in H4. simpl in H4.
-    rewrite H0 in H6. simpl in H6.
+    assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+    rewrite HCEmpty in H4. rewrite HCEmpty in H6.
+    simpl in H4. simpl in H6.
     rewrite length_is_size in H6. rewrite size_map in H6.
+    rewrite H0.
     rewrite set_nth_map => //.
     by rewrite set_nth_same_unchanged.
-  - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (tc_local C ++ map typeof vs) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
-    destruct H1 as [lab' [t1s' [t2s' H1]]].
-    rewrite upd_label_overwrite in H1.
+  - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
+    destruct H2 as [lab' [t1s' [t2s' H2]]].
+    rewrite upd_label_overwrite in H2.
     by eapply IHHReduce; eauto.
 Qed.
 
-Lemma t_preservation_e: forall s vs es i s' vs' es' C t1s t2s lab ret hs hs',
-    reduce hs s vs es i hs' s' vs' es' ->
+Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret hs hs',
+    reduce hs s f es hs' s' f' es' ->
     store_typing s ->
     store_typing s' ->
-    inst_typing s i C ->
-    inst_typing s' i C ->
-    e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof vs) ret) lab) es (Tf t1s t2s) ->
-    e_typing s' (upd_label (upd_local_return C (tc_local C ++ map typeof vs') ret) lab) es' (Tf t1s t2s).
+    inst_typing s f.(f_inst) C ->
+    inst_typing s' f.(f_inst) C ->
+    e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) es (Tf t1s t2s) ->
+    e_typing s' (upd_label (upd_local_return C (tc_local C ++ map typeof f'.(f_locs)) ret) lab) es' (Tf t1s t2s).
 Proof.
-  move => s vs es i s' vs' es' C t1s t2s lab ret hs hs' HReduce HST1 HST2.
+  move => s f es s' f' es' C t1s t2s lab ret hs hs' HReduce HST1 HST2.
   generalize dependent t2s. generalize dependent t1s.
   generalize dependent lab. generalize dependent ret.
   generalize dependent C.
@@ -2906,16 +2925,16 @@ Proof.
     subst. simpl in H1. simpl in H2.
     unfold sfunc in H.
     unfold option_bind in H.
-    destruct (sfunc_ind s i j) eqn:HSF => //=.
+    destruct (sfunc_ind s f.(f_inst) i) eqn:HSF => //=.
     unfold sfunc_ind in HSF.
     apply ety_weakening.
     apply ety_invoke.
-    assert ((Tf t1s' t2s') = cl_type f) as HFType; first by eapply tc_func_reference1; eauto.
+    assert ((Tf t1s' t2s') = cl_type cl) as HFType; first by eapply tc_func_reference1; eauto.
     rewrite HFType.
     by eapply store_typed_cl_typed; eauto.
   - (* Call_indirect *)
     convert_et_to_bet.
-    replace [::EConst (ConstInt32 c); Call_indirect j] with ([::EConst (ConstInt32 c)] ++ [::Call_indirect j]) in HType => //=.
+    replace [::EConst (ConstInt32 c); Call_indirect i] with ([::EConst (ConstInt32 c)] ++ [::Call_indirect i]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]].
     subst.
@@ -2930,7 +2949,7 @@ Proof.
     assert ((Tf tn tm) = cl_type cl) as HFType; first by eapply tc_func_reference2; eauto.
     rewrite HFType.
     unfold stab in H.
-    destruct (i_tab i) eqn:HiTab => //.
+    destruct (i_tab f.(f_inst)) eqn:HiTab => //.
     destruct (stab_s s t (Wasm_int.nat_of_uint i32m c)) eqn:Hstab => //.
     inversion H. subst. clear H.
     unfold stab_s in Hstab.
@@ -2943,28 +2962,28 @@ Proof.
     subst.
     by eapply store_typed_cl_typed; eauto.
   - (* Invoke native *)
-    apply e_composition_typing in HType.
-    destruct HType as [ts' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
-    subst.
-    apply Invoke_func_native_typing in H8.
-    destruct H8 as [ts2 [C2 [H9 [H10 [H11 H12]]]]]. subst.
-    apply et_to_bet in H7; last by apply const_list_is_basic; apply v_to_e_is_const_list.
-    apply Const_list_typing in H7.
-    apply concat_cancel_last_n in H7; last by (repeat rewrite length_is_size in H2; rewrite size_map).
-    move/andP in H7. destruct H7.
+    invert_e_typing.
+    apply Invoke_func_native_typing in H4.
+    destruct H4 as [ts2 [C2 [H9 [H10 [H11 H12]]]]]. subst.
+    apply et_to_bet in H0; last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply Const_list_typing in H0.
+    apply concat_cancel_last_n in H0; last by (repeat rewrite length_is_size in H2; rewrite size_map).
+    move/andP in H0. destruct H0.
     move/eqP in H. move/eqP in H0. subst.
     simpl in H12.
     apply ety_weakening. apply et_weakening_empty_1.
-    assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite H. simpl.
+    assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+    rewrite HCEmpty. simpl.
     apply ety_local => //.
     eapply mk_s_typing; eauto.
     apply ety_a'; auto_basic => //=.
-    assert (tc_label C2 = [::]); first by eapply inst_t_context_label_empty; eauto.
-    rewrite H0 in H12.
+    assert (HC2Empty: tc_label C2 = [::]); first by eapply inst_t_context_label_empty; eauto.
+    rewrite HC2Empty in H12.
     apply bet_block. simpl.
-    rewrite H0.
+    rewrite HC2Empty.
     rewrite upd_label_upd_local_return_combine.
+    simpl.
+    rewrite H7.
     rewrite map_cat => //=.
     by rewrite n_zeros_typing.
   - (* Invoke host *)
@@ -2994,26 +3013,24 @@ Proof.
     apply Get_local_typing in HType.
     destruct HType as [t [H1 [H2 H3]]]. subst.
     apply ety_a'; auto_basic => //=.
-    assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite H in H1. rewrite H in H3. rewrite H.
+    assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+    rewrite HCEmpty in H1. rewrite HCEmpty in H3. rewrite HCEmpty.
     simpl in H1. simpl in H3. simpl.
-    repeat rewrite map_cat in H1.
-    simpl in H1. rewrite -cat1s in H1.
-    replace (length vi) with (length (map typeof vi)) in H1; last by rewrite length_is_size; rewrite size_map.
-    rewrite list_nth_prefix in H1. inversion H1. subst.
+    apply nth_error_map in H1. destruct H1 as [v' [HNth Hvt]]. subst.
     apply bet_weakening_empty_1.
+    rewrite H in HNth. inversion HNth; subst.
     by apply bet_const.
   - (* Set_local *)
     convert_et_to_bet.
-    replace [::EConst v; Set_local j] with ([::EConst v] ++ [::Set_local j]) in HType => //=.
+    replace [::EConst v; Set_local i] with ([::EConst v] ++ [::Set_local i]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
     apply Set_local_typing in H10.
     destruct H10 as [t [H4 [H5 H6]]]. subst.
     apply ety_a'; auto_basic => //=.
-    assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite H0 in H6. rewrite H0 in H4. rewrite H0.
+    assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+    rewrite HCEmpty in H6. rewrite HCEmpty in H4. rewrite HCEmpty.
     simpl in H6. simpl in H5. simpl in H4. simpl.
     apply concat_cancel_last in H5. destruct H5. subst.
     apply bet_weakening_empty_both.
@@ -3032,7 +3049,7 @@ Proof.
     by apply bet_const.
   - (* Set_Global *)
     convert_et_to_bet.
-    replace [::EConst v; Set_global j] with ([::EConst v] ++ [::Set_global j]) in HType => //=.
+    replace [::EConst v; Set_global i] with ([::EConst v] ++ [::Set_global i]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
@@ -3145,7 +3162,7 @@ Proof.
     generalize dependent ty. generalize dependent tx. generalize dependent lab.
     induction k; move => lab tx ty les' les HType lh HLF1 HLF2; move/lfilledP in HLF1; move/lfilledP in HLF2.
     + inversion HLF1. inversion HLF2. subst. clear HLF1. clear HLF2.
-      inversion H5. subst. clear H5. clear H0.
+      inversion H6. subst. clear H6. clear H0.
       apply e_composition_typing in HType.
       destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H2 [H3 [H4 H5]]]]]]]. subst.
       apply e_composition_typing in H5.
@@ -3159,21 +3176,21 @@ Proof.
             repeat apply ety_weakening.
             by eapply IHHReduce; eauto => //.
          ++ repeat apply ety_weakening.
-            assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-            rewrite H0 in H9. rewrite H0.
-            replace (map typeof vs') with (map typeof vs) => //.
+            assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+            rewrite HCEmpty in H9. rewrite HCEmpty.
+            replace (map typeof f'.(f_locs)) with (map typeof f.(f_locs)) => //.
             eapply store_extension_e_typing; try apply HST1 => //; try by [].
             eapply store_extension_reduce; eauto.
             by eapply t_preservation_vs_type; eauto.
     + inversion HLF1. inversion HLF2. subst.
-      inversion H8. subst. clear H8.
-      move/lfilledP in H1. move/lfilledP in H7.
+      inversion H9. subst. clear H9.
+      move/lfilledP in H2. move/lfilledP in H8.
       apply e_composition_typing in HType.
-      destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H2 [H3 [H4 H5]]]]]]]. subst.
-      apply e_composition_typing in H5.
-      destruct H5 as [ts1 [t1s1 [t2s1 [t3s1 [H8 [H9 [H10 H11]]]]]]]. subst.
-      apply Label_typing in H10.
-      destruct H10 as [ts2 [t2s2 [H12 [H13 [H14 H15]]]]]. subst.
+      destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H3 [H4 [H5 H6]]]]]]]. subst.
+      apply e_composition_typing in H6.
+      destruct H6 as [ts1 [t1s1 [t2s1 [t3s1 [H10 [H11 [H12 H13]]]]]]]. subst.
+      apply Label_typing in H12.
+      destruct H12 as [ts2 [t2s2 [H14 [H15 [H16 H17]]]]]. subst.
       eapply et_composition'.
       -- instantiate (1 := ts0 ++ ts1 ++ t1s1).
          apply ety_weakening.
@@ -3183,27 +3200,27 @@ Proof.
             repeat apply ety_weakening.
             apply et_weakening_empty_1.
             eapply ety_label; eauto.
-            * assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-              rewrite H in H13. rewrite H.
-              simpl in H14. rewrite upd_label_overwrite in H14.
-              eapply lfilled_es_type_exists in H14; eauto.
-              destruct H14 as [lab' [t1s' [t2s' H14]]].
-              rewrite upd_label_overwrite in H14.
-              replace (map typeof vs') with (map typeof vs) => //.
+            * assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+              rewrite HCEmpty in H15. rewrite HCEmpty.
+              simpl in H16. rewrite upd_label_overwrite in H16.
+              eapply lfilled_es_type_exists in H16; eauto.
+              destruct H16 as [lab' [t1s' [t2s' H16]]].
+              rewrite upd_label_overwrite in H16.
+              replace (map typeof f'.(f_locs)) with (map typeof f.(f_locs)) => //.
               eapply store_extension_e_typing; try apply HST1 => //; try by [].
               eapply store_extension_reduce; eauto.
               by eapply t_preservation_vs_type; eauto.
             * simpl.
-              simpl in H14.
+              simpl in H16.
               by eapply IHk; eauto.
          ++ repeat apply ety_weakening.
-            assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-            rewrite H in H11. rewrite H.
-            simpl in H14. rewrite upd_label_overwrite in H14.
-            eapply lfilled_es_type_exists in H14; eauto.
-            destruct H14 as [lab' [t1s' [t2s' H14]]].
-            rewrite upd_label_overwrite in H14.
-            replace (map typeof vs') with (map typeof vs) => //.
+            assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
+            rewrite HCEmpty in H13. rewrite HCEmpty.
+            simpl in H16. rewrite upd_label_overwrite in H16.
+            eapply lfilled_es_type_exists in H16; eauto.
+            destruct H16 as [lab' [t1s' [t2s' H16]]].
+            rewrite upd_label_overwrite in H16.
+            replace (map typeof f'.(f_locs)) with (map typeof f.(f_locs)) => //.
             eapply store_extension_e_typing; try apply HST1 => //; try by [].
             eapply store_extension_reduce; eauto.
             by eapply t_preservation_vs_type; eauto.
@@ -3211,31 +3228,41 @@ Proof.
     apply Local_typing in HType.
     destruct HType as [ts [H1 [H2 H3]]]. subst.
     apply et_weakening_empty_1.
-    eapply ety_local => //.
+    apply ety_local => //.
     inversion H2. subst.
-    apply upd_label_unchanged_typing in H1.
+    apply upd_label_unchanged_typing in H3.
     eapply mk_s_typing; eauto.
     + eapply inst_typing_extension; eauto.
       eapply store_extension_reduce; eauto.
+      rewrite -H; eauto.
     + eapply IHHReduce; eauto.
       eapply inst_typing_extension; eauto.
       eapply store_extension_reduce; eauto.
 Qed.
 
-Theorem t_preservation: forall s vs es i s' vs' es' ts hs hs',
-    reduce hs s vs es i hs' s' vs' es' ->
-    config_typing i s vs es ts ->
-    config_typing i s' vs' es' ts.
+Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
+    reduce hs s f es hs' s' f' es' ->
+    f.(f_inst) = f'.(f_inst).
 Proof.
-  move => s vs es i s' vs' es' ts hs hs' HReduce HType.
+  move => hs s f es hs' s' f' es' HReduce.
+  by inversion HReduce.
+Qed.
+  
+Theorem t_preservation: forall s f es s' f' es' ts hs hs',
+    reduce hs s f es hs' s' f' es' ->
+    config_typing s f es ts ->
+    config_typing s' f' es' ts.
+Proof.
+  move => s f es s' f' es' ts hs hs' HReduce HType.
   inversion HType. inversion H0. subst.
   assert (store_extension s s' /\ store_typing s').
-  { apply upd_label_unchanged_typing in H8.
+  { apply upd_label_unchanged_typing in H7.
     by eapply store_extension_reduce; eauto. }
   destruct H1.
-  assert (inst_typing s' i C0); first by eapply inst_typing_extension; eauto.
+  assert (inst_typing s' (f_inst f) C0); first by eapply inst_typing_extension; eauto.
   apply mk_config_typing; eauto.
   eapply mk_s_typing; eauto.
+  replace (f_inst f') with (f_inst f); eauto; first by eapply reduce_inst_unchanged; eauto.
   by eapply t_preservation_e; eauto.
 Qed.
 

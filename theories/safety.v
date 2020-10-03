@@ -1,5 +1,7 @@
 (** safety of Wasm **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+(*
+File not in use
 
 From mathcomp
 Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -53,3 +55,4 @@ Admitted. (* TODO *)
 
 End Host.
 
+*)

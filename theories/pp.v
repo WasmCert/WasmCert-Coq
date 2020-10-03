@@ -352,10 +352,10 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
     indent n (with_fg ae_style "label_cont" ++ newline) ++
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es2) ++
     indent n (with_fg ae_style "end label" ++ newline)
-  | Local n inst vs es =>
+  | Local n f es =>
     indent n (with_fg ae_style "local " ++ string_of_nat n ++ newline) ++
     (* TODO: inst? *)
-    indent n (with_fg ae_style "with values " ++ pp_values_hint_empty vs ++ newline) ++
+    indent n (with_fg ae_style "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline) ++
     pp_administrative_instructions (n.+1) es ++
     indent n (with_fg ae_style "end local" ++ newline)
   end.
@@ -385,26 +385,26 @@ Definition pp_store (n : indentation) (s : store_record) : string :=
   pp_memories (n.+1) s.(s_mems).
 
 Definition pp_config_tuple_except_store (cfg : config_tuple _) : string :=
-  let '(s, vs, es) := cfg in
+  let '(s, f, es) := cfg in
   pp_administrative_instructions 0 es ++
-  "with values " ++ pp_values_hint_empty vs ++ newline.
+  "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
 Definition pp_res_tuple_except_store (res_cfg : res_tuple _) : string :=
-  let '(s, vs, res) := res_cfg in
+  let '(s, f, res) := res_cfg in
   match res with
   | RS_crash _ =>
     "crash" ++ newline ++
-    "with values " ++ pp_values_hint_empty vs ++ newline
+    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   | RS_break n vs =>
     "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
-    "with values " ++ pp_values_hint_empty vs ++ newline
+    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   | RS_return vs_res =>
     "return " ++ pp_values_hint_empty vs_res ++ newline ++
-    "with values " ++ pp_values_hint_empty vs ++ newline
+    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   | RS_normal es =>
     "normal" ++ newline ++
     String.concat "" (List.map (pp_administrative_instruction 1) es) ++
-    "with values " ++ pp_values_hint_empty vs ++ newline
+    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   end.
 
 End Host.

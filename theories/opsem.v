@@ -321,22 +321,22 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         sfunc s f.(f_inst) i = Some cl ->
         reduce hs s f [::Basic (Call i)] hs s f [::Invoke cl]
   | r_call_indirect_success :
-      forall s f i cl c vs tf hs,
+      forall s f i cl c tf hs,
         stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->
         stypes s f.(f_inst) i = Some tf ->
         cl_type cl = tf ->
         reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect i)] hs s f [::Invoke cl]
   | r_call_indirect_failure1 :
-      forall s f i c cl vs hs,
+      forall s f i c cl hs,
         stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->
         stypes s f.(f_inst) i <> Some (cl_type cl) ->
         reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect i)] hs s f [::Trap]
   | r_call_indirect_failure2 :
-      forall s f i c vs hs,
+      forall s f i c hs,
         stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = None ->
         reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic (Call_indirect i)] hs s f [::Trap]
   | r_invoke_native :
-      forall cl t1s t2s ts es ves vcs n m k zs vs s f f' i hs,
+      forall cl t1s t2s ts es ves vcs n m k zs s f f' i hs,
         cl = Func_native i (Tf t1s t2s) ts es ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
@@ -368,117 +368,120 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 
   (** get, set, load, and store operations **)
   | r_get_local :
-      forall vi v vs i j s hs,
-        length vi = j ->
-        reduce hs s (vi ++ [::v] ++ vs) [::Basic (Get_local j)] i hs s (vi ++ [::v] ++ vs) [::Basic (EConst v)]
+      forall f v j s hs,
+        List.nth_error f.(f_locs) j = Some v ->
+        reduce hs s f [::Basic (Get_local j)] hs s f [::Basic (EConst v)]
   | r_set_local :
-      forall vs j v i s vd hs,
-        length vs > j ->
-        reduce hs s vs [::Basic (EConst v); Basic (Set_local j)] i hs s (set_nth vd vs j v) [::]
+      forall f f' i v s vd hs,
+        f'.(f_inst) = f.(f_inst) ->
+        f'.(f_locs) = set_nth vd f.(f_locs) i v ->
+        reduce hs s f [::Basic (EConst v); Basic (Set_local i)] hs s f' [::]
   | r_get_global :
-      forall s vs j i v hs,
-        sglob_val s i j = Some v ->
-        reduce hs s vs [::Basic (Get_global j)] i hs s vs [::Basic (EConst v)]
+      forall s f i v hs,
+        sglob_val s f.(f_inst) i = Some v ->
+        reduce hs s f [::Basic (Get_global i)] hs s f [::Basic (EConst v)]
   | r_set_global :
-      forall s i j v s' vs hs,
-        supdate_glob s i j v = Some s' ->
-        reduce hs s vs [::Basic (EConst v); Basic (Set_global j)] i hs s' vs [::]
+      forall s f i v s' hs,
+        supdate_glob s f.(f_inst) i v = Some s' ->
+        reduce hs s f [::Basic (EConst v); Basic (Set_global i)] hs s' f [::]
   | r_load_success :
-    forall s i t bs vs k a off m j hs,
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+    forall s i f t bs k a off m hs,
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       load m (Wasm_int.N_of_uint i32m k) off (t_length t) = Some bs ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i hs s vs [::Basic (EConst (wasm_deserialise bs t))]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] hs s f [::Basic (EConst (wasm_deserialise bs t))]
   | r_load_failure :
-    forall s i t vs k a off m j hs,
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+    forall s i f t k a off m hs,
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       load m (Wasm_int.N_of_uint i32m k) off (t_length t) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] i hs s vs [::Trap]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (Load t None a off)] hs s f [::Trap]
   | r_load_packed_success :
-    forall s i t tp vs k a off m j bs sx hs,
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+    forall s i f t tp k a off m bs sx hs,
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t) = Some bs ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i hs s vs [::Basic (EConst (wasm_deserialise bs t))]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] hs s f [::Basic (EConst (wasm_deserialise bs t))]
   | r_load_packed_failure :
-    forall s i t tp vs k a off m j sx hs,
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+    forall s i f t tp k a off m sx hs,
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] i hs s vs [::Trap]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (Load t (Some (tp, sx)) a off)] hs s f [::Trap]
   | r_store_success :
-    forall t v s i j vs mem' k a off m hs,
+    forall t v s i f mem' k a off m hs,
       types_agree t v ->
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       store m (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = Some mem' ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] hs (upd_s_mem s (update_list_at s.(s_mems) i mem')) f [::]
   | r_store_failure :
-    forall t v s i j m k off a vs hs,
+    forall t v s i f m k off a hs,
       types_agree t v ->
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       store m (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] i hs s vs [::Trap]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t None a off)] hs s f [::Trap]
   | r_store_packed_success :
-    forall t v s i j m k off a vs mem' tp hs,
+    forall t v s i f m k off a mem' tp hs,
       types_agree t v ->
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = Some mem' ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] hs (upd_s_mem s (update_list_at s.(s_mems) i mem')) f [::]
   | r_store_packed_failure :
-    forall t v s i j m k off a vs tp hs,
+    forall t v s i f m k off a tp hs,
       types_agree t v ->
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = None ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] i hs s vs [::Trap]
+      reduce hs s f [::Basic (EConst (ConstInt32 k)); Basic (EConst v); Basic (Store t (Some tp) a off)] hs s f [::Trap]
 
   (** memory **)
   | r_current_memory :
-      forall i j m n s vs hs,
-        smem_ind s i = Some j ->
-        List.nth_error s.(s_mems) j = Some m ->
+      forall i f m n s hs,
+        smem_ind s f.(f_inst) = Some i ->
+        List.nth_error s.(s_mems) i = Some m ->
         mem_size m = n ->
-        reduce hs s vs [::Basic (Current_memory)] i hs s vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
+        reduce hs s f [::Basic (Current_memory)] hs s f [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
   | r_grow_memory_success :
-    forall s i j m n mem' vs c hs,
-      smem_ind s i = Some j ->
-      List.nth_error s.(s_mems) j = Some m ->
+    forall s i f m n mem' c hs,
+      smem_ind s f.(f_inst) = Some i ->
+      List.nth_error s.(s_mems) i = Some m ->
       mem_size m = n ->
       mem_grow m (Wasm_int.N_of_uint i32m c) = Some mem' ->
-      reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) vs [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
+      reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] hs (upd_s_mem s (update_list_at s.(s_mems) i mem')) f [::Basic (EConst (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat n))))]
   | r_grow_memory_failure :
-      forall i j m n s vs c hs,
-        smem_ind s i = Some j ->
-        List.nth_error s.(s_mems) j = Some m ->
+      forall i f m n s c hs,
+        smem_ind s f.(f_inst) = Some i ->
+        List.nth_error s.(s_mems) i = Some m ->
         mem_size m = n ->
-        reduce hs s vs [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] i hs s vs [::Basic (EConst (ConstInt32 int32_minus_one))]
+        reduce hs s f [::Basic (EConst (ConstInt32 c)); Basic Grow_memory] hs s f [::Basic (EConst (ConstInt32 int32_minus_one))]
 
   (** label and local **)
   | r_label :
-      forall s vs es les i s' vs' es' les' k lh hs hs',
-        reduce hs s vs es i hs' s' vs' es' ->
+      forall s f es les s' f' es' les' k lh hs hs',
+        f.(f_inst) = f'.(f_inst) ->
+        reduce hs s f es hs' s' f' es' ->
         lfilled k lh es les ->
         lfilled k lh es' les' ->
-        reduce hs s vs les i hs' s' vs' les'
+        reduce hs s f les hs' s' f' les'
   | r_local :
-      forall s vs es i s' vs' es' n v0s j hs hs',
-        reduce hs s vs es i hs' s' vs' es' ->
-        reduce hs s v0s [::Local n i vs es] j hs' s' v0s [::Local n i vs' es']
+      forall s f es s' f' es' n f0 hs hs',
+        f.(f_inst) = f'.(f_inst) ->
+        reduce hs s f es hs' s' f' es' ->
+        reduce hs s f0 [::Local n f es] hs' s' f0 [::Local n f' es']
   .
 
-Definition reduce_tuple (i : instance) hs_s_vs_es hs'_s'_vs'_es' : Prop :=
-  let '(hs, s, vs, es) := hs_s_vs_es in
-  let '(hs', s', vs', es') := hs'_s'_vs'_es' in
-  reduce hs s vs es i hs' s' vs' es'.
+Definition reduce_tuple hs_s_f_es hs'_s'_f'_es' : Prop :=
+  let '(hs, s, f, es) := hs_s_f_es in
+  let '(hs', s', f', es') := hs'_s'_f'_es' in
+  reduce hs s f es hs' s' f' es'.
       
-Definition reduce_trans (i : instance)
-  : host_state * store_record * seq value * seq administrative_instruction ->
-    host_state * store_record * seq value * seq administrative_instruction -> Prop :=
-  Relations.Relation_Operators.clos_refl_trans _ (reduce_tuple i).
+Definition reduce_trans :
+    host_state * store_record * frame * seq administrative_instruction ->
+    host_state * store_record * frame * seq administrative_instruction -> Prop :=
+  Relations.Relation_Operators.clos_refl_trans _ reduce_tuple.
 
 End Host.
 

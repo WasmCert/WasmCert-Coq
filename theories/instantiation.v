@@ -503,21 +503,21 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
 
 Definition instantiate_globals inst (hs' : host_state) (s' : store_record) m g_inits : Prop :=
   List.Forall2 (fun g v =>
-      opsem.reduce_trans inst (hs', s', nil, operations.to_e_list g.(mg_init))
-                              (hs', s', nil, cons (Basic (EConst v)) nil))
+      opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list g.(mg_init))
+                         (hs', s', (Build_frame nil inst), cons (Basic (EConst v)) nil))
     m.(mod_globals) g_inits.
 
 Definition instantiate_elem inst (hs' : host_state) (s' : store_record) m e_offs : Prop :=
   List.Forall2 (fun e c =>
-      opsem.reduce_trans inst (hs', s', nil, operations.to_e_list e.(elem_offset))
-                              (hs', s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
+      opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list e.(elem_offset))
+                         (hs', s', (Build_frame nil inst), cons (Basic (EConst (ConstInt32 c))) nil))
     m.(mod_elem)
     e_offs.
 
 Definition instantiate_data inst (hs' : host_state) (s' : store_record) m d_offs : Prop :=
   List.Forall2 (fun d c =>
-      opsem.reduce_trans inst (hs', s', nil, operations.to_e_list d.(dt_offset))
-                              (hs', s', nil, cons (Basic (EConst (ConstInt32 c))) nil))
+      opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list d.(dt_offset))
+                         (hs', s', (Build_frame nil inst), cons (Basic (EConst (ConstInt32 c))) nil))
     m.(mod_data)
     d_offs.
 
@@ -791,7 +791,7 @@ Arguments Instantiation_error {T}.
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction)
   : itree (instantiation_error +' eff) value (* FIXME: isa mismatch *) :=
-  res <- burn 2 (run_v 0 inst (s, nil, operations.to_e_list b_es)) ;;
+  res <- burn 2 (run_v 0 inst (s, (Build_frame nil inst), operations.to_e_list b_es)) ;;
   match res with
   | (_, interpreter.R_value vs) =>
     match vs with
@@ -867,7 +867,7 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
           | ED_func (Mk_funcidx fi) =>
             match List.nth_error s.(s_funcs) fi with
             | None => None
-            | Some fc => Some (s, nil, cons (Invoke fc) nil)
+            | Some fc => Some (s, (Build_frame nil inst), cons (Invoke fc) nil)
             end
           | _ => None
           end

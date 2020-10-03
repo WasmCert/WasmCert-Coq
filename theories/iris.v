@@ -31,8 +31,8 @@ Variable host_instance : host.
 Let host_state := host_state host_instance.
 Let reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
   @reduce_simple _.
-Let reduce : host_state -> store_record -> list value -> list administrative_instruction -> instance ->
-             host_state -> store_record -> list value -> list administrative_instruction -> Prop :=
+Let reduce : host_state -> store_record -> frame -> list administrative_instruction ->
+             host_state -> store_record -> frame -> list administrative_instruction -> Prop :=
   @reduce _ _.
 Let lfill : nat -> lholed -> list administrative_instruction -> option (list administrative_instruction) :=
   @lfill _.
@@ -61,7 +61,7 @@ Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) 
   let '(vs, es) := split_vals_e e in
   let '(vs', es') := split_vals_e e' in
   exists i,
-    reduce hs σ vs es i hs' σ' vs' es' /\ os = [] /\ fork_es' = [].
+    reduce hs σ (Build_frame vs i) es hs' σ' (Build_frame vs' i) es' /\ os = [] /\ fork_es' = [].
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
 Proof.
@@ -221,17 +221,17 @@ Proof.
     done. }
 Qed.
 
-Lemma reduce_not_nil : forall hs1 σ1 vs es i hs2 σ2 vs' es',
-  reduce hs1 σ1 vs es i hs2 σ2 vs' es' -> es <> [].
+Lemma reduce_not_nil : forall hs1 σ1 f es hs2 σ2 f' es',
+  reduce hs1 σ1 f es hs2 σ2 f' es' -> es <> [].
 Proof.
-  move => hs1 σ1 vs es i hs2 σ2 vs' es' Hred.
-  elim: {hs1 σ1 vs es i hs2 es' σ2 vs'} Hred => //;
+  move => hs1 σ1 f es hs2 σ2 f' es' Hred.
+  elim: {hs1 σ1 f es hs2 f' σ2} Hred => //;
     try solve [ repeat intro;
                 match goal with
                 | H : (_ ++ _)%SEQ = [] |- _ =>
                   by move: (app_eq_nil _ _ H) => [? ?]
                 end ].
-  { move => e e' _ _ _ _ Hreds He.
+  { move => e e' _ _ _ Hreds He.
     rewrite He in Hreds.
     apply: not_reduce_simple_nil.
     apply: Hreds. }

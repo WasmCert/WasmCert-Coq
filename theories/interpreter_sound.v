@@ -46,7 +46,10 @@ Let run_step_base : fuel -> depth -> instance -> config_tuple -> host_monad res_
 Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
                    administrative_instruction -> host_monad res_tuple :=
   run_one_step executable_host_instance.
-*)
+ *)
+
+(* TODO: fix this definition and the remaining 
+
 Let run_v : depth -> instance -> config_tuple -> itree eff (store_record * res)%type :=
   @run_v _ executable_host_instance _ eff_has_host_event.
 
@@ -508,7 +511,7 @@ Ltac eframe :=
   let r := fresh "r" in
   evar (r : seq administrative_instruction);
   frame_out l r.
-
+*)
 (* LATER: I am temporary commenting out the termination lemmas.
 Local Lemma run_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel',
   fuel <= fuel' ->
