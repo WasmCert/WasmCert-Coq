@@ -52,8 +52,8 @@ Let run_step_fuel := @run_step_fuel host_function host_instance.
 
 Let host_state := host_state host_instance.
 
-Let reduce : host_state -> store_record -> seq value -> seq administrative_instruction -> instance ->
-             host_state -> store_record -> seq value -> seq administrative_instruction -> Prop
+Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
+             host_state -> store_record -> frame -> seq administrative_instruction -> Prop
   := @reduce _ _.
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
@@ -69,12 +69,12 @@ Let run_step_with_fuel := @run_step_with_fuel host_function host_instance host_a
 (** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
   They enable to focus on parts of the stack, ignoring the context. **)
 
-Lemma r_eliml: forall s vs es s' vs' es' lconst i hs hs',
+Lemma r_eliml: forall s f es s' f' es' lconst hs hs',
     const_list lconst ->
-    reduce hs s vs es i hs' s' vs' es' ->
-    reduce hs s vs (lconst ++ es) i hs' s' vs' (lconst ++ es').
+    reduce hs s f es hs' s' f' es' ->
+    reduce hs s f (lconst ++ es) hs' s' f' (lconst ++ es').
 Proof.
-  move => s vs es s' vs' es' lconst i hs hs' HConst H.
+  move => s f es s' f' es' lconst hs hs' HConst H.
   apply: r_label; try apply/lfilledP.
   - by apply: H.
   - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
@@ -83,11 +83,11 @@ Proof.
     f_equal. by apply: cats0.
 Qed.
 
-Lemma r_elimr: forall s vs es s' vs' es' i les hs hs',
-    reduce hs s vs es i hs' s' vs' es' ->
-    reduce hs s vs (es ++ les) i hs' s' vs' (es' ++ les).
+Lemma r_elimr: forall s f es s' f' es' les hs hs',
+    reduce hs s f es hs' s' f' es' ->
+    reduce hs s f (es ++ les) hs' s' f' (es' ++ les).
 Proof.
-  move => s vs es s' vs' es' i les hs hs' H.
+  move => s f es s' f' es' les hs hs' H.
   apply: r_label; try apply/lfilledP.
   - apply: H.
   - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
@@ -96,22 +96,22 @@ Qed.
 
 (** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
 
-Lemma r_eliml_empty: forall s vs es s' vs' lconst i hs hs',
+Lemma r_eliml_empty: forall s f es s' f' lconst hs hs',
     const_list lconst ->
-    reduce hs s vs es i hs' s' vs' [::] ->
-    reduce hs s vs (lconst ++ es) i hs' s' vs' lconst.
+    reduce hs s f es hs' s' f' [::] ->
+    reduce hs s f (lconst ++ es) hs' s' f' lconst.
 Proof.
-  move => s vs es s' vs' lconst i hs hs' HConst H.
-  assert (reduce hs s vs (lconst++es) i hs' s' vs' (lconst++[::])); first by apply: r_eliml.
+  move => s f es s' f' lconst hs hs' HConst H.
+  assert (reduce hs s f (lconst++es) hs' s' f' (lconst++[::])); first by apply: r_eliml.
   by rewrite cats0 in H0.
 Qed.
 
-Lemma r_elimr_empty: forall s vs es s' vs' i les hs hs',
-    reduce hs s vs es i hs' s' vs' [::] ->
-    reduce hs s vs (es ++ les) i hs' s' vs' les.
+Lemma r_elimr_empty: forall s f es s' f' les hs hs',
+    reduce hs s f es hs' s' f' [::] ->
+    reduce hs s f (es ++ les) hs' s' f' les.
 Proof.
-  move => s vs es s' vs' i les hs hs' H.
-  assert (reduce hs s vs (es++les) i hs' s' vs' ([::] ++les)); first by apply: r_elimr.
+  move => s f es s' f' les hs hs' H.
+  assert (reduce hs s f (es++les) hs' s' f' ([::] ++les)); first by apply: r_elimr.
   by rewrite cat0s in H0.
 Qed.
 
@@ -396,15 +396,15 @@ Ltac pattern_match :=
 (** Eliminate the stack frame, by applying [r_elimr] and [r_eliml] according to some heuristics. **)
 Ltac stack_frame :=
   repeat lazymatch goal with
-  | |- reduce _ _ _ (_ :: ?l) _ _ _ _ _ =>
+  | |- reduce _ _ _ (_ :: ?l) _ _ _ _ =>
     rewrite -cat1s
-  | |- reduce _ _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ _ ((?l5 ++ ?l4) ++ ?l3) =>
+  | |- reduce _ _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ ((?l5 ++ ?l4) ++ ?l3) =>
     rewrite -cat1s; rewrite catA;
     apply: r_elimr; try apply: r_eliml; try apply: v_to_e_is_const_list
-  | |- reduce _ _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ _ (?l5 ++ ?l3) =>
+  | |- reduce _ _ _ (?l1 ++ ?l2 :: ?l3) _ _ _ (?l5 ++ ?l3) =>
     rewrite -cat1s; rewrite catA;
     apply: r_elimr; try apply: r_eliml_empty; try apply: v_to_e_is_const_list
-  | |- reduce _ _ _ (operations.v_to_e_list ?l1 ++ _) _ _ _ _ (operations.v_to_e_list (take ?n ?l1) ++ _) =>
+  | |- reduce _ _ _ (operations.v_to_e_list ?l1 ++ _) _ _ _ (operations.v_to_e_list (take ?n ?l1) ++ _) =>
     rewrite (v_to_e_take_drop_split l1 n); rewrite -catA;
     apply: r_eliml; try apply: v_to_e_is_const_list
   end.
@@ -430,7 +430,7 @@ Ltac show_list_equality :=
 (** Given a left and a right frame, rewrite the goal to move these frames out. **)
 Ltac frame_out l r :=
   lazymatch goal with
-  | |- reduce _ _ _ ?st1 _ _ _ _ ?st2 =>
+  | |- reduce _ _ _ ?st1 _ _ _ ?st2 =>
     let sta := fresh "st1" in
     evar (sta : seq administrative_instruction);
     let stb := fresh "st2" in
@@ -455,21 +455,21 @@ Ltac auto_frame :=
   let left _ :=
     repeat rewrite -catA;
     repeat lazymatch goal with
-    | |- reduce _ _ _ (?l ++ _) _ _ _ _ (?l ++ _) =>
+    | |- reduce _ _ _ (?l ++ _) _ _ _ (?l ++ _) =>
       frame_out l empty
-    | |- reduce _ _ _ (?l ++ _) _ _ _ _ ?l =>
+    | |- reduce _ _ _ (?l ++ _) _ _ _ ?l =>
       frame_out l empty
-    | |- reduce _ _ _ ?l _ _ _ _ (?l ++ _) =>
+    | |- reduce _ _ _ ?l _ _ _ (?l ++ _) =>
       frame_out l empty
     end in
   let right _ :=
     repeat rewrite catA;
     repeat lazymatch goal with
-    | |- reduce _ _ _ (_ ++ ?r) _ _ _ _ (_ ++ ?r) =>
+    | |- reduce _ _ _ (_ ++ ?r) _ _ _ (_ ++ ?r) =>
       frame_out empty r
-    | |- reduce _ _ _ (_ ++ ?r) _ _ _ _ ?r =>
+    | |- reduce _ _ _ (_ ++ ?r) _ _ _ ?r =>
       frame_out empty r
-    | |- reduce _ _ _ ?r _ _ _ _ (_ ++ ?r) =>
+    | |- reduce _ _ _ ?r _ _ _ (_ ++ ?r) =>
       frame_out empty r
     end;
     (** Renormalising back. **)
@@ -484,17 +484,17 @@ Ltac eframe :=
   evar (r : seq administrative_instruction);
   frame_out l r.
 
-Local Lemma run_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel' hs hs',
+Local Lemma run_step_fuel_increase_aux : forall d es s f s' f' r' fuel fuel' hs hs',
   fuel <= fuel' ->
-  TProp.Forall (fun e => forall d i tt hs s vs r fuel fuel',
+  TProp.Forall (fun e => forall d tt hs s f r fuel fuel',
      fuel <= fuel' ->
-     run_one_step fuel d i tt e = (hs, s, vs, r) ->
-     r = RS_crash C_exhaustion \/ run_one_step fuel' d i tt e = (hs, s, vs, r)) es ->
-  run_step_with_fuel fuel d i (hs, s, vs, es) = (hs', s', vs', r') ->
+     run_one_step fuel d tt e = (hs, s, f, r) ->
+     r = RS_crash C_exhaustion \/ run_one_step fuel' d tt e = (hs, s, f, r)) es ->
+  run_step_with_fuel fuel d (hs, s, f, es) = (hs', s', f', r') ->
   r' = RS_crash C_exhaustion
-  \/ run_step_with_fuel fuel' d i (hs, s, vs, es) = (hs', s', vs', r').
+  \/ run_step_with_fuel fuel' d (hs, s, f, es) = (hs', s', f', r').
 Proof.
-  move=> d i es s vs s' vs' r' fuel fuel' hs hs' I F. destruct fuel as [|fuel].
+  move=> d es s f s' f' r' fuel fuel' hs hs' I F. destruct fuel as [|fuel].
   - pattern_match. by left.
   - destruct fuel' as [|fuel'] => /=.
     + by inversion I.

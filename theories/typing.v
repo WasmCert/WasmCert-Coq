@@ -442,6 +442,14 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bo
   | _ => false
   end.
 
+Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
+| mk_frame_typing: forall s i tvs C f,
+    inst_typing s i C ->
+    f.(f_inst) = i ->
+    map typeof f.(f_locs) = tvs ->
+    frame_typing s f (upd_local C (tc_local C ++ tvs))
+  .
+
 Lemma functions_agree_injective: forall s i t t',
   functions_agree s i t ->
   functions_agree s i t' ->
@@ -454,45 +462,6 @@ Proof.
   move/eqP in H0. move/eqP in H2.
   rewrite H2 in H0. by inversion H0.
 Qed.
-
-(* FIXME: Status of this lemma?
-Lemma all2_injective_unique: forall f i t t',
-    (forall a b b',
-        f a b = true -> f a b' = true -> b = b') ->
-    all2 f i t ->
-    all2 f i t' ->
-    t = t'.
-Proof.
-  move => s i t t' H1 H2.
-  generalize dependent t.
-  generalize dependent t'.
-  induction i => //=.
-  - move => t H1 t' H2.
-    destruct t; destruct t' => //=.
-  - move => t H1 t' H2. destruct t; destruct t' => //=.
-    apply IHi => //=.
-*)
-
-(* FIXME
-Lemma inst_typing_unique: forall s i C C',
-    inst_typing s i C ->
-    inst_typing s i C' ->
-    C = C'.
-Proof.
-  move => s i C C' HType1 HType2.
-  unfold inst_typing in HType1.
-  unfold inst_typing in HType2.
-  destruct i. destruct C. destruct C'.
-  destruct tc_local; destruct tc_local0 => //=.
-  destruct tc_label; destruct tc_label0 => //=.
-  destruct tc_return; destruct tc_return0 => //=.
-  destruct (i_types == tc_types_t) eqn:H1; destruct (i_types == tc_types_t0) eqn:H2 => //=. move/eqP in H1. move/eqP in H2. subst.
-  simpl in HType1. simpl in HType2.
-  destruct (all2 (functions_agree (s_funcs s)) i_funcs tc_func_t) eqn:H1;
-    destruct (all2 (functions_agree (s_funcs s)) i_funcs tc_func_t0) eqn:H2 => //=.
-  f_equal.
-Admitted.
-*)
 
 (*
 Print Func_native.
@@ -522,19 +491,11 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
   | cl_typing_native : forall i s C C' ts t1s t2s es tf,
     inst_typing s i C ->
     tf = Tf t1s t2s ->
-    C' = upd_local_label_return C (app (tc_local C) (app t1s ts)) (app [::t2s] (tc_label C)) (Some t2s) ->
+    C' = upd_local_label_return C (tc_local C ++ t1s ++ ts) ([::t2s] ++ tc_label C) (Some t2s) ->
     be_typing C' es (Tf [::] t2s) ->
     cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
   | cl_typing_host : forall s tf h,
     cl_typing s (Func_host tf h) tf
-  .
-
-Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
-| f_typing: forall s i tvs C f,
-    inst_typing s i C ->
-    f.(f_inst) = i ->
-    map typeof f.(f_locs) = tvs ->
-    frame_typing s f (upd_local C tvs)
   .
   
 Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=

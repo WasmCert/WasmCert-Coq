@@ -553,7 +553,18 @@ Ltac extract_listn :=
     apply extract_list4 in H; destruct H; subst
   | H: _ :: _ = (_ ++ _)%list |- _ => symmetry in H
   | H: _ :: _ = _ ++ _ |- _ => symmetry in H
+         end.
+
+Ltac fold_upd_context :=
+  lazymatch goal with
+  | |- context [upd_local (upd_return ?C ?ret) ?loc] =>
+    replace (upd_local (upd_return C ret) loc) with
+        (upd_local_return C ret loc); try by destruct C
+  | |- context [upd_return (upd_local ?C ?ret) ?loc] =>
+    replace (upd_return (upd_local C ret) loc) with
+        (upd_local_return C ret loc); try by destruct C
   end.
+
 
 
 (** * More Advanced Lemmas **)
