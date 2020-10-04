@@ -36,7 +36,7 @@ Definition write_bytes (m : memory) (n : N) (bs : bytes) : memory := {|
         bs
         m.(mem_data).(dv_array);
   |};
-  mem_limit := m.(mem_limit);
+  mem_max_opt := m.(mem_max_opt);
 |}.
 
 Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
@@ -58,18 +58,18 @@ Definition mem_grow (m : memory) (n : N) : option memory:=
   let new_mem_data :=
     (* with our array representation, there are no bounds to extend *)
     m.(mem_data) in
-  match m.(mem_limit).(lim_max) with
+  match m.(mem_max_opt) with
   | Some maxlim =>
     if N.leb (N.add (mem_size m) n) maxlim then
       Some {|
         mem_data := new_mem_data;
-        mem_limit := m.(mem_limit);
+        mem_max_opt := m.(mem_max_opt);
       |}
     else None
   | None =>
     Some {|
       mem_data := new_mem_data;
-      mem_limit := m.(mem_limit);
+      mem_max_opt := m.(mem_max_opt);
     |}
   end.
 
@@ -456,7 +456,7 @@ Definition tab_extension (t1 t2 : tableinst) :=
   (t1.(table_max_opt) == t2.(table_max_opt)).
 
 Definition mem_extension (m1 m2 : memory) :=
-  (mem_size m1 <= mem_size m2) && (lim_max (mem_limit m1) == lim_max (mem_limit m2)).
+  (mem_size m1 <= mem_size m2) && (mem_max_opt m1 == mem_max_opt m2).
 
 Definition store_extension (s s' : store_record) : bool :=
   (s_funcs s == s_funcs s') &&

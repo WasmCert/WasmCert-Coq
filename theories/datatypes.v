@@ -70,7 +70,7 @@ Record data_vec : Type := {
 
 Record memory : Type := {
   mem_data : data_vec;
-  mem_limit: limits;
+  mem_max_opt: option N; (* TODO: should be u32 *)
 }.
 
 Definition memory_type := limits.

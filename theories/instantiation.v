@@ -118,7 +118,7 @@ Definition mem_mk (lim : limits) : memory := {|
     dv_length := BinNatDef.N.mul page_size lim.(lim_min);
     dv_array := Byte_array.make Integers.Byte.zero;
   |};
-  mem_limit := lim;
+  mem_max_opt := lim.(lim_max);
 |}.
 
 Definition add_mem (s : store_record) (m_m : memory) : store_record := {|
@@ -290,7 +290,7 @@ Definition dummy_data_vec := {|
 
 Definition dummy_mem := {|
   mem_data := dummy_data_vec;
-  mem_limit := {| lim_min := 0; lim_max := None; |};
+  mem_max_opt := None
 |}.
 
 Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module_data) : store_record :=

@@ -468,7 +468,7 @@ Definition tab_agree (s: store_record) (t: tableinst): Prop :=
   tabsize_agree t.
 
 Definition mem_agree (m : memory) : Prop :=
-  match lim_max (mem_limit m) with
+  match (mem_max_opt m) with
   | None => True
   | Some n => mem_size m <= n
   end.

@@ -305,7 +305,7 @@ Definition globals_agree (gs : seq global) (n : nat) (tg : global_type) : bool :
 
 Definition mem_typing (m : memory) (m_t : memory_type) : bool :=
   (m_t.(lim_min) <= mem_size m) &&
-  (m.(mem_limit).(lim_max) == m_t.(lim_max)) (* TODO: mismatch *).
+  (m.(mem_max_opt) == m_t.(lim_max)) (* TODO: mismatch *).
 
 Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool :=
   (n < length ms) &&
@@ -382,8 +382,8 @@ Definition functions_agree (fs : seq function_closure) (n : nat) (f : function_t
      is then actually Tf (t1s ++ ts) t2s for arbitrary t1s and t2s!!?? This is actually
      not a mistake (3.3.5.6). It is also weird that br_if doesn't have this 
      polymorphism: it is always of type ts ++ [i32] -> ts. br_table is, however,
-     polymorphic again. ????????
-   OK THIS ACTUALLY MAKES SENSE! br_if is the only command that might not actually
+     polymorphic again.
+  The reason for above is that  br_if is the only command that might not actually
      break: if the top value is zero then we don't break. I think in Wasm, any if
      command of this type must have the same type in both cases, therefore the case
      that it actually breaks must also have the same type. The ts at the top of the

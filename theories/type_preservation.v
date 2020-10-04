@@ -2459,14 +2459,12 @@ Proof.
   move => m c mem HMGrow.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
-  destruct (lim_max (mem_limit m)) eqn:HLimMax => //=.
+  destruct (mem_max_opt m) eqn:HLimMax => //=.
   - destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
     inversion HMGrow; subst; clear HMGrow.
-    apply/andP; split => //.
-    by apply/eqP.
+    by apply/andP.
   - inversion HMGrow; subst; clear HMGrow.
-    apply/andP; split => //.
-    by apply/eqP.
+    by apply/andP.
 Qed.
 
 Lemma store_global_extension_store_typed: forall s s',
@@ -2664,7 +2662,7 @@ Proof.
   destruct ((k+off+N.of_nat tl <=? mem_length m)%N) eqn:H => //=.
   inversion HStore. subst. clear HStore.
   unfold mem_agree => //=.
-  destruct (lim_max (mem_limit m)) eqn:HLimMax => //=.
+  destruct (mem_max_opt m) eqn:HLimMax => //=.
   unfold mem_size. unfold mem_length => /=.
   assert (mem_agree m); first by eapply store_typed_mem_agree; eauto.
   unfold mem_agree in H0. by rewrite HLimMax in H0.
@@ -2681,12 +2679,10 @@ Proof.
   unfold mem_grow in HGrow.
   unfold mem_agree. simpl.
   unfold mem_agree in H.
-  destruct (lim_max (mem_limit m)) eqn:HLimMax => //=.
+  destruct (mem_max_opt m) eqn:HLimMax => //=.
   - destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
-    inversion HGrow; subst; clear HGrow.
-    by rewrite HLimMax.
-  - inversion HGrow; subst; clear HGrow.
-    by rewrite HLimMax.
+    by inversion HGrow; subst.
+  - by inversion HGrow; subst.
 Qed.
 
 Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
