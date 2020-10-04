@@ -271,6 +271,16 @@ Definition eqstore_recordP : Equality.axiom store_record_eqb :=
 Canonical Structure store_record_eqMixin := EqMixin eqstore_recordP.
 Canonical Structure store_record_eqType := Eval hnf in EqType store_record store_record_eqMixin.
 
+Definition frame_eq_dec : forall v1 v2 : frame, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition frame_eqb v1 v2 : bool := frame_eq_dec v1 v2.
+Definition eqframeP : Equality.axiom frame_eqb :=
+  eq_dec_Equality_axiom frame_eq_dec.
+
+Canonical Structure frame_eqMixin := EqMixin eqframeP.
+Canonical Structure frame_eqType := Eval hnf in EqType frame frame_eqMixin.
+
 Definition module_export_desc_eq_dec : forall v1 v2 : module_export_desc, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 
