@@ -158,19 +158,19 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           
   (** testops **)
   | AI_basic (BI_testop T_i32 testop) =>
-    if ves is (ConstInt32 c) :: ves' then
-      ret (s, f, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
+    if ves is (VAL_int32 c) :: ves' then
+      ret (s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
     else ret (s, f, crash_error)
   | AI_basic (BI_testop T_i64 testop) =>
-    if ves is (ConstInt64 c) :: ves' then
-      ret (s, f, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
+    if ves is (VAL_int64 c) :: ves' then
+      ret (s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
     else ret (s, f, crash_error)
   | AI_basic (BI_testop _ _) => ret (s, f, crash_error)
 
   (** relops **)
   | AI_basic (BI_relop t op) =>
     if ves is v2 :: v1 :: ves' then
-      ret (s, f, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
+      ret (s, f, RS_normal (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')))
     else ret (s, f, crash_error)
              
   (** convert and reinterpret **)
@@ -199,7 +199,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
   | AI_basic BI_select =>
-    if ves is (ConstInt32 c) :: v2 :: v1 :: ves' then
+    if ves is (VAL_int32 c) :: v2 :: v1 :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, f, RS_normal (vs_to_es (v2 :: ves')))
       else ret (s, f, RS_normal (vs_to_es (v1 :: ves')))
@@ -223,7 +223,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
   | AI_basic (BI_if tf es1 es2) =>
-    if ves is ConstInt32 c :: ves' then
+    if ves is VAL_int32 c :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es2)]))
       else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es1)]))
@@ -231,13 +231,13 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
 
   | AI_basic (BI_br j) => ret (s, f, RS_break j ves)
   | AI_basic (BI_br_if j) =>
-    if ves is ConstInt32 c :: ves' then
+    if ves is VAL_int32 c :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, f, RS_normal (vs_to_es ves'))
       else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
     else ret (s, f, crash_error)
   | AI_basic (BI_br_table js j) =>
-    if ves is ConstInt32 c :: ves' then
+    if ves is VAL_int32 c :: ves' then
       let: k := Wasm_int.nat_of_uint i32m c in
       if k < length js
       then
@@ -253,7 +253,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
   | AI_basic (BI_call_indirect j) =>
-    if ves is ConstInt32 c :: ves' then
+    if ves is VAL_int32 c :: ves' then
       match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
       | Some cl =>
         if stypes s f.(f_inst) j == Some (cl_type cl)
@@ -298,7 +298,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
     | AI_basic (BI_load t None a off) =>
-      if ves is ConstInt32 k :: ves' then
+      if ves is VAL_int32 k :: ves' then
         expect
           (smem_ind s f.(f_inst))
           (fun j =>
@@ -312,7 +312,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       else ret (s, f, crash_error)
 
     | AI_basic (BI_load t (Some (tp, sx)) a off) =>
-      if ves is ConstInt32 k :: ves' then
+      if ves is VAL_int32 k :: ves' then
         expect
           (smem_ind s f.(f_inst))
           (fun j =>
@@ -326,7 +326,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       else ret (s, f, crash_error)
 
     | AI_basic (BI_store t None a off) =>
-      if ves is v :: ConstInt32 k :: ves' then
+      if ves is v :: VAL_int32 k :: ves' then
         if types_agree t v
         then
           expect
@@ -344,7 +344,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       else ret (s, f, crash_error)
 
     | AI_basic (BI_store t (Some tp) a off) =>
-      if ves is v :: ConstInt32 k :: ves' then
+      if ves is v :: VAL_int32 k :: ves' then
         if types_agree t v
         then
           expect
@@ -366,12 +366,12 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         (smem_ind s f.(f_inst))
         (fun j =>
            if List.nth_error s.(s_mems) j is Some s_mem_s_j then
-             (ret (s, f, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves))))
+             (ret (s, f, RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves))))
            else ret (s, f, crash_error))
         (ret (s, f, crash_error))
 
     | AI_basic BI_grow_memory =>
-      if ves is ConstInt32 c :: ves' then
+      if ves is VAL_int32 c :: ves' then
         expect
           (smem_ind s f.(f_inst))
           (fun j =>
@@ -380,7 +380,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
               let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
               if mem' is Some mem'' then
                 ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), f,
-                     RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
+                     RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               else ret (s, f, crash_error)
             else ret (s, f, crash_error))
           (ret (s, f, crash_error))

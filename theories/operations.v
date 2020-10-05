@@ -99,19 +99,19 @@ Definition store_packed := store.
 
 Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
   match vt with
-  | T_i32 => ConstInt32 (Wasm_int.Int32.repr (common.Memdata.decode_int bs))
-  | T_i64 => ConstInt64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
-  | T_f32 => ConstFloat32 (Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int bs)))
-  | T_f64 => ConstFloat64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
+  | T_i32 => VAL_int32 (Wasm_int.Int32.repr (common.Memdata.decode_int bs))
+  | T_i64 => VAL_int64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
+  | T_f32 => VAL_float32 (Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int bs)))
+  | T_f64 => VAL_float64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
   end.
 
 
 Definition typeof (v : value) : value_type :=
   match v with
-  | ConstInt32 _ => T_i32
-  | ConstInt64 _ => T_i64
-  | ConstFloat32 _ => T_f32
-  | ConstFloat64 _ => T_f64
+  | VAL_int32 _ => T_i32
+  | VAL_int64 _ => T_i64
+  | VAL_float32 _ => T_f32
+  | VAL_float64 _ => T_f64
   end.
 
 Definition option_projl (A B : Type) (x : option (A * B)) : option A :=
@@ -181,14 +181,14 @@ Definition app_unop (op: unop) (v: value) :=
   match op with
   | Unop_i iop =>
     match v with
-    | ConstInt32 c => ConstInt32 (@app_unop_i i32t iop c)
-    | ConstInt64 c => ConstInt64 (@app_unop_i i64t iop c)
+    | VAL_int32 c => VAL_int32 (@app_unop_i i32t iop c)
+    | VAL_int64 c => VAL_int64 (@app_unop_i i64t iop c)
     | _ => v
     end
   | Unop_f fop =>
     match v with
-    | ConstFloat32 c => ConstFloat32 (@app_unop_f f32t fop c)
-    | ConstFloat64 c => ConstFloat64 (@app_unop_f f64t fop c)
+    | VAL_float32 c => VAL_float32 (@app_unop_f f32t fop c)
+    | VAL_float64 c => VAL_float64 (@app_unop_f f64t fop c)
     | _ => v
     end
   end.
@@ -235,28 +235,28 @@ Definition app_binop (op: binop) (v1: value) (v2: value) :=
   match op with
   | Binop_i iop =>
     match v1 with
-    | ConstInt32 c1 =>
+    | VAL_int32 c1 =>
       match v2 with
-      | ConstInt32 c2 => option_map (fun v => ConstInt32 v) (@app_binop_i i32t iop c1 c2)
+      | VAL_int32 c2 => option_map (fun v => VAL_int32 v) (@app_binop_i i32t iop c1 c2)
       |  _ => None
       end                              
-    | ConstInt64 c1 =>
+    | VAL_int64 c1 =>
       match v2 with
-      | ConstInt64 c2 => option_map (fun v => ConstInt64 v) (@app_binop_i i64t iop c1 c2)
+      | VAL_int64 c2 => option_map (fun v => VAL_int64 v) (@app_binop_i i64t iop c1 c2)
       |  _ => None
       end                              
     | _ => None
     end
   | Binop_f fop =>
     match v1 with
-    | ConstFloat32 c1 =>
+    | VAL_float32 c1 =>
       match v2 with
-      | ConstFloat32 c2 => option_map (fun v => ConstFloat32 v) (@app_binop_f f32t fop c1 c2)
+      | VAL_float32 c2 => option_map (fun v => VAL_float32 v) (@app_binop_f f32t fop c1 c2)
       |  _ => None
       end                              
-    | ConstFloat64 c1 =>
+    | VAL_float64 c1 =>
       match v2 with
-      | ConstFloat64 c2 => option_map (fun v => ConstFloat64 v) (@app_binop_f f64t fop c1 c2)
+      | VAL_float64 c2 => option_map (fun v => VAL_float64 v) (@app_binop_f f64t fop c1 c2)
       |  _ => None
       end                              
     | _ => None
@@ -303,28 +303,28 @@ Definition app_relop (op: relop) (v1: value) (v2: value) :=
   match op with
   | Relop_i iop =>
     match v1 with
-    | ConstInt32 c1 =>
+    | VAL_int32 c1 =>
       match v2 with
-      | ConstInt32 c2 => @app_relop_i i32t iop c1 c2
+      | VAL_int32 c2 => @app_relop_i i32t iop c1 c2
       |  _ => false
       end                              
-    | ConstInt64 c1 =>
+    | VAL_int64 c1 =>
       match v2 with
-      | ConstInt64 c2 => @app_relop_i i64t iop c1 c2
+      | VAL_int64 c2 => @app_relop_i i64t iop c1 c2
       |  _ => false
       end                              
     | _ => false
     end
   | Relop_f fop =>
     match v1 with
-    | ConstFloat32 c1 =>
+    | VAL_float32 c1 =>
       match v2 with
-      | ConstFloat32 c2 => @app_relop_f f32t fop c1 c2
+      | VAL_float32 c2 => @app_relop_f f32t fop c1 c2
       |  _ => false
       end                              
-    | ConstFloat64 c1 =>
+    | VAL_float64 c1 =>
       match v2 with
-      | ConstFloat64 c2 => @app_relop_f f64t fop c1 c2
+      | VAL_float64 c2 => @app_relop_f f64t fop c1 c2
       |  _ => false
       end                              
     | _ => false
@@ -471,7 +471,7 @@ Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruct
 Definition to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
   | AI_basic x => x
-  | _ => BI_const (ConstInt32 (Wasm_int.Int32.zero))
+  | _ => BI_const (VAL_int32 (Wasm_int.Int32.zero))
   end.
 
 Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
@@ -641,15 +641,15 @@ Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type
 
 Definition cvt_i32 (s : option sx) (v : value) : option i32 :=
   match v with
-  | ConstInt32 _ => None
-  | ConstInt64 c => Some (wasm_wrap c)
-  | ConstFloat32 c =>
+  | VAL_int32 _ => None
+  | VAL_int64 c => Some (wasm_wrap c)
+  | VAL_float32 c =>
     match s with
     | Some SX_U => Wasm_float.float_ui32_trunc f32m c
     | Some SX_S => Wasm_float.float_ui32_trunc f32m c
     | None => None
     end
-  | ConstFloat64 c =>
+  | VAL_float64 c =>
     match s with
     | Some SX_U => Wasm_float.float_ui32_trunc f64m c
     | Some SX_S => Wasm_float.float_ui32_trunc f64m c
@@ -659,20 +659,20 @@ Definition cvt_i32 (s : option sx) (v : value) : option i32 :=
 
 Definition cvt_i64 (s : option sx) (v : value) : option i64 :=
   match v with
-  | ConstInt32 c =>
+  | VAL_int32 c =>
     match s with
     | Some SX_U => Some (wasm_extend_u c)
     | Some SX_S => Some (wasm_extend_s c)
     | None => None
     end
-  | ConstInt64 c => None
-  | ConstFloat32 c =>
+  | VAL_int64 c => None
+  | VAL_float32 c =>
     match s with
     | Some SX_U => Wasm_float.float_ui64_trunc f32m c
     | Some SX_S => Wasm_float.float_si64_trunc f32m c
     | None => None
     end
-  | ConstFloat64 c =>
+  | VAL_float64 c =>
     match s with
     | Some SX_U => Wasm_float.float_ui64_trunc f64m c
     | Some SX_S => Wasm_float.float_si64_trunc f64m c
@@ -682,63 +682,63 @@ Definition cvt_i64 (s : option sx) (v : value) : option i64 :=
 
 Definition cvt_f32 (s : option sx) (v : value) : option f32 :=
   match v with
-  | ConstInt32 c =>
+  | VAL_int32 c =>
     match s with
     | Some SX_U => Some (Wasm_float.float_convert_ui32 f32m c)
     | Some SX_S => Some (Wasm_float.float_convert_si32 f32m c)
     | None => None
     end
-  | ConstInt64 c =>
+  | VAL_int64 c =>
     match s with
     | Some SX_U => Some (Wasm_float.float_convert_ui64 f32m c)
     | Some SX_S => Some (Wasm_float.float_convert_si64 f32m c)
     | None => None
     end
-  | ConstFloat32 c => None
-  | ConstFloat64 c => Some (wasm_demote c)
+  | VAL_float32 c => None
+  | VAL_float64 c => Some (wasm_demote c)
   end.
 
 Definition cvt_f64 (s : option sx) (v : value) : option f64 :=
   match v with
-  | ConstInt32 c =>
+  | VAL_int32 c =>
     match s with
     | Some SX_U => Some (Wasm_float.float_convert_ui32 f64m c)
     | Some SX_S => Some (Wasm_float.float_convert_si32 f64m c)
     | None => None
     end
-  | ConstInt64 c =>
+  | VAL_int64 c =>
     match s with
     | Some SX_U => Some (Wasm_float.float_convert_ui64 f64m c)
     | Some SX_S => Some (Wasm_float.float_convert_si64 f64m c)
     | None => None
     end
-  | ConstFloat32 c => Some (wasm_promote c)
-  | ConstFloat64 c => None
+  | VAL_float32 c => Some (wasm_promote c)
+  | VAL_float64 c => None
   end.
 
 
 Definition cvt (t : value_type) (s : option sx) (v : value) : option value :=
   match t with
-  | T_i32 => option_map ConstInt32 (cvt_i32 s v)
-  | T_i64 => option_map ConstInt64 (cvt_i64 s v)
-  | T_f32 => option_map ConstFloat32 (cvt_f32 s v)
-  | T_f64 => option_map ConstFloat64 (cvt_f64 s v)
+  | T_i32 => option_map VAL_int32 (cvt_i32 s v)
+  | T_i64 => option_map VAL_int64 (cvt_i64 s v)
+  | T_f32 => option_map VAL_float32 (cvt_f32 s v)
+  | T_f64 => option_map VAL_float64 (cvt_f64 s v)
   end.
 
 Definition bits (v : value) : bytes :=
   match v with
-  | ConstInt32 c => serialise_i32 c
-  | ConstInt64 c => serialise_i64 c
-  | ConstFloat32 c => serialise_f32 c
-  | ConstFloat64 c => serialise_f64 c
+  | VAL_int32 c => serialise_i32 c
+  | VAL_int64 c => serialise_i64 c
+  | VAL_float32 c => serialise_f32 c
+  | VAL_float64 c => serialise_f64 c
   end.
 
 Definition bitzero (t : value_type) : value :=
   match t with
-  | T_i32 => ConstInt32 (Wasm_int.int_zero i32m)
-  | T_i64 => ConstInt64 (Wasm_int.int_zero i64m)
-  | T_f32 => ConstFloat32 (Wasm_float.float_zero f32m)
-  | T_f64 => ConstFloat64 (Wasm_float.float_zero f64m)
+  | T_i32 => VAL_int32 (Wasm_int.int_zero i32m)
+  | T_i64 => VAL_int64 (Wasm_int.int_zero i64m)
+  | T_f32 => VAL_float32 (Wasm_float.float_zero f32m)
+  | T_f64 => VAL_float64 (Wasm_float.float_zero f64m)
   end.
 
 Definition n_zeros (ts : seq value_type) : seq value :=

@@ -67,10 +67,10 @@ Definition test_wikipedia :=
   (BI_get_local 0
    :: BI_testop T_i64 TO_eqz
    :: BI_if (Tf nil (T_i64 :: nil))
-        (BI_const (ConstInt64 Wasm_int.Int64.one) :: nil)
+        (BI_const (VAL_int64 Wasm_int.Int64.one) :: nil)
         (BI_get_local 0
          :: BI_get_local 0
-         :: BI_const (ConstInt64 Wasm_int.Int64.one)
+         :: BI_const (VAL_int64 Wasm_int.Int64.one)
          :: BI_binop T_i64 (Binop_i BOI_sub)
          :: BI_call 0
          :: BI_binop T_i64 (Binop_i BOI_mul) :: nil) :: nil).
@@ -132,7 +132,7 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_42 := {|
   mod_types := cons (Tf nil (cons T_i32 nil)) nil;
   mod_funcs :=
-    let e := BI_const (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    let e := BI_const (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
     cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
@@ -151,7 +151,7 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_42_exported := {|
   mod_types := cons (Tf nil (cons T_i32 nil)) nil;
   mod_funcs :=
-    let e := BI_const (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    let e := BI_const (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
     cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;

@@ -523,8 +523,8 @@ Qed.
 (* It seems very hard to refactor the i32 and i64 cases into one because of
      the polymorphism of app_testop_i. *)
 Lemma t_Testop_i32_preserve: forall C c testop tf,
-    be_typing C [::BI_const (ConstInt32 c); BI_testop T_i32 testop] tf ->
-    be_typing C [::BI_const (ConstInt32 (wasm_bool (app_testop_i testop c)))] tf.
+    be_typing C [::BI_const (VAL_int32 c); BI_testop T_i32 testop] tf ->
+    be_typing C [::BI_const (VAL_int32 (wasm_bool (app_testop_i testop c)))] tf.
 Proof.
   move => C c testop tf HType.
   gen_ind_subst HType.
@@ -538,8 +538,8 @@ Proof.
 Qed.
 
 Lemma t_Testop_i64_preserve: forall C c testop tf,
-    be_typing C [::BI_const (ConstInt64 c); BI_testop T_i64 testop] tf ->
-    be_typing C [::BI_const (ConstInt32 (wasm_bool (app_testop_i testop c)))] tf.
+    be_typing C [::BI_const (VAL_int64 c); BI_testop T_i64 testop] tf ->
+    be_typing C [::BI_const (VAL_int32 (wasm_bool (app_testop_i testop c)))] tf.
 Proof.
   move => C c testop tf HType.
   gen_ind_subst HType.
@@ -635,8 +635,8 @@ Proof.
 Qed.
 
 Lemma t_Select_preserve: forall C v1 v2 n tf be,
-    be_typing C [::BI_const v1; BI_const v2; BI_const (ConstInt32 n); BI_select] tf ->
-    reduce_simple [::AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_const (ConstInt32 n)); AI_basic BI_select] [::AI_basic be]->
+    be_typing C [::BI_const v1; BI_const v2; BI_const (VAL_int32 n); BI_select] tf ->
+    reduce_simple [::AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_const (VAL_int32 n)); AI_basic BI_select] [::AI_basic be]->
     be_typing C [::be] tf.
 Proof.
   move => C v1 v2 n tf be HType HReduce.
@@ -665,8 +665,8 @@ Proof.
 Qed.
 
 Lemma t_If_be_preserve: forall C c tf0 es1 es2 tf be,
-  be_typing C ([::BI_const (ConstInt32 c); BI_if tf0 es1 es2]) tf ->
-  reduce_simple (to_e_list [::BI_const (ConstInt32 c); BI_if tf0 es1 es2]) [::AI_basic be] ->
+  be_typing C ([::BI_const (VAL_int32 c); BI_if tf0 es1 es2]) tf ->
+  reduce_simple (to_e_list [::BI_const (VAL_int32 c); BI_if tf0 es1 es2]) [::AI_basic be] ->
   be_typing C [::be] tf.
 Proof.
   move => C c tf0 es1 es2 tf be HType HReduce. destruct tf. destruct tf0.
@@ -694,8 +694,8 @@ Proof.
 Qed.
 
 Lemma t_Br_if_true_preserve: forall C c i tf be,
-    be_typing C ([::BI_const (ConstInt32 c); BI_br_if i]) tf ->
-    reduce_simple (to_e_list [::BI_const (ConstInt32 c); BI_br_if i]) [::AI_basic be] ->
+    be_typing C ([::BI_const (VAL_int32 c); BI_br_if i]) tf ->
+    reduce_simple (to_e_list [::BI_const (VAL_int32 c); BI_br_if i]) [::AI_basic be] ->
     be_typing C [::be] tf.
 Proof.
   move => C c i tf be HType HReduce.
@@ -710,8 +710,8 @@ Proof.
 Qed.
 
 Lemma t_Br_if_false_preserve: forall C c i tf,
-    be_typing C ([::BI_const (ConstInt32 c); BI_br_if i]) tf ->
-    reduce_simple (to_e_list [::BI_const (ConstInt32 c); BI_br_if i]) [::] ->
+    be_typing C ([::BI_const (VAL_int32 c); BI_br_if i]) tf ->
+    reduce_simple (to_e_list [::BI_const (VAL_int32 c); BI_br_if i]) [::] ->
     be_typing C [::] tf.
 Proof.
   move => C c i tf HType HReduce.
@@ -727,8 +727,8 @@ Proof.
 Qed.
 
 Lemma t_Br_table_preserve: forall C c ids i0 tf be,
-    be_typing C ([::BI_const (ConstInt32 c); BI_br_table ids i0]) tf ->
-    reduce_simple (to_e_list [::BI_const (ConstInt32 c); BI_br_table ids i0]) [::AI_basic be] ->
+    be_typing C ([::BI_const (VAL_int32 c); BI_br_table ids i0]) tf ->
+    reduce_simple (to_e_list [::BI_const (VAL_int32 c); BI_br_table ids i0]) [::AI_basic be] ->
     be_typing C [::be] tf.
 Proof.
   move => C c ids i0 tf be HType HReduce.
@@ -2755,7 +2755,7 @@ Proof.
       destruct s => //=; destruct s' => //=; remove_bools_options.
   - (* update memory : store none *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
-    replace [::BI_const (ConstInt32 k); BI_const v; BI_store t None a off] with ([::BI_const (ConstInt32 k); BI_const v] ++ [::BI_store t None a off]) in HType => //.
+    replace [::BI_const (VAL_int32 k); BI_const v; BI_store t None a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t None a off]) in HType => //.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
@@ -2787,7 +2787,7 @@ Proof.
     * by move/ltP in H3.
   - (* another update memory : store some *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
-    replace [::BI_const (ConstInt32 k); BI_const v; BI_store t (Some tp) a off] with ([::BI_const (ConstInt32 k); BI_const v] ++ [::BI_store t (Some tp) a off]) in HType => //.
+    replace [::BI_const (VAL_int32 k); BI_const v; BI_store t (Some tp) a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t (Some tp) a off]) in HType => //.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
@@ -2818,7 +2818,7 @@ Proof.
     * by move/ltP in H3.
   - (* again update memory : grow_memory *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
-    replace [::BI_const (ConstInt32 c); BI_grow_memory] with ([::BI_const (ConstInt32 c)] ++ [::BI_grow_memory]) in HType => //.
+    replace [::BI_const (VAL_int32 c); BI_grow_memory] with ([::BI_const (VAL_int32 c)] ++ [::BI_grow_memory]) in HType => //.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
@@ -2946,7 +2946,7 @@ Proof.
     by eapply store_typed_cl_typed; eauto.
   - (* Call_indirect *)
     convert_et_to_bet.
-    replace [::BI_const (ConstInt32 c); BI_call_indirect i] with ([::BI_const (ConstInt32 c)] ++ [::BI_call_indirect i]) in HType => //=.
+    replace [::BI_const (VAL_int32 c); BI_call_indirect i] with ([::BI_const (VAL_int32 c)] ++ [::BI_call_indirect i]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]].
     subst.
@@ -3074,7 +3074,7 @@ Proof.
     by apply bet_empty.
   - (* Load None *)
     convert_et_to_bet.
-    replace [::BI_const (ConstInt32 k); BI_load t None a off] with ([::BI_const (ConstInt32 k)] ++ [::BI_load t None a off]) in HType => //=.
+    replace [::BI_const (VAL_int32 k); BI_load t None a off] with ([::BI_const (VAL_int32 k)] ++ [::BI_load t None a off]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
@@ -3091,7 +3091,7 @@ Proof.
     rewrite typeof_deserialise in H2. by apply H2.
   - (* Load Some *)
     convert_et_to_bet.
-    replace [::BI_const (ConstInt32 k); BI_load t (Some (tp, sx)) a off] with ([::BI_const (ConstInt32 k)] ++ [::BI_load t (Some (tp, sx)) a off]) in HType => //=.
+    replace [::BI_const (VAL_int32 k); BI_load t (Some (tp, sx)) a off] with ([::BI_const (VAL_int32 k)] ++ [::BI_load t (Some (tp, sx)) a off]) in HType => //=.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
@@ -3108,7 +3108,7 @@ Proof.
   - (* Store None *)
     + convert_et_to_bet.
       simpl in HType.
-      replace [::BI_const (ConstInt32 k); BI_const v; BI_store t None a off] with ([::BI_const (ConstInt32 k); BI_const v] ++ [::BI_store t None a off]) in HType => //=.
+      replace [::BI_const (VAL_int32 k); BI_const v; BI_store t None a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t None a off]) in HType => //=.
       apply composition_typing in HType.
       destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
       invert_be_typing.
@@ -3122,7 +3122,7 @@ Proof.
   - (* Store Some *)
     + convert_et_to_bet.
       simpl in HType.
-      replace [::BI_const (ConstInt32 k); BI_const v; BI_store t (Some tp) a off] with ([::BI_const (ConstInt32 k); BI_const v] ++ [::BI_store t (Some tp) a off]) in HType => //=.
+      replace [::BI_const (VAL_int32 k); BI_const v; BI_store t (Some tp) a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t (Some tp) a off]) in HType => //=.
       apply composition_typing in HType.
       destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
       invert_be_typing.
@@ -3143,7 +3143,7 @@ Proof.
     by apply bet_const.
   - (* Grow_memory success *)
     convert_et_to_bet.
-    replace [::BI_const (ConstInt32 c); BI_grow_memory] with ([::BI_const (ConstInt32 c)] ++ [::BI_grow_memory]) in HType => //.
+    replace [::BI_const (VAL_int32 c); BI_grow_memory] with ([::BI_const (VAL_int32 c)] ++ [::BI_grow_memory]) in HType => //.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
@@ -3156,7 +3156,7 @@ Proof.
     by apply bet_const.
   - (* Grow_memory fail *)
     convert_et_to_bet.
-    replace [::BI_const (ConstInt32 c); BI_grow_memory] with ([::BI_const (ConstInt32 c)] ++ [::BI_grow_memory]) in HType => //.
+    replace [::BI_const (VAL_int32 c); BI_grow_memory] with ([::BI_const (VAL_int32 c)] ++ [::BI_grow_memory]) in HType => //.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.

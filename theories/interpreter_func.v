@@ -193,18 +193,18 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
       else (hs, s, f, crash_error)
     (* testops *)
     | AI_basic (BI_testop T_i32 testop) =>
-      if ves is (ConstInt32 c) :: ves' then
-        (hs, s, f, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
+      if ves is (VAL_int32 c) :: ves' then
+        (hs, s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
       else (hs, s, f, crash_error)
     | AI_basic (BI_testop T_i64 testop) =>
-      if ves is (ConstInt64 c) :: ves' then
-        (hs, s, f, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
+      if ves is (VAL_int64 c) :: ves' then
+        (hs, s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
       else (hs, s, f, crash_error)
     | AI_basic (BI_testop _ _) => (hs, s, f, crash_error)
     (* relops *)
     | AI_basic (BI_relop t op) =>
       if ves is v2 :: v1 :: ves' then
-        (hs, s, f, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
+        (hs, s, f, RS_normal (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')))
       else (hs, s, f, crash_error)
     (* convert & reinterpret *)
     | AI_basic (BI_cvtop t2 CVO_convert t1 sx) =>
@@ -230,7 +230,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         (hs, s, f, RS_normal (vs_to_es ves'))
       else (hs, s, f, crash_error)
     | AI_basic BI_select =>
-      if ves is (ConstInt32 c) :: v2 :: v1 :: ves' then
+      if ves is (VAL_int32 c) :: v2 :: v1 :: ves' then
         if c == Wasm_int.int_zero i32m
         then (hs, s, f, RS_normal (vs_to_es (v2 :: ves')))
         else (hs, s, f, RS_normal (vs_to_es (v1 :: ves')))
@@ -251,20 +251,20 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
                         (vs_to_es ves' ++ to_e_list es)]))
       else (hs, s, f, crash_error)
     | AI_basic (BI_if tf es1 es2) =>
-      if ves is ConstInt32 c :: ves' then
+      if ves is VAL_int32 c :: ves' then
         if c == Wasm_int.int_zero i32m
         then (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es2)]))
         else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es1)]))
       else (hs, s, f, crash_error)
     | AI_basic (BI_br j) => (hs, s, f, RS_break j ves)
     | AI_basic (BI_br_if j) =>
-      if ves is ConstInt32 c :: ves' then
+      if ves is VAL_int32 c :: ves' then
         if c == Wasm_int.int_zero i32m
         then (hs, s, f, RS_normal (vs_to_es ves'))
         else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
       else (hs, s, f, crash_error)
     | AI_basic (BI_br_table js j) =>
-      if ves is ConstInt32 c :: ves' then
+      if ves is VAL_int32 c :: ves' then
         let: k := Wasm_int.nat_of_uint i32m c in
         if k < length js
         then
@@ -278,7 +278,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_invoke sfunc_i_j]))
       else (hs, s, f, crash_error)
     | AI_basic (BI_call_indirect j) =>
-      if ves is ConstInt32 c :: ves' then
+      if ves is VAL_int32 c :: ves' then
         match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
         | Some cl =>
           if stypes s f.(f_inst) j == Some (cl_type cl)
@@ -316,7 +316,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         else (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
     | AI_basic (BI_load t None a off) =>
-      if ves is ConstInt32 k :: ves' then
+      if ves is VAL_int32 k :: ves' then
         expect
           (smem_ind s f.(f_inst))
           (fun j =>
@@ -329,7 +329,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
           (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
     | AI_basic (BI_load t (Some (tp, sx)) a off) =>
-      if ves is ConstInt32 k :: ves' then
+      if ves is VAL_int32 k :: ves' then
         expect
           (smem_ind s f.(f_inst))
           (fun j =>
@@ -342,7 +342,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
           (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
     | AI_basic (BI_store t None a off) =>
-      if ves is v :: ConstInt32 k :: ves' then
+      if ves is v :: VAL_int32 k :: ves' then
         if types_agree t v
         then
           expect
@@ -359,7 +359,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         else (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
     | AI_basic (BI_store t (Some tp) a off) =>
-      if ves is v :: ConstInt32 k :: ves' then
+      if ves is v :: VAL_int32 k :: ves' then
         if types_agree t v
         then
           expect
@@ -380,11 +380,11 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         (smem_ind s f.(f_inst))
         (fun j =>
            if List.nth_error s.(s_mems) j is Some s_mem_s_j then
-             (hs, s, f, RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
+             (hs, s, f, RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
            else (hs, s, f, crash_error))
         (hs, s, f, crash_error)
     | AI_basic BI_grow_memory =>
-      if ves is ConstInt32 c :: ves' then
+      if ves is VAL_int32 c :: ves' then
         expect
           (smem_ind s f.(f_inst))
           (fun j =>
@@ -393,7 +393,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
               let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
               if mem' is Some mem'' then
                 (hs, upd_s_mem s (update_list_at s.(s_mems) j mem''), f,
-                 RS_normal (vs_to_es (ConstInt32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
+                 RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               else (hs, s, f, crash_error)
             else (hs, s, f, crash_error))
           (hs, s, f, crash_error)

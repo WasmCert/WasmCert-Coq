@@ -197,10 +197,10 @@ WebAssembly computations manipulate values of the four basic value types:
 integers and floating-point data of 32 or 64 bit width each, respectively.
 *)
 Inductive value : Type := (* v *)
-  | ConstInt32 : i32 -> value
-  | ConstInt64 : i64 -> value
-  | ConstFloat32 : f32 -> value
-  | ConstFloat64 : f64 -> value
+  | VAL_int32 : i32 -> value
+  | VAL_int64 : i64 -> value
+  | VAL_float32 : f32 -> value
+  | VAL_float64 : f64 -> value
   .
 
 Inductive result : Type :=

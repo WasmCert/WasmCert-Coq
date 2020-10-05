@@ -510,14 +510,14 @@ Definition instantiate_globals inst (hs' : host_state) (s' : store_record) m g_i
 Definition instantiate_elem inst (hs' : host_state) (s' : store_record) m e_offs : Prop :=
   List.Forall2 (fun e c =>
       opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list e.(modelem_offset))
-                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (ConstInt32 c))]))
+                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
     m.(mod_elem)
     e_offs.
 
 Definition instantiate_data inst (hs' : host_state) (s' : store_record) m d_offs : Prop :=
   List.Forall2 (fun d c =>
       opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list d.(moddata_offset))
-                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (ConstInt32 c))]))
+                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
     m.(mod_data)
     d_offs.
 
@@ -805,7 +805,7 @@ Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basi
   : itree (instantiation_error +' eff) i32 (* FIXME: isa mismatch *) :=
   v <- interp_get_v s inst b_es ;;
   match v with
-  | ConstInt32 c => ret c
+  | VAL_int32 c => ret c
   | _ => trigger_inl1 Instantiation_error
   end.
 

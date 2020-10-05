@@ -323,7 +323,7 @@ Ltac explode_and_simplify :=
       simplify_hypothesis HRevConst;
       try by [|apply: HRevConst]
     | context C [match ?v with
-                 | ConstInt32 _ => _
+                 | VAL_int32 _ => _
                  | _ => _
                  end] =>
       let Hb := fresh "Ev" in

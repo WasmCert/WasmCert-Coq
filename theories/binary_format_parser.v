@@ -300,16 +300,16 @@ Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
   parse_memory_grow.
 
 Definition parse_i32_const {n} : be_parser n :=
-  exact_byte x41 &> ((fun x => BI_const (ConstInt32 x)) <$> parse_s32).
+  exact_byte x41 &> ((fun x => BI_const (VAL_int32 x)) <$> parse_s32).
 
 Definition parse_i64_const {n} : be_parser n :=
-  exact_byte x42 &> ((fun x => BI_const (ConstInt64 x)) <$> parse_s64).
+  exact_byte x42 &> ((fun x => BI_const (VAL_int64 x)) <$> parse_s64).
 
 Definition parse_f32_const {n} : be_parser n :=
-  exact_byte x43 &> ((fun x => BI_const (ConstFloat32 x)) <$> parse_f32).
+  exact_byte x43 &> ((fun x => BI_const (VAL_float32 x)) <$> parse_f32).
 
 Definition parse_f64_const {n} : be_parser n :=
-  exact_byte x44 &> ((fun x => BI_const (ConstFloat64 x)) <$> parse_f64).
+  exact_byte x44 &> ((fun x => BI_const (VAL_float64 x)) <$> parse_f64).
 
 (* :-( *)
 Definition parse_numeric_instruction {n} : be_parser n :=

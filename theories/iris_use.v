@@ -56,7 +56,7 @@ Instance heapG_irisG `{!heapG Σ} : irisG wasm_lang Σ := {
     fork_post _ := True%I;
   }.
 
-Definition xx i := (ConstInt32 (Wasm_int.int_of_Z i32m i)).
+Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 
 (* FIXME: Mismatch on [expr]?
 Definition my_add : expr :=
