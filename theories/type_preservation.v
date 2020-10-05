@@ -2614,7 +2614,7 @@ Lemma nth_error_update_list_others: forall {X:Type} l n m {x:X},
     n < length l ->
     List.nth_error (update_list_at l n x) m = List.nth_error l m.
 Proof.
-  move => X l n. generalize dependent l.
+  move => X l n. move: l.
   induction n => //=; move => l m x Hne HLength.
   - destruct m => //=.
     by destruct l => //=.
