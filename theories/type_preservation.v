@@ -2926,9 +2926,7 @@ Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret hs hs',
     e_typing s' (upd_label (upd_local_return C (tc_local C ++ map typeof f'.(f_locs)) ret) lab) es' (Tf t1s t2s).
 Proof.
   move => s f es s' f' es' C t1s t2s lab ret hs hs' HReduce HST1 HST2.
-  generalize dependent t2s. generalize dependent t1s.
-  generalize dependent lab. generalize dependent ret.
-  generalize dependent C.
+  move: C ret lab t1s t2s.
   induction HReduce; move => C ret lab tx ty HIT1 HIT2 HType; subst; try eauto; try by apply ety_trap.
   - (* reduce_simple *)
     by eapply t_simple_preservation; eauto.
