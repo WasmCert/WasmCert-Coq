@@ -204,8 +204,8 @@ in
   if ts == CT_bot then CT_bot
   else
   match be with
-  | EConst v => type_update ts [::] (CT_type [::typeof v])
-  | Unop t _ => type_update ts [::CTA_some t] (CT_type [::t])
+  | BI_const v => type_update ts [::] (CT_type [::typeof v])
+  | BI_unop t _ => type_update ts [::CTA_some t] (CT_type [::t])
                             (*
   | Unop_i t _ =>
     if is_int_t t
@@ -216,7 +216,7 @@ in
     then  type_update ts [::CTA_some t] (CT_type [::t])
     else CT_bot
                              *)
-  | Binop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
+  | BI_binop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
                              (*
   | Binop_i t _ =>
     if is_int_t t
@@ -228,11 +228,11 @@ in
     else CT_bot
                               *)
 
-  | Testop t _ =>
+  | BI_testop t _ =>
     if is_int_t t
     then type_update ts [::CTA_some t] (CT_type [::T_i32])
     else CT_bot
-  | Relop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
+  | BI_relop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
                              (*
   | Relop_i t _ =>
     if is_int_t t
@@ -243,32 +243,32 @@ in
     then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
     else CT_bot
                               *)
-  | Cvtop t1 Convert t2 sx =>
+  | BI_cvtop t1 CVO_convert t2 sx =>
     if typing.convert_cond t1 t2 sx
     then type_update ts [::CTA_some t2] (CT_type [::t1])
     else CT_bot
-  | Cvtop t1 Reinterpret t2 sxo =>
+  | BI_cvtop t1 CVO_reinterpret t2 sxo =>
     if (t1 != t2) && (t_length t1 == t_length t2) && (sxo == None)
     then type_update ts [::CTA_some t2] (CT_type [::t1])
     else CT_bot
-  | Unreachable => type_update ts [::] (CT_top_type [::])
-  | Nop => ts
-  | Drop => type_update ts [::CTA_any] (CT_type [::])
-  | Select => type_update_select ts
-  | Block (Tf tn tm) es =>
+  | BI_unreachable => type_update ts [::] (CT_top_type [::])
+  | BI_nop => ts
+  | BI_drop => type_update ts [::CTA_any] (CT_type [::])
+  | BI_select => type_update_select ts
+  | BI_block (Tf tn tm) es =>
     if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
     then type_update ts (to_ct_list tn) (CT_type tm)
     else CT_bot
-  | Loop (Tf tn tm) es =>
+  | BI_loop (Tf tn tm) es =>
     if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
     then type_update ts (to_ct_list tn) (CT_type tm)
     else CT_bot
-  | If (Tf tn tm) es1 es2 =>
+  | BI_if (Tf tn tm) es1 es2 =>
     if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es1 (Tf tn tm)
                         && b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es2 (Tf tn tm)
     then type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
     else CT_bot
-  | Br i =>
+  | BI_br i =>
     if i < length (tc_label C)
     then
       match List.nth_error (tc_label C) i with
@@ -281,7 +281,7 @@ in
                        checked the length. Maybe this is the reason for the comment? *)
       end
     else CT_bot
-  | Br_if i =>
+  | BI_br_if i =>
     if i < length (tc_label C)
     then
       match List.nth_error (tc_label C) i with
@@ -289,17 +289,17 @@ in
       | None => CT_bot (* Isa mismatch *)
       end
     else CT_bot
-  | Br_table iss i =>
+  | BI_br_table iss i =>
     match same_lab (iss ++ [::i]) (tc_label C) with
     | None => CT_bot
     | Some tls => type_update ts (to_ct_list (tls ++ [::T_i32])) (CT_top_type [::])
     end
-  | Return =>
+  | BI_return =>
     match tc_return C with
     | None => CT_bot
     | Some tls => type_update ts (to_ct_list tls) (CT_top_type [::])
     end
-  | Call i =>
+  | BI_call i =>
     if i < length (tc_func_t C)
     then
       match List.nth_error (tc_func_t C) i with
@@ -308,7 +308,7 @@ in
         type_update ts (to_ct_list tn) (CT_type tm)
       end
     else CT_bot
-  | Call_indirect i =>
+  | BI_call_indirect i =>
     if i < length C.(tc_types_t)
     then
       match List.nth_error (tc_func_t C) i with
@@ -317,7 +317,7 @@ in
         type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
       end
     else CT_bot
-  | Get_local i =>
+  | BI_get_local i =>
     if i < length (tc_func_t C)
     then
       match List.nth_error (tc_local C) i with
@@ -325,7 +325,7 @@ in
       | Some xx => type_update ts [::] (CT_type [::xx])
       end
     else CT_bot
-  | Set_local i =>
+  | BI_set_local i =>
     if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
@@ -333,7 +333,7 @@ in
       | Some xx => type_update ts [::CTA_some xx] (CT_type [::])
       end
     else CT_bot
-  | Tee_local i =>
+  | BI_tee_local i =>
     if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
@@ -341,7 +341,7 @@ in
       | Some xx => type_update ts [::CTA_some xx] (CT_type [::xx])
       end
     else CT_bot
-  | Get_global i =>
+  | BI_get_global i =>
     if i < length (tc_global C)
     then
       match List.nth_error (tc_global C) i with
@@ -349,7 +349,7 @@ in
       | Some xx => type_update ts [::] (CT_type [::tg_t xx])
       end
     else CT_bot
-  | Set_global i =>
+  | BI_set_global i =>
     if i < length (tc_global C)
     then
       match List.nth_error (tc_global C) i with
@@ -360,19 +360,19 @@ in
         else CT_bot
       end
     else CT_bot
-  | Load t tp_sx a off =>
+  | BI_load t tp_sx a off =>
     if (C.(tc_memory) != nil) && load_store_t_bounds a (option_projl tp_sx) t
     then type_update ts [::CTA_some T_i32] (CT_type [::t])
     else CT_bot
-  | Store t tp a off =>
+  | BI_store t tp a off =>
     if (C.(tc_memory) != nil) && load_store_t_bounds a tp t
     then type_update ts [::CTA_some T_i32; CTA_some t] (CT_type [::])
     else CT_bot
-  | Current_memory =>
+  | BI_current_memory =>
     if C.(tc_memory) != nil
     then type_update ts [::] (CT_type [::T_i32])
     else CT_bot
-  | Grow_memory =>
+  | BI_grow_memory =>
     if C.(tc_memory) != nil
     then type_update ts [::CTA_some T_i32] (CT_type [::T_i32])
     else CT_bot

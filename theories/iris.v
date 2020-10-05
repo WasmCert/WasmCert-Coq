@@ -42,12 +42,12 @@ Definition val := list value.
 Definition state : Type := host_state * store_record.
 Definition observation := unit. (* TODO: maybe change? *)
 
-Definition of_val (v : val) : expr := map (fun v => Basic (EConst v)) v.
+Definition of_val (v : val) : expr := map (fun v => AI_basic (BI_const v)) v.
 
 Fixpoint to_val (e : expr) : option val :=
   match e with
   | [::] => Some [::]
-  | Basic (EConst v) :: e' =>
+  | AI_basic (BI_const v) :: e' =>
     match to_val e' with
     | Some v' => Some (v :: v')
     | None => None

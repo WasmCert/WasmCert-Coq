@@ -151,20 +151,20 @@ Definition pp_values_hint_empty (vs : list value) : string :=
 
 Definition pp_unary_op_i (uoi : unop_i) : string :=
   match uoi with
-  | Clz => "clz"
-  | Ctz => "ctz"
-  | Popcnt => "popcnt"
+  | UOI_clz => "clz"
+  | UOI_ctz => "ctz"
+  | UOI_popcnt => "popcnt"
   end.
 
 Definition pp_unary_op_f (uof : unop_f) : string :=
   match uof with
-  | Neg => "neg"
-  | Abs => "abs"
-  | Ceil => "ceil"
-  | Floor => "floor"
-  | Trunc => "trunc"
-  | Nearest => "nearest"
-  | Sqrt => "sqrt"
+  | UOF_neg => "neg"
+  | UOF_abs => "abs"
+  | UOF_ceil => "ceil"
+  | UOF_floor => "floor"
+  | UOF_trunc => "trunc"
+  | UOF_nearest => "nearest"
+  | UOF_sqrt => "sqrt"
   end.
 
 Definition pp_sx (s : sx) : string :=
@@ -175,49 +175,49 @@ Definition pp_sx (s : sx) : string :=
 
 Definition pp_binary_op_i (boi : binop_i) : string :=
   match boi with
-  | Add => "add"
-  | Sub => "sub"
-  | Mul => "mul"
-  | Div s => "div_" ++ pp_sx s
-  | Rem s => "rem_" ++ pp_sx s
-  | And => "and"
-  | Or => "or"
-  | Xor => "xor"
-  | Shl => "shl"
-  | Shr s => "shr_" ++ pp_sx s
-  | Rotl => "rotl"
-  | Rotr => "rotr"
+  | BOI_add => "add"
+  | BOI_sub => "sub"
+  | BOI_mul => "mul"
+  | BOI_div s => "div_" ++ pp_sx s
+  | BOI_rem s => "rem_" ++ pp_sx s
+  | BOI_and => "and"
+  | BOI_or => "or"
+  | BOI_xor => "xor"
+  | BOI_shl => "shl"
+  | BOI_shr s => "shr_" ++ pp_sx s
+  | BOI_rotl => "rotl"
+  | BOI_rotr => "rotr"
   end.
 
 Definition pp_binary_op_f (bof : binop_f) : string :=
   match bof with
-  | Addf => "add"
-  | Subf => "sub"
-  | Mulf => "mul"
-  | Divf => "div"
-  | Min => "min"
-  | Max => "max"
-  | Copysign => "copysign"
+  | BOF_add => "add"
+  | BOF_sub => "sub"
+  | BOF_mul => "mul"
+  | BOF_div => "div"
+  | BOF_min => "min"
+  | BOF_max => "max"
+  | BOF_copysign => "copysign"
   end.
 
 Definition pp_rel_op_i (roi : relop_i) : string :=
   match roi with
-  | Eq => "eq"
-  | Ne => "ne"
-  | Lt s => "lt_" ++ pp_sx s
-  | Gt s => "gt_" ++ pp_sx s
-  | Le s => "le_" ++ pp_sx s
-  | Ge s => "ge_" ++ pp_sx s
+  | ROI_eq => "eq"
+  | ROI_ne => "ne"
+  | ROI_lt s => "lt_" ++ pp_sx s
+  | ROI_gt s => "gt_" ++ pp_sx s
+  | ROI_le s => "le_" ++ pp_sx s
+  | ROI_ge s => "ge_" ++ pp_sx s
   end.
 
 Definition pp_rel_op_f (rof : relop_f) : string :=
   match rof with
-  | Eqf => "eq"
-  | Nef => "ne"
-  | Ltf => "lt"
-  | Gtf => "gt"
-  | Lef => "ne"
-  | Gef => "ge"
+  | ROF_eq => "eq"
+  | ROF_ne => "ne"
+  | ROF_lt => "lt"
+  | ROF_gt => "gt"
+  | ROF_le => "ne"
+  | ROF_ge => "ge"
   end.
 
 Definition pp_ao a o : string :=
@@ -240,79 +240,79 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
   let pp_basic_instructions bes i :=
     String.concat "" (List.map (pp_basic_instruction (S i)) bes) in
   match be with
-  | Unreachable => indent i (with_fg be_style "unreachable" ++ newline)
-  | Nop => indent i (with_fg be_style "nop" ++ newline)
-  | Drop => indent i (with_fg be_style "drop" ++ newline)
-  | Select => indent i (with_fg be_style "select" ++ newline)
-  | Block tf bes =>
+  | BI_unreachable => indent i (with_fg be_style "unreachable" ++ newline)
+  | BI_nop => indent i (with_fg be_style "nop" ++ newline)
+  | BI_drop => indent i (with_fg be_style "drop" ++ newline)
+  | BI_select => indent i (with_fg be_style "select" ++ newline)
+  | BI_block tf bes =>
     indent i (with_fg be_style "block" ++ with_fg type_style (pp_block_tf tf) ++ newline)
     ++ pp_basic_instructions bes (S i)
     ++ indent i (with_fg be_style "end" ++ newline)
-  | Loop tf bes =>
+  | BI_loop tf bes =>
     indent i (with_fg be_style "loop" ++ with_fg type_style (pp_block_tf tf) ++ newline)
     ++ pp_basic_instructions bes (S i)
     ++ indent i (with_fg be_style "end" ++ newline)
-  | If tf bes nil =>
+  | BI_if tf bes nil =>
     indent i (with_fg be_style "if" ++ with_fg type_style (pp_block_tf tf) ++ newline)
     ++ pp_basic_instructions bes (S i)
     ++ indent i (with_fg be_style "end" ++ newline)
-  | If tf bes1 bes2 =>
+  | BI_if tf bes1 bes2 =>
     indent i (with_fg be_style "if" ++ with_fg type_style (pp_block_tf tf) ++ newline)
     ++ pp_basic_instructions bes1 (S i)
     ++ indent i (with_fg be_style "else" ++ newline)
     ++ pp_basic_instructions bes2 (S i)
     ++ indent i (with_fg be_style "end" ++ newline)
-  | Br x =>
+  | BI_br x =>
     indent i (with_fg be_style "br " ++ pp_immediate x ++ newline)
-  | Br_if x =>
+  | BI_br_if x =>
     indent i (with_fg be_style "br_if " ++ pp_immediate x ++ newline)
-  | Br_table is_ i =>
+  | BI_br_table is_ i =>
     indent i (with_fg be_style "br_table " ++ String.concat " " (List.map pp_immediate is_) ++ " " ++ pp_immediate i ++ newline)
-  | Return =>
+  | BI_return =>
     indent i (with_fg be_style "return" ++ newline)
-  | Call x =>
+  | BI_call x =>
     indent i (with_fg be_style "call " ++ pp_immediate x ++ newline)
-  | Call_indirect x =>
+  | BI_call_indirect x =>
     indent i (with_fg be_style "call_indirect " ++ pp_immediate x ++ newline)
-  | Get_local x =>
+  | BI_get_local x =>
     indent i (with_fg be_style "local.get " ++ pp_immediate x ++ newline)
-  | Set_local x =>
+  | BI_set_local x =>
     indent i (with_fg be_style "local.set " ++ pp_immediate x ++ newline)
-  | Tee_local x =>
+  | BI_tee_local x =>
     indent i (with_fg be_style "local.tee " ++ pp_immediate x ++ newline)
-  | Get_global x =>
+  | BI_get_global x =>
     indent i (with_fg be_style "global.get " ++ pp_immediate x ++ newline)
-  | Set_global x =>
+  | BI_set_global x =>
     indent i (with_fg be_style "global.set " ++ pp_immediate x ++ newline)
-  | Load vt None a o =>
+  | BI_load vt None a o =>
     indent i (pp_value_type vt ++ ".load " ++ pp_ao a o ++ newline)
-  | Load vt (Some ps) a o =>
+  | BI_load vt (Some ps) a o =>
     indent i (pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o ++ newline)
-  | Store vt None a o =>
+  | BI_store vt None a o =>
     indent i (pp_value_type vt ++ ".store " ++ pp_ao a o ++ newline)
-  | Store vt (Some p) a o =>
+  | BI_store vt (Some p) a o =>
     indent i (pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o ++ newline)
-  | Current_memory =>
+  | BI_current_memory =>
     indent i (with_fg be_style "memory.size" ++ newline ++ newline)
-  | Grow_memory =>
+  | BI_grow_memory =>
     indent i (with_fg be_style "memory.grow" ++ newline)
-  | EConst v =>
+  | BI_const v =>
     indent i (pp_value v)
-  | Unop vt (Unop_i uoi) =>
+  | BI_unop vt (Unop_i uoi) =>
     indent i (pp_value_type vt ++ "." ++ pp_unary_op_i uoi ++ newline)
-  | Unop vt (Unop_f uof) =>
+  | BI_unop vt (Unop_f uof) =>
     indent i (pp_value_type vt ++ "." ++ pp_unary_op_f uof ++ newline)
-  | Binop vt (Binop_i boi) =>
+  | BI_binop vt (Binop_i boi) =>
     indent i (pp_value_type vt ++ "." ++ pp_binary_op_i boi ++ newline)
-  | Binop vt (Binop_f bof) =>
+  | BI_binop vt (Binop_f bof) =>
     indent i (pp_value_type vt ++ "." ++ pp_binary_op_f bof ++ newline)
-  | Testop vt Eqz =>
+  | BI_testop vt Eqz =>
     indent i (pp_value_type vt ++ ".eqz" ++ newline)
-  | Relop vt (Relop_i roi) =>
+  | BI_relop vt (Relop_i roi) =>
     indent i (pp_value_type vt ++ "." ++ pp_rel_op_i roi ++ newline)
-  | Relop vt (Relop_f rof) =>
+  | BI_relop vt (Relop_f rof) =>
     indent i (pp_value_type vt ++ "." ++ pp_rel_op_f rof ++ newline)
-  | Cvtop vt1 cvtop vt2 sxo => "?" ++ newline (* TODO: ??? *)
+  | BI_cvtop vt1 cvtop vt2 sxo => "?" ++ newline (* TODO: ??? *)
   end.
 
 Definition pp_basic_instructions n bes :=
@@ -320,14 +320,14 @@ Definition pp_basic_instructions n bes :=
 
 Definition pp_function_closure (n : indentation) (fc : function_closure) : string :=
   match fc with
-  | Func_native i ft vs bes =>
+  | FC_func_native i ft vs bes =>
     (* TODO: show instance? *)
     indent n ("native " ++ pp_function_type ft ++ newline) ++
     indent n ("value types " ++ pp_value_types vs ++ newline) ++
     indent n ("body" ++ newline) ++
     pp_basic_instructions (n.+1) bes ++
     indent n ("end native" ++ newline)
-  | Func_host ft h =>
+  | FC_func_host ft h =>
     indent n ("host " ++ show_host_function h
               ++ " : " ++ pp_function_type ft ++ newline)
   end.
@@ -341,18 +341,18 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
   let pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
     String.concat "" (List.map (pp_administrative_instruction n) es) in
   match e with
-  | Basic be => pp_basic_instruction n be
-  | Trap => indent n (with_fg ae_style "trap" ++ newline)
-  | Invoke fc =>
+  | AI_basic be => pp_basic_instruction n be
+  | AI_trap => indent n (with_fg ae_style "trap" ++ newline)
+  | AI_invoke fc =>
     indent n (with_fg ae_style "invoke" ++ newline) ++
     pp_function_closure (n.+1) fc
-  | Label k es1 es2 =>
+  | AI_label k es1 es2 =>
     indent n (with_fg ae_style "label " ++ string_of_nat k ++ newline) ++
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es1) ++
     indent n (with_fg ae_style "label_cont" ++ newline) ++
     String.concat "" (List.map (pp_administrative_instruction (n.+1)) es2) ++
     indent n (with_fg ae_style "end label" ++ newline)
-  | Local n f es =>
+  | AI_local n f es =>
     indent n (with_fg ae_style "local " ++ string_of_nat n ++ newline) ++
     (* TODO: inst? *)
     indent n (with_fg ae_style "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline) ++

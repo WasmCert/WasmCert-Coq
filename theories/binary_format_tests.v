@@ -8,15 +8,15 @@ Open Scope string_scope.
 Import Coq.Strings.String.StringSyntax.
 Open Scope list_scope.
 
-Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Running.Singleton Unreachable.
+Lemma test_unreachable : check_toks (x00 :: nil) parse_be = Running.Singleton BI_unreachable.
 Proof. vm_compute. reflexivity. Qed.
 
-Lemma test_nop : check_toks (x01 :: nil) parse_be = Running.Singleton Nop.
+Lemma test_nop : check_toks (x01 :: nil) parse_be = Running.Singleton BI_nop.
 Proof. vm_compute. reflexivity. Qed.
 
 (** An example program. **)
 Definition test :=
-  If (Tf nil nil) (Testop T_i64 Eqz :: nil) (Testop T_i64 Eqz :: nil).
+  BI_if (Tf nil nil) (BI_testop T_i64 TO_eqz :: nil) (BI_testop T_i64 TO_eqz :: nil).
 
 (** Its byte representation. **)
 Definition test_bytes : list Byte.byte :=
@@ -64,16 +64,16 @@ Definition test_wikipedia_byte : list Byte.byte :=
   :: nil.
 
 Definition test_wikipedia :=
-  (Get_local 0
-   :: Testop T_i64 Eqz
-   :: If (Tf nil (T_i64 :: nil))
-        (EConst (ConstInt64 Wasm_int.Int64.one) :: nil)
-        (Get_local 0
-         :: Get_local 0
-         :: EConst (ConstInt64 Wasm_int.Int64.one)
-         :: Binop T_i64 (Binop_i Sub)
-         :: Call 0
-         :: Binop T_i64 (Binop_i Mul) :: nil) :: nil).
+  (BI_get_local 0
+   :: BI_testop T_i64 TO_eqz
+   :: BI_if (Tf nil (T_i64 :: nil))
+        (BI_const (ConstInt64 Wasm_int.Int64.one) :: nil)
+        (BI_get_local 0
+         :: BI_get_local 0
+         :: BI_const (ConstInt64 Wasm_int.Int64.one)
+         :: BI_binop T_i64 (Binop_i BOI_sub)
+         :: BI_call 0
+         :: BI_binop T_i64 (Binop_i BOI_mul) :: nil) :: nil).
 
 Lemma test_wikipedia_correct : run_parse_bes test_wikipedia_byte = Some test_wikipedia.
 Proof. vm_compute. reflexivity. Qed.
@@ -114,7 +114,7 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_type_fun := {|
   mod_types := cons (Tf nil (cons T_i32 nil)) nil;
   mod_funcs :=
-    cons {| mf_type := Mk_typeidx 0; mf_locals := nil; mf_body := nil |} nil;
+    cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
   mod_globals := nil;
@@ -132,8 +132,8 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_42 := {|
   mod_types := cons (Tf nil (cons T_i32 nil)) nil;
   mod_funcs :=
-    let e := EConst (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
-    cons {| mf_type := Mk_typeidx 0; mf_locals := nil; mf_body := cons e nil |} nil;
+    let e := BI_const (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
   mod_globals := nil;
@@ -151,8 +151,8 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_42_exported := {|
   mod_types := cons (Tf nil (cons T_i32 nil)) nil;
   mod_funcs :=
-    let e := EConst (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
-    cons {| mf_type := Mk_typeidx 0; mf_locals := nil; mf_body := cons e nil |} nil;
+    let e := BI_const (ConstInt32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
   mod_globals := nil;
@@ -160,7 +160,7 @@ Definition module_42_exported := {|
   mod_data := nil;
   mod_start := None;
   mod_imports := nil;
-  mod_exports := cons {| exp_name := String.list_byte_of_string "hello"; exp_desc := ED_func (Mk_funcidx 0); |} nil;
+  mod_exports := cons {| modexp_name := String.list_byte_of_string "hello"; modexp_desc := MED_func (Mk_funcidx 0); |} nil;
 |}.
 
 Lemma module_42_exported_round_trip :

@@ -127,7 +127,7 @@ Definition run_step_base (call : run_stepE ~> itree (run_stepE +' eff))
     if e_is_trap e
     then
       if (es'' != [::]) || (ves != [::])
-      then ret (s, f, RS_normal [::Trap])
+      then ret (s, f, RS_normal [::AI_trap])
       else ret (s, f, crash_error)
     else
       '(s', f', r) <- call _ (call_run_one_step d (s, f, (rev ves)) e) ;;
@@ -143,47 +143,47 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
   match e with
 
   (** unop **)
-  | Basic (Unop t op) =>
+  | AI_basic (BI_unop t op) =>
     if ves is v :: ves' then
       ret (s, f, RS_normal (vs_to_es ((app_unop op v) :: ves')))
     else ret (s, f, crash_error)
              
   (** binop **)
-  | Basic (Binop t op) =>
+  | AI_basic (BI_binop t op) =>
     if ves is v2 :: v1 :: ves' then
       expect (app_binop op v1 v2)
              (fun v => ret (s, f, RS_normal (vs_to_es (v :: ves'))))
-             (ret (s, f, RS_normal ((vs_to_es ves') ++ [::Trap])))
+             (ret (s, f, RS_normal ((vs_to_es ves') ++ [::AI_trap])))
     else ret (s, f, crash_error)
           
   (** testops **)
-  | Basic (Testop T_i32 testop) =>
+  | AI_basic (BI_testop T_i32 testop) =>
     if ves is (ConstInt32 c) :: ves' then
       ret (s, f, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
     else ret (s, f, crash_error)
-  | Basic (Testop T_i64 testop) =>
+  | AI_basic (BI_testop T_i64 testop) =>
     if ves is (ConstInt64 c) :: ves' then
       ret (s, f, RS_normal (vs_to_es ((ConstInt32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
     else ret (s, f, crash_error)
-  | Basic (Testop _ _) => ret (s, f, crash_error)
+  | AI_basic (BI_testop _ _) => ret (s, f, crash_error)
 
   (** relops **)
-  | Basic (Relop t op) =>
+  | AI_basic (BI_relop t op) =>
     if ves is v2 :: v1 :: ves' then
       ret (s, f, RS_normal (vs_to_es (ConstInt32 (wasm_bool (app_relop op v1 v2)) :: ves')))
     else ret (s, f, crash_error)
              
   (** convert and reinterpret **)
-  | Basic (Cvtop t2 Convert t1 sx) =>
+  | AI_basic (BI_cvtop t2 CVO_convert t1 sx) =>
     if ves is v :: ves' then
       if types_agree t1 v
       then
         expect (cvt t2 sx v) (fun v' =>
              ret (s, f, RS_normal (vs_to_es (v' :: ves'))))
-          (ret (s, f, RS_normal ((vs_to_es ves') ++ [::Trap])))
+          (ret (s, f, RS_normal ((vs_to_es ves') ++ [::AI_trap])))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
-  | Basic (Cvtop t2 Reinterpret t1 sx) =>
+  | AI_basic (BI_cvtop t2 CVO_Reinterpret t1 sx) =>
     if ves is v :: ves' then
       if types_agree t1 v && (sx == None)
       then ret (s, f, RS_normal (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))
@@ -191,81 +191,81 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
   (** control-flow instructions **)
-  | Basic Unreachable => ret (s, f, RS_normal ((vs_to_es ves) ++ [::Trap]))
-  | Basic Nop => ret (s, f, RS_normal (vs_to_es ves))
-  | Basic Drop =>
+  | AI_basic BI_unreachable => ret (s, f, RS_normal ((vs_to_es ves) ++ [::AI_trap]))
+  | AI_basic BI_nop => ret (s, f, RS_normal (vs_to_es ves))
+  | AI_basic BI_drop =>
     if ves is v :: ves' then
       ret (s, f, RS_normal (vs_to_es ves'))
     else ret (s, f, crash_error)
 
-  | Basic Select =>
+  | AI_basic BI_select =>
     if ves is (ConstInt32 c) :: v2 :: v1 :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, f, RS_normal (vs_to_es (v2 :: ves')))
       else ret (s, f, RS_normal (vs_to_es (v1 :: ves')))
     else ret (s, f, crash_error)
 
-  | Basic (Block (Tf t1s t2s) es) =>
+  | AI_basic (BI_block (Tf t1s t2s) es) =>
     if length ves >= length t1s
     then
       let: (ves', ves'')  := split_n ves (length t1s) in
       ret (s, f, RS_normal (vs_to_es ves''
-                            ++ [::Label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
+                            ++ [::AI_label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
     else ret (s, f, crash_error)
 
-  | Basic (Loop (Tf t1s t2s) es) =>
+  | AI_basic (BI_loop (Tf t1s t2s) es) =>
     if length ves >= length t1s
     then
       let: (ves', ves'') := split_n ves (length t1s) in
       ret (s, f, RS_normal (vs_to_es ves''
-                            ++ [::Label (length t1s) [::Basic (Loop (Tf t1s t2s) es)]
+                            ++ [::AI_label (length t1s) [::AI_basic (BI_loop (Tf t1s t2s) es)]
                                     (vs_to_es ves' ++ to_e_list es)]))
     else ret (s, f, crash_error)
 
-  | Basic (If tf es1 es2) =>
+  | AI_basic (BI_if tf es1 es2) =>
     if ves is ConstInt32 c :: ves' then
       if c == Wasm_int.int_zero i32m
-      then ret (s, f, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es2)]))
-      else ret (s, f, RS_normal (vs_to_es ves' ++ [::Basic (Block tf es1)]))
+      then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es2)]))
+      else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es1)]))
     else ret (s, f, crash_error)
 
-  | Basic (Br j) => ret (s, f, RS_break j ves)
-  | Basic (Br_if j) =>
+  | AI_basic (BI_br j) => ret (s, f, RS_break j ves)
+  | AI_basic (BI_br_if j) =>
     if ves is ConstInt32 c :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, f, RS_normal (vs_to_es ves'))
-      else ret (s, f, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
+      else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
     else ret (s, f, crash_error)
-  | Basic (Br_table js j) =>
+  | AI_basic (BI_br_table js j) =>
     if ves is ConstInt32 c :: ves' then
       let: k := Wasm_int.nat_of_uint i32m c in
       if k < length js
       then
         expect (List.nth_error js k) (fun js_at_k =>
-            ret (s, f, RS_normal (vs_to_es ves' ++ [::Basic (Br js_at_k)])))
+            ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br js_at_k)])))
           (ret (s, f, crash_error))
-      else ret (s, f, RS_normal (vs_to_es ves' ++ [::Basic (Br j)]))
+      else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
     else ret (s, f, crash_error)
 
-  | Basic (Call j) =>
+  | AI_basic (BI_call j) =>
     if sfunc s f.(f_inst) j is Some sfunc_i_j then
-      ret (s, f, RS_normal (vs_to_es ves ++ [::Invoke sfunc_i_j]))
+      ret (s, f, RS_normal (vs_to_es ves ++ [::AI_invoke sfunc_i_j]))
     else ret (s, f, crash_error)
 
-  | Basic (Call_indirect j) =>
+  | AI_basic (BI_call_indirect j) =>
     if ves is ConstInt32 c :: ves' then
       match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
       | Some cl =>
         if stypes s f.(f_inst) j == Some (cl_type cl)
-        then ret (s, f, RS_normal (vs_to_es ves' ++ [::Invoke cl]))
-        else ret (s, f, RS_normal (vs_to_es ves' ++ [::Trap]))
-      | None => ret (s, f, RS_normal (vs_to_es ves' ++ [::Trap]))
+        then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke cl]))
+        else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+      | None => ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
       end
     else ret (s, f, crash_error)
 
-  | Basic Return => ret (s, f, RS_return ves)
+  | AI_basic BI_return => ret (s, f, RS_return ves)
 
-  | Basic (Get_local j) =>
+  | AI_basic (BI_get_local j) =>
     if j < length f.(f_locs)
     then
       expect (List.nth_error f.(f_locs) j) (fun vs_at_j =>
@@ -273,31 +273,31 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         (ret (s, f, crash_error))
     else ret (s, f, crash_error)
 
-  | Basic (Set_local j) =>
+  | AI_basic (BI_set_local j) =>
     if ves is v :: ves' then
       if j < length f.(f_locs)
       then ret (s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
 
-  | Basic (Tee_local j) =>
+  | AI_basic (BI_tee_local j) =>
     if ves is v :: ves' then
-      ret (s, f, RS_normal (vs_to_es (v :: ves) ++ [::Basic (Set_local j)]))
+      ret (s, f, RS_normal (vs_to_es (v :: ves) ++ [::AI_basic (BI_set_local j)]))
     else ret (s, f, crash_error)
 
-  | Basic (Get_global j) =>
+  | AI_basic (BI_get_global j) =>
     if sglob_val s f.(f_inst) j is Some xx
     then ret (s, f, RS_normal (vs_to_es (xx :: ves)))
     else ret (s, f, crash_error)
 
-  | Basic (Set_global j) =>
+  | AI_basic (BI_set_global j) =>
     if ves is v :: ves' then
       if supdate_glob s f.(f_inst) j v is Some xx
       then ret (xx, f, RS_normal (vs_to_es ves'))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
 
-    | Basic (Load t None a off) =>
+    | AI_basic (BI_load t None a off) =>
       if ves is ConstInt32 k :: ves' then
         expect
           (smem_ind s f.(f_inst))
@@ -306,12 +306,12 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                expect
                  (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (t_length t))
                  (fun bs => ret (s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
-                 (ret (s, f, RS_normal (vs_to_es ves' ++ [::Trap])))
+                 (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
              else ret (s, f, crash_error))
           (ret (s, f, crash_error))
       else ret (s, f, crash_error)
 
-    | Basic (Load t (Some (tp, sx)) a off) =>
+    | AI_basic (BI_load t (Some (tp, sx)) a off) =>
       if ves is ConstInt32 k :: ves' then
         expect
           (smem_ind s f.(f_inst))
@@ -320,12 +320,12 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                expect
                  (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t))
                  (fun bs => ret (s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
-                 (ret (s, f, RS_normal (vs_to_es ves' ++ [::Trap])))
+                 (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
              else ret (s, f, crash_error))
           (ret (s, f, crash_error))
       else ret (s, f, crash_error)
 
-    | Basic (Store t None a off) =>
+    | AI_basic (BI_store t None a off) =>
       if ves is v :: ConstInt32 k :: ves' then
         if types_agree t v
         then
@@ -337,13 +337,13 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                    (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
                    (fun mem' =>
                       (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
-                   (ret (s, f, RS_normal (vs_to_es ves' ++ [::Trap])))
+                   (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
         else ret (s, f, crash_error)
       else ret (s, f, crash_error)
 
-    | Basic (Store t (Some tp) a off) =>
+    | AI_basic (BI_store t (Some tp) a off) =>
       if ves is v :: ConstInt32 k :: ves' then
         if types_agree t v
         then
@@ -355,13 +355,13 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                    (store_packed mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
                       (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
-                   (ret (s, f, RS_normal (vs_to_es ves' ++ [::Trap])))
+                   (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
         else ret (s, f, crash_error)
       else ret (s, f, crash_error)
 
-    | Basic Current_memory =>
+    | AI_basic BI_current_memory =>
       expect
         (smem_ind s f.(f_inst))
         (fun j =>
@@ -370,7 +370,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
            else ret (s, f, crash_error))
         (ret (s, f, crash_error))
 
-    | Basic Grow_memory =>
+    | AI_basic BI_grow_memory =>
       if ves is ConstInt32 c :: ves' then
         expect
           (smem_ind s f.(f_inst))
@@ -386,11 +386,11 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           (ret (s, f, crash_error))
       else ret (s, f, crash_error)
 
-    | Basic (EConst _) => ret (s, f, crash_error)
+    | AI_basic (BI_const _) => ret (s, f, crash_error)
 
-    | Invoke cl =>
+    | AI_invoke cl =>
       match cl with
-      | Func_native i (Tf t1s t2s) ts es =>
+      | FC_func_native i (Tf t1s t2s) ts es =>
         let: n := length t1s in
         let: m := length t2s in
         if length ves >= n
@@ -398,9 +398,9 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           let: (ves', ves'') := split_n ves n in
           let: zs := n_zeros ts in
           ret (s, f, RS_normal (vs_to_es ves''
-                        ++ [::Local m (Build_frame (rev ves' ++ zs) i) [::Basic (Block (Tf [::] t2s) es)]]))
+                        ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))
         else ret (s, f, crash_error)
-      | Func_host (Tf t1s t2s) h =>
+      | FC_func_host (Tf t1s t2s) h =>
         let: n := length t1s in
         let: m := length t2s in
         if length ves >= n
@@ -414,14 +414,14 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
               let: rves := result_to_stack r in
               ret (s', f, RS_normal (vs_to_es ves'' ++ rves))
             else ret (s (* FIXME: Why not [s']? *), f, crash_error)
-          | None => ret (s, f, RS_normal (vs_to_es ves'' ++ [::Trap]))
+          | None => ret (s, f, RS_normal (vs_to_es ves'' ++ [::AI_trap]))
           end
       else ret (s, f, crash_error)
     end
 
-  | Label ln les es =>
+  | AI_label ln les es =>
     if es_is_trap es
-    then ret (s, f, RS_normal (vs_to_es ves ++ [::Trap]))
+    then ret (s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
     else
       '(s', f', res) <- call _ (call_run_step_base d (s, f, es)) ;;
       match res with
@@ -432,13 +432,13 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       | RS_break (n.+1) bvs => ret (s', f', RS_break n bvs)
       | RS_return rvs => ret (s', f', RS_return rvs)
       | RS_normal es' =>
-        ret (s', f', RS_normal (vs_to_es ves ++ [::Label ln les es']))
+        ret (s', f', RS_normal (vs_to_es ves ++ [::AI_label ln les es']))
       | RS_crash error => ret (s', f', RS_crash error)
       end
 
-  | Local ln f es =>
+  | AI_local ln f es =>
     if es_is_trap es
-    then ret (s, f, RS_normal (vs_to_es ves ++ [::Trap]))
+    then ret (s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
     else
       if const_list es
       then
@@ -453,12 +453,12 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           then ret (s', f, RS_normal (vs_to_es (take ln rvs ++ ves)))
           else ret (s', f, crash_error)
         | RS_normal es' =>
-          ret (s', f, RS_normal (vs_to_es ves ++ [::Local ln f' es']))
+          ret (s', f, RS_normal (vs_to_es ves ++ [::AI_local ln f' es']))
         | RS_crash error => ret (s', f, RS_crash error)
         | RS_break _ _ => ret (s', f, crash_error)
         end
 
-  | Trap => ret (s, f, crash_error)
+  | AI_trap => ret (s, f, crash_error)
   end.
 
 Definition run_step_call : run_stepE ~> itree eff :=

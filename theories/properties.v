@@ -57,7 +57,7 @@ Proof.
   - move => l HConst. destruct l => //=.
     + simpl. simpl in HConst. apply andb_true_iff in HConst. destruct HConst.
       apply andb_true_iff. split => //. by apply IHvs.
-Qed.      
+Qed.
 
 Lemma v_to_e_is_const_list: forall vs,
     const_list (v_to_e_list vs).
@@ -100,15 +100,15 @@ Proof. by []. Qed.
 Lemma v_to_e_list0 : v_to_e_list [::] = [::].
 Proof. reflexivity. Qed.
 
-Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: Basic (EConst v)].
+Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: AI_basic (BI_const v)].
 Proof. reflexivity. Qed.
 
-Lemma e_is_trapP : forall e, reflect (e = Trap) (e_is_trap e).
+Lemma e_is_trapP : forall e, reflect (e = AI_trap) (e_is_trap e).
 Proof.
   case => //= >; by [ apply: ReflectF | apply: ReflectT ].
 Qed.
 
-Lemma es_is_trapP : forall l, reflect (l = [::Trap]) (es_is_trap l).
+Lemma es_is_trapP : forall l, reflect (l = [::AI_trap]) (es_is_trap l).
 Proof.
   case; first by apply: ReflectF.
   move=> // a l. case l => //=.
@@ -594,7 +594,7 @@ Proof.
   move => n lh vs es LI l HLF HConst HLen.
   (* Comparing this proof to the original proof in Isabelle, it seems that (induction X rule: Y) in Isabelle means induction on proposition Y remembering X (in Coq). *)
   remember (vs++es) as es'. induction HLF; subst.
-  - exists (LBase (vs0 ++ (take (length vs - l) vs)) es').
+  - exists (LH_base (vs0 ++ (take (length vs - l) vs)) es').
     (* The proof to this case should really have finished here; the below is just rearranging brackets and applying cat_take_drop and assumptions. *)
     replace (vs0++(vs++es)++es') with ((vs0++take (length vs - l) vs) ++ (drop (length vs - l) vs ++ es) ++ es').
     { apply LfilledBase. apply const_list_concat => //=.
@@ -602,7 +602,7 @@ Proof.
     repeat rewrite -catA. f_equal.
     repeat rewrite catA. do 2 f_equal.
     by apply cat_take_drop. 
-  - destruct IHHLF => //. eexists (LRec _ _ _ _ _). apply LfilledRec => //. by apply H0.
+  - destruct IHHLF => //. eexists (LH_rec _ _ _ _ _). apply LfilledRec => //. by apply H0.
 Qed.
 
 Lemma lfilled_collapse2: forall n lh es es' LI,
@@ -610,19 +610,19 @@ Lemma lfilled_collapse2: forall n lh es es' LI,
     exists lh', lfilledInd n lh' es LI.
 Proof.
   move => n lh es es' LI HLF. remember (es ++ es') as Ees. induction HLF; subst.
-  - eexists (LBase _ _). rewrite <- catA. by apply LfilledBase.
-  - destruct IHHLF => //. eexists (LRec _ _ _ _ _). apply LfilledRec => //. by apply H0.
+  - eexists (LH_base _ _). rewrite <- catA. by apply LfilledBase.
+  - destruct IHHLF => //. eexists (LH_rec _ _ _ _ _). apply LfilledRec => //. by apply H0.
 Qed.
 
 Lemma lfilled_collapse3: forall k lh n les es LI,
-    lfilledInd k lh [:: Label n les es] LI ->
+    lfilledInd k lh [:: AI_label n les es] LI ->
     exists lh', lfilledInd (k+1) lh' es LI.
 Proof.
-  move => k lh n les es LI HLF. remember [:: Label n les es] as E.  induction HLF; subst.
-  - eexists (LRec _ _ _ _ _). apply LfilledRec. auto.
-    assert (lfilledInd 0 (LBase nil nil) es ([::] ++ es ++ [::])). { by apply LfilledBase. }
+  move => k lh n les es LI HLF. remember [:: AI_label n les es] as E.  induction HLF; subst.
+  - eexists (LH_rec _ _ _ _ _). apply LfilledRec. auto.
+    assert (lfilledInd 0 (LH_base nil nil) es ([::] ++ es ++ [::])). { by apply LfilledBase. }
     simpl in H0. rewrite cats0 in H0. by apply H0.
-  - destruct IHHLF => //. eexists (LRec _ _ _ _ _). apply LfilledRec => //. by apply H0.
+  - destruct IHHLF => //. eexists (LH_rec _ _ _ _ _). apply LfilledRec => //. by apply H0.
 Qed.
 
 Lemma lfilled_deterministic: forall k lh es les les',
@@ -705,16 +705,16 @@ Proof.
   { move=> vs. by apply: is_true_decidable. }
   (** First, we check whether we can set [n = 0]. **)
   have P0: pickable2 (fun vs es'' =>
-                       let lh := LBase vs es'' in
+                       let lh := LH_base vs es'' in
                        let es := fes k lh in
                        es' = vs ++ es ++ es'' /\ const_list vs /\ lfilledInd 0 lh es es').
   {
     have: pickable3 (fun vs es es'' =>
-      es' = vs ++ es ++ es'' /\ let lh := LBase vs es'' in
+      es' = vs ++ es ++ es'' /\ let lh := LH_base vs es'' in
       es = fes k lh /\ const_list vs /\ lfilledInd 0 lh es es').
     {
       apply: list_split_pickable3_gen. move=> vs es es'' Ees /=.
-      case E': (es == fes k (LBase vs es'')); move/eqP: E' => E'.
+      case E': (es == fes k (LH_base vs es'')); move/eqP: E' => E'.
       - rewrite E'. repeat apply: decidable_and => //.
         + by apply: eq_comparable.
         + by apply: decidable_equiv; first by apply: lfilled_Ind_Equivalent.
@@ -727,16 +727,16 @@ Proof.
   }
   case P0.
   {
-    move=> [[vs es''] [E' [Cvs I]]]. left. exists (0, LBase vs es'').
+    move=> [[vs es''] [E' [Cvs I]]]. left. exists (0, LH_base vs es'').
     subst. rewrite_by (k + 0 = k). by apply: LfilledBase.
   }
   move=> nE.
   (** Otherwise, we have to apply [LfilledRec]. **)
   have Dparse: forall es' : seq administrative_instruction,
-    decidable (exists n es1 LI es2, es' = [:: Label n es1 LI] ++ es2).
+    decidable (exists n es1 LI es2, es' = [:: AI_label n es1 LI] ++ es2).
   {
     clear. move=> es'.
-    have Pparse: pickable4 (fun n es1 LI es2 => es' = [:: Label n es1 LI] ++ es2).
+    have Pparse: pickable4 (fun n es1 LI es2 => es' = [:: AI_label n es1 LI] ++ es2).
     {
       let no := by intros; right; intros (?&?&?&?&?) in
       (case es'; first by no); case; try by no.

@@ -58,232 +58,232 @@ Proof. exact (x00 :: x00 :: x00 :: nil). Qed.
 Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   let binary_of_instrs bes := List.concat (List.map binary_of_be bes) in
   match be with
-  | Unreachable => x00 :: nil
-  | Nop => x01 :: nil
-  | Block rt ins =>
+  | BI_unreachable => x00 :: nil
+  | BI_nop => x01 :: nil
+  | BI_block rt ins =>
     x02 :: binary_of_block_type rt ++ binary_of_instrs ins ++ x0b :: nil
-  | Loop rt ins =>
+  | BI_loop rt ins =>
     x03 :: binary_of_block_type rt ++ binary_of_instrs ins ++ x0b :: nil
-  | If rt ins nil =>
+  | BI_if rt ins nil =>
     x04 :: binary_of_block_type rt ++ binary_of_instrs ins ++ x0b :: nil
-  | If rt ins1 ins2 =>
+  | BI_if rt ins1 ins2 =>
     x04 :: binary_of_block_type rt ++ binary_of_instrs ins1 ++ x05 :: nil ++ binary_of_instrs ins2 ++ x0b :: nil
-  | Br l => x0c :: binary_of_idx l
-  | Br_if l => x0d :: binary_of_idx l
-  | Br_table ls l_N =>
+  | BI_br l => x0c :: binary_of_idx l
+  | BI_br_if l => x0d :: binary_of_idx l
+  | BI_br_table ls l_N =>
     x0e :: binary_of_vec binary_of_idx ls ++ binary_of_idx l_N
-  | Return => x0f :: nil
-  | Call x => x10 :: binary_of_idx x
-  | Call_indirect x => x11 :: binary_of_idx x ++ x00 :: nil
-  | Drop => x1a :: nil
-  | Select => x1b :: nil
-  | Get_local x => x20 :: binary_of_idx x
-  | Set_local x => x21 :: binary_of_idx x
-  | Tee_local x => x22 :: binary_of_idx x
-  | Get_global x => x23 :: binary_of_idx x
-  | Set_global x => x24 :: binary_of_idx x
-  | Load T_i32 None a o => x28 :: binary_of_memarg a o
-  | Load T_i64 None a o => x29 :: binary_of_memarg a o
-  | Load T_f32 None a o => x2a :: binary_of_memarg a o
-  | Load T_f32 (Some _) _ _ => dummy
-  | Load T_f64 None a o => x2b :: binary_of_memarg a o
-  | Load T_f64 (Some _) _ _ => dummy
-  | Load T_i32 (Some (Tp_i8, SX_S)) a o => x2c :: binary_of_memarg a o
-  | Load T_i32 (Some (Tp_i8, SX_U)) a o => x2d :: binary_of_memarg a o
-  | Load T_i32 (Some (Tp_i16, SX_S)) a o => x2e :: binary_of_memarg a o
-  | Load T_i32 (Some (Tp_i16, SX_U)) a o => x2f :: binary_of_memarg a o
-  | Load T_i32 (Some (Tp_i32, _)) _ _ => dummy
-  | Load T_i64 (Some (Tp_i8, SX_S)) a o => x30 :: binary_of_memarg a o
-  | Load T_i64 (Some (Tp_i8, SX_U)) a o => x31 :: binary_of_memarg a o
-  | Load T_i64 (Some (Tp_i16, SX_S)) a o => x32 :: binary_of_memarg a o
-  | Load T_i64 (Some (Tp_i16, SX_U)) a o => x33 :: binary_of_memarg a o
-  | Load T_i64 (Some (Tp_i32, SX_S)) a o => x34 :: binary_of_memarg a o
-  | Load T_i64 (Some (Tp_i32, SX_U)) a o => x35 :: binary_of_memarg a o
-  | Store T_i32 None a o => x36 :: binary_of_memarg a o
-  | Store T_i64 None a o => x37 :: binary_of_memarg a o
-  | Store T_f32 None a o => x38 :: binary_of_memarg a o
-  | Store T_f32 (Some _) _ _  => dummy
-  | Store T_f64 None a o => x39 :: binary_of_memarg a o
-  | Store T_f64 (Some _) _ _ => dummy
-  | Store T_i32 (Some Tp_i8) a o => x3a :: binary_of_memarg a o
-  | Store T_i32 (Some Tp_i16) a o => x3b :: binary_of_memarg a o
-  | Store T_i32 (Some Tp_i32) _ _ => dummy
-  | Store T_i64 (Some Tp_i8) a o => x3c :: binary_of_memarg a o
-  | Store T_i64 (Some Tp_i16) a o => x3d :: binary_of_memarg a o
-  | Store T_i64 (Some Tp_i32) a o => x3e :: binary_of_memarg a o
-  | Current_memory => x3f :: x00 :: nil
-  | Grow_memory => x40 :: x00 :: nil
-  | EConst (ConstInt32 x) => x41 :: binary_of_i32 x
-  | EConst (ConstInt64 x) => x42 :: binary_of_i64 x
-  | EConst (ConstFloat32 x) => x43 :: binary_of_f32 x
-  | EConst (ConstFloat64 x) => x44 :: binary_of_f64 x
-  | Testop T_i32 Eqz => x45 :: nil
-  | Testop T_i64 Eqz => x50 :: nil
-  | Testop T_f32 _ => dummy
-  | Testop T_f64 _ => dummy
-  | Relop T_i32 (Relop_i Eq) => x46 :: nil
-  | Relop T_i32 (Relop_i Ne) => x47 :: nil
-  | Relop T_i32 (Relop_i (Lt SX_S)) => x48 :: nil
-  | Relop T_i32 (Relop_i (Lt SX_U)) => x49 :: nil
-  | Relop T_i32 (Relop_i (Gt SX_S)) => x4a :: nil
-  | Relop T_i32 (Relop_i (Gt SX_U)) => x4b :: nil
-  | Relop T_i32 (Relop_i (Le SX_S)) => x4c :: nil
-  | Relop T_i32 (Relop_i (Le SX_U)) => x4d :: nil
-  | Relop T_i32 (Relop_i (Ge SX_S)) => x4e :: nil
-  | Relop T_i32 (Relop_i (Ge SX_U)) => x4f :: nil
-  | Relop T_i64 (Relop_i Eq) => x51 :: nil
-  | Relop T_i64 (Relop_i Ne) => x52 :: nil
-  | Relop T_i64 (Relop_i (Lt SX_S)) => x53 :: nil
-  | Relop T_i64 (Relop_i (Lt SX_U)) => x54 :: nil
-  | Relop T_i64 (Relop_i (Gt SX_S)) => x55 :: nil
-  | Relop T_i64 (Relop_i (Gt SX_U)) => x56 :: nil
-  | Relop T_i64 (Relop_i (Le SX_S)) => x57 :: nil
-  | Relop T_i64 (Relop_i (Le SX_U)) => x58 :: nil
-  | Relop T_i64 (Relop_i (Ge SX_S)) => x59 :: nil
-  | Relop T_i64 (Relop_i (Ge SX_U)) => x5a :: nil
-  | Relop T_f32 (Relop_i _) => dummy
-  | Relop T_f64 (Relop_i _) => dummy
-  | Relop T_f32 (Relop_f Eqf) => x5b :: nil
-  | Relop T_f32 (Relop_f Nef) => x5c :: nil
-  | Relop T_f32 (Relop_f Ltf) => x5d :: nil
-  | Relop T_f32 (Relop_f Gtf) => x5e :: nil
-  | Relop T_f32 (Relop_f Lef) => x5f :: nil
-  | Relop T_f32 (Relop_f Gef) => x60 :: nil
-  | Relop T_f64 (Relop_f Eqf) => x61 :: nil
-  | Relop T_f64 (Relop_f Nef) => x62 :: nil
-  | Relop T_f64 (Relop_f Ltf) => x63 :: nil
-  | Relop T_f64 (Relop_f Gtf) => x64 :: nil
-  | Relop T_f64 (Relop_f Lef) => x65 :: nil
-  | Relop T_f64 (Relop_f Gef) => x66 :: nil
-  | Relop T_i32 (Relop_f _) => dummy
-  | Relop T_i64 (Relop_f _) => dummy
-  | Unop T_i32 (Unop_i Clz) => x67 :: nil
-  | Unop T_i32 (Unop_i Ctz) => x68 :: nil
-  | Unop T_i32 (Unop_i Popcnt) => x69 :: nil
-  | Binop T_i32 (Binop_i Add) => x6a :: nil
-  | Binop T_i32 (Binop_i datatypes.Sub) => x6b :: nil
-  | Binop T_i32 (Binop_i Mul) => x6c :: nil
-  | Binop T_i32 (Binop_i (Div SX_S)) => x6d :: nil
-  | Binop T_i32 (Binop_i (Div SX_U)) => x6e :: nil
-  | Binop T_i32 (Binop_i (Rem SX_S)) => x6f :: nil
-  | Binop T_i32 (Binop_i (Rem SX_U)) => x70 :: nil
-  | Binop T_i32 (Binop_i And) => x71 :: nil
-  | Binop T_i32 (Binop_i Or) => x72 :: nil
-  | Binop T_i32 (Binop_i Xor) => x73 :: nil
-  | Binop T_i32 (Binop_i Shl) => x74 :: nil
-  | Binop T_i32 (Binop_i (Shr SX_S)) => x75 :: nil
-  | Binop T_i32 (Binop_i (Shr SX_U)) => x76 :: nil
-  | Binop T_i32 (Binop_i Rotl) => x77 :: nil
-  | Binop T_i32 (Binop_i Rotr) => x78 :: nil
-  | Binop T_f32 (Binop_i _) => dummy
-  | Binop T_f64 (Binop_i _) => dummy
-  | Unop T_i64 (Unop_i Clz) => x79 :: nil
-  | Unop T_i64 (Unop_i Ctz) => x7a :: nil
-  | Unop T_i64 (Unop_i Popcnt) => x7b :: nil
-  | Unop T_f32 (Unop_i _) => dummy
-  | Unop T_f64 (Unop_i _) => dummy
-  | Binop T_i64 (Binop_i Add) => x7c :: nil
-  | Binop T_i64 (Binop_i datatypes.Sub) => x7d :: nil
-  | Binop T_i64 (Binop_i Mul) => x7e :: nil
-  | Binop T_i64 (Binop_i (Div SX_S)) => x7f :: nil
-  | Binop T_i64 (Binop_i (Div SX_U)) => x80 :: nil
-  | Binop T_i64 (Binop_i (Rem SX_S)) => x81 :: nil
-  | Binop T_i64 (Binop_i (Rem SX_U)) => x82 :: nil
-  | Binop T_i64 (Binop_i And) => x83 :: nil
-  | Binop T_i64 (Binop_i Or) => x84 :: nil
-  | Binop T_i64 (Binop_i Xor) => x85 :: nil
-  | Binop T_i64 (Binop_i Shl) => x86 :: nil
-  | Binop T_i64 (Binop_i (Shr SX_S)) => x87 :: nil
-  | Binop T_i64 (Binop_i (Shr SX_U)) => x88 :: nil
-  | Binop T_i64 (Binop_i Rotl) => x89 :: nil
-  | Binop T_i64 (Binop_i Rotr) => x8a :: nil
-  | Unop T_f32 (Unop_f Abs) => x8b :: nil
-  | Unop T_f32 (Unop_f Neg) => x8c :: nil
-  | Unop T_f32 (Unop_f Ceil) => x8d :: nil
-  | Unop T_f32 (Unop_f Floor) => x8e :: nil
-  | Unop T_f32 (Unop_f Trunc) => x8f :: nil
-  | Unop T_f32 (Unop_f Nearest) => x90 :: nil
-  | Unop T_f32 (Unop_f Sqrt) => x91 :: nil
-  | Unop T_i32 (Unop_f _) => dummy
-  | Unop T_i64 (Unop_f _) => dummy
-  | Binop T_f32 (Binop_f Addf) => x92 :: nil
-  | Binop T_f32 (Binop_f Subf) => x93 :: nil
-  | Binop T_f32 (Binop_f Mulf) => x94 :: nil
-  | Binop T_f32 (Binop_f Divf) => x95 :: nil
-  | Binop T_f32 (Binop_f Min) => x96 :: nil
-  | Binop T_f32 (Binop_f Max) => x97 :: nil
-  | Binop T_f32 (Binop_f Copysign) => x98 :: nil
-  | Unop T_f64 (Unop_f Abs) => x99 :: nil
-  | Unop T_f64 (Unop_f Neg) => x9a :: nil
-  | Unop T_f64 (Unop_f Ceil) => x9b :: nil
-  | Unop T_f64 (Unop_f Floor) => x9c :: nil
-  | Unop T_f64 (Unop_f Trunc) => x9d :: nil
-  | Unop T_f64 (Unop_f Nearest) => x9e :: nil
-  | Unop T_f64 (Unop_f Sqrt) => x9f :: nil
-  | Binop T_f64 (Binop_f Addf) => xa0 :: nil
-  | Binop T_f64 (Binop_f Subf) => xa1 :: nil
-  | Binop T_f64 (Binop_f Mulf) => xa2 :: nil
-  | Binop T_f64 (Binop_f Divf) => xa3 :: nil
-  | Binop T_f64 (Binop_f Min) => xa4 :: nil
-  | Binop T_f64 (Binop_f Max) => xa5 :: nil
-  | Binop T_f64 (Binop_f Copysign) => xa6 :: nil
-  | Binop T_i32 (Binop_f _) => dummy
-  | Binop T_i64 (Binop_f _) => dummy
+  | BI_return => x0f :: nil
+  | BI_call x => x10 :: binary_of_idx x
+  | BI_call_indirect x => x11 :: binary_of_idx x ++ x00 :: nil
+  | BI_drop => x1a :: nil
+  | BI_select => x1b :: nil
+  | BI_get_local x => x20 :: binary_of_idx x
+  | BI_set_local x => x21 :: binary_of_idx x
+  | BI_tee_local x => x22 :: binary_of_idx x
+  | BI_get_global x => x23 :: binary_of_idx x
+  | BI_set_global x => x24 :: binary_of_idx x
+  | BI_load T_i32 None a o => x28 :: binary_of_memarg a o
+  | BI_load T_i64 None a o => x29 :: binary_of_memarg a o
+  | BI_load T_f32 None a o => x2a :: binary_of_memarg a o
+  | BI_load T_f32 (Some _) _ _ => dummy
+  | BI_load T_f64 None a o => x2b :: binary_of_memarg a o
+  | BI_load T_f64 (Some _) _ _ => dummy
+  | BI_load T_i32 (Some (Tp_i8, SX_S)) a o => x2c :: binary_of_memarg a o
+  | BI_load T_i32 (Some (Tp_i8, SX_U)) a o => x2d :: binary_of_memarg a o
+  | BI_load T_i32 (Some (Tp_i16, SX_S)) a o => x2e :: binary_of_memarg a o
+  | BI_load T_i32 (Some (Tp_i16, SX_U)) a o => x2f :: binary_of_memarg a o
+  | BI_load T_i32 (Some (Tp_i32, _)) _ _ => dummy
+  | BI_load T_i64 (Some (Tp_i8, SX_S)) a o => x30 :: binary_of_memarg a o
+  | BI_load T_i64 (Some (Tp_i8, SX_U)) a o => x31 :: binary_of_memarg a o
+  | BI_load T_i64 (Some (Tp_i16, SX_S)) a o => x32 :: binary_of_memarg a o
+  | BI_load T_i64 (Some (Tp_i16, SX_U)) a o => x33 :: binary_of_memarg a o
+  | BI_load T_i64 (Some (Tp_i32, SX_S)) a o => x34 :: binary_of_memarg a o
+  | BI_load T_i64 (Some (Tp_i32, SX_U)) a o => x35 :: binary_of_memarg a o
+  | BI_store T_i32 None a o => x36 :: binary_of_memarg a o
+  | BI_store T_i64 None a o => x37 :: binary_of_memarg a o
+  | BI_store T_f32 None a o => x38 :: binary_of_memarg a o
+  | BI_store T_f32 (Some _) _ _  => dummy
+  | BI_store T_f64 None a o => x39 :: binary_of_memarg a o
+  | BI_store T_f64 (Some _) _ _ => dummy
+  | BI_store T_i32 (Some Tp_i8) a o => x3a :: binary_of_memarg a o
+  | BI_store T_i32 (Some Tp_i16) a o => x3b :: binary_of_memarg a o
+  | BI_store T_i32 (Some Tp_i32) _ _ => dummy
+  | BI_store T_i64 (Some Tp_i8) a o => x3c :: binary_of_memarg a o
+  | BI_store T_i64 (Some Tp_i16) a o => x3d :: binary_of_memarg a o
+  | BI_store T_i64 (Some Tp_i32) a o => x3e :: binary_of_memarg a o
+  | BI_current_memory => x3f :: x00 :: nil
+  | BI_grow_memory => x40 :: x00 :: nil
+  | BI_const (ConstInt32 x) => x41 :: binary_of_i32 x
+  | BI_const (ConstInt64 x) => x42 :: binary_of_i64 x
+  | BI_const (ConstFloat32 x) => x43 :: binary_of_f32 x
+  | BI_const (ConstFloat64 x) => x44 :: binary_of_f64 x
+  | BI_testop T_i32 Eqz => x45 :: nil
+  | BI_testop T_i64 Eqz => x50 :: nil
+  | BI_testop T_f32 _ => dummy
+  | BI_testop T_f64 _ => dummy
+  | BI_relop T_i32 (Relop_i ROI_eq) => x46 :: nil
+  | BI_relop T_i32 (Relop_i ROI_ne) => x47 :: nil
+  | BI_relop T_i32 (Relop_i (ROI_lt SX_S)) => x48 :: nil
+  | BI_relop T_i32 (Relop_i (ROI_lt SX_U)) => x49 :: nil
+  | BI_relop T_i32 (Relop_i (ROI_gt SX_S)) => x4a :: nil
+  | BI_relop T_i32 (Relop_i (ROI_gt SX_U)) => x4b :: nil
+  | BI_relop T_i32 (Relop_i (ROI_le SX_S)) => x4c :: nil
+  | BI_relop T_i32 (Relop_i (ROI_le SX_U)) => x4d :: nil
+  | BI_relop T_i32 (Relop_i (ROI_ge SX_S)) => x4e :: nil
+  | BI_relop T_i32 (Relop_i (ROI_ge SX_U)) => x4f :: nil
+  | BI_relop T_i64 (Relop_i ROI_eq) => x51 :: nil
+  | BI_relop T_i64 (Relop_i ROI_ne) => x52 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_lt SX_S)) => x53 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_lt SX_U)) => x54 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_gt SX_S)) => x55 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_gt SX_U)) => x56 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_le SX_S)) => x57 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_le SX_U)) => x58 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_ge SX_S)) => x59 :: nil
+  | BI_relop T_i64 (Relop_i (ROI_ge SX_U)) => x5a :: nil
+  | BI_relop T_f32 (Relop_i _) => dummy
+  | BI_relop T_f64 (Relop_i _) => dummy
+  | BI_relop T_f32 (Relop_f ROF_eq) => x5b :: nil
+  | BI_relop T_f32 (Relop_f ROF_ne) => x5c :: nil
+  | BI_relop T_f32 (Relop_f ROF_lt) => x5d :: nil
+  | BI_relop T_f32 (Relop_f ROF_gt) => x5e :: nil
+  | BI_relop T_f32 (Relop_f ROF_le) => x5f :: nil
+  | BI_relop T_f32 (Relop_f ROF_ge) => x60 :: nil
+  | BI_relop T_f64 (Relop_f ROF_eq) => x61 :: nil
+  | BI_relop T_f64 (Relop_f ROF_ne) => x62 :: nil
+  | BI_relop T_f64 (Relop_f ROF_lt) => x63 :: nil
+  | BI_relop T_f64 (Relop_f ROF_gt) => x64 :: nil
+  | BI_relop T_f64 (Relop_f ROF_le) => x65 :: nil
+  | BI_relop T_f64 (Relop_f ROF_ge) => x66 :: nil
+  | BI_relop T_i32 (Relop_f _) => dummy
+  | BI_relop T_i64 (Relop_f _) => dummy
+  | BI_unop T_i32 (Unop_i UOI_clz) => x67 :: nil
+  | BI_unop T_i32 (Unop_i UOI_ctz) => x68 :: nil
+  | BI_unop T_i32 (Unop_i UOI_popcnt) => x69 :: nil
+  | BI_binop T_i32 (Binop_i BOI_add) => x6a :: nil
+  | BI_binop T_i32 (Binop_i BOI_sub) => x6b :: nil
+  | BI_binop T_i32 (Binop_i BOI_mul) => x6c :: nil
+  | BI_binop T_i32 (Binop_i (BOI_div SX_S)) => x6d :: nil
+  | BI_binop T_i32 (Binop_i (BOI_div SX_U)) => x6e :: nil
+  | BI_binop T_i32 (Binop_i (BOI_rem SX_S)) => x6f :: nil
+  | BI_binop T_i32 (Binop_i (BOI_rem SX_U)) => x70 :: nil
+  | BI_binop T_i32 (Binop_i BOI_and) => x71 :: nil
+  | BI_binop T_i32 (Binop_i BOI_or) => x72 :: nil
+  | BI_binop T_i32 (Binop_i BOI_xor) => x73 :: nil
+  | BI_binop T_i32 (Binop_i BOI_shl) => x74 :: nil
+  | BI_binop T_i32 (Binop_i (BOI_shr SX_S)) => x75 :: nil
+  | BI_binop T_i32 (Binop_i (BOI_shr SX_U)) => x76 :: nil
+  | BI_binop T_i32 (Binop_i BOI_rotl) => x77 :: nil
+  | BI_binop T_i32 (Binop_i BOI_rotr) => x78 :: nil
+  | BI_binop T_f32 (Binop_i _) => dummy
+  | BI_binop T_f64 (Binop_i _) => dummy
+  | BI_unop T_i64 (Unop_i UOI_clz) => x79 :: nil
+  | BI_unop T_i64 (Unop_i UOI_ctz) => x7a :: nil
+  | BI_unop T_i64 (Unop_i UOI_popcnt) => x7b :: nil
+  | BI_unop T_f32 (Unop_i _) => dummy
+  | BI_unop T_f64 (Unop_i _) => dummy
+  | BI_binop T_i64 (Binop_i BOI_add) => x7c :: nil
+  | BI_binop T_i64 (Binop_i BOI_sub) => x7d :: nil
+  | BI_binop T_i64 (Binop_i BOI_mul) => x7e :: nil
+  | BI_binop T_i64 (Binop_i (BOI_div SX_S)) => x7f :: nil
+  | BI_binop T_i64 (Binop_i (BOI_div SX_U)) => x80 :: nil
+  | BI_binop T_i64 (Binop_i (BOI_rem SX_S)) => x81 :: nil
+  | BI_binop T_i64 (Binop_i (BOI_rem SX_U)) => x82 :: nil
+  | BI_binop T_i64 (Binop_i BOI_and) => x83 :: nil
+  | BI_binop T_i64 (Binop_i BOI_or) => x84 :: nil
+  | BI_binop T_i64 (Binop_i BOI_xor) => x85 :: nil
+  | BI_binop T_i64 (Binop_i BOI_shl) => x86 :: nil
+  | BI_binop T_i64 (Binop_i (BOI_shr SX_S)) => x87 :: nil
+  | BI_binop T_i64 (Binop_i (BOI_shr SX_U)) => x88 :: nil
+  | BI_binop T_i64 (Binop_i BOI_rotl) => x89 :: nil
+  | BI_binop T_i64 (Binop_i BOI_rotr) => x8a :: nil
+  | BI_unop T_f32 (Unop_f UOF_abs) => x8b :: nil
+  | BI_unop T_f32 (Unop_f UOF_neg) => x8c :: nil
+  | BI_unop T_f32 (Unop_f UOF_ceil) => x8d :: nil
+  | BI_unop T_f32 (Unop_f UOF_floor) => x8e :: nil
+  | BI_unop T_f32 (Unop_f UOF_trunc) => x8f :: nil
+  | BI_unop T_f32 (Unop_f UOF_nearest) => x90 :: nil
+  | BI_unop T_f32 (Unop_f UOF_sqrt) => x91 :: nil
+  | BI_unop T_i32 (Unop_f _) => dummy
+  | BI_unop T_i64 (Unop_f _) => dummy
+  | BI_binop T_f32 (Binop_f BOF_add) => x92 :: nil
+  | BI_binop T_f32 (Binop_f BOF_sub) => x93 :: nil
+  | BI_binop T_f32 (Binop_f BOF_mul) => x94 :: nil
+  | BI_binop T_f32 (Binop_f BOF_div) => x95 :: nil
+  | BI_binop T_f32 (Binop_f BOF_min) => x96 :: nil
+  | BI_binop T_f32 (Binop_f BOF_max) => x97 :: nil
+  | BI_binop T_f32 (Binop_f BOF_copysign) => x98 :: nil
+  | BI_unop T_f64 (Unop_f UOF_abs) => x99 :: nil
+  | BI_unop T_f64 (Unop_f UOF_neg) => x9a :: nil
+  | BI_unop T_f64 (Unop_f UOF_ceil) => x9b :: nil
+  | BI_unop T_f64 (Unop_f UOF_floor) => x9c :: nil
+  | BI_unop T_f64 (Unop_f UOF_trunc) => x9d :: nil
+  | BI_unop T_f64 (Unop_f UOF_nearest) => x9e :: nil
+  | BI_unop T_f64 (Unop_f UOF_sqrt) => x9f :: nil
+  | BI_binop T_f64 (Binop_f BOF_add) => xa0 :: nil
+  | BI_binop T_f64 (Binop_f BOF_sub) => xa1 :: nil
+  | BI_binop T_f64 (Binop_f BOF_mul) => xa2 :: nil
+  | BI_binop T_f64 (Binop_f BOF_div) => xa3 :: nil
+  | BI_binop T_f64 (Binop_f BOF_min) => xa4 :: nil
+  | BI_binop T_f64 (Binop_f BOF_max) => xa5 :: nil
+  | BI_binop T_f64 (Binop_f BOF_copysign) => xa6 :: nil
+  | BI_binop T_i32 (Binop_f _) => dummy
+  | BI_binop T_i64 (Binop_f _) => dummy
   (* TODO: I am really not sure whether the cases below are right :-s *)
-  | Cvtop T_i32 Convert T_i64 (Some SX_U) (* TODO: is this correct? *) => xa7 :: nil
-  | Cvtop T_i32 Convert T_i64 _ => dummy
-  | Cvtop T_i32 Convert T_f32 (Some SX_S) => xa8 :: nil
-  | Cvtop T_i32 Convert T_f32 (Some SX_U) => xa9 :: nil
-  | Cvtop T_i32 Convert T_f32 None => dummy
-  | Cvtop T_i32 Convert T_f64 (Some SX_S) => xaa :: nil
-  | Cvtop T_i32 Convert T_f64 (Some SX_U) => xab :: nil
-  | Cvtop T_i32 Convert T_f64 None => dummy
-  | Cvtop T_i32 Convert T_i32 _ => dummy
-  | Cvtop T_i64 Convert T_i32 (Some SX_S) => xac :: nil
-  | Cvtop T_i64 Convert T_i32 (Some SX_U) => xad :: nil
-  | Cvtop T_i64 Convert T_i32 None => dummy
-  | Cvtop T_i64 Convert T_f32 (Some SX_S) => xae :: nil
-  | Cvtop T_i64 Convert T_f32 (Some SX_U) => xaf :: nil
-  | Cvtop T_i64 Convert T_f32 None => dummy
-  | Cvtop T_i64 Convert T_f64 (Some SX_S) => xb0 :: nil
-  | Cvtop T_i64 Convert T_f64 (Some SX_U) => xb1 :: nil
-  | Cvtop T_i64 Convert T_f64 _ => dummy
-  | Cvtop T_i64 Convert T_i64 _ => dummy
-  | Cvtop T_f32 Convert T_i32 (Some SX_S) => xb2 :: nil
-  | Cvtop T_f32 Convert T_i32 (Some SX_U) => xb3 :: nil
-  | Cvtop T_f32 Convert T_i32 None => dummy
-  | Cvtop T_f32 Convert T_i64 (Some SX_S) => xb4 :: nil
-  | Cvtop T_f32 Convert T_i64 (Some SX_U) => xb5 :: nil
-  | Cvtop T_f32 Convert T_i64 None => dummy
-  | Cvtop T_f32 Convert T_f64 None => xb6 :: nil
-  | Cvtop T_f32 Convert T_f64 (Some _) => dummy
-  | Cvtop T_f32 Convert T_f32 _ => dummy
-  | Cvtop T_f64 Convert T_i32 (Some SX_S) => xb7 :: nil
-  | Cvtop T_f64 Convert T_i32 (Some SX_U) => xb8 :: nil
-  | Cvtop T_f64 Convert T_i32 None => dummy
-  | Cvtop T_f64 Convert T_i64 (Some SX_S) => xb9 :: nil
-  | Cvtop T_f64 Convert T_i64 (Some SX_U) => xba :: nil
-  | Cvtop T_f64 Convert T_i64 None => dummy
-  | Cvtop T_f64 Convert T_f32 None => xbb :: nil
-  | Cvtop T_f64 Convert T_f32 (Some _) => dummy
-  | Cvtop T_f64 Convert T_f64 _ => dummy
-  | Cvtop T_i32 Reinterpret T_f32 None => xbc :: nil
-  | Cvtop T_i64 Reinterpret T_f64 None => xbc :: nil
-  | Cvtop T_f32 Reinterpret T_i32 None => xbc :: nil
-  | Cvtop T_f64 Reinterpret T_i64 None => xbc :: nil
-  | Cvtop T_i32 Reinterpret T_i32 _ => dummy
-  | Cvtop T_i32 Reinterpret T_i64 _ => dummy
-  | Cvtop T_i32 Reinterpret T_f64 _ => dummy
-  | Cvtop T_i64 Reinterpret T_i32 _ => dummy
-  | Cvtop T_i64 Reinterpret T_i64 _ => dummy
-  | Cvtop T_i64 Reinterpret T_f32 _ => dummy
-  | Cvtop T_f32 Reinterpret T_i64 _ => dummy
-  | Cvtop T_f32 Reinterpret T_f32 _ => dummy
-  | Cvtop T_f32 Reinterpret T_f64 _ => dummy
-  | Cvtop T_f64 Reinterpret T_i32 _ => dummy
-  | Cvtop T_f64 Reinterpret T_f32 _ => dummy
-  | Cvtop T_f64 Reinterpret T_f64 _ => dummy
-  | Cvtop _ Reinterpret _ (Some _) => dummy
+  | BI_cvtop T_i32 CVO_convert T_i64 (Some SX_U) (* TODO: is this correct? *) => xa7 :: nil
+  | BI_cvtop T_i32 CVO_convert T_i64 _ => dummy
+  | BI_cvtop T_i32 CVO_convert T_f32 (Some SX_S) => xa8 :: nil
+  | BI_cvtop T_i32 CVO_convert T_f32 (Some SX_U) => xa9 :: nil
+  | BI_cvtop T_i32 CVO_convert T_f32 None => dummy
+  | BI_cvtop T_i32 CVO_convert T_f64 (Some SX_S) => xaa :: nil
+  | BI_cvtop T_i32 CVO_convert T_f64 (Some SX_U) => xab :: nil
+  | BI_cvtop T_i32 CVO_convert T_f64 None => dummy
+  | BI_cvtop T_i32 CVO_convert T_i32 _ => dummy
+  | BI_cvtop T_i64 CVO_convert T_i32 (Some SX_S) => xac :: nil
+  | BI_cvtop T_i64 CVO_convert T_i32 (Some SX_U) => xad :: nil
+  | BI_cvtop T_i64 CVO_convert T_i32 None => dummy
+  | BI_cvtop T_i64 CVO_convert T_f32 (Some SX_S) => xae :: nil
+  | BI_cvtop T_i64 CVO_convert T_f32 (Some SX_U) => xaf :: nil
+  | BI_cvtop T_i64 CVO_convert T_f32 None => dummy
+  | BI_cvtop T_i64 CVO_convert T_f64 (Some SX_S) => xb0 :: nil
+  | BI_cvtop T_i64 CVO_convert T_f64 (Some SX_U) => xb1 :: nil
+  | BI_cvtop T_i64 CVO_convert T_f64 _ => dummy
+  | BI_cvtop T_i64 CVO_convert T_i64 _ => dummy
+  | BI_cvtop T_f32 CVO_convert T_i32 (Some SX_S) => xb2 :: nil
+  | BI_cvtop T_f32 CVO_convert T_i32 (Some SX_U) => xb3 :: nil
+  | BI_cvtop T_f32 CVO_convert T_i32 None => dummy
+  | BI_cvtop T_f32 CVO_convert T_i64 (Some SX_S) => xb4 :: nil
+  | BI_cvtop T_f32 CVO_convert T_i64 (Some SX_U) => xb5 :: nil
+  | BI_cvtop T_f32 CVO_convert T_i64 None => dummy
+  | BI_cvtop T_f32 CVO_convert T_f64 None => xb6 :: nil
+  | BI_cvtop T_f32 CVO_convert T_f64 (Some _) => dummy
+  | BI_cvtop T_f32 CVO_convert T_f32 _ => dummy
+  | BI_cvtop T_f64 CVO_convert T_i32 (Some SX_S) => xb7 :: nil
+  | BI_cvtop T_f64 CVO_convert T_i32 (Some SX_U) => xb8 :: nil
+  | BI_cvtop T_f64 CVO_convert T_i32 None => dummy
+  | BI_cvtop T_f64 CVO_convert T_i64 (Some SX_S) => xb9 :: nil
+  | BI_cvtop T_f64 CVO_convert T_i64 (Some SX_U) => xba :: nil
+  | BI_cvtop T_f64 CVO_convert T_i64 None => dummy
+  | BI_cvtop T_f64 CVO_convert T_f32 None => xbb :: nil
+  | BI_cvtop T_f64 CVO_convert T_f32 (Some _) => dummy
+  | BI_cvtop T_f64 CVO_convert T_f64 _ => dummy
+  | BI_cvtop T_i32 CVO_reinterpret T_f32 None => xbc :: nil
+  | BI_cvtop T_i64 CVO_reinterpret T_f64 None => xbc :: nil
+  | BI_cvtop T_f32 CVO_reinterpret T_i32 None => xbc :: nil
+  | BI_cvtop T_f64 CVO_reinterpret T_i64 None => xbc :: nil
+  | BI_cvtop T_i32 CVO_reinterpret T_i32 _ => dummy
+  | BI_cvtop T_i32 CVO_reinterpret T_i64 _ => dummy
+  | BI_cvtop T_i32 CVO_reinterpret T_f64 _ => dummy
+  | BI_cvtop T_i64 CVO_reinterpret T_i32 _ => dummy
+  | BI_cvtop T_i64 CVO_reinterpret T_i64 _ => dummy
+  | BI_cvtop T_i64 CVO_reinterpret T_f32 _ => dummy
+  | BI_cvtop T_f32 CVO_reinterpret T_i64 _ => dummy
+  | BI_cvtop T_f32 CVO_reinterpret T_f32 _ => dummy
+  | BI_cvtop T_f32 CVO_reinterpret T_f64 _ => dummy
+  | BI_cvtop T_f64 CVO_reinterpret T_i32 _ => dummy
+  | BI_cvtop T_f64 CVO_reinterpret T_f32 _ => dummy
+  | BI_cvtop T_f64 CVO_reinterpret T_f64 _ => dummy
+  | BI_cvtop _ CVO_reinterpret _ (Some _) => dummy
   end.
 
 (** Expressions are encoded by their instruction sequence terminated with an
@@ -381,10 +381,10 @@ Definition binary_of_importsec (imps : list module_import) : list byte :=
   x02 :: with_length (binary_of_vec binary_of_module_import imps).
 
 Definition binary_of_funcsec (fs : list module_func) : list byte :=
-  x03 :: with_length (binary_of_vec binary_of_typeidx (List.map (fun f => f.(mf_type)) fs)).
+  x03 :: with_length (binary_of_vec binary_of_typeidx (List.map (fun f => f.(modfunc_type)) fs)).
 
 Definition binary_of_module_table (t : module_table) : list byte :=
-  binary_of_table_type t.(t_type).
+  binary_of_table_type t.(modtab_type).
 
 Definition binary_of_tablesec (ts : list module_table) : list byte :=
   x04 :: with_length (binary_of_vec binary_of_module_table ts).
@@ -393,37 +393,37 @@ Definition binary_of_memsec (ms : list memory_type) : list byte :=
   x05 :: with_length (binary_of_vec binary_of_memory_type ms).
 
 Definition binary_of_module_glob (g : module_glob) : list byte :=
-  binary_of_global_type g.(mg_type) ++
-  binary_of_expr g.(mg_init).
+  binary_of_global_type g.(modglob_type) ++
+  binary_of_expr g.(modglob_init).
 
 Definition binary_of_globalsec (gs : list module_glob) : list byte :=
   x06 :: with_length (binary_of_vec binary_of_module_glob gs).
 
 Definition binary_of_export_desc (ed : module_export_desc) : list byte :=
   match ed with
-  | ED_func n => x00 :: binary_of_funcidx n
-  | ED_table n => x01 :: binary_of_tableidx n
-  | ED_mem n => x02 :: binary_of_memidx n
-  | ED_global n => x03 :: binary_of_globalidx n
+  | MED_func n => x00 :: binary_of_funcidx n
+  | MED_table n => x01 :: binary_of_tableidx n
+  | MED_mem n => x02 :: binary_of_memidx n
+  | MED_global n => x03 :: binary_of_globalidx n
   end.
 
 Definition binary_of_module_export (e : module_export) : list byte :=
-  binary_of_name e.(exp_name) ++
-  binary_of_export_desc e.(exp_desc).
+  binary_of_name e.(modexp_name) ++
+  binary_of_export_desc e.(modexp_desc).
 
 Definition binary_of_exportssec (es : list module_export) : list byte :=
   x07 :: with_length (binary_of_vec binary_of_module_export es).
 
 Definition binary_of_module_start (s : module_start) : list byte :=
-  binary_of_funcidx s.(start_func).
+  binary_of_funcidx s.(modstart_func).
 
 Definition binary_of_startsec (s : module_start) : list byte :=
   x08 :: with_length (binary_of_vec binary_of_module_start (cons s nil)).
 
 Definition binary_of_module_elem (e : module_element) : list byte :=
-  binary_of_tableidx e.(elem_table) ++
-  binary_of_expr e.(elem_offset) ++
-  binary_of_vec binary_of_funcidx e.(elem_init).
+  binary_of_tableidx e.(modelem_table) ++
+  binary_of_expr e.(modelem_offset) ++
+  binary_of_vec binary_of_funcidx e.(modelem_init).
 
 Definition binary_of_elemsec (es : list module_element) : list byte :=
   x09 :: with_length (binary_of_vec binary_of_module_elem es).
@@ -452,7 +452,7 @@ Definition binary_of_code_func (cf : code_func) : list byte :=
   binary_of_expr cf.(fc_expr).
 
 Definition binary_of_code (mf : module_func) : list byte :=
-  let func := {| fc_locals := mf.(mf_locals); fc_expr := mf.(mf_body) |} in
+  let func := {| fc_locals := mf.(modfunc_locals); fc_expr := mf.(modfunc_body) |} in
   let func_bin := binary_of_code_func func in
   let func_len := List.length func_bin in
   leb128.encode_unsigned (bin_of_nat func_len) ++
@@ -462,9 +462,9 @@ Definition binary_of_codesec (fs : list module_func) : list byte :=
   x0a :: with_length (binary_of_vec binary_of_code fs).
 
 Definition binary_of_data (d : module_data) : list byte :=
-  binary_of_memidx d.(dt_data) ++
-  binary_of_expr d.(dt_offset) ++
-  binary_of_vec (fun x => cons x nil) d.(dt_init).
+  binary_of_memidx d.(moddata_data) ++
+  binary_of_expr d.(moddata_offset) ++
+  binary_of_vec (fun x => cons x nil) d.(moddata_init).
 
 Definition binary_of_datasec (ds : list module_data) : list byte :=
   x0b :: with_length (binary_of_vec binary_of_data ds).

@@ -143,93 +143,93 @@ Inductive relop_type_agree: value_type -> relop -> Prop :=
   
 Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 (** Corresponding to section 3.3 **)
-| bet_const : forall C v, be_typing C [::EConst v] (Tf [::] [::typeof v])
+| bet_const : forall C v, be_typing C [::BI_const v] (Tf [::] [::typeof v])
 | bet_unop : forall C t op,
-    unop_type_agree t op -> be_typing C [::Unop t op] (Tf [::t] [::t])
+    unop_type_agree t op -> be_typing C [::BI_unop t op] (Tf [::t] [::t])
 | bet_binop : forall C t op,
-    binop_type_agree t op -> be_typing C [::Binop t op] (Tf [::t; t] [::t])
-| bet_testop : forall C t op, is_int_t t -> be_typing C [::Testop t op] (Tf [::t] [::T_i32])
+    binop_type_agree t op -> be_typing C [::BI_binop t op] (Tf [::t; t] [::t])
+| bet_testop : forall C t op, is_int_t t -> be_typing C [::BI_testop t op] (Tf [::t] [::T_i32])
 | bet_relop: forall C t op,
-    relop_type_agree t op -> be_typing C [::Relop t op] (Tf [::t; t] [::T_i32])
+    relop_type_agree t op -> be_typing C [::BI_relop t op] (Tf [::t; t] [::T_i32])
 | bet_convert : forall C t1 t2 sx, t1 <> t2 -> convert_helper sx t1 t2 ->
-  be_typing C [::Cvtop t1 Convert t2 sx] (Tf [::t2] [::t1]) (* FIXME: Difference from the Isabelle formalisation: why merge the two rules here? *)
+  be_typing C [::BI_cvtop t1 CVO_convert t2 sx] (Tf [::t2] [::t1]) (* FIXME: Difference from the Isabelle formalisation: why merge the two rules here? *)
 | bet_reinterpret : forall C t1 t2, t1 <> t2 -> Nat.eqb (t_length t1) (t_length t2) ->
-  be_typing C [::Cvtop t1 Reinterpret t2 None] (Tf [::t2] [::t1])
+  be_typing C [::BI_cvtop t1 CVO_reinterpret t2 None] (Tf [::t2] [::t1])
 | bet_unreachable : forall C ts ts',
-  be_typing C [::Unreachable] (Tf ts ts')
-| bet_nop : forall C, be_typing C [::Nop] (Tf [::] [::])
-| bet_drop : forall C t, be_typing C [::Drop] (Tf [::t] [::])
-| bet_select : forall C t, be_typing C [::Select] (Tf [::t; t; T_i32] [::t])
+  be_typing C [::BI_unreachable] (Tf ts ts')
+| bet_nop : forall C, be_typing C [::BI_nop] (Tf [::] [::])
+| bet_drop : forall C t, be_typing C [::BI_drop] (Tf [::t] [::])
+| bet_select : forall C t, be_typing C [::BI_select] (Tf [::t; t; T_i32] [::t])
 | bet_block : forall C tn tm es,
   let tf := Tf tn tm in
   be_typing (upd_label C (app [::tm] (tc_label C))) es (Tf tn tm) ->
-  be_typing C [::Block tf es] (Tf tn tm)
+  be_typing C [::BI_block tf es] (Tf tn tm)
 | bet_loop : forall C tn tm es,
   be_typing (upd_label C (app [::tn] (tc_label C))) es (Tf tn tm) ->
-  be_typing C [::Loop (Tf tn tm) es] (Tf tn tm)
+  be_typing C [::BI_loop (Tf tn tm) es] (Tf tn tm)
 | bet_if_wasm : forall C tn tm es1 es2,
   be_typing (upd_label C (app [::tm] (tc_label C))) es1 (Tf tn tm) ->
   be_typing (upd_label C (app [::tm] (tc_label C))) es2 (Tf tn tm) ->
-  be_typing C [::If (Tf tn tm) es1 es2] (Tf (app tn [::T_i32]) tm)
+  be_typing C [::BI_if (Tf tn tm) es1 es2] (Tf (app tn [::T_i32]) tm)
 | bet_br : forall C i t1s ts t2s,
   i < length (tc_label C) ->
   plop2 C i ts ->
-  be_typing C [::Br i] (Tf (app t1s ts) t2s)
+  be_typing C [::BI_br i] (Tf (app t1s ts) t2s)
 | bet_br_if : forall C i ts,
   i < length (tc_label C) ->
   plop2 C i ts ->
-  be_typing C [::Br_if i] (Tf (app ts [::T_i32]) ts)
+  be_typing C [::BI_br_if i] (Tf (app ts [::T_i32]) ts)
 | bet_br_table : forall C i ins ts t1s t2s,
   all (fun i => (i < length (tc_label C)) && (plop2 C i ts)) (app ins [::i])  ->
-  be_typing C [::Br_table ins i] (Tf (app t1s (app ts [::T_i32])) t2s)
+  be_typing C [::BI_br_table ins i] (Tf (app t1s (app ts [::T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
   tc_return C = Some ts ->
-  be_typing C [::Return] (Tf (app t1s ts) t2s)
+  be_typing C [::BI_return] (Tf (app t1s ts) t2s)
 | bet_call : forall C i tf,
   i < length (tc_func_t C) ->
   List.nth_error (tc_func_t C) i = Some tf ->
-  be_typing C [::Call i] tf
+  be_typing C [::BI_call i] tf
 | bet_call_indirect : forall C i t1s t2s,
   i < length (tc_types_t C) ->
   List.nth_error (tc_types_t C) i = Some (Tf t1s t2s) ->
   tc_table C <> nil -> (* TODO: this is redundant with the length check *)
-  be_typing C [::Call_indirect i] (Tf (app t1s [::T_i32]) t2s)
+  be_typing C [::BI_call_indirect i] (Tf (app t1s [::T_i32]) t2s)
 | bet_get_local : forall C i t,
   i < length (tc_local C) ->
   List.nth_error (tc_local C) i = Some t ->
-  be_typing C [::Get_local i] (Tf [::] [::t])
+  be_typing C [::BI_get_local i] (Tf [::] [::t])
 | bet_set_local : forall C i t,
   i < length (tc_local C) ->
   List.nth_error (tc_local C) i = Some t ->
-  be_typing C [::Set_local i] (Tf [::t] [::])
+  be_typing C [::BI_set_local i] (Tf [::t] [::])
 | bet_tee_local : forall C i t,
   i < length (tc_local C) ->
   List.nth_error (tc_local C) i = Some t ->
-  be_typing C [::Tee_local i] (Tf [::t] [::t])
+  be_typing C [::BI_tee_local i] (Tf [::t] [::t])
 | bet_get_global : forall C i t,
   i < length (tc_global C) ->
   option_map tg_t (List.nth_error (tc_global C) i) = Some t ->
-  be_typing C [::Get_global i] (Tf [::] [::t])
+  be_typing C [::BI_get_global i] (Tf [::] [::t])
 | bet_set_global : forall C i g t,
   i < length (tc_global C) ->
   List.nth_error (tc_global C) i = Some g ->  
   tg_t g = t ->
   is_mut g ->
-  be_typing C [::Set_global i] (Tf [::t] [::])
+  be_typing C [::BI_set_global i] (Tf [::t] [::])
 | bet_load : forall C a off tp_sx t,
   tc_memory C <> nil ->
   load_store_t_bounds a (option_projl tp_sx) t ->
-  be_typing C [::Load t tp_sx a off] (Tf [::T_i32] [::t])
+  be_typing C [::BI_load t tp_sx a off] (Tf [::T_i32] [::t])
 | bet_store : forall C a off tp t,
   tc_memory C <> nil ->
   load_store_t_bounds a tp t ->
-  be_typing C [::Store t tp a off] (Tf [::T_i32; t] [::]) (* FIXME: Same here: two Isabelle rules have been merged here. *)
+  be_typing C [::BI_store t tp a off] (Tf [::T_i32; t] [::]) (* FIXME: Same here: two Isabelle rules have been merged here. *)
 | bet_current_memory : forall C,
   tc_memory C <> nil ->
-  be_typing C [::Current_memory] (Tf [::] [::T_i32])
+  be_typing C [::BI_current_memory] (Tf [::] [::T_i32])
 | bet_grow_memory : forall C,
   tc_memory C <> nil ->
-  be_typing C [::Grow_memory] (Tf [::T_i32] [::T_i32])
+  be_typing C [::BI_grow_memory] (Tf [::T_i32] [::T_i32])
 | bet_empty : forall C,
   be_typing C [::] (Tf [::] [::])
 | bet_composition : forall C es e t1s t2s t3s,
@@ -431,7 +431,7 @@ Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool :=
   end.
 
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bool :=
-  let '{| i_types := ts; i_funcs := fs; i_tab := tbs; i_memory := ms; i_globs := gs; |} := inst in
+  let '{| inst_types := ts; inst_funcs := fs; inst_tab := tbs; inst_memory := ms; inst_globs := gs; |} := inst in
   match C with
   | {| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t; tc_local := nil; tc_label := nil; tc_return := None |} =>
     (ts == ts') &&
@@ -457,10 +457,12 @@ Lemma functions_agree_injective: forall s i t t',
 Proof.
   move => s i t t' H1 H2.
   unfold functions_agree in H1. unfold functions_agree in H2.
-  move/andP in H1. move/andP in H2.
-  destruct H1. destruct H2.
-  move/eqP in H0. move/eqP in H2.
-  rewrite H2 in H0. by inversion H0.
+  (*move/andP in H1. move/andP in H2.*)
+  move/andP: H1 => [_ H1].
+  move/andP: H2 => [_ H3].
+  move/eqP in H1. move/eqP in H3.
+  rewrite H3 in H1 => {H3}.
+  by move: H1 => [H1].
 Qed.
 
 (*
@@ -493,9 +495,9 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
     tf = Tf t1s t2s ->
     C' = upd_local_label_return C (tc_local C ++ t1s ++ ts) ([::t2s] ++ tc_label C) (Some t2s) ->
     be_typing C' es (Tf [::] t2s) ->
-    cl_typing s (Func_native i tf ts es) (Tf t1s t2s)
+    cl_typing s (FC_func_native i tf ts es) (Tf t1s t2s)
   | cl_typing_host : forall s tf h,
-    cl_typing s (Func_host tf h) tf
+    cl_typing s (FC_func_host tf h) tf
   .
   
 Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
@@ -509,19 +511,19 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   e_typing s C es (Tf t1s t2s) ->
   e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s))
 | ety_trap : forall s C tf,
-  e_typing s C [::Trap] tf
+  e_typing s C [::AI_trap] tf
 | ety_local : forall s C n f es ts,
   s_typing s (Some ts) f es ts ->
   length ts = n ->
-  e_typing s C [::Local n f es] (Tf [::] ts)
+  e_typing s C [::AI_local n f es] (Tf [::] ts)
 | ety_invoke : forall s C cl tf,
   cl_typing s cl tf ->
-  e_typing s C [::Invoke cl] tf
+  e_typing s C [::AI_invoke cl] tf
 | ety_label : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
   length ts = n ->
-  e_typing s C [::Label n e0s es] (Tf [::] t2s)
+  e_typing s C [::AI_label n e0s es] (Tf [::] t2s)
 
 with s_typing : store_record -> option (seq value_type) -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
 | mk_s_typing : forall s f es rs ts C C0,
@@ -541,8 +543,8 @@ Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
 Lemma cl_typing_unique : forall s cl tf, cl_typing s cl tf -> tf = cl_type cl.
 Proof.
   move=> s + tf. case.
-  - move => i ts bes t H /=. by inversion H.
-  - move => f h H. by inversion H.
+  - move => i ts bes t H /=; by inversion H.
+  - move => f h H; by inversion H.
 Qed.
 
 End Host.

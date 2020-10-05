@@ -218,19 +218,19 @@ Inductive sx : Type :=
   .
 
 Inductive unop_i : Type :=
-  | Clz
-  | Ctz
-  | Popcnt
+  | UOI_clz
+  | UOI_ctz
+  | UOI_popcnt
   .
 
 Inductive unop_f : Type :=
-  | Neg
-  | Abs
-  | Ceil
-  | Floor
-  | Trunc
-  | Nearest
-  | Sqrt
+  | UOF_neg
+  | UOF_abs
+  | UOF_ceil
+  | UOF_floor
+  | UOF_trunc
+  | UOF_nearest
+  | UOF_sqrt
   .
 
 Inductive unop : Type :=
@@ -239,28 +239,28 @@ Inductive unop : Type :=
   .
 
 Inductive binop_i : Type :=
-  | Add
-  | Sub
-  | Mul
-  | Div : sx -> binop_i
-  | Rem : sx -> binop_i
-  | And
-  | Or
-  | Xor
-  | Shl
-  | Shr : sx -> binop_i
-  | Rotl
-  | Rotr
+  | BOI_add
+  | BOI_sub
+  | BOI_mul
+  | BOI_div : sx -> binop_i
+  | BOI_rem : sx -> binop_i
+  | BOI_and
+  | BOI_or
+  | BOI_xor
+  | BOI_shl
+  | BOI_shr : sx -> binop_i
+  | BOI_rotl
+  | BOI_rotr
   .
 
 Inductive binop_f : Type :=
-  | Addf
-  | Subf
-  | Mulf
-  | Divf
-  | Min
-  | Max
-  | Copysign
+  | BOF_add
+  | BOF_sub
+  | BOF_mul
+  | BOF_div
+  | BOF_min
+  | BOF_max
+  | BOF_copysign
   .
 
 Inductive binop : Type :=
@@ -269,25 +269,25 @@ Inductive binop : Type :=
   .
   
 Inductive testop : Type :=
-  | Eqz
+  | TO_eqz
   .
 
 Inductive relop_i : Type :=
-  | Eq
-  | Ne
-  | Lt : sx -> relop_i
-  | Gt : sx -> relop_i
-  | Le : sx -> relop_i
-  | Ge : sx -> relop_i
+  | ROI_eq
+  | ROI_ne
+  | ROI_lt : sx -> relop_i
+  | ROI_gt : sx -> relop_i
+  | ROI_le : sx -> relop_i
+  | ROI_ge : sx -> relop_i
   .
 
 Inductive relop_f : Type :=
-  | Eqf
-  | Nef
-  | Ltf
-  | Gtf
-  | Lef
-  | Gef
+  | ROF_eq
+  | ROF_ne
+  | ROF_lt
+  | ROF_gt
+  | ROF_le
+  | ROF_ge
   .
   
 Inductive relop : Type :=
@@ -296,39 +296,39 @@ Inductive relop : Type :=
   .
 
 Inductive cvtop : Type :=
-  | Convert
-  | Reinterpret
+  | CVO_convert
+  | CVO_reinterpret
   .
 
 Inductive basic_instruction : Type := (* be *)
-  | Unreachable
-  | Nop
-  | Drop
-  | Select
-  | Block : function_type -> list basic_instruction -> basic_instruction
-  | Loop : function_type -> list basic_instruction -> basic_instruction
-  | If : function_type -> list basic_instruction -> list basic_instruction -> basic_instruction
-  | Br : immediate -> basic_instruction
-  | Br_if : immediate -> basic_instruction
-  | Br_table : list immediate -> immediate -> basic_instruction
-  | Return
-  | Call : immediate -> basic_instruction
-  | Call_indirect : immediate -> basic_instruction
-  | Get_local : immediate -> basic_instruction
-  | Set_local : immediate -> basic_instruction
-  | Tee_local : immediate -> basic_instruction
-  | Get_global : immediate -> basic_instruction
-  | Set_global : immediate -> basic_instruction
-  | Load : value_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
-  | Store : value_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
-  | Current_memory
-  | Grow_memory
-  | EConst : value -> basic_instruction
-  | Unop : value_type -> unop -> basic_instruction
-  | Binop : value_type -> binop -> basic_instruction
-  | Testop : value_type -> testop -> basic_instruction
-  | Relop : value_type -> relop -> basic_instruction
-  | Cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction
+  | BI_unreachable
+  | BI_nop
+  | BI_drop
+  | BI_select
+  | BI_block : function_type -> list basic_instruction -> basic_instruction
+  | BI_loop : function_type -> list basic_instruction -> basic_instruction
+  | BI_if : function_type -> list basic_instruction -> list basic_instruction -> basic_instruction
+  | BI_br : immediate -> basic_instruction
+  | BI_br_if : immediate -> basic_instruction
+  | BI_br_table : list immediate -> immediate -> basic_instruction
+  | BI_return
+  | BI_call : immediate -> basic_instruction
+  | BI_call_indirect : immediate -> basic_instruction
+  | BI_get_local : immediate -> basic_instruction
+  | BI_set_local : immediate -> basic_instruction
+  | BI_tee_local : immediate -> basic_instruction
+  | BI_get_global : immediate -> basic_instruction
+  | BI_set_global : immediate -> basic_instruction
+  | BI_load : value_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
+  | BI_store : value_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
+  | BI_current_memory
+  | BI_grow_memory
+  | BI_const : value -> basic_instruction
+  | BI_unop : value_type -> unop -> basic_instruction
+  | BI_binop : value_type -> binop -> basic_instruction
+  | BI_testop : value_type -> testop -> basic_instruction
+  | BI_relop : value_type -> relop -> basic_instruction
+  | BI_cvtop : value_type -> cvtop -> value_type -> option sx -> basic_instruction
   .
 
 (** * Functions and Store **)
@@ -359,11 +359,11 @@ It is an invariant of the semantics that all export instances in a given module
 instance have different names.
 *)
 Record instance : Type := (* inst *) {
-  i_types : list function_type;
-  i_funcs : list funcaddr;
-  i_tab : list tableaddr;
-  i_memory : list memaddr;
-  i_globs : list globaladdr;
+  inst_types : list function_type;
+  inst_funcs : list funcaddr;
+  inst_tab : list tableaddr;
+  inst_memory : list memaddr;
+  inst_globs : list globaladdr;
   (* TODO: exports field? *)
 }.
 
@@ -374,8 +374,8 @@ originating module. The module instance is used to resolve references to other
 definitions during execution of the function.
 *)
 Inductive function_closure : Type := (* cl *)
-  | Func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
-  | Func_host : function_type -> host_function -> function_closure
+  | FC_func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
+  | FC_func_host : function_type -> host_function -> function_closure
   .
 
 (** std-doc:
@@ -429,16 +429,16 @@ the syntax of instructions is extended to include the following administrative
 instructions:
 *)
 Inductive administrative_instruction : Type := (* e *)
-| Basic : basic_instruction -> administrative_instruction
-| Trap
-| Invoke : function_closure -> administrative_instruction
-| Label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
-| Local : nat -> frame -> seq administrative_instruction -> administrative_instruction
+| AI_basic : basic_instruction -> administrative_instruction
+| AI_trap
+| AI_invoke : function_closure -> administrative_instruction
+| AI_label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
+| AI_local : nat -> frame -> seq administrative_instruction -> administrative_instruction
 .
 
 Inductive lholed : Type :=
-| LBase : list administrative_instruction -> list administrative_instruction -> lholed
-| LRec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+| LH_base : list administrative_instruction -> list administrative_instruction -> lholed
+| LH_rec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
 .
 
 Definition expr := list basic_instruction.
@@ -479,22 +479,22 @@ Record module_import : Type := {
 }.
 
 Record module_table : Type := {
-  t_type : table_type;
+  modtab_type : table_type;
 }.
 
 Record module_glob : Type := {
-  mg_type : global_type;
-  mg_init : expr;
+  modglob_type : global_type;
+  modglob_init : expr;
 }.
 
 Record module_start : Type := {
-  start_func : funcidx;
+  modstart_func : funcidx;
 }.
 
 Record module_element : Type := {
-  elem_table : tableidx;
-  elem_offset : expr;
-  elem_init : list funcidx;
+  modelem_table : tableidx;
+  modelem_offset : expr;
+  modelem_init : list funcidx;
 }.
 
 Record code_func : Type := {
@@ -503,26 +503,26 @@ Record code_func : Type := {
 }.
 
 Record module_data : Type := {
-  dt_data : memidx;
-  dt_offset : expr;
-  dt_init : list Byte.byte;
+  moddata_data : memidx;
+  moddata_offset : expr;
+  moddata_init : list Byte.byte;
 }.
 
 Inductive module_export_desc : Type :=
-| ED_func : funcidx -> module_export_desc
-| ED_table : tableidx -> module_export_desc
-| ED_mem : memidx -> module_export_desc
-| ED_global : globalidx -> module_export_desc.
+| MED_func : funcidx -> module_export_desc
+| MED_table : tableidx -> module_export_desc
+| MED_mem : memidx -> module_export_desc
+| MED_global : globalidx -> module_export_desc.
 
 Record module_export : Type := {
-  exp_name : name;
-  exp_desc : module_export_desc;
+  modexp_name : name;
+  modexp_desc : module_export_desc;
 }.
 
 Record module_func : Type := {
-  mf_type : typeidx;
-  mf_locals : list value_type;
-  mf_body : expr;
+  modfunc_type : typeidx;
+  modfunc_locals : list value_type;
+  modfunc_body : expr;
 }.
 
 Record module : Type := {
@@ -567,9 +567,9 @@ Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
 
-Arguments Func_native [host_function].
-Arguments Basic {host_function}.
-Arguments Trap {host_function}.
+Arguments FC_func_native [host_function].
+Arguments AI_basic {host_function}.
+Arguments AI_trap {host_function}.
 
 Arguments RS_crash [host_function].
 Arguments RS_break [host_function].
