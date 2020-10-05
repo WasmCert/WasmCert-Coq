@@ -2460,12 +2460,25 @@ Proof.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
   destruct (mem_max_opt m) eqn:HLimMax => //=.
-  - destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
-    inversion HMGrow; subst; clear HMGrow.
-    by apply/andP.
+  - destruct ((mem_length m + c <=? n)%N) eqn:HLT => //.
+    move : HMGrow.
+    case: mem => mem_data_ mem_max_opt_ [H1 H2].
+    simpl.
+    apply/andP.
+    split.
+    { unfold mem_size, mem_length.
+      simpl.
+      case: mem_data_ H1 => dv_len dv_arr [H3 H4].
+      simpl.
+      rewrite -H3.
+      unfold mem_length.
+      admit. (* TODO: lias *) }
+    {
+      apply/eqP; done.
+    }
   - inversion HMGrow; subst; clear HMGrow.
-    by apply/andP.
-Qed.
+    admit.
+Admitted.
 
 Lemma store_global_extension_store_typed: forall s s',
     store_typing s ->

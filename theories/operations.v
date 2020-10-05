@@ -55,12 +55,11 @@ Definition mem_size (m : memory) : N :=
   N.div (mem_length m) page_size.
 
 Definition mem_grow (m : memory) (n : N) : option memory:=
-  let new_mem_data :=
-    (* with our array representation, there are no bounds to extend *)
-    m.(mem_data) in
+  let new_length := N.add (mem_length m) n in
+  let new_mem_data := {| dv_array := m.(mem_data).(dv_array); dv_length := new_length |} in
   match m.(mem_max_opt) with
   | Some maxlim =>
-    if N.leb (N.add (mem_size m) n) maxlim then
+    if N.leb new_length maxlim then
       Some {|
         mem_data := new_mem_data;
         mem_max_opt := m.(mem_max_opt);
