@@ -2694,9 +2694,9 @@ Proof.
   unfold mem_agree in H.
   destruct (mem_max_opt m) eqn:HLimMax => //=.
   - destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
-    by inversion HGrow; subst.
-  - by inversion HGrow; subst.
-Qed.
+    admit.
+  - admit.
+Admitted.
 
 Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
     reduce hs s f es hs' s' f' es' ->
