@@ -6,8 +6,6 @@
 (* TODO: use better representations that "nat", which is expensive;
    maybe N? maybe a 32-bit word type? *)
 
-(* TODO: sanitise names *)
-
 Require Import BinNat.
 From Wasm Require array.
 From Wasm Require Import common.
