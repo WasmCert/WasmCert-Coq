@@ -2452,6 +2452,14 @@ Proof.
   by apply/andP; split => //=.
 Qed.
 
+(*
+  A stupid lemma which I can't find a quick proof 
+*)
+Lemma le_N_le_coqnat: forall x y,
+    (x<=y)%N <-> x<=y.
+Proof.
+Admitted.
+
 Lemma mem_extension_grow_memory: forall m c mem,
     mem_grow m c = (Some mem) ->
     mem_extension m mem.
@@ -2459,6 +2467,8 @@ Proof.
   move => m c mem HMGrow.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
+  assert (HMemExt: ((dv_length (mem_data m) / page_size) <= ((dv_length (mem_data m) + c) / page_size))%N).
+  { apply N.div_le_mono => //. by lias. }
   destruct (mem_max_opt m) eqn:HLimMax => //=.
   - destruct ((mem_length m + c <=? n)%N) eqn:HLT => //.
     move : HMGrow.
@@ -2472,14 +2482,17 @@ Proof.
       simpl.
       rewrite -H3.
       unfold mem_length.
-      admit. (* TODO: lias *) }
+      by apply le_N_le_coqnat. }
     {
       apply/eqP; done.
     }
   - inversion HMGrow; subst; clear HMGrow.
-    admit.
-Admitted.
-
+    unfold mem_size, mem_length.
+    simpl.
+    apply/andP; split => //.
+    by apply le_N_le_coqnat.
+Qed.
+    
 Lemma store_global_extension_store_typed: forall s s',
     store_typing s ->
     store_extension s s' ->
