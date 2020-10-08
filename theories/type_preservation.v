@@ -2456,8 +2456,14 @@ Qed.
   A stupid lemma which I can't find a quick proof 
 *)
 Lemma le_N_le_coqnat: forall x y,
-    (x<=y)%N <-> x<=y.
+    (x<=y)%N -> (x<=y)%coq_nat.
 Proof.
+  move => x. destruct x.
+  - simpl. intros. omega.
+  - induction p => //=; move => y H.
+    unfold N.le in H. unfold N.compare in H. unfold Pos.compare in H.
+    destruct y => //.
+    unfold Pos.compare_cont in H. simpl in H.
 Admitted.
 
 Lemma mem_extension_grow_memory: forall m c mem,
@@ -2482,6 +2488,7 @@ Proof.
       simpl.
       rewrite -H3.
       unfold mem_length.
+      apply/leP.
       by apply le_N_le_coqnat. }
     {
       apply/eqP; done.
@@ -2490,6 +2497,7 @@ Proof.
     unfold mem_size, mem_length.
     simpl.
     apply/andP; split => //.
+    apply/leP.
     by apply le_N_le_coqnat.
 Qed.
     
