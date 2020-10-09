@@ -26,9 +26,9 @@ Variable host_function : eqType.
 
 Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
 
-Let vs_to_es := @vs_to_es host_function.
+(*Let vs_to_es := @vs_to_es host_function.*)
 
 Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
@@ -90,7 +90,7 @@ Definition eqresP : Equality.axiom res_eqb :=
 Canonical Structure res_eqMixin := EqMixin eqresP.
 Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
 
-Let res_step := res_step host_function.
+(*Let ret res_step := res_step host_function.*)
 Let res_tuple := res_tuple host_function.
 Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
 
@@ -248,17 +248,25 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
   | AI_basic (BI_call j) =>
-    if sfunc s f.(f_inst) j is Some sfunc_i_j then
-      ret (s, f, RS_normal (vs_to_es ves ++ [::AI_invoke sfunc_i_j]))
+    (*    if sfunc s f.(f_inst) j is Some sfunc_i_j then*)
+    if List.nth_error f.(f_inst).(inst_funcs) j is Some a then
+      ret (s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
     else ret (s, f, crash_error)
 
   | AI_basic (BI_call_indirect j) =>
     if ves is VAL_int32 c :: ves' then
-      match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
-      | Some cl =>
-        if stypes s f.(f_inst) j == Some (cl_type cl)
-        then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke cl]))
-        else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+(*      match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
+      | Some cl =>*)
+      match stab_addr s f (Wasm_int.nat_of_uint i32m c) with
+      | Some a =>
+        match List.nth_error s.(s_funcs) a with
+        | Some cl =>
+          if stypes s f.(f_inst) j == Some (cl_type cl)
+          then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke a]))
+          else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+     (* Not Trap because this is not supposed to happen after validation *)
+        | None => ret (s, f, crash_error)
+        end
       | None => ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
       end
     else ret (s, f, crash_error)
@@ -388,36 +396,40 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
 
     | AI_basic (BI_const _) => ret (s, f, crash_error)
 
-    | AI_invoke cl =>
-      match cl with
-      | FC_func_native i (Tf t1s t2s) ts es =>
-        let: n := length t1s in
-        let: m := length t2s in
-        if length ves >= n
-        then
-          let: (ves', ves'') := split_n ves n in
-          let: zs := n_zeros ts in
-          ret (s, f, RS_normal (vs_to_es ves''
-                        ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))
-        else ret (s, f, crash_error)
-      | FC_func_host (Tf t1s t2s) h =>
-        let: n := length t1s in
-        let: m := length t2s in
-        if length ves >= n
-        then
-         let: (ves', ves'') := split_n ves n in
-         r <- trigger (host_apply s (Tf t1s t2s) h (rev ves')) ;;
-          match r with
-          | Some (s', r) =>
-            if result_types_agree t2s r
-            then
-              let: rves := result_to_stack r in
-              ret (s', f, RS_normal (vs_to_es ves'' ++ rves))
-            else ret (s (* FIXME: Why not [s']? *), f, crash_error)
-          | None => ret (s, f, RS_normal (vs_to_es ves'' ++ [::AI_trap]))
-          end
-      else ret (s, f, crash_error)
-    end
+    | AI_invoke i =>
+      match List.nth_error s.(s_funcs) i with
+        | Some cl =>
+            match cl with
+            | FC_func_native i (Tf t1s t2s) ts es =>
+                let: n := length t1s in
+                let: m := length t2s in
+                if length ves >= n
+                then
+                let: (ves', ves'') := split_n ves n in
+                let: zs := n_zeros ts in
+                ret (s, f, RS_normal (vs_to_es ves''
+                                ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))
+                else ret (s, f, crash_error)
+            | FC_func_host (Tf t1s t2s) h =>
+                let: n := length t1s in
+                let: m := length t2s in
+                if length ves >= n
+                then
+                let: (ves', ves'') := split_n ves n in
+                r <- trigger (host_apply s (Tf t1s t2s) h (rev ves')) ;;
+                match r with
+                | Some (s', r) =>
+                    if result_types_agree t2s r
+                    then
+                    let: rves := result_to_stack r in
+                    ret (s', f, RS_normal (vs_to_es ves'' ++ rves))
+                    else ret (s (* FIXME: Why not [s']? *), f, crash_error)
+                | None => ret (s, f, RS_normal (vs_to_es ves'' ++ [::AI_trap]))
+                end
+                else ret (s, f, crash_error)
+            end
+        | None => ret (s, f, crash_error)
+      end
 
   | AI_label ln les es =>
     if es_is_trap es
@@ -595,7 +607,7 @@ Definition run_v
 
 (** State whether a list of administrative instruction is a final value. **)
 Definition is_const_list : list administrative_instruction -> option (list value) :=
-  @those_const_list _.
+  @those_const_list.
 
 (** A useful definition for converting [itree] to [option] without executing anything,
   assuming a way to remove events.

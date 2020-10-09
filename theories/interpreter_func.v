@@ -47,10 +47,10 @@ Let host := host host_function.
 Variable host_instance : host.
 
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
 Let host_state := host_state host_instance.
 
-Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.
+(*Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.*)
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
@@ -274,16 +274,20 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
       else (hs, s, f, crash_error)
     | AI_basic (BI_call j) =>
-      if sfunc s f.(f_inst) j is Some sfunc_i_j then
-        (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_invoke sfunc_i_j]))
+      if List.nth_error f.(f_inst).(inst_funcs) j is Some a then
+        (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
       else (hs, s, f, crash_error)
     | AI_basic (BI_call_indirect j) =>
       if ves is VAL_int32 c :: ves' then
-        match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
-        | Some cl =>
-          if stypes s f.(f_inst) j == Some (cl_type cl)
-          then (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke cl]))
-          else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+        match stab_addr s f (Wasm_int.nat_of_uint i32m c) with
+        | Some a =>
+          match List.nth_error s.(s_funcs) a with
+          | Some cl =>
+            if stypes s f.(f_inst) j == Some (cl_type cl)
+            then (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke a]))
+            else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))        
+          | None => (hs, s, f, crash_error)
+          end
         | None => (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
         end
       else (hs, s, f, crash_error)
@@ -399,30 +403,34 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
           (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
     | AI_basic (BI_const _) => (hs, s, f, crash_error)
-    | AI_invoke cl =>
-      match cl with
-      | FC_func_native i (Tf t1s t2s) ts es =>
-        let: n := length t1s in
-        let: m := length t2s in
-        if length ves >= n
-        then
-          let: (ves', ves'') := split_n ves n in
-          let: zs := n_zeros ts in
-          (hs, s, f, RS_normal (vs_to_es ves''
-                  ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))
-        else (hs, s, f, crash_error)
-      | FC_func_host (Tf t1s t2s) cl' =>
-        let: n := length t1s in
-        let: m := length t2s in
-        if length ves >= n
-        then
-          let: (ves', ves'') := split_n ves n in
-          match host_application_impl hs s (Tf t1s t2s) cl' (rev ves') with
-          | (hs', Some (s', rves)) =>
-            (hs', s', f, RS_normal (vs_to_es ves'' ++ (result_to_stack rves)))
-        | (hs', None) => (hs', s, f, RS_normal (vs_to_es ves ++ [::AI_invoke cl]))
-          end
-        else (hs, s, f, crash_error)
+    | AI_invoke a =>
+      match List.nth_error s.(s_funcs) a with
+      | Some cl => 
+        match cl with
+        | FC_func_native i (Tf t1s t2s) ts es =>
+            let: n := length t1s in
+            let: m := length t2s in
+            if length ves >= n
+            then
+            let: (ves', ves'') := split_n ves n in
+            let: zs := n_zeros ts in
+            (hs, s, f, RS_normal (vs_to_es ves''
+                    ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))
+            else (hs, s, f, crash_error)
+        | FC_func_host (Tf t1s t2s) cl' =>
+            let: n := length t1s in
+            let: m := length t2s in
+            if length ves >= n
+            then
+            let: (ves', ves'') := split_n ves n in
+            match host_application_impl hs s (Tf t1s t2s) cl' (rev ves') with
+            | (hs', Some (s', rves)) =>
+                (hs', s', f, RS_normal (vs_to_es ves'' ++ (result_to_stack rves)))
+            | (hs', None) => (hs', s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
+            end
+            else (hs, s, f, crash_error)
+        end
+      | None => (hs, s, f, crash_error)
       end
     | AI_label ln les es =>
       if es_is_trap es

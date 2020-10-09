@@ -17,8 +17,8 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
+(*Let lholed := lholed host_function.*)
 
 
 Definition read_bytes (m : memory) (n : N) (l : nat) : bytes :=
@@ -393,6 +393,13 @@ Definition stab_index (s: store_record) (i j: nat) : option nat :=
       (fun stab_i => List.nth_error (table_data stab_i) j)
   stabinst).
 
+Definition stab_addr (s: store_record) (f: frame) (c: nat) : option nat :=
+  match f.(f_inst).(inst_tab) with
+  | nil => None
+  | ta :: _ => stab_index s ta c
+  end.
+
+
 Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
   let n := stab_index s i j in
   option_bind
@@ -749,7 +756,7 @@ Definition n_zeros (ts : seq value_type) : seq value :=
 End Host.
 
 Arguments cl_type {host_function}.
-Arguments to_e_list [host_function].
+(*Arguments to_e_list [host_function].
 Arguments v_to_e_list [host_function].
-Arguments result_to_stack [host_function].
+Arguments result_to_stack [host_function].*)
 

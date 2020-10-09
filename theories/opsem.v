@@ -19,7 +19,7 @@ Let host := host host_function.
 Variable host_instance : host.
 
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
 Let host_state := host_state host_instance.
 
 Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
@@ -308,6 +308,8 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
 *)
 
+  Print stab_index.
+  
 Inductive reduce : host_state -> store_record -> frame -> list administrative_instruction ->
                    host_state -> store_record -> frame -> list administrative_instruction -> Prop :=
   | r_simple :
@@ -317,26 +319,31 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 
   (** calling operations **)
   | r_call :
-      forall s f i cl hs,
-        sfunc s f.(f_inst) i = Some cl ->
-        reduce hs s f [::AI_basic (BI_call i)] hs s f [::AI_invoke cl]
+      forall s f i a hs,
+        List.nth_error f.(f_inst).(inst_funcs) i = Some a ->
+        reduce hs s f [::AI_basic (BI_call i)] hs s f [::AI_invoke a]
   | r_call_indirect_success :
-      forall s f i cl c tf hs,
-        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->
-        stypes s f.(f_inst) i = Some tf ->
-        cl_type cl = tf ->
-        reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_invoke cl]
+      forall s f i a cl c hs,
+        (*        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->*)
+        stab_addr s f (Wasm_int.nat_of_uint i32m c) = Some a ->
+        List.nth_error s.(s_funcs) a = Some cl ->
+        stypes s f.(f_inst) i = Some (cl_type cl) ->
+        reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_invoke a]
   | r_call_indirect_failure1 :
-      forall s f i c cl hs,
-        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->
+      forall s f i a cl c hs,
+(*        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = Some cl ->*)
+        stab_addr s f (Wasm_int.nat_of_uint i32m c) = Some a ->
+        List.nth_error s.(s_funcs) a = Some cl ->
         stypes s f.(f_inst) i <> Some (cl_type cl) ->
         reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_trap]
   | r_call_indirect_failure2 :
       forall s f i c hs,
-        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = None ->
+(*        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = None ->*)
+        stab_addr s f (Wasm_int.nat_of_uint i32m c) = None ->
         reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_trap]
   | r_invoke_native :
-      forall cl t1s t2s ts es ves vcs n m k zs s f f' i hs,
+      forall a cl t1s t2s ts es ves vcs n m k zs s f f' i hs,
+        List.nth_error s.(s_funcs) a = Some cl ->
         cl = FC_func_native i (Tf t1s t2s) ts es ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
@@ -346,25 +353,27 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         n_zeros ts = zs ->
         f'.(f_inst) = i ->
         f'.(f_locs) = vcs ++ zs ->
-        reduce hs s f (ves ++ [::AI_invoke cl]) hs s f [::AI_local m f' [::AI_basic (BI_block (Tf [::] t2s) es)]]
+        reduce hs s f (ves ++ [::AI_invoke a]) hs s f [::AI_local m f' [::AI_basic (BI_block (Tf [::] t2s) es)]]
   | r_invoke_host_success :
-      forall cl h t1s t2s ves vcs m n s s' r f hs hs',
+      forall a cl h t1s t2s ves vcs m n s s' r f hs hs',
+        List.nth_error s.(s_funcs) a = Some cl ->
         cl = FC_func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
         host_application hs s (Tf t1s t2s) h vcs hs' (Some (s', r)) ->
-        reduce hs s f (ves ++ [::AI_invoke cl]) hs' s' f (result_to_stack r)
+        reduce hs s f (ves ++ [::AI_invoke a]) hs' s' f (result_to_stack r)
   | r_invoke_host_diverge :
-      forall cl t1s t2s h ves vcs n m s f hs hs',
+      forall a cl t1s t2s h ves vcs n m s f hs hs',
+        List.nth_error s.(s_funcs) a = Some cl ->
         cl = FC_func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
         length t1s = n ->
         length t2s = m ->
         host_application hs s (Tf t1s t2s) h vcs hs' None ->
-        reduce hs s f (ves ++ [::AI_invoke cl]) hs' s f (ves ++ [::AI_invoke cl])
+        reduce hs s f (ves ++ [::AI_invoke a]) hs' s f (ves ++ [::AI_invoke a])
 
   (** get, set, load, and store operations **)
   | r_get_local :

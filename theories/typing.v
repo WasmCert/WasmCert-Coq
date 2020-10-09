@@ -28,8 +28,8 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.
+(*Let administrative_instruction := administrative_instruction host_function.
+Let lholed := lholed host_function.*)
 
 
 (* TODO: Documentation *)
@@ -499,7 +499,7 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
   | cl_typing_host : forall s tf h,
     cl_typing s (FC_func_host tf h) tf
   .
-  
+
 Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
@@ -516,9 +516,10 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   s_typing s (Some ts) f es ts ->
   length ts = n ->
   e_typing s C [::AI_local n f es] (Tf [::] ts)
-| ety_invoke : forall s C cl tf,
+| ety_invoke : forall s i C cl tf,
+  List.nth_error s.(s_funcs) i = Some cl ->
   cl_typing s cl tf ->
-  e_typing s C [::AI_invoke cl] tf
+  e_typing s C [::AI_invoke i] tf
 | ety_label : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->

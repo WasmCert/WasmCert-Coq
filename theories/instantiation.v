@@ -30,7 +30,7 @@ Let store_record_eqType := @store_record_eqType host_function.
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
 Let host_state := host_state host_instance.
 
 Let executable_host := executable_host host_function.
@@ -865,10 +865,11 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
         if e.(modexp_name) == n then
           match e.(modexp_desc) with
           | MED_func (Mk_funcidx fi) =>
-            match List.nth_error s.(s_funcs) fi with
+            Some (s, (Build_frame nil inst), [::AI_invoke fi])
+(*            match List.nth_error s.(s_funcs) fi with
             | None => None
             | Some fc => Some (s, (Build_frame nil inst), [::AI_invoke fc])
-            end
+            end*)
           | _ => None
           end
         else None

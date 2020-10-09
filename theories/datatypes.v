@@ -3,7 +3,7 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-(* TODO: use better representations that "nat", which is expensive;
+(* TODO: use better representations than "nat", which is expensive;
    maybe N? maybe a 32-bit word type? *)
 
 Require Import BinNat.
@@ -364,7 +364,6 @@ Record instance : Type := (* inst *) {
   inst_globs : list globaladdr;
   (* TODO: exports field? *)
 }.
-
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively
 is a closure of the original function over the runtime module instance of its
@@ -374,7 +373,7 @@ definitions during execution of the function.
 Inductive function_closure : Type := (* cl *)
   | FC_func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
   | FC_func_host : function_type -> host_function -> function_closure
-  .
+.
 
 (** std-doc:
 Each function element is either empty, representing an uninitialized table
@@ -429,7 +428,7 @@ instructions:
 Inductive administrative_instruction : Type := (* e *)
 | AI_basic : basic_instruction -> administrative_instruction
 | AI_trap
-| AI_invoke : function_closure -> administrative_instruction
+| AI_invoke : funcaddr -> administrative_instruction
 | AI_label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
 | AI_local : nat -> frame -> seq administrative_instruction -> administrative_instruction
 .
@@ -564,12 +563,12 @@ Inductive res_step : Type :=
 Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
-
+Print AI_trap.
 Arguments FC_func_native [host_function].
-Arguments AI_basic {host_function}.
+(*Arguments AI_basic {host_function}.
 Arguments AI_trap {host_function}.
 
 Arguments RS_crash [host_function].
 Arguments RS_break [host_function].
-Arguments RS_return [host_function].
+Arguments RS_return [host_function].*)
 

@@ -145,7 +145,7 @@ Canonical Structure host_function :=
 Definition executable_host := executable_host H.host_function.
 Definition store_record := store_record H.host_function.
 Definition config_tuple := config_tuple H.host_function.
-Definition administrative_instruction := administrative_instruction H.host_function.
+(*Definition administrative_instruction := administrative_instruction H.host_function.*)
 Definition function_closure := function_closure H.host_function.
 Definition res_tuple := res_tuple H.host_function.
 

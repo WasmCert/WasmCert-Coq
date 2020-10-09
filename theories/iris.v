@@ -17,25 +17,25 @@ Section Host.
 Variable host_function : eqType.
 
 Let host := host host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
 Let store_record := store_record host_function.
-Let lholed := lholed host_function.
+(*Let lholed := lholed host_function.
 
 Let lfilled : nat -> lholed -> list administrative_instruction -> list administrative_instruction -> bool :=
   @lfilled _.
 Let split_vals_e : list administrative_instruction -> list value * list administrative_instruction :=
-  @split_vals_e _.
+  @split_vals_e _.*)
 
 Variable host_instance : host.
 
 Let host_state := host_state host_instance.
-Let reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
-  @reduce_simple _.
+(*Let reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
+  @reduce_simple _.*)
 Let reduce : host_state -> store_record -> frame -> list administrative_instruction ->
              host_state -> store_record -> frame -> list administrative_instruction -> Prop :=
   @reduce _ _.
-Let lfill : nat -> lholed -> list administrative_instruction -> option (list administrative_instruction) :=
-  @lfill _.
+(*Let lfill : nat -> lholed -> list administrative_instruction -> option (list administrative_instruction) :=
+  @lfill _.*)
 
 Definition expr := list administrative_instruction.
 Definition val := list value.

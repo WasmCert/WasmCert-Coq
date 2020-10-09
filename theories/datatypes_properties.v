@@ -221,12 +221,12 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.
 Let lholed := lholed host_function.
-Let res_step := res_step host_function.
+Let res_step := res_step host_function.*)
 
 Let administrative_instruction_rect :=
-  @administrative_instruction_rect host_function
+  @administrative_instruction_rect (*host_function*)
   : forall (P : administrative_instruction -> Type), _.
 
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
@@ -331,7 +331,9 @@ Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
 Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality_step; efold administrative_instruction; decidable_equality. Defined.
+Proof. decidable_equality.
+       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
+Defined.
 
 Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
 Definition eqlholedP : Equality.axiom lholed_eqb :=
