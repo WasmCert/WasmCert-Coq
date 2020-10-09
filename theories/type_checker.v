@@ -452,7 +452,7 @@ Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
   | None => True
   | Some n => let tcl := List.nth_error (s_funcs s) n in
     match tcl with
-    | None => True
+    | None => False
     | Some cl => cl_type_check_single s cl
     end
   end.

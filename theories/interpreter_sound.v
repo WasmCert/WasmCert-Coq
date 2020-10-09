@@ -19,14 +19,14 @@ Variable host_function : eqType.
 Let host := host host_function.
 
 Let store_record := store_record host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.*)
 Let config_tuple := config_tuple host_function.
 Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
 Let res_tuple := res_tuple host_function.
 
-Let const_list := @const_list host_function.
+(*Let const_list := @const_list host_function.
 Let v_to_e_list := @v_to_e_list host_function.
-Let lfilledInd := @lfilledInd host_function.
+Let lfilledInd := @lfilledInd host_function.*)
 
 Variable host_instance : host.
 

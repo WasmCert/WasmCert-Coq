@@ -20,14 +20,14 @@ Hint Constructors reduce : core.
 Variable host_function : eqType.
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.
 
 Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.
+Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
-Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
+(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @reduce_simple _.
 Let const_list : seq administrative_instruction -> bool := @const_list _.
 Let lholed := lholed host_function.
@@ -35,15 +35,15 @@ Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administr
   @lfilled _.
 Let lfilledInd : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @lfilledInd _.
-Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.
+Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
 
 Let host := host host_function.
 
-Let run_one_step_fuel := @run_one_step_fuel host_function.
+(*Let run_one_step_fuel := @run_one_step_fuel host_function.*)
 
-Let RS_crash := interpreter_func.RS_crash host_function.
-Let RS_break := interpreter_func.RS_break host_function.
-Let RS_return := interpreter_func.RS_return host_function.
+Let RS_crash := interpreter_func.RS_crash.
+Let RS_break := interpreter_func.RS_break.
+Let RS_return := interpreter_func.RS_return.
 Let RS_normal := interpreter_func.RS_normal.
 
 Variable host_instance : host.
@@ -339,6 +339,21 @@ Ltac explode_and_simplify :=
       destruct v as [v'|] eqn:Hv; [ explode_value v' |];
       simplify_hypothesis Hv;
       try by [|apply: Hv]
+    | context C [match ?cl with
+                 | FC_func_native _ _ _ _ => _
+                 | FC_func_host _ _ => _
+                 end] =>
+      let Hcl := fresh "Hcl" in
+      destruct cl eqn:Hcl;
+      simplify_hypothesis Hcl;
+      try by []
+    | context C [match ?tf with
+                 | Tf _ _ => _
+                 end] =>
+      let Hcl := fresh "Htf" in
+      destruct tf eqn:Htf;
+      simplify_hypothesis Htf;
+      try by []
     | context C [match ?v with
                  | T_i32 => _
                  | T_i64 => _
@@ -598,7 +613,7 @@ Proof.
         move=> E. have: (exists v, n = Nat.max (run_one_step_fuel e) v).
         {
           move: E. clear. move: (List.fold_left _ _ 0). induction les' => /=.
-          - move=> v E. exists v. unfold run_one_step_fuel. by lias.
+          - move=> v E. exists v. by lias.
           - move=> v E. apply: IHles'.
             rewrite Max.max_comm in E. rewrite Max.max_assoc in E. by apply: E.
         }
@@ -615,7 +630,7 @@ Proof.
     move=> d [[[tt_hs tt_s] tt_f] tt_es] hs' s' f' r //.
   - simpl. by destruct b; explode_and_simplify; pattern_match.
   - by pattern_match.
-  - simpl. destruct f; explode_and_simplify; try pattern_match => //.
+  - simpl. explode_and_simplify; try pattern_match => //.
     destruct host_application_impl; explode_and_simplify; by pattern_match.
   - rename l0 into es2.
     set fu := (run_one_step_fuel (AI_label n l es2)) .-1.
@@ -702,7 +717,7 @@ Proof.
       (* unused ones *) exists 0. exists [::]. exists [::].
       move=> /=. apply/andP. split => //=. apply/orP. left. apply/andP. by split => //=.
   - move:H. by explode_and_simplify.
-  - move:H. by destruct f0; destruct f0; explode_and_simplify;
+  - move:H. by explode_and_simplify;
     destruct host_application_impl; by explode_and_simplify.
   - (* Label *) exists (AI_label n0 l l0). exists es2'. exists n0. exists l. exists l0.
     apply/andP. split => //.
@@ -767,7 +782,7 @@ Proof.
       exists 0. exists [::]. exists [::].
       split => //. left. split => //. by inversion H.
   - move:H. by explode_and_simplify.
-  - move:H. by repeat destruct f0; explode_and_simplify;
+  - move:H. by explode_and_simplify;
               destruct host_application_impl; explode_and_simplify.
   - (* Label *)
     exists (AI_label n l l0). exists es2'. exists n. exists l. exists l0.
@@ -1018,7 +1033,7 @@ Qed.
 Ltac frame_cat :=
   lazymatch goal with
   | |- reduce _ _ _ (v_to_e_list ?l1 ++ _) _ _ _ (v_to_e_list (take ?n ?l1) ++ _) =>
-    rewrite (v_to_e_take_drop_split _ l1 n); rewrite -catA;
+    rewrite (v_to_e_take_drop_split l1 n); rewrite -catA;
     apply: r_eliml; try apply: v_to_e_is_const_list
   end.
 
@@ -1042,7 +1057,7 @@ Proof.
       + move/eqP in H0. by destruct lconst.
     - rewrite/operations.lfilled/operations.lfill. rewrite v_to_e_is_const_list. show_list_equality.
   }
-  destruct fuel as [|fuel] => //=. destruct e as [b| |cl|n es1 es2|n j vls ess] => /=.
+  destruct fuel as [|fuel] => //=. destruct e as [b| |cl|n es1 es2|n f0 ess] => /=.
     { (** [AI_basic b] **) (* TODO: Separate this case as a lemma. *)
       destruct b.
       - (** [AI_basic Unreachable] **)
@@ -1104,10 +1119,8 @@ Proof.
 
       - (** [AI_basic (Call_indirect i0)] **)
         explode_and_simplify; pattern_match; auto_frame.
-        + apply: r_call_indirect_success; eauto.
-        + apply: r_call_indirect_failure1.
-          * by eauto.
-          * move/eqP in if_expr0. by apply/eqP.
+        + by apply: r_call_indirect_success; eauto.
+        + by apply: r_call_indirect_failure1; eauto.
         + by apply: r_call_indirect_failure2.
 
       - (** [AI_basic (Get_local i0)] **)
@@ -1122,7 +1135,7 @@ Proof.
 
       - (** [AI_basic (Tee_local i0)] **)
         explode_and_simplify. pattern_match. subst_rev_const_list.
-        by frame_out (@v_to_e_list host_function (rev l)) les'.
+        by frame_out (v_to_e_list (rev l)) les'.
 
       - (** [AI_basic (Get_global i0)] **)
         explode_and_simplify. pattern_match. auto_frame. stack_frame.
@@ -1175,13 +1188,12 @@ Proof.
       by pattern_match.
     }
     { (** [Invoke] **)
-      repeat destruct cl => //=.
+      explode_and_simplify.
       - (** [Func_native] **)
-        explode_and_simplify. pattern_match. auto_frame. frame_cat.
-        apply: r_invoke_native => //=.
+        pattern_match; auto_frame; frame_cat.
+        apply: r_invoke_native => //=; eauto.
         simplify_lists. by rewrite subKn.
       - (** [Func_host] **)
-        explode_and_simplify.
         destruct host_application_impl eqn:HHost; explode_and_simplify; try pattern_match; try frame_cat.
         + auto_frame.
           apply host_application_impl_correct in HHost.
@@ -1191,9 +1203,9 @@ Proof.
           apply host_application_impl_correct in HHost.
           repeat rewrite catA.
           apply r_elimr.
-          rewrite (v_to_e_take_drop_split _ lconst (size lconst - size vs)); rewrite -catA;
+          rewrite (v_to_e_take_drop_split lconst (size lconst - size r)); rewrite -catA;
           apply: r_eliml; try apply: v_to_e_is_const_list.
-          eapply r_invoke_host_diverge => //=.          
+          eapply r_invoke_host_diverge; eauto => //=.          
           { explode_and_simplify. by rewrite subKn. } 
     }
     { (** [Label] **)

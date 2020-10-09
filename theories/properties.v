@@ -451,7 +451,6 @@ Ltac gen_ind_pre H :=
   let Ht := type of H in
   aux Ht.
 
-Print is_variable.
 (** Then, each of the associated parameters can be generalised. **)
 Ltac gen_ind_gen H :=
   let rec try_generalize t :=

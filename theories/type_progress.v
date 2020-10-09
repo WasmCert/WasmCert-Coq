@@ -15,19 +15,20 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-Let administrative_instruction := administrative_instruction host_function.
+(*Let administrative_instruction := administrative_instruction host_function.
 
 Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.
+Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
-Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
+Let s_typing := @s_typing host_function.
+(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @reduce_simple _.
 Let const_list : seq administrative_instruction -> bool := @const_list _.
 Let lholed := lholed host_function.
 Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.
-Let sfunc : store_record -> instance -> nat -> option function_closure := @sfunc _.
+  @lfilled _.*)
+Let inst_typing := @inst_typing host_function.
 Let sglob : store_record -> instance -> nat -> option global := @sglob _.
 Let smem_ind : store_record -> instance -> option nat := @smem_ind _.
 
@@ -189,7 +190,7 @@ Proof.
   rewrite -HDrop. by rewrite cat_take_drop.
 Qed.
 
-Hint Unfold reduce_simple : core.
+Hint Constructors reduce_simple : core.
 Hint Constructors opsem.reduce_simple : core.
 
 Ltac invert_typeof_vcs :=
@@ -238,13 +239,13 @@ Lemma func_context_store: forall s i C j x,
     inst_typing s i C ->
     j < length (tc_func_t C) ->
     List.nth_error (tc_func_t C) j = Some x ->
-    sfunc s i j <> None.
+    exists a, List.nth_error i.(inst_funcs) j = Some a.
 Proof.
   (* TODO: inst_funcs is a fragile name *)
   move => s i C j x HIT HLength HN.
   unfold sfunc. unfold operations.sfunc. unfold option_bind.
   unfold sfunc_ind.
-  unfold inst_typing in HIT.
+  unfold inst_typing, typing.inst_typing in HIT.
   destruct i => //=. destruct C => //=.
   destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
   remove_bools_options.
@@ -256,11 +257,7 @@ Proof.
   move/ltP in HLength.
   apply List.nth_error_Some in HLength.
   destruct (List.nth_error inst_funcs j) eqn:HN1 => //=.
-  apply List.nth_error_Some.
-  unfold functions_agree in H4.
-  eapply all2_projection in H4; eauto.
-  remove_bools_options.
-  by move/ltP in H4.
+  by eexists.
 Qed.
 
 Lemma glob_context_store: forall s i C j g,
@@ -273,7 +270,7 @@ Proof.
   move => s i C j g HIT HLength HN.
   unfold sglob. unfold operations.sglob. unfold option_bind.
   unfold sglob_ind.
-  unfold inst_typing in HIT.
+  unfold inst_typing, typing.inst_typing in HIT.
   destruct i => //=. destruct C => //=.
   destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
   remove_bools_options.
@@ -300,7 +297,7 @@ Lemma mem_context_store: forall s i C,
 Proof.
   (* TODO: inst_memory is a fragile name *)
   move => s i C HIT HMemory.
-  unfold inst_typing in HIT.
+  unfold inst_typing, typing.inst_typing in HIT.
   destruct i => //=. destruct C => //=.
   destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
   remove_bools_options.
@@ -313,6 +310,39 @@ Proof.
   simpl in H4.
   unfold memi_agree in H4.
   by remove_bools_options.
+Qed.
+
+Lemma store_typing_stabaddr: forall s f C c a,
+  stab_addr s f c = Some a ->
+  inst_typing s f.(f_inst) C ->
+  store_typing s ->
+  exists cl, List.nth_error s.(s_funcs) a = Some cl.
+Proof.
+  move => s f C c a HStab HIT HST.
+  unfold inst_typing, typing.inst_typing in HIT.
+  unfold store_typing, tab_agree, tabcl_agree in HST.
+  unfold stab_addr in HStab.
+  destruct s => //=. destruct f => //=. destruct f_inst. destruct f_inst. destruct C => //=.
+  destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
+  remove_bools_options.
+  simpl in *. destruct inst_tab0 => //=.
+  unfold stab_index in HStab. unfold option_bind in HStab.
+  remove_bools_options.
+  subst. simpl in *.
+  destruct tc_table => //=.
+  remove_bools_options.
+  destruct HST.
+  destruct H5.
+  rewrite -> List.Forall_forall in H5.
+  assert (HIN1: List.In t0 s_tables).
+  { by apply List.nth_error_In in Hoption0. }
+  apply H5 in HIN1. destruct HIN1 as [HIN1 _].
+  rewrite -> List.Forall_forall in HIN1.
+  assert (HIN2: List.In (Some a) (table_data t0)).
+  { by apply List.nth_error_In in Hoption. }
+  apply HIN1 in HIN2.
+  destruct (List.nth_error s_funcs a) eqn:HNth => //.
+  by eexists.
 Qed.
 
 (*
@@ -648,25 +678,25 @@ Proof.
     by apply lfilled0_empty.
   - (* Call *)
     right. subst.
-    simpl in H. simpl in H0.
-    eapply func_context_store in H; eauto.
-    destruct (sfunc s f.(f_inst) i) as [cl|] eqn:HCL => //.
-    exists s, f, (v_to_e_list vcs ++ [:: (AI_invoke cl)]), hs.
+    simpl in *. clear H1 H2 H3 H4.
+    eapply func_context_store in H; eauto. destruct H as [a H].
+    exists s, f, (v_to_e_list vcs ++ [:: (AI_invoke a)]), hs.
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
     by apply r_call => //. 
   - (* Call_indirect *)
     right.
-    simpl in H.
-    simpl in H0.
-    simpl in H1.
+    simpl in *.
     apply typeof_append in HConstType. destruct HConstType as [v [Ha [Hb Hc]]].
     destruct v => //=.
-    rewrite Ha. rewrite -v_to_e_cat. rewrite -catA.
+    rewrite Ha. rewrite -v_to_e_cat. rewrite -catA. subst.
     exists s, f.
-    destruct (stab s f.(f_inst) (Wasm_int.nat_of_uint i32m s0)) as [cl|] eqn:Hstab.
-    + (* Some cl *)
+    destruct (stab_addr s f (Wasm_int.nat_of_uint i32m s0)) as [a|] eqn:Hstabaddr.
+    + (* Some a *)
+      remember Hstabaddr as Hstabaddr2. clear HeqHstabaddr2.
+      eapply store_typing_stabaddr in Hstabaddr; eauto.
+      destruct Hstabaddr as [cl Hstabaddr].
       destruct (stypes s f.(f_inst) i == Some (cl_type cl)) eqn:Hclt; move/eqP in Hclt.
-      * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_invoke cl]), hs.
+      * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_invoke a]), hs.
         apply reduce_composition_left; first by apply v_to_e_is_const_list.
         simpl.
         by eapply r_call_indirect_success; eauto.
@@ -881,7 +911,7 @@ Definition return_reduce (es: seq administrative_instruction) :=
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
 Proof.
   move=> es. apply: pickable_decidable. apply: pickable2_weaken.
-  apply lfilled_pickable_rec_gen => es' lh n.
+  apply lfilled_pickable_rec_gen => // es' lh n.
   by apply: lfilled_decidable_base.
 Defined.
 
@@ -889,7 +919,7 @@ Defined.
 Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
 Proof.
   move=> es. apply: pickable_decidable. apply: pickable2_weaken.
-  apply lfilled_pickable_rec => es'.
+  apply lfilled_pickable_rec => // es'.
   by apply: lfilled_decidable_base.
 Defined.
 
@@ -1332,7 +1362,7 @@ Proof.
       exists s', f, [::AI_local (length ts2) f0' es'], hs'.
       by apply r_local; apply HReduce.
   - (* Invoke *)
-    move => s C cl tf HType.
+    move => s a C cl tf HNth HType.
     move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
     inversion HType; subst.
     inversion H5; subst; clear H5.

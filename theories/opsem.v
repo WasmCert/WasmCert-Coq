@@ -308,8 +308,6 @@ Inductive reduce : store_record -> list value -> list administrative_instruction
       reduce s v0s [::Local n i vs es] j s' v0s [::Local n i vs' es'].
 *)
 
-  Print stab_index.
-  
 Inductive reduce : host_state -> store_record -> frame -> list administrative_instruction ->
                    host_state -> store_record -> frame -> list administrative_instruction -> Prop :=
   | r_simple :

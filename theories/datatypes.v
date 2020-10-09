@@ -563,7 +563,6 @@ Inductive res_step : Type :=
 Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
-Print AI_trap.
 Arguments FC_func_native [host_function].
 (*Arguments AI_basic {host_function}.
 Arguments AI_trap {host_function}.
