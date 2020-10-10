@@ -865,11 +865,11 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
         if e.(modexp_name) == n then
           match e.(modexp_desc) with
           | MED_func (Mk_funcidx fi) =>
-            Some (s, (Build_frame nil inst), [::AI_invoke fi])
-(*            match List.nth_error s.(s_funcs) fi with
+(*            Some (s, (Build_frame nil inst), [::AI_invoke fi])*)
+            match List.nth_error s.(s_funcs) fi with
             | None => None
-            | Some fc => Some (s, (Build_frame nil inst), [::AI_invoke fc])
-            end*)
+            | Some fc => Some (s, (Build_frame nil inst), [::AI_invoke fi])
+            end
           | _ => None
           end
         else None
