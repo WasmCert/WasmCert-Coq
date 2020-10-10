@@ -2,7 +2,7 @@
 (* (C) M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Import common datatypes operations type_checker.
+From Wasm Require Import common datatypes operations typing.
 From ITree Require Import ITree ITreeFacts.
 
 Import Monads.

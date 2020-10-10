@@ -2032,7 +2032,8 @@ Proof.
   unfold mem_typing in H0. simpl in H0.
   remove_bools_options.
   apply/andP; split.
-  - by lias.
+  - apply N.leb_le. apply N.leb_le in H1. apply N.leb_le in H0.
+    by lias.
   - rewrite H3 in H2. rewrite H2. by apply/eqP.
 Qed.
 
@@ -2153,7 +2154,8 @@ Lemma all2_mem_extension_same: forall t,
 Proof.
   move => t.
   apply reflexive_all2_same. unfold reflexive. move => x. unfold mem_extension.
-  by apply/andP.
+  apply/andP; split => //.
+  by apply N.leb_le; lias.
 Qed.
 
 Lemma all2_glob_extension_same: forall t,
@@ -2398,7 +2400,8 @@ Proof.
     (* it seems that simpl is the culprit? *)
     simpl.
     apply/andP. split.
-    + unfold mem_extension. by lias.
+    + unfold mem_extension. apply/andP; split => //.
+      apply N.leb_le; by lias.
     + rewrite update_list_at_is_set_nth.
       * by eapply IHn; eauto.
       * simpl in H. rewrite length_is_size in H. by lias.
@@ -2438,22 +2441,11 @@ Proof.
   unfold store in HStore.
   destruct ((k + off + N.of_nat tlen <=? mem_length m)%N) eqn:HMemSize => //.
   inversion HStore; clear HStore.
-  by apply/andP; split => //=.
+  apply/andP; split => //=.
+  apply N.leb_le.
+  unfold mem_size, mem_length. simpl.
+  by lias.
 Qed.
-
-(*
-  A stupid lemma which I can't find a quick proof 
-*)
-Lemma le_N_le_coqnat: forall x y,
-    (x<=y)%N -> (x<=y)%coq_nat.
-Proof.
-  move => x. destruct x.
-  - simpl. intros. omega.
-  - induction p => //=; move => y H.
-    unfold N.le in H. unfold N.compare in H. unfold Pos.compare in H.
-    destruct y => //.
-    unfold Pos.compare_cont in H. simpl in H.
-Admitted.
 
 Lemma mem_extension_grow_memory: forall m c mem,
     mem_grow m c = (Some mem) ->
@@ -2465,20 +2457,21 @@ Proof.
   assert (HMemExt: ((dv_length (mem_data m) / page_size) <= ((dv_length (mem_data m) + c) / page_size))%N).
   { apply N.div_le_mono => //. by lias. }
   destruct (mem_max_opt m) eqn:HLimMax => //=.
-  - destruct ((mem_length m + c <=? n)%N) eqn:HLT => //.
+  - destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
     move : HMGrow.
     case: mem => mem_data_ mem_max_opt_ [H1 H2].
     simpl.
     apply/andP.
     split.
-    { unfold mem_size, mem_length.
+    { unfold mem_size, mem_length in *.
       simpl.
       case: mem_data_ H1 => dv_len dv_arr [H3 H4].
       simpl.
       rewrite -H3.
-      unfold mem_length.
-      apply/leP.
-      by apply le_N_le_coqnat. }
+      rewrite N.div_mul => //.
+      fold (mem_length m) (mem_size m).
+      apply N.leb_le. by lias.
+      }
     {
       apply/eqP; done.
     }
@@ -2486,8 +2479,9 @@ Proof.
     unfold mem_size, mem_length.
     simpl.
     apply/andP; split => //.
-    apply/leP.
-    by apply le_N_le_coqnat.
+    apply N.leb_le.
+    rewrite N.div_mul => //.
+    by lias.
 Qed.
     
 Lemma store_global_extension_store_typed: forall s s',
@@ -2519,18 +2513,7 @@ Proof.
       destruct HIN.
       rewrite -> List.Forall_forall in H1.
       unfold tab_agree.
-      rewrite -> List.Forall_forall.
-      split => //=.
-      move => x' HIN'.
-      apply H1 in HIN'.
-      unfold tabcl_agree in HIN'.
-      unfold tabcl_agree.
-      destruct x' => //=.
-      simpl in HIN'. destruct (List.nth_error s_funcs0 n) => //=.
-      unfold cl_type_check_single in HIN'.
-      destruct HIN'.
-      unfold cl_type_check_single.
-      exists x0. by eapply store_extension_cl_typing; eauto.
+      by rewrite -> List.Forall_forall.
     + unfold store_extension in Hext. simpl in Hext.
       remove_bools_options.
       rewrite List.Forall_forall.
@@ -2571,18 +2554,7 @@ Proof.
     destruct HIN.
     rewrite -> List.Forall_forall in H1.
     unfold tab_agree.
-    rewrite -> List.Forall_forall.
-    split => //=.
-    move => x' HIN'.
-    apply H1 in HIN'.
-    unfold tabcl_agree in HIN'.
-    unfold tabcl_agree.
-    destruct x' => //=.
-    simpl in HIN'. destruct (List.nth_error s_funcs0 n) => //=.
-    unfold cl_type_check_single in HIN'.
-    destruct HIN'.
-    unfold cl_type_check_single.
-    exists x0. by eapply store_extension_cl_typing; eauto.
+    by rewrite -> List.Forall_forall.
 Qed.
 
 Lemma nth_error_map: forall {X Y:Type} l n (f: X -> Y) fv,
@@ -2704,10 +2676,12 @@ Proof.
   unfold mem_agree in H.
   destruct (mem_max_opt m) eqn:HLimMax => //=.
   - destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
-    admit.
-  - admit.
-Admitted.
-
+    inversion HGrow. unfold mem_size, mem_length in *. simpl in *.
+    rewrite N.div_mul => //.
+    by apply N.leb_le in H1.    
+  - by inversion HGrow.
+Qed.
+    
 Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
     reduce hs s f es hs' s' f' es' ->
     f.(f_inst) = f'.(f_inst).

@@ -341,6 +341,8 @@ Proof.
   assert (HIN2: List.In (Some a) (table_data t0)).
   { by apply List.nth_error_In in Hoption. }
   apply HIN1 in HIN2.
+  move/ltP in HIN2.
+  apply List.nth_error_Some in HIN2.
   destruct (List.nth_error s_funcs a) eqn:HNth => //.
   by eexists.
 Qed.

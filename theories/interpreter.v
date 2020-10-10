@@ -6,7 +6,7 @@ From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From ExtLib Require Import Structures.Monad.
 From ITree Require Import ITree ITreeFacts.
-From Wasm Require Export operations host type_checker.
+From Wasm Require Export operations host.
 
 Import Monads.
 Import MonadNotation.

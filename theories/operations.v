@@ -55,11 +55,11 @@ Definition mem_size (m : memory) : N :=
   N.div (mem_length m) page_size.
 
 Definition mem_grow (m : memory) (n : N) : option memory:=
-  let new_length := N.add (mem_length m) n in
-  let new_mem_data := {| dv_array := m.(mem_data).(dv_array); dv_length := new_length |} in
+  let new_size := N.add (mem_size m) n in
+  let new_mem_data := {| dv_array := m.(mem_data).(dv_array); dv_length := N.mul new_size page_size |} in
   match m.(mem_max_opt) with
   | Some maxlim =>
-    if N.leb new_length maxlim then
+    if N.leb new_size maxlim then
       Some {|
         mem_data := new_mem_data;
         mem_max_opt := m.(mem_max_opt);
@@ -462,7 +462,7 @@ Definition tab_extension (t1 t2 : tableinst) :=
   (t1.(table_max_opt) == t2.(table_max_opt)).
 
 Definition mem_extension (m1 m2 : memory) :=
-  (mem_size m1 <= mem_size m2) && (mem_max_opt m1 == mem_max_opt m2).
+  (N.leb (mem_size m1) (mem_size m2)) && (mem_max_opt m1 == mem_max_opt m2).
 
 Definition store_extension (s s' : store_record) : bool :=
   (s_funcs s == s_funcs s') &&
@@ -639,6 +639,12 @@ Fixpoint lfill_exact (k : nat) (lh : lholed) (es : seq administrative_instructio
 
 Definition lfilled_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
   if lfill_exact k lh es is Some es'' then es' == es'' else false.
+
+Definition result_types_agree (ts : result_type) r :=
+  match r with
+  | result_values vs => all2 types_agree ts vs
+  | result_trap => true
+  end.
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : value_type) : bool :=
   match tp with

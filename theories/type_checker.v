@@ -47,14 +47,6 @@ Definition eqchecker_typeP : Equality.axiom checker_type_eqb :=
 Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
-
-Definition result_types_agree (ts : result_type) r :=
-  match r with
-  | result_values vs => all2 types_agree ts vs
-  | result_trap => true
-  end.
-
-
 Definition to_ct_list (ts : seq value_type) : seq checker_type_aux :=
   map CTA_some ts.
 
@@ -439,54 +431,5 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
   | Func_host tf h => true
   end.
 *)
-(*
-  e_typing is the extension of typing to administrative instructions. See appendix 5 for
-    some of them.
-*)
-
-Definition cl_type_check_single (s:store_record) (f:function_closure):=
-  exists tf, cl_typing s f tf.
-
-Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
-  match tcl_index with
-  | None => True
-  | Some n => let tcl := List.nth_error (s_funcs s) n in
-    match tcl with
-    | None => False
-    | Some cl => cl_type_check_single s cl
-    end
-  end.
-
-Definition tabsize_agree (t: tableinst) : Prop :=
-  match table_max_opt t with
-  | None => True
-  | Some n => tab_size t <= n
-  end.
-
-Definition tab_agree (s: store_record) (t: tableinst): Prop :=
-  List.Forall (tabcl_agree s) (t.(table_data)) /\
-  tabsize_agree t.
-
-Definition mem_agree (m : memory) : Prop :=
-  match (mem_max_opt m) with
-  | None => True
-  | Some n => mem_size m <= n
-  end.
-
-Definition store_typing (s : store_record) : Prop :=
-  match s with
-  | Build_store_record fs tclss mss gs =>
-    List.Forall (cl_type_check_single s) fs /\
-    List.Forall (tab_agree s) tclss /\
-    List.Forall mem_agree mss
-  end.
-
-Inductive config_typing : store_record -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
-| mk_config_typing :
-  forall s f es ts,
-  store_typing s ->
-  s_typing s None f es ts ->
-  config_typing s f es ts.
-
 End Host.
 
