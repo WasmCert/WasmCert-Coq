@@ -423,6 +423,9 @@ Record tableinst : Type := {
   table_max_opt: option N; (* TODO: should be u32 *)
 }.
 
+(** std-doc:
+https://webassembly.github.io/spec/core/syntax/types.html#global-types
+*)
 Record global : Type := {
   g_mut : mutability;
   g_val : value;
