@@ -205,19 +205,6 @@ Record t_context : Type := {
   tc_return : option (list value_type);
 }.
 
-(* FIXME: What it is? Should we remove it?
-
-Record s_context := {
-  sc_inst : list t_context;
-  sc_funcs : list function_type;
-  sc_tab : list nat;
-  sc_memory : list nat;
-  sc_globs : list global_type;
-}.
-
-*)
-
-
 (** std-doc:
 WebAssembly computations manipulate values of the four basic value types:
 integers and floating-point data of 32 or 64 bit width each, respectively.
@@ -615,10 +602,4 @@ Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
 Arguments FC_func_native [host_function].
-(*Arguments AI_basic {host_function}.
-Arguments AI_trap {host_function}.
-
-Arguments RS_crash [host_function].
-Arguments RS_break [host_function].
-Arguments RS_return [host_function].*)
 
