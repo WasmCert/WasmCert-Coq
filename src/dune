@@ -13,9 +13,11 @@
 	(deps "../theories/extraction.vo" "extract.patch")
 	(action
 		(progn
-			(run cp "../theories/extract.ml" "../theories/extract.mli" "./")
+			(run cp "../extract.ml" "../extract.mli" "./")
+			(run chmod "u+w" "./extract.ml")
 			; What follows is a dirty trick to try to fix Coq’s output and make it accepted by OCaml…
 			(run patch extract.ml extract.patch)
+			(run chmod "a-w" "./extract.ml")
 		)))
 
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50))))

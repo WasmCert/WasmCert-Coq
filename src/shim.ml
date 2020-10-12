@@ -23,7 +23,7 @@ module type InterpreterType = sig
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
-    type administrative_instruction = host_function Extract.administrative_instruction
+    type administrative_instruction = Extract.administrative_instruction
 
     val run_v :
       int -> Extract.instance -> config_tuple ->
@@ -102,7 +102,7 @@ module Interpreter =
     type store_record = host_function Extract.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
-    type administrative_instruction = host_function Extract.administrative_instruction
+    type administrative_instruction = Extract.administrative_instruction
 
     let run_v d i cfg = Interpreter.run_v (Convert.to_nat d) i cfg
 
@@ -132,10 +132,10 @@ module Interpreter =
       Utils.implode (PP.pp_store (Convert.to_nat i) st)
 
     let pp_res_tuple_except_store r =
-      Utils.implode (PP.pp_res_tuple_except_store show_host_function_char_list r)
+      Utils.implode (PP.pp_res_tuple_except_store r)
 
     let pp_config_tuple_except_store cfg =
-      Utils.implode (PP.pp_config_tuple_except_store show_host_function_char_list cfg)
+      Utils.implode (PP.pp_config_tuple_except_store cfg)
 
   end
 

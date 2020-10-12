@@ -5,7 +5,7 @@
    (** val executable_host_instance : executable_host **)
  
 -  let executable_host_instance =
--    { Coq__9.host_monad = (Obj.magic host_monad); host_apply =
+-    { Coq__8.host_monad = (Obj.magic host_monad); host_apply =
 +  let executable_host_instance : executable_host =
 +    { Coq__3.host_monad = (Obj.magic host_monad); Coq__3.host_apply =
        (Obj.magic H.host_apply) }
