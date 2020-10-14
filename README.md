@@ -67,4 +67,32 @@ For instance, to interpret the function `hello` defined in [tests/const.wasm](te
 ```bash
 ./wasm_interpreter tests/const.wasm hello 10
 ```
+The interpreter can display intermediate states of the operational semantics:
+```bash
+./wasm_interpreter tests/const.wasm hello 10 --vi
+```
+for example
+```
+step 1:
+normal
+  local 1
+  with values (empty)
+    block i32
+        i32.const 42
+    end
+  end local
+with values (empty)
+and store unchanged
 
+step 2:
+normal
+  local 1
+  with values (empty)
+    label 1
+    label_cont
+      i32.const 42
+    end label
+  end local
+with values (empty)
+and store unchanged
+```
