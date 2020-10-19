@@ -1,7 +1,7 @@
 (** Basic operations over Wasm datatypes **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import common.
+From Wasm Require Import common memory_list.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
 From Wasm Require Export datatypes_properties list_extra.
@@ -17,27 +17,33 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-(*Let lholed := lholed host_function.*)
 
+(** read `len` bytes from `m` starting at `start_idx` *)
+Definition read_bytes (m : memory) (start_idx : N) (len : nat) : option bytes :=
+  those
+    (List.map
+      (fun off =>
+        let idx := BinNatDef.N.add start_idx (N.of_nat off) in
+        mem_lookup idx m.(mem_data))
+    (iota 0 len)).
 
-Definition read_bytes (m : memory) (n : N) (l : nat) : bytes :=
-  List.map
-    (fun k => Byte_array.get m.(mem_data).(dv_array) (BinNatDef.N.add n (N.of_nat k)))
-    (iota 0 l).
-
-Definition write_bytes (m : memory) (n : N) (bs : bytes) : memory := {|
-  mem_data := {|
-    dv_length := m.(mem_data).(dv_length);
-    dv_array :=
-      list_extra.fold_lefti
-        (fun i arr b =>
-          Byte_array.set arr (BinNatDef.N.add n (N.of_nat i)) b)
-        bs
-        m.(mem_data).(dv_array);
-  |};
-  mem_max_opt := m.(mem_max_opt);
-|}.
+(** write bytes `bs` to `m` starting at `start_idx` *)
+Definition write_bytes (m : memory) (start_idx : N) (bs : bytes) : option memory :=
+  let x :=
+    list_extra.fold_lefti
+      (fun off dat_o b =>
+        match dat_o with
+        | None => None
+        | Some dat =>
+          let idx := BinNatDef.N.add start_idx (N.of_nat off) in
+          mem_update idx b dat
+        end)
+      bs
+      (Some m.(mem_data)) in
+  match x with
+  | Some dat => Some {| mem_data := dat; mem_max_opt := m.(mem_max_opt); |}
+  | None => None
+  end.
 
 Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
   s_funcs := s.(s_funcs);
@@ -49,17 +55,20 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
 Definition page_size : N := (64 % N) * (1024 % N).
 
 Definition mem_length (m : memory) : N :=
-  m.(mem_data).(dv_length).
+  mem_length m.(mem_data).
 
 Definition mem_size (m : memory) : N :=
   N.div (mem_length m) page_size.
 
-Definition mem_grow (m : memory) (n : N) : option memory:=
-  let new_size := N.add (mem_size m) n in
-  let new_mem_data := {| dv_array := m.(mem_data).(dv_array); dv_length := N.mul new_size page_size |} in
+(** Grow the memory a given number of bytes.
+  * @param len_delta: the number of bytes to grow the memory by
+  *)
+Definition mem_grow (m : memory) (len_delta : N) : option memory :=
+  let new_length := N.add (mem_length m) len_delta in
+  let new_mem_data := mem_grow len_delta m.(mem_data) in
   match m.(mem_max_opt) with
   | Some maxlim =>
-    if N.leb new_size maxlim then
+    if N.leb new_length maxlim then
       Some {|
         mem_data := new_mem_data;
         mem_max_opt := m.(mem_max_opt);
@@ -76,7 +85,7 @@ Definition mem_grow (m : memory) (n : N) : option memory:=
 
 Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
   if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
-  then Some (read_bytes m (N.add n off) l)
+  then read_bytes m (N.add n off) l
   else None.
 
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
@@ -92,7 +101,7 @@ Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp :
 
 Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
-  then Some (write_bytes m (n + off) (bytes_takefill #00 l bs))
+  then write_bytes m (n + off) (bytes_takefill #00 l bs)
   else None.
 
 Definition store_packed := store.
@@ -762,7 +771,4 @@ Definition n_zeros (ts : seq value_type) : seq value :=
 End Host.
 
 Arguments cl_type {host_function}.
-(*Arguments to_e_list [host_function].
-Arguments v_to_e_list [host_function].
-Arguments result_to_stack [host_function].*)
 

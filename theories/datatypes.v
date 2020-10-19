@@ -8,7 +8,7 @@
 
 Require Import BinNat.
 From Wasm Require array.
-From Wasm Require Import common.
+From Wasm Require Import common memory memory_list.
 From Wasm Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require common.Memdata.
@@ -73,7 +73,7 @@ Record data_vec : Type := {
 }.
 
 Record memory : Type := {
-  mem_data : data_vec;
+  mem_data : memory_list;
   mem_max_opt: option N; (* TODO: should be u32 *)
 }.
 

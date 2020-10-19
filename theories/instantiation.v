@@ -7,7 +7,7 @@ From ITree Require Import ITree.
 From ITree Require ITreeFacts.
 From Wasm Require Import list_extra datatypes datatypes_properties
                          interpreter binary_format_parser operations
-                         typing opsem type_checker.
+                         typing opsem type_checker memory memory_list.
 Require Import BinNat.
 
 (* TODO: Documentation *)
@@ -113,13 +113,11 @@ Definition alloc_tab (s : store_record) (tty : table_type) : store_record * tabl
 Definition alloc_tabs (s : store_record) (ts : list table_type) : store_record * list tableidx :=
   alloc_Xs alloc_tab s ts.
 
-Definition mem_mk (lim : limits) : memory := {|
-  mem_data := {|
-    dv_length := BinNatDef.N.mul page_size lim.(lim_min);
-    dv_array := Byte_array.make Integers.Byte.zero;
-  |};
-  mem_max_opt := lim.(lim_max);
-|}.
+Definition mem_mk (lim : limits) : memory :=
+  let len := BinNatDef.N.mul page_size lim.(lim_min) in
+  {| mem_data := mem_make Integers.Byte.zero len;
+    mem_max_opt := lim.(lim_max);
+  |}.
 
 Definition add_mem (s : store_record) (m_m : memory) : store_record := {|
   s_funcs := s.(s_funcs);
@@ -283,10 +281,8 @@ Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : modu
 Definition init_tabs (s : store_record) (inst : instance) (e_inds : list nat) (es : list module_element) : store_record :=
   List.fold_left (fun s' '(e_ind, e) => init_tab s' inst e_ind e) (List.combine e_inds es) s.
 
-Definition dummy_data_vec := {|
-  dv_length := 0;
-  dv_array := Byte_array.make Integers.Byte.zero;
-|}.
+Definition dummy_data_vec :=
+  mem_make Integers.Byte.zero (N.zero).
 
 Definition dummy_mem := {|
   mem_data := dummy_data_vec;
@@ -296,10 +292,11 @@ Definition dummy_mem := {|
 Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module_data) : store_record :=
   let m_ind := List.nth (match d.(moddata_data) with Mk_memidx i => i end) inst.(inst_memory) 0 in
   let mem := List.nth m_ind s.(s_mems) dummy_mem in
-  let mem' := operations.write_bytes mem d_ind (List.map compcert_byte_of_byte d.(moddata_init)) in
+  let mem'_opt := operations.write_bytes mem d_ind (List.map bytes.compcert_byte_of_byte d.(moddata_init)) in
+  let mems' := match mem'_opt with None => s.(s_mems) | Some mem' => insert_at mem' m_ind s.(s_mems) end in
   {| s_funcs := s.(s_funcs);
      s_tables := s.(s_tables);
-     s_mems := insert_at mem' m_ind s.(s_mems);
+     s_mems := mems';
      s_globals := s.(s_globals); |}.
 
 Definition init_mems (s : store_record) (inst : instance) (d_inds : list N) (ds : list module_data) : store_record :=
@@ -543,7 +540,7 @@ Definition check_bounds_elem (inst : instance) (s : store_record) (m : module) (
       m.(mod_elem).
 
 Definition mem_length (m : memory) : N :=
-  m.(mem_data).(dv_length).
+  mem_length m.(mem_data).
 
 Definition check_bounds_data (inst : instance) (s : store_record) (m : module) (d_offs : seq i32) : bool :=
   seq.all2
