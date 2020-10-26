@@ -2429,7 +2429,7 @@ Proof.
   by lias.
 Qed.
 
-(* TODO: write some comments for this rather involved proof to mem_extension_store *)
+(* Start of proof to write_bytes preserving memory type *)
 
 Lemma list_fold_left_rev_prop: forall {X Y: Type} P f (l: seq X) (a1 a2: Y),
     List.fold_left f l a1 = a2 ->
@@ -2477,7 +2477,7 @@ Definition mem_type_proj2_preserve (acc1 acc2: nat * option memory_list.memory_l
       om1 = Some m1 /\
       om2 = Some m2 /\
       memory_list.mem_length m1 = memory_list.mem_length m2).
-    
+
 Lemma mem_type_proj2_preserve_trans: forall a1 a2 a3,
     proj2_some a1 ->
     proj2_some a2 ->
@@ -2496,7 +2496,7 @@ Proof.
   inversion H21. inversion H22. inversion H31. inversion H32. subst.
   by lias.
 Qed.
-  
+
 Lemma write_bytes_preserve_type: forall m pos str m',
   write_bytes m pos str = Some m' ->
   (mem_size m = mem_size m') /\ (mem_max_opt m = mem_max_opt m').
@@ -2519,6 +2519,8 @@ Proof.
     subst.
     repeat eexists.
     injection HF. move => H1 H2. subst. clear HF.
+    (* TODO: Use mem_ax_length_constant_update to prove this after porting in the 
+         parameterized memory branch *)
     unfold memory_list.mem_update in H1.
     destruct (pos + N.of_nat n1 <? N.of_nat (length (memory_list.ml_data m3)))%N eqn:HMemSize => //=.
     injection H1. move => H2. clear H1. subst.
@@ -2581,6 +2583,8 @@ Proof.
     simpl.
     apply/andP.
     split => //.
+    (* TODO: Add a lemma for size of mem_grow, and use it to prove this after porting 
+         in the parameterized memory branch *)
     { unfold mem_size, mem_length, memory_list.mem_length in *.
       simpl.
       repeat rewrite length_is_size.
