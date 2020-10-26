@@ -6,7 +6,7 @@ Our definitions and proofs draw from those given in the [Isabelle mechanisation 
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
 
-This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. Our initial work used the definitions published in PLDI'17 and we are now adapting the definitions to Wasm 1.0., the specification as ratified by W35. 
+This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. 
 
 # TODOs
 
@@ -16,6 +16,8 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [x] Update the function frame and related definitions to match the 1.0 standard.
 - [x] Finish type soundness result.
 - [ ] Validate WasmRef (conformance tests).
+- [ ] Verify executable type checker correctness.
+- [ ] Verify instantiation correctness properties.
 - [ ] Link WasmCert to CompCert.
 - [ ] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris).
 
