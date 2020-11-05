@@ -274,7 +274,7 @@ Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : modu
   let e_pay := List.map (fun i => List.nth_error inst.(inst_funcs) (match i with Mk_funcidx j => j end)) e.(modelem_init) in
   let tab'_e := List.app (List.firstn e_ind tab_e) (List.app e_pay (List.skipn (e_ind + length e_pay) tab_e)) in
   {| s_funcs := s.(s_funcs);
-     s_tables := insert_at {| table_data := tab'_e; table_max_opt := maxo |} e_ind s.(s_tables);
+     s_tables := insert_at {| table_data := tab'_e; table_max_opt := maxo |} t_ind s.(s_tables);
      s_mems := s.(s_mems);
      s_globals := s.(s_globals) |}.
 
@@ -317,7 +317,7 @@ Definition module_func_typing (c : t_context) (m : module_func) (tf : function_t
     tc_label := tm :: c.(tc_label);
     tc_return := Some tm;
   |} in
-  typing.be_typing c' b_es tf.
+  typing.be_typing c' b_es (Tf [] tm).
 
 Definition limit_typing (lim : limits) (k : N) : bool :=
   let '{| lim_min := min; lim_max := maxo |} := lim in
@@ -576,8 +576,8 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     instantiate_globals inst hs' s' m g_inits /\
     instantiate_elem inst hs' s' m e_offs /\
     instantiate_data inst hs' s' m d_offs /\
-    check_bounds_elem inst s m e_offs /\
-    check_bounds_data inst s m e_offs /\
+    check_bounds_elem inst s' m e_offs /\
+    check_bounds_data inst s' m e_offs /\
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
     (s_end : store_record_eqType)
@@ -664,7 +664,7 @@ Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
       tc_label := tm :: c.(tc_label);
       tc_return := Some tm;
     |} in
-    type_checker.b_e_type_checker c' b_es (Tf tn tm)
+    type_checker.b_e_type_checker c' b_es (Tf [] tm)
   end.
 
 Definition module_tab_type_checker := module_tab_typing.
@@ -823,8 +823,8 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
       let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
       e_offs <- bind_list (fun e => interp_get_i32 s' inst e.(modelem_offset)) m.(mod_elem) ;;
       d_offs <- bind_list (fun d => interp_get_i32 s' inst d.(moddata_offset)) m.(mod_data) ;;
-      if check_bounds_elem inst s m e_offs &&
-         check_bounds_data inst s m d_offs then
+      if check_bounds_elem inst s' m e_offs &&
+         check_bounds_data inst s' m d_offs then
         let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
         let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
         let s_end := init_mems s' inst (List.map N_of_int d_offs) m.(mod_data) in
