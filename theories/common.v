@@ -584,6 +584,14 @@ Proof.
   - move=> a l' p f E /=. by rewrite E.
 Qed.
 
+Lemma to_list_size A B (l : seq A) (F : Forall (fun _ : A => B) l) :
+  size (to_list F) = size l.
+Proof.
+  elim F.
+  - done.
+  - move=> a l' b F' E /=. by rewrite E.
+Qed.
+
 Lemma Forall_forall_eq_dec : forall A l1 l2,
   Forall (fun x : A => forall y, {x = y} + {x <> y}) l1 ->
   {l1 = l2} + {l1 <> l2}.

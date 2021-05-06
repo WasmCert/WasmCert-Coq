@@ -14,8 +14,8 @@ set -e
 	done ) &
 
 # Travis has some limits in the time a build can run.
-# The issue is that our dependencies take quite a long time to compile… and Travis reach the time limit because these dependencies are using all the time.
-# However, if the dependencies are already compiled and cashed, Travis provides plenty of time to compile the project.
+# The issue is that our dependencies take quite a long time to compile… and Travis reaches the time limit because these dependencies are using all the available time.
+# However, if the dependencies are already compiled and cached, Travis provides plenty of time to compile the project.
 # This piece of code branches over the environment variable $TRAVISONLYBUILDDEPS between the normal build and only the build of the dependencies.
 
 if [ -z ${TRAVISONLYBUILDDEPS+x} ]; then

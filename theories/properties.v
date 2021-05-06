@@ -693,7 +693,7 @@ Qed.
 (** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
 Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
   let Forall_to_measure l (F : TProp.Forall _ l) :=
-    TProp.sum F + size (TProp.to_list F) in
+    1 + TProp.sum F + size l in
   Forall_to_measure _
     (seq_administrative_instruction_rect'
        (fun _ => 0)
@@ -703,54 +703,19 @@ Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction
        (fun _ _ LI' m => 1 + Forall_to_measure _ m)
        LI).
 
-(* Failed attempts.
-Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
-  TProp.sum
-    (seq_administrative_instruction_rect'
-       (fun _ => 0)
-       0
-       (fun _ => 0)
-       (fun _ _ _ m1 m2 => 1 + TProp.sum m1 + TProp.sum m2)
-       (fun _ _ _ m => 1 + TProp.sum m + size (TProp.to_list m))
-       LI).
+Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
+  lfilled_pickable_rec_gen_measure LI <= lfilled_pickable_rec_gen_measure (I :: LI).
+Proof.
+Admitted.
 
-(** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
-Fixpoint lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
-  let measure_administrative_instruction :=
-    administrative_instruction_rec in
-  List.fold_left (fun m I => m + measure_administrative_instruction I) LI 0.
+Lemma lfilled_pickable_rec_gen_measure_concat : forall LI1 LI2,
+  lfilled_pickable_rec_gen_measure (LI1 ++ LI2)
+  = 1 + lfilled_pickable_rec_gen_measure LI1
+      + lfilled_pickable_rec_gen_measure LI2.
+Proof. (* FIXME: Do we really care about this property? *)
+  move=> LI1 LI2. rewrite /lfilled_pickable_rec_gen_measure.
+Admitted.
 
-  match LI with
-  | [::] => 0
-  | i :: LI' =>
-    1 + lfilled_pickable_rec_gen_measure LI'
-      + match i with
-        | AI_label _ _ LI'' => lfilled_pickable_rec_gen_measure LI''
-        | _ => 0
-        end
-  end.
-
-Program Fixpoint lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
-  match LI with
-  | [::] => 0
-  | AI_label _ _ LI1 :: LI2 =>
-    1 + lfilled_pickable_rec_gen_measure LI1 + lfilled_pickable_rec_gen_measure LI2
-  | _ :: LI' => 1 + lfilled_pickable_rec_gen_measure LI'
-  end.
-
-Program Fixpoint lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
-  match LI with
-  | [::] => 0
-  | i :: LI' =>
-    1 + lfilled_pickable_rec_gen_measure_administrative_instruction i
-      + lfilled_pickable_rec_gen_measure LI'
-  end
-with lfilled_pickable_rec_gen_measure_administrative_instruction (i : administrative_instruction) :=
-  match i with
-  | AI_label _ _ LI => 1 + lfilled_pickable_rec_gen_measure LI
-  | _ => 0
-  end.
- *)
 
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
@@ -760,8 +725,9 @@ Proof.
   move=> fes D0 es'.
   apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')).
   { move=> n lh. by split; apply lfilled_Ind_Equivalent. }
-  move: 0 => k. have [len E]: { len | size es' = len }; first by eexists.
-  move: es' E k. strong induction len. rename X into IH. move=> es' E k.
+  move: 0 => k.
+  have [m E]: { m | lfilled_pickable_rec_gen_measure es' = m }; first by eexists.
+  move: es' E k. strong induction m. rename X into IH. move=> es' E k.
   have Dcl: forall vs, decidable (const_list vs).
   { move=> vs. by apply: is_true_decidable. }
   (** First, we check whether we can set [n = 0]. **)
@@ -809,9 +775,18 @@ Proof.
   - move=> [[vs es''] [E1 [C Ex]]].
     destruct es'' as [| [| | | n es1 LI |] es2];
       try solve [ exfalso; move: Ex => [? [? [? [? E']]]]; inversion E' ].
-    clear Ex.
-    (* apply: IH. *)
-    admit. (* TODO: the decreasing argument is not [size es'], but the size plus the sum of all the inner [LI]. *)
+    clear Ex. rewrite E1.
+    have I_LI: (lfilled_pickable_rec_gen_measure LI < m)%coq_nat.
+    {
+      move: E. rewrite E1 {1} /lfilled_pickable_rec_gen_measure.
+      (* rewrite E1 in E. unfold lfilled_pickable_rec_gen_measure in E; simpl in E. *)
+      admit. (* TODO *)
+    }
+    move: (IH _ I_LI LI (erefl _) k) => [[[n' lh] LF]|NP].
+    - eapply LfilledRec with (vs := vs) in LF => //. admit. (* TODO *)
+    - right. move=> [n' [lh FI]]. apply: NP. inversion FI; subst.
+      + admit. (* TODO *)
+      + admit. (* TODO: inverts H to get LI0 = LI, then do 2 eexists. apply H4. *)
   - move=> nE'. right. move=> [n [lh I]]. inversion I; subst.
     + apply: nE. do 2 eexists. rewrite_by (k + 0 = k). repeat split; try eassumption.
       by apply: LfilledBase.
