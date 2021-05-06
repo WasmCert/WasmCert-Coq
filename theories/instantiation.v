@@ -9,8 +9,6 @@ From Wasm Require Import list_extra datatypes datatypes_properties
                          interpreter binary_format_parser operations
                          typing opsem type_checker memory memory_list.
 From Coq Require Import BinNat.
-From Coq Require List.
-Import List.ListNotations.
 
 (* TODO: Documentation *)
 
@@ -319,7 +317,7 @@ Definition module_func_typing (c : t_context) (m : module_func) (tf : function_t
     tc_label := tm :: c.(tc_label);
     tc_return := Some tm;
   |} in
-  typing.be_typing c' b_es (Tf [] tm)%list.
+  typing.be_typing c' b_es (Tf [::] tm).
 
 Definition limit_typing (lim : limits) (k : N) : bool :=
   let '{| lim_min := min; lim_max := maxo |} := lim in
@@ -666,7 +664,7 @@ Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
       tc_label := tm :: c.(tc_label);
       tc_return := Some tm;
     |} in
-    type_checker.b_e_type_checker c' b_es (Tf [] tm)%list
+    type_checker.b_e_type_checker c' b_es (Tf [::] tm)
   end.
 
 Definition module_tab_type_checker := module_tab_typing.

@@ -580,7 +580,7 @@ Proof.
   move=> es. match goal with |- is_true (_ <= TProp.max ?F) => set Fm := F end.
   rewrite -(Max.max_0_l (TProp.max Fm)). move: 0. induction es => n /=.
   - by lias.
-  - rewrite Max.max_assoc. by apply: IHes.
+  - rewrite maxn_nat_max Max.max_assoc. by apply: IHes.
 Qed.
 
 Local Lemma run_step_fuel_enough_aux : forall d hs s f es hs' s' f' r',

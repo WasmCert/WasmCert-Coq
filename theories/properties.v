@@ -1,7 +1,7 @@
 (** Miscellaneous properties about Wasm operations **)
 (* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Export operations typing opsem common.
+From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction.
 From Coq Require Import Bool Program.Equality.
@@ -689,6 +689,68 @@ Proof.
     by apply IHl1.
 Qed.
 
+
+(** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
+Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
+  let Forall_to_measure l (F : TProp.Forall _ l) :=
+    TProp.sum F + size (TProp.to_list F) in
+  Forall_to_measure _
+    (seq_administrative_instruction_rect'
+       (fun _ => 0)
+       0
+       (fun _ => 0)
+       (fun _ LI1 LI2 m1 m2 => 1 + Forall_to_measure _ m1 + Forall_to_measure _ m2)
+       (fun _ _ LI' m => 1 + Forall_to_measure _ m)
+       LI).
+
+(* Failed attempts.
+Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
+  TProp.sum
+    (seq_administrative_instruction_rect'
+       (fun _ => 0)
+       0
+       (fun _ => 0)
+       (fun _ _ _ m1 m2 => 1 + TProp.sum m1 + TProp.sum m2)
+       (fun _ _ _ m => 1 + TProp.sum m + size (TProp.to_list m))
+       LI).
+
+(** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
+Fixpoint lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
+  let measure_administrative_instruction :=
+    administrative_instruction_rec in
+  List.fold_left (fun m I => m + measure_administrative_instruction I) LI 0.
+
+  match LI with
+  | [::] => 0
+  | i :: LI' =>
+    1 + lfilled_pickable_rec_gen_measure LI'
+      + match i with
+        | AI_label _ _ LI'' => lfilled_pickable_rec_gen_measure LI''
+        | _ => 0
+        end
+  end.
+
+Program Fixpoint lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
+  match LI with
+  | [::] => 0
+  | AI_label _ _ LI1 :: LI2 =>
+    1 + lfilled_pickable_rec_gen_measure LI1 + lfilled_pickable_rec_gen_measure LI2
+  | _ :: LI' => 1 + lfilled_pickable_rec_gen_measure LI'
+  end.
+
+Program Fixpoint lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
+  match LI with
+  | [::] => 0
+  | i :: LI' =>
+    1 + lfilled_pickable_rec_gen_measure_administrative_instruction i
+      + lfilled_pickable_rec_gen_measure LI'
+  end
+with lfilled_pickable_rec_gen_measure_administrative_instruction (i : administrative_instruction) :=
+  match i with
+  | AI_label _ _ LI => 1 + lfilled_pickable_rec_gen_measure LI
+  | _ => 0
+  end.
+ *)
 
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
