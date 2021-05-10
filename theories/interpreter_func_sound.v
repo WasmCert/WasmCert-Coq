@@ -610,7 +610,7 @@ Proof.
         by destruct r'' as [|[|]| |] => //; pattern_match.
       * move: E. rewrite /interpreter_func.run_step_fuel HSplitVals.
         rewrite List.map_app List.fold_left_app => /=.
-        move=> E. have: (exists v, n = Nat.max (run_one_step_fuel e) v).
+        move=> E. have: exists v, n = Nat.max (run_one_step_fuel e) v.
         {
           move: E. clear. move: (List.fold_left _ _ 0). induction les' => /=.
           - move=> v E. exists v. by lias.

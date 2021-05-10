@@ -63,6 +63,10 @@ Ltac lias_simpl :=
   | H: _ /\ _ |- _ => move: H; intros [? ?]
   | H: _ <-> _ |- _ => move: H; intros [? ?]
   | H: is_true (_ && _) |- _ => move/andP: H; intros [? ?]
+  | H: ~ (is_true (leq ?a ?b)) |- _ =>
+    let L := fresh H in
+    have L: (~ a <= b)%coq_nat;
+    [ move=> ?; apply: H; apply/leP; by lia | clear H ]
   | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
   | H: context C [is_true (@eq_op nat_eqType _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
   | H: context C [is_true (@eq_op Z_eqType _ _)] |- _ => move: H => /Z_eqP H
@@ -465,6 +469,22 @@ Proof.
     move: E => /negP E I. apply: E. by lias.
 Qed.
 
+Lemma maxn_congruence_l : forall a b c,
+  a <= b ->
+  maxn a c <= maxn b c.
+Proof.
+  move=> a b c I. rewrite /maxn. case I': (b < c).
+  - have E: a < c; first by lias. by rewrite E.
+  - case: (a < c) => //. by lias.
+Qed.
+
+Lemma maxn_congruence_r : forall a b c,
+  a <= b ->
+  maxn c a <= maxn c b.
+Proof.
+  move=> a b c I. rewrite (maxnC c a) (maxnC c b). by apply: maxn_congruence_l.
+Qed.
+
 
 (** * An equivalent to [List.Forall], but in [Type] instead of [Prop]. **)
 
@@ -504,6 +524,13 @@ Fixpoint from_list A (l : list A) : Forall (fun _ => A) l :=
   | [::] => Forall_nil _
   | e :: l => Forall_cons e (from_list l)
   end.
+
+Definition Concat A P (l1 l2 : list A) (F1 : Forall P l1) (F2 : Forall P l2) : Forall P (l1 ++ l2).
+Proof.
+  induction l1 => /=.
+  - by apply: F2.
+  - inversion F1; subst. apply: Forall_cons => //. by apply: IHl1.
+Defined.
 
 Lemma Forall_forall : forall A (P : A -> Prop) l,
   Forall P l ->

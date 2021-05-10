@@ -48,7 +48,23 @@ Proof.
   split => //.
   by apply/andP.
 Qed.    
-    
+
+(** This lemma justifies the computation “to the first non-[const_list]”. **)
+Lemma const_list_concat_inv : forall vs1 vs2 e1 e2 es1 es2,
+  const_list vs1 ->
+  const_list vs2 ->
+  ~ is_const e1 ->
+  ~ is_const e2 ->
+  vs1 ++ e1 :: es1 = vs2 ++ e2 :: es2 ->
+  vs1 = vs2 /\ e1 = e2 /\ es1 = es2.
+Proof.
+  induction vs1 => vs2 e1 e2 es1 es2 C1 C2 N1 N2; destruct vs2 => /=; inversion 1; subst;
+    try move: C1 => /= /andP [? ?] //;
+    try move: C2 => /= /andP [? ?] //.
+  - done.
+  - apply IHvs1 in H2 => //. move: H2 => [? [? ?]]. by subst.
+Qed.
+
 Lemma const_list_take: forall vs l,
     const_list vs ->
     const_list (take l vs).
@@ -72,20 +88,16 @@ Proof.
   - move => a l IH vs2. by rewrite IH.
 Qed.
 
-(* TODO: Check with Martin for split_vals *)
 Lemma split_vals_e_v_to_e_duality: forall es vs es',
     split_vals_e es = (vs, es') ->
     es = (v_to_e_list vs) ++ es'.
 Proof.
   move => es vs. move: es. elim: vs => //.
-  - unfold split_vals_e. destruct es => //=.
-    + move => es' H. by inversion H.
-    + move => es'.
-      case a; try by inversion 1; [idtac].
+  - move=> es es'. destruct es => //=.
+    + by inversion 1.
+    + case a; try by inversion 1; [idtac].
       move => b. case b; try by inversion 1.
-      (* ask *)
-      fold split_vals_e. move => v H.
-      by destruct (split_vals_e es).
+      move => v H.  by destruct (split_vals_e es).
   - move => a l H es es' HSplit. unfold split_vals_e in HSplit.
     destruct es => //. destruct a0 => //. destruct b => //.
     fold split_vals_e in HSplit.
@@ -692,30 +704,43 @@ Qed.
 
 (** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
 Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
-  let Forall_to_measure l (F : TProp.Forall _ l) :=
-    1 + TProp.sum F + size l in
-  Forall_to_measure _
+  TProp.max
     (seq_administrative_instruction_rect'
        (fun _ => 0)
        0
        (fun _ => 0)
-       (fun _ LI1 LI2 m1 m2 => 1 + Forall_to_measure _ m1 + Forall_to_measure _ m2)
-       (fun _ _ LI' m => 1 + Forall_to_measure _ m)
+       (fun _ LI1 LI2 m1 m2 => 1 + TProp.max m2)
+       (fun _ _ LI' m => 0)
        LI).
 
 Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
   lfilled_pickable_rec_gen_measure LI <= lfilled_pickable_rec_gen_measure (I :: LI).
 Proof.
-Admitted.
+  move=> I LI. by apply: leq_maxr.
+Qed.
 
-Lemma lfilled_pickable_rec_gen_measure_concat : forall LI1 LI2,
-  lfilled_pickable_rec_gen_measure (LI1 ++ LI2)
-  = 1 + lfilled_pickable_rec_gen_measure LI1
-      + lfilled_pickable_rec_gen_measure LI2.
-Proof. (* FIXME: Do we really care about this property? *)
-  move=> LI1 LI2. rewrite /lfilled_pickable_rec_gen_measure.
-Admitted.
+Lemma lfilled_pickable_rec_gen_measure_concat_l : forall LI1 LI2,
+  lfilled_pickable_rec_gen_measure LI1 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
+Proof.
+  move => LI1 LI2. induction LI1 => /=.
+  - rewrite {1} /lfilled_pickable_rec_gen_measure /=. by lias.
+  - rewrite /lfilled_pickable_rec_gen_measure /=.
+    by apply: maxn_congruence_r.
+Qed.
 
+Lemma lfilled_pickable_rec_gen_measure_concat_r : forall LI1 LI2,
+  lfilled_pickable_rec_gen_measure LI2 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
+Proof.
+  move => LI1 LI2. induction LI1 => /=.
+  - rewrite {1} /lfilled_pickable_rec_gen_measure /=. by lias.
+  - rewrite /lfilled_pickable_rec_gen_measure /=. eapply leq_trans; first by apply: IHLI1.
+    by apply: leq_maxr.
+Qed.
+
+Lemma lfilled_pickable_rec_gen_measure_label_r : forall n es LI LI',
+  lfilled_pickable_rec_gen_measure LI < lfilled_pickable_rec_gen_measure (AI_label n es LI :: LI').
+Proof.
+Admitted.
 
 (** A helper definition for [lfilled_decidable_rec]. **)
 Definition lfilled_pickable_rec_gen : forall fes,
@@ -778,15 +803,16 @@ Proof.
     clear Ex. rewrite E1.
     have I_LI: (lfilled_pickable_rec_gen_measure LI < m)%coq_nat.
     {
-      move: E. rewrite E1 {1} /lfilled_pickable_rec_gen_measure.
-      (* rewrite E1 in E. unfold lfilled_pickable_rec_gen_measure in E; simpl in E. *)
-      admit. (* TODO *)
+      rewrite -E E1. apply/leP. eapply leq_trans.
+      - by eapply lfilled_pickable_rec_gen_measure_label_r.
+      - by apply: lfilled_pickable_rec_gen_measure_concat_r.
     }
     move: (IH _ I_LI LI (erefl _) k) => [[[n' lh] LF]|NP].
     - eapply LfilledRec with (vs := vs) in LF => //. admit. (* TODO *)
     - right. move=> [n' [lh FI]]. apply: NP. inversion FI; subst.
       + admit. (* TODO *)
-      + admit. (* TODO: inverts H to get LI0 = LI, then do 2 eexists. apply H4. *)
+      + apply const_list_concat_inv in H => //. move: H => [? [E ?]]. inversion E; subst.
+        do 2 eexists. admit. (* FIXME: apply H4. *)
   - move=> nE'. right. move=> [n [lh I]]. inversion I; subst.
     + apply: nE. do 2 eexists. rewrite_by (k + 0 = k). repeat split; try eassumption.
       by apply: LfilledBase.

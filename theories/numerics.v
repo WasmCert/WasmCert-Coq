@@ -660,7 +660,7 @@ Lemma clz_wordsize : forall i,
 Proof.
   rewrite/clz. move=> i E.
   apply repr_inv in E.
-  - have: (~~ seq.has (fun b => b == true) (convert_to_bits i)).
+  - have: ~~ seq.has (fun b => b == true) (convert_to_bits i).
     { rewrite has_find. rewrite convert_to_bits_size. by lias. }
     rewrite -all_predC => N.
     have Ec: (convert_to_bits i = convert_to_bits zero).
