@@ -913,7 +913,7 @@ Definition return_reduce (es: seq administrative_instruction) :=
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
 Proof.
   move=> es. apply: pickable_decidable. apply: pickable2_weaken.
-  apply lfilled_pickable_rec_gen => // es' lh n.
+  apply lfilled_pickable_rec_gen => // es' lh lh' n.
   by apply: lfilled_decidable_base.
 Defined.
 
