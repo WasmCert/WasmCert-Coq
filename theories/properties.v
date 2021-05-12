@@ -809,16 +809,20 @@ Proof.
     have D1: forall es' lh lh' n0, decidable (lfilledInd 0 lh (fes' n0 lh') es').
     { move=> ? ? ? ?. by apply: D0. }
     move: (IH _ I_LI fes' D1 LI (erefl _) k) => [[[n' lh] LF]|NP].
-    - eapply LfilledRec with (vs := vs) in LF => //. admit. (* TODO *)
+    - eapply LfilledRec with (vs := vs) in LF => //.
+      left. exists (n'.+1, LH_rec vs n es1 lh es2).
+      move: LF. rewrite /fes'. rewrite_by (k + n' + 1 = k + n'.+1) => /= LF. by apply: LF.
     - right. move=> [n' [lh FI]]. apply: NP. inversion FI; subst.
-      + admit. (* TODO: Can [fes] start with const? *)
+      + exfalso. apply: nE. exists vs0. exists es'0. repeat split => //.
+        * rewrite -H. by rewrite_by (k + 0 = k).
+        * by rewrite_by (k = k + 0).
       + apply const_list_concat_inv in H => //. move: H => [? [E ?]]. inversion E; subst.
         exists k0. eexists. rewrite /fes'. rewrite_by (k + k0 + 1 = k + k0.+1). by apply: H4.
   - move=> nE'. right. move=> [n [lh I]]. inversion I; subst.
     + apply: nE. do 2 eexists. rewrite_by (k + 0 = k). repeat split; try eassumption.
       by apply: LfilledBase.
     + apply: nE'. by repeat eexists.
-Admitted (* TODO *).
+Defined.
 
 Definition lfilled_pickable_rec_gen : forall fes,
   (forall es' lh lh' n0, decidable (lfilled 0 lh (fes n0 lh') es')) ->
