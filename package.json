@@ -70,11 +70,13 @@
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}",
 					"COQLIB": "#{@opam/coq.lib}/coq/",
-					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib"
+					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib",
+					"COQUSERCONTRIB": "#{self.install}/coq/",
+					"DESTDIR": ""
 				},
 				"build": [
-					[ "./autogen.sh" ],
-					[ "./configure", "--libdir=#{self.install}/coq/Flocq" ],
+					[ "autoconf" ],
+					[ "./configure" ],
 					[ "./remake", "--jobs=2" ],
 					[ "./remake", "install" ]
 				]
