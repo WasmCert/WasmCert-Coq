@@ -21,7 +21,7 @@
 	"dependencies": {
 		"ocaml": "4.8.1000",
 		"@opam/coq": "8.13.2",
-		"coq-flocq": "3.2.0",
+		"coq-flocq": "3.4.0",
 		"compcert": "github:Mbodin/CompCert#54c3b49a756ae7c88a2349777623bae37edde66a",
 		"@opam/coq-stdpp": "*",
 		"coq-iris": "*",
@@ -60,8 +60,8 @@
 			}
 		},
 		"coq-flocq": {
-			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
-			"version": "3.2.0",
+			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#c9353b99debd7b8533c2558b8523d3946831f000",
+			"version": "3.4.0",
 			"override": {
 				"dependencies": {
 					"@opam/coq": "*"
