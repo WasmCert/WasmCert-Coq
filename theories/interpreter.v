@@ -11,16 +11,14 @@ From Wasm Require Export operations host.
 Import Monads.
 Import MonadNotation.
 
+Open Scope monad_scope.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 
 Unset Printing Implicit Defensive.
 
 Section Host.
-
-Local Notation "x <- m1 ; m2" :=
-  (bind m1 (fun x => m2))
-  (at level 80, right associativity).
 
 Variable host_function : eqType.
 

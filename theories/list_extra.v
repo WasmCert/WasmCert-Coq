@@ -122,6 +122,8 @@ Import ITree ITreeFacts.
 Import Monads.
 Import MonadNotation.
 
+Open Scope monad_scope.
+
 (** Let us assume a monad. **)
 Variable m : Type -> Type.
 Context {M : Monad m}.

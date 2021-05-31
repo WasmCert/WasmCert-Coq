@@ -64,7 +64,7 @@
 			"version": "3.4.0",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "*"
+					"@opam/coq": "8.13.2"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
@@ -110,7 +110,7 @@
 			"version": "1.5.0",
 			"override": {
 				"dependencies": {
-					"@opam/coq": "*"
+					"@opam/coq": "8.13.2"
 				},
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
