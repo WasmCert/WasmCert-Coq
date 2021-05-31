@@ -1115,17 +1115,14 @@ Proof.
 
       - (** [AI_basic (Call i0)] **)
         explode_and_simplify. pattern_match. auto_frame.
-        by apply: r_call.
 
       - (** [AI_basic (Call_indirect i0)] **)
         explode_and_simplify; pattern_match; auto_frame.
         + by apply: r_call_indirect_success; eauto.
         + by apply: r_call_indirect_failure1; eauto.
-        + by apply: r_call_indirect_failure2.
 
       - (** [AI_basic (Get_local i0)] **)
         explode_and_simplify; pattern_match; auto_frame.
-        by apply: r_get_local.
           
       - (** [AI_basic (Set_local i0)] **)
         explode_and_simplify. pattern_match.
@@ -1139,7 +1136,6 @@ Proof.
 
       - (** [AI_basic (Get_global i0)] **)
         explode_and_simplify. pattern_match. auto_frame. stack_frame.
-        by apply: r_get_global.
 
       - (** [AI_basic (Set_global i0)] **)
         explode_and_simplify. pattern_match. by auto_frame.
@@ -1210,7 +1206,6 @@ Proof.
     }
     { (** [Label] **)
       explode_and_simplify; try (pattern_match; auto_frame).
-      + apply: r_simple. by apply: rs_label_trap.
       + destruct run_step_with_fuel as [[[hs'' s''] f''] r] eqn: EH.
         destruct r as [|nd es''| |es''] => //.
         * (** [RS_break] **)
@@ -1233,7 +1228,6 @@ Proof.
     }
     { (** [Local] **)
       explode_and_simplify; try (pattern_match; auto_frame).
-      + apply: r_simple. by apply: rs_local_trap.
       + destruct run_step_with_fuel as [[[hs'' s''] f''] r] eqn: EH.
         destruct r as [| |vs'''|es''] => //.
         * (** [RS_return] **)
