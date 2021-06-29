@@ -21,6 +21,7 @@
 	"dependencies": {
 		"ocaml": "4.8.1000",
 		"@opam/coq": "8.10.1",
+		"@opam/ocamlfind": "1.8.1",
 		"coq-flocq": "3.2.0",
 		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"@opam/coq-stdpp": "*",

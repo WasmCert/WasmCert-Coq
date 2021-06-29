@@ -7,12 +7,12 @@ homepage: "https://github.com/ocurrent/ocaml-version"
 doc: "https://ocurrent.github.io/ocaml-version/doc"
 bug-reports: "https://github.com/ocurrent/ocaml-version/issues"
 depends: [
-  "ocaml" {>= "4.02.0"}
+  "ocaml" {>= "4.07.0"}
   "dune"
-  "result"
+  "alcotest" {with-test}
 ]
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   ["dune" "build" "-p" name "-j" jobs]
 ]
 dev-repo: "git+https://github.com/ocurrent/ocaml-version.git"
@@ -38,11 +38,12 @@ functionality:
 - **Bugs:** <https://github.com/ocurrent/ocaml-version/issues>
 - **Docs:** <http://docs.mirage.io/ocaml-version>
 """
+x-commit-hash: "eb14804dbf9424c27c8d14fce19b3243f80a69fa"
 url {
   src:
-    "https://github.com/ocurrent/ocaml-version/releases/download/v2.5.0/ocaml-version-v2.5.0.tbz"
+    "https://github.com/ocurrent/ocaml-version/releases/download/v3.1.0/ocaml-version-v3.1.0.tbz"
   checksum: [
-    "sha256=93fec97584cb8ea0a1325742e586c3247f56b28b3ddadc6026d664c25940414b"
-    "sha512=ab9def76ba47e1e2d12f6f0f684fdd8d620b2a15e5c9549e77e60ac83839352fe88aca2a04adf46a5b985c7dc44b25cd6c14e5549f73b287066689b0f9a9d291"
+    "sha256=ac7ba16a09d8f72212742f3936980fbfaebb698c7bbf625182af7d6b2c3cde5f"
+    "sha512=6e11823531f1f70b5d4b90ed9f2fcc22cbf83924a7a0ef40eebc4b80598db6acdaca97f1d379e01860513d5dda492f5bc4d944f0c1dd7df491b2f36a0f729bb5"
   ]
 }
