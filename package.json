@@ -67,6 +67,7 @@
 				"dependencies": {
 					"@opam/coq": "8.10.1"
 				},
+				"buildsInSource": true,
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}",
@@ -109,6 +110,7 @@
 				"dependencies": {
 					"@opam/coq": "8.10.1"
 				},
+				"buildsInSource": true,
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}/",
