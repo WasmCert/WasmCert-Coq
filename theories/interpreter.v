@@ -541,16 +541,12 @@ Definition run_v_extraction_eqType := run_extraction (@run_v).
 
 End Host.
 
-(* TODO: Here are our current assumptions.
-Print Assumptions run_step.
+(* Our current assumptions consist of the classical axiom [Classical_Prop.classic],
+  as well as Flocq's axioms.
+  The classical axiom comes from our definitions of [f32] and [f64] in numerics.v,
+  that use functions (like [Binary.binary_normalize]) based on this axiom.
 [[
-wasm_deserialise : bytes -> value_type -> value
-serialise_i64 : i64 -> bytes
-serialise_i32 : i32 -> bytes
-serialise_f64 : f64 -> bytes
-serialise_f32 : f32 -> bytes
-Classical_Prop.classic : forall P : Prop, P \/ ~ P
-(* Lots of axioms from Flocq. *)
+Print Assumptions run_step.
 ]]
 *)
 
