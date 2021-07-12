@@ -346,7 +346,7 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
   | AI_basic be => pp_basic_instruction n be
   | AI_trap => indent n (with_fg ae_style "trap" ++ newline)
   | AI_invoke a =>
-    indent n (with_fg ae_style "invoke" ++ newline) ++ string_of_nat a
+    indent n (with_fg ae_style "invoke" ++ string_of_nat a ++ newline)
   (*    pp_function_closure (n.+1) fc*)
            
   | AI_label k es1 es2 =>
