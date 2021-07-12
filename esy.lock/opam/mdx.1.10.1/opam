@@ -51,12 +51,12 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/realworldocaml/mdx.git"
-x-commit-hash: "8547c3253977943d6a60af20a898950677acff0c"
 url {
   src:
-    "https://github.com/realworldocaml/mdx/releases/download/1.9.0/mdx-1.9.0.tbz"
+    "https://github.com/realworldocaml/mdx/releases/download/1.10.1/mdx-1.10.1.tbz"
   checksum: [
-    "sha256=f94e414d38d306e4f23e017f93ac96ca75cbefedd3800414a1cbaab1f6a59eab"
-    "sha512=71dcb1ed6188994f4ad2cdd3dbf8006318f6a7ec88683c46c9df5ef73c677542e89e1e7e2ba8ab99ea69be1b43db66f33489490b8a18835e5decceafecf9ca80"
+    "sha256=3da98be886ceb37375a584b43797d980c0c80c57ec1a226732254d4cb6d3a481"
+    "sha512=d12af63bd3f9b1f4e308f26840c0c58c89d22af1c013df93cb758dbc4afa6994a014bf5cdfddce10433933063420fd7d43ccabe7eb35eb865990f68cf46ddae8"
   ]
 }
+x-commit-hash: "92d1671c127aa573ce6582cfdd315bf00b6ea7df"

@@ -4,8 +4,8 @@ synopsis: "Wasm formalisation in Coq"
 description:
   "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt"
 license: "MIT"
-homepage: "https://github.com/rems-project/wasm_coq"
-bug-reports: "https://github.com/rems-project/wasm_coq/issues"
+homepage: "https://github.com/WasmCert/WasmCert-Coq"
+bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "2.4"}
 ]
@@ -23,4 +23,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/rems-project/wasm_coq.git"
+dev-repo: "git+https://github.com/WasmCert/WasmCert-Coq.git"

@@ -6,6 +6,7 @@
 	"esy": {
 		"buildsInSource": "_build",
 		"buildEnv": {
+			"HOME": "#{self.target_dir}",
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
 			"COQPATH": "./theories:#{coq-ext-lib.install}/user-contrib:#{coq-flocq.install}/coq:#{coq-itree.install}/user-contrib:#{coq-paco.install}/user-contrib:#{strong-induction.install}/lib/coq/user-contrib:#{compcert.install}/coq:#{coq-iris.install}/user-contrib:#{coq-mathcomp-ssreflect.install}/user-contrib:#{parseque.install}/lib/coq/user-contrib:#{@opam/coq-stdpp.install}/user-contrib",
@@ -16,7 +17,8 @@
 	"scripts": {
 		"clean": "make clean",
 		"doc": "dune build @doc",
-		"test": "dune runtest"
+		"test": "dune runtest",
+		"vscode": "make vscode"
 	},
 	"dependencies": {
 		"ocaml": "4.8.1000",

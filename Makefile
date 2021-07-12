@@ -1,7 +1,7 @@
-.PHONY: all clean clean-aux
+.PHONY: all clean clean-aux vscode
 
-all: .vscode/settings.json
-	export HOME=`pwd`; dune build @all --verbose
+all:
+	dune build @all --verbose
 	dune build -p wasm_interpreter
 	ln -f -s ./_build/install/default/bin/wasm_interpreter ./wasm_interpreter
 
@@ -17,6 +17,9 @@ clean: clean-aux
 	rm theories/*.vo || true
 	rm theories/*.glob || true
 	rm theories/extract.{ml,mli} || true
+	rm wasm_interpreter || true
+
+vscode: .vscode/settings.json
 
 .vscode/settings.json:
 	mkdir -p .vscode

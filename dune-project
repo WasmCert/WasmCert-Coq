@@ -5,7 +5,7 @@
 
 (generate_opam_files true)
 (license MIT)
-(source (github rems-project/wasm_coq))
+(source (github WasmCert/WasmCert-Coq))
 
 (package
   (name Wasm)

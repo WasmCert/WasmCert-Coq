@@ -60,7 +60,8 @@ sudo apt install libcairo2-dev libexpat1-dev libgtk-3-dev libgtksourceview-3.0-d
 Then, replace the line `devDependencies: {},` by `devDependencies: {"@opam/coqide": "*"}` in [package.json](./package.json), and run `esy` again.
 Typing `esy coqide theories/wasm.v` should now work.
 
-To use VSCoq in this development, a [.vscode/settings.json](.vscode/settings.json) file is generated during the compilation: running `esy` should set up all required variables.
+To use VSCode in this development, a [.vscode/settings.json](.vscode/settings.json) needs to be generated first: this file enables VSCode to know where the dependencies are stored in your system.
+It can be generated with `esy vscode`.
 
 ## Using the project
 

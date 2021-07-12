@@ -23,9 +23,9 @@
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de@2e1a7427",
         "coq-ext-lib@github:coq-community/coq-ext-lib#ddeab06b09115f66db54b2997df390cd7599eec6@65e3b9aa",
         "compcert@github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275@d41d8cd9",
-        "@opam/odoc@opam:1.5.2@3d78163d",
+        "@opam/odoc@opam:1.5.3@29f53af8",
         "@opam/ocamlfind@opam:1.8.1@b7dc3072",
-        "@opam/mdx@opam:1.9.0@d6f4590c",
+        "@opam/mdx@opam:1.10.1@8c5f3859",
         "@opam/linenoise@opam:1.3.1@d0b372a4",
         "@opam/dune@opam:2.4.0@62834ce0",
         "@opam/coq-stdpp@git:https://gitlab.mpi-sws.org/iris/stdpp.git#6eb05dfc40feef58063bb537fb742eb16bbf86d1@6abe5f9d",
@@ -531,20 +531,20 @@
         "ocaml@4.8.1000@d41d8cd9", "@opam/ocamlfind@opam:1.8.1@b7dc3072"
       ]
     },
-    "@opam/odoc@opam:1.5.2@3d78163d": {
-      "id": "@opam/odoc@opam:1.5.2@3d78163d",
+    "@opam/odoc@opam:1.5.3@29f53af8": {
+      "id": "@opam/odoc@opam:1.5.3@29f53af8",
       "name": "@opam/odoc",
-      "version": "opam:1.5.2",
+      "version": "opam:1.5.3",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/d2/d24463f2660bc28c72cda001478360158e953721c9e23fb361ec4783113c4871#sha256:d24463f2660bc28c72cda001478360158e953721c9e23fb361ec4783113c4871",
-          "archive:https://github.com/ocaml/odoc/releases/download/1.5.2/odoc-1.5.2.tbz#sha256:d24463f2660bc28c72cda001478360158e953721c9e23fb361ec4783113c4871"
+          "archive:https://opam.ocaml.org/cache/sha256/f2/f2b76f811658c4b52cb48ac4ffc2ec37cedd2a805111c7f8ec20f8f36b8bbf45#sha256:f2b76f811658c4b52cb48ac4ffc2ec37cedd2a805111c7f8ec20f8f36b8bbf45",
+          "archive:https://github.com/ocaml/odoc/releases/download/1.5.3/odoc-1.5.3.tbz#sha256:f2b76f811658c4b52cb48ac4ffc2ec37cedd2a805111c7f8ec20f8f36b8bbf45"
         ],
         "opam": {
           "name": "odoc",
-          "version": "1.5.2",
-          "path": "esy.lock/opam/odoc.1.5.2"
+          "version": "1.5.3",
+          "path": "esy.lock/opam/odoc.1.5.3"
         }
       },
       "overrides": [],
@@ -723,26 +723,26 @@
       ],
       "devDependencies": [ "ocaml@4.8.1000@d41d8cd9" ]
     },
-    "@opam/mdx@opam:1.9.0@d6f4590c": {
-      "id": "@opam/mdx@opam:1.9.0@d6f4590c",
+    "@opam/mdx@opam:1.10.1@8c5f3859": {
+      "id": "@opam/mdx@opam:1.10.1@8c5f3859",
       "name": "@opam/mdx",
-      "version": "opam:1.9.0",
+      "version": "opam:1.10.1",
       "source": {
         "type": "install",
         "source": [
-          "archive:https://opam.ocaml.org/cache/sha256/f9/f94e414d38d306e4f23e017f93ac96ca75cbefedd3800414a1cbaab1f6a59eab#sha256:f94e414d38d306e4f23e017f93ac96ca75cbefedd3800414a1cbaab1f6a59eab",
-          "archive:https://github.com/realworldocaml/mdx/releases/download/1.9.0/mdx-1.9.0.tbz#sha256:f94e414d38d306e4f23e017f93ac96ca75cbefedd3800414a1cbaab1f6a59eab"
+          "archive:https://opam.ocaml.org/cache/sha256/3d/3da98be886ceb37375a584b43797d980c0c80c57ec1a226732254d4cb6d3a481#sha256:3da98be886ceb37375a584b43797d980c0c80c57ec1a226732254d4cb6d3a481",
+          "archive:https://github.com/realworldocaml/mdx/releases/download/1.10.1/mdx-1.10.1.tbz#sha256:3da98be886ceb37375a584b43797d980c0c80c57ec1a226732254d4cb6d3a481"
         ],
         "opam": {
           "name": "mdx",
-          "version": "1.9.0",
-          "path": "esy.lock/opam/mdx.1.9.0"
+          "version": "1.10.1",
+          "path": "esy.lock/opam/mdx.1.10.1"
         }
       },
       "overrides": [],
       "dependencies": [
         "ocaml@4.8.1000@d41d8cd9", "@opam/result@opam:1.5@1c6a6533",
-        "@opam/re@opam:1.9.0@9373f267", "@opam/odoc@opam:1.5.2@3d78163d",
+        "@opam/re@opam:1.9.0@9373f267", "@opam/odoc@opam:1.5.3@29f53af8",
         "@opam/ocamlfind@opam:1.8.1@b7dc3072",
         "@opam/ocaml-version@opam:3.1.0@731fe067",
         "@opam/logs@opam:0.7.0@1d03143e", "@opam/fmt@opam:0.8.9@e0843a5b",
@@ -754,7 +754,7 @@
       ],
       "devDependencies": [
         "ocaml@4.8.1000@d41d8cd9", "@opam/result@opam:1.5@1c6a6533",
-        "@opam/re@opam:1.9.0@9373f267", "@opam/odoc@opam:1.5.2@3d78163d",
+        "@opam/re@opam:1.9.0@9373f267", "@opam/odoc@opam:1.5.3@29f53af8",
         "@opam/ocamlfind@opam:1.8.1@b7dc3072",
         "@opam/ocaml-version@opam:3.1.0@731fe067",
         "@opam/logs@opam:0.7.0@1d03143e", "@opam/fmt@opam:0.8.9@e0843a5b",
