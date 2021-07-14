@@ -435,6 +435,9 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     if es_is_trap es
     then ret (s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
     else
+      if const_list es
+      then ret (s, f, RS_normal (vs_to_es ves ++ es))
+      else         
       '(s', f', res) <- call _ (call_run_step_base d (s, f, es)) ;;
       match res with
       | RS_break 0 bvs =>
