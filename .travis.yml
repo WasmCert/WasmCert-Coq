@@ -17,4 +17,5 @@ install:
 
 script:
   - utilities/travis_hook.sh
+  - utilities/test.pl
 

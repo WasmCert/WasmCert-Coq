@@ -63,6 +63,8 @@ Typing `esy coqide theories/wasm.v` should now work.
 To use VSCode in this development, a [.vscode/settings.json](.vscode/settings.json) needs to be generated first: this file enables VSCode to know where the dependencies are stored in your system.
 It can be generated with `esy vscode`.
 
+The [tests](./tests) folder contains Markdown files checked in [the continuous integration](./utilities/test.pl), as well as some simple examples.
+
 ## Using the project
 
 A file `wasm_interpreter` will have been generated.
