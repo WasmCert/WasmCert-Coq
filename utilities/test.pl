@@ -3,6 +3,7 @@
 use strict ;
 use warnings ;
 use experimental 'smartmatch';
+use Capture::Tiny qw/capture/;
 
 my $false = 0 ;
 my $true = 1 ;
@@ -21,6 +22,7 @@ foreach my $file (@files){
 		open (FILE, '<', $file) or die "Issue openning file $file" ;
 
 		# First parsing what is expected.
+		# Any line not enclosed in a ``` block are ignored.
 
 		my $parsingShell = $false ;
 		my $otherParsing = $false ;
@@ -36,7 +38,17 @@ foreach my $file (@files){
 				} elsif ($line =~ /^\$\$/){
 					$expectedResult .= substr $line, 1 ;
 				} elsif ($line =~ /^\$/){
-					push @commandLines, (substr $line, 1) ;
+					my $negative = $false ;
+					if ($line =~ /#.*\@negative/){
+						$negative = $true ;
+					}
+					$line =~ s/\$([^#]*)(#[^\n]*)?\n/$1/ ;
+					if ($line =~ /[^ ]/){
+						push @commandLines, {
+							cmd => $line,
+							neg => $negative
+						} ;
+					}
 				} else {
 					$expectedResult .= $line ;
 				}
@@ -44,17 +56,20 @@ foreach my $file (@files){
 				if ($line =~ /^```/) {
 					my ($lang) = $line =~ /^```(.*)\n$/s ;
 					if ($lang eq ''){
-						if ($otherParsing != $true){
-							die "Unexpected end of quote" ;
+						if (not $otherParsing){
+							die "Unexpected end of quote (or quote-block without any declared language)" ;
 						}
 						$otherParsing = $false ;
 					} else {
 						if ($otherParsing){
 							die "Nested quotes" ;
 						}
+						# We entered a ``` block, and we now check which language is declared.
 						if ($lang ~~ ['sh', 'bash']){
+							# This block is meant to be executed.
 							$parsingShell = $true ;
-						} elsif ($lang ~~ ['wasm', 'webassembly', 'ocaml', 'coq']){
+						} elsif ($lang ~~ ['wasm', 'webassembly', 'ocaml', 'coq', 'text']){
+							# This block is meant to be ignored.
 							$otherParsing = $true ;
 						} else {
 							die "Unknown language: $lang" ;
@@ -71,9 +86,39 @@ foreach my $file (@files){
 		# Then running these commands.
 
 		my $actualResult = '' ; # The result of all these commands.
-		for my $command (@commandLines){
-			print $command ;
-			$actualResult .= `$command` ;
+		for my $cell (@commandLines){
+			my $command = %$cell{cmd} ;
+			my $negative = %$cell{neg};
+			if ($negative){
+				print "Running (meant to fail): $command\n" ;
+			} else {
+				print "Running: $command\n" ;
+			}
+			my $errcode = 0 ;
+			my ($stdout, $stderr) = capture {
+				$errcode = system "$command" ;
+			} ;
+			$actualResult .= $stdout ;
+			my $ok = $true ;
+			if ($errcode != 0){
+				$ok = $false ;
+			}
+			if ($stderr ne ''){
+				$ok = $false ;
+			}
+			if ($ok and $negative){
+				die "Negative test did not fail"
+			}
+			if ((not $ok) and not $negative){
+				my $message = 'unknown failure';
+				if ($stderr ne ''){
+					$message = "non-empty stderr output" ;
+				}
+				if ($errcode != 0){
+					$message = "error code" ;
+				}
+				die "Test failed (by $message)" ;
+			}
 		}
 
 		# Before comparing the output, we change them to accept relaxed output.
@@ -83,13 +128,13 @@ foreach my $file (@files){
 		$expectedResult =~ s/\e\[\d+m//g ;
 		# Removing trailing spaces and empty lines
 		$actualResult .= "\n" ;
-		$actualResult =~ s/[ \n]+\n/\n/g ;
+		$actualResult =~ s/[ \t\n\r]+\n/\n/g ;
 		$actualResult = "\n" . $actualResult ;
-		$actualResult =~ s/\n[ \n]+/\n/g ;
+		$actualResult =~ s/\n[ \t\n\r]+/\n/g ;
 		$expectedResult .= "\n" ;
-		$expectedResult =~ s/[ \n]+\n/\n/g ;
+		$expectedResult =~ s/[ \t\n\r]+\n/\n/g ;
 		$expectedResult = "\n" . $expectedResult ;
-		$expectedResult =~ s/\n[ \n]+/\n/g ;
+		$expectedResult =~ s/\n[ \t\n\r]+/\n/g ;
 
 		if ($actualResult ne $expectedResult){
 			print "Expected output:$expectedResult" ;
