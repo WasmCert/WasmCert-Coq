@@ -1,8 +1,5 @@
 
-language: node_js
-
-node_js:
-  - 8
+language: perl
 
 os:
   - linux
@@ -12,7 +9,8 @@ cache:
     - ${HOME}/.esy
 
 install:
-  - npm install --global esy@0.6.6 # esy@latest
+  - cpanm Capture::Tiny
+  - npm install --global esy@0.6.10 # esy@latest
   - esy install
 
 script:
