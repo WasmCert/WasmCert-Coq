@@ -3,7 +3,7 @@
 all:
 	dune build @all --verbose
 	dune build -p wasm_interpreter
-	ln -f -s ./_build/install/default/bin/wasm_interpreter ./wasm_interpreter
+	ln -f -s ./_build/install/default/bin/wasm_interpreter ./wasm_interpreter || echo "Compilation done. The wasm interpreter is located in: _build/install/default/bin/wasm_interpreter"
 
 clean-aux:
 	rm theories/*.aux || true

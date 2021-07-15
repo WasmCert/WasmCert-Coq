@@ -1,5 +1,4 @@
 ```sh
-$ ../wasm_interpreter memory.wasm hello 1 -v 1
+$ ../wasm_interpreter --vr memory.wasm hello 1
 i32.const 42
-
 ```
