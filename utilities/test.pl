@@ -104,6 +104,7 @@ foreach my $file (@files){
 				$ok = $false ;
 			}
 			if ($stderr ne ''){
+				print "stderr output:\n$stderr\n" ;
 				$ok = $false ;
 			}
 			if ($ok and $negative){
@@ -115,7 +116,16 @@ foreach my $file (@files){
 					$message = "non-empty stderr output" ;
 				}
 				if ($errcode != 0){
-					$message = "error code" ;
+					$message = '' . ($errcode >> 8) ;
+					if ($errcode == -1){
+						$message = "failed to execute" ;
+					} elsif ($errcode & 127){
+						$message = "signal " . ($errcode & 127) ;
+						if ($errcode & 128){
+							$message .= ", with coredump" ;
+						}
+					}
+					$message = "error code: " . $message ;
 				}
 				die "Test failed (by $message)" ;
 			}
