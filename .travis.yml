@@ -12,12 +12,10 @@ cache:
     - ${HOME}/.esy
 
 install:
-  - cpanm --local-lib=~/perl5 local::lib
-  - eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib)
-  - cpanm --installdeps --notest .
+  - export PERL5LIB="${HOME}/perl5" ; export PERL_MM_OPT="INSTALL_BASE=${HOME}/perl5" ; export PERL_MB_OPT="--install_base \"${HOME}/perl5\"" ; cd utilities ; cpanm -l "${HOME}/perl5" --verbose --no-interactive --installdeps --notest . ; cd ..
   - npm install --global esy@0.6.10 # esy@latest
   - esy install
 
 script:
-  - utilities/travis_hook.sh
+  - export PERL5LIB="${HOME}/perl5:${HOME}/perl5/lib/perl5:${HOME}/perl5/lib/perl5/x86_64-linux" ; utilities/travis_hook.sh
 
