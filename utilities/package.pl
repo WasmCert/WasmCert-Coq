@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # To ease the generation of the COQPATH and VSCODESETTINGS in package.json
 use strict ;
 use warnings ;

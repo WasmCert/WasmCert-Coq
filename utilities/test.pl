@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Fetches the markdown files in the tests/ folder, and execute them.
 use strict ;
 use warnings ;
