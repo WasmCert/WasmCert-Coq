@@ -4,11 +4,15 @@ use strict ;
 use warnings ;
 use List::Util qw(any) ;
 use Capture::Tiny qw(capture) ;
+use Cwd qw() ;
 
 my $false = 0 ;
 my $true = 1 ;
 
 my $testDirectory = "tests/" ;
+
+my $pwd = Cwd::cwd() ;
+local $ENV{PATH} = "$ENV{PATH}:$pwd/_build/install/default/bin:.";
 
 print "Testing $testDirectory.\n" ;
 opendir my $dir, $testDirectory or die "Issue openning the test folder" ;
