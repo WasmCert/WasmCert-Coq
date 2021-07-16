@@ -2,8 +2,8 @@
 # Fetches the markdown files in the tests/ folder, and execute them.
 use strict ;
 use warnings ;
-use experimental 'smartmatch';
-use Capture::Tiny qw/capture/;
+use List::Util qw(any) ;
+use Capture::Tiny qw(capture) ;
 
 my $false = 0 ;
 my $true = 1 ;
@@ -65,10 +65,10 @@ foreach my $file (@files){
 							die "Nested quotes" ;
 						}
 						# We entered a ``` block, and we now check which language is declared.
-						if ($lang ~~ ['sh', 'bash']){
+						if (any { $lang eq $_ } ('sh', 'bash')){
 							# This block is meant to be executed.
 							$parsingShell = $true ;
-						} elsif ($lang ~~ ['wasm', 'webassembly', 'ocaml', 'coq', 'text']){
+						} elsif (any { $lang eq $_ } ('wasm', 'webassembly', 'ocaml', 'coq', 'text')){
 							# This block is meant to be ignored.
 							$otherParsing = $true ;
 						} else {
@@ -126,6 +126,21 @@ foreach my $file (@files){
 		# Removing colors
 		$actualResult =~ s/\e\[\d+m//g ;
 		$expectedResult =~ s/\e\[\d+m//g ;
+
+		# Dealing with escape sequences to delete characters
+		$actualResult =~ s/\e\[0D//g ;
+		$expectedResult =~ s/\e\[0D//g ;
+		$actualResult =~ s/.\e\[1D//g ;
+		$expectedResult =~ s/.\e\[1D//g ;
+		$actualResult =~ s/..\e\[2D//g ;
+		$expectedResult =~ s/..\e\[2D//g ;
+		$actualResult =~ s/...\e\[3D//g ;
+		$expectedResult =~ s/...\e\[3D//g ;
+		$actualResult =~ s/....\e\[4D//g ;
+		$expectedResult =~ s/....\e\[4D//g ;
+		$actualResult =~ s/.....\e\[5D//g ;
+		$expectedResult =~ s/.....\e\[5D//g ;
+
 		# Removing trailing spaces and empty lines
 		$actualResult .= "\n" ;
 		$actualResult =~ s/[ \t\n\r]+\n/\n/g ;
