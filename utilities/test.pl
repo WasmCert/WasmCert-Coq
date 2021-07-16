@@ -2,6 +2,7 @@
 # Fetches the markdown files in the tests/ folder, and execute them.
 use strict ;
 use warnings ;
+use local::lib ;
 use List::Util qw(any) ;
 use Capture::Tiny qw(capture) ;
 

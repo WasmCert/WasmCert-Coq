@@ -15,3 +15,4 @@
 (package
   (name wasm_interpreter)
   (synopsis "Wasm interpreter extracted from the Coq formalisation"))
+

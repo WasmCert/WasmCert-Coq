@@ -2,6 +2,7 @@
 # To ease the generation of the COQPATH and VSCODESETTINGS in package.json
 use strict ;
 use warnings ;
+use local::lib ;
 
 my %packages = (
 		iris => '#{coq-iris.install}/user-contrib',

@@ -29,3 +29,7 @@
 ; - 34: unused type
 ; - 32: unused value.
 
+(rule
+	(alias runtest)
+	(action (chdir .. (run utilities/test.pl))))
+
