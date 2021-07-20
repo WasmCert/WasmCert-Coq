@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Export operations typing type_checker datatypes_properties typing opsem properties type_preservation.
+From Wasm Require Export operations typing datatypes_properties typing opsem properties type_preservation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
