@@ -35,6 +35,23 @@ Proof.
   rewrite subn0. apply/eqP. by apply drop_size.
 Qed.
 
+Lemma ct_suffix_split: forall s l,
+  ct_suffix s l = true ->
+  l = take (size l - size s) l ++ s.
+Proof.
+  induction s => //=.
+  - intros.
+    rewrite subn0.
+    rewrite take_size.
+    by rewrite cats0.
+  - intros.
+    unfold ct_suffix in H; simpl in H.
+    move/andP in H. destruct H as [H1 H2].
+    move/eqP in H2.
+    rewrite - H2.
+    by rewrite cat_take_drop.
+Qed.
+    
 Lemma upd_label_overwrite: forall C loc lab ret lab',
   upd_label (upd_local_label_return C loc lab ret) lab'
   = upd_local_label_return C loc lab' ret.
@@ -67,10 +84,15 @@ Ltac simplify_hypothesis Hb :=
   | context C [_ || false] => rewrite Bool.orb_false_r in Hb
   | context C [type_update _ _] => unfold type_update in Hb; simpl in Hb
   | context C [ct_suffix [::] _] => rewrite ct_suffix_empty in Hb; simpl in Hb
+(*  | context C [ct_suffix ?l1 ?l2] => let Hsuffix := fresh "Hsuffix" in
+                                     destruct (ct_suffix l1 l2) eqn:Hsuffix; try (apply ct_suffix_split in Hsuffix; simpl in Hsuffix)*)
   | context C [?x - 0] => rewrite subn0 in Hb; simpl in Hb
   | context C [take (size ?x) ?x] => rewrite take_size in Hb; simpl in Hb
   | context C [produce _ _] => unfold produce in Hb; simpl in Hb
-  | exists _, _ /\ _ => destruct Hb as [tx [Hsuffix Hbet]]
+  | exists _, _ /\ _ => let tx := fresh "tx" in
+                        let Hsuffix := fresh "Hsuffix" in
+                        let Hbet := fresh "Hbet" in
+                        destruct Hb as [tx [Hsuffix Hbet]]
   | is_true true => clear Hb
   | is_true false => exfalso; apply: notF; apply: Hb
   | is_true (_ == _) => move/eqP in Hb
@@ -117,6 +139,14 @@ Lemma populate_ct_agree: forall l,
 Proof.
 Admitted.
 
+Ltac resolve_bet:=
+  repeat match goal with
+         | |- be_typing _ [::] (Tf ?tx ?tx) =>
+           apply bet_weakening_empty_both; apply bet_empty => //
+         | H: be_typing ?C ?bes (Tf ?tn ?tm) |- be_typing ?C (_ :: ?bes) (Tf _ ?tm) =>
+           eapply bet_composition_front; last by apply H
+         end.
+
 Lemma tc_to_bet_generalized: forall C bes tm ct,
   (match List.fold_left (check_single C) bes ct with
         | CT_top_type ts => ct_suffix ts (to_ct_list tm)
@@ -135,22 +165,29 @@ Proof.
     + move => Hsuffix.
       exists tm.
       split => //=.
-      replace tm with (tm ++ [::]); last by apply cats0.
-      apply bet_weakening.
-      by apply bet_empty.
+      by resolve_bet.
     + move => Heq.
       move/eqP in Heq. subst.
-      replace tm with (tm ++ [::]); last by apply cats0.
-      apply bet_weakening.
-      by apply bet_empty.
+      by resolve_bet.
   - move => be bes IH C tm ct Htc.
     apply IH in Htc.
     destruct ct, be => //=; simpl in Htc; simplify_hypothesis Htc.
     (* 56 cases *)
     + exists (populate_ct_aux l).
       split; first by apply populate_ct_aux_suffix.
-      eapply bet_composition_front; last by apply Hbet.
+      resolve_bet.
       by apply bet_unreachable.
+    + exists tx.
+      split => //.
+      resolve_bet.
+      apply bet_weakening_empty_both.
+      by apply bet_nop.
+    + 
+      * exists (tx ++ [::T_i32]).
+        split; first by apply ct_suffix_empty.
+        resolve_bet.
+        apply bet_weakening_empty_2.
+        by apply bet_drop.
 Admitted.
   
 Lemma b_e_type_checker_reflects_typing:
