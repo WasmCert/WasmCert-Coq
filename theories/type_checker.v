@@ -265,7 +265,7 @@ in
     then type_update ts (to_ct_list tn) (CT_type tm)
     else CT_bot
   | BI_loop (Tf tn tm) es =>
-    if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
+    if b_e_type_checker (upd_label C ([::tn] ++ tc_label C)) es (Tf tn tm)
     then type_update ts (to_ct_list tn) (CT_type tm)
     else CT_bot
   | BI_if (Tf tn tm) es1 es2 =>
