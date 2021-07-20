@@ -53,6 +53,15 @@ Proof.
     by destruct c0.
 Qed.
 
+Lemma ct_list_compat_self: forall l,
+  ct_list_compat l l.
+Proof.
+  induction l => //.
+  unfold all2.
+  apply/andP; split => //.
+  by destruct a => //=.
+Qed.
+
 Lemma ct_suffix_self: forall l,
   ct_suffix l l.
 Proof.
@@ -61,11 +70,20 @@ Proof.
   apply/andP; split => //.
   rewrite subnn.
   rewrite drop0.
-  unfold ct_list_compat.
-  induction l => //.
-  unfold all2.
-  apply/andP; split => //.
-  by destruct a => //=.
+  by apply ct_list_compat_self.
+Qed.
+
+Lemma ct_suffix_suffix: forall l1 l2,
+  ct_suffix (to_ct_list l2) (to_ct_list (l1 ++ l2)).
+Proof.
+  move => l1 l2.
+  unfold ct_suffix.
+  apply/andP; split => //; repeat rewrite size_map; rewrite size_cat => //.
+  - by lias.
+  - unfold to_ct_list. rewrite map_cat.
+    replace (size l1 + size l2 - size l2) with (size l1); last by lias.
+    rewrite drop_size_cat; last by rewrite size_map.
+    by apply ct_list_compat_self.
 Qed.
   
 Lemma upd_label_overwrite: forall C loc lab ret lab',
@@ -173,6 +191,7 @@ Ltac auto_rewrite_cond:=
            move/eqP in H; rewrite H => //=
          | H: is_true (Nat.eqb ?x ?y) |- _ =>
            move/eqP in H; rewrite H => //=
+         | H: is_true (b_e_type_checker _ _ _) |- _ => simpl in H => //=
          | |- context C [ ?x == ?x ] =>
            rewrite eq_refl => //=
          | |- context C [ true && true ] =>
@@ -184,6 +203,10 @@ Ltac auto_rewrite_cond:=
          | |- context C [?x - ?x] => rewrite subnn => //=
          | |- context C [take 0 _] => rewrite take0 => //=
          | |- context C [drop 0 _] => rewrite drop0 => //=
+         | |- context C [_ :: (tc_label _)] => rewrite - cat1s => //=
+         | |- context C [size (_ ++ _)] => rewrite size_cat => //=
+         | H: is_true (plop2 _ _ _) |- _ => unfold plop2 in H => //=
+         | H: is_true (List.nth_error _ _ == _) |- _ => move/eqP in H; rewrite H => //=
          end.
 
 Lemma tc_to_bet_generalized: forall C bes tm ct,
@@ -237,7 +260,7 @@ Admitted.
 Lemma b_e_type_checker_reflects_typing:
   forall C bes tf,
     reflect (be_typing C bes tf) (b_e_type_checker C bes tf).
-Proof.
+Proof with auto_rewrite_cond.
   move => C bes tf.
   destruct tf as [tn tm].
   destruct (b_e_type_checker C bes (Tf tn tm)) eqn: Htc_bool.
@@ -247,11 +270,23 @@ Proof.
   - apply ReflectF.
     move => Hbet.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
-    induction Hbet; subst => //=; unfold type_update => //=; simplify_goal; (try rewrite ct_suffix_self => //=); (try simpl in IHHbet); auto_rewrite_cond.
-    + unfold convert_cond.
-      by auto_rewrite_cond.
-    + 
-      
+    induction Hbet; subst => //=; unfold type_update => //=; simplify_goal; (try rewrite ct_suffix_self => //=)...
+    + unfold convert_cond...
+    + rewrite ct_suffix_suffix...
+    + rewrite size_cat.
+      replace (size t1s + _ - _) with (size t1s); last by lias.
+      rewrite take_size_cat => //=...
+    + rewrite ct_suffix_self => //=...
+    + unfold plop2 in H.
+      move/allP in H.
+      unfold same_lab.
+      destruct (ins ++ [::i]) eqn:Hl => //=; try by destruct ins.
+      rewrite Hl.
+      assert (n \in (ins ++ [::i])); first by rewrite Hl; apply mem_head.
+      apply H in H0.
+      move/andP in H0.
+      destruct H0...
+      replace (length (tc_label C) <= n) with false; last by lias.
 Admitted.
     
 (*
