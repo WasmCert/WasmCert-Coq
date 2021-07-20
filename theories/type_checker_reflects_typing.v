@@ -29,30 +29,45 @@ Proof.
 Qed.
 
 Lemma ct_suffix_empty: forall l,
-    ct_suffix [::] l.
+  ct_suffix [::] l.
 Proof.
   move => l. unfold ct_suffix => /=.
   rewrite subn0. apply/eqP.
   by rewrite drop_size.
 Qed.
 
-Lemma ct_suffix_split: forall s l,
-  ct_suffix s l = true ->
-  l = take (size l - size s) l ++ s.
+Lemma ct_suffix_any_1: forall l,
+  size l > 0 ->
+  ct_suffix [::CTA_any] l.
 Proof.
-  induction s => //=.
-  - intros.
-    rewrite subn0.
-    rewrite take_size.
-    by rewrite cats0.
-  - intros.
-    unfold ct_suffix in H; simpl in H.
-    move/andP in H. destruct H as [H1 H2].
-    move/eqP in H2.
-    rewrite - H2.
-    by rewrite cat_take_drop.
+  move => l H.
+  destruct l => //=.
+  unfold ct_suffix, ct_list_compat => /=.
+  destruct (_ -1) eqn: Hsize => //.
+  - destruct l => //=. apply/andP.
+    split => //. by destruct c.
+  - assert (size (drop n l) = 1).
+    { rewrite size_drop. by lias. }
+    remember (drop n l) as l'.
+    do 2 destruct l' => //=.
+    by destruct c0.
 Qed.
-    
+
+Lemma ct_suffix_self: forall l,
+  ct_suffix l l.
+Proof.
+  move => l.
+  unfold ct_suffix => /=.
+  apply/andP; split => //.
+  rewrite subnn.
+  rewrite drop0.
+  unfold ct_list_compat.
+  induction l => //.
+  unfold all2.
+  apply/andP; split => //.
+  by destruct a => //=.
+Qed.
+  
 Lemma upd_label_overwrite: forall C loc lab ret lab',
   upd_label (upd_local_label_return C loc lab ret) lab'
   = upd_local_label_return C loc lab' ret.
@@ -85,6 +100,8 @@ Ltac simplify_hypothesis Hb :=
   | context C [_ || false] => rewrite Bool.orb_false_r in Hb
   | context C [type_update _ _] => unfold type_update in Hb; simpl in Hb
   | context C [ct_suffix [::] _] => rewrite ct_suffix_empty in Hb; simpl in Hb
+  | context C [ct_suffix [::CTA_any] (_::_)] => rewrite ct_suffix_any_1 in Hb => //; simpl in Hb
+  | context C [ct_suffix ?l ?l] => rewrite ct_suffix_self in Hb => //; simpl in Hb
 (*  | context C [ct_suffix ?l1 ?l2] => let Hsuffix := fresh "Hsuffix" in
                                      destruct (ct_suffix l1 l2) eqn:Hsuffix; try (apply ct_suffix_split in Hsuffix; simpl in Hsuffix)*)
   | context C [?x - 0] => rewrite subn0 in Hb; simpl in Hb
@@ -112,16 +129,14 @@ Proof.
   by rewrite ct_suffix_empty.
 Qed.
 
-Fixpoint populate_ct_aux (l: list checker_type_aux): list value_type :=
-  match l with
-  | [::] => [::]
-  | t :: l' =>
-    match t with
-    | CTA_any => T_i32
-    | CTA_some vt => vt
-    end
-      :: populate_ct_aux l'
+Definition populate_ct_aux_single (cta: checker_type_aux): value_type :=
+  match cta with
+  | CTA_any => T_i32
+  | CTA_some vt => vt
   end.
+
+Definition populate_ct_aux (l: list checker_type_aux): list value_type :=
+  map populate_ct_aux_single l.
 
 Definition populate_ct (ct: checker_type) : list value_type :=
   match ct with
@@ -146,6 +161,29 @@ Ltac resolve_bet:=
            apply bet_weakening_empty_both; apply bet_empty => //
          | H: be_typing ?C ?bes (Tf ?tn ?tm) |- be_typing ?C (_ :: ?bes) (Tf _ ?tm) =>
            eapply bet_composition_front; last by apply H
+         | H: is_true ?expr |- context C [ if ?expr then _ else _ ] =>
+           idtac H; rewrite H => //=
+         end.
+
+Ltac auto_rewrite_cond:=
+  repeat match goal with
+         | H: is_true ?expr |- context C [ ?expr ] =>
+           rewrite H => //=
+         | H: ?x <> ?y |- context C [?x != ?y ] =>
+           move/eqP in H; rewrite H => //=
+         | H: is_true (Nat.eqb ?x ?y) |- _ =>
+           move/eqP in H; rewrite H => //=
+         | |- context C [ ?x == ?x ] =>
+           rewrite eq_refl => //=
+         | |- context C [ true && true ] =>
+           unfold andb => //=
+         | |- context C [ct_suffix [::] _] => rewrite ct_suffix_empty => //=
+         | |- context C [ct_suffix [::CTA_any] (_::_)] => rewrite ct_suffix_any_1 => //=
+         | |- context C [ct_suffix ?l ?l] => rewrite ct_suffix_self => //=
+         | |- context C [size (to_ct_list _)] => unfold to_ct_list; rewrite size_map => //=
+         | |- context C [?x - ?x] => rewrite subnn => //=
+         | |- context C [take 0 _] => rewrite take0 => //=
+         | |- context C [drop 0 _] => rewrite drop0 => //=
          end.
 
 Lemma tc_to_bet_generalized: forall C bes tm ct,
@@ -183,12 +221,17 @@ Proof.
       resolve_bet.
       apply bet_weakening_empty_both.
       by apply bet_nop.
-    + 
+    + destruct l => //=; simpl in Htc; simplify_hypothesis Htc.
       * exists (tx ++ [::T_i32]).
         split; first by apply ct_suffix_empty.
         resolve_bet.
         apply bet_weakening_empty_2.
         by apply bet_drop.
+      * exists (tx ++ populate_ct_aux [:: c]).
+        split => //.
+        2: { resolve_bet. apply bet_weakening_empty_2. by apply bet_drop. }
+        unfold to_ct_list. rewrite map_cat => /=.
+        destruct l => //=.
 Admitted.
   
 Lemma b_e_type_checker_reflects_typing:
@@ -201,7 +244,14 @@ Proof.
   - apply ReflectT.
     unfold b_e_type_checker, c_types_agree in Htc_bool.
     by apply tc_to_bet_generalized in Htc_bool.
-  - admit.  
+  - apply ReflectF.
+    move => Hbet.
+    assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
+    induction Hbet; subst => //=; unfold type_update => //=; simplify_goal; (try rewrite ct_suffix_self => //=); (try simpl in IHHbet); auto_rewrite_cond.
+    + unfold convert_cond.
+      by auto_rewrite_cond.
+    + 
+      
 Admitted.
     
 (*
