@@ -32,7 +32,8 @@ Lemma ct_suffix_empty: forall l,
     ct_suffix [::] l.
 Proof.
   move => l. unfold ct_suffix => /=.
-  rewrite subn0. apply/eqP. by apply drop_size.
+  rewrite subn0. apply/eqP.
+  by rewrite drop_size.
 Qed.
 
 Lemma ct_suffix_split: forall s l,
