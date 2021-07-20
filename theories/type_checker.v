@@ -60,8 +60,21 @@ Fixpoint ct_suffix (ts ts' : seq checker_type_aux) : bool :=
   end.
 **)
 
+Definition ct_compat (t1 t2: checker_type_aux) : bool :=
+  match t1 with
+  | CTA_any => true
+  | CTA_some vt1 =>
+    match t2 with
+    | CTA_any => true
+    | CTA_some vt2 => (vt1 == vt2)
+    end
+  end.
+
+Definition ct_list_compat (l1 l2: list checker_type_aux) : bool :=
+  all2 ct_compat l1 l2.
+
 Definition ct_suffix (ts ts' : list checker_type_aux) : bool :=
-  (size ts <= size ts') && (drop (size ts' - size ts) ts' == ts).
+  (size ts <= size ts') && (ct_list_compat (drop (size ts' - size ts) ts') ts).
 
 (**
   It looks like CT_bot stands for an error in typing.

@@ -32,9 +32,9 @@ Lemma ct_suffix_empty: forall l,
     ct_suffix [::] l.
 Proof.
   move => l. unfold ct_suffix => /=.
-  rewrite subn0. apply/eqP. by apply drop_size.
+  rewrite subn0. apply/eqP.
+  by rewrite drop_size.
 Qed.
-
 
 Lemma upd_label_overwrite: forall C loc lab ret lab',
   upd_label (upd_local_label_return C loc lab ret) lab'
