@@ -1,0 +1,4 @@
+(mdx
+	(files *.md)
+	(packages wasm_interpreter))
+

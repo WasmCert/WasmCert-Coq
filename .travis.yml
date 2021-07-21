@@ -1,9 +1,6 @@
 
 language: perl
 
-perl:
-  - "5.26"
-
 os:
   - linux
 
@@ -12,10 +9,9 @@ cache:
     - ${HOME}/.esy
 
 install:
-  - export PERL5LIB="${HOME}/perl5" ; export PERL_MM_OPT="INSTALL_BASE=${HOME}/perl5" ; export PERL_MB_OPT="--install_base \"${HOME}/perl5\"" ; cd utilities ; cpanm -l "${HOME}/perl5" --verbose --no-interactive --installdeps --notest . ; cd ..
   - npm install --global esy@0.6.10 # esy@latest
   - esy install
 
 script:
-  - export PERL5LIB="${HOME}/perl5:${HOME}/perl5/lib/perl5:${HOME}/perl5/lib/perl5/x86_64-linux" ; utilities/travis_hook.sh
+  - utilities/travis_hook.sh
 
