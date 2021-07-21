@@ -4,7 +4,7 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Export operations typing datatypes_properties typing opsem properties.
+From Wasm Require Export operations datatypes_properties typing opsem properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

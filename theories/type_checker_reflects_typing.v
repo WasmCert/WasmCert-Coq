@@ -201,7 +201,7 @@ Ltac auto_rewrite_cond:=
          | H: is_true (plop2 _ _ _) |- _ => unfold plop2 in H => //=
          | H: is_true (List.nth_error _ _ == _) |- _ => move/eqP in H; rewrite H => //=
          | H: _ = _ |- _ => rewrite H => //=
-         | _ => try rewrite ct_suffix_suffix => //=
+         | _ => (try rewrite ct_suffix_suffix => //=); (try rewrite ct_suffix_self => //=)
          end.
 
 Lemma populate_ct_aux_suffix: forall l,
@@ -306,13 +306,12 @@ Proof with auto_rewrite_cond.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
     induction Hbet; subst => //=; unfold type_update => //=; simplify_goal; (try rewrite ct_suffix_self => //=)...
     + unfold convert_cond...
-    + rewrite ct_suffix_self => //=...
     + erewrite same_lab_h_condition; last by apply H.
       2: { instantiate (1 := i). rewrite mem_cat. apply/orP. right. by rewrite mem_head. }
       rewrite ct_suffix_suffix...
     + destruct tf as [t1 t2] => //=...
       unfold type_update => //=...
-    + unfold tc_types_t in H0.
+    + apply List.nth_error_
 Admitted.
     
 (*
