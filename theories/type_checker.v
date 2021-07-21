@@ -323,7 +323,7 @@ in
       end
     else CT_bot
   | BI_get_local i =>
-    if i < length (tc_func_t C)
+    if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
       | None => CT_bot (* Isa mismatch *)
