@@ -316,7 +316,7 @@ in
   | BI_call_indirect i =>
     if i < length C.(tc_types_t)
     then
-      match List.nth_error (tc_func_t C) i with
+      match List.nth_error (tc_types_t C) i with
       | None => CT_bot (* Isa mismatch *)
       | Some (Tf tn tm) =>
         type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
