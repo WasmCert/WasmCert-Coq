@@ -163,16 +163,6 @@ Definition populate_ct (ct: checker_type) : list value_type :=
   | CT_bot => [::]
   end.
 
-Lemma populate_ct_aux_suffix: forall l,
-  ct_suffix l (to_ct_list (populate_ct_aux l)).
-Proof.
-Admitted.
-  
-Lemma populate_ct_agree: forall l,
-  c_types_agree l (populate_ct l).
-Proof.
-Admitted.
-
 Ltac resolve_bet:=
   repeat match goal with
          | |- be_typing _ [::] (Tf ?tx ?tx) =>
@@ -199,15 +189,59 @@ Ltac auto_rewrite_cond:=
          | |- context C [ct_suffix [::] _] => rewrite ct_suffix_empty => //=
          | |- context C [ct_suffix [::CTA_any] (_::_)] => rewrite ct_suffix_any_1 => //=
          | |- context C [ct_suffix ?l ?l] => rewrite ct_suffix_self => //=
+         | |- context C [ct_suffix ?l (?l)%list] => rewrite ct_suffix_self => //=
          | |- context C [size (to_ct_list _)] => unfold to_ct_list; rewrite size_map => //=
          | |- context C [?x - ?x] => rewrite subnn => //=
          | |- context C [take 0 _] => rewrite take0 => //=
          | |- context C [drop 0 _] => rewrite drop0 => //=
          | |- context C [_ :: (tc_label _)] => rewrite - cat1s => //=
          | |- context C [size (_ ++ _)] => rewrite size_cat => //=
+         | |- context C [size (_ ++ _)%list] => rewrite size_cat => //=
+         | |- context C [?x + ?n - ?n] => replace (x + n - n) with x; last by lias => //=
          | H: is_true (plop2 _ _ _) |- _ => unfold plop2 in H => //=
          | H: is_true (List.nth_error _ _ == _) |- _ => move/eqP in H; rewrite H => //=
+         | H: _ = _ |- _ => rewrite H => //=
+         | _ => try rewrite ct_suffix_suffix => //=
          end.
+
+Lemma populate_ct_aux_suffix: forall l,
+  ct_suffix l (to_ct_list (populate_ct_aux l)).
+Proof.
+  induction l => //=.
+  unfold ct_suffix => /=.
+  apply/andP; split.
+  - repeat rewrite size_map. by lias.
+  - unfold ct_list_compat.
+    unfold ct_suffix, ct_list_compat in IHl.
+    auto_rewrite_cond.
+    repeat rewrite size_map in IHl.
+    repeat rewrite size_map.
+    rewrite subnn in IHl.
+    rewrite subnn.
+    simpl.
+    move/andP in IHl.
+    destruct IHl as [_ H].
+    rewrite drop0 in H.
+    rewrite H.
+    destruct a => //=.
+    by apply/andP.
+Qed.
+
+Lemma populate_ct_agree: forall l,
+  l <> CT_bot ->
+  c_types_agree l (populate_ct l).
+Proof.
+  intros.
+  destruct l => //=.
+  by apply populate_ct_aux_suffix.
+Qed.
+
+Lemma same_lab_h_condition: forall C i ts l,
+  i \in l ->
+  all (fun i: nat => (i < length (tc_label C)) && plop2 C i ts) l ->
+  same_lab l (tc_label C) = Some ts.
+Proof.
+Admitted.
 
 Lemma tc_to_bet_generalized: forall C bes tm ct,
   (match List.fold_left (check_single C) bes ct with
@@ -272,21 +306,13 @@ Proof with auto_rewrite_cond.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
     induction Hbet; subst => //=; unfold type_update => //=; simplify_goal; (try rewrite ct_suffix_self => //=)...
     + unfold convert_cond...
-    + rewrite ct_suffix_suffix...
-    + rewrite size_cat.
-      replace (size t1s + _ - _) with (size t1s); last by lias.
-      rewrite take_size_cat => //=...
     + rewrite ct_suffix_self => //=...
-    + unfold plop2 in H.
-      move/allP in H.
-      unfold same_lab.
-      destruct (ins ++ [::i]) eqn:Hl => //=; try by destruct ins.
-      rewrite Hl.
-      assert (n \in (ins ++ [::i])); first by rewrite Hl; apply mem_head.
-      apply H in H0.
-      move/andP in H0.
-      destruct H0...
-      replace (length (tc_label C) <= n) with false; last by lias.
+    + erewrite same_lab_h_condition; last by apply H.
+      2: { instantiate (1 := i). rewrite mem_cat. apply/orP. right. by rewrite mem_head. }
+      rewrite ct_suffix_suffix...
+    + destruct tf as [t1 t2] => //=...
+      unfold type_update => //=...
+    + unfold tc_types_t in H0.
 Admitted.
     
 (*
