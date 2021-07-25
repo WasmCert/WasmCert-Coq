@@ -137,18 +137,9 @@ Definition type_update_select (t : checker_type) : checker_type :=
     | _ =>
       match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
       | Some ts_at_2, Some ts_at_3 =>
-        type_update (CT_top_type ts) [::ts_at_3; ts_at_2; CTA_some T_i32]
+        type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
                     (select_return_top ts ts_at_2 ts_at_3)
-      (* I don't think the original expression is correct. The desired behaviour
-           is to remove the top three elements and insert an element of type
-           of the 2nd/3rd element (which should be the same, else an error is thrown).
-           This is dealt with by select_return_top. However, the original code would
-           fail to update if ts_at_3/ts_at_2 are some CTA_some xyz, since the
-           consumption would fail -- or is this actually desired in the code later?
-
-         This is only my understanding from reading the code prior to this point and 
-           is subject to changes in the future. Maybe the original code is correct
-           but I need to read more code below. *)
+                (* UPD: this is now the correct verified version *)
                     
       | _, _ => CT_bot (* TODO: is that OK? *)
       end
