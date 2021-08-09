@@ -16,7 +16,7 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [x] Update the function frame and related definitions to match the 1.0 standard.
 - [x] Finish type soundness result.
 - [ ] Validate WasmRef (conformance tests).
-- [ ] Verify executable type checker correctness.
+- [x] Verify executable type checker correctness.
 - [ ] Verify instantiation correctness properties.
 - [ ] Link WasmCert to CompCert.
 - [ ] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/host-iris).
