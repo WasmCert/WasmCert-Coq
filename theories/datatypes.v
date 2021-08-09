@@ -52,7 +52,7 @@ Definition serialise_f64 (f : f64) : bytes :=
 Limits classify the size range of resizeable storage associated with memory types and table types.
 If no maximum is given, the respective storage can grow to any size.
 [https://webassembly.github.io/spec/core/syntax/types.html#limits]
-  *)
+ *)
 Record limits : Type := {
   lim_min : N; (* TODO: should be u32 *)
   lim_max : option N; (* TODO: should be u32 *)
