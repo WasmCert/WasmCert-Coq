@@ -29,7 +29,7 @@ This repository contains some experimental work on a binary parser and Iris inte
 
 The project comes with an `esy` packaging.
 
-The following programs are assumed to be installed: `git`, `curl`, `m4`, and `autoconf`.
+The following programs are assumed to be installed: `git`, `curl`, `m4`, `autoconf`, and `automake`.
 These programs are used to fetch and compile dependencies.
 
 Installing `esy` itself can be done through `npm`.

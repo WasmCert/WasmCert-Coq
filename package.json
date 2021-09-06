@@ -24,7 +24,7 @@
 		"ocaml": "4.8.1000",
 		"@opam/coq": "8.10.1",
 		"@opam/ocamlfind": "1.8.1",
-		"coq-flocq": "3.2.0",
+		"coq-flocq": "3.4.2",
 		"compcert": "github:Mbodin/CompCert#3f06d181874c16887cae0fbc1531631c7a66d275",
 		"@opam/coq-stdpp": "*",
 		"coq-iris": "*",
@@ -63,22 +63,20 @@
 			}
 		},
 		"coq-flocq": {
-			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#a9be51660cd865d323b0b3bbb9faa793856ea0de",
-			"version": "3.2.0",
+			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#ca655d2542bdcf024bce5c26dbc0f13b856aa1f6",
+			"version": "3.4.2",
 			"override": {
-				"dependencies": {
-					"@opam/coq": "8.10.1"
-				},
 				"buildsInSource": true,
 				"buildEnv": {
 					"HOME": "#{self.target_dir}",
 					"COQBIN": "#{@opam/coq.bin}",
 					"COQLIB": "#{@opam/coq.lib}/coq/",
-					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib"
+					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib",
+          "COQUSERCONTRIB": "#{self.install}/coq"
 				},
 				"build": [
-					[ "./autogen.sh" ],
-					[ "./configure", "--libdir=#{self.install}/coq/Flocq" ],
+					[ "autoconf" ],
+					[ "./configure" ],
 					[ "./remake", "--jobs=2" ],
 					[ "./remake", "install" ]
 				]
