@@ -137,18 +137,9 @@ Definition type_update_select (t : checker_type) : checker_type :=
     | _ =>
       match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
       | Some ts_at_2, Some ts_at_3 =>
-        type_update (CT_top_type ts) [::ts_at_3; ts_at_2; CTA_some T_i32]
+        type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
                     (select_return_top ts ts_at_2 ts_at_3)
-      (* I don't think the original expression is correct. The desired behaviour
-           is to remove the top three elements and insert an element of type
-           of the 2nd/3rd element (which should be the same, else an error is thrown).
-           This is dealt with by select_return_top. However, the original code would
-           fail to update if ts_at_3/ts_at_2 are some CTA_some xyz, since the
-           consumption would fail -- or is this actually desired in the code later?
-
-         This is only my understanding from reading the code prior to this point and 
-           is subject to changes in the future. Maybe the original code is correct
-           but I need to read more code below. *)
+                (* UPD: this is now the correct verified version *)
                     
       | _, _ => CT_bot (* TODO: is that OK? *)
       end
@@ -201,6 +192,22 @@ Definition c_types_agree (ct : checker_type) (ts' : seq value_type) : bool :=
   | CT_bot => false
   end.
 
+Definition is_int (t: value_type) :=
+  match t with
+  | T_i32 => true
+  | T_i64 => true
+  | T_f32 => false
+  | T_f64 => false
+  end.
+
+Definition is_float (t: value_type) :=
+  match t with
+  | T_i32 => false
+  | T_i64 => false
+  | T_f32 => true
+  | T_f64 => true
+  end.
+
 Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
   let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
     let: (Tf tn tm) := tf in
@@ -210,44 +217,37 @@ in
   else
   match be with
   | BI_const v => type_update ts [::] (CT_type [::typeof v])
-  | BI_unop t _ => type_update ts [::CTA_some t] (CT_type [::t])
-                            (*
-  | Unop_i t _ =>
-    if is_int_t t
-    then type_update ts [::CTA_some t] (CT_type [::t])
-    else CT_bot
-  | Unop_f t _ =>
-    if is_float_t t
-    then  type_update ts [::CTA_some t] (CT_type [::t])
-    else CT_bot
-                             *)
-  | BI_binop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
-                             (*
-  | Binop_i t _ =>
-    if is_int_t t
-    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
-    else CT_bot
-  | Binop_f t _ =>
-    if is_int_t t
-    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
-    else CT_bot
-                              *)
-
+  | BI_unop t op =>
+    match op with
+    | Unop_i _ => if is_int t
+                  then type_update ts [::CTA_some t] (CT_type [::t])
+                  else CT_bot
+    | Unop_f _ => if is_float t
+                  then type_update ts [::CTA_some t] (CT_type [::t])
+                  else CT_bot
+    end
+  | BI_binop t op =>
+    match op with
+    | Binop_i _ => if is_int t
+                  then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
+                  else CT_bot
+    | Binop_f _ => if is_float t
+                  then type_update ts [::CTA_some t; CTA_some t] (CT_type [::t])
+                  else CT_bot
+    end
   | BI_testop t _ =>
     if is_int_t t
     then type_update ts [::CTA_some t] (CT_type [::T_i32])
     else CT_bot
-  | BI_relop t _ => type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
-                             (*
-  | Relop_i t _ =>
-    if is_int_t t
-    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
-    else CT_bot
-  | Relop_f t _ =>
-    if is_int_t t
-    then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
-    else CT_bot
-                              *)
+  | BI_relop t op =>
+    match op with
+    | Relop_i _ => if is_int t
+                  then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
+                  else CT_bot
+    | Relop_f _ => if is_float t
+                  then type_update ts [::CTA_some t; CTA_some t] (CT_type [::T_i32])
+                  else CT_bot
+    end
   | BI_cvtop t1 CVO_convert t2 sx =>
     if typing.convert_cond t1 t2 sx
     then type_update ts [::CTA_some t2] (CT_type [::t1])
@@ -314,16 +314,16 @@ in
       end
     else CT_bot
   | BI_call_indirect i =>
-    if i < length C.(tc_types_t)
+    if (1 <= length C.(tc_table)) && (i < length C.(tc_types_t))
     then
-      match List.nth_error (tc_func_t C) i with
+      match List.nth_error (tc_types_t C) i with
       | None => CT_bot (* Isa mismatch *)
       | Some (Tf tn tm) =>
         type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
       end
     else CT_bot
   | BI_get_local i =>
-    if i < length (tc_func_t C)
+    if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
       | None => CT_bot (* Isa mismatch *)

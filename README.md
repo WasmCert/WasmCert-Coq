@@ -16,7 +16,7 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [x] Update the function frame and related definitions to match the 1.0 standard.
 - [x] Finish type soundness result.
 - [ ] Validate WasmRef (conformance tests).
-- [ ] Verify executable type checker correctness.
+- [x] Verify executable type checker correctness.
 - [ ] Verify instantiation correctness properties.
 - [ ] Link WasmCert to CompCert.
 - [ ] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/host-iris).
@@ -29,7 +29,7 @@ This repository contains some experimental work on a binary parser and Iris inte
 
 The project comes with an `esy` packaging.
 
-The following programs are assumed to be installed: `git`, `curl`, `m4`, and `autoconf`.
+The following programs are assumed to be installed: `git`, `curl`, `m4`, `autoconf`, and `automake`.
 These programs are used to fetch and compile dependencies.
 
 Installing `esy` itself can be done through `npm`.

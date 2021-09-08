@@ -38,12 +38,12 @@ functionality:
 - **Bugs:** <https://github.com/ocurrent/ocaml-version/issues>
 - **Docs:** <http://docs.mirage.io/ocaml-version>
 """
-x-commit-hash: "eb14804dbf9424c27c8d14fce19b3243f80a69fa"
 url {
   src:
-    "https://github.com/ocurrent/ocaml-version/releases/download/v3.1.0/ocaml-version-v3.1.0.tbz"
+    "https://github.com/ocurrent/ocaml-version/releases/download/v3.2.0/ocaml-version-v3.2.0.tbz"
   checksum: [
-    "sha256=ac7ba16a09d8f72212742f3936980fbfaebb698c7bbf625182af7d6b2c3cde5f"
-    "sha512=6e11823531f1f70b5d4b90ed9f2fcc22cbf83924a7a0ef40eebc4b80598db6acdaca97f1d379e01860513d5dda492f5bc4d944f0c1dd7df491b2f36a0f729bb5"
+    "sha256=a643dd6ef10676855916a1d45c69070587088673da00a2867a52251390bb7461"
+    "sha512=85e104d347c52e3be00e4e4d675e99dc43bf57aebd08c9934e70608a2657bfa5be1d8c9aa897dac4ce6e2da9175d3ac0eb22baa2851f4edc88063fede6b9b650"
   ]
 }
+x-commit-hash: "41428c5e64b21a49f334822562bc73fd5033353c"

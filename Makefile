@@ -1,5 +1,9 @@
 .PHONY: all clean clean-aux vscode
 
+# Removes a lot of warnings from dune complaining that HOME is not defined.
+HOME ?= ${TARGETDIR}
+export HOME
+
 all:
 	dune build @all --verbose
 	dune build -p wasm_interpreter
