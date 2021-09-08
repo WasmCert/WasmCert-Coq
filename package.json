@@ -35,9 +35,9 @@
 		"coq-paco": "github:Mbodin/coq-paco#ca6a4b5f12a5fedac6a47ee775bc2e1b36ce7520",
 		"strong-induction": "github:Mbodin/strong-induction#0779e72f0f4c371311b60009606c34fc1f8cd01a",
 		"@opam/cmdliner": "1.0.4",
-		"@opam/dune": "^2.9",
+		"@opam/dune": ">=2.9",
 		"@opam/linenoise": "*",
-		"@opam/mdx": "*",
+		"@opam/mdx": ">=1.9.0",
 		"@opam/odoc": "*"
 	},
 	"devDependencies": {},

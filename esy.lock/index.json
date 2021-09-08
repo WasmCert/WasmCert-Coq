@@ -1,5 +1,5 @@
 {
-  "checksum": "08a831da925a3db591072271c4136d6d",
+  "checksum": "ffb719a6f36c12592f5b1925eb13d4ca",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {

@@ -17,6 +17,9 @@ br 0
 
 ```sh
 $ ../wasm_interpreter --vr loop.wasm loop_br 1
+
 $ ../wasm_interpreter --vr loop.wasm block_br 1
+
 $ ../wasm_interpreter --vr loop.wasm br 1
+
 ```
