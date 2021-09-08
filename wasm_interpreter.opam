@@ -6,6 +6,7 @@ homepage: "https://github.com/WasmCert/WasmCert-Coq"
 bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "2.9"}
+  "Wasm"
   "odoc" {with-doc}
 ]
 build: [
