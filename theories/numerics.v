@@ -1434,10 +1434,10 @@ Qed.
 Definition unspec_arithmetic_nan_pl := make_arithmetic unspec_nan_pl.
 
 Lemma unspec_arithmetic_nan_pl_canonical : pl_arithmetic (sval unspec_arithmetic_nan_pl).
-Proof. apply: make_arithmetic_arithmetic. Qed.
+Proof. by apply: make_arithmetic_arithmetic. Qed.
 
 Lemma unspec_arithmetic_nan_pl_nan : Binary.nan_pl prec (sval unspec_arithmetic_nan_pl).
-Proof. apply: make_arithmetic_nan. Qed.
+Proof. by apply: make_arithmetic_nan. Qed.
 
 (** An unspecified arithmetic [NaN]. **)
 Definition unspec_arithmetic_nan : T :=
@@ -1445,9 +1445,7 @@ Definition unspec_arithmetic_nan : T :=
 
 (** An opaque definition for an unspecified [NaN]. **)
 Definition unspec_nan_nan : {x : T | Binary.is_nan _ _ x = true}.
-Proof.
-  by refine (exist _ unspec_arithmetic_nan (eqxx true)).
-Qed.
+Proof. by refine (exist _ unspec_arithmetic_nan (eqxx true)). Qed.
 
 (** An unspecified [NaN]. **)
 Definition unspec_nan : T := sval unspec_nan_nan.

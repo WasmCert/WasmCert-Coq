@@ -156,11 +156,11 @@ let interpret verbosity error_code_on_crash sies name depth =
     match cfg_res with
     | (_, RS_crash) ->
       wait_message verbosity;
-      debug_info verbosity result ~style:red (fun _ -> "crash");
+      debug_info verbosity result ~style:red (fun _ -> "crash\n");
       pure None
     | (_, RS_break _) ->
       wait_message verbosity;
-      debug_info verbosity result ~style:bold (fun _ -> "break");
+      debug_info verbosity result ~style:bold (fun _ -> "break\n");
       pure None
     | (_, RS_return vs) ->
       wait_message verbosity;

@@ -1,6 +1,6 @@
 --- _build/default/theories/extract.ml	2020-08-27 16:34:09.889562027 +0100
 +++ _build/default/src/extract.ml	2020-08-27 16:34:10.365528985 +0100
-@@ -15716,13 +15716,13 @@
+@@ -15720,13 +15720,13 @@
  
    (** val executable_host_instance : executable_host **)
  
@@ -17,7 +17,7 @@
      functor_Monad host_monad
   end
  
-@@ -16422,7 +16422,7 @@
+@@ -16431,7 +16431,7 @@
  
    (** val monad_functor : __ M.monad functor0 **)
  

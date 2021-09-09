@@ -54,9 +54,11 @@ let bvpending verbosity min_level ?(style=normal) msg f =
   debug_info verbosity min_level ~style (fun _ -> msg) ;
   let (b, r) = vpending verbosity min_level f in
   let _ =
-    if b then
-      Printf.printf " %sOK%s\n" ansi_green ansi_reset
-    else Printf.printf " %sfailure%s\n" ansi_red ansi_reset in
+    if verbosity >= stage then (
+      if b then
+        Printf.printf " %sOK%s\n" ansi_green ansi_reset
+      else Printf.printf " %sfailure%s\n" ansi_red ansi_reset
+    ) in
   r
 
 type 'a out =

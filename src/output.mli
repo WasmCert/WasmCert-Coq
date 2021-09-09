@@ -34,9 +34,6 @@ val pending : verbosity -> verbosity -> unit -> unit -> unit
 (** Same as [pending], but does it during the computation of the prodived function. *)
 val vpending : verbosity -> verbosity -> (unit -> 'a) -> 'a
 
-(** Similarly to [ovpending], but the success is provided by the boolean. *)
-val bvpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> bool * 'a) -> 'a
-
 (** An output type, returning either a success with a value or an error message. *)
 type 'a out =
   | OK of 'a
@@ -45,6 +42,9 @@ type 'a out =
 (** Same as [vpending], but print the action given with the string, and append an ["OK"]
    or ["failure"] message depending on the function. *)
 val ovpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> 'a out) -> 'a out
+
+(** Similarly to [ovpending], but the success is provided by the boolean. *)
+val bvpending : verbosity -> verbosity -> ?style:style -> string -> (unit -> bool * 'a) -> 'a
 
 (** A monad for [out]. *)
 module Out : sig

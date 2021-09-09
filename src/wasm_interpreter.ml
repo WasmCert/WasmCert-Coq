@@ -52,9 +52,9 @@ let verbosity =
   Arg.(value & vflag Output.result Output.[
       mk none ["vn"; "nothing"] "Print nothing" ;
       mk result ["vr"; "result"] "Only print the result" ;
-      mk stage ["vs"; "stage"] "Also print stage" ;
-      mk intermediate ["vi"; "intermediate"] "Also print intermediate states, without stores" ;
-      mk store ["va"; "all"; "store"] "Also print stores" ;
+      mk stage ["vs"; "stage"] "Print the stage and the result" ;
+      mk intermediate ["vi"; "intermediate"] "Print all intermediate states, without stores" ;
+      mk store ["va"; "all"; "store"] "Print everything, including stores" ;
     ])
 
 let text =

@@ -1142,6 +1142,16 @@ Proof.
     by apply bet_weakening.
 Qed.
 
+Lemma bet_composition_front: forall C e es t1s t2s t3s,
+    be_typing C [::e] (Tf t1s t2s) ->
+    be_typing C es (Tf t2s t3s) ->
+    be_typing C (e :: es) (Tf t1s t3s).
+Proof.
+  intros.
+  rewrite - cat1s.
+  by eapply bet_composition'; eauto.
+Qed.
+
 Lemma et_composition': forall s C es1 es2 t1s t2s t3s,
     e_typing s C es1 (Tf t1s t2s) ->
     e_typing s C es2 (Tf t2s t3s) ->

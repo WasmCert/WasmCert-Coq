@@ -3,8 +3,8 @@
 
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Export operations typing type_checker datatypes_properties typing opsem properties.
+From Coq Require Import Program.Equality NArith ZArith_base.
+From Wasm Require Export operations datatypes_properties typing opsem properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -2425,7 +2425,7 @@ Proof.
   destruct b => //; first by rewrite Nat.div_1_r; lias.
   destruct a => //.
   assert (a.+1/b.+2 < a.+1)%coq_nat.
-  { apply Nat.div_lt; omega. (* lias doesn't solve this. *) }
+  { by apply Nat.div_lt; lias. }
   by lias.
 Qed.
 
