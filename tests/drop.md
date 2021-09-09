@@ -6,7 +6,7 @@ drop
 ```
 
 ```sh
-$ ../wasm_interpreter --vr drop.wasm hello 1
+$ wasm_interpreter --vr drop.wasm hello 1
 i32.const 42
 
 ```

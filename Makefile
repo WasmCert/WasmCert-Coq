@@ -4,10 +4,12 @@
 HOME ?= ${TARGETDIR}
 export HOME
 
+INTERPRETER=_build/install/default/bin/wasm_interpreter
+
 all:
 	dune build @all --verbose
 	dune build -p wasm_interpreter
-	ln -f -s ./_build/install/default/bin/wasm_interpreter ./wasm_interpreter || echo "Compilation done. The wasm interpreter is located in: _build/install/default/bin/wasm_interpreter"
+	ln -f -s ${INTERPRETER} ./wasm_interpreter || echo "Compilation done. The wasm interpreter is located in: ${INTERPRETER}"
 
 clean-aux:
 	rm theories/*.aux || true
