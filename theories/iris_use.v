@@ -53,6 +53,7 @@ Class heapG Σ := HeapG {
 Instance heapG_irisG `{!heapG Σ} : irisG wasm_lang Σ := {
     iris_invG := heapG_invG;
     state_interp σ κs _ := True%I
+      (* TODO: use the state-interpretation from iris-host. *)
       (* (gen_heap_ctx σ.(heap) ∗ proph_map_ctx κs σ.(used_proph_id))%I *);
     fork_post _ := True%I;
   }.
@@ -70,10 +71,12 @@ Proof.
   iIntros "H".
   by rewrite wp_unfold /wp_pre.
 Qed.
-  
+
+(* behaviour of seq might be a bit unusual due to how reductions work.
+  TODO: fix the formulation *)
 Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
-  (WP es1 @ s; E {{ w, Ψ w }} -∗
-  ∀ w, Ψ w -∗ WP es2 @ s; E {{ v, Φ v }})%I
+  (WP es1 @ s; E {{ w, Ψ w }} ∗
+  ∀ w, Ψ w -∗ WP (v_to_e_list w ++ es2) @ s; E {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
 (*  WP es2 @ s ; E {{ fun v =>
    WP es1 @ s ; E {{ fun v' =>
@@ -81,8 +84,15 @@ Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ)
   ⊢ WP (es1 ++ es2) @ s ; E {{ Φ }}%I.*)
 Proof.
   elim: es1.
-  { iSimpl.
-    admit. }
+  { iIntros "[Hnil Hes]".
+    rewrite wp_unfold /wp_pre.
+    iSimpl in "Hnil".
+    iSimpl.
+    iSpecialize ("Hes" with "Hnil").
+    iSimpl in "Hes".
+    iMod "Hes".
+    by iApply "Hes".
+  }
   { move => e es H.
     iIntros "H".
     iSimpl.
