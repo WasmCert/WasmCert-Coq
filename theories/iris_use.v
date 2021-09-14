@@ -105,8 +105,6 @@ Proof.
   simpl.
   (* FIXME: iApply. *)
 Admitted.
-*)
 
 End Host.
 
-*)
