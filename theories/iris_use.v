@@ -1,10 +1,10 @@
 (** Example of Iris usage **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
-(*
+
 From mathcomp Require Import eqtype.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
-From iris.program_logic Require Export weakestpre.
+From iris.program_logic Require Export weakestpre lifting.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris.
 Require Export datatypes host operations.
@@ -18,14 +18,15 @@ Section Host.
 Variable host_function : eqType.
 
 Let host := host.host host_function.
-(* FIXME: Let expr := expr host_function. *)
+(* Let expr := expr host_function. *)
 
 Variable host_instance : host.
 
 Let wasm_mixin : LanguageMixin _ _ _ := wasm_mixin host_instance.
 
-Canonical Structure wasm := Language wasm_mixin.
+Canonical Structure wasm_lang := Language wasm_mixin.
 
+Let expr := iris.expr.
 
 Record loc := { loc_car : Z }.
 Instance loc_eq_decision : EqDecision loc.
@@ -58,27 +59,29 @@ Instance heapG_irisG `{!heapG Σ} : irisG wasm_lang Σ := {
 
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 
-(* FIXME: Mismatch on [expr]?
 Definition my_add : expr :=
-  [Basic (EConst (xx 3));
-     Basic (EConst (xx 2));
-     Basic (Binop_i T_i32 Add)].
+  [AI_basic (BI_const (xx 3));
+     AI_basic (BI_const (xx 2));
+     AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
 
 Lemma wp_nil `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
-  Φ -∗ WP ([] : expr) @ s ; E {{ fun v => Φ }}%I.
+  Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
 Proof.
   iIntros "H".
-Admitted. (* TODO *)
-
-Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es1 es2 : expr) :
-  WP (es2 : expr) @ s ; E {{ fun v =>
-   WP (es1 : expr) @ s ; E {{ fun v' =>
+  by rewrite wp_unfold /wp_pre.
+Qed.
+  
+Lemma wp_seq `{!heapG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+  (WP es1 @ s; E {{ w, Ψ w }} -∗
+  ∀ w, Ψ w -∗ WP es2 @ s; E {{ v, Φ v }})%I
+  ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
+(*  WP es2 @ s ; E {{ fun v =>
+   WP es1 @ s ; E {{ fun v' =>
      Φ (v ++ v') }}%I }}%I
-  -∗ WP ((es1 ++ es2) : expr) @ s ; E {{ Φ }}%I.
+  ⊢ WP (es1 ++ es2) @ s ; E {{ Φ }}%I.*)
 Proof.
   elim: es1.
-  { iIntros "H".
-    iSimpl.
+  { iSimpl.
     admit. }
   { move => e es H.
     iIntros "H".
@@ -86,9 +89,9 @@ Proof.
     (* FIXME: iSimpl "H". *)
 Admitted. (* TODO *)
 
-Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : expr) (v : val) :
+Lemma wp_val `{!heapG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) (v : val) :
   WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I
-  -∗ WP (((Basic (EConst v0)) :: es) : expr) @ s ; E {{ v, Φ v }}%I.
+  ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
 Admitted. (* TODO *)
 
