@@ -17,14 +17,7 @@ Section Host.
 Variable host_function : eqType.
 
 Let host := host host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
 Let store_record := store_record host_function.
-(*Let lholed := lholed host_function.
-
-Let lfilled : nat -> lholed -> list administrative_instruction -> list administrative_instruction -> bool :=
-  @lfilled _.
-Let split_vals_e : list administrative_instruction -> list value * list administrative_instruction :=
-  @split_vals_e _.*)
 
 Variable host_instance : host.
 

@@ -83,7 +83,7 @@
 			}
 		},
 		"coq-iris": {
-			"source": "git:https://gitlab.mpi-sws.org/iris/iris.git#075ce23bd4e87a838a616b5420ace2e9f29e66c3",
+			"source": "git:https://gitlab.mpi-sws.org/iris/iris.git#8e4043554fca5a4ab7d659de0bc4826795f6ee17",
 			"version": "3.4.0",
 			"override": {
 				"buildsInSource": true,
@@ -106,7 +106,7 @@
 			}
 		},
 		"@opam/coq-stdpp": {
-			"source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#13df68219bf461b6363b8c03703290245690628d",
+			"source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#cb1daa491531ee88195764560a76c1cd31fbde1d",
 			"version": "1.5.0",
 			"override": {
 				"dependencies": {

@@ -8,13 +8,19 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import common operations datatypes datatypes_properties.
+Require Export common operations datatypes datatypes_properties memory_list.
 From stdpp Require Import gmap.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth.
 From iris.bi.lib Require Import fractional.
 From iris.base_logic.lib Require Export gen_heap proph_map gen_inv_heap.
 From iris.program_logic Require Export weakestpre total_weakestpre.
+
+Definition create_table (len: N) : tableinst :=
+  Build_tableinst (List.repeat None (N.to_nat len)) (Some len).
+
+Definition create_memory (sz: N) (sz_lim: N) (init_b: byte) :=
+  Build_memory (mem_make init_b sz) (Some sz_lim).
 
 (* automatically remembers a lookup result and make the hypothesis ready for destruct *)
 Ltac remember_lookup :=
@@ -178,10 +184,8 @@ Proof with resolve_finmap.
   repeat rewrite gmap_of_list_lookup.
   destruct (decide (i = N.of_nat (length l))).
   - subst. rewrite Nat2N.id. rewrite lookup_insert.
-    rewrite lookup_app.
-    destruct (l !! length l) eqn:Hlookup => //=.
-    + apply lookup_lt_Some in Hlookup. lia.
-    + by replace (length l - length l) with 0; last lia.
+    rewrite lookup_app_r => //=.
+    by replace (length l - length l) with 0; last lia.
   - remember_lookup. symmetry.
     destruct lookup_res...
     + assert (N.to_nat i < length l) as HLength.
@@ -190,10 +194,7 @@ Proof with resolve_finmap.
         lia. }
       rewrite lookup_insert_ne => //.
       rewrite gmap_of_list_lookup.
-      rewrite lookup_app in Hlookup.
-      destruct (l !! N.to_nat i) eqn:Hlookup2 => //=.
-      apply lookup_ge_None in Hlookup2.
-      lia.
+      by rewrite lookup_app_l in Hlookup => //.
     + apply lookup_ge_None in Hlookup.
       rewrite lookup_insert_ne => //.
       rewrite gmap_of_list_lookup.
@@ -699,10 +700,10 @@ Axiom mem_length_divisible: forall m,
   (((mem_length m) `div` page_size) * page_size)%N = mem_length m.
 
 Lemma mem_grow_data m n m':
-  mem_grow m n = Some m' ->
+  operations.mem_grow m n = Some m' ->
   m'.(mem_data).(memory_list.ml_data) = (m.(mem_data).(memory_list.ml_data) ++ (repeat (m.(mem_data).(memory_list.ml_init)) (N.to_nat (n*page_size))))%SEQ.
 Proof.
-  unfold mem_grow, mem_size, mem_length, memory_list.mem_length => //=.
+  unfold operations.mem_grow, mem_size, mem_length, memory_list.mem_length => //=.
   move => H.
   destruct (mem_max_opt m) in H => //=.
   - destruct (_ <=? n0)%N => //=.
@@ -711,12 +712,12 @@ Proof.
 Qed.
 
 Lemma mem_grow_length m n m':
-  mem_grow m n = Some m' ->
-  mem_length m' = (mem_length m + n * page_size)%N.
+  operations.mem_grow m n = Some m' ->
+  operations.mem_length m' = (operations.mem_length m + n * page_size)%N.
 Proof.
   move => H.
   apply mem_grow_data in H.
-  unfold mem_size, mem_length, memory_list.mem_length.
+  unfold mem_size, operations.mem_length, memory_list.mem_length.
   rewrite H.
   rewrite app_length repeat_length.
   by rewrite Nat2N.inj_add N2Nat.id.
@@ -727,7 +728,7 @@ Definition mem_grow_appendix (m:memory) (mn: nat) (n:N) : gmap (N*N) byte := lis
 Lemma mem_grow_appendix_disjoint m n mn m' mems:
   mn < length mems ->
   mems !! mn = Some m ->
-  mem_grow m n = Some m' ->
+  operations.mem_grow m n = Some m' ->
   (mem_grow_appendix m mn n) ##ₘ gmap_of_memory mems.
 Proof.
   move => HLen Hmem Hmemgrow.
@@ -763,13 +764,13 @@ Qed.
 Lemma gmap_of_memory_grow m n m' mn mems:
   mn < length mems ->
   mems !! mn = Some m ->
-  mem_grow m n = Some m' ->
+  operations.mem_grow m n = Some m' ->
   (mem_grow_appendix m mn n) ∪ gmap_of_memory mems =
   gmap_of_memory (<[ mn := m' ]> mems).
 Proof.
   move => Hlen Hmemlookup Hmemgrow.
   remember (mem_grow_length Hmemgrow) as Hmemlen; clear HeqHmemlen.
-  unfold mem_length, memory_list.mem_length in Hmemlen.
+  unfold operations.mem_length, mem_length in Hmemlen.
   remember (mem_grow_data Hmemgrow) as Hmemgrowdata; clear HeqHmemgrowdata.
   apply map_eq.
   move => [i j].
