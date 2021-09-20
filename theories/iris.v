@@ -11,7 +11,6 @@ Unset Printing Implicit Defensive.
 
 Require Import operations opsem interpreter.
 
-
 Section Host.
 
 Variable host_function : eqType.
