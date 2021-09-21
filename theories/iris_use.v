@@ -110,6 +110,34 @@ Definition my_add : expr :=
      AI_basic (BI_const (xx 2));
      AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
 
+Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
+  es1 ++ es2 = es3 ++ es4 ->
+  length es1 = length es3 ->
+  es1 = es3 /\ es2 = es4.
+Proof.
+  move: es2 es3 es4.
+  elim: es1; destruct es3 => //=.
+  move => es4 H2 Hlen.
+  inversion H2; subst; clear H2.
+  inversion Hlen; clear Hlen.
+  apply H in H3 => //.
+  by destruct H3 => //; subst.
+Qed.
+
+Lemma fmap_split: forall {X Y:Type} (f: X -> Y) vs es1 es2,
+  fmap f vs = es1 ++ es2 ->
+  fmap f (take (length es1) vs) = es1 /\ fmap f (drop (length es1) vs) = es2.
+Proof.
+  move => X Y f vs es1.
+  move : f vs.
+  elim: es1; destruct vs => //=.
+  move => es2 Hmap.
+  inversion Hmap; subst; clear Hmap.
+  apply H in H2. destruct H2; subst.
+  split => //=.
+  by f_equal.
+Qed.
+  
 Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
   Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
 Proof.
@@ -121,8 +149,18 @@ Lemma to_val_cat (es1 es2: list administrative_instruction) (vs: val) :
   iris.to_val (es1 ++ es2) = Some vs ->
   iris.to_val es1 = Some (take (length es1) vs) /\
   iris.to_val es2 = Some (drop (length es1) vs).
-Admitted.
-
+Proof.
+  move => H.
+  apply iris.of_to_val in H.
+  unfold iris.of_val in H.
+  apply fmap_split in H; destruct H as [H1 H2].
+  remember (length es1) as n1.
+  remember (length es2) as n2.
+  rewrite - H1.
+  rewrite - H2.
+  by repeat rewrite iris.to_of_val.
+Qed.
+  
 Let prim_step := @iris.prim_step host_function host_instance.
 
 Lemma prim_step_cat_reduce (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
@@ -168,6 +206,7 @@ Proof.
     rewrite to_of_val.
     by iAssumption.
   }
+  (* Ind *)
   iIntros (σ ns κ κs nt) "Hσ".
   destruct (iris.to_val es1) as [vs|] eqn:Hes.
   { apply of_to_val in Hes as <-.
@@ -209,6 +248,8 @@ Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E 
   WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
+  iIntros "H".
+
 Admitted. (* TODO *)
 
 Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : val) :
