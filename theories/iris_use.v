@@ -381,6 +381,35 @@ Proof.
     by iFrame.
 Qed.
 
+Print r_invoke_native.
+
+Print datatypes.function_closure.
+
+(* What should a function spec look like?
+  A (Wasm) function closure is of the form
+
+    FC_func_native inst ft vts bes
+
+  but this is not an expression nor a value, so we need to define our custom version of wp for it, like
+
+    WP (FC_func_native inst ft vts bes) {{ v, Φ v }}.
+
+  to express our function specs.
+
+  What should such a wp require (to be established), and how to use it? 
+
+  Given a spec in the above form, we expect to be able to use it to
+    figure out a spec for Invoke i, when s.funcs[i] is a Wasm function...
+ 
+  s.funcs[a] = FC_func_native i (Tf t1s t2s) ts bes ->
+  f' = {| inst := i; locs := vcs ++ zs |} ->
+  ... ->
+  (hs, s, f, ves ++ [AI_invoke a]) ↪ 
+  (hs, s, f, [AI_local m f' [AI_basic (BI_block (Tf [] t2s) bes)]])
+
+Lemma invoke_native_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φs: list (val -> iProp Σ)) inst ft vts bes :
+  [∗ list] i ↦ Φ ∈ Φs, (i ↦[wf] FC_func_native inst ft vts bes ∗ □ (WP (FC_func_native inst ft vts bes)
+*)
 
 End Host.
 

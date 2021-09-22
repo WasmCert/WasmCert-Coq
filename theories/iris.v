@@ -134,14 +134,27 @@ Lemma to_val_None_prepend: forall es1 es2,
   to_val es2 = None ->
   to_val (es1 ++ es2) = None.
 Proof.
-Admitted.
+  move => es1 es2 H.
+  induction es1 => //=.
+  destruct a => //=.
+  destruct b => //=.
+  by rewrite IHes1.
+Qed.
   
 Lemma to_val_None_append: forall es1 es2,
   to_val es1 = None ->
   to_val (es1 ++ es2) = None.
 Proof.
-Admitted.
-
+  move => es1 es2.
+  induction es1 => //=.
+  destruct a => //=.
+  destruct b => //=.
+  destruct (to_val es1) eqn:H => //=.
+  move => Hn.
+  apply IHes1 in Hn.
+  by rewrite Hn.
+Qed.
+  
 Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
   xs ++ (y :: ys) <> [].
 Proof. move => T xs y ys E. by move: (app_eq_nil _ _ E) => [? ?]. Qed.
