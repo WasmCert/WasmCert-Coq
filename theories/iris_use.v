@@ -1,13 +1,14 @@
 (** Example of Iris usage **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From mathcomp Require Import eqtype.
+From mathcomp Require Import eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre lifting.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations.
-Require Export datatypes host operations.
+Require Export datatypes host operations opsem.
+Require Import Coq.Program.Equality.
 
 Set Default Proof Using "Type". (* what is this? *)
 
@@ -67,6 +68,33 @@ Class wglobG Σ := WGlobG {
   glob_gen_hsG :> gen_heapG N global Σ;
 }.
 
+Class wlocsG Σ := WLocsG {
+  locs_invG : invG Σ;
+  locs_gen_hsG :> gen_heapG N value Σ;
+}.
+
+Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
+                           (at level 20, q at level 5, format "n ↦[wf]{ q } v") : bi_scope.
+Notation "n ↦[wf] v" := (mapsto (L:=N) (V:=function_closure) n (DfracOwn 1) v%V)
+                      (at level 20, format "n ↦[wf] v") : bi_scope.
+Notation "n ↦[wt]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=funcelem) (n, i) q v%V)
+                           (at level 20, q at level 5, format "n ↦[wt]{ q } [ i ] v") : bi_scope.
+Notation "n ↦[wt][ i ] v" := (mapsto (L:=N*N) (V:=funcelem) (n, i) (DfracOwn 1) v%V)
+                      (at level 20, format "n ↦[wt][ i ] v") : bi_scope.
+Notation "n ↦[wm]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) q v%V)
+                           (at level 20, q at level 5, format "n ↦[wm]{ q } [ i ] v") : bi_scope.
+Notation "n ↦[wm][ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) (DfracOwn 1) v% V)
+                           (at level 20, format "n ↦[wm][ i ] v") : bi_scope.
+Notation "n ↦[wg]{ q } v" := (mapsto (L:=N) (V:=global) n q v%V)
+                           (at level 20, q at level 5, format "n ↦[wg]{ q } v") : bi_scope.
+Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
+                      (at level 20, format "n ↦[wg] v") : bi_scope.
+
+Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
+                           (at level 20, q at level 5, format "n ↦[wl]{ q } v") : bi_scope.
+Notation "n ↦[wl] v" := (mapsto (L:=N) (V:=value) n (DfracOwn 1) v%V)
+                      (at level 20, format "n ↦[wl] v") : bi_scope.
+
 Definition proph_id := positive.
 
 (*
@@ -78,14 +106,16 @@ Class heapG Σ := HeapG {
 }.
  *)
 
-Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} : irisG wasm_lang Σ := {
+Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} : irisG wasm_lang Σ := {
   iris_invG := func_invG;
   state_interp σ _ κs _ :=
-    let (_, s) := σ in
+    let: (_, s, locs) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
       (gen_heap_interp (gmap_of_table s.(s_tables))) ∗
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
-      (gen_heap_interp (gmap_of_list s.(s_globals)))
+      (gen_heap_interp (gmap_of_list s.(s_globals)) ∗
+      (gen_heap_interp (gmap_of_list locs))
+      )
     )%I;
     (* (gen_heap_ctx σ.(heap) ∗ proph_map_ctx κs σ.(used_proph_id))%I *)
     num_laters_per_step _ := 0;
@@ -138,7 +168,7 @@ Proof.
   by f_equal.
 Qed.
   
-Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
+Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
   Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
 Proof.
   iIntros "H".
@@ -163,7 +193,14 @@ Qed.
   
 Let prim_step := @iris.prim_step host_function host_instance.
 
-Lemma prim_step_cat_reduce (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
+Lemma prim_step_split_reduce_l (es1 es2 es' : list administrative_instruction) vs σ σ' obs1 obs2 :
+  iris.to_val es1 = Some vs ->
+  prim_step (es1 ++ es2) σ obs1 es' σ' obs2 ->
+  exists es'', es' = es1 ++ es'' /\ prim_step es2 σ obs1 es'' σ' obs2.
+Proof.
+Admitted.
+
+Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
   iris.to_val es1 = None ->
   prim_step (es1 ++ es2) σ obs1 es' σ' obs2 ->
   exists es'', es' = es'' ++ es2 /\ prim_step es1 σ obs1 es'' σ' obs2.
@@ -183,9 +220,16 @@ Lemma append_reducible (es1 es2: list administrative_instruction) σ:
   @reducible wasm_lang (es1 ++ es2) σ.
 Proof.
 Admitted.
+
+Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
+  iris.to_val es1 = Some vs ->
+  @reducible wasm_lang es2 σ ->
+  @reducible wasm_lang (es1 ++ es2) σ.
+Proof.
+Admitted.
   
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
-Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
   (WP es1 @ s; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
@@ -230,13 +274,13 @@ Proof.
       destruct s => //.
       by apply append_reducible.
     - iIntros (e2 σ2 efs HStep).
-      apply prim_step_cat_reduce in HStep as [es'' [-> HStep]] => //.
+      apply prim_step_split_reduce_r in HStep as [es'' [-> HStep]] => //.
       iSpecialize ("H2" $! es'' σ2 efs HStep).
       iMod "H2".
       repeat iModIntro.
       repeat iMod "H2".
       iModIntro.
-      destruct σ2 as [i s0].
+      destruct σ2 as [[i s0] locs].
       iDestruct "H2" as "((Hwf & Hwt & Hwm & Hwg) & Hes'' & Hefs)".
       iFrame.
       iApply "IH".
@@ -244,24 +288,99 @@ Proof.
   }
 Qed.
 
-Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) (v : val) :
+Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
   WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
+  (* This also needs an iLob. *)
+  iLöb as "IH" forall (v0 es Φ).
   iIntros "H".
+  repeat rewrite wp_unfold /wp_pre /=.
+  destruct (iris.to_val es) as [vs|] eqn:Hes.
+  { apply of_to_val in Hes as <-.
+    iMod "H".
+    by iModIntro.
+  }
+  { iIntros (σ ns κ κs nt) "Hσ".
+    iSpecialize ("H" $! σ ns κ κs nt with "Hσ").
+    iMod "H".
+    iModIntro.
+    iDestruct "H" as "(%H1 & H)".
+    iSplit.
+    - iPureIntro.
+      destruct s => //=.
+      rewrite - cat1s.
+      by eapply prepend_reducible; eauto.
+    - iIntros (es2 σ2 efs HStep).
+      rewrite -cat1s in HStep.
+      eapply prim_step_split_reduce_l in HStep; eauto.
+      destruct HStep as [es'' [-> HStep]].
+      iSpecialize ("H" $! es'' σ2 efs HStep).
+      iMod "H".
+      repeat iModIntro.
+      repeat iMod "H".
+      iModIntro.
+      iDestruct "H" as "(Hσ & Hes & Hefs)".
+      iFrame.
+      rewrite -> cat1s.
+      by iApply "IH".
+  }
+Qed.
 
-Admitted. (* TODO *)
+Let empty_instance := Build_instance [] [] [] [] [].
 
-Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : val) :
-  (Φ (xx 5 :: v)) -∗ WP my_add @ s;E {{ Φ }}%I.
+Lemma myadd_reduce: forall hs f ws hs' f' ws' es,
+  @reduce host_function host_instance hs f ws my_add hs' f' ws' es ->
+  (hs', f', ws') = (hs, f, ws) /\ es = [AI_basic (BI_const (xx 5))].
+Proof.
+  move => hs f ws hs' f' ws' es HRed.
+  unfold my_add in HRed.
+  dependent induction HRed; subst=> //=.
+  - inversion H; subst => //=; clear H; try by (simpl in H5; inversion H5).
+    + by repeat destruct vs => //.
+    + by repeat destruct vs => //.
+    + clear H0.
+      move/lfilledP in H1.
+      inversion H1; subst; clear H1.
+      by repeat destruct vs => //.
+  - by repeat destruct vcs => //=.      
+  - by repeat destruct vcs => //=.      
+  - by repeat destruct vcs => //=.      
+  - move/lfilledP in H0.
+    move/lfilledP in H.
+    inversion H; subst; clear H; last by repeat destruct vs => //.
+    (* r_label case is problematic since it has a case of self-implication *)
+    admit.
+Admitted.
+  
+Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
+  Φ [xx 5] ⊢ WP my_add @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
   unfold my_add.
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iModIntro.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (xx 5))], σ, [].
+    destruct σ as [[hs ws] locs].
+    unfold iris.prim_step => /=.
+    exists empty_instance.
+    repeat split => //.
+    apply r_simple.
+    by apply rs_binop_success.
+  - destruct σ as [[hs ws] locs] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[hs' ws'] locs'] => //=.
+    destruct HStep as [i [H [-> ->]]].
+    apply myadd_reduce in H as [H ->].
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
 
-  iApply wp_value.
-  simpl.
-  (* FIXME: iApply. *)
-Admitted.
 
 End Host.
 
