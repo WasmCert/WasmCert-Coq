@@ -31,7 +31,7 @@ Let reduce : host_state -> store_record -> frame -> list administrative_instruct
 
 Definition expr := list administrative_instruction.
 Definition val := list value.
-Definition state : Type := host_state * store_record * (list value).
+Definition state : Type := host_state * store_record * (list value) * instance.
 Definition observation := unit. (* TODO: maybe change? *)
 
 Definition of_val (v : val) : expr := fmap (fun v => AI_basic (BI_const v)) v.
@@ -48,10 +48,9 @@ Fixpoint to_val (e : expr) : option val :=
   end.
 
 Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) (s' : state) (fork_es' : list expr) : Prop :=
-  let '(hs, σ, locs) := s in
-  let '(hs', σ', locs') := s' in
-  exists i,
-    reduce hs σ (Build_frame locs i) e hs' σ' (Build_frame locs' i) e' /\ os = [] /\ fork_es' = [].
+  let '(hs, σ, locs, inst) := s in
+  let '(hs', σ', locs', inst') := s' in
+    reduce hs σ (Build_frame locs inst) e hs' σ' (Build_frame locs' inst') e' /\ os = [] /\ fork_es' = [].
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
 Proof.
@@ -257,8 +256,8 @@ Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,
   prim_step e1 s1 κ e2 s2 efs →
   to_val e1 = None.
 Proof.
-  rewrite /prim_step => e1 [[hs1 locs1] σ1] κ e2 [[hs2 locs2] σ2] efs.
-  move => [i [HRed _]].
+  rewrite /prim_step => e1 [[[hs1 locs1] σ1] inst] κ e2 [[[hs2 locs2] σ2] inst'] efs.
+  move => [HRed _].
   induction HRed => //=; subst; try by apply to_val_None_prepend.
   - inversion H; subst => //=; try by apply to_val_None_prepend.
     + destruct v => //=.

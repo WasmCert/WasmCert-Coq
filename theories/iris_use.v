@@ -73,6 +73,11 @@ Class wlocsG Σ := WLocsG {
   locs_gen_hsG :> gen_heapG N value Σ;
 }.
 
+Class winstG Σ := WInstG {
+  inst_invG: invG Σ;
+  inst_gen_hsG :> gen_heapG unit instance Σ;
+}.
+
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wf]{ q } v") : bi_scope.
 Notation "n ↦[wf] v" := (mapsto (L:=N) (V:=function_closure) n (DfracOwn 1) v%V)
@@ -92,8 +97,10 @@ Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
 
 Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wl]{ q } v") : bi_scope.
-Notation "n ↦[wl] v" := (mapsto (L:=N) (V:=value) n (DfracOwn 1) v%V)
-                      (at level 20, format "n ↦[wl] v") : bi_scope.
+Notation "u ↦[wi]{ q } v" := (mapsto (L:=unit) (V:=instance) u q v%V)
+                      (at level 20, format "u ↦[wi]{ q } v") : bi_scope.
+Notation "u ↦[wi] v" := (mapsto (L:=unit) (V:=instance) u (DfracOwn 1) v%V)
+                      (at level 20, format "u ↦[wi] v") : bi_scope.
 
 Definition proph_id := positive.
 
@@ -106,22 +113,23 @@ Class heapG Σ := HeapG {
 }.
  *)
 
-Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} : irisG wasm_lang Σ := {
+Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
   iris_invG := func_invG;
   state_interp σ _ κs _ :=
-    let: (_, s, locs) := σ in
+    let: (_, s, locs, inst) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
       (gen_heap_interp (gmap_of_table s.(s_tables))) ∗
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
       (gen_heap_interp (gmap_of_list s.(s_globals)) ∗
-      (gen_heap_interp (gmap_of_list locs))
+      (gen_heap_interp (gmap_of_list locs)) ∗
+      (gen_heap_interp (<[tt := inst]> ∅))
       )
     )%I;
     (* (gen_heap_ctx σ.(heap) ∗ proph_map_ctx κs σ.(used_proph_id))%I *)
     num_laters_per_step _ := 0;
     fork_post _ := True%I;
     state_interp_mono _ _ _ _ := fupd_intro _ _
-                                                                                       }.
+}.
 
 Ltac inv_head_step :=
   repeat match goal with
@@ -168,7 +176,7 @@ Proof.
   by f_equal.
 Qed.
   
-Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
+Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
   Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
 Proof.
   iIntros "H".
@@ -238,7 +246,7 @@ Proof.
 Admitted.
   
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
-Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
   (WP es1 @ s; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
@@ -290,14 +298,14 @@ Proof.
       repeat iMod "H2".
       iModIntro.
       destruct σ2 as [[i s0] locs].
-      iDestruct "H2" as "((Hwf & Hwt & Hwm & Hwg) & Hes'' & Hefs)".
+      iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
       iFrame.
       iApply "IH".
       by iFrame.
   }
 Qed.
 
-Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
+Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
   WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
@@ -362,7 +370,7 @@ Proof.
     admit.
 Admitted.
   
-Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
+Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
   Φ [xx 5] ⊢ WP my_add @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
@@ -375,16 +383,15 @@ Proof.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
     exists [], [AI_basic (BI_const (xx 5))], σ, [].
-    destruct σ as [[hs ws] locs].
+    destruct σ as [[[hs ws] locs] inst].
     unfold iris.prim_step => /=.
-    exists empty_instance.
     repeat split => //.
     apply r_simple.
     by apply rs_binop_success.
-  - destruct σ as [[hs ws] locs] => //=.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
     iIntros "!>" (es σ2 efs HStep) "!>".
-    destruct σ2 as [[hs' ws'] locs'] => //=.
-    destruct HStep as [i [H [-> ->]]].
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
     apply myadd_reduce in H as [H ->].
     inversion H; subst; clear H.
     by iFrame.
