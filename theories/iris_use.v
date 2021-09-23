@@ -198,6 +198,15 @@ Lemma prim_step_split_reduce_l (es1 es2 es' : list administrative_instruction) v
   prim_step (es1 ++ es2) σ obs1 es' σ' obs2 ->
   exists es'', es' = es1 ++ es'' /\ prim_step es2 σ obs1 es'' σ' obs2.
 Proof.
+  move: es2 es' vs σ σ' obs1 obs2.
+  elim: es1 => //=.
+  - move => es2 es' vs σ σ' obs1 obs2 H HStep.
+    inversion H; subst; clear H.
+    by exists es'. 
+  - move => a l IH es2 es' vs σ σ' obs1 obs2 H HStep.
+    destruct a => //=.
+    destruct b => //=.
+    
 Admitted.
 
 Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
@@ -392,7 +401,9 @@ Print datatypes.function_closure.
 
   but this is not an expression nor a value, so we need to define our custom version of wp for it, like
 
-    WP (FC_func_native inst ft vts bes) {{ v, Φ v }}.
+    ▷ WP (FC_func_native inst ft vts bes) {{ v, Φ v }}.
+
+    ( Would WP bes {{ ... }} be enough? )
 
   to express our function specs.
 
