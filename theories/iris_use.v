@@ -97,10 +97,8 @@ Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
 
 Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wl]{ q } v") : bi_scope.
-Notation "u ↦[wi]{ q } v" := (mapsto (L:=unit) (V:=instance) u q v%V)
-                      (at level 20, format "u ↦[wi]{ q } v") : bi_scope.
-Notation "u ↦[wi] v" := (mapsto (L:=unit) (V:=instance) u (DfracOwn 1) v%V)
-                      (at level 20, format "u ↦[wi] v") : bi_scope.
+Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
+                      (at level 20, format " ↦[wi] v") : bi_scope.
 
 Definition proph_id := positive.
 
@@ -143,6 +141,8 @@ Ltac inv_head_step :=
 
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 
+Let empty_instance := Build_instance [] [] [] [] [].
+
 Definition my_add : expr :=
   [AI_basic (BI_const (xx 3));
      AI_basic (BI_const (xx 2));
@@ -151,15 +151,14 @@ Definition my_add : expr :=
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
   length es1 = length es3 ->
-  es1 = es3 /\ es2 = es4.
+  (es1, es2) = (es3, es4).
 Proof.
   move: es2 es3 es4.
-  elim: es1; destruct es3 => //=.
-  move => es4 H2 Hlen.
+  elim: es1; destruct es3 => //=; move => es4 H2 Hlen; try by subst.
   inversion H2; subst; clear H2.
   inversion Hlen; clear Hlen.
   apply H in H3 => //.
-  by destruct H3 => //; subst.
+  by inversion H3 => //; subst.
 Qed.
 
 Lemma fmap_split: forall {X Y:Type} (f: X -> Y) vs es1 es2,
@@ -345,9 +344,56 @@ Proof.
   }
 Qed.
 
-Let empty_instance := Build_instance [] [] [] [] [].
-
-Lemma myadd_reduce: forall hs f ws hs' f' ws' es,
+Local Lemma binop_reduce: forall hs f ws hs' f' ws' es v1 v2 v t op,
+  app_binop op v1 v2 = Some v ->
+  @reduce host_function host_instance hs f ws [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] hs' f' ws' es ->
+  (hs', f', ws', es) = (hs, f, ws, [AI_basic (BI_const v)]).
+Proof.
+  move => hs f ws hs' f' ws' es v1 v2 v t op Hbinop HRed.
+  inversion HRed; subst=> //=.
+  - inversion H; subst => //=; clear H; try by rewrite H5 in Hbinop; inversion Hbinop; subst.
+    + by repeat destruct vs => //.
+    + by repeat destruct vs => //.
+    + clear H0.
+      move/lfilledP in H1.
+      inversion H1; subst; clear H1.
+      by repeat destruct vs => //.
+  - by repeat destruct vcs => //=.      
+  - by repeat destruct vcs => //=.      
+  - by repeat destruct vcs => //=.      
+  - (* r_label case is problematic since it has a case of self-implication *)
+    admit.
+Admitted.
+  
+Lemma wp_binop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop):
+  app_binop op v1 v2 = Some v ->
+  Φ [v] ⊢
+  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros (Hbinop) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iModIntro.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const v)], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    by apply rs_binop_success.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply binop_reduce in H as H; eauto.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+(*
+Local Lemma myadd_reduce: forall hs f ws hs' f' ws' es,
   @reduce host_function host_instance hs f ws my_add hs' f' ws' es ->
   (hs', f', ws') = (hs, f, ws) /\ es = [AI_basic (BI_const (xx 5))].
 Proof.
@@ -370,32 +416,13 @@ Proof.
     (* r_label case is problematic since it has a case of self-implication *)
     admit.
 Admitted.
-  
+  *)
 Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
   Φ [xx 5] ⊢ WP my_add @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
   unfold my_add.
-  iApply wp_lift_atomic_step => //=.
-  iIntros (σ ns κ κs nt) "Hσ".
-  iModIntro.
-  iSplit.
-  - iPureIntro.
-    destruct s => //=.
-    unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (xx 5))], σ, [].
-    destruct σ as [[[hs ws] locs] inst].
-    unfold iris.prim_step => /=.
-    repeat split => //.
-    apply r_simple.
-    by apply rs_binop_success.
-  - destruct σ as [[[hs ws] locs] inst] => //=.
-    iIntros "!>" (es σ2 efs HStep) "!>".
-    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
-    destruct HStep as [H [-> ->]].
-    apply myadd_reduce in H as [H ->].
-    inversion H; subst; clear H.
-    by iFrame.
+  by iApply wp_binop.
 Qed.
 
 Print r_invoke_native.
