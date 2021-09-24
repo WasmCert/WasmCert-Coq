@@ -143,10 +143,7 @@ Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 
 Let empty_instance := Build_instance [] [] [] [] [].
 
-Definition my_add : expr :=
-  [AI_basic (BI_const (xx 3));
-     AI_basic (BI_const (xx 2));
-     AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
+Print iris.prim_step.
 
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
@@ -200,21 +197,16 @@ Qed.
   
 Let prim_step := @iris.prim_step host_function host_instance.
 
-(* This is not actually true. We need another way to prove the wp_val lemma. *)
-Lemma prim_step_split_reduce_l (es1 es2 es' : list administrative_instruction) vs σ σ' obs1 obs2 :
+Lemma prim_step_split_reduce_l (es1 es2 es' es2' : list administrative_instruction) vs σ σ' σ2' obs1 obs2 efs1 efs2:
   iris.to_val es1 = Some vs ->
-  prim_step (es1 ++ es2) σ obs1 es' σ' obs2 ->
-  exists es'', es' = es1 ++ es'' /\ prim_step es2 σ obs1 es'' σ' obs2.
+  prim_step (es1 ++ es2) σ obs1 es' σ' efs1 ->
+  prim_step es2 σ obs2 es2' σ2' efs2 ->
+  (es', obs1, σ', efs1) = (es1 ++ es2', obs2, σ2', efs2).
 Proof.
-  move: es2 es' vs σ σ' obs1 obs2.
+  move: es2 es' es2' vs σ σ' σ2' obs1 efs1 obs2 efs2.
   elim: es1 => //=.
-  - move => es2 es' vs σ σ' obs1 obs2 H HStep.
-    inversion H; subst; clear H.
-    by exists es'. 
-  - move => a l IH es2 es' vs σ σ' obs1 obs2 H HStep.
-    destruct a => //=.
-    destruct b => //=.
-    
+  - move => es2 es' es2' vs σ σ' σ2' obs1 efs1 obs2 efs2 Hval HRed1 HRed2.
+    inversion Hval; subst; clear Hval.
 Admitted.
 
 Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
@@ -306,7 +298,7 @@ Proof.
 Qed.
 
 Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
-  WP es @ s ; E {{ v, (Φ (v0 :: v)) }}%I
+  WP es @ NotStuck ; E {{ v, (Φ (v0 :: v)) }}%I
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
   (* This also needs an iLob. *)
@@ -330,9 +322,9 @@ Proof.
       by eapply prepend_reducible; eauto.
     - iIntros (es2 σ2 efs HStep).
       rewrite -cat1s in HStep.
-      eapply prim_step_split_reduce_l in HStep; eauto.
-      destruct HStep as [es'' [-> HStep]].
-      iSpecialize ("H" $! es'' σ2 efs HStep).
+      inversion H1 as [obs3 [es3 [σ3 [efs3 HRed]]]].
+      (* TODO: This lemma is actually questionable at this point. *)
+ (*     iSpecialize ("H" $! es3 σ3 [] HRed).
       iMod "H".
       repeat iModIntro.
       repeat iMod "H".
@@ -340,9 +332,10 @@ Proof.
       iDestruct "H" as "(Hσ & Hes & Hefs)".
       iFrame.
       rewrite -> cat1s.
-      by iApply "IH".
+      by iApply "IH".*)
+      admit.
   }
-Qed.
+Admitted.
 
 Local Lemma binop_reduce: forall hs f ws hs' f' ws' es v1 v2 v t op,
   app_binop op v1 v2 = Some v ->
@@ -416,12 +409,38 @@ Proof.
     (* r_label case is problematic since it has a case of self-implication *)
     admit.
 Admitted.
-  *)
+ *)
+
+Definition my_add : expr :=
+  [AI_basic (BI_const (xx 3));
+     AI_basic (BI_const (xx 2));
+     AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
+
 Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
   Φ [xx 5] ⊢ WP my_add @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
   unfold my_add.
+  by iApply wp_binop.
+Qed.
+
+(* An example to show framing from the stack. *)
+Definition my_add2: expr :=
+  [AI_basic (BI_const (xx 1));
+  AI_basic (BI_const (xx 2));
+  AI_basic (BI_binop T_i32 (Binop_i BOI_add));
+  AI_basic (BI_const (xx 2));
+  AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
+
+Lemma myadd2_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
+  Φ [xx 5] ⊢ WP my_add2 @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros "HΦ".
+  replace my_add2 with (take 3 my_add2 ++ drop 3 my_add2) => //.
+  iApply wp_seq => /=.
+  instantiate (1 := fun v => (⌜ v = [xx 3] ⌝)%I ).
+  iSplitR "HΦ"; first by iApply wp_binop.
+  iIntros (? ->) => /=.
   by iApply wp_binop.
 Qed.
 
