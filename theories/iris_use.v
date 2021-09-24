@@ -201,6 +201,7 @@ Qed.
   
 Let prim_step := @iris.prim_step host_function host_instance.
 
+(* This is not actually true. We need another way to prove the wp_val lemma. *)
 Lemma prim_step_split_reduce_l (es1 es2 es' : list administrative_instruction) vs σ σ' obs1 obs2 :
   iris.to_val es1 = Some vs ->
   prim_step (es1 ++ es2) σ obs1 es' σ' obs2 ->
