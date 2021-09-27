@@ -596,6 +596,12 @@ Let to_e_list := @to_e_list host_function.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 
+Let host := host host_function.
+
+Variable host_instance: host.
+
+Let reduce := @reduce host_function host_instance.
+
 Lemma lfilled_collapse1: forall n lh vs es LI l,
     lfilledInd n lh (vs++es) LI ->
     const_list vs ->
@@ -882,6 +888,55 @@ Definition lfilled_pickable_rec : forall es,
 Proof.
   move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
+
+(** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
+  They enable to focus on parts of the stack, ignoring the context. **)
+
+Lemma r_eliml: forall s f es s' f' es' lconst hs hs',
+    const_list lconst ->
+    reduce hs s f es hs' s' f' es' ->
+    reduce hs s f (lconst ++ es) hs' s' f' (lconst ++ es').
+Proof.
+  move => s f es s' f' es' lconst hs hs' HConst H.
+  apply: r_label; try apply/lfilledP.
+  - by apply: H.
+  - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
+    f_equal. by apply: cats0.
+  - replace (lconst++es') with (lconst++es'++[::]); first by apply: LfilledBase.
+    f_equal. by apply: cats0.
+Qed.
+
+Lemma r_elimr: forall s f es s' f' es' les hs hs',
+    reduce hs s f es hs' s' f' es' ->
+    reduce hs s f (es ++ les) hs' s' f' (es' ++ les).
+Proof.
+  move => s f es s' f' es' les hs hs' H.
+  apply: r_label; try apply/lfilledP.
+  - apply: H.
+  - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
+  - replace (es'++les) with ([::]++es'++les) => //. by apply: LfilledBase.
+Qed.
+
+(** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
+
+Lemma r_eliml_empty: forall s f es s' f' lconst hs hs',
+    const_list lconst ->
+    reduce hs s f es hs' s' f' [::] ->
+    reduce hs s f (lconst ++ es) hs' s' f' lconst.
+Proof.
+  move => s f es s' f' lconst hs hs' HConst H.
+  assert (reduce hs s f (lconst++es) hs' s' f' (lconst++[::])); first by apply: r_eliml.
+  by rewrite cats0 in H0.
+Qed.
+
+Lemma r_elimr_empty: forall s f es s' f' les hs hs',
+    reduce hs s f es hs' s' f' [::] ->
+    reduce hs s f (es ++ les) hs' s' f' les.
+Proof.
+  move => s f es s' f' les hs hs' H.
+  assert (reduce hs s f (es++les) hs' s' f' ([::] ++les)); first by apply: r_elimr.
+  by rewrite cat0s in H0.
+Qed.
 
 (* A reformulation of [ety_a] that is easier to be used. *)
 Lemma ety_a': forall s C es ts,

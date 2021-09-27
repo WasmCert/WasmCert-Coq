@@ -7,7 +7,7 @@ From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre lifting.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations.
-Require Export datatypes host operations opsem.
+Require Export datatypes host operations opsem properties.
 Require Import Coq.Program.Equality.
 
 Set Default Proof Using "Type". (* what is this? *)
@@ -155,6 +155,21 @@ Proof.
   by rewrite wp_unfold /wp_pre.
 Qed.
 
+Lemma to_val_const_list: forall es vs,
+  iris.to_val es = Some vs ->
+  const_list es.
+Proof.
+  move => es.
+  elim: es => [|e es'] //=.
+  move => IH vs.
+  destruct e => //=.
+  destruct b => //=.
+  move => H.
+  destruct (iris.to_val es') eqn:HConst => //=.
+  inversion H; subst; clear H.
+  by eapply IH; eauto.
+Qed.
+  
 Lemma to_val_cat (es1 es2: list administrative_instruction) (vs: val) :
   iris.to_val (es1 ++ es2) = Some vs ->
   iris.to_val es1 = Some (take (length es1) vs) /\
@@ -170,6 +185,28 @@ Proof.
   rewrite - H2.
   by repeat rewrite iris.to_of_val.
 Qed.
+
+Lemma to_val_cat_None1 (es1 es2: list administrative_instruction) :
+  iris.to_val es1 = None ->
+  iris.to_val (es1 ++ es2) = None.
+Proof.
+  move => H.
+  destruct (iris.to_val (es1 ++ es2)) eqn: HContra => //.
+  apply to_val_cat in HContra as [H1 _].
+  rewrite H1 in H.
+  by inversion H.
+Qed.
+
+Lemma to_val_cat_None2 (es1 es2: list administrative_instruction) :
+  iris.to_val es2 = None ->
+  iris.to_val (es1 ++ es2) = None.
+Proof.
+  move => H.
+  destruct (iris.to_val (es1 ++ es2)) eqn: HContra => //.
+  apply to_val_cat in HContra as [_ H1].
+  rewrite H1 in H.
+  by inversion H.
+Qed.
   
 Lemma prim_step_split_reduce_l (es1 es2 es' es2' : list administrative_instruction) vs σ σ' σ2' obs1 obs2 efs1 efs2:
   iris.to_val es1 = Some vs ->
@@ -183,33 +220,61 @@ Proof.
     inversion Hval; subst; clear Hval.
 Admitted.
 
-Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
+(* This and the above are hard lemmas to prove. *)
+Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
   iris.to_val es1 = None ->
-  prim_step (es1 ++ es2) σ obs1 es' σ' obs2 ->
-  exists es'', es' = es'' ++ es2 /\ prim_step es1 σ obs1 es'' σ' obs2.
+  prim_step (es1 ++ es2) σ obs es' σ' efs ->
+  exists es'', es' = es'' ++ es2 /\ prim_step es1 σ obs es'' σ' efs.
 Proof.
+  move: es2 es' σ σ' obs efs.
+  elim: es1 => //=.
+  - move => e es0 IH es2 es' σ σ' obs efs HConst HStep.
+    unfold prim_step, iris.prim_step in HStep.
+    specialize IH with es2 es' σ σ' [] [].
+    destruct σ as [[[hs ws] locs] inst].
+    destruct σ' as [[[hs' ws'] locs'] inst'].
+    destruct HStep as [HStep [-> ->]].
 Admitted.
-
+(*
 Lemma prim_step_append_reduce (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
   iris.to_val es1 = None ->
   prim_step es1 σ obs1 es' σ' obs2 ->
   prim_step (es1 ++ es2) σ obs1 (es' ++ es2) σ' obs2.
 Proof.
 Admitted.
-
+*)
 Lemma append_reducible (es1 es2: list administrative_instruction) σ:
   iris.to_val es1 = None ->
   @reducible wasm_lang es1 σ ->
   @reducible wasm_lang (es1 ++ es2) σ.
 Proof.
-Admitted.
-
+  unfold reducible => /=.
+  move => Htv [κ [es' [σ' [efs HStep]]]].
+  exists κ, (es' ++ es2), σ', efs.
+  unfold iris.prim_step in * => //=.
+  destruct σ as [[[hs ws] locs] inst].
+  destruct σ' as [[[hs' ws'] locs'] inst'].
+  destruct HStep as [HStep [-> ->]].
+  repeat split => //.
+  by apply r_elimr.
+Qed.
+  
 Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
   iris.to_val es1 = Some vs ->
   @reducible wasm_lang es2 σ ->
   @reducible wasm_lang (es1 ++ es2) σ.
 Proof.
-Admitted.
+  unfold reducible => /=.
+  move => Htv [κ [es' [σ' [efs HStep]]]].
+  exists κ, (es1 ++ es'), σ', efs.
+  unfold iris.prim_step in * => //=.
+  destruct σ as [[[hs ws] locs] inst].
+  destruct σ' as [[[hs' ws'] locs'] inst'].
+  destruct HStep as [HStep [-> ->]].
+  repeat split => //.
+  apply r_eliml => //.
+  by eapply to_val_const_list; eauto.
+Qed.
   
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
 Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
@@ -342,6 +407,13 @@ Proof.
 Admitted.
  *)
 
+Lemma wp_unop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
+  app_unop op v = v' ->
+  Φ [v'] ⊢
+  WP [AI_basic (BI_const v); AI_basic (BI_unop t op)] @ s; E {{ v, Φ v }}.
+Proof.
+Admitted.
+  
 Lemma wp_binop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop):
   app_binop op v1 v2 = Some v ->
   Φ [v] ⊢
@@ -349,8 +421,7 @@ Lemma wp_binop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !wins
 Proof.
   iIntros (Hbinop) "HΦ".
   iApply wp_lift_atomic_step => //=.
-  iIntros (σ ns κ κs nt) "Hσ".
-  iModIntro.
+  iIntros (σ ns κ κs nt) "Hσ !>".
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -369,6 +440,56 @@ Proof.
     inversion H; subst; clear H.
     by iFrame.
 Qed.
+
+(* There is a problem with this case: AI_trap is not a value in our language.
+   This can of course be circumvented if we only consider 'successful reductions',
+   but otherwise this needs some special treatment. *)
+Lemma wp_binop_failure `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (t: value_type) (op: binop):
+  ⌜app_binop op v1 v2 = None⌝ ⊢
+  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, False }}.
+Proof.
+  iIntros "%Hbinop".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iModIntro.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_trap], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    by apply rs_binop_failure.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_binop_failure.
+    inversion H; subst; clear H.
+    iFrame.
+    (* Has to be false at this point -- AI_trap is not a value. *)
+    admit.
+Admitted.
+
+Print BI_relop.
+
+Lemma wp_relop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
+  app_unop op v = v' ->
+  Φ [v'] ⊢
+  WP [AI_basic (BI_const v); AI_basic (BI_unop t op)] @ s; E {{ v, Φ v }}.
+Proof.
+Admitted.
+
+
+
+
+
+
+
+
+
 
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 
