@@ -25,28 +25,14 @@ Let store_record := store_record host_function.
 
 Variable host_instance : host.
 
+Let reduce := @reduce host_function host_instance.
+
 Let wasm_mixin : LanguageMixin _ _ _ := wasm_mixin host_instance.
 
 Canonical Structure wasm_lang := Language wasm_mixin.
 
 Let expr := iris.expr.
 Let val := iris.val.
-
-(*
-Record loc := { loc_car : Z }.
-Instance loc_eq_decision : EqDecision loc.
-Proof. solve_decision. Defined.
-
-Instance loc_inhabited : Inhabited loc := populate {|loc_car := 0 |}.
-
-Instance loc_countable : Countable loc.
-Proof. by apply (inj_countable' loc_car (λ i, {| loc_car := i |})); intros []. Qed.
-
-(* FIXME *)
-Program Instance loc_infinite : Infinite loc :=
-  inj_infinite (λ p, {| loc_car := p |}) (λ l, Some (loc_car l)) _.
-Next Obligation. done. Qed.
-*)
 
 Class wfuncG Σ := WFuncG {
   func_invG : invG Σ;
@@ -100,19 +86,10 @@ Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
 Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
                       (at level 20, format " ↦[wi] v") : bi_scope.
 
-Definition proph_id := positive.
-
-(*
-(* FIXME: This code was removed in branch type_soundness? *)
-Class heapG Σ := HeapG {
-  heapG_invG : invG Σ;
-  heapG_gen_heapG :> gen_heapG loc val Σ;
-  heapG_proph_mapG :> proph_mapG proph_id (val * val) Σ
-}.
- *)
+Definition proph_id := positive. (* ??? *)
 
 Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
-  iris_invG := func_invG;
+  iris_invG := func_invG; (* Check: do we actually need this? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
@@ -129,6 +106,7 @@ Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ,
     state_interp_mono _ _ _ _ := fupd_intro _ _
 }.
 
+(* TODO: this tactic is currently useless *)
 Ltac inv_head_step :=
   repeat match goal with
   | _ => progress simplify_map_eq/= (* simplify memory stuff *)
@@ -139,11 +117,9 @@ Ltac inv_head_step :=
      destruct H
          end.
 
-Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
-
 Let empty_instance := Build_instance [] [] [] [] [].
 
-Print iris.prim_step.
+Let prim_step := @iris.prim_step host_function host_instance.
 
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
@@ -195,8 +171,6 @@ Proof.
   by repeat rewrite iris.to_of_val.
 Qed.
   
-Let prim_step := @iris.prim_step host_function host_instance.
-
 Lemma prim_step_split_reduce_l (es1 es2 es' es2' : list administrative_instruction) vs σ σ' σ2' obs1 obs2 efs1 efs2:
   iris.to_val es1 = Some vs ->
   prim_step (es1 ++ es2) σ obs1 es' σ' efs1 ->
@@ -337,9 +311,18 @@ Proof.
   }
 Admitted.
 
+(* Warning: this axiom is not actually true -- Wasm does not have a deterministic
+   opsem for mem_grow and host function calls. However, the rest of the opsem
+   are indeed deterministic. Use with caution. *)
+Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
+  reduce hs f ws es hs1 f1 ws1 es1 ->
+  reduce hs f ws es hs2 f2 ws2 es2 ->
+  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2).
+
+(*
 Local Lemma binop_reduce: forall hs f ws hs' f' ws' es v1 v2 v t op,
   app_binop op v1 v2 = Some v ->
-  @reduce host_function host_instance hs f ws [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] hs' f' ws' es ->
+  reduce hs f ws [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] hs' f' ws' es ->
   (hs', f', ws', es) = (hs, f, ws, [AI_basic (BI_const v)]).
 Proof.
   move => hs f ws hs' f' ws' es v1 v2 v t op Hbinop HRed.
@@ -357,7 +340,8 @@ Proof.
   - (* r_label case is problematic since it has a case of self-implication *)
     admit.
 Admitted.
-  
+ *)
+
 Lemma wp_binop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop):
   app_binop op v1 v2 = Some v ->
   Φ [v] ⊢
@@ -381,35 +365,12 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply binop_reduce in H as H; eauto.
+    eapply reduce_det in H; last by apply r_simple, rs_binop_success.
     inversion H; subst; clear H.
     by iFrame.
 Qed.
-(*
-Local Lemma myadd_reduce: forall hs f ws hs' f' ws' es,
-  @reduce host_function host_instance hs f ws my_add hs' f' ws' es ->
-  (hs', f', ws') = (hs, f, ws) /\ es = [AI_basic (BI_const (xx 5))].
-Proof.
-  move => hs f ws hs' f' ws' es HRed.
-  unfold my_add in HRed.
-  dependent induction HRed; subst=> //=.
-  - inversion H; subst => //=; clear H; try by (simpl in H5; inversion H5).
-    + by repeat destruct vs => //.
-    + by repeat destruct vs => //.
-    + clear H0.
-      move/lfilledP in H1.
-      inversion H1; subst; clear H1.
-      by repeat destruct vs => //.
-  - by repeat destruct vcs => //=.      
-  - by repeat destruct vcs => //=.      
-  - by repeat destruct vcs => //=.      
-  - move/lfilledP in H0.
-    move/lfilledP in H.
-    inversion H; subst; clear H; last by repeat destruct vs => //.
-    (* r_label case is problematic since it has a case of self-implication *)
-    admit.
-Admitted.
- *)
+
+Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 
 Definition my_add : expr :=
   [AI_basic (BI_const (xx 3));
