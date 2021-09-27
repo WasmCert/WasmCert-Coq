@@ -121,6 +121,9 @@ Let empty_instance := Build_instance [] [] [] [] [].
 
 Let prim_step := @iris.prim_step host_function host_instance.
 
+Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
+Definition xb b := (VAL_int32 (wasm_bool b)).
+
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
   length es1 = length es3 ->
@@ -473,25 +476,89 @@ Proof.
     admit.
 Admitted.
 
-Print BI_relop.
-
-Lemma wp_relop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
-  app_unop op v = v' ->
-  Φ [v'] ⊢
-  WP [AI_basic (BI_const v); AI_basic (BI_unop t op)] @ s; E {{ v, Φ v }}.
+Lemma wp_relop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
+  app_relop op v1 v2 = b ->
+  Φ [(xb b)] ⊢
+  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v }}.
 Proof.
-Admitted.
+  iIntros (Hrelop) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (xb b))], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_relop.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_relop.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
 
+Lemma wp_testop_i32 `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
+  app_testop_i (e:=i32t) op v = b ->
+  Φ [(xb b)] ⊢
+    WP [AI_basic (BI_const (VAL_int32 v)); AI_basic (BI_testop T_i32 op)] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros (Htestop) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (xb b))], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_testop_i32.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_testop_i32.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
 
-
-
-
-
-
-
-
-
-Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
+Lemma wp_testop_i64 `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop):
+  app_testop_i (e:=i64t) op v = b ->
+  Φ [(xb b)] ⊢
+    WP [AI_basic (BI_const (VAL_int64 v)); AI_basic (BI_testop T_i64 op)] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros (Htestop) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (xb b))], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_testop_i64.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_testop_i64.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
 
 Definition my_add : expr :=
   [AI_basic (BI_const (xx 3));
