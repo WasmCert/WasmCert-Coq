@@ -34,6 +34,8 @@ Canonical Structure wasm_lang := Language wasm_mixin.
 Let expr := iris.expr.
 Let val := iris.val.
 
+Let reducible := @reducible wasm_lang.
+
 Class wfuncG Σ := WFuncG {
   func_invG : invG Σ;
   func_gen_hsG :> gen_heapG N function_closure Σ;
@@ -210,20 +212,18 @@ Proof.
   rewrite H1 in H.
   by inversion H.
 Qed.
-  
-Lemma prim_step_split_reduce_l (es1 es2 es' es2' : list administrative_instruction) vs σ σ' σ2' obs1 obs2 efs1 efs2:
-  iris.to_val es1 = Some vs ->
-  prim_step (es1 ++ es2) σ obs1 es' σ' efs1 ->
-  prim_step es2 σ obs2 es2' σ2' efs2 ->
-  (es', obs1, σ', efs1) = (es1 ++ es2', obs2, σ2', efs2).
-Proof.
-  move: es2 es' es2' vs σ σ' σ2' obs1 efs1 obs2 efs2.
-  elim: es1 => //=.
-  - move => es2 es' es2' vs σ σ' σ2' obs1 efs1 obs2 efs2 Hval HRed1 HRed2.
-    inversion Hval; subst; clear Hval.
-Admitted.
 
-(* This and the above are hard lemmas to prove. *)
+Lemma prim_step_obs_efs_empty es es' σ σ' obs efs:
+  prim_step es σ obs es' σ' efs ->
+  (obs, efs) = ([], []).
+Proof.
+  unfold prim_step, iris.prim_step.
+  destruct σ as [[[??]?]?].
+  destruct σ' as [[[??]?]?].
+  by move => [_ [-> ->]].
+Qed.
+
+(* The following few auxiliary lemmas are intuitive, but tedious to prove. *)
 Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
   iris.to_val es1 = None ->
   prim_step (es1 ++ es2) σ obs es' σ' efs ->
@@ -238,6 +238,21 @@ Proof.
     destruct σ' as [[[hs' ws'] locs'] inst'].
     destruct HStep as [HStep [-> ->]].
 Admitted.
+
+Lemma reduce_ves1: forall v es es' σ σ' efs obs,
+    reducible es σ ->
+    prim_step ([AI_basic (BI_const v)] ++ es) σ obs es' σ' efs ->
+    es' = [AI_basic (BI_const v)] ++ drop 1 es'.
+Proof.
+Admitted.
+  
+Lemma reduce_ves2: forall v es es' σ σ' efs obs,
+    reducible es σ ->
+    prim_step ([AI_basic (BI_const v)] ++ es) σ obs es' σ' efs ->
+    prim_step es σ obs (drop 1 es') σ' efs.
+Proof.
+Admitted.
+
 (*
 Lemma prim_step_append_reduce (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
   iris.to_val es1 = None ->
@@ -248,8 +263,8 @@ Admitted.
 *)
 Lemma append_reducible (es1 es2: list administrative_instruction) σ:
   iris.to_val es1 = None ->
-  @reducible wasm_lang es1 σ ->
-  @reducible wasm_lang (es1 ++ es2) σ.
+  reducible es1 σ ->
+  reducible (es1 ++ es2) σ.
 Proof.
   unfold reducible => /=.
   move => Htv [κ [es' [σ' [efs HStep]]]].
@@ -264,8 +279,8 @@ Qed.
   
 Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
   iris.to_val es1 = Some vs ->
-  @reducible wasm_lang es2 σ ->
-  @reducible wasm_lang (es1 ++ es2) σ.
+  reducible es2 σ ->
+  reducible (es1 ++ es2) σ.
 Proof.
   unfold reducible => /=.
   move => Htv [κ [es' [σ' [efs HStep]]]].
@@ -364,21 +379,26 @@ Proof.
       by eapply prepend_reducible; eauto.
     - iIntros (es2 σ2 efs HStep).
       rewrite -cat1s in HStep.
-      inversion H1 as [obs3 [es3 [σ3 [efs3 HRed]]]].
-      (* TODO: This lemma is actually questionable at this point. *)
- (*     iSpecialize ("H" $! es3 σ3 [] HRed).
+      assert (es2 = [AI_basic (BI_const v0)] ++ drop 1 es2) as Hes2; first by eapply reduce_ves1; eauto.
+      assert (prim_step es σ κ (drop 1 es2) σ2 efs) as HStep2; first by eapply reduce_ves2; eauto.
+      assert ((κ, efs) = ([],[])) as Hobsefs; first by eapply prim_step_obs_efs_empty.
+      inversion Hobsefs; subst; clear Hobsefs.
+      iSpecialize ("H" $! (drop 1 es2) σ2 [] HStep2).
       iMod "H".
       repeat iModIntro.
       repeat iMod "H".
       iModIntro.
       iDestruct "H" as "(Hσ & Hes & Hefs)".
+      iSimpl.
       iFrame.
-      rewrite -> cat1s.
-      by iApply "IH".*)
-      admit.
+      iSplit => //.
+      destruct es2 => //=.
+      inversion Hes2; subst; clear Hes2.
+      rewrite drop_0.
+      by iApply "IH".
   }
-Admitted.
-
+Qed.
+  
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
    opsem for mem_grow and host function calls. However, the rest of the opsem
    are indeed deterministic. Use with caution. *)
@@ -386,29 +406,6 @@ Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
   (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2).
-
-(*
-Local Lemma binop_reduce: forall hs f ws hs' f' ws' es v1 v2 v t op,
-  app_binop op v1 v2 = Some v ->
-  reduce hs f ws [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] hs' f' ws' es ->
-  (hs', f', ws', es) = (hs, f, ws, [AI_basic (BI_const v)]).
-Proof.
-  move => hs f ws hs' f' ws' es v1 v2 v t op Hbinop HRed.
-  inversion HRed; subst=> //=.
-  - inversion H; subst => //=; clear H; try by rewrite H5 in Hbinop; inversion Hbinop; subst.
-    + by repeat destruct vs => //.
-    + by repeat destruct vs => //.
-    + clear H0.
-      move/lfilledP in H1.
-      inversion H1; subst; clear H1.
-      by repeat destruct vs => //.
-  - by repeat destruct vcs => //=.      
-  - by repeat destruct vcs => //=.      
-  - by repeat destruct vcs => //=.      
-  - (* r_label case is problematic since it has a case of self-implication *)
-    admit.
-Admitted.
- *)
 
 Lemma wp_unop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
   app_unop op v = v' ->
