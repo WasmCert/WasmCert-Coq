@@ -126,6 +126,8 @@ Let prim_step := @iris.prim_step host_function host_instance.
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 Definition xb b := (VAL_int32 (wasm_bool b)).
 
+(* Auxiliary lemmas *)
+
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
   length es1 = length es3 ->
@@ -153,13 +155,6 @@ Proof.
   by f_equal.
 Qed.
   
-Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
-  Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
-Proof.
-  iIntros "H".
-  by rewrite wp_unfold /wp_pre.
-Qed.
-
 Lemma to_val_const_list: forall es vs,
   iris.to_val es = Some vs ->
   const_list es.
@@ -293,7 +288,30 @@ Proof.
   apply r_eliml => //.
   by eapply to_val_const_list; eauto.
 Qed.
-  
+
+(* Warning: this axiom is not actually true -- Wasm does not have a deterministic
+   opsem for mem_grow and host function calls. However, the rest of the opsem
+   are indeed deterministic. Use with caution. *)
+Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
+  reduce hs f ws es hs1 f1 ws1 es1 ->
+  reduce hs f ws es hs2 f2 ws2 es2 ->
+  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2).
+
+
+
+
+
+(* wp for instructions *)
+
+(* empty lists, frame rules *)
+
+Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
+  Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
+Proof.
+  iIntros "H".
+  by rewrite wp_unfold /wp_pre.
+Qed.
+
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
 Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
   (WP es1 @ s; E {{ w, Ψ w }} ∗
@@ -398,14 +416,8 @@ Proof.
       by iApply "IH".
   }
 Qed.
-  
-(* Warning: this axiom is not actually true -- Wasm does not have a deterministic
-   opsem for mem_grow and host function calls. However, the rest of the opsem
-   are indeed deterministic. Use with caution. *)
-Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
-  reduce hs f ws es hs1 f1 ws1 es1 ->
-  reduce hs f ws es hs2 f2 ws2 es2 ->
-  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2).
+
+(* basic instructions with simple(pure) reductions *)
 
 Lemma wp_unop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
   app_unop op v = v' ->
@@ -557,6 +569,188 @@ Proof.
     by iFrame.
 Qed.
 
+Lemma wp_cvtop_convert `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type) (sx: option sx):
+  cvt t2 sx v = Some v' ->
+  types_agree t1 v ->
+  Φ [v'] ⊢
+    WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros (Hcvtop Htype) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const v')], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_convert_success.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_convert_success.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+
+Lemma wp_cvtop_reinterpret `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type):
+  wasm_deserialise (bits v) t2 = v' ->
+  types_agree t1 v ->
+  Φ [v'] ⊢
+    WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros (Hcvtop Htype) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const v')], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_reinterpret.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_reinterpret.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+
+Lemma wp_nop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ):
+  Φ [] ⊢
+    WP [AI_basic (BI_nop)] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_nop.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_nop.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+
+Lemma wp_drop: False.
+Proof.
+Admitted.
+
+Lemma wp_select: False.
+Proof.
+Admitted.
+
+Lemma wp_block: False.
+Proof.
+Admitted.
+
+Lemma wp_if: False.
+Proof.
+Admitted.
+
+Lemma wp_br: False.
+Proof.
+Admitted.
+
+Lemma wp_br_if: False.
+Proof.
+Admitted.
+
+Lemma wp_br_table: False.
+Proof.
+Admitted.
+
+Lemma wp_return: False.
+Proof.
+Admitted.
+
+(* basic instructions with non-simple(non-pure) reductions *)
+
+Lemma wp_call: False.
+Proof.
+Admitted.
+
+Lemma wp_call_indirect: False.
+Proof.
+Admitted.
+
+Lemma wp_get_local: False.
+Proof.
+Admitted.
+
+Lemma wp_set_local: False.
+Proof.
+Admitted.
+
+Lemma wp_tee_local: False.
+Proof.
+Admitted.
+
+Lemma wp_get_global: False.
+Proof.
+Admitted.
+
+Lemma wp_set_global: False.
+Proof.
+Admitted.
+
+Lemma wp_load: False.
+Proof.
+Admitted.
+
+Lemma wp_store: False.
+Proof.
+Admitted.
+
+Lemma wp_current_memory: False.
+Proof.
+Admitted.
+
+Lemma wp_grow_memory: False.
+Proof.
+Admitted.
+
+(* non-basic administrative instructions *)
+
+Lemma wp_label: False.
+Proof.
+Admitted.
+
+Lemma wp_local: False.
+Proof.
+Admitted.
+
+Lemma wp_invoke: False.
+Proof.
+Admitted.
+
+
+
+
+(* Example Programs *)
+
 Definition my_add : expr :=
   [AI_basic (BI_const (xx 3));
      AI_basic (BI_const (xx 2));
@@ -589,10 +783,6 @@ Proof.
   iIntros (? ->) => /=.
   by iApply wp_binop.
 Qed.
-
-Print r_invoke_native.
-
-Print datatypes.function_closure.
 
 (* What should a function spec look like?
   A (Wasm) function closure is of the form
