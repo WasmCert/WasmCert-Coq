@@ -300,12 +300,15 @@ Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
 
 
 
-
 (* wp for instructions *)
 
+Section lifting.
+
+Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}.
+  
 (* empty lists, frame rules *)
 
-Lemma wp_nil `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : iProp Σ) :
+Lemma wp_nil (s : stuckness) (E : coPset) (Φ : iProp Σ) :
   Φ ⊢ WP [] @ s ; E {{ fun v => Φ }}%I.
 Proof.
   iIntros "H".
@@ -313,7 +316,7 @@ Proof.
 Qed.
 
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
-Lemma wp_seq `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+Lemma wp_seq (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
   (WP es1 @ s; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
@@ -372,7 +375,7 @@ Proof.
   }
 Qed.
 
-Lemma wp_val `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
+Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
   WP es @ NotStuck ; E {{ v, (Φ (v0 :: v)) }}%I
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
@@ -419,14 +422,15 @@ Qed.
 
 (* basic instructions with simple(pure) reductions *)
 
-Lemma wp_unop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
+(* numerics *)
+Lemma wp_unop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
   app_unop op v = v' ->
   Φ [v'] ⊢
   WP [AI_basic (BI_const v); AI_basic (BI_unop t op)] @ s; E {{ v, Φ v }}.
 Proof.
 Admitted.
   
-Lemma wp_binop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop):
+Lemma wp_binop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop):
   app_binop op v1 v2 = Some v ->
   Φ [v] ⊢
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, Φ v }}.
@@ -456,9 +460,9 @@ Qed.
 (* There is a problem with this case: AI_trap is not a value in our language.
    This can of course be circumvented if we only consider 'successful reductions',
    but otherwise this needs some special treatment. *)
-Lemma wp_binop_failure `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (t: value_type) (op: binop):
+Lemma wp_binop_failure (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (t: value_type) (op: binop):
   ⌜app_binop op v1 v2 = None⌝ ⊢
-  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, False }}.
+  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, True }}.
 Proof.
   iIntros "%Hbinop".
   iApply wp_lift_atomic_step => //=.
@@ -481,11 +485,16 @@ Proof.
     eapply reduce_det in H; last by apply r_simple, rs_binop_failure.
     inversion H; subst; clear H.
     iFrame.
-    (* Has to be false at this point -- AI_trap is not a value. *)
+    iSimpl.
+    (* Has to be false at this point -- AI_trap is not a value. 
+       The culprit is that we used wp_lift_atomic_step in the beginning -- that
+       lemma requires the given expression to be reduced to a value after
+       one step. However, a non-successful binop will never be reduced to any
+       value. *)
     admit.
 Admitted.
 
-Lemma wp_relop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
+Lemma wp_relop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
   app_relop op v1 v2 = b ->
   Φ [(xb b)] ⊢
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v }}.
@@ -513,7 +522,7 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma wp_testop_i32 `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
+Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
   app_testop_i (e:=i32t) op v = b ->
   Φ [(xb b)] ⊢
     WP [AI_basic (BI_const (VAL_int32 v)); AI_basic (BI_testop T_i32 op)] @ s; E {{ v, Φ v }}.
@@ -541,7 +550,7 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma wp_testop_i64 `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop):
+Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop):
   app_testop_i (e:=i64t) op v = b ->
   Φ [(xb b)] ⊢
     WP [AI_basic (BI_const (VAL_int64 v)); AI_basic (BI_testop T_i64 op)] @ s; E {{ v, Φ v }}.
@@ -569,7 +578,7 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma wp_cvtop_convert `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type) (sx: option sx):
+Lemma wp_cvtop_convert (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type) (sx: option sx):
   cvt t2 sx v = Some v' ->
   types_agree t1 v ->
   Φ [v'] ⊢
@@ -598,7 +607,7 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma wp_cvtop_reinterpret `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type):
+Lemma wp_cvtop_reinterpret (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type):
   wasm_deserialise (bits v) t2 = v' ->
   types_agree t1 v ->
   Φ [v'] ⊢
@@ -627,7 +636,9 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma wp_nop `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ : val -> iProp Σ):
+(* Non-numerics -- stack operations, control flows *)
+
+Lemma wp_nop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ):
   Φ [] ⊢
     WP [AI_basic (BI_nop)] @ s; E {{ v, Φ v }}.
 Proof.
