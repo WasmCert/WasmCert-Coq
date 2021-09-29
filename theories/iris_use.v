@@ -85,6 +85,8 @@ Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
 
 Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wl]{ q } v") : bi_scope.
+Notation "n ↦[wl] v" := (mapsto (L:=N) (V:=value) n (DfracOwn 1) v%V)
+                           (at level 20, format "n ↦[wl] v") : bi_scope.
 Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
                       (at level 20, format " ↦[wi] v") : bi_scope.
 
@@ -289,6 +291,18 @@ Proof.
   by eapply to_val_const_list; eauto.
 Qed.
 
+Lemma fmap_insert_set_nth: forall T (l: list T) i vd v,
+  i < length l ->
+  <[i := v]> l = set_nth vd l i v.
+Proof.
+  move => T l i vd v Hlen.
+  move: i vd v Hlen.
+  induction l; move => i vd v Hlen; destruct i => //=; simpl in Hlen; try by lia.
+  apply lt_S_n in Hlen.
+  f_equal.
+  by apply IHl.
+Qed.
+  
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
    opsem for mem_grow and host function calls. However, the rest of the opsem
    are indeed deterministic. Use with caution. *)
@@ -711,10 +725,42 @@ Lemma wp_get_local: False.
 Proof.
 Admitted.
 
-Lemma wp_set_local: False.
+Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat):
+  N.of_nat i ↦[wl] v0 ⊢
+  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ w = [] ⌝ ∗ N.of_nat i ↦[wl] v }}.
 Proof.
-Admitted.
-
+  iIntros "Hli".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] inst].
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [], (hs, ws, set_nth v locs i v, inst), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    by eapply r_set_local.
+  - iIntros "!>" (es σ2 efs HStep).
+    (* modify locs[i]. This has to be done before the update modality is used. *)
+    iMod (gen_heap_update with "Hl Hli") as "(Hl & Hli)".
+    iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto.
+    inversion H; subst; clear H.
+    iFrame.
+    repeat iSplit => //.
+    assert (i < length locs) as Hlength.
+    { rewrite gmap_of_list_lookup Nat2N.id in Hli.
+      by apply lookup_lt_Some in Hli.
+    }
+    rewrite - gmap_of_list_insert; rewrite Nat2N.id => //.
+    by erewrite fmap_insert_set_nth.
+Qed.
+    
 Lemma wp_tee_local: False.
 Proof.
 Admitted.
