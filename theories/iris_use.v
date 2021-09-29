@@ -88,7 +88,9 @@ Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
 Notation "n ↦[wl] v" := (mapsto (L:=N) (V:=value) n (DfracOwn 1) v%V)
                            (at level 20, format "n ↦[wl] v") : bi_scope.
 Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
-                      (at level 20, format " ↦[wi] v") : bi_scope.
+                         (at level 20, format " ↦[wi] v") : bi_scope.
+(* We also somehow need a predicate to indicate the size of a memory. But
+   how should it be done? *)
 
 Definition proph_id := positive. (* ??? *)
 
@@ -127,6 +129,11 @@ Let prim_step := @iris.prim_step host_function host_instance.
 
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 Definition xb b := (VAL_int32 (wasm_bool b)).
+
+
+
+
+
 
 (* Auxiliary lemmas *)
 
@@ -236,6 +243,8 @@ Proof.
     destruct HStep as [HStep [-> ->]].
 Admitted.
 
+(* Context lemmas -- could be very tedious to prove *)
+
 Lemma reduce_ves1: forall v es es' σ σ' efs obs,
     reducible es σ ->
     prim_step ([AI_basic (BI_const v)] ++ es) σ obs es' σ' efs ->
@@ -250,14 +259,6 @@ Lemma reduce_ves2: forall v es es' σ σ' efs obs,
 Proof.
 Admitted.
 
-(*
-Lemma prim_step_append_reduce (es1 es2 es' : list administrative_instruction) σ σ' obs1 obs2 :
-  iris.to_val es1 = None ->
-  prim_step es1 σ obs1 es' σ' obs2 ->
-  prim_step (es1 ++ es2) σ obs1 (es' ++ es2) σ' obs2.
-Proof.
-Admitted.
-*)
 Lemma append_reducible (es1 es2: list administrative_instruction) σ:
   iris.to_val es1 = None ->
   reducible es1 σ ->
@@ -434,9 +435,14 @@ Proof.
   }
 Qed.
 
+
+
+
+
 (* basic instructions with simple(pure) reductions *)
 
 (* numerics *)
+
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
   app_unop op v = v' ->
   Φ [v'] ⊢
@@ -474,6 +480,8 @@ Qed.
 (* There is a problem with this case: AI_trap is not a value in our language.
    This can of course be circumvented if we only consider 'successful reductions',
    but otherwise this needs some special treatment. *)
+
+(* 20210929: with [::AI_trap] potentially becoming a value, this might get proved at some point *)
 Lemma wp_binop_failure (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (t: value_type) (op: binop):
   ⌜app_binop op v1 v2 = None⌝ ⊢
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, True }}.
@@ -687,7 +695,13 @@ Lemma wp_select: False.
 Proof.
 Admitted.
 
+(* Control flows *)
+
 Lemma wp_block: False.
+Proof.
+Admitted.
+
+Lemma wp_loop: False.
 Proof.
 Admitted.
 
@@ -711,7 +725,16 @@ Lemma wp_return: False.
 Proof.
 Admitted.
 
+(* Control-flow frame *)
+Lemma wp_label: False.
+Proof.
+Admitted.
+
+
+
 (* basic instructions with non-simple(non-pure) reductions *)
+
+(* Function related *)
 
 Lemma wp_call: False.
 Proof.
@@ -720,6 +743,20 @@ Admitted.
 Lemma wp_call_indirect: False.
 Proof.
 Admitted.
+
+(* Function frame *)
+Lemma wp_local: False.
+Proof.
+Admitted.
+
+(* Reduction result for call/call_indirect *)
+Lemma wp_invoke: False.
+Proof.
+Admitted.
+
+
+
+(* Instance related *)
 
 Lemma wp_get_local: False.
 Proof.
@@ -789,19 +826,7 @@ Lemma wp_grow_memory: False.
 Proof.
 Admitted.
 
-(* non-basic administrative instructions *)
 
-Lemma wp_label: False.
-Proof.
-Admitted.
-
-Lemma wp_local: False.
-Proof.
-Admitted.
-
-Lemma wp_invoke: False.
-Proof.
-Admitted.
 
 
 
@@ -813,7 +838,7 @@ Definition my_add : expr :=
      AI_basic (BI_const (xx 2));
      AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
 
-Lemma myadd_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
+Lemma myadd_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
   Φ [xx 5] ⊢ WP my_add @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
@@ -829,7 +854,7 @@ Definition my_add2: expr :=
   AI_basic (BI_const (xx 2));
   AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
 
-Lemma myadd2_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
+Lemma myadd2_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
   Φ [xx 5] ⊢ WP my_add2 @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
@@ -840,6 +865,8 @@ Proof.
   iIntros (? ->) => /=.
   by iApply wp_binop.
 Qed.
+
+End lifting.
 
 (* What should a function spec look like?
   A (Wasm) function closure is of the form

@@ -30,8 +30,12 @@ Let reduce : host_state -> store_record -> frame -> list administrative_instruct
   @lfill _.*)
 
 Definition expr := list administrative_instruction.
+
+(* Add [::AI_trap] to val? *)
 Definition val := list value.
+
 Definition state : Type := host_state * store_record * (list value) * instance.
+
 Definition observation := unit. (* TODO: maybe change? *)
 
 Definition of_val (v : val) : expr := fmap (fun v => AI_basic (BI_const v)) v.
