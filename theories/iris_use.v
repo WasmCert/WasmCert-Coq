@@ -33,6 +33,7 @@ Canonical Structure wasm_lang := Language wasm_mixin.
 
 Let expr := iris.expr.
 Let val := iris.val.
+Let to_val := iris.to_val.
 
 Let reducible := @reducible wasm_lang.
 
@@ -131,9 +132,73 @@ Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 Definition xb b := (VAL_int32 (wasm_bool b)).
 
 
+(* Aina: the following atomicity definition will be useful for opening invariants *)
+Definition is_atomic (e : expr) : Prop :=
+  match e with
+  | [::e; AI_basic (BI_load _ _ _ _)] => is_Some (to_val [e])
+  | [::e1; e2; AI_basic (BI_store _ _ _ _)] => is_Some (to_val [e1]) ∧ is_Some (to_val [e2])
+  | _ => False
+  end.
 
+Lemma is_atomic_eq (e : expr) :
+  is_atomic e ->
+  (∃ e' x1 x2 x3 x4, e = [::e'; AI_basic (BI_load x1 x2 x3 x4)]
+                     ∧ is_Some (to_val [e'])) ∨
+    (∃ e1 e2 x1 x2 x3 x4, e = [::e1; e2; AI_basic (BI_store x1 x2 x3 x4)]
+                          ∧ (is_Some (to_val [e1]) ∧ is_Some (to_val [e2]))).
+Proof.
+  intros He.
+  do 3 (destruct e;try done).
+Admitted.
 
+Local Hint Resolve language.val_irreducible : core.
+Local Hint Resolve to_of_val : core.
+Local Hint Unfold language.irreducible : core.
+Lemma test hs s0 f es hs' s' f' es' k lh x x0 x1 x2 x3 :
+  is_Some (to_val [x]) ->
+  reduce hs s0 f es hs' s' f' es' -> 
+  lfilled k lh es [x; AI_basic (BI_load x0 x1 x2 x3)] ->
+  lh = LH_base [] [] ∧ k = 0.
+Proof.  
+Admitted.
 
+Lemma test2 hs s0 f es hs' s' f' es' k lh e1 e2 x0 x1 x2 x3 :
+  (is_Some (to_val [e1]) ∧ is_Some (to_val [e2])) ->
+  reduce hs s0 f es hs' s' f' es' -> 
+  lfilled k lh es [e1; e2; AI_basic (BI_store x0 x1 x2 x3)] ->
+  lh = LH_base [] [] ∧ k = 0.
+Proof.  
+Admitted.
+  
+Global Instance is_atomic_correct s e : is_atomic e → Atomic s e.
+Proof.
+  intros Ha; apply strongly_atomic_atomic.
+  move => σ e' K σ' e'' /= Hstep.
+  unfold iris.prim_step in Hstep.
+  destruct σ as [[[hs ws] locs] inst].
+  destruct σ' as [[[hs' ws'] locs'] inst'].
+  destruct Hstep as [Hstep [-> ->]].
+  induction Hstep using reduce_ind.
+  all: apply is_atomic_eq in Ha as Heq.
+  all: destruct Heq as [(?&?&?&?&?&?&?)|(?&?&?&?&?&?&?&?)];simplify_eq; eauto.
+  all: try by (do 2 (destruct vcs;try done)).
+  all: try by (do 3 (destruct vcs;try done)).
+  { inversion H;subst;eauto.
+    1,2: do 3 (destruct vs;try done). }
+  { inversion H;subst;eauto.
+    1,2: do 4 (destruct vs;try done). }
+  { eapply test in Ha as HH;eauto. destruct HH as [Hlh Hk];eauto. subst k. subst lh.
+    apply lfilled_Ind_Equivalent in H.
+    apply lfilled_Ind_Equivalent in H0.
+    inversion H;inversion H0; subst. erewrite app_nil_r in H4. subst.
+    erewrite app_nil_r. erewrite app_nil_l. apply IHHstep. auto. }
+  { edestruct test2 as [Hlh Hk];eauto.
+    subst k. subst lh.
+    apply lfilled_Ind_Equivalent in H.
+    apply lfilled_Ind_Equivalent in H0.
+    inversion H;inversion H0; subst. erewrite app_nil_r in H4. subst.
+    erewrite app_nil_r. erewrite app_nil_l. apply IHHstep. auto. }
+Qed.
 
 (* Auxiliary lemmas *)
 
@@ -165,7 +230,7 @@ Proof.
 Qed.
   
 Lemma to_val_const_list: forall es vs,
-  iris.to_val es = Some vs ->
+  iris.to_val es = Some (immV vs) ->
   const_list es.
 Proof.
   move => es.
@@ -175,23 +240,25 @@ Proof.
   destruct b => //=.
   move => H.
   destruct (iris.to_val es') eqn:HConst => //=.
+  destruct v0 => //=.
   inversion H; subst; clear H.
   by eapply IH; eauto.
+  case es' => //.
 Qed.
-  
-Lemma to_val_cat (es1 es2: list administrative_instruction) (vs: val) :
-  iris.to_val (es1 ++ es2) = Some vs ->
-  iris.to_val es1 = Some (take (length es1) vs) /\
-  iris.to_val es2 = Some (drop (length es1) vs).
+
+Lemma to_val_cat (es1 es2: list administrative_instruction) (vs: list value) :
+  iris.to_val (es1 ++ es2) = Some (immV vs) ->
+  iris.to_val es1 = Some (immV (take (length es1) vs)) /\
+  iris.to_val es2 = Some (immV ((drop (length es1) vs))).
 Proof.
   move => H.
   apply iris.of_to_val in H.
-  unfold iris.of_val in H.
   apply fmap_split in H; destruct H as [H1 H2].
   remember (length es1) as n1.
   remember (length es2) as n2.
   rewrite - H1.
   rewrite - H2.
+  rewrite !of_val_imm.
   by repeat rewrite iris.to_of_val.
 Qed.
 
@@ -201,9 +268,16 @@ Lemma to_val_cat_None1 (es1 es2: list administrative_instruction) :
 Proof.
   move => H.
   destruct (iris.to_val (es1 ++ es2)) eqn: HContra => //.
-  apply to_val_cat in HContra as [H1 _].
-  rewrite H1 in H.
-  by inversion H.
+  case: v HContra.
+  { move => l HContra.
+    apply to_val_cat in HContra as [H1 _].
+    rewrite H1 in H.
+    by inversion H. }
+  { move => Hcontra.
+    pose proof (to_val_trap_is_singleton Hcontra) as Heq.
+    destruct es1;[done|].
+    destruct es1, es2;try done.
+    inversion Heq. subst. done. }
 Qed.
 
 Lemma to_val_cat_None2 (es1 es2: list administrative_instruction) :
@@ -212,9 +286,21 @@ Lemma to_val_cat_None2 (es1 es2: list administrative_instruction) :
 Proof.
   move => H.
   destruct (iris.to_val (es1 ++ es2)) eqn: HContra => //.
-  apply to_val_cat in HContra as [_ H1].
-  rewrite H1 in H.
-  by inversion H.
+  case: v HContra => //=.
+  { move => l HContra. apply to_val_cat in HContra as [_ H1].
+    rewrite H1 in H.
+    by inversion H. }
+  { move => Hcontra.
+    pose proof (to_val_trap_is_singleton Hcontra) as Heq.
+    destruct es2;[done|].
+    case: es1 Hcontra Heq.
+    move => Hcontra Heq.
+    rewrite app_nil_l in Heq.
+    destruct es2;try done.
+    inversion Heq;subst;done.
+    move => a0 l Hcontra Heq.
+    assert (length [AI_trap] = 1) as Hl;auto.
+    revert Hl. rewrite -Heq -Permutation_middle =>Hl //=. }
 Qed.
 
 Lemma prim_step_obs_efs_empty es es' σ σ' obs efs:
@@ -274,22 +360,80 @@ Proof.
   repeat split => //.
   by apply r_elimr.
 Qed.
+
+Lemma app_eq_singleton: ∀ T (l1 l2 : list T) (a : T),
+    l1 ++ l2 = [a] ->
+    (l1 = [a] ∧ l2 = []) ∨ (l1 = [] ∧ l2 = [a]).
+Proof.
+  move =>T.
+  elim.
+  move => l2 a Heq. right. by rewrite app_nil_l in Heq.
+  move => a l l2 a0 a1 Heq. inversion Heq;subst.
+  left. split. f_equiv.
+  all: destruct l, a0;try done.
+Qed.
+
+Lemma AI_trap_reducible es2 σ :
+  es2 ≠ [] -> 
+  reducible ([AI_trap] ++ es2) σ.
+Proof.
+  elim: es2;[done|].
+  move => a l IH _.
+  unfold reducible => /=.
+  unfold language.reducible.
+  exists [],[AI_trap],σ,[].
+  simpl. unfold iris.prim_step.
+  destruct σ as [[[hs ws] locs] inst].
+  repeat split;auto.
+  constructor. econstructor. auto.
+  instantiate (1:=LH_base [] (a :: l)).
+  unfold lfilled, lfill => //=.
+Qed.
+Lemma AI_trap_reducible_2 es1 σ :
+  es1 ≠ [] ->
+  const_list es1 ->
+  reducible (es1 ++ [AI_trap]) σ.
+Proof.
+  move => H H'.
+  unfold reducible => /=.
+  unfold language.reducible.
+  exists [],[AI_trap],σ,[].
+  simpl. unfold iris.prim_step.
+  destruct σ as [[[hs ws] locs] inst].
+  repeat split;auto.
+  constructor. econstructor.
+  destruct es1;auto.
+  intros Hcontr. inversion Hcontr.
+  destruct es1 => //=.
+  instantiate (1:=LH_base (es1) []).
+  unfold lfilled, lfill => //=.
+  by rewrite H'.
+Qed.
   
 Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
   iris.to_val es1 = Some vs ->
   reducible es2 σ ->
   reducible (es1 ++ es2) σ.
 Proof.
-  unfold reducible => /=.
-  move => Htv [κ [es' [σ' [efs HStep]]]].
-  exists κ, (es1 ++ es'), σ', efs.
-  unfold iris.prim_step in * => //=.
-  destruct σ as [[[hs ws] locs] inst].
-  destruct σ' as [[[hs' ws'] locs'] inst'].
-  destruct HStep as [HStep [-> ->]].
-  repeat split => //.
-  apply r_eliml => //.
-  by eapply to_val_const_list; eauto.
+  destruct vs.
+  { unfold reducible => /=.
+    move => Htv [κ [es' [σ' [efs HStep]]]].
+    exists κ, (es1 ++ es'), σ', efs.
+    unfold iris.prim_step in * => //=.
+    destruct σ as [[[hs ws] locs] inst].
+    destruct σ' as [[[hs' ws'] locs'] inst'].
+    destruct HStep as [HStep [-> ->]].
+    repeat split => //.
+    apply r_eliml => //.
+    eapply to_val_const_list; eauto. }
+  { move => Ht [κ [es' [σ' [efs HStep]]]].
+    pose proof (to_val_trap_is_singleton Ht) as ->.
+    apply AI_trap_reducible.
+    rewrite /= /iris.prim_step in HStep.
+    destruct σ as [[[hs ws] locs] inst].
+    destruct σ' as [[[hs' ws'] locs'] inst'].
+    destruct HStep as [HStep [-> ->]].
+    by pose proof (reduce_not_nil HStep). }
 Qed.
 
 Lemma fmap_insert_set_nth: forall T (l: list T) i vd v,
@@ -303,7 +447,7 @@ Proof.
   f_equal.
   by apply IHl.
 Qed.
-  
+
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
    opsem for mem_grow and host function calls. However, the rest of the opsem
    are indeed deterministic. Use with caution. *)
@@ -342,15 +486,27 @@ Proof.
   (* Base case, when both es1 and es2 are values *)
   destruct (iris.to_val (es1 ++ es2)) as [vs|] eqn:Hetov.
   {
-    apply to_val_cat in Hetov as [-> Hev2].
-    apply iris.of_to_val in Hev2 as <-.
-    iMod "Hes1".
-    iSpecialize ("Hes2" with "Hes1").
-    unfold iris.of_val.
-    rewrite - map_app take_drop.
-    rewrite wp_unfold /wp_pre /=.
-    rewrite to_of_val.
-    by iAssumption.
+    destruct vs.
+    {
+      apply to_val_cat in Hetov as [-> Hev2].
+      apply iris.of_to_val in Hev2 as <-.
+      iMod "Hes1".
+      iSpecialize ("Hes2" with "Hes1").
+      unfold iris.of_val.
+      rewrite - fmap_app take_drop.
+      rewrite of_val_imm.
+      rewrite wp_unfold /wp_pre /=.
+      rewrite of_val_imm to_of_val.
+      by iAssumption.
+    }
+    {
+      apply to_val_trap_is_singleton in Hetov.
+      apply app_eq_singleton in Hetov as [[-> ->]|[-> ->]].
+      all:iMod "Hes1".
+      all: iSpecialize ("Hes2" with "Hes1").
+      all:rewrite /=.
+      all:by rewrite wp_unfold /wp_pre /=. 
+    }
   }
   (* Ind *)
   iIntros (σ ns κ κs nt) "Hσ".
@@ -390,8 +546,19 @@ Proof.
   }
 Qed.
 
+(* The following operation mirrors the opsem of AI_trap *)
+(* in which a trap value swallows all other stack values *)
+Definition val_combine (v1 v2 : val) :=
+  match v1 with
+  | immV l => match v2 with
+             | immV l' => immV (l ++ l')
+             | trapV => trapV
+             end
+  | trapV => trapV
+  end.
+
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
-  WP es @ NotStuck ; E {{ v, (Φ (v0 :: v)) }}%I
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v)) }}%I
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
   (* This also needs an iLob. *)
@@ -399,9 +566,44 @@ Proof.
   iIntros "H".
   repeat rewrite wp_unfold /wp_pre /=.
   destruct (iris.to_val es) as [vs|] eqn:Hes.
-  { apply of_to_val in Hes as <-.
-    iMod "H".
-    by iModIntro.
+  {
+    destruct vs.
+    { apply of_to_val in Hes as <-.
+      iMod "H".
+      by iModIntro. }
+    { apply to_val_trap_is_singleton in Hes as ->.
+      iIntros (σ ns κ κs nt) "Hσ".
+      destruct σ as [[[hs ws] locs] inst].
+      iApply fupd_frame_l. iSplit.
+      { destruct s;auto. iPureIntro.
+        unfold language.reducible.
+        pose proof (AI_trap_reducible_2 [AI_basic (BI_const v0)]) as H.
+        apply H;auto. }
+      iApply fupd_mask_intro;[solve_ndisj|].
+      iIntros "Hmask".
+      iIntros (es2 σ2 efs HStep).
+      rewrite -cat1s in HStep.
+      assert ((κ, efs) = ([],[])) as Hobsefs; first by eapply prim_step_obs_efs_empty.
+      inversion Hobsefs; subst; clear Hobsefs.
+      destruct σ2 as [[[hs2 ws2] locs2] inst2].
+      iModIntro. iNext. iMod "Hmask".
+      iApply fupd_mask_intro_subseteq. solve_ndisj.
+      assert (iris.prim_step (host_instance:=host_instance)
+                             ([AI_basic (BI_const v0)] ++ [AI_trap])%SEQ 
+                             (hs, ws, locs, inst) [] [AI_trap] (hs, ws, locs, inst) []) as Hstep.
+      { repeat constructor. econstructor;auto.
+        instantiate (1:=LH_base [AI_basic (BI_const v0)] []).
+        rewrite /lfilled /lfill => //=. }
+      (* TODO: use bespoke determinism lemma *)
+      unfold iris.prim_step in *.
+      destruct HStep as [HStep _].
+      destruct Hstep as [Hstep _].
+      eapply reduce_det in HStep;[|apply Hstep].
+      inversion HStep;subst. iFrame. iSplit;auto.
+      iMod "H".
+      iApply wp_value;[|iFrame].
+      rewrite /IntoVal. auto.
+    }
   }
   { iIntros (σ ns κ κs nt) "Hσ".
     iSpecialize ("H" $! σ ns κ κs nt with "Hσ").
@@ -437,22 +639,20 @@ Qed.
 
 
 
-
-
 (* basic instructions with simple(pure) reductions *)
 
 (* numerics *)
 
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
   app_unop op v = v' ->
-  Φ [v'] ⊢
+  Φ (immV [v']) ⊢
   WP [AI_basic (BI_const v); AI_basic (BI_unop t op)] @ s; E {{ v, Φ v }}.
 Proof.
 Admitted.
   
 Lemma wp_binop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop):
   app_binop op v1 v2 = Some v ->
-  Φ [v] ⊢
+  Φ (immV [v]) ⊢
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Hbinop) "HΦ".
@@ -518,7 +718,7 @@ Admitted.
 
 Lemma wp_relop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
   app_relop op v1 v2 = b ->
-  Φ [(xb b)] ⊢
+  Φ (immV [(xb b)]) ⊢
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Hrelop) "HΦ".
@@ -546,7 +746,7 @@ Qed.
 
 Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
   app_testop_i (e:=i32t) op v = b ->
-  Φ [(xb b)] ⊢
+  Φ (immV [(xb b)]) ⊢
     WP [AI_basic (BI_const (VAL_int32 v)); AI_basic (BI_testop T_i32 op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Htestop) "HΦ".
@@ -574,7 +774,7 @@ Qed.
 
 Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop):
   app_testop_i (e:=i64t) op v = b ->
-  Φ [(xb b)] ⊢
+  Φ (immV [(xb b)]) ⊢
     WP [AI_basic (BI_const (VAL_int64 v)); AI_basic (BI_testop T_i64 op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Htestop) "HΦ".
@@ -603,7 +803,7 @@ Qed.
 Lemma wp_cvtop_convert (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type) (sx: option sx):
   cvt t2 sx v = Some v' ->
   types_agree t1 v ->
-  Φ [v'] ⊢
+  Φ (immV [v']) ⊢
     WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Hcvtop Htype) "HΦ".
@@ -632,7 +832,7 @@ Qed.
 Lemma wp_cvtop_reinterpret (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type):
   wasm_deserialise (bits v) t2 = v' ->
   types_agree t1 v ->
-  Φ [v'] ⊢
+  Φ (immV [v']) ⊢
     WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Hcvtop Htype) "HΦ".
@@ -661,7 +861,7 @@ Qed.
 (* Non-numerics -- stack operations, control flows *)
 
 Lemma wp_nop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ):
-  Φ [] ⊢
+  Φ (immV []) ⊢
     WP [AI_basic (BI_nop)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
@@ -764,7 +964,7 @@ Admitted.
 
 Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat):
   N.of_nat i ↦[wl] v0 ⊢
-  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ w = [] ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ w = immV [] ⌝ ∗ N.of_nat i ↦[wl] v }}.
 Proof.
   iIntros "Hli".
   iApply wp_lift_atomic_step => //=.
@@ -839,7 +1039,7 @@ Definition my_add : expr :=
      AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
 
 Lemma myadd_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
-  Φ [xx 5] ⊢ WP my_add @ s; E {{ v, Φ v }}.
+  Φ (immV [xx 5]) ⊢ WP my_add @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
   unfold my_add.
@@ -855,12 +1055,12 @@ Definition my_add2: expr :=
   AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
 
 Lemma myadd2_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
-  Φ [xx 5] ⊢ WP my_add2 @ s; E {{ v, Φ v }}.
+  Φ (immV [xx 5]) ⊢ WP my_add2 @ s; E {{ v, Φ v }}.
 Proof.
   iIntros "HΦ".
   replace my_add2 with (take 3 my_add2 ++ drop 3 my_add2) => //.
   iApply wp_seq => /=.
-  instantiate (1 := fun v => (⌜ v = [xx 3] ⌝)%I ).
+  instantiate (1 := fun v => (⌜ v = immV [xx 3] ⌝)%I ).
   iSplitR "HΦ"; first by iApply wp_binop.
   iIntros (? ->) => /=.
   by iApply wp_binop.
@@ -898,3 +1098,10 @@ Lemma invoke_native_spec `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG
 
 End Host.
 
+Ltac solve_atomic :=
+  apply is_atomic_correct; simpl; repeat split;
+    rewrite ?to_of_val; eapply mk_is_Some; fast_done.
+
+
+Global Hint Extern 0 (Atomic _ _) => solve_atomic : core.
+Global Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
