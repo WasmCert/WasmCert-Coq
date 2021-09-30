@@ -168,85 +168,14 @@ Proof.
     move => *. right;left. repeat eexists. }
 Qed.
 
-(* TODO (aina): the following lemmas are quite brute forced, 
-   generalize the ones where es is a value, for now i just 
-   wanted to make sure they hold *)
-
-Lemma reduce_const_false hs s0 f hs' s' f' es es' v :
-  es = [AI_basic (BI_const v)] ->
+Lemma reduce_val_false hs s0 f hs' s' f' es es' :
+  is_Some (iris.to_val es) ->
   reduce hs s0 f es hs' s' f' es' -> False.
 Proof.
-  intros Heq Hred.
-  induction Hred using reduce_ind; subst; try done.
-  all: try by (repeat (destruct vcs;try done)).
-  { inversion H;subst.
-    all: repeat (destruct vs;try done).
-    apply lfilled_Ind_Equivalent in H1.
-    inversion H1;subst.
-    repeat (destruct vs;try done). }
-  { apply lfilled_Ind_Equivalent in H.
-    apply lfilled_Ind_Equivalent in H0.
-    pose proof (reduce_not_nil Hred) as Hnil.
-    inversion H;subst.
-    { repeat destruct vs,es,es'0 => //=.
-      destruct es => //=.
-      destruct es, es'0 => //=.
-      destruct vs, es => //=. }
-    { repeat destruct vs => //=. }
-  }
-Qed.
-
-Lemma reduce_const_false_2 hs s0 f hs' s' f' es es' v1 v2 :
-  es = [AI_basic (BI_const v1);AI_basic (BI_const v2)] ->
-  reduce hs s0 f es hs' s' f' es' -> False.
-Proof.
-  intros Heq Hred.
-  induction Hred using reduce_ind; subst; try done.
-  all: try by (repeat (destruct vcs;try done)).
-  { inversion H;subst.
-    all: repeat (destruct vs;try done).
-    apply lfilled_Ind_Equivalent in H1.
-    inversion H1;subst.
-    repeat (destruct vs;try done). }
-  { apply lfilled_Ind_Equivalent in H.
-    apply lfilled_Ind_Equivalent in H0.
-    pose proof (reduce_not_nil Hred) as Hnil.
-    inversion H;subst.
-    { repeat destruct vs,es,es'0 => //=.
-      repeat destruct es => //=.
-      repeat destruct es, es'0 => //=.
-      inversion H1;subst. eapply reduce_const_false;eauto.
-      repeat destruct es => //=.
-      repeat destruct vs,es => //=.
-      inversion H1;subst. eapply reduce_const_false;eauto.
-      all:repeat destruct vs => //=.
-    }
-    { repeat destruct vs => //=. }
-  }
-Qed.
-
-Lemma reduce_trap_false hs s0 f hs' s' f' es es' :
-  es = [AI_trap] ->
-  reduce hs s0 f es hs' s' f' es' -> False.
-Proof.
-  intros Heq Hred.
-  induction Hred using reduce_ind; subst; try done.
-  all: try by (repeat (destruct vcs;try done)).
-  { inversion H;subst.
-    all: repeat (destruct vs;try done).
-    apply lfilled_Ind_Equivalent in H1.
-    inversion H1;subst.
-    repeat (destruct vs;try done). }
-  { apply lfilled_Ind_Equivalent in H.
-    apply lfilled_Ind_Equivalent in H0.
-    pose proof (reduce_not_nil Hred) as Hnil.
-    inversion H;subst.
-    { repeat destruct vs,es,es'0 => //=.
-      destruct es => //=.
-      destruct es, es'0 => //=.
-      destruct vs, es => //=. }
-    { repeat destruct vs => //=. }
-  }
+  intros Hsome Hred.
+  apply val_head_stuck_reduce in Hred.
+  rewrite Hred in Hsome. inversion Hsome.
+  done.
 Qed.
 
 Lemma reduce_load_false hs s0 f hs' s' f' es es' x0 x1 x2 x3 :
@@ -316,7 +245,8 @@ Proof.
     { repeat destruct vs,es,es'0 => //=.
       repeat destruct es => //=.
       repeat destruct es, es'0 => //=.
-      inversion H1;subst. eapply reduce_const_false;eauto.
+      inversion H1;subst. eapply reduce_val_false;eauto.
+      eauto.
       repeat destruct es => //=.
       repeat destruct vs, es => //=.
       inversion H1;subst. eapply reduce_store_false;eauto.
@@ -338,7 +268,7 @@ Proof.
   destruct vs,es,es'0 => //=.
   all: do 2 (try destruct vs; try destruct es; try destruct es'0 => //=;simplify_eq).
   { inversion H;subst. exfalso.
-    eapply reduce_const_false;eauto. }
+    eapply reduce_val_false;eauto. eauto. }
   { inversion H;subst. exfalso.
     eapply reduce_load_false;eauto. }
 Qed.
@@ -355,23 +285,29 @@ Proof.
   destruct vs,es,es'0 => //=.
   all: do 3 (try destruct vs; try destruct es; try destruct es'0 => //=;simplify_eq).
   { inversion H;subst. exfalso.
-    eapply reduce_const_false;eauto. }
+    eapply reduce_val_false;eauto. eauto. }
   { inversion H;subst. exfalso.
-    eapply reduce_const_false_2;eauto. }
+    eapply reduce_val_false;eauto. eauto. }
   { inversion H;subst. exfalso.
     eapply reduce_store_false_2;eauto. }
   { inversion H;subst. exfalso.
     eapply reduce_store_false;eauto. }
   { inversion H;subst. exfalso.
-    eapply reduce_const_false;eauto. }
+    eapply reduce_val_false;eauto. eauto. }
 Qed.
 
-Lemma test3 hs s0 f es hs' s' f' es' k lh :
+Lemma atomic_no_hole_trap hs s0 f es hs' s' f' es' k lh :
   reduce hs s0 f es hs' s' f' es' -> 
   lfilled k lh es [::AI_trap] ->
   lh = LH_base [] [] ∧ k = 0.
-Proof.  
-Admitted.
+Proof.
+  intros Hred Hfill.
+  apply lfilled_Ind_Equivalent in Hfill.
+  destruct k;inversion Hfill;subst;[split;auto|repeat destruct vs => //=].
+  pose proof (reduce_not_nil Hred) as Hnil.
+  destruct vs,es,es'0 => //=.
+  all: do 2 (try destruct vs; try destruct es; try destruct es'0 => //=;simplify_eq).
+Qed.  
   
 Global Instance is_atomic_correct s e : is_atomic e → Atomic s e.
 Proof.
@@ -404,7 +340,7 @@ Proof.
     apply lfilled_Ind_Equivalent in H0.
     inversion H;inversion H0; subst. erewrite app_nil_r in H3. subst.
     erewrite app_nil_r. erewrite app_nil_l. apply IHHstep. auto. }
-  { edestruct test3 as [Hlh Hk];eauto.
+  { edestruct atomic_no_hole_trap as [Hlh Hk];eauto.
     subst k. subst lh.
     apply lfilled_Ind_Equivalent in H.
     apply lfilled_Ind_Equivalent in H0.

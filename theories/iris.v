@@ -336,12 +336,11 @@ Proof.
   move => a l IH. rewrite IH//. by left.
 Qed.
 
-Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,
-  prim_step e1 s1 κ e2 s2 efs →
-  to_val e1 = None.
+Lemma val_head_stuck_reduce : ∀ hs1 locs1 s1 e1 hs2 locs2 s2 e2,
+    reduce hs1 locs1 s1 e1 hs2 locs2 s2 e2 ->
+    to_val e1 = None.
 Proof.
-  rewrite /prim_step => e1 [[[hs1 locs1] σ1] inst] κ e2 [[[hs2 locs2] σ2] inst'] efs.
-  move => [HRed _].
+  move => hs1 locs1 s1 e1 hs2 locs2 s2 e2 HRed.
   induction HRed => //=; subst; try by apply to_val_None_prepend.
   - inversion H; subst => //=; try by apply to_val_None_prepend.
     + destruct v => //=.
@@ -357,6 +356,15 @@ Proof.
     inversion H; subst; clear H.
     by apply to_val_None_prepend, to_val_None_append.
   - by apply to_val_None_prepend, to_val_None_append.
+Qed.
+
+Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,
+  prim_step e1 s1 κ e2 s2 efs →
+  to_val e1 = None.
+Proof.
+  rewrite /prim_step => e1 [[[hs1 locs1] σ1] inst] κ e2 [[[hs2 locs2] σ2] inst'] efs.
+  move => [HRed _].
+  eapply val_head_stuck_reduce;eauto.
 Qed.
 
 Lemma wasm_mixin : LanguageMixin of_val to_val prim_step.
