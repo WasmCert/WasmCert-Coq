@@ -1106,11 +1106,12 @@ Admitted.
 
 (* Instance related *)
 
-Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat):
+Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (ϕ: val -> Prop):
+  ϕ (immV [v]) ->
   N.of_nat i ↦[wl] v ⊢
-  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ w = immV [v] ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
 Proof.
-  iIntros "Hli".
+  iIntros (Hϕ) "Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
@@ -1134,11 +1135,12 @@ Proof.
     by iFrame => //=.
 Qed.
 
-Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat):
+Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat) (ϕ: val -> Prop):
+  ϕ (immV []) ->
   N.of_nat i ↦[wl] v0 ⊢
-  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ w = immV [] ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
 Proof.
-  iIntros "Hli".
+  iIntros (Hϕ) "Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
@@ -1169,10 +1171,42 @@ Proof.
     rewrite - gmap_of_list_insert; rewrite Nat2N.id => //.
     by erewrite fmap_insert_set_nth.
 Qed.
-    
-Lemma wp_tee_local: False.
+
+(* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
+Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (i: nat) (ϕ: val -> Prop):
+  ϕ (immV [v]) ->
+  N.of_nat i ↦[wl] v0 ⊢
+  WP ([AI_basic (BI_const v); AI_basic (BI_tee_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
 Proof.
-Admitted.
+  iIntros (Hϕ) "Hli".
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct σ as [[[hs ws] locs] inst].
+  iApply fupd_mask_intro; first by solve_ndisj.
+  iIntros "Hfupd".
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const v); AI_basic (BI_const v); AI_basic (BI_set_local i)], (hs, ws, locs, inst), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    by apply rs_tee_local => //.
+  - iIntros "!>" (es σ2 efs HStep).
+    iMod "Hfupd".
+    iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last apply r_simple, rs_tee_local => //=.
+    inversion H; subst; clear H.
+    iFrame.
+    repeat iSplit => //.
+    iApply wp_val.
+    by iApply wp_set_local.
+Qed.
 
 Lemma wp_get_global: False.
 Proof.
