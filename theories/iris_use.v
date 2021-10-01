@@ -1106,9 +1106,33 @@ Admitted.
 
 (* Instance related *)
 
-Lemma wp_get_local: False.
+Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat):
+  N.of_nat i ↦[wl] v ⊢
+  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ w = immV [v] ⌝ ∗ N.of_nat i ↦[wl] v }}.
 Proof.
-Admitted.
+  iIntros "Hli".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] inst].
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
+  rewrite gmap_of_list_lookup Nat2N.id in Hli.
+  rewrite - nth_error_lookup in Hli.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const v)], (hs, ws, locs, inst), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    by apply r_get_local.
+  - iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last eapply r_get_local; eauto.
+    inversion H; subst; clear H.
+    by iFrame => //=.
+Qed.
 
 Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat):
   N.of_nat i ↦[wl] v0 ⊢
