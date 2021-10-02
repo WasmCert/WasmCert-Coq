@@ -1173,10 +1173,10 @@ Proof.
 Qed.
 
 (* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
-Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (i: nat) (ϕ: val -> Prop):
+Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (n: nat) (ϕ: val -> Prop):
   ϕ (immV [v]) ->
-  N.of_nat i ↦[wl] v0 ⊢
-  WP ([AI_basic (BI_const v); AI_basic (BI_tee_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  N.of_nat n ↦[wl] v0 ⊢
+  WP ([AI_basic (BI_const v); AI_basic (BI_tee_local n)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat n ↦[wl] v }}.
 Proof.
   iIntros (Hϕ) "Hli".
   iApply wp_lift_step => //=.
@@ -1190,7 +1190,7 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const v); AI_basic (BI_const v); AI_basic (BI_set_local i)], (hs, ws, locs, inst), [].
+    exists [], [AI_basic (BI_const v); AI_basic (BI_const v); AI_basic (BI_set_local n)], (hs, ws, locs, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
     apply r_simple.
@@ -1208,10 +1208,50 @@ Proof.
     by iApply wp_set_local.
 Qed.
 
-Lemma wp_get_global: False.
+(* r_get_global involves finding the reference index to the global store via
+   the instance first. *)
+Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: instance) (n: nat) (ϕ: val -> Prop) (g: global) (k: nat) :
+  inst.(inst_globs) !! n = Some k ->
+  g.(g_val) = v ->
+  ϕ (immV [v]) ->
+  (↦[wi] inst ∗
+  N.of_nat k ↦[wg] g) ⊢
+  WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ N.of_nat k ↦[wg] g }}.
 Proof.
-Admitted.
-
+  iIntros (Hinstg Hgval Hϕ) "(Hinst & Hglob)".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] winst].
+  iDestruct "Hσ" as "(? & ? & ? & Hg & ? & Hi)".
+  iDestruct (gen_heap_valid with "Hg Hglob") as "%Hglob".
+  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  rewrite gmap_of_list_lookup Nat2N.id in Hglob.
+  rewrite - nth_error_lookup in Hglob.
+  rewrite - nth_error_lookup in Hinstg.
+  rewrite lookup_insert in Hinst.
+  inversion Hinst; subst; clear Hinst.
+  assert ( sglob_val (host_function:=host_function) ws
+                     (f_inst {| f_locs := locs; f_inst := inst |}) n =
+           Some (g_val g) ) as Hsglob.
+  { unfold sglob_val, option_map, sglob, option_bind, sglob_ind => /=.
+    by rewrite Hinstg Hglob.
+  }
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (g_val g))], (hs, ws, locs, inst), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    by apply r_get_global.
+  - iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] winst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_get_global.
+    inversion H; subst; clear H.
+    by iFrame => /=.
+Qed.
+    
 Lemma wp_set_global: False.
 Proof.
 Admitted.
