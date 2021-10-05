@@ -612,7 +612,22 @@ Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
 Section lifting.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}.
-  
+
+(* Predicate for memory blocks *)
+
+(* TODO: add memory size resource once it's implemented *)
+Definition mem_block (n: N) (m: memory) :=
+  ([∗ list] i ↦ b ∈ (m.(mem_data).(ml_data)), n ↦[wm][ (N.of_nat i) ] b)%I.
+
+Notation "n ↦[wmblock] m" := (mem_block n m)
+                           (at level 20, format "n ↦[wmblock] m"): bi_scope.
+
+Definition mem_block_equiv (m1 m2: memory) :=
+  m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).
+
+Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
+                        (at level 70, format "m1 ≡ₘ m2").
+
 (* empty lists, frame rules *)
 
 Lemma wp_nil (s : stuckness) (E : coPset) (Φ : iProp Σ) :
@@ -1260,8 +1275,49 @@ Lemma wp_load: False.
 Proof.
 Admitted.
 
-Lemma wp_store: False.
+Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
+  m1 ≡ₘ m2 ->
+  store m1 n off bs l = Some m1' ->
+  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2.
 Proof.
+Admitted.
+
+Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (inst: instance) (mem mem': memory) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) :
+  types_agree t v ->
+  inst.(inst_memory) !! 0 = Some n ->
+  store mem (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = Some mem' ->
+  ϕ (immV []) ->
+  ( ↦[wi] inst ∗
+  N.of_nat n ↦[wmblock] mem) ⊢
+  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat n) ↦[wmblock] mem' }}).
+Proof.
+  iIntros (Hvt Hinstn Hstore Hϕ) "[Hinst Hwmblock]".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] winst].
+  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi)".
+  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  rewrite lookup_insert in Hinst.
+  inversion Hinst; subst; clear Hinst.
+  iAssert (⌜∃ m, ws.(s_mems) !! n = Some m /\ mem ≡ₘm⌝%I) as "%Hmem".
+  {
+    admit.
+  }
+  destruct Hmem as [m [Hm Hmdata]].
+  specialize (store_data_inj mem m mem' (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) Hmdata Hstore) as [m' [Hstore' Hmdata']].
+  rewrite - nth_error_lookup in Hm.
+  rewrite - nth_error_lookup in Hinstn.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    Print r_store_success.
+    exists [], [], (hs, upd_s_mem ws (update_list_at (s_mems ws) n m'), locs, inst), [].
+    repeat split => //.
+    by eapply r_store_success.
+  - iIntros "!>" (es σ2 efs HStep).
+    (* Need to modify bigL here *)
+    admit.
 Admitted.
 
 Lemma wp_current_memory: False.
