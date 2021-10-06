@@ -1282,6 +1282,11 @@ Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes)
 Proof.
 Admitted.
 
+Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
+  update_list_at l n x = <[n := x]> l.
+Proof.
+Admitted.
+  
 Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (inst: instance) (mem mem': memory) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) :
   types_agree t v ->
   inst.(inst_memory) !! 0 = Some n ->
@@ -1311,12 +1316,19 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold language.reducible, language.prim_step => /=.
-    Print r_store_success.
     exists [], [], (hs, upd_s_mem ws (update_list_at (s_mems ws) n m'), locs, inst), [].
     repeat split => //.
     by eapply r_store_success.
   - iIntros "!>" (es σ2 efs HStep).
     (* Need to modify bigL here *)
+    iModIntro.
+    destruct σ2 as [[[hs2 ws2] locs2] winst2].
+    destruct HStep as [HStep [-> ->]].
+    eapply reduce_det in HStep; last by eapply r_store_success.
+    inversion HStep; subst; clear HStep => /=.
+    iFrame.
+    rewrite update_list_at_insert.
+    
     admit.
 Admitted.
 

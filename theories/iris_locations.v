@@ -22,6 +22,10 @@ Definition create_table (len: N) : tableinst :=
 Definition create_memory (sz: N) (sz_lim: N) (init_b: byte) :=
   Build_memory (mem_make init_b sz) (Some sz_lim).
 
+Global Instance inhabited_table : Inhabited tableinst := populate (create_table 0).
+
+Global Instance inhabited_memory : Inhabited memory := populate (create_memory 0 0 #00).
+
 (* automatically remembers a lookup result and make the hypothesis ready for destruct *)
 Ltac remember_lookup :=
   match goal with
@@ -397,8 +401,8 @@ Proof with resolve_finmap.
     by rewrite Hlookup Hlookup2.
 Qed.
 
-Definition new_2d_gmap_at_n {T: Type} (n: N) (len: nat) (x: T) : gmap (N*N) T :=
-  list_to_map (imap (fun i x => ((n, N.of_nat i), x)) (repeat x len)).
+Definition new_2d_gmap_at_n {T: Type} (n: N) (l: list T) : gmap (N*N) T :=
+  list_to_map (imap (fun i x => ((n, N.of_nat i), x)) l).
 
 Lemma repeat_lookup {T: Type} (x: T) (n i: nat):
   i < n <->
@@ -414,45 +418,52 @@ Proof.
     by rewrite repeat_length in Hlookup.
 Qed.
 
-Lemma new_2d_gmap_at_n_lookup {T: Type} n i len (x:T):
-  N.to_nat i < len ->
-  new_2d_gmap_at_n n len x !! (n, i) = Some x.
+Lemma repeat_lookup_None {T: Type} (x: T) (n i: nat):
+  i >= n <->
+  (repeat x n) !! i = None.
 Proof.
-  move => HLen.
-  unfold new_2d_gmap_at_n.
-  apply elem_of_list_to_map; resolve_finmap.
-  - apply Nat2N.inj in H0. subst.
-    rewrite Helem0 in Helem.
-    by inversion Helem.
-  - apply nodup_imap_inj1.
-    move => n1 n2 t1 t2 Heq.
-    inversion Heq.
-    by apply Nat2N.inj in H0.
-  - apply elem_of_lookup_imap.
-    exists (N.to_nat i), x.
-    split.
-    + repeat f_equal.
-      lia.
-    + apply repeat_lookup.
-      lia.
+  split. 
+  - move : n.
+    induction i; move => n HLen; destruct n => //=; try lia.
+    apply IHi.
+    lia.
+  - move => Hlookup.
+    apply lookup_ge_None in Hlookup.
+    by rewrite repeat_length in Hlookup.
 Qed.
-      
-Lemma new_2d_gmap_at_n_lookup_None {T: Type} n i len (x:T):
-  N.to_nat i >= len ->
-  new_2d_gmap_at_n n len x !! (n, i) = None.
+
+Lemma new_2d_gmap_at_n_lookup {T: Type} n (i: N) (l: list T):
+  (new_2d_gmap_at_n n l) !! (n, i) = l !! (N.to_nat i).
 Proof.
-  move => HLen.
   unfold new_2d_gmap_at_n.
-  apply not_elem_of_list_to_map. move => HContra. resolve_finmap. subst => //=.
-  inversion Heq; subst; clear Heq.
-  apply lookup_lt_Some in Helem0.
-  rewrite repeat_length in Helem0.
-  lia.
+  destruct (l !! N.to_nat i) eqn:Hlookup.
+  { apply elem_of_list_to_map; resolve_finmap.
+    - apply Nat2N.inj in H0. subst.
+      rewrite Helem0 in Helem.
+      by inversion Helem.
+    - apply nodup_imap_inj1.
+      move => n1 n2 t1 t2 Heq.
+      inversion Heq.
+      by apply Nat2N.inj in H0.
+    - apply elem_of_lookup_imap.
+      exists (N.to_nat i), t.
+      split => //.
+      + repeat f_equal.
+        lia.
+  }
+  { apply not_elem_of_list_to_map.
+    move => H.
+    resolve_finmap; subst => /=.
+    simpl in Heq.
+    inversion Heq; subst; clear Heq.
+    rewrite Nat2N.id in Hlookup.
+    by rewrite Hlookup in Helem0.
+  }
 Qed.
-  
-Lemma new_2d_gmap_at_n_lookup_None2 {T: Type} n m i len (x:T):
+
+Lemma new_2d_gmap_at_n_lookup_None {T: Type} n m (i: N) (l: list T):
   n <> m ->
-  new_2d_gmap_at_n n len x !! (m, i) = None.
+  new_2d_gmap_at_n n l !! (m, i) = None.
 Proof.
   move => Hneq.
   unfold new_2d_gmap_at_n.
@@ -460,8 +471,8 @@ Proof.
   by inversion Heq.
 Qed.
 
-Lemma gmap_of_list_2d_append_disjoint {T: Type} l len (x: T):
-  new_2d_gmap_at_n (N.of_nat (length l)) len x ##ₘ gmap_of_list_2d l.
+Lemma gmap_of_list_2d_append_disjoint {T: Type} l (l': list T):
+  new_2d_gmap_at_n (N.of_nat (length l)) l' ##ₘ gmap_of_list_2d l.
 Proof.
   apply map_disjoint_spec.
   move => [n i] f1 f2 H1 H2.
@@ -485,7 +496,7 @@ Qed.
 
 Lemma gmap_of_list_2d_append {T: Type} l len (x: T):
   gmap_of_list_2d (l ++ [::repeat x len]) =
-  new_2d_gmap_at_n (N.of_nat (length l)) len x ∪ gmap_of_list_2d l.
+  new_2d_gmap_at_n (N.of_nat (length l)) (repeat x len) ∪ gmap_of_list_2d l.
 Proof.
   apply map_eq.
   move => [n i].
@@ -516,8 +527,8 @@ Proof.
       apply lookup_union_Some_l.
       rewrite - e.
       rewrite N2Nat.id.
-      apply new_2d_gmap_at_n_lookup.
-      lia.
+      rewrite new_2d_gmap_at_n_lookup.
+      by apply repeat_lookup.
     + assert (N.to_nat n < length l) as Hlenlt; first lia.
       symmetry.
       apply lookup_union_Some_r; first by apply gmap_of_list_2d_append_disjoint.
@@ -547,8 +558,8 @@ Proof.
         split.
         -- rewrite - e.
           rewrite N2Nat.id.
-          apply new_2d_gmap_at_n_lookup_None.
-          lia.
+          rewrite new_2d_gmap_at_n_lookup.
+          by apply repeat_lookup_None.
         -- rewrite gmap_of_list_2d_lookup.
           assert (N.to_nat n ≥ length l) as Hlen2; first lia.
           apply lookup_ge_None in Hlen2.
@@ -557,7 +568,7 @@ Proof.
         symmetry.
         apply lookup_union_None.
         split.
-        -- rewrite new_2d_gmap_at_n_lookup_None2 => //.
+        -- rewrite new_2d_gmap_at_n_lookup_None => //.
           lia.
         -- rewrite gmap_of_list_2d_lookup.
            rewrite lookup_app_l in Hlookup2; last lia.
@@ -571,7 +582,7 @@ Proof.
       symmetry.
       apply lookup_union_None.
       split.
-      * apply new_2d_gmap_at_n_lookup_None2 => //.
+      * apply new_2d_gmap_at_n_lookup_None => //.
         lia.
       * rewrite gmap_of_list_2d_lookup.
         assert (N.to_nat n >= length l) as Hlen; first lia.
@@ -609,7 +620,7 @@ Proof.
 Qed.
 
 Lemma gmap_of_table_append_disjoint l len:
-  new_2d_gmap_at_n (N.of_nat (length l)) len None ##ₘ gmap_of_table l.
+  new_2d_gmap_at_n (N.of_nat (length l)) (repeat None len) ##ₘ gmap_of_table l.
 Proof.
   unfold gmap_of_table.
   replace (length l) with (length (table_to_list <$> l)); first by apply gmap_of_list_2d_append_disjoint.
@@ -617,7 +628,7 @@ Proof.
 Qed.
 
 Lemma gmap_of_memory_append_disjoint l len init_b:
-  new_2d_gmap_at_n (N.of_nat (length l)) len init_b ##ₘ gmap_of_memory l.
+  new_2d_gmap_at_n (N.of_nat (length l)) (repeat init_b len) ##ₘ gmap_of_memory l.
 Proof.
   unfold gmap_of_memory.
   replace (length l) with (length (memory_to_list <$> l)); first by apply gmap_of_list_2d_append_disjoint.
@@ -626,7 +637,7 @@ Qed.
 
 Lemma gmap_of_table_append l len:
   gmap_of_table (l ++ [::create_table len]) =
-  new_2d_gmap_at_n (N.of_nat (length l)) (N.to_nat len) None ∪ gmap_of_table l.
+  new_2d_gmap_at_n (N.of_nat (length l)) (repeat None (N.to_nat len)) ∪ gmap_of_table l.
 Proof.
   unfold gmap_of_table, create_table.
   replace (length l) with (length (table_to_list <$> l)); last by rewrite fmap_length.
@@ -636,7 +647,7 @@ Qed.
 
 Lemma gmap_of_memory_append l sz sz_lim init_b:
   gmap_of_memory (l ++ [::create_memory sz sz_lim init_b]) =
-  new_2d_gmap_at_n (N.of_nat (length l)) (N.to_nat sz) init_b ∪ gmap_of_memory l.
+  new_2d_gmap_at_n (N.of_nat (length l)) (repeat init_b (N.to_nat sz)) ∪ gmap_of_memory l.
 Proof.
   unfold gmap_of_memory, create_memory.
   replace (length l) with (length (memory_to_list <$> l)); last by rewrite fmap_length.
@@ -689,6 +700,35 @@ Proof.
     by rewrite HLookup.
 Qed.
 
+(* We need to enforce the new memory to be of at least the same size as the old one. *)
+Lemma gmap_of_memory_insert_block (n: nat) (m mem :memory) l:
+  l !! n = Some mem ->
+  length m.(mem_data).(ml_data) >= length mem.(mem_data).(ml_data) ->
+  gmap_of_memory (<[n := m]> l) = (new_2d_gmap_at_n (N.of_nat n) m.(mem_data).(ml_data)) ∪ (gmap_of_memory l).
+Proof.
+  move => Hmem Hlen.
+  unfold gmap_of_memory.
+  apply map_eq.
+  move => [i j].
+  rewrite gmap_of_list_2d_lookup lookup_union gmap_of_list_2d_lookup.
+  unfold union_with, option_union_with.
+  unfold memory_to_list => /=.
+  repeat rewrite list_lookup_fmap.
+  destruct (decide (n = N.to_nat i)) eqn:Hn; subst.
+  - clear Hn.
+    rewrite N2Nat.id new_2d_gmap_at_n_lookup list_lookup_insert => /=; last by eapply lookup_lt_Some.
+    rewrite Hmem.
+    destruct (ml_data (mem_data m) !! N.to_nat j) eqn:Hlookup => //=.
+    + by repeat destruct (_ !! _) => //=.
+    + destruct (ml_data (mem_data mem) !! (N.to_nat j)) eqn:Hlookup2 => //=.
+      apply lookup_ge_None in Hlookup.
+      apply lookup_lt_Some in Hlookup2.
+      lia.
+  - rewrite list_lookup_insert_ne => //.
+    rewrite new_2d_gmap_at_n_lookup_None; last by lias.
+    by repeat destruct (_ !! _) => //=.
+Qed.
+  
 Lemma nth_error_lookup {T: Type} (l: list T) i:
   nth_error l i = l !! i.
 Proof.
