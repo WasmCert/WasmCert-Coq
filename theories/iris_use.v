@@ -141,9 +141,6 @@ Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG �
       (gen_heap_interp (gmap_of_list s.(s_globals)) ∗
       (gen_heap_interp (gmap_of_list locs)) ∗
       (gen_heap_interp (<[tt := inst]> ∅)) ∗
-      (* This does not work currently. Need something like a gen_heap_interp for
-         the mem_size predicates which can be used with a gen_heap_valid-like
-         thing to retrieve the current memory size. *)
       (gen_heap_interp (gmap_of_list (fmap mem_size s.(s_mems))))
       )
     )%I;
@@ -518,6 +515,8 @@ Proof.
 Admitted.
 
 (* Context lemmas -- could be very tedious to prove *)
+
+Print r_label.
 
 Lemma reduce_ves1: forall v es es' σ σ' efs obs,
     reducible es σ ->
@@ -1267,7 +1266,11 @@ Qed.
 
 (* r_get_global involves finding the reference index to the global store via
    the instance first. *)
-Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: instance) (n: nat) (ϕ: val -> Prop) (g: global) (k: nat) :
+
+Print r_get_global.
+
+(* TODO: Weaken the ownership of instance (and global) *)
+Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: instance) (n: nat) (ϕ: val -> Prop) (g: global) (k: nat):
   inst.(inst_globs) !! n = Some k ->
   g.(g_val) = v ->
   ϕ (immV [v]) ->
@@ -1320,7 +1323,7 @@ Admitted.
 Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
   m1 ≡ₘ m2 ->
   store m1 n off bs l = Some m1' ->
-  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2.
+  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2'.
 Proof.
 Admitted.
 
@@ -1330,9 +1333,33 @@ Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) (l: na
 Proof.
 Admitted.
 
+Lemma mem_equiv_size (m m': memory):
+  m ≡ₘ m' ->
+  mem_size m = mem_size m'.
+Proof.
+  move => Hm.
+  unfold mem_size, mem_length, memory_list.mem_length.
+  by rewrite Hm.
+Qed.
+
 Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
   update_list_at l n x = <[n := x]> l.
 Proof.
+Admitted.
+
+Lemma gen_heap_update_big_wm σ n ml ml':
+  gen_heap_interp σ -∗ 
+  ([∗ list] i ↦ b ∈ ml, N.of_nat n ↦[wm][N.of_nat i] b) ==∗
+  gen_heap_interp ((new_2d_gmap_at_n (N.of_nat n) ml') ∪ σ) ∗
+  ([∗ list] i ↦ b ∈ ml', N.of_nat n ↦[wm][N.of_nat i] b).
+Proof.
+(*  revert σ; induction σ' as [| l v σ' Hl IH] using map_ind; iIntros (σ Hdisj) "Hσ".
+  { rewrite left_id_L. auto. }
+  iMod (IH with "Hσ") as "[Hσ'σ Hσ']"; first by eapply map_disjoint_insert_l.
+  decompose_map_disjoint.
+  rewrite !big_opM_insert // -insert_union_l //.
+  by iMod (gen_heap_alloc with "Hσ'σ") as "($ & $ & $)";
+    first by apply lookup_union_None.*)
 Admitted.
   
 Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (inst: instance) (mem mem': memory) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) :
@@ -1348,6 +1375,8 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
+  unfold mem_block.
+  iDestruct "Hwmblock" as "(Hwmdata & Hwmsize)".
   iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
   iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
   rewrite lookup_insert in Hinst.
@@ -1370,6 +1399,7 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep).
     (* Need something like gen_heap_update_big here to update all at once *)
     (* TODO: use iInduction to update one by one. Check gen_heap_alloc_big *)
+    iMod (gen_heap_update_big_wm with "Hm Hwmdata") as "(Hm & Hwmdata)".
     iModIntro.
     destruct σ2 as [[[hs2 ws2] locs2] winst2].
     destruct HStep as [HStep [-> ->]].
@@ -1380,6 +1410,19 @@ Proof.
     erewrite gmap_of_memory_insert_block => //.
     2: { by rewrite - nth_error_lookup. }
     2: { apply store_length in Hstore'. lia. }
+    rewrite list_fmap_insert.
+    assert (mem_size m' = mem_size m) as Hmsize.
+    { apply store_length in Hstore'. by unfold mem_size, mem_length, memory_list.mem_length; rewrite Hstore'. }
+    rewrite Hmsize.
+    assert (mem_size mem' = mem_size mem) as Hmsize'.
+    { apply mem_equiv_size in Hmdata.
+      apply mem_equiv_size in Hmdata'.
+      by rewrite Hmdata Hmdata'.
+    }
+    rewrite Hmsize'.
+    rewrite list_insert_id; last by rewrite list_lookup_fmap; rewrite - nth_error_lookup; rewrite Hm.
+    rewrite Hmdata'.
+    by iFrame.
     admit.
 Admitted.
 
