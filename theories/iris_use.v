@@ -6,7 +6,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre lifting.
 From iris.base_logic Require Export gen_heap proph_map.
-Require Export iris iris_locations.
+Require Export iris iris_locations iris_monotone.
 Require Export datatypes host operations opsem properties.
 Require Import Coq.Program.Equality.
 
@@ -52,6 +52,11 @@ Class wmemG Σ := WMemG {
   mem_gen_hsG :> gen_heapG (N*N) byte Σ;
 }.
 
+Class wmemsizeG Σ := WMemsizeG {
+  memsize_invG : invG Σ;
+  memsize_gen_hsG :> gen_heapG N N Σ;
+}.
+
 Class wglobG Σ := WGlobG {
   glob_invG : invG Σ;
   glob_gen_hsG :> gen_heapG N global Σ;
@@ -79,6 +84,8 @@ Notation "n ↦[wm]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) q v%V)
                            (at level 20, q at level 5, format "n ↦[wm]{ q } [ i ] v") : bi_scope.
 Notation "n ↦[wm][ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) (DfracOwn 1) v% V)
                            (at level 20, format "n ↦[wm][ i ] v") : bi_scope.
+Notation "n ↦[wmsize] v" := (mapsto (L:=N) (V:=N) n (DfracOwn 1) v% V)
+                           (at level 20, format "n ↦[wmsize] v") : bi_scope.
 Notation "n ↦[wg]{ q } v" := (mapsto (L:=N) (V:=global) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wg]{ q } v") : bi_scope.
 Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
@@ -95,7 +102,36 @@ Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
 
 Definition proph_id := positive. (* ??? *)
 
-Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
+
+(*
+(* Memory size predicate using Monotone? *)
+Definition R : relation N := fun x y => (x<y)%N.
+
+Class MemsizeG Σ := memsizeG {
+    MemsizeIG_monauth :> inG Σ (authUR (monotoneUR R));
+}.
+
+Definition MemsizeΣ := #[GFunctor (authUR (monotoneUR R))].
+
+Instance subG_MonRefIGΣ {Σ} : subG MemsizeΣ Σ → MemsizeG Σ.
+Proof. solve_inG. Qed.
+
+Context `{!MemsizeG Σ}.
+
+Definition mem_size_exact (γ: gname) sz := (own γ (● (principal R sz)))%I.
+
+(* This should not be necessary *)
+Definition mem_size_at_least (γ: gname) sz := (own γ (◯ (principal R sz)))%I.
+
+(* Have to convert to 1-indexed, since Iris ghost names only allow positive. *)
+Definition gen_mem_size (l: list memory) :=
+  ([∗ list] i ↦ m ∈ l, mem_size_exact (Pos.of_succ_nat i) (mem_size m))%I.
+
+
+Print gen_heap_interp.
+*)
+
+Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
   iris_invG := func_invG; (* Check: do we actually need this? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -104,7 +140,11 @@ Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ,
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
       (gen_heap_interp (gmap_of_list s.(s_globals)) ∗
       (gen_heap_interp (gmap_of_list locs)) ∗
-      (gen_heap_interp (<[tt := inst]> ∅))
+      (gen_heap_interp (<[tt := inst]> ∅)) ∗
+      (* This does not work currently. Need something like a gen_heap_interp for
+         the mem_size predicates which can be used with a gen_heap_valid-like
+         thing to retrieve the current memory size. *)
+      (gen_heap_interp (gmap_of_list (fmap mem_size s.(s_mems))))
       )
     )%I;
     (* (gen_heap_ctx σ.(heap) ∗ proph_map_ctx κs σ.(used_proph_id))%I *)
@@ -798,8 +838,8 @@ Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
 
 (* A Definition of a context dependent WP for WASM expressions *)
 
-Definition wp_wasm `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}
-           (s : stuckness) (E : coPset) (e : language.expr wasm_lang)
+Definition wp_wasm `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}
+          (s : stuckness) (E : coPset) (e : language.expr wasm_lang)
            (Φ : val -> iProp Σ) (i : nat) (lh : lholed) : iProp Σ := 
   ∀ LI, ⌜lfilled i lh e LI⌝ -∗ WP LI @ s; E {{ Φ }}.
 
@@ -840,8 +880,26 @@ Notation "'WP' e 'CTX' i ; lh ? {{ v , Q } }" := (wp_wasm MaybeStuck ⊤ e%E (λ
 (* wp for instructions *)
 
 Section lifting.
+Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}.
+(* Predicate for memory blocks *)
+
+(* TODO: switch to monotone implementation of mem_size once we have that? *)
+Definition mem_block (n: N) (m: memory) :=
+  (([∗ list] i ↦ b ∈ (m.(mem_data).(ml_data)), n ↦[wm][ (N.of_nat i) ] b ) ∗
+     n ↦[wmsize] mem_size m)%I.
+(* mem_size_exact (N.succ_pos n) (mem_size m))%I*)
+
+Notation "n ↦[wmblock] m" := (mem_block n m)
+                           (at level 20, format "n ↦[wmblock] m"): bi_scope.
+
+Definition mem_block_equiv (m1 m2: memory) :=
+  m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).
+
+Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
+                        (at level 70, format "m1 ≡ₘ m2").
+
+(* empty lists, frame and context rules *)
 
 Lemma wp_wasm_empty_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) e :
   ⊢ WP e @ s ; E {{ Φ }} ∗-∗ WP e @ s ; E CTX_EMPTY {{ Φ }}.
@@ -853,8 +911,6 @@ Proof.
     iDestruct ("HWP" $! e with "[]") as "$".
     iPureIntro. cbn. rewrite app_nil_r eqseqE. apply eq_refl. }
 Qed.
-
-(* empty lists, frame rules *)
 
 Lemma wp_nil (s : stuckness) (E : coPset) (Φ : iProp Σ) :
   Φ ⊢ WP [] @ s ; E CTX_EMPTY {{ fun v => Φ }}%I.
@@ -2021,7 +2077,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
   iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
   rewrite gmap_of_list_lookup Nat2N.id in Hli.
   rewrite - nth_error_lookup in Hli.
@@ -2050,7 +2106,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
   iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
   iSplit.
   - iPureIntro.
@@ -2090,7 +2146,7 @@ Proof.
   destruct σ as [[[hs ws] locs] inst].
   iApply fupd_mask_intro; first by solve_ndisj.
   iIntros "Hfupd".
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
   iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
   iSplit.
   - iPureIntro.
@@ -2128,7 +2184,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & ? & Hg & ? & Hi)".
+  iDestruct "Hσ" as "(? & ? & ? & Hg & ? & Hi & ?)".
   iDestruct (gen_heap_valid with "Hg Hglob") as "%Hglob".
   iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
   rewrite gmap_of_list_lookup Nat2N.id in Hglob.
@@ -2166,14 +2222,110 @@ Lemma wp_load: False.
 Proof.
 Admitted.
 
-Lemma wp_store: False.
+Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
+  m1 ≡ₘ m2 ->
+  store m1 n off bs l = Some m1' ->
+  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2.
 Proof.
 Admitted.
 
-Lemma wp_current_memory: False.
+Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
+  store m n off bs l = Some m' ->
+  length m.(mem_data).(ml_data) = length m'.(mem_data).(ml_data).
 Proof.
 Admitted.
 
+Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
+  update_list_at l n x = <[n := x]> l.
+Proof.
+Admitted.
+  
+Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (inst: instance) (mem mem': memory) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) :
+  types_agree t v ->
+  inst.(inst_memory) !! 0 = Some n ->
+  store mem (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = Some mem' ->
+  ϕ (immV []) ->
+  ( ↦[wi] inst ∗
+  N.of_nat n ↦[wmblock] mem) ⊢
+  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat n) ↦[wmblock] mem' }}).
+Proof.
+  iIntros (Hvt Hinstn Hstore Hϕ) "[Hinst Hwmblock]".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] winst].
+  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
+  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  rewrite lookup_insert in Hinst.
+  inversion Hinst; subst; clear Hinst.
+  iAssert (⌜∃ m, ws.(s_mems) !! n = Some m /\ mem ≡ₘm⌝%I) as "%Hmem".
+  {
+    admit.
+  }
+  destruct Hmem as [m [Hm Hmdata]].
+  specialize (store_data_inj mem m mem' (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) Hmdata Hstore) as [m' [Hstore' Hmdata']].
+  rewrite - nth_error_lookup in Hm.
+  rewrite - nth_error_lookup in Hinstn.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    exists [], [], (hs, upd_s_mem ws (update_list_at (s_mems ws) n m'), locs, inst), [].
+    repeat split => //.
+    by eapply r_store_success.
+  - iIntros "!>" (es σ2 efs HStep).
+    (* Need something like gen_heap_update_big here to update all at once *)
+    (* TODO: use iInduction to update one by one. Check gen_heap_alloc_big *)
+    iModIntro.
+    destruct σ2 as [[[hs2 ws2] locs2] winst2].
+    destruct HStep as [HStep [-> ->]].
+    eapply reduce_det in HStep; last by eapply r_store_success.
+    inversion HStep; subst; clear HStep => /=.
+    iFrame.
+    rewrite update_list_at_insert.
+    erewrite gmap_of_memory_insert_block => //.
+    2: { by rewrite - nth_error_lookup. }
+    2: { apply store_length in Hstore'. lia. }
+    admit.
+Admitted.
+
+Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (ϕ: val -> Prop) :
+  inst.(inst_memory) !! 0 = Some k ->
+  ϕ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin n)))]) ->
+  ( ↦[wi] inst ∗
+   (N.of_nat k) ↦[wmsize] n) ⊢
+   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat k) ↦[wmsize] n }}.
+Proof.
+  iIntros (Hi Hϕ) "[Hinst Hmemsize]".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] winst].
+  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hmsize)".
+  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct (gen_heap_valid with "Hmsize Hmemsize") as "%Hmemsize".
+  rewrite lookup_insert in Hinst.
+  inversion Hinst; subst; clear Hinst.
+  rewrite - nth_error_lookup in Hi.
+  rewrite gmap_of_list_lookup list_lookup_fmap Nat2N.id in Hmemsize => /=.
+  destruct (s_mems ws !! k) eqn:Hmemlookup => //.
+  rewrite - nth_error_lookup in Hmemlookup.
+  simpl in Hmemsize.
+  inversion Hmemsize; clear Hmemsize.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin n))))], (hs, ws, locs, inst), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    by eapply r_current_memory.    
+  - iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last eapply r_current_memory; eauto.
+    inversion H; subst; clear H.
+    by iFrame => //=.
+Qed.
+    
 Lemma wp_grow_memory: False.
 Proof.
 Admitted.
