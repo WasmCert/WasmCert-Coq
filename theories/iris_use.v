@@ -2328,7 +2328,6 @@ Proof.
     rewrite list_insert_id; last by rewrite list_lookup_fmap; rewrite - nth_error_lookup; rewrite Hm.
     rewrite Hmdata'.
     by iFrame.
-    admit.
 Admitted.
 
 Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (ϕ: val -> Prop) :
