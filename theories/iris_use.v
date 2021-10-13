@@ -1876,18 +1876,294 @@ Proof.
   iNext. iApply wp_wasm_empty_ctx. iFrame.
 Qed.
 
-Lemma wp_if: False.
+Lemma wp_if_true_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh :
+  n ≠ Wasm_int.int_zero i32m ->
+  ▷ WP [::AI_basic (BI_block tf e1s)] @ s; E CTX i; lh {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E CTX i; lh {{ Φ }}.
 Proof.
-Admitted.
-
-Lemma wp_br_if: False.
+  iIntros (Hn) "HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iDestruct ("HP" $! _ Hfill') as "HP".
+  iApply wp_lift_step => //=.
+  { destruct (iris.to_val LI) eqn:Hcontr;auto.
+    apply lfilled_to_val in Hfill;eauto.
+    destruct Hfill as [? Hfill]. simpl in Hfill. done. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], LI', σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_label. apply r_simple;eauto. eapply rs_if_true;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H.
+    2: { eapply r_label. apply r_simple;eauto. eapply rs_if_true;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s :
+  n ≠ Wasm_int.int_zero i32m ->
+  ▷ WP [::AI_basic (BI_block tf e1s)] @ s; E {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
 Proof.
-Admitted.
-
-Lemma wp_br_table: False.
+  iIntros (?) "HP".
+  iApply wp_wasm_empty_ctx. iApply wp_if_true_ctx;eauto.
+  iNext. iApply wp_wasm_empty_ctx. iFrame.
+Qed.
+  
+Lemma wp_if_false_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh :
+  n = Wasm_int.int_zero i32m ->
+  ▷ WP [::AI_basic (BI_block tf e2s)] @ s; E CTX i; lh {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E CTX i; lh {{ Φ }}.
 Proof.
-Admitted.
+  iIntros (Hn) "HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iDestruct ("HP" $! _ Hfill') as "HP".
+  iApply wp_lift_step => //=.
+  { destruct (iris.to_val LI) eqn:Hcontr;auto.
+    apply lfilled_to_val in Hfill;eauto.
+    destruct Hfill as [? Hfill]. simpl in Hfill. done. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], LI', σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_label. apply r_simple;eauto. eapply rs_if_false;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H.
+    2: { eapply r_label. apply r_simple;eauto. eapply rs_if_false;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+Lemma wp_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s :
+  n = Wasm_int.int_zero i32m ->
+  ▷ WP [::AI_basic (BI_block tf e2s)] @ s; E {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
+Proof.
+  iIntros (?) "HP".
+  iApply wp_wasm_empty_ctx. iApply wp_if_false_ctx;eauto.
+  iNext. iApply wp_wasm_empty_ctx. iFrame.
+Qed.
 
+Lemma wp_br_if_true_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i j lh :
+  n ≠ Wasm_int.int_zero i32m ->
+  ▷ WP [::AI_basic (BI_br i)] @ s; E CTX j; lh {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E CTX j; lh {{ Φ }}.
+Proof.
+  iIntros (Hn) "HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iDestruct ("HP" $! _ Hfill') as "HP".
+  iApply wp_lift_step => //=.
+  { destruct (iris.to_val LI) eqn:Hcontr;auto.
+    apply lfilled_to_val in Hfill;eauto.
+    destruct Hfill as [? Hfill]. simpl in Hfill. done. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], LI', σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_label. apply r_simple;eauto. eapply rs_br_if_true;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H.
+    2: { eapply r_label. apply r_simple;eauto. eapply rs_br_if_true;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i :
+  n ≠ Wasm_int.int_zero i32m ->
+  ▷ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
+Proof.
+  iIntros (?) "HP".
+  iApply wp_wasm_empty_ctx. iApply wp_br_if_true_ctx;eauto.
+  iNext. iApply wp_wasm_empty_ctx. iFrame.
+Qed.
+
+(* The following expression reduces to a value reguardless of context, 
+   and thus does not need a context aware version *)
+Lemma wp_br_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i :
+  n = Wasm_int.int_zero i32m ->
+  ▷ Φ (immV [])
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
+Proof.
+  iIntros (Hn) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_br_if_false.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by apply r_simple, rs_br_if_false.
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+
+
+Lemma wp_br_table_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j k lh :
+  ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
+  List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
+  ▷ WP [::AI_basic (BI_br j)] @ s; E CTX k; lh {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E CTX k; lh {{ Φ }}.
+Proof.
+  iIntros (Hiss Hj) "HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iDestruct ("HP" $! _ Hfill') as "HP".
+  iApply wp_lift_step => //=.
+  { destruct (iris.to_val LI) eqn:Hcontr;auto.
+    apply lfilled_to_val in Hfill;eauto.
+    destruct Hfill as [? Hfill]. simpl in Hfill. done. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], LI', σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_label. apply r_simple;eauto. apply rs_br_table;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H.
+    2: { eapply r_label. apply r_simple;eauto. eapply rs_br_table;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j :
+  ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
+  List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
+  ▷ WP [::AI_basic (BI_br j)] @ s; E {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
+Proof.
+  iIntros (? ?) "HP".
+  iApply wp_wasm_empty_ctx. iApply wp_br_table_ctx;eauto.
+  iNext. iApply wp_wasm_empty_ctx. iFrame.
+Qed.
+
+Lemma wp_br_table_length_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j lh :
+  ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
+  ▷ WP [::AI_basic (BI_br i)] @ s; E CTX j; lh {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E CTX j; lh {{ Φ }}.
+Proof.
+  iIntros (Hiss) "HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iDestruct ("HP" $! _ Hfill') as "HP".
+  iApply wp_lift_step => //=.
+  { destruct (iris.to_val LI) eqn:Hcontr;auto.
+    apply lfilled_to_val in Hfill;eauto.
+    destruct Hfill as [? Hfill]. simpl in Hfill. done. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], LI', σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_label. apply r_simple;eauto. apply rs_br_table_length;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H.
+    2: { eapply r_label. apply r_simple;eauto. eapply rs_br_table_length;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i :
+  ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
+  ▷ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }}
+  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
+Proof.
+  iIntros (?) "HP".
+  iApply wp_wasm_empty_ctx. iApply wp_br_table_length_ctx;eauto.
+  iNext. iApply wp_wasm_empty_ctx. iFrame.
+Qed.
+
+ (*| rs_return :
+      forall n i vs es lh f,
+        const_list vs ->
+        length vs = n ->
+        lfilled i lh (vs ++ [::AI_basic BI_return]) es ->
+        reduce_simple [::AI_local n f es] vs*)
+(* return is a contextual rule, but it is also a function rule. Before we tackle with wp, 
+   we must have set up the way in which to handle AI_local. 
+   intuitively, AI_local functions as a fresh bind, in a fresh ctx, very similar to wp_seq_ctx 
+   solution idea: another WP now that can abstract away the AI_local "wrapper", using AI_local 
+   instead of AI_label. Note that AI_label and contexts can still occur within an AI_local....
+   Main difference is that AI_local is not nested in the same way as label, in which label 
+   knows about the nesting structure for br, whereas local "stops" br from exiting.
+
+   Why is there a need for a new WP? because there can be a nested label structure inside a 
+   label, and we need to have knowledge of that for the return instruction. The label wrapper
+   is always the outermost layer! so current ctxWP does not work for that reason.
+*)
+
+                      
 Lemma wp_return: False.
 Proof.
 Admitted.
