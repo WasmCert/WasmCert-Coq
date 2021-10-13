@@ -1822,9 +1822,60 @@ Proof.
   erewrite !app_assoc. iFrame.
 Qed.
 
-Lemma wp_loop: False.
+Lemma wp_loop_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s i lh :
+  const_list vs ->
+  length vs = n ->
+  length t1s = n ->
+  length t2s = m ->
+  ▷ WP [::AI_label n [::AI_basic (BI_loop (Tf t1s t2s) es)] (vs ++ to_e_list es)] @ s; E CTX i; lh {{ Φ }}
+  ⊢ WP vs ++ [::AI_basic (BI_loop (Tf t1s t2s) es)] @ s; E CTX i; lh {{ Φ }}.
 Proof.
-Admitted.
+  iIntros (Hvs Hn Hn' Hm) "HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iDestruct ("HP" $! _ Hfill') as "HP".
+  iApply wp_lift_step => //=.
+  { destruct (iris.to_val LI) eqn:Hcontr;auto.
+    apply lfilled_to_val in Hfill;eauto.
+    destruct Hfill as [? Hfill].
+    assert (iris.to_val [AI_basic (BI_loop (Tf t1s t2s) es)] = None) as HH;auto.
+    apply (to_val_cat_None2 vs) in HH. rewrite Hfill in HH. done. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], LI', σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_label. apply r_simple;eauto. eapply rs_loop;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H.
+    2: { eapply r_label. apply r_simple;eauto. eapply rs_loop;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    by iFrame.
+Qed.
+Lemma wp_loop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s :
+  const_list vs ->
+  length vs = n ->
+  length t1s = n ->
+  length t2s = m ->
+  ▷ WP [::AI_label n [::AI_basic (BI_loop (Tf t1s t2s) es)] (vs ++ to_e_list es)] @ s; E {{ Φ }}
+  ⊢ WP vs ++ [::AI_basic (BI_loop (Tf t1s t2s) es)] @ s; E {{ Φ }}.
+Proof.
+  iIntros (Hvs Hn Hn' Hm) "HP".
+  iApply wp_wasm_empty_ctx. iApply wp_loop_ctx;eauto.
+  iNext. iApply wp_wasm_empty_ctx. iFrame.
+Qed.
 
 Lemma wp_if: False.
 Proof.
