@@ -2224,13 +2224,6 @@ Admitted.
 
 (* Auxiliary lemmas for load/store *)
 
-Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
-  m1 ≡ₘ m2 ->
-  store m1 n off bs l = Some m1' ->
-  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2'.
-Proof.
-Admitted.
-
 Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
   store m n off bs l = Some m' ->
   length m.(mem_data).(ml_data) = length m'.(mem_data).(ml_data).
@@ -2245,6 +2238,18 @@ Proof.
   unfold mem_length, memory_list.mem_length.
   by rewrite Hm.
 Qed.
+
+Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
+  m1 ≡ₘ m2 ->
+  store m1 n off bs l = Some m1' ->
+  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2'.
+Proof.
+  move => Hmequiv Hstore.
+  Print memory_list.
+  exists (Build_memory (Build_memory_list (ml_init (mem_data m2)) (ml_data (mem_data m1'))) (mem_max_opt m2)).
+  unfold store in Hstore.
+  unfold store.
+Admitted.
 
 Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
   n < length l ->
@@ -2263,7 +2268,7 @@ Proof.
     lia.
 Qed.
     
-(* A customised version of gen_heap_update specifically for wasm memories. *)
+(* A version of gen_heap_update specifically for wasm memories. *)
 Lemma gen_heap_update_big_wm σ n ml ml':
   gen_heap_interp σ -∗ 
   ([∗ list] i ↦ b ∈ ml, N.of_nat n ↦[wm][N.of_nat i] b) ==∗
@@ -2351,9 +2356,7 @@ Proof.
     inversion HStep; subst; clear HStep => /=.
     iFrame.
     rewrite update_list_at_insert; last by rewrite nth_error_lookup in Hm; apply lookup_lt_Some in Hm.
-    erewrite gmap_of_memory_insert_block => //.
-    2: { by rewrite - nth_error_lookup. }
-    2: { apply store_length in Hstore'. lia. }
+    erewrite gmap_of_memory_insert_block => //; [ idtac | by rewrite - nth_error_lookup | by apply store_length in Hstore'; lia ].
     rewrite list_fmap_insert.
     assert (mem_length m' = mem_length m) as Hmsize.
     { apply store_length in Hstore'. by unfold mem_length, memory_list.mem_length; rewrite Hstore'. }
