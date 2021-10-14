@@ -555,6 +555,8 @@ Ltac found_intruse x H Hxl1 :=
                           assumption  ) |
     try by (apply in_or_app ; right ; left ; trivial) ].
 
+
+
 (* Attempts to prove False from hypothesis H, which states that an lholed is filled
    with AI_trap. If attempt fails, user is given a hypothesis Hxl1 to end proof manually *)
 Ltac filled_trap H Hxl1 :=
@@ -678,7 +680,7 @@ Ltac no_reduce1 Heqes Hred :=
      created at next step as simple as possible *)
   clear - host_function host function_closure store_record
                       host_instance reduce wasm_mixin expr val
-                      reducible empty_instance prim_step
+                      reducible empty_instance prim_step to_val 
                       Hred Heqes ;
   induction Hred as [e e' s f hs H | | | | | a | a | a | | | | | | | | | | | | | | | |
                       s f es les s' f' es' les' k lh hs hs' Hred IHreduce H0 _ |
@@ -702,6 +704,8 @@ Ltac no_reduce1 Heqes Hred :=
       apply app_eq_nil in Hes ;
       destruct Hes as [Hes _] ;
       empty_list_no_reduce Hes Hred ] ] . 
+
+
 
 (* From hypothesis "Heqes : [obj1 ; obj2] = es" and "Hred : es -> es'", 
    attempts to prove False. Calls no_reduce1 *)
@@ -749,7 +753,7 @@ Ltac no_reduce2 Heqes Hred :=
   let l' := fresh "l" in
   clear - host_function host function_closure store_record
                         host_instance reduce wasm_mixin expr val
-                        reducible empty_instance prim_step
+                        reducible empty_instance prim_step to_val
                         Hred Heqes ;
   induction Hred as [e e' s f hs H | | | | | 
                       a | a | a | | | | | | | | | | | | | | | |
@@ -787,6 +791,8 @@ Ltac no_reduce2 Heqes Hred :=
         apply app_eq_nil in Htl ; destruct Htl as [_ Hes] ;
         apply app_eq_nil in Hes ; destruct Hes as [Hes _ ] ;
         empty_list_no_reduce Hes Hred ]] ].
+
+
 
 (* From hypothesis "Heqes : [obj1 ; obj2 ; obj3] = es" and "Hred : es -> es'", 
    attempts to prove False. Calls no_reduce2 and no_reduce1.  *)
@@ -838,7 +844,7 @@ Ltac no_reduce3 Heqes Hred :=
   let l' := fresh "l" in
   clear - host_function host function_closure store_record
                         host_instance reduce wasm_mixin expr val
-                        reducible empty_instance prim_step
+                        reducible empty_instance prim_step to_val
                         Hred Heqes ;
   induction Hred as [e e' s f hs H | | | | | 
                       a | a | a | | | | | | | | | | | | | | | |
@@ -1400,7 +1406,7 @@ Proof.
                                               rewrite Hes in IHreduce.
                                               rewrite Ha in IHreduce.
                                               apply IHreduce ; auto. }
-                               assert (const_list es' -> False).
+      assert (const_list es' -> False).
                                intro Hconst. apply (values_no_reduce _ _ _ _ _ _ _ _ Hred).
                                simpl. apply andb_true_iff. split.
                                rewrite Ha ; trivial. exact Hconst.
@@ -1409,8 +1415,12 @@ Proof.
                                remember (iris.to_val es') as tv.
                                destruct tv ; [trivial |].
                                exfalso ; apply H0.
-                               apply (to_val_const_list _ v0 (Logic.eq_sym Heqtv)).
-                               trivial.
+                               destruct v0.
+                               apply (to_val_const_list _ l1 (Logic.eq_sym Heqtv)).
+                               rewrite (to_val_trap_is_singleton (Logic.eq_sym Heqtv))
+                                 in Hes.
+                               rewrite <- Hes in Htrap. exfalso ; apply Htrap.
+                               simpl. left ; reflexivity. reflexivity.
                                apply (prim_step_split_reduce_r _ _ _ _ _ _ _ H1) in H.
                                destruct H as (es1 & Hes0 & Hes').
                                assert (es'' = [AI_basic (BI_const v)] ++ drop 1 es'').
@@ -1615,8 +1625,12 @@ Proof.
                                remember (iris.to_val es') as tv.
                                destruct tv ; [trivial |].
                                exfalso ; apply H0.
-                               apply (to_val_const_list _ v0 (Logic.eq_sym Heqtv)).
-                               trivial.
+                               destruct v0.
+                               apply (to_val_const_list _ l1 (Logic.eq_sym Heqtv)).
+                               rewrite (to_val_trap_is_singleton (Logic.eq_sym Heqtv))
+                                 in Hes.
+                               rewrite <- Hes in Htrap. exfalso ; apply Htrap.
+                               simpl. left ; reflexivity. reflexivity.
                                apply (prim_step_split_reduce_r _ _ _ _ _ _ _ H1) in H.
                                destruct H as (es1 & Hes0 & Hes').
                                assert (prim_step es' (hs, s, l, i) obs
