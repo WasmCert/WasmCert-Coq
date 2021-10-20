@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations opsem interpreter.
+Require Import common operations opsem interpreter.
 
 Section Host.
 
@@ -35,6 +35,17 @@ Definition expr := list administrative_instruction.
 Inductive val : Type :=
 | immV : (list value) -> val
 | trapV : val.
+
+Definition val_eq_dec : forall v1 v2: val, {v1 = v2} + {v1 <> v2}.
+Proof.
+  decidable_equality.
+Defined.
+Definition val_eqb (v1 v2: val) : bool := val_eq_dec v1 v2.
+Definition eqvalP : Equality.axiom val_eqb :=
+  eq_dec_Equality_axiom val_eq_dec.
+
+Canonical Structure val_eqMixin := EqMixin eqvalP.
+Canonical Structure val_eqType := Eval hnf in EqType val val_eqMixin.
 
 Definition state : Type := host_state * store_record * (list value) * instance.
 

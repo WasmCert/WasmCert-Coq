@@ -1,7 +1,7 @@
 (** Example of Iris usage **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From mathcomp Require Import eqtype seq ssrbool.
+From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre lifting.
@@ -2254,19 +2254,46 @@ Definition val_combine (v1 v2 : val) :=
   | trapV => trapV
   end.
 
+Lemma wp_trap (s: stuckness) (E: coPset) es :
+  ⌜ In AI_trap es ⌝ ⊢
+  (WP es @ s; E {{ v, ⌜ v = trapV ⌝ }})%I.
+Proof.
+Admitted.
+
+Lemma wp_ntrap (s: stuckness) (E: coPset) es :
+  (WP es @ s; E {{ v, ⌜ v <> trapV ⌝ }})%I ⊢
+  ⌜ not (In AI_trap es) ⌝.
+Proof.
+  iIntros "H".
+  rewrite wp_unfold /wp_pre /=.
+  destruct (iris.to_val es) as [vs|] eqn:Hes.
+  { apply of_to_val in Hes as <-.
+    destruct vs => //=.
+    - simpl. iPureIntro.
+      move => HContra.
+      induction l => //=.
+      simpl in HContra.
+      by destruct HContra.
+    - iMod "H".
+Admitted.
+  
+(* AI_trap interferes with this rule especially with trap now being a value,
+   therefore the extra premises to take care of it. *)
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
-  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v)) }}%I
+  (not (In AI_trap es)) ->
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v)) ∗ ⌜ v <> trapV ⌝ }}
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
   (* This also needs an iLob. *)
   iLöb as "IH" forall (v0 es Φ).
-  iIntros "H".
+  iIntros "%Hntrap H".
   repeat rewrite wp_unfold /wp_pre /=.
   destruct (iris.to_val es) as [vs|] eqn:Hes.
   {
     destruct vs.
     { apply of_to_val in Hes as <-.
       iMod "H".
+      iDestruct "H" as "(H & ?)".
       by iModIntro. }
     { apply to_val_trap_is_singleton in Hes as ->.
       iIntros (σ ns κ κs nt) "Hσ".
@@ -2298,8 +2325,9 @@ Proof.
       eapply reduce_det in HStep;[|apply Hstep].
       inversion HStep;subst. iFrame. iSplit;auto.
       iMod "H".
+      iDestruct "H" as "(H & ?)".
       iApply wp_value;[|iFrame].
-      rewrite /IntoVal. auto.
+      by rewrite /IntoVal.
     }
   }
   { iIntros (σ ns κ κs nt) "Hσ".
@@ -2330,7 +2358,10 @@ Proof.
       destruct es2 => //=.
       inversion Hes2; subst; clear Hes2.
       rewrite drop_0.
-      by iApply "IH".
+      iAssert (⌜¬ (In AI_trap es2)⌝%I) as "%Htrap".
+      { iIntros "HContra".
+      iApply "IH" => //.
+      
   }
 Qed.
 
