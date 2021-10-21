@@ -583,32 +583,6 @@ Ltac simple_filled H k lh vs l0 n l1 l3 :=
     destruct (const_list vs) ; [| false_assumption ] ;
     destruct (lfill k lh' _) as [l3|] ; [| false_assumption ] ;
     apply b2p in H ; found_intruse (AI_label n l1 l3) H Hxl1].
-    
-(*
-Lemma empty_list_no_reduce hs s f hs' s' f' es' :
-  reduce hs s f [] hs' s' f' es' -> False.
-Proof.
-  intro H. remember [] as es in H.
-  apply Logic.eq_sym in Heqes.
-  induction H ; try by inversion Heqes ; try by found_intruse (AI_invoke a) Heqes Hxl1.
-  { destruct H ; (try by inversion Heqes) ;
-      [ found_intruse (AI_basic (BI_block (Tf t1s t2s) es)) Heqes Hxl1 |
-        found_intruse (AI_basic (BI_loop (Tf t1s t2s) es)) Heqes Hxl1 | 
-        rewrite <- Heqes in H0 ; filled_trap H0 Hxl1 ].
-  }
-  - rewrite <- Heqes in H0. simple_filled H0 k lh bef aft n l l'.
-    apply Logic.eq_sym in H0 ; apply app_eq_nil in H0 ;
-        destruct H0 as [_ H0] ; apply app_eq_nil in H0 ;
-        destruct H0 as [H0 _] ; rewrite H0 in IHreduce ;
-        apply IHreduce ; trivial.
-Qed.
-
-
-(* Applies empty_list_no_reduce after rewriting "Hes0 : es = []" into the reduction 
-   hypothesis *)
-Ltac empty_list_no_reduce Hes0 Hred :=
-  try (rewrite Hes0 in Hred + rewrite <- Hes0 in Hred) ; exfalso ;
-  apply (empty_list_no_reduce _ _ _ _ _ _ _ Hred). *)
 
 Lemma values_no_reduce hs s f vs hs' s' f' es' :
   reduce hs s f vs hs' s' f' es' -> const_list vs -> False.
@@ -705,45 +679,80 @@ Ltac no_reduce Heqes Hred :=
       found_intruse (AI_basic (BI_loop (Tf t1s t2s) es)) Heqes Hxl1 |
       rewrite <- Heqes in H0 ; filled_trap H0 Hxl1]
   | rewrite <- Heqes in H0 ;
+    (* The tactic simple_filled will destruct hypothesis "H0 : lfilled es les".
+       In this case, it will completely solve the case k > 0, and for the case
+       k = 0, it will transform hypothesis H0 into "H0 : objs = bef ++ es ++ aft"
+       where objs is the explicit sequence from Heqes *)
     simple_filled H0 k lh bef aft n l l' ;
     apply Logic.eq_sym in H0 ;
     remember ([] : seq.seq administrative_instruction) as g eqn:Heqg in f;
     let rec auxb H0 :=
-      ( let b0 := fresh "b" in
+      ( (* We maintain as an invariant that when auxb H0 is called,
+           H0 is the hypothesis "H0 : bef ++ es ++ aft = [some explicit sequence ]" *)
+        let b0 := fresh "b" in
         let Hb0 := fresh "Hb0" in
         let H1 := fresh "H" in
         destruct bef as [| b0 bef] ;
-        [ let rec auxe H0 g Heqg :=
-            ( let e0 := fresh "e" in
+        [ (* case bef = [] : our invariant tells us that 
+             "H0 : es ++ aft = [some explicit sequence"
+             recall g was defined to be [] with "Heqg : g = []" *)
+          let rec auxe H0 g Heqg :=
+             (* We maintain as an invariant that when auxe H0 g Heqg is called,
+                 H0 is the hypothesis "H0 : es ++ aft = [some explicit sequence]"
+                 Hred is the hypothesis "Hred : (g ++ es) -> es'"
+                 and Heqg is "Heqg : g = [some (other) explicit sequence]" *)
+            (  let e0 := fresh "e" in
               let g' := fresh "g" in
               let He0 := fresh "He" in
               let Heqg' := fresh "Heqg" in
               let H1 := fresh "H" in
               destruct es as [| e0 es ] ;
-              [ rewrite <- Heqg in Hred ;
+              [ (* case es = [] ; our invariant tells us that
+                   "Hred : g -> es'". We can solve this case either … *)
+                rewrite <- Heqg in Hred ;
                 remember g as es0 eqn:Heqes0 in Hred ;
                 apply Logic.eq_sym in Heqes0 ;
                 rewrite Heqg in Heqes0 ;
+                (* … by induction hypothesis (case where bef = aft = []), or … *)
                 ((by subst ; apply IHreduce) +
+                   (* … by calling recursively no_reduce (case where bef or aft is
+                      nonempty, thus our recursive call is on a shorter list *)
                    no_reduce Heqes0 Hred)
-              | (by inversion H0) +
+              | (* case es = e0 :: es. Our invariant gives us
+                   "H0 : e0 :: es ++ aft = [some explicit sequence]", so we can 
+                   try to conclude by inverting H0 in case the explicit sequence is
+                   empty *)
+                (by inversion H0) +
+                  (* else, the explicit sequence is nonempty, so by inverting H0,
+                     we get "H1 : es ++ aft = [some shorter explicit sequence]".
+                     Our invariant also tells us "Hred : (g ++ e0 :: es) -> es'",
+                     so to maintain this invariant, we define g' to be g ++ [e0].
+                     We then make sure to have a hypothesis Heqg' which gives an
+                     explicit description of g' *)
                   ( inversion H0 as [[ He0 H1 ]] ;
                     rewrite He0 in Hred ;
                     remember (g ++ [e0]) as g' eqn:Heqg' ;
                     rewrite Heqg in Heqg' ;
                     rewrite He0 in Heqg' ;
                     simpl in Heqg' ;
+                    (* now we can make a recursive call to auxe. The invariant 
+                       is maintained, and the explicit sequence in H1 has diminished
+                       in length *)
                     auxe H1 g' Heqg'
                   )
               ]
             ) in auxe H0 g Heqg
-        | (by inversion H0) +
+        | (* case bef = b0 :: bef. Our invariant gives us
+             "H0 : b0 :: bef ++ es ++ aft = [some explicit sequence]", so we can 
+             try to conclude by inverting H0 in case that explicit sequence is empty *)
+          (by inversion H0) +
+            (* else the explicit sequence is nonempty, so by inverting H0, we get 
+               "H1 : es ++ aft = [some shorter explicit sequence]" *)
             ( inversion H0 as [[ Hb0 H1 ]] ;
               auxb H1 )
         ]
       ) in auxb H0
   ].
-
 (* examples of usage of no_reduce. This first example is reused in other lemmas,
    the following ones may be removed if wanted *)
 Lemma test_no_reduce0 hs s f hs' s' f' es' :
@@ -2135,8 +2144,10 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
   let es := fresh "es" in
   let es0 := fresh "es" in
   let es1 := fresh "es" in
+  let es2 := fresh "es" in
   let f := fresh "f" in
   let f' := fresh "f" in
+  let g := fresh "g" in
   let hs := fresh "hs" in
   let hs' := fresh "hs" in
   let H := fresh "H" in
@@ -2144,6 +2155,8 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
   let H1 := fresh "H" in
   let Hconst := fresh "Hconst" in
   let Heqes0 := fresh "Heqes" in
+  let Heqes2 := fresh "Heqes" in
+  let Heqg := fresh "Heqg" in
   let Ht1s := fresh "Ht1s" in
   let Ht2s := fresh "Ht2s" in
   let Hvs := fresh "Hvs" in
@@ -2184,44 +2197,92 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
          (try by found_intruse (AI_basic (BI_block (Tf t1s t2s) es)) Hhd Hxl1) ;
          (try by found_intruse (AI_basic (BI_loop (Tf t1s t2s) es)) Hhd Hxl1) ;
          (try by filled_trap H0 Hxl1) ) ;
-  (* lfilled case. The following code only works for lists of 2 instructions,
-     and will be updated shortly to work for any list *)
+  (* lfilled case *)
   last (rewrite <- Heqes0 in H0 ;
         (* the simple_filled tactic unfolds lfilled, solves the case where k>0,
            and in the case k=0 leaves user with hypothesis H0 modified to now be
            les = bef ++ es ++ aft *)
         simple_filled H0 k lh bef aft n0 l l' ;
-        destruct bef ;
-        [ destruct es as [|a es];
-          [ empty_list_no_reduce Hred
-          | inversion H0 as [[ Ha Hes ]] ;
-            apply Logic.eq_sym, app_eq_unit in Hes as [[ Hes _ ]|[ Hes _ ]] ;
-            [ rewrite Hes in Hred ;
-              remember [a] as es1 eqn:Heqes1 ;
-              rewrite <- Ha in Heqes1 ; apply Logic.eq_sym in Heqes1 ;
-              exfalso ; no_reduce Heqes1 Hred
-            | rewrite Hes in H0 ; inversion H0 as [[ Ha2 Haft ]] ;
-              rewrite <- Haft in H1 ;
-              unfold lfilled, lfill in H1 ;
-              destruct (const_list []) ; [|false_assumption] ;
-              apply b2p in H1 ; rewrite H1 ; rewrite app_nil_r ;
-              apply IHreduce ; subst ; trivial
+        apply Logic.eq_sym in H0 ;
+        remember ([] : seq.seq administrative_instruction) as g eqn:Heqg in s;
+        let rec auxb H0 :=
+          (* We maintain as an invariant that when auxb H0 is called,
+             H0 is the hypothesis "H0 : bef ++ es ++ aft = [some explicit sequence]" *)
+          ( let b0 := fresh "b" in
+            let Hb0 := fresh "Hb" in
+            let H2 := fresh "H" in
+            destruct bef as [| b0 bef ] ;
+            [ (* case bef = []. Our invariant gives us that
+                 "H0 : es ++ aft = [some explicit sequence]".
+                 Recall g was defined as [] with "Heqg : g = []". *)
+              let rec auxe H0 g Heqg :=
+                (* We maintain as an invariant than when auxe H0 g Heqg is called,
+                   H0 is the hypothesis "H0 : es ++ aft = [some explicit sequence]",
+                   Hred is the hypothesis "Hred : (g ++ es) -> es'",
+                   and Heqg is "Heqg : g = [some (other) explicit sequence]" *)
+                ( let e0 := fresh "e" in
+                  let g' := fresh "g" in
+                  let He0 := fresh "He" in
+                  let Heqg' := fresh "Heqg" in
+                  let H2 := fresh "H" in
+                  destruct es as [| e0 es] ;
+                  [ (* case es = []. Our invariants give us that
+                       "Hred : g -> es' " with g described explicitly in Heqg.
+                       Thus to conclude, we can … *)
+                    rewrite <- Heqg in Hred ;
+                    remember g as es2 eqn:Heqes2 in Hred ;
+                    apply Logic.eq_sym in Heqes2 ;
+                    rewrite Heqg in Heqes2 ;
+                    (* use our induction hypothesis (case where bef = aft = []), or …  *)
+                    (( by simpl in H0 ; rewrite H0 in H1 ;
+                       unfold lfilled, lfill in H1 ;
+                       destruct (const_list []) ; [| false_assumption] ;
+                       apply b2p in H1 ; rewrite H1 ; rewrite app_nil_r ;
+                       apply IHreduce ; subst ; trivial) +
+                       (* use no_reduce (case where bef or aft is nonempty, and thus
+                          g is shorter than the original objs). Strict subsequences
+                          of valid reduction sequences tend to not reduce, so this
+                          will work most of the time *)
+                       (exfalso ; no_reduce Heqes2 Hred) )
+                  | (* case es = e0 :: es. Our invariant gives us that
+                       "H0 : e0 :: es ++ aft = [some explicit sequence]". We can
+                       try to conclude by inverting H0, in case the explicit sentence is
+                       empty *)
+                    (by inversion H0) +
+                      (* else, we know the explicit sentence is nonempty. Now by inverting
+                         H0 we get "H2 : es ++ aft = [some shorter explicit sequence]"
+                         The invariant also gives us
+                         "Hred : (g ++ e0 :: es) -> es'", so to maintain the invariant  
+                         we denfine g' to be g ++ [e0] and create an equation Heqg' that
+                         describes g' explicitly *)
+                      ( inversion H0 as [[ He0 H2 ]] ;
+                        rewrite He0 in Hred ;
+                        remember (g ++ [e0]) as g' eqn:Heqg' ;
+                        rewrite Heqg in Heqg' ;
+                        rewrite He0 in Heqg' ;
+                        simpl in Heqg' ;
+                        (* we can now make a recursive call to auxe. The length of the
+                           explicit list in H2 has strictly decreased *)
+                        auxe H2 g' Heqg'
+                      )
+                  ]
+                ) in auxe H0 g Heqg
+            | (* case bef = b0 :: bef. Our invariant gives us that
+                 "H0 : b0 :: bef ++ es ++ aft = [some explicit sequence]".
+                 We can attempt to conclude by inverting H0, which will work if
+                 the explicit sequence is empty *)
+              (by inversion H0 ) +
+                (* else, we know the explicit sequence is nonempty, so by inverting
+                   H0, we get "H2 : bef ++ es ++ aft = [some explicit sequence]" *)
+                ( inversion H0 as [[ Hb0 H2 ]] ;
+                  auxb H2 )
             ]
-          ]
-        | inversion H0 as [[ Ha Hes ]] ;
-          apply Logic.eq_sym in Hes ; apply app_eq_unit in Hes as [[ _ Hes ]|[ _ Hes]] ;
-          [ apply app_eq_unit in Hes as [[ Hes _ ]|[ Hes _ ]] ;
-            apply Logic.eq_sym in Hes ; no_reduce Hes Hred
-          | apply app_eq_nil in Hes as [Hes _] ;
-            apply Logic.eq_sym in Hes ; no_reduce Hes Hred
-          ]
-        ]
-       );
+          ) in auxb H0
+       ) ;        
   (* at this point, only one case should be remaining.
      we attempt to solve this case too trivially, as the following line is often
      what user would be going to do next anyway *)
   try by inversion Heqes0 ; subst ; inversion Heqf' ; subst ; iFrame.
-
 
 
 
@@ -2309,7 +2370,7 @@ Proof.
       iApply "IH" => //.
       
   }
-Qed.
+Qed. 
 
 Lemma wp_val_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es : language.expr wasm_lang) :
   iris.to_val vs = Some (immV v') ->
@@ -2367,9 +2428,9 @@ Proof.
   - destruct σ as [[[hs ws] locs] inst].
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'].
-    destruct HStep as (H & -> & ->).
+    destruct HStep as (H & -> & ->).    
     only_one_reduction H [AI_basic (BI_const v) ; AI_basic (BI_unop t op)]
-                       locs inst locs' inst'. 
+                       locs inst locs' inst'.       
 Qed.
 
   
@@ -2395,9 +2456,10 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by apply r_simple, rs_binop_success.
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+                          AI_basic (BI_binop t op)] locs inst locs' inst'.
+    inversion Heqf' ; subst. rewrite Hbinop in H. inversion H; subst. by iFrame.
+    rewrite Hbinop in H ; inversion H.
 Qed.
 
 (* There is a problem with this case: AI_trap is not a value in our language.
@@ -2462,9 +2524,8 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by apply r_simple, rs_relop.
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+                          AI_basic (BI_relop t op)] locs inst locs' inst'. 
 Qed.
 
 Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
@@ -2656,98 +2717,9 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[ hs' ws' ] locs' ] inst'].
     destruct HStep as (H & -> & ->).
-    remember [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-              AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select] as es0.
-    remember {| f_locs := locs ; f_inst := inst |} as f.
-    remember {| f_locs := locs' ; f_inst := inst' |} as f'.
-    apply Logic.eq_sym in Heqes0.
-    induction H ; try by inversion Heqes0 ; try by found_intruse (AI_invoke a)
-                                                                 Heqes0 Hxl1.
-    { destruct H ; inversion Heqes0 ; subst.
-      by inversion Heqf' ; subst ; iFrame.
-      exfalso ; apply H ; trivial.
-      found_intruse (AI_basic (BI_block (Tf t1s t2s) es)) H4 Hxl1.
-      found_intruse (AI_basic (BI_loop (Tf t1s t2s) es)) H4 Hxl1.
-      filled_trap H0 Hxl1. }
-    rewrite <- Heqes0 in H0.
-    simple_filled H0 k lh bef aft n' l l'.
-    destruct bef as [|b1 bef].
-    { destruct es as [| e1 es].
-      { empty_list_no_reduce H. }
-      inversion H0 as [[ He1 Hes ]].
-      destruct es as [| e2 es].
-      { remember [e1] as es1.
-        rewrite <- He1 in Heqes1.
-        apply Logic.eq_sym in Heqes1.
-        no_reduce Heqes1 H. }
-      inversion Hes as [[ He2 Hes' ]] ; clear Hes.
-      destruct es as [| e3 es].
-      { remember [e1; e2] as es1.
-        rewrite <- He1 in Heqes1.
-        rewrite <- He2 in Heqes1.
-        apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H. }
-      inversion Hes' as [[ He3 Hes ]].
-      apply Logic.eq_sym in Hes.
-      apply app_eq_unit in Hes as [[ Hes _ ]|[ Hes _]].
-      - rewrite Hes in H.
-        remember [e1 ; e2 ; e3] as es1.
-        rewrite <- He1 in Heqes1.
-        rewrite <- He2 in Heqes1.
-        rewrite <- He3 in Heqes1.
-        apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H.
-      - rewrite Hes in Hes'. inversion Hes' as [[ He3' Haft ]].
-        rewrite <- Haft in H1.
-        unfold lfilled, lfill in H1.
-        destruct (const_list []) ; [|false_assumption].
-        apply b2p in H1. rewrite H1. rewrite app_nil_r.
-        apply IHreduce ; by subst. }
-    inversion H0 as [[ Hb1 Hbesa ]].
-    destruct bef as [| b2 bef].
-    { destruct es as [| e1 es].
-      { empty_list_no_reduce H. }
-      inversion Hbesa as [[ He1 Hesa ]].
-      destruct es as [| e2 es].
-      { remember [e1] as es1.
-        rewrite <- He1 in Heqes1.
-        apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H. }
-      inversion Hesa as [[ He2 Hes ]].
-      apply Logic.eq_sym in Hes.
-      apply app_eq_unit in Hes as [[ Hes _ ]|[ Hes _ ]].
-      - rewrite Hes in H.
-        remember [e1;e2] as es1.
-        rewrite <- He1 in Heqes1. rewrite <- He2 in Heqes1.
-        apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H.
-      - rewrite Hes in H.
-        remember [e1; e2; AI_basic BI_select] as es1.
-        rewrite <- He1 in Heqes1. rewrite <- He2 in Heqes1.
-        apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H. }
-    inversion Hbesa as [[ Hb2 Hbesaf ]].
-    destruct bef as [| b3 bef].
-    { destruct es as [| e1 es].
-      { empty_list_no_reduce H.}
-      inversion Hbesaf as [[ He1 Hesa ]].
-      apply Logic.eq_sym in Hesa.
-      apply app_eq_unit in Hesa as [[ Hes _ ]|[ Hes _ ]].
-      - rewrite Hes in H.
-        remember [e1] as es1.
-        rewrite <- He1 in Heqes1. apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H.
-      - rewrite Hes in H.
-        remember [e1 ; AI_basic BI_select] as es1.
-        rewrite <- He1 in Heqes1. apply Logic.eq_sym in Heqes1.
-        exfalso ; no_reduce Heqes1 H. }
-    inversion Hbesaf as [[ Hb3 Hesa ]].
-    apply Logic.eq_sym in Hesa.
-    apply app_eq_unit in Hesa as [[ _ Hesa ]|[ _ Hesa ]].
-  - apply app_eq_unit in Hesa as [[ Hes _ ]|[ Hes _ ]] ;
-      apply Logic.eq_sym in Hes ; no_reduce Hes H.
-  - apply app_eq_nil in Hesa as [ Hes _ ].
-    apply Logic.eq_sym in Hes ; no_reduce Hes H.
+    only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+                          AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select]
+                       locs inst locs' inst'.
 Qed.
 
 (* Control flows *)
