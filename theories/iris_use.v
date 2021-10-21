@@ -687,9 +687,9 @@ Ltac no_reduce Heqes Hred :=
     apply Logic.eq_sym in H0 ;
     remember ([] : seq.seq administrative_instruction) as g eqn:Heqg in f;
     let rec auxb H0 :=
-      (* We maintain as an invariant that when auxb H0 is called,
-         H0 is the hypothesis "H0 : bef ++ es ++ aft = [some explicit sequence ] *)
-      ( let b0 := fresh "b" in
+      ( (* We maintain as an invariant that when auxb H0 is called,
+           H0 is the hypothesis "H0 : bef ++ es ++ aft = [some explicit sequence ]" *)
+        let b0 := fresh "b" in
         let Hb0 := fresh "Hb0" in
         let H1 := fresh "H" in
         destruct bef as [| b0 bef] ;
@@ -697,11 +697,11 @@ Ltac no_reduce Heqes Hred :=
              "H0 : es ++ aft = [some explicit sequence"
              recall g was defined to be [] with "Heqg : g = []" *)
           let rec auxe H0 g Heqg :=
-            (* We maintain as an invariant that when auxe H0 g Heqg is called,
-               H0 is the hypothesis "H0 : es ++ aft = [some explicit sequence]"
-               Hred is the hypothesis "Hred : (g ++ es) -> es'"
-               and Heqg is "Heqg : g = [some (other) explicit sequence] *)
-            ( let e0 := fresh "e" in
+             (* We maintain as an invariant that when auxe H0 g Heqg is called,
+                 H0 is the hypothesis "H0 : es ++ aft = [some explicit sequence]"
+                 Hred is the hypothesis "Hred : (g ++ es) -> es'"
+                 and Heqg is "Heqg : g = [some (other) explicit sequence]" *)
+            (  let e0 := fresh "e" in
               let g' := fresh "g" in
               let He0 := fresh "He" in
               let Heqg' := fresh "Heqg" in
@@ -753,7 +753,6 @@ Ltac no_reduce Heqes Hred :=
         ]
       ) in auxb H0
   ].
-
 (* examples of usage of no_reduce. This first example is reused in other lemmas,
    the following ones may be removed if wanted *)
 Lemma test_no_reduce0 hs s f hs' s' f' es' :
@@ -2208,7 +2207,7 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
         remember ([] : seq.seq administrative_instruction) as g eqn:Heqg in s;
         let rec auxb H0 :=
           (* We maintain as an invariant that when auxb H0 is called,
-             H0 is the hypothesis "H0 : bef ++ es ++ aft = [some explicit sequence ] *)     
+             H0 is the hypothesis "H0 : bef ++ es ++ aft = [some explicit sequence]" *)
           ( let b0 := fresh "b" in
             let Hb0 := fresh "Hb" in
             let H2 := fresh "H" in
@@ -2274,7 +2273,7 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
                  the explicit sequence is empty *)
               (by inversion H0 ) +
                 (* else, we know the explicit sequence is nonempty, so by inverting
-                   H0, we get "H2 : bef ++ es ++ aft = [some explicit sequence] *)
+                   H0, we get "H2 : bef ++ es ++ aft = [some explicit sequence]" *)
                 ( inversion H0 as [[ Hb0 H2 ]] ;
                   auxb H2 )
             ]
@@ -2285,7 +2284,6 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
      what user would be going to do next anyway *)
   try by inversion Heqes0 ; subst ; inversion Heqf' ; subst ; iFrame.
 
-*)
 
 
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
@@ -2366,7 +2364,7 @@ Proof.
       rewrite drop_0.
       by iApply "IH".
   }
-Qed.
+Qed. 
 
 Lemma wp_val_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es : language.expr wasm_lang) :
   iris.to_val vs = Some (immV v') ->
