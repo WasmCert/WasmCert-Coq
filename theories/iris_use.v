@@ -516,6 +516,13 @@ Proof.
   by move => [_ [-> ->]].
 Qed.
 
+Lemma prim_step_split_reduce_r_correct (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
+  iris.to_val es1 = None ->
+  prim_step (es1 ++ es2) σ obs es' σ' efs ->
+  (exists es'', es' = es'' ++ es2 /\ prim_step es1 σ obs es'' σ' efs) \/
+  (es' = [AI_trap] /\ σ' = σ /\ prim_step es1 σ obs [AI_trap] σ efs).
+Admitted.
+  
 (* The following few auxiliary lemmas are intuitive, but tedious to prove. *)
 Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
   iris.to_val es1 = None ->
@@ -1918,8 +1925,10 @@ Proof.
 Admitted.
 
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
-   opsem for mem_grow and host function calls. However, the rest of the opsem
-   are indeed deterministic. Use with caution. *)
+   opsem for mem_grow and host function calls; due to the interaction between r_label
+   and rs_trap, traps also have non-det behaviours in terms of reduction paths.
+   However, the rest of the opsem are indeed deterministic. Use with caution. *)
+(* TODO: find a condition for es that guarantees deterministic reduction. *)
 Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
@@ -2109,6 +2118,19 @@ Proof.
   } } }
 Qed.
 
+Variable dummy_state: iris.state host_instance.
+
+(* Conclusion is equivalent to |={E}=> Φ trapV. *)
+Lemma wp_trap_r (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es : language.expr wasm_lang) :
+  WP ([AI_trap] ++ es) @ s; E {{ v, Φ v }} ⊢
+  WP [AI_trap] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros "H".
+  repeat rewrite wp_unfold /wp_pre /=.
+  destruct es => //.
+  (* We now need to feed an explicit configuration and state to the premise. *)
+Admitted.
+
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
 Lemma wp_seq (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
   (WP es1 @ s; E {{ w, Ψ w }} ∗
@@ -2167,17 +2189,31 @@ Proof.
       destruct s => //.
       by apply append_reducible.
     - iIntros (e2 σ2 efs HStep).
-      apply prim_step_split_reduce_r in HStep as [es'' [-> HStep]] => //.
-      iSpecialize ("H2" $! es'' σ2 efs HStep).
-      iMod "H2".
-      repeat iModIntro.
-      repeat iMod "H2".
-      iModIntro.
-      destruct σ2 as [[i s0] locs].
-      iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
-      iFrame.
-      iApply "IH".
-      by iFrame.
+      apply prim_step_split_reduce_r_correct in HStep; last by [].
+      destruct HStep as [[es'' [-> HStep]] | [-> [-> HStep]]].
+      + iSpecialize ("H2" $! es'' σ2 efs HStep).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        iModIntro.
+        destruct σ2 as [[??] ?].
+        iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
+        iFrame.
+        iApply "IH".
+        by iFrame.
+      + iSpecialize ("H2" $! [AI_trap] σ efs HStep).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        destruct σ as [[??] ?].
+        iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
+        replace [AI_trap] with (iris.of_val trapV) => //.
+        rewrite wp_value_fupd'.
+        iMod "Hes''".
+        iModIntro.
+        iFrame.
+        iSpecialize ("Hes2" with "Hes''").
+        by iApply wp_trap_r.
   }
 Qed.
 
