@@ -1663,15 +1663,50 @@ Proof.
     apply IHes1 in H2 as [-> ->].
     split => //.
 Qed.
+
+Lemma AI_trap_irreducible hs ws f hs' ws' f' es':
+  reduce hs ws f [AI_trap] hs' ws' f' es' ->
+  False.
+Proof.
+  move => HReduce.
+  remember ([AI_trap]) as e.
+  induction HReduce => //=; subst; try by do 2 destruct vcs => //=.
+  - subst. inversion H; subst; clear H => //; by do 3 destruct vs => //=.
+  - move/lfilledP in H.
+    move/lfilledP in H0.
+    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
+    inversion H0; subst; clear H0.
+    destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
+    destruct es => /=; first by apply test_no_reduce0 in HReduce.
+    by destruct es, es'0 => //.
+Qed.
     
-Lemma AI_trap_reduce_det es1 hs ws f hs' ws' f' es':
-  es1 ≠ [] ->
-  const_list es1 ->
-  reduce hs ws f (es1 ++ [AI_trap]) hs' ws' f' es' ->
+Lemma AI_trap_reduce_det v hs ws f hs' ws' f' es':
+  reduce hs ws f ([AI_basic (BI_const v); AI_trap]) hs' ws' f' es' ->
   (hs', ws', f', es') = (hs, ws, f, [AI_trap]).
 Proof.
-Admitted.
-  
+  move => HReduce.
+  remember ([AI_basic (BI_const v); AI_trap]) as es0.
+  induction HReduce => //=; subst; try by do 3 destruct vcs => //=.
+  - inversion H; subst; clear H => //; by do 3 destruct vs => //=.
+  - move/lfilledP in H.
+    move/lfilledP in H0.
+    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
+    inversion H0; subst; clear H0.
+    destruct vs => /=.
+    + destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es => /=; simpl in H1; inversion H1; subst; clear H1; first by apply test_no_reduce1 in HReduce.
+      destruct es, es'0 => //=.
+      rewrite cats0.
+      by apply IHHReduce.
+    + destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
+      inversion H1; subst; clear H1.
+      destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es, es'0 => //.
+      inversion H2; subst.
+      by apply AI_trap_irreducible in HReduce.
+Qed.
+      
 Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
   iris.to_val es1 = Some vs ->
   reducible es2 σ ->
