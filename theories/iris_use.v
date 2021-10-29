@@ -516,7 +516,6 @@ Proof.
   by move => [_ [-> ->]].
 Qed.
 
-<<<<<<< HEAD
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
 
 
@@ -592,7 +591,7 @@ Ltac solve_prim_step_split_reduce_r H objs Heqf0 rule :=
   exists objs ; subst ; rewrite app_nil_r ;
   repeat split => //= ; rewrite Heqf0 ; apply r_simple ; by apply rule.
      
-=======
+
 Lemma prim_step_split_reduce_r_correct (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
   iris.to_val es1 = None ->
   prim_step (es1 ++ es2) σ obs es' σ' efs ->
@@ -600,7 +599,7 @@ Lemma prim_step_split_reduce_r_correct (es1 es2 es' : list administrative_instru
   (exists n m, lfilled 0 (LH_base (take n es1) (drop m es2)) [AI_trap] es' /\ σ' = σ /\ prim_step es1 σ obs [AI_trap] σ efs).
 Admitted.
   
->>>>>>> b9d9855239f5b97e01b5aa715c961d532d95a873
+
 (* The following few auxiliary lemmas are intuitive, but tedious to prove. *)
 Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
   iris.to_val es1 = None ->
