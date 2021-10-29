@@ -1,7 +1,7 @@
 (** Example of Iris usage **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From mathcomp Require Import eqtype seq ssrbool.
+From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.program_logic Require Export weakestpre lifting.
@@ -516,6 +516,7 @@ Proof.
   by move => [_ [-> ->]].
 Qed.
 
+<<<<<<< HEAD
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
 
 
@@ -591,6 +592,15 @@ Ltac solve_prim_step_split_reduce_r H objs Heqf0 rule :=
   exists objs ; subst ; rewrite app_nil_r ;
   repeat split => //= ; rewrite Heqf0 ; apply r_simple ; by apply rule.
      
+=======
+Lemma prim_step_split_reduce_r_correct (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
+  iris.to_val es1 = None ->
+  prim_step (es1 ++ es2) σ obs es' σ' efs ->
+  (exists es'', es' = es'' ++ es2 /\ prim_step es1 σ obs es'' σ' efs) \/
+  (exists n m, lfilled 0 (LH_base (take n es1) (drop m es2)) [AI_trap] es' /\ σ' = σ /\ prim_step es1 σ obs [AI_trap] σ efs).
+Admitted.
+  
+>>>>>>> b9d9855239f5b97e01b5aa715c961d532d95a873
 (* The following few auxiliary lemmas are intuitive, but tedious to prove. *)
 Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) σ σ' obs efs :
   iris.to_val es1 = None ->
@@ -1845,6 +1855,12 @@ Proof.
   rewrite <- Heqfilled' ; trivial.
 Qed.                         
 
+Lemma reduce_ves: forall v es es' σ σ' efs obs,
+    reducible es σ ->
+    prim_step ([AI_basic (BI_const v)] ++ es) σ obs es' σ' efs ->
+    (es' = [AI_basic (BI_const v)] ++ drop 1 es' /\ prim_step es σ obs (drop 1 es') σ' efs) \/ (es' = [AI_trap] /\ prim_step es σ obs [AI_trap] σ' efs).
+Admitted.
+
 
 Lemma append_reducible (es1 es2: list administrative_instruction) σ:
   iris.to_val es1 = None ->
@@ -1890,6 +1906,7 @@ Proof.
   instantiate (1:=LH_base [] (a :: l)).
   unfold lfilled, lfill => //=.
 Qed.
+
 Lemma AI_trap_reducible_2 es1 σ :
   es1 ≠ [] ->
   const_list es1 ->
@@ -1910,7 +1927,64 @@ Proof.
   unfold lfilled, lfill => //=.
   by rewrite H'.
 Qed.
-  
+
+Lemma rcons_eq (T: Type) (es1: list T) e1 es2 e2:
+  es1 ++ [e1] = es2 ++ [e2] ->
+  es1 = es2 /\ e1 = e2.
+Proof.
+  move: es2.
+  induction es1 => //; move => es2 H.
+  - destruct es2 => //=; first simpl in H; inversion H => //.
+    by destruct es2.
+  - destruct es2 => //=; first by destruct es1 => //.
+    inversion H; subst; clear H.
+    apply IHes1 in H2 as [-> ->].
+    split => //.
+Qed.
+
+Lemma AI_trap_irreducible hs ws f hs' ws' f' es':
+  reduce hs ws f [AI_trap] hs' ws' f' es' ->
+  False.
+Proof.
+  move => HReduce.
+  remember ([AI_trap]) as e.
+  induction HReduce => //=; subst; try by do 2 destruct vcs => //=.
+  - subst. inversion H; subst; clear H => //; by do 3 destruct vs => //=.
+  - move/lfilledP in H.
+    move/lfilledP in H0.
+    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
+    inversion H0; subst; clear H0.
+    destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
+    destruct es => /=; first by apply test_no_reduce0 in HReduce.
+    by destruct es, es'0 => //.
+Qed.
+    
+Lemma AI_trap_reduce_det v hs ws f hs' ws' f' es':
+  reduce hs ws f ([AI_basic (BI_const v); AI_trap]) hs' ws' f' es' ->
+  (hs', ws', f', es') = (hs, ws, f, [AI_trap]).
+Proof.
+  move => HReduce.
+  remember ([AI_basic (BI_const v); AI_trap]) as es0.
+  induction HReduce => //=; subst; try by do 3 destruct vcs => //=.
+  - inversion H; subst; clear H => //; by do 3 destruct vs => //=.
+  - move/lfilledP in H.
+    move/lfilledP in H0.
+    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
+    inversion H0; subst; clear H0.
+    destruct vs => /=.
+    + destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es => /=; simpl in H1; inversion H1; subst; clear H1; first by apply test_no_reduce1 in HReduce.
+      destruct es, es'0 => //=.
+      rewrite cats0.
+      by apply IHHReduce.
+    + destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
+      inversion H1; subst; clear H1.
+      destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es, es'0 => //.
+      inversion H2; subst.
+      by apply AI_trap_irreducible in HReduce.
+Qed.
+      
 Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
   iris.to_val es1 = Some vs ->
   reducible es2 σ ->
@@ -2110,8 +2184,10 @@ Proof.
 Admitted.
 
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
-   opsem for mem_grow and host function calls. However, the rest of the opsem
-   are indeed deterministic. Use with caution. *)
+   opsem for mem_grow and host function calls; due to the interaction between r_label
+   and rs_trap, traps also have non-det behaviours in terms of reduction paths.
+   However, the rest of the opsem are indeed deterministic. Use with caution. *)
+(* TODO: find a condition for es that guarantees deterministic reduction. *)
 Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
@@ -2301,14 +2377,31 @@ Proof.
   } } }
 Qed.
 
+Variable dummy_state: iris.state host_instance.
+
+(*
+(* Conclusion is equivalent to |={E}=> Φ trapV. *)
+(* This requires inverting wp again........ *)
+Lemma wp_trap_r (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es : language.expr wasm_lang) :
+  WP ([AI_trap] ++ es) @ s; E {{ v, Φ v }} ⊢
+  WP [AI_trap] @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros "H".
+  repeat rewrite wp_unfold /wp_pre /=.
+  destruct es => //.
+  (* We now need to feed an explicit configuration and state to the premise. *)
+Admitted.
+*)
+
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
-Lemma wp_seq (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+Lemma wp_seq_nontrap (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+  (¬ Ψ trapV) ∗
   (WP es1 @ s; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ).
-  iIntros "[Hes1 Hes2]".
+  iIntros "(Hntrap & Hes1 & Hes2)".
   repeat rewrite wp_unfold /wp_pre /=.
   (* Base case, when both es1 and es2 are values *)
   destruct (iris.to_val (es1 ++ es2)) as [vs|] eqn:Hetov.
@@ -2359,17 +2452,34 @@ Proof.
       destruct s => //.
       by apply append_reducible.
     - iIntros (e2 σ2 efs HStep).
-      apply prim_step_split_reduce_r in HStep as [es'' [-> HStep]] => //.
-      iSpecialize ("H2" $! es'' σ2 efs HStep).
-      iMod "H2".
-      repeat iModIntro.
-      repeat iMod "H2".
-      iModIntro.
-      destruct σ2 as [[i s0] locs].
-      iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
-      iFrame.
-      iApply "IH".
-      by iFrame.
+      apply prim_step_split_reduce_r_correct in HStep; last by [].
+      destruct HStep as [[es'' [-> HStep]] | [n [m [Hlf [-> HStep]]]]].
+      + iSpecialize ("H2" $! es'' σ2 efs HStep).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        iModIntro.
+        destruct σ2 as [[??] ?].
+        iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
+        iFrame.
+        iApply "IH".
+        by iFrame.
+      + move/lfilledP in Hlf.
+        inversion Hlf; subst; clear Hlf.
+        iSpecialize ("H2" $! [AI_trap] σ efs HStep).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        destruct σ as [[??] ?].
+        iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
+        replace [AI_trap] with (iris.of_val trapV) => //.
+        rewrite wp_value_fupd'.
+        iMod "Hes''".
+        by iSpecialize ("Hntrap" with "Hes''").
+        (* iModIntro.
+        iFrame.
+        iSpecialize ("Hes2" with "Hes''").
+        by iApply wp_trap_r.*)
   }
 Qed.
 
@@ -2544,6 +2654,7 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
      what user would be going to do next anyway *)
   try by inversion Heqes0 ; subst ; inversion Heqf' ; subst ; iFrame.
 
+(* An attempt at making reduce_det a proved lemma. Work in progress
 
 Lemma reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
@@ -2559,11 +2670,10 @@ Proof.
   { remember [e0] as es.
     apply Logic.eq_sym in Heqes.
     destruct e0.
-    destruct b ; try by exfalso ; no_reduce Heqes Hred1.
-
+    destruct b ; try by exfalso ; no_reduce Heqes Hred1. *)
 
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
-  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v)) }}%I
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v))  }}
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }}%I.
 Proof.
   (* This also needs an iLob. *)
@@ -2573,11 +2683,11 @@ Proof.
   destruct (iris.to_val es) as [vs|] eqn:Hes.
   {
     destruct vs.
-    { apply of_to_val in Hes as <-.
-      iMod "H".
-      by iModIntro. }
+    { by apply of_to_val in Hes as <-.
+      }
     { apply to_val_trap_is_singleton in Hes as ->.
       iIntros (σ ns κ κs nt) "Hσ".
+      iMod "H".
       destruct σ as [[[hs ws] locs] inst].
       iApply fupd_frame_l. iSplit.
       { destruct s;auto. iPureIntro.
@@ -2593,24 +2703,25 @@ Proof.
       destruct σ2 as [[[hs2 ws2] locs2] inst2].
       iModIntro. iNext. iMod "Hmask".
       iApply fupd_mask_intro_subseteq. solve_ndisj.
+      unfold iris.prim_step in *.
       assert (iris.prim_step (host_instance:=host_instance)
                              ([AI_basic (BI_const v0)] ++ [AI_trap])%SEQ 
                              (hs, ws, locs, inst) [] [AI_trap] (hs, ws, locs, inst) []) as Hstep.
       { repeat constructor. econstructor;auto.
         instantiate (1:=LH_base [AI_basic (BI_const v0)] []).
         rewrite /lfilled /lfill => //=. }
-      (* TODO: use bespoke determinism lemma *)
-      unfold iris.prim_step in *.
       destruct HStep as [HStep _].
       destruct Hstep as [Hstep _].
-      eapply reduce_det in HStep;[|apply Hstep].
-      inversion HStep;subst. iFrame. iSplit;auto.
-      iMod "H".
-      iApply wp_value;[|iFrame].
-      rewrite /IntoVal. auto.
+      apply AI_trap_reduce_det in HStep => //.
+      inversion HStep; subst; clear HStep.
+      iFrame.
+      iSplit => //.
+      iApply wp_value => //.
+      by rewrite/IntoVal.
     }
   }
-  { iIntros (σ ns κ κs nt) "Hσ".
+  {
+    iIntros (σ ns κ κs nt) "Hσ".
     iSpecialize ("H" $! σ ns κ κs nt with "Hσ").
     iMod "H".
     iModIntro.
@@ -2622,57 +2733,69 @@ Proof.
       by eapply prepend_reducible; eauto.
     - iIntros (es2 σ2 efs HStep).
       rewrite -cat1s in HStep.
-      Admitted. (* assert (es2 = [AI_basic (BI_const v0)] ++ drop 1 es2) as Hes2; first by eapply reduce_ves1; eauto.
-      assert (prim_step es σ κ (drop 1 es2) σ2 efs) as HStep2; first by eapply reduce_ves2; eauto.
+      eapply reduce_ves in H1; last by apply HStep.
       assert ((κ, efs) = ([],[])) as Hobsefs; first by eapply prim_step_obs_efs_empty.
       inversion Hobsefs; subst; clear Hobsefs.
-      iSpecialize ("H" $! (drop 1 es2) σ2 [] HStep2).
-      iMod "H".
-      repeat iModIntro.
-      repeat iMod "H".
-      iModIntro.
-      iDestruct "H" as "(Hσ & Hes & Hefs)".
-      iSimpl.
-      iFrame.
-      iSplit => //.
-      destruct es2 => //=.
-      inversion Hes2; subst; clear Hes2.
-      rewrite drop_0.
-      by iApply "IH".
+      destruct H1 as [[-> HStep2] | [-> HStep2]].
+      + iSpecialize ("H" $! (drop 1 es2) σ2 [] HStep2).
+        iMod "H".
+        repeat iModIntro.
+        repeat iMod "H".
+        iModIntro.
+        iDestruct "H" as "(Hσ & Hes & Hefs)".
+        iSimpl.
+        iFrame.
+        iSplit => //.
+        by iApply "IH".
+      + iSpecialize ("H" $! [AI_trap] σ2 [] HStep2).
+        iMod "H".
+        repeat iModIntro.
+        repeat iMod "H".
+        iDestruct "H" as "(Hσ & Hes & Hefs)".
+        iSimpl.
+        iFrame.
+        iApply fupd_frame_r.
+        iSplit => //.
+        rewrite wp_unfold /wp_pre /=.
+        iMod "Hes".
+        by iApply wp_value; first instantiate (1 := trapV); rewrite/IntoVal => //.
   }
-Qed. *)
+
+Qed.
+  
+Lemma wp_val_app' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs (es : language.expr wasm_lang) :
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV vs) v)) }}%I
+  ⊢ WP ((v_to_e_list vs) ++ es) @ s ; E {{ v, Φ v }}%I.
+
+Proof.
+  iInduction vs as [|c vs] "IH" forall (Φ s E es).
+  { simpl.
+    iIntros "HWP".
+    destruct s.
+    2: iApply wp_stuck_weaken.
+    all: iApply (wp_wand with "HWP").
+    all: iIntros (v).
+    all: destruct v => /=.
+    all: iIntros "HΦ" => //.
+  }
+  { iIntros "HWP".
+    iSimpl.
+    iApply wp_val.
+    iApply "IH" => //=.
+    iApply (wp_mono with "HWP").
+    iIntros (vs') "HΦ".
+    iSimpl. destruct vs';auto.
+  }
+Qed.
 
 Lemma wp_val_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es : language.expr wasm_lang) :
   iris.to_val vs = Some (immV v') ->
   WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV v') v)) }}%I
   ⊢ WP (vs ++ es) @ s ; E {{ v, Φ v }}%I.
 Proof.
-  iInduction vs as [|c vs] "IH" forall (Φ v' s E es).
-  { simpl. iIntros (Hval) "HWP".
-    destruct v'; inversion Hval.
-    destruct s.
-    2: iApply wp_stuck_weaken.
-    all: iApply (wp_wand with "HWP").
-    all: iIntros (v).
-    all: destruct v;auto. }
-  { iIntros (Hval) "HWP".
-    destruct v';inversion Hval.
-    { exfalso.
-      destruct c.
-      destruct b.
-      all:try done.
-      destruct (iris.to_val vs) eqn:Hsome.
-      destruct v0. all: try done.
-      destruct vs;done. }
-    destruct c;[|destruct vs;done|done..].
-    destruct b =>//=.
-    destruct (iris.to_val vs) eqn:Hsome;[|done].
-    destruct v1;[|done]. simplify_eq.
-    iApply wp_val. iApply ("IH" $! (λ v0, Φ (val_combine (immV [v]) v0))). eauto.
-    iApply (wp_wand with "HWP").
-    iIntros (v'') "HH".
-    iSimpl. destruct v'';auto.
-  }
+  iIntros "%Hves Hwp".
+  apply of_to_val in Hves; subst.
+  by iApply wp_val_app'.
 Qed.
                                   
 (* basic instructions with simple(pure) reductions *)
@@ -2738,10 +2861,11 @@ Qed.
 
 (* 20210929: with [::AI_trap] potentially becoming a value, this might get proved at some point *)
 Lemma wp_binop_failure (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (t: value_type) (op: binop):
+  Φ trapV ∗
   ⌜app_binop op v1 v2 = None⌝ ⊢
-  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, True }}.
+  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, Φ v }}.
 Proof.
-  iIntros "%Hbinop".
+  iIntros "(HΦ & %Hbinop)".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ".
   iModIntro.
@@ -2762,15 +2886,9 @@ Proof.
     eapply reduce_det in H; last by apply r_simple, rs_binop_failure.
     inversion H; subst; clear H.
     iFrame.
-    iSimpl.
-    (* Has to be false at this point -- AI_trap is not a value. 
-       The culprit is that we used wp_lift_atomic_step in the beginning -- that
-       lemma requires the given expression to be reduced to a value after
-       one step. However, a non-successful binop will never be reduced to any
-       value. *)
-    admit.
-Admitted.
-
+    iSimpl => //.
+Qed.
+    
 Lemma wp_relop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
   app_relop op v1 v2 = b ->
   Φ (immV [(xb b)]) ⊢
@@ -3339,9 +3457,10 @@ Proof.
   apply const_list_is_val in Hconst as [v1 Hv1].
   apply const_list_is_val in H7 as [v2 Hv2].
   eapply to_val_cat_inv in Hv1 as Hvv;[|apply Hv2].
-  iApply (wp_seq _ _ Φ (λ ret, ⌜ret = immV (v2 ++ v1)⌝)%I).
+  iApply (wp_seq_nontrap _ _ Φ (λ ret, ⌜ret = immV (v2 ++ v1)⌝)%I).
+  iSplit => //.
   iSplitR.
-  iApply wp_val_app. apply Hv2.
+  iApply wp_val_app; first by apply Hv2.
   iApply wp_label_value;[|auto]. erewrite app_nil_l. erewrite app_nil_r. apply Hv1.
   iIntros (w ->). erewrite of_to_val;[|apply Hvv]. rewrite app_assoc. auto.
 Qed.
@@ -4227,14 +4346,12 @@ Proof.
     inversion H; subst; clear H.
     iFrame.
     repeat iSplit => //.
-    iApply wp_val.
-    by iApply wp_set_local.
+    iApply wp_val => //=.
+    iApply wp_mono; last iApply wp_set_local; eauto => //.
 Qed.
 
 (* r_get_global involves finding the reference index to the global store via
    the instance first. *)
-
-Print r_get_global.
 
 (* TODO: Weaken the ownership of instance (and global) *)
 Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: instance) (n: nat) (ϕ: val -> Prop) (g: global) (k: nat):
@@ -4278,10 +4395,10 @@ Proof.
     inversion H; subst; clear H.
     by iFrame => /=.
 Qed.
-
+(*
 Print  sglob_val.
 Print supdate_glob.
-
+*)
 Lemma wp_set_global (s : stuckness) (E : coPset) (v:value) (inst :instance) (n:nat)
       (Φ : val -> Prop) (g: global) (k:nat):
   inst.(inst_globs) !! n = Some k ->
@@ -4363,7 +4480,7 @@ Proof.
   unfold dom, gset_dom, mapset.mapset_dom, mapset.mapset_dom_with, merge, gmap_merge.
   unfold merge, pmap.Pmerge. Search (gmap_of_list _).
   
-
+Admitted.
 
 (* Auxiliary lemmas for load/store *)
 
@@ -4593,8 +4710,9 @@ Lemma myadd2_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
 Proof.
   iIntros "HΦ".
   replace my_add2 with (take 3 my_add2 ++ drop 3 my_add2) => //.
-  iApply wp_seq => /=.
+  iApply wp_seq_nontrap => /=.
   instantiate (1 := fun v => (⌜ v = immV [xx 3] ⌝)%I ).
+  iSplit => //.
   iSplitR "HΦ"; first by iApply wp_binop.
   iIntros (? ->) => /=.
   by iApply wp_binop.
