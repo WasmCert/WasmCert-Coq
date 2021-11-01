@@ -2118,25 +2118,40 @@ Proof.
   } } }
 Qed.
 
-Variable dummy_state: iris.state host_instance.
+Print rs_trap.
+
+Print r_label.
 
 (*
-(* Conclusion is equivalent to |={E}=> Φ trapV. *)
-(* This requires inverting wp again........ *)
-Lemma wp_trap_r (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es : language.expr wasm_lang) :
-  WP ([AI_trap] ++ es) @ s; E {{ v, Φ v }} ⊢
-  WP [AI_trap] @ s; E {{ v, Φ v }}.
-Proof.
-  iIntros "H".
-  repeat rewrite wp_unfold /wp_pre /=.
-  destruct es => //.
-  (* We now need to feed an explicit configuration and state to the premise. *)
-Admitted.
+value1
+value2
+value3
+Trap
+expr3
+expr2
+expr1
+
+could reduce to either a Trap directly, or 
+value1
+Trap
+expr1,
+
+But ultimately they reduce to a single Trap.
 *)
 
+(*
+Lemma wp_trap s E es Φ:
+  WP @ s; E ([AI_trap] ++ es) {{ w, Φ w }} ⊢
+  |={E}=> Φ trapV.
+Proof.
+  rewrite wp_unfold/ wp_pre.
+Admitted.
+ *)
+
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
+(* Note that the sequence wp is also true without the premise that Ψ doesn't trap, but it is very tricky to prove that version. The following is the fault-avoiding version.*)
 Lemma wp_seq_nontrap (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
-  (¬ Ψ trapV) ∗
+  (¬ Ψ trapV) ∗ 
   (WP es1 @ s; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
@@ -2223,6 +2238,100 @@ Proof.
         by iApply wp_trap_r.*)
   }
 Qed.
+
+(*
+(* This requires inverting wp again........ It would be really amazing
+   if we can actually prove this, since I can't find anywhere in Iris where
+   this has been done. *)
+Lemma wp_trap_lfilled (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (es : language.expr wasm_lang) (lh: lholed):
+  lfilled 0 lh [AI_trap] es ->
+  WP es @ s; E {{ v, Φ v }} ⊢
+  |={E}=> Φ trapV.
+Proof.
+  move => Hlf.
+  iIntros "H".
+  repeat rewrite wp_unfold /wp_pre /=.
+  move/lfilledP in Hlf.
+  inversion Hlf; subst; clear Hlf.
+  (* if both vs and es' are empty then we're good: wp_value is directly applicable. *)
+  destruct (iris.to_val (vs ++ [AI_trap] ++ es')) as [v|] eqn:Hetov.
+  {
+    destruct v.
+    (* actual value, which is impossible *)
+    {
+      apply to_val_cat in Hetov as [Hvs He].
+      apply to_val_cat in He as [Het He'].
+      simpl in Het.
+      by inversion He'.
+    }
+    (* trapV *)
+    {
+      apply iris.of_to_val in Hetov.
+      simpl in Hetov.
+      destruct vs; by [destruct es' | destruct vs].
+    }
+  }
+  rewrite Hetov.
+  (* We now need to feed an explicit configuration and state to the premise. *)
+Admitted.
+
+Lemma wp_seq_trap (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
+  (WP es1 @ s; E {{ w, ⌜ w = trapV ⌝ }} ∗
+  WP ([AI_trap] ++ es2) @ s; E {{ v, Φ v }})%I
+  ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros "(Hes1 & Hes2)".
+  repeat rewrite wp_unfold /wp_pre /=.
+  (* Base case, when both es1 and es2 are values *)
+  destruct (iris.to_val (es1 ++ es2)) as [vs|] eqn:Hetov.
+  {
+    destruct vs.
+    {
+      apply to_val_cat in Hetov as [-> Hev2].
+      apply iris.of_to_val in Hev2 as <-.
+      by iMod "Hes1" as "%Hes1".
+    }
+    {
+      apply to_val_trap_is_singleton in Hetov.
+      apply app_eq_singleton in Hetov as [[-> ->]|[-> ->]] => //.
+      iMod "Hes1" => //.
+      by iDestruct "Hes1" as "%Hes1".
+    }
+  }
+  (* Ind *)
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct (iris.to_val es1) as [vs|] eqn:Hes.
+  { apply of_to_val in Hes as <-.
+    iMod "Hes1" as "->".
+    destruct es2 => //.
+    iSpecialize ("Hes2" $! σ ns κ κs nt with "Hσ").
+    iMod "Hes2" as "[%H1 H2]".
+    iIntros "!>".
+    iSplit.
+    - iPureIntro. by apply H1. 
+    - by iApply "H2".
+  }
+  {
+    iSpecialize ("Hes1" $! σ ns κ κs nt with "Hσ").
+    iMod "Hes1" as "[%H1 H2]".
+    iModIntro.
+    iSplit.
+    - iPureIntro.
+      destruct s => //.
+      by apply append_reducible.
+    - iIntros (e2 σ2 efs HStep).
+      apply prim_step_split_reduce_r_correct in HStep; last by [].
+      destruct HStep as [[es'' [-> HStep]] | [n [m [Hlf [-> HStep]]]]].
+      + iSpecialize ("H2" $! es'' σ2 efs HStep).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        iModIntro.
+        destruct σ2 as [[??] ?].
+        iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
+        iFrame.
+Admitted.
+*)
 
 (* The following operation mirrors the opsem of AI_trap *)
 (* in which a trap value swallows all other stack values *)
@@ -4177,9 +4286,98 @@ Proof.
     unfold mem_size.
     by iFrame => //=.
 Qed.
-    
-Lemma wp_grow_memory: False.
+
+Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
+  f.(f_inst).(inst_memory) !! 0 = Some k ->
+  nth_error (s_mems ws) k = Some mem ->
+  reduce hs ws f [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)] hs' ws' f' es' ->
+  ((hs', ws', f', es') = (hs, ws, f, [AI_basic (BI_const (VAL_int32 int32_minus_one))] ) \/
+   (hs', ws', f', es') = (hs, (upd_s_mem ws (update_list_at (s_mems ws) k mem')), f, [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))]) /\
+  mem_grow mem (Wasm_int.N_of_uint i32m c) = Some mem').
 Proof.
+  move => Hinst Hmem HReduce.
+  destruct f as [locs inst].
+  destruct f' as [locs' inst'].
+  (*only_one_reduction HReduce [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))] locs inst locs' inst'.*)
+Admitted.
+  
+Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (Φ Ψ: val -> iProp Σ) (c: i32) :
+  inst.(inst_memory) !! 0 = Some k ->
+  match mem_max_opt mem with
+  | Some maxlim => (mem_size mem + (Wasm_int.N_of_uint i32m c) <=? maxlim)%N
+  | None => true
+  end ->
+  (Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))]) ∗
+  (Ψ (immV [VAL_int32 int32_minus_one])) ∗
+   ↦[wi] inst ∗
+     (N.of_nat k) ↦[wmblock] mem ) ⊢ WP ([AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)]) @ s; E {{ w, ((Φ w ∗ (N.of_nat k) ↦[wmblock] {| mem_data:= {| ml_init := ml_init mem.(mem_data); ml_data := ml_data mem.(mem_data) ++ repeat (#00) (N.to_nat ((Wasm_int.N_of_uint i32m c) * page_size)) |}; mem_max_opt:= mem_max_opt mem |}) ∨ (Ψ w ∗ (N.of_nat k) ↦[wmblock] mem)) ∗ ↦[wi] inst  }}.
+Proof.
+  iIntros (Hi Hmsizelim) "(HΦ & HΨ & Hinst & Hmemblock)".
+  iDestruct "Hmemblock" as "(Hmemdata & Hmemlength)".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[hs ws] locs] winst].
+  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
+  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
+  rewrite lookup_insert in Hinst.
+  inversion Hinst; subst; clear Hinst.
+  rewrite - nth_error_lookup in Hi.
+  rewrite gmap_of_list_lookup list_lookup_fmap Nat2N.id in Hmemlength => /=.
+  destruct (s_mems ws !! k) eqn:Hmemlookup => //.
+  simpl in Hmemlength.
+  inversion Hmemlength as [Hmemlength']; clear Hmemlength.
+  iAssert ( (∀ i, ⌜(ml_data (mem_data mem)) !! i = (ml_data (mem_data m)) !! i ⌝)%I) as "%Hmeq".
+  {
+    iIntros (i).
+    destruct (ml_data (mem_data mem) !! i) eqn:Hmd.
+    - iDestruct (big_sepL_lookup with "Hmemdata") as "H" => //.
+      iDestruct (gen_heap_valid with "Hm H") as "%H".
+      rewrite gmap_of_list_2d_lookup list_lookup_fmap Nat2N.id Hmemlookup in H.
+      unfold memory_to_list in H.
+      simpl in H.
+      by rewrite Nat2N.id in H.
+    - apply lookup_ge_None in Hmd.
+      iPureIntro.
+      symmetry.
+      apply lookup_ge_None.
+      unfold mem_length, memory_list.mem_length in Hmemlength'.
+      lia.
+  }
+  iAssert (⌜mem ≡ₘm⌝%I) as "%Hmem".
+  {
+    unfold mem_block_equiv.
+    by rewrite (list_eq (ml_data (mem_data mem)) (ml_data (mem_data m))).
+  }
+  iSplit.
+  assert (exists mem', mem_grow mem (Wasm_int.N_of_uint i32m c) = Some mem') as [mem' Hmem'].
+  { unfold mem_grow.
+    destruct (mem_max_opt mem) eqn:Hmaxsize; eexists => //.
+    by rewrite Hmsizelim.
+  }
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))], (hs, (upd_s_mem ws (update_list_at (s_mems ws) k mem')), locs, inst), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    eapply r_grow_memory_success => //.
+    rewrite - nth_error_lookup in Hmemlookup.
+    rewrite Hmemlookup.
+    f_equal.
+  (* There's a small bug in memory_list: mem_grow should not be using ml_init but #00 instead. Finish this when that is fixed *)
+    admit.
+  - iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    (* DO NOT USE reduce_det here -- grow_memory is NOT determinstic. *)
+    eapply reduce_grow_memory in H; [ idtac | by rewrite - nth_error_lookup | by rewrite nth_error_lookup ].
+    destruct H as [HReduce | [HReduce Hmem']]; inversion HReduce; subst; clear HReduce; iFrame.
+    (* failure *)
+    + iRight.
+      admit.
+    (* success *)
+    + iLeft.
 Admitted.
 
 
