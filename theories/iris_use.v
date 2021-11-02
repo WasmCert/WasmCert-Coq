@@ -4300,7 +4300,7 @@ Proof.
   destruct f' as [locs' inst'].
   (*only_one_reduction HReduce [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))] locs inst locs' inst'.*)
 Admitted.
-  
+
 Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (Φ Ψ: val -> iProp Σ) (c: i32) :
   inst.(inst_memory) !! 0 = Some k ->
   match mem_max_opt mem with
@@ -4310,7 +4310,7 @@ Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance)
   (Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))]) ∗
   (Ψ (immV [VAL_int32 int32_minus_one])) ∗
    ↦[wi] inst ∗
-     (N.of_nat k) ↦[wmblock] mem ) ⊢ WP ([AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)]) @ s; E {{ w, ((Φ w ∗ (N.of_nat k) ↦[wmblock] {| mem_data:= {| ml_init := ml_init mem.(mem_data); ml_data := ml_data mem.(mem_data) ++ repeat (#00) (N.to_nat ((Wasm_int.N_of_uint i32m c) * page_size)) |}; mem_max_opt:= mem_max_opt mem |}) ∨ (Ψ w ∗ (N.of_nat k) ↦[wmblock] mem)) ∗ ↦[wi] inst  }}.
+     (N.of_nat k) ↦[wmblock] mem ) ⊢ WP ([AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)]) @ s; E {{ w, ((Φ w ∗ (N.of_nat k) ↦[wmblock] {| mem_data:= {| ml_init := ml_init mem.(mem_data); ml_data := ml_data mem.(mem_data) ++ repeat (#00)%byte (N.to_nat ((Wasm_int.N_of_uint i32m c) * page_size)) |}; mem_max_opt:= mem_max_opt mem |}) ∨ (Ψ w ∗ (N.of_nat k) ↦[wmblock] mem)) ∗ ↦[wi] inst  }}.
 Proof.
   iIntros (Hi Hmsizelim) "(HΦ & HΨ & Hinst & Hmemblock)".
   iDestruct "Hmemblock" as "(Hmemdata & Hmemlength)".
@@ -4374,10 +4374,12 @@ Proof.
     eapply reduce_grow_memory in H; [ idtac | by rewrite - nth_error_lookup | by rewrite nth_error_lookup ].
     destruct H as [HReduce | [HReduce Hmem']]; inversion HReduce; subst; clear HReduce; iFrame.
     (* failure *)
-    + iRight.
-      admit.
+    + iSplit => //.
+      iRight.
+      iFrame.
+      by rewrite Hmemlength'.
     (* success *)
-    + iLeft.
+    + admit.
 Admitted.
 
 
