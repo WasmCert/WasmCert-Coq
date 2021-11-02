@@ -27,6 +27,19 @@ Let e_is_trap := @e_is_trap host_function.
 Let es_is_trap := @es_is_trap host_function.*)
 
 
+Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
+  es1 ++ es2 = es3 ++ es4 ->
+  length es1 = length es3 ->
+  (es1, es2) = (es3, es4).
+Proof.
+  move: es2 es3 es4.
+  elim: es1; destruct es3 => //=; move => es4 H2 Hlen; try by subst.
+  inversion H2; subst; clear H2.
+  inversion Hlen; clear Hlen.
+  apply H in H3 => //.
+  by inversion H3 => //; subst.
+Qed.
+
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
@@ -601,6 +614,39 @@ Let host := host host_function.
 Variable host_instance: host.
 
 Let reduce := @reduce host_function host_instance.
+
+Lemma lfilled_swap : forall i lh es LI es', 
+  lfilled i lh es LI ->
+  exists LI', lfilled i lh es' LI'.
+Proof.
+  intros i.
+  induction i;intros lh es LI es' Hfill%lfilled_Ind_Equivalent.
+  { inversion Hfill; subst.
+    exists (vs ++ es' ++ es'0).
+    apply lfilled_Ind_Equivalent. by constructor. }
+  { inversion Hfill;subst.
+    apply lfilled_Ind_Equivalent in H1.
+    apply IHi with (es':=es') in H1 as [LI' HLI'].
+    exists (vs ++ [::AI_label n es'0 LI'] ++ es'').
+    apply lfilled_Ind_Equivalent. constructor;auto.
+    by apply lfilled_Ind_Equivalent. }
+Qed.
+
+Lemma lfilled_inj : forall i lh es LI LI',
+  lfilled i lh es LI ->
+  lfilled i lh es LI' ->
+  LI = LI'.
+Proof.
+  intros i.
+  induction i; intros lh es LI LI'
+                      Hfill1%lfilled_Ind_Equivalent
+                      Hfill2%lfilled_Ind_Equivalent.
+  { inversion Hfill1; subst.
+    inversion Hfill2; subst. done. }
+  { inversion Hfill1; subst.
+    inversion Hfill2; subst.
+    rewrite (IHi lh' es LI0 LI);auto;by apply lfilled_Ind_Equivalent. }
+Qed.
 
 Lemma lfilled_collapse1: forall n lh vs es LI l,
     lfilledInd n lh (vs++es) LI ->
