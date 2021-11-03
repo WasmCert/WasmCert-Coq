@@ -163,3 +163,10 @@ Proof.
 Qed.
 
 End Host.
+
+Ltac solve_atomic :=
+  apply is_atomic_correct; simpl; repeat split;
+    rewrite ?to_of_val; eapply mk_is_Some; fast_done.
+
+Global Hint Extern 0 (Atomic _ _) => solve_atomic : core.
+Global Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.

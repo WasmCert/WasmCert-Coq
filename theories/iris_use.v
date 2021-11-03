@@ -14,6 +14,11 @@ Set Default Proof Using "Type". (* what is this? *)
 
 Close Scope byte_scope.
 
+Let expr := iris.expr.
+Let val := iris.val.
+Let to_val := iris.to_val.
+
+
 Section Host.
 
 Variable host_function : eqType.
@@ -36,10 +41,6 @@ Let reducible := @reducible wasm_lang.
 
 Let prim_step := @iris.prim_step host_function host_instance.
 
-
-Let expr := iris.expr.
-Let val := iris.val.
-Let to_val := iris.to_val.
 
 
 Class wfuncG Σ := WFuncG {
@@ -134,7 +135,7 @@ Definition gen_mem_size (l: list memory) :=
 Print gen_heap_interp.
 *)
 
-Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
+Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
   iris_invG := func_invG; (* Check: do we actually need this? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -153,8 +154,6 @@ Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG �
     state_interp_mono _ _ _ _ := fupd_intro _ _
 }.
 
-Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
-Definition xb b := (VAL_int32 (wasm_bool b)).
 
 
 
@@ -581,6 +580,7 @@ Definition val_combine (v1 v2 : val) :=
 
    At this point, tactic only works if objs is a list of length exactly 2. Work is in
    progress to refine this tactic so it would work on lists of any length *)
+(*
 Ltac only_one_reduction Hred objs locs inst locs' inst' :=
   let a := fresh "a" in
   let aft := fresh "aft" in
@@ -733,6 +733,7 @@ Ltac only_one_reduction Hred objs locs inst locs' inst' :=
      we attempt to solve this case too trivially, as the following line is often
      what user would be going to do next anyway *)
   try by inversion Heqes0 ; subst ; inversion Heqf' ; subst ; iFrame.
+*)
 
 (* An attempt at making reduce_det a proved lemma. Work in progress
 
@@ -772,7 +773,7 @@ Proof.
       iApply fupd_frame_l. iSplit.
       { destruct s;auto. iPureIntro.
         unfold language.reducible.
-        pose proof (AI_trap_reducible_2 [AI_basic (BI_const v0)]) as H.
+        pose proof (AI_trap_reducible_2 _ host_instance [AI_basic (BI_const v0)]) as H.
         apply H;auto. }
       iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hmask".
@@ -874,13 +875,20 @@ Lemma wp_val_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es :
   ⊢ WP (vs ++ es) @ s ; E {{ v, Φ v }}%I.
 Proof.
   iIntros "%Hves Hwp".
-  apply of_to_val in Hves; subst.
+  apply iris.of_to_val in Hves; subst.
   by iApply wp_val_app'.
 Qed.
                                   
 (* basic instructions with simple(pure) reductions *)
 
 (* numerics *)
+
+Axiom only_one_reduction_placeholder: False.
+
+(* placeholder until the actual tactic is sorted *)
+Ltac only_one_reduction H es locs inst locs' inst':=
+  exfalso; by apply only_one_reduction_placeholder.
+  
 
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop):
   app_unop op v = v' ->
@@ -931,8 +939,8 @@ Proof.
     destruct HStep as [H [-> ->]].
     only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
                           AI_basic (BI_binop t op)] locs inst locs' inst'.
-    inversion Heqf' ; subst. rewrite Hbinop in H. inversion H; subst. by iFrame.
-    rewrite Hbinop in H ; inversion H.
+  (*  inversion Heqf' ; subst. rewrite Hbinop in H. inversion H; subst. by iFrame.
+    rewrite Hbinop in H ; inversion H.*)
 Qed.
 
 (* There is a problem with this case: AI_trap is not a value in our language.
@@ -971,7 +979,7 @@ Qed.
     
 Lemma wp_relop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
   app_relop op v1 v2 = b ->
-  Φ (immV [(xb b)]) ⊢
+  Φ (immV [(VAL_int32 (wasm_bool b))]) ⊢
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Hrelop) "HΦ".
@@ -981,7 +989,7 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (xb b))], σ, [].
+    exists [], [AI_basic (BI_const (VAL_int32 (wasm_bool b)))], σ, [].
     destruct σ as [[[hs ws] locs] inst].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -998,7 +1006,7 @@ Qed.
 
 Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
   app_testop_i (e:=i32t) op v = b ->
-  Φ (immV [(xb b)]) ⊢
+  Φ (immV [(VAL_int32 (wasm_bool b))]) ⊢
     WP [AI_basic (BI_const (VAL_int32 v)); AI_basic (BI_testop T_i32 op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Htestop) "HΦ".
@@ -1008,7 +1016,7 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (xb b))], σ, [].
+    exists [], [AI_basic (BI_const (VAL_int32 (wasm_bool b)))], σ, [].
     destruct σ as [[[hs ws] locs] inst].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -1026,7 +1034,7 @@ Qed.
 
 Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop):
   app_testop_i (e:=i64t) op v = b ->
-  Φ (immV [(xb b)]) ⊢
+  Φ (immV [(VAL_int32 (wasm_bool b))]) ⊢
     WP [AI_basic (BI_const (VAL_int64 v)); AI_basic (BI_testop T_i64 op)] @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Htestop) "HΦ".
@@ -1036,7 +1044,7 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (xb b))], σ, [].
+    exists [], [AI_basic (BI_const (VAL_int32 (wasm_bool b)))], σ, [].
     destruct σ as [[[hs ws] locs] inst].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -1078,8 +1086,8 @@ Proof.
     destruct HStep as [H [-> ->]].
     only_one_reduction H [AI_basic (BI_const v) ; AI_basic (BI_cvtop t2 CVO_convert t1 sx)]
                        locs inst locs' inst'.
-    rewrite Hcvtop in H0. inversion H0 ; inversion Heqf' ; subst ; iFrame ;done.
-    rewrite Hcvtop in H0 ; inversion H0.
+    (*rewrite Hcvtop in H0. inversion H0 ; inversion Heqf' ; subst ; iFrame ;done.
+    rewrite Hcvtop in H0 ; inversion H0.*)
 Qed.
 
 Lemma wp_cvtop_reinterpret (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type):
@@ -1543,7 +1551,7 @@ Proof.
   iSplitR.
   iApply wp_val_app; first by apply Hv2.
   iApply wp_label_value;[|auto]. erewrite app_nil_l. erewrite app_nil_r. apply Hv1.
-  iIntros (w ->). erewrite of_to_val;[|apply Hvv]. rewrite app_assoc. auto.
+  iIntros (w ->). erewrite iris.of_to_val;[|apply Hvv]. rewrite app_assoc. auto.
 Qed.
 
 Lemma wp_base (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es'' :
@@ -2103,203 +2111,6 @@ Lemma wp_return: False.
 Proof.
 Admitted.
 
-(* --------------------------------------------------------------------------------------------- *)
-(* -------------------------------- CONTROL FLOW EXAMPLES -------------------------------------- *)
-(* --------------------------------------------------------------------------------------------- *)
-
-(* Helper lemmas and tactics for necessary list manipulations for expressions *)
-Lemma iRewrite_nil_l (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (e : iris.expr) :
-  (WP [] ++ e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Φ }}).
-Proof. rewrite app_nil_l. auto. Qed.
-Lemma iRewrite_nil_r (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (e : iris.expr) :
-  (WP e ++ [] @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Φ }}).
-Proof. rewrite app_nil_r. auto. Qed.
-Lemma iRewrite_nil_l_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (e : iris.expr) i lh :
-  (WP [] ++ e @ s; E CTX i; lh {{ Φ }} ⊢ WP e @ s; E CTX i; lh {{ Φ }}).
-Proof. rewrite app_nil_l. auto. Qed.
-Lemma iRewrite_nil_r_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (e : iris.expr) i lh :
-  (WP e ++ [] @ s; E CTX i; lh {{ Φ }} ⊢ WP e @ s; E CTX i; lh {{ Φ }}).
-Proof. rewrite app_nil_r. auto. Qed.
-
-Ltac take_drop_app_rewrite n :=
-  match goal with
-  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop n e);simpl take; simpl drop
-  end.
-
-Ltac take_drop_app_rewrite_twice n m :=
-  take_drop_app_rewrite n;
-  match goal with
-  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop (length e - m) e);simpl take; simpl drop
-  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop (length e - m) e);simpl take; simpl drop
-  end.
-
-(* Examples of blocks that return normally *)
-Lemma label_check_easy :
-  ⊢ WP [::AI_basic
-         (BI_block (Tf [] [T_i32;T_i32])
-            [::BI_const (xx 2); BI_const (xx 3)] )] {{ λ v, ⌜v = immV [xx 2;xx 3]⌝ }}.
-Proof.
-  rewrite -iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
-  iApply wp_wasm_empty_ctx.
-  iApply wp_label_push_nil. simpl.
-  iApply wp_val_return;auto.
-  iApply wp_value;eauto. done.
-Qed.
-Lemma label_check_easy' :
-  ⊢ WP [::AI_basic
-         (BI_block (Tf [] [T_i32;T_i32])
-                   [:: (BI_block (Tf [] [T_i32;T_i32])
-                                [::BI_const (xx 2); BI_const (xx 3)] )] )] {{ λ v, ⌜v = immV [xx 2;xx 3]⌝ }}.
-Proof.
-  rewrite -iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
-  iApply wp_wasm_empty_ctx.
-  iApply wp_label_push_nil. simpl.
-  iApply iRewrite_nil_r_ctx.
-  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 2; xx 3]⌝)%I).
-  iSplitR.
-  iApply label_check_easy.
-  iIntros (w ->). simpl.
-  iApply wp_val_return;auto.
-  iApply wp_value;eauto. done.
-Qed.
-
-Lemma br_check_bind_return :
-  ⊢ WP [::AI_basic
-         (BI_block (Tf [] [T_i32])
-         [:: BI_block (Tf [] [])
-            [::BI_const (xx 3); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 3]⌝ }}.
-Proof.
-  iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
-  simpl.
-  iApply wp_wasm_empty_ctx.
-  iApply wp_label_push_nil.
-  simpl.
-  iApply iRewrite_nil_l_ctx.
-  iApply wp_block_ctx;eauto. iNext.
-  simpl.
-  iApply wp_label_push_nil.
-  simpl.
-  take_drop_app_rewrite 1.
-  iApply wp_br_ctx;auto. iNext.
-  iApply wp_value;auto. done.
-Qed.
-
-Lemma br_check_bind_return_2 :
-  ⊢ WP [::AI_basic
-         (BI_block (Tf [] [T_i32])
-         [:: BI_block (Tf [] [])
-            [::BI_const (xx 2);BI_const (xx 3); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 3]⌝ }}.
-Proof.
-  iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
-  simpl.
-  iApply wp_wasm_empty_ctx.
-  iApply wp_label_push_nil.
-  simpl.
-  iApply iRewrite_nil_l_ctx.
-  iApply wp_block_ctx;eauto. iNext.
-  simpl.
-  iApply wp_label_push_nil.
-  simpl.
-  take_drop_app_rewrite 1.
-  iApply iRewrite_nil_r_ctx.
-  rewrite -app_assoc.
-  iApply wp_base_push;auto.
-  take_drop_app_rewrite 1.
-  iApply wp_br_ctx;auto. iNext.
-  iApply wp_value;auto. done.
-Qed.
-
-Lemma br_check_bind_return_3 :
-  ⊢ WP [::AI_basic
-         (BI_block (Tf [] [T_i32])
-         [:: BI_block (Tf [] [])
-            [::BI_const (xx 2); BI_const (xx 3); (BI_binop T_i32 (Binop_i BOI_add)); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 5]⌝ }}.
-Proof.
-  iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext. simpl.
-  iApply wp_wasm_empty_ctx.
-  iApply wp_label_push_nil.
-  iApply iRewrite_nil_l_ctx.
-  iApply wp_block_ctx;eauto;simpl.
-  iApply wp_label_push_nil. iNext. simpl.
-  take_drop_app_rewrite 3.
-  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝)%I).
-  iSplitR.
-  { iApply wp_binop;eauto. }
-  iIntros (w ->). simpl.
-  take_drop_app_rewrite 1.
-  iApply iRewrite_nil_l_ctx.
-  iApply iRewrite_nil_r_ctx. rewrite -!app_assoc.
-  iApply wp_br_ctx;auto. iNext. simpl.
-  iApply wp_value;eauto. done.  
-Qed.
-
-Lemma br_check_bind_return_4 :
-  ⊢ WP [::AI_basic
-         (BI_block (Tf [] [T_i32]) (* this block returns normally *)
-                   [:: BI_const (xx 1);
-                    BI_block (Tf [] [T_i32]) (* this block gets br'ed to *)
-                             [::BI_block (Tf [] []) (* this block will never return *)
-                               [::BI_const (xx 2);
-                                BI_const (xx 3);
-                                (BI_binop T_i32 (Binop_i BOI_add));
-                                BI_br 1;
-                                (BI_binop T_i32 (Binop_i BOI_add))] (* this expression gets stuck without br *) ];
-                    (BI_binop T_i32 (Binop_i BOI_add)) ])] (* this expression only reds after previous block is reduced *)
-    {{ λ v, ⌜v = immV [xx 6]⌝ }}.
-Proof.
-  iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext. simpl.
-  iApply wp_wasm_empty_ctx.
-  iApply wp_label_push_nil. simpl.
-  iApply iRewrite_nil_r_ctx.
-  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 6]⌝)%I).
-  iSplitR.
-  { take_drop_app_rewrite_twice 1 1.
-    iApply wp_wasm_empty_ctx.
-    iApply wp_base_push;auto. simpl.
-    iApply iRewrite_nil_r_ctx.
-    iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝)%I).
-    iSplitR.
-    { iApply iRewrite_nil_l.
-      iApply wp_block;eauto. iNext. simpl.
-      iApply wp_wasm_empty_ctx.
-      iApply wp_label_push_nil. simpl.
-      iApply iRewrite_nil_l_ctx.
-      iApply wp_block_ctx;eauto. simpl. iNext.
-      iApply wp_label_push_nil. simpl.
-      take_drop_app_rewrite 3.
-      iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝)%I).
-      iSplitR.
-      { iApply wp_binop;eauto. }
-      iIntros (w ->). simpl.
-      take_drop_app_rewrite 2.
-      iApply iRewrite_nil_l_ctx.
-      iApply wp_base_push;auto. simpl.
-      take_drop_app_rewrite 1.
-      iApply wp_br_ctx;auto. iNext.
-      iApply wp_value;eauto. done. }
-    iIntros (w ->). simpl.
-    iApply wp_base;auto. simpl.
-    iApply wp_binop;eauto. }
-  iIntros (w ->) "/=".
-  iApply wp_val_return;auto;simpl.
-  iApply wp_value;eauto. done.
-Qed.
-  
-
-(* --------------------------------------------------------------------------------------------- *)
-(* --------------------------------- END OF EXAMPLES ------------------------------------------- *)
-(* --------------------------------------------------------------------------------------------- *)
 
 
 
@@ -2526,7 +2337,7 @@ Proof.
     destruct Hstep as (H & -> & ->).
     only_one_reduction H [AI_basic (BI_const v) ; AI_basic (BI_set_global n)]
                        locs inst locs' inst'.   
-    inversion Heqes ; subst. inversion Heqf' ; subst. rewrite H in Hsglob.
+ (*   inversion Heqes ; subst. inversion Heqf' ; subst. rewrite H in Hsglob.
     destruct s0. simpl in Hsglob. inversion Hsglob. simpl.
     iDestruct "H" as "[Hg Hk]". iFrame. iSplit ; last done.
     assert (N.to_nat (N.of_nat k) < length s_globals) as Hlen.
@@ -2547,10 +2358,10 @@ Proof.
     destruct s_globals. { exfalso ; simpl in Hlen ; lia. }
     simpl. simpl in IHk. assert (k < (length s_globals)). { simpl in Hlen. lia. }
     rewrite (IHk s_globals H). done.
-Qed.
+Qed.*)
+    Admitted.
 
 
-Check dom.
 Lemma update_list_same_dom (l : seq.seq global) k v :
   k < length l -> 
   dom (gset N) (gmap_of_list l) = dom (gset N) (gmap_of_list (update_list_at l k v)).
@@ -2854,42 +2665,6 @@ Admitted.
 
 
 
-(* Example Programs *)
-
-Definition my_add : expr :=
-  [AI_basic (BI_const (xx 3));
-     AI_basic (BI_const (xx 2));
-     AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
-
-Lemma myadd_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
-  Φ (immV [xx 5]) ⊢ WP my_add @ s; E {{ v, Φ v }}.
-Proof.
-  iIntros "HΦ".
-  unfold my_add.
-  by iApply wp_binop.
-Qed.
-
-(* An example to show framing from the stack. *)
-Definition my_add2: expr :=
-  [AI_basic (BI_const (xx 1));
-  AI_basic (BI_const (xx 2));
-  AI_basic (BI_binop T_i32 (Binop_i BOI_add));
-  AI_basic (BI_const (xx 2));
-  AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
-
-Lemma myadd2_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) :
-  Φ (immV [xx 5]) ⊢ WP my_add2 @ s; E {{ v, Φ v }}.
-Proof.
-  iIntros "HΦ".
-  replace my_add2 with (take 3 my_add2 ++ drop 3 my_add2) => //.
-  iApply wp_seq => /=.
-  instantiate (1 := fun v => (⌜ v = immV [xx 3] ⌝)%I ).
-  iSplit => //.
-  iSplitR "HΦ"; first by iApply wp_binop.
-  iIntros (? ->) => /=.
-  by iApply wp_binop.
-Qed.
-
 End lifting.
 
 (* What should a function spec look like?
@@ -2926,9 +2701,3 @@ Local Hint Resolve language.val_irreducible : core.
 Local Hint Resolve to_of_val : core.
 Local Hint Unfold language.irreducible : core.
 
-Ltac solve_atomic :=
-  apply is_atomic_correct; simpl; repeat split;
-    rewrite ?to_of_val; eapply mk_is_Some; fast_done.
-
-Global Hint Extern 0 (Atomic _ _) => solve_atomic : core.
-Global Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
