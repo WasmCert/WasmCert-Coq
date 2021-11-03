@@ -10,6 +10,27 @@ Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export datatypes host operations properties opsem.
 Require Import Coq.Program.Equality.
 
+
+(* Refactoring discussion points:
+
+  1. Ltac within sections cannot be used outside the section unless redefined..
+     As a result tactics like only_one_reduction can't be effectively put aside;
+     (* OK -- will be resolved once a determinacy lemma is proved *)
+
+  2. Typeclass instances issue (interaction with Variables) for moving 
+     examples to a separate file (or in general, out of the current section).
+     (* OK -- refer to other projects to see how to put instances into context *)
+
+ *)
+
+(*
+  Call stack discussion points:
+
+  1. Is it really required to have an explicit call stack as a resource (which doesn't seem to be possible anyway since resources can only be determined by the state)?
+
+  2. Mixture of frame and label contexts.
+*)
+
 Set Default Proof Using "Type". (* what is this? *)
 
 Close Scope byte_scope.
@@ -42,7 +63,7 @@ Let reducible := @reducible wasm_lang.
 Let prim_step := @iris.prim_step host_function host_instance.
 
 
-
+(* TODO: change the fields to use actual sensible names *)
 Class wfuncG Σ := WFuncG {
   func_invG : invG Σ;
   func_gen_hsG :> gen_heapG N function_closure Σ;
@@ -67,6 +88,12 @@ Class wglobG Σ := WGlobG {
   glob_invG : invG Σ;
   glob_gen_hsG :> gen_heapG N global Σ;
 }.
+(*
+Class wstackG Σ := WStackG {
+  stack_invG : invG Σ;
+  stack_gen_hsG :> gen_heapG unit (list frame) Σ;
+}.
+*)
 
 Class wlocsG Σ := WLocsG {
   locs_invG : invG Σ;
@@ -77,6 +104,7 @@ Class winstG Σ := WInstG {
   inst_invG: invG Σ;
   inst_gen_hsG :> gen_heapG unit instance Σ;
 }.
+ 
 
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wf]{ q } v") : bi_scope.
@@ -96,14 +124,13 @@ Notation "n ↦[wg]{ q } v" := (mapsto (L:=N) (V:=global) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wg]{ q } v") : bi_scope.
 Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
                       (at level 20, format "n ↦[wg] v") : bi_scope.
-
 Notation "n ↦[wl]{ q } v" := (mapsto (L:=N) (V:=value) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wl]{ q } v") : bi_scope.
 Notation "n ↦[wl] v" := (mapsto (L:=N) (V:=value) n (DfracOwn 1) v%V)
                            (at level 20, format "n ↦[wl] v") : bi_scope.
 Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
                          (at level 20, format " ↦[wi] v") : bi_scope.
-
+ 
 Definition proph_id := positive. (* ??? *)
 
 
@@ -133,9 +160,14 @@ Definition gen_mem_size (l: list memory) :=
 
 
 Print gen_heap_interp.
-*)
+ *)
 
-Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
+Instance eqdecision_frame: EqDecision frame.
+Proof. decidable_equality. Qed.
+
+
+(* TODO: Global Instance doesn't seem to actually make this global... *)
+Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, (*wstackG Σ *) !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
   iris_invG := func_invG; (* Check: do we actually need this? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -145,10 +177,10 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
       (gen_heap_interp (gmap_of_list s.(s_globals)) ∗
       (gen_heap_interp (gmap_of_list locs)) ∗
       (gen_heap_interp (<[tt := inst]> ∅)) ∗
+    (*  (gen_heap_interp (<[tt := [ {| f_locs := locs; f_inst := inst |}]]> ∅)) ∗*)
       (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems))))
       )
     )%I;
-    (* (gen_heap_ctx σ.(heap) ∗ proph_map_ctx κs σ.(used_proph_id))%I *)
     num_laters_per_step _ := 0;
     fork_post _ := True%I;
     state_interp_mono _ _ _ _ := fupd_intro _ _
@@ -175,7 +207,7 @@ Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
 
 (* A Definition of a context dependent WP for WASM expressions *)
 
-Definition wp_wasm `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}
+Definition wp_wasm `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, (*!wstackG Σ*)!wlocsG Σ, !winstG Σ}
           (s : stuckness) (E : coPset) (e : language.expr wasm_lang)
            (Φ : val -> iProp Σ) (i : nat) (lh : lholed) : iProp Σ := 
   ∀ LI, ⌜lfilled i lh e LI⌝ -∗ WP LI @ s; E {{ Φ }}.
@@ -213,11 +245,35 @@ Notation "'WP' e 'CTX' i ; lh ? {{ v , Q } }" := (wp_wasm MaybeStuck ⊤ e%E (λ
   (at level 20, e, Q, lh at level 200,
    format "'[hv' 'WP'  e '/' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' ? {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 
-  
+
+
+Definition lstack : Type := list (nat * frame * nat * lholed).
+
+Inductive lframe: lstack -> list administrative_instruction -> list administrative_instruction -> Prop :=
+  LframeBase: forall es,
+    lframe [] es es
+| LframeRec: forall (n: nat) (f: frame) k lh ls es es' LI,
+    lframe ls es es' ->
+    lfilled k lh es' LI ->
+    lframe ((n,f,k,lh)::ls) es [AI_local n f LI].
+
+
+Definition wp_wasm_frame `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !winstG Σ, !wlocsG Σ}
+          (s : stuckness) (E : coPset) (es : language.expr wasm_lang)
+          (Φ : val -> iProp Σ) (ls : lstack) : iProp Σ :=
+  ∀ LF, ⌜ lframe ls es LF ⌝ -∗ (WP LF @ s; E {{ Φ }})%I.
+
+Notation "'WP' e @ s ; E 'FRAME' ls {{ Φ } }" := (wp_wasm_frame s E e%E Φ ls)
+  (at level 20, only parsing) : bi_scope.
+
+Notation "'WP' e @ s ; E 'FRAME' ls {{ v , Q } }" := (wp_wasm_frame s E e%E (λ v, Q) ls)
+  (at level 20, e, Q, ls at level 200,
+   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' 'FRAME'  '/' '[' ls ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
+
 (* wp for instructions *)
 
 Section lifting.
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, (*!wstackG Σ*)!wlocsG Σ, !winstG Σ}.
 
 (* Predicate for memory blocks *)
 
@@ -235,6 +291,119 @@ Definition mem_block_equiv (m1 m2: memory) :=
 
 Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
                         (at level 70, format "m1 ≡ₘ m2").
+
+
+(* Frame rules attempt *)
+
+Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f i lh:
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) es ->
+  (Φ (immV vs0) ⊢ WP [AI_local n f es] @ s; E {{ v, Φ v }})%I.
+Proof.
+  iIntros (Hval Hlen Hlf) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
+  iSplit.
+  - iPureIntro. destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    exists [], vs, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    constructor. econstructor =>//.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iModIntro.
+    iIntros (es1 σ2 efs HStep).
+    iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by (apply r_simple; eapply rs_return).
+    inversion H; subst; clear H.
+    rewrite Hval.
+    by iFrame.
+Qed.
+
+Lemma wp_return_frame (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f i lh:
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  (Φ (immV vs0) ⊢ WP (vs ++ [AI_basic BI_return]) @ s; E FRAME [::(n, f, i, lh)] {{ v, Φ v }}).
+Proof.
+  iIntros (Hval Hlen) "HΦ".
+  unfold wp_wasm_frame.
+  iIntros (LF Hframe).
+  inversion Hframe; subst; clear Hframe.
+  (* TODO: fix names *)
+  inversion H6; subst; clear H6.
+  by iApply wp_return.
+Qed.
+
+Definition frame_push_local (ls: lstack) n f := rcons ls (n, f, 0, LH_base [::] [::]).
+
+Lemma wp_frame_push_local (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) n f ls es:
+  WP es @ s; E FRAME (frame_push_local ls n f) {{ Φ }} ⊢
+  WP [AI_local n f es] @ s; E FRAME ls {{ Φ }}.
+Proof.
+  iIntros "Hwpf".
+  unfold wp_wasm_frame.
+  iIntros (LF HLF).
+  assert (lframe (rcons ls (n, f, 0, LH_base [::] [::])) es LF) as HLF'.
+  { move: ls n f es LF HLF.
+    induction ls => /=; move => n f es LF HLF.
+    { inversion HLF; subst; clear HLF.
+      repeat econstructor.
+      unfold lfilled, lfill => /=.
+      apply/eqP.
+      by rewrite app_nil_r.
+    }
+    inversion HLF; subst; clear HLF.
+    apply IHls in H1.
+    by eapply LframeRec; eauto.
+  }
+  by iSpecialize ("Hwpf" $! LF HLF').
+Qed.
+
+Fixpoint inner_frame (ls: lstack) : option frame :=
+  match ls with
+  | [::] => None
+  | [::(n, f, k, lh)] => Some f
+  | cf :: cs => inner_frame cs
+  end.
+
+Fixpoint update_inner_frame (ls: lstack) (f: frame) : option lstack :=
+  match ls with
+  | [::] => None
+  | [::(n, f', k, lh)] => Some [::(n, f, k, lh)]
+  | cf :: cs => match update_inner_frame cs f with
+              | Some ls' => Some (cf :: ls')
+              | None => None
+              end
+  end.
+
+Definition frame_interp (f: frame) : iProp Σ :=
+  ([∗ list] n ↦ v ∈ f.(f_locs), (N.of_nat n) ↦[wl] v) ∗ ( ↦[wi] f.(f_inst)).
+
+Print r_local.
+
+(* 
+  The main difference here is that, changes in frames (AI_local) have impact on the local variables from the aspect of the internal expression, which are part of the state -- while pushing a label has no such impact. 
+
+  We need to somehow account for this whenever we enter or leave a call frame. In particular, in both the 2nd and the 3rd premises, we need to give them resources of the locals and current instance -- whatever they produce, the corresponding modification needs to be made to the frame stored in the lstack construct. In some sense we're providing a wrapper for the internal instructions to execute.
+ *)
+Lemma wp_frame_induce (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (ls ls': lstack) (wf wf2 wf3: frame):
+  inner_frame ls = Some wf ->
+  update_inner_frame ls wf3 = Some ls' ->
+  ((¬ Ψ trapV) ∗
+    (frame_interp wf -∗
+     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf2 }}) ∗
+  (* (Ψ w -∗ 
+     ((([∗ list] n ↦ v ∈ new_frame.(f_locs), (N.of_nat n) ↦[wl] v) ∗
+      ( ↦[wi] new_frame.(f_inst))) -∗ *)
+  (∀ w, (Ψ w ∗ frame_interp wf2) -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ frame_interp wf3 }})
+  ⊢ WP es1 ++ es2 @ s; E FRAME ls {{ v, Φ v }})%I.
+Proof.
+Admitted.
 
 (* empty lists, frame and context rules *)
 
