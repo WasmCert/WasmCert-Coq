@@ -745,10 +745,8 @@ Definition val_combine (v1 v2 : val) :=
 (* Knowing hypothesis "Hred : objs -> _" (with frames (locs, inst) and (locs', inst')),
    attempts to exfalso away most of the possible ways Hred could hold, leaving the user
    with only the one possible desired case. Tactic will also attempt to trivially solve
-   this one case, but may give it to user if attempt fails. 
+   this one case, but may give it to user if attempt fails. *)
 
-   At this point, tactic only works if objs is a list of length exactly 2. Work is in
-   progress to refine this tactic so it would work on lists of any length *)
 (*
 Ltac only_one_reduction Hred objs locs inst locs' inst' :=
   let a := fresh "a" in
@@ -1506,8 +1504,12 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    Admitted. (* attempt at removing reduce_det, work in progress
     only_one_reduction H [AI_label n es LI] locs inst locs' inst'.
+    (* Here, only_one_reduction should've left some work for the user to do.
+       The following commented code is part of the work the user should have done
+       It will likely be used in the reduce_det lemma, in progress *)
+Qed.
+(*
     + simple_filled Hfill i lh bef aft n l l'.
       * found_intruse (AI_basic (BI_br 0)) Hfill Hxl1.
         -- by intruse_among_values vs0 Hxl1 H.
@@ -1543,7 +1545,7 @@ Proof.
           apply b2p in Hfill1.
           rewrite Hfill2 in Hfill1. do 2 rewrite <- app_assoc in Hfill1.
           rewrite app_assoc in Hfill1. rewrite (app_assoc bef1 _ _) in Hfill1.
-          apply first_values in Hfill1 as [Hvv _] ; try done ;
+          apply first_values in Hfill1 as [Hvv _] ; (try by left) ;
             try by unfold const_list ; rewrite forallb_app ; apply andb_true_iff.
           by apply app_inj_2 in Hvv as [_ ?]. }
         fold lfill in Hfill1. destruct lh1 ; first by false_assumption.
@@ -1552,7 +1554,7 @@ Proof.
         destruct (lfill i1 lh1 _) ; last by false_assumption.
         apply b2p in Hfill1. rewrite Hfill2 in Hfill1.
         rewrite <- app_assoc in Hfill1. rewrite app_assoc in Hfill1.
-        apply first_values in Hfill1 as [ _ Habs ] => //=.
+        apply first_values in Hfill1 as ( _ & Habs & _ ) => //= ; try by left.
         unfold const_list ; rewrite forallb_app ; by apply andb_true_iff. }
       fold lfill in Hfill2. 
       destruct lh2 as [| bef2 n2 l2 lh2 aft2] ; first by false_assumption.
@@ -1565,7 +1567,7 @@ Proof.
         remember (const_list bef1) as b ; destruct b ; last by false_assumption.
         apply b2p in Hfill1. rewrite Hfill2 in Hfill1.
         rewrite <- app_assoc in Hfill1. rewrite app_assoc in Hfill1.
-        apply first_values in Hfill1 as [ _ Habs ] => //=.
+        apply first_values in Hfill1 as ( _ & Habs & _ ) => //= ; try by left.
         unfold const_list ; rewrite forallb_app ; by apply andb_true_iff. }
       fold lfill in Hfill1.
       destruct lh1 as [| bef1 n1 l1 lh1 aft1] ; first by false_assumption.
@@ -1573,7 +1575,7 @@ Proof.
       remember (lfill i1 lh1 (vs0 ++ [AI_basic (BI_br i1')])) as les0.
       destruct les0 ; last by false_assumption.
       apply b2p in Hfill1. rewrite Hfill2 in Hfill1.
-      apply first_values in Hfill1 as [ Hl Hlab ] => //=.
+      apply first_values in Hfill1 as ( Hl & Hlab & _ ) => //= ; try by left.
       inversion Hlab ; subst.
       apply (IHn lh1 lh2 i1 i1' i2 i2' l0) => //=.
       unfold lfilled ; rewrite <- Heqles0 ; done.
@@ -1583,7 +1585,8 @@ Proof.
       rewrite Heq in Hlen. rewrite amount_of_labels_app in Hlen. simpl in Hlen.
       rewrite Nat.add_0_r in Hlen. rewrite <- Nat.add_succ_l in Hlen.
       fold (amount_of_labels l0) in Hlen. lia.
-    + iDestruct "Hσ" as "( ? & ? & ? & ? & ? & ? & ? )". iFrame. unfold lfilled in Hfill ; destruct i.
+    + iDestruct "Hσ" as "( ? & ? & ? & ? & ? & ? & ? )". iFrame.
+      unfold lfilled in Hfill ; destruct i.
       { unfold lfill in Hfill.
         destruct lh as [bef0 aft0|] ; last by false_assumption.
         remember (const_list bef0) as b eqn:Hbef0.
@@ -1601,15 +1604,11 @@ Proof.
                       remember (const_list bef1) as b eqn:Hbef1.
                       destruct b ; inversion Heqles.
                       unfold lfill in Heqles1.
-                      rewrite <- Hbef1 in Heqles1. inversion Heqles1.
-      
-      
-     
-      
-
+                      rewrite <- Hbef1 in Heqles1. inversion Heqles1.      
 
 
 Admitted. *)
+
 
       
 Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s :
