@@ -799,6 +799,155 @@ Proof.
   by move => [_ [-> ->]].
 Qed.
 
+Lemma append_reducible (es1 es2: list administrative_instruction) σ:
+  iris.to_val es1 = None ->
+  reducible es1 σ ->
+  reducible (es1 ++ es2) σ.
+Proof.
+  unfold reducible => /=.
+  move => Htv [κ [es' [σ' [efs HStep]]]].
+  exists κ, (es' ++ es2), σ', efs.
+  unfold iris.prim_step in * => //=.
+  destruct σ as [[[hs ws] locs] inst].
+  destruct σ' as [[[hs' ws'] locs'] inst'].
+  destruct HStep as [HStep [-> ->]].
+  repeat split => //.
+  by apply r_elimr.
+Qed.
+
+Lemma app_eq_singleton: ∀ T (l1 l2 : list T) (a : T),
+    l1 ++ l2 = [a] ->
+    (l1 = [a] ∧ l2 = []) ∨ (l1 = [] ∧ l2 = [a]).
+Proof.
+  move =>T.
+  elim.
+  move => l2 a Heq. right. by rewrite app_nil_l in Heq.
+  move => a l l2 a0 a1 Heq. inversion Heq;subst.
+  left. split. f_equiv.
+  all: destruct l, a0;try done.
+Qed.
+
+Lemma AI_trap_reducible es2 σ :
+  es2 ≠ [] -> 
+  reducible ([AI_trap] ++ es2) σ.
+Proof.
+  elim: es2;[done|].
+  move => a l IH _.
+  unfold reducible => /=.
+  unfold language.reducible.
+  exists [],[AI_trap],σ,[].
+  simpl. unfold iris.prim_step.
+  destruct σ as [[[hs ws] locs] inst].
+  repeat split;auto.
+  constructor. econstructor. auto.
+  instantiate (1:=LH_base [] (a :: l)).
+  unfold lfilled, lfill => //=.
+Qed.
+
+Lemma AI_trap_reducible_2 es1 σ :
+  es1 ≠ [] ->
+  const_list es1 ->
+  reducible (es1 ++ [AI_trap]) σ.
+Proof.
+  move => H H'.
+  unfold reducible => /=.
+  unfold language.reducible.
+  exists [],[AI_trap],σ,[].
+  simpl. unfold iris.prim_step.
+  destruct σ as [[[hs ws] locs] inst].
+  repeat split;auto.
+  constructor. econstructor.
+  destruct es1;auto.
+  intros Hcontr. inversion Hcontr.
+  destruct es1 => //=.
+  instantiate (1:=LH_base (es1) []).
+  unfold lfilled, lfill => //=.
+  by rewrite H'.
+Qed.
+
+Lemma rcons_eq (T: Type) (es1: list T) e1 es2 e2:
+  es1 ++ [e1] = es2 ++ [e2] ->
+  es1 = es2 /\ e1 = e2.
+Proof.
+  move: es2.
+  induction es1 => //; move => es2 H.
+  - destruct es2 => //=; first simpl in H; inversion H => //.
+    by destruct es2.
+  - destruct es2 => //=; first by destruct es1 => //.
+    inversion H; subst; clear H.
+    apply IHes1 in H2 as [-> ->].
+    split => //.
+Qed.
+
+Lemma AI_trap_irreducible hs ws f hs' ws' f' es':
+  reduce hs ws f [AI_trap] hs' ws' f' es' ->
+  False.
+Proof.
+  move => HReduce.
+  remember ([AI_trap]) as e.
+  induction HReduce => //=; subst; try by do 2 destruct vcs => //=.
+  - subst. inversion H; subst; clear H => //; by do 3 destruct vs => //=.
+  - move/lfilledP in H.
+    move/lfilledP in H0.
+    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
+    inversion H0; subst; clear H0.
+    destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
+    destruct es => /=; first by apply test_no_reduce0 in HReduce.
+    by destruct es, es'0 => //.
+Qed.
+    
+Lemma AI_trap_reduce_det v hs ws f hs' ws' f' es':
+  reduce hs ws f ([AI_basic (BI_const v); AI_trap]) hs' ws' f' es' ->
+  (hs', ws', f', es') = (hs, ws, f, [AI_trap]).
+Proof.
+  move => HReduce.
+  remember ([AI_basic (BI_const v); AI_trap]) as es0.
+  induction HReduce => //=; subst; try by do 3 destruct vcs => //=.
+  - inversion H; subst; clear H => //; by do 3 destruct vs => //=.
+  - move/lfilledP in H.
+    move/lfilledP in H0.
+    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
+    inversion H0; subst; clear H0.
+    destruct vs => /=.
+    + destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es => /=; simpl in H1; inversion H1; subst; clear H1; first by apply test_no_reduce1 in HReduce.
+      destruct es, es'0 => //=.
+      rewrite cats0.
+      by apply IHHReduce.
+    + destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
+      inversion H1; subst; clear H1.
+      destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es, es'0 => //.
+      inversion H2; subst.
+      by apply AI_trap_irreducible in HReduce.
+Qed.
+      
+Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
+  iris.to_val es1 = Some vs ->
+  reducible es2 σ ->
+  reducible (es1 ++ es2) σ.
+Proof.
+  destruct vs.
+  { unfold reducible => /=.
+    move => Htv [κ [es' [σ' [efs HStep]]]].
+    exists κ, (es1 ++ es'), σ', efs.
+    unfold iris.prim_step in * => //=.
+    destruct σ as [[[hs ws] locs] inst].
+    destruct σ' as [[[hs' ws'] locs'] inst'].
+    destruct HStep as [HStep [-> ->]].
+    repeat split => //.
+    apply r_eliml => //.
+    eapply to_val_const_list; eauto. }
+  { move => Ht [κ [es' [σ' [efs HStep]]]].
+    pose proof (to_val_trap_is_singleton Ht) as ->.
+    apply AI_trap_reducible.
+    rewrite /= /iris.prim_step in HStep.
+    destruct σ as [[[hs ws] locs] inst].
+    destruct σ' as [[[hs' ws'] locs'] inst'].
+    destruct HStep as [HStep [-> ->]].
+    by pose proof (reduce_not_nil HStep). }
+Qed.
+
 Lemma first_non_value es :
   iris.to_val es = None ->
   exists vs e es', const_list vs /\ (to_val [e] = None \/ e = AI_trap) /\ es = vs ++ e :: es'.
@@ -1330,10 +1479,10 @@ Qed.
 
 Lemma trap_reduce hs s f es hs' s' f' es' lh :
   lfilled 0 lh [AI_trap] es -> reduce hs s f es hs' s' f' es' ->
-  exists lh', lfilled 0 lh' [AI_trap] es'.
+  exists lh', lfilled 0 lh' [AI_trap] es' /\ (hs, s, f) = (hs', s', f').
 Proof.
   cut (forall n, length es < n -> lfilled 0 lh [AI_trap] es -> reduce hs s f es hs' s' f' es'
-            -> exists lh', lfilled 0 lh' [AI_trap] es').
+            -> exists lh', lfilled 0 lh' [AI_trap] es' /\ (hs, s, f) = (hs', s', f')).
   { intro Hn ; apply (Hn (S (length es))) ; lia. }
   intro n. generalize dependent es. generalize dependent es'. generalize dependent lh.
   induction n ; intros lh es' es Hlen Hfill Hred. inversion Hlen.
@@ -1387,7 +1536,7 @@ Proof.
                        { unfold lfilled, lfill ;
                            rewrite Hvs Hes ; rewrite <- Hetrap ; done. }
                        destruct (IHn (LH_base vs es'') es' es Hlenes Htrap Hred)
-                         as [lh' Hfill'].
+                         as (lh' & Hfill' & Hσ).
                        unfold lfilled, lfill in Hfill'.
                        destruct lh' ; last by false_assumption.
                        remember (const_list l) as b eqn:Hl ; destruct b ;
@@ -1408,7 +1557,7 @@ Proof.
         unfold lfilled, lfill ; simpl in Hbef1 ;
         apply Logic.eq_sym, andb_true_iff in Hbef1 as [_ Hbef1] ; rewrite Hbef1 => //=. }
     destruct (IHn _ (bef1 ++ es' ++ aft1) (bef1 ++ es ++ aft1) Hlen' Hfill' Hred') as
-      [lh' Htrap]. unfold lfilled, lfill in Htrap.
+      (lh' & Htrap & Hσ). unfold lfilled, lfill in Htrap.
     destruct lh' ; last by false_assumption.
     remember (const_list l) as b eqn:Hl ; destruct b ; last by false_assumption.
     apply b2p in Htrap. exists (LH_base (a :: l) l0).
@@ -1427,7 +1576,7 @@ Lemma reduce_ves: forall v es es' σ σ' efs obs,
     reducible es σ ->
     prim_step ([AI_basic (BI_const v)] ++ es) σ obs es' σ' efs ->
     (es' = [AI_basic (BI_const v)] ++ drop 1 es' /\ prim_step es σ obs (drop 1 es') σ' efs)
-      \/ (exists lh lh', lfilled 0 lh [AI_trap] es' /\ lfilled 0 lh' [AI_trap] es). (* prim_step es σ obs [AI_trap] σ' efs). *)
+      \/ (exists lh lh', lfilled 0 lh [AI_trap] es' /\ lfilled 0 lh' [AI_trap] es /\ σ = σ'). (* prim_step es σ obs [AI_trap] σ' efs). *)
 Proof.
   cut (forall n v es es' σ σ' efs obs,
           length es < n ->
@@ -1436,7 +1585,7 @@ Proof.
           (es' = [AI_basic (BI_const v)] ++ drop 1 es' /\
              prim_step es σ obs (drop 1 es') σ' efs)
           \/ (exists lh lh', lfilled 0 lh [AI_trap] es' /\
-                         lfilled 0 lh' [AI_trap] es)). (* prim_step es σ obs [AI_trap] σ' efs)). *)
+                         lfilled 0 lh' [AI_trap] es /\ σ = σ')). (* prim_step es σ obs [AI_trap] σ' efs)). *)
   { intros H v es es' σ σ' efs obs. apply (H (S (length es)) v es). lia. } 
   intro len. induction len.
   { intros v es es' σ σ' efs obs Habs ; inversion Habs. }
@@ -1506,7 +1655,8 @@ Proof.
       destruct l2 ; rewrite H0 in Heqves ; inversion Heqves as [[ Ha Hes ]].
       exists (LH_base l2 l3). split => //=.
       unfold lfilled, lfill.
-      by simpl in Hl2 ; apply Logic.eq_sym, andb_true_iff in Hl2 as [_ Hl2] ; rewrite Hl2.
+      simpl in Hl2 ; apply Logic.eq_sym, andb_true_iff in Hl2 as [_ Hl2] ; rewrite Hl2; subst; split => //.
+      by inversion Heqf0.
       (* rewrite <- Heqf0 ; rewrite <- Heqf. apply r_simple.
       apply (rs_trap (lh:= LH_base l2 l3)). intro Htrap ; rewrite Htrap in Hes.
       no_reduce Hes Hred0.
@@ -1633,7 +1783,11 @@ Proof.
         subst ; remember [AI_trap] as ev ; apply Logic.eq_sym in Heqev ;
           exfalso ; no_reduce Heqev Hred.
         apply app_eq_nil in Hes as [ Hes _].
-        subst ; empty_list_no_reduce Hred. }
+        subst ; empty_list_no_reduce Hred.
+        split => //.
+        apply AI_trap_reduce_det in Hred.
+        by inversion Hred; subst.
+      }
       rewrite <- Hes in H.
       destruct (prim_step_split_reduce_r _ _ _ _ _ _ _ (Logic.eq_sym Heqtv) H) as
         [ (es' & H1 & H2) | (n & m & lh & H1 & H2) ].
@@ -1645,7 +1799,7 @@ Proof.
         assert (length ces < len) as Hlences.
         rewrite <- Hes in Hlen. rewrite app_length in Hlen. simpl in Hlen ; lia.
         destruct (IHlen v ces ces' (hs,s,l,i) _ _ _ Hlences H0 H3) as
-          [[Hdrop Hstep] | (lh & lh' & Hfill & Hfill') ].
+          [[Hdrop Hstep] | (lh & lh' & Hfill & Hfill' & Hσ) ].
         { left. subst. repeat split => //=.
           rewrite Hdrop. rewrite <- app_assoc => //=.
           replace (drop 1 (ces' ++ (a0 :: aft)%SEQ)%list) with ((drop 1 ces') ++ a0 :: aft).
@@ -1656,7 +1810,7 @@ Proof.
           destruct ces' => //=. }
         { right. subst. unfold lfilled, lfill in Hfill, Hfill'.
           destruct lh ; last by false_assumption.
-          destruct lh' ; last by false_assumption.
+          destruct lh'; last by false_assumption.
           remember (const_list l1) as b eqn:Hl1 ; destruct b ; last by false_assumption.
           remember (const_list l3) as b eqn:Hl3 ; destruct b ; last by false_assumption.
           apply b2p in Hfill. apply b2p in Hfill'.
@@ -1671,14 +1825,16 @@ Proof.
       apply b2p in H2.
       assert (lfilled 0 (LH_base (a :: bef0) aft0) [AI_trap] (a::ces)) as Htrap.
       { subst. unfold lfilled, lfill => //=. by rewrite <- Hbef0. }
-      destruct (trap_reduce _ _ _ (a :: ces) _ _ _ ces' _ Htrap Hred) as [lh' Hfill'].
+      destruct (trap_reduce _ _ _ (a :: ces) _ _ _ ces' _ Htrap Hred) as (lh' & Hfill' & Hσ).
       unfold lfilled, lfill in Hfill'. destruct lh' ; last by false_assumption.
       remember (const_list l1) as b eqn:Hl1 ; destruct b ; last by false_assumption.
       apply b2p in Hfill'.
       exists (LH_base l1 (l2 ++ a0 :: aft)), (LH_base bef0 (aft0 ++ a0 :: aft)).
       split ; unfold lfilled, lfill => //=. rewrite <- Hl1. rewrite Hles'.
       rewrite Hfill'. simpl. by rewrite <- app_assoc.
-      rewrite <- Hbef0. rewrite H2. by rewrite <- app_assoc. }
+      rewrite <- Hbef0. rewrite H2. rewrite <- app_assoc. split => //.
+      by inversion Hσ; subst; inversion H5.
+    }
     inversion Heqves ; subst. left. repeat split => //=.
     unfold drop.
     apply (r_label (es:=ces) (es':=ces') (k:=0) (lh:=LH_base bef aft)) ; (try done) ;
@@ -1706,155 +1862,6 @@ Qed.
   
           
 
-
-Lemma append_reducible (es1 es2: list administrative_instruction) σ:
-  iris.to_val es1 = None ->
-  reducible es1 σ ->
-  reducible (es1 ++ es2) σ.
-Proof.
-  unfold reducible => /=.
-  move => Htv [κ [es' [σ' [efs HStep]]]].
-  exists κ, (es' ++ es2), σ', efs.
-  unfold iris.prim_step in * => //=.
-  destruct σ as [[[hs ws] locs] inst].
-  destruct σ' as [[[hs' ws'] locs'] inst'].
-  destruct HStep as [HStep [-> ->]].
-  repeat split => //.
-  by apply r_elimr.
-Qed.
-
-Lemma app_eq_singleton: ∀ T (l1 l2 : list T) (a : T),
-    l1 ++ l2 = [a] ->
-    (l1 = [a] ∧ l2 = []) ∨ (l1 = [] ∧ l2 = [a]).
-Proof.
-  move =>T.
-  elim.
-  move => l2 a Heq. right. by rewrite app_nil_l in Heq.
-  move => a l l2 a0 a1 Heq. inversion Heq;subst.
-  left. split. f_equiv.
-  all: destruct l, a0;try done.
-Qed.
-
-Lemma AI_trap_reducible es2 σ :
-  es2 ≠ [] -> 
-  reducible ([AI_trap] ++ es2) σ.
-Proof.
-  elim: es2;[done|].
-  move => a l IH _.
-  unfold reducible => /=.
-  unfold language.reducible.
-  exists [],[AI_trap],σ,[].
-  simpl. unfold iris.prim_step.
-  destruct σ as [[[hs ws] locs] inst].
-  repeat split;auto.
-  constructor. econstructor. auto.
-  instantiate (1:=LH_base [] (a :: l)).
-  unfold lfilled, lfill => //=.
-Qed.
-
-Lemma AI_trap_reducible_2 es1 σ :
-  es1 ≠ [] ->
-  const_list es1 ->
-  reducible (es1 ++ [AI_trap]) σ.
-Proof.
-  move => H H'.
-  unfold reducible => /=.
-  unfold language.reducible.
-  exists [],[AI_trap],σ,[].
-  simpl. unfold iris.prim_step.
-  destruct σ as [[[hs ws] locs] inst].
-  repeat split;auto.
-  constructor. econstructor.
-  destruct es1;auto.
-  intros Hcontr. inversion Hcontr.
-  destruct es1 => //=.
-  instantiate (1:=LH_base (es1) []).
-  unfold lfilled, lfill => //=.
-  by rewrite H'.
-Qed.
-
-Lemma rcons_eq (T: Type) (es1: list T) e1 es2 e2:
-  es1 ++ [e1] = es2 ++ [e2] ->
-  es1 = es2 /\ e1 = e2.
-Proof.
-  move: es2.
-  induction es1 => //; move => es2 H.
-  - destruct es2 => //=; first simpl in H; inversion H => //.
-    by destruct es2.
-  - destruct es2 => //=; first by destruct es1 => //.
-    inversion H; subst; clear H.
-    apply IHes1 in H2 as [-> ->].
-    split => //.
-Qed.
-
-Lemma AI_trap_irreducible hs ws f hs' ws' f' es':
-  reduce hs ws f [AI_trap] hs' ws' f' es' ->
-  False.
-Proof.
-  move => HReduce.
-  remember ([AI_trap]) as e.
-  induction HReduce => //=; subst; try by do 2 destruct vcs => //=.
-  - subst. inversion H; subst; clear H => //; by do 3 destruct vs => //=.
-  - move/lfilledP in H.
-    move/lfilledP in H0.
-    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
-    inversion H0; subst; clear H0.
-    destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
-    destruct es => /=; first by apply test_no_reduce0 in HReduce.
-    by destruct es, es'0 => //.
-Qed.
-    
-Lemma AI_trap_reduce_det v hs ws f hs' ws' f' es':
-  reduce hs ws f ([AI_basic (BI_const v); AI_trap]) hs' ws' f' es' ->
-  (hs', ws', f', es') = (hs, ws, f, [AI_trap]).
-Proof.
-  move => HReduce.
-  remember ([AI_basic (BI_const v); AI_trap]) as es0.
-  induction HReduce => //=; subst; try by do 3 destruct vcs => //=.
-  - inversion H; subst; clear H => //; by do 3 destruct vs => //=.
-  - move/lfilledP in H.
-    move/lfilledP in H0.
-    inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
-    inversion H0; subst; clear H0.
-    destruct vs => /=.
-    + destruct es => /=; first by apply test_no_reduce0 in HReduce.
-      destruct es => /=; simpl in H1; inversion H1; subst; clear H1; first by apply test_no_reduce1 in HReduce.
-      destruct es, es'0 => //=.
-      rewrite cats0.
-      by apply IHHReduce.
-    + destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
-      inversion H1; subst; clear H1.
-      destruct es => /=; first by apply test_no_reduce0 in HReduce.
-      destruct es, es'0 => //.
-      inversion H2; subst.
-      by apply AI_trap_irreducible in HReduce.
-Qed.
-      
-Lemma prepend_reducible (es1 es2: list administrative_instruction) vs σ:
-  iris.to_val es1 = Some vs ->
-  reducible es2 σ ->
-  reducible (es1 ++ es2) σ.
-Proof.
-  destruct vs.
-  { unfold reducible => /=.
-    move => Htv [κ [es' [σ' [efs HStep]]]].
-    exists κ, (es1 ++ es'), σ', efs.
-    unfold iris.prim_step in * => //=.
-    destruct σ as [[[hs ws] locs] inst].
-    destruct σ' as [[[hs' ws'] locs'] inst'].
-    destruct HStep as [HStep [-> ->]].
-    repeat split => //.
-    apply r_eliml => //.
-    eapply to_val_const_list; eauto. }
-  { move => Ht [κ [es' [σ' [efs HStep]]]].
-    pose proof (to_val_trap_is_singleton Ht) as ->.
-    apply AI_trap_reducible.
-    rewrite /= /iris.prim_step in HStep.
-    destruct σ as [[[hs ws] locs] inst].
-    destruct σ' as [[[hs' ws'] locs'] inst'].
-    destruct HStep as [HStep [-> ->]].
-    by pose proof (reduce_not_nil HStep). }
-Qed.
 
 Lemma filled_is_val_imm : ∀ i lh es LI vals,
   iris.to_val LI = Some (immV vals) ->
