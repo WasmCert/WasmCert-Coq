@@ -245,8 +245,7 @@ Notation "'WP' e 'CTX' i ; lh ? {{ v , Q } }" := (wp_wasm MaybeStuck ⊤ e%E (λ
   (at level 20, e, Q, lh at level 200,
    format "'[hv' 'WP'  e '/' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' ? {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 
-
-
+(*
 Definition lstack : Type := list (nat * frame * nat * lholed).
 
 Inductive lframe: lstack -> list administrative_instruction -> list administrative_instruction -> Prop :=
@@ -256,19 +255,19 @@ Inductive lframe: lstack -> list administrative_instruction -> list administrati
     lframe ls es es' ->
     lfilled k lh es' LI ->
     lframe ((n,f,k,lh)::ls) es [AI_local n f LI].
-
+ *)
 
 Definition wp_wasm_frame `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !winstG Σ, !wlocsG Σ}
           (s : stuckness) (E : coPset) (es : language.expr wasm_lang)
-          (Φ : val -> iProp Σ) (ls : lstack) : iProp Σ :=
-  ∀ LF, ⌜ lframe ls es LF ⌝ -∗ (WP LF @ s; E {{ Φ }})%I.
+          (Φ : val -> iProp Σ) (n: nat) (f: frame) : iProp Σ :=
+  WP [AI_local n f es] @ s; E {{ Φ }}.
 
-Notation "'WP' e @ s ; E 'FRAME' ls {{ Φ } }" := (wp_wasm_frame s E e%E Φ ls)
+Notation "'WP' e @ s ; E 'FRAME' n ; f {{ Φ } }" := (wp_wasm_frame s E e%E Φ n f)
   (at level 20, only parsing) : bi_scope.
 
-Notation "'WP' e @ s ; E 'FRAME' ls {{ v , Q } }" := (wp_wasm_frame s E e%E (λ v, Q) ls)
-  (at level 20, e, Q, ls at level 200,
-   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' 'FRAME'  '/' '[' ls ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'WP' e @ s ; E 'FRAME' n ; f {{ v , Q } }" := (wp_wasm_frame s E e%E (λ v, Q) n f)
+  (at level 20, e, Q, n, f at level 200,
+   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' 'FRAME'  '/' '[' n ; f ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 
 (* wp for instructions *)
 
@@ -292,118 +291,6 @@ Definition mem_block_equiv (m1 m2: memory) :=
 Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
                         (at level 70, format "m1 ≡ₘ m2").
 
-
-(* Frame rules attempt *)
-
-Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f i lh:
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  lfilled i lh (vs ++ [AI_basic BI_return]) es ->
-  (Φ (immV vs0) ⊢ WP [AI_local n f es] @ s; E {{ v, Φ v }})%I.
-Proof.
-  iIntros (Hval Hlen Hlf) "HΦ".
-  iApply wp_lift_atomic_step => //=.
-  iIntros (σ ns κ κs nt) "Hσ !>".
-  assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
-  iSplit.
-  - iPureIntro. destruct s => //=.
-    unfold language.reducible, language.prim_step => /=.
-    exists [], vs, σ, [].
-    destruct σ as [[[hs ws] locs] inst].
-    unfold iris.prim_step => /=.
-    repeat split => //.
-    constructor. econstructor =>//.
-  - destruct σ as [[[hs ws] locs] inst] => //=.
-    iModIntro.
-    iIntros (es1 σ2 efs HStep).
-    iModIntro.
-    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
-    destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by (apply r_simple; eapply rs_return).
-    inversion H; subst; clear H.
-    rewrite Hval.
-    by iFrame.
-Qed.
-
-Lemma wp_return_frame (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f i lh:
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  (Φ (immV vs0) ⊢ WP (vs ++ [AI_basic BI_return]) @ s; E FRAME [::(n, f, i, lh)] {{ v, Φ v }}).
-Proof.
-  iIntros (Hval Hlen) "HΦ".
-  unfold wp_wasm_frame.
-  iIntros (LF Hframe).
-  inversion Hframe; subst; clear Hframe.
-  (* TODO: fix names *)
-  inversion H6; subst; clear H6.
-  by iApply wp_return.
-Qed.
-
-Definition frame_push_local (ls: lstack) n f := rcons ls (n, f, 0, LH_base [::] [::]).
-
-Lemma wp_frame_push_local (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) n f ls es:
-  WP es @ s; E FRAME (frame_push_local ls n f) {{ Φ }} ⊢
-  WP [AI_local n f es] @ s; E FRAME ls {{ Φ }}.
-Proof.
-  iIntros "Hwpf".
-  unfold wp_wasm_frame.
-  iIntros (LF HLF).
-  assert (lframe (rcons ls (n, f, 0, LH_base [::] [::])) es LF) as HLF'.
-  { move: ls n f es LF HLF.
-    induction ls => /=; move => n f es LF HLF.
-    { inversion HLF; subst; clear HLF.
-      repeat econstructor.
-      unfold lfilled, lfill => /=.
-      apply/eqP.
-      by rewrite app_nil_r.
-    }
-    inversion HLF; subst; clear HLF.
-    apply IHls in H1.
-    by eapply LframeRec; eauto.
-  }
-  by iSpecialize ("Hwpf" $! LF HLF').
-Qed.
-
-Fixpoint inner_frame (ls: lstack) : option frame :=
-  match ls with
-  | [::] => None
-  | [::(n, f, k, lh)] => Some f
-  | cf :: cs => inner_frame cs
-  end.
-
-Fixpoint update_inner_frame (ls: lstack) (f: frame) : option lstack :=
-  match ls with
-  | [::] => None
-  | [::(n, f', k, lh)] => Some [::(n, f, k, lh)]
-  | cf :: cs => match update_inner_frame cs f with
-              | Some ls' => Some (cf :: ls')
-              | None => None
-              end
-  end.
-
-Definition frame_interp (f: frame) : iProp Σ :=
-  ([∗ list] n ↦ v ∈ f.(f_locs), (N.of_nat n) ↦[wl] v) ∗ ( ↦[wi] f.(f_inst)).
-
-Print r_local.
-
-(* 
-  The main difference here is that, changes in frames (AI_local) have impact on the local variables from the aspect of the internal expression, which are part of the state -- while pushing a label has no such impact. 
-
-  We need to somehow account for this whenever we enter or leave a call frame. In particular, in both the 2nd and the 3rd premises, we need to give them resources of the locals and current instance -- whatever they produce, the corresponding modification needs to be made to the frame stored in the lstack construct. In some sense we're providing a wrapper for the internal instructions to execute.
- *)
-Lemma wp_frame_induce (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (ls ls': lstack) (wf wf2 wf3: frame):
-  inner_frame ls = Some wf ->
-  update_inner_frame ls wf3 = Some ls' ->
-  ((¬ Ψ trapV) ∗
-    (frame_interp wf -∗
-     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf2 }}) ∗
-  (* (Ψ w -∗ 
-     ((([∗ list] n ↦ v ∈ new_frame.(f_locs), (N.of_nat n) ↦[wl] v) ∗
-      ( ↦[wi] new_frame.(f_inst))) -∗ *)
-  (∀ w, (Ψ w ∗ frame_interp wf2) -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ frame_interp wf3 }})
-  ⊢ WP es1 ++ es2 @ s; E FRAME ls {{ v, Φ v }})%I.
-Proof.
-Admitted.
 
 (* empty lists, frame and context rules *)
 
@@ -2275,11 +2162,123 @@ Qed.
    is always the outermost layer! so current ctxWP does not work for that reason.
 *)
 
-                      
-Lemma wp_return: False.
+(* Frame rules attempt *)
+
+Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f i lh:
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) es ->
+  (Φ (immV vs0) ⊢ WP [AI_local n f es] @ s; E {{ v, Φ v }})%I.
+Proof.
+  iIntros (Hval Hlen Hlf) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
+  iSplit.
+  - iPureIntro. destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    exists [], vs, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    constructor. econstructor =>//.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iModIntro.
+    iIntros (es1 σ2 efs HStep).
+    iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H; last by (apply r_simple; eapply rs_return).
+    inversion H; subst; clear H.
+    rewrite Hval.
+    by iFrame.
+Qed.
+
+Lemma wp_return_frame (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f i lh LI:
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) LI -> 
+  (Φ (immV vs0) ⊢ WP LI @ s; E FRAME n ; f {{ v, Φ v }}).
+Proof.
+  iIntros (Hval Hlen Hlf) "HΦ".
+  by iApply wp_return.
+Qed.
+(*
+Definition frame_push_local (ls: lstack) n f := rcons ls (n, f, 0, LH_base [::] [::]).
+ *)
+(*
+Fixpoint inner_frame (ls: lstack) : option frame :=
+  match ls with
+  | [::] => None
+  | [::(n, f, k, lh)] => Some f
+  | cf :: cs => inner_frame cs
+  end.
+
+Fixpoint update_inner_frame (ls: lstack) (f: frame) : option lstack :=
+  match ls with
+  | [::] => None
+  | [::(n, f', k, lh)] => Some [::(n, f, k, lh)]
+  | cf :: cs => match update_inner_frame cs f with
+              | Some ls' => Some (cf :: ls')
+              | None => None
+              end
+  end.
+*)
+
+Definition frame_interp (f: frame) : iProp Σ :=
+  ([∗ list] n ↦ v ∈ f.(f_locs), (N.of_nat n) ↦[wl] v) ∗ ( ↦[wi] f.(f_inst)).
+
+(* 
+  The main difference here is that, changes in frames (AI_local) have impact on the local variables from the aspect of the internal expression, which are part of the state -- while pushing a label has no such impact. 
+
+  We need to somehow account for this whenever we enter or leave a call frame. In particular, in both the 2nd and the 3rd premises, we need to give them resources of the locals and current instance -- whatever they produce, the corresponding modification needs to be made to the frame stored in the lstack construct. In some sense we're providing a wrapper for the internal instructions to execute.
+ *)
+
+(* Firstly, we could enter a local frame by temporarily forget about the current frame and construct the new frame 
+   resources in place. 
+
+   We ensure that no frame resources from inside is leaked to the outer frame by forcing the inner frame information 
+   to be separated by (frame_interp f'); the requirement that f' has the same number of locals guarantee that no local
+   variable inside the frame could escape from the frame.
+   
+
+*)
+Lemma wp_frame_push_local (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) n f f' es:
+  length f.(f_locs) = length f'.(f_locs) ->
+  ((*frame_interp f -∗ *)WP es @ NotStuck; E {{ v, Φ v ∗ frame_interp f' }}) ⊢
+  WP es @ s; E FRAME n ; f {{ v, Φ v }}.
+Proof.
+  iLöb as "IH" forall (s E es Φ n f f').
+  iIntros (Hflen) "Hwpf".
+  unfold wp_wasm_frame.
+  repeat rewrite wp_unfold /wp_pre /=.
+  iIntros (σ1 ????) "Hσ".
+  destruct σ1 as [[[hs s1] locs] inst].
+  iApply fupd_mask_intro; first by solve_ndisj.
+  iIntros "Hmask".
+  iSplit.
+  { destruct s => //=.
+    destruct (iris.to_val es) eqn:Hes.
+    admit.
+    admit.
+  }
+Admitted.
+
+Lemma wp_frame_induce (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (ls ls': lstack) (wf wf2 wf3: frame):
+  inner_frame ls = Some wf ->
+  update_inner_frame ls wf3 = Some ls' ->
+  ((¬ Ψ trapV) ∗
+    (frame_interp wf -∗
+     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf2 }}) ∗
+  (* (Ψ w -∗ 
+     ((([∗ list] n ↦ v ∈ new_frame.(f_locs), (N.of_nat n) ↦[wl] v) ∗
+      ( ↦[wi] new_frame.(f_inst))) -∗ *)
+  (∀ w, (Ψ w ∗ frame_interp wf2) -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ frame_interp wf3 }})
+  ⊢ WP es1 ++ es2 @ s; E FRAME ls {{ v, Φ v }})%I.
 Proof.
 Admitted.
 
+                      
 
 
 
