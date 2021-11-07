@@ -2192,6 +2192,9 @@ Qed.
 
 (* Frame rules attempt *)
 
+Definition frame_interp (f: frame) : iProp Σ :=
+  ([∗ list] n ↦ v ∈ f.(f_locs), (N.of_nat n) ↦[wl] v) ∗ ( ↦[wi] f.(f_inst)).
+
 Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f i lh:
   iris.to_val vs = Some (immV vs0) ->
   length vs = n ->
@@ -2231,6 +2234,29 @@ Proof.
   iIntros (Hval Hlen Hlf) "HΦ".
   by iApply wp_return.
 Qed.
+
+(*
+  The major problem is, even if we have the knowledge that the inner instruction
+  *could* execute and return some desired result given an appropriate frame 
+  resource wf, how do we actually *produce* that resource from the current state, 
+  even temporarily, to extract information from that knowledge? Resources cannot be 
+  crafted from thin air.
+ *)
+
+Lemma wp_seq_frame (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (wf wf2 wf3: frame) (n: nat):
+  ((¬ Ψ trapV) ∗
+    (frame_interp wf -∗
+     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf2 }}) ∗
+  (∀ w, (Ψ w ∗ frame_interp wf2) -∗ WP (iris.of_val w ++ es2) @ s; E FRAME n; wf2 {{ v, Φ v ∗ frame_interp wf3 }})
+  ⊢ WP es1 ++ es2 @ s; E FRAME n; wf {{ v, Φ v }})%I.
+Proof.
+  iLöb as "IH" forall (s E es1 es2 Φ Ψ wf wf2 wf3 n).
+  iIntros "(Hntrap & Hes1 & Hes2)".
+  repeat rewrite wp_unfold /wp_pre /=.
+
+Admitted.
+
+                      
 (*
 Definition frame_push_local (ls: lstack) n f := rcons ls (n, f, 0, LH_base [::] [::]).
  *)
@@ -2253,8 +2279,6 @@ Fixpoint update_inner_frame (ls: lstack) (f: frame) : option lstack :=
   end.
 *)
 
-Definition frame_interp (f: frame) : iProp Σ :=
-  ([∗ list] n ↦ v ∈ f.(f_locs), (N.of_nat n) ↦[wl] v) ∗ ( ↦[wi] f.(f_inst)).
 
 (* 
   The main difference here is that, changes in frames (AI_local) have impact on the local variables from the aspect of the internal expression, which are part of the state -- while pushing a label has no such impact. 
@@ -2271,50 +2295,34 @@ Definition frame_interp (f: frame) : iProp Σ :=
    
 
 *)
-Lemma wp_frame_push_local (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) n f f' es:
-  length f.(f_locs) = length f'.(f_locs) ->
-  ((*frame_interp f -∗ *)WP es @ NotStuck; E {{ v, Φ v ∗ frame_interp f' }}) ⊢
-  WP es @ s; E FRAME n ; f {{ v, Φ v }}.
+Lemma wp_frame_push_local (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) n f n0 f0 es:
+  (*  length f.(f_locs) = length f'.(f_locs) -> *)
+  WP es @ NotStuck; E FRAME n ; f {{ v, Φ v }} ⊢
+  WP [AI_local n f es] @ s; E FRAME n0 ; f0 {{ v, Φ v }}.
 Proof.
-  iLöb as "IH" forall (s E es Φ n f f').
-  iIntros (Hflen) "Hwpf".
+  iLöb as "IH" forall (s E es Φ n f n0 f0).
+  iIntros "Hwp".
   unfold wp_wasm_frame.
   repeat rewrite wp_unfold /wp_pre /=.
-  iIntros (σ1 ????) "Hσ".
-  destruct σ1 as [[[hs s1] locs] inst].
+  iIntros (σ ????) "Hσ".
+  destruct σ as [[[hs ws] locs] inst].
   iApply fupd_mask_intro; first by solve_ndisj.
   iIntros "Hmask".
   iSplit.
   { destruct s => //=.
-    destruct (iris.to_val es) eqn:Hes.
-    admit.
+    iSpecialize ("Hwp" $! (hs, ws, locs, inst) ns κ κs nt with "Hσ").
+    iPureIntro.
+    econstructor.
+    eexists.
+    (* This will not work, instead it's just for observation. *)
+    exists (hs, ws, locs, inst), [].
+    unfold language.prim_step => /=.
+    repeat split => //.
+    apply r_local.
     admit.
   }
 Admitted.
 
-(*
-  The major problem is, even if we have the knowledge that the inner instruction
-  *could* execute and return some desired result given an appropriate frame 
-  resource, how do we actually *produce* that resource from the current state, 
-  even temporariliy, to acquire that knowledge? Resources cannot be crafted
-  from thin air.
- *)
-(*
-Lemma wp_frame_induce (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (ls ls': lstack) (wf wf2 wf3: frame):
-  inner_frame ls = Some wf ->
-  update_inner_frame ls wf3 = Some ls' ->
-  ((¬ Ψ trapV) ∗
-    (frame_interp wf -∗
-     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf2 }}) ∗
-  (* (Ψ w -∗ 
-     ((([∗ list] n ↦ v ∈ new_frame.(f_locs), (N.of_nat n) ↦[wl] v) ∗
-      ( ↦[wi] new_frame.(f_inst))) -∗ *)
-  (∀ w, (Ψ w ∗ frame_interp wf2) -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ frame_interp wf3 }})
-  ⊢ WP es1 ++ es2 @ s; E FRAME ls {{ v, Φ v }})%I.
-Proof.
-Admitted.
-*)
-                      
 
 
 
