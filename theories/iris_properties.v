@@ -1684,12 +1684,12 @@ Proof.
     apply (r_label (es:=ces) (es':=ces') (k:=0) (lh:=LH_base bef aft)) ; (try done) ;
       unfold lfilled, lfill ; simpl in Hbef ; rewrite <- Hbef => //=. }
   fold lfill in Hles. destruct lh ; first by false_assumption.
-  remember (const_list l1) as b. destruct b ; [| exfalso ; false_assumption].
-  remember (lfill k lh ces) as filled.
-  destruct filled ; [| exfalso ; false_assumption ].
+  remember (const_list l1) as b ; destruct b ; last by false_assumption.
+  remember (lfill k lh ces) as filled ;
+    destruct filled ; last by false_assumption.
   apply b2p in Hles. unfold lfilled, lfill in Hles'. fold lfill in Hles'.
   rewrite <- Heqb in Hles'. remember (lfill k lh ces') as filled'.
-  destruct filled' ; [| exfalso ; false_assumption ].
+  destruct filled' ; last by false_assumption.
   apply b2p in Hles'. rewrite Hles in Heqves.
   destruct l1 ; inversion Heqves as [[ Ha Hes ]].
   rewrite Hles'. rewrite Ha. simpl. unfold drop.
