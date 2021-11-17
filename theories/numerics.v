@@ -31,7 +31,7 @@ Coercion Z.of_nat : nat >-> Z.
   These are typically used in the specification to convert to and
   from list lengths and other computed values:
   - [int_of_Z] converts a [Z] into [int_t].  The number is considered
-    modulo the maximum representable interger.  It doesn’t matter
+    modulo the maximum representable integer.  It doesn’t matter
     whether the number is meant to be considered as signed or unsigned,
     as both would return the same representation: signedness is only
     important when interpreting the stored integer, not when converting
@@ -921,7 +921,8 @@ Definition ixor : T -> T -> T := xor.
 
 (** Return the result of shifting left the first number by the second. **)
 Definition ishl (i1 i2 : T) : T :=
-(* TODO: We would like to better the specification here.  Something like:
+(* TODO: We could slightly improve the specification here to make it closer to the Wasm specification.
+Something like:
 [[
   let: k := (unsigned i1 mod wordsize)%Z in
   shl k i2.
