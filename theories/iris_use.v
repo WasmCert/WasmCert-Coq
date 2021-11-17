@@ -103,6 +103,11 @@ Class wlocsG Σ := WLocsG {
 Class winstG Σ := WInstG {
   inst_invG: invG Σ;
   inst_gen_hsG :> gen_heapG unit instance Σ;
+                    }.
+
+Class wloclenG Σ := WLoclenG {
+  loclen_invG: invG Σ;
+  loclen_gen_hsG :> gen_heapG unit N Σ;
 }.
  
 
@@ -130,6 +135,8 @@ Notation "n ↦[wl] v" := (mapsto (L:=N) (V:=value) n (DfracOwn 1) v%V)
                            (at level 20, format "n ↦[wl] v") : bi_scope.
 Notation " ↦[wi] v" := (mapsto (L:=unit) (V:=instance) tt (DfracOwn 1) v%V)
                          (at level 20, format " ↦[wi] v") : bi_scope.
+Notation " ↦[wloclen] v" := (mapsto (L:=unit) (V:=N) tt (DfracOwn 1) v%V)
+                         (at level 20, format " ↦[wloclen] v") : bi_scope.
  
 Definition proph_id := positive. (* ??? *)
 
@@ -167,7 +174,7 @@ Proof. decidable_equality. Qed.
 
 
 (* TODO: Global Instance doesn't seem to actually make this global... *)
-Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, (*wstackG Σ *) !wlocsG Σ, !winstG Σ} : irisG wasm_lang Σ := {
+Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, (*wstackG Σ *) !wlocsG Σ, !winstG Σ, !wloclenG Σ} : irisG wasm_lang Σ := {
   iris_invG := func_invG; (* Check: do we actually need this? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -176,7 +183,8 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
       (gen_heap_interp (gmap_of_list s.(s_globals)) ∗
       (gen_heap_interp (gmap_of_list locs)) ∗
-      (gen_heap_interp (<[tt := inst]> ∅)) ∗
+      (gen_heap_interp (<[tt := inst]> (∅: gmap unit instance))) ∗
+      (gen_heap_interp (<[tt := length locs]> (∅: gmap unit N))) ∗
     (*  (gen_heap_interp (<[tt := [ {| f_locs := locs; f_inst := inst |}]]> ∅)) ∗*)
       (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems))))
       )
@@ -2195,6 +2203,13 @@ Qed.
 Definition frame_interp (f: frame) : iProp Σ :=
   ([∗ list] n ↦ v ∈ f.(f_locs), (N.of_nat n) ↦[wl] v) ∗ ( ↦[wi] f.(f_inst)).
 
+Lemma wp_frame_rewrite (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es n f:
+  WP es @ s; E FRAME n; f {{ v, Φ v }} ⊢
+  WP [AI_local n f es] @ s; E {{ v, Φ v }}.
+Proof.
+  trivial.
+Qed.
+  
 Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f i lh:
   iris.to_val vs = Some (immV vs0) ->
   length vs = n ->
@@ -2225,7 +2240,7 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma wp_return_frame (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f i lh LI:
+Lemma wp_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f i lh LI:
   iris.to_val vs = Some (immV vs0) ->
   length vs = n ->
   lfilled i lh (vs ++ [AI_basic BI_return]) LI -> 
@@ -2235,26 +2250,154 @@ Proof.
   by iApply wp_return.
 Qed.
 
+From iris.base_logic.lib Require Import ghost_map own.
+
+Lemma mapsto_wand_agree l v1 v2:
+  (mapsto l (DfracOwn 1) v1 -∗ mapsto l (DfracOwn 1) v2) ⊢
+  ⌜ v1 = v2 ⌝.
+Proof.
+  rewrite mapsto_eq /mapsto_def.
+  rewrite ghost_map_elem_eq /ghost_map_elem_def.
+  rewrite own.own_eq /own.own_def.
+  Search uPred_ownM.
+Admitted.
+
+Lemma frame_interp_length_equiv wf1 wf2:
+  length wf1.(f_locs) = length wf2.(f_locs) ->
+  (□(frame_interp wf1 -∗ frame_interp wf2)) ⊢
+  ⌜wf1 = wf2⌝.
+Proof.
+  move => Hflen.
+  iIntros "#Hf".
+  unfold frame_interp.
+  destruct wf1, wf2 => /=.
+  simpl in Hflen.
+Admitted.
+
+Lemma frame_interp_exclusive P Q wf1 wf2:
+  length wf1.(f_locs) = length wf2.(f_locs) ->
+  (□((P ∗ frame_interp wf1) -∗ (Q ∗ frame_interp wf2))) ⊢
+  (P -∗ Q) ∗ ⌜wf1 = wf2⌝.
+Proof.
+  move => Hflen.
+  iIntros "#H".
+  iSplit.
+  - iIntros "P".
+    unfold frame_interp.
+Admitted.
+
 (*
+  This is completely hopeless unless we make Return a value.
+
+Lemma wp_frame_pop (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es n f0 wf1 wf2 (P: iProp Σ):
+  ⊢(□ ((P ∗ frame_interp wf1) -∗ WP es @ s; E {{ v, Φ v ∗ frame_interp wf2 }} )) ∗-∗
+   (□ ((P ∗ frame_interp f0) -∗ WP es @ s; E FRAME n; wf1 {{ v, Φ v ∗ frame_interp f0 }}))%I.
+Proof.
+  iSplit.
+  - iIntros "#Hwp !> (P & Hf)".
+    unfold wp_wasm_frame.
+    repeat rewrite wp_unfold /wp_pre /=.
+    destruct (iris.to_val es) eqn:Hes.
+    { apply iris.of_to_val in Hes as <-.
+    
+Admitted.
+ *)
+
+(*
+  The first thing to prove is that, reductions induced by r_local does not 
+  depend on the frame resource.
+
   The major problem is, even if we have the knowledge that the inner instruction
   *could* execute and return some desired result given an appropriate frame 
   resource wf, how do we actually *produce* that resource from the current state, 
-  even temporarily, to extract information from that knowledge? Resources cannot be 
-  crafted from thin air.
+  even temporarily, to extract information from that knowledge? Resources cannot 
+  be crafted from thin air.
+
+  This is the main problem of having knowledge of triples stored as WPs -- how
+  could we extract the information stored in them?
+*)
+Lemma wp_frame_replace (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es n f0 f0' wf (P: iProp Σ):
+  (□((P ∗ frame_interp f0) -∗ WP es @ s; E FRAME n; wf {{ v, Φ v ∗ frame_interp f0 }})) ⊢
+  (□((P ∗ frame_interp f0') -∗ WP es @ s; E FRAME n; wf {{ v, Φ v ∗ frame_interp f0' }})).
+Proof.
+  iIntros "#Hwp !> (P & Hf)".
+  unfold wp_wasm_frame.
+  repeat rewrite wp_unfold /wp_pre /=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_mask_intro; first by solve_ndisj.
+  iIntros "Hmask".
+  iSplit.
+  - destruct s => //.
+  Admitted.
+(*
  *)
 
-Lemma wp_seq_frame (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (wf wf2 wf3: frame) (n: nat):
+(*
+  The sequence rule for AI_local, like wp_seq_ctx for AI_label.
+  However, this is much more complicated:
+  - we're not remembering the entire call stack in the WP assertion, so there's
+    some deductions required;
+  - resources for the frame need to be create in-place for the instructions
+    inside the frame.
+*)
+Lemma wp_frame_seq (s: stuckness) (E: coPset) (Φ Ψ: val -> iProp Σ) (es1 es2: language.expr wasm_lang) (f0 wf wf': frame) (n: nat) (P: iProp Σ):
+  length wf.(f_locs) = length wf'.(f_locs) ->
   ((¬ Ψ trapV) ∗
-    (frame_interp wf -∗
-     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf2 }}) ∗
-  (∀ w, (Ψ w ∗ frame_interp wf2) -∗ WP (iris.of_val w ++ es2) @ s; E FRAME n; wf2 {{ v, Φ v ∗ frame_interp wf3 }})
-  ⊢ WP es1 ++ es2 @ s; E FRAME n; wf {{ v, Φ v }})%I.
+    ((P ∗ frame_interp wf) -∗
+     WP es1 @ NotStuck; E {{ w, Ψ w ∗ frame_interp wf' }}) ∗
+  (∀ w, (Ψ w ∗ frame_interp f0) -∗ WP (iris.of_val w ++ es2) @ s; E FRAME n; wf' {{ v, Φ v ∗ frame_interp f0 }})
+  ⊢ (P ∗ frame_interp f0) -∗ WP es1 ++ es2 @ s; E FRAME n; wf {{ v, Φ v ∗ frame_interp f0 }})%I.
 Proof.
-  iLöb as "IH" forall (s E es1 es2 Φ Ψ wf wf2 wf3 n).
-  iIntros "(Hntrap & Hes1 & Hes2)".
+  iLöb as "IH" forall (s E es1 es2 Φ Ψ f0 wf wf' n P).
+  iIntros (Hflen) "(Hntrap & Hes1 & Hes2)".
+  iIntros "(HP & Hf0)".
+  Print gen_heap_alloc.
+  unfold wp_wasm_frame.
   repeat rewrite wp_unfold /wp_pre /=.
-
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct (iris.to_val es1) eqn:Hes1.
+  { apply iris.of_to_val in Hes1 as <-.
 Admitted.
+
+Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
+Definition xb b := (VAL_int32 (wasm_bool b)).
+
+Definition my_add : expr :=
+  [AI_basic (BI_const (xx 3));
+     AI_basic (BI_const (xx 2));
+  AI_basic (BI_binop T_i32 (Binop_i BOI_add))].
+
+Lemma frame_ex1 f f0 s E:
+  frame_interp f ⊢ WP [AI_local 1 f0 (my_add ++ [AI_basic BI_return])] @ s; E {{ v, ⌜ v = immV [xx 5] ⌝ ∗ frame_interp f }}.
+Proof.
+  iIntros "Hf".
+  iApply wp_frame_rewrite.
+  iApply wp_frame_seq => //.
+  instantiate (1 := fun x => (⌜ x = immV [xx 5] ⌝)%I).
+  instantiate (1 := (emp)%I).
+  2: { by iFrame. }
+  iSplit; first trivial.
+  iSplitL.
+  - iIntros "[_ H]".
+    iApply wp_wand.
+    instantiate (1 := fun x => (⌜ x = immV [xx 5] ⌝)%I); first by iApply wp_binop.
+    iSimpl.
+    iIntros (v Hv).
+    subst.
+    by iFrame.
+  - iIntros (w) "[%Hw Hf]".
+    subst.
+    iApply wp_frame_return; last by iFrame; eauto.
+    + by instantiate (1 := [AI_basic (BI_const (xx 5))]).
+    + trivial.
+    + instantiate (1 := LH_base [::] [::]).
+      instantiate (1 := 0).
+      by unfold lfilled, lfill => /=.
+Qed.
+
+Definition wp_func_spec
+
+Lemma function_spec_ex:
 
                       
 (*
