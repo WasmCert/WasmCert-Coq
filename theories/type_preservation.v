@@ -3015,7 +3015,7 @@ Proof.
     rewrite HCEmpty in H4. rewrite HCEmpty in H6.
     simpl in H4. simpl in H6.
     rewrite length_is_size in H6. rewrite size_map in H6.
-    rewrite H0.
+    rewrite H1.
     rewrite set_nth_map => //.
     by rewrite set_nth_same_unchanged.
   - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
