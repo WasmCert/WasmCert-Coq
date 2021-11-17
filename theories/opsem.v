@@ -381,6 +381,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
   | r_set_local :
       forall f f' i v s vd hs,
         f'.(f_inst) = f.(f_inst) ->
+        i < length f.(f_locs) ->
         f'.(f_locs) = set_nth vd f.(f_locs) i v ->
         reduce hs s f [::AI_basic (BI_const v); AI_basic (BI_set_local i)] hs s f' [::]
   | r_get_global :
