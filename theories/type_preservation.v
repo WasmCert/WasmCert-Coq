@@ -3006,21 +3006,17 @@ Proof.
   - convert_et_to_bet.
     replace [::BI_const v; BI_set_local i] with ([::BI_const v] ++ [::BI_set_local i]) in HType => //=.
     apply composition_typing in HType.
-    destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
+    destruct HType as [ts' [t1s' [t2s' [t3s' [? [? [? Hbet]]]]]]]; subst.
     invert_be_typing.
-    apply Set_local_typing in H10.
-    destruct H10 as [t [H4 [H5 H6]]]. subst.
-    apply concat_cancel_last in H5. destruct H5. subst.
-    assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite HCEmpty in H4. rewrite HCEmpty in H6.
-    simpl in H4. simpl in H6.
-    rewrite length_is_size in H6. rewrite size_map in H6.
-    rewrite H0.
+    apply Set_local_typing in Hbet as [t [Hnth [Hcat _]]].
+    apply concat_cancel_last in Hcat as [-> <-].
+    replace (tc_local C) with ([::]: list value_type) in *; last by symmetry; eapply inst_t_context_local_empty; eauto.
+    rewrite H1.
     rewrite set_nth_map => //.
     by rewrite set_nth_same_unchanged.
   - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
-    destruct H1 as [lab' [t1s' [t2s' H1]]].
-    rewrite upd_label_overwrite in H1.
+    destruct H1 as [lab' [t1s' [t2s' Het]]].
+    rewrite upd_label_overwrite in Het.
     by eapply IHHReduce; eauto.
 Qed.
 
