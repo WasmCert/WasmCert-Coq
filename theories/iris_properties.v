@@ -1198,9 +1198,9 @@ Proof.
     by left. rewrite H1. by apply v_to_e_is_const_list.
   - solve_prim_step_split_reduce_r H2 [AI_basic (BI_const v)] Heqf0.
     apply r_get_local. by rewrite <- Heqf0.
-  - apply Logic.eq_sym, app_eq_nil in H4 as [Hn1 Hn2] ; rewrite Hn1 ; rewrite Hn2.
+  - apply Logic.eq_sym, app_eq_nil in H5 as [Hn1 Hn2] ; rewrite Hn1 ; rewrite Hn2.
     left ; exists []. repeat split => //=. subst.
-    by apply (r_set_local s _ H H0).
+    by eapply (r_set_local s _ H H0).
   - solve_prim_step_split_reduce_r H2 [AI_basic (BI_const v)] Heqf0.
     apply r_get_global. by rewrite <- Heqf0.
   - solve_prim_step_split_reduce_r H3 ([] : seq.seq administrative_instruction)
