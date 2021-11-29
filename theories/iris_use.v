@@ -192,7 +192,7 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
 
 (* Auxiliary lemmas *)
 
-
+(*
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
    opsem for mem_grow and host function calls; due to the interaction between r_label
    and rs_trap, traps also have non-det behaviours in terms of reduction paths.
@@ -201,7 +201,7 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
 Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
-  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2).
+  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2). *)
 
 
 
@@ -509,7 +509,7 @@ Proof.
         iDestruct "H2" as "(Hσ & Hes'' & Hefs)".
         iFrame.
         iApply "IH".
-        by iFrame.
+        by iFrame. 
       + move/lfilledP in Hlf1.
         inversion Hlf1; subst; clear Hlf1.
         assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
@@ -1053,10 +1053,13 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by apply r_simple, rs_binop_failure.
+    eapply reduce_det in H
+        as [H | [ Hstart | [ [Ha Hstart] | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      last by apply r_simple, rs_binop_failure.
     inversion H; subst; clear H.
     iFrame.
     iSimpl => //.
+    
 Qed.
     
 Lemma wp_relop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop):
