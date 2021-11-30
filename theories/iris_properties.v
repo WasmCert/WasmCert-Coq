@@ -3900,8 +3900,6 @@ Ltac only_one objs Hred2 :=
   apply Logic.eq_sym in Heqes ;
   only_one_reduction Heqes Hred2.
 
-(* An attempt at making reduce_det a proved lemma. Work in progress *)
-
 Lemma reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
@@ -3923,6 +3921,8 @@ Lemma reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
                           ). *)
 Proof.
   intros hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2 Hred1 Hred2.
+  (* we perform an (strong) induction on the length_rec of es, i.e. its number of
+     instructions, counting recursively under AI_locals and AI_labels *)
   cut (forall n, length_rec es < n ->
             ((hs1, f1, ws1, es1) = (hs2, f2, ws2, es2) \/
                starts_with (AI_basic BI_grow_memory) es \/
@@ -3941,15 +3941,49 @@ Proof.
       (exists k lh n es0 es0', lfilled k lh [AI_basic BI_grow_memory] es0 /\
                           es = [AI_local n es0' es0])
       )). *)
+  (* the next few lines simply help put the induction into place *)
   { intro Hn ; apply (Hn (S (length_rec es))) ; lia. }
   intro nnn. generalize dependent es. generalize dependent es1.
   generalize dependent es2. generalize dependent ws1. generalize dependent ws2.
   generalize dependent ws.
-  induction nnn ; intros ws ws2 ws1 es2 es1 es Hred1 Hred2 Hlen ; first lia.  
+  induction nnn ; intros ws ws2 ws1 es2 es1 es Hred1 Hred2 Hlen ; first lia.
+  (* begining of the actual reasoning *)
+  (* We have hypotheses [ Hred1 : es -> es1 ] and  [ Hred2 : es -> es2 ]. We perform
+     a case analysis on Hred1 (induction because of the r_label case) *)
   induction Hred1.
+  (* Most cases are dealt with using the [ only_one ] tactic. This tactic assumes that
+     hypothesis Hred2 is of the form [ objs -> es2 ] where objs is an explicit list
+     that [ only_one ] requires as an argument. It then performs a case analysis on
+     Hred2 and exfalsos away as many cases as it can. See 2 commented examples below. 
+     Most of the time, it exfalsos away all cases but one, so we are left with 
+     reductions [ es -> es1 ] and [ es -> es2 ] being derived by the same rule, 
+     so the leftmost disjunct of the conclusion holds. In some cases, 
+     the tactic [only_one] will leave us with more than one case, and we will have to
+     manually exfalso away some cases *)
+  (* Technical point : before calling [ only_one ], we must clear the induction hypothesis
+     IHnnn, because [ only_one ] performs an induction which will not work if IHnnn is
+     present *)
   { destruct H ; clear IHnnn.
-    - by only_one [AI_basic (BI_const v) ; AI_basic (BI_unop t op)] Hred2.
-    - by only_one [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+    - (* example of a usage of [ only_one ] : in this subgoal, we know that Hred2 is
+         the hypothesis [ [AI_basic (BI_const v) ; AI_basic (BI_unop t op) ] -> es2 ].
+         [ only_one ] selects the left disjunct in the conclusion, meaning we wish
+         to show that in this case, there was indeed determinism. Then it performs a 
+         case analysis on Hred2. Most cases have a left-hand-side very different from
+         [AI_basic (BI_const v) ; AI_basic (BI_unop t op)] and can thus be exfalsoed.
+         Some cases, like the r_label case, require a little more effort, but the tactic
+         can handle most difficulties. See the next comment for an example of when 
+         [ only_one ] cannot exfalso all irrelevant cases *)
+      by only_one [AI_basic (BI_const v) ; AI_basic (BI_unop t op)] Hred2.
+    - (* an example where we the user need to provide some extra work because [ only_one ]
+         couldn't exfalso away every possibility : here, knowing that Hred2 is
+         hypothesis [ [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ; 
+         AI_basic (BI_binop t op)] -> es2 ], the tactic leaves us with two (not one)
+         possibilities : Hred2 holds either using rs_binop_success or rs_binop_failure.
+         It is up to us to exfalso away the second case using the rest of the
+         hypotheses *)
+      (* Many of the following cases are handled entirely by [ only_one ], or require
+         minimal work on our hand. Thus we shall only comment less trivial instances *)
+      by only_one [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
                    AI_basic (BI_binop t op)] Hred2 ;
       inversion Heqes ; subst ;
       rewrite H in H0 ; inversion H0 ; subst.
@@ -3980,7 +4014,11 @@ Proof.
     - only_one [AI_basic (BI_const v1); AI_basic (BI_const v2) ;
                 AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select] Hred2 ;
         [by inversion Heqes ; subst | done].
-    - remember (vs ++ [AI_basic (BI_block (Tf t1s t2s) es)])%SEQ as es0.
+    - (* Here, in the block case, the left-hand-side of Hred2 is
+         [ vs ++ [AI_basic (BI_block (Tf t1s t2s) es)] ] which is not an explicit
+         list, thus we cannot use [ only_one ]. We perform the case analysis on Hred2
+         by hand. Likewise for the following case (loop) *)
+      remember (vs ++ [AI_basic (BI_block (Tf t1s t2s) es)])%SEQ as es0.
       apply Logic.eq_sym in Heqes0.
       induction Hred2 ; (try by repeat ((by inversion Heqes0) +
                                           (destruct vs ; first by inversion Heqes0))) ;
@@ -4077,6 +4115,17 @@ Proof.
     - only_one [AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] Hred2 ;
         [by inversion Heqes ; subst | done].
     - only_one [AI_label n es vs] Hred2.
+      (* This is the rs_label_const case (i.e. Hred1 was [ [AI_label n es vs] -> es ]
+         with vs a list of values). Now when called, [ only_one ] can only reduce the 
+         amount of possibilities for how [ Hred2 : [AI_label n es vs] -> es2 ] was
+         proved to 4 : rs_label_const (which leeds to the correct conclusion), or
+         rs_label_trap (could be exfalsoed but coq is actually very happy to take done as
+         an answer here), or rs_br or r_label (these last two require some work to
+         exfalso away) *)
+      (* Likewise, [ only_one ] will only be able to narrow down the possiblities to
+         these for when we will handle the rs_label_trap and rs_br cases (the next 2) ;
+         the r_label case will also face this difficulty (among many others inherent to
+         the nature of r_label *)
       + done.
       + done.
       + unfold lfilled, lfill in H2.
@@ -4194,7 +4243,9 @@ Proof.
     - only_one [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i)] Hred2.
       subst. apply (ssrnat.leq_trans H0) in H. rewrite ssrnat.ltnn in H. false_assumption.
       done.
-    - left ; remember [AI_local n f0 es] as es0.
+    - (* [ only_one ] cannot be applied in the following cases, so we perform the 
+         case analysis by hand *)
+      left ; remember [AI_local n f0 es] as es0.
       rewrite <- app_nil_l in Heqes0.
       induction Hred2 ; try by inversion Heqes0 ;
         try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
@@ -4252,7 +4303,10 @@ Proof.
         rewrite app_nil_r in H0. subst. apply IHHred2 => //=.
         apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce Hred2.
       + inversion Heqes0 ; subst. exfalso ; apply AI_trap_irreducible in Hred2 => //=.
-    - left ; remember [AI_local n f0 es] as es0.
+    - (* this is the rs_return case. It combines the difficulties of rs_br with
+         the fact that, as for the previous few cases, [ only_one ] cannot be applied
+         and thus all the work must be performed by hand *)
+      left ; remember [AI_local n f0 es] as es0.
       rewrite <- app_nil_l in Heqes0.
       induction Hred2 ; try by inversion Heqes0 ;
         try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
@@ -4386,7 +4440,9 @@ Proof.
               destruct (lfilled_first_values _ _ _ _ _ _ _ _ _ H2 H1)
                 as (Habs & _ & _) => //=. } 
           * exfalso. eapply lfilled_return_and_reduce => //=. }
-    - left ; remember [v ; AI_basic (BI_tee_local i)] as es0.
+    - (* rs_tee_local case. [ only_one ] cannot be applied, so we do the case analysis
+         by hand *)
+      left ; remember [v ; AI_basic (BI_tee_local i)] as es0.
       replace [ v ; AI_basic (BI_tee_local i)] with ([v] ++ [AI_basic (BI_tee_local i)])
         in Heqes0 => //=.
       induction Hred2 ; try by inversion Heqes0 ;
@@ -4409,7 +4465,11 @@ Proof.
       apply Logic.eq_sym in Hes ; exfalso ; no_reduce Hes Hred2.
       apply app_eq_nil in Hes as [-> _]. empty_list_no_reduce Hred2.
       rewrite Hxl1 in H ; inversion H.
-    - induction Hred2 ; try by filled_trap H0 Hxl1.
+    - (* rs_trap case. [ only_one ] cannot be applied because the left-hand-side of Hred2
+         is not an explicit list. We perform the case analysis by hand.
+         We make extensive use of the [ filled_trap ] tactic, which concludes false
+         from a hypothesis [ lfilled k lh [AI_trap] [some explicit list] ] *)
+      induction Hred2 ; try by filled_trap H0 Hxl1.
       { destruct H1 ; try by filled_trap H0 Hxl1.
         - filled_trap H0 Hxl1. apply in_app_or in Hxl1 as [Habs | Habs].
           intruse_among_values vs Habs H1. destruct Habs => //=.
@@ -4429,7 +4489,8 @@ Proof.
         assert (const_list ves) as Hconst ;
           first by rewrite H3 ; apply v_to_e_is_const_list.
         intruse_among_values ves Habs Hconst. destruct Habs => //=.
-      + do 3 right.
+      + do 3 right. (* in this case, we might not have determinism, but the last 
+                       disjunct of the conclusion holds *)
         unfold lfilled, lfill in H0. destruct lh as [bef aft|] ; last by false_assumption.
         remember (const_list bef) as b eqn:Hbef ; destruct b ; last by false_assumption.
         apply b2p in H0. rewrite H0 in H1.
@@ -4459,6 +4520,9 @@ Proof.
         destruct (lfill _ _ _) ; last by false_assumption.
         apply b2p in H1. apply first_values in H1 as (_ & Habs & _) ; (try done) ;
                            (try by (left + right)). }
+  (* We carry on using [ only_one ]. Recall that hypothesis IHnnn must be cleared
+     in order to use it (in the cases above, the [ clear IHnnn ] instruction was
+     after the semicolon after the [ destruct H ] at the very top. *)
   - clear IHnnn ; only_one [AI_basic (BI_call i)] Hred2.
     inversion Heqes ; subst ; rewrite H in H0 ; inversion H0 ; by subst.
   - clear IHnnn ;
@@ -4476,6 +4540,8 @@ Proof.
   - clear IHnnn ;
       only_one [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_call_indirect i)] Hred2.
     inversion Heqes ; subst ; rewrite H in H0 ; inversion H0.
+    (* The following 3 cases are the r_invoke cases. We do not guarantee determinism in
+       these cases, but the third disjunct of the conclusion holds *)
   - right ; right ; left. exists a. apply start_invoke. subst. by apply v_to_e_is_const_list.
   - right ; right ; left. exists a ; apply start_invoke ; subst ; by apply v_to_e_is_const_list.
   - right ; right ; left. exists a ; apply start_invoke ; subst ; by apply v_to_e_is_const_list.
@@ -4501,7 +4567,7 @@ Proof.
       rewrite H0 in H3 ; inversion H3 ; subst ; rewrite H1 in H4 ; inversion H4 ;
       try by subst.
   - clear IHnnn ; only_one [AI_basic (BI_const (VAL_int32 k)) ;
-                           AI_basic (BI_load t None a off)] Hred2 ;
+                            AI_basic (BI_load t None a off)] Hred2 ;
       inversion Heqes ; subst ; rewrite H in H2 ; inversion H2 ; subst ;
       rewrite H0 in H3 ; inversion H3 ; subst ; rewrite H1 in H4 ; inversion H4 ;
       try by subst.
@@ -4533,6 +4599,8 @@ Proof.
       rewrite H1 in H5 ; inversion H5 ; subst ; rewrite H2 in H6 ; by inversion H6.
   - clear IHnnn ; only_one [AI_basic BI_current_memory] Hred2.
     rewrite H in H2 ; inversion H2 ; subst ; rewrite H0 in H3 ; by inversion H3.
+    (* the following two cases are the r_grow_memory cases. We do not guarantee
+       determinism in these cases, but the second disjunct of the conclusion holds *)
   - right ; left.
     replace [AI_basic (BI_const (VAL_int32 c)); AI_basic BI_grow_memory] with
       ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory] ++ []).
@@ -4541,15 +4609,31 @@ Proof.
     replace [AI_basic (BI_const (VAL_int32 c)); AI_basic BI_grow_memory] with
       ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory] ++ []).
     constructor => //=. by rewrite app_nil_r.
-  - destruct k ; unfold lfilled, lfill in H.
+  - (* r_label case. The proof is tedious and relies on cleverly calling the induction
+       hypothesis IHnnn. For this, we need to have some term es0 smaller than the original
+       es (in terms of length_rec, i.e. number of instructions, including recursively under
+       AI_labels and AI_locals). To find this, we first look at whether the lfilled
+       statement is at level 0 or at a higher level : *)
+    destruct k ; unfold lfilled, lfill in H.
     { destruct lh as [bef aft |] ; last by false_assumption.
       remember (const_list bef) as b eqn:Hbef ; destruct b ; last by false_assumption.
       apply b2p in H.
+      (* in this case, Hred1 was [ les -> les1 ] with [ les = bef ++ es ++ aft ],
+         [ les1 = bef ++ es1 ++ aft ] and [ es -> es1 ]. 
+         Hred2 is hypothesis [ les -> es2 ] with nothing known of [ es2 ]. *)
       unfold lfilled, lfill in H0. rewrite <- Hbef in H0. apply b2p in H0.
       destruct bef.
-      { destruct aft. { rewrite app_nil_l app_nil_r in H.
+      { destruct aft. { (*  If bef and aft are both empty, induction hypothesis 
+                            IHHred1 can be used. *)
                         rewrite app_nil_l app_nil_r in H0.
                         subst. apply IHHred1 => //=. }
+        (* Else, if bef is empty and aft is nonempty, then let us call y the last 
+           instruction in les. We have [ les = es ++ ys ++ [y] ]. r_label gives us
+           that [ es ++ ys -> es1 ++ ys ], and Hred2 is still [ les -> es2 ].
+           Using lemma reduce_append (the append equivalent of reduce_ves), 
+           we know es2 ends in y and [ es ++ ys -> take (all but 1) es2 ].
+           We can thus apply IHnnn to [ es ++ ys ] (shorter than les since we 
+           removed y) *)
         get_tail a aft ys y Htail.
         rewrite Htail in H. rewrite Htail in H0. simpl in H. simpl in H0.
         rewrite app_assoc in H. rewrite app_assoc in H0.
@@ -4612,7 +4696,14 @@ Proof.
         destruct (lfilled_trans _ _ _ _ _ _ _ H2 Hfill') as [lh0 ?]. simpl in H3.
         repeat split => //= ; try by eapply lfilled_implies_starts.
         rewrite <- Hσ'. inversion Hσ ; subst.
-        destruct f ; destruct ws2 ; simpl in H7 ; simpl in H8 ; by subst. } 
+        destruct f ; destruct ws2 ; simpl in H7 ; simpl in H8 ; by subst. }
+      (* if bef is nonempty, then we proceed like before, but on the left side.
+         Calling v the first value in bef, we know that [ les = v :: bef' ++ es ++ aft ]
+         r_label gives us [ bef' ++ es ++ aft -> bef' ++ es1 ++ aft ] and we still
+         have Hred2 telling [ les -> es2 ]. Using reduce_ves, we know that es2 starts
+         with v and that [ bef' ++ es ++ aft -> drop 1 es2 ]. We can thus apply
+         induction hypothesis on [ bef' ++ es ++ aft ], which is indeed shorter than
+         les since we removed v *)
       unfold const_list in Hbef.
       simpl in Hbef. apply Logic.eq_sym, andb_true_iff in Hbef as [Ha Hbef].
       assert (reduce hs s f (bef ++ es ++ aft) hs' s' f' (bef ++ es' ++ aft)) as Hles.
@@ -4690,6 +4781,10 @@ Proof.
       repeat split => //= ; try by eapply lfilled_implies_starts.
       rewrite <- Hσ'. inversion Hσ ; subst.
       destruct f ; destruct ws2 ; simpl in H7 ; simpl in H8 ; by subst. }
+    (* in this case, Hred1 was [ les -> les1 ] with 
+       [ les = bef ++ AI_label n es0 l :: aft ], [ les1 = bef ++ AI_label n es0 l1 :: aft ],
+       [ lfilled k lh es l ], [ lfilled k lh es1 l1 ] and [ es -> es1 ]. We still have
+       Hred2 being [ les -> es2 ] with nothing known of es2. *)
     fold lfill in H. destruct lh as [|bef n es0 lh aft] ; first by false_assumption.
     remember (const_list bef) as b eqn:Hbef ; destruct b ; last by false_assumption.
     remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
@@ -4698,6 +4793,13 @@ Proof.
       remember (lfill _ _ es') as fill ; destruct fill ; last by false_assumption.
       apply b2p in H0. destruct bef.
       { destruct aft. {
+          (* if bef and aft are empty, then Hred2 is [ [AI_label n es0 l] -> es2 ].
+             We painstakingly show, by case analysis, that this means es2 is of the
+             form [AI_label n es0 l'] with [ l -> l' ].
+             Knowing that, and since r_label gives [ l -> l1 ], we can apply the 
+             induction hypothesis IHnnn on l, which is shorter than les since there is
+             one less AI_label node.
+           *)
           induction Hred2 ; (try by inversion H) ;
             try by apply app_inj_tail in H as [_ Habs] ; inversion Habs.
           { destruct H1 ; (try by inversion H) ;
@@ -4780,7 +4882,9 @@ Proof.
             apply b2p in H2.
             assert (lfilled 1 (LH_rec [] n0 l2 (LH_base [] []) []) l les'0).
             unfold lfilled, lfill => //= ; by subst ; rewrite app_nil_r.
-            apply (starts_with_lfilled _ _ _ _ _ Hstart3 H5) => //=. } 
+            apply (starts_with_lfilled _ _ _ _ _ Hstart3 H5) => //=. }
+        (* in the cases where aft is nonempty or bef is nonempty, we proceed exactly
+           like in the corresponding cases when k was 0 *)
           get_tail a aft ys y Htail.
           rewrite Htail in H. rewrite Htail in H0. simpl in H. simpl in H0.
           rewrite app_comm_cons in H. rewrite app_comm_cons in H0.
@@ -4933,7 +5037,8 @@ Proof.
       repeat split => //= ; try by eapply lfilled_implies_starts.
       rewrite <- Hσ'. inversion Hσ ; subst.
       destruct f ; destruct ws2 ; simpl in H7 ; simpl in H8 ; by subst. }
-  - clear IHHred1. remember [AI_local n f es] as es0.
+  - (* final case : the r_local case. We perform the case analysis on Hred2 by hand *)
+    clear IHHred1. remember [AI_local n f es] as es0.
     rewrite <- (app_nil_l [AI_local n f es]) in Heqes0.
     induction Hred2 ; (try by inversion Heqes0) ;
       try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
@@ -5040,7 +5145,9 @@ Proof.
         apply b2p in H0 ; subst.
       by apply IHHred2.
       apply app_eq_nil in Hes as [-> _ ] ; empty_list_no_reduce Hred2.
-    + inversion Heqes0 ; subst. clear IHHred2.
+    + (* In case Hred2 was also proved using r_local, we make use of the induction
+         hypothesis IHnnn *)
+      inversion Heqes0 ; subst. clear IHHred2.
       assert (length_rec es < nnn).
       unfold length_rec in Hlen ; simpl in Hlen.
       unfold length_rec ; lia.
