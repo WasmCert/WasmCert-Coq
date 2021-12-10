@@ -1,7 +1,6 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
-From iris.program_logic Require Export weakestpre lifting.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations stdpp_aux.
 Require Export datatypes host operations properties opsem.
@@ -1027,7 +1026,7 @@ Lemma prim_step_split_reduce_r (es1 es2 es' : list administrative_instruction) �
   (exists es'', es' = es'' ++ es2 /\ prim_step es1 σ obs es'' σ' efs) \/
     (exists n m lh, lfilled 0 (LH_base (take n es1)
                                (drop m (es1 ++ es2)))
-                       [AI_trap] es' /\ lfilled 0 lh [AI_trap] es1). 
+                       [AI_trap] es' /\ lfilled 0 lh [AI_trap] es1 ∧ σ' = σ). 
 (*                  σ' = σ /\
               prim_step es1 σ obs [AI_trap] σ efs). *)
 Proof.
@@ -1037,10 +1036,10 @@ Proof.
               (exists n m lh, n <= length es1 /\ m <= length (es1 ++ es2) /\
                         lfilled 0 (LH_base (take n es1)
                                          (drop m (es1 ++ es2)))
-                                [AI_trap] es' /\ lfilled 0 lh [AI_trap] es1)). (* σ' = σ /\
+                                [AI_trap] es' /\ lfilled 0 lh [AI_trap] es1 ∧ σ'=σ)). (* σ' = σ /\
                         exists lh, lfilled 0 lh [AI_trap] es1)). *)
   { intro Hn ; assert (length es' < S (length es')) as Hlen ; first lia.
-    destruct (Hn (S (length es')) Hlen) as [ Hl | (n0 & m & lh & _ & _ & ? & ?) ].
+    destruct (Hn (S (length es')) Hlen) as [ Hl | (n0 & m & lh & _ & _ & ? & ? & ?) ].
     by left. right ; exists n0, m, lh. 
     repeat split => //=. } (* apply r_simple, (rs_trap (lh:=x)) => //=.
     intro Habs ; rewrite Habs in Hes1 ; inversion Hes1. 
@@ -1427,7 +1426,7 @@ Proof.
       assert (length (bef ++ es' ++ aft) < len).
       { rewrite H0 in Hlen ; simpl in Hlen. by apply lt_S_n. }
       destruct (IHlen es2 es1 (Logic.eq_sym Heqtv) (bef ++ es' ++ aft) H2 H5)
-        as [(es'' & Heq & Hred) | (n & m & lh & Hn & Hm & Hfill & Hcontext)].
+        as [(es'' & Heq & Hred) | (n & m & lh & Hn & Hm & Hfill & Hcontext & Hσ)].
       { left. exists (a :: es''). repeat split => //=. by rewrite Heq.
         apply (r_label (es:= es1) (es':=es'') (k:=0) (lh:=LH_base [a] [])).
         by destruct Hred as (? & _ & _).
@@ -1790,7 +1789,7 @@ Proof.
       }
       rewrite <- Hes in H.
       destruct (prim_step_split_reduce_r _ _ _ _ _ _ _ (Logic.eq_sym Heqtv) H) as
-        [ (es' & H1 & H2) | (n & m & lh & H1 & H2) ].
+        [ (es' & H1 & H2) | (n & m & lh & H1 & H2 & Hσ) ].
       { assert (reducible ces (hs,s,l,i)).
         unfold reducible, language.reducible. exists obs0, es', σ0, efs0 => //=.
         assert (prim_step ([AI_basic (BI_const v)] ++ ces) (hs,s,l,i) [] ces'
@@ -1825,7 +1824,7 @@ Proof.
       apply b2p in H2.
       assert (lfilled 0 (LH_base (a :: bef0) aft0) [AI_trap] (a::ces)) as Htrap.
       { subst. unfold lfilled, lfill => //=. by rewrite <- Hbef0. }
-      destruct (trap_reduce _ _ _ (a :: ces) _ _ _ ces' _ Htrap Hred) as (lh' & Hfill' & Hσ).
+      destruct (trap_reduce _ _ _ (a :: ces) _ _ _ ces' _ Htrap Hred) as (lh' & Hfill' & Hσ').
       unfold lfilled, lfill in Hfill'. destruct lh' ; last by false_assumption.
       remember (const_list l1) as b eqn:Hl1 ; destruct b ; last by false_assumption.
       apply b2p in Hfill'.
@@ -1833,7 +1832,7 @@ Proof.
       split ; unfold lfilled, lfill => //=. rewrite <- Hl1. rewrite Hles'.
       rewrite Hfill'. simpl. by rewrite <- app_assoc.
       rewrite <- Hbef0. rewrite H2. rewrite <- app_assoc. split => //.
-      by inversion Hσ; subst; inversion H5.
+      by inversion Hσ'; subst; inversion H5.
     }
     inversion Heqves ; subst. left. repeat split => //=.
     unfold drop.
