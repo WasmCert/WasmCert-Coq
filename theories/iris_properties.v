@@ -4624,7 +4624,8 @@ Proof.
       destruct bef.
       { destruct aft. { (*  If bef and aft are both empty, induction hypothesis 
                             IHHred1 can be used. *)
-                        rewrite app_nil_l app_nil_r in H0.
+          rewrite app_nil_l app_nil_r in H.
+          rewrite app_nil_l app_nil_r in H0.
                         subst. apply IHHred1 => //=. }
         (* Else, if bef is empty and aft is nonempty, then let us call y the last 
            instruction in les. We have [ les = es ++ ys ++ [y] ]. r_label gives us
