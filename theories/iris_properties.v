@@ -3784,6 +3784,27 @@ Proof.
     apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
 Qed.
 
+Fixpoint find_first_some (l : seq.seq (option administrative_instruction)) :=
+  match l with
+  | [] => None
+  | Some e :: q => Some e
+  | None :: q => find_first_some q end.
+
+Fixpoint first_instr_instr e :=
+  match e with
+  | AI_basic (BI_const _) => None
+  | AI_label n es LI =>
+      match find_first_some (List.map first_instr_instr LI)
+      with Some e' => Some e' | None => Some e end
+  | AI_local n es LI =>
+      match find_first_some (List.map first_instr_instr LI)
+      with Some e' => Some e' | None => Some e end
+  | _ => Some e end.
+
+Definition first_instr es :=
+  find_first_some (List.map first_instr_instr es).
+
+(*
 Inductive starts_with : administrative_instruction -> seq.seq administrative_instruction
                         -> Prop :=
 | start_label : forall vs n es LI es' e, const_list vs -> starts_with e LI ->
@@ -3795,7 +3816,8 @@ Inductive starts_with : administrative_instruction -> seq.seq administrative_ins
 | start_invoke : forall vs a es, const_list vs -> starts_with (AI_invoke a)
                                                         (vs ++ [AI_invoke a] ++ es)
 | start_trap : forall vs es, const_list vs -> starts_with AI_trap (vs ++ [AI_trap] ++ es).
-
+*)
+(*
 Lemma start_is_unique e1 e2 es :
   starts_with e1 es -> starts_with e2 es -> e1 = e2.
 Proof.
@@ -3848,28 +3870,56 @@ Proof.
     + apply first_values in Heqes1 as (_ & Hlab & _) => //= ; try by (left + right).
     + done.
 Qed.
+ *)
 
+
+Lemma first_instr_const vs es :
+  const_list vs -> first_instr (vs ++ es) = first_instr es.
+Proof.
+  intro Hvs.
+  induction vs => //=.
+  destruct a ; try by inversion Hvs.
+  destruct b ; try by inversion Hvs.
+  simpl in Hvs. rewrite <- (IHvs Hvs).
+  by unfold first_instr.
+Qed.
+  
       
 Lemma starts_with_lfilled e es k lh les :
-  starts_with e es ->
+  first_instr es = Some e ->
   lfilled k lh es les ->
-  starts_with e les.
+  first_instr les = Some e.
 Proof.
   generalize dependent es. generalize dependent lh. generalize dependent les.
   induction k ; intros les lh es Hstart Hfill ; unfold lfilled, lfill in Hfill.
   { destruct lh ; last by false_assumption.
     remember (const_list l) as b eqn:Hl ; destruct b ; last by false_assumption.
-    apply b2p in Hfill.
-    destruct Hstart ; subst ; repeat rewrite app_assoc ;
+    apply b2p in Hfill. rewrite Hfill ; clear Hfill.
+    rewrite (first_instr_const l (es ++ l0) (Logic.eq_sym Hl)).
+    induction es ; first by inversion Hstart.
+    destruct a ; unfold first_instr ; simpl ; unfold first_instr in Hstart ;
+      simpl in Hstart ; try done.
+    destruct b ; unfold first_instr ; simpl ;
+      unfold first_instr in Hstart ; simpl in Hstart ; try done.
+    unfold first_instr in IHes. by apply IHes.
+    destruct (find_first_some _) => //=.
+    destruct (find_first_some _) => //=. } 
+(*    destruct Hstart ; subst ; repeat rewrite app_assoc ;
       repeat rewrite <- (app_assoc (l ++ vs)) ; constructor ; (try done) ;
-      unfold const_list ; rewrite forallb_app ; apply andb_true_iff ; split => //=. } 
+      unfold const_list ; rewrite forallb_app ; apply andb_true_iff ; split => //=. }  *)
   fold lfill in Hfill. destruct lh ; first by false_assumption.
   remember (const_list l) as b eqn:Hl ; destruct b ; last by false_assumption.
   remember (lfill k lh es) as fill ; destruct fill ; last by false_assumption.
   apply b2p in Hfill.
   assert (lfilled k lh es l2) ; first by unfold lfilled ; rewrite <- Heqfill.
-  subst. apply start_label => //=. by eapply IHk.
+  subst. rewrite (first_instr_const _ _ (Logic.eq_sym Hl)). 
+  unfold first_instr => //=.
+  unfold first_instr in IHk. eapply IHk in H. rewrite H => //=.
+  by unfold first_instr in Hstart. 
+(*  apply start_label => //=. by eapply IHk. *)
 Qed.
+
+
 
 
 Lemma lfilled_implies_starts k lh e es :
@@ -3877,19 +3927,44 @@ Lemma lfilled_implies_starts k lh e es :
   (forall n es' LI, e <> AI_local n es' LI) ->
   (is_const e -> False) ->
   lfilled k lh [e] es ->
-  starts_with e es.
+  first_instr es = Some e.
 Proof.
   generalize dependent es. generalize dependent lh.
   induction k ; intros lh es Hlabel Hlocal Hconst Hfill ; unfold lfilled, lfill in Hfill ;
     destruct lh ; (try by false_assumption) ; remember (const_list l) as b eqn:Hl ;
     destruct b ; try by false_assumption.
-  { apply b2p in Hfill. destruct e ; try by subst ; constructor.
+  { apply b2p in Hfill. destruct e ; subst ;
+      rewrite (first_instr_const _ _ (Logic.eq_sym Hl)) ; try by unfold first_instr.
+    destruct b ; try by unfold first_instr. exfalso ; by apply Hconst.
     by exfalso ; eapply Hlabel. by exfalso ; eapply Hlocal. }
   fold lfill in Hfill.
   remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
-  apply b2p in Hfill. subst ; constructor => //=. eapply IHk => //=.
-  unfold lfilled ; by rewrite <- Heqfill.
+  apply b2p in Hfill. subst. rewrite (first_instr_const _ _ (Logic.eq_sym Hl)).
+  unfold first_instr => //=. unfold first_instr in IHk.
+  assert (lfilled k lh [e] l2) ; first by unfold lfilled ; rewrite <- Heqfill.
+  eapply IHk in H => //=. rewrite H => //=.
+  (* subst ; constructor => //=. eapply IHk => //=.
+  unfold lfilled ; by rewrite <- Heqfill. *)
 Qed.
+
+Lemma starts_implies_not_constant e es :
+  first_instr es = Some e ->
+  const_list es -> False.
+Proof.
+  intros Hstart Hconst.
+  induction es ; try by inversion Hstart.
+  destruct a ; try by inversion Hconst.
+  destruct b ; try by inversion Hconst.
+  simpl in Hconst. unfold first_instr in Hstart.
+  unfold first_instr in IHes.
+  simpl in Hstart. by apply IHes.
+(*  destruct Hstart ;
+    try by unfold const_list in Hconst ; rewrite forallb_app in Hconst ;
+    apply andb_true_iff in Hconst as [_ Habs];  simpl in Habs; false_assumption.
+  unfold const_list in Hconst. rewrite forallb_app in Hconst.
+  apply andb_true_iff in Hconst as [_ Habs]. simpl in Habs.
+  destruct a ; try by apply H0. *)
+Qed. 
     
 
   
@@ -3904,43 +3979,22 @@ Lemma reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
   ( (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2) \/
-      starts_with (AI_basic BI_grow_memory) es \/
-      (exists a, starts_with (AI_invoke a) es) \/
-      (starts_with AI_trap es /\ starts_with AI_trap es1 /\ starts_with AI_trap es2 /\
+      first_instr es = Some (AI_basic (BI_grow_memory)) \/
+      (exists a, first_instr es = Some (AI_invoke a)) \/
+      (first_instr es = Some AI_trap /\ first_instr es1 = Some AI_trap /\
+         first_instr es2 = Some AI_trap /\
          (hs1, f1, ws1) = (hs2, f2, ws2))).
-(*      (exists k lh lh1 lh2, lfilled k lh [AI_trap] es /\
-                         lfilled k lh1 [AI_trap] es1 /\ lfilled k lh2 [AI_trap] es2 /\
-                         (hs1, f1, ws1) = (hs2, f2, ws2))). *)
-(*      (exists k lh, lfilled k lh [AI_basic BI_grow_memory] es) \/
-      (exists k lh a, lfilled k lh [AI_invoke a] es) \/
-      (exists k lh lh1 lh2, lfilled k lh [AI_trap] es /\
-                         lfilled k lh1 [AI_trap] es1 /\ lfilled k lh2 [AI_trap] es2 /\
-                         (hs1, f1, ws1) = (hs2, f2, ws2)) \/
-      (exists k lh n es0 es0', lfilled k lh [AI_basic BI_grow_memory] es0 /\
-                          es = [AI_local n es0' es0])
-                          ). *)
 Proof.
   intros hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2 Hred1 Hred2.
   (* we perform an (strong) induction on the length_rec of es, i.e. its number of
      instructions, counting recursively under AI_locals and AI_labels *)
   cut (forall n, length_rec es < n ->
             ((hs1, f1, ws1, es1) = (hs2, f2, ws2, es2) \/
-               starts_with (AI_basic BI_grow_memory) es \/
-               (exists a, starts_with (AI_invoke a) es) \/
-                  (starts_with AI_trap es /\ starts_with AI_trap es1 /\ starts_with AI_trap es2 /\
-         (hs1, f1, ws1) = (hs2, f2, ws2)))).
-     (* (exists k lh lh1 lh2, lfilled k lh [AI_trap] es /\
-                         lfilled k lh1 [AI_trap] es1 /\ lfilled k lh2 [AI_trap] es2 /\
-                         (hs1, f1, ws1) = (hs2, f2, ws2)))). *)
-(*               (exists k lh, lfilled k lh [AI_basic BI_grow_memory] es) \/
-               (exists k lh a, lfilled k lh [AI_invoke a] es) \/
-               (exists k lh lh1 lh2, lfilled k lh [AI_trap] es /\
-                                  lfilled k lh1 [AI_trap] es1 /\
-                                  lfilled k lh2 [AI_trap] es2 /\
-                                  (hs1, f1, ws1) = (hs2, f2, ws2)) \/
-      (exists k lh n es0 es0', lfilled k lh [AI_basic BI_grow_memory] es0 /\
-                          es = [AI_local n es0' es0])
-      )). *)
+               first_instr es = Some (AI_basic (BI_grow_memory)) \/
+               (exists a, first_instr es = Some (AI_invoke a)) \/
+               (first_instr es = Some AI_trap /\ first_instr es1 = Some AI_trap /\
+                  first_instr es2 = Some AI_trap /\
+                  (hs1, f1, ws1) = (hs2, f2, ws2)))).
   (* the next few lines simply help put the induction into place *)
   { intro Hn ; apply (Hn (S (length_rec es))) ; lia. }
   intro nnn. generalize dependent es. generalize dependent es1.
@@ -4023,7 +4077,7 @@ Proof.
       induction Hred2 ; (try by repeat ((by inversion Heqes0) +
                                           (destruct vs ; first by inversion Heqes0))) ;
         try by right ; right ; left ;
-        exists a ; apply start_invoke ; subst ; apply v_to_e_is_const_list.
+        exists a ; rewrite first_instr_const => //= ; subst ; apply v_to_e_is_const_list.
       { left ; destruct H3 ;
           try by repeat ((by inversion Heqes0) +
                            (destruct vs ; first by inversion Heqes0)). 
@@ -4069,7 +4123,7 @@ Proof.
       induction Hred2 ; (try by repeat ((by inversion Heqes0) +
                                           (destruct vs ; first by inversion Heqes0))) ;
         try by right ; right ; left ;
-        exists a ; apply start_invoke ; subst ; apply v_to_e_is_const_list.
+        exists a ; rewrite first_instr_const => //= ; subst ; apply v_to_e_is_const_list.
       { left ; destruct H3 ;
           try by repeat ((by inversion Heqes0) +
                            (destruct vs ; first by inversion Heqes0)).
@@ -4509,9 +4563,9 @@ Proof.
           destruct (trap_reduce _ _ _ _ _ _ _ _ _ H1 Hred2) as (lh' & Hfill & Hσ).
           apply (lfilled_trans _ _ _ _ _ _ _ Hfill) in H2 as [lh'' Hfill'].
           simpl in Hfill'. subst.
-          repeat split => //=. constructor. 
+          repeat split => //=. rewrite first_instr_const => //=. (* constructor. 
           unfold const_list ; rewrite forallb_app ; apply andb_true_iff ; split => //=.
-          rewrite <- app_nil_r ; rewrite <- app_nil_l. by constructor.
+          rewrite <- app_nil_r ; rewrite <- app_nil_l. by constructor.*)
           by eapply lfilled_implies_starts. unfold const_list ; rewrite forallb_app.
           apply andb_true_iff ; split => //=.
         }
@@ -4542,9 +4596,12 @@ Proof.
     inversion Heqes ; subst ; rewrite H in H0 ; inversion H0.
     (* The following 3 cases are the r_invoke cases. We do not guarantee determinism in
        these cases, but the third disjunct of the conclusion holds *)
-  - right ; right ; left. exists a. apply start_invoke. subst. by apply v_to_e_is_const_list.
-  - right ; right ; left. exists a ; apply start_invoke ; subst ; by apply v_to_e_is_const_list.
-  - right ; right ; left. exists a ; apply start_invoke ; subst ; by apply v_to_e_is_const_list.
+  - right ; right ; left. exists a. rewrite first_instr_const => //=.
+    subst. by apply v_to_e_is_const_list.
+  - right ; right ; left. exists a ; rewrite first_instr_const => //=.
+    subst ; by apply v_to_e_is_const_list.
+  - right ; right ; left. exists a ; rewrite first_instr_const => //=.
+    subst ; by apply v_to_e_is_const_list.
   - clear IHnnn ; only_one [AI_basic (BI_get_local j)] Hred2.
     inversion Heqes ; subst ; rewrite H in H0 ; by inversion H0.
   - clear IHnnn ; only_one [AI_basic (BI_const v) ; AI_basic (BI_set_local i)] Hred2.
@@ -4625,8 +4682,9 @@ Proof.
       destruct bef.
       { destruct aft. { (*  If bef and aft are both empty, induction hypothesis 
                             IHHred1 can be used. *)
-                        rewrite app_nil_l app_nil_r in H0.
-                        subst. apply IHHred1 => //=. }
+          rewrite app_nil_l app_nil_r in H0 ;
+            rewrite app_nil_l app_nil_r in H.
+          subst. apply IHHred1 => //=. }
         (* Else, if bef is empty and aft is nonempty, then let us call y the last 
            instruction in les. We have [ les = es ++ ys ++ [y] ]. r_label gives us
            that [ es ++ ys -> es1 ++ ys ], and Hred2 is still [ les -> es2 ].
@@ -4873,16 +4931,22 @@ Proof.
           - right ; right ; left.
             exists a ; eapply starts_with_lfilled => //=.
           - do 3 right. repeat split => //=.
-            replace [AI_label n0 l2 l4] with ([] ++ [AI_label n0 l2 l4] ++ [])%SEQ.
-            constructor => //=.
-            assert (lfilled 1 (LH_rec [] n0 l2 (LH_base [] []) []) l0
+(*            replace [AI_label n0 l2 l4] with ([] ++ [AI_label n0 l2 l4] ++ [])%SEQ. *)
+            unfold first_instr => //=.
+            unfold first_instr in Hstart1 ; rewrite Hstart1 => //=.
+            unfold first_instr => //=.
+            unfold first_instr in Hstart2 ; rewrite Hstart2 => //=.
+            apply b2p in H2 ; rewrite H2.
+            unfold first_instr => //=.
+            unfold first_instr in Hstart3 ; rewrite Hstart3 => //=. } 
+(*            assert (lfilled 1 (LH_rec [] n0 l2 (LH_base [] []) []) l0
                             [AI_label n0 l2 l0]).
             unfold lfilled, lfill => //= ; by rewrite app_nil_r.
             apply (starts_with_lfilled _ _ _ _ _ Hstart2 H5) => //=.                  
             apply b2p in H2.
             assert (lfilled 1 (LH_rec [] n0 l2 (LH_base [] []) []) l les'0).
             unfold lfilled, lfill => //= ; by subst ; rewrite app_nil_r.
-            apply (starts_with_lfilled _ _ _ _ _ Hstart3 H5) => //=. }
+            apply (starts_with_lfilled _ _ _ _ _ Hstart3 H5) => //=. }  *)
         (* in the cases where aft is nonempty or bef is nonempty, we proceed exactly
            like in the corresponding cases when k was 0 *)
           get_tail a aft ys y Htail.
@@ -5154,13 +5218,23 @@ Proof.
       destruct (IHnnn _ _ _ _ _ _ Hred1 Hred2 H)
         as [Hσ | [ Hstart | [ [a Hstart] | (Hstart1 & Hstart2 & Hstart3 & Hσ) ]]].
       * left. by inversion Hσ ; subst.
-      * right ; left. rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=.
-      * right ; right ; left. exists a. rewrite <- app_nil_r ; rewrite <- app_nil_l.
-        constructor => //=.
+      * right ; left. unfold first_instr => //=. unfold first_instr in Hstart.
+        rewrite Hstart => //=.
+        (*rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=. *)
+      * right ; right ; left. exists a. unfold first_instr => //=.
+        unfold first_instr in Hstart. rewrite Hstart => //=.
+        (* rewrite <- app_nil_r ; rewrite <- app_nil_l.
+        constructor => //=. *)
       * repeat right. repeat split => //=.
+        unfold first_instr => //= ; unfold first_instr in Hstart1 ;
+                             rewrite Hstart1 => //=.
+        unfold first_instr => //= ; unfold first_instr in Hstart2 ;
+                             rewrite Hstart2 => //=.
+        unfold first_instr => //= ; unfold first_instr in Hstart3 ;
+                             rewrite Hstart3 => //=.
+(*        rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=.
         rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=.
-        rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=.
-        rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=.
+        rewrite <- app_nil_r. rewrite <- app_nil_l. constructor => //=. *)
         by inversion Hσ ; subst.
 Qed.      
 
