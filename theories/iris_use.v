@@ -213,7 +213,7 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
 
 (* Auxiliary lemmas *)
 
-
+(*
 (* Warning: this axiom is not actually true -- Wasm does not have a deterministic
    opsem for mem_grow and host function calls; due to the interaction between r_label
    and rs_trap, traps also have non-det behaviours in terms of reduction paths.
@@ -222,7 +222,7 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
 Local Axiom reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
   reduce hs f ws es hs1 f1 ws1 es1 ->
   reduce hs f ws es hs2 f2 ws2 es2 ->
-  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2).
+  (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2). *)
 
 
 
@@ -769,7 +769,7 @@ Proof.
         iFrame.
         iIntros "?"; iSpecialize ("Hes''" with "[$]").
         iApply "IH".
-        by iFrame.
+        by iFrame. 
       + move/lfilledP in Hlf1.
         inversion Hlf1; subst; clear Hlf1.
         assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
@@ -1198,12 +1198,24 @@ Qed.
 
 (* numerics *)
 
-Axiom only_one_reduction_placeholder: False.
+(* Axiom only_one_reduction_placeholder: False.
 
 (* placeholder until the actual tactic is sorted *)
 Ltac only_one_reduction H es locs inst locs' inst':=
-  exfalso; by apply only_one_reduction_placeholder.
-  
+  exfalso; by apply only_one_reduction_placeholder. *)
+
+
+Ltac only_one_reduction H :=
+  let Hstart := fresh "Hstart" in
+  let a := fresh "a" in
+  let Hstart1 := fresh "Hstart" in
+  let Hstart2 := fresh "Hstart" in
+  let Hσ := fresh "Hσ" in 
+  eapply reduce_det in H
+      as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+  last (by repeat econstructor) ;
+  first (try by inversion H ; subst ; clear H ; (by iFrame + (iFrame ; iSimpl => //=))) ;
+  try by repeat (unfold first_instr in Hstart ; simpl in Hstart) ; inversion Hstart.
 
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v' : value) (t: value_type) (op: unop) f0:
   app_unop op v = v' ->
@@ -1264,6 +1276,7 @@ Proof.
     iSplit => //.
     by iIntros.
 Qed.
+                                                                  
 
 (* There is a problem with this case: AI_trap is not a value in our language.
    This can of course be circumvented if we only consider 'successful reductions',
@@ -1325,8 +1338,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-                          AI_basic (BI_relop t op)] locs inst locs' inst'. 
+    only_one_reduction H.
 Qed.
 
 Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop):
@@ -1352,9 +1364,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_basic (BI_const (VAL_int32 v));
-                          AI_basic (BI_testop T_i32 op) ]
-                       locs inst locs' inst'.
+    only_one_reduction H.
 Qed.
 
 Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop):
@@ -1380,9 +1390,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_basic (BI_const (VAL_int64 v)) ;
-                          AI_basic (BI_testop T_i64 op)]
-                       locs inst locs' inst'.
+    only_one_reduction H.
 Qed.
 
 Lemma wp_cvtop_convert (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type) (sx: option sx):
@@ -1409,10 +1417,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_basic (BI_const v) ; AI_basic (BI_cvtop t2 CVO_convert t1 sx)]
-                       locs inst locs' inst'.
-    (*rewrite Hcvtop in H0. inversion H0 ; inversion Heqf' ; subst ; iFrame ;done.
-    rewrite Hcvtop in H0 ; inversion H0.*)
+    only_one_reduction H.
 Qed.
 
 Lemma wp_cvtop_reinterpret (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v v': value) (t1 t2: value_type):
@@ -1439,9 +1444,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_basic (BI_const v) ;
-                          AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)]
-                       locs inst locs' inst'.
+    only_one_reduction H.
 Qed.
 
 (* Non-numerics -- stack operations, control flows *)
@@ -1468,7 +1471,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_basic (BI_nop)] locs inst locs' inst'.
+    only_one_reduction H. 
 Qed.
 
 
@@ -1493,7 +1496,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[ hs' ws' ] locs' ] inst'].
     destruct HStep as (H & -> & ->).
-    only_one_reduction H [AI_basic (BI_const v); AI_basic BI_drop] locs inst locs' inst'. 
+    only_one_reduction H.
 Qed.
 
 Lemma wp_select_false (s: stuckness) (E :coPset) (Φ : val -> iProp Σ) n v1 v2 :
@@ -1517,9 +1520,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[ hs' ws' ] locs' ] inst'].
     destruct HStep as (H & -> & ->).
-    only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-                          AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select]
-                       locs inst locs' inst'.
+    only_one_reduction H.
 Qed.
 
 Lemma wp_select_true (s: stuckness) (E : coPset) (Φ: val -> iProp Σ) n v1 v2 :
@@ -1541,102 +1542,12 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[ hs' ws' ] locs' ] inst'].
     destruct HStep as (H & -> & ->).
-    only_one_reduction H [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-                          AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select]
-                       locs inst locs' inst'.
+    only_one_reduction H.
 Qed.
     
 (* Control flows *)
 
             
-               
-
-Fixpoint labels e :=
-  match e with
-  | AI_label _ _ LI => S (list_sum (map labels LI))
-  | _ => 0
-  end .
-Definition amount_of_labels es := list_sum (map labels es).
-
-Lemma amount_of_labels_app l1 l2 :
-  amount_of_labels (app l1 l2) = amount_of_labels l1 + amount_of_labels l2.
-Proof.
-  unfold amount_of_labels. rewrite map_app. rewrite list_sum_app. done.  
-Qed. 
-  
-(*
-Fixpoint depth e :=
-  match e with
-  | AI_label _ _ LI => fold_left (fun d e => max d (depth e)) LI 0
-  | _ => 0
-  end .
-
-Definition maximum_depth es := fold_left (fun d e => max d (depth e)) es 0. 
-*)
-(*
-Fixpoint flatten_labels es :=
-  match es with
-  | [] => []
-  | AI_label n es LI :: q => flatten_labels LI ++ flatten_labels q
-  | t :: q => t :: flatten_labels q
-  end .
-
-Inductive amount_of_labels : (seq.seq administrative_instruction) -> nat -> Prop :=
-| NilLabels : amount_of_labels [] 0
-| LabelLabels : forall n es LI q kLI kq,
-    amount_of_labels LI kLI ->
-    amount_of_labels q kq ->
-    amount_of_labels (AI_label n es LI :: q) (S (kLI + kq))
-| BasicLabels : forall a q k, amount_of_labels q k -> amount_of_labels (AI_basic a :: q) k 
-| TrapLabels : forall q k, amount_of_labels q k -> amount_of_labels (AI_trap :: q) k 
-| InvokeLabels : forall a q k, amount_of_labels q k -> amount_of_labels (AI_invoke a :: q) k
-| LocalLabels : forall a b c q k, amount_of_labels q k ->
-                             amount_of_labels (AI_local a b c :: q) k.
-
-Lemma got_an_amount i lh es LI kes :
-  amount_of_labels es kes -> lfilled i lh es LI -> exists k, amount_of_labels LI k.
-  intros Hes Hfill.  cut (forall n, length LI < n -> exists k, amount_of_labels LI k).
-  { intro H ; assert (length LI < S (length LI)) as Hlen ;
-      [ lia | by apply (H (S (length LI)) Hlen)]. }
-  intros n Hlen. generalize dependent LI ; generalize dependent i ;
-                   generalize dependent lh ; generalize dependent es ;
-                   induction n ; intros es Hes lh i LI Hfill Hlen.
-  { exfalso ; lia. } 
-  induction i.
-  unfold lfilled, lfill in Hfill.
-  destruct lh ; last by false_assumption.
-  remember (const_list l) as b.
-  destruct b ; last by false_assumption.
-  apply b2p in Hfill.
-  assert (amount_of_labels (l ++ es) kes). {
-    clear Hfill. induction l => //=.
-(*    generalize dependent LI ; induction l ; intros LI Hfill.
-    { simpl in Hfill ; rewrite app_nil_r in Hfill ; by subst. }
-    destruct LI ; inversion Hfill. *)
-    unfold const_list in Heqb. simpl in Heqb. apply Logic.eq_sym in Heqb.
-    apply andb_true_iff in Heqb as [Ha Hl]. unfold is_const in Ha.
-    destruct a ; try by false_assumption. apply BasicLabels.
-    apply IHl => //=. }
-  destruct l0 ; first by (rewrite app_nil_r in Hfill ; subst ; exists kes).
-  apply (IHn es Hes (LH_base l []) 0).
-  
-  
-
-Lemma got_an_amount es : exists k, amount_of_labels es k.
-  induction es. { exists 0. exact NilLabels. }
-  destruct IHes as [k Hlab].
-  induction Hlab.
-  exists k ; by apply BasicLabels.
-  exists k ; by apply TrapLabels.
-  exists k ; by apply InvokeLabels.
-  
-  
- 
-
-Fixpoint depth e :=
-  match e with
-    | AI_label _ _ LI ->  *)
-
 Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh :
   const_list vs ->
   length vs = n ->
@@ -1662,110 +1573,17 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H [AI_label n es LI] locs inst locs' inst'.
-    (* Here, only_one_reduction should've left some work for the user to do.
-       The following commented code is part of the work the user should have done
-       It will likely be used in the reduce_det lemma, in progress *)
+    only_one_reduction H ;
+    try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
+                    (vs ++ [AI_basic (BI_br i)])) ;
+      first (by unfold lfilled, lfill ; rewrite Hvs ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill'] ;
+    eapply lfilled_implies_starts in Hfill' => //= ;
+    unfold first_instr in Hstart ; simpl in Hstart ;
+    unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
+    inversion Hstart.
 Qed.
-(*
-    + simple_filled Hfill i lh bef aft n l l'.
-      * found_intruse (AI_basic (BI_br 0)) Hfill Hxl1.
-        -- by intruse_among_values vs0 Hxl1 H.
-        -- apply in_or_app. right. apply in_or_app. left.
-           apply in_or_app. right. left. done.
-      * by intruse_among_values vs0 Hxl1 H.
-    + simple_filled Hfill i lh bef aft n l l'.
-      found_intruse (AI_basic (BI_br 0)) Hfill Hxl1.
-      apply in_or_app ; right. apply in_or_app ; left.
-      apply in_or_app ; right ; left ; done.
-    + cut (forall n lh0 lh i0 i0' i i' LI0,
-              lfilled i0 lh0 (vs0 ++ [AI_basic (BI_br i0')]) LI0 ->
-              lfilled i lh (vs ++ [AI_basic (BI_br i')]) LI0 ->
-              amount_of_labels LI0 < n ->
-              vs = vs0).
-      intro Hn ; assert (amount_of_labels LI0 < S (amount_of_labels LI0)) as Hlen ;
-        [ lia |
-          by rewrite (Hn (S (amount_of_labels LI0)) lh0 lh i0 i0 i i LI0
-                         H1 Hfill Hlen) ; inversion Heqf' ; subst ; iFrame].
-      clear Heqes. 
-      intro n. 
-      induction n ;
-        intros lh1 lh2 i1 i1' i2 i2' LI Hfill1 Hfill2 Hlen ; first ( exfalso ; lia ).
-      unfold lfilled, lfill in Hfill2. destruct i2.
-      { destruct lh2 as [bef2 aft2|] ; last by false_assumption.
-        remember (const_list bef2) as b eqn:Hbef2.
-        destruct b ; last by false_assumption.
-        apply b2p in Hfill2.
-        unfold lfilled, lfill in Hfill1 ; destruct i1.
-        { destruct lh1 as [bef1 aft1|] ; last by false_assumption.
-          remember (const_list bef1) as b0 eqn:Hbef1.
-          destruct b0 ; last by false_assumption.
-          apply b2p in Hfill1.
-          rewrite Hfill2 in Hfill1. do 2 rewrite <- app_assoc in Hfill1.
-          rewrite app_assoc in Hfill1. rewrite (app_assoc bef1 _ _) in Hfill1.
-          apply first_values in Hfill1 as [Hvv _] ; (try by left) ;
-            try by unfold const_list ; rewrite forallb_app ; apply andb_true_iff.
-          by apply app_inj_2 in Hvv as [_ ?]. }
-        fold lfill in Hfill1. destruct lh1 ; first by false_assumption.
-        remember (const_list l) as b.
-        destruct b ; last by false_assumption.
-        destruct (lfill i1 lh1 _) ; last by false_assumption.
-        apply b2p in Hfill1. rewrite Hfill2 in Hfill1.
-        rewrite <- app_assoc in Hfill1. rewrite app_assoc in Hfill1.
-        apply first_values in Hfill1 as ( _ & Habs & _ ) => //= ; try by left.
-        unfold const_list ; rewrite forallb_app ; by apply andb_true_iff. }
-      fold lfill in Hfill2. 
-      destruct lh2 as [| bef2 n2 l2 lh2 aft2] ; first by false_assumption.
-      remember (const_list bef2) as b ; destruct b ; last by false_assumption.
-      remember (lfill i2 lh2 (vs ++ [AI_basic (BI_br i2')])) as les.
-      destruct les ; last by false_assumption.
-      apply b2p in Hfill2.
-      unfold lfilled, lfill in Hfill1 ; destruct i1.
-      { destruct lh1 as [bef1 aft1 |] ; last by false_assumption.
-        remember (const_list bef1) as b ; destruct b ; last by false_assumption.
-        apply b2p in Hfill1. rewrite Hfill2 in Hfill1.
-        rewrite <- app_assoc in Hfill1. rewrite app_assoc in Hfill1.
-        apply first_values in Hfill1 as ( _ & Habs & _ ) => //= ; try by left.
-        unfold const_list ; rewrite forallb_app ; by apply andb_true_iff. }
-      fold lfill in Hfill1.
-      destruct lh1 as [| bef1 n1 l1 lh1 aft1] ; first by false_assumption.
-      remember (const_list bef1) as b ; destruct b ; last by false_assumption.
-      remember (lfill i1 lh1 (vs0 ++ [AI_basic (BI_br i1')])) as les0.
-      destruct les0 ; last by false_assumption.
-      apply b2p in Hfill1. rewrite Hfill2 in Hfill1.
-      apply first_values in Hfill1 as ( Hl & Hlab & _ ) => //= ; try by left.
-      inversion Hlab ; subst.
-      apply (IHn lh1 lh2 i1 i1' i2 i2' l0) => //=.
-      unfold lfilled ; rewrite <- Heqles0 ; done.
-      unfold lfilled ; rewrite <- Heqles ; done.
-      rewrite amount_of_labels_app in Hlen.
-      assert (AI_label n1 l1 l0 :: aft2 = [AI_label n1 l1 l0] ++ aft2) as Heq => //=.
-      rewrite Heq in Hlen. rewrite amount_of_labels_app in Hlen. simpl in Hlen.
-      rewrite Nat.add_0_r in Hlen. rewrite <- Nat.add_succ_l in Hlen.
-      fold (amount_of_labels l0) in Hlen. lia.
-    + iDestruct "Hσ" as "( ? & ? & ? & ? & ? & ? & ? )". iFrame.
-      unfold lfilled in Hfill ; destruct i.
-      { unfold lfill in Hfill.
-        destruct lh as [bef0 aft0|] ; last by false_assumption.
-        remember (const_list bef0) as b eqn:Hbef0.
-        destruct b ; last by false_assumption.
-        apply b2p in Hfill. subst.
-        destruct bef ;
-          last by (inversion H1 as [[ Hhd Htl ]] ;
-                   found_intruse (AI_label n0 l l0) Htl Hxl1).
-        inversion H1 ; subst.
-        unfold lfilled in H2.
-        remember (lfill (S k) (LH_rec [] (length vs) l lh1 []) _) as les. 
-        destruct les ; last by false_assumption. apply b2p in H2. subst.
-        unfold lfill in Heqles. destruct (const_list []) ; try by false_assumption.
-        destruct k. { destruct lh1 as [bef1 aft1|] ; last by inversion Heqles.
-                      remember (const_list bef1) as b eqn:Hbef1.
-                      destruct b ; inversion Heqles.
-                      unfold lfill in Heqles1.
-                      rewrite <- Hbef1 in Heqles1. inversion Heqles1.      
 
-
-Admitted. *)
 
 
 (*
@@ -1797,9 +1615,11 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by eapply r_simple, rs_block.
-    inversion H; subst; clear H.
-    by iFrame.
+    eapply reduce_det in H as [H | [Hstart | [ [a Hstart] |
+                                               (Hstart & Hstart1 & Hstart2 & Hσ) ]]];
+      last (by eapply r_simple, rs_block) ;
+      first (inversion H; subst; clear H ; by iFrame) ;
+      rewrite first_instr_const in Hstart => //=.
 Qed.
 
 Lemma wp_label_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx v :
@@ -1823,12 +1643,52 @@ Proof.
     iIntros "!>" (es1 σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
-    2: { apply r_simple.  apply rs_label_const.
-         eapply to_val_const_list. apply Hval. }
-    inversion H; subst; clear H.
-    rewrite Hval. by iFrame.
+    eapply reduce_det in H as [H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                             & Hσ)]]] ;
+      (try by apply r_simple ; apply rs_label_const ;
+       eapply to_val_const_list ; apply Hval) ;
+      first (inversion H; subst; clear H ;
+             rewrite Hval ; by iFrame) ;
+      try by unfold first_instr in Hstart ; simpl in Hstart ;
+      remember (find_first_some (map first_instr_instr es)) as fes ;
+      destruct fes => //= ;
+                     apply to_val_const_list in Hval ;
+                     eapply starts_implies_not_constant in Hval ; first (by exfalso) ;
+                     unfold first_instr ; rewrite <- Heqfes.
 Qed.
+(* This lemma turned out not being used in wp_label_trap ; leaving it here for possible
+   future usage *)
+(*
+Lemma lfilled_trap_to_val k lh LI :
+  lfilled k lh [AI_trap] LI ->
+  (LI = [AI_trap] \/ to_val LI = None).
+Proof.
+  intro Hfill. destruct k ; unfold lfilled, lfill in Hfill.
+  { destruct lh ; last by false_assumption.
+    destruct (const_list l) ; last by false_assumption.
+    apply b2p in Hfill. subst.
+    induction l.
+    { destruct l0. { left ; by rewrite app_nil_r. }
+      right. unfold to_val, iris.to_val => //=. } 
+    right. destruct IHl as [Htrap | HNone].
+    apply app_eq_unit in Htrap as [[ -> Htrap ] | [ _ Habs]].
+    apply app_eq_unit in Htrap as [[ Habs _ ] | [ _ ->  ]] => //=.
+    destruct a => //=. destruct b => //=.
+    apply app_eq_nil in Habs as [? ?] => //=.
+    replace ((a :: l)%SEQ ++ [AI_trap] ++ l0) with ([a] ++ (l ++ [AI_trap] ++ l0)).
+    by apply to_val_cat_None2. done. }
+  fold lfill in Hfill. destruct lh ; first by false_assumption.
+  destruct (const_list l) ; last by false_assumption.
+  destruct (lfill _ _ _ ) ; last by false_assumption.
+  apply b2p in Hfill. right.
+  subst ; induction l ; first unfold to_val, iris.to_val => //=.
+  replace ((a :: l)%SEQ ++ (AI_label n l0 l2 :: l1)%SEQ) with
+    ([a] ++ (l ++ AI_label n l0 l2 :: l1)) ; last done.
+  by apply to_val_cat_None2.
+Qed.
+  *)
+    
+
 Lemma wp_label_trap (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx :
   iris.to_val es = Some trapV -> 
   Φ trapV ⊢ WP [::AI_label m ctx es] @ s; E {{ Φ }}.
@@ -1851,10 +1711,58 @@ Proof.
     iIntros "!>" (es1 σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
-    2: { apply r_simple.  apply rs_label_trap. }
-    inversion H; subst; clear H.
-    by iFrame.
+    (* Here, the conclusion of reduce_det is not strong enough, so we re-do the proof
+       of this subcase by hand, since in this particular case, we can get a 
+       stronger result *)
+    remember [AI_label m ctx [AI_trap]] as es0.
+    remember {| f_locs := locs ; f_inst := inst |} as f.
+    remember {| f_locs := locs' ; f_inst := inst' |} as f'.
+    rewrite <- app_nil_l in Heqes0.
+    induction H ; (try by inversion Heqes0) ;
+      try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
+    { destruct H ; (try by inversion Heqes0) ;
+        try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
+      - inversion Heqes0 ; subst. inversion H.
+      - inversion Heqes0 ; subst. inversion Heqf' ; subst.
+        iFrame. iSimpl. done.
+      - inversion Heqes0 ; subst. simple_filled H1 i lh bef aft n l l'.
+        found_intruse (AI_basic (BI_br 0)) H1 Hxl1.
+        apply in_or_app. right. apply in_or_app. left.
+        apply in_or_app. right => //=. by left.
+      - rewrite Heqes0 in H0. filled_trap H0 Hxl1. }
+    rewrite Heqes0 in H0.
+    unfold lfilled, lfill in H0 ; destruct k.
+    { destruct lh ; last by false_assumption.
+      destruct (const_list l) ; last by false_assumption.
+      apply b2p, Logic.eq_sym in H0 ; simpl in H0.
+      apply app_eq_unit in H0 as [[ -> H0 ] | [_ Habs]].
+      apply app_eq_unit in H0 as [[ -> _] | [-> ->]] => //=.
+      apply test_no_reduce0 in H. by exfalso.
+      unfold lfilled, lfill in H1 ; simpl in H1. apply b2p in H1.
+      rewrite app_nil_r in H1 ; subst.
+      apply IHreduce => //=.
+      apply app_eq_nil in Habs as [-> _].
+      by apply test_no_reduce0 in H. }
+    fold lfill in H0. destruct lh ; first by false_assumption.
+    destruct (const_list l) ; last by false_assumption.
+    remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
+    apply b2p, Logic.eq_sym in H0. simpl in H0.
+    apply app_eq_unit in H0 as [[ _ H0 ] | [ _ Habs]].
+    inversion H0 ; subst.
+    unfold lfill in Heqfill ; destruct k.
+    { destruct lh ; last by inversion Heqfill.
+      destruct (const_list l0) ; inversion Heqfill.
+      apply Logic.eq_sym, app_eq_unit in H3 as [[ _ H3 ]|[ _ Habs]].
+      apply app_eq_unit in H3 as [[ -> _ ]|[ -> _]].
+      by apply test_no_reduce0 in H.
+      by apply test_no_reduce_trap in H.
+      apply app_eq_nil in Habs as [-> _] ; by apply test_no_reduce0 in H. }
+    fold lfill in Heqfill.
+    destruct lh ; first by inversion Heqfill.
+    destruct (const_list l0) ; last by inversion Heqfill.
+    destruct (lfill k lh es) ; inversion Heqfill.
+    found_intruse (AI_label n l1 l3) H3 Hxl1.
+    inversion Habs.
 Qed.
 
 Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n :
@@ -2032,11 +1940,18 @@ Proof.
   apply lfilled_swap with (es':=[::AI_label m [::] (vs ++ to_e_list es)]) in Hfill as Hfill'.
   destruct Hfill' as [LI' Hfill'].
   destruct HStep as [H [-> ->]].
-  eapply reduce_det in H; cycle 1.
-  { eapply r_label. apply r_simple. eapply rs_block;eauto. all: eauto. }
+  eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                            & Hσ)]]] ;
+    try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_block (Tf t1s t2s) es)]
+                  (vs ++ [AI_basic (BI_block (Tf t1s t2s) es)])) ;
+    first (unfold lfilled, lfill ; rewrite Hconst ; by rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill''] ;
+    eapply lfilled_implies_starts in Hfill'' ; (try done) ;
+    rewrite Hfill'' in Hstart ; inversion Hstart => //=.
+  2: { eapply r_label. apply r_simple. eapply rs_block;eauto. all: eauto. }
   inversion H; subst; clear H.
   iFrame. iSplit;[|done].
-  iSpecialize ("HWP" $! _ Hfill'). iFrame.
+  iSpecialize ("HWP" $! _ Hfill'). iFrame.  
 Qed.
 
 Lemma wp_br_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i lh vs' es' :
@@ -2080,16 +1995,24 @@ Proof.
   apply lfilled_Ind_Equivalent in H8 as Hfill'.
   apply lfilled_swap with (es':=vs ++ es) in Hfill' as Hfill''.
   destruct Hfill'' as [LI' Hfill''].    
-  destruct HStep as [H [-> ->]].
-  eapply reduce_det in H; cycle 1.
-  { eapply r_label with (lh:=(LH_base vs' es')).
-    2: { apply lfilled_Ind_Equivalent.
-         econstructor;auto. }
-    2: { apply lfilled_Ind_Equivalent. econstructor;auto. }
-    apply r_simple. eapply rs_br. apply Hvs. all:eauto. }
+  destruct HStep as [H [-> ->]]. 
+  eapply reduce_det in H as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 &
+                                                              Hσ)]]] ;
+    try by apply lfilled_Ind_Equivalent in Hfill ;
+    assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
+                    (vs ++ [AI_basic (BI_br i)])) ;
+    first (unfold lfilled, lfill ; rewrite Hvs ; by rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln ; (try done) ;
+    rewrite Hfilln in Hstart ; inversion Hstart => //=. 
+  2: { eapply r_label with (lh:=(LH_base vs' es')).
+       2: { apply lfilled_Ind_Equivalent.
+            econstructor;auto. }
+       2: { apply lfilled_Ind_Equivalent. econstructor;auto. }
+       apply r_simple. eapply rs_br. apply Hvs. all:eauto. }
   inversion H; subst; clear H.
   iFrame. iSplit;[|done].
-  erewrite !app_assoc. iFrame.
+  erewrite !app_assoc. iFrame. 
 Qed.
 
 Lemma wp_loop_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s i lh :
@@ -2128,7 +2051,14 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
+    eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                            & Hσ)]]] ;
+    try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_loop (Tf t1s t2s) es)]
+                  (vs ++ [AI_basic (BI_loop (Tf t1s t2s) es)])) ;
+    first (unfold lfilled, lfill ; rewrite Hvs ; by rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill''] ;
+    eapply lfilled_implies_starts in Hfill'' ; (try done) ;
+    rewrite Hfill'' in Hstart ; inversion Hstart => //=.
     2: { eapply r_label. apply r_simple;eauto. eapply rs_loop;eauto.
          eauto. eauto. }
     inversion H; subst; clear H.
@@ -2178,11 +2108,14 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
-    2: { eapply r_label. apply r_simple;eauto. eapply rs_if_true;eauto.
-         eauto. eauto. }
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H ;
+    try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_if tf e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
 Qed.
 Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s :
   n ≠ Wasm_int.int_zero i32m ->
@@ -2225,7 +2158,15 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
+    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+                                               (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+    try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_if tf e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
     2: { eapply r_label. apply r_simple;eauto. eapply rs_if_false;eauto.
          eauto. eauto. }
     inversion H; subst; clear H.
@@ -2272,11 +2213,14 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
-    2: { eapply r_label. apply r_simple;eauto. eapply rs_br_if_true;eauto.
-         eauto. eauto. }
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H ;
+    try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_br_if i)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_br_if i)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
 Qed.
 Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i :
   n ≠ Wasm_int.int_zero i32m ->
@@ -2313,9 +2257,7 @@ Proof.
     iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by apply r_simple, rs_br_if_false.
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H.
 Qed.
 
 
@@ -2351,11 +2293,14 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
-    2: { eapply r_label. apply r_simple;eauto. eapply rs_br_table;eauto.
-         eauto. eauto. }
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H ;
+     try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 c))] [])
+                    [AI_basic (BI_br_table iss i)]
+                    [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
 Qed.
 Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j :
   ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
@@ -2399,11 +2344,14 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H.
-    2: { eapply r_label. apply r_simple;eauto. eapply rs_br_table_length;eauto.
-         eauto. eauto. }
-    inversion H; subst; clear H.
-    by iFrame.
+    only_one_reduction H ;
+     try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 c))] [])
+                    [AI_basic (BI_br_table iss i)]
+                    [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
 Qed.
 Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i :
   ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
@@ -2918,9 +2866,7 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last eapply r_get_local; eauto.
-    inversion H; subst; clear H.
-    by iFrame => //=.
+    only_one_reduction H.
 Qed.
 
 Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat) (ϕ: val -> Prop):
@@ -2934,6 +2880,10 @@ Proof.
   destruct σ as [[[hs ws] locs] inst].
   iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
   iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
+  assert (i < length locs) as Hlength.
+    { rewrite gmap_of_list_lookup Nat2N.id in Hli.
+      by apply lookup_lt_Some in Hli.
+    }
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -2941,24 +2891,28 @@ Proof.
     exists [], [], (hs, ws, set_nth v locs i v, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
-    by eapply r_set_local.
+    eapply r_set_local => //=.
+    unfold lt in Hlength.
+    (* Here, we need to prove [ ssrnat.leq a b ] from hypothesis [ a <= b ].
+       I gave up, could someone help ? *) admit.
   - iIntros "!>" (es σ2 efs HStep).
     (* modify locs[i]. This has to be done before the update modality is used. *)
     iMod (gen_heap_update with "Hl Hli") as "(Hl & Hli)".
     iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto.
+    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] | (Hstart & Hstart1 & Hstart2
+                                                               & Hσ)]]] ;
+      last (eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto) ;
+    try by unfold first_instr in Hstart ; simpl in Hstart ; inversion Hstart.
     inversion H; subst; clear H.
     iFrame.
     repeat iSplit => //.
-    assert (i < length locs) as Hlength.
-    { rewrite gmap_of_list_lookup Nat2N.id in Hli.
-      by apply lookup_lt_Some in Hli.
-    }
     rewrite - gmap_of_list_insert; rewrite Nat2N.id => //.
     by erewrite fmap_insert_set_nth.
-Qed.
+    simpl. unfold lt in Hlength. (* same problem with ssreflect as above *) admit.
+Admitted.
+
 
 (* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (n: nat) (ϕ: val -> Prop):
@@ -2989,7 +2943,7 @@ Proof.
     iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last apply r_simple, rs_tee_local => //=.
+    only_one_reduction H.
     inversion H; subst; clear H.
     iFrame.
     repeat iSplit => //.
@@ -3039,9 +2993,7 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] winst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last by apply r_get_global.
-    inversion H; subst; clear H.
-    by iFrame => /=.
+    only_one_reduction H.
 Qed.
 (*
 Print  sglob_val.
@@ -3091,21 +3043,23 @@ Proof.
   - iIntros "!>" (es σ2 efs Hstep). iMod "H". iModIntro. 
     destruct σ2 as [[[ hs2 ws2 ] locs' ] inst'].
     destruct Hstep as (H & -> & ->).
-    only_one_reduction H [AI_basic (BI_const v) ; AI_basic (BI_set_global n)]
-                       locs inst locs' inst'.   
- (*   inversion Heqes ; subst. inversion Heqf' ; subst. rewrite H in Hsglob.
-    destruct s0. simpl in Hsglob. inversion Hsglob. simpl.
-    iDestruct "H" as "[Hg Hk]". iFrame. iSplit ; last done.
+    eapply reduce_det in H as [H | [Hstart | [[a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                            & Hσ)]]] ;
+      last (by econstructor) ; try by unfold first_instr in Hstart ; inversion Hstart.
+    inversion H ; subst ; clear H.
+    iDestruct "H" as "[Hg Hk]". iFrame.
+    destruct ws => //=. simpl in Hsglob.
     assert (N.to_nat (N.of_nat k) < length s_globals) as Hlen.
-    { rewrite Nat2N.id. simpl in Hglob. 
-      apply nth_error_Some. rewrite Hglob. done. }
-    rewrite <- (gmap_of_list_insert (l:= s_globals) {|g_mut := g_mut g ; g_val := v0 |} (n := N.of_nat k) Hlen).
+    { rewrite Nat2N.id. simpl in Hglob. apply nth_error_Some.
+      rewrite Hglob ; done. }
+    rewrite <- (gmap_of_list_insert (l:= s_globals) {| g_mut := g_mut g ;
+                                                     g_val := v |} (n := N.of_nat k) Hlen).
     rewrite Nat2N.id.
-    cut (<[k:={| g_mut := g_mut g ; g_val := v0 |}]> s_globals =
-           update_list_at s_globals k {| g_mut := g_mut g ; g_val := v0 |}) ;
-      [ intro Heq ; rewrite Heq ; done |].
+    cut (<[k:={| g_mut := g_mut g ; g_val := v |}]> s_globals =
+           update_list_at s_globals k {| g_mut := g_mut g ; g_val := v |}).
+    intro Heq ; rewrite Heq. repeat iSplit => //=.
     rewrite Nat2N.id in Hlen. unfold update_list_at.
-    clear - Hlen. (* Hglob Hinstg Hsglob H1. *)
+    clear - Hlen. 
     generalize dependent s_globals. 
     induction k ; intros s_globals Hlen. 
     { destruct s_globals.
@@ -3114,8 +3068,7 @@ Proof.
     destruct s_globals. { exfalso ; simpl in Hlen ; lia. }
     simpl. simpl in IHk. assert (k < (length s_globals)). { simpl in Hlen. lia. }
     rewrite (IHk s_globals H). done.
-Qed.*)
-    Admitted.
+Qed.
 
 
 Lemma update_list_same_dom (l : seq.seq global) k v :
@@ -3260,7 +3213,8 @@ Proof.
     iModIntro.
     destruct σ2 as [[[hs2 ws2] locs2] winst2].
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep; last by eapply r_store_success.
+    only_one_reduction HStep.
+(*     eapply reduce_det in HStep; last by eapply r_store_success.e *)
     inversion HStep; subst; clear HStep => /=.
     iFrame.
     rewrite update_list_at_insert; last by rewrite nth_error_lookup in Hm; apply lookup_lt_Some in Hm.
@@ -3315,10 +3269,7 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H; last eapply r_current_memory; eauto.
-    inversion H; subst; clear H.
-    unfold mem_size.
-    by iFrame => //=.
+    only_one_reduction H.
 Qed.
 
 Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
