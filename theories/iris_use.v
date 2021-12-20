@@ -24,6 +24,9 @@ Let to_val := iris.to_val.
 
 Section Host.
 
+Import DummyHosts.
+  
+(*
 Variable host_function : eqType.
 
 Let host := host.host host_function.
@@ -31,19 +34,13 @@ Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
 
 Variable host_instance : host.
-
+ *)
 Let reduce := @reduce host_function host_instance.
-Let state := state host_instance.
 
-
-
-Let wasm_mixin : LanguageMixin _ _ _ := wasm_mixin host_instance.
 
 Canonical Structure wasm_lang := Language wasm_mixin.
-
+ 
 Let reducible := @reducible wasm_lang.
-
-Let prim_step := @iris.prim_step host_function host_instance.
 
 Class irisG (Σ : gFunctors) := IrisG {
   iris_invG :> invG Σ;
@@ -107,11 +104,11 @@ Class wglobG Σ := WGlobG {
   glob_gen_hsG :> gen_heapG N global Σ;
 }.
 
-Class wframeG Σ := WLocsG {
+Class wframeG Σ := WFrameG {
   locs_gen_hsG :> ghost_mapG Σ unit frame;
 }.
 
-Variable frameGName : positive.
+Definition frameGName : positive := 10%positive.
 
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
                            (at level 20, q at level 5, format "n ↦[wf]{ q } v") : bi_scope.
@@ -128,14 +125,14 @@ Notation "n ↦[wm][ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) (DfracOwn 1) v%
 Notation "n ↦[wmlength] v" := (mapsto (L:=N) (V:=N) n (DfracOwn 1) v% V)
                            (at level 20, format "n ↦[wmlength] v") : bi_scope.
 Notation "n ↦[wg]{ q } v" := (mapsto (L:=N) (V:=global) n q v%V)
-                           (at level 20, q at level 5, format "n ↦[wg]{ q } v") : bi_scope.
+                           (at level 20, q at level 5, format "n ↦[wg]{ q } v").
 Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
-                      (at level 20, format "n ↦[wg] v") : bi_scope.
+                      (at level 20, format "n ↦[wg] v") .
 Notation " ↪[frame]{ q } v" := (ghost_map_elem frameGName tt q v%V)
-                           (at level 20, q at level 5, format " ↪[frame]{ q } v") : bi_scope.
+                           (at level 20, q at level 5, format " ↪[frame]{ q } v") .
 Notation " ↪[frame] v" := (ghost_map_elem frameGName tt (DfracOwn 1) v%V)
-                           (at level 20, format " ↪[frame] v") : bi_scope.
- 
+                           (at level 20, format " ↪[frame] v").
+
 Definition proph_id := positive. (* ??? *)
 
 
@@ -197,7 +194,6 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
 (* Defining a Wasm-specific WP with frame existence *)
 
 Section Wasm_wp.
-
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 Definition wasm_wp_pre (s : stuckness)
@@ -217,7 +213,7 @@ Definition wasm_wp_pre (s : stuckness)
          [∗ list] i ↦ ef ∈ efs, wp ⊤ ef fork_post
 end)%I.
 
-Local Instance wasm_wp_pre_contractive s: Contractive (wasm_wp_pre s).
+Global Instance wasm_wp_pre_contractive s: Contractive (wasm_wp_pre s).
 Proof.
   rewrite /wasm_wp_pre /= => n wp wp' Hwp E e1 Φ.
   do 24 (f_contractive || f_equiv).
@@ -227,7 +223,7 @@ Proof.
   repeat (f_contractive || f_equiv); apply Hwp.
 Qed.
 
-Definition wasm_wp_def : Wp wasm_lang (iProp Σ) stuckness :=
+Global Instance wasm_wp_def : Wp wasm_lang (iProp Σ) stuckness :=
   λ (s: stuckness), fixpoint (wasm_wp_pre s).
 
 (* Seal is a mechanism that stdpp uses to avoid definitions being automatically
@@ -248,7 +244,7 @@ Lemma wp_value_fupd' s E Φ v : WP of_val v @ s; E {{ Φ }} ⊣⊢ |={E}=> Φ v.
 Proof. rewrite wp_unfold /wasm_wp_pre to_of_val. auto. Qed.
 
 Lemma wp_strong_mono s1 s2 E1 E2 e Φ Ψ :
-  s1 ⊑ s2 → E1 ⊆ E2 →
+  s1 ⊑ s2 → E1 ⊆ E2 ->
   WP e @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP e @ s2; E2 {{ Ψ }}.
 Proof.
   iIntros (? HE) "H HΦ". iLöb as "IH" forall (e E1 E2 HE Φ Ψ).
@@ -319,8 +315,6 @@ Proof.
   iIntros "[HQ HWP]". iApply (wp_wand with "HWP").
   iIntros (v) "HΦ". by iApply "HΦ".
 Qed.
-
-
 
 (* Some lifting lemmas restated and reproved *)
 Lemma wp_lift_step_fupd s E Φ e1 :
@@ -1739,7 +1733,7 @@ Qed.
 Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
   const_list vs ->
   ↪[frame] f0 -∗
-  WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
+  (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v ∗ ↪[frame] f0 }})
   -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Hconst) "Hf0 HWP".
@@ -1761,7 +1755,8 @@ Proof.
     iApply (wp_label_value with "[$]") => //=; first by erewrite app_nil_r; apply Hv1 .
   - iIntros (w) "(-> & Hf0)".
     erewrite iris.of_to_val => //.
-    by rewrite app_assoc.
+    rewrite app_assoc.
+    by iApply "HWP".
 Qed.
 
 Lemma wp_base (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es'' :

@@ -7,6 +7,8 @@ Require Export datatypes host operations properties opsem.
 
 Section Host.
 
+Import DummyHosts.
+  (*
 Variable host_function : eqType.
 
 Let host := host.host host_function.
@@ -14,14 +16,8 @@ Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
 
 Variable host_instance : host.
-
+*)
 Let reduce := @reduce host_function host_instance.
-
-
-
-Let wasm_mixin : LanguageMixin _ _ _ := wasm_mixin host_instance.
-
-Canonical Structure wasm_lang := Language wasm_mixin.
 
 Let reducible := @reducible wasm_lang.
 
@@ -29,8 +25,6 @@ Let reducible := @reducible wasm_lang.
 Let expr := iris.expr.
 Let val := iris.val.
 Let to_val := iris.to_val.
-
-Let prim_step := @iris.prim_step host_function host_instance.
 
 
 (* The following atomicity definition will be useful for opening invariants *)
