@@ -1698,8 +1698,8 @@ Proof.
       rewrite Hves. rewrite v_to_e_length. trivial.
       rewrite Hvs in H. rewrite app_length in H. simpl in H. lia.
   }
-  admit.
- (* { exfalso. destruct es. { admit. rewrite app_nil_r in Heqves ;
+  
+(*  { exfalso. destruct es. {  rewrite app_nil_r in Heqves ;
                               rewrite <- app_nil_l in Heqves ;
                               apply app_inj_tail in Heqves ;
                               destruct Heqves as [_ Habs] ; inversion Habs. }
@@ -1738,7 +1738,7 @@ Proof.
     + rewrite Ht1s. assert (length vcs = length ves).
       rewrite Hves. rewrite v_to_e_length. trivial.
       rewrite Hvs in H. rewrite app_length in H. simpl in H. lia.
-   }
+   } *)
    unfold lfilled, lfill in Hles.
   destruct k. {
     destruct lh as [bef aft|] ; [| exfalso ; false_assumption ].
@@ -1870,8 +1870,8 @@ Proof.
   apply (r_label (lh := LH_rec l1 n l2 lh l3) (k := S k) Hred) ;
     unfold lfilled, lfill ; rewrite Heqb ; fold lfill.
   rewrite <- Heqfilled ; trivial.
-  rewrite <- Heqfilled' ; trivial.*)
-Admitted.
+  rewrite <- Heqfilled' ; trivial.
+Qed.
     
 
 
@@ -2912,10 +2912,10 @@ Proof.
   induction Hred ;
     (try by left ; eexists 0, (LH_base [] []), [] , _, _ ;
      repeat split ; unfold lfilled, lfill ; simpl ; (try done) ; (try done) ;
-     (try by rewrite app_nil_r) ; constructor ) ;
+     (try by rewrite app_nil_r) ; constructor ) ;  
     (try by left ; eexists 0, (LH_base [] []), [AI_basic (BI_const _)] , _, _ ;
      repeat split ; unfold lfilled, lfill ; simpl ; (try done) ; (try done) ;
-     (try by rewrite app_nil_r) ; constructor) ;
+     (try by rewrite app_nil_r) ; constructor) ; 
     (try by left ; eexists 0, (LH_base [] []), [AI_basic (BI_const _) ;
                                                 AI_basic (BI_const _) ] , _, _ ;
      repeat split ; unfold lfilled, lfill ; simpl ; (try done) ; (try done) ;
@@ -2929,7 +2929,7 @@ Proof.
             exists 0, (LH_base [] []), bef, aft ; repeat split ; (try by simpl) ;
             [ intro Habs ; apply app_eq_nil in Habs as [-> ->] ;
                         rewrite app_nil_l app_nil_r in H0 ; by apply H
-                      | unfold lfilled, lfill ; simpl ; subst ; rewrite app_nil_r]);
+                      | unfold lfilled, lfill ; simpl ; subst ; rewrite app_nil_r]) ;
       (try by left ; eexists 0, (LH_base [] []), [] , _, _ ;
        repeat split ; unfold lfilled, lfill ; simpl ; (try done) ; (try done) ; 
        (try by rewrite app_nil_r) ; constructor ;
@@ -3039,8 +3039,13 @@ Proof.
   destruct (lfilled_trans2 _ _ _ _ _ _ _ _ _ _ Hfill Hfill' H H0)
     as (lh' & Hfill1 & Hfill2).
   right ; exists (k0 + k), lh', bef, aft => //=.
+  Unshelve.
+  exact AI_trap.
+  exact [AI_trap].
+  exact AI_trap.
+  exact [].
   (* A few uninstantiated variables left on shelf, due to host being replaced by a dummy now *)
-Admitted.
+Qed.
   
 
     
