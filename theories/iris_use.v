@@ -2063,16 +2063,16 @@ Proof.
   iIntros "?"; iSpecialize ("HP" with "[$]").
   by iApply wp_wasm_empty_ctx. 
 Qed.
-(*
-Lemma wp_if_true_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh :
+
+Lemma wp_if_true_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh f0:
   n ≠ Wasm_int.int_zero i32m ->
-  ▷ WP [::AI_basic (BI_block tf e1s)] @ s; E CTX i; lh {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E CTX i; lh {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e1s)] @ s; E CTX i; lh {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E CTX i; lh {{ Φ }}.
 Proof.
-  iIntros (Hn) "HP".
+  iIntros (Hn) "Hf0 HP".
   iIntros (LI Hfill).
   eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
-  iDestruct ("HP" $! _ Hfill') as "HP".
   iApply wp_lift_step => //=.
   { destruct (iris.to_val LI) eqn:Hcontr;auto.
     apply lfilled_to_val in Hfill;eauto.
@@ -2095,8 +2095,12 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H ;
-    try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+    only_one_reduction H.
+    + iExists f0.
+      iFrame.
+      iIntros "?"; iSpecialize ("HP" with "[$]").
+      by iApply "HP".
+    all: by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
                     [AI_basic (BI_if tf e1s e2s)]
                     [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
       first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
@@ -2104,25 +2108,28 @@ Proof.
     eapply lfilled_implies_starts in Hfilln => //= ;
     rewrite Hfilln in Hstart ; inversion Hstart.
 Qed.
-Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s :
+
+Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s f0:
   n ≠ Wasm_int.int_zero i32m ->
-  ▷ WP [::AI_basic (BI_block tf e1s)] @ s; E {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e1s)] @ s; E {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
 Proof.
-  iIntros (?) "HP".
-  iApply wp_wasm_empty_ctx. iApply wp_if_true_ctx;eauto.
-  iNext. iApply wp_wasm_empty_ctx. iFrame.
+  iIntros (?) "Hf0 HP".
+  iApply wp_wasm_empty_ctx. iApply (wp_if_true_ctx with "[$]");eauto.
+  iNext. iIntros "?"; iSpecialize ("HP" with "[$]").
+  by iApply wp_wasm_empty_ctx.
 Qed.
   
-Lemma wp_if_false_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh :
+Lemma wp_if_false_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh f0:
   n = Wasm_int.int_zero i32m ->
-  ▷ WP [::AI_basic (BI_block tf e2s)] @ s; E CTX i; lh {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E CTX i; lh {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e2s)] @ s; E CTX i; lh {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E CTX i; lh {{ Φ }}.
 Proof.
-  iIntros (Hn) "HP".
+  iIntros (Hn) "Hf0 HP".
   iIntros (LI Hfill).
   eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
-  iDestruct ("HP" $! _ Hfill') as "HP".
   iApply wp_lift_step => //=.
   { destruct (iris.to_val LI) eqn:Hcontr;auto.
     apply lfilled_to_val in Hfill;eauto.
@@ -2157,27 +2164,34 @@ Proof.
     2: { eapply r_label. apply r_simple;eauto. eapply rs_if_false;eauto.
          eauto. eauto. }
     inversion H; subst; clear H.
-    by iFrame.
-Qed.
-Lemma wp_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s :
-  n = Wasm_int.int_zero i32m ->
-  ▷ WP [::AI_basic (BI_block tf e2s)] @ s; E {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
-Proof.
-  iIntros (?) "HP".
-  iApply wp_wasm_empty_ctx. iApply wp_if_false_ctx;eauto.
-  iNext. iApply wp_wasm_empty_ctx. iFrame.
+    iExists f0.
+    iFrame.
+    iSplit => //.
+    iIntros "?"; iSpecialize ("HP" with "[$]").
+    by iApply "HP".
 Qed.
 
-Lemma wp_br_if_true_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i j lh :
-  n ≠ Wasm_int.int_zero i32m ->
-  ▷ WP [::AI_basic (BI_br i)] @ s; E CTX j; lh {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E CTX j; lh {{ Φ }}.
+Lemma wp_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s f0:
+  n = Wasm_int.int_zero i32m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e2s)] @ s; E {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
 Proof.
-  iIntros (Hn) "HP".
+  iIntros (?) "Hf0 HP".
+  iApply wp_wasm_empty_ctx. iApply (wp_if_false_ctx with "[$]");eauto.
+  iNext. iIntros "?". iApply wp_wasm_empty_ctx.
+  by iApply "HP".
+Qed.
+
+Lemma wp_br_if_true_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i j lh f0:
+  n ≠ Wasm_int.int_zero i32m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E CTX j; lh {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E CTX j; lh {{ Φ }}.
+Proof.
+  iIntros (Hn) "Hf0 HP".
   iIntros (LI Hfill).
   eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
-  iDestruct ("HP" $! _ Hfill') as "HP".
   iApply wp_lift_step => //=.
   { destruct (iris.to_val LI) eqn:Hcontr;auto.
     apply lfilled_to_val in Hfill;eauto.
@@ -2208,25 +2222,30 @@ Proof.
     destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
     eapply lfilled_implies_starts in Hfilln => //= ;
     rewrite Hfilln in Hstart ; inversion Hstart.
+    iExists f0; iFrame.
+    iIntros "?". by iApply ("HP" with "[$]").
 Qed.
-Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i :
+
+Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i f0:
   n ≠ Wasm_int.int_zero i32m ->
-  ▷ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
 Proof.
-  iIntros (?) "HP".
-  iApply wp_wasm_empty_ctx. iApply wp_br_if_true_ctx;eauto.
-  iNext. iApply wp_wasm_empty_ctx. iFrame.
+  iIntros (?) "Hf0 HP".
+  iApply wp_wasm_empty_ctx. iApply (wp_br_if_true_ctx with "[$]");eauto.
+  iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]").
 Qed.
 
 (* The following expression reduces to a value reguardless of context, 
    and thus does not need a context aware version *)
-Lemma wp_br_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i :
+Lemma wp_br_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i f0:
   n = Wasm_int.int_zero i32m ->
+  ↪[frame] f0 -∗
   ▷ Φ (immV [])
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
 Proof.
-  iIntros (Hn) "HΦ".
+  iIntros (Hn) "Hf0 HΦ".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   iSplit.
@@ -2248,16 +2267,16 @@ Proof.
 Qed.
 
 
-Lemma wp_br_table_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j k lh :
+Lemma wp_br_table_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j k lh f0:
   ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
   List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
-  ▷ WP [::AI_basic (BI_br j)] @ s; E CTX k; lh {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E CTX k; lh {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br j)] @ s; E CTX k; lh {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E CTX k; lh {{ Φ }}.
 Proof.
-  iIntros (Hiss Hj) "HP".
+  iIntros (Hiss Hj) "Hf0 HP".
   iIntros (LI Hfill).
   eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
-  iDestruct ("HP" $! _ Hfill') as "HP".
   iApply wp_lift_step => //=.
   { destruct (iris.to_val LI) eqn:Hcontr;auto.
     apply lfilled_to_val in Hfill;eauto.
@@ -2288,27 +2307,30 @@ Proof.
     destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
     eapply lfilled_implies_starts in Hfilln => //= ;
     rewrite Hfilln in Hstart ; inversion Hstart.
+    iExists f0; iFrame.
+    iIntros "?"; by iApply ("HP" with "[$]").
 Qed.
-Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j :
+Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j f0:
   ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
   List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
-  ▷ WP [::AI_basic (BI_br j)] @ s; E {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br j)] @ s; E {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
 Proof.
-  iIntros (? ?) "HP".
-  iApply wp_wasm_empty_ctx. iApply wp_br_table_ctx;eauto.
-  iNext. iApply wp_wasm_empty_ctx. iFrame.
+  iIntros (? ?) "Hf0 HP".
+  iApply wp_wasm_empty_ctx. iApply (wp_br_table_ctx with "[$]");eauto.
+  iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]"). 
 Qed.
 
-Lemma wp_br_table_length_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j lh :
+Lemma wp_br_table_length_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j lh f0:
   ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
-  ▷ WP [::AI_basic (BI_br i)] @ s; E CTX j; lh {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E CTX j; lh {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E CTX j; lh {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E CTX j; lh {{ Φ }}.
 Proof.
-  iIntros (Hiss) "HP".
+  iIntros (Hiss) "Hf0 HP".
   iIntros (LI Hfill).
   eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
-  iDestruct ("HP" $! _ Hfill') as "HP".
   iApply wp_lift_step => //=.
   { destruct (iris.to_val LI) eqn:Hcontr;auto.
     apply lfilled_to_val in Hfill;eauto.
@@ -2339,15 +2361,19 @@ Proof.
     destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
     eapply lfilled_implies_starts in Hfilln => //= ;
     rewrite Hfilln in Hstart ; inversion Hstart.
+    iExists f0; iFrame.
+    iIntros "?"; by iApply ("HP" with "[$]").
 Qed.
-Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i :
+
+Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i f0:
   ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
-  ▷ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }}
-  ⊢ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
 Proof.
-  iIntros (?) "HP".
-  iApply wp_wasm_empty_ctx. iApply wp_br_table_length_ctx;eauto.
-  iNext. iApply wp_wasm_empty_ctx. iFrame.
+  iIntros (?) "Hf0 HP".
+  iApply wp_wasm_empty_ctx. iApply (wp_br_table_length_ctx with "[$]");eauto.
+  iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]").
 Qed.
 
  (*| rs_return :
@@ -2367,7 +2393,6 @@ Qed.
    Why is there a need for a new WP? because there can be a nested label structure inside a 
    label, and we need to have knowledge of that for the return instruction. The label wrapper
    is always the outermost layer! so current ctxWP does not work for that reason.
-*)
 *)
 (* Frame rules attempt *)
 
