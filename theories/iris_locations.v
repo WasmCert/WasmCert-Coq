@@ -1,8 +1,6 @@
 (** Iris location definitions and lemmas **)
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq.
-From iris.program_logic Require Import ectx_lifting total_ectx_lifting.
-From iris.program_logic Require Import language ectx_language ectxi_language.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -10,11 +8,6 @@ Unset Printing Implicit Defensive.
 
 Require Export common operations datatypes datatypes_properties memory_list.
 From stdpp Require Import gmap.
-From iris.proofmode Require Import tactics.
-From iris.algebra Require Import auth.
-From iris.bi.lib Require Import fractional.
-From iris.base_logic.lib Require Export gen_heap proph_map gen_inv_heap.
-From iris.program_logic Require Export weakestpre total_weakestpre.
 
 Definition create_table (len: N) : tableinst :=
   Build_tableinst (List.repeat None (N.to_nat len)) (Some len).

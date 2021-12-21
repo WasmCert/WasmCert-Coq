@@ -12,23 +12,22 @@ Unset Printing Implicit Defensive.
 Require Import common operations opsem interpreter.
 
 Section Host.
+  
+Import DummyHosts.
+(*
+Print store_record.
 
-Variable host_function : eqType.
-
-Let host := host host_function.
 Let store_record := store_record host_function.
 
 Variable host_instance : host.
 
+
+Print reduce.
+*)
 Let host_state := host_state host_instance.
-(*Let reduce_simple : list administrative_instruction -> list administrative_instruction -> Prop :=
-  @reduce_simple _.*)
 Let reduce : host_state -> store_record -> frame -> list administrative_instruction ->
              host_state -> store_record -> frame -> list administrative_instruction -> Prop :=
   @reduce _ _.
-(*Let lfill : nat -> lholed -> list administrative_instruction -> option (list administrative_instruction) :=
-  @lfill _.*)
-
 Definition expr := list administrative_instruction.
 
 (* Add [::AI_trap] to val? *)
