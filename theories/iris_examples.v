@@ -25,12 +25,15 @@ Import DummyHosts.
   (*
 Variable host_function : eqType.
 
+
 Let host := host.host host_function.
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
 
+
 Variable host_instance : host.
 *)
+
 Let reduce := @reduce host_function host_instance.
 
 (*
