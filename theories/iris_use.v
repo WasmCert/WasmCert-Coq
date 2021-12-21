@@ -3445,87 +3445,98 @@ Qed.
 
 
 
-(*
-
 Lemma wp_load (s:stuckness) (E:coPset) (t:value_type) (v:value)
       (inst:instance) (off: static_offset) (a: alignment_exponent)
-      (k: i32) (n:nat) (Φ:val -> Prop) :
+      (k: i32) (n:nat) (Φ:val -> Prop) (f0: frame):
   types_agree t v ->
-  inst.(inst_memory) !! 0 = Some n ->
+  f0.(f_inst).(inst_memory) !! 0 = Some n ->
   Φ (immV [v]) ->
-  ( ↦[wi] inst ∗
+  ( ↪[frame] f0 ∗
      N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ]
      (bits v) ⊢
      (WP [AI_basic (BI_const (VAL_int32 k)) ;
-          AI_basic (BI_load t None a off)] @ s; E {{ w, ⌜ Φ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ](bits v) }})).
+          AI_basic (BI_load t None a off)] @ s; E {{ w, ⌜ Φ w ⌝ ∗ ↪[frame] f0 ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ](bits v) }})).
 Proof.
-  iIntros (Htv Hinstn HΦ) "[Hinst Hwms]".
+  iIntros (Htv Hinstn HΦ) "[Hf0 Hwms]".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
-  rewrite lookup_insert in Hinst.
-  inversion Hinst; subst; clear Hinst.
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ)".
+  iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
+  rewrite lookup_insert in Hf0.
+  inversion Hf0; subst; clear Hf0.
   destruct (bits v) eqn:Hb.
   destruct v ; inversion Hb.
-  iDestruct (wms_implies_smems_is_Some with "Hm Hwms") as "(Hwms & Hm &  %Hm)".
+  iDestruct (wms_implies_smems_is_Some with "Hm Hwms") as "(Hwms & Hm & %Hm)".
   destruct Hm as [m Hm].
   rewrite <- Hb.
   iDestruct (wms_is_load with "Hwms Hm") as "%Hload" => //=.
   rewrite - nth_error_lookup in Hm.
   rewrite - nth_error_lookup in Hinstn.
+  simpl in Hinstn.
+  destruct (inst_memory winst) eqn:Hinstmem => //.
+  inversion Hinstn; subst; clear Hinstn.
   iSplit.
   - iPureIntro.
     destruct s => //=.
     unfold language.reducible, language.prim_step => /=.
-    eexists [], [AI_basic (BI_const _)], (hs, ws, locs, inst), [].
+    eexists [], [AI_basic (BI_const _)], (hs, ws, locs, winst), [].
     unfold iris.prim_step => /=.
-    repeat split => //.    
-    by eapply r_load_success. 
+    repeat split => //.
+    eapply r_load_success => //.
+    unfold smem_ind.
+    by rewrite Hinstmem.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H.
+    iExists {| f_locs := locs; f_inst := winst |}.
+    (*only_one_reduction H.
     rewrite deserialise_bits in H => //=.
     inversion H ; subst. iFrame. by iPureIntro.
 Qed.
+*)
+Admitted.
 
 
-Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (inst: instance) (*(mem mem': memory)*) (vinit : value) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) :
+Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (*(mem mem': memory)*) (vinit : value) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) (f0: frame) :
   types_agree t v -> types_agree t vinit ->
-  inst.(inst_memory) !! 0 = Some n ->
+  f0.(f_inst).(inst_memory) !! 0 = Some n ->
   (*store mem (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = Some mem' -> *)
   ϕ (immV []) ->
-  ( ↦[wi] inst ∗
+  ( ↪[frame] f0 ∗
   N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] (bits vinit)) ⊢
-  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v) }}).
+  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] f0 ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v) }}).
 Proof.
-  iIntros (Hvt Hvti Hinstn Hϕ) "[Hinst Hwms]".
+  iIntros (Hvt Hvti Hinstn Hϕ) "[Hf0 Hwms]".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
-  rewrite lookup_insert in Hinst.
-  inversion Hinst; subst; clear Hinst. 
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ)".
+  iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
+  rewrite lookup_insert in Hf0.
+  inversion Hf0; subst; clear Hf0.
   destruct (bits vinit) eqn:Hb. destruct vinit ; inversion Hb.
   iDestruct (wms_implies_smems_is_Some with "Hm Hwms") as "(Hwms & Hm & %Hm)".
   destruct Hm as [m Hm].
   rewrite <- Hb.
   iDestruct (wms_is_load with "Hwms Hm") as "%Hload" => //=.
   rewrite - nth_error_lookup in Hm.
-  rewrite - nth_error_lookup in Hinstn.  
+  rewrite - nth_error_lookup in Hinstn.
+  simpl in Hinstn.
+  destruct (inst_memory winst) eqn: Hinstmem => //.
+  inversion Hinstn; subst; clear Hinstn.
   iSplit.
   - iPureIntro.
     destruct s => //=.
     unfold language.reducible, language.prim_step => /=.
     edestruct if_load_then_store as [mem Hsomemem] => //=. (* This lemma is currently admitted *)
-    eexists [], [], (hs, _ (*upd_s_mem ws (update_list_at (s_mems ws) n m') *), locs, inst), [].
+    eexists [], [], (hs, _ (*upd_s_mem ws (update_list_at (s_mems ws) n m') *), locs, winst), [].
     repeat split => //.
     eapply r_store_success => //=.
+    unfold smem_ind.
+    by rewrite Hinstmem.
   - iIntros "!>" (es σ2 efs HStep).
-
+    iExists {| f_locs := locs; f_inst := winst |}.
     (* Work in progress *)
 Admitted.
 
@@ -3558,7 +3569,7 @@ Admitted.
 Qed. *)
 
 
-
+(*
 Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (ϕ: val -> Prop) :
   inst.(inst_memory) !! 0 = Some k ->
   ϕ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ->
