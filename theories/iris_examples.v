@@ -20,13 +20,13 @@ Let to_val := iris.to_val.
 (* Example Programs *)
 Section Examples.
 
-Context `{!wfuncG host_function Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ(*, irisG (wasm_lang host_function host_instance) Σ*)}.
+Context `{!wfuncG host_function Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wlocsG Σ, !winstG Σ, irisG (wasm_lang host_function host_instance) Σ}.
 
 Let host := host.host host_function.
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
 
-Variable host_instance: host.
+(* Variable host_instance: host. *)
 
 Let reduce := @reduce host_function host_instance.
 
