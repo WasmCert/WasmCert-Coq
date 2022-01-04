@@ -3154,39 +3154,27 @@ Proof.
     apply IH.
     lia.
 Qed.
-    
-(* A version of gen_heap_update specifically for wasm memories. *)
-Lemma gen_heap_update_big_wm σ n ml ml':
-  gen_heap_interp σ -∗ 
-  ([∗ list] i ↦ b ∈ ml, N.of_nat n ↦[wm][N.of_nat i] b) ==∗
-  gen_heap_interp ((new_2d_gmap_at_n (N.of_nat n) ml') ∪ σ) ∗
-  ([∗ list] i ↦ b ∈ ml', N.of_nat n ↦[wm][N.of_nat i] b).
-Proof.
-(*  revert σ; induction σ' as [| l v σ' Hl IH] using map_ind; iIntros (σ Hdisj) "Hσ".
-  { rewrite left_id_L. auto. }
-  iMod (IH with "Hσ") as "[Hσ'σ Hσ']"; first by eapply map_disjoint_insert_l.
-  decompose_map_disjoint.
-  rewrite !big_opM_insert // -insert_union_l //.
-  by iMod (gen_heap_alloc with "Hσ'σ") as "($ & $ & $)";
-    first by apply lookup_union_None.*)
-Admitted.
 
+(*
+Fixpoint update_list {A} (l : list A) i x :=
+  match l with
+  | [] => []
+  | t :: q => match i with
+            | 0 => x :: q
+            | S i => t :: update_list q i x
+            end end. *)
 
-Lemma length_bits v t:
-  types_agree t v -> length (bits v) = t_length t.
+Lemma update_trivial {A} l i (x : A) :
+  l !! i = Some x -> update_list_at l i x = l.
 Proof.
-  intros. unfold bits.
-  destruct v ; destruct t ; by inversion H.
+  generalize dependent l.
+  induction i ; intros ;
+    destruct l ; inversion H => //=.
+  unfold update_list_at. simpl.
+  unfold update_list_at in IHi.
+  by rewrite IHi.
 Qed.
 
-
-Lemma memory_in_bounds m i b :
-  (ml_data (mem_data m)) !! i = Some b -> i < N.to_nat (mem_length m) .
-Proof.
-  intros. 
-  apply lookup_lt_Some in H. unfold mem_length, memory_list.mem_length.
-  lia.
-Qed.
 
 Lemma those_app {A} (l1 : list (option A)) l2 tl1 tl2 :
   those l1 = Some tl1 -> those l2 = Some tl2 -> those (l1 ++ l2) = Some (tl1 ++ tl2).
@@ -3224,6 +3212,320 @@ Proof.
   eexists _,_ ; repeat split => //=. rewrite Htl.
   unfold option_map in H. by inversion H.
 Qed.
+
+
+Lemma wms_append n k b bs :
+  ⊢ (n ↦[wms][k] (b :: bs) ∗-∗ ( n↦[wm][k] b ∗ n↦[wms][N.add k 1%N] bs))%I.
+Proof.
+  iSplit.
+  - iIntros "Hwms". unfold mem_block_at_pos, big_opL. rewrite Nat.add_0_r.
+    rewrite N2Nat.id.
+    fold (big_opL (M := iPropI Σ)).
+    iDestruct "Hwms" as "[Hwm Hwms]".
+    iSplitL "Hwm" => //=.
+    iApply (big_sepL_impl with "Hwms").
+    iIntros (k0 x) "!> %Hx Hwm".
+    replace (N.to_nat k + S k0) with (N.to_nat (k+1) + k0) => //=.
+    lia.
+  - iIntros "[Hwm Hwms]". unfold mem_block_at_pos, big_opL.
+    rewrite Nat.add_0_r N2Nat.id.
+    fold (big_opL (M := iPropI Σ)).
+    iSplitL "Hwm" => //=.
+    iApply (big_sepL_impl with "Hwms").
+    iIntros (k0 x) "!> %Hx Hwm".
+    replace (N.to_nat (k+1) + k0) with (N.to_nat k + S k0) => //=.
+    lia.
+Qed.
+
+Lemma map_iota_lift {A} (f : nat -> A) g n len :
+  (forall x, f (x + 1) = g x) -> map f (iota (n+1) len) = map g (iota n len).
+Proof.
+  intros Hfg.
+  generalize dependent n.
+  induction len ; intros => //=.
+  rewrite Hfg. replace (S (n+1)) with (S n + 1) ; last lia.
+  rewrite IHlen. done.
+Qed. 
+  
+
+Lemma load_append m k off b bs :
+  load m k off (length (b :: bs)) = Some (b :: bs) ->
+  load m k (off + 1)%N (length bs) = Some bs.
+Proof.
+  unfold load ; intros Hm.
+  replace (off + N.of_nat (length (b :: bs)))%N with
+    (off + 1 + N.of_nat (length bs))%N in Hm ; last by simpl ; lia.
+  destruct (k + (off + 1 + N.of_nat (length bs)) <=? mem_length m)%N ; try by inversion Hm.
+  unfold read_bytes. unfold read_bytes in Hm. simpl in Hm.
+  destruct (mem_lookup (k + off + 0)%N (mem_data m)) ; inversion Hm.
+  rewrite list_extra.cons_app in H0.
+  destruct (those_app_inv [Some b0] _ _ H0) as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+  unfold those in Htl1. simpl in Htl1. inversion Htl1 ; subst ; clear Htl1.
+  inversion Htl ; subst ; clear Htl.
+  erewrite <- map_iota_lift => //=.
+  intros. replace (k + off + N.of_nat (x+1))%N with
+    (k + (off + 1) + N.of_nat x)%N => //=.
+  lia.
+Qed.
+
+Lemma store_trans m k off bs bs' m' m'' :
+  length bs = length bs' ->
+  store m k off bs (length bs) = Some m' ->
+  store m' k off bs' (length bs') = Some m'' ->
+  store m k off bs' (length bs') = Some m''.
+Proof.
+Admitted.
+
+Lemma store_trivial m k off bs :
+  load m k off (length bs) = Some bs ->
+  store m k off bs (length bs) = Some m. 
+Proof.
+Admitted.
+
+Lemma store_trivial_extension m k off bs m' bs' :
+  store m k off bs (length bs) = Some m' ->
+  load m k (off + N.of_nat (length bs))%N (length bs') = Some bs' ->
+  store m k off (bs ++ bs') (length bs + length bs') = Some m'.
+Proof.
+Admitted.
+
+
+Lemma if_store_then_load m k off bs m' :
+  store m k off bs (length bs) = Some m' ->
+  load m' k off (length bs) = Some bs.
+Proof.
+Admitted.
+
+
+Lemma trivial_update m k b :
+  read_bytes m k 1 = Some [b] ->
+  mem_update k b (mem_data m) = Some (mem_data m).
+Proof.                                     
+Admitted.
+
+Definition incr_fst {A} (a : nat * A) := (fst a + 1,snd a).
+
+Lemma incr_fst_equals {A} x n (o : A) :
+  incr_fst x = (n,o) -> x = (n-1,o).
+Proof.
+  intros ; destruct x. unfold incr_fst in H. simpl in H.
+  assert (n > 0). { inversion H ; lia. }
+  rewrite Nat.sub_1_r.
+  inversion H.
+  replace (n0 + 1) with (S n0) ; last lia.
+  rewrite Nat.pred_succ. done.
+Qed.
+
+Lemma fold_left_lift {A B} (f : (nat * A) -> B -> (nat * A)) g l i acc :
+  (forall i acc x, f (i+1,acc) x = incr_fst (g (i,acc) x)) ->
+  fold_left f l (i+1,acc) = incr_fst (fold_left g l (i,acc)).
+Proof. 
+  intros Hfg.
+  generalize dependent i.
+  generalize dependent acc.
+  induction l ; intros => //=.
+  rewrite Hfg.
+  destruct (g (i, acc) a).
+  unfold incr_fst => //=.
+  rewrite IHl.
+  unfold incr_fst => //=.
+Qed.
+
+
+Lemma store_append m k off b bs m':
+  store m k off (b :: bs) (length (b :: bs)) = Some m' ->
+  exists m'', store m k (off + 1)%N bs (length bs) = Some m'' /\
+           store m'' k off [b] 1 = Some m'.
+Proof.
+  intros Hm.
+  assert (mem_length m = mem_length m') as Hmm'.
+  { unfold mem_length, memory_list.mem_length. erewrite store_length => //=. }
+  assert (store m k off (b :: bs) (length (b :: bs)) = Some m') as Hm2 => //=.
+  unfold store in Hm.
+  destruct (k + off + N.of_nat (length (b :: bs)) <=? mem_length m)%N eqn:Hlen ;
+    try by inversion Hm.
+  replace (N.of_nat (length (b :: bs))) with (1 + N.of_nat (length bs))%N in Hlen ;
+    last by simpl ; lia. rewrite N.add_assoc in Hlen.
+  assert (exists b0, load m k off 1 = Some [b0]) as [b0 Hb0].
+  { unfold load. apply N.leb_le in Hlen.
+    assert (k + off + 1 <= k + off + 1 + N.of_nat (length bs))%N ; first lia.
+    eapply N.le_trans in Hlen => //=.
+    apply N.leb_le in Hlen. rewrite N.add_assoc. rewrite Hlen.
+    unfold read_bytes => //=. unfold those => //=.
+    unfold mem_lookup. 
+    rewrite (nth_error_nth' _ b). simpl. by eexists _.
+    rewrite N.add_0_r. apply N.leb_le in Hlen.
+    unfold mem_length, memory_list.mem_length in Hlen. lia. }
+  assert (exists m'', store m' k off [b0] 1 = Some m'') as [m'' Hm''].
+  { unfold store. apply N.leb_le in Hlen. rewrite Hmm' in Hlen.
+    assert (k + off + 1 <= k + off + 1 + N.of_nat (length bs))%N ; first lia.
+    eapply N.le_trans in Hlen => //=.
+    apply N.leb_le in Hlen. rewrite Hlen.
+    unfold write_bytes. unfold fold_lefti => //=. rewrite N.add_0_r.
+    unfold mem_update. unfold mem_length, memory_list.mem_length in Hlen.
+    apply N.leb_le in Hlen.
+    assert (k + off < N.of_nat (length (ml_data (mem_data m'))))%N ; first lia.
+    apply N.ltb_lt in H0.
+    rewrite H0. by eexists _. }
+  exists m''. split.
+  - assert (store m k off (b0 :: bs) (length (b0 :: bs)) = Some m'').
+    eapply store_trans => //=. by simpl. 
+    rewrite list_extra.cons_app.
+    apply store_trivial_extension => //=.
+    apply if_store_then_load in Hm2.
+    apply load_append in Hm2. done.
+    unfold store in H.
+    unfold write_bytes in H.
+    unfold fold_lefti in H.
+    simpl in H.
+    rewrite N.add_0_r in H. 
+    rewrite trivial_update in H.
+    unfold store.
+    replace (k + off + N.pos (Pos.of_succ_nat (length bs)))%N with
+      (k + (off + 1) + N.of_nat (length bs))%N in H ; last lia.
+    destruct (k + (off + 1) + N.of_nat (length bs) <=? mem_length m)%N ;
+      try by inversion H.
+    unfold write_bytes.
+    unfold fold_lefti.
+    destruct (fold_left _ _ _) eqn:Hfl.
+    replace 1 with (0+1) in Hfl ; last lia.
+    rewrite (fold_left_lift _ (λ '(k0, acc) x,
+                                (k0 + 1,
+                                  match acc with
+                                    Some dat => mem_update (k + (off + 1) + N.of_nat k0)%N x dat
+                                      | None => None end ))) in Hfl.
+    apply incr_fst_equals in Hfl.
+    rewrite Hfl. done.
+    intros => //=. unfold incr_fst => //=.
+    replace (k + off + N.of_nat (i + 1))%N with (k + (off + 1) + N.of_nat i)%N ; last lia.
+    done.
+    unfold load in Hb0.
+    destruct (k + (off + N.of_nat 1) <=? mem_length m)%N ; by inversion Hb0. 
+  - assert (exists m''', store m'' k off [b] 1 = Some m''') as [m''' Hm'''].
+    { unfold store.
+      replace (mem_length m'') with (mem_length m') ;
+        last by unfold mem_length, memory_list.mem_length ; erewrite store_length.
+      apply N.leb_le in Hlen. rewrite Hmm' in Hlen.
+      assert (k + off + 1 <= k + off + 1 + N.of_nat (length bs))%N ; first lia.
+      eapply N.le_trans in Hlen => //=.
+      apply N.leb_le in Hlen.
+      rewrite Hlen.
+      unfold write_bytes. unfold fold_lefti => //=. rewrite N.add_0_r.
+      unfold mem_update. unfold mem_length, memory_list.mem_length in Hlen.
+      apply N.leb_le in Hlen.
+      assert (k + off < N.of_nat (length (ml_data (mem_data m'))))%N ; first lia.
+      apply N.ltb_lt in H0.
+      replace (length (ml_data (mem_data m''))) with
+        (length (ml_data (mem_data m'))) ; last by erewrite store_length.
+      rewrite H0. by eexists _. }
+    replace 1 with (length [b0]) in Hm'' => //=.
+    replace 1 with (length [b]) in Hm''' => //=.
+    assert (length [b0] = length [b]) => //=.
+    rewrite Hm'''.
+    apply (store_trans _ _ _ _ _ _ _ H Hm'') in Hm''' => //=.
+    rewrite store_trivial in Hm''' => //=.
+    apply if_store_then_load in Hm2.
+    unfold load ; unfold load in Hm2.
+    destruct (k + (off + N.of_nat (length (b :: bs))) <=? mem_length m')%N eqn:Hlen' ;
+      try by inversion Hm2.
+    apply N.leb_le in Hlen'.
+    simpl in Hlen'.
+    assert (k + (off + N.of_nat 1) <=
+              k + (off + N.pos (Pos.of_succ_nat (length bs))))%N ; first lia.
+    apply (N.le_trans _ _ _ H0) in Hlen' => //=.
+    apply N.leb_le in Hlen'. rewrite Hlen'.
+    unfold read_bytes in Hm2.
+    simpl in Hm2. rewrite list_extra.cons_app in Hm2.
+    destruct (those_app_inv [mem_lookup (k + off + 0)%N (mem_data m')] _ _ Hm2)
+      as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+    unfold those in Htl1. simpl in Htl1.
+    unfold read_bytes. unfold those => //=.
+    destruct (mem_lookup (k + off + 0)%N (mem_data m')) ; inversion Htl1.
+    subst. inversion Htl ; subst => //=.
+Qed.                            
+
+    
+
+Lemma gen_heap_update_big_wm bs bs' k off n mems m mems' m' :
+  length bs = length bs' -> 
+  load m k off (length bs) = Some bs ->
+  store m k off bs' (length bs') = Some m' ->
+  update_list_at mems n m' = mems' ->
+  mems !! n = Some m ->
+  gen_heap_interp (gmap_of_memory mems) -∗
+                  N.of_nat n ↦[wms][N.add k off] bs ==∗
+                  gen_heap_interp (gmap_of_memory mems') ∗
+                  N.of_nat n ↦[wms][N.add k off] bs'.
+Proof.
+  generalize dependent bs'. generalize dependent off.
+  generalize dependent m'. generalize dependent mems'.
+  induction bs ; iIntros (mems' m' off bs' Hlen Hm Hm' Hmems Hmemsn) "Hσ Hwms".
+  { simpl in Hlen. apply Logic.eq_sym, nil_length_inv in Hlen ; subst.
+    iModIntro. iSplitR "Hwms" => //=.
+    rewrite update_trivial => //=.
+    simpl in Hm'. unfold store in Hm'.
+    simpl in Hm. unfold load in Hm.
+    rewrite <- N.add_assoc in Hm'.
+    destruct (k + (off + N.of_nat 0) <=? mem_length m)%N ; try by inversion Hm.
+    unfold write_bytes in Hm'. simpl in Hm'.
+    destruct m ; simpl in Hm'.
+    by rewrite Hm' in Hmemsn. }
+  destruct bs' ; inversion Hlen.
+  iDestruct (wms_append with "Hwms") as "[Hwm Hwms]".
+  rewrite <- N.add_assoc.
+  destruct (store_append _ _ _ _ _ _ Hm') as (m'' & Hm'' & Hb).
+  iDestruct (IHbs with "Hσ Hwms") as "H".
+  exact H0.
+  by eapply load_append.
+  exact Hm''.
+  done.
+  done.
+  iMod "H". iDestruct "H" as "[Hσ Hwms]".
+  iDestruct (gen_heap_update with "Hσ Hwm") as "H". 
+  iMod "H".
+  iDestruct "H" as "[Hσ Hwm]".
+  iIntros "!>".
+  iSplitR "Hwms Hwm" ; last by iApply wms_append ; rewrite N.add_assoc ; iFrame.
+  rewrite update_list_at_insert.
+  unfold insert.
+  
+Admitted. 
+
+(*
+(* A version of gen_heap_update specifically for wasm memories. *)
+Lemma gen_heap_update_big_wm σ n ml ml':
+  gen_heap_interp σ -∗ 
+  ([∗ list] i ↦ b ∈ ml, N.of_nat n ↦[wm][N.of_nat i] b) ==∗
+  gen_heap_interp ((new_2d_gmap_at_n (N.of_nat n) ml') ∪ σ) ∗
+  ([∗ list] i ↦ b ∈ ml', N.of_nat n ↦[wm][N.of_nat i] b).
+Proof.
+(*  revert σ; induction σ' as [| l v σ' Hl IH] using map_ind; iIntros (σ Hdisj) "Hσ".
+  { rewrite left_id_L. auto. }
+  iMod (IH with "Hσ") as "[Hσ'σ Hσ']"; first by eapply map_disjoint_insert_l.
+  decompose_map_disjoint.
+  rewrite !big_opM_insert // -insert_union_l //.
+  by iMod (gen_heap_alloc with "Hσ'σ") as "($ & $ & $)";
+    first by apply lookup_union_None.*)
+Admitted.
+*)
+
+Lemma length_bits v t:
+  types_agree t v -> length (bits v) = t_length t.
+Proof.
+  intros. unfold bits.
+  destruct v ; destruct t ; by inversion H.
+Qed.
+
+
+Lemma memory_in_bounds m i b :
+  (ml_data (mem_data m)) !! i = Some b -> i < N.to_nat (mem_length m) .
+Proof.
+  intros. 
+  apply lookup_lt_Some in H. unfold mem_length, memory_list.mem_length.
+  lia.
+Qed.
+
+
 
 Lemma map_app {A B} (l1 : list A) l2 (f : A -> B) : map f (l1 ++ l2) = map f l1 ++ map f l2.
 Proof.
@@ -3490,12 +3792,14 @@ Proof.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     iExists {| f_locs := locs; f_inst := winst |}.
-    (*only_one_reduction H.
+    eapply reduce_det in H as [ H | [ Hfirst | [ [a0 Hfirst] | (Hfirst & Hfirst2 &
+                                                                  Hfirst3 & Hσ)]]] ;
+      last (eapply r_load_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
+      try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     rewrite deserialise_bits in H => //=.
-    inversion H ; subst. iFrame. by iPureIntro.
+    inversion H ; subst. iFrame. iIntros. iSplit => //=.
 Qed.
-*)
-Admitted.
+
 
 
 Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (*(mem mem': memory)*) (vinit : value) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) (f0: frame) :
@@ -3537,36 +3841,40 @@ Proof.
     by rewrite Hinstmem.
   - iIntros "!>" (es σ2 efs HStep).
     iExists {| f_locs := locs; f_inst := winst |}.
-    (* Work in progress *)
-Admitted.
-
-(* These might be helpful for completing the proof above : *)
-(*
-    (* Need something like gen_heap_update_big here to update all at once *)
-    iMod (gen_heap_update_big_wm with "Hm Hwmdata") as "(Hm & Hwmdata)".
-    iModIntro.
     destruct σ2 as [[[hs2 ws2] locs2] winst2].
+    edestruct if_load_then_store as [mem Hsomemem] => //=.
+    Check gen_heap_update_big_wm.
+    iMod (gen_heap_update_big_wm (bits vinit) (bits v) with "Hm Hwms") as "[Hm Hwms]".
+    do 2 erewrite length_bits => //=.
+    erewrite length_bits => //=.
+    erewrite length_bits => //=.
+    done.
+    rewrite nth_error_lookup in Hm => //=.
+    iModIntro.
     destruct HStep as [HStep [-> ->]].
-    only_one_reduction HStep.
-(*     eapply reduce_det in HStep; last by eapply r_store_success.e *)
-    inversion HStep; subst; clear HStep => /=.
+    eapply reduce_det in HStep as [H | [Hfirst | [ [ a0 Hfirst ] | ( Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ) ]]] ;
+      last (eapply r_store_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
+      try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
+    inversion H ; subst; clear H => /=.
     iFrame.
     rewrite update_list_at_insert; last by rewrite nth_error_lookup in Hm; apply lookup_lt_Some in Hm.
-    erewrite gmap_of_memory_insert_block => //; [ idtac | by rewrite - nth_error_lookup | by apply store_length in Hstore'; lia ].
-    rewrite list_fmap_insert.
-    assert (mem_length m' = mem_length m) as Hmsize.
-    { apply store_length in Hstore'. by unfold mem_length, memory_list.mem_length; rewrite Hstore'. }
+    (* erewrite gmap_of_memory_insert_block => // ; [ idtac | by rewrite - nth_error_lookup |]. (* by apply store_length in Hstore'; lia ]. *) *)
+    rewrite list_fmap_insert.    
+    assert (mem_length mem = mem_length m) as Hmsize.
+    { apply store_length in Hsomemem. by unfold mem_length, memory_list.mem_length; rewrite Hsomemem. }
     rewrite Hmsize.
-    assert (mem_length mem' = mem_length mem) as Hmsize'.
+(*    assert (mem_length mem' = mem_length mem) as Hmsize'.
     { apply mem_equiv_length in Hmem.
       apply mem_equiv_length in Hmdata'.
       lia.
     }
-    rewrite Hmsize'.
+    rewrite Hmsize'. *)
     rewrite list_insert_id; last by rewrite list_lookup_fmap; rewrite - nth_error_lookup; rewrite Hm.
-    rewrite Hmdata' Hwmlength'.
-    by iFrame.
-Qed. *)
+    iSplitL => //=.
+    iIntros "Hf".
+    iSplitR => //=.
+Qed. 
 
 
 (*
