@@ -2525,7 +2525,7 @@ Admitted.
         arbitrary changes inside the frames. *)
 Lemma wp_frame_seq es1 es2 n (f0 f f': frame) E Ψ Φ:
   ( ↪[frame] f0) -∗
-  (¬ (|={E}=> Ψ trapV)) -∗
+  (¬ (Ψ trapV)) -∗
   ((↪[frame] f) -∗ WP es1 @ NotStuck; E {{ v, ↪[frame] f' ∗ Ψ v }}) -∗
   (∀ w, ↪[frame] f0 -∗ (Ψ w) -∗ WP (iris.of_val w ++ es2) @ NotStuck; E FRAME n; f' {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
   (WP (es1 ++ es2) @ NotStuck; E FRAME n ; f {{ v, Φ v ∗ ↪[frame]f0 }}).
