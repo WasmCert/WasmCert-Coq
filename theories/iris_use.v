@@ -5180,7 +5180,7 @@ Proof.
     destruct HStep as [H [-> ->]].
     only_one_reduction H.
 Qed.
-
+*)
 Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
   f.(f_inst).(inst_memory) !! 0 = Some k ->
   nth_error (s_mems ws) k = Some mem ->
@@ -5194,29 +5194,30 @@ Proof.
   destruct f' as [locs' inst'].
   (*only_one_reduction HReduce [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))] locs inst locs' inst'.*)
 Admitted.
+ 
 
-Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (Φ Ψ: val -> iProp Σ) (c: i32) :
-  inst.(inst_memory) !! 0 = Some k ->
+Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f0: frame) (mem: memory) (Φ Ψ: val -> iProp Σ) (c: i32) :
+  f0.(f_inst).(inst_memory) !! 0 = Some k ->
   match mem_max_opt mem with
   | Some maxlim => (mem_size mem + (Wasm_int.N_of_uint i32m c) <=? maxlim)%N
   | None => true
   end ->
-  (Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))]) ∗
+  ( ↪[frame] f0 ∗
+  Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))]) ∗
   (Ψ (immV [VAL_int32 int32_minus_one])) ∗
-   ↦[wi] inst ∗
-     (N.of_nat k) ↦[wmblock] mem ) ⊢ WP ([AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)]) @ s; E {{ w, ((Φ w ∗ (N.of_nat k) ↦[wmblock] {| mem_data:= {| ml_init := ml_init mem.(mem_data); ml_data := ml_data mem.(mem_data) ++ repeat (#00)%byte (N.to_nat ((Wasm_int.N_of_uint i32m c) * page_size)) |}; mem_max_opt:= mem_max_opt mem |}) ∨ (Ψ w ∗ (N.of_nat k) ↦[wmblock] mem)) ∗ ↦[wi] inst  }}.
+     (N.of_nat k) ↦[wmblock] mem ) ⊢ WP ([AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)]) @ s; E {{ w, ((Φ w ∗ (N.of_nat k) ↦[wmblock] {| mem_data:= {| ml_init := ml_init mem.(mem_data); ml_data := ml_data mem.(mem_data) ++ repeat (#00)%byte (N.to_nat ((Wasm_int.N_of_uint i32m c) * page_size)) |}; mem_max_opt:= mem_max_opt mem |}) ∨ (Ψ w ∗ (N.of_nat k) ↦[wmblock] mem)) ∗ ↪[frame] f0  }}.
 Proof.
-  iIntros (Hi Hmsizelim) "(HΦ & HΨ & Hinst & Hmemblock)".
+  iIntros (Hfm Hmsizelim) "(Hframe & HΦ & HΨ & Hmemblock)".
   iDestruct "Hmemblock" as "(Hmemdata & Hmemlength)".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hf & Hγ)".
+  iDestruct (ghost_map_lookup with "Hf Hframe") as "%Hframe".
   iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
-  rewrite lookup_insert in Hinst.
-  inversion Hinst; subst; clear Hinst.
-  rewrite - nth_error_lookup in Hi.
+  rewrite lookup_insert in Hframe.
+  inversion Hframe; subst; clear Hframe.
+  rewrite - nth_error_lookup in Hfm.
   rewrite gmap_of_list_lookup list_lookup_fmap Nat2N.id in Hmemlength => /=.
   destruct (s_mems ws !! k) eqn:Hmemlookup => //.
   simpl in Hmemlength.
@@ -5252,6 +5253,8 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
+    admit.
+    (*
     exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))], (hs, (upd_s_mem ws (update_list_at (s_mems ws) k mem')), locs, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -5260,12 +5263,14 @@ Proof.
     rewrite Hmemlookup.
     f_equal.
   (* There's a small bug in memory_list: mem_grow should not be using ml_init but #00 instead. Finish this when that is fixed *)
-    admit.
+    admit.*)
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     (* DO NOT USE reduce_det here -- grow_memory is NOT determinstic. *)
+    iExists {| f_locs := locs; f_inst := winst |}.
     eapply reduce_grow_memory in H; [ idtac | by rewrite - nth_error_lookup | by rewrite nth_error_lookup ].
+    (*
     destruct H as [HReduce | [HReduce Hmem']]; inversion HReduce; subst; clear HReduce; iFrame.
     (* failure *)
     + iSplit => //.
@@ -5274,11 +5279,10 @@ Proof.
       by rewrite Hmemlength'.
     (* success *)
     + admit.
+*)
 Admitted.
 
 
-
-*)
 
 
 End lifting.
