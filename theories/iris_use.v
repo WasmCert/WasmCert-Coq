@@ -3455,7 +3455,7 @@ Proof.
     rewrite H0. done. }
   assert (mem_length m'' = mem_length m).
   { unfold mem_length, memory_list.mem_length. erewrite <- store_length => //=.
-    by instantiate (1 := [b]) => //=.}
+    by instantiate (1 := [b]) => //=. }
   assert (mem_max_opt m'' = mem_max_opt m) as Hmax; first by 
     eapply Logic.eq_sym, store_mem_max_opt.  
   rewrite H2.
