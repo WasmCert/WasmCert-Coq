@@ -3111,12 +3111,113 @@ Admitted. *)
 
 (* Auxiliary lemmas for load/store *)
 
-Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
-  store m n off bs l = Some m' ->
+Lemma mem_update_length dat dat' k b:
+  mem_update k b dat = Some dat' -> length (ml_data dat) = length (ml_data dat').
+Proof.
+  intros Hupd.
+  unfold mem_update in Hupd.
+  destruct ( _ <? _)%N eqn:Hl ; inversion Hupd.
+  destruct (length (ml_data dat)) eqn:Hdat => //=.
+  ** by exfalso ; apply N.ltb_lt in Hl ; apply N.nlt_0_r in Hl.
+  ** (*apply N.leb_le in Hlen.
+                 replace (mem_length m) with (N.of_nat (S n)) in Hlen ;
+                   last by rewrite H1 ; apply N2Nat.id.
+                 rewrite length_is_size in Hlen. *)
+    apply N.ltb_lt in Hl.
+    rewrite app_length => //=.
+    repeat rewrite length_is_size.
+    rewrite size_takel.
+    rewrite size_drop.
+    unfold ssrnat.subn, ssrnat.subn_rec.
+    rewrite length_is_size in Hdat ; rewrite Hdat.
+    rewrite Nat.sub_add_distr.
+    replace (S n - N.to_nat k - 1) with (n - N.to_nat k) ; last lia.
+    rewrite minus_Sn_m.
+    rewrite le_plus_minus_r. 
+    done.
+    lia. lia. 
+    rewrite length_is_size in Hdat.
+    rewrite Hdat.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+    assert (N.to_nat k - S n = 0) ; first lia.
+    by rewrite H.
+Qed.
+
+
+
+
+Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) : (* (l: nat) : *)
+  store m n off bs (length bs) = Some m' -> (* is this lemma even true with any l as length ? *)
   length m.(mem_data).(ml_data) = length m'.(mem_data).(ml_data).
 Proof.
-Admitted.
+  intros.
+  unfold store, write_bytes, fold_lefti in H.
+  destruct (_ <=? _)%N eqn:Hlen ; try by inversion H.
+  cut (forall j dat dat',
+          j <= length bs ->
+          let i := length bs - j in
+          (let '(_,acc_end) :=
+            fold_left
+              (λ '(k, acc) x,
+                (k + 1,
+                  match acc with
+                  | Some dat => mem_update (n + off + N.of_nat k)%N x dat
+                  | None => None
+                  end)) (bytes_takefill #00%byte j (drop i bs))
+              (i, Some dat) in acc_end) = Some dat' ->
+                               length (ml_data dat) = length (ml_data (mem_data m)) ->
+                               length (ml_data dat') = length (ml_data (mem_data m))).
+  - intros Hi.
+    assert (length bs <= length bs) ; first lia.
+    destruct (let '(_, acc_end) := fold_left _ _ _ in acc_end) eqn:Hfl ; try by inversion H.
+    apply (Hi _ (mem_data m) m0) in H0 => //=.
+    + destruct m' ; inversion H ; by subst.
+    + rewrite PeanoNat.Nat.sub_diag.
+      unfold drop.
+      exact Hfl.
+  - induction j ; intros ; subst i.
+    + rewrite Nat.sub_0_r in H1.
+      rewrite drop_all in H1.
+      simpl in H1. inversion H1. by rewrite - H4.
+    + assert (j <= length bs) ; first lia.
+      destruct (drop (length bs - S j) bs) eqn:Hdrop.
+      * assert (length (drop (length bs - S j) bs) = 0) ; first by rewrite Hdrop.
+        rewrite drop_length in H4. lia.
+      * assert (exists dat0, mem_update (n + off + N.of_nat (length bs - S j))%N
+                                   b dat = Some dat0) as [dat0 Hdat0].
+         { unfold mem_update. apply N.leb_le in Hlen.
+           assert (n + off + N.of_nat (length bs - S j) <
+                     N.of_nat (length (ml_data dat)))%N.
+           rewrite H2.
+           unfold mem_length, memory_list.mem_length in Hlen.
+           lia.
+           apply N.ltb_lt in H4.
+           rewrite H4.
+           by eexists _. } 
+        apply (IHj dat0 dat') in H3.
+        ++ done.
+        ++ simpl in H1.
+           rewrite Hdat0 in H1.
+           replace (length bs - j) with (length bs - S j + 1) ; last lia.
+           rewrite - drop_drop.
+           rewrite Hdrop.
+           unfold drop => //=.
+        ++ erewrite <- mem_update_length => //=.
+Qed.
 
+
+Lemma store_mem_max_opt (m m' : memory) n off bs l :
+  store m n off bs l = Some m' ->
+  mem_max_opt m = mem_max_opt m'.
+Proof.
+  intros.
+  unfold store in H.
+  destruct ( _ <=? _)%N ; try by inversion H.
+  unfold write_bytes in H.
+  destruct (fold_lefti _ _ _) ; try by inversion H.
+Qed.
+
+  
 Lemma mem_equiv_length (m m': memory):
   m ≡ₘ m' ->
   mem_length m = mem_length m'.
@@ -3154,39 +3255,19 @@ Proof.
     apply IH.
     lia.
 Qed.
-    
-(* A version of gen_heap_update specifically for wasm memories. *)
-Lemma gen_heap_update_big_wm σ n ml ml':
-  gen_heap_interp σ -∗ 
-  ([∗ list] i ↦ b ∈ ml, N.of_nat n ↦[wm][N.of_nat i] b) ==∗
-  gen_heap_interp ((new_2d_gmap_at_n (N.of_nat n) ml') ∪ σ) ∗
-  ([∗ list] i ↦ b ∈ ml', N.of_nat n ↦[wm][N.of_nat i] b).
-Proof.
-(*  revert σ; induction σ' as [| l v σ' Hl IH] using map_ind; iIntros (σ Hdisj) "Hσ".
-  { rewrite left_id_L. auto. }
-  iMod (IH with "Hσ") as "[Hσ'σ Hσ']"; first by eapply map_disjoint_insert_l.
-  decompose_map_disjoint.
-  rewrite !big_opM_insert // -insert_union_l //.
-  by iMod (gen_heap_alloc with "Hσ'σ") as "($ & $ & $)";
-    first by apply lookup_union_None.*)
-Admitted.
 
 
-Lemma length_bits v t:
-  types_agree t v -> length (bits v) = t_length t.
+Lemma update_trivial {A} l i (x : A) :
+  l !! i = Some x -> update_list_at l i x = l.
 Proof.
-  intros. unfold bits.
-  destruct v ; destruct t ; by inversion H.
+  generalize dependent l.
+  induction i ; intros ;
+    destruct l ; inversion H => //=.
+  unfold update_list_at. simpl.
+  unfold update_list_at in IHi.
+  by rewrite IHi.
 Qed.
 
-
-Lemma memory_in_bounds m i b :
-  (ml_data (mem_data m)) !! i = Some b -> i < N.to_nat (mem_length m) .
-Proof.
-  intros. 
-  apply lookup_lt_Some in H. unfold mem_length, memory_list.mem_length.
-  lia.
-Qed.
 
 Lemma those_app {A} (l1 : list (option A)) l2 tl1 tl2 :
   those l1 = Some tl1 -> those l2 = Some tl2 -> those (l1 ++ l2) = Some (tl1 ++ tl2).
@@ -3224,6 +3305,1389 @@ Proof.
   eexists _,_ ; repeat split => //=. rewrite Htl.
   unfold option_map in H. by inversion H.
 Qed.
+
+
+Lemma wms_append n k b bs :
+  ⊢ (n ↦[wms][k] (b :: bs) ∗-∗ ( n↦[wm][k] b ∗ n↦[wms][N.add k 1%N] bs))%I.
+Proof.
+  iSplit.
+  - iIntros "Hwms". unfold mem_block_at_pos, big_opL. rewrite Nat.add_0_r.
+    rewrite N2Nat.id.
+    fold (big_opL (M := iPropI Σ)).
+    iDestruct "Hwms" as "[Hwm Hwms]".
+    iSplitL "Hwm" => //=.
+    iApply (big_sepL_impl with "Hwms").
+    iIntros (k0 x) "!> %Hx Hwm".
+    replace (N.to_nat k + S k0) with (N.to_nat (k+1) + k0) => //=.
+    lia.
+  - iIntros "[Hwm Hwms]". unfold mem_block_at_pos, big_opL.
+    rewrite Nat.add_0_r N2Nat.id.
+    fold (big_opL (M := iPropI Σ)).
+    iSplitL "Hwm" => //=.
+    iApply (big_sepL_impl with "Hwms").
+    iIntros (k0 x) "!> %Hx Hwm".
+    replace (N.to_nat (k+1) + k0) with (N.to_nat k + S k0) => //=.
+    lia.
+Qed.
+
+Lemma map_iota_lift {A} (f : nat -> A) g n len :
+  (forall x, f (x + 1) = g x) -> map f (iota (n+1) len) = map g (iota n len).
+Proof.
+  intros Hfg.
+  generalize dependent n.
+  induction len ; intros => //=.
+  rewrite Hfg. replace (S (n+1)) with (S n + 1) ; last lia.
+  rewrite IHlen. done.
+Qed. 
+  
+
+Lemma load_append m k off b bs :
+  load m k off (length (b :: bs)) = Some (b :: bs) ->
+  load m k (off + 1)%N (length bs) = Some bs.
+Proof.
+  unfold load ; intros Hm.
+  replace (off + N.of_nat (length (b :: bs)))%N with
+    (off + 1 + N.of_nat (length bs))%N in Hm ; last by simpl ; lia.
+  destruct (k + (off + 1 + N.of_nat (length bs)) <=? mem_length m)%N ; try by inversion Hm.
+  unfold read_bytes. unfold read_bytes in Hm. simpl in Hm.
+  destruct (mem_lookup (k + off + 0)%N (mem_data m)) ; inversion Hm.
+  rewrite list_extra.cons_app in H0.
+  destruct (those_app_inv [Some b0] _ _ H0) as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+  unfold those in Htl1. simpl in Htl1. inversion Htl1 ; subst ; clear Htl1.
+  inversion Htl ; subst ; clear Htl.
+  erewrite <- map_iota_lift => //=.
+  intros. replace (k + off + N.of_nat (x+1))%N with
+    (k + (off + 1) + N.of_nat x)%N => //=.
+  lia.
+Qed.
+
+Lemma list_trivial_replace {A} l (x : A) k :
+  l !! k = Some x ->
+  cat (seq.take k l) (cat [x] (seq.drop (k+1) l)) = l.
+Proof.
+  generalize dependent k.
+  induction l ; intros ; destruct k ; inversion H.
+  - simpl. by rewrite drop0. 
+  - apply IHl in H1. simpl. rewrite H1. done.
+Qed.
+
+Lemma trivial_update m k b :
+  read_bytes m k 1 = Some [b] ->
+  mem_update k b (mem_data m) = Some (mem_data m).
+Proof.
+  intro Hread.
+  unfold mem_update.
+  unfold read_bytes in Hread.
+  unfold those in Hread.
+  simpl in Hread.
+  rewrite N.add_0_r in Hread.
+  destruct (mem_lookup k (mem_data m)) eqn:Hlookup ; inversion Hread ; subst ; clear Hread.
+  unfold mem_lookup in Hlookup.
+  rewrite nth_error_lookup in Hlookup.
+  assert (k < N.of_nat (length (ml_data (mem_data m))))%N.
+  { apply lookup_lt_Some in Hlookup. lia. } 
+  apply N.ltb_lt in H.
+  rewrite H.
+  rewrite list_trivial_replace => //=.
+  by destruct (mem_data m).
+Qed.
+
+
+Definition incr_fst {A} (a : nat * A) := (fst a + 1,snd a).
+
+Lemma incr_fst_equals {A} x n (o : A) :
+  incr_fst x = (n,o) -> x = (n-1,o).
+Proof.
+  intros ; destruct x. unfold incr_fst in H. simpl in H.
+  assert (n > 0). { inversion H ; lia. }
+  rewrite Nat.sub_1_r.
+  inversion H.
+  replace (n0 + 1) with (S n0) ; last lia.
+  rewrite Nat.pred_succ. done.
+Qed.
+
+Lemma fold_left_lift {A B} (f : (nat * A) -> B -> (nat * A)) g l i acc :
+  (forall i acc x, f (i+1,acc) x = incr_fst (g (i,acc) x)) ->
+  fold_left f l (i+1,acc) = incr_fst (fold_left g l (i,acc)).
+Proof. 
+  intros Hfg.
+  generalize dependent i.
+  generalize dependent acc.
+  induction l ; intros => //=.
+  rewrite Hfg.
+  destruct (g (i, acc) a).
+  unfold incr_fst => //=.
+  rewrite IHl.
+  unfold incr_fst => //=.
+Qed.
+
+
+
+Lemma store_append1 m k off b bs m':
+  store m k off (b :: bs) (length (b :: bs)) = Some m' ->
+  exists m'', store m'' k (off + 1)%N bs (length bs) = Some m' /\
+           store m k off [b] 1 = Some m''.
+Proof.
+  intro Hstore.
+  unfold store.
+  unfold store in Hstore.
+  destruct (k + off + N.of_nat (length (b :: bs)) <=? mem_length m)%N eqn:Hlen ;
+    try by inversion Hstore.
+  apply N.leb_le in Hlen.
+  simpl in Hlen.
+  assert (k + off + N.of_nat 1 <= mem_length m)%N ; first lia.
+  apply N.leb_le in H.
+  rewrite H.
+  unfold write_bytes, fold_lefti => //=.
+  rewrite N.add_0_r.
+  unfold mem_update.
+  unfold mem_length, memory_list.mem_length in H.
+  apply N.leb_le in H.
+  assert (k + off < N.of_nat (length (ml_data (mem_data m))))%N ; first lia.
+  apply N.ltb_lt in H0.
+  rewrite H0.
+  eexists _ ; split => //=.
+  remember {| mem_data := _ ; mem_max_opt := _ |} as m''.
+  assert (store m k off [b] 1 = Some m'').
+  { subst. unfold store. apply N.leb_le in H. rewrite H.
+    unfold write_bytes, fold_lefti => //=.
+    unfold mem_update. rewrite N.add_0_r.
+    rewrite H0. done. }
+  assert (mem_length m'' = mem_length m).
+  { unfold mem_length, memory_list.mem_length. erewrite <- store_length => //=.
+    by instantiate (1 := [b]) => //=.}
+  assert (mem_max_opt m'' = mem_max_opt m) as Hmax; first by 
+    eapply Logic.eq_sym, store_mem_max_opt.  
+  rewrite H2.
+  assert (k + (off + 1) + N.of_nat (length bs) <= mem_length m)%N ; first lia.
+  apply N.leb_le in H3. rewrite H3.
+  unfold write_bytes, fold_lefti in Hstore.
+  simpl in Hstore.
+  rewrite N.add_0_r in Hstore.
+  replace (mem_update (k + off)%N b (mem_data m)) with (Some (mem_data m'')) in Hstore.
+  rewrite <- (plus_O_n 1) in Hstore.
+  destruct (fold_left _ _ (0 + 1, _)) eqn:Hfl ; try by inversion Hstore.
+  rewrite (fold_left_lift _ (λ '(k0, acc) x,
+                              (k0 + 1,
+                                match acc with
+                                | Some dat =>
+                                    if (k + (off + 1) + N.of_nat k0 <?
+                                          N.of_nat (length (ml_data dat)))%N
+                                    then
+                                      Some {| ml_init := ml_init dat ;
+                                             ml_data :=
+                                             seq.take (N.to_nat (k + (off + 1) +
+                                                                   N.of_nat k0))
+                                                      (ml_data dat) ++
+                                                      x :: seq.drop (N.to_nat (k + (off + 1) + N.of_nat k0) + 1)
+                                                      (ml_data dat)
+                                           |}
+                                    else None
+                                | None => None
+                                end)))
+    in Hfl.
+  apply incr_fst_equals in Hfl.
+  rewrite Hfl.
+  rewrite Hmax.
+  done.
+  intros. unfold incr_fst => //=.
+  unfold mem_update.
+  replace (k + off + N.of_nat (i+1))%N with (k + (off + 1) + N.of_nat i)%N ; last lia.
+  done.
+  unfold store in H1.
+  apply N.leb_le in H.
+  rewrite H in H1.
+  unfold write_bytes, fold_lefti in H1.
+  simpl in H1.
+  rewrite N.add_0_r in H1.
+  destruct (mem_update (k + off)%N b (mem_data m)) eqn:Hupd ; try by inversion H1.
+Qed.
+
+(*
+Lemma store_append_inv m m'' k off b bs m':
+  store m k off [b] 1 = Some m'' ->
+  store m'' k (off + 1)%N bs (length bs) = Some m' ->
+  store m k off (b :: bs) (length (b :: bs)) = Some m'.
+Proof.
+Admitted.
+*)
+
+
+
+
+
+
+Lemma enough_space_to_store m k off bs :
+  (k + off + N.of_nat (length bs) <= mem_length m)%N ->
+  exists mf, store m k off bs (length bs) = Some mf.
+Proof.
+  intros Hmlen.
+  unfold store.
+  apply N.leb_le in Hmlen.
+  rewrite Hmlen.
+  unfold write_bytes, fold_lefti. 
+  cut (forall i dat,
+          i <= length bs ->
+          length (ml_data dat) = N.to_nat (mem_length m) ->
+          let j := length bs - i in
+          exists datf, (let '(_, acc_end) :=
+                      fold_left (λ '(k0,acc) x,
+                                  (k0 + 1,
+                                    match acc with
+                                    | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                                    | None => None
+                                    end)) (bytes_takefill #00%byte (length (drop j bs))
+                                                          (drop j bs))
+                                (j, Some dat) in acc_end) = Some datf).
+  - intros H.
+    assert (length bs <= length bs) ; first lia.
+    apply (H _ (mem_data m)) in H0 as [datf' Hdatf'].
+    + rewrite PeanoNat.Nat.sub_diag in Hdatf'.
+      unfold drop in Hdatf'.
+      rewrite Hdatf'.
+      by eexists _.
+    + unfold mem_length, memory_list.mem_length.
+      by rewrite Nat2N.id.
+  - induction i ; intros ; subst j.
+    + rewrite <- minus_n_O.
+      rewrite drop_all => //=.
+      by eexists _.
+    + assert (i <= length bs) ; first lia.
+      destruct (drop (length bs - S i) bs) eqn:Hdrop.
+      * assert (length (drop (length bs - S i) bs) = 0) ; first by rewrite Hdrop.
+        rewrite drop_length in H2. lia.
+      * assert (exists datupd,
+                   mem_update (k + off + N.of_nat (length bs - S i))%N b dat =
+                     Some datupd ) as [datupd Hdatupd].
+        { unfold mem_update.
+           apply N.leb_le in Hmlen.
+           assert ( k + off + N.of_nat (length bs - S i) <
+                      N.of_nat (length (ml_data dat)))%N ;
+             first lia.
+           apply N.ltb_lt in H2 ; rewrite H2.
+           by eexists _. }
+        eapply (IHi datupd) in H1 as [datf Hdatf].
+        ++ rewrite - Hdrop. rewrite drop_length.
+           rewrite <- (take_drop 1 (drop (length bs - S i) bs)).
+           rewrite drop_drop.
+           rewrite Hdrop.
+           unfold take.
+           replace (length bs - S i + 1) with (length bs - i) ; last lia.
+           replace (length bs - (length bs - S i)) with (S i) ; last lia.
+           simpl.
+           replace (length bs - S i + 1) with (length bs - i) ; last lia.
+           rewrite drop_length in Hdatf.
+           replace (length bs - (length bs - i)) with i in Hdatf ; last lia.
+           rewrite Hdatupd.
+           rewrite Hdatf.
+           by eexists _.
+        ++ rewrite <- H0.
+           by erewrite <- mem_update_length.
+Qed.
+
+
+(* This lemma is true (and proven), but perhaps uninteresting (especially given
+   lemma enough_space_to_store) *)
+(*
+
+Lemma store_in_same_memory_length m m' mf k off bs :
+  mem_length m = mem_length m' ->
+  store m k off bs (length bs) = Some mf -> 
+  exists mf', store m' k off bs (length bs) = Some mf'.
+Proof.
+  intros Hmlen Hstore.
+  unfold store. unfold store in Hstore.
+  rewrite <- Hmlen.
+  destruct (k + off + N.of_nat (length bs) <=? mem_length m )%N eqn:Hlen
+  ; try by inversion Hstore.
+  unfold write_bytes, fold_lefti. unfold write_bytes, fold_lefti in Hstore.
+  cut (forall i dat datf dat',
+          i <= length bs ->
+          length (ml_data dat') = N.to_nat (mem_length m) ->
+          length (ml_data dat) = N.to_nat (mem_length m) ->
+          let j := length bs - i in
+          (let '(_, acc_end) :=
+             fold_left (λ '(k0, acc) x,
+                         (k0 + 1,
+                           match acc with
+                           | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                           | None => None
+                           end)) (bytes_takefill #00%byte (length (drop j bs))
+                                                 (drop j bs))
+                       (j, Some dat) in acc_end) = Some datf ->
+          exists datf', (let '(_, acc_end) :=
+                      fold_left (λ '(k0,acc) x,
+                                  (k0 + 1,
+                                    match acc with
+                                    | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                                    | None => None
+                                    end)) (bytes_takefill #00%byte (length (drop j bs))
+                                                          (drop j bs))
+                                (j, Some dat') in acc_end) = Some datf').
+  - intros H.
+    assert (length bs <= length bs) ; first lia.
+    apply (H _ (mem_data m) (mem_data mf) (mem_data m')) in H0 as [datf' Hdatf'].
+    + rewrite PeanoNat.Nat.sub_diag in Hdatf'.
+      unfold drop in Hdatf'.
+      rewrite Hdatf'.
+      by eexists _.
+    + rewrite Hmlen.
+      unfold mem_length, memory_list.mem_length.
+      by rewrite Nat2N.id.
+    + unfold mem_length, memory_list.mem_length.
+      by rewrite Nat2N.id.
+    + rewrite PeanoNat.Nat.sub_diag.
+      unfold drop.
+      destruct (let '(_, acc_end) := fold_left _ _ _ in acc_end) eqn : H1 ;
+        try by inversion Hstore.
+  - induction i ; intros ; subst j.
+    + rewrite <- minus_n_O.
+      rewrite drop_all => //=.
+      by eexists _.
+    + assert (i <= length bs) ; first lia.
+      destruct (drop (length bs - S i) bs) eqn:Hdrop.
+      * assert (length (drop (length bs - S i) bs) = 0) ; first by rewrite Hdrop.
+        rewrite drop_length in H4. lia.
+      * assert (exists datupd datupd',
+                   mem_update (k + off + N.of_nat (length bs - S i))%N b dat =
+                     Some datupd /\
+                   mem_update (k + off + N.of_nat (length bs - S i))%N b dat' =
+                            Some datupd') as (datupd & datupd' & Hdatupd & Hdatupd').
+        -- unfold mem_update.
+           apply N.leb_le in Hlen.
+           assert ( k + off + N.of_nat (length bs - S i) <
+                      N.of_nat (length (ml_data dat')))%N ;
+             first lia.
+           apply N.ltb_lt in H4 ; rewrite H4.
+           assert ( k + off + N.of_nat (length bs - S i) <
+                      N.of_nat (length (ml_data dat)))%N ;
+             first lia.
+           apply N.ltb_lt in H5 ; rewrite H5.
+           by eexists _, _.
+        -- eapply (IHi datupd _ datupd') in H3 as [datf' Hdatf'].
+           ++ rewrite - Hdrop. rewrite drop_length.
+              rewrite <- (take_drop 1 (drop (length bs - S i) bs)).
+              rewrite drop_drop.
+              rewrite Hdrop.
+              unfold take.
+              replace (length bs - S i + 1) with (length bs - i) ; last lia.
+              replace (length bs - (length bs - S i)) with (S i) ; last lia.
+              simpl.
+              replace (length bs - S i + 1) with (length bs - i) ; last lia.
+              rewrite drop_length in Hdatf'.
+              replace (length bs - (length bs - i)) with i in Hdatf' ; last lia.
+              rewrite Hdatupd'.
+              rewrite Hdatf'.
+              by eexists _.
+           ++ rewrite <- H0.
+              by erewrite <- mem_update_length.
+           ++ rewrite <- H1.
+              by erewrite <- mem_update_length.
+           ++ rewrite - Hdrop in H2.
+              rewrite drop_length in H2.
+              replace (length bs - (length bs - S i)) with (S i) in H2 ; last lia.
+              rewrite drop_length.
+              replace (length bs - (length bs - i)) with i ; last lia.
+              rewrite Hdrop in H2.
+              simpl in H2.
+              rewrite Hdatupd in H2.
+              unfold take in Hdrop.
+              replace (length bs - i) with ((length bs - S i) + 1) ; last lia.
+              rewrite - drop_drop.
+              rewrite Hdrop.
+              unfold drop => //=.
+Qed.
+ *)
+
+  
+Lemma update_swap k b dat k' b' dat' dat'' :
+  k <> k' ->
+  mem_update k b dat = Some dat' ->
+  mem_update k' b' dat' = Some dat'' ->
+  exists dat0, mem_update k' b' dat = Some dat0 /\
+            mem_update k b dat0 = Some dat''.
+Proof.
+  intros Hkk' Hupd Hupd'.
+  assert (length (ml_data dat) = length (ml_data dat')) as Hdlen ;
+    first by eapply mem_update_length.
+  unfold mem_update.
+  unfold mem_update in Hupd.
+  unfold mem_update in Hupd'.
+  rewrite - Hdlen in Hupd'.
+  destruct (k' <? N.of_nat (length (ml_data dat)))%N eqn:Hk'; try by inversion Hupd'.
+  assert (ssrnat.leq (S (N.to_nat k')) (seq.size (ml_data dat))) as Hkssr'.
+  { apply N.ltb_lt in Hk'.
+    rewrite length_is_size in Hk'.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+    assert (S (N.to_nat k') - N.to_nat (N.of_nat (seq.size (ml_data dat))) = 0) ; first lia.
+    rewrite Nat2N.id in H.
+    by rewrite H. }
+  eexists _ ; split => //=.
+  replace (length (seq.take (N.to_nat k') (ml_data dat) ++
+                            b' :: seq.drop (N.to_nat k' + 1) (ml_data dat)))%N
+    with (length (ml_data dat))%N.
+  destruct (k <? N.of_nat (length (ml_data dat)))%N eqn:Hk ; try by inversion Hupd.
+  assert ((k <? N.of_nat (length (ml_data dat)))%N = true) as Hk0 => //=.
+  assert (ssrnat.leq (S (N.to_nat k)) (seq.size (ml_data dat))) as Hkssr.
+  { apply N.ltb_lt in Hk.
+    rewrite length_is_size in Hk.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+    assert (S (N.to_nat k) - N.to_nat (N.of_nat (seq.size (ml_data dat))) = 0) ; first lia.
+    rewrite Nat2N.id in H.
+    by rewrite H. }
+  inversion Hupd.
+  rewrite - H0 in Hupd' ; simpl in Hupd'.
+  rewrite - Hupd'.
+  rewrite take_cat.
+  rewrite size_take.
+  rewrite Hkssr'.
+  destruct (ssrnat.leq (S (N.to_nat k)) (N.to_nat k')) eqn:Hlk.
+  assert (ssrnat.leq (N.to_nat k) (N.to_nat k')) as Hlkk ;
+    first by apply ssrnat.ltnW.
+  rewrite seq.take_take ; last done.
+  rewrite drop_cat.
+  rewrite size_take.
+  rewrite Hkssr'.
+  rewrite take_cat.
+  rewrite size_take.
+  rewrite Hkssr.
+  destruct (ssrnat.leq (S (N.to_nat k')) (N.to_nat k)) eqn:Hlk'.
+  { exfalso.
+    rewrite - ssrnat.ltnS in Hlk.
+    apply (ssrnat.leq_trans Hlk) in Hlk'.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec in Hlk'.
+    apply b2p in Hlk'.
+    lia. } 
+  destruct (ssrnat.subn (N.to_nat k') (N.to_nat k)) eqn:Hn.
+  { exfalso.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec in Hlk.
+    apply b2p in Hlk.
+    unfold ssrnat.subn, ssrnat.subn_rec in Hn.
+    lia. }
+  simpl.
+  rewrite drop_cat.
+  rewrite size_take.
+  rewrite Hkssr.
+  destruct (ssrnat.leq (S (N.to_nat k' + 1)) (N.to_nat k)) eqn:Hlk''.
+  { exfalso.
+    replace (S (N.to_nat k' + 1)) with (S (S (N.to_nat k'))) in Hlk'' ; last lia.
+    apply ssrnat.ltnW in Hlk''.
+    rewrite Hlk'' in Hlk'.
+    inversion Hlk'. }
+  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
+  rewrite ssrnat.subSn ; last done.
+  rewrite Hn => //=.
+  rewrite seq.drop_drop.
+  rewrite - Hn.
+  rewrite - ssrnat.addnABC ;
+    [|done
+    |replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia ; by apply ssrnat.leqnSn].
+  unfold ssrnat.addn, ssrnat.addn_rec.
+  unfold ssrnat.subn at 2. unfold ssrnat.subn_rec.
+  replace (N.to_nat k + 1 - N.to_nat k) with 1 ; last lia.
+  destruct (ssrnat.leq (S (N.to_nat k + 1)) (N.to_nat k')) eqn:Hlk0.
+  rewrite seq.take_drop.
+  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
+  rewrite - ssrnat.addSnnS.
+  rewrite - Hn.
+  rewrite ssrnat.subnK ; last done.
+  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
+  by rewrite - catA.
+  assert (N.to_nat k + 1 = N.to_nat k') as Hkk.
+  { specialize (ssrnat.leq_total (S (N.to_nat k + 1)) (N.to_nat k')) ; intros.
+    apply orb_true_iff in H as [Habs | Hlk1].
+    rewrite Hlk0 in Habs ; inversion Habs.
+    rewrite ssrnat.leq_eqVlt in Hlk1.
+    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
+    rewrite ssrnat.leq_eqVlt in Hlk0.
+    apply b2p in Habs.
+    rewrite Habs in Hlk0.
+    rewrite eq_refl in Hlk0.
+    simpl in Hlk0.
+    inversion Hlk0.
+    apply ssrnat.ltnSE in Hlk1.
+    replace (S (N.to_nat k)) with (N.to_nat k + 1) in Hlk ; last lia.
+    apply ssrnat.anti_leq.
+    rewrite Hlk1.
+    rewrite Hlk.
+    done. } 
+  rewrite Hkk.
+  unfold ssrnat.subn, ssrnat.subn_rec.
+  rewrite PeanoNat.Nat.sub_diag.
+  unfold seq.drop at 1.
+  rewrite - Hkk in Hn.
+  unfold ssrnat.subn, ssrnat.subn_rec in Hn.
+  rewrite Nat.add_sub_swap in Hn ; last lia.
+  rewrite PeanoNat.Nat.sub_diag in Hn.
+  simpl in Hn.
+  inversion Hn.
+  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
+  rewrite take0.
+  by rewrite - catA.
+  assert (ssrnat.leq (S (N.to_nat k')) (N.to_nat k)) as Hlk2.
+  { specialize (ssrnat.leq_total (S (N.to_nat k)) (N.to_nat k')) ; intros.
+    apply orb_true_iff in H as [Habs | Hlk1].
+    rewrite Hlk in Habs ; inversion Habs.
+    rewrite ssrnat.leq_eqVlt in Hlk1.
+    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
+    rewrite ssrnat.leq_eqVlt in Hlk.
+    apply b2p in Habs.
+    rewrite Habs in Hlk.
+    rewrite eq_refl in Hlk.
+    simpl in Hlk.
+    inversion Hlk.
+    apply ssrnat.ltnSE in Hlk1.
+    rewrite ssrnat.leq_eqVlt in Hlk1.
+    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
+    apply b2p in Habs.
+    apply N2Nat.inj in Habs.
+    exfalso ; by apply Hkk'.
+    done. }
+  assert (ssrnat.leq (N.to_nat k') (N.to_nat k)) as Hlkk ;
+    first by apply ssrnat.ltnW.
+  destruct (ssrnat.subn (N.to_nat k) (N.to_nat k')) eqn:Hn.
+  { exfalso.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec in Hlk2.
+    apply b2p in Hlk2.
+    unfold ssrnat.subn, ssrnat.subn_rec in Hn.
+    lia. }
+  simpl.
+  rewrite drop_cat.
+  rewrite size_take.
+  rewrite Hkssr'.
+  rewrite take_cat.
+  rewrite size_take.
+  rewrite Hkssr.
+  rewrite Hlk2.
+  destruct (ssrnat.leq (S (N.to_nat k + 1)) (N.to_nat k')) eqn:Hlk''.
+  { exfalso.
+    replace (S (N.to_nat k + 1)) with (S (S (N.to_nat k))) in Hlk'' ; last lia.
+    apply ssrnat.ltnW in Hlk''.
+    rewrite Hlk'' in Hlk.
+    inversion Hlk. }
+  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
+  rewrite ssrnat.subSn ; last done.
+  rewrite Hn => //=.
+  rewrite seq.drop_drop.
+  rewrite - Hn.
+  rewrite - ssrnat.addnABC ;
+    [|done
+    |replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia ; by apply ssrnat.leqnSn].
+  unfold ssrnat.addn, ssrnat.addn_rec.
+  unfold ssrnat.subn, ssrnat.subn_rec.
+  replace (N.to_nat k' + 1 - N.to_nat k') with 1 ; last lia.
+  rewrite drop_cat.
+  rewrite size_take.
+  rewrite Hkssr.
+  destruct (ssrnat.leq (S (N.to_nat k' + 1)) (N.to_nat k)) eqn:Hlk0.
+  rewrite seq.take_drop.
+  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
+  rewrite - ssrnat.addSnnS.
+  rewrite - Hn.
+  rewrite ssrnat.subnK ; last done.
+  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
+  rewrite seq.take_take ; last done.
+  by rewrite - catA.
+  assert (N.to_nat k' + 1 = N.to_nat k) as Hkk.
+  { specialize (ssrnat.leq_total (S (N.to_nat k' + 1)) (N.to_nat k)) ; intros.
+    apply orb_true_iff in H as [Habs | Hlk1].
+    rewrite Hlk0 in Habs ; inversion Habs.
+    rewrite ssrnat.leq_eqVlt in Hlk1.
+    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
+    rewrite ssrnat.leq_eqVlt in Hlk0.
+    apply b2p in Habs.
+    rewrite Habs in Hlk0.
+    rewrite eq_refl in Hlk0.
+    simpl in Hlk0.
+    inversion Hlk0.
+    apply ssrnat.ltnSE in Hlk1.
+    replace (S (N.to_nat k')) with (N.to_nat k' + 1) in Hlk2 ; last lia.
+    apply ssrnat.anti_leq.
+    rewrite Hlk1.
+    rewrite Hlk2.
+    done. } 
+  rewrite Hkk.
+  unfold ssrnat.subn, ssrnat.subn_rec.
+  rewrite PeanoNat.Nat.sub_diag.
+  unfold seq.drop at 3.
+  rewrite - Hkk in Hn.
+  unfold ssrnat.subn, ssrnat.subn_rec in Hn.
+  rewrite Nat.add_sub_swap in Hn ; last lia.
+  rewrite PeanoNat.Nat.sub_diag in Hn.
+  simpl in Hn.
+  inversion Hn.
+  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
+  rewrite take0.
+  rewrite seq.take_take ; last done.
+  by rewrite - catA.
+  rewrite app_length.
+  repeat rewrite length_is_size.
+  rewrite size_take.
+  rewrite Hkssr'.
+  simpl.
+  rewrite size_drop.
+  unfold ssrnat.subn, ssrnat.subn_rec.
+  Search (_ + S _).
+  rewrite PeanoNat.Nat.add_succ_r.
+  Search (_ + (_ - _)).
+  rewrite Nat.add_sub_assoc.
+  Search (_ + _ - _).
+  Search (_ - (_ + _)).
+  rewrite Nat.sub_add_distr.
+  replace (N.to_nat k' + seq.size (ml_data dat) - N.to_nat k') with
+    (seq.size (ml_data dat)) ; last lia.
+  replace (S (seq.size (ml_data dat) - 1)) with (seq.size (ml_data dat) - 1 + 1) ; last lia.
+  Search (_ - _ + _).
+  rewrite Nat.sub_add.
+  done.
+  apply N.ltb_lt in Hk'.
+  rewrite length_is_size in Hk'.
+  lia.
+  apply N.ltb_lt in Hk'.
+  rewrite length_is_size in Hk'.
+  lia.
+Qed.
+  
+
+  
+
+
+Lemma swap_stores m m' m'' k off b bs :
+  store m k off [b] 1 = Some m' ->
+  store m' k (off + 1)%N bs (length bs) = Some m'' ->
+  exists m0, store m k (off + 1)%N bs (length bs) = Some m0 /\
+          store m0 k off [b] 1 = Some m''.
+Proof.
+  intros.
+  assert (mem_length m = mem_length m') as Hmlen ;
+    first (unfold mem_length, memory_list.mem_length ; erewrite store_length => //= ;
+          by instantiate (1:=[b]) => //=).
+  unfold store in H0.
+  destruct (k + (off + 1) + N.of_nat (length (bs)) <=? mem_length m')%N eqn:Hlen ;
+    try by inversion H0.
+  apply N.leb_le in Hlen.
+  rewrite <- Hmlen in Hlen.
+  destruct (enough_space_to_store m k (off + 1)%N (bs)) as [m0 Hm0] => //=.
+  exists m0 ; split => //=.
+  unfold store, write_bytes, fold_lefti => //=.
+  assert (mem_length m = mem_length m0) as Hmlen0 ;
+    first by unfold mem_length, memory_list.mem_length ; erewrite store_length.
+  rewrite Hmlen0 in Hlen.
+  assert (k + off + 1 <= mem_length m0)%N ; first lia.
+  apply N.leb_le in H1 ; rewrite H1.
+  rewrite N.add_0_r.
+  unfold mem_update.
+  apply N.leb_le in H1.
+  assert (k + off < N.of_nat (length (ml_data (mem_data m0))))%N ;
+    first by unfold mem_length, memory_list.mem_length in H1 ; lia.
+  apply N.ltb_lt in H2.
+  rewrite H2.
+  rewrite - H0.
+  unfold write_bytes, fold_lefti.
+  unfold store, write_bytes, fold_lefti in H.
+  rewrite - Hmlen0 in H1.
+  apply N.leb_le in H1 ; rewrite H1 in H.
+  simpl in H.
+  rewrite N.add_0_r in H.
+  unfold mem_update in H.
+  replace (length (ml_data (mem_data m0))) with (length (ml_data (mem_data m)))
+    in H2 ; last by eapply store_length.
+  rewrite H2 in H.
+  inversion H.
+  unfold store in Hm0.
+  rewrite - Hmlen0 in Hlen.
+  apply N.leb_le in Hlen ; rewrite Hlen in Hm0.
+  unfold write_bytes, fold_lefti in Hm0.
+  destruct (fold_left _ _ _) eqn:Hfl.
+  destruct o ; inversion Hm0.
+  simpl.
+  assert (m1 = mem_data m0) ; first by rewrite - H5.
+  (*    simpl in Hfl. *)
+  cut (forall i dat datf n,
+          i <= length bs ->
+          length (ml_data dat) = N.to_nat (mem_length m) ->
+          let j := length bs - i in
+          fold_left (λ '(k0, acc) x,
+                      (k0 + 1,
+                        match acc with
+                        | Some dat => mem_update (k + (off + 1) + N.of_nat k0)%N x dat
+                        | None => None
+                        end)) (bytes_takefill #00%byte (length (drop j bs))
+                                              (drop j bs))
+                    (j, Some dat) = (n, Some datf) ->
+          exists m, fold_left (λ '(k0, acc) x,
+                           (k0 + 1,
+                             match acc with
+                             | Some dat => mem_update (k + (off + 1) + N.of_nat k0)%N
+                                                     x dat
+                             | None => None
+                             end)) (bytes_takefill #00%byte (length (drop j bs))
+                                                   (drop j bs))
+                         (j, mem_update (k + off)%N b dat) =
+                 (m, mem_update (k + off)%N b datf)).
+  - intros Hi.
+    assert (length bs <= length bs) as Hlbs; first lia.
+    apply (Hi _ (mem_data m) m1 n) in Hlbs as [nn Hia].
+    + rewrite PeanoNat.Nat.sub_diag in Hia.
+      unfold drop in Hia.
+      unfold mem_update in Hia.
+      rewrite H2 in Hia.
+      rewrite Hia.
+      rewrite H3.
+      unfold mem_length, memory_list.mem_length in Hmlen0 ; rewrite Hmlen0 in H2 ;
+        rewrite H2.
+      done.
+    + unfold mem_length, memory_list.mem_length.
+      by rewrite Nat2N.id.
+    + rewrite PeanoNat.Nat.sub_diag.
+      unfold drop.
+      done.
+  - induction i ; intros ; subst j.
+    + rewrite Nat.sub_0_r.
+      rewrite drop_all.
+      simpl.
+      rewrite Nat.sub_0_r in H8.
+      rewrite drop_all in H8.
+      simpl in H8.
+      inversion H8.
+      by eexists _.
+    + assert (i <= length bs) ; first lia.
+      destruct (drop (length bs - S i) bs) eqn:Hdrop.
+      * assert (length (drop (length bs - S i) bs) = 0) ; first by rewrite Hdrop.
+        rewrite drop_length in H10. lia.
+      * assert (exists dat', mem_update (k + off)%N b dat = Some dat') as [dat' Hdat'].
+        { unfold mem_update. rewrite H7 Nat2N.id H2. by eexists _. }
+        assert (exists dat'',
+                   mem_update (k + (off + 1) + N.of_nat (length bs - S i))%N b0 dat'
+                   = Some dat'') as [dat'' Hdat''].
+        { unfold mem_update.
+          erewrite <- mem_update_length => //=.
+          rewrite H7 Nat2N.id.
+          apply N.leb_le in Hlen.
+          assert (k + (off + 1) + N.of_nat (length bs - S i) < N.of_nat (length (ml_data (mem_data m))))%N.
+          { unfold mem_length, memory_list.mem_length in Hlen.
+            assert (N.of_nat (length bs - S i) < N.of_nat (length bs))%N ; lia. }
+          apply N.ltb_lt in H10.
+          rewrite H10.
+          by eexists _. }
+        rewrite - Hdrop.
+        assert (k + off <> k + (off + 1) + N.of_nat (length bs - S i))%N ; first lia.
+        destruct (update_swap _ _ _ _ _ _ _ H10 Hdat' Hdat'')
+          as (dat0 & Hdat0 & Hdat0'') => //=.
+        eapply (IHi dat0) in H9 as [nn Hflf].
+        ++ rewrite drop_length.
+           rewrite <- (take_drop 1 (drop (length bs - S i) bs)).
+           rewrite drop_drop.
+           rewrite Hdrop.
+           unfold take.
+           replace (length bs - S i + 1) with (length bs - i) ; last lia.
+           replace (length bs - (length bs - S i)) with (S i) ; last lia.
+           simpl.
+           replace (length bs - S i + 1) with (length bs - i) ; last lia.
+           rewrite drop_length in Hflf.
+           replace (length bs - (length bs - i)) with i in Hflf ; last lia.
+           rewrite Hdat' Hdat''.
+           rewrite - Hdat0''.
+           rewrite Hflf.
+           by eexists _.
+        ++ erewrite <- mem_update_length => //=.
+        ++ rewrite - Hdrop in H8.
+           rewrite drop_length in H8.
+           replace (length bs - (length bs - S i)) with (S i) in H8 ; last lia.
+           rewrite drop_length.
+           replace (length bs - (length bs - i)) with i ; last lia.
+           rewrite Hdrop in H8.
+           simpl in H8.
+           rewrite Hdat0 in H8.
+           replace (length bs - i) with (length bs - S i + 1) ; last lia.
+           rewrite - drop_drop.
+           rewrite Hdrop.
+           unfold drop => //=.
+Qed.
+
+ 
+ 
+(*
+Lemma store_trans m k off bs bs' m' m'' :
+  length bs = length bs' ->
+  store m k off bs (length bs) = Some m' ->
+  store m' k off bs' (length bs') = Some m'' ->
+  store m k off bs' (length bs') = Some m''.
+Proof.
+  generalize dependent off. generalize dependent bs'. generalize dependent m.
+  generalize dependent m'. generalize dependent m''.
+  induction bs ; intros m'' m' m bs' off Hlen Hs Hs'.
+  - assert (mem_length m = mem_length m') as Hmlen ;
+      first by unfold mem_length, memory_list.mem_length ; erewrite store_length. 
+    apply Logic.eq_sym, nil_length_inv in Hlen ; subst.
+    unfold store. unfold store in Hs.
+    unfold store in Hs'.
+    rewrite <- Hmlen in Hs'.
+    destruct (k + off + N.of_nat (length []) <=? mem_length m)%N ; try by inversion Hs.
+    unfold write_bytes => //=.
+    unfold write_bytes in Hs ; simpl in Hs.
+    unfold write_bytes in Hs' ; simpl in Hs'.
+    rewrite Hs. rewrite <- Hs'.
+    by destruct m'.
+  - assert (mem_length m = mem_length m') as Hmlen ;
+      first by unfold mem_length, memory_list.mem_length ; erewrite store_length.
+    destruct bs' ; inversion Hlen.
+    apply store_append1 in Hs as (m0 & Hm0 & Hm0').
+    apply store_append1 in Hs' as (m1 & Hm1 & Hm1').
+    specialize (IHbs _ _ _ _ _ H0 Hm0) as Hm2.
+    eapply IHbs in Hm0 => //=.
+    eapply store_append_inv.
+    + unfold store. unfold store in Hm0'.
+      destruct (k + off + N.of_nat 1 <=? mem_length m)%N ; try by inversion Hm0'.
+      unfold write_bytes, fold_lefti => //=.
+      unfold write_bytes, fold_lefti in Hm0' ; simpl in Hm0'.
+      unfold mem_update. unfold mem_update in Hm0'.
+      destruct (_ <? _)%N ; try by inversion Hm0'.
+    + eapply IHbs => //=.
+    
+
+   
+
+      
+  
+  intros Hlen Hs Hs'.
+  assert (mem_length m = mem_length m') as Hmlen.
+  { unfold mem_length, memory_list.mem_length ; by erewrite store_length. } 
+  unfold store.
+  unfold store in Hs.
+  unfold store in Hs'.
+  rewrite Hlen in Hs.
+  rewrite <- Hmlen in Hs'.
+  destruct (k + off + N.of_nat (length bs') <=? mem_length m)%N ; try by inversion Hs.
+  unfold write_bytes.
+  unfold write_bytes in Hs.
+  unfold write_bytes in Hs'.
+  unfold fold_lefti.
+  unfold fold_lefti in Hs.
+  unfold fold_lefti in Hs'.
+  cut ((*forall k1,
+          k1 <= length bs' ->
+          let k0 := length bs' - k1 in *) forall k0,
+          match
+            (let
+                '(_, acc_end) :=
+                fold_left
+                  (λ '(k0, acc) (x : byte),
+                    (k0 + 1,
+                      match acc with
+                      | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                      | None => None
+                      end)) (bytes_takefill #00%byte (length (drop k0 bs'))
+                                            (drop k0 bs'))
+                  (k0, fold_lefti
+                               (λ off0 dat_o b,
+                                 match dat_o with
+                                 | Some dat => mem_update (k + off + N.of_nat off0)%N
+                                                         b dat
+                                 | None => None
+                                 end) (bytes_takefill #00%byte k0 (take k0 bs'))
+                               (Some (mem_data m')))
+                       
+
+                  (* Some (mem_data m')) *) in acc_end)
+          with
+          | Some dat => Some {| mem_data := dat; mem_max_opt := mem_max_opt m' |}
+          | None => None
+          end = Some m'' ->
+          match
+            (let
+                '(_, acc_end) :=
+                fold_left
+                  (λ '(k0, acc) (x : byte),
+                    (k0 + 1,
+                      match acc with
+                      | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                      | None => None
+                      end)) (bytes_takefill #00%byte (length (drop k0 bs'))
+                                            (drop k0 bs)) 
+                  (k0, fold_lefti
+                         (λ off0 dat_o b,
+                           match dat_o with
+                           | Some dat => mem_update (k + off + N.of_nat off0)%N
+                                                   b dat
+                           | None => None
+                           end) (bytes_takefill #00%byte k0 (take k0 bs))
+                         (Some (mem_data m)))
+
+
+                    (*Some (mem_data m))*)
+
+              in acc_end)
+          with
+          | Some dat => Some {| mem_data := dat; mem_max_opt := mem_max_opt m |}
+          | None => None
+          end = Some m' ->
+          match
+            (let
+                '(_, acc_end) :=
+                fold_left
+                  (λ '(k0, acc) (x : byte),
+                    (k0 + 1,
+                      match acc with
+                      | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                      | None => None
+                      end)) (bytes_takefill #00%byte (length (drop k0 bs'))
+                                            (drop k0 bs')) 
+                  (k0, fold_lefti
+                         (λ off0 dat_o b,
+                           match dat_o with
+                           | Some dat => mem_update (k + off + N.of_nat off0)%N
+                                                   b dat
+                           | None => None
+                           end) (bytes_takefill #00%byte k0 (take k0 bs'))
+                         (Some (mem_data m)))
+
+                  (* Some (mem_data m) ) *) in acc_end)
+          with
+          | Some dat => Some {| mem_data := dat; mem_max_opt := mem_max_opt m |}
+          | None => None
+          end = Some m'').
+  intros Hk. 
+  specialize (Hk 0).
+  simpl in Hk.
+  apply Hk => //=.
+  induction k0 ; intros Hs0 Hs0' => //=.
+  unfold fold_lefti in Hs0 ;
+    simpl in Hs0.
+  ufold fold_lefti in Hs0' ; simpl in Hs0'.
+  
+
+
+
+  
+(*  assert (length bs' <= length bs') ; first lia. *)
+  apply Hk in H.
+  rewrite PeanoNat.Nat.sub_diag in H.
+  unfold drop in H. done.
+  rewrite PeanoNat.Nat.sub_diag.
+  unfold drop.
+  done.
+  rewrite PeanoNat.Nat.sub_diag.
+  unfold drop.
+  done.
+  induction k1.
+  intros.
+  subst k0.
+  rewrite <- minus_n_O.
+  rewrite drop_all => //=.
+  rewrite <- minus_n_O in H0.
+  rewrite drop_all in H0.
+  simpl in H0.
+  rewrite <- minus_n_O in H1.
+  rewrite drop_all in H1.
+  simpl in H1. 
+  rewrite firstn_all in H0.
+  rewrite <- Hlen in H1.
+  rewrite firstn_all in H1.
+  rewrite firstn_all.
+  by destruct m'' ; inversion H0 ; destruct m' ; inversion H1.
+  intros. subst k0.
+  assert (k1 <= length bs') ; first lia.
+  apply IHk1 in H2.
+  rewrite drop_length.
+  rewrite <- (take_drop 1 (drop (length bs' - S k1) bs')).
+  rewrite drop_drop.
+  destruct (drop (length bs' - S k1) bs') eqn:Hdrop.
+  assert (length (drop (length bs' - S k1) bs') = 0) ; first by rewrite Hdrop.
+  rewrite drop_length in H3. lia.
+  unfold take.
+  replace (length bs' - S k1 + 1) with (length bs' - k1) ; last lia.
+  replace (length bs' - (length bs' - S k1)) with (S k1) ; last lia.
+  simpl.
+
+
+
+
+  replace (length bs - S k1 + 1) with (length bs - k1) ; last lia.
+
+  
+  replace (mem_update (k + off + N.of_nat (length bs - S k1))%N b (mem_data m))
+    with (Some (mem_data m)).
+  done.
+  rewrite trivial_update => //=.
+  simpl in H1.
+  rewrite list_extra.cons_app in H1. 
+  apply those_app_inv in H1 as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+  unfold those in Htl1.
+  simpl in Htl1. unfold read_bytes, those => //=.
+  rewrite N.add_0_r.
+  destruct (mem_lookup _ _) ; inversion Htl1.
+  rewrite - H3 in Htl.
+  by inversion Htl.
+  rewrite drop_length in H1.
+  replace (length bs - (length bs - S k1)) with (S k1) in H1 ; last lia.
+  simpl in H1.
+  rewrite list_extra.cons_app in H1. 
+  apply those_app_inv in H1 as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+  replace (S (length bs - S k1)) with (length bs - k1) in Htl2 ; last lia.
+  rewrite drop_length.
+  replace (length bs - (length bs - k1)) with k1 ; last lia.  
+  rewrite Htl2.
+  unfold those in Htl1.
+  simpl in Htl1.
+  destruct (mem_lookup _ _) ; inversion Htl1 ; subst.
+  inversion Htl.
+  rewrite - (take_drop 1 (drop _ _)) in H3. 
+  destruct (drop (length bs - S k1) bs) eqn:Hdrop.
+  assert (length (drop (length bs - S k1) bs) = 0) ; first by rewrite Hdrop.
+  rewrite drop_length in H1. lia.
+  unfold take in H3.
+  rewrite <- Hdrop in H3.
+  rewrite drop_drop in H3.
+  inversion H3.
+  replace (length bs - S k1 +1) with (length bs - k1) ; last lia.
+  done.
+
+
+  
+  generalize dependent bs'.
+  induction bs ; intros.
+  simpl in Hlen. 
+  apply Logic.eq_sym, nil_length_inv in Hlen ; subst.
+  simpl in Hs. simpl in Hs'. simpl.
+  destruct m'' ; inversion Hs'.
+  destruct m' ; inversion Hs.
+  done.
+  destruct bs' ; inversion Hlen.
+  apply IHbs in H0.
+
+  iainesa
+Admitted. *)
+
+Lemma store_trivial m k off bs :
+  load m k off (length bs) = Some bs ->
+  store m k off bs (length bs) = Some m. 
+Proof.
+  intros.
+  unfold store.
+  unfold load in H.
+  rewrite N.add_assoc in H.
+  destruct (k + off + N.of_nat (length bs) <=? mem_length m)%N ; try by inversion H.
+  unfold write_bytes.
+  unfold read_bytes in H.
+  unfold fold_lefti.
+  cut (forall k1,
+          k1 <= length bs ->
+          let k0 := length bs - k1 in
+          those (map (λ off0, mem_lookup (k + off + N.of_nat off0)%N (mem_data m))
+                       (iota k0 (length (drop k0 bs)))) = Some (drop k0 bs) ->
+            match (let
+                      '(_, acc_end) :=
+                      fold_left
+                        (λ '(k0, acc) x,
+                          (k0 + 1,
+                            match acc with
+                            | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                            | None => None
+                            end)) (bytes_takefill #00%byte (length (drop k0 bs))
+                                                  (drop k0 bs))
+                        (k0, Some (mem_data m)) in acc_end)
+            with
+            | Some dat => Some {| mem_data := dat ; mem_max_opt := mem_max_opt m |}
+            | None => None
+            end = Some m).
+  intros Hk.
+  assert (length bs <= length bs) ; first lia.
+  apply Hk in H0.
+  rewrite PeanoNat.Nat.sub_diag in H0.
+  unfold drop in H0. done.
+  rewrite PeanoNat.Nat.sub_diag.
+  unfold drop. done.
+  induction k1. intros.
+  subst k0.
+  rewrite <- minus_n_O.
+  rewrite drop_all => //=.
+  by destruct m.
+  intros. subst k0.
+  assert (k1 <= length bs) ; first lia.
+  apply IHk1 in H2. 
+  rewrite <- (take_drop 1 (drop (length bs - S k1) bs)).
+  rewrite drop_drop.
+  destruct (drop (length bs - S k1) bs) eqn:Hdrop.
+  assert (length (drop (length bs - S k1) bs) = 0) ; first by rewrite Hdrop.
+  rewrite drop_length in H3. lia.
+  unfold take.
+  replace (length bs - S k1 + 1) with (length bs - k1) ; last lia.
+  simpl.
+  replace (length bs - S k1 + 1) with (length bs - k1) ; last lia.
+  replace (mem_update (k + off + N.of_nat (length bs - S k1))%N b (mem_data m))
+    with (Some (mem_data m)).
+  done.
+  rewrite trivial_update => //=.
+  simpl in H1.
+  rewrite list_extra.cons_app in H1. 
+  apply those_app_inv in H1 as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+  unfold those in Htl1.
+  simpl in Htl1. unfold read_bytes, those => //=.
+  rewrite N.add_0_r.
+  destruct (mem_lookup _ _) ; inversion Htl1.
+  rewrite - H3 in Htl.
+  by inversion Htl.
+  rewrite drop_length in H1.
+  replace (length bs - (length bs - S k1)) with (S k1) in H1 ; last lia.
+  simpl in H1.
+  rewrite list_extra.cons_app in H1. 
+  apply those_app_inv in H1 as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+  replace (S (length bs - S k1)) with (length bs - k1) in Htl2 ; last lia.
+  rewrite drop_length.
+  replace (length bs - (length bs - k1)) with k1 ; last lia.  
+  rewrite Htl2.
+  unfold those in Htl1.
+  simpl in Htl1.
+  destruct (mem_lookup _ _) ; inversion Htl1 ; subst.
+  inversion Htl.
+  rewrite - (take_drop 1 (drop _ _)) in H3. 
+  destruct (drop (length bs - S k1) bs) eqn:Hdrop.
+  assert (length (drop (length bs - S k1) bs) = 0) ; first by rewrite Hdrop.
+  rewrite drop_length in H1. lia.
+  unfold take in H3.
+  rewrite <- Hdrop in H3.
+  rewrite drop_drop in H3.
+  inversion H3.
+  replace (length bs - S k1 +1) with (length bs - k1) ; last lia.
+  done.
+Qed.  
+(*
+
+Lemma store_trivial_extension m k off bs m' bs' :
+  store m k off bs (length bs) = Some m' ->
+  load m k (off + N.of_nat (length bs))%N (length bs') = Some bs' ->
+  store m k off (bs ++ bs') (length bs + length bs') = Some m'.
+Proof.
+Admitted.
+
+
+Lemma if_store_then_load m k off bs m' :
+  store m k off bs (length bs) = Some m' ->
+  load m' k off (length bs) = Some bs.
+Proof.
+Admitted.
+*)
+
+
+
+
+
+Lemma store_append m k off b bs m':
+  store m k off (b :: bs) (length (b :: bs)) = Some m' ->
+  exists m'', store m k (off + 1)%N bs (length bs) = Some m'' /\
+           store m'' k off [b] 1 = Some m'.
+Proof.
+  intros Hm.
+  apply store_append1 in Hm as (m0 & Hm0 & Hm0').
+  eapply swap_stores => //=.
+Qed.
+
+
+(* Earlier version of the proof, which relies on not-yet-proven lemmas : *)
+(*
+assert (mem_length m = mem_length m') as Hmm'.
+  { unfold mem_length, memory_list.mem_length. erewrite store_length => //=. }
+  assert (store m k off (b :: bs) (length (b :: bs)) = Some m') as Hm2 => //=.
+  unfold store in Hm.
+  destruct (k + off + N.of_nat (length (b :: bs)) <=? mem_length m)%N eqn:Hlen ;
+    try by inversion Hm.
+  replace (N.of_nat (length (b :: bs))) with (1 + N.of_nat (length bs))%N in Hlen ;
+    last by simpl ; lia. rewrite N.add_assoc in Hlen.
+  assert (exists b0, load m k off 1 = Some [b0]) as [b0 Hb0].
+  { unfold load. apply N.leb_le in Hlen.
+    assert (k + off + 1 <= k + off + 1 + N.of_nat (length bs))%N ; first lia.
+    eapply N.le_trans in Hlen => //=.
+    apply N.leb_le in Hlen. rewrite N.add_assoc. rewrite Hlen.
+    unfold read_bytes => //=. unfold those => //=.
+    unfold mem_lookup. 
+    rewrite (nth_error_nth' _ b). simpl. by eexists _.
+    rewrite N.add_0_r. apply N.leb_le in Hlen.
+    unfold mem_length, memory_list.mem_length in Hlen. lia. }
+  assert (exists m'', store m' k off [b0] 1 = Some m'') as [m'' Hm''].
+  { unfold store. apply N.leb_le in Hlen. rewrite Hmm' in Hlen.
+    assert (k + off + 1 <= k + off + 1 + N.of_nat (length bs))%N ; first lia.
+    eapply N.le_trans in Hlen => //=.
+    apply N.leb_le in Hlen. rewrite Hlen.
+    unfold write_bytes. unfold fold_lefti => //=. rewrite N.add_0_r.
+    unfold mem_update. unfold mem_length, memory_list.mem_length in Hlen.
+    apply N.leb_le in Hlen.
+    assert (k + off < N.of_nat (length (ml_data (mem_data m'))))%N ; first lia.
+    apply N.ltb_lt in H0.
+    rewrite H0. by eexists _. }
+  exists m''. split.
+  - assert (store m k off (b0 :: bs) (length (b0 :: bs)) = Some m'').
+    eapply store_trans => //=. by simpl. 
+    rewrite list_extra.cons_app.
+    apply store_trivial_extension => //=.
+    apply if_store_then_load in Hm2.
+    apply load_append in Hm2. done.
+    unfold store in H.
+    unfold write_bytes in H.
+    unfold fold_lefti in H.
+    simpl in H.
+    rewrite N.add_0_r in H. 
+    rewrite trivial_update in H.
+    unfold store.
+    replace (k + off + N.pos (Pos.of_succ_nat (length bs)))%N with
+      (k + (off + 1) + N.of_nat (length bs))%N in H ; last lia.
+    destruct (k + (off + 1) + N.of_nat (length bs) <=? mem_length m)%N ;
+      try by inversion H.
+    unfold write_bytes.
+    unfold fold_lefti.
+    destruct (fold_left _ _ _) eqn:Hfl.
+    replace 1 with (0+1) in Hfl ; last lia.
+    rewrite (fold_left_lift _ (λ '(k0, acc) x,
+                                (k0 + 1,
+                                  match acc with
+                                    Some dat => mem_update (k + (off + 1) + N.of_nat k0)%N x dat
+                                      | None => None end ))) in Hfl.
+    apply incr_fst_equals in Hfl.
+    rewrite Hfl. done.
+    intros => //=. unfold incr_fst => //=.
+    replace (k + off + N.of_nat (i + 1))%N with (k + (off + 1) + N.of_nat i)%N ; last lia.
+    done.
+    unfold load in Hb0.
+    destruct (k + (off + N.of_nat 1) <=? mem_length m)%N ; by inversion Hb0. 
+  - assert (exists m''', store m'' k off [b] 1 = Some m''') as [m''' Hm'''].
+    { unfold store.
+      replace (mem_length m'') with (mem_length m') ;
+        last by unfold mem_length, memory_list.mem_length ; erewrite store_length.
+      apply N.leb_le in Hlen. rewrite Hmm' in Hlen.
+      assert (k + off + 1 <= k + off + 1 + N.of_nat (length bs))%N ; first lia.
+      eapply N.le_trans in Hlen => //=.
+      apply N.leb_le in Hlen.
+      rewrite Hlen.
+      unfold write_bytes. unfold fold_lefti => //=. rewrite N.add_0_r.
+      unfold mem_update. unfold mem_length, memory_list.mem_length in Hlen.
+      apply N.leb_le in Hlen.
+      assert (k + off < N.of_nat (length (ml_data (mem_data m'))))%N ; first lia.
+      apply N.ltb_lt in H0.
+      replace (length (ml_data (mem_data m''))) with
+        (length (ml_data (mem_data m'))) ; last by erewrite store_length.
+      rewrite H0. by eexists _. }
+    replace 1 with (length [b0]) in Hm'' => //=.
+    replace 1 with (length [b]) in Hm''' => //=.
+    assert (length [b0] = length [b]) => //=.
+    rewrite Hm'''.
+    apply (store_trans _ _ _ _ _ _ _ H Hm'') in Hm''' => //=.
+    rewrite store_trivial in Hm''' => //=.
+    apply if_store_then_load in Hm2.
+    unfold load ; unfold load in Hm2.
+    destruct (k + (off + N.of_nat (length (b :: bs))) <=? mem_length m')%N eqn:Hlen' ;
+      try by inversion Hm2.
+    apply N.leb_le in Hlen'.
+    simpl in Hlen'.
+    assert (k + (off + N.of_nat 1) <=
+              k + (off + N.pos (Pos.of_succ_nat (length bs))))%N ; first lia.
+    apply (N.le_trans _ _ _ H0) in Hlen' => //=.
+    apply N.leb_le in Hlen'. rewrite Hlen'.
+    unfold read_bytes in Hm2.
+    simpl in Hm2. rewrite list_extra.cons_app in Hm2.
+    destruct (those_app_inv [mem_lookup (k + off + 0)%N (mem_data m')] _ _ Hm2)
+      as (tl1 & tl2 & Htl1 & Htl2 & Htl).
+    unfold those in Htl1. simpl in Htl1.
+    unfold read_bytes. unfold those => //=.
+    destruct (mem_lookup (k + off + 0)%N (mem_data m')) ; inversion Htl1.
+    subst. inversion Htl ; subst => //=.
+Qed.                             *)
+
+    
+
+Lemma gen_heap_update_big_wm bs bs' k off n mems m mems' m' :
+  length bs = length bs' -> 
+  load m k off (length bs) = Some bs ->
+  store m k off bs' (length bs') = Some m' ->
+  update_list_at mems n m' = mems' ->
+  mems !! n = Some m ->
+  gen_heap_interp (gmap_of_memory mems) -∗
+                  N.of_nat n ↦[wms][N.add k off] bs ==∗
+                  gen_heap_interp (gmap_of_memory mems') ∗
+                  N.of_nat n ↦[wms][N.add k off] bs'.
+Proof.
+  generalize dependent bs'. generalize dependent off.
+  generalize dependent m'. generalize dependent mems'.
+  induction bs ; iIntros (mems' m' off bs' Hlen Hm Hm' Hmems Hmemsn) "Hσ Hwms".
+  { simpl in Hlen. apply Logic.eq_sym, nil_length_inv in Hlen ; subst.
+    iModIntro. iSplitR "Hwms" => //=.
+    rewrite update_trivial => //=.
+    simpl in Hm'. unfold store in Hm'.
+    simpl in Hm. unfold load in Hm.
+    rewrite <- N.add_assoc in Hm'.
+    destruct (k + (off + N.of_nat 0) <=? mem_length m)%N ; try by inversion Hm.
+    unfold write_bytes in Hm'. simpl in Hm'.
+    destruct m ; simpl in Hm'.
+    by rewrite Hm' in Hmemsn. }
+  destruct bs' ; inversion Hlen.
+  iDestruct (wms_append with "Hwms") as "[Hwm Hwms]".
+  rewrite <- N.add_assoc.
+  destruct (store_append _ _ _ _ _ _ Hm') as (m'' & Hm'' & Hb).
+  iMod (IHbs with "Hσ Hwms") as "[Hσ Hwms]".
+  exact H0.
+  by eapply load_append.
+  exact Hm''.
+  done.
+  done.
+  iMod (gen_heap_update with "Hσ Hwm") as "[Hσ Hwm]". 
+  iIntros "!>".
+  iSplitR "Hwms Hwm" ; last by iApply wms_append ; rewrite N.add_assoc ; iFrame.
+
+(* Here, it seems like hypothesis [Hb] should make the last subgoal provable.
+   Work in progress *) 
+
+  (*
+  unfold store in Hb.
+  destruct (k + off + N.of_nat 1 <=? mem_length m'')%N ; try by inversion Hb.
+  unfold write_bytes, fold_lefti in Hb ; simpl in Hb.
+  rewrite N.add_0_r in Hb.
+  destruct (mem_update (k + off)%N b (mem_data m'')) eqn:Hupd ; inversion Hb.
+  unfold mem_update in Hupd.
+  
+  rewrite update_list_at_insert ; last by apply lookup_lt_Some in Hmemsn.
+  rewrite update_list_at_insert in Hmems ; last by apply lookup_lt_Some in Hmemsn.
+  erewrite gmap_of_memory_insert_block => //=.
+  rewrite <- Hmems.
+  erewrite gmap_of_memory_insert_block => //=.
+  unfold insert.
+  unfold new_2d_gmap_at_n.
+   (* erewrite gmap_of_memory_insert_block => // ; [ idtac | by rewrite - nth_error_lookup |]. (* by apply store_length in Hstore'; lia ]. *) *) *)
+Admitted. 
+
+(*
+(* A version of gen_heap_update specifically for wasm memories. *)
+Lemma gen_heap_update_big_wm σ n ml ml':
+  gen_heap_interp σ -∗ 
+  ([∗ list] i ↦ b ∈ ml, N.of_nat n ↦[wm][N.of_nat i] b) ==∗
+  gen_heap_interp ((new_2d_gmap_at_n (N.of_nat n) ml') ∪ σ) ∗
+  ([∗ list] i ↦ b ∈ ml', N.of_nat n ↦[wm][N.of_nat i] b).
+Proof.
+(*  revert σ; induction σ' as [| l v σ' Hl IH] using map_ind; iIntros (σ Hdisj) "Hσ".
+  { rewrite left_id_L. auto. }
+  iMod (IH with "Hσ") as "[Hσ'σ Hσ']"; first by eapply map_disjoint_insert_l.
+  decompose_map_disjoint.
+  rewrite !big_opM_insert // -insert_union_l //.
+  by iMod (gen_heap_alloc with "Hσ'σ") as "($ & $ & $)";
+    first by apply lookup_union_None.*)
+Admitted.
+*)
+
+Lemma length_bits v t:
+  types_agree t v -> length (bits v) = t_length t.
+Proof.
+  intros. unfold bits.
+  destruct v ; destruct t ; by inversion H.
+Qed.
+
+
+Lemma memory_in_bounds m i b :
+  (ml_data (mem_data m)) !! i = Some b -> i < N.to_nat (mem_length m) .
+Proof.
+  intros. 
+  apply lookup_lt_Some in H. unfold mem_length, memory_list.mem_length.
+  lia.
+Qed.
+
+
 
 Lemma map_app {A B} (l1 : list A) l2 (f : A -> B) : map f (l1 ++ l2) = map f l1 ++ map f l2.
 Proof.
@@ -3331,6 +4795,104 @@ Proof.
   lia.
 Qed.
 
+
+Lemma if_load_then_store bs bs' m k off :
+  length bs = length bs' ->
+  load m k off (length bs) = Some bs ->
+  exists m', store m k off bs' (length bs') = Some m'.
+Proof.
+  intros Hlen Hload.
+  unfold store, write_bytes, fold_lefti.
+  unfold load, read_bytes in Hload.
+  rewrite N.add_assoc in Hload.
+  rewrite - Hlen.
+  destruct (_ <=? _)%N eqn:Hklen ; try by inversion Hload.
+  cut (forall i dat,
+          length (ml_data dat) = length (ml_data (mem_data m)) ->
+          i <= length bs ->
+          let j := length bs - i in
+          those (map (λ off0, mem_lookup (k + off + N.of_nat off0)%N (mem_data m))
+                     (iota j i)) = Some (drop j bs) ->
+          exists dat', (let '(_, acc_end) :=
+                     fold_left
+                       (λ '(k0, acc) x,
+                         (k0 + 1,
+                           match acc with
+                           | Some dat => mem_update (k + off + N.of_nat k0)%N x dat
+                           | None => None
+                           end)) (bytes_takefill #00%byte i (drop j bs'))
+                       (j, Some dat) in acc_end) = Some dat').
+  - intros Hi.
+    assert (length bs <= length bs) ; first lia.
+    eapply Hi in H as [dat' Hdat'].
+    + rewrite PeanoNat.Nat.sub_diag in Hdat'.
+      unfold drop in Hdat'.
+      rewrite Hdat'.
+      by eexists _.
+    + done.
+    + rewrite PeanoNat.Nat.sub_diag.
+      unfold drop.
+      exact Hload.
+  - induction i ; intros ; subst j.
+    + rewrite Nat.sub_0_r.
+      rewrite Hlen.
+      rewrite drop_all.
+      simpl.
+      by eexists _.
+    + assert (i <= length bs) ; first lia.
+      destruct (drop (length bs - S i) bs') eqn:Hdrop.
+      * assert (length (drop (length bs - S i) bs') = 0) ; first by rewrite Hdrop.
+        rewrite drop_length in H3. lia.
+      * destruct (drop (length bs - S i) bs) eqn:Hdrop0.
+        **  assert (length (drop (length bs - S i) bs) = 0) ; first by rewrite Hdrop0.
+            rewrite drop_length in H3. lia.
+        ** assert (exists dat0, mem_update (k + off + N.of_nat (length bs - S i))%N b dat =
+                             Some dat0) as [dat0 Hdat0].
+           { unfold mem_update.
+             assert (k + off + N.of_nat (length bs - S i) <
+                       N.of_nat (length (ml_data dat)))%N.
+             rewrite H.
+             unfold mem_length, memory_list.mem_length in Hklen.
+             apply N.leb_le in Hklen.
+             lia.
+             apply N.ltb_lt in H3.
+             rewrite H3.
+             by eexists _. } 
+           eapply (IHi dat0) in H2 as [dat' Hdat'].
+        ++ simpl.
+           replace (length bs - i) with (length bs - S i + 1) in Hdat' ; last lia.
+           rewrite - drop_drop in Hdat'.
+           rewrite Hdrop in Hdat'.
+           unfold drop in Hdat'.
+           rewrite Hdat0.
+           rewrite Hdat'.
+           by eexists _.
+        ++ rewrite - H.
+           erewrite <- mem_update_length ; last exact Hdat0.
+           done.
+        ++ simpl in H1.
+           rewrite - those_those0 in H1.
+           unfold those0 in H1.
+           fold (those0 (A:=byte)) in H1.
+           rewrite those_those0 in H1.
+           destruct (mem_lookup _ _) ; try by inversion H1.
+           unfold option_map in H1.
+           destruct (those (map (λ off0, mem_lookup (k + off + N.of_nat off0)%N
+                                (mem_data m))
+                                (iota (S (length bs - S i)) i)) )
+                    eqn:Hth ; try by inversion H1.
+           replace (S (length bs - S i)) with (length bs - i) in Hth ; last lia.
+           rewrite Hth.
+           inversion H1.
+           replace (length bs - i) with (length bs - S i + 1) ; last lia.
+           rewrite - drop_drop.
+           rewrite Hdrop0 => //=.
+Qed.           
+                                                                    
+                                                                    
+
+(*
+
 Lemma if_load_then_store m addr off val1 val2 size :
   load m addr off size = Some val1 ->
   exists m', store m addr off val2 size = Some m'.
@@ -3364,7 +4926,7 @@ Proof.
 
     simpl. destruct val2 => //=. unfold fold_lefti => //=.
     (* Work in progress *)
-    Admitted.
+    Admitted. *)
 
 
 
@@ -3490,12 +5052,14 @@ Proof.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     iExists {| f_locs := locs; f_inst := winst |}.
-    (*only_one_reduction H.
+    eapply reduce_det in H as [ H | [ Hfirst | [ [a0 Hfirst] | (Hfirst & Hfirst2 &
+                                                                  Hfirst3 & Hσ)]]] ;
+      last (eapply r_load_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
+      try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     rewrite deserialise_bits in H => //=.
-    inversion H ; subst. iFrame. by iPureIntro.
+    inversion H ; subst. iFrame. iIntros. iSplit => //=.
 Qed.
-*)
-Admitted.
+
 
 
 Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (*(mem mem': memory)*) (vinit : value) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) (f0: frame) :
@@ -3529,44 +5093,53 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold language.reducible, language.prim_step => /=.
-    edestruct if_load_then_store as [mem Hsomemem] => //=. (* This lemma is currently admitted *)
+    edestruct (if_load_then_store (bits vinit) (bits v)) as [mem Hsomemem] ;
+      repeat erewrite length_bits => //=.
+    erewrite length_bits in Hsomemem => //=.
     eexists [], [], (hs, _ (*upd_s_mem ws (update_list_at (s_mems ws) n m') *), locs, winst), [].
     repeat split => //.
     eapply r_store_success => //=.
     unfold smem_ind.
-    by rewrite Hinstmem.
+    by rewrite Hinstmem.    
   - iIntros "!>" (es σ2 efs HStep).
     iExists {| f_locs := locs; f_inst := winst |}.
-    (* Work in progress *)
-Admitted.
-
-(* These might be helpful for completing the proof above : *)
-(*
-    (* Need something like gen_heap_update_big here to update all at once *)
-    iMod (gen_heap_update_big_wm with "Hm Hwmdata") as "(Hm & Hwmdata)".
-    iModIntro.
     destruct σ2 as [[[hs2 ws2] locs2] winst2].
+    edestruct (if_load_then_store (bits vinit) (bits v)) as [mem Hsomemem] ;
+      repeat erewrite length_bits => //=.
+    erewrite length_bits in Hsomemem => //=.
+    iMod (gen_heap_update_big_wm (bits vinit) (bits v) with "Hm Hwms") as "[Hm Hwms]".
+    do 2 erewrite length_bits => //=.
+    erewrite length_bits => //=.
+    erewrite length_bits => //=.
+    done.
+    rewrite nth_error_lookup in Hm => //=.
+    iModIntro.
     destruct HStep as [HStep [-> ->]].
-    only_one_reduction HStep.
-(*     eapply reduce_det in HStep; last by eapply r_store_success.e *)
-    inversion HStep; subst; clear HStep => /=.
+    eapply reduce_det in HStep as [H | [Hfirst | [ [ a0 Hfirst ] | ( Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ) ]]] ;
+      last (eapply r_store_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
+      try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
+    inversion H ; subst; clear H => /=.
     iFrame.
     rewrite update_list_at_insert; last by rewrite nth_error_lookup in Hm; apply lookup_lt_Some in Hm.
-    erewrite gmap_of_memory_insert_block => //; [ idtac | by rewrite - nth_error_lookup | by apply store_length in Hstore'; lia ].
-    rewrite list_fmap_insert.
-    assert (mem_length m' = mem_length m) as Hmsize.
-    { apply store_length in Hstore'. by unfold mem_length, memory_list.mem_length; rewrite Hstore'. }
+    (* erewrite gmap_of_memory_insert_block => // ; [ idtac | by rewrite - nth_error_lookup |]. (* by apply store_length in Hstore'; lia ]. *) *)
+    rewrite list_fmap_insert.    
+    assert (mem_length mem = mem_length m) as Hmsize.
+    { rewrite <- (length_bits v) in Hsomemem => //=.
+      apply store_length in Hsomemem.
+      by unfold mem_length, memory_list.mem_length; rewrite Hsomemem. }
     rewrite Hmsize.
-    assert (mem_length mem' = mem_length mem) as Hmsize'.
+(*    assert (mem_length mem' = mem_length mem) as Hmsize'.
     { apply mem_equiv_length in Hmem.
       apply mem_equiv_length in Hmdata'.
       lia.
     }
-    rewrite Hmsize'.
+    rewrite Hmsize'. *)
     rewrite list_insert_id; last by rewrite list_lookup_fmap; rewrite - nth_error_lookup; rewrite Hm.
-    rewrite Hmdata' Hwmlength'.
-    by iFrame.
-Qed. *)
+    iSplitL => //=.
+    iIntros "Hf".
+    iSplitR => //=.
+Qed. 
 
 
 (*
