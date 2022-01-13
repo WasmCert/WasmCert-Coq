@@ -5180,7 +5180,8 @@ Proof.
     destruct HStep as [H [-> ->]].
     only_one_reduction H.
 Qed.
-*)
+ *)
+(*
 Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
   f.(f_inst).(inst_memory) !! 0 = Some k ->
   nth_error (s_mems ws) k = Some mem ->
@@ -5193,10 +5194,113 @@ Proof.
   destruct f as [locs inst].
   destruct f' as [locs' inst'].
   (*only_one_reduction HReduce [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))] locs inst locs' inst'.*)
-Admitted.
+Admitted. *)
  
+Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
+      (n: N) (Φ Ψ : val -> iProp Σ) (c: i32) :
+  f0.(f_inst).(inst_memory) !! 0 = Some k ->
+  ( ↪[frame] f0 ∗
+     (N.of_nat k) ↦[wmlength] n ∗
+     Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (N.to_nat n))]) ∗
+     Ψ (immV [VAL_int32 int32_minus_one]))
+    ⊢ WP [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_grow_memory)]
+    @ s; E {{ w, (Φ w ∗
+                    (∃ b, (N.of_nat k) ↦[wms][ n ]
+                    repeat b (N.to_nat (Wasm_int.N_of_uint i32m c * page_size))) ∗
+                    (N.of_nat k) ↦[wmlength]
+                    (n + Wasm_int.N_of_uint i32m c * page_size)%N ∗
+                    ↪[frame] f0 )
+                 ∨ (Ψ w ∗ (N.of_nat k) ↦[wmlength] n ∗ ↪[frame] f0) }}.
+Proof.
+  iIntros (Hfm) "(Hframe & Hmemlength & HΦ & HΨ)".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  destruct σ as [[[ hs ws ] locs ] winst].
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hf & Hγ)".
+  iDestruct (ghost_map_lookup with "Hf Hframe") as "%Hframe".
+  iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
+  rewrite lookup_insert in Hframe.
+  inversion Hframe ; subst ; clear Hframe.
+  rewrite - nth_error_lookup in Hfm.
+  rewrite gmap_of_list_lookup list_lookup_fmap Nat2N.id in Hmemlength => /=.
+  destruct (s_mems ws !! k) eqn:Hmemlookup => //.
+  simpl in Hmemlength.
+  inversion Hmemlength as [Hmemlength']; clear Hmemlength.
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    eexists _,_,(_,_,_,_),_.
+    repeat split => //=.
+    eapply r_grow_memory_failure => //=.
+    by rewrite nth_error_lookup.
+  - iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    remember [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] as es0.
+    remember {| f_locs := locs ; f_inst := winst |} as f.
+    remember {| f_locs := locs' ; f_inst := inst' |} as f'.
+    replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] with
+      ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory]) in Heqes0 => //=.
+    induction H ; try by inversion Heqes0 ;
+      try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
+    { destruct H ; try by inversion Heqes0 ;
+        try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
+      rewrite Heqes0 in H0.
+      filled_trap H0 Hxl1. }
+    { (* grow_memory succeeded *)
+      iExists f.
+      admit. }
+    { (* grow_memory failed *)
+      iExists f.
+      iSplitR "Hframe HΨ Hmemlength"  => //.
+      iFrame.
+      iSplitL "Hframe" => //=.
+      iSplitL => //.
+      iIntros "Hframe".
+      iRight.
+      iFrame. }
+    rewrite Heqes0 in H0.
+    simple_filled H0 k0 lh bef aft nn ll ll'.
+    destruct bef.
+    { destruct es ; first by exfalso ; eapply test_no_reduce0.
+      inversion H0.
+      apply Logic.eq_sym, app_eq_unit in H4 as [[ -> _ ] | [-> ->]].
+      by subst ; exfalso ; eapply values_no_reduce.
+      subst.
+      unfold lfilled, lfill in H1.
+      simpl in H1.
+      rewrite app_nil_r in H1.
+      apply b2p in H1 ; subst.
+      apply IHreduce => //=. }
+    exfalso.
+    inversion H0.
+    apply Logic.eq_sym, app_eq_unit in H4 as [[ _ Hes ] | [ _ Hes]].
+    apply app_eq_unit in Hes as [[ -> _ ] | [Hes _ ]].
+    by eapply test_no_reduce0.
+    rewrite <- app_nil_l in Hes.
+    clear IHreduce H1 Heqes0 H0.
+    induction H ; try by inversion Hes ; try by apply app_inj_tail in Hes as [_ Habs] ;
+      inversion Habs.
+    { destruct H ; try by inversion Hes ; try by apply app_inj_tail in Hes as [_ Habs] ;
+        inversion Habs.
+      rewrite Hes in H0 ; filled_trap H0 Hxl1. }
+    rewrite Hes in H0.
+    simple_filled H0 k0 lh bef0 aft0 nnn lll lll'.
+    apply Logic.eq_sym, app_eq_unit in H0 as [[ -> H0 ] | [_ H0]].
+    apply app_eq_unit in H0 as [[ -> _ ] | [ -> -> ]].
+    by eapply test_no_reduce0.
+    apply IHreduce => //=.
+    apply app_eq_nil in H0 as [ -> _].
+    by eapply test_no_reduce0.
+    apply app_eq_nil in Hes as [-> _].
+    by eapply test_no_reduce0.
+Admitted.
+      
 
-Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f0: frame) (mem: memory) (Φ Ψ: val -> iProp Σ) (c: i32) :
+(* former version of wp_grow_memory, asserts knowledge of whole memory *)
+(*
+Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0: frame) (mem: memory) (Φ Ψ: val -> iProp Σ) (c: i32) :
   f0.(f_inst).(inst_memory) !! 0 = Some k ->
   match mem_max_opt mem with
   | Some maxlim => (mem_size mem + (Wasm_int.N_of_uint i32m c) <=? maxlim)%N
@@ -5280,7 +5384,7 @@ Proof.
     (* success *)
     + admit.
 *)
-Admitted.
+Admitted. *)
 
 
 
