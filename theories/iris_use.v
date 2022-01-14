@@ -2867,20 +2867,22 @@ Admitted.
 
 
 (* Instance related *)
-(*
-Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (ϕ: val -> Prop):
+
+Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (ϕ: val -> Prop) f0 :
+  (f_locs f0) !! i = Some v -> 
   ϕ (immV [v]) ->
-  N.of_nat i ↦[wl] v ⊢
-  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  ↪[frame] f0 -∗
+  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] f0 }}.
 Proof.
-  iIntros (Hϕ) "Hli".
+  iIntros (Hlook Hϕ) "Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
-  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
-  rewrite gmap_of_list_lookup Nat2N.id in Hli.
-  rewrite - nth_error_lookup in Hli.
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (ghost_map_lookup with "Hl Hli") as "%Hli".
+  simplify_map_eq.
+  (* rewrite gmap_of_list_lookup Nat2N.id in Hli. *)
+  rewrite - nth_error_lookup in Hlook.
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -2893,23 +2895,22 @@ Proof.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     only_one_reduction H.
+    iExists _. iFrame "# ∗ %". eauto.
 Qed.
 
-Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat) (ϕ: val -> Prop):
+Lemma wp_set_local (s : stuckness) (E : coPset) (v : value) (i: nat) (ϕ: val -> Prop) f0 :
+  i < length (f_locs f0) ->
   ϕ (immV []) ->
-  N.of_nat i ↦[wl] v0 ⊢
-  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  ↪[frame] f0 -∗
+  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] (Build_frame (set_nth v (f_locs f0) i v) (f_inst f0)) }}.
 Proof.
-  iIntros (Hϕ) "Hli".
+  iIntros (Hlen Hϕ) "Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
-  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
-  assert (i < length locs) as Hlength.
-    { rewrite gmap_of_list_lookup Nat2N.id in Hli.
-      by apply lookup_lt_Some in Hli.
-    }
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (ghost_map_lookup with "Hl Hli") as "%Hli".
+  simplify_map_eq.
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -2918,12 +2919,10 @@ Proof.
     unfold iris.prim_step => /=.
     repeat split => //.
     eapply r_set_local => //=.
-    unfold lt in Hlength.
-    (* Here, we need to prove [ ssrnat.leq a b ] from hypothesis [ a <= b ].
-       I gave up, could someone help ? *) admit.
+    rewrite -(rwP ssrnat.leP). lia.
   - iIntros "!>" (es σ2 efs HStep).
     (* modify locs[i]. This has to be done before the update modality is used. *)
-    iMod (gen_heap_update with "Hl Hli") as "(Hl & Hli)".
+    iMod (ghost_map_update (Build_frame (set_nth v locs i v) inst) with "Hl Hli") as "(Hl & Hli)".
     iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
@@ -2931,15 +2930,12 @@ Proof.
                                                                & Hσ)]]] ;
       last (eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto) ;
     try by unfold first_instr in Hstart ; simpl in Hstart ; inversion Hstart.
-    inversion H; subst; clear H.
-    iFrame.
-    repeat iSplit => //.
-    rewrite - gmap_of_list_insert; rewrite Nat2N.id => //.
-    by erewrite fmap_insert_set_nth.
-    simpl. unfold lt in Hlength. (* same problem with ssreflect as above *) admit.
-Admitted.
+    inversion H; subst; clear H. simpl.
+    iExists _. iFrame "# ∗ %". rewrite insert_insert. iFrame. auto.
+    rewrite -(rwP ssrnat.leP) /=. lia.
+Qed.
 
-
+(*
 (* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (n: nat) (ϕ: val -> Prop):
   (not (ϕ trapV)) ->
