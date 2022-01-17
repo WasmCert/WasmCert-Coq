@@ -2935,6 +2935,35 @@ Proof.
     rewrite -(rwP ssrnat.leP) /=. lia.
 Qed.
 
+Lemma wp_tee_local (s : stuckness) (E : coPset) (v : value) (i : nat) (Φ : val -> iProp Σ) f :
+  ⊢ ↪[frame] f -∗
+    WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ; AI_basic (BI_set_local i)]
+     @ s ; E {{ Φ }} -∗
+             WP [AI_basic (BI_const v) ; AI_basic (BI_tee_local i)] @ s ; E {{ Φ }}.
+Proof.
+  iIntros "Hf Hwp".
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct σ as [[[ hs ws ] locs ] inst ].
+  iApply fupd_mask_intro ; first by solve_ndisj.
+  iIntros "Hfupd".
+  iDestruct "Hσ" as "(? & ? & ? & ? & ? & ?)".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => //=.
+    eexists _,_,(_,_,_,_),_.
+    repeat split => //=.
+    by apply r_simple, rs_tee_local.
+  - iIntros "!>" (es σ2 efs HStep).
+    iMod "Hfupd".
+    iModIntro.
+    destruct σ2 as [[[ hs' ws'] locs' ] inst' ] => //=.
+    destruct HStep as [H [-> ->]].
+    only_one_reduction H.
+Qed.
+
+
 (*
 (* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (n: nat) (ϕ: val -> Prop):
