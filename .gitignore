@@ -24,6 +24,7 @@
 /theories/extract.mli
 
 .saves
+.DS_Store
 
 /wasm_interpreter
 /history.txt
