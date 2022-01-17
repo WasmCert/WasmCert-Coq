@@ -3268,7 +3268,109 @@ Proof.
   by rewrite IHi.
 Qed.
 
+Lemma update_twice {A} l i (x : A) y :
+  i < length l ->
+  update_list_at (update_list_at l i x) i y = update_list_at l i y.
+Proof.
+  generalize dependent l.
+  induction i ; intros.
+  destruct l ; inversion H => //=.
+  unfold update_list_at. simpl.
+  rewrite seq.take_cat.
+  rewrite size_take.
+  assert (ssrnat.leq (S (S i)) (seq.size l)).
+  { unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+    rewrite length_is_size in H.
+    replace (S (S i) - seq.size l) with 0 ; last lia.
+    done. }
+  rewrite H0.
+  rewrite ssrnat.ltnn.
+  rewrite ssrnat.subnn.
+  rewrite take0.
+  rewrite cats0.
+  rewrite - drop_drop.
+  replace (S i) with (length (seq.take (S i) l)) at 2.
+  rewrite drop_app.
+  unfold drop at 1. done.
+  rewrite length_is_size.
+  rewrite size_take.
+  by rewrite H0.
+Qed.
 
+
+Lemma update_length {A} l i (x : A) :
+  i < length l ->
+  length (update_list_at l i x) = length l.
+Proof.
+  intros.
+  unfold update_list_at.
+  rewrite app_length => //=.
+  rewrite length_is_size.
+  rewrite size_take.
+  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+  rewrite length_is_size in H.
+  replace (S i - seq.size l) with 0 ; last lia.
+  simpl.
+  rewrite drop_length.
+  unfold ssrnat.addn, ssrnat.addn_rec.
+  rewrite length_is_size.
+  lia.
+Qed.
+
+
+Lemma lookup_seq_nth {A} (l : seq.seq A) k :
+  l !! k = seq.nth None (fmap (λ x, Some x) l) k.
+Proof.
+  generalize dependent l. 
+  induction k ; intros ; destruct l => //=.
+Qed.
+
+Lemma take_fmap {A B} (l : seq.seq A) (f : A -> B) k :
+  f <$> seq.take k l = seq.take k (f <$> l).
+Proof.
+  generalize dependent l.
+  induction k ; intros ; destruct l => //=.
+  unfold fmap in IHk.
+  by rewrite IHk.
+Qed.
+  
+  
+
+Lemma update_ne {A} l i k (x : A) :
+  i < length l -> i <> k -> (update_list_at l i x) !! k = l !! k.
+Proof.
+  intros.
+  unfold update_list_at.
+  destruct (decide (k < i)).
+  rewrite lookup_app_l.
+  rewrite lookup_seq_nth.
+  rewrite take_fmap.
+  rewrite nth_take.
+  by rewrite lookup_seq_nth.
+  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+  replace (S k - i) with 0 => //= ; last lia.
+  rewrite length_is_size size_takel ; first done.
+  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+  rewrite - length_is_size.
+  replace (i - length l) with 0 => //= ; last lia.
+  rewrite lookup_app_r.
+  rewrite length_is_size size_takel.
+  destruct (k - i) eqn:Hki ; first by exfalso ; lia.
+  simpl.
+  rewrite lookup_drop.
+  unfold ssrnat.addn, ssrnat.addn_rec.
+  replace (i + 1 + n0) with k => //= ; last lia.
+  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+  rewrite - length_is_size.
+  replace (i - length l) with 0 => //= ; last lia.
+  rewrite length_is_size size_takel.
+  lia.
+  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+  rewrite - length_is_size.
+  replace (i - length l) with 0 => //= ; last lia.
+Qed.
+
+  
 Lemma those_app {A} (l1 : list (option A)) l2 tl1 tl2 :
   those l1 = Some tl1 -> those l2 = Some tl2 -> those (l1 ++ l2) = Some (tl1 ++ tl2).
 Proof.
@@ -3282,6 +3384,7 @@ Proof.
   rewrite <- those_those0. unfold those0 => //=.
   fold (those0 (l1 ++ l2)). rewrite those_those0 H1. simpl. by subst.
 Qed.
+
 
 Lemma those_app_inv {A} (l1 : list (option A)) l2 tl :
   those (l1 ++ l2) = Some tl ->
@@ -5195,13 +5298,288 @@ Proof.
   destruct f' as [locs' inst'].
   (*only_one_reduction HReduce [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))] locs inst locs' inst'.*)
 Admitted. *)
+
+Lemma big_opL_app {A} (l1 : list A) l2 (f : nat -> A -> iProp Σ) :
+  ⊢ ([∗ list] i↦b ∈ (l1 ++ l2), f i b) ∗-∗
+                               (([∗ list] i↦b ∈ l1, f i b) ∗
+                                                           [∗ list] i↦b ∈ l2, f (i + length l1) b).
+Proof.
+  generalize dependent f.
+  induction l1 ; intros f => //=.
+  iSplit.
+  iIntros "H".
+  iSplitR => //=.
+  iApply (big_sepL_impl with "H") => //=.
+  iIntros "!>" (k x) "%Hk Hfx".
+  by rewrite - plus_n_O.
+  iIntros "[_ H]".
+  iApply (big_sepL_impl with "H") => //=.
+  iIntros "!>" (k x) "%Hk Hfx".
+  by rewrite - plus_n_O.
+  iSplit.
+  iIntros "[H0 Hplus]".
+  iDestruct (IHl1 (λ i b, f (S i) b) with "Hplus") as "[H1 H2]".
+  iSplitR "H2".
+  iFrame.
+  iApply (big_sepL_impl with "H2") => //=.
+  iIntros "!>" (k x) "%Hk Hfx".
+  replace (k + S (length l1)) with (S (k + length l1)) => //= ; last lia.
+  iIntros "[[H0 H1] H2]".
+  iSplitL "H0" => //=.
+  iDestruct (big_sepL_impl with "H2") as "H2".
+  iAssert (□ (∀ k x, ⌜ l2 !! k = Some x ⌝ → f (k + S (length l1)) x -∗
+                                              (λ i b, f (S (i + length l1)) b) k x))%I
+    as "H".
+  iIntros "!>" (k x) "%Hk Hfx".
+  replace (k + S (length l1)) with (S (k + length l1)) => //= ; last lia.
+  iDestruct ("H2" with "H") as "H2".
+  iDestruct (IHl1 (λ i b, f (S i) b)) as "[Hl Hr]".
+  iApply "Hr". iFrame.
+Qed.
+
+
+
+Lemma gen_heap_alloc_grow (m m' : memory) (mems mems' : list memory) (k : nat) (n : N) : 
+  mems !! k = Some m ->
+  mem_grow m n = Some m' ->
+  update_list_at mems k m' = mems' ->
+  gen_heap_interp (gmap_of_memory mems) ==∗
+                  gen_heap_interp (gmap_of_memory mems')
+                  ∗ N.of_nat k↦[wms][ mem_length m ]
+                  repeat (ml_init (mem_data m)) (N.to_nat (n * page_size)).
+Proof.
+  iIntros (Hmems Hgrow Hupd) "Hmems".
+  assert (k < length mems) as Hk ; first by eapply lookup_lt_Some.
+  assert (length (seq.take k mems) = k) as Hlentake.
+  { rewrite length_is_size size_takel => //=.
+    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
+    rewrite - length_is_size.
+    replace (k - length mems) with 0 => //= ; lia. }
+  unfold mem_grow, memory_list.mem_grow in Hgrow.
+  destruct (mem_max_opt m) eqn:Hmaxlim.
+  destruct (mem_size m +n <=? n0)%N ; inversion Hgrow.
+  - remember (N.to_nat (n * page_size)) as size.
+    clear Heqsize n Hgrow.
+    remember (Some n0) as sn.
+    clear Heqsn.
+    subst mems' m' sn.
+    iInduction size as [|size] "IH".
+    + simpl.
+      rewrite cats0.
+      rewrite update_trivial.
+      unfold mem_block_at_pos => //=.
+      by iSplitL.
+      rewrite Hmems.
+      destruct m. by destruct mem_data => //=.
+    + iMod ("IH" with "Hmems") as "[Hmems Hm]".
+      iMod (gen_heap_alloc with "Hmems") as "( Hmems & Hown & Htk )".
+      * unfold gmap_of_memory.
+        instantiate (1 := (N.of_nat k, (mem_length m + N.of_nat(size))%N)).
+        rewrite gmap_of_list_2d_lookup => //=.
+        rewrite Nat2N.id.
+        rewrite list_lookup_fmap => //=.
+        unfold update_list_at => //=.
+        rewrite list_lookup_middle => //=.
+        unfold memory_to_list => //=.
+        rewrite lookup_app_r.
+        rewrite lookup_ge_None => //=.
+        rewrite repeat_length.
+        unfold mem_length, memory_list.mem_length.
+        lia.
+        unfold mem_length, memory_list.mem_length.
+        lia.
+      * iModIntro. 
+        iSplitL "Hmems".
+        -- instantiate (1 := ml_init (mem_data m)).
+           replace (<[ _ := _ ]> (gmap_of_memory _)) with
+             (gmap_of_memory
+                (update_list_at
+                   mems k
+                   {| mem_data :=
+                     {| ml_init := ml_init (mem_data m);
+                       ml_data := ml_data (mem_data m) ++
+                                          repeat (ml_init (mem_data m)) (S size)
+                     |} ;
+                     mem_max_opt := mem_max_opt m
+                   |})).
+           done.
+           apply map_eq.
+           intros.
+           destruct i.
+           unfold gmap_of_memory.
+           rewrite gmap_of_list_2d_lookup. 
+           rewrite list_lookup_fmap.
+           unfold memory_to_list.
+           destruct (decide (N.to_nat n = k)) ; subst.
+           ++ unfold update_list_at at 1 => //=.
+              rewrite list_lookup_middle => //=.
+              destruct (decide (n1 = (mem_length m + N.of_nat size)%N)) ; subst.
+              ** rewrite N2Nat.id.
+                 rewrite lookup_insert.
+                 rewrite lookup_app_r.
+                 unfold mem_length, memory_list.mem_length.
+                 replace (N.to_nat (N.of_nat (length (ml_data (mem_data m))) +
+                                      N.of_nat size) -
+                         length (ml_data (mem_data m))) with size ; last lia.
+                 rewrite repeat_cons.
+                 rewrite lookup_app_r ; last by rewrite repeat_length.
+                 rewrite repeat_length.
+                 rewrite PeanoNat.Nat.sub_diag => //=.
+                 unfold mem_length, memory_list.mem_length ; lia.
+              ** rewrite lookup_insert_ne ; last by intro H ; inversion H ; apply n2.
+                 rewrite gmap_of_list_2d_lookup.
+                 rewrite list_lookup_fmap.
+                 unfold update_list_at => //=.
+                 rewrite (list_lookup_middle _ _ _ (N.to_nat n)) => //=.
+                 rewrite repeat_cons.
+                 rewrite catA.
+                 destruct (decide (n1 < (mem_length m + N.of_nat size))%N).
+                 rewrite lookup_app_l => //=.
+                 rewrite app_length repeat_length.
+                 unfold mem_length, memory_list.mem_length in l.
+                 lia.
+                 rewrite lookup_ge_None_2. 
+                 rewrite lookup_ge_None_2 => //=.
+                 rewrite app_length repeat_length.
+                 unfold mem_length, memory_list.mem_length in n3.
+                 lia.
+                 repeat rewrite app_length => //=.
+                 rewrite repeat_length.
+                 unfold mem_length, memory_list.mem_length in n3.
+                 unfold mem_length, memory_list.mem_length in n2.
+                 lia.
+           ++ rewrite lookup_insert_ne ; last by intros H ; inversion H ; lia.
+              rewrite gmap_of_list_2d_lookup.
+              rewrite list_lookup_fmap.
+              rewrite update_ne => //=. 
+              rewrite update_ne => //=.
+        -- replace (S size) with (size + 1) ; last lia.
+           rewrite repeat_app.
+           unfold mem_block_at_pos.
+           iApply big_opL_app.
+           iSplitL "Hm" => //=.
+           iSplitL => //=.
+           rewrite repeat_length.
+           rewrite Nat2N.inj_add.
+           rewrite N2Nat.id.
+           done.
+  - remember (N.to_nat (n * page_size)) as size.
+    inversion Hgrow.
+    clear Heqsize n Hgrow.
+    remember None as sn.
+    clear Heqsn.
+    subst mems' m' sn.
+    iInduction size as [|size] "IH".
+    + simpl.
+      rewrite cats0.
+      rewrite update_trivial.
+      unfold mem_block_at_pos => //=.
+      by iSplitL.
+      rewrite Hmems.
+      destruct m. by destruct mem_data => //=.
+    + iMod ("IH" with "Hmems") as "[Hmems Hm]".
+      iMod (gen_heap_alloc with "Hmems") as "( Hmems & Hown & Htk )".
+      * unfold gmap_of_memory.
+        instantiate (1 := (N.of_nat k, (mem_length m + N.of_nat(size))%N)).
+        rewrite gmap_of_list_2d_lookup => //=.
+        rewrite Nat2N.id.
+        rewrite list_lookup_fmap => //=.
+        unfold update_list_at => //=.
+        rewrite list_lookup_middle => //=.
+        unfold memory_to_list => //=.
+        rewrite lookup_app_r.
+        rewrite lookup_ge_None => //=.
+        rewrite repeat_length.
+        unfold mem_length, memory_list.mem_length.
+        lia.
+        unfold mem_length, memory_list.mem_length.
+        lia.
+      * iModIntro. 
+        iSplitL "Hmems".
+        -- instantiate (1 := ml_init (mem_data m)).
+           replace (<[ _ := _ ]> (gmap_of_memory _)) with
+             (gmap_of_memory
+                (update_list_at
+                   mems k
+                   {| mem_data :=
+                     {| ml_init := ml_init (mem_data m);
+                       ml_data := ml_data (mem_data m) ++
+                                          repeat (ml_init (mem_data m)) (S size)
+                     |} ;
+                     mem_max_opt := mem_max_opt m
+                   |})).
+           done.
+           apply map_eq.
+           intros.
+           destruct i.
+           unfold gmap_of_memory.
+           rewrite gmap_of_list_2d_lookup. 
+           rewrite list_lookup_fmap.
+           unfold memory_to_list.
+           destruct (decide (N.to_nat n = k)) ; subst.
+           ++ unfold update_list_at at 1 => //=.
+              rewrite list_lookup_middle => //=.
+              destruct (decide (n0 = (mem_length m + N.of_nat size)%N)) ; subst.
+              ** rewrite N2Nat.id.
+                 rewrite lookup_insert.
+                 rewrite lookup_app_r.
+                 unfold mem_length, memory_list.mem_length.
+                 replace (N.to_nat (N.of_nat (length (ml_data (mem_data m))) +
+                                      N.of_nat size) -
+                         length (ml_data (mem_data m))) with size ; last lia.
+                 rewrite repeat_cons.
+                 rewrite lookup_app_r ; last by rewrite repeat_length.
+                 rewrite repeat_length.
+                 rewrite PeanoNat.Nat.sub_diag => //=.
+                 unfold mem_length, memory_list.mem_length ; lia.
+              ** rewrite lookup_insert_ne ; last by intro H ; inversion H ; apply n1.
+                 rewrite gmap_of_list_2d_lookup.
+                 rewrite list_lookup_fmap.
+                 unfold update_list_at => //=.
+                 rewrite (list_lookup_middle _ _ _ (N.to_nat n)) => //=.
+                 rewrite repeat_cons.
+                 rewrite catA.
+                 destruct (decide (n0 < (mem_length m + N.of_nat size))%N).
+                 rewrite lookup_app_l => //=.
+                 rewrite app_length repeat_length.
+                 unfold mem_length, memory_list.mem_length in l.
+                 lia.
+                 rewrite lookup_ge_None_2. 
+                 rewrite lookup_ge_None_2 => //=.
+                 rewrite app_length repeat_length.
+                 unfold mem_length, memory_list.mem_length in n2.
+                 lia.
+                 repeat rewrite app_length => //=.
+                 rewrite repeat_length.
+                 unfold mem_length, memory_list.mem_length in n2.
+                 unfold mem_length, memory_list.mem_length in n1.
+                 lia.
+           ++ rewrite lookup_insert_ne ; last by intros H ; inversion H ; lia.
+              rewrite gmap_of_list_2d_lookup.
+              rewrite list_lookup_fmap.
+              rewrite update_ne => //=. 
+              rewrite update_ne => //=.
+        -- replace (S size) with (size + 1) ; last lia.
+           rewrite repeat_app.
+           unfold mem_block_at_pos.
+           iApply big_opL_app.
+           iSplitL "Hm" => //=.
+           iSplitL => //=.
+           rewrite repeat_length.
+           rewrite Nat2N.inj_add.
+           rewrite N2Nat.id.
+           done.
+Qed.
+
+
+  
  
 Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
       (n: N) (Φ Ψ : val -> iProp Σ) (c: i32) :
   f0.(f_inst).(inst_memory) !! 0 = Some k ->
   ( ↪[frame] f0 ∗
      (N.of_nat k) ↦[wmlength] n ∗
-     Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (N.to_nat n))]) ∗
+     Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (n `div` page_size)%N))]) ∗
      Ψ (immV [VAL_int32 int32_minus_one]))
     ⊢ WP [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_grow_memory)]
     @ s; E {{ w, (Φ w ∗
@@ -5234,7 +5612,7 @@ Proof.
     repeat split => //=.
     eapply r_grow_memory_failure => //=.
     by rewrite nth_error_lookup.
-  - iIntros "!>" (es σ2 efs HStep) "!>".
+  - iIntros "!>" (es σ2 efs HStep). 
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     remember [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] as es0.
@@ -5250,14 +5628,51 @@ Proof.
       filled_trap H0 Hxl1. }
     { (* grow_memory succeeded *)
       iExists f.
-      admit. }
+      inversion Heqes0 ; subst c0 ; clear Heqes0.
+      unfold smem_ind in H.
+      destruct (inst_memory (f_inst f)) ; try by inversion Hfm.
+      simpl in Hfm.
+      inversion Hfm ; subst m1 ; clear Hfm.
+      inversion H ; subst i ; clear H.
+      rewrite nth_error_lookup in H0.
+      rewrite Hmemlookup in H0.
+      inversion H0 ; subst m0 ; clear H0.
+      unfold mem_size in H1.
+      rewrite Hmemlength' in H1.
+      unfold upd_s_mem => //=.
+      iMod (gen_heap_update with "Hγ Hmemlength") as "[Hγ Hmemlength]".
+      iMod (gen_heap_alloc_grow with "Hm") as "[Hm Hown]" => //=.
+      iIntros "!>".
+      iFrame.
+      iSplitL "Hγ".
+      - rewrite - gmap_of_list_insert.
+        rewrite Nat2N.id.
+        instantiate (1:= mem_length mem').
+        rewrite - list_fmap_insert.
+        rewrite update_list_at_insert.
+        done.
+        by apply lookup_lt_Some in Hmemlookup.
+        rewrite Nat2N.id.
+        rewrite fmap_length.
+        by apply lookup_lt_Some in Hmemlookup.
+      - iSplitL => //=.
+        iIntros "Hframe".
+        iLeft.
+        rewrite Hmemlength' H1.
+        erewrite mem_grow_length => //=.
+        rewrite Hmemlength'.
+        replace (Wasm_int.N_of_uint i32m c) with (Z.to_N (Wasm_int.Int32.unsigned c)) ;
+          last done.
+        iFrame.
+        by iExists _. }
     { (* grow_memory failed *)
       iExists f.
       iSplitR "Hframe HΨ Hmemlength"  => //.
       iFrame.
+      done.
       iSplitL "Hframe" => //=.
       iSplitL => //.
-      iIntros "Hframe".
+      iIntros "!> Hframe".
       iRight.
       iFrame. }
     rewrite Heqes0 in H0.
@@ -5295,7 +5710,7 @@ Proof.
     by eapply test_no_reduce0.
     apply app_eq_nil in Hes as [-> _].
     by eapply test_no_reduce0.
-Admitted.
+Qed.
       
 
 (* former version of wp_grow_memory, asserts knowledge of whole memory *)
