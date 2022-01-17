@@ -2867,20 +2867,22 @@ Admitted.
 
 
 (* Instance related *)
-(*
-Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (ϕ: val -> Prop):
+
+Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (ϕ: val -> Prop) f0 :
+  (f_locs f0) !! i = Some v -> 
   ϕ (immV [v]) ->
-  N.of_nat i ↦[wl] v ⊢
-  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  ↪[frame] f0 -∗
+  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] f0 }}.
 Proof.
-  iIntros (Hϕ) "Hli".
+  iIntros (Hlook Hϕ) "Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
-  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
-  rewrite gmap_of_list_lookup Nat2N.id in Hli.
-  rewrite - nth_error_lookup in Hli.
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (ghost_map_lookup with "Hl Hli") as "%Hli".
+  simplify_map_eq.
+  (* rewrite gmap_of_list_lookup Nat2N.id in Hli. *)
+  rewrite - nth_error_lookup in Hlook.
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -2893,23 +2895,22 @@ Proof.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     only_one_reduction H.
+    iExists _. iFrame "# ∗ %". eauto.
 Qed.
 
-Lemma wp_set_local (s : stuckness) (E : coPset) (v v0: value) (i: nat) (ϕ: val -> Prop):
+Lemma wp_set_local (s : stuckness) (E : coPset) (v : value) (i: nat) (ϕ: val -> Prop) f0 :
+  i < length (f_locs f0) ->
   ϕ (immV []) ->
-  N.of_nat i ↦[wl] v0 ⊢
-  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat i ↦[wl] v }}.
+  ↪[frame] f0 -∗
+  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] (Build_frame (set_nth v (f_locs f0) i v) (f_inst f0)) }}.
 Proof.
-  iIntros (Hϕ) "Hli".
+  iIntros (Hlen Hϕ) "Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] inst].
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
-  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
-  assert (i < length locs) as Hlength.
-    { rewrite gmap_of_list_lookup Nat2N.id in Hli.
-      by apply lookup_lt_Some in Hli.
-    }
+  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ?)".
+  iDestruct (ghost_map_lookup with "Hl Hli") as "%Hli".
+  simplify_map_eq.
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -2918,12 +2919,10 @@ Proof.
     unfold iris.prim_step => /=.
     repeat split => //.
     eapply r_set_local => //=.
-    unfold lt in Hlength.
-    (* Here, we need to prove [ ssrnat.leq a b ] from hypothesis [ a <= b ].
-       I gave up, could someone help ? *) admit.
+    rewrite -(rwP ssrnat.leP). lia.
   - iIntros "!>" (es σ2 efs HStep).
     (* modify locs[i]. This has to be done before the update modality is used. *)
-    iMod (gen_heap_update with "Hl Hli") as "(Hl & Hli)".
+    iMod (ghost_map_update (Build_frame (set_nth v locs i v) inst) with "Hl Hli") as "(Hl & Hli)".
     iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
@@ -2931,15 +2930,12 @@ Proof.
                                                                & Hσ)]]] ;
       last (eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto) ;
     try by unfold first_instr in Hstart ; simpl in Hstart ; inversion Hstart.
-    inversion H; subst; clear H.
-    iFrame.
-    repeat iSplit => //.
-    rewrite - gmap_of_list_insert; rewrite Nat2N.id => //.
-    by erewrite fmap_insert_set_nth.
-    simpl. unfold lt in Hlength. (* same problem with ssreflect as above *) admit.
-Admitted.
+    inversion H; subst; clear H. simpl.
+    iExists _. iFrame "# ∗ %". rewrite insert_insert. iFrame. auto.
+    rewrite -(rwP ssrnat.leP) /=. lia.
+Qed.
 
-
+(*
 (* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (n: nat) (ϕ: val -> Prop):
   (not (ϕ trapV)) ->
@@ -4697,7 +4693,7 @@ Qed.                             *)
 
     
 
-Lemma gen_heap_update_big_wm bs bs' k off n mems m mems' m' :
+Lemma gen_heap_update_big_wm bs bs' k off n (mems mems' : list memory) (m m' : memory) :
   length bs = length bs' -> 
   load m k off (length bs) = Some bs ->
   store m k off bs' (length bs') = Some m' ->
@@ -4708,11 +4704,10 @@ Lemma gen_heap_update_big_wm bs bs' k off n mems m mems' m' :
                   gen_heap_interp (gmap_of_memory mems') ∗
                   N.of_nat n ↦[wms][N.add k off] bs'.
 Proof.
-  generalize dependent bs'. generalize dependent off.
-  generalize dependent m'. generalize dependent mems'.
+  move : mems' m' off bs'.
   induction bs ; iIntros (mems' m' off bs' Hlen Hm Hm' Hmems Hmemsn) "Hσ Hwms".
   { simpl in Hlen. apply Logic.eq_sym, nil_length_inv in Hlen ; subst.
-    iModIntro. iSplitR "Hwms" => //=.
+    iSplitR "Hwms" => //=.
     rewrite update_trivial => //=.
     simpl in Hm'. unfold store in Hm'.
     simpl in Hm. unfold load in Hm.
@@ -4725,36 +4720,32 @@ Proof.
   iDestruct (wms_append with "Hwms") as "[Hwm Hwms]".
   rewrite <- N.add_assoc.
   destruct (store_append _ _ _ _ _ _ Hm') as (m'' & Hm'' & Hb).
-  iMod (IHbs with "Hσ Hwms") as "[Hσ Hwms]".
-  exact H0.
-  by eapply load_append.
-  exact Hm''.
-  done.
-  done.
+  iMod (IHbs with "Hσ Hwms") as "[Hσ Hwms]" => //; first by eapply load_append.
   iMod (gen_heap_update with "Hσ Hwm") as "[Hσ Hwm]". 
   iIntros "!>".
   iSplitR "Hwms Hwm" ; last by iApply wms_append ; rewrite N.add_assoc ; iFrame.
 
-(* Here, it seems like hypothesis [Hb] should make the last subgoal provable.
-   Work in progress *) 
-
-  (*
   unfold store in Hb.
-  destruct (k + off + N.of_nat 1 <=? mem_length m'')%N ; try by inversion Hb.
+  destruct (k + off + N.of_nat 1 <=? mem_length m'')%N eqn: Hlen0; try by inversion Hb.
   unfold write_bytes, fold_lefti in Hb ; simpl in Hb.
   rewrite N.add_0_r in Hb.
-  destruct (mem_update (k + off)%N b (mem_data m'')) eqn:Hupd ; inversion Hb.
-  unfold mem_update in Hupd.
-  
+  destruct (mem_update (k + off)%N b (mem_data m'')) eqn:Hupd ; inversion Hb; clear Hb.
+
   rewrite update_list_at_insert ; last by apply lookup_lt_Some in Hmemsn.
   rewrite update_list_at_insert in Hmems ; last by apply lookup_lt_Some in Hmemsn.
-  erewrite gmap_of_memory_insert_block => //=.
+
   rewrite <- Hmems.
-  erewrite gmap_of_memory_insert_block => //=.
-  unfold insert.
-  unfold new_2d_gmap_at_n.
-   (* erewrite gmap_of_memory_insert_block => // ; [ idtac | by rewrite - nth_error_lookup |]. (* by apply store_length in Hstore'; lia ]. *) *) *)
-Admitted. 
+  rewrite <- H1.
+  erewrite gmap_of_memory_insert => //.
+  - rewrite Nat2N.id.
+    by rewrite list_insert_insert.
+  - rewrite Nat2N.id.
+    rewrite list_lookup_insert => //; last by apply lookup_lt_Some in Hmemsn.
+  - simpl in Hlen0.
+    move/N.leb_spec0 in Hlen0.
+    unfold mem_length, memory_list.mem_length in Hlen0.
+    lia.
+Qed.
 
 (*
 (* A version of gen_heap_update specifically for wasm memories. *)
