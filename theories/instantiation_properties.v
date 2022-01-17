@@ -31,15 +31,6 @@ Let host_event := host_event executable_host_instance.
 
 Let instantiate := instantiate host_function host_instance.
 
-Print external_typing.
-
-Print v_ext.
-
-Print module_export_desc.
-
-Print module_export.
-
-Print extern_t.
 
 Inductive ext_typing_list: store_record -> seq module_export -> seq extern_t -> Prop :=
 | ext_typing_list_nil: forall s,
@@ -48,6 +39,7 @@ Inductive ext_typing_list: store_record -> seq module_export -> seq extern_t -> 
     ext_typing_list s v_exps tes ->
     external_typing s (modexp_desc v_exp) te ->
     ext_typing_list s (v_exp :: v_exps) (te :: tes).
+
 
 Lemma instantiation_sound (s: store_record) m v_imps s' inst v_exps start:
   store_typing s ->
