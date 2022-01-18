@@ -1992,10 +1992,36 @@ Proof.
   by eapply r_label => //.
 Qed.
 
-(* last remaining admit for the control flow lemmas! it roughly should state the following: 
-   if there is a reducible hole in some expression LI, than the reduction of LI is 
-   exactly the reduction of that hole. It ought to be the generalized version of 
-   prim_step_split_reduce_r *)
+Lemma local_frame_reducible n e hi s v i v' i' :
+  reducible e (hi,s,v,i) ->
+  reducible [AI_local n (Build_frame v i) e] (hi,s,v',i').
+Proof.
+  intros [obs [e' [σ' [efs Hred]]]].
+  unfold reducible, language.reducible.
+  destruct σ' as [[[? ?] ?] ?].
+  exists [], [AI_local n (Build_frame l i0) e'], (s0,s1,v',i'), [].
+  rewrite /= /iris.prim_step in Hred.
+  destruct Hred as [Hred [-> ->]]. eauto.
+  split;auto.
+  eapply r_local => //.
+Qed.
+
+Lemma local_frame_lfilled_reducible j lh LI n e hi s v i v' i' :
+  lfilled j lh e LI ->
+  reducible e (hi,s,v,i) ->
+  reducible [AI_local n (Build_frame v i) LI] (hi,s,v',i').
+Proof.
+  intros Hfill Hred.
+  apply lfilled_reducible with (i:=j) (lh:=lh) (LI:=LI) in Hred;auto.
+  apply local_frame_reducible. auto.
+Qed.
+
+(* last remaining admits for the control flow lemmas! it roughly should state the following: 
+   if there is a reducible hole in some expression LI (first on its own, second within a local frame), 
+   then the reduction of LI is exactly the reduction of that hole. 
+
+   It ought to be the generalized versions of prim_step_split_reduce_r.
+ *)
 Lemma lfilled_prim_step_split_reduce_r i lh es1 es2 σ LI e2 σ2 obs2 efs2 :
   lfilled i lh (es1 ++ es2)%list LI ->
   reducible es1 σ ->
@@ -2004,6 +2030,30 @@ Lemma lfilled_prim_step_split_reduce_r i lh es1 es2 σ LI e2 σ2 obs2 efs2 :
 Proof.
 Admitted.
 
+Lemma local_frame_lfilled_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 j lh LI :
+  lfilled j lh (es1 ++ es2)%list LI ->
+  reducible es1 (hi,s,v,i) ->
+  prim_step [AI_local n (Build_frame v i) LI] (hi,s,v',i') obs2 e2 (hi2,s2,v2,i2) efs2 ->
+  ∃ e' v'' i'' LI', prim_step es1 (hi,s,v,i) obs2 e' (hi2,s2,v'',i'') efs2 ∧ v' = v2 ∧ i' = i2 ∧ e2 = [AI_local n (Build_frame v'' i'') LI'] ∧ lfilled j lh (e' ++ es2) LI'.
+Proof.
+Admitted.
+
+Lemma local_frame_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 :
+  reducible es1 (hi,s,v,i) ->
+  prim_step [AI_local n (Build_frame v i) (es1 ++ es2)] (hi,s,v',i') obs2 e2 (hi2,s2,v2,i2) efs2 ->
+  ∃ e' v'' i'', prim_step es1 (hi,s,v,i) obs2 e' (hi2,s2,v'',i'') efs2 ∧ v' = v2 ∧ i' = i2 ∧ e2 = [AI_local n (Build_frame v'' i'') (e' ++ es2)].
+Proof.
+  intros Hred Hprim.
+  apply local_frame_lfilled_prim_step_split_reduce_r with (es1 := es1) (es2:=es2) (j:=0) (lh:= LH_base [] []) in Hprim;auto.
+  destruct Hprim as [e' [v'' [i'' [LI' Hprim]]]].
+  destruct Hprim as [Hprim [-> [-> [-> Hfill]]]].
+  eexists _,_,_. split.  apply Hprim. repeat split;eauto.
+  apply lfilled_Ind_Equivalent in Hfill. inversion Hfill;subst.
+  erewrite app_nil_l; erewrite app_nil_r. auto.
+  cbn. rewrite app_nil_r. rewrite eqseqE. apply eq_refl.
+Qed.
+  
+  
 (* Knowing hypothesis "Hred : objs -> _" (with frames (locs, inst) and (locs', inst')),
    attempts to exfalso away most of the possible ways Hred could hold, leaving the user
    with only the one possible desired case. Tactic will also attempt to trivially solve
