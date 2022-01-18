@@ -1605,7 +1605,7 @@ Lemma wp_relop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v1 v2 : valu
   app_relop op v1 v2 = b ->
   ↪[frame] f0 -∗
   Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
-  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v }}.
+  WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Hrelop) "Hf HΦ".
   iApply wp_lift_atomic_step => //=.
