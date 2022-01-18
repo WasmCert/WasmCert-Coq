@@ -10,7 +10,7 @@ Require Export iris_rules_structural.
 Require Import Coq.Program.Equality.
 
 Close Scope byte_scope.
-
+Section control_rules.
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0:
@@ -237,8 +237,6 @@ Proof.
     inversion Habs.
 Qed.
 
-Set Printing Coercions.
-
 Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
   const_list vs ->
   ↪[frame] f0 -∗
@@ -256,7 +254,7 @@ Proof.
   apply const_list_is_val in Hconst as [v1 Hv1].
   apply const_list_is_val in H7 as [v2 Hv2].
   eapply to_val_cat_inv in Hv1 as Hvv;[|apply Hv2].
-  iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f0)%I)).
+  iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f0))%I).
   iSplitR; first by iIntros "(%H & ?)".
   iSplitR "HWP".
   - iApply wp_val_app; first by apply Hv2.
@@ -1369,3 +1367,5 @@ Proof.
   iApply wp_wasm_empty_ctx. iApply (wp_br_table_length_ctx with "[$]");eauto.
   iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]").
 Qed.
+
+End control_rules.
