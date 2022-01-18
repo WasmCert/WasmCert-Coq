@@ -237,6 +237,8 @@ Proof.
     inversion Habs.
 Qed.
 
+Set Printing Coercions.
+
 Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
   const_list vs ->
   ↪[frame] f0 -∗
