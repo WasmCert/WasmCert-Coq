@@ -2148,6 +2148,7 @@ Proof.
     apply IHi. auto. auto. }
 Qed.
       
+(* Structural lemmas for contexts *)
 
 Lemma wp_base_push (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es l1 l2 i lh :
   const_list l1 ->
@@ -2177,6 +2178,39 @@ Lemma wp_label_push_nil (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i
 Proof.
   iIntros "HWP".
   iDestruct (wp_label_push with "HWP") as "HWP". auto.
+  erewrite app_nil_l. erewrite app_nil_r. done.
+Qed.
+
+(* Structural lemmas for contexts within a local scope *)
+
+Lemma wp_base_push_local (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es l1 l2 i lh n f :
+  const_list l1 ->
+  WP es @ s; E FRAME n; f CTX i; frame_base lh l1 l2 {{ v, Φ v }}
+  ⊢ WP l1 ++ es ++ l2 @ s; E FRAME n; f CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hconst) "HWP".
+  iIntros (LI Hfill%lfilled_Ind_Equivalent).
+  apply lfilledInd_frame in Hfill.
+  iDestruct ("HWP" with "[]") as "HWP";[|iFrame].
+  iPureIntro. by apply lfilled_Ind_Equivalent. auto.
+Qed.
+Lemma wp_label_push_local (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh n es' l1 l2 m f :
+  const_list l1 ->
+  WP es @ s; E FRAME m; f CTX S i; push_base lh n es' l1 l2 {{ v, Φ v }}
+  ⊢ WP [::AI_label n es' (l1 ++ es ++ l2)] @ s; E FRAME m; f CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hconst) "HWP".
+  iIntros (LI Hfill%lfilled_Ind_Equivalent).
+  apply lfilledInd_push in Hfill.
+  iDestruct ("HWP" with "[]") as "HWP";[|iFrame].
+  iPureIntro. by apply lfilled_Ind_Equivalent. auto.
+Qed.
+Lemma wp_label_push_nil_local (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh n es' m f :
+  WP es @ s; E FRAME m; f CTX S i; push_base lh n es' [] [] {{ v, Φ v }}
+  ⊢ WP [::AI_label n es' es] @ s; E FRAME m; f CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros "HWP".
+  iDestruct (wp_label_push_local with "HWP") as "HWP". auto.
   erewrite app_nil_l. erewrite app_nil_r. done.
 Qed.
 
@@ -2267,6 +2301,80 @@ Proof.
   by iSpecialize ("HWP" with "[%]").
 Qed.
 
+
+Lemma first_instr_local es e n f :
+  first_instr es = Some e ->
+  first_instr [AI_local n f es] = Some e.
+Proof.
+  intros Hfirst.
+  induction es.
+  { inversion Hfirst. }
+  { rewrite /first_instr /=.
+    rewrite /first_instr /= in Hfirst.
+    destruct (first_instr_instr a) eqn:Ha;auto.
+    rewrite Hfirst //. }
+Qed.
+  
+Lemma wp_block_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (i : nat) (lh : lholed) vs t1s t2s es n m n1 f1 f0 :
+  const_list vs ->
+  length vs = n ->
+  length t1s = n ->
+  length t2s = m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }})
+  -∗ WP (vs ++ [::AI_basic (BI_block (Tf t1s t2s) es)]) @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hconst Hn Hn' Hm) "Hf0 HWP".
+  iIntros (LI Hfill).
+  destruct (iris.to_val LI) eqn:Hcontr.
+  { apply lfilled_to_val in Hfill as [v' Hv];eauto.
+    assert (iris.to_val [AI_basic (BI_block (Tf t1s t2s) es)] = None) as Hnone;auto.
+    apply (to_val_cat_None2 vs) in Hnone.
+    rewrite Hv in Hnone. done. }
+  unfold wp_wasm_ctx.
+  repeat rewrite wp_unfold /wasm_wp_pre/=.
+  (* rewrite Hcontr. *)
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplit.
+  { iPureIntro. destruct s;auto.
+    apply lfilled_swap with (es':=[::AI_label m [::] (vs ++ to_e_list es)]) in Hfill as Hfill'.
+    destruct Hfill' as [LI' Hfill'].
+    eexists [],_,σ,[]. simpl.
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple. eapply rs_block.
+    apply Hconst. apply Hn. apply Hn'. apply Hm. eauto. eauto. }
+  destruct σ as [[[hs ws] locs] inst] => //=.
+  iApply fupd_mask_intro;[solve_ndisj|].
+  iIntros "Hcls" (es1 σ2 efs HStep) "!>!>!>".
+  iMod "Hcls". iModIntro.
+  destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+  apply lfilled_swap with (es':=[::AI_label m [::] (vs ++ to_e_list es)]) in Hfill as Hfill'.
+  destruct Hfill' as [LI' Hfill'].
+  destruct HStep as [H [-> ->]].
+  assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_block (Tf t1s t2s) es))) as HH.
+  { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill].
+    apply first_instr_const;auto. }
+  eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                            & Hσ)]]];
+    try congruence;
+    try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_block (Tf t1s t2s) es)]
+                  (vs ++ [AI_basic (BI_block (Tf t1s t2s) es)])) ;
+    first (unfold lfilled, lfill ; rewrite Hconst ; by rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill''] ;
+    eapply lfilled_implies_starts in Hfill'' ; (try done) ;
+    rewrite Hfill'' in Hstart ; inversion Hstart => //=.
+  2: { eapply r_local. eapply r_label. apply r_simple. eapply rs_block;eauto. all: eauto. }
+  inversion H; subst; clear H.
+  all: iExists f0.
+  all: iFrame. iSplit => //.
+  iIntros "Hf0".
+  iSpecialize ("HWP" with "[$]").
+  by iSpecialize ("HWP" with "[%]").
+Qed.
+
 Lemma wp_br_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i lh vs' es' f0:
   const_list vs ->
   length vs = n ->
@@ -2332,6 +2440,78 @@ Proof.
   by erewrite !app_assoc.
 Qed.
 
+Lemma wp_br_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i lh vs' es' f0 n1 f1 :
+  const_list vs ->
+  length vs = n ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP (vs' ++ vs ++ es ++ es') @ s; E FRAME n1; f1 {{ v, Φ v }})
+  -∗ WP vs ++ [::AI_basic (BI_br i)] @ s; E FRAME n1; f1 CTX S i; LH_rec vs' n es lh es' {{ v, Φ v }}.
+Proof.
+  iIntros (Hvs Hlen) "Hf0 HΦ".
+  iIntros (LI Hfill).
+  destruct (iris.to_val LI) eqn:Hcontr.
+  { apply lfilled_to_val in Hfill as [v' Hv];eauto.
+    assert (iris.to_val [AI_basic (BI_br i)] = None) as Hnone;auto.
+    apply (to_val_cat_None2 (vs)) in Hnone.
+    rewrite Hv in Hnone. done. }
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplit.
+  { apply lfilled_Ind_Equivalent in Hfill. inversion Hfill;subst.
+    iPureIntro. destruct s;auto.
+    apply lfilled_Ind_Equivalent in H8 as Hfill'.
+    apply lfilled_swap with (es':=vs ++ es) in Hfill' as Hfill''.
+    destruct Hfill'' as [LI' Hfill''].    
+    eexists [],_,σ,[].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label with (lh:=(LH_base vs' es')).
+    2: { erewrite cons_middle. apply lfilled_Ind_Equivalent.
+         econstructor;auto. }
+    2: { apply lfilled_Ind_Equivalent. econstructor;auto. }
+    apply r_simple. eapply rs_br.
+    apply Hvs. auto. eauto. }
+  destruct σ as [[[hs ws] locs] inst] => //=.
+  iApply fupd_mask_intro;[solve_ndisj|].
+  iIntros "Hcls !>" (es1 σ2 efs HStep).
+  iMod "Hcls". iModIntro.
+  destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+  apply lfilled_Ind_Equivalent in Hfill. inversion Hfill;subst.
+  apply lfilled_Ind_Equivalent in H8 as Hfill'.
+  apply lfilled_swap with (es':=vs ++ es) in Hfill' as Hfill''.
+  destruct Hfill'' as [LI' Hfill''].    
+  destruct HStep as [H [-> ->]].
+  assert (first_instr [AI_local n1 f1 (vs' ++ [AI_label (length vs) es LI0] ++ es')] 
+     = Some (AI_basic (BI_br i))) as HH.
+  { apply lfilled_Ind_Equivalent in Hfill.
+    apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill].
+    apply first_instr_const;auto. }
+  eapply reduce_det in H as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 &
+                                                              Hσ)]]] ;
+    try congruence;
+    try by apply lfilled_Ind_Equivalent in Hfill ;
+    assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
+                    (vs ++ [AI_basic (BI_br i)])) ;
+    first (unfold lfilled, lfill ; rewrite Hvs ; by rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln ; (try done) ;
+    rewrite Hfilln in Hstart ; inversion Hstart => //=. 
+  2: { eapply r_local.
+       eapply r_label with (lh:=(LH_base vs' es')).
+       2: { apply lfilled_Ind_Equivalent.
+            econstructor;auto. }
+       2: { apply lfilled_Ind_Equivalent. econstructor;auto. }
+       apply r_simple. eapply rs_br. apply Hvs. all:eauto. }
+  inversion H; subst; clear H.
+  iExists f0.
+  iFrame. iSplit => //.
+  iIntros "Hf0".
+  iSpecialize ("HΦ" with "[$]").
+  by erewrite !app_assoc.
+Qed.
+
 Lemma wp_loop_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s i lh f0:
   const_list vs ->
   length vs = n ->
@@ -2377,6 +2557,64 @@ Proof.
     eapply lfilled_implies_starts in Hfill'' ; (try done) ;
     rewrite Hfill'' in Hstart ; inversion Hstart => //=.
     2: { eapply r_label. apply r_simple;eauto. eapply rs_loop;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+  iExists f0.
+  iFrame. iSplit => //.
+  iIntros "Hf0".
+  iSpecialize ("HP" with "[$]").
+  by iSpecialize ("HP" with "[%]").
+Qed.
+
+Lemma wp_loop_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s i lh f0 n1 f1 :
+  const_list vs ->
+  length vs = n ->
+  length t1s = n ->
+  length t2s = m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_label n [::AI_basic (BI_loop (Tf t1s t2s) es)] (vs ++ to_e_list es)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }})
+  -∗ WP vs ++ [::AI_basic (BI_loop (Tf t1s t2s) es)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hvs Hn Hn' Hm) "Hf0 HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iApply wp_lift_step => //=.
+  (* { destruct (iris.to_val LI) eqn:Hcontr;auto. *)
+  (*   apply lfilled_to_val in Hfill;eauto. *)
+  (*   destruct Hfill as [? Hfill]. *)
+  (*   assert (iris.to_val [AI_basic (BI_loop (Tf t1s t2s) es)] = None) as HH;auto. *)
+  (*   apply (to_val_cat_None2 vs) in HH. rewrite Hfill in HH. done. } *)
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], _, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple;eauto. eapply rs_loop;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_loop (Tf t1s t2s) es))) as HH.
+    { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill].
+      apply first_instr_const. auto. }
+    eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                            & Hσ)]]] ;
+      try congruence;
+      try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_loop (Tf t1s t2s) es)]
+                  (vs ++ [AI_basic (BI_loop (Tf t1s t2s) es)])) ;
+    first (unfold lfilled, lfill ; rewrite Hvs ; by rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill''] ;
+    eapply lfilled_implies_starts in Hfill'' ; (try done) ;
+    rewrite Hfill'' in Hstart ; inversion Hstart => //=.
+    2: { eapply r_local. eapply r_label. apply r_simple;eauto. eapply rs_loop;eauto.
          eauto. eauto. }
     inversion H; subst; clear H.
   iExists f0.
@@ -2447,6 +2685,55 @@ Proof.
     rewrite Hfilln in Hstart ; inversion Hstart.
 Qed.
 
+Lemma wp_if_true_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh f0 n1 f1 :
+  n ≠ Wasm_int.int_zero i32m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e1s)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hn) "Hf0 HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], _, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple;eauto. eapply rs_if_true;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_if tf e1s e2s))) as HH.
+    { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill]. auto. }
+    eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+                                                              & Hσ)]]] ;
+      try congruence;
+      try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_loop (Tf t1s t2s) es)]
+                             (vs ++ [AI_basic (BI_loop (Tf t1s t2s) es)])) ;
+      first (unfold lfilled, lfill ; rewrite Hvs ; by rewrite app_nil_r) ;
+      destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill''] ;
+      eapply lfilled_implies_starts in Hfill'' ; (try done) ;
+      rewrite Hfill'' in Hstart ; inversion Hstart => //=.
+    2: { eapply r_local. eapply r_label. apply r_simple;eauto. eapply rs_if_true;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    iExists f0.
+    iFrame. iSplit => //.
+    iIntros "Hf0".
+    iSpecialize ("HP" with "[$]").
+    by iSpecialize ("HP" with "[%]").
+Qed.
+
 Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s f0:
   n ≠ Wasm_int.int_zero i32m ->
   ↪[frame] f0 -∗
@@ -2509,6 +2796,56 @@ Proof.
     by iApply "HP".
 Qed.
 
+Lemma wp_if_false_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s i lh f0 n1 f1 :
+  n = Wasm_int.int_zero i32m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e2s)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E FRAME n1; f1 CTX i; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hn) "Hf0 HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], _, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple;eauto. eapply rs_if_false;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_if tf e1s e2s))) as HH.
+    { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
+    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+                                               (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      try congruence;
+      try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_if tf e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
+    2: { eapply r_local. eapply r_label. apply r_simple;eauto. eapply rs_if_false;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    iExists f0.
+    iFrame.
+    iSplit => //.
+    iIntros "?"; iSpecialize ("HP" with "[$]").
+    by iApply "HP".
+Qed.
+
 Lemma wp_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s f0:
   n = Wasm_int.int_zero i32m ->
   ↪[frame] f0 -∗
@@ -2562,6 +2899,56 @@ Proof.
     rewrite Hfilln in Hstart ; inversion Hstart.
     iExists f0; iFrame.
     iIntros "?". by iApply ("HP" with "[$]").
+Qed.
+
+Lemma wp_br_if_true_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i j lh f0 n1 f1 :
+  n ≠ Wasm_int.int_zero i32m ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E FRAME n1; f1 CTX j; lh {{ v, Φ v }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E FRAME n1; f1 CTX j; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hn) "Hf0 HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], _, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple;eauto. eapply rs_br_if_true;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_br_if i))) as HH.
+    { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
+    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+                                               (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      try congruence;
+      try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_if tf e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
+    2: { eapply r_local. eapply r_label. apply r_simple;eauto. eapply rs_br_if_true;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    iExists f0.
+    iFrame.
+    iSplit => //.
+    iIntros "?"; iSpecialize ("HP" with "[$]").
+    by iApply "HP".
 Qed.
 
 Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i f0:
@@ -2648,6 +3035,56 @@ Proof.
     iExists f0; iFrame.
     iIntros "?"; by iApply ("HP" with "[$]").
 Qed.
+Lemma wp_br_table_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j k lh f0 n1 f1 :
+  ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
+  List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br j)] @ s; E FRAME n1; f1 CTX k; lh {{ v, Φ v }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E FRAME n1; f1 CTX k; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hiss Hj) "Hf0 HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], _, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple;eauto. apply rs_br_table;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_br_table iss i))) as HH.
+    { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
+    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+                                               (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      try congruence;
+      try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_if tf e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
+    2: { eapply r_local. eapply r_label. apply r_simple;eauto. eapply rs_br_table;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    iExists f0.
+    iFrame.
+    iSplit => //.
+    iIntros "?"; iSpecialize ("HP" with "[$]").
+    by iApply "HP".
+Qed.
 Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j f0:
   ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
   List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
@@ -2702,7 +3139,55 @@ Proof.
     iExists f0; iFrame.
     iIntros "?"; by iApply ("HP" with "[$]").
 Qed.
-
+Lemma wp_br_table_length_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j lh f0 n1 f1 :
+  ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E FRAME n1; f1 CTX j; lh {{ v, Φ v }})
+  -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E FRAME n1; f1 CTX j; lh {{ v, Φ v }}.
+Proof.
+  iIntros (Hiss) "Hf0 HP".
+  iIntros (LI Hfill).
+  eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplitR.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    eexists [], _, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. eapply r_local.
+    eapply r_label. apply r_simple;eauto. apply rs_br_table_length;eauto.
+    eauto. eauto.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_br_table iss i))) as HH.
+    { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
+    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+                                               (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      try congruence;
+      try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
+                    [AI_basic (BI_if tf e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+      first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
+    eapply lfilled_implies_starts in Hfilln => //= ;
+    rewrite Hfilln in Hstart ; inversion Hstart.
+    2: { eapply r_local. eapply r_label. apply r_simple;eauto. eapply rs_br_table_length;eauto.
+         eauto. eauto. }
+    inversion H; subst; clear H.
+    iExists f0.
+    iFrame.
+    iSplit => //.
+    iIntros "?"; iSpecialize ("HP" with "[$]").
+    by iApply "HP".
+Qed.
 Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i f0:
   ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
   ↪[frame] f0 -∗
