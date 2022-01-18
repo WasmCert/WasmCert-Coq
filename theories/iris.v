@@ -46,6 +46,17 @@ Definition eqvalP : Equality.axiom val_eqb :=
 Canonical Structure val_eqMixin := EqMixin eqvalP.
 Canonical Structure val_eqType := Eval hnf in EqType val val_eqMixin.
 
+(* The following operation mirrors the opsem of AI_trap *)
+(* in which a trap value swallows all other stack values *)
+Definition val_combine (v1 v2 : val) :=
+  match v1 with
+  | immV l => match v2 with
+             | immV l' => immV (l ++ l')
+             | trapV => trapV
+             end
+  | trapV => trapV
+  end.
+
 Definition state : Type := host_state * store_record * (list value) * instance.
 
 Definition observation := unit. (* TODO: maybe change? *)
