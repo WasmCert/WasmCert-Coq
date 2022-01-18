@@ -98,6 +98,102 @@ Proof.
   auto. 
 Qed.    
 
+Lemma wp_frame_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es n f f0 vs :
+  iris.to_val es = Some (immV vs) ->
+  length es = n ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ Φ (immV vs)) -∗
+  WP es @ s; E FRAME n; f {{ Φ }}.
+Proof.
+  iIntros (Hv Hlen) "Hframe H".
+  rewrite wp_frame_rewrite.
+  apply to_val_const_list in Hv as Hconst.
+  iApply wp_lift_atomic_step. simpl ; trivial.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    exists [], es, σ, [].
+    destruct σ as [[[ hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //. apply r_simple. apply rs_local_const; auto.
+  - destruct σ as [[[hs ws] locs] inst].
+    iIntros "!>" (es2 σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'].
+    destruct HStep as (H & -> & ->).
+    iExists _.
+    iFrame. rewrite PeanoNat.Nat.add_0_l.
+    erewrite app_nil_l.
+    only_one_reduction H. all:simplify_eq;iFrame. rewrite Hv. iFrame.
+    1,2,3:rewrite find_first_const// in Hstart.
+Qed.
+
+Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f0 f i lh:
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) es ->
+  WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }} -∗
+  WP [AI_local n f es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}%I.
+Proof.
+  iIntros (Hval Hlen Hlf) "HΦ".
+  iApply wp_lift_atomic_step => //=.
+  rewrite wp_unfold /wasm_wp_pre /=.
+  rewrite Hval.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
+  iSplit.
+  - iPureIntro. destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    exists [], vs, σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    constructor. econstructor =>//.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iModIntro.
+    iIntros (es1 σ2 efs HStep).
+    iMod "HΦ" as "(HΦ & Hf0)".
+    iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    only_one_reduction H.
+    + iExists f0.
+      rewrite Hval.
+      iFrame.
+      by iIntros "?".
+    all: assert (lfilled 0 (LH_base vs []) [AI_basic (BI_return)]
+                    (vs ++ [AI_basic (BI_return)]));
+      first (by unfold lfilled, lfill ; rewrite Hcvs ; rewrite app_nil_r);
+    destruct (lfilled_trans _ _ _ _ _ _ _ H Hlf) as [lh' Hfill'] ;
+    eapply lfilled_implies_starts in Hfill' => //= ;
+    unfold first_instr in Hstart ; simpl in Hstart ;
+    unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
+    inversion Hstart.
+Qed.
+
+Lemma wp_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh LI:
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
+  ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
+  ⊢ WP LI @ s; E FRAME n ; f {{ v, Φ v ∗ ↪[frame] f0 }}).
+Proof.
+  iIntros (Hval Hlen Hlf) "HΦ".
+  by iApply wp_return.
+Qed.
+
+Lemma wp_ctx_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh :
+  iris.to_val vs = Some (immV vs0) ->
+  length vs = n ->
+  ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
+  ⊢ WP vs ++ [AI_basic BI_return] @ s; E FRAME n ; f CTX i ; lh {{ v, Φ v ∗ ↪[frame] f0 }}).
+Proof.
+  iIntros (Hval Hlen) "HΦ".
+  iIntros (LI HLI).
+  iApply wp_return;eauto.
+Qed.
+
 Lemma to_val_immV_inj es es' vs :
   iris.to_val es = Some (immV vs) ->
   iris.to_val es' = Some (immV vs) ->
@@ -741,8 +837,9 @@ Qed.
 
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v : value) (i : nat) (Φ : val -> iProp Σ) f :
   ⊢ ↪[frame] f -∗
-    WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ; AI_basic (BI_set_local i)]
-     @ s ; E {{ Φ }} -∗
+    (↪[frame] f -∗ WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ;
+                       AI_basic (BI_set_local i)]
+     @ s ; E {{ Φ }}) -∗
              WP [AI_basic (BI_const v) ; AI_basic (BI_tee_local i)] @ s ; E {{ Φ }}.
 Proof.
   iIntros "Hf Hwp".
