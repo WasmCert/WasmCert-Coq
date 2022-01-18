@@ -2937,8 +2937,9 @@ Qed.
 
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v : value) (i : nat) (Φ : val -> iProp Σ) f :
   ⊢ ↪[frame] f -∗
-    WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ; AI_basic (BI_set_local i)]
-     @ s ; E {{ Φ }} -∗
+    (↪[frame] f -∗ WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ;
+                       AI_basic (BI_set_local i)]
+     @ s ; E {{ Φ }}) -∗
              WP [AI_basic (BI_const v) ; AI_basic (BI_tee_local i)] @ s ; E {{ Φ }}.
 Proof.
   iIntros "Hf Hwp".
