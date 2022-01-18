@@ -8,6 +8,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def stdpp_aux.
+Require Export iris_rules.
 Require Export datatypes host operations properties opsem.
 Require Import Coq.Program.Equality.
 
@@ -65,124 +66,6 @@ Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
                         (at level 70, format "m1 ≡ₘ m2").
 
 
-Ltac only_one_reduction H :=
-  let Hstart := fresh "Hstart" in
-  let a := fresh "a" in
-  let Hstart1 := fresh "Hstart" in
-  let Hstart2 := fresh "Hstart" in
-  let Hσ := fresh "Hσ" in 
-  eapply reduce_det in H
-      as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
-  last (by repeat econstructor) ;
-  first (try inversion H ; subst ; clear H => /=; match goal with [f: frame |- _] => iExists f; iFrame; by iIntros | _ => idtac end) ;
-  try by repeat (unfold first_instr in Hstart ; simpl in Hstart) ; inversion Hstart.
-
-Lemma find_first_const es n f :
-  const_list es ->
-  first_instr [AI_local n f es] = Some (AI_local n f es)
-  (* ∨ first_instr [AI_local n f es] = None *).
-Proof.
-  intros Hconst.
-  destruct es.
-  all: rewrite /first_instr /= //.
-  assert (first_instr_instr a = None) as ->.
-  { apply andb_true_iff in Hconst as [Hconst _].
-    destruct a;try done. destruct b;try done. }
-  assert (find_first_some (map first_instr_instr es) = None) as ->.
-  { simpl in Hconst.
-    apply andb_true_iff in Hconst as [_ Hconst]. clear -Hconst.
-    induction es;[done|].
-    simpl. apply andb_true_iff in Hconst as [Ha Hconst].
-    destruct a;try done. destruct b;try done. simpl.
-    apply IHes. auto. }
-  auto. 
-Qed.    
-
-Lemma wp_frame_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es n f f0 vs :
-  iris.to_val es = Some (immV vs) ->
-  length es = n ->
-  ↪[frame] f0 -∗
-  ▷ (↪[frame] f0 -∗ Φ (immV vs)) -∗
-  WP es @ s; E FRAME n; f {{ Φ }}.
-Proof.
-  iIntros (Hv Hlen) "Hframe H".
-  rewrite wp_frame_rewrite.
-  apply to_val_const_list in Hv as Hconst.
-  iApply wp_lift_atomic_step. simpl ; trivial.
-  iIntros (σ ns κ κs nt) "Hσ !>".
-  iSplit.
-  - iPureIntro.
-    destruct s => //=.
-    unfold language.reducible, language.prim_step => /=.
-    exists [], es, σ, [].
-    destruct σ as [[[ hs ws] locs] inst].
-    unfold iris.prim_step => /=.
-    repeat split => //. apply r_simple. apply rs_local_const; auto.
-  - destruct σ as [[[hs ws] locs] inst].
-    iIntros "!>" (es2 σ2 efs HStep) "!>".
-    destruct σ2 as [[[hs' ws'] locs'] inst'].
-    destruct HStep as (H & -> & ->).
-    iExists _.
-    iFrame. rewrite PeanoNat.Nat.add_0_l.
-    erewrite app_nil_l.
-    only_one_reduction H. all:simplify_eq;iFrame. rewrite Hv. iFrame.
-    1,2,3:rewrite find_first_const// in Hstart.
-Qed.
-
-Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f0 f i lh:
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  lfilled i lh (vs ++ [AI_basic BI_return]) es ->
-  WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }} -∗
-  WP [AI_local n f es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}%I.
-Proof.
-  iIntros (Hval Hlen Hlf) "HΦ".
-  iApply wp_lift_atomic_step => //=.
-  rewrite wp_unfold /wasm_wp_pre /=.
-  rewrite Hval.
-  iIntros (σ ns κ κs nt) "Hσ !>".
-  assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
-  iSplit.
-  - iPureIntro. destruct s => //=.
-    unfold language.reducible, language.prim_step => /=.
-    exists [], vs, σ, [].
-    destruct σ as [[[hs ws] locs] inst].
-    unfold iris.prim_step => /=.
-    repeat split => //.
-    constructor. econstructor =>//.
-  - destruct σ as [[[hs ws] locs] inst] => //=.
-    iModIntro.
-    iIntros (es1 σ2 efs HStep).
-    iMod "HΦ" as "(HΦ & Hf0)".
-    iModIntro.
-    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
-    destruct HStep as [H [-> ->]].
-    only_one_reduction H.
-    + iExists f0.
-      rewrite Hval.
-      iFrame.
-      by iIntros "?".
-    all: assert (lfilled 0 (LH_base vs []) [AI_basic (BI_return)]
-                    (vs ++ [AI_basic (BI_return)]));
-      first (by unfold lfilled, lfill ; rewrite Hcvs ; rewrite app_nil_r);
-    destruct (lfilled_trans _ _ _ _ _ _ _ H Hlf) as [lh' Hfill'] ;
-    eapply lfilled_implies_starts in Hfill' => //= ;
-    unfold first_instr in Hstart ; simpl in Hstart ;
-    unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
-    inversion Hstart.
-Qed.
-
-Lemma wp_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh LI:
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
-  ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
-  ⊢ WP LI @ s; E FRAME n ; f {{ v, Φ v ∗ ↪[frame] f0 }}).
-Proof.
-  iIntros (Hval Hlen Hlf) "HΦ".
-  by iApply wp_return.
-Qed.
-
 Lemma wp_ctx_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh :
   iris.to_val vs = Some (immV vs0) ->
   length vs = n ->
@@ -192,30 +75,6 @@ Proof.
   iIntros (Hval Hlen) "HΦ".
   iIntros (LI HLI).
   iApply wp_return;eauto.
-Qed.
-
-Lemma to_val_immV_inj es es' vs :
-  iris.to_val es = Some (immV vs) ->
-  iris.to_val es' = Some (immV vs) ->
-  es = es'.
-Proof.
-  revert es' vs.
-  induction es;intros es' vs Hsome Heq.
-  { simpl in *. simplify_eq.
-    apply to_val_nil in Heq. auto. }
-  { destruct vs.
-    apply to_val_nil in Hsome. done.
-    destruct es'.
-    symmetry in Heq. simpl in *. simplify_eq.
-    simpl in *.
-    destruct a,a0 =>//.
-    destruct b,b0 =>//.
-    destruct (iris.to_val es) eqn:Hv,(iris.to_val es') eqn:Hv'=>//.
-    destruct v2,v3 =>//.
-    simplify_eq. f_equiv.
-    apply IHes with vs;auto.
-    destruct es' =>//.
-    1,2: destruct es =>//. }
 Qed.
 
 
@@ -515,12 +374,6 @@ Proof.
 (* Frame rules attempt *)
 
 
-Lemma AI_local_reduce hs ws f0 hs' ws' f0' n f es es0':
-  reduce hs ws f0 [AI_local n f es] hs' ws' f0' es0' ->
-  exists f' es', f0 = f0' /\ es0' = [AI_local n f' es'] /\ reduce hs ws f es hs' ws' f' es'.
-Proof.
-Admitted.
-
 (*
 Lemma AI_local_reduce_frame_indep hs ws f0 n f es hs' ws' f0' es0' f1:
   reduce hs ws f0 [AI_local n f es] hs' ws' f0' es0' ->
@@ -539,16 +392,6 @@ Admitted.
    is almost the same as the prim_step_split lemma.
    TODO: change to use the prim_step_split lemma instead.
  *)
-Lemma reduce_tmp es1 es2 es' hs ws f hs' ws' f':
-  iris.to_val es1 = None ->
-  reduce hs ws f (es1 ++ es2) hs' ws' f' es' ->
-  exists es1', reduce hs ws f es1 hs' ws' f' es1' /\ es' = (es1' ++ es2).
-Proof.
-Admitted.
-
-
-
-
 
 
 (* This is provable, of course. But how can we deal with recursive functions

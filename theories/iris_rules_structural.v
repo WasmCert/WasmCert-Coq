@@ -1,16 +1,19 @@
-
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def stdpp_aux.
+Require Export iris_wp_def stdpp_aux.
 Require Export datatypes host operations properties opsem.
-Require Import Coq.Program.Equality.
+
 
 
 (* empty lists, frame and context rules *)
+
+Close Scope byte_scope.
+
+Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 Lemma wp_wasm_empty_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) e :
   ⊢ WP e @ s ; E {{ Φ }} ∗-∗ WP e @ s ; E CTX_EMPTY {{ Φ }}.
@@ -22,6 +25,7 @@ Proof.
     iDestruct ("HWP" $! e with "[]") as "$".
     iPureIntro. cbn. rewrite app_nil_r eqseqE. apply eq_refl. }
 Qed.
+
 Lemma wp_wasm_empty_ctx_frame (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) e n f :
   ⊢ WP e @ s ; E FRAME n; f {{ Φ }} ∗-∗ WP e @ s ; E FRAME n; f CTX_EMPTY {{ v, Φ v }}.
 Proof.
@@ -390,38 +394,12 @@ Proof.
   } } }
 Qed.
 
-(*
-value1
-value2
-value3
-Trap
-expr3
-expr2
-expr1
-
-could reduce to either a Trap directly, or 
-value1
-Trap
-expr1,
-
-But ultimately they reduce to a single Trap.
-*)
-
-(*
-Lemma wp_trap s E es Φ:
-  WP @ s; E ([AI_trap] ++ es) {{ w, Φ w }} ⊢
-  |={E}=> Φ trapV.
-Proof.
-  rewrite wp_unfold/ wp_pre.
-Admitted.
- *)
-
 (* behaviour of seq might be a bit unusual due to how reductions work. *)
 (* Note that the sequence wp is also true without the premise that Ψ doesn't trap, but it is very tricky to prove that version. The following is the fault-avoiding version.*)
 Lemma wp_seq (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) :
-  (¬ Ψ trapV) ∗ 
-  (WP es1 @ s; E {{ w, Ψ w }} ∗
-  ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})%I
+  (¬ Ψ trapV ∗ 
+  WP es1 @ s; E {{ w, Ψ w }} ∗
+  ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v }})
   ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v }}.
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ).
@@ -644,7 +622,32 @@ Proof.
   iApply wp_val_app'.
   by iFrame.
 Qed.
-                                  
+
+Import DummyHosts.
+Let reduce := @reduce host_function host_instance.
+
+Canonical Structure wasm_lang := Language wasm_mixin.
+ 
+Let reducible := @reducible wasm_lang.
+
+Lemma AI_local_reduce hs ws f0 hs' ws' f0' n f es es0':
+  reduce hs ws f0 [AI_local n f es] hs' ws' f0' es0' ->
+  exists f' es', f0 = f0' /\ es0' = [AI_local n f' es'] /\ reduce hs ws f es hs' ws' f' es'.
+Proof.
+Admitted.
+
+
+Lemma reduce_tmp es1 es2 es' hs ws f hs' ws' f':
+  iris.to_val es1 = None ->
+  reduce hs ws f (es1 ++ es2) hs' ws' f' es' ->
+  exists es1', reduce hs ws f es1 hs' ws' f' es1' /\ es' = (es1' ++ es2).
+Proof.
+Admitted.
+
+
+
+
+
 (* Trying to resolve the problem by naively not allowing any consumption of ↪ in
    the WP premises.
 
@@ -793,3 +796,4 @@ Proof.
    the existence of a frame ownership.
  *)
 Qed.
+

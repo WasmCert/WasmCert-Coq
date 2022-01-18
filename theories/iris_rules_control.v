@@ -4,9 +4,14 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def stdpp_aux.
 Require Export datatypes host operations properties opsem.
+Require Export iris_wp_def stdpp_aux.
+Require Export iris_rules_structural.
 Require Import Coq.Program.Equality.
+
+Close Scope byte_scope.
+
+Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0:
   const_list vs ->
