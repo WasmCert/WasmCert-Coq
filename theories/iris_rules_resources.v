@@ -12,8 +12,12 @@ Import uPred.
 
 Set Default Proof Using "Type". (* what is this? *)
 
+Import DummyHost.
+
 Close Scope byte_scope.
 (* Predicate for memory blocks *)
+
+Section iris_rules_resources.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 (* TODO: switch to monotone implementation of mem_size once we have that? *)
@@ -2042,8 +2046,6 @@ Proof.
 Qed.
 
 
-
-
 Lemma wms_is_load n k off v m t ws :
   types_agree t v -> s_mems (host_function := host_function) ws !! n = Some m ->
   (N.of_nat n ↦[wms][ k + off ] (bits v) -∗
@@ -2908,3 +2910,4 @@ Proof.
     by eapply test_no_reduce0.
 Qed.
       
+End iris_rules_resources.

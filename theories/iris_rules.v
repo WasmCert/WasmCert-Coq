@@ -11,6 +11,8 @@ Require Export datatypes host operations properties opsem.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
+Close Scope byte_scope.
+
 Lemma wp_ctx_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh :
   iris.to_val vs = Some (immV vs0) ->
   length vs = n ->

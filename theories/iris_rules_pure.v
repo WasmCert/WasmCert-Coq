@@ -11,6 +11,7 @@ Require Export datatypes host operations properties opsem.
 Close Scope byte_scope.
 
 (* basic instructions with simple(pure) reductions *)
+Section iris_rules_pure.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
@@ -333,3 +334,4 @@ Proof.
     only_one_reduction H.
 Qed.
     
+End iris_rules_pure.
