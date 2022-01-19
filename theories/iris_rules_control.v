@@ -383,37 +383,6 @@ Proof.
   erewrite app_nil_l. erewrite app_nil_r. done.
 Qed.
 
-Lemma lfilled_to_val i  :
-  ∀ lh es LI, is_Some (iris.to_val LI) ->
-  lfilled i lh es LI ->
-  is_Some (iris.to_val es).
-Proof.
-  induction i.
-   { intros lh es LI [x Hsome] Hfill.
-    apply lfilled_Ind_Equivalent in Hfill.
-    inversion Hfill;subst.
-    destruct (to_val es) eqn:Hnone;eauto.
-    exfalso.
-    apply (to_val_cat_None1 _ es') in Hnone.
-    apply (to_val_cat_None2 vs) in Hnone.
-    rewrite Hnone in Hsome. done.
-  }
-  { intros lh es LI Hsome Hfill.
-    apply lfilled_Ind_Equivalent in Hfill.
-    inversion Hfill;simplify_eq.
-    clear -Hsome. exfalso.
-    induction vs =>//=.
-    simpl in Hsome. by inversion Hsome.
-    simpl in Hsome; inversion Hsome.
-    destruct a =>//=.
-    destruct b =>//=.
-    destruct (iris.to_val (vs ++ [AI_label n es' LI0] ++ es'')%SEQ) eqn:Hcontr.
-    apply IHvs;eauto.
-    rewrite Hcontr in H. done.
-    destruct vs;done.
-  }
-Qed.
-
 Lemma wp_block_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (i : nat) (lh : lholed) vs t1s t2s es n m f0:
   const_list vs ->
   length vs = n ->
@@ -468,20 +437,6 @@ Proof.
   iIntros "Hf0".
   iSpecialize ("HWP" with "[$]").
   by iSpecialize ("HWP" with "[%]").
-Qed.
-
-
-Lemma first_instr_local es e n f :
-  first_instr es = Some e ->
-  first_instr [AI_local n f es] = Some e.
-Proof.
-  intros Hfirst.
-  induction es.
-  { inversion Hfirst. }
-  { rewrite /first_instr /=.
-    rewrite /first_instr /= in Hfirst.
-    destruct (first_instr_instr a) eqn:Ha;auto.
-    rewrite Hfirst //. }
 Qed.
   
 Lemma wp_block_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (i : nat) (lh : lholed) vs t1s t2s es n m n1 f1 f0 :

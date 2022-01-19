@@ -787,6 +787,37 @@ Proof.
     revert Hl. rewrite -Heq -Permutation_middle =>Hl //=. }
 Qed.
 
+Lemma lfilled_to_val i  :
+  ∀ lh es LI, is_Some (iris.to_val LI) ->
+  lfilled i lh es LI ->
+  is_Some (iris.to_val es).
+Proof.
+  induction i.
+   { intros lh es LI [x Hsome] Hfill.
+    apply lfilled_Ind_Equivalent in Hfill.
+    inversion Hfill;subst.
+    destruct (to_val es) eqn:Hnone;eauto.
+    exfalso.
+    apply (to_val_cat_None1 _ es') in Hnone.
+    apply (to_val_cat_None2 vs) in Hnone.
+    rewrite Hnone in Hsome. done.
+  }
+  { intros lh es LI Hsome Hfill.
+    apply lfilled_Ind_Equivalent in Hfill.
+    inversion Hfill;simplify_eq.
+    clear -Hsome. exfalso.
+    induction vs =>//=.
+    simpl in Hsome. by inversion Hsome.
+    simpl in Hsome; inversion Hsome.
+    destruct a =>//=.
+    destruct b =>//=.
+    destruct (iris.to_val (vs ++ [AI_label n es' LI0] ++ es'')%SEQ) eqn:Hcontr.
+    apply IHvs;eauto.
+    rewrite Hcontr in H. done.
+    destruct vs;done.
+  }
+Qed.
+
 Lemma prim_step_obs_efs_empty es es' σ σ' obs efs:
   prim_step es σ obs es' σ' efs ->
   (obs, efs) = ([], []).
@@ -4019,7 +4050,18 @@ Proof.
   destruct a ; try by apply H0. *)
 Qed. 
     
-
+Lemma first_instr_local es e n f :
+  first_instr es = Some e ->
+  first_instr [AI_local n f es] = Some e.
+Proof.
+  intros Hfirst.
+  induction es.
+  { inversion Hfirst. }
+  { rewrite /first_instr /=.
+    rewrite /first_instr /= in Hfirst.
+    destruct (first_instr_instr a) eqn:Ha;auto.
+    rewrite Hfirst //. }
+Qed.
   
 Ltac only_one objs Hred2 :=
   let es := fresh "es" in

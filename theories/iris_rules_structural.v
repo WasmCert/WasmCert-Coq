@@ -631,6 +631,8 @@ Canonical Structure wasm_lang := Language wasm_mixin.
  
 Let reducible := @reducible wasm_lang.
 
+(* TODO: uncomment if prim_step_reduce lemma for local frames does not hold
+
 Lemma AI_local_reduce hs ws f0 hs' ws' f0' n f es es0':
   reduce hs ws f0 [AI_local n f es] hs' ws' f0' es0' ->
   exists f' es', f0 = f0' /\ es0' = [AI_local n f' es'] /\ reduce hs ws f es hs' ws' f' es'.
@@ -643,7 +645,7 @@ Lemma reduce_tmp es1 es2 es' hs ws f hs' ws' f':
   reduce hs ws f (es1 ++ es2) hs' ws' f' es' ->
   exists es1', reduce hs ws f es1 hs' ws' f' es1' /\ es' = (es1' ++ es2).
 Proof.
-Admitted.
+Admitted.*)
 
 
 
@@ -670,6 +672,23 @@ Admitted.
         frame resources from the inner to the outer frame via Ψ -- the outer 
         frame predicate remains unchanged despite that it could undergo 
         arbitrary changes inside the frames. *)
+
+Lemma wp_frame_seq es1 es2 n (f0 f f': frame) E s Ψ Φ:
+  ( ↪[frame] f0) -∗
+  ((↪[frame] f) -∗ WP es1 @ NotStuck; E {{ v, Ψ v ∗ ↪[frame] f'}}) -∗
+  (∀ w, ↪[frame] f0 -∗ (Ψ w) -∗ WP (iris.of_val w ++ es2) @ s; E FRAME n; f' {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
+  (WP (es1 ++ es2) @ s; E FRAME n ; f {{ v, Φ v ∗ ↪[frame]f0 }}).
+Proof.
+  iIntros "Hf Hes1 Hcont".
+  iApply wp_wasm_empty_ctx_frame.
+  iApply (wp_seq_ctx_frame with "[$Hf $Hes1 Hcont]").
+  iIntros (w) "[H1 H2]".
+  iApply wp_wasm_empty_ctx_frame.
+  iApply ("Hcont" with "[$] [$]").
+Qed.
+
+  
+(*
 Lemma wp_frame_seq es1 es2 n (f0 f f': frame) E Ψ Φ:
   ( ↪[frame] f0) -∗
   (¬ (Ψ trapV)) -∗
@@ -796,6 +815,8 @@ Proof.
    Also, we need to prove that every reduction respects this preservation of 
    the existence of a frame ownership.
  *)
-Qed.
+Qed.*)
+
+
 
 End structural_rules.
