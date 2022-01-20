@@ -12,12 +12,17 @@ Import uPred.
 
 Set Default Proof Using "Type". (* what is this? *)
 
-Import DummyHost.
-
 Close Scope byte_scope.
+
 (* Predicate for memory blocks *)
 
 Section iris_rules_resources.
+
+Import DummyHosts.
+
+Let reduce := @reduce host_function host_instance.
+
+Let reducible := @reducible wasm_lang.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 (* TODO: switch to monotone implementation of mem_size once we have that? *)
@@ -65,7 +70,6 @@ Proof.
   iSplit.
   - iPureIntro.
     destruct s => //=.
-    unfold reducible, language.prim_step => /=.
     exists [], [AI_basic (BI_const v)], (hs, ws, locs, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -93,7 +97,6 @@ Proof.
   iSplit.
   - iPureIntro.
     destruct s => //=.
-    unfold reducible, language.prim_step => /=.
     exists [], [], (hs, ws, set_nth v locs i v, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -647,7 +650,6 @@ Proof.
   rewrite Hfg. replace (S (n+1)) with (S n + 1) ; last lia.
   rewrite IHlen. done.
 Qed. 
-  
 
 Lemma load_append m k off b bs :
   load m k off (length (b :: bs)) = Some (b :: bs) ->
@@ -2442,25 +2444,23 @@ Proof.
     iSplitR => //=.
 Qed. 
 
-
-(*
-Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (ϕ: val -> Prop) :
-  inst.(inst_memory) !! 0 = Some k ->
-  ϕ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ->
-  ( ↦[wi] inst ∗
+Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f0:frame) (mem: memory) (Φ: val -> iProp Σ) :
+  f0.(f_inst).(inst_memory) !! 0 = Some k ->
+  (Φ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ∗
+   ↪[frame] f0 ∗
    (N.of_nat k) ↦[wmlength] n) ⊢
-   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat k) ↦[wmlength] n }}.
+   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, Φ w ∗ ↪[frame] f0 ∗ (N.of_nat k) ↦[wmlength] n }}.
 Proof.
-  iIntros (Hi Hϕ) "[Hinst Hmemlength]".
+  iIntros (Hf) "(HΦ & Hf0 & Hmemlength)".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ)".
+  iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hframe".
   iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
-  rewrite lookup_insert in Hinst.
-  inversion Hinst; subst; clear Hinst.
-  rewrite - nth_error_lookup in Hi.
+  rewrite lookup_insert in Hframe.
+  inversion Hframe; subst; clear Hframe.
+  rewrite - nth_error_lookup in Hf.
   rewrite gmap_of_list_lookup list_lookup_fmap Nat2N.id in Hmemlength => /=.
   destruct (s_mems ws !! k) eqn:Hmemlookup => //.
   rewrite - nth_error_lookup in Hmemlookup.
@@ -2469,8 +2469,8 @@ Proof.
   iSplit.
   - iPureIntro.
     destruct s => //=.
-    unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size)))))], (hs, ws, locs, inst), [].
+    exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size)))))], (hs, ws, locs, winst), [].
+
     unfold iris.prim_step => /=.
     repeat split => //.
     eapply r_current_memory => //.
@@ -2479,9 +2479,13 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
+    iExists (Build_frame locs' inst').
     only_one_reduction H.
+    iFrame.
+    by iIntros.
 Qed.
- *)
+
+
 (*
 Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
   f.(f_inst).(inst_memory) !! 0 = Some k ->
