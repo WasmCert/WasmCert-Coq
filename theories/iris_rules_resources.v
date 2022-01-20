@@ -12,12 +12,17 @@ Import uPred.
 
 Set Default Proof Using "Type". (* what is this? *)
 
-Import DummyHost.
-
 Close Scope byte_scope.
+
 (* Predicate for memory blocks *)
 
 Section iris_rules_resources.
+
+Import DummyHosts.
+
+Let reduce := @reduce host_function host_instance.
+
+Let reducible := @reducible wasm_lang.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 (* TODO: switch to monotone implementation of mem_size once we have that? *)
@@ -65,7 +70,6 @@ Proof.
   iSplit.
   - iPureIntro.
     destruct s => //=.
-    unfold reducible, language.prim_step => /=.
     exists [], [AI_basic (BI_const v)], (hs, ws, locs, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -93,7 +97,6 @@ Proof.
   iSplit.
   - iPureIntro.
     destruct s => //=.
-    unfold reducible, language.prim_step => /=.
     exists [], [], (hs, ws, set_nth v locs i v, inst), [].
     unfold iris.prim_step => /=.
     repeat split => //.
@@ -538,8 +541,60 @@ Proof.
   unfold fmap in IHk.
   by rewrite IHk.
 Qed.
+
+Lemma ncons_fmap {A B} l (f : A -> B) i x :
+  f <$> ncons i x l = ncons i (f x) (f <$> l).
+Proof.
+  induction i ; intros ; destruct l => //=.
+  by rewrite - IHi.
+  by rewrite - IHi.
+Qed.
+
+Lemma set_nth_read {A} (l : seq.seq A) x0 i x :
+  set_nth x0 l i x !! i = Some x.
+Proof.
+  generalize dependent l.
+  induction i ; intros ; destruct l => //=.
+  rewrite lookup_seq_nth.
+  rewrite ncons_fmap.
+  rewrite nth_ncons.
+  rewrite ssrnat.ltnn.
+  rewrite ssrnat.subnn => //=.
+Qed.
+
+
+Lemma set_nth_ncons {A} x0 y0 i (x : A) y :
+  set_nth x0 (ncons i y0 [y]) i x = ncons i y0 [x].
+Proof.
+  induction i => //=.
+  by rewrite IHi.
+Qed.
+
+
+Lemma set_nth_write {A} (l : seq.seq A) x0 y0 i x y :
+  set_nth x0 (set_nth y0 l i y) i x = set_nth y0 l i x.
+Proof.
+  generalize dependent l.
+  induction i ; intros ; destruct l => //=.
+  by rewrite set_nth_ncons.
+  by rewrite IHi.
+Qed.
+
   
-  
+
+
+Lemma set_nth_fmap {A B} (l : seq.seq A) (f : A -> B) x0 i x :
+  f <$> set_nth x0 l i x = set_nth (f x0) (f <$> l) i (f x).
+Proof.
+  generalize dependent l.
+  induction i ; intros ; destruct l => //=.
+  specialize (ncons_fmap [x] f i x0) ; unfold fmap ; intros.
+  rewrite H. done.
+  unfold fmap in IHi.
+  by rewrite IHi.
+Qed.
+
+
 
 Lemma update_ne {A} l i k (x : A) :
   i < length l -> i <> k -> (update_list_at l i x) !! k = l !! k.
@@ -647,7 +702,6 @@ Proof.
   rewrite Hfg. replace (S (n+1)) with (S n + 1) ; last lia.
   rewrite IHlen. done.
 Qed. 
-  
 
 Lemma load_append m k off b bs :
   load m k off (length (b :: bs)) = Some (b :: bs) ->
@@ -2255,19 +2309,176 @@ Proof.
   by rewrite Wasm_float.FloatSize64.of_to_bits.
 Qed.
 
-(* Not quite sure this lemma is even true *)
-(*
+
+
+
 Lemma bits_deserialise bs t :
+  length bs = t_length t ->
   bits (wasm_deserialise bs t) = bs.
 Proof.
+  intros Hlen.
   unfold wasm_deserialise.
-  destruct t.
-  unfold bits.
-  unfold serialise_i32.
-  rewrite Wasm_int.Int32.unsigned_repr.
-  Search (Memdata.encode_int _ (Memdata.decode_int _)).
-  Search (Memdata.decode_int (Memdata.encode_int _ _)).
-  rewrite Memdata.encode_decode_int. *)
+  destruct t ; simpl in Hlen ;
+    repeat (destruct bs ; try by inversion Hlen) ;
+    unfold bits.
+  - unfold serialise_i32.
+    rewrite Wasm_int.Int32.unsigned_repr ;
+      unfold Memdata.decode_int, Memdata.int_of_bytes,  Memdata.rev_if_be.
+    unfold Memdata.encode_int, Memdata.bytes_of_int, Memdata.rev_if_be.
+    destruct Archi.big_endian ;
+      unfold Memdata.int_of_bytes ;    
+      simpl ; 
+      rewrite Z.mul_0_l ; 
+      rewrite Z.add_0_r ; 
+      do 3 ( rewrite Z_div_plus ; last lia ;
+             rewrite (Z.div_small (Integers.Byte.unsigned _) 256) ;
+             last (by replace 256%Z with Integers.Byte.modulus ; last done ;
+                     by apply Integers.Byte.unsigned_range) ; 
+             rewrite Z.add_0_l) ; 
+      rewrite Integers.Byte.repr_unsigned ;
+      do 3 ( erewrite (Integers.Byte.eqm_repr_eq (Integers.Byte.unsigned _ + _) _) ;
+             last (unfold Integers.Byte.eqm ;
+                   replace Integers.Byte.modulus with 256%Z ; last done ;
+                   unfold Zbits.eqmod ;
+                   eexists _ ; by rewrite Z.add_comm)) ; 
+      done.
+    destruct Archi.big_endian ;
+      simpl ;
+      replace Wasm_int.Int32.max_unsigned with 4294967295%Z ; try done ;
+      specialize (Integers.Byte.unsigned_range b) ; intros H ;
+      replace Integers.Byte.modulus with 256%Z in H ; try done ;
+      specialize (Integers.Byte.unsigned_range b0) ; intros H0 ;
+      replace Integers.Byte.modulus with 256%Z in H0 ; try done ;
+      specialize (Integers.Byte.unsigned_range b1) ; intros H1 ;
+      replace Integers.Byte.modulus with 256%Z in H1 ; try done ;
+      specialize (Integers.Byte.unsigned_range b2) ; intros H2 ;
+      replace Integers.Byte.modulus with 256%Z in H2 ; try done ;
+      lia.
+  - unfold serialise_i64.
+    rewrite Wasm_int.Int64.unsigned_repr ;
+      unfold Memdata.decode_int, Memdata.int_of_bytes, Memdata.rev_if_be.
+    unfold Memdata.encode_int, Memdata.bytes_of_int, Memdata.rev_if_be.
+    destruct Archi.big_endian ;
+      unfold Memdata.int_of_bytes ; 
+      simpl ; 
+      rewrite Z.mul_0_l ; 
+      rewrite Z.add_0_r ; 
+      do 7 ( rewrite Z_div_plus ; last lia ;
+             rewrite (Z.div_small (Integers.Byte.unsigned _) 256) ;
+             last (by replace 256%Z with Integers.Byte.modulus ; last done ;
+                     by apply Integers.Byte.unsigned_range) ; 
+             rewrite Z.add_0_l) ; 
+      rewrite Integers.Byte.repr_unsigned ;
+      do 7 ( erewrite (Integers.Byte.eqm_repr_eq (Integers.Byte.unsigned _ + _) _) ;
+             last (unfold Integers.Byte.eqm ;
+                   replace Integers.Byte.modulus with 256%Z ; last done ;
+                   unfold Zbits.eqmod ;
+                   eexists _ ; by rewrite Z.add_comm)) ;
+      done.
+    destruct Archi.big_endian ;
+      simpl ;
+      specialize (Integers.Byte.unsigned_range b) ; intros H ;
+      replace Integers.Byte.modulus with 256%Z in H ; try done ;
+      specialize (Integers.Byte.unsigned_range b0) ; intros H0 ;
+      replace Integers.Byte.modulus with 256%Z in H0 ; try done ;
+      specialize (Integers.Byte.unsigned_range b1) ; intros H1 ;
+      replace Integers.Byte.modulus with 256%Z in H1 ; try done ;
+      specialize (Integers.Byte.unsigned_range b2) ; intros H2 ;
+      replace Integers.Byte.modulus with 256%Z in H2 ; try done ;
+      specialize (Integers.Byte.unsigned_range b3) ; intros H3 ;
+      replace Integers.Byte.modulus with 256%Z in H3 ; try done ;
+      specialize (Integers.Byte.unsigned_range b4) ; intros H4 ;
+      replace Integers.Byte.modulus with 256%Z in H4 ; try done ;
+      specialize (Integers.Byte.unsigned_range b5) ; intros H5 ;
+      replace Integers.Byte.modulus with 256%Z in H5 ; try done ;
+      specialize (Integers.Byte.unsigned_range b6) ; intros H6 ;
+      replace Integers.Byte.modulus with 256%Z in H6 ; try done ;
+      replace Wasm_int.Int64.max_unsigned with 18446744073709551615%Z ; try done ;
+      lia.
+  - unfold serialise_f32.
+    rewrite Wasm_float.FloatSize32.to_of_bits Integers.Int.unsigned_repr ;
+      unfold Memdata.decode_int, Memdata.int_of_bytes , Memdata.rev_if_be.
+    unfold Memdata.encode_int, Memdata.bytes_of_int, Memdata.rev_if_be.
+    destruct Archi.big_endian ;
+      unfold Memdata.int_of_bytes ;    
+      simpl ; 
+      rewrite Z.mul_0_l ; 
+      rewrite Z.add_0_r ;
+      do 3 ( rewrite Z_div_plus ; last lia ;
+             rewrite (Z.div_small (Integers.Byte.unsigned _) 256) ;
+             last (by replace 256%Z with Integers.Byte.modulus ; last done ;
+                     by apply Integers.Byte.unsigned_range) ; 
+             rewrite Z.add_0_l) ;
+      rewrite Integers.Byte.repr_unsigned ;
+      do 3 ( erewrite (Integers.Byte.eqm_repr_eq (Integers.Byte.unsigned _ + _) _) ;
+             last (unfold Integers.Byte.eqm ;
+                   replace Integers.Byte.modulus with 256%Z ; last done ;
+                   unfold Zbits.eqmod ;
+                   eexists _ ; by rewrite Z.add_comm)) ;
+      done.
+    destruct Archi.big_endian ;
+      simpl ;
+      replace Integers.Int.max_unsigned with 4294967295%Z ; try done ;
+      specialize (Integers.Byte.unsigned_range b) ; intros H ;
+      replace Integers.Byte.modulus with 256%Z in H ; try done ;
+      specialize (Integers.Byte.unsigned_range b0) ; intros H0 ;
+      replace Integers.Byte.modulus with 256%Z in H0 ; try done ;
+      specialize (Integers.Byte.unsigned_range b1) ; intros H1 ;
+      replace Integers.Byte.modulus with 256%Z in H1 ; try done ;
+      specialize (Integers.Byte.unsigned_range b2) ; intros H2 ;
+      replace Integers.Byte.modulus with 256%Z in H2 ; try done ;
+      lia.
+  - unfold serialise_f64.
+    rewrite Wasm_float.FloatSize64.to_of_bits Integers.Int64.unsigned_repr ;
+      unfold Memdata.decode_int, Memdata.int_of_bytes, Memdata.rev_if_be.
+    unfold Memdata.encode_int, Memdata.bytes_of_int, Memdata.rev_if_be.
+    destruct Archi.big_endian ;
+      unfold Memdata.int_of_bytes ; 
+      simpl ; 
+      rewrite Z.mul_0_l ; 
+      rewrite Z.add_0_r ; 
+      do 7 ( rewrite Z_div_plus ; last lia ;
+             rewrite (Z.div_small (Integers.Byte.unsigned _) 256) ;
+             last (by replace 256%Z with Integers.Byte.modulus ; last done ;
+                     by apply Integers.Byte.unsigned_range) ; 
+             rewrite Z.add_0_l) ; 
+      rewrite Integers.Byte.repr_unsigned ;
+      do 7 ( erewrite (Integers.Byte.eqm_repr_eq (Integers.Byte.unsigned _ + _) _) ;
+             last (unfold Integers.Byte.eqm ;
+                   replace Integers.Byte.modulus with 256%Z ; last done ;
+                   unfold Zbits.eqmod ;
+                   eexists _ ; by rewrite Z.add_comm)) ;
+      done.
+    destruct Archi.big_endian ;
+      simpl ;
+      specialize (Integers.Byte.unsigned_range b) ; intros H ;
+      replace Integers.Byte.modulus with 256%Z in H ; try done ;
+      specialize (Integers.Byte.unsigned_range b0) ; intros H0 ;
+      replace Integers.Byte.modulus with 256%Z in H0 ; try done ;
+      specialize (Integers.Byte.unsigned_range b1) ; intros H1 ;
+      replace Integers.Byte.modulus with 256%Z in H1 ; try done ;
+      specialize (Integers.Byte.unsigned_range b2) ; intros H2 ;
+      replace Integers.Byte.modulus with 256%Z in H2 ; try done ;
+      specialize (Integers.Byte.unsigned_range b3) ; intros H3 ;
+      replace Integers.Byte.modulus with 256%Z in H3 ; try done ;
+      specialize (Integers.Byte.unsigned_range b4) ; intros H4 ;
+      replace Integers.Byte.modulus with 256%Z in H4 ; try done ;
+      specialize (Integers.Byte.unsigned_range b5) ; intros H5 ;
+      replace Integers.Byte.modulus with 256%Z in H5 ; try done ;
+      specialize (Integers.Byte.unsigned_range b6) ; intros H6 ;
+      replace Integers.Byte.modulus with 256%Z in H6 ; try done ;
+      replace Integers.Int64.max_unsigned with 18446744073709551615%Z ; try done ;
+      lia.
+Qed.    
+
+
+Lemma deserialise_type bs t :
+  types_agree t (wasm_deserialise bs t).
+Proof.
+  unfold wasm_deserialise.
+  by destruct t.
+Qed.
+
 
 
 Lemma no_memory_no_memories ws n :
@@ -2363,16 +2574,17 @@ Qed.
 
 
 
-Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (*(mem mem': memory)*) (vinit : value) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) (f0: frame) :
-  types_agree t v -> types_agree t vinit ->
+Lemma wp_store (s: stuckness) (E: coPset) (t: value_type) (v: value) (*(mem mem': memory)*) (bs : bytes) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (ϕ: val -> Prop) (f0: frame) :
+  types_agree t v ->
+  length bs = t_length t ->
   f0.(f_inst).(inst_memory) !! 0 = Some n ->
   (*store mem (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t) = Some mem' -> *)
   ϕ (immV []) ->
   ( ↪[frame] f0 ∗
-  N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] (bits vinit)) ⊢
+  N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] bs) ⊢
   (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] f0 ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v) }}).
 Proof.
-  iIntros (Hvt Hvti Hinstn Hϕ) "[Hf0 Hwms]".
+  iIntros (Hvt Hbs Hinstn Hϕ) "[Hf0 Hwms]".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
@@ -2380,6 +2592,10 @@ Proof.
   iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
   rewrite lookup_insert in Hf0.
   inversion Hf0; subst; clear Hf0.
+  erewrite <- (bits_deserialise bs) => //=.
+  remember (wasm_deserialise bs t) as vinit.
+  assert (types_agree t vinit) as Hvinit.
+  { rewrite Heqvinit. by apply deserialise_type. }
   destruct (bits vinit) eqn:Hb. destruct vinit ; inversion Hb.
   iDestruct (wms_implies_smems_is_Some with "Hm Hwms") as "(Hwms & Hm & %Hm)".
   destruct Hm as [m Hm].
@@ -2389,7 +2605,7 @@ Proof.
   rewrite - nth_error_lookup in Hinstn.
   simpl in Hinstn.
   destruct (inst_memory winst) eqn: Hinstmem => //.
-  inversion Hinstn; subst; clear Hinstn.
+  inversion Hinstn; subst m0; clear Hinstn.
   iSplit.
   - iPureIntro.
     destruct s => //=.
@@ -2442,25 +2658,23 @@ Proof.
     iSplitR => //=.
 Qed. 
 
-
-(*
-Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (inst: instance) (mem: memory) (ϕ: val -> Prop) :
-  inst.(inst_memory) !! 0 = Some k ->
-  ϕ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ->
-  ( ↦[wi] inst ∗
+Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f0:frame) (mem: memory) (Φ: val -> iProp Σ) :
+  f0.(f_inst).(inst_memory) !! 0 = Some k ->
+  (Φ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ∗
+   ↪[frame] f0 ∗
    (N.of_nat k) ↦[wmlength] n) ⊢
-   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ (N.of_nat k) ↦[wmlength] n }}.
+   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, Φ w ∗ ↪[frame] f0 ∗ (N.of_nat k) ↦[wmlength] n }}.
 Proof.
-  iIntros (Hi Hϕ) "[Hinst Hmemlength]".
+  iIntros (Hf) "(HΦ & Hf0 & Hmemlength)".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & ? & Hi & Hγ)".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ)".
+  iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hframe".
   iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
-  rewrite lookup_insert in Hinst.
-  inversion Hinst; subst; clear Hinst.
-  rewrite - nth_error_lookup in Hi.
+  rewrite lookup_insert in Hframe.
+  inversion Hframe; subst; clear Hframe.
+  rewrite - nth_error_lookup in Hf.
   rewrite gmap_of_list_lookup list_lookup_fmap Nat2N.id in Hmemlength => /=.
   destruct (s_mems ws !! k) eqn:Hmemlookup => //.
   rewrite - nth_error_lookup in Hmemlookup.
@@ -2469,8 +2683,8 @@ Proof.
   iSplit.
   - iPureIntro.
     destruct s => //=.
-    unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size)))))], (hs, ws, locs, inst), [].
+    exists [], [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size)))))], (hs, ws, locs, winst), [].
+
     unfold iris.prim_step => /=.
     repeat split => //.
     eapply r_current_memory => //.
@@ -2479,9 +2693,13 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
+    iExists (Build_frame locs' inst').
     only_one_reduction H.
+    iFrame.
+    by iIntros.
 Qed.
- *)
+
+
 (*
 Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
   f.(f_inst).(inst_memory) !! 0 = Some k ->

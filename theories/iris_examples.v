@@ -18,6 +18,7 @@ Close Scope byte_scope.
 Section Examples.
   
 Import DummyHosts.
+
 Let reduce := @reduce host_function host_instance.
 
 Let reducible := @reducible wasm_lang.
@@ -113,22 +114,26 @@ Proof.
   iApply (wp_val_return with "[$]");auto.
   iIntros "Hf0"; iApply wp_value;eauto. done.
 Qed.
-Lemma label_check_easy' :
+
+Lemma label_check_easy' f0 :
+  ↪[frame] f0
   ⊢ WP [::AI_basic
          (BI_block (Tf [] [T_i32;T_i32])
                    [:: (BI_block (Tf [] [T_i32;T_i32])
-                                [::BI_const (xx 2); BI_const (xx 3)] )] )] {{ λ v, ⌜v = immV [xx 2;xx 3]⌝ }}.
+                                [::BI_const (xx 2); BI_const (xx 3)] )] )] {{ λ v, ⌜v = immV [xx 2;xx 3]⌝ ∗ ↪[frame] f0 }}.
 Proof.
   rewrite -iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
+  iIntros "Hf0".
+  iApply (wp_block with "[$]");eauto. iNext.
+  iIntros "Hf0".
   iApply wp_wasm_empty_ctx.
   iApply wp_label_push_nil. simpl.
   iApply iRewrite_nil_r_ctx.
-  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 2; xx 3]⌝)%I).
-  iSplitR.
-  iApply label_check_easy.
-  iIntros (w ->). simpl.
-  iApply wp_val_return;auto.
+  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 2; xx 3]⌝ ∗ ↪[frame] f0)%I).
+  iSplitL "Hf0"; first by iApply label_check_easy.
+  iIntros (w) "(-> & Hf0)". simpl.
+  iApply (wp_val_return with "[$]") ;auto.
+  iIntros "Hf0".
   iApply wp_value;eauto. done.
 Qed.
 

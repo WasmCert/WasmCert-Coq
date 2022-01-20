@@ -5,7 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export datatypes host operations properties opsem.
-Require Export iris_wp_def stdpp_aux.
+Require Export iris_wp_def stdpp_aux iris_properties.
 Require Export iris_rules_structural.
 Require Import Coq.Program.Equality.
 
@@ -13,13 +13,13 @@ Close Scope byte_scope.
 Section control_rules.
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0:
+Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 f:
   const_list vs ->
   length vs = n ->
   lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI ->
   ↪[frame] f0 -∗
-  ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v ∗ ↪[frame] f0 }})
-  -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+  ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v ∗ ↪[frame] f }})
+  -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hvs Hlen Hfill) "Hf0 HΦ".
   iApply wp_lift_step => //=.
@@ -50,14 +50,14 @@ Proof.
     inversion Hstart.
 Qed.
 
-Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s  f0 :
+Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s  f0 f:
   const_list vs ->
   length vs = n ->
   length t1s = n ->
   length t2s = m ->
   ↪[frame] f0 -∗
-  ▷ (↪[frame] f0 -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }})
-  -∗ WP (vs ++ [::AI_basic (BI_block (Tf t1s t2s) es)]) @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+  ▷ (↪[frame] f0 -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E {{ v, Φ v ∗ ↪[frame] f }})
+  -∗ WP (vs ++ [::AI_basic (BI_block (Tf t1s t2s) es)]) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hvs Hlen1 Hlen2 Hlen3) "Hf0 HΦ".
   iApply wp_lift_step => //=.
@@ -237,11 +237,11 @@ Proof.
     inversion Habs.
 Qed.
 
-Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
+Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 f:
   const_list vs ->
   ↪[frame] f0 -∗
-  (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v ∗ ↪[frame] f0 }})
-  -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v ∗ ↪[frame] f0 }}.
+  (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v ∗ ↪[frame] f }})
+  -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hconst) "Hf0 HWP".
   iLöb as "IH".
