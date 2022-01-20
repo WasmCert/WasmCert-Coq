@@ -1061,6 +1061,35 @@ Proof.
 Qed.
  *)
 
+Lemma list_insert_destruct {T: Type} k (l: list T) v:
+  k < length l ->
+  seq.take k l ++ v:: seq.drop (k+1) l = <[k := v]> l.
+Proof.
+  move: l v.
+  induction k; move => l v Hlen; destruct l; simpl in Hlen => //=.
+  - by inversion Hlen.
+  - f_equal. by rewrite drop0.
+  - by inversion Hlen.
+  - f_equal.
+    apply IHk.
+    lia.
+Qed.
+    
+Lemma mem_update_insert k b dat dat':
+  mem_update k b dat = Some dat' ->
+  dat' = Build_memory_list (ml_init dat) (<[(N.to_nat k) := b]> (ml_data dat)) /\
+  (N.to_nat k) < length (ml_data dat).
+Proof.
+  unfold mem_update.
+  destruct (k <? N.of_nat (length (ml_data dat)))%N eqn:Hk => //.
+  move => Hupd.
+  inversion Hupd; subst; clear Hupd.
+  apply N.ltb_lt in Hk.
+  split; last by lia.
+  f_equal.
+  rewrite - (list_insert_destruct (N.to_nat k) (ml_data dat) b) => //.
+  lia.
+Qed.
   
 Lemma update_swap k b dat k' b' dat' dat'' :
   k <> k' ->
@@ -1070,244 +1099,26 @@ Lemma update_swap k b dat k' b' dat' dat'' :
             mem_update k b dat0 = Some dat''.
 Proof.
   intros Hkk' Hupd Hupd'.
-  assert (length (ml_data dat) = length (ml_data dat')) as Hdlen ;
-    first by eapply mem_update_length.
+  apply mem_update_insert in Hupd as [Hupd Hk].
+  apply mem_update_insert in Hupd' as [Hupd' Hk'].
+  assert (length (ml_data dat) = length (ml_data dat')) as Hupdlen.
+  { subst => /=.
+    by rewrite insert_length.
+  }
+  exists (Build_memory_list (ml_init dat) (<[(N.to_nat k') := b']> (ml_data dat))).
   unfold mem_update.
-  unfold mem_update in Hupd.
-  unfold mem_update in Hupd'.
-  rewrite - Hdlen in Hupd'.
-  destruct (k' <? N.of_nat (length (ml_data dat)))%N eqn:Hk'; try by inversion Hupd'.
-  assert (ssrnat.leq (S (N.to_nat k')) (seq.size (ml_data dat))) as Hkssr'.
-  { apply N.ltb_lt in Hk'.
-    rewrite length_is_size in Hk'.
-    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-    assert (S (N.to_nat k') - N.to_nat (N.of_nat (seq.size (ml_data dat))) = 0) ; first lia.
-    rewrite Nat2N.id in H.
-    by rewrite H. }
-  eexists _ ; split => //=.
-  replace (length (seq.take (N.to_nat k') (ml_data dat) ++
-                            b' :: seq.drop (N.to_nat k' + 1) (ml_data dat)))%N
-    with (length (ml_data dat))%N.
-  destruct (k <? N.of_nat (length (ml_data dat)))%N eqn:Hk ; try by inversion Hupd.
-  assert ((k <? N.of_nat (length (ml_data dat)))%N = true) as Hk0 => //=.
-  assert (ssrnat.leq (S (N.to_nat k)) (seq.size (ml_data dat))) as Hkssr.
-  { apply N.ltb_lt in Hk.
-    rewrite length_is_size in Hk.
-    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-    assert (S (N.to_nat k) - N.to_nat (N.of_nat (seq.size (ml_data dat))) = 0) ; first lia.
-    rewrite Nat2N.id in H.
-    by rewrite H. }
-  inversion Hupd.
-  rewrite - H0 in Hupd' ; simpl in Hupd'.
-  rewrite - Hupd'.
-  rewrite take_cat.
-  rewrite size_take.
-  rewrite Hkssr'.
-  destruct (ssrnat.leq (S (N.to_nat k)) (N.to_nat k')) eqn:Hlk.
-  assert (ssrnat.leq (N.to_nat k) (N.to_nat k')) as Hlkk ;
-    first by apply ssrnat.ltnW.
-  rewrite seq.take_take ; last done.
-  rewrite drop_cat.
-  rewrite size_take.
-  rewrite Hkssr'.
-  rewrite take_cat.
-  rewrite size_take.
-  rewrite Hkssr.
-  destruct (ssrnat.leq (S (N.to_nat k')) (N.to_nat k)) eqn:Hlk'.
-  { exfalso.
-    rewrite - ssrnat.ltnS in Hlk.
-    apply (ssrnat.leq_trans Hlk) in Hlk'.
-    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec in Hlk'.
-    apply b2p in Hlk'.
-    lia. } 
-  destruct (ssrnat.subn (N.to_nat k') (N.to_nat k)) eqn:Hn.
-  { exfalso.
-    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec in Hlk.
-    apply b2p in Hlk.
-    unfold ssrnat.subn, ssrnat.subn_rec in Hn.
-    lia. }
+  assert (k' <? N.of_nat (length (ml_data dat')))%N as Hk'0.
+  { apply N.ltb_lt. lia. }
+  assert (k <? N.of_nat (length (ml_data dat)))%N as Hk0.
+  { apply N.ltb_lt. lia. }
+  rewrite Hupdlen Hk'0 insert_length Hk0 => /=.
+  subst.
+  split; (do 2 f_equal); rewrite - list_insert_destruct; try by lias.
+  rewrite list_insert_destruct; last by lias.
   simpl.
-  rewrite drop_cat.
-  rewrite size_take.
-  rewrite Hkssr.
-  destruct (ssrnat.leq (S (N.to_nat k' + 1)) (N.to_nat k)) eqn:Hlk''.
-  { exfalso.
-    replace (S (N.to_nat k' + 1)) with (S (S (N.to_nat k'))) in Hlk'' ; last lia.
-    apply ssrnat.ltnW in Hlk''.
-    rewrite Hlk'' in Hlk'.
-    inversion Hlk'. }
-  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
-  rewrite ssrnat.subSn ; last done.
-  rewrite Hn => //=.
-  rewrite seq.drop_drop.
-  rewrite - Hn.
-  rewrite - ssrnat.addnABC ;
-    [|done
-    |replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia ; by apply ssrnat.leqnSn].
-  unfold ssrnat.addn, ssrnat.addn_rec.
-  unfold ssrnat.subn at 2. unfold ssrnat.subn_rec.
-  replace (N.to_nat k + 1 - N.to_nat k) with 1 ; last lia.
-  destruct (ssrnat.leq (S (N.to_nat k + 1)) (N.to_nat k')) eqn:Hlk0.
-  rewrite seq.take_drop.
-  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
-  rewrite - ssrnat.addSnnS.
-  rewrite - Hn.
-  rewrite ssrnat.subnK ; last done.
-  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
-  by rewrite - catA.
-  assert (N.to_nat k + 1 = N.to_nat k') as Hkk.
-  { specialize (ssrnat.leq_total (S (N.to_nat k + 1)) (N.to_nat k')) ; intros.
-    apply orb_true_iff in H as [Habs | Hlk1].
-    rewrite Hlk0 in Habs ; inversion Habs.
-    rewrite ssrnat.leq_eqVlt in Hlk1.
-    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
-    rewrite ssrnat.leq_eqVlt in Hlk0.
-    apply b2p in Habs.
-    rewrite Habs in Hlk0.
-    rewrite eq_refl in Hlk0.
-    simpl in Hlk0.
-    inversion Hlk0.
-    apply ssrnat.ltnSE in Hlk1.
-    replace (S (N.to_nat k)) with (N.to_nat k + 1) in Hlk ; last lia.
-    apply ssrnat.anti_leq.
-    rewrite Hlk1.
-    rewrite Hlk.
-    done. } 
-  rewrite Hkk.
-  unfold ssrnat.subn, ssrnat.subn_rec.
-  rewrite PeanoNat.Nat.sub_diag.
-  unfold seq.drop at 1.
-  rewrite - Hkk in Hn.
-  unfold ssrnat.subn, ssrnat.subn_rec in Hn.
-  rewrite Nat.add_sub_swap in Hn ; last lia.
-  rewrite PeanoNat.Nat.sub_diag in Hn.
-  simpl in Hn.
-  inversion Hn.
-  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
-  rewrite take0.
-  by rewrite - catA.
-  assert (ssrnat.leq (S (N.to_nat k')) (N.to_nat k)) as Hlk2.
-  { specialize (ssrnat.leq_total (S (N.to_nat k)) (N.to_nat k')) ; intros.
-    apply orb_true_iff in H as [Habs | Hlk1].
-    rewrite Hlk in Habs ; inversion Habs.
-    rewrite ssrnat.leq_eqVlt in Hlk1.
-    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
-    rewrite ssrnat.leq_eqVlt in Hlk.
-    apply b2p in Habs.
-    rewrite Habs in Hlk.
-    rewrite eq_refl in Hlk.
-    simpl in Hlk.
-    inversion Hlk.
-    apply ssrnat.ltnSE in Hlk1.
-    rewrite ssrnat.leq_eqVlt in Hlk1.
-    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
-    apply b2p in Habs.
-    apply N2Nat.inj in Habs.
-    exfalso ; by apply Hkk'.
-    done. }
-  assert (ssrnat.leq (N.to_nat k') (N.to_nat k)) as Hlkk ;
-    first by apply ssrnat.ltnW.
-  destruct (ssrnat.subn (N.to_nat k) (N.to_nat k')) eqn:Hn.
-  { exfalso.
-    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec in Hlk2.
-    apply b2p in Hlk2.
-    unfold ssrnat.subn, ssrnat.subn_rec in Hn.
-    lia. }
-  simpl.
-  rewrite drop_cat.
-  rewrite size_take.
-  rewrite Hkssr'.
-  rewrite take_cat.
-  rewrite size_take.
-  rewrite Hkssr.
-  rewrite Hlk2.
-  destruct (ssrnat.leq (S (N.to_nat k + 1)) (N.to_nat k')) eqn:Hlk''.
-  { exfalso.
-    replace (S (N.to_nat k + 1)) with (S (S (N.to_nat k))) in Hlk'' ; last lia.
-    apply ssrnat.ltnW in Hlk''.
-    rewrite Hlk'' in Hlk.
-    inversion Hlk. }
-  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
-  rewrite ssrnat.subSn ; last done.
-  rewrite Hn => //=.
-  rewrite seq.drop_drop.
-  rewrite - Hn.
-  rewrite - ssrnat.addnABC ;
-    [|done
-    |replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia ; by apply ssrnat.leqnSn].
-  unfold ssrnat.addn, ssrnat.addn_rec.
-  unfold ssrnat.subn, ssrnat.subn_rec.
-  replace (N.to_nat k' + 1 - N.to_nat k') with 1 ; last lia.
-  rewrite drop_cat.
-  rewrite size_take.
-  rewrite Hkssr.
-  destruct (ssrnat.leq (S (N.to_nat k' + 1)) (N.to_nat k)) eqn:Hlk0.
-  rewrite seq.take_drop.
-  replace (N.to_nat k' + 1) with (S (N.to_nat k')) ; last lia.
-  rewrite - ssrnat.addSnnS.
-  rewrite - Hn.
-  rewrite ssrnat.subnK ; last done.
-  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
-  rewrite seq.take_take ; last done.
-  by rewrite - catA.
-  assert (N.to_nat k' + 1 = N.to_nat k) as Hkk.
-  { specialize (ssrnat.leq_total (S (N.to_nat k' + 1)) (N.to_nat k)) ; intros.
-    apply orb_true_iff in H as [Habs | Hlk1].
-    rewrite Hlk0 in Habs ; inversion Habs.
-    rewrite ssrnat.leq_eqVlt in Hlk1.
-    apply orb_true_iff in Hlk1 as [Habs | Hlk1].
-    rewrite ssrnat.leq_eqVlt in Hlk0.
-    apply b2p in Habs.
-    rewrite Habs in Hlk0.
-    rewrite eq_refl in Hlk0.
-    simpl in Hlk0.
-    inversion Hlk0.
-    apply ssrnat.ltnSE in Hlk1.
-    replace (S (N.to_nat k')) with (N.to_nat k' + 1) in Hlk2 ; last lia.
-    apply ssrnat.anti_leq.
-    rewrite Hlk1.
-    rewrite Hlk2.
-    done. } 
-  rewrite Hkk.
-  unfold ssrnat.subn, ssrnat.subn_rec.
-  rewrite PeanoNat.Nat.sub_diag.
-  unfold seq.drop at 3.
-  rewrite - Hkk in Hn.
-  unfold ssrnat.subn, ssrnat.subn_rec in Hn.
-  rewrite Nat.add_sub_swap in Hn ; last lia.
-  rewrite PeanoNat.Nat.sub_diag in Hn.
-  simpl in Hn.
-  inversion Hn.
-  replace (N.to_nat k + 1) with (S (N.to_nat k)) ; last lia.
-  rewrite take0.
-  rewrite seq.take_take ; last done.
-  by rewrite - catA.
-  rewrite app_length.
-  repeat rewrite length_is_size.
-  rewrite size_take.
-  rewrite Hkssr'.
-  simpl.
-  rewrite size_drop.
-  unfold ssrnat.subn, ssrnat.subn_rec.
-  Search (_ + S _).
-  rewrite PeanoNat.Nat.add_succ_r.
-  Search (_ + (_ - _)).
-  rewrite Nat.add_sub_assoc.
-  Search (_ + _ - _).
-  Search (_ - (_ + _)).
-  rewrite Nat.sub_add_distr.
-  replace (N.to_nat k' + seq.size (ml_data dat) - N.to_nat k') with
-    (seq.size (ml_data dat)) ; last lia.
-  replace (S (seq.size (ml_data dat) - 1)) with (seq.size (ml_data dat) - 1 + 1) ; last lia.
-  Search (_ - _ + _).
-  rewrite Nat.sub_add.
-  done.
-  apply N.ltb_lt in Hk'.
-  rewrite length_is_size in Hk'.
-  lia.
-  apply N.ltb_lt in Hk'.
-  rewrite length_is_size in Hk'.
-  lia.
+  rewrite list_insert_commute; last by lias.
+  rewrite - (list_insert_destruct (N.to_nat k)) => //.
+  by rewrite insert_length.
 Qed.
   
 
