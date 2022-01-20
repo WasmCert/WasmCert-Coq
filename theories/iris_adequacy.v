@@ -28,6 +28,11 @@ Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG 
 
 Notation wptp s t Φs := ([∗ list] e;Φ ∈ t;Φs, WP e @ s; ⊤ {{ Φ }})%I.
 
+(* Given that (e1, σ1) -> (e2, σ2) with 'effects' efs, plus the state interp
+   of σ1 and a WP spec of e1, we get after a number of steps(??) the state
+   interp of σ2 and the corresponding WP for e2 (with the frame resource),
+   and a final list of wps for the effects(??).
+*)
 Lemma wp_step s e1 σ1 ns κ κs e2 σ2 efs nt Φ :
   prim_step e1 σ1 κ e2 σ2 efs →
   state_interp σ1 ns (κ ++ κs) nt -∗ WP e1 @ s; ⊤ {{ Φ }}
