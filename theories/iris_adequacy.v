@@ -6,7 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export datatypes host operations properties opsem.
-Require Import iris_use.
+Require Import iris_rules.
 
 Import uPred.
 
@@ -15,10 +15,6 @@ we prove a number of auxilary results. *)
 
 Section adequacy.
   
-Let expr := iris_use.expr.
-Let val := iris_use.val.
-Let to_val := iris_use.to_val.
-
 (* Example Programs *)
 Section Examples.
   
@@ -30,88 +26,32 @@ Let reducible := @reducible wasm_lang.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-(* TODO: Resolve duplicated notations *)
-Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
-                           (at level 20, q at level 5, format "n ↦[wf]{ q } v") : bi_scope.
-Notation "n ↦[wf] v" := (mapsto (L:=N) (V:=function_closure) n (DfracOwn 1) v%V)
-                      (at level 20, format "n ↦[wf] v") : bi_scope.
-Notation "n ↦[wt]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=funcelem) (n, i) q v%V)
-                           (at level 20, q at level 5, format "n ↦[wt]{ q } [ i ] v") : bi_scope.
-Notation "n ↦[wt][ i ] v" := (mapsto (L:=N*N) (V:=funcelem) (n, i) (DfracOwn 1) v%V)
-                      (at level 20, format "n ↦[wt][ i ] v") : bi_scope.
-Notation "n ↦[wm]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) q v%V)
-                           (at level 20, q at level 5, format "n ↦[wm]{ q } [ i ] v") : bi_scope.
-Notation "n ↦[wm][ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) (DfracOwn 1) v% V)
-                           (at level 20, format "n ↦[wm][ i ] v") : bi_scope.
-Notation "n ↦[wmlength] v" := (mapsto (L:=N) (V:=N) n (DfracOwn 1) v% V)
-                           (at level 20, format "n ↦[wmlength] v") : bi_scope.
-Notation "n ↦[wg]{ q } v" := (mapsto (L:=N) (V:=global) n q v%V)
-                           (at level 20, q at level 5, format "n ↦[wg]{ q } v").
-Notation "n ↦[wg] v" := (mapsto (L:=N) (V:=global) n (DfracOwn 1) v%V)
-                      (at level 20, format "n ↦[wg] v") .
-Notation " ↪[frame]{ q } v" := (ghost_map_elem frameGName tt q v%V)
-                           (at level 20, q at level 5, format " ↪[frame]{ q } v") .
-Notation " ↪[frame] v" := (ghost_map_elem frameGName tt (DfracOwn 1) v%V)
-                           (at level 20, format " ↪[frame] v").
-
-Notation "'WP' e @ s ; E 'CTX' i ; lh {{ Φ } }" := (wp_wasm_ctx s E e%E Φ i lh)
-  (at level 20, e, Φ, lh at level 200, only parsing) : bi_scope.
-Notation "'WP' e @ E 'CTX' i ; lh {{ Φ } }" := (wp_wasm_ctx NotStuck E e%E Φ i lh)
-  (at level 20, e, Φ, lh at level 200, only parsing) : bi_scope.
-Notation "'WP' e @ E 'CTX' i ; lh ? {{ Φ } }" := (wp_wasm_ctx MaybeStuck E e%E Φ i lh)
-  (at level 20, e, Φ, lh at level 200, only parsing) : bi_scope.
-Notation "'WP' e 'CTX' i ; lh {{ Φ } }" := (wp_wasm_ctx NotStuck ⊤ e%E Φ i lh)
-  (at level 20, e, Φ, lh at level 200, only parsing) : bi_scope.
-Notation "'WP' e 'CTX' i ; lh ? {{ Φ } }" := (wp_wasm_ctx MaybeStuck ⊤ e%E Φ i lh)
-  (at level 20, e, Φ, lh at level 200, only parsing) : bi_scope.
-Notation "'WP' e @ s ; E 'CTX_EMPTY' {{ Φ } }" := (wp_wasm_ctx s E e%E Φ 0 (LH_base [] []))
-  (at level 20, e, Φ at level 200, only parsing) : bi_scope.
-
-
-Notation "'WP' e @ s ; E 'CTX' i ; lh {{ v , Q } }" := (wp_wasm_ctx s E e%E (λ v, Q) i lh)
-  (at level 20, e, Q, lh at level 200,
-   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e @ s ; E 'CTX_EMPTY' {{ v , Q } }" := (wp_wasm_ctx s E e%E (λ v, Q) 0 (LH_base [] []))
-  (at level 20, e, Q at level 200,
-   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' 'CTX_EMPTY'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e @ E 'CTX' i ; lh {{ v , Q } }" := (wp_wasm_ctx NotStuck E e%E (λ v, Q) i lh)
-  (at level 20, e, Q, lh at level 200,
-   format "'[hv' 'WP'  e  '/' @ '[' E  '/' ']' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e @ E 'CTX' i ; lh ? {{ v , Q } }" := (wp_wasm_ctx MaybeStuck E e%E (λ v, Q) i lh)
-  (at level 20, e, Q, lh at level 200,
-   format "'[hv' 'WP'  e  '/' @  '[' E  '/' ']' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' ? {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e 'CTX' i ; lh {{ v , Q } }" := (wp_wasm_ctx NotStuck ⊤ e%E (λ v, Q) i lh)
-  (at level 20, e, Q, lh at level 200,
-   format "'[hv' 'WP'  e  '/' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e 'CTX' i ; lh ? {{ v , Q } }" := (wp_wasm_ctx MaybeStuck ⊤ e%E (λ v, Q) i lh)
-  (at level 20, e, Q, lh at level 200,
-   format "'[hv' 'WP'  e '/' 'CTX'  '/' '[' i ;  '/' lh ']'  '/' ? {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-
-
-Notation "'WP' e @ s ; E 'FRAME' n ; f {{ Φ } }" := (wp_wasm_frame s E e%E Φ n f)
-  (at level 20, only parsing) : bi_scope.
-
-Notation "'WP' e @ s ; E 'FRAME' n ; f {{ v , Q } }" := (wp_wasm_frame s E e%E (λ v, Q) n f)
-  (at level 20, e, Q, n, f at level 200,
-   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' 'FRAME'  '/' '[' n ; f ']'  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-
 Notation wptp s t Φs := ([∗ list] e;Φ ∈ t;Φs, WP e @ s; ⊤ {{ Φ }})%I.
 
+(* Given that (e1, σ1) -> (e2, σ2) with 'effects' efs, plus the state interp
+   of σ1 and a WP spec of e1, we get after a number of steps(??) the state
+   interp of σ2 and the corresponding WP for e2 (with the frame resource),
+   and a final list of wps for the effects(??).
+*)
 Lemma wp_step s e1 σ1 ns κ κs e2 σ2 efs nt Φ :
   prim_step e1 σ1 κ e2 σ2 efs →
-  state_interp σ1 ns (κ ++ κs) nt -∗ WP e1 @ s; ⊤ {{ Φ }} ={⊤}[∅]▷=∗
-  state_interp σ2 ns κs (nt + length efs) ∗ WP e2 @ s; ⊤ {{ Φ }} ∗
+  state_interp σ1 ns (κ ++ κs) nt -∗ WP e1 @ s; ⊤ {{ Φ }}
+  ={⊤,∅}=∗ |={∅}▷=>^(S $ num_laters_per_step ns) |={∅,⊤}=>
+  state_interp σ2 ns κs (nt + length efs) ∗
+  ∃ f, ↪[frame] f ∗ (↪[frame] f -∗ WP e2 @ s; ⊤ {{ Φ }}) ∗
   wptp s efs (replicate (length efs) fork_post).
 Proof.
   rewrite {1}wp_unfold /wasm_wp_pre. iIntros (?) "Hσ H".
   rewrite (val_stuck e1 σ1 κ e2 σ2 efs) //.
   iMod ("H" $! σ1 with "Hσ") as "(_ & H)".
   iMod ("H" $! e2 σ2 efs with "[//]") as "H".
-  rewrite Nat.add_comm big_sepL2_replicate_r => //.
-  iMod ("H" $! σ1 ns with "Hσ") as "(_ & H)". iModIntro.
-  iApply (step_fupdN_wand with "[H]"); first by iApply "H". iIntros "H".
-  iSpecialize ("H" $! e2 σ2 efs H).
-  rewrite big_sepL2_replicate_r.
+  iApply (step_fupdN_wand with "[H]"); first by iApply "H". iIntros "!>H".
+  iMod "H" as (f) "(?&?&?&?)".
+  iModIntro.
+  iFrame.
+  iExists f.
+  rewrite big_sepL2_replicate_r => //.
+  by iFrame.
 Qed.
 
 Lemma wptp_step s es1 es2 κ κs σ1 ns σ2 Φs nt :
