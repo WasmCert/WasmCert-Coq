@@ -2658,6 +2658,15 @@ Proof.
     iSplitR => //=.
 Qed. 
 
+
+  
+  
+    
+
+
+
+
+
 Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f0:frame) (mem: memory) (Φ: val -> iProp Σ) :
   f0.(f_inst).(inst_memory) !! 0 = Some k ->
   (Φ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ∗
