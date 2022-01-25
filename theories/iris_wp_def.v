@@ -135,8 +135,8 @@ Section Host_wp_import.
                                                (∃ hs', host_application hs s (Tf t1s t2s) h vcs hs' None))⌝);
       wp_host_step_red : (∀ σ ns κ κs nt Φ h E vcs t1s t2s, (
                                                                
-                                              state_interp σ ns (κ ++ κs) nt ={E,∅}=∗
-                                              (* wp_host NotStuck E h vcs Φ ={E,∅}=∗ *)
+                                              state_interp σ ns (κ ++ κs) nt -∗
+                                              wp_host NotStuck E h vcs Φ ={E,∅}=∗
                                               (∀ σ' r, ⌜(let '(hs,s,_,_) := σ in let '(hs',s',_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r)))⌝
                                               ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
                                                  state_interp σ' (S ns) κs nt ∗ Φ r) ∗

@@ -264,9 +264,8 @@ Section iris_rules_calls.
     }
   Qed.
 
-  (* The following step can only work if all invariants are currently closed! *)
-  (* This makes sense, since from the wasm side, only one step happens, 
-     but in the host WP, multiple steps occur *)
+  (* The following spec uses the imported host WP *)
+  (* THe host WP is assumed to be NotStuck *)
   Lemma wp_invoke_host_success `{HWP: host_program_logic} (P : iProp Σ) (R : result -> iProp Σ)
         (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) ves vcs t1s t2s a h m f0 :
     iris.to_val ves = Some (immV vcs) ->
@@ -307,7 +306,7 @@ Section iris_rules_calls.
         split;auto. eapply r_invoke_host_diverge;eauto.
         rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //.
         symmetry. apply v_to_e_list_to_val. auto. }
-    - iMod (wp_host_step_red HWP (s0, s1, l, i) 0 [] [] 0 R h E vcs t1s t2s with "[$]") as "[HH HH']".
+    - iMod (wp_host_step_red HWP (s0, s1, l, i) 0 [] [] 0 R h E vcs t1s t2s with "[$Hσ] [$HWP]") as "HH". (* "test". "[HH HH']". *)
       iModIntro.
       iIntros (es1 σ2 efs HStep).
       destruct σ2 as [[[hs2 ws2] locs2] inst2].
@@ -316,11 +315,13 @@ Section iris_rules_calls.
       2: { eapply to_val_const_list. eauto. }
       2: { rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //. }
       destruct H as [[r0 [Heq' [Heq Hhost']]]|[Heq' [Heq Hhost']]].
-      { iSpecialize ("HH" $! (hs2,ws2,locs2,inst2) r0 Hhost').
+      { iDestruct "HH" as "[HH _]".
+        iSpecialize ("HH" $! (hs2,ws2,locs2,inst2) r0 Hhost').
         repeat (iMod "HH"; iModIntro; try iNext).
         iExists _. iFrame. rewrite app_nil_l in Heq. rewrite Heq.
         simplify_eq. iDestruct "HH" as "($&Hr)". iSplit =>//. }
-      { iSpecialize ("HH'" $! (hs2,ws2,locs2,inst2) Hhost').
+      { iDestruct "HH" as "[_ HH']".
+        iSpecialize ("HH'" $! (hs2,ws2,locs2,inst2) Hhost').
         repeat (iMod "HH'"; iModIntro; try iNext).
         iExists _. iFrame.
         simplify_eq. iDestruct "HH'" as "($&Hr)". iSplit =>//. }
