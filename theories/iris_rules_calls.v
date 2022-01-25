@@ -99,42 +99,18 @@ Section iris_rules_calls.
   (* ------------------------------ Host invocations -------------------------- *)
   (* -------------------------------------------------------------------------- *)
 
-  (* TODO: discuss what we want host invocations to look like: black box or new mode in wasm opsem? *)
+  (* TODO: discuss what we want host invocations, in case the host invokes a wasm function *)
 
   
-  (* suggestion for version with host mode:
-     
-     update opsem as follows: 
-     - [invoke a] -> host(h)
-     - if h -h> h' then host(h) -> host(h')
-     - if r is a host value then host(r) -> result_to_stack(r)
+  (* In the version below, host invocations are handled with an imported host program logic, 
+     as described in iris_wp_def.
 
-     where -h> are host steps, that will be part of the program logic instantiation
-     then we can define a spec that looks as follows: 
+     The import includes a WP definition, and two lemmas that partly unfold the WP definition.
 
-     iris.to_val ves = Some (immV vcs) ->
-     length vcs = length t1s ->
-     length t2s = m ->
-     ↪[frame] f0 -∗
-     (↪[frame] f0 -∗ WP host(h) {{ Psi ∗ frame f0 }}) -∗
-     forall w, Psi w ∗ frame f0 -∗ WP result_to_stack w {{ Phi ∗ frame f0 }}.
-
-     This would also mean that the invoke step first copies over the host function, in a deterministic way.
-
-
-     Alternatively, instantiation could require some more information about the 
-     behaviour of a host function, such as its footprint, and its expected behaviour? see below. Quite ugly.
-
-
-     forall a cl h t1s t2s ves vcs m n s s' r f hs hs',
-        List.nth_error s.(s_funcs) a = Some cl ->
-        cl = FC_func_host (Tf t1s t2s) h ->
-        ves = v_to_e_list vcs ->
-        length vcs = n ->
-        length t1s = n ->
-        length t2s = m ->
-        host_application hs s (Tf t1s t2s) h vcs hs' (Some (s', r)) ->
-        reduce hs s f (ves ++ [::AI_invoke a]) hs' s' f (result_to_stack r)
+     Note that this version fits the current setup for host import, but might need to 
+     be changed in the future, if the instantiated host is able to call wasm functions
+     (in which case the architecture of the setup must change, since the two opsem will 
+     be mutually recursive.
 
    *)
   
@@ -212,7 +188,7 @@ Section iris_rules_calls.
       apply to_val_cat_inv;eauto.
   Qed.      
     
-  Lemma invoke_host_success_guaranteed a s1 t1s t2s h s0 es1 f1 f2 hs2 ws2 es:
+  Lemma invoke_host_inv a s1 t1s t2s h s0 es1 f1 f2 hs2 ws2 es:
     reduce (host_instance:=host_instance) s0 s1
            f1 es hs2 ws2
            f2 es1 ->
@@ -222,15 +198,16 @@ Section iris_rules_calls.
     const_list vs' ->
     const_list ves ->
     nth_error (s_funcs s1) a = Some (FC_func_host (Tf t1s t2s) h) ->
-    (∀ hs', host_application s0 s1 (Tf t1s t2s) h vcs hs' None → False) ->
-    ∃ r0 : result,
+    (* (∀ hs', host_application s0 s1 (Tf t1s t2s) h vcs hs' None → False) -> *)
+    (∃ r0 : result,
       f1 = f2
       ∧ es1 = vs' ++ (result_to_stack r0)
-      ∧ host_application s0 s1 (Tf t1s t2s) h vcs hs2 (Some (ws2, r0)).
+      ∧ host_application s0 s1 (Tf t1s t2s) h vcs hs2 (Some (ws2, r0)))
+    ∨ (f1 = f2 ∧ es1 = es ∧ host_application s0 s1 (Tf t1s t2s) h vcs hs2 None).
   Proof.
     intros Hred.
     induction Hred using reduce_ind;
-      intros ves' vs' vcs' Heq Hval Hlen Hconst Hconst' Hfunc Hsucc.    
+      intros ves' vs' vcs' Heq Hval Hlen Hconst Hconst' Hfunc.
     { subst. inversion H; subst; try by do 3 (try destruct vs';try destruct ves') =>//.
       all: try by do 4 (try destruct vs';try destruct ves') =>//.
       all: try by do 5 (try destruct vs';try destruct ves') =>//.
@@ -260,8 +237,9 @@ Section iris_rules_calls.
         apply app_eq_inv in Hveseq as [[k [Hk1 Hk2]]|[k [Hk1 Hk2]]].
         { subst. apply (IHHred ves' k vcs') in Hfunc;eauto.
           2: by rewrite app_assoc.
-          destruct Hfunc as [r0 [-> [-> Hhost]]].
-          exists r0. erewrite app_assoc. eauto.
+          destruct Hfunc as [[r0 [-> [-> Hhost]]] | [-> [ -> Hhost]]].
+          left. exists r0. erewrite app_assoc. eauto.
+          right. erewrite app_nil_r. erewrite !app_assoc. eauto.
           apply const_list_is_val in Hconst2 as [v Hv].
           by apply to_val_cat in Hv as [Hv1%to_val_const_list Hv2]. }
         { subst.
@@ -272,9 +250,10 @@ Section iris_rules_calls.
           assert (length k = 0);[lia|].
           destruct k;[|done].
           rewrite app_nil_l in Heq.
-          apply (IHHred vs2 [] vcs') in Hsucc;auto.
-          destruct Hsucc as [r0 [-> [-> Hhost]]].
-          exists r0. rewrite app_nil_r app_nil_l. auto. }
+          apply (IHHred vs2 [] vcs') in Hfunc as Hsucc;auto.
+          destruct Hsucc as [[r0 [-> [-> Hhost]]]|[-> [-> Hhost]]].
+          left. exists r0. rewrite app_nil_r app_nil_l. auto.
+          right. erewrite !app_nil_r. auto. }
         { apply const_list_app;auto. }
         { eapply reduce_not_nil. eauto. }
         { eapply val_head_stuck_reduce. eauto. } }
@@ -285,78 +264,69 @@ Section iris_rules_calls.
     }
   Qed.
 
-  Lemma wp_invoke_host_success (P : iProp Σ) (R : result -> iProp Σ)
+  (* The following spec uses the imported host WP *)
+  (* THe host WP is assumed to be NotStuck *)
+  Lemma wp_invoke_host_success `{HWP: host_program_logic} (P : iProp Σ) (R : result -> iProp Σ)
         (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) ves vcs t1s t2s a h m f0 :
     iris.to_val ves = Some (immV vcs) ->
     length vcs = length t1s ->
     length t2s = m ->
 
-    P -∗
     ↪[frame] f0 -∗
      (N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
-
-     □ (∀ hs s locs inst ns κ κs nt,
-           state_interp (hs,s,locs,inst) ns (κ ++ κs) nt ∗ P -∗
-                        (⌜exists hs' s' r, host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r))⌝)
-                        ∗ (⌜forall hs', host_application hs s (Tf t1s t2s) h vcs hs' None -> False⌝)) -∗
-     □ (∀ hs s locs inst ns κ κs nt hs' s' r ns' κ' κs' nt',
-           state_interp (hs,s,locs,inst) ns (κ ++ κs) nt ∗ P
-         ∗ ⌜host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r))⌝ ==∗
-           state_interp (hs',s',locs,inst) ns' (κ' ++ κs') nt' ∗ R r) -∗
-     
+     wp_host HWP NotStuck E h vcs R -∗
      
      ▷ (∀ r, ↪[frame] f0 ∗ (N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) ∗ R r -∗
             WP result_to_stack r @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
      WP ves ++ [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
   Proof.
-    iIntros (Hparams Hlen Hret) "HP Hf Hi #Hsuccess #Hspec HΦ".
-    iApply wp_lift_step;[by apply (to_val_cat_None2 ves)|].
+    iIntros (Hparams Hlen Hret) "Hf Hi HWP HΦ".
+
+    iLöb as "IH".
+    iApply wp_unfold. rewrite /wasm_wp_pre.
+    assert (to_val (ves ++ [AI_invoke a]) = None) as ->;[by apply (to_val_cat_None2 ves)|].
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
     set (σ := (s0,s1,l,i)).
-    iDestruct ("Hsuccess" $! s0 with "[$]") as %Hhost.
-    destruct Hhost as [[hs' [s' [r Hhost]]] Hfalse].
-    assert (reduce (host_instance:=host_instance) s0 s1 (Build_frame l i)
-           (ves ++ [AI_invoke a])%list s0 s1 (Build_frame l i)
-           (result_to_stack r)) as Hred.
-    { eapply r_invoke_host_success;eauto.
-      rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //.
-      symmetry. apply v_to_e_list_to_val. auto. }
+    iMod (wp_host_not_stuck HWP (s0,s1,l,i) 0 [] 0 with "[$] [$]") as "(Hσ & HWP & %Hhost)".
+    { rewrite gmap_of_list_lookup Nat2N.id in Hlook. apply Hlook. }
     iApply fupd_frame_l.
     iSplit.
     - iPureIntro. unfold iris_wp_def.reducible.
       destruct s;auto.
       unfold language.reducible, language.prim_step => /=.
-      eexists [], _, σ, [].
-      unfold iris.prim_step => /=.
-      split;auto. apply Hred.
-    - iApply fupd_mask_intro;[solve_ndisj|].
-      iIntros "Hcls !>" (es1 σ2 efs HStep).
-      
+      destruct Hhost as [[hs' [s' [r Hhost]]]|[hs' Hhost]].
+      { eexists [], _, σ, [].
+        unfold iris.prim_step => /=.
+        split;auto. eapply r_invoke_host_success;eauto.
+        rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //.
+        symmetry. apply v_to_e_list_to_val. auto. }
+      { eexists [], _, σ, [].
+        unfold iris.prim_step => /=.
+        split;auto. eapply r_invoke_host_diverge;eauto.
+        rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //.
+        symmetry. apply v_to_e_list_to_val. auto. }
+    - iMod (wp_host_step_red HWP (s0, s1, l, i) 0 [] [] 0 R h E vcs t1s t2s with "[$Hσ] [$HWP]") as "HH". (* "test". "[HH HH']". *)
+      iModIntro.
+      iIntros (es1 σ2 efs HStep).
       destruct σ2 as [[[hs2 ws2] locs2] inst2].
       destruct HStep as (H & -> & ->).
-      assert (∃ r, locs2 = l ∧ inst2 = i ∧ es1 = result_to_stack r ∧
-              host_application s0 s1 (Tf t1s t2s) h vcs hs2 (Some (ws2, r))) as [r' [-> [-> [-> Hr']]]].
-      { eapply invoke_host_success_guaranteed with (vs':=[]) in Hfalse as [r0 [Hf [Heq1 Heq2]]];eauto.
-        exists r0. simplify_eq. rewrite app_nil_l. auto.
-        rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //. }
-      iMod ("Hspec" with "[Hσ1 Hσ2 Hσ3 Hσ4 Hσ5 Hσ6 $HP]") as "(Hσ2 & R)".
-      { iFrame. iPureIntro. apply Hr'. }
-      iMod "Hcls". iModIntro.
-      iExists f0. iFrame.
-      iSplit =>//. Unshelve. all: try apply 0. all: apply [].
+      eapply invoke_host_inv with (vs':=[]) in H;eauto.
+      2: { eapply to_val_const_list. eauto. }
+      2: { rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //. }
+      destruct H as [[r0 [Heq' [Heq Hhost']]]|[Heq' [Heq Hhost']]].
+      { iDestruct "HH" as "[HH _]".
+        iSpecialize ("HH" $! (hs2,ws2,locs2,inst2) r0 Hhost').
+        repeat (iMod "HH"; iModIntro; try iNext).
+        iExists _. iFrame. rewrite app_nil_l in Heq. rewrite Heq.
+        simplify_eq. iDestruct "HH" as "($&Hr)". iSplit =>//. }
+      { iDestruct "HH" as "[_ HH']".
+        iSpecialize ("HH'" $! (hs2,ws2,locs2,inst2) Hhost').
+        repeat (iMod "HH'"; iModIntro; try iNext).
+        iExists _. iFrame.
+        simplify_eq. iDestruct "HH'" as "($&Hr)". iSplit =>//. }
+      Unshelve. apply r.
   Qed.
-
-  (* The above could potentially work, but has two main issues: 
-     
-     (1) it is very clunky, the host spec must manually update ghost state, 
-     while applying the function h. Avoiding this is one of the benefits of WP abstraction
-     
-     (2) in this version, the host cannot open invariants (no mask in ==∗).
-     to write a version with masks, we essentially end up with the WP definition,
-     in which case we really just ought to use a WP for the host.
-
-   *)
 
   (* -------------------------------------------------------------------------- *)
   (* ---------------------------------- Calls --------------------------------- *)

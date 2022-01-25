@@ -85,18 +85,18 @@ Proof. rewrite app_nil_r. auto. Qed.
 Ltac take_drop_app_rewrite n :=
   match goal with
   | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop n e);simpl take; simpl drop
+      rewrite -(list.take_drop n e);simpl take; simpl drop
   | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop n e);simpl take; simpl drop
+      rewrite -(list.take_drop n e);simpl take; simpl drop
   end.
 
 Ltac take_drop_app_rewrite_twice n m :=
   take_drop_app_rewrite n;
   match goal with
   | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop (length e - m) e);simpl take; simpl drop
+      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
   | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(take_drop (length e - m) e);simpl take; simpl drop
+      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
   end.
 
 (* Examples of blocks that return normally *)
@@ -137,42 +137,47 @@ Proof.
   iApply wp_value;eauto. done.
 Qed.
 
-Lemma br_check_bind_return :
+Lemma br_check_bind_return f0 :
+  ↪[frame] f0
   ⊢ WP [::AI_basic
          (BI_block (Tf [] [T_i32])
          [:: BI_block (Tf [] [])
-            [::BI_const (xx 3); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 3]⌝ }}.
+            [::BI_const (xx 3); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 3]⌝ ∗ ↪[frame] f0}}.
 Proof.
+  iIntros "Hf".
   iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
-  simpl.
+  iApply (wp_block with "[$]");eauto. iNext.
+  simpl. iIntros "Hf".
   iApply wp_wasm_empty_ctx.
   iApply wp_label_push_nil.
   simpl.
   iApply iRewrite_nil_l_ctx.
-  iApply wp_block_ctx;eauto. iNext.
-  simpl.
+  iApply (wp_block_ctx with "[$]");eauto. iNext.
+  simpl. iIntros "Hf".
   iApply wp_label_push_nil.
   simpl.
   take_drop_app_rewrite 1.
-  iApply wp_br_ctx;auto. iNext.
+  iApply (wp_br_ctx with "[$]");auto. iNext.
+  iIntros "Hf".
   iApply wp_value;auto. done.
 Qed.
 
-Lemma br_check_bind_return_2 :
+Lemma br_check_bind_return_2 f0 :
+  ↪[frame] f0
   ⊢ WP [::AI_basic
          (BI_block (Tf [] [T_i32])
          [:: BI_block (Tf [] [])
-            [::BI_const (xx 2);BI_const (xx 3); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 3]⌝ }}.
+            [::BI_const (xx 2);BI_const (xx 3); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 3]⌝ ∗ ↪[frame] f0}}.
 Proof.
+  iIntros "Hf".
   iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext.
+  iApply (wp_block with "[$]");eauto. iNext. iIntros "?".
   simpl.
   iApply wp_wasm_empty_ctx.
   iApply wp_label_push_nil.
   simpl.
   iApply iRewrite_nil_l_ctx.
-  iApply wp_block_ctx;eauto. iNext.
+  iApply (wp_block_ctx with "[$]");eauto. iNext. iIntros "?".
   simpl.
   iApply wp_label_push_nil.
   simpl.
@@ -181,36 +186,39 @@ Proof.
   rewrite -app_assoc.
   iApply wp_base_push;auto.
   take_drop_app_rewrite 1.
-  iApply wp_br_ctx;auto. iNext.
+  iApply (wp_br_ctx with "[$]");auto. iNext. iIntros "?".
   iApply wp_value;auto. done.
 Qed.
 
-Lemma br_check_bind_return_3 :
+Lemma br_check_bind_return_3 f0 :
+  ↪[frame] f0
   ⊢ WP [::AI_basic
          (BI_block (Tf [] [T_i32])
          [:: BI_block (Tf [] [])
-            [::BI_const (xx 2); BI_const (xx 3); (BI_binop T_i32 (Binop_i BOI_add)); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 5]⌝ }}.
+            [::BI_const (xx 2); BI_const (xx 3); (BI_binop T_i32 (Binop_i BOI_add)); BI_br 1] ])] {{ λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0}}.
 Proof.
+  iIntros "Hf".
   iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext. simpl.
+  iApply (wp_block with "[$]");eauto. iNext. simpl. iIntros "?".
   iApply wp_wasm_empty_ctx.
   iApply wp_label_push_nil.
   iApply iRewrite_nil_l_ctx.
-  iApply wp_block_ctx;eauto;simpl.
-  iApply wp_label_push_nil. iNext. simpl.
+  iApply (wp_block_ctx with "[$]");eauto;simpl. iNext. iIntros "?".
+  iApply wp_label_push_nil. simpl.
   take_drop_app_rewrite 3.
-  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝)%I).
-  iSplitR.
-  { iApply wp_binop;eauto. }
-  iIntros (w ->). simpl.
+  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0)%I).
+  iSplitL.
+  { iApply (wp_binop with "[$]");eauto. }
+  iIntros (w) "[-> ?]". simpl.
   take_drop_app_rewrite 1.
   iApply iRewrite_nil_l_ctx.
   iApply iRewrite_nil_r_ctx. rewrite -!app_assoc.
-  iApply wp_br_ctx;auto. iNext. simpl.
+  iApply (wp_br_ctx with "[$]");auto. iNext. iIntros "?". simpl.
   iApply wp_value;eauto. done.  
 Qed.
 
-Lemma br_check_bind_return_4 :
+Lemma br_check_bind_return_4 f0 :
+  ↪[frame] f0
   ⊢ WP [::AI_basic
          (BI_block (Tf [] [T_i32]) (* this block returns normally *)
                    [:: BI_const (xx 1);
@@ -222,44 +230,45 @@ Lemma br_check_bind_return_4 :
                                 BI_br 1;
                                 (BI_binop T_i32 (Binop_i BOI_add))] (* this expression gets stuck without br *) ];
                     (BI_binop T_i32 (Binop_i BOI_add)) ])] (* this expression only reds after previous block is reduced *)
-    {{ λ v, ⌜v = immV [xx 6]⌝ }}.
+    {{ λ v, ⌜v = immV [xx 6]⌝ ∗ ↪[frame] f0}}.
 Proof.
+  iIntros "?".
   iApply iRewrite_nil_l.
-  iApply wp_block;eauto. iNext. simpl.
+  iApply (wp_block with "[$]");eauto. iNext. iIntros "?". simpl.
   iApply wp_wasm_empty_ctx.
   iApply wp_label_push_nil. simpl.
   iApply iRewrite_nil_r_ctx.
-  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 6]⌝)%I).
-  iSplitR.
+  iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 6]⌝ ∗ ↪[frame] f0)%I).
+  iSplitL.
   { take_drop_app_rewrite_twice 1 1.
     iApply wp_wasm_empty_ctx.
     iApply wp_base_push;auto. simpl.
     iApply iRewrite_nil_r_ctx.
-    iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝)%I).
-    iSplitR.
+    iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0)%I).
+    iSplitL.
     { iApply iRewrite_nil_l.
-      iApply wp_block;eauto. iNext. simpl.
+      iApply (wp_block with "[$]");eauto. iNext. iIntros "?". simpl.
       iApply wp_wasm_empty_ctx.
       iApply wp_label_push_nil. simpl.
       iApply iRewrite_nil_l_ctx.
-      iApply wp_block_ctx;eauto. simpl. iNext.
+      iApply (wp_block_ctx with "[$]");eauto. simpl. iNext. iIntros "?".
       iApply wp_label_push_nil. simpl.
       take_drop_app_rewrite 3.
-      iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝)%I).
-      iSplitR.
-      { iApply wp_binop;eauto. }
-      iIntros (w ->). simpl.
+      iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0)%I).
+      iSplitL.
+      { iApply (wp_binop with "[$]");eauto. }
+      iIntros (w) "[-> ?]". simpl.
       take_drop_app_rewrite 2.
       iApply iRewrite_nil_l_ctx.
       iApply wp_base_push;auto. simpl.
       take_drop_app_rewrite 1.
-      iApply wp_br_ctx;auto. iNext.
+      iApply (wp_br_ctx with "[$]");auto. iNext. iIntros "?".
       iApply wp_value;eauto. done. }
-    iIntros (w ->). simpl.
+    iIntros (w) "[-> ?]". simpl.
     iApply wp_base;auto. simpl.
-    iApply wp_binop;eauto. }
-  iIntros (w ->) "/=".
-  iApply wp_val_return;auto;simpl.
+    iApply (wp_binop with "[$]");eauto. }
+  iIntros (w) "[-> ?] /=".
+  iApply (wp_val_return with "[$]");auto;simpl. iIntros "?".
   iApply wp_value;eauto. done.
 Qed.
   
