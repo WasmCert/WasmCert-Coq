@@ -267,11 +267,10 @@ Proof.
 Qed.
 
 Lemma wp_base (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es'' :
-  const_list vs ->
   WP vs' ++ vs ++ es'' @ s; E {{ Φ }}
   ⊢ WP vs @ s; E CTX 0; LH_base vs' es'' {{ Φ }}.
 Proof.
-  iIntros (Hconst) "HWP".
+  iIntros "HWP".
   iIntros (LI Hfill%lfilled_Ind_Equivalent).
   inversion Hfill;subst. iFrame.
 Qed.
@@ -286,6 +285,13 @@ Fixpoint frame_base (lh : lholed) l1 l2 :=
   match lh with
   | LH_base vs es => LH_base (vs ++ l1) (l2 ++ es)
   | LH_rec vs m es' lh' es => LH_rec vs m es' (frame_base lh' l1 l2) es
+  end.
+
+Fixpoint pull_base (lh : lholed) :=
+  match lh with
+  | LH_base vs es => (LH_base [] [], vs, es)
+  | LH_rec vs m es' lh' es => let '(lh'',l1,l2) := pull_base lh' in
+                             (LH_rec vs m es' lh'' es,l1,l2)
   end.
 
 Lemma lfilledInd_push i : ∀ lh n es' es LI l1 l2,
@@ -316,6 +322,20 @@ Proof.
   { inversion Hfill;subst. simpl. constructor. auto.
     apply IHi. auto. auto. }
 Qed.
+Lemma lfilledInd_pull i : ∀ lh es LI,
+    lfilledInd i lh (es) LI ->
+    let '(lh',l1,l2) := pull_base lh in lfilledInd i lh' (l1++es++l2) LI.
+Proof.
+  induction i.
+  all: intros lh es LI Hfill.
+  { inversion Hfill;subst.
+    simpl. apply lfilled_Ind_Equivalent. cbn.
+    rewrite app_nil_r. rewrite eqseqE. apply eq_refl. }
+  { inversion Hfill;subst. simpl.
+    apply IHi in H1.
+    destruct (pull_base lh') as [[lh'' l1] l2].
+    constructor;auto. }
+Qed.
       
 (* Structural lemmas for contexts *)
 
@@ -329,6 +349,17 @@ Proof.
   apply lfilledInd_frame in Hfill.
   iDestruct ("HWP" with "[]") as "HWP";[|iFrame].
   iPureIntro. by apply lfilled_Ind_Equivalent. auto.
+Qed.
+Lemma wp_base_pull (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh :
+  (let '(lh',l1,l2) := pull_base lh in WP l1 ++ es ++ l2 @ s; E CTX i; lh' {{ Φ }})
+  ⊢ WP es @ s; E CTX i; lh {{ Φ }}.
+Proof.
+  iIntros "HWP".
+  iIntros (LI Hfill%lfilled_Ind_Equivalent).
+  apply lfilledInd_pull in Hfill.
+  destruct (pull_base lh) as [[lh' l1] l2].
+  iDestruct ("HWP" with "[]") as "HWP";[|iFrame].
+  iPureIntro. by apply lfilled_Ind_Equivalent.
 Qed.
 Lemma wp_label_push (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh n es' l1 l2 :
   const_list l1 ->

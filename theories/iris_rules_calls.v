@@ -332,14 +332,22 @@ Section iris_rules_calls.
   (* ---------------------------------- Calls --------------------------------- *)
   (* -------------------------------------------------------------------------- *)
 
-  Lemma wp_call (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a :
+  Lemma wp_call_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a j lh :
     (inst_funcs (f_inst f0)) !! i = Some a -> 
     ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-     WP [AI_basic (BI_call i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E CTX j; lh {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
+     WP [AI_basic (BI_call i)] @ s; E CTX j; lh {{ v, Φ v ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Hfuncs) "Hf HΦ".
-    iApply wp_lift_step;[auto|].
+    iIntros (LI Hfill).
+    apply lfilled_swap with (es':=[AI_invoke a]) in Hfill as Hfill'.
+    destruct Hfill' as [LI' Hfill'].
+    iApply wp_lift_step.
+    { apply eq_None_not_Some.
+      intros Hcontr.
+      eapply lfilled_to_val in Hcontr;[|eauto].
+      inversion Hcontr.
+      done. }
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hlook. simplify_map_eq.
@@ -350,18 +358,33 @@ Section iris_rules_calls.
       unfold language.reducible, language.prim_step => /=.
       eexists [], _, σ, [].
       unfold iris.prim_step => /=.
-      repeat split => //.
-      apply r_call. rewrite /= nth_error_lookup //.
+      repeat split => //. eapply r_label.
+      apply r_call. rewrite /= nth_error_lookup //. eauto. eauto.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      eapply reduce_det in H as HH;[|apply r_call; rewrite /= nth_error_lookup //]. 
-      destruct HH as [HH | [Hstart | [[? ?] |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame. done.
+      assert (first_instr LI = Some (AI_basic (BI_call i))).
+      { eapply starts_with_lfilled;eauto. auto. }
+      eapply reduce_det in H as HH;[|eapply r_label;[|eauto..];apply r_call; rewrite /= nth_error_lookup //]. 
+      destruct HH as [HH | [Hstart | [[? ?] |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iExists _. iFrame.
+      iSplit =>//. iIntros "?". iApply ("HΦ" with "[$]"). auto.
   Qed.
-  
+  Lemma wp_call (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a :
+    (inst_funcs (f_inst f0)) !! i = Some a -> 
+    ↪[frame] f0 -∗
+     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
+     WP [AI_basic (BI_call i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+  Proof.
+    iIntros (Hfuncs) "Hf HΦ".
+    iApply wp_wasm_empty_ctx.
+    iApply (wp_call_ctx with "[$]"). eauto.
+    iNext. iIntros "?".
+    iApply wp_wasm_empty_ctx.
+    iApply ("HΦ" with "[$]").
+  Qed. 
 
   Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) a c cl :
     (inst_types (f_inst f0)) !! i = Some (cl_type cl) ->

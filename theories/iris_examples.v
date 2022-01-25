@@ -88,6 +88,10 @@ Ltac take_drop_app_rewrite n :=
       rewrite -(list.take_drop n e);simpl take; simpl drop
   | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
       rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
   end.
 
 Ltac take_drop_app_rewrite_twice n m :=
@@ -274,7 +278,260 @@ Qed.
   
 
 (* --------------------------------------------------------------------------------------------- *)
-(* --------------------------------- END OF EXAMPLES ------------------------------------------- *)
+(* -------------------------- END OF CONTROL FLOW EXAMPLES ------------------------------------- *)
 (* --------------------------------------------------------------------------------------------- *)
 
+(* --------------------------------------------------------------------------------------------- *)
+(* ------------------------- LOCAL STATE EXAMPLE: FACTORIAL ------------------------------------ *)
+(* --------------------------------------------------------------------------------------------- *)
+
+Definition factorial_instrs fact : seq.seq basic_instruction :=
+  [(BI_get_local 0);
+   (BI_const (xx 1));
+   (BI_relop T_i32 (Relop_i (ROI_le SX_U)));
+   (BI_if (Tf [] [T_i32])
+          [BI_const (xx 1)]
+          
+          [BI_get_local 0;
+           BI_const (xx 1);
+           BI_binop T_i32 (Binop_i BOI_sub);
+           BI_call fact;
+           BI_get_local 0;
+           BI_binop T_i32 (Binop_i BOI_mul)])].
+Definition factorial fact : expr := to_e_list (factorial_instrs fact).
+
+Lemma factPred:
+  ∀ n : nat, 1 < n -> ssrnat.muln n (ssrnat.factorial (n - 1)) = (ssrnat.factorial n).
+Proof.
+  intros n Hlt.
+  induction n. lia.
+  destruct n;[lia|].
+  destruct n;auto.
+Qed.
+
+Lemma factorial_spec fact (n : Equality.sort i32) i a :
+  (ssrnat.factorial (Wasm_int.nat_of_uint i32m n) < Wasm_int.Int32.modulus)%Z ->
+  inst_funcs i !! fact = Some a ->
+  (0 <= (Wasm_int.Int32.intval n))%Z ->
+  
+  ↪[frame] Build_frame [VAL_int32 n] i -∗
+  (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)) -∗
+  WP factorial fact {{ v, (⌜v = immV [xx (ssrnat.factorial (Wasm_int.nat_of_uint i32m n))]⌝
+                                    ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)))
+                                    ∗ ↪[frame] Build_frame [VAL_int32 n] i }}.
+Proof.
+  iLöb as "IH" forall (n). { (* { is to fix annoying indent problem... *)
+  iIntros (Hoverflow Hle Ha) "Hf Hi".
+  rewrite /factorial.
+  iSimpl.
+  set f := {| f_locs := [VAL_int32 n]; f_inst := i |}.
+  match goal with
+  | |- context [ (▷ ?H)%I ] => set IH := H
+  end.
+
+  (* get_local 0 *)
+  take_drop_app_rewrite 1.
+  iApply (wp_seq _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+  iSplitR;[by iIntros "[%Hcontr _]"|].
+  iSplitL "Hf".
+  { iApply (wp_get_local with "[$]"). unfold f. eauto.
+    simpl. eauto. }
+    
+  (* le *)
+  iIntros (w) "[-> Hf] /=".
+  take_drop_app_rewrite 3.
+  iApply (wp_seq _ _ _ (λ v', ⌜v' = immV [_]⌝ ∗ ↪[frame] f)%I).
+  iSplitR;[by iIntros "[%Hcontr _]"|].
+  iSplitL "Hf".
+  { iApply (wp_relop with "[$]"). eauto. eauto. }
+
+  (* br if *)
+  iIntros (w) "[-> Hf] /=".
+  (* case distinction *)
+  destruct (~~ Wasm_int.Int32.ltu (Wasm_int.Int32.repr 1) n) eqn:Hbool;simpl.
+  { (* base case: n <= 1 *)
+    (* setup the true branch *)
+    apply negb_true in Hbool.
+    iApply (wp_if_true with "[$]");[auto|]. simpl.
+    iNext. iIntros "Hf".
+    iApply iRewrite_nil_l.
+    iApply (wp_block with "[$]");eauto.
+    iNext. iIntros "Hf".
+    iApply wp_wasm_empty_ctx.
+    iApply wp_label_push_nil. simpl.
+
+    (* return from block *)
+    iApply (wp_val_return with "[$]");auto.
+
+    (* halt and post condition *)
+    iIntros "Hf".
+    simpl. iApply (wp_value _ _ _ _ (immV ([xx 1]))). by cbv.
+    iFrame. iPureIntro. f_equiv. f_equiv.
+    unfold xx. f_equiv. f_equiv. clear -Hle Hbool.
+    destruct n;simpl in *.
+    unfold Wasm_int.Int32.ltu in Hbool. simpl in *.
+    destruct (Coqlib.zlt 1 intval);[done|].
+    assert (intval = 1 ∨ intval = 0);[lia|].
+    destruct H as [-> | ->];lias. }
+
+  { (* inductive step *)
+    (* setup the false branch *)
+    apply negbFE in Hbool.
+    iApply (wp_if_false with "[$]");[auto|].
+    iNext. iIntros "Hf".
+    iApply iRewrite_nil_l.
+    iApply (wp_block with "[$]");eauto.
+    iNext. iIntros "Hf".
+    iApply wp_wasm_empty_ctx.
+    iApply wp_label_push_nil. simpl.
+
+    (* get_local 0 *)
+    take_drop_app_rewrite 1.
+    iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+    iSplitL "Hf".
+    { iApply (wp_get_local with "[$]"). unfold f. eauto.
+      simpl. eauto. }
+
+    (* sub *)
+    iIntros (w) "[-> Hf] /=".
+    take_drop_app_rewrite 3.
+    iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+    iSplitL "Hf".
+    { iApply (wp_binop with "[$]"). eauto. eauto. }
+
+    (* recursive call *)
+    simpl.
+    iIntros (w) "[-> Hf] /=".
+    take_drop_app_rewrite 2.
+    iApply (wp_seq_ctx _ _ _ (λ v', (⌜v' = immV _⌝ ∗ N.of_nat a ↦[wf] _) ∗ ↪[frame] f)%I).
+    iSplitL.
+    { (* call *)
+      iApply wp_wasm_empty_ctx.
+      take_drop_app_rewrite_twice 1 0.
+      iApply wp_base_push;auto. simpl.
+      iApply (wp_call_ctx with "[$]"). unfold f. simpl. eauto.
+      iNext. iIntros "Hf".
+
+      (* invoke native *)
+      iApply wp_base. simpl.
+      take_drop_app_rewrite 1.
+      iApply (wp_invoke_native with "Hf Hi");eauto.
+      iNext. iIntros "[Hf Hi]".
+      simpl.
+
+      (* scope change before invoking the IH *)
+      rewrite -wp_frame_rewrite.
+      iApply wp_wasm_empty_ctx_frame.
+      take_drop_app_rewrite 1.
+      iApply (wp_seq_ctx_frame _ _ _ (λ v', ⌜v' = immV _⌝ ∗ N.of_nat a ↦[wf] _)%I with "[$Hf Hi]").
+      iSplitL.
+      { (* focus on block *)
+        iIntros "Hf".
+        take_drop_app_rewrite 0.
+        iApply (wp_block with "[$]");eauto.
+        iNext. iIntros "Hf".
+        iApply wp_wasm_empty_ctx.
+        assert ([] ++ to_e_list (factorial_instrs fact) =
+               ([] ++ to_e_list (factorial_instrs fact) ++ []))%SEQ as ->;[auto|].
+        iApply wp_label_push;auto.
+        iApply iRewrite_nil_r_ctx.
+        iApply wp_seq_ctx.
+        iSplitL.
+        { (* apply IH *)
+          unfold IH.
+          iApply ("IH" with "[] [] [] Hf Hi");auto.
+          - iPureIntro.
+            (* prove that (n - 1) does not overflow *)
+            clear -Ha Hbool Hoverflow.
+            destruct n. simpl in *.
+            unfold Wasm_int.Int32.ltu in Hbool. simpl in *.
+            destruct (Coqlib.zlt 1 intval);[|done].
+            rewrite Wasm_int.Int32.Z_mod_modulus_eq Zmod_small;try lia.
+            rewrite Z2Nat.inj_sub;[|lia].
+            rewrite (Nat2Z.id 1).
+            apply Zmult_gt_0_lt_reg_r with (p:=intval). lia.
+            assert ((ssrnat.factorial (Z.to_nat intval - 1) * intval)%Z
+                    = ssrnat.muln (Z.to_nat intval) (ssrnat.factorial (Z.to_nat intval - 1))) as Heq.
+            { unfold ssrnat.muln. unfold ssrnat.muln_rec. lia. }
+            rewrite Heq factPred;[|lia]. etrans. apply Hoverflow.
+            apply Z.lt_mul_diag_r;lia.
+            
+          - iPureIntro.
+            (* prove that (n - 1) is gt 0 *)
+            clear -Ha Hbool.
+            destruct n. simpl in *.
+            unfold Wasm_int.Int32.ltu in Hbool. simpl in *.
+            destruct (Coqlib.zlt 1 intval);[|done].
+            rewrite Wasm_int.Int32.Z_mod_modulus_eq Zmod_small;lia. }
+
+        (* return *)
+        iIntros (w) "[[-> Hi] Hf] /=".
+        iApply (wp_val_return with "[$] [Hi]"). auto.
+        iIntros "Hf /=".
+        iApply wp_value. instantiate (1 := immV [_]). reflexivity.
+        iFrame. eauto. }
+
+      (* return to outer scope *)
+      iIntros (w) "[[-> Hi] Hf] /=".
+      iApply wp_wasm_empty_ctx_frame.
+      rewrite wp_frame_rewrite.
+      iApply (wp_frame_value with "[$Hf]"); eauto. iFrame. eauto.
+    }
+    
+    (* finish program after call *)
+    iIntros (w) "[[-> Hi] Hf] /=".
+    
+    (* get_local 0 *)
+    take_drop_app_rewrite_twice 1 1.
+    iApply wp_base_push;auto.
+    take_drop_app_rewrite 1.
+    iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame]f)%I).
+    iSplitL "Hf".
+    { iApply (wp_get_local with "[$Hf]"). eauto. simpl. eauto. }
+
+    (* mul *)
+    iIntros (w) "[-> Hf] /=".
+    iApply wp_base_pull. simpl.
+    take_drop_app_rewrite 3.
+    iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+    iSplitL "Hf".
+    { iApply (wp_binop with "[$]"). simpl. eauto. eauto. }
+
+    (* return *)
+    iIntros (w) "[-> Hf] /=".
+    iApply (wp_val_return with "[$]");auto.
+    iIntros "Hf /=".
+
+    (* postcondition *)
+    iApply wp_value. instantiate (1 := immV [_]). reflexivity.
+    iFrame. iPureIntro.
+
+    unfold xx.
+    repeat f_equiv.
+    unfold Wasm_int.Int32.imul, Wasm_int.Int32.mul. simpl.
+    f_equiv.
+    (* rewrite Wasm_int.Int32.Z_mod_modulus_eq. *)
+    clear -Ha Hbool Hoverflow.
+    unfold Wasm_int.Int32.ltu in Hbool.
+    destruct n;simpl in *.
+    destruct (Coqlib.zlt 1 intval);[|done].
+    rewrite !Wasm_int.Int32.Z_mod_modulus_eq.
+    assert ((intval - 1) `mod` Wasm_int.Int32.modulus = intval - 1)%Z as ->.
+    { rewrite Zmod_small;lia. }
+    rewrite Z2Nat.inj_sub;[|lia].
+    rewrite (Nat2Z.id 1).
+    assert ((ssrnat.factorial (Z.to_nat intval - 1) * intval)%Z
+            = ssrnat.muln (Z.to_nat intval) (ssrnat.factorial (Z.to_nat intval - 1))) as Heq.
+    { unfold ssrnat.muln. unfold ssrnat.muln_rec. lia. }
+    rewrite Zmod_small.
+    rewrite Heq factPred;lia.
+    split. lia.
+    apply Zmult_gt_0_lt_reg_r with (p:=intval). lia.
+    rewrite Heq factPred. 2: lia.
+    etrans. apply Hoverflow.
+    apply Z.lt_mul_diag_r;lia.
+  } }
+Qed.
+
+                 
 End Examples.
