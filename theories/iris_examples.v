@@ -309,16 +309,18 @@ Proof.
   destruct n;auto.
 Qed.
 
+Definition fact_val n : val -> iProp Σ := λ v, ⌜v = immV [xx (ssrnat.factorial (Wasm_int.nat_of_uint i32m n))]⌝%I.
+
 Lemma factorial_spec fact (n : Equality.sort i32) i a :
-  (ssrnat.factorial (Wasm_int.nat_of_uint i32m n) < Wasm_int.Int32.modulus)%Z ->
-  inst_funcs i !! fact = Some a ->
-  (0 <= (Wasm_int.Int32.intval n))%Z ->
+  (ssrnat.factorial (Wasm_int.nat_of_uint i32m n) < Wasm_int.Int32.modulus)%Z -> (* no overflow *)
+  inst_funcs i !! fact = Some a -> (* factorial function is in the instance *)
+  (0 <= (Wasm_int.Int32.intval n))%Z -> (* the parameter must be positive *)
   
   ↪[frame] Build_frame [VAL_int32 n] i -∗
   (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)) -∗
-  WP factorial fact {{ v, (⌜v = immV [xx (ssrnat.factorial (Wasm_int.nat_of_uint i32m n))]⌝
-                                    ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)))
-                                    ∗ ↪[frame] Build_frame [VAL_int32 n] i }}.
+  WP factorial fact {{ v, (fact_val n v
+                        ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)))
+                        ∗ ↪[frame] Build_frame [VAL_int32 n] i }}.
 Proof.
   iLöb as "IH" forall (n). { (* { is to fix annoying indent problem... *)
   iIntros (Hoverflow Hle Ha) "Hf Hi".
@@ -533,5 +535,49 @@ Proof.
   } }
 Qed.
 
+Lemma invoke_factorial_spec fact (n : Equality.sort i32) i a f0 :
+  (ssrnat.factorial (Wasm_int.nat_of_uint i32m n) < Wasm_int.Int32.modulus)%Z -> (* no overflow *)
+  inst_funcs i !! fact = Some a -> (* factorial function is in the instance *)
+  (0 <= (Wasm_int.Int32.intval n))%Z -> (* the parameter must be positive *)
+  
+  ↪[frame] f0 -∗
+  (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)) -∗
+  WP [AI_basic (BI_const (VAL_int32 n));
+      AI_invoke a]
+  {{ v, (⌜v = immV [xx (ssrnat.factorial (Wasm_int.nat_of_uint i32m n))]⌝
+          ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) [] (factorial_instrs fact)))
+          ∗ ↪[frame] f0 }}.
+Proof.
+  iIntros (Hoverflow Hi Hpos) "Hf Hi".
+  take_drop_app_rewrite 1.
+  iApply (wp_invoke_native with "[$] [$]");eauto.
+  iNext. iIntros "[Hf Hi]".
+  rewrite /= -wp_frame_rewrite.
+  iApply wp_wasm_empty_ctx_frame.
+  take_drop_app_rewrite 1.
+  iApply (wp_seq_ctx_frame _ _ _ (λ v, fact_val n v ∗ (N.of_nat a) ↦[wf] _)%I with "[$Hf Hi]").
+  iSplitL.
+  { iIntros "Hf".
+    take_drop_app_rewrite 0.
+    iApply (wp_block with "[$]");eauto.
+    iNext. iIntros "Hf".
+    erewrite app_nil_l.
+    iApply wp_wasm_empty_ctx.
+    iApply wp_label_push_nil. simpl push_base.
+    take_drop_app_rewrite (length (factorial_instrs fact)).
+    iApply (wp_seq_ctx _ _ _ (λ v, (fact_val n v ∗ (N.of_nat a) ↦[wf] _) ∗ ↪[frame] _)%I).
+    iSplitL.
+    { iApply (factorial_spec with "[$] [$]");eauto. }
+    iIntros (w) "[[%Hfact Hi] Hf] /=".
+    iApply (wp_val_return with "[$]");[subst;auto|].
+    iIntros "Hf /=".
+    iApply wp_value. instantiate (1:=immV [_]). subst;done.
+    iFrame. auto. }
+  iIntros (w) "[[%Hfact Hi] Hf]".
+  iApply wp_wasm_empty_ctx_frame.
+  iApply (wp_frame_value with "[$]"); [subst;eauto..|].
+  iNext. iIntros "Hf".
+  iFrame. auto.
+Qed.
                  
 End Examples.
