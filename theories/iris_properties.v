@@ -4070,32 +4070,34 @@ Ltac only_one objs Hred2 :=
   apply Logic.eq_sym in Heqes ;
   only_one_reduction Heqes Hred2.
 
-Lemma reduce_det: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
-  reduce hs f ws es hs1 f1 ws1 es1 ->
-  reduce hs f ws es hs2 f2 ws2 es2 ->
-  ( (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2) \/
+Print r_invoke_native.
+
+Lemma reduce_det: forall hs (ws: store_record) (f: frame) es hs1 ws1 f1 es1 hs2 ws2 f2 es2,
+  reduce hs ws f es hs1 ws1 f1 es1 ->
+  reduce hs ws f es hs2 ws2 f2 es2 ->
+  ( (hs1, ws1, f1, es1) = (hs2, ws2, f2, es2) \/
       first_instr es = Some (AI_basic (BI_grow_memory)) \/
-      (exists a, first_instr es = Some (AI_invoke a)) \/
+      (exists a cl tf h, first_instr es = Some (AI_invoke a) /\ nth_error (s_funcs ws) a = Some cl /\ cl = FC_func_host tf h) \/
       (first_instr es = Some AI_trap /\ first_instr es1 = Some AI_trap /\
          first_instr es2 = Some AI_trap /\
-         (hs1, f1, ws1) = (hs2, f2, ws2))).
+         (hs1, ws1, f1) = (hs2, ws2, f2))).
 Proof.
-  intros hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2 Hred1 Hred2.
+  intros hs ws f es hs1 ws1 f1 es1 hs2 ws2 f2 es2 Hred1 Hred2.
   (* we perform an (strong) induction on the length_rec of es, i.e. its number of
      instructions, counting recursively under AI_locals and AI_labels *)
   cut (forall n, length_rec es < n ->
-            ((hs1, f1, ws1, es1) = (hs2, f2, ws2, es2) \/
+            ((hs1, ws1, f1, es1) = (hs2, ws2, f2, es2) \/
                first_instr es = Some (AI_basic (BI_grow_memory)) \/
-               (exists a, first_instr es = Some (AI_invoke a)) \/
+               (exists a cl tf h, first_instr es = Some (AI_invoke a) /\ nth_error (s_funcs ws) a = Some cl /\ cl = FC_func_host tf h) \/
                (first_instr es = Some AI_trap /\ first_instr es1 = Some AI_trap /\
                   first_instr es2 = Some AI_trap /\
-                  (hs1, f1, ws1) = (hs2, f2, ws2)))).
+                  (hs1, ws1, f1) = (hs2, ws2, f2)))).
   (* the next few lines simply help put the induction into place *)
   { intro Hn ; apply (Hn (S (length_rec es))) ; lia. }
   intro nnn. generalize dependent es. generalize dependent es1.
-  generalize dependent es2. generalize dependent ws1. generalize dependent ws2.
-  generalize dependent ws.
-  induction nnn ; intros ws ws2 ws1 es2 es1 es Hred1 Hred2 Hlen ; first lia.
+  generalize dependent es2. generalize dependent f1. generalize dependent f2.
+  generalize dependent f.
+  induction nnn ; intros f f2 f1 es2 es1 es Hred1 Hred2 Hlen ; first lia.
   (* begining of the actual reasoning *)
   (* We have hypotheses [ Hred1 : es -> es1 ] and  [ Hred2 : es -> es2 ]. We perform
      a case analysis on Hred1 (induction because of the r_label case) *)
@@ -4187,6 +4189,9 @@ Proof.
         replace [AI_basic (BI_block (Tf t1s t2s) es)] with
           (AI_basic (BI_block (Tf t1s t2s) es) :: []) in H4 => //=.
         apply first_values in H4 as (_ & Habs & _) => //= ; try by (left + right). }
+      (* Invoke native *)
+      admit.
+      (* Block *)
       simple_filled H3 k lh bef aft nn ll ll'.
       destruct aft. { destruct bef. { rewrite app_nil_l app_nil_r in H3.
                                       unfold lfilled, lfill in H4 ; simpl in H4.
