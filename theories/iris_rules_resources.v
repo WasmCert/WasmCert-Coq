@@ -435,17 +435,17 @@ Proof.
   by rewrite Hm.
 Qed.
 
-Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) :
-  m1 ≡ₘ m2 ->
-  store m1 n off bs l = Some m1' ->
-  exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2'.
-Proof.
-  move => Hmequiv Hstore.
-  Print memory_list.
-  exists (Build_memory (Build_memory_list (ml_init (mem_data m2)) (ml_data (mem_data m1'))) (mem_max_opt m2)).
-  unfold store in Hstore.
-  unfold store.
-Admitted.
+(* Lemma store_data_inj (m1 m2 m1': memory) (n: N) (off: static_offset) (bs: bytes) (l: nat) : *)
+(*   m1 ≡ₘ m2 -> *)
+(*   store m1 n off bs l = Some m1' -> *)
+(*   exists m2', store m2 n off bs l = Some m2' /\ m1' ≡ₘ m2'. *)
+(* Proof. *)
+(*   move => Hmequiv Hstore. *)
+(*   Print memory_list. *)
+(*   exists (Build_memory (Build_memory_list (ml_init (mem_data m2)) (ml_data (mem_data m1'))) (mem_max_opt m2)). *)
+(*   unfold store in Hstore. *)
+(*   unfold store. *)
+(* Admitted. *)
 
 Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
   n < length l ->

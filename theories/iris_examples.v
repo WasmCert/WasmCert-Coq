@@ -278,10 +278,6 @@ Qed.
   
 
 (* --------------------------------------------------------------------------------------------- *)
-(* -------------------------- END OF CONTROL FLOW EXAMPLES ------------------------------------- *)
-(* --------------------------------------------------------------------------------------------- *)
-
-(* --------------------------------------------------------------------------------------------- *)
 (* ------------------------- LOCAL STATE EXAMPLE: FACTORIAL ------------------------------------ *)
 (* --------------------------------------------------------------------------------------------- *)
 
@@ -579,5 +575,35 @@ Proof.
   iNext. iIntros "Hf".
   iFrame. auto.
 Qed.
-                 
+
+
+(* --------------------------------------------------------------------------------------------- *)
+(* ------------------------- SIMPLE CALL INDIRECT EXAMPLE -------------------------------------- *)
+(* --------------------------------------------------------------------------------------------- *)
+
+(* Module 1 *)
+
+Definition f1_instrs : seq.seq basic_instruction :=
+  [BI_const (xx 0);
+   BI_load T_i32 None 0%N 0%N].
+Definition f2 : expr := to_e_list f1_instrs.
+Definition store42_instrs : seq.seq basic_instruction :=
+  [BI_const (xx 0);
+   BI_const (xx 42);
+   BI_store T_i32 None 0%N 0%N].
+Definition store42 : expr := to_e_list (store42_instrs).
+
+(* Module 2 *)
+
+Definition store11_instrs : seq.seq basic_instruction :=
+  [BI_const (xx 0);
+   BI_const (xx 11);
+   BI_store T_i32 None 0%N 0%N].
+Definition store11 : expr := to_e_list (store11_instrs).
+Definition doIt_instrs i: seq.seq basic_instruction :=
+  [BI_const (xx 0);
+   BI_call_indirect i].
+Definition doIt i : expr := to_e_list (doIt_instrs i).
+
+
 End Examples.
