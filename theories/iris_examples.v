@@ -586,7 +586,7 @@ Qed.
 Definition f1_instrs : seq.seq basic_instruction :=
   [BI_const (xx 0);
    BI_load T_i32 None 0%N 0%N].
-Definition f2 : expr := to_e_list f1_instrs.
+Definition f1 : expr := to_e_list f1_instrs.
 Definition store42_instrs : seq.seq basic_instruction :=
   [BI_const (xx 0);
    BI_const (xx 42);
@@ -605,5 +605,96 @@ Definition doIt_instrs i: seq.seq basic_instruction :=
    BI_call_indirect i].
 Definition doIt i : expr := to_e_list (doIt_instrs i).
 
+(* Note that the frame instance will be different for the spec of the two modules. *)
+
+Lemma f1_spec f n v :
+  types_agree T_i32 v ->
+  f.(f_inst).(inst_memory) !! 0 = Some n ->
+  ↪[frame] f -∗
+  (N.of_nat n) ↦[wms][ 0%N ] (bits v) -∗
+  WP f1 {{ w, (⌜w = immV [v]⌝ ∗ (N.of_nat n) ↦[wms][ 0%N ] (bits v)) ∗ ↪[frame] f }}.
+Proof.
+  iIntros (Htypes Hfmem) "Hf Hn".
+  iApply wp_wand_r. iSplitL.
+  iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto. apply (f_inst f).
+  iIntros (w) "[-> [Hf Hn]] /=".
+  iFrame. auto.
+Qed.
+
+Lemma store42_spec f n c :
+  f.(f_inst).(inst_memory) !! 0 = Some n ->
+  ↪[frame] f -∗
+   (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) -∗
+   WP store42 {{ w, (⌜w = immV []⌝ ∗ (N.of_nat n) ↦[wms][ 0%N ] (bits (xx 42))) ∗ ↪[frame] f }}.
+Proof.
+  iIntros (Hfmem) "Hf Hn".
+  iApply wp_wand_r. iSplitL.  
+  iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
+  by rewrite Memdata.encode_int_length.
+  iIntros (v) "[-> [Hf Hn]]". rewrite /= N.add_0_l.
+  iFrame. auto.
+Qed.
+
+
+Lemma store11_spec f n c :
+  f.(f_inst).(inst_memory) !! 0 = Some n ->
+  ↪[frame] f -∗
+   (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) -∗
+   WP store11 {{ w, (⌜w = immV []⌝ ∗ (N.of_nat n) ↦[wms][ 0%N ] (bits (xx 11))) ∗ ↪[frame] f }}.
+Proof.
+  iIntros (Hfmem) "Hf Hn".
+  iApply wp_wand_r. iSplitL.  
+  iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
+  by rewrite Memdata.encode_int_length.
+  iIntros (v) "[-> [Hf Hn]]". rewrite /= N.add_0_l.
+  iFrame. auto.
+Qed.
+
+Lemma doIt_spec t i2 f0 a v n :
+  (inst_types (f_inst f0)) !! t = Some (Tf [] [T_i32]) ->
+  (inst_tab (f_inst f0)) !! 0 = Some t ->
+  types_agree T_i32 v ->
+  inst_memory i2 !! 0 = Some n ->
+  (* ghost state of current instance *)
+  (N.of_nat t) ↦[wt][ 0%N ] (Some a) -∗
+  (N.of_nat a) ↦[wf] (FC_func_native i2 (Tf [] [T_i32]) [] f1_instrs) -∗
+  ↪[frame] f0 -∗
+  (* ghost state of instance i2 *)
+  N.of_nat n ↦[wms][0] bits v -∗
+  WP doIt t {{  λ _, True ∗ ↪[frame] f0  }}.
+Proof.
+  iIntros (Htype Ht Hv Hn) "Ht Ha Hf Hn".
+  iApply (wp_call_indirect_success with "[Ht] Ha Hf");eauto.
+  iNext. iIntros "[Ht [Ha Hf]]".
+  take_drop_app_rewrite 0.
+  iApply (wp_invoke_native with "Hf Ha");eauto.
+  iNext. iIntros "[Hf Ha] /=".
+  rewrite /= -wp_frame_rewrite.
+  iApply wp_wasm_empty_ctx_frame.
+  take_drop_app_rewrite 1.
+  iApply (wp_seq_ctx_frame _ _ _ (λ w, ⌜w = immV [v]⌝ ∗ N.of_nat n↦[wms][0]bits v)%I).
+  iFrame. iSplitL "Hn".
+  { iIntros "Hf /=".
+    take_drop_app_rewrite 0.
+    iApply (wp_block with "[$]");eauto.
+    iNext. Local Opaque to_e_list.
+    iIntros "Hf /=".
+    iApply wp_wasm_empty_ctx.
+    iApply wp_label_push_nil. simpl push_base.
+    iApply iRewrite_nil_r_ctx.
+    iApply (wp_seq_ctx with "[-]").
+    iSplitL.
+    iApply (f1_spec with "Hf Hn");auto.
+    iIntros (w) "[[-> Hn] Hf] /=".
+    iApply (wp_val_return with "[$]");auto.
+    iIntros "Hf /=".
+    iApply wp_value. by instantiate (1:=immV [_]).
+    iFrame. auto.
+  }
+
+  iIntros (w) "[[-> Hn] Hf] /=".
+  iApply wp_wasm_empty_ctx_frame.
+  iApply (wp_frame_value with "[$]");eauto.
+Qed.
 
 End Examples.
