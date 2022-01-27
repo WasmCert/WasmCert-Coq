@@ -118,8 +118,34 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
     num_laters_per_step _ := 0;
     fork_post _ := True%I;
     state_interp_mono _ _ _ _ := fupd_intro _ _
-}.
+  }.
 
+Section Host_wp_import.
+  (* Host wp must depend on the same memory model as for wasm *)
+  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+
+  Record host_program_logic := {
+      wp_host (s : stuckness) : coPset -d> host_function -d> seq.seq value -d> (result -d> iPropO Σ) -d> iPropO Σ;
+      wp_host_not_stuck : (forall σ ns κs nt Φ h E vcs t1s t2s a, (let '(hs,s,_,_) := σ in
+                                              s_funcs s !! a = Some (FC_func_host (Tf t1s t2s) h)) ->
+                                              state_interp σ ns κs nt -∗
+                                              wp_host NotStuck E h vcs Φ ={E}=∗
+                                              state_interp σ ns κs nt ∗ wp_host NotStuck E h vcs Φ ∗
+                                              ⌜(let '(hs,s,_,_) := σ in (∃ hs' s' r, host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r))) ∨
+                                               (∃ hs', host_application hs s (Tf t1s t2s) h vcs hs' None))⌝);
+      wp_host_step_red : (∀ σ ns κ κs nt Φ h E vcs t1s t2s, (
+                                                               
+                                              state_interp σ ns (κ ++ κs) nt -∗
+                                              wp_host NotStuck E h vcs Φ ={E,∅}=∗
+                                              (∀ σ' r, ⌜(let '(hs,s,_,_) := σ in let '(hs',s',_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r)))⌝
+                                              ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
+                                                 state_interp σ' (S ns) κs nt ∗ Φ r) ∗
+                                              (∀ σ', ⌜(let '(hs,s,_,_) := σ in let '(hs',_,_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' None)⌝
+                                              ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
+                                                 state_interp σ' (S ns) κs nt ∗ wp_host NotStuck E h vcs Φ)));
+    }.
+  
+End Host_wp_import.
 
 (* Resource ownerships *)
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
