@@ -101,6 +101,17 @@ Proof.
   - move => a l IH vs2. by rewrite IH.
 Qed.
 
+Lemma v_to_e_inj: forall vs1 vs2,
+    v_to_e_list vs1 = v_to_e_list vs2 ->
+    vs1 = vs2.
+Proof.
+  move => vs1.
+  induction vs1; move => vs2; destruct vs2 => //=.
+  move => Heq. inversion Heq; subst.
+  f_equal.
+  by apply IHvs1.
+Qed.
+
 Lemma split_vals_e_v_to_e_duality: forall es vs es',
     split_vals_e es = (vs, es') ->
     es = (v_to_e_list vs) ++ es'.

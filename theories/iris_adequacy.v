@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
+Require Export iris iris_locations iris_atomicity stdpp_aux.
 Require Export datatypes host operations properties opsem.
 Require Import iris_rules.
 
@@ -31,7 +31,7 @@ Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG 
    we have WP e {{ Φ }}.
 
    Why is this definition useful, though?
-*)
+ *)
 Notation wptp s t Φs := ([∗ list] e;Φ ∈ t;Φs, WP e @ s; ⊤ {{ Φ }})%I.
 
 (* Given that (e1, σ1) -> (e2, σ2) with 'effects' efs, plus the state interp

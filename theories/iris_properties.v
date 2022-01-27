@@ -4048,7 +4048,17 @@ Proof.
   unfold const_list in Hconst. rewrite forallb_app in Hconst.
   apply andb_true_iff in Hconst as [_ Habs]. simpl in Habs.
   destruct a ; try by apply H0. *)
-Qed. 
+Qed.
+
+Lemma trap_not_constant es:
+  In AI_trap es ->
+  const_list es ->
+  False.
+Proof.
+  elim: es => //=.
+  move => e es Htrap [-> | Htrap2] Hcontra; move/andP in Hcontra; destruct Hcontra as [He Hes] => //.
+  by apply Htrap => //.
+Qed.
     
 Lemma first_instr_local es e n f :
   first_instr es = Some e ->
@@ -4069,8 +4079,6 @@ Ltac only_one objs Hred2 :=
   left ; remember objs as es eqn:Heqes ;
   apply Logic.eq_sym in Heqes ;
   only_one_reduction Heqes Hred2.
-
-Print r_invoke_native.
 
 Lemma reduce_det: forall hs (ws: store_record) (f: frame) es hs1 ws1 f1 es1 hs2 ws2 f2 es2,
   reduce hs ws f es hs1 ws1 f1 es1 ->
@@ -4189,9 +4197,11 @@ Proof.
         replace [AI_basic (BI_block (Tf t1s t2s) es)] with
           (AI_basic (BI_block (Tf t1s t2s) es) :: []) in H4 => //=.
         apply first_values in H4 as (_ & Habs & _) => //= ; try by (left + right). }
-      (* Invoke native *)
-      admit.
-      (* Block *)
+      (* Invoke native appears here as well as a potential reduction, although the premise doesn't hold since we're in the block case *)
+      {
+        apply app_inj_tail in Heqes0 as [? Hcontra].
+        by inversion Hcontra.
+        }
       simple_filled H3 k lh bef aft nn ll ll'.
       destruct aft. { destruct bef. { rewrite app_nil_l app_nil_r in H3.
                                       unfold lfilled, lfill in H4 ; simpl in H4.
@@ -4238,6 +4248,10 @@ Proof.
         replace [AI_basic (BI_block (Tf t1s t2s) es)] with
           (AI_basic (BI_block (Tf t1s t2s) es) :: []) in H4 => //=.
         apply first_values in H4 as (_ & Habs & _) => //= ; try by (left + right). }
+      {
+        apply app_inj_tail in Heqes0 as [? Hcontra].
+        by inversion Hcontra.
+        }
       simple_filled H3 k lh bef aft nn ll ll'.
       destruct aft. { destruct bef. { rewrite app_nil_l app_nil_r in H3.
                                       unfold lfilled, lfill in H4 ; simpl in H4.
@@ -4694,10 +4708,53 @@ Proof.
   - clear IHnnn ;
       only_one [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_call_indirect i)] Hred2.
     inversion Heqes ; subst ; rewrite H in H0 ; inversion H0.
-    (* The following 3 cases are the r_invoke cases. We do not guarantee determinism in
-       these cases, but the third disjunct of the conclusion holds *)
-  - right ; right ; left. exists a. rewrite first_instr_const => //=.
+  (* Invoke native *)
+  - clear IHnnn.
+    left ; remember (ves ++ [AI_invoke a])%SEQ as es0.
+      induction Hred2 ; try by do 4 destruct ves => //; try by inversion Heqes0 ;
+      try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
+      (* 3 cases generated *)
+      (* reduce_simple *)
+      { destruct H9 ; (try by inversion Heqes0) ;
+          (try by do 5 destruct ves => //);
+          (try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs).
+        rewrite Heqes0 in H10 ; filled_trap H10 Hxl1.
+        apply in_app_or in Hxl1.
+        destruct Hxl1; try by simpl in H11; destruct H11.
+        apply (trap_not_constant ves) => //.
+        rewrite H1.
+        by apply v_to_e_is_const_list. }
+      (* Invoke native, the desired case *)
+      { apply app_inj_tail in Heqes0 as [-> Habs]; inversion Habs; subst.
+        apply v_to_e_inj in H11; subst.
+        rewrite H in H9.
+        inversion H9; subst; clear H9.
+        do 3 f_equal. 
+        destruct f', f'0. simpl in H1, H8, H18; by subst; f_equal.
+      }
+      (* label *)
+      {
+        rewrite Heqes0 in H9. simple_filled H9 k0 lh bef aft nn ll ll'.
+        - 
+      destruct bef. { destruct es ; first by empty_list_no_reduce Hred2.
+                      inversion H0. apply Logic.eq_sym, app_eq_unit in H4
+                                        as [[ -> _ ]|[ -> -> ]].
+                      subst ; exfalso ; values_no_reduce Hred2.
+                      apply andb_true_iff ; split => //=.
+                      unfold lfilled, lfill in H1 ; simpl in H1.
+                      apply b2p in H1. rewrite app_nil_r in H1 ; subst.
+                      apply IHHred2 => //=. }
+      inversion H0. apply Logic.eq_sym, app_eq_unit in H4 as [[ _ Hes ]|[ _ Hes]].
+      apply app_eq_unit in Hes as [[ -> _ ]|[ Hes _]].
+      empty_list_no_reduce Hred2.
+      apply Logic.eq_sym in Hes ; exfalso ; no_reduce Hes Hred2.
+      apply app_eq_nil in Hes as [-> _]. empty_list_no_reduce Hred2.
+      rewrite Hxl1 in H ; inversion H.
+    only_one [AI_local m f' [AI_basic (BI_block (Tf [] t2s) es)]] Hred2.
+    right ; right ; left. exists a. rewrite first_instr_const => //=.
     subst. by apply v_to_e_is_const_list.
+    (* The following 2 cases are the r_invoke host cases. We do not guarantee determinism in
+       these cases, but the third disjunct of the conclusion holds *)
   - right ; right ; left. exists a ; rewrite first_instr_const => //=.
  (*   subst ; by apply v_to_e_is_const_list.*)
   - right ; right ; left. exists a ; rewrite first_instr_const => //=.
