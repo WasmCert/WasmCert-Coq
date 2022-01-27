@@ -3490,6 +3490,8 @@ Ltac filled2 Hfill i lh bef aft nn ll ll' Hes1 es1 :=
 
    It ought to be the generalized versions of prim_step_split_reduce_r.
  *)
+
+(*
 Lemma lfilled_prim_step_split_reduce_r i lh es1 es2 σ LI e2 σ2 obs2 efs2 :
   lfilled i lh (es1 ++ es2)%list LI ->
   reducible es1 σ ->
@@ -3879,7 +3881,7 @@ Proof.
       { unfold lfilled, lfill in Hfillm.
         destruct lh2 as [bef2 aft2 |] ; last by false_assumption.
         destruct (const_list bef2) eqn:Hbef2 ; last by false_assumption.
-
+        apply b2p in Hfillm.
     
 
 
@@ -3907,7 +3909,7 @@ Proof.
         
 
   ianseatn
-Admitted.
+Admitted. *)
 
 Lemma local_frame_lfilled_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 j lh LI :
   lfilled j lh (es1 ++ es2)%list LI ->
@@ -5127,22 +5129,22 @@ Proof.
                                       unfold lfilled, lfill in H4 ; simpl in H4.
                                       apply b2p in H4 ; rewrite app_nil_r in H4 ; subst.
                                       apply IHHred2 => //=. }
-        destruct es0 ; first by empty_list_no_reduce Hred2.
+        destruct es0 ; first by empty_list_no_reduce.
                       get_tail a0 es0 ys y Htail.
                       rewrite Htail app_nil_r in H3. rewrite <- Heqes0 in H3.
-                      rewrite app_assoc in H3. apply app_inj_tail in H3 as [Hvs Hy].
+                      rewrite app_assoc in H3. apply app_inj_tail in H3 as [Hvs' Hy].
                       rewrite Htail in Hred2. rewrite <- Hy in Hred2. exfalso.
                       apply (block_not_enough_arguments_no_reduce
                                _ _ _ _ _ _ _ _ _ _ _ Hred2).
-                      - rewrite Hvs in H.
+                      - rewrite Hvs' in H.
                         unfold const_list in H. rewrite forallb_app in H.
                         by apply andb_true_iff in H as [_ Hys].
-                      - rewrite Hvs in H0. simpl in H0. subst. rewrite app_length in H0.
+                      - rewrite Hvs' in H0. simpl in H0. subst. rewrite app_length in H0.
                         lia. }
       get_tail a aft aft' a' Htail. rewrite Htail in H3.
       rewrite <- Heqes0 in H3. do 2 rewrite app_assoc in H3.
-      apply app_inj_tail in H3 as [Hvs _].
-      exfalso ; values_no_reduce Hred2. rewrite Hvs in H.
+      apply app_inj_tail in H3 as [Hvs' _].
+      exfalso ; values_no_reduce. rewrite Hvs' in H.
       unfold const_list in H. do 2 rewrite forallb_app in H.
       apply andb_true_iff in H as [H _].
       apply andb_true_iff in H as [_ H].
@@ -5173,22 +5175,22 @@ Proof.
                                       unfold lfilled, lfill in H4 ; simpl in H4.
                                       apply b2p in H4 ; rewrite app_nil_r in H4 ; subst.
                                       apply IHHred2 => //=. }
-        destruct es0 ; first by empty_list_no_reduce Hred2.
+        destruct es0 ; first by empty_list_no_reduce.
                       get_tail a0 es0 ys y Htail.
                       rewrite Htail app_nil_r in H3. rewrite <- Heqes0 in H3.
-                      rewrite app_assoc in H3. apply app_inj_tail in H3 as [Hvs Hy].
+                      rewrite app_assoc in H3. apply app_inj_tail in H3 as [Hvs' Hy].
                       rewrite Htail in Hred2. rewrite <- Hy in Hred2. exfalso.
                       apply (loop_not_enough_arguments_no_reduce
                                _ _ _ _ _ _ _ _ _ _ _ Hred2).
-                      - rewrite Hvs in H.
+                      - rewrite Hvs' in H.
                         unfold const_list in H. rewrite forallb_app in H.
                         by apply andb_true_iff in H as [_ Hys].
-                      - rewrite Hvs in H0. simpl in H0. subst. rewrite app_length in H0.
+                      - rewrite Hvs' in H0. simpl in H0. subst. rewrite app_length in H0.
                         lia. }
       get_tail a aft aft' a' Htail. rewrite Htail in H3.
       rewrite <- Heqes0 in H3. do 2 rewrite app_assoc in H3.
-      apply app_inj_tail in H3 as [Hvs _].
-      exfalso ; values_no_reduce Hred2. rewrite Hvs in H.
+      apply app_inj_tail in H3 as [Hvs' _].
+      exfalso ; values_no_reduce. rewrite Hvs' in H.
       unfold const_list in H. do 2 rewrite forallb_app in H.
       apply andb_true_iff in H as [H _].
       apply andb_true_iff in H as [_ H].
@@ -5229,7 +5231,7 @@ Proof.
         rewrite forallb_app in H. apply andb_true_iff in H as [_ Habs].
         inversion Habs.
       + destruct bef ; inversion H1.
-        exfalso ; values_no_reduce Hred2.
+        exfalso ; values_no_reduce.
         unfold lfill in Heqles1. destruct k. { destruct lh0 ; last by false_assumption.
                                                destruct (const_list l2) ;
                                                  inversion Heqles1.
@@ -5263,7 +5265,7 @@ Proof.
                                                  inversion Heqles1.
                                                destruct l2.
                                                { destruct es1 ;
-                                                   first by empty_list_no_reduce Hred2.
+                                                   first by empty_list_no_reduce.
                                                  inversion H6.
                                                  apply Logic.eq_sym,
                                                    app_eq_nil in H8 as [Hes1 _].
@@ -5275,7 +5277,7 @@ Proof.
                                                apply Logic.eq_sym,
                                                  app_eq_nil in H8 as [_ Hes1].
                                                apply app_eq_nil in Hes1 as [Hes1 _].
-                                               subst ; empty_list_no_reduce Hred2. }
+                                               subst ; empty_list_no_reduce. }
         fold lfill in Heqles1. destruct lh0 ; first by false_assumption.
         destruct (const_list l2) ; last by inversion Heqles1.
         destruct (lfill _ _ _) ; inversion Heqles1.
@@ -5316,6 +5318,11 @@ Proof.
         inversion H3 ; subst ; clear H3. 
         assert (lfilled k lh1 es1 l0) as Hfill ;
           first by unfold lfilled ; rewrite <- Heqles1. exfalso.
+        assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
+                        (vs ++ [AI_basic (BI_br i)])) ;
+          first by unfold lfilled, lfill ; rewrite H app_nil_r.
+        eapply lfilled_trans in H1 as [lh' Hfill'] => //=.
+        simpl in Hfill'.
         eapply lfilled_br_and_reduce => //=.
     - only_one [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_br_if i)] Hred2 ;
       [ done | subst ; exfalso ; by apply H0 ].
@@ -5356,11 +5363,11 @@ Proof.
       + rewrite Heqes0 in H1. simple_filled H1 k lh bef aft nn ll ll'.
         simpl in H1. apply Logic.eq_sym, app_eq_unit in H1 as [[-> Hes] | [_ Hes]].
         apply app_eq_unit in Hes as [[-> _]|[Hes ->]].
-        empty_list_no_reduce Hred2.
+        empty_list_no_reduce.
         unfold lfilled, lfill in H2. simpl in H2. apply b2p in H2.
         rewrite app_nil_r in H2. subst. apply IHHred2 => //=.
-        apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce Hred2.
-      + inversion Heqes0 ; subst. exfalso ; values_no_reduce Hred2.
+        apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce.
+      + inversion Heqes0 ; subst. exfalso ; values_no_reduce.
     - left ; remember [AI_local n f0 [AI_trap]] as es0.
       rewrite <- app_nil_l in Heqes0.
       induction Hred2 ; try by inversion Heqes0 ;
@@ -5382,10 +5389,10 @@ Proof.
       + rewrite Heqes0 in H. simple_filled H k lh bef aft nn ll ll'.
         simpl in H. apply Logic.eq_sym, app_eq_unit in H as [[-> Hes] | [_ Hes]].
         apply app_eq_unit in Hes as [[-> _]|[Hes ->]].
-        empty_list_no_reduce Hred2.
+        empty_list_no_reduce.
         unfold lfilled, lfill in H0. simpl in H0. apply b2p in H0.
         rewrite app_nil_r in H0. subst. apply IHHred2 => //=.
-        apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce Hred2.
+        apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce.
       + inversion Heqes0 ; subst. exfalso ; apply AI_trap_irreducible in Hred2 => //=.
     - (* this is the rs_return case. It combines the difficulties of rs_br with
          the fact that, as for the previous few cases, [ only_one ] cannot be applied
@@ -5431,10 +5438,10 @@ Proof.
       + rewrite Heqes0 in H2. simple_filled H2 k lh0 bef aft nn ll ll'.
         simpl in H2. apply Logic.eq_sym, app_eq_unit in H2 as [[-> Hes] | [_ Hes]].
         apply app_eq_unit in Hes as [[-> _]|[Hes ->]].
-        empty_list_no_reduce Hred2.
+        empty_list_no_reduce.
         unfold lfilled, lfill in H3. simpl in H3. apply b2p in H3.
         rewrite app_nil_r in H3. subst. apply IHHred2 => //=.
-        apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce Hred2.
+        apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce.
       + { inversion Heqes0 ; subst.
           induction Hred2 ;
             (try by simple_filled H1 i lh bef aft nn ll ll' ;
@@ -5535,19 +5542,19 @@ Proof.
           try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
         rewrite Heqes0 in H1 ; filled_trap H1 Hxl1. rewrite Hxl1 in H ; inversion H. }
       rewrite Heqes0 in H0. simple_filled H0 k lh bef aft nn ll ll'.
-      destruct bef. { destruct es ; first by empty_list_no_reduce Hred2.
+      destruct bef. { destruct es ; first by empty_list_no_reduce.
                       inversion H0. apply Logic.eq_sym, app_eq_unit in H4
                                         as [[ -> _ ]|[ -> -> ]].
-                      subst ; exfalso ; values_no_reduce Hred2.
+                      subst ; exfalso ; values_no_reduce.
                       apply andb_true_iff ; split => //=.
                       unfold lfilled, lfill in H1 ; simpl in H1.
                       apply b2p in H1. rewrite app_nil_r in H1 ; subst.
                       apply IHHred2 => //=. }
       inversion H0. apply Logic.eq_sym, app_eq_unit in H4 as [[ _ Hes ]|[ _ Hes]].
       apply app_eq_unit in Hes as [[ -> _ ]|[ Hes _]].
-      empty_list_no_reduce Hred2.
+      empty_list_no_reduce.
       apply Logic.eq_sym in Hes ; exfalso ; no_reduce Hes Hred2.
-      apply app_eq_nil in Hes as [-> _]. empty_list_no_reduce Hred2.
+      apply app_eq_nil in Hes as [-> _]. empty_list_no_reduce.
       rewrite Hxl1 in H ; inversion H.
     - (* rs_trap case. [ only_one ] cannot be applied because the left-hand-side of Hred2
          is not an explicit list. We perform the case analysis by hand.
@@ -5895,7 +5902,7 @@ Proof.
             - inversion H ; subst. destruct k ; unfold lfill in Heqfill.
               { destruct lh ; last by inversion Heqfill.
                 destruct (const_list l1) ; inversion Heqfill.
-                exfalso ; values_no_reduce Hred1.
+                exfalso ; values_no_reduce.
                 rewrite H2 in H1 ; unfold const_list in H1 ; do 2 rewrite forallb_app in H1.
                 apply andb_true_iff in H1 as [_ H1].
                 by apply andb_true_iff in H1 as [H1 _]. }
@@ -5909,9 +5916,9 @@ Proof.
                 destruct (const_list l) ; inversion Heqfill.
                 apply Logic.eq_sym, app_eq_unit in H1 as [[ _ Hes] | [ _ Hes]].
                 apply app_eq_unit in Hes as [[ -> _ ] | [ -> _]].
-                empty_list_no_reduce Hred1.
+                empty_list_no_reduce.
                 exfalso ; by eapply test_no_reduce_trap.
-                apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce Hred1. } 
+                apply app_eq_nil in Hes as [-> _] ; empty_list_no_reduce. } 
               fold lfill in Heqfill. destruct lh ; first by inversion Heqfill.
               destruct (const_list l) ; last by inversion Heqfill.
               destruct (lfill _ _ _) ; inversion Heqfill.
@@ -5928,10 +5935,10 @@ Proof.
             apply b2p in H1. simpl in H1.
             apply Logic.eq_sym, app_eq_unit in H1 as [[ ->  Hes1 ] | [ _ Hes1]].
             apply app_eq_unit in Hes1 as [[ -> _ ] | [ -> -> ]].
-            empty_list_no_reduce Hred2.
+            empty_list_no_reduce.
             unfold lfilled, lfill in H2 ; simpl in H2 ; apply b2p in H2.
             rewrite app_nil_r in H2. subst. apply IHHred2 => //=.
-            apply app_eq_nil in Hes1 as [-> _ ] ; empty_list_no_reduce Hred2. }
+            apply app_eq_nil in Hes1 as [-> _ ] ; empty_list_no_reduce. }
           fold lfill in H1. clear IHHred1 IHHred2.
           destruct lh0 ; first by false_assumption.
           destruct (const_list l1) ; last by false_assumption.
@@ -6138,7 +6145,7 @@ Proof.
       try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
     { destruct H ; (try by inversion Heqes0) ;
         try by apply app_inj_tail in Heqes0 as [_ Habs] ; inversion Habs.
-      - inversion Heqes0 ; subst. exfalso ; values_no_reduce Hred1.
+      - inversion Heqes0 ; subst. exfalso ; values_no_reduce.
       - inversion Heqes0 ; subst.
         exfalso ; by apply (test_no_reduce_trap _ _ _ _ _ _ _ Hred1).
       - { inversion Heqes0 ; subst.
@@ -6234,11 +6241,11 @@ Proof.
     + rewrite Heqes0 in H. simple_filled H k lh bef aft nn ll ll'.
       simpl in H. apply Logic.eq_sym, app_eq_unit in H as [[ -> Hes] | [_ Hes]].
       apply app_eq_unit in Hes as [[ -> _ ] | [-> ->]].
-      empty_list_no_reduce Hred2.
+      empty_list_no_reduce.
       unfold lfilled, lfill in H0 ; simpl in H0 ; rewrite app_nil_r in H0 ;
         apply b2p in H0 ; subst.
       by apply IHHred2.
-      apply app_eq_nil in Hes as [-> _ ] ; empty_list_no_reduce Hred2.
+      apply app_eq_nil in Hes as [-> _ ] ; empty_list_no_reduce.
     + (* In case Hred2 was also proved using r_local, we make use of the induction
          hypothesis IHnnn *)
       inversion Heqes0 ; subst. clear IHHred2.
