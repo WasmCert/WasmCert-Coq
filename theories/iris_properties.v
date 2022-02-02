@@ -3491,7 +3491,7 @@ Ltac filled2 Hfill i lh bef aft nn ll ll' Hes1 es1 :=
    It ought to be the generalized versions of prim_step_split_reduce_r.
  *)
 
-(*
+
 Lemma lfilled_prim_step_split_reduce_r i lh es1 es2 σ LI e2 σ2 obs2 efs2 :
   lfilled i lh (es1 ++ es2)%list LI ->
   reducible es1 σ ->
@@ -3888,7 +3888,7 @@ Proof.
       
     
     unfold lfilled, lfill in H.
-    destruct k.
+    destruct k. (*
     { destruct lh0 as [bef0 aft0 |] ; last by false_assumption.
       destruct (const_list bef0) eqn:Hbef0 ; last by false_assumption.
       apply b2p in H.
@@ -3906,10 +3906,10 @@ Proof.
         simpl in Hlen.
         lia.
         eapply IHn in H1.
-        
+        *)
 
-  ianseatn
-Admitted. *)
+(*  ianseatn *)
+Admitted.
 
 Lemma local_frame_lfilled_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 j lh LI :
   lfilled j lh (es1 ++ es2)%list LI ->
