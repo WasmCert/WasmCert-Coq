@@ -4,19 +4,17 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_atomicity stdpp_aux.
+Require Export stdpp_aux iris iris_locations iris_atomicity iris_wp_def.
 Require Export datatypes host operations properties opsem.
-Require Import iris_rules.
 
 Import uPred.
 
 (** This file contains the adequacy statements of the Iris program logic. First
 we prove a number of auxilary results. *)
 
+Close Scope byte_scope.
+
 Section adequacy.
-  
-(* Example Programs *)
-Section Examples.
   
 Import DummyHosts.
 
@@ -102,11 +100,20 @@ Local Fixpoint steps_sum (num_laters_per_step : nat → nat) (start ns : nat) : 
 
 Let nsteps := @iris.program_logic.language.nsteps wasm_lang.
 
+Lemma wp_not_stuck κs ns nt e σ Φ :
+  state_interp σ ns κs nt -∗ WP e {{ Φ }} ={⊤}=∗ ⌜language.not_stuck e σ⌝.
+Proof.
+  rewrite wp_unfold /wasm_wp_pre /not_stuck. iIntros "Hσ H".
+  destruct (to_val e) as [v|] eqn:?; first by eauto.
+  iSpecialize ("H" $! σ 0 [] κs 0 with "Hσ"). rewrite sep_elim_l.
+  iMod (fupd_plain_mask with "H") as %?; eauto.
+Qed.
+
 Lemma wptp_steps s n es1 es2 κs κs' σ1 σ2 Φs ns nt :
   nsteps n (es1, σ1) κs (es2, σ2) →
   state_interp σ1 ns (κs ++ κs') nt -∗ wptp s es1 Φs
   ={⊤}[∅]▷=∗^n ∃ nt',
-    state_interp σ2 (n+ns) κs' (nt + nt') ∗ wptp s es2 (Φs ++ replicate nt' fork_post).
+    state_interp σ2 (ns + n) κs' (nt + nt') ∗ wptp s es2 (Φs ++ replicate nt' fork_post).
 Proof.
   revert nt es1 es2 κs κs' σ1 σ2 Φs.
   induction n as [|n IH]=> nt es1 es2 κs κs' σ1 σ2 Φs /=.
@@ -114,34 +121,26 @@ Proof.
     rewrite right_id_L. by iFrame. }
   iIntros (Hsteps) "Hσ He". inversion_clear Hsteps as [|?? [t1' σ1']].
   iDestruct (wptp_step with "Hσ He") as (nt') ">H"; first eauto; simplify_eq.
-  iMod "H".
-  iIntros "!> !>". iMod "H". iMod "H" as "(Hσ & He)". iModIntro.
+  instantiate (1 := 0).
+  instantiate (1 := []).
+  instantiate (1 := 0).
+  iMod "H". iIntros "!> !>". iMod "H".
+  (* Why does iMod work here???? *)
+  iMod "H" as "(Hσ & He)".
+  iModIntro.
   iApply (step_fupdN_wand with "[Hσ He]"); first by iApply (IH with "Hσ He").
-  iDestruct 1 as (nt'') "[??]".
-  rewrite -(assoc_L app) -replicate_plus.
+  instantiate (1 := 0).
+  instantiate (1 := []).
+  iDestruct 1 as (nt'') "[??]". rewrite -(assoc_L app) -replicate_plus.
   by eauto with iFrame.
-  Unshelve. exact [].
-  Unshelve. exact 0.
-  Unshelve. exact 0.
-  Unshelve. exact 0.
-  Unshelve. exact [].
 Qed.
 
-Lemma wp_not_stuck κs ns nt e σ Φ :
-  state_interp ns σ κs nt -∗ WP e {{ Φ }} ={⊤}=∗ ⌜not_stuck e σ⌝.
-Proof.
-  rewrite wp_unfold /wp_pre /not_stuck. iIntros "Hσ H".
-  destruct (to_val e) as [v|] eqn:?; first by eauto.
-  iSpecialize ("H" $! σ [] κs with "Hσ"). rewrite sep_elim_l.
-  iMod (fupd_plain_mask with "H") as %?; eauto.
-Qed.
-
-Lemma wptp_strong_adequacy Φs κs' s n es1 es2 κs σ1 σ2 nt:
+Lemma wptp_strong_adequacy Φs κs' s n es1 es2 κs σ1 σ2 ns nt:
   nsteps n (es1, σ1) κs (es2, σ2) →
-  state_interp σ1 (κs ++ κs') nt -∗
+  state_interp σ1 ns (κs ++ κs') nt -∗
   wptp s es1 Φs ={⊤}[∅]▷=∗^(S n) ∃ nt',
     ⌜ ∀ e2, s = NotStuck → e2 ∈ es2 → not_stuck e2 σ2 ⌝ ∗
-    state_interp σ2 κs' (nt + nt') ∗
+    state_interp σ2 (n + ns) κs' (nt + nt') ∗
     [∗ list] e;Φ ∈ es2;Φs ++ replicate nt' fork_post, from_option Φ True (to_val e).
 Proof.
   iIntros (Hstep) "Hσ He". rewrite Nat_iter_S_r.
@@ -150,7 +149,7 @@ Proof.
   iDestruct 1 as (nt') "(Hσ & Ht)"; simplify_eq/=.
   iMod (fupd_plain_keep_l ⊤
     ⌜ ∀ e2, s = NotStuck → e2 ∈ es2 → not_stuck e2 σ2 ⌝%I
-    (state_interp σ2 κs' (nt + nt') ∗ wptp s es2 (Φs ++ replicate nt' fork_post))%I
+    (state_interp σ2 ns κs' (nt + nt') ∗ wptp s es2 (Φs ++ replicate nt' fork_post))%I
     with "[$Hσ $Ht]") as "(%&Hσ&Hwp)".
   { iIntros "(Hσ & Ht)" (e' -> He').
     move: He' => /(elem_of_list_split _ _)[?[?->]].
@@ -168,14 +167,14 @@ Qed.
 End adequacy.
 
 (** Iris's generic adequacy result *)
-Theorem wp_strong_adequacy Σ Λ `{!invPreG Σ} es σ1 n κs t2 σ2 φ :
+Theorem wp_strong_adequacy Σ `{!invPreG Σ} es σ1 n κs t2 σ2 φ :
   (∀ `{Hinv : !invG Σ},
     ⊢ |={⊤}=> ∃
          (s: stuckness)
-         (stateI : state Λ → list (observation Λ) → nat → iProp Σ)
-         (Φs : list (val Λ → iProp Σ))
-         (fork_post : val Λ → iProp Σ),
-       let _ : irisG Λ Σ := IrisG _ _ Hinv stateI fork_post in
+         (stateI : state → nat -> list (observation) → nat → iProp Σ)
+         (Φs : list (val → iProp Σ))
+         (fork_post : val → iProp Σ),
+     let _ : irisG Σ := IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono in
        stateI σ1 κs 0 ∗
        ([∗ list] e;Φ ∈ es;Φs, WP e @ s; ⊤ {{ Φ }}) ∗
        (∀ es' t2',
