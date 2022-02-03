@@ -46,12 +46,13 @@ Proof.
 Qed.
 
 Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
-  (WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
+  ((¬ (Ψ trapV)) ∗
+  WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }})%I
   ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v }}.
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh).
-{ iIntros "[Hes1 Hes2]".
+{ iIntros "[Hntrap [Hes1 Hes2]]".
   (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
   iIntros (LI Hfilled).
   repeat rewrite wp_unfold /wasm_wp_pre /=.
@@ -129,9 +130,9 @@ Proof.
       eapply lfilled_reducible. apply Hfilled. auto.
     - iIntros (e2 σ2 efs HStep').
       eapply lfilled_prim_step_split_reduce_r in HStep' as Heq;[|apply Hfilled|apply H1].
+      apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
       destruct Heq as [[e' [HStep'' Hlfilled']] | [[lh' Hlf] <-]].
       + apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
-        apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
         iSpecialize ("H2" $! e' σ2 [] HStep'').
         iMod "H2".
         repeat iModIntro.
@@ -142,10 +143,33 @@ Proof.
         iFrame.
         iSplit => //.
         iIntros "?"; iSpecialize ("Hes''" with "[$]").
-        iDestruct ("IH" with "[$Hes'' $Hes2]") as "Hcont".
-        by iApply "Hcont".
-      + move/lfilledP in Hlf.
-        inversion Hlf; subst; clear Hlf.
+        iDestruct ("IH" with "[$Hntrap $Hes'' $Hes2]") as "Hcont"; by iApply "Hcont".
+      + assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
+        { unfold iris.prim_step.
+          destruct σ as [[[??]?]?].
+          repeat split => //.
+          apply r_simple; eapply rs_trap => //.
+          move => HContra; subst.
+          by simpl in Hes.
+        }
+        iSpecialize ("H2" $! [AI_trap] σ [] HStep2).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        destruct σ as [[[??] ?]?].
+        iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
+        iExists f1.
+        iModIntro => /=.
+        iFrame.
+        iIntros "?"; iSpecialize ("Hes''" with "[$]").
+        replace [AI_trap] with (iris.of_val trapV) => //=.
+        repeat rewrite wp_unfold /wasm_wp_pre /=.
+        destruct (iris.to_val e2) eqn:Hx.
+        * iMod "Hes''".
+          by iSpecialize ("Hntrap" with "Hes''").
+        * iIntros (?????) "?".
+          iMod "Hes''".
+          by iSpecialize ("Hntrap" with "Hes''").
   } } }
 Qed.
 
