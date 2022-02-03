@@ -5705,15 +5705,429 @@ Proof.
     by unfold lfilled, lfill ; rewrite Hbef Hes1.
 Qed.
 
+Lemma lfilled_const k lh es LI :
+  lfilled k lh es LI ->
+  const_list LI ->
+  k = 0 /\ const_list es.
+Proof.
+  intros.
+  unfold lfilled, lfill in H.
+  destruct k.
+  { destruct lh ; last by false_assumption.
+    destruct (const_list l) ; last by false_assumption.
+    apply b2p in H as ->.
+    unfold const_list in H0.
+    repeat rewrite forallb_app in H0.
+    repeat apply andb_true_iff in H0 as [? H0].
+    by split. }
+  fold lfill in H.
+  destruct lh ; first by false_assumption.
+  destruct (const_list l) ; last by false_assumption.
+  destruct (lfill _ _ _ ) ; last by false_assumption.
+  apply b2p in H as ->.
+  unfold const_list in H0.
+  rewrite forallb_app in H0.
+  simpl in H0.
+  rewrite andb_false_r in H0.
+  false_assumption.
+Qed.
+
+Lemma filled_singleton k lh es e :
+  lfilled k lh es [e] ->
+  (forall a b c, e = AI_label a b c -> False) ->
+  es <> [] ->
+  k = 0 /\ lh = LH_base [] [] /\ es = [e].
+Proof.
+  intros.
+  simple_filled H k lh bef aft nn ll ll'.
+  apply Logic.eq_sym, app_eq_unit in H as [[ -> Htrap] | [ _ Hnil]].
+  apply app_eq_unit in Htrap as [[ -> _ ] | [-> ->]] => //=.
+  apply app_eq_nil in Hnil as [-> ->] => //=.
+  by eapply H0.
+Qed.
+  
+
+Lemma lfilled_return_and_reduce hs s f es LI hs' s' f' es' i lh vs k lh' :
+  reduce hs s f es hs' s' f' es' ->
+  const_list vs ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
+  lfilled k lh' es LI ->
+  False.
+Proof.
+  intros Hred Hvs H1 Hes.
+  cut (forall n, length_rec es < n -> False).
+  { intro Hn ; apply (Hn (S (length_rec es))) ; lia. }
+  intro n0. 
+  generalize dependent es. generalize dependent es'. generalize dependent k.
+  generalize dependent lh'.
+  induction n0 ; intros lh1 k es' es1 Hred2 Hfill Hlab ; first by lia.
+  induction Hred2.
+  { destruct H.
+    - replace [AI_basic (BI_const v) ; AI_basic (BI_unop t op)] with
+        ([AI_basic (BI_const v)] ++ [AI_basic (BI_unop t op)])%SEQ
+        in Hfill ; last done.
+      assert (AI_basic BI_return = AI_basic (BI_unop t op)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+               AI_basic (BI_binop t op)] with
+        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2)]
+           ++ [AI_basic (BI_binop t op)])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_binop t op)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+               AI_basic (BI_binop t op)] with
+        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2)]
+           ++ [AI_basic (BI_binop t op)])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_binop t op)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int32 c)) ;
+               AI_basic (BI_testop T_i32 testop)] with
+        ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_testop T_i32 testop)]
+        )%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_testop T_i32 testop)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int64 c)) ;
+               AI_basic (BI_testop T_i64 testop)] with
+        ([AI_basic (BI_const (VAL_int64 c))] ++ [AI_basic (BI_testop T_i64 testop)]
+        )%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_testop T_i64 testop)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v1); AI_basic (BI_const v2) ;
+               AI_basic (BI_relop t op)] with
+        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2)]
+           ++ [AI_basic (BI_relop t op)])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_relop t op)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)]
+        with ([AI_basic (BI_const v)]
+                ++ [AI_basic (BI_cvtop t2 CVO_convert t1 sx)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_cvtop t2 CVO_convert t1 sx)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)]
+        with ([AI_basic (BI_const v)]
+                ++ [AI_basic (BI_cvtop t2 CVO_convert t1 sx)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_cvtop t2 CVO_convert t1 sx)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)]
+        with ([AI_basic (BI_const v)]
+                ++ [AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return =
+                AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic BI_unreachable] with ([] ++ [AI_basic BI_unreachable])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic BI_unreachable) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic BI_nop] with ([] ++ [AI_basic BI_nop])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic BI_nop) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v) ; AI_basic BI_drop] with
+        ([AI_basic (BI_const v)] ++ [AI_basic BI_drop])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic BI_drop) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+               AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select] with
+        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+          AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic BI_select])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic BI_select) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+               AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select] with
+        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+          AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic BI_select])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic BI_select) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - assert (AI_basic BI_return = AI_basic (BI_block (Tf t1s t2s) es)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - assert (AI_basic BI_return = AI_basic (BI_loop (Tf t1s t2s) es)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]
+        with ([AI_basic (BI_const (VAL_int32 n))]
+                ++ [AI_basic (BI_if tf e1s e2s)])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_if tf e1s e2s)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]
+        with ([AI_basic (BI_const (VAL_int32 n))]
+                ++ [AI_basic (BI_if tf e1s e2s)])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_if tf e1s e2s)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+      unfold is_Some.
+      destruct (const_list_is_val vs0) as [v Hv] => //= ; exists (immV v). exact Hv.
+    - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+      unfold is_Some ; exists trapV. done.
+    - assert (lfilled (S i0) (LH_rec [] n es lh0 []) (vs0 ++ [AI_basic (BI_br i0)])
+                      [AI_label n es LI0]) as Hfill'.
+      unfold lfilled, lfill ; fold lfill => //=.
+      unfold lfilled in H2. destruct (lfill i0 _ _) ; last by false_assumption.
+      apply b2p in H2 ; by subst.
+      destruct (lfilled_trans _ _ _ _ _ _ _ Hfill' Hfill) as [lh' Hfillbr].
+      assert (AI_basic BI_return = AI_basic (BI_br i0) /\ (i = S i0 + k)
+              /\ (length vs = length vs0 -> vs = vs0)) as (? & ? & ?).
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfillbr) => //=.
+      inversion H3.
+    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_br_if i0)] with
+        ([AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic (BI_br_if i0)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_br_if i0)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_br_if i0)] with
+        ([AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic (BI_br_if i0)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_br_if i0)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i0)]
+        with
+        ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_br_table iss i0)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_br_table iss i0)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i0)]
+        with
+        ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_br_table iss i0)])%SEQ
+        in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_br_table iss i0)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_local n f0 es] with ([] ++ [AI_local n f0 es])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_local n f0 es) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_local n f0 [AI_trap]] with
+        ([] ++ [AI_local n f0 [AI_trap]])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_local n f0 [AI_trap]) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [AI_local n f0 es] with ([] ++ [AI_local n f0 es])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_local n f0 es) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    - replace [v ; AI_basic (BI_tee_local i0)] with
+        ([v] ++ [AI_basic (BI_tee_local i0)])%SEQ in Hfill => //=.
+      assert (AI_basic BI_return = AI_basic (BI_tee_local i0)) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+      by rewrite H.
+    - destruct (lfilled_trans _ _ _ _ _ _ _ H0 Hfill) as [lh' Hfill'].
+      replace [AI_trap] with ([] ++ [AI_trap])%SEQ in Hfill' => //=.
+      assert (AI_basic BI_return = AI_trap) => //=.
+      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill') => //=. }
+  * replace [AI_basic (BI_call i0)] with ([] ++ [AI_basic (BI_call i0)])%SEQ
+    in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_call i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i0)]
+      with ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_call_indirect i0)]
+           )%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_call_indirect i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i0)]
+      with ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_call_indirect i0)]
+           )%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_call_indirect i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i0)]
+      with ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_call_indirect i0)]
+           )%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_call_indirect i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * assert (AI_basic BI_return = AI_invoke a) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    rewrite H2 ; by apply v_to_e_is_const_list.
+  * assert (AI_basic BI_return = AI_invoke a) => //=.
+ (*   apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    rewrite H2 ; by apply v_to_e_is_const_list.*)
+  * assert (AI_basic BI_return = AI_invoke a) => //=.
+   (* apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+    rewrite H2 ; by apply v_to_e_is_const_list.*)
+  * replace [AI_basic (BI_get_local j)] with
+      ([] ++ [AI_basic (BI_get_local j)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_get_local j)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const v); AI_basic (BI_set_local i0)] with
+      ([AI_basic (BI_const v)] ++ [AI_basic (BI_set_local i0)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_set_local i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_get_global i0)] with
+      ([] ++ [AI_basic (BI_get_global i0)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_get_global i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const v); AI_basic (BI_set_global i0)] with
+      ([AI_basic (BI_const v)] ++ [AI_basic (BI_set_global i0)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_set_global i0)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_load t None a off)]
+      with ([AI_basic (BI_const (VAL_int32 k0))]
+              ++ [AI_basic (BI_load t None a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_load t None a off)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_load t None a off)]
+      with ([AI_basic (BI_const (VAL_int32 k0))]
+              ++ [AI_basic (BI_load t None a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_load t None a off)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ;
+             AI_basic (BI_load t (Some (tp, sx)) a off)]
+      with ([AI_basic (BI_const (VAL_int32 k0))]
+              ++ [AI_basic (BI_load t (Some (tp, sx)) a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_load t (Some (tp, sx)) a off)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ;
+             AI_basic (BI_load t (Some (tp, sx)) a off)]
+      with ([AI_basic (BI_const (VAL_int32 k0))]
+              ++ [AI_basic (BI_load t (Some (tp, sx)) a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_load t (Some (tp, sx)) a off)) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
+             AI_basic (BI_store t None a off)] with
+      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
+         ++ [AI_basic (BI_store t None a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_store t None a off)) => //=.
+    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
+             AI_basic (BI_store t None a off)] with
+      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
+         ++ [AI_basic (BI_store t None a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_store t None a off)) => //=.
+    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
+             AI_basic (BI_store t (Some tp) a off)] with
+      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
+         ++ [AI_basic (BI_store t (Some tp) a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_store t (Some tp) a off)) => //=.
+    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
+             AI_basic (BI_store t (Some tp) a off)] with
+      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
+         ++ [AI_basic (BI_store t (Some tp) a off)])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic (BI_store t (Some tp) a off)) => //=.
+    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic BI_current_memory] with ([] ++ [AI_basic BI_current_memory])%SEQ
+      in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic BI_current_memory) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] with
+      ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory])%SEQ
+      in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic BI_grow_memory) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] with
+      ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory])%SEQ
+      in Hfill => //=.
+    assert (AI_basic BI_return = AI_basic BI_grow_memory) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+  * destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill'].
+    apply (IHn0 _ _ _ _ Hred2 Hfill').
+    unfold lfilled, lfill in H ; destruct k0.
+    { destruct lh0 ; last by false_assumption.
+      destruct (const_list l) ; last by false_assumption.
+      apply b2p in H.
+      destruct l. { destruct l0. { unfold lfilled, lfill in H0 ; simpl in H0.
+                                   apply b2p in H0. simpl in H.
+                                   rewrite app_nil_r in H0.
+                                   rewrite app_nil_r in H. subst.
+                                   exfalso ; apply IHHred2 => //=. }
+        simpl in H. rewrite H in Hlab.
+                    rewrite app_length_rec in Hlab. 
+                    destruct (cons_length_rec a l0) as [? | ?]. lia. lia. }
+      rewrite H in Hlab. do 2 rewrite app_length_rec in Hlab.
+      destruct (cons_length_rec a l) as [? | ?] ; lia. }
+    fold lfill in H. destruct lh0 ; first by false_assumption.
+    destruct (const_list l) ; last by false_assumption.
+    remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
+    apply b2p in H. rewrite H in Hlab.
+    replace (AI_label n l0 l2 :: l1) with ([AI_label n l0 l2] ++ l1) in Hlab => //=.
+    do 2 rewrite app_length_rec in Hlab.
+    unfold length_rec in Hlab. simpl in Hlab.
+    rewrite <- (Nat.add_0_r (S n0)) in Hlab. rewrite plus_comm in Hlab.
+    apply Nat.le_lt_add_lt in Hlab ; try lia. 
+    apply lt_S_n in Hlab. rewrite Nat.add_0_r in Hlab.
+    assert (lfilled k0 lh0 es l2) as Hfill''.
+    { unfold lfilled ; by rewrite <- Heqfill. }
+    apply lfilled_length_rec in Hfill''. unfold length_rec.
+    unfold length_rec in Hfill''. lia.
+  * replace [AI_local n f es] with ([] ++ [AI_local n f es])%SEQ in Hfill => //=.
+    assert (AI_basic BI_return = AI_local n f es) => //=.
+    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
+Qed.
 
 
 Lemma local_frame_lfilled_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 j lh LI :
   lfilled j lh (es1 ++ es2)%list LI ->
   reducible es1 (hi,s,v,i) ->
   prim_step [AI_local n (Build_frame v i) LI] (hi,s,v',i') obs2 e2 (hi2,s2,v2,i2) efs2 ->
-  ∃ e' v'' i'' LI', prim_step es1 (hi,s,v,i) obs2 e' (hi2,s2,v'',i'') efs2 ∧ v' = v2 ∧ i' = i2 ∧ e2 = [AI_local n (Build_frame v'' i'') LI'] ∧ lfilled j lh (e' ++ es2) LI'.
+  (∃ e' v'' i'' LI', prim_step es1 (hi,s,v,i) obs2 e' (hi2,s2,v'',i'') efs2 ∧ v' = v2 ∧ i' = i2 ∧ e2 = [AI_local n (Build_frame v'' i'') LI'] ∧ lfilled j lh (e' ++ es2) LI') \/
+∃ lh0, lfilled 0 lh0 [AI_trap] es1 /\ (hi,s,v',i') = (hi2, s2,v2,i2) .
 Proof.
-Admitted.
+  intros Hfill (obs & e1 & [[[ hs1 s1 ] v1 ] i1] & efs & (Hes1 & -> & ->)) (Hstep & -> & ->).
+  remember {| f_locs := v ; f_inst := i |} as f.
+  remember {| f_locs := v1 ; f_inst := i1 |} as f1.
+  remember {| f_locs := v' ; f_inst := i' |} as f'.
+  remember {| f_locs := v2 ; f_inst := i2 |} as f2.
+  remember [AI_local n f LI] as es.
+  induction Hstep ; try (by inversion Heqes) ;
+    try (by rewrite <- (app_nil_l [AI_local _ _ _]) in Heqes ;
+         apply app_inj_tail in Heqes as [_ Habs] ;
+         inversion Habs).
+  { destruct H ; try (by inversion Heqes) ;
+      try (by rewrite <- (app_nil_l [AI_local _ _ _]) in Heqes ;
+           apply app_inj_tail in Heqes as [_ Habs] ;
+           inversion Habs).
+    - inversion Heqes ; subst ; clear Heqes.
+      destruct (lfilled_const j lh (es1 ++ es2) LI) as [-> Hconst] => //=.
+      unfold const_list in Hconst.
+      rewrite forallb_app in Hconst.
+      apply andb_true_iff in Hconst as [? _].
+      exfalso ; values_no_reduce.
+    - inversion Heqes ; subst ; clear Heqes.
+      assert (es1 ++ es2 <> []).
+      intro.
+      apply app_eq_nil in H as [-> _ ] ; empty_list_no_reduce.
+      eapply (filled_singleton j lh (es1 ++ es2)) in H as (-> & -> & Hes) => //=.
+      apply app_eq_unit in Hes as [[ -> ->]|[-> ->]].
+      empty_list_no_reduce.
+      by exfalso ; eapply AI_trap_irreducible.
+    - inversion Heqes ; subst ; clear Heqes.
+      exfalso.
+      eapply (lfilled_return_and_reduce hs s _ (es1 ++ es2) LI).
+      eapply r_label.
+      exact Hes1.
+      instantiate (1 := LH_base [] es2).
+      instantiate (1 := 0).
+      unfold lfilled, lfill => //=.
+      unfold lfilled, lfill => //=.
+      exact H.
+      exact H1.
+      exact Hfill.
+    - subst. filled_trap H0 Hxl1. }
+  - subst les.
+    assert (es <> []) ; first by intro ; subst ;  empty_list_no_reduce.
+    eapply (filled_singleton k lh0 es) in H1 as (-> & -> & Hes) => //=.
+    unfold lfilled, lfill in H0 ; simpl in H0 ; rewrite app_nil_r in H0.
+    apply b2p in H0 as ->.
+    apply IHHstep => //=.
+  - inversion Heqes ; subst n0 f0 es ; clear Heqes.
+    rewrite Heqf' in Heqf2 ; inversion Heqf2 ; subst v' i'.
+    assert (reducible es1 (hs, s, v, i)).
+    { eexists _, _ , (_,_,_,_), _. repeat split => //=.
+      subst ; exact Hes1. }
+    destruct f' as [v' i'] eqn:Hf'.
+    assert (prim_step LI (hs, s, v, i) [] es' (hs', s', v', i') []).
+    { repeat split => //=. subst ; exact Hstep. }
+    edestruct lfilled_prim_step_split_reduce_r
+      as [(e' & Hes1' & Hfill') | [[lh0 Htrap] Hσ]].
+    exact Hfill.
+    exact H.
+    exact H0.
+    left.
+    eexists _,_,_,_. repeat split => //=.
+    right.
+    eexists.
+    split => //=.
+    inversion Hσ ; subst.
+    done.
+Qed.    
+
 
 Lemma local_frame_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 :
   reducible es1 (hi,s,v,i) ->
@@ -6297,309 +6711,7 @@ Qed.
 
 
 
-Lemma lfilled_return_and_reduce hs s f es LI hs' s' f' es' i lh vs k lh' :
-  reduce hs s f es hs' s' f' es' ->
-  const_list vs ->
-  lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
-  lfilled k lh' es LI ->
-  False.
-Proof.
-  intros Hred Hvs H1 Hes.
-  cut (forall n, length_rec es < n -> False).
-  { intro Hn ; apply (Hn (S (length_rec es))) ; lia. }
-  intro n0. 
-  generalize dependent es. generalize dependent es'. generalize dependent k.
-  generalize dependent lh'.
-  induction n0 ; intros lh1 k es' es1 Hred2 Hfill Hlab ; first by lia.
-  induction Hred2.
-  { destruct H.
-    - replace [AI_basic (BI_const v) ; AI_basic (BI_unop t op)] with
-        ([AI_basic (BI_const v)] ++ [AI_basic (BI_unop t op)])%SEQ
-        in Hfill ; last done.
-      assert (AI_basic BI_return = AI_basic (BI_unop t op)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-               AI_basic (BI_binop t op)] with
-        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2)]
-           ++ [AI_basic (BI_binop t op)])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_binop t op)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-               AI_basic (BI_binop t op)] with
-        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2)]
-           ++ [AI_basic (BI_binop t op)])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_binop t op)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int32 c)) ;
-               AI_basic (BI_testop T_i32 testop)] with
-        ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_testop T_i32 testop)]
-        )%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_testop T_i32 testop)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int64 c)) ;
-               AI_basic (BI_testop T_i64 testop)] with
-        ([AI_basic (BI_const (VAL_int64 c))] ++ [AI_basic (BI_testop T_i64 testop)]
-        )%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_testop T_i64 testop)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v1); AI_basic (BI_const v2) ;
-               AI_basic (BI_relop t op)] with
-        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2)]
-           ++ [AI_basic (BI_relop t op)])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_relop t op)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)]
-        with ([AI_basic (BI_const v)]
-                ++ [AI_basic (BI_cvtop t2 CVO_convert t1 sx)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_cvtop t2 CVO_convert t1 sx)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)]
-        with ([AI_basic (BI_const v)]
-                ++ [AI_basic (BI_cvtop t2 CVO_convert t1 sx)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_cvtop t2 CVO_convert t1 sx)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)]
-        with ([AI_basic (BI_const v)]
-                ++ [AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return =
-                AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic BI_unreachable] with ([] ++ [AI_basic BI_unreachable])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic BI_unreachable) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic BI_nop] with ([] ++ [AI_basic BI_nop])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic BI_nop) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v) ; AI_basic BI_drop] with
-        ([AI_basic (BI_const v)] ++ [AI_basic BI_drop])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic BI_drop) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-               AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select] with
-        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-          AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic BI_select])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic BI_select) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-               AI_basic (BI_const (VAL_int32 n)) ; AI_basic BI_select] with
-        ([AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
-          AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic BI_select])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic BI_select) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - assert (AI_basic BI_return = AI_basic (BI_block (Tf t1s t2s) es)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - assert (AI_basic BI_return = AI_basic (BI_loop (Tf t1s t2s) es)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]
-        with ([AI_basic (BI_const (VAL_int32 n))]
-                ++ [AI_basic (BI_if tf e1s e2s)])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_if tf e1s e2s)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]
-        with ([AI_basic (BI_const (VAL_int32 n))]
-                ++ [AI_basic (BI_if tf e1s e2s)])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_if tf e1s e2s)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-      unfold is_Some.
-      destruct (const_list_is_val vs0) as [v Hv] => //= ; exists (immV v). exact Hv.
-    - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-      unfold is_Some ; exists trapV. done.
-    - assert (lfilled (S i0) (LH_rec [] n es lh0 []) (vs0 ++ [AI_basic (BI_br i0)])
-                      [AI_label n es LI0]) as Hfill'.
-      unfold lfilled, lfill ; fold lfill => //=.
-      unfold lfilled in H2. destruct (lfill i0 _ _) ; last by false_assumption.
-      apply b2p in H2 ; by subst.
-      destruct (lfilled_trans _ _ _ _ _ _ _ Hfill' Hfill) as [lh' Hfillbr].
-      assert (AI_basic BI_return = AI_basic (BI_br i0) /\ (i = S i0 + k)
-              /\ (length vs = length vs0 -> vs = vs0)) as (? & ? & ?).
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfillbr) => //=.
-      inversion H3.
-    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_br_if i0)] with
-        ([AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic (BI_br_if i0)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_br_if i0)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_br_if i0)] with
-        ([AI_basic (BI_const (VAL_int32 n))] ++ [AI_basic (BI_br_if i0)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_br_if i0)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i0)]
-        with
-        ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_br_table iss i0)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_br_table iss i0)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_br_table iss i0)]
-        with
-        ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_br_table iss i0)])%SEQ
-        in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_br_table iss i0)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_local n f0 es] with ([] ++ [AI_local n f0 es])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_local n f0 es) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_local n f0 [AI_trap]] with
-        ([] ++ [AI_local n f0 [AI_trap]])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_local n f0 [AI_trap]) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [AI_local n f0 es] with ([] ++ [AI_local n f0 es])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_local n f0 es) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    - replace [v ; AI_basic (BI_tee_local i0)] with
-        ([v] ++ [AI_basic (BI_tee_local i0)])%SEQ in Hfill => //=.
-      assert (AI_basic BI_return = AI_basic (BI_tee_local i0)) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-      by rewrite H.
-    - destruct (lfilled_trans _ _ _ _ _ _ _ H0 Hfill) as [lh' Hfill'].
-      replace [AI_trap] with ([] ++ [AI_trap])%SEQ in Hfill' => //=.
-      assert (AI_basic BI_return = AI_trap) => //=.
-      apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill') => //=. }
-  * replace [AI_basic (BI_call i0)] with ([] ++ [AI_basic (BI_call i0)])%SEQ
-    in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_call i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i0)]
-      with ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_call_indirect i0)]
-           )%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_call_indirect i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i0)]
-      with ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_call_indirect i0)]
-           )%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_call_indirect i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i0)]
-      with ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic (BI_call_indirect i0)]
-           )%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_call_indirect i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * assert (AI_basic BI_return = AI_invoke a) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    rewrite H2 ; by apply v_to_e_is_const_list.
-  * assert (AI_basic BI_return = AI_invoke a) => //=.
- (*   apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    rewrite H2 ; by apply v_to_e_is_const_list.*)
-  * assert (AI_basic BI_return = AI_invoke a) => //=.
-   (* apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-    rewrite H2 ; by apply v_to_e_is_const_list.*)
-  * replace [AI_basic (BI_get_local j)] with
-      ([] ++ [AI_basic (BI_get_local j)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_get_local j)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const v); AI_basic (BI_set_local i0)] with
-      ([AI_basic (BI_const v)] ++ [AI_basic (BI_set_local i0)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_set_local i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_get_global i0)] with
-      ([] ++ [AI_basic (BI_get_global i0)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_get_global i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const v); AI_basic (BI_set_global i0)] with
-      ([AI_basic (BI_const v)] ++ [AI_basic (BI_set_global i0)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_set_global i0)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_load t None a off)]
-      with ([AI_basic (BI_const (VAL_int32 k0))]
-              ++ [AI_basic (BI_load t None a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_load t None a off)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_load t None a off)]
-      with ([AI_basic (BI_const (VAL_int32 k0))]
-              ++ [AI_basic (BI_load t None a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_load t None a off)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ;
-             AI_basic (BI_load t (Some (tp, sx)) a off)]
-      with ([AI_basic (BI_const (VAL_int32 k0))]
-              ++ [AI_basic (BI_load t (Some (tp, sx)) a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_load t (Some (tp, sx)) a off)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ;
-             AI_basic (BI_load t (Some (tp, sx)) a off)]
-      with ([AI_basic (BI_const (VAL_int32 k0))]
-              ++ [AI_basic (BI_load t (Some (tp, sx)) a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_load t (Some (tp, sx)) a off)) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
-             AI_basic (BI_store t None a off)] with
-      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
-         ++ [AI_basic (BI_store t None a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_store t None a off)) => //=.
-    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
-             AI_basic (BI_store t None a off)] with
-      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
-         ++ [AI_basic (BI_store t None a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_store t None a off)) => //=.
-    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
-             AI_basic (BI_store t (Some tp) a off)] with
-      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
-         ++ [AI_basic (BI_store t (Some tp) a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_store t (Some tp) a off)) => //=.
-    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v);
-             AI_basic (BI_store t (Some tp) a off)] with
-      ([AI_basic (BI_const (VAL_int32 k0)) ; AI_basic (BI_const v)]
-         ++ [AI_basic (BI_store t (Some tp) a off)])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic (BI_store t (Some tp) a off)) => //=.
-    apply  (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic BI_current_memory] with ([] ++ [AI_basic BI_current_memory])%SEQ
-      in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic BI_current_memory) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] with
-      ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory])%SEQ
-      in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic BI_grow_memory) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * replace [AI_basic (BI_const (VAL_int32 c)) ; AI_basic BI_grow_memory] with
-      ([AI_basic (BI_const (VAL_int32 c))] ++ [AI_basic BI_grow_memory])%SEQ
-      in Hfill => //=.
-    assert (AI_basic BI_return = AI_basic BI_grow_memory) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-  * destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill'].
-    apply (IHn0 _ _ _ _ Hred2 Hfill').
-    unfold lfilled, lfill in H ; destruct k0.
-    { destruct lh0 ; last by false_assumption.
-      destruct (const_list l) ; last by false_assumption.
-      apply b2p in H.
-      destruct l. { destruct l0. { unfold lfilled, lfill in H0 ; simpl in H0.
-                                   apply b2p in H0. simpl in H.
-                                   rewrite app_nil_r in H0.
-                                   rewrite app_nil_r in H. subst.
-                                   exfalso ; apply IHHred2 => //=. }
-        simpl in H. rewrite H in Hlab.
-                    rewrite app_length_rec in Hlab. 
-                    destruct (cons_length_rec a l0) as [? | ?]. lia. lia. }
-      rewrite H in Hlab. do 2 rewrite app_length_rec in Hlab.
-      destruct (cons_length_rec a l) as [? | ?] ; lia. }
-    fold lfill in H. destruct lh0 ; first by false_assumption.
-    destruct (const_list l) ; last by false_assumption.
-    remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
-    apply b2p in H. rewrite H in Hlab.
-    replace (AI_label n l0 l2 :: l1) with ([AI_label n l0 l2] ++ l1) in Hlab => //=.
-    do 2 rewrite app_length_rec in Hlab.
-    unfold length_rec in Hlab. simpl in Hlab.
-    rewrite <- (Nat.add_0_r (S n0)) in Hlab. rewrite plus_comm in Hlab.
-    apply Nat.le_lt_add_lt in Hlab ; try lia. 
-    apply lt_S_n in Hlab. rewrite Nat.add_0_r in Hlab.
-    assert (lfilled k0 lh0 es l2) as Hfill''.
-    { unfold lfilled ; by rewrite <- Heqfill. }
-    apply lfilled_length_rec in Hfill''. unfold length_rec.
-    unfold length_rec in Hfill''. lia.
-  * replace [AI_local n f es] with ([] ++ [AI_local n f es])%SEQ in Hfill => //=.
-    assert (AI_basic BI_return = AI_local n f es) => //=.
-    apply (lfilled_first_values _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-Qed.
+
 
 Fixpoint find_first_some (l : seq.seq (option administrative_instruction)) :=
   match l with
