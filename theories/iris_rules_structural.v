@@ -129,21 +129,23 @@ Proof.
       eapply lfilled_reducible. apply Hfilled. auto.
     - iIntros (e2 σ2 efs HStep').
       eapply lfilled_prim_step_split_reduce_r in HStep' as Heq;[|apply Hfilled|apply H1].
-      destruct Heq as [e' [HStep'' Hlfilled']].
-      apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
-      apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
-      iSpecialize ("H2" $! e' σ2 [] HStep'').
-      iMod "H2".
-      repeat iModIntro.
-      repeat iMod "H2".
-      iModIntro.
-      iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
-      iExists f1.
-      iFrame.
-      iSplit => //.
-      iIntros "?"; iSpecialize ("Hes''" with "[$]").
-      iDestruct ("IH" with "[$Hes'' $Hes2]") as "Hcont".
-      by iApply "Hcont".
+      destruct Heq as [[e' [HStep'' Hlfilled']] | [[lh' Hlf] <-]].
+      + apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
+        apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
+        iSpecialize ("H2" $! e' σ2 [] HStep'').
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        iModIntro.
+        iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
+        iExists f1.
+        iFrame.
+        iSplit => //.
+        iIntros "?"; iSpecialize ("Hes''" with "[$]").
+        iDestruct ("IH" with "[$Hes'' $Hes2]") as "Hcont".
+        by iApply "Hcont".
+      + move/lfilledP in Hlf.
+        inversion Hlf; subst; clear Hlf.
   } } }
 Qed.
 
