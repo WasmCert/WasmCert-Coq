@@ -494,7 +494,7 @@ Ltac only_one_reduction H :=
   let Hstart2 := fresh "Hstart" in
   let Hσ := fresh "Hσ" in 
   eapply reduce_det in H
-      as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      as [H | [ Hstart | [ [a [cl [tf [h [Hstart [Hnth Hcl]]]]]] | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
   last (by repeat econstructor) ;
   first (try inversion H ; subst ; clear H => /=; match goal with [f: frame |- _] => iExists f; iFrame; by iIntros | _ => idtac end) ;
   try by repeat (unfold first_instr in Hstart ; simpl in Hstart) ; inversion Hstart.
