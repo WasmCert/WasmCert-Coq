@@ -16,15 +16,6 @@ Section iris_rules_calls.
 
   (* Placeholder until reduce_det has been updated to accomodate native invocations *)
   Import DummyHosts.
-  Lemma reduce_det_temp: forall hs f ws es hs1 f1 ws1 es1 hs2 f2 ws2 es2,
-      reduce (host_instance:=host_instance) hs f ws es hs1 f1 ws1 es1 ->
-      reduce hs f ws es hs2 f2 ws2 es2 ->
-      ( (hs1, f1, ws1, es1) = (hs2, f2, ws2, es2) \/
-          first_instr es = Some (AI_basic (BI_grow_memory)) \/
-          (first_instr es = Some AI_trap /\ first_instr es1 = Some AI_trap /\
-             first_instr es2 = Some AI_trap /\
-             (hs1, f1, ws1) = (hs2, f2, ws2))).
-  Proof. Admitted.
   
   
   Lemma v_to_e_list_to_val es vs :
@@ -86,12 +77,15 @@ Section iris_rules_calls.
       destruct HStep as (H & -> & ->).
       assert (first_instr (ves ++ [AI_invoke a]) = Some (AI_invoke a)) as Hf.
       { apply first_instr_const. eapply to_val_const_list. eauto. }
-      eapply reduce_det_temp in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | (Hstart & Hstart1 & Hstart2 & Hσ) ]]; try done.
+      eapply reduce_det in H as HH;[|apply Hred].
+      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
       simplify_eq. iExists f0. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("HΦ" with "[$]"). iFrame.
       rewrite Hf in Hstart. done.
+      rewrite Hf in H0. simplify_eq. rewrite /= nth_error_lookup // in H1.
+      rewrite gmap_of_list_lookup Nat2N.id in Hlook.
+      congruence.
   Qed.
 
 
@@ -368,7 +362,7 @@ Section iris_rules_calls.
       assert (first_instr LI = Some (AI_basic (BI_call i))).
       { eapply starts_with_lfilled;eauto. auto. }
       eapply reduce_det in H as HH;[|eapply r_label;[|eauto..];apply r_call; rewrite /= nth_error_lookup //]. 
-      destruct HH as [HH | [Hstart | [[? ?] |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iExists _. iFrame.
       iSplit =>//. iIntros "?". iApply ("HΦ" with "[$]"). auto.
   Qed.
@@ -431,8 +425,8 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      eapply reduce_det_temp in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | (Hstart & Hstart1 & Hstart2 & Hσ) ]]; try done.
+      eapply reduce_det in H as HH;[|apply Hred].
+      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
       simplify_eq. iExists _. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("Hcont" with "[$]"). iFrame.
@@ -484,8 +478,8 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      eapply reduce_det_temp in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | (Hstart & Hstart1 & Hstart2 & Hσ) ]]; try done.
+      eapply reduce_det in H as HH;[|apply Hred].
+      destruct HH as [HH | [Hstart | [ (?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
       simplify_eq. iExists _. iFrame.
       iSplit =>//. auto.
   Qed.
@@ -521,8 +515,8 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      eapply reduce_det_temp in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | (Hstart & Hstart1 & Hstart2 & Hσ) ]]; try done.
+      eapply reduce_det in H as HH;[|apply Hred].
+      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
       simplify_eq. iExists _. iFrame.
       iSplit =>//. auto.
   Qed.
@@ -565,8 +559,8 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      eapply reduce_det_temp in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | (Hstart & Hstart1 & Hstart2 & Hσ) ]]; try done.
+      eapply reduce_det in H as HH;[|apply Hred].
+      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
       simplify_eq. iExists _. iFrame.
       iSplit =>//. auto.
   Qed.
