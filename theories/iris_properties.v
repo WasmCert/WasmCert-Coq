@@ -6132,15 +6132,17 @@ Qed.
 Lemma local_frame_prim_step_split_reduce_r es1 es2 hi s v i n v' i' e2 hi2 s2 v2 i2 efs2 obs2 :
   reducible es1 (hi,s,v,i) ->
   prim_step [AI_local n (Build_frame v i) (es1 ++ es2)] (hi,s,v',i') obs2 e2 (hi2,s2,v2,i2) efs2 ->
-  ∃ e' v'' i'', prim_step es1 (hi,s,v,i) obs2 e' (hi2,s2,v'',i'') efs2 ∧ v' = v2 ∧ i' = i2 ∧ e2 = [AI_local n (Build_frame v'' i'') (e' ++ es2)].
+  (∃ e' v'' i'', prim_step es1 (hi,s,v,i) obs2 e' (hi2,s2,v'',i'') efs2 ∧ v' = v2 ∧ i' = i2 ∧ e2 = [AI_local n (Build_frame v'' i'') (e' ++ es2)]) \/
+  (∃ lh0, lfilled 0 lh0 [AI_trap] es1 /\ (hi,s,v',i') = (hi2, s2,v2,i2)).
 Proof.
   intros Hred Hprim.
   apply local_frame_lfilled_prim_step_split_reduce_r with (es1 := es1) (es2:=es2) (j:=0) (lh:= LH_base [] []) in Hprim;auto.
-  destruct Hprim as [e' [v'' [i'' [LI' Hprim]]]].
+  destruct Hprim as [[e' [v'' [i'' [LI' Hprim]]]]|[lh' [Hlh' HH]]].
   destruct Hprim as [Hprim [-> [-> [-> Hfill]]]].
-  eexists _,_,_. split.  apply Hprim. repeat split;eauto.
-  apply lfilled_Ind_Equivalent in Hfill. inversion Hfill;subst.
-  erewrite app_nil_l; erewrite app_nil_r. auto.
+  { left. eexists _,_,_. split.  apply Hprim. repeat split;eauto.
+    apply lfilled_Ind_Equivalent in Hfill. inversion Hfill;subst.
+    erewrite app_nil_l; erewrite app_nil_r. auto. }
+  { right. simplify_eq. eexists. eauto. }
   cbn. rewrite app_nil_r. rewrite eqseqE. apply eq_refl.
 Qed.
   
