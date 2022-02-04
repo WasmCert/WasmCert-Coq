@@ -78,7 +78,7 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [H | [Hstart | [ [a Hstart] |
+    eapply reduce_det in H as [H | [Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2) |
                                                (Hstart & Hstart1 & Hstart2 & Hσ) ]]];
       last (by eapply r_simple, rs_block) ;
       first (inversion H; subst; clear H ; by iExists f0; iFrame) ;
@@ -107,7 +107,8 @@ Proof.
     iIntros "!>" (es1 σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
+    eapply reduce_det in H as [H | [Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                             | (Hstart & Hstart1 & Hstart2
                                                              & Hσ)]]] ;
       (try by apply r_simple ; apply rs_label_const ;
        eapply to_val_const_list ; apply Hval) .
@@ -453,8 +454,8 @@ Proof.
   apply lfilled_swap with (es':=[::AI_label m [::] (vs ++ to_e_list es)]) in Hfill as Hfill'.
   destruct Hfill' as [LI' Hfill'].
   destruct HStep as [H [-> ->]].
-  eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
-                                                            & Hσ)]]] ;
+  eapply reduce_det in H as [ H | [Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                            | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
     try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_block (Tf t1s t2s) es)]
                   (vs ++ [AI_basic (BI_block (Tf t1s t2s) es)])) ;
     first (unfold lfilled, lfill ; rewrite Hconst ; by rewrite app_nil_r) ;
@@ -512,8 +513,8 @@ Proof.
   assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_block (Tf t1s t2s) es))) as HH.
   { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill].
     apply first_instr_const;auto. }
-  eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
-                                                            & Hσ)]]];
+  eapply reduce_det in H as [ H | [Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                            | (Hstart & Hstart1 & Hstart2 & Hσ)]]];
     try congruence;
     try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_block (Tf t1s t2s) es)]
                   (vs ++ [AI_basic (BI_block (Tf t1s t2s) es)])) ;
@@ -573,8 +574,8 @@ Proof.
   apply lfilled_swap with (es':=vs ++ es) in Hfill' as Hfill''.
   destruct Hfill'' as [LI' Hfill''].    
   destruct HStep as [H [-> ->]]. 
-  eapply reduce_det in H as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 &
-                                                              Hσ)]]] ;
+  eapply reduce_det in H as [H | [ Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                            | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
     try by apply lfilled_Ind_Equivalent in Hfill ;
     assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
                     (vs ++ [AI_basic (BI_br i)])) ;
@@ -643,8 +644,8 @@ Proof.
   { apply lfilled_Ind_Equivalent in Hfill.
     apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill].
     apply first_instr_const;auto. }
-  eapply reduce_det in H as [H | [ Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2 &
-                                                              Hσ)]]] ;
+  eapply reduce_det in H as [H | [ Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                            | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
     try congruence;
     try by apply lfilled_Ind_Equivalent in Hfill ;
     assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
@@ -703,8 +704,8 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
-                                                            & Hσ)]]] ;
+    eapply reduce_det in H as [ H | [Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                              | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
     try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_loop (Tf t1s t2s) es)]
                   (vs ++ [AI_basic (BI_loop (Tf t1s t2s) es)])) ;
     first (unfold lfilled, lfill ; rewrite Hvs ; by rewrite app_nil_r) ;
@@ -760,8 +761,8 @@ Proof.
     assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_loop (Tf t1s t2s) es))) as HH.
     { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill].
       apply first_instr_const. auto. }
-    eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
-                                                            & Hσ)]]] ;
+    eapply reduce_det in H as [ H | [Hstart | [ (a & cl & tf & h & Hstart & Hstart1 & Hstart2)
+                                              | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
       try congruence;
       try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_loop (Tf t1s t2s) es)]
                   (vs ++ [AI_basic (BI_loop (Tf t1s t2s) es)])) ;
@@ -826,14 +827,15 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
+    rename tf into tf'.
     only_one_reduction H.
     + iExists f0.
       iFrame.
       iIntros "?"; iSpecialize ("HP" with "[$]").
       by iApply "HP".
     all: by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
-                    [AI_basic (BI_if tf e1s e2s)]
-                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf e1s e2s)]) ;
+                    [AI_basic (BI_if tf' e1s e2s)]
+                    [AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_if tf' e1s e2s)]) ;
       first (by unfold lfilled, lfill => //= ; rewrite app_nil_r) ;
     destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfilln] ;
     eapply lfilled_implies_starts in Hfilln => //= ;
@@ -870,8 +872,8 @@ Proof.
     destruct HStep as [H [-> ->]].
     assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_if tf e1s e2s))) as HH.
     { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill]. auto. }
-    eapply reduce_det in H as [ H | [Hstart | [ [a Hstart] | (Hstart & Hstart1 & Hstart2
-                                                              & Hσ)]]] ;
+    eapply reduce_det in H as [ H | [Hstart | [ (a & cl & tf' & h & Hstart & Hstart1 & Hstart2)
+                                              | (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
       try congruence;
       try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_loop (Tf t1s t2s) es)]
                              (vs ++ [AI_basic (BI_loop (Tf t1s t2s) es)])) ;
@@ -932,7 +934,7 @@ Proof.
     iMod "Hcls". iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+    eapply reduce_det in H as [H | [ Hstart | [(a & cl & tf' & h & Hstart & Hstart1 & Hstart2) |
                                                (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
     try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
                     [AI_basic (BI_if tf e1s e2s)]
@@ -981,7 +983,7 @@ Proof.
     destruct HStep as [H [-> ->]].
     assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_if tf e1s e2s))) as HH.
     { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
-    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+    eapply reduce_det in H as [H | [ Hstart | [(a & cl & tf' & h & Hstart & Hstart1 & Hstart2) |
                                                (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
       try congruence;
       try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
@@ -1086,7 +1088,7 @@ Proof.
     destruct HStep as [H [-> ->]].
     assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_br_if i))) as HH.
     { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
-    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+    eapply reduce_det in H as [H | [ Hstart | [(a & cl & tf & h & Hstart & Hstart1 & Hstart2) |
                                                (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
       try congruence;
       try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
@@ -1221,7 +1223,7 @@ Proof.
     destruct HStep as [H [-> ->]].
     assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_br_table iss i))) as HH.
     { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
-    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+    eapply reduce_det in H as [H | [ Hstart | [(a & cl & tf & h & Hstart & Hstart1 & Hstart2) |
                                                (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
       try congruence;
       try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
@@ -1324,7 +1326,7 @@ Proof.
     destruct HStep as [H [-> ->]].
     assert (first_instr [AI_local n1 f1 LI] = Some (AI_basic (BI_br_table iss i))) as HH.
     { apply first_instr_local. eapply starts_with_lfilled;[|apply Hfill];auto. }
-    eapply reduce_det in H as [H | [ Hstart | [[ a Hstart ] |
+    eapply reduce_det in H as [H | [ Hstart | [(a & cl & tf & h & Hstart & Hstart1 & Hstart2) |
                                                (Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
       try congruence;
       try by assert (lfilled 0 (LH_base [AI_basic (BI_const (VAL_int32 n))] [])
