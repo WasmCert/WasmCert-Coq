@@ -2559,8 +2559,7 @@ Proof.
     - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
       unfold is_Some.
       destruct (const_list_is_val vs0) as [v Hv] => //= ; exists (immV v). exact Hv.
-    - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-      unfold is_Some ; exists trapV. done.
+    - exfalso ; by apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
     - assert (lfilled (S i0) (LH_rec [] n es lh0 []) (vs0 ++ [AI_basic (BI_br i0)])
                       [AI_label n es LI0]) as Hfill'.
       unfold lfilled, lfill ; fold lfill => //=.
@@ -5859,8 +5858,7 @@ Proof.
     - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
       unfold is_Some.
       destruct (const_list_is_val vs0) as [v Hv] => //= ; exists (immV v). exact Hv.
-    - exfalso ; apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
-      unfold is_Some ; exists trapV. done.
+    - exfalso ; by apply (lfilled_all_values _ _ _ _ _ _ _ _ _ _ H1 Hfill) => //=.
     - assert (lfilled (S i0) (LH_rec [] n es lh0 []) (vs0 ++ [AI_basic (BI_br i0)])
                       [AI_label n es LI0]) as Hfill'.
       unfold lfilled, lfill ; fold lfill => //=.
@@ -6028,10 +6026,10 @@ Proof.
                                    rewrite app_nil_r in H. subst.
                                    exfalso ; apply IHHred2 => //=. }
         simpl in H. rewrite H in Hlab.
-                    rewrite app_length_rec in Hlab. 
-                    destruct (cons_length_rec a l0) as [? | ?]. lia. lia. }
+                    rewrite app_length_rec in Hlab.
+                    destruct (cons_length_rec a l0) as [ | ? ]; lia. }
       rewrite H in Hlab. do 2 rewrite app_length_rec in Hlab.
-      destruct (cons_length_rec a l) as [? | ?] ; lia. }
+      destruct (cons_length_rec a l) as [ | ?] ; lia. }
     fold lfill in H. destruct lh0 ; first by false_assumption.
     destruct (const_list l) ; last by false_assumption.
     remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
