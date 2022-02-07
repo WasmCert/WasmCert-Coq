@@ -164,18 +164,18 @@ Proof.
   destruct (to_val e) as [v2|] eqn:He2'; last done.
   apply of_to_val in He2' as <-. simpl. iApply wp_value_fupd'. done.
 Qed.
-End adequacy.
 
 (** Iris's generic adequacy result *)
-Theorem wp_strong_adequacy Σ `{!invPreG Σ} es σ1 n κs t2 σ2 φ :
-  (∀ `{Hinv : !invG Σ},
+Theorem wp_strong_adequacy Σ `{!invGPreS Σ} es σ1 n κs t2 σ2 φ (num_laters_per_step: nat -> nat) :
+  (∀ `{Hinv : !invGS Σ},
     ⊢ |={⊤}=> ∃
          (s: stuckness)
          (stateI : state → nat -> list (observation) → nat → iProp Σ)
          (Φs : list (val → iProp Σ))
-         (fork_post : val → iProp Σ),
-     let _ : irisG Σ := IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono in
-       stateI σ1 κs 0 ∗
+         (fork_post : val → iProp Σ)
+         state_interp_mono,
+     let _ : irisGS Σ := IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono in
+       stateI σ1 0 κs 0 ∗
        ([∗ list] e;Φ ∈ es;Φs, WP e @ s; ⊤ {{ Φ }}) ∗
        (∀ es' t2',
          (* es' is the final state of the initial threads, t2' the rest *)
@@ -186,7 +186,7 @@ Theorem wp_strong_adequacy Σ `{!invPreG Σ} es σ1 n κs t2 σ2 φ :
          threads in [t2] are not stuck *)
          ⌜ ∀ e2, s = NotStuck → e2 ∈ t2 → not_stuck e2 σ2 ⌝ -∗
          (* The state interpretation holds for [σ2] *)
-         stateI σ2 [] (length t2') -∗
+         stateI σ2 0 [] (length t2') -∗
          (* If the initial threads are done, their post-condition [Φ] holds *)
          ([∗ list] e;Φ ∈ es';Φs, from_option Φ True (to_val e)) -∗
          (* For all forked-off threads that are done, their postcondition
@@ -299,6 +299,10 @@ Proof.
   by iApply fupd_mask_intro_discard; first set_solver.
 Qed.
 
+
+End adequacy.
+
+Print irisG.
 
 
 
