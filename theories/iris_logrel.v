@@ -19,7 +19,7 @@ Class logrel_na_invs Σ :=
   }.
 
 Definition wf : string := "wfN".
-Definition wfN : namespace := nroot .@ wf.
+Definition wfN (a : N) : namespace := nroot .@ wf .@ a.
 
 Close Scope byte_scope.
 
@@ -44,6 +44,7 @@ Section logrel.
   Notation FfR := ((leibnizO N) -n> iPropO Σ).
   Notation ClR := ((leibnizO function_closure) -n> iPropO Σ).
   Notation CtxR := ((leibnizO lholed) -n> iPropO Σ).
+  Notation TR := ((leibnizO N) -n> iPropO Σ).
 
   Implicit Types w : (leibnizO value).
   Implicit Types ws : (list (leibnizO value)).
@@ -88,6 +89,35 @@ Section logrel.
     
   Definition interp_frame (τs : result_type) (i : instance) : FR :=
     λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ ↪[frame] f)%I.
+
+  
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Fixpoint lholed_valid lh : Prop :=
+    match lh with
+    | LH_base vs es => const_list vs
+    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
+    end.
+  Lemma lholed_valid_fill (lh : lholed) :
+    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
+  Proof.
+    induction lh;intros es Hval.
+    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
+    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
+      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
+  Qed.
+
+  Fixpoint lholed_return_lengths (τc : list (list value_type)) lh : Prop :=
+    match τc, lh with
+    | [], LH_base vs es => True
+    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_return_lengths τc lh'
+    | _,_ => False
+    end.
+  
+  Definition interp_ctx (τc : list (list value_type)) : CtxR :=
+    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_return_lengths τc lh⌝)%I.
   
   
   (* --------------------------------------------------------------------------------------- *)
@@ -98,30 +128,52 @@ Section logrel.
   (* this is fine for a simple host with no reentrancy, but is not *)
   (* powerful enough to prove examples such as Landin's Knot *)
 
-  Definition interp_ctx (τc : list (list value_type)) : CtxR := λne _, True%I.
-
-  Definition interp_closure_native (τf : function_type) i tf tlocs e : iProp Σ :=
-    match tf with
-    | Tf tf1s tf2s =>  □ ∀ f lh, interp_frame (tf1s ++ tlocs) i f -∗
-                                na_own logrel_nais ⊤ -∗
-                                interp_ctx [tf2s] lh -∗
-                                ∃ f', WP e FRAME (length tf2s); f CTX 1; lh  {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f' }}
-    end.
-    
-   
+  Definition interp_closure_native i tf1s tf2s tlocs e : iProp Σ :=
+    □ ∀ vcs, interp_val tf1s (immV vcs) -∗
+             na_own logrel_nais ⊤ -∗
+             ∃ f', WP e FRAME (length tf2s); (Build_frame (vcs ++ (n_zeros tlocs)) i)
+                        CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
+                        {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f' }}.
   
-  Definition interp_closure (τf : function_type) : ClR :
-      λne cl, match cl with
-              | FC_func_native i (Tf tf1s tf2s) tlocs e => 
-              | FC_func_host (Tf tf1s tf2s) h =>
-              end.
+  Definition interp_closure_host tf1s tf2s h : iProp Σ :=
+    □ ∀ vcs, interp_val tf1s (immV vcs) -∗
+             wp_host HWP NotStuck ⊤ h vcs
+                        (λ r, from_option (interp_val tf2s) False (to_val (result_to_stack r))).
+  
+  Definition interp_closure (τf : function_type) : ClR :=
+      λne cl, (match cl with
+              | FC_func_native i (Tf tf1s tf2s) tlocs e => ⌜τf = Tf tf1s tf2s⌝ ∗ interp_closure_native i tf1s tf2s tlocs (to_e_list e)
+              | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ interp_closure_host tf2s tf2s h
+              end)%I.
   
   Definition interp_function (τf : function_type) : FfR :=
-    λne n, (∃ (cl : function_closure), na_inv logrel_nais wfN (n ↦[wf] cl)
-                                     ∗ interp_closure cl)%I.
-    
+    λne n, (∃ (cl : function_closure), na_inv logrel_nais (wfN n) (n ↦[wf] cl)
+                                     ∗ interp_closure τf cl)%I.
+
+  
+  (* --------------------------------------------------------------------------------------- *)
+  (* ---------------------------------- TABLE RELATION ------------------------------------- *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  
   
 
-    End logrel.
+
+
+
+
+
+(*   Definition tab_typing (t : tableinst) (tt : table_type) : bool := *)
+(*   (tt.(tt_limits).(lim_min) <= tab_size t) && *)
+(*   (t.(table_max_opt) < tt.(tt_limits).(lim_max)). *)
+
+(* Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool := *)
+(*   (n < List.length ts) && *)
+(*   match List.nth_error ts n with *)
+(*   | None => false *)
+(*   | Some x => tab_typing x tab_t *)
+(*   end. *)
+
+End logrel.
 
   
