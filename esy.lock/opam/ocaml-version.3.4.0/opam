@@ -8,7 +8,7 @@ doc: "https://ocurrent.github.io/ocaml-version/doc"
 bug-reports: "https://github.com/ocurrent/ocaml-version/issues"
 depends: [
   "ocaml" {>= "4.07.0"}
-  "dune"
+  "dune" {>= "1.0"}
   "alcotest" {with-test}
 ]
 build: [
@@ -40,10 +40,10 @@ functionality:
 """
 url {
   src:
-    "https://github.com/ocurrent/ocaml-version/releases/download/v3.2.0/ocaml-version-v3.2.0.tbz"
+    "https://github.com/ocurrent/ocaml-version/releases/download/v3.4.0/ocaml-version-v3.4.0.tbz"
   checksum: [
-    "sha256=a643dd6ef10676855916a1d45c69070587088673da00a2867a52251390bb7461"
-    "sha512=85e104d347c52e3be00e4e4d675e99dc43bf57aebd08c9934e70608a2657bfa5be1d8c9aa897dac4ce6e2da9175d3ac0eb22baa2851f4edc88063fede6b9b650"
+    "sha256=d8c1beb5e8d8ebb7710b5f434ce66a3ec8b752b1e4d6ba87c4fe27452bdb8a25"
+    "sha512=215e5b0c4ea5fa5461cdc0fc81fbd84a2a319a246a19504d0a0abc8c891e252a9e41644356150a1dc25d56b3f7e084db7a0b15becab4e1339992e645fc3d8ef1"
   ]
 }
-x-commit-hash: "41428c5e64b21a49f334822562bc73fd5033353c"
+x-commit-hash: "c535ad2f463664b31001888fc99495dd01632747"

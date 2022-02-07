@@ -34,12 +34,13 @@ build: [
     "@runtest" {with-test}
   ]
 ]
-x-commit-hash: "c5ce41b1e1841a2005bb3c4ca3bf1f77876d509d"
 url {
   src:
-    "https://github.com/ocaml-doc/odoc-parser/releases/download/0.9.0/odoc-parser-0.9.0.tbz"
+    "https://github.com/ocaml-doc/odoc-parser/releases/download/1.0.0/odoc-parser-1.0.0.tbz"
   checksum: [
-    "sha256=df0dad1bad39bf4de6be666c4b63b973bd72eba3b75be9f726317121b5f0bd79"
-    "sha512=5222debc190784cee62fee177d39fcff56f326b1a3c5b4beb408d0c0eb3d43bf7dcfcffcd25ccc6c3d3c0c098771f01780cb687495ac2a4d95a4bc6401643316"
+    "sha256=b6aa08ea71a9ebad9b2bebc4da1eda0d713cf3674e6d57d10459d934286e7aa1"
+    "sha512=b5caee3a0d288aeaa95e3f32de8e5f75f169ad2691d75f8d6c932e4fb0e6cb188813ac2d92d4076fe75b12217130e6999c46e7890cf0fa765070870f85a96d63"
   ]
 }
+x-commit-hash: "b13ffc2f30ca20ca5bb733be4f630d46bd274fd6"
+
