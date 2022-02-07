@@ -28,8 +28,8 @@ Canonical Structure wasm_lang := Language wasm_mixin.
  
 Let reducible := @reducible wasm_lang.
 
-Class irisG (Σ : gFunctors) := IrisG {
-  iris_invG :> invG Σ;
+Class irisGS (Σ : gFunctors) := IrisG {
+  iris_invGS :> invGS Σ;
 
   (** The state interpretation is an invariant that should hold in
   between each step of reduction. Here [Λstate] is the global state,
@@ -66,28 +66,28 @@ Class irisG (Σ : gFunctors) := IrisG {
   state_interp_mono σ ns κs nt:
     state_interp σ ns κs nt ={∅}=∗ state_interp σ (S ns) κs nt
 }.
-Global Opaque iris_invG.
+Global Opaque iris_invGS.
 
 (* TODO: change the fields to use actual sensible names *)
 Class wfuncG Σ := WFuncG {
-  func_invG :> invG Σ;
-  func_gen_hsG :> gen_heapG N function_closure Σ;
+  func_invG :> invGS Σ;
+  func_gen_hsG :> gen_heapGS N function_closure Σ;
 }.
 
 Class wtabG Σ := WTabG {
-  tab_gen_hsG :> gen_heapG (N*N) funcelem Σ;
+  tab_gen_hsG :> gen_heapGS (N*N) funcelem Σ;
 }.
 
 Class wmemG Σ := WMemG {
-  mem_gen_hsG :> gen_heapG (N*N) byte Σ;
+  mem_gen_hsG :> gen_heapGS (N*N) byte Σ;
 }.
 
 Class wmemsizeG Σ := WMemsizeG {
-  memsize_gen_hsG :> gen_heapG N N Σ;
+  memsize_gen_hsG :> gen_heapGS N N Σ;
 }.
 
 Class wglobG Σ := WGlobG {
-  glob_gen_hsG :> gen_heapG N global Σ;
+  glob_gen_hsG :> gen_heapGS N global Σ;
 }.
 
 Class wframeG Σ := WFrameG {
@@ -103,8 +103,8 @@ Instance eqdecision_frame: EqDecision frame.
 Proof. decidable_equality. Qed.
 
 (* TODO: Global Instance doesn't seem to actually make this global... *)
-Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wframeG Σ} : irisG Σ := {
-  iris_invG := func_invG; (* ??? *)
+Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wframeG Σ} : irisGS Σ := {
+  iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
@@ -204,7 +204,7 @@ Proof.
   repeat (f_contractive || f_equiv); apply Hwp.
 Qed.
 
-Global Instance wasm_wp_def : Wp wasm_lang (iProp Σ) stuckness :=
+Global Instance wasm_wp_def : Wp (iProp Σ) expr val stuckness :=
   λ (s: stuckness), fixpoint (wasm_wp_pre s).
 
 (* Seal is a mechanism that stdpp uses to avoid definitions being automatically
@@ -215,6 +215,12 @@ Global Arguments wasm_wp' {Λ Σ _}.
 Global Existing Instance wasm_wp'.
 Lemma wasm_wp_eq: wp = @wasm_wp_def.
 Proof. rewrite -wasm_wp_aux.(seal_eq) //. Qed.
+
+Implicit Types s : stuckness.
+Implicit Types P : iProp Σ.
+Implicit Types Φ : val → iProp Σ.
+Implicit Types v : val.
+Implicit Types e : expr.
 
 (* Reprove some useful auxiliary lemmas *)
 Lemma wp_unfold s E e Φ :
