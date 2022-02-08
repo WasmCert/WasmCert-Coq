@@ -125,9 +125,9 @@ Qed.
 End adequacy.
 
 (** Iris's generic adequacy result *)
-Theorem wp_strong_adequacy Σ Λ `{!invGpreS Σ} es σ1 n κs t2 σ2 φ
+Theorem wp_strong_adequacy {A : Type} Σ Λ `{!invGpreS Σ} {Pred : A -> iProp Σ} es σ1 n κs t2 σ2 φ
         (num_laters_per_step : nat → nat) :
-  (∀ `{Pred : A -> iProp Σ, Hinv: !invGS Σ},
+  (∀ `{Hinv: !invGS Σ},
       ⊢ |={⊤}=> ∃
          (s: stuckness)
          (stateI : state Λ → nat → list (observation Λ) → nat → iProp Σ)
@@ -139,6 +139,7 @@ Theorem wp_strong_adequacy Σ Λ `{!invGpreS Σ} es σ1 n κs t2 σ2 φ
        let _ : irisGS Λ Σ := IrisG _ _ Hinv stateI fork_post num_laters_per_step
                                   state_interp_mono
        in
+       let _ : Wp (iPropI Σ) (expr Λ) (val Λ) stuckness := @wp _ _ _ _ (@wp' _ _ _ _ Pred) in
        stateI σ1 0 κs 0 ∗
        ([∗ list] e;Φ ∈ es;Φs, WP e @ s; ⊤ {{ Φ }}) ∗
        (∀ es' t2',
@@ -168,7 +169,7 @@ Proof.
   apply (step_fupdN_soundness _ (steps_sum num_laters_per_step 0 n))=> Hinv.
   iMod Hwp as (s stateI Φ fork_post state_interp_mono) "(Hσ & Hwp & Hφ)".
   iDestruct (big_sepL2_length with "Hwp") as %Hlen1.
-  iMod (@wptp_strong_adequacy _ _
+  iMod (@wptp_strong_adequacy _ _ _ _
        (IrisG _ _ Hinv stateI fork_post num_laters_per_step state_interp_mono) _ []
     with "[Hσ] Hwp") as "H"; [done|by rewrite right_id_L|].
   iAssert (|={∅}▷=>^(steps_sum num_laters_per_step 0 n) |={∅}=> ⌜φ⌝)%I
