@@ -1,13 +1,16 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
+From iris.algebra Require Import gmap auth agree gset coPset.
 From iris.program_logic Require Import language.
-From iris.proofmode Require Import base tactics classes.
-From iris.base_logic Require Export gen_heap ghost_map proph_map.
-From iris.base_logic.lib Require Export fancy_updates.
+From iris.proofmode Require Import proofmode.
+From iris.base_logic.lib Require Import wsat.
 From iris.bi Require Export weakestpre.
+From iris.prelude Require Import options.
 Require Export stdpp_aux iris iris_locations iris_atomicity iris_wp_def.
 Require Export datatypes host operations properties opsem.
 
 Import uPred.
+
+Import DummyHosts.
 
 (** This file contains the adequacy statements of the Iris program logic. First
 we prove a number of auxilary results. *)
@@ -16,13 +19,17 @@ Close Scope byte_scope.
 
 Section adequacy.
   
-Import DummyHosts.
-
 Let reduce := @reduce host_function host_instance.
 
 Let reducible := @reducible wasm_lang.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+
+Implicit Types e : iris.expr.
+Implicit Types P Q : iProp Σ.
+Implicit Types Φ : val → iProp Σ. (*
+Implicit Types Φs : list (val → iProp Σ).
+*)
 
 (*
    t and Φs should be a list of expr and iProp each; for each pair in t and Φ,
@@ -31,6 +38,7 @@ Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG 
    Why is this definition useful, though?
  *)
 Notation wptp s t Φs := ([∗ list] e;Φ ∈ t;Φs, WP e @ s; ⊤ {{ Φ }})%I.
+ 
 
 (* Given that (e1, σ1) -> (e2, σ2) with 'effects' efs, plus the state interp
    of σ1 and a WP spec of e1, we get after a number of steps(??) the state
@@ -135,7 +143,7 @@ Proof.
   by eauto with iFrame.
 Qed.
 
-Lemma wptp_strong_adequacy Φs κs' s n es1 es2 κs σ1 σ2 ns nt:
+Lemma wptp_strong_adequacy Φs κs' s n es1 es2 κs σ1 ns σ2 nt:
   nsteps n (es1, σ1) κs (es2, σ2) →
   state_interp σ1 ns (κs ++ κs') nt -∗
   wptp s es1 Φs ={⊤}[∅]▷=∗^(S n) ∃ nt',
@@ -165,16 +173,30 @@ Proof.
   apply of_to_val in He2' as <-. simpl. iApply wp_value_fupd'. done.
 Qed.
 
-(** Iris's generic adequacy result *)
-Theorem wp_strong_adequacy Σ `{!invGPreS Σ} es σ1 n κs t2 σ2 φ (num_laters_per_step: nat -> nat) :
+Lemma wp_singleton_strong_adequacy Φ κs' s n e1 e2 κs σ1 ns σ2 nt:
+  nsteps n ([e1], σ1) κs ([e2], σ2) →
+  state_interp σ1 ns (κs ++ κs') nt -∗
+  WP e1 @ s; ⊤ {{ Φ }} ={⊤}[∅]▷=∗^(S n) ∃ nt',
+    ⌜ s = NotStuck→ not_stuck e2 σ2 ⌝ ∗
+    state_interp σ2 (n + ns) κs' (nt + nt') ∗
+    from_option Φ True (to_val e2).
+Proof.
+Admitted.
+
+Theorem wp_strong_adequacy `{!invGpreS Σ} es σ1 n κs t2 σ2 φ
+        (num_laters_per_step : nat → nat) :
   (∀ `{Hinv : !invGS Σ},
     ⊢ |={⊤}=> ∃
          (s: stuckness)
-         (stateI : state → nat -> list (observation) → nat → iProp Σ)
+         (stateI : state → nat → list (observation) → nat → iProp Σ)
          (Φs : list (val → iProp Σ))
          (fork_post : val → iProp Σ)
+         (* Note: existentially quantifying over Iris goal! [iExists _] should
+         usually work. *)
          state_interp_mono,
-     let _ : irisGS Σ := IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono in
+       let _ : irisGS Σ := IrisG _ Hinv stateI fork_post num_laters_per_step
+                                  state_interp_mono
+       in
        stateI σ1 0 κs 0 ∗
        ([∗ list] e;Φ ∈ es;Φs, WP e @ s; ⊤ {{ Φ }}) ∗
        (∀ es' t2',
@@ -186,7 +208,7 @@ Theorem wp_strong_adequacy Σ `{!invGPreS Σ} es σ1 n κs t2 σ2 φ (num_laters
          threads in [t2] are not stuck *)
          ⌜ ∀ e2, s = NotStuck → e2 ∈ t2 → not_stuck e2 σ2 ⌝ -∗
          (* The state interpretation holds for [σ2] *)
-         stateI σ2 0 [] (length t2') -∗
+         stateI σ2 n [] (length t2') -∗
          (* If the initial threads are done, their post-condition [Φ] holds *)
          ([∗ list] e;Φ ∈ es';Φs, from_option Φ True (to_val e)) -∗
          (* For all forked-off threads that are done, their postcondition
@@ -201,21 +223,87 @@ Theorem wp_strong_adequacy Σ `{!invGPreS Σ} es σ1 n κs t2 σ2 φ (num_laters
   φ.
 Proof.
   intros Hwp ?.
-  eapply (step_fupdN_soundness' _ (S (S n)))=> Hinv. rewrite Nat_iter_S.
-  iMod Hwp as (s stateI Φ fork_post) "(Hσ & Hwp & Hφ)".
+  apply (step_fupdN_soundness _ (steps_sum num_laters_per_step 0 n))=> Hinv.
+  iMod Hwp as (s stateI Φ fork_post state_interp_mono) "(Hσ & Hwp & Hφ)".
   iDestruct (big_sepL2_length with "Hwp") as %Hlen1.
-  iApply step_fupd_intro; [done|]; iModIntro.
-  iApply step_fupdN_S_fupd. iApply (step_fupdN_wand with "[-Hφ]").
-  { iApply (@wptp_strong_adequacy _ _ (IrisG _ _ Hinv stateI fork_post) _ []
-    with "[Hσ] Hwp"); eauto; by rewrite right_id_L. }
-  iDestruct 1 as (nt' ?) "(Hσ & Hval) /=".
+  iMod (@wptp_strong_adequacy _ []
+    with "[Hσ] Hwp") as "H"; [done|by rewrite right_id_L|].
+  iAssert (|={∅}▷=>^(steps_sum num_laters_per_step 0 n) |={∅}=> ⌜φ⌝)%I
+    with "[-]" as "H"; last first.
+  { destruct steps_sum;[done|]. by iApply step_fupdN_S_fupd. }
+  iApply (step_fupdN_wand with "H").
+  iMod 1 as (nt' ?) "(Hσ & Hval) /=".
   iDestruct (big_sepL2_app_inv_r with "Hval") as (es' t2' ->) "[Hes' Ht2']".
   iDestruct (big_sepL2_length with "Ht2'") as %Hlen2.
   rewrite replicate_length in Hlen2; subst.
   iDestruct (big_sepL2_length with "Hes'") as %Hlen3.
-  iApply fupd_plain_mask_empty.
+  rewrite -plus_n_O.
   iApply ("Hφ" with "[//] [%] [//] Hσ Hes'"); [congruence|].
   by rewrite big_sepL2_replicate_r // big_sepL_omap.
+Qed.
+(** Iris's generic adequacy result *)
+(* Note that we're not parametric on language here -- we just use wasm_lang. *)
+Theorem wp_strong_adequacy e1 σ1 n κs e2 σ2 φ (num_laters_per_step: nat -> nat) :
+  (  ⊢ |={⊤}=> ∃
+         (s: stuckness)
+         (Φ : val → iProp Σ),
+       state_interp σ1 0 κs 0 ∗
+     (* Instead of thread pool es, we just have one main thread and need to have
+        one single wp. *)
+         WP e1 @ s; ⊤ {{ Φ }} ∗
+   (*    ([∗ list] e;Φ ∈ es;Φs, WP e @ s; ⊤ {{ Φ }}) ∗ *)
+       (
+         (* es' is the final state of the initial threads, t2' the rest *)
+       (*  ⌜ t2 = [e2]⌝ -∗*)
+    (*     (* es' corresponds to the initial threads *)
+         ⌜ length es' = length es ⌝ -∗*)
+         (* If this is a stuck-free triple (i.e. [s = NotStuck]), then all
+         threads in [t2] are not stuck *)
+         ⌜ s = NotStuck → not_stuck e2 σ2 ⌝ -∗
+         (* The state interpretation holds for [σ2] *)
+         state_interp σ2 n [] 0 -∗
+         (* If the initial threads are done, their post-condition [Φ] holds *)
+         (* TODO: add back a single WP for es'*)
+         from_option Φ True (to_val e2) -∗
+     (*    ([∗ list] e;Φ ∈ es';Φs, from_option Φ True (to_val e)) -∗ *)
+         (* For all forked-off threads that are done, their postcondition
+            [fork_post] holds. *)
+     (*    ([∗ list] v ∈ omap to_val t2', fork_post v) -∗ *)
+         (* Under all these assumptions, and while opening all invariants, we
+         can conclude [φ] in the logic. After opening all required invariants,
+         one can use [fupd_mask_subseteq] to introduce the fancy update. *)
+         |={⊤,∅}=> ⌜ φ ⌝)) →
+  nsteps n ([e1], σ1) κs ([e2], σ2) →
+  (* Then we can conclude [φ] at the meta-level. *)
+  φ.
+Proof.
+  intros Hwp Hstep.
+  apply (step_fupdN_soundness φ (steps_sum num_laters_per_step 0 n))=> Hinv.
+  (*iMod Hwp as (s Φ) "(Hσ & Hwp & Hφ)".*)
+  iDestruct Hwp as "Hwp".
+  Search ElimModal.
+  iApply fupd_mask_intro; first by set_solver.
+  iIntros "Hmask". (*
+  iDestruct (@wp_singleton_strong_adequacy _ (*(IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono)*) _ _ with "[Hσ] Hwp") as "H" => //.
+  { admit. }
+  iSimpl.
+  iMod "H".
+  iMod (@wp_steps _
+       (IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono) _ []
+    with "[Hσ] Hwp") as "H"; [done|by rewrite right_id_L|].*)
+  iAssert (|={∅}▷=>^(steps_sum num_laters_per_step 0 n) |={∅}=> ⌜φ⌝)%I
+    with "[-]" as "H"; last first.
+  { destruct steps_sum; [done|]. by iApply step_fupdN_S_fupd. }
+  iApply (step_fupdN_wand with "H").
+  iMod 1 as (nt' ?) "(Hσ & Hval) /=".
+  iDestruct (big_sepL2_app_inv_r with "Hval") as (es' t2' ->) "[Hes' Ht2']".
+  iDestruct (big_sepL2_length with "Ht2'") as %Hlen2.
+  rewrite replicate_length in Hlen2; subst.
+  iDestruct (big_sepL2_length with "Hes'") as %Hlen3.
+  rewrite -plus_n_O.
+  iApply ("Hφ" with "[//] [%] [//] Hσ Hes'"); [congruence|].
+  by rewrite big_sepL2_replicate_r // big_sepL_omap.
+
 Qed.
 
 (** Since the full adequacy statement is quite a mouthful, we prove some more
