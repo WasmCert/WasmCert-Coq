@@ -98,7 +98,7 @@ Local Fixpoint steps_sum (num_laters_per_step : nat → nat) (start ns : nat) : 
     S $ num_laters_per_step start + steps_sum num_laters_per_step (S start) ns
   end.
 
-Let nsteps := @iris.program_logic.language.nsteps wasm_lang.
+Definition nsteps := @iris.program_logic.language.nsteps wasm_lang.
 
 Lemma wp_not_stuck κs ns nt e σ Φ :
   state_interp σ ns κs nt -∗ WP e {{ Φ }} ={⊤}=∗ ⌜language.not_stuck e σ⌝.
@@ -167,42 +167,45 @@ Qed.
 End adequacy.
 
 (** Iris's generic adequacy result *)
-Theorem wp_strong_adequacy Σ `{!invPreG Σ} es σ1 n κs t2 σ2 φ :
-  (∀ `{Hinv : !invG Σ},
-    ⊢ |={⊤}=> ∃
+Theorem wp_strong_adequacy Σ `{!invGpreS Σ}  (* `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} *) e σ1 n κs e2 σ2 φ :
+  (∀  `{Hinv: invGS Σ},
+      ⊢ |={⊤}=> ∃
          (s: stuckness)
-         (stateI : state → nat -> list (observation) → nat → iProp Σ)
-         (Φs : list (val → iProp Σ))
-         (fork_post : val → iProp Σ),
-     let _ : irisG Σ := IrisG _ Hinv stateI fork_post num_laters_per_step state_interp_mono in
-       stateI σ1 κs 0 ∗
-       ([∗ list] e;Φ ∈ es;Φs, WP e @ s; ⊤ {{ Φ }}) ∗
-       (∀ es' t2',
-         (* es' is the final state of the initial threads, t2' the rest *)
-         ⌜ t2 = es' ++ t2' ⌝ -∗
-         (* es' corresponds to the initial threads *)
-         ⌜ length es' = length es ⌝ -∗
-         (* If this is a stuck-free triple (i.e. [s = NotStuck]), then all
+         (stateI : state → nat → list (observation ) → nat → iProp Σ)
+         (Φ : (val → iProp Σ))
+         (fork_post : val → iProp Σ)
+         (* Note: existentially quantifying over Iris goal! [iExists _] should
+         usually work. *)
+         state_interp_mono,
+       let _ : irisGS Σ := IrisG _ Hinv stateI fork_post num_laters_per_step
+                                  state_interp_mono
+       in
+       (* (WP e @ s; ⊤ {{ Φ }}) ∗ *)
+        (* If this is a stuck-free triple (i.e. [s = NotStuck]), then all
          threads in [t2] are not stuck *)
-         ⌜ ∀ e2, s = NotStuck → e2 ∈ t2 → not_stuck e2 σ2 ⌝ -∗
+         ((* ((⌜ s = NotStuck → not_stuck e2 σ2 ⌝) -∗ *)
+
          (* The state interpretation holds for [σ2] *)
-         stateI σ2 [] (length t2') -∗
+         stateI σ2 0 [] 0 -∗
          (* If the initial threads are done, their post-condition [Φ] holds *)
-         ([∗ list] e;Φ ∈ es';Φs, from_option Φ True (to_val e)) -∗
-         (* For all forked-off threads that are done, their postcondition
-            [fork_post] holds. *)
-         ([∗ list] v ∈ omap to_val t2', fork_post v) -∗
+         from_option Φ True (to_val e) -∗
          (* Under all these assumptions, and while opening all invariants, we
          can conclude [φ] in the logic. After opening all required invariants,
          one can use [fupd_mask_subseteq] to introduce the fancy update. *)
          |={⊤,∅}=> ⌜ φ ⌝)) →
-  nsteps n (es, σ1) κs (t2, σ2) →
+  nsteps n ([e], σ1) [] ([e2], σ2) →
   (* Then we can conclude [φ] at the meta-level. *)
   φ.
 Proof.
   intros Hwp ?.
-  eapply (step_fupdN_soundness' _ (S (S n)))=> Hinv. rewrite Nat_iter_S.
-  iMod Hwp as (s stateI Φ fork_post) "(Hσ & Hwp & Hφ)".
+  eapply (step_fupdN_soundness _ (steps_sum num_laters_per_step 0 n))=> Hinv.
+  (* eapply (step_fupdN_soundness' _ (S (S n)))=> Hinv. rewrite Nat_iter_S. *)
+  iDestruct Hwp as "HH".
+  Unshelve.
+
+
+  iMod ""
+  iMod Hwp as "HH" . "(Hσ & Hwp & Hφ)".
   iDestruct (big_sepL2_length with "Hwp") as %Hlen1.
   iApply step_fupd_intro; [done|]; iModIntro.
   iApply step_fupdN_S_fupd. iApply (step_fupdN_wand with "[-Hφ]").

@@ -197,11 +197,11 @@ Lemma spec_new_stack f0 n len :
                                               ↪[frame] f0 ∗
                                               N.of_nat n ↦[wmlength] len }}}
     new_stack
-    {{{ v, RET v ; ∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
+    {{{ v, RET v ; (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
                                          (⌜ (k = -1)%Z ⌝ ∗
                                           N.of_nat n↦[wmlength] len ∨
                                             isStack k [] f0 ∗
-                                          N.of_nat n ↦[wmlength] (len + page_size)%N)%I }}}.
+                                          N.of_nat n ↦[wmlength] (len + page_size)%N)%I) }}}.
 Proof.
   iIntros (Φ) "(%Hinst & %Hflocs & Hframe & Hlen) HΦ".
   unfold new_stack.
@@ -209,16 +209,16 @@ Proof.
   iApply wp_seq => /=.
   iSplitR.
   - instantiate (1 := λ x,
-                   (⌜ x = immV [VAL_int32 (Wasm_int.int_of_Z
+                   (((⌜ x = immV [VAL_int32 (Wasm_int.int_of_Z
                                             i32m (ssrnat.nat_of_bin
                                                     (len `div` page_size)))] ⌝ ∗
                                (∃ b, N.of_nat n ↦[wms][ len ]
                                               repeat b (N.to_nat page_size)) ∗
-                              N.of_nat n↦[wmlength] (len + page_size)%N ∗
-                              ↪[frame] f0
-                   ∨ ⌜ x = immV [VAL_int32 int32_minus_one] ⌝%I ∗
-                N.of_nat n↦[wmlength] len ∗ ↪[frame] f0)%I).
-    iIntros "[(%Habs & _ & _ & _) | (%Habs & _ & _)]" ; inversion Habs.
+                              N.of_nat n↦[wmlength] (len + page_size)%N)
+                              
+                   ∨ (⌜ x = immV [VAL_int32 int32_minus_one] ⌝%I ∗
+                N.of_nat n↦[wmlength] len)) ∗ ↪[frame] f0)%I).
+    iIntros "[[(%Habs & _ & _) | (%Habs & _)] Hf]" ; inversion Habs.
   - iSplitR "HΦ".
     unfold i32const.
     iApply (wp_grow_memory
@@ -232,9 +232,9 @@ Proof.
       iSplit ; by iPureIntro.
   - iIntros (w) "H".
     unfold of_val.
-    destruct w ; last by iDestruct "H" as "[[%Habs _ ]| [%Habs _]]" ; inversion Habs.
-    destruct l ; first by iDestruct "H" as "[[%Habs _ ]| [%Habs _]]" ; inversion Habs.
-    destruct l ; last by iDestruct "H" as "[[%Habs _ ]| [%Habs _]]" ; inversion Habs.
+    destruct w ; last by iDestruct "H" as "[[[%Habs _ ]| [%Habs _]] _]" ; inversion Habs.
+    destruct l ; first by iDestruct "H" as "[[[%Habs _ ]| [%Habs _]] _]" ; inversion Habs.
+    destruct l ; last by iDestruct "H" as "[[[%Habs _ ]| [%Habs _]] _]" ; inversion Habs.
     unfold fmap, list_fmap.
     rewrite - separate1.
     rewrite separate2.
@@ -243,10 +243,11 @@ Proof.
                                             f_locs := set_nth v (f_locs f0) 0 v;
                                             f_inst := f_inst f0
                                           |} )%I) ).
-    rewrite (assoc _ (∃ b, _)%I ).
-    rewrite (assoc _ (⌜ immV [v] = _ ⌝)%I).
-    rewrite (assoc _ (⌜ immV [v] = immV [VAL_int32 int32_minus_one] ⌝)%I).
-    iDestruct (bi.sep_or_r with "H") as "[H Hf]". 
+    (* rewrite (assoc _ (∃ b, _)%I ). *)
+    (* rewrite (assoc _ (⌜ immV [v] = _ ⌝)%I). *)
+    (* rewrite (assoc _ (⌜ immV [v] = immV [VAL_int32 int32_minus_one] ⌝)%I). *)
+    (* iDestruct (bi.sep_or_r with "H") as "[H Hf]".  *)
+    iDestruct "H" as "[H Hf]".
     iSplitR.
   - iIntros "[%Habs _]" ; done.
   - iSplitL "Hf". 

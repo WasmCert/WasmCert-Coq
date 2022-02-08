@@ -14,7 +14,6 @@ Close Scope byte_scope.
 Section iris_rules_calls.
   Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-  (* Placeholder until reduce_det has been updated to accomodate native invocations *)
   Import DummyHosts.
   
   
@@ -79,7 +78,7 @@ Section iris_rules_calls.
       { apply first_instr_const. eapply to_val_const_list. eauto. }
       eapply reduce_det in H as HH;[|apply Hred].
       destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists f0. iFrame.
+      simplify_eq. iApply bi.sep_exist_l. iExists f0. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("HΦ" with "[$]"). iFrame.
       rewrite Hf in Hstart. done.
@@ -277,7 +276,7 @@ Section iris_rules_calls.
     iIntros (Hparams Hlen Hret) "Hf Hi HWP HΦ".
 
     iLöb as "IH".
-    iApply wp_unfold. rewrite /wasm_wp_pre.
+    iApply wp_unfold. rewrite /wp_pre /=.
     assert (to_val (ves ++ [AI_invoke a]) = None) as ->;[by apply (to_val_cat_None2 ves)|].
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
@@ -312,12 +311,12 @@ Section iris_rules_calls.
       { iDestruct "HH" as "[HH _]".
         iSpecialize ("HH" $! (hs2,ws2,locs2,inst2) r0 Hhost').
         repeat (iMod "HH"; iModIntro; try iNext).
-        iExists _. iFrame. rewrite app_nil_l in Heq. rewrite Heq.
+        iApply bi.sep_exist_l. iExists _. iFrame. rewrite app_nil_l in Heq. rewrite Heq.
         simplify_eq. iDestruct "HH" as "($&Hr)". iSplit =>//. }
       { iDestruct "HH" as "[_ HH']".
         iSpecialize ("HH'" $! (hs2,ws2,locs2,inst2) Hhost').
         repeat (iMod "HH'"; iModIntro; try iNext).
-        iExists _. iFrame.
+        iApply bi.sep_exist_l. iExists _. iFrame.
         simplify_eq. iDestruct "HH'" as "($&Hr)". iSplit =>//. }
       Unshelve. apply r.
   Qed.
@@ -363,7 +362,7 @@ Section iris_rules_calls.
       { eapply starts_with_lfilled;eauto. auto. }
       eapply reduce_det in H as HH;[|eapply r_label;[|eauto..];apply r_call; rewrite /= nth_error_lookup //]. 
       destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
-      simplify_eq. iExists _. iFrame.
+      simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "?". iApply ("HΦ" with "[$]"). auto.
   Qed.
   Lemma wp_call (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a :
@@ -427,7 +426,7 @@ Section iris_rules_calls.
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
       destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
+      simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("Hcont" with "[$]"). iFrame.
   Qed.
@@ -440,9 +439,9 @@ Section iris_rules_calls.
     (N.of_nat a) ↦[wf] cl -∗
     ↪[frame] f0 -∗
     ▷ (Φ trapV) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0
-                                                                                          ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
-                                                                                          ∗ (N.of_nat a) ↦[wf] cl }}.
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
+                                                                                          ∗ (N.of_nat a) ↦[wf] cl)
+                                                                                          ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Htype Hc) "Ha Hcl Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
@@ -480,8 +479,7 @@ Section iris_rules_calls.
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
       destruct HH as [HH | [Hstart | [ (?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
-      iSplit =>//. auto.
+      simplify_eq. iFrame. done.
   Qed.
 
 
@@ -517,8 +515,7 @@ Section iris_rules_calls.
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
       destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
-      iSplit =>//. auto.
+      simplify_eq. iFrame. done.
   Qed.
 
   
@@ -527,8 +524,8 @@ Section iris_rules_calls.
     (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None -∗ (* but no index i *)
     ↪[frame] f0 -∗
     ▷ (Φ trapV) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0
-                                                                                          ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None }}.
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None)
+                                                                                          ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Hc) "Ha Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
@@ -561,8 +558,7 @@ Section iris_rules_calls.
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
       destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
-      iSplit =>//. auto.
+      simplify_eq. iFrame. done.
   Qed.
 
 End iris_rules_calls.

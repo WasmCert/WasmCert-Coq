@@ -42,7 +42,7 @@ Lemma wp_nil (s : stuckness) (E : coPset) (Φ : iProp Σ) f :
   ↪[frame] f ∗ Φ ⊢ WP [] @ s ; E CTX_EMPTY {{ fun v => Φ }}%I.
 Proof.
   iIntros "(Hframe & H)". iApply wp_wasm_empty_ctx.
-  by rewrite wp_unfold /wasm_wp_pre.
+  rewrite wp_unfold /wp_pre /=. iFrame. eauto.
 Qed.
 
 Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
@@ -55,7 +55,8 @@ Proof.
 { iIntros "[Hntrap [Hes1 Hes2]]".
   (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
   iIntros (LI Hfilled).
-  repeat rewrite wp_unfold /wasm_wp_pre /=.
+  repeat rewrite wp_unfold /wp_pre /=.
+  iApply wp_unfold. rewrite /wp_pre /=.
   (* Base case, when both es1 and es2 are values *)
   destruct (iris.to_val LI) as [vs|] eqn:Hetov.
   { destruct vs.
@@ -67,15 +68,15 @@ Proof.
       assert (Hvs12':=Hvs12).
       apply to_val_cat in Hvs12' as [-> Hev2].
       apply iris.of_to_val in Hev2 as <-.
-      iMod "Hes1".
       iSpecialize ("Hes2" with "Hes1").
+      iMod "Hes2".
       unfold iris.of_val.
       rewrite - fmap_app take_drop.
       rewrite of_val_imm.
       pose proof (lfilled_swap (iris.of_val (immV vs12)) Hfilled) as [LI' Hfilled'].
       iSpecialize ("Hes2" $! _ Hfilled').
-      rewrite wp_unfold /wasm_wp_pre /=.
-      assert (iris.to_val LI' = Some (immV l)) as ->;[|iFrame].
+      iDestruct (wp_unfold with "Hes2") as "Hes2". rewrite /wp_pre /=.
+      assert (to_val LI' = Some (immV l)) as ->;[|iFrame].
       apply lfilled_Ind_Equivalent in Hfilled'. inversion Hfilled';subst.
       apply to_val_cat_inv;auto. apply to_val_cat_inv;auto. apply iris.to_of_val.
     }
@@ -88,18 +89,17 @@ Proof.
       apply app_eq_singleton in HH' as [[HH HH']|[HH HH']];subst.
       { apply app_eq_singleton in HH as [[-> ->]|[-> ->]].
         simpl.
-        all:iMod "Hes1".
-        all: iSpecialize ("Hes2" with "Hes1").
-        all:rewrite /=.
+        all: iMod ("Hes2" with "Hes1") as "Hes2".
+        all: rewrite /=.
         all: iDestruct (wp_wasm_empty_ctx with "Hes2") as "Hes2".
-        all:by rewrite wp_unfold /wasm_wp_pre /=. }
+        all: by iDestruct (wp_unfold with "Hes2") as "Hes2";rewrite /wp_pre /=. }
       { destruct es1,es2 =>//=.
         iMod "Hes1".
         iSpecialize ("Hes2" with "Hes1").
         rewrite /=.
         iSpecialize ("Hes2" $! [AI_trap] with "[]").
         { iPureIntro. constructor. }
-        by rewrite wp_unfold /wasm_wp_pre /=.  }
+        by iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.  }
     }
   }
   {
@@ -110,7 +110,7 @@ Proof.
     iMod "Hes1".
     iSpecialize ("Hes2" with "Hes1").
     iSpecialize ("Hes2" $! _ Hfilled).
-    rewrite wp_unfold /wasm_wp_pre /=.
+    iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
     rewrite Hetov.
     iSpecialize ("Hes2" $! σ ns κ κs nt with "[$]").
     iMod "Hes2" as "[%H1 H2]".
@@ -138,10 +138,10 @@ Proof.
         repeat iModIntro.
         repeat iMod "H2".
         iModIntro.
-        iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
-        iExists f1.
-        iFrame.
-        iSplit => //.
+        iDestruct "H2" as "(Hσ & Hes)".
+        iDestruct "Hes" as (f1) "(Hf & Hes'' & Hefs)".
+        iFrame. iExists _. iFrame.
+        iSplit =>//.
         iIntros "?"; iSpecialize ("Hes''" with "[$]").
         iDestruct ("IH" with "[$Hntrap $Hes'' $Hes2]") as "Hcont"; by iApply "Hcont".
       + assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
@@ -157,17 +157,18 @@ Proof.
         repeat iModIntro.
         repeat iMod "H2".
         destruct σ as [[[??] ?]?].
-        iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
-        iExists f1.
+        iDestruct "H2" as "[Hσ H]".
+        iDestruct "H" as (f) "(Hf1 & Hes'' & Hefs)".
         iModIntro => /=.
-        iFrame.
+        iFrame. iExists _. iFrame.
         iIntros "?"; iSpecialize ("Hes''" with "[$]").
         replace [AI_trap] with (iris.of_val trapV) => //=.
-        repeat rewrite wp_unfold /wasm_wp_pre /=.
+        iDestruct (wp_unfold with "Hes''") as "Hes''";rewrite /wp_pre /=.
         destruct (iris.to_val e2) eqn:Hx.
-        * iMod "Hes''".
+        * iMod "Hes''". 
           by iSpecialize ("Hntrap" with "Hes''").
-        * iIntros (?????) "?".
+        * iApply wp_unfold. rewrite /wp_pre /= Hx /=.
+          iIntros (?????) "?".
           iMod "Hes''".
           by iSpecialize ("Hntrap" with "Hes''").
   } } }
@@ -186,13 +187,13 @@ Lemma wp_frame_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es n f 
   iris.to_val es = Some (immV vs) ->
   length es = n ->
   ↪[frame] f0 -∗
-  ▷ (↪[frame] f0 -∗ Φ (immV vs)) -∗
-  WP es @ s; E FRAME n; f {{ Φ }}.
+  ▷ (Φ (immV vs)) -∗
+  WP es @ s; E FRAME n; f {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Hv Hlen) "Hframe H".
   rewrite wp_frame_rewrite.
   apply to_val_const_list in Hv as Hconst.
-  iApply wp_lift_atomic_step. simpl ; trivial.
+  iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
   iIntros (σ ns κ κs nt) "Hσ !>".
   iSplit.
   - iPureIntro.
@@ -205,10 +206,8 @@ Proof.
   - destruct σ as [[[hs ws] locs] inst].
     iIntros "!>" (es2 σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'].
-    destruct HStep as (H & -> & ->).
-    iExists _.
-    iFrame. rewrite PeanoNat.Nat.add_0_l.
-    erewrite app_nil_l.
+    destruct HStep as (H & -> & ->). iFrame.
+    (* iDestruct ("H" with "Hframe") as "[H Hframe]". iFrame. *)
     only_one_reduction H. all:simplify_eq;iFrame. rewrite Hv. iFrame.
     1,2,3:rewrite find_first_const// in Hstart.
 Qed.
@@ -222,7 +221,8 @@ Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f0 
 Proof.
   iIntros (Hval Hlen Hlf) "HΦ".
   iApply wp_lift_atomic_step => //=.
-  rewrite wp_unfold /wasm_wp_pre /=.
+  iDestruct (wp_unfold with "HΦ") as "HΦ".
+  rewrite /wp_pre /=.
   rewrite Hval.
   iIntros (σ ns κ κs nt) "Hσ !>".
   assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
@@ -240,12 +240,11 @@ Proof.
     iMod "HΦ" as "(HΦ & Hf0)".
     iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
-    destruct HStep as [H [-> ->]].
+    destruct HStep as [H [-> ->]]. iFrame.
     only_one_reduction H.
-    + iExists f0.
+    + iFrame.
       rewrite Hval.
       iFrame.
-      by iIntros "?".
     all: assert (lfilled 0 (LH_base vs []) [AI_basic (BI_return)]
                     (vs ++ [AI_basic (BI_return)]));
       first (by unfold lfilled, lfill ; rewrite Hcvs ; rewrite app_nil_r);
@@ -277,7 +276,8 @@ Proof.
 { iIntros "[Htrap [Hf0 [Hes1 Hes2]]]".
   (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
   iIntros (LI Hfilled).
-  repeat rewrite wp_unfold /wasm_wp_pre /=.
+  iApply wp_unfold.
+  repeat rewrite /wp_pre /=.
   (* Base case, when both es1 and es2 are values *)
   destruct (iris.to_val LI) as [vs|] eqn:Hetov.
   { destruct vs.
@@ -287,6 +287,7 @@ Proof.
       apply const_list_is_val in Hconst2 as [v2 Hv2].
       edestruct fill_val as [vs12 [Hvs12 Heql]];eauto.
       assert (Hvs12':=Hvs12).
+      rewrite wp_unfold /wp_pre /=.
       apply to_val_cat in Hvs12' as [-> Hev2].
       apply iris.of_to_val in Hev2 as <-.
       iIntros (? ? ? ? ?) "Hσ".
@@ -306,7 +307,8 @@ Proof.
       rewrite of_val_imm.
       pose proof (lfilled_swap (iris.of_val (immV vs12)) Hfilled) as [LI' Hfilled'].
       iSpecialize ("Hes2" $! _ Hfilled').
-      rewrite wp_unfold /wasm_wp_pre /=.
+      iDestruct (wp_unfold with "Hes2") as "Hes2".
+      rewrite /wp_pre /=.
       iSpecialize ("Hes2" $! (s0,s1,locs,inst) _ _ _ _ with "[$Hfuncs $Htables $Hmems $Hglobals $Hlen $Hframe]").
       assert (iris.to_val LI' = Some (immV l)) as HLI';[|iFrame].
       apply lfilled_Ind_Equivalent in Hfilled'. inversion Hfilled';subst.
@@ -328,6 +330,7 @@ Proof.
         all: iDestruct "Hσ" as "(Hfuncs&Htables&Hmems&Hglobals&Hframe&Hlen)".
         all: iDestruct (ghost_map_lookup with "Hframe Hf0") as %Hlook;rewrite lookup_insert in Hlook;inversion Hlook; clear Hlook.
         all: iMod (ghost_map_update f with "Hframe Hf0") as "[Hframe Hf0]"; rewrite insert_insert.
+        all: rewrite wp_unfold /wp_pre /=.
         all: iMod ("Hes1" with "Hf0") as "[HPsi Hf]".
         all: iDestruct (ghost_map_lookup with "Hframe Hf") as %Hlook; rewrite lookup_insert in Hlook; inversion Hlook.
         all: iMod (ghost_map_update (Build_frame locs inst) with "Hframe Hf") as "[Hframe Hf0]"; rewrite insert_insert.
@@ -335,7 +338,7 @@ Proof.
         all: rewrite /=.
         all: iDestruct (wp_wasm_empty_ctx_frame with "Hes2") as "Hes2".
         all: rewrite wp_frame_rewrite.
-        all: rewrite wp_unfold /wasm_wp_pre /=.
+        all: iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
         all: by iSpecialize ("Hes2" $! (s0,s1,locs,inst) _ _ _ _ with "[$Hfuncs $Htables $Hmems $Hglobals $Hlen $Hframe]").
       }
       { destruct es1,es2 =>//=.
@@ -344,6 +347,7 @@ Proof.
         iDestruct "Hσ" as "(Hfuncs&Htables&Hmems&Hglobals&Hframe&Hlen)".
         iDestruct (ghost_map_lookup with "Hframe Hf0") as %Hlook;rewrite lookup_insert in Hlook;inversion Hlook;clear Hlook.
         iMod (ghost_map_update f with "Hframe Hf0") as "[Hframe Hf0]"; rewrite insert_insert.
+        rewrite wp_unfold /wp_pre /=.
         iMod ("Hes1" with "Hf0") as "[HPsi Hf]".
         iDestruct (ghost_map_lookup with "Hframe Hf") as %Hlook. rewrite lookup_insert in Hlook. inversion Hlook.
         iMod (ghost_map_update (Build_frame locs inst) with "Hframe Hf") as "[Hframe Hf0]"; rewrite insert_insert.
@@ -351,7 +355,7 @@ Proof.
         rewrite /=.
         iSpecialize ("Hes2" $! [AI_trap] with "[]").
         { iPureIntro. constructor. }
-        rewrite wp_unfold /wasm_wp_pre /=.
+        iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
         by iSpecialize ("Hes2" $! (s0,s1,locs,inst) _ _ _ _ with "[$Hfuncs $Htables $Hmems $Hglobals $Hlen $Hframe]").
       }
     }
@@ -365,12 +369,13 @@ Proof.
     iDestruct "Hσ" as "(Hfuncs&Htables&Hmems&Hglobals&Hframe&Hlen)".
     iDestruct (ghost_map_lookup with "Hframe Hf0") as %Hlook;rewrite lookup_insert in Hlook;inversion Hlook. clear Hlook.
     iMod (ghost_map_update f with "Hframe Hf0") as "[Hframe Hf0]"; rewrite insert_insert.
+    rewrite wp_unfold /wp_pre /=. rewrite to_of_val.
     iMod ("Hes1" with "Hf0") as "[HPsi Hf]".
     iDestruct (ghost_map_lookup with "Hframe Hf") as %Hlook. rewrite lookup_insert in Hlook. inversion Hlook.
     iMod (ghost_map_update (Build_frame locs inst) with "Hframe Hf") as "[Hframe Hf0]"; rewrite insert_insert.
     iSpecialize ("Hes2" with "[$HPsi $Hf0]").
     iSpecialize ("Hes2" $! _ Hfilled).
-    rewrite wp_unfold /wasm_wp_pre /=.
+    iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
     (* rewrite Hetov. *)
     iSpecialize ("Hes2" $! (s0,s1,locs,inst) ns κ κs nt with "[$]"). subst f.
     iMod "Hes2" as "[%H1 H2]".
@@ -386,6 +391,7 @@ Proof.
     iMod (ghost_map_update f with "Hframe Hf0") as "[Hframe Hf]"; rewrite insert_insert.
     iDestruct ("Hes1" with "Hf") as "Hes1".
     destruct f.
+    rewrite wp_unfold /wp_pre /= Hes.
     iSpecialize ("Hes1" $! (s0,s1,f_locs,f_inst) ns κ κs nt with "[$]").
     iMod "Hes1" as "[%H1 H2]".
     iModIntro.
@@ -399,18 +405,19 @@ Proof.
       eapply local_frame_lfilled_prim_step_split_reduce_r in HStep' as Heq;[|apply Hfilled|apply H1].
       destruct Heq as [[e' [v'' [i'' [LI' [HStep'' [-> [-> [-> Hfill]]]]]]]]|[lh' [Hlh HH]]].
       + apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
-        apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
+        (* apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp. *)
         iSpecialize ("H2" $! e' (s2,s3,v'',i'') [] HStep'').
         iMod "H2".
         repeat iModIntro.
         repeat iMod "H2".
-        iDestruct "H2" as (f) "(Hσ & Hf1 & Hes'' & Hefs)".
+        iDestruct "H2" as "(Hσ & H)".
+        iDestruct "H" as (f) "(Hf1 & Hes'' & Hefs)".
         (* iExists f. *)
         iDestruct "Hσ" as "(Hfuncs&Htables&Hmems&Hglobals&Hframe&Hlen)".
         iDestruct (ghost_map_lookup with "Hframe Hf1") as %Hlook';rewrite lookup_insert in Hlook';inversion Hlook'.
         iMod (ghost_map_update (Build_frame locs2 inst2) with "Hframe Hf1") as "[Hframe Hf]"; rewrite insert_insert.
-        iExists _. iFrame.
-        iModIntro.
+        iFrame.
+        iModIntro. iExists _. iFrame.
         iSplit => //.
         iIntros "Hf". (* iSpecialize ("Hes''" with "[$]"). *)
         rewrite -wp_frame_rewrite. iApply ("IH" with "[-]");[|iPureIntro;apply Hfill].
@@ -425,22 +432,24 @@ Proof.
           move => HContra; subst.
           by simpl in Hes.
         }
-        apply prim_step_obs_efs_empty in HStep' as Heq.
+        (* apply prim_step_obs_efs_empty in HStep' as Heq. *)
+        destruct HStep' as [HStep' [-> ->]].
         simplify_eq.
         iSpecialize ("H2" $! [AI_trap] σ [] HStep2).
         iMod "H2".
         repeat iModIntro.
         repeat iMod "H2".
-        iDestruct "H2" as (f2) "(Hσ & Hf1 & Hes'' & Hefs)".
+        iDestruct "H2" as "(Hσ & H )".
+        iDestruct "H" as (f2) "(Hf1 & Hes'' & Hefs)".
         iDestruct "Hσ" as "(Hfuncs&Htables&Hmems&Hglobals&Hframe&Hlen)".
         iDestruct (ghost_map_lookup with "Hframe Hf1") as %Hlook';rewrite lookup_insert in Hlook';inversion Hlook'.
         iSpecialize ("Hes''" with "[$]").
         replace [AI_trap] with (iris.of_val trapV) => //=.
-        repeat rewrite wp_unfold /wasm_wp_pre /=.
+        
         destruct (iris.to_val e2) eqn:Hx.
-        * iMod "Hes''" as "[Hes'' _]".
+        * rewrite wp_unfold /wp_pre /=. iMod "Hes''" as "[Hes'' _]".
           by iSpecialize ("Htrap" with "Hes''").
-        * iMod "Hes''" as "[Hes'' _]".
+        * rewrite wp_unfold /wp_pre /=. iMod "Hes''" as "[Hes'' _]".
           by iSpecialize ("Htrap" with "Hes''").
         Unshelve. all: try apply 0. all: apply [].
   } } }
@@ -456,8 +465,8 @@ Lemma wp_seq (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : l
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ).
   iIntros "(Hntrap & Hes1 & Hes2)".
-  repeat rewrite wp_unfold /wasm_wp_pre /=.
   (* Base case, when both es1 and es2 are values *)
+  iApply wp_unfold. repeat rewrite wp_unfold /wp_pre /=.
   destruct (iris.to_val (es1 ++ es2)) as [vs|] eqn:Hetov.
   {
     destruct vs.
@@ -469,8 +478,9 @@ Proof.
       unfold iris.of_val.
       rewrite - fmap_app take_drop.
       rewrite of_val_imm.
-      rewrite wp_unfold /wasm_wp_pre /=.
+      iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
       rewrite of_val_imm iris.to_of_val.
+      
       by iAssumption.
     }
     {
@@ -479,7 +489,7 @@ Proof.
       all:iMod "Hes1".
       all: iSpecialize ("Hes2" with "Hes1").
       all:rewrite /=.
-      all:by rewrite wp_unfold /wasm_wp_pre /=. 
+      all:by iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
     }
   }
   (* Ind *)
@@ -488,7 +498,7 @@ Proof.
   { apply of_to_val in Hes as <-.
     iMod "Hes1".
     iSpecialize ("Hes2" with "Hes1").
-    rewrite wp_unfold /wasm_wp_pre /=.
+    iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
     rewrite Hetov.
     iSpecialize ("Hes2" $! σ ns κ κs nt with "[$]").
     iMod "Hes2" as "[%H1 H2]".
@@ -515,9 +525,9 @@ Proof.
         repeat iMod "H2".
         iModIntro.
         destruct σ2 as [[[??] ?]?].
-        iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
-        iExists f1.
-        iFrame.
+        iDestruct "H2" as "[Hσ H]".
+        iDestruct "H" as (f1) "(Hf1 & Hes'' & Hefs)".
+        iFrame. iExists _. iFrame.
         iIntros "?"; iSpecialize ("Hes''" with "[$]").
         iApply "IH".
         by iFrame. 
@@ -536,13 +546,14 @@ Proof.
         repeat iModIntro.
         repeat iMod "H2".
         destruct σ as [[[??] ?]?].
-        iDestruct "H2" as (f1) "(Hσ & Hf1 & Hes'' & Hefs)".
-        iExists f1.
+        iDestruct "H2" as "[Hσ H]".
+        iDestruct "H" as (f1) "(Hf1 & Hes'' & Hefs)".
+        iFrame. iExists _. iFrame.
         iModIntro.
         iFrame.
         iIntros "?"; iSpecialize ("Hes''" with "[$]").
         replace [AI_trap] with (iris.of_val trapV) => //.
-        repeat rewrite wp_unfold /wasm_wp_pre /=.
+        repeat rewrite wp_unfold /wp_pre /=.
         destruct (iris.to_val (take n es1 ++ AI_trap :: drop m (es1 ++ es2))%SEQ) eqn:Hx.
         * iMod "Hes''".
           by iSpecialize ("Hntrap" with "Hes''").
@@ -562,10 +573,10 @@ Proof.
   (* This also needs an iLob. *)
   iLöb as "IH" forall (v0 es Φ).
   iIntros "(Hntrap & H)".
-  repeat rewrite wp_unfold /wasm_wp_pre /=.
+  iApply wp_unfold.               
+  repeat rewrite wp_unfold /wp_pre /=.
   destruct (iris.to_val es) as [vs|] eqn:Hes.
-  {
-    destruct vs; first by apply of_to_val in Hes as <-.
+  { destruct vs; first by apply of_to_val in Hes as <-.
     iIntros (?????) "?".
     iMod "H".
     by iSpecialize ("Hntrap" with "H").
@@ -591,10 +602,10 @@ Proof.
         repeat iModIntro.
         repeat iMod "H".
         iModIntro.
-        iDestruct "H" as (f1) "(Hσ & Hf1 & Hes & Hefs)".
+        iDestruct "H" as "[Hσ H]".
+        iDestruct "H" as  (f1) "(Hf1 & Hes & Hefs)".
         iSimpl.
-        iExists f1.
-        iFrame.
+        iFrame. iExists _. iFrame.
         iSplit => //.
         iIntros "?"; iSpecialize ("Hes" with "[$]").
         iApply "IH".
@@ -617,13 +628,13 @@ Proof.
         iMod "H".
         repeat iModIntro.
         repeat iMod "H".
-        iDestruct "H" as (f1) "(Hσ & Hf1 & Hes & Hefs)".
-        iExists f1.
+        iDestruct "H" as "[Hσ H]".
+        iDestruct "H" as (f1) "(Hf1 & Hes & Hefs)".
         iFrame.
-        iModIntro.
+        iModIntro. iExists _. iFrame.
         iSplit => //.
         iIntros "?"; iSpecialize ("Hes" with "[$]").
-        repeat rewrite wp_unfold /wasm_wp_pre /=.
+        repeat rewrite wp_unfold /wp_pre /=.
         destruct (iris.to_val (vs ++ AI_trap :: es')%SEQ) eqn:Hx.
         * iMod "Hes".
           by iSpecialize ("Hntrap" with "Hes").
@@ -674,13 +685,6 @@ Proof.
   iApply wp_val_app'.
   by iFrame.
 Qed.
-
-Import DummyHosts.
-Let reduce := @reduce host_function host_instance.
-
-Canonical Structure wasm_lang := Language wasm_mixin.
- 
-Let reducible := @reducible wasm_lang.
 
 
 (* Trying to resolve the problem by naively not allowing any consumption of ↪ in
