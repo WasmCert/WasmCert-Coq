@@ -106,7 +106,7 @@ Local Fixpoint steps_sum (num_laters_per_step : nat → nat) (start ns : nat) : 
     S $ num_laters_per_step start + steps_sum num_laters_per_step (S start) ns
   end.
 
-Let nsteps := @iris.program_logic.language.nsteps wasm_lang.
+Definition nsteps := @iris.program_logic.language.nsteps wasm_lang.
 
 Lemma wp_not_stuck κs ns nt e σ Φ :
   state_interp σ ns κs nt -∗ WP e {{ Φ }} ={⊤}=∗ ⌜language.not_stuck e σ⌝.
@@ -183,13 +183,13 @@ Lemma wp_singleton_strong_adequacy Φ κs' s n e1 e2 κs σ1 ns σ2 nt:
 Proof.
 Admitted.
 
-Theorem wp_strong_adequacy `{!invGpreS Σ} es σ1 n κs t2 σ2 φ
-        (num_laters_per_step : nat → nat) :
-  (∀ `{Hinv : !invGS Σ},
-    ⊢ |={⊤}=> ∃
+(** Iris's generic adequacy result *)
+Theorem wp_strong_adequacy Σ `{!invGpreS Σ}  (* `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} *) e σ1 n κs e2 σ2 φ :
+  (∀  `{Hinv: invGS Σ},
+      ⊢ |={⊤}=> ∃
          (s: stuckness)
-         (stateI : state → nat → list (observation) → nat → iProp Σ)
-         (Φs : list (val → iProp Σ))
+         (stateI : state → nat → list (observation ) → nat → iProp Σ)
+         (Φ : (val → iProp Σ))
          (fork_post : val → iProp Σ)
          (* Note: existentially quantifying over Iris goal! [iExists _] should
          usually work. *)
@@ -205,26 +205,34 @@ Theorem wp_strong_adequacy `{!invGpreS Σ} es σ1 n κs t2 σ2 φ
          (* es' corresponds to the initial threads *)
          ⌜ length es' = length es ⌝ -∗
          (* If this is a stuck-free triple (i.e. [s = NotStuck]), then all
+       (* (WP e @ s; ⊤ {{ Φ }}) ∗ *)
+        (* If this is a stuck-free triple (i.e. [s = NotStuck]), then all
          threads in [t2] are not stuck *)
-         ⌜ ∀ e2, s = NotStuck → e2 ∈ t2 → not_stuck e2 σ2 ⌝ -∗
+         ((* ((⌜ s = NotStuck → not_stuck e2 σ2 ⌝) -∗ *)
+
          (* The state interpretation holds for [σ2] *)
          stateI σ2 n [] (length t2') -∗
          (* If the initial threads are done, their post-condition [Φ] holds *)
-         ([∗ list] e;Φ ∈ es';Φs, from_option Φ True (to_val e)) -∗
-         (* For all forked-off threads that are done, their postcondition
-            [fork_post] holds. *)
-         ([∗ list] v ∈ omap to_val t2', fork_post v) -∗
+         from_option Φ True (to_val e) -∗
          (* Under all these assumptions, and while opening all invariants, we
          can conclude [φ] in the logic. After opening all required invariants,
          one can use [fupd_mask_subseteq] to introduce the fancy update. *)
          |={⊤,∅}=> ⌜ φ ⌝)) →
-  nsteps n (es, σ1) κs (t2, σ2) →
+  nsteps n ([e], σ1) [] ([e2], σ2) →
   (* Then we can conclude [φ] at the meta-level. *)
   φ.
 Proof.
   intros Hwp ?.
   apply (step_fupdN_soundness _ (steps_sum num_laters_per_step 0 n))=> Hinv.
   iMod Hwp as (s stateI Φ fork_post state_interp_mono) "(Hσ & Hwp & Hφ)".
+  eapply (step_fupdN_soundness _ (steps_sum num_laters_per_step 0 n))=> Hinv.
+  (* eapply (step_fupdN_soundness' _ (S (S n)))=> Hinv. rewrite Nat_iter_S. *)
+  iDestruct Hwp as "HH".
+  Unshelve.
+
+
+  iMod ""
+  iMod Hwp as "HH" . "(Hσ & Hwp & Hφ)".
   iDestruct (big_sepL2_length with "Hwp") as %Hlen1.
   iMod (@wptp_strong_adequacy _ []
     with "[Hσ] Hwp") as "H"; [done|by rewrite right_id_L|].

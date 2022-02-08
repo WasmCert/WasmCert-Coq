@@ -483,7 +483,7 @@ Proof.
       iIntros (w) "[[-> Hi] Hf] /=".
       iApply wp_wasm_empty_ctx_frame.
       rewrite wp_frame_rewrite.
-      iApply (wp_frame_value with "[$Hf]"); eauto. iFrame. eauto.
+      iApply (wp_frame_value with "[$Hf]"); eauto.
     }
     
     (* finish program after call *)
@@ -586,7 +586,7 @@ Proof.
   iIntros (w) "[[%Hfact Hi] Hf]".
   iApply wp_wasm_empty_ctx_frame.
   iApply (wp_frame_value with "[$]"); [subst;eauto..|].
-  iNext. iIntros "Hf".
+  iNext.
   iFrame. auto.
 Qed.
 
@@ -631,7 +631,7 @@ Proof.
   iIntros (Htypes Hfmem) "Hf Hn".
   iApply wp_wand_r. iSplitL.
   iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto. apply (f_inst f).
-  iIntros (w) "[-> [Hf Hn]] /=".
+  iIntros (w) "[[-> Hn] Hf]".
   iFrame. auto.
 Qed.
 
@@ -645,7 +645,7 @@ Proof.
   iApply wp_wand_r. iSplitL.  
   iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
   by rewrite Memdata.encode_int_length.
-  iIntros (v) "[-> [Hf Hn]]". rewrite /= N.add_0_l.
+  iIntros (v) "[[-> Hn] Hf]". rewrite /= N.add_0_l.
   iFrame. auto.
 Qed.
 
@@ -660,7 +660,7 @@ Proof.
   iApply wp_wand_r. iSplitL.  
   iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
   by rewrite Memdata.encode_int_length.
-  iIntros (v) "[-> [Hf Hn]]". rewrite /= N.add_0_l.
+  iIntros (v) "[[-> Hn] Hf]". rewrite /= N.add_0_l.
   iFrame. auto.
 Qed.
 
@@ -687,7 +687,7 @@ Proof.
   iApply wp_wasm_empty_ctx_frame.
   take_drop_app_rewrite 1.
   iApply (wp_seq_ctx_frame _ _ _ (λ w, ⌜w = immV [v]⌝ ∗ N.of_nat n↦[wms][0]bits v)%I).
-  iFrame.
+  iFrame "Hf".
   iSplitR;[by iIntros "[%Hcontr _]"|].
   iSplitL "Hn".
   { iIntros "Hf /=".

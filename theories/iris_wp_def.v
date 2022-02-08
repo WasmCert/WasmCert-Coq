@@ -3,8 +3,8 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
+(* From iris.bi Require Export weakestpre. *)
+Require Export iris iris_locations iris_properties iris_atomicity iris_wp stdpp_aux.
 Require Export datatypes host operations properties opsem.
 
 Import uPred.
@@ -27,48 +27,10 @@ Let reduce := @reduce host_function host_instance.
 Canonical Structure wasm_lang := Language wasm_mixin.
  
 Let reducible := @reducible wasm_lang.
+Let state := state wasm_lang.
 
-Class irisGS (Σ : gFunctors) := IrisG {
-  iris_invGS :> invGS Σ;
+Implicit Type σ : state.
 
-  (** The state interpretation is an invariant that should hold in
-  between each step of reduction. Here [Λstate] is the global state,
-  the first [nat] is the number of steps already performed by the
-  program, [list Λobservation] are the remaining observations, and the
-  last [nat] is the number of forked-off threads (not the total number
-  of threads, which is one higher because there is always a main
-  thread). *)
-  state_interp : state → nat → list (observation) → nat → iProp Σ;
-
-  (** A fixed postcondition for any forked-off thread. For most languages, e.g.
-  heap_lang, this will simply be [True]. However, it is useful if one wants to
-  keep track of resources precisely, as in e.g. Iron. *)
-  fork_post : val → iProp Σ;
-
-  (** Number of additional logical steps (i.e., later modality in the
-  definition of WP) per physical step, depending on the physical steps
-  counter. In addition to these steps, the definition of WP adds one
-  extra later per physical step to make sure that there is at least
-  one later for each physical step. *)
-  num_laters_per_step : nat → nat;
-
-  (** When performing pure steps, the state interpretation needs to be
-  adapted for the change in the [ns] parameter.
-
-  Note that we use an empty-mask fancy update here. We could also use
-  a basic update or a bare magic wand, the expressiveness of the
-  framework would be the same. If we removed the modality here, then
-  the client would have to include the modality it needs as part of
-  the definition of [state_interp]. Since adding the modality as part
-  of the definition [state_interp_mono] does not significantly
-  complicate the formalization in Iris, we prefer simplifying the
-  client. *)
-  state_interp_mono σ ns κs nt:
-    state_interp σ ns κs nt ={∅}=∗ state_interp σ (S ns) κs nt
-}.
-Global Opaque iris_invGS.
-
-(* TODO: change the fields to use actual sensible names *)
 Class wfuncG Σ := WFuncG {
   func_invG :> invGS Σ;
   func_gen_hsG :> gen_heapGS N function_closure Σ;
@@ -103,7 +65,7 @@ Instance eqdecision_frame: EqDecision frame.
 Proof. decidable_equality. Qed.
 
 (* TODO: Global Instance doesn't seem to actually make this global... *)
-Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wframeG Σ} : irisGS Σ := {
+Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wframeG Σ} : irisGS wasm_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -174,234 +136,13 @@ Notation " ↪[frame] v" := (ghost_map_elem frameGName tt (DfracOwn 1) v%V)
 
 
 Section Wasm_wp.
-  
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-Definition wasm_wp_pre (s : stuckness)
-    (wp : coPset -d> expr -d> (val -d> iPropO Σ) -d> iPropO Σ) :
-  coPset -d> expr -d> (val -d> iPropO Σ) -d> iPropO Σ := λ E e1 Φ,
-  (match iris.to_val e1 with
-  | Some v => |={E}=> Φ v
-  | None => ∀ σ1 ns κ κs nt,
-     (state_interp σ1 ns (κ ++ κs) nt) ={E,∅}=∗
-       ⌜if s is NotStuck then reducible e1 σ1 else True⌝ ∗
-       ∀ e2 σ2 efs, ⌜prim_step e1 σ1 κ e2 σ2 efs⌝
-         ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
-     ∃ f, state_interp σ2 (S ns) κs (length efs + nt) ∗
-         (* Although it's an existential, we know what it must be. *)  
-         ↪[frame] f ∗
-         (↪[frame] f -∗ wp E e2 Φ) ∗
-         [∗ list] i ↦ ef ∈ efs, wp ⊤ ef fork_post
-end)%I.
+  Global Instance wp_wasm : Wp (iProp Σ) (expr) (val) stuckness.
+  Proof using Σ wfuncG0 wtabG0 wmemG0 wmemsizeG0 wglobG0 wframeG0.
+    eapply wp'. Unshelve. exact frame. exact (λ f,  ↪[frame] f)%I. Defined.
 
-Global Instance wasm_wp_pre_contractive s: Contractive (wasm_wp_pre s).
-Proof.
-  rewrite /wasm_wp_pre /= => n wp wp' Hwp E e1 Φ.
-  do 24 (f_contractive || f_equiv).
-  (* FIXME : simplify this proof once we have a good definition and a
-     proper instance for step_fupdN. *)
-  induction num_laters_per_step as [|k IH]; simpl => //.
-  repeat (f_contractive || f_equiv); apply Hwp.
-Qed.
-
-Global Instance wasm_wp_def : Wp (iProp Σ) expr val stuckness :=
-  λ (s: stuckness), fixpoint (wasm_wp_pre s).
-
-(* Seal is a mechanism that stdpp uses to avoid definitions being automatically
-   unfolded. *)
-Definition wasm_wp_aux : seal (@wasm_wp_def). Proof. by exists wasm_wp_def. Qed.
-Definition wasm_wp' := wasm_wp_aux.(unseal).
-Global Arguments wasm_wp' {Λ Σ _}.
-Global Existing Instance wasm_wp'.
-Lemma wasm_wp_eq: wp = @wasm_wp_def.
-Proof. rewrite -wasm_wp_aux.(seal_eq) //. Qed.
-
-Implicit Types s : stuckness.
-Implicit Types P : iProp Σ.
-Implicit Types Φ : val → iProp Σ.
-Implicit Types v : val.
-Implicit Types e : expr.
-
-(* Reprove some useful auxiliary lemmas *)
-Lemma wp_unfold s E e Φ :
-  WP e @ s; E {{ Φ }} ⊣⊢ wasm_wp_pre s (wp (PROP:=iProp Σ) s) E e Φ.
-Proof. rewrite wasm_wp_eq. apply (fixpoint_unfold (wasm_wp_pre s)). Qed.
-
-Lemma wp_value_fupd' s E Φ v : WP of_val v @ s; E {{ Φ }} ⊣⊢ |={E}=> Φ v.
-Proof. rewrite wp_unfold /wasm_wp_pre to_of_val. auto. Qed.
-
-Lemma wp_strong_mono s1 s2 E1 E2 e Φ Ψ :
-  s1 ⊑ s2 → E1 ⊆ E2 ->
-  WP e @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP e @ s2; E2 {{ Ψ }}.
-Proof.
-  iIntros (? HE) "H HΦ". iLöb as "IH" forall (e E1 E2 HE Φ Ψ).
-  rewrite !wp_unfold /wasm_wp_pre.
-  destruct (iris.to_val e) as [v|] eqn:?.
-  { iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E1 _). }
-  iIntros (σ1 ns κ κs nt) "Hσ".
-  iMod (fupd_mask_subseteq E1) as "Hclose"; first done.
-  iMod ("H" with "[$]") as "[% H]".
-  iModIntro. iSplit; [by destruct s1, s2|]. iIntros (e2 σ2 efs Hstep).
-  iMod ("H" with "[//]") as "H". iIntros "!> !>".
-  iMod "H".
-  simpl.
-  iMod "H" as (f1) "(Hσ & Hf1 & H & Hefs)".
-  iMod "Hclose" as "_".
-  iApply fupd_mask_intro; first by solve_ndisj.
-  iIntros "Hmask".
-  iMod "Hmask". iModIntro. iExists f1. iFrame. iSplitR "Hefs".
-  - iIntros "Hf1".
-    iSpecialize ("H" with "Hf1").                             
-    by iApply ("IH" with "[//] H HΦ").
-  - iApply (big_sepL_impl with "Hefs"); iIntros "!>" (k ef _).
-    iIntros "H". iApply ("IH" with "[] H"); auto.
-Qed.
-
-Lemma wp_mono s E e Φ Ψ : (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
-Proof.
-  iIntros (HΦ) "H"; iApply (wp_strong_mono with "H"); auto.
-  iIntros (v) "?". by iApply HΦ.
-Qed.
-Lemma wp_stuck_mono s1 s2 E e Φ :
-  s1 ⊑ s2 → WP e @ s1; E {{ Φ }} ⊢ WP e @ s2; E {{ Φ }}.
-Proof. iIntros (?) "H". iApply (wp_strong_mono with "H"); auto. Qed.
-Lemma wp_stuck_weaken s E e Φ :
-  WP e @ s; E {{ Φ }} ⊢ WP e @ E ?{{ Φ }}.
-Proof. apply wp_stuck_mono. by destruct s. Qed.
-Lemma wp_mask_mono s E1 E2 e Φ : E1 ⊆ E2 → WP e @ s; E1 {{ Φ }} ⊢ WP e @ s; E2 {{ Φ }}.
-Proof. iIntros (?) "H"; iApply (wp_strong_mono with "H"); auto. Qed.
-Global Instance wp_mono' s E e :
-  Proper (pointwise_relation _ (⊢) ==> (⊢)) (wp (PROP:=iProp Σ) s E e).
-Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
-Global Instance wp_flip_mono' s E e :
-  Proper (pointwise_relation _ (flip (⊢)) ==> (flip (⊢))) (wp (PROP:=iProp Σ) s E e).
-Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
-
-Lemma wp_value_fupd s E Φ e v : IntoVal e v → WP e @ s; E {{ Φ }} ⊣⊢ |={E}=> Φ v.
-Proof. intros <-. by apply wp_value_fupd'. Qed.
-Lemma wp_value' s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
-Proof. rewrite wp_value_fupd'. auto. Qed.
-Lemma wp_value s E Φ e v : IntoVal e v → Φ v ⊢ WP e @ s; E {{ Φ }}.
-Proof. intros <-. apply wp_value'. Qed.
-
-Lemma wp_wand s E e Φ Ψ :
-  WP e @ s; E {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E {{ Ψ }}.
-Proof.
-  iIntros "Hwp H". iApply (wp_strong_mono with "Hwp"); auto.
-  iIntros (?) "?". by iApply "H".
-Qed.
-Lemma wp_wand_l s E e Φ Ψ :
-  (∀ v, Φ v -∗ Ψ v) ∗ WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
-Proof. iIntros "[H Hwp]". iApply (wp_wand with "Hwp H"). Qed.
-Lemma wp_wand_r s E e Φ Ψ :
-  WP e @ s; E {{ Φ }} ∗ (∀ v, Φ v -∗ Ψ v) ⊢ WP e @ s; E {{ Ψ }}.
-Proof. iIntros "[Hwp H]". iApply (wp_wand with "Hwp H"). Qed.
-Lemma wp_frame_wand_l s E e Q Φ :
-  Q ∗ WP e @ s; E {{ v, Q -∗ Φ v }} -∗ WP e @ s; E {{ Φ }}.
-Proof.
-  iIntros "[HQ HWP]". iApply (wp_wand with "HWP").
-  iIntros (v) "HΦ". by iApply "HΦ".
-Qed.
-
-(* Some lifting lemmas restated and reproved *)
-Lemma wp_lift_step_fupd s E Φ e1 :
-  iris.to_val e1 = None →
-  (∀ σ1 ns κ κs nt, state_interp σ1 ns (κ ++ κs) nt ={E,∅}=∗
-    ⌜if s is NotStuck then reducible e1 σ1 else True⌝ ∗
-    ∀ e2 σ2 efs, ⌜prim_step e1 σ1 κ e2 σ2 efs⌝ ={∅}=∗ ▷ |={∅,E}=>
-   ∃ f, state_interp σ2 (S ns) κs (length efs + nt) ∗
-      ↪[frame] f ∗
-      (↪[frame] f -∗ WP e2 @ s; E {{ Φ }}) ∗
-      [∗ list] ef ∈ efs, WP ef @ s; ⊤ {{ fork_post }})
-    ⊢ WP e1 @ s; E {{ Φ }}.
-Proof.
-  (* Somehow, this lemma can no longer be automatically proved in one unfold. *)
-  rewrite wp_unfold /wasm_wp_pre=>->. iIntros "H".
-  iIntros (σ ns κ κs nt) "Hσ".
-  iSpecialize ("H" $! σ ns κ κs nt with "[$]").
-  iMod "H" as "(%Hred & H)".
-  iModIntro.
-  iSplit => //.
-  iIntros (es' σ' efs HStep).
-  iSpecialize ("H" $! es' σ' efs with "[% //]").
-  repeat iMod "H".
-  repeat iModIntro.
-  simpl.
-  iMod "H" as (f) "H".
-  iModIntro.
-  by iExists f.
-Qed.
-
-Lemma wp_lift_stuck E Φ e :
-  iris.to_val e = None →
-  (∀ ns σ κs nt, state_interp σ ns κs nt ={E,∅}=∗ ⌜stuck e σ⌝)
-  ⊢ WP e @ E ?{{ Φ }}.
-Proof.
-  rewrite wp_unfold /wasm_wp_pre=>->. iIntros "H" (σ1 ns κ κs nt) "Hσ".
-  iMod ("H" with "[$]") as %[? Hirr]. iModIntro. iSplit; first done.
-  iIntros (e2 σ2 efs ?). by case: (Hirr κ e2 σ2 efs).
-Qed.
-
-Lemma wp_lift_step s E Φ e1 :
-  to_val e1 = None →
-  (∀ σ1 ns κ κs nt, state_interp σ1 ns (κ ++ κs) nt ={E,∅}=∗
-    ⌜if s is NotStuck then reducible e1 σ1 else True⌝ ∗
-    ▷ ∀ e2 σ2 efs, ⌜prim_step e1 σ1 κ e2 σ2 efs⌝ ={∅,E}=∗
-      ∃ f, state_interp σ2 ns κs (length efs + nt) ∗
-      ↪[frame] f ∗
-      (↪[frame] f -∗ WP e2 @ s; E {{ Φ }}) ∗
-      [∗ list] ef ∈ efs, WP ef @ s; ⊤ {{ fork_post }})
-  ⊢ WP e1 @ s; E {{ Φ }}.
-Proof.
-  iIntros (?) "H". iApply wp_lift_step_fupd; [done|]. iIntros (?????) "Hσ".
-  iMod ("H" with "Hσ") as "[$ H]". iIntros "!> * % !> !>". by iApply "H".
-Qed.
-
-Lemma wp_lift_atomic_step_fupd {s E1 E2 Φ} e1 :
-  iris.to_val e1 = None →
-  (∀ σ1 ns κ κs nt, state_interp σ1 ns (κ ++ κs) nt ={E1}=∗
-    ⌜if s is NotStuck then reducible e1 σ1 else True⌝ ∗
-    ∀ e2 σ2 efs, ⌜prim_step e1 σ1 κ e2 σ2 efs⌝ ={E1}[E2]▷=∗
-      ∃ f, state_interp σ2 ns κs (length efs + nt) ∗
-      ↪[frame] f ∗
-      (↪[frame] f -∗ from_option Φ False (iris.to_val e2)) ∗
-      [∗ list] ef ∈ efs, WP ef @ s; ⊤ {{ fork_post }})
-  ⊢ WP e1 @ s; E1 {{ Φ }}.
-Proof.
-  iIntros (?) "H".
-  iApply (wp_lift_step_fupd s E1 _ e1)=>//; iIntros (σ1 ns κ κs nt) "Hσ1".
-  iMod ("H" $! σ1 with "[$]") as "[$ H]".
-  iApply fupd_mask_intro; first by solve_ndisj.
-  iIntros "Hclose" (e2 σ2 efs ?). iMod "Hclose" as "_".
-  iMod ("H" $! e2 σ2 efs with "[#]") as "H"; [done|].
-  iApply fupd_mask_intro; first solve_ndisj. iIntros "Hclose !>".
-  iMod "Hclose" as "_". iMod "H" as (f1) "($ & Hf1 & HQ & $)".
-  (* This is actually very interesting -- the order of resource consumption
-     is important! *)
-  iModIntro.
-  iExists f1.
-  iFrame.
-  iIntros "?"; iSpecialize ("HQ" with "[$]").
-  destruct (iris.to_val e2) eqn:?; last by iExFalso.
-  iApply wp_value; last done. by apply of_to_val.
-Qed.
-
-Lemma wp_lift_atomic_step {s E Φ} e1 :
-  iris.to_val e1 = None →
-  (∀ σ1 ns κ κs nt, state_interp σ1 ns (κ ++ κs) nt ={E}=∗
-    ⌜if s is NotStuck then reducible e1 σ1 else True⌝ ∗
-    ▷ ∀ e2 σ2 efs, ⌜prim_step e1 σ1 κ e2 σ2 efs⌝ ={E}=∗
-      ∃ f, state_interp σ2 ns κs (length efs + nt) ∗
-      ↪[frame] f ∗         
-      (↪[frame] f -∗ from_option Φ False (iris.to_val e2)) ∗
-      [∗ list] ef ∈ efs, WP ef @ s; ⊤ {{ fork_post }})
-  ⊢ WP e1 @ s; E {{ Φ }}.
-Proof.
-  iIntros (?) "H". iApply wp_lift_atomic_step_fupd; [done|].
-  iIntros (?????) "?". iMod ("H" with "[$]") as "[$ H]".
-  iIntros "!> *". iIntros (Hstep) "!> !>".
-  by iApply "H".
-Qed.
+End Wasm_wp.
 
 (* A Definition of a context dependent WP for WASM expressions *)
 
@@ -409,8 +150,6 @@ Definition wp_wasm_ctx `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglob
           (s : stuckness) (E : coPset) (e : language.expr wasm_lang)
            (Φ : val -> iProp Σ) (i : nat) (lh : lholed) : iProp Σ := 
   ∀ LI, ⌜lfilled i lh e LI⌝ -∗ WP LI @ s; E {{ Φ }}.
-
-
 
 
 Definition wp_wasm_frame `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
@@ -424,8 +163,6 @@ Definition wp_wasm_ctx_frame `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, 
           (Φ : val -> iProp Σ) (n: nat) (f: frame) (i : nat) (lh : lholed) : iProp Σ :=
   
   ∀ LI, ⌜lfilled i lh es LI⌝ -∗ WP [AI_local n f LI] @ s; E {{ Φ }}.
-
-End Wasm_wp.
 
 
 (* Notations *)
