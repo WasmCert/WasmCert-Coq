@@ -21,9 +21,11 @@ Class logrel_na_invs Σ :=
 Definition wf : string := "wfN".
 Definition wt : string := "wtN".
 Definition wm : string := "wmN".
+Definition wg : string := "wgN".
 Definition wfN (a : N) : namespace := nroot .@ wf .@ a.
 Definition wtN (a b: N) : namespace := nroot .@ wt .@ a .@ b.
-Definition wmN (a b: N) : namespace := nroot .@ wm .@ a .@ b.
+Definition wmN (a: N) : namespace := nroot .@ wm .@ a.
+Definition wgN (a: N) : namespace := nroot .@ wg .@ a.
 
 
 Close Scope byte_scope.
@@ -51,6 +53,9 @@ Section logrel.
   Notation CtxR := ((leibnizO lholed) -n> iPropO Σ).
   Notation TR := ((leibnizO N) -n> iPropO Σ).
   Notation TeR := ((leibnizO N) -n> (leibnizO N) -n> iPropO Σ).
+  Notation MR := ((leibnizO N) -n> iPropO Σ).
+  Notation GR := ((leibnizO N) -n> iPropO Σ).
+  Notation IR := ((leibnizO instance) -n> iPropO Σ).
 
   Implicit Types w : (leibnizO value).
   Implicit Types ws : (list (leibnizO value)).
@@ -59,6 +64,8 @@ Section logrel.
   Implicit Types cl : (leibnizO function_closure).
   Implicit Types lh : (leibnizO lholed).
   Implicit Types n m : (leibnizO N).
+  Implicit Types g : (leibnizO global).
+  Implicit Types i : (leibnizO instance).
 
   Implicit Types τ : value_type.
   Implicit Types τs : result_type.
@@ -67,6 +74,8 @@ Section logrel.
   Implicit Types τc : list (list value_type).
   Implicit Types τt : table_type.
   Implicit Types τm : memory_type.
+  Implicit Types τg : global_type.
+  Implicit Types τctx : t_context.
 
   (* --------------------------------------------------------------------------------------- *)
   (* ---------------------------------- VALUE RELATION ------------------------------------- *)
@@ -87,48 +96,9 @@ Section logrel.
     end.
 
   Definition interp_val (τs : result_type) : VR :=
-    λne v, (∃ ws, ⌜v = immV ws⌝ ∗ [∗ list] w;τ ∈ ws;τs, interp_value τ w)%I.
-
-
-  (* --------------------------------------------------------------------------------------- *)
-  (* ---------------------------------- FRAME RELATION ------------------------------------- *)
-  (* --------------------------------------------------------------------------------------- *)
-
-  (* Note: the frame relation is not persistent *)
-    
-  Definition interp_frame (τs : result_type) (i : instance) : FR :=
-    λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ ↪[frame] f)%I.
-
+    λne v, ((⌜v = trapV⌝) ∨ (∃ ws, ⌜v = immV ws⌝ ∗ [∗ list] w;τ ∈ ws;τs, interp_value τ w))%I.
   
-  (* --------------------------------------------------------------------------------------- *)
-  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
-  (* --------------------------------------------------------------------------------------- *)
 
-  Fixpoint lholed_valid lh : Prop :=
-    match lh with
-    | LH_base vs es => const_list vs
-    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
-    end.
-  Lemma lholed_valid_fill (lh : lholed) :
-    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
-  Proof.
-    induction lh;intros es Hval.
-    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
-    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
-      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
-  Qed.
-
-  Fixpoint lholed_return_lengths (τc : list (list value_type)) lh : Prop :=
-    match τc, lh with
-    | [], LH_base vs es => True
-    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_return_lengths τc lh'
-    | _,_ => False
-    end.
-  
-  Definition interp_ctx (τc : list (list value_type)) : CtxR :=
-    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_return_lengths τc lh⌝)%I.
-  
-  
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------------- CLOSURE RELATION ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
@@ -169,34 +139,139 @@ Section logrel.
                                         ∗ from_option ((interp_function τf) ∘ N.of_nat) True fe)%I.
   (* ⊤ means failure is allowed in case the table is not populated *)
 
-  Definition interp_table (τt : table_type) (table_size : nat) (τf : function_type) : TR :=
-    λne n, ([∗ list] i ∈ mapi (λ j _, j) (repeat 0 table_size), interp_table_entry τf n (N.of_nat i))%I.
+  Definition interp_table (table_size : nat) (τt : table_type) : TR :=
+    λne n, ([∗ list] i ∈ mapi (λ j _, j) (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf n (N.of_nat i))%I.
 
 
   (* --------------------------------------------------------------------------------------- *)
   (* ---------------------------------- MEMORY RELATION ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
     
-  Definition interp_mem (τm : memory_type) :=
-    λne 
+  Definition interp_mem (τm : memory_type) : MR :=
+    λne n, (na_inv logrel_nais (wmN n) (∃ (mem : memory), n ↦[wmblock] mem ∗ ⌜mem_typing mem τm⌝))%I.
+  (* wmblock is shorthand for entire block + size, mem_typing has size restrictions *)
+
+  
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------------- GLOBALS RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Definition interp_global (τg : global_type) : GR :=
+    λne n,
+      (match (tg_mut τg) with
+      | MUT_immut => ∃ (P : value_type -> WR),
+         (□ ∀ w, P (tg_t τg) w -∗ interp_value (tg_t τg) w) ∗ 
+         na_inv logrel_nais (wgN n) (∃ g, n ↦[wg] g ∗ P (tg_t τg) (g_val g))
+      | MUT_mut => na_inv logrel_nais (wgN n) (∃ g, n ↦[wg] g ∗ interp_value (tg_t τg) (g_val g))
+      end)%I.
 
 
+  (* --------------------------------------------------------------------------------------- *)
+  (* ---------------------------------- FRAME RELATION ------------------------------------- *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  (* Note: the frame relation is not persistent *)
+    
+  Definition interp_frame (τs : result_type) (i : instance) : FR :=
+    λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ ↪[frame] f)%I.
+
+  
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Fixpoint lholed_valid lh : Prop :=
+    match lh with
+    | LH_base vs es => const_list vs
+    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
+    end.
+  Lemma lholed_valid_fill (lh : lholed) :
+    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
+  Proof.
+    induction lh;intros es Hval.
+    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
+    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
+      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
+  Qed.
+
+  Fixpoint lholed_return_lengths (τc : list (list value_type)) lh : Prop :=
+    match τc, lh with
+    | [], LH_base vs es => True
+    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_return_lengths τc lh'
+    | _,_ => False
+    end.
+  
+  Definition interp_ctx (τc : list (list value_type)) : CtxR :=
+    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_return_lengths τc lh⌝)%I.
+  
+
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Definition interp_instance (τctx : t_context) : IR :=
+    λne i, let '{| inst_types := ts; inst_funcs := fs; inst_tab := tbs; inst_memory := ms; inst_globs := gs; |} := i in
+           let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t;
+                   tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in 
+           ((* Type declarations *)
+             ⌜ts = ts'⌝ ∗
+            (* Function declarations *)
+           ([∗ list] f;tf ∈ fs;tfs, interp_function tf (N.of_nat f)) ∗
+            (* Function tables *)           
+           (match nth_error tabs_t 0 with
+            | Some τt => ∃ table_size, ⌜table_size >= N.to_nat τt.(tt_limits).(lim_min)⌝ ∗
+                                      from_option ((interp_table table_size τt) ∘ N.of_nat) False (nth_error tbs 0)
+            | None => False
+            end) ∗
+            (* Linear Memory *)
+           (match nth_error mems_t 0 with
+            | Some τm => from_option ((interp_mem τm) ∘ N.of_nat) False (nth_error ms 0)
+            | None => False
+            end) ∗
+            (* Global declarations *)
+           ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.
 
 
+  Global Instance interp_function_persistent τf n : Persistent (interp_function τf n).
+  Proof.
+    unfold interp_function, interp_closure, interp_closure_host, interp_closure_native.
+    apply exist_persistent =>cl/=.
+    apply sep_persistent;[apply _|].
+    destruct cl,f; apply sep_persistent; apply _.
+  Qed.
+  Global Instance interp_global_persistent τg n : Persistent (interp_global τg n).
+  Proof.
+    unfold interp_global.
+    destruct (tg_mut τg);apply _.
+  Qed.
+  Global Instance interp_instance_persistent τctx i : Persistent (interp_instance τctx i).
+  Proof.
+    destruct i, τctx;simpl.
+    repeat apply sep_persistent;apply _.
+  Qed.
+
+  Notation IctxR := ((leibnizO instance) -n> (leibnizO lholed) -n> (leibnizO frame) -n> iPropO Σ).
+
+  Definition interp_instance_ctx (τctx : t_context) : IctxR :=
+    λne i lh f, let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t;
+                        tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in
+                (interp_instance τctx i ∗
+                 interp_frame tl i f ∗
+                 interp_ctx tlabel lh)%I.
 
 
+  (* --------------------------------------------------------------------------------------- *)
+  (* ------------------------------- EXPRESSION RELATION ----------------------------------- *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Definition interp_expression (τs : result_type) (lh : lholed) (es : expr) :=
+    (WP es CTX (lh_depth lh); lh {{ interp_val τs }})%I.
 
 
-  (* Definition mem_typing (m : memory) (m_t : memory_type) : bool := *)
-(*   (N.leb m_t.(lim_min) (mem_size m)) && *)
-(*   (m.(mem_max_opt) == m_t.(lim_max)) (* TODO: mismatch *). *)
+  Definition semantic_tying (τctx : t_context) (es : expr) (τs : result_type) :=
+    ∀ i lh f, interp_instance_ctx τctx i lh f -∗ interp_expression τs lh es.
 
-(* Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool := *)
-(*   (n < length ms) && *)
-(*   match List.nth_error ms n with *)
-(*   | Some mem => mem_typing mem mem_t *)
-(*   | None => false *)
-(*   end. *)
+  
 
 End logrel.
 
