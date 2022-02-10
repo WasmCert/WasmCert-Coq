@@ -19,7 +19,12 @@ Class logrel_na_invs Σ :=
   }.
 
 Definition wf : string := "wfN".
+Definition wt : string := "wtN".
+Definition wm : string := "wmN".
 Definition wfN (a : N) : namespace := nroot .@ wf .@ a.
+Definition wtN (a b: N) : namespace := nroot .@ wt .@ a .@ b.
+Definition wmN (a b: N) : namespace := nroot .@ wm .@ a .@ b.
+
 
 Close Scope byte_scope.
 
@@ -45,6 +50,7 @@ Section logrel.
   Notation ClR := ((leibnizO function_closure) -n> iPropO Σ).
   Notation CtxR := ((leibnizO lholed) -n> iPropO Σ).
   Notation TR := ((leibnizO N) -n> iPropO Σ).
+  Notation TeR := ((leibnizO N) -n> (leibnizO N) -n> iPropO Σ).
 
   Implicit Types w : (leibnizO value).
   Implicit Types ws : (list (leibnizO value)).
@@ -52,12 +58,15 @@ Section logrel.
   Implicit Types f : (leibnizO frame).
   Implicit Types cl : (leibnizO function_closure).
   Implicit Types lh : (leibnizO lholed).
+  Implicit Types n m : (leibnizO N).
 
   Implicit Types τ : value_type.
   Implicit Types τs : result_type.
   Implicit Types ηs : result_type.
   Implicit Types τf : function_type.
   Implicit Types τc : list (list value_type).
+  Implicit Types τt : table_type.
+  Implicit Types τm : memory_type.
 
   (* --------------------------------------------------------------------------------------- *)
   (* ---------------------------------- VALUE RELATION ------------------------------------- *)
@@ -155,23 +164,38 @@ Section logrel.
   (* ---------------------------------- TABLE RELATION ------------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  
-  
+  Definition interp_table_entry (τf : function_type) : TeR :=
+    λne n m, (∃ (fe : funcelem), na_inv logrel_nais (wtN n m) (n ↦[wt][m] fe)
+                                        ∗ from_option ((interp_function τf) ∘ N.of_nat) True fe)%I.
+  (* ⊤ means failure is allowed in case the table is not populated *)
+
+  Definition interp_table (τt : table_type) (table_size : nat) (τf : function_type) : TR :=
+    λne n, ([∗ list] i ∈ mapi (λ j _, j) (repeat 0 table_size), interp_table_entry τf n (N.of_nat i))%I.
+
+
+  (* --------------------------------------------------------------------------------------- *)
+  (* ---------------------------------- MEMORY RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+    
+  Definition interp_mem (τm : memory_type) :=
+    λne 
 
 
 
 
 
 
-(*   Definition tab_typing (t : tableinst) (tt : table_type) : bool := *)
-(*   (tt.(tt_limits).(lim_min) <= tab_size t) && *)
-(*   (t.(table_max_opt) < tt.(tt_limits).(lim_max)). *)
 
-(* Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool := *)
-(*   (n < List.length ts) && *)
-(*   match List.nth_error ts n with *)
+
+  (* Definition mem_typing (m : memory) (m_t : memory_type) : bool := *)
+(*   (N.leb m_t.(lim_min) (mem_size m)) && *)
+(*   (m.(mem_max_opt) == m_t.(lim_max)) (* TODO: mismatch *). *)
+
+(* Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool := *)
+(*   (n < length ms) && *)
+(*   match List.nth_error ms n with *)
+(*   | Some mem => mem_typing mem mem_t *)
 (*   | None => false *)
-(*   | Some x => tab_typing x tab_t *)
 (*   end. *)
 
 End logrel.
