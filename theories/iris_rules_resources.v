@@ -2905,7 +2905,7 @@ Proof.
       unfold lfilled, lfill in H1.
       simpl in H1.
       rewrite app_nil_r in H1.
-      apply b2p in H1 ; subst.
+      move/eqP in H1 ; subst.
       apply IHreduce => //=. }
     exfalso.
     inversion H0.
