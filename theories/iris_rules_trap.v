@@ -148,8 +148,9 @@ Section trap_rules.
         destruct σ2 as [[[??] ?]?].
         iDestruct "H2" as "[Hσ H]".
         iDestruct "H" as (f1) "(Hf1 & Hes'' & Hefs)".
+        iFrame.
         iExists f1.
-        iFrame. (* iSplit =>//. *)
+        iFrame.
         iIntros "?".
         iSpecialize ("IH" with "[$]").
         iApply "IH". eauto.
