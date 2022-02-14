@@ -379,13 +379,13 @@ Section iris_rules_calls.
     iApply ("HΦ" with "[$]").
   Qed. 
 
-  Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) a c cl :
+  Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
     (inst_types (f_inst f0)) !! i = Some (cl_type cl) ->
-    (inst_tab (f_inst f0)) !! 0 = Some i -> (* current frame points to correct table? *)
-    (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
+    (inst_tab (f_inst f0)) !! 0 = Some j-> (* current frame points to correct table? *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
     (N.of_nat a) ↦[wf] cl -∗
     ↪[frame] f0 -∗
-    ▷ ((N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
+    ▷ ((N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
        ∗ (N.of_nat a) ↦[wf] cl
        ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
     WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
@@ -432,14 +432,14 @@ Section iris_rules_calls.
   Qed.
       
 
-  Lemma wp_call_indirect_failure_types (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) a c cl :
+  Lemma wp_call_indirect_failure_types (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
     (inst_types (f_inst f0)) !! i <> Some (cl_type cl) ->
-    (inst_tab (f_inst f0)) !! 0 = Some i -> (* current frame points to correct table? *)
-    (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
+    (inst_tab (f_inst f0)) !! 0 = Some j -> (* current frame points to correct table? *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
     (N.of_nat a) ↦[wf] cl -∗
     ↪[frame] f0 -∗
     ▷ (Φ trapV) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
                                                                                           ∗ (N.of_nat a) ↦[wf] cl)
                                                                                           ∗ ↪[frame] f0 }}.
   Proof.
@@ -519,12 +519,12 @@ Section iris_rules_calls.
   Qed.
 
   
-  Lemma wp_call_indirect_failure_noindex (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) c :
-    (inst_tab (f_inst f0)) !! 0 = Some i -> (* current frame points to correct table *)
-    (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None -∗ (* but no index i *)
+  Lemma wp_call_indirect_failure_noindex (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) c :
+    (inst_tab (f_inst f0)) !! 0 = Some j -> (* current frame points to correct table *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None -∗ (* but no index i *)
     ↪[frame] f0 -∗
     ▷ (Φ trapV) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None)
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None)
                                                                                           ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Hc) "Ha Hf Hcont".
