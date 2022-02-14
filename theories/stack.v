@@ -276,7 +276,7 @@ Proof.
     iApply (wp_relop with "Hf") => //=.
     iPureIntro.
     destruct (v == value_of_int (-1)) eqn:Hv.
-    apply b2p in Hv.
+    move/eqP in Hv.
     by rewrite Hv.
     destruct v => //=.
     unfold value_of_int in Hv.
@@ -295,7 +295,7 @@ Proof.
     iSimpl.
     destruct (v == value_of_int (-1)) eqn:Hv.
     + (* grow_memory failed *)
-      apply b2p in Hv ; subst v.
+      move/eqP in Hv ; subst v.
       inversion Hw ; subst v0.
       iApply (wp_if_true with "Hf").
       intro.
@@ -357,26 +357,27 @@ Proof.
           last unfold lfilled, lfill => //=.
         simpl.
         rewrite (separate1 (AI_basic (BI_get_local 0))).
-        iApply wp_seq_ctx.
-        iSplitL "Hf".
-        iApply (wp_get_local with "Hf").
-        simpl.
-        rewrite set_nth_read.
-        done.
-        instantiate (1 := (λ x, ( x = immV [VAL_int32 c]))) => //=.
+        iApply wp_seq_ctx; eauto.
+        iSplitL ""; last first.
+        - iSplitL "Hf".
+          iApply (wp_get_local with "Hf") => /=; first by rewrite set_nth_read.
+          instantiate (1 := (λ x, ( x = immV [VAL_int32 c]))) => //=.
+        - 2: { simpl. by iIntros "(%HContra & _ )". }
         iIntros (w) "[-> Hf]".
         unfold of_val, fmap, list_fmap.
         rewrite - separate1.
         rewrite (separate3 (AI_basic _)).
         iApply wp_seq_ctx.
-        iSplitL "Hf".
-        iApply (wp_binop with "Hf").
-        unfold app_binop, app_binop_i. done.
-        instantiate (1 := λ x,
+        iSplitL ""; last first.
+        - iSplitL "Hf".
+          iApply (wp_binop with "Hf").
+          unfold app_binop, app_binop_i. done.
+          instantiate (1 := λ x,
                        ⌜ x = immV [VAL_int32 (Wasm_int.int_mul Wasm_int.Int32.Tmixin
                                                                c (Wasm_int.int_of_Z i32m
                                                                                     65536))
-                               ] ⌝%I ) => //=.
+                                  ] ⌝%I ) => //=.
+        - 2: { simpl. by iIntros "(%HContra & _ )". }
         iIntros (w) "[-> Hf]".
         unfold of_val, fmap, list_fmap.
         rewrite - separate1.
