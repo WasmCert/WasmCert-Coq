@@ -110,14 +110,14 @@ Section logrel.
   Definition interp_closure_native i tf1s tf2s tlocs e : iProp Σ :=
     □ ∀ vcs, interp_val tf1s (immV vcs) -∗
              na_own logrel_nais ⊤ -∗
-             ∃ f', WP e FRAME (length tf2s); (Build_frame (vcs ++ (n_zeros tlocs)) i)
+             ∀ f1, ∃ f2, ↪[frame] f1 -∗ WP e FRAME (length tf2s); (Build_frame (vcs ++ (n_zeros tlocs)) i)
                         CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
-                        {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f' }}.
+                        {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f2 }}.
   
   Definition interp_closure_host tf1s tf2s h : iProp Σ :=
     □ ∀ vcs, interp_val tf1s (immV vcs) -∗
              wp_host HWP NotStuck ⊤ h vcs
-                        (λ r, from_option (interp_val tf2s) False (to_val (result_to_stack r))).
+                        (λ r, from_option (interp_val tf2s) False (iris.to_val (result_to_stack r))).
   
   Definition interp_closure (τf : function_type) : ClR :=
       λne cl, (match cl with
@@ -249,6 +249,14 @@ Section logrel.
     destruct i, τctx;simpl.
     repeat apply sep_persistent;apply _.
   Qed.
+  Global Instance interp_val_persistent τr vs : Persistent (interp_val τr vs).
+  Proof.
+    unfold interp_val, interp_value. apply or_persistent; [apply _|].
+    apply exist_persistent =>v/=.
+    apply sep_persistent;[apply _|].
+    apply big_sepL2_persistent =>n ? xx.
+    destruct xx;apply _.
+  Qed.
 
   Notation IctxR := ((leibnizO instance) -n> (leibnizO lholed) -n> (leibnizO frame) -n> iPropO Σ).
 
@@ -264,15 +272,15 @@ Section logrel.
   (* ------------------------------- EXPRESSION RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_expression (τs : result_type) (lh : lholed) (es : expr) :=
-    (WP es CTX (lh_depth lh); lh {{ interp_val τs }})%I.
+  Definition interp_expression (τs : result_type) (lh : lholed) (es : expr) : iProp Σ :=
+    (WP es {{ vs, interp_val τs vs ∗ ∃ f, ↪[frame] f}})%I.
 
 
-  Definition semantic_tying (τctx : t_context) (es : expr) (τs : result_type) :=
-    ∀ i lh f, interp_instance_ctx τctx i lh f -∗ interp_expression τs lh es.
-
-  
+  Definition semantic_typing (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
+    match tf with
+    | Tf τ1 τ2 => ∀ i lh f vs, interp_instance_ctx τctx i lh f -∗
+                              interp_val τ1 vs -∗
+                              interp_expression τ2 lh ((of_val vs) ++ es)
+    end.
 
 End logrel.
-
-  
