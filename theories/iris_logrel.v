@@ -278,8 +278,11 @@ Section logrel.
 
   Definition semantic_typing (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
     match tf with
-    | Tf τ1 τ2 => ∀ i lh f vs, interp_instance_ctx τctx i lh f -∗
+    | Tf τ1 τ2 => ∀ i lh f vs, (* interp_instance_ctx τctx i lh f -∗ *)
+                              interp_instance τctx i -∗
+                              interp_ctx (tc_label τctx) lh -∗
                               interp_val τ1 vs -∗
+                              interp_frame (tc_local τctx) i f -∗
                               interp_expression τ2 lh ((of_val vs) ++ es)
     end.
 

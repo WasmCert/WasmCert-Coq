@@ -13,11 +13,7 @@ Close Scope byte_scope.
 Section trap_rules.
   Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-  Let val := iris.val.
-  Let expr := iris.expr.
-  Let to_val := iris.to_val.
-
-  Lemma wp_trap (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (vs1 es2 : expr) f :
+  Lemma wp_trap (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (vs1 es2 : iris.expr) f :
     const_list vs1 ->
     Φ trapV -∗
     ↪[frame] f -∗
@@ -424,17 +420,18 @@ Section trap_rules.
     }
   Qed.
 
-  
-  (* Lemma wp_seq_trap_or (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) f : *)
 
-  (*   (↪[frame] f ∗ (¬ (Ψ trapV)) ∗ *)
-  (*    (↪[frame] f -∗ WP es1 @ s; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f', ↪[frame] f' }}) ∗ *)
-  (*    ∀ w f', Ψ w ∗ ↪[frame] f' -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ ∃ f', ↪[frame] f' }})%I *)
-  (*    ⊢ WP (es1 ++ es2) @ s; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f', ↪[frame] f' }}. *)
-  (* Proof. *)
-  (*   iIntros "(Hf & Htrap & Hes1 & Hcont)". *)
-    
-
-    
+  Lemma wp_trap_ctx (s : stuckness) (E : coPset) f i lh vs es :
+    const_list vs ->
+    ↪[frame] f -∗
+    WP vs ++ [AI_trap] ++ es @ s; E CTX i; lh {{ v, ⌜v = trapV⌝ ∗ ↪[frame] f }}.
+  Proof.
+    iIntros (Hconst) "Hf". rewrite app_assoc.
+    iApply wp_seq_trap_ctx.
+    iFrame. iIntros "Hf".
+    apply const_list_is_val in Hconst as [v Hvs].
+    iApply wp_val_app_trap;eauto.
+    iFrame. iIntros "Hf". iApply wp_value;eauto. done.
+  Qed.
   
 End trap_rules.

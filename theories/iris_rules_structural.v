@@ -16,7 +16,7 @@ Close Scope byte_scope.
 Section structural_rules.
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-Lemma wp_wasm_empty_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) e :
+Lemma wp_wasm_empty_ctx (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e :
   ⊢ WP e @ s ; E {{ Φ }} ∗-∗ WP e @ s ; E CTX_EMPTY {{ Φ }}.
 Proof.
   iSplit.
@@ -27,7 +27,7 @@ Proof.
     iPureIntro. cbn. rewrite app_nil_r eqseqE. apply eq_refl. }
 Qed.
 
-Lemma wp_wasm_empty_ctx_frame (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) e n f :
+Lemma wp_wasm_empty_ctx_frame (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e n f :
   ⊢ WP e @ s ; E FRAME n; f {{ Φ }} ∗-∗ WP e @ s ; E FRAME n; f CTX_EMPTY {{ v, Φ v }}.
 Proof.
   iSplit.
@@ -45,7 +45,8 @@ Proof.
   rewrite wp_unfold /wp_pre /=. iFrame. eauto.
 Qed.
 
-Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
+(* Sequencing rule which is guaranteed not to trap *)
+Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
   ((¬ (Ψ trapV)) ∗
   WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
   ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }})%I
@@ -76,7 +77,7 @@ Proof.
       pose proof (lfilled_swap (iris.of_val (immV vs12)) Hfilled) as [LI' Hfilled'].
       iSpecialize ("Hes2" $! _ Hfilled').
       iDestruct (wp_unfold with "Hes2") as "Hes2". rewrite /wp_pre /=.
-      assert (to_val LI' = Some (immV l)) as ->;[|iFrame].
+      assert (iris.to_val LI' = Some (immV l)) as ->;[|iFrame].
       apply lfilled_Ind_Equivalent in Hfilled'. inversion Hfilled';subst.
       apply to_val_cat_inv;auto. apply to_val_cat_inv;auto. apply iris.to_of_val.
     }
