@@ -64,7 +64,6 @@
 		},
 		"coq-flocq": {
 			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#ca655d2542bdcf024bce5c26dbc0f13b856aa1f6",
-			"version": "3.4.2",
 			"override": {
 				"buildsInSource": true,
 				"buildEnv": {
@@ -84,7 +83,6 @@
 		},
 	    "coq-iris": {
 			"source": "git:https://gitlab.mpi-sws.org/iris/iris.git#b32bd7c76ef9279d567f36bbeb8bcacda7d8a6a2",
-			"version": "3.6.0",
 			"override": {
 				"buildsInSource": true,
 				"dependencies": {
@@ -107,7 +105,6 @@
 		},
 		"@opam/coq-stdpp": {
 			"source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#ebfb79dd8b7d0a1b2d317037cb13969adfa9306c",
-			"version": "1.7.0",
 			"override": {
 				"dependencies": {
 					"@opam/coq": "8.13.2"
@@ -129,7 +126,6 @@
 		},
 		"coq-ext-lib": {
 			"source": "github:coq-community/coq-ext-lib#159c36111a95e5e587020c9f10b2e2ecd9fa3914",
-			"version": "0.11.3",
 			"override": {
 				"dependencies": {
 					"@opam/coq": "*"

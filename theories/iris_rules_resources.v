@@ -106,7 +106,7 @@ Proof.
     iModIntro.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [H | [ Hstart | [[ a [cl [tf [h [Hstart [Hnth Hcl]]]]] ] | (Hstart & Hstart1 & Hstart2
+    eapply reduce_det in H as [H | [ [? Hstart] | [[ a [cl [tf [h [Hstart [Hnth Hcl]]]]] ] | (?&?&?&Hstart & Hstart1 & Hstart2
                                                                & Hσ)]]] ;
       last (eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto) ;
     try by unfold first_instr in Hstart ; simpl in Hstart ; inversion Hstart.
@@ -2373,7 +2373,7 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [ H | [ Hfirst | [ [a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]]] | (Hfirst & Hfirst2 &
+    eapply reduce_det in H as [ H | [ [? Hfirst] | [ [a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]]] | (?&?&?&Hfirst & Hfirst2 &
                                                                   Hfirst3 & Hσ)]]] ;
       last (eapply r_load_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
@@ -2440,7 +2440,7 @@ Proof.
     rewrite nth_error_lookup in Hm => //=.
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [Hfirst | [ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | ( Hfirst & Hfirst2 &
+    eapply reduce_det in HStep as [H | [[? Hfirst] | [ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | (?&?&?& Hfirst & Hfirst2 &
                                                                        Hfirst3 & Hσ) ]]] ;
       last (eapply r_store_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.

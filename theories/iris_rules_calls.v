@@ -74,10 +74,10 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      assert (first_instr (ves ++ [AI_invoke a]) = Some (AI_invoke a)) as Hf.
+      assert (first_instr (ves ++ [AI_invoke a]) = Some (AI_invoke a,0)) as Hf.
       { apply first_instr_const. eapply to_val_const_list. eauto. }
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?&?) | (?&?&?&Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
       simplify_eq. iApply bi.sep_exist_l. iExists f0. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("HΦ" with "[$]"). iFrame.
@@ -106,80 +106,6 @@ Section iris_rules_calls.
      be mutually recursive.
 
    *)
-  
-  Lemma last_inj {A : Type} (l1 l2 : list A) (a b : A) :
-    l1 = l2 -> last l1 = Some a -> last l2 = Some b -> a = b.
-  Proof.
-    intros Heq Hla1 Hla2.
-    subst. rewrite Hla1 in Hla2. inversion Hla2. done.
-  Qed.
-  Lemma const_list_snoc_eq vs :
-    forall ves es es' e,
-    const_list ves ->
-    const_list vs ->
-    es ≠ [] ->
-    iris.to_val es = None ->
-    (vs ++ es ++ es')%SEQ = ves ++ [e] ->
-    es' = [] ∧ ∃ vs2, ves = vs ++ vs2 ∧ es = vs2 ++ [e] ∧ const_list vs2.
-  Proof.
-    induction vs;
-      intros ves es es' e Hconst1 Hconst2 Hneq Hnval Heq.
-    { erewrite app_nil_l in Heq.
-      apply app_eq_inv in Heq as [[k [Hk1 Hk2]] | [k [Hk1 Hk2]]].
-      { destruct k.
-        { rewrite app_nil_r in Hk1.
-          rewrite app_nil_l in Hk2.
-          simplify_eq.
-          assert (is_Some (to_val (ves))) as [c Hc];[|congruence].
-          apply const_list_is_val in Hconst1 as [v ->]. eauto. }
-        { destruct k,es' =>//.
-          rewrite app_nil_r in Hk2. simplify_eq.
-          eauto. }  }
-      { rewrite Hk1 in Hconst1.
-        apply to_val_cat_None1 with (es2:=k) in Hnval.
-        apply const_list_is_val in Hconst1 as [v Hv].
-        congruence. } }
-    { destruct ves.
-      { destruct vs,es,es' =>//. }
-      inversion Heq;subst.
-      simpl in Hconst1,Hconst2.
-      apply andb_true_iff in Hconst1,Hconst2.
-      destruct Hconst1 as [Ha0 Hconst1].
-      destruct Hconst2 as [_ Hconst2].
-      apply IHvs in H1;auto.
-      destruct H1 as [Heqes' [vs2 [Heq1 Heq2]]].
-      subst. eauto.
-    }
-  Qed.
-  Lemma length_to_val_immV v1 :
-    forall vs1, to_val v1 = Some (immV vs1)
-    -> length v1 = length vs1.
-  Proof.
-    induction v1;intros vs1 Hval.
-    destruct vs1 =>//.
-    destruct vs1.
-    apply to_val_nil in Hval. done.
-    simpl in *.
-    destruct a;try done.
-    destruct b;try done.
-    destruct (to_val v1) eqn:Hv1;try done.
-    destruct v2;try done.
-    simplify_eq. auto.
-    destruct v1;try done.
-  Qed.
-  Lemma const_list_app v1 v2 :
-    const_list (v1 ++ v2) <-> const_list v1 ∧ const_list v2.
-  Proof.
-    split.
-    - intros Hconst.
-      apply const_list_is_val in Hconst as [v Hv].
-      apply to_val_cat in Hv as [Hv1%to_val_const_list Hv2%to_val_const_list];auto.
-    - intros [Hconst1 Hconst2].
-      apply const_list_is_val in Hconst1 as [v1' Hv1].
-      apply const_list_is_val in Hconst2 as [v2' Hv2].
-      eapply to_val_const_list.
-      apply to_val_cat_inv;eauto.
-  Qed.      
     
   Lemma invoke_host_inv a s1 t1s t2s h s0 es1 f1 f2 hs2 ws2 es:
     reduce (host_instance:=host_instance) s0 s1
@@ -358,10 +284,10 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      assert (first_instr LI = Some (AI_basic (BI_call i))).
+      assert (first_instr LI = Some (AI_basic (BI_call i),0 + j)).
       { eapply starts_with_lfilled;eauto. auto. }
       eapply reduce_det in H as HH;[|eapply r_label;[|eauto..];apply r_call; rewrite /= nth_error_lookup //]. 
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "?". iApply ("HΦ" with "[$]"). auto.
   Qed.
@@ -425,7 +351,7 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("Hcont" with "[$]"). iFrame.
@@ -478,7 +404,7 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [ (?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 
@@ -514,7 +440,7 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 
@@ -557,7 +483,7 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 
