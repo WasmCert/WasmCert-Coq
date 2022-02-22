@@ -175,36 +175,6 @@ Section logrel.
   Definition interp_frame (τs : result_type) (i : instance) : FR :=
     λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ ↪[frame] f)%I.
 
-  
-  (* --------------------------------------------------------------------------------------- *)
-  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
-  (* --------------------------------------------------------------------------------------- *)
-
-  Fixpoint lholed_valid lh : Prop :=
-    match lh with
-    | LH_base vs es => const_list vs
-    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
-    end.
-  Lemma lholed_valid_fill (lh : lholed) :
-    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
-  Proof.
-    induction lh;intros es Hval.
-    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
-    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
-      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
-  Qed.
-
-  Fixpoint lholed_return_lengths (τc : list (list value_type)) lh : Prop :=
-    match τc, lh with
-    | [], LH_base vs es => True
-    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_return_lengths τc lh'
-    | _,_ => False
-    end.
-  
-  Definition interp_ctx (τc : list (list value_type)) : CtxR :=
-    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_return_lengths τc lh⌝)%I.
-  
-
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
@@ -257,6 +227,37 @@ Section logrel.
     apply big_sepL2_persistent =>n ? xx.
     destruct xx;apply _.
   Qed.
+
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Fixpoint lholed_valid lh : Prop :=
+    match lh with
+    | LH_base vs es => const_list vs
+    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
+    end.
+  Lemma lholed_valid_fill (lh : lholed) :
+    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
+  Proof.
+    induction lh;intros es Hval.
+    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
+    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
+      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
+  Qed.
+
+  Fixpoint lholed_return_lengths (τc : list (list value_type)) lh : Prop :=
+    match τc, lh with
+    | [], LH_base vs es => True
+    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_return_lengths τc lh'
+    | _,_ => False
+    end.
+  
+  Definition interp_ctx_continuations (τc : list (list (value_type))) : CtxR :=
+    λne lh, ∀ τs2, 
+        
+        Definition interp_ctx (τc : list (list value_type)) : CtxR :=
+    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_return_lengths τc lh⌝)%I.
 
   Notation IctxR := ((leibnizO instance) -n> (leibnizO lholed) -n> (leibnizO frame) -n> iPropO Σ).
 

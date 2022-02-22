@@ -16,6 +16,331 @@ Close Scope byte_scope.
 Section structural_rules.
 Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
+Fixpoint get_layer lh i :=
+  match lh,i with
+  | LH_base vs es, _ => None
+  | LH_rec vs' n es lh' es', 0 => Some (vs',n,es,lh',es')
+  | LH_rec _ _ _ lh' _, S n => get_layer lh' n
+  end.
+
+Definition delete_outer lh :=
+  match lh with
+  | LH_base _ _ => lh
+  | LH_rec vs n es lh es' => lh
+  end.
+                
+Inductive lh_minus_Ind : lholed -> lholed -> lholed -> Prop :=
+| lh_minus_base lh : lh_minus_Ind lh (LH_base [] []) lh
+| lh_minus_ind lh lh' lh'' vs n es es' :
+  lh_minus_Ind lh lh' lh'' ->
+  lh_minus_Ind (LH_rec vs n es lh es') (LH_rec vs n es lh' es') lh''.
+
+Global Instance ai_list_eq_dec: EqDecision (seq.seq administrative_instruction).
+Proof.
+  eapply list_eq_dec.
+  Unshelve.
+  pose proof administrative_instruction_eq_dec. eauto.
+Defined.
+Global Instance ai_eq_dec: EqDecision (administrative_instruction).
+Proof.
+  pose proof administrative_instruction_eq_dec. eauto.
+Defined.
+
+Lemma ai_eq_true a a0 : administrative_instruction_eqb a a0 = true <-> a = a0.
+Proof.
+  split; by move/eqP.
+Qed.
+
+Lemma ai_eqseq_true (l1 l2 : seq.seq administrative_instruction) :
+  l1 = l2 <-> (l1 == l2) = true.
+Proof.
+  split; by move/eqP.
+Qed.
+  
+Lemma lh_minus_Ind_Equivalent lh lh' lh'' :
+  lh_minus lh lh' = Some lh'' <->
+  lh_minus_Ind lh lh' lh''.
+Proof.
+  revert lh lh''.
+  induction lh';intros lh lh''.
+  { split; intros Hlh.
+    { unfold lh_minus in Hlh.
+      destruct lh. destruct l,l0 =>//.
+      simplify_eq. constructor.
+      destruct l,l0 =>//.
+      inversion Hlh;subst.
+      constructor. }
+    { inversion Hlh;simplify_eq.
+      unfold lh_minus.
+      destruct lh'';auto. }
+  }
+  { split;intros Hlh.
+    { unfold lh_minus in Hlh.
+      destruct lh. done.
+      destruct (l2 == l) eqn:Hl1; [|cbn in Hlh;done].
+      apply ai_eqseq_true in Hl1 as ->.
+      destruct (decide (n0 = n));subst.
+      2: { apply PeanoNat.Nat.eqb_neq in n1.
+           rewrite n1 in Hlh. cbn in Hlh;done. }
+      rewrite PeanoNat.Nat.eqb_refl /= in Hlh.
+      destruct (l3 == l0) eqn:Hl2;[simpl in Hlh;apply ai_eqseq_true in Hl2 as ->|cbn in Hlh;done].
+      destruct (l4 == l1) eqn:Hl3;[simpl in Hlh;apply ai_eqseq_true in Hl3 as ->|cbn in Hlh;done].
+      constructor. apply IHlh'. auto.
+    }
+    { inversion Hlh. simpl. 
+      rewrite !eq_refl PeanoNat.Nat.eqb_refl. cbn.
+      apply IHlh';auto.
+    }
+  }
+Qed.
+
+Definition lh_delete_inner lh :=
+  let '(lh',_) := empty_base lh in lh'.
+
+Lemma lh_delete_inner_eq lh :
+  base_is_empty lh ->
+  lh_delete_inner lh = lh.
+Proof.
+  intros Hbase.
+  induction lh.
+  { inversion Hbase; subst; auto. }
+  { simpl in Hbase. apply IHlh in Hbase.
+    unfold lh_delete_inner in Hbase.
+    destruct (empty_base lh) eqn:Hlh. simplify_eq.
+    unfold lh_delete_inner. rewrite /= Hlh. auto. }
+Qed.
+
+Lemma base_is_empty_delete_inner lh :
+  base_is_empty (lh_delete_inner lh).
+Proof.
+  induction lh.
+  { simpl. auto. }
+  { unfold lh_delete_inner.
+    destruct (empty_base (LH_rec l n l0 lh l1)) eqn:Hl.
+    inversion Hl. destruct (empty_base lh) eqn:Hlh. simplify_eq.
+    simpl. unfold lh_delete_inner in IHlh.
+    rewrite Hlh in IHlh. auto. }
+Qed.
+
+Lemma lh_minus_eq lh :
+  lh_minus lh (LH_base [] []) = Some lh.
+Proof.
+  induction lh;simpl;auto.
+Qed.
+ 
+Lemma get_layer_lh_minus lh i vs' n es lh' es' :
+  get_layer lh i = Some (vs', n, es, lh', es') -> ∃ lh'', lh_minus lh lh'' = Some lh'.
+Proof.
+  revert i vs' n es lh' es'.
+  induction lh;intros i vs' m es lh' es' Hl;[done|].
+  destruct i.  
+  { inversion Hl;simplify_eq.
+    exists (LH_rec vs' m es (LH_base [] []) es'). simpl.
+    cbn. rewrite !eqseqE !eq_refl PeanoNat.Nat.eqb_refl. cbn.
+    apply lh_minus_eq. }
+  { inversion Hl.
+    apply IHlh in H0. destruct H0 as [hl'' Hlh''].
+    exists (LH_rec l n l0 hl'' l1).
+    simpl. rewrite Hlh''.
+    cbn. rewrite !eqseqE !eq_refl PeanoNat.Nat.eqb_refl. cbn. auto. }
+Qed.
+
+Lemma LH_rec_circular vs' m es lh es' : LH_rec vs' m es lh es' = lh -> False.
+Proof.
+  revert vs' m es es'.
+  induction lh;intros vs' m es es' Hcontr;[done|].
+  inversion Hcontr;subst.
+  apply IHlh in H3. auto.
+Qed.
+
+Lemma lminus_base_inv lh lh' : lh_minus_Ind lh lh' lh -> lh' = LH_base [] [].
+Proof.
+  intros Hlh.
+  inversion Hlh;auto.
+  exfalso. simplify_eq.
+  apply lh_minus_Ind_Equivalent in H.
+  apply lh_minus_depth in H. simpl in H. lia.
+Qed.
+  
+Lemma lminus_rec_inv vs' m es lh es' lh'' :
+  lh_minus (LH_rec vs' m es lh es') lh'' = Some lh ->
+  lh'' = LH_rec vs' m es (LH_base [] []) es'.
+Proof.
+  intros Hmin%lh_minus_Ind_Equivalent.
+  inversion Hmin;subst.
+  exfalso. eapply LH_rec_circular. eauto.
+  f_equiv. eapply lminus_base_inv;eauto.
+Qed.
+
+Lemma get_layer_depth i lh x :
+  get_layer lh i = Some x ->
+  i < lh_depth lh.
+Proof.
+  revert i x;induction lh;intros i x Hlayer;[done|].
+  destruct x,p,p,p.
+  cbn in Hlayer.
+  destruct i;simplify_eq.
+  { simpl. lia. }
+  { apply IHlh in Hlayer.
+    simpl. lia. }
+Qed.
+
+Lemma get_layer_depth_lt i lh vs' n es lh' es' :
+  get_layer lh i = Some (vs',n,es,lh',es') ->
+  lh_depth lh' < lh_depth lh.
+Proof.
+  revert i vs' n es lh' es';induction lh;intros i vs' m es lh' es' Hlayer;[done|].
+  cbn in Hlayer.
+  destruct i;simplify_eq.
+  { simpl. lia. }
+  { apply IHlh in Hlayer.
+    simpl. lia. }
+Qed.
+
+Lemma get_layer_circular lh i vs' m es es' :
+  get_layer lh i = Some (vs', m, es, lh, es') ->
+  False.
+Proof.
+  revert lh vs' m es es'.
+  induction i;intros lh vs' m es es' Hlayer;auto.
+  destruct lh;try done.
+  simpl in Hlayer.
+  simplify_eq.
+  symmetry in H0.
+  by apply LH_rec_circular in H0.
+  apply get_layer_depth_lt in Hlayer. lia.
+Qed.
+
+Lemma get_layer_find i lh' :
+  S i < (lh_depth lh') ->
+  ∃ vs0' n0 es0 vs' n es lh es' es0' lh'',
+    get_layer lh' (lh_depth lh' - (S (S i))) = Some (vs0', n0, es0, (LH_rec vs' n es lh es'), es0') ∧
+      lh_minus lh' lh'' = Some (LH_rec vs' n es lh es').
+Proof.
+  Admitted.
+  
+Lemma lfilled_minus lh' i vs' n es lh es' e LI j lh'' :
+  lh_minus lh' lh'' = Some lh ->
+  i < lh_depth lh' ->
+  get_layer lh' (lh_depth lh' - S i) = Some (vs', n, es, lh, es') ->
+  lfilled j lh' e LI ->
+  ∃ LI', lfilled i lh e LI' ∧ lfilled (j - i) lh'' LI' LI.
+Proof.
+  intros Hlh%lh_minus_Ind_Equivalent.
+  revert vs' n es es' i j e LI.
+  induction Hlh;intros vs' m es2 es2' i j e LI Hle Hlayer Hfill.
+  { apply get_layer_circular in Hlayer. done. }
+  { simpl in *.
+    destruct (lh_depth lh - i) eqn:Hi.
+    { simplify_eq.
+      assert (lh_depth lh'' = i);[lia|simplify_eq].
+      apply lfilled_depth in Hfill as Heq. simpl in *;subst.
+      apply lfilled_Ind_Equivalent in Hfill.
+      inversion Hfill;simplify_eq.
+      apply lfilled_Ind_Equivalent in H8.
+      eexists. split;eauto.
+      apply lfilled_Ind_Equivalent.
+      assert (S (lh_depth lh'') - (lh_depth lh'') = S 0) as ->;[lia|].
+      constructor;auto.
+      apply lminus_base_inv in Hlh as ->.
+      apply lfilled_Ind_Equivalent. cbn.
+      erewrite app_nil_r. by apply/eqP.
+    }
+    { assert (lh_depth lh - S i = n0);[lia|simplify_eq].
+      apply lfilled_Ind_Equivalent in Hfill.
+      inversion Hfill;simplify_eq.
+      apply lfilled_Ind_Equivalent in H8.
+      eapply IHHlh in Hlayer as HLI';[|lia|eauto].
+      destruct HLI' as [LI' [Hfill1 Hfill2]].
+      assert (i <= k) as Hlei.
+      { apply lh_minus_Ind_Equivalent in Hlh.
+        apply lh_minus_depth in Hlh as Hd.
+        apply lfilled_depth in Hfill1 as Hieq.
+        apply lfilled_depth in Hfill2 as Hkeq.
+        rewrite Hieq in Hd.
+        rewrite Hkeq in Hd.
+        simpl in *. lia. }
+      exists LI'.
+      split;auto. rewrite Nat.sub_succ_l;auto.
+      apply lfilled_Ind_Equivalent. constructor;auto.
+      apply lfilled_Ind_Equivalent. auto.
+    }
+  }
+Qed.
+
+
+Lemma wp_br_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i j lh lh' lh'' vs' es' f0 vs0' n0 es0 es0' :
+  S i < j ->
+  get_layer lh' (lh_depth lh' - (S (S i))) = Some (vs0', n0, es0, (LH_rec vs' n es lh es'), es0') ->
+  lh_minus lh' lh'' = Some (LH_rec vs' n es lh es') ->
+  const_list vs ->
+  length vs = n ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP (vs' ++ (vs ++ es) ++ es') @ s; E CTX j - S i ; lh'' {{ Φ }})
+  -∗ WP vs ++ [::AI_basic (BI_br i)] @ s; E CTX j ; lh' {{ Φ }}.
+Proof.
+  iIntros (Hlt Hlayer Hminus Hvs Hlen) "Hf0 HΦ".
+  iIntros (LI Hfill).
+  destruct (iris.to_val LI) eqn:Hcontr.
+  { apply lfilled_to_val in Hfill as [v' Hv];eauto.
+    assert (iris.to_val [AI_basic (BI_br i)] = None) as Hnone;auto.
+    apply (to_val_cat_None2 (vs)) in Hnone.
+    rewrite Hv in Hnone. done. }
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  eapply lfilled_minus with (i:=S i) in Hfill as Hfill';[|eauto..].
+  2: { apply lfilled_depth in Hfill as ->. auto. }
+  destruct Hfill' as [LI' [Hfill1 Hfill2]].
+  apply lfilled_Ind_Equivalent in Hfill1. inversion Hfill1;simplify_eq.
+  apply lfilled_swap with (es':=vs' ++ (vs ++ es) ++ es') in Hfill2 as Hfill2'.
+  destruct Hfill2' as [LI_r Hfill2'].
+  assert (iris.prim_step LI σ [] LI_r σ []) as Hstep.
+  { destruct σ as [[[hs ws] locs] inst].
+    simpl.
+    repeat split => //.
+    eapply r_label. 3: apply Hfill2'. 2: eauto.
+    eapply r_label with (lh:=(LH_base vs' es')).
+    2: { apply lfilled_Ind_Equivalent.
+         econstructor;auto. }
+    2: { apply lfilled_Ind_Equivalent. econstructor;auto. }
+    apply r_simple. eapply rs_br.
+    apply Hvs. auto. apply lfilled_Ind_Equivalent. eauto. }
+  
+  iSplit.
+  { 
+    iPureIntro. destruct s;auto.
+    
+    eexists [],LI_r,σ,[]. eauto. }
+  destruct σ as [[[hs ws] locs] inst] => //=.
+  iApply fupd_mask_intro;[solve_ndisj|].
+  iIntros "Hcls !>" (es1 σ2 efs HStep).
+  iMod "Hcls". iModIntro.
+  destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+  destruct HStep as [HStep [-> ->]].
+  iApply bi.sep_exist_l.
+  apply lfilled_Ind_Equivalent in H8.
+  assert (first_instr LI = Some (AI_basic (BI_br i),(0 + S i) + (j - S i))).
+  { eapply starts_with_lfilled. 2:eauto.
+    eapply starts_with_lfilled.
+    2: { apply lfilled_Ind_Equivalent. constructor;auto.
+         apply lfilled_Ind_Equivalent;eauto. }
+    rewrite first_instr_const//.
+  }
+  destruct Hstep as [Hstep _].
+  eapply reduce_det in HStep as [Heq | [[i0 Hstart] | [ (a & cl & tf & h & i0 & Hstart & Hstart1 & Hstart2) |
+                                                        (i1 & i2 & i3 & Hstart & Hstart1 & Hstart2 & Hσ) ]]] ; try congruence.
+  2: apply Hstep.
+  inversion Heq; subst; clear Heq.
+  iExists f0.
+  iFrame. iSplit => //.
+  iIntros "Hf0".
+  iSpecialize ("HΦ" with "[$]").
+  iSpecialize ("HΦ" $! _ Hfill2').
+  eauto.
+Qed.
+
+
 (* Sequencing rule which is always allowed to trap *)
 (* This rule is useful in particular for semantic type soundness, which allows traps *)
 
