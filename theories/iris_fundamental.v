@@ -85,7 +85,10 @@ Section fundamental.
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (i lh f vs).
-    iIntros "#Hi %Hlh #Hv Hf".
+    iIntros "#Hi [%Hlh_base [%Hlh_len #Hcont]] #Hv".
+    iExists (LH_base [] []). iSplit;auto.
+    iIntros "Hf".
+    iApply wp_wasm_empty_ctx.
     iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
@@ -103,56 +106,126 @@ Section fundamental.
     }
   Qed.
 
+  Lemma lh_depth_push_base lh n es es1 vs2 :
+    lh_depth (push_base lh n es es1 vs2) = S (lh_depth lh).
+  Proof.
+    induction lh;simpl;auto.
+  Qed.
+
+  Lemma get_layer_push_base lh k vs j es0 lh' es' vs' es es1 es0' :
+    get_layer lh k = Some (vs, j, es0, lh', es') ->
+    get_layer (push_base lh vs' es es1 es0') k = Some (vs, j, es0, (push_base lh' vs' es es1 es0'), es').
+  Proof.
+    revert lh. induction k;intros lh Hlayer.
+    { destruct lh;[done|]. simpl in Hlayer. simplify_eq. auto. }
+    { destruct lh;[done|]. simpl in Hlayer. apply IHk in Hlayer.
+      simpl. auto. }
+  Qed.
+
+  Lemma interp_ctx_push_label C tm i lh tn ws es :
+    interp_ctx (tc_label C) tm (tc_local C) i lh -∗
+    interp_ctx (tc_label (upd_label C ([tn] ++ tc_label C)%list)) tm
+      (tc_local (upd_label C ([tn] ++ tc_label C)%list)) i
+      (push_base lh (length (of_val (immV ws))) [AI_basic (BI_loop (Tf tn tm) es)] [] []).
+  Proof.
+    iIntros "[%Hlh_base [%Hlh_len #Hc]]".
+    iSplit;[|iSplit].
+    { admit. }
+    { admit. }
+    { iSplitR.
+      { admit. }
+      iApply (big_sepL_mono with "Hc").
+      iIntros (k y Hk). iSimpl.
+      iIntros "#Hcont".
+      iDestruct "Hcont" as (vs j es0 lh' es' Hlayer) "Hcont".
+      iExists vs,j,es0,_,es'.
+      rewrite lh_depth_push_base PeanoNat.Nat.sub_succ.
+      iSplit.
+      { iPureIntro. apply get_layer_push_base;eauto. }
+      iModIntro. iIntros (v f lh'' [Hdep Hmin]) "#Hv Hf".
+      iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+      rewrite PeanoNat.Nat.sub_succ in Hdep.
+      iApply ("Hcont" with "[] Hv [Hf]").
+      { iPureIntro. split;auto. admit. }
+      iExists _. iFrame. eauto.
+    }
+  Admitted.
+
+      
+    
   Lemma typing_loop C es tn tm : (⊢ semantic_typing (HWP:=HWP) (upd_label C ([tn] ++ tc_label C)%list) (to_e_list es) (Tf tn tm)) ->
                                  ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_loop (Tf tn tm) es]) (Tf tn tm).
   Proof.
     intros IHbe_typing.
     unfold semantic_typing, interp_expression.
     iIntros (i lh f vs).
-    iIntros "#Hi %Hlh #Hv Hf".
+    iIntros "#Hi #Hc #Hv".
+    
     iDestruct "Hv" as "[-> | Hv]".
-    { iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]". 
+    { iExists (LH_base [] []). iSplit;auto.
+      iIntros "Hf".
+      iApply wp_wasm_empty_ctx.
+      iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]". 
       take_drop_app_rewrite_twice 0 1.
       iApply (wp_wand_r _ _ _ (λ vs, interp_val tm vs ∗  ↪[frame]f)%I). iSplitL.
       { iApply (wp_trap with "[] [$]");auto. by iLeft. }
       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
     iDestruct "Hv" as (ws ->) "Hv".
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
-    iApply (wp_loop with "Hf");eauto.
-    { apply v_to_e_is_const_list. }
-    { rewrite fmap_length //. }
-    iNext. iIntros "Hf".
-    iDestruct (IHbe_typing with "[] [] []") as "HH";try by (destruct C,i;eauto).
-    { unfold interp_ctx. simpl. instantiate (1:=LH_rec (of_val (immV ws)) (length tn) _ lh _).
-      iPureIntro. destruct Hlh as [Hbase Hlenh]. auto. }
-    { instantiate (1:=immV ws). iRight. eauto. }
-    iAssert (↪[frame]f -∗ WP of_val (immV ws) ++ to_e_list es
-                {{ vs, interp_val tm vs ∗ (∃ f0 : leibnizO frame,  ↪[frame]f0) }})%I as "Hcont".
-    { iIntros "Hf". iApply "HH". iFrame. iExists _. eauto. }
-    iApply wp_wasm_empty_ctx.
-    iApply wp_label_push_nil.
-    iApply iRewrite_nil_r_ctx.
-    iApply wp_seq_can_trap_ctx. iFrame "∗ #". 
-    iSplitR.
-    { iIntros "Hcontr".
-        iDestruct "Hcontr" as (ws0 Hcontr) "_". done. }
-    iSplitR.
-    { iLeft. auto. }
-    iIntros (w f0) "Hres".
-    iDestruct "Hres" as "[Hw Hf]".
-    iDestruct "Hw" as (vs ->) "Hvs".
-    rewrite app_nil_r. simpl push_base.
-    iApply (wp_wand_ctx with "[-]").
-    { iApply (wp_val_return with "Hf").
-      { apply const_list_of_val. }
-      iIntros "Hf". iFrame.
-      instantiate (1:=interp_val tm).
-      instantiate (2:=[]). instantiate (1:=[]).
-      iApply wp_value;[by rewrite app_nil_l app_nil_r|iRight;eauto]. }
-    { iIntros (v) "[Hw Hf]". iFrame. eauto. }
-  Qed.
     
+    iDestruct (IHbe_typing with "[] [] []") as (lh') "[%Hlh' HH]";try by (destruct C,i;eauto).
+    { instantiate (1:=push_base lh (length (of_val (immV ws))) [AI_basic (BI_loop (Tf tn tm) es)] [] []).
+      iApply interp_ctx_push_label. iFrame "Hc".}
+    { instantiate (1:=immV ws). iRight. eauto. }
+
+    destruct Hlh' as [-> | ->].
+
+    { iExists lh. iSplit;auto.
+      iIntros "Hf".
+      iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+      iAssert (↪[frame]f -∗ WP of_val (immV ws) ++ to_e_list es CTX S (lh_depth lh);
+               push_base lh (length (of_val (immV ws))) [AI_basic (BI_loop (Tf tn tm) es)] [] []
+                {{ vs, interp_val tm vs ∗ (∃ f0 : leibnizO frame,  ↪[frame]f0) }})%I as "Hcontlh'".
+      { iIntros "Hf". unfold interp_expression. rewrite lh_depth_push_base. iApply ("HH"). iFrame. iExists _. eauto. }
+      iApply (wp_loop_ctx with "Hf");eauto.
+      { apply v_to_e_is_const_list. }
+      { rewrite fmap_length //. }
+      iNext. iIntros "Hf".
+      iApply wp_label_push_nil. iApply "Hcontlh'". iFrame. }
+
+    { iExists (LH_base [] []). iSplit;auto.
+      iIntros "Hf".
+      iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+      iAssert (↪[frame]f -∗ WP of_val (immV ws) ++ to_e_list es
+                {{ vs, interp_val tm vs ∗ (∃ f0 : leibnizO frame,  ↪[frame]f0) }})%I as "Hcontlh'".
+      { iIntros "Hf". unfold interp_expression. iApply wp_wasm_empty_ctx. iApply "HH". iFrame. iExists _. eauto. }
+      iSimpl.
+      iApply wp_wasm_empty_ctx.
+      iApply (wp_loop with "Hf");eauto.
+      { apply v_to_e_is_const_list. }
+      { rewrite fmap_length //. }
+      iNext. iIntros "Hf".
+      iApply wp_wasm_empty_ctx.
+      iApply wp_label_push_nil.
+      iApply iRewrite_nil_r_ctx.
+      iApply wp_seq_can_trap_ctx. iFrame "∗ #". 
+      iSplitR.
+      { iIntros "Hcontr". simpl.
+        iDestruct "Hcontr" as (ws0 Hcontr) "_". done. }
+      iSplitR.
+      { iLeft. auto. }
+      iIntros (w f0) "Hres".
+      iDestruct "Hres" as "[Hw Hf]".
+      iDestruct "Hw" as (vs ->) "Hvs".
+      rewrite app_nil_r. simpl push_base.
+      iApply (wp_wand_ctx with "[-]").
+      { iApply (wp_val_return with "Hf").
+        { apply const_list_of_val. }
+        iIntros "Hf". iFrame.
+        instantiate (1:=interp_val tm).
+        iApply wp_value;[by rewrite app_nil_l app_nil_r|iRight;eauto]. }
+      { iIntros (v) "[Hw Hf]". iFrame. eauto. } }
+  Qed.
     
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- FTLR: simple typing ----------------------------------- *)

@@ -217,7 +217,50 @@ Lemma get_layer_find i lh' :
     get_layer lh' (lh_depth lh' - (S (S i))) = Some (vs0', n0, es0, (LH_rec vs' n es lh es'), es0') ∧
       lh_minus lh' lh'' = Some (LH_rec vs' n es lh es').
 Proof.
-  Admitted.
+  revert i.
+  induction lh';intros i Hlt.
+  { simpl in Hlt. lia. }
+  { destruct lh';[simpl in Hlt;lia|].
+    destruct lh'.
+    { simpl in Hlt. destruct i;[|lia]. simpl.
+      do 9 eexists.
+      eexists (LH_rec l n l0 (LH_base [] []) l1).
+      split;eauto. rewrite !eq_refl PeanoNat.Nat.eqb_refl.
+      cbn. auto. }
+    { simpl. simpl in Hlt.
+      destruct (decide (i = S (lh_depth lh'))).
+      { subst i.
+        rewrite PeanoNat.Nat.sub_diag.
+        clear IHlh'.
+        do 9 eexists.
+        eexists (LH_rec l n l0 (LH_base [] []) l1).
+        split;eauto.
+        rewrite !eq_refl PeanoNat.Nat.eqb_refl. cbn. auto. }
+      { assert (S i < S (S (lh_depth lh'))) as Hlt';[lia|].
+        apply IHlh' in Hlt'.
+        destruct Hlt' as [vs0' [n3 [es0 [vs' [m [es [lh [es' [es0' [lh'' [Heq Hmin]]]]]]]]]]].
+        simpl in Heq.
+        destruct (lh_depth lh' - i) eqn:Hi1.
+        { rewrite Nat.sub_succ_l;[|lia]. rewrite Hi1.
+          do 9 eexists.
+          eexists (LH_rec l n l0 lh'' l1).
+          split;[eauto|].
+          rewrite !eq_refl PeanoNat.Nat.eqb_refl. cbn.
+          auto. }
+        { rewrite Nat.sub_succ_l;[|lia]. rewrite Hi1.
+          destruct n4.
+          { inversion Heq;subst. do 9 eexists.
+            eexists (LH_rec l n l0 lh'' l1).
+            split;eauto.
+            rewrite !eq_refl !PeanoNat.Nat.eqb_refl. cbn. auto. }
+          { do 9 eexists. eexists (LH_rec l n l0 lh'' l1).
+            split;eauto.
+            rewrite !eq_refl !PeanoNat.Nat.eqb_refl. cbn. auto. }
+        }
+      }      
+    }
+  }
+Qed.
   
 Lemma lfilled_minus lh' i vs' n es lh es' e LI j lh'' :
   lh_minus lh' lh'' = Some lh ->
