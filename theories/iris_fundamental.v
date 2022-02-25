@@ -410,6 +410,79 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
+  (* ----------------------------------------- CONST --------------------------------------- *)
+  
+  Lemma typing_const C v : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_const v]) (Tf [] [typeof v]).
+  Proof.
+    unfold semantic_typing, interp_expression.
+    iIntros (i lh).
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
+    iIntros (f vs) "Hf #Hv".
+    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iDestruct "Hv" as "[-> | Hv]".
+    { take_drop_app_rewrite_twice 0 1.
+      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap_ctx with "[$]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+    { iDestruct "Hv" as (ws ->) "Hv".
+      iDestruct (big_sepL2_nil_inv_r with "Hv") as %->.
+      iDestruct "Hcont" as "[_ Hcont]".
+      rewrite app_nil_l. iSimpl.
+      unfold interp_ctx_return, interp_expression.
+      assert ([AI_basic (BI_const v)] = of_val (immV [v])) as ->;auto.
+      iApply "Hcont".
+      { iRight. iExists _. iSplit;eauto.
+        iSimpl; iSplit =>//. iApply interp_value_type_of. }
+      iExists _. iFrame. eauto. }
+  Qed.
+
+  (* ----------------------------------------- UNOP ---------------------------------------- *)
+
+  Lemma unop_type_agree_interp t op w :
+    unop_type_agree t op ->
+    ⊢ interp_value t w -∗
+      interp_value (Σ:=Σ) t (app_unop op w).
+  Proof.
+    iIntros (Hunop) "Hv".
+    inversion Hunop;subst.
+    all: iDestruct "Hv" as (w') "->"; eauto.
+  Qed.    
+  
+  Lemma typing_unop C t op : unop_type_agree t op ->
+                             ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_unop t op]) (Tf [t] [t]).
+  Proof.
+    unfold semantic_typing, interp_expression.
+    iIntros (Hunop i lh).
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
+    iIntros (f vs) "Hf #Hv".
+    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iDestruct "Hv" as "[-> | Hv]".
+    { take_drop_app_rewrite_twice 0 1.
+      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap_ctx with "[$]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+    { iDestruct "Hv" as (ws ->) "Hv".
+      iDestruct (big_sepL2_length with "Hv") as %Hlen.
+      destruct ws as [|w ws];[done|destruct ws;[|done]].
+      iSimpl in "Hv".
+      iDestruct "Hv" as "[Hv _]".
+      iDestruct "Hcont" as "[_ Hcont]".
+      iSimpl. take_drop_app_rewrite 2.
+      iApply (wp_seq_can_trap_ctx _ _ _ (λ v, ⌜v = immV [app_unop op w]⌝)%I).
+      iFrame.
+      iSplitR;[done|].
+      iSplitR;[auto|].
+      iSplitR;[iIntros "Hf";iApply (wp_unop with "Hf");eauto|].
+      iIntros (w0) "[-> Hf]".
+      rewrite app_nil_r.
+      iApply "Hcont".
+      { iRight. iExists [app_unop op w]. iSplit;auto.
+        iSimpl. iSplit;auto.
+        iApply unop_type_agree_interp;auto. }
+      { iExists _. iFrame. eauto. }
+    }
+  Qed.
+
   (* ------------------------------------------ BR ----------------------------------------- *)
   
   Lemma typing_br C i t1s ts t2s : ssrnat.leq (S i) (length (tc_label C)) ->
@@ -507,32 +580,6 @@ Section fundamental.
         iRight. iExists _. iFrame "#". auto. }
       { iExists _. iFrame. auto. }
     }
-  Qed.
-    
-  (* ----------------------------------------- CONST --------------------------------------- *)
-  
-  Lemma typing_const C v : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_const v]) (Tf [] [typeof v]).
-  Proof.
-    unfold semantic_typing, interp_expression.
-    iIntros (i lh).
-    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "Hf #Hv".
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
-    iDestruct "Hv" as "[-> | Hv]".
-    { take_drop_app_rewrite_twice 0 1.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iApply (wp_trap_ctx with "[$]");auto. }
-      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
-    { iDestruct "Hv" as (ws ->) "Hv".
-      iDestruct (big_sepL2_nil_inv_r with "Hv") as %->.
-      iDestruct "Hcont" as "[_ Hcont]".
-      rewrite app_nil_l. iSimpl.
-      unfold interp_ctx_return, interp_expression.
-      assert ([AI_basic (BI_const v)] = of_val (immV [v])) as ->;auto.
-      iApply "Hcont".
-      { iRight. iExists _. iSplit;eauto.
-        iSimpl; iSplit =>//. iApply interp_value_type_of. }
-      iExists _. iFrame. eauto. }
   Qed.
 
   (* ----------------------------------------- LOOP ---------------------------------------- *)
@@ -687,8 +734,8 @@ Section fundamental.
   Theorem be_fundamental C es τ : be_typing C es τ -> ⊢ semantic_typing (HWP:=HWP) C (to_e_list es) τ.
   Proof.
     induction 1.
-    { apply typing_const. }
-    { admit. }
+    { by apply typing_const. }
+    { by apply typing_unop. }
     { admit. }
     { admit. }
     { admit. }
@@ -701,7 +748,7 @@ Section fundamental.
     { admit. }
     { by apply typing_loop. }
     { admit. }
-    { admit. }
+    { by apply typing_br. }
     { admit. }
     { admit. }
     { admit. }
