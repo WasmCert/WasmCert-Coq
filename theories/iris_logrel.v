@@ -263,17 +263,21 @@ Section logrel.
     end.
 
   Definition interp_ctx_continuations (τc : list (list (value_type))) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
-    λne lh, ([∗ list] k↦τs ∈ τc, ∃ vs j es lh' es', ⌜get_layer lh ((lh_depth lh) - k) = Some (vs,j,es,lh',es')⌝ ∧
+    λne lh, ([∗ list] k↦τs ∈ τc, ∃ vs j es lh' es', ⌜get_layer lh ((lh_depth lh) - S k) = Some (vs,j,es,lh',es')⌝ ∧
                                    (□ ∀ v f lh'', ⌜lh_depth lh'' = (lh_depth lh) - S k⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ →
-                                                interp_val τs v -∗ interp_frame τl i f -∗ interp_expression τs2 lh'' (vs ++ ((of_val v) ++ es) ++ es')))%I.
+                                                  interp_val τs v -∗ interp_frame τl i f -∗ interp_expression τs2 lh'' (vs ++ ((of_val v) ++ es) ++ es')))%I.
 
   
   (* We also need a continuation for non breaking returns *)
-  (* Definition interp_ctx_return (τc : list (list (value_type))) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
-    λne lh, (□ ∀ v f, interp_val τs2 v -∗ interp_frame τl i f -∗ interp_expression τs2 lh (of_val v))%I. *)
+  Definition interp_ctx_return (τc : list (list (value_type))) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
+    λne lh, (□ ∀ v f, interp_val τs2 v -∗ interp_frame τl i f -∗ interp_expression τs2 lh (of_val v))%I.
   
   Definition interp_ctx (τc : list (list value_type)) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
-    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_lengths (rev τc) lh⌝ ∗ interp_ctx_continuations τc τs2 τl i lh (* ∗ interp_ctx_return τc τs1 τs2 τl i lh *))%I.
+    λne lh, (⌜base_is_empty lh⌝ ∗
+             ⌜lholed_lengths (rev τc) lh⌝ ∗
+             ⌜lholed_valid lh⌝ ∗
+             interp_ctx_continuations τc τs2 τl i lh ∗
+             interp_ctx_return τc τs2 τl i lh)%I.
 
   Global Instance interp_ctx_continuations_persistent τc τs1 τs2 τl i lh : Persistent (interp_ctx_continuations τc τs2 τl i lh).
   Proof. apply _. Qed.
@@ -292,12 +296,12 @@ Section logrel.
 
   Definition semantic_typing (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
     match tf with
-    | Tf τ1 τ2 => ∀ i lh f vs, (* interp_instance_ctx τctx i lh f -∗ *)
+    | Tf τ1 τ2 => ∀ i lh, (* interp_instance_ctx τctx i lh f -∗ *)
                               interp_instance τctx i -∗
                               interp_ctx (tc_label τctx) τ2 (tc_local τctx) i lh -∗
-                              interp_val τ1 vs -∗
-                              (∃ lh', ⌜lh' = lh ∨ lh' = LH_base [] []⌝ ∗
-                                      (interp_frame (tc_local τctx) i f -∗ interp_expression τ2 lh' ((of_val vs) ++ es)))
+                              ∀ f vs, interp_frame (tc_local τctx) i f -∗
+                                      interp_val τ1 vs -∗
+                                      interp_expression τ2 lh ((of_val vs) ++ es)
     end.
 
 End logrel.

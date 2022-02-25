@@ -383,14 +383,13 @@ Proof.
   eauto.
 Qed.
 
-
 (* Sequencing rule which is always allowed to trap *)
 (* This rule is useful in particular for semantic type soundness, which allows traps *)
 
-Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) f :
+Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) f f0 :
   ((¬ (Ψ trapV)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
-  (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f, ↪[frame] f }}) ∗
-  ∀ w f, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f }})%I
+  (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f0 }}) ∗
+  ∀ w, Ψ w ∗ ↪[frame] f0 -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f }})%I
   ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f }}.
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh f).
@@ -412,7 +411,6 @@ Proof.
       apply to_val_cat in Hvs12' as [-> Hev2].
       apply iris.of_to_val in Hev2 as <-.
       iMod ("Hes1" with "Hf") as "[Hes1 Hf]".
-      iDestruct "Hf" as (f') "Hf".
       iSpecialize ("Hes2" with "[Hf Hes1]").
       { iDestruct "Hes1" as "[%Hcontr | Hes1]"; [done|eauto]. iFrame. }
       
@@ -437,10 +435,10 @@ Proof.
       apply app_eq_singleton in HH' as [[HH HH']|[HH HH']];subst.
       { apply app_eq_singleton in HH as [[-> ->]|[-> ->]].
         simpl.
-        all: iMod ("Hes1" with "Hf") as "[_ Hf]";iDestruct "Hf" as (f') "Hf".
+        all: iMod ("Hes1" with "Hf") as "[_ Hf]".
         all: by iFrame; iExists _; iFrame. }
       { destruct es1,es2 =>//=.
-        all: iMod ("Hes1" with "Hf") as "[_ Hf]";iDestruct "Hf" as (f') "Hf".
+        all: iMod ("Hes1" with "Hf") as "[_ Hf]".
         all: by iFrame; iExists _; iFrame. }
     }
   }
@@ -450,16 +448,15 @@ Proof.
   destruct (iris.to_val es1) as [vs|] eqn:Hes.
   { apply of_to_val in Hes as <-.
     iMod ("Hes1" with "Hf") as "[Hes1 Hf]".
-    iDestruct "Hf" as (f') "Hf".
     iDestruct "Hes1" as "[-> | Hes1]".
-    { iPoseProof (wp_trap_ctx s E f' i lh [] es2 with "Hf") as "HH";auto.
+    { iPoseProof (wp_trap_ctx s E f0 i lh [] es2 with "Hf") as "HH";auto.
       iSpecialize ("HH" $! LI with "[]");auto.
       iApply (wp_wand with "HH").
       iIntros (v) "[-> Hf]". iFrame. iExists _. iFrame. 
     }
     { iApply wp_unfold. rewrite /wp_pre /= Hetov.
       iIntros (σ ns κ κs nt) "Hσ".
-      iSpecialize ("Hes2" with "[$]").
+      iSpecialize ("Hes2" with "[$Hes1 Hf]");[eauto|].
       iSpecialize ("Hes2" $! _ Hfilled).
       iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
       
@@ -522,7 +519,6 @@ Proof.
         iDestruct (wp_unfold with "Hes''") as "Hes''".
         rewrite /wp_pre /=. iMod "Hes''" as "[[_ | Hcontr] Hf]".
         2: by iDestruct ("Hntrap" with "Hcontr") as "?".
-        iDestruct "Hf" as (f0) "Hf".
         apply lfilled_Ind_Equivalent in Hlf;inversion Hlf;subst.
         assert ((vs ++ [AI_trap] ++ es')%SEQ ++ es2 =
                   (vs ++ [AI_trap] ++ (es' ++ es2)))%list as Hassoc;[repeat erewrite app_assoc;auto|].
@@ -539,5 +535,38 @@ Proof.
         iIntros (v) "[-> Hf]". iFrame. iExists _. iFrame. 
   } } }
 Qed.
+
+
+
+
+Lemma wp_val_return' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
+  const_list vs ->
+  ↪[frame] f0 -∗
+  (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v ∗ ∃ f, ↪[frame] f }})
+  -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v ∗ ∃ f, ↪[frame] f }}.
+Proof.
+  iIntros (Hconst) "Hf0 HWP".
+  iLöb as "IH".
+  iIntros (LI Hfill%lfilled_Ind_Equivalent).
+  inversion Hfill;subst.
+  inversion H8;subst.
+  assert (vs' ++ [AI_label n es' ([] ++ vs ++ [])] ++ es''
+          = ((vs' ++ [AI_label n es' ([] ++ vs ++ [])]) ++ es''))%SEQ as ->.
+  { erewrite app_assoc. auto. }
+  apply const_list_is_val in Hconst as [v1 Hv1].
+  apply const_list_is_val in H7 as [v2 Hv2].
+  eapply to_val_cat_inv in Hv1 as Hvv;[|apply Hv2].
+  iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f0))%I).
+  iSplitR; first by iIntros "(%H & ?)".
+  iSplitR "HWP".
+  - iApply wp_val_app; first by apply Hv2.
+    iSplit; first by iIntros "!> (%H & ?)".
+    iApply (wp_label_value with "[$]") => //=; first by erewrite app_nil_r; apply Hv1 .
+  - iIntros (w) "(-> & Hf0)".
+    erewrite iris.of_to_val => //.
+    rewrite app_assoc.
+    by iApply "HWP".
+Qed.
+  
   
 End structural_rules.
