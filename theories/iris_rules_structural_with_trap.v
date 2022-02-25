@@ -215,7 +215,7 @@ Lemma get_layer_find i lh' :
   S i < (lh_depth lh') ->
   ∃ vs0' n0 es0 vs' n es lh es' es0' lh'',
     get_layer lh' (lh_depth lh' - (S (S i))) = Some (vs0', n0, es0, (LH_rec vs' n es lh es'), es0') ∧
-      lh_minus lh' lh'' = Some (LH_rec vs' n es lh es').
+      lh_minus lh' lh'' = Some (LH_rec vs' n es lh es') ∧ lh_depth lh = i.
 Proof.
   revert i.
   induction lh';intros i Hlt.

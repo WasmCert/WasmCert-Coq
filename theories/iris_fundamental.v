@@ -213,6 +213,60 @@ Section fundamental.
     }
   Qed.
 
+  Lemma lholed_lengths_length_depth l lh :
+    lholed_lengths l lh ->
+    length l = lh_depth lh.
+  Proof.
+    revert lh;induction l;intros lh Hlen.
+    { destruct lh;inversion Hlen. auto. }
+    { destruct lh;inversion Hlen. subst. simpl. auto. }
+  Qed.
+
+  Lemma last_lookup_rev {A : Type} l (a : A) :
+    last l = Some a <-> rev l !! 0 = Some a.
+  Proof.
+    revert a;induction l using rev_ind;intros a0.
+    { done. }
+    { simpl.
+      rewrite rev_unit last_snoc. eauto. }
+  Qed.
+
+  Lemma list_app_split {A : Type} (ws : list A) (n1 n2 : nat):
+    length ws = n1 + n2 ->
+    ∃ ws1 ws2 : list A,
+      ws = ws1 ++ ws2 ∧ length ws1 = n1 ∧ length ws2 = n2.
+  Proof.
+    revert n1 n2.
+    induction ws;intros n1 n2.
+    { destruct n1,n2;try done.
+      intros.
+      repeat eexists;eauto. auto. }
+    { intros Hlen. simpl in Hlen.
+      destruct (decide (length ws = n2)).
+      { assert (n1 = 1) as ->;[lia|]. exists [a], ws. auto. }
+      { destruct n1.
+        { exists [],(a::ws). auto. }
+        { assert (length ws = n1 + n2) as [ws1 [ws2 [Heq [Hlen1 Hlen2]]]]%IHws;[lia|].
+          simplify_eq.
+          exists (a::ws1),ws2. auto. }
+      }
+    }
+  Qed.
+
+  Lemma get_layer_next lh i vs n es lh' es' vs0' n1 es0 vs' n2 es2 lh0 es2' es0' :
+    get_layer lh (S i) = Some (vs, n, es, lh', es') ->
+    get_layer lh i = Some (vs0', n1, es0, LH_rec vs' n2 es2 lh0 es2', es0') ->
+    vs = vs' ∧ n = n2 ∧ es2 = es ∧ lh' = lh0 ∧ es' = es2'.
+  Proof.
+    revert i vs n es lh' es' vs0' n1 es0 vs' n2 es2 lh0 es2' es0'.
+    induction lh;intros i vs m es lh' es' vs0' n1 es0 vs' n2 es2 lh0 es2' es0' Hlayer1 Hlayer2.
+    { destruct i;done. }
+    { destruct i.
+      { simpl in *. simplify_eq. simpl in *. simplify_eq. auto. }
+      { simpl in *. eapply IHlh in Hlayer1;eauto. }
+    }
+  Qed.
+    
   Lemma wp_label_push_inv (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh n es' l1 l2 :
     const_list l1 ->
     WP [::AI_label n es' (l1 ++ es ++ l2)] @ s; E CTX i; lh {{ Φ }}
@@ -234,6 +288,81 @@ Section fundamental.
     erewrite app_nil_l. erewrite app_nil_r. done.
   Qed.
 
+  Lemma lh_depth_frame_base lh l1 l2 :
+    lh_depth (frame_base lh l1 l2) = lh_depth lh.
+  Proof.
+    induction lh;auto.
+    simpl. rewrite IHlh. auto.
+  Qed.
+
+  Lemma get_layer_frame_base l1 l2 i lh vs n es lh' es' :
+    get_layer lh i = Some (vs,n,es,lh',es') ->
+    get_layer (frame_base lh l1 l2) i = Some (vs,n,es,frame_base lh' l1 l2,es').
+  Proof.
+    revert i;induction lh;intros i;simpl.
+    { done. }
+    destruct i;simpl;auto.
+    intros Heq;simplify_eq. auto.
+  Qed.
+
+  Lemma lookup_snoc {A : Type} (l : list A) (a : A) :
+    (l ++ [a]) !! (length l) = Some a.
+  Proof.
+    induction l;auto.
+  Qed.
+
+  Lemma get_layer_lookup_lh_lengths l lh i ts vs' n2 es lh' es2' :
+    lholed_lengths (rev l) lh ->
+    l !! i = Some ts ->
+    get_layer lh (lh_depth lh - S i) = Some (vs', n2, es, lh', es2') ->
+    n2 = length ts.
+  Proof.
+    revert lh i ts vs' n2 es lh' es2'.
+    induction l using rev_ind;intros lh i ts vs' n2 es lh' es2' Hlen Hlook Hlay.
+    { done. }
+    { apply lholed_lengths_length_depth in Hlen as Hdep.
+      rewrite rev_length in Hdep.
+      destruct lh;[done|].
+      destruct (decide (i = length l)).
+      { subst. simpl in *.
+        rewrite app_length /= PeanoNat.Nat.add_1_r in Hdep.
+        inversion Hdep as [Heq].
+        rewrite Heq PeanoNat.Nat.sub_diag in Hlay. simplify_eq.
+        rewrite rev_unit in Hlen. simpl in Hlen. destruct Hlen as [? ?].
+        rewrite lookup_snoc in Hlook. by simplify_eq. }
+      { apply lookup_lt_Some in Hlook as Hlt.
+        rewrite app_length /= PeanoNat.Nat.add_1_r in Hlt.
+        assert (i < length l) as Hlt';[lia|].
+        rewrite lookup_app_l in Hlook;auto.
+        simpl in Hlay.
+        rewrite app_length /= PeanoNat.Nat.add_1_r in Hdep.
+        inversion Hdep as [Heq].
+        destruct (lh_depth lh - i) eqn:Hi;[lia|].
+        assert (n1 = lh_depth lh - S i);[lia|subst n1].
+        eapply IHl in Hlook;eauto.
+        rewrite rev_unit in Hlen. inversion Hlen;auto.
+      }
+    }
+  Qed.
+
+  Lemma lh_minus_is_Some_frame_base lh lh'' l1 l2 :
+    is_Some (lh_minus (frame_base lh l1 l2) lh'') ->
+    is_Some (lh_minus lh lh'').
+  Proof.
+    revert lh'';induction lh;intros lh'' [x Hx].
+    { destruct lh'';try done. destruct l3,l4;try done. }
+    { destruct lh''.
+      { apply lh_minus_Ind_Equivalent in Hx.
+        inversion Hx;subst. eauto. }
+      { apply lh_minus_Ind_Equivalent in Hx.
+        inversion Hx;subst.
+        destruct IHlh with (lh'':=lh'') as [y Hy].
+        { exists x. apply lh_minus_Ind_Equivalent;eauto. }
+        exists y. apply lh_minus_Ind_Equivalent.
+        constructor. apply lh_minus_Ind_Equivalent. auto. }
+    }
+  Qed.
+  
   Lemma push_base_return v lh tm n es f :
     lholed_valid lh ->
     interp_val tm (immV v) -∗
@@ -281,7 +410,105 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
+  (* ------------------------------------------ BR ----------------------------------------- *)
   
+  Lemma typing_br C i t1s ts t2s : ssrnat.leq (S i) (length (tc_label C)) ->
+                                   plop2 C i ts ->
+                                   ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_br i]) (Tf (t1s ++ ts) t2s).
+  Proof.
+    iIntros (Hleq Hlookup) "".
+    iIntros (j lh).
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #[Hc Hr]]]]" (f vs) "Hf #Hv".
+    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    unfold interp_expression.
+    apply lholed_lengths_length_depth in Hlh_len as Hleneq.
+    
+    iDestruct "Hv" as "[-> | Hv]".
+    { take_drop_app_rewrite_twice 0 1.
+      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap_ctx with "[Hf]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+    iDestruct "Hv" as (ws ->) "Hv".
+    iDestruct (big_sepL2_length with "Hv") as %Hlen.
+
+    iSimpl.
+    rewrite /plop2 nth_error_lookup in Hlookup.
+    assert (tc_label C !! i = Some ts) as Hlook;[|clear Hlookup].
+    { revert Hlookup. by move/eqP. }
+
+    iDestruct (big_sepL_lookup with "Hc") as (vs n es lh' es' Hlayer) "Hbr";[apply Hlook|].
+
+    rewrite app_length in Hlen.
+    apply list_app_split in Hlen as [ws1 [ws2 [-> [Hlen1 Hlen2]]]].
+    rewrite fmap_app -!app_assoc. iApply iRewrite_nil_r_ctx. rewrite -app_assoc.
+    iApply wp_base_push.
+    { apply v_to_e_is_const_list. }
+
+    (* we distinguish between the case where the context is exactly the size of the br target *)
+    destruct (decide (lh_depth lh = S i)).
+    { rewrite e. rewrite e PeanoNat.Nat.sub_diag in Hlayer.
+      destruct lh;[done|]. inversion Hlayer;subst.
+      simpl in e. inversion e;subst i.
+      rewrite /= rev_length in Hleneq.
+      
+      assert (rev (tc_label C) !! 0 = Some ts) as Hlookinv.
+      { assert (lh_depth lh' = Init.Nat.pred (length (tc_label C))) as Heq;[lia|].
+        rewrite Heq -last_lookup in Hlook.
+        by apply last_lookup_rev. }
+
+      destruct (rev (tc_label C));[done|inversion Hlookinv;simplify_eq].
+      destruct Hlh_len as [Hn Hlh_len].
+      
+      iApply (iris_rules_control.wp_br_ctx with "Hf").
+      { apply v_to_e_is_const_list. }
+      { rewrite fmap_length. simplify_eq. auto. }
+      iNext. iIntros "Hf".
+      rewrite of_val_imm (app_assoc (of_val (immV ws2)) es).
+      iApply wp_wasm_empty_ctx.
+      iApply ("Hbr" $! _ _ (LH_base [] []) with "[] [] [Hf]").
+      { iPureIntro. rewrite PeanoNat.Nat.sub_diag. auto. }
+      { iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";auto.
+        iRight. iExists _. iFrame "#". auto. }
+      { iExists _. iFrame. auto. }
+    }
+
+    (* and the case where the context is larger than the br target *)
+    { rewrite /= rev_length in Hleneq.
+      rewrite Hleneq in Hleq.
+      move/ssrnat.ltP : Hleq=>Hlt.
+
+      set (lhv := frame_base lh ((λ v : value, AI_basic (BI_const v)) <$> ws1) []).
+      assert (S i < lh_depth lhv) as Hlt'.
+      { rewrite lh_depth_frame_base. lia. }
+      apply get_layer_find in Hlt' as (vs0'&n1&es0&vs'&n2&es2&lh0&es2'&es0'&lh''&Hlayer'&Hmin&Hidep).
+      assert (lh_depth lhv - S i > 0) as Hgt;[rewrite lh_depth_frame_base;lia|].
+      revert Hlayer'. set (x := lh_depth lhv - S (S i)) =>Hlayer'.
+      assert (lh_depth lhv - S i = S x) as Heq';[lia|].
+      assert (Hlayer_lh:=Hlayer).
+      apply (get_layer_frame_base ((λ v : value, AI_basic (BI_const v)) <$> ws1) []) in Hlayer.
+      rewrite -(lh_depth_frame_base _ ((λ v : value, AI_basic (BI_const v)) <$> ws1) []) in Hlayer.
+      rewrite Heq' in Hlayer.
+      eapply get_layer_next in Hlayer;[|eauto].
+      destruct Hlayer as (?&?&?&?&?);subst.
+      eapply get_layer_lookup_lh_lengths in Hlayer_lh;[|eauto..].
+
+      iApply (wp_br_ctx with "Hf");[lia|eauto|eauto|..].
+      { apply v_to_e_is_const_list. }
+      { rewrite fmap_length. simplify_eq. auto. }
+      iNext. iIntros "Hf".
+      rewrite !of_val_imm lh_depth_frame_base.
+      assert (lh_depth lh'' = lh_depth lh - S (lh_depth lh')) as <-.
+      { simplify_eq.
+        apply lh_minus_depth in Hmin.
+        rewrite /= /lhv !lh_depth_frame_base in Hmin. lia. }
+      iApply ("Hbr" $! _ _ lh'' with "[] [] [Hf]").
+      { iPureIntro. split; eauto. eapply lh_minus_is_Some_frame_base. eauto. }
+      { iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";auto.
+        iRight. iExists _. iFrame "#". auto. }
+      { iExists _. iFrame. auto. }
+    }
+  Qed.
+    
   (* ----------------------------------------- CONST --------------------------------------- *)
   
   Lemma typing_const C v : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_const v]) (Tf [] [typeof v]).
@@ -452,7 +679,7 @@ Section fundamental.
     unfold interp_expression. rewrite lh_depth_push_base.
     rewrite of_val_length Hlen. iFrame. 
   Qed.
-    
+  
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- FTLR: simple typing ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
