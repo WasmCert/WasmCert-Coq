@@ -175,36 +175,6 @@ Section logrel.
   Definition interp_frame (τs : result_type) (i : instance) : FR :=
     λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ ↪[frame] f)%I.
 
-  
-  (* --------------------------------------------------------------------------------------- *)
-  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
-  (* --------------------------------------------------------------------------------------- *)
-
-  Fixpoint lholed_valid lh : Prop :=
-    match lh with
-    | LH_base vs es => const_list vs
-    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
-    end.
-  Lemma lholed_valid_fill (lh : lholed) :
-    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
-  Proof.
-    induction lh;intros es Hval.
-    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
-    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
-      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
-  Qed.
-
-  Fixpoint lholed_return_lengths (τc : list (list value_type)) lh : Prop :=
-    match τc, lh with
-    | [], LH_base vs es => True
-    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_return_lengths τc lh'
-    | _,_ => False
-    end.
-  
-  Definition interp_ctx (τc : list (list value_type)) : CtxR :=
-    λne lh, (⌜base_is_empty lh⌝ ∗ ⌜lholed_return_lengths τc lh⌝)%I.
-  
-
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
@@ -258,32 +228,80 @@ Section logrel.
     destruct xx;apply _.
   Qed.
 
-  Notation IctxR := ((leibnizO instance) -n> (leibnizO lholed) -n> (leibnizO frame) -n> iPropO Σ).
-
-  Definition interp_instance_ctx (τctx : t_context) : IctxR :=
-    λne i lh f, let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t;
-                        tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in
-                (interp_instance τctx i ∗
-                 interp_frame tl i f ∗
-                 interp_ctx tlabel lh)%I.
-
-
+  
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- EXPRESSION RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
   Definition interp_expression (τs : result_type) (lh : lholed) (es : expr) : iProp Σ :=
-    (WP es {{ vs, interp_val τs vs ∗ ∃ f, ↪[frame] f}})%I.
+    (WP es CTX lh_depth lh; lh {{ vs, interp_val τs vs ∗ ∃ f, ↪[frame] f}})%I.
+  
+  
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------------- CONTEXT RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Fixpoint lholed_valid lh : Prop :=
+    match lh with
+    | LH_base vs es => const_list vs
+    | LH_rec vs n es' lh' es'' => const_list vs ∧ lholed_valid lh'
+    end.
+  Lemma lholed_valid_fill (lh : lholed) :
+    ∀ es, lholed_valid lh -> ∃ LI, lfilled (lh_depth lh) lh es LI.
+  Proof.
+    induction lh;intros es Hval.
+    { exists (l ++ es ++ l0). apply lfilled_Ind_Equivalent. constructor. auto. }
+    { destruct Hval as [Hconst [LI Hval%lfilled_Ind_Equivalent]%(IHlh es)].
+      eexists. apply lfilled_Ind_Equivalent. constructor;eauto. }
+  Qed.
+
+  Fixpoint lholed_lengths (τc : list (list value_type)) lh : Prop :=
+    match τc, lh with
+    | [], LH_base vs es => True
+    | τs :: τc, LH_rec _ n _ lh' _ => length τs = n ∧ lholed_lengths τc lh'
+    | _,_ => False
+    end.
+
+  Definition interp_ctx_continuations (τc : list (list (value_type))) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
+    λne lh, ([∗ list] k↦τs ∈ τc, ∃ vs j es lh' es', ⌜get_layer lh ((lh_depth lh) - S k) = Some (vs,j,es,lh',es')⌝ ∧
+                                   (□ ∀ v f lh'', ⌜lh_depth lh'' = (lh_depth lh) - S k⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ →
+                                                  interp_val τs v -∗ interp_frame τl i f -∗ interp_expression τs2 lh'' (vs ++ ((of_val v) ++ es) ++ es')))%I.
+
+  
+  (* We also need a continuation for non breaking returns *)
+  Definition interp_ctx_return (τc : list (list (value_type))) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
+    λne lh, (□ ∀ v f, interp_val τs2 v -∗ interp_frame τl i f -∗ interp_expression τs2 lh (of_val v))%I.
+  
+  Definition interp_ctx (τc : list (list value_type)) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
+    λne lh, (⌜base_is_empty lh⌝ ∗
+             ⌜lholed_lengths (rev τc) lh⌝ ∗
+             ⌜lholed_valid lh⌝ ∗
+             interp_ctx_continuations τc τs2 τl i lh ∗
+             interp_ctx_return τc τs2 τl i lh)%I.
+
+  Global Instance interp_ctx_continuations_persistent τc τs1 τs2 τl i lh : Persistent (interp_ctx_continuations τc τs2 τl i lh).
+  Proof. apply _. Qed.
+  Global Instance interp_ctx_persistent τc τs1 τs2 τl i lh : Persistent (interp_ctx τc τs2 τl i lh).
+  Proof. apply _. Qed.
+
+  Notation IctxR := ((leibnizO instance) -n> (leibnizO lholed) -n> (leibnizO frame) -n> iPropO Σ).
+
+  (* Definition interp_instance_ctx (τctx : t_context) : IctxR := *)
+  (*   λne i lh f, let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t; *)
+  (*                       tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in *)
+  (*               (interp_instance τctx i ∗ *)
+  (*                interp_frame tl i f ∗ *)
+  (*                interp_ctx tlabel lh)%I. *)
 
 
   Definition semantic_typing (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
     match tf with
-    | Tf τ1 τ2 => ∀ i lh f vs, (* interp_instance_ctx τctx i lh f -∗ *)
+    | Tf τ1 τ2 => ∀ i lh, (* interp_instance_ctx τctx i lh f -∗ *)
                               interp_instance τctx i -∗
-                              interp_ctx (tc_label τctx) lh -∗
-                              interp_val τ1 vs -∗
-                              interp_frame (tc_local τctx) i f -∗
-                              interp_expression τ2 lh ((of_val vs) ++ es)
+                              interp_ctx (tc_label τctx) τ2 (tc_local τctx) i lh -∗
+                              ∀ f vs, interp_frame (tc_local τctx) i f -∗
+                                      interp_val τ1 vs -∗
+                                      interp_expression τ2 lh ((of_val vs) ++ es)
     end.
 
 End logrel.
