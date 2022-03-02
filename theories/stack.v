@@ -161,13 +161,13 @@ Notation "n ↦[i32][ k ] v" := (points_to_i32 n k v) (at level 50).
 
 Definition isStack v l f0 :=
   (∃ n, ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
-                                         ∃ st_p, N.of_nat n ↦[i32][ Z.to_N v ]
-                                                          (value_of_int st_p) ∗
-                                                          ⌜ ((st_p - v - 4)/4)%Z =
-                                                   length l ⌝ ∗
-                                                          [∗ list] i ↦ w ∈ l,
-     N.of_nat n ↦[i32][ Z.to_N (st_p - 4 - 4 * i)%Z ] w ∗
-              ∀ k, ⌜ (k >= st_p)%Z ⌝ -∗ ⌜ (k < v + 16384)%Z ⌝ ∗ ∃ bk, N.of_nat n ↦[wm][ Z.to_N k ] bk)%I.
+                                                ∃ st_p, N.of_nat n ↦[i32][ Z.to_N v ]
+                                                                 (value_of_int st_p) ∗
+                                                                 ⌜ ((st_p - v - 4)/4)%Z =
+                                                          length l ⌝ ∗
+                                                                 ([∗ list] i ↦ w ∈ l,
+                                                                   N.of_nat n ↦[i32][ Z.to_N (st_p - 4 - 4 * i)%Z ] w) ∗
+                                                                 ∀ k, ⌜ (k >= st_p)%Z ⌝ -∗ ⌜ (k < v + 16384)%Z ⌝ -∗ ∃ bk, N.of_nat n ↦[wm][ Z.to_N k ] bk)%I.
 
 Notation "{{{ P }}} es {{{ v, 'RET' v ; Q }}}" :=
   (∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP es @ NotStuck ; ⊤ (*CTX_EMPTY*) {{ v, Φ v }}) (at level 50).
@@ -582,7 +582,10 @@ Proof.
         rewrite Z.sub_diag.
         by rewrite Z.div_0_l.
         unfold big_opL.
-        done.
+        iSplit ; first done.
+        iIntros (k) "%Hk1 %Hk2".
+        iExists b.
+        
 Admitted.
         
                                                                            
