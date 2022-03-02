@@ -206,12 +206,12 @@ Proof.
       move/eqP in H0; apply Logic.eq_sym in H0 ; simpl in H0.
       apply app_eq_unit in H0 as [[ -> H0 ] | [_ Habs]].
       apply app_eq_unit in H0 as [[ -> _] | [-> ->]] => //=.
-      apply test_no_reduce0 in H. by exfalso.
+      apply empty_no_reduce in H. by exfalso.
       unfold lfilled, lfill in H1 ; simpl in H1. move/eqP in H1.
       rewrite app_nil_r in H1 ; subst.
       apply IHreduce => //=.
       apply app_eq_nil in Habs as [-> _].
-      by apply test_no_reduce0 in H. }
+      by apply empty_no_reduce in H. }
     fold lfill in H0. destruct lh ; first by false_assumption.
     destruct (const_list l) ; last by false_assumption.
     remember (lfill _ _ _) as fill ; destruct fill ; last by false_assumption.
@@ -223,9 +223,9 @@ Proof.
       destruct (const_list l0) ; inversion Heqfill.
       apply Logic.eq_sym, app_eq_unit in H3 as [[ _ H3 ]|[ _ Habs]].
       apply app_eq_unit in H3 as [[ -> _ ]|[ -> _]].
-      by apply test_no_reduce0 in H.
+      by apply empty_no_reduce in H.
       by apply test_no_reduce_trap in H.
-      apply app_eq_nil in Habs as [-> _] ; by apply test_no_reduce0 in H. }
+      apply app_eq_nil in Habs as [-> _] ; by apply empty_no_reduce in H. }
     fold lfill in Heqfill.
     destruct lh ; first by inversion Heqfill.
     destruct (const_list l0) ; last by inversion Heqfill.

@@ -278,7 +278,7 @@ Ltac no_reduce Heqes Hred :=
 
 (* examples of usage of no_reduce. This first example is reused in other lemmas,
    the following ones may be removed if wanted *)
-Lemma test_no_reduce0 hs s f hs' s' f' es' :
+Lemma empty_no_reduce hs s f hs' s' f' es' :
   reduce hs s f [] hs' s' f' es' -> False.
 Proof.
   intro Hred.
@@ -288,7 +288,7 @@ Proof.
 Qed.
 
 Ltac empty_list_no_reduce :=
-  exfalso ; eapply test_no_reduce0 => //=.
+  exfalso ; eapply empty_no_reduce => //=.
 
 Lemma test_no_reduce1 hs s f v hs' s' f' es' :
   reduce hs s f [AI_basic (BI_const v)] hs' s' f' es' -> False.
@@ -976,7 +976,7 @@ Proof.
     inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
     inversion H0; subst; clear H0.
     destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
-    destruct es => /=; first by apply test_no_reduce0 in HReduce.
+    destruct es => /=; first by apply empty_no_reduce in HReduce.
     by destruct es, es'0 => //.
 Qed.
     
@@ -993,14 +993,14 @@ Proof.
     inversion H => //; subst; clear H; last by do 3 destruct vs => //=.
     inversion H0; subst; clear H0.
     destruct vs => /=.
-    + destruct es => /=; first by apply test_no_reduce0 in HReduce.
+    + destruct es => /=; first by apply empty_no_reduce in HReduce.
       destruct es => /=; simpl in H1; inversion H1; subst; clear H1; first by apply test_no_reduce1 in HReduce.
       destruct es, es'0 => //=.
       rewrite cats0.
       by apply IHHReduce.
     + destruct vs => /=; last by destruct vs, es, es'0 => //; inversion H1; subst.
       inversion H1; subst; clear H1.
-      destruct es => /=; first by apply test_no_reduce0 in HReduce.
+      destruct es => /=; first by apply empty_no_reduce in HReduce.
       destruct es, es'0 => //.
       inversion H2; subst.
       by apply AI_trap_irreducible in HReduce.

@@ -2897,7 +2897,7 @@ Proof.
     rewrite Heqes0 in H0.
     simple_filled H0 k0 lh bef aft nn ll ll'.
     destruct bef.
-    { destruct es ; first by exfalso ; eapply test_no_reduce0.
+    { destruct es ; first by exfalso ; eapply empty_no_reduce.
       inversion H0.
       apply Logic.eq_sym, app_eq_unit in H4 as [[ -> _ ] | [-> ->]].
       by subst ; exfalso ; eapply values_no_reduce.
@@ -2911,7 +2911,7 @@ Proof.
     inversion H0.
     apply Logic.eq_sym, app_eq_unit in H4 as [[ _ Hes ] | [ _ Hes]].
     apply app_eq_unit in Hes as [[ -> _ ] | [Hes _ ]].
-    by eapply test_no_reduce0.
+    by eapply empty_no_reduce.
     rewrite <- app_nil_l in Hes.
     clear IHreduce H1 Heqes0 H0.
     induction H ; try by inversion Hes ; try by apply app_inj_tail in Hes as [_ Habs] ;
@@ -2923,12 +2923,12 @@ Proof.
     simple_filled H0 k0 lh bef0 aft0 nnn lll lll'.
     apply Logic.eq_sym, app_eq_unit in H0 as [[ -> H0 ] | [_ H0]].
     apply app_eq_unit in H0 as [[ -> _ ] | [ -> -> ]].
-    by eapply test_no_reduce0.
+    by eapply empty_no_reduce.
     apply IHreduce => //=.
     apply app_eq_nil in H0 as [ -> _].
-    by eapply test_no_reduce0.
+    by eapply empty_no_reduce.
     apply app_eq_nil in Hes as [-> _].
-    by eapply test_no_reduce0.
+    by eapply empty_no_reduce.
 Qed.
       
 End iris_rules_resources.
