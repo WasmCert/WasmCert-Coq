@@ -36,8 +36,7 @@ Let reducible := @reducible wasm_lang.
 
 (* wp for instructions *)
 
-Section lifting.
-
+(*
 
 (*
 (* This requires inverting wp again........ It would be really amazing
@@ -659,9 +658,7 @@ Proof.
 Admitted. *)
 
 
-
-
-End lifting.
+*)
 
 (* What should a function spec look like?
   A (Wasm) function closure is of the form

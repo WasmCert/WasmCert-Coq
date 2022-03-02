@@ -70,18 +70,16 @@ Section trap_rules.
     iApply wp_unfold.
     repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (es1 ++ es2)) as [vs|] eqn:Hetov.
-    {
-      destruct vs.
-      {
-        apply to_val_cat in Hetov as [-> Hev2].
-        apply iris.of_to_val in Hev2 as <-.
-        iMod ("Hes1" with "Hf") as "[%Hcontr _]". done.
-      }
-      {
-        apply to_val_trap_is_singleton in Hetov.
-        apply app_eq_singleton in Hetov as [[-> ->]|[-> ->]].
-        all:iMod ("Hes1" with "Hf") as "[%Hcontr Hf]"; try done. auto.
-      }
+    { eapply lfilled_to_val_app with (i:=0) (lh:=LH_base [] []) in Hetov as HH.
+      2: cbn;erewrite app_nil_r;by apply/eqP. 
+      destruct HH as [vs' [Hvs' Hfilled']].
+      unfold iris_wp_def.to_val in Hvs'. rewrite Hvs'.
+      iMod ("Hes1" with "Hf") as "[-> Hf]". iFrame.
+      apply lfilled_Ind_Equivalent in Hfilled'.
+      inversion Hfilled';simplify_eq.
+      apply to_val_trap_is_singleton in Hvs' as ->.
+      destruct es2 =>//. rewrite app_nil_r in Hetov.
+      destruct vs =>//.
     }
     (* Ind *)
     iIntros (σ ns κ κs nt) "Hσ".
@@ -208,7 +206,7 @@ Section trap_rules.
     iSplit.
     { iPureIntro.
       destruct s =>//. rewrite separate1.
-      eapply prepend_reducible;eauto. }
+      eapply prepend_reducible;intros;eauto. all: done. }
     iIntros (es2 σ2 efs HStep).
     rewrite separate1 in HStep.
     apply prim_step_obs_efs_empty in HStep as Heq. simplify_eq.

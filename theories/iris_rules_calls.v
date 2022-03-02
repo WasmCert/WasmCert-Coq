@@ -51,7 +51,7 @@ Section iris_rules_calls.
   Proof.
     iIntros (Hparams Hlen Hret) "Hf Hi HΦ".
     iApply wp_lift_step.
-    { apply to_val_cat_None2. auto. }
+    { apply to_val_const_list in Hparams. apply to_val_cat_None2; auto. }
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
@@ -138,7 +138,7 @@ Section iris_rules_calls.
       by eapply last_inj in H2;[|apply last_snoc;eauto..].
       rewrite app_assoc in H2.
       rewrite -(app_nil_r [AI_invoke a]) in H2.
-      apply first_values in H2;auto;[|apply const_list_app;auto].
+      apply first_values in H2;auto; (try by intros [? ?]);[|apply const_list_app;auto].
       destruct H2 as [_ [Hcontr _]];done.
     }
     all: subst. all: try by do 2 (try destruct vs';try destruct ves') =>//.
@@ -178,7 +178,7 @@ Section iris_rules_calls.
         { eapply val_head_stuck_reduce. eauto. } }
       { rewrite app_assoc in H1.
         rewrite -(app_nil_r [AI_invoke a]) in H1.
-        apply first_values in H1;auto;[|apply const_list_app;auto].
+        apply first_values in H1;auto;(try by intros [? ?]);[|apply const_list_app;auto].
         destruct H1 as [_ [Hcontr _]]. done. }
     }
   Qed.
@@ -203,7 +203,8 @@ Section iris_rules_calls.
 
     iLöb as "IH".
     iApply wp_unfold. rewrite /wp_pre /=.
-    assert (to_val (ves ++ [AI_invoke a]) = None) as ->;[by apply (to_val_cat_None2 ves)|].
+    assert (to_val (ves ++ [AI_invoke a]) = None) as ->.
+    { apply to_val_const_list in Hparams. apply to_val_cat_None2; auto. }
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
     set (σ := (s0,s1,l,i)).

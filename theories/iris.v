@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import common operations opsem interpreter.
+Require Import common operations opsem interpreter properties.
 
 Section Host.
   
@@ -33,7 +33,9 @@ Definition expr := list administrative_instruction.
 (* Add [::AI_trap] to val? *)
 Inductive val : Type :=
 | immV : (list value) -> val
-| trapV : val.
+| trapV : val
+| brV : nat -> (list value) -> expr -> val
+| retV : (list value) -> expr -> val.
 
 Definition val_eq_dec : forall v1 v2: val, {v1 = v2} + {v1 <> v2}.
 Proof.
@@ -46,17 +48,6 @@ Definition eqvalP : Equality.axiom val_eqb :=
 Canonical Structure val_eqMixin := EqMixin eqvalP.
 Canonical Structure val_eqType := Eval hnf in EqType val val_eqMixin.
 
-(* The following operation mirrors the opsem of AI_trap *)
-(* in which a trap value swallows all other stack values *)
-Definition val_combine (v1 v2 : val) :=
-  match v1 with
-  | immV l => match v2 with
-             | immV l' => immV (l ++ l')
-             | trapV => trapV
-             end
-  | trapV => trapV
-  end.
-
 Definition state : Type := host_state * store_record * (list value) * instance.
 
 Definition observation := unit. (* TODO: maybe change? *)
@@ -65,6 +56,8 @@ Definition of_val (v : val) : expr :=
   match v with
   | immV l => fmap (fun v => AI_basic (BI_const v)) l
   | trapV => [::AI_trap]
+  | brV i l es => (fmap (fun v => AI_basic (BI_const v)) l) ++ [AI_basic (BI_br i)] ++ es
+  | retV l es => (fmap (fun v => AI_basic (BI_const v)) l) ++ [AI_basic BI_return] ++ es
   end.
 Lemma of_val_imm (vs : list value) :
   ((λ v : value, AI_basic (BI_const v)) <$> vs) = of_val (immV vs).
@@ -77,9 +70,29 @@ Fixpoint to_val (e : expr) : option val :=
   | AI_basic (BI_const v) :: e' =>
     match to_val e' with
     | Some (immV v') => Some (immV (v :: v')) (* No interweaving of trap and values *)
+    | Some (brV i l es) => Some (brV i (v :: l) es)
+    | Some (retV l es) => Some (retV (v :: l) es)
     | _ => None
     end
+  | AI_basic (BI_br i) :: e' => Some (brV i [] e')
+  | AI_basic BI_return :: e' => Some (retV [] e')
   | _ => None
+  end.
+
+(* The following operation mirrors the opsem of AI_trap *)
+(* in which a trap value swallows all other stack values *)
+(* and the opsem of br and return, which skips over all subsequent expressions *)
+Definition val_combine (v1 v2 : val) :=
+  match v1 with
+  | immV l => match v2 with
+             | immV l' => immV (l ++ l')
+             | trapV => trapV
+             | brV i l' es => brV i (l ++ l') es
+             | retV l' es => retV (l ++ l') es
+             end
+  | trapV => trapV
+  | brV i l es => brV i l (es ++ (of_val v2))
+  | retV l es => retV l (es ++ (of_val v2)) 
   end.
 
 Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) (s' : state) (fork_es' : list expr) : Prop :=
@@ -90,10 +103,10 @@ Definition prim_step (e : expr) (s : state) (os : list observation) (e' : expr) 
 Lemma to_of_val v : to_val (of_val v) = Some v.
 Proof.
   destruct 0 => //.
-  move: l.
-  elim => //=.
-  move => v0 v IH.
-  by rewrite IH.
+  all: move: l.
+  all: elim => //=.
+  all: move => v0 v IH.
+  all: by rewrite IH.  
 Qed.
 
 Definition is_none_or {A : Type} (p : A -> bool) (x : option A) : bool :=
@@ -110,17 +123,17 @@ Proof.
   case.
   { rewrite /=.
     case: e0 => //=.
+    2: case e => //=.
+    2: move => a;case a =>//.
     case => //=.
+    move => i a; case a =>//.
+    move => a; case a =>//.
     move => v0 v.
     case: (to_val e) => //=.
     move => a H.
-    case: v H. case: a => //.
+    case: v H. all: case: a => //.
     move => l l0 //=.
-    by case: l0 => //. done.
-    move => a H.
-    case: a H => //.
-    move => l H.
-    by case: e H. }
+    by case: l0 => //. }
   { by case: e0. }
 Qed.
 Lemma to_val_trap_is_singleton : ∀ e,
@@ -140,41 +153,82 @@ Qed.
 
 Lemma of_to_val e v : to_val e = Some v → of_val v = e.
 Proof.
-  move: e v.
-  elim.
-  { move => v /= H.
-    injection H => {H} H2.
-    by rewrite -H2. }
-  { move => e0 e IH.
-    case.
-    { case. 
-      { move => {IH} H.
-        exfalso.
-        move: (to_val_cons_is_none_or_cons H) => {} H.
-        discriminate H. }
-      { move => v0 l v.
-        case: e0 v => //=.
-        case => //=.
-        move => v1.
-        case_eq (to_val e) => //=.
-        move => v' Hve H.
-        case: v' Hve H => //=.
-        move => l0 H H'.
-        injection H' => {H'} <- ->.
-        f_equiv.
-        by rewrite -(IH _ H).
-        move => H//=.
-        case: e {IH} H => H//=. }
-    }
-    { move => H //=.
-      case: e {IH} H => H.
-      injection (to_val_trap_is_singleton H).
-      by move ->.
-      move => l H'.
-      injection (to_val_trap_is_singleton H').
-      by move => H0.
-    }
+  intros Hsome.
+  destruct v.
+  { revert l Hsome. induction e;intros l Hsome;inversion Hsome;auto.
+    destruct l.
+    { by apply to_val_cons_is_none_or_cons in Hsome as H. }
+    { destruct a =>//. destruct b =>//.
+      destruct (to_val e) =>//.
+      destruct v1 =>//. simplify_eq.
+      simpl. f_equiv. by apply IHe.
+      destruct e =>//. }
   }
+  { apply to_val_trap_is_singleton in Hsome;subst. auto. }
+  { revert e0 e Hsome. induction l; intros e0 e Hsome; destruct e0.
+    { destruct e;try done;simpl in *.
+      destruct a =>//.
+      destruct b =>//.
+      simplify_eq. auto.
+      destruct (to_val e) =>//.
+      destruct v0 =>//.
+      destruct e =>//. }
+    { destruct e;try done;simpl in *.
+      destruct a0 =>//.
+      destruct b =>//.
+      simplify_eq. auto.
+      destruct (to_val e) =>//.
+      destruct v0 =>//.
+      destruct e =>//. }
+    { destruct e;try done;simpl in *.
+      destruct a0 =>//.
+      { destruct b =>//.
+        destruct (to_val e) eqn:Hval =>//.
+        destruct v0 =>//.
+        simplify_eq. f_equiv.
+        apply IHl. auto. }
+      { destruct e =>//. } }
+    { destruct e;try done;simpl in *.
+      destruct a1 =>//.
+      { destruct b =>//.
+        destruct (to_val e) eqn:Hval =>//.
+        destruct v0 =>//.
+        simplify_eq. f_equiv.
+        apply IHl. auto. }
+      { destruct e =>//. } }
+  }
+  { revert e0 e Hsome. induction l; intros e0 e Hsome; destruct e0.
+    { destruct e;try done;simpl in *.
+      destruct a =>//.
+      destruct b =>//.
+      simplify_eq. auto.
+      destruct (to_val e) =>//.
+      destruct v0 =>//.
+      destruct e =>//. }
+     { destruct e;try done;simpl in *.
+      destruct a0 =>//.
+      destruct b =>//.
+      simplify_eq. auto.
+      destruct (to_val e) =>//.
+      destruct v0 =>//.
+      destruct e =>//. }
+    { destruct e;try done;simpl in *.
+      destruct a0 =>//.
+      { destruct b =>//.
+        destruct (to_val e) eqn:Hval =>//.
+        destruct v0 =>//.
+        simplify_eq. f_equiv.
+        apply IHl. auto. }
+      { destruct e =>//. } }
+    { destruct e;try done;simpl in *.
+      destruct a1 =>//.
+      { destruct b =>//.
+        destruct (to_val e) eqn:Hval =>//.
+        destruct v0 =>//.
+        simplify_eq. f_equiv.
+        apply IHl. auto. }
+      { destruct e =>//. } 
+  } }
 Qed.
 
 Lemma split_vals_not_empty_res : forall es v vs es',
@@ -182,43 +236,70 @@ Lemma split_vals_not_empty_res : forall es v vs es',
 Proof. by case. Qed.
 
 Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
-  split_vals_e e1 = (vs, e :: es) -> to_val e1 = None ∨ (vs = [] ∧ to_val e1 = Some trapV).
+    split_vals_e e1 = (vs, e :: es) -> to_val e1 = None
+                                     ∨ (vs = [] ∧ to_val e1 = Some trapV)
+                                     ∨ (∃ i, e = AI_basic (BI_br i) ∧ to_val e1 = Some (brV i vs es))
+                                     ∨ (e = AI_basic BI_return ∧ to_val e1 = Some (retV vs es)).
 Proof.
-  elim; first done.
-  case;try (move => e l H e' es' vs H'; by left).
-  { move => b l H e es vs H'. left.
-    rewrite /= in H.
-    move: vs H'.
-    case.
-    move => H' //=.
-    case: b H' => //=.
-    case_eq (split_vals_e l) => x xs H1 H2 [H3 H4].
-    rewrite /=.
-    rewrite H4 in H1.
-    destruct (H _ _ _ H1) => //=.
-    move => a l0.
-    case: b => v' //=.
-    case_eq (split_vals_e l) => x xs H1 [-> H2] H3.
-    subst xs x.
-    destruct (H _ _ _ H1) => //=. by rewrite H0.
-    by destruct H0 as [-> ->]. }
-  { move => l IH e es vs H'.
-    case: l IH H'.
-    move => IH [H1 H2]. subst;auto.
-    move => a l IH //=;auto. }
+  intros e1.
+  induction e1;intros e es vs Hsplit.
+  { destruct vs =>//. } 
+  { destruct vs =>//.
+    { simpl in Hsplit.
+      destruct a =>//;try by left.
+      destruct b =>//;simplify_eq;try by left.
+      right. right. left. eexists. eauto.
+      right. right. right. auto.
+      destruct (split_vals_e e1). simplify_eq.
+      destruct e1. right;left;auto. by left. }
+    { simpl in Hsplit.
+      destruct a =>//.
+      destruct b =>//.
+      destruct (split_vals_e e1) eqn:Hsome.
+      assert ((l, l0) = (vs, (e :: es)%SEQ)) as Heq%IHe1.
+      { simplify_eq. auto. }
+      destruct Heq as [?|[[??]|[[?[??]]|[??]]]].
+      { left. simpl. by rewrite H. }
+      { left. simpl. by rewrite H0. }
+      { right. right. left. exists x.
+        split;auto. simplify_eq. simpl. rewrite H0. auto. }
+      { right. right. right.
+        split;auto. simplify_eq. simpl. rewrite H0. auto. } 
+    }  }
 Qed.
 
 Lemma to_val_None_prepend: forall es1 es2,
   to_val es2 = None ->
-  to_val (es1 ++ es2) = None.
+  to_val (es1 ++ es2) = None
+  ∨ (∃ i l1 l2, to_val es1 = Some (brV i l1 l2))
+  ∨ (∃ l1 l2, to_val es1 = Some (retV l1 l2)).
 Proof.
   move => es1 es2 H.
-  induction es1 => //=.
-  destruct a => //=.
-  destruct b => //=.
-  by rewrite IHes1.
-  destruct (es1 ++ es2);auto.
-  done.
+  induction es1;try by left.
+  destruct a;try by left.
+  destruct b; try by left.
+  right;eauto.
+  right;eauto.
+  destruct IHes1 as [?|[[?[?[??]]]|[?[??]]]].
+  { simpl. rewrite H0;auto. }
+  { right;left. repeat eexists. simpl.  rewrite H0; eauto. }
+  { right;right. repeat eexists. simpl. rewrite H0;eauto. }
+  { left. simpl.
+    destruct IHes1 as [?|[[?[?[??]]]|[?[??]]]].
+    all: destruct es1,es2;try done. }
+Qed.
+
+Lemma to_val_None_prepend_const : forall es1 es2,
+    const_list es1 ->
+  to_val es2 = None ->
+  to_val (es1 ++ es2) = None.
+Proof.
+  move => es1 es2 H H'.
+  induction es1;auto.
+  destruct a =>//.
+  destruct b =>//.
+  simpl in *.
+  rewrite IHes1;auto.
 Qed.
   
 Lemma to_val_None_append: forall es1 es2,
@@ -340,43 +421,51 @@ Proof.
 Qed.
 
 Lemma to_val_not_trap_interweave : ∀ es es',
-    es != [] ∨ es' != [] -> to_val (es ++ [AI_trap] ++ es')%SEQ = None.
+    const_list es -> es != [] ∨ es' != [] -> to_val (es ++ [AI_trap] ++ es')%SEQ = None.
 Proof.
-  elim.
-  { move => es'.
-    case: es'=> H //=.
-    destruct H => //. }
-  move => a l IH es' H //=.
-  case: a H => b //=.
-  2: case l => //.
-  move => _.
-  case b => //=.
-  move => v /=.
-  case: l IH.
-  { case: es' => //=. }
-  move => a l IH. rewrite IH//. by left.
+  intros es.
+  induction es;intros es1 Hconst [Hnil | Hnil];try done.
+  { destruct es1 =>//. }
+  { simpl in Hconst. apply andb_true_iff in Hconst as [Ha Hconst].
+    destruct a =>//.
+    destruct b =>//.
+    simpl.
+    destruct es,es1;auto.
+    { rewrite IHes;auto. }
+    { rewrite IHes;auto. }
+  }
+  { simpl in Hconst. apply andb_true_iff in Hconst as [Ha Hconst].
+    destruct a =>//.
+    destruct b =>//.
+    simpl.
+    destruct es,es1;auto.
+    { rewrite IHes;auto. }
+    { rewrite IHes;auto. }
+  }
 Qed.
 
 Lemma val_head_stuck_reduce : ∀ hs1 locs1 s1 e1 hs2 locs2 s2 e2,
     reduce hs1 locs1 s1 e1 hs2 locs2 s2 e2 ->
     to_val e1 = None.
 Proof.
-  move => hs1 locs1 s1 e1 hs2 locs2 s2 e2 HRed.
-  induction HRed => //=; subst; try by apply to_val_None_prepend.
-  - inversion H; subst => //=; try by apply to_val_None_prepend.
-    + destruct v => //=.
+  move => hs1 locs1 s1 e1 hs2 locs2 s2 e2 HRed;try by to_val_None_prepend_const.
+  induction HRed => //=; subst; try by to_val_None_prepend_const.
+  - inversion H; subst => //=;try by apply to_val_None_prepend_const;auto.
+    + destruct v =>//.
       by destruct b => //=.
     + move/lfilledP in H1.
       inversion H1. subst es e.
-      apply to_val_not_trap_interweave.
+      apply to_val_not_trap_interweave;auto.
       case: vs {H H1 H2 H4} H0 => //=.
       case: es' => //=.
       move => a l H. by right.
       move => a l H. by left.
+  - apply to_val_None_prepend_const;auto.
+    apply v_to_e_is_const_list.
   - move/lfilledP in H.
     inversion H; subst; clear H.
-    by apply to_val_None_prepend, to_val_None_append.
-  - by apply to_val_None_prepend, to_val_None_append.
+    by apply to_val_None_prepend_const, to_val_None_append.
+  - by apply to_val_None_prepend_const, to_val_None_append.
 Qed.
 
 Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,

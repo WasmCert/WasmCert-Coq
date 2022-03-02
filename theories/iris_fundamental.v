@@ -672,7 +672,7 @@ Section fundamental.
       destruct Hlayer as (?&?&?&?&?);subst.
       eapply get_layer_lookup_lh_lengths in Hlayer_lh;[|eauto..].
 
-      iApply (wp_br_ctx with "Hf");[lia|eauto|eauto|..].
+      iApply (wp_br_ctx_nested with "Hf");[lia|eauto|eauto|..].
       { apply v_to_e_is_const_list. }
       { rewrite fmap_length. simplify_eq. auto. }
       iNext. iIntros "Hf".
