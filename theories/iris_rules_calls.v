@@ -14,7 +14,6 @@ Close Scope byte_scope.
 Section iris_rules_calls.
   Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-  (* Placeholder until reduce_det has been updated to accomodate native invocations *)
   Import DummyHosts.
   
   
@@ -75,11 +74,11 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      assert (first_instr (ves ++ [AI_invoke a]) = Some (AI_invoke a)) as Hf.
+      assert (first_instr (ves ++ [AI_invoke a]) = Some (AI_invoke a,0)) as Hf.
       { apply first_instr_const. eapply to_val_const_list. eauto. }
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists f0. iFrame.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?&?) | (?&?&?&Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      simplify_eq. iApply bi.sep_exist_l. iExists f0. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("HΦ" with "[$]"). iFrame.
       rewrite Hf in Hstart. done.
@@ -107,80 +106,6 @@ Section iris_rules_calls.
      be mutually recursive.
 
    *)
-  
-  Lemma last_inj {A : Type} (l1 l2 : list A) (a b : A) :
-    l1 = l2 -> last l1 = Some a -> last l2 = Some b -> a = b.
-  Proof.
-    intros Heq Hla1 Hla2.
-    subst. rewrite Hla1 in Hla2. inversion Hla2. done.
-  Qed.
-  Lemma const_list_snoc_eq vs :
-    forall ves es es' e,
-    const_list ves ->
-    const_list vs ->
-    es ≠ [] ->
-    iris.to_val es = None ->
-    (vs ++ es ++ es')%SEQ = ves ++ [e] ->
-    es' = [] ∧ ∃ vs2, ves = vs ++ vs2 ∧ es = vs2 ++ [e] ∧ const_list vs2.
-  Proof.
-    induction vs;
-      intros ves es es' e Hconst1 Hconst2 Hneq Hnval Heq.
-    { erewrite app_nil_l in Heq.
-      apply app_eq_inv in Heq as [[k [Hk1 Hk2]] | [k [Hk1 Hk2]]].
-      { destruct k.
-        { rewrite app_nil_r in Hk1.
-          rewrite app_nil_l in Hk2.
-          simplify_eq.
-          assert (is_Some (to_val (ves))) as [c Hc];[|congruence].
-          apply const_list_is_val in Hconst1 as [v ->]. eauto. }
-        { destruct k,es' =>//.
-          rewrite app_nil_r in Hk2. simplify_eq.
-          eauto. }  }
-      { rewrite Hk1 in Hconst1.
-        apply to_val_cat_None1 with (es2:=k) in Hnval.
-        apply const_list_is_val in Hconst1 as [v Hv].
-        congruence. } }
-    { destruct ves.
-      { destruct vs,es,es' =>//. }
-      inversion Heq;subst.
-      simpl in Hconst1,Hconst2.
-      apply andb_true_iff in Hconst1,Hconst2.
-      destruct Hconst1 as [Ha0 Hconst1].
-      destruct Hconst2 as [_ Hconst2].
-      apply IHvs in H1;auto.
-      destruct H1 as [Heqes' [vs2 [Heq1 Heq2]]].
-      subst. eauto.
-    }
-  Qed.
-  Lemma length_to_val_immV v1 :
-    forall vs1, to_val v1 = Some (immV vs1)
-    -> length v1 = length vs1.
-  Proof.
-    induction v1;intros vs1 Hval.
-    destruct vs1 =>//.
-    destruct vs1.
-    apply to_val_nil in Hval. done.
-    simpl in *.
-    destruct a;try done.
-    destruct b;try done.
-    destruct (to_val v1) eqn:Hv1;try done.
-    destruct v2;try done.
-    simplify_eq. auto.
-    destruct v1;try done.
-  Qed.
-  Lemma const_list_app v1 v2 :
-    const_list (v1 ++ v2) <-> const_list v1 ∧ const_list v2.
-  Proof.
-    split.
-    - intros Hconst.
-      apply const_list_is_val in Hconst as [v Hv].
-      apply to_val_cat in Hv as [Hv1%to_val_const_list Hv2%to_val_const_list];auto.
-    - intros [Hconst1 Hconst2].
-      apply const_list_is_val in Hconst1 as [v1' Hv1].
-      apply const_list_is_val in Hconst2 as [v2' Hv2].
-      eapply to_val_const_list.
-      apply to_val_cat_inv;eauto.
-  Qed.      
     
   Lemma invoke_host_inv a s1 t1s t2s h s0 es1 f1 f2 hs2 ws2 es:
     reduce (host_instance:=host_instance) s0 s1
@@ -277,7 +202,7 @@ Section iris_rules_calls.
     iIntros (Hparams Hlen Hret) "Hf Hi HWP HΦ".
 
     iLöb as "IH".
-    iApply wp_unfold. rewrite /wasm_wp_pre.
+    iApply wp_unfold. rewrite /wp_pre /=.
     assert (to_val (ves ++ [AI_invoke a]) = None) as ->;[by apply (to_val_cat_None2 ves)|].
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
@@ -312,12 +237,12 @@ Section iris_rules_calls.
       { iDestruct "HH" as "[HH _]".
         iSpecialize ("HH" $! (hs2,ws2,locs2,inst2) r0 Hhost').
         repeat (iMod "HH"; iModIntro; try iNext).
-        iExists _. iFrame. rewrite app_nil_l in Heq. rewrite Heq.
+        iApply bi.sep_exist_l. iExists _. iFrame. rewrite app_nil_l in Heq. rewrite Heq.
         simplify_eq. iDestruct "HH" as "($&Hr)". iSplit =>//. }
       { iDestruct "HH" as "[_ HH']".
         iSpecialize ("HH'" $! (hs2,ws2,locs2,inst2) Hhost').
         repeat (iMod "HH'"; iModIntro; try iNext).
-        iExists _. iFrame.
+        iApply bi.sep_exist_l. iExists _. iFrame.
         simplify_eq. iDestruct "HH'" as "($&Hr)". iSplit =>//. }
       Unshelve. apply r.
   Qed.
@@ -359,11 +284,11 @@ Section iris_rules_calls.
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      assert (first_instr LI = Some (AI_basic (BI_call i))).
+      assert (first_instr LI = Some (AI_basic (BI_call i),0 + j)).
       { eapply starts_with_lfilled;eauto. auto. }
       eapply reduce_det in H as HH;[|eapply r_label;[|eauto..];apply r_call; rewrite /= nth_error_lookup //]. 
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
-      simplify_eq. iExists _. iFrame.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "?". iApply ("HΦ" with "[$]"). auto.
   Qed.
   Lemma wp_call (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a :
@@ -380,13 +305,13 @@ Section iris_rules_calls.
     iApply ("HΦ" with "[$]").
   Qed. 
 
-  Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) a c cl :
+  Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
     (inst_types (f_inst f0)) !! i = Some (cl_type cl) ->
-    (inst_tab (f_inst f0)) !! 0 = Some i -> (* current frame points to correct table? *)
-    (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
+    (inst_tab (f_inst f0)) !! 0 = Some j-> (* current frame points to correct table? *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
     (N.of_nat a) ↦[wf] cl -∗
     ↪[frame] f0 -∗
-    ▷ ((N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
+    ▷ ((N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
        ∗ (N.of_nat a) ↦[wf] cl
        ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
     WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
@@ -426,23 +351,23 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("Hcont" with "[$]"). iFrame.
   Qed.
       
 
-  Lemma wp_call_indirect_failure_types (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) a c cl :
+  Lemma wp_call_indirect_failure_types (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
     (inst_types (f_inst f0)) !! i <> Some (cl_type cl) ->
-    (inst_tab (f_inst f0)) !! 0 = Some i -> (* current frame points to correct table? *)
-    (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
+    (inst_tab (f_inst f0)) !! 0 = Some j -> (* current frame points to correct table? *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
     (N.of_nat a) ↦[wf] cl -∗
     ↪[frame] f0 -∗
     ▷ (Φ trapV) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0
-                                                                                          ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
-                                                                                          ∗ (N.of_nat a) ↦[wf] cl }}.
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
+                                                                                          ∗ (N.of_nat a) ↦[wf] cl)
+                                                                                          ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Htype Hc) "Ha Hcl Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
@@ -479,9 +404,8 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [ (?&?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
-      iSplit =>//. auto.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iFrame. done.
   Qed.
 
 
@@ -516,19 +440,18 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) | (Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
-      iSplit =>//. auto.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iFrame. done.
   Qed.
 
   
-  Lemma wp_call_indirect_failure_noindex (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i : immediate) c :
-    (inst_tab (f_inst f0)) !! 0 = Some i -> (* current frame points to correct table *)
-    (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None -∗ (* but no index i *)
+  Lemma wp_call_indirect_failure_noindex (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) c :
+    (inst_tab (f_inst f0)) !! 0 = Some j -> (* current frame points to correct table *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None -∗ (* but no index i *)
     ↪[frame] f0 -∗
     ▷ (Φ trapV) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0
-                                                                                          ∗ (N.of_nat i) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None }}.
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, (Φ v ∗ (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None)
+                                                                                          ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Hc) "Ha Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
@@ -560,9 +483,8 @@ Section iris_rules_calls.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [Hstart | [(?&?&?&?&?&?) |(Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
-      simplify_eq. iExists _. iFrame.
-      iSplit =>//. auto.
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iFrame. done.
   Qed.
 
 End iris_rules_calls.

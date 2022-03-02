@@ -1,0 +1,53 @@
+{
+  "build": [
+    [
+      "./configure",
+      "-configdir",
+      "#{self.lib}/coq/config",
+      "-prefix",
+      "#{self.install}",
+      "-mandir",
+      "#{self.man}",
+      "-docdir",
+      "#{self.doc}",
+      "-libdir",
+      "#{self.lib}/coq",
+      "-datadir",
+      "#{self.share}/coq",
+      "-coqide",
+      "no",
+      "-camldir",
+      "#{ ocaml.bin }"
+    ],
+    [
+      "make",
+      "COQ_USE_DUNE=",
+      "-j2"
+    ],
+    [
+      "make",
+      "COQ_USE_DUNE=",
+      "-j2",
+      "byte"
+    ]
+  ],
+  "install": [
+    [
+      "make",
+      "COQ_USE_DUNE=",
+      "install"
+    ],
+    [
+      "make",
+      "COQ_USE_DUNE=",
+      "install-byte"
+    ]
+  ],
+  "dependencies": {
+    "ocaml": "*",
+    "@opam/ocamlfind": "*",
+    "@opam/num": "*",
+    "@opam/conf-findutils": "*",
+    "@opam/zarith": "*"
+  }
+}

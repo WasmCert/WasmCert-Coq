@@ -134,6 +134,7 @@ Proof.
   iApply wp_label_push_nil. simpl.
   iApply iRewrite_nil_r_ctx.
   iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 2; xx 3]⌝ ∗ ↪[frame] f0)%I).
+  iSplitR; [by iIntros "[%Hcontr _]"|].
   iSplitL "Hf0"; first by iApply label_check_easy.
   iIntros (w) "(-> & Hf0)". simpl.
   iApply (wp_val_return with "[$]") ;auto.
@@ -211,6 +212,7 @@ Proof.
   iApply wp_label_push_nil. simpl.
   take_drop_app_rewrite 3.
   iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0)%I).
+  iSplitR; [by iIntros "[%Hcontr _]"|].
   iSplitL.
   { iApply (wp_binop with "[$]");eauto. }
   iIntros (w) "[-> ?]". simpl.
@@ -243,12 +245,14 @@ Proof.
   iApply wp_label_push_nil. simpl.
   iApply iRewrite_nil_r_ctx.
   iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 6]⌝ ∗ ↪[frame] f0)%I).
+  iSplitR; [by iIntros "[%Hcontr _]"|].
   iSplitL.
   { take_drop_app_rewrite_twice 1 1.
     iApply wp_wasm_empty_ctx.
     iApply wp_base_push;auto. simpl.
     iApply iRewrite_nil_r_ctx.
     iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0)%I).
+    iSplitR; [by iIntros "[%Hcontr _]"|].
     iSplitL.
     { iApply iRewrite_nil_l.
       iApply (wp_block with "[$]");eauto. iNext. iIntros "?". simpl.
@@ -259,6 +263,7 @@ Proof.
       iApply wp_label_push_nil. simpl.
       take_drop_app_rewrite 3.
       iApply (wp_seq_ctx _ _ _ (λ v, ⌜v = immV [xx 5]⌝ ∗ ↪[frame] f0)%I).
+      iSplitR; [by iIntros "[%Hcontr _]"|].
       iSplitL.
       { iApply (wp_binop with "[$]");eauto. }
       iIntros (w) "[-> ?]". simpl.
@@ -386,6 +391,7 @@ Proof.
     (* get_local 0 *)
     take_drop_app_rewrite 1.
     iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+    iSplitR; [by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
     { iApply (wp_get_local with "[$]"). unfold f. eauto.
       simpl. eauto. }
@@ -394,6 +400,7 @@ Proof.
     iIntros (w) "[-> Hf] /=".
     take_drop_app_rewrite 3.
     iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+    iSplitR; [by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
     { iApply (wp_binop with "[$]"). eauto. eauto. }
 
@@ -402,6 +409,7 @@ Proof.
     iIntros (w) "[-> Hf] /=".
     take_drop_app_rewrite 2.
     iApply (wp_seq_ctx _ _ _ (λ v', (⌜v' = immV _⌝ ∗ N.of_nat a ↦[wf] _) ∗ ↪[frame] f)%I).
+    iSplitR; [by iIntros "[[%Hcontr _] _]"|].
     iSplitL.
     { (* call *)
       iApply wp_wasm_empty_ctx.
@@ -422,6 +430,7 @@ Proof.
       iApply wp_wasm_empty_ctx_frame.
       take_drop_app_rewrite 1.
       iApply (wp_seq_ctx_frame _ _ _ (λ v', ⌜v' = immV _⌝ ∗ N.of_nat a ↦[wf] _)%I with "[$Hf Hi]").
+      iSplitR; [by iIntros "[%Hcontr _]"|].
       iSplitL.
       { (* focus on block *)
         iIntros "Hf".
@@ -434,8 +443,8 @@ Proof.
         iApply wp_label_push;auto.
         iApply iRewrite_nil_r_ctx.
         iApply wp_seq_ctx.
-        iSplitL.
-        { (* apply IH *)
+        iSplitR;cycle 1.
+        { iSplitL. (* apply IH *)
           unfold IH.
           iApply ("IH" with "[] [] [] Hf Hi");auto.
           - iPureIntro.
@@ -460,20 +469,21 @@ Proof.
             destruct n. simpl in *.
             unfold Wasm_int.Int32.ltu in Hbool. simpl in *.
             destruct (Coqlib.zlt 1 intval);[|done].
-            rewrite Wasm_int.Int32.Z_mod_modulus_eq Zmod_small;lia. }
+            rewrite Wasm_int.Int32.Z_mod_modulus_eq Zmod_small;lia.
 
-        (* return *)
-        iIntros (w) "[[-> Hi] Hf] /=".
-        iApply (wp_val_return with "[$] [Hi]"). auto.
-        iIntros "Hf /=".
-        iApply wp_value. instantiate (1 := immV [_]). reflexivity.
-        iFrame. eauto. }
+          - (* return *)
+            iIntros (w) "[[-> Hi] Hf] /=".
+            iApply (wp_val_return with "[$] [Hi]"). auto.
+            iIntros "Hf /=".
+            iApply wp_value. instantiate (1 := immV [_]). reflexivity.
+            iFrame. eauto. }
+        { simpl. by iIntros "[[%Hcontr _] _]". } }
 
       (* return to outer scope *)
       iIntros (w) "[[-> Hi] Hf] /=".
       iApply wp_wasm_empty_ctx_frame.
       rewrite wp_frame_rewrite.
-      iApply (wp_frame_value with "[$Hf]"); eauto. iFrame. eauto.
+      iApply (wp_frame_value with "[$Hf]"); eauto.
     }
     
     (* finish program after call *)
@@ -484,6 +494,7 @@ Proof.
     iApply wp_base_push;auto.
     take_drop_app_rewrite 1.
     iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame]f)%I).
+    iSplitR;[by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
     { iApply (wp_get_local with "[$Hf]"). eauto. simpl. eauto. }
 
@@ -492,6 +503,7 @@ Proof.
     iApply wp_base_pull. simpl.
     take_drop_app_rewrite 3.
     iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
+    iSplitR;[by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
     { iApply (wp_binop with "[$]"). simpl. eauto. eauto. }
 
@@ -552,6 +564,7 @@ Proof.
   iApply wp_wasm_empty_ctx_frame.
   take_drop_app_rewrite 1.
   iApply (wp_seq_ctx_frame _ _ _ (λ v, fact_val n v ∗ (N.of_nat a) ↦[wf] _)%I with "[$Hf Hi]").
+  iSplitR;[by iIntros "[%Hcontr _]"|].
   iSplitL.
   { iIntros "Hf".
     take_drop_app_rewrite 0.
@@ -562,6 +575,7 @@ Proof.
     iApply wp_label_push_nil. simpl push_base.
     take_drop_app_rewrite (length (factorial_instrs fact)).
     iApply (wp_seq_ctx _ _ _ (λ v, (fact_val n v ∗ (N.of_nat a) ↦[wf] _) ∗ ↪[frame] _)%I).
+    iSplitR;[by iIntros "[[%Hcontr _] _]"|].
     iSplitL.
     { iApply (factorial_spec with "[$] [$]");eauto. }
     iIntros (w) "[[%Hfact Hi] Hf] /=".
@@ -572,7 +586,7 @@ Proof.
   iIntros (w) "[[%Hfact Hi] Hf]".
   iApply wp_wasm_empty_ctx_frame.
   iApply (wp_frame_value with "[$]"); [subst;eauto..|].
-  iNext. iIntros "Hf".
+  iNext.
   iFrame. auto.
 Qed.
 
@@ -617,7 +631,7 @@ Proof.
   iIntros (Htypes Hfmem) "Hf Hn".
   iApply wp_wand_r. iSplitL.
   iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto. apply (f_inst f).
-  iIntros (w) "[-> [Hf Hn]] /=".
+  iIntros (w) "[[-> Hn] Hf]".
   iFrame. auto.
 Qed.
 
@@ -631,7 +645,7 @@ Proof.
   iApply wp_wand_r. iSplitL.  
   iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
   by rewrite Memdata.encode_int_length.
-  iIntros (v) "[-> [Hf Hn]]". rewrite /= N.add_0_l.
+  iIntros (v) "[[-> Hn] Hf]". rewrite /= N.add_0_l.
   iFrame. auto.
 Qed.
 
@@ -646,7 +660,7 @@ Proof.
   iApply wp_wand_r. iSplitL.  
   iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
   by rewrite Memdata.encode_int_length.
-  iIntros (v) "[-> [Hf Hn]]". rewrite /= N.add_0_l.
+  iIntros (v) "[[-> Hn] Hf]". rewrite /= N.add_0_l.
   iFrame. auto.
 Qed.
 
@@ -673,7 +687,9 @@ Proof.
   iApply wp_wasm_empty_ctx_frame.
   take_drop_app_rewrite 1.
   iApply (wp_seq_ctx_frame _ _ _ (λ w, ⌜w = immV [v]⌝ ∗ N.of_nat n↦[wms][0]bits v)%I).
-  iFrame. iSplitL "Hn".
+  iFrame "Hf".
+  iSplitR;[by iIntros "[%Hcontr _]"|].
+  iSplitL "Hn".
   { iIntros "Hf /=".
     take_drop_app_rewrite 0.
     iApply (wp_block with "[$]");eauto.
@@ -683,6 +699,7 @@ Proof.
     iApply wp_label_push_nil. simpl push_base.
     iApply iRewrite_nil_r_ctx.
     iApply (wp_seq_ctx with "[-]").
+    iSplitR; cycle 1.
     iSplitL.
     iApply (f1_spec with "Hf Hn");auto.
     iIntros (w) "[[-> Hn] Hf] /=".
@@ -690,6 +707,7 @@ Proof.
     iIntros "Hf /=".
     iApply wp_value. by instantiate (1:=immV [_]).
     iFrame. auto.
+    by iIntros "[[%Hcontr _] _]".
   }
 
   iIntros (w) "[[-> Hn] Hf] /=".
