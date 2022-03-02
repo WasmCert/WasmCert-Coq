@@ -61,7 +61,7 @@ Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s
 Proof.
   iIntros (Hvs Hlen1 Hlen2 Hlen3) "Hf0 HΦ".
   iApply wp_lift_step => //=.
-  apply to_val_cat_None2. done.
+  apply to_val_cat_None2;auto.
   iIntros (σ ns κ κs nt) "Hσ".
   iApply fupd_frame_l.
   iSplit.
@@ -425,7 +425,7 @@ Proof.
   destruct (iris.to_val LI) eqn:Hcontr.
   { apply lfilled_to_val in Hfill as [v' Hv];eauto.
     assert (iris.to_val [AI_basic (BI_block (Tf t1s t2s) es)] = None) as Hnone;auto.
-    apply (to_val_cat_None2 vs) in Hnone.
+    apply (to_val_cat_None2 vs) in Hnone;auto.
     rewrite Hv in Hnone. done. }
   unfold wp_wasm_ctx.
   iApply wp_unfold.
@@ -483,7 +483,7 @@ Proof.
   destruct (iris.to_val LI) eqn:Hcontr.
   { apply lfilled_to_val in Hfill as [v' Hv];eauto.
     assert (iris.to_val [AI_basic (BI_block (Tf t1s t2s) es)] = None) as Hnone;auto.
-    apply (to_val_cat_None2 vs) in Hnone.
+    apply (to_val_cat_None2 vs) in Hnone;auto.
     rewrite Hv in Hnone. done. }
   unfold wp_wasm_ctx.
   iApply wp_unfold.
@@ -541,10 +541,7 @@ Proof.
   iIntros (Hvs Hlen) "Hf0 HΦ".
   iIntros (LI Hfill).
   destruct (iris.to_val LI) eqn:Hcontr.
-  { apply lfilled_to_val in Hfill as [v' Hv];eauto.
-    assert (iris.to_val [AI_basic (BI_br i)] = None) as Hnone;auto.
-    apply (to_val_cat_None2 (vs)) in Hnone.
-    rewrite Hv in Hnone. done. }
+  { exfalso. eapply lfilled_to_val_0 in Hfill;eauto. lia. }
   iApply wp_lift_step => //=.
   iIntros (σ ns κ κs nt) "Hσ".
   iApply fupd_frame_l.
@@ -607,10 +604,7 @@ Proof.
   iIntros (Hvs Hlen) "Hf0 HΦ".
   iIntros (LI Hfill).
   destruct (iris.to_val LI) eqn:Hcontr.
-  { apply lfilled_to_val in Hfill as [v' Hv];eauto.
-    assert (iris.to_val [AI_basic (BI_br i)] = None) as Hnone;auto.
-    apply (to_val_cat_None2 (vs)) in Hnone.
-    rewrite Hv in Hnone. done. }
+  { exfalso. eapply lfilled_to_val_0 in Hfill;eauto. lia. }
   iApply wp_lift_step => //=.
   iIntros (σ ns κ κs nt) "Hσ".
   iApply fupd_frame_l.
@@ -687,7 +681,7 @@ Proof.
     apply lfilled_to_val in Hfill;eauto.
     destruct Hfill as [? Hfill].
     assert (iris.to_val [AI_basic (BI_loop (Tf t1s t2s) es)] = None) as HH;auto.
-    apply (to_val_cat_None2 vs) in HH. rewrite Hfill in HH. done. }
+    apply (to_val_cat_None2 vs) in HH;auto. rewrite Hfill in HH. done. }
   iIntros (σ ns κ κs nt) "Hσ".
   iApply fupd_frame_l.
   iSplitR.

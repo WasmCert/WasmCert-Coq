@@ -312,7 +312,7 @@ Proof.
 Qed.
 
 
-Lemma wp_br_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i j lh lh' lh'' vs' es' f0 vs0' n0 es0 es0' :
+Lemma wp_br_ctx_nested (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i j lh lh' lh'' vs' es' f0 vs0' n0 es0 es0' :
   S i < j ->
   get_layer lh' (lh_depth lh' - (S (S i))) = Some (vs0', n0, es0, (LH_rec vs' n es lh es'), es0') ->
   lh_minus lh' lh'' = Some (LH_rec vs' n es lh es') ->
@@ -325,10 +325,7 @@ Proof.
   iIntros (Hlt Hlayer Hminus Hvs Hlen) "Hf0 HΦ".
   iIntros (LI Hfill).
   destruct (iris.to_val LI) eqn:Hcontr.
-  { apply lfilled_to_val in Hfill as [v' Hv];eauto.
-    assert (iris.to_val [AI_basic (BI_br i)] = None) as Hnone;auto.
-    apply (to_val_cat_None2 (vs)) in Hnone.
-    rewrite Hv in Hnone. done. }
+  { exfalso. eapply lfilled_to_val_0 in Hfill;eauto. lia. }
   iApply wp_lift_step => //=.
   iIntros (σ ns κ κs nt) "Hσ".
   iApply fupd_frame_l.
@@ -401,46 +398,27 @@ Proof.
   (* Base case, when both es1 and es2 are values *)
   destruct (iris.to_val LI) as [vs|] eqn:Hetov.
   { iApply wp_unfold. rewrite /wp_pre /= Hetov.
-    destruct vs.
-    { pose proof (filled_is_val_imm _ _ _ _ _ Hetov Hfilled) as
-        [vs [es' [-> [-> [Hconst1 Hconst2]]]]].
-      apply const_list_is_val in Hconst1 as [v1 Hv1].
-      apply const_list_is_val in Hconst2 as [v2 Hv2].
-      edestruct fill_val as [vs12 [Hvs12 Heql]];eauto.
-      assert (Hvs12':=Hvs12).
-      apply to_val_cat in Hvs12' as [-> Hev2].
-      apply iris.of_to_val in Hev2 as <-.
-      iMod ("Hes1" with "Hf") as "[Hes1 Hf]".
-      iSpecialize ("Hes2" with "[Hf Hes1]").
-      { iDestruct "Hes1" as "[%Hcontr | Hes1]"; [done|eauto]. iFrame. }
-      
-      (* iDestruct (wp_unfold with "Hes2") as "Hes2". *)
-      (* iMod "Hes2". *)
-      unfold iris.of_val.
-      rewrite - fmap_app take_drop.
-      rewrite of_val_imm.
-      pose proof (lfilled_swap (iris.of_val (immV vs12)) Hfilled) as [LI' Hfilled'].
-      iSpecialize ("Hes2" $! _ Hfilled').
-      iDestruct (wp_unfold with "Hes2") as "Hes2". rewrite /wp_pre /=.
-      assert (iris.to_val LI' = Some (immV l)) as ->;[|iFrame].
-      apply lfilled_Ind_Equivalent in Hfilled'. inversion Hfilled';subst.
-      apply to_val_cat_inv;auto. apply to_val_cat_inv;auto. apply iris.to_of_val.
+    eapply lfilled_to_val_app in Hetov as HH;eauto.
+    destruct HH as [vs' [Hvs' Hfilled']].
+    unfold iris_wp_def.to_val in Hvs'.
+    rewrite Hvs'.
+    iMod ("Hes1" with "Hf") as "[Hes1 Hf]".
+    iDestruct "Hes1" as "[-> | Hes1]".
+    { apply to_val_trap_is_singleton in Hvs' as ->.
+      eapply lfilled_to_val_0 in Hfilled as ->;eauto.
+      apply lfilled_Ind_Equivalent in Hfilled'.
+      inversion Hfilled';simplify_eq.
+      destruct vs0,es2,es'.
+      erewrite app_nil_l, app_nil_r, app_nil_r in Hetov.
+      destruct vs;try done. iFrame. eauto.
+      all: rewrite to_val_not_trap_interweave in Hetov;try done;auto.
     }
-    { apply to_val_trap_is_singleton in Hetov. subst.
-      apply lfilled_Ind_Equivalent in Hfilled.
-      inversion Hfilled;subst.
-      2: { exfalso. do 2 destruct vs =>//=. }
-      apply app_eq_singleton in H as [[HH HH']|[HH HH']];subst.
-      { exfalso. destruct es1,es2,es' =>//=. }
-      apply app_eq_singleton in HH' as [[HH HH']|[HH HH']];subst.
-      { apply app_eq_singleton in HH as [[-> ->]|[-> ->]].
-        simpl.
-        all: iMod ("Hes1" with "Hf") as "[_ Hf]".
-        all: by iFrame; iExists _; iFrame. }
-      { destruct es1,es2 =>//=.
-        all: iMod ("Hes1" with "Hf") as "[_ Hf]".
-        all: by iFrame; iExists _; iFrame. }
-    }
+    
+    iSpecialize ("Hes2" with "[$Hf $Hes1]").
+    iSpecialize ("Hes2" $! _ Hfilled').
+    iDestruct (wp_unfold with "Hes2") as "Hes2".
+    rewrite /wp_pre /= Hetov.
+    iFrame.
   }
   {
   (* Ind *)

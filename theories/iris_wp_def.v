@@ -577,41 +577,74 @@ Qed.
   Qed.
 
   Lemma to_val_None_first_singleton es :
-    to_val es = None ->
-    ∃ vs e es', es = vs ++ [e] ++ es' ∧ const_list vs ∧  ((to_val ([e]) = None) ∨ (e = AI_trap ∧ (vs ≠ [] ∨ es' ≠ []))).
+    ((∃ v, to_val es = Some (immV v)) -> False) ->
+    (to_val es = Some trapV -> False) ->
+    ∃ vs e es', es = vs ++ [e] ++ es' ∧ const_list vs ∧ ((to_val ([e]) = None)
+                                                         ∨ (e = AI_trap ∧ (vs ≠ [] ∨ es' ≠ []))
+                                                         ∨ (∃ n, e = (AI_basic (BI_br n)))
+                                                         ∨ (e = (AI_basic BI_return))).
   Proof.
-    induction es.
-    { done. }
-    { intros Hval.
-      destruct (to_val [a]) eqn:Ha.
+    induction es;intros Hes1 Hes2.
+    { exfalso. apply Hes1. eauto. }
+    { destruct (to_val [a]) eqn:Ha.
       { destruct v.
         { destruct (to_val es) eqn:Hes.
           { unfold to_val in Hes.
             unfold to_val in Ha.
             destruct v. 
             { eapply to_val_cat_inv in Hes;[|apply Ha].
-              rewrite -separate1 in Hes. unfold to_val in Hval.
-              rewrite Hval in Hes. done. }
+              rewrite -separate1 in Hes. unfold to_val in Hes1.
+              exfalso. apply Hes1. eauto. }
             { apply to_val_trap_is_singleton in Hes as ->.
               apply to_val_const_list in Ha.
-              exists [a],AI_trap,[]. cbn. split;auto. }
+              exists [a],AI_trap,[]. cbn. repeat split;auto. }
+            { apply to_val_br in Hes as ->.
+              rewrite to_e_list_fmap.
+              rewrite list_extra.cons_app app_assoc.
+              apply to_val_const_list in Ha as [? ->]%const_es_exists.
+              erewrite v_to_e_cat. eexists _,_,_. split;eauto.
+              split;[apply v_to_e_is_const_list|]. right. right. left. eauto. }
+            { apply to_val_ret in Hes as ->.
+              rewrite to_e_list_fmap.
+              rewrite list_extra.cons_app app_assoc.
+              apply to_val_const_list in Ha as [? ->]%const_es_exists.
+              erewrite v_to_e_cat.
+              eexists _,_,_. split;eauto.
+              split;[apply v_to_e_is_const_list|]. right. right. right. eauto. }
           }
-          { destruct IHes as [vs [e [es' [Heq [Hconst HH]]]]];auto.
+          { destruct IHes as [vs [e [es' [Heq [Hconst HH]]]]];auto.  by intros [? ?]. done.
             apply to_val_const_list in Ha.
-            destruct HH as [Hnone | [-> Hne]].
+            destruct HH as [Hnone | [[-> Hne] | [[? Hne] | Hne]]].
             { exists (a::vs),e,es'. subst. split;auto. split;[|left;auto].
               rewrite separate1. apply const_list_app. auto. }
             { exists (a::vs),AI_trap,es'. subst. split;auto.
-              split;[|right;auto]. rewrite separate1. apply const_list_app. auto. } 
+              split;[|right;auto]. rewrite separate1. apply const_list_app. auto. }
+            { subst. rewrite separate1 app_assoc.
+              eexists _,_,_. split;eauto. split;[apply const_list_app;auto|].
+              right;right;left. eauto. }
+            { subst. rewrite separate1 app_assoc.
+              eexists _,_,_. split;eauto. split;[apply const_list_app;auto|].
+              right;right;right. eauto. }
           }
         }
         { unfold to_val in Ha.
           apply to_val_trap_is_singleton in Ha as Heq.
           simplify_eq.
-          unfold to_val in Hval.
+          unfold to_val in Hes1.
+          unfold to_val in Hes2.
           destruct es =>//.
           exists [],AI_trap,(a :: es).
-          split;auto. }
+          repeat split;auto. }
+        { destruct a;try done. destruct b;try done.
+          apply to_val_br in Ha. destruct l =>//.
+          destruct e =>//. rewrite app_nil_l app_nil_r in Ha.
+          simplify_eq. eexists [],_,es. split;eauto.
+          repeat split;eauto. }
+        { destruct a;try done. destruct b;try done.
+          apply to_val_ret in Ha. destruct l =>//.
+          destruct e =>//. rewrite app_nil_l app_nil_r in Ha.
+          simplify_eq. eexists [],_,es. split;eauto.
+        }
       }
       { exists [],a,es. auto. }
     }
@@ -622,22 +655,25 @@ Qed.
     const_list ves ->
     const_list vs ->
     es ≠ [] ->
-    to_val es = None ->
+    ((∃ v, to_val es = Some (immV v)) -> False) ->
+    (to_val es = Some trapV -> False) ->
     to_val [e] = None ∨ e = AI_trap ->
     (vs ++ es ++ es')%SEQ = ves ++ [e] ++ es'' ->
     ∃ vs2 es2, ves = vs ++ vs2 ∧ es = vs2 ++ [e] ++ es2 ∧ es'' = es2 ++ es' ∧ const_list vs2.
   Proof.
-    intros vs es ves e es' Hconst1 Hconst2 Hneq Hnval He Heq.
-    apply to_val_None_first_singleton in Hnval as HH.
+    intros vs es ves e es' Hconst1 Hconst2 Hneq Hnval1 Hnval2 He Heq.
+    apply to_val_None_first_singleton in Hnval2 as HH;auto.
     destruct HH as [vs' [e' [es2 [Heq' [Hconst HH]]]]].
     assert (Heqcopy:=Heq).
     rewrite Heq' in Heqcopy.
     assert (vs ++ (vs' ++ [e'] ++ es2)%list ++ es' = (vs ++ vs') ++ [e'] ++ (es2 ++ es'))%SEQ as Heq2.
     { rewrite !app_assoc. repeat erewrite app_assoc. auto. }
-    rewrite Heq2 in Heqcopy. clear Heq2.
+    rewrite Heq2 in Heqcopy. clear Heq2. unfold to_val in He. unfold to_val in HH.
     apply first_values in Heqcopy as [Heq1 [Heq2 Heq3]];auto.
-    2: destruct HH as [?|[? ?]];auto.
-    2: apply const_list_app;auto.
+    2: (destruct HH as [-> | [[-> _] | [[? ->] | ->]]]; by intros [? ?]).
+    2: by (destruct He as [-> | ->]; intros [? ?]).
+    2: destruct HH as [?|[? |[?|?]]];auto.
+    all: try apply const_list_app;auto.
     subst e'.
     rewrite -Heq1 in Heq.
     rewrite -Heq3 in Heq.
@@ -648,8 +684,7 @@ Qed.
     apply app_inv_head in Heq.
     apply app_inv_tail in Heq.
     eexists _,_. eauto.
-  Qed.
-     
+  Qed.     
 
   Lemma lfilled_one_depth_trap k lh es vs n es' es'' :
     const_list vs ->
@@ -665,7 +700,7 @@ Qed.
     apply first_values in H0 as [? [? ?]];auto.
     simplify_eq.
     inversion H4;subst.
-    do 2 destruct vs0 =>//.
+    do 2 destruct vs0 =>//. all: by intros [? ?].
   Qed.    
 
   Lemma reduce_return_trap_label es hs' s' f' vs n es'0 es'' es' :
@@ -709,7 +744,8 @@ Qed.
     { apply lfilled_Ind_Equivalent in H. inversion H;subst.
       apply const_list_snoc_eq3 in H1;auto.
       2: eapply reduce_not_nil;eauto.
-      2: unfold to_val; eapply val_head_stuck_reduce;eauto.
+      2,3: unfold to_val; eapply val_head_stuck_reduce in Hred;eauto.
+      2,3: by rewrite Hred; try intros [? ?]; try intros ?. 
       destruct H1 as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst2]]]]].
       subst.
       edestruct IHHred as [lh' Hlh'];eauto.
@@ -732,7 +768,7 @@ Qed.
       2: intros;done.
       subst.
       apply val_head_stuck_reduce in Hred.
-      done.
+      done. all: by intros [? ?].
     }
   Qed.
 
@@ -779,7 +815,7 @@ Qed.
           apply andb_true_iff in Hconst as [? ?]. done. }
       }
       { apply lfilled_Ind_Equivalent in H0; inversion H0;subst.
-        apply first_values in H1 as [? [? ?]];auto. done.
+        apply first_values in H1 as [? [? ?]];auto. done. all: by intros [? ?].
       }      
     }
     { subst. symmetry in Heq.
@@ -793,12 +829,12 @@ Qed.
       apply lfilled_Ind_Equivalent in H.
       inversion H;subst.
       { apply const_list_snoc_eq3 in H1 as [? [? [? [? [? ?]]]]];auto;subst.
-        eapply IHHred;eauto. }
+        eapply IHHred;eauto. all: rewrite /to_val Hnval. by intros [? ?]. by intros ?. }
       { apply first_values in H1 as [? [? ?]];auto. simplify_eq.
         apply lfilled_Ind_Equivalent in H6.
         apply lfilled_swap with (es':=es') in H6 as Hfill'.
         destruct Hfill' as [LI' Hfill'].
-        exists LI'. eapply r_label;eauto.
+        exists LI'. eapply r_label;eauto. all: by intros [? ?].
       }
     }
   Qed.
@@ -820,10 +856,12 @@ Qed.
           repeat erewrite app_assoc. auto. }
         rewrite Heq in H0;clear Heq.
         apply first_values in H0 as [? [? ?]];auto.
+        all: try by intros [? ?].
         2: apply const_list_app;auto. done.
       }
       { subst.
         apply first_values in H0 as [? [? ?]];auto. done.
+        all: by intros [? ?].
       }      
     }
     { inversion Hfill;subst.
@@ -837,6 +875,7 @@ Qed.
           repeat erewrite app_assoc. auto. }
         rewrite Heq in H;clear Heq.
         apply first_values in H as [? [? ?]];auto.
+        all: try by intros [? ?].
         2: apply const_list_app;auto. done.
       }
       { simplify_eq.
@@ -844,14 +883,15 @@ Qed.
         simplify_eq.
         apply lfilled_Ind_Equivalent in H6.
         apply lfilled_Ind_Equivalent in H1.
-        eapply IHi in H1;eauto. Unshelve. apply 0. apply 0. apply lh'.
+        eapply IHi in H1;eauto. all: try by intros [? ?]. Unshelve. apply 0. apply 0. apply lh'.
       }
     }
   Qed.
 
   Lemma lfilled_singleton (a : administrative_instruction) k lh es (les : list administrative_instruction) i lh'  :
     es ≠ [] ->
-    to_val es = None ->
+    ((∃ v, to_val es = Some (immV v)) -> False) ->
+    (to_val es = Some trapV -> False) ->
     to_val [a] = None ∨ a = AI_trap ->
     (∀ n e1 e2, a ≠ AI_label n e1 e2) ->
     lfilled k lh es les -> 
@@ -859,14 +899,14 @@ Qed.
     ∃ j lh, lfilled j lh [a] es ∧ j + k = i.
   Proof.
     revert a k lh es les lh'.
-    induction i;intros a k lh es les lh' Hne Hnone Ha Hnlabel
+    induction i;intros a k lh es les lh' Hne Hnone1 Hnone2 Ha Hnlabel
                        Hfill1%lfilled_Ind_Equivalent Hfill2%lfilled_Ind_Equivalent.
     { inversion Hfill2;subst.
       inversion Hfill1;subst.
       { apply const_list_snoc_eq3 in H0 as [? [? [? [? [? ?]]]]];auto.
         subst. exists 0, (LH_base x x0). split;[|lia]. apply lfilled_Ind_Equivalent. by constructor. }
       { apply first_values in H0 as [? [? ?]];auto. subst.
-        specialize (Hnlabel n es'0 LI). done. }
+        specialize (Hnlabel n es'0 LI). done. 2: unfold to_val in Ha;destruct Ha as [-> | ->]. all: try by intros [? ?]. }
     }
     { inversion Hfill2;subst.
       inversion Hfill1;subst.
@@ -880,7 +920,7 @@ Qed.
         apply lfilled_Ind_Equivalent in H6.
         eapply IHi in H1;[|eauto..].
         destruct H1 as [? [? ?]].
-        eexists _,_. split;[apply H|lia]. }
+        eexists _,_. split;[apply H|lia]. all:try by intros [? ?]. }
     }
   Qed.
   
@@ -921,7 +961,7 @@ Qed.
       eapply lfilled_singleton in Hlh' as [? [? ?]];[..|apply H];auto.
       eapply IHHred. apply H1.
       eapply reduce_not_nil;eauto.
-      eapply val_head_stuck_reduce;eauto. }
+      1,2: unfold to_val; eapply val_head_stuck_reduce in Hred as ->. by intros [? ?]. by intros ?. }
     { intros i lh Hfill%lfilled_Ind_Equivalent.
       inversion Hfill;subst.
       all: do 2 destruct vs =>//. }
@@ -948,6 +988,7 @@ Qed.
         try by do 3 destruct vs =>//.
       all: try apply first_values in H3 as [? [? ?]];auto;try done.
       all: try by do 2 destruct vs0 =>//.
+      all: try by intros [? ?].
       { simplify_eq.
         destruct vs0,es'' =>//.
         erewrite app_nil_l in H0. simplify_eq.
@@ -969,13 +1010,14 @@ Qed.
         2,3: try by destruct vs0 =>//.
         erewrite app_nil_l in H2. simplify_eq.
         apply lfilled_Ind_Equivalent in H7.
-        eapply lfilled_singleton in H7;[..|apply H1];auto.
+        eapply lfilled_singleton in H7 ;[..|apply H1];auto.
         2: destruct vs =>//.
         destruct H7 as [? [? [Hcontr ?]]].
         apply lfilled_Ind_Equivalent in Hcontr.
         inversion Hcontr.
-        1,2: apply first_values in H2 as [? [? ?]];auto;done.
-        apply to_val_cat_None2. auto. }
+        1,2: apply first_values in H2 as [? [? ?]];auto;try by intros [? ?]. done. done.
+        intros [? [? ?]%to_val_cat]. done.
+        intros ?%to_val_trap_is_singleton. do 2 destruct vs =>//. }
       { destruct vs =>//;[|do 2 destruct vs =>//].
         inversion H0;subst. done. }
       { destruct vs =>//;[|do 2 destruct vs =>//].
@@ -985,9 +1027,10 @@ Qed.
       
     }
     { apply first_values in H9 as [? [? ?]];auto. done.
+      1,2: by intros [? ?].
       subst. apply v_to_e_is_const_list. }
     { apply first_values in H9 as [? [? ?]];auto. done.
-      subst. apply v_to_e_is_const_list. }
+      subst. 1,2: by intros [? ?]. simplify_eq. apply v_to_e_is_const_list. }
     { subst.
       apply lfilled_Ind_Equivalent in H.
       inversion H.
@@ -996,7 +1039,7 @@ Qed.
         inversion H0;subst.
         apply const_list_snoc_eq3 in H2 as [? [? [? [? [? ?]]]]];auto.
         2: eapply reduce_not_nil;eauto.
-        2: eapply val_head_stuck_reduce;eauto.
+        2,3: rewrite /to_val; eapply val_head_stuck_reduce in Hred as ->. 2: by intros [? ?]. 2: done.
         subst.
         assert (lfilled 0 (LH_base x x0) [AI_trap] (x ++ [AI_trap] ++ x0)) as Hf%IHHred.
         { apply lfilled_Ind_Equivalent. constructor. auto. }
@@ -1016,7 +1059,7 @@ Qed.
           (* apply const_list_app;auto. *)
         }
       }
-      { apply first_values in H2 as [? [? ?]];auto. done. }
+      { apply first_values in H2 as [? [? ?]];auto. done. by intros [? ?]. by intros [? ?]. }
     }
     { subst.
       apply lfilled_Ind_Equivalent in H.
@@ -1024,7 +1067,7 @@ Qed.
       inversion H;subst.
       { apply const_list_snoc_eq3 in H3 as [? [? [? [? [? ?]]]]];auto.
         2: eapply reduce_not_nil;eauto.
-        2: eapply val_head_stuck_reduce;eauto.
+        2,3: rewrite /to_val; eapply val_head_stuck_reduce in Hred as ->. 2: by intros [? ?]. 2: done.
         subst.
         inversion H0;subst.
         destruct IHHred with (i := S k0) (lh:=LH_rec x n es'0 lh'0 x0) as [lh' [j [Hfill'%lfilled_Ind_Equivalent Hle]]].
@@ -1050,7 +1093,7 @@ Qed.
         apply lfilled_Ind_Equivalent in H8.
         eapply lfilled_singleton in H2 as [? [? [HH%IHHred Heq]]];[..|apply H8];auto.
         2: eapply reduce_not_nil;eauto.
-        2: eapply val_head_stuck_reduce;eauto.
+        2,3: rewrite /to_val; eapply val_head_stuck_reduce in Hred as ->. 2: by intros [? ?]. 2: done.
         inversion H0;subst.
         destruct HH as [lh2 [j2 [Hlh2 Hle2]]].
         apply lfilled_Ind_Equivalent in H13.
@@ -1058,6 +1101,7 @@ Qed.
         exists (LH_rec vs n es'0 x1 es''),(S (j2 + k1)). split;[|lia].
         apply lfilled_Ind_Equivalent;constructor;auto.
         apply lfilled_Ind_Equivalent;auto.
+        1,2: by intros [? ?].
       }
     }
   Qed.
@@ -1070,5 +1114,394 @@ Qed.
     eapply trap_reduce_state_eq in Hred as Heq;eauto.
     eapply trap_reduce_lfilled in Hred as Hf;eauto.
   Qed.
+
+  Lemma first_values_elem_of vs1 e1 es1 vs2 e2 es2 :
+  ((∃ v, to_val [e1] = Some (immV v)) -> False) ->
+  ((∃ v, to_val [e2] = Some (immV v)) -> False) ->
+  e2 ∉ vs1 ->
+  e1 ∉ vs2 ->
+  vs1 ++ e1 :: es1 = vs2 ++ e2 :: es2 ->
+  vs1 = vs2 /\ e1 = e2 /\ es1 = es2.
+Proof.
+  intros He1 He2 Hvs1 Hvs2 Heq.
+  generalize dependent vs2; induction vs1 ; intros.
+  { destruct vs2 ; inversion Heq => //=. rewrite <- H0 in Hvs2.
+    simpl in Hvs2. apply not_elem_of_cons in Hvs2 as [Hcontr _]. done. }
+  destruct vs2 ; inversion Heq.
+  { rewrite H0 in Hvs1.
+    simpl in Hvs1. apply not_elem_of_cons in Hvs1 as [Hcontr _]. done. }
+  assert (vs1 = vs2 /\ e1 = e2 /\ es1 = es2) as H ; last by destruct H ; subst.
+  apply not_elem_of_cons in Hvs1 as [Hne Hvs1].
+  apply not_elem_of_cons in Hvs2 as [Hne' Hvs2].
+  apply IHvs1 => //=.
+Qed.
+Lemma const_list_elem_of e es :
+  const_list es ->
+  ((∃ v, to_val [e] = Some (immV v)) -> False) ->
+  e ∉ es.
+Proof.
+  intros Hes Hv.
+  induction es.
+  { apply not_elem_of_nil. }
+  { destruct (e == a) eqn:Heq.
+    { revert Heq. move/eqP =>Heq.
+      destruct a;try done. destruct b;try done.
+      simplify_eq. exfalso. apply Hv. eauto. }
+    simpl in Hes. apply andb_true_iff in Hes as [He Hes].
+    revert Heq. move/eqP =>Heq.
+    apply IHes in Hes.
+    apply not_elem_of_cons. auto. }
+Qed.
+Lemma const_list_l_snoc_eq3 es'' :
+  forall vs es ves e es',
+    const_list ves ->
+    e ∉ vs ->
+    es ≠ [] ->
+    ((∃ v, to_val es = Some (immV v)) -> False) ->
+    (to_val es = Some trapV -> False) ->
+    ((∃ v, to_val [e] = Some (immV v)) -> False) ->
+    (vs ++ es ++ es')%SEQ = ves ++ [e] ++ es'' ->
+    ∃ vs2 es2, ves = vs ++ vs2 ∧ es = vs2 ++ [e] ++ es2 ∧ es'' = es2 ++ es' ∧ const_list vs2.
+  Proof.
+    intros vs es ves e es' Hconst1 Hnin Hneq Hnval1 Hnval2 He Heq.
+    apply to_val_None_first_singleton in Hnval2 as HH;auto.
+    destruct HH as [vs' [e' [es2 [Heq' [Hconst HH]]]]].
+    assert (Heqcopy:=Heq).
+    rewrite Heq' in Heqcopy.
+    assert (vs ++ (vs' ++ [e'] ++ es2)%list ++ es' = (vs ++ vs') ++ [e'] ++ (es2 ++ es'))%SEQ as Heq2.
+    { rewrite !app_assoc. repeat erewrite app_assoc. auto. }
+    rewrite Heq2 in Heqcopy. clear Heq2. unfold to_val in He. (* unfold to_val in HH. *)
+    apply first_values_elem_of in Heqcopy as [Heq1 [Heq2 Heq3]];auto.
+    (* all: unfold iris.to_val in HH. *)
+    2: (destruct HH as [-> | [[-> _] | [[? ->] | ->]]]; by intros [? ?]).
+    2: { apply not_elem_of_app. split;[|apply const_list_elem_of;auto]. auto. }
+    2: apply const_list_elem_of;auto.
+    2: (destruct HH as [-> | [[-> _] | [[? ->] | ->]]]; by intros [? ?]).
+    subst e'.
+    rewrite -Heq1 in Heq.
+    rewrite -Heq3 in Heq.
+    assert ((vs ++ vs')%SEQ ++ [e] ++ (es2 ++ es')%SEQ =
+              (vs ++ (vs' ++ [e] ++ es2) ++ es')%SEQ) as Hassoc.
+    { rewrite !app_assoc. repeat erewrite app_assoc. auto. }
+    rewrite Hassoc in Heq;clear Hassoc.
+    apply app_inv_head in Heq.
+    apply app_inv_tail in Heq.
+    eexists _,_. eauto.    
+  Qed.  
+
+Lemma elem_of_app_l :
+  ∀ (A : Type) (l1 l2 : seq.seq A) (x : A) (eqA : EqDecision A), x ∈ l1 ++ l2 ↔ x ∈ l1 ∨ (x ∈ l2 ∧ x ∉ l1).
+Proof.
+  intros A l1 l2 x eqA.
+  induction l1.
+  { rewrite app_nil_l.
+    split;intros.
+    right.
+    split;auto.
+    apply not_elem_of_nil.
+    destruct H as [? | [? ?]];try done.
+    inversion H.
+  }
+  { simpl. destruct (decide (x = a)).
+    { simplify_eq. split.
+      intros Ha. left. constructor.
+      intros _. constructor. }
+    { split.
+      { intros [Hcontr|[Ha | [Ha Hnin]]%IHl1]%elem_of_cons;[done|..].
+        left. by constructor.
+        right. split;auto. apply not_elem_of_cons;auto. }
+      { intros [[Hcontr|Ha]%elem_of_cons|[Hin Hnin]];[done|..].
+        constructor. apply elem_of_app. by left.
+        constructor. apply elem_of_app. by right. }
+    }
+  }
+Qed.
+
+Lemma filled_is_val_br_app_cases : ∀ i lh es1 es2 LI j v1 e1 ,
+    iris.to_val LI = Some (brV j v1 e1) ->
+    (es1 ++ es2) ≠ [] ->
+    lfilled i lh (es1 ++ es2) LI ->
+    i = 0 ∧ ∃ vs es, lh = LH_base vs es ∧ ((∃ es11 es12, es1 = es11 ++ (AI_basic (BI_br j)) :: es12 ∧ const_list es11) ∨
+                                           (∃ es21 es22, es2 = es21 ++ (AI_basic (BI_br j)) :: es22 ∧ const_list es21 ∧ const_list es1) ∨
+                                           (∃ es1' es2', es = es1' ++ (AI_basic (BI_br j)) :: es2' ∧ const_list es1 ∧ const_list es2 ∧ const_list es1')).
+Proof.
+  assert (EqDecision administrative_instruction) as Heqa.
+  { unfold EqDecision. apply administrative_instruction_eq_dec. }
+  
+  intros i lh es1 es2 LI j v1 e1 HLI Hnil Hfill.
+  eapply filled_is_val_br in Hfill as Heq;eauto. subst.
+  apply lfilled_Ind_Equivalent in Hfill.
+  inversion Hfill.
+  simplify_eq. split;auto.
+  exists vs,es'. split;auto.
+  clear Hfill.
+  apply to_val_br in HLI as Heq.
+  repeat erewrite app_assoc in Heq.
+  rewrite -!app_assoc in Heq.
+  assert ((AI_basic (BI_br j)) ∈ (vs ++ es1 ++ es2 ++ es')) as Hin.
+  { rewrite Heq. apply elem_of_app. right. constructor. }
+  
+  apply elem_of_app in Hin as [Hcontr | Hin].
+  { apply elem_of_list_split in Hcontr as [l1 [l2 Hl]]. subst.
+    apply const_list_app in H as [_ H]. done. }
+
+  apply elem_of_app_l in Hin as [Hin | [Hin Hnin]].
+  { left.
+    eapply elem_of_list_split_l in Hin as [l1 [l2 [-> Hnin]]].
+    rewrite (app_assoc _ es2) in Heq.
+    apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
+    2: apply v_to_e_is_const_list.
+    2: apply const_list_elem_of;auto;by intros [? ?].
+    2: by intros [? [[_ ?]%to_val_cat _]%to_val_cat].
+    2: intros ?%to_val_trap_is_singleton;by do 2 destruct l1 =>//.
+    destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]]. Unshelve.
+    rewrite separate1 in Heq2. rewrite -!app_assoc in Heq2.
+    apply const_list_l_snoc_eq3 in Heq2;auto;try by intros [? ?].
+    2: intros ?;done.
+    destruct Heq2 as [vs3 [es4 [Heq21 [Heq22 [Heq23 Hconst']]]]].
+    destruct vs3 =>//;[|destruct vs3 =>//].
+    destruct es4 =>//. rewrite app_nil_l in Heq23.
+    rewrite app_nil_l app_nil_r in Heq22.
+    rewrite app_nil_r in Heq21. simplify_eq.
+    exists l1,l2. split;auto. }
+  apply elem_of_app_l in Hin as [Hin | [Hin Hnin2]].
+  { right;left.
+    eapply elem_of_list_split_l in Hin as [l1 [l2 [-> Hnin']]].
+    rewrite separate1 in Heq. rewrite -!app_assoc in Heq.
+    do 2 rewrite app_assoc in Heq. exists l1,l2. split;auto.
+    apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
+    4: intros ?;done.
+    2: apply v_to_e_is_const_list.
+    2: { apply not_elem_of_app;split;auto.
+         apply not_elem_of_app;split;auto.
+         apply const_list_elem_of;auto. by intros [? ?]. }
+    destruct Heq as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+    simplify_eq.
+    destruct vs2 =>//;[|destruct vs2 =>//].
+    destruct es2 =>//. rewrite app_nil_r in Heq1.
+    pose proof (v_to_e_is_const_list v1) as Hc.
+    rewrite -to_e_list_fmap Heq1 in Hc.
+    apply const_list_app in Hc as [[? ?]%const_list_app ?]. auto. }
+  { right;right.
+    eapply elem_of_list_split_l in Hin as [l1 [l2 [-> Hnin']]].
+    rewrite separate1 in Heq.
+    do 3 rewrite app_assoc in Heq.
+    exists l1,l2. split;auto.
+    apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
+    4: intros ?;done.
+    2: apply v_to_e_is_const_list.
+    2: { repeat (apply not_elem_of_app;split;auto).
+         apply const_list_elem_of;auto. by intros [? ?]. }
+    destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+    simplify_eq.
+    destruct vs2 =>//;[|destruct vs2 =>//].
+    destruct es3 =>//.
+    rewrite app_nil_r in Heq1.
+    pose proof (v_to_e_is_const_list v1) as Hc.
+    rewrite -to_e_list_fmap Heq1 in Hc.
+    apply const_list_app in Hc as [[[? ?]%const_list_app ?]%const_list_app ?]. auto.
+  }
+  all: auto.
+Qed.
+
+Lemma filled_is_val_ret_app_cases : ∀ i lh es1 es2 LI v1 e1 ,
+    iris.to_val LI = Some (retV v1 e1) ->
+    (es1 ++ es2) ≠ [] ->
+    lfilled i lh (es1 ++ es2) LI ->
+    i = 0 ∧ ∃ vs es, lh = LH_base vs es ∧ ((∃ es11 es12, es1 = es11 ++ (AI_basic (BI_return)) :: es12 ∧ const_list es11) ∨
+                                           (∃ es21 es22, es2 = es21 ++ (AI_basic (BI_return)) :: es22 ∧ const_list es21 ∧ const_list es1) ∨
+                                           (∃ es1' es2', es = es1' ++ (AI_basic (BI_return)) :: es2' ∧ const_list es1 ∧ const_list es2 ∧ const_list es1')).
+Proof.
+  assert (EqDecision administrative_instruction) as Heqa.
+  { unfold EqDecision. apply administrative_instruction_eq_dec. }
+  
+  intros i lh es1 es2 LI v1 e1 HLI Hnil Hfill.
+  eapply filled_is_val_ret in Hfill as Heq;eauto. subst.
+  apply lfilled_Ind_Equivalent in Hfill.
+  inversion Hfill.
+  simplify_eq. split;auto.
+  exists vs,es'. split;auto.
+  clear Hfill.
+  apply to_val_ret in HLI as Heq.
+  repeat erewrite app_assoc in Heq.
+  rewrite -!app_assoc in Heq.
+  assert ((AI_basic (BI_return)) ∈ (vs ++ es1 ++ es2 ++ es')) as Hin.
+  { rewrite Heq. apply elem_of_app. right. constructor. }
+  
+  apply elem_of_app in Hin as [Hcontr | Hin].
+  { apply elem_of_list_split in Hcontr as [l1 [l2 Hl]]. subst.
+    apply const_list_app in H as [_ H]. done. }
+
+  apply elem_of_app_l in Hin as [Hin | [Hin Hnin]].
+  { left.
+    eapply elem_of_list_split_l in Hin as [l1 [l2 [-> Hnin]]].
+    rewrite (app_assoc _ es2) in Heq.
+    apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
+    2: apply v_to_e_is_const_list.
+    2: apply const_list_elem_of;auto;by intros [? ?].
+    2: by intros [? [[_ ?]%to_val_cat _]%to_val_cat].
+    2: intros ?%to_val_trap_is_singleton;by do 2 destruct l1 =>//.
+    destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]]. Unshelve.
+    rewrite separate1 in Heq2. rewrite -!app_assoc in Heq2.
+    apply const_list_l_snoc_eq3 in Heq2;auto;try by intros [? ?].
+    2: intros ?;done.
+    destruct Heq2 as [vs3 [es4 [Heq21 [Heq22 [Heq23 Hconst']]]]].
+    destruct vs3 =>//;[|destruct vs3 =>//].
+    destruct es4 =>//. rewrite app_nil_l in Heq23.
+    rewrite app_nil_l app_nil_r in Heq22.
+    rewrite app_nil_r in Heq21. simplify_eq.
+    exists l1,l2. split;auto. }
+  apply elem_of_app_l in Hin as [Hin | [Hin Hnin2]].
+  { right;left.
+    eapply elem_of_list_split_l in Hin as [l1 [l2 [-> Hnin']]].
+    rewrite separate1 in Heq. rewrite -!app_assoc in Heq.
+    do 2 rewrite app_assoc in Heq. exists l1,l2. split;auto.
+    apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
+    4: intros ?;done.
+    2: apply v_to_e_is_const_list.
+    2: { apply not_elem_of_app;split;auto.
+         apply not_elem_of_app;split;auto.
+         apply const_list_elem_of;auto. by intros [? ?]. }
+    destruct Heq as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+    simplify_eq.
+    destruct vs2 =>//;[|destruct vs2 =>//].
+    destruct es2 =>//. rewrite app_nil_r in Heq1.
+    pose proof (v_to_e_is_const_list v1) as Hc.
+    rewrite -to_e_list_fmap Heq1 in Hc.
+    apply const_list_app in Hc as [[? ?]%const_list_app ?]. auto. }
+  { right;right.
+    eapply elem_of_list_split_l in Hin as [l1 [l2 [-> Hnin']]].
+    rewrite separate1 in Heq.
+    do 3 rewrite app_assoc in Heq.
+    exists l1,l2. split;auto.
+    apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
+    4: intros ?;done.
+    2: apply v_to_e_is_const_list.
+    2: { repeat (apply not_elem_of_app;split;auto).
+         apply const_list_elem_of;auto. by intros [? ?]. }
+    destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+    simplify_eq.
+    destruct vs2 =>//;[|destruct vs2 =>//].
+    destruct es3 =>//.
+    rewrite app_nil_r in Heq1.
+    pose proof (v_to_e_is_const_list v1) as Hc.
+    rewrite -to_e_list_fmap Heq1 in Hc.
+    apply const_list_app in Hc as [[[? ?]%const_list_app ?]%const_list_app ?]. auto.
+  }
+  all: auto.
+Qed.
+
+Lemma of_val_br_app_r n v es1 es2 :
+  of_val (brV n v es1) ++ es2 = of_val (brV n v (es1 ++ es2)).
+Proof.
+  simpl. destruct es2.
+  { repeat erewrite app_nil_r. auto. }
+  { rewrite separate1. rewrite (separate1 a).
+    repeat erewrite app_assoc. rewrite -!app_assoc. f_equiv.
+    simpl.  auto. }
+Qed.
+
+Lemma of_val_ret_app_r v es1 es2 :
+  of_val (retV v es1) ++ es2 = of_val (retV v (es1 ++ es2)).
+Proof.
+  simpl. destruct es2.
+  { repeat erewrite app_nil_r. auto. }
+  { rewrite separate1. rewrite (separate1 a).
+    repeat erewrite app_assoc. rewrite -!app_assoc. f_equiv.
+    simpl.  auto. }
+Qed.
+
+Lemma lfilled_to_val_app i lh es1 es2 LI vs :
+  lfilled i lh (es1 ++ es2)%list LI ->
+  to_val LI = Some vs ->
+  (∃ vs', to_val es1 = Some vs' ∧ lfilled i lh ((iris.of_val vs') ++ es2) LI).
+Proof.
+  intros Hfilled Hetov.
+  destruct vs.
+  { pose proof (filled_is_val_imm _ _ _ _ _ Hetov Hfilled) as
+    [vs [es' [-> [-> [Hconst1 Hconst2]]]]].
+    apply const_list_is_val in Hconst1 as [v1 Hv1].
+    apply const_list_is_val in Hconst2 as [v2 Hv2].
+    edestruct fill_val as [vs12 [Hvs12 Heql]];eauto.
+    assert (Hvs12':=Hvs12). unfold to_val.
+    apply to_val_cat in Hvs12' as [-> Hev2].
+    apply iris.of_to_val in Hev2 as <-. eexists. split; eauto.
+    rewrite -!of_val_imm.
+    erewrite <- fmap_app. rewrite take_drop.
+    rewrite of_val_imm.
+    apply lfilled_Ind_Equivalent in Hfilled.
+    inversion Hfilled;simplify_eq.
+    erewrite of_to_val;eauto.
+    apply lfilled_Ind_Equivalent. constructor. auto. }
+  { apply to_val_trap_is_singleton in Hetov as Heq. subst.
+    apply lfilled_Ind_Equivalent in Hfilled.
+    inversion Hfilled.
+    2: { exfalso. do 2 destruct vs =>//=. }
+    simplify_eq.
+    apply app_eq_singleton in H as [[HH HH']|[HH HH']];subst.
+    { exfalso. destruct es1,es2,es' =>//=. }
+    apply app_eq_singleton in HH' as [[HH HH']|[HH HH']];subst.
+    { apply app_eq_singleton in HH as [[-> ->]|[-> ->]].
+      simpl. eauto. eauto. }
+    { apply app_nil in HH as [-> ->]. eauto. }
+  }
+  { destruct (decide (es1 ++ es2 = [])).
+    { apply app_nil in e0 as [-> ->]. eauto. }
+    eapply filled_is_val_br_app_cases in Hfilled as HH;[|eauto..].
+    destruct HH as [-> [vs [es [-> HH]]]].
+    destruct HH as [[es11 [es12 [Heq Hconst]]]
+                   |[[es11 [es12 [Heq (Hconst & Hconst')]]]
+                    |[es11 [es12 [Heq (Hconst&Hconst'&Hconst'')]]]]].
+    { apply const_es_exists in Hconst as Hv.
+      destruct Hv as [v Hv].
+      exists (brV n v es12). rewrite -to_val_br_eq Heq -Hv.
+      split;auto. rewrite Hv in Heq. erewrite of_to_val. 2: apply to_val_br_eq.
+      rewrite -Heq. auto. }
+    { apply const_list_is_val in Hconst' as Hv.
+      destruct Hv as [v Hv].
+      exists (immV v). split;auto. erewrite of_to_val;eauto. }
+    { apply const_list_is_val in Hconst as Hv.
+      destruct Hv as [v Hv].
+      exists (immV v). split;auto. erewrite of_to_val;eauto. }  
+  }
+  { destruct (decide (es1 ++ es2 = [])).
+    { apply app_nil in e0 as [-> ->]. eauto. }
+    eapply filled_is_val_ret_app_cases in Hfilled as HH;[|eauto..].
+    destruct HH as [-> [vs [es [-> HH]]]].
+    destruct HH as [[es11 [es12 [Heq Hconst]]]
+                   |[[es11 [es12 [Heq (Hconst & Hconst')]]]
+                    |[es11 [es12 [Heq (Hconst&Hconst'&Hconst'')]]]]].
+    { apply const_es_exists in Hconst as Hv.
+      destruct Hv as [v Hv].
+      exists (retV v es12). rewrite -to_val_ret_eq Heq -Hv.
+      split;auto. rewrite Hv in Heq. erewrite of_to_val. 2: apply to_val_ret_eq.
+      rewrite -Heq. auto. }
+    { apply const_list_is_val in Hconst' as Hv.
+      destruct Hv as [v Hv].
+      exists (immV v). split;auto. erewrite of_to_val;eauto. }
+    { apply const_list_is_val in Hconst as Hv.
+      destruct Hv as [v Hv].
+      exists (immV v). split;auto. erewrite of_to_val;eauto. }  
+  }
+Qed.
+
+Lemma lfilled_to_val_0 i lh e es v :
+  lfilled i lh e es ->
+  iris.to_val es = Some v ->
+  i = 0.
+Proof.
+  intros Hfill Hes.
+  apply lfilled_Ind_Equivalent in Hfill.
+  inversion Hfill;auto.
+  simplify_eq.
+  exfalso.
+  destruct v.
+  { apply to_val_const_list in Hes as [? ?]%const_list_app. done. }
+  { apply to_val_trap_is_singleton in Hes. do 2 destruct vs =>//. }
+  { apply to_val_br in Hes. apply first_values in Hes as [? [? ?]];auto;try by intros [? ?].
+    done. apply v_to_e_is_const_list. }
+  { apply to_val_ret in Hes. apply first_values in Hes as [? [? ?]];auto;try by intros [? ?].
+    done. apply v_to_e_is_const_list. }
+Qed.  
   
 End iris_properties.
