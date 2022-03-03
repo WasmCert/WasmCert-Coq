@@ -7,9 +7,6 @@ From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris_locations iris_properties stdpp_aux iris.
 Require Export datatypes host operations properties opsem instantiation.
 
-
-
-
 Section Iris_host.
 
 Import DummyHosts.
@@ -123,11 +120,7 @@ Definition prim_step (e : host_expr) (s : state) (os : list observation) (e' : h
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
 Proof.
-  destruct 0 => //.
-  move: l.
-  elim => //=.
-  move => v0 v IH.
-  by rewrite IH.
+  destruct 0 => //; move:l; elim => //=; move => ? ? IH; by rewrite IH => //.
 Qed.
 
 Lemma of_to_val e v : to_val e = Some v → of_val v = e.
