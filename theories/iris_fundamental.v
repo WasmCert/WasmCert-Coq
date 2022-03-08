@@ -363,44 +363,45 @@ Section fundamental.
     }
   Qed.
   
-  Lemma push_base_return v lh tm n es f :
+  Lemma push_base_return v lh tm n es f Φf :
     lholed_valid lh ->
     interp_val tm (immV v) -∗
     ↪[frame] f -∗
-    (↪[frame] f -∗ WP of_val (immV v) CTX lh_depth lh; lh {{ vs, interp_val tm vs ∗ ∃ f, ↪[frame]f }}) -∗
+    Φf f -∗           
+    (∀ f, ↪[frame] f ∗ Φf f -∗ WP of_val (immV v) CTX lh_depth lh; lh {{ vs, interp_val tm vs ∗ ∃ f, ↪[frame]f ∗ Φf f }}) -∗
     WP of_val (immV v) CTX S (lh_depth lh); push_base lh n es [] []
-                    {{ vs, interp_val tm vs ∗ ∃ f, ↪[frame]f }}.
+                    {{ vs, interp_val tm vs ∗ ∃ f, ↪[frame]f ∗ Φf f }}.
   Proof.
     iInduction lh as [] "IH".
-    { simpl. iIntros (Hvalid) "#Hv Hf H".
-      iApply (wp_val_return' with "[$Hf] [H]").
+    { simpl. iIntros (Hvalid) "#Hv Hf Hfv H".
+      iApply (wp_val_return' with "[$Hf] [H Hfv]").
       { apply const_list_of_val. }
       { iIntros "Hf". iApply wp_wasm_empty_ctx.
         iApply wp_base_push;auto. simpl. erewrite app_nil_r.
         iApply "H". iFrame.
       }
     }
-    { iIntros (Hvalid) "#Hv Hf H".
-      iApply (wp_label_push_nil_inv with "[Hf H]").
+    { iIntros (Hvalid) "#Hv Hf Hfv H".
+      iApply (wp_label_push_nil_inv with "[Hf H Hfv]").
       iSimpl.
       iApply iRewrite_nil_r_ctx.
       iApply (wp_seq_can_trap_ctx _ _ _
                 (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w))))%I.
-      iFrame.
-      iSplitR.
+      iFrame. iSplitR.
       { iIntros "Hcontr".
         iDestruct "Hcontr" as "[%Hcontr _]". done. }
-      iSplitR;[auto|].
-      iSplitR.
+      iSplit;[auto|].
+      iSplitL "Hfv".
       { iIntros "Hf".
-        iApply (wp_wand _ _ _ (λ w, (⌜w = trapV⌝ ∨ ⌜w = immV v⌝ ∗ ([∗ list] w0;τ ∈ v;tm, interp_value τ w0)) ∗ ↪[frame] f)%I with "[Hf]").
-        { iApply (wp_label_value with "Hf");[by rewrite of_val_imm to_of_val|].
+        iApply (wp_wand _ _ _ (λ w, ((⌜w = trapV⌝ ∨ ⌜w = immV v⌝ ∗ ([∗ list] w0;τ ∈ v;tm, interp_value τ w0)) ∗ ↪[frame] f) ∗ Φf f )%I with "[Hf Hfv]").
+        { iApply wp_frame_r. iFrame "Hfv".
+          iApply (wp_label_value with "Hf");[by rewrite of_val_imm to_of_val|].
           iDestruct "Hv" as "[%Hcontr | #Hv]";[done|].
           iDestruct "Hv" as (ws Heq) "Hv". simplify_eq.
           auto. }
-        { iIntros (v0) "[Hv0 Hf]".
-          iSplitR "Hf";[|eauto]. auto. } }
-      { iIntros (w) "[[-> Hw] Hf0]".
+        { iIntros (v0) "[[Hv0 Hf] Hfv]".
+          iSplitR "Hf Hfv";[|iExists _; iFrame]. auto. } }
+      { iIntros (w f0) "[[-> Hw] [Hf0 Hf0v]]".
         rewrite app_nil_r. iApply "H". iFrame.
       }
     }
@@ -417,23 +418,19 @@ Section fundamental.
     unfold semantic_typing, interp_expression.
     iIntros (i lh).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "Hf #Hv".
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iIntros (f vs) "[Hf #Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iApply (wp_trap_ctx with "[$]");auto. }
-      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+      iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap with "[] [$]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
     { iDestruct "Hv" as (ws ->) "Hv".
       iDestruct (big_sepL2_nil_inv_r with "Hv") as %->.
-      iDestruct "Hcont" as "[_ Hcont]".
       rewrite app_nil_l. iSimpl.
-      unfold interp_ctx_return, interp_expression.
       assert ([AI_basic (BI_const v)] = of_val (immV [v])) as ->;auto.
-      iApply "Hcont".
-      { iRight. iExists _. iSplit;eauto.
-        iSimpl; iSplit =>//. iApply interp_value_type_of. }
-      iExists _. iFrame. eauto. }
+      iApply wp_value;[done|]. iSplitR;[|eauto]. iLeft. iRight.
+      iExists _. iSplit;eauto.
+      iSimpl. iSplit =>//. iApply interp_value_type_of. }
   Qed.
 
   (* ----------------------------------------- UNOP ---------------------------------------- *)
@@ -454,32 +451,26 @@ Section fundamental.
     unfold semantic_typing, interp_expression.
     iIntros (Hunop i lh).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "Hf #Hv".
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iIntros (f vs) "[Hf #Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iApply (wp_trap_ctx with "[$]");auto. }
-      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+      iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap with "[] [$]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
     { iDestruct "Hv" as (ws ->) "Hv".
       iDestruct (big_sepL2_length with "Hv") as %Hlen.
       destruct ws as [|w ws];[done|destruct ws;[|done]].
       iSimpl in "Hv".
       iDestruct "Hv" as "[Hv _]".
-      iDestruct "Hcont" as "[_ Hcont]".
-      iSimpl. take_drop_app_rewrite 2.
-      iApply (wp_seq_can_trap_ctx _ _ _ (λ v, ⌜v = immV [app_unop op w]⌝)%I).
-      iFrame.
-      iSplitR;[done|].
-      iSplitR;[auto|].
-      iSplitR;[iIntros "Hf";iApply (wp_unop with "Hf");eauto|].
+      iSimpl.
+      iApply (wp_wand _ _ _ (λ v, ⌜v = immV [app_unop op w]⌝ ∗ ↪[frame] f)%I with "[Hf]").
+      { iApply (wp_unop with "Hf");eauto. }
       iIntros (w0) "[-> Hf]".
-      rewrite app_nil_r.
-      iApply "Hcont".
-      { iRight. iExists [app_unop op w]. iSplit;auto.
-        iSimpl. iSplit;auto.
-        iApply unop_type_agree_interp;auto. }
-      { iExists _. iFrame. eauto. }
+      iSplitR;[|eauto].
+      iLeft. iRight.
+      iExists [app_unop op w]. iSplit;auto.
+      iSimpl. iSplit;auto.
+      iApply unop_type_agree_interp;auto.
     }
   Qed.
 
@@ -547,50 +538,56 @@ Section fundamental.
     unfold semantic_typing, interp_expression.
     iIntros (Hbinop i lh).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "Hf #Hv".
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iIntros (f vs) "[Hf #Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iApply (wp_trap_ctx with "[$]");auto. }
-      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+      iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap with "[] [$]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
     { iDestruct "Hv" as (ws ->) "Hv".
       iDestruct (big_sepL2_length with "Hv") as %Hlen.
       destruct ws as [|w1 ws];[done|destruct ws as [|w2 ws];[done|destruct ws;[|done]]].
       iSimpl in "Hv".
       iDestruct "Hv" as "[Hv1 [Hv2 _]]".
-      iDestruct "Hcont" as "[_ Hcont]".
 
       destruct (app_binop op w1 w2) eqn:Hsome.
       
-      { iSimpl. take_drop_app_rewrite 3.
-        iApply (wp_seq_can_trap_ctx _ _ _ (λ v, ⌜v = immV [from_option id w1 (app_binop op w1 w2)]⌝)%I).
-        iFrame.
-        iSplitR;[done|].
-        iSplitR;[auto|].
-        iSplitR.
-        { iIntros "Hf". iApply (wp_binop with "Hf");eauto.
-          rewrite Hsome. auto. }
-        { iIntros (w0) "[-> Hf]".
-          rewrite app_nil_r.
-          iApply "Hcont".
-          { iRight. iExists [v]. rewrite Hsome. iSplit;auto.
-            iSimpl. iSplit;auto.
-            iApply (binop_type_agree_interp with "Hv1 Hv2");eauto. }
-          { iExists _. iFrame. eauto. }
-        }
-      }
+      { iSimpl.
+        iApply (wp_wand _ _ _ (λ v, ⌜v = immV [from_option id w1 (app_binop op w1 w2)]⌝ ∗ ↪[frame] f)%I with "[Hf]").
+        { iApply (wp_binop with "Hf");eauto. rewrite Hsome. eauto. }
+        iIntros (w0) "[-> Hf]".
+        iSplitR;[|eauto].
+        iLeft. iRight.
+        iExists _. iSplit;auto.
+        iSimpl. iSplit =>//. iApply (binop_type_agree_interp with "Hv1 Hv2");eauto.
+        rewrite Hsome. eauto. }
 
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iSimpl. take_drop_app_rewrite 3.
-        iApply wp_seq_trap_ctx. iFrame.
-        iIntros "Hf".
+      iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iSimpl.
         iApply wp_binop_failure;auto. }
-      { iIntros (v) "[-> Hf]". iSplitR;[|eauto]. by iLeft. }
+      { iIntros (v) "[-> Hf]". iSplitR;[|eauto]. iLeft. by iLeft. }
     }
   Qed.
 
   (* ------------------------------------------ BR ----------------------------------------- *)
+
+
+  Lemma get_layer_lh_depth lh i vs n lh' es' :
+    i < lh_depth lh ->
+    get_layer lh (lh_depth lh - S i) = Some (vs,n,lh',es') ->
+    lh_depth lh' = i.
+  Proof.
+    revert i vs n lh' es'.
+    induction lh;intros i vs m lh' es' Hlt Hlayer;try done.
+    simpl in *.
+    destruct (lh_depth lh - i) eqn:Hn.
+    { inversion Hlayer;subst.
+      lia. }
+    { assert (i < lh_depth lh);[lia|].
+      eapply IHlh;eauto.
+      assert (lh_depth lh - S i = n0) as ->;[lia|].
+      eauto. }
+  Qed.
   
   Lemma typing_br C i t1s ts t2s : ssrnat.leq (S i) (length (tc_label C)) ->
                                    plop2 C i ts ->
@@ -598,16 +595,15 @@ Section fundamental.
   Proof.
     iIntros (Hleq Hlookup) "".
     iIntros (j lh).
-    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #[Hc Hr]]]]" (f vs) "Hf #Hv".
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]" (f vs) "[Hf #Hfv] #Hv".
     unfold interp_expression.
     apply lholed_lengths_length_depth in Hlh_len as Hleneq.
     
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iApply (wp_trap_ctx with "[Hf]");auto. }
-      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+      iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap with "[] [Hf]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
     iDestruct "Hv" as (ws ->) "Hv".
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
 
@@ -615,156 +611,155 @@ Section fundamental.
     rewrite /plop2 nth_error_lookup in Hlookup.
     assert (tc_label C !! i = Some ts) as Hlook;[|clear Hlookup].
     { revert Hlookup. by move/eqP. }
-
+    iApply iRewrite_nil_r. erewrite <- app_assoc.
+    pose proof (to_val_br_eq ws i []) as Hval.
+    apply of_to_val in Hval.
+    iApply wp_value;[done|].
+    iSplitR;[|eauto].
+    iRight. iApply fixpoint_interp_br_eq. iSplitR;[eauto|].
     iDestruct (big_sepL_lookup with "Hc") as (vs n es lh' es' Hlayer) "Hbr";[apply Hlook|].
-
     rewrite app_length in Hlen.
     apply list_app_split in Hlen as [ws1 [ws2 [-> [Hlen1 Hlen2]]]].
-    rewrite fmap_app -!app_assoc. iApply iRewrite_nil_r_ctx. rewrite -app_assoc.
-    iApply wp_base_push.
+    iExists i, ws2, ts, vs, n, es, lh', es'. do 2 (iSplitR;[auto|]).
+    iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";[auto|].
+    iSplitR.
+    { iRight. iExists _. iFrame "Hv2". auto. }
+    iIntros (f0) "[Hf0 #Hf0v]".
+    apply get_layer_lh_depth in Hlayer as Heq;cycle 1.
+    { rewrite -(lholed_lengths_length_depth (rev (tc_label C)))//.
+      rewrite rev_length. apply lookup_lt_is_Some_1. eauto. }
+    eapply get_layer_lookup_lh_lengths in Hlayer as Hn;[|eauto..]. rewrite Heq.
+    iApply (iris_rules_control.wp_br_ctx with "Hf0").
     { apply v_to_e_is_const_list. }
+    { rewrite fmap_length. simplify_eq. auto. }
+    iNext. iIntros "Hf".
 
-    (* we distinguish between the case where the context is exactly the size of the br target *)
-    destruct (decide (lh_depth lh = S i)).
-    { rewrite e. rewrite e PeanoNat.Nat.sub_diag in Hlayer.
-      destruct lh;[done|]. inversion Hlayer;subst.
-      simpl in e. inversion e;subst i.
-      rewrite /= rev_length in Hleneq.
-      
-      assert (rev (tc_label C) !! 0 = Some ts) as Hlookinv.
-      { assert (lh_depth lh' = Init.Nat.pred (length (tc_label C))) as Heq;[lia|].
-        rewrite Heq -last_lookup in Hlook.
-        by apply last_lookup_rev. }
-
-      destruct (rev (tc_label C));[done|inversion Hlookinv;simplify_eq].
-      destruct Hlh_len as [Hn Hlh_len].
-      
-      iApply (iris_rules_control.wp_br_ctx with "Hf").
-      { apply v_to_e_is_const_list. }
-      { rewrite fmap_length. simplify_eq. auto. }
-      iNext. iIntros "Hf".
-      rewrite of_val_imm (app_assoc (of_val (immV ws2)) es).
-      iApply wp_wasm_empty_ctx.
-      iApply ("Hbr" $! _ _ (LH_base [] []) with "[] [] [Hf]").
-      { iPureIntro. rewrite PeanoNat.Nat.sub_diag. auto. }
-      { iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";auto.
-        iRight. iExists _. iFrame "#". auto. }
-      { iExists _. iFrame. auto. }
-    }
-
-    (* and the case where the context is larger than the br target *)
-    { rewrite /= rev_length in Hleneq.
-      rewrite Hleneq in Hleq.
-      move/ssrnat.ltP : Hleq=>Hlt.
-
-      set (lhv := frame_base lh ((λ v : value, AI_basic (BI_const v)) <$> ws1) []).
-      assert (S i < lh_depth lhv) as Hlt'.
-      { rewrite lh_depth_frame_base. lia. }
-      apply get_layer_find in Hlt' as (vs0'&n1&es0&vs'&n2&es2&lh0&es2'&es0'&lh''&Hlayer'&Hmin&Hidep).
-      assert (lh_depth lhv - S i > 0) as Hgt;[rewrite lh_depth_frame_base;lia|].
-      revert Hlayer'. set (x := lh_depth lhv - S (S i)) =>Hlayer'.
-      assert (lh_depth lhv - S i = S x) as Heq';[lia|].
-      assert (Hlayer_lh:=Hlayer).
-      apply (get_layer_frame_base ((λ v : value, AI_basic (BI_const v)) <$> ws1) []) in Hlayer.
-      rewrite -(lh_depth_frame_base _ ((λ v : value, AI_basic (BI_const v)) <$> ws1) []) in Hlayer.
-      rewrite Heq' in Hlayer.
-      eapply get_layer_next in Hlayer;[|eauto].
-      destruct Hlayer as (?&?&?&?&?);subst.
-      eapply get_layer_lookup_lh_lengths in Hlayer_lh;[|eauto..].
-
-      iApply (wp_br_ctx_nested with "Hf");[lia|eauto|eauto|..].
-      { apply v_to_e_is_const_list. }
-      { rewrite fmap_length. simplify_eq. auto. }
-      iNext. iIntros "Hf".
-      rewrite !of_val_imm lh_depth_frame_base.
-      assert (lh_depth lh'' = lh_depth lh - S (lh_depth lh')) as <-.
-      { simplify_eq.
-        apply lh_minus_depth in Hmin.
-        rewrite /= /lhv !lh_depth_frame_base in Hmin. lia. }
-      iApply ("Hbr" $! _ _ lh'' with "[] [] [Hf]").
-      { iPureIntro. split; eauto. eapply lh_minus_is_Some_frame_base. eauto. }
-      { iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";auto.
-        iRight. iExists _. iFrame "#". auto. }
-      { iExists _. iFrame. auto. }
-    }
+    unfold interp_expression.
+    iDestruct ("Hbr" with "[] [Hf]") as "Hcont".
+    { iRight. iExists _. iFrame "Hv2". auto. }
+    { iFrame. auto. }
+    rewrite !app_assoc. iFrame.
+    iApply (wp_wand with "Hcont").
+    { iIntros (v) "[[H|H] $]";[auto|].
+      iRight. iNext. iFrame. }
   Qed.
 
   (* ----------------------------------------- LOOP ---------------------------------------- *)
-   
+
+  Lemma interp_br_push_label C tn es tm lh i v :
+    lholed_lengths (rev (tc_label C)) lh ->
+    interp_br (tc_label C) tm lh (tc_local C) i v -∗
+    interp_br (tn :: tc_label C) tm
+                    (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
+                    (tc_local C) i v.
+  Proof.
+    iIntros (Hlen) "Hbr".
+    iLöb as "IH" forall (v).
+    match goal with
+    | |- context [  (▷ (?IH0))%I ] => set (IH:=IH0)
+    end.
+    rewrite !fixpoint_interp_br_eq.
+    iDestruct "Hbr" as "[$ Hbr]".
+    iDestruct "Hbr" as (j v' τs' vs k es' lh' es'') "(%Hlook & %Hlayer & #Hv & Hbr)".
+    apply get_layer_push_base with (vs':=length tn) (es:=[AI_basic (BI_loop (Tf tn tm) es)]) (es1:=[]) (es0':=[]) in Hlayer as Hlayer'. 
+    iExists (S j),v',τs',_,_,_,_,_.
+    iSplitR.
+    { iPureIntro. simpl. auto. }   
+    iSplitR.
+    { iPureIntro. rewrite lh_depth_push_base /=. eauto. }
+    iFrame "Hv".
+    rewrite lh_depth_push_base.
+    iIntros (f) "[Hf #Hfv]".
+
+    apply get_layer_lh_depth in Hlayer as Hdep;cycle 1.
+    { erewrite <-lholed_lengths_length_depth;eauto. rewrite rev_length.
+      apply lookup_lt_is_Some_1;eauto. }
+    rewrite Hdep.
+    iDestruct "Hv" as "[%Hcontr | Hv]";[done|].
+    iDestruct "Hv" as (ws Heq) "Hv". simplify_eq.
+    iDestruct (big_sepL2_length with "Hv") as %Hlen'.
+    eapply get_layer_lookup_lh_lengths in Hlayer as Hk;eauto.
+    
+    iApply wp_br_ctx_shift.
+    { apply v_to_e_is_const_list. }
+    { simplify_eq. rewrite of_val_length. auto. }
+
+    iSpecialize ("Hbr" with "[$Hf $Hfv]").
+    iApply (wp_wand_ctx with "Hbr").
+    iIntros (v') "[[Hv'|Hbr] $]";[by iLeft|].
+    iRight. iNext. rewrite /IH.
+    iApply "IH". iFrame.
+  Qed.                   
+
   Lemma interp_ctx_continuations_push_label_loop lh C i tm tn es :
     base_is_empty lh ->
     lholed_lengths (rev (tc_label C)) lh ->
-    □ (∀ (a : leibnizO frame) (a0 : seq.seq value),
-           ⌜a = {| f_locs := a0; f_inst := i |}⌝
-           → ∀ a1 : seq.seq (leibnizO value),
-               ⌜length a1 = length tn⌝
-               →  ↪[frame]a -∗
-                 □ interp_val (tc_local C) (immV a0) -∗
-                 □ ([∗ list] w;τ ∈ a1;tn, interp_value τ w) -∗
-                 WP of_val (immV a1) ++ to_e_list [BI_loop (Tf tn tm) es]
-                 CTX
-                 lh_depth lh; lh
-                 {{ vs, interp_val tm vs ∗
-                    (∃ f0 : leibnizO frame,  ↪[frame]f0) }}) -∗
-    interp_ctx_continuations (tc_label C) tm (tc_local C) i lh -∗
-    interp_ctx_continuations [tn]
-                             tm
-                             (tc_local (upd_label C ([tn] ++ tc_label C)%list))
-                             i
-                             (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] []).
+    □ (∀ (a : leibnizO frame) (a0 : seq.seq (leibnizO value)),
+           ⌜length a0 = length tn⌝
+           →  ↪[frame]a -∗
+             □ interp_frame (tc_local C) i a -∗
+             □ ([∗ list] w;τ ∈ a0;tn, interp_value τ w) -∗
+             WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
+             {{ vs,
+                (interp_val tm vs
+                 ∨ interp_br (tc_label C) tm lh (tc_local C) i vs) ∗
+                (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
+                   interp_frame (tc_local C) i f0) }}) -∗
+      interp_ctx_continuations (tc_label C) tm (tc_local C) i lh -∗
+      interp_ctx_continuation (tc_label (upd_label C ([tn] ++ tc_label C))) (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
+                              0 tn (tc_local C) tm i.
   Proof.
-    iIntros (Hlh_base Hlh_len) "#HIH #Hc".
+    iIntros (Hlh_base Hlh_len) "#HIH #Hc". unfold interp_ctx_continuation.
     iSimpl. rewrite lh_depth_push_base.
     assert (S (lh_depth lh) - 1 = lh_depth lh) as ->;[lia|].
     rewrite get_layer_push_base_0;[|auto].
-    iSplit;[|done].
     iExists _,_,_,_,_. iSplit;[eauto|].
-    iModIntro. iIntros (v f lh'' [Hdep Hmin]).
-    iIntros "#Hw Hf".
-    iDestruct "Hf" as (locs Heqf) "[#Hlocs Hf]".
-    apply lh_depth_eq_lh_minus in Hmin as Heq;auto.
-    subst lh''.
+    iModIntro. iIntros (v f).
+    iIntros "#Hw [Hf #Hfv]".
     unfold interp_expression.
     rewrite app_nil_l app_nil_r.
 
     iDestruct "Hw" as "[-> | Hv]".
     { iClear "HIH".
       take_drop_app_rewrite_twice 0 1.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-      { iApply (wp_trap_ctx with "[Hf]");auto. }
-      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+      iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+      { iApply (wp_trap with "[] [Hf]");auto. }
+      iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
 
     iDestruct "Hv" as (ws' ->) "Hv".
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
-    
-    iDestruct ("HIH" with "[] [] [Hf] [] []") as "Hcont";eauto.
+    repeat rewrite -!/(interp_frame _ _ _).
+    iDestruct ("HIH" with "[] Hf Hfv Hv") as "Hcont";[eauto|].
+    iApply (wp_wand with "Hcont").
+    iIntros (v) "[[H|H] $]";[iLeft;auto|].
+    iRight. iApply interp_br_push_label;auto.
   Qed.
 
   Lemma interp_ctx_push_label_loop C tm i lh tn es :
-    □ (∀ (a : leibnizO frame) (a0 : seq.seq value),
-           ⌜a = {| f_locs := a0; f_inst := i |}⌝
-           → ∀ a1 : seq.seq (leibnizO value),
-               ⌜length a1 = length tn⌝
-               →  ↪[frame]a -∗
-                 □ interp_val (tc_local C) (immV a0) -∗
-                 □ ([∗ list] w;τ ∈ a1;tn, interp_value τ w) -∗
-                 WP of_val (immV a1) ++ to_e_list [BI_loop (Tf tn tm) es]
-                 CTX
-                 lh_depth lh; lh
-                 {{ vs, interp_val tm vs ∗
-                    (∃ f0 : leibnizO frame,  ↪[frame]f0) }}) -∗
+    □ (∀ (a : leibnizO frame) (a0 : seq.seq (leibnizO value)),
+           ⌜length a0 = length tn⌝
+           →  ↪[frame]a -∗
+             □ interp_frame (tc_local C) i a -∗
+             □ ([∗ list] w;τ ∈ a0;tn, interp_value τ w) -∗
+             WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
+             {{ vs,
+                (interp_val tm vs
+                 ∨ interp_br (tc_label C) tm lh (tc_local C) i vs) ∗
+                (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
+                   interp_frame (tc_local C) i f0) }}) -∗
     interp_ctx (tc_label C) tm (tc_local C) i lh -∗
     interp_ctx (tc_label (upd_label C ([tn] ++ tc_label C)%list)) tm
       (tc_local (upd_label C ([tn] ++ tc_label C)%list)) i
       (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] []).
   Proof.
-    iIntros "#HIH [%Hlh_base [%Hlh_len [%Hlh_valid #[Hc Hr]]]]".
-    iSplit;[|iSplit;[|iSplit;[|iSplit]]].
+    iIntros "#HIH [%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]".
+    iSplit;[|iSplit;[|iSplit]].
     { iPureIntro. apply base_is_empty_push_base. }
     { iPureIntro. apply lholed_lengths_push_base. auto. }
     { iPureIntro. apply lholed_valid_push_base. auto. }
     { iSplitR.
-      { iApply (interp_ctx_continuations_push_label_loop with "[] []");auto. }
+      { iSimpl. iSplitR;[|done].
+        iApply (interp_ctx_continuations_push_label_loop with "[] []");auto. }
       iApply (big_sepL_mono with "Hc").
       iIntros (k y Hk). iSimpl.
       iIntros "#Hcont".
@@ -773,29 +768,20 @@ Section fundamental.
       rewrite lh_depth_push_base PeanoNat.Nat.sub_succ.
       iSplit.
       { iPureIntro. apply get_layer_push_base;eauto. }
-      iModIntro. iIntros (v f lh'' [Hdep Hmin]) "#Hv Hf".
-      iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
-      iApply ("Hcont" with "[] Hv [Hf]").
-      { iPureIntro. split;auto. eapply lh_minus_push_base_is_Some;eauto. lia. }
-      iExists _. iFrame. eauto.
-    }
-    { unfold interp_ctx_return. iModIntro. iIntros (v f) "#Hv Hf".
-      iDestruct ("Hr" $! _ f with "Hv") as "Hr'".
-      iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
-      iDestruct "Hv" as "[-> | Hv]".
-      { unfold interp_expression. iSimpl. iClear "#".
-        take_drop_app_rewrite_twice 0 0.
-        iApply (wp_wand_ctx with "[Hf]").
-        { iApply wp_trap_ctx;eauto. }
-        iIntros (v) "[H Hf]". iSplitR "Hf";eauto. }
-      iDestruct "Hv" as (ws ->) "Hv".
-      unfold interp_expression. rewrite lh_depth_push_base.
-      iApply (push_base_return with "[] [Hf] []");auto.
-      { iRight. eauto. }
-      { iIntros "Hf". iApply "Hr'". iExists _. eauto. }
+      iModIntro. iIntros (v f) "#Hv [Hf #Hvf]".
+      iDestruct ("Hcont" with "Hv [$Hf $Hvf]") as "Hcont'".
+      unfold interp_expression.
+      iApply (wp_wand with "Hcont'").
+      iIntros (v') "[[H'|H'] $]";[by iLeft|].
+      iRight. iApply interp_br_push_label;auto.
     }
   Qed.
-    
+
+  (* Lemma push_ctx_interp_br es vs n es' es1 tm C lh i : *)
+  (*   WP es {{ vs, (interp_val tm vs ∨ interp_br (tc_label C) tm lh (tc_local C) i vs) ∗ (∃ f, ↪[frame]f ∗ interp_frame (tc_local C) i f) }} *)
+  (*   WP es CTX 1; LH_rec vs n es' (LH_base [] []) es1 *)
+  (*         {{ vs, (interp_val tm vs ∨ interp_br (tc_label C) tm lh (tc_local C) i vs) ∗ (∃ f, ↪[frame]f ∗ interp_frame (tc_local C) i f) }}. *)
+
   Lemma typing_loop C es tn tm : (⊢ semantic_typing (HWP:=HWP) (upd_label C ([tn] ++ tc_label C)%list) (to_e_list es) (Tf tn tm)) ->
                                  ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_loop (Tf tn tm) es]) (Tf tn tm).
   Proof.
@@ -807,32 +793,62 @@ Section fundamental.
     iDestruct (IHbe_typing $! i (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)]
                                            [] []) with "[]") as "HH"; [by (destruct C,i;eauto)|].
 
-    iIntros "#Hc". iIntros (f vs) "Hf #Hv".
-    iDestruct "Hf" as (locs Heq) "[#Hlocs Hf]".
+    iIntros "#Hc". iIntros (f vs) "[Hf #Hfv] #Hv".
+    (* iDestruct "Hfv" as (locs Heq) "#Hlocs". *)
     
     iDestruct "Hv" as "[-> | Hv]".
     {  take_drop_app_rewrite_twice 0 1.
-       iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
-       { iApply (wp_trap_ctx with "[Hf]");auto. }
-       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame. }
+       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
+       { iApply (wp_trap with "[] [Hf]");auto. }
+       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
     iDestruct "Hv" as (ws ->) "Hv".
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
 
-    iRevert "Hlocs Hv". iLöb as "IH"
-  forall (f locs Heq ws Hlen).
+    iRevert "Hfv Hv". iLöb as "IH"
+  forall (f ws Hlen).
     iIntros "#Hlocs #Hv".
-    iApply (wp_loop_ctx with "Hf");eauto.
+    iApply (wp_loop with "Hf");eauto.
     { apply v_to_e_is_const_list. }
     { rewrite fmap_length //. }
     iNext. iIntros "Hf".
+    iApply wp_wasm_empty_ctx.
     iApply wp_label_push_nil.
-    iDestruct ("HH" with "[] [Hf] []") as "Hcont".
-    { iApply (interp_ctx_push_label_loop with "[$] [$]"). }
-    { iExists _. iFrame "∗ #". auto. }
-    { iFrame "#". iRight. iExists _. eauto. }
-    unfold interp_expression. rewrite lh_depth_push_base.
-    rewrite of_val_length Hlen. iFrame. 
-  Qed.
+
+    iAssert (∀ f, interp_frame (tc_local C) i f -∗ ↪[frame] f -∗ WP of_val (immV ws) ++ to_e_list es
+              {{ v, (⌜v = trapV⌝ ∨
+                       interp_values tm v ∨
+                       interp_br _ tm _ (tc_local C) i v)
+                      ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
+    { iIntros (f') "#Hfv Hf".
+      iDestruct ("HH" with "[] [Hf] []") as "Hcont".
+      { iApply (interp_ctx_push_label_loop with "[$] [$]"). }
+      { iFrame "∗ #". }
+      { iRight. iExists _. eauto. }
+      iApply (wp_wand with "Hcont").
+      iIntros (v) "H". rewrite -or_assoc. iFrame. }
+    
+    iDestruct ("Hcont" $! f with "[$]") as "Hcontf". simpl push_base.
+    (* Difficulty: 
+       There is a mismatch with the way we apply bind and return,
+       and the way values are currently defined: 
+
+       with the current expression relation, we need to bind over 
+       each context one by one, which means we need to return one
+       by one as well. However, we can neither return, nor continue
+       an expression with a br inside a context that is too shallow
+
+       we therefore get stuck at this point.
+
+       In essence, since we never know when we need to actually bind (i.e. we 
+       don't know if the hole reduces to a br or not), so we need to be
+       able to return one by one, even in case of a break.
+
+       Solution: make a stuck br (a br in a too shallow ctx) a value, 
+       and we return one by one until we find the right level.
+
+       Until then, the lemma is admitted.
+     *)
+  Admitted.
   
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- FTLR: simple typing ----------------------------------- *)
