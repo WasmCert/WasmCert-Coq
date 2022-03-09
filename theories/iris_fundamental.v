@@ -23,7 +23,8 @@ Require Import iris_fundamental_const
         iris_fundamental_br
         iris_fundamental_loop
         iris_fundamental_br_if
-        iris_fundamental_call.
+        iris_fundamental_call
+        iris_fundamental_composition.
 Import uPred.
 
 Section fundamental.
@@ -68,7 +69,9 @@ Section fundamental.
     { admit. }
     { admit. }
     { admit. }
-    { admit. }
+    { eapply typing_composition.
+      { apply IHbe_typing1. }
+      { apply IHbe_typing2. } }
     { admit. }
   Admitted.
 
