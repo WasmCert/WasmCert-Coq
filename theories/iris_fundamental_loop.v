@@ -29,7 +29,7 @@ Section fundamental.
     □ (∀ (a : leibnizO frame) (a0 : seq.seq (leibnizO value)),
            ⌜length a0 = length tn⌝
            →  ↪[frame]a -∗
-             □ interp_frame (tc_local C) i a -∗
+               interp_frame (tc_local C) i a -∗
              □ ([∗ list] w;τ ∈ a0;tn, interp_value τ w) -∗
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
@@ -48,7 +48,7 @@ Section fundamental.
     apply lh_minus_push_base_Some with (n:=length tn) (es:=[AI_basic (BI_loop (Tf tn tm) es)]) (vs1:=[]) (es2:=[]) in Hlh_base as Hmin.
     iExists _,_,_,_,_,_. repeat (iSplit;[eauto|]).
     iModIntro. iIntros (v f).
-    iIntros "#Hw [Hf #Hfv]".
+    iIntros "#Hw [Hf Hfv]".
     unfold interp_expression.
     rewrite app_nil_l app_nil_r.
 
@@ -69,7 +69,7 @@ Section fundamental.
     □ (∀ (a : leibnizO frame) (a0 : seq.seq (leibnizO value)),
            ⌜length a0 = length tn⌝
            →  ↪[frame]a -∗
-             □ interp_frame (tc_local C) i a -∗
+               interp_frame (tc_local C) i a -∗
              □ ([∗ list] w;τ ∈ a0;tn, interp_value τ w) -∗
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
@@ -100,7 +100,7 @@ Section fundamental.
       { iPureIntro. apply get_layer_push_base;eauto. }
       iSplit;[auto|]. iSplit.
       { iPureIntro. apply push_base_lh_minus_is_Some. auto. }
-      iModIntro. iIntros (v f) "#Hv [Hf #Hvf]".
+      iModIntro. iIntros (v f) "#Hv [Hf Hvf]".
       iDestruct ("Hcont" with "Hv [$Hf $Hvf]") as "Hcont'".
       iFrame.
     }
@@ -122,7 +122,7 @@ Section fundamental.
     iDestruct (IHbe_typing $! i (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)]
                                            [] []) with "[]") as "HH"; [by (destruct C,i;eauto)|].
 
-    iIntros "#Hc". iIntros (f vs) "[Hf #Hfv] #Hv".
+    iIntros "#Hc". iIntros (f vs) "[Hf Hfv] #Hv".
     (* iDestruct "Hfv" as (locs Heq) "#Hlocs". *)
     
     iDestruct "Hv" as "[-> | Hv]".
@@ -135,7 +135,7 @@ Section fundamental.
 
     iRevert "Hfv Hv". iLöb as "IH"
   forall (f ws Hlen).
-    iIntros "#Hlocs #Hv".
+    iIntros "Hlocs #Hv".
     iApply (wp_loop with "Hf");eauto.
     { apply v_to_e_is_const_list. }
     { rewrite fmap_length //. }
@@ -148,8 +148,8 @@ Section fundamental.
                        interp_values tm v ∨
                        interp_br (tc_local C) i v _ _)
                       ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
-    { iIntros (f') "#Hfv Hf".
-      iDestruct ("HH" with "[] [Hf] []") as "Hcont".
+    { iIntros (f') "Hfv Hf".
+      iDestruct ("HH" with "[] [Hf Hfv] []") as "Hcont".
       { iApply (interp_ctx_push_label_loop with "[$] [$]"). }
       { iFrame "∗ #". }
       { iRight. iExists _. eauto. }

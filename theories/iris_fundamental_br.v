@@ -29,7 +29,7 @@ Section fundamental.
   Proof.
     iIntros (Hleq Hlookup) "".
     iIntros (j lh).
-    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]" (f vs) "[Hf #Hfv] #Hv".
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]" (f vs) "[Hf Hfv] #Hv".
     unfold interp_expression.
     apply lholed_lengths_length_depth in Hlh_len as Hleneq.
     
@@ -49,7 +49,7 @@ Section fundamental.
     pose proof (to_val_br_eq ws i []) as Hval.
     apply of_to_val in Hval.
     iApply wp_value;[done|].
-    iSplitR;[|eauto].
+    iSplitR;[|iExists _;iFrame].
     iRight. iApply fixpoint_interp_br_eq. iExists _,_,_. iSplit;[eauto|].
     iDestruct (big_sepL_lookup with "Hc") as (vs n es lh' es' lh'' Hlayer Hdep Hmin) "Hbr";[apply Hlook|].
     rewrite app_length in Hlen.
@@ -61,7 +61,7 @@ Section fundamental.
     iExists ts, vs, n, es, lh', es', lh'',t1s.
     repeat (iSplitR;[auto|]).
     { iRight. iExists _. iFrame "Hv". eauto. }
-    iIntros (f0) "[Hf0 #Hf0v]".
+    iIntros (f0) "[Hf0 Hf0v]".
     rewrite Heq.
     iApply (iris_rules_control.wp_br_ctx with "Hf0").
     { apply v_to_e_is_const_list. }
@@ -70,9 +70,9 @@ Section fundamental.
 
     unfold interp_expression.
     iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";[auto|].
-    iDestruct ("Hbr" with "[] [Hf]") as (τs2) "Hcont".
+    iDestruct ("Hbr" with "[] [Hf Hf0v]") as (τs2) "Hcont".
     { iRight. iExists _. iFrame "Hv2". auto. }
-    { iFrame. auto. }
+    { iFrame. }
     rewrite !app_assoc. iFrame.
     iApply (wp_wand with "Hcont").
     { iIntros (v) "[[H|H] $]";[auto|].

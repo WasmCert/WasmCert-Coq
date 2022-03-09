@@ -21,29 +21,28 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  (* ----------------------------------------- CONST --------------------------------------- *)
-  
-  Lemma typing_const C v : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_const v]) (Tf [] [typeof v]).
+  (* ----------------------------------------- DROP ---------------------------------------- *)
+
+  Lemma typing_drop C t : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_drop]) (Tf [t] []).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (i lh).
-    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "[Hf Hfv] #Hv".
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iApply (wp_trap with "[] [$]");auto. }
       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
-    { iDestruct "Hv" as (ws ->) "Hv".
-      iDestruct (big_sepL2_nil_inv_r with "Hv") as %->.
-      rewrite app_nil_l. iSimpl.
-      assert ([AI_basic (BI_const v)] = of_val (immV [v])) as ->;auto.
-      iApply wp_value;[done|].
-      iSplitR;cycle 1.
-      { iExists _. iFrame. }
-      iLeft. iRight.
-      iExists _. iSplit;eauto.
-      iSimpl. iSplit =>//. iApply interp_value_type_of. }
+    iDestruct "Hv" as (ws ->) "Hv".
+    iDestruct (big_sepL2_length with "Hv") as %Hlen.
+    destruct ws as [|w ws];[done|destruct ws;[|done]].
+    iSimpl in "Hv". iDestruct "Hv" as "[Hv _]".
+
+    iSimpl.
+    iApply (wp_wand _ _ _ (λne vs, interp_val [] vs ∗ ↪[frame] f )%I with "[Hf]").
+    { iApply (wp_drop with "Hf"). iRight. iExists []. iSplit;done. }
+    iIntros (v) "[$ Hf]".
+    iExists _;iFrame.
   Qed.
 
 End fundamental.

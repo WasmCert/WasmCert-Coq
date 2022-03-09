@@ -185,7 +185,7 @@ Section iris_rules_calls.
 
   (* The following spec uses the imported host WP *)
   (* THe host WP is assumed to be NotStuck *)
-  Lemma wp_invoke_host_success `{HWP: host_program_logic} (P : iProp Σ) (R : result -> iProp Σ)
+  Lemma wp_invoke_host_success `{HWP: host_program_logic} (R : result -> iProp Σ)
         (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) ves vcs t1s t2s a h m f0 :
     iris.to_val ves = Some (immV vcs) ->
     length vcs = length t1s ->

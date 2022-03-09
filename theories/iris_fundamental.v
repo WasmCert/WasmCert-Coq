@@ -10,7 +10,20 @@ Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_rules.
 Require Export datatypes host operations properties opsem typing.
 Require Export iris_logrel.
-Require Import iris_fundamental_const iris_fundamental_unop iris_fundamental_binop iris_fundamental_br iris_fundamental_loop.
+Require Import iris_fundamental_const
+        iris_fundamental_cvtop
+        iris_fundamental_drop
+        iris_fundamental_nop
+        iris_fundamental_relop
+        iris_fundamental_testop
+        iris_fundamental_select
+        iris_fundamental_unreachable
+        iris_fundamental_unop
+        iris_fundamental_binop
+        iris_fundamental_br
+        iris_fundamental_loop
+        iris_fundamental_br_if
+        iris_fundamental_call.
 Import uPred.
 
 Section fundamental.
@@ -28,22 +41,22 @@ Section fundamental.
     { by apply typing_const. }
     { by apply typing_unop. }
     { by apply typing_binop. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { by apply typing_testop. }
+    { by apply typing_relop. }
+    { by apply typing_cvtop_convert. }
+    { by apply typing_cvtop_reinterpret. }
+    { by apply typing_unreachable. }
+    { by apply typing_nop. }
+    { by apply typing_drop. }
+    { by apply typing_select. }
     { admit. }
     { by apply typing_loop. }
     { admit. }
     { by apply typing_br. }
+    { by apply typing_br_if. }
     { admit. }
     { admit. }
-    { admit. }
-    { admit. }
+    { by apply typing_call. }
     { admit. }
     { admit. }
     { admit. }

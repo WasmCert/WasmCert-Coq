@@ -21,29 +21,36 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  (* ----------------------------------------- CONST --------------------------------------- *)
-  
-  Lemma typing_const C v : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_const v]) (Tf [] [typeof v]).
+  (* ----------------------------------------- SELECT -------------------------------------- *)
+
+  Lemma typing_select C t : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_select]) (Tf [t; t; T_i32] [t]).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (i lh).
-    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "[Hf Hfv] #Hv".
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iApply (wp_trap with "[] [$]");auto. }
       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
-    { iDestruct "Hv" as (ws ->) "Hv".
-      iDestruct (big_sepL2_nil_inv_r with "Hv") as %->.
-      rewrite app_nil_l. iSimpl.
-      assert ([AI_basic (BI_const v)] = of_val (immV [v])) as ->;auto.
-      iApply wp_value;[done|].
-      iSplitR;cycle 1.
-      { iExists _. iFrame. }
-      iLeft. iRight.
-      iExists _. iSplit;eauto.
-      iSimpl. iSplit =>//. iApply interp_value_type_of. }
+    iDestruct "Hv" as (ws ->) "Hv".
+    iDestruct (big_sepL2_length with "Hv") as %Hlen.
+    destruct ws as [|w1 ws];[done|destruct ws as [|w2 ws];[done|destruct ws as [|w3 ws];[done|destruct ws;[|done]]]].
+    iSimpl in "Hv".
+    iDestruct "Hv" as "[Hv1 [Hv2 [Hv3 _]]]".
+    iDestruct "Hv3" as (z) "->".
+    iSimpl.
+    iApply (wp_wand _ _ _ (λne vs, interp_val [t] vs ∗ ↪[frame] f )%I with "[Hf]").
+    { destruct (Wasm_int.Int32.eq_eqP z (Wasm_int.int_zero i32m)).
+      { iApply (wp_select_false with "Hf");auto.
+        iRight. iSimpl. iExists _. iSplit;eauto.
+        iSplit;done. }
+      { iApply (wp_select_true with "Hf");auto.
+        iRight. iSimpl. iExists _. iSplit;eauto.
+        iSplit;done. }
+    }
+    iIntros (v) "[$ Hf]".
+    iExists _;iFrame.
   Qed.
-
+    
 End fundamental.

@@ -85,7 +85,7 @@ Section fundamental.
     unfold semantic_typing, interp_expression.
     iIntros (Hbinop i lh).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "[Hf #Hfv] #Hv".
+    iIntros (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
@@ -103,7 +103,7 @@ Section fundamental.
         iApply (wp_wand _ _ _ (λ v, ⌜v = immV [from_option id w1 (app_binop op w1 w2)]⌝ ∗ ↪[frame] f)%I with "[Hf]").
         { iApply (wp_binop with "Hf");eauto. rewrite Hsome. eauto. }
         iIntros (w0) "[-> Hf]".
-        iSplitR;[|eauto].
+        iSplitR;[|iExists _;iFrame].
         iLeft. iRight.
         iExists _. iSplit;auto.
         iSimpl. iSplit =>//. iApply (binop_type_agree_interp with "Hv1 Hv2");eauto.
@@ -112,7 +112,7 @@ Section fundamental.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iSimpl.
         iApply wp_binop_failure;auto. }
-      { iIntros (v) "[-> Hf]". iSplitR;[|eauto]. iLeft. by iLeft. }
+      { iIntros (v) "[-> Hf]". iSplitR;[|iExists _;iFrame]. iLeft. by iLeft. }
     }
   Qed.
 

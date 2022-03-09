@@ -446,5 +446,33 @@ Section fundamental.
     { destruct IHHx as [y Hy]. eexists. apply lh_minus_Ind_Equivalent. simpl. constructor.
       apply lh_minus_Ind_Equivalent. eauto. }
   Qed.
+
+  Lemma to_val_fmap ws :
+    to_val ((λ v : value, AI_basic (BI_const v)) <$> ws) = Some (immV ws).
+  Proof.
+    induction ws;auto.
+    rewrite fmap_cons.
+    simpl. rewrite IHws. auto.
+  Qed.
+
+  Lemma interp_instance_function_lookup C i tf j :
+    ssrnat.leq (S i) (length (tc_func_t C)) ->
+    nth_error (tc_func_t C) i = Some tf ->
+    ⊢ interp_instance (HWP:=HWP) C j -∗
+      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function (HWP:=HWP) tf (N.of_nat f).
+  Proof.
+    iIntros (Hle Hnth) "#Hi".
+    destruct C,j.
+    iDestruct "Hi" as "[_ [Hi _]]".
+    iDestruct (big_sepL2_length with "Hi") as %Hlen.
+    simpl in Hle,Hnth.
+    destruct (nth_error inst_funcs i) eqn:Hsome;cycle 1.
+    { exfalso. apply nth_error_None in Hsome.
+      rewrite Hlen in Hsome. revert Hle. move/ssrnat.leP. lia. }
+    rewrite nth_error_lookup in Hnth.
+    rewrite nth_error_lookup in Hsome.
+    iDestruct (big_sepL2_lookup with "Hi") as "HH";eauto.
+    iExists f. iSimpl. rewrite nth_error_lookup. auto.
+  Qed.
   
 End fundamental.

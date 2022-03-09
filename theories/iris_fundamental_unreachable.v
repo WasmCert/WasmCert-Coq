@@ -21,29 +21,33 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  (* ----------------------------------------- CONST --------------------------------------- *)
-  
-  Lemma typing_const C v : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_const v]) (Tf [] [typeof v]).
+  (* ------------------------------------ UNREACHABLE -------------------------------------- *)
+
+  Lemma typing_unreachable C ts ts' : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_unreachable]) (Tf ts ts').
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (i lh).
-    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
-    iIntros (f vs) "[Hf Hfv] #Hv".
+    iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iApply (wp_trap with "[] [$]");auto. }
       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
-    { iDestruct "Hv" as (ws ->) "Hv".
-      iDestruct (big_sepL2_nil_inv_r with "Hv") as %->.
-      rewrite app_nil_l. iSimpl.
-      assert ([AI_basic (BI_const v)] = of_val (immV [v])) as ->;auto.
-      iApply wp_value;[done|].
-      iSplitR;cycle 1.
-      { iExists _. iFrame. }
-      iLeft. iRight.
-      iExists _. iSplit;eauto.
-      iSimpl. iSplit =>//. iApply interp_value_type_of. }
+    iDestruct "Hv" as (ws ->) "Hv".
+    iApply wp_wasm_empty_ctx.
+    iApply iRewrite_nil_r_ctx.
+    rewrite -app_assoc.
+    iApply wp_base_push;[apply const_list_of_val|].
+    iApply iRewrite_nil_r_ctx.
+
+    iApply (wp_wand_ctx with "[Hf]").
+    { iApply wp_seq_trap_ctx. iFrame.
+      iIntros "Hf".
+      by iApply (wp_unreachable with "Hf"). }
+    
+    iIntros (v) "[-> Hf]".
+    iSplitR;[|iExists _;iFrame].
+    iLeft. iLeft. auto.
   Qed.
 
 End fundamental.
