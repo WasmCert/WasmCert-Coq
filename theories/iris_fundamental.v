@@ -636,7 +636,7 @@ Section fundamental.
 
     unfold interp_expression.
     iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";[auto|].
-    iDestruct ("Hbr" with "[] [Hf]") as "Hcont".
+    iDestruct ("Hbr" with "[] [Hf]") as (τs2) "Hcont".
     { iRight. iExists _. iFrame "Hv2". auto. }
     { iFrame. auto. }
     rewrite !app_assoc. iFrame.
@@ -680,12 +680,12 @@ Section fundamental.
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
                 (interp_val tm vs
-                 ∨ interp_br tm (tc_local C) i vs lh (tc_label C)) ∗
+                 ∨ interp_br (tc_local C) i vs lh (tc_label C)) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                    interp_frame (tc_local C) i f0) }}) -∗
-      interp_ctx_continuations (tc_label C) tm (tc_local C) i lh -∗
+      interp_ctx_continuations (tc_label C) (tc_local C) i lh -∗
       interp_ctx_continuation (tc_label (upd_label C ([tn] ++ tc_label C))) (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
-                              0 tn (tc_local C) tm i.
+                              0 tn (tc_local C) i.
   Proof.
     iIntros (Hlh_base Hlh_len) "#HIH #Hc". unfold interp_ctx_continuation.
     iSimpl. rewrite lh_depth_push_base.
@@ -699,13 +699,13 @@ Section fundamental.
     rewrite app_nil_l app_nil_r.
 
     iDestruct "Hw" as "[-> | Hv]".
-    { iClear "HIH".
+    { iClear "HIH". iExists [].
       take_drop_app_rewrite_twice 0 1.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iApply (wp_trap with "[] [Hf]");auto. }
       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
 
-    iDestruct "Hv" as (ws' ->) "Hv".
+    iDestruct "Hv" as (ws' ->) "Hv". iExists tm.
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
     repeat rewrite -!/(interp_frame _ _ _).
     iApply ("HIH" with "[] Hf Hfv Hv");eauto. 
@@ -720,11 +720,11 @@ Section fundamental.
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
                 (interp_val tm vs
-                 ∨ interp_br tm (tc_local C) i vs lh (tc_label C)) ∗
+                 ∨ interp_br (tc_local C) i vs lh (tc_label C)) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                    interp_frame (tc_local C) i f0) }}) -∗
-    interp_ctx (tc_label C) tm (tc_local C) i lh -∗
-    interp_ctx (tc_label (upd_label C ([tn] ++ tc_label C)%list)) tm
+    interp_ctx (tc_label C) (tc_local C) i lh -∗
+    interp_ctx (tc_label (upd_label C ([tn] ++ tc_label C)%list))
       (tc_local (upd_label C ([tn] ++ tc_label C)%list)) i
       (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] []).
   Proof.
@@ -792,7 +792,7 @@ Section fundamental.
     iAssert (∀ f, interp_frame (tc_local C) i f -∗ ↪[frame] f -∗ WP of_val (immV ws) ++ to_e_list es
               {{ v, (⌜v = trapV⌝ ∨
                        interp_values tm v ∨
-                       interp_br tm (tc_local C) i v _ _)
+                       interp_br (tc_local C) i v _ _)
                       ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
     { iIntros (f') "#Hfv Hf".
       iDestruct ("HH" with "[] [Hf] []") as "Hcont".
