@@ -201,7 +201,7 @@ Definition push :=
     AI_basic (BI_store T_i32 None N.zero N.zero)
   ].
              
-
+End code.
 
 
 Section specs.
@@ -1982,9 +1982,9 @@ Qed.
                                         
     
     
+End specs.
     
-    
-    
+End stack.    
                                                            
                    
     
