@@ -243,35 +243,41 @@ Section logrel.
   (*   λne (w : leibnizO val), (∃ j (v : list value), ⌜w = brV j v []⌝ ∗ *)
   (*                                           (∀ f, ↪[frame] f ∗ interp_frame τl i f -∗ interp_expression_ctx τs lh ((of_val (immV v)) ++ [AI_basic (BI_br j)]) τl i))%I. *)
 
-  Definition interp_br_def (τc : list (list (value_type))) (τs : result_type) (lh : lholed) (τl : result_type) (i : instance)
-                       (interp_br' : VR) : VR :=
-    λne (w : leibnizO val), ((∃ j (v : list value) es, ⌜w = brV j v es⌝) ∗
-                             (∃ j (v : list value) τs' vs k es lh' es',
-                                 ⌜τc !! j = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S j) = Some (vs,k,es,lh',es')⌝ ∗  interp_val τs' (immV v) ∗
+  Notation BR := ((leibnizO val) -n> (leibnizO lholed) -n> (leibnizO (list (list value_type))) -n> iPropO Σ).
+  
+  Definition interp_br_def (τs : result_type) (τl : result_type) (i : instance)
+                       (interp_br' : BR) : BR :=
+    λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))),
+      ((∃ j (v : list value) es, ⌜w = brV j v es⌝ ∗
+                              ∃ τs' vs k es lh' es' lh'' τs'',
+                                ⌜τc !! j = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S j) = Some (vs,k,es,lh',es')⌝ ∗
+                                ⌜lh_depth lh'' = (lh_depth lh) - S j⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
+                                     interp_val (τs'' ++ τs') (immV v) ∗
                                      ∀ f, ↪[frame] f ∗ interp_frame τl i f -∗
-                                     WP of_val (immV v) ++ [::AI_basic (BI_br j)] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
-                                     {{ vs, (interp_val τs vs ∨ ▷ interp_br' vs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I.
+                                     WP of_val (immV (drop (length τs'') v)) ++ [::AI_basic (BI_br j)] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
+                                     {{ vs, (interp_val τs vs ∨ ▷ interp_br' vs lh'' (drop (S j) τc)) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I.
 
-  Global Instance interp_br_def_contractive τc τs lh τl i : Contractive (interp_br_def τc τs lh τl i).
+  Global Instance interp_br_def_contractive τs τl i : Contractive (interp_br_def τs τl i).
   Proof.
     solve_proper_prepare.
     repeat (apply exist_ne +
             apply sep_ne +
+            apply and_ne +
             auto +
-            rewrite /pointwise_relation; intros +
+            (rewrite /pointwise_relation; intros) +
             apply forall_ne + apply wand_ne).
     solve_contractive.
   Defined.
   
-  Definition interp_br (τc : list (list (value_type))) (τs : result_type) (lh : lholed) (τl : result_type) (i : instance) :=
-    fixpoint (interp_br_def τc τs lh τl i).
+  Definition interp_br (τs : result_type) (τl : result_type) (i : instance) : BR :=
+    fixpoint (interp_br_def τs τl i).
   
   Lemma fixpoint_interp_br_eq (τc : list (list (value_type))) (τs : result_type) (lh : lholed) (τl : result_type) (i : instance) v :
-    interp_br τc τs lh τl i v ≡ interp_br_def τc τs lh τl i (interp_br τc τs lh τl i) v.
-  Proof. exact: (fixpoint_unfold (interp_br_def τc τs lh τl i) v). Qed.
+    interp_br τs τl i v lh τc ≡ interp_br_def τs τl i (interp_br τs τl i) v lh τc.
+  Proof. exact: (fixpoint_unfold (interp_br_def τs τl i) v lh τc). Qed.
   
   Definition interp_expression (τc : list (list (value_type))) (τs : result_type) (lh : lholed) (τl : result_type) (i : instance) (es : expr) : iProp Σ :=
-    (WP es {{ vs, (interp_val τs vs ∨ interp_br τc τs lh τl i vs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})%I.
+    (WP es {{ vs, (interp_val τs vs ∨ interp_br τs τl i vs lh τc) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})%I.
   
   
   (* --------------------------------------------------------------------------------------- *)
@@ -306,10 +312,9 @@ Section logrel.
                                                   interp_expression τs2 lh'' (vs ++ ((of_val v) ++ es) ++ es') (interp_frame τl i)))%I.*)
 
   Definition interp_ctx_continuation (τc : list (list (value_type))) (lh : lholed) (k : nat) (τs τl τs2 : result_type) (i : instance) : iProp Σ :=
-    (∃ vs j es lh' es', ⌜get_layer lh ((lh_depth lh) - S k) = Some (vs,j,es,lh',es')⌝ ∧
-                          (□ ∀ v f (* lh'' *), (* ⌜lh_depth lh'' = (lh_depth lh) - S k⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ → *)
-                                         interp_val τs v -∗ ↪[frame] f ∗ interp_frame τl i f -∗
-                                         interp_expression τc τs2 lh τl i (vs ++ ((of_val v) ++ es) ++ es')))%I.
+    (∃ vs j es lh' es' lh'', ⌜get_layer lh ((lh_depth lh) - S k) = Some (vs,j,es,lh',es')⌝ ∧ ⌜lh_depth lh'' = (lh_depth lh) - S k⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∧
+                          (□ ∀ v f, interp_val τs v -∗ ↪[frame] f ∗ interp_frame τl i f -∗
+                                    interp_expression (drop (S k) τc) τs2 lh'' τl i (vs ++ ((of_val v) ++ es) ++ es')))%I.
   
   Definition interp_ctx_continuations (τc : list (list (value_type))) (τs2 : result_type) (τl : result_type) (i : instance) : CtxR :=
     λne lh, ([∗ list] k↦τs ∈ τc, interp_ctx_continuation τc lh k τs τl τs2 i)%I.

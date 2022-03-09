@@ -616,25 +616,26 @@ Section fundamental.
     apply of_to_val in Hval.
     iApply wp_value;[done|].
     iSplitR;[|eauto].
-    iRight. iApply fixpoint_interp_br_eq. iSplitR;[eauto|].
-    iDestruct (big_sepL_lookup with "Hc") as (vs n es lh' es' Hlayer) "Hbr";[apply Hlook|].
+    iRight. iApply fixpoint_interp_br_eq. iExists _,_,_. iSplit;[eauto|].
+    iDestruct (big_sepL_lookup with "Hc") as (vs n es lh' es' lh'' Hlayer Hdep Hmin) "Hbr";[apply Hlook|].
     rewrite app_length in Hlen.
     apply list_app_split in Hlen as [ws1 [ws2 [-> [Hlen1 Hlen2]]]].
-    iExists i, ws2, ts, vs, n, es, lh', es'. do 2 (iSplitR;[auto|]).
-    iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";[auto|].
-    iSplitR.
-    { iRight. iExists _. iFrame "Hv2". auto. }
-    iIntros (f0) "[Hf0 #Hf0v]".
     apply get_layer_lh_depth in Hlayer as Heq;cycle 1.
     { rewrite -(lholed_lengths_length_depth (rev (tc_label C)))//.
       rewrite rev_length. apply lookup_lt_is_Some_1. eauto. }
-    eapply get_layer_lookup_lh_lengths in Hlayer as Hn;[|eauto..]. rewrite Heq.
+    eapply get_layer_lookup_lh_lengths in Hlayer as Hn;[|eauto..].
+    iExists ts, vs, n, es, lh', es', lh'',t1s.
+    repeat (iSplitR;[auto|]).
+    { iRight. iExists _. iFrame "Hv". eauto. }
+    iIntros (f0) "[Hf0 #Hf0v]".
+    rewrite Heq.
     iApply (iris_rules_control.wp_br_ctx with "Hf0").
     { apply v_to_e_is_const_list. }
-    { rewrite fmap_length. simplify_eq. auto. }
-    iNext. iIntros "Hf".
+    { rewrite fmap_length. rewrite -Hlen1 drop_app. simplify_eq;auto. }
+    iNext. iIntros "Hf". rewrite -Hlen1 drop_app.
 
     unfold interp_expression.
+    iDestruct (big_sepL2_app_inv with "Hv") as "[Hv1 Hv2]";[auto|].
     iDestruct ("Hbr" with "[] [Hf]") as "Hcont".
     { iRight. iExists _. iFrame "Hv2". auto. }
     { iFrame. auto. }
@@ -646,50 +647,27 @@ Section fundamental.
 
   (* ----------------------------------------- LOOP ---------------------------------------- *)
 
-  Lemma interp_br_push_label C tn es tm lh i v :
-    lholed_lengths (rev (tc_label C)) lh ->
-    interp_br (tc_label C) tm lh (tc_local C) i v -∗
-    interp_br (tn :: tc_label C) tm
-                    (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
-                    (tc_local C) i v.
+  Lemma lh_minus_push_base_Some lh n es vs1 es2 :
+    base_is_empty lh ->
+    lh_minus (push_base lh n es vs1 es2) lh = Some (LH_rec [] n es (LH_base vs1 es2) []).
   Proof.
-    iIntros (Hlen) "Hbr".
-    iLöb as "IH" forall (v).
-    match goal with
-    | |- context [  (▷ (?IH0))%I ] => set (IH:=IH0)
-    end.
-    rewrite !fixpoint_interp_br_eq.
-    iDestruct "Hbr" as "[$ Hbr]".
-    iDestruct "Hbr" as (j v' τs' vs k es' lh' es'') "(%Hlook & %Hlayer & #Hv & Hbr)".
-    apply get_layer_push_base with (vs':=length tn) (es:=[AI_basic (BI_loop (Tf tn tm) es)]) (es1:=[]) (es0':=[]) in Hlayer as Hlayer'. 
-    iExists (S j),v',τs',_,_,_,_,_.
-    iSplitR.
-    { iPureIntro. simpl. auto. }   
-    iSplitR.
-    { iPureIntro. rewrite lh_depth_push_base /=. eauto. }
-    iFrame "Hv".
-    rewrite lh_depth_push_base.
-    iIntros (f) "[Hf #Hfv]".
+    intros Hemp.
+    apply lh_minus_Ind_Equivalent.
+    induction lh.
+    { destruct Hemp as [-> ->]. simpl. constructor. }
+    { simpl in *. constructor. apply IHlh;auto. }
+  Qed.
 
-    apply get_layer_lh_depth in Hlayer as Hdep;cycle 1.
-    { erewrite <-lholed_lengths_length_depth;eauto. rewrite rev_length.
-      apply lookup_lt_is_Some_1;eauto. }
-    rewrite Hdep.
-    iDestruct "Hv" as "[%Hcontr | Hv]";[done|].
-    iDestruct "Hv" as (ws Heq) "Hv". simplify_eq.
-    iDestruct (big_sepL2_length with "Hv") as %Hlen'.
-    eapply get_layer_lookup_lh_lengths in Hlayer as Hk;eauto.
-    
-    iApply wp_br_ctx_shift.
-    { apply v_to_e_is_const_list. }
-    { simplify_eq. rewrite of_val_length. auto. }
-
-    iSpecialize ("Hbr" with "[$Hf $Hfv]").
-    iApply (wp_wand_ctx with "Hbr").
-    iIntros (v') "[[Hv'|Hbr] $]";[by iLeft|].
-    iRight. iNext. rewrite /IH.
-    iApply "IH". iFrame.
-  Qed.                   
+  Lemma push_base_lh_minus_is_Some lh n es vs1 es2 lh'' :
+    is_Some (lh_minus lh lh'') ->
+    is_Some (lh_minus (push_base lh n es vs1 es2) lh'').
+  Proof.
+    intros [x Hx%lh_minus_Ind_Equivalent].
+    induction Hx.
+    { destruct lh;simpl;eauto. }
+    { destruct IHHx as [y Hy]. eexists. apply lh_minus_Ind_Equivalent. simpl. constructor.
+      apply lh_minus_Ind_Equivalent. eauto. }
+  Qed.
 
   Lemma interp_ctx_continuations_push_label_loop lh C i tm tn es :
     base_is_empty lh ->
@@ -702,7 +680,7 @@ Section fundamental.
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
                 (interp_val tm vs
-                 ∨ interp_br (tc_label C) tm lh (tc_local C) i vs) ∗
+                 ∨ interp_br tm (tc_local C) i vs lh (tc_label C)) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                    interp_frame (tc_local C) i f0) }}) -∗
       interp_ctx_continuations (tc_label C) tm (tc_local C) i lh -∗
@@ -713,7 +691,8 @@ Section fundamental.
     iSimpl. rewrite lh_depth_push_base.
     assert (S (lh_depth lh) - 1 = lh_depth lh) as ->;[lia|].
     rewrite get_layer_push_base_0;[|auto].
-    iExists _,_,_,_,_. iSplit;[eauto|].
+    apply lh_minus_push_base_Some with (n:=length tn) (es:=[AI_basic (BI_loop (Tf tn tm) es)]) (vs1:=[]) (es2:=[]) in Hlh_base as Hmin.
+    iExists _,_,_,_,_,_. repeat (iSplit;[eauto|]).
     iModIntro. iIntros (v f).
     iIntros "#Hw [Hf #Hfv]".
     unfold interp_expression.
@@ -729,10 +708,7 @@ Section fundamental.
     iDestruct "Hv" as (ws' ->) "Hv".
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
     repeat rewrite -!/(interp_frame _ _ _).
-    iDestruct ("HIH" with "[] Hf Hfv Hv") as "Hcont";[eauto|].
-    iApply (wp_wand with "Hcont").
-    iIntros (v) "[[H|H] $]";[iLeft;auto|].
-    iRight. iApply interp_br_push_label;auto.
+    iApply ("HIH" with "[] Hf Hfv Hv");eauto. 
   Qed.
 
   Lemma interp_ctx_push_label_loop C tm i lh tn es :
@@ -744,7 +720,7 @@ Section fundamental.
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
                 (interp_val tm vs
-                 ∨ interp_br (tc_label C) tm lh (tc_local C) i vs) ∗
+                 ∨ interp_br tm (tc_local C) i vs lh (tc_label C)) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                    interp_frame (tc_local C) i f0) }}) -∗
     interp_ctx (tc_label C) tm (tc_local C) i lh -∗
@@ -763,17 +739,16 @@ Section fundamental.
       iApply (big_sepL_mono with "Hc").
       iIntros (k y Hk). iSimpl.
       iIntros "#Hcont".
-      iDestruct "Hcont" as (vs j es0 lh' es' Hlayer) "Hcont".
-      iExists vs,j,es0,_,es'.
+      iDestruct "Hcont" as (vs j es0 lh' es' lh'' Hlayer Hdep Hmin) "Hcont".
+      iExists vs,j,es0,_,es',lh''.
       rewrite lh_depth_push_base PeanoNat.Nat.sub_succ.
       iSplit.
       { iPureIntro. apply get_layer_push_base;eauto. }
+      iSplit;[auto|]. iSplit.
+      { iPureIntro. apply push_base_lh_minus_is_Some. auto. }
       iModIntro. iIntros (v f) "#Hv [Hf #Hvf]".
       iDestruct ("Hcont" with "Hv [$Hf $Hvf]") as "Hcont'".
-      unfold interp_expression.
-      iApply (wp_wand with "Hcont'").
-      iIntros (v') "[[H'|H'] $]";[by iLeft|].
-      iRight. iApply interp_br_push_label;auto.
+      iFrame.
     }
   Qed.
 
@@ -817,7 +792,7 @@ Section fundamental.
     iAssert (∀ f, interp_frame (tc_local C) i f -∗ ↪[frame] f -∗ WP of_val (immV ws) ++ to_e_list es
               {{ v, (⌜v = trapV⌝ ∨
                        interp_values tm v ∨
-                       interp_br _ tm _ (tc_local C) i v)
+                       interp_br tm (tc_local C) i v _ _)
                       ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
     { iIntros (f') "#Hfv Hf".
       iDestruct ("HH" with "[] [Hf] []") as "Hcont".
