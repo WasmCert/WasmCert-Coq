@@ -279,16 +279,14 @@ Proof.
   destruct m.
   destruct Hmodule as [Hmodfunc _].
   generalize dependent s.
-  generalize dependent acc.
-  generalize dependent fts.
   generalize dependent mod_funcs.
-  induction mod_funcs => //; move => fts Hmodfunc acc s HType H0.
+  induction mod_funcs => //; move => Hmodfunc s HType H0.
   - simpl in H0.
     by inversion H0; subst.
   - simpl in H0.
     destruct fts as [|ft fts']; first by inversion Hmodfunc.
     inversion Hmodfunc; subst; clear Hmodfunc.
-    apply IHmod_funcs with(fts := fts') in H0 => //.
+    eapply IHmod_funcs with (s := s) => //.
     + admit.
     + unfold add_func. 
       apply store_typing_preserve_add_func.
