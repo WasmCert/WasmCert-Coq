@@ -43,7 +43,7 @@ Canonical Structure wasm_lang := Language wasm_mixin.
 
 Let reducible := @reducible wasm_lang.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 (*
 (* TODO: Resolve duplicated notations *)
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
@@ -206,7 +206,7 @@ End code.
 
 Section specs.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, (*!wstackG Σ*)!wlocsG Σ, !winstG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, (*!wstackG Σ*)!wlocsG Σ, !winstG Σ}.
 
 
 (*Notation "m :: l ↦ v" := (load m l N.zero 4 = Some (bits v))%I (at level 50).*)

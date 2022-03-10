@@ -35,7 +35,7 @@ Section logrel.
   
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
 
   
   Definition xb b := (VAL_int32 (wasm_bool b)).
@@ -142,8 +142,12 @@ Section logrel.
                                         ∗ from_option ((interp_function τf) ∘ N.of_nat) True fe)%I.
   (* ⊤ means failure is allowed in case the table is not populated *)
 
+
+  (* the table interpretation is a bit tricky: the table size needs to represent the full table, 
+     with the capability to increase its size with None entries. A None entry is to describe the 
+     out of bounds behaviour of a call indirect (with a trap rather than getting stuck) *)
   Definition interp_table (table_size : nat) (τt : table_type) : TR :=
-    λne n, ([∗ list] i ∈ mapi (λ j _, j) (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf n (N.of_nat i))%I.
+    λne n, ([∗ list] i↦_ ∈ (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf n (N.of_nat i))%I.
 
 
   (* --------------------------------------------------------------------------------------- *)
@@ -191,14 +195,16 @@ Section logrel.
            ([∗ list] f;tf ∈ fs;tfs, interp_function tf (N.of_nat f)) ∗
             (* Function tables *)           
            (match nth_error tabs_t 0 with
-            | Some τt => ∃ table_size, ⌜table_size >= N.to_nat τt.(tt_limits).(lim_min)⌝ ∗
-                                      from_option ((interp_table table_size τt) ∘ N.of_nat) False (nth_error tbs 0)
-            | None => False
+            | Some τt => match nth_error tbs 0 with
+                        | Some a => (∃ table_size, (N.of_nat a) ↪[wtsize] table_size ∗ (interp_table table_size τt) (N.of_nat a))
+                        | None => False
+                        end
+            | None => True
             end) ∗
             (* Linear Memory *)
            (match nth_error mems_t 0 with
             | Some τm => from_option ((interp_mem τm) ∘ N.of_nat) False (nth_error ms 0)
-            | None => False
+            | None => True
             end) ∗
             (* Global declarations *)
            ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.

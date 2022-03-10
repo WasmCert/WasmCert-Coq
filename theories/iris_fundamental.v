@@ -24,13 +24,14 @@ Require Import iris_fundamental_const
         iris_fundamental_loop
         iris_fundamental_br_if
         iris_fundamental_call
-        iris_fundamental_composition.
+        iris_fundamental_composition
+        iris_fundamental_call_indirect.
 Import uPred.
 
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- FTLR: simple typing ----------------------------------- *)
@@ -58,7 +59,7 @@ Section fundamental.
     { admit. }
     { admit. }
     { by apply typing_call. }
-    { admit. }
+    { by apply typing_call_indirect. }
     { admit. }
     { admit. }
     { admit. }

@@ -40,6 +40,10 @@ Class wtabG Σ := WTabG {
   tab_gen_hsG :> gen_heapGS (N*N) funcelem Σ;
 }.
 
+Class wtabsizeG Σ := WTabSizeG {
+  tabsize_hsG :> gen_heapGS N nat Σ;
+}.
+
 Class wmemG Σ := WMemG {
   mem_gen_hsG :> gen_heapGS (N*N) byte Σ;
 }.
@@ -65,7 +69,7 @@ Instance eqdecision_frame: EqDecision frame.
 Proof. decidable_equality. Qed.
 
 (* TODO: Global Instance doesn't seem to actually make this global... *)
-Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wframeG Σ} : irisGS wasm_lang Σ := {
+Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, wmemsizeG Σ, !wglobG Σ, !wframeG Σ} : irisGS wasm_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -74,7 +78,8 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
       (gen_heap_interp (gmap_of_list s.(s_globals))) ∗
       (ghost_map_auth frameGName 1 (<[ tt := Build_frame locs inst ]> ∅)) ∗ 
-      (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems))))
+      (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
+      (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables))))
       
     )%I;
     num_laters_per_step _ := 0;
@@ -84,7 +89,7 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, wmemsizeG Σ, !w
 
 Section Host_wp_import.
   (* Host wp must depend on the same memory model as for wasm *)
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
   Record host_program_logic := {
       wp_host (s : stuckness) : coPset -d> host_function -d> seq.seq value -d> (result -d> iPropO Σ) -d> iPropO Σ;
@@ -117,7 +122,9 @@ Notation "n ↦[wf] v" := (mapsto (L:=N) (V:=function_closure) n (DfracOwn 1) v%
 Notation "n ↦[wt]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=funcelem) (n, i) q v%V)
                            (at level 20, q at level 5, format "n ↦[wt]{ q } [ i ] v") : bi_scope.
 Notation "n ↦[wt][ i ] v" := (mapsto (L:=N*N) (V:=funcelem) (n, i) (DfracOwn 1) v%V)
-                      (at level 20, format "n ↦[wt][ i ] v") : bi_scope.
+                           (at level 20, format "n ↦[wt][ i ] v") : bi_scope.
+Notation "n ↪[wtsize] m" := (mapsto (L:=N) (V:=nat) n (DfracDiscarded) m%V)
+                              (at level 20, format "n ↪[wtsize] m") : bi_scope.
 Notation "n ↦[wm]{ q } [ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) q v%V)
                            (at level 20, q at level 5, format "n ↦[wm]{ q } [ i ] v") : bi_scope.
 Notation "n ↦[wm][ i ] v" := (mapsto (L:=N*N) (V:=byte) (n, i) (DfracOwn 1) v% V)
@@ -134,31 +141,30 @@ Notation " ↪[frame] v" := (ghost_map_elem frameGName tt (DfracOwn 1) v%V)
                            (at level 20, format " ↪[frame] v").
 
 
-
 Section Wasm_wp.
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
   Global Instance wp_wasm : Wp (iProp Σ) (expr) (val) stuckness.
-  Proof using Σ wfuncG0 wtabG0 wmemG0 wmemsizeG0 wglobG0 wframeG0.
+  Proof using Σ wfuncG0 wtabG0 wtabsizeG0 wmemG0 wmemsizeG0 wglobG0 wframeG0.
     eapply wp'. Unshelve. exact frame. exact (λ f,  ↪[frame] f)%I. Defined.
 
 End Wasm_wp.
 
 (* A Definition of a context dependent WP for WASM expressions *)
 
-Definition wp_wasm_ctx `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
+Definition wp_wasm_ctx `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
           (s : stuckness) (E : coPset) (e : language.expr wasm_lang)
            (Φ : val -> iProp Σ) (i : nat) (lh : lholed) : iProp Σ := 
   ∀ LI, ⌜lfilled i lh e LI⌝ -∗ WP LI @ s; E {{ Φ }}.
 
 
-Definition wp_wasm_frame `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
+Definition wp_wasm_frame `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
           (s : stuckness) (E : coPset) (es : language.expr wasm_lang)
           (Φ : val -> iProp Σ) (n: nat) (f: frame) : iProp Σ :=
   
   WP [AI_local n f es] @ s; E {{ Φ }}.
 
-Definition wp_wasm_ctx_frame `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
+Definition wp_wasm_ctx_frame `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}
           (s : stuckness) (E : coPset) (es : language.expr wasm_lang)
           (Φ : val -> iProp Σ) (n: nat) (f: frame) (i : nat) (lh : lholed) : iProp Σ :=
   

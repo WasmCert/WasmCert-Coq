@@ -13,12 +13,12 @@ Set Default Proof Using "Type". (* what is this? *)
 
 Close Scope byte_scope.
 
-Definition mem_block `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (m: memory) :=
+Definition mem_block `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (m: memory) :=
   (([∗ list] i ↦ b ∈ (m.(mem_data).(ml_data)), n ↦[wm][ (N.of_nat i) ] b ) ∗
      n ↦[wmlength] mem_length m)%I.
 (* mem_size_exact (N.succ_pos n) (mem_size m))%I*)
 
-Definition mem_block_at_pos `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (l:bytes) k :=
+Definition mem_block_at_pos `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (l:bytes) k :=
   ([∗ list] i ↦ b ∈ l, n ↦[wm][ (N.of_nat (N.to_nat k+i)) ] b)%I.
 
 
@@ -37,7 +37,7 @@ Let reduce := @reduce host_function host_instance.
 
 Let reducible := @reducible wasm_lang.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 (* TODO: switch to monotone implementation of mem_size once we have that? *)
 
 
@@ -2478,7 +2478,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ)".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ & ?)".
   iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hframe".
   iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
   rewrite lookup_insert in Hframe.
@@ -2816,7 +2816,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[ hs ws ] locs ] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & Hf & Hγ)".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hf & Hγ & ?)".
   iDestruct (ghost_map_lookup with "Hf Hframe") as "%Hframe".
   iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
   rewrite lookup_insert in Hframe.

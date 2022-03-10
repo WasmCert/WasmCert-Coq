@@ -14,7 +14,7 @@ Require Export iris_rules_structural
         iris_rules_structural_with_trap.
 Require Export datatypes host operations properties opsem.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 Close Scope byte_scope.
 

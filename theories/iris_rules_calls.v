@@ -12,7 +12,7 @@ Close Scope byte_scope.
 
 (* basic instructions with simple(pure) reductions *)
 Section iris_rules_calls.
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
   Import DummyHosts.
   
@@ -306,7 +306,7 @@ Section iris_rules_calls.
     iApply ("HΦ" with "[$]").
   Qed. 
 
-  Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
+  Lemma wp_call_indirect_success_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl d lh :
     (inst_types (f_inst f0)) !! i = Some (cl_type cl) ->
     (inst_tab (f_inst f0)) !! 0 = Some j-> (* current frame points to correct table? *)
     (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
@@ -314,11 +314,19 @@ Section iris_rules_calls.
     ↪[frame] f0 -∗
     ▷ ((N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
        ∗ (N.of_nat a) ↦[wf] cl
-       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E CTX d; lh {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E CTX d; lh {{ v, Φ v ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Htype Hc) "Ha Hcl Hf Hcont".
+    iIntros (LI Hfill).
+    apply lfilled_swap with (es':=[AI_invoke a]) in Hfill as Hfill'.
+    destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step;[auto|].
+    { apply eq_None_not_Some.
+      intros Hcontr.
+      eapply lfilled_to_val in Hcontr;[|eauto].
+      inversion Hcontr.
+      done. }
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ2 Ha") as %Hlook.
@@ -346,18 +354,41 @@ Section iris_rules_calls.
       eexists [], _, σ, [].
       unfold iris.prim_step => /=.
       repeat split => //.
+      eapply r_label;eauto.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
       destruct σ2 as [[[hs' ws'] locs'] inst'].
       destruct HStep as (H & -> & ->).
-      eapply reduce_det in H as HH;[|apply Hred].
+      assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |} LI s0 s1 {| f_locs := l; f_inst := i0 |} LI') as Hred'.
+      { eapply r_label;eauto. }
+      eapply reduce_det in H as HH;[|apply Hred'].
+      assert (first_instr LI = Some (AI_basic (BI_call_indirect i),0+d)).
+      { eapply starts_with_lfilled;eauto. by cbn. }
       destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
       simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "Hf".
-      iSpecialize ("Hcont" with "[$]"). iFrame.
+      iSpecialize ("Hcont" with "[$]").
+      iSpecialize ("Hcont" $! _ Hfill'). iFrame.      
   Qed.
-      
+  Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
+    (inst_types (f_inst f0)) !! i = Some (cl_type cl) ->
+    (inst_tab (f_inst f0)) !! 0 = Some j-> (* current frame points to correct table? *)
+    (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a) -∗
+    (N.of_nat a) ↦[wf] cl -∗
+    ↪[frame] f0 -∗
+    ▷ ((N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
+       ∗ (N.of_nat a) ↦[wf] cl
+       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+  Proof.
+    iIntros (? ?) "? ? ? H".
+    iApply wp_wasm_empty_ctx.
+    iApply (wp_call_indirect_success_ctx with "[$] [$] [$]");eauto.
+    iNext. iIntros "?".
+    iApply wp_wasm_empty_ctx.
+    iApply ("H" with "[$]").
+  Qed.
 
   Lemma wp_call_indirect_failure_types (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
     (inst_types (f_inst f0)) !! i <> Some (cl_type cl) ->
@@ -445,7 +476,6 @@ Section iris_rules_calls.
       simplify_eq. iFrame. done.
   Qed.
 
-  
   Lemma wp_call_indirect_failure_noindex (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) c :
     (inst_tab (f_inst f0)) !! 0 = Some j -> (* current frame points to correct table *)
     (N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] None -∗ (* but no index i *)
@@ -471,6 +501,52 @@ Section iris_rules_calls.
         apply list_lookup_fmap_inv in Heq as [ti [Hti Heq]].
         rewrite Heq /=. rewrite nth_error_lookup. subst.
         by rewrite Hlook /=. } }
+    iSplit.
+    - iPureIntro.
+      destruct s => //=.
+      unfold language.reducible, language.prim_step => /=.
+      eexists [], _, σ, [].
+      unfold iris.prim_step => /=.
+      repeat split => //.
+    - iApply fupd_mask_intro;[solve_ndisj|].
+      iIntros "Hcls !>" (es1 σ2 efs HStep).
+      iMod "Hcls". iModIntro.
+      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct HStep as (H & -> & ->).
+      eapply reduce_det in H as HH;[|apply Hred].
+      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      simplify_eq. iFrame. done.
+  Qed.
+
+  Lemma wp_call_indirect_failure_outofbounds (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) c max :
+    (inst_tab (f_inst f0)) !! 0 = Some j -> (* current frame points to correct table *)
+    max <= (Wasm_int.nat_of_uint i32m c) ->
+    (N.of_nat j) ↪[wtsize] max -∗ (* but is out of bounds *)
+    ↪[frame] f0 -∗
+    ▷ (Φ trapV) -∗
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+  Proof.
+    iIntros (Hc Hge) "#Ha Hf Hcont".
+    iApply wp_lift_atomic_step;[auto|].
+    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6&Hσ7)".
+    iApply fupd_frame_l.
+    iDestruct (gen_heap_valid with "Hσ7 Ha") as %Hlook.
+    rewrite gmap_of_list_lookup Nat2N.id in Hlook.
+    rewrite list_lookup_fmap in Hlook.
+    iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hf. simplify_map_eq.
+    apply fmap_Some_1 in Hlook as [tbli [Hlook Hsize]].
+    simplify_eq.
+    apply lookup_ge_None_2 in Hge.
+    
+    
+    set (σ := (s0,s1,l,i0)).
+    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
+           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 s1 {| f_locs := l; f_inst := i0 |}
+           [AI_trap]) as Hred.
+    { eapply r_call_indirect_failure2.
+      { unfold stab_addr. destruct i0. simpl in *. destruct inst_tab;[done|]. inversion Hc.
+        unfold stab_index. rewrite nth_error_lookup. simplify_eq.
+        rewrite Hlook. simpl. rewrite nth_error_lookup Hge. done. } }
     iSplit.
     - iPureIntro.
       destruct s => //=.
