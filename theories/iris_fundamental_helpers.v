@@ -33,6 +33,24 @@ Ltac take_drop_app_rewrite_twice n m :=
       rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
   end.
 
+Lemma big_sepL2_insert {Σ} {A B : Type} (l1 : list A) (l2 : list B) (i : nat) (a : A) (b : B) (Φ : A -> B -> iProp Σ) : 
+  ⊢ Φ a b -∗
+    ([∗ list] a0;b0 ∈ l1;l2, Φ a0 b0)%I -∗
+    ([∗ list] a0;b0 ∈ <[i:=a]> l1;<[i:=b]> l2, Φ a0 b0)%I.
+Proof.
+  revert a b i l2.
+  iInduction (l1) as [] "IH";
+  iIntros (a' b' i l2) "Ha Hl".
+  { iDestruct (big_sepL2_length with "Hl") as %Hlen.
+    destruct l2;[|done]. done. }
+  { iDestruct (big_sepL2_length with "Hl") as %Hlen.
+    destruct l2;[done|].
+    destruct i.
+    { simpl. iDestruct "Hl" as "[_ Hl]". iFrame. }
+    { simpl. iDestruct "Hl" as "[$ Hl]". iApply ("IH" with "Ha"). iFrame. }
+  }
+Qed.
+
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
@@ -474,5 +492,34 @@ Section fundamental.
     iDestruct (big_sepL2_lookup with "Hi") as "HH";eauto.
     iExists f. iSimpl. rewrite nth_error_lookup. auto.
   Qed.
+
+  Lemma interp_instance_lookup_global C j i t :
+    option_map tg_t (nth_error (tc_global C) i) = Some t ->
+    ⊢ interp_instance (HWP:=HWP) C j -∗
+      ∃ gt mut n, ⌜nth_error (tc_global C) i = Some gt⌝ ∗
+                ⌜nth_error (inst_globs j) i = Some n⌝ ∗
+                ⌜gt = Build_global_type mut t⌝ ∗
+                interp_global gt (N.of_nat n).
+  Proof.
+    destruct C,j.
+    iIntros (Hmap) "[_ [_ [_ [_ #Hi]]]]".
+    iSimpl. simpl in Hmap.
+    destruct (nth_error tc_global i) eqn:Hnth;[|done].
+    inversion Hmap;subst t.
+    destruct g;simplify_eq.
+    rewrite nth_error_lookup in Hnth.
+    apply lookup_lt_Some in Hnth as Hlt.
+    iDestruct (big_sepL2_length with "Hi") as %Hlen.
+    rewrite -Hlen in Hlt.
+    apply lookup_lt_is_Some_2 in Hlt as [? ?].
+    iExists _,tg_mut,x. repeat iSplit;eauto.
+    { rewrite nth_error_lookup;auto. }
+    iSimpl.
+    iDestruct (big_sepL2_lookup with "Hi") as "Hw";[eauto..|].
+    iFrame "Hw".
+  Qed.
+
+  Global Instance global_inhabited : Inhabited global.
+  Proof. apply populate. exact (Build_global MUT_mut (VAL_int32 int32_minus_one)). Qed.
   
 End fundamental.

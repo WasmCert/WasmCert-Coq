@@ -145,72 +145,27 @@ Proof.
     iApply bi.sep_exist_l. iExists _. iFrame.
 Qed.
 
-
-(*
-(* tee_local is not atomic in the Iris sense, since it requires 2 steps to be reduced to a value. *)
-Lemma wp_tee_local (s : stuckness) (E : coPset) (v v0: value) (n: nat) (ϕ: val -> Prop):
-  (not (ϕ trapV)) ->
-  ϕ (immV [v]) ->
-  N.of_nat n ↦[wl] v0 ⊢
-  WP ([AI_basic (BI_const v); AI_basic (BI_tee_local n)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ N.of_nat n ↦[wl] v }}.
-Proof.
-  iIntros (Hntrap Hϕ) "Hli".
-  iApply wp_lift_step => //=.
-  iIntros (σ ns κ κs nt) "Hσ".
-  destruct σ as [[[hs ws] locs] inst].
-  iApply fupd_mask_intro; first by solve_ndisj.
-  iIntros "Hfupd".
-  iDestruct "Hσ" as "(? & ? & ? & ? & Hl & ? & ?)".
-  iDestruct (gen_heap_valid with "Hl Hli") as "%Hli".
-  iSplit.
-  - iPureIntro.
-    destruct s => //=.
-    unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const v); AI_basic (BI_const v); AI_basic (BI_set_local n)], (hs, ws, locs, inst), [].
-    unfold iris.prim_step => /=.
-    repeat split => //.
-    apply r_simple.
-    by apply rs_tee_local => //.
-  - iIntros "!>" (es σ2 efs HStep).
-    iMod "Hfupd".
-    iModIntro.
-    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
-    destruct HStep as [H [-> ->]].
-    only_one_reduction H.
-    inversion H; subst; clear H.
-    iFrame.
-    repeat iSplit => //.
-    iApply wp_val => //=.
-    iSplitR => //; first by iIntros "(%HContra & _)". 
-    iApply wp_mono; last iApply wp_set_local; eauto => //.
-Qed.
-
-(* r_get_global involves finding the reference index to the global store via
-   the instance first. *)
-
-(* TODO: Weaken the ownership of instance (and global) *)
-Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: instance) (n: nat) (ϕ: val -> Prop) (g: global) (k: nat):
-  inst.(inst_globs) !! n = Some k ->
+Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: frame) (n: nat) (ϕ: iris.val -> iProp Σ) (g: global) (k: nat):
+  (f_inst inst).(inst_globs) !! n = Some k ->
   g.(g_val) = v ->
-  ϕ (immV [v]) ->
-  (↦[wi] inst ∗
-  N.of_nat k ↦[wg] g) ⊢
-                      WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↦[wi] inst ∗ N.of_nat k ↦[wg] g }}.
+  ▷ ϕ (immV [v]) -∗
+  ↪[frame] inst -∗
+  N.of_nat k ↦[wg] g -∗
+  WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, (ϕ w ∗ N.of_nat k ↦[wg] g) ∗ ↪[frame] inst }}.
 Proof.
-  iIntros (Hinstg Hgval Hϕ) "(Hinst & Hglob)".
+  iIntros (Hinstg Hgval) "HΦ Hinst Hglob".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & ? & Hg & ? & Hi & ?)".
+  iDestruct "Hσ" as "(? & ? & ? & Hg & Hi & ? & ?)".
   iDestruct (gen_heap_valid with "Hg Hglob") as "%Hglob".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct (ghost_map_lookup with "Hi Hinst") as "%Hli".
+  simplify_map_eq.
   rewrite gmap_of_list_lookup Nat2N.id in Hglob.
   rewrite - nth_error_lookup in Hglob.
   rewrite - nth_error_lookup in Hinstg.
-  rewrite lookup_insert in Hinst.
-  inversion Hinst; subst; clear Hinst.
   assert ( sglob_val (host_function:=host_function) ws
-                     (f_inst {| f_locs := locs; f_inst := inst |}) n =
+                     (f_inst {| f_locs := locs; f_inst := winst |}) n =
            Some (g_val g) ) as Hsglob.
   { unfold sglob_val, option_map, sglob, option_bind, sglob_ind => /=.
     by rewrite Hinstg Hglob.
@@ -219,102 +174,67 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
-    exists [], [AI_basic (BI_const (g_val g))], (hs, ws, locs, inst), [].
+    eexists [], [AI_basic (BI_const (g_val g))], (hs, ws, locs, _), [].
     unfold iris.prim_step => /=.
     repeat split => //.
     by apply r_get_global.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[[hs' ws'] locs'] winst'] => //=.
     destruct HStep as [H [-> ->]].
-    only_one_reduction H.
+    only_one_reduction H. iFrame.
 Qed.
-(*
-Print  sglob_val.
-Print supdate_glob.
-*)
-Lemma wp_set_global (s : stuckness) (E : coPset) (v:value) (inst :instance) (n:nat)
-      (Φ : val -> Prop) (g: global) (k:nat):
-  inst.(inst_globs) !! n = Some k ->
-  Φ (immV []) ->
-  ( ↦[wi] inst ∗
-    N.of_nat k ↦[wg] g) ⊢
-                        WP [AI_basic (BI_const v) ; AI_basic (BI_set_global n)] @ s ; E {{ w,  ⌜ Φ w ⌝ ∗ ↦[wi] inst ∗ N.of_nat k ↦[wg] {| g_mut := g_mut g ; g_val := v |} }}.
+
+Lemma wp_set_global (s : stuckness) (E : coPset) (v w: value) (inst: frame) (n: nat) (ϕ: iris.val -> iProp Σ) (g: global) (k: nat):
+  (f_inst inst).(inst_globs) !! n = Some k ->
+  ▷ ϕ (immV []) -∗
+  ↪[frame] inst -∗
+  N.of_nat k ↦[wg] g -∗
+  WP [AI_basic (BI_const v); AI_basic (BI_set_global n)] @ s; E {{ w, (ϕ w ∗ N.of_nat k ↦[wg] Build_global (g_mut g) v) ∗ ↪[frame] inst }}.
 Proof.
-  iIntros (Hinstg HΦ) "[Hinst Hglob]".
-  iApply wp_lift_atomic_step. simpl ; trivial.
+  iIntros (Hinstg) "HΦ Hinst Hglob".
+  iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
-  destruct σ as [[[ hs ws] locs ] winst].
-  iDestruct "Hσ" as "(? & ? & ? & Hg & ? & Hi & ?)". 
+  destruct σ as [[[hs ws] locs] winst].
+  iDestruct "Hσ" as "(? & ? & ? & Hg & Hi & ? & ?)".
   iDestruct (gen_heap_valid with "Hg Hglob") as "%Hglob".
-  iDestruct (gen_heap_valid with "Hi Hinst") as "%Hinst".
+  iDestruct (ghost_map_lookup with "Hi Hinst") as "%Hli".
+  simplify_map_eq.
   rewrite gmap_of_list_lookup Nat2N.id in Hglob.
   rewrite - nth_error_lookup in Hglob.
   rewrite - nth_error_lookup in Hinstg.
-  rewrite lookup_insert in Hinst.
-  inversion Hinst ; subst ; clear Hinst.
-  iDestruct (gen_heap_update with "Hg Hglob") as "H".
-  remember {|
-      s_funcs := datatypes.s_funcs ws;
-      s_tables := datatypes.s_tables ws;
-      s_mems := datatypes.s_mems ws;
+  assert (supdate_glob (host_function:=host_function) ws
+                       (f_inst {| f_locs := locs; f_inst := winst |}) n v = 
+            Some
+    {|
+      s_funcs := s_funcs ws;
+      s_tables := s_tables ws;
+      s_mems := s_mems ws;
       s_globals :=
-        update_list_at (datatypes.s_globals ws) k
-          {| g_mut := g_mut g; g_val := v |}
-    |} as ws'.
-  assert ( supdate_glob (host_function := host_function) ws
-                     (f_inst {| f_locs := locs ; f_inst := inst |}) n v =
-             Some ws') as Hsglob.
-  { unfold supdate_glob, option_bind, sglob_ind, supdate_glob_s, option_map => /=.
-    by rewrite Hinstg Hglob Heqws'. }
+        update_list_at (s_globals ws) k {| g_mut := g_mut g; g_val := v |}
+    |}) as Hsglob.
+  { unfold supdate_glob, supdate_glob_s, option_map, sglob, option_bind, sglob_ind => /=.
+    by rewrite Hinstg Hglob.
+  }
   iSplit.
   - iPureIntro.
     destruct s => //=.
     unfold reducible, language.prim_step => /=.
-    exists [], [], (hs, ws', locs, inst), [].
-    unfold language.prim_step => /=. repeat split => /=.
-    by apply r_set_global.
-  - iIntros "!>" (es σ2 efs Hstep). iMod "H". iModIntro. 
-    destruct σ2 as [[[ hs2 ws2 ] locs' ] inst'].
-    destruct Hstep as (H & -> & ->).
-    eapply reduce_det in H as [H | [Hstart | [[a Hstart] | (Hstart & Hstart1 & Hstart2
-                                                            & Hσ)]]] ;
-      last (by econstructor) ; try by unfold first_instr in Hstart ; inversion Hstart.
-    inversion H ; subst ; clear H.
-    iDestruct "H" as "[Hg Hk]". iFrame.
-    destruct ws => //=. simpl in Hsglob.
-    assert (N.to_nat (N.of_nat k) < length s_globals) as Hlen.
-    { rewrite Nat2N.id. simpl in Hglob. apply nth_error_Some.
-      rewrite Hglob ; done. }
-    rewrite <- (gmap_of_list_insert (l:= s_globals) {| g_mut := g_mut g ;
-                                                     g_val := v |} (n := N.of_nat k) Hlen).
-    rewrite Nat2N.id.
-    cut (<[k:={| g_mut := g_mut g ; g_val := v |}]> s_globals =
-           update_list_at s_globals k {| g_mut := g_mut g ; g_val := v |}).
-    intro Heq ; rewrite Heq. repeat iSplit => //=.
-    rewrite Nat2N.id in Hlen. unfold update_list_at.
-    clear - Hlen. 
-    generalize dependent s_globals. 
-    induction k ; intros s_globals Hlen. 
-    { destruct s_globals.
-      { exfalso. simpl in Hlen. lia. }
-      simpl. unfold drop. done. }
-    destruct s_globals. { exfalso ; simpl in Hlen ; lia. }
-    simpl. simpl in IHk. assert (k < (length s_globals)). { simpl in Hlen. lia. }
-    rewrite (IHk s_globals H). done.
+    eexists [], _, (hs, _, locs, _), [].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_set_global;eauto.
+  - iIntros "!>" (es σ2 efs HStep).
+    destruct σ2 as [[[hs' ws'] locs'] winst'] => //=.
+    destruct HStep as [H [-> ->]].
+    only_one_reduction H.
+    iMod (gen_heap_update with "Hg Hglob") as "[Hg Hglob]".
+    iFrame. rewrite nth_error_lookup in Hglob.
+    apply lookup_lt_Some in Hglob as Hlt.
+    rewrite -update_list_at_is_set_nth;[|apply/ssrnat.leP; rewrite -length_is_size;lia].
+    rewrite -fmap_insert_set_nth//.
+    rewrite -gmap_of_list_insert;[|by rewrite Nat2N.id].
+    rewrite Nat2N.id. by iFrame.
 Qed.
-
-
-Lemma update_list_same_dom (l : seq.seq global) k v :
-  k < length l -> 
-  dom (gset N) (gmap_of_list l) = dom (gset N) (gmap_of_list (update_list_at l k v)).
-Proof.
-  induction k ; unfold update_list_at. 
-  destruct l. simpl. intro ; exfalso ; lia.
-  intro ; simpl. destruct l. simpl. unfold gmap_of_list. simpl.
-  unfold dom, gset_dom, mapset.mapset_dom, mapset.mapset_dom_with, merge, gmap_merge.
-  unfold merge, pmap.Pmerge. Search (gmap_of_list _).
-  
-Admitted. *)
 
 (* Auxiliary lemmas for load/store *)
 

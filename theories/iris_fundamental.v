@@ -25,7 +25,12 @@ Require Import iris_fundamental_const
         iris_fundamental_br_if
         iris_fundamental_call
         iris_fundamental_composition
-        iris_fundamental_call_indirect.
+        iris_fundamental_call_indirect
+        iris_fundamental_get_local
+        iris_fundamental_set_local
+        iris_fundamental_tee_local
+        iris_fundamental_get_global
+        iris_fundamental_set_global.
 Import uPred.
 
 Section fundamental.
@@ -60,11 +65,11 @@ Section fundamental.
     { admit. }
     { by apply typing_call. }
     { by apply typing_call_indirect. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { by apply typing_get_local. }
+    { by apply typing_set_local. }
+    { by apply typing_tee_local. }
+    { by apply typing_get_global. }
+    { by eapply typing_set_global. }
     { admit. }
     { admit. }
     { admit. }
