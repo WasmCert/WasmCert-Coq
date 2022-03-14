@@ -1830,19 +1830,19 @@ Proof.
 Qed.
 
 
-Lemma wms_is_load n k off v m ws :
-  length (bits v) > 0 -> s_mems (host_function := host_function) ws !! n = Some m ->
-  (N.of_nat n ↦[wms][ k + off ] (bits v) -∗
+Lemma wms_is_load n k off bv m ws :
+  length bv > 0 -> s_mems (host_function := host_function) ws !! n = Some m ->
+  (N.of_nat n ↦[wms][ k + off ] bv -∗
             gen_heap_interp (gmap_of_memory (s_mems ws))
-            -∗ ⌜ load m k off (length (bits v)) = Some (bits v) ⌝).
+            -∗ ⌜ load m k off (length bv) = Some bv ⌝).
 Proof.
   iIntros (Ht Hm) "Hwms Hm".
-  iAssert ( (∀ i, ⌜ i < length (bits v) ⌝ -∗
+  iAssert ( (∀ i, ⌜ i < length bv ⌝ -∗
                                ⌜ (ml_data (mem_data m)) !! (N.to_nat (k + off + N.of_nat i))
-                  = (bits v) !! i ⌝)%I ) as "%Hmeq".
+                  = bv !! i ⌝)%I ) as "%Hmeq".
   { iIntros (i) "%Hi".
     iDestruct (big_sepL_lookup with "Hwms") as "H" => //.
-    destruct (nth_lookup_or_length (bits v) i (encode 1)) => //=.
+    destruct (nth_lookup_or_length bv i (encode 1)) => //=.
     lia.
     iDestruct (gen_heap_valid with "Hm H") as "%H".
     rewrite gmap_of_list_2d_lookup list_lookup_fmap Nat2N.id Hm in H.
@@ -1850,38 +1850,38 @@ Proof.
     iPureIntro. replace (N.to_nat (k + off + N.of_nat i)) with
       (N.to_nat (k + off) + i). rewrite H.
     apply Logic.eq_sym.
-    destruct (nth_lookup_or_length (bits v) i (encode 1)) => //=.
+    destruct (nth_lookup_or_length bv i (encode 1)) => //=.
     lia. lia. }
   
   iPureIntro.
   unfold load.
-  replace (k + (off + N.of_nat (length (bits v))) <=? mem_length m)%N with true.
+  replace (k + (off + N.of_nat (length bv)) <=? mem_length m)%N with true.
   unfold read_bytes, mem_lookup.
   apply those_map_Some => //=.
   intros.
   rewrite nth_error_lookup. by apply Hmeq.
   apply Logic.eq_sym, N.leb_le.
-  assert (ml_data (mem_data m) !! N.to_nat (k + off + N.of_nat (length (bits v) - 1)) =
-            (bits v) !! (length (bits v) - 1)). apply Hmeq ; first lia.
-  destruct (nth_lookup_or_length (bits v) (length (bits v) - 1) (encode 1)) => //=. 
+  assert (ml_data (mem_data m) !! N.to_nat (k + off + N.of_nat (length bv - 1)) =
+            bv !! (length bv - 1)). apply Hmeq ; first lia.
+  destruct (nth_lookup_or_length bv (length bv - 1) (encode 1)) => //=. 
   rewrite e in H.
   apply memory_in_bounds in H. unfold lt in H.
-  replace (S (N.to_nat (k + off + N.of_nat (length (bits v) - 1)))) with
-    (N.to_nat (k + (off + N.of_nat (length (bits v))))) in H. lia.
+  replace (S (N.to_nat (k + off + N.of_nat (length bv - 1)))) with
+    (N.to_nat (k + (off + N.of_nat (length bv)))) in H. lia.
   rewrite <- N2Nat.inj_succ. 
   rewrite <- N.add_succ_r. 
   rewrite <- Nat2N.inj_succ. lia. lia.
 Qed.
 
-Lemma wms_is_load_packed n k off v m len ws sx :
+Lemma wms_is_load_packed n k off bv m len ws sx :
   (* types_agree t v -> *)
   (* (tp_length tp) < (t_length t) -> *)
   (* tp_length tp = length (bits v) ->  *)
-  length (bits v) > 0 ->
+  length bv > 0 ->
   s_mems (host_function := host_function) ws !! n = Some m ->
-  (N.of_nat n ↦[wms][ k + off ] (bits v) -∗
+  (N.of_nat n ↦[wms][ k + off ] bv -∗
             gen_heap_interp (gmap_of_memory (s_mems ws))
-            -∗ ⌜ load_packed (sx) m k off (length (bits v)) len = Some (bits v) ⌝).
+            -∗ ⌜ load_packed (sx) m k off (length bv) len = Some bv ⌝).
 Proof.
   iIntros (Hlt Hm) "Hwms Hm".
   unfold load_packed,sign_extend.
@@ -2256,17 +2256,16 @@ Proof.
     rewrite no_memory_no_memories in Hm => //=.
 Qed.
 
-Lemma wp_load_deserialize (Φ:iris.val -> iProp Σ) (s:stuckness) (E:coPset) (t:value_type) (v:value)
+Lemma wp_load_deserialize (Φ:iris.val -> iProp Σ) (s:stuckness) (E:coPset) (t:value_type) (bv:bytes)
       (off: static_offset) (a: alignment_exponent)
-      (k: i32) (n:nat) (f0: frame):
-  length (bits v) = t_length t ->
+      (k: i32) (n:nat) (f0: frame) :
+  length bv = t_length t ->
   f0.(f_inst).(inst_memory) !! 0 = Some n ->
-  (Φ (immV [wasm_deserialise (bits v) t]) ∗
+  (Φ (immV [wasm_deserialise bv t]) ∗
    ↪[frame] f0 ∗
-     N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ]
-     (bits v) ⊢
+     N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] bv ⊢
      (WP [AI_basic (BI_const (VAL_int32 k)) ;
-          AI_basic (BI_load t None a off)] @ s; E {{ w, (Φ w ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ](bits v)) ∗ ↪[frame] f0 }})).
+          AI_basic (BI_load t None a off)] @ s; E {{ w, (Φ w ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ]bv) ∗ ↪[frame] f0 }})).
 Proof.
   iIntros (Htv Hinstn) "[HΦ [Hf0 Hwms]]".
   iApply wp_lift_atomic_step => //=.
@@ -2276,8 +2275,7 @@ Proof.
   iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
   rewrite lookup_insert in Hf0.
   inversion Hf0; subst; clear Hf0.
-  destruct (bits v) eqn:Hb.
-  destruct v ; inversion Hb.
+  destruct bv eqn:Hb. destruct t;done.
   iDestruct (wms_implies_smems_is_Some with "Hm Hwms") as "(Hwms & Hm & %Hm)".
   destruct Hm as [m Hm].
   rewrite <- Hb.
@@ -2328,17 +2326,16 @@ Proof.
   rewrite deserialise_bits;auto. iFrame.
 Qed.
 
-Lemma wp_load_packed_deserialize (Φ:iris.val -> iProp Σ) (s:stuckness) (E:coPset) (t:value_type) (v:value)
+Lemma wp_load_packed_deserialize (Φ:iris.val -> iProp Σ) (s:stuckness) (E:coPset) (t:value_type) (bv:bytes)
       (off: static_offset) (a: alignment_exponent)
       (k: i32) (n:nat) (f0: frame) tp sx :
-  length (bits v) = tp_length tp ->
+  length bv = tp_length tp ->
   f0.(f_inst).(inst_memory) !! 0 = Some n ->
-  (Φ (immV [wasm_deserialise (bits v) t]) ∗
+  (Φ (immV [wasm_deserialise bv t]) ∗
    ↪[frame] f0 ∗
-     N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ]
-     (bits v) ⊢
+     N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] bv ⊢
      (WP [AI_basic (BI_const (VAL_int32 k)) ;
-          AI_basic (BI_load t (Some (tp, sx)) a off)] @ s; E {{ w, (Φ w ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ](bits v)) ∗ ↪[frame] f0 }})).
+          AI_basic (BI_load t (Some (tp, sx)) a off)] @ s; E {{ w, (Φ w ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ]bv) ∗ ↪[frame] f0 }})).
 Proof.
   iIntros (Htv Hinstn) "[HΦ [Hf0 Hwms]]".
   iApply wp_lift_atomic_step => //=.
@@ -2348,8 +2345,8 @@ Proof.
   iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
   rewrite lookup_insert in Hf0.
   inversion Hf0; subst; clear Hf0.
-  destruct (bits v) eqn:Hb.
-  destruct v ; inversion Hb.
+  destruct bv eqn:Hb.
+  destruct tp;done.
   iDestruct (wms_implies_smems_is_Some with "Hm Hwms") as "(Hwms & Hm & %Hm)".
   destruct Hm as [m Hm].
   rewrite <- Hb.

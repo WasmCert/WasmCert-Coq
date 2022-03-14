@@ -1068,7 +1068,7 @@ Proof.
     iSplitR ; first by iIntros "!> [[[[%Habs _ ] _ ] _ ] _ ]".
     unfold value_of_int.
     iApply wp_load => //=.
-    exact f0.(f_inst).   
+    (* exact f0.(f_inst).    *)
     iSplitL "Hs Hrest".
     iFrame.
     done.
@@ -1200,7 +1200,6 @@ Proof.
     iApply wp_val_app => //.
     iSplitR ; first by iIntros "!> [[[[%Habs _] _] _] _]".
     iApply wp_load => //.
-    exact f0.(f_inst).
     iSplitL "Hs Hrest".
     iFrame.
     done.
@@ -1391,7 +1390,6 @@ Proof.
     iDestruct "Hstack" as "(%Hdiv & %Hlen & Hv & Hs & Hrest)".
     iSplitR "HΦ".
   - iApply wp_load => //.
-    exact f0.(f_inst).
     iSplitL "Hs Hrest".
     iFrame.
     done.
@@ -1498,7 +1496,6 @@ Proof.
     iSplitR ; first by iIntros "[[[%Habs _] _] _]".
     iSplitR "HΦ".
   - iApply wp_load => //.
-    exact f1.(f_inst).
     by subst f1 => //=.
     iFrame.
     rewrite separate1.
@@ -1744,7 +1741,6 @@ Proof.
     iDestruct "Hstack" as "(%Hdiv & %Hlen & Hv & Hs & Hrest)".
     iSplitR "HΦ".
   - iApply wp_load => //.
-    exact f0.(f_inst).
     iSplitL "Hs Hrest".
     iFrame.
     done.
