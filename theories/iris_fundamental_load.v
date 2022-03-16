@@ -11,15 +11,6 @@ Require Export iris_rules.
 Require Export datatypes host operations properties opsem typing.
 Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
-
-Lemma big_sepL_cond_impl {Σ} {A : Type} (Φ : nat -> A -> iProp Σ) (l : list A) :
-  ([∗ list] k↦y ∈ l, Φ k y) ⊣⊢
-  ([∗ list] k↦y ∈ l, True → Φ k y).
-Proof.
-  iSplit; iIntros "Hl".
-  all: iApply (big_sepL_mono with "Hl");iIntros (k y Hk) "H";auto.
-  iApply "H";auto.
-Qed.
   
 Section fundamental.
   Import DummyHosts. (* placeholder *)
@@ -30,24 +21,7 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Lemma interp_instance_get_mem C i :
-    tc_memory C ≠ [] ->
-    ⊢ interp_instance (HWP:=HWP) C i -∗
-      ∃ τm mem, ⌜nth_error (tc_memory C) 0 = Some τm⌝
-              ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
-              ∗ interp_mem τm (N.of_nat mem).
-  Proof.
-    destruct C,i.
-    iIntros (Hnil) "[_ [_ [ _ [#Hi _]]]]".
-    iSimpl.
-    simpl in Hnil.
-    destruct tc_memory;try done.
-    iSimpl in "Hi".
-    destruct inst_memory;try done.
-    iExists _,_. repeat iSplit;eauto.
-  Qed.
-
-  Lemma mem_extract_packed_mid (len : nat) ml_data (start : N) m (cond : N -> Prop) :
+  Lemma mem_extract_mid (len : nat) ml_data (start : N) m (cond : N -> Prop) :
     (∀ a, start <= a ∧ a < start + N.of_nat len -> cond a)%N ->
     len > 0
     → (N.of_nat (length ml_data) >= start + N.of_nat len)%N
@@ -96,7 +70,7 @@ Section fundamental.
     iIntros (? ?). iApply "H". iPureIntro. split;auto. lia.
   Qed.
 
-  Lemma mem_extract_packed ms start len m :
+  Lemma mem_extract ms start len m :
     len > 0  ->
     (mem_length ms >= start + N.of_nat len)%N ->
     ⊢ ([∗ list] i↦b ∈ ml_data (mem_data ms), m ↦[wm][N.of_nat i] b) -∗
@@ -109,7 +83,7 @@ Section fundamental.
     unfold mem_length,memory_list.mem_length;simpl.
     iIntros (Hlt Hbounds) "Hm".
     iDestruct (big_sepL_cond_impl with "Hm") as "Hm".
-    iDestruct (mem_extract_packed_mid _ _ _ _ (λ _, True) with "[Hm]") as "Hm";eauto.
+    iDestruct (mem_extract_mid _ _ _ _ (λ _, True) with "[Hm]") as "Hm";eauto.
     iDestruct "Hm" as (bv) "[? [H ?]]".
     iExists _. iFrame. iIntros "?".
     iApply big_sepL_cond_impl. iApply "H";iFrame.
@@ -162,7 +136,7 @@ Section fundamental.
         iSplitR;[by iLeft; iLeft|iExists _;iFrame].
         iExists _. eauto. 
       }
-      { iDestruct (mem_extract_packed _ (Wasm_int.N_of_uint i32m z + off) (tp_length p) with "Hmem") as (bv) "[Ha [Hmem %Hlenbv]]";[destruct p;simpl;lia|lia|].
+      { iDestruct (mem_extract _ (Wasm_int.N_of_uint i32m z + off) (tp_length p) with "Hmem") as (bv) "[Ha [Hmem %Hlenbv]]";[destruct p;simpl;lia|lia|].
         iApply wp_fupd.
         iApply (wp_wand _ _ _ (λ vs, (⌜vs = immV _⌝ ∗ _) ∗ _)%I with "[Ha Hf]").
         { iApply (wp_load_packed_deserialize with "[$Hf $Ha]");eauto;by rewrite Hlocs /=. }
@@ -191,7 +165,7 @@ Section fundamental.
         iSplitR;[by iLeft; iLeft|iExists _;iFrame].
         iExists _. eauto. 
       }
-      { iDestruct (mem_extract_packed _ (Wasm_int.N_of_uint i32m z + off) (t_length t) with "Hmem") as (bv) "[Ha [Hmem %Hlenbv]]";[destruct t;simpl;lia|lia|].
+      { iDestruct (mem_extract _ (Wasm_int.N_of_uint i32m z + off) (t_length t) with "Hmem") as (bv) "[Ha [Hmem %Hlenbv]]";[destruct t;simpl;lia|lia|].
         iApply wp_fupd.
         iApply (wp_wand _ _ _ (λ vs, (⌜vs = immV _⌝ ∗ _) ∗ _)%I with "[Ha Hf]").
         { iApply (wp_load_deserialize with "[$Hf $Ha]");eauto;by rewrite Hlocs /=. }

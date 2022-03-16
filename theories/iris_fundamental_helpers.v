@@ -51,6 +51,15 @@ Proof.
   }
 Qed.
 
+Lemma big_sepL_cond_impl {Σ} {A : Type} (Φ : nat -> A -> iProp Σ) (l : list A) :
+  ([∗ list] k↦y ∈ l, Φ k y) ⊣⊢
+  ([∗ list] k↦y ∈ l, True → Φ k y).
+Proof.
+  iSplit; iIntros "Hl".
+  all: iApply (big_sepL_mono with "Hl");iIntros (k y Hk) "H";auto.
+  iApply "H";auto.
+Qed.
+
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
@@ -517,6 +526,23 @@ Section fundamental.
     iSimpl.
     iDestruct (big_sepL2_lookup with "Hi") as "Hw";[eauto..|].
     iFrame "Hw".
+  Qed.
+
+  Lemma interp_instance_get_mem C i :
+    tc_memory C ≠ [] ->
+    ⊢ interp_instance (HWP:=HWP) C i -∗
+      ∃ τm mem, ⌜nth_error (tc_memory C) 0 = Some τm⌝
+              ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
+              ∗ interp_mem τm (N.of_nat mem).
+  Proof.
+    destruct C,i.
+    iIntros (Hnil) "[_ [_ [ _ [#Hi _]]]]".
+    iSimpl.
+    simpl in Hnil.
+    destruct tc_memory;try done.
+    iSimpl in "Hi".
+    destruct inst_memory;try done.
+    iExists _,_. repeat iSplit;eauto.
   Qed.
 
   Global Instance global_inhabited : Inhabited global.

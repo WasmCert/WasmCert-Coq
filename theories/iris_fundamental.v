@@ -30,7 +30,13 @@ Require Import iris_fundamental_const
         iris_fundamental_set_local
         iris_fundamental_tee_local
         iris_fundamental_get_global
-        iris_fundamental_set_global.
+        iris_fundamental_set_global
+        iris_fundamental_load
+        iris_fundamental_store
+        iris_fundamental_current_memory
+        iris_fundamental_grow_memory
+        iris_fundamental_nil
+        iris_fundamental_weakening.
 Import uPred.
 
 Section fundamental.
@@ -70,15 +76,15 @@ Section fundamental.
     { by apply typing_tee_local. }
     { by apply typing_get_global. }
     { by eapply typing_set_global. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { by apply typing_load. }
+    { by apply typing_store. }
+    { by apply typing_current_memory. }
+    { by apply typing_grow_memory. }
+    { by apply typing_nil. }
     { eapply typing_composition.
       { apply IHbe_typing1. }
       { apply IHbe_typing2. } }
-    { admit. }
+    { by apply typing_weakening. }
   Admitted.
 
 End fundamental.

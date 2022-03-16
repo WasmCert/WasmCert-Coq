@@ -1503,7 +1503,7 @@ Proof.
     iSplitR "Ha".
     iSplitR => //=.
     iApply (big_sepL_impl with "Hs").
-    iIntros "!>" (k x) "%Hlookup Hp".
+    iNext. iIntros "!>" (k x) "%Hlookup Hp".
     replace (v + 4 + S (length s) * 4 - 4 - 4 * S k)%Z
       with (v + 4 + length s * 4 - 4 - 4 * k)%Z ; first done.
     lia.
@@ -1857,7 +1857,7 @@ Proof.
     lia.
     unfold mem_block_at_pos.
     iApply (big_sepL_impl with "Hrest").
-    iIntros "!>" (k x) "%Hbits H".
+    iNext. iIntros "!>" (k x) "%Hbits H".
     repeat rewrite of_nat_to_nat_plus.
     replace (Z.to_N (v + 4 + length s * 4) + N.of_nat (S (S (S (S k)))))%N
       with (Z.to_N (v + 4 + S (length s) * 4) + N.of_nat k)%N ; last lia.

@@ -630,7 +630,7 @@ Lemma f1_spec f n v :
 Proof.
   iIntros (Htypes Hfmem) "Hf Hn".
   iApply wp_wand_r. iSplitL.
-  iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto. apply (f_inst f).
+  iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto.
   iIntros (w) "[[-> Hn] Hf]".
   iFrame. auto.
 Qed.
@@ -716,3 +716,4 @@ Proof.
 Qed.
 
 End Examples.
+
