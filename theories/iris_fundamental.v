@@ -36,7 +36,8 @@ Require Import iris_fundamental_const
         iris_fundamental_current_memory
         iris_fundamental_grow_memory
         iris_fundamental_nil
-        iris_fundamental_weakening.
+        iris_fundamental_weakening
+        iris_fundamental_br_table.
 Import uPred.
 
 Section fundamental.
@@ -67,7 +68,7 @@ Section fundamental.
     { admit. }
     { by apply typing_br. }
     { by apply typing_br_if. }
-    { admit. }
+    { by apply typing_br_table. }
     { admit. }
     { by apply typing_call. }
     { by apply typing_call_indirect. }
