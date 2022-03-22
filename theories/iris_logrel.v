@@ -146,7 +146,7 @@ Section logrel.
   (* the table interpretation is a bit tricky: the table size needs to represent the full table, 
      with the capability to increase its size with None entries. A None entry is to describe the 
      out of bounds behaviour of a call indirect (with a trap rather than getting stuck) *)
-  Definition interp_table (table_size : nat) (τt : table_type) : TR :=
+  Definition interp_table (table_size : nat) : TR :=
     λne n, ([∗ list] i↦_ ∈ (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf n (N.of_nat i))%I.
 
 
@@ -168,8 +168,8 @@ Section logrel.
       (match (tg_mut τg) with
       | MUT_immut => ∃ (P : value_type -> WR),
          (□ ∀ w, P (tg_t τg) w -∗ interp_value (tg_t τg) w) ∗ 
-         na_inv logrel_nais (wgN n) (∃ g, n ↦[wg] g ∗ P (tg_t τg) (g_val g))
-      | MUT_mut => na_inv logrel_nais (wgN n) (∃ g, n ↦[wg] g ∗ interp_value (tg_t τg) (g_val g))
+         na_inv logrel_nais (wgN n) (∃ w, n ↦[wg] Build_global MUT_immut w ∗ P (tg_t τg) w)
+      | MUT_mut => na_inv logrel_nais (wgN n) (∃ w, n ↦[wg] Build_global MUT_mut w ∗ interp_value (tg_t τg) w)
       end)%I.
 
 
@@ -196,7 +196,7 @@ Section logrel.
             (* Function tables *)           
            (match nth_error tabs_t 0 with
             | Some τt => match nth_error tbs 0 with
-                        | Some a => (∃ table_size, (N.of_nat a) ↪[wtsize] table_size ∗ (interp_table table_size τt) (N.of_nat a))
+                        | Some a => (∃ table_size, (N.of_nat a) ↪[wtsize] table_size ∗ (interp_table table_size) (N.of_nat a))
                         | None => False
                         end
             | None => True

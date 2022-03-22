@@ -547,5 +547,8 @@ Section fundamental.
 
   Global Instance global_inhabited : Inhabited global.
   Proof. apply populate. exact (Build_global MUT_mut (VAL_int32 int32_minus_one)). Qed.
+
+  Global Instance value_inhabited : Inhabited value.
+  Proof. apply populate. exact (VAL_int32 int32_minus_one). Qed.
   
 End fundamental.

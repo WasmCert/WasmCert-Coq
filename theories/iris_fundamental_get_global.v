@@ -43,7 +43,7 @@ Section fundamental.
 
     iAssert (∃ P, □ (∀ w, P t w -∗ interp_value t w)
                     ∗ na_inv logrel_nais (wgN (N.of_nat n))
-                    (∃ g, (N.of_nat n)↦[wg] g ∗ P t (g_val g)))%I as (P) "[#Hcond #Hginv]".
+                    (∃ (w : leibnizO value), (N.of_nat n)↦[wg] (Build_global mut w) ∗ P t w))%I as (P) "[#Hcond #Hginv]".
     { unfold interp_global.
       simplify_eq. iSimpl in "Hg".
       destruct mut.
@@ -55,18 +55,17 @@ Section fundamental.
     iApply fupd_wp.
     iMod (na_inv_acc with "Hginv Hown") as "(Hn & Hown & Hcls)";[solve_ndisj..|].
     iModIntro.
-    iDestruct "Hn" as (g) "[>Hn HP]".
-    destruct g.
+    iDestruct "Hn" as (w) "[>Hn HP]".
 
     iApply wp_fupd.
-    iApply (wp_wand _ _ _ (λ vs, ((⌜vs = immV ([g_val])⌝
-                                   ∗ P t g_val)
-                                   ∗ N.of_nat n↦[wg] Build_global g_mut g_val) ∗ ↪[frame] f)%I with "[Hf Hn HP]").
+    iApply (wp_wand _ _ _ (λ vs, ((⌜vs = immV ([w])⌝
+                                   ∗ P t w)
+                                   ∗ N.of_nat n↦[wg] Build_global mut w) ∗ ↪[frame] f)%I with "[Hf Hn HP]").
     { iApply (wp_get_global with "[HP] Hf Hn");eauto;by rewrite -nth_error_lookup Hlocs /=. }
     iIntros (v) "[[[-> HP] Hn] Hf]".
     iDestruct ("Hcond" with "HP") as "#Hg_val".
     iMod ("Hcls" with "[$Hown Hn HP]") as "Hown".
-    { iNext. iExists _. iFrame. auto. }
+    { iNext. iExists _. iFrame. }
     iModIntro. iSplitR;[|iExists _;iFrame].
     { iLeft. iRight. iExists _. iSplit =>//.
       iSplit =>//. }
