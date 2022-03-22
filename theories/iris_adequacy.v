@@ -919,4 +919,7 @@ Proof.
   iDestruct ("Hφ" with "Hσ") as (E) ">Hφ".
   by iApply fupd_mask_intro_discard; first set_solver.
 Qed.
+
+*)
+
 *)
