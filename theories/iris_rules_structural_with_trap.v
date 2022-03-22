@@ -7,8 +7,6 @@ From iris.bi Require Export weakestpre.
 Require Export iris_wp_def iris_properties iris_rules_trap iris_rules_structural iris_rules_control stdpp_aux.
 Require Export datatypes host operations properties opsem.
 
-
-
 (* empty lists, frame and context rules *)
 
 Close Scope byte_scope.
@@ -37,9 +35,7 @@ Inductive lh_minus_Ind : lholed -> lholed -> lholed -> Prop :=
 
 Global Instance ai_list_eq_dec: EqDecision (seq.seq administrative_instruction).
 Proof.
-  eapply list_eq_dec.
-  Unshelve.
-  pose proof administrative_instruction_eq_dec. eauto.
+  apply list_eq_dec.
 Defined.
 Global Instance ai_eq_dec: EqDecision (administrative_instruction).
 Proof.
@@ -324,17 +320,31 @@ Lemma wp_br_ctx_nested (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs 
 Proof.
   iIntros (Hlt Hlayer Hminus Hvs Hlen) "Hf0 HΦ".
   iIntros (LI Hfill).
-  destruct (iris.to_val LI) eqn:Hcontr.
-  { exfalso. eapply lfilled_to_val_0 in Hfill;eauto. lia. }
-  iApply wp_lift_step => //=.
-  iIntros (σ ns κ κs nt) "Hσ".
-  iApply fupd_frame_l.
+
   eapply lfilled_minus with (i:=S i) in Hfill as Hfill';[|eauto..].
   2: { apply lfilled_depth in Hfill as ->. auto. }
   destruct Hfill' as [LI' [Hfill1 Hfill2]].
   apply lfilled_Ind_Equivalent in Hfill1. inversion Hfill1;simplify_eq.
   apply lfilled_swap with (es':=vs' ++ (vs ++ es) ++ es') in Hfill2 as Hfill2'.
   destruct Hfill2' as [LI_r Hfill2'].
+  
+  assert (iris.to_val LI = None) as Hnone.
+  { apply lfilled_Ind_Equivalent in Hfill.
+    inversion Hfill;simplify_eq.
+    
+    eapply val_head_stuck_reduce.
+    eapply r_label. 3: apply Hfill2'. 2: eauto.
+    eapply r_label with (lh:=(LH_base vs' es')).
+    2: { apply lfilled_Ind_Equivalent.
+         econstructor;auto. }
+    2: { apply lfilled_Ind_Equivalent. econstructor;auto. }
+    apply r_simple. eapply rs_br.
+    apply Hvs. auto. apply lfilled_Ind_Equivalent. eauto.
+    Unshelve. done. apply (Build_store_record [] [] [] []).
+    apply (Build_frame [] (Build_instance [] [] [] [] [])). }
+  iApply wp_lift_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
   assert (iris.prim_step LI σ [] LI_r σ []) as Hstep.
   { destruct σ as [[[hs ws] locs] inst].
     simpl.
@@ -380,6 +390,92 @@ Proof.
   eauto.
 Qed.
 
+Lemma trap_context_reduce hs locs s LI lh k :
+  lfilled (S k) lh [AI_trap] LI ->
+  ∃ e', reduce (host_instance:=DummyHosts.host_instance) hs locs s LI hs locs s e'.
+Proof.
+  revert LI lh.
+  induction k;intros LI lh Hfill%lfilled_Ind_Equivalent.
+  { inversion Hfill;simplify_eq. inversion H1;simplify_eq.
+    destruct (decide (vs0 ++ [AI_trap] ++ es'0 = [AI_trap])).
+    { destruct vs0,es'0 =>//.
+      2: destruct vs0 =>//.
+      2: destruct vs0,es'0 =>//.
+      erewrite app_nil_l, app_nil_r.
+      exists (vs ++ [AI_trap] ++ es'').
+      eapply r_label.
+      2: instantiate (3:=0).
+      2,3: apply lfilled_Ind_Equivalent;constructor;auto.
+      apply r_simple. apply rs_label_trap. }
+    { exists (vs ++ [AI_label n es' ([AI_trap])] ++ es'').
+      eapply r_label.
+      2: instantiate (3:=1).
+      2,3: apply lfilled_Ind_Equivalent;constructor;auto.
+      2: instantiate (2:=LH_base [] []).
+      2,3: apply lfilled_Ind_Equivalent.
+      2,3: cbn;rewrite app_nil_r; by apply/eqseqP.
+      apply r_simple. eapply rs_trap. auto.
+      apply lfilled_Ind_Equivalent. eauto.
+    }
+  }
+  { inversion Hfill;simplify_eq.
+    apply lfilled_Ind_Equivalent in H1.
+    eapply IHk in H1 as Hred.
+    destruct Hred as [e' Hred].
+    eexists.
+    eapply r_label;[eauto|..].
+    instantiate (2:=1).
+    all: apply lfilled_Ind_Equivalent;constructor;auto.
+    all: apply lfilled_Ind_Equivalent.
+    instantiate (1:=LH_base [] []).
+    all: cbn;rewrite app_nil_r;by apply/eqseqP.
+  }
+Qed.
+
+Lemma to_val_trapV_label_None es k lh LI :
+  to_val es = Some trapV ->
+  lfilled (S k) lh es LI ->
+  to_val LI = None.
+Proof.
+  intros Hes Hfill.
+  apply to_val_trap_is_singleton in Hes as ->.
+  eapply trap_context_reduce in Hfill as [e' Hred].
+  eapply val_head_stuck_reduce;eauto.
+  Unshelve.
+  done.
+  apply (Build_store_record [] [] [] []).
+  apply (Build_frame [] (Build_instance [] [] [] [] [])).
+Qed.
+
+Lemma lfilled_to_val_0 i lh e es v :
+  iris.to_val e = Some trapV ->
+  lfilled i lh e es ->
+  iris.to_val es = Some v ->
+  i = 0.
+Proof.
+  intros He Hfill Hes.
+  destruct i;auto.
+  exfalso.
+  apply to_val_trapV_label_None in Hfill;auto.
+  congruence.
+Qed.
+
+Lemma to_val_None_lfilled LI k lh es :
+  to_val es = None → lfilled k lh es LI -> to_val LI = None.
+Proof.
+  revert LI lh es;induction k;intros LI lh es Hnone Hfill%lfilled_Ind_Equivalent.
+  { inversion Hfill;simplify_eq.
+    apply to_val_cat_None2;auto.
+    apply to_val_cat_None1;auto. }
+  { inversion Hfill;simplify_eq.
+    apply lfilled_Ind_Equivalent in H1.
+    apply IHk in H1;auto.
+    apply to_val_cat_None2;auto.
+    apply to_val_cat_None1;auto.
+    apply to_val_None_label. auto.
+  }
+Qed.  
+                                                      
 (* Sequencing rule which is always allowed to trap *)
 (* This rule is useful in particular for semantic type soundness, which allows traps *)
 Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed)
@@ -405,10 +501,14 @@ Proof.
     iMod ("Hes1" with "Hf") as "[Hes1 Hf]".
     iDestruct "Hes1" as "[-> | Hes1]".
     { apply to_val_trap_is_singleton in Hvs' as ->.
-      eapply lfilled_to_val_0 in Hfilled as ->;eauto.
-      apply lfilled_Ind_Equivalent in Hfilled'.
-      inversion Hfilled';simplify_eq.
-      destruct vs0,es2,es'.
+      destruct es2;cycle 1.
+      { assert (to_val ([AI_trap] ++ a :: es2) = None) as Hnone.
+        rewrite -(app_nil_l [AI_trap]) -app_assoc; apply to_val_not_trap_interweave;auto.
+        eapply to_val_None_lfilled in Hnone;[|eauto]. congruence. }
+      erewrite app_nil_r in Hfilled'.
+      eapply lfilled_to_val_0 in Hfilled' as Heq;eauto. subst i.
+      apply lfilled_Ind_Equivalent in Hfilled. inversion Hfilled;simplify_eq.
+      destruct vs0,es'.
       erewrite app_nil_l, app_nil_r, app_nil_r in Hetov.
       destruct vs;try done. iFrame. eauto.
       all: rewrite to_val_not_trap_interweave in Hetov;try done;auto.
@@ -536,7 +636,7 @@ Proof.
   { destruct vs.
     { iApply wp_unfold.
       repeat rewrite wp_unfold /wp_pre /=.      
-      rewrite Hes.
+      rewrite Hes. apply of_to_val in Hes as <-. rewrite to_val_cons_immV.
       iMod ("Hf" with "H") as "[[%Heq| HΦ] H]";try done.
       iModIntro. iFrame. }
     { apply to_val_trap_is_singleton in Hes as ->.
@@ -551,18 +651,18 @@ Proof.
       iIntros (v) "[-> H]". iSplitR;[|iExists _;iFrame]. by iLeft. }
     { iApply wp_unfold.
       repeat rewrite wp_unfold /wp_pre /=.      
-      rewrite Hes.
+      rewrite Hes. apply of_to_val in Hes as <-; erewrite to_val_cons_brV;[|apply to_of_val].
       iMod ("Hf" with "H") as "[[%Heq| HΦ] H]";try done.
       iModIntro. iFrame. }
     { iApply wp_unfold.
       repeat rewrite wp_unfold /wp_pre /=.      
-      rewrite Hes.
+      rewrite Hes. apply of_to_val in Hes as <-; erewrite to_val_cons_retV;[|apply to_of_val].
       iMod ("Hf" with "H") as "[[%Heq| HΦ] H]";try done.
       iModIntro. iFrame. }
   }
   { iApply wp_unfold.
     repeat rewrite wp_unfold /wp_pre /=.
-    rewrite Hes.
+    rewrite Hes to_val_cons_None //.
     iIntros (σ ns κ κs nt) "Hσ".
     iDestruct ("Hf" with "[$]") as "H".
     iSpecialize ("H" $! σ ns κ κs nt with "[$]").
@@ -646,6 +746,8 @@ Proof.
     all: iIntros (v).
     all: destruct v => /=.
     all: iIntros "HΦ" => //.
+    all: rewrite vh_push_const_nil + rewrite sh_push_const_nil.
+    all: auto.
   }
   { iIntros "(#Hntrap & Hf & HWP)".
     iSimpl.
@@ -657,6 +759,7 @@ Proof.
     iApply (wp_mono with "HWP").
     iIntros (vs') "HΦ".
     iSimpl. destruct vs';auto.
+    all: rewrite -vh_push_const_app + rewrite -sh_push_const_app;auto.
   }
 Qed.
   
@@ -686,8 +789,8 @@ Proof.
   assert (vs' ++ [AI_label n es' ([] ++ vs ++ [])] ++ es''
           = ((vs' ++ [AI_label n es' ([] ++ vs ++ [])]) ++ es''))%SEQ as ->.
   { erewrite app_assoc. auto. }
-  apply const_list_is_val in Hconst as [v1 Hv1].
-  apply const_list_is_val in H7 as [v2 Hv2].
+  apply const_list_to_val in Hconst as [v1 Hv1].
+  apply const_list_to_val in H7 as [v2 Hv2].
   eapply to_val_cat_inv in Hv1 as Hvv;[|apply Hv2].
   iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f0))%I).
   iSplitR; first by iIntros "(%H & ?)".
@@ -741,9 +844,15 @@ Proof.
     apply lfilled_Ind_Equivalent. eauto. }
 
   assert (to_val (l ++ [AI_label (length vs) l0 LIi] ++ l1) = None).
-  { apply to_val_cat_None2;auto. }
+  { apply to_val_cat_None2;auto.
+    apply to_val_cat_None1.
+    eapply to_val_brV_None;[|eauto|];eauto.
+  }
   assert (to_val (l ++ [AI_label (length vs) l0 LI0] ++ l1) = None).
-  { apply to_val_cat_None2;auto. }
+  { apply to_val_cat_None2;auto.
+    apply to_val_cat_None1.
+    eapply to_val_brV_None;[|eauto|];eauto.
+  }
 
   iApply wp_unfold. iDestruct (wp_unfold with "Hwp") as "Hwp".
   rewrite /wp_pre /= H H0.
