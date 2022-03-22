@@ -12,6 +12,25 @@ Close Scope byte_scope.
 Section control_rules.
 Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
+Lemma to_val_brV_None vs n i lh es LI :
+  const_list vs ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic (BI_br i)]) LI ->
+  to_val [AI_label n es LI] = None.
+Proof.
+  intros Hconst Hlen Hlfill.
+  eapply val_head_stuck_reduce.
+  apply r_simple. eapply rs_br;eauto.
+  Unshelve. done. apply (Build_store_record [] [] [] []).
+  apply (Build_frame [] (Build_instance [] [] [] [] [])).
+Qed.
+
+Lemma to_val_immV_label_None es v m ctx :
+  to_val es = Some (immV v) ->
+  to_val [AI_label m ctx es] = None.
+Proof.
+Admitted.
+
 Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 f:
   const_list vs ->
   length vs = n ->
@@ -22,6 +41,7 @@ Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh 
 Proof.
   iIntros (Hvs Hlen Hfill) "Hf0 HΦ".
   iApply wp_lift_step => //=.
+  { eapply to_val_brV_None;eauto. }
   iIntros (σ ns κ κs nt) "Hσ".
   iApply fupd_frame_l.
   iSplit.
@@ -39,11 +59,12 @@ Proof.
     destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
     iApply bi.sep_exist_l.
-    only_one_reduction H;
-    try by assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
-                    (vs ++ [AI_basic (BI_br i)])) ;
-      first (by unfold lfilled, lfill ; rewrite Hvs ; rewrite app_nil_r) ;
-    destruct (lfilled_trans _ _ _ _ _ _ _ H Hfill) as [lh' Hfill'] ;
+    assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
+                    (vs ++ [AI_basic (BI_br i)])).
+    { unfold lfilled. rewrite /= Hvs. done. }
+    only_one_reduction H.
+    all:
+    eapply lfilled_trans in Hfill as Hfill';eauto;destruct Hfill' as [lh' Hfill'];
     eapply lfilled_implies_starts in Hfill' => //= ;
     unfold first_instr in Hstart ; simpl in Hstart ;
     unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
