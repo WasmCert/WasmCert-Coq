@@ -51,12 +51,12 @@ Section fundamental.
     iDestruct "Hfv" as (locs Hlocs) "[#Hlocs Hown]".
     iMod (na_inv_acc with "Hg Hown") as "(Hn & Hown & Hcls)";[solve_ndisj..|].
     iModIntro.
-    iDestruct "Hn" as (g) "[>Hn _]".
+    iDestruct "Hn" as (wg) "[>Hn _]".
     iSimpl.
     
     iApply wp_fupd.
     iApply (wp_wand _ _ _ (λ vs, (⌜vs = immV ([])⌝
-                                   ∗ N.of_nat n↦[wg] Build_global (g_mut g) w) ∗ ↪[frame] f)%I with "[Hf Hn]").
+                                   ∗ N.of_nat n↦[wg] Build_global MUT_mut w) ∗ ↪[frame] f)%I with "[Hf Hn]").
     { iApply (wp_set_global with "[] Hf Hn");eauto;by rewrite -nth_error_lookup Hlocs /=. }
     iIntros (v) "[[-> Hn] Hf]".
     iMod ("Hcls" with "[$Hown Hn]") as "Hown".
