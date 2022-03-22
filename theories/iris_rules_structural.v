@@ -216,10 +216,11 @@ Proof.
     + iFrame.
       rewrite Hval.
       iFrame.
+      
     all: assert (lfilled 0 (LH_base vs []) [AI_basic (BI_return)]
                     (vs ++ [AI_basic (BI_return)]));
       first (by unfold lfilled, lfill ; rewrite Hcvs ; rewrite app_nil_r);
-    destruct (lfilled_trans _ _ _ _ _ _ _ H Hlf) as [lh' Hfill'] ;
+      eapply lfilled_trans in Hlf as Hlh';eauto;destruct Hlh' as [lh' Hfill'];
     eapply lfilled_implies_starts in Hfill' => //= ;
     unfold first_instr in Hstart ; simpl in Hstart ;
     unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
@@ -465,6 +466,52 @@ Proof.
   }
 Qed.
 
+
+Lemma to_val_cons_immV v l :
+  to_val (AI_basic (BI_const v) :: of_val (immV l)) = Some (immV (v :: l)).
+Proof.
+  rewrite separate1.
+  erewrite to_val_cat_inv;eauto.
+  2: apply to_of_val.
+  auto.
+Qed.
+Lemma to_val_cons_brV i (lh : valid_holed i) v es :
+  to_val es = Some (brV lh) ->
+  to_val (AI_basic (BI_const v) :: es) = Some (brV (vh_push_const lh [v])).
+Proof.
+  intros Hes.
+  unfold to_val. cbn.
+  unfold to_val in Hes.
+  destruct (merge_values_list (map to_val_instr es)) eqn:Hsome;[|done].
+  simplify_eq.
+  unfold merge_values_list in Hsome.
+  destruct (map to_val_instr es) eqn:Hmap;try done.
+  destruct v0;try done.
+  rewrite merge_prepend. by rewrite /= Hsome.
+Qed.
+Lemma to_val_cons_retV s v es :
+  to_val es = Some (retV s) ->
+  to_val (AI_basic (BI_const v) :: es) = Some (retV (sh_push_const s [v])).
+Proof.
+  intros Hes.
+  unfold to_val; cbn.
+  unfold to_val in Hes.
+  destruct (merge_values_list (map to_val_instr es)) eqn:Hsome;[|done].
+  simplify_eq.
+  unfold merge_values_list in Hsome.
+  destruct (map to_val_instr es) eqn:Hmap;try done.
+  destruct v0;try done.
+  rewrite merge_prepend. by rewrite /= Hsome.
+Qed.
+Lemma to_val_cons_None es v :
+  to_val es = None ->
+  to_val (AI_basic (BI_const v) :: es) = None.
+Proof.
+  intros Hes.
+  rewrite separate1.
+  apply to_val_cat_None2;auto.
+Qed.
+  
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
   (* Like for wp_seq, this lemma is true without the trap condition, but would
      be problematic to prove without it. *)
@@ -478,13 +525,16 @@ Proof.
   iApply wp_unfold.               
   repeat rewrite wp_unfold /wp_pre /=.
   destruct (iris.to_val es) as [vs|] eqn:Hes.
-  { destruct vs; first by apply of_to_val in Hes as <-.
+  { destruct vs.
+    { apply of_to_val in Hes as <-. rewrite to_val_cons_immV. auto. }
+    apply to_val_trap_is_singleton in Hes as ->. simpl.
     iIntros (?????) "?".
     iMod "H".
     by iSpecialize ("Hntrap" with "H").
-    done. done.
+    erewrite to_val_cons_brV;eauto.
+    erewrite to_val_cons_retV;eauto.
   }
-  {
+  { rewrite to_val_cons_None.
     iIntros (σ ns κ κs nt) "Hσ".
     iSpecialize ("H" $! σ ns κ κs nt with "[$]").
     iMod "H".
@@ -544,6 +594,7 @@ Proof.
         * iIntros (?????) "?".
           iMod "Hes".
           by iSpecialize ("Hntrap" with "Hes").
+          auto.
   }
 Qed.
   
@@ -564,6 +615,7 @@ Proof.
     all: iIntros (v).
     all: destruct v => /=.
     all: iIntros "HΦ" => //.
+    all: by rewrite vh_push_const_nil + rewrite sh_push_const_nil.
   }
   { iIntros "(#Hntrap & HWP)".
     iSimpl.
@@ -574,6 +626,8 @@ Proof.
     iApply (wp_mono with "HWP").
     iIntros (vs') "HΦ".
     iSimpl. destruct vs';auto.
+    by rewrite -vh_push_const_app.
+    by rewrite -sh_push_const_app.
   }
 Qed.
   
