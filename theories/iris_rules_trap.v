@@ -59,18 +59,6 @@ Section trap_rules.
     }
   Qed.
 
-  Lemma to_val_AI_trap_Some_nil es vs :
-    iris.to_val ([AI_trap] ++ es) = Some vs -> es = [].
-  Proof.
-    destruct es =>//.
-    intros Hes;exfalso.
-    assert (iris.to_val ([AI_trap] ++ (a :: es)) = None).
-    { rewrite -(app_nil_l [AI_trap]).
-      rewrite -app_assoc.
-      apply to_val_not_trap_interweave;auto. }
-    congruence.
-  Qed.
-
   Lemma wp_seq_trap (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f f' :
     ↪[frame] f ∗
      (↪[frame] f -∗ WP es1 @ s; E {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f' }})

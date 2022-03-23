@@ -12,19 +12,6 @@ Close Scope byte_scope.
 Section control_rules.
 Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
-Lemma to_val_brV_None vs n i lh es LI :
-  const_list vs ->
-  length vs = n ->
-  lfilled i lh (vs ++ [AI_basic (BI_br i)]) LI ->
-  to_val [AI_label n es LI] = None.
-Proof.
-  intros Hconst Hlen Hlfill.
-  eapply val_head_stuck_reduce.
-  apply r_simple. eapply rs_br;eauto.
-  Unshelve. done. apply (Build_store_record [] [] [] []).
-  apply (Build_frame [] (Build_instance [] [] [] [] [])).
-Qed.
-
 Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 f:
   const_list vs ->
   length vs = n ->
@@ -101,17 +88,6 @@ Proof.
       rewrite first_instr_const in Hstart => //=.
 Qed.
 
-Lemma to_val_immV_label_None es v m ctx :
-  to_val es = Some (immV v) ->
-  to_val [AI_label m ctx es] = None.
-Proof.
-  intros Hes.
-  eapply val_head_stuck_reduce.
-  eapply r_simple, rs_label_const. eapply to_val_const_list;eauto.
-  Unshelve. done. apply (Build_store_record [] [] [] []).
-  apply (Build_frame [] (Build_instance [] [] [] [] [])).
-Qed.
-
 Lemma wp_label_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx v f0 :
   iris.to_val es = Some (immV v) -> 
   ↪[frame] f0 -∗
@@ -150,18 +126,6 @@ Proof.
                      apply to_val_const_list in Hval ;
                      eapply starts_implies_not_constant in Hval ; first (by exfalso) ;
                      unfold first_instr ; rewrite <- Heqfes.
-Qed.
-
-Lemma to_val_trapV_label_None es m ctx :
-  to_val es = Some trapV ->
-  to_val [AI_label m ctx es] = None.
-Proof.
-  intros Hes.
-  apply to_val_trap_is_singleton in Hes as ->.
-  eapply val_head_stuck_reduce.
-  eapply r_simple, rs_label_trap.
-  Unshelve. done. apply (Build_store_record [] [] [] []).
-  apply (Build_frame [] (Build_instance [] [] [] [] [])).
 Qed.
 
 Lemma wp_label_trap (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx f0 :

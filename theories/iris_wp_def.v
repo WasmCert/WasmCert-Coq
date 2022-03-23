@@ -1846,25 +1846,195 @@ Proof.
         apply b2p in Hfill' ; by subst. }
 Qed.
 
-(* This lemma is no longer true *)
-(* 
+Lemma to_val_brV_None vs n i lh es LI :
+  const_list vs ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic (BI_br i)]) LI ->
+  to_val [AI_label n es LI] = None.
+Proof.
+  intros Hconst Hlen Hlfill.
+  eapply val_head_stuck_reduce.
+  apply r_simple. eapply rs_br;eauto.
+  Unshelve. done. apply (Build_store_record [] [] [] []).
+  apply (Build_frame [] (Build_instance [] [] [] [] [])).
+Qed.
+
+Lemma to_val_immV_label_None es v m ctx :
+  to_val es = Some (immV v) ->
+  to_val [AI_label m ctx es] = None.
+Proof.
+  intros Hes.
+  eapply val_head_stuck_reduce.
+  eapply r_simple, rs_label_const. eapply to_val_const_list;eauto.
+  Unshelve. done. apply (Build_store_record [] [] [] []).
+  apply (Build_frame [] (Build_instance [] [] [] [] [])).
+Qed.  
+  
+Lemma to_val_trapV_label_None es m ctx :
+  to_val es = Some trapV ->
+  to_val [AI_label m ctx es] = None.
+Proof.
+  intros Hes.
+  apply to_val_trap_is_singleton in Hes as ->.
+  eapply val_head_stuck_reduce.
+  eapply r_simple, rs_label_trap.
+  Unshelve. done. apply (Build_store_record [] [] [] []).
+  apply (Build_frame [] (Build_instance [] [] [] [] [])).
+Qed.
+
+Lemma to_val_cons_immV v l :
+  to_val (AI_basic (BI_const v) :: of_val (immV l)) = Some (immV (v :: l)).
+Proof.
+  rewrite separate1.
+  erewrite to_val_cat_inv;eauto.
+  2: apply to_of_val.
+  auto.
+Qed.
+Lemma to_val_cons_brV i (lh : valid_holed i) v es :
+  to_val es = Some (brV lh) ->
+  to_val (AI_basic (BI_const v) :: es) = Some (brV (vh_push_const lh [v])).
+Proof.
+  intros Hes.
+  unfold to_val,iris.to_val. cbn.
+  unfold to_val,iris.to_val in Hes.
+  destruct (merge_values_list (map to_val_instr es)) eqn:Hsome;[|done].
+  simplify_eq.
+  unfold merge_values_list in Hsome.
+  destruct (map to_val_instr es) eqn:Hmap;try done.
+  destruct v0;try done.
+  rewrite merge_prepend. by rewrite /= Hsome.
+Qed.
+Lemma to_val_cons_retV s v es :
+  to_val es = Some (retV s) ->
+  to_val (AI_basic (BI_const v) :: es) = Some (retV (sh_push_const s [v])).
+Proof.
+  intros Hes.
+  unfold to_val,iris.to_val. cbn.
+  unfold to_val,iris.to_val in Hes.
+  destruct (merge_values_list (map to_val_instr es)) eqn:Hsome;[|done].
+  simplify_eq.
+  unfold merge_values_list in Hsome.
+  destruct (map to_val_instr es) eqn:Hmap;try done.
+  destruct v0;try done.
+  rewrite merge_prepend. by rewrite /= Hsome.
+Qed.
+Lemma to_val_cons_None es v :
+  to_val es = None ->
+  to_val (AI_basic (BI_const v) :: es) = None.
+Proof.
+  intros Hes.
+  rewrite separate1.
+  apply to_val_cat_None2;auto.
+Qed.
+  
+Lemma to_val_AI_trap_Some_nil es vs :
+    iris.to_val ([AI_trap] ++ es) = Some vs -> es = [].
+  Proof.
+    destruct es =>//.
+    intros Hes;exfalso.
+    assert (iris.to_val ([AI_trap] ++ (a :: es)) = None).
+    { rewrite -(app_nil_l [AI_trap]).
+      rewrite -app_assoc.
+      apply to_val_not_trap_interweave;auto. }
+    congruence.
+  Qed.
+
+  Lemma to_val_None_label n es' LI :
+    iris.to_val LI = None ->
+    iris.to_val [AI_label n es' LI] = None.
+  Proof.
+    intros HLI.
+    unfold iris.to_val. cbn. 
+    unfold iris.to_val in HLI.
+    destruct (merge_values_list (map to_val_instr LI)) eqn:Hmerge;done.
+  Qed.    
+
+Lemma trap_context_reduce hs locs s LI lh k :
+  lfilled (S k) lh [AI_trap] LI ->
+  ∃ e', reduce hs locs s LI hs locs s e'.
+Proof.
+  revert LI lh.
+  induction k;intros LI lh Hfill%lfilled_Ind_Equivalent.
+  { inversion Hfill;simplify_eq. inversion H1;simplify_eq.
+    destruct (decide (vs0 ++ [AI_trap] ++ es'0 = [AI_trap])).
+    { destruct vs0,es'0 =>//.
+      2: destruct vs0 =>//.
+      2: destruct vs0,es'0 =>//.
+      erewrite app_nil_l, app_nil_r.
+      exists (vs ++ [AI_trap] ++ es'').
+      eapply r_label.
+      2: instantiate (3:=0).
+      2,3: apply lfilled_Ind_Equivalent;constructor;auto.
+      apply r_simple. apply rs_label_trap. }
+    { exists (vs ++ [AI_label n es' ([AI_trap])] ++ es'').
+      eapply r_label.
+      2: instantiate (3:=1).
+      2,3: apply lfilled_Ind_Equivalent;constructor;auto.
+      2: instantiate (2:=LH_base [] []).
+      2,3: apply lfilled_Ind_Equivalent.
+      2,3: cbn;rewrite app_nil_r; by apply/eqseqP.
+      apply r_simple. eapply rs_trap. auto.
+      apply lfilled_Ind_Equivalent. eauto.
+    }
+  }
+  { inversion Hfill;simplify_eq.
+    apply lfilled_Ind_Equivalent in H1.
+    eapply IHk in H1 as Hred.
+    destruct Hred as [e' Hred].
+    eexists.
+    eapply r_label;[eauto|..].
+    instantiate (2:=1).
+    all: apply lfilled_Ind_Equivalent;constructor;auto.
+    all: apply lfilled_Ind_Equivalent.
+    instantiate (1:=LH_base [] []).
+    all: cbn;rewrite app_nil_r;by apply/eqseqP.
+  }
+Qed.
+
+Lemma to_val_trapV_lfilled_None es k lh LI :
+  to_val es = Some trapV ->
+  lfilled (S k) lh es LI ->
+  to_val LI = None.
+Proof.
+  intros Hes Hfill.
+  apply to_val_trap_is_singleton in Hes as ->.
+  eapply trap_context_reduce in Hfill as [e' Hred].
+  eapply val_head_stuck_reduce;eauto.
+  Unshelve.
+  done.
+  apply (Build_store_record [] [] [] []).
+  apply (Build_frame [] (Build_instance [] [] [] [] [])).
+Qed.
+
 Lemma lfilled_to_val_0 i lh e es v :
+  iris.to_val e = Some trapV ->
   lfilled i lh e es ->
   iris.to_val es = Some v ->
   i = 0.
 Proof.
-  intros Hfill Hes.
-  apply lfilled_Ind_Equivalent in Hfill.
-  inversion Hfill;auto.
-  simplify_eq.
+  intros He Hfill Hes.
+  destruct i;auto.
   exfalso.
-  destruct v.
-  { apply to_val_const_list in Hes as [? ?]%const_list_app. done. }
-  { apply to_val_trap_is_singleton in Hes. do 2 destruct vs =>//. }
-  { apply to_val_br in Hes. apply first_values in Hes as [? [? ?]];auto;try by intros [? ?].
-    done. apply v_to_e_is_const_list. }
-  { apply to_val_ret in Hes. apply first_values in Hes as [? [? ?]];auto;try by intros [? ?].
-    done. apply v_to_e_is_const_list. }
-Qed.  *)
+  apply to_val_trapV_lfilled_None in Hfill;auto.
+  unfold to_val in Hfill.
+  congruence.
+Qed.
+
+Lemma to_val_None_lfilled LI k lh es :
+  to_val es = None → lfilled k lh es LI -> to_val LI = None.
+Proof.
+  revert LI lh es;induction k;intros LI lh es Hnone Hfill%lfilled_Ind_Equivalent.
+  { inversion Hfill;simplify_eq.
+    apply to_val_cat_None2;auto.
+    apply to_val_cat_None1;auto. }
+  { inversion Hfill;simplify_eq.
+    apply lfilled_Ind_Equivalent in H1.
+    apply IHk in H1;auto.
+    apply to_val_cat_None2;auto.
+    apply to_val_cat_None1;auto.
+    apply to_val_None_label. auto.
+  }
+Qed.  
+    
   
 End iris_properties.

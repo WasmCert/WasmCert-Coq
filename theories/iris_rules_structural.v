@@ -466,52 +466,6 @@ Proof.
   }
 Qed.
 
-
-Lemma to_val_cons_immV v l :
-  to_val (AI_basic (BI_const v) :: of_val (immV l)) = Some (immV (v :: l)).
-Proof.
-  rewrite separate1.
-  erewrite to_val_cat_inv;eauto.
-  2: apply to_of_val.
-  auto.
-Qed.
-Lemma to_val_cons_brV i (lh : valid_holed i) v es :
-  to_val es = Some (brV lh) ->
-  to_val (AI_basic (BI_const v) :: es) = Some (brV (vh_push_const lh [v])).
-Proof.
-  intros Hes.
-  unfold to_val. cbn.
-  unfold to_val in Hes.
-  destruct (merge_values_list (map to_val_instr es)) eqn:Hsome;[|done].
-  simplify_eq.
-  unfold merge_values_list in Hsome.
-  destruct (map to_val_instr es) eqn:Hmap;try done.
-  destruct v0;try done.
-  rewrite merge_prepend. by rewrite /= Hsome.
-Qed.
-Lemma to_val_cons_retV s v es :
-  to_val es = Some (retV s) ->
-  to_val (AI_basic (BI_const v) :: es) = Some (retV (sh_push_const s [v])).
-Proof.
-  intros Hes.
-  unfold to_val; cbn.
-  unfold to_val in Hes.
-  destruct (merge_values_list (map to_val_instr es)) eqn:Hsome;[|done].
-  simplify_eq.
-  unfold merge_values_list in Hsome.
-  destruct (map to_val_instr es) eqn:Hmap;try done.
-  destruct v0;try done.
-  rewrite merge_prepend. by rewrite /= Hsome.
-Qed.
-Lemma to_val_cons_None es v :
-  to_val es = None ->
-  to_val (AI_basic (BI_const v) :: es) = None.
-Proof.
-  intros Hes.
-  rewrite separate1.
-  apply to_val_cat_None2;auto.
-Qed.
-  
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
   (* Like for wp_seq, this lemma is true without the trap condition, but would
      be problematic to prove without it. *)
