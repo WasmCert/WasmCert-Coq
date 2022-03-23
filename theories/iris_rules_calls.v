@@ -23,16 +23,27 @@ Section iris_rules_calls.
   Proof.
     revert vs. induction es.
     { intros vs Hval. destruct vs;inversion Hval. done. }
-    { intros vs Hval. destruct vs;inversion Hval.
-      destruct a=>//. destruct b=>//.
-      destruct (to_val es)=>//.
-      destruct v0=>//.
-      destruct es=>//.
-      destruct a=>//. destruct b=>//.
-      destruct (to_val es) eqn:Hes=>//.
-      destruct v1=>//. simplify_eq.
-      simpl. f_equiv. rewrite IHes//.
-      destruct es=>//. }
+    { intros vs Hval.
+      unfold to_val, iris.to_val in Hval.
+      destruct a => // ; try destruct b => // ; simpl in Hval.
+      - rewrite merge_br flatten_simplify in Hval => //.
+      - rewrite merge_return flatten_simplify in Hval => //.
+      - rewrite merge_prepend in Hval.
+        unfold to_val, iris.to_val in IHes.
+        destruct (merge_values_list _) => //.
+        destruct v0 => //.
+        specialize (IHes l Logic.eq_refl).
+        simpl in Hval.
+        inversion Hval ; subst => //=.
+      - rewrite merge_trap flatten_simplify in Hval => //.
+        destruct es => //.
+      - destruct (merge_values_list _) => //.
+        destruct v => //.
+        destruct i => //.
+        destruct (vh_decrease _) => //.
+        rewrite merge_br flatten_simplify in Hval => //.
+        rewrite merge_return flatten_simplify in Hval => //.
+    }
   Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -159,7 +170,7 @@ Section iris_rules_calls.
           destruct Hfunc as [[r0 [-> [-> Hhost]]] | [-> [ -> Hhost]]].
           left. exists r0. erewrite app_assoc. eauto.
           right. erewrite app_nil_r. erewrite !app_assoc. eauto.
-          apply const_list_is_val in Hconst2 as [v Hv].
+          apply const_list_to_val in Hconst2 as [v Hv].
           by apply to_val_cat in Hv as [Hv1%to_val_const_list Hv2]. }
         { subst.
           apply length_to_val_immV in Heq as Hlen'.
