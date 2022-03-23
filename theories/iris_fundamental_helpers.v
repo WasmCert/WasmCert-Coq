@@ -478,8 +478,8 @@ Section fundamental.
     to_val ((λ v : value, AI_basic (BI_const v)) <$> ws) = Some (immV ws).
   Proof.
     induction ws;auto.
-    rewrite fmap_cons.
-    simpl. rewrite IHws. auto.
+    rewrite fmap_cons. rewrite to_val_cons_immV.
+    auto.
   Qed.
 
   Lemma interp_instance_function_lookup C i tf j :

@@ -52,14 +52,14 @@ Section fundamental.
     iApply iRewrite_nil_r_ctx. rewrite -app_assoc.
     iApply wp_base_push;[apply v_to_e_is_const_list|].
     iApply iRewrite_nil_r_ctx.
-    iApply (wp_seq_ctx _ _ _ (λne (vs : leibnizO val), ⌜vs = immV [] ∨ vs = brV i [] []⌝ ∗ ↪[frame] f)%I).
+    iApply (wp_seq_ctx _ _ _ (λne (vs : leibnizO val), ⌜vs = immV [] ∨ vs = brV (VH_base i [] [] : valid_holed i)⌝ ∗ ↪[frame] f)%I).
     iSplitR;[iIntros "[[%Hcontr|%Hcontr] _]"; done|].
     iSplitL "Hf".
     { destruct (Wasm_int.Int32.eq_eqP z (Wasm_int.int_zero i32m)).
       { iApply (wp_br_if_false with "Hf");auto. }
       { iApply (wp_br_if_true with "Hf");auto. iNext. iIntros "Hf".
         iApply wp_value.
-        { instantiate (1:=brV i [] []). done. }
+        { instantiate (1:=brV (VH_base i [] [])). done. }
         iFrame. iRight. auto. }
     }
 

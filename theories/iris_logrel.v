@@ -244,17 +244,23 @@ Section logrel.
   (* ------------------------------- EXPRESSION RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
+  Fixpoint get_base_l {i : nat} (lh : valid_holed i) :=
+    match lh with
+    | VH_base _ vs _ => vs
+    | VH_rec _ _ _ _ lh' _ => get_base_l lh'
+    end.
+
   Definition interp_br_def (τl : result_type) (i : instance)
                        (interp_br' : BR) : BR :=
     λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))),
-      ((∃ j (v : list value) es, ⌜w = brV j v es⌝ ∗
+      ((∃ j, ∃ (vh : valid_holed j) (v : seq.seq value) p, ⌜w = brV vh⌝ ∗ ⌜get_base_l vh = v⌝ ∗ ⌜lh_depth (lh_of_vh vh) = p⌝ ∗
                               ∃ τs' vs k es lh' es' lh'' τs'',
-                                ⌜τc !! j = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S j) = Some (vs,k,es,lh',es')⌝ ∗
-                                ⌜lh_depth lh'' = (lh_depth lh) - S j⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
+                                ⌜τc !! (j - p) = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S (j - p)) = Some (vs,k,es,lh',es')⌝ ∗
+                                ⌜lh_depth lh'' = (lh_depth lh) - S (j - p)⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
                                      interp_val (τs'' ++ τs') (immV v) ∗
                                      ∀ f, ↪[frame] f ∗ interp_frame τl i f -∗
                                      WP of_val (immV (drop (length τs'') v)) ++ [::AI_basic (BI_br j)] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
-                                     {{ vs, ((∃ τs, interp_val τs vs) ∨ ▷ interp_br' vs lh'' (drop (S j) τc)) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I.
+                                     {{ vs, ((∃ τs, interp_val τs vs) ∨ ▷ interp_br' vs lh'' (drop (S (j - p)) τc)) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I.
 
   Global Instance interp_br_def_contractive τl i : Contractive (interp_br_def τl i).
   Proof.

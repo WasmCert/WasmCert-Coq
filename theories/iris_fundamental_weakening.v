@@ -21,6 +21,21 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
+  Lemma get_base_l_push_const {i : nat} (lh : valid_holed i) w :
+    get_base_l (vh_push_const lh w) = (w ++ get_base_l lh) ∨
+      get_base_l (vh_push_const lh w) = get_base_l lh.
+  Proof.
+    induction lh.
+    { left. auto. }
+    { simpl. by right. }
+  Qed.
+
+  Lemma push_const_lh_depth {i : nat} (lh : valid_holed i) w :
+    lh_depth (lh_of_vh lh) = lh_depth (lh_of_vh (vh_push_const lh w)).
+  Proof.
+    induction lh;simpl;auto.
+  Qed.
+  
   (* -------------------------------------- WEAKENING -------------------------------------- *)
 
   Lemma typing_weakening C es t1s t2s ts : (⊢ semantic_typing (HWP:=HWP) C (to_e_list es) (Tf t1s t2s)) ->
@@ -45,7 +60,7 @@ Section fundamental.
     iFrame.
     iSplitR.
     { iModIntro. iIntros "[Hcontr | Hcontr]";[by iDestruct "Hcontr" as (? ?) "_"|].
-      rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ?) "_". done. }
+      rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ? ?) "_". done. }
     iIntros "Hf".
 
     assert ((λ v : value, AI_basic (BI_const v)) <$> ws2 = of_val (immV ws2)) as ->;[auto|].
@@ -64,21 +79,31 @@ Section fundamental.
       iApply big_sepL2_app;eauto. }
     { iRight. iRight.
       rewrite fixpoint_interp_br_eq.
-      iDestruct "Hw" as (j w' e' ->) "Hbr".
+      iDestruct "Hw" as (j lh' w' p -> Hbase Hsize) "Hbr".
       iApply fixpoint_interp_br_eq.
       unfold val_combine.
-      iExists j,(ws1 ++ w'),e'. iSplit;[auto|].
+
+      iExists j,(vh_push_const lh' ws1),_,p. iSplit;[auto|].
+      iSplit;[eauto|]. rewrite -push_const_lh_depth. iSplit;[auto|].
       iDestruct "Hbr" as (? ? ? ? ? ? ? ?) "(H&H0&H1&H2&H3&H4)".
-      iExists _,_,_,_,_,_,_,(ts ++ τs''). iFrame "H H0 H1 H2".
-      iSplitL "H3".
-      { iDestruct "H3" as "[%Hcontr|#Hw]";[done|].
-        iRight.
-        iDestruct "Hw" as (w0 Heq') "Hw". simplify_eq.
-        iExists _. iSplit;eauto.
-        rewrite -app_assoc.
-        iApply big_sepL2_app;eauto. }
-      iDestruct (big_sepL2_length with "Hv1") as %Hlen1.
-      rewrite app_length -drop_drop -Hlen1 drop_app. iFrame.
+      
+      pose proof (get_base_l_push_const lh' ws1) as [Hbase'|Hbase'].
+      
+      { iExists _,_,_,_,_,_,_,(ts ++ τs''). iFrame "H H0 H1 H2".
+        iSplitL "H3".
+        { iDestruct "H3" as "[%Hcontr|#Hw]";[done|].
+          iRight.
+          iDestruct "Hw" as (w0 Heq') "Hw". simplify_eq.
+          iExists _. iSplit;eauto.
+          rewrite -app_assoc. rewrite Hbase'.
+          iApply big_sepL2_app;eauto. }
+        iDestruct (big_sepL2_length with "Hv1") as %Hlen1.
+        rewrite Hbase' Hbase.
+        rewrite app_length -drop_drop -Hlen1 drop_app. iFrame.
+      }
+      { rewrite Hbase in Hbase'. rewrite Hbase'.
+        iExists _,_,_,_,_,_,_,(τs''). iFrame "H H0 H1 H2". iFrame.
+      }
     }
   Qed.
     

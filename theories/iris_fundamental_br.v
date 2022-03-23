@@ -50,7 +50,8 @@ Section fundamental.
     apply of_to_val in Hval.
     iApply wp_value;[done|].
     iSplitR;[|iExists _;iFrame].
-    iRight. iApply fixpoint_interp_br_eq. iExists _,_,_. iSplit;[eauto|].
+    iRight. iApply fixpoint_interp_br_eq. iExists _,_,_,0. iSplit;[eauto|].
+    iSplit;[eauto|]. iSplit;[eauto|]. rewrite PeanoNat.Nat.sub_0_r.
     iDestruct (big_sepL_lookup with "Hc") as (vs n es lh' es' lh'' Hlayer Hdep Hmin) "Hbr";[apply Hlook|].
     rewrite app_length in Hlen.
     apply list_app_split in Hlen as [ws1 [ws2 [-> [Hlen1 Hlen2]]]].

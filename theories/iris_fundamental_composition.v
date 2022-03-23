@@ -21,6 +21,18 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
+  Lemma get_base_l_append {i : nat} (lh : valid_holed i) e :
+    get_base_l (vh_append lh e) = get_base_l lh.
+  Proof.
+    induction lh;simpl;auto.
+  Qed.
+
+  Lemma append_lh_depth {i : nat} (lh : valid_holed i) e :
+    lh_depth (lh_of_vh lh) = lh_depth (lh_of_vh (vh_append lh e)).
+  Proof.
+    induction lh;simpl;auto.
+  Qed.
+  
   (* -------------------------------------- COMPOSITION ------------------------------------ *)
 
   Lemma typing_composition C es t1s t2s t3s e : (⊢ semantic_typing (HWP:=HWP) C (to_e_list es) (Tf t1s t2s)) ->
@@ -48,7 +60,7 @@ Section fundamental.
     iSplitR.
     { rewrite fixpoint_interp_br_eq.
       iIntros "[Hcontr|Hcontr]";[iDestruct "Hcontr" as (? ?) "?"|
-                                  iDestruct "Hcontr" as (? ? ? ?) "?"];try done. }
+                                  iDestruct "Hcontr" as (? ? ? ? ?) "?"];try done. }
     iSplitR.
     { iLeft. by iLeft. }
 
@@ -61,16 +73,14 @@ Section fundamental.
     iIntros (LI Hfill%lfilled_Ind_Equivalent);inversion Hfill;simplify_eq.
     erewrite app_nil_l, app_nil_r.
     rewrite fixpoint_interp_br_eq.
-    iDestruct "Hbr" as (j vs' es' ->) "Hbr".
-    assert (of_val (brV j vs' es') ++ to_e_list [e] =
-              of_val (brV j vs' (es' ++ to_e_list [e]))) as ->.
-    { simpl. repeat erewrite <- app_assoc. f_equiv. auto. }
+    iDestruct "Hbr" as (j lh' vs' p -> Hbase Hdepth) "Hbr".
+    rewrite of_val_br_app_r.
     iApply wp_value;[done|].
     iSplitR "Hf Hfv";[|iExists _;iFrame].
     iRight.
     iApply fixpoint_interp_br_eq.
-    iExists _,_,_. iSplit;[eauto|].
-    iFrame.
+    iExists _,_,_,_. iSplit;[eauto|].
+    iFrame. rewrite get_base_l_append -append_lh_depth. auto.
   Qed.
 
 End fundamental.

@@ -54,7 +54,7 @@ Section fundamental.
     iApply wp_base_push;[apply v_to_e_is_const_list|].
     iApply iRewrite_nil_r_ctx.
     
-    iApply (wp_seq_ctx _ _ _ (λne (vs : leibnizO val), ⌜(∃ i', nth_error ins (Wasm_int.nat_of_uint i32m z) = Some i' ∧ vs = brV i' [] []) ∨ (nth_error (ins ++ [i]) (length ins) = Some i ∧ vs = brV i [] [])⌝ ∗ ↪[frame] f)%I).
+    iApply (wp_seq_ctx _ _ _ (λne (vs : leibnizO val), ⌜(∃ i', nth_error ins (Wasm_int.nat_of_uint i32m z) = Some i' ∧ vs = brV (VH_base i' [] [])) ∨ (nth_error (ins ++ [i]) (length ins) = Some i ∧ vs = brV (VH_base i [] []))⌝ ∗ ↪[frame] f)%I).
     iSplitR;[iIntros "[[%Hcontr|%Hcontr] _]"|].
     { destruct Hcontr as (?&?&?). done. }
     { destruct Hcontr as (?&?);done. }
@@ -63,7 +63,7 @@ Section fundamental.
       { iApply (wp_br_table_length with "Hf");auto.
         iNext. iIntros "Hf".
         iApply wp_value.
-        { instantiate (1:=brV i [] []). done. }
+        { instantiate (1:=brV (VH_base i [] [])). done. }
         iFrame. iRight. iPureIntro;split; auto.
         rewrite nth_error_app2;[|lia].
         rewrite PeanoNat.Nat.sub_diag. auto. }
@@ -75,7 +75,7 @@ Section fundamental.
         { apply/ssrnat.leP. apply Nat.lt_nge in Hle. apply lt_le_S. auto. }
         iNext. iIntros "Hf".
         iApply wp_value.
-        { instantiate (1:=brV i' [] []). done. }
+        { instantiate (1:=brV (VH_base i' [] [])). done. }
         iFrame. iLeft. iExists i'. eauto. }
     }
 

@@ -92,7 +92,7 @@ Section fundamental.
       iApply wp_val_can_trap_app'. iFrame.
       iSplitR.
       { iModIntro. rewrite fixpoint_interp_br_eq.
-        iIntros "[H|H]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ?) "_"];done. }
+        iIntros "[H|H]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ? ?) "_"];done. }
       iIntros "Hf".
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iApply (wp_call_indirect_failure_outofbounds with "[$] [$]");auto.
@@ -118,7 +118,7 @@ Section fundamental.
       iApply wp_val_can_trap_app'. iFrame.
       iSplitR.
       { iModIntro. rewrite fixpoint_interp_br_eq.
-        iIntros "[H|H]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ?) "_"];done. }
+        iIntros "[H|H]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ? ?) "_"];done. }
       iIntros "Hf".
       iApply wp_fupd.
       iApply (wp_wand _ _ _ (λ vs, (⌜vs = trapV⌝ ∗ _) ∗  ↪[frame]f)%I with "[Hf Ha]").
@@ -143,7 +143,7 @@ Section fundamental.
       iApply wp_val_can_trap_app'. iFrame.
       iSplitR.
       { iModIntro. rewrite fixpoint_interp_br_eq.
-        iIntros "[H|H]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ?) "_"];done. }
+        iIntros "[H|H]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ? ?) "_"];done. }
       iIntros "Hf".
       iApply wp_fupd.
       iApply (wp_wand _ _ _ (λ vs, (⌜vs = trapV⌝ ∗ _) ∗  ↪[frame]f)%I with "[Hf Ha Hn]").
