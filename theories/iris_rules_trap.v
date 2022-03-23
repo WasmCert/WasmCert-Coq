@@ -279,17 +279,7 @@ Section trap_rules.
     by iFrame.
   Qed.
 
-  Lemma to_val_None_label n es' LI :
-    iris.to_val LI = None ->
-    iris.to_val [AI_label n es' LI] = None.
-  Proof.
-    intros HLI.
-    unfold iris.to_val. cbn. 
-    unfold iris.to_val in HLI.
-    destruct (merge_values_list (map to_val_instr LI)) eqn:Hmerge;done.
-  Qed.    
-
-  Lemma wp_label_trap s E LI vs n es' es'' f f':
+    Lemma wp_label_trap s E LI vs n es' es'' f f':
     const_list vs ->
     ↪[frame] f -∗
     (↪[frame] f -∗ WP LI @ E {{ w, ⌜w = trapV⌝ ∗  ↪[frame]f' }}) -∗

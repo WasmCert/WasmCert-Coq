@@ -1850,7 +1850,7 @@ Lemma to_val_brV_None vs n i lh es LI :
   const_list vs ->
   length vs = n ->
   lfilled i lh (vs ++ [AI_basic (BI_br i)]) LI ->
-  to_val [AI_label n es LI] = None.
+  iris.to_val [AI_label n es LI] = None.
 Proof.
   intros Hconst Hlen Hlfill.
   eapply val_head_stuck_reduce.
@@ -1860,8 +1860,8 @@ Proof.
 Qed.
 
 Lemma to_val_immV_label_None es v m ctx :
-  to_val es = Some (immV v) ->
-  to_val [AI_label m ctx es] = None.
+  iris.to_val es = Some (immV v) ->
+  iris.to_val [AI_label m ctx es] = None.
 Proof.
   intros Hes.
   eapply val_head_stuck_reduce.
@@ -1871,8 +1871,8 @@ Proof.
 Qed.  
   
 Lemma to_val_trapV_label_None es m ctx :
-  to_val es = Some trapV ->
-  to_val [AI_label m ctx es] = None.
+  iris.to_val es = Some trapV ->
+  iris.to_val [AI_label m ctx es] = None.
 Proof.
   intros Hes.
   apply to_val_trap_is_singleton in Hes as ->.
@@ -1883,7 +1883,7 @@ Proof.
 Qed.
 
 Lemma to_val_cons_immV v l :
-  to_val (AI_basic (BI_const v) :: of_val (immV l)) = Some (immV (v :: l)).
+  iris.to_val (AI_basic (BI_const v) :: iris.of_val (immV l)) = Some (immV (v :: l)).
 Proof.
   rewrite separate1.
   erewrite to_val_cat_inv;eauto.
@@ -1891,8 +1891,8 @@ Proof.
   auto.
 Qed.
 Lemma to_val_cons_brV i (lh : valid_holed i) v es :
-  to_val es = Some (brV lh) ->
-  to_val (AI_basic (BI_const v) :: es) = Some (brV (vh_push_const lh [v])).
+  iris.to_val es = Some (brV lh) ->
+  iris.to_val (AI_basic (BI_const v) :: es) = Some (brV (vh_push_const lh [v])).
 Proof.
   intros Hes.
   unfold to_val,iris.to_val. cbn.
@@ -1905,8 +1905,8 @@ Proof.
   rewrite merge_prepend. by rewrite /= Hsome.
 Qed.
 Lemma to_val_cons_retV s v es :
-  to_val es = Some (retV s) ->
-  to_val (AI_basic (BI_const v) :: es) = Some (retV (sh_push_const s [v])).
+  iris.to_val es = Some (retV s) ->
+  iris.to_val (AI_basic (BI_const v) :: es) = Some (retV (sh_push_const s [v])).
 Proof.
   intros Hes.
   unfold to_val,iris.to_val. cbn.
@@ -1919,8 +1919,8 @@ Proof.
   rewrite merge_prepend. by rewrite /= Hsome.
 Qed.
 Lemma to_val_cons_None es v :
-  to_val es = None ->
-  to_val (AI_basic (BI_const v) :: es) = None.
+  iris.to_val es = None ->
+  iris.to_val (AI_basic (BI_const v) :: es) = None.
 Proof.
   intros Hes.
   rewrite separate1.
@@ -1992,9 +1992,9 @@ Proof.
 Qed.
 
 Lemma to_val_trapV_lfilled_None es k lh LI :
-  to_val es = Some trapV ->
+  iris.to_val es = Some trapV ->
   lfilled (S k) lh es LI ->
-  to_val LI = None.
+  iris.to_val LI = None.
 Proof.
   intros Hes Hfill.
   apply to_val_trap_is_singleton in Hes as ->.
@@ -2021,7 +2021,7 @@ Proof.
 Qed.
 
 Lemma to_val_None_lfilled LI k lh es :
-  to_val es = None → lfilled k lh es LI -> to_val LI = None.
+  iris.to_val es = None → lfilled k lh es LI -> iris.to_val LI = None.
 Proof.
   revert LI lh es;induction k;intros LI lh es Hnone Hfill%lfilled_Ind_Equivalent.
   { inversion Hfill;simplify_eq.
@@ -2034,7 +2034,7 @@ Proof.
     apply to_val_cat_None1;auto.
     apply to_val_None_label. auto.
   }
-Qed.  
+Qed.
     
   
 End iris_properties.
