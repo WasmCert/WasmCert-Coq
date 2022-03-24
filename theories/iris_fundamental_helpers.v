@@ -617,6 +617,12 @@ Section fundamental.
     induction vh;simpl;auto.
   Qed.
 
+  Lemma sfill_label vh n es e :
+    [AI_label n es (sfill vh e)] = sfill (SH_rec [] n es vh []) e.
+  Proof.
+    induction vh;simpl;auto.
+  Qed.
+
   Lemma lh_depth_ge {i : nat} (vh : valid_holed i) p :
     lh_depth (lh_of_vh vh) = p ->
     i >= p.
@@ -826,7 +832,7 @@ Section fundamental.
     }
   Qed.
 
-  Lemma interp_br_stuck_push C (j : nat) (vh: valid_holed j) m vs p i tm tm' lh f' e :
+  Lemma interp_br_stuck_push C (j : nat) (vh: valid_holed j) m vs p i tm tm' lh f' e τto :
     m = length tm ->
     get_base_l vh = vs ->
     lh_depth (lh_of_vh vh) = p ->
@@ -836,12 +842,12 @@ Section fundamental.
     base_is_empty lh ->
     interp_br_body (tc_label (upd_label C ([tm] ++ tc_label C)))
                    (push_base lh (length tm) e [] [])
-                   j p vs (tc_local C) i -∗
+                   j p vs (tc_local C) i τto -∗
     ↪[frame]f' -∗
     interp_frame (tc_local C) i f' -∗
     WP [AI_label m e
         (vfill vh [AI_basic (BI_br j)])]
-      {{ v, (interp_val tm' v ∨ interp_br (tc_local C) i v lh (tc_label C)) ∗
+      {{ v, (interp_val tm' v ∨ interp_br (tc_local C) i τto v lh (tc_label C) ∨ interp_return_option τto (tc_local C) i v) ∗
            (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
     iIntros (Hlen Hbase Hsize n Hlh_length Hlh_valid Hlh_empty) "Hbr Hf Hfv".
@@ -862,7 +868,7 @@ Section fundamental.
         
     iApply wp_value;[done|].
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
-    iRight.
+    iRight. iLeft.
     iApply fixpoint_interp_br_eq. iSimpl.
     rewrite lh_depth_push_base.
     rewrite PeanoNat.Nat.sub_succ.
@@ -908,6 +914,86 @@ Section fundamental.
     simpl. iFrame.
   Qed.
 
+  Lemma const_list_map ws1 :
+    const_list (map (λ x : value, AI_basic (BI_const x)) ws1).
+  Proof.
+    induction ws1;auto.
+  Qed.
+
+  Lemma lfilled_simple_get_base_pull j sh e LI ws1 ws2 :
+    simple_get_base_l sh = ws1 ++ ws2 ->
+    lfilled j (lh_of_sh sh) e LI ->
+    ∃ lh, lfilled j lh (of_val (immV ws2) ++ e) LI.
+  Proof.
+    revert j e LI ws1 ws2.
+    induction sh;intros j e LI ws1 ws2 Hbase Hfill%lfilled_Ind_Equivalent.
+    { simpl in *. inversion Hfill;simplify_eq.
+      eexists. rewrite map_app.
+      repeat erewrite <- app_assoc. erewrite (app_assoc _ e).
+      apply lfilled_Ind_Equivalent. constructor.
+      apply const_list_map. }
+    { simpl in Hfill. inversion Hfill;simplify_eq.
+      apply lfilled_Ind_Equivalent in H8.
+      eapply IHsh in H8 as Hlh';eauto.
+      destruct Hlh' as [lh Hfill'].
+      eexists.
+      apply lfilled_Ind_Equivalent.
+      constructor;eauto.
+      apply lfilled_Ind_Equivalent;eauto. }
+  Qed.
+
+  Lemma interp_return_label C tn i w f' tm lh es m :
+    interp_return_option
+      (tc_return (upd_label C ([tn] ++ tc_label C)))
+      (tc_local (upd_label C ([tn] ++ tc_label C))) i w -∗
+  ↪[frame]f' -∗
+  interp_frame (tc_local C) i f' -∗
+  WP of_val w CTX 1; LH_rec [] m es (LH_base [] []) []
+  {{ v, (interp_val tm v ∨ interp_br (tc_local C) i (tc_return C) v lh (tc_label C)
+         ∨ interp_return_option (tc_return C) (tc_local C) i v) ∗
+           (∃ f0 : frame,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
+  Proof.
+    iIntros "Hret Hf Hfv".
+    iDestruct "Hret" as (sh v -> Hbase) "Hret".
+    simpl of_val. 
+    destruct (tc_return (upd_label C ([tn] ++ tc_label C))) eqn:Hret;[|done].
+    iDestruct "Hret" as (τs'') "[#Hw Hret]".
+    iDestruct "Hw" as "[%Hcontr|Hw]";[done|iDestruct "Hw" as (? Heq) "Hw"].
+    inversion Heq; subst ws.
+    pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j Hj].
+    eapply (lfilled_simple_get_base_pull _ _ _ _ (take (length τs'') v) (drop (length τs'') v)) in Hj as Hj2.
+    2: rewrite take_drop;eauto. destruct Hj2 as [lh' Hlh'].
+    
+    assert (LH_rec [] m es (LH_base [] []) [] =
+              push_base (LH_base [] []) m es [] []) as Heq';[auto|].
+    rewrite Heq'.
+    iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
+    
+    rewrite sfill_label.
+    eassert (sfill (SH_rec [] m es sh []) [AI_basic BI_return] = of_val (retV _)) as Hval.
+    { simpl of_val. f_equiv. eauto. }
+    rewrite !Hval.
+    iApply wp_value;[done|].
+    iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
+    iRight. iRight.
+    iExists _,_. iSplit;[eauto|]. iSplit;[eauto|].
+    assert (tc_return C = Some l) as ->;auto.
+    iExists _. iSplitR. { iRight. iExists _. eauto. }
+    iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+    iDestruct (big_sepL2_length with "Hw") as %Hlen'.
+    iApply (wp_ret_shift with "Hret");cycle 2.
+    { simpl of_val. eauto. }
+    { simpl of_val. simpl of_val in Hlh'.
+      assert ([AI_label m es (sfill sh [AI_basic BI_return])] =
+                [] ++ [AI_label m es (sfill sh [AI_basic BI_return])] ++ []) as ->;auto.
+      apply lfilled_Ind_Equivalent. constructor;auto.
+      apply lfilled_Ind_Equivalent. eauto.
+    }
+    { apply const_list_of_val. }
+    { rewrite fmap_length drop_length. rewrite app_length in Hlen'.
+      apply Nat.add_sub_eq_r. rewrite Hlen'. lia. }
+  Qed.    
+  
   Global Instance global_inhabited : Inhabited global.
   Proof. apply populate. exact (Build_global MUT_mut (VAL_int32 int32_minus_one)). Qed.
 

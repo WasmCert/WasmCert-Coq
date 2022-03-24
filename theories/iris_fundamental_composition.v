@@ -32,6 +32,12 @@ Section fundamental.
   Proof.
     induction lh;simpl;auto.
   Qed.
+
+  Lemma simple_get_base_l_append (lh : simple_valid_holed) e :
+    simple_get_base_l (sh_append lh e) = simple_get_base_l lh.
+  Proof.
+    induction lh;simpl;auto.
+  Qed.
   
   (* -------------------------------------- COMPOSITION ------------------------------------ *)
 
@@ -46,7 +52,8 @@ Section fundamental.
     
     iAssert (↪[frame] f -∗
              WP of_val vs ++ to_e_list es
-             {{ vs1, (⌜vs1 = trapV⌝ ∨ interp_values t2s vs1 ∨ interp_br (tc_local C) i vs1 lh (tc_label C)) ∗
+             {{ vs1, (⌜vs1 = trapV⌝ ∨ interp_values t2s vs1 ∨ interp_br (tc_local C) i (tc_return C) vs1 lh (tc_label C)
+                      ∨ interp_return_option (tc_return C) (tc_local C) i vs1) ∗
                      (∃ f1,  ↪[frame]f1 ∗ interp_frame (tc_local C) i f1) }})%I with "[Hfv]" as "H1".
     { iIntros "Hf".
       iDestruct (Ht1 with "Hi Hc [$] Hv") as "H1".
@@ -59,28 +66,63 @@ Section fundamental.
     iFrame "∗ #".
     iSplitR.
     { rewrite fixpoint_interp_br_eq.
-      iIntros "[Hcontr|Hcontr]";[iDestruct "Hcontr" as (? ?) "?"|
-                                  iDestruct "Hcontr" as (? ? ? ? ?) "?"];try done. }
+      iIntros "[Hcontr|[Hcontr|Hcontr]]";[iDestruct "Hcontr" as (? ?) "?"|
+                                  iDestruct "Hcontr" as (? ? ? ? ?) "?"|iDestruct "Hcontr" as (? ? ?) "?"];try done. }
     iSplitR.
     { iLeft. by iLeft. }
 
     iIntros (w f') "[Hw [Hf Hfv]]".
-    iDestruct "Hw" as "[#Hw|Hbr]".
+    iDestruct "Hw" as "[#Hw|[Hbr|Hret]]".
     { iIntros (LI Hfill%lfilled_Ind_Equivalent);inversion Hfill;simplify_eq.
       erewrite app_nil_l, app_nil_r.
       iApply (Ht2 with "[] [] [$]");iFrame "#". }
 
-    iIntros (LI Hfill%lfilled_Ind_Equivalent);inversion Hfill;simplify_eq.
-    erewrite app_nil_l, app_nil_r.
-    rewrite fixpoint_interp_br_eq.
-    iDestruct "Hbr" as (j lh' vs' p -> Hbase Hdepth) "Hbr".
-    rewrite of_val_br_app_r.
-    iApply wp_value;[done|].
-    iSplitR "Hf Hfv";[|iExists _;iFrame].
-    iRight.
-    iApply fixpoint_interp_br_eq.
-    iExists _,_,_,_. iSplit;[eauto|].
-    iFrame. rewrite get_base_l_append -append_lh_depth. auto.
+    { iIntros (LI Hfill%lfilled_Ind_Equivalent);inversion Hfill;simplify_eq.
+      erewrite app_nil_l, app_nil_r.
+      rewrite fixpoint_interp_br_eq.
+      iDestruct "Hbr" as (j lh' vs' p -> Hbase Hdepth) "Hbr".
+      rewrite of_val_br_app_r.
+      iApply wp_value;[done|].
+      iSplitR "Hf Hfv";[|iExists _;iFrame].
+      iRight. iLeft.
+      iApply fixpoint_interp_br_eq.
+      iExists _,_,_,_. iSplit;[eauto|].
+      iFrame. rewrite get_base_l_append -append_lh_depth. auto. }
+    { iIntros (LI Hfill%lfilled_Ind_Equivalent);inversion Hfill;simplify_eq.
+      erewrite app_nil_l, app_nil_r.
+      iDestruct "Hret" as (sh vs' -> Hbase) "Hret".
+      destruct (tc_return C);[|done].
+      rewrite of_val_ret_app_r.
+      iApply wp_value;[done|].
+      iSplitR "Hf Hfv";[|iExists _;iFrame].
+      iRight. iRight.
+      iExists _,_. iSplit;[eauto|].
+      rewrite simple_get_base_l_append.
+      iSplit;eauto.
+
+      pose proof (sfill_to_lfilled (sh_append sh (to_e_list [e])) ([AI_basic BI_return])) as [j Hj].
+      pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
+
+      iDestruct "Hret" as (?) "[#Hw Hret]".
+      iDestruct "Hw" as "[%Hcontr|Hw]";[done|iDestruct "Hw" as (? Heq) "Hw"].
+      inversion Heq; subst vs'.
+      
+      eapply (lfilled_simple_get_base_pull _ _ _ _ (take (length τs'') ws) (drop (length τs'') ws)) in Hj as Hj2.
+      2: rewrite simple_get_base_l_append;rewrite take_drop;eauto.
+      eapply (lfilled_simple_get_base_pull _ _ _ _ (take (length τs'') ws) (drop (length τs'') ws)) in Hj' as Hj3.
+      2: rewrite take_drop;eauto.
+      destruct Hj2 as [lh' Hlh'].
+      destruct Hj3 as [lh'' Hlh''].
+
+      
+      iDestruct (big_sepL2_length with "Hw") as %Hlen.
+      iExists _. iSplitR;[iRight;iExists _;iSplit;eauto;rewrite H0;eauto|].
+      iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+      iApply (wp_ret_shift with "Hret");[| |apply Hlh''|apply Hlh'].
+      { apply const_list_of_val. }
+      { rewrite fmap_length. rewrite drop_length.
+        rewrite app_length in Hlen. apply Nat.add_sub_eq_r. rewrite Hlen. lia. }
+    }
   Qed.
 
 End fundamental.

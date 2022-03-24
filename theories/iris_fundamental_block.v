@@ -24,8 +24,8 @@ Section fundamental.
   Lemma interp_ctx_continuations_push_label_block lh C i tm :
     base_is_empty lh ->
     lholed_lengths (rev (tc_label C)) lh ->
-    interp_ctx_continuations (tc_label C) (tc_local C) i lh -∗
-    interp_ctx_continuation (tc_label (upd_label C ([tm] ++ tc_label C))) (push_base lh (length tm) [] [] [])
+    interp_ctx_continuations (tc_label C) (tc_return C) (tc_local C) i lh -∗
+    interp_ctx_continuation (tc_label (upd_label C ([tm] ++ tc_label C))) (tc_return C) (push_base lh (length tm) [] [] [])
                               0 tm (tc_local C) i.
   Proof.
     iIntros (Hlh_base Hlh_len) "#Hc". unfold interp_ctx_continuation.
@@ -56,9 +56,9 @@ Section fundamental.
   Qed.
 
   Lemma interp_ctx_push_label_block C tm i lh :
-    interp_ctx (tc_label C) (tc_local C) i lh -∗
+    interp_ctx (tc_label C) (tc_return C) (tc_local C) i lh -∗
     interp_ctx (tc_label (upd_label C ([tm] ++ tc_label C)%list))
-      (tc_local (upd_label C ([tm] ++ tc_label C)%list)) i
+      (tc_return C) (tc_local (upd_label C ([tm] ++ tc_label C)%list)) i
       (push_base lh (length tm) [] [] []).
   Proof.
     iIntros "[%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]".
@@ -92,11 +92,11 @@ Section fundamental.
     j = p ->
     interp_br_body (tc_label (upd_label C ([tm] ++ tc_label C)))
                    (push_base lh (length tm) [] [] [])
-                   j p vs (tc_local C) i -∗
+                   j p vs (tc_local C) i (tc_return C) -∗
     ↪[frame]f' -∗
     interp_frame (tc_local C) i f' -∗
     WP [AI_label m [] (vfill vh [AI_basic (BI_br j)])]
-      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i v lh (tc_label C)) ∗
+      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i (tc_return C) v lh (tc_label C) ∨ interp_return_option (tc_return C) (tc_local C) i v) ∗
            (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
     iIntros (Hlen Hbase Hsize e) "Hbr Hf Hfv".
@@ -167,7 +167,7 @@ Section fundamental.
     iAssert (∀ f, interp_frame (tc_local C) i f -∗ ↪[frame] f -∗ WP of_val (immV ws) ++ to_e_list es
               {{ v, (⌜v = trapV⌝ ∨
                        interp_values tm v ∨
-                       interp_br (tc_local C) i v _ _)
+                       interp_br (tc_local C) i (tc_return C) v _ _ ∨ _)
                       ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
     { iIntros (f') "Hfv Hf".
       iDestruct ("HH" with "[] [Hf Hfv] []") as "Hcont".
@@ -182,13 +182,14 @@ Section fundamental.
 
     iApply (wp_seq_can_trap_ctx). iFrame.
     iSplitR.
-    { iIntros "[Hcontr | Hcontr]";[iDestruct "Hcontr" as (? ?) "_";done|
-                                    rewrite fixpoint_interp_br_eq; iDestruct "Hcontr" as (? ? ? ? ?) "_";done]. }
+    { iIntros "[Hcontr | [Hcontr|Hcontr]]";[iDestruct "Hcontr" as (? ?) "_";done|
+                                             rewrite fixpoint_interp_br_eq; iDestruct "Hcontr" as (? ? ? ? ?) "_";done|
+        iDestruct "Hcontr" as (? ? ?) "_";done]. }
     iSplitR;[by iLeft;iLeft|].
 
     iIntros (w f') "[Hred [Hf Hfv]]".
     rewrite app_nil_r.
-    iDestruct "Hred" as "[#Hval | Hbr]".
+    iDestruct "Hred" as "[#Hval | [Hbr|Hret]]".
     
     { iDestruct "Hval" as (vs ->) "Hval".
       iDestruct (big_sepL2_length with "Hval") as %Hlen'.
@@ -216,6 +217,7 @@ Section fundamental.
         { iDestruct "Hc" as "[% [% [% _]]]". auto. }
         iApply (interp_br_stuck_push with "Hbr Hf Hfv");eauto. }
     }
+    { iApply (interp_return_label  with "Hret Hf Hfv"). }
   Qed.
 
 End fundamental.

@@ -39,7 +39,8 @@ Require Import iris_fundamental_const
         iris_fundamental_weakening
         iris_fundamental_br_table
         iris_fundamental_block
-        iris_fundamental_if.
+        iris_fundamental_if
+        iris_fundamental_return.
 Import uPred.
 
 Section fundamental.
@@ -71,7 +72,7 @@ Section fundamental.
     { by apply typing_br. }
     { by apply typing_br_if. }
     { by apply typing_br_table. }
-    { admit. }
+    { by apply typing_return. }
     { by apply typing_call. }
     { by apply typing_call_indirect. }
     { by apply typing_get_local. }
@@ -88,6 +89,6 @@ Section fundamental.
       { apply IHbe_typing1. }
       { apply IHbe_typing2. } }
     { by apply typing_weakening. }
-  Admitted.
+  Qed.
 
 End fundamental.

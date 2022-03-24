@@ -963,5 +963,53 @@ Proof.
   { iPureIntro. unfold prim_step. repeat split;eauto. }
   iFrame.
 Qed.
+
+Lemma wp_ret_shift (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n f i lh j lh' LI LI' vs :
+  const_list vs ->
+  length vs = n ->
+  lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
+  lfilled j lh' (vs ++ [AI_basic BI_return]) LI' ->
+  WP [AI_local n f LI] @ s; E {{ Φ }} -∗
+  WP [AI_local n f LI'] @ s; E {{ Φ }}.
+Proof.
+  iIntros (Hconst Hlen Hfill1 Hfill2) "Hwp".
+
+  iApply wp_unfold. iDestruct (wp_unfold with "Hwp") as "Hwp".
+  rewrite /wp_pre /=.
+
+  iIntros (σ1 k κ1 κ2 m) "Hσ".
+  iSpecialize ("Hwp" $! σ1 k κ1 κ2 m with "Hσ").
+  destruct σ1 as [[[? ?] ?] ?].
+
+  assert (reduce (host_instance:=DummyHosts.host_instance) s0 s1
+                 {| f_locs := l; f_inst := i0 |}
+                 ([AI_local n f LI]) s0 s1
+                 {| f_locs := l; f_inst := i0 |}
+                 vs).
+  { eapply r_simple. eapply rs_return;eauto. }
+  assert (reduce (host_instance:=DummyHosts.host_instance) s0 s1
+                 {| f_locs := l; f_inst := i0 |}
+                 ([AI_local n f LI']) s0 s1
+                 {| f_locs := l; f_inst := i0 |}
+                 vs).
+  { eapply r_simple. eapply rs_return;eauto. }
+  iMod "Hwp". iModIntro.
+  iDestruct "Hwp" as "[_ Hwp]".
+  iSplitR.
+  { destruct s =>//. unfold reducible. iPureIntro.
+    eexists [],_,(s0,s1,l,i0),[]. simpl. repeat split;eauto. }
+  iIntros (e2 σ2 efs Hprim).
+  destruct σ2 as [[[? ?] ?] ?].
+  destruct Hprim as [Hprim [-> ->]].
+  assert (first_instr ([AI_local n f LI']) = Some (AI_basic (BI_return),S(0 + j))) as Hfirst0.
+  { eapply first_instr_local. eapply starts_with_lfilled;eauto.
+    apply first_instr_const;auto. }
+  eapply reduce_det in Hprim as [? | [[? ?]|[[? [? [? [? [? [? [? ?]]]]]]]|[? [? [? [? [? [? ?]]]]]]]]];[..|apply H0].
+  all: try by (rewrite separate1 Hfirst0 in H1; inversion H1).
+  inversion H1;simplify_eq.
+  iSpecialize ("Hwp" $! _ (s2,s3,l0,i1) with "[]").
+  { iPureIntro. unfold prim_step. repeat split;eauto. }
+  iFrame.
+Qed.
   
 End structural_rules.

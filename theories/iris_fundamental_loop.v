@@ -23,7 +23,7 @@ Section fundamental.
 
   (* ----------------------------------------- LOOP ---------------------------------------- *)
 
-  Lemma interp_ctx_continuations_push_label_loop lh C i tm tn es :
+  Lemma interp_ctx_continuations_push_label_loop lh C i tm tn es tr :
     base_is_empty lh ->
     lholed_lengths (rev (tc_label C)) lh ->
     □ (∀ (a : leibnizO frame) (a0 : seq.seq (leibnizO value)),
@@ -34,11 +34,11 @@ Section fundamental.
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
                 (interp_val tm vs
-                 ∨ interp_br (tc_local C) i vs lh (tc_label C)) ∗
+                 ∨ interp_br (tc_local C) i tr vs lh (tc_label C) ∨ interp_return_option tr (tc_local C) i vs) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                    interp_frame (tc_local C) i f0) }}) -∗
-      interp_ctx_continuations (tc_label C) (tc_local C) i lh -∗
-      interp_ctx_continuation (tc_label (upd_label C ([tn] ++ tc_label C))) (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
+      interp_ctx_continuations (tc_label C) tr (tc_local C) i lh -∗
+      interp_ctx_continuation (tc_label (upd_label C ([tn] ++ tc_label C))) tr (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
                               0 tn (tc_local C) i.
   Proof.
     iIntros (Hlh_base Hlh_len) "#HIH #Hc". unfold interp_ctx_continuation.
@@ -65,7 +65,7 @@ Section fundamental.
     iApply ("HIH" with "[] Hf Hfv Hv");eauto. 
   Qed.
 
-  Lemma interp_ctx_push_label_loop C tm i lh tn es :
+  Lemma interp_ctx_push_label_loop C tm i lh tn es tr :
     □ (∀ (a : leibnizO frame) (a0 : seq.seq (leibnizO value)),
            ⌜length a0 = length tn⌝
            →  ↪[frame]a -∗
@@ -74,12 +74,12 @@ Section fundamental.
              WP of_val (immV a0) ++ to_e_list [BI_loop (Tf tn tm) es]
              {{ vs,
                 (interp_val tm vs
-                 ∨ interp_br (tc_local C) i vs lh (tc_label C)) ∗
+                 ∨ interp_br (tc_local C) i tr vs lh (tc_label C) ∨ interp_return_option tr (tc_local C) i vs) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                    interp_frame (tc_local C) i f0) }}) -∗
-    interp_ctx (tc_label C) (tc_local C) i lh -∗
+    interp_ctx (tc_label C) tr (tc_local C) i lh -∗
     interp_ctx (tc_label (upd_label C ([tn] ++ tc_label C)%list))
-      (tc_local (upd_label C ([tn] ++ tc_label C)%list)) i
+      tr (tc_local (upd_label C ([tn] ++ tc_label C)%list)) i
       (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] []).
   Proof.
     iIntros "#HIH [%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]".
@@ -106,7 +106,7 @@ Section fundamental.
     }
   Qed.
 
-  Lemma interp_br_step C (j : nat) (vh: valid_holed j) m vs tn p i es tm lh f' :
+  Lemma interp_br_step C (j : nat) (vh: valid_holed j) m vs tn p i es tm lh f' tr :
     m = length tn ->
     get_base_l vh = vs ->
     lh_depth (lh_of_vh vh) = p ->
@@ -118,17 +118,17 @@ Section fundamental.
                 to_e_list [BI_loop (Tf tn tm) es]
              {{ vs0,
                 (interp_val tm vs0
-                 ∨ interp_br (tc_local C) i vs0 lh (tc_label C)) ∗
+                 ∨ interp_br (tc_local C) i tr vs0 lh (tc_label C) ∨ interp_return_option tr (tc_local C) i vs0) ∗
                 (∃ f0 : leibnizO frame,  ↪[frame]f0 ∗
                                           interp_frame (tc_local C) i f0) }}) -∗
       interp_br_body (tc_label (upd_label C ([tn] ++ tc_label C)))
                      (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
-                     j p vs (tc_local C) i -∗
+                     j p vs (tc_local C) i tr -∗
       ↪[frame]f' -∗
       interp_frame (tc_local C) i f' -∗
       WP [AI_label m [AI_basic (BI_loop (Tf tn tm) es)]
         (vfill vh [AI_basic (BI_br j)])]
-      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i v lh (tc_label C)) ∗
+      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i tr v lh (tc_label C) ∨ interp_return_option tr (tc_local C) i v) ∗
            (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
     iIntros (Hlen Hbase Hsize e) "#IH Hbr Hf Hfv".
@@ -166,7 +166,7 @@ Section fundamental.
     }
   Qed.
 
-  Lemma interp_br_stuck C (j : nat) (vh: valid_holed j) m vs tn p i es tm lh f' :
+  Lemma interp_br_stuck C (j : nat) (vh: valid_holed j) m vs tn p i es tm lh f' tr :
     m = length tn ->
     get_base_l vh = vs ->
     lh_depth (lh_of_vh vh) = p ->
@@ -176,12 +176,12 @@ Section fundamental.
     base_is_empty lh ->
     interp_br_body (tc_label (upd_label C ([tn] ++ tc_label C)))
                    (push_base lh (length tn) [AI_basic (BI_loop (Tf tn tm) es)] [] [])
-                   j p vs (tc_local C) i -∗
+                   j p vs (tc_local C) i tr -∗
     ↪[frame]f' -∗
     interp_frame (tc_local C) i f' -∗
     WP [AI_label m [AI_basic (BI_loop (Tf tn tm) es)]
         (vfill vh [AI_basic (BI_br j)])]
-      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i v lh (tc_label C)) ∗
+      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i tr v lh (tc_label C) ∨ interp_return_option tr (tc_local C) i v) ∗
            (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
     iIntros (Hlen Hbase Hsize n Hlh_length Hlh_valid Hlh_empty) "Hbr Hf Hfv".
@@ -222,7 +222,7 @@ Section fundamental.
     iAssert (∀ f, interp_frame (tc_local C) i f -∗ ↪[frame] f -∗ WP of_val (immV ws) ++ to_e_list es
               {{ v, (⌜v = trapV⌝ ∨
                        interp_values tm v ∨
-                       interp_br (tc_local C) i v _ _)
+                       interp_br (tc_local C) i (tc_return C) v _ _ ∨ _)
                       ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
     { iIntros (f') "Hfv Hf".
       iDestruct ("HH" with "[] [Hf Hfv] []") as "Hcont".
@@ -234,16 +234,17 @@ Section fundamental.
     
     iDestruct ("Hcont" $! f with "[$]") as "Hcontf". simpl push_base.
     iApply iRewrite_nil_r_ctx.
-
+    
     iApply (wp_seq_can_trap_ctx). iFrame.
     iSplitR.
-    { iIntros "[Hcontr | Hcontr]";[iDestruct "Hcontr" as (? ?) "_";done|
-                                    rewrite fixpoint_interp_br_eq; iDestruct "Hcontr" as (? ? ? ? ?) "_";done]. }
+    { iIntros "[Hcontr | [Hcontr|Hcontr]]";[iDestruct "Hcontr" as (? ?) "_";done|
+                                             rewrite fixpoint_interp_br_eq; iDestruct "Hcontr" as (? ? ? ? ?) "_";done|
+        iDestruct "Hcontr" as (? ? ?) "_";done]. }
     iSplitR;[by iLeft;iLeft|].
 
     iIntros (w f') "[Hred [Hf Hfv]]".
     rewrite app_nil_r.
-    iDestruct "Hred" as "[#Hval | Hbr]".
+    iDestruct "Hred" as "[#Hval | [Hbr | Hret]]".
     
     { iDestruct "Hval" as (vs ->) "Hval".
       rewrite fmap_length Hlen. iDestruct (big_sepL2_length with "Hval") as %Hlen'.
@@ -272,6 +273,8 @@ Section fundamental.
         { iDestruct "Hc" as "[% [% [% _]]]". auto. }
         iApply (interp_br_stuck with "Hbr Hf Hfv");eauto. }
     }
+
+    { iApply (interp_return_label  with "Hret Hf Hfv"). }
   Qed.
 
 End fundamental.

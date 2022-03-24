@@ -35,6 +35,21 @@ Section fundamental.
   Proof.
     induction lh;simpl;auto.
   Qed.
+
+  Lemma simple_get_base_l_push_const (lh : simple_valid_holed) w :
+    simple_get_base_l (sh_push_const lh w) = (w ++ simple_get_base_l lh) ∨
+    simple_get_base_l (sh_push_const lh w) = simple_get_base_l lh.
+  Proof.
+    induction lh.
+    { left. auto. }
+    { simpl. by right. }
+  Qed.
+
+  Lemma sh_push_const_lh_depth (lh : simple_valid_holed) w :
+    lh_depth (lh_of_sh lh) = lh_depth (lh_of_sh (sh_push_const lh w)).
+  Proof.
+    induction lh;simpl;auto.
+  Qed.
   
   (* -------------------------------------- WEAKENING -------------------------------------- *)
 
@@ -59,8 +74,9 @@ Section fundamental.
     iApply wp_val_can_trap_app;[apply to_val_fmap|].
     iFrame.
     iSplitR.
-    { iModIntro. iIntros "[Hcontr | Hcontr]";[by iDestruct "Hcontr" as (? ?) "_"|].
-      rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ? ?) "_". done. }
+    { iModIntro. iIntros "[Hcontr | [Hcontr | Hcontr] ]";[by iDestruct "Hcontr" as (? ?) "_"|..].
+      { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ? ?) "_". done. }
+      { iDestruct "Hcontr" as (? ? ?) "_";done. } }
     iIntros "Hf".
 
     assert ((λ v : value, AI_basic (BI_const v)) <$> ws2 = of_val (immV ws2)) as ->;[auto|].
@@ -71,13 +87,13 @@ Section fundamental.
 
     iIntros (v) "[Hw Hf0]".
     iFrame.
-    iDestruct "Hw" as "[[Hw|#Hw]|Hw]".
+    iDestruct "Hw" as "[[Hw|#Hw]|[Hw|Hw]]".
     { by iLeft. }
     { iRight. iLeft.
       iDestruct "Hw" as (ws' ->) "Hw".
       iSimpl. iExists _. iSplit;eauto.
       iApply big_sepL2_app;eauto. }
-    { iRight. iRight.
+    { iRight. iRight. iLeft.
       rewrite fixpoint_interp_br_eq.
       iDestruct "Hw" as (j lh' w' p -> Hbase Hsize) "Hbr".
       iApply fixpoint_interp_br_eq.
@@ -104,6 +120,79 @@ Section fundamental.
       { rewrite Hbase in Hbase'. rewrite Hbase'.
         iExists _,_,_,_,_,_,_,(τs''). iFrame "H H0 H1 H2". iFrame.
       }
+    }
+    { iRight. iRight. iRight.
+      iDestruct "Hw" as (sh ws' -> Hbase) "Hret".
+      destruct (tc_return C);[|done].
+      iDestruct "Hret" as (τs'') "Hret".
+      iExists (sh_push_const sh _),_.
+      unfold val_combine.
+
+      iSplit;[auto|]. iSplit;[auto|].
+      iDestruct "Hret" as "[#Hws' Hret]".
+      iDestruct "Hws'" as "[%Hcontr|Hws']";[done|].
+      iDestruct "Hws'" as (ws'' Heqws'') "Hws'". inversion Heqws''. subst ws''.
+
+      pose proof (simple_get_base_l_push_const sh ws1) as [Hbase'|Hbase'].
+      { rewrite Hbase' Hbase.
+        iExists (ts ++ τs'').
+        iSplitR.
+        { rewrite -app_assoc. iRight.
+          iExists _. iSplit;eauto.
+          iApply big_sepL2_app;iFrame "#". }
+
+        simpl of_val.
+        rewrite -(take_drop (length τs'') ws') in Hbase.
+        rewrite Hbase in Hbase'. rewrite app_assoc in Hbase'.
+        
+        pose proof (sfill_to_lfilled (sh_push_const sh ws1) ([AI_basic BI_return])) as [j Hj].
+        pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
+        eapply lfilled_simple_get_base_pull in Hj as Hj2;eauto.
+        destruct Hj2 as [lh' Hlh'].
+        eapply lfilled_simple_get_base_pull in Hj' as Hj3;eauto.
+        destruct Hj3 as [lh'' Hlh''].
+        
+        iDestruct (big_sepL2_length with "Hws'") as %Hlen.
+        rewrite app_length in Hlen.
+        rewrite -(take_drop (length τs'') ws').
+        iDestruct (big_sepL2_app_inv with "Hws'") as "[Hws1 Hws2]".
+        { right. rewrite drop_length. lia. }
+        iDestruct (big_sepL2_length with "Hws2") as %Hlen'.        
+
+        iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+        iApply (wp_ret_shift with "Hret");[| |apply Hlh''|apply Hlh'].
+        { apply const_list_of_val. }
+        { rewrite fmap_length. auto. }
+      }
+      { rewrite Hbase in Hbase'. rewrite Hbase'.
+        iExists (τs'').
+        iSplitR.
+        { iRight. iExists _. iSplit;eauto. }
+
+        simpl of_val.
+        rewrite -(take_drop (length τs'') ws') in Hbase.
+        rewrite -(take_drop (length τs'') ws') in Hbase'.
+        
+        pose proof (sfill_to_lfilled (sh_push_const sh ws1) ([AI_basic BI_return])) as [j Hj].
+        pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
+        eapply lfilled_simple_get_base_pull in Hj as Hj2;eauto.
+        destruct Hj2 as [lh' Hlh'].
+        eapply lfilled_simple_get_base_pull in Hj' as Hj3;eauto.
+        destruct Hj3 as [lh'' Hlh''].
+        
+        iDestruct (big_sepL2_length with "Hws'") as %Hlen.
+        rewrite app_length in Hlen.
+        rewrite -(take_drop (length τs'') ws').
+        iDestruct (big_sepL2_app_inv with "Hws'") as "[Hws1 Hws2]".
+        { right. rewrite drop_length. lia. }
+        iDestruct (big_sepL2_length with "Hws2") as %Hlen'.        
+
+        iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+        iApply (wp_ret_shift with "Hret");[| |apply Hlh''|apply Hlh'].
+        { apply const_list_of_val. }
+        { rewrite fmap_length. auto. }
+      }
+      
     }
   Qed.
     
