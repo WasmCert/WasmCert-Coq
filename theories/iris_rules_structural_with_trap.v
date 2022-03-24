@@ -740,6 +740,25 @@ Proof.
   }
 Qed.
 
+Lemma lfilled_push_base_swap_inv i lh n es vs1 es2 es' LI :
+  const_list vs1 ->
+  lfilled i lh es' LI ->
+  ∃ LI', lfilled (S i) (push_base lh n es vs1 es2) es' LI'.
+Proof.
+  intros Hconst Hfill%lfilled_Ind_Equivalent.
+  revert es' i LI Hfill.
+  induction lh;intros es' i LI Hfill.
+  { simpl. eexists. inversion Hfill;simplify_eq.
+    apply lfilled_Ind_Equivalent. constructor;auto. constructor. auto. }
+  { inversion Hfill;simplify_eq. simpl.
+    eapply IHlh in H8 as [LI' HLI'].
+    eexists. apply lfilled_Ind_Equivalent.
+    constructor;eauto.
+    apply lfilled_Ind_Equivalent;eauto.
+  }
+Qed.
+
+
 Lemma wp_br_ctx_shift (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs i lh n es vs1 es2 l n1 l0 l1 :
   const_list vs ->
   length vs = n1 ->
@@ -816,5 +835,133 @@ Proof.
   { iPureIntro. unfold prim_step. repeat split;eauto. }
   iFrame.
 Qed.
-    
+
+Lemma lfilled_split i j lh e LI :
+  i <= j ->
+  lfilled j lh e LI ->
+  ∃ lh' lh'' LI',
+    lfilled i lh' e LI' ∧ lfilled (j - i) lh'' LI' LI.
+Proof.
+  revert i lh e LI.
+  induction j;intros i lh e LI Hle Hfill%lfilled_Ind_Equivalent.
+  { inversion Hfill;simplify_eq. destruct i;[|lia].
+    simpl.
+    eexists; eexists; eexists.
+    split.
+    { apply lfilled_Ind_Equivalent. constructor. eauto. }
+    { instantiate (2:=LH_base [] []). cbn. apply/eqP.
+      rewrite app_nil_r. eauto. }
+  }
+  { inversion Hfill;simplify_eq.
+    destruct (decide (i = S j)).
+    { simplify_eq. rewrite PeanoNat.Nat.sub_diag.
+      eexists; eexists; eexists.
+      split.
+      { apply lfilled_Ind_Equivalent.
+        constructor;eauto. }
+      { instantiate (4:=LH_base [] []). cbn. apply/eqP.
+        rewrite app_nil_r. eauto. }
+    }
+    { assert (i <= j) as Hle';[lia|].
+      apply lfilled_Ind_Equivalent in H1.
+      eapply IHj in Hle' as Hres;eauto.
+      destruct Hres as [lh2 [lh'' [LI' [Hfill1 Hfill2]]]].
+      repeat eexists;eauto.
+      apply lfilled_Ind_Equivalent.
+      rewrite -minus_Sn_m;eauto.
+      constructor;auto. apply lfilled_Ind_Equivalent. eauto.
+    }
+  }
+Qed.
+
+Lemma wp_br_ctx_shift_inv (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs i lh n es vs1 es2 l n1 l0 l1 :
+  const_list vs ->
+  const_list vs1 ->
+  length vs = n1 ->
+  WP vs ++ [AI_basic (BI_br (S i))] @ s; E CTX S (S i); LH_rec l n1 l0 (push_base lh n es vs1 es2) l1 {{ Φ }} -∗
+  WP vs ++ [AI_basic (BI_br i)] @ s; E CTX (S i); LH_rec l n1 l0 lh l1 {{ Φ }}.
+Proof.
+  iIntros (Hconst Hconst' Hlen) "Hwp".
+  iIntros (LI Hfill).
+  apply lfilled_push_base_swap_inv with (n:=n) (es:=es) (vs1:=vs1) (es2:=es2) in Hfill as Hfill';auto.
+  destruct Hfill' as [LI' Hfill'].
+  simpl in Hfill'.
+  
+  apply lfilled_swap with (es' := vs ++ [AI_basic (BI_br (S i))]) in Hfill' as Hfilli.
+  destruct Hfilli as [LIi Hfilli].
+  apply lfilled_Ind_Equivalent in Hfilli.
+  inversion Hfilli. simplify_eq.
+  apply lfilled_Ind_Equivalent in H8.
+  apply lfilled_Ind_Equivalent in Hfilli.
+
+  assert (const_list l) as Hconst''.
+  { apply lfilled_Ind_Equivalent in Hfill. inversion Hfill;auto. }
+  
+  iSpecialize ("Hwp" with "[]").
+  { iPureIntro. eauto. }  
+  
+  assert (to_val (l ++ [AI_label (length vs) l0 LI0] ++ l1) = None).
+  { apply to_val_cat_None2;auto.
+    apply to_val_cat_None1.
+    eapply to_val_brV_None;[|eauto|];eauto.
+  }
+  assert (to_val LI = None).
+  { apply lfilled_Ind_Equivalent in Hfill.
+    inversion Hfill;simplify_eq.
+    apply to_val_cat_None2;auto.
+    apply to_val_cat_None1.
+    eapply to_val_brV_None. apply Hconst.
+    auto. apply lfilled_Ind_Equivalent. eauto. }
+
+  iApply wp_unfold. iDestruct (wp_unfold with "Hwp") as "Hwp".
+  rewrite /wp_pre /= H H0.
+
+   apply lfilled_Ind_Equivalent in Hfill.
+  inversion Hfill;simplify_eq.
+
+  iIntros (σ1 k κ1 κ2 m) "Hσ".
+  iSpecialize ("Hwp" $! σ1 k κ1 κ2 m with "Hσ").
+  destruct σ1 as [[[? ?] ?] ?].
+
+  assert (reduce (host_instance:=DummyHosts.host_instance) s0 s1
+                 {| f_locs := l2; f_inst := i0 |}
+                 (l ++ [AI_label (length vs) l0 LI0] ++ l1) s0 s1
+                 {| f_locs := l2; f_inst := i0 |}
+                 (l ++ (vs ++ l0) ++ l1)).
+  { eapply r_label with (k:=0) (lh:=LH_base l l1);cycle 1.
+    apply lfilled_Ind_Equivalent. by constructor.
+    apply lfilled_Ind_Equivalent. by constructor.
+    eapply r_simple, rs_br;eauto. }
+
+  assert (reduce (host_instance:=DummyHosts.host_instance) s0 s1
+                 {| f_locs := l2; f_inst := i0 |}
+                 (l ++ [AI_label (length vs) l0 LI1] ++ l1) s0 s1
+                 {| f_locs := l2; f_inst := i0 |}
+                 (l ++ (vs ++ l0) ++ l1)).
+  { eapply r_label with (k:=0) (lh:=LH_base l l1);cycle 1.
+    apply lfilled_Ind_Equivalent. by constructor.
+    apply lfilled_Ind_Equivalent. by constructor.
+    eapply r_simple, rs_br;eauto. apply lfilled_Ind_Equivalent. eauto. }
+  
+  iMod "Hwp". iModIntro.
+  iDestruct "Hwp" as "[_ Hwp]".
+  iSplitR.
+  { destruct s =>//. unfold reducible. iPureIntro.
+    eexists [],_,(s0,s1,l2,i0),[]. simpl. repeat split;eauto. }
+  iIntros (e2 σ2 efs Hprim).
+  destruct σ2 as [[[? ?] ?] ?].
+  destruct Hprim as [Hprim [-> ->]].
+  apply lfilled_Ind_Equivalent in Hfill.
+  assert (first_instr (l ++ [AI_label (length vs) l0 LI1] ++ l1) = Some (AI_basic (BI_br i),0 + S i)) as Hfirst0.
+  { eapply starts_with_lfilled;cycle 1.
+    apply lfilled_Ind_Equivalent. constructor;eauto.
+    apply first_instr_const;auto. }
+  eapply reduce_det in Hprim as [? | [[? ?]|[[? [? [? [? [? [? [? ?]]]]]]]|[? [? [? [? [? [? ?]]]]]]]]];[..|apply H2].
+  all: try by (rewrite separate1 Hfirst0 in H3; inversion H3).
+  inversion H3;simplify_eq.
+  iSpecialize ("Hwp" $! _ (s2,s3,l3,i1) with "[]").
+  { iPureIntro. unfold prim_step. repeat split;eauto. }
+  iFrame.
+Qed.
+  
 End structural_rules.

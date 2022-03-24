@@ -52,14 +52,54 @@ Proof.
                                               inversion Hstart.    
 Qed.
 
-Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s  f0 f:
+Lemma wp_br_alt (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 Φf :
+  const_list vs ->
+  length vs = n ->
+  lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI ->
+  ↪[frame] f0 -∗
+  ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }})
+  -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }}.
+Proof.
+  iIntros (Hvs Hlen Hfill) "Hf0 HΦ".
+  iApply wp_lift_step => //=.
+  { eapply to_val_brV_None;eauto. }
+  iIntros (σ ns κ κs nt) "Hσ".
+  iApply fupd_frame_l.
+  iSplit.
+  - iPureIntro. destruct s => //=.
+    unfold language.reducible, language.prim_step => /=.
+    exists [], (vs ++ es), σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    constructor. econstructor =>//.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iApply fupd_mask_intro;[solve_ndisj|].
+    iIntros "Hcls !>" (es1 σ2 efs HStep).
+    iMod "Hcls". iModIntro.
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    iApply bi.sep_exist_l.
+    assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
+                    (vs ++ [AI_basic (BI_br i)])).
+    { unfold lfilled. rewrite /= Hvs. done. }
+    only_one_reduction H.
+    all:
+    eapply lfilled_trans in Hfill as Hfill';eauto;destruct Hfill' as [lh' Hfill'];
+    eapply lfilled_implies_starts in Hfill' => //= ;
+    unfold first_instr in Hstart ; simpl in Hstart ;
+    unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
+                                              inversion Hstart.
+Qed.
+
+Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s f0 :
   const_list vs ->
   length vs = n ->
   length t1s = n ->
   length t2s = m ->
   ↪[frame] f0 -∗
-  ▷ (↪[frame] f0 -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E {{ v, Φ v ∗ ↪[frame] f }})
-  -∗ WP (vs ++ [::AI_basic (BI_block (Tf t1s t2s) es)]) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
+  ▷ (↪[frame] f0 -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E {{ v, Φ v }})
+  -∗ WP (vs ++ [::AI_basic (BI_block (Tf t1s t2s) es)]) @ s; E {{ v, Φ v }}.
 Proof.
   iIntros (Hvs Hlen1 Hlen2 Hlen3) "Hf0 HΦ".
   iApply wp_lift_step => //=.

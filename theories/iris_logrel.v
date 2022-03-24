@@ -259,7 +259,7 @@ Section logrel.
                                 ⌜lh_depth lh'' = (lh_depth lh) - S (j - p)⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
                                      interp_val (τs'' ++ τs') (immV v) ∗
                                      ∀ f, ↪[frame] f ∗ interp_frame τl i f -∗
-                                     WP of_val (immV (drop (length τs'') v)) ++ [::AI_basic (BI_br j)] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
+                                     WP of_val (immV (drop (length τs'') v)) ++ [::AI_basic (BI_br (j - p))] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
                                      {{ vs, ((∃ τs, interp_val τs vs) ∨ ▷ interp_br' vs lh'' (drop (S (j - p)) τc)) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I.
 
   Global Instance interp_br_def_contractive τl i : Contractive (interp_br_def τl i).
@@ -276,6 +276,15 @@ Section logrel.
   
   Definition interp_br (τl : result_type) (i : instance) : BR :=
     fixpoint (interp_br_def τl i).
+
+  Definition interp_br_body τc lh j p (w : seq.seq value) τl i : iProp Σ :=
+    ∃ τs' vs k es lh' es' lh'' τs'',
+      ⌜τc !! (j - p) = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S (j - p)) = Some (vs,k,es,lh',es')⌝ ∗
+      ⌜lh_depth lh'' = (lh_depth lh) - S (j - p)⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
+      interp_val (τs'' ++ τs') (immV w) ∗
+      ∀ f, ↪[frame] f ∗ interp_frame τl i f -∗
+            WP of_val (immV (drop (length τs'') w)) ++ [::AI_basic (BI_br (j - p))] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
+            {{ vs, ((∃ τs, interp_val τs vs) ∨ ▷ interp_br τl i vs lh'' (drop (S (j - p)) τc)) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}.
   
   Lemma fixpoint_interp_br_eq (τc : list (list (value_type))) (lh : lholed) (τl : result_type) (i : instance) v :
     interp_br τl i v lh τc ≡ interp_br_def τl i (interp_br τl i) v lh τc.
