@@ -3,7 +3,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export datatypes host operations properties opsem iris_rules_control iris_properties.
+Require Export datatypes host operations properties opsem iris_rules_control iris_rules_bind iris_properties.
 Require Export iris_wp_def stdpp_aux.
 
 (* empty lists, frame and context rules *)
@@ -279,7 +279,7 @@ Section trap_rules.
     by iFrame.
   Qed.
 
-    Lemma wp_label_trap s E LI vs n es' es'' f f':
+  Lemma wp_label_trap s E LI vs n es' es'' f f':
     const_list vs ->
     ↪[frame] f -∗
     (↪[frame] f -∗ WP LI @ E {{ w, ⌜w = trapV⌝ ∗  ↪[frame]f' }}) -∗
@@ -386,6 +386,138 @@ Section trap_rules.
     }
   Qed.
 
+  Lemma reduce_det_local_trap hs ws f hs' ws' f' es2 n f0 :
+    opsem.reduce (host_instance:=DummyHosts.host_instance) hs ws f [AI_local n f0 [AI_trap]] hs' ws' f' es2 ->
+    es2 = [AI_trap] ∧ hs = hs' ∧ ws = ws' ∧ f = f'.
+  Proof.
+    remember [AI_local n f0 [AI_trap]] as es.
+    revert es2. induction 1;simplify_eq.
+    all: try destruct vcs =>//.
+    3 : by apply val_head_stuck_reduce in H.
+    { remember [AI_local n f0 [AI_trap]] as es.
+      revert e' H;induction 1;simplify_eq.
+      all: try do 2 destruct vs =>//.
+      all: auto.
+      apply lfilled_Ind_Equivalent in H1.
+      inversion H1;simplify_eq.
+      destruct vs0,vs =>//. destruct vs =>//.
+      all : do 2 destruct vs0 =>//. }
+    { apply lfilled_Ind_Equivalent in H0.
+      inversion H0;simplify_eq.
+      all: apply lfilled_Ind_Equivalent in H1;inversion H1;simplify_eq.
+      { destruct vs;inversion H2;simplify_eq;[|done].
+        apply val_head_stuck_reduce in H.        
+        destruct es;[done|]. inversion H4;simplify_eq.
+        destruct es,es'0 =>//.
+        repeat erewrite app_nil_l + erewrite app_nil_r.
+        apply IHreduce;auto. }
+      { do 2 destruct vs =>//. }
+    }
+  Qed.    
+  
+  Lemma wp_frame_trap (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) n f f0 :
+    ↪[frame] f0 -∗
+     ▷ (Φ trapV) -∗
+     WP [AI_trap] @ s; E FRAME n; f {{ v, Φ v ∗ ↪[frame] f0 }}.
+  Proof.
+    iIntros "Hframe H".
+    rewrite wp_frame_rewrite.
+    iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
+    iIntros (σ ns κ κs nt) "Hσ !>".
+    iSplit.
+    - iPureIntro.
+      destruct s => //=.
+      unfold language.reducible, language.prim_step => /=.
+      exists [], [AI_trap], σ, [].
+      destruct σ as [[[ hs ws] locs] inst].
+      unfold iris.prim_step => /=.
+      repeat split => //. apply r_simple. apply rs_local_trap; auto.
+    - destruct σ as [[[hs ws] locs] inst].
+      iIntros "!>" (es2 σ2 efs HStep) "!>".
+      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct HStep as (H & -> & ->). iFrame.
+      (* iDestruct ("H" with "Hframe") as "[H Hframe]". iFrame. *)
+      apply reduce_det_local_trap in H as [? [? [? ?]]]. simplify_eq. iFrame. done.
+  Qed.
+
+  Lemma wp_frame_trap_nested (s : stuckness) (E : coPset) n f f0 LI f' :
+      ↪[frame] f0 -∗
+     (↪[frame] f -∗ WP LI @ s; E {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f' }}) -∗
+     WP LI @ s; E FRAME n; f {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f0 }}.
+  Proof.
+    iIntros "Hframe H".
+    rewrite wp_frame_rewrite.
+    iLöb as "IH" forall (s E LI f f' f0).
+    (* iApply wp_unfold. *)
+    repeat rewrite wp_unfold /wp_pre /=.
+    destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
+    { iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
+      iIntros (σ ns κ κs nt) "Hσ".
+      destruct σ as [[[? ?] ?] ?].
+      iDestruct "Hσ" as "(?&?&?&?&Hff&?&?)".
+      iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
+      iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
+      iMod ("H" with "Hframe") as "[-> Hf]".
+      apply to_val_trap_is_singleton in Hetov as ->.
+      iModIntro.
+      iSplit.
+      - iPureIntro.
+        destruct s => //=.
+        unfold language.reducible, language.prim_step => /=.
+        eexists [], [AI_trap], (_,_,_,_), [].
+        unfold iris.prim_step => /=.
+        repeat split => //. apply r_simple. apply rs_local_trap; auto.
+      - iIntros "!>" (es2 σ2 efs HStep). destruct σ2 as [[[hs' ws'] locs'] inst'].
+        iMod (ghost_map_update f0 with "Hff Hf") as "[Hff Hframe]".
+        rewrite !insert_insert. iFrame.
+        destruct HStep as (H & -> & ->).
+        apply reduce_det_local_trap in H as [? [? [? ?]]]. simplify_eq.
+        rewrite lookup_insert in Hlook. inversion Hlook. iFrame.
+        iModIntro. iSimpl. done. }
+    { iApply wp_unfold. iIntros (σ ns κ κs nt) "Hσ".
+      destruct σ as [[[? ?] ?] ?].
+      iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
+      iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
+      rewrite lookup_insert in Hlook. inversion Hlook.
+      iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
+      iSpecialize ("H" with "Hframe"). rewrite insert_insert.
+      destruct f.
+      iSpecialize ("H" $! (s0,s1,f_locs,f_inst) 0 [] [] 0).
+      iDestruct ("H" with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]") as "H".
+      iMod "H" as "[%Hred H]".
+      iModIntro.
+
+      iSplit.
+      { iPureIntro. destruct s =>//.
+        unfold iris_wp_def.reducible, reducible.
+        destruct Hred as [? [? [? [? ?]]]].
+        destruct x1 as [[[? ?] ?] ?].
+        destruct H as [? [-> ->]].
+        eexists [], [AI_local n {| f_locs := l0; f_inst := i0 |} x0],(_,_,_,_),[].
+        split =>//. eapply r_local. eauto. }
+      iIntros (e2 σ2 efs Hstep).
+      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct Hstep as [H [-> ->]].
+      apply reduce_det_local in H as [? [? [? [? ?]]]];[|auto]. subst e2.
+      destruct x0.
+      iSpecialize ("H" $! x (hs',ws',f_locs0,f_inst0) [] with "[]").
+      { iPureIntro. split;auto. }
+      repeat iMod "H". iModIntro. iNext.
+      repeat iMod "H". iDestruct "H" as "[H Hf]".
+      iDestruct "Hf" as (f1) "[Hf Hcont]".
+      iDestruct "H" as "(H1&H2&H3&H4&Hff&H5&H6)".
+      iDestruct (ghost_map_lookup with "Hff Hf") as %Hlook'.
+      rewrite lookup_insert in Hlook'. inversion Hlook'.
+      iMod (ghost_map_update {| f_locs := l; f_inst := i |} with "Hff Hf") as "[Hff Hframe]".
+      rewrite insert_insert.
+      simpl. iApply fupd_mask_intro_subseteq;[solve_ndisj|].
+      iFrame "H1 H2 H3 H4 H5 H6". simplify_eq. iFrame "Hff".
+      iDestruct "Hcont" as "[Hcont _]".
+      iExists _. iFrame. iSplit =>//. iIntros "Hframe".
+      iDestruct ("IH" with "Hframe Hcont") as "Hcont".
+      auto.
+    }
+  Qed.
     
   Lemma wp_seq_trap_ctx (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f f' i lh :
     ↪[frame] f ∗

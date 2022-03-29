@@ -40,7 +40,9 @@ Require Import iris_fundamental_const
         iris_fundamental_br_table
         iris_fundamental_block
         iris_fundamental_if
-        iris_fundamental_return.
+        iris_fundamental_return
+        iris_fundamental_trap
+        iris_fundamental_local.
 Import uPred.
 
 Section fundamental.
@@ -85,10 +87,42 @@ Section fundamental.
     { by apply typing_current_memory. }
     { by apply typing_grow_memory. }
     { by apply typing_nil. }
-    { eapply typing_composition.
+    { rewrite to_e_list_cat.
+      eapply typing_composition.
       { apply IHbe_typing1. }
       { apply IHbe_typing2. } }
     { by apply typing_weakening. }
   Qed.
 
+  Corollary be_fundamental_closed C es τ : (tc_label C) = [] ∧ (tc_return C) = None ->
+                                           be_typing C es τ -> ⊢ semantic_typing_closed (HWP:=HWP) C (to_e_list es) τ.
+  Proof.
+    intros Hnil Htyping.
+    iSplit;[auto|]. destruct τ.
+    iIntros (i) "#Hi". iIntros (f vs) "[Hf Hfv] #Hv".
+    apply be_fundamental in Htyping.
+    iDestruct (Htyping) as "Ht".
+    iSpecialize ("Ht" $! _ (LH_base [] []) with "[$] []").
+    { destruct Hnil as [-> ->]. iSimpl. auto. }
+    iSpecialize ("Ht" with "[$] [$]").
+    iApply (wp_wand with "Ht").
+    iIntros (v) "[H Hf]". iFrame.
+    iDestruct "H" as "[$ | [H|H]]".
+    { rewrite fixpoint_interp_br_eq. iDestruct "H" as (? ? ? ? ? ? ?) "H".
+      iDestruct "H" as (? ? ? ? ? ? ? ? Hcontr) "H".
+      exfalso. destruct Hnil as [Hnil _]. rewrite Hnil in Hcontr. done. }
+    { iDestruct "H" as (? ? ? ?) "H".
+      destruct Hnil as [_ ->]. done. }
+  Qed.
+
+  
+  Corollary be_fundamental_local C es τ1 τ2 τs : (tc_label C) = [] ∧ (tc_return C) = None ->
+                                                 be_typing (upd_local_label_return C (τ1 ++ τs) [τ2] (Some τ2)) es (Tf [] τ2) ->
+                                                 ⊢ semantic_typing_local (HWP:=HWP) C es τs (Tf τ1 τ2).
+  Proof.
+    intros Hnil Htyp.
+    apply typing_local;auto.
+    apply be_fundamental.
+  Qed.
+      
 End fundamental.

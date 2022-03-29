@@ -53,8 +53,8 @@ Section fundamental.
   
   (* -------------------------------------- WEAKENING -------------------------------------- *)
 
-  Lemma typing_weakening C es t1s t2s ts : (⊢ semantic_typing (HWP:=HWP) C (to_e_list es) (Tf t1s t2s)) ->
-                                           ⊢ semantic_typing (HWP:=HWP) C (to_e_list es) (Tf (ts ++ t1s) (ts ++ t2s)).
+  Lemma typing_weakening C es t1s t2s ts : (⊢ semantic_typing (HWP:=HWP) C es (Tf t1s t2s)) ->
+                                           ⊢ semantic_typing (HWP:=HWP) C es (Tf (ts ++ t1s) (ts ++ t2s)).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (HIH i lh).

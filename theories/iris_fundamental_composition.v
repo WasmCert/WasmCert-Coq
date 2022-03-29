@@ -41,9 +41,9 @@ Section fundamental.
   
   (* -------------------------------------- COMPOSITION ------------------------------------ *)
 
-  Lemma typing_composition C es t1s t2s t3s e : (⊢ semantic_typing (HWP:=HWP) C (to_e_list es) (Tf t1s t2s)) ->
-                               (⊢ semantic_typing (HWP:=HWP) C (to_e_list [e]) (Tf t2s t3s)) ->
-                               ⊢ semantic_typing (HWP:=HWP) C (to_e_list (es ++ [e])%list) (Tf t1s t3s).
+  Lemma typing_composition C es t1s t2s t3s e : (⊢ semantic_typing (HWP:=HWP) C es (Tf t1s t2s)) ->
+                               (⊢ semantic_typing (HWP:=HWP) C [e] (Tf t2s t3s)) ->
+                               ⊢ semantic_typing (HWP:=HWP) C (es ++ [e]) (Tf t1s t3s).
   Proof.
     iIntros (Ht1 Ht2).
     unfold semantic_typing, interp_expression.
@@ -51,7 +51,7 @@ Section fundamental.
     iIntros "#Hi #Hc" (f vs) "[Hf Hfv] #Hv". 
     
     iAssert (↪[frame] f -∗
-             WP of_val vs ++ to_e_list es
+             WP of_val vs ++ es
              {{ vs1, (⌜vs1 = trapV⌝ ∨ interp_values t2s vs1 ∨ interp_br (tc_local C) i (tc_return C) vs1 lh (tc_label C)
                       ∨ interp_return_option (tc_return C) (tc_local C) i vs1) ∗
                      (∃ f1,  ↪[frame]f1 ∗ interp_frame (tc_local C) i f1) }})%I with "[Hfv]" as "H1".
@@ -61,7 +61,7 @@ Section fundamental.
       unfold interp_val. iIntros (v). rewrite -or_assoc. auto. }
 
     iApply wp_wasm_empty_ctx.
-    rewrite to_e_list_cat app_assoc.
+    rewrite app_assoc.
     iApply (wp_seq_can_trap_ctx).
     iFrame "∗ #".
     iSplitR.
@@ -100,7 +100,7 @@ Section fundamental.
       rewrite simple_get_base_l_append.
       iSplit;eauto.
 
-      pose proof (sfill_to_lfilled (sh_append sh (to_e_list [e])) ([AI_basic BI_return])) as [j Hj].
+      pose proof (sfill_to_lfilled (sh_append sh ([e])) ([AI_basic BI_return])) as [j Hj].
       pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
 
       iDestruct "Hret" as (?) "[#Hw Hret]".
