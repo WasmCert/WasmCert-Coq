@@ -11,7 +11,7 @@ Require Export iris_wp_def stdpp_aux.
 Close Scope byte_scope.
 
 Section trap_rules.
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
   Lemma wp_trap (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (vs1 es2 : iris.expr) f :
     const_list vs1 ->
@@ -58,7 +58,6 @@ Section trap_rules.
       iApply ("IH" with "[] HΦ Hf"). auto.
     }
   Qed.
-  
 
   Lemma wp_seq_trap (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f f' :
     ↪[frame] f ∗
@@ -75,10 +74,9 @@ Section trap_rules.
       destruct HH as [vs' [Hvs' Hfilled']].
       unfold iris_wp_def.to_val in Hvs'. rewrite Hvs'.
       iMod ("Hes1" with "Hf") as "[-> Hf]". iFrame.
-      apply lfilled_Ind_Equivalent in Hfilled'.
-      inversion Hfilled';simplify_eq.
       apply to_val_trap_is_singleton in Hvs' as ->.
-      destruct es2 =>//. rewrite app_nil_r in Hetov.
+      apply to_val_AI_trap_Some_nil in Hetov as Heq. subst es2.
+      rewrite app_nil_r in Hetov.
       destruct vs =>//.
     }
     (* Ind *)
@@ -197,7 +195,7 @@ Section trap_rules.
     iApply (wp_trap with "[] [Hf]");auto. }
   { repeat rewrite wp_unfold /wp_pre /= Hes.
     iApply wp_unfold. rewrite /wp_pre /=.
-    rewrite Hes. 
+    rewrite to_val_cons_None//.
     iIntros (?????) "?".
     iDestruct ("H" with "[$]") as "H".
     iSpecialize ("H" $! σ1 ns κ κs nt with "[$]").
@@ -281,7 +279,7 @@ Section trap_rules.
     by iFrame.
   Qed.
 
-  Lemma wp_label_trap s E LI vs n es' es'' f f':
+    Lemma wp_label_trap s E LI vs n es' es'' f f':
     const_list vs ->
     ↪[frame] f -∗
     (↪[frame] f -∗ WP LI @ E {{ w, ⌜w = trapV⌝ ∗  ↪[frame]f' }}) -∗
@@ -295,13 +293,13 @@ Section trap_rules.
       rewrite /wp_pre /= He.
       iMod "Hcont" as "[%Hcontr Hf]". subst.
       apply to_val_trap_is_singleton in He as ->.
-      apply const_list_is_val in Hconst as [v Hv].
+      apply const_list_to_val in Hconst as [v Hv].
       iApply wp_val_app_trap;eauto. iFrame.
       iIntros "Hf".
       rewrite separate1.
       iApply wp_seq_trap. iFrame. iIntros "Hf".
       iApply (wp_label_trap with "Hf");auto. }
-    { apply const_list_is_val in Hconst as [v Hv].
+    { apply const_list_to_val in Hconst as [v Hv].
       iApply wp_val_app_trap;eauto. iFrame.
       iIntros "Hf".
       iApply wp_seq_trap. iFrame. iIntros "Hf".
@@ -309,6 +307,7 @@ Section trap_rules.
       iDestruct (wp_unfold with "Hcont") as "Hcont".
       iApply wp_unfold.
       rewrite /wp_pre /= He.
+      rewrite to_val_None_label//.
       iIntros (σ ns κ κs nt) "Hσ".
       iSpecialize ("Hcont" $! σ 0 [] [] 0).
       iDestruct ("Hcont" with "[$]") as "H".
@@ -401,7 +400,7 @@ Section trap_rules.
       erewrite app_assoc.
       iApply (wp_seq_trap with "[Hf Hes1]"). iFrame.
       iIntros "Hf".
-      apply const_list_is_val in H as Hv.
+      apply const_list_to_val in H as Hv.
       destruct Hv as [v Hv].
       iApply (wp_val_app_trap with "[-]");eauto.
       iFrame. iIntros "Hf".
@@ -427,7 +426,7 @@ Section trap_rules.
     iIntros (Hconst) "Hf". rewrite app_assoc.
     iApply wp_seq_trap_ctx.
     iFrame. iIntros "Hf".
-    apply const_list_is_val in Hconst as [v Hvs].
+    apply const_list_to_val in Hconst as [v Hvs].
     iApply wp_val_app_trap;eauto.
     iFrame. iIntros "Hf". iApply wp_value;eauto. done.
   Qed.

@@ -12,7 +12,7 @@ Close Scope byte_scope.
 (* basic instructions with simple(pure) reductions *)
 Section iris_rules_pure.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 (* numerics *)
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v v' : value) (t: value_type) (op: unop) f0:
@@ -120,7 +120,7 @@ Proof.
     only_one_reduction H. iFrame.
 Qed.
 
-Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : i32) (b: bool) (t: value_type) (op: testop) f0:
+Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : i32) (b: bool) (op: testop) f0:
   app_testop_i (e:=i32t) op v = b ->
   ↪[frame] f0 -∗
   Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
@@ -147,7 +147,7 @@ Proof.
     only_one_reduction H. iFrame.
 Qed.
 
-Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : i64) (b: bool) (t: value_type) (op: testop) f0:
+Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : i64) (b: bool) (op: testop) f0:
   app_testop_i (e:=i64t) op v = b ->
   ↪[frame] f0 -∗
   Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
@@ -202,6 +202,34 @@ Proof.
     only_one_reduction H. iFrame.
 Qed.
 
+Lemma wp_cvtop_convert_failure (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : value) (t1 t2: value_type) (sx: option sx) f0:
+  cvt t2 sx v = None ->
+  types_agree t1 v ->
+  ↪[frame] f0 -∗
+  Φ (trapV) -∗
+    WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
+Proof.
+  iIntros (Hcvtop Htypes) "Hf0 HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_trap], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_convert_failure.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    only_one_reduction H. iFrame.
+Qed.
+
 Lemma wp_cvtop_reinterpret (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v v': value) (t1 t2: value_type) f0:
   wasm_deserialise (bits v) t2 = v' ->
   types_agree t1 v ->
@@ -232,6 +260,32 @@ Qed.
 
 (* Non-numerics -- stack operations, control flows *)
 
+Lemma wp_unreachable (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) f0 :
+  ↪[frame] f0 -∗
+  Φ (trapV) -∗
+  WP [AI_basic BI_unreachable] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
+Proof.
+  iIntros "Hf0 HΦ".
+  iApply wp_lift_atomic_step => //=.
+  iIntros (σ ns κ κs nt) "Hσ !>".
+  iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => /=.
+    exists [], [AI_trap], σ, [].
+    destruct σ as [[[hs ws] locs] inst].
+    unfold iris.prim_step => /=.
+    repeat split => //.
+    apply r_simple.
+    subst.
+    by apply rs_unreachable.
+  - destruct σ as [[[hs ws] locs] inst] => //=.
+    iIntros "!>" (es σ2 efs HStep) "!>".
+    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
+    destruct HStep as [H [-> ->]].
+    only_one_reduction H. iFrame.
+Qed.
+
 Lemma wp_nop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) f0:
   ↪[frame] f0 -∗
   Φ (immV []) -∗
@@ -257,9 +311,6 @@ Proof.
     destruct HStep as [H [-> ->]].
     only_one_reduction H. iFrame.
 Qed.
-
-
-
 
 Lemma wp_drop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) v f0 :
   ↪[frame] f0 -∗

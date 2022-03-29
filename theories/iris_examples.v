@@ -23,7 +23,7 @@ Let reduce := @reduce host_function host_instance.
 
 Let reducible := @reducible wasm_lang.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
 
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 Definition xb b := (VAL_int32 (wasm_bool b)).
@@ -630,7 +630,7 @@ Lemma f1_spec f n v :
 Proof.
   iIntros (Htypes Hfmem) "Hf Hn".
   iApply wp_wand_r. iSplitL.
-  iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto. apply (f_inst f).
+  iApply (wp_load (λ w, ⌜w = immV [v]⌝)%I with "[$Hf Hn]");eauto.
   iIntros (w) "[[-> Hn] Hf]".
   iFrame. auto.
 Qed.
@@ -716,3 +716,4 @@ Proof.
 Qed.
 
 End Examples.
+
