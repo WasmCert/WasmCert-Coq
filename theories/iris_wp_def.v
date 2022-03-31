@@ -140,6 +140,31 @@ Notation " ↪[frame]{ q } v" := (ghost_map_elem frameGName tt q v%V)
 Notation " ↪[frame] v" := (ghost_map_elem frameGName tt (DfracOwn 1) v%V)
                            (at level 20, format " ↪[frame] v").
 
+(* Predicates for memory blocks and whole tables *)  
+Definition mem_block `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (m: memory) :=
+  (([∗ list] i ↦ b ∈ (m.(mem_data).(ml_data)), n ↦[wm][ (N.of_nat i) ] b ) ∗
+     n ↦[wmlength] mem_length m)%I.
+
+Definition mem_block_at_pos `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (l:bytes) k :=
+  ([∗ list] i ↦ b ∈ l, n ↦[wm][ (N.of_nat (N.to_nat k+i)) ] b)%I.
+
+Print tableinst.
+
+Print funcelem.
+
+Definition tab_block `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ} (n: N) (tab: tableinst) :=
+  (([∗ list] i ↦ tabelem ∈ (tab.(table_data)), n ↦[wt][ (N.of_nat i) ] tabelem ) ∗
+     (n ↪[wtsize] (tab_size tab)))%I.
+
+
+Notation "n ↦[wmblock] m" := (mem_block n m)
+                           (at level 20, format "n ↦[wmblock] m"): bi_scope.
+Notation "n ↦[wms][ i ] l" := (mem_block_at_pos n l i)
+                                (at level 20, format "n ↦[wms][ i ] l"): bi_scope.
+Notation "n ↦[wtblock] t" := (tab_block n t)
+                           (at level 20, format "n ↦[wtblock] t"): bi_scope.
+
+(* Predicate for memory blocks *)
 
 Section Wasm_wp.
   Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
