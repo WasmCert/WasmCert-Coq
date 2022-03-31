@@ -942,6 +942,28 @@ Section fundamental.
       apply lfilled_Ind_Equivalent;eauto. }
   Qed.
 
+  Lemma lfilled_get_base_pull {i : nat} j (vh : valid_holed i) e LI ws1 ws2 :
+    get_base_l vh = ws1 ++ ws2 ->
+    lfilled j (lh_of_vh vh) e LI ->
+    ∃ lh, lfilled j lh (of_val (immV ws2) ++ e) LI.
+  Proof.
+    revert j e LI ws1 ws2.
+    induction vh;intros j e LI ws1 ws2 Hbase Hfill%lfilled_Ind_Equivalent.
+    { simpl in *. inversion Hfill;simplify_eq.
+      eexists. rewrite map_app.
+      repeat erewrite <- app_assoc. erewrite (app_assoc _ e).
+      apply lfilled_Ind_Equivalent. constructor.
+      apply const_list_map. }
+    { simpl in Hfill. inversion Hfill;simplify_eq.
+      apply lfilled_Ind_Equivalent in H8.
+      eapply IHvh in H8 as Hlh';eauto.
+      destruct Hlh' as [lh Hfill'].
+      eexists.
+      apply lfilled_Ind_Equivalent.
+      constructor;eauto.
+      apply lfilled_Ind_Equivalent;eauto. }
+  Qed.
+
   Lemma interp_return_label C tn i w f' tm lh es m :
     interp_return_option
       (tc_return (upd_label C ([tn] ++ tc_label C)))

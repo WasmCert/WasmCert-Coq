@@ -368,4 +368,33 @@ Section logrel.
                                   interp_expression (tc_label τctx) (tc_return τctx) τ2 lh (tc_local τctx) i ((of_val vs) ++ es)
     end.
 
+  (* --------------------------------------------------------------------------------------- *)
+  (* --------------------------- RELATIONS FOR CLOSED CONTEXTS ----------------------------- *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Definition interp_expression_closed (τs : result_type) (τl : result_type) (i : instance) (es : expr) : iProp Σ :=
+    (WP es {{ vs, interp_val τs vs ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})%I.
+
+  Definition semantic_typing_closed (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
+    ⌜(tc_label τctx) = [] ∧ (tc_return τctx) = None⌝ ∧
+    match tf with
+    | Tf τ1 τ2 => ∀ i, interp_instance τctx i -∗
+                      ∀ f vs, ↪[frame] f ∗ interp_frame (tc_local τctx) i f -∗
+                               interp_val τ1 vs -∗
+                               interp_expression_closed τ2 (tc_local τctx) i ((of_val vs) ++ es)
+    end.
+
+
+  Definition semantic_typing_local (τctx : t_context) (es : seq.seq basic_instruction) (ts : result_type) (tf : function_type) : iProp Σ :=
+    ⌜(tc_label τctx) = [] ∧ (tc_return τctx) = None⌝ ∧
+    match tf with
+    | Tf τ1 τ2 => ∀ i, interp_instance τctx i -∗
+                      ∀ j f vs, ↪[frame] f ∗ interp_frame (tc_local τctx) j f -∗
+                             interp_val (τ1 ++ ts) (immV vs) -∗
+                             interp_expression_closed τ2 (tc_local τctx) j [::AI_local (length τ2)
+                                                                             (Build_frame vs i)
+                                                                             [::AI_basic (BI_block (Tf [::] τ2) es)]]
+    end.
+  
+
 End logrel.
