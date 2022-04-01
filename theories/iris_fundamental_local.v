@@ -43,8 +43,7 @@ Section fundamental.
   Proof.
     intros be_fundamental Hnil Htyping.
     iSplit;[auto|].
-    iIntros (i) "#Hi". iIntros (j f vs) "[Hf Hfv] #Hv".
-    iDestruct "Hfv" as (ws Heq) "[#Hfv Hown]".
+    iIntros (i) "#Hi". iIntros (f vs) "Hf Hown #Hv".
     apply be_fundamental in Htyping.
     iDestruct (Htyping) as "Ht".
     iDestruct (interp_instance_change_label [τ2] with "Hi") as "Hi'".
@@ -88,9 +87,9 @@ Section fundamental.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗ ↪[frame] _)%I with "[Hf]").
       { iApply (wp_frame_trap with "Hf");eauto. }
       iIntros (v) "[-> Hf]".
-      iSplitR;[by iLeft|].
-      iDestruct "Hf0v" as (?) "[_ [_ Hown]]".
-      iExists _;iFrame. iExists _. iSplit; eauto. }
+      iFrame.
+      iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame.
+      by iLeft. }
     
     { iDestruct "Hv'" as (v' ->) "#Hv'".
       iSimpl.
@@ -107,10 +106,9 @@ Section fundamental.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
       { iApply (wp_frame_value with "Hf");eauto. 1: apply to_of_val.
         rewrite fmap_length. auto. }
-      iIntros (v) "[-> Hf]".
-      iSplitR;[iRight;iExists _;eauto|].
+      iIntros (v) "[-> Hf]". iFrame.
       iDestruct "Hf0v" as (?) "[_ [_ Hown]]".
-      iExists _. iFrame. eauto. }
+      iFrame. iRight. iExists _. eauto. }
     
     { rewrite fixpoint_interp_br_eq.
       iDestruct "Hbr" as (n vh vs' p -> Hbase Hdepth) "Hbr".
@@ -146,10 +144,9 @@ Section fundamental.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
       { iApply (wp_frame_value with "Hf");eauto. 1: apply to_of_val.
         rewrite fmap_length. auto. }
-      iIntros (v) "[-> Hf]".
-      iSplitR;[iRight;iExists _;eauto|].
-      iDestruct "Hf0v" as (?) "[_ [_ Hown]]".
-      iExists _. iFrame. iExists _;iSplit;eauto. }
+      iIntros (v) "[-> Hf]". iFrame.
+      iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame.
+      iRight. iExists _. eauto. }
     
     { iDestruct "Hret" as (vh vs' -> Hbase) "Hret".
       iDestruct "Hret" as (τs'') "[#Hws' _]".
@@ -178,14 +175,9 @@ Section fundamental.
         { iApply wp_value;[done|]. iFrame;eauto. }
         { apply to_of_val. }
         { rewrite fmap_length. auto. } }
-      iIntros (v) "[-> Hf]".
+      iIntros (v) "[-> Hf]". iFrame.
       iSplitR;[iRight;iExists _;eauto|].
-      iDestruct "Hf0v" as (?) "[_ [_ Hown]]".
-      iExists _. iFrame. iExists _;iSplit;eauto. }
-  Qed.
-
-
-
-    
+      iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame. }
+  Qed.    
 
 End fundamental.

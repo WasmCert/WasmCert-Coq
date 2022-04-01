@@ -486,10 +486,10 @@ Section fundamental.
     ssrnat.leq (S i) (length (tc_func_t C)) ->
     nth_error (tc_func_t C) i = Some tf ->
     ⊢ interp_instance (HWP:=HWP) C j -∗
-      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function (HWP:=HWP) tf (N.of_nat f).
+      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function (HWP:=HWP) tf j (interp_instance (HWP:=HWP) C) (N.of_nat f).
   Proof.
     iIntros (Hle Hnth) "#Hi".
-    destruct C,j.
+    destruct C,j. rewrite fixpoint_interp_instance_eq /=.
     iDestruct "Hi" as "[_ [Hi _]]".
     iDestruct (big_sepL2_length with "Hi") as %Hlen.
     simpl in Hle,Hnth.
@@ -499,7 +499,6 @@ Section fundamental.
     rewrite nth_error_lookup in Hnth.
     rewrite nth_error_lookup in Hsome.
     iDestruct (big_sepL2_lookup with "Hi") as "HH";eauto.
-    iExists f. iSimpl. rewrite nth_error_lookup. auto.
   Qed.
 
   Lemma interp_instance_lookup_global C j i t :
@@ -510,7 +509,7 @@ Section fundamental.
                 ⌜gt = Build_global_type mut t⌝ ∗
                 interp_global gt (N.of_nat n).
   Proof.
-    destruct C,j.
+    destruct C,j. rewrite fixpoint_interp_instance_eq /=.
     iIntros (Hmap) "[_ [_ [_ [_ #Hi]]]]".
     iSimpl. simpl in Hmap.
     destruct (nth_error tc_global i) eqn:Hnth;[|done].
@@ -535,7 +534,7 @@ Section fundamental.
               ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
               ∗ interp_mem τm (N.of_nat mem).
   Proof.
-    destruct C,i.
+    destruct C,i. rewrite fixpoint_interp_instance_eq /=.
     iIntros (Hnil) "[_ [_ [ _ [#Hi _]]]]".
     iSimpl.
     simpl in Hnil.
