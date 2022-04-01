@@ -579,6 +579,9 @@ Print extern_t.
 (* Resources in the Wasm store, corresponding to those referred by the host vis store. This needs to also type-check
    with the module import. *)
 Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global): iProp Σ :=
+  (* Note that we do not actually need to know the exact content of the imports. However, these information are present
+     in this predicate to make sure that they are kept incontact in the post. Note how these four gmaps are quantified
+     in the instantiation spec. *)
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
   | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
@@ -649,6 +652,8 @@ Definition module_export_resources_host (v_imps: list module_export) (hs_exps: l
 
      We implement the above by first construct the list of exports corresponding to all the entities in the module
      (i.e. imports + new declarations), then lookup from this list to find the correct export.
+
+     Upd: This is now obsolete, since the instance directly gives the above knowledge.
 *)(*
   let wf_exps := ((pmap (fun x => match x.(modexp_desc) with
                               | MED_func _ => Some x.(modexp_desc)
@@ -711,15 +716,17 @@ Lemma instantiation_spec_operational (s: stuckness) E (hs_mod: N) (hs_imps: list
         import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
         ∃ inst g_inits,
           ⌜ inst.(inst_types) = m.(mod_types) /\
+          (* We know what the imported part of the instance must be. *)
           let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
           prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
           prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
           prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
           prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)
           ⌝ ∗
-          module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources *)
+          module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
           module_export_resources_host v_imps hs_exps m.(mod_exports) inst (* export resources, in the host store *)
-          (* missing the constraints for the initialised globals. A wp (in wasm) for each of them? *)                                                                                      
+          (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted
+             for now since we can just forbid the initialization of globals anyway *)                                                                                      
   }}.
 Proof.
   (*
