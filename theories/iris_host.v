@@ -520,11 +520,11 @@ Definition import_resources_host (hs_imps: list vimp) (v_imps : list module_expo
   [∗ list] i ↦ hs_imp; v_imp ∈ hs_imps; v_imps,
   hs_imp ↪[vis] v_imp.
 
-(*
+
 Definition export_ownership_host (hs_exps: list vi) : iProp Σ :=
   [∗ list] i ↦ hs_exp ∈ hs_exps,
   ∃ hv, hs_exp ↪[vis] hv.
-*)
+
 
 
 Print instantiation.instantiate.
@@ -664,6 +664,7 @@ Lemma instantiation_spec_operational (s: stuckness) E (hs_mod: N) (hs_imps: list
   hs_mod ↪[mods] m -∗
   import_resources_host hs_imps v_imps -∗
   import_resources_wasm_typecheck v_imps t_imps -∗
+  export_ownership_host hs_exps -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
   {{ v, hs_mod ↪[mods] m ∗
         import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
@@ -742,6 +743,8 @@ End Instantiation_spec_operational.
 
 Section Example_Add.
 
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+  
 Definition Add_module :=
   Build_module
     (* Function types *) [:: (Tf [::T_i32; T_i32] [::T_i32]) ]
@@ -795,13 +798,11 @@ Definition M2 :=
 Definition module_decls := [:: Add_module; M2].
 
 Definition add_program_instantiate :=
-  [:: ID_instantiate 0 0 [::];
+  [:: ID_instantiate [::0%N] 0 [::];
   (* The above exports the function 'add' to the 0th vi store of the host, which contains a list of exports consisting of
      only one function -- the add function. *)
-  ID_instantiate 1 1 [:: (0, (list_byte_of_string "add"))]].
+  ID_instantiate [::1%N] 1 [:: 0%N]].
   
-End Example_Add.
-
 
 
 
@@ -858,6 +859,26 @@ Proof.
     constructor; last by apply Forall2_nil.
     by unfold module_export_typing => /=.    
 Qed.
+
+
+Lemma add_program_instantiate_spec (s: stuckness) E (Φ: host_val -> iProp Σ) hv:
+  0%N ↪[mods] Add_module -∗
+  0%N ↪[vis] hv -∗
+  WP (([::ID_instantiate [::0%N] 0 [::]], [::]): host_expr) @ s; E {{ v, Φ v }}.
+Proof.
+  iIntros "Hmod Hhv".
+  iApply weakestpre.wp_mono; last first.
+  iApply (instantiation_spec_operational with "[$]") => //.
+  - by apply add_module_valid.
+  - by unfold import_resources_host => //.
+  - by unfold import_resources_wasm_typecheck => //.
+  - unfold export_ownership_host => /=.
+    iSplit => //.
+    by iExists hv.
+  - iIntros (v) "H".
+    iDestruct "H" as "(Hmod & Himphost & Himpwasm & Hinst)".
+    iDestruct "Hinst" as (inst wfadr wtaddr wmaddr wgval_addr) "(Hexpwasm & Hexphost)".
+Admitted.
 
 
 Print instantiation.instantiate.
@@ -1084,6 +1105,8 @@ Proof.
 Admitted.
 
 
+
+End Example_Add.
 
 
 
