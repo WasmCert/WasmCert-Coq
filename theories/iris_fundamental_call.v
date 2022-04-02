@@ -73,22 +73,12 @@ Section fundamental.
         iApply wp_wasm_empty_ctx_frame.
         take_drop_app_rewrite 0.
         iApply (wp_block_local_ctx with "Hf");eauto.
-        destruct (instance_eq_dec i0 j).
-        
-        { iNext. iIntros "Hf".
-          iApply wp_label_push_nil_local. simpl push_base.
-          unfold interp_closure_native.
-          erewrite app_nil_l.
-          rewrite e. iDestruct ("Hcl" with "Hi") as "Hcl'".
-          iApply ("Hcl'" with "[] Hown Hf").
-          iRight. iExists _. eauto. }
-
-        { iNext. iIntros "Hf".
-          iApply wp_label_push_nil_local. simpl push_base.
-          unfold interp_closure_native.
-          erewrite app_nil_l.
-          iApply ("Hcl" with "[] Hown Hf").
-          iRight. iExists _. eauto. }
+        iNext. iIntros "Hf".
+        iApply wp_label_push_nil_local. simpl push_base.
+        unfold interp_closure_native.
+        erewrite app_nil_l.
+        iApply ("Hcl" with "[] Hown Hf").
+        iRight. iExists _. eauto.
       }
       { (* host function *)
         destruct f.

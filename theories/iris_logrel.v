@@ -124,35 +124,33 @@ Section logrel.
              wp_host HWP NotStuck ⊤ h vcs
                         (λ r, from_option (interp_val tf2s) False (iris.to_val (result_to_stack r))).
   
-  Definition interp_closure (τf : function_type) (j : instance) (interp_instance : IR) : ClR :=
+  Definition interp_closure (τf : function_type) : ClR :=
       λne cl, (match cl with
                | FC_func_native i (Tf tf1s tf2s) tlocs e => ⌜τf = Tf tf1s tf2s⌝ ∗
-                                                                    if (instance_eq_dec i j)
-                                                                    then □ (▷ (interp_instance i -∗ interp_closure_native i tf1s tf2s tlocs (to_e_list e)))
-                                                                    else □ interp_closure_native i tf1s tf2s tlocs (to_e_list e)
+                       □ ▷ interp_closure_native i tf1s tf2s tlocs (to_e_list e)
                | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ □ interp_closure_host tf1s tf2s h
                end)%I.
   
-  Definition interp_function (τf : function_type) (j : instance) (interp_instance : IR) : FfR :=
+  Definition interp_function (τf : function_type) : FfR :=
     λne n, (∃ (cl : function_closure), na_inv logrel_nais (wfN n) (n ↦[wf] cl)
-                                     ∗ interp_closure τf j interp_instance cl)%I.
+                                     ∗ interp_closure τf cl)%I.
 
   
   (* --------------------------------------------------------------------------------------- *)
   (* ---------------------------------- TABLE RELATION ------------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_table_entry (τf : function_type) (j : instance) (interp_instance : IR) : TeR :=
+  Definition interp_table_entry (τf : function_type) : TeR :=
     λne n m, (∃ (fe : funcelem), na_inv logrel_nais (wtN n m) (n ↦[wt][m] fe)
-                                        ∗ from_option ((interp_function τf j interp_instance) ∘ N.of_nat) True fe)%I.
+                                        ∗ from_option ((interp_function τf) ∘ N.of_nat) True fe)%I.
   (* ⊤ means failure is allowed in case the table is not populated *)
 
 
   (* the table interpretation is a bit tricky: the table size needs to represent the full table, 
      with the capability to increase its size with None entries. A None entry is to describe the 
      out of bounds behaviour of a call indirect (with a trap rather than getting stuck) *)
-  Definition interp_table (table_size : nat) (j : instance) (interp_instance : IR) : TR :=
-    λne n, ([∗ list] i↦_ ∈ (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf j interp_instance n (N.of_nat i))%I.
+  Definition interp_table (table_size : nat) : TR :=
+    λne n, ([∗ list] i↦_ ∈ (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf n (N.of_nat i))%I.
 
 
   (* --------------------------------------------------------------------------------------- *)
@@ -190,18 +188,18 @@ Section logrel.
   (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_instance_def (τctx : t_context) (interp_instance' : IR) : IR :=
+  Definition interp_instance (τctx : t_context) : IR :=
     λne i, let '{| inst_types := ts; inst_funcs := fs; inst_tab := tbs; inst_memory := ms; inst_globs := gs; |} := i in
            let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t;
                    tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in 
            ((* Type declarations *)
              ⌜ts = ts'⌝ ∗
             (* Function declarations *)
-           ([∗ list] f;tf ∈ fs;tfs, interp_function tf i interp_instance' (N.of_nat f)) ∗
+           ([∗ list] f;tf ∈ fs;tfs, interp_function tf (N.of_nat f)) ∗
             (* Function tables *)           
            (match nth_error tabs_t 0 with
             | Some τt => match nth_error tbs 0 with
-                        | Some a => (∃ table_size, (N.of_nat a) ↪[wtsize] table_size ∗ (interp_table table_size) i interp_instance' (N.of_nat a))
+                        | Some a => (∃ table_size, (N.of_nat a) ↪[wtsize] table_size ∗ (interp_table table_size) (N.of_nat a))
                         | None => False
                         end
             | None => True
@@ -213,45 +211,13 @@ Section logrel.
             end) ∗
             (* Global declarations *)
            ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.
-
-  Global Instance interp_instance_def_contractive τctx : Contractive (interp_instance_def τctx).
-  Proof.
-    solve_proper_prepare.
-    destruct τctx,x0.
-    repeat (apply exist_ne +
-            apply sep_ne +
-            apply and_ne +
-            auto +
-            (rewrite /pointwise_relation; intros) +
-              apply forall_ne + apply wand_ne).
-    { solve_contractive. }
-    { destruct tc_table;auto.
-      destruct inst_tab;auto.
-      repeat (apply exist_ne +
-            apply sep_ne +
-            apply and_ne +
-            auto +
-            apply big_sepL_ne +
-            (rewrite /pointwise_relation; intros) +
-              apply forall_ne + apply wand_ne).
-      destruct a1;auto;simpl.
-      solve_contractive. }    
-  Defined.
-
-  Definition interp_instance τctx : IR :=
-    fixpoint (interp_instance_def τctx).
   
-  Lemma fixpoint_interp_instance_eq τctx i :
-    interp_instance τctx i ≡ interp_instance_def τctx (interp_instance τctx) i.
-  Proof. exact: (fixpoint_unfold (interp_instance_def τctx) i). Qed.
-  
-  Global Instance interp_function_persistent τf i interp_instance' n : Persistent (interp_function τf i interp_instance' n).
+  Global Instance interp_function_persistent τf n : Persistent (interp_function τf n).
   Proof.
     unfold interp_function, interp_closure, interp_closure_host, interp_closure_native.
     apply exist_persistent =>cl/=.
     apply sep_persistent;[apply _|].
     destruct cl,f; apply sep_persistent; try apply _.
-    destruct (instance_eq_dec i0 i);apply _.
   Qed.
   Global Instance interp_global_persistent τg n : Persistent (interp_global τg n).
   Proof.
@@ -260,7 +226,7 @@ Section logrel.
   Qed.
   Global Instance interp_instance_persistent τctx i : Persistent (interp_instance τctx i).
   Proof.
-    destruct i, τctx;simpl. rewrite fixpoint_interp_instance_eq.
+    destruct i, τctx;simpl.
     repeat apply sep_persistent;apply _.
   Qed.
   Global Instance interp_value_persistent τ vs : Persistent (interp_value τ vs).
