@@ -75,14 +75,6 @@ Definition empty_frame := Build_frame [::] empty_instance.
 Parameter hs: host_state host_instance.
 
 (* Note that instantiation takes imports as module_export_desc but gives exports as module_export (i.e. with a name). *)
-Print instantiation.instantiate.
-
-Print module_export.
-
-Print alloc_module.
-
-
-
 
 Inductive host_reduce: host_config -> host_config -> Prop :=
 | HR_host_step: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs,
@@ -702,8 +694,8 @@ Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps:
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
   | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
-  | MED_table (Mk_tableidx i) => (∃ tab, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! i = Some tab /\ True ⌝) (* table type is currently not a part of the resources, so we cannot know this *)
-  | MED_mem (Mk_memidx i) => (∃ mem, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ True⌝) (* same for memories *)
+  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
+  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
   | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
   end.
 
@@ -873,8 +865,8 @@ Proof.
     + by iApply ("IH" with "[$] [$] [$] [$]") => //.
   - (* tables *)
     destruct t as [n].
-    iDestruct "Hvimp" as (t) "(Htab & %Hwts)".
-    destruct Hwts as [Hwts _].
+    iDestruct "Hvimp" as (tab tt) "(Htab & %Hwts)".
+    destruct Hwts as [Hwts [-> Htabletype]].
     (* There's a problem here -- we do not have all the informations about the table in our state interp *)
     (* iDestruct (gen_heap_valid with "Hwt Htab") as "%Hwt". *)
 Admitted.
