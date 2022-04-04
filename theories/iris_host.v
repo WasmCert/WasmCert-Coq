@@ -819,6 +819,66 @@ Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end
 Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
 Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
 
+Search big_sepL2.
+
+Lemma import_resources_host_lookup hs_imps v_imps vis:
+  ⊢ ghost_map_auth visGName 1 vis -∗
+    ([∗ list] hs_imp; v_imp ∈ hs_imps; v_imps, hs_imp ↪[vis] v_imp) -∗
+    ⌜ length hs_imps = length v_imps /\ ∀ k hs_imp v_imp, hs_imps !! k = Some hs_imp -> v_imps !! k = Some v_imp -> vis !! hs_imp = Some v_imp ⌝.
+Proof.
+  iIntros "Hvis Himphost".
+  iApply big_sepL2_pure.
+  iInduction hs_imps as [|hs_imp hs_imps'] "IH" forall (v_imps); first by destruct v_imps.
+  destruct v_imps => //=.
+  iDestruct "Himphost" as "(Hvismap & Himpost)".
+  iSplit.
+  - by iDestruct (ghost_map_lookup with "Hvis Hvismap") as "%".
+  - by iApply ("IH" with "[$]").   
+Qed.
+
+
+
+Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
+  ⊢ gen_heap_interp (gmap_of_list (s_funcs ws)) -∗
+    gen_heap_interp (gmap_of_table (s_tables ws)) -∗
+    gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
+    gen_heap_interp (gmap_of_list (s_globals ws)) -∗
+    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
+    ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
+      match modexp_desc v with
+      | MED_func (Mk_funcidx i) => ∃ cl, ws.(s_funcs) !! i = Some cl /\ wfs !! i = Some cl /\ t = ET_func (cl_type cl) 
+      | MED_table (Mk_tableidx i) => ∃ tab, ws.(s_tables) !! i = Some tab /\ wts !! i = Some tab /\ True 
+      | MED_mem (Mk_memidx i) => ∃ mem, ws.(s_mems) !! i = Some mem /\ wms !! i = Some mem /\ True
+      | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt
+      end ⌝.
+Proof.
+  iIntros "Hwf Hwt Hwm Hwg Himpwasm".
+  iApply big_sepL2_pure.
+  iInduction v_imps as [|v_imp v_imps'] "IH" forall (t_imps); first by destruct t_imps.
+  destruct t_imps => //=.
+  iDestruct "Himpwasm" as "(Hvimp & Himpwasm)".                                 
+  destruct (modexp_desc v_imp) eqn:Hvimp.
+  - (* functions *)
+    destruct f as [n].
+    iDestruct "Hvimp" as (cl) "(Hcl & %Hwfs)".
+    destruct Hwfs as [Hwfs ->].
+    iDestruct (gen_heap_valid with "Hwf Hcl") as "%Hwf".
+    rewrite gmap_of_list_lookup in Hwf.
+    iSplit.
+    + iPureIntro.
+      exists cl.
+      repeat split => //.
+      by rewrite Nat2N.id in Hwf.
+    + by iApply ("IH" with "[$] [$] [$] [$]") => //.
+  - (* tables *)
+    destruct t as [n].
+    iDestruct "Hvimp" as (t) "(Htab & %Hwts)".
+    destruct Hwts as [Hwts _].
+    (* There's a problem here -- we do not have all the informations about the table in our state interp *)
+    (* iDestruct (gen_heap_valid with "Hwt Htab") as "%Hwt". *)
+Admitted.
+
+
 Lemma instantiation_spec_operational (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps:
   module_typing m t_imps t_exps ->
   ∀ wfs wts wms wgs,
@@ -845,9 +905,9 @@ Lemma instantiation_spec_operational (s: stuckness) E (hs_mod: N) (hs_imps: list
              for now since we can just forbid the initialization of globals anyway *)                                                                                      
   }}.
 Proof.
-  (*
+  
   move => Hmodtype.
-  iIntros "Hmod Himphost Himpwasm Hexphost".
+  iIntros (wfs wts wms wgs) "Hmod Himphost Himpwasm Hexphost".
   
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
   
@@ -855,12 +915,26 @@ Proof.
   iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & Hmsize & Htsize)".
 
   (* Reflecting the assertions back *)
+  (* module declaration *)
   iDestruct (ghost_map_lookup with "Hms Hmod") as "%Hmod".
-  unfold import_resources_host, big_opL.
-  Print big_sepL2.
+  rewrite gmap_of_list_lookup in Hmod.
+
+  (* Import pointers in host (vis store) *)
+  iDestruct (import_resources_host_lookup with "Hvis Himphost") as "%Himphost".
+  destruct Himphost as [Himplen Himphost].
+
+  (* Imported resources in Wasm and typing information *)
+  unfold import_resources_wasm_typecheck, big_opL.
+
+  (* Ownership for export locations in host *)
+
+
+  
   unfold big_sepL2.
   Search big_sepL2.
-  Print ghost_map_lookup.
+  Print ghost_map_elem.
+  Print ghost_map_auth.
+  Print ghost_map_lookup.(*
   iDestruct (ghost_map_lookup with "Hvis Himphost") as "%Himphost".
   Search ghost_map_elem big_opM.
   Search big_opL big_opM.
@@ -1253,6 +1327,7 @@ Qed.
 
 (* ***************** END OF EXAMPLES ********************* *)
 
+(* No longer in use
 
 Print instantiation.instantiate.
 Print module_export.
@@ -1622,7 +1697,7 @@ Proof.
 *)
 Admitted.
       
-
+*)
 
 
                    
