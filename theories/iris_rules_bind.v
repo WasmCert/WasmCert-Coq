@@ -11,7 +11,8 @@ Require Export iris_wp_def stdpp_aux.
 Close Scope byte_scope.
 
 Section bind_rules.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
   Lemma lfilled_to_sfill i lh es LI :
     lfilled i lh es LI ->

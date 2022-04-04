@@ -12,7 +12,8 @@ Require Export datatypes host operations properties opsem.
 Close Scope byte_scope.
 
 Section structural_rules.
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
 Fixpoint get_layer lh i :=
   match lh,i with

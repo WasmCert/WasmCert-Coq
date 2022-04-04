@@ -22,7 +22,7 @@ Let reduce := @reduce host_function host_instance.
 
 Let reducible := @reducible wasm_lang.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
 
 Definition mem_block_equiv (m1 m2: memory) :=
@@ -1141,8 +1141,19 @@ Proof.
   apply store_append1 in Hm as (m0 & Hm0 & Hm0').
   eapply swap_stores => //=.
 Qed.
-    
 
+Lemma mem_grow_max m n m':
+  mem_grow m n = Some m' ->
+  mem_max_opt m = mem_max_opt m'.
+Proof.
+  move => Hgrow.
+  unfold mem_grow in Hgrow.
+  destruct (mem_max_opt m) eqn:Hmlimit => //=.
+  - destruct (mem_size m + n <=? n0)%N => //=.
+    by inversion Hgrow.
+  - by inversion Hgrow.
+Qed.
+  
 Lemma gen_heap_update_big_wm bs bs' k off n (mems mems' : list memory) (m m' : memory) :
   length bs = length bs' -> 
   load m k off (length bs) = Some bs ->
@@ -2208,7 +2219,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ)".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hmemlength & ? & Hmemlimit & ?)".
   iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
   rewrite lookup_insert in Hf0.
   inversion Hf0; subst; clear Hf0.
@@ -2261,14 +2272,16 @@ Proof.
     inversion H ; subst; clear H => /=.
     iFrame.
     rewrite update_list_at_insert; last by rewrite nth_error_lookup in Hm; apply lookup_lt_Some in Hm.
-    rewrite list_fmap_insert.    
+    repeat rewrite list_fmap_insert.
     assert (mem_length mem = mem_length m) as Hmsize.
     { rewrite <- (length_bits v) in Hsomemem => //=.
       apply store_length in Hsomemem.
-      by unfold mem_length, memory_list.mem_length; rewrite Hsomemem. }
+      by unfold mem_length, memory_list.mem_length; rewrite Hsomemem. }  
     rewrite Hmsize.
-    rewrite list_insert_id; last by rewrite list_lookup_fmap; rewrite - nth_error_lookup; rewrite Hm.
-    auto.
+    apply store_mem_max_opt in Hsomemem as Hmemlimit.
+    rewrite - Hmemlimit.
+    do 2 (rewrite list_insert_id; last by rewrite list_lookup_fmap; rewrite - nth_error_lookup; rewrite Hm).
+    by iFrame.
 Qed.
 
 Lemma wp_store_packed (ϕ: iris.val -> iProp Σ) (s: stuckness) (E: coPset) (t: value_type) (v: value)
@@ -2288,7 +2301,7 @@ Proof.
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[hs ws] locs] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hγ & ?)".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hframe & Hmemlength & ? & Hmemlimit & ?)".
   iDestruct (ghost_map_lookup with "Hframe Hf0") as "%Hf0".
   rewrite lookup_insert in Hf0.
   inversion Hf0; subst; clear Hf0.
@@ -2336,8 +2349,12 @@ Proof.
     inversion H ; subst; clear H => /=.
     iFrame.
     erewrite (store_mem_len_eq _ _ _ (bytes_takefill #00%byte (tp_length tp) (bits v)));[iFrame|..].
-    by rewrite nth_error_lookup in Hm.
-    rewrite length_bytes_takefill. rewrite store_bytes_takefill_eq. eauto.
+  - apply store_mem_max_opt in Hstore as Hmemlimit.   
+    rewrite update_list_at_insert; last by rewrite nth_error_lookup in Hm; apply lookup_lt_Some in Hm.
+    rewrite list_fmap_insert list_insert_id => //.
+    by rewrite list_lookup_fmap - nth_error_lookup Hm -Hmemlimit.
+  - by rewrite nth_error_lookup in Hm.
+  - rewrite length_bytes_takefill. rewrite store_bytes_takefill_eq. by eauto.
 Qed. 
 
 Lemma wp_store_failure (ϕ: iris.val -> iProp Σ) (s: stuckness) (E: coPset) (t: value_type) (v: value)
@@ -2770,7 +2787,7 @@ Qed.
   
  
 Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
-      (n: N) (Φ Ψ : iris.val -> iProp Σ) (c: i32) :
+      (n: N) (olim: option N) (Φ Ψ : iris.val -> iProp Σ) (c: i32) :
   f0.(f_inst).(inst_memory) !! 0 = Some k ->
   ( ↪[frame] f0 ∗
      (N.of_nat k) ↦[wmlength] n ∗
@@ -2784,13 +2801,13 @@ Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
                     (n + Wasm_int.N_of_uint i32m c * page_size)%N)
                  ∨ (Ψ w ∗ (N.of_nat k) ↦[wmlength] n)) ∗ ↪[frame] f0 }}.
 Proof.
-  iIntros (Hfm) "(Hframe & Hmemlength & HΦ & HΨ)".
+  iIntros (Hfm) "(Hframe & Hmlength & HΦ & HΨ)".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[[ hs ws ] locs ] winst].
-  iDestruct "Hσ" as "(? & ? & Hm & ? & Hf & Hγ & ?)".
+  iDestruct "Hσ" as "(? & ? & Hm & ? & Hf & Hmemlength & ? & Hmemlimit & ?)".
   iDestruct (ghost_map_lookup with "Hf Hframe") as "%Hframe".
-  iDestruct (gen_heap_valid with "Hγ Hmemlength") as "%Hmemlength".
+  iDestruct (gen_heap_valid with "Hmemlength Hmlength") as "%Hmemlength".
   rewrite lookup_insert in Hframe.
   inversion Hframe ; subst ; clear Hframe.
   rewrite - nth_error_lookup in Hfm.
@@ -2834,21 +2851,25 @@ Proof.
       unfold mem_size in H1.
       rewrite Hmemlength' in H1.
       unfold upd_s_mem => //=.
-      iMod (gen_heap_update with "Hγ Hmemlength") as "[Hγ Hmemlength]".
+      iMod (gen_heap_update with "Hmemlength Hmlength") as "[Hmemlength Hmlength]".
       iMod (gen_heap_alloc_grow with "Hm") as "[Hm Hown]" => //=.
       iIntros "!>".
       iFrame.
-      iSplitL "Hγ".
+      iSplitL "Hmemlength Hmemlimit".
       - rewrite - gmap_of_list_insert.
-        rewrite Nat2N.id.
-        instantiate (1:= mem_length mem').
-        rewrite - list_fmap_insert.
-        rewrite update_list_at_insert.
-        done.
-        by apply lookup_lt_Some in Hmemlookup.
-        rewrite Nat2N.id.
-        rewrite fmap_length.
-        by apply lookup_lt_Some in Hmemlookup.
+        + rewrite Nat2N.id.
+          instantiate (1:= mem_length mem').
+          rewrite - list_fmap_insert.
+          rewrite update_list_at_insert; last by apply lookup_lt_Some in Hmemlookup.
+          iFrame.
+          rewrite list_fmap_insert list_insert_id => //.
+          rewrite list_lookup_fmap Hmemlookup.
+          apply mem_grow_max in H2.
+          simpl.
+          by f_equal.
+        + rewrite Nat2N.id.
+          rewrite fmap_length.
+          by apply lookup_lt_Some in Hmemlookup.
       - (* iSplitL => //=. *)
         (* iIntros "Hframe". *)
         iLeft.
@@ -2860,12 +2881,11 @@ Proof.
         iFrame.
         by iExists _. }
     { (* grow_memory failed *)
-      iSplitR "Hframe HΨ Hmemlength"  => //.
-      iFrame.
-      done.
+      iSplitR "Hframe HΨ Hmlength"  => //.
+      iFrame => //.
       iFrame.
       iRight.
-      iFrame. done. }
+      by iFrame.  }
     rewrite Heqes0 in H0.
     simple_filled H0 k0 lh bef aft nn ll ll'.
     destruct bef.

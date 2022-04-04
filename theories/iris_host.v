@@ -218,7 +218,7 @@ Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
 Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
                             (at level 20, format " n ↪[mods] v").
 
-Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
+Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (s, vis, ms) := σ in
@@ -228,10 +228,11 @@ Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG 
       (gen_heap_interp (gmap_of_list s.(s_globals))) ∗
       (ghost_map_auth visGName 1 vis) ∗ 
       (ghost_map_auth msGName 1 (gmap_of_list ms)) ∗
-      (* Should this really be here, though? *)
       (ghost_map_auth frameGName 1 (<[ tt := empty_frame ]> ∅)) ∗ 
       (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
-      (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables))))
+      (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables)))) ∗
+      (gen_heap_interp (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
+      (gen_heap_interp (gmap_of_list (fmap table_max_opt s.(s_tables))))
     )%I;
     num_laters_per_step _ := 0;
     fork_post _ := True%I;
@@ -242,7 +243,7 @@ Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG 
 
 
 Section host_lifting.
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
 
 (* adding this would nullify all lemmas in weakestpre -- why? Is this not the 
@@ -452,7 +453,7 @@ Qed.
 End host_lifting.
 
 Section host_structural.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
   (* Note that the host wp is based on the original wp, as in the one in iris.weakestpre, so we have many lemma 
      available *)
@@ -571,7 +572,7 @@ End host_structural.
 
 Section Instantiation_spec_operational.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
 Print module_export_desc.
 
@@ -934,7 +935,7 @@ Proof.
   Search big_sepL2.
   Print ghost_map_elem.
   Print ghost_map_auth.
-  Print ghost_map_lookup.(*
+  Print ghost_map_lookup. (*
   iDestruct (ghost_map_lookup with "Hvis Himphost") as "%Himphost".
   Search ghost_map_elem big_opM.
   Search big_opL big_opM.
@@ -987,8 +988,8 @@ End Instantiation_spec_operational.
 (* Examples *)
 
 Section Example_Add.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
   
 Definition Add_module :=
   Build_module
@@ -1698,7 +1699,7 @@ Proof.
 Admitted.
       
 *)
-
+End Example_Add.
 
                    
 

@@ -12,7 +12,8 @@ Close Scope byte_scope.
 
 (* basic instructions with simple(pure) reductions *)
 Section iris_rules_calls.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+  
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
   Import DummyHosts.
   
@@ -539,7 +540,7 @@ Section iris_rules_calls.
   Proof.
     iIntros (Hc Hge) "#Ha Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6&Hσ7)".
+    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6&Hσ7&Hσ8&Hσ9)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ7 Ha") as %Hlook.
     rewrite gmap_of_list_lookup Nat2N.id in Hlook.
