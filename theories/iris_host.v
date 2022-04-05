@@ -606,10 +606,13 @@ Definition module_inst_resources_mem (mmems: list memory_type) (inst_m: list mem
 
 Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
   ([∗ list] g; addr ∈ mglobs; inst_g,
-    N.of_nat addr ↦[wg] (Build_global
-                           (g.(modglob_type).(tg_mut))
-                           (nth addr g_inits (VAL_int32 int32_minus_one)) (* kinda unfortuante that this is O(n^2) *)
-                        )
+    match nth_error g_inits addr with
+    | Some v => N.of_nat addr ↦[wg] (Build_global
+                                      (g.(modglob_type).(tg_mut))
+                                      v (* kinda unfortuante that this is O(n^2) *)
+                                   )
+    | None => False
+    end
   ).
 
 
@@ -933,6 +936,8 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
     (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
 
+Definition gen_index offset len : list nat :=
+  imap (fun i x => i+offset+x) (repeat 0 len).
 
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs:
   m.(mod_start) = None ->
@@ -963,12 +968,8 @@ Proof.
   iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
   destruct Himpwasm as [Hvtlen Himpwasm].
 
-  (* Ownership for export locations in host *)
-
-
   (* Prove that the instantiation predicate holds *)
   assert (exists ws_res inst_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
-
   {
     unfold instantiate, instantiation.instantiate.
     do 3 eexists.
@@ -1021,6 +1022,17 @@ Proof.
         apply lookup_lt_Some in Hwg.
         by lias.
     - (* alloc module *)
+     (* remember {| inst_types := m.(mod_types);
+                  inst_funcs := ext_func_addrs (fmap modexp_desc m.(mod_exports)) ++ (fmap Mk_funcidx (gen_index (length ws.(s_funcs)) (length m.(mod_funcs))));
+                  inst_tab := ext_tab_addrs (fmap modexp_desc m.(mod_exports));
+                  inst_memory := ext_mem_addrs (fmap modexp_desc m.(mod_exports));
+                  inst_globs := ext_glob_addrs (fmap modexp_desc m.(mod_exports))
+               |} as inst.
+      unfold alloc_module.
+      instantiate (1 := inst).
+      simpl.*)
+                           
+      
       admit.
     - (* global initializers *)
       admit.
