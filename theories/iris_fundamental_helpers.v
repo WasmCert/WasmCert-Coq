@@ -63,7 +63,7 @@ Qed.
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------ HELPER TACTICS AND LEMMAS ------------------------------ *)
@@ -533,6 +533,7 @@ Section fundamental.
     ⊢ interp_instance (HWP:=HWP) C i -∗
       ∃ τm mem, ⌜nth_error (tc_memory C) 0 = Some τm⌝
               ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
+              ∗ (N.of_nat mem) ↪[wmlimit] lim_max τm
               ∗ interp_mem (N.of_nat mem).
   Proof.
     destruct C,i.
@@ -542,7 +543,8 @@ Section fundamental.
     destruct tc_memory;try done.
     iSimpl in "Hi".
     destruct inst_memory;try done.
-    iExists _,_. repeat iSplit;eauto.
+    iDestruct "Hi" as "[? ?]".
+    iExists _,_. repeat iSplit;eauto.    
   Qed.
 
   Fixpoint pull_base_l_drop_len {i : nat} (vh : valid_holed i) (len : nat) :=

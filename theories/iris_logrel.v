@@ -35,7 +35,7 @@ Section logrel.
   
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
 
   
   Definition xb b := (VAL_int32 (wasm_bool b)).
@@ -157,9 +157,9 @@ Section logrel.
   (* --------------------------------------------------------------------------------------- *)
     
   Definition interp_mem : MR :=
-    λne n, (na_inv logrel_nais (wmN n) (∃ (mem : memory), n ↦[wmblock] mem))%I.
-  (* wmblock is shorthand for entire block + size *)
-
+    λne n, (na_inv logrel_nais (wmN n) (∃ (mem : memory),
+                                           ([∗ list] i ↦ b ∈ (mem.(mem_data).(ml_data)), n ↦[wm][ (N.of_nat i) ] b) ∗
+                                           n ↦[wmlength] mem_length mem))%I.
   
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------------- GLOBALS RELATION ------------------------------------ *)
@@ -197,15 +197,20 @@ Section logrel.
            ([∗ list] f;tf ∈ fs;tfs, interp_function tf interp_closure' (N.of_nat f)) ∗
             (* Function tables *)           
            (match nth_error tabs_t 0 with
-            | Some _ => match nth_error tbs 0 with
-                        | Some a => (∃ table_size, (N.of_nat a) ↪[wtsize] table_size ∗ (interp_table table_size interp_closure') (N.of_nat a))
+            | Some τt => match nth_error tbs 0 with
+                          | Some a => (∃ table_size, (N.of_nat a) ↪[wtlimit] (lim_max (tt_limits τt))
+                                                                 ∗ (N.of_nat a) ↪[wtsize] table_size
+                                                                 ∗ (interp_table table_size interp_closure') (N.of_nat a))
                         | None => False
                         end
             | None => True
             end) ∗
             (* Linear Memory *)
            (match nth_error mems_t 0 with
-            | Some _ => from_option ((interp_mem) ∘ N.of_nat) False (nth_error ms 0)
+            | Some τm => match nth_error ms 0 with
+                        | Some a => (N.of_nat a) ↪[wmlimit] (lim_max τm) ∗ interp_mem (N.of_nat a)
+                        | None => False
+                        end
             | None => True
             end) ∗
             (* Global declarations *)

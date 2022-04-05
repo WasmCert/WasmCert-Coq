@@ -2906,7 +2906,7 @@ Qed.
   
  
 Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
-      (n: N) (olim: option N) (Φ Ψ : iris.val -> iProp Σ) (c: i32) :
+      (n: N) (Φ Ψ : iris.val -> iProp Σ) (c: i32) :
   f0.(f_inst).(inst_memory) !! 0 = Some k ->
   ( ↪[frame] f0 ∗
      (N.of_nat k) ↦[wmlength] n ∗
