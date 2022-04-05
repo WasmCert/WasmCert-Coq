@@ -45,7 +45,7 @@ Section fundamental.
     iApply fupd_wp.
     iDestruct "Hfv" as (locs Hlocs) "[#Hlocs Hown]".
     iMod (na_inv_acc with "Hm Hown") as "(Hms & Hown & Hcls)";[solve_ndisj..|].
-    iDestruct "Hms" as (ms) "[>Hmemblock >%Hmemtyping]".
+    iDestruct "Hms" as (ms) ">Hmemblock".
     iDestruct "Hmemblock" as "[Hmem Hsize]".
     iModIntro.
 
@@ -54,7 +54,7 @@ Section fundamental.
     { iApply (wp_current_memory with "[$Hf $Hsize]");auto. by rewrite Hlocs /=. }
     iIntros (v) "[[-> Hsize] Hf]".
     iMod ("Hcls" with "[Hsize Hmem $Hown]") as "Hown".
-    { iNext. iExists _; iFrame. auto. }
+    { iNext. iExists _; iFrame. }
     iModIntro.
     iSplitR;[|iExists _;iFrame;iExists _;eauto].
     iLeft. iRight. iExists _. iSplit;eauto.

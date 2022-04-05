@@ -186,7 +186,7 @@ Section fundamental.
     iApply fupd_wp.
     iDestruct "Hfv" as (locs Hlocs) "[#Hlocs Hown]".
     iMod (na_inv_acc with "Hm Hown") as "(Hms & Hown & Hcls)";[solve_ndisj..|].
-    iDestruct "Hms" as (ms) "[>Hmemblock >%Hmemtyping]".
+    iDestruct "Hms" as (ms) ">Hmemblock".
     iDestruct "Hmemblock" as "[Hmem Hsize]".
     iModIntro.
 
@@ -206,7 +206,7 @@ Section fundamental.
         { iApply (wp_store_packed_failure with "[$Hf $Hsize]");[|by rewrite Hlocs /=|by apply N.lt_gt|];auto. }
         iIntros (v) "[[-> Hsize] Hf]".
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-        { iNext. iExists _. iFrame. eauto. }
+        { iNext. iExists _. iFrame. }
         iModIntro.
         iSplitR;[by iLeft; iLeft|iExists _;iFrame].
         iExists _. eauto. 
@@ -230,11 +230,6 @@ Section fundamental.
                     mem_max_opt := (mem_max_opt ms) |}.
           iFrame. unfold mem_length, memory_list.mem_length. iSimpl.
           rewrite -update_list_range_length;[iFrame|].
-          { iPureIntro. unfold mem_typing, mem'. simpl mem_max_opt.
-            unfold mem_size, mem_length, memory_list.mem_length. simpl ml_data.
-            rewrite -update_list_range_length;auto.
-            rewrite length_bytes_takefill. simpl in n.
-            unfold mem_length, memory_list.mem_length in n. lia. }
           { rewrite length_bytes_takefill. simpl in n.
             unfold mem_length, memory_list.mem_length in n. lia. }
         }
@@ -250,7 +245,7 @@ Section fundamental.
         { iApply (wp_store_failure with "[$Hf $Hsize]");[|by rewrite Hlocs /=|by apply N.lt_gt|];auto. }
         iIntros (v) "[[-> Hsize] Hf]".
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-        { iNext. iExists _. iFrame. eauto. }
+        { iNext. iExists _. iFrame. }
         iModIntro.
         iSplitR;[by iLeft; iLeft|iExists _;iFrame].
         iExists _. eauto. 
@@ -274,11 +269,6 @@ Section fundamental.
                     mem_max_opt := (mem_max_opt ms) |}.
           iFrame. unfold mem_length, memory_list.mem_length. iSimpl.
           rewrite -update_list_range_length;[iFrame|].
-          { iPureIntro. unfold mem_typing, mem'. simpl mem_max_opt.
-            unfold mem_size, mem_length, memory_list.mem_length. simpl ml_data.
-            rewrite -update_list_range_length;auto.
-            erewrite length_bits;[|eauto]. simpl in n.
-            unfold mem_length, memory_list.mem_length in n. lia. }
           { erewrite length_bits;[|eauto]. simpl in n.
             unfold mem_length, memory_list.mem_length in n. lia. }
         }

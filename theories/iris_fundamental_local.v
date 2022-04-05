@@ -63,11 +63,8 @@ Section fundamental.
     unfold interp_expression_closed.
     iApply (wp_frame_bind with "Hf").
     iIntros "Hf".
-    iApply iRewrite_nil_l.
-    iApply (wp_block with "Hf");[eauto..|].
-    iNext. iIntros "Hf".
     iApply wp_wasm_empty_ctx.
-    iApply wp_label_push_nil. erewrite app_nil_l.
+    iApply wp_label_push_nil.
     iApply wp_label_bind.
     iDestruct ("Ht" $! _ (immV []) with "[$Hf Hown] []") as "Hcont".
     { iExists _. iFrame. iSplit;eauto. }

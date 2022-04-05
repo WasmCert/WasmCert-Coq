@@ -486,7 +486,7 @@ Section fundamental.
     ssrnat.leq (S i) (length (tc_func_t C)) ->
     nth_error (tc_func_t C) i = Some tf ->
     ⊢ interp_instance (HWP:=HWP) C j -∗
-      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function (HWP:=HWP) tf (N.of_nat f).
+      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (interp_closure (HWP:=HWP)) (N.of_nat f).
   Proof.
     iIntros (Hle Hnth) "#Hi".
     destruct C,j.
@@ -533,7 +533,7 @@ Section fundamental.
     ⊢ interp_instance (HWP:=HWP) C i -∗
       ∃ τm mem, ⌜nth_error (tc_memory C) 0 = Some τm⌝
               ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
-              ∗ interp_mem τm (N.of_nat mem).
+              ∗ interp_mem (N.of_nat mem).
   Proof.
     destruct C,i.
     iIntros (Hnil) "[_ [_ [ _ [#Hi _]]]]".

@@ -27,7 +27,7 @@ Section fundamental.
       ∃ τt a, ⌜(tc_table C) !! 0 = Some τt⌝
             ∗ ⌜(inst_tab j) !! 0 = Some a⌝
             ∗ ∃ table_size, (N.of_nat a) ↪[wtsize] table_size
-                          ∗ (interp_table (HWP:=HWP) table_size) (N.of_nat a).
+                          ∗ (interp_table table_size (interp_closure (HWP:=HWP))) (N.of_nat a).
   Proof.
     iIntros (Hnil) "#Hi".
     destruct C,j.
