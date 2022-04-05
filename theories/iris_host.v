@@ -4,8 +4,10 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
-Require Export iris_locations iris_properties stdpp_aux iris.
+Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
 Require Export datatypes host operations properties opsem instantiation.
+
+Close Scope byte.
 
 Section Iris_host.
 
@@ -75,14 +77,6 @@ Definition empty_frame := Build_frame [::] empty_instance.
 Parameter hs: host_state host_instance.
 
 (* Note that instantiation takes imports as module_export_desc but gives exports as module_export (i.e. with a name). *)
-Print instantiation.instantiate.
-
-Print module_export.
-
-Print alloc_module.
-
-
-
 
 Inductive host_reduce: host_config -> host_config -> Prop :=
 | HR_host_step: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs,
@@ -120,7 +114,7 @@ Definition state : Type := store_record * vi_store * (list module) .
 
 Definition observation := unit. 
 
-Definition of_val (v: val) : host_expr := ([::], iris.of_val v).
+Definition of_val (v: host_val) : host_expr := ([::], iris.of_val v).
 
 Lemma of_val_imm (vs : list value) :
   ([::], ((λ v : value, AI_basic (BI_const v)) <$> vs)) = of_val (immV vs).
@@ -173,11 +167,11 @@ Proof. split; eauto using to_of_val, of_to_val, val_head_stuck. Qed.
 Canonical Structure wasm_host_lang := Language wasm_host_mixin.
 
 Implicit Type σ : state.
-
+(*
 Require Export iris_wp_def.
 
 Definition function_closure := function_closure host_function.
-
+*)
 (* The host expands the memory model of Wasm by vi_store and a list of module declarations. *)
 
 Class hvisG Σ := HVisG {
@@ -218,7 +212,7 @@ Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
 Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
                             (at level 20, format " n ↪[mods] v").
 
-Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
+Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (s, vis, ms) := σ in
@@ -228,10 +222,11 @@ Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG 
       (gen_heap_interp (gmap_of_list s.(s_globals))) ∗
       (ghost_map_auth visGName 1 vis) ∗ 
       (ghost_map_auth msGName 1 (gmap_of_list ms)) ∗
-      (* Should this really be here, though? *)
       (ghost_map_auth frameGName 1 (<[ tt := empty_frame ]> ∅)) ∗ 
       (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
-      (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables))))
+      (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables)))) ∗
+      (gen_heap_interp (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
+      (gen_heap_interp (gmap_of_list (fmap table_max_opt s.(s_tables))))
     )%I;
     num_laters_per_step _ := 0;
     fork_post _ := True%I;
@@ -242,7 +237,7 @@ Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG 
 
 
 Section host_lifting.
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
 
 (* adding this would nullify all lemmas in weakestpre -- why? Is this not the 
@@ -253,23 +248,23 @@ Proof using Σ wfuncG0 wtabG0 wmemG0 wmemsizeG0 wglobG0 wframeG0 hvisG0 hmsG0.
   by eapply weakestpre.wp'.
 Qed.
 *)
-
+(*
 Lemma wp_host_test_const (s: stuckness) E vs:
   ⊢ wp s E (([::], (v_to_e_list vs)): host_expr) (λ v, ⌜ v = immV vs ⌝).
 Proof.
   iApply weakestpre.wp_value => //.
   unfold IntoVal => /=. by f_equal. 
 Qed.
-
+*)
 (*
 Let wp_wasm := @wp_wasm Σ wfuncG0.
 *)
 
 
 Definition reducible := @reducible wasm_host_lang.
-
+(*
 Let reduce := @reduce host_function host_instance.
-
+*)
 (* All the possible wasm expression that could appear in the host configuration, starting from empty *)
 Inductive host_wasm_expr_valid : list administrative_instruction -> Prop :=
 | HWEV_const: forall es,
@@ -405,7 +400,7 @@ Proof.
 Qed.
 
 (* Lifting wasm wp to host wp *)
-Lemma wp_host_wasm (s: stuckness) E (es: iris.expr) (Φ: iris.val -> iProp Σ):
+Lemma wp_host_wasm (s: stuckness) E (es: iris.expr) (Φ: host_val -> iProp Σ):
   (* wp_wasm s E es Φ *)
   (* This abuse of notation is somehow possible. It is the weirdest thing I've 
      seen in a while *)
@@ -420,8 +415,8 @@ Proof.
   iIntros "Hwp".
   destruct (iris.to_val es) eqn: Hes => //=.
   iIntros ([[ws vis] ms] ns κ κs nt) "Hσ".
-  iSpecialize ("Hwp" $! (hs, ws, [::], empty_instance) ns κ κs nt).
-  iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & Hmsize & Htsize)".
+  iSpecialize ("Hwp" $! (hs, ws, [::], empty_instance) ns κ κs nt). 
+  iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & ?)".
   iSpecialize ("Hwp" with "[$]").
   iMod "Hwp" as "(%Hred & Hwp)".
   iModIntro.
@@ -440,7 +435,7 @@ Proof.
     iModIntro.
     iMod "Hwp".
     iModIntro.
-    iDestruct "Hwp" as "((Hwf & Hwt & Hwm & Hwg & Hwframe & Hmsize & Htsize) & Hwp)".
+    iDestruct "Hwp" as "((?&?&?&?&?) & Hwp)".
     iDestruct "Hwp" as (f) "(Hf & Hwp & ?)".
     iFrame.
     iSplit => //.
@@ -452,7 +447,7 @@ Qed.
 End host_lifting.
 
 Section host_structural.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
   (* Note that the host wp is based on the original wp, as in the one in iris.weakestpre, so we have many lemma 
      available *)
@@ -571,7 +566,7 @@ End host_structural.
 
 Section Instantiation_spec_operational.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
 Print module_export_desc.
 
@@ -611,10 +606,13 @@ Definition module_inst_resources_mem (mmems: list memory_type) (inst_m: list mem
 
 Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
   ([∗ list] g; addr ∈ mglobs; inst_g,
-    N.of_nat addr ↦[wg] (Build_global
-                           (g.(modglob_type).(tg_mut))
-                           (nth addr g_inits (VAL_int32 int32_minus_one)) (* kinda unfortuante that this is O(n^2) *)
-                        )
+    match nth_error g_inits addr with
+    | Some v => N.of_nat addr ↦[wg] (Build_global
+                                      (g.(modglob_type).(tg_mut))
+                                      v (* kinda unfortuante that this is O(n^2) *)
+                                   )
+    | None => False
+    end
   ).
 
 
@@ -701,8 +699,8 @@ Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps:
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
   | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
-  | MED_table (Mk_tableidx i) => (∃ tab, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! i = Some tab /\ True ⌝) (* table type is currently not a part of the resources, so we cannot know this *)
-  | MED_mem (Mk_memidx i) => (∃ mem, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ True⌝) (* same for memories *)
+  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
+  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
   | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
   end.
 
@@ -819,48 +817,243 @@ Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end
 Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
 Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
 
-Lemma instantiation_spec_operational (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps:
-  module_typing m t_imps t_exps ->
-  ∀ wfs wts wms wgs,
-  hs_mod ↪[mods] m -∗
-  import_resources_host hs_imps v_imps -∗
-  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-  export_ownership_host hs_exps -∗
-  WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
-  {{ v, hs_mod ↪[mods] m ∗
-        import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
-        import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
-        ∃ inst g_inits,
-          ⌜ inst.(inst_types) = m.(mod_types) /\
-          (* We know what the imported part of the instance must be. *)
-          let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
-          prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
-          prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
-          prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
-          prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)
-          ⌝ ∗
-          module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
-          module_export_resources_host v_imps hs_exps m.(mod_exports) inst (* export resources, in the host store *)
-          (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted
-             for now since we can just forbid the initialization of globals anyway *)                                                                                      
-  }}.
+Search big_sepL2.
+
+Lemma import_resources_host_lookup hs_imps v_imps vis:
+  ⊢ ghost_map_auth visGName 1 vis -∗
+    ([∗ list] hs_imp; v_imp ∈ hs_imps; v_imps, hs_imp ↪[vis] v_imp) -∗
+    ⌜ length hs_imps = length v_imps /\ ∀ k hs_imp v_imp, hs_imps !! k = Some hs_imp -> v_imps !! k = Some v_imp -> vis !! hs_imp = Some v_imp ⌝.
 Proof.
-  (*
-  move => Hmodtype.
-  iIntros "Hmod Himphost Himpwasm Hexphost".
+  iIntros "Hvis Himphost".
+  iApply big_sepL2_pure.
+  iInduction hs_imps as [|hs_imp hs_imps'] "IH" forall (v_imps); first by destruct v_imps.
+  destruct v_imps => //=.
+  iDestruct "Himphost" as "(Hvismap & Himpost)".
+  iSplit.
+  - by iDestruct (ghost_map_lookup with "Hvis Hvismap") as "%".
+  - by iApply ("IH" with "[$]").   
+Qed.
+
+
+
+Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
+  ⊢ gen_heap_interp (gmap_of_list (s_funcs ws)) -∗
+    gen_heap_interp (gmap_of_table (s_tables ws)) -∗
+    gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
+    gen_heap_interp (gmap_of_list (s_globals ws)) -∗
+    gen_heap_interp (gmap_of_list (fmap tab_size (s_tables ws))) -∗
+    gen_heap_interp (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
+    gen_heap_interp (gmap_of_list (fmap mem_length (s_mems ws))) -∗
+    gen_heap_interp (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
+    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
+    ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
+      match modexp_desc v with
+      | MED_func (Mk_funcidx i) => ∃ cl, ws.(s_funcs) !! i = Some cl /\ wfs !! i = Some cl /\ t = ET_func (cl_type cl) 
+      | MED_table (Mk_tableidx i) => ∃ tab tt, ws.(s_tables) !! i = Some tab /\ wts !! i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt
+      | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
+      | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt
+      end ⌝.
+Proof.
+  iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit Himpwasm".
+  iApply big_sepL2_pure.
+  iInduction v_imps as [|v_imp v_imps'] "IH" forall (t_imps); first by destruct t_imps.
+  destruct t_imps => //=.
+  iDestruct "Himpwasm" as "(Hvimp & Himpwasm)".                                 
+  destruct (modexp_desc v_imp) eqn:Hvimp.
+  - (* functions *)
+    destruct f as [n].
+    iDestruct "Hvimp" as (cl) "(Hcl & %Hwfs)".
+    destruct Hwfs as [Hwfs ->].
+    iDestruct (gen_heap_valid with "Hwf Hcl") as "%Hwf".
+    rewrite gmap_of_list_lookup in Hwf.
+    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    iPureIntro.
+    exists cl.
+    repeat split => //.
+    by rewrite Nat2N.id in Hwf.
+  - (* tables *)
+    destruct t as [n].
+    iDestruct "Hvimp" as (tab tt) "(Htab & %Hwts)".
+    destruct Hwts as [Hwts [-> Htabletype]]. 
+    iDestruct (tab_block_lookup with "Hwt Hwtsize Hwtlimit Htab") as "%Hwt".
+    rewrite Nat2N.id in Hwt.
+    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    iPureIntro.
+    exists tab, tt.
+    by repeat split => //.
+  - (* memories *)
+    destruct m as [n].
+    iDestruct "Hvimp" as (mem mt) "(Hmem & %Hwms)".
+    destruct Hwms as [Hwms [-> Hmemtype]]. 
+    iDestruct (mem_block_lookup with "Hwm Hwmlength Hwmlimit Hmem") as "%Hwm".
+    rewrite Nat2N.id in Hwm.
+    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    iPureIntro.
+    destruct Hwm as [m [Hwmlookup [Hmdata Hmlimit]]].
+    eexists _, mt, m.(mem_data).(ml_init).
+    repeat split => //.
+    rewrite Hwmlookup.
+    f_equal.
+    destruct m.
+    simpl in *.
+    f_equal => //.
+    destruct mem_data.
+    simpl in *.
+    by f_equal.
+  - (* globals *)
+    destruct g as [n].
+    iDestruct "Hvimp" as (g gt) "(Hg & %Hwgs)".
+    destruct Hwgs as [Hwgs [-> Hgt]].
+    iDestruct (gen_heap_valid with "Hwg Hg") as "%Hwg".
+    rewrite gmap_of_list_lookup in Hwg.
+    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    iPureIntro.
+    exists g, gt.
+    repeat split => //.
+    by rewrite Nat2N.id in Hwg.
+Qed.      
+
+
+Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
+  hs_mod ↪[mods] m ∗
+  import_resources_host hs_imps v_imps ∗
+  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
+  export_ownership_host hs_exps.
+
+Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
+  hs_mod ↪[mods] m ∗
+  import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
+  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
+  ∃ inst g_inits, ⌜ inst.(inst_types) = m.(mod_types) /\
+   (* We know what the imported part of the instance must be. *)
+  let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
+    prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
+    prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
+    prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
+    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)
+    ⌝ ∗
+    module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
+    (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
+
+Definition gen_index offset len : list nat :=
+  imap (fun i x => i+offset+x) (repeat 0 len).
+
+Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs:
+  m.(mod_start) = None ->
+  module_typing m t_imps t_exps ->
+  instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
+  WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
+  {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps }}.
+Proof.
+  
+  move => Hmodstart Hmodtype.
+  iIntros "(Hmod & Himphost & Himpwasm & Hexphost)".
   
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
   
   iIntros ([[ws vis] ms] ns κ κs nt) "Hσ".
-  iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & Hmsize & Htsize)".
+  iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & Hmsize & Htsize & Hmlimit & Htlimit)".
 
   (* Reflecting the assertions back *)
+  (* module declaration *)
   iDestruct (ghost_map_lookup with "Hms Hmod") as "%Hmod".
-  unfold import_resources_host, big_opL.
-  Print big_sepL2.
+  rewrite gmap_of_list_lookup in Hmod.
+
+  (* Import pointers in host (vis store) *)
+  iDestruct (import_resources_host_lookup with "Hvis Himphost") as "%Himphost".
+  destruct Himphost as [Himplen Himphost].
+
+  (* Imported resources in Wasm and typing information *)
+  iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
+  destruct Himpwasm as [Hvtlen Himpwasm].
+
+  (* Prove that the instantiation predicate holds *)
+  assert (exists ws_res inst_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  {
+    unfold instantiate, instantiation.instantiate.
+    do 3 eexists.
+    exists None, t_imps, t_exps, hs.
+    do 4 eexists.
+    repeat split.
+    - (* module_typing *)
+      by apply Hmodtype.
+    - (* import types *)
+      apply Forall2_same_length_lookup.
+      split => //; first by rewrite fmap_length.
+      move => k vdesc t Hvdesc Ht.
+      rewrite list_lookup_fmap in Hvdesc.
+      remember (v_imps !! k) as v.
+      destruct v as [v|]=> //.
+      simpl in Hvdesc.
+      inversion Hvdesc; subst; clear Hvdesc.
+      symmetry in Heqv.
+      specialize (Himpwasm k v t Heqv Ht).
+      destruct v => /=.
+      simpl in Himpwasm.
+      destruct modexp_desc.
+      + (* functions *)
+        destruct f.
+        destruct Himpwasm as [cl [Hws [? ->]]].
+        eapply ETY_func => //; last by rewrite nth_error_lookup.
+        apply lookup_lt_Some in Hws.
+        by lias.
+      + (* tables *)
+        destruct t0.
+        destruct Himpwasm as [tab [tt [Hwt [? [-> Htt]]]]].
+        eapply ETY_tab => //; last by rewrite nth_error_lookup.
+        apply lookup_lt_Some in Hwt.
+        by lias.
+      + (* memories *)
+        destruct m0.
+        destruct Himpwasm as [mem [mt [b_init [Hwm [? [-> Hmt]]]]]].
+        eapply ETY_mem; [ | rewrite nth_error_lookup; by apply Hwm |].
+        * apply lookup_lt_Some in Hwm; by lias.
+        * unfold mem_typing.
+          unfold mem_typing in Hmt.
+          move/andP in Hmt.
+          destruct Hmt as [Hmlimmin Hmlimmax].
+          apply/andP.
+          by split.
+      + (* globals *)
+        destruct g.
+        destruct Himpwasm as [g [gt [Hwg [? [-> Hgt]]]]].
+        eapply ETY_glob => //; last by rewrite nth_error_lookup.
+        apply lookup_lt_Some in Hwg.
+        by lias.
+    - (* alloc module *)
+     (* remember {| inst_types := m.(mod_types);
+                  inst_funcs := ext_func_addrs (fmap modexp_desc m.(mod_exports)) ++ (fmap Mk_funcidx (gen_index (length ws.(s_funcs)) (length m.(mod_funcs))));
+                  inst_tab := ext_tab_addrs (fmap modexp_desc m.(mod_exports));
+                  inst_memory := ext_mem_addrs (fmap modexp_desc m.(mod_exports));
+                  inst_globs := ext_glob_addrs (fmap modexp_desc m.(mod_exports))
+               |} as inst.
+      unfold alloc_module.
+      instantiate (1 := inst).
+      simpl.*)
+                           
+      
+      admit.
+    - (* global initializers *)
+      admit.
+    - (* table initializers *)
+      admit.
+    - (* memory initializers *)
+      admit.
+    - (* table initializers bound check *)
+      admit.
+    - (* memory initializers bound check *)
+      admit.
+    - (* start function *)
+      unfold check_start.
+      by rewrite Hmodstart => /=.
+    - (* putting initlialized items into the store *)
+      admit.
+  }
+  
+  (*
   unfold big_sepL2.
   Search big_sepL2.
-  Print ghost_map_lookup.
   iDestruct (ghost_map_lookup with "Hvis Himphost") as "%Himphost".
   Search ghost_map_elem big_opM.
   Search big_opL big_opM.
@@ -906,15 +1099,24 @@ Proof.
     iModIntro.
 *)
 Admitted.
-  
+
+Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
+  m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
+  module_typing m t_imps t_exps ->
+  instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
+  (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗ WP (([::], [::AI_invoke nstart]) : host_expr) {{ Φ }}) -∗
+  WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E {{ Φ }}.
+Proof.
+Admitted.
+
 End Instantiation_spec_operational.
 
 
 (* Examples *)
 
 Section Example_Add.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
   
 Definition Add_module :=
   Build_module
@@ -1048,12 +1250,12 @@ Lemma add_instantiate_spec (s: stuckness) E hv:
 Proof.
   iIntros "Hmod Hhv".
   iApply weakestpre.wp_mono; last first.
-  iApply (instantiation_spec_operational with "[$]") => //.
+  iApply (instantiation_spec_operational_no_start with "[Hmod Hhv]"); unfold instantiation_resources_pre; [ | | iFrame] => //.
   - by apply add_module_valid.
-  - by unfold import_resources_host => //.
-  - do 4 instantiate (1 := ∅). by unfold import_resources_wasm_typecheck => //.
-  - unfold export_ownership_host => /=.
-    iSplit => //.
+  - unfold import_resources_host, import_resources_wasm_typecheck, export_ownership_host.
+    instantiate (1 := [::]).
+    do 4 (instantiate (1 := ∅)).
+    repeat iSplit => //=.
     by iExists hv.
   - iIntros (v) "H".
     iDestruct "H" as "(Hmod & Himphost & Himpwasm & Hinst)".
@@ -1122,25 +1324,26 @@ Proof.
   move => Hcltype.
   iIntros "Hmod Hvimp Hwfcl Hhv".
   iApply weakestpre.wp_mono; last first.
-  iApply (instantiation_spec_operational with "[$] [Hvimp] [Hwfcl] [Hhv] ") => //.
-  - by apply M2_valid.
-  - unfold import_resources_host.
+  iApply (instantiation_spec_operational_no_start with "[Hmod Hvimp Hwfcl Hhv]"); [ | by apply M2_valid |] => //.
+  - unfold instantiation_resources_pre.
+    do 3 instantiate (1 := ∅).
+    instantiate (1 := <[ n := cl ]> ∅).
+    unfold import_resources_host.
     unfold big_sepL2.
     instantiate (1 := [::{| modexp_name := expname0; modexp_desc := MED_func (Mk_funcidx n) |}]) => /=.
-    by iFrame.
-  - do 3 instantiate (1 := ∅).
-    instantiate (1 := <[ n := cl ]> ∅).
     unfold import_resources_wasm_typecheck => /=.
-    iSplit => //.
-    iExists cl.
+    unfold export_ownership_host => /=.
     iFrame.
-    iPureIntro.
-    rewrite lookup_insert.
-    split => //.
-    by rewrite Hcltype.
-  - unfold export_ownership_host => /=.
-    iSplit => //.
-    by iExists hv.
+    iSplitL "Hwfcl".
+    + iSplit => //.
+      iExists cl.
+      iFrame.
+      iPureIntro.
+      rewrite lookup_insert.
+      split => //.
+      by rewrite Hcltype.
+    + iSplit => //.
+      by iExists hv.
   - iIntros (v) "H".
     iDestruct "H" as "(Hmod & Himphost & Himpwasm & Hinst)".
     iDestruct "Hinst" as (inst g_inits) "(%Hinst & Hexpwasm & Hexphost)".
@@ -1253,6 +1456,7 @@ Qed.
 
 (* ***************** END OF EXAMPLES ********************* *)
 
+(* No longer in use
 
 Print instantiation.instantiate.
 Print module_export.
@@ -1622,8 +1826,8 @@ Proof.
 *)
 Admitted.
       
-
-
+*)
+End Example_Add.
 
                    
 

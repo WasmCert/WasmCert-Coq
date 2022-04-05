@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -41,13 +41,13 @@ Section fundamental.
     iDestruct "Hv" as (z) "->".
     iSimpl.
 
-    iDestruct (interp_instance_get_mem with "Hi") as (τm mem Hlook1 Hlook2) "#Hm";auto.
+    iDestruct (interp_instance_get_mem with "Hi") as (τm mem Hlook1 Hlook2) "[_ #Hm]";auto.
     rewrite nth_error_lookup in Hlook1.
     rewrite nth_error_lookup in Hlook2.
     iApply fupd_wp.
     iDestruct "Hfv" as (locs Hlocs) "[#Hlocs Hown]".
     iMod (na_inv_acc with "Hm Hown") as "(Hms & Hown & Hcls)";[solve_ndisj..|].
-    iDestruct "Hms" as (ms) "[>Hmemblock >%Hmemtyping]".
+    iDestruct "Hms" as (ms) ">Hmemblock".
     iDestruct "Hmemblock" as "[Hmem Hsize]".
     iModIntro.
 
@@ -67,7 +67,7 @@ Section fundamental.
                   mem_max_opt := (mem_max_opt ms) |}.
         unfold mem_block. simpl ml_data.
         rewrite big_sepL_app.
-        iFrame. iSplitL;[iSplitL "Hb"|].
+        iFrame. iSplitL "Hb".
         { iApply (big_sepL_mono with "Hb").
           iIntros (k y Hy). iSimpl. iIntros "H".
           rewrite Nat2N.id. iFrame. }
@@ -77,15 +77,6 @@ Section fundamental.
                      Wasm_int.N_of_uint i32m z * page_size)%N =
                     N.of_nat (length (ml_data (mem_data ms)) +
                       N.to_nat (Z.to_N (Wasm_int.Int32.unsigned z) * page_size))) as ->;[simpl;lia|iFrame]. }
-        { iPureIntro.
-          unfold mem_typing, mem', mem_size, mem_length, memory_list.mem_length.
-          unfold mem_typing, mem', mem_size, mem_length, memory_list.mem_length in Hmemtyping. simpl in *.
-          rewrite app_length repeat_length.
-          revert Hmemtyping. move/andP=>[Hle Hcond]. apply/andP. split;auto.
-          apply N.leb_le in Hle. apply N.leb_le.
-          rewrite Nat2N.inj_add N2Nat.id.
-          rewrite N.div_add;[lia|]. unfold page_size. lia.
-        }
       }
       iSplitR;[|iExists _;iFrame;iExists _;eauto].
       iModIntro. iLeft;iRight.
@@ -93,7 +84,7 @@ Section fundamental.
       iSimpl. iSplit =>//. iExists _;eauto.
     }
     { iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-      { iNext. iExists _. iFrame. auto. }
+      { iNext. iExists _. iFrame. }
       iSplitR;[|iExists _;iFrame;iExists _;eauto].
       iModIntro. iLeft;iRight.
       iExists _;iSplit;[eauto|].

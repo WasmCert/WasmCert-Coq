@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -111,13 +111,13 @@ Section fundamental.
     iDestruct "Hv" as (z) "->".
     iSimpl.
 
-    iDestruct (interp_instance_get_mem with "Hi") as (τm mem Hlook1 Hlook2) "#Hm";auto.
+    iDestruct (interp_instance_get_mem with "Hi") as (τm mem Hlook1 Hlook2) "[_ #Hm]";auto.
     rewrite nth_error_lookup in Hlook1.
     rewrite nth_error_lookup in Hlook2.
     iApply fupd_wp.
     iDestruct "Hfv" as (locs Hlocs) "[#Hlocs Hown]".
     iMod (na_inv_acc with "Hm Hown") as "(Hms & Hown & Hcls)";[solve_ndisj..|].
-    iDestruct "Hms" as (ms) "[>Hmemblock >%Hmemtyping]".
+    iDestruct "Hms" as (ms) ">Hmemblock".
     iDestruct "Hmemblock" as "[Hmem Hsize]".
     iModIntro.
 
@@ -131,7 +131,7 @@ Section fundamental.
         { by iApply (wp_load_packed_failure with "[$Hf $Hsize]");[by rewrite Hlocs /=|by apply N.lt_gt|]. }
         iIntros (v) "[[-> Hsize] Hf]".
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-        { iNext. iExists _. iFrame. eauto. }
+        { iNext. iExists _. iFrame. }
         iModIntro.
         iSplitR;[by iLeft; iLeft|iExists _;iFrame].
         iExists _. eauto. 
@@ -143,7 +143,7 @@ Section fundamental.
         iIntros (v) "[[-> Ha] Hf]".
         iDestruct ("Hmem" with "Ha") as "Hmem".
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-        { iNext. iExists _. iFrame. eauto. }
+        { iNext. iExists _. iFrame. }
         iModIntro.
         iSplitR;[iLeft; iRight|iExists _;iFrame;iExists _;eauto].
         iExists _. iSplit;[eauto|]. iSimpl.
@@ -160,7 +160,7 @@ Section fundamental.
         { by iApply (wp_load_failure with "[$Hf $Hsize]");[by rewrite Hlocs /=|by apply N.lt_gt|]. }
         iIntros (v) "[[-> Hsize] Hf]".
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-        { iNext. iExists _. iFrame. eauto. }
+        { iNext. iExists _. iFrame. }
         iModIntro.
         iSplitR;[by iLeft; iLeft|iExists _;iFrame].
         iExists _. eauto. 
@@ -172,7 +172,7 @@ Section fundamental.
         iIntros (v) "[[-> Ha] Hf]".
         iDestruct ("Hmem" with "Ha") as "Hmem".
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
-        { iNext. iExists _. iFrame. eauto. }
+        { iNext. iExists _. iFrame. }
         iModIntro.
         iSplitR;[iLeft; iRight|iExists _;iFrame;iExists _;eauto].
         iExists _. iSplit;[eauto|]. iSimpl.

@@ -14,7 +14,7 @@ Require Export datatypes host operations properties opsem.
 Close Scope byte_scope.
 
 Section structural_rules.
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
 Lemma wp_wasm_empty_ctx (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e :
   ⊢ WP e @ s ; E {{ Φ }} ∗-∗ WP e @ s ; E CTX_EMPTY {{ Φ }}.
