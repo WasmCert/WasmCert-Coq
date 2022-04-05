@@ -24,6 +24,125 @@ Let reducible := @reducible wasm_lang.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
+Lemma mem_block_lookup_data wms n mem:
+  ⊢ (gen_heap_interp (gmap_of_memory wms)) -∗
+  (gen_heap_interp (gmap_of_list (fmap mem_length wms))) -∗
+  n ↦[wmblock] mem -∗
+  ⌜ ∃ m, wms !! (N.to_nat n) = Some m /\ m.(mem_data).(ml_data) = mem.(mem_data).(ml_data)⌝.
+Proof.
+  iIntros "Hwm Hwmlength Hm".
+  unfold mem_block.
+  iDestruct "Hm" as "(Hmelem & Hmlength & _)".
+  iDestruct (gen_heap_valid with "Hwmlength Hmlength") as "%Hmlength".
+  rewrite gmap_of_list_lookup list_lookup_fmap in Hmlength.
+  destruct (wms !! N.to_nat n) eqn:Hmem => //.
+  
+  iAssert (⌜∀ i, mem.(mem_data).(ml_data) !! i = m.(mem_data).(ml_data) !! i⌝%I) as "%Hmldata".
+  {
+    iIntros (i).
+    destruct (mem.(mem_data).(ml_data) !! i) eqn:Hmemdata => /=.
+    - iDestruct (big_sepL_lookup with "Hmelem") as "Hmelem" => //.
+      iDestruct (gen_heap_valid with "Hwm Hmelem") as "%Hmelem".
+      rewrite gmap_of_list_2d_lookup list_lookup_fmap Hmem in Hmelem.
+      simpl in Hmelem.
+      by rewrite Nat2N.id in Hmelem.
+    - rewrite -> lookup_ge_None in Hmemdata.
+      iPureIntro. symmetry.
+      rewrite -> lookup_ge_None.
+      repeat unfold mem_length, memory_list.mem_length in Hmlength.
+      simpl in Hmlength.
+      inversion Hmlength; subst; clear Hmlength.
+      apply Nat2N.inj in H0.
+      by lias.
+  }
+  iPureIntro.
+  exists m.
+  split => //.
+  by apply list_eq.
+Qed.
+
+Lemma mem_block_lookup wms n mem:
+  ⊢ (gen_heap_interp (gmap_of_memory wms)) -∗
+  (gen_heap_interp (gmap_of_list (fmap mem_length wms))) -∗
+  (gen_heap_interp (gmap_of_list (fmap mem_max_opt wms))) -∗
+  n ↦[wmblock] mem -∗
+  ⌜ ∃ m, wms !! (N.to_nat n) = Some m /\ m.(mem_data).(ml_data) = mem.(mem_data).(ml_data) /\ m.(mem_max_opt) = mem.(mem_max_opt)⌝.
+Proof.
+  iIntros "Hwm Hwmlength Hwmlimit Hm".
+  unfold mem_block.
+  iDestruct "Hm" as "(Hmelem & Hmlength & Hmlimit)".
+  iDestruct (gen_heap_valid with "Hwmlimit Hmlimit") as "%Hmlimit".
+  rewrite gmap_of_list_lookup list_lookup_fmap in Hmlimit.
+  iDestruct (mem_block_lookup_data with "Hwm Hwmlength [$]") as "%H".
+  destruct (wms !! N.to_nat n) eqn:Hmem => //.
+  destruct H as [m0 [Hmeq Hmdata]].
+  inversion Hmeq; subst; clear Hmeq.
+  iPureIntro.
+  exists m0.
+  repeat split => //.
+  simpl in Hmlimit.
+  by inversion Hmlimit.
+Qed.
+
+Lemma tab_block_lookup_data wts n tab:
+  ⊢ (gen_heap_interp (gmap_of_table wts)) -∗
+  (gen_heap_interp (gmap_of_list (fmap tab_size wts))) -∗
+  n ↦[wtblock] tab -∗
+  ⌜ ∃ t, wts !! (N.to_nat n) = Some t /\ t.(table_data) = tab.(table_data)⌝.
+Proof.
+  iIntros "Hwt Hwtsize Ht".
+  unfold tab_block.
+  iDestruct "Ht" as "(Htelem & Htsize & Htlimit)".
+  iDestruct (gen_heap_valid with "Hwtsize Htsize") as "%Htsize".
+  rewrite gmap_of_list_lookup list_lookup_fmap in Htsize.
+  destruct (wts !! N.to_nat n) eqn:Htab => //.
+  
+  iAssert (⌜∀ i, tab.(table_data) !! i = t.(table_data) !! i⌝%I) as "%Htdata".
+  {
+    iIntros (i).
+    destruct (tab.(table_data) !! i) eqn:Htdata => /=.
+    - iDestruct (big_sepL_lookup with "Htelem") as "Htelem" => //.
+      iDestruct (gen_heap_valid with "Hwt Htelem") as "%Htelem".
+      rewrite gmap_of_list_2d_lookup list_lookup_fmap Htab in Htelem.
+      simpl in Htelem.
+      by rewrite Nat2N.id in Htelem.
+    - rewrite -> lookup_ge_None in Htdata.
+      iPureIntro. symmetry.
+      rewrite -> lookup_ge_None.
+      unfold tab_size in Htsize.
+      simpl in *.
+      inversion Htsize; by lias.
+  }
+  iPureIntro.
+  exists t.
+  split => //.
+  by apply list_eq.
+Qed.
+
+Lemma tab_block_lookup wts n tab:
+  ⊢ (gen_heap_interp (gmap_of_table wts)) -∗
+  (gen_heap_interp (gmap_of_list (fmap tab_size wts))) -∗
+  (gen_heap_interp (gmap_of_list (fmap table_max_opt wts))) -∗
+  n ↦[wtblock] tab -∗
+  ⌜ wts !! (N.to_nat n) = Some tab⌝.
+Proof.
+  iIntros "Hwt Hwtsize Hwtlimit Ht".
+  unfold tab_block.
+  iDestruct "Ht" as "(Htelem & Htsize & Htlimit)".
+  iDestruct (gen_heap_valid with "Hwtlimit Htlimit") as "%Htlimit".
+  rewrite gmap_of_list_lookup list_lookup_fmap in Htlimit.
+  iDestruct (tab_block_lookup_data with "Hwt Hwtsize [$]") as "%H".
+  destruct (wts !! N.to_nat n) eqn:Htab => //.
+  destruct H as [t0 [Hteq Htdata]].
+  inversion Hteq; subst; clear Hteq.
+  iPureIntro.
+  simpl in Htlimit.
+  inversion Htlimit; subst; clear Htlimit.
+  destruct t0, tab.
+  simpl in *.
+  by subst.
+Qed.
+
 
 Definition mem_block_equiv (m1 m2: memory) :=
   m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).

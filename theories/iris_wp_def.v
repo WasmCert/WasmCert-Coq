@@ -174,8 +174,6 @@ Notation "n ↦[wms][ i ] l" := (mem_block_at_pos n l i)
 Notation "n ↦[wtblock] t" := (tab_block n t)
                            (at level 20, format "n ↦[wtblock] t"): bi_scope.
 
-(* Predicate for memory blocks *)
-
 Section Wasm_wp.
   Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
 
