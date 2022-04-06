@@ -82,7 +82,7 @@ Inductive host_reduce: host_config -> host_config -> Prop :=
 | HR_host_step: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs,
     ms !! (N.to_nat vm) = Some m ->
     those ((lookup_export_vi vis) <$> vimps) = Some imps ->
-    map (fun imp => imp.(modexp_desc)) imps = imp_descs ->
+    fmap (fun imp => imp.(modexp_desc)) imps = imp_descs ->
     instantiate s m imp_descs ((s', inst, exps), start) ->
     length viexps = length exps ->
     const_list vs ->
@@ -690,12 +690,26 @@ Print map.
 
 Print extern_t.
 
+Print ext_funcs.
+
+Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
+Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
+Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
+Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
+
+Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global) : iProp Σ :=
+  ⌜ dom (gset nat) wfs = list_to_set (ext_func_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wts = list_to_set (ext_tab_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wms = list_to_set (ext_mem_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wgs = list_to_set (ext_glob_addrs (fmap modexp_desc v_imps)) ⌝.
+
 (* Resources in the Wasm store, corresponding to those referred by the host vis store. This needs to also type-check
    with the module import. *)
 Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global): iProp Σ :=
   (* Note that we do not actually need to know the exact content of the imports. However, these information are present
      in this predicate to make sure that they are kept incontact in the post. Note how these four gmaps are quantified
      in the instantiation spec. *)
+  import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
   | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
@@ -703,6 +717,18 @@ Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps:
   | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
   | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
   end.
+
+Check ext_funcs.
+
+Print dom.
+
+Search gmap dom.
+
+Search gset.
+
+Search gset list.
+
+Search gset eq.
 
 (*
 Print module.
@@ -810,13 +836,6 @@ Print alloc_module.
 
 Print module_export_desc.
 
-Print ext_funcs.
-
-Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
-Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
-Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
-Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
-
 Search big_sepL2.
 
 Lemma import_resources_host_lookup hs_imps v_imps vis:
@@ -853,10 +872,10 @@ Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
       | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
       | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt
       end ⌝.
-Proof.
-  iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit Himpwasm".
+Proof. (*
+  iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit (Himpwasmdom & Himpwasm)".
   iApply big_sepL2_pure.
-  iInduction v_imps as [|v_imp v_imps'] "IH" forall (t_imps); first by destruct t_imps.
+  iInduction v_imps as [|v_imp v_imps'] "IH" forall (t_imps wfs wts wms wgs); first by destruct t_imps => //.
   destruct t_imps => //=.
   iDestruct "Himpwasm" as "(Hvimp & Himpwasm)".                                 
   destruct (modexp_desc v_imp) eqn:Hvimp.
@@ -866,7 +885,7 @@ Proof.
     destruct Hwfs as [Hwfs ->].
     iDestruct (gen_heap_valid with "Hwf Hcl") as "%Hwf".
     rewrite gmap_of_list_lookup in Hwf.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    iSplit; last iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit] [Himpwasmdom]") => //.
     iPureIntro.
     exists cl.
     repeat split => //.
@@ -910,17 +929,16 @@ Proof.
     iPureIntro.
     exists g, gt.
     repeat split => //.
-    by rewrite Nat2N.id in Hwg.
-Qed.      
-
-
+    by rewrite Nat2N.id in Hwg.*)
+Admitted.
+  
 Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
   export_ownership_host hs_exps.
 
-Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
+Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
@@ -930,7 +948,8 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
     prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
     prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
-    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)
+    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
+    check_start m inst idfstart
     ⌝ ∗
     module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
@@ -939,12 +958,17 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
 Definition gen_index offset len : list nat :=
   imap (fun i x => i+offset+x) (repeat 0 len).
 
-Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs:
+(*
+Lemma alloc_func_gen_index:
+
+ *)
+
+Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
-  {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps }}.
+  {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps None }}.
 Proof.
   
   move => Hmodstart Hmodtype.
@@ -968,13 +992,25 @@ Proof.
   iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
   destruct Himpwasm as [Hvtlen Himpwasm].
 
+  remember {| inst_types := m.(mod_types);
+                  inst_funcs := ext_func_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
+                  inst_tab := ext_tab_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_tables)) (length m.(mod_tables)));
+                  inst_memory := ext_mem_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_mems)) (length m.(mod_mems)));
+                  inst_globs := ext_glob_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_globals)) (length m.(mod_globals)))
+               |} as inst_res.
+  
   (* Prove that the instantiation predicate holds *)
-  assert (exists ws_res inst_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  assert (exists ws_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
   {
+    unfold alloc_module => /=.
+    destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
+    destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
+    destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
+    destruct (alloc_globs host_function s2 (mod_globals m) (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals)))) eqn:Hallocglob.
     unfold instantiate, instantiation.instantiate.
-    do 3 eexists.
-    exists None, t_imps, t_exps, hs.
-    do 4 eexists.
+    do 2 eexists.
+    exists None, t_imps, t_exps, hs, s3, (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals))).
+    do 2 eexists.
     repeat split.
     - (* module_typing *)
       by apply Hmodtype.
@@ -1022,18 +1058,30 @@ Proof.
         apply lookup_lt_Some in Hwg.
         by lias.
     - (* alloc module *)
-     (* remember {| inst_types := m.(mod_types);
-                  inst_funcs := ext_func_addrs (fmap modexp_desc m.(mod_exports)) ++ (fmap Mk_funcidx (gen_index (length ws.(s_funcs)) (length m.(mod_funcs))));
-                  inst_tab := ext_tab_addrs (fmap modexp_desc m.(mod_exports));
-                  inst_memory := ext_mem_addrs (fmap modexp_desc m.(mod_exports));
-                  inst_globs := ext_glob_addrs (fmap modexp_desc m.(mod_exports))
-               |} as inst.
-      unfold alloc_module.
-      instantiate (1 := inst).
-      simpl.*)
-                           
-      
-      admit.
+      rewrite Hallocglob. 
+      repeat (apply/andP; split); try apply/eqP; subst => //=.
+      + (* Functions *)
+        unfold ext_func_addrs => /=.
+        rewrite map_app => /=.
+        (* The first part is the same. *)
+        f_equal.
+        (* We now have to prove that gen_index gives the correct indices of the newly allocated functions. This should
+           be a general property that holds for alloc_Xs, tbh. *)
+        remember (mod_funcs m) as modfuncs.
+        generalize dependent l.
+        generalize dependent s0.
+        induction modfuncs => /=; move => s0 Halloctab l Hallocfunc.
+          
+        simpl.(*
+        rewrite fmap_map.
+        rewrite - fmap_imap.*)
+        admit.
+      + (* Tables *)
+        admit.
+      + (* Memories *)
+        admit.
+      + (* Globals *)
+        admit.
     - (* global initializers *)
       admit.
     - (* table initializers *)
@@ -1045,9 +1093,12 @@ Proof.
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
+      (*
       unfold check_start.
-      by rewrite Hmodstart => /=.
+      by rewrite Hmodstart => /=.*)
+      admit.
     - (* putting initlialized items into the store *)
+      admit.
       admit.
   }
   
@@ -1100,11 +1151,14 @@ Proof.
 *)
 Admitted.
 
-Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
+Print instantiation.instantiate.
+
+
+Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart idnstart (Φ: host_val -> iProp Σ):
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
   module_typing m t_imps t_exps ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
-  (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗ WP (([::], [::AI_invoke nstart]) : host_expr) {{ Φ }}) -∗
+  ( (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP (([::], [::AI_invoke idnstart]) : host_expr) {{ Φ }}) -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E {{ Φ }}.
 Proof.
 Admitted.
@@ -1233,7 +1287,7 @@ Proof.
     by unfold module_export_typing => /=.    
 Qed.
 
-
+(*
 Lemma add_instantiate_spec (s: stuckness) E hv:
   0%N ↪[mods] Add_module -∗
   0%N ↪[vis] hv -∗
@@ -1453,7 +1507,7 @@ Proof.
     iFrame.
 Qed.
 
-
+*)
 (* ***************** END OF EXAMPLES ********************* *)
 
 (* No longer in use
