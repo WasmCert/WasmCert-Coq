@@ -1072,7 +1072,7 @@ Proof.
         generalize dependent s0.
         induction modfuncs => /=; move => s0 Halloctab l Hallocfunc.
           
-        simpl.(*
+        simpl. (*
         rewrite fmap_map.
         rewrite - fmap_imap.*)
         admit.
