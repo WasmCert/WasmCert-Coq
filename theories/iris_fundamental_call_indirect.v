@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -27,7 +27,7 @@ Section fundamental.
       ∃ τt a, ⌜(tc_table C) !! 0 = Some τt⌝
             ∗ ⌜(inst_tab j) !! 0 = Some a⌝
             ∗ ∃ table_size, (N.of_nat a) ↪[wtsize] table_size
-                          ∗ (interp_table (HWP:=HWP) table_size) (N.of_nat a).
+                          ∗ (interp_table table_size (interp_closure (HWP:=HWP))) (N.of_nat a).
   Proof.
     iIntros (Hnil) "#Hi".
     destruct C,j.

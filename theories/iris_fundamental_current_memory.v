@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -39,13 +39,13 @@ Section fundamental.
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
     destruct ws;[|done]. rewrite app_nil_l.
 
-    iDestruct (interp_instance_get_mem with "Hi") as (τm mem Hlook1 Hlook2) "#Hm";auto.
+    iDestruct (interp_instance_get_mem with "Hi") as (τm mem Hlook1 Hlook2) "[_ #Hm]";auto.
     rewrite nth_error_lookup in Hlook1.
     rewrite nth_error_lookup in Hlook2.
     iApply fupd_wp.
     iDestruct "Hfv" as (locs Hlocs) "[#Hlocs Hown]".
     iMod (na_inv_acc with "Hm Hown") as "(Hms & Hown & Hcls)";[solve_ndisj..|].
-    iDestruct "Hms" as (ms) "[>Hmemblock >%Hmemtyping]".
+    iDestruct "Hms" as (ms) ">Hmemblock".
     iDestruct "Hmemblock" as "[Hmem Hsize]".
     iModIntro.
 
@@ -54,7 +54,7 @@ Section fundamental.
     { iApply (wp_current_memory with "[$Hf $Hsize]");auto. by rewrite Hlocs /=. }
     iIntros (v) "[[-> Hsize] Hf]".
     iMod ("Hcls" with "[Hsize Hmem $Hown]") as "Hown".
-    { iNext. iExists _; iFrame. auto. }
+    { iNext. iExists _; iFrame. }
     iModIntro.
     iSplitR;[|iExists _;iFrame;iExists _;eauto].
     iLeft. iRight. iExists _. iSplit;eauto.
