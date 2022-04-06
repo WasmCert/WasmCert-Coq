@@ -292,6 +292,7 @@ Section Examples.
   Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
              (t_imps: list extern_t) (wfs: gmap nat function_closure)
              (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global): iProp Σ :=
+    import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
   | MED_func (Mk_funcidx i) => ((∃ cl, na_inv logrel_nais (wfN (N.of_nat i)) (N.of_nat i ↦[wf] cl) ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
@@ -312,6 +313,7 @@ Section Examples.
 
   Global Instance imports_invs_persistent v_imps t_imps wfs wts wms wgs : Persistent (import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs).
   Proof.
+    apply bi.sep_persistent;[apply _|].
     apply big_sepL2_persistent=>n exp expt.
     destruct (modexp_desc exp);[destruct f;apply _|
                                  destruct t;apply _|
@@ -324,7 +326,8 @@ Section Examples.
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ={E}=∗
     import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs.
   Proof.
-    iIntros "Himps".
+    iIntros "[Hdom Himps]".
+    iFrame "Hdom".
     iApply big_sepL2_fupd.
     iApply (big_sepL2_mono with "Himps");intros k exp expt Hlook1 Hlook2;simpl.
     destruct (modexp_desc exp);[destruct f|destruct t|destruct m|destruct g];iIntros "Hres".
@@ -352,7 +355,7 @@ Section Examples.
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
     ⌜length (ext_func_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_funcs t_imps)⌝.
   Proof.
-    iIntros "Hi".
+    iIntros "[_ Hi]".
     iDestruct (big_sepL2_length with "Hi") as %Hlen.
     iInduction (v_imps) as [] "IH"
   forall (t_imps Hlen).
@@ -377,7 +380,7 @@ Section Examples.
         rewrite H //. }
     }
   Qed.
-  
+
   Definition module_inst_resources_func_invs (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
     ([∗ list] f; addr ∈ mfuncs; inst_f,
        (* Allocated wasm resources *)
@@ -401,6 +404,72 @@ Section Examples.
     iIntros "Hf".
     iApply na_inv_alloc. iNext. iFrame.
   Qed.
+
+  Lemma module_inst_resources_func_NoDup mfuncs inst inst_f :
+    module_inst_resources_func mfuncs inst inst_f -∗
+    ⌜NoDup inst_f⌝.
+  Proof.
+    iIntros "H". iDestruct (big_sepL2_length with "H") as %Hlen.
+    iInduction inst_f as [] "IH" forall (mfuncs Hlen).
+    { iPureIntro. destruct mfuncs;[|done]. by apply NoDup_nil. }
+    { destruct mfuncs;[done|].
+      rewrite NoDup_cons.      
+      iDestruct "H" as "[H H']".
+      simpl in Hlen. inversion Hlen.
+      iSplit.
+      { iIntros (Hcontr).
+        apply elem_of_list_lookup in Hcontr as [k Hk].
+        apply lookup_lt_Some in Hk as Hlt. rewrite -H0 in Hlt.
+        apply lookup_lt_is_Some_2 in Hlt as [cl Hk'].
+        iDestruct (big_sepL2_lookup with "H'") as "H'";eauto.
+        iDestruct (mapsto_valid_2 with "H H'") as "[% ?]". done. }
+      { iDestruct ("IH" with "[] H'") as "H'";auto. }
+    } 
+  Qed.
+
+  Lemma ext_func_addrs_elem_of fa v_imps :
+    fa ∈ ext_func_addrs (modexp_desc <$> v_imps) ->
+    ∃ name, Build_module_export name (MED_func (Mk_funcidx fa)) ∈ v_imps.
+  Proof.
+    induction v_imps.
+    { cbn. intros Hcontr;inversion Hcontr. }
+    { cbn. intros H. destruct (modexp_desc a) eqn:Ha.
+      { simpl in *. destruct f.
+        apply elem_of_cons in H as [-> | Ha'].
+        { destruct a. eexists. simpl in Ha. rewrite Ha. constructor. }
+        { apply IHv_imps in Ha' as [name Ha']. exists name. constructor. auto. }
+      }
+      all: simpl in *.
+      all: apply IHv_imps in H as [name Ha']; exists name; constructor; auto. 
+    }
+  Qed.    
+
+  Lemma module_res_imports_disj v_imps t_imps wfs wts wms wgs m inst :
+   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
+   module_inst_resources_func (mod_funcs m) inst (drop (get_import_func_count m) (inst_funcs inst)) -∗
+   ⌜∀ i fa, (drop (get_import_func_count m) (inst_funcs inst)) !! i = Some fa -> wfs !! fa = None⌝.
+  Proof.
+    iIntros "[[%Hdom _] Hi] Hf".
+    iIntros (i fa Hsome).
+    iDestruct (big_sepL2_length with "Hf") as %Hlen.
+    apply lookup_lt_Some in Hsome as Hlt. rewrite -Hlen in Hlt.
+    apply lookup_lt_is_Some_2 in Hlt as [cl Hk'].
+    iDestruct (big_sepL2_lookup with "Hf") as "H";eauto.
+    destruct (wfs !! fa) eqn:Hnone;auto.
+    apply elem_of_dom_2 in Hnone.
+    rewrite Hdom in Hnone.
+    apply elem_of_list_to_set in Hnone.
+    apply ext_func_addrs_elem_of in Hnone as [nm Hnone].
+    apply elem_of_list_lookup in Hnone as [k Hk].
+    iDestruct (big_sepL2_length with "Hi") as %Hlen'.
+    apply lookup_lt_Some in Hk as Hlt'.
+    rewrite Hlen' in Hlt'.
+    apply lookup_lt_is_Some_2 in Hlt' as [? ?].
+    iDestruct (big_sepL2_lookup with "Hi") as "HH";eauto.
+    simpl. iDestruct "HH" as (cl') "[H' _]".
+    iDestruct (mapsto_valid_2 with "H H'") as "[% ?]". done.
+  Qed.    
+    
 
   Definition module_inst_resources_tab_invs (mtabs: list module_table) (inst_t: list tableaddr) : iProp Σ :=
     ([∗ list] tab; addr ∈ mtabs; inst_t,
@@ -540,7 +609,7 @@ Section Examples.
     import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs -∗
     ⌜∃ k', t_imps !! k' = Some (ET_func ft) ∧ ∃ fm, v_imps !! k' = Some fm ∧ modexp_desc fm = MED_func (Mk_funcidx fa)⌝.
   Proof.
-    iIntros (Hft Hfa) "Himps".
+    iIntros (Hft Hfa) "[_ Himps]".
     iDestruct (big_sepL2_length with "Himps") as %Hlen.
     iInduction (t_imps) as [] "IH" forall (v_imps k Hlen Hft Hfa).
     { inversion Hft. }
@@ -640,9 +709,11 @@ Section Examples.
            |}).
 
     iExists C. iSplitR;[iModIntro;auto|].
-    iDestruct (import_resources_wasm_typecheck_func_len with "Hir") as %Hlenir.
-    iMod (import_resources_wasm_typecheck_alloc with "Hir") as "#Hir".
     iDestruct "Hmr" as "(Hfr & Htr & Hmr & Hgr)".
+    iDestruct (module_res_imports_disj with "Hir Hfr") as %Hdisj.
+    iDestruct (import_resources_wasm_typecheck_func_len with "Hir") as %Hlenir.
+    iMod (import_resources_wasm_typecheck_alloc with "Hir") as "#Hir".    
+    iDestruct (module_inst_resources_func_NoDup with "Hfr") as %Hnodup.
     iMod (module_inst_resources_func_invs_alloc with "Hfr") as "#Hfr".
     iMod (module_inst_resources_tab_invs_alloc with "Htr") as "#Htr".
     iMod (module_inst_resources_mem_invs_alloc with "Hmr") as "#Hmr".
@@ -655,14 +726,16 @@ Section Examples.
     iSplitR.
     { destruct m. simpl in Hmod.
       simpl in *. auto. }
-    
+
+    (* functions *)
     iSplitR.
     { iSimpl in "Hfr". simpl in Hprefunc.
       iApply big_sepL2_forall.
       iDestruct (big_sepL2_length with "Hfr") as %Hlenfr.      
-      iDestruct (big_sepL2_length with "Hir") as %Himp_len.
       iSplit.
-      { destruct m. simpl in Hmod.
+      { iDestruct "Hir" as "[Hdom Hir]".
+        iDestruct (big_sepL2_length with "Hir") as %Himp_len.
+        destruct m. simpl in Hmod.
         destruct Hmod as (Htypes & Htables & Hmems & Hglobals
                           & Helem & Hdata & Hstart & Himps & Hexps).
         iPureIntro. eapply inst_funcs_length_imp_app;eauto. simpl.
@@ -679,6 +752,7 @@ Section Examples.
         iDestruct (import_funcs_lookup with "Hir") as %Hlook;eauto.
         destruct Hlook as [k' [Hft' Ha']].
         destruct Ha' as [fm [Hfm' Heq]].
+        iDestruct "Hir" as "[Hdom Hir]".
         iDestruct (big_sepL2_lookup with "Hir") as "Haa";eauto.
         rewrite Heq. iDestruct "Haa" as (cl) "[Hown %Hcl]".
         destruct Hcl as [Hwfs Hfteq]. simplify_eq.
@@ -699,42 +773,25 @@ Section Examples.
         simpl.
         rewrite lookup_app_r in Hfa;[|rewrite Hlenir//].
         rewrite Hlenir in Hfa.
+        
+        assert (wfs !! fa = None) as Hnone.
+        { apply Hdisj with ((k - length (ext_t_funcs t_imps))). simpl datatypes.inst_funcs.
+          rewrite Himpdeclapp. erewrite get_import_func_count_length;eauto.
+          rewrite -Hlenir drop_app. rewrite Hlenir. auto. }
+
         iDestruct (big_sepL2_lookup with "Hfr") as "Hf";[eauto..|].
         destruct mf,ft. simpl in *.
         destruct modfunc_type;simplify_eq.
         iExists _. iFrame "#". rewrite Nat2N.id.
-        
-      admit.
+        rewrite Hnone. iSplit;[auto|].
+        destruct Hftyp as [Hle [Heq Hftyp]].
+        revert Heq. move/eqP =>Heq. rewrite Heq. iSplit;auto. }
     }
+
+    
+      
 
   Admitted.
     
-                                    
-  (* Lemma instantiation_spec_operational (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps: *)
-(*   module_typing m t_imps t_exps -> *)
-(*   ∀ wfs wts wms wgs, *)
-(*   hs_mod ↪[mods] m -∗ *)
-(*   import_resources_host hs_imps v_imps -∗ *)
-(*   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗ *)
-(*   export_ownership_host hs_exps -∗ *)
-(*   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E *)
-(*   {{ v, hs_mod ↪[mods] m ∗ *)
-(*         import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *) *)
-(*         import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *) *)
-(*         ∃ inst g_inits, *)
-(*           ⌜ inst.(inst_types) = m.(mod_types) /\ *)
-(*           (* We know what the imported part of the instance must be. *) *)
-(*           let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in *)
-(*           prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\ *)
-(*           prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\ *)
-(*           prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\ *)
-(*           prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) *)
-(*           ⌝ ∗ *)
-(*           module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *) *)
-(*           module_export_resources_host v_imps hs_exps m.(mod_exports) inst (* export resources, in the host store *) *)
-(*           (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted *)
-(*              for now since we can just forbid the initialization of globals anyway *)                                                                                       *)
-(*   }}. *)
-(* Proof. *)
 
 End Examples.
