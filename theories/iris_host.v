@@ -920,7 +920,9 @@ Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wm
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
   export_ownership_host hs_exps.
 
-Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
+Print check_start.
+
+Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
@@ -930,8 +932,10 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
     prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
     prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
-    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)
+    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
+    check_start m inst idfstart
     ⌝ ∗
+                                               
     module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
     (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
@@ -944,7 +948,7 @@ Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_i
   module_typing m t_imps t_exps ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
-  {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps }}.
+  {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps None }}.
 Proof.
   
   move => Hmodstart Hmodtype.
@@ -968,13 +972,25 @@ Proof.
   iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
   destruct Himpwasm as [Hvtlen Himpwasm].
 
+  remember {| inst_types := m.(mod_types);
+                  inst_funcs := ext_func_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
+                  inst_tab := ext_tab_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_tables)) (length m.(mod_tables)));
+                  inst_memory := ext_mem_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_mems)) (length m.(mod_mems)));
+                  inst_globs := ext_glob_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_globals)) (length m.(mod_globals)))
+               |} as inst_res.
+  
   (* Prove that the instantiation predicate holds *)
-  assert (exists ws_res inst_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  assert (exists ws_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
   {
+    unfold alloc_module => /=.
+    destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
+    destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
+    destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
+    destruct (alloc_globs host_function s2 (mod_globals m) (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals)))) eqn:Hallocglob.
     unfold instantiate, instantiation.instantiate.
-    do 3 eexists.
-    exists None, t_imps, t_exps, hs.
-    do 4 eexists.
+    do 2 eexists.
+    exists None, t_imps, t_exps, hs, s3, (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals))).
+    do 2 eexists.
     repeat split.
     - (* module_typing *)
       by apply Hmodtype.
@@ -1022,17 +1038,11 @@ Proof.
         apply lookup_lt_Some in Hwg.
         by lias.
     - (* alloc module *)
-     (* remember {| inst_types := m.(mod_types);
-                  inst_funcs := ext_func_addrs (fmap modexp_desc m.(mod_exports)) ++ (fmap Mk_funcidx (gen_index (length ws.(s_funcs)) (length m.(mod_funcs))));
-                  inst_tab := ext_tab_addrs (fmap modexp_desc m.(mod_exports));
-                  inst_memory := ext_mem_addrs (fmap modexp_desc m.(mod_exports));
-                  inst_globs := ext_glob_addrs (fmap modexp_desc m.(mod_exports))
-               |} as inst.
-      unfold alloc_module.
-      instantiate (1 := inst).
-      simpl.*)
-                           
-      
+      rewrite Hallocglob. (*
+      repeat (apply/andP; split); try apply/eqP; subst => //=.
+      + (* Functions *)
+        unfold ext_func_addrs => /=.
+        admit.*)
       admit.
     - (* global initializers *)
       admit.
@@ -1045,8 +1055,10 @@ Proof.
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
+      (*
       unfold check_start.
-      by rewrite Hmodstart => /=.
+      by rewrite Hmodstart => /=.*)
+      admit.
     - (* putting initlialized items into the store *)
       admit.
   }
@@ -1100,11 +1112,13 @@ Proof.
 *)
 Admitted.
 
-Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
+Print instantiation.instantiate.
+
+Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart idnstart (Φ: host_val -> iProp Σ):
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
   module_typing m t_imps t_exps ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
-  (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗ WP (([::], [::AI_invoke nstart]) : host_expr) {{ Φ }}) -∗
+  ( (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP (([::], [::AI_invoke idnstart]) : host_expr) {{ Φ }}) -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E {{ Φ }}.
 Proof.
 Admitted.
