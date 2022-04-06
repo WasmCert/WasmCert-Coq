@@ -486,7 +486,7 @@ Section fundamental.
     ssrnat.leq (S i) (length (tc_func_t C)) ->
     nth_error (tc_func_t C) i = Some tf ->
     ⊢ interp_instance (HWP:=HWP) C j -∗
-      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (interp_closure (HWP:=HWP)) (N.of_nat f).
+      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (λ _, interp_closure (HWP:=HWP)) (N.of_nat f).
   Proof.
     iIntros (Hle Hnth) "#Hi".
     destruct C,j.

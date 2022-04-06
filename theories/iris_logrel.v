@@ -131,15 +131,15 @@ Section logrel.
                | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ □ interp_closure_host tf1s tf2s h
                end)%I.
   
-  Definition interp_function (τf : function_type) (interp_closure' : function_type -> ClR) : FfR :=
+  Definition interp_function (τf : function_type) (interp_closure' : N -> function_type -> ClR) : FfR :=
     λne n, (∃ (cl : function_closure), na_inv logrel_nais (wfN n) (n ↦[wf] cl)
-                                     ∗ interp_closure' τf cl)%I.
+                                     ∗ interp_closure' n τf cl)%I.
   
   (* --------------------------------------------------------------------------------------- *)
   (* ---------------------------------- TABLE RELATION ------------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_table_entry (τf : function_type) (interp_closure' : function_type -> ClR) : TeR :=
+  Definition interp_table_entry (τf : function_type) (interp_closure' : N -> function_type -> ClR) : TeR :=
     λne n m, (∃ (fe : funcelem), na_inv logrel_nais (wtN n m) (n ↦[wt][m] fe)
                                         ∗ from_option ((interp_function τf interp_closure') ∘ N.of_nat) True fe)%I.
   (* ⊤ means failure is allowed in case the table is not populated *)
@@ -148,7 +148,7 @@ Section logrel.
   (* the table interpretation is a bit tricky: the table size needs to represent the full table, 
      with the capability to increase its size with None entries. A None entry is to describe the 
      out of bounds behaviour of a call indirect (with a trap rather than getting stuck) *)
-  Definition interp_table (table_size : nat) (interp_closure' : function_type -> ClR) : TR :=
+  Definition interp_table (table_size : nat) (interp_closure' : N -> function_type -> ClR) : TR :=
     λne n, ([∗ list] i↦_ ∈ (repeat 0 table_size), ∃ (τf : function_type), interp_table_entry τf interp_closure' n (N.of_nat i))%I.
 
 
@@ -187,7 +187,7 @@ Section logrel.
   (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_instance' (τctx : t_context) (interp_closure' : function_type -> ClR) : IR :=
+  Definition interp_instance' (τctx : t_context) (interp_closure' : N -> function_type -> ClR) : IR :=
     λne i, let '{| inst_types := ts; inst_funcs := fs; inst_tab := tbs; inst_memory := ms; inst_globs := gs; |} := i in
            let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t;
                    tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in 
@@ -216,11 +216,11 @@ Section logrel.
             (* Global declarations *)
            ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.
 
-  Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx interp_closure.
+  Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx (λ n, interp_closure).
   
   
-  Global Instance interp_function_persistent τf n (icl : function_type -> ClR) :
-    (∀ τf cl, Persistent (icl τf cl)) -> Persistent (interp_function τf icl n).
+  Global Instance interp_function_persistent τf n (icl : N -> function_type -> ClR) :
+    (∀ n τf cl, Persistent (icl n τf cl)) -> Persistent (interp_function τf icl n).
   Proof.
     intros Hpers.
     unfold interp_function, interp_closure, interp_closure_host, interp_closure_native.
@@ -232,8 +232,8 @@ Section logrel.
     unfold interp_global.
     destruct (tg_mut τg);apply _.
   Qed.
-  Global Instance interp_instance_persistent' τctx i (icl : function_type -> ClR) :
-    (∀ τf cl, Persistent (icl τf cl)) -> Persistent (interp_instance' τctx icl i).
+  Global Instance interp_instance_persistent' τctx i (icl : N -> function_type -> ClR) :
+    (∀ n τf cl, Persistent (icl n τf cl)) -> Persistent (interp_instance' τctx icl i).
   Proof.
     destruct i, τctx;simpl.
     repeat apply sep_persistent;apply _.
