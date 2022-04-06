@@ -459,8 +459,8 @@ Lemma wp_seq_host_nostart (s : stuckness) (E : coPset) (Φ Ψ : host_val -> iPro
   (modi ↪[mods] m -∗ WP (([::ID_instantiate v_exps modi v_imps], [::]): host_expr) @ s; E {{ w, Ψ w ∗ modi ↪[mods] m }}) -∗
   (∀ w, Ψ w -∗ modi↪[mods] m -∗ WP ((es, [::]): host_expr) @ s; E {{ v, Φ v }}) -∗
   WP (((ID_instantiate v_exps modi v_imps :: es), [::]): host_expr) @ s; E {{ v, Φ v }}.
-Proof.
-  (*
+  Proof.
+    (*
   move => Hnostart.  
   iLöb as "IH" forall (s E es Φ Ψ).
   iIntros "Hmod Hes1 Hes2".
@@ -872,43 +872,38 @@ Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
       | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
       | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt
       end ⌝.
-Proof. (*
+Proof. 
   iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit (Himpwasmdom & Himpwasm)".
-  iApply big_sepL2_pure.
-  iInduction v_imps as [|v_imp v_imps'] "IH" forall (t_imps wfs wts wms wgs); first by destruct t_imps => //.
-  destruct t_imps => //=.
-  iDestruct "Himpwasm" as "(Hvimp & Himpwasm)".                                 
-  destruct (modexp_desc v_imp) eqn:Hvimp.
+  iSplit; first by iApply big_sepL2_length.
+  iIntros (k v t Hv Ht).
+  destruct v as [? modexp_desc].
+  iDestruct (big_sepL2_lookup with "Himpwasm") as "Hvimp" => //.
+  destruct modexp_desc as [e|e|e|e]; destruct e as [n] => /=.
   - (* functions *)
-    destruct f as [n].
     iDestruct "Hvimp" as (cl) "(Hcl & %Hwfs)".
     destruct Hwfs as [Hwfs ->].
     iDestruct (gen_heap_valid with "Hwf Hcl") as "%Hwf".
     rewrite gmap_of_list_lookup in Hwf.
-    iSplit; last iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit] [Himpwasmdom]") => //.
+    rewrite Nat2N.id in Hwf.
+    rewrite Hwf.
     iPureIntro.
     exists cl.
-    repeat split => //.
-    by rewrite Nat2N.id in Hwf.
+    by repeat split => //.
   - (* tables *)
-    destruct t as [n].
     iDestruct "Hvimp" as (tab tt) "(Htab & %Hwts)".
     destruct Hwts as [Hwts [-> Htabletype]]. 
     iDestruct (tab_block_lookup with "Hwt Hwtsize Hwtlimit Htab") as "%Hwt".
     rewrite Nat2N.id in Hwt.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
     iPureIntro.
     exists tab, tt.
     by repeat split => //.
   - (* memories *)
-    destruct m as [n].
     iDestruct "Hvimp" as (mem mt) "(Hmem & %Hwms)".
     destruct Hwms as [Hwms [-> Hmemtype]]. 
     iDestruct (mem_block_lookup with "Hwm Hwmlength Hwmlimit Hmem") as "%Hwm".
     rewrite Nat2N.id in Hwm.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
-    iPureIntro.
     destruct Hwm as [m [Hwmlookup [Hmdata Hmlimit]]].
+    iPureIntro.
     eexists _, mt, m.(mem_data).(ml_init).
     repeat split => //.
     rewrite Hwmlookup.
@@ -920,18 +915,16 @@ Proof. (*
     simpl in *.
     by f_equal.
   - (* globals *)
-    destruct g as [n].
     iDestruct "Hvimp" as (g gt) "(Hg & %Hwgs)".
     destruct Hwgs as [Hwgs [-> Hgt]].
     iDestruct (gen_heap_valid with "Hwg Hg") as "%Hwg".
     rewrite gmap_of_list_lookup in Hwg.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    rewrite Nat2N.id in Hwg.
     iPureIntro.
     exists g, gt.
-    repeat split => //.
-    by rewrite Nat2N.id in Hwg.*)
-Admitted.
-  
+    by repeat split => //.
+Qed.
+    
 Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
@@ -1072,7 +1065,7 @@ Proof.
         generalize dependent s0.
         induction modfuncs => /=; move => s0 Halloctab l Hallocfunc.
           
-        simpl.(*
+        simpl. (*
         rewrite fmap_map.
         rewrite - fmap_imap.*)
         admit.
