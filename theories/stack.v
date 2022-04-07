@@ -3270,7 +3270,7 @@ Section Client.
       iApply wp_host_wasm.
       by apply HWEV_invoke.
       iApply wp_wand_r.
-      iSplitL.
+      iSplitR "Hmod1".
       rewrite - (app_nil_l [AI_invoke idnstart]).
       iApply (wp_invoke_native with "Hf Hwfcl").
       done. done. done.
@@ -3282,7 +3282,7 @@ Section Client.
       done. done. done. done.
       iIntros "!> Hf".
       iApply (wp_label_bind with
-               "[Hwg Hf Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Hlen]") ; last first.
+               "[Hwg Hf Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Hlen Hexphost]") ; last first.
       iPureIntro.
       unfold lfilled, lfill => /=.
       instantiate (5 := []) => /=.
@@ -3775,7 +3775,11 @@ Section Client.
           done.
           all: try by iIntros "[% _]".
           all: try by iIntros "[[% _] _]".
-          instantiate ( 1 := λ v, (⌜ v = immV [] ⌝ ∗ ∃ g, N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 2 |} ∨ N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1) |})%I ).
+          instantiate ( 1 := λ v, (⌜ v = immV [] ⌝ ∗ ∃ g, (N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 2 |} ∨ N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1) |}) ∗ 5%N ↪[vis] {|
+                                                                                                                                                                                                     modexp_name := name;
+                           modexp_desc :=
+                             MED_global (Mk_globalidx g)
+                         |} )%I ).
 (*          instantiate (1 := λ v1, ( ⌜ v1 = immV [] ⌝  ∗
                                                 (* N.of_nat idf1↦[wf]FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗
                                             N.of_nat idf2↦[wf]FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
@@ -3790,7 +3794,7 @@ Section Client.
           iNext.
           iSplit ; first done.
           iExists g.
-          by iLeft. }
+          iFrame. }
           destruct Hret as [sh ->].
           iApply wp_value.
           unfold IntoVal.
@@ -3831,96 +3835,30 @@ Section Client.
           iIntros "Hf".
           iApply wp_return.
           3:{ unfold of_val.
-              Check sfill_to_lfilled.
-              Check lh_depth.
-          iApply wp_wand_r.
-          iSplitL.
-          iApply wp_label_value.
-          rewrite app_nil_r.
-          rewrite (to_of_val (retV (sh_append sh _))).
+              instantiate (1 := []).
+              apply sfill_to_lfilled. } 
           done.
-          
-          iApply wp_wand_r.
-          iSplitL.
-          iApply ("Hspec3" with "[Hf Hs Himpfcl3]").
-
-          
-
-          
-        - iIntros (v) "(Hmod & Himphost & Himpwasm & Hinst)".
-          iDestruct "Hinst" as (inst g_inits) "(%Hinst & Hexpwasm & Hexphost)".
-          destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
-          unfold module_inst_resources_wasm, module_export_resources_host => /=.
-          destruct inst => /=.
-          iDestruct "Hexpwasm" as "(Hexpwf & Hexpwt & Hexpwm & Hexpwg)".
-          unfold module_inst_resources_func, module_inst_resources_tab,
-            module_inst_resources_mem, module_inst_resources_glob => /=.
-          unfold big_sepL2 => /=.
-          do 5 (destruct inst_funcs as [| ? inst_funcs] ; first by iExFalso ; iExact "Hexpwf").
-          rewrite drop_0.
-          destruct inst_funcs ; first by iExFalso ; iExact "Hexpwf".
-          iDestruct "Hexpwf" as "[Hwfcl Hexpwf]".
-          destruct inst_funcs ; last by iExFalso ; iExact "Hexpwf".
-          destruct inst_tab ; last by iExFalso ; iExact "Hexpwt".
-          destruct inst_memory ; last by iExFalso ; iExact "Hexpwm".
-          destruct inst_globs as [| g inst_globs] ; first by iExFalso ; iExact "Hexpwg". 
-          iDestruct "Hexpwg" as "[Hwg Hexpwg]".
-          destruct inst_globs ; last by iExFalso ; iExact "Hexpwg". 
-          iDestruct "Hexphost" as "[Hexphost _]".
-          iDestruct "Hexphost" as (name) "Hexphost" => /=.
-          unfold import_resources_wasm_typecheck => /=.
-          iDestruct "Himpwasm" as "(Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & _)".
-          iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
-          iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
-          iDestruct "Himpw2" as (cl2) "[Himpfcl2 %Hcltype2]".
-          iDestruct "Himpw3" as (cl3) "[Himpfcl3 %Hcltype3]".
-          iDestruct "Himpw4" as (cl4) "[Himpfcl4 %Hcltype4]".
-          iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl1") as "%H01" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl2") as "%H02" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl3") as "%H03" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl4") as "%H04" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl2") as "%H12" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl3") as "%H13" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl4") as "%H14" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl2 Himpfcl3") as "%H23" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl2 Himpfcl4") as "%H24" ; first by eauto.
-          iDestruct (mapsto_frac_ne with "Himpfcl3 Himpfcl4") as "%H34" ; first by eauto.
-          rewrite lookup_insert in Hcltype0.
-          destruct Hcltype0 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-          rewrite lookup_insert_ne in Hcltype1 ; last lia.
-          rewrite lookup_insert in Hcltype1.
-          destruct Hcltype1 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-          do 2 (rewrite lookup_insert_ne in Hcltype2 ; last lia).
-      rewrite lookup_insert in Hcltype2.
-      destruct Hcltype2 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 3 (rewrite lookup_insert_ne in Hcltype3 ; last lia).
-      rewrite lookup_insert in Hcltype3.
-      destruct Hcltype3 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 4 (rewrite lookup_insert_ne in Hcltype4 ; last lia).
-      rewrite lookup_insert in Hcltype4.
-      destruct Hcltype4 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      simpl in * ; subst.
-      unfold ext_func_addrs in Hinstfunc ; simpl in Hinstfunc.
-      unfold prefix in Hinstfunc.
-      destruct Hinstfunc as [l Hinstfunc].
-      inversion Hinstfunc ; subst ; clear Hinstfunc.
+          done.
+          iApply wp_value.
+          unfold IntoVal.
+          by apply of_to_val.
+          iFrame.
+          iSplit ; first done.
+          iExists g.
+          iFrame.
+          by iIntros "[[[%H _] | [%H _]] _]" ; first done ;
+            destruct H.
+          all : try by iIntros "[%H _]".
+          iIntros "[[H _] _]".
+          iDestruct "H" as (k) "[%H _]".
+          done. }
+      iIntros (w0) "[[-> Hwg] Hf]".
       iFrame.
-      iExists _ , _.
+      iDestruct "Hwg" as (g') "[Hwg Hvis5]".
+      iExists g', _.
       iFrame.
+  Qed.
 
-          
-          
-  
-  
-      
-    
-
-      Check instantiation_spec_operational.
-      module
-        export_ownership_host
-        instance
-        ID_instantiate    
-
-
-        End stack.    
+  End Client.
+End stack.    
       
