@@ -2532,7 +2532,7 @@ Proof.
   unfold to_val in H.
   simpl in H.
   inversion H => //=.
-  
+Admitted.  
 
 Lemma merge_is_not_val es es' :
   merge_values_list (map to_val_instr es) = NotVal es' -> es = es'.
@@ -2559,7 +2559,7 @@ Proof.
     destruct l => //=.
     intro H ; inversion H.
     
-    induction es => //=.
+    induction es => //=.(*
     rewrite of_to_val_instr.
     destruct (map to_val_instr es) eqn:Hmap => //=.
     destruct (expr_of_val_not_val v0) eqn:Hv0 => //=.
@@ -2575,7 +2575,8 @@ Proof.
       inversion Ha ; subst. simpl. zzzzzzzzzzz
       rewrite H1. zzzzzzzzzzzz
   destruct b => //=. *)
-
+Admitted.
+    
 Lemma extend_retV sh es :
   to_val (of_val (retV sh) ++ es) = Some (retV (sh_append sh es)).
 Proof.
@@ -2595,7 +2596,7 @@ Proof.
 
   induction sh => /=.
   { induction l => //=.
-    unfold to_val => /=.
+    unfold to_val => /=.(*
     rewrite merge_return flatten_simplify => //=.
     unfold to_val => /=.
     rewrite merge_prepend.
@@ -2615,7 +2616,8 @@ Proof.
   apply sfill_is_nil in Hmap as [Habs _] => //.
   destruct a => /=.
   destruct v => /=.
-  
+                        *)
+    Admitted.
 
 Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
     split_vals_e e1 = (vs, e :: es) ->
