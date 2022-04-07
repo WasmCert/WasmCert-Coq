@@ -2457,11 +2457,165 @@ Proof.
       by rewrite Hvfill0.
 Qed.      
     
+(*
+Lemma merge_not_val_nil vs :
+  (NotVal [] ∈ vs -> False) ->
+  merge_values_list vs <> NotVal [].
+Proof.
+  intro H.
+  induction vs => //=.
+  destruct a => //=.
+  rewrite merge_prepend.
+  destruct v, (merge_values_list vs) eqn:Hmerge => //=.
+  destruct v => //=.
+  destruct l => //=.
+  destruct e => //=.
+  exfalso ; apply IHvs => //.
+  intro ; apply H.
+  by right.
+  intro Habs ; inversion Habs.
+  apply app_eq_nil in H1 as [??] => //.
+  destruct (of_val v) => //.
+  destruct e => //.
+  destruct e ; first by exfalso ; apply H ; left.
+  intro Habs ; inversion Habs.
+Qed. *)
+  
 
+Lemma flatten_map_expr_of_val_not_val vs :
+  flatten (map expr_of_val_not_val vs) =
+    expr_of_val_not_val (merge_values_list vs).
+Proof.
+  induction vs => //=.
+  destruct a => //=.
+  rewrite IHvs.
+  rewrite merge_prepend.
+  by rewrite val_not_val_combine_app.
+Qed.
+
+Lemma merge_app vs1 vs2:
+  merge_values_list (vs1 ++ vs2) =
+    match (merge_values_list vs1) with
+    | Val v1 => val_not_val_combine v1 (merge_values_list vs2)
+    | NotVal e1 => NotVal (e1 ++ expr_of_val_not_val (merge_values_list vs2)) end.
+Proof.
+  induction vs1 => //=.
+  { destruct (merge_values_list vs2) => //.
+    destruct v => //.
+    by rewrite vh_push_const_nil.
+    by rewrite sh_push_const_nil. }
+  destruct a => //.
+  { do 2 rewrite merge_prepend.
+    rewrite IHvs1.  
+    destruct (merge_values_list vs1) eqn:Hvs1 => //=.
+    by rewrite val_not_val_combine_assoc.
+    destruct v => //=.
+    by rewrite app_assoc. 
+    destruct e => //=.
+    destruct (merge_values_list vs2) ;
+      by rewrite vh_append_app.
+    destruct (merge_values_list vs2) ;
+      by rewrite sh_append_app. }
+  rewrite map_app.
+  rewrite flatten_cat.
+  rewrite (flatten_map_expr_of_val_not_val vs2).
+  by rewrite catA.
+Qed.
+
+
+Lemma to_val_is_immV es vs :
+  to_val es = Some (immV vs) -> es = map (λ x, AI_basic (BI_const x)) vs.
+Proof.
+  generalize dependent vs.
+  induction es => //=.
+  intros.
+  unfold to_val in H.
+  simpl in H.
+  inversion H => //=.
+  
+
+Lemma merge_is_not_val es es' :
+  merge_values_list (map to_val_instr es) = NotVal es' -> es = es'.
+Proof.
+  generalize dependent es'.
+  induction es => //= ; intro es'.
+  destruct (to_val_instr a) eqn:Ha => //=.
+  { destruct a => //= ; simpl in Ha.
+    destruct b => //= ; inversion Ha ; subst.
+    by rewrite merge_br.
+    by rewrite merge_return.
+    rewrite merge_prepend.
+    destruct (merge_values_list _) eqn:Hmerge => //=.
+    destruct v => //=.
+    intro H ; inversion H ; subst.
+    rewrite (to_val_trap_is_singleton (e := es)) => //.
+    unfold to_val ; by rewrite Hmerge.
+    intro H ; inversion H.
+    by erewrite IHes.
+    inversion Ha.
+    rewrite merge_prepend.
+    destruct (merge_values_list _) eqn:Hmerge => //=.
+    destruct v0 => //=.
+    destruct l => //=.
+    intro H ; inversion H.
     
-    
+    induction es => //=.
+    rewrite of_to_val_instr.
+    destruct (map to_val_instr es) eqn:Hmap => //=.
+    destruct (expr_of_val_not_val v0) eqn:Hv0 => //=.
+    destruct l => //=.
 
+    rewrite merge_prepend.
+    destruct (merge_values_list _) eqn:Hmerge => //=.
+    destruct v, v0 => //=.
+    destruct l => //=.
+    { intro H ; inversion H ; clear H.
+      destruct a ; try by inversion Ha.
+      destruct b ; try by inversion Ha.
+      inversion Ha ; subst. simpl. zzzzzzzzzzz
+      rewrite H1. zzzzzzzzzzzz
+  destruct b => //=. *)
 
+Lemma extend_retV sh es :
+  to_val (of_val (retV sh) ++ es) = Some (retV (sh_append sh es)).
+Proof.
+  unfold to_val.
+  rewrite map_app.
+  rewrite merge_app.
+  specialize (to_of_val (retV sh)) as H.
+  unfold to_val in H.
+  destruct (merge_values_list _) => //.
+  inversion H => /=.
+  destruct (merge_values_list _) eqn:Hmerge => //.
+  erewrite of_to_val.
+  done.
+  unfold to_val.
+  by rewrite Hmerge.
+  Check of_to_val_instr.
+
+  induction sh => /=.
+  { induction l => //=.
+    unfold to_val => /=.
+    rewrite merge_return flatten_simplify => //=.
+    unfold to_val => /=.
+    rewrite merge_prepend.
+    unfold to_val in IHl.
+    destruct (merge_values_list _) => //.
+    inversion IHl => //=. }
+  induction l => /=.
+  unfold to_val => /=.
+  unfold to_val in IHsh.
+  unfold of_val in IHsh.
+  rewrite map_app in IHsh.
+  rewrite merge_app in IHsh.
+  destruct (merge_values_list _) eqn:Hmerge => //.
+  destruct v => //.
+  induction (map to_val_instr (sfill sh [AI_basic BI_return])) eqn:Hmap => /=.
+  apply map_eq_nil in Hmap.
+  apply sfill_is_nil in Hmap as [Habs _] => //.
+  destruct a => /=.
+  destruct v => /=.
+  
 
 Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
     split_vals_e e1 = (vs, e :: es) ->
