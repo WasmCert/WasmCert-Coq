@@ -140,8 +140,7 @@ Section logrel.
   (* --------------------------------------------------------------------------------------- *)
 
   Definition interp_table_entry (τf : function_type) (interp_closure' : N -> function_type -> ClR) : TeR :=
-    λne n m, (∃ (fe : funcelem), na_inv logrel_nais (wtN n m) (n ↦[wt][m] fe)
-                                        ∗ from_option ((interp_function τf interp_closure') ∘ N.of_nat) True fe)%I.
+    λne n m, (na_inv logrel_nais (wtN n m) (∃ (fe : funcelem), n ↦[wt][m] fe ∗ from_option ((interp_function τf interp_closure') ∘ N.of_nat) True fe))%I.
   (* ⊤ means failure is allowed in case the table is not populated *)
 
 
