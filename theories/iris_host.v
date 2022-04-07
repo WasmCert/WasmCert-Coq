@@ -951,10 +951,182 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
 Definition gen_index offset len : list nat :=
   imap (fun i x => i+offset+x) (repeat 0 len).
 
-(*
-Lemma alloc_func_gen_index:
+Lemma gen_index_extend offset len:
+  gen_index offset (len+1) = gen_index offset len ++ [::offset+len].
+Proof.
+  unfold gen_index.
+  rewrite repeat_app => /=.
+  induction len => //=.
+  f_equal => //.
+  do 2 rewrite - fmap_imap.
+  rewrite IHlen.
+  rewrite fmap_app => /=.
+  repeat f_equal.
+  by lias.
+Qed.
 
- *)
+Lemma combine_app {T1 T2: Type} (l1 l3: list T1) (l2 l4: list T2):
+  length l1 = length l2 ->
+  combine (l1 ++ l3) (l2 ++ l4) = combine l1 l2 ++ combine l3 l4.
+Proof.
+  generalize dependent l2.
+  generalize dependent l3.
+  generalize dependent l4.
+  induction l1; move => l4 l3 l2 Hlen => /=; first by destruct l2 => //.
+  - destruct l2 => //=.
+    simpl in Hlen.
+    inversion Hlen; subst; clear Hlen.
+    f_equal.
+    by apply IHl1.
+Qed.
+  
+(* This is an actual interesting proof, technically *)
+(* TODO: see if it's possible to refactor the 4 proofs into one *)
+Lemma alloc_func_gen_index modfuncs ws inst ws' l:
+  alloc_funcs host_function ws modfuncs inst = (ws', l) ->
+  map (fun x => match x with | Mk_funcidx i => i end) l = gen_index (length (s_funcs ws)) (length modfuncs) /\
+  length ws'.(s_funcs) = length ws.(s_funcs) + length modfuncs /\
+  ws.(s_tables) = ws'.(s_tables) /\
+  ws.(s_mems) = ws'.(s_mems) /\
+  ws.(s_globals) = ws'.(s_globals).
+Proof.
+  unfold alloc_funcs, alloc_Xs.
+  generalize dependent l.
+  generalize dependent ws'.
+  generalize dependent ws.
+  induction modfuncs using List.rev_ind; move => ws ws' l Hallocfuncs.
+  - inversion Hallocfuncs; subst; clear Hallocfuncs.
+    split => //.
+    by lias.
+  - rewrite fold_left_app in Hallocfuncs.
+    remember (fold_left _ modfuncs (ws,[])) as fold_res.
+    simpl in Hallocfuncs.
+    destruct fold_res as [ws0 l0].
+    symmetry in Heqfold_res.
+    unfold add_func in Hallocfuncs.
+    inversion Hallocfuncs; subst; clear Hallocfuncs.
+    rewrite map_app app_length /=.
+    rewrite gen_index_extend.
+    repeat split; try by eapply IHmodfuncs; rewrite Heqfold_res.
+    + by repeat (f_equal; first by eapply IHmodfuncs; rewrite Heqfold_res).
+    + rewrite app_length => /=.
+      rewrite PeanoNat.Nat.add_assoc.
+      f_equal.
+      by eapply IHmodfuncs; rewrite Heqfold_res.
+Qed.
+
+Lemma alloc_tab_gen_index modtabs ws ws' l:
+  alloc_tabs host_function ws modtabs = (ws', l) ->
+  map (fun x => match x with | Mk_tableidx i => i end) l = gen_index (length (s_tables ws)) (length modtabs) /\
+  length ws'.(s_tables) = length ws.(s_tables) + length modtabs /\
+  ws.(s_funcs) = ws'.(s_funcs) /\
+  ws.(s_mems) = ws'.(s_mems) /\
+  ws.(s_globals) = ws'.(s_globals).
+Proof.
+  unfold alloc_tabs, alloc_Xs.
+  generalize dependent l.
+  generalize dependent ws'.
+  generalize dependent ws.
+  induction modtabs using List.rev_ind; move => ws ws' l Halloc.
+  - inversion Halloc; subst; clear Halloc.
+    split => //.
+    by lias.
+  - rewrite fold_left_app in Halloc.
+    remember (fold_left _ modtabs (ws,[])) as fold_res.
+    simpl in Halloc.
+    destruct fold_res as [ws0 l0].
+    symmetry in Heqfold_res.
+    unfold alloc_tab, add_table in Halloc.
+    destruct x => /=.
+    destruct tt_limits => /=.
+    inversion Halloc; subst; clear Halloc.
+    rewrite map_app app_length /=.
+    rewrite gen_index_extend.
+    repeat split; try by repeat (eapply IHmodtabs; rewrite Heqfold_res).
+    + by repeat (f_equal; first by eapply IHmodtabs; rewrite Heqfold_res).
+    + rewrite app_length => /=.
+      rewrite PeanoNat.Nat.add_assoc.
+      f_equal.
+      by eapply IHmodtabs; rewrite Heqfold_res.
+Qed.
+
+Lemma alloc_mem_gen_index modmems ws ws' l:
+  alloc_mems host_function ws modmems = (ws', l) ->
+  map (fun x => match x with | Mk_memidx i => i end) l = gen_index (length (s_mems ws)) (length modmems) /\
+  length ws'.(s_mems) = length ws.(s_mems) + length modmems /\
+  ws.(s_funcs) = ws'.(s_funcs) /\
+  ws.(s_tables) = ws'.(s_tables) /\
+  ws.(s_globals) = ws'.(s_globals).
+Proof.
+  unfold alloc_mems, alloc_Xs.
+  generalize dependent l.
+  generalize dependent ws'.
+  generalize dependent ws.
+  induction modmems using List.rev_ind; move => ws ws' l Halloc.
+  - inversion Halloc; subst; clear Halloc.
+    split => //.
+    by lias.
+  - rewrite fold_left_app in Halloc.
+    remember (fold_left _ modmems (ws,[])) as fold_res.
+    simpl in Halloc.
+    destruct fold_res as [ws0 l0].
+    symmetry in Heqfold_res.
+    unfold alloc_mem, add_mem in Halloc.
+    destruct x => /=.
+    inversion Halloc; subst; clear Halloc.
+    rewrite map_app app_length /=.
+    rewrite gen_index_extend.
+    repeat split; try by (eapply IHmodmems; rewrite Heqfold_res).
+    + by repeat (f_equal; first by eapply IHmodmems; rewrite Heqfold_res).
+    + rewrite app_length => /=.
+      rewrite PeanoNat.Nat.add_assoc.
+      f_equal.
+      by eapply IHmodmems; rewrite Heqfold_res.
+Qed.
+
+Lemma alloc_glob_gen_index modglobs ws g_inits ws' l:
+  length g_inits = length modglobs ->
+  alloc_globs host_function ws modglobs g_inits = (ws', l) ->
+  map (fun x => match x with | Mk_globalidx i => i end) l = gen_index (length (s_globals ws)) (length modglobs) /\
+  length ws'.(s_globals) = length ws.(s_globals) + length modglobs /\
+  ws.(s_funcs) = ws'.(s_funcs) /\
+  ws.(s_tables) = ws'.(s_tables) /\
+  ws.(s_mems) = ws'.(s_mems).
+Proof.
+  unfold alloc_globs, alloc_Xs.
+  generalize dependent l.
+  generalize dependent ws'.
+  generalize dependent ws.
+  generalize dependent g_inits.
+  induction modglobs using List.rev_ind; move => g_inits ws ws' l Hlen Halloc.
+  - inversion Halloc; subst; clear Halloc.
+    split => //.
+    by lias.
+  - destruct g_inits using List.rev_ind; first by destruct modglobs => /=.
+    repeat rewrite app_length in Hlen; simpl in Hlen.
+    repeat rewrite - cat_app in Halloc.
+    rewrite combine_app in Halloc; last by lias.
+    simpl in Halloc.
+    rewrite fold_left_app in Halloc.
+    lazymatch goal with
+    | _: context C [fold_left ?f (combine modglobs g_inits) (ws, [])] |- _ =>
+      remember (fold_left f (combine modglobs g_inits) (ws, [])) as fold_res
+    end.
+    rewrite - Heqfold_res in Halloc.
+    destruct fold_res as [ws0 l0].
+    symmetry in Heqfold_res.
+    unfold alloc_glob, add_glob in Halloc.
+    simpl in Halloc.
+    inversion Halloc; subst; clear Halloc.
+    rewrite map_app app_length /=.
+    rewrite gen_index_extend.
+    repeat split; try by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
+    + by repeat (f_equal; first eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); (try by lias); (try by rewrite Heqfold_res)).
+    + rewrite app_length => /=.
+      rewrite PeanoNat.Nat.add_assoc.
+      f_equal.
+      by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
+Qed.
 
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
@@ -1060,24 +1232,35 @@ Proof.
         f_equal.
         (* We now have to prove that gen_index gives the correct indices of the newly allocated functions. This should
            be a general property that holds for alloc_Xs, tbh. *)
-        remember (mod_funcs m) as modfuncs.
-        generalize dependent l.
-        generalize dependent s0.
-        induction modfuncs => /=; move => s0 Halloctab l Hallocfunc.
-          
-        simpl. (*
-        rewrite fmap_map.
-        rewrite - fmap_imap.*)
-        admit.
+        by apply alloc_func_gen_index in Hallocfunc as [-> ?].
       + (* Tables *)
-        admit.
+        unfold ext_tab_addrs => /=.
+        rewrite map_app => /=.
+        f_equal.
+        apply alloc_tab_gen_index in Halloctab as [-> ?].
+        rewrite map_length.
+        by apply alloc_func_gen_index in Hallocfunc as [? [? [<- ?]]].
       + (* Memories *)
-        admit.
+        unfold ext_mem_addrs => /=.
+        rewrite map_app => /=.
+        f_equal.
+        apply alloc_mem_gen_index in Hallocmem as [-> ?].
+        apply alloc_tab_gen_index in Halloctab as [? [? [? [<- ?]]]].
+        by apply alloc_func_gen_index in Hallocfunc as [? [? [? [<- ?]]]].
       + (* Globals *)
-        admit.
+        unfold ext_glob_addrs => /=.
+        rewrite map_app => /=.
+        f_equal.
+        apply alloc_glob_gen_index in Hallocglob as [-> ?]; last by repeat rewrite map_length.
+        apply alloc_mem_gen_index in Hallocmem as [? [? [? [? <-]]]].
+        apply alloc_tab_gen_index in Halloctab as [? [? [? [? <-]]]].
+        by apply alloc_func_gen_index in Hallocfunc as [? [? [? [? <-]]]].
     - (* global initializers *)
+      (* In fact -- global initializers have to exist, in the sense that each modglob carries a (non-optional) list 
+         of basic expression as its initializer, so we cannot simply ignore it. But let's say we ignore it for now. *)
       admit.
     - (* table initializers *)
+      (* And the same for table initializers... just why? *)
       admit.
     - (* memory initializers *)
       admit.
@@ -1086,13 +1269,11 @@ Proof.
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
-      (*
       unfold check_start.
-      by rewrite Hmodstart => /=.*)
-      admit.
+      by rewrite Hmodstart.
     - (* putting initlialized items into the store *)
-      admit.
-      admit.
+      apply/eqP.
+      by eauto.
   }
   
   (*

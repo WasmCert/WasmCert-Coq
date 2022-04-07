@@ -2530,6 +2530,7 @@ Proof.
   unfold to_val in H.
   simpl in H.
   inversion H => //=.
+
   intros.
   unfold to_val in H ; simpl in H.
   destruct (to_val_instr a) eqn:Ha => //.
@@ -2593,6 +2594,7 @@ Proof.
     destruct i => //.
     destruct (vh_decrease _) => //.
     inversion Ha.
+
     rewrite merge_br => //.
     inversion Ha.
     rewrite merge_return => //. }
@@ -2606,6 +2608,7 @@ Proof.
   destruct i => // ; try by inversion Ha.
   destruct (vh_decrease lh) ; try by inversion Ha.
 Qed. 
+
 
 Lemma extend_retV sh es :
   to_val (of_val (retV sh) ++ es) = Some (retV (sh_append sh es)).
@@ -2624,6 +2627,7 @@ Proof.
   by rewrite Hmerge.
   by apply merge_is_not_val in Hmerge ; subst.
 Qed.
+
 
 
 Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
