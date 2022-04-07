@@ -2559,7 +2559,7 @@ Proof.
     destruct l => //=.
     intro H ; inversion H.
     
-    induction es => //=.(*
+    induction es => //=. (*
     rewrite of_to_val_instr.
     destruct (map to_val_instr es) eqn:Hmap => //=.
     destruct (expr_of_val_not_val v0) eqn:Hv0 => //=.
@@ -2596,7 +2596,7 @@ Proof.
 
   induction sh => /=.
   { induction l => //=.
-    unfold to_val => /=.(*
+    unfold to_val => /=. (*
     rewrite merge_return flatten_simplify => //=.
     unfold to_val => /=.
     rewrite merge_prepend.
