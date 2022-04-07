@@ -2553,8 +2553,13 @@ Section Client.
       iFrame.
       repeat iSplit.
     - by unfold import_resources_host.
-    - do 4 instantiate (1 := gmap_empty).
-      by unfold import_resources_wasm_typecheck. 
+    - iPureIntro. apply dom_empty.
+    - iPureIntro. apply dom_empty.
+    - iPureIntro. apply dom_empty.
+    - iPureIntro. apply dom_empty.
+(*    - do 4 instantiate (1 := gmap_empty).
+      by unfold import_resources_wasm_typecheck. *)
+    - done.
     - unfold export_ownership_host.
       iSplitL "Hhv0".
       by iExists _.
@@ -3128,7 +3133,7 @@ Section Client.
       "(Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hlen & Hwf0 & Hwf1 & Hwf2 & Hwf3 & Hwf4 &
       #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4)".
       iFrame "Hmod0".
-      iApply (weakestpre.wp_strong_mono s _ E with "[Hmod1 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hwf0 Hwf1 Hwf2 Hwf3 Hwf4 Hlen]") ; try done.
+(*      iApply (weakestpre.wp_strong_mono s _ E with "[Hmod1 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hwf0 Hwf1 Hwf2 Hwf3 Hwf4 Hlen]") ; try done. *)
 
       iApply (instantiation_spec_operational_start with "[Hmod1 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hwf0 Hwf1 Hwf2 Hwf3 Hwf4 Hvis5]") ; try exact module_typing_client.
     - by unfold client_module.
@@ -3160,7 +3165,12 @@ Section Client.
       iDestruct (mapsto_frac_ne with "Hwf2 Hwf3") as "%H23" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf2 Hwf4") as "%H24" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf3 Hwf4") as "%H34" ; first by eauto.
-      iSplitL "Hwf0".
+      iSplit.
+    - iPureIntro.
+      simpl.
+      repeat rewrite dom_insert.
+      done.
+    - iSplitL "Hwf0".
       iExists _.
       iFrame.
       iPureIntro.
@@ -3218,7 +3228,7 @@ Section Client.
       iDestruct "Hexphost" as "[Hexphost _]".
       iDestruct "Hexphost" as (name) "Hexphost" => /=.
       unfold import_resources_wasm_typecheck => /=.
-      iDestruct "Himpwasm" as "(Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & _)".
+      iDestruct "Himpwasm" as "(%Hdom & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & _)".
       iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
       iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
       iDestruct "Himpw2" as (cl2) "[Himpfcl2 %Hcltype2]".
@@ -3259,6 +3269,8 @@ Section Client.
       inversion Hstart ; subst ; clear Hstart.
       iApply wp_host_wasm.
       by apply HWEV_invoke.
+      iApply wp_wand_r.
+      iSplitL.
       rewrite - (app_nil_l [AI_invoke idnstart]).
       iApply (wp_invoke_native with "Hf Hwfcl").
       done. done. done.
@@ -3395,7 +3407,6 @@ Section Client.
             iSplitR ; last first.
             iSplitL.
             iApply (wp_set_global with "[] Hf Hwg").
-            assumption.
             done.
             instantiate (1 := λ v, ⌜ v = immV [] ⌝%I ).
             done.
@@ -3740,7 +3751,6 @@ Section Client.
           iApply wp_wand_r.
           iSplitL "Hf Hwg".
           iApply (wp_set_global with "[] Hf Hwg").
-          assumption.
           done.
           instantiate (1 := λ v, ⌜ v = immV [] ⌝%I).
           by iNext.
@@ -3782,13 +3792,53 @@ Section Client.
           iExists g.
           by iLeft. }
           destruct Hret as [sh ->].
-          iSimpl.
           iApply wp_value.
           unfold IntoVal.
           apply of_to_val.
-          destruct sh.
-          simpl.
-          
+          rewrite extend_retV.
+          done.
+          iIntros (lh) "%Hfill".
+          unfold lfilled, lfill in Hfill.
+          simpl in Hfill.
+          apply b2p in Hfill ; subst.
+          iApply wp_value.
+          unfold IntoVal.
+          apply of_to_val.
+          unfold iris.to_val => /=.
+          specialize (to_of_val (retV (sh_append sh [AI_basic
+                      (BI_const
+                         (VAL_int32 (Wasm_int.Int32.repr 4)));
+                   AI_basic (BI_get_local 0);
+                   AI_basic (BI_call 4);
+                   AI_basic
+                     (BI_const (VAL_int32 (Wasm_int.Int32.repr 6)));
+                   AI_basic (BI_get_local 0);
+                   AI_basic (BI_call 4);
+                   AI_basic (BI_get_local 0);
+                   AI_basic (BI_call 3);
+                   AI_basic (BI_get_local 0);
+                   AI_basic (BI_call 3);
+                   AI_basic (BI_binop T_i32 (Binop_i BOI_sub));
+                                                     AI_basic (BI_set_global 0)]))) as H.
+          unfold to_val, iris.to_val, of_val in H.
+          rewrite app_nil_r.
+          destruct (merge_values_list _).
+          inversion H.
+          done.
+          done.
+          iExists _.
+          iFrame.
+          iIntros "Hf".
+          iApply wp_return.
+          3:{ unfold of_val.
+              Check sfill_to_lfilled.
+              Check lh_depth.
+          iApply wp_wand_r.
+          iSplitL.
+          iApply wp_label_value.
+          rewrite app_nil_r.
+          rewrite (to_of_val (retV (sh_append sh _))).
+          done.
           
           iApply wp_wand_r.
           iSplitL.
