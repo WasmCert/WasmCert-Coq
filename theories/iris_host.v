@@ -82,7 +82,7 @@ Inductive host_reduce: host_config -> host_config -> Prop :=
 | HR_host_step: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs,
     ms !! (N.to_nat vm) = Some m ->
     those ((lookup_export_vi vis) <$> vimps) = Some imps ->
-    map (fun imp => imp.(modexp_desc)) imps = imp_descs ->
+    fmap (fun imp => imp.(modexp_desc)) imps = imp_descs ->
     instantiate s m imp_descs ((s', inst, exps), start) ->
     length viexps = length exps ->
     const_list vs ->
@@ -459,8 +459,8 @@ Lemma wp_seq_host_nostart (s : stuckness) (E : coPset) (Φ Ψ : host_val -> iPro
   (modi ↪[mods] m -∗ WP (([::ID_instantiate v_exps modi v_imps], [::]): host_expr) @ s; E {{ w, Ψ w ∗ modi ↪[mods] m }}) -∗
   (∀ w, Ψ w -∗ modi↪[mods] m -∗ WP ((es, [::]): host_expr) @ s; E {{ v, Φ v }}) -∗
   WP (((ID_instantiate v_exps modi v_imps :: es), [::]): host_expr) @ s; E {{ v, Φ v }}.
-Proof.
-  (*
+  Proof.
+    (*
   move => Hnostart.  
   iLöb as "IH" forall (s E es Φ Ψ).
   iIntros "Hmod Hes1 Hes2".
@@ -690,12 +690,26 @@ Print map.
 
 Print extern_t.
 
+Print ext_funcs.
+
+Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
+Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
+Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
+Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
+
+Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global) : iProp Σ :=
+  ⌜ dom (gset nat) wfs = list_to_set (ext_func_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wts = list_to_set (ext_tab_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wms = list_to_set (ext_mem_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wgs = list_to_set (ext_glob_addrs (fmap modexp_desc v_imps)) ⌝.
+
 (* Resources in the Wasm store, corresponding to those referred by the host vis store. This needs to also type-check
    with the module import. *)
 Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global): iProp Σ :=
   (* Note that we do not actually need to know the exact content of the imports. However, these information are present
      in this predicate to make sure that they are kept incontact in the post. Note how these four gmaps are quantified
      in the instantiation spec. *)
+  import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
   | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
@@ -703,6 +717,18 @@ Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps:
   | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
   | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
   end.
+
+Check ext_funcs.
+
+Print dom.
+
+Search gmap dom.
+
+Search gset.
+
+Search gset list.
+
+Search gset eq.
 
 (*
 Print module.
@@ -810,13 +836,6 @@ Print alloc_module.
 
 Print module_export_desc.
 
-Print ext_funcs.
-
-Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
-Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
-Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
-Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
-
 Search big_sepL2.
 
 Lemma import_resources_host_lookup hs_imps v_imps vis:
@@ -853,43 +872,38 @@ Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
       | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
       | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt
       end ⌝.
-Proof.
-  iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit Himpwasm".
-  iApply big_sepL2_pure.
-  iInduction v_imps as [|v_imp v_imps'] "IH" forall (t_imps); first by destruct t_imps.
-  destruct t_imps => //=.
-  iDestruct "Himpwasm" as "(Hvimp & Himpwasm)".                                 
-  destruct (modexp_desc v_imp) eqn:Hvimp.
+Proof. 
+  iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit (Himpwasmdom & Himpwasm)".
+  iSplit; first by iApply big_sepL2_length.
+  iIntros (k v t Hv Ht).
+  destruct v as [? modexp_desc].
+  iDestruct (big_sepL2_lookup with "Himpwasm") as "Hvimp" => //.
+  destruct modexp_desc as [e|e|e|e]; destruct e as [n] => /=.
   - (* functions *)
-    destruct f as [n].
     iDestruct "Hvimp" as (cl) "(Hcl & %Hwfs)".
     destruct Hwfs as [Hwfs ->].
     iDestruct (gen_heap_valid with "Hwf Hcl") as "%Hwf".
     rewrite gmap_of_list_lookup in Hwf.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    rewrite Nat2N.id in Hwf.
+    rewrite Hwf.
     iPureIntro.
     exists cl.
-    repeat split => //.
-    by rewrite Nat2N.id in Hwf.
+    by repeat split => //.
   - (* tables *)
-    destruct t as [n].
     iDestruct "Hvimp" as (tab tt) "(Htab & %Hwts)".
     destruct Hwts as [Hwts [-> Htabletype]]. 
     iDestruct (tab_block_lookup with "Hwt Hwtsize Hwtlimit Htab") as "%Hwt".
     rewrite Nat2N.id in Hwt.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
     iPureIntro.
     exists tab, tt.
     by repeat split => //.
   - (* memories *)
-    destruct m as [n].
     iDestruct "Hvimp" as (mem mt) "(Hmem & %Hwms)".
     destruct Hwms as [Hwms [-> Hmemtype]]. 
     iDestruct (mem_block_lookup with "Hwm Hwmlength Hwmlimit Hmem") as "%Hwm".
     rewrite Nat2N.id in Hwm.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
-    iPureIntro.
     destruct Hwm as [m [Hwmlookup [Hmdata Hmlimit]]].
+    iPureIntro.
     eexists _, mt, m.(mem_data).(ml_init).
     repeat split => //.
     rewrite Hwmlookup.
@@ -901,26 +915,21 @@ Proof.
     simpl in *.
     by f_equal.
   - (* globals *)
-    destruct g as [n].
     iDestruct "Hvimp" as (g gt) "(Hg & %Hwgs)".
     destruct Hwgs as [Hwgs [-> Hgt]].
     iDestruct (gen_heap_valid with "Hwg Hg") as "%Hwg".
     rewrite gmap_of_list_lookup in Hwg.
-    iSplit; last by iApply ("IH" with "[Hwf] [Hwt] [Hwm] [Hwg] [Hwtsize] [Hwtlimit] [Hwmlength] [Hwmlimit]") => //.
+    rewrite Nat2N.id in Hwg.
     iPureIntro.
     exists g, gt.
-    repeat split => //.
-    by rewrite Nat2N.id in Hwg.
-Qed.      
-
-
+    by repeat split => //.
+Qed.
+    
 Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
   export_ownership_host hs_exps.
-
-Print check_start.
 
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
@@ -935,7 +944,6 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
     check_start m inst idfstart
     ⌝ ∗
-                                               
     module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
     (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
@@ -943,7 +951,12 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
 Definition gen_index offset len : list nat :=
   imap (fun i x => i+offset+x) (repeat 0 len).
 
-Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs:
+(*
+Lemma alloc_func_gen_index:
+
+ *)
+
+Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
@@ -973,10 +986,10 @@ Proof.
   destruct Himpwasm as [Hvtlen Himpwasm].
 
   remember {| inst_types := m.(mod_types);
-                  inst_funcs := ext_func_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
-                  inst_tab := ext_tab_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_tables)) (length m.(mod_tables)));
-                  inst_memory := ext_mem_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_mems)) (length m.(mod_mems)));
-                  inst_globs := ext_glob_addrs (fmap modexp_desc m.(mod_exports)) ++ (gen_index (length ws.(s_globals)) (length m.(mod_globals)))
+                  inst_funcs := ext_func_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
+                  inst_tab := ext_tab_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_tables)) (length m.(mod_tables)));
+                  inst_memory := ext_mem_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_mems)) (length m.(mod_mems)));
+                  inst_globs := ext_glob_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_globals)) (length m.(mod_globals)))
                |} as inst_res.
   
   (* Prove that the instantiation predicate holds *)
@@ -1038,12 +1051,30 @@ Proof.
         apply lookup_lt_Some in Hwg.
         by lias.
     - (* alloc module *)
-      rewrite Hallocglob. (*
+      rewrite Hallocglob. 
       repeat (apply/andP; split); try apply/eqP; subst => //=.
       + (* Functions *)
         unfold ext_func_addrs => /=.
-        admit.*)
-      admit.
+        rewrite map_app => /=.
+        (* The first part is the same. *)
+        f_equal.
+        (* We now have to prove that gen_index gives the correct indices of the newly allocated functions. This should
+           be a general property that holds for alloc_Xs, tbh. *)
+        remember (mod_funcs m) as modfuncs.
+        generalize dependent l.
+        generalize dependent s0.
+        induction modfuncs => /=; move => s0 Halloctab l Hallocfunc.
+          
+        simpl. (*
+        rewrite fmap_map.
+        rewrite - fmap_imap.*)
+        admit.
+      + (* Tables *)
+        admit.
+      + (* Memories *)
+        admit.
+      + (* Globals *)
+        admit.
     - (* global initializers *)
       admit.
     - (* table initializers *)
@@ -1060,6 +1091,7 @@ Proof.
       by rewrite Hmodstart => /=.*)
       admit.
     - (* putting initlialized items into the store *)
+      admit.
       admit.
   }
   
@@ -1113,6 +1145,7 @@ Proof.
 Admitted.
 
 Print instantiation.instantiate.
+
 
 Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart idnstart (Φ: host_val -> iProp Σ):
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
@@ -1247,7 +1280,7 @@ Proof.
     by unfold module_export_typing => /=.    
 Qed.
 
-
+(*
 Lemma add_instantiate_spec (s: stuckness) E hv:
   0%N ↪[mods] Add_module -∗
   0%N ↪[vis] hv -∗
@@ -1467,7 +1500,7 @@ Proof.
     iFrame.
 Qed.
 
-
+*)
 (* ***************** END OF EXAMPLES ********************* *)
 
 (* No longer in use
