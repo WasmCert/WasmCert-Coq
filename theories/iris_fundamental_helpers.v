@@ -1023,5 +1023,12 @@ Section fundamental.
 
   Global Instance value_inhabited : Inhabited value.
   Proof. apply populate. exact (VAL_int32 int32_minus_one). Qed.
+
+  Global Instance function_closure_inhabited : Inhabited function_closure.
+  Proof. apply populate. exact (FC_func_native ({| inst_types := [];
+                                                  inst_funcs:=[];
+                                                  inst_tab:=[];
+                                                  inst_memory:=[];
+                                                  inst_globs:=[]|}) (Tf [] []) [] []) . Qed.
   
 End fundamental.
