@@ -984,7 +984,7 @@ Section fundamental.
     iDestruct "Hret" as (τs'') "[#Hw Hret]".
     iDestruct "Hw" as "[%Hcontr|Hw]";[done|iDestruct "Hw" as (? Heq) "Hw"].
     inversion Heq; subst ws.
-    pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j Hj].
+    pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as Hj.
     eapply (lfilled_simple_get_base_pull _ _ _ _ (take (length τs'') v) (drop (length τs'') v)) in Hj as Hj2.
     2: rewrite take_drop;eauto. destruct Hj2 as [lh' Hlh'].
     
