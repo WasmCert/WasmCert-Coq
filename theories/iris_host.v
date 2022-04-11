@@ -6,6 +6,8 @@ From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
 Require Export datatypes host operations properties opsem instantiation.
+(* We need a few helper lemmas from preservation. *)
+Require Export type_preservation.
 
 Close Scope byte.
 
@@ -925,29 +927,6 @@ Proof.
     by repeat split => //.
 Qed.
     
-Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
-  hs_mod ↪[mods] m ∗
-  import_resources_host hs_imps v_imps ∗
-  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
-  export_ownership_host hs_exps.
-
-Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
-  hs_mod ↪[mods] m ∗
-  import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
-  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
-  ∃ inst g_inits, ⌜ inst.(inst_types) = m.(mod_types) /\
-   (* We know what the imported part of the instance must be. *)
-  let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
-    prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
-    prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
-    prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
-    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
-    check_start m inst idfstart
-    ⌝ ∗
-    module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
-    module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
-    (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
-
 Definition gen_index offset len : list nat :=
   imap (fun i x => i+offset+x) (repeat 0 len).
 
@@ -1128,15 +1107,44 @@ Proof.
       by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
 Qed.
 
+Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
+  hs_mod ↪[mods] m ∗
+  import_resources_host hs_imps v_imps ∗
+  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
+  export_ownership_host hs_exps.
+
+Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
+  hs_mod ↪[mods] m ∗
+  import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
+  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
+  ∃ inst g_inits, ⌜ inst.(inst_types) = m.(mod_types) /\
+   (* We know what the imported part of the instance must be. *)
+  let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
+    prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
+    prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
+    prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
+    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
+    check_start m inst idfstart
+  ⌝ ∗
+  ⌜ (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) ⌝ ∗ (* g_inits have the correct types *)
+    module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
+    (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
+
+Definition module_restrictions (m: module) : Prop :=
+  (* Initializers for globals are only values *)
+  exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs.
+
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
+  module_restrictions m ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
   {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps None }}.
 Proof.
   
-  move => Hmodstart Hmodtype.
+  move => Hmodstart Hmodtype Hmodrestr.
   iIntros "(Hmod & Himphost & Himpwasm & Hexphost)".
   
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
@@ -1164,17 +1172,62 @@ Proof.
                   inst_globs := ext_glob_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_globals)) (length m.(mod_globals)))
                |} as inst_res.
   
-  (* Prove that the instantiation predicate holds *)
-  assert (exists ws_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  unfold module_restrictions in Hmodrestr.
+  destruct Hmodrestr as [g_inits Hmodrestr].
+
+  assert (length m.(mod_globals) = length g_inits) as Hginitslen.
+  { replace (length g_inits) with (length (fmap (fun v => [BI_const v]) g_inits)); last by rewrite fmap_length.
+    rewrite - Hmodrestr.
+    by rewrite fmap_length.
+  }
+  
+  assert (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) as Hginitstype.
   {
-    unfold alloc_module => /=.
-    destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
-    destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
-    destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
-    destruct (alloc_globs host_function s2 (mod_globals m) (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals)))) eqn:Hallocglob.
+    unfold module_typing in Hmodtype.
+    destruct m => /=.
+    destruct Hmodtype as [fts [gts [? [? [? [Hglobtype ?]]]]]].
+    apply list_eq.
+    move => i.
+    rewrite -> Forall2_lookup in Hglobtype.
+    specialize Hglobtype with i.
+    repeat rewrite list_lookup_fmap.
+    simpl in *.
+    destruct (mod_globals !! i) as [mg | ] eqn: Hmgi.
+    - assert (i < length mod_globals) as Hlen; first by eapply lookup_lt_Some.
+      simpl in Hmodrestr.
+      destruct (g_inits !! i) as [gi | ] eqn: Hgii; last by apply lookup_ge_None in Hgii; lias.
+      inversion Hglobtype; subst; clear Hglobtype.
+      simpl in *.
+      unfold module_glob_typing in H5.
+      assert ((modglob_init <$> mod_globals) !! i = ((fun v => [BI_const v]) <$> g_inits) !! i) as Hlookup; first by rewrite Hmodrestr.
+      repeat rewrite list_lookup_fmap in Hlookup.
+      rewrite Hmgi Hgii in Hlookup.
+      destruct mg.
+      destruct H5 as [Hconstexpr [-> Hbet]].
+      simpl in Hlookup.
+      inversion Hlookup; subst; clear Hlookup.
+      f_equal.
+      simpl.
+      apply BI_const_typing in Hbet.
+      simpl in Hbet.
+      by inversion Hbet.
+    - assert (i >= length mod_globals) as Hlen; first by eapply lookup_ge_None.
+      simpl in Hmodrestr.
+      destruct (g_inits !! i) as [gi | ] eqn: Hgii; [ by apply lookup_lt_Some in Hgii; lias | by auto ].
+  }
+  
+  destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
+  destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
+  destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
+  destruct (alloc_globs host_function s2 (mod_globals m) g_inits) eqn:Hallocglob.
+
+  (* Prove that the instantiation predicate holds *)
+  assert (exists ws_res v_exps, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), None))) as Hinst.
+  {
     unfold instantiate, instantiation.instantiate.
+    unfold alloc_module => /=.
     do 2 eexists.
-    exists None, t_imps, t_exps, hs, s3, (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals))).
+    exists t_imps, t_exps, hs, s3, g_inits.
     do 2 eexists.
     repeat split.
     - (* module_typing *)
@@ -1223,7 +1276,7 @@ Proof.
         apply lookup_lt_Some in Hwg.
         by lias.
     - (* alloc module *)
-      rewrite Hallocglob. 
+      rewrite Hallocfunc Halloctab Hallocmem Hallocglob.
       repeat (apply/andP; split); try apply/eqP; subst => //=.
       + (* Functions *)
         unfold ext_func_addrs => /=.
@@ -1251,13 +1304,14 @@ Proof.
         unfold ext_glob_addrs => /=.
         rewrite map_app => /=.
         f_equal.
-        apply alloc_glob_gen_index in Hallocglob as [-> ?]; last by repeat rewrite map_length.
+        apply alloc_glob_gen_index in Hallocglob as [-> ?]; last by lias.
         apply alloc_mem_gen_index in Hallocmem as [? [? [? [? <-]]]].
         apply alloc_tab_gen_index in Halloctab as [? [? [? [? <-]]]].
         by apply alloc_func_gen_index in Hallocfunc as [? [? [? [? <-]]]].
     - (* global initializers *)
       (* In fact -- global initializers have to exist, in the sense that each modglob carries a (non-optional) list 
-         of basic expression as its initializer, so we cannot simply ignore it. But let's say we ignore it for now. *)
+         of basic expression as its initializer, so we cannot simply ignore it. But let's say we admit it for now. *)
+      Print instantiation.instantiate_globals.
       admit.
     - (* table initializers *)
       (* And the same for table initializers... just why? *)
@@ -1273,7 +1327,7 @@ Proof.
       by rewrite Hmodstart.
     - (* putting initlialized items into the store *)
       apply/eqP.
-      by eauto.
+      eauto.
   }
   
   (*
