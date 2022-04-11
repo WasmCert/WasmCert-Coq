@@ -422,7 +422,7 @@ Definition functions_agree (fs : seq function_closure) (n : nat) (f : function_t
 
 Definition tab_typing (t : tableinst) (tt : table_type) : bool :=
   (tt.(tt_limits).(lim_min) <= tab_size t) &&
-  (t.(table_max_opt) < tt.(tt_limits).(lim_max)).
+  (t.(table_max_opt) <= tt.(tt_limits).(lim_max)).
 
 Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool :=
   (n < List.length ts) &&
