@@ -1128,15 +1128,20 @@ Proof.
       by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
 Qed.
 
+Definition module_restrictions (m: module) : Prop :=
+  (* Initializers for globals are only values *)
+  exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs.
+
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
+  module_restrictions m ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E
   {{ v, instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps None }}.
 Proof.
   
-  move => Hmodstart Hmodtype.
+  move => Hmodstart Hmodtype Hmodrestr.
   iIntros "(Hmod & Himphost & Himpwasm & Hexphost)".
   
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
@@ -1164,17 +1169,42 @@ Proof.
                   inst_globs := ext_glob_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_globals)) (length m.(mod_globals)))
                |} as inst_res.
   
-  (* Prove that the instantiation predicate holds *)
-  assert (exists ws_res v_exps ostart, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  unfold module_restrictions in Hmodrestr.
+  destruct Hmodrestr as [g_inits Hmodrestr].
+
+  assert (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) as Hginitstype.
   {
-    unfold alloc_module => /=.
-    destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
-    destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
-    destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
-    destruct (alloc_globs host_function s2 (mod_globals m) (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals)))) eqn:Hallocglob.
+    unfold module_typing in Hmodtype.
+    destruct m => /=.
+    destruct Hmodtype as [fts [gts [? [? [? [Hglobtype ?]]]]]].
+    apply list_eq.
+    move => i.
+    Search Forall2.
+    rewrite -> Forall2_lookup in Hglobtype.
+    specialize Hglobtype with i.
+    repeat rewrite list_lookup_fmap.
+    destruct (mod_globals !! i) as [mg | ] eqn: Hmgi.
+    - inversion Hglobtype; subst; clear Hglobtype.
+      simpl in *.
+      unfold module_glob_typing in H5.
+      destruct mg.
+      Print const_expr.
+      admit.
+      admit.
+  }
+  
+  destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
+  destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
+  destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
+  destruct (alloc_globs host_function s2 (mod_globals m) g_inits) eqn:Hallocglob.
+
+  (* Prove that the instantiation predicate holds *)
+  assert (exists ws_res v_exps, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), None))) as Hinst.
+  {
     unfold instantiate, instantiation.instantiate.
+    unfold alloc_module => /=.
     do 2 eexists.
-    exists None, t_imps, t_exps, hs, s3, (n_zeros (map (tg_t ∘ modglob_type) m.(mod_globals))).
+    exists t_imps, t_exps, hs, s3, g_inits.
     do 2 eexists.
     repeat split.
     - (* module_typing *)
@@ -1223,7 +1253,7 @@ Proof.
         apply lookup_lt_Some in Hwg.
         by lias.
     - (* alloc module *)
-      rewrite Hallocglob. 
+      rewrite Hallocfunc Halloctab Hallocmem Hallocglob.
       repeat (apply/andP; split); try apply/eqP; subst => //=.
       + (* Functions *)
         unfold ext_func_addrs => /=.
@@ -1257,7 +1287,8 @@ Proof.
         by apply alloc_func_gen_index in Hallocfunc as [? [? [? [? <-]]]].
     - (* global initializers *)
       (* In fact -- global initializers have to exist, in the sense that each modglob carries a (non-optional) list 
-         of basic expression as its initializer, so we cannot simply ignore it. But let's say we ignore it for now. *)
+         of basic expression as its initializer, so we cannot simply ignore it. But let's say we admit it for now. *)
+      Print instantiation.instantiate_globals.
       admit.
     - (* table initializers *)
       (* And the same for table initializers... just why? *)
@@ -1273,7 +1304,7 @@ Proof.
       by rewrite Hmodstart.
     - (* putting initlialized items into the store *)
       apply/eqP.
-      by eauto.
+      eauto.
   }
   
   (*
