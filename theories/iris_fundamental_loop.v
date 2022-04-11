@@ -140,7 +140,7 @@ Section fundamental.
     rewrite Hsize -e in Hfill.
     assert (j - p = 0) as ->;[lia|].
     iDestruct "Hbr" as (? ? ? ? ? ? ? ? Hlook Hlayer) "Hbr".
-    simpl in Hlook. inversion Hlook;subst τs'. clear Hdepth.
+    simpl in Hlook. inversion Hlook;subst τs'.
     iDestruct "Hbr" as (Hdepth Hmin) "[#Hvalvs Hbr]".
     iDestruct "Hvalvs" as "[%|Hvalvs]";[done|].
     iDestruct "Hvalvs" as (ws' Heq') "Hvalvs". inversion Heq';subst ws'.
