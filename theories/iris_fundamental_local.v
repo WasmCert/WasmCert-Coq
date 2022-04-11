@@ -118,8 +118,7 @@ Section fundamental.
       simplify_eq.
       destruct Hmin as [lh3 Hmin%lh_minus_Ind_Equivalent].
       inversion Hmin;simplify_eq. simpl lh_depth.
-      pose proof (vfill_to_lfilled vh [AI_basic (BI_br p)]) as [k [_ Hfill]].
-      apply lfilled_depth in Hfill as Hdepth''. rewrite Hdepth in Hdepth''. subst k.
+      pose proof (vfill_to_lfilled vh [AI_basic (BI_br p)]) as [_ Hfill].
       iDestruct "Hws'" as "[%Hcontr|Hws']";[done|iDestruct "Hws'" as (ww Heqw) "Hws'"].
       iDestruct (big_sepL2_length with "Hws'") as %Hlen. rewrite !app_length in Hlen.
       rewrite -(take_drop (length (τs'')) ww). inversion Heqw.
@@ -130,9 +129,9 @@ Section fundamental.
       iDestruct (big_sepL2_app_inv with "Hws'") as "[Hws1 Hws2]".
       { right. rewrite drop_length. lia. }
       iDestruct (big_sepL2_length with "Hws2") as %Hlen2.
-      simpl in Hlook. inversion Hlook;subst τs'.
+      simpl in Hlook. inversion Hlook;subst τs'. rewrite Hdepth in Hlh'.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf0]").
-      { iApply (wp_br with "Hf0");[| |apply Hlh'|];[apply const_list_of_val|by rewrite /= fmap_length|].
+      { iApply (wp_br with "Hf0") ;[| |apply Hlh'|];[apply const_list_of_val|by rewrite /= fmap_length|].
         iNext. iIntros "Hf". rewrite app_nil_r.
         iApply wp_value;[done|].
         iFrame;eauto. }
@@ -155,7 +154,7 @@ Section fundamental.
       { right. rewrite drop_length. lia. }
       iDestruct (big_sepL2_length with "Hws2") as %Hlen2.
       simpl of_val.
-      pose proof (sfill_to_lfilled vh [AI_basic BI_return]) as [k Hfill].
+      pose proof (sfill_to_lfilled vh [AI_basic BI_return]) as Hfill.
       eapply lfilled_simple_get_base_pull in Hbase as [lh' Hlh'];[|eauto].
       iIntros (LI Hfill'%lfilled_Ind_Equivalent). inversion Hfill';simplify_eq.
       inversion H9;simplify_eq. repeat erewrite app_nil_l,app_nil_r.
@@ -175,6 +174,6 @@ Section fundamental.
       iIntros (v) "[-> Hf]". iFrame.
       iSplitR;[iRight;iExists _;eauto|].
       iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame. }
-  Qed.    
+  Qed.
 
 End fundamental.
