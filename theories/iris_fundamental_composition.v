@@ -100,8 +100,8 @@ Section fundamental.
       rewrite simple_get_base_l_append.
       iSplit;eauto.
 
-      pose proof (sfill_to_lfilled (sh_append sh ([e])) ([AI_basic BI_return])) as [j Hj].
-      pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
+      pose proof (sfill_to_lfilled (sh_append sh ([e])) ([AI_basic BI_return])) as Hj.
+      pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as Hj'.
 
       iDestruct "Hret" as (?) "[#Hw Hret]".
       iDestruct "Hw" as "[%Hcontr|Hw]";[done|iDestruct "Hw" as (? Heq) "Hw"].
