@@ -103,9 +103,8 @@ Section fundamental.
     unfold interp_br_body.
     destruct (pull_base_l_drop_len vh (length vs - length tm)) eqn:Hpb.
     erewrite vfill_pull_base_l_take_len;[|eauto].
-    pose proof (vfill_to_lfilled v (((λ x : value, AI_basic (BI_const x)) <$> l) ++ [AI_basic (BI_br j)])) as [k [Hle Hfill]].
-    apply lfilled_depth in Hfill as Hdepth.
-    erewrite <-lh_depth_pull_base_l_take_len in Hdepth;[|eauto]. subst k.
+    pose proof (vfill_to_lfilled v (((λ x : value, AI_basic (BI_const x)) <$> l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
+    erewrite <-lh_depth_pull_base_l_take_len in Hfill;[|eauto]. 
     rewrite Hsize -e in Hfill.
     assert (j - p = 0) as ->;[lia|].
     iDestruct "Hbr" as (? ? ? ? ? ? ? ? Hlook Hlayer) "Hbr".
