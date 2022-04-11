@@ -141,7 +141,7 @@ Section logrel.
 
   Definition interp_table_entry (τf : function_type) (interp_closure' : N -> function_type -> ClR) : TeR :=
     λne n m, (∃ (fe : funcelem), na_inv logrel_nais (wtN n m) (n ↦[wt][m] fe)
-                                        ∗ from_option ((interp_function τf interp_closure') ∘ N.of_nat) True fe)%I.
+                                ∗ from_option ((interp_function τf interp_closure') ∘ N.of_nat) True fe)%I.
   (* ⊤ means failure is allowed in case the table is not populated *)
 
 
@@ -187,7 +187,7 @@ Section logrel.
   (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_instance' (τctx : t_context) (interp_closure' : N -> function_type -> ClR) : IR :=
+  Definition interp_instance' (τctx : t_context) (interp_closure' : N -> function_type -> ClR) (interp_closure'' : N -> function_type -> ClR) : IR :=
     λne i, let '{| inst_types := ts; inst_funcs := fs; inst_tab := tbs; inst_memory := ms; inst_globs := gs; |} := i in
            let '{| tc_types_t := ts'; tc_func_t := tfs; tc_global := tgs; tc_table := tabs_t; tc_memory := mems_t;
                    tc_local := tl; tc_label := tlabel; tc_return := treturn |} := τctx in 
@@ -198,9 +198,11 @@ Section logrel.
             (* Function tables *)           
            (match nth_error tabs_t 0 with
             | Some τt => match nth_error tbs 0 with
-                          | Some a => (∃ table_size, (N.of_nat a) ↪[wtlimit] (lim_max (tt_limits τt))
-                                                                 ∗ (N.of_nat a) ↪[wtsize] table_size
-                                                                 ∗ (interp_table table_size interp_closure') (N.of_nat a))
+                        | Some a => (∃ table_size (table_lim : option N), (* ⌜ssrnat.leq (S (ssrnat.nat_of_bool table_lim)) *)
+                                                             (* (ssrnat.nat_of_bool (lim_max (tt_limits τt)))⌝ *)
+                                                    (N.of_nat a) ↪[wtlimit] table_lim
+                                                    ∗ (N.of_nat a) ↪[wtsize] table_size
+                                                    ∗ (interp_table table_size interp_closure'') (N.of_nat a))
                         | None => False
                         end
             | None => True
@@ -216,7 +218,7 @@ Section logrel.
             (* Global declarations *)
            ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.
 
-  Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx (λ n, interp_closure).
+  Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx (λ n, interp_closure) (λ n, interp_closure).
   
   
   Global Instance interp_function_persistent τf n (icl : N -> function_type -> ClR) :
@@ -232,8 +234,8 @@ Section logrel.
     unfold interp_global.
     destruct (tg_mut τg);apply _.
   Qed.
-  Global Instance interp_instance_persistent' τctx i (icl : N -> function_type -> ClR) :
-    (∀ n τf cl, Persistent (icl n τf cl)) -> Persistent (interp_instance' τctx icl i).
+  Global Instance interp_instance_persistent' τctx i (icl icl' : N -> function_type -> ClR) :
+    (∀ n τf cl, Persistent (icl n τf cl)) -> (∀ n τf cl, Persistent (icl' n τf cl)) -> Persistent (interp_instance' τctx icl icl' i).
   Proof.
     destruct i, τctx;simpl.
     repeat apply sep_persistent;apply _.
@@ -254,8 +256,8 @@ Section logrel.
   Global Instance interp_instance_persistent τctx i : Persistent (interp_instance τctx i).
   Proof.
     apply interp_instance_persistent'.
-    intros. unfold interp_closure. simpl.
-    destruct cl,f; apply sep_persistent;apply _.
+    all: intros. all: unfold interp_closure. all: simpl.
+    all: destruct cl,f; apply sep_persistent;apply _.
   Qed.
   
   (* --------------------------------------------------------------------------------------- *)

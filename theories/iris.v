@@ -2352,15 +2352,15 @@ Proof. done. Qed.
 
 
 Lemma vfill_to_lfilled i (vh : valid_holed i) es:
-  exists k, i >= k /\ lfilled k (lh_of_vh vh) es (vfill vh es).
+  i >= (lh_depth (lh_of_vh vh)) /\
+    lfilled (lh_depth (lh_of_vh vh)) (lh_of_vh vh) es (vfill vh es).
 Proof.
   induction vh => //=.
-  - exists 0. split ; first lia.
+  - split ; first lia.
     unfold lfilled, lfill.
     induction l => //=.
     destruct (const_list _) => //.
-  - destruct IHvh as (k & Hk & Hfill).
-    exists (S k).
+  - destruct IHvh as (Hk & Hfill).
     split ; first lia.
     unfold lfilled, lfill => /=.
     fold lfill.
@@ -2372,19 +2372,17 @@ Proof.
 Qed.
 
 Lemma sfill_to_lfilled sh es :
-  exists k, lfilled k (lh_of_sh sh) es (sfill sh es).
+  lfilled (lh_depth (lh_of_sh sh)) (lh_of_sh sh) es (sfill sh es).
 Proof.
   induction sh => //=.
-  - exists 0.
-    unfold lfilled, lfill.
+  - unfold lfilled, lfill.
     induction l => //=.
     destruct (const_list _) => //.
-  - destruct IHsh as [k Hfill].
-    exists (S k).
+  - (* destruct IHsh as [k Hfill]. *)
     unfold lfilled, lfill => /= ; fold lfill.
-    unfold lfilled in Hfill.
+    unfold lfilled in IHsh.
     destruct (lfill _ _ _) => //.
-    apply b2p in Hfill ; subst.
+    apply b2p in IHsh ; subst.
     induction l => //=.
     destruct (const_list _) => //.
 Qed.
@@ -2532,7 +2530,35 @@ Proof.
   unfold to_val in H.
   simpl in H.
   inversion H => //=.
-Admitted.  
+
+  intros.
+  unfold to_val in H ; simpl in H.
+  destruct (to_val_instr a) eqn:Ha => //.
+  rewrite merge_prepend in H.
+  unfold to_val in IHes.
+  destruct (merge_values_list _) => //.
+  destruct v, v0 => //.
+  inversion H ; subst.
+  erewrite IHes => //.
+  destruct a => //.
+  destruct b => //.
+  inversion Ha => //.
+  simpl in Ha.
+  destruct (merge_values_list _) => //.
+  destruct v => //.
+  destruct i => //.
+  destruct (vh_decrease _) => //.
+  destruct l => //.
+  destruct l => //.
+  simpl in H.
+  destruct (vfill lh _) => //.
+  simpl in H.
+  destruct (sfill _ _) => //.
+  destruct v => //.
+  destruct e => //.
+Qed.
+  
+  
 
 Lemma merge_is_not_val es es' :
   merge_values_list (map to_val_instr es) = NotVal es' -> es = es'.
@@ -2541,42 +2567,49 @@ Proof.
   induction es => //= ; intro es'.
   destruct (to_val_instr a) eqn:Ha => //=.
   { destruct a => //= ; simpl in Ha.
-    destruct b => //= ; inversion Ha ; subst.
-    by rewrite merge_br.
-    by rewrite merge_return.
-    rewrite merge_prepend.
-    destruct (merge_values_list _) eqn:Hmerge => //=.
-    destruct v => //=.
-    intro H ; inversion H ; subst.
-    rewrite (to_val_trap_is_singleton (e := es)) => //.
-    unfold to_val ; by rewrite Hmerge.
-    intro H ; inversion H.
-    by erewrite IHes.
+    { destruct b => //= ; inversion Ha ; subst.
+      by rewrite merge_br.
+      by rewrite merge_return.
+      rewrite merge_prepend.
+      destruct (merge_values_list _) eqn:Hmerge => //=.
+      destruct v => //=.
+      intro H ; inversion H ; subst.
+      rewrite (to_val_trap_is_singleton (e := es)) => //.
+      unfold to_val ; by rewrite Hmerge.
+      intro H ; inversion H.
+      by erewrite IHes. }
+    { inversion Ha.
+      rewrite merge_prepend.
+      destruct (merge_values_list _) eqn:Hmerge => //=.
+      assert (to_val es = Some v0) ; first by unfold to_val ; rewrite Hmerge.
+      apply of_to_val in H.
+      rewrite H.
+      destruct es => //.
+      by intro H' ; inversion H'.
+      erewrite IHes => //.
+      destruct e => //.
+      by intro H ; inversion H. }
+    destruct (merge_values_list (map _ l0)) eqn:Hmerge => //.
+    destruct v0 => //.
+    destruct i => //.
+    destruct (vh_decrease _) => //.
     inversion Ha.
-    rewrite merge_prepend.
-    destruct (merge_values_list _) eqn:Hmerge => //=.
-    destruct v0 => //=.
-    destruct l => //=.
-    intro H ; inversion H.
-    
-    induction es => //=.(*
-    rewrite of_to_val_instr.
-    destruct (map to_val_instr es) eqn:Hmap => //=.
-    destruct (expr_of_val_not_val v0) eqn:Hv0 => //=.
-    destruct l => //=.
 
-    rewrite merge_prepend.
-    destruct (merge_values_list _) eqn:Hmerge => //=.
-    destruct v, v0 => //=.
-    destruct l => //=.
-    { intro H ; inversion H ; clear H.
-      destruct a ; try by inversion Ha.
-      destruct b ; try by inversion Ha.
-      inversion Ha ; subst. simpl. zzzzzzzzzzz
-      rewrite H1. zzzzzzzzzzzz
-  destruct b => //=. *)
-Admitted.
-    
+    rewrite merge_br => //.
+    inversion Ha.
+    rewrite merge_return => //. }
+  rewrite flatten_simplify.
+  intro H ; inversion H.
+  destruct a => // ; try by inversion Ha. 
+  destruct b => // ; try by inversion Ha.
+  simpl in Ha.
+  destruct (merge_values_list (map _ l0)) => // ; try by inversion Ha. 
+  destruct v => // ; try by inversion Ha.
+  destruct i => // ; try by inversion Ha.
+  destruct (vh_decrease lh) ; try by inversion Ha.
+Qed. 
+
+
 Lemma extend_retV sh es :
   to_val (of_val (retV sh) ++ es) = Some (retV (sh_append sh es)).
 Proof.
@@ -2592,32 +2625,10 @@ Proof.
   done.
   unfold to_val.
   by rewrite Hmerge.
-  Check of_to_val_instr.
+  by apply merge_is_not_val in Hmerge ; subst.
+Qed.
 
-  induction sh => /=.
-  { induction l => //=.
-    unfold to_val => /=.(*
-    rewrite merge_return flatten_simplify => //=.
-    unfold to_val => /=.
-    rewrite merge_prepend.
-    unfold to_val in IHl.
-    destruct (merge_values_list _) => //.
-    inversion IHl => //=. }
-  induction l => /=.
-  unfold to_val => /=.
-  unfold to_val in IHsh.
-  unfold of_val in IHsh.
-  rewrite map_app in IHsh.
-  rewrite merge_app in IHsh.
-  destruct (merge_values_list _) eqn:Hmerge => //.
-  destruct v => //.
-  induction (map to_val_instr (sfill sh [AI_basic BI_return])) eqn:Hmap => /=.
-  apply map_eq_nil in Hmap.
-  apply sfill_is_nil in Hmap as [Habs _] => //.
-  destruct a => /=.
-  destruct v => /=.
-                        *)
-    Admitted.
+
 
 Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
     split_vals_e e1 = (vs, e :: es) ->
@@ -3607,7 +3618,7 @@ Proof.
       apply of_to_val in H1.
       unfold of_val in H1.
       rewrite (vfill_decrease _ Hdecr) in H1.
-      destruct (vfill_to_lfilled v [AI_basic (BI_br (S i0))]) as (k & Hk & Hfill).
+      destruct (vfill_to_lfilled v [AI_basic (BI_br (S i0))]) as (Hk & Hfill).
       rewrite H1 in Hfill.
       edestruct lfilled_first_values as (Habs1 & Habs2 & _).
       exact H2.
@@ -3620,7 +3631,7 @@ Proof.
       lia.
       assert (to_val LI = Some (retV s0)) ; first by unfold to_val ; rewrite Hmerge.
       apply of_to_val in H1. unfold of_val in H1. 
-      destruct (sfill_to_lfilled s0 [AI_basic BI_return]) as [k Hfill].
+      specialize (sfill_to_lfilled s0 [AI_basic BI_return]) as Hfill.
       rewrite H1 in Hfill.
       edestruct lfilled_first_values as (Habs & _ & _).
       exact H2.
@@ -3656,7 +3667,7 @@ Proof.
            assert (to_val l2 = Some (brV lh0)) ; first by unfold to_val ; rewrite Hmerge.
            apply of_to_val in H.
            unfold of_val in H.
-           destruct (vfill_to_lfilled lh0 [AI_basic (BI_br (S i))]) as (k' & Hk & Hfilled).
+           destruct (vfill_to_lfilled lh0 [AI_basic (BI_br (S i))]) as (Hk & Hfilled).
            rewrite H in Hfilled.
            assert (lfilled k lh es l2) ; first by unfold lfilled ; rewrite Hfill.
            rewrite - (app_nil_l [_]) in Hfilled.
@@ -3665,7 +3676,7 @@ Proof.
         -- exfalso.
            assert (to_val l2 = Some (retV s0)) ; first by unfold to_val ; rewrite Hmerge.
            apply of_to_val in H. unfold of_val in H.
-           destruct (sfill_to_lfilled s0 [AI_basic BI_return]) as [k' Hfilled].
+           specialize (sfill_to_lfilled s0 [AI_basic BI_return]) as Hfilled.
            rewrite H in Hfilled.
            assert (lfilled k lh es l2) ; first by unfold lfilled ; rewrite Hfill.
            rewrite - (app_nil_l [_]) in Hfilled.

@@ -195,13 +195,12 @@ Section Examples.
   Proof. destruct cl,f;try apply _. Qed.
   
   Definition interp_instance_pre (τctx : t_context) (fimps : gmap nat function_closure) :=
-    λne (i : leibnizO instance), interp_instance' τctx (interp_closure_pre τctx fimps i) i.
+    λne (i : leibnizO instance), interp_instance' τctx (interp_closure_pre τctx fimps i) (λ _, interp_closure (HWP:=HWP)) i.
   Global Instance interp_instance_pre_persistent τctx fimps i : Persistent (interp_instance_pre τctx fimps i).
-  Proof. apply interp_instance_persistent';intros. destruct cl,f; apply _. Qed.
+  Proof. apply interp_instance_persistent';intros; destruct cl,f; apply _.  Qed.
 
   Lemma n_zeros_length l :
     length (n_zeros l) = length l.
-
   Proof.
     induction l;auto. simpl. rewrite IHl. 
     auto.
@@ -270,23 +269,11 @@ Section Examples.
     iDestruct "Hpre" as "[Htypes [Hfunc [Htable [Hmem Hglob]]]]".
     iFrame "#".
     iDestruct (big_sepL2_length with "Hfunc") as %Hlen.
-    iSplitR.
-    { iApply (big_sepL2_forall).
-      iSplit;[auto|iIntros (k f ft Hf Hft)].
-      iDestruct (big_sepL2_lookup with "Hfunc") as (cl) "[Hfna Hcl]";[eauto..|].
-      iExists _. iFrame "Hfna".
-      iApply interp_closure_pre_ind;eauto. }
-    { destruct (nth_error tc_table 0).
-      destruct (nth_error inst_tab 0);[|done].
-      iDestruct "Htable" as (table_size) "[Hlim [Hsize Ht]]".
-      iExists _. iFrame "Hsize Hlim".
-      iApply (big_sepL_forall).
-      iIntros (k x Hlook).
-      iDestruct (big_sepL_lookup with "Ht") as (τf fe) "[Htt Hf]";[eauto|].
-      iExists τf,_. iFrame "Htt".
-      destruct fe;[|auto].
-      iDestruct "Hf" as (?) "[Hfna Hf]".
-      iExists _. iFrame "Hfna". iApply interp_closure_pre_ind;eauto. done. }
+    iApply (big_sepL2_forall).
+    iSplit;[auto|iIntros (k f ft Hf Hft)].
+    iDestruct (big_sepL2_lookup with "Hfunc") as (cl) "[Hfna Hcl]";[eauto..|].
+    iExists _. iFrame "Hfna".
+    iApply interp_closure_pre_ind;eauto.
   Qed.
       
   Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
@@ -351,9 +338,12 @@ Section Examples.
       iApply interp_value_type_of. }
   Qed.
 
-  Lemma import_resources_wasm_typecheck_func_len v_imps t_imps wfs wts wms wgs :
+  Lemma import_resources_wasm_typecheck_lengths v_imps t_imps wfs wts wms wgs :
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-    ⌜length (ext_func_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_funcs t_imps)⌝.
+    ⌜length (ext_func_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_funcs t_imps)
+    ∧ length (ext_tab_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_tabs t_imps)
+    ∧ length (ext_mem_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_mems t_imps)
+    ∧ length (ext_glob_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_globs t_imps)⌝.
   Proof.
     iIntros "[_ Hi]".
     iDestruct (big_sepL2_length with "Hi") as %Hlen.
@@ -366,18 +356,18 @@ Section Examples.
       iDestruct ("IH" with "[] Hi") as %HlenIH;auto;iClear "Hi".
       rewrite map_cons.
       destruct (modexp_desc a).
-      { destruct f. simpl. rewrite HlenIH.
+      { destruct f. simpl. destruct HlenIH as (Heq1&Heq2&Heq3&Heq4).
         iDestruct "Hx" as (?) "[_ [_ %H]]".
-        rewrite H //. }
-      { destruct t. rewrite HlenIH.
-        iDestruct "Hx" as (? ?) "[_ [_ %H]]". destruct H as [H _].
-        rewrite H //. }
-      { destruct m. rewrite HlenIH.
-        iDestruct "Hx" as (? ?) "[_ [_ %H]]". destruct H as [H _].
-        rewrite H //. }
-      { destruct g. rewrite HlenIH.
-        iDestruct "Hx" as (? ?) "[_ [_ %H]]". destruct H as [H _].
-        rewrite H //. }
+        rewrite H //. simpl. rewrite Heq1 Heq2 Heq3 Heq4. auto. }
+      { destruct t. simpl. destruct HlenIH as (Heq1&Heq2&Heq3&Heq4).
+        iDestruct "Hx" as (? ?) "[_ [_ [%H _]]]".
+        rewrite H //. simpl. rewrite Heq1 Heq2 Heq3 Heq4. auto. }
+      { destruct m. simpl. destruct HlenIH as (Heq1&Heq2&Heq3&Heq4).
+        iDestruct "Hx" as (? ?) "[_ [_ [%H _]]]".
+        rewrite H //. simpl. rewrite Heq1 Heq2 Heq3 Heq4. auto. }
+      { destruct g. simpl. destruct HlenIH as (Heq1&Heq2&Heq3&Heq4).
+        iDestruct "Hx" as (? ?) "[_ [_ [%H _]]]".
+        rewrite H //. simpl. rewrite Heq1 Heq2 Heq3 Heq4. auto. }
     }
   Qed.
 
@@ -405,7 +395,7 @@ Section Examples.
     iApply na_inv_alloc. iNext. iFrame.
   Qed.
 
-  Lemma module_inst_resources_func_NoDup mfuncs inst inst_f :
+  (*Lemma module_inst_resources_func_NoDup mfuncs inst inst_f :
     module_inst_resources_func mfuncs inst inst_f -∗
     ⌜NoDup inst_f⌝.
   Proof.
@@ -425,7 +415,7 @@ Section Examples.
         iDestruct (mapsto_valid_2 with "H H'") as "[% ?]". done. }
       { iDestruct ("IH" with "[] H'") as "H'";auto. }
     } 
-  Qed.
+  Qed.*)
 
   Lemma ext_func_addrs_elem_of fa v_imps :
     fa ∈ ext_func_addrs (modexp_desc <$> v_imps) ->
@@ -442,12 +432,60 @@ Section Examples.
       all: simpl in *.
       all: apply IHv_imps in H as [name Ha']; exists name; constructor; auto. 
     }
+  Qed.
+  Lemma ext_tab_addrs_elem_of fa v_imps :
+    fa ∈ ext_tab_addrs (modexp_desc <$> v_imps) ->
+    ∃ name, Build_module_export name (MED_table (Mk_tableidx fa)) ∈ v_imps.
+  Proof.
+    induction v_imps.
+    { cbn. intros Hcontr;inversion Hcontr. }
+    { cbn. intros H. destruct (modexp_desc a) eqn:Ha.
+      2: { simpl in *. destruct t.
+        apply elem_of_cons in H as [-> | Ha'].
+        { destruct a. eexists. simpl in Ha. rewrite Ha. constructor. }
+        { apply IHv_imps in Ha' as [name Ha']. exists name. constructor. auto. }
+      }
+      all: simpl in *.
+      all: apply IHv_imps in H as [name Ha']; exists name; constructor; auto. 
+    }
+  Qed.
+  Lemma ext_mem_addrs_elem_of fa v_imps :
+    fa ∈ ext_mem_addrs (modexp_desc <$> v_imps) ->
+    ∃ name, Build_module_export name (MED_mem (Mk_memidx fa)) ∈ v_imps.
+  Proof.
+    induction v_imps.
+    { cbn. intros Hcontr;inversion Hcontr. }
+    { cbn. intros H. destruct (modexp_desc a) eqn:Ha.
+      3: { simpl in *. destruct m.
+        apply elem_of_cons in H as [-> | Ha'].
+        { destruct a. eexists. simpl in Ha. rewrite Ha. constructor. }
+        { apply IHv_imps in Ha' as [name Ha']. exists name. constructor. auto. }
+      }
+      all: simpl in *.
+      all: apply IHv_imps in H as [name Ha']; exists name; constructor; auto. 
+    }
+  Qed.
+  Lemma ext_glob_addrs_elem_of fa v_imps :
+    fa ∈ ext_glob_addrs (modexp_desc <$> v_imps) ->
+    ∃ name, Build_module_export name (MED_global (Mk_globalidx fa)) ∈ v_imps.
+  Proof.
+    induction v_imps.
+    { cbn. intros Hcontr;inversion Hcontr. }
+    { cbn. intros H. destruct (modexp_desc a) eqn:Ha.
+      4: { simpl in *. destruct g.
+        apply elem_of_cons in H as [-> | Ha'].
+        { destruct a. eexists. simpl in Ha. rewrite Ha. constructor. }
+        { apply IHv_imps in Ha' as [name Ha']. exists name. constructor. auto. }
+      }
+      all: simpl in *.
+      all: apply IHv_imps in H as [name Ha']; exists name; constructor; auto. 
+    }
   Qed.    
 
   Lemma module_res_imports_disj v_imps t_imps wfs wts wms wgs m inst :
-   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-   module_inst_resources_func (mod_funcs m) inst (drop (get_import_func_count m) (inst_funcs inst)) -∗
-   ⌜∀ i fa, (drop (get_import_func_count m) (inst_funcs inst)) !! i = Some fa -> wfs !! fa = None⌝.
+    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗ 
+     module_inst_resources_func (mod_funcs m) inst (drop (get_import_func_count m) (inst_funcs inst)) -∗
+     ⌜∀ i fa, (drop (get_import_func_count m) (inst_funcs inst)) !! i = Some fa -> wfs !! fa = None⌝.
   Proof.
     iIntros "[[%Hdom _] Hi] Hf".
     iIntros (i fa Hsome).
@@ -479,7 +517,7 @@ Section Examples.
                                         (repeat None (ssrnat.nat_of_bin min)))
                                        (omax)
                    end) in
-       N.of_nat addr ↪[wtsize]tab_size tab ∗
+       N.of_nat addr ↪[wtsize]tab_size tab ∗ N.of_nat addr ↪[wtlimit]table_max_opt tab ∗
        ([∗ list] j↦tabelem ∈ table_data tab, na_inv logrel_nais (wtN (N.of_nat addr) (N.of_nat j)) (N.of_nat addr ↦[wt][N.of_nat j]tabelem))       
     )%I.
 
@@ -497,14 +535,17 @@ Section Examples.
   Qed.
 
   Definition module_inst_resources_mem_invs (mmems: list memory_type) (inst_m: list memaddr) : iProp Σ := 
-    ([∗ list] mem; addr ∈ mmems; inst_m,
+    ([∗ list] mem; addr ∈ mmems; inst_m, N.of_nat addr ↪[wmlimit] lim_max mem ∗
        na_inv logrel_nais (wmN (N.of_nat addr))
-       (N.of_nat addr ↦[wmblock] (match mem with
-                                 | {| lim_min:= min; lim_max := omax |} =>
-                                     Build_memory
-                                       {| ml_init := #00%byte; ml_data := repeat #00%byte (N.to_nat min) |}
-                                       (omax)
-                                 end))
+              (∃ (mem : memory),
+                  ([∗ list] i ↦ b ∈ (mem.(mem_data).(ml_data)), (N.of_nat addr) ↦[wm][ (N.of_nat i) ] b) ∗
+                                                                (N.of_nat addr) ↦[wmlength] mem_length mem)
+       (* (N.of_nat addr ↦[wmblock] (match mem with *)
+       (*                           | {| lim_min:= min; lim_max := omax |} => *)
+       (*                               Build_memory *)
+       (*                                 {| ml_init := #00%byte; ml_data := repeat #00%byte (N.to_nat min) |} *)
+       (*                                 (omax) *)
+       (*                           end)) *)
     ).
 
   Lemma module_inst_resources_mem_invs_alloc E mmems inst_m :
@@ -514,38 +555,55 @@ Section Examples.
     iIntros "Himps".
     iApply big_sepL2_fupd.
     iApply (big_sepL2_mono with "Himps");intros k exp expt Hlook1 Hlook2;simpl.
-    iIntros "Hf".
-    iApply na_inv_alloc. iNext. iFrame.
+    iIntros "[Hf [Hlen Hlim]]". destruct exp. simpl. iFrame "Hlim".
+    iApply na_inv_alloc. iNext. iExists _. iFrame.
   Qed.
   
-  Definition module_inst_resources_glob_invs (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
-    ([∗ list] g; addr ∈ mglobs; inst_g,
-       na_inv logrel_nais (wgN (N.of_nat addr)) (∃ w, N.of_nat addr ↦[wg] Build_global (tg_mut (modglob_type g)) w
-                                                               ∗ interp_value (tg_t (modglob_type g)) w)
+  Definition module_inst_resources_glob_invs (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) (gts : seq.seq global_type) : iProp Σ :=
+    ([∗ list] i↦g; addr ∈ mglobs; inst_g,
+       ∃ w τg, ⌜g_inits !! addr = Some w⌝ ∗ ⌜gts !! i = Some τg⌝ ∗
+       na_inv logrel_nais (wgN (N.of_nat addr)) (∃ w, N.of_nat addr ↦[wg] Build_global (tg_mut τg) w
+                                                               ∗ interp_value (tg_t τg) w)
     ).
 
-  Lemma module_inst_resources_glob_invs_alloc E mglobs g_inits inst_g :
-    (forall k g i v, mglobs !! k = Some g ->
-              inst_g !! k = Some i ->
-              g_inits !! i = Some v ->
-              ⊢ interp_value (Σ:=Σ) (tg_t (modglob_type g)) v) ->
+  (* Not provable until the spec for instantiation connects g_inits to the mglob inits *)
+  Lemma module_inst_resources_glob_invs_alloc E mglobs g_inits inst_g impts gts :
+    let c' :=
+       {|
+         tc_types_t := [];
+         tc_func_t := [];
+         tc_global := ext_t_globs impts;
+         tc_table := [];
+         tc_memory := [];
+         tc_local := [];
+         tc_label := [];
+         tc_return := None
+       |} in
+    Forall2 (module_glob_typing c') mglobs gts ->
+    
 
     module_inst_resources_glob mglobs g_inits inst_g ={E}=∗
-    module_inst_resources_glob_invs mglobs g_inits inst_g.
+    module_inst_resources_glob_invs mglobs g_inits inst_g gts.
   Proof.
-    iIntros (Hginitsval) "Himps".
+    iIntros (c' Hginitsval) "Himps".
     iApply big_sepL2_fupd.
     iApply (big_sepL2_mono with "Himps");intros k exp expt Hlook1 Hlook2;simpl.
     iIntros "Hf".
     destruct (nth_error g_inits expt) eqn:Hnth;[|done].
-    iApply na_inv_alloc. iNext. iExists _. iFrame.
-    iApply Hginitsval;eauto.
-    by rewrite -nth_error_lookup.
-  Qed.
+    rewrite nth_error_lookup in Hnth.
+    eapply Forall2_lookup_l in Hginitsval as [gt [Hgt Htyp]];eauto.
+    iExists _,_. iSplitR;[eauto|]. iSplitR;[eauto|].
+    unfold module_glob_typing in Htyp. destruct exp;simpl in *.
+    destruct Htyp as [Hconst Htyp].
+    unfold const_exprs,const_expr in Hconst.
+  Admitted.
 
-  Lemma get_import_func_count_length m t_imps c :
+  Lemma get_import_count_length m t_imps c :
     Forall2 (λ imp e, module_import_typing c (imp_desc imp) e) (mod_imports m) t_imps ->
-    get_import_func_count m = length (ext_t_funcs t_imps).
+    get_import_func_count m = length (ext_t_funcs t_imps)
+    ∧ get_import_table_count m = length (ext_t_tabs t_imps)
+    ∧ get_import_mem_count m = length (ext_t_mems t_imps)
+    ∧ get_import_global_count m = length (ext_t_globs t_imps).
   Proof.
     revert m; induction t_imps;intros m Himps.
     { destruct m.
@@ -575,9 +633,9 @@ Section Examples.
           ).
       destruct (imp_desc m),a; try done.
       all: simpl; rewrite size_filter.
-      all: unfold ext_t_funcs in IHt_imps.
+      all: unfold ext_t_funcs,ext_t_tabs,ext_t_mems,ext_t_globs in IHt_imps.
       all: rewrite length_is_size size_pmap /= in IHt_imps.
-      all: rewrite <-(IHt_imps m');auto. }
+      all: destruct IHt_imps with m' as [? [? [? ?]]];auto. }
   Qed.
 
   Lemma inst_funcs_length_imp_app ifts t_imps v_imps inst_funcs m fts c :
@@ -597,7 +655,76 @@ Section Examples.
     destruct Hprefunc as [inst_funcs_new Heqf].
     rewrite Heqf. rewrite !app_length.
     rewrite Hlenfr Hlenir.
-    erewrite get_import_func_count_length;[|eauto].
+    edestruct get_import_count_length as [-> _];eauto.
+    rewrite drop_length.
+    rewrite Heqf. rewrite app_length. rewrite Hlenir.
+    rewrite nat_minus_plus Heq. auto.
+  Qed.
+
+  Lemma inst_tabs_length_imp_app ifts t_imps v_imps inst_funcs m fts c :
+    ifts = ext_t_tabs t_imps  ->
+    ext_tab_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps) `prefix_of` inst_funcs ->
+    length (ext_tab_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_tabs t_imps) ->
+    length (mod_tables m) = length (drop (get_import_table_count m) inst_funcs) ->
+    length v_imps = length t_imps ->
+    length (mod_tables m) = length fts ->
+    Forall2 (λ imp e, module_import_typing c (imp_desc imp) e) (mod_imports m) t_imps ->
+
+    length inst_funcs = length (ifts ++ fts).
+  Proof.
+    intros Heq Hprefunc Hlenir Hlenfr Himp_len Hlenfr' Himps.
+    destruct m. simpl in *.
+    rewrite Hlenfr' in Hlenfr.
+    destruct Hprefunc as [inst_funcs_new Heqf].
+    rewrite Heqf. rewrite !app_length.
+    rewrite Hlenfr Hlenir.
+    edestruct get_import_count_length as [_ [-> _]];eauto.
+    rewrite drop_length.
+    rewrite Heqf. rewrite app_length. rewrite Hlenir.
+    rewrite nat_minus_plus Heq. auto.
+  Qed.
+
+  Lemma inst_mem_length_imp_app ifts t_imps v_imps inst_funcs m fts c :
+    ifts = ext_t_mems t_imps  ->
+    ext_mem_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps) `prefix_of` inst_funcs ->
+    length (ext_mem_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_mems t_imps) ->
+    length (mod_mems m) = length (drop (get_import_mem_count m) inst_funcs) ->
+    length v_imps = length t_imps ->
+    length (mod_mems m) = length fts ->
+    Forall2 (λ imp e, module_import_typing c (imp_desc imp) e) (mod_imports m) t_imps ->
+
+    length inst_funcs = length (ifts ++ fts).
+  Proof.
+    intros Heq Hprefunc Hlenir Hlenfr Himp_len Hlenfr' Himps.
+    destruct m. simpl in *.
+    rewrite Hlenfr' in Hlenfr.
+    destruct Hprefunc as [inst_funcs_new Heqf].
+    rewrite Heqf. rewrite !app_length.
+    rewrite Hlenfr Hlenir.
+    edestruct get_import_count_length as [_ [_ [-> _]]];eauto.
+    rewrite drop_length.
+    rewrite Heqf. rewrite app_length. rewrite Hlenir.
+    rewrite nat_minus_plus Heq. auto.
+  Qed.
+
+  Lemma inst_glob_length_imp_app ifts t_imps v_imps inst_funcs m fts c :
+    ifts = ext_t_globs t_imps  ->
+    ext_glob_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps) `prefix_of` inst_funcs ->
+    length (ext_glob_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_globs t_imps) ->
+    length (mod_globals m) = length (drop (get_import_global_count m) inst_funcs) ->
+    length v_imps = length t_imps ->
+    length (mod_globals m) = length fts ->
+    Forall2 (λ imp e, module_import_typing c (imp_desc imp) e) (mod_imports m) t_imps ->
+
+    length inst_funcs = length (ifts ++ fts).
+  Proof.
+    intros Heq Hprefunc Hlenir Hlenfr Himp_len Hlenfr' Himps.
+    destruct m. simpl in *.
+    rewrite Hlenfr' in Hlenfr.
+    destruct Hprefunc as [inst_funcs_new Heqf].
+    rewrite Heqf. rewrite !app_length.
+    rewrite Hlenfr Hlenir.
+    edestruct get_import_count_length as [_ [_ [_ ->]]];eauto.
     rewrite drop_length.
     rewrite Heqf. rewrite app_length. rewrite Hlenir.
     rewrite nat_minus_plus Heq. auto.
@@ -669,6 +796,254 @@ Section Examples.
       }
     }
   Qed.
+
+  Lemma import_tabs_lookup t_imps v_imps k ft fa wfs wts wms wgs:
+    ext_t_tabs t_imps !! k = Some ft ->
+    ext_tab_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps) !! k = Some fa ->
+    import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs -∗
+    ⌜∃ k', t_imps !! k' = Some (ET_tab ft) ∧ ∃ fm, v_imps !! k' = Some fm ∧ modexp_desc fm = MED_table (Mk_tableidx fa)⌝.
+  Proof.
+    iIntros (Hft Hfa) "[_ Himps]".
+    iDestruct (big_sepL2_length with "Himps") as %Hlen.
+    iInduction (t_imps) as [] "IH" forall (v_imps k Hlen Hft Hfa).
+    { inversion Hft. }
+    { destruct v_imps;[done|].
+      simpl in Hlen;inversion Hlen.
+      destruct k.
+      { iDestruct "Himps" as "[Hf Himps]".
+        simpl in Hfa. 
+        destruct (modexp_desc m) eqn:Hmod.
+        2: { iClear "Himps".
+          destruct t. simpl in Hfa. simplify_eq.
+          iDestruct "Hf" as (? ?) "[Hfa [? [? %Ha]]]".
+          destruct Ha as [Hwfs [Ha HH]]. subst.
+          simpl in Hft. simplify_eq.
+          iExists 0. iSimpl. iSplit;auto.
+          iExists _. iSplit;eauto. }
+        { destruct f. cbn in Hfa.
+          iDestruct "Hf" as (?) "[? %Ha]".
+          destruct Ha as [Hwts Heq].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+        { destruct m0. cbn in Hfa.
+          iDestruct "Hf" as (mem mt) "[? [? %Ha]]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+        { destruct g. cbn in Hfa.
+          iDestruct "Hf" as (g gt) "[? %Ha]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+      }
+      { iDestruct "Himps" as "[Hf Himps]".
+        simpl in *.
+        destruct (modexp_desc m) eqn:Hmod.
+        all: simpl in *.
+        2: { destruct t. iDestruct "Hf" as (? ?) "[? [? [Hfa %Ha]]]".
+          destruct Ha as [Hwfs [Ha ?]]. subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct f. iDestruct "Hf" as (?) "[? %Ha]".
+          destruct Ha as [Hwts Heq]. subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct m0. iDestruct "Hf" as (mem mt) "[? [? %Ha]]".
+          destruct Ha as [Hwts [Heq Htyp]]. subst a;simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct g. iDestruct "Hf" as (g gt) "[? %Ha]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+      }
+    }
+  Qed.
+
+  Lemma import_mems_lookup t_imps v_imps k ft fa wfs wts wms wgs:
+    ext_t_mems t_imps !! k = Some ft ->
+    ext_mem_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps) !! k = Some fa ->
+    import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs -∗
+    ⌜∃ k', t_imps !! k' = Some (ET_mem ft) ∧ ∃ fm, v_imps !! k' = Some fm ∧ modexp_desc fm = MED_mem (Mk_memidx fa)⌝.
+  Proof.
+    iIntros (Hft Hfa) "[_ Himps]".
+    iDestruct (big_sepL2_length with "Himps") as %Hlen.
+    iInduction (t_imps) as [] "IH" forall (v_imps k Hlen Hft Hfa).
+    { inversion Hft. }
+    { destruct v_imps;[done|].
+      simpl in Hlen;inversion Hlen.
+      destruct k.
+      { iDestruct "Himps" as "[Hf Himps]".
+        simpl in Hfa. 
+        destruct (modexp_desc m) eqn:Hmod.
+        3: { iClear "Himps".
+          destruct m0. simpl in Hfa. simplify_eq.
+          iDestruct "Hf" as (? ?) "[Hfa [? %Ha]]".
+          destruct Ha as [Hwfs [Ha HH]]. subst.
+          simpl in Hft. simplify_eq.
+          iExists 0. iSimpl. iSplit;auto.
+          iExists _. iSplit;eauto. }
+        { destruct f. cbn in Hfa.
+          iDestruct "Hf" as (?) "[? %Ha]".
+          destruct Ha as [Hwts Heq].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+        { destruct t. cbn in Hfa.
+          iDestruct "Hf" as (? ?) "[? [? [? %Ha]]]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+        { destruct g. cbn in Hfa.
+          iDestruct "Hf" as (g gt) "[? %Ha]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+      }
+      { iDestruct "Himps" as "[Hf Himps]".
+        simpl in *.
+        destruct (modexp_desc m) eqn:Hmod.
+        all: simpl in *.
+        3: { destruct m0. iDestruct "Hf" as (? ?) "[?[Hfa %Ha]]".
+          destruct Ha as [Hwfs [Ha ?]]. subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct f. iDestruct "Hf" as (?) "[? %Ha]".
+          destruct Ha as [Hwts Heq]. subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct t. iDestruct "Hf" as (mem mt) "[? [? [? %Ha]]]".
+          destruct Ha as [Hwts [Heq Htyp]]. subst a;simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct g. iDestruct "Hf" as (g gt) "[? %Ha]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+      }
+    }
+  Qed.
+
+  Lemma import_globs_lookup t_imps v_imps k ft fa wfs wts wms wgs:
+    ext_t_globs t_imps !! k = Some ft ->
+    ext_glob_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps) !! k = Some fa ->
+    import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs -∗
+    ⌜∃ k', t_imps !! k' = Some (ET_glob ft) ∧ ∃ fm, v_imps !! k' = Some fm ∧ modexp_desc fm = MED_global (Mk_globalidx fa)⌝.
+  Proof.
+    iIntros (Hft Hfa) "[_ Himps]".
+    iDestruct (big_sepL2_length with "Himps") as %Hlen.
+    iInduction (t_imps) as [] "IH" forall (v_imps k Hlen Hft Hfa).
+    { inversion Hft. }
+    { destruct v_imps;[done|].
+      simpl in Hlen;inversion Hlen.
+      destruct k.
+      { iDestruct "Himps" as "[Hf Himps]".
+        simpl in Hfa. 
+        destruct (modexp_desc m) eqn:Hmod.
+        4: { iClear "Himps".
+          destruct g. simpl in Hfa. simplify_eq.
+          iDestruct "Hf" as (? ?) "[Hfa [? %Ha]]".
+          destruct Ha as [Hwfs Ha]. subst.
+          simpl in Hft. simplify_eq.
+          iExists 0. iSimpl. iSplit;auto.
+          iExists _. iSplit;eauto. }
+        { destruct f. cbn in Hfa.
+          iDestruct "Hf" as (?) "[? %Ha]".
+          destruct Ha as [Hwts Heq].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+        { destruct t. cbn in Hfa.
+          iDestruct "Hf" as (? ?) "[? [? [? %Ha]]]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+        { destruct m0. cbn in Hfa.
+          iDestruct "Hf" as (g gt) "[? [_ %Ha]]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). simpl. eauto. }
+      }
+      { iDestruct "Himps" as "[Hf Himps]".
+        simpl in *.
+        destruct (modexp_desc m) eqn:Hmod.
+        all: simpl in *.
+        4: { destruct g. iDestruct "Hf" as (? ?) "[?[Hfa %Ha]]".
+          destruct Ha as [Hwfs Ha]. subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct f. iDestruct "Hf" as (?) "[? %Ha]".
+          destruct Ha as [Hwts Heq]. subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct t. iDestruct "Hf" as (mem mt) "[? [? [? %Ha]]]".
+          destruct Ha as [Hwts [Heq Htyp]]. subst a;simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+        { destruct m0. iDestruct "Hf" as (g gt) "[? [? %Ha]]".
+          destruct Ha as [Hwts [Heq Htyp]].
+          subst a. simpl in Hft.
+          iDestruct ("IH" with "[] [] [] Himps") as (k') "HH";eauto.
+          iExists (S k'). eauto. }
+      }
+    }
+  Qed.
+
+  (* once instantiation is fixed to account for initialisation of table, the following lemma will be more interesting and tricky 
+     (will need extra information about the functions, and might need a similar proof for the functions *)
+  Lemma interp_table_alloc n0 (P : function_type -> nat -> iProp Σ) n :
+    (∀ x y, Persistent (P x y)) ->
+    ([∗ list] j↦tabelem ∈ repeat None n0, na_inv logrel_nais (wtN (N.of_nat n) (N.of_nat j))
+                                                                         (N.of_nat n↦[wt][N.of_nat j]tabelem)) -∗
+    [∗ list] i↦_ ∈ repeat 0 n0, 
+      ∃ (τf : function_type) (fe : funcelem),
+        na_inv logrel_nais (wtN (N.of_nat n) (N.of_nat i))
+               (N.of_nat n↦[wt][N.of_nat i]fe) ∗ from_option (P τf) True fe.
+  Proof.
+    iIntros (Hpers) "#H".
+    iApply (big_sepL_forall).
+    iIntros (k x Hlook).
+    apply lookup_lt_Some in Hlook as Hlt.
+    rewrite repeat_length in Hlt.
+    eapply repeat_lookup in Hlt as Hy.
+    iDestruct (big_sepL_lookup with "H") as "H'";eauto.
+    Unshelve. exact (Tf [] []).
+  Qed.
+
+  (* Lemma module_glob_typing_modglob_type igs g gt : *)
+  (*   let C := *)
+  (*      {| *)
+  (*        tc_types_t := []; *)
+  (*        tc_func_t := []; *)
+  (*        tc_global := igs; *)
+  (*        tc_table := []; *)
+  (*        tc_memory := []; *)
+  (*        tc_local := []; *)
+  (*        tc_label := []; *)
+  (*        tc_return := None *)
+  (*      |} in *)
+  (*   module_glob_typing C g gt -> *)
+  (*   (modglob_type g) = gt. *)
+  (* Proof. *)
+  (*   intros HC Hmod. *)
+  (*   destruct g,gt. *)
+  (*   simpl in *. *)
+  (*   destruct Hmod as [Hconst Htyp]. *)
+  (*   remember (Tf [] [tg_t]). *)
+  (*   unfold const_exprs,const_expr in Hconst. *)
+  (*   destruct modglob_type. *)
+  (*   induction Htyp;inversion Heqf. simpl in Hconst. simplify_eq;simpl in Hconst;try done. *)
+  (*   { } *)
+    
   
   Lemma interp_instance_alloc E m t_imps t_exps v_imps wfs wts wms wgs g_inits inst :
     module_typing m t_imps t_exps ->
@@ -678,19 +1053,23 @@ Section Examples.
          prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
          prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
          prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)) ->
-    (forall k g i v, (mod_globals m) !! k = Some g ->
-              (drop (get_import_global_count m) (inst_globs inst)) !! k = Some i ->
-              g_inits !! i = Some v ->
-              ⊢ interp_value (Σ:=Σ) (tg_t (modglob_type g)) v) ->(* we must assume that the new global initialisers are valid *)
+    (* (forall k g i v, (mod_globals m) !! k = Some g -> *)
+    (*           (drop (get_import_global_count m) (inst_globs inst)) !! k = Some i -> *)
+    (*           g_inits !! i = Some v -> *)
+    (*           ⊢ interp_value (Σ:=Σ) (tg_t (modglob_type g)) v) ->*) (* we must assume that the new global initialisers are valid *)
     
     ([∗ map] _↦cl ∈ wfs, interp_closure (HWP:=HWP) (cl_type cl) cl)%I -∗ (* we must assume that the imported closures are valid *)
-                                                                   
+    ([∗ map] n↦t ∈ wts, interp_table (tab_size t) (λ _, interp_closure (HWP:=HWP)) (N.of_nat n)) -∗ (* that imported tables are valid -- 
+                                                                                                       i.e. we require that imported tables 
+                                                                                                       are populated only with semantically valid functions *)
+    ([∗ map] n↦m ∈ wms, interp_mem (N.of_nat n)) -∗ (* that imported memories are valid *)
+    
                                                                    
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
     module_inst_resources_wasm m inst g_inits
     ={E}=∗ ∃ C, ⌜tc_label C = [] ∧ tc_local C = [] ∧ tc_return C = None⌝ ∗ interp_instance (HWP:=HWP) C inst.
   Proof.
-    iIntros (Hmod Himps_of_inst Hginitsval) "#Himps_val Hir Hmr".
+    iIntros (Hmod Himps_of_inst) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
     destruct Hmod as [fts [gts Hmod]].
     set (ifts := ext_t_funcs t_imps).
     set (its := ext_t_tabs t_imps).
@@ -711,13 +1090,16 @@ Section Examples.
     iExists C. iSplitR;[iModIntro;auto|].
     iDestruct "Hmr" as "(Hfr & Htr & Hmr & Hgr)".
     iDestruct (module_res_imports_disj with "Hir Hfr") as %Hdisj.
-    iDestruct (import_resources_wasm_typecheck_func_len with "Hir") as %Hlenir.
+    iDestruct (import_resources_wasm_typecheck_lengths with "Hir") as %(Hlenir&Hlenir0&Hlenir1&Hlenir2).
     iMod (import_resources_wasm_typecheck_alloc with "Hir") as "#Hir".    
-    iDestruct (module_inst_resources_func_NoDup with "Hfr") as %Hnodup.
+    (* iDestruct (module_inst_resources_func_NoDup with "Hfr") as %Hnodup. *)
     iMod (module_inst_resources_func_invs_alloc with "Hfr") as "#Hfr".
     iMod (module_inst_resources_tab_invs_alloc with "Htr") as "#Htr".
     iMod (module_inst_resources_mem_invs_alloc with "Hmr") as "#Hmr".
-    iMod (module_inst_resources_glob_invs_alloc with "Hgr") as "#Hgr";[auto|].
+    iMod (module_inst_resources_glob_invs_alloc with "Hgr") as "Hgr";[eauto..|].
+    { destruct m. simpl in Hmod.
+      destruct Hmod as (Htypes & Htables & Hmems & Hglobals
+                        & Helem & Hdata & Hstart & Himps & Hexps). eauto. }
     iModIntro.
     
     iApply (interp_instance_pre_create _ wfs);[auto|].
@@ -767,7 +1149,7 @@ Section Examples.
                           & Helem & Hdata & Hstart & Himps & Hexps).
         rewrite Himpdeclapp.
         eassert (get_import_func_count _ = length _) as ->.
-        { eapply get_import_func_count_length;eauto. }
+        { eapply get_import_count_length;eauto. }
         rewrite -Hlenir. rewrite drop_app.
         eapply Forall2_lookup_r in Htypes as [mf [Hmf Hftyp]];[|eauto].
         simpl.
@@ -776,7 +1158,9 @@ Section Examples.
         
         assert (wfs !! fa = None) as Hnone.
         { apply Hdisj with ((k - length (ext_t_funcs t_imps))). simpl datatypes.inst_funcs.
-          rewrite Himpdeclapp. erewrite get_import_func_count_length;eauto.
+          rewrite Himpdeclapp.
+          eassert (get_import_func_count _ = length _) as ->.
+          { eapply get_import_count_length;eauto. }
           rewrite -Hlenir drop_app. rewrite Hlenir. auto. }
 
         iDestruct (big_sepL2_lookup with "Hfr") as "Hf";[eauto..|].
@@ -788,10 +1172,139 @@ Section Examples.
         revert Heq. move/eqP =>Heq. rewrite Heq. iSplit;auto. }
     }
 
-    
+    (* function tables *)
+    iSplitR.
+    { iClear "Hfr Hmr". iSimpl in "Htr". simpl in Hpretables.
+      destruct Hpretables as [fdecls Himpdeclapp].
+      destruct m. simpl in Hmod.
+      destruct Hmod as (Htypes & Htables & Hmems & Hglobals
+                        & Helem & Hdata & Hstart & Himps & Hexps).
+      eassert (get_import_table_count _ = length _) as ->.
+      { eapply get_import_count_length;simpl;eauto. }
+      rewrite Himpdeclapp. simpl datatypes.mod_tables.
+      rewrite -Hlenir0 drop_app.
+      rewrite -/its in Hlenir0.
+      iDestruct (big_sepL2_length with "Htr") as %Htbllen.
+      remember (its).
+      destruct l.
+      { destruct mod_tables;auto.
+        destruct ((ext_tab_addrs
+                 (map (λ mexp : module_export, modexp_desc mexp) v_imps)));[|done].
+        (* the function table is declared *)
+        simpl nth_error.
+        destruct fdecls;[done|].
+        unfold module_inst_resources_tab_invs.
+        iSimpl in "Htr".
+        iDestruct "Htr" as "[[Htsize [Hlim Ht]] _]".
+        iExists _,_. iFrame "Htsize". iFrame "Hlim".
+        destruct (tt_limits (modtab_type m)).
+        simpl table_data. unfold tab_size. simpl.
+        rewrite repeat_length.
+        iApply (interp_table_alloc with "Ht"). }
       
+      { (* the function table is imported *)
+        rewrite /its in Heql.
+        remember (ext_tab_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)).
+        destruct l0;[done|].
+        iDestruct (import_tabs_lookup (k:=0) with "Hir") as %HH;[rewrite -Heql;eauto|rewrite -Heql0;eauto|].
+        destruct HH as [k' [Hlook1 Hfm]]. destruct Hfm as [fm [Hlook2 Hfm]].
+        iDestruct "Hir" as "[%Hdom Hir]".
+        iDestruct (big_sepL2_lookup with "Hir") as "Hk'";[eauto..|].
+        rewrite Hfm. iDestruct "Hk'" as (tab tt) "(Hsize & Hlim & Helem & %Htyping)".
+        destruct Htyping as (Hwts & Htteq & Htyping). simplify_eq.
+        iDestruct (big_sepM_lookup with "Htabs_val") as "Htval";[eauto|].
+        
+        iExists _,_. iFrame "#".
+      }
+    }
 
-  Admitted.
+    (* memory *)
+    iSplitR.
+    { iClear "Hfr Htr". iSimpl in "Hmr". simpl in Hpremem.
+      destruct Hpremem as [fdecls Himpdeclapp].
+      destruct m. simpl in Hmod.
+      destruct Hmod as (Htypes & Htables & Hmems & Hglobals
+                        & Helem & Hdata & Hstart & Himps & Hexps).
+      eassert (get_import_mem_count _ = length _) as ->.
+      { eapply get_import_count_length;simpl;eauto. }
+      rewrite Himpdeclapp. simpl datatypes.mod_mems.
+      rewrite -Hlenir1 drop_app.
+      rewrite -/ims in Hlenir1.
+      iDestruct (big_sepL2_length with "Hmr") as %Hmemlen.
+      remember (ims).
+      destruct l.
+      { destruct mod_mems;auto.
+        destruct ((ext_mem_addrs
+                 (map (λ mexp : module_export, modexp_desc mexp) v_imps)));[|done].
+        (* the memory is declared *)
+        simpl nth_error.
+        destruct fdecls;[done|].
+        unfold module_inst_resources_mem_invs.
+        iSimpl in "Hmr".
+        iDestruct "Hmr" as "[[$ $] _]". }
+      { (* the memory is imported *)
+        rewrite /ims in Heql.
+        remember (ext_mem_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)).
+        destruct l0;[done|].
+        iDestruct (import_mems_lookup (k:=0) with "Hir") as %HH;[rewrite -Heql;eauto|rewrite -Heql0;eauto|].
+        destruct HH as [k' [Hlook1 Hfm]]. destruct Hfm as [fm [Hlook2 Hfm]].
+        iDestruct "Hir" as "[%Hdom Hir]".
+        iDestruct (big_sepL2_lookup with "Hir") as "Hk'";[eauto..|].
+        rewrite Hfm. iDestruct "Hk'" as (mem mt) "(Hmem & Hlim & %Htyp)".
+        destruct Htyp as (Hwms & Hmemeq & Htyping). simplify_eq.
+        iDestruct (big_sepM_lookup with "Hmems_val") as "Htval";[eauto|].
+        revert Htyping. move/andP=>[? Htyping];revert Htyping;move/eqP =>Heq.
+        rewrite Heq. iFrame "#".
+      }
+    }
+
+    (* globals *)
+    { iClear "Hfr Hmr Htr". iSimpl in "Hgr". simpl in Hpreglob.
+      destruct Hpreglob as [fdecls Himpdeclapp].
+      destruct m. simpl in Hmod.
+      destruct Hmod as (Htypes & Htables & Hmems & Hglobals
+                        & Helem & Hdata & Hstart & Himps & Hexps).
+      eassert (get_import_global_count _ = length _) as ->.
+      { eapply get_import_count_length;simpl;eauto. }
+      rewrite Himpdeclapp. simpl datatypes.mod_globals.
+      rewrite -Hlenir2 drop_app.
+      rewrite -/igs in Hlenir2.
+      iDestruct (big_sepL2_length with "Hgr") as %Hgloblen.
+      iApply big_sepL2_app.
+      { (* imported globals *)
+        iApply big_sepL2_forall.
+        iSplit;auto.
+        iIntros (k n gt Hlook1 Hlook2).
+        rewrite /igs in Hlook2.
+        iDestruct (import_globs_lookup with "Hir") as %Hh;[eauto..|].
+        destruct Hh as [k' [Hk' Hfm]].
+        destruct Hfm as [fm [Hfm Hfmeq]].
+        iDestruct "Hir" as "[%Hdom Hir]".
+        iDestruct (big_sepL2_lookup with "Hir") as "Hg";[eauto..|].
+        rewrite Hfmeq.
+        iDestruct "Hg" as (g gt') "[Hinv %Hconds]".
+        destruct Hconds as (Hwgs & Hgteq & Hagree).
+        simplify_eq.
+        unfold interp_global. simpl.
+        destruct (tg_mut gt') eqn:Hmut.
+        { iExists interp_value. iFrame "Hinv". iModIntro. auto. }
+        { iFrame "Hinv". }        
+      }
+      { (* declared globals *)
+        iApply big_sepL2_forall.
+        apply Forall2_length in Hglobals as Hgloblen'.
+        rewrite -Hgloblen Hgloblen'. iSplit;auto.
+        iIntros (k n gt Hlook1 Hlook2).
+        eapply Forall2_lookup_r in Hglobals as [g [Hg Hgtyp]];eauto.
+        iDestruct (big_sepL2_lookup with "Hgr") as (w τg) "[%Hginit [%Hgts Hg]]";[eauto..|].
+        rewrite Hlook2 in Hgts. inversion Hgts.
+        unfold interp_global. iSimpl. 
+        destruct (tg_mut τg) eqn:Hmut.
+        { iExists interp_value. iFrame "Hg". iModIntro. auto. }
+        { iFrame "Hg". }        
+      }
+    }
+  Qed.
     
 
 End Examples.
