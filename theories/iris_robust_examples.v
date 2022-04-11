@@ -567,7 +567,7 @@ Section Examples.
                                                                ∗ interp_value (tg_t τg) w)
     ).
 
-  (* Not provable until the spec for instantiation connects g_inits to the mglob inits *)
+  (* The following lemma depends on the restriction that the module only contains constants *)
   Lemma module_inst_resources_glob_invs_alloc E mglobs g_inits inst_g impts gts :
     let c' :=
        {|
@@ -582,8 +582,6 @@ Section Examples.
        |} in
     Forall2 (module_glob_typing c') mglobs gts ->
     (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) mglobs) ->
-    (* module_restrictions m -> *)
-      
 
     module_inst_resources_glob mglobs g_inits inst_g ={E}=∗
     module_inst_resources_glob_invs mglobs g_inits inst_g gts.
@@ -603,11 +601,12 @@ Section Examples.
     assert ((typeof <$> g_inits) !! k = Some (typeof v)).
     { rewrite list_lookup_fmap. rewrite Hnth. eauto. }
     rewrite Hinittyp in H.
-    rewrite list_lookup_fmap in H.
-    
-    
-    unfold const_exprs,const_expr in Hconst.
-  Admitted.
+    rewrite (list_fmap_compose (datatypes.modglob_type) tg_t mglobs) in H.
+    apply list_lookup_fmap_inv in H as [gt [Heq1 H]].
+    rewrite list_lookup_fmap Hlook1 /= in H.
+    simplify_eq. rewrite -Heq1.
+    iApply interp_value_type_of.
+  Qed.
 
   Lemma get_import_count_length m t_imps c :
     Forall2 (λ imp e, module_import_typing c (imp_desc imp) e) (mod_imports m) t_imps ->
