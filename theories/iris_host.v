@@ -1111,7 +1111,8 @@ Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wm
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
-  export_ownership_host hs_exps.
+  export_ownership_host hs_exps ∗
+  ⌜ length hs_exps = length m.(mod_exports) ⌝.
 
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
@@ -1164,6 +1165,8 @@ Proof.
   (* Imported resources in Wasm and typing information *)
   iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
   destruct Himpwasm as [Hvtlen Himpwasm].
+
+  iDestruct "Hexphost" as "(Hexphost & %Hlenexp)".
 
   remember {| inst_types := m.(mod_types);
                   inst_funcs := ext_func_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
@@ -1221,12 +1224,14 @@ Proof.
   destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
   destruct (alloc_globs host_function s2 (mod_globals m) g_inits) eqn:Hallocglob.
 
+  remember (fmap (fun m_exp => {| modexp_name := modexp_name m_exp; modexp_desc := export_get_v_ext inst_res (modexp_desc m_exp) |}) m.(mod_exports)) as v_exps.
+
   (* Prove that the instantiation predicate holds *)
-  assert (exists ws_res v_exps, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), None))) as Hinst.
+  assert (exists ws_res, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), None))) as Hinst.
   {
     unfold instantiate, instantiation.instantiate.
     unfold alloc_module => /=.
-    do 2 eexists.
+    eexists.
     exists t_imps, t_exps, hs, s3, g_inits.
     do 2 eexists.
     repeat split.
@@ -1327,43 +1332,42 @@ Proof.
       by rewrite Hmodstart.
     - (* putting initlialized items into the store *)
       apply/eqP.
-      eauto.
+      by eauto.
   }
-  
-  (*
-  unfold big_sepL2.
-  Search big_sepL2.
-  iDestruct (ghost_map_lookup with "Hvis Himphost") as "%Himphost".
-  Search ghost_map_elem big_opM.
-  Search big_opL big_opM.
 
-  Search gmap list.
-  
-  iDestruct (ghost_map_lookup_big with "Hvis Himphost") as "%Himphost".
+  destruct Hinst as [ws_res Hinst].
 
-  (* The key is to prove that the instantiate predicate holds with the premises given. *)
-  assert (exists ws_res inst_res v_exps ostart, (instantiate ws m v_imps ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  assert (insert_exports vis hs_exps v_exps <> None) as Hinsertvis.
   {
-    admit.
+    rewrite Heqv_exps.
+    clear - Hlenexp.
+    destruct m.
+    simpl in *.
+    move: Hlenexp.
+    move: mod_exports.
+    elim => /=; destruct mod_exports => //=.
+    move => hs_exp hs_exps IH Hlenexp.
+    inversion Hlenexp; clear Hlenexp.
+    destruct (insert_exports vis hs_exps (list_fmap _ _ _ mod_exports)) eqn:Hinsert => //.
+    exfalso.
   }
-
-  destruct Hinst as [[[[ws_res inst_res] v_exps] ostart] Hinst].
   
   iApply fupd_mask_intro; first by set_solver.
-
+  
   iIntros "Hmask".
   iSplit.
   
   - destruct s => //.
     iPureIntro.
     unfold language.reducible.
-      
-    exists [], (([::], [::]): host_expr), (ws2,
-                                    <[ 0 := [:: Build_module_export (list_byte_of_string "add") (MED_func (Mk_funcidx 0))]]>
-                                    (<[ 1 := [:: Build_module_export (list_byte_of_string "f") (MED_func (Mk_funcidx 1))]]> vis) ,
-                                    ms), [].
-    unfold prim_step.
+
+
+    
+    exists [], (([::], [::]): host_expr), (ws_res, insert_exports vis hs_exps v_exps, ms), [].
+    unfold language.prim_step => /=.
     repeat split => //.
+    replace [] with (map_start None) => //.
+    eapply HR_host_step => //.
     admit.
     (*
     eapply HR_host_step => //.
