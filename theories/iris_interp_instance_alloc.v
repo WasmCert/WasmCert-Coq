@@ -1024,8 +1024,11 @@ Section InterpInstance.
         iExists _,_. iFrame "Htsize". iFrame "Hlim".
         destruct (tt_limits (modtab_type m)).
         simpl table_data. unfold tab_size. simpl.
-        rewrite repeat_length.
-        iApply (interp_table_alloc with "Ht"). }
+        iSplit.
+        { iPureIntro. apply/ssrnat.leP. lia. }
+        { rewrite repeat_length.
+          iApply (interp_table_alloc with "Ht"). }
+      }
       
       { (* the function table is imported *)
         rewrite /its in Heql.
@@ -1040,6 +1043,7 @@ Section InterpInstance.
         iDestruct (big_sepM_lookup with "Htabs_val") as "Htval";[eauto|].
         
         iExists _,_. iFrame "#".
+        by apply andb_true_iff in Htyping as [? ->].
       }
     }
 
