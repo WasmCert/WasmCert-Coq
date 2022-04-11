@@ -607,8 +607,8 @@ Definition module_inst_resources_mem (mmems: list memory_type) (inst_m: list mem
   ).
 
 Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
-  ([∗ list] g; addr ∈ mglobs; inst_g,
-    match nth_error g_inits addr with
+  ([∗ list] i↦g; addr ∈ mglobs; inst_g,
+    match nth_error g_inits i with
     | Some v => N.of_nat addr ↦[wg] (Build_global
                                       (g.(modglob_type).(tg_mut))
                                       v (* kinda unfortuante that this is O(n^2) *)

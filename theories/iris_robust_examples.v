@@ -562,7 +562,7 @@ Section Examples.
   
   Definition module_inst_resources_glob_invs (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) (gts : seq.seq global_type) : iProp Σ :=
     ([∗ list] i↦g; addr ∈ mglobs; inst_g,
-       ∃ w τg, ⌜g_inits !! addr = Some w⌝ ∗ ⌜gts !! i = Some τg⌝ ∗
+       ∃ w τg, ⌜g_inits !! i = Some w⌝ ∗ ⌜gts !! i = Some τg⌝ ∗
        na_inv logrel_nais (wgN (N.of_nat addr)) (∃ w, N.of_nat addr ↦[wg] Build_global (tg_mut τg) w
                                                                ∗ interp_value (tg_t τg) w)
     ).
@@ -581,21 +581,31 @@ Section Examples.
          tc_return := None
        |} in
     Forall2 (module_glob_typing c') mglobs gts ->
-    
+    (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) mglobs) ->
+    (* module_restrictions m -> *)
+      
 
     module_inst_resources_glob mglobs g_inits inst_g ={E}=∗
     module_inst_resources_glob_invs mglobs g_inits inst_g gts.
   Proof.
-    iIntros (c' Hginitsval) "Himps".
+    iIntros (c' Hginitsval Hinittyp) "Himps".
     iApply big_sepL2_fupd.
     iApply (big_sepL2_mono with "Himps");intros k exp expt Hlook1 Hlook2;simpl.
     iIntros "Hf".
-    destruct (nth_error g_inits expt) eqn:Hnth;[|done].
+    destruct (nth_error g_inits k) eqn:Hnth;[|done].
     rewrite nth_error_lookup in Hnth.
     eapply Forall2_lookup_l in Hginitsval as [gt [Hgt Htyp]];eauto.
     iExists _,_. iSplitR;[eauto|]. iSplitR;[eauto|].
     unfold module_glob_typing in Htyp. destruct exp;simpl in *.
-    destruct Htyp as [Hconst Htyp].
+    destruct Htyp as [Hconst [Heq Htyp]]. subst.
+    iApply na_inv_alloc.
+    iNext. iExists _. iFrame.
+    assert ((typeof <$> g_inits) !! k = Some (typeof v)).
+    { rewrite list_lookup_fmap. rewrite Hnth. eauto. }
+    rewrite Hinittyp in H.
+    rewrite list_lookup_fmap in H.
+    
+    
     unfold const_exprs,const_expr in Hconst.
   Admitted.
 
@@ -1054,6 +1064,7 @@ Section Examples.
          prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
          prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
          prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)) ->
+    typeof <$> g_inits = tg_t ∘ modglob_type <$> mod_globals m ->
     (* (forall k g i v, (mod_globals m) !! k = Some g -> *)
     (*           (drop (get_import_global_count m) (inst_globs inst)) !! k = Some i -> *)
     (*           g_inits !! i = Some v -> *)
@@ -1070,7 +1081,7 @@ Section Examples.
     module_inst_resources_wasm m inst g_inits
     ={E}=∗ ∃ C, ⌜tc_label C = [] ∧ tc_local C = [] ∧ tc_return C = None⌝ ∗ interp_instance (HWP:=HWP) C inst.
   Proof.
-    iIntros (Hmod Himps_of_inst) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
+    iIntros (Hmod Himps_of_inst Hg_initstyp) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
     destruct Hmod as [fts [gts Hmod]].
     set (ifts := ext_t_funcs t_imps).
     set (its := ext_t_tabs t_imps).
