@@ -103,20 +103,20 @@ Section fundamental.
     unfold interp_br_body.
     destruct (pull_base_l_drop_len vh (length vs - length tm)) eqn:Hpb.
     erewrite vfill_pull_base_l_take_len;[|eauto].
-    pose proof (vfill_to_lfilled v (((λ x : value, AI_basic (BI_const x)) <$> l) ++ [AI_basic (BI_br j)])) as [k [Hle Hfill]].
-    apply lfilled_depth in Hfill as Hdepth.
-    erewrite <-lh_depth_pull_base_l_take_len in Hdepth;[|eauto]. subst k.
-    rewrite Hsize -e in Hfill.
+    pose proof (vfill_to_lfilled v (((λ x : value, AI_basic (BI_const x)) <$> l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
+    apply lfilled_depth in Hfill as Hdepth. (* subst j. *)
+    erewrite lh_depth_pull_base_l_take_len in Hsize;[|eauto].
+    rewrite Hsize in Hfill.
     assert (j - p = 0) as ->;[lia|].
     iDestruct "Hbr" as (? ? ? ? ? ? ? ? Hlook Hlayer) "Hbr".
-    simpl in Hlook. inversion Hlook;subst τs'.
+    simpl in Hlook. inversion Hlook;subst τs'. clear Hdepth.
     iDestruct "Hbr" as (Hdepth Hmin) "[#Hvalvs Hbr]".
     iDestruct "Hvalvs" as "[%|Hvalvs]";[done|].
     iDestruct "Hvalvs" as (ws' Heq') "Hvalvs". inversion Heq';subst ws'.
     iDestruct (big_sepL2_length with "Hvalvs") as %Hlen2.
-    rewrite app_length in Hlen2.
+    rewrite app_length in Hlen2. subst j.
         
-    iApply (wp_br_alt with "Hf");[..|eauto|].
+    iApply (wp_br_alt with "Hf");[..|apply Hfill|].
     { apply const_list_of_val. }
     { rewrite fmap_length. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
       rewrite Hlen.

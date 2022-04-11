@@ -495,6 +495,7 @@ Section Examples.
     iDestruct (big_sepL2_lookup with "Hf") as "H";eauto.
     destruct (wfs !! fa) eqn:Hnone;auto.
     apply elem_of_dom_2 in Hnone.
+    apply leibniz_equiv in Hdom.
     rewrite Hdom in Hnone.
     apply elem_of_list_to_set in Hnone.
     apply ext_func_addrs_elem_of in Hnone as [nm Hnone].

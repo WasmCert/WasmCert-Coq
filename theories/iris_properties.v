@@ -3091,13 +3091,7 @@ Proof.
   assert (lfilled k1 lh es1 l3) ; first by unfold lfilled ; rewrite Hfill'1.
   eapply IHk0 in H0 => //=.
   lia.
-Qed.  
-                           
-Fixpoint lh_depth lh :=
-  match lh with
-  | LH_base _ _ => 0
-  | LH_rec _ _ _ lh _ => S (lh_depth lh)
-  end.
+Qed.
 
 Lemma lfilled_depth k lh es LI :
   lfilled k lh es LI ->
