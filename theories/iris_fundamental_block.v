@@ -104,12 +104,11 @@ Section fundamental.
     destruct (pull_base_l_drop_len vh (length vs - length tm)) eqn:Hpb.
     erewrite vfill_pull_base_l_take_len;[|eauto].
     pose proof (vfill_to_lfilled v (((λ x : value, AI_basic (BI_const x)) <$> l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
-    apply lfilled_depth in Hfill as Hdepth. (* subst j. *)
-    erewrite lh_depth_pull_base_l_take_len in Hsize;[|eauto].
-    rewrite Hsize in Hfill.
+    erewrite <-lh_depth_pull_base_l_take_len in Hfill;[|eauto]. 
+    rewrite Hsize -e in Hfill.
     assert (j - p = 0) as ->;[lia|].
     iDestruct "Hbr" as (? ? ? ? ? ? ? ? Hlook Hlayer) "Hbr".
-    simpl in Hlook. inversion Hlook;subst τs'. clear Hdepth.
+    simpl in Hlook. inversion Hlook;subst τs'.
     iDestruct "Hbr" as (Hdepth Hmin) "[#Hvalvs Hbr]".
     iDestruct "Hvalvs" as "[%|Hvalvs]";[done|].
     iDestruct "Hvalvs" as (ws' Heq') "Hvalvs". inversion Heq';subst ws'.

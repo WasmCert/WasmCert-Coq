@@ -131,7 +131,7 @@ Section fundamental.
       iDestruct (big_sepL2_length with "Hws2") as %Hlen2.
       simpl in Hlook. inversion Hlook;subst τs'. rewrite Hdepth in Hlh'.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf0]").
-      { iApply (wp_br with "Hf0");[| |apply Hlh'|];[apply const_list_of_val|by rewrite /= fmap_length|].
+      { iApply (wp_br with "Hf0") ;[| |apply Hlh'|];[apply const_list_of_val|by rewrite /= fmap_length|].
         iNext. iIntros "Hf". rewrite app_nil_r.
         iApply wp_value;[done|].
         iFrame;eauto. }
@@ -174,6 +174,6 @@ Section fundamental.
       iIntros (v) "[-> Hf]". iFrame.
       iSplitR;[iRight;iExists _;eauto|].
       iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame. }
-  Qed.    
+  Qed.
 
 End fundamental.
