@@ -698,10 +698,10 @@ Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end))
 Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
 
 Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global) : iProp Σ :=
-  ⌜ dom (gset nat) wfs = list_to_set (ext_func_addrs (fmap modexp_desc v_imps)) /\
-    dom (gset nat) wts = list_to_set (ext_tab_addrs (fmap modexp_desc v_imps)) /\
-    dom (gset nat) wms = list_to_set (ext_mem_addrs (fmap modexp_desc v_imps)) /\
-    dom (gset nat) wgs = list_to_set (ext_glob_addrs (fmap modexp_desc v_imps)) ⌝.
+  ⌜ dom (gset nat) wfs ≡ list_to_set (ext_func_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wts ≡ list_to_set (ext_tab_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wms ≡ list_to_set (ext_mem_addrs (fmap modexp_desc v_imps)) /\
+    dom (gset nat) wgs ≡ list_to_set (ext_glob_addrs (fmap modexp_desc v_imps)) ⌝.
 
 (* Resources in the Wasm store, corresponding to those referred by the host vis store. This needs to also type-check
    with the module import. *)
@@ -1328,11 +1328,11 @@ Admitted.
 Print instantiation.instantiate.
 
 
-Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart idnstart (Φ: host_val -> iProp Σ):
+Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
   module_typing m t_imps t_exps ->
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
-  ( (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP (([::], [::AI_invoke idnstart]) : host_expr) {{ Φ }}) -∗
+  (∀ idnstart, (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP (([::], [::AI_invoke idnstart]) : host_expr) {{ Φ }}) -∗
   WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E {{ Φ }}.
 Proof.
 Admitted.

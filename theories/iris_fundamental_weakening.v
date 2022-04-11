@@ -145,8 +145,8 @@ Section fundamental.
         rewrite -(take_drop (length τs'') ws') in Hbase.
         rewrite Hbase in Hbase'. rewrite app_assoc in Hbase'.
         
-        pose proof (sfill_to_lfilled (sh_push_const sh ws1) ([AI_basic BI_return])) as [j Hj].
-        pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
+        pose proof (sfill_to_lfilled (sh_push_const sh ws1) ([AI_basic BI_return])) as Hj.
+        pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as Hj'.
         eapply lfilled_simple_get_base_pull in Hj as Hj2;eauto.
         destruct Hj2 as [lh' Hlh'].
         eapply lfilled_simple_get_base_pull in Hj' as Hj3;eauto.
@@ -173,8 +173,8 @@ Section fundamental.
         rewrite -(take_drop (length τs'') ws') in Hbase.
         rewrite -(take_drop (length τs'') ws') in Hbase'.
         
-        pose proof (sfill_to_lfilled (sh_push_const sh ws1) ([AI_basic BI_return])) as [j Hj].
-        pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as [j' Hj'].
+        pose proof (sfill_to_lfilled (sh_push_const sh ws1) ([AI_basic BI_return])) as Hj.
+        pose proof (sfill_to_lfilled sh ([AI_basic BI_return])) as Hj'.
         eapply lfilled_simple_get_base_pull in Hj as Hj2;eauto.
         destruct Hj2 as [lh' Hlh'].
         eapply lfilled_simple_get_base_pull in Hj' as Hj3;eauto.

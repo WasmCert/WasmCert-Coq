@@ -37,7 +37,7 @@ Section fundamental.
       apply lookup_ge_None_1 in Ht0. apply Hnil.
       destruct tc_table;auto. simpl in Ht0. lia. }
     destruct tc_table, inst_tab;try done.
-    iDestruct "Hi" as (table_size) "[#Hsize Hi]".
+    iDestruct "Hi" as (table_size table_lim) "[#Hsize [#Hlim Hi]]".
     iExists t, t1. iSimpl.
     iFrame "% #". iSplit;auto.
   Qed.    
