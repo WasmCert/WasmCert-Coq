@@ -585,23 +585,30 @@ Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance
                              f.(modfunc_body))
   )%I.
 
-Definition module_inst_resources_tab (mtabs: list module_table) (inst_t: list tableaddr) : iProp Σ :=
-  ([∗ list] tab; addr ∈ mtabs; inst_t,
+Definition module_inst_resources_tab (mtabs: list module_table) (t_inits: gmap (nat * nat) funcelem) (inst_t: list tableaddr) : iProp Σ :=
+  ([∗ list] i ↦ tab; addr ∈ mtabs; inst_t,
     N.of_nat addr ↦[wtblock] (match tab.(modtab_type).(tt_limits) with
                             | {| lim_min := min; lim_max := omax |} =>
                                  (Build_tableinst
-                                   (repeat None (ssrnat.nat_of_bin min)))
+                                    (imap (fun j _ => match (t_inits !! (i, j)) with
+                                                  | Some felem => felem
+                                                  | None => (None: funcelem)
+                                                  end) (repeat (None: funcelem) (ssrnat.nat_of_bin min))))
                                    (omax)
-                       end)
+                              end)
   )%I.
 
-
-Definition module_inst_resources_mem (mmems: list memory_type) (inst_m: list memaddr) : iProp Σ := 
-  ([∗ list] mem; addr ∈ mmems; inst_m,
+Definition module_inst_resources_mem (mmems: list memory_type) (m_inits: gmap (nat * nat) byte) (inst_m: list memaddr) : iProp Σ := 
+  ([∗ list] i ↦ mem; addr ∈ mmems; inst_m,
     N.of_nat addr ↦[wmblock] (match mem with
                                  | {| lim_min:= min; lim_max := omax |} =>
                                    Build_memory
-                                     {| ml_init := #00%byte; ml_data := repeat #00%byte (N.to_nat min) |}
+                                     {| ml_init := #00%byte; ml_data :=
+                                                               imap (fun j _ => match (m_inits !! (i,j)) with
+                                                                             | Some b => b
+                                                                             | None => #00%byte
+                                                                             end)
+                                                                               (repeat #00%byte (N.to_nat min)) |}
                                      (omax)
                                   end)
   ).
@@ -612,6 +619,7 @@ Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list 
     | Some v => N.of_nat addr ↦[wg] (Build_global
                                       (g.(modglob_type).(tg_mut))
                                       v (* kinda unfortuante that this is O(n^2) *)
+                                         (* UPD: nvm, now all the initialisers are O(n^2) at least *)
                                    )
     | None => False
     end
@@ -645,10 +653,10 @@ Definition get_import_global_count (m: module) := length (pmap (fun x => match x
                                                                    | _ => None
                                                                     end) m.(mod_imports)).
 (* The collection of the four types of newly allocated resources *)
-Definition module_inst_resources_wasm (m: module) (inst: instance) (g_inits: list value) : iProp Σ :=
+Definition module_inst_resources_wasm (m: module) (inst: instance) t_inits m_inits (g_inits: list value) : iProp Σ :=
   (module_inst_resources_func m.(mod_funcs) inst (drop (get_import_func_count m) inst.(inst_funcs)) ∗
-  module_inst_resources_tab m.(mod_tables) (drop (get_import_table_count m) inst.(inst_tab)) ∗
-  module_inst_resources_mem m.(mod_mems) (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
+  module_inst_resources_tab m.(mod_tables) t_inits (drop (get_import_table_count m) inst.(inst_tab)) ∗
+  module_inst_resources_mem m.(mod_mems) m_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
   module_inst_resources_glob m.(mod_globals) g_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
 
 (* Resources in the host vis store for the imports *)
@@ -1107,6 +1115,33 @@ Proof.
       by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
 Qed.
 
+Print module_glob.
+
+Definition assert_const1 (es: expr) : option value :=
+  match es with
+  | [:: BI_const v] => Some v
+  | _ => None
+  end.
+
+Definition assert_const1_i32 (es: expr) : option value :=
+  match es with
+  | [:: BI_const (VAL_int32 v)] => Some (VAL_int32 v)
+  | _ => None
+  end.
+
+
+Definition module_glob_init_value (modglobs: list module_glob): option (list value) :=
+  those (fmap (assert_const1 ∘ modglob_init) modglobs).
+
+(* Table initialisers work as follows:
+   - Each initialiser specifies a tableidx which is an index to the table list in the current module instance. 
+   - Each initialiser specifies an offset eo (has to be const), which is the starting index that is going to be filled in.
+   - For each f_j in the init array, replace s.tables[inst.tables(tableidx)][offset+j] with inst.funcs(f_j). Note how
+     both the tableidx and the f_j (funcidx) here are referring to the index in the current module. 
+   
+   Memory initiliasers work similarly.
+*)
+
 Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
@@ -1114,26 +1149,119 @@ Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wm
   export_ownership_host hs_exps ∗
   ⌜ length hs_exps = length m.(mod_exports) ⌝.
 
+Print instantiation.instantiate.
+
+Print init_tab.
+
+Print instantiate_elem.
+
+Print module_elem_typing.
+
+Print module_element.
+Print module.
+
+Print imap.
+(*
+Definition build_tab_initialiser (m: module) (elem: module_element) :=
+  let' {| modelem_table := tid; modelem_offset := offset; modelem_init := fids |} := elem in
+  imap (fun j e_init => <[
+ *)
+Print fold_left.
+
+Print module_func.
+
+Print instance.
+
+Print module_element.
+
+Print funcelem.
+
+Print map_insert.
+
+Print module_table.
+
+Print table_type.
+
+Print limits.
+
+Definition build_tab_initialiser (instfuncs: list funcaddr) (elem: module_element) (tabid: nat) : gmap (nat * nat) funcelem :=
+  fold_left (fun acc actor => actor acc) (imap (fun j e_init => match e_init with
+                     | Mk_funcidx fid => map_insert (tabid, j) (nth_error instfuncs fid) end) elem.(modelem_init) ) ∅.
+
+(*
+Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : list (list funcelem) :=
+  match modelems with
+  | e_init :: e_inits' => match e_init.(modelem_table) with
+                        | Mk_tableidx i => <[ i := build_tab_initialiser inst.(inst_funcs) e_init 
+  | [] => fmap (fun mtab => repeat None (N.to_nat (mtab.(modtab_type).(tt_limits).(lim_min)))) (m.(mod_tables))
+  end.
+*)
+  
+Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : gmap (nat * nat) funcelem :=
+  match modelems with
+  | e_init :: e_inits' => match e_init.(modelem_table) with
+                        | Mk_tableidx i => (build_tab_initialiser inst.(inst_funcs) e_init i) ∪ (module_tab_init_values m inst e_inits')
+                        end
+                          
+  | [] => ∅
+  end.
+
+Print module_data.
+
+Search Byte.byte byte.
+
+(* Note that we use compcert byte for our internal memory representation, but module uses the pure Coq version of byte. *)
+Definition build_mem_initialiser (datum: module_data) (memid: nat) : gmap (nat * nat) byte :=
+  fold_left (fun acc actor => actor acc)
+            (imap (fun j b => map_insert (memid, j) (compcert_byte_of_byte b)) datum.(moddata_init) ) ∅.
+
+
+Fixpoint module_mem_init_values (m: module) (moddata: list module_data) : gmap (nat * nat) byte :=
+  match moddata with
+  | d_init :: d_inits' => match d_init.(moddata_data) with
+                        | Mk_memidx i => (build_mem_initialiser d_init i) ∪ (module_mem_init_values m d_inits')
+                        end
+                          
+  | [] => ∅
+  end.
+
+                               (*              
+Definition module_tab_init_values m t_inits :=
+  t_inits = fold_left (fun elem =>
+                         let' {| modelem_table := tid; modelem_offset := offset; modelem_init := fids |} := elem in
+                         match *)
+
+(* g_inits have the correct types and values. Typing is redundant given the current restriction *)
+Definition module_glob_init_values m g_inits :=
+  (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) /\
+  module_glob_init_value m.(mod_globals) = Some g_inits.
+
+(* Initialisers *)
+Definition module_init_values (m: module) (inst: instance) t_inits m_inits g_inits : Prop :=
+  t_inits = module_tab_init_values m inst m.(mod_elem) /\
+  m_inits = module_mem_init_values m m.(mod_data) /\
+  module_glob_init_values m g_inits.
+
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
-  ∃ inst g_inits, ⌜ inst.(inst_types) = m.(mod_types) /\
+  ∃ (inst: instance) (g_inits: list value) t_inits m_inits,
+    ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)
   let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
     prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
     prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
     prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
     prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
-    check_start m inst idfstart
-  ⌝ ∗
-  ⌜ (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) ⌝ ∗ (* g_inits have the correct types *)
-    module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    check_start m inst idfstart ⌝ ∗
+  ⌜ module_init_values m inst t_inits m_inits g_inits ⌝ ∗
+    module_inst_resources_wasm m inst t_inits m_inits g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
-    (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
 
 Definition module_restrictions (m: module) : Prop :=
-  (* Initializers for globals are only values *)
+  (* Initializers for globals are only values. This is not that much a restriction as it seems, since they can
+     only be either values or get_globals (from immutable globals) anyway. *)
   exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs.
 
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
@@ -1316,7 +1444,6 @@ Proof.
     - (* global initializers *)
       (* In fact -- global initializers have to exist, in the sense that each modglob carries a (non-optional) list 
          of basic expression as its initializer, so we cannot simply ignore it. But let's say we admit it for now. *)
-      Print instantiation.instantiate_globals.
       admit.
     - (* table initializers *)
       (* And the same for table initializers... just why? *)
@@ -1344,12 +1471,13 @@ Proof.
     destruct m.
     simpl in *.
     move: Hlenexp.
-    move: mod_exports.
+    move: mod_exports. (*
     elim => /=; destruct mod_exports => //=.
     move => hs_exp hs_exps IH Hlenexp.
     inversion Hlenexp; clear Hlenexp.
     destruct (insert_exports vis hs_exps (list_fmap _ _ _ mod_exports)) eqn:Hinsert => //.
-    exfalso.
+    exfalso.*)
+    admit.
   }
   
   iApply fupd_mask_intro; first by set_solver.
@@ -1361,13 +1489,13 @@ Proof.
     iPureIntro.
     unfold language.reducible.
 
-
+(*
     
     exists [], (([::], [::]): host_expr), (ws_res, insert_exports vis hs_exps v_exps, ms), [].
     unfold language.prim_step => /=.
     repeat split => //.
     replace [] with (map_start None) => //.
-    eapply HR_host_step => //.
+    eapply HR_host_step => //.*)
     admit.
     (*
     eapply HR_host_step => //.
@@ -1380,7 +1508,6 @@ Proof.
     iIntros "!>!>!>".
     iMod "Hmask".
     iModIntro.
-*)
 Admitted.
 
 Print instantiation.instantiate.
