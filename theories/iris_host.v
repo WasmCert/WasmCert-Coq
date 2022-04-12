@@ -1129,6 +1129,12 @@ Definition assert_const1_i32 (es: expr) : option value :=
   | _ => None
   end.
 
+Definition assert_const1_i32_to_nat (es:expr) : nat :=
+  match assert_const1_i32 es with
+  | Some (VAL_int32 v) => nat_of_int v
+  | _ => 0
+  end.
+    
 
 Definition module_glob_init_value (modglobs: list module_glob): option (list value) :=
   those (fmap (assert_const1 ∘ modglob_init) modglobs).
@@ -1184,9 +1190,9 @@ Print table_type.
 
 Print limits.
 
-Definition build_tab_initialiser (instfuncs: list funcaddr) (elem: module_element) (tabid: nat) : gmap (nat * nat) funcelem :=
+Definition build_tab_initialiser (instfuncs: list funcaddr) (elem: module_element) (tabid: nat) (offset: nat) : gmap (nat * nat) funcelem :=
   fold_left (fun acc actor => actor acc) (imap (fun j e_init => match e_init with
-                     | Mk_funcidx fid => map_insert (tabid, j) (nth_error instfuncs fid) end) elem.(modelem_init) ) ∅.
+                     | Mk_funcidx fid => map_insert (tabid, j + offset) (nth_error instfuncs fid) end) elem.(modelem_init) ) ∅.
 
 (*
 Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : list (list funcelem) :=
@@ -1196,11 +1202,11 @@ Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list mod
   | [] => fmap (fun mtab => repeat None (N.to_nat (mtab.(modtab_type).(tt_limits).(lim_min)))) (m.(mod_tables))
   end.
 *)
-  
+
 Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : gmap (nat * nat) funcelem :=
   match modelems with
   | e_init :: e_inits' => match e_init.(modelem_table) with
-                        | Mk_tableidx i => (build_tab_initialiser inst.(inst_funcs) e_init i) ∪ (module_tab_init_values m inst e_inits')
+                        | Mk_tableidx i => (module_tab_init_values m inst e_inits') ∪ (build_tab_initialiser inst.(inst_funcs) e_init i (assert_const1_i32_to_nat (e_init.(modelem_offset))))
                         end
                           
   | [] => ∅
@@ -1211,15 +1217,15 @@ Print module_data.
 Search Byte.byte byte.
 
 (* Note that we use compcert byte for our internal memory representation, but module uses the pure Coq version of byte. *)
-Definition build_mem_initialiser (datum: module_data) (memid: nat) : gmap (nat * nat) byte :=
+Definition build_mem_initialiser (datum: module_data) (memid: nat) (offset: nat) : gmap (nat * nat) byte :=
   fold_left (fun acc actor => actor acc)
-            (imap (fun j b => map_insert (memid, j) (compcert_byte_of_byte b)) datum.(moddata_init) ) ∅.
+            (imap (fun j b => map_insert (memid, j + offset) (compcert_byte_of_byte b)) datum.(moddata_init) ) ∅.
 
 
 Fixpoint module_mem_init_values (m: module) (moddata: list module_data) : gmap (nat * nat) byte :=
   match moddata with
   | d_init :: d_inits' => match d_init.(moddata_data) with
-                        | Mk_memidx i => (build_mem_initialiser d_init i) ∪ (module_mem_init_values m d_inits')
+                        | Mk_memidx i => (module_mem_init_values m d_inits') ∪ (build_mem_initialiser d_init i (assert_const1_i32_to_nat (d_init.(moddata_offset))))
                         end
                           
   | [] => ∅
