@@ -1123,15 +1123,15 @@ Definition assert_const1 (es: expr) : option value :=
   | _ => None
   end.
 
-Definition assert_const1_i32 (es: expr) : option value :=
+Definition assert_const1_i32 (es: expr) : option i32 :=
   match es with
-  | [:: BI_const (VAL_int32 v)] => Some (VAL_int32 v)
+  | [:: BI_const (VAL_int32 v)] => Some v
   | _ => None
   end.
 
 Definition assert_const1_i32_to_nat (es:expr) : nat :=
   match assert_const1_i32 es with
-  | Some (VAL_int32 v) => nat_of_int v
+  | Some v => nat_of_int v
   | _ => 0
   end.
     
@@ -1268,8 +1268,37 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
 Definition module_restrictions (m: module) : Prop :=
   (* Initializers for globals are only values. This is not that much a restriction as it seems, since they can
      only be either values or get_globals (from immutable globals) anyway. *)
-  exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs.
+  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
+  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
+  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
 
+Lemma fmap_fmap_lookup {T1 T2 T: Type} (f1: T1 -> T) (f2: T2 -> T) (l1: list T1) (l2: list T2):
+  fmap f1 l1 = fmap f2 l2 ->
+  forall i, fmap f1 (l1 !! i) = fmap f2 (l2 !! i).
+Proof.
+  move => Heq i.
+  assert (length l1 = length l2) as Hlen.
+  { erewrite <- fmap_length with (f := f1).
+    rewrite Heq.
+    by rewrite fmap_length.
+  }
+  destruct (l1 !! i) eqn:Hl1; destruct (l2 !! i) eqn:Hl2 => //=.
+  - assert ((fmap f1 l1) !! i = (fmap f2 l2) !! i) as Heqi; first by rewrite Heq.
+    repeat rewrite list_lookup_fmap in Heqi.
+    rewrite Hl1 Hl2 in Heqi.
+    by simpl in Heqi.
+  - by apply lookup_lt_Some in Hl1; apply lookup_ge_None in Hl2; lias.
+  - by apply lookup_lt_Some in Hl2; apply lookup_ge_None in Hl1; lias.
+Qed.
+
+Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
+  es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
+  those (fmap assert_const1_i32 es) = Some vs.
+Proof.
+Admitted.
+                                                
+                                              
+  
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
@@ -1310,11 +1339,26 @@ Proof.
                |} as inst_res.
   
   unfold module_restrictions in Hmodrestr.
-  destruct Hmodrestr as [g_inits Hmodrestr].
+  destruct Hmodrestr as [[g_inits Hmodglob] [[e_inits Hmodelem] [d_inits Hmoddata]]].
 
   assert (length m.(mod_globals) = length g_inits) as Hginitslen.
-  { replace (length g_inits) with (length (fmap (fun v => [BI_const v]) g_inits)); last by rewrite fmap_length.
-    rewrite - Hmodrestr.
+  { erewrite <- fmap_length.
+    instantiate (1 := modglob_init).
+    rewrite Hmodglob.
+    by rewrite fmap_length.
+  }
+  
+  assert (length m.(mod_elem) = length e_inits) as Heinitslen.
+  { erewrite <- fmap_length.
+    instantiate (1 := modelem_offset).
+    rewrite Hmodelem.
+    by rewrite fmap_length.
+  }
+  
+  assert (length m.(mod_data) = length d_inits) as Hdinitslen.
+  { erewrite <- fmap_length.
+    instantiate (1 := moddata_offset).
+    rewrite Hmoddata.
     by rewrite fmap_length.
   }
   
@@ -1331,12 +1375,12 @@ Proof.
     simpl in *.
     destruct (mod_globals !! i) as [mg | ] eqn: Hmgi.
     - assert (i < length mod_globals) as Hlen; first by eapply lookup_lt_Some.
-      simpl in Hmodrestr.
+      simpl in Hmodglob.
       destruct (g_inits !! i) as [gi | ] eqn: Hgii; last by apply lookup_ge_None in Hgii; lias.
       inversion Hglobtype; subst; clear Hglobtype.
       simpl in *.
       unfold module_glob_typing in H5.
-      assert ((modglob_init <$> mod_globals) !! i = ((fun v => [BI_const v]) <$> g_inits) !! i) as Hlookup; first by rewrite Hmodrestr.
+      assert ((modglob_init <$> mod_globals) !! i = ((fun v => [BI_const v]) <$> g_inits) !! i) as Hlookup; first by rewrite Hmodglob.
       repeat rewrite list_lookup_fmap in Hlookup.
       rewrite Hmgi Hgii in Hlookup.
       destruct mg.
@@ -1349,10 +1393,13 @@ Proof.
       simpl in Hbet.
       by inversion Hbet.
     - assert (i >= length mod_globals) as Hlen; first by eapply lookup_ge_None.
-      simpl in Hmodrestr.
+      simpl in Hmodglob.
       destruct (g_inits !! i) as [gi | ] eqn: Hgii; [ by apply lookup_lt_Some in Hgii; lias | by auto ].
   }
-  
+
+  apply BI_const_assert_const1_i32 in Hmodelem.
+  apply BI_const_assert_const1_i32 in Hmoddata.
+
   destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
   destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
   destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
@@ -1367,7 +1414,7 @@ Proof.
     unfold alloc_module => /=.
     eexists.
     exists t_imps, t_exps, hs, s3, g_inits.
-    do 2 eexists.
+    exists e_inits, d_inits.
     repeat split.
     - (* module_typing *)
       by apply Hmodtype.
@@ -1448,12 +1495,36 @@ Proof.
         apply alloc_tab_gen_index in Halloctab as [? [? [? [? <-]]]].
         by apply alloc_func_gen_index in Hallocfunc as [? [? [? [? <-]]]].
     - (* global initializers *)
-      (* In fact -- global initializers have to exist, in the sense that each modglob carries a (non-optional) list 
-         of basic expression as its initializer, so we cannot simply ignore it. But let's say we admit it for now. *)
-      admit.
+      unfold instantiation.instantiate_globals.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_globals) !! i) eqn:Hmglob => /=.
+      + destruct (g_inits !! i) eqn:Hginit => /=; last by apply lookup_lt_Some in Hmglob; apply lookup_ge_None in Hginit; lias.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmodglob.
+        repeat rewrite list_lookup_fmap in Hmodglob.
+        rewrite Hmglob Hginit in Hmodglob.
+        simpl in *.
+        inversion Hmodglob; clear Hmodglob.
+        rewrite H0.
+        simpl.
+        by repeat constructor.
+      + apply lookup_ge_None in Hmglob.
+        rewrite Hginitslen in Hmglob.
+        apply lookup_ge_None in Hmglob.
+        rewrite Hmglob.
+        by constructor.
     - (* table initializers *)
-      (* And the same for table initializers... just why? *)
-      admit.
+      unfold instantiate_elem.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_elem) !! i) eqn:Hmelem => /=.
+      + admit.
+      + apply lookup_ge_None in Hmelem.
+        rewrite Heinitslen in Hmelem.
+        apply lookup_ge_None in Hmelem.
+        rewrite Hmelem.
+        by constructor.
     - (* memory initializers *)
       admit.
     - (* table initializers bound check *)
