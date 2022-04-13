@@ -21,7 +21,8 @@ Let to_val := iris_use.to_val.
 
 Section stack.
   
-Import DummyHosts.
+  Import DummyHosts.
+  Import uPred.
   (*
 Variable host_function : eqType.
 
@@ -42,8 +43,8 @@ Let wasm_mixin : LanguageMixin _ _ _ := wasm_mixin host_instance.
 Canonical Structure wasm_lang := Language wasm_mixin.
 
 (* Let reducible := @reducible wasm_lang. *)
-
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ}.
+(* Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ,  !logrel_na_invs Σ}. *)
+ Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ}. 
 (*
 (* TODO: Resolve duplicated notations *)
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
@@ -209,10 +210,21 @@ Definition push :=
 End code.
 
 
+(* Class logrel_na_invs Σ :=
+  {
+    logrel_na_invG :> na_invG Σ;
+    logrel_nais : na_inv_pool_name;
+  }.
+ Close Scope byte_scope.
+ Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+ Import DummyHosts. *)
+ 
 Section specs.
 
-    Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
-(* Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, (*!wstackG Σ*)!wlocsG Σ, !winstG Σ}. *)
+(*      Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.  *)
+   Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ, !logrel_na_invs Σ }. 
+  (*  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, (*!wstackG Σ*)!wlocsG Σ, !winstG Σ}.  *)
+
 
 
 (*Notation "m :: l ↦ v" := (load m l N.zero 4 = Some (bits v))%I (at level 50).*)
@@ -2425,8 +2437,8 @@ Section Client.
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
   (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP es @ NotStuck ; ⊤ (*CTX_EMPTY*) {{ v, Φ v }})%I (at level 50). 
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
-  Print instance.
+ Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ,  !logrel_na_invs Σ}.
+
   Definition stack_instance idfs m :=
     {|
       inst_types := [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] []] ;
@@ -2441,19 +2453,97 @@ Section Client.
     match f with
     | FC_func_native inst _ _ _ => Some inst
     | _ => None end.
-  
 
+(*  Class logrel_na_invs Σ :=
+  {
+    logrel_na_invG :> na_invG Σ;
+    logrel_nais : na_inv_pool_name;
+  }. *)
 
-  (* This lemma might look scary, but it actually means something very simple : *)
+Definition wf : string := "wfN".
+Definition wf0 : string := "wf0N".
+Definition wf1 : string := "wf1N".
+Definition wf2 : string := "wf2N".
+Definition wf3 : string := "wf3N".
+Definition wlen : string := "wlenN".
+Definition wfN : namespace := nroot .@ wf.
+Definition wf0N : namespace := nroot .@ wf0. 
+Definition wf1N : namespace := nroot .@ wf1.
+Definition wf2N : namespace := nroot .@ wf2.
+Definition wf3N : namespace := nroot .@ wf3.
+Definition wlenN : namespace := nroot .@ wlen.
+
+Definition spec0 idf0 i0 l0 f0 (isStack : Z -> seq.seq value -> iPropI Σ)  nextStackAddrIs :=
+  (∀ f addr, {{{ ↪[frame] f ∗
+                  N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗
+                  nextStackAddrIs addr ∗
+                  ⌜ (Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (N.of_nat addr `div` page_size)) ⌝ ∗
+                                                                                  ⌜ (N.of_nat addr + 4 < Z.to_N (two_power_nat 32))%N ⌝ ∗
+                                                                                  ⌜ (page_size | N.of_nat addr)%N ⌝  }}}
+               [AI_invoke idf0]
+               {{{  v, (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
+                                              (⌜ (k = -1)%Z ⌝  ∗
+                                                 nextStackAddrIs addr ∨
+                                                 ⌜ (0 <= k)%Z /\ (k + Z.of_N page_size <= two32)%Z ⌝ ∗
+                                                                                             isStack k []  ∗
+                                                                                             nextStackAddrIs (addr + N.to_nat page_size) ))  ∗
+                                                                                                                                             N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗
+                                                                                                                                             ↪[frame] f }}} )%I.
+
+Definition spec1 idf1 i1 l1 f1 (isStack : Z -> seq.seq value -> iPropI Σ) :=
+  (∀ v s f, {{{ ↪[frame] f  ∗
+                 N.of_nat idf1 ↦[wf] FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗
+                 ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4)%Z ⌝ ∗ 
+                 isStack v s }}}
+              [i32const v ; AI_invoke idf1]
+              {{{ w, (∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s ∗
+                                      ⌜ (k = 1 /\ s = []) \/
+                             (k = 0 /\ s <> []) ⌝) ∗
+                                                 N.of_nat idf1 ↦[wf] FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗ 
+                                                 ↪[frame] f}}})%I.
+
+Definition spec2 idf2 i2 l2 f2 (isStack : Z -> seq.seq value -> iPropI Σ) :=
+  (∀ v s f, {{{ ↪[frame] f ∗
+                 N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
+                 ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4 )%Z ⌝ ∗ 
+                 isStack v s }}}
+              [i32const v ; AI_invoke idf2]
+              {{{ w, (∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗
+                                      isStack v s ∗
+                                      ⌜ k = 1 \/ (length s < two14 - 1)%Z ⌝) ∗
+                                                                            N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗ 
+                                                                            ↪[frame] f }}})%I.
+
+Definition spec3 idf3 i3 l3 f3 (isStack : Z -> seq.seq value -> iPropI Σ) :=
+  (∀ a v s f, {{{ ↪[frame] f ∗
+                   N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3
+                   ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
+                   ∗ ⌜ types_agree T_i32 a ⌝
+                   ∗ isStack v (a :: s) }}}
+                [i32const v ; AI_invoke idf3]
+                {{{ w, ⌜ w = immV [a] ⌝ ∗
+                                  isStack v s ∗
+                                  N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
+                                  ↪[frame] f }}})%I.
+
+Definition spec4 idf4 i4 l4 f4 isStack :=
+  (∀ a v s f, {{{ ↪[frame] f ∗
+                   N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4 
+                   ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
+                   ∗ ⌜ types_agree T_i32 a ⌝
+                   ∗ ⌜ (length s < two14 - 1)%Z ⌝
+                   ∗ isStack v s }}}
+                [ AI_basic (BI_const a) ; i32const v ; AI_invoke idf4 ]
+                {{{ w, ⌜ w = immV [] ⌝ ∗
+                                  isStack v (a :: s) ∗
+                                  N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4 ∗
+                                  ↪[frame] f }}})%I.
+
   Lemma instantiate_stack_spec (s : stuckness) E hv0 hv1 hv2 hv3 hv4 :
     (* Knowing 0%N holds the stack module… *)
     0%N ↪[mods] stack_module -∗
      (* … and we own the vis 0%N thru 4%N … *)
-     0%N ↪[vis] hv0 -∗
-     1%N ↪[vis] hv1 -∗
-     2%N ↪[vis] hv2 -∗
-     3%N ↪[vis] hv3 -∗
-     4%N ↪[vis] hv4 -∗
+     ([∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4], N.of_nat k ↪[vis] hvk) -∗
      (* … instantiating the stack-module (by lazyness, this is expressed here with
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
      WP ((take 1 stack_instantiate, []) : host_expr)
@@ -2463,89 +2553,52 @@ Section Client.
                  0%N ↪[mods] stack_module ∗
                   ∃ idf0 idf1 idf2 idf3 idf4 name0 name1 name2 name3 name4
                     f0 f1 f2 f3 f4 i0 i1 i2 i3 i4 l0 l1 l2 l3 l4
-                    n,
-                    (* Our exports are in the vis 0%N thru 4%N. Not that everything is 
+                    (isStack : Z -> seq.seq value -> iPropI Σ)
+                    nextStackAddrIs,
+                    (* Our exports are in the vis 0%N thru 4%N. Note that everything is 
                        existantially quantified. In fact, all the f_i, i_i and l_i 
                        could be given explicitely, but we quantify them existantially 
                        to show modularity : we do not care what the functions are, 
                        we only care about their spec (see next comment). This also
                        makes this lemma more readable than if we stated explicitely all
                        the codes of the functions *)
-                    0%N ↪[vis] {| modexp_name := name0 ;
-                                 modexp_desc := MED_func (Mk_funcidx idf0) |} ∗
-                     1%N ↪[vis] {| modexp_name := name1 ;
-                                  modexp_desc := MED_func (Mk_funcidx idf1) |} ∗
-                     2%N ↪[vis] {| modexp_name := name2 ;
-                                  modexp_desc := MED_func (Mk_funcidx idf2) |} ∗
-                     3%N ↪[vis] {| modexp_name := name3 ;
-                                  modexp_desc := MED_func (Mk_funcidx idf3) |} ∗
-                     4%N ↪[vis] {| modexp_name := name4 ;
-                                  modexp_desc := MED_func (Mk_funcidx idf4) |} ∗
-                     N.of_nat n↦[wmlength] 0%N ∗
-                     N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗
-                     N.of_nat idf1 ↦[wf] FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗
-                     N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
-                     N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
-                     N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4 ∗
-                     (* And finally we have specs for all our exports : *)
-                     (* Spec for new_stack (call 0) *)
-                     (∀ len f, {{{ ↪[frame] f (* (Build_frame vs i0) *) ∗
-                                  N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗
-                                  ⌜ (Wasm_int.Int32.modulus - 1)%Z <>
-                                   Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (len `div` page_size)) ⌝ ∗
-                                                                ⌜ (len + 4 < Z.to_N (two_power_nat 32))%N ⌝ ∗
-                                                                ⌜ (page_size | len)%N ⌝  ∗
-                                                                N.of_nat n ↦[wmlength] len }}}
-                               [AI_invoke idf0]
-                               {{{  v, (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
-                                                              (⌜ (k = -1)%Z ⌝ ∗
-                                                                 N.of_nat n↦[wmlength] len ∨
-                                                                 ⌜ (0 <= k)%Z /\ (k + Z.of_N page_size <= two32)%Z ⌝ ∗
-                                                                 isStack k [] n ∗
-                                                                         N.of_nat n ↦[wmlength] (len + page_size)%N)%I) ∗ N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗(* ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f ⌝ *) ↪[frame] f }}}) ∗
-                     (* Spec for is_empty (call 1) *)
-                     (∀ v s f, {{{ ↪[frame] f (* (Build_frame vs i1) *) ∗
-                               N.of_nat idf1 ↦[wf] FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗
-                               ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4)%Z ⌝ ∗ 
-                               isStack v s n }}}
-    [i32const v ; AI_invoke idf1]
-    {{{ w, (∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
-                                   ⌜ (k = 1 /\ s = []) \/
-                   (k = 0 /\ s <> []) ⌝) ∗
-                                       N.of_nat idf1 ↦[wf] FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗
-                                      (* ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f ⌝ *) ↪[frame] f}}}) ∗
-                     (* Spec for is_full (call 2) *)
-                     (∀ v s f, {{{ ↪[frame] f (* (Build_frame vs i2) *) ∗
-                               N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
-                               ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4 )%Z ⌝ ∗ 
-                               isStack v s n }}}
-    [i32const v ; AI_invoke idf2]
-    {{{ w, (∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
-                            ⌜ k = 1 \/ (length s < two14 - 1)%Z ⌝) ∗
-                                                                  N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
-                                                                  (* ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f ⌝ *) ↪[frame] f }}}) ∗
-                     (* Spec for pop (call 3) *)
-                     (∀ a v s f, {{{ ↪[frame] f (* (Build_frame vs i3)*) ∗
-                                       N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 
-                                       ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
-                                       ∗ ⌜ types_agree T_i32 a ⌝
-                                       ∗ isStack v (a :: s) n }}}
-                                    [i32const v ; AI_invoke idf3]
-                                    {{{ w, ⌜ w = immV [a] ⌝ ∗ isStack v s n ∗ N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗ (* ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f ⌝ *) ↪[frame] f }}}) ∗
-                     (* Spec for push (call 4) *)
-                     (∀ a v s f, {{{ ↪[frame] f (* (Build_frame vs i4) *) ∗
-                                       N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4
-                                       ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
-                                       ∗ ⌜ types_agree T_i32 a ⌝
-                                       ∗ ⌜ (length s < two14 - 1)%Z ⌝
-                                       ∗ isStack v s n }}}
-                                    [ AI_basic (BI_const a) ; i32const v ; AI_invoke idf4 ]
-                                    {{{ w, ⌜ w = immV [] ⌝ ∗ isStack v (a :: s) n ∗ N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4 ∗ (* ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f ⌝ *) ↪[frame] f }}})
-                        
+                    let inst_vis := map (λ '(name, idf),
+                                                 {| modexp_name := name ;
+                                                   modexp_desc := MED_func (Mk_funcidx idf)
+                                                 |}) [(name0, idf0) ; (name1, idf1) ;
+                                                      (name2, idf2) ; (name3, idf3) ;
+                                                      (name4, idf4)] in
+                    let inst_map := fold_left (λ fs '(idf,i,t,l,f),
+                                                <[ idf := FC_func_native i t l f ]> fs)
+                                              (rev [(idf0, i0, Tf [] [T_i32], l0, f0) ;
+                                               (idf1, i1, Tf [T_i32] [T_i32], l1, f1) ;
+                                                    (idf2, i2, Tf [T_i32] [T_i32], l2, f2) ;
+                                                    (idf3, i3, Tf [T_i32] [T_i32], l3, f3) ;
+                                                    (idf4, i4, Tf [T_i32 ; T_i32] [], l4, f4)])
+                                              ∅ in
+                    (* These two import functions state that all [vis] and [wf] point 
+                       to the correct exports/functions, i.e. a client will be able 
+                       to successfully import them *)
+                    import_resources_host [0%N; 1%N; 2%N; 3%N; 4%N] inst_vis ∗
+                                          import_resources_wasm_typecheck inst_vis expts inst_map ∅ ∅ ∅ ∗
+                                          (* We own a token that hides ressources needed for the new_stack function *)
+                                          nextStackAddrIs 0 ∗
+                                          (* And finally we have specs for all our exports : *)
+                                          (* Spec for new_stack (call 0) *)
+                                          spec0 idf0 i0 l0 f0 isStack nextStackAddrIs ∗
+                                          (* Spec for is_empty (call 1) *)
+                                          spec1 idf1 i1 l1 f1 isStack ∗
+                                          (* Spec for is_full (call 2) *)
+                                          spec2 idf2 i2 l2 f2 isStack ∗
+                                          (* Spec for pop (call 3) *)
+                                          spec3 idf3 i3 l3 f3 isStack ∗
+                                          (* Spec for push (call 4) *)
+                                          spec4 idf4 i4 l4 f4 isStack
+                                          
              }}.
   Proof.
-    iIntros "Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4".
-    iApply weakestpre.wp_mono ; last first.
+    iIntros "Hmod (Hhv0 & Hhv1 & Hhv2 & Hhv3 & Hhv4 & _)".
+    iApply (weakestpre.wp_strong_mono s _ E with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4]") => //.
     iApply (instantiation_spec_operational_no_start with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4]") ;
       try exact module_typing_stack => //.
     - by unfold stack_module.
@@ -2581,18 +2634,23 @@ Section Client.
       unfold module_inst_resources_func, module_inst_resources_glob,
         module_inst_resources_tab, module_inst_resources_mem => /=.
       unfold big_sepL2 => /=.
-      destruct inst_funcs as [|? inst_funcs] => //= ; iDestruct "Hexpwf" as "[Hf Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] => //= ; iDestruct "Hexpwf" as "[Hf0 Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] => //= ; iDestruct "Hexpwf" as "[Hf1 Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] => //= ; iDestruct "Hexpwf" as "[Hf2 Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] => //= ; iDestruct "Hexpwf" as "[Hf3 Hexpwf]".
-      destruct inst_funcs => //=.
-      destruct inst_tab => //=.
-      destruct inst_memory as [|m inst_memory] => //=.
+      destruct inst_funcs as [|? inst_funcs] ; first done ;
+        iDestruct "Hexpwf" as "[Hf Hexpwf]".
+      destruct inst_funcs as [|? inst_funcs] ; first done ;
+        iDestruct "Hexpwf" as "[Hf0 Hexpwf]".
+      destruct inst_funcs as [|? inst_funcs] ; first done ;
+        iDestruct "Hexpwf" as "[Hf1 Hexpwf]".
+      destruct inst_funcs as [|? inst_funcs] ; first done ;
+        iDestruct "Hexpwf" as "[Hf2 Hexpwf]".
+      destruct inst_funcs as [|? inst_funcs] ; first done ;
+        iDestruct "Hexpwf" as "[Hf3 Hexpwf]".
+      destruct inst_funcs ; last done.
+      destruct inst_tab ; last done.
+      destruct inst_memory as [|m inst_memory] ; first done.
       iDestruct "Hexpwm" as "[Hexpwm ?]".
-      destruct inst_memory => //=.
+      destruct inst_memory ; last done.
       iDestruct "Hexpwm" as "(Hexpwm & Hmemlength & Hmemlim)".
-      destruct inst_globs => //=.
+      destruct inst_globs ; last done.
       iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & _)".
       iDestruct "Hexp0" as (name0) "Hexp0".
       iDestruct "Hexp1" as (name1) "Hexp1".
@@ -2600,20 +2658,99 @@ Section Client.
       iDestruct "Hexp3" as (name3) "Hexp3".
       iDestruct "Hexp4" as (name4) "Hexp4".
       simpl in * ; subst.
-      iSplitL "Hmod" => //.
+      iSplitL "Hmod" ; first done.
       iExists f, f0, f1, f2, f3.
       iExists name0, name1, name2, name3, name4.
-      do 3 iExists _,_,_,_,_.
-      iExists m.
+      do 3 iExists _, _, _, _, _.
+      iExists (λ a b, isStack a b m).
+      iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
+      iDestruct (mapsto_frac_ne with "Hf Hf0") as "%H01" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf Hf1") as "%H02" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf Hf2") as "%H03" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf Hf3") as "%H04" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf0 Hf1") as "%H12" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf0 Hf2") as "%H13" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf0 Hf3") as "%H14" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf1 Hf2") as "%H23" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf1 Hf3") as "%H24" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf2 Hf3") as "%H34" ; first by eauto.
+(*      iMod (na_inv_alloc logrel_nais _ wfN with "[Hf]") as "#Hinvf".
+      by iApply (later_intro with "Hf").
+      iMod (na_inv_alloc logrel_nais _ wf0N with "[Hf0]") as "#Hinvf0".
+      by iApply (later_intro with "Hf0").
+      iMod (na_inv_alloc logrel_nais _ wf1N with "[Hf1]") as "#Hinvf1".
+      by iApply (later_intro with "Hf1").
+      iMod (na_inv_alloc logrel_nais _ wf2N with "[Hf2]") as "#Hinvf2".
+      by iApply (later_intro with "Hf2").
+      iMod (na_inv_alloc logrel_nais _ wf3N with "[Hf3]") as "#Hinvf3".
+      by iApply (later_intro with "Hf3"). *)
+(*      iMod (na_inv_alloc logrel_nais _ wlenN with "[Hmemlength]") as "#Hinvlen".
+      instantiate (1 := ∃ len, N.of_nat m↦[wmlength] len ∗ ⌜  
+                                        
+      by iApply (later_intro with "Hmemlength"). *)
+      iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4".
+      unfold import_resources_host.
+      iFrame. by iModIntro.
+      iSplitL "Hf Hf0 Hf1 Hf2 Hf3".
+      unfold import_resources_host.
+      unfold import_resources_wasm_typecheck => /=.
+(*      iMod (na_inv_acc with "Hinvf Hown") as "(Hf & Hown & Hclosef)".
+      admit. done.
+      iMod (na_inv_acc with "Hinvf0 Hown") as "(Hf0 & Hown & Hclosef0)".
+      admit. admit.
+      iMod (na_inv_acc with "Hinvf1 Hown") as "(Hf1 & Hown & Hclosef1)".
+      admit. admit.
+      iMod (na_inv_acc with "Hinvf2 Hown") as "(Hf2 & Hown & Hclosef2)".
+      admit. admit.
+      iMod (na_inv_acc with "Hinvf3 Hown") as "(Hf3 & Hown & Hclosef3)".
+      admit. admit. *)
+     
+      iSplitR.
+    - iPureIntro.
+      simpl.
+      repeat rewrite dom_insert.
+      done.
+    - iSplitL "Hf".
+      iExists _.
       iFrame.
-      iSplit.
-    - iIntros (len fr Φ) "!> (Hf & Hf0 & %H & %Hlen & %Hdiv & Hlen) HΦ".
+      iPureIntro.
+      rewrite lookup_insert.
+      split => //.
+      iSplitL "Hf0".
+      iExists _ ; iFrame.
+      iPureIntro.
+      rewrite lookup_insert_ne ; last lia.
+      rewrite lookup_insert.
+      split => //.
+      iSplitL "Hf1".
+      iExists _ ; iFrame.
+      iPureIntro.
+      do 2 (rewrite lookup_insert_ne ; last lia).
+      rewrite lookup_insert.
+      split => //.
+      iSplitL "Hf2".
+      iExists _ ; iFrame.
+      iPureIntro.
+      do 3 (rewrite lookup_insert_ne ; last lia).
+      rewrite lookup_insert.
+      split => //.
+      iSplitL ; last done.
+      iExists _ ; iFrame.
+      iPureIntro.
+      do 4 (rewrite lookup_insert_ne ; last lia).
+      rewrite lookup_insert.
+      split => //.
+      iSplitL "Hmemlength" ; first done.
+    - iSplitR. iIntros "!>" (fr addr Φ) "!> (Hf & Hwf & Hlen & % & % & %) HΦ".
       iApply wp_wand_r.
       iSplitR "HΦ".
       { (*iApply (wp_call with "Hf") => //=.
         iIntros "!> Hf". *)
+        (* iApply wp_fupd. Search "wp_fup".
+        iMod (na_inv_acc with "Hinvf Hown") as "(Hf & Hown & Hclosef)".
+        admit. done. *)
         rewrite - (app_nil_l [AI_invoke f]).
-        iApply (wp_invoke_native with "Hf Hf0") => //.
+        iApply (wp_invoke_native with "Hf Hwf") => //.
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
@@ -2627,6 +2764,11 @@ Section Client.
         instantiate (5 := []) => /=.
         rewrite app_nil_r.
         done.
+(*      iDestruct spec_new_stack as "#Hsp".
+       unfold new_stack.
+        replace (i32const 1) with (AI_basic (BI_const (VAL_int32 (Wasm_int.Int32.repr 1)))) ;
+          last done.
+        replace (i32const (-1)) with (AI_basic (BI_const (VAL_int32 (Wasm_int.Int32.repr (-1))))) ; last done. *)
         iApply (spec_new_stack with "[Hlen Hf]").
         iFrame.
         repeat iSplit ; iPureIntro => //=.
@@ -2643,8 +2785,8 @@ Section Client.
         apply of_to_val => //.
         iFrame.
         instantiate (1 := λ v, (⌜ v = immV [value_of_int k] ⌝ ∗
-                                           (⌜k = (-1)%Z⌝ ∗N.of_nat m↦[wmlength]len ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] m ∗
-                                                                                             N.of_nat m↦[wmlength](len + page_size)%N) ∗
+                                           (⌜k = (-1)%Z⌝ ∗N.of_nat m↦[wmlength]N.of_nat addr ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] m ∗
+                                                                                             N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N) ∗
                                                                                              N.of_nat f↦[wf]FC_func_native
                            {|
                              inst_types :=
@@ -2676,8 +2818,8 @@ Section Client.
         iApply (wp_frame_value with "Hf") => //.
         iNext.
         instantiate (1 := λ v, ((∃ k, ⌜ v = immV [value_of_int k] ⌝ ∗
-                                           (⌜k = (-1)%Z⌝ ∗ N.of_nat m↦[wmlength]len ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] m ∗
-                                                                                             N.of_nat m↦[wmlength](len + page_size)%N)) ∗
+                                           (⌜k = (-1)%Z⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] m ∗
+                                                                                             N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N)) ∗
                                                                                              N.of_nat f↦[wf]FC_func_native
                            {|
                              inst_types :=
@@ -2706,8 +2848,21 @@ Section Client.
       iIntros (w) "[[H Hf0] Hf]".
       iApply "HΦ".
       iFrame.
-    - iSplit.
-      iIntros (v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Hlen & %Hdiv & Hlen) HΦ".
+      iDestruct "H" as (k) "[-> [[-> Hlen] | (% & Hs & Hlen)]]".
+      iExists (-1)%Z.
+      iSplit ; first done.
+      iLeft.
+      by iFrame.
+      iExists k.
+      iSplit ; first done.
+      iRight.
+      unfold page_size.
+      replace (N.of_nat addr + 64 * 1024)%N with
+        (N.of_nat (addr + Pos.to_nat (64 * 1024))) ;
+        last lia.
+      by iFrame.
+    - iSplitR.
+      iIntros "!>" (v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Hlen & %Hdiv & Hlen) HΦ".
       iApply wp_wand_r.
       iSplitR "HΦ".
       { rewrite (separate1 (i32const _) _).
@@ -2804,8 +2959,8 @@ Section Client.
       iApply "HΦ".
       iFrame.
       by iExists _.
-    - iSplit.
-      iIntros (v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Hlen & %Hdiv & Hlen) HΦ".
+    - iSplitR.
+      iIntros "!>" (v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Hlen & %Hdiv & Hlen) HΦ".
       iApply wp_wand_r.
       iSplitR "HΦ".
       { rewrite (separate1 (i32const _) _).
@@ -2902,8 +3057,8 @@ Section Client.
       iApply "HΦ".
       iFrame.
       by iExists _.
-    - iSplit.
-      iIntros (a v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Ha & Hs) HΦ".
+    - iSplitR.
+      iIntros "!>" (a v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Ha & Hs) HΦ". 
       iApply wp_wand_r.
       iSplitR "HΦ".
       { rewrite (separate1 (i32const _) _).
@@ -2998,7 +3153,7 @@ Section Client.
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΦ".
       by iFrame.
-    - iIntros (a v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Ha & %Hlen & Hs) HΦ".
+    - iIntros "!>" (a v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Ha & %Hlen & Hs) HΦ".
       iApply wp_wand_r.
       iSplitR "HΦ".
       { rewrite (separate2 _ (i32const _) _).
@@ -3095,19 +3250,14 @@ Section Client.
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΦ".
       by iFrame.
-  Qed.
+  Qed. 
 
   
 
   Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 :
     0%N ↪[mods] stack_module -∗
      1%N ↪[mods] client_module -∗
-     0%N ↪[vis] hv0 -∗
-     1%N ↪[vis] hv1 -∗
-     2%N ↪[vis] hv2 -∗
-     3%N ↪[vis] hv3 -∗
-     4%N ↪[vis] hv4 -∗
-     5%N ↪[vis] hv5 -∗
+     ( [∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5], N.of_nat k↪[vis] hvk) -∗
      WP ((stack_instantiate , []) : host_expr)
      @ s; E
             {{ v,
@@ -3119,26 +3269,34 @@ Section Client.
                     (N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 2%Z |} ∨
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
   Proof.
-    iIntros "Hmod0 Hmod1 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5".
+    iIntros "Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & _)".
     iApply (wp_seq_host_nostart with "[$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4]") => //.
     - iIntros "Hmod0".
-      iApply weakestpre.wp_mono ; last by iApply (instantiate_stack_spec with "Hmod0 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4").
+      iApply weakestpre.wp_mono ; last iApply (instantiate_stack_spec with "Hmod0 [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4]").
+      2:{ iSplitL "Hvis0" ; first done.
+          iSplitL "Hvis1" ; first done.
+          iSplitL "Hvis2" ; first done.
+          iSplitL "Hvis3" ; first done.
+          by iSplitL. }
       iIntros (v) "[? H]".
       iFrame.
       by iApply "H".
     - iIntros (w) "Hes1 Hmod0".
       iDestruct "Hes1" as (idf0 idf1 idf2 idf3 idf4 name0 name1 name2 name3 name4) "Hes1".
-      iDestruct "Hes1" as (f0 f1 f2 f3 f4 i0 i1 i2 i3 i4) "Hes1".
-      iDestruct "Hes1" as (l0 l1 l2 l3 l4 n)
-      "(Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hlen & Hwf0 & Hwf1 & Hwf2 & Hwf3 & Hwf4 &
-      #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4)".
+      iDestruct "Hes1" as (f0 f1 f2 f3 f4 i0 i1 i2 i3 i4) "Hes1".  
+      iDestruct "Hes1" as (l0 l1 l2 l3 l4) "Hes1".
+      iDestruct "Hes1" as (isStack nextStackAddrIs)
+                            "(Himport & Himp_type & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4)".
+(*      "(Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hlen & Hwf0 & Hwf1 & Hwf2 & Hwf3 & Hwf4 &
+      #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4)". *)
       iFrame "Hmod0".
 (*      iApply (weakestpre.wp_strong_mono s _ E with "[Hmod1 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hwf0 Hwf1 Hwf2 Hwf3 Hwf4 Hlen]") ; try done. *)
 
-      iApply (instantiation_spec_operational_start with "[Hmod1 Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hwf0 Hwf1 Hwf2 Hwf3 Hwf4 Hvis5]") ; try exact module_typing_client.
+      iApply (instantiation_spec_operational_start with "[Hmod1 Himport Himp_type Hvis5]") ; try exact module_typing_client.
     - by unfold client_module.
     - unfold instantiation_resources_pre.
-      iSplitL "Hmod1" => //.
+      iFrame.
+(*      iSplitL "Hmod1" => //.
       iSplitL "Hvis0 Hvis1 Hvis2 Hvis3 Hvis4".
       unfold import_resources_host.
       unfold big_sepL2.
@@ -3155,7 +3313,7 @@ Section Client.
       instantiate (1 := <[ idf0 := _ ]> (<[ idf1 := _ ]> (<[idf2 := _]>
                                                             (<[ idf3 := _ ]> (<[ idf4 := _]> ∅))))).
       unfold import_resources_wasm_typecheck => /=.
-      iDestruct (mapsto_frac_ne with "Hwf0 Hwf1") as "%H01" ; first by eauto.
+(*      iDestruct (mapsto_frac_ne with "Hwf0 Hwf1") as "%H01" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf0 Hwf2") as "%H02" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf0 Hwf3") as "%H03" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf0 Hwf4") as "%H04" ; first by eauto.
@@ -3164,7 +3322,7 @@ Section Client.
       iDestruct (mapsto_frac_ne with "Hwf1 Hwf4") as "%H14" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf2 Hwf3") as "%H23" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hwf2 Hwf4") as "%H24" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hwf3 Hwf4") as "%H34" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hwf3 Hwf4") as "%H34" ; first by eauto. *)
       iSplit.
     - iPureIntro.
       simpl.
@@ -3199,10 +3357,11 @@ Section Client.
       iPureIntro.
       do 4 (rewrite lookup_insert_ne ; last lia).
       rewrite lookup_insert.
-      split => //.
-    - unfold export_ownership_host => //=.
-      iSplit => //.
-      by iExists _.
+      split => //. *)
+      
+    - unfold export_ownership_host => /=.
+      iSplit; last done.
+      by iExists _. 
     - iIntros (idnstart) "Hf Hres".
       unfold instantiation_resources_post.
       iDestruct "Hres" as "(Hmod1 & Himphost & Himpwasm & Hinst)".
@@ -3228,7 +3387,13 @@ Section Client.
       iDestruct "Hexphost" as "[Hexphost _]".
       iDestruct "Hexphost" as (name) "Hexphost" => /=.
       unfold import_resources_wasm_typecheck => /=.
-      iDestruct "Himpwasm" as "(%Hdom & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & _)".
+(*      iDestruct "Himpwasm" as "[%Hdom Himpwasm]".
+      destruct name0 ; first done ; iDestruct "Himpwasm" as "[Himpw0 Himpwasm]".
+      destruct name0 ; first done ; iDestruct "Himpwasm" as "[Himpw1 Himpwasm]".
+      destruct name0 ; first done ; iDestruct "Himpwasm" as "[Himpw2 Himpwasm]".
+      destruct name0 ; first done ; iDestruct "Himpwasm" as "[Himpw3 Himpwasm]".
+      destruct name0 ; first done ; iDestruct "Himpwasm" as "[Himpw4 _]". *) 
+      iDestruct "Himpwasm" as "(%Hdom & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & _)". 
       iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
       iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
       iDestruct "Himpw2" as (cl2) "[Himpfcl2 %Hcltype2]".
@@ -3257,8 +3422,8 @@ Section Client.
       destruct Hcltype3 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
       do 4 (rewrite lookup_insert_ne in Hcltype4 ; last lia).
       rewrite lookup_insert in Hcltype4.
-      destruct Hcltype4 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      simpl in * ; subst.
+      destruct Hcltype4 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl. 
+      simpl in * ; subst. 
       unfold ext_func_addrs in Hinstfunc ; simpl in Hinstfunc.
       unfold prefix in Hinstfunc.
       destruct Hinstfunc as [l Hinstfunc].
@@ -3282,7 +3447,7 @@ Section Client.
       done. done. done. done.
       iIntros "!> Hf".
       iApply (wp_label_bind with
-               "[Hwg Hf Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Hlen Hexphost]") ; last first.
+               "[Hwg Hf Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Hexphost Hnextaddr]") ; last first.
       iPureIntro.
       unfold lfilled, lfill => /=.
       instantiate (5 := []) => /=.
@@ -3292,23 +3457,23 @@ Section Client.
       { rewrite (separate1 (AI_basic (BI_call 0)) (_ :: _)).
         iApply wp_seq.
         iSplitR ; last first.
-        iSplitL "Himpfcl0 Hf Hlen".
+        iSplitL "Hnextaddr Hf Himpfcl0".
         { iApply (wp_call with "Hf").
           done.
           iIntros "!> Hf".
-          iApply ("Hspec0" with "[Hf Himpfcl0 Hlen]").
+          iApply ("Hspec0" with "[Hf Hnextaddr Himpfcl0]").
           iFrame.
           repeat iSplit ; iPureIntro => //.
           unfold page_size. unfold N.divide.
-          exists 0%N.
-          lia.
+          exists 0%N. 
+          done.
           iIntros (v0) "(H & Himpfcl0 & Hf)".
           iFrame.
           instantiate (1 := λ v0, (( ∃ k : Z, ⌜v0 = immV [value_of_int k]⌝ ∗
-                                                         (⌜k = (-1)%Z⌝ ∗ N.of_nat n↦[wmlength]0%N ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] n ∗
-                                                                                                                                                  N.of_nat n↦[wmlength](0 + page_size)%N)) ∗  N.of_nat idf0↦[wf]FC_func_native i0 (Tf [] [T_i32]) l0 f0)%I).
-          iSplitL "H" ; done. }
-        iIntros (w0) "[[H Himpfcl0] Hf]".
+                                                         (⌜k = (-1)%Z⌝ ∗ nextStackAddrIs 0 ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] ∗ nextStackAddrIs (0 + Pos.to_nat (64 * 1024)))) ∗ 
+                                     N.of_nat idf0↦[wf]FC_func_native i0 (Tf [] [T_i32]) l0 f0)%I). 
+          iFrame. }
+        iIntros (w0) "[[H Himpfcl0] Hf]". 
         iDestruct "H" as (k) "[-> H]".
         iSimpl.
         rewrite (separate2 (i32const _)).
@@ -3365,7 +3530,7 @@ Section Client.
         iApply wp_seq.
         iSplitR ; last first.
         iAssert (⌜ (-1 <= k < two32 - 1)%Z ⌝%I) with "[H]" as "%Hk".
-        { iDestruct "H" as "[[%Hk _] | (%Hk & _ & _)]" ; iPureIntro.
+        { iDestruct "H" as "[[%Hk _] | (%Hk & _)]" ; iPureIntro.
           subst. done.
           destruct Hk.
           lia. }
@@ -3466,7 +3631,7 @@ Section Client.
             done. }
          
             iIntros (w0) "[[(-> & %Hk1 & Hwg) | [%Hret Hwg]] Hf]".
-          { iDestruct "H" as "[[-> _] | (%Hk2 & Hs & Hlen)]".
+          { iDestruct "H" as "[[-> Haddr] | (%Hk2 & Hs & Haddr)]".
             done.
             iSimpl.
             rewrite (separate2 (i32const _)).
@@ -3528,8 +3693,8 @@ Section Client.
           iIntros (w0) "(-> & Hs & Himpfcl4 & Hf)".
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
-                                             isStack k [VAL_int32 (Wasm_int.int_of_Z i32m 4)] n ∗
-                                             N.of_nat idf4↦[wf]FC_func_native i4 (Tf [T_i32; T_i32] []) l4 f4)%I).
+                                             isStack k [VAL_int32 (Wasm_int.int_of_Z i32m 4)] ∗
+                                             N.of_nat idf4↦[wf]FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl4) Hf]".
           iSimpl.
@@ -3592,8 +3757,8 @@ Section Client.
           iIntros (w0) "(-> & Hs & Himpfcl4 & Hf)".
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
-                                             isStack k [VAL_int32 (Wasm_int.int_of_Z i32m 6) ; value_of_int 4] n ∗
-                                             N.of_nat idf4↦[wf]FC_func_native i4 (Tf [T_i32; T_i32] []) l4 f4)%I).
+                                             isStack k [VAL_int32 (Wasm_int.int_of_Z i32m 6) ; value_of_int 4] ∗
+                                             N.of_nat idf4↦[wf]FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl4) Hf]".
           iSimpl.
@@ -3629,11 +3794,11 @@ Section Client.
           unfold Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
           replace (two_power_nat 32) with two32 ; last done.
           by destruct Hk2 ; lia.
-          iIntros (w0) "(-> & Hs & Himpfcl4 & Hf)".
+          iIntros (w0) "(-> & Hs & Himpfcl3 & Hf)".
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV [value_of_int 6] ⌝ ∗
-                                             isStack k [value_of_int 4] n ∗
-                                             N.of_nat idf3↦[wf]FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3)%I).
+                                             isStack k [value_of_int 4] ∗
+                                             N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl3) Hf]".
           iSimpl.
@@ -3701,14 +3866,14 @@ Section Client.
           iIntros (w0) "(-> & Hs & Himpfcl3 & Hf)".
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV [value_of_int 4] ⌝ ∗
-                                             isStack k [] n ∗
-                                             N.of_nat idf3↦[wf]FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3)%I).
+                                             isStack k [] ∗
+                                             N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl3) Hf]".
           iSimpl.
           instantiate (1:= λ v, (⌜ v = immV [value_of_int 6 ; value_of_int 4] ⌝ ∗
-                                            isStack k [] n ∗
-                                            N.of_nat idf3↦[wf]FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
+                                            isStack k [] ∗
+                                            N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
                                             ↪[frame] {|
                                               f_locs := [VAL_int32 (Wasm_int.Int32.repr k)];
                                               f_inst :=
@@ -3857,7 +4022,7 @@ Section Client.
       iDestruct "Hwg" as (g') "[Hwg Hvis5]".
       iExists g', _.
       iFrame.
-  Qed.
+  Qed. 
 
   End Client.
 End stack.    
