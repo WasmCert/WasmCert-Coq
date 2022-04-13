@@ -1295,10 +1295,43 @@ Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
   es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
   those (fmap assert_const1_i32 es) = Some vs.
 Proof.
-Admitted.
-                                                
-                                              
-  
+  move: es.
+  elim: vs => //=.
+  - by move => es ->.
+  - move => v vs IH es Hes.
+    destruct es => //=.
+    inversion Hes; subst; clear Hes.
+    simpl.
+    rewrite - cat1s.
+    erewrite those_app => //=; last by apply IH.
+    by [].
+Qed.
+
+Lemma all2_Forall2 {T1 T2: Type} r (l1: list T1) (l2: list T2):
+  all2 r l1 l2 <-> Forall2 r l1 l2.
+Proof.
+  move: l2.
+  elim: l1 => //=.
+  - move => l2; destruct l2 => //=.
+    split => //.
+    move => Hcontra.
+    by inversion Hcontra.
+  - move => e l1 IH l2.
+    destruct l2 => //=.
+    + split => //.
+      move => Hcontra.
+      by inversion Hcontra.
+    + split; move => H.
+      * move/andP in H.
+        destruct H.
+        constructor => //.
+        by apply IH.
+      * apply/andP.
+        inversion H; subst; clear H.
+        split => //.
+        by apply IH.
+Qed.
+
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
@@ -1396,9 +1429,9 @@ Proof.
       simpl in Hmodglob.
       destruct (g_inits !! i) as [gi | ] eqn: Hgii; [ by apply lookup_lt_Some in Hgii; lias | by auto ].
   }
-
+(*
   apply BI_const_assert_const1_i32 in Hmodelem.
-  apply BI_const_assert_const1_i32 in Hmoddata.
+  apply BI_const_assert_const1_i32 in Hmoddata.*)
 
   destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
   destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
@@ -1519,16 +1552,63 @@ Proof.
       rewrite Forall2_lookup.
       move => i.
       destruct (m.(mod_elem) !! i) eqn:Hmelem => /=.
-      + admit.
+      + destruct (e_inits !! i) eqn: Heinit => /=; last by apply lookup_lt_Some in Hmelem; apply lookup_ge_None in Heinit; lias.
+        rewrite Heinit.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmodelem.
+        repeat rewrite list_lookup_fmap in Hmodelem.
+        rewrite Hmelem Heinit in Hmodelem.
+        simpl in *.
+        inversion Hmodelem; subst; clear Hmodelem.
+        rewrite H0.
+        simpl.
+        by repeat constructor.
       + apply lookup_ge_None in Hmelem.
         rewrite Heinitslen in Hmelem.
         apply lookup_ge_None in Hmelem.
         rewrite Hmelem.
         by constructor.
     - (* memory initializers *)
-      admit.
+      unfold instantiate_data.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_data) !! i) eqn:Hmdata => /=.
+      + destruct (d_inits !! i) eqn: Hdinit => /=; last by apply lookup_lt_Some in Hmdata; apply lookup_ge_None in Hdinit; lias.
+        rewrite Hdinit.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmoddata.
+        repeat rewrite list_lookup_fmap in Hmoddata.
+        rewrite Hmdata Hdinit in Hmoddata.
+        simpl in *.
+        inversion Hmoddata; subst; clear Hmoddata.
+        rewrite H0.
+        simpl.
+        by repeat constructor.
+      + apply lookup_ge_None in Hmdata.
+        rewrite Hdinitslen in Hmdata.
+        apply lookup_ge_None in Hmdata.
+        rewrite Hmdata.
+        by constructor.
     - (* table initializers bound check *)
-      admit.
+      unfold check_bounds_elem.
+      apply all2_Forall2.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_elem) !! i) eqn:Hmelem => /=.
+      + destruct (e_inits !! i) eqn: Heinit => /=; last by apply lookup_lt_Some in Hmelem; apply lookup_ge_None in Heinit; lias.
+        rewrite Heinit.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmodelem.
+        repeat rewrite list_lookup_fmap in Hmodelem.
+        rewrite Hmelem Heinit in Hmodelem.
+        inversion Hmodelem; subst; clear Hmodelem.
+        simpl.
+        admit.
+      + apply lookup_ge_None in Hmelem.
+        rewrite Heinitslen in Hmelem.
+        apply lookup_ge_None in Hmelem.
+        rewrite Hmelem.
+        by constructor.
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
