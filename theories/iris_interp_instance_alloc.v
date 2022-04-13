@@ -410,6 +410,9 @@ Section InterpInstance.
                                                                ∗ interp_value (tg_t τg) w)
     ).
 
+  Global Instance module_inst_resources_glob_invs_persistent mglobs g_inits inst_g gts : Persistent (module_inst_resources_glob_invs mglobs g_inits inst_g gts).
+  Proof. apply big_sepL2_persistent;intros;apply _. Qed.
+
   (* The following lemma depends on the restriction that the module only contains constants *)
   Lemma module_inst_resources_glob_invs_alloc E mglobs g_inits inst_g impts gts :
     let c' :=
@@ -871,10 +874,72 @@ Section InterpInstance.
     iDestruct (big_sepL_lookup with "H") as "H'";eauto.
     Unshelve. exact (Tf [] []).
   Qed.
-    
+
+  Definition module_typing_body (m : module) (impts : list extern_t) (expts : list extern_t) fts gts : Prop :=
+    let '{| 
+            mod_types := tfs;
+            mod_funcs := fs;
+            mod_tables := ts;
+            mod_mems := ms;
+            mod_globals := gs;
+            mod_elem := els;
+            mod_data := ds;
+            mod_start := i_opt;
+            mod_imports := imps;
+            mod_exports := exps;
+          |} := m in
+    let ifts := ext_t_funcs impts in
+    let its := ext_t_tabs impts in
+    let ims := ext_t_mems impts in
+    let igs := ext_t_globs impts in
+    let c := {|
+              tc_types_t := tfs;
+              tc_func_t := List.app ifts fts;
+              tc_global := List.app igs gts;
+              tc_table := List.app its (List.map (fun t => t.(modtab_type)) ts);
+              tc_memory := List.app ims ms; (* TODO: should use `mem_type`s *) (* UPD: fixed? *)
+              tc_local := nil;
+              tc_label := nil;
+              tc_return := None;
+            |} in
+    let c' := {|
+               tc_types_t := nil;
+               tc_func_t := nil;
+               tc_global := igs;
+               tc_table := nil;
+               tc_memory := nil;
+               tc_local := nil;
+               tc_label := nil;
+               tc_return := None;
+             |} in
+    List.Forall2 (module_func_typing c) fs fts /\
+      seq.all module_tab_typing ts /\
+      seq.all module_mem_typing ms /\
+      List.Forall2 (module_glob_typing c') gs gts /\
+      List.Forall (module_elem_typing c) els /\
+      List.Forall (module_data_typing c) ds /\
+      pred_option (module_start_typing c) i_opt /\
+      List.Forall2 (fun imp => module_import_typing c imp.(imp_desc)) imps impts /\
+      List.Forall2 (fun exp => module_export_typing c exp.(modexp_desc)) exps expts.
+
+  Lemma module_typing_body_eq m impts expts :
+    module_typing m impts expts <-> ∃ fts gts, module_typing_body m impts expts fts gts.
+  Proof. auto. Qed.
   
-  Lemma interp_instance_alloc E m t_imps t_exps v_imps wfs wts wms wgs g_inits inst :
-    module_typing m t_imps t_exps ->
+  
+  Definition module_inst_resources_wasm_invs (m : module) (inst : instance) (g_inits : seq.seq value) (gts : seq.seq global_type) :=
+    (module_inst_resources_func_invs (mod_funcs m) inst
+     (drop (get_import_func_count m) (inst_funcs inst)) ∗
+    module_inst_resources_tab_invs (mod_tables m)
+     (drop (get_import_table_count m) (inst_tab inst)) ∗
+    module_inst_resources_mem_invs (mod_mems m)
+     (drop (get_import_mem_count m) (inst_memory inst))∗
+    module_inst_resources_glob_invs (mod_globals m) g_inits
+     (drop (get_import_global_count m) (inst_globs inst)) gts)%I.
+                                    
+  
+  Lemma interp_instance_alloc E m t_imps t_exps v_imps wfs wts wms wgs g_inits inst fts gts :
+    module_typing_body m t_imps t_exps fts gts ->
     (inst.(inst_types) = m.(mod_types) /\
        let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
        prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
@@ -892,27 +957,25 @@ Section InterpInstance.
                                                                    
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
     module_inst_resources_wasm m inst g_inits
-    ={E}=∗ ∃ C, ⌜tc_label C = [] ∧ tc_local C = [] ∧ tc_return C = None⌝ ∗ interp_instance (HWP:=HWP) C inst.
+    ={E}=∗ let C := {|
+              tc_types_t := (mod_types m);
+              tc_func_t := ((ext_t_funcs t_imps) ++ fts)%list;
+              tc_global := ((ext_t_globs t_imps) ++ gts)%list;
+              tc_table := ((ext_t_tabs t_imps) ++ map (λ t : module_table, modtab_type t) (mod_tables m))%list;
+              tc_memory := ((ext_t_mems t_imps) ++ (mod_mems m))%list;
+              tc_local := [];
+              tc_label := [];
+              tc_return := None;
+            |} in
+           interp_instance (HWP:=HWP) C inst ∗
+           module_inst_resources_wasm_invs m inst g_inits gts (* it is useful to remember the exact values for each allocated invariant *).
   Proof.
     iIntros (Hmod Himps_of_inst Hg_initstyp) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
-    destruct Hmod as [fts [gts Hmod]].
     set (ifts := ext_t_funcs t_imps).
     set (its := ext_t_tabs t_imps).
     set (ims := ext_t_mems t_imps).
     set (igs := ext_t_globs t_imps).
-    set (C :=
-           {|
-             tc_types_t := (mod_types m);
-             tc_func_t := (ifts ++ fts)%list;
-             tc_global := (igs ++ gts)%list;
-             tc_table := (its ++ map (λ t : module_table, modtab_type t) (mod_tables m))%list;
-             tc_memory := (ims ++ (mod_mems m))%list;
-             tc_local := [];
-             tc_label := [];
-             tc_return := None
-           |}).
-
-    iExists C. iSplitR;[iModIntro;auto|].
+    
     iDestruct "Hmr" as "(Hfr & Htr & Hmr & Hgr)".
     iDestruct (module_res_imports_disj with "Hir Hfr") as %Hdisj.
     iDestruct (import_resources_wasm_typecheck_lengths with "Hir") as %(Hlenir&Hlenir0&Hlenir1&Hlenir2).
@@ -921,14 +984,14 @@ Section InterpInstance.
     iMod (module_inst_resources_func_invs_alloc with "Hfr") as "#Hfr".
     iMod (module_inst_resources_tab_invs_alloc with "Htr") as "#Htr".
     iMod (module_inst_resources_mem_invs_alloc with "Hmr") as "#Hmr".
-    iMod (module_inst_resources_glob_invs_alloc with "Hgr") as "Hgr";[eauto..|].
+    iMod (module_inst_resources_glob_invs_alloc with "Hgr") as "#Hgr";[eauto..|].
     { destruct m. simpl in Hmod.
       destruct Hmod as (Htypes & Htables & Hmems & Hglobals
                         & Helem & Hdata & Hstart & Himps & Hexps). eauto. }
-    iModIntro.
+    iModIntro. iFrame "#".
     
     iApply (interp_instance_pre_create _ wfs);[auto|].
-    unfold interp_instance_pre. destruct inst. rewrite /C.
+    unfold interp_instance_pre. destruct inst.
     destruct Himps_of_inst as (Htypeq & Hprefunc & Hpretables & Hpremem & Hpreglob).
     iSplitR.
     { destruct m. simpl in Hmod.
