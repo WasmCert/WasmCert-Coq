@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect eqtype seq ssrbool.
+From mathcomp Require Import ssreflect ssrbool eqtype seq.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
@@ -198,11 +198,12 @@ Section logrel.
             (* Function tables *)           
            (match nth_error tabs_t 0 with
             | Some τt => match nth_error tbs 0 with
-                        | Some a => (∃ table_size (table_lim : option N), (* ⌜ssrnat.leq (S (ssrnat.nat_of_bool table_lim)) *)
-                                                             (* (ssrnat.nat_of_bool (lim_max (tt_limits τt)))⌝ *)
-                                                    (N.of_nat a) ↪[wtlimit] table_lim
-                                                    ∗ (N.of_nat a) ↪[wtsize] table_size
-                                                    ∗ (interp_table table_size interp_closure'') (N.of_nat a))
+                        | Some a => (∃ table_size (table_lim : option N),
+                                       ⌜ssrnat.leq (ssrnat.nat_of_bool table_lim)
+                                        (ssrnat.nat_of_bool (lim_max (tt_limits τt)))⌝
+                                       ∗ (N.of_nat a) ↪[wtlimit] table_lim
+                                       ∗ (N.of_nat a) ↪[wtsize] table_size
+                                       ∗ (interp_table table_size interp_closure'') (N.of_nat a))
                         | None => False
                         end
             | None => True

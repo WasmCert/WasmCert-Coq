@@ -113,9 +113,9 @@ Section fundamental.
     iDestruct "Hvalvs" as "[%|Hvalvs]";[done|].
     iDestruct "Hvalvs" as (ws' Heq') "Hvalvs". inversion Heq';subst ws'.
     iDestruct (big_sepL2_length with "Hvalvs") as %Hlen2.
-    rewrite app_length in Hlen2.
+    rewrite app_length in Hlen2. subst j.
         
-    iApply (wp_br_alt with "Hf");[..|eauto|].
+    iApply (wp_br_alt with "Hf");[..|apply Hfill|].
     { apply const_list_of_val. }
     { rewrite fmap_length. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
       rewrite Hlen.

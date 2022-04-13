@@ -585,33 +585,41 @@ Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance
                              f.(modfunc_body))
   )%I.
 
-Definition module_inst_resources_tab (mtabs: list module_table) (inst_t: list tableaddr) : iProp Σ :=
-  ([∗ list] tab; addr ∈ mtabs; inst_t,
+Definition module_inst_resources_tab (mtabs: list module_table) (t_inits: gmap (nat * nat) funcelem) (inst_t: list tableaddr) : iProp Σ :=
+  ([∗ list] i ↦ tab; addr ∈ mtabs; inst_t,
     N.of_nat addr ↦[wtblock] (match tab.(modtab_type).(tt_limits) with
                             | {| lim_min := min; lim_max := omax |} =>
                                  (Build_tableinst
-                                   (repeat None (ssrnat.nat_of_bin min)))
+                                    (imap (fun j _ => match (t_inits !! (i, j)) with
+                                                  | Some felem => felem
+                                                  | None => (None: funcelem)
+                                                  end) (repeat (None: funcelem) (ssrnat.nat_of_bin min))))
                                    (omax)
-                       end)
+                              end)
   )%I.
 
-
-Definition module_inst_resources_mem (mmems: list memory_type) (inst_m: list memaddr) : iProp Σ := 
-  ([∗ list] mem; addr ∈ mmems; inst_m,
+Definition module_inst_resources_mem (mmems: list memory_type) (m_inits: gmap (nat * nat) byte) (inst_m: list memaddr) : iProp Σ := 
+  ([∗ list] i ↦ mem; addr ∈ mmems; inst_m,
     N.of_nat addr ↦[wmblock] (match mem with
                                  | {| lim_min:= min; lim_max := omax |} =>
                                    Build_memory
-                                     {| ml_init := #00%byte; ml_data := repeat #00%byte (N.to_nat min) |}
+                                     {| ml_init := #00%byte; ml_data :=
+                                                               imap (fun j _ => match (m_inits !! (i,j)) with
+                                                                             | Some b => b
+                                                                             | None => #00%byte
+                                                                             end)
+                                                                               (repeat #00%byte (N.to_nat min)) |}
                                      (omax)
                                   end)
   ).
 
 Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
-  ([∗ list] g; addr ∈ mglobs; inst_g,
-    match nth_error g_inits addr with
+  ([∗ list] i↦g; addr ∈ mglobs; inst_g,
+    match nth_error g_inits i with
     | Some v => N.of_nat addr ↦[wg] (Build_global
                                       (g.(modglob_type).(tg_mut))
                                       v (* kinda unfortuante that this is O(n^2) *)
+                                         (* UPD: nvm, now all the initialisers are O(n^2) at least *)
                                    )
     | None => False
     end
@@ -645,10 +653,10 @@ Definition get_import_global_count (m: module) := length (pmap (fun x => match x
                                                                    | _ => None
                                                                     end) m.(mod_imports)).
 (* The collection of the four types of newly allocated resources *)
-Definition module_inst_resources_wasm (m: module) (inst: instance) (g_inits: list value) : iProp Σ :=
+Definition module_inst_resources_wasm (m: module) (inst: instance) t_inits m_inits (g_inits: list value) : iProp Σ :=
   (module_inst_resources_func m.(mod_funcs) inst (drop (get_import_func_count m) inst.(inst_funcs)) ∗
-  module_inst_resources_tab m.(mod_tables) (drop (get_import_table_count m) inst.(inst_tab)) ∗
-  module_inst_resources_mem m.(mod_mems) (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
+  module_inst_resources_tab m.(mod_tables) t_inits (drop (get_import_table_count m) inst.(inst_tab)) ∗
+  module_inst_resources_mem m.(mod_mems) m_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
   module_inst_resources_glob m.(mod_globals) g_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
 
 (* Resources in the host vis store for the imports *)
@@ -1107,33 +1115,222 @@ Proof.
       by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
 Qed.
 
+Print module_glob.
+
+Definition assert_const1 (es: expr) : option value :=
+  match es with
+  | [:: BI_const v] => Some v
+  | _ => None
+  end.
+
+Definition assert_const1_i32 (es: expr) : option i32 :=
+  match es with
+  | [:: BI_const (VAL_int32 v)] => Some v
+  | _ => None
+  end.
+
+Definition assert_const1_i32_to_nat (es:expr) : nat :=
+  match assert_const1_i32 es with
+  | Some v => nat_of_int v
+  | _ => 0
+  end.
+    
+
+Definition module_glob_init_value (modglobs: list module_glob): option (list value) :=
+  those (fmap (assert_const1 ∘ modglob_init) modglobs).
+
+(* Table initialisers work as follows:
+   - Each initialiser specifies a tableidx which is an index to the table list in the current module instance. 
+   - Each initialiser specifies an offset eo (has to be const), which is the starting index that is going to be filled in.
+   - For each f_j in the init array, replace s.tables[inst.tables(tableidx)][offset+j] with inst.funcs(f_j). Note how
+     both the tableidx and the f_j (funcidx) here are referring to the index in the current module. 
+   
+   Memory initiliasers work similarly.
+*)
+
 Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
-  export_ownership_host hs_exps.
+  export_ownership_host hs_exps ∗
+  ⌜ length hs_exps = length m.(mod_exports) ⌝.
+
+Print instantiation.instantiate.
+
+Print init_tab.
+
+Print instantiate_elem.
+
+Print module_elem_typing.
+
+Print module_element.
+Print module.
+
+Print imap.
+(*
+Definition build_tab_initialiser (m: module) (elem: module_element) :=
+  let' {| modelem_table := tid; modelem_offset := offset; modelem_init := fids |} := elem in
+  imap (fun j e_init => <[
+ *)
+Print fold_left.
+
+Print module_func.
+
+Print instance.
+
+Print module_element.
+
+Print funcelem.
+
+Print map_insert.
+
+Print module_table.
+
+Print table_type.
+
+Print limits.
+
+Definition build_tab_initialiser (instfuncs: list funcaddr) (elem: module_element) (tabid: nat) (offset: nat) : gmap (nat * nat) funcelem :=
+  fold_left (fun acc actor => actor acc) (imap (fun j e_init => match e_init with
+                     | Mk_funcidx fid => map_insert (tabid, j + offset) (nth_error instfuncs fid) end) elem.(modelem_init) ) ∅.
+
+(*
+Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : list (list funcelem) :=
+  match modelems with
+  | e_init :: e_inits' => match e_init.(modelem_table) with
+                        | Mk_tableidx i => <[ i := build_tab_initialiser inst.(inst_funcs) e_init 
+  | [] => fmap (fun mtab => repeat None (N.to_nat (mtab.(modtab_type).(tt_limits).(lim_min)))) (m.(mod_tables))
+  end.
+*)
+
+Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : gmap (nat * nat) funcelem :=
+  match modelems with
+  | e_init :: e_inits' => match e_init.(modelem_table) with
+                        | Mk_tableidx i => (module_tab_init_values m inst e_inits') ∪ (build_tab_initialiser inst.(inst_funcs) e_init i (assert_const1_i32_to_nat (e_init.(modelem_offset))))
+                        end
+                          
+  | [] => ∅
+  end.
+
+Print module_data.
+
+Search Byte.byte byte.
+
+(* Note that we use compcert byte for our internal memory representation, but module uses the pure Coq version of byte. *)
+Definition build_mem_initialiser (datum: module_data) (memid: nat) (offset: nat) : gmap (nat * nat) byte :=
+  fold_left (fun acc actor => actor acc)
+            (imap (fun j b => map_insert (memid, j + offset) (compcert_byte_of_byte b)) datum.(moddata_init) ) ∅.
+
+
+Fixpoint module_mem_init_values (m: module) (moddata: list module_data) : gmap (nat * nat) byte :=
+  match moddata with
+  | d_init :: d_inits' => match d_init.(moddata_data) with
+                        | Mk_memidx i => (module_mem_init_values m d_inits') ∪ (build_mem_initialiser d_init i (assert_const1_i32_to_nat (d_init.(moddata_offset))))
+                        end
+                          
+  | [] => ∅
+  end.
+
+                               (*              
+Definition module_tab_init_values m t_inits :=
+  t_inits = fold_left (fun elem =>
+                         let' {| modelem_table := tid; modelem_offset := offset; modelem_init := fids |} := elem in
+                         match *)
+
+(* g_inits have the correct types and values. Typing is redundant given the current restriction *)
+Definition module_glob_init_values m g_inits :=
+  (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) /\
+  module_glob_init_value m.(mod_globals) = Some g_inits.
+
+(* Initialisers *)
+Definition module_init_values (m: module) (inst: instance) t_inits m_inits g_inits : Prop :=
+  t_inits = module_tab_init_values m inst m.(mod_elem) /\
+  m_inits = module_mem_init_values m m.(mod_data) /\
+  module_glob_init_values m g_inits.
 
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
-  ∃ inst g_inits, ⌜ inst.(inst_types) = m.(mod_types) /\
+  ∃ (inst: instance) (g_inits: list value) t_inits m_inits,
+    ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)
   let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
     prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
     prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
     prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
     prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
-    check_start m inst idfstart
-  ⌝ ∗
-  ⌜ (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) ⌝ ∗ (* g_inits have the correct types *)
-    module_inst_resources_wasm m inst g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    check_start m inst idfstart ⌝ ∗
+  ⌜ module_init_values m inst t_inits m_inits g_inits ⌝ ∗
+    module_inst_resources_wasm m inst t_inits m_inits g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
-    (* missing the constraints for the initialised globals. A wp (in wasm) for each of them in the future. Omitted*)
 
 Definition module_restrictions (m: module) : Prop :=
-  (* Initializers for globals are only values *)
-  exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs.
+  (* Initializers for globals are only values. This is not that much a restriction as it seems, since they can
+     only be either values or get_globals (from immutable globals) anyway. *)
+  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
+  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
+  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
+
+Lemma fmap_fmap_lookup {T1 T2 T: Type} (f1: T1 -> T) (f2: T2 -> T) (l1: list T1) (l2: list T2):
+  fmap f1 l1 = fmap f2 l2 ->
+  forall i, fmap f1 (l1 !! i) = fmap f2 (l2 !! i).
+Proof.
+  move => Heq i.
+  assert (length l1 = length l2) as Hlen.
+  { erewrite <- fmap_length with (f := f1).
+    rewrite Heq.
+    by rewrite fmap_length.
+  }
+  destruct (l1 !! i) eqn:Hl1; destruct (l2 !! i) eqn:Hl2 => //=.
+  - assert ((fmap f1 l1) !! i = (fmap f2 l2) !! i) as Heqi; first by rewrite Heq.
+    repeat rewrite list_lookup_fmap in Heqi.
+    rewrite Hl1 Hl2 in Heqi.
+    by simpl in Heqi.
+  - by apply lookup_lt_Some in Hl1; apply lookup_ge_None in Hl2; lias.
+  - by apply lookup_lt_Some in Hl2; apply lookup_ge_None in Hl1; lias.
+Qed.
+
+Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
+  es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
+  those (fmap assert_const1_i32 es) = Some vs.
+Proof.
+  move: es.
+  elim: vs => //=.
+  - by move => es ->.
+  - move => v vs IH es Hes.
+    destruct es => //=.
+    inversion Hes; subst; clear Hes.
+    simpl.
+    rewrite - cat1s.
+    erewrite those_app => //=; last by apply IH.
+    by [].
+Qed.
+
+Lemma all2_Forall2 {T1 T2: Type} r (l1: list T1) (l2: list T2):
+  all2 r l1 l2 <-> Forall2 r l1 l2.
+Proof.
+  move: l2.
+  elim: l1 => //=.
+  - move => l2; destruct l2 => //=.
+    split => //.
+    move => Hcontra.
+    by inversion Hcontra.
+  - move => e l1 IH l2.
+    destruct l2 => //=.
+    + split => //.
+      move => Hcontra.
+      by inversion Hcontra.
+    + split; move => H.
+      * move/andP in H.
+        destruct H.
+        constructor => //.
+        by apply IH.
+      * apply/andP.
+        inversion H; subst; clear H.
+        split => //.
+        by apply IH.
+Qed.
 
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
@@ -1165,6 +1362,8 @@ Proof.
   iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
   destruct Himpwasm as [Hvtlen Himpwasm].
 
+  iDestruct "Hexphost" as "(Hexphost & %Hlenexp)".
+
   remember {| inst_types := m.(mod_types);
                   inst_funcs := ext_func_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
                   inst_tab := ext_tab_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_tables)) (length m.(mod_tables)));
@@ -1173,11 +1372,26 @@ Proof.
                |} as inst_res.
   
   unfold module_restrictions in Hmodrestr.
-  destruct Hmodrestr as [g_inits Hmodrestr].
+  destruct Hmodrestr as [[g_inits Hmodglob] [[e_inits Hmodelem] [d_inits Hmoddata]]].
 
   assert (length m.(mod_globals) = length g_inits) as Hginitslen.
-  { replace (length g_inits) with (length (fmap (fun v => [BI_const v]) g_inits)); last by rewrite fmap_length.
-    rewrite - Hmodrestr.
+  { erewrite <- fmap_length.
+    instantiate (1 := modglob_init).
+    rewrite Hmodglob.
+    by rewrite fmap_length.
+  }
+  
+  assert (length m.(mod_elem) = length e_inits) as Heinitslen.
+  { erewrite <- fmap_length.
+    instantiate (1 := modelem_offset).
+    rewrite Hmodelem.
+    by rewrite fmap_length.
+  }
+  
+  assert (length m.(mod_data) = length d_inits) as Hdinitslen.
+  { erewrite <- fmap_length.
+    instantiate (1 := moddata_offset).
+    rewrite Hmoddata.
     by rewrite fmap_length.
   }
   
@@ -1194,12 +1408,12 @@ Proof.
     simpl in *.
     destruct (mod_globals !! i) as [mg | ] eqn: Hmgi.
     - assert (i < length mod_globals) as Hlen; first by eapply lookup_lt_Some.
-      simpl in Hmodrestr.
+      simpl in Hmodglob.
       destruct (g_inits !! i) as [gi | ] eqn: Hgii; last by apply lookup_ge_None in Hgii; lias.
       inversion Hglobtype; subst; clear Hglobtype.
       simpl in *.
       unfold module_glob_typing in H5.
-      assert ((modglob_init <$> mod_globals) !! i = ((fun v => [BI_const v]) <$> g_inits) !! i) as Hlookup; first by rewrite Hmodrestr.
+      assert ((modglob_init <$> mod_globals) !! i = ((fun v => [BI_const v]) <$> g_inits) !! i) as Hlookup; first by rewrite Hmodglob.
       repeat rewrite list_lookup_fmap in Hlookup.
       rewrite Hmgi Hgii in Hlookup.
       destruct mg.
@@ -1212,23 +1426,28 @@ Proof.
       simpl in Hbet.
       by inversion Hbet.
     - assert (i >= length mod_globals) as Hlen; first by eapply lookup_ge_None.
-      simpl in Hmodrestr.
+      simpl in Hmodglob.
       destruct (g_inits !! i) as [gi | ] eqn: Hgii; [ by apply lookup_lt_Some in Hgii; lias | by auto ].
   }
-  
+(*
+  apply BI_const_assert_const1_i32 in Hmodelem.
+  apply BI_const_assert_const1_i32 in Hmoddata.*)
+
   destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
   destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
   destruct (alloc_mems host_function s1 (mod_mems m)) eqn:Hallocmem.
   destruct (alloc_globs host_function s2 (mod_globals m) g_inits) eqn:Hallocglob.
 
+  remember (fmap (fun m_exp => {| modexp_name := modexp_name m_exp; modexp_desc := export_get_v_ext inst_res (modexp_desc m_exp) |}) m.(mod_exports)) as v_exps.
+
   (* Prove that the instantiation predicate holds *)
-  assert (exists ws_res v_exps, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), None))) as Hinst.
+  assert (exists ws_res, (instantiate ws m (fmap modexp_desc v_imps) ((ws_res, inst_res, v_exps), None))) as Hinst.
   {
     unfold instantiate, instantiation.instantiate.
     unfold alloc_module => /=.
-    do 2 eexists.
+    eexists.
     exists t_imps, t_exps, hs, s3, g_inits.
-    do 2 eexists.
+    exists e_inits, d_inits.
     repeat split.
     - (* module_typing *)
       by apply Hmodtype.
@@ -1309,17 +1528,87 @@ Proof.
         apply alloc_tab_gen_index in Halloctab as [? [? [? [? <-]]]].
         by apply alloc_func_gen_index in Hallocfunc as [? [? [? [? <-]]]].
     - (* global initializers *)
-      (* In fact -- global initializers have to exist, in the sense that each modglob carries a (non-optional) list 
-         of basic expression as its initializer, so we cannot simply ignore it. But let's say we admit it for now. *)
-      Print instantiation.instantiate_globals.
-      admit.
+      unfold instantiation.instantiate_globals.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_globals) !! i) eqn:Hmglob => /=.
+      + destruct (g_inits !! i) eqn:Hginit => /=; last by apply lookup_lt_Some in Hmglob; apply lookup_ge_None in Hginit; lias.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmodglob.
+        repeat rewrite list_lookup_fmap in Hmodglob.
+        rewrite Hmglob Hginit in Hmodglob.
+        simpl in *.
+        inversion Hmodglob; clear Hmodglob.
+        rewrite H0.
+        simpl.
+        by repeat constructor.
+      + apply lookup_ge_None in Hmglob.
+        rewrite Hginitslen in Hmglob.
+        apply lookup_ge_None in Hmglob.
+        rewrite Hmglob.
+        by constructor.
     - (* table initializers *)
-      (* And the same for table initializers... just why? *)
-      admit.
+      unfold instantiate_elem.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_elem) !! i) eqn:Hmelem => /=.
+      + destruct (e_inits !! i) eqn: Heinit => /=; last by apply lookup_lt_Some in Hmelem; apply lookup_ge_None in Heinit; lias.
+        rewrite Heinit.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmodelem.
+        repeat rewrite list_lookup_fmap in Hmodelem.
+        rewrite Hmelem Heinit in Hmodelem.
+        simpl in *.
+        inversion Hmodelem; subst; clear Hmodelem.
+        rewrite H0.
+        simpl.
+        by repeat constructor.
+      + apply lookup_ge_None in Hmelem.
+        rewrite Heinitslen in Hmelem.
+        apply lookup_ge_None in Hmelem.
+        rewrite Hmelem.
+        by constructor.
     - (* memory initializers *)
-      admit.
+      unfold instantiate_data.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_data) !! i) eqn:Hmdata => /=.
+      + destruct (d_inits !! i) eqn: Hdinit => /=; last by apply lookup_lt_Some in Hmdata; apply lookup_ge_None in Hdinit; lias.
+        rewrite Hdinit.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmoddata.
+        repeat rewrite list_lookup_fmap in Hmoddata.
+        rewrite Hmdata Hdinit in Hmoddata.
+        simpl in *.
+        inversion Hmoddata; subst; clear Hmoddata.
+        rewrite H0.
+        simpl.
+        by repeat constructor.
+      + apply lookup_ge_None in Hmdata.
+        rewrite Hdinitslen in Hmdata.
+        apply lookup_ge_None in Hmdata.
+        rewrite Hmdata.
+        by constructor.
     - (* table initializers bound check *)
-      admit.
+      unfold check_bounds_elem.
+      apply all2_Forall2.
+      rewrite Forall2_lookup.
+      move => i.
+      destruct (m.(mod_elem) !! i) eqn:Hmelem => /=.
+      + destruct (e_inits !! i) eqn: Heinit => /=; last by apply lookup_lt_Some in Hmelem; apply lookup_ge_None in Heinit; lias.
+        rewrite Heinit.
+        constructor.
+        apply fmap_fmap_lookup with (i0 := i) in Hmodelem.
+        repeat rewrite list_lookup_fmap in Hmodelem.
+        rewrite Hmelem Heinit in Hmodelem.
+        inversion Hmodelem; subst; clear Hmodelem.
+        simpl.
+        admit.
+      + apply lookup_ge_None in Hmelem.
+        rewrite Heinitslen in Hmelem.
+        apply lookup_ge_None in Hmelem.
+        rewrite Hmelem.
+        by constructor.
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
@@ -1327,43 +1616,43 @@ Proof.
       by rewrite Hmodstart.
     - (* putting initlialized items into the store *)
       apply/eqP.
-      eauto.
+      by eauto.
   }
-  
-  (*
-  unfold big_sepL2.
-  Search big_sepL2.
-  iDestruct (ghost_map_lookup with "Hvis Himphost") as "%Himphost".
-  Search ghost_map_elem big_opM.
-  Search big_opL big_opM.
 
-  Search gmap list.
-  
-  iDestruct (ghost_map_lookup_big with "Hvis Himphost") as "%Himphost".
+  destruct Hinst as [ws_res Hinst].
 
-  (* The key is to prove that the instantiate predicate holds with the premises given. *)
-  assert (exists ws_res inst_res v_exps ostart, (instantiate ws m v_imps ((ws_res, inst_res, v_exps), ostart))) as Hinst.
+  assert (insert_exports vis hs_exps v_exps <> None) as Hinsertvis.
   {
+    rewrite Heqv_exps.
+    clear - Hlenexp.
+    destruct m.
+    simpl in *.
+    move: Hlenexp.
+    move: mod_exports. (*
+    elim => /=; destruct mod_exports => //=.
+    move => hs_exp hs_exps IH Hlenexp.
+    inversion Hlenexp; clear Hlenexp.
+    destruct (insert_exports vis hs_exps (list_fmap _ _ _ mod_exports)) eqn:Hinsert => //.
+    exfalso.*)
     admit.
   }
-
-  destruct Hinst as [[[[ws_res inst_res] v_exps] ostart] Hinst].
   
   iApply fupd_mask_intro; first by set_solver.
-
+  
   iIntros "Hmask".
   iSplit.
   
   - destruct s => //.
     iPureIntro.
     unfold language.reducible.
-      
-    exists [], (([::], [::]): host_expr), (ws2,
-                                    <[ 0 := [:: Build_module_export (list_byte_of_string "add") (MED_func (Mk_funcidx 0))]]>
-                                    (<[ 1 := [:: Build_module_export (list_byte_of_string "f") (MED_func (Mk_funcidx 1))]]> vis) ,
-                                    ms), [].
-    unfold prim_step.
+
+(*
+    
+    exists [], (([::], [::]): host_expr), (ws_res, insert_exports vis hs_exps v_exps, ms), [].
+    unfold language.prim_step => /=.
     repeat split => //.
+    replace [] with (map_start None) => //.
+    eapply HR_host_step => //.*)
     admit.
     (*
     eapply HR_host_step => //.
@@ -1376,7 +1665,6 @@ Proof.
     iIntros "!>!>!>".
     iMod "Hmask".
     iModIntro.
-*)
 Admitted.
 
 Print instantiation.instantiate.
