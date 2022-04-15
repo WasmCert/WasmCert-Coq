@@ -42,7 +42,7 @@ Inductive ext_typing_list: store_record -> seq module_export -> seq extern_t -> 
     external_typing s (modexp_desc v_exp) te ->
     ext_typing_list s (v_exp :: v_exps) (te :: tes).
 
-
+(*
 Lemma instantiation_sound (s: store_record) m v_imps s' inst v_exps start:
   store_typing s ->
   instantiate s m v_imps ((s', inst, v_exps), start) ->
@@ -161,15 +161,10 @@ Proof.
     by apply cl_typing_host.
 Qed.
 
-Axiom Forall_app
-     : forall (A : Type) (P : A -> Prop) (l1 l2 : seq A),
-       List.Forall P (l1 ++ l2)%list <-> List.Forall P l1 /\ List.Forall P l2.
-
 Lemma store_typing_preserve_add_func : forall s_funcs s_tables s_mems s_globals inst m_f,
     store_typing
       {| s_funcs := s_funcs; s_tables := s_tables; s_mems := s_mems; s_globals := s_globals |} ->
     (*
-    module_func_typing 
     add_func s _ _ ...
 *)
     store_typing
@@ -187,7 +182,7 @@ Proof.
   inversion HSTyping as [Hcl [ Htb Hmem ]].
   constructor.
   - (* cl_typing *)
-    rewrite Forall_app.
+    rewrite List.Forall_app.
     split.
     + (* forall cl_type_check_single s_funcs *) 
       apply List.Forall_forall => func Hin.
@@ -201,10 +196,6 @@ Proof.
                            end (inst_types inst) (Tf [::] [::])) as tf.
         exists tf.
         destruct tf as [t1s t2s]. Check List.map.  Search (N).
-        eapply cl_typing_native => //.
-        * admit.
-        * admit.
-          Admitted. (*
         remember ({| tc_types_t := inst.(inst_types);
                      tc_func_t := (List.map cl_type s_funcs) ++ [:: (Tf t1s t2s)];
                      tc_global := List.map (fun g => Build_global_type (g_mut g) (typeof (g_val g))) s_globals;
@@ -223,6 +214,8 @@ Proof.
           (C := C)
           (C' := upd_local_label_return C (tc_local C ++ t1s ++ (modfunc_locals m_f)) ([::t2s] ++ tc_label C) (Some t2s)) => //=.
         * (* inst_typing *)
+          admit. admit.
+          (*
           destruct inst. destruct C. simpl.
           destruct tc_local => //=.
           destruct tc_label => //=.
@@ -238,8 +231,9 @@ Proof.
           }
           -- (* globals_agree *) {
               rewrite /globals_agree.
+              admit.
             }
-            
+*)
       }
   split.
   - (* tab_agree *)
@@ -249,50 +243,33 @@ Proof.
     by apply Htb.
   - (* mem_agree *)
     assumption.
-Admitted.*)
+Admitted.
 
-Print module_typing.
-
-Print alloc_Xs.
-
-Print module_typing.
-Print module_func_typing.
-
-Lemma instantiation_sound_aux s s0 m inst l t_imps t_exps:
-  module_typing m t_imps t_exps ->
+Lemma instantiation_sound_aux s s0 mfuncs inst l acc:
   store_typing s ->
-  (s0, l) = alloc_Xs host_function 
-            (fun s m_f => alloc_func host_function s m_f inst) s (mod_funcs m) ->
-  (*
   (s0, l) =
            (let
             '(s', fas) :=
              List.fold_left
                (fun '(s, ys) (x : module_func)
                   => let '(s', y) := alloc_func host_function s x inst in (s', y :: ys))
-               (mod_funcs m) (s, acc) in (s', List.rev fas)) ->*)
+               mfuncs (s, acc) in (s', List.rev fas)) ->
   store_typing s0.
 Proof.
-  move => Hmodule.
-  unfold module_typing in Hmodule.
-  destruct Hmodule as [fts [gts Hmodule]].
-  destruct m.
-  destruct Hmodule as [Hmodfunc _].
   generalize dependent s.
-  generalize dependent mod_funcs.
-  induction mod_funcs => //; move => Hmodfunc s HType H0.
+  generalize dependent acc.
+  induction mfuncs => //; move => acc s HType H0.
   - simpl in H0.
     by inversion H0; subst.
   - simpl in H0.
-    destruct fts as [|ft fts']; first by inversion Hmodfunc.
-    inversion Hmodfunc; subst; clear Hmodfunc.
-    eapply IHmod_funcs with (s := s) => //.
-    + admit.
-    + unfold add_func. 
-      apply store_typing_preserve_add_func.
-      by destruct s => //.
-Admitted.
-  
+    apply IHmfuncs in H0 => //.
+    unfold add_func. 
+    apply store_typing_preserve_add_func.
+    by destruct s => //.
+Qed.
+*)
+
+(*
 Lemma instantiation_sound_simpl:  forall (s: store_record) m v_imps s' inst v_exps start,
   store_typing s ->
   instantiate_simpl s m v_imps ((s', inst, v_exps), start) ->
@@ -302,70 +279,187 @@ Lemma instantiation_sound_simpl:  forall (s: store_record) m v_imps s' inst v_ex
   (pred_option (fun i => i < length s'.(s_funcs)) start).*)
   (* /\ store_extension s s' *)
 Proof.
-  move=> s m v_imps s' inst v_exps start HType HInst. inversion HInst as [t_imps [t_exps [Hmodule H0]]].
-  unfold alloc_funcs_bool in H0.
+  move=> s m v_imps s' inst v_exps start HType HInst. inversion HInst.
   remember (alloc_funcs host_function s (mod_funcs m) inst) as psi.
   destruct psi.
-  rewrite /alloc_funcs in Heqpsi. (*/alloc_Xs in Heqpsi.*)
-  move/andP in H0.
+  rewrite /alloc_funcs /alloc_Xs in Heqpsi.
+  apply instantiation_sound_aux in Heqpsi => //.
+  simpl in Heqpsi.
+  move/andP in Heqpsi.
   destruct H0 as [Heqs Heqinst].
   move/eqP in Heqs; subst.
   move/eqP in Heqinst.
   apply instantiation_sound_aux in Heqpsi => //.
-Qed.
+Qed.*)
 
 
+Print alloc_funcs.
 
-From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From ITree Require Import ITree.
-From ITree Require ITreeFacts.
-From Wasm Require Import list_extra datatypes datatypes_properties
-                         interpreter binary_format_parser operations
-                         typing opsem type_checker memory memory_list instantiation.
-From Coq Require Import BinNat.
+Print alloc_func.
 
-Section Host.
+Print module_func.
 
-Variable host_function : eqType.
-Let host := host host_function.
+(* This is the key definition: we should really be able to tell what the allocated new function closures are from the information of alloc_funcs. However, we need to formulate this in a way that is convenient for the other parts of the proofs. *)
+Definition alloc_funcs_new_closures (modfuncs: list module_func) (inst: instance) : list (function_closure host_function) :=
+  List.map (fun (mf: module_func) => 
+              (FC_func_native inst
+                              (List.nth match mf.(modfunc_type) with
+                                        | Mk_typeidx n => n
+                                        end
+                                        (inst.(inst_types)) (Tf [::] [::]))
+                              mf.(modfunc_locals)
+                              mf.(modfunc_body))) modfuncs.
 
-Variable host_instance : host.
+(* Same for this, but this is easier to define -- we should also be able to tell what the allocated function indices are. *)
+Definition alloc_funcs_new_indices (ws: store_record) (modfuncs: list module_func) : list funcidx.
+Admitted.
 
-Let store_record_eq_dec := @store_record_eq_dec host_function.
-Let store_record_eqType := @store_record_eqType host_function.
-
-Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
-
-Let store_record := store_record host_function.
-Let host_state := host_state host_instance.
-
-Let store_typing := @store_typing host_function.
-
-Let external_typing := @external_typing host_function.
-
-Let executable_host := executable_host host_function.
-Variable executable_host_instance : executable_host.
-Let host_event := host_event executable_host_instance.
-
-Let instantiate := instantiate host_function host_instance.
-
-
-Inductive ext_typing_list: store_record -> seq module_export -> seq extern_t -> Prop :=
-| ext_typing_list_nil: forall s,
-    ext_typing_list s [::] [::]
-| ext_typing_list_cons: forall s v_exp v_exps te tes,
-    ext_typing_list s v_exps tes ->
-    external_typing s (modexp_desc v_exp) te ->
-    ext_typing_list s (v_exp :: v_exps) (te :: tes).
-
-
-Lemma instantiation_sound (s: store_record) m v_imps s' inst v_exps start:
-  store_typing s ->
-  instantiate s m v_imps ((s', inst, v_exps), start) ->
-  (store_typing s') /\
-  (exists C, inst_typing s' inst C) /\
-  (exists tes, ext_typing_list s' v_exps tes) /\
-  (pred_option (fun i => i < length s'.(s_funcs)) start).
-  (* /\ store_extension s s' *)
+Lemma alloc_func_ws_res modfuncs ws inst ws' l:
+  (ws', l) = alloc_funcs host_function ws modfuncs inst ->
+  ws'.(s_funcs) = ws.(s_funcs) ++ alloc_funcs_new_closures modfuncs inst /\
+  ws'.(s_tables) = ws.(s_tables) /\
+  ws'.(s_mems) = ws.(s_mems) /\
+  ws'.(s_globals) = ws.(s_globals).
+Proof.
+  move: l ws' ws.
+  induction modfuncs using List.rev_ind; move => l ws' ws Halloc => /=.
+Admitted.
+    
+Lemma alloc_func_index_res modfuncs ws inst ws' l:
+  (ws', l) = alloc_funcs host_function ws modfuncs inst ->
+  l = alloc_funcs_new_indices ws modfuncs.
 Proof.
 Admitted.
+  
+Lemma alloc_func_sound s s' ifs mod_funcs mod_types fts inst t_context: 
+  (s', ifs) = alloc_funcs host_function s mod_funcs inst ->
+  List.Forall2 (module_func_typing t_context) mod_funcs fts ->
+  t_context.(tc_func_t) = fts ->
+  t_context.(tc_types_t) = mod_types ->
+  inst.(inst_types) = mod_types ->
+  inst.(inst_funcs) = List.map (fun '(Mk_funcidx i) => i) ifs ->
+  store_typing s ->
+  store_typing s'.
+Proof.
+  destruct inst, t_context.
+  move => Halloc Hftstype ? ? ? ? Hstoretype; simpl in *; subst.
+  
+  (* Doing induction on mod_funcs is hard since we only have the module validity result for the original module. 
+     Instead, note that we can explicitly evaluate what the new store s' is -- intuitively, it should only differ with the original store in the function component, where a few functions are appended. *)
+  specialize (alloc_func_ws_res _ _ _ _ _ Halloc) as Hfuncres.
+  specialize (alloc_func_index_res _ _ _ _ _ Halloc) as Hindexres.
+  
+  destruct Hfuncres as [Hfunc [Htab [Hmem Hglob]]].
+
+  (* We have established a relationship between the new store and the old store without using fold_left. We now have to prove the rest. Some of the lemmas proven previously commented out for now) is applicable, but need to be in a more generalised form. *)
+
+Admitted.
+
+Definition module_restriction (m: module) : Prop :=
+  m.(mod_tables) = [::] /\
+  m.(mod_mems) = [::] /\
+  m.(mod_globals) = [::] /\
+  m.(mod_elem) = [::] /\
+  m.(mod_data) = [::] /\
+  m.(mod_start) = None /\
+  m.(mod_imports) = [::] /\
+  m.(mod_exports) = [::].
+
+Lemma instantiation_sound_simpl:  forall (s: store_record) m v_imps s' inst v_exps start,
+  store_typing s ->
+  module_restriction m ->
+  instantiate s m v_imps ((s', inst, v_exps), start) ->
+  (store_typing s').
+  (* (exists C, inst_typing s' inst C) /\
+  (exists tes, ext_typing_list s' v_exps tes) /\
+  (pred_option (fun i => i < length s'.(s_funcs)) start).*)
+  (* /\ store_extension s s' *)
+Proof.
+  move => s m v_imps s' inst v_exps start HStoreType HRestr HInst.
+
+  (* Extract the artificial constraints we're imposing on the module *)
+  unfold module_restriction in HRestr.
+  destruct m => /=.
+  simpl in HRestr.
+  destruct HRestr as [-> [-> [-> [-> [-> [-> [-> ->]]]]]]].
+
+  unfold instantiate, instantiation.instantiate in HInst.
+  destruct HInst as [t_imps [t_exps [hs' [s'_end [? [? [? [HModType [HImpType [HAllocModule H]]]]]]]]]].
+
+  destruct H as [HInstGlob [HInstElem [HInstData [HBoundElem [HBoundData [HStart HStore]]]]]].
+  simpl in *.
+
+  (* There are a lot of hypotheses here, but almost all of them simplify to a trivial condition due to the current constraint on the module. *)
+
+  (* HInstGlob *)
+  unfold instantiate_globals in HInstGlob.
+  simpl in HInstGlob.
+  inversion HInstGlob; subst; clear HInstGlob.
+
+  (* HInstElem *)
+  unfold instantiate_elem in HInstElem.
+  simpl in HInstElem.
+  inversion HInstElem; subst; clear HInstElem.
+
+  (* HInstData *)
+  unfold instantiate_data in HInstData.
+  simpl in HInstData.
+  inversion HInstData; subst; clear HInstData.
+
+  (* HBoundData *)
+  unfold check_bounds_data in HBoundData.
+  simpl in HBoundData.
+  (* this is vacuously true. *)
+  clear HBoundData.
+
+  (* HBoundElem *)
+  unfold check_bounds_elem in HBoundElem.
+  simpl in HBoundElem.
+  clear HBoundElem.
+
+  (* HCheckStart *)
+  unfold check_start in HStart.
+  simpl in HStart.
+  move/eqP in HStart; subst.
+
+  (* HStore *)
+  unfold init_mems, init_tabs in HStore.
+  simpl in HStore.
+  move/eqP in HStore; subst.
+
+  (* HModType *)
+  (* This is an important part -- it gives a lot of validity information of the function references. *)
+  unfold module_typing in HModType.
+  destruct HModType as [fts [gts [HFuncType [_ [_ [HGlobType [_ [_ [_ [HImpValid _]]]]]]]]]].
+  simpl in *.
+  inversion HGlobType; subst; clear HGlobType.
+  inversion HImpValid; subst; clear HImpValid.
+  repeat rewrite List.app_nil_r in HFuncType.
+
+  (* We know v_imps is empty as well *)
+  inversion HImpType; subst; clear HImpType.
+  simpl in *.
+  
+
+  (* Now, extract information from alloc_module. *)
+  remember (alloc_funcs host_function s mod_funcs inst) as s_ifs.
+  destruct s_ifs as [s' ifs].
+  destruct inst.
+  repeat (move/andP in HAllocModule; destruct HAllocModule as [HAllocModule ?]).
+  simpl in *.
+  move/eqP in H; subst.
+  move/eqP in H0; subst.
+  move/eqP in H1; subst.
+  move/eqP in H2; subst.
+  move/eqP in H3; subst.
+  move/eqP in H4; subst.
+  move/eqP in HAllocModule; subst.
+  repeat rewrite List.app_nil_r in Heqs_ifs.
+
+  (* We've reached the original simplified version we want, but with a much better shape of the lemma now for future extension. *)
+
+  by eapply alloc_func_sound; eauto => //.
+  
+ 
+Admitted.
+
