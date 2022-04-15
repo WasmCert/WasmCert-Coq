@@ -230,11 +230,12 @@ Definition ext_t_globs :=
 
 Definition alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value)
     (s'_inst_exps : store_record * instance * seq module_export) : bool :=
-  let '(s, inst, exps) := s'_inst_exps in
+  let '(s'_goal, inst, exps) := s'_inst_exps in
   let '(s1, i_fs) := alloc_funcs s m.(mod_funcs) inst in
   let '(s2, i_ts) := alloc_tabs s1 (List.map (fun t => t.(modtab_type)) m.(mod_tables)) in
   let '(s3, i_ms) := alloc_mems s2 m.(mod_mems) in
   let '(s', i_gs) := alloc_globs s3 m.(mod_globals) gvs in
+  (s'_goal == s') &&
   (inst.(inst_types) == m.(mod_types)) &&
   (inst.(inst_funcs) == List.map (fun '(Mk_funcidx i) => i) (List.app (ext_funcs imps) i_fs)) &&
   (inst.(inst_tab) == List.map (fun '(Mk_tableidx i) => i) (List.app (ext_tabs imps) i_ts)) &&
@@ -349,6 +350,7 @@ Definition const_exprs (c : t_context) (es : list basic_instruction) : bool :=
 Definition module_glob_typing (c : t_context) (g : module_glob) (tg : global_type) : Prop :=
   let '{| modglob_type := tg'; modglob_init := es |} := g in
   const_exprs c es /\
+  tg = tg' /\
   typing.be_typing c es (Tf nil [::tg.(tg_t)]).
 
 Definition module_elem_typing (c : t_context) (e : module_element) : Prop :=

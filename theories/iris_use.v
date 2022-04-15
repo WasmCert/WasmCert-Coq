@@ -1,6 +1,6 @@
 (** Example of Iris usage **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
-
+(*
 From mathcomp Require Import eqtype.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
@@ -106,3 +106,4 @@ Admitted.
 
 End Host.
 
+*)
