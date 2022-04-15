@@ -350,6 +350,7 @@ Definition const_exprs (c : t_context) (es : list basic_instruction) : bool :=
 Definition module_glob_typing (c : t_context) (g : module_glob) (tg : global_type) : Prop :=
   let '{| modglob_type := tg'; modglob_init := es |} := g in
   const_exprs c es /\
+  tg = tg' /\
   typing.be_typing c es (Tf nil [::tg.(tg_t)]).
 
 Definition module_elem_typing (c : t_context) (e : module_element) : Prop :=
