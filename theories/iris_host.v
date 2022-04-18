@@ -1590,19 +1590,60 @@ Proof.
         rewrite Hmdata.
         by constructor.
     - (* table initializers bound check *)
+      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)
       unfold check_bounds_elem.
+      (* First we note that s_tables of s3 only differs from the original list of tables by the result of alloc_tab. *)
+      apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
+      apply alloc_mem_gen_index in Hallocmem as [? [? [? [? ?]]]].
+      apply alloc_tab_gen_index in Halloctab as [? [? [? [? ?]]]].
+      apply alloc_func_gen_index in Hallocfunc as [? [? [? [? ?]]]].
+      destruct s0, s1, s2, s3.
+      simpl in *.
+      subst.
+      simpl in *.
+
+      (* Prove all2 by proving arbitrary lookups *)
       apply all2_Forall2.
       rewrite Forall2_lookup.
       move => i.
       destruct (m.(mod_elem) !! i) eqn:Hmelem => /=.
       + destruct (e_inits !! i) eqn: Heinit => /=; last by apply lookup_lt_Some in Hmelem; apply lookup_ge_None in Heinit; lias.
-        rewrite Heinit.
         constructor.
         apply fmap_fmap_lookup with (i0 := i) in Hmodelem.
         repeat rewrite list_lookup_fmap in Hmodelem.
         rewrite Hmelem Heinit in Hmodelem.
         inversion Hmodelem; subst; clear Hmodelem.
-        simpl.
+        destruct m0.
+        simpl in *.
+        subst.
+        destruct modelem_table => /=.
+        destruct m.
+        simpl in *.
+        unfold module_typing in Hmodtype.
+        destruct Hmodtype as [fts [gts [? [? [? [? [Helemtype _]]]]]]].
+        rewrite -> Forall_lookup in Helemtype.
+        specialize (Helemtype _ _ Hmelem).
+        unfold module_elem_typing in Helemtype.
+        destruct Helemtype as [_ [_ [Hlen1 Hlen2]]].
+        simpl in *.
+        (* We now need to prove that we can lookup the nth thing in this list. *)
+        destruct (nth_error _ n) eqn:Htabn => /=; last first.
+        {
+          rewrite -> nth_error_lookup, lookup_ge_None in Htabn.
+          rewrite app_length in Htabn.
+          rewrite app_length in Hlen1.
+          rewrite map_length in Hlen1.
+          unfold gen_index in Htabn.
+          rewrite imap_length repeat_length in Htabn.
+          unfold ext_tab_addrs in Htabn.
+          rewrite map_length in Htabn.
+          move/ssrnat.leP in Hlen1.
+          assert ((length (ext_tabs (modexp_desc <$> v_imps))) = (length (ext_t_tabs t_imps))) as Hleneq; last by rewrite Hleneq in Htabn; lias.
+          admit.
+        }
+        (* And also that we can lookup t0 in s_tables2. This has to come from some combination of module typing and the well-typedness of the new store. *)
+        (* However, we don't have the knowledge that the old store is well-typed.. *)
+        rewrite nth_error_lookup in Htabn.
         admit.
       + apply lookup_ge_None in Hmelem.
         rewrite Heinitslen in Hmelem.
