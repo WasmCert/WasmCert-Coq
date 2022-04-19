@@ -1002,10 +1002,10 @@ Proof.
       by eapply IHmodfuncs; rewrite Heqfold_res.
 Qed.
 
-Lemma alloc_tab_gen_index modtabs ws ws' l:
-  alloc_tabs host_function ws modtabs = (ws', l) ->
-  map (fun x => match x with | Mk_tableidx i => i end) l = gen_index (length (s_tables ws)) (length modtabs) /\
-  length ws'.(s_tables) = length ws.(s_tables) + length modtabs /\
+Lemma alloc_tab_gen_index modtabtypes ws ws' l:
+  alloc_tabs host_function ws modtabtypes = (ws', l) ->
+  map (fun x => match x with | Mk_tableidx i => i end) l = gen_index (length (s_tables ws)) (length modtabtypes) /\
+  ws'.(s_tables) = ws.(s_tables) ++ map (fun '{| tt_limits := {| lim_min := min; lim_max := maxo|} |} => {| table_data := repeat None (ssrnat.nat_of_bin min); table_max_opt := maxo |}) modtabtypes /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_mems) = ws'.(s_mems) /\
   ws.(s_globals) = ws'.(s_globals).
@@ -1014,27 +1014,34 @@ Proof.
   generalize dependent l.
   generalize dependent ws'.
   generalize dependent ws.
-  induction modtabs using List.rev_ind; move => ws ws' l Halloc.
+  induction modtabtypes using List.rev_ind; move => ws ws' l Halloc.
   - inversion Halloc; subst; clear Halloc.
-    split => //.
-    by lias.
+    repeat split => //.
+    simpl.
+    by rewrite app_nil_r.
   - rewrite fold_left_app in Halloc.
-    remember (fold_left _ modtabs (ws,[])) as fold_res.
+    remember (fold_left _ modtabtypes (ws,[])) as fold_res.
     simpl in Halloc.
     destruct fold_res as [ws0 l0].
     symmetry in Heqfold_res.
     unfold alloc_tab, add_table in Halloc.
     destruct x => /=.
     destruct tt_limits => /=.
+    specialize (IHmodtabtypes ws ws0 (rev l0)).
+    rewrite Heqfold_res in IHmodtabtypes.
     inversion Halloc; subst; clear Halloc.
+    simpl in *.
     rewrite map_app app_length /=.
     rewrite gen_index_extend.
-    repeat split; try by repeat (eapply IHmodtabs; rewrite Heqfold_res).
-    + by repeat (f_equal; first by eapply IHmodtabs; rewrite Heqfold_res).
-    + rewrite app_length => /=.
-      rewrite PeanoNat.Nat.add_assoc.
+    destruct IHmodtabtypes as [? [? [? [? ?]]]] => //.
+    repeat split => //.
+    + rewrite H.
+      rewrite H0.
+      by rewrite app_length map_length.
+    + rewrite H0.
+      rewrite - app_assoc.
       f_equal.
-      by eapply IHmodtabs; rewrite Heqfold_res.
+      by rewrite map_app => /=.
 Qed.
 
 Lemma alloc_mem_gen_index modmems ws ws' l:
@@ -1332,6 +1339,15 @@ Proof.
         by apply IH.
 Qed.
 
+(*
+Lemma modelem_bound_check_aux:
+  modelem m !! i = Some m0 ->
+  e_inits !! i = Some t ->
+  module_typing m t_imps t_exps ->
+  
+*)
+
+
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
@@ -1590,17 +1606,18 @@ Proof.
         rewrite Hmdata.
         by constructor.
     - (* table initializers bound check *)
-      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)
+      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)(*
       unfold check_bounds_elem.
+      Search e_inits.
+      Print module_typing.
+      Print module_elem_typing.
       (* First we note that s_tables of s3 only differs from the original list of tables by the result of alloc_tab. *)
       apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
       apply alloc_mem_gen_index in Hallocmem as [? [? [? [? ?]]]].
       apply alloc_tab_gen_index in Halloctab as [? [? [? [? ?]]]].
       apply alloc_func_gen_index in Hallocfunc as [? [? [? [? ?]]]].
-      destruct s0, s1, s2, s3.
-      simpl in *.
-      subst.
-      simpl in *.
+      destruct ws, s0, s1, s2, s3.
+      simpl in *; subst; simpl in *.
 
       (* Prove all2 by proving arbitrary lookups *)
       apply all2_Forall2.
@@ -1612,6 +1629,7 @@ Proof.
         apply fmap_fmap_lookup with (i0 := i) in Hmodelem.
         repeat rewrite list_lookup_fmap in Hmodelem.
         rewrite Hmelem Heinit in Hmodelem.
+        simpl in Hmodelem.
         inversion Hmodelem; subst; clear Hmodelem.
         destruct m0.
         simpl in *.
@@ -1625,14 +1643,23 @@ Proof.
         specialize (Helemtype _ _ Hmelem).
         unfold module_elem_typing in Helemtype.
         destruct Helemtype as [_ [_ [Hlen1 Hlen2]]].
+        rewrite app_length in Hlen1.
+        rewrite map_length in Hlen1.
         simpl in *.
+        Search mod_tables.
+
+        (* There are too many premises in the context -- clear the irrelevant ones. *)
+        clear H0 H H5 H4 H15 H14 H1 H2 H3 H6.
+        clear Hginitstype Hdinitslen Hginitslen Hlenexp.
+        clear Himphost Hmod Hmoddata Hmodglob.
+
+        Search n.
+
         (* We now need to prove that we can lookup the nth thing in this list. *)
         destruct (nth_error _ n) eqn:Htabn => /=; last first.
         {
           rewrite -> nth_error_lookup, lookup_ge_None in Htabn.
           rewrite app_length in Htabn.
-          rewrite app_length in Hlen1.
-          rewrite map_length in Hlen1.
           unfold gen_index in Htabn.
           rewrite imap_length repeat_length in Htabn.
           unfold ext_tab_addrs in Htabn.
@@ -1649,7 +1676,10 @@ Proof.
         rewrite Heinitslen in Hmelem.
         apply lookup_ge_None in Hmelem.
         rewrite Hmelem.
-        by constructor.
+        by constructor.*)
+      (* 20220419: I think there's a genuine case where this will not succeed.
+         Check and add this to the pre, if necessary. *)
+      admit.
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
