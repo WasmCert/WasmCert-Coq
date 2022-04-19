@@ -38,7 +38,7 @@ Section InterpInstance.
   Proof. destruct cl,f;try apply _. Qed.
   
   Definition interp_instance_pre (τctx : t_context) (fimps : gmap nat function_closure) :=
-    λne (i : leibnizO instance), interp_instance' τctx (interp_closure_pre τctx fimps i) (λ _, interp_closure (HWP:=HWP)) i.
+    λne (i : leibnizO instance), interp_instance' τctx (interp_closure_pre τctx fimps i) (interp_closure_pre τctx fimps i) i.
   Global Instance interp_instance_pre_persistent τctx fimps i : Persistent (interp_instance_pre τctx fimps i).
   Proof. apply interp_instance_persistent';intros; destruct cl,f; apply _.  Qed.
 
@@ -110,13 +110,26 @@ Section InterpInstance.
     set (IH := (▷ interp_instance τctx i)%I).
     destruct τctx, i.
     iDestruct "Hpre" as "[Htypes [Hfunc [Htable [Hmem Hglob]]]]".
-    iFrame "#".
-    iDestruct (big_sepL2_length with "Hfunc") as %Hlen.
-    iApply (big_sepL2_forall).
-    iSplit;[auto|iIntros (k f ft Hf Hft)].
-    iDestruct (big_sepL2_lookup with "Hfunc") as (cl) "[Hfna Hcl]";[eauto..|].
-    iExists _. iFrame "Hfna".
-    iApply interp_closure_pre_ind;eauto.
+    iFrame "#". iSplit.
+    { iDestruct (big_sepL2_length with "Hfunc") as %Hlen.
+      iApply (big_sepL2_forall).
+      iSplit;[auto|iIntros (k f ft Hf Hft)].
+      iDestruct (big_sepL2_lookup with "Hfunc") as (cl) "[Hfna Hcl]";[eauto..|].
+      iExists _. iFrame "Hfna".
+      iApply interp_closure_pre_ind;eauto. }
+    { destruct (nth_error tc_table 0);auto.
+      destruct (nth_error inst_tab 0);[|done].
+      iDestruct "Htable" as (table_size table_lim Hlim) "(Hlim & Hsize & Ht)".
+      iExists _,_. iFrame "# %".
+      iApply (big_sepL_forall).
+      iIntros (k f Hf).
+      iDestruct (big_sepL_lookup with "Ht") as (τf fe) "[Hfna Hfe]";[eauto|].
+      iExists τf,fe. iFrame "#".
+      destruct fe;auto.
+      iDestruct "Hfe" as (cl) "[Hna Hcl]".
+      iExists _;iFrame "#".
+      iApply interp_closure_pre_ind;eauto.
+    }
   Qed.
       
   Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
@@ -353,21 +366,26 @@ Section InterpInstance.
   Qed.    
     
 
-  Definition module_inst_resources_tab_invs (mtabs: list module_table) (inst_t: list tableaddr) : iProp Σ :=
-    ([∗ list] tab; addr ∈ mtabs; inst_t,
+  Definition module_inst_resources_tab_invs (mtabs: list module_table) (t_inits : gmap (nat * nat) funcelem) (inst_t: list tableaddr) : iProp Σ :=
+    ([∗ list] i↦tab; addr ∈ mtabs; inst_t,
        let tab := (match tab.(modtab_type).(tt_limits) with
                                  | {| lim_min := min; lim_max := omax |} =>
                                      (Build_tableinst
-                                        (repeat None (ssrnat.nat_of_bin min)))
+                                        (imap
+                                           (λ (j : nat) (_ : funcelem),
+                                             match t_inits !! (i, j) with
+                                             | Some felem => felem
+                                             | None => None : funcelem
+                                             end) (repeat (None : funcelem) (ssrnat.nat_of_bin min))))
                                        (omax)
                    end) in
        N.of_nat addr ↪[wtsize]tab_size tab ∗ N.of_nat addr ↪[wtlimit]table_max_opt tab ∗
        ([∗ list] j↦tabelem ∈ table_data tab, na_inv logrel_nais (wtN (N.of_nat addr) (N.of_nat j)) (N.of_nat addr ↦[wt][N.of_nat j]tabelem))       
     )%I.
 
-  Lemma module_inst_resources_tab_invs_alloc E mtabs inst_t :
-    module_inst_resources_tab mtabs inst_t ={E}=∗
-    module_inst_resources_tab_invs mtabs inst_t.
+  Lemma module_inst_resources_tab_invs_alloc E mtabs t_inits inst_t :
+    module_inst_resources_tab mtabs t_inits inst_t ={E}=∗
+    module_inst_resources_tab_invs mtabs t_inits inst_t.
   Proof.
     iIntros "Himps".
     iApply big_sepL2_fupd.
@@ -392,8 +410,8 @@ Section InterpInstance.
        (*                           end)) *)
     ).
 
-  Lemma module_inst_resources_mem_invs_alloc E mmems inst_m :
-    module_inst_resources_mem mmems inst_m  ={E}=∗
+  Lemma module_inst_resources_mem_invs_alloc E mmems m_inits inst_m :
+    module_inst_resources_mem mmems m_inits inst_m  ={E}=∗
     module_inst_resources_mem_invs mmems inst_m.
   Proof.
     iIntros "Himps".
@@ -854,8 +872,7 @@ Section InterpInstance.
     }
   Qed.
 
-  (* once instantiation is fixed to account for initialisation of table, the following lemma will be more interesting and tricky 
-     (will need extra information about the functions, and might need a similar proof for the functions *)
+  (*
   Lemma interp_table_alloc n0 (P : function_type -> nat -> iProp Σ) n :
     (∀ x y, Persistent (P x y)) ->
     ([∗ list] j↦tabelem ∈ repeat None n0, na_inv logrel_nais (wtN (N.of_nat n) (N.of_nat j))
@@ -873,7 +890,55 @@ Section InterpInstance.
     eapply repeat_lookup in Hlt as Hy.
     iDestruct (big_sepL_lookup with "H") as "H'";eauto.
     Unshelve. exact (Tf [] []).
+  Qed.*)
+
+  Lemma repeat_imap_eq {A B C : Type} (a : A) (b : B) (f : nat -> C) (m : nat) :
+    imap (λ i _, f i) (repeat a m) = imap (λ i _, f i) (repeat b m).
+  Proof.
+    remember (repeat a m).
+    remember (repeat b m).
+    generalize dependent l0.
+    generalize dependent m.
+    generalize dependent f.
+    induction l;intros f m Hl l0 Hl0.
+    { destruct m;try done. simpl in Hl0. rewrite Hl0.
+      simpl. auto. }
+    { destruct m;[done|].
+      destruct l0;inversion Hl0.
+      simplify_eq.
+      simpl. f_equiv.
+      assert ((λ (i : nat) (_ : A), f i) ∘ S =
+                (λ (i : nat) (_ : A), f (S i))) as ->;auto.
+      assert ((λ (i : nat) (_ : B), f i) ∘ S =
+                (λ (i : nat) (_ : B), f (S i))) as ->;auto.
+      
+      eapply IHl;eauto. simpl in Hl. inversion Hl;auto.
+    }
   Qed.
+
+  Lemma repeat_imap_lookup {A B : Type} (a a' : A) (f : nat -> B) (m k : nat) :
+    (repeat a m) !! k = Some a' ->
+    (imap (λ i _, f i) (repeat a m)) !! k = Some (f k).
+  Proof.
+    remember (repeat a m).
+    generalize dependent m.
+    generalize dependent f.
+    generalize dependent k.
+    induction l;intros k f m Hl Hin.
+    { done. }
+    { destruct m;[done|].
+      simpl in Hl. inversion Hl;subst a0.
+      destruct k.
+      { simpl in Hin. inversion Hin. auto. }
+      { simpl in *.
+        assert ((λ (i : nat) (_ : A), f i) ∘ S =
+                  (λ (i : nat) (_ : A), f (S i))) as ->;auto.
+        eapply IHl with (f:=(λ (i : nat), f (S i))) in Hin;eauto.
+        rewrite H1 in Hin. rewrite Hin. auto.
+      }
+    }
+  Qed.
+    
 
   Definition module_typing_body (m : module) (impts : list extern_t) (expts : list extern_t) fts gts : Prop :=
     let '{| 
@@ -925,12 +990,69 @@ Section InterpInstance.
   Lemma module_typing_body_eq m impts expts :
     module_typing m impts expts <-> ∃ fts gts, module_typing_body m impts expts fts gts.
   Proof. auto. Qed.
+
+  Lemma module_tab_init_values_lookup m inst l k n :
+    module_tab_init_values m inst l !! (0,k) = Some n ->
+    ∃ j elem,
+      l !! j = Some elem ∧
+        match modelem_table elem with
+        | Mk_tableidx i =>
+            build_tab_initialiser (inst_funcs inst) elem i (assert_const1_i32_to_nat (modelem_offset elem)) !! (0,k) = Some n
+        end.
+  Proof.
+    induction l.
+    { cbn. done. }
+    { cbn in *. destruct (modelem_table a) eqn:Hn0.
+      intros Hlook.
+      eassert (is_Some (_ !! (0,k))) as Hissome;eauto.
+      apply lookup_union_is_Some in Hissome as [[n' Hsome]|[n' Hsome]].
+      { erewrite lookup_union_Some_l in Hlook;eauto. simplify_eq.
+        apply IHl in Hsome.
+        destruct Hsome as [j [elem Hj]].
+        exists (S j),elem. simpl. auto. }
+      { destruct (module_tab_init_values m inst l !! (0,k)) eqn:Hsome'.
+        { erewrite lookup_union_Some_l in Hlook;eauto. simplify_eq.
+          destruct IHl as [j [elem Hj]];auto.
+          exists (S j),elem. simpl. auto. }
+        { exists 0,a. split;auto.
+          rewrite Hn0.
+          erewrite lookup_union_r in Hlook;auto. } 
+      }
+    }
+  Qed.
+
+  Lemma build_tab_initialiser_lookup instfuncs elem i k n :
+    (build_tab_initialiser instfuncs elem i (assert_const1_i32_to_nat (modelem_offset elem))) !! (0,k) = Some (Some n) ->
+    ∃ j fid, k = i + j + (assert_const1_i32_to_nat (modelem_offset elem)) ∧ (modelem_init elem) !! j = Some (Mk_funcidx fid) ∧
+               instfuncs !! fid = Some n.
+  Proof.
+    destruct elem;simpl.
+    unfold build_tab_initialiser. simpl.
+    induction modelem_init using rev_ind.
+    { simpl. done. }
+    { rewrite - fold_left_rev_right imap_app /= rev_unit /=.
+      destruct x. rewrite !PeanoNat.Nat.add_0_r.
+      destruct (decide ((i,length modelem_init + assert_const1_i32_to_nat modelem_offset) = (0,k))).
+      { rewrite e lookup_insert. intros Heq. simplify_eq.
+        rewrite nth_error_lookup in Heq.
+        exists (length modelem_init),n0.
+        split;[lia|].
+        split;[by apply list_lookup_middle|auto]. }
+      { rewrite lookup_insert_ne// fold_left_rev_right.        
+        intros Hlook.
+        apply IHmodelem_init in Hlook as [j [fid [Haddeq [Hlook Hn]]]].
+        apply lookup_lt_Some in Hlook as Hlt.
+        exists j,fid. repeat split;auto.
+        rewrite lookup_app_l//.
+      }
+    }
+  Qed.
+    
   
-  
-  Definition module_inst_resources_wasm_invs (m : module) (inst : instance) (g_inits : seq.seq value) (gts : seq.seq global_type) :=
+  Definition module_inst_resources_wasm_invs (m : module) (inst : instance) (g_inits : seq.seq value) (gts : seq.seq global_type) t_inits :=
     (module_inst_resources_func_invs (mod_funcs m) inst
      (drop (get_import_func_count m) (inst_funcs inst)) ∗
-    module_inst_resources_tab_invs (mod_tables m)
+    module_inst_resources_tab_invs (mod_tables m) t_inits
      (drop (get_import_table_count m) (inst_tab inst)) ∗
     module_inst_resources_mem_invs (mod_mems m)
      (drop (get_import_mem_count m) (inst_memory inst))∗
@@ -938,26 +1060,8 @@ Section InterpInstance.
      (drop (get_import_global_count m) (inst_globs inst)) gts)%I.
                                     
   
-  Lemma interp_instance_alloc E m t_imps t_exps v_imps wfs wts wms wgs g_inits inst fts gts :
-    module_typing_body m t_imps t_exps fts gts ->
-    (inst.(inst_types) = m.(mod_types) /\
-       let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
-       prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
-         prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
-         prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
-         prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)) ->
-    typeof <$> g_inits = tg_t ∘ modglob_type <$> mod_globals m ->
-    
-    ([∗ map] _↦cl ∈ wfs, interp_closure (HWP:=HWP) (cl_type cl) cl)%I -∗ (* we must assume that the imported closures are valid *)
-    ([∗ map] n↦t ∈ wts, interp_table (tab_size t) (λ _, interp_closure (HWP:=HWP)) (N.of_nat n)) -∗ (* that imported tables are valid -- 
-                                                                                                       i.e. we require that imported tables 
-                                                                                                       are populated only with semantically valid functions *)
-    ([∗ map] n↦m ∈ wms, interp_mem (N.of_nat n)) -∗ (* that imported memories are valid *)
-    
-                                                                   
-    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-    module_inst_resources_wasm m inst g_inits
-    ={E}=∗ let C := {|
+  Lemma interp_instance_alloc E m t_imps t_exps v_imps wfs wts wms wgs g_inits t_inits m_inits inst fts gts :
+    let C := {|
               tc_types_t := (mod_types m);
               tc_func_t := ((ext_t_funcs t_imps) ++ fts)%list;
               tc_global := ((ext_t_globs t_imps) ++ gts)%list;
@@ -967,10 +1071,27 @@ Section InterpInstance.
               tc_label := [];
               tc_return := None;
             |} in
-           interp_instance (HWP:=HWP) C inst ∗
-           module_inst_resources_wasm_invs m inst g_inits gts (* it is useful to remember the exact values for each allocated invariant *).
+    module_typing_body m t_imps t_exps fts gts ->
+    (inst.(inst_types) = m.(mod_types) /\
+       let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
+       prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
+         prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
+         prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
+         prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs)) ->
+    module_init_values m inst t_inits m_inits g_inits ->
+    
+    ([∗ map] _↦cl ∈ wfs, interp_closure (HWP:=HWP) (cl_type cl) cl)%I -∗ (* we must assume that the imported closures are valid *)
+    ([∗ map] n↦t ∈ wts, interp_table (tab_size t) (interp_closure_pre C wfs inst) (N.of_nat n)) -∗ (* that imported tables are valid *)
+    ([∗ map] n↦m ∈ wms, interp_mem (N.of_nat n)) -∗ (* that imported memories are valid *)
+    
+                                                                   
+    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
+    module_inst_resources_wasm m inst t_inits m_inits g_inits
+    ={E}=∗ interp_instance (HWP:=HWP) C inst ∗
+           module_inst_resources_wasm_invs m inst g_inits gts t_inits (* it is useful to remember the exact values for each allocated invariant *).
   Proof.
-    iIntros (Hmod Himps_of_inst Hg_initstyp) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
+    iIntros (C Hmod Himps_of_inst Hinit_vals) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
+    subst C.
     set (ifts := ext_t_funcs t_imps).
     set (its := ext_t_tabs t_imps).
     set (ims := ext_t_mems t_imps).
@@ -988,10 +1109,12 @@ Section InterpInstance.
     { destruct m. simpl in Hmod.
       destruct Hmod as (Htypes & Htables & Hmems & Hglobals
                         & Helem & Hdata & Hstart & Himps & Hexps). eauto. }
+    { destruct Hinit_vals as [? [? [? ?]]]. auto. }
     iModIntro. iFrame "#".
     
     iApply (interp_instance_pre_create _ wfs);[auto|].
-    unfold interp_instance_pre. destruct inst.
+    unfold interp_instance_pre. remember inst. destruct inst. rewrite Heqi.
+    rewrite Heqi in Himps_of_inst.
     destruct Himps_of_inst as (Htypeq & Hprefunc & Hpretables & Hpremem & Hpreglob).
     iSplitR.
     { destruct m. simpl in Hmod.
@@ -1045,7 +1168,7 @@ Section InterpInstance.
         rewrite Hlenir in Hfa.
         
         assert (wfs !! fa = None) as Hnone.
-        { apply Hdisj with ((k - length (ext_t_funcs t_imps))). simpl datatypes.inst_funcs.
+        { apply Hdisj with ((k - length (ext_t_funcs t_imps))). rewrite Heqi. simpl datatypes.inst_funcs.
           rewrite Himpdeclapp.
           eassert (get_import_func_count _ = length _) as ->.
           { eapply get_import_count_length;eauto. }
@@ -1062,11 +1185,14 @@ Section InterpInstance.
 
     (* function tables *)
     iSplitR.
-    { iClear "Hfr Hmr". iSimpl in "Htr". simpl in Hpretables.
+    { iClear "Hmr Hgr". iSimpl in "Htr". simpl in Hpretables.
       destruct Hpretables as [fdecls Himpdeclapp].
-      destruct m. simpl in Hmod.
+      remember m.
+      destruct m. rename m0 into m. simpl in Hmod.
+      rewrite Heqm0 in Hmod.
       destruct Hmod as (Htypes & Htables & Hmems & Hglobals
                         & Helem & Hdata & Hstart & Himps & Hexps).
+      rewrite Heqm0.
       eassert (get_import_table_count _ = length _) as ->.
       { eapply get_import_count_length;simpl;eauto. }
       rewrite Himpdeclapp. simpl datatypes.mod_tables.
@@ -1085,14 +1211,88 @@ Section InterpInstance.
         iSimpl in "Htr".
         iDestruct "Htr" as "[[Htsize [Hlim Ht]] _]".
         iExists _,_. iFrame "Htsize". iFrame "Hlim".
-        destruct (tt_limits (modtab_type m)).
+        destruct (tt_limits (modtab_type m0)).
         simpl table_data. unfold tab_size. simpl.
         iSplit.
         { iPureIntro. apply/ssrnat.leP. lia. }
-        { rewrite repeat_length.
-          iApply (interp_table_alloc with "Ht"). }
+        { rewrite (repeat_imap_eq _ 0).
+          rewrite imap_length repeat_length.
+          (* the table can be initialised with imported or declared functions *)
+          iApply big_sepL_forall.
+          iIntros (k j Hj).
+          apply repeat_imap_lookup with (f := λ i, match t_inits !! (0, i) with
+                                                   | Some felem => felem
+                                                   | None => None
+                                                   end) in Hj.
+          iDestruct (big_sepL_lookup _ _ k with "Ht") as "Hk";[eauto|].
+          destruct (t_inits !! (0,k)) eqn:Hk.
+          { destruct o.
+            { destruct Hinit_vals as [Ht_inits _].
+              rewrite Ht_inits /= in Hk.
+              apply module_tab_init_values_lookup in Hk as [i' [elem He]].
+              rewrite Heqm0 /= in He.
+              destruct elem, modelem_table;simpl in *.
+              destruct He as [He Ht].
+              apply build_tab_initialiser_lookup in Ht as [h [fid [Hadd [Hinit Hinst_funcs]]]].
+              rewrite Heqi in Hinst_funcs.
+              simpl in *.
+              destruct (decide (fid < (get_import_func_count m))).
+              { (* the initialiser is imported *)
+                destruct Hprefunc as [decls Hfunceq]. rewrite Hfunceq in Hinst_funcs.
+                rewrite lookup_app_l in Hinst_funcs;cycle 1.
+                { rewrite Hlenir.
+                  eassert (get_import_func_count m = length _) as <-.
+                  { eapply get_import_count_length;eauto. rewrite Heqm0. eauto. }
+                  auto. }
+                assert (is_Some (ext_t_funcs t_imps !! fid)) as [ft Hft].
+                { apply lookup_lt_is_Some.
+                  eassert (get_import_func_count m = length _) as <-.
+                  { eapply get_import_count_length;eauto. rewrite Heqm0. eauto. }
+                  auto. }
+                iDestruct (import_funcs_lookup with "Hir") as %Hk';[eauto..|].
+                destruct Hk' as [k' [Ht_imps [fm [Hv_imps Hfm]]]].
+                iDestruct "Hir" as "[%Hdom Hir]".
+                iDestruct (big_sepL2_lookup with "Hir") as "HH";[eauto..|].
+                rewrite Hfm. iDestruct "HH" as (cl) "[Hown [%Hcl %Hcltyp]]". inversion Hcltyp.
+                iDestruct (big_sepM_lookup with "Himps_val") as "Hcl";[apply Hcl|].
+                iExists _,_. iFrame "Hk". iSimpl.
+                iExists _. iFrame "Hown".
+                destruct cl;[|auto]. rewrite Nat2N.id Hcl. auto. }
+              { (* the initialiser is declared *)
+                destruct Hprefunc as [decls Hfunceq]. rewrite Hfunceq in Hinst_funcs.
+                eassert (drop (get_import_func_count m) inst_funcs !! (fid - _) = Some n0) as Hfid.
+                { rewrite lookup_app_r in Hinst_funcs;cycle 1.
+                  { rewrite Hlenir.
+                    eassert (get_import_func_count m = length _) as <-.
+                    { eapply get_import_count_length;eauto. rewrite Heqm0. eauto. }
+                    clear -n2. lia. }
+                  eassert (get_import_func_count m = length _) as ->.
+                  { eapply get_import_count_length;eauto. rewrite Heqm0. eauto. }
+                  rewrite -Hlenir Hfunceq. rewrite drop_app. eauto. }
+                rewrite -Heqm0.
+                iDestruct (big_sepL2_length with "Hfr") as %Hfrlen.
+                apply lookup_lt_Some in Hfid as Hltfid.
+                rewrite -Hfrlen in Hltfid.
+                apply lookup_lt_is_Some in Hltfid as [fm Hfm].
+                eapply Forall2_lookup_l in Htypes as [mf [Hmf Hftyp]];[|eauto].
+                iDestruct (big_sepL2_lookup with "Hfr") as "HH";[eauto..|].
+                destruct mf,fm,modfunc_type;simpl in *.
+                destruct Hftyp as [Hle [Hnth Hftyp]].
+                revert Hnth; move/eqP => Hnth.
+                assert (wfs !! n0 = None) as Hnone.
+                { eapply Hdisj. rewrite Heqi;eauto. }
+                iExists _,_. iFrame "#". iSimpl.
+                iExists _. iFrame "#". iSimpl. rewrite Nat2N.id Hnone.
+                iPureIntro.
+                repeat split;auto. rewrite Htypeq Heqm0 /= Hnth.
+                rewrite -/its -Heql app_nil_l in Hftyp. auto. }                  
+            }
+            { iExists (Tf [] []),_. iFrame "#". }
+          }
+          { iExists (Tf [] []),_. iFrame "#". }
+        }
       }
-      
+          
       { (* the function table is imported *)
         rewrite /its in Heql.
         remember (ext_tab_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)).
@@ -1104,9 +1304,8 @@ Section InterpInstance.
         rewrite Hfm. iDestruct "Hk'" as (tab tt) "(Hsize & Hlim & Helem & %Htyping)".
         destruct Htyping as (Hwts & Htteq & Htyping). simplify_eq.
         iDestruct (big_sepM_lookup with "Htabs_val") as "Htval";[eauto|].
-        
         iExists _,_. iFrame "#".
-        by apply andb_true_iff in Htyping as [? ->].
+        by apply andb_true_iff in Htyping as [? ->].        
       }
     }
 

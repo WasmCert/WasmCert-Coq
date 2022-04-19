@@ -306,10 +306,15 @@ Section Examples_host.
       iApply weakestpre.wp_mono.
       2: iApply (instantiation_spec_operational_no_start _ _ _ [] [] _ _ _ _ ∅ ∅ ∅ ∅);eauto;iFrame.
       2: cbn; repeat iSplit =>//.
-      iIntros (v) "[$ Hv']". iExact "Hv'". }
+      iIntros (v) "[$ Hv']". iExact "Hv'".
+      iPureIntro. destruct Htyp as [fts [gts Htyp]].
+      destruct adv_module;simpl in *.
+      destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
+      apply Forall2_length in Htyp. rewrite /lse_func_impts /= // in Htyp.
+    }
 
     iIntros (w) "(_ & _ & Hinst_adv) Hmod_adv".
-    iDestruct "Hinst_adv" as (inst_adv g_adv_inits (?&?&?&?&?&?) Htyp_inits) "(Hinst_adv_res & Hadv_exports)".
+    iDestruct "Hinst_adv" as (inst_adv g_adv_inits t_adv_inits m_adv_inits (?&?&?&?&?&?) Htyp_inits) "(Hinst_adv_res & Hadv_exports)".
     iDestruct (big_sepL2_length with "Hadv_exports") as %Hexp_len.
     destruct (mod_exports adv_module) eqn:Hexp;[done|].
     destruct l;[|done].
@@ -415,7 +420,7 @@ Section Examples_host.
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
 
         iApply wp_host_wasm;[apply HWEV_invoke|]. iSimpl in "H".
-        iDestruct "H" as (inst g_inits Hinst Hg_inits) "[Hlse _]".
+        iDestruct "H" as (inst g_inits t_inits m_inits Hinst (Ht_inits & Hm_inits & (Heqg & Hg_inits))) "[Hlse _]".
         destruct g_inits;[|done].
         cbn in Hinst. destruct Hinst as (Hinst_typ & Hinst_f & _ & _ & Hinst_g & Hstart).
         destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|].
@@ -457,6 +462,8 @@ Section Examples_host.
             rewrite Heqadvm /=. eauto. }
           { iSplitR "Hm". rewrite N2Nat.id. eauto.
             iDestruct "Hm" as "[Hm _]". iSimpl in "Hm".
+            cbn in Hm_inits. rewrite Hm_inits.
+            rewrite !lookup_empty.
             iDestruct "Hm" as "(Hm1 & Hm2 & Hm3 & Hm4 & _)". 
             iExists (Wasm_int.int_of_Z i32m 0).
             unfold serialise_i32. cbn. iFrame. done. }
