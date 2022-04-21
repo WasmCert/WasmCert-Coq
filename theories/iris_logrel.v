@@ -404,7 +404,7 @@ Section logrel.
     end.
 
 
-  Definition interp_expression_closure (τs : result_type) (τl : result_type) (f : frame) (es : expr) : iProp Σ :=
+  Definition interp_expression_closure (τs : result_type) (f : frame) (es : expr) : iProp Σ :=
     (WP es {{ vs, (interp_val τs vs ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }})%I.
 
   Definition semantic_typing_local (τctx : t_context) (es : seq.seq basic_instruction) (ts : result_type) (tf : function_type) : iProp Σ :=
@@ -413,9 +413,9 @@ Section logrel.
     | Tf τ1 τ2 => ∀ i, interp_instance τctx i -∗
                       ∀ f vs, ↪[frame] f -∗ na_own logrel_nais ⊤ -∗
                                interp_val (τ1 ++ ts) (immV vs) -∗
-                               interp_expression_closure τ2 (tc_local τctx) f [::AI_local (length τ2)
-                                                                                (Build_frame vs i)
-                                                                                [::AI_label (length τ2) [] (to_e_list es)]]
+                               interp_expression_closure τ2 f [::AI_local (length τ2)
+                                                                (Build_frame vs i)
+                                                                [::AI_label (length τ2) [] (to_e_list es)]]
     end.
   
 
