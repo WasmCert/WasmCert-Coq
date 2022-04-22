@@ -288,6 +288,8 @@ Section Examples_host.
     module_typing adv_module [] lse_func_impts -> (* we assume the adversary module has an export of the () → () *)
     mod_start adv_module = None -> (* that it does not have a start function *)
     module_restrictions adv_module -> (* that it adheres to the module restrictions (i.e. only constant initializers for globals) *)
+    module_elem_bound_check_gmap ∅ [] adv_module -> (* if the adversary module declares a table, there cannot be more initializers that its size *)
+    module_data_bound_check_gmap ∅ [] adv_module -> (* if the adversary module declares a memory, there cannot be more initializers that its size *)
     typeof wret = T_i32 -> (* the imported return global has type i32 *)
 
     ⊢ {{{ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := wret |} ∗
@@ -299,7 +301,7 @@ Section Examples_host.
         ((adv_lse_instantiate,[]) : host_expr)
       {{{ v, ⌜v = (trapV : host_val)⌝ ∨ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := xx 42|} }}} .
   Proof.
-    iIntros (Htyp Hnostart Hrestrict Hgrettyp).
+    iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
     iModIntro. iIntros (Φ) "(Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
     iApply (wp_seq_host_nostart with "[$Hmod_adv] [Hvis] ") => //.
     { iIntros "Hmod_adv".
@@ -373,14 +375,15 @@ Section Examples_host.
     { iApply (instantiation_spec_operational_start with "[$Hmod_lse Hadvf Hgret Hn Hvis1]");[eauto|..].
       { apply lse_module_typing. }
       { unfold import_resources_host.
-        instantiate (5:=[_;_]). iFrame "Hn Hvis1".
+        instantiate (1:=[_;_]). iFrame "Hn Hvis1".
         unfold import_resources_wasm_typecheck,export_ownership_host.
         iSimpl. do 3 iSplit =>//.
-        { instantiate (1:={[N.to_nat g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
+        { instantiate (1:={[g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
           instantiate (1:=∅).
           instantiate (1:=∅).
-          instantiate (1:= {[advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
+          instantiate (1:= {[N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
           iPureIntro. cbn. repeat split;auto.
+          all: try rewrite N2Nat.id.
           all: rewrite dom_singleton_L;clear;set_solver.
         }
         { iSplitR "Hgret".
@@ -390,6 +393,13 @@ Section Examples_host.
             iPureIntro. apply lookup_singleton.
             iPureIntro. cbn. rewrite Hgrettyp. done. }
         }
+        { iSplit;auto.
+          iSplit.
+          { rewrite /module_elem_bound_check_gmap /=.
+            iPureIntro. by apply Forall_nil. }
+          { rewrite /module_data_bound_check_gmap /=.
+            iPureIntro. by apply Forall_nil. }
+        }
       }
       { iIntros (idnstart) "Hf Hr".
         iDestruct "Hr" as "(Hmod_lse & [Himph _] & [%Hdom [Himpr [Hgret _]]] & H)".
@@ -398,7 +408,7 @@ Section Examples_host.
         rewrite lookup_singleton in Hlookcl. inversion Hcltyp;inversion Hlookcl.
         iDestruct ("Hcls" with "Hcl") as "Hresf".
         iDestruct "Hgret" as (g gt) "(Hgret & %Hlookg & %Hgteq & %Hagree)".
-        rewrite lookup_singleton in Hlookg. inversion Hgteq;inversion Hlookg. rewrite N2Nat.id.
+        rewrite N2Nat.id lookup_singleton in Hlookg. inversion Hgteq;inversion Hlookg. rewrite N2Nat.id.
         
         iApply weakestpre.fupd_wp.
         iMod (interp_instance_alloc with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [#Hires _]]";
