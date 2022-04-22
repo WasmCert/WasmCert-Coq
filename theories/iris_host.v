@@ -212,6 +212,7 @@ Inductive host_reduce: host_config -> host_config -> Prop :=
     ms !! (N.to_nat vm) = Some m ->
     those ((lookup_export_vi vis) <$> vimps) = Some imps ->
     fmap (fun imp => imp.(modexp_desc)) imps = imp_descs ->
+    const_list vs ->
     (not (module_elem_bound_check_gmap (gmap_of_list s.(s_tables)) imp_descs m /\ module_data_bound_check_gmap (gmap_of_list s.(s_mems)) imp_descs m)) ->
     host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', vs) (s, vis, ms, idecs', [AI_trap])
 | HR_wasm_step: forall s vis ms idecs s' es es' hs',
