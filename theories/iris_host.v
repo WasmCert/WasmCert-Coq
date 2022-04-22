@@ -80,6 +80,124 @@ Parameter hs: host_state host_instance.
 
 (* Note that instantiation takes imports as module_export_desc but gives exports as module_export (i.e. with a name). *)
 
+Print instantiation.instantiate.
+
+Print check_bounds_elem.
+
+Print module_elem_typing.
+
+Print module_element.
+
+Print module_typing.
+
+Print s_tables.
+
+Print tableinst.
+
+Definition assert_const1 (es: expr) : option value :=
+  match es with
+  | [:: BI_const v] => Some v
+  | _ => None
+  end.
+
+Definition assert_const1_i32 (es: expr) : option i32 :=
+  match es with
+  | [:: BI_const (VAL_int32 v)] => Some v
+  | _ => None
+  end.
+
+Definition assert_const1_i32_to_nat (es:expr) : nat :=
+  match assert_const1_i32 es with
+  | Some v => nat_of_int v
+  | _ => 0
+  end.
+
+Print instantiation.instantiate.
+
+Print check_bounds_elem.
+
+Print ext_funcs.
+
+Print module.
+
+Print alloc_tab.
+
+Print module_table.
+
+
+
+Print table_type.
+
+Print limits.
+
+(*
+Definition module_elem_bound_check (wts: list tableinst) (imp_descs: list module_export_desc) (m: module) :=
+  Forall (fun '{| modelem_table := (Mk_tableidx n);
+                modelem_offset := eoff;
+                modelem_init := fids |} =>
+            match assert_const1_i32 eoff with
+            | Some eoffi =>
+              match (ext_tabs imp_descs) !! n with
+              | Some (Mk_tableidx k) =>
+                match wts !! k with
+                | Some ti => nat_of_int eoffi + length fids < length ti.(table_data)
+                | None => False
+                end
+              | _ => 
+                match (m.(mod_tables) !! (n - length (ext_tabs imp_descs))) with
+                | Some modtab => nat_of_int eoffi + length fids < N.to_nat (modtab.(modtab_type).(tt_limits).(lim_min))
+                | None => False
+                end
+              end
+            | None => False
+              end
+      ) m.(mod_elem).
+ *)
+
+Definition module_elem_bound_check_gmap (wts: gmap N tableinst) (imp_descs: list module_export_desc) (m: module) :=
+  Forall (fun '{| modelem_table := (Mk_tableidx n);
+                modelem_offset := eoff;
+                modelem_init := fids |} =>
+            match assert_const1_i32 eoff with
+            | Some eoffi =>
+              match (ext_tabs imp_descs) !! n with
+              | Some (Mk_tableidx k) =>
+                match wts !! (N.of_nat k) with
+                | Some ti => nat_of_int eoffi + length fids < length ti.(table_data)
+                | None => False
+                end
+              | _ => 
+                match (m.(mod_tables) !! (n - length (ext_tabs imp_descs))) with
+                | Some modtab => (N.of_nat (nat_of_int eoffi + length fids) < modtab.(modtab_type).(tt_limits).(lim_min))%N
+                | None => False
+                end
+              end
+            | None => False
+              end
+      ) m.(mod_elem).
+
+Definition module_data_bound_check_gmap (wms: gmap N memory) (imp_descs: list module_export_desc) (m: module) :=
+  Forall (fun '{| moddata_data := (Mk_memidx n);
+                moddata_offset := doff;
+                moddata_init := bs |} =>
+            match assert_const1_i32 doff with
+            | Some doffi =>
+              match (ext_mems imp_descs) !! n with
+              | Some (Mk_memidx k) =>
+                match wms !! (N.of_nat k) with
+                | Some mi => (N.of_nat (nat_of_int doffi + length bs) < mem_length mi)%N
+                | None => False
+                end
+              | _ => 
+                match (m.(mod_mems) !! (n - length (ext_mems imp_descs))) with
+                | Some modmem => (N.of_nat (nat_of_int doffi + length bs) < page_size * (modmem.(lim_min)))%N
+                | None => False
+                end
+              end
+            | None => False
+              end
+         ) m.(mod_data).
+
 Inductive host_reduce: host_config -> host_config -> Prop :=
 | HR_host_step: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs,
     ms !! (N.to_nat vm) = Some m ->
@@ -90,6 +208,12 @@ Inductive host_reduce: host_config -> host_config -> Prop :=
     const_list vs ->
     insert_exports vis viexps exps = Some vis' ->
     host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', vs) (s', vis', ms, idecs', map_start start)
+| HR_host_step_init_oob: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs ms idecs' (exps: list module_export) vs,
+    ms !! (N.to_nat vm) = Some m ->
+    those ((lookup_export_vi vis) <$> vimps) = Some imps ->
+    fmap (fun imp => imp.(modexp_desc)) imps = imp_descs ->
+    (not (module_elem_bound_check_gmap (gmap_of_list s.(s_tables)) imp_descs m /\ module_data_bound_check_gmap (gmap_of_list s.(s_mems)) imp_descs m)) ->
+    host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', vs) (s, vis, ms, idecs', [AI_trap])
 | HR_wasm_step: forall s vis ms idecs s' es es' hs',
     (* No reentrancy and no host functions, so hs should just be dummy *)
     opsem.reduce hs s empty_frame es hs' s' empty_frame es' ->
@@ -707,25 +831,25 @@ Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end
 Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
 Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
 
-Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global) : iProp Σ :=
-  ⌜ dom (gset nat) wfs ≡ list_to_set (ext_func_addrs (fmap modexp_desc v_imps)) /\
-    dom (gset nat) wts ≡ list_to_set (ext_tab_addrs (fmap modexp_desc v_imps)) /\
-    dom (gset nat) wms ≡ list_to_set (ext_mem_addrs (fmap modexp_desc v_imps)) /\
-    dom (gset nat) wgs ≡ list_to_set (ext_glob_addrs (fmap modexp_desc v_imps)) ⌝.
+Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global) : iProp Σ :=
+  ⌜ dom (gset N) wfs ≡ list_to_set (fmap N.of_nat (ext_func_addrs (fmap modexp_desc v_imps))) /\
+    dom (gset N) wts ≡ list_to_set (fmap N.of_nat (ext_tab_addrs (fmap modexp_desc v_imps))) /\
+    dom (gset N) wms ≡ list_to_set (fmap N.of_nat (ext_mem_addrs (fmap modexp_desc v_imps))) /\
+    dom (gset N) wgs ≡ list_to_set (fmap N.of_nat (ext_glob_addrs (fmap modexp_desc v_imps))) ⌝.
 
 (* Resources in the Wasm store, corresponding to those referred by the host vis store. This needs to also type-check
    with the module import. *)
-Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap nat function_closure) (wts: gmap nat tableinst) (wms: gmap nat memory) (wgs: gmap nat global): iProp Σ :=
+Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
   (* Note that we do not actually need to know the exact content of the imports. However, these information are present
      in this predicate to make sure that they are kept incontact in the post. Note how these four gmaps are quantified
      in the instantiation spec. *)
   import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
-  | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! i = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
-  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
-  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
-  | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
+  | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! (N.of_nat i) = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
+  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! (N.of_nat i) = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
+  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! (N.of_nat i) = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
+  | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
   end.
 
 Check ext_funcs.
@@ -877,10 +1001,10 @@ Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
     ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
       match modexp_desc v with
-      | MED_func (Mk_funcidx i) => ∃ cl, ws.(s_funcs) !! i = Some cl /\ wfs !! i = Some cl /\ t = ET_func (cl_type cl) 
-      | MED_table (Mk_tableidx i) => ∃ tab tt, ws.(s_tables) !! i = Some tab /\ wts !! i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt
-      | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
-      | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! i = Some g /\ t = ET_glob gt /\ global_agree g gt
+      | MED_func (Mk_funcidx i) => ∃ cl, ws.(s_funcs) !! i = Some cl /\ wfs !! N.of_nat i = Some cl /\ t = ET_func (cl_type cl) 
+      | MED_table (Mk_tableidx i) => ∃ tab tt, ws.(s_tables) !! i = Some tab /\ wts !! N.of_nat i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt
+      | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! N.of_nat i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
+      | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! N.of_nat i = Some g /\ t = ET_glob gt /\ global_agree g gt
       end ⌝.
 Proof. 
   iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit (Himpwasmdom & Himpwasm)".
@@ -1122,26 +1246,6 @@ Proof.
       by eapply IHmodglobs with (g_inits := g_inits) (ws' := ws0); [ lias | rewrite Heqfold_res ].
 Qed.
 
-Print module_glob.
-
-Definition assert_const1 (es: expr) : option value :=
-  match es with
-  | [:: BI_const v] => Some v
-  | _ => None
-  end.
-
-Definition assert_const1_i32 (es: expr) : option i32 :=
-  match es with
-  | [:: BI_const (VAL_int32 v)] => Some v
-  | _ => None
-  end.
-
-Definition assert_const1_i32_to_nat (es:expr) : nat :=
-  match assert_const1_i32 es with
-  | Some v => nat_of_int v
-  | _ => 0
-  end.
-    
 
 Definition module_glob_init_value (modglobs: list module_glob): option (list value) :=
   those (fmap (assert_const1 ∘ modglob_init) modglobs).
@@ -1160,7 +1264,9 @@ Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wm
   import_resources_host hs_imps v_imps ∗
   import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
   export_ownership_host hs_exps ∗
-  ⌜ length hs_exps = length m.(mod_exports) ⌝.
+  ⌜ length hs_exps = length m.(mod_exports) ⌝ ∗
+  ⌜ module_elem_bound_check_gmap wts (fmap modexp_desc v_imps) m ⌝ ∗
+  ⌜ module_data_bound_check_gmap wms (fmap modexp_desc v_imps) m ⌝.
 
 Print instantiation.instantiate.
 
