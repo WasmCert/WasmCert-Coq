@@ -595,7 +595,7 @@ Qed.
           simplify_eq. constructor. apply first_instr_None_const. auto. }
       }
       { intros Hi. induction Hi;subst;auto.
-        { rewrite Wasm.iris_properties.first_instr_const;auto. }
+        { rewrite iris.iris_properties.first_instr_const;auto. }
         { cbn. unfold first_instr in IHHi. by rewrite IHHi. }
         { cbn. unfold first_instr in IHHi. by rewrite IHHi. }
         { eapply find_first_const in H.
@@ -622,7 +622,7 @@ Qed.
       }
       { intros Hf.
         induction Hf;subst;try (by cbn).
-        { rewrite Wasm.iris_properties.first_instr_const;auto. }
+        { rewrite iris.iris_properties.first_instr_const;auto. }
         { cbn. unfold first_instr in IHHf. by rewrite IHHf. }
         { cbn. unfold first_instr in IHHf. by rewrite IHHf. }
         { eapply find_first_const in H.
