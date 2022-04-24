@@ -163,12 +163,12 @@ Definition module_elem_bound_check_gmap (wts: gmap N tableinst) (imp_descs: list
               match (ext_tabs imp_descs) !! n with
               | Some (Mk_tableidx k) =>
                 match wts !! (N.of_nat k) with
-                | Some ti => nat_of_int eoffi + length fids < length ti.(table_data)
+                | Some ti => nat_of_int eoffi + length fids <= length ti.(table_data)
                 | None => False
                 end
               | _ => 
                 match (m.(mod_tables) !! (n - length (ext_tabs imp_descs))) with
-                | Some modtab => (N.of_nat (nat_of_int eoffi + length fids) < modtab.(modtab_type).(tt_limits).(lim_min))%N
+                | Some modtab => (N.of_nat (nat_of_int eoffi + length fids) <= modtab.(modtab_type).(tt_limits).(lim_min))%N
                 | None => False
                 end
               end
@@ -185,12 +185,12 @@ Definition module_data_bound_check_gmap (wms: gmap N memory) (imp_descs: list mo
               match (ext_mems imp_descs) !! n with
               | Some (Mk_memidx k) =>
                 match wms !! (N.of_nat k) with
-                | Some mi => (N.of_nat (nat_of_int doffi + length bs) < mem_length mi)%N
+                | Some mi => (N.of_nat (nat_of_int doffi + length bs) <= mem_length mi)%N
                 | None => False
                 end
               | _ => 
                 match (m.(mod_mems) !! (n - length (ext_mems imp_descs))) with
-                | Some modmem => (N.of_nat (nat_of_int doffi + length bs) < page_size * (modmem.(lim_min)))%N
+                | Some modmem => (N.of_nat (nat_of_int doffi + length bs) <= page_size * (modmem.(lim_min)))%N
                 | None => False
                 end
               end
