@@ -3005,7 +3005,7 @@ Section Client.
         | Some q' => Some (b :: q')
         | None => None
         end
-    | _ :: q => None end.
+    | _ :: _ => None end.
 
   Fixpoint mk_basic_expr es :=
     match es with
@@ -3053,7 +3053,7 @@ Section Client.
           modfunc_body := mk_basic_expr stack_map
         |}
       ] ;
-      mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+      mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                         tt_elem_type := ELT_funcref |} |} ] ;
       mod_mems := [
         {| lim_min := 0%N ; lim_max := None |}
@@ -3152,7 +3152,7 @@ Section Client.
         |} ;
         {| imp_module := list_byte_of_string "Stack" ;
           imp_name := list_byte_of_string "table" ;
-          imp_desc := ID_table {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+          imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                  tt_elem_type := ELT_funcref |} |}
       ] ;
       mod_exports := [
@@ -3167,7 +3167,7 @@ Section Client.
   Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                    ET_func (Tf [T_i32] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                        ET_func (Tf [T_i32 ; T_i32] []) ; ET_func (Tf [T_i32 ; T_i32] []) ;
-                       ET_tab {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+                       ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                 tt_elem_type := ELT_funcref |} ].
 
   Ltac bet_first f :=
@@ -3648,7 +3648,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                     import_resources_wasm_typecheck inst_vis expts inst_map
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
-                    ⌜ length tab.(table_data) > 1 ⌝ ∗ 
+                    ⌜ length tab.(table_data) >= 1 ⌝ ∗ 
                     (* We own a token that hides ressources needed for the new_stack function *)
                     nextStackAddrIs 0 ∗
                     (* And finally we have specs for all our exports : *)
