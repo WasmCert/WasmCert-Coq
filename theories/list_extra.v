@@ -92,6 +92,42 @@ Proof.
       reflexivity.
 Qed.
 
+Lemma those_app {A} (l1 : list (option A)) l2 tl1 tl2 :
+  those l1 = Some tl1 -> those l2 = Some tl2 -> those (l1 ++ l2) = Some (tl1 ++ tl2).
+Proof.
+  generalize dependent tl1. induction l1 ; intros.
+  unfold those in H ; inversion H. rewrite app_nil_l. auto.
+  rewrite <- those_those0 in H. 
+  unfold those0 in H. destruct a ; try (inversion H; auto).
+  fold (those0 l1) in H. rewrite those_those0 in H.
+  destruct tl1 ; destruct (those l1) ; inversion H.
+  assert (those (l1 ++ l2) = Some (l ++ tl2)); try (eapply IHl1; eauto).
+  rewrite <- those_those0. unfold those0; auto. simpl.
+  fold (those0 (l1 ++ l2)). rewrite those_those0, H1. simpl. subst. reflexivity.
+Qed.
+
+Lemma those_app_inv {A} (l1 : list (option A)) l2 tl :
+  those (l1 ++ l2) = Some tl ->
+  exists tl1 tl2, those l1 = Some tl1 /\ those l2 = Some tl2 /\ tl1 ++ tl2 = tl.
+Proof.
+  generalize dependent tl ; induction l1 ; intros.
+  eexists _, _ ; repeat split; simpl; auto.
+  rewrite <- app_comm_cons in H.
+  rewrite <- those_those0 in H.
+  unfold those0 in H. destruct a eqn:Ha ; try (inversion H; auto).
+  destruct (those0 (l1 ++ l2)) eqn:Hth ; unfold those0 in Hth ; rewrite Hth in H ;
+    try (inversion H; auto).
+  fold (those0 (l1 ++ l2)) in Hth.
+  rewrite those_those0 in Hth.
+  rewrite Hth in IHl1.
+  destruct (IHl1 l) as (tl1 & tl2 & Hth1 & Hth2 & Htl); auto.
+  rewrite <- those_those0.
+  unfold those0. fold (those0 l1).
+  unfold option_map. rewrite those_those0, Hth1.
+  eexists _,_ ; repeat split; simpl; eauto. rewrite Htl.
+  reflexivity.
+Qed.
+
 Fixpoint mapi_aux {A B} (acc : nat * list B) (f : nat -> A -> B) (xs : list A) : list B :=
   let '(i, ys_rev) := acc in
   match xs with
