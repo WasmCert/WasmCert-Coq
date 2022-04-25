@@ -4,30 +4,27 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
-Require Export iris iris_locations iris_properties iris_atomicity iris_wp stdpp_aux.
 Require Export datatypes host operations properties opsem.
+Require Export iris_locations iris_properties iris_atomicity iris_wp stdpp_aux.
 
 Import uPred.
 
-Set Default Proof Using "Type". (* what is this? *)
+Set Default Proof Using "Type".
 
 Close Scope byte_scope.
 
-Let expr := iris.expr.
-Let val := iris.val.
-Let to_val := iris.to_val.
+Definition expr := iris.expr.
+Definition val := iris.val.
+Definition to_val := iris.to_val.
 
 (* Defining a Wasm-specific WP with frame existence *)
 
 Import DummyHosts.
-  (*
-Let reduce := @reduce host_function host_instance.
-*)
 
 Canonical Structure wasm_lang := Language wasm_mixin.
  
-Let reducible := @reducible wasm_lang.
-Let state := state wasm_lang.
+Local Definition reducible := @reducible wasm_lang.
+Local Definition state := state wasm_lang.
 
 Implicit Type σ : state.
 
@@ -433,20 +430,9 @@ Proof.
     apply to_val_cat_inv;eauto.
 Qed.
 
-
-
 Section iris_properties.
   Import DummyHosts.
 
-(*
-Variable host_function : eqType.
-
-Let host := host.host host_function.
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
-
-Variable host_instance : host.
-*)
   Let reduce := @reduce host_function host_instance.
 
   Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
@@ -595,7 +581,7 @@ Qed.
           simplify_eq. constructor. apply first_instr_None_const. auto. }
       }
       { intros Hi. induction Hi;subst;auto.
-        { rewrite Wasm.iris_properties.first_instr_const;auto. }
+        { rewrite iris.iris_properties.first_instr_const;auto. }
         { cbn. unfold first_instr in IHHi. by rewrite IHHi. }
         { cbn. unfold first_instr in IHHi. by rewrite IHHi. }
         { eapply find_first_const in H.
@@ -622,7 +608,7 @@ Qed.
       }
       { intros Hf.
         induction Hf;subst;try (by cbn).
-        { rewrite Wasm.iris_properties.first_instr_const;auto. }
+        { rewrite iris.iris_properties.first_instr_const;auto. }
         { cbn. unfold first_instr in IHHf. by rewrite IHHf. }
         { cbn. unfold first_instr in IHHf. by rewrite IHHf. }
         { eapply find_first_const in H.

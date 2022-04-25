@@ -268,7 +268,7 @@ Proof.
   assert ( sglob_val (host_function:=host_function) ws
                      (f_inst {| f_locs := locs; f_inst := winst |}) n =
            Some (g_val g) ) as Hsglob.
-  { unfold sglob_val, option_map, sglob, option_bind, sglob_ind => /=.
+  { unfold sglob_val, option_map, sglob, option_bind, operations.option_bind, sglob_ind => /=.
     by rewrite Hinstg Hglob.
   }
   iSplit.
@@ -313,7 +313,7 @@ Proof.
       s_globals :=
         update_list_at (s_globals ws) k {| g_mut := g_mut g; g_val := v |}
     |}) as Hsglob.
-  { unfold supdate_glob, supdate_glob_s, option_map, sglob, option_bind, sglob_ind => /=.
+  { unfold supdate_glob, supdate_glob_s, option_map, sglob, option_bind, operations.option_bind, sglob_ind => /=.
     by rewrite Hinstg Hglob.
   }
   iSplit.
@@ -1411,7 +1411,7 @@ Proof.
                   = bv !! i ⌝)%I ) as "%Hmeq".
   { iIntros (i) "%Hi".
     iDestruct (big_sepL_lookup with "Hwms") as "H" => //.
-    destruct (nth_lookup_or_length bv i (encode 1)) => //=.
+    destruct (nth_lookup_or_length bv i (bytes.encode 1)) => //=.
     lia.
     iDestruct (gen_heap_valid with "Hm H") as "%H".
     rewrite gmap_of_list_2d_lookup list_lookup_fmap Nat2N.id Hm in H.
@@ -1419,7 +1419,7 @@ Proof.
     iPureIntro. replace (N.to_nat (k + off + N.of_nat i)) with
       (N.to_nat (k + off) + i). rewrite H.
     apply Logic.eq_sym.
-    destruct (nth_lookup_or_length bv i (encode 1)) => //=.
+    destruct (nth_lookup_or_length bv i (bytes.encode 1)) => //=.
     lia. lia. }
   
   iPureIntro.
@@ -1432,7 +1432,7 @@ Proof.
   apply Logic.eq_sym, N.leb_le.
   assert (ml_data (mem_data m) !! N.to_nat (k + off + N.of_nat (length bv - 1)) =
             bv !! (length bv - 1)). apply Hmeq ; first lia.
-  destruct (nth_lookup_or_length bv (length bv - 1) (encode 1)) => //=. 
+  destruct (nth_lookup_or_length bv (length bv - 1) (bytes.encode 1)) => //=. 
   rewrite e in H.
   apply memory_in_bounds in H. unfold lt in H.
   replace (S (N.to_nat (k + off + N.of_nat (length bv - 1)))) with

@@ -112,48 +112,6 @@ Definition assert_const1_i32_to_nat (es:expr) : nat :=
   | _ => 0
   end.
 
-Print instantiation.instantiate.
-
-Print check_bounds_elem.
-
-Print ext_funcs.
-
-Print module.
-
-Print alloc_tab.
-
-Print module_table.
-
-
-
-Print table_type.
-
-Print limits.
-
-(*
-Definition module_elem_bound_check (wts: list tableinst) (imp_descs: list module_export_desc) (m: module) :=
-  Forall (fun '{| modelem_table := (Mk_tableidx n);
-                modelem_offset := eoff;
-                modelem_init := fids |} =>
-            match assert_const1_i32 eoff with
-            | Some eoffi =>
-              match (ext_tabs imp_descs) !! n with
-              | Some (Mk_tableidx k) =>
-                match wts !! k with
-                | Some ti => nat_of_int eoffi + length fids < length ti.(table_data)
-                | None => False
-                end
-              | _ => 
-                match (m.(mod_tables) !! (n - length (ext_tabs imp_descs))) with
-                | Some modtab => nat_of_int eoffi + length fids < N.to_nat (modtab.(modtab_type).(tt_limits).(lim_min))
-                | None => False
-                end
-              end
-            | None => False
-              end
-      ) m.(mod_elem).
- *)
-
 Definition module_elem_bound_check_gmap (wts: gmap N tableinst) (imp_descs: list module_export_desc) (m: module) :=
   Forall (fun '{| modelem_table := (Mk_tableidx n);
                 modelem_offset := eoff;
@@ -163,12 +121,12 @@ Definition module_elem_bound_check_gmap (wts: gmap N tableinst) (imp_descs: list
               match (ext_tabs imp_descs) !! n with
               | Some (Mk_tableidx k) =>
                 match wts !! (N.of_nat k) with
-                | Some ti => nat_of_int eoffi + length fids < length ti.(table_data)
+                | Some ti => nat_of_int eoffi + length fids <= length ti.(table_data)
                 | None => False
                 end
               | _ => 
                 match (m.(mod_tables) !! (n - length (ext_tabs imp_descs))) with
-                | Some modtab => (N.of_nat (nat_of_int eoffi + length fids) < modtab.(modtab_type).(tt_limits).(lim_min))%N
+                | Some modtab => (N.of_nat (nat_of_int eoffi + length fids) <= modtab.(modtab_type).(tt_limits).(lim_min))%N
                 | None => False
                 end
               end
@@ -185,12 +143,12 @@ Definition module_data_bound_check_gmap (wms: gmap N memory) (imp_descs: list mo
               match (ext_mems imp_descs) !! n with
               | Some (Mk_memidx k) =>
                 match wms !! (N.of_nat k) with
-                | Some mi => (N.of_nat (nat_of_int doffi + length bs) < mem_length mi)%N
+                | Some mi => (N.of_nat (nat_of_int doffi + length bs) <= mem_length mi)%N
                 | None => False
                 end
               | _ => 
                 match (m.(mod_mems) !! (n - length (ext_mems imp_descs))) with
-                | Some modmem => (N.of_nat (nat_of_int doffi + length bs) < page_size * (modmem.(lim_min)))%N
+                | Some modmem => (N.of_nat (nat_of_int doffi + length bs) <= page_size * (modmem.(lim_min)))%N
                 | None => False
                 end
               end
@@ -223,18 +181,6 @@ Inductive host_reduce: host_config -> host_config -> Prop :=
 Definition host_expr : Type := (list inst_decl) * (list administrative_instruction).
 
 (* val is the same as native Wasm, defined in Iris.v *)
-(*
-Definition val_eq_dec : forall v1 v2: val, {v1 = v2} + {v1 <> v2}.
-Proof.
-  decidable_equality.
-Defined.
-Definition val_eqb (v1 v2: val) : bool := val_eq_dec v1 v2.
-Definition eqvalP : Equality.axiom val_eqb :=
-  eq_dec_Equality_axiom val_eq_dec.
-
-Canonical Structure val_eqMixin := EqMixin eqvalP.
-Canonical Structure val_eqType := Eval hnf in EqType val val_eqMixin.
-*)
 
 
 Definition state : Type := store_record * vi_store * (list module) .
