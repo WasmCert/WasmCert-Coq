@@ -3715,8 +3715,9 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       unfold module_data_bound_check_gmap.
       simpl.
       done.
-    - iIntros (v) "(Hmod & Himphost & Himpwasm & Hinst)".
-      iDestruct "Hinst" as (inst g_inits t_inits m_inits) "(%Hinst & %Hival & Hexpwasm & Hexphost)".
+    - iIntros (v) "Hinst". (* "(Hmod & Himphost & Himpwasm & Hinst)". *)
+      unfold instantiation_resources_post.
+      iDestruct "Hinst" as (inst g_inits t_inits m_inits wts) "(Hmod & Himphost & Himpwasm & %Hinst & -> & -> & Hexpwasm & Hexphost)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -4613,8 +4614,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iPureIntro ; unfold module_data_bound_check_gmap ; simpl ; done.
     - iIntros (idnstart) "Hf Hres".
       unfold instantiation_resources_post.
-      iDestruct "Hres" as "(Hmod1 & Himphost & Himpwasm & Hinst)".
-      iDestruct "Hinst" as (inst g_inits t_inits m_inits) "(%Hinst & %Hival & Hexpwasm & Hexphost)".
+      iDestruct "Hres" as (inst g_inits t_inits m_inits wts) "(Hmod1 & Himphost & Himpwasm & %Hinst & -> & -> & Hexpwasm & Hexphost)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob & Hstart).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -4628,14 +4628,37 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       destruct inst_funcs ; first by iExFalso ; iExact "Hexpwf".
       iDestruct "Hexpwf" as "[Hwfsq Hexpwf]".
       destruct inst_funcs ; last by iExFalso ; iExact "Hexpwf".
-(*      destruct inst_tab ; first by iExFalso ; iExact "Hexpwt".
-      iDestruct "Hexpwt" as "[Hwt Hexpwt]".
-      destruct inst_tab ; last by iExFalso ; iExact "Hexpwt". *)
       destruct inst_memory ; last by iExFalso ; iExact "Hexpwm".
       destruct inst_globs as [| g inst_globs] ; first by iExFalso ; iExact "Hexpwg". 
       iDestruct "Hexpwg" as "[Hwg Hexpwg]".
       destruct g_inits eqn:Hg ; try by iExFalso ; iExact "Hwg".
-      destruct inst_globs ; last by iExFalso ; iExact "Hexpwg". 
+      destruct inst_globs ; last by iExFalso ; iExact "Hexpwg".
+
+      (* For inst_tab, we cannot rely on the same technique as for inst_funcs, 
+         inst_memory and inst_globs, because we are importing one table and not 
+         creating any table in this module. In other words "Hexpwt" is telling us
+         [ drop 1 inst_tab ] should be [], but this only tells un inst_tab has length
+         less than 1. We must rely on the Hinsttab hypothesis which tells us that
+         the singleton list [idt] is a prefix of inst_tab. Now combined with "Hexpwt",
+         we know inst_tab has length exactly one, *and* it is singleton list [idt]. *)
+      (* It may seam here like we are getting more information than we did for
+         inst_funcs, for which we currently only know its length but not its elements.
+         In fact we will indeed need to use Hinstfunc later to get the exact value of
+         the elements of inst_funcs, but because we both create and import functions, 
+         "Hexpwf" was enough to get the length of inst_funcs. Furthermore, we will
+         not need to know the exact elements of inst_func until further on, whereas
+         to populate the table using elem, we will need to know that inst_tab contains
+         exactly idt right at the next step.
+       *)
+       
+      unfold ext_tab_addrs in Hinsttab ; simpl in Hinsttab.
+      unfold prefix in Hinsttab.
+      destruct Hinsttab as [ll Hinsttab].
+      destruct inst_tab ; first done.
+      inversion Hinsttab ; subst.
+      destruct ll ; last by iExFalso ; iExact "Hexpwt".
+
+      
       iDestruct "Hexphost" as "[Hexphost _]".
       iDestruct "Hexphost" as (name) "Hexphost" => /=.
       unfold import_resources_wasm_typecheck => /=.
@@ -4688,19 +4711,38 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       do 5 (rewrite lookup_insert_ne in Hcltype5 ; last assumption).
       rewrite lookup_insert in Hcltype5.
       destruct Hcltype5 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      rewrite lookup_insert in Htab0.
+      (* Now for our last export (the table), we have a little more work to do,
+         because we are populating it. This is where the knowledge of the exact
+         elements of inst_tab (not just its length) is important *)
+      unfold module_import_init_tabs in Htab0.
+      simpl in Htab0.
+      do 2 rewrite lookup_insert in Htab0.
       destruct Htab0 as [Htab0 _] ; inversion Htab0 ; subst ; clear Htab0.
-      simpl in * ; subst. 
+     
+      
+      simpl in * ; subst.
+
+      (* And now we invoke Hinstfunc to get the exact values in list inst_func *)
       unfold ext_func_addrs in Hinstfunc ; simpl in Hinstfunc.
       unfold prefix in Hinstfunc.
       destruct Hinstfunc as [ll Hinstfunc].
       inversion Hinstfunc ; subst ; clear Hinstfunc.
+    
+      unfold table_init_replace_single.
+      simpl.
+      iDestruct "Htab" as "[Htab _]".
+      simpl.
+      iDestruct "Htab" as "[Ht0 _]".
+      
+      
       unfold check_start in Hstart.
       simpl in Hstart.
       apply b2p in Hstart.
       inversion Hstart ; subst ; clear Hstart.
       iApply wp_host_wasm.
       by apply HWEV_invoke.
+
+      
       iApply wp_wand_r.
       iSplitR "Hmod1".
       rewrite - (app_nil_l [AI_invoke idnstart]).
@@ -4714,7 +4756,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       done. done. done. done.
       iIntros "!> Hf".
       iApply (wp_label_bind with
-               "[Hwg Htab Hwfsq Hf Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Himpfcl5 Hexphost Hnextaddr]") ; last first.
+               "[Hwg Ht0 Hwfsq Hf Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Himpfcl5 Hexphost Hnextaddr]") ; last first.
       iPureIntro.
       unfold lfilled, lfill => /=.
       instantiate (5 := []) => /=.
@@ -4999,7 +5041,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
           rewrite (separate3 (i32const 0)).
           iApply wp_seq.
           iSplitR ; last first.
-          iSplitL "Hf Himpfcl5 Hs Htab Hwfsq".
+          iSplitL "Hf Himpfcl5 Hs Ht0 Hwfsq".
           rewrite (separate2 (i32const _)).
           rewrite - (app_nil_r [AI_basic (BI_call 5)]).
           iApply wp_wasm_empty_ctx.
@@ -5009,7 +5051,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
           iApply wp_base_pull.
           rewrite app_nil_r.
           iApply wp_wasm_empty_ctx.
-          iApply ("Hspec5" with "[Hf Himpfcl5 Hs Htab Hwfsq]").
+          iApply ("Hspec5" with "[Hf Himpfcl5 Hs Ht0 Hwfsq]").
           iFrame.
           iSimpl.
           repeat iSplit ; try iPureIntro.
@@ -5019,10 +5061,8 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
           replace (two_power_nat 32) with two32 ; last done.
           by destruct Hk2 ; lia.
           instantiate (2 := λ x, True%I).
-          iSplit ; first done.
-          iSplitL "Htab".
-          admit.
-          iSplit ; first done.
+          done.
+          done.
           instantiate (1 := λ x y, ⌜ y = Wasm_int.Int32.imul x x ⌝%I ).
           iIntros (u fc) "!>". iIntros (Λ) "(_ & -> & Hf & Htab & Hcl) HΛ".
           rewrite (separate1 _ [AI_invoke _]).
@@ -5353,7 +5393,8 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iDestruct "Hwg" as (g') "[Hwg Hvis7]".
       iExists g', _.
       iFrame.
-  Admitted.
+  Qed.
+  
 
   End Client.
 End stack.    
