@@ -641,69 +641,22 @@ Section Instantiation_spec_operational.
 
 Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
 
-Print module_export_desc.
-
-(* The newly allocated resources due to instantiation. *)
-Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
-  ([∗ list] f; addr ∈ mfuncs; inst_f,
-   (* Allocated wasm resources *)
-     N.of_nat addr ↦[wf] (FC_func_native
-                             inst
-                             (nth match f.(modfunc_type) with
-                                 | Mk_typeidx k => k
-                                 end (inst.(inst_types)) (Tf [] []))
-                             f.(modfunc_locals)
-                             f.(modfunc_body))
-  )%I.
-
-Definition module_inst_resources_tab (mtabs: list module_table) (t_inits: gmap (nat * nat) funcelem) (inst_t: list tableaddr) : iProp Σ :=
-  ([∗ list] i ↦ tab; addr ∈ mtabs; inst_t,
-    N.of_nat addr ↦[wtblock] (match tab.(modtab_type).(tt_limits) with
-                            | {| lim_min := min; lim_max := omax |} =>
-                                 (Build_tableinst
-                                    (imap (fun j _ => match (t_inits !! (i, j)) with
-                                                  | Some felem => felem
-                                                  | None => (None: funcelem)
-                                                  end) (repeat (None: funcelem) (ssrnat.nat_of_bin min))))
-                                   (omax)
-                              end)
-  )%I.
-
-Definition module_inst_resources_mem (mmems: list memory_type) (m_inits: gmap (nat * nat) byte) (inst_m: list memaddr) : iProp Σ := 
-  ([∗ list] i ↦ mem; addr ∈ mmems; inst_m,
-    N.of_nat addr ↦[wmblock] (match mem with
-                                 | {| lim_min:= min; lim_max := omax |} =>
-                                   Build_memory
-                                     {| ml_init := #00%byte; ml_data :=
-                                                               imap (fun j _ => match (m_inits !! (i,j)) with
-                                                                             | Some b => b
-                                                                             | None => #00%byte
-                                                                             end)
-                                                                               (repeat #00%byte (N.to_nat min)) |}
-                                     (omax)
-                                  end)
-  ).
-
-Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
-  ([∗ list] i↦g; addr ∈ mglobs; inst_g,
-    match nth_error g_inits i with
-    | Some v => N.of_nat addr ↦[wg] (Build_global
-                                      (g.(modglob_type).(tg_mut))
-                                      v (* kinda unfortuante that this is O(n^2) *)
-                                         (* UPD: nvm, now all the initialisers are O(n^2) at least *)
-                                   )
-    | None => False
-    end
-  ).
+(* Resources in the host vis store for the imports *)
+Definition import_resources_host (hs_imps: list vimp) (v_imps : list module_export): iProp Σ :=
+  [∗ list] i ↦ hs_imp; v_imp ∈ hs_imps; v_imps,
+  hs_imp ↪[vis] v_imp.
 
 
-Print module_export_desc.
+Definition export_ownership_host (hs_exps: list vi) : iProp Σ :=
+  [∗ list] i ↦ hs_exp ∈ hs_exps,
+  ∃ hv, hs_exp ↪[vis] hv.
 
-Print fold_left.
+Definition instantiate_globals := instantiate_globals host_function host_instance.
 
-Print module.
-
-Print instance.
+Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
+Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
+Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
+Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
 
 (* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later.*)
 Definition get_import_func_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
@@ -723,60 +676,6 @@ Definition get_import_global_count (m: module) := length (pmap (fun x => match x
                                                                    | ID_global id => Some id
                                                                    | _ => None
                                                                     end) m.(mod_imports)).
-(* The collection of the four types of newly allocated resources *)
-Definition module_inst_resources_wasm (m: module) (inst: instance) t_inits m_inits (g_inits: list value) : iProp Σ :=
-  (module_inst_resources_func m.(mod_funcs) inst (drop (get_import_func_count m) inst.(inst_funcs)) ∗
-  module_inst_resources_tab m.(mod_tables) t_inits (drop (get_import_table_count m) inst.(inst_tab)) ∗
-  module_inst_resources_mem m.(mod_mems) m_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
-  module_inst_resources_glob m.(mod_globals) g_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
-
-(* Resources in the host vis store for the imports *)
-Definition import_resources_host (hs_imps: list vimp) (v_imps : list module_export): iProp Σ :=
-  [∗ list] i ↦ hs_imp; v_imp ∈ hs_imps; v_imps,
-  hs_imp ↪[vis] v_imp.
-
-
-Definition export_ownership_host (hs_exps: list vi) : iProp Σ :=
-  [∗ list] i ↦ hs_exp ∈ hs_exps,
-  ∃ hv, hs_exp ↪[vis] hv.
-
-
-Print instantiation.instantiate.
-
-Print external_typing.
-
-Print instantiate_globals.
-
-Definition instantiate_globals := instantiate_globals host_function host_instance.
-
-Search module_export.
-
-Print module_export_typer.
-
-Print alloc_module.
-
-Print export_get_v_ext.
-
-Print alloc_func.
-
-Print module_export.
-
-Print module_export_desc.
-
-Print module_typing.
-
-Print ext_t_funcs.
-
-Print map.
-
-Print extern_t.
-
-Print ext_funcs.
-
-Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
-Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
-Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
-Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
 
 Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global) : iProp Σ :=
   ⌜ dom (gset N) wfs ≡ list_to_set (fmap N.of_nat (ext_func_addrs (fmap modexp_desc v_imps))) /\
@@ -799,68 +698,6 @@ Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps:
   | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
   end.
 
-Check ext_funcs.
-
-Print dom.
-
-Search gmap dom.
-
-Search gset.
-
-Search gset list.
-
-Search gset eq.
-
-(*
-Print module.
-
-Print module_export.
-
-Print module_export_desc.
-
-Print module_import.
-
-Print import_desc.
-
-
-(* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later.*)
-Definition get_import_func_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_func id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-
-Definition get_import_table_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_table id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-Definition get_import_mem_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_mem id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-Definition get_import_global_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_global id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-
-(* The expected host resources that we should be getting from the module exports after instantiation. 
-
-   Note that an export of index i is in fact the (i-n)th definition within the module itself (where n is the number of 
-   imports of the same kind used by the module); so the correct index in the Wasm store should be the starting 
-   offset + (i-n)).
-
-   It is true that we can existentially quantify over the addresses to simplify this definition, and this might have 
-   been an overkill. However, that loses the information that the newly allocated elements are guaranteed to be a 
-   contiguous block (or maybe that is unimportant).
-*)                                     
-Definition export_resources_host (m: module) (hs_exps: list vi) (nf nt nm ng: nat) : iProp Σ :=
-  [∗ list] i ↦ hs_exp; m_exp ∈ hs_exps; m.(mod_exports),
-      N.of_nat i ↪[vis] match m_exp.(modexp_desc) with
-               | MED_func (Mk_funcidx i) => {| modexp_name := m_exp.(modexp_name); modexp_desc := MED_func (Mk_funcidx (nf + i - get_import_func_count m)) |}
-               | MED_table (Mk_tableidx i) => {| modexp_name := m_exp.(modexp_name); modexp_desc := MED_table (Mk_tableidx (nt + i - get_import_table_count m)) |}
-               | MED_mem (Mk_memidx i) => {| modexp_name := m_exp.(modexp_name); modexp_desc := MED_mem (Mk_memidx (nm + i - get_import_mem_count m)) |}
-               | MED_global (Mk_globalidx i) => {| modexp_name := m_exp.(modexp_name); modexp_desc := MED_global (Mk_globalidx (ng + i - get_import_global_count m)) |}
-                        end.
-*)
 
 Definition exp_default := MED_func (Mk_funcidx 0).
 
@@ -875,32 +712,6 @@ Definition module_export_resources_host (v_imps: list module_export) (hs_exps: l
      (i.e. imports + new declarations), then lookup from this list to find the correct export.
 
      Upd: This is now obsolete, since the instance directly gives the above knowledge.
-*)(*
-  let wf_exps := ((pmap (fun x => match x.(modexp_desc) with
-                              | MED_func _ => Some x.(modexp_desc)
-                              | _ => None
-                              end) v_imps) ++ (map (fun addr => MED_func (Mk_funcidx addr)) inst.(inst_funcs))) in 
-  let wt_exps := ((pmap (fun x => match x.(modexp_desc) with
-                              | MED_table _ => Some x.(modexp_desc)
-                              | _ => None
-                               end) v_imps) ++ (map (fun addr => MED_table (Mk_tableidx addr)) inst.(inst_tab))) in
-  let wm_exps := ((pmap (fun x => match x.(modexp_desc) with
-                              | MED_mem _ => Some x.(modexp_desc)
-                              | _ => None
-                               end) v_imps) ++ (map (fun addr => MED_mem (Mk_memidx addr)) inst.(inst_memory))) in
-  let wg_exps := ((pmap (fun x => match x.(modexp_desc) with
-                              | MED_global _ => Some x.(modexp_desc)
-                              | _ => None
-                               end) v_imps) ++ (map (fun addr => MED_global (Mk_globalidx addr)) inst.(inst_globs))) in
-  [∗ list] hs_exp; m_exp ∈ hs_exps; m_exps,
-                                    ∃ name, hs_exp ↪[vis] Build_module_export name
-                                                   (match m_exp.(modexp_desc) with
-                                                   | MED_func (Mk_funcidx n) => nth n wf_exps exp_default
-                                                   | MED_table (Mk_tableidx n) => nth n wt_exps exp_default
-                                                   | MED_mem (Mk_memidx n) => nth n wm_exps exp_default
-                                                   | MED_global (Mk_globalidx n) => nth n wg_exps exp_default
-                                                   end
-                                                     ).
 *)
   [∗ list] hs_exp; m_exp ∈ hs_exps; m_exps,
                                     ∃ name, hs_exp ↪[vis] Build_module_export name
@@ -910,14 +721,8 @@ Definition module_export_resources_host (v_imps: list module_export) (hs_exps: l
                                                    | MED_mem (Mk_memidx n) => MED_mem (Mk_memidx (nth n inst.(inst_memory) 0))
                                                    | MED_global (Mk_globalidx n) => MED_global (Mk_globalidx (nth n inst.(inst_globs) 0))
                                                    end
-                                                     ).
-Print instantiation.instantiate.
+                                                   ).
 
-Print alloc_module.
-
-Print module_export_desc.
-
-Search big_sepL2.
 
 Lemma import_resources_host_lookup hs_imps v_imps vis:
   ⊢ ghost_map_auth visGName 1 vis -∗
@@ -1215,53 +1020,13 @@ Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wm
   ⌜ module_elem_bound_check_gmap wts (fmap modexp_desc v_imps) m ⌝ ∗
   ⌜ module_data_bound_check_gmap wms (fmap modexp_desc v_imps) m ⌝.
 
-Print instantiation.instantiate.
+(* This builds a gmap from (tableid * index) to funcelem, representing the initial values dictated by the elem segment. However, note that the tableid here refers to the id in the instance instead of that in the store.
 
-Print init_tab.
-
-Print instantiate_elem.
-
-Print module_elem_typing.
-
-Print module_element.
-Print module.
-
-Print imap.
-(*
-Definition build_tab_initialiser (m: module) (elem: module_element) :=
-  let' {| modelem_table := tid; modelem_offset := offset; modelem_init := fids |} := elem in
-  imap (fun j e_init => <[
+   Note that this tableid does not count the imported tables. 
  *)
-Print fold_left.
-
-Print module_func.
-
-Print instance.
-
-Print module_element.
-
-Print funcelem.
-
-Print map_insert.
-
-Print module_table.
-
-Print table_type.
-
-Print limits.
-
 Definition build_tab_initialiser (instfuncs: list funcaddr) (elem: module_element) (tabid: nat) (offset: nat) : gmap (nat * nat) funcelem :=
   fold_left (fun acc actor => actor acc) (imap (fun j e_init => match e_init with
                      | Mk_funcidx fid => map_insert (tabid, j + offset) (nth_error instfuncs fid) end) elem.(modelem_init) ) ∅.
-
-(*
-Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : list (list funcelem) :=
-  match modelems with
-  | e_init :: e_inits' => match e_init.(modelem_table) with
-                        | Mk_tableidx i => <[ i := build_tab_initialiser inst.(inst_funcs) e_init 
-  | [] => fmap (fun mtab => repeat None (N.to_nat (mtab.(modtab_type).(tt_limits).(lim_min)))) (m.(mod_tables))
-  end.
-*)
 
 Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : gmap (nat * nat) funcelem :=
   match modelems with
@@ -1271,10 +1036,6 @@ Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list mod
                           
   | [] => ∅
   end.
-
-Print module_data.
-
-Search Byte.byte byte.
 
 (* Note that we use compcert byte for our internal memory representation, but module uses the pure Coq version of byte. *)
 Definition build_mem_initialiser (datum: module_data) (memid: nat) (offset: nat) : gmap (nat * nat) byte :=
@@ -1291,12 +1052,6 @@ Fixpoint module_mem_init_values (m: module) (moddata: list module_data) : gmap (
   | [] => ∅
   end.
 
-                               (*              
-Definition module_tab_init_values m t_inits :=
-  t_inits = fold_left (fun elem =>
-                         let' {| modelem_table := tid; modelem_offset := offset; modelem_init := fids |} := elem in
-                         match *)
-
 (* g_inits have the correct types and values. Typing is redundant given the current restriction *)
 Definition module_glob_init_values m g_inits :=
   (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) /\
@@ -1308,11 +1063,117 @@ Definition module_init_values (m: module) (inst: instance) t_inits m_inits g_ini
   m_inits = module_mem_init_values m m.(mod_data) /\
   module_glob_init_values m g_inits.
 
+(* The starting point for newly allocated tables. *)
+Definition module_inst_table_base (mtabs: list module_table) : list tableinst :=
+  fmap (fun mt => match mt.(modtab_type).(tt_limits) with
+               | {| lim_min := min; lim_max := omax |} =>
+                 (Build_tableinst
+                    (repeat (None: funcelem) (ssrnat.nat_of_bin min))
+                    (omax))
+                    end) mtabs.
+
+(* Given a tableinst, an offset and a list of funcelems, replace the corresponding segment with the initialisers. *)
+Definition table_init_replace_single (t: tableinst) (offset: nat) (fns: list funcelem) : tableinst :=
+  Build_tableinst
+    ((take offset t.(table_data)) ++ fns ++ (drop (offset + length fns) t.(table_data)))
+    t.(table_max_opt).
+
+(* Each of these is guaranteed to be a some due to validation. *)
+Definition lookup_funcaddr (inst: instance) (me_init: list funcidx) : list funcelem :=
+  fmap (fun '(Mk_funcidx fidx) => nth_error inst.(inst_funcs) fidx) me_init.
+
+(* For each table initialiser elem, if the target table is not imported, then
+   we use its content to update the corresponding table build from the base. *)
+Definition module_inst_build_tables (m : module) (inst: instance) : list tableinst :=
+  fold_left (fun tabs '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
+               let itc := get_import_table_count m in 
+               match mt with
+               | Mk_tableidx k =>
+                 if k <? itc then tabs else
+                   (* These are guaranteed to succeed due to validation. *)
+                   match nth_error tabs (k-itc) with
+                   | Some t => <[ (k-itc) := table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init) ]> tabs
+                   | None => tabs
+                   end
+               end
+                 ) m.(mod_elem) (module_inst_table_base m.(mod_tables)).
+
+Definition module_import_init_tabs (m: module) (inst: instance) (wts: gmap N tableinst) : gmap N tableinst :=
+  fold_left (fun wts '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
+               let itc := get_import_table_count m in 
+               match mt with
+               | Mk_tableidx k =>
+                 if k <? itc then
+                   match nth_error inst.(inst_tab) k with
+                   | Some t_addr =>
+                     match wts !! (N.of_nat t_addr) with
+                     | Some t => <[ (N.of_nat t_addr) := table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init) ]> wts
+                     | None => wts
+                     end
+                   | None => wts
+                   end
+                 else wts
+               end
+                 ) m.(mod_elem) wts.
+
+(* The newly allocated resources due to instantiation. *)
+Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
+  ([∗ list] f; addr ∈ mfuncs; inst_f,
+   (* Allocated wasm resources *)
+     N.of_nat addr ↦[wf] (FC_func_native
+                             inst
+                             (nth match f.(modfunc_type) with
+                                 | Mk_typeidx k => k
+                                 end (inst.(inst_types)) (Tf [] []))
+                             f.(modfunc_locals)
+                             f.(modfunc_body))
+  )%I.
+
+Definition module_inst_resources_tab (tabs: list tableinst) (inst_t: list tableaddr) : iProp Σ :=
+  ([∗ list] i ↦ tab; addr ∈ tabs; inst_t,
+    N.of_nat addr ↦[wtblock] tab
+  )%I.
+
+Definition module_inst_resources_mem (mmems: list memory_type) (m_inits: gmap (nat * nat) byte) (inst_m: list memaddr) : iProp Σ := 
+  ([∗ list] i ↦ mem; addr ∈ mmems; inst_m,
+    N.of_nat addr ↦[wmblock] (match mem with
+                                 | {| lim_min:= min; lim_max := omax |} =>
+                                   Build_memory
+                                     {| ml_init := #00%byte; ml_data :=
+                                                               imap (fun j _ => match (m_inits !! (i,j)) with
+                                                                             | Some b => b
+                                                                             | None => #00%byte
+                                                                             end)
+                                                                               (repeat #00%byte (N.to_nat min)) |}
+                                     (omax)
+                                  end)
+  ).
+
+Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
+  ([∗ list] i↦g; addr ∈ mglobs; inst_g,
+    match nth_error g_inits i with
+    | Some v => N.of_nat addr ↦[wg] (Build_global
+                                      (g.(modglob_type).(tg_mut))
+                                      v (* kinda unfortuante that this is O(n^2) *)
+                                         (* UPD: nvm, now all the initialisers are O(n^2) at least *)
+                                   )
+    | None => False
+    end
+  ).
+
+
+(* The collection of the four types of newly allocated resources *)
+Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: list tableinst) m_inits (g_inits: list value) : iProp Σ :=
+  (module_inst_resources_func m.(mod_funcs) inst (drop (get_import_func_count m) inst.(inst_funcs)) ∗
+  module_inst_resources_tab tab_inits (drop (get_import_table_count m) inst.(inst_tab)) ∗
+  module_inst_resources_mem m.(mod_mems) m_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
+  module_inst_resources_glob m.(mod_globals) g_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
+
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
+  ∃ (inst: instance) (g_inits: list value) tab_inits m_inits wts',
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
-  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ (* locations in the wasm store and type-checks *)
-  ∃ (inst: instance) (g_inits: list value) t_inits m_inits,
+  import_resources_wasm_typecheck v_imps t_imps wfs wts' wms wgs ∗ (* locations in the wasm store and type-checks *)
     ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)
   let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
@@ -1321,8 +1182,10 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
     prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
     check_start m inst idfstart ⌝ ∗
-  ⌜ module_init_values m inst t_inits m_inits g_inits ⌝ ∗
-    module_inst_resources_wasm m inst t_inits m_inits g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    ⌜ tab_inits = module_inst_build_tables m inst ⌝ ∗
+    ⌜ wts' = module_import_init_tabs m inst wts ⌝ ∗
+ (*   ⌜ module_import_init_update wts wms wgs t_inits m_inits g_inits ⌝ ∗ *)     
+    module_inst_resources_wasm m inst tab_inits m_inits g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
 
 Definition module_restrictions (m: module) : Prop :=
@@ -1498,9 +1361,6 @@ Proof.
       simpl in Hmodglob.
       destruct (g_inits !! i) as [gi | ] eqn: Hgii; [ by apply lookup_lt_Some in Hgii; lias | by auto ].
   }
-(*
-  apply BI_const_assert_const1_i32 in Hmodelem.
-  apply BI_const_assert_const1_i32 in Hmoddata.*)
 
   destruct (alloc_funcs host_function ws (mod_funcs m) inst_res) eqn:Hallocfunc.
   destruct (alloc_tabs host_function s0 (map modtab_type (mod_tables m))) eqn:Halloctab.
