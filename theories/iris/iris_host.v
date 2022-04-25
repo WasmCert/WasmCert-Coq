@@ -1114,7 +1114,87 @@ Definition module_import_init_tabs (m: module) (inst: instance) (wts: gmap N tab
                    end
                  else wts
                end
-                 ) m.(mod_elem) wts.
+            ) m.(mod_elem) wts.
+
+Print Build_memory.
+
+Print Build_memory_list.
+
+(* A similar set of predicate but for memories instead. *)
+Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
+  fmap (fun '{| lim_min := min; lim_max := omax |} =>
+          (Build_memory
+             (Build_memory_list
+               #00%byte
+               (repeat #00%byte (ssrnat.nat_of_bin min))
+               )
+             (omax))) mmemtypes.
+
+Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) : memory :=
+  Build_memory
+    (Build_memory_list
+       mem.(mem_data).(ml_init)
+      ((take offset mem.(mem_data).(ml_data)) ++ bs ++ (drop (offset + length bs) mem.(mem_data).(ml_data))))
+    mem.(mem_max_opt).
+
+
+
+Definition module_inst_build_mems (m : module) (inst: instance) : list memory :=
+  fold_left (fun mems '{| moddata_data := md; moddata_offset := moff; moddata_init := md_init |} =>
+               let imc := get_import_mem_count m in 
+               match md with
+               | Mk_memidx k =>
+                 if k <? imc then mems else
+                   (* These are guaranteed to succeed due to validation. *)
+                   match nth_error mems (k-imc) with
+                   | Some mem => <[ (k-imc) := mem_init_replace_single mem (assert_const1_i32_to_nat moff) (fmap compcert_byte_of_byte md_init) ]> mems
+                   | None => mems
+                   end
+               end
+                 ) m.(mod_data) (module_inst_mem_base m.(mod_mems)).
+
+Definition module_import_init_mems (m: module) (inst: instance) (wms: gmap N memory) : gmap N memory :=
+  fold_left (fun wms '{| moddata_data := md; moddata_offset := moff; moddata_init := md_init |} =>
+               let imc := get_import_mem_count m in 
+               match md with
+               | Mk_memidx k =>
+                 if k <? imc then
+                   match nth_error inst.(inst_memory) k with
+                   | Some m_addr =>
+                     match wms !! (N.of_nat m_addr) with
+                     | Some mem => <[ (N.of_nat m_addr) := mem_init_replace_single mem (assert_const1_i32_to_nat moff) (fmap compcert_byte_of_byte md_init) ]> wms
+                     | None => wms
+                     end
+                   | None => wms
+                   end
+                 else wms
+               end
+            ) m.(mod_data) wms.
+
+Print module_glob.
+
+Print global_type.
+
+Print Build_global.
+
+
+(* Again the allocated resources but for globals. Note that the initial value
+   here is purely dummy. *)
+Definition module_inst_global_base (mglobs: list module_glob) : list global :=
+  fmap (fun '{| modglob_type := {| tg_mut := tgm; tg_t := tgvt |} ; modglob_init := mgi |} => (Build_global tgm (bitzero tgvt))) mglobs.
+
+Definition global_init_replace_single (g: global) (v: value) : global :=
+  Build_global g.(g_mut) v.
+
+Fixpoint module_inst_global_init (gs: list global) (g_inits: list value) : list global :=
+  match gs with
+  | [::] => [::]
+  | g :: gs' =>
+    match g_inits with
+    | [::] => g :: gs'
+    | gi :: g_inits' => global_init_replace_single g gi :: module_inst_global_init gs' g_inits'
+    end
+  end.
 
 (* The newly allocated resources due to instantiation. *)
 Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
@@ -1134,43 +1214,25 @@ Definition module_inst_resources_tab (tabs: list tableinst) (inst_t: list tablea
     N.of_nat addr ↦[wtblock] tab
   )%I.
 
-Definition module_inst_resources_mem (mmems: list memory_type) (m_inits: gmap (nat * nat) byte) (inst_m: list memaddr) : iProp Σ := 
-  ([∗ list] i ↦ mem; addr ∈ mmems; inst_m,
-    N.of_nat addr ↦[wmblock] (match mem with
-                                 | {| lim_min:= min; lim_max := omax |} =>
-                                   Build_memory
-                                     {| ml_init := #00%byte; ml_data :=
-                                                               imap (fun j _ => match (m_inits !! (i,j)) with
-                                                                             | Some b => b
-                                                                             | None => #00%byte
-                                                                             end)
-                                                                               (repeat #00%byte (N.to_nat min)) |}
-                                     (omax)
-                                  end)
+Definition module_inst_resources_mem (mems: list memory) (inst_m: list memaddr) : iProp Σ := 
+  ([∗ list] i ↦ mem; addr ∈ mems; inst_m,
+    N.of_nat addr ↦[wmblock] mem
   ).
 
-Definition module_inst_resources_glob (mglobs: list module_glob) (g_inits: list value) (inst_g: list globaladdr) : iProp Σ :=
-  ([∗ list] i↦g; addr ∈ mglobs; inst_g,
-    match nth_error g_inits i with
-    | Some v => N.of_nat addr ↦[wg] (Build_global
-                                      (g.(modglob_type).(tg_mut))
-                                      v (* kinda unfortuante that this is O(n^2) *)
-                                         (* UPD: nvm, now all the initialisers are O(n^2) at least *)
-                                   )
-    | None => False
-    end
+Definition module_inst_resources_glob (globs: list global) (inst_g: list globaladdr) : iProp Σ :=
+  ([∗ list] i↦g; addr ∈ globs; inst_g,
+    N.of_nat addr ↦[wg] g
   ).
-
 
 (* The collection of the four types of newly allocated resources *)
-Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: list tableinst) m_inits (g_inits: list value) : iProp Σ :=
+Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: list tableinst) (mem_inits: list memory) (glob_inits: list global) : iProp Σ :=
   (module_inst_resources_func m.(mod_funcs) inst (drop (get_import_func_count m) inst.(inst_funcs)) ∗
   module_inst_resources_tab tab_inits (drop (get_import_table_count m) inst.(inst_tab)) ∗
-  module_inst_resources_mem m.(mod_mems) m_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
-  module_inst_resources_glob m.(mod_globals) g_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
+  module_inst_resources_mem mem_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
+  module_inst_resources_glob glob_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
 
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
-  ∃ (inst: instance) (g_inits: list value) tab_inits m_inits wts',
+  ∃ (inst: instance) (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
   import_resources_wasm_typecheck v_imps t_imps wfs wts' wms wgs ∗ (* locations in the wasm store and type-checks *)
@@ -1182,10 +1244,14 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
     prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
     check_start m inst idfstart ⌝ ∗
+   (* The relevant initial values of allocated resources, as well as the newly
+      initialised segments in the imported tables and memories *)
     ⌜ tab_inits = module_inst_build_tables m inst ⌝ ∗
     ⌜ wts' = module_import_init_tabs m inst wts ⌝ ∗
- (*   ⌜ module_import_init_update wts wms wgs t_inits m_inits g_inits ⌝ ∗ *)     
-    module_inst_resources_wasm m inst tab_inits m_inits g_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    ⌜ mem_inits = module_inst_build_mems m inst ⌝ ∗
+    ⌜ wms' = module_import_init_mems m inst wms ⌝ ∗
+    ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
+    module_inst_resources_wasm m inst tab_inits mem_inits glob_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
 
 Definition module_restrictions (m: module) : Prop :=
@@ -1650,8 +1716,6 @@ Proof.
     iMod "Hmask".
     iModIntro.
 Admitted.
-
-Print instantiation.instantiate.
 
 
 Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
