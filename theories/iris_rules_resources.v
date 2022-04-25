@@ -285,7 +285,7 @@ Proof.
     only_one_reduction H. iFrame.
 Qed.
 
-Lemma wp_set_global (s : stuckness) (E : coPset) (v w: value) (inst: frame) (n: nat) (ϕ: iris.val -> iProp Σ) (g: global) (k: nat):
+Lemma wp_set_global (s : stuckness) (E : coPset) (v: value) (inst: frame) (n: nat) (ϕ: iris.val -> iProp Σ) (g: global) (k: nat):
   (f_inst inst).(inst_globs) !! n = Some k ->
   ▷ ϕ (immV []) -∗
   ↪[frame] inst -∗
