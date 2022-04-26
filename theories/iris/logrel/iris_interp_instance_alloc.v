@@ -5,6 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_rules iris_fundamental iris_wp.
+
 Require Export datatypes host operations properties opsem.
 
 Set Implicit Arguments.
@@ -1117,36 +1118,7 @@ Section InterpInstance.
     module_inst_resources_glob_invs g_inits
      (drop (get_import_global_count m) (inst_globs inst)) gts)%I.
 
-  (* Lemma module_inst_build_tables_length m i : *)
-  (*   length (module_inst_build_tables m i) = length (mod_tables m). *)
-  (* Proof. *)
-  (*   destruct m;simpl. *)
-  (*   generalize dependent mod_tables. *)
-  (*   induction mod_elem using rev_ind;intros mod_tables. *)
-  (*   { cbn. rewrite fmap_length. auto. } *)
-  (*   { rewrite /module_inst_build_tables /=. simpl. cbn. } *)
-
-
-  (*   unfold module_inst_build_tables. *)
-  (*   remember (mod_tables m). *)
-  (*   rewrite -fold_left_rev_right. *)
-  (*   destruct l;auto. *)
-  (*   remember (mod_elem m). *)
-  (*   induction l0 using rev_ind. *)
-  (*   by simpl. *)
-  (*   rewrite rev_unit. simpl foldr. *)
-  (*   destruct x,modelem_table,(n <? get_import_table_count m). *)
-
-    
-  (*   destruct m;simpl. *)
-  (*   destruct mod_tables ;auto. *)
-  (*   induction mod_elem using rev_ind. done. *)
-  (*   unfold module_inst_build_tables. rewrite -fold_left_rev_right. rewrite rev_unit. simpl. *)
-  (*   destruct x,modelem_table;simpl. *)
-    
-
-  (*   done. simpl. rewrite fmap_app /=. rewrite rev_unit. intros Hcontr. *)
-    
+  
     
   Lemma interp_instance_alloc E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
     let C := {|
