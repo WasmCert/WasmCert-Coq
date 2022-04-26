@@ -1341,6 +1341,26 @@ Lemma map_fmap {T1 T2: Type} (f: T1 -> T2) (l: list T1):
 Proof.
   trivial.
 Qed.
+
+Lemma ext_tabs_lookup_exist (modexps: list module_export_desc) n tn:
+  (ext_tabs modexps) !! n = Some tn ->
+  exists k, modexps !! k = Some (MED_table tn).
+Proof.
+  move: n tn.
+  induction modexps; move => n tn Hexttablookup => //=.
+  simpl in Hexttablookup.
+  destruct a => //. 
+  2: { simpl in *.
+       destruct n; simpl in *; first by inversion Hexttablookup; subst; exists 0.
+       apply IHmodexps in Hexttablookup.
+       destruct Hexttablookup as [k ?].
+       by exists (S k).
+  }
+  all: simpl in *. 
+  all: apply IHmodexps in Hexttablookup.
+  all: destruct Hexttablookup as [k ?].
+  all: by exists (S k).
+Qed.
   
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
@@ -1654,16 +1674,30 @@ Proof.
             by lias.
           }
           rewrite Coqlib.list_map_nth.
+          specialize (ext_tabs_lookup_exist _ _ _ Hexttablookup) as Hexplookup.
+          destruct Hexplookup as [k Hexplookup].
+          rewrite list_lookup_fmap in Hexplookup.
+          destruct (v_imps !! k) as [mexp | ] eqn: Hvimpslookup => //.
+          simpl in Hexplookup.
+          inversion Hexplookup; subst; clear Hexplookup.
+          destruct mexp => /=.
+          simpl in H8; subst.
+          Search v_imps.
+          destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
+          specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
+          simpl in *.
+          destruct Himpwasm as [tab [tt [Htablookup [Hwtslookup2 [-> Htabtype]]]]].
           rewrite - nth_error_lookup in Hexttablookup.
           rewrite Hexttablookup.
           simpl.
-          Search wts.
-          Search v_imps.
-          admit.
-          (*
-          rewrite Coqlib.list_map_nth.
-          rewrite nth_error_map.
-          rewrite Hexttablookup.*)
+          rewrite nth_error_app1; last by apply lookup_lt_Some in Htablookup.
+          rewrite nth_error_lookup.
+          rewrite Htablookup.
+          rewrite Hwtslookup2 in Hwtslookup.
+          inversion Hwtslookup; subst; clear Hwtslookup.
+          replace (N_of_int t) with (N_of_nat (nat_of_int t)); first by apply/N.leb_spec0; lias.
+          unfold nat_of_int, N_of_int.
+          by rewrite Z_nat_N.
         }
         {
           (* Initialiser is for an allocated table *)
