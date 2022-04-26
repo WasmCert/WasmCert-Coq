@@ -1422,6 +1422,11 @@ Proof.
     rewrite insert_length//. }
 Qed.
 
+Ltac forward H Hname :=
+  lazymatch type of H with
+  | ?Hx -> _ => let Hp := fresh "Hp" in
+              assert Hx as Hp; last specialize (H Hp) as Hname end.
+
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
@@ -1774,8 +1779,44 @@ Proof.
             - move/ssrnat.leP in Hlen1.
               rewrite -> Nat.le_succ_l in Hlen1.
               by lias.
-            - Search v_imps.
-              admit.
+            - clear - Hvtlen Himpwasm.
+              move: Hvtlen Himpwasm.
+              move: t_imps.
+              elim: v_imps; destruct t_imps => //.
+              move => Hvtlen Himpwasm.
+              simpl in *.
+              inversion Hvtlen; clear Hvtlen.
+              specialize (H _ H1).
+              forward H Hlen.
+              {
+                move => k v t Hlk Htk.
+                specialize (Himpwasm (S k) v t).
+                simpl in Himpwasm.
+                by specialize (Himpwasm Hlk Htk).
+              }
+              unfold oapp.
+              specialize (Himpwasm 0 a e).
+              simpl in Himpwasm.
+              do 2 forward Himpwasm Himpwasm => //.
+              destruct a.
+              simpl in *.
+              destruct modexp_desc.
+              * destruct f.
+                destruct Himpwasm as [? [? [? ->]]].
+                apply H.
+                by apply Hp.
+              * destruct t.
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
+                simpl.
+                by f_equal.
+              * destruct m.
+                destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]].
+                apply H.
+                by apply Hp.
+              * destruct g.
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
+                apply H.
+                by apply Hp.
           }
           rewrite nth_error_lookup gen_index_lookup map_length => //=.
           rewrite nth_error_app2; last by lias.
