@@ -1057,12 +1057,6 @@ Definition module_glob_init_values m g_inits :=
   (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) /\
   module_glob_init_value m.(mod_globals) = Some g_inits.
 
-(* Initialisers *)
-Definition module_init_values (m: module) (inst: instance) t_inits m_inits g_inits : Prop :=
-  t_inits = module_tab_init_values m inst m.(mod_elem) /\
-  m_inits = module_mem_init_values m m.(mod_data) /\
-  module_glob_init_values m g_inits.
-
 (* The starting point for newly allocated tables. *)
 Definition module_inst_table_base (mtabs: list module_table) : list tableinst :=
   fmap (fun mt => match mt.(modtab_type).(tt_limits) with
@@ -1115,10 +1109,6 @@ Definition module_import_init_tabs (m: module) (inst: instance) (wts: gmap N tab
                  else wts
                end
             ) m.(mod_elem) wts.
-
-Print Build_memory.
-
-Print Build_memory_list.
 
 (* A similar set of predicate but for memories instead. *)
 Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
@@ -1250,6 +1240,7 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
     ⌜ wts' = module_import_init_tabs m inst wts ⌝ ∗
     ⌜ mem_inits = module_inst_build_mems m inst ⌝ ∗
     ⌜ wms' = module_import_init_mems m inst wms ⌝ ∗
+    ⌜ module_glob_init_values m g_inits ⌝ ∗
     ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
     module_inst_resources_wasm m inst tab_inits mem_inits glob_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
     module_export_resources_host v_imps hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
@@ -1321,14 +1312,6 @@ Proof.
         by apply IH.
 Qed.
 
-(*
-Lemma modelem_bound_check_aux:
-  modelem m !! i = Some m0 ->
-  e_inits !! i = Some t ->
-  module_typing m t_imps t_exps ->
-  
-*)
-
 
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
@@ -1340,7 +1323,7 @@ Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_i
 Proof.
   
   move => Hmodstart Hmodtype Hmodrestr.
-  iIntros "(Hmod & Himphost & Himpwasm & Hexphost)".
+  iIntros "(Hmod & Himphost & Himpwasm & Hexphost & Hlenexp & %Hebound & %Hdbound)".
   
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
   
@@ -1359,8 +1342,6 @@ Proof.
   (* Imported resources in Wasm and typing information *)
   iDestruct (import_resources_wasm_lookup with "Hwf Hwt Hwm Hwg Htsize Htlimit Hmsize Hmlimit Himpwasm") as "%Himpwasm".
   destruct Himpwasm as [Hvtlen Himpwasm].
-
-  iDestruct "Hexphost" as "(Hexphost & %Hlenexp)".
 
   remember {| inst_types := m.(mod_types);
                   inst_funcs := ext_func_addrs (fmap modexp_desc v_imps) ++ (gen_index (length ws.(s_funcs)) (length m.(mod_funcs)));
@@ -1585,11 +1566,8 @@ Proof.
         rewrite Hmdata.
         by constructor.
     - (* table initializers bound check *)
-      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)(*
-      unfold check_bounds_elem.
-      Search e_inits.
-      Print module_typing.
-      Print module_elem_typing.
+      (*
+      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)
       (* First we note that s_tables of s3 only differs from the original list of tables by the result of alloc_tab. *)
       apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
       apply alloc_mem_gen_index in Hallocmem as [? [? [? [? ?]]]].
@@ -1597,6 +1575,8 @@ Proof.
       apply alloc_func_gen_index in Hallocfunc as [? [? [? [? ?]]]].
       destruct ws, s0, s1, s2, s3.
       simpl in *; subst; simpl in *.
+
+      unfold module_elem_bound_check_gmap in Hebound.
 
       (* Prove all2 by proving arbitrary lookups *)
       apply all2_Forall2.
@@ -1625,14 +1605,25 @@ Proof.
         rewrite app_length in Hlen1.
         rewrite map_length in Hlen1.
         simpl in *.
-        Search mod_tables.
+
+        rewrite -> Forall_lookup in Hebound.
+        specialize (Hebound _ _ Hmelem).
+        simpl in Hebound.
+
+        destruct (ext_tabs (modexp_desc <$> v_imps) !! n) as [tabid | ] eqn:Hexttablookup => //.
+        destruct tabid as [tabn].
+
+        destruct (wts !! N.of_nat tabn) as [ti | ] eqn:Hwtslookup => //.
+
+        unfold ext_tab_addrs.
+        rewrite list_fmap_compose.
+        Search compose.
 
         (* There are too many premises in the context -- clear the irrelevant ones. *)
         clear H0 H H5 H4 H15 H14 H1 H2 H3 H6.
         clear Hginitstype Hdinitslen Hginitslen Hlenexp.
         clear Himphost Hmod Hmoddata Hmodglob.
 
-        Search n.
 
         (* We now need to prove that we can lookup the nth thing in this list. *)
         destruct (nth_error _ n) eqn:Htabn => /=; last first.
@@ -1674,11 +1665,9 @@ Proof.
   assert (insert_exports vis hs_exps v_exps <> None) as Hinsertvis.
   {
     rewrite Heqv_exps.
-    clear - Hlenexp.
     destruct m.
     simpl in *.
-    move: Hlenexp.
-    move: mod_exports. (*
+    (*
     elim => /=; destruct mod_exports => //=.
     move => hs_exp hs_exps IH Hlenexp.
     inversion Hlenexp; clear Hlenexp.
