@@ -1361,7 +1361,33 @@ Proof.
   all: destruct Hexttablookup as [k ?].
   all: by exists (S k).
 Qed.
+
+Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
+  P acc ->
+  (forall (x:A) (act: B), P x -> P (f x act)) ->
+  P (fold_left f l acc).
+Proof.
+  rewrite -fold_left_rev_right.
+  revert acc.
+  induction l;simpl;auto.
+  intros acc Ha Hnext.
+  rewrite foldr_snoc /=. apply IHl =>//.
+  apply Hnext=>//.
+Qed.    
   
+Lemma module_inst_build_tables_length m i :
+  length (module_inst_build_tables m i) = length (mod_tables m).
+Proof.
+  unfold module_inst_build_tables.
+  apply fold_left_preserve.
+  { apply fmap_length. }
+  { intros x me Heq.
+    destruct me,modelem_table.
+    destruct (n <? get_import_table_count m);auto.
+    destruct (nth_error x (n - get_import_table_count m));auto.
+    rewrite insert_length//. }
+Qed.
+
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
