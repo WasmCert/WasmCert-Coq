@@ -3717,7 +3717,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       done.
     - iIntros (v) "Hinst". (* "(Hmod & Himphost & Himpwasm & Hinst)". *)
       unfold instantiation_resources_post.
-      iDestruct "Hinst" as (inst g_inits t_inits m_inits wts) "(Hmod & Himphost & Himpwasm & %Hinst & -> & -> & Hexpwasm & Hexphost)".
+      iDestruct "Hinst" as (inst g_inits t_inits m_inits gms wts wms) "(Hmod & Himphost & Himpwasm & %Hinst & -> & -> & -> & -> & -> & Hexpwasm & Hexphost)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -4614,7 +4614,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iPureIntro ; unfold module_data_bound_check_gmap ; simpl ; done.
     - iIntros (idnstart) "Hf Hres".
       unfold instantiation_resources_post.
-      iDestruct "Hres" as (inst g_inits t_inits m_inits wts) "(Hmod1 & Himphost & Himpwasm & %Hinst & -> & -> & Hexpwasm & Hexphost)".
+      iDestruct "Hres" as (inst g_inits t_inits m_inits gms wts wms) "(Hmod1 & Himphost & Himpwasm & %Hinst & -> & -> & -> & -> & -> & Hexpwasm & Hexphost)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob & Hstart).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -4629,10 +4629,12 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iDestruct "Hexpwf" as "[Hwfsq Hexpwf]".
       destruct inst_funcs ; last by iExFalso ; iExact "Hexpwf".
       destruct inst_memory ; last by iExFalso ; iExact "Hexpwm".
-      destruct inst_globs as [| g inst_globs] ; first by iExFalso ; iExact "Hexpwg". 
-      iDestruct "Hexpwg" as "[Hwg Hexpwg]".
-      destruct g_inits eqn:Hg ; try by iExFalso ; iExact "Hwg".
-      destruct inst_globs ; last by iExFalso ; iExact "Hexpwg".
+
+      destruct inst_globs as [| g inst_globs] ; 
+        first by destruct g_inits ; iExFalso ; iExact "Hexpwg".
+      destruct inst_globs ;
+        last by destruct g_inits ; iExFalso ; iDestruct "Hexpwg" as "[_ Habs]" ;
+        iExact "Habs".
 
       (* For inst_tab, we cannot rely on the same technique as for inst_funcs, 
          inst_memory and inst_globs, because we are importing one table and not 
@@ -4733,8 +4735,12 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iDestruct "Htab" as "[Htab _]".
       simpl.
       iDestruct "Htab" as "[Ht0 _]".
-      
-      
+
+      iAssert (∃ v, N.of_nat g ↦[wg] {| g_mut := MUT_mut ; g_val := v |})%I
+        with "[Hexpwg]" as "Hwg".
+      { destruct g_inits ; iDestruct "Hexpwg" as "[?_]" ; by iExists _. }
+      iDestruct "Hwg" as (vg) "Hwg".
+        
       unfold check_start in Hstart.
       simpl in Hstart.
       apply b2p in Hstart.
@@ -4833,7 +4839,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
         iSplitL "Hf Hwg". 
         instantiate (1:= λ v1, (( ⌜ v1 = immV [] ⌝ ∗
                                               ⌜ (k <> -1)%Z ⌝ ∗
-                                              N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := v |} ∨
+                                              N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := vg |} ∨
                                     ⌜ exists sh, v1 = retV sh ⌝ ∗
                                                       N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) ∗
                                                                                                                              ↪[frame] _)%I ).         
