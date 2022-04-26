@@ -1069,8 +1069,30 @@ Definition module_inst_table_base (mtabs: list module_table) : list tableinst :=
 (* Given a tableinst, an offset and a list of funcelems, replace the corresponding segment with the initialisers. *)
 Definition table_init_replace_single (t: tableinst) (offset: nat) (fns: list funcelem) : tableinst :=
   Build_tableinst
-    ((take offset t.(table_data)) ++ fns ++ (drop (offset + length fns) t.(table_data)))
+    (take (length t.(table_data)) ((take offset t.(table_data)) ++ fns ++ (drop (offset + length fns) t.(table_data))))
     t.(table_max_opt).
+
+Lemma table_init_replace_single_preserve_len t offset fns t':
+  table_init_replace_single t offset fns = t' ->
+  length t.(table_data) = length t'.(table_data).
+Proof.
+  move => Hreplace.
+  unfold table_init_replace_single in Hreplace.
+  subst => /=.
+  rewrite take_length.
+  repeat rewrite app_length.
+  rewrite take_length drop_length.
+  by lias.
+Qed.
+
+(*
+Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A):
+  P acc ->
+  (forall (x:A) (act: B), P x -> P (f x act)) ->
+  P (fold_left f l acc).
+Proof.
+Admitted.
+*)
 
 (* Each of these is guaranteed to be a some due to validation. *)
 Definition lookup_funcaddr (inst: instance) (me_init: list funcidx) : list funcelem :=
@@ -1238,8 +1260,10 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
       initialised segments in the imported tables and memories *)
     ⌜ tab_inits = module_inst_build_tables m inst ⌝ ∗
     ⌜ wts' = module_import_init_tabs m inst wts ⌝ ∗
+    ⌜ module_elem_bound_check_gmap wts (fmap modexp_desc v_imps) m ⌝ ∗
     ⌜ mem_inits = module_inst_build_mems m inst ⌝ ∗
     ⌜ wms' = module_import_init_mems m inst wms ⌝ ∗
+    ⌜ module_data_bound_check_gmap wms (fmap modexp_desc v_imps) m ⌝ ∗
     ⌜ module_glob_init_values m g_inits ⌝ ∗
     ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
     module_inst_resources_wasm m inst tab_inits mem_inits glob_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
