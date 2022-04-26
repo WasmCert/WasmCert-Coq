@@ -1225,7 +1225,7 @@ Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts w
   ∃ (inst: instance) (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
-  import_resources_wasm_typecheck v_imps t_imps wfs wts' wms wgs ∗ (* locations in the wasm store and type-checks *)
+  import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks *)
     ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)
   let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
@@ -1312,7 +1312,12 @@ Proof.
         by apply IH.
 Qed.
 
-
+Lemma map_fmap {T1 T2: Type} (f: T1 -> T2) (l: list T1):
+  map f l = fmap f l.
+Proof.
+  trivial.
+Qed.
+  
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
@@ -1566,7 +1571,7 @@ Proof.
         rewrite Hmdata.
         by constructor.
     - (* table initializers bound check *)
-      (*
+
       (* This is a complicated/messy proof; there are a lot of playing around the indices. *)
       (* First we note that s_tables of s3 only differs from the original list of tables by the result of alloc_tab. *)
       apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
@@ -1611,14 +1616,36 @@ Proof.
         simpl in Hebound.
 
         destruct (ext_tabs (modexp_desc <$> v_imps) !! n) as [tabid | ] eqn:Hexttablookup => //.
-        destruct tabid as [tabn].
+        {
+          (* Initialiser is for an imported table *)
+          destruct tabid as [tabn].
 
-        destruct (wts !! N.of_nat tabn) as [ti | ] eqn:Hwtslookup => //.
+          destruct (wts !! N.of_nat tabn) as [ti | ] eqn:Hwtslookup => //.
 
-        unfold ext_tab_addrs.
-        rewrite list_fmap_compose.
-        Search compose.
-
+          unfold ext_tab_addrs.
+          unfold compose.
+          rewrite nth_error_app1; last first.
+          { rewrite map_length.
+            apply lookup_lt_Some in Hexttablookup.
+            by lias.
+          }
+          rewrite Coqlib.list_map_nth.
+          rewrite - nth_error_lookup in Hexttablookup.
+          rewrite Hexttablookup.
+          simpl.
+          Search wts.
+          Search v_imps.
+          admit.
+          (*
+          rewrite Coqlib.list_map_nth.
+          rewrite nth_error_map.
+          rewrite Hexttablookup.*)
+        }
+        {
+          (* Initialiser is for an allocated table *)
+          admit.
+        }
+        (*
         (* There are too many premises in the context -- clear the irrelevant ones. *)
         clear H0 H H5 H4 H15 H14 H1 H2 H3 H6.
         clear Hginitstype Hdinitslen Hginitslen Hlenexp.
@@ -1641,15 +1668,16 @@ Proof.
         (* And also that we can lookup t0 in s_tables2. This has to come from some combination of module typing and the well-typedness of the new store. *)
         (* However, we don't have the knowledge that the old store is well-typed.. *)
         rewrite nth_error_lookup in Htabn.
-        admit.
+        admit.*)
       + apply lookup_ge_None in Hmelem.
         rewrite Heinitslen in Hmelem.
         apply lookup_ge_None in Hmelem.
         rewrite Hmelem.
-        by constructor.*)
+        by constructor.
       (* 20220419: I think there's a genuine case where this will not succeed.
          Check and add this to the pre, if necessary. *)
-      admit.
+      (* 20220426: This is resolved: the bound check condition is added, and it's highly likely that it should work
+         looking at the current proof progress. *)
     - (* memory initializers bound check *)
       admit.
     - (* start function *)
