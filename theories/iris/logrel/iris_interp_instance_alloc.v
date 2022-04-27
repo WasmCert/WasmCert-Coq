@@ -1121,6 +1121,92 @@ Section InterpInstance.
     apply Hnext=>//. exists 0. auto.
     intros. apply Hnext=>//. destruct H0 as [? ?]. exists (S x0). auto.
   Qed.
+
+  Lemma fold_left_preserve_filter {A B C : Type} (F : B -> Prop) (H : ∀ x, Decision (F x))
+        (P: A -> C -> Prop) (f: A -> B -> A) (f' : C -> B -> C) (l: list B) (acc: A) (acc': C) :
+    P acc acc' ->
+    (forall (x:A) (y:C) (act:B), F act -> P x y -> P (f x act) (f' y act)) ->
+    (forall (x:A) (y:C) (act:B), ¬ F act -> P x y -> P (f x act) y) ->
+    P (fold_left f l acc) (fold_left f' (filter F l) acc').
+  Proof.
+    repeat rewrite -fold_left_rev_right.
+    revert acc acc'.
+    induction l;simpl;auto.
+    intros acc acc' Ha Hnext Hskip.
+    destruct (decide (F a)).
+    { rewrite filter_cons_True// /=.
+      rewrite !foldr_snoc /=.
+      apply IHl =>//. apply Hnext=>//. }
+    { rewrite filter_cons_False// /=.
+      rewrite foldr_snoc /=.
+      apply IHl =>//. apply Hskip=>//. }
+  Qed.
+
+  Lemma fold_left_preserve_filter_index {A B C : Type} (F : B -> Prop) (H : ∀ x, Decision (F x))
+        (P: A -> C -> Prop) (f: A -> B -> A) (f' : C -> B -> C) (l: list B) (acc: A) (acc': C) :
+    P acc acc' ->
+    (forall (x:A) (y:C) (act:B), F act -> (∃ i, l !! i = Some act) -> P x y -> P (f x act) (f' y act)) ->
+    (forall (x:A) (y:C) (act:B), ¬ F act -> (∃ i, l !! i = Some act) -> P x y -> P (f x act) y) ->
+    P (fold_left f l acc) (fold_left f' (filter F l) acc').
+  Proof.
+    repeat rewrite -fold_left_rev_right.
+    revert acc acc'.
+    induction l;simpl;auto.
+    intros acc acc' Ha Hnext Hskip.
+    destruct (decide (F a)).
+    { rewrite filter_cons_True// /=.
+      rewrite !foldr_snoc /=.
+      apply IHl =>//. apply Hnext=>//. exists 0;auto.
+      intros. apply Hnext;auto. destruct H1 as [? ?]. exists (S x0);auto.
+      intros. apply Hskip;auto. destruct H1 as [? ?]. exists (S x0);auto. }
+    { rewrite filter_cons_False// /=.
+      rewrite foldr_snoc /=.
+      apply IHl =>//. apply Hskip=>//. exists 0;auto.
+      intros. apply Hnext;auto. destruct H1 as [? ?]. exists (S x0);auto.
+      intros. apply Hskip;auto. destruct H1 as [? ?]. exists (S x0);auto. }
+  Qed.
+
+  Lemma fold_left_preserve_filter_twice {A B C : Type} (F : B -> Prop) (H : ∀ x, Decision (F x))
+        (P: A -> C -> Prop) (f: A -> B -> A) (f' : C -> B -> C) (l: list B) (acc: A) (acc': C) :
+    (P acc acc') ->
+    (forall (x:A) (y:C) (act:B), F act -> (P x y) -> P (f x act) (f' y act)) ->
+    (forall (x:A) (y:C) (act:B), ¬ F act -> (P x y) -> P (f x act) y) ->
+    P (fold_left f l acc) (fold_left f' (filter F l) acc').
+  Proof.
+    repeat rewrite -fold_left_rev_right.
+    revert acc acc'.
+    induction l;simpl;auto.
+    intros acc acc' Ha Hnext Hskip.
+    destruct (decide (F a)).
+    { rewrite filter_cons_True// /=.
+      rewrite !foldr_snoc /=.
+      eapply IHl =>//. eapply Hnext=>//. }
+    { rewrite filter_cons_False// /=.
+      rewrite foldr_snoc /=.
+      apply IHl =>//. apply Hskip => //. }
+  Qed.
+  
+  Lemma fold_left_preserve_filter_impl {A B C : Type} (F : B -> Prop) (H : ∀ x, Decision (F x))
+        (P: A -> Prop) (Q : C -> Prop) (f: A -> B -> A) (f' : C -> B -> C) (l: list B) (acc: A) (acc': C) :
+    (P acc -> Q acc') ->
+    (forall (x:A) (y:C) (act:B), F act -> (P x -> Q y) -> P (f x act) -> Q (f' y act)) ->
+    (forall (x:A) (y:C) (act:B), ¬ F act -> (P x -> Q y) ->P (f x act) -> Q y) ->
+    P (fold_left f l acc) -> Q (fold_left f' (filter F l) acc').
+  Proof.
+    repeat rewrite -fold_left_rev_right.
+    revert acc acc'.
+    induction l;simpl;auto.
+    intros acc acc' Ha Hnext Hskip HP.
+    destruct (decide (F a)).
+    { rewrite filter_cons_True// /=.
+      rewrite !foldr_snoc /=.
+      rewrite foldr_snoc in HP.
+      eapply IHl =>//. intros. eapply Hnext=>//. }
+    { rewrite filter_cons_False// /=.
+      rewrite foldr_snoc /= in HP.
+      apply IHl with (f acc a);auto.
+      eapply Hskip => //. }
+  Qed.
   
   Definition module_inst_resources_wasm_invs (m : module) (inst : instance) (gts : seq.seq global_type) t_inits m_inits g_inits :=
     (module_inst_resources_func_invs (mod_funcs m) inst
@@ -1132,6 +1218,197 @@ Section InterpInstance.
     module_inst_resources_glob_invs g_inits
     (drop (get_import_global_count m) (inst_globs inst)) gts)%I.
 
+  Global Instance modelem_filter_dec n : ∀ x : module_element,
+     Decision
+       ((λ me : module_element,
+           match modelem_table me with
+           | Mk_tableidx m => n = m
+           end) x).
+  Proof. intros x. destruct x,modelem_table. simpl. apply _. Qed.  
+  Definition module_element_filter_relevant_idx (e : seq.seq module_element) (n : nat) :=
+    filter (λ me, match (modelem_table me) with
+                  | Mk_tableidx m => n = m
+                  end) e.
+
+  (* using filters is an nice definition, but makes the proofs very bad because the types of the two fold_lefts do not match.... *)
+  Definition module_inst_build_table (m : module) (inst: instance) (n : nat) (mt : module_table) : tableinst :=
+  fold_left (fun t '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
+               let itc := get_import_table_count m in 
+               match mt with
+               | Mk_tableidx k =>
+                 if k <? itc then t else
+                   table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init)
+               end
+                 ) (module_element_filter_relevant_idx (mod_elem m) n) (module_inst_table_base_create mt).
+
+  Definition module_inst_build_table_map (m : module) (inst : instance) : seq.seq tableinst :=
+    mapi (λ j mt, module_inst_build_table m inst (j + get_import_table_count m) mt) (mod_tables m).
+
+  (* Lemma fold_left_preserve_filter_imap {B C : Type} (F : nat -> B -> Prop) (H : ∀ i x, Decision (F i x)) *)
+  (*       (P: (list C) -> (list C) -> Prop) (f: (list C) -> B -> (list C)) (f' : nat -> C -> B -> C) (l: list B) (acc: (list C)) (acc': list C) : *)
+  (*   (P acc acc') -> *)
+  (*   (forall (x:list C) (yy : list C) (y:C) (act:B) (i : nat), yy !! i = Some y -> F i act -> (P x yy) -> P (f x act) (<[i:=(f' i y act)]> yy)) -> *)
+  (*   (forall (x:list C) (yy : list C) (act:B) (i : nat), ¬ F i act -> (P x yy) -> P (f x act) yy) -> *)
+  (*   P (fold_left f l acc) (fold_left f' (filter F l) acc'). *)
+  (* Proof. *)
+  (*   repeat rewrite -fold_left_rev_right. *)
+  (*   revert acc acc'. *)
+  (*   induction l;simpl;auto. *)
+  (*   intros acc acc' Ha Hnext Hskip. *)
+  (*   destruct (decide (F a)). *)
+  (*   { rewrite filter_cons_True// /=. *)
+  (*     rewrite !foldr_snoc /=. *)
+  (*     eapply IHl =>//. eapply Hnext=>//. } *)
+  (*   { rewrite filter_cons_False// /=. *)
+  (*     rewrite foldr_snoc /=. *)
+  (*     apply IHl =>//. apply Hskip => //. } *)
+  (* Qed. *)
+  
+  Lemma module_inst_build_table_map_eq m inst :
+    module_inst_build_table_map m inst = module_inst_build_tables m inst.
+  Proof.
+    unfold module_inst_build_tables,
+      module_inst_build_table_map,
+      module_inst_build_table,
+      module_element_filter_relevant_idx.
+    Abort.
+    (* apply fold_left_preserve_filter_twice. *) (* does not work, mapi binding, need a preserve lemma tailored for mapi? *)
+    
+  Lemma module_inst_build_tables_lookup m i j x a :
+    module_inst_build_tables m i !! j = Some x ∧ (mod_tables m) !! j = Some a ->
+    x = module_inst_build_table m i (j + get_import_table_count m) a.
+  Proof.
+    unfold module_inst_build_tables, module_inst_build_table.
+    unfold module_element_filter_relevant_idx.
+    intros Hfold1.
+    eapply fold_left_preserve_filter_impl in Hfold1;eauto.
+    { intros [Hx Ha].
+      apply list_lookup_fmap_inv in Hx.
+      destruct Hx as [k [Heq Hlook]].
+      simplify_eq. auto. }
+    { intros tl t me. simpl.
+      destruct me,modelem_table;simpl.
+      intros Heq Htlcond [Hx Ha].
+      destruct (n <? get_import_table_count m) eqn:Hlt;auto.
+      destruct (nth_error tl (n - get_import_table_count m)) eqn:Hnth.
+      { (* problem: i do not know about the previous tl !! j assumption, so i cannot get Htlcond.. *) admit. }
+      admit.
+    }
+    Admitted.
+    
+
+
+     (* Lots of previous failed attempts, don't delete yet!
+    
+    remember (j + get_import_table_count m).
+    revert x j Heqn.
+    apply fold_left_preserve_filter_index.
+    { intros x j Heqn Hx Ha.
+      apply list_lookup_fmap_inv in Hx.
+      destruct Hx as [k [Heq Hlook]].
+      simplify_eq. auto. }
+    { intros tl t me.
+      destruct me,modelem_table. simpl.
+      intros Heq Hi Htl x j Heqn.
+      destruct (n0 <? get_import_table_count m) eqn:Hlt.
+      { apply Htl. auto. }
+      destruct (nth_error tl (n0 - get_import_table_count m)).
+      { assert (j = n0 - get_import_table_count m) as Heq';[lia|]. subst n0.
+        destruct (tl !! j) eqn:Hsome.
+        { apply lookup_lt_Some in Hsome as Hlt'. subst j.
+          rewrite list_lookup_insert//. intros Hx.
+          simplify_eq. intros Hmod.
+          eapply Htl in Hmod;eauto. subst t.
+          
+
+        
+        destruct (decide (n0 - get_import_table_count m < length tl)).
+        { rewrite Heq'. rewrite list_lookup_insert//. intros Hx.
+          simplify_eq. intros Hmod.
+          assert (Hmod':=Hmod).
+          eapply Htl in Hmod;eauto.
+
+      }
+     
+      
+
+
+
+      
+      destruct (decide (n - get_import_table_count m < length tl)).
+        { auto. rewrite list_lookup_insert//. intros Hx.
+          simplify_eq. intros Hmod.
+          
+      }
+    }
+    
+    rewrite - Heql. rewrite -fold_left_rev_right.
+    induction l.
+    { simpl.
+      intros Hx Ha.
+      apply list_lookup_fmap_inv in Hx.
+      destruct Hx as [n [Heq Hlook]].
+      simplify_eq. auto. }
+    { simpl. rewrite foldr_snoc.}
+
+    
+    unfold module_inst_build_table.
+    remember (module_element_filter_relevant_idx (mod_elem m)
+           (j + get_import_table_count m)).
+    apply fold_left_preserve_index.
+    { revert x a. unfold module_inst_build_tables.
+      apply fold_left_preserve_index.
+      { intros x a Hx Ha.
+        apply list_lookup_fmap_inv in Hx.
+        destruct Hx as [n [Heq Hlook]].
+        simplify_eq. auto. }
+      { intros tt me Hx [k Hme].
+        destruct me,modelem_table.
+        intros x a.
+        destruct (n <? get_import_table_count m).
+        { apply Hx. }
+        destruct (nth_error tt (n - get_import_table_count m)) eqn:Hsome;cycle 1.
+        { apply Hx. }
+        rewrite nth_error_lookup in Hsome.
+        apply lookup_lt_Some in Hsome as Hlt.
+        destruct (decide (n - get_import_table_count m = j)).
+        { subst. rewrite list_lookup_insert//. intros Heq.
+          simplify_eq. intros.
+          intros Hmod.
+          apply Hx;auto.
+
+        }
+      }
+    }
+
+
+    
+      apply list_lookup_fmap_inv in Hmod.
+      destruct Hmod as [n [Heq Hlook]].
+      exists n. split;auto.
+      subst.
+      
+      eauto. }
+    { intros tt me Hinv [k Hme].
+      destruct me,modelem_table.
+      destruct (n <? get_import_table_count m) eqn:Hlt.
+      { intros x jj Hlook%Hinv. auto. }
+      destruct (nth_error tt (n - get_import_table_count m)) eqn:Hnth.
+      { rewrite nth_error_lookup in Hnth.
+        intros x j.
+        apply lookup_lt_Some in Hnth as Hlt'.
+        destruct (decide (n - get_import_table_count m = j)).
+        { simplify_eq. rewrite list_lookup_insert//.
+          intros Heq. simplify_eq.
+          apply Hinv in Hnth as [a [Ha Ht]].
+          exists a. split;auto. right.
+          exists k, n, modelem_offset, modelem_init.
+          repeat split;auto.
+          right.
+        }
+      }
+    }*)
+    
   Lemma module_inst_build_tables_cons m i :
     length (module_inst_build_tables m i) > 0 ->
     ∃ a a' l l', (mod_tables m) = a :: l ∧ (module_inst_build_tables m i) = a' :: l' ∧

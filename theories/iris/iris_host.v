@@ -1072,13 +1072,15 @@ Definition module_glob_init_values m g_inits :=
   module_glob_init_value m.(mod_globals) = Some g_inits.
 
 (* The starting point for newly allocated tables. *)
+Definition module_inst_table_base_create :=
+  fun mt => match mt.(modtab_type).(tt_limits) with
+         | {| lim_min := min; lim_max := omax |} =>
+             (Build_tableinst
+                (repeat (None: funcelem) (ssrnat.nat_of_bin min))
+                (omax))
+         end.
 Definition module_inst_table_base (mtabs: list module_table) : list tableinst :=
-  fmap (fun mt => match mt.(modtab_type).(tt_limits) with
-               | {| lim_min := min; lim_max := omax |} =>
-                 (Build_tableinst
-                    (repeat (None: funcelem) (ssrnat.nat_of_bin min))
-                    (omax))
-                    end) mtabs.
+  fmap module_inst_table_base_create mtabs.
 
 (* Given a tableinst, an offset and a list of funcelems, replace the corresponding segment with the initialisers. *)
 Definition table_init_replace_single (t: tableinst) (offset: nat) (fns: list funcelem) : tableinst :=
