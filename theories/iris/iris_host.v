@@ -814,6 +814,20 @@ Qed.
 Definition gen_index offset len : list nat :=
   imap (fun i x => i+offset+x) (repeat 0 len).
 
+Lemma gen_index_lookup offset len k:
+  k < len ->
+  (gen_index offset len) !! k = Some (offset + k).
+Proof.
+  move => Hlen.
+  unfold gen_index.
+  rewrite list_lookup_imap => /=.
+  eapply repeat_lookup with (x := 0) in Hlen.
+  rewrite Hlen.
+  simpl.
+  f_equal.
+  by lias.
+Qed.
+
 Lemma gen_index_extend offset len:
   gen_index offset (len+1) = gen_index offset len ++ [::offset+len].
 Proof.
@@ -1342,6 +1356,46 @@ Proof.
   trivial.
 Qed.
 
+(* Ok, this is not built-in, but fair enough since it is across 3 libraries *)
+Lemma N_nat_bin n:
+  n = N.of_nat (ssrnat.nat_of_bin n).
+Proof.
+  destruct n => //=.
+  replace (ssrnat.nat_of_pos p) with (Pos.to_nat p); first by rewrite positive_nat_N.
+  induction p => //=.
+  - rewrite Pos2Nat.inj_xI.
+    f_equal.
+    rewrite IHp.
+    rewrite ssrnat.NatTrec.doubleE.
+    rewrite - ssrnat.mul2n.
+    by lias.
+  - rewrite Pos2Nat.inj_xO.
+    rewrite IHp.
+    rewrite ssrnat.NatTrec.doubleE.
+    rewrite - ssrnat.mul2n.
+    by lias.
+Qed.
+
+Lemma ext_tabs_lookup_exist (modexps: list module_export_desc) n tn:
+  (ext_tabs modexps) !! n = Some tn ->
+  exists k, modexps !! k = Some (MED_table tn).
+Proof.
+  move: n tn.
+  induction modexps; move => n tn Hexttablookup => //=.
+  simpl in Hexttablookup.
+  destruct a => //. 
+  2: { simpl in *.
+       destruct n; simpl in *; first by inversion Hexttablookup; subst; exists 0.
+       apply IHmodexps in Hexttablookup.
+       destruct Hexttablookup as [k ?].
+       by exists (S k).
+  }
+  all: simpl in *. 
+  all: apply IHmodexps in Hexttablookup.
+  all: destruct Hexttablookup as [k ?].
+  all: by exists (S k).
+Qed.
+
 Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
   P acc ->
   (forall (x:A) (act: B), P x -> P (f x act)) ->
@@ -1367,6 +1421,11 @@ Proof.
     destruct (nth_error x (n - get_import_table_count m));auto.
     rewrite insert_length//. }
 Qed.
+
+Ltac forward H Hname :=
+  lazymatch type of H with
+  | ?Hx -> _ => let Hp := fresh "Hp" in
+              assert Hx as Hp; last specialize (H Hp) as Hname end.
 
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
@@ -1665,6 +1724,9 @@ Proof.
         specialize (Hebound _ _ Hmelem).
         simpl in Hebound.
 
+        unfold ext_tab_addrs.
+        unfold compose.
+        
         destruct (ext_tabs (modexp_desc <$> v_imps) !! n) as [tabid | ] eqn:Hexttablookup => //.
         {
           (* Initialiser is for an imported table *)
@@ -1672,53 +1734,108 @@ Proof.
 
           destruct (wts !! N.of_nat tabn) as [ti | ] eqn:Hwtslookup => //.
 
-          unfold ext_tab_addrs.
-          unfold compose.
           rewrite nth_error_app1; last first.
           { rewrite map_length.
             apply lookup_lt_Some in Hexttablookup.
             by lias.
           }
           rewrite Coqlib.list_map_nth.
+          specialize (ext_tabs_lookup_exist _ _ _ Hexttablookup) as Hexplookup.
+          destruct Hexplookup as [k Hexplookup].
+          rewrite list_lookup_fmap in Hexplookup.
+          destruct (v_imps !! k) as [mexp | ] eqn: Hvimpslookup => //.
+          simpl in Hexplookup.
+          inversion Hexplookup; subst; clear Hexplookup.
+          destruct mexp => /=.
+          simpl in H8; subst.
+          Search v_imps.
+          destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
+          specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
+          simpl in *.
+          destruct Himpwasm as [tab [tt [Htablookup [Hwtslookup2 [-> Htabtype]]]]].
           rewrite - nth_error_lookup in Hexttablookup.
           rewrite Hexttablookup.
           simpl.
-          Search wts.
-          Search v_imps.
-          admit.
-          (*
-          rewrite Coqlib.list_map_nth.
-          rewrite nth_error_map.
-          rewrite Hexttablookup.*)
+          rewrite nth_error_app1; last by apply lookup_lt_Some in Htablookup.
+          rewrite nth_error_lookup.
+          rewrite Htablookup.
+          rewrite Hwtslookup2 in Hwtslookup.
+          inversion Hwtslookup; subst; clear Hwtslookup.
+          replace (N_of_int t) with (N_of_nat (nat_of_int t)); first by apply/N.leb_spec0; lias.
+          unfold nat_of_int, N_of_int.
+          by rewrite Z_nat_N.
         }
         {
-          (* Initialiser is for an allocated table *)
-          admit.
+          rewrite nth_error_app2; last first.
+          { rewrite map_length.
+            apply lookup_ge_None in Hexttablookup.
+            by lias.
+          }
+          apply lookup_ge_None in Hexttablookup.
+          
+          assert (n - length (ext_tabs (modexp_desc <$> v_imps)) < length mod_tables) as Hmtlen.
+          {
+            replace (length (ext_tabs _)) with (length (ext_t_tabs t_imps)) in *.
+            - move/ssrnat.leP in Hlen1.
+              rewrite -> Nat.le_succ_l in Hlen1.
+              by lias.
+            - clear - Hvtlen Himpwasm.
+              move: Hvtlen Himpwasm.
+              move: t_imps.
+              elim: v_imps; destruct t_imps => //.
+              move => Hvtlen Himpwasm.
+              simpl in *.
+              inversion Hvtlen; clear Hvtlen.
+              specialize (H _ H1).
+              forward H Hlen.
+              {
+                move => k v t Hlk Htk.
+                specialize (Himpwasm (S k) v t).
+                simpl in Himpwasm.
+                by specialize (Himpwasm Hlk Htk).
+              }
+              unfold oapp.
+              specialize (Himpwasm 0 a e).
+              simpl in Himpwasm.
+              do 2 forward Himpwasm Himpwasm => //.
+              destruct a.
+              simpl in *.
+              destruct modexp_desc.
+              * destruct f.
+                destruct Himpwasm as [? [? [? ->]]].
+                apply H.
+                by apply Hp.
+              * destruct t.
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
+                simpl.
+                by f_equal.
+              * destruct m.
+                destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]].
+                apply H.
+                by apply Hp.
+              * destruct g.
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
+                apply H.
+                by apply Hp.
+          }
+          rewrite nth_error_lookup gen_index_lookup map_length => //=.
+          rewrite nth_error_app2; last by lias.
+          rewrite nat_minus_plus.
+          repeat rewrite Coqlib.list_map_nth.
+          rewrite nth_error_lookup.
+          destruct (mod_tables !! _) as [mt | ] eqn:Hmtlookup => //=.
+          destruct mt, modtab_type, tt_limits => /=.
+          clear - Hebound.
+          simpl in Hebound.
+          unfold N_of_int.
+          unfold nat_of_int in Hebound.
+          Search N.of_nat.
+          rewrite Nat2N.inj_add in Hebound.
+          rewrite Z_nat_N in Hebound.
+          rewrite repeat_length.
+          apply/N.leb_spec0.
+          by rewrite - N_nat_bin.
         }
-        (*
-        (* There are too many premises in the context -- clear the irrelevant ones. *)
-        clear H0 H H5 H4 H15 H14 H1 H2 H3 H6.
-        clear Hginitstype Hdinitslen Hginitslen Hlenexp.
-        clear Himphost Hmod Hmoddata Hmodglob.
-
-
-        (* We now need to prove that we can lookup the nth thing in this list. *)
-        destruct (nth_error _ n) eqn:Htabn => /=; last first.
-        {
-          rewrite -> nth_error_lookup, lookup_ge_None in Htabn.
-          rewrite app_length in Htabn.
-          unfold gen_index in Htabn.
-          rewrite imap_length repeat_length in Htabn.
-          unfold ext_tab_addrs in Htabn.
-          rewrite map_length in Htabn.
-          move/ssrnat.leP in Hlen1.
-          assert ((length (ext_tabs (modexp_desc <$> v_imps))) = (length (ext_t_tabs t_imps))) as Hleneq; last by rewrite Hleneq in Htabn; lias.
-          admit.
-        }
-        (* And also that we can lookup t0 in s_tables2. This has to come from some combination of module typing and the well-typedness of the new store. *)
-        (* However, we don't have the knowledge that the old store is well-typed.. *)
-        rewrite nth_error_lookup in Htabn.
-        admit.*)
       + apply lookup_ge_None in Hmelem.
         rewrite Heinitslen in Hmelem.
         apply lookup_ge_None in Hmelem.
