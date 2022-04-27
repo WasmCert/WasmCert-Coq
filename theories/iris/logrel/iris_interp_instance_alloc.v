@@ -1108,6 +1108,20 @@ Section InterpInstance.
     }
   Qed.
 
+  Lemma fold_left_preserve_index {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
+    P acc ->
+    (forall (x:A) (act: B), P x -> (∃ i, l !! i = Some act) -> P (f x act)) ->
+    P (fold_left f l acc).
+  Proof.
+    rewrite -fold_left_rev_right.
+    revert acc.
+    induction l;simpl;auto.
+    intros acc Ha Hnext.
+    rewrite foldr_snoc /=. apply IHl =>//.
+    apply Hnext=>//. exists 0. auto.
+    intros. apply Hnext=>//. destruct H0 as [? ?]. exists (S x0). auto.
+  Qed.
+  
   Definition module_inst_resources_wasm_invs (m : module) (inst : instance) (gts : seq.seq global_type) t_inits m_inits g_inits :=
     (module_inst_resources_func_invs (mod_funcs m) inst
      (drop (get_import_func_count m) (inst_funcs inst)) ∗
@@ -1116,9 +1130,59 @@ Section InterpInstance.
     module_inst_resources_mem_invs m_inits
      (drop (get_import_mem_count m) (inst_memory inst))∗
     module_inst_resources_glob_invs g_inits
-     (drop (get_import_global_count m) (inst_globs inst)) gts)%I.
+    (drop (get_import_global_count m) (inst_globs inst)) gts)%I.
 
-  
+  Lemma module_inst_build_tables_cons m i :
+    length (module_inst_build_tables m i) > 0 ->
+    ∃ a a' l l', (mod_tables m) = a :: l ∧ (module_inst_build_tables m i) = a' :: l' ∧
+                   (a' = match tt_limits (modtab_type a) with
+                     | {| lim_min := min; lim_max := omax |} =>
+                         {|table_data := repeat None (ssrnat.nat_of_bin min);
+                           table_max_opt := omax|}
+                         end ∨
+                    ∃ i modelem_offset modelem_init,
+                      mod_elem m !! i = Some {|
+                                            modelem_table := Mk_tableidx (get_import_table_count m);
+                                            modelem_offset := modelem_offset;
+                                            modelem_init := modelem_init |}
+                      (* ∧ a' = table_init_replace_single a' (assert_const1_i32_to_nat modelem_offset) *)
+                      (*                                  (lookup_funcaddr i modelem_init) *)
+                      
+                   ).
+  Proof.
+    intros Hlen. rewrite module_inst_build_tables_length in Hlen.
+    unfold module_inst_build_tables.
+    apply fold_left_preserve_index.
+    { destruct (mod_tables m) eqn:Hm;[simpl in *;lia|].
+      repeat eexists. left. eauto. }
+    { intros ai me H Hi.
+      destruct H as [a [a' [l [l' [Heq1 [Heq2 Ha']]]]]].
+      
+
+      
+      eexists a,_,l,l'.
+      destruct me,modelem_table.
+      destruct Hi as [j Hi].
+      repeat split. eauto. 2:right;eauto.
+      destruct (n <? get_import_table_count m) eqn:Hn;auto.
+      destruct (nth_error ai (n - get_import_table_count m)) eqn:Hai.
+      { unfold table_init_replace_single. simpl. admit.
+
+         
+      }
+      { auto. }
+
+    }
+
+    
+    remember (module_inst_build_tables m i).
+    assert (length (mod_tables m) > 0) as Hlen'.
+    { erewrite <-module_inst_build_tables_length, <-Heql;eauto. }
+    destruct (mod_tables m) eqn:Hm;[simpl in *; lia|].
+    destruct l;[simpl in Hlen;lia|]. eauto.
+    
+
+    
     
   Lemma interp_instance_alloc E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
     let C := {|
@@ -1276,14 +1340,12 @@ Section InterpInstance.
         (* the function table is declared *)
         simpl nth_error.
         destruct fdecls.
-        exfalso.
-        unfold tab_inits in Htbllen.
-        rewrite Heqm0 in Htbllen.
-        rewrite /module_inst_build_tables /= in Htbllen.
-        destruct mod_elem;simpl in Htbllen;[done|].
-        
-        destruct fdecls;[done|].
+        { exfalso.
+          by rewrite /tab_inits module_inst_build_tables_length Heqm0 /= in Htbllen. }
+
         unfold module_inst_resources_tab_invs.
+        rewrite /tab_inits Heqm0. iSimpl in "Htr".
+        
         iSimpl in "Htr".
         iDestruct "Htr" as "[[Htsize [Hlim Ht]] _]".
         iExists _,_. iFrame "Htsize". iFrame "Hlim".
