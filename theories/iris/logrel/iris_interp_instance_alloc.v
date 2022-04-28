@@ -1185,6 +1185,20 @@ Section InterpInstance.
       rewrite foldr_snoc /=.
       apply IHl =>//. apply Hskip => //. }
   Qed.
+
+  Lemma fold_left_preserve_twice {A B C : Type}
+        (P: A -> C -> Prop) (f: A -> B -> A) (f' : C -> B -> C) (l: list B) (acc: A) (acc': C) :
+    (P acc acc') ->
+    (forall (x:A) (y:C) (act:B), (P x y) -> P (f x act) (f' y act)) ->
+    P (fold_left f l acc) (fold_left f' l acc').
+  Proof.
+    repeat rewrite -fold_left_rev_right.
+    revert acc acc'.
+    induction l;simpl;auto.
+    intros acc acc' Ha Hnext.
+    rewrite !foldr_snoc /=.
+    eapply IHl =>//. eapply Hnext=>//.
+  Qed.
   
   Lemma fold_left_preserve_filter_impl {A B C : Type} (F : B -> Prop) (H : ∀ x, Decision (F x))
         (P: A -> Prop) (Q : C -> Prop) (f: A -> B -> A) (f' : C -> B -> C) (l: list B) (acc: A) (acc': C) :
@@ -1230,236 +1244,231 @@ Section InterpInstance.
                   | Mk_tableidx m => n = m
                   end) e.
 
+  Definition module_inst_build_table_filter (m : module) (inst: instance) (n : nat) (mt : module_table) : tableinst :=
+  fold_left (fun t '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
+               let itc := get_import_table_count m in 
+               match mt with
+               | Mk_tableidx k =>
+                   if k <? itc then t else
+                       table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init)
+               end
+            ) (module_element_filter_relevant_idx (mod_elem m) n) (module_inst_table_base_create mt).
   (* using filters is an nice definition, but makes the proofs very bad because the types of the two fold_lefts do not match.... *)
   Definition module_inst_build_table (m : module) (inst: instance) (n : nat) (mt : module_table) : tableinst :=
   fold_left (fun t '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
                let itc := get_import_table_count m in 
                match mt with
                | Mk_tableidx k =>
-                 if k <? itc then t else
-                   table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init)
+                   if k <? itc then t else
+                     if decide (k = n) then 
+                       table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init)
+                     else t
                end
-                 ) (module_element_filter_relevant_idx (mod_elem m) n) (module_inst_table_base_create mt).
+            ) (mod_elem m) (module_inst_table_base_create mt).
 
-  Definition module_inst_build_table_map (m : module) (inst : instance) : seq.seq tableinst :=
-    mapi (λ j mt, module_inst_build_table m inst (j + get_import_table_count m) mt) (mod_tables m).
-
-  (* Lemma fold_left_preserve_filter_imap {B C : Type} (F : nat -> B -> Prop) (H : ∀ i x, Decision (F i x)) *)
-  (*       (P: (list C) -> (list C) -> Prop) (f: (list C) -> B -> (list C)) (f' : nat -> C -> B -> C) (l: list B) (acc: (list C)) (acc': list C) : *)
-  (*   (P acc acc') -> *)
-  (*   (forall (x:list C) (yy : list C) (y:C) (act:B) (i : nat), yy !! i = Some y -> F i act -> (P x yy) -> P (f x act) (<[i:=(f' i y act)]> yy)) -> *)
-  (*   (forall (x:list C) (yy : list C) (act:B) (i : nat), ¬ F i act -> (P x yy) -> P (f x act) yy) -> *)
-  (*   P (fold_left f l acc) (fold_left f' (filter F l) acc'). *)
-  (* Proof. *)
-  (*   repeat rewrite -fold_left_rev_right. *)
-  (*   revert acc acc'. *)
-  (*   induction l;simpl;auto. *)
-  (*   intros acc acc' Ha Hnext Hskip. *)
-  (*   destruct (decide (F a)). *)
-  (*   { rewrite filter_cons_True// /=. *)
-  (*     rewrite !foldr_snoc /=. *)
-  (*     eapply IHl =>//. eapply Hnext=>//. } *)
-  (*   { rewrite filter_cons_False// /=. *)
-  (*     rewrite foldr_snoc /=. *)
-  (*     apply IHl =>//. apply Hskip => //. } *)
-  (* Qed. *)
-  
-  Lemma module_inst_build_table_map_eq m inst :
-    module_inst_build_table_map m inst = module_inst_build_tables m inst.
+  Lemma module_inst_build_table_filter_eq m inst n mt :
+    module_inst_build_table_filter m inst n mt = module_inst_build_table m inst n mt.
   Proof.
-    unfold module_inst_build_tables,
-      module_inst_build_table_map,
+    unfold module_inst_build_table_filter,
       module_inst_build_table,
       module_element_filter_relevant_idx.
-    Abort.
-    (* apply fold_left_preserve_filter_twice. *) (* does not work, mapi binding, need a preserve lemma tailored for mapi? *)
-    
-  Lemma module_inst_build_tables_lookup m i j x a :
-    module_inst_build_tables m i !! j = Some x ∧ (mod_tables m) !! j = Some a ->
+    apply fold_left_preserve_filter;auto.
+    { intros x y act. destruct act, modelem_table;simpl.
+      intros Heq1 Heq2. simplify_eq. rewrite decide_True//. }
+    { intros x y act. destruct act, modelem_table;simpl.
+      intros Heq1 Heq2. simplify_eq. rewrite decide_False//. edestruct (n0 <? _);auto. }
+  Qed.
+
+  
+  Definition module_inst_build_table_map (m : module) (inst : instance) : seq.seq tableinst :=
+    imap (λ j mt, module_inst_build_table m inst (j + get_import_table_count m) mt) (mod_tables m).
+  Lemma imap_id {A : Type} acc :
+    (imap (λ (_ : nat) (a : A), a) acc) = acc.
+  Proof. induction acc;auto. simpl. rewrite IHacc. auto. Qed.
+
+  Lemma module_inst_build_tables_lookup m i j a x :
+    (mod_tables m) !! j = Some a ->
+    module_inst_build_tables m i !! j = Some x ->
     x = module_inst_build_table m i (j + get_import_table_count m) a.
   Proof.
     unfold module_inst_build_tables, module_inst_build_table.
-    unfold module_element_filter_relevant_idx.
-    intros Hfold1.
-    eapply fold_left_preserve_filter_impl in Hfold1;eauto.
-    { intros [Hx Ha].
+    revert x.
+    apply fold_left_preserve_twice with (acc':=(module_inst_table_base_create a)).
+    { intros x Ha Hx.
       apply list_lookup_fmap_inv in Hx.
       destruct Hx as [k [Heq Hlook]].
-      simplify_eq. auto. }
-    { intros tl t me. simpl.
-      destruct me,modelem_table;simpl.
-      intros Heq Htlcond [Hx Ha].
-      destruct (n <? get_import_table_count m) eqn:Hlt;auto.
-      destruct (nth_error tl (n - get_import_table_count m)) eqn:Hnth.
-      { (* problem: i do not know about the previous tl !! j assumption, so i cannot get Htlcond.. *) admit. }
-      admit.
-    }
-    Admitted.
-    
-
-
-     (* Lots of previous failed attempts, don't delete yet!
-    
-    remember (j + get_import_table_count m).
-    revert x j Heqn.
-    apply fold_left_preserve_filter_index.
-    { intros x j Heqn Hx Ha.
-      apply list_lookup_fmap_inv in Hx.
-      destruct Hx as [k [Heq Hlook]].
-      simplify_eq. auto. }
-    { intros tl t me.
-      destruct me,modelem_table. simpl.
-      intros Heq Hi Htl x j Heqn.
-      destruct (n0 <? get_import_table_count m) eqn:Hlt.
-      { apply Htl. auto. }
-      destruct (nth_error tl (n0 - get_import_table_count m)).
-      { assert (j = n0 - get_import_table_count m) as Heq';[lia|]. subst n0.
-        destruct (tl !! j) eqn:Hsome.
-        { apply lookup_lt_Some in Hsome as Hlt'. subst j.
-          rewrite list_lookup_insert//. intros Hx.
-          simplify_eq. intros Hmod.
-          eapply Htl in Hmod;eauto. subst t.
-          
-
-        
-        destruct (decide (n0 - get_import_table_count m < length tl)).
-        { rewrite Heq'. rewrite list_lookup_insert//. intros Hx.
-          simplify_eq. intros Hmod.
-          assert (Hmod':=Hmod).
-          eapply Htl in Hmod;eauto.
-
-      }
-     
-      
-
-
-
-      
-      destruct (decide (n - get_import_table_count m < length tl)).
-        { auto. rewrite list_lookup_insert//. intros Hx.
-          simplify_eq. intros Hmod.
-          
-      }
-    }
-    
-    rewrite - Heql. rewrite -fold_left_rev_right.
-    induction l.
-    { simpl.
-      intros Hx Ha.
-      apply list_lookup_fmap_inv in Hx.
-      destruct Hx as [n [Heq Hlook]].
-      simplify_eq. auto. }
-    { simpl. rewrite foldr_snoc.}
-
-    
-    unfold module_inst_build_table.
-    remember (module_element_filter_relevant_idx (mod_elem m)
-           (j + get_import_table_count m)).
-    apply fold_left_preserve_index.
-    { revert x a. unfold module_inst_build_tables.
-      apply fold_left_preserve_index.
-      { intros x a Hx Ha.
-        apply list_lookup_fmap_inv in Hx.
-        destruct Hx as [n [Heq Hlook]].
-        simplify_eq. auto. }
-      { intros tt me Hx [k Hme].
-        destruct me,modelem_table.
-        intros x a.
-        destruct (n <? get_import_table_count m).
-        { apply Hx. }
-        destruct (nth_error tt (n - get_import_table_count m)) eqn:Hsome;cycle 1.
-        { apply Hx. }
-        rewrite nth_error_lookup in Hsome.
-        apply lookup_lt_Some in Hsome as Hlt.
-        destruct (decide (n - get_import_table_count m = j)).
-        { subst. rewrite list_lookup_insert//. intros Heq.
-          simplify_eq. intros.
-          intros Hmod.
-          apply Hx;auto.
-
-        }
-      }
-    }
-
-
-    
-      apply list_lookup_fmap_inv in Hmod.
-      destruct Hmod as [n [Heq Hlook]].
-      exists n. split;auto.
-      subst.
-      
-      eauto. }
-    { intros tt me Hinv [k Hme].
+      simplify_eq. auto.}
+    { intros tl t me Hme x Ha.
       destruct me,modelem_table.
-      destruct (n <? get_import_table_count m) eqn:Hlt.
-      { intros x jj Hlook%Hinv. auto. }
-      destruct (nth_error tt (n - get_import_table_count m)) eqn:Hnth.
+      destruct (n <? get_import_table_count m) eqn:Hn.
+      { eauto. }
+      apply PeanoNat.Nat.ltb_ge in Hn.
+      destruct (nth_error tl (n - get_import_table_count m)) eqn:Hnth;cycle 1.
+      { intros Htl.
+        eapply Hme in Ha as Heq;eauto.
+        apply lookup_lt_Some in Htl as Hlt.
+        rewrite nth_error_lookup in Hnth.
+        apply lookup_ge_None in Hnth as Hge.
+        destruct (decide (n = j + get_import_table_count m));eauto.
+        lia. }
       { rewrite nth_error_lookup in Hnth.
-        intros x j.
-        apply lookup_lt_Some in Hnth as Hlt'.
-        destruct (decide (n - get_import_table_count m = j)).
-        { simplify_eq. rewrite list_lookup_insert//.
-          intros Heq. simplify_eq.
-          apply Hinv in Hnth as [a [Ha Ht]].
-          exists a. split;auto. right.
-          exists k, n, modelem_offset, modelem_init.
-          repeat split;auto.
-          right.
-        }
+        destruct (decide (n = j + get_import_table_count m)).
+        { assert (n - get_import_table_count m = j) as Heqj;[lia|].
+          subst j.
+          eapply Hme in Ha as Heq;eauto.
+          apply lookup_lt_Some in Hnth as Hlt'.
+          rewrite list_lookup_insert//. intros Heq'.
+          simplify_eq. auto. }
+        { rewrite list_lookup_insert_ne//. apply Hme;auto. lia. }
       }
-    }*)
-    
-  Lemma module_inst_build_tables_cons m i :
-    length (module_inst_build_tables m i) > 0 ->
-    ∃ a a' l l', (mod_tables m) = a :: l ∧ (module_inst_build_tables m i) = a' :: l' ∧
-                   (a' = match tt_limits (modtab_type a) with
-                     | {| lim_min := min; lim_max := omax |} =>
-                         {|table_data := repeat None (ssrnat.nat_of_bin min);
-                           table_max_opt := omax|}
-                         end ∨
-                    ∃ i modelem_offset modelem_init,
-                      mod_elem m !! i = Some {|
-                                            modelem_table := Mk_tableidx (get_import_table_count m);
-                                            modelem_offset := modelem_offset;
-                                            modelem_init := modelem_init |}
-                      (* ∧ a' = table_init_replace_single a' (assert_const1_i32_to_nat modelem_offset) *)
-                      (*                                  (lookup_funcaddr i modelem_init) *)
-                      
-                   ).
-  Proof.
-    intros Hlen. rewrite module_inst_build_tables_length in Hlen.
-    unfold module_inst_build_tables.
-    apply fold_left_preserve_index.
-    { destruct (mod_tables m) eqn:Hm;[simpl in *;lia|].
-      repeat eexists. left. eauto. }
-    { intros ai me H Hi.
-      destruct H as [a [a' [l [l' [Heq1 [Heq2 Ha']]]]]].
-      
-
-      
-      eexists a,_,l,l'.
-      destruct me,modelem_table.
-      destruct Hi as [j Hi].
-      repeat split. eauto. 2:right;eauto.
-      destruct (n <? get_import_table_count m) eqn:Hn;auto.
-      destruct (nth_error ai (n - get_import_table_count m)) eqn:Hai.
-      { unfold table_init_replace_single. simpl. admit.
-
-         
-      }
-      { auto. }
-
     }
+  Qed.
 
-    
-    remember (module_inst_build_tables m i).
-    assert (length (mod_tables m) > 0) as Hlen'.
-    { erewrite <-module_inst_build_tables_length, <-Heql;eauto. }
-    destruct (mod_tables m) eqn:Hm;[simpl in *; lia|].
-    destruct l;[simpl in Hlen;lia|]. eauto.
-    
+  Lemma module_inst_build_tables_lookup_None m i j :
+    (mod_tables m) !! j = None ->
+    module_inst_build_tables m i !! j = None.
+  Proof.
+    pose proof (module_inst_build_tables_length m i).
+    intros Hmod.
+    apply lookup_ge_None in Hmod.
+    rewrite -H in Hmod.
+    by apply lookup_ge_None in Hmod.
+  Qed.
 
+  Lemma module_inst_build_tables_lookup_is_Some m i j a :
+    (mod_tables m) !! j = Some a ->
+    is_Some (module_inst_build_tables m i !! j).
+  Proof.
+    pose proof (module_inst_build_tables_length m i).
+    intros Hmod.
+    apply lookup_lt_Some in Hmod.
+    rewrite -H in Hmod.
+    by apply lookup_lt_is_Some in Hmod.
+  Qed.
+
+  Lemma module_inst_build_table_map_lookup m inst i m0 :
+    (mod_tables m) !! i = Some m0 ->
+    module_inst_build_table_map m inst !! i =
+      Some (module_inst_build_table m inst (i + get_import_table_count m) m0).
+  Proof.
+    intros Hm.
+    unfold module_inst_build_table_map.
+    by rewrite list_lookup_imap Hm /=.
+  Qed.
+
+  Lemma module_inst_build_table_map_lookup_None m inst i :
+    (mod_tables m) !! i = None ->
+    module_inst_build_table_map m inst !! i = None.
+  Proof.
+    intros Hm.
+    unfold module_inst_build_table_map.
+    by rewrite list_lookup_imap Hm /=.
+  Qed.
     
+  Lemma module_inst_build_table_map_eq m inst :
+    module_inst_build_table_map m inst = module_inst_build_tables m inst.
+  Proof.
+    apply list_eq.
+    intros i.
+    destruct ((mod_tables m) !! i) eqn:Hsome.
+    { apply module_inst_build_tables_lookup_is_Some with (i:=inst) in Hsome as Hx.
+      destruct Hx as [x Hx].
+      eapply module_inst_build_tables_lookup in Hx as Heq;eauto.
+      rewrite Hx Heq. by apply module_inst_build_table_map_lookup. }
+    { apply module_inst_build_tables_lookup_None with (i:=inst) in Hsome as Hx.
+      eapply module_inst_build_table_map_lookup_None with (inst:=inst) in Hsome as Hy.
+      by rewrite Hx Hy. }
+  Qed.
+
+  Lemma module_inst_built_table_max_opt_eq m i n m0 :
+    table_max_opt (module_inst_build_table m i n m0) = lim_max (tt_limits (modtab_type m0)).
+  Proof.
+    unfold module_inst_build_table.
+    apply fold_left_preserve.
+    { destruct m0,  modtab_type, tt_limits.
+      by rewrite /module_inst_table_base_create /=. }
+    { intros tt me Heq.
+      destruct me,modelem_table.
+      destruct (n0 <? get_import_table_count m);auto.
+      destruct (decide (n0 = n));auto. }
+  Qed.
+
+  Lemma module_inst_build_table_length m i n m0 :
+    length (table_data (module_inst_build_table m i n m0)) = ssrnat.nat_of_bin (lim_min (tt_limits (modtab_type m0))).
+  Proof.
+    unfold module_inst_build_table.
+    apply fold_left_preserve.
+    { destruct m0,  modtab_type, tt_limits.
+      rewrite /module_inst_table_base_create /=.
+      by rewrite repeat_length.
+    }
+    { intros tt me Heq.
+      destruct me,modelem_table.
+      destruct (n0 <? get_import_table_count m);auto.
+      destruct (decide (n0 = n));auto.
+      erewrite <-table_init_replace_single_preserve_len;eauto.
+    }
+  Qed.
+
+  Lemma module_inst_build_table_lt_is_Some m i n m0 j :
+    j < ssrnat.nat_of_bin (lim_min (tt_limits (modtab_type m0))) ->
+    is_Some (table_data (module_inst_build_table m i n m0) !! j).
+  Proof.
+    intros Hlt.
+    rewrite <-module_inst_build_table_length with (m:=m) (i:=i) (n:=n) in Hlt. 
+    by apply lookup_lt_is_Some in Hlt.
+  Qed.
+
+  Lemma repeat_lookup_eq :
+    ∀ (T : Type) (x y : T) (n i : nat), repeat x n !! i = Some y -> x = y.
+  Proof.
+    intros T x y n i Hx.
+    apply lookup_lt_Some in Hx as Hlt.
+    eapply repeat_lookup in Hlt.
+    rewrite repeat_length in Hlt.
+    erewrite Hx in Hlt;simplify_eq. auto.
+  Qed.  
+  
+  Lemma module_inst_build_table_lookup_Some m i n m0 j x :
+    table_data (module_inst_build_table m i n m0) !! j = Some x ->
+    x = None ∨ (∃ k moff minit idx f, (inst_funcs i) !! idx = Some f ∧ x = Some f ∧ mod_elem m !! k = Some (Build_module_element (Mk_tableidx n) moff minit)
+                                ∧ n <? (get_import_table_count m) = false
+                                ∧ ∃ ei, minit !! ei = Some (Mk_funcidx idx)).
+  Proof.
+    unfold module_inst_build_table.
+    revert j x.
+    apply fold_left_preserve_index;intros j x.
+    { intros Hx.
+      unfold module_inst_table_base_create in Hx.
+      destruct m0,modtab_type,tt_limits. simpl in Hx.
+      apply repeat_lookup_eq in Hx as Heq. subst x. auto. }
+    { intros Hlook [id Helem].
+      destruct x,modelem_table;simpl.
+      destruct (n0 <? get_import_table_count m) eqn:Hlt;auto.
+      destruct (decide (n0 = n));auto. subst.
+      intros j0 x Hx.
+      unfold table_init_replace_single in Hx.
+      simpl in Hx.
+      apply lookup_lt_Some in Hx as Hlt'.
+      rewrite take_length in Hlt'.
+      rewrite lookup_take in Hx;[|lia].
+      apply lookup_app_Some in Hx as [Hx | Hx].
+      { apply lookup_take_Some in Hx as [Hx Hlt2].
+        apply Hlook in Hx;auto. }
+      destruct Hx as [Hle Hx].
+      apply lookup_app_Some in Hx as [Hx | Hx].
+      { apply list_lookup_fmap_inv in Hx.
+        destruct Hx as [idx [Heq Hx]].
+        destruct idx. subst x.
+        destruct (nth_error (inst_funcs i) n0) eqn:Hnth;auto.
+        rewrite nth_error_lookup in Hnth.
+        right. exists id,modelem_offset,modelem_init,n0,f.
+        repeat split;auto. eauto. }
+      destruct Hx as [Hle' Hx].
+      rewrite lookup_drop in Hx.
+      apply Hlook in Hx;auto.
+    }
+  Qed.
     
   Lemma interp_instance_alloc E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
     let C := {|
@@ -1619,27 +1628,40 @@ Section InterpInstance.
         destruct fdecls.
         { exfalso.
           by rewrite /tab_inits module_inst_build_tables_length Heqm0 /= in Htbllen. }
-
-        unfold module_inst_resources_tab_invs.
-        rewrite /tab_inits Heqm0. iSimpl in "Htr".
-        
+        rewrite -Heqm0 /module_inst_resources_tab_invs /tab_inits.
+        assert ((datatypes.mod_tables m) !! 0 = Some m0) as Hsome;[by rewrite Heqm0 /=|].
+        apply module_inst_build_tables_lookup_is_Some with (i:=i) in Hsome as Hx.
+        destruct Hx as [x Hx].
+        eapply module_inst_build_tables_lookup in Hx as Hy;[|eauto].
+        rewrite -/(tab_inits) in Hx. rewrite -/tab_inits.
+        destruct tab_inits;[done|]. simpl in Hx. inversion Hx;subst x.
         iSimpl in "Htr".
         iDestruct "Htr" as "[[Htsize [Hlim Ht]] _]".
         iExists _,_. iFrame "Htsize". iFrame "Hlim".
-        destruct (tt_limits (modtab_type m0)).
+        destruct (tt_limits (modtab_type m0)) eqn:Hlim.
         simpl table_data. unfold tab_size. simpl.
         iSplit.
-        { iPureIntro. apply/ssrnat.leP. lia. }
-        { rewrite (repeat_imap_eq _ 0).
-          rewrite imap_length repeat_length.
+        { iPureIntro. apply/ssrnat.leP.
+          rewrite module_inst_built_table_max_opt_eq Hlim /=. lia. }
+        { rewrite module_inst_build_table_length.
+          
+          
           (* the table can be initialised with imported or declared functions *)
           iApply big_sepL_forall.
           iIntros (k j Hj).
-          apply repeat_imap_lookup with (f := λ i, match t_inits !! (0, i) with
-                                                   | Some felem => felem
-                                                   | None => None
-                                                   end) in Hj.
+          apply lookup_lt_Some in Hj as Hlt.
+          rewrite repeat_length in Hlt.
+          apply module_inst_build_table_lt_is_Some with (m:=m) (i:=i) (n:=get_import_table_count m) in Hlt as [x Hlook].
           iDestruct (big_sepL_lookup _ _ k with "Ht") as "Hk";[eauto|].
+          apply module_inst_build_table_lookup_Some in Hlook as Heq.
+
+          destruct Heq as [-> | Hfunc].
+          { iExists (Tf [] []),None. iFrame "#". }
+
+          destruct Hfunc as [k' [moff [minit [fid [f [Hidx [-> [Hk [_ Hminit]]]]]]]]].
+          
+          
+          
           destruct (t_inits !! (0,k)) eqn:Hk.
           { destruct o.
             { destruct Hinit_vals as [Ht_inits _].
