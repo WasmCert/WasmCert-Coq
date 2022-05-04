@@ -1684,15 +1684,7 @@ Proof. done. Qed.
 Lemma const_list_app v1 v2 :
   const_list (v1 ++ v2) <-> const_list v1 ∧ const_list v2.
 Proof.
-  split.
-  - intros Hconst.
-    apply const_list_to_val in Hconst as [v Hv].
-    apply to_val_cat in Hv as [Hv1%to_val_const_list Hv2%to_val_const_list];auto.
-  - intros [Hconst1 Hconst2].
-    apply const_list_to_val in Hconst1 as [v1' Hv1].
-    apply const_list_to_val in Hconst2 as [v2' Hv2].
-    eapply to_val_const_list.
-    apply to_val_cat_inv;eauto.
+  split; intros; [ by apply const_list_split | apply const_list_concat; by inversion H ].
 Qed.
 
 Lemma to_val_None_first_singleton es :
