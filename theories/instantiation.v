@@ -579,7 +579,7 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     instantiate_elem inst hs' s' m e_offs /\
     instantiate_data inst hs' s' m d_offs /\
     check_bounds_elem inst s' m e_offs /\
-    check_bounds_data inst s' m e_offs /\
+    check_bounds_data inst s' m d_offs /\
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
     (s_end : store_record_eqType)
