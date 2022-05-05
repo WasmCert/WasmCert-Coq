@@ -1267,9 +1267,9 @@ Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: l
   module_inst_resources_glob glob_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
 
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
-  ∃ (inst: instance) (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
+  ∃ (inst: instance) (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',  
   import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks *)
     ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)

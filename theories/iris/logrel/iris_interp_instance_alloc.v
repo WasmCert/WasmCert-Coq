@@ -1312,7 +1312,7 @@ Section InterpInstance.
     { intros x Ha Hx.
       apply list_lookup_fmap_inv in Hx.
       destruct Hx as [k [Heq Hlook]].
-      simplify_eq. auto.}
+      simplify_eq. auto. }
     { intros tl t me Hme x Ha.
       destruct me,modelem_table.
       destruct (n <? get_import_table_count m) eqn:Hn.
@@ -1790,6 +1790,35 @@ Section InterpInstance.
     intros vs. simpl. destruct vs;auto.
     simpl. rewrite IHmglobs. auto.
   Qed.
+
+  Lemma module_import_init_tabs_dom m i wts :
+    dom (gset N) (module_import_init_tabs m i wts) = dom (gset N) wts.
+  Proof.
+    unfold module_import_init_tabs.
+    apply fold_left_preserve;auto.
+    intros tt me Hdom.
+    destruct me, modelem_table.
+    destruct (n <? get_import_table_count m);auto.
+    destruct (nth_error (inst_tab i) n);auto.
+    destruct (tt !! N.of_nat t) eqn:Hlook;auto.
+    apply elem_of_dom_2 in Hlook. rewrite dom_insert_L.
+    rewrite Hdom. rewrite - subseteq_union_L. rewrite -Hdom. set_solver.
+  Qed.
+
+  Lemma module_import_init_mems_dom m i wts :
+    dom (gset N) (module_import_init_mems m i wts) = dom (gset N) wts.
+  Proof.
+    unfold module_import_init_mems.
+    apply fold_left_preserve;auto.
+    intros tt me Hdom.
+    destruct me, moddata_data.
+    destruct (n <? get_import_mem_count m);auto.
+    destruct (nth_error (inst_memory i) n);auto.
+    destruct (tt !! N.of_nat m0) eqn:Hlook;auto.
+    apply elem_of_dom_2 in Hlook. rewrite dom_insert_L.
+    rewrite Hdom. rewrite - subseteq_union_L. rewrite -Hdom. set_solver.
+  Qed.
+  
   
   Lemma interp_instance_alloc E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
     let C := {|
