@@ -218,6 +218,7 @@ Definition of_val (v : val) : expr :=
   | brV i vh => vfill vh [AI_basic (BI_br i)]
   | retV sh => sfill sh [AI_basic BI_return]
   end.
+
 Lemma of_val_imm (vs : list value) :
   ((λ v : value, AI_basic (BI_const v)) <$> vs) = of_val (immV vs).
 Proof. done. Qed.
@@ -2051,6 +2052,7 @@ Proof.
 Qed.
 
 
+(* TODO: remove duplicated iris_properties lemmas *)
 (* helper lemmas copy-pasted from iris_properties *)
 Lemma first_values vs1 e1 es1 vs2 e2 es2 :
   (is_const e1 -> False) ->
