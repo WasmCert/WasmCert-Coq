@@ -1149,20 +1149,21 @@ Definition module_import_init_tabs (m: module) (inst: instance) (wts: gmap N tab
             ) m.(mod_elem) wts.
 
 (* A similar set of predicate but for memories instead. *)
-Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
-  fmap (fun '{| lim_min := min; lim_max := omax |} =>
+Definition module_inst_mem_base_func := (fun '{| lim_min := min; lim_max := omax |} =>
           (Build_memory
              (Build_memory_list
                #00%byte
                (repeat #00%byte (ssrnat.nat_of_bin min))
                )
-             (omax))) mmemtypes.
+             (omax))).
+Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
+  fmap module_inst_mem_base_func mmemtypes.
 
 Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) : memory :=
   Build_memory
     (Build_memory_list
        mem.(mem_data).(ml_init)
-      ((take offset mem.(mem_data).(ml_data)) ++ bs ++ (drop (offset + length bs) mem.(mem_data).(ml_data))))
+       (take (length mem.(mem_data).(ml_data)) ((take offset mem.(mem_data).(ml_data)) ++ bs ++ (drop (offset + length bs) mem.(mem_data).(ml_data)))))
     mem.(mem_max_opt).
 
 
