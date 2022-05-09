@@ -998,7 +998,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           destruct Hret as [sh ->].
           iApply wp_value.
           unfold IntoVal.
-          apply of_to_val.
+          apply iris.of_to_val.
           rewrite extend_retV.
           done.
           iIntros (lh) "%Hfill".
@@ -1007,9 +1007,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           apply b2p in Hfill ; subst.
           iApply wp_value.
           unfold IntoVal.
-          apply of_to_val.
+          apply iris.of_to_val.
           unfold iris.to_val => /=.
-          specialize (to_of_val (retV (sh_append sh [AI_basic
+          specialize (iris.to_of_val (retV (sh_append sh [AI_basic
                       (BI_const
                          (VAL_int32 (Wasm_int.Int32.repr 4)));
                    AI_basic (BI_get_local 0);
@@ -1025,7 +1025,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
                    AI_basic (BI_call 3);
                    AI_basic (BI_binop T_i32 (Binop_i BOI_sub));
                                                      AI_basic (BI_set_global 0)]))) as H.
-          unfold to_val, iris.to_val, of_val in H.
+          unfold iris.to_val, iris.to_val, iris.of_val in H.
           rewrite app_nil_r.
           destruct (merge_values_list _).
           inversion H.
