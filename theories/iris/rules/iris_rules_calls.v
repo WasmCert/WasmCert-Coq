@@ -13,7 +13,7 @@ Close Scope byte_scope.
 (* basic instructions with simple(pure) reductions *)
 Section iris_rules_calls.
   
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wasmG Σ}.
 
   Import DummyHosts.
   

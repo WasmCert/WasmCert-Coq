@@ -12,7 +12,7 @@ Close Scope byte_scope.
 (* basic instructions with simple(pure) reductions *)
 Section iris_rules_pure.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wasmG Σ}.
 
 (* numerics *)
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v v' : value) (t: value_type) (op: unop) f0:

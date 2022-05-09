@@ -11,7 +11,7 @@ Require Export iris_wp_def stdpp_aux.
 Close Scope byte_scope.
 
 Section trap_rules.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wasmG Σ}.
 
 
   Lemma wp_trap (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (vs1 es2 : iris.expr) f :

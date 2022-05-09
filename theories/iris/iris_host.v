@@ -285,7 +285,7 @@ Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
 Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
                             (at level 20, format " n ↪[mods] v").
 
-Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
+Global Instance host_heapG_irisG `{!wasmG Σ, !hvisG Σ, !hmsG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (s, vis, ms) := σ in
@@ -310,7 +310,7 @@ Global Instance host_heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtabli
 
 
 Section host_lifting.
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}.
 
 
 (* adding this would nullify all lemmas in weakestpre -- why? Is this not the 
@@ -520,7 +520,7 @@ Qed.
 End host_lifting.
 
 Section host_structural.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}.
 
   (* Note that the host wp is based on the original wp, as in the one in iris.weakestpre, so we have many lemma 
      available *)
@@ -639,7 +639,7 @@ End host_structural.
 
 Section Instantiation_spec_operational.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}.
 
 (* Resources in the host vis store for the imports *)
 Definition import_resources_host (hs_imps: list vimp) (v_imps : list module_export): iProp Σ :=
@@ -2120,7 +2120,7 @@ End Instantiation_spec_operational.
 (* Examples *)
 
 Section Example_Add.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ}.
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}.
 
   
 Definition Add_module :=

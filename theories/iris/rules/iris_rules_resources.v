@@ -22,7 +22,7 @@ Let reduce := @reduce host_function host_instance.
 
 Let reducible := @reducible wasm_lang.
 
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wasmG Σ}.
 
 Lemma mem_block_lookup_data wms n mem:
   ⊢ (gen_heap_interp (gmap_of_memory wms)) -∗

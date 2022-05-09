@@ -12,7 +12,7 @@ Close Scope byte_scope.
 
 Section bind_rules.
   
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wasmG Σ}.
 
   Lemma lfilled_to_sfill i lh es LI :
     lfilled i lh es LI ->

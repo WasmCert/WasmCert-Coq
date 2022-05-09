@@ -18,7 +18,7 @@ Import DummyHosts.
 
 Section InterpInstance.
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ, !wtablimitG Σ, !wmemlimitG Σ,
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
         !logrel_na_invs Σ, HWP:host_program_logic}.
 
   Definition interp_closure_pre τctx (fimps : gmap N function_closure) (i : instance) (n : N) (τf : function_type) :=

@@ -35,7 +35,7 @@ Section logrel.
   
   Import DummyHosts. (* placeholder *)
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
 
   
   Definition xb b := (VAL_int32 (wasm_bool b)).

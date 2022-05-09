@@ -25,7 +25,7 @@ Section stack.
 
 Canonical Structure wasm_lang := Language wasm_mixin.
 
- Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ}. 
+ Context `{!wasmG Σ}. 
 
 Section code.
 
@@ -153,7 +153,7 @@ End code.
 Section specs.
 
 
-   Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wftablimitsG Σ, !wmemlimitG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ, !logrel_na_invs Σ }. 
+   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !logrel_na_invs Σ }. 
 
 
 

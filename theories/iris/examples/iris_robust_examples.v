@@ -44,7 +44,7 @@ Section Examples.
 
   Import DummyHost.
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !wtablimitG Σ, !wmemlimitG Σ,
+  Context `{!wasmG Σ,
         !logrel_na_invs Σ, HWP:host_program_logic}.
 
   Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
@@ -208,7 +208,7 @@ Section Examples_host.
 
   Import DummyHost.
 
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ, !hvisG Σ, !hmsG Σ, !wtablimitG Σ, !wmemlimitG Σ,
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
         !logrel_na_invs Σ, HWP:host_program_logic,!hvisG Σ, !hmsG Σ}.
 
 

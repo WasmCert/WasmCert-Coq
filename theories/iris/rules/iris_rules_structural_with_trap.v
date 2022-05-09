@@ -13,7 +13,7 @@ Close Scope byte_scope.
 
 Section structural_rules.
   
-Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+Context `{!wasmG Σ}.
 
 Fixpoint get_layer lh i :=
   match lh,i with

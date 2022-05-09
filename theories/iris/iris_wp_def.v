@@ -28,42 +28,27 @@ Local Definition state := state wasm_lang.
 
 Implicit Type σ : state.
 
-Class wfuncG Σ := WFuncG {
-  func_invG :> invGS Σ;
-  func_gen_hsG :> gen_heapGS N function_closure Σ;
-}.
+Class wasmG Σ :=
+  WasmG {
+      func_invG :> invGS Σ;
+      func_gen_hsG :> gen_heapGS N function_closure Σ;
+      
+      tab_gen_hsG :> gen_heapGS (N*N) funcelem Σ;
+      
+      tabsize_hsG :> gen_heapGS N nat Σ;
+      
+      tablimit_hsG :> gen_heapGS N (option N) Σ;
 
-Class wtabG Σ := WTabG {
-  tab_gen_hsG :> gen_heapGS (N*N) funcelem Σ;
-}.
+      mem_gen_hsG :> gen_heapGS (N*N) byte Σ;
 
-Class wtabsizeG Σ := WTabSizeG {
-  tabsize_hsG :> gen_heapGS N nat Σ;
-}.
+      memsize_gen_hsG :> gen_heapGS N N Σ;
 
-Class wtablimitG Σ := WTabLimitG {
-  tablimit_hsG :> gen_heapGS N (option N) Σ;                          
-}.
+      memlimit_hsG :> gen_heapGS N (option N) Σ;
 
-Class wmemG Σ := WMemG {
-  mem_gen_hsG :> gen_heapGS (N*N) byte Σ;
-}.
+      glob_gen_hsG :> gen_heapGS N global Σ;
 
-Class wmemsizeG Σ := WMemSizeG {
-  memsize_gen_hsG :> gen_heapGS N N Σ;
-}.
-
-Class wmemlimitG Σ := WMemLimitG {
-  memlimit_hsG :> gen_heapGS N (option N) Σ;
-}.
-
-Class wglobG Σ := WGlobG {
-  glob_gen_hsG :> gen_heapGS N global Σ;
-}.
-
-Class wframeG Σ := WFrameG {
-  locs_gen_hsG :> ghost_mapG Σ unit frame;
-}.
+      locs_gen_hsG :> ghost_mapG Σ unit frame
+    }.
 
 Definition frameGName : positive := 10%positive.
 
@@ -73,8 +58,7 @@ Definition proph_id := positive. (* ??? *)
 Instance eqdecision_frame: EqDecision frame.
 Proof. decidable_equality. Qed.
 
-(* TODO: Global Instance doesn't seem to actually make this global... *)
-Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ} : irisGS wasm_lang Σ := {
+Global Instance heapG_irisG `{!wasmG Σ} : irisGS wasm_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
     let: (_, s, locs, inst) := σ in
@@ -96,7 +80,7 @@ Global Instance heapG_irisG `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG 
 
 Section Host_wp_import.
   (* Host wp must depend on the same memory model as for wasm *)
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wasmG Σ}.
 
   Record host_program_logic := {
       wp_host (s : stuckness) : coPset -d> host_function -d> seq.seq value -d> (result -d> iPropO Σ) -d> iPropO Σ;
@@ -152,14 +136,14 @@ Notation " ↪[frame] v" := (ghost_map_elem frameGName tt (DfracOwn 1) v%V)
                            (at level 20, format " ↪[frame] v").
 
 (* Predicates for memory blocks and whole tables *)  
-Definition mem_block `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ} (n: N) (m: memory) :=
+Definition mem_block `{!wasmG Σ} (n: N) (m: memory) :=
   (([∗ list] i ↦ b ∈ (m.(mem_data).(ml_data)), n ↦[wm][ (N.of_nat i) ] b ) ∗
      n ↦[wmlength] mem_length m ∗ n ↪[wmlimit] (mem_max_opt m))%I.
 
-Definition mem_block_at_pos `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ} (n: N) (l:bytes) k :=
+Definition mem_block_at_pos `{!wasmG Σ} (n: N) (l:bytes) k :=
   ([∗ list] i ↦ b ∈ l, n ↦[wm][ (N.of_nat (N.to_nat k+i)) ] b)%I.
 
-Definition tab_block `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ} (n: N) (tab: tableinst) :=
+Definition tab_block `{!wasmG Σ} (n: N) (tab: tableinst) :=
   (([∗ list] i ↦ tabelem ∈ (tab.(table_data)), n ↦[wt][ (N.of_nat i) ] tabelem ) ∗
      (n ↪[wtsize] (tab_size tab)) ∗ (n ↪[wtlimit] (table_max_opt tab)))%I.
 
@@ -172,29 +156,29 @@ Notation "n ↦[wtblock] t" := (tab_block n t)
                            (at level 20, format "n ↦[wtblock] t"): bi_scope.
 
 Section Wasm_wp.
-  Context `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}.
+  Context `{!wasmG Σ}.
 
   Global Instance wp_wasm : Wp (iProp Σ) (expr) (val) stuckness.
-  Proof using Σ wfuncG0 wtabG0 wtabsizeG0 wtablimitG0 wmemG0 wmemsizeG0 wmemlimitG0 wglobG0 wframeG0.
+  Proof using Σ wasmG0.
     eapply wp'. Unshelve. exact frame. exact (λ f,  ↪[frame] f)%I. Defined.
 
 End Wasm_wp.
 
 (* A Definition of a context dependent WP for WASM expressions *)
 
-Definition wp_wasm_ctx `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}
+Definition wp_wasm_ctx `{!wasmG Σ}
           (s : stuckness) (E : coPset) (e : language.expr wasm_lang)
            (Φ : val -> iProp Σ) (i : nat) (lh : lholed) : iProp Σ := 
   ∀ LI, ⌜lfilled i lh e LI⌝ -∗ WP LI @ s; E {{ Φ }}.
 
 
-Definition wp_wasm_frame `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}
+Definition wp_wasm_frame `{!wasmG Σ}
           (s : stuckness) (E : coPset) (es : language.expr wasm_lang)
           (Φ : val -> iProp Σ) (n: nat) (f: frame) : iProp Σ :=
   
   WP [AI_local n f es] @ s; E {{ Φ }}.
 
-Definition wp_wasm_ctx_frame `{!wfuncG Σ, !wtabG Σ, !wtabsizeG Σ, !wtablimitG Σ, !wmemG Σ, !wmemsizeG Σ, !wmemlimitG Σ, !wglobG Σ, !wframeG Σ}
+Definition wp_wasm_ctx_frame `{!wasmG Σ}
           (s : stuckness) (E : coPset) (es : language.expr wasm_lang)
           (Φ : val -> iProp Σ) (n: nat) (f: frame) (i : nat) (lh : lholed) : iProp Σ :=
   
