@@ -114,7 +114,7 @@ Section fundamental.
       iDestruct "Hbr" as (Hdepth' Hmin) "[#Hws' _]".
       simpl in Hlayer.
       destruct (n - p) eqn:Heqnp;[|simplify_eq].
-      assert (n = p) as HH;[lia|]. simpl of_val.
+      assert (n = p) as HH;[lia|]. simpl iris.of_val.
       simplify_eq.
       destruct Hmin as [lh3 Hmin%lh_minus_Ind_Equivalent].
       inversion Hmin;simplify_eq. simpl lh_depth.
@@ -153,16 +153,16 @@ Section fundamental.
       iDestruct (big_sepL2_app_inv with "Hws'") as "[Hws1 Hws2]".
       { right. rewrite drop_length. lia. }
       iDestruct (big_sepL2_length with "Hws2") as %Hlen2.
-      simpl of_val.
+      simpl iris.of_val.
       pose proof (sfill_to_lfilled vh [AI_basic BI_return]) as Hfill.
       eapply lfilled_simple_get_base_pull in Hbase as [lh' Hlh'];[|eauto].
       iIntros (LI Hfill'%lfilled_Ind_Equivalent). inversion Hfill';simplify_eq.
       inversion H9;simplify_eq. repeat erewrite app_nil_l,app_nil_r.
       rewrite sfill_label.
-      eassert (of_val (retV _) = sfill _ _) as <-;[eauto|].
+      eassert (iris.of_val (retV _) = sfill _ _) as <-;[eauto|].
       iApply wp_value;[done|].
       iExists _. iFrame. iIntros "Hf".
-      simpl of_val.
+      simpl iris.of_val.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
       { iApply wp_return;cycle 2.
         { rewrite -(app_nil_l [AI_label _ _ _])  -(app_nil_r [AI_label _ _ _]).

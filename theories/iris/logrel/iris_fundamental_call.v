@@ -91,7 +91,7 @@ Section fundamental.
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
-        destruct (to_val (result_to_stack r)) eqn:Hval;[|done].
+        destruct (iris.to_val (result_to_stack r)) eqn:Hval;[|done].
         iApply wp_value;[instantiate (1:=v);rewrite /IntoVal /=;erewrite of_to_val;eauto|].
         iFrame.
       }

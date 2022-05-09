@@ -19,10 +19,6 @@ Section Examples.
   
 Import DummyHosts.
 
-Let reduce := @reduce host_function host_instance.
-
-Let reducible := @reducible wasm_lang.
-
 Context `{!wasmG Σ}.
 
 Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).

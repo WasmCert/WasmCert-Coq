@@ -2588,4 +2588,6 @@ Qed.
 Lemma wasm_mixin : LanguageMixin of_val to_val prim_step.
 Proof. split; eauto using to_of_val, of_to_val, val_head_stuck. Qed.
 
+Definition wasm_lang := Language wasm_mixin.
+
 End Host.

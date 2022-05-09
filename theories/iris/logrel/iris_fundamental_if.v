@@ -60,7 +60,7 @@ Section fundamental.
       iDestruct (IHbe_typing2 $! i lh with "[]") as "HH2"; [by (destruct C,i;eauto)|].
       iIntros (LI HLI%lfilled_Ind_Equivalent).
       inversion HLI;simplify_eq. erewrite app_nil_r.
-      rewrite -/(of_val (immV ws')).
+      rewrite -/(iris.of_val (immV ws')).
       unfold interp_expression. simpl to_e_list.
       iApply ("HH2" with "[] [Hf Hfv]");iFrame "∗ #".
       iRight. iExists _. iSplit;eauto.
@@ -72,7 +72,7 @@ Section fundamental.
       iDestruct (IHbe_typing1 $! i lh with "[]") as "HH2"; [by (destruct C,i;eauto)|].
       iIntros (LI HLI%lfilled_Ind_Equivalent).
       inversion HLI;simplify_eq. erewrite app_nil_r.
-      rewrite -/(of_val (immV ws')).
+      rewrite -/(iris.of_val (immV ws')).
       unfold interp_expression. simpl to_e_list.
       iApply ("HH2" with "[] [Hf Hfv]");iFrame "∗ #".
       iRight. iExists _. iSplit;eauto.

@@ -1,4 +1,3 @@
-
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
@@ -11,21 +10,5 @@ Require Export iris_rules_structural
         iris_rules_resources
         iris_rules_calls
         iris_rules_trap
-        iris_rules_bind
-        iris_rules_structural_with_trap.
+        iris_rules_bind.
 Require Export datatypes host operations properties opsem.
-
-Context `{!wasmG Σ}.
-
-Close Scope byte_scope.
-
-Lemma wp_ctx_frame_return (s: stuckness) (E: coPset) (Φ: iris.val -> iProp Σ) vs vs0 n f0 f i lh :
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
-  ⊢ WP vs ++ [AI_basic BI_return] @ s; E FRAME n ; f CTX i ; lh {{ v, Φ v ∗ ↪[frame] f0 }}).
-Proof.
-  iIntros (Hval Hlen) "HΦ".
-  iIntros (LI HLI).
-  iApply wp_return;eauto.
-Qed.

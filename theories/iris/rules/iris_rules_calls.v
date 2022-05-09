@@ -215,7 +215,7 @@ Context `{!wasmG Σ}.
 
     iLöb as "IH".
     iApply wp_unfold. rewrite /wp_pre /=.
-    assert (to_val (ves ++ [AI_invoke a]) = None) as ->.
+    assert (iris.to_val (ves ++ [AI_invoke a]) = None) as ->.
     { apply to_val_const_list in Hparams. apply to_val_cat_None2; auto. }
     iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.

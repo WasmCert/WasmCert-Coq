@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris_wp_def iris_properties stdpp_aux.
+Require Export iris_properties iris_wp_def stdpp_aux.
 Require Export datatypes host operations properties opsem.
 
 
@@ -183,61 +183,6 @@ Proof.
     1,2,3:rewrite find_first_const// in Hstart.
 Qed.
 
-Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f0 f i lh:
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  lfilled i lh (vs ++ [AI_basic BI_return]) es ->
-  WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }} -∗
-  WP [AI_local n f es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}%I.
-Proof.
-  iIntros (Hval Hlen Hlf) "HΦ".
-  iApply wp_lift_atomic_step => //=.
-  iDestruct (wp_unfold with "HΦ") as "HΦ".
-  rewrite /wp_pre /=.
-  rewrite Hval.
-  iIntros (σ ns κ κs nt) "Hσ !>".
-  assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
-  iSplit.
-  - iPureIntro. destruct s => //=.
-    unfold language.reducible, language.prim_step => /=.
-    exists [], vs, σ, [].
-    destruct σ as [[[hs ws] locs] inst].
-    unfold iris.prim_step => /=.
-    repeat split => //.
-    constructor. econstructor =>//.
-  - destruct σ as [[[hs ws] locs] inst] => //=.
-    iModIntro.
-    iIntros (es1 σ2 efs HStep).
-    iMod "HΦ" as "(HΦ & Hf0)".
-    iModIntro.
-    destruct σ2 as [[[hs' ws'] locs'] inst'] => //=.
-    destruct HStep as [H [-> ->]]. iFrame.
-    only_one_reduction H.
-    + iFrame.
-      rewrite Hval.
-      iFrame.
-      
-    all: assert (lfilled 0 (LH_base vs []) [AI_basic (BI_return)]
-                    (vs ++ [AI_basic (BI_return)]));
-      first (by unfold lfilled, lfill ; rewrite Hcvs ; rewrite app_nil_r);
-      eapply lfilled_trans in Hlf as Hlh';eauto;destruct Hlh' as [lh' Hfill'];
-    eapply lfilled_implies_starts in Hfill' => //= ;
-    unfold first_instr in Hstart ; simpl in Hstart ;
-    unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
-    inversion Hstart.
-Qed.
-
-Lemma wp_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh LI:
-  iris.to_val vs = Some (immV vs0) ->
-  length vs = n ->
-  lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
-  ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
-  ⊢ WP LI @ s; E FRAME n ; f {{ v, Φ v ∗ ↪[frame] f0 }}).
-Proof.
-  iIntros (Hval Hlen Hlf) "HΦ".
-  by iApply wp_return.
-Qed.
-
 Lemma wp_seq_ctx_frame (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) (n : nat) (f : frame) (f0 : frame) (f1 : frame) :
   ((¬ (Ψ trapV)) ∗ ↪[frame] f0 ∗
   (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, Ψ w ∗ ↪[frame] f1 }}) ∗
@@ -391,7 +336,7 @@ Proof.
     iMod "Hes2".
     apply lfilled_Ind_Equivalent in Hfilled';inversion Hfilled';simplify_eq.
     erewrite app_nil_r in H1.
-    assert (of_val vs' ++ es2 = es1 ++ es2) as ->;auto.
+    assert (iris.of_val vs' ++ es2 = es1 ++ es2) as ->;auto.
     iDestruct (wp_unfold with "Hes2") as "Hes2". rewrite /wp_pre /= Hetov.
     done.
   }

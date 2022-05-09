@@ -475,7 +475,7 @@ Section fundamental.
   Qed.
 
   Lemma to_val_fmap ws :
-    to_val ((λ v : value, AI_basic (BI_const v)) <$> ws) = Some (immV ws).
+    iris.to_val ((λ v : value, AI_basic (BI_const v)) <$> ws) = Some (immV ws).
   Proof.
     induction ws;auto.
     rewrite fmap_cons. rewrite to_val_cons_immV.
