@@ -125,6 +125,9 @@ Definition flatten_2d_list {T: Type} (l: list (list T)) : list ((N*N) * T) :=
 Definition gmap_of_list_2d {T: Type} (l: list (list T)) : gmap (N*N) T :=
   list_to_map (flatten_2d_list l).
 
+Definition gmap_of_list_2d_offset {T: Type} (l: list (list T)) (offset: N) : gmap (N*N) T :=
+  list_to_map (fmap (fun '(i,j,x) => ((i+offset)%N, j, x)) (flatten_2d_list l)).
+
 Definition memory_to_list (m: memory) : list byte :=
   (m.(mem_data)).(memory_list.ml_data).
 
@@ -370,28 +373,110 @@ Proof.
         repeat f_equal.
         lia.
 Qed.
-        
+
+Lemma gmap_of_list_2d_offset_lookup {T: Type} (l: list (list T)) (off: N) n i:
+  (n >= off)%N ->
+  (gmap_of_list_2d_offset l off) !! (n, i) =
+  match l !! (N.to_nat (n-off)) with
+  | Some l' => l' !! (N.to_nat i)
+  | None => None
+  end.
+Proof with resolve_finmap.
+  move => Hge.
+  unfold gmap_of_list_2d_offset.
+  remember_lookup.
+  destruct lookup_res...
+  - symmetry. apply flatten_2d_list_lookup.
+    apply elem_of_list_lookup.
+    destruct x as [[j k] x].
+    inversion Heq; subst; clear Heq.
+    exists x0.
+    rewrite Helem0.
+    repeat f_equal.
+    by lias.
+  - destruct x0 as [[j0 k0] x0].
+    destruct x1 as [[j1 k1] x1].
+    destruct x as [j k].
+    inversion Heq0; subst; clear Heq0.
+    inversion Heq; subst; clear Heq.
+    eapply flatten_2d_list_inj12 => //.
+    replace j1 with j0 => //.
+    by lias.
+  - fold (flatten_2d_list l).
+    apply NoDup_fmap; last by apply flatten_2d_list_nodup.
+    unfold Inj.
+    intros.
+    destruct x as [[j0 k0] x0].
+    destruct y as [[j1 k1] x1].
+    inversion H0; subst; clear H0.
+    repeat f_equal.
+    by lias.
+  - destruct (l !! (N.to_nat (n-off))) eqn: Hlookup => //.
+    destruct (l0 !! (N.to_nat i)) eqn: Hlookup2 => //.
+    exfalso. apply H2. clear H2.
+    apply elem_of_list_fmap.
+    exists (n, i, t). split => //.
+    apply elem_of_list_fmap.
+    exists ((n-off)%N, i, t).
+    split => //; first ((repeat f_equal); by lias).
+    apply flatten_2d_list_lookup.
+    by rewrite Hlookup Hlookup2.
+Qed.
+
+Lemma gmap_of_list_2d_offset_lookup_None {T: Type} (l: list (list T)) (off: N) n i:
+  (n < off)%N ->
+  (gmap_of_list_2d_offset l off) !! (n, i) = None.
+Proof with resolve_finmap.
+  move => Hge.
+  unfold gmap_of_list_2d_offset.
+  remember_lookup.
+  destruct lookup_res...
+  - destruct x as [[j k] x].
+    inversion Heq; subst; clear Heq.
+    by lias.
+  - destruct x0 as [[j0 k0] x0].
+    destruct x1 as [[j1 k1] x1].
+    destruct x as [j k].
+    inversion Heq0; subst; clear Heq0.
+    inversion Heq; subst; clear Heq.
+    eapply flatten_2d_list_inj12 => //.
+    replace j1 with j0 => //.
+    by lias.
+  - fold (flatten_2d_list l).
+    apply NoDup_fmap; last by apply flatten_2d_list_nodup.
+    unfold Inj.
+    intros.
+    destruct x as [[j0 k0] x0].
+    destruct y as [[j1 k1] x1].
+    inversion H0; subst; clear H0.
+    repeat f_equal.
+    by lias.
+Qed.
+
+Lemma gmap_of_list_2d_offset_0 {T: Type} (l: list (list T)):
+  gmap_of_list_2d l = gmap_of_list_2d_offset l 0.
+Proof.
+  unfold gmap_of_list_2d, gmap_of_list_2d_offset.
+  f_equal.
+  (* A bit stupid *)
+  apply list_eq.
+  move => i.
+  rewrite list_lookup_fmap.
+  destruct (flatten_2d_list l !! i) eqn: Hl => //=.
+  destruct p as [[? ?] ?].
+  repeat f_equal.
+  by lias.
+Qed.
+
 Lemma gmap_of_list_2d_lookup {T: Type} (l: list (list T)) n i:
   (gmap_of_list_2d l) !! (n, i) = match l !! (N.to_nat n) with
                                   | Some l' => l' !! (N.to_nat i)
                                   | None => None
                                   end.
-Proof with resolve_finmap.
-  unfold gmap_of_list_2d, flatten_2d_list.
-  remember_lookup.
-  destruct lookup_res...
-  - symmetry. apply flatten_2d_list_lookup.
-    by apply elem_of_list_lookup; eexists.
-  - by eapply flatten_2d_list_inj12.
-  - fold (flatten_2d_list l).
-    by apply flatten_2d_list_nodup.
-  - destruct (l !! (N.to_nat n)) eqn: Hlookup => //.
-    destruct (l0 !! (N.to_nat i)) eqn: Hlookup2 => //.
-    exfalso. apply H2. clear H2.
-    apply elem_of_list_fmap.
-    exists (n, i, t). split => //.
-    apply flatten_2d_list_lookup.
-    by rewrite Hlookup Hlookup2.
+Proof.
+  rewrite gmap_of_list_2d_offset_0.
+  rewrite gmap_of_list_2d_offset_lookup; last by lias.
+  by rewrite N.sub_0_r.
 Qed.
 
 Definition new_2d_gmap_at_n {T: Type} (n: N) (l: list T) : gmap (N*N) T :=
@@ -464,16 +549,18 @@ Proof.
   by inversion Heq.
 Qed.
 
-Lemma gmap_of_list_2d_append_disjoint {T: Type} l (l': list T):
-  new_2d_gmap_at_n (N.of_nat (length l)) l' ##ₘ gmap_of_list_2d l.
+Lemma gmap_of_list_2d_offset_append_disjoint {T: Type} l (l': list T) (off k: N):
+  (k >= N.of_nat (length l) + off)%N ->
+  new_2d_gmap_at_n k l' ##ₘ gmap_of_list_2d_offset l off. 
 Proof.
+  move => Hge.
   apply map_disjoint_spec.
   move => [n i] f1 f2 H1 H2.
   unfold new_2d_gmap_at_n in H1.
   resolve_finmap.
-  - rewrite gmap_of_list_2d_lookup in H2.
+  - rewrite gmap_of_list_2d_offset_lookup in H2; last by lias.
     rewrite Nat2N.id in H2.
-    destruct (_ !! length _ ) eqn: HContra => //. clear H2.
+    destruct (l !! N.to_nat (k-off)) eqn: HContra => //. clear H2.
     assert (Some l0 = None) => //.
     rewrite - HContra. clear HContra.
     apply lookup_ge_None.
@@ -486,88 +573,96 @@ Proof.
     inversion Heq.
     by apply Nat2N.inj in H1.
 Qed.
+  
+Lemma gmap_of_list_2d_append_disjoint {T: Type} l (l': list T):
+  new_2d_gmap_at_n (N.of_nat (length l)) l' ##ₘ gmap_of_list_2d l.
+Proof.
+  rewrite gmap_of_list_2d_offset_0.
+  apply gmap_of_list_2d_offset_append_disjoint.
+  by lias.
+Qed.
 
-Lemma gmap_of_list_2d_append {T: Type} l len (x: T):
-  gmap_of_list_2d (l ++ [::repeat x len]) =
-  new_2d_gmap_at_n (N.of_nat (length l)) (repeat x len) ∪ gmap_of_list_2d l.
+Lemma gmap_of_list_2d_offset_append_general {T: Type} l (x: list T) (off: N):
+  gmap_of_list_2d_offset (l ++ [::x]) off =
+  new_2d_gmap_at_n (N.of_nat (length l) + off) x ∪ gmap_of_list_2d_offset l off.
 Proof.
   apply map_eq.
   move => [n i].
-  remember_lookup; rewrite gmap_of_list_2d_lookup in Hlookup.
+  destruct (decide (n>=off)%N); last first.
+  { rewrite gmap_of_list_2d_offset_lookup_None; last by lias.
+    rewrite lookup_union_r.
+    - rewrite gmap_of_list_2d_offset_lookup_None => //.
+      by lias.
+    - rewrite new_2d_gmap_at_n_lookup_None => //.
+      by lias.
+  }
+  remember_lookup; rewrite gmap_of_list_2d_offset_lookup in Hlookup; last by lias.
   destruct lookup_res => //=.
-  - destruct (_ !! N.to_nat n) eqn:Hlookup2 => //.
-    assert (N.to_nat n <= length l) as Hlen.
+  - destruct (_ !! N.to_nat (n-off)) eqn:Hlookup2 => //.
+    assert (N.to_nat (n-off) <= length l) as Hlen.
     {
       apply lookup_lt_Some in Hlookup2.
       rewrite app_length in Hlookup2.
       simpl in Hlookup2.
       lia.
     }
-    destruct (decide (N.to_nat n = length l)) => //.
+    destruct (decide (N.to_nat (n-off) = length l)) => //.
     + rewrite e in Hlookup2.
       rewrite lookup_app_r in Hlookup2; last lia.
       replace (length l - length l) with 0 in Hlookup2; last lia.
       simpl in Hlookup2.
       inversion Hlookup2; subst; clear Hlookup2.
-      assert (N.to_nat i < len).
-      { apply lookup_lt_Some in Hlookup.
-        by rewrite repeat_length in Hlookup.
-      }
-      apply elem_of_list_lookup_2 in Hlookup.
-      apply elem_of_list_In in Hlookup.
-      apply repeat_spec in Hlookup. subst.
+      assert (N.to_nat i < length l0).
+      { by apply lookup_lt_Some in Hlookup. }
       symmetry.
       apply lookup_union_Some_l.
       rewrite - e.
       rewrite N2Nat.id.
-      rewrite new_2d_gmap_at_n_lookup.
-      by apply repeat_lookup.
-    + assert (N.to_nat n < length l) as Hlenlt; first lia.
+      rewrite N.sub_add; last by lias.
+      by rewrite new_2d_gmap_at_n_lookup.
+    + assert (N.to_nat (n-off) < length l) as Hlenlt; first lia.
       symmetry.
-      apply lookup_union_Some_r; first by apply gmap_of_list_2d_append_disjoint.
-      rewrite gmap_of_list_2d_lookup.
+      apply lookup_union_Some_r; first by apply gmap_of_list_2d_offset_append_disjoint; lias.
+      rewrite gmap_of_list_2d_offset_lookup => //.
       rewrite lookup_app_l in Hlookup2; last lia.
       by rewrite Hlookup2.
-  - destruct (_ !! N.to_nat n) eqn:Hlookup2 => //.
-    + assert (N.to_nat n <= length l) as Hlen.
+  - destruct (_ !! N.to_nat (n-off)) eqn:Hlookup2 => //.
+    + assert (N.to_nat (n-off) <= length l) as Hlen.
       {
         apply lookup_lt_Some in Hlookup2.
         rewrite app_length in Hlookup2.
         simpl in Hlookup2.
         lia.
       }
-      destruct (decide (N.to_nat n = length l)) => //.
+      destruct (decide (N.to_nat (n-off) = length l)) => //.
       * rewrite e in Hlookup2.
         rewrite lookup_app_r in Hlookup2; last lia.
         replace (length l - length l) with 0 in Hlookup2; last lia.
         simpl in Hlookup2.
         inversion Hlookup2; subst; clear Hlookup2.
-        assert (N.to_nat i >= len).
-        { apply lookup_ge_None in Hlookup.
-          by rewrite repeat_length in Hlookup.
-        }
+        assert (N.to_nat i >= length l0).
+        { by apply lookup_ge_None in Hlookup. }
         symmetry.
         apply lookup_union_None.
         split.
         -- rewrite - e.
-          rewrite N2Nat.id.
-          rewrite new_2d_gmap_at_n_lookup.
-          by apply repeat_lookup_None.
-        -- rewrite gmap_of_list_2d_lookup.
-          assert (N.to_nat n ≥ length l) as Hlen2; first lia.
+           rewrite N2Nat.id.
+           rewrite N.sub_add; last by lias.
+          by rewrite new_2d_gmap_at_n_lookup.
+        -- rewrite gmap_of_list_2d_offset_lookup => //.
+          assert (N.to_nat (n-off) ≥ length l) as Hlen2; first lia.
           apply lookup_ge_None in Hlen2.
           by rewrite Hlen2.
-      * assert (N.to_nat n < length l) as Hlenlt; first lia.
-        symmetry.
+      * symmetry.
         apply lookup_union_None.
         split.
         -- rewrite new_2d_gmap_at_n_lookup_None => //.
           lia.
-        -- rewrite gmap_of_list_2d_lookup.
+        -- rewrite gmap_of_list_2d_offset_lookup => //.
            rewrite lookup_app_l in Hlookup2; last lia.
            by rewrite Hlookup2.
     + clear Hlookup.
-      destruct (_ !! N.to_nat n) eqn:Hlookup => //.
+      destruct (_ !! N.to_nat (n-off)) eqn:Hlookup => //.
       clear Hlookup2.
       apply lookup_ge_None in Hlookup.
       rewrite app_length in Hlookup.
@@ -577,10 +672,26 @@ Proof.
       split.
       * apply new_2d_gmap_at_n_lookup_None => //.
         lia.
-      * rewrite gmap_of_list_2d_lookup.
-        assert (N.to_nat n >= length l) as Hlen; first lia.
+      * rewrite gmap_of_list_2d_offset_lookup => //.
+        assert (N.to_nat (n-off) >= length l) as Hlen; first lia.
         apply lookup_ge_None in Hlen.
         by rewrite Hlen.
+Qed.
+
+Lemma gmap_of_list_2d_append_general {T: Type} l (x: list T):
+  gmap_of_list_2d (l ++ [::x]) =
+  new_2d_gmap_at_n (N.of_nat (length l)) x ∪ gmap_of_list_2d l.
+Proof.
+  repeat rewrite gmap_of_list_2d_offset_0.
+  rewrite gmap_of_list_2d_offset_append_general.
+  by rewrite N.add_0_r.
+Qed.  
+  
+Lemma gmap_of_list_2d_append {T: Type} l len (x: T):
+  gmap_of_list_2d (l ++ [::repeat x len]) =
+  new_2d_gmap_at_n (N.of_nat (length l)) (repeat x len) ∪ gmap_of_list_2d l.
+Proof.
+  by apply gmap_of_list_2d_append_general.
 Qed.
 
 Lemma gmap_of_list_2d_insert {T: Type} n i (x: T) (l: list (list T)) (t: list T):
@@ -883,6 +994,128 @@ Proof.
       lia.
 Qed.
 
+Lemma gmap_of_list_append_big {T: Type} (l1 l2: list T):
+  let gtmap := (list_to_map (imap (fun i x => (N.of_nat (length l1 + i), x)) l2)) in
+  gmap_of_list (l1 ++ l2) = (gmap_of_list l1) ∪ gtmap /\
+  map_disjoint (gmap_of_list l1) gtmap.
+Proof.
+  move: l1.
+  induction l2 using List.rev_ind; move => l1 => /=.
+  - rewrite cats0.
+    split.
+    + by rewrite map_union_empty.
+    + by apply map_disjoint_empty_r.
+  - rewrite catA.
+    rewrite gmap_of_list_append.
+    specialize (IHl2 l1).
+    destruct IHl2 as [Hgmap Hdisj].
+    rewrite Hgmap.
+    split.
+    + rewrite imap_app.
+      rewrite list_to_map_app => /=.
+      rewrite -> insert_union_singleton_r.
+      * rewrite map_union_assoc.
+        f_equal.
+        rewrite insert_empty.
+        f_equal.
+        rewrite app_length.
+        by lias.
+      * rewrite lookup_union_r.
+        { rewrite <- not_elem_of_list_to_map.
+          move => Hcontra.
+          rewrite -> elem_of_list_fmap in Hcontra.
+          destruct Hcontra as [[n t] [Heq Helem]].
+          apply elem_of_lookup_imap in Helem.
+          destruct Helem as [i [y [Heq2 Hlookup]]].
+          simpl in Heq.
+          inversion Heq2; subst; clear Heq2.
+          apply lookup_lt_Some in Hlookup.
+          apply Nat2N.inj in H0.
+          rewrite app_length in H0.
+          by lias.
+        }
+        { rewrite gmap_of_list_lookup.
+          rewrite Nat2N.id.
+          apply lookup_ge_None.
+          rewrite app_length.
+          by lias.
+        }
+    + apply map_disjoint_spec.
+      move => i y1 y2 Hl1 Hl2.
+      rewrite gmap_of_list_lookup in Hl1.
+      apply elem_of_list_to_map in Hl2.
+      * rewrite -> elem_of_lookup_imap in Hl2.
+        destruct Hl2 as [j [y [Heq Hl]]].
+        inversion Heq; subst; clear Heq.
+        apply lookup_lt_Some in Hl1.
+        apply lookup_lt_Some in Hl.
+        rewrite Nat2N.id in Hl1.
+        by lias.
+      *  apply NoDup_fmap_fst.
+         { move => x0 y3 z4 Hin1 Hin2.
+           apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
+           apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
+           inversion Heq3; subst; clear Heq3.
+           inversion Heq4; subst; clear Heq4.
+           replace i2 with i1 in Hl4; last by lias.
+           rewrite Hl3 in Hl4.
+           by inversion Hl4.
+         }
+         {
+           apply nodup_imap_inj1.
+           move => n1 n2 t1 t2 H2.
+           inversion H2; subst; clear H2.
+           by lias.
+         }
+Qed.
+
+Lemma gmap_of_list_2d_append_big {T: Type} (l1 l2: list (list T)):
+  let gtmap := gmap_of_list_2d_offset l2 (N.of_nat (length l1)) in
+  gmap_of_list_2d (l1 ++ l2) = (gmap_of_list_2d l1) ∪ gtmap /\
+  map_disjoint (gmap_of_list_2d l1) gtmap.
+Proof.
+  repeat rewrite gmap_of_list_2d_offset_0.
+  move: l1.
+  induction l2 using List.rev_ind; move => l1 => /=.
+  - rewrite cats0.
+    split.
+    + by rewrite map_union_empty.
+    + by apply map_disjoint_empty_r.
+  - rewrite catA.
+    repeat rewrite gmap_of_list_2d_offset_append_general.
+    specialize (IHl2 l1).
+    destruct IHl2 as [Hgmap Hdisj].
+    rewrite Hgmap.
+    assert (map_disjoint (new_2d_gmap_at_n (N.of_nat (length l1 + length l2)) x) (gmap_of_list_2d_offset l1 0)) as Hndisj.
+    {
+      apply map_disjoint_spec.
+      move => [i j] x1 x2 Hl1 Hl2.
+      rewrite gmap_of_list_2d_offset_lookup in Hl2; last lia.
+      rewrite N.sub_0_r in Hl2.
+      destruct (l1 !! (N.to_nat i)) eqn:Hli => //.
+      apply lookup_lt_Some in Hli.
+      rewrite new_2d_gmap_at_n_lookup_None in Hl1 => //.
+      by lias.
+    }
+    split.
+    + repeat rewrite map_union_assoc.
+      rewrite N.add_0_r.
+      rewrite <- Nat2N.inj_add.
+      rewrite app_length.
+      replace (length l2 + length l1) with (length l1 + length l2); last lia.
+      by rewrite (map_union_comm (new_2d_gmap_at_n (N.of_nat (length l1 + length l2)) x) (gmap_of_list_2d_offset l1 0)) => //.
+    + apply map_disjoint_union_r.
+      split => //.
+      apply map_disjoint_spec.
+      move => [i j] x1 x2 Hl1 Hl2.
+      rewrite gmap_of_list_2d_offset_lookup in Hl1; last lia.
+      rewrite N.sub_0_r in Hl1.
+      destruct (l1 !! (N.to_nat i)) eqn:Hli => //.
+      apply lookup_lt_Some in Hli.
+      rewrite new_2d_gmap_at_n_lookup_None in Hl2 => //.
+      by lias.
+Qed.
+
 Ltac simplify_lookup :=
   repeat match goal with
   | H: gmap_of_table _ !! _ = _ |- _ =>
@@ -904,4 +1137,5 @@ Ltac simplify_lookup :=
   | H: context C [N.to_nat (N.of_nat _)] |- _ =>
     rewrite Nat2N.id in H
   | _ => resolve_finmap
-  end.
+end.
+
