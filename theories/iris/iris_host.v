@@ -3412,7 +3412,7 @@ Proof.
         destruct Himpwasm as [? [? [? [? [-> ?]]]]] => /=.
         repeat split => //.
         by f_equal.
-    }.
+    }
 
     destruct Hvtcomplen as [Hvtflen [Hvttlen [Hvtmlen Hvtglen]]].
     
