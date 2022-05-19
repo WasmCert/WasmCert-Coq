@@ -18,7 +18,7 @@ Context `{!wasmG Σ}.
 Lemma wp_unop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v v' : value) (t: value_type) (op: unop) f0:
   app_unop op v = v' ->
   ↪[frame] f0 -∗
-   Φ (immV [v']) -∗
+  ▷ Φ (immV [v']) -∗
   WP [AI_basic (BI_const v); AI_basic (BI_unop t op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Hunop) "Hf HΦ".
@@ -42,7 +42,7 @@ Qed.
 Lemma wp_binop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v1 v2 v : value) (t: value_type) (op: binop) f0:
   app_binop op v1 v2 = Some v ->
   ↪[frame] f0 -∗
-  Φ (immV [v]) -∗
+  ▷ Φ (immV [v]) -∗
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Hbinop) "Hf HΦ".
@@ -68,7 +68,7 @@ Qed.
 
 Lemma wp_binop_failure (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v1 v2 : value) (t: value_type) (op: binop) f0:
   app_binop op v1 v2 = None ->
-  Φ trapV -∗
+  ▷ Φ trapV -∗
   ↪[frame] f0 -∗
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_binop t op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
@@ -96,7 +96,7 @@ Qed.
 Lemma wp_relop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v1 v2 : value) (b: bool) (t: value_type) (op: relop) f0:
   app_relop op v1 v2 = b ->
   ↪[frame] f0 -∗
-  Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
+  ▷ Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
   WP [AI_basic (BI_const v1); AI_basic (BI_const v2); AI_basic (BI_relop t op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Hrelop) "Hf HΦ".
@@ -123,7 +123,7 @@ Qed.
 Lemma wp_testop_i32 (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : i32) (b: bool) (op: testop) f0:
   app_testop_i (e:=i32t) op v = b ->
   ↪[frame] f0 -∗
-  Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
+  ▷ Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
     WP [AI_basic (BI_const (VAL_int32 v)); AI_basic (BI_testop T_i32 op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
 Proof.
   iIntros (Htestop) "Hf0 HΦ".
@@ -150,7 +150,7 @@ Qed.
 Lemma wp_testop_i64 (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (v : i64) (b: bool) (op: testop) f0:
   app_testop_i (e:=i64t) op v = b ->
   ↪[frame] f0 -∗
-  Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
+  ▷ Φ (immV [(VAL_int32 (wasm_bool b))]) -∗
     WP [AI_basic (BI_const (VAL_int64 v)); AI_basic (BI_testop T_i64 op)] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
 Proof.
   iIntros (Htestop) "Hf0 HΦ".
@@ -178,7 +178,7 @@ Lemma wp_cvtop_convert (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) 
   cvt t2 sx v = Some v' ->
   types_agree t1 v ->
   ↪[frame] f0 -∗
-  Φ (immV [v']) -∗
+  ▷Φ (immV [v']) -∗
     WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
 Proof.
   iIntros (Hcvtop Htype) "Hf0 HΦ".
@@ -206,7 +206,7 @@ Lemma wp_cvtop_convert_failure (s : stuckness) (E : coPset) (Φ : iris.val -> iP
   cvt t2 sx v = None ->
   types_agree t1 v ->
   ↪[frame] f0 -∗
-  Φ (trapV) -∗
+  ▷Φ (trapV) -∗
     WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_convert t1 sx)] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
 Proof.
   iIntros (Hcvtop Htypes) "Hf0 HΦ".
@@ -234,7 +234,7 @@ Lemma wp_cvtop_reinterpret (s : stuckness) (E : coPset) (Φ : iris.val -> iProp 
   wasm_deserialise (bits v) t2 = v' ->
   types_agree t1 v ->
   ↪[frame] f0 -∗
-  Φ (immV [v']) -∗
+  ▷Φ (immV [v']) -∗
     WP [AI_basic (BI_const v); AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
 Proof.
   iIntros (Hcvtop Htype) "Hf0 HΦ".
@@ -262,7 +262,7 @@ Qed.
 
 Lemma wp_unreachable (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) f0 :
   ↪[frame] f0 -∗
-  Φ (trapV) -∗
+  ▷Φ (trapV) -∗
   WP [AI_basic BI_unreachable] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
 Proof.
   iIntros "Hf0 HΦ".
@@ -288,7 +288,7 @@ Qed.
 
 Lemma wp_nop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) f0:
   ↪[frame] f0 -∗
-  Φ (immV []) -∗
+  ▷Φ (immV []) -∗
     WP [AI_basic (BI_nop)] @ s; E {{ v, Φ v ∗ ↪[frame] f0}}.
 Proof.
   iIntros "Hf0 HΦ".
@@ -314,7 +314,7 @@ Qed.
 
 Lemma wp_drop (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) v f0 :
   ↪[frame] f0 -∗
-  Φ (immV []) -∗
+  ▷Φ (immV []) -∗
     WP [AI_basic (BI_const v) ; AI_basic BI_drop] @ s; E {{ w, Φ w ∗ ↪[frame] f0}}.
 Proof.
   iIntros "Hf0 HΦ".
@@ -339,7 +339,7 @@ Qed.
 Lemma wp_select_false (s: stuckness) (E :coPset) (Φ : iris.val -> iProp Σ) n v1 v2 f0 :
   n = Wasm_int.int_zero i32m ->
   ↪[frame] f0 -∗
-  Φ (immV [v2]) -∗ WP [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+  ▷Φ (immV [v2]) -∗ WP [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
                       AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_select) ] @ s;
 E {{ w, Φ w ∗ ↪[frame] f0}}.
 Proof.
@@ -364,7 +364,7 @@ Qed.
 Lemma wp_select_true (s: stuckness) (E : coPset) (Φ: iris.val -> iProp Σ) n v1 v2 f0 :
   n <> Wasm_int.int_zero i32m ->
   ↪[frame] f0 -∗
-  Φ (immV [v1]) -∗ WP [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
+  ▷Φ (immV [v1]) -∗ WP [AI_basic (BI_const v1) ; AI_basic (BI_const v2) ;
                       AI_basic (BI_const (VAL_int32 n)) ; AI_basic (BI_select) ] @ s;
 E {{ w, Φ w ∗ ↪[frame] f0}}.
 Proof.
