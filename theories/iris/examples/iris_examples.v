@@ -34,9 +34,8 @@ Definition my_add : expr :=
 Lemma myadd_spec (s : stuckness) (E : coPset) (Φ: val -> iProp Σ) (f0: frame): 
   ↪[frame] f0 -∗ Φ (immV [xx 5]) -∗ WP my_add @ s; E {{ v, Φ v ∗  ↪[frame] f0  }}.
 Proof.
-  iIntros "HP".
-  unfold my_add.
-  by iApply wp_binop.
+  iIntros "Hf HP".
+  iApply (wp_binop with "[$]");eauto.
 Qed.
 
 (* An example to show framing from the stack. *)
