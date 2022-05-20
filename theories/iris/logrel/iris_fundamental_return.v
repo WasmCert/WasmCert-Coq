@@ -52,7 +52,7 @@ Section fundamental.
     rewrite Hsome.
     iExists t1s. iSplit.
     { iRight. iExists _. iSplit;eauto. }
-    iIntros (f0 f1) "[Hf Hfv]".
+    iIntros (f0 f1) "Hf".
 
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
     rewrite app_length in Hlen.
@@ -72,7 +72,7 @@ Section fundamental.
         apply/eqP. simpl. rewrite app_nil_r. auto. }
     }
     iIntros (v) "[-> Hf]".
-    iSplitR;[|iExists _;iFrame;iExists _;eauto].
+    iSplitR;[|iFrame].
     iRight. iExists _. iSplit;eauto.
   Qed.
 

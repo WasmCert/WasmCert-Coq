@@ -159,7 +159,7 @@ Section fundamental.
         { right. rewrite drop_length. lia. }
         iDestruct (big_sepL2_length with "Hws2") as %Hlen'.        
 
-        iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+        iIntros (f0 f1) "Hf". iSpecialize ("Hret" $! f0 with "[$]").
         iApply (wp_ret_shift with "Hret");[| |apply Hlh''|apply Hlh'].
         { apply const_list_of_val. }
         { rewrite fmap_length. auto. }
@@ -187,7 +187,7 @@ Section fundamental.
         { right. rewrite drop_length. lia. }
         iDestruct (big_sepL2_length with "Hws2") as %Hlen'.        
 
-        iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+        iIntros (f0 f1) "Hf". iSpecialize ("Hret" $! f0 with "[$]").
         iApply (wp_ret_shift with "Hret");[| |apply Hlh''|apply Hlh'].
         { apply const_list_of_val. }
         { rewrite fmap_length. auto. }

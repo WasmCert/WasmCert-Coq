@@ -1003,7 +1003,7 @@ Section fundamental.
     iExists _,_. iSplit;[eauto|]. iSplit;[eauto|].
     assert (tc_return C = Some l) as ->;auto.
     iExists _. iSplitR. { iRight. iExists _. eauto. }
-    iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+    iIntros (f0 f1) "Hf". iSpecialize ("Hret" $! f0 with "[$]").
     iDestruct (big_sepL2_length with "Hw") as %Hlen'.
     iApply (wp_ret_shift with "Hret");cycle 2.
     { simpl of_val. eauto. }
