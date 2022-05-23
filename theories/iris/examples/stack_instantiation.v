@@ -460,9 +460,6 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
            ↪[frame] f0
   }}})%I.
 
-
-
-
 Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
@@ -479,7 +476,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt : nat)
                     (name0 name1 name2 name3 name4 name5 name6 : name)
                     (f0 f1 f2 f3 f4 f5 : list basic_instruction)
-                    (i0 i1 i2 i3 i4 i5 : instance)
+                    (i0 : instance)
                     (l0 l1 l2 l3 l4 l5 : list value_type)
                     tab 
                     (isStack : Z -> seq.seq i32 -> iPropI Σ)
@@ -503,11 +500,11 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                     let inst_map := fold_left (λ fs '(idf,i,t,l,f),
                                                 <[ N.of_nat idf := FC_func_native i t l f ]> fs)
                                               (rev [(idf0, i0, Tf [] [T_i32], l0, f0) ;
-                                               (idf1, i1, Tf [T_i32] [T_i32], l1, f1) ;
-                                                    (idf2, i2, Tf [T_i32] [T_i32], l2, f2) ;
-                                                    (idf3, i3, Tf [T_i32] [T_i32], l3, f3) ;
-                                                    (idf4, i4, Tf [T_i32 ; T_i32] [], l4, f4) ;
-                                              (idf5, i5, Tf [T_i32 ; T_i32] [], l5, f5)])
+                                               (idf1, i0, Tf [T_i32] [T_i32], l1, f1) ;
+                                                    (idf2, i0, Tf [T_i32] [T_i32], l2, f2) ;
+                                                    (idf3, i0, Tf [T_i32] [T_i32], l3, f3) ;
+                                                    (idf4, i0, Tf [T_i32 ; T_i32] [], l4, f4) ;
+                                              (idf5, i0, Tf [T_i32 ; T_i32] [], l5, f5)])
                                               ∅ in 
                     (* These two import functions state that all [vis] and [wf] point 
                        to the correct exports/functions, i.e. a client will be able 
@@ -516,22 +513,22 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                     import_resources_wasm_typecheck inst_vis expts inst_map
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
-                    ⌜ length tab.(table_data) >= 1 ⌝ ∗ 
+                    ⌜ length tab.(table_data) >= 1 ⌝ ∗
                     (* We own a token that hides ressources needed for the new_stack function *)
                     nextStackAddrIs 0 ∗
                     (* And finally we have specs for all our exports : *)
                     (* Spec for new_stack (call 0) *)
                     spec0_new_stack idf0 i0 l0 f0 isStack nextStackAddrIs ∗
                     (* Spec for is_empty (call 1) *)
-                    spec1_is_empty idf1 i1 l1 f1 isStack ∗
+                    spec1_is_empty idf1 i0 l1 f1 isStack ∗
                     (* Spec for is_full (call 2) *)
-                    spec2_is_full idf2 i2 l2 f2 isStack ∗
+                    spec2_is_full idf2 i0 l2 f2 isStack ∗
                     (* Spec for pop (call 3) *)
-                    spec3_pop idf3 i3 l3 f3 isStack ∗
+                    spec3_pop idf3 i0 l3 f3 isStack ∗
                     (* Spec for push (call 4) *)
-                    spec4_push idf4 i4 l4 f4 isStack ∗
+                    spec4_push idf4 i0 l4 f4 isStack ∗
                     (* Spec of stack_map (call 5) *)
-                    spec5_stack_map idf5 i5 l5 f5 isStack idt
+                    spec5_stack_map idf5 i0 l5 f5 isStack idt
                                           
              }}.
   Proof.
@@ -625,7 +622,9 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iSplitL "Hmod" ; first done.
       iExists f, f0, f1, f2, f3, f4, t.
       iExists name0, name1, name2, name3, name4, name5, name6.
-      do 3 iExists _, _, _, _, _, _.
+      iExists _, _, _, _, _, _.
+      iExists _.
+      iExists _, _, _, _, _, _.
       iExists _.
       iExists (λ a b, isStack a b m).
       iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
