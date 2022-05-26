@@ -1580,8 +1580,14 @@ Lemma module_inst_global_init_cat (gs1 gs2: list global) (gi1 gi2: list value):
   module_inst_global_init (gs1 ++ gs2) (gi1 ++ gi2) =
   module_inst_global_init gs1 gi1 ++ module_inst_global_init gs2 gi2.
 Proof.
-Admitted.
-
+  move : gi1 gi2 gs2.
+  induction gs1; move => gi1 gi2 gs2 Hlen; destruct gi1 => //=.
+  simpl in Hlen.
+  f_equal.
+  apply IHgs1.
+  by lias.
+Qed.
+  
 (* The newly allocated resources due to instantiation. *)
 Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
   ([∗ list] f; addr ∈ mfuncs; inst_f,
@@ -2464,16 +2470,46 @@ Proof.
   destruct Heq as [-> [-> ->]].
   by unfold init_mem => /=.
 Qed.
-  
-Lemma host_export_state_update vis vis' inst hs_exps m:
-  ⌜ insert_exports vis hs_exps ((fun m_exp => {| modexp_name := modexp_name m_exp; modexp_desc := export_get_v_ext inst (modexp_desc m_exp) |}) <$> mod_exports m) = Some vis' ⌝ -∗
+
+Lemma host_export_state_update vis vis' inst hs_exps mexp:
+  ⌜ length hs_exps = length mexp ⌝ -∗
+  ⌜ insert_exports vis hs_exps ((fun m_exp => {| modexp_name := modexp_name m_exp; modexp_desc := export_get_v_ext inst (modexp_desc m_exp) |}) <$> mexp) = Some vis' ⌝ -∗
   ghost_map_auth visGName 1 vis -∗
   export_ownership_host hs_exps -∗ |==>
   (ghost_map_auth visGName 1 vis' ∗
-   module_export_resources_host hs_exps (mod_exports m) inst).
+   module_export_resources_host hs_exps mexp inst).
 Proof.
-Admitted.
-
+  move : vis vis' inst mexp.
+  iInduction hs_exps as [|a] "IH"; iIntros (vis vis' inst mexp) "%Hlen %Hie".
+  - simpl in Hie.
+    inversion Hie; subst; clear Hie.
+    iIntros "Hvis _".
+    iModIntro.
+    iFrame.
+    unfold module_export_resources_host.
+    simpl in Hlen.
+    by destruct mexp.
+  - destruct mexp => //=.
+    simpl in Hlen.
+    simpl in Hie.
+    destruct (insert_exports _ _ _) eqn:Hie2 => //.
+    inversion Hlen; clear Hlen.
+    inversion Hie; subst; clear Hie.
+    iSpecialize ("IH" $! _ _ _ _ (H0) (Hie2)).
+    iIntros "Hσ Hexport".
+    unfold export_ownership_host.
+    iSimpl in "Hexport".
+    iDestruct "Hexport" as "(Hv & Hexport)".
+    iSpecialize ("IH" with "[$] [$]").
+    iMod "IH" as "(Hσ & Hexport)".
+    iDestruct "Hv" as (hv) "Hv" => /=.
+    iDestruct (ghost_map_update with "Hσ Hv") as "Hupd".
+    iMod "Hupd" as "(Hσ & Hv)".
+    iModIntro.
+    iFrame.
+    by iExists (modexp_name m).
+Qed.
+    
 Lemma mod_imps_len_t m t_imps t_exps:
   module_typing m t_imps t_exps ->
   get_import_func_count m = length (ext_t_funcs t_imps) /\
@@ -2481,7 +2517,37 @@ Lemma mod_imps_len_t m t_imps t_exps:
   get_import_mem_count m = length (ext_t_mems t_imps) /\
   get_import_global_count m = length (ext_t_globs t_imps).
 Proof.
-Admitted.
+  unfold get_import_func_count, get_import_table_count, get_import_mem_count, get_import_global_count.
+  unfold module_typing.
+  move => Hmt.
+  destruct m.
+  destruct Hmt as [fts [gts [? [? [? [? [? [? [? [Himptype ?]]]]]]]]]].
+  simpl in *.
+  clear - mod_imports Himptype.
+  move : Himptype.
+  move : t_imps fts gts.
+  induction mod_imports; move => t_imps fts gts Himptype => //=.
+  - apply Forall2_nil_inv_l in Himptype as ->.
+    by simpl.
+  - destruct t_imps; first by apply Forall2_nil_inv_r in Himptype.
+    simpl in *.
+    inversion Himptype; subst; clear Himptype.
+    unfold module_import_typing in H2.
+    destruct a, imp_desc => /=; simpl in H2; destruct e => //.
+    all:
+      try by (move/andP in H2;
+      destruct H2 as [Hlen Hnth];
+      move/eqP in Hnth; subst;
+      simpl;
+      apply IHmod_imports in H4 as [? [? [? ?]]] => //;
+      repeat split => //;
+      f_equal).
+    move/eqP in H2; subst.
+    simpl.
+    apply IHmod_imports in H4 as [? [? [? ?]]] => //.
+    repeat split => //.
+    by f_equal.
+Qed.
 
 Lemma module_inst_build_tables_nil m inst:
   m.(mod_tables) = [] ->
@@ -3321,7 +3387,9 @@ Proof.
     revert Heqinst_res.
     inversion H18; subst; clear H18.
     move => Heqinst_res.
-    iDestruct (host_export_state_update $! Hinsertexp with "[$] [$]") as "H".
+    
+    rewrite fmap_length in H16.
+    iDestruct (host_export_state_update $! H16 Hinsertexp with "[$] [$]") as "H".
     
     iMod "H" as "(Hvis & Hexphost)".
     
