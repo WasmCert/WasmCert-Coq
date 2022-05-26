@@ -19,7 +19,7 @@ Close Scope byte_scope.
    
 
 Section Client.
- Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}. 
+ Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !logrel_na_invs Σ}. 
 
   
 (* Functions from the stack module are : 
@@ -266,7 +266,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iDestruct "Hes1" as (i0) "Hes1".  
       iDestruct "Hes1" as (l0 l1 l2 l3 l4 l5) "Hes1".
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
-                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5)".
+                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & _)".
       iFrame "Hmod0".
       iApply (instantiation_spec_operational_start with "[Hmod1 Himport Himp_type Hvis7]") ; try exact module_typing_client.
     - by unfold client_module.
