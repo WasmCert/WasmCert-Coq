@@ -117,7 +117,7 @@ Section fundamental.
       
       iDestruct (big_sepL2_length with "Hw") as %Hlen.
       iExists _. iSplitR;[iRight;iExists _;iSplit;eauto;rewrite H0;eauto|].
-      iIntros (f0 f1) "[Hf Hfv]". iSpecialize ("Hret" $! f0 with "[$]").
+      iIntros (f0 f1) "Hf". iSpecialize ("Hret" $! f0 with "[$]").
       iApply (wp_ret_shift with "Hret");[| |apply Hlh''|apply Hlh'].
       { apply const_list_of_val. }
       { rewrite fmap_length. rewrite drop_length.

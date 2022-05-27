@@ -282,8 +282,8 @@ Section logrel.
     λne (w : leibnizO val), (∃ (vh : simple_valid_holed) (v : seq.seq value), ⌜w = retV vh⌝ ∗ ⌜simple_get_base_l vh = v⌝ ∗
                              match τr with 
                              | Some τr => (∃ τs'', interp_val (τs'' ++ τr) (immV v) ∗
-                                           ∀ f f', ↪[frame] f' ∗ interp_frame τl i f' -∗
-                                               WP [AI_local (length τr) f (of_val w)] {{ vs, interp_val τr vs ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})
+                                           ∀ f f', ↪[frame] f' -∗
+                                               WP [AI_local (length τr) f (of_val w)] {{ vs, interp_val τr vs ∗ ↪[frame] f' }})
                              | None => False
                              end)%I.
 

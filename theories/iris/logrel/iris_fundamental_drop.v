@@ -40,7 +40,7 @@ Section fundamental.
 
     iSimpl.
     iApply (wp_wand _ _ _ (λne vs, interp_val [] vs ∗ ↪[frame] f )%I with "[Hf]").
-    { iApply (wp_drop with "Hf"). iRight. iExists []. iSplit;done. }
+    { iApply (wp_drop with "Hf"). iRight. iExists []. iNext. iSplit;done. }
     iIntros (v) "[$ Hf]".
     iExists _;iFrame.
   Qed.

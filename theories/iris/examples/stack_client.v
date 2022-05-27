@@ -19,7 +19,9 @@ Close Scope byte_scope.
    
 
 Section Client.
- Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
+
+ Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ, !logrel_na_invs Σ}. 
+
 
   
 (* Functions from the stack module are : 
@@ -263,10 +265,10 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iDestruct "Hes1" as (idf0 idf1 idf2 idf3 idf4 idf5 idt) "Hes1".
       iDestruct "Hes1" as (name0 name1 name2 name3 name4 name5 name6) "Hes1".
       iDestruct "Hes1" as (f0 f1 f2 f3 f4 f5) "Hes1".
-      iDestruct "Hes1" as (i0 i1 i2 i3 i4 i5) "Hes1".  
+      iDestruct "Hes1" as (i0) "Hes1".  
       iDestruct "Hes1" as (l0 l1 l2 l3 l4 l5) "Hes1".
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
-                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5)".
+                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & _)".
       iFrame "Hmod0".
       iApply (instantiation_spec_operational_start with "[Hmod1 Himport Himp_type Hvis7]") ; try exact module_typing_client.
     - by unfold client_module.
@@ -649,7 +651,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
                                              isStack k [ (Wasm_int.int_of_Z i32m 4)] ∗
-                                             N.of_nat idf4↦[wf]FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
+                                             N.of_nat idf4↦[wf]FC_func_native i0 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl4) Hf]".
           iSimpl.
@@ -701,7 +703,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
                                              isStack k [_;_] ∗
-                                             N.of_nat idf4↦[wf]FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
+                                             N.of_nat idf4↦[wf]FC_func_native i0 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl4) Hf]".
           iSimpl.
@@ -871,7 +873,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗
                                              isStack k _ ∗
-                                             N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3)%I).
+                                             N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl3) Hf]".
           iSimpl.
@@ -928,13 +930,13 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           iFrame.
           instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗
                                              isStack k [] ∗
-                                             N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3)%I).
+                                             N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl3) Hf]".
           iSimpl.
           instantiate (1:= λ v, (⌜ v = immV _ ⌝ ∗
                                             isStack k [] ∗
-                                            N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
+                                            N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3 ∗
                                             ↪[frame] _)%I ). 
           by iFrame.
           by iIntros "!> [%H _]".

@@ -22,7 +22,9 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
 Section StackModule.
 
   
-  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
+
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ, !logrel_na_inv Σ}. 
+
 
 
 
@@ -460,8 +462,43 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
            ↪[frame] f0
   }}})%I.
 
-
-
+  (* A trap allowing version for code that might trap *)
+Definition spec5_stack_map_trap idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
+  (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a (* cl *)
+      (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
+      {{{  ↪[frame] f0 ∗ na_own logrel_nais ⊤ ∗
+            N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5 ∗
+            ⌜ (0 <= v)%Z ⌝ ∗
+            ⌜ (v + 4 + length s * 4 ≤ Wasm_int.Int32.max_unsigned)%Z ⌝ ∗
+            isStack v s ∗
+            stackAll s Φ ∗
+            N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
+            (* (N.of_nat a) ↦[wf] cl ∗ *)
+            (* ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end *)
+         (* = Tf [T_i32] [T_i32] ⌝ ∗  *)
+              (∀ (u : i32) (fc : frame),
+                   {{{ Φ u ∗
+                      ⌜ i5 = f_inst fc ⌝ ∗
+                       ↪[frame] fc ∗
+                       na_own logrel_nais ⊤
+                       (* N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗ *)
+                       (* (N.of_nat a) ↦[wf] cl *)
+                  }}}
+                  [ AI_basic (BI_const (VAL_int32 u)) ;
+                    AI_invoke a ]
+                  {{{ w, (⌜ w = trapV ⌝ ∨ ((∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)
+                                             (* ∗ N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a)  *)
+                                             (* ∗ (N.of_nat a) ↦[wf] cl *)))
+                           ∗ na_own logrel_nais ⊤ ∗ ↪[frame] fc }}}
+                  )  }}}
+    [ AI_basic (BI_const (VAL_int32 f)) ; AI_basic (i32const v) ; AI_invoke idf5 ]
+    {{{ w, (⌜ w = trapV ⌝ ∨ (⌜ w = immV [] ⌝ ∗
+                              (∃ s', isStack v s' ∗ stackAll2 s s' Ψ) ∗
+                              N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5)) ∗
+      N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
+      na_own logrel_nais ⊤ ∗
+      ↪[frame] f0
+  }}})%I.
 
 Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
@@ -479,7 +516,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt : nat)
                     (name0 name1 name2 name3 name4 name5 name6 : name)
                     (f0 f1 f2 f3 f4 f5 : list basic_instruction)
-                    (i0 i1 i2 i3 i4 i5 : instance)
+                    (i0 : instance)
                     (l0 l1 l2 l3 l4 l5 : list value_type)
                     tab 
                     (isStack : Z -> seq.seq i32 -> iPropI Σ)
@@ -503,11 +540,11 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                     let inst_map := fold_left (λ fs '(idf,i,t,l,f),
                                                 <[ N.of_nat idf := FC_func_native i t l f ]> fs)
                                               (rev [(idf0, i0, Tf [] [T_i32], l0, f0) ;
-                                               (idf1, i1, Tf [T_i32] [T_i32], l1, f1) ;
-                                                    (idf2, i2, Tf [T_i32] [T_i32], l2, f2) ;
-                                                    (idf3, i3, Tf [T_i32] [T_i32], l3, f3) ;
-                                                    (idf4, i4, Tf [T_i32 ; T_i32] [], l4, f4) ;
-                                              (idf5, i5, Tf [T_i32 ; T_i32] [], l5, f5)])
+                                               (idf1, i0, Tf [T_i32] [T_i32], l1, f1) ;
+                                                    (idf2, i0, Tf [T_i32] [T_i32], l2, f2) ;
+                                                    (idf3, i0, Tf [T_i32] [T_i32], l3, f3) ;
+                                                    (idf4, i0, Tf [T_i32 ; T_i32] [], l4, f4) ;
+                                              (idf5, i0, Tf [T_i32 ; T_i32] [], l5, f5)])
                                               ∅ in 
                     (* These two import functions state that all [vis] and [wf] point 
                        to the correct exports/functions, i.e. a client will be able 
@@ -516,22 +553,23 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                     import_resources_wasm_typecheck inst_vis expts inst_map
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
-                    ⌜ length tab.(table_data) >= 1 ⌝ ∗ 
+                    ⌜ length tab.(table_data) >= 1 ⌝ ∗
                     (* We own a token that hides ressources needed for the new_stack function *)
                     nextStackAddrIs 0 ∗
                     (* And finally we have specs for all our exports : *)
                     (* Spec for new_stack (call 0) *)
                     spec0_new_stack idf0 i0 l0 f0 isStack nextStackAddrIs ∗
                     (* Spec for is_empty (call 1) *)
-                    spec1_is_empty idf1 i1 l1 f1 isStack ∗
+                    spec1_is_empty idf1 i0 l1 f1 isStack ∗
                     (* Spec for is_full (call 2) *)
-                    spec2_is_full idf2 i2 l2 f2 isStack ∗
+                    spec2_is_full idf2 i0 l2 f2 isStack ∗
                     (* Spec for pop (call 3) *)
-                    spec3_pop idf3 i3 l3 f3 isStack ∗
+                    spec3_pop idf3 i0 l3 f3 isStack ∗
                     (* Spec for push (call 4) *)
-                    spec4_push idf4 i4 l4 f4 isStack ∗
+                    spec4_push idf4 i0 l4 f4 isStack ∗
                     (* Spec of stack_map (call 5) *)
-                    spec5_stack_map idf5 i5 l5 f5 isStack idt
+                    spec5_stack_map idf5 i0 l5 f5 isStack idt ∗
+                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt
                                           
              }}.
   Proof.
@@ -625,7 +663,9 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iSplitL "Hmod" ; first done.
       iExists f, f0, f1, f2, f3, f4, t.
       iExists name0, name1, name2, name3, name4, name5, name6.
-      do 3 iExists _, _, _, _, _, _.
+      iExists _, _, _, _, _, _.
+      iExists _.
+      iExists _, _, _, _, _, _.
       iExists _.
       iExists (λ a b, isStack a b m).
       iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
@@ -1172,6 +1212,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΦ".
       by iFrame.
+      iSplitR.
     - iIntros "!>" (f5 fi v0 s0 a cl Φ Ψ Ξ)
               "!> (Hf & Hf0 & % & %Hs & Hs & HΦ & Htab & Hcl & %Hclt & #Hspec) HΞ".
       iApply wp_wand_r.
@@ -1280,6 +1321,122 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
+    - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
+              "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hspec) HΞ".
+      iApply wp_wand_r.
+      iSplitR "HΞ".
+      { rewrite (separate2 _ (AI_basic (i32const _)) _).
+        rewrite - (app_nil_r [AI_basic _]).
+        iApply (wp_invoke_native with "Hf Hf0") => //.
+        iIntros "!> [Hf Hf0]".
+        iSimpl.
+        iApply (wp_frame_bind with "Hf").
+        iIntros "Hf".
+        rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
+        iApply (wp_block with "Hf") => //.
+        iIntros "!> Hf".
+        iApply (wp_label_bind with "[Hs Hf Hf0 HΦ Htab Hown]") ; last first.
+        iPureIntro.
+        unfold lfilled, lfill => /=.
+        instantiate (5 := []) => /=.
+        rewrite app_nil_r.
+        done.
+        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ Φ Ψ
+                 with "[Hs Hf HΦ Htab Hown]").
+        iFrame.
+        repeat iSplit ; try iPureIntro => //=.
+        lia.
+        iExact "Hspec".
+        iIntros (w) "[[-> | Hs] [Htab Hf]]";
+        iDestruct "Hf" as (f6) "[Hf [Hown %Hf4]]".
+        { iApply (wp_wand_ctx with "[Hf]").
+          iSimpl. take_drop_app_rewrite_twice 0 0.
+          iApply wp_trap_ctx;auto.
+          iIntros (v1) "[-> Hf]".
+          iExists _. iFrame. iIntros "Hf".
+          iApply (wp_frame_trap with "Hf").
+          instantiate (1:=(λ v, (⌜v = trapV⌝ ∨ ⌜ v = immV [] ⌝ ∗ _) ∗ na_own logrel_nais ⊤ ∗ N.of_nat t↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m fi)]Some a)%I). iNext. iFrame.  eauto.
+        }
+        iDestruct "Hs" as "[-> Hs]".
+        iApply (wp_wand_ctx with "[Hs Hf Hf0]").
+        iApply (wp_val_return with "Hf") => //.
+        iIntros "Hf".
+        iSimpl.
+        iApply wp_value => //=.
+        unfold IntoVal.
+        apply of_to_val => //.
+        iFrame.
+        instantiate (1 :=  (λ v, ⌜ v = immV [] ⌝ ∗ (* na_own logrel_nais ⊤ ∗ N.of_nat t↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m fi)]Some a ∗ *)
+                                           ( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
+                                           N.of_nat f4↦[wf]FC_func_native
+                            {|
+                              inst_types :=
+                                [Tf [] [T_i32]; Tf [T_i32] [T_i32];
+                                Tf [T_i32; T_i32] []];
+                              inst_funcs := [f; f0; f1; f2; f3;f4];
+                              inst_tab := [t];
+                              inst_memory := [m];
+                              inst_globs := []
+                            |} (Tf [T_i32; T_i32] []) [T_i32 ; T_i32 ]
+                           [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
+                            BI_set_local 3; BI_get_local 1;
+                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
+                            BI_binop T_i32 (Binop_i BOI_add); 
+                            BI_set_local 2;
+                            BI_block (Tf [] [])
+                              [BI_loop (Tf [] [])
+                                 [BI_get_local 2; BI_get_local 3;
+                                 BI_relop T_i32 (Relop_i (ROI_ge SX_U)); 
+                                 BI_br_if 1; BI_get_local 2; 
+                                 BI_get_local 2; BI_get_local 2;
+                                 BI_load T_i32 None N.zero N.zero; 
+                                 BI_get_local 0; BI_call_indirect 1;
+                                 BI_store T_i32 None N.zero N.zero; 
+                                 i32const 4; BI_binop T_i32 (Binop_i BOI_add);
+                                 BI_set_local 2; BI_br 0]]])%I).
+        iSimpl.
+        iFrame.
+        done.
+        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iExists _.
+        iFrame.
+        iIntros "Hf".
+        iSimpl.         
+        iApply (wp_frame_value with "Hf") => //.
+        iNext. iRight.
+         instantiate (1 :=  ((* na_own logrel_nais ⊤ ∗ N.of_nat t↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m fi)]Some a ∗  *)( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
+                                 N.of_nat f4↦[wf]FC_func_native
+                            {|
+                              inst_types :=
+                                [Tf [] [T_i32]; Tf [T_i32] [T_i32];
+                                Tf [T_i32; T_i32] []];
+                              inst_funcs := [f; f0; f1; f2; f3; f4];
+                              inst_tab := [t];
+                              inst_memory := [m];
+                              inst_globs := []
+                            |} (Tf [T_i32; T_i32] []) [T_i32; T_i32]
+                            [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
+                            BI_set_local 3; BI_get_local 1;
+                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
+                            BI_binop T_i32 (Binop_i BOI_add); 
+                            BI_set_local 2;
+                            BI_block (Tf [] [])
+                              [BI_loop (Tf [] [])
+                                 [BI_get_local 2; BI_get_local 3;
+                                 BI_relop T_i32 (Relop_i (ROI_ge SX_U)); 
+                                 BI_br_if 1; BI_get_local 2; 
+                                 BI_get_local 2; BI_get_local 2;
+                                 BI_load T_i32 None N.zero N.zero; 
+                                 BI_get_local 0; BI_call_indirect 1;
+                                 BI_store T_i32 None N.zero N.zero; 
+                                 i32const 4; BI_binop T_i32 (Binop_i BOI_add);
+                                 BI_set_local 2; BI_br 0]]])%I).
+        iSimpl. iSplitR;[done|].
+        iFrame. }
+      iSimpl.
+      iIntros (w) "[[[-> | (-> & Hs & Hf0)] [Hown Htab]] Hf]".
+      all: iApply "HΞ";iFrame. by iLeft.
+      iRight. iSplit;auto. iFrame.
   Qed.
 
 

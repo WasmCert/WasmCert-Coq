@@ -46,7 +46,7 @@ Section fundamental.
       iApply (wp_wand _ _ _ (λne v, interp_val [T_i32] v ∗ ↪[frame] f)%I with "[Hf]").
       { iApply (wp_testop_i32 with "Hf []");eauto.
         iSimpl. iRight. iExists _. iSplit;eauto.
-        iSplit;[|done].
+        iNext. iSplit;[|done].
         iExists _. eauto. }
       iIntros (v) "[H Hf]".
       iFrame. iExists _;iFrame. }
@@ -54,7 +54,7 @@ Section fundamental.
     { iDestruct "Hv1" as (z) "->".
       iApply (wp_wand _ _ _ (λne v, interp_val [T_i32] v ∗ ↪[frame] f)%I with "[Hf]").
       { iApply (wp_testop_i64 with "Hf []");eauto.
-        iSimpl. iRight. iExists _. iSplit;eauto.
+        iSimpl. iRight. iExists _. iSplit;eauto. iNext.
         iSplit;[|done].
         iExists _. eauto. }
       iIntros (v) "[H Hf]".

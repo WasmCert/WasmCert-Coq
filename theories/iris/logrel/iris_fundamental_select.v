@@ -43,10 +43,10 @@ Section fundamental.
     iApply (wp_wand _ _ _ (λne vs, interp_val [t] vs ∗ ↪[frame] f )%I with "[Hf]").
     { destruct (Wasm_int.Int32.eq_eqP z (Wasm_int.int_zero i32m)).
       { iApply (wp_select_false with "Hf");auto.
-        iRight. iSimpl. iExists _. iSplit;eauto.
+        iRight. iSimpl. iExists _. iSplit;eauto. iNext.
         iSplit;done. }
       { iApply (wp_select_true with "Hf");auto.
-        iRight. iSimpl. iExists _. iSplit;eauto.
+        iRight. iSimpl. iExists _. iSplit;eauto. iNext.
         iSplit;done. }
     }
     iIntros (v) "[$ Hf]".
