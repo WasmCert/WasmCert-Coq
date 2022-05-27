@@ -2385,6 +2385,44 @@ Qed.
 
 Lemma init_tabs_state_update ws ws' inst e_inits m v_imps t_imps wfs wts wms wgs:
   let wts' := module_import_init_tabs m inst wts in
+(*
+  let inst := {|
+    inst_types := mod_types m;
+    inst_funcs :=
+      ext_func_addrs (modexp_desc <$> v_imps) ++
+      gen_index (length s_funcs0) (length (mod_funcs m));
+    inst_tab :=
+      ext_tab_addrs (modexp_desc <$> v_imps) ++
+      gen_index (length s_tables0) (length (mod_tables m));
+    inst_memory :=
+      ext_mem_addrs (modexp_desc <$> v_imps) ++
+      gen_index (length s_mems0) (length (mod_mems m));
+    inst_globs :=
+      ext_glob_addrs (modexp_desc <$> v_imps) ++
+      gen_index (length s_globals0) (length (mod_globals m))
+  |} in
+  let ws := {| s_funcs := s_funcs0 ++ (gen_func_instance^~ inst_res <$> mod_funcs m);
+               s_tables := s_tables0 ++ ((λ '{| tt_limits := {| lim_min := min; lim_max := maxo |} |},
+      {|
+        table_data := repeat None (ssrnat.nat_of_bin min);
+        table_max_opt := maxo
+      |}) <$> map modtab_type (mod_tables m));
+              s_mems := s_mems0 ++ ((λ '{| lim_min := min; lim_max := maxo |},
+      {|
+        mem_data :=
+          mem_make #00%byte
+            match min with
+            | 0%N => 0%N
+            | N.pos q => N.pos (64 * 1024 * q)
+            end;
+        mem_max_opt := maxo
+      |}) <$> mod_mems m);
+              s_globals := s_globals0 ++ ((λ '({| modglob_type := gt |}, v), {| g_mut := tg_mut gt; g_val := v |}) <$>
+   combine (mod_globals m) g_inits) |} in
+ ⌜ modelem_offset <$> mod_elem m =
+  (λ v : Wasm_int.Int32.T, [BI_const (VAL_int32 v)]) <$> e_inits ⌝ -∗
+
+*)
   ⌜init_tabs host_function ws inst e_inits m.(mod_elem) = ws'⌝ -∗
   (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
   gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
@@ -2407,6 +2445,14 @@ Lemma init_tabs_state_update ws ws' inst e_inits m v_imps t_imps wfs wts wms wgs
   gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))) ∗
   module_inst_resources_tab (module_inst_build_tables m inst) (drop (get_import_table_count m) inst.(inst_tab))))%I.
 Proof.
+  destruct m => /=.
+  move: ws ws' inst e_inits mod_types mod_funcs mod_tables mod_mems mod_globals mod_data mod_start mod_imports mod_exports v_imps t_imps wfs wts wms wgs.
+  induction mod_elem; intros.
+  - unfold init_tabs.
+    rewrite combine_nil => /=.
+    iIntros "%Heq"; subst.
+    iIntros "Hwasm Hwt Hwtsize Hwtlim Hwtmapsto".
+    iFrame.
 Admitted.
 
 Lemma init_tabs_preserve ws inst e_inits melem ws':
@@ -3350,6 +3396,43 @@ Proof.
 
     (* init_tabs *)
     symmetry in Heqs4.
+    Search inst_res.
+    Search s_tables4.
+    Search s_mems4.
+    Search s_globals4.
+    Search e_inits.
+    Search s_funcs4.
+   (* iAssert (
+        let wts' := module_import_init_tabs m inst wts in
+        let ws := {| s_funcs := s_funcs4;
+                     s_tables := s_tables4;
+                     s_mems := s_mems4;
+                     s_globals := s_globals4 |} in
+        (*⌜init_tabs host_function ws inst (e_inits m.(mod_elem) = s4⌝*)
+  (import_resources_wasm_typecheck imps t_imps wfs wts wms wgs -∗
+  gen_heap_interp (gmap_of_table s_tables4) -∗
+  gen_heap_interp (gmap_of_list (tab_size <$> s_tables4)) -∗
+  gen_heap_interp (gmap_of_list (table_max_opt <$> s_tables4)) -∗
+  ([∗ list] i↦v ∈ ((λ '{|
+                        tt_limits :=
+                          {| lim_min := min; lim_max := maxo |}
+                      |},
+                    {|
+                      table_data :=
+                        repeat None (ssrnat.nat_of_bin min);
+                      table_max_opt := maxo
+                    |}) <$> map modtab_type (mod_tables m)),
+   N.of_nat (length s_tables4 - length (mod_tables m) + i)↦[wtblock]v) -∗
+ |==>
+  (import_resources_wasm_typecheck imps t_imps wfs wts' wms wgs ∗
+  gen_heap_interp (gmap_of_table (s4.(datatypes.s_tables))) ∗
+  gen_heap_interp (gmap_of_list (tab_size <$> s4.(datatypes.s_tables))) ∗
+  gen_heap_interp (gmap_of_list (table_max_opt <$> s4.(datatypes.s_tables))) ∗
+  module_inst_resources_tab (module_inst_build_tables m inst) (drop (get_import_table_count m) inst.(inst_tab))))%I) as "H".
+    Search e_inits. 
+    {
+      
+    }*)
     iDestruct (init_tabs_state_update $! Heqs4 with "[$] [$] [$] [$] [Htmapsto]") as "H" => /=.
     {
       replace (length s_tables4 - length (mod_tables m)) with (length s_tables1) => //.
