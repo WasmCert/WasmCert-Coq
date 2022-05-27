@@ -36,7 +36,7 @@ Section trap_rules.
       destruct s =>//.
       unfold iris_wp_def.reducible, reducible.
       eexists _,[AI_trap],σ,_.
-      destruct σ as [[[? ?]?]?]. simpl.
+      destruct σ as [[ ??]?]. simpl.
       repeat split;eauto.
       eapply r_simple,rs_trap.
       2: instantiate (1 := LH_base vs1 es2);apply lfilled_Ind_Equivalent;by constructor.
@@ -48,8 +48,8 @@ Section trap_rules.
       iMod "Hcls". iModIntro.
       assert (lfilled 0 (LH_base vs1 es2) [AI_trap] (vs1 ++ (AI_trap :: es2))) as Hfill.
       { apply lfilled_Ind_Equivalent. constructor. done. }
-      destruct σ as [[[? ?]?]?].
-      destruct σ2 as [[[? ?]?]?].
+      destruct σ as [[ ??]?].
+      destruct σ2 as [[? ?]?].
       simpl in *. destruct Hstep as [Hstep [-> ->]].
       eapply trap_reduce in Hstep as Hred;[|apply Hfill].
       destruct Hred as [lh' [Hfill' Heq]]. simplify_eq.
@@ -91,7 +91,7 @@ Section trap_rules.
       destruct s =>//.
       unfold iris_wp_def.reducible, reducible.
       eexists _,[AI_trap],σ,_.
-      destruct σ as [[[? ?]?]?]. simpl.
+      destruct σ as [[ ??]?]. simpl.
       repeat split;eauto.
       eapply r_simple,rs_trap.
       2: instantiate (1 := LH_base [] es2);apply lfilled_Ind_Equivalent;by constructor.
@@ -103,8 +103,8 @@ Section trap_rules.
       iMod "Hcls". iModIntro.
       assert (lfilled 0 (LH_base [] es2) [AI_trap] (of_val trapV ++ es2)) as Hfill.
       { apply lfilled_Ind_Equivalent. constructor. done. }
-      destruct σ as [[[? ?]?]?].
-      destruct σ2 as [[[? ?]?]?].
+      destruct σ as [[ ??]?].
+      destruct σ2 as [[ ??]?].
       simpl in *. destruct Hstep as [Hstep [-> ->]].
       eapply trap_reduce in Hstep as Hred;[|apply Hfill].
       destruct Hred as [lh' [Hfill' Heq]]. simplify_eq.
@@ -115,8 +115,8 @@ Section trap_rules.
       iIntros "Hf".
       iApply wp_trap;eauto. }
   }
-  { destruct σ as [[[? ?]?]?].
-    set (σ:=(s0,s1,l,i)).
+  { destruct σ as [[ ??]?].
+    set (σ:=(s0,l,i)).
     iDestruct "Hσ" as "(?&?&?&?&Hfr&?)".
     iDestruct (ghost_map_lookup with "Hfr Hf") as %Heq1.
     iSpecialize ("Hes1" with "[$]").
@@ -136,7 +136,7 @@ Section trap_rules.
         repeat iModIntro.
         repeat iMod "H2".
         iModIntro.
-        destruct σ2 as [[[??] ?]?].
+        destruct σ2 as [[? ?]?].
         iDestruct "H2" as "[Hσ H]".
         iDestruct "H" as (f1) "(Hf1 & Hes'' & Hefs)".
         iApply bi.sep_exist_l. iExists f1.
@@ -148,7 +148,7 @@ Section trap_rules.
         inversion Hlf1; subst; clear Hlf1.
         assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
         { unfold iris.prim_step.
-          destruct σ as [[[??]?]?].
+          destruct σ as [[??]?].
           repeat split => //.
           apply r_simple; eapply rs_trap => //.
           move => HContra; subst.
@@ -158,7 +158,7 @@ Section trap_rules.
         iMod "H2".
         repeat iModIntro.
         repeat iMod "H2".
-        destruct σ as [[[??] ?]?].
+        destruct σ as [[? ?]?].
         iDestruct "H2" as "[Hσ H]".
         iDestruct "H" as (f1) "(Hf1 & Hes'' & Hefs)".
         iApply bi.sep_exist_l.  iExists f1.
@@ -221,7 +221,7 @@ Section trap_rules.
       apply lfilled_Ind_Equivalent in Hfill2.
       inversion Hfill1;inversion Hfill2;simplify_eq.
       assert (iris.prim_step (vs0 ++ [AI_trap] ++ es'0)%SEQ σ2 [] [AI_trap] σ2 []) as Hstep'.
-      { destruct σ2 as [[[??] ?]?]. split =>//.
+      { destruct σ2 as [[? ?]?]. split =>//.
         apply r_simple; eapply rs_trap => //.
         2: apply lfilled_Ind_Equivalent;constructor=>//.
         destruct vs0;[|destruct vs0 =>//].
@@ -324,8 +324,8 @@ Section trap_rules.
         unfold iris_wp_def.reducible, reducible.
         destruct Hred as [? [? [? [? ?]]]].
         exists [], [AI_label n es' x0],x1,[].
-        destruct x1 as [[[? ?] ?] ?].
-        destruct σ as [[[? ?] ?] ?].
+        destruct x1 as [[ ? ?] ?].
+        destruct σ as [[ ? ?] ?].
         split =>//.
         eapply r_label. apply H.
         erewrite app_nil_r in Hfill. apply Hfill.
@@ -343,15 +343,15 @@ Section trap_rules.
         apply prim_step_obs_efs_empty in Hstep as Heq;simplify_eq.
         iSpecialize ("H" $! _ _ _ Hstep').
         repeat (iMod "H"; iModIntro; try iNext).
-        destruct σ2 as [[[? ?]?]?].
+        destruct σ2 as [[ ??]?].
         iDestruct ("H") as "[$ H]".
         iDestruct "H" as (f0) "[Hf [H _]]".
         iExists f0. iFrame.
         iSplit =>//. iIntros "Hf".
         repeat erewrite app_nil_r,app_nil_l. erewrite app_nil_r.
         iDestruct ("IH" $! [] _ _ es' _ _ [] with "[] Hf H") as "H";auto. }
-      { destruct σ2 as [[[? ?] ?] ?].
-        set (σ2 := (s0,s1,l,i)).
+      { destruct σ2 as [[ ? ?] ?].
+        set (σ2 := (s0,l,i)).
         destruct Hstep as [Hstep _].
         erewrite app_nil_r in Hfill.
         eapply lfilled_trans in Hfill as Hfillf;[|apply Hfill'].
@@ -361,7 +361,7 @@ Section trap_rules.
         apply lfilled_Ind_Equivalent in Hfill'.
         inversion Hfill';subst.
         assert (iris.prim_step (vs0 ++ [AI_trap] ++ es'0)%SEQ σ2 [] [AI_trap] σ2 []) as Hstep'.
-        { destruct σ2 as [[[? ?] ?] ?].
+        { destruct σ2 as [[ ? ?] ?].
           split =>//.
           eapply r_simple,rs_trap.
           2: instantiate (1 := LH_base vs0 es'0);apply lfilled_Ind_Equivalent;by constructor.
@@ -387,9 +387,9 @@ Section trap_rules.
     }
   Qed.
 
-  Lemma reduce_det_local_trap hs ws f hs' ws' f' es2 n f0 :
-    opsem.reduce (host_instance:=DummyHosts.host_instance) hs ws f [AI_local n f0 [AI_trap]] hs' ws' f' es2 ->
-    es2 = [AI_trap] ∧ hs = hs' ∧ ws = ws' ∧ f = f'.
+  Lemma reduce_det_local_trap ws f ws' f' es2 n f0 :
+    opsem.reduce ws f [AI_local n f0 [AI_trap]] ws' f' es2 ->
+    es2 = [AI_trap] ∧ ws = ws' ∧ f = f'.
   Proof.
     remember [AI_local n f0 [AI_trap]] as es.
     revert es2. induction 1;simplify_eq.
@@ -430,15 +430,15 @@ Section trap_rules.
       destruct s => //=.
       unfold language.reducible, language.prim_step => /=.
       exists [], [AI_trap], σ, [].
-      destruct σ as [[[ hs ws] locs] inst].
+      destruct σ as [[ ws locs] inst].
       unfold iris.prim_step => /=.
       repeat split => //. apply r_simple. apply rs_local_trap; auto.
-    - destruct σ as [[[hs ws] locs] inst].
+    - destruct σ as [[ws locs] inst].
       iIntros "!>" (es2 σ2 efs HStep) "!>".
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->). iFrame.
       (* iDestruct ("H" with "Hframe") as "[H Hframe]". iFrame. *)
-      apply reduce_det_local_trap in H as [? [? [? ?]]]. simplify_eq. iFrame. done.
+      apply reduce_det_local_trap in H as [? [? ?]]. simplify_eq. iFrame. done.
   Qed.
 
   Lemma wp_frame_trap_nested (s : stuckness) (E : coPset) n f f0 LI f' :
@@ -453,8 +453,9 @@ Section trap_rules.
     repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
+      admit.
       iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[[? ?] ?] ?].
+      destruct σ as [[? ?] ?].
       iDestruct "Hσ" as "(?&?&?&?&Hff&?&?)".
       iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
       iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
@@ -465,25 +466,28 @@ Section trap_rules.
       - iPureIntro.
         destruct s => //=.
         unfold language.reducible, language.prim_step => /=.
-        eexists [], [AI_trap], (_,_,_,_), [].
+        eexists [], [AI_trap], (_,_,_), [].
         unfold iris.prim_step => /=.
         repeat split => //. apply r_simple. apply rs_local_trap; auto.
-      - iIntros "!>" (es2 σ2 efs HStep). destruct σ2 as [[[hs' ws'] locs'] inst'].
+      - iIntros "!>" (es2 σ2 efs HStep). destruct σ2 as [[ ws' locs'] inst'].
         iMod (ghost_map_update f0 with "Hff Hf") as "[Hff Hframe]".
         rewrite !insert_insert. iFrame.
         destruct HStep as (H & -> & ->).
-        apply reduce_det_local_trap in H as [? [? [? ?]]]. simplify_eq.
+        apply reduce_det_local_trap in H as [? [? ?]]. simplify_eq.
         rewrite lookup_insert in Hlook. inversion Hlook. iFrame.
         iModIntro. iSimpl. done. }
-    { iApply wp_unfold. iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[[? ?] ?] ?].
+    { iApply wp_unfold. unfold wp_pre.
+      destruct (language.to_val ([AI_local n f LI] : iris.expr)) eqn:Htv => //.
+      { admit. }
+      iIntros (σ ns κ κs nt) "Hσ".
+      destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
       iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
       rewrite lookup_insert in Hlook. inversion Hlook.
       iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
       iSpecialize ("H" with "Hframe"). rewrite insert_insert.
       destruct f.
-      iSpecialize ("H" $! (s0,s1,f_locs,f_inst) 0 [] [] 0).
+      iSpecialize ("H" $! (s0,f_locs,f_inst) 0 [] [] 0).
       iDestruct ("H" with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]") as "H".
       iMod "H" as "[%Hred H]".
       iModIntro.
@@ -491,17 +495,18 @@ Section trap_rules.
       iSplit.
       { iPureIntro. destruct s =>//.
         unfold iris_wp_def.reducible, reducible.
-        destruct Hred as [? [? [? [? ?]]]].
-        destruct x1 as [[[? ?] ?] ?].
-        destruct H as [? [-> ->]].
-        eexists [], [AI_local n {| f_locs := l0; f_inst := i0 |} x0],(_,_,_,_),[].
-        split =>//. eapply r_local. eauto. }
+        destruct Hred as [? [? [? ?]]].
+        destruct x1 as [[?  ?] ?].
+        destruct H as [? (H & -> & ->)].
+        
+        eexists [], [AI_local n {| f_locs := l0; f_inst := i0 |} x0],(_,_,_),[].
+        split => //. eapply r_local. eauto. }
       iIntros (e2 σ2 efs Hstep).
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ws' locs'] inst'].
       destruct Hstep as [H [-> ->]].
       apply reduce_det_local in H as [? [? [? [? ?]]]];[|auto]. subst e2.
       destruct x0.
-      iSpecialize ("H" $! x (hs',ws',f_locs0,f_inst0) [] with "[]").
+      iSpecialize ("H" $! x (ws',f_locs0,f_inst0) [] with "[]").
       { iPureIntro. split;auto. }
       repeat iMod "H". iModIntro. iNext.
       repeat iMod "H". iDestruct "H" as "[H Hf]".
@@ -518,7 +523,8 @@ Section trap_rules.
       iDestruct ("IH" with "Hframe Hcont") as "Hcont".
       auto.
     }
-  Qed.
+    Admitted.
+
     
   Lemma wp_seq_trap_ctx (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f f' i lh :
     ↪[frame] f ∗
@@ -668,7 +674,7 @@ Section trap_rules.
           
         + assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
           { unfold iris.prim_step.
-            destruct σ as [[[??]?]?].
+            destruct σ as [[??]?].
             repeat split => //.
             apply r_simple; eapply rs_trap => //.
             move => HContra; subst.
@@ -678,7 +684,7 @@ Section trap_rules.
           iMod "H2".
           repeat iModIntro.
           repeat iMod "H2".
-          destruct σ as [[[??] ?]?].
+          destruct σ as [[? ?]?].
           iDestruct "H2" as "[Hσ H]".
           iDestruct "H" as (f') "(Hf1 & Hes'' & Hefs)".
           iModIntro => /=.
@@ -741,6 +747,12 @@ Section trap_rules.
       rewrite Hes. apply of_to_val in Hes as <-; erewrite to_val_cons_retV;[|apply to_of_val].
       iMod ("Hf" with "H") as "[[%Heq| HΦ] H]";try done.
       iModIntro. iFrame. }
+     { iApply wp_unfold.
+      repeat rewrite wp_unfold /wp_pre /=.      
+      rewrite Hes. apply of_to_val in Hes as <-; erewrite to_val_cons_callHostV;[|apply to_of_val].
+      iMod ("Hf" with "H") as "[[%Heq| HΦ] H]";try done.
+      iModIntro. iFrame. }
+    
   }
   { iApply wp_unfold.
     repeat rewrite wp_unfold /wp_pre /=.
@@ -780,7 +792,7 @@ Section trap_rules.
         inversion Hlf2; subst; clear Hlf2.
         assert (iris.prim_step (vs0 ++ [AI_trap] ++ es'0) σ2 [] [AI_trap] σ2 []) as HStep2.
         { unfold iris.prim_step.
-          destruct σ2 as [[[??]?]?].
+          destruct σ2 as [[??]?].
           repeat split => //.
           apply r_simple; eapply rs_trap => //.
           - move => HContra.
@@ -830,7 +842,7 @@ Section trap_rules.
       all: iIntros (v).
       all: destruct v => /=.
       all: iIntros "HΦ" => //.
-      all: rewrite vh_push_const_nil + rewrite sh_push_const_nil.
+      all: rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite loch_push_const_nil.
       all: auto.
     }
     { iIntros "(#Hntrap & Hf & HWP)".
@@ -843,7 +855,7 @@ Section trap_rules.
       iApply (wp_mono with "HWP").
       iIntros (vs') "HΦ".
       iSimpl. destruct vs';auto.
-      all: rewrite -vh_push_const_app + rewrite -sh_push_const_app;auto.
+      all: rewrite -vh_push_const_app + rewrite -sh_push_const_app + rewrite -loch_push_const_app;auto.
     }
   Qed.
 

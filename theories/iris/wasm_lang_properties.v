@@ -8,10 +8,8 @@ Require Export datatypes host operations properties opsem.
 
 
 Section wasm_lang_properties.
-  Import DummyHosts.
-  
-  Let reducible := @reducible wasm_lang.
-  Let reduce := @reduce host_function host_instance.
+(*  Let reducible := @reducible wasm_lang.
+  Let reduce := @reduce host_function host_instance. *)
 
   Let expr := iris.expr.
   Let val := iris.val.

@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers iris_fundamental_block.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -23,9 +23,9 @@ Section fundamental.
 
   (* ----------------------------------------- IF ------------------------------------------ *)
 
-  Lemma typing_if C tn tm es1 es2 : (⊢ semantic_typing (HWP:=HWP) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es1) (Tf tn tm)) ->
-                                    (⊢ semantic_typing (HWP:=HWP) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es2) (Tf tn tm)) ->
-                                    ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_if (Tf tn tm) es1 es2]) (Tf (tn ++ [T_i32]) tm).
+  Lemma typing_if C tn tm es1 es2 : (⊢ semantic_typing (*HWP:=HWP*) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es1) (Tf tn tm)) ->
+                                    (⊢ semantic_typing (*HWP:=HWP*) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es2) (Tf tn tm)) ->
+                                    ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_if (Tf tn tm) es1 es2]) (Tf (tn ++ [T_i32]) tm).
   Proof.
     intros IHbe_typing1 IHbe_typing2.
     unfold semantic_typing, interp_expression.
@@ -42,7 +42,7 @@ Section fundamental.
     assert (exists w ws', ws = ws' ++ [w]) as [w [ws' ->]].
     { induction ws using rev_ind;eauto. destruct tn =>//. }
     iDestruct (big_sepL2_app_inv with "Hv") as "[Hws' Hw]";[by right|].
-    simpl of_val. rewrite fmap_app. rewrite -app_assoc.
+    simpl of_val. rewrite - v_to_e_cat. rewrite -app_assoc.
     iApply iRewrite_nil_r. rewrite -app_assoc.
     iApply wp_wasm_empty_ctx.
     iApply wp_base_push.

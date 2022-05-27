@@ -45,7 +45,7 @@ Require Import iris_fundamental_const
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -53,7 +53,7 @@ Section fundamental.
   (* ------------------------------- FTLR: simple typing ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
   
-  Theorem be_fundamental C es τ : be_typing C es τ -> ⊢ semantic_typing (HWP:=HWP) C (to_e_list es) τ.
+  Theorem be_fundamental C es τ : be_typing C es τ -> ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list es) τ.
   Proof.
     induction 1.
     { by apply typing_const. }
@@ -94,7 +94,7 @@ Section fundamental.
   Qed.
 
   Corollary be_fundamental_closed C es τ : (tc_label C) = [] ∧ (tc_return C) = None ->
-                                           be_typing C es τ -> ⊢ semantic_typing_closed (HWP:=HWP) C (to_e_list es) τ.
+                                           be_typing C es τ -> ⊢ semantic_typing_closed (* HWP:=HWP *) C (to_e_list es) τ.
   Proof.
     intros Hnil Htyping.
     iSplit;[auto|]. destruct τ.
@@ -117,7 +117,7 @@ Section fundamental.
   
   Corollary be_fundamental_local C es τ1 τ2 τs : (tc_label C) = [] ∧ (tc_return C) = None ->
                                                  be_typing (upd_local_label_return C (τ1 ++ τs) [τ2] (Some τ2)) es (Tf [] τ2) ->
-                                                 ⊢ semantic_typing_local (HWP:=HWP) C es τs (Tf τ1 τ2).
+                                                 ⊢ semantic_typing_local (* HWP:=HWP *) C es τs (Tf τ1 τ2).
   Proof.
     intros Hnil Htyp.
     apply typing_local;auto.

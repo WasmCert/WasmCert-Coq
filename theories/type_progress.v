@@ -9,40 +9,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
-
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
-Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
-  @e_typing _.
-Let s_typing := @s_typing host_function.
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.*)
-Let inst_typing := @inst_typing host_function.
-Let sglob : store_record -> instance -> nat -> option global := @sglob _.
-Let smem_ind : store_record -> instance -> option nat := @smem_ind _.
-
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let host_state := host_state host_instance.
-
-Let host_application := @host_application host_function host_instance.
-
-Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
-             host_state -> store_record -> frame -> seq administrative_instruction -> Prop
-  := @reduce _ _.
 
 Definition terminal_form (es: seq administrative_instruction) :=
   const_list es \/ es = [::AI_trap].
@@ -86,23 +52,23 @@ Proof.
     by f_equal.
 Qed.
 
-Lemma reduce_composition: forall s cs f es es0 s' f' es' hs hs',
+Lemma reduce_composition: forall s cs f es es0 s' f' es',
     const_list cs ->
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (cs ++ es ++ es0) hs' s' f' (cs ++ es' ++ es0).
+    reduce s f es s' f' es' ->
+    reduce s f (cs ++ es ++ es0) s' f' (cs ++ es' ++ es0).
 Proof.
-  move => s cs f es es0 s' f' es' hs hs' HConst HReduce.
+  move => s cs f es es0 s' f' es' HConst HReduce.
   eapply r_label; eauto; apply/lfilledP.
   - instantiate (1 := (LH_base cs es0)). instantiate (1 := 0).
     by apply LfilledBase.
   - by apply LfilledBase.
 Qed.
 
-Lemma reduce_composition_right: forall s f es es0 s' f' es' hs hs',
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (es ++ es0) hs' s' f' (es' ++ es0).
+Lemma reduce_composition_right: forall s f es es0 s' f' es',
+    reduce s f es s' f' es' ->
+    reduce s f (es ++ es0) s' f' (es' ++ es0).
 Proof.
-  move => s f es es0 s' f' es' hs hs' HReduce.
+  move => s f es es0 s' f' es' HReduce.
   eapply reduce_composition in HReduce.
   instantiate (1 := es0) in HReduce.
   instantiate (1 := [::]) in HReduce.
@@ -110,12 +76,12 @@ Proof.
   by [].
 Qed.
 
-Lemma reduce_composition_left: forall s cs f es s' f' es' hs hs',
+Lemma reduce_composition_left: forall s cs f es s' f' es',
     const_list cs ->
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (cs ++ es) hs' s' f' (cs ++ es').
+    reduce s f es s' f' es' ->
+    reduce s f (cs ++ es) s' f' (cs ++ es').
 Proof.
-  move => s f es es0 s' f' es' hs hs' HConst HReduce.
+  move => s f es es0 s' f' es' HConst HReduce.
   eapply reduce_composition in HReduce; eauto.
   instantiate (1 := [::]) in HReduce.
   by repeat rewrite cats0 in HReduce.
@@ -545,7 +511,7 @@ Ltac solve_progress_cont cont :=
 Ltac solve_progress :=
   solve_progress_cont ltac:(fail).
 
-Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s f hs,
+Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s f,
     store_typing s ->
     inst_typing s f.(f_inst) C ->
     be_typing (upd_label (upd_local_return C (map typeof f.(f_locs)) ret) lab) bes (Tf ts1 ts2) ->
@@ -553,9 +519,9 @@ Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s f hs,
     not_lf_br (to_e_list bes) 0 ->
     not_lf_return (to_e_list bes) 0 ->
     const_list (to_e_list bes) \/
-    exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ to_e_list bes) hs' s' f' es'.
+    exists s' f' es', reduce s f (v_to_e_list vcs ++ to_e_list bes) s' f' es'.
 Proof.
-  move => C bes ts1 ts2 vcs lab ret s f hs HST HIT HType HConstType HNBI_br HNRet.
+  move => C bes ts1 ts2 vcs lab ret s f HST HIT HType HConstType HNBI_br HNRet.
   generalize dependent vcs.
   gen_ind HType; try by left.
   - (* Unop *)
@@ -578,12 +544,12 @@ Proof.
     by destruct v => //=; solve_progress_cont ltac:(apply rs_reinterpret).
   - (* Unreachable *)
     right.
-    exists s, f, (v_to_e_list vcs ++ [::AI_trap]), hs.
+    exists s, f, (v_to_e_list vcs ++ [::AI_trap]).
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
     apply r_simple. by constructor.
   - (* Nop *)
     right.
-    exists s, f, (v_to_e_list vcs ++ [::]), hs.
+    exists s, f, (v_to_e_list vcs ++ [::]).
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
     apply r_simple. by constructor.
   - (* Drop *)
@@ -594,7 +560,7 @@ Proof.
     by destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0; solve_progress.
   - (* Block *)
     right.
-    exists s, f, [::AI_label (length tm) [::] (v_to_e_list vcs ++ to_e_list es)], hs.
+    exists s, f, [::AI_label (length tm) [::] (v_to_e_list vcs ++ to_e_list es)].
     apply r_simple. eapply rs_block; eauto.
     + by apply v_to_e_is_const_list.
     + repeat rewrite length_is_size.
@@ -603,7 +569,7 @@ Proof.
       by rewrite size_map.
   - (* Loop *)
     right.
-    exists s, f, [::AI_label (length vcs) [::AI_basic (BI_loop (Tf ts1 ts2) es)] (v_to_e_list vcs ++ to_e_list es)], hs.
+    exists s, f, [::AI_label (length vcs) [::AI_basic (BI_loop (Tf ts1 ts2) es)] (v_to_e_list vcs ++ to_e_list es)].
     apply r_simple. rewrite HConstType.
     eapply rs_loop; eauto; repeat rewrite length_is_size.
     + by apply v_to_e_is_const_list.
@@ -617,10 +583,10 @@ Proof.
     rewrite -catA.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
-    + exists s, f, (v_to_e_list (take (size tn) vcs) ++ [::AI_basic (BI_block (Tf tn ts2) es2)]), hs.
+    + exists s, f, (v_to_e_list (take (size tn) vcs) ++ [::AI_basic (BI_block (Tf tn ts2) es2)]).
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       apply r_simple. by eapply rs_if_false.
-    + exists s, f, (v_to_e_list (take (size tn) vcs) ++ [::AI_basic (BI_block (Tf tn ts2) es1)]), hs.
+    + exists s, f, (v_to_e_list (take (size tn) vcs) ++ [::AI_basic (BI_block (Tf tn ts2) es1)]).
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
   - (* BI_br *)
@@ -637,10 +603,10 @@ Proof.
     rewrite -catA.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
-    + exists s, f, (v_to_e_list (take (size ts2) vcs) ++ [::]), hs.
+    + exists s, f, (v_to_e_list (take (size ts2) vcs) ++ [::]).
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
-    + exists s, f, (v_to_e_list (take (size ts2) vcs) ++ [::AI_basic (BI_br i)]), hs.
+    + exists s, f, (v_to_e_list (take (size ts2) vcs) ++ [::AI_basic (BI_br i)]).
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_simple; eauto.
   - (* BI_br_table *)
@@ -658,7 +624,7 @@ Proof.
     + remember HLength as H8. clear HeqH8.
       apply List.nth_error_Some in H8.
       destruct (List.nth_error ins (Wasm_int.nat_of_uint i32m s0)) eqn:HN => //=.
-      exists s, f, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::AI_basic (BI_br n)]), hs.
+      exists s, f, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::AI_basic (BI_br n)]).
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table => //.
@@ -667,7 +633,7 @@ Proof.
       move/leP in Inf.
       remember Inf as Inf'. clear HeqInf'.
       apply List.nth_error_None in Inf.
-      exists s, f, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::AI_basic (BI_br i)]), hs.
+      exists s, f, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::AI_basic (BI_br i)]).
       apply reduce_composition_left.
       { by apply const_list_concat; apply v_to_e_is_const_list. }
       apply r_simple. apply rs_br_table_length => //.
@@ -682,7 +648,7 @@ Proof.
     right. subst.
     simpl in *. clear H1 H2 H3 H4.
     eapply func_context_store in H; eauto. destruct H as [a H].
-    exists s, f, (v_to_e_list vcs ++ [:: (AI_invoke a)]), hs.
+    exists s, f, (v_to_e_list vcs ++ [:: (AI_invoke a)]).
     apply reduce_composition_left; first by apply v_to_e_is_const_list.
     by apply r_call => //. 
   - (* Call_indirect *)
@@ -698,15 +664,15 @@ Proof.
       eapply store_typing_stabaddr in Hstabaddr; eauto.
       destruct Hstabaddr as [cl Hstabaddr].
       destruct (stypes s f.(f_inst) i == Some (cl_type cl)) eqn:Hclt; move/eqP in Hclt.
-      * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_invoke a]), hs.
+      * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_invoke a]).
         apply reduce_composition_left; first by apply v_to_e_is_const_list.
         simpl.
         by eapply r_call_indirect_success; eauto.
-      * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_trap]), hs.
+      * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_trap]).
         apply reduce_composition_left; first by apply v_to_e_is_const_list.
         by eapply r_call_indirect_failure1; eauto.
     + (* None *)
-      exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_trap]), hs.
+      exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_trap]).
       apply reduce_composition_left; first by apply v_to_e_is_const_list.
       by apply r_call_indirect_failure2.
 
@@ -717,19 +683,19 @@ Proof.
     destruct H0 as [x' [HN HType]].
     rewrite length_is_size in H.
     rewrite size_map in H.
-    exists s, f, [::AI_basic (BI_const x')], hs.
+    exists s, f, [::AI_basic (BI_const x')].
     by apply r_get_local.
       
   - (* Set_local *)
     right. invert_typeof_vcs.
     simpl in H.
     rewrite length_is_size in H. rewrite size_map in H. rewrite -length_is_size in H.
-    exists s, (Build_frame (set_nth v f.(f_locs) i v) f.(f_inst)), [::], hs.
+    exists s, (Build_frame (set_nth v f.(f_locs) i v) f.(f_inst)), [::].
     by eapply r_set_local; eauto.
 
   - (* Tee_local *)
     right. invert_typeof_vcs.
-    exists s, f, [::AI_basic (BI_const v); AI_basic (BI_const v); AI_basic (BI_set_local i)], hs.
+    exists s, f, [::AI_basic (BI_const v); AI_basic (BI_const v); AI_basic (BI_set_local i)].
     by apply r_simple; eauto.
 
   - (* Get_global *)
@@ -739,15 +705,16 @@ Proof.
     destruct (List.nth_error (tc_global C0) i) eqn:HN => //=.
     eapply glob_context_store in HN; eauto.
     assert (D : sglob_val s f.(f_inst) i <> None).
-    { unfold sglob_val. unfold sglob in HN. unfold option_map. by destruct (operations.sglob s f.(f_inst) i). }
+    { unfold sglob_val. unfold option_map.
+      by destruct (operations.sglob s f.(f_inst) i). }
     destruct (sglob_val s f.(f_inst) i) eqn:Hglobval => //=.
-    exists s, f, [::AI_basic (BI_const v)], hs.
+    exists s, f, [::AI_basic (BI_const v)].
     by apply r_get_global.
 
   - (* Set_global *)
     right. invert_typeof_vcs.
     destruct (supdate_glob s f.(f_inst) i v) eqn:Hs.
-    + exists s0, f, [::], hs.
+    + exists s0, f, [::].
       by apply r_set_global.
     + unfold supdate_glob in Hs. unfold option_bind in Hs.
       simpl in H. simpl in H0.
@@ -770,16 +737,16 @@ Proof.
       destruct p as [tp sx].
       simpl in H0. remove_bools_options.
       destruct (load_packed sx m (Wasm_int.N_of_uint i32m s0) off (tp_length tp) (t_length t)) eqn:HLoadResult.
-      * exists [::AI_basic (BI_const (wasm_deserialise b t))], hs.
+      * exists [::AI_basic (BI_const (wasm_deserialise b t))].
         by eapply r_load_packed_success; eauto.
-      * exists [::AI_trap], hs.
+      * exists [::AI_trap].
         by eapply r_load_packed_failure; eauto.
     + (* Load None *)
       simpl in H0.
       destruct (load m (Wasm_int.N_of_uint i32m s0) off (t_length t)) eqn:HLoadResult.
-      * exists [::AI_basic (BI_const (wasm_deserialise b t))], hs.
+      * exists [::AI_basic (BI_const (wasm_deserialise b t))].
         by eapply r_load_success; eauto.
-      * exists [::AI_trap], hs.
+      * exists [::AI_trap].
         by eapply r_load_failure; eauto.
 
   - (* Store *)
@@ -793,19 +760,19 @@ Proof.
     + (* Store Some *)
       simpl in H0. remove_bools_options.
       destruct (store_packed m (Wasm_int.N_of_uint i32m s0) off (bits v0) (tp_length tp)) eqn:HStoreResult.
-      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), f, [::], hs.
+      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), f, [::].
         eapply r_store_packed_success; eauto.
         by unfold types_agree; apply/eqP.
-      * exists s, f, [::AI_trap], hs.
+      * exists s, f, [::AI_trap].
         eapply r_store_packed_failure; eauto.
         by unfold types_agree; apply/eqP.
     + (* Store None *)
       simpl in H0.
       destruct (store m (Wasm_int.N_of_uint i32m s0) off (bits v0) (t_length (typeof v0))) eqn:HStoreResult.
-      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), f, [::], hs.
+      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), f, [::].
         eapply r_store_success; eauto.
         by unfold types_agree; apply/eqP.
-      * exists s, f, [::AI_trap], hs.
+      * exists s, f, [::AI_trap].
         eapply r_store_failure; eauto.
         by unfold types_agree; apply/eqP.
 
@@ -815,7 +782,7 @@ Proof.
     eapply mem_context_store in H; eauto.
     destruct H as [n [HMemInd HMem]].
     destruct (List.nth_error (s_mems s) n) eqn:HN => //=.
-    exists s, f, [::AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size m)))))], hs.
+    exists s, f, [::AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size m)))))].
     by eapply r_current_memory; eauto.
 
   - (* Grow_memory *)
@@ -826,7 +793,7 @@ Proof.
     destruct (List.nth_error (s_mems s) n) eqn:HN => //=.
     destruct v => //=.
     (* Similarly, for this proof we can just use trap and use the failure case. *)
-    exists s, f, [::AI_basic (BI_const (VAL_int32 int32_minus_one))], hs.
+    exists s, f, [::AI_basic (BI_const (VAL_int32 int32_minus_one))].
     by eapply r_grow_memory_failure; eauto.
 
   - (* Composition *)
@@ -857,10 +824,10 @@ Proof.
         rewrite catA.
         by rewrite v_to_e_cat.
     + (* reduce *)
-      destruct H as [s' [vs' [es' [hs' HReduce]]]].
+      destruct H as [s' [vs' [es' HReduce]]].
       right.
       rewrite to_e_list_cat.
-      exists s', vs', (es' ++ to_e_list [::e]), hs'.
+      exists s', vs', (es' ++ to_e_list [::e]).
       rewrite catA.
       by apply reduce_composition_right.
 
@@ -871,10 +838,10 @@ Proof.
     subst.
     edestruct IHHType; eauto.
     right.
-    destruct H2 as [s' [f' [es' [hs' HReduce]]]].
+    destruct H2 as [s' [f' [es' HReduce]]].
     replace vcs with (take (size ts) vcs ++ drop (size ts) vcs); last by apply cat_take_drop.
     rewrite -v_to_e_cat. rewrite -catA.
-    exists s', f', (v_to_e_list (take (size ts) vcs) ++ es'), hs'.
+    exists s', f', (v_to_e_list (take (size ts) vcs) ++ es').
     apply reduce_composition_left => //.
     by apply v_to_e_is_const_list.
 Qed. 
@@ -1144,10 +1111,168 @@ Proof.
   by eapply return_reduce_return_some in H1; eauto.
 Qed.
 
-Axiom host_application_exists: forall hs s tf hf vcs,
-    exists hs' res, host_application hs s tf hf vcs hs' res.
 
-Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret hs,
+Lemma b2p: forall {T:eqType} (a b:T), a==b -> a=b.
+Proof. move => T a b Hb. by move/eqP in Hb. Qed.
+
+(* Lemma s_typing_lf_call_host: forall s rs f es ts,
+    s_typing s rs f es ts ->
+    (forall n lh s tf h vcs, lfilled n lh [::AI_call_host s tf h vcs] es -> False).
+Proof.
+  move => s rs f es ts HType n lh s0 tf h vcs HLF.
+  inversion HType. inversion H. subst.
+  induction n.
+  { unfold lfilled, lfill in HLF.
+    destruct lh => //.
+    destruct (const_list l) eqn:Hl => //.
+    apply b2p in HLF. subst.
+    simpl in H1.  *)
+
+Fixpoint find_first_some {A : Type} (l : seq.seq (option A)) :=
+  match l with
+  | [::] => None
+  | Some e :: q => Some e
+  | None :: q => find_first_some q end.
+
+Fixpoint first_instr_instr e :=
+  match e with
+  | AI_basic (BI_const _) => None
+  | AI_label n es LI =>
+      match find_first_some (List.map first_instr_instr LI)
+      with Some (e',i) => Some (e',S i) | None => Some (e,0) end
+  | AI_local n es LI =>
+      match find_first_some (List.map first_instr_instr LI)
+      with Some (e',i) => Some (e',S i) | None => Some (e,0) end
+  | _ => Some (e,0) end.
+
+Definition first_instr es :=
+  find_first_some (List.map first_instr_instr es).
+
+Lemma first_instr_const vs es :
+  const_list vs -> first_instr (vs ++ es) = first_instr es.
+Proof.
+  intro Hvs.
+  induction vs => //=.
+  destruct a ; try by inversion Hvs.
+  destruct b ; try by inversion Hvs.
+  simpl in Hvs. rewrite <- (IHvs Hvs).
+  by unfold first_instr.
+Qed.
+
+Lemma starts_with_lfilled e i es k lh les :
+  first_instr es = Some (e,i) ->
+  lfilled k lh es les ->
+  first_instr les = Some (e,i + k).
+Proof.
+  generalize dependent es. generalize dependent lh. generalize dependent les.
+  induction k ; intros les lh es Hstart Hfill ; unfold lfilled, lfill in Hfill.
+  { destruct lh => //. 
+    remember (const_list l) as b eqn:Hl ; destruct b => //. 
+    move/eqP in Hfill. rewrite Hfill ; clear Hfill.
+    rewrite (first_instr_const (es ++ l0) (Logic.eq_sym Hl)).
+    induction es ; first by inversion Hstart. unfold addn, addn_rec. rewrite Nat.add_0_r.
+    destruct a ; unfold first_instr ; simpl ; unfold first_instr in Hstart ;
+      simpl in Hstart ; try done.
+    destruct b ; unfold first_instr ; simpl ;
+      unfold first_instr in Hstart ; simpl in Hstart ; eauto; try done.
+    all: unfold addn, addn_rec in IHes ; rewrite PeanoNat.Nat.add_0_r in IHes.
+    unfold first_instr in IHes. eauto. eauto.
+    destruct (find_first_some _) => //=. destruct p; try done. eauto. eauto.
+    destruct (find_first_some _) => //=;eauto. destruct p => //. }
+  (*    destruct Hstart ; subst ; repeat rewrite app_assoc ;
+      repeat rewrite <- (app_assoc (l ++ vs)) ; constructor ; (try done) ;
+      unfold const_list ; rewrite forallb_app ; apply andb_true_iff ; split => //=. }  *)
+  fold lfill in Hfill. destruct lh => //. 
+  remember (const_list l) as b eqn:Hl ; destruct b => //. 
+  remember (lfill k lh es) as fill ; destruct fill => //. 
+  move/eqP in Hfill.
+  assert (lfilled k lh es l2) ; first by unfold lfilled ; rewrite <- Heqfill.
+  subst. rewrite (first_instr_const _ (Logic.eq_sym Hl)). 
+  unfold first_instr => //=.
+  unfold first_instr in IHk. eapply IHk in H;eauto. rewrite H => //=.
+  rewrite - addnS. done. 
+  (*  apply start_label => //=. by eapply IHk. *)
+Qed.
+
+Lemma lfilled_implies_starts k lh e es :
+  (forall n es' LI, e <> AI_label n es' LI) ->
+  (forall n es' LI, e <> AI_local n es' LI) ->
+  (is_const e -> False) ->
+  lfilled k lh [::e] es ->
+  first_instr es = Some (e,k).
+Proof.
+  generalize dependent es. generalize dependent lh.
+  induction k ; intros lh es Hlabel Hlocal Hconst Hfill ; unfold lfilled, lfill in Hfill ;
+    destruct lh ; (try done) ; remember (const_list l) as b eqn:Hl ;
+    destruct b ; try done.
+  { move/eqP in Hfill.
+    destruct e ; subst ;
+      rewrite (first_instr_const _ (Logic.eq_sym Hl)) ; try by unfold first_instr.
+    destruct b ; try by unfold first_instr. exfalso ; by apply Hconst.
+    by exfalso ; eapply Hlabel. by exfalso ; eapply Hlocal. }
+  fold lfill in Hfill.
+  remember (lfill _ _ _) as fill ; destruct fill => //. 
+  move/eqP in Hfill. subst. rewrite (first_instr_const _ (Logic.eq_sym Hl)).
+  unfold first_instr => //=. unfold first_instr in IHk.
+  assert (lfilled k lh [::e] l2) ; first by unfold lfilled ; rewrite <- Heqfill.
+  eapply IHk in H => //=. rewrite H => //=.
+(* subst ; constructor => //=. eapply IHk => //=.
+  unfold lfilled ; by rewrite <- Heqfill. *)
+Qed.
+
+
+ Lemma first_instr_app e :
+    forall a es', first_instr e = Some a -> first_instr (e ++ es') = Some a.
+  Proof.
+    induction e; intros a0 es';try done.
+    cbn. destruct (first_instr_instr a) eqn:Ha;auto.
+    intros Hf. eapply IHe with (es':=es') in Hf. auto.
+  Qed.
+
+(* Lemma starts_implies_lfilled k e es :
+  first_instr es = Some (e,k) ->
+  exists lh, lfilled k lh [::e] es.
+Proof.
+  cut (forall n, 
+  induction es.
+  { unfold first_instr => //=. }
+  unfold first_instr => /=.
+  destruct a => /= ;
+               try by intro H ; inversion H ; subst ;
+               exists (LH_base [::] es) ;
+               unfold lfilled, lfill => //=.
+  destruct b => /= ;
+               try by intro H ; inversion H ; subst ;
+               exists (LH_base [::] es) ;
+               unfold lfilled, lfill => //=.
+  - intro H.
+    unfold first_instr in IHes.
+    apply IHes in H as [lh Hfill].
+    destruct lh.
+    exists (LH_base (AI_basic (BI_const v) :: l) l0).
+    unfold lfilled, lfill.
+    unfold lfilled, lfill in Hfill.
+    destruct k => //=.
+    destruct (const_list l) => //.
+    apply b2p in Hfill.
+    by subst.
+    exists (LH_rec (AI_basic (BI_const v) :: l) n l0 lh l1).
+    unfold lfilled, lfill.
+    unfold lfilled, lfill in Hfill.
+    destruct k => //=.
+    fold lfill.
+    fold lfill in Hfill.
+    destruct (const_list l) => //.
+    destruct (lfill _ _ _) => //.
+    apply b2p in Hfill.
+    by subst.
+  - destruct (find_first_some _) eqn:Hl0.
+    + destruct p. *)
+ 
+(* Axiom host_application_exists: forall s tf hf vcs,
+    exists res, host_application s tf hf vcs res. *)
+
+Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret,
     e_typing s C es tf ->
     tf = Tf ts1 ts2 ->
     C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) ->
@@ -1156,16 +1281,17 @@ Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret hs,
     store_typing s ->
     (forall n lh k, lfilled n lh [::AI_basic (BI_br k)] es -> k < n) ->
     (forall n, not_lf_return es n) ->
+    (forall tf h vcs n, first_instr es = Some (AI_call_host tf h vcs,n) -> False) ->
     terminal_form (v_to_e_list vcs ++ es) \/
-    exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'.
+    exists s' f' es', reduce s f (v_to_e_list vcs ++ es) s' f' es'.
 Proof.
   (* e_typing *)
-  move => s C C' f vcs es tf ts1 ts2 lab ret hs HType.
-  move: f C' vcs ts1 ts2 lab ret hs.
+  move => s C C' f vcs es tf ts1 ts2 lab ret HType.
+  move: f C' vcs ts1 ts2 lab ret.
   (* Initially I had the wrong order of lab and ret --
        The error message here is extremely misleading *)
-  apply e_typing_ind' with (e := HType)
-    (P := fun s C es tf (_ : e_typing s C es tf) => forall f C' vcs ts1 ts2 lab ret hs,
+  apply e_typing_ind' with (* (e := HType) *)
+    (P := fun s C es tf (_ : e_typing s C es tf) => forall f C' vcs ts1 ts2 lab ret,
               tf = Tf ts1 ts2 ->
               C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) ->
               inst_typing s f.(f_inst) C' ->
@@ -1173,15 +1299,17 @@ Proof.
               store_typing s ->
               (forall n lh k, lfilled n lh [::AI_basic (BI_br k)] es -> k < n) ->
               (forall n, not_lf_return es n) ->
+              (forall tf h vcs n, first_instr es = Some (AI_call_host tf h vcs,n) -> False) ->
               terminal_form (v_to_e_list vcs ++ es) \/
-              exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es')
-    (P0 := fun s rs f es ts (_ : s_typing s rs f es ts) => forall hs,
+              exists s' f' es', reduce s f (v_to_e_list vcs ++ es) s' f' es')
+    (P0 := fun s rs f es ts (_ : s_typing s rs f es ts) =>
               store_typing s ->
               (forall n lh k, lfilled n lh [::AI_basic (BI_br k)] es -> k < n) ->
               (forall n, not_lf_return es n) ->
+              (forall tf h vcs n, first_instr es = Some (AI_call_host tf h vcs,n) -> False) ->
               (const_list es /\ length es = length ts) \/
               es = [::AI_trap] \/
-              exists s' f' es' hs', reduce hs s f es hs' s' f' es'); clear HType s C es tf.
+              exists s' f' es', reduce s f es s' f' es') ; try clear HType s C es tf.
   (* The previous variables s/C/es/tf still lingers here so we need to clear *)
   (* UPD (23 Sep 2020): with the new wrapper approach to deal with host, we can no longer
      clear everything like we did originally: this is because the clear tactic also 
@@ -1189,10 +1317,10 @@ Proof.
      (in this case, it's function_closure). See https://github.com/coq/coq/pull/883*)
   - (* AI_basic *)
     move => s C bes tf HType.
-    move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
+    move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet.
     subst.
     eapply t_progress_be in HType; try instantiate (1 := vs) in HType; try by eauto.
-    destruct HType as [HType | [s' [vs' [es' [hs' HType]]]]].
+    destruct HType as [HType | [s' [vs' [es' HType]]]].
     + left.
       unfold terminal_form; left.
       apply const_list_concat => //. by apply v_to_e_is_const_list.
@@ -1202,7 +1330,7 @@ Proof.
       by apply HBI_brDepth in HContra.
   - (* Composition *)
     move => s C es e t1s t2s t3s HType1 IHHType1 HType2 IHHType2.
-    move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
+    move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet HCallHost.
     inversion HTF; subst.
     edestruct IHHType1; eauto.
     { move => n lh k HLF.
@@ -1213,6 +1341,17 @@ Proof.
       by apply HLF. }
     { move => n.
       eapply nlfret_right. by apply HNRet. }
+    { move => tf h vcs0 n HLF.
+      eapply HCallHost.
+      eapply first_instr_app.
+      exact HLF. } 
+      
+(*      assert (lfilled 0 (LH_base [::] [::]) [::AI_call_host s0 tf h vcs0] [::AI_call_host s0 tf h vcs0]).
+      unfold lfilled, lfill => //=. 
+      eapply lf_composition in HLF as [lh' HLF].
+      instantiate (1 := [::e]) in HLF.
+      eapply HCallHost.
+      by apply HLF. } *)
     + (* Terminal *)
       unfold terminal_form in H. destruct H.
       * (* Const *)
@@ -1233,6 +1372,19 @@ Proof.
           eapply nlfret_left.
           instantiate (1 := v_to_e_list esv); first by apply v_to_e_is_const_list.
           by apply HNRet. }
+        { move => tf h vcs0 n HLF.
+          eapply HCallHost.
+          eapply starts_with_lfilled.
+          exact HLF.
+          instantiate (2 := 0).
+          instantiate (1 := LH_base (v_to_e_list esv) [::]).
+          unfold lfilled, lfill => /=.
+          rewrite v_to_e_is_const_list.
+          done. } 
+(*          eapply lf_composition_left in HLF as [lh' HLF].
+          instantiate (1 := v_to_e_list esv) in HLF.
+          eapply HCallHost; eauto.
+          by apply v_to_e_is_const_list. } *)
         -- (* Terminal *)
           unfold terminal_form in H. destruct H.
           ++ left. unfold terminal_form. left.
@@ -1252,16 +1404,16 @@ Proof.
         destruct vcs => //=; destruct es => //=; destruct es => //=.
         simpl in H. inversion H. subst.
         right.
-        exists s, f, [::AI_trap], hs.
+        exists s, f, [::AI_trap].
         apply r_simple.
         eapply rs_trap => //.
         instantiate (1 := (LH_base [::] [::e])).
         apply/lfilledP.
         by apply LfilledBase => //=; apply v_to_e_is_const_list.
     + (* reduce *)
-      destruct H as [s' [f' [es' [hs' HReduce]]]].
+      destruct H as [s' [f' [es' HReduce]]].
       right.
-      exists s', f', (es' ++ [::e]), hs'.
+      exists s', f', (es' ++ [::e]).
       eapply r_label; eauto; try apply/lfilledP.
       * assert (LF : lfilledInd 0 (LH_base [::] [::e]) (v_to_e_list vcs ++ es) ([::] ++ (v_to_e_list vcs ++ es) ++ [::e]));
           first by apply LfilledBase.
@@ -1273,7 +1425,7 @@ Proof.
        const list. So we just separate the new const list into 2 parts and add
        the first part to the result correspondingly! *)
     move => s C es ts t1s t2s HType IHHType.
-    move => f C' vcs ts1 ts2 lab ret hs' HTF HContext HInst HConstType HST HBI_brDepth HNRet.
+    move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet HCallHost.
     inversion HTF; subst.
     symmetry in H0. apply cat_split in H0. destruct H0 as [HCT1 HCT2].
     rewrite - map_take in HCT1.
@@ -1299,28 +1451,28 @@ Proof.
         destruct vcs => //.
         -- left. by apply terminal_trap.
         -- right.
-           exists s, f, [::AI_trap], hs'.
+           exists s, f, [::AI_trap].
            apply r_simple.
            apply reduce_trap_left => //.
            by apply v_to_e_is_const_list.
     + (* reduce *)
-      destruct H as [s' [f' [es' [hs'' HReduce]]]].
+      destruct H as [s' [f' [es' HReduce]]].
       right.
-      exists s', f', (v_to_e_list (take (size ts) vcs) ++ es'), hs''.
+      exists s', f', (v_to_e_list (take (size ts) vcs) ++ es').
       rewrite -catA.
       apply reduce_composition_left => //; first by apply v_to_e_is_const_list.
-      by eapply HReduce.
+      (* by eapply HReduce. *)
       
   - (* AI_trap *)
     destruct vcs => //; first by left; apply terminal_trap.
     right.
-    exists s, f, [::AI_trap], hs.
+    exists s, f, [::AI_trap].
     apply r_simple.
     apply reduce_trap_left => //.
     by apply v_to_e_is_const_list.
   - (* Local *)
     move => s C n f0 es ts HType IHHType HLength.
-    move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
+    move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet HCallHost.
     inversion HTF; subst; clear HTF.
     symmetry in H0.
     invert_typeof_vcs.
@@ -1349,53 +1501,58 @@ Proof.
       move => n lh HContra.
       apply HEMF. by eauto.
     }
+    { move => tf h vcs n HLF.  
+      eapply HCallHost.
+      unfold first_instr => /=.
+      unfold first_instr in HLF.
+      rewrite HLF.
+      done. } 
+(*      unfold lfilled, lfill.
+      instantiate (6 := S _) => /=.
+      fold lfill.
+      instantiate (6 := LH_rec [::] _ _ _ [::]) => /=.
+      unfold lfilled in HLF.
+      instantiate (3 := vcs).
+      instantiate (3 := h).
+      instantiate (3 := tf).
+      instantiate (3 := s0).
+      instantiate (3 := lh).
+      instantiate (3 := n).
+      destruct (lfill _ _ _) eqn:Hfill => //.
+      admit.
+    } *)
     + (* Const *)
       destruct H.
-      exists s, f, es, hs.
+      exists s, f, es.
       apply r_simple.
       by apply rs_local_const.
     + (* AI_trap *)
       subst.
-      exists s, f, [::AI_trap], hs.
+      exists s, f, [::AI_trap].
       apply r_simple.
       by apply rs_local_trap.
     + (* reduce *)
-      destruct H as [s' [f0' [es' [hs' HReduce]]]].
-      exists s', f, [::AI_local (length ts2) f0' es'], hs'.
+      destruct H as [s' [f0' [es' HReduce]]].
+      exists s', f, [::AI_local (length ts2) f0' es'].
       by apply r_local; apply HReduce.
   - (* Invoke *)
     move => s a C cl tf HNth HType.
-    move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
+    move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet.
     inversion HType; subst.
     inversion H5; subst; clear H5.
     + (* Native *)
       right.
-      exists s, f, [:: AI_local (length ts2) (Build_frame (vcs ++ n_zeros ts) i) [::AI_basic (BI_block (Tf [::] ts2) es)]], hs.
+      exists s, f, [:: AI_local (length ts2) (Build_frame (vcs ++ n_zeros ts) i) [::AI_basic (BI_block (Tf [::] ts2) es)]].
       eapply r_invoke_native; eauto.
       repeat rewrite length_is_size. by rewrite size_map.
     + (* Host *)
       right.
-      (* There are two possible reduction paths dependning on whether the host
-         call was successful. However for the proof here we just have to show that
-         on exists -- so just use the easier failure case. *)
-      (* UPD: with the new host and the related reductions, this shortcut no longer
-         works. We will now need to consider the result of host execution and 
-         specify the reduction resultion result in either case. *)
-      assert (HApply: exists hs' res, host_application hs s (Tf (map typeof vcs) ts2) h vcs hs' res). apply host_application_exists.
-      destruct HApply as [hs' [res HApply]].
-      destruct res as [opres |].
-      destruct opres as [p r].
-      * (* Some *)
-        repeat eexists.
-        eapply r_invoke_host_success; eauto.
-        repeat rewrite length_is_size. by apply size_map.
-      * (* None *)
-        repeat eexists.
-        eapply r_invoke_host_diverge; eauto.
-        repeat rewrite length_is_size. by apply size_map.
+      exists s, f, [:: AI_call_host (Tf [seq typeof i | i <- vcs] ts2) h vcs].
+      eapply r_invoke_host; eauto.
+      repeat rewrite length_is_size. by rewrite size_map.
   - (* AI_label *)
     move => s C e0s es ts t2s n HType1 IHHType1 HType2 IHHType2 HLength.
-    move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
+    move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet HCallHost.
     inversion HTF; subst.
     symmetry in H0. invert_typeof_vcs.
     rewrite upd_label_overwrite in HType2. simpl in HType2.
@@ -1442,28 +1599,60 @@ Proof.
         first by apply LfilledRec.
       by apply LF.
     }
+    { move => tf h vcs n HLF.
+      eapply HCallHost.
+      unfold first_instr => /=.
+      unfold first_instr in HLF.
+      rewrite HLF.
+      done. } 
+(*      unfold lfilled, lfill.
+      instantiate (6 := S _) => /=.
+      fold lfill.
+      instantiate (6 := LH_rec [::] _ _ _ [::]) => /=.
+      unfold lfilled in HLF.
+      instantiate (3 := vcs).
+      instantiate (3 := h).
+      instantiate (3 := tf).
+      instantiate (3 := s0).
+      instantiate (3 := lh).
+      instantiate (3 := n).
+      destruct (lfill _ _ _) eqn:Hfill => //.
+      apply b2p in HLF ; subst.
+      done.
+    } *)
     + (* Terminal *)
       apply terminal_form_v_e in H.
       unfold terminal_form in H. destruct H.
       * (* Const *)
         right.
-        exists s, f, es, hs.
+        exists s, f, es.
         apply r_simple.
         by apply rs_label_const.
       * (* AI_trap *)
         right. subst.
-        exists s, f, [::AI_trap], hs.
+        exists s, f, [::AI_trap].
         apply r_simple.
         by apply rs_label_trap.
         by apply v_to_e_is_const_list.
     + (* reduce *)
-      destruct H as [s' [f' [es' [hs' HReduce]]]].
+      destruct H as [s' [f' [es' HReduce]]].
       right.
       simpl in HReduce.
-      exists s', f', [::AI_label (length ts) e0s es'], hs'.
+      exists s', f', [::AI_label (length ts) e0s es'].
       by eapply r_label; eauto; apply label_lfilled1.
+  - move => s C t1s t2s h vs Hlen f C' vcs ts1 ts2 lab ret HTF HC HType Hts1 HSType.
+    inversion HTF ; subst.
+    symmetry in H0. invert_typeof_vcs.
+    left.
+    exfalso. eapply H1.
+    unfold first_instr => /=.
+    done.
+(*    unfold lfilled, lfill.
+    instantiate (6 := 0) => /=.
+    instantiate (5 := LH_base [::] [::]) => /=.
+    done. *)
   - (* s_typing *)
-    move => s f es rs ts C C0 HFT HContext HType IHHType HRetType hs HST HBI_brDepth HNRet.
+    move => s f es rs ts C C0 HFT HContext HType IHHType HRetType HST HBI_brDepth HNRet HCallHost.
     inversion HFT.
     subst.
     edestruct IHHType; eauto.
@@ -1486,16 +1675,27 @@ Proof.
         right. by left.
     + (* reduce *)
       simpl in H0. right. right. by eauto.
+  - done.
 Qed.
 
-Theorem t_progress: forall s f es ts hs,
+Theorem t_progress: forall s f es ts,
     config_typing s f es ts ->
     terminal_form es \/
-    exists s' f' es' hs', reduce hs s f es hs' s' f' es'.
+      (exists tf h vcs n, first_instr es = Some (AI_call_host tf h vcs,n)) \/
+                        exists s' f' es', reduce s f es s' f' es'.
 Proof.
-  move => s f es ts hs HType.
+  move => s f es ts HType.
   inversion HType. inversion H0. inversion H5. subst.
-  eapply t_progress_e with (vcs := [::]) (ret := None) (lab := [::]) in H7; eauto.
+  destruct (first_instr es) eqn:Hes.
+  destruct p.
+  destruct a ; last first.
+  right ; left.
+  by repeat eexists.
+  all: eapply t_progress_e with (vcs := [::]) (ret := None) (lab := [::]) in H7; eauto.
+  all: try by destruct H7 ; [left | right ; right].
+  - all: try by rewrite Hes.
+  - all: try by eapply s_typing_lf_br; eauto.
+  - all: try by eapply s_typing_lf_return; eauto.
   - assert (E : tc_local C1 = [::]).
     { by eapply inst_t_context_local_empty; eauto. }
     rewrite E. simpl.
@@ -1504,9 +1704,49 @@ Proof.
     { simpl. by eapply inst_t_context_label_empty; eauto. }
     rewrite -E'.
     by destruct C1.
-  - by eapply s_typing_lf_br; eauto.
-  - by eapply s_typing_lf_return; eauto.
+  - assert (E : tc_local C1 = [::]).
+    { by eapply inst_t_context_local_empty; eauto. }
+    rewrite E. simpl.
+    fold_upd_context.
+    assert (E' : tc_label (upd_local_return C1 (map typeof f.(f_locs)) None) = [::]).
+    { simpl. by eapply inst_t_context_label_empty; eauto. }
+    rewrite -E'.
+    by destruct C1.
+  - assert (E : tc_local C1 = [::]).
+    { by eapply inst_t_context_local_empty; eauto. }
+    rewrite E. simpl.
+    fold_upd_context.
+    assert (E' : tc_label (upd_local_return C1 (map typeof f.(f_locs)) None) = [::]).
+    { simpl. by eapply inst_t_context_label_empty; eauto. }
+    rewrite -E'.
+    by destruct C1.
+  - assert (E : tc_local C1 = [::]).
+    { by eapply inst_t_context_local_empty; eauto. }
+    rewrite E. simpl.
+    fold_upd_context.
+    assert (E' : tc_label (upd_local_return C1 (map typeof f.(f_locs)) None) = [::]).
+    { simpl. by eapply inst_t_context_label_empty; eauto. }
+    rewrite -E'.
+    by destruct C1.
+  - assert (E : tc_local C1 = [::]).
+    { by eapply inst_t_context_local_empty; eauto. }
+    rewrite E. simpl.
+    fold_upd_context.
+    assert (E' : tc_label (upd_local_return C1 (map typeof f.(f_locs)) None) = [::]).
+    { simpl. by eapply inst_t_context_label_empty; eauto. }
+    rewrite -E'.
+    by destruct C1.
+  - assert (E : tc_local C1 = [::]).
+    { by eapply inst_t_context_local_empty; eauto. }
+    rewrite E. simpl.
+    fold_upd_context.
+    assert (E' : tc_label (upd_local_return C1 (map typeof f.(f_locs)) None) = [::]).
+    { simpl. by eapply inst_t_context_label_empty; eauto. }
+    rewrite -E'.
+    by destruct C1.
+
+
 Qed.
 
-End Host.
+
 

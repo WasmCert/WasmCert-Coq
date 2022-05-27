@@ -19,7 +19,7 @@ Close Scope byte_scope.
    
 
 Section Client.
- Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}. 
+ Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
 
   
 (* Functions from the stack module are : 
@@ -415,7 +415,14 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       simpl in Hstart.
       apply b2p in Hstart.
       inversion Hstart ; subst ; clear Hstart.
-      iApply wp_host_wasm.
+      iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_host_wasm.
+      iIntros (v).
+      instantiate ( 1 := λ v, (1%N↪[mods]client_module ∗
+  (∃ (idg : nat) (name7 : datatypes.name),
+      7%N↪[vis] {| modexp_name := name7; modexp_desc := MED_global (Mk_globalidx idg) |} ∗
+     (N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int 20 |}
+      ∨ N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int (-1) |})))%I) => //=.
+      iIntros "H" ; done. 
       by apply HWEV_invoke.
 
       

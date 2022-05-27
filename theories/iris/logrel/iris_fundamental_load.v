@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
   
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -94,7 +94,7 @@ Section fundamental.
 
   Lemma typing_load C a tp_sx t off : tc_memory C ≠ [] ->
                         load_store_t_bounds a (option_projl tp_sx) t ->
-                        ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_load t tp_sx a off]) (Tf [T_i32] [t]).
+                        ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_load t tp_sx a off]) (Tf [T_i32] [t]).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hnil Hload i lh).

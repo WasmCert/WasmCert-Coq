@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -23,7 +23,7 @@ Section fundamental.
 
   (* ----------------------------------------- TESTOP -------------------------------------- *)
 
-  Lemma typing_testop C t op : is_int_t t -> ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_testop t op]) (Tf [t] [T_i32]).
+  Lemma typing_testop C t op : is_int_t t -> ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_testop t op]) (Tf [t] [T_i32]).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hisint i lh).

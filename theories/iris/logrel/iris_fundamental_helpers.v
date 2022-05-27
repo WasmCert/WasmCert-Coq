@@ -8,7 +8,7 @@ From iris.prelude Require Import options.
 
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_rules.
-Require Export datatypes host operations properties opsem typing.
+Require Export datatypes (* host *) operations properties opsem typing.
 Require Export iris_logrel.
 Import uPred.
 
@@ -61,7 +61,6 @@ Proof.
 Qed.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -485,8 +484,8 @@ Section fundamental.
   Lemma interp_instance_function_lookup C i tf j :
     ssrnat.leq (S i) (length (tc_func_t C)) ->
     nth_error (tc_func_t C) i = Some tf ->
-    ⊢ interp_instance (HWP:=HWP) C j -∗
-      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (λ _, interp_closure (HWP:=HWP)) (N.of_nat f).
+    ⊢ interp_instance (* HWP:=HWP *) C j -∗
+      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (λ _, interp_closure (*HWP:=HWP*)) (N.of_nat f).
   Proof.
     iIntros (Hle Hnth) "#Hi".
     destruct C,j.
@@ -504,7 +503,7 @@ Section fundamental.
 
   Lemma interp_instance_lookup_global C j i t :
     option_map tg_t (nth_error (tc_global C) i) = Some t ->
-    ⊢ interp_instance (HWP:=HWP) C j -∗
+    ⊢ interp_instance (*HWP:=HWP*) C j -∗
       ∃ gt mut n, ⌜nth_error (tc_global C) i = Some gt⌝ ∗
                 ⌜nth_error (inst_globs j) i = Some n⌝ ∗
                 ⌜gt = Build_global_type mut t⌝ ∗
@@ -530,7 +529,7 @@ Section fundamental.
 
   Lemma interp_instance_get_mem C i :
     tc_memory C ≠ [] ->
-    ⊢ interp_instance (HWP:=HWP) C i -∗
+    ⊢ interp_instance (*HWP:=HWP*) C i -∗
       ∃ τm mem, ⌜nth_error (tc_memory C) 0 = Some τm⌝
               ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
               ∗ (N.of_nat mem) ↪[wmlimit] lim_max τm
@@ -561,7 +560,7 @@ Section fundamental.
     intros Heq.
     induction vh.
     { simpl in *. simplify_eq. simpl.
-      rewrite -!app_assoc. rewrite fmap_take fmap_drop.
+      rewrite -!app_assoc. repeat rewrite v_to_e_is_fmap. rewrite fmap_take fmap_drop.
       rewrite (app_assoc (take _ _)).
       rewrite (take_drop len ((λ x : value, AI_basic (BI_const x)) <$> l)). auto. }
     { simpl in *.

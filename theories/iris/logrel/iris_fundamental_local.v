@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -22,24 +22,24 @@ Section fundamental.
   (* --------------------------------------------------------------------------------------- *)
 
   Lemma interp_instance_change_label lbs C i :
-    interp_instance (HWP:=HWP) C i -∗ interp_instance (HWP:=HWP) (upd_label C lbs) i.
+    interp_instance (*HWP:=HWP*) C i -∗ interp_instance (*HWP:=HWP*) (upd_label C lbs) i.
   Proof. destruct C,i;simpl. auto. Qed.
 
   Lemma interp_instance_change_return ret C i :
-    interp_instance (HWP:=HWP) C i -∗ interp_instance (HWP:=HWP) (upd_return C ret) i.
+    interp_instance (*HWP:=HWP*) C i -∗ interp_instance (*HWP:=HWP*) (upd_return C ret) i.
   Proof. destruct C,i;simpl. auto. Qed.
 
   Lemma interp_instance_change_local locs C i :
-    interp_instance (HWP:=HWP) C i -∗ interp_instance (HWP:=HWP) (upd_local C locs) i.
+    interp_instance (*HWP:=HWP*) C i -∗ interp_instance (*HWP:=HWP*) (upd_local C locs) i.
   Proof. destruct C,i;simpl. auto. Qed.
   
   (* ----------------------------------------- LOCAL --------------------------------------- *)
 
   Lemma typing_local C es τ1 τ2 τs :
-    (∀ C es τ, be_typing C es τ -> ⊢ semantic_typing (HWP:=HWP) C (to_e_list es) τ) ->
+    (∀ C es τ, be_typing C es τ -> ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list es) τ) ->
     (tc_label C) = [] ∧ (tc_return C) = None ->
     be_typing (upd_local (upd_label (upd_return C (Some τ2)) [τ2]) (τ1 ++ τs)) es (Tf [] τ2) ->
-    ⊢ semantic_typing_local (HWP:=HWP) C es τs (Tf τ1 τ2).
+    ⊢ semantic_typing_local (*HWP:=HWP*) C es τs (Tf τ1 τ2).
   Proof.
     intros be_fundamental Hnil Htyping.
     iSplit;[auto|].

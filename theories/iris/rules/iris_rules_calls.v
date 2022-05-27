@@ -15,7 +15,6 @@ Section iris_rules_calls.
   
 Context `{!wasmG Σ}.
 
-  Import DummyHosts.
   
   
   Lemma v_to_e_list_to_val es vs :
@@ -44,6 +43,13 @@ Context `{!wasmG Σ}.
         destruct (vh_decrease _) => //.
         rewrite merge_br flatten_simplify in Hval => //.
         rewrite merge_return flatten_simplify in Hval => //.
+        destruct l2 => //. 
+        rewrite merge_call_host flatten_simplify in Hval => //.
+      - destruct (merge_values_list _) => //.
+        destruct v => //.
+        destruct l1 => //.
+        rewrite merge_call_host flatten_simplify in Hval => //. 
+      - rewrite merge_call_host flatten_simplify in Hval => //.
     }
   Qed.
 
@@ -64,12 +70,12 @@ Context `{!wasmG Σ}.
     iIntros (Hparams Hlen Hret) "Hf Hi HΦ".
     iApply wp_lift_step.
     { apply to_val_const_list in Hparams. apply to_val_cat_None2; auto. }
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
-    set (σ := (s0,s1,l,i0)).
-    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
-           (ves ++ [AI_invoke a])%list s0 s1 {| f_locs := l; f_inst := i0 |}
+    set (σ := (s0,l,i0)).
+    assert (reduce s0 {| f_locs := l; f_inst := i0 |}
+           (ves ++ [AI_invoke a])%list s0 {| f_locs := l; f_inst := i0 |}
            [AI_local m {| f_locs := vcs ++ n_zeros ts; f_inst := i |} [AI_basic (BI_block (Tf [] t2s) es)]]) as Hred.
     { eapply r_invoke_native with (ts:=ts);eauto.
       { rewrite gmap_of_list_lookup Nat2N.id in Hlook. rewrite /= nth_error_lookup //. }
@@ -84,20 +90,21 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
       assert (first_instr (ves ++ [AI_invoke a]) = Some (AI_invoke a,0)) as Hf.
       { apply first_instr_const. eapply to_val_const_list. eauto. }
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?&?) | (?&?&?&Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done.
+      destruct HH as [HH | [[? Hstart] | (*[(?&?&?&?&?&?&?&?) | *) (?&?&?&Hstart & Hstart1 & Hstart2 & Hσ) (* ] *)]]; try done.
       simplify_eq. iApply bi.sep_exist_l. iExists f0. iFrame.
-      iSplit =>//. iIntros "Hf".
+      iSplit => //. iIntros "Hf".
       iSpecialize ("HΦ" with "[$]"). iFrame.
       rewrite Hf in Hstart. done.
-      rewrite Hf in H0. simplify_eq. rewrite /= nth_error_lookup // in H1.
+  Qed.
+(*       rewrite Hf in H0. simplify_eq. rewrite /= nth_error_lookup // in H1.
       rewrite gmap_of_list_lookup Nat2N.id in Hlook.
       congruence.
-  Qed.
+  Qed. *)
 
 
   (* -------------------------------------------------------------------------- *)
@@ -118,7 +125,9 @@ Context `{!wasmG Σ}.
      be mutually recursive.
 
    *)
-    
+
+
+  (* Might be rederend useless by the new call_host opsem rule ? 
   Lemma invoke_host_inv a s1 t1s t2s h s0 es1 f1 f2 hs2 ws2 es:
     reduce (host_instance:=host_instance) s0 s1
            f1 es hs2 ws2
@@ -193,10 +202,73 @@ Context `{!wasmG Σ}.
         apply first_values in H1;auto;(try by intros [? ?]);[|apply const_list_app;auto].
         destruct H1 as [_ [Hcontr _]]. done. }
     }
-  Qed.
+  Qed.  *)
 
-  (* The following spec uses the imported host WP *)
+  
+
+
+  
+  Lemma wp_invoke_host s E ves vcs n t1s t2s a h f Φ :
+    ves = v_to_e_list vcs ->
+    length vcs = n ->
+    length t1s = n ->
+    (N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
+    ↪[frame] f -∗
+     (↪[frame] f -∗ WP [AI_call_host (Tf t1s t2s) h vcs] @ s;E {{ Φ }}) -∗
+     WP ves ++ [AI_invoke a] @ s; E {{ Φ }}.
+Proof.
+  iIntros (Hves Hvcs Ht1s) "Ha Hf Hwp".
+  iApply wp_lift_step => //=.
+  - unfold iris.to_val.
+    rewrite map_app => //=.
+    rewrite merge_app.
+    destruct (const_list_to_val (es := ves)) as [vs Hvs].
+    subst ; apply v_to_e_is_const_list.
+    unfold iris.to_val in Hvs.
+    destruct (merge_values_list _) => //=.
+    destruct v => //=.
+  - iIntros (σ ns κ κs nt) "Hσ".
+    destruct σ as [[ws locs ] inst ].
+    iApply fupd_mask_intro ; first by solve_ndisj.
+    iIntros "Hfupd".
+    iDestruct "Hσ" as "(Hσ1 & ? & ? & ? & ? & ?)".
+    iDestruct (gen_heap_valid with "Hσ1 Ha") as %Hlook.
+    iSplit.
+  - iPureIntro.
+    destruct s => //=.
+    unfold reducible, language.prim_step => //=.
+    eexists _,_,(_,_,_),_.
+    repeat split => //=.
+    eapply (r_invoke_host (t2s := t2s)) => //=.
+    rewrite nth_error_lookup => //=.
+    rewrite gmap_of_list_lookup Nat2N.id in Hlook.
+    done.
+  - iIntros "!>" (es σ2 efs HStep).
+    iMod "Hfupd".
+    iModIntro.
+    destruct σ2 as [[ws' locs' ] inst' ] => //=.
+    destruct HStep as [H [-> ->]].
+    eapply reduce_det in H as [? | [ [??] | (?&?&?&?&?&?&?)]] ; last first.
+    eapply (r_invoke_host (t2s := t2s)) => //.
+    rewrite nth_error_lookup => //=.
+    rewrite gmap_of_list_lookup Nat2N.id in Hlook => //.
+    rewrite first_instr_const in H.
+    simpl in H => //.
+    by subst ; apply v_to_e_is_const_list.
+    rewrite first_instr_const in H.
+    simpl in H => //.
+    by subst ; apply v_to_e_is_const_list.
+    simplify_eq.
+    iApply bi.sep_exist_l. iExists _. iFrame.
+    iSimpl. done.
+Qed.
+
+
+(*
+(* The following spec uses the imported host WP *)
   (* THe host WP is assumed to be NotStuck *)
+
+   
   Lemma wp_invoke_host_success `{HWP: host_program_logic} (R : result -> iProp Σ)
         (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) ves vcs t1s t2s a h m f0 :
     iris.to_val ves = Some (immV vcs) ->
@@ -217,7 +289,7 @@ Context `{!wasmG Σ}.
     iApply wp_unfold. rewrite /wp_pre /=.
     assert (iris.to_val (ves ++ [AI_invoke a]) = None) as ->.
     { apply to_val_const_list in Hparams. apply to_val_cat_None2; auto. }
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iDestruct (gen_heap_valid with "Hσ1 Hi") as %Hlook.
     set (σ := (s0,s1,l,i)).
     iMod (wp_host_not_stuck HWP (s0,s1,l,i) 0 [] 0 with "[$] [$]") as "(Hσ & HWP & %Hhost)".
@@ -241,7 +313,7 @@ Context `{!wasmG Σ}.
     - iMod (wp_host_step_red HWP (s0, s1, l, i) 0 [] [] 0 R h E vcs t1s t2s with "[$Hσ] [$HWP]") as "HH". (* "test". "[HH HH']". *)
       iModIntro.
       iIntros (es1 σ2 efs HStep).
-      destruct σ2 as [[[hs2 ws2] locs2] inst2].
+      destruct σ2 as [[ ws2 locs2] inst2].
       destruct HStep as (H & -> & ->).
       eapply invoke_host_inv with (vs':=[]) in H;eauto.
       2: { eapply to_val_const_list. eauto. }
@@ -258,7 +330,7 @@ Context `{!wasmG Σ}.
         iApply bi.sep_exist_l. iExists _. iFrame.
         simplify_eq. iDestruct "HH'" as "($&Hr)". iSplit =>//. }
       Unshelve. apply r.
-  Qed.
+  Qed. *)
 
   (* -------------------------------------------------------------------------- *)
   (* ---------------------------------- Calls --------------------------------- *)
@@ -280,10 +352,10 @@ Context `{!wasmG Σ}.
       eapply lfilled_to_val in Hcontr;[|eauto].
       inversion Hcontr.
       done. }
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hlook. simplify_map_eq.
-    set (σ := (s0,s1,l,i0)).
+    set (σ := (s0,l,i0)).
     iSplit.
     - iPureIntro.
       destruct s => //=.
@@ -295,12 +367,12 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
       assert (first_instr LI = Some (AI_basic (BI_call i),0 + j)).
       { eapply starts_with_lfilled;eauto. auto. }
       eapply reduce_det in H as HH;[|eapply r_label;[|eauto..];apply r_call; rewrite /= nth_error_lookup //]. 
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | (*[(?&?&?&?&?&?&?) | *) (?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *) ]]; try done; try congruence.
       simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "?". iApply ("HΦ" with "[$]"). auto.
   Qed.
@@ -339,16 +411,16 @@ Context `{!wasmG Σ}.
       eapply lfilled_to_val in Hcontr;[|eauto].
       inversion Hcontr.
       done. }
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ2 Ha") as %Hlook.
     iDestruct (gen_heap_valid with "Hσ1 Hcl") as %Hlook2.
     iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hf. simplify_map_eq.
     simplify_lookup.
     rewrite gmap_of_list_lookup Nat2N.id in Hlook2. 
-    set (σ := (s0,s1,l,i0)).
-    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
-           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 s1 {| f_locs := l; f_inst := i0 |}
+    set (σ := (s0,l,i0)).
+    assert (reduce s0 {| f_locs := l; f_inst := i0 |}
+           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 {| f_locs := l; f_inst := i0 |}
            [AI_invoke a]) as Hred.
     { eapply r_call_indirect_success;eauto.
       { unfold stab_addr. destruct i0. simpl in *. destruct inst_tab;[done|]. inversion Hc.
@@ -370,14 +442,14 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
-      assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |} LI s0 s1 {| f_locs := l; f_inst := i0 |} LI') as Hred'.
+      assert (reduce s0 {| f_locs := l; f_inst := i0 |} LI s0 {| f_locs := l; f_inst := i0 |} LI') as Hred'.
       { eapply r_label;eauto. }
       eapply reduce_det in H as HH;[|apply Hred'].
       assert (first_instr LI = Some (AI_basic (BI_call_indirect i),0+d)).
       { eapply starts_with_lfilled;eauto. by cbn. }
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | (* [(?&?&?&?&?&?&?) | *) (?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *) ]]; try done; try congruence.
       simplify_eq. iApply bi.sep_exist_l. iExists _. iFrame.
       iSplit =>//. iIntros "Hf".
       iSpecialize ("Hcont" with "[$]").
@@ -415,16 +487,16 @@ Context `{!wasmG Σ}.
   Proof.
     iIntros (Htype Hc) "Ha Hcl Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ2 Ha") as %Hlook.
     iDestruct (gen_heap_valid with "Hσ1 Hcl") as %Hlook2.
     iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hf. simplify_map_eq.
     simplify_lookup.
     rewrite gmap_of_list_lookup Nat2N.id in Hlook2. 
-    set (σ := (s0,s1,l,i0)).
-    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
-           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 s1 {| f_locs := l; f_inst := i0 |}
+    set (σ := (s0,l,i0)).
+    assert (reduce s0 {| f_locs := l; f_inst := i0 |}
+           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 {| f_locs := l; f_inst := i0 |}
            [AI_trap]) as Hred.
     { eapply r_call_indirect_failure1.
       { unfold stab_addr. instantiate (1:=a). destruct i0. simpl in *. destruct inst_tab;[done|]. inversion Hc.
@@ -445,10 +517,10 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | (* [(?&?&?&?&?&?&?) | *) (?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *) ]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 
@@ -461,13 +533,13 @@ Context `{!wasmG Σ}.
   Proof.
     iIntros (Hc) "Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hf. simplify_map_eq.
     simplify_lookup.
-    set (σ := (s0,s1,l,i0)).
-    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
-           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 s1 {| f_locs := l; f_inst := i0 |}
+    set (σ := (s0,l,i0)).
+    assert (reduce s0 {| f_locs := l; f_inst := i0 |}
+           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 {| f_locs := l; f_inst := i0 |}
            [AI_trap]) as Hred.
     { eapply r_call_indirect_failure2.
       unfold stab_addr. destruct i0. simpl in *. destruct inst_tab;[done|]. inversion Hc. }
@@ -481,10 +553,10 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | (* [(?&?&?&?&?&?&?) | *) (?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *) ]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 
@@ -498,14 +570,14 @@ Context `{!wasmG Σ}.
   Proof.
     iIntros (Hc) "Ha Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ2 Ha") as %Hlook.
     iDestruct (ghost_map_lookup with "Hσ5 Hf") as %Hf. simplify_map_eq.
     simplify_lookup.
-    set (σ := (s0,s1,l,i0)).
-    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
-           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 s1 {| f_locs := l; f_inst := i0 |}
+    set (σ := (s0,l,i0)).
+    assert (reduce s0 {| f_locs := l; f_inst := i0 |}
+           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 {| f_locs := l; f_inst := i0 |}
            [AI_trap]) as Hred.
     { eapply r_call_indirect_failure2.
       { unfold stab_addr. destruct i0. simpl in *. destruct inst_tab;[done|]. inversion Hc.
@@ -523,10 +595,10 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | (* [(?&?&?&?&?&?&?) | *) (?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *) ]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 
@@ -540,7 +612,7 @@ Context `{!wasmG Σ}.
   Proof.
     iIntros (Hc Hge) "#Ha Hf Hcont".
     iApply wp_lift_atomic_step;[auto|].
-    iIntros ([[[? ?] ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6&Hσ7&Hσ8&Hσ9)".
+    iIntros ([[ ? ?] ?] ns κ κs nt) "(Hσ1&Hσ2&Hσ3&Hσ4&Hσ5&Hσ6&Hσ7&Hσ8&Hσ9)".
     iApply fupd_frame_l.
     iDestruct (gen_heap_valid with "Hσ7 Ha") as %Hlook.
     rewrite gmap_of_list_lookup Nat2N.id in Hlook.
@@ -551,9 +623,9 @@ Context `{!wasmG Σ}.
     apply lookup_ge_None_2 in Hge.
     
     
-    set (σ := (s0,s1,l,i0)).
-    assert (reduce (host_instance:=host_instance) s0 s1 {| f_locs := l; f_inst := i0 |}
-           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 s1 {| f_locs := l; f_inst := i0 |}
+    set (σ := (s0,l,i0)).
+    assert (reduce s0 {| f_locs := l; f_inst := i0 |}
+           [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] s0 {| f_locs := l; f_inst := i0 |}
            [AI_trap]) as Hred.
     { eapply r_call_indirect_failure2.
       { unfold stab_addr. destruct i0. simpl in *. destruct inst_tab;[done|]. inversion Hc.
@@ -569,10 +641,10 @@ Context `{!wasmG Σ}.
     - iApply fupd_mask_intro;[solve_ndisj|].
       iIntros "Hcls !>" (es1 σ2 efs HStep).
       iMod "Hcls". iModIntro.
-      destruct σ2 as [[[hs' ws'] locs'] inst'].
+      destruct σ2 as [[ ws' locs'] inst'].
       destruct HStep as (H & -> & ->).
       eapply reduce_det in H as HH;[|apply Hred].
-      destruct HH as [HH | [[? Hstart] | [(?&?&?&?&?&?&?) |(?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) ]]]; try done; try congruence.
+      destruct HH as [HH | [[? Hstart] | (* [(?&?&?&?&?&?&?) | *) (?&?&? & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *) ]]; try done; try congruence.
       simplify_eq. iFrame. done.
   Qed.
 

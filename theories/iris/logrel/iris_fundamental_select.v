@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -23,7 +23,7 @@ Section fundamental.
 
   (* ----------------------------------------- SELECT -------------------------------------- *)
 
-  Lemma typing_select C t : ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_select]) (Tf [t; t; T_i32] [t]).
+  Lemma typing_select C t : ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_select]) (Tf [t; t; T_i32] [t]).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (i lh).

@@ -26,8 +26,11 @@ Context `{!wasmG Σ}.
     repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply wp_unfold.
+      unfold wp_pre.
+      destruct (language.to_val ([_] : iris.expr)).
+      admit. 
       iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[[? ?] ?] ?].
+      destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
       iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
       iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
@@ -40,18 +43,22 @@ Context `{!wasmG Σ}.
       iDestruct ("H" with "Hf") as "H".
       iDestruct (wp_unfold with "H") as "H".
       rewrite /wp_pre /=. rewrite lookup_insert in Hlook;inversion Hlook.
-      iSpecialize ("H" $! (s0,_,_,_) 0 κ [] 0 with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]").
+      destruct (iris.to_val [_]) eqn:Htv.
+      admit. 
+      iSpecialize ("H" $! (_,_,_) 0 κ [] 0 with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]").
       erewrite of_to_val;[|apply Hetov].
       iMod "H" as "[? H]". iModIntro. iFrame. }
-    { iApply wp_unfold.
+    { iApply wp_unfold. unfold wp_pre.
+      destruct (language.to_val ([_] : iris.expr)) eqn:Htv.
+      admit. 
       iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[[? ?] ?] ?].
+      destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
       iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
       iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
       rewrite insert_insert.
       iDestruct ("H" with "Hframe") as "H". destruct f.
-      iSpecialize ("H" $! (s0,_,_,_) 0 κ [] 0). 
+      iSpecialize ("H" $! (_,_,_) 0 κ [] 0). 
       iDestruct ("H" with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]") as "H".
       rewrite lookup_insert in Hlook;inversion Hlook.
 
@@ -59,18 +66,18 @@ Context `{!wasmG Σ}.
       iModIntro. iSplit.
       { iPureIntro. destruct s =>//.
         destruct Hred as [x [e' [σ' [efs Hstep]]]].
-        destruct σ' as [[[? ?] ?] ?].
-        eexists x,[AI_local n {| f_locs := l0; f_inst := i0 |} e'],(s,s2,l,i),efs.
+        destruct σ' as [[ ? ?] ?].
+        eexists x,[AI_local n {| f_locs := l0; f_inst := i0 |} e'],(_,l,i),efs.
         simpl. destruct Hstep as [Hstep [-> ->]]. split;auto.
         apply r_local. eauto. }
 
       iIntros (e2 σ2 efs Hstep).
-      destruct σ2 as [[[? ?] ?] ?].
+      destruct σ2 as [[ ? ?] ?].
       destruct Hstep as [Hstep [-> ->]].
       apply reduce_det_local in Hstep as Hstep';[|auto].
       destruct Hstep' as [es2' [f1 [Heq1 [Heq2 Hstep']]]].
       simplify_eq. destruct f1.
-      iSpecialize ("H" $! _ (_,_,_,_) _ with "[]").
+      iSpecialize ("H" $! _ (_,_,_) _ with "[]").
       { iPureIntro. split;eauto. }
 
       repeat iMod "H". iModIntro. iNext.
@@ -87,7 +94,7 @@ Context `{!wasmG Σ}.
       iDestruct "Hcont" as "[Hcont _]".
       iApply ("IH" with "Hf Hcont").
     }
-  Qed.
+  Admitted.
 
   Lemma wp_label_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e n es l1 l2 :
     WP e @ s; E {{ w, WP of_val w @ s; E CTX 1; LH_rec l1 n es (LH_base [] []) l2 {{ w, Φ w }} }} -∗
@@ -110,35 +117,35 @@ Context `{!wasmG Σ}.
       { erewrite of_to_val;[|eauto].
         iDestruct ("H" $! _ HLI) as "H".
         iIntros (σ ns κ κs nt) "Hσ".
-        destruct σ as [[[? ?] ?] ?].
+        destruct σ as [[ ? ?] ?].
         iMod "H".
         iDestruct (wp_unfold with "H") as "H".
         rewrite /wp_pre /= Hetov.
-        iDestruct ("H" $! (s0,_,_,_) 0 _ [] 0 with "Hσ") as "H".
+        iDestruct ("H" $! (_,_,_) 0 _ [] 0 with "Hσ") as "H".
         iFrame. }
       { iIntros (σ ns κ κs nt) "Hσ".
-        destruct σ as [[[? ?] ?] ?].
-        iDestruct ("H" $! (s0,_,_,_) 0 [] [] 0 with "Hσ") as "H".
+        destruct σ as [[ ? ?] ?].
+        iDestruct ("H" $! (_,_,_) 0 [] [] 0 with "Hσ") as "H".
         iMod "H" as "[%Hred H]". iModIntro.
         iSplit.
         { iPureIntro.
-          destruct s =>//.
+          destruct s => //.
           eapply lfilled_reducible;eauto. }
         apply lfilled_Ind_Equivalent in HLI.
         inversion HLI;simplify_eq. inversion H8;simplify_eq.
         repeat erewrite app_nil_l, app_nil_r.
         iIntros (e2 σ2 efs Hprim).
-        destruct σ2 as [[[? ?] ?] ?].
+        destruct σ2 as [[ ? ?] ?].
         destruct Hprim as [Hprim [-> ->]].
         eapply reduce_det_label in Hprim as Hprim';[|auto..]. destruct Hprim' as [es2' [-> Hstep]].
-        iDestruct ("H" $! _ (_,_,_,_) with "[]") as "H".
+        iDestruct ("H" $! _ (_,_,_) with "[]") as "H".
         { iPureIntro. split;eauto. }
         iMod "H". iModIntro. iNext.
         repeat iMod "H". iApply fupd_mask_intro_subseteq;[solve_ndisj|].
         iDestruct "H" as "[Hσ H]".
         iFrame. iDestruct "H" as (f) "[Hf [H _]]".
         iExists _. iFrame.
-        iSplit =>//. iIntros "Hf".
+        iSplit => //. iIntros "Hf".
         iDestruct ("H" with "Hf") as "H".
         iDestruct ("IH" with "[] H") as "H".
         { iPureIntro. apply lfilled_Ind_Equivalent. constructor;auto. constructor;auto. }
@@ -177,22 +184,22 @@ Context `{!wasmG Σ}.
       iDestruct (wp_unfold with "H") as "H".
       rewrite /wp_pre/= H.
       iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[[? ?] ?] ?].
-      iDestruct ("H" $! (s0,_,_,_) 0 [] [] 0 with "Hσ") as "H".
+      destruct σ as [[ ? ?] ?].
+      iDestruct ("H" $! (_,_,_) 0 [] [] 0 with "Hσ") as "H".
       iMod "H" as "[%Hred H]". iModIntro.
       erewrite (separate1 (AI_label _ _ _)) in Hred.
       iSplit.
       { iPureIntro. destruct s =>//.
         destruct Hred as (?&?&?&?&?).
-        destruct x1 as [[[? ?]?]?].
+        destruct x1 as [[ ??]?].
         destruct H0 as [Hred [-> ->]].
         eapply reduce_det_label in Hred as Hred';eauto.
         destruct Hred' as [es2 [Heq Hred']].
-        eexists _,_,(_,_,_,_),_. split;eauto. }
+        eexists _,_,(_,_,_),_. split;eauto. }
       iIntros (e2 σ2 efs Hprim).
-      destruct σ2 as [[[? ?]?]?].
+      destruct σ2 as [[ ??]?].
       destruct Hprim as [Hprim [-> ->]].
-      iDestruct ("H" $! _ (_,_,_,_) with "[]") as "H".
+      iDestruct ("H" $! _ (_,_,_) with "[]") as "H".
       { iPureIntro. split;eauto.
         eapply r_label;eauto.
         apply lfilled_Ind_Equivalent.

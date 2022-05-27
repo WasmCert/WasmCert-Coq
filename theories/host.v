@@ -23,10 +23,10 @@ Set Implicit Arguments.
 Section Predicate.
 
 (** We assume a set of host functions. **)
-Variable host_function : eqType.
+(* Variable host_function : eqType.
 
 Let store_record := store_record host_function.
-Let store_extension : store_record -> store_record -> bool := @store_extension _.
+Let store_extension : store_record -> store_record -> bool := @store_extension _.  *)
 
 (** The application of a host function either:
   - returns [Some (st', result)], returning a new Wasm store and a result (which can be [Trap]),
@@ -35,7 +35,7 @@ Let store_extension : store_record -> store_record -> bool := @store_extension _
 
 Record host := {
     host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
-    host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
+    host_application : host_state -> store_record -> function_type -> hostfuncidx -> seq value ->
                        host_state -> option (store_record * result) -> Prop
                        (** An application of the host function. **)
     (* FIXME: Should the resulting [host_state] be part of the [option]?
@@ -67,13 +67,12 @@ Section Executable.
 
 (** We assume a set of host functions.
   To help with the extraction, it is expressed as a [Type] and not an [eqType]. **)
-Variable host_function : Type.
 
-Let store_record := store_record host_function.
+
 Record executable_host := make_executable_host {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_monad : Monad host_event (** They form a monad. **) ;
-    host_apply : store_record -> function_type -> host_function -> seq value ->
+    host_apply : store_record -> function_type -> hostfuncidx -> seq value ->
                  host_event (option (store_record * result))
                  (** The application of a host function, returning a value in the monad. **)
   }.
@@ -86,12 +85,7 @@ Arguments host_apply [_ _].
 
 Section Parameterised.
 
-Variable host_function : eqType.
 
-Let store_record := store_record host_function.
-
-Let host : Type := host host_function.
-Let executable_host : Type := executable_host host_function.
 
 Variable phost : host.
 Variable ehost : executable_host.
@@ -116,14 +110,20 @@ End Parameterised.
 
 Module Type Executable_Host.
 
-Parameter host_function : Type.
-Parameter host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+  Definition hostfuncidx_eq_dec : forall f1 f2 : hostfuncidx, {f1 = f2} + {f1 <> f2}.
+  Proof. intros. destruct f1. destruct f2.
+         destruct (PeanoNat.Nat.eq_dec n n0).
+         by left ; subst.
+         right.
+         intro.
+         apply n1.
+         by inversion H. Defined.
 Parameter host_event : Type -> Type.
 Parameter host_ret : forall t : Type, t -> host_event t.
 Parameter host_bind : forall t u : Type, host_event t -> (t -> host_event u) -> host_event u.
 
-Parameter host_apply : store_record host_function -> function_type -> host_function -> seq value ->
-                       host_event (option (store_record host_function * result)).
+Parameter host_apply : store_record -> function_type -> hostfuncidx -> seq value ->
+                       host_event (option (store_record * result)).
 
 End Executable_Host.
 
@@ -133,22 +133,22 @@ Module convert_to_executable_host (H : Executable_Host).
 
 Export H.
 
-Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+Definition hostfuncidx_eqb f1 f2 : bool := hostfuncidx_eq_dec f1 f2. 
 
-Definition host_functionP : Equality.axiom host_function_eqb :=
-  eq_dec_Equality_axiom host_function_eq_dec.
+Definition hostfuncidxP : Equality.axiom hostfuncidx_eqb :=
+  eq_dec_Equality_axiom hostfuncidx_eq_dec. 
 
-Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Canonical Structure hostfuncidx_eqMixin := EqMixin hostfuncidxP.
 Canonical Structure host_function :=
-  Eval hnf in EqType _ host_function_eqMixin.
-
+  Eval hnf in EqType _ hostfuncidx_eqMixin. 
+(*
 Definition executable_host := executable_host H.host_function.
 Definition store_record := store_record H.host_function.
 Definition config_tuple := config_tuple H.host_function.
 (*Definition administrative_instruction := administrative_instruction H.host_function.*)
 Definition function_closure := function_closure H.host_function.
 Definition res_tuple := res_tuple H.host_function.
-
+*) 
 Definition host_monad : Monad host_event := {|
     ret := host_ret ;
     bind := host_bind
@@ -161,7 +161,7 @@ Definition host_functor := Functor_Monad (M := host_monad).
 
 End convert_to_executable_host.
 
-
+(*
 (** * Host instantiations **)
 
 (** ** Dummy host **)
@@ -202,5 +202,5 @@ Defined.
 
 (* TODO: host_spec *)
 
-End DummyHosts.
+End DummyHosts. *)
 

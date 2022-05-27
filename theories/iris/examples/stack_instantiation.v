@@ -22,7 +22,7 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
 Section StackModule.
 
   
-  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}. 
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
 
 
 
@@ -472,7 +472,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
      WP ((stack_instantiate, []) : host_expr)
      @ s ; E
-             {{ v,
+             {{ λ v : host_val, 
                     
                  (* 0%N still owns the stack_module *)
                  0%N ↪[mods] stack_module ∗ 
