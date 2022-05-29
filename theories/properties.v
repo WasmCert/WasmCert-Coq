@@ -12,9 +12,7 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Lemmas **)
 
-Section Host.
 
-Variable host_function : eqType.
 
 (*Let administrative_instruction := administrative_instruction host_function.
 Let const_list : seq administrative_instruction -> bool := @const_list _.
@@ -439,7 +437,7 @@ Proof.
   move => X. induction l1 => //=.
 Qed.
 
-End Host.
+
 
 
 (** * Tactics **)
@@ -457,7 +455,7 @@ Ltac gen_ind_pre H :=
       let only_do_if_ok_direct t cont :=
         lazymatch t with
         | Type => idtac
-        | host _ => idtac
+(*        | host _ => idtac *)
         | _ => cont tt
         end in
       let t := type of x in
@@ -604,12 +602,7 @@ Ltac fold_upd_context :=
 
 (** * More Advanced Lemmas **)
 
-Section Host.
 
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
 (* Let administrative_instruction := administrative_instruction host_function. 
 Let const_list : seq administrative_instruction -> bool := @const_list _.
 Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
@@ -617,14 +610,9 @@ Let lfilled := @lfilled host_function.
 Let lfilledInd := @lfilledInd host_function.
 Let es_is_basic := @es_is_basic host_function.
 Let to_e_list := @to_e_list host_function.*)
-Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
-  @e_typing _.
 
-Let host := host host_function.
 
-Variable host_instance: host.
 
-Let reduce := @reduce host_function host_instance.
 
 Lemma lfilled_swap : forall i lh es LI es', 
   lfilled i lh es LI ->
@@ -774,6 +762,7 @@ Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction
        (fun _ => 0)
        (fun _ LI1 LI2 m1 m2 => 1 + TProp.max m2)
        (fun _ _ LI' m => 0)
+       (fun _ _ _ => 0) (* added this to make it typecheck *)
        LI).
 
 Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
@@ -859,7 +848,7 @@ Proof.
   }
   case: (list_split_pickable2 (fun vs es => decidable_and (Dcl vs) (Dparse es)) es').
   - move=> [[vs es''] [E1 [C Ex]]].
-    destruct es'' as [| [| | | n es1 LI |] es2];
+    destruct es'' as [| [| | | n es1 LI | |] es2];
       try solve [ exfalso; move: Ex => [? [? [? [? E']]]]; inversion E' ].
     clear Ex. rewrite E1.
     have I_LI: (lfilled_pickable_rec_gen_measure LI < m)%coq_nat.
@@ -949,12 +938,12 @@ Defined.
 (** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
   They enable to focus on parts of the stack, ignoring the context. **)
 
-Lemma r_eliml: forall s f es s' f' es' lconst hs hs',
+Lemma r_eliml: forall s f es s' f' es' lconst,
     const_list lconst ->
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (lconst ++ es) hs' s' f' (lconst ++ es').
+    reduce s f es s' f' es' ->
+    reduce s f (lconst ++ es) s' f' (lconst ++ es').
 Proof.
-  move => s f es s' f' es' lconst hs hs' HConst H.
+  move => s f es s' f' es' lconst HConst H.
   apply: r_label; try apply/lfilledP.
   - by apply: H.
   - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
@@ -963,11 +952,11 @@ Proof.
     f_equal. by apply: cats0.
 Qed.
 
-Lemma r_elimr: forall s f es s' f' es' les hs hs',
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (es ++ les) hs' s' f' (es' ++ les).
+Lemma r_elimr: forall s f es s' f' es' les,
+    reduce s f es s' f' es' ->
+    reduce s f (es ++ les) s' f' (es' ++ les).
 Proof.
-  move => s f es s' f' es' les hs hs' H.
+  move => s f es s' f' es' les H.
   apply: r_label; try apply/lfilledP.
   - apply: H.
   - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
@@ -976,22 +965,22 @@ Qed.
 
 (** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
 
-Lemma r_eliml_empty: forall s f es s' f' lconst hs hs',
+Lemma r_eliml_empty: forall s f es s' f' lconst,
     const_list lconst ->
-    reduce hs s f es hs' s' f' [::] ->
-    reduce hs s f (lconst ++ es) hs' s' f' lconst.
+    reduce s f es s' f' [::] ->
+    reduce s f (lconst ++ es) s' f' lconst.
 Proof.
-  move => s f es s' f' lconst hs hs' HConst H.
-  assert (reduce hs s f (lconst++es) hs' s' f' (lconst++[::])); first by apply: r_eliml.
+  move => s f es s' f' lconst HConst H.
+  assert (reduce s f (lconst++es) s' f' (lconst++[::])); first by apply: r_eliml.
   by rewrite cats0 in H0.
 Qed.
 
-Lemma r_elimr_empty: forall s f es s' f' les hs hs',
-    reduce hs s f es hs' s' f' [::] ->
-    reduce hs s f (es ++ les) hs' s' f' les.
+Lemma r_elimr_empty: forall s f es s' f' les,
+    reduce s f es s' f' [::] ->
+    reduce s f (es ++ les) s' f' les.
 Proof.
-  move => s f es s' f' les hs hs' H.
-  assert (reduce hs s f (es++les) hs' s' f' ([::] ++les)); first by apply: r_elimr.
+  move => s f es s' f' les H.
+  assert (reduce s f (es++les) s' f' ([::] ++les)); first by apply: r_elimr.
   by rewrite cat0s in H0.
 Qed.
 
@@ -1189,6 +1178,10 @@ Proof.
     exists [::], [::], t2s0, [::]. repeat split => //=.
     + by apply ety_a' => //.
     + by eapply ety_label; eauto.
+  - (* Call host *)
+    exists [::], [::], t2s0, [::]. repeat split => //=.
+    + by apply ety_a' => //.
+    + by eapply ety_call_host ; eauto.
 Qed.
 
 Lemma e_composition_typing: forall s C es1 es2 t1s t2s,
@@ -1295,5 +1288,5 @@ Qed.
 
 End composition_typing_proofs.
 
-End Host.
+
 

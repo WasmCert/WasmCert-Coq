@@ -215,18 +215,10 @@ Definition eqinstanceP : Equality.axiom instance_eqb :=
 Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
 Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
 
-Section Host.
 
-Variable host_function : eqType.
-
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.
-Let res_step := res_step host_function.*)
 
 Let administrative_instruction_rect :=
-  @administrative_instruction_rect (*host_function*)
+  @administrative_instruction_rect
   : forall (P : administrative_instruction -> Type), _.
 
 Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
@@ -331,8 +323,8 @@ Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
 Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality.
-       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
+Proof. 
+  decidable_equality.
 Defined.
 
 Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
@@ -381,7 +373,7 @@ Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_e
 Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
 Proof.
   (decidable_equality_step;
-    last by apply: (eq_comparable (_ : seq administrative_instruction)));
+    try by apply: (eq_comparable (_ : seq administrative_instruction)));
     decidable_equality.
 Defined.
 
@@ -392,5 +384,5 @@ Definition eqres_stepP : Equality.axiom res_step_eqb :=
 Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
 Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
 
-End Host.
+
 

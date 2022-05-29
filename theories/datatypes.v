@@ -23,8 +23,8 @@ Unset Printing Implicit Defensive.
 (* TODO: Documentation. *)
 
 (* TODO: make these have structure; this will require monad-ifying the whole thing *)
-Definition host := unit.
-Definition host_state := unit.
+(* Definition host := unit.
+Definition host_state := unit. *)
 
 Definition depth := nat.
 
@@ -346,10 +346,14 @@ Inductive basic_instruction : Type := (* be *)
 
 (** * Functions and Store **)
 
-Section Host.
 
-(** We assume a family of host functions. **)
-Variable host_function : Type.
+
+  (** We assume a family of host functions. **)
+  (* We assume the host keeps track of the functions it populates onto the 
+     Wasm table by assigning each function an integer. *)
+  Inductive hostfuncidx : Type :=
+| Mk_hostfuncidx : nat -> hostfuncidx.
+(* Variable host_function : Type. *)
 
 Definition funcaddr := immediate (* TODO: should be funcidx *).
 Definition tableaddr := immediate (* TODO: should be tableidx *).
@@ -387,8 +391,9 @@ definitions during execution of the function.
 *)
 Inductive function_closure : Type := (* cl *)
   | FC_func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
-  | FC_func_host : function_type -> host_function -> function_closure
+  | FC_func_host : function_type -> hostfuncidx -> function_closure
 .
+
 
 (** std-doc:
 Each function element is either empty, representing an uninitialized table
@@ -460,6 +465,7 @@ Inductive administrative_instruction : Type := (* e *)
 | AI_invoke : funcaddr -> administrative_instruction
 | AI_label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
 | AI_local : nat -> frame -> seq administrative_instruction -> administrative_instruction
+| AI_call_host : function_type -> hostfuncidx -> seq value -> administrative_instruction
 .
 
 Inductive lholed : Type :=
@@ -595,11 +601,11 @@ Inductive res_step : Type :=
   | RS_crash : res_crash -> res_step
   | RS_break : nat -> seq value -> res_step
   | RS_return : seq value -> res_step
-  | RS_normal : seq administrative_instruction -> res_step
+| RS_normal : seq administrative_instruction -> res_step
+| RS_call_host : function_type -> hostfuncidx -> seq value -> res_step
   .
 
 Definition res_tuple : Type := store_record * frame * res_step.
 
-End Host.
-Arguments FC_func_native [host_function].
+
 

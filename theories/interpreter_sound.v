@@ -12,12 +12,7 @@ Unset Printing Implicit Defensive.
 
 From Wasm Require Import operations opsem interpreter properties.
 
-
-Section Host.
-
-Variable host_function : eqType.
-Let host := host host_function.
-
+(*
 Let store_record := store_record host_function.
 (*Let administrative_instruction := administrative_instruction host_function.*)
 Let config_tuple := config_tuple host_function.
@@ -51,26 +46,27 @@ Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
 (* TODO: fix this definition and the remaining 
 
 Let run_v : depth -> instance -> config_tuple -> itree eff (store_record * res)%type :=
-  @run_v _ executable_host_instance _ eff_has_host_event.
+  @run_v _ executable_host_instance _ eff_has_host_event. *) *)
 
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
 
+(*
 Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @reduce_simple _.
 Let reduce : host_state -> store_record -> seq value -> seq administrative_instruction -> instance ->
              host_state -> store_record -> seq value -> seq administrative_instruction -> Prop :=
-  @reduce _ _.
+  @reduce _ _. *)
 
 (** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
   They enable to focus on parts of the stack, ignoring the context. **)
 
-Lemma r_eliml: forall hs s vs es hs' s' vs' es' lconst i,
+Lemma r_eliml: forall s vs es s' vs' es' lconst,
   const_list lconst ->
-  reduce hs s vs es i hs' s' vs' es' ->
-  reduce hs s vs (lconst ++ es) i hs' s' vs' (lconst ++ es').
+  reduce s vs es s' vs' es' ->
+  reduce s vs (lconst ++ es) s' vs' (lconst ++ es').
 Proof.
-  move => hs s vs es hs' s' vs' es' lconst i HConst H.
+  move => s vs es s' vs' es' lconst HConst H.
   apply: r_label; try apply/lfilledP.
   - by apply: H.
   - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
@@ -79,11 +75,11 @@ Proof.
     f_equal. by apply: cats0.
 Qed.
 
-Lemma r_elimr: forall hs s vs es hs' s' vs' es' i les,
-    reduce hs s vs es i hs' s' vs' es' ->
-    reduce hs s vs (es ++ les) i hs' s' vs' (es' ++ les).
+Lemma r_elimr: forall s vs es s' vs' es' les,
+    reduce s vs es s' vs' es' ->
+    reduce s vs (es ++ les) s' vs' (es' ++ les).
 Proof.
-  move => hs s vs es hs' s' vs' es' i les H.
+  move => s vs es s' vs' es' les H.
   apply: r_label; try apply/lfilledP.
   - apply: H.
   - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
@@ -92,20 +88,20 @@ Qed.
 
 (** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
 
-Lemma r_eliml_empty: forall hs s vs es hs' s' vs' lconst i,
+Lemma r_eliml_empty: forall s vs es s' vs' lconst,
     const_list lconst ->
-    reduce hs s vs es i hs' s' vs' [::] ->
-    reduce hs s vs (lconst ++ es) i hs' s' vs' lconst.
+    reduce s vs es s' vs' [::] ->
+    reduce s vs (lconst ++ es) s' vs' lconst.
 Proof.
-  move => hs s vs es hs' s' vs' lconst i HConst H.
+  move => s vs es s' vs' lconst HConst H.
   rewrite -{2}(cats0 lconst). by apply: r_eliml.
 Qed.
 
-Lemma r_elimr_empty: forall hs s vs es hs' s' vs' i les,
-    reduce hs s vs es i hs' s' vs' [::] ->
-    reduce hs s vs (es ++ les) i hs' s' vs' les.
+Lemma r_elimr_empty: forall s vs es s' vs' les,
+    reduce s vs es s' vs' [::] ->
+    reduce s vs (es ++ les) s' vs' les.
 Proof.
-  move => hs s vs es hs' s' vs' i les H.
+  move => s vs es s' vs' les H.
   rewrite -{2}(cat0s les). by apply: r_elimr.
 Qed.
 
@@ -148,14 +144,19 @@ Lemma v_to_e_rev: forall l,
 Proof.
   elim => //=.
   move => a l IH. rewrite rev_cons.
-  by rewrite -cats1 /v_to_e_list -v_to_e_cat rev_cons -cats1 -IH.
+  rewrite - cats1. rewrite - v_to_e_cat.
+  rewrite IH.
+  rewrite rev_cons.
+  simpl.
+  rewrite - cats1.
+  done.
 Qed.
 
 Lemma v_to_e_list0 : v_to_e_list [::] = [::].
 Proof. reflexivity. Qed.
 
-Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: Basic (EConst v)].
-Proof. reflexivity. Qed.
+Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: AI_basic (BI_const v)].
+Proof. reflexivity. Qed. 
 
 Lemma ves_projection: forall vs e es vs' e' es',
   const_list vs ->
@@ -186,17 +187,17 @@ Proof.
 Qed.
 
 Lemma lfilled0: forall es,
-  lfilledInd 0 (LBase [::] [::]) es es.
+  lfilledInd 0 (LH_base [::] [::]) es es.
 Proof.
   move => es.
-  assert (lfilledInd 0 (LBase [::] [::]) es ([::]++es++[::])) as H; first by apply LfilledBase.
+  assert (lfilledInd 0 (LH_base [::] [::]) es ([::]++es++[::])) as H; first by apply LfilledBase.
   simpl in H. by rewrite cats0 in H.
 Qed.
 
 Lemma lfilled0_frame_l: forall vs es es' LI vs',
-  lfilledInd 0 (LBase vs es') es LI ->
+  lfilledInd 0 (LH_base vs es') es LI ->
   const_list vs' ->
-  lfilledInd 0 (LBase (vs' ++ vs) es') es (vs' ++ LI).
+  lfilledInd 0 (LH_base (vs' ++ vs) es') es (vs' ++ LI).
 Proof.
   move => vs es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
   rewrite catA.
@@ -204,9 +205,9 @@ Proof.
 Qed.
 
 Lemma lfilled0_frame_l_empty: forall es es' LI vs',
-  lfilledInd 0 (LBase [::] es') es LI ->
+  lfilledInd 0 (LH_base [::] es') es LI ->
   const_list vs' ->
-  lfilledInd 0 (LBase vs' es') es (vs' ++ LI).
+  lfilledInd 0 (LH_base vs' es') es (vs' ++ LI).
 Proof.
   move => es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
   rewrite catA.
@@ -215,8 +216,8 @@ Proof.
 Qed.
 
 Lemma lfilled0_frame_r: forall vs es es' LI es'',
-  lfilledInd 0 (LBase vs es') es LI ->
-  lfilledInd 0 (LBase vs (es' ++ es'')) es (LI ++ es'').
+  lfilledInd 0 (LH_base vs es') es LI ->
+  lfilledInd 0 (LH_base vs (es' ++ es'')) es (LI ++ es'').
 Proof.
   move => vs es es' LI es'' HLF. inversion HLF; subst; clear HLF.
   repeat rewrite -catA.
@@ -224,8 +225,8 @@ Proof.
 Qed.
       
 Lemma lfilled0_frame_r_empty: forall vs es LI es'',
-  lfilledInd 0 (LBase vs [::]) es LI ->
-  lfilledInd 0 (LBase vs es'') es (LI ++ es'').
+  lfilledInd 0 (LH_base vs [::]) es LI ->
+  lfilledInd 0 (LH_base vs es'') es (LI ++ es'').
 Proof.
   move => vs es LI es'' HLF. inversion HLF; subst; clear HLF.
   repeat rewrite -catA.
@@ -235,7 +236,7 @@ Qed.
 Lemma lfilled0_take_drop: forall vs es n es',
   const_list vs ->
   n <= size vs ->
-  lfilledInd 0 (LBase (take n vs) es') (drop n vs ++ es) (vs ++ es ++ es').
+  lfilledInd 0 (LH_base (take n vs) es') (drop n vs ++ es) (vs ++ es ++ es').
 Proof.
   move => vs es n es' HConst HSize.
   replace (vs++es++es') with (take n vs ++ (drop n vs ++ es) ++ es').
@@ -351,7 +352,7 @@ Ltac explode_and_simplify :=
       simplify_hypothesis HRevConst;
       try by [|apply: HRevConst]
     | context C [match ?v with
-                 | ConstInt32 _ => _
+(*                  | ConstInt32 _ => _ *)
                  | _ => _
                  end] =>
       let Hb := fresh "Ev" in
@@ -378,8 +379,8 @@ Ltac explode_and_simplify :=
       simplify_hypothesis Hv;
       try by []
     | context C [match ?v with
-                 | Convert => _
-                 | Reinterpret => _
+(*                 | Convert => _ *)
+                 | _ => _
                  end] =>
       let Hv := fresh "Ecvtop" in
       destruct v eqn:Hv;
@@ -511,7 +512,7 @@ Ltac eframe :=
   let r := fresh "r" in
   evar (r : seq administrative_instruction);
   frame_out l r.
-*)
+
 (* LATER: I am temporary commenting out the termination lemmas.
 Local Lemma run_step_fuel_increase_aux : forall d i es s vs s' vs' r' fuel fuel',
   fuel <= fuel' ->
@@ -1305,5 +1306,5 @@ Qed.
 
 *)
 
-End Host.
+
 

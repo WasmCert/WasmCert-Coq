@@ -6,20 +6,19 @@ Require Export iris iris_locations stdpp_aux.
 Require Export datatypes host operations properties opsem.
 Require Import iris_reduce_properties iris_wasm_lang_properties.
 
-Import DummyHosts.
+
 
 Section reduction_core.
 
   Let reducible := @reducible wasm_lang.
-  Let reduce := @reduce host_function host_instance.
 
   Let expr := iris.expr.
   Let val := iris.val.
   Let to_val := iris.to_val.
   
-  Lemma reduction_core bef0 es0 aft0 bef1 es1 aft1 es0' es1' hs s f hs' s' f' hs0 s0 f0 :
-    reduce hs s f es0 hs0 s0 f0 es0' ->
-    reduce hs s f es1 hs' s' f' es1' ->
+  Lemma reduction_core bef0 es0 aft0 bef1 es1 aft1 es0' es1' s f s' f' s0 f0 :
+    reduce s f es0 s0 f0 es0' ->
+    reduce s f es1 s' f' es1' ->
     const_list bef0 ->
     const_list bef1 ->
     bef0 ++ es0 ++ aft0 = bef1 ++ es1 ++ aft1 ->
@@ -30,10 +29,10 @@ Section reduction_core.
           es1 = bc1 ++ core ++ ac1 /\
           bef0 ++ bc0 = bef1 ++ bc1 /\
           ac0 ++ aft0 = ac1 ++ aft1 /\
-          reduce hs s f core hs' s' f' core' /\
+          reduce s f core s' f' core' /\
           bc1 ++ core' ++ ac1 = es1') \/
       exists lh0 lh1, lfilled 0 lh0 [AI_trap] es0 /\ lfilled 0 lh1 [AI_trap] es1 /\
-                   (hs,s,f) = (hs', s', f').
+                   (s,f) = (s', f').
   Proof.
     intros Hred0 Hred1 Hbef0 Hbef1 Heq.
     cut (forall nnnn, length es1 < nnnn ->
@@ -44,8 +43,8 @@ Section reduction_core.
                      ∧ es1 = bc1 ++ core ++ ac1
                      ∧ bef0 ++ bc0 = bef1 ++ bc1
                      ∧ ac0 ++ aft0 = ac1 ++ aft1
-                     ∧ reduce hs s f core hs' s' f' core' ∧ bc1 ++ core' ++ ac1 = es1')
-                 ∨ (∃ lh0 lh1 : lholed, lfilled 0 lh0 [AI_trap] es0 ∧ lfilled 0 lh1 [AI_trap] es1 /\ (hs,s,f) = (hs',s',f'))).
+                     ∧ reduce s f core s' f' core' ∧ bc1 ++ core' ++ ac1 = es1')
+                 ∨ (∃ lh0 lh1 : lholed, lfilled 0 lh0 [AI_trap] es0 ∧ lfilled 0 lh1 [AI_trap] es1 /\ (s,f) = (s',f'))).
     { intro Hn ; eapply (Hn (S (length es1))) ; lia. }
     intro nnnn.
     generalize dependent es1.
@@ -60,24 +59,24 @@ Section reduction_core.
     edestruct first_non_value_reduce as (vs0 & e0 & afte0 & Hvs0 & He0 & Heq0) ;
       try exact Hred0.
     rewrite Heq0 in Heq.
-    induction Hred1 as [ | ? ? ? aaa ? Hr | ? ? ? aaa ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? aaa ? ? ? Hr1 Hr2 Hr3 | ? ? ? ? ? Hr |
-                         aaa ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 Hr5 Hr6
+    induction Hred1 as [ | ? ? ? aaa Hr | ? ? ? aaa ? ? Hr1 Hr2 Hr3 |
+                         ? ? ? aaa ? ? Hr1 Hr2 Hr3 | ? ? ? ? Hr |
+                         aaa ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 Hr5 Hr6
                              Hr7 Hr8 Hr9 Hr10 |
-                         aaa ? ? ? ? ? ? ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 Hr5 Hr6 Hr7 |
-                         aaa ? ? ? ? ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 Hr5 Hr6 Hr7 |
-                         ? ? ? ? ? Hr | ? ? ? ? ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? ? ? Hr | ? ? ? ? ? ? Hr | ? ? ? ? ? kkk aaa ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? ? kkk aaa ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? ? ? kkk aaa ? ? ? ? ? Hr1 Hr2 Hr3 |
+                         aaa ? ? ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 Hr5 Hr6 |
+(*                         aaa ? ? ? ? ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 Hr5 Hr6 Hr7 | *)
+                         ? ? ? ? Hr | ? ? ? ? ? ? Hr1 Hr2 Hr3 |
+                         ? ? ? ? Hr | ? ? ? ? ? Hr | ? ? ? ? ? kkk aaa ? ? Hr1 Hr2 Hr3 |
+                         ? ? ? ? kkk aaa ? ? Hr1 Hr2 Hr3 |
                          ? ? ? ? ? kkk aaa ? ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? ? ? ? kkk aaa ? ? ? Hr1 Hr2 Hr3 Hr4 |
-                         ? ? ? ? ? ? kkk ? aaa ? Hr1 Hr2 Hr3 Hr4 |
-                         ? ? ? ? ? ? kkk ? aaa ? ? ? Hr1 Hr2 Hr3 Hr4 |
-                         ? ? ? ? ? ? kkk ? aaa ? ? Hr1 Hr2 Hr3 Hr4 | ? ? ? ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 | ? ? ? ? ? ? ? Hr1 Hr2 Hr3 |
-                         ? ? ? ? ? ? ? ? ? ? ? ? Hr1 IHHred Hr2 Hr3 |
-                         ? ? ? ? ? ? ? ? ? ? Hr IHHred ] ;
+                         ? ? ? ? ? kkk aaa ? ? ? Hr1 Hr2 Hr3 |
+                         ? ? ? ? ? ? kkk aaa ? ? Hr1 Hr2 Hr3 Hr4 |
+                         ? ? ? ? ? ? kkk ? aaa Hr1 Hr2 Hr3 Hr4 |
+                         ? ? ? ? ? ? kkk ? aaa ? ? Hr1 Hr2 Hr3 Hr4 |
+                         ? ? ? ? ? ? kkk ? aaa ? Hr1 Hr2 Hr3 Hr4 | ? ? ? ? ? Hr1 Hr2 Hr3 |
+                         ? ? ? ? ? ? ? Hr1 Hr2 Hr3 Hr4 | ? ? ? ? ? ? Hr1 Hr2 Hr3 |
+                         ? ? ? ? ? ? ? ? ? ? Hr1 IHHred Hr2 Hr3 |
+                         ? ? ? ? ? ? ? ? Hr IHHred ] ;
       try (by left ; do 2 rewrite app_assoc in Heq ;
            rewrite - (app_assoc ( _ ++ _)) in Heq ;
            rewrite - app_comm_cons in Heq ;
@@ -1092,8 +1091,8 @@ Section reduction_core.
                  apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])).
           - rewrite - (app_nil_r [_]) in Heq.
             apply first_values in Heq as (-> & Hblock & <-) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]).
-            apply (block_not_enough_arguments_no_reduce hs s f vs0 t1s0 t2s0 es0
-                                                        hs s f [AI_label m0 [] (vs0 ++ to_e_list es0)]) => //=.
+            apply (block_not_enough_arguments_no_reduce s f vs0 t1s0 t2s0 es0
+                                                        s f [AI_label m0 [] (vs0 ++ to_e_list es0)]) => //=.
             apply r_simple ; eapply rs_block => //=.
             inversion Hblock ; subst.
             by rewrite - Hr3 in Hlen'.
@@ -1179,8 +1178,8 @@ Section reduction_core.
                  apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]); try (destruct He0 as [-> | ->]; by intros [? ?])).
           - rewrite - (app_nil_r [_]) in Heq.
             apply first_values in Heq as (-> & Hblock & <-) ; try done ; try (by intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]); try (destruct He0 as [-> | ->]; by intros [? ?]);
-              apply (block_not_enough_arguments_no_reduce hs s f vs0 t1s0 t2s0 es0
-                                                          hs s f [AI_label m0 [] (vs0 ++ to_e_list es0)]) => //=.
+              apply (block_not_enough_arguments_no_reduce s f vs0 t1s0 t2s0 es0
+                                                          s f [AI_label m0 [] (vs0 ++ to_e_list es0)]) => //=.
             apply r_simple ; eapply rs_block => //=.
             inversion Hblock ; subst.
             by rewrite - Hr3 in Hlen'.
@@ -1236,9 +1235,11 @@ Section reduction_core.
         split ; unfold lfilled, lfill.
         by rewrite Hvs0 Heq0.
         by rewrite Hbef. }
+         
     - left ; repeat rewrite app_assoc in Heq.
       repeat rewrite - (app_assoc (_ ++ _)) in Heq.
-      rewrite - app_comm_cons in Heq. (* rewrite -app_assoc in Heq. *)    
+      rewrite - app_comm_cons in Heq. 
+
       apply first_values in Heq as (Hbefs & -> & Hafts) ; try done ; try (by intros  Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]);
         try (by const_list_app ; rewrite Hr3 ; apply v_to_e_is_const_list ).
       cut (forall nnn, length vs0 < nnn -> length vs0 < n  -> False).
@@ -1300,7 +1301,17 @@ Section reduction_core.
           apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]). }
       + rewrite - (app_nil_r [_]) in Heq.
         apply first_values in Heq as (-> & Hblock & <-) ; try done ; try (by intros  Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]); try (destruct He0 as [-> | ->]; by intros [? ?]).
-        eapply (invoke_not_enough_arguments_no_reduce_native hs s f _ _ hs s f) => //=.
+        eapply (invoke_not_enough_arguments_no_reduce_native s f _ _ s f) => //=.
+        rewrite Hr2 in Hr1.
+        inversion Hblock ; subst a.
+        exact Hr1.
+        by econstructor.
+        by rewrite Hr6.
+        rewrite H1.
+        by apply v_to_e_is_const_list.
+      + rewrite - (app_nil_r [_]) in Heq.
+        apply first_values in Heq as (-> & Hblock & <-) ; try done ; try (by intros  Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]); try (destruct He0 as [-> | ->]; by intros [? ?]).
+        eapply (invoke_not_enough_arguments_no_reduce_native s f _ _ s f) => //=.
         rewrite Hr2 in Hr1.
         inversion Hblock ; subst a.
         exact Hr1.
@@ -1325,8 +1336,106 @@ Section reduction_core.
         eapply IHnnn => //= ; lia.
         rewrite H in Heq.
         apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]).
-        unfold const_list.
-    - done. done.
+    - left ; repeat rewrite app_assoc in Heq.
+      repeat rewrite - (app_assoc (_ ++ _)) in Heq.
+      rewrite - app_comm_cons in Heq. 
+
+      apply first_values in Heq as (Hbefs & -> & Hafts) ; try done ; try (by intros  Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]);
+        try (by const_list_app ; rewrite Hr3 ; apply v_to_e_is_const_list ).
+      cut (forall nnn, length vs0 < nnn -> length vs0 < n  -> False).
+      { intros Hnnn. destruct (decide (length vs0 < n)).
+        exfalso ; by eapply Hnnn.
+        assert (length vs0 >= n) ; first lia.
+        rewrite - (take_drop (length vs0 - n) vs0) in Hbefs.
+        assert (length (drop (length vs0 - n) vs0) = length ves). 
+        { rewrite drop_length. rewrite Hr3 v_to_e_length Hr4. lia. }
+        rewrite assoc_list_seq in Hbefs.
+        destruct (app_inj_2 _ _ _ _ H0 Hbefs) as [Hbefs' Hvss].
+        rewrite - (take_drop (length vs0 - n) vs0) Hvss in Heq0.
+        rewrite - app_assoc in Heq0.
+        rewrite separate1 in Heq0.
+        rewrite (app_assoc ves) in Heq0.
+        eexists _,(take (length vs0 - n) vs0),afte0,[],[],_ ;
+          repeat split ; try done ; try by rewrite app_nil_r.
+        rewrite - (take_drop (length vs0 - n) vs0) in Hvs0.
+        unfold const_list in Hvs0.
+        rewrite forallb_app in Hvs0.
+        by apply andb_true_iff in Hvs0 as [? _].
+        by econstructor. }
+      intros nnn.
+      clear Hbefs Hafts.
+      generalize dependent afte0.
+      generalize dependent vs0.
+      generalize dependent es0'.
+      generalize dependent es0.
+      induction nnn.
+      intros ; lia.
+      intros es0 es0' Hred.
+      induction Hred ; intros afte0 vs0 Hvs0 Heq Hnnn Hlen' ;
+        try (by rewrite - (app_nil_l [_]) - (app_nil_r [_]) in Heq ;
+             apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])) ;
+        try (by rewrite - (app_nil_r [_ ; _]) separate1 - app_assoc in Heq ;
+             apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])) ;
+        try (by rewrite - (app_nil_r [_ ; _ ; _]) separate2 - app_assoc in Heq ;
+             apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])) ;
+        try (by  rewrite - (app_nil_r [_]) in Heq ;
+             apply first_values in Heq as (_ & Habs & _) ;try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]) ;
+             rewrite H1 ; apply v_to_e_is_const_list).
+      { destruct H ;
+          try (by rewrite - (app_nil_l [_]) - (app_nil_r [_]) in Heq ;
+               apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])) ;
+          try (by rewrite - (app_nil_r [_ ; _]) separate1 - app_assoc in Heq ;
+               apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])) ;
+          try (by rewrite - (app_nil_r [_ ; _ ; _]) separate2 - app_assoc in Heq ;
+               apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])) ;
+          try (by rewrite - (app_nil_r [_;_;_;_]) separate3 - app_assoc in Heq ;
+               apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?])).
+        - rewrite - (app_nil_r [_ ; _]) separate1 - app_assoc in Heq.
+          apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]).
+          unfold const_list, forallb ; by rewrite H.
+        - unfold lfilled, lfill in H0.
+          destruct lh as [bef aft|] ; last by false_assumption.
+          destruct (const_list bef) eqn:Hbef ; last by false_assumption.
+          move/eqP in H0.
+          rewrite H0 in Heq.
+          apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]). }
+      + rewrite - (app_nil_r [_]) in Heq.
+        apply first_values in Heq as (-> & Hblock & <-) ; try done ; try (by intros  Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]); try (destruct He0 as [-> | ->]; by intros [? ?]).
+        eapply (invoke_not_enough_arguments_no_reduce_host s f _ _ s f) => //=.
+        rewrite Hr2 in Hr1.
+        inversion Hblock ; subst a.
+        exact Hr1.
+        by econstructor.
+        by rewrite Hr5.
+        rewrite H1.
+        by apply v_to_e_is_const_list.
+      + rewrite - (app_nil_r [_]) in Heq.
+        apply first_values in Heq as (-> & Hblock & <-) ; try done ; try (by intros  Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]); try (destruct He0 as [-> | ->]; by intros [? ?]).
+        eapply (invoke_not_enough_arguments_no_reduce_host s f _ _ s f) => //=.
+        rewrite Hr2 in Hr1.
+        inversion Hblock ; subst a.
+        exact Hr1.
+        by econstructor.
+        by rewrite Hr5.
+        rewrite H1.
+        by apply v_to_e_is_const_list.
+      + simple_filled2 H k lh bef aft nn ll ll'.
+        rewrite H in Heq.
+        edestruct first_non_value_reduce as (vse & e & afte & Hvse & He & Heqe) ;
+          try exact Hred.
+        rewrite Heqe in Heq.
+        repeat rewrite app_assoc in Heq.
+        repeat rewrite - (app_assoc (_ ++ _)) in Heq.
+        rewrite - app_comm_cons in Heq.
+        apply first_values in Heq as (<- & -> & <-) ; try done ; try (by intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He ; destruct He as [?|?] ; [congruence | subst]); try (destruct He as [-> | ->]; by intros [? ?]);
+          try by const_list_app.
+        destruct bef.
+        eapply IHHred => //=.
+        simpl in Hlen', Hnnn.
+        rewrite app_length in Hlen', Hnnn.
+        eapply IHnnn => //= ; lia.
+        rewrite H in Heq.
+        apply first_values in Heq as (_ & Habs & _) ; try done ; try (by intros [? ?]); try (destruct He0 as [-> | ->]; by intros [? ?]).
     - unfold lfilled, lfill in Hr2.
       destruct k.
       { destruct lh as [bef aft|] ; last by false_assumption.

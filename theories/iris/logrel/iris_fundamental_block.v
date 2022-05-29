@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -103,7 +103,7 @@ Section fundamental.
     unfold interp_br_body.
     destruct (pull_base_l_drop_len vh (length vs - length tm)) eqn:Hpb.
     erewrite vfill_pull_base_l_take_len;[|eauto].
-    pose proof (vfill_to_lfilled v (((λ x : value, AI_basic (BI_const x)) <$> l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
+    pose proof (vfill_to_lfilled v ((v_to_e_list l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
     erewrite <-lh_depth_pull_base_l_take_len in Hfill;[|eauto]. 
     rewrite Hsize -e in Hfill.
     assert (j - p = 0) as ->;[lia|].
@@ -136,8 +136,8 @@ Section fundamental.
 
   (* ----------------------------------------- BLOCK --------------------------------------- *)
 
-  Lemma typing_block C tn tm es : (⊢ semantic_typing (HWP:=HWP) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es) (Tf tn tm)) ->
-                                  ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_block (Tf tn tm) es]) (Tf tn tm).
+  Lemma typing_block C tn tm es : (⊢ semantic_typing (* HWP:=HWP *) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es) (Tf tn tm)) ->
+                                  ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_block (Tf tn tm) es]) (Tf tn tm).
   Proof.
     intros IHbe_typing.
     unfold semantic_typing, interp_expression.

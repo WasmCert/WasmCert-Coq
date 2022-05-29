@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -23,11 +23,11 @@ Section fundamental.
 
   Lemma interp_instance_get_table C j :
     tc_table C ≠ [] ->
-    ⊢ interp_instance (HWP:=HWP) C j -∗
+    ⊢ interp_instance (*HWP:=HWP*) C j -∗
       ∃ τt a, ⌜(tc_table C) !! 0 = Some τt⌝
             ∗ ⌜(inst_tab j) !! 0 = Some a⌝
             ∗ ∃ table_size, (N.of_nat a) ↪[wtsize] table_size
-                          ∗ (interp_table table_size (λ _, interp_closure (HWP:=HWP))) (N.of_nat a).
+                          ∗ (interp_table table_size (λ _, interp_closure (*HWP:=HWP*))) (N.of_nat a).
   Proof.
     iIntros (Hnil) "#Hi".
     destruct C,j.
@@ -44,7 +44,7 @@ Section fundamental.
   
   Lemma interp_instance_type_lookup C i tf j :
     nth_error (tc_types_t C) i = Some tf ->
-    ⊢ interp_instance (HWP:=HWP) C j -∗
+    ⊢ interp_instance (*HWP:=HWP*) C j -∗
       ⌜nth_error (inst_types j) i = Some tf⌝.
   Proof.
     iIntros (Hnth) "#Hi".
@@ -59,7 +59,7 @@ Section fundamental.
     ssrnat.leq (S i) (length (tc_types_t C)) ->
     nth_error (tc_types_t C) i = Some (Tf t1s t2s) ->
     tc_table C ≠ [] ->
-    ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_call_indirect i]) (Tf (t1s ++ [T_i32]) t2s).
+    ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_call_indirect i]) (Tf (t1s ++ [T_i32]) t2s).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hleq Hnth Htable j lh).
@@ -75,7 +75,7 @@ Section fundamental.
     assert (∃ w ws', ws = ws' ++ [w]) as [w [ws' Heq]].
     { induction ws using rev_ind;eauto. destruct t1s =>//. } subst ws.
     iDestruct (big_sepL2_app_inv with "Hv") as "[Hv' Hw]";[auto|].
-    iSimpl. rewrite fmap_app -app_assoc. iSimpl.
+    iSimpl. rewrite -v_to_e_cat -app_assoc. iSimpl.
     iSimpl in "Hw". iDestruct "Hw" as "[Hw _]".
     iDestruct "Hw" as (z) "->" .
 
@@ -205,8 +205,9 @@ Section fundamental.
         destruct f.
         iDestruct "Hcl" as (Heq) "Hcl". destruct τf;simplify_eq. inversion e;subst r r0.
         iDestruct (big_sepL2_length with "Hv'") as %Hlen'.
-        iApply (wp_invoke_host_success with "[$] [$]");eauto.
-        { apply to_val_fmap. }
+        iApply (wp_invoke_host with "[$] [$]");eauto.
+        admit.
+(*        { apply to_val_fmap. }
         { iApply "Hcl". iRight. iExists _. eauto. }
         iNext. iIntros (r) "[Hf [Ha Hpost]]".
         iApply fupd_wp.
@@ -214,12 +215,12 @@ Section fundamental.
         iModIntro.
         destruct (iris.to_val (result_to_stack r)) eqn:Hval;[|done].
         iApply wp_value;[instantiate (1:=v);rewrite /IntoVal /=;erewrite of_to_val;eauto|].
-        iFrame.
+        iFrame. *)
       }
     }
 
     iIntros (v) "[[$ $] Hf]".
     iExists _. iFrame. eauto.
-  Qed.
+  Admitted.
     
 End fundamental.

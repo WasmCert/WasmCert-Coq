@@ -10,19 +10,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
 
-Variable host_function : eqType.
 
-Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
-Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
-  @e_typing _.
-Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
 (*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
   @reduce_simple _.
 Let const_list : seq administrative_instruction -> bool := @const_list _.
@@ -31,7 +20,7 @@ Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administr
   @lfilled _.
 Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
 
-Let host := host host_function.
+(* Let host := host host_function.
 
 Variable host_instance : host.
 
@@ -39,13 +28,13 @@ Let host_state := host_state host_instance.
 
 Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
              host_state -> store_record -> frame -> seq administrative_instruction -> Prop
-  := @reduce _ _.
+  := @reduce _ _. 
 
 Let s_globals : store_record -> seq global := @s_globals _.
 Let s_mems : store_record -> seq memory := @s_mems _.
 Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
 Let cl_type : function_closure -> function_type := @cl_type _.
-Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+Let store_extension: store_record -> store_record -> Prop := @store_extension _. *)
 
 Definition t_be_value bes : Prop :=
   const_list (to_e_list bes).
@@ -2332,12 +2321,14 @@ Proof.
       by remove_bools_options. }  
   - move=> s C es es' t1s t2s n HType1 IHHType1 HType2 IHHType2 E s' HST1 HST2 Hext.
     eapply ety_label => //; eauto.
-    + by apply IHHType1.
-    + by apply IHHType2.
+(*    + by apply IHHType1.
+    + by apply IHHType2. *)
+  - move => s C t1s t2s h vs Hlen s'0 HST1 HST2 Hext.
+    eapply ety_call_host ; eauto.
   - move=> s f es rs ts C C' HFType HContext HType IHHType E' s' HST1 HST2 Hext.
     eapply mk_s_typing; eauto.
     + by eapply frame_typing_extension; eauto.
-    + by apply IHHType.
+(*    + by apply IHHType. *)
 Defined.
 
 Lemma glob_extension_update_nth: forall sglobs n g g',
@@ -2378,7 +2369,7 @@ Proof.
   remove_bools_options.
   eapply all2_projection in H2; eauto.
   unfold globals_agree in H2.
-  unfold s_globals in HN2.
+  rewrite HN2 in H2.
   by remove_bools_options.
 Qed.
 
@@ -2806,30 +2797,30 @@ Proof.
   - by inversion HGrow.
 Qed.
     
-Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',
-    reduce hs s f es hs' s' f' es' ->
+Lemma reduce_inst_unchanged: forall s f es s' f' es',
+    reduce s f es s' f' es' ->
     f.(f_inst) = f'.(f_inst).
 Proof.
-  move => hs s f es hs' s' f' es' HReduce.
+  move => s f es s' f' es' HReduce.
   by induction HReduce.
 Qed.
 
-Lemma store_extension_reduce: forall s f es s' f' es' C tf loc lab ret hs hs',
-    reduce hs s f es hs' s' f' es' ->
+Lemma store_extension_reduce: forall s f es s' f' es' C tf loc lab ret,
+    reduce s f es s' f' es' ->
     inst_typing s f.(f_inst) C ->
     e_typing s (upd_label (upd_local_return C loc ret) lab) es tf ->
     store_typing s ->
     store_extension s s' /\ store_typing s'.
 Proof.
-  move => s f es s' f' es' C tf loc lab ret hs hs' HReduce.
+  move => s f es s' f' es' C tf loc lab ret HReduce.
   generalize dependent C. generalize dependent tf.
   generalize dependent loc. generalize dependent lab. generalize dependent ret.
   induction HReduce => //; try move => ret lab loc tf C HIT HType HST; try intros; destruct tf; try by (split => //; apply store_extension_same).
-  - (* invoke *)
+(*  - (* invoke *)
     destruct host_instance.
     split.
     + by eapply host_application_extension; eauto.
-    + by eapply host_application_typing; eauto.
+    + by eapply host_application_typing; eauto. *)
   - (* update glob *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const v; BI_set_global i] with ([::BI_const v] ++ [::BI_set_global i]) in HType => //=.
@@ -2886,7 +2877,7 @@ Proof.
     destruct s => //=.
     destruct HST as [_ [_ H11]].
     simpl in H1.
-    assert (i < length s_mems0)%coq_nat.
+    assert (i < length s_mems)%coq_nat.
     { apply List.nth_error_Some. by rewrite H1. }
     inversion H0; subst. clear H0.
     apply Forall_update => //=.
@@ -2918,7 +2909,7 @@ Proof.
     destruct s => //=.
     destruct HST as [_ [_ H11]].
     simpl in H1.
-    assert (i < length s_mems0)%coq_nat.
+    assert (i < length s_mems)%coq_nat.
     { apply List.nth_error_Some. by rewrite H1. }
     apply Forall_update => //=.
     eapply store_mem_agree; eauto.
@@ -2947,7 +2938,7 @@ Proof.
     destruct s => //=.
     destruct HST as [_ [_ H11]].
     simpl in H0.
-    assert (i < length s_mems0)%coq_nat.
+    assert (i < length s_mems)%coq_nat.
     { apply List.nth_error_Some. by rewrite H0. }
     apply Forall_update => //=.
     eapply mem_grow_mem_agree; eauto. by move/ltP in H1.
@@ -2990,8 +2981,8 @@ Proof.
       by apply IHl.
 Qed.
 
-Lemma t_preservation_vs_type: forall s f es s' f' es' C C' lab ret t1s t2s hs hs',
-    reduce hs s f es hs' s' f' es' ->
+Lemma t_preservation_vs_type: forall s f es s' f' es' C C' lab ret t1s t2s,
+    reduce s f es s' f' es' ->
     store_typing s ->
     store_typing s' ->
     inst_typing s f.(f_inst) C ->
@@ -2999,7 +2990,7 @@ Lemma t_preservation_vs_type: forall s f es s' f' es' C C' lab ret t1s t2s hs hs
     e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) es (Tf t1s t2s) ->
     map typeof f.(f_locs) = map typeof f'.(f_locs).
 Proof.
-  move => s f es s' f' es' C C' lab ret t1s t2s hs hs' HReduce HST1 HST2 HIT1 HIT2 HType.
+  move => s f es s' f' es' C C' lab ret t1s t2s HReduce HST1 HST2 HIT1 HIT2 HType.
   generalize dependent t2s. generalize dependent t1s.
   generalize dependent lab.
   induction HReduce => //; move => lab t1s t2s HType.
@@ -3034,8 +3025,8 @@ Proof.
     remove_bools_options; eauto.
 Qed.
 
-Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret hs hs',
-    reduce hs s f es hs' s' f' es' ->
+Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret,
+    reduce s f es s' f' es' ->
     store_typing s ->
     store_typing s' ->
     inst_typing s f.(f_inst) C ->
@@ -3043,7 +3034,7 @@ Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret hs hs',
     e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) es (Tf t1s t2s) ->
     e_typing s' (upd_label (upd_local_return C (tc_local C ++ map typeof f'.(f_locs)) ret) lab) es' (Tf t1s t2s).
 Proof.
-  move => s f es s' f' es' C t1s t2s lab ret hs hs' HReduce HST1 HST2.
+  move => s f es s' f' es' C t1s t2s lab ret HReduce HST1 HST2.
   move: C ret lab t1s t2s.
   induction HReduce; move => C ret lab tx ty HIT1 HIT2 HType; subst; try eauto; try by apply ety_trap.
   - (* reduce_simple *)
@@ -3110,18 +3101,9 @@ Proof.
     apply Const_list_typing in H7.
     apply concat_cancel_last_n in H7; last by (repeat rewrite length_is_size in H2; rewrite size_map).
     remove_bools_options. subst.
-    (* We require more knowledge of the host at this point. *)
-    (* UPD: made it an axiom. *)
-    assert (result_types_agree t2s r).
-    {
-      destruct host_instance. apply host_application_respect in H5 => //.
-      unfold types_agree.
-      clear.
-      induction vcs => //=.
-      by apply/andP => //=.
-    }
     rewrite catA. apply et_weakening_empty_1.
-    by apply result_e_type.
+    eapply ety_call_host.
+    done.
   - (* Get_local *)
     convert_et_to_bet.
     apply Get_local_typing in HType.
@@ -3325,9 +3307,9 @@ Proof.
               eapply store_extension_e_typing; try apply HST1 => //; try by [].
               eapply store_extension_reduce; eauto.
               by eapply t_preservation_vs_type; eauto.
-            * simpl.
+(*            * simpl.
               simpl in H16.
-              by eapply IHk; eauto.
+              by eapply IHk; eauto. *)
          ++ repeat apply ety_weakening.
             assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
             rewrite HCEmpty in H13. rewrite HCEmpty.
@@ -3357,12 +3339,12 @@ Proof.
       eapply store_extension_reduce; eauto.
 Qed.
   
-Theorem t_preservation: forall s f es s' f' es' ts hs hs',
-    reduce hs s f es hs' s' f' es' ->
+Theorem t_preservation: forall s f es s' f' es' ts,
+    reduce s f es s' f' es' ->
     config_typing s f es ts ->
     config_typing s' f' es' ts.
 Proof.
-  move => s f es s' f' es' ts hs hs' HReduce HType.
+  move => s f es s' f' es' ts HReduce HType.
   inversion HType. inversion H0. inversion H5. subst.
   assert (store_extension s s' /\ store_typing s').
   { apply upd_label_unchanged_typing in H7.
@@ -3377,4 +3359,4 @@ Proof.
   by eapply t_preservation_e; eauto.
 Qed.
 
-End Host.
+

@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -24,7 +24,7 @@ Section fundamental.
   (* --------------------------------- CURRENT_MEMORY -------------------------------------- *)
 
   Lemma typing_current_memory C : tc_memory C ≠ [] ->
-                                  ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_current_memory]) (Tf [] [T_i32]).
+                                  ⊢ semantic_typing (* HWP:=HWP*) C (to_e_list [BI_current_memory]) (Tf [] [T_i32]).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hnil i lh).

@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -53,8 +53,8 @@ Section fundamental.
   
   (* -------------------------------------- WEAKENING -------------------------------------- *)
 
-  Lemma typing_weakening C es t1s t2s ts : (⊢ semantic_typing (HWP:=HWP) C es (Tf t1s t2s)) ->
-                                           ⊢ semantic_typing (HWP:=HWP) C es (Tf (ts ++ t1s) (ts ++ t2s)).
+  Lemma typing_weakening C es t1s t2s ts : (⊢ semantic_typing (*HWP:=HWP*) C es (Tf t1s t2s)) ->
+                                           ⊢ semantic_typing (*HWP:=HWP*) C es (Tf (ts ++ t1s) (ts ++ t2s)).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (HIH i lh).
@@ -66,7 +66,7 @@ Section fundamental.
       iIntros (v0) "[? ?]". iFrame. iExists _. iFrame "∗ #". }
     iDestruct "Hv" as (ws ->) "Hv".
     iDestruct (big_sepL2_app_inv_r with "Hv") as (ws1 ws2 Heq) "[Hv1 Hv2]".
-    rewrite Heq. simpl of_val. rewrite fmap_app - app_assoc.
+    rewrite Heq. simpl of_val. rewrite - v_to_e_cat - app_assoc.
 
     iApply (wp_wand with "[-]");cycle 1.
     { iIntros (v) "H". unfold interp_val. rewrite -or_assoc. iExact "H". }
@@ -79,7 +79,7 @@ Section fundamental.
       { iDestruct "Hcontr" as (? ? ?) "_";done. } }
     iIntros "Hf".
 
-    assert ((λ v : value, AI_basic (BI_const v)) <$> ws2 = of_val (immV ws2)) as ->;[auto|].
+    assert (v_to_e_list ws2 = of_val (immV ws2)) as ->;[auto|].
 
     iApply (wp_wand with "[-]").
     { iApply (HIH with "[] [] [-]");iFrame "∗ # %".

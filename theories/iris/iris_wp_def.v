@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
-Require Export datatypes host operations properties opsem.
+Require Export datatypes (* host *) operations properties opsem.
 Require Export iris_locations iris_properties iris_atomicity iris_wp stdpp_aux.
 
 Import uPred.
@@ -19,7 +19,7 @@ Definition to_val := iris.to_val.
 
 (* Defining a Wasm-specific WP with frame existence *)
 
-Import DummyHosts.
+
 
 Canonical Structure wasm_lang := Language wasm_mixin.
  
@@ -61,7 +61,7 @@ Proof. decidable_equality. Qed.
 Global Instance heapG_irisG `{!wasmG Σ} : irisGS wasm_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=
-    let: (_, s, locs, inst) := σ in
+    let: (s, locs, inst) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
       (gen_heap_interp (gmap_of_table s.(s_tables))) ∗
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
@@ -78,7 +78,7 @@ Global Instance heapG_irisG `{!wasmG Σ} : irisGS wasm_lang Σ := {
     state_interp_mono _ _ _ _ := fupd_intro _ _
   }.
 
-Section Host_wp_import.
+(* Section Host_wp_import.
   (* Host wp must depend on the same memory model as for wasm *)
   Context `{!wasmG Σ}.
 
@@ -103,7 +103,7 @@ Section Host_wp_import.
                                                  state_interp σ' (S ns) κs nt ∗ wp_host NotStuck E h vcs Φ)));
     }.
   
-End Host_wp_import.
+End Host_wp_import. *)
 
 (* Resource ownerships *)
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)
@@ -257,7 +257,7 @@ Ltac only_one_reduction H :=
   let Hstart2 := fresh "Hstart" in
   let Hσ := fresh "Hσ" in 
   eapply reduce_det in H
-      as [H | [ [i0 Hstart] | [ [a [cl [tf [h [i0 [Hstart [Hnth Hcl]]]]]]] | (i1 & i2 & i3 & Hstart & Hstart1 & Hstart2 & Hσ)]]] ;
+      as [H | [ [i0 Hstart] | (* [ [a [cl [tf [h [i0 [Hstart [Hnth Hcl]]]]]]] | *) (i1 & i2 & i3 & Hstart & Hstart1 & Hstart2 & Hσ)(* ] *)]] ;
   last (by repeat econstructor) ;
   first (try inversion H ; subst ; clear H => /=; match goal with [f: frame |- _] => iExists f; iFrame; by iIntros | _ => idtac end) ;
   try by repeat (unfold first_instr in Hstart ; simpl in Hstart) ; inversion Hstart.

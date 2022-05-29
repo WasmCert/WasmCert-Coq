@@ -12,12 +12,11 @@ Unset Printing Implicit Defensive.
 Require Import operations opsem interpreter_func properties.
 
 
-Section Host.
   
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
 
-Variable host_function : eqType.
+(* Variable host_function : eqType.
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
 (*Let administrative_instruction := administrative_instruction host_function.
@@ -37,7 +36,7 @@ Let lfilledInd : depth -> lholed -> seq administrative_instruction -> seq admini
   @lfilledInd _.
 Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
 
-Let host := host host_function.
+Let host := host host_function. *)
 
 (*Let run_one_step_fuel := @run_one_step_fuel host_function.*)
 
@@ -46,7 +45,7 @@ Let RS_break := interpreter_func.RS_break.
 Let RS_return := interpreter_func.RS_return.
 Let RS_normal := interpreter_func.RS_normal.
 
-Variable host_instance : host.
+(* Variable host_instance : host.
 
 Let run_step_fuel := @run_step_fuel host_function host_instance.
 
@@ -64,17 +63,17 @@ Hypothesis host_application_impl_correct :
 
 Let run_one_step := @run_one_step host_function host_instance host_application_impl.
 Let run_step := @run_step host_function host_instance host_application_impl.
-Let run_step_with_fuel := @run_step_with_fuel host_function host_instance host_application_impl.
+Let run_step_with_fuel := @run_step_with_fuel host_function host_instance host_application_impl. *)
 
 (** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
   They enable to focus on parts of the stack, ignoring the context. **)
 
-Lemma r_eliml: forall s f es s' f' es' lconst hs hs',
+Lemma r_eliml: forall s f es s' f' es' lconst,
     const_list lconst ->
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (lconst ++ es) hs' s' f' (lconst ++ es').
+    reduce s f es s' f' es' ->
+    reduce s f (lconst ++ es) s' f' (lconst ++ es').
 Proof.
-  move => s f es s' f' es' lconst hs hs' HConst H.
+  move => s f es s' f' es' lconst HConst H.
   apply: r_label; try apply/lfilledP.
   - by apply: H.
   - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
@@ -83,11 +82,11 @@ Proof.
     f_equal. by apply: cats0.
 Qed.
 
-Lemma r_elimr: forall s f es s' f' es' les hs hs',
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (es ++ les) hs' s' f' (es' ++ les).
+Lemma r_elimr: forall s f es s' f' es' les,
+    reduce s f es s' f' es' ->
+    reduce s f (es ++ les) s' f' (es' ++ les).
 Proof.
-  move => s f es s' f' es' les hs hs' H.
+  move => s f es s' f' es' les H.
   apply: r_label; try apply/lfilledP.
   - apply: H.
   - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
@@ -96,22 +95,22 @@ Qed.
 
 (** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
 
-Lemma r_eliml_empty: forall s f es s' f' lconst hs hs',
+Lemma r_eliml_empty: forall s f es s' f' lconst,
     const_list lconst ->
-    reduce hs s f es hs' s' f' [::] ->
-    reduce hs s f (lconst ++ es) hs' s' f' lconst.
+    reduce s f es s' f' [::] ->
+    reduce s f (lconst ++ es) s' f' lconst.
 Proof.
-  move => s f es s' f' lconst hs hs' HConst H.
-  assert (reduce hs s f (lconst++es) hs' s' f' (lconst++[::])); first by apply: r_eliml.
+  move => s f es s' f' lconst HConst H.
+  assert (reduce s f (lconst++es) s' f' (lconst++[::])); first by apply: r_eliml.
   by rewrite cats0 in H0.
 Qed.
 
-Lemma r_elimr_empty: forall s f es s' f' les hs hs',
-    reduce hs s f es hs' s' f' [::] ->
-    reduce hs s f (es ++ les) hs' s' f' les.
+Lemma r_elimr_empty: forall s f es s' f' les,
+    reduce s f es s' f' [::] ->
+    reduce s f (es ++ les) s' f' les.
 Proof.
-  move => s f es s' f' les hs hs' H.
-  assert (reduce hs s f (es++les) hs' s' f' ([::] ++les)); first by apply: r_elimr.
+  move => s f es s' f' les H.
+  assert (reduce s f (es++les) s' f' ([::] ++les)); first by apply: r_elimr.
   by rewrite cat0s in H0.
 Qed.
 
@@ -307,8 +306,8 @@ Ltac explode_and_simplify :=
     lazymatch T with
     | context C [split_n ?l ?n] => rewrite (split_n_is_take_drop l n)
     | context C [vs_to_es ?l] => rewrite/vs_to_es
-    | context C [host_application_impl _ _ _ _ _ _] =>
-      destruct host_application_impl
+(*    | context C [host_application_impl _ _ _ _ _ _] =>
+      destruct host_application_impl *)
     | context C [match ?b with true => ?v1 | false => ?v2 end] =>
       let Hb := fresh "if_expr" in
       destruct b eqn:Hb;
@@ -399,14 +398,15 @@ Ltac explode_and_simplify :=
 
 (** If the goal is on the form [c1 = c2 -> property] where [c1] and [c2] are two configurations,
   then invert it. **)
-Ltac pattern_match :=
+Ltac pattern_match := let H := fresh "H" in intro H ; inversion H.
+(*Ltac pattern_match :=
   let go _ :=
     lazymatch goal with
     | |- (_, _, _, _) = (_, _, _, _) -> _ =>
       let H := fresh in
       move=> H; inversion H; subst; clear H
     end in
-  go tt || (simpl; go tt).
+  go tt || (simpl; go tt). *)
 
 (** Eliminate the stack frame, by applying [r_elimr] and [r_eliml] according to some heuristics. **)
 Ltac stack_frame :=
@@ -499,69 +499,68 @@ Ltac eframe :=
   evar (r : seq administrative_instruction);
   frame_out l r.
 
-Local Lemma run_step_fuel_increase_aux : forall d es s f s' f' r' fuel fuel' hs hs',
+Local Lemma run_step_fuel_increase_aux : forall d es s f s' f' r' fuel fuel',
   fuel <= fuel' ->
-  TProp.Forall (fun e => forall d tt hs s f r fuel fuel',
+  TProp.Forall (fun e => forall d tt s f r fuel fuel',
      fuel <= fuel' ->
-     run_one_step fuel d tt e = (hs, s, f, r) ->
-     r = RS_crash C_exhaustion \/ run_one_step fuel' d tt e = (hs, s, f, r)) es ->
-  run_step_with_fuel fuel d (hs, s, f, es) = (hs', s', f', r') ->
+     run_one_step fuel d tt e = (s, f, r) ->
+     r = RS_crash C_exhaustion \/ run_one_step fuel' d tt e = (s, f, r)) es ->
+  run_step_with_fuel fuel d (s, f, es) = (s', f', r') ->
   r' = RS_crash C_exhaustion
-  \/ run_step_with_fuel fuel' d (hs, s, f, es) = (hs', s', f', r').
+  \/ run_step_with_fuel fuel' d (s, f, es) = (s', f', r').
 Proof.
-  move=> d es s f s' f' r' fuel fuel' hs hs' I F. destruct fuel as [|fuel].
+  move=> d es s f s' f' r' fuel fuel' I F. destruct fuel as [|fuel].
   - unfold run_step_with_fuel; unfold interpreter_func.run_step_with_fuel.
-    pattern_match. by left.
+    intro H ; inversion H ; by left.
   - unfold run_step_with_fuel. unfold interpreter_func.run_step_with_fuel.
     destruct fuel' as [|fuel'] => /=.
     + by inversion I.
     + destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
       apply split_vals_e_v_to_e_duality in HSplitVals.
       destruct les as [|e les'] eqn:Hles.
-      * pattern_match. by right.
-      * explode_and_simplify; try by pattern_match; right.
+      * intro H ; inversion H ; by right.
+      * explode_and_simplify; try by intro H ; inversion H ; right.
         apply TProp.Forall_forall with (e := e) in F.
         -- destruct run_one_step as [[[hs'' s''] vs''] r''] eqn:E.
            eapply F in E; [|by apply I|..]. destruct E as [E|E].
-           ++ subst. pattern_match. by left.
+           ++ subst. intro H ; inversion H ;  by left.
            ++ unfold run_one_step in E. unfold interpreter_func.run_one_step in E.
               rewrite E. by right.
         -- rewrite HSplitVals. apply Coqlib.in_app. right. by left.
 Qed.
 
-Lemma run_one_step_fuel_increase : forall d tt e hs s f r fuel fuel',
+Lemma run_one_step_fuel_increase : forall d tt e s f r fuel fuel',
   fuel <= fuel' ->
-  run_one_step fuel d tt e = (hs, s, f, r) ->
-  r = RS_crash C_exhaustion \/ run_one_step fuel' d tt e = (hs, s, f, r).
+  run_one_step fuel d tt e = (s, f, r) ->
+  r = RS_crash C_exhaustion \/ run_one_step fuel' d tt e = (s, f, r).
 Proof.
-  move=> + + e. induction e using administrative_instruction_ind';
-    move=> d [[[tt_hs tt_s] tt_f] tt_es] hs' s' f' r;
-    (case; first by move=> ? ?; pattern_match; left) => fuel;
+  move => + + e. induction e using administrative_instruction_ind' ;
+    move => d [[tt_s tt_f] tt_es] s' f' r ;
+    (case; first by move => ? ?; intro H ; inversion H; left) => fuel ;
     (case; first by []) => fuel' I /=.
-  - by destruct b; explode_and_simplify; try pattern_match; right.
-  - pattern_match. by right.
-  - by destruct f; explode_and_simplify; try pattern_match; right.
-  - explode_and_simplify; try by pattern_match; right.
-    destruct run_step_with_fuel as [[[hs'' s''] vs''] r''] eqn: E.
+  - by destruct b; explode_and_simplify; try intro H ; inversion H ; right.
+  - intro H ; inversion H ;  by right.
+  - by destruct f; explode_and_simplify; try intro H ; inversion H ; right.
+  - explode_and_simplify; try by intro H ; inversion H ; right.
+    destruct run_step_with_fuel as [[s'' vs''] r''] eqn: E.
     eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
-    + subst. pattern_match. by left.
-    + unfold run_step_with_fuel in E. unfold interpreter_func.run_step_with_fuel in E.
-      rewrite E. by right.
-  - explode_and_simplify; try by pattern_match; right.
-    destruct run_step_with_fuel as [[[hs'' s''] vs''] r''] eqn: E.
+    + subst. intro H ; inversion H. by left.
+    + rewrite E. by right. 
+  - explode_and_simplify; try by intro H ; inversion H ; right.
+    destruct run_step_with_fuel as [[s'' vs''] r''] eqn: E.
     eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
-    + subst. pattern_match. by left.
-    + unfold run_step_with_fuel in E. unfold interpreter_func.run_step_with_fuel in E.
-      rewrite E. by right.
+    + subst. intro H ; inversion H. by left.
+    + rewrite E. by right.
+  - intro H ; inversion H ; by right.
 Qed.
 
-Lemma run_step_fuel_increase : forall d tt hs s f r fuel fuel',
+Lemma run_step_fuel_increase : forall d tt s f r fuel fuel',
   fuel <= fuel' ->
-  run_step_with_fuel fuel d tt = (hs, s, f, r) ->
+  run_step_with_fuel fuel d tt = (s, f, r) ->
   r = RS_crash C_exhaustion
-  \/ run_step_with_fuel fuel' d tt = (hs, s, f, r).
+  \/ run_step_with_fuel fuel' d tt = (s, f, r).
 Proof.
-  move=> d [[[hs s] f] es] hs' s' f' r' fuel fuel' I. apply: run_step_fuel_increase_aux => //.
+  move=> d [[s f] es] s' f' r' fuel fuel' I. apply: run_step_fuel_increase_aux => //.
   apply: TProp.forall_Forall => e Ie.
   move=> > I' E'. apply: run_one_step_fuel_increase.
   + by apply: I'.
@@ -583,31 +582,30 @@ Proof.
   - rewrite maxn_nat_max Max.max_assoc. by apply: IHes.
 Qed.
 
-Local Lemma run_step_fuel_enough_aux : forall d hs s f es hs' s' f' r',
-  TProp.Forall (fun e => forall d tt hs s f r,
-    run_one_step (run_one_step_fuel e) d tt e = (hs, s, f, r) ->
+Local Lemma run_step_fuel_enough_aux : forall d s f es s' f' r',
+  TProp.Forall (fun e => forall d tt s f r,
+    run_one_step (run_one_step_fuel e) d tt e = (s, f, r) ->
     r <> RS_crash C_exhaustion) es ->
-  run_step d (hs, s, f, es) = (hs', s', f', r') ->
+  run_step d (s, f, es) = (s', f', r') ->
   r' <> RS_crash C_exhaustion.
 Proof.
-  move=> d hs s f es hs' s' f' r' F. rewrite/run_step/interpreter_func.run_step.
+  move => d s f es s' f' r' F. rewrite/run_step/interpreter_func.run_step.
   destruct interpreter_func.run_step_fuel eqn: E => //=.
   unfold interpreter_func.run_step_with_fuel.
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
   apply split_vals_e_v_to_e_duality in HSplitVals.
   
   destruct les as [|e les'] eqn:Hles.
-  - by pattern_match.
-  - explode_and_simplify; try by pattern_match.
+  - by intro H ; inversion H.
+  - explode_and_simplify; try by intro H ; inversion H.
     apply TProp.Forall_forall with (e := e) in F.
-    + destruct (run_one_step (run_one_step_fuel e) d (hs, s, f, rev lconst) e)
-        as [[[hs'' s''] f''] r''] eqn:E1.
+    + destruct (run_one_step (run_one_step_fuel e) d (s, f, rev lconst) e)
+        as [[s'' f''] r''] eqn:E1.
       move: (E1) => E2. apply F in E2.
       apply run_one_step_fuel_increase with (fuel' := n) in E1.
       * destruct E1 as [E1|E1] => //.
-        rewrite/run_one_step/interpreter_func.run_one_step in E1.
         rewrite E1.
-        by destruct r'' as [|[|]| |] => //; pattern_match.
+        by destruct r'' as [|[|]| | | ] => //; intro H ; inversion H.
       * move: E. rewrite /interpreter_func.run_step_fuel HSplitVals.
         rewrite List.map_app List.fold_left_app => /=.
         move=> E. have: exists v, n = Nat.max (run_one_step_fuel e) v.
@@ -622,21 +620,21 @@ Proof.
 Qed.
 
 (** [run_one_step_fuel] is indeed enough fuel to run [run_one_step]. **)
-Lemma run_one_step_fuel_enough : forall d tt e hs s f r,
-  run_one_step (run_one_step_fuel e) d tt e = (hs, s, f, r) ->
+Lemma run_one_step_fuel_enough : forall d tt e s f r,
+  run_one_step (run_one_step_fuel e) d tt e = (s, f, r) ->
   r <> RS_crash C_exhaustion.
 Proof.
   move=> + + e. induction e using administrative_instruction_ind';
-    move=> d [[[tt_hs tt_s] tt_f] tt_es] hs' s' f' r //.
+    move=> d [[tt_s tt_f] tt_es] s' f' r //.
   - simpl. by destruct b; explode_and_simplify; pattern_match.
   - by pattern_match.
   - simpl. explode_and_simplify; try pattern_match => //.
-    destruct host_application_impl; explode_and_simplify; by pattern_match.
+(*    destruct explode_and_simplify; by pattern_match. *)
   - rename l0 into es2.
     set fu := (run_one_step_fuel (AI_label n l es2)) .-1.
     simpl in fu.
  (*   match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.*)
-    assert ((run_step_fuel (tt_hs, tt_s, tt_f, es2)) <= fu).
+    assert ((run_step_fuel (tt_s, tt_f, es2)) <= fu).
     {
       rewrite/fu /=.
       move: (max_fold_left_run_step_fuel es2). clear.
@@ -647,21 +645,21 @@ Proof.
     }
     simpl.
     explode_and_simplify; try by pattern_match.
-    destruct (run_step d (tt_hs, tt_s, tt_f, es2)) as [[[hs'' s''] f''] r''] eqn:E1.
+    destruct (run_step d (tt_s, tt_f, es2)) as [[s'' f''] r''] eqn:E1.
     move: (E1) => E2. unfold run_step, interpreter_func.run_step in E2.
     apply run_step_fuel_increase with (fuel' := fu) in E2.
     move: (E1) => D. apply run_step_fuel_enough_aux in D => //.
     + destruct E2 as [E2|E2] => //.
-      unfold run_step_with_fuel in E2. unfold interpreter_func.run_step_with_fuel in E2.
+      
       rewrite E2.
-      by destruct r'' as [|[|]| |] => //; explode_and_simplify; pattern_match.
+      by destruct r'' as [|[|]| | | ] => //; explode_and_simplify; pattern_match.
     + by [].
   - (* LATER: This proof might be factorised somehow. *)
     rename l into es. (* rename l0 into es.*)
     set fu := (run_one_step_fuel (AI_local n f es)) .-1.
     simpl in fu.
     (* match goal with |- context [ run_step_with_fuel ?fuel _ _ _ ] => set f := fuel end.*)
-    assert (run_step_fuel (tt_hs, tt_s, f, es) <= fu).
+    assert (run_step_fuel (tt_s, f, es) <= fu).
     {
       apply/leP. rewrite/fu /=.
       move: (max_fold_left_run_step_fuel es). clear.
@@ -672,44 +670,45 @@ Proof.
     }
     simpl.
     explode_and_simplify; try by pattern_match.
-    destruct (run_step d (tt_hs, tt_s, f, es)) as [[[hs'' s''] f''] r''] eqn:E1.
+    destruct (run_step d (tt_s, f, es)) as [[s'' f''] r''] eqn:E1.
     move: (E1) => D. apply run_step_fuel_enough_aux in D => //.
     move: (E1) => E2. apply run_step_fuel_increase with (fuel' := fu) in E2.
     + destruct E2 as [E2|E2] => //.
-      unfold run_step_with_fuel in E2. unfold interpreter_func.run_step_with_fuel in E2.
+      
       rewrite E2.
-      by destruct r'' as [|[|]| |] => //; explode_and_simplify; pattern_match.
+      by destruct r'' as [|[|]| | |] => //; explode_and_simplify; pattern_match.
     + by [].
+  - simpl. by pattern_match.
 Qed.
       
 (** [run_step_fuel] is indeed enough fuel to run [run_step]. **)
-Lemma run_step_fuel_enough : forall d tt hs s f r,
-  run_step d tt = (hs, s, f, r) ->
+Lemma run_step_fuel_enough : forall d tt s f r,
+  run_step d tt = (s, f, r) ->
   r <> RS_crash C_exhaustion.
 Proof.
-  move=> d [[[hs s] f] r] hs' s' f' r'. apply: run_step_fuel_enough_aux.
+  move=> d [[s f] r] s' f' r'. apply: run_step_fuel_enough_aux.
   apply: TProp.forall_Forall => e Ie.
   move=> >. by apply: run_one_step_fuel_enough.
 Qed.
 
 (** If the result of the interpreter is a [RS_break], then we were executing
   either a [Br] or a [Label] instruction, which itself returned a [RS_break]. **)
-Local Lemma rs_break_trace_bool: forall fuel d hs s f es hs' s' f' n es',
-  run_step_with_fuel fuel.+2 d (hs, s, f, es)
-  = (hs', s', f', RS_break n es') -> 
+Local Lemma rs_break_trace_bool: forall fuel d s f es s' f' n es',
+  run_step_with_fuel fuel.+2 d (s, f, es)
+  = (s', f', RS_break n es') -> 
   let: (ves, es'') := split_vals_e es in
   exists e es2 ln les es3, (es'' == e :: es2) &&
-   ((e == AI_basic (BI_br n)) && ((hs', s', f', es') == (hs, s, f, rev ves)) ||
+   ((e == AI_basic (BI_br n)) && ((s', f', es') == (s, f, rev ves)) ||
     (e == AI_label ln les es3) &&
-     ((run_step_with_fuel fuel d (hs, s, f, es3))
-      == (hs', s', f', RS_break n.+1 es'))).
+     ((run_step_with_fuel fuel d (s, f, es3))
+      == (s', f', RS_break n.+1 es'))).
 Proof.
-  move => fuel d hs s f es hs' s' f' n es' /= H.
+  move => fuel d s f es s' f' n es' /= H.
   unfold run_step_with_fuel in H. unfold interpreter_func.run_step_with_fuel in H.
   destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
   apply split_vals_e_v_to_e_duality in HSplit.
   destruct es2 as [|e es2']=> //.
-  destruct e as [b| | |n0 l l0|n0 l l0]=> //; unfold e_is_trap in H.
+  destruct e as [b| | |n0 l l0|n0 l l0| ]=> //; unfold e_is_trap in H.
   - destruct b => //; move:H; try explode_and_simplify.
     + (* AI_basic (Br i0) *)
       pattern_match.
@@ -725,26 +724,26 @@ Proof.
     apply/eqP.
     move:H. explode_and_simplify.
     destruct run_step_with_fuel as [[[hs'' s''] f''] r''] eqn:HDestruct.
-    destruct r'' as [ |n' rvs'| |]=> //. destruct n'; last by pattern_match.
+    destruct r'' as [ |n' rvs'| | |]=> //. destruct n'; last by pattern_match.
     by destruct (n0 <= length rvs').
   - (* Local *)
     move:H. explode_and_simplify.
     destruct run_step_with_fuel as [[[hs'' s''] f''] r''] eqn:HDestruct.
-    destruct r'' as [ | |rvs'|]=> //. by destruct (n0 <= length rvs').
+    destruct r'' as [ | |rvs'| |]=> //. by destruct (n0 <= length rvs').
 Qed.
 
 (** Similar to [rs_break_trace_bool], but in [Prop]. **)
-Lemma rs_break_trace: forall fuel d hs s f es hs' s' f' n es',
-  run_step_with_fuel fuel.+2 d (hs, s, f, es)
-  = (hs', s', f', RS_break n es') -> 
+Lemma rs_break_trace: forall fuel d s f es s' f' n es',
+  run_step_with_fuel fuel.+2 d (s, f, es)
+  = (s', f', RS_break n es') -> 
   let: (ves, es'') := split_vals_e es in
   exists e es2 ln les es3, (es'' = e :: es2) /\
-    ((e = AI_basic (BI_br n)) /\ ((hs, s, f, es') = (hs', s', f', rev ves)) \/
+    ((e = AI_basic (BI_br n)) /\ ((s, f, es') = (s', f', rev ves)) \/
     (e = AI_label ln les es3) /\
-    ((run_step_with_fuel fuel d (hs, s, f, es3))
-     = (hs', s', f', RS_break n.+1 es'))).
+    ((run_step_with_fuel fuel d (s, f, es3))
+     = (s', f', RS_break n.+1 es'))).
 Proof.
-  move => fuel d hs s f es hs' s' f' n es' H.
+  move => fuel d s f es s' f' n es' H.
   apply rs_break_trace_bool in H.
   destruct (split_vals_e es) as [lconst les'] eqn:HSplitVals.
   destruct H as [e [es2 [ln [les [es3 EH]]]]].
@@ -759,23 +758,23 @@ Qed.
 
 (** If the result of the interpreter is a [RS_return], then we were executing
   either a [AI_basic Return] or [Label] instruction, which itself returned a [RS_return]. **)
-Lemma rs_return_trace: forall fuel d hs s f es hs' s' f' rvs,
-  run_step_with_fuel fuel.+2 d (hs, s, f, es)
-  = (hs', s', f', RS_return rvs) ->
+Lemma rs_return_trace: forall fuel d s f es s' f' rvs,
+  run_step_with_fuel fuel.+2 d (s, f, es)
+  = (s', f', RS_return rvs) ->
   let: (ves, es') := split_vals_e es in
   exists e es'' ln les es2,
     (es' = e :: es'') /\
-    (e = AI_basic BI_return /\ (hs, s, f, rvs) = (hs', s', f', rev ves) \/
+    (e = AI_basic BI_return /\ (s, f, rvs) = (s', f', rev ves) \/
      (e = AI_label ln les es2 /\
-      run_step_with_fuel fuel d (hs, s, f, es2)
-      = (hs', s', f', RS_return rvs))).
+      run_step_with_fuel fuel d (s, f, es2)
+      = (s', f', RS_return rvs))).
 Proof.
-  move => fuel d hs s f es hs' s' f' rvs /= H.
+  move => fuel d s f es s' f' rvs /= H.
   unfold run_step_with_fuel in H. unfold interpreter_func.run_step_with_fuel in H.
   destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
   apply split_vals_e_v_to_e_duality in HSplit.
   destruct es2 as [|e es2']=> //.
-  destruct e as [b| | | |]=> //; unfold e_is_trap in H.
+  destruct e as [b| | | | |]=> //; unfold e_is_trap in H.
   - destruct b => //; move:H; try explode_and_simplify.
     + (* AI_basic Return *)
       exists (AI_basic BI_return). exists es2'.
@@ -789,13 +788,13 @@ Proof.
     split => //. right. split => //.
     move:H. explode_and_simplify.
     destruct run_step_with_fuel as [[[hs'' s''] f''] r''] eqn:HDestruct => //.
-    destruct r'' as [ |n' rvs'| |]=> //; try pattern_match.
+    destruct r'' as [ |n' rvs'| | |]=> //; try pattern_match.
     destruct n' => //.
     by destruct (n <= length rvs').
   - (* Local *)
     move:H. explode_and_simplify.
     destruct run_step_with_fuel as [[[hs'' s''] f''] r''] eqn:HDestruct => //.
-    destruct r'' as [ | |rvs'| ]=> //; try pattern_match.
+    destruct r'' as [ | |rvs'| |]=> //; try pattern_match.
     by destruct (n <= length rvs').
 Qed.
 
@@ -803,13 +802,13 @@ Qed.
   started with at least 2 fuel. 
     The lemma is stated in this way to make application of other lemmas
   easier. **)
-Lemma rs_break_takes_2_fuel: forall fuel d hs s f es hs' s' f' n es',
-  run_step_with_fuel fuel d (hs, s, f, es)
-  = (hs', s', f', RS_break n es') ->
+Lemma rs_break_takes_2_fuel: forall fuel d s f es s' f' n es',
+  run_step_with_fuel fuel d (s, f, es)
+  = (s', f', RS_break n es') ->
   exists fuel', fuel = fuel'.+2 .
 Proof.
   destruct fuel; first by [].
-  move => d hs s f es hs' s' f' n es'.
+  move => d s f es s' f' n es'.
   unfold run_step_with_fuel. unfold interpreter_func.run_step_with_fuel.
   destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
   apply split_vals_e_v_to_e_duality in HSplit.
@@ -818,13 +817,13 @@ Proof.
   by explode_and_simplify.
 Qed.                   
 
-Lemma rs_return_takes_2_fuel: forall fuel d hs s f es hs' s' f' rvs,
-  run_step_with_fuel fuel d (hs, s, f, es)
-  = (hs', s', f', RS_return rvs) ->
+Lemma rs_return_takes_2_fuel: forall fuel d s f es s' f' rvs,
+  run_step_with_fuel fuel d (s, f, es)
+  = (s', f', RS_return rvs) ->
   exists fuel', fuel = fuel'.+2 .
 Proof.
   destruct fuel; first by [].
-  move => d hs s f es hs' s' f' rvs.
+  move => d s f es s' f' rvs.
   unfold run_step_with_fuel. unfold interpreter_func.run_step_with_fuel.
   destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
   apply split_vals_e_v_to_e_duality in HSplit.
@@ -882,19 +881,19 @@ Qed.
   up with [RS_break n es'], then [es] is well-founded, i.e. the recursive case
   [Label _ _ _] cannot take place infinitely often. In fact we even know exactly 
   how many times the recursive case takes place. **)
-Lemma rs_break_wellfounded: forall fuel d hs s f es hs' s' f' n es',
-  run_step_with_fuel fuel d (hs, s, f, es)
-  = (hs', s', f', RS_break n es') ->
-  hs = hs' /\ s = s' /\ f = f' /\
+Lemma rs_break_wellfounded: forall fuel d s f es s' f' n es',
+  run_step_with_fuel fuel d (s, f, es)
+  = (s', f', RS_break n es') ->
+  s = s' /\ f = f' /\
   (exists k m vs0, k+n=m /\ Label_sequence k vs0 (AI_basic (BI_br m)) es /\
   v_to_e_list es' = rev vs0). 
 Proof.
   induction fuel using induction2 => //.
   - (* fuel = 1 *)
-    move => d hs s f es hs' s' f' n es' H.
+    move => d s f es s' f' n es' H.
     apply rs_break_takes_2_fuel in H. by inversion H.
   - (* fuel >= 2 *)    
-    move => d hs s f es hs' s' f' n es' H.
+    move => d s f es s' f' n es' H.
     eapply rs_break_trace in H.
     destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
     apply split_vals_e_v_to_e_duality in HSplit.
@@ -905,7 +904,7 @@ Proof.
       * apply LS_Break. by apply v_to_e_is_const_list.
       * by apply v_to_e_rev.
     + apply IHfuel in HLabelR.
-      destruct HLabelR as [Hhs [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]]. subst.
+      destruct HLabelR as [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]. subst.
       repeat split => //.
       exists (k.+1). exists (k.+1+n). exists vs0. repeat split => //.
       apply LS_Label => //. by apply v_to_e_is_const_list.
@@ -913,18 +912,18 @@ Proof.
       by lias.
 Qed.
 
-Lemma rs_return_wellfounded: forall fuel d hs s f es hs' s' f' es',
-  run_step_with_fuel fuel d (hs, s, f, es)
-  = (hs', s', f', RS_return es') ->
-  hs = hs' /\ s = s' /\ f = f' /\ (exists k vs0, Label_sequence k vs0 (AI_basic BI_return) es /\
+Lemma rs_return_wellfounded: forall fuel d s f es s' f' es',
+  run_step_with_fuel fuel d (s, f, es)
+  = (s', f', RS_return es') ->
+  s = s' /\ f = f' /\ (exists k vs0, Label_sequence k vs0 (AI_basic BI_return) es /\
   v_to_e_list es' = rev vs0). 
 Proof.
   induction fuel using induction2 => //.
   - (* fuel = 1 *)
-    move => d hs s f es hs' s' f' es' H.
+    move => d s f es s' f' es' H.
     apply rs_return_takes_2_fuel in H. by inversion H.
   - (* fuel >= 2 *)    
-    move => d hs s f es hs' s' f' es' H.
+    move => d s f es s' f' es' H.
     eapply rs_return_trace in H.
     destruct (split_vals_e es) as [vs2 es2] eqn:HSplit.
     apply split_vals_e_v_to_e_duality in HSplit.
@@ -935,23 +934,23 @@ Proof.
       * apply LS_Return. by apply v_to_e_is_const_list.
       * by apply v_to_e_rev.
     + apply IHfuel in HLabelR.
-      destruct HLabelR as [Hhs [Hs [Hvs [k [vs0 [HLS HES']]]]]]. subst.
+      destruct HLabelR as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
       repeat split => //.
       exists (k.+1). exists vs0. repeat split => //.
       apply LS_Label => //. by apply v_to_e_is_const_list.
 Qed.
 
 (** Main proof for the [RS_break] case. **)
-Lemma reduce_label_break: forall fuel d hs s f es es' hs' s' f' es'' n,
-  run_step_with_fuel fuel d (hs, s, f, es') =
-  (hs', s', f', RS_break 0 es'') ->
+Lemma reduce_label_break: forall fuel d s f es es' s' f' es'' n,
+  run_step_with_fuel fuel d (s, f, es') =
+  (s', f', RS_break 0 es'') ->
   n <= size es'' ->
-  reduce hs s f ([:: AI_label n es es']) hs' s' f'
+  reduce s f ([:: AI_label n es es']) s' f'
    (v_to_e_list (rev (take n es'')) ++ es).
 Proof.
-  move => fuel d hs s f es es' hs' s' f' es'' n H HSize.
+  move => fuel d s f es es' s' f' es'' n H HSize.
   apply rs_break_wellfounded in H.
-  destruct H as [Hhs [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]]. subst.
+  destruct H as [Hs [Hvs [k [m [vs0 [HSum [HLS HES']]]]]]]. subst.
   rewrite addn0 in HLS.
   destruct k.
   - inversion HLS as [n1 vs1 es1 HConst| |]. subst. apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
@@ -985,17 +984,42 @@ Proof.
       }
       { by lias. }
 Qed.
-      
-Lemma reduce_label_return: forall fuel d hs s f ess hs' s' f' f2 vs n,
-  run_step_with_fuel fuel d (hs, s, f, ess) =
-  (hs', s', f', RS_return vs) ->
+
+
+
+
+Lemma rev_cons_app {A} (x : A) (l : seq A) :
+  rev (x :: l) = rev l ++ [:: x].
+Proof. generalize dependent x. induction l => //= ; intro x.
+       unfold rev. remember (a :: l) as l'.
+       simpl. subst. do 2 rewrite catrevE.
+       rewrite IHl.
+       by rewrite cats0. Qed.
+
+Lemma take_drop {A} n (l : list A) : n <= length l -> l = seq.take n l ++ seq.drop n l.
+Proof.
+  intros. generalize dependent n. induction l ; intros.  by inversion H.
+  destruct n. by unfold take, drop.
+  simpl. rewrite <- (IHl n) => //=. 
+Qed.
+
+Lemma rev_rev {A} (l : seq A) : rev (rev l) = l.
+Proof. induction l => //=. unfold rev => /=. do 2 rewrite catrevE.
+       rewrite rev_cat. rewrite cats0.
+       by rewrite IHl. Qed.
+
+
+
+Lemma reduce_label_return: forall fuel d s f ess s' f' f2 vs n,
+  run_step_with_fuel fuel d (s, f, ess) =
+  (s', f', RS_return vs) ->
   n <= size vs ->
-  reduce hs s f2 ([:: AI_local n f ess]) hs' s' f2
+  reduce s f2 ([:: AI_local n f ess]) s' f2
    (v_to_e_list (rev (take n vs))).
 Proof.
-  move => fuel d hs s f ess hs' s' f' f2 vs n H HSize.
+  move => fuel d s f ess s' f' f2 vs n H HSize.
   apply rs_return_wellfounded in H.
-  destruct H as [Hhs [Hs [Hvs [k [vs0 [HLS HES']]]]]]. subst.
+  destruct H as [Hs [Hvs [k [vs0 [HLS HES']]]]]. subst.
   destruct k.
   - inversion HLS as [|vs' es HConst|]. subst. apply r_simple.
     eapply rs_return; first by apply v_to_e_is_const_list.
@@ -1037,13 +1061,13 @@ Ltac frame_cat :=
     apply: r_eliml; try apply: v_to_e_is_const_list
   end.
 
-Local Lemma run_step_soundness_aux : forall fuel d hs s f es hs' s' f' es',
-  run_step_with_fuel fuel d (hs, s, f, es)
-  = (hs', s', f', RS_normal es') ->
-  reduce hs s f es hs' s' f' es'.
+Local Lemma run_step_soundness_aux : forall fuel d s f es s' f' es',
+  run_step_with_fuel fuel d (s, f, es)
+  = (s', f', RS_normal es') ->
+  reduce s f es s' f' es'.
 Proof.
   strong induction fuel.
-  move=> d hs s f es hs' s' f' es' /=. destruct fuel as [|fuel] => //=.
+  move=> d s f es s' f' es' /=. destruct fuel as [|fuel] => //=.
   unfold run_step_with_fuel. unfold interpreter_func.run_step_with_fuel.
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
   apply split_vals_e_v_to_e_duality in HSplitVals. rewrite {} HSplitVals.
@@ -1057,20 +1081,77 @@ Proof.
       + move/eqP in H0. by destruct lconst.
     - rewrite/operations.lfilled/operations.lfill. rewrite v_to_e_is_const_list. show_list_equality.
   }
-  destruct fuel as [|fuel] => //=. destruct e as [b| |cl|n es1 es2|n f0 ess] => /=.
+  destruct fuel as [|fuel] => //=. destruct e as [b| |cl|n es1 es2|n f0 ess|] => /=.
     { (** [AI_basic b] **) (* TODO: Separate this case as a lemma. *)
       destruct b.
       - (** [AI_basic Unreachable] **)
-        by explode_and_simplify; pattern_match; auto_frame.
-
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        by repeat econstructor.
+        
       - (** [AI_basic Nop] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate (2 := [::]) => /=.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        by repeat econstructor.
 
       - (** [AI_basic Drop] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate (2 := [::]) => /=.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        by repeat econstructor.
 
       - (** [AI_basic Select] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        do 2 rewrite rev_cons_app.
+        do 2 rewrite - v_to_e_cat.
+        repeat rewrite - catA.
+        rewrite (catA (v_to_e_list [:: v1])).
+        rewrite (catA (v_to_e_list [:: v1] ++ _)).
+        rewrite (catA ((_ ++ _) ++ _)).
+        done.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        do 2 rewrite rev_cons_app.
+        do 2 rewrite - v_to_e_cat.
+        repeat rewrite - catA.
+        rewrite (catA (v_to_e_list [:: v1])).
+        rewrite (catA (v_to_e_list [:: v1] ++ _)).
+        rewrite (catA ((_ ++ _) ++ _)).
+        done.
+        by repeat econstructor.
+
+        
  (*       + (** [Select_true] **)
           by auto_frame.
         + (** [Select_false] **)
@@ -1078,7 +1159,19 @@ Proof.
 
       - (** [AI_basic Block] **)
         explode_and_simplify; pattern_match; auto_frame.
-        frame_cat.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        erewrite (take_drop (l := lconst)) at 1.
+        rewrite - v_to_e_cat.
+        rewrite - catA.
+        rewrite (catA (v_to_e_list (drop _ _))).
+        done.
+        rewrite length_is_size.
+        by apply leq_subr.
         apply: r_simple. apply: rs_block; first by apply: v_to_e_is_const_list.
         + by eauto.
         + repeat rewrite length_is_size.
@@ -1088,7 +1181,19 @@ Proof.
 
       - (** [AI_basic loop] **)
         explode_and_simplify. pattern_match. auto_frame.
-        frame_cat.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        erewrite (take_drop (l := lconst)) at 1.
+        rewrite - v_to_e_cat.
+        rewrite - catA.
+        rewrite (catA (v_to_e_list (drop _ _))).
+        done.
+        rewrite length_is_size.
+        by apply leq_subr.
         apply: r_simple. apply: rs_loop => //=.
         +(*1*) by apply: v_to_e_is_const_list.
         +(*2*) repeat rewrite length_is_size.
@@ -1096,16 +1201,71 @@ Proof.
           by rewrite subKn.
 
       - (** [AI_basic If] **)
-        by explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list; auto_frame.
+        explode_and_simplify; pattern_match; stack_frame; subst_rev_const_list; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        by repeat econstructor.
 
       - (** [AI_basic (Br i0)] **)
         by pattern_match.
 
       - (** [AI_basic Br_if] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate (2 := [::]) => /=.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        by repeat econstructor.
 
       - (** [AI_basic Br_table] **)
         explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        by repeat econstructor.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        rewrite (catA [:: AI_basic _]).
+        done.
+        
         + apply: r_simple. apply: rs_br_table_length.
           rewrite length_is_size. move/ltP in if_expr0.
           apply/leP => /=. by lias.
@@ -1115,70 +1275,344 @@ Proof.
 
       - (** [AI_basic (Call i0)] **)
         explode_and_simplify. pattern_match. auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        subst.
+       
+        by eapply r_call.
 
       - (** [AI_basic (Call_indirect i0)] **)
         explode_and_simplify; pattern_match; auto_frame.
-        + by apply: r_call_indirect_success; eauto.
-        + by apply: r_call_indirect_failure1; eauto.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          done.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_call_indirect_success; eauto.
+          
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          done.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_call_indirect_failure1; eauto.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          done.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_call_indirect_failure2; eauto.
 
       - (** [AI_basic (Get_local i0)] **)
         explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          done.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ]) => //=.
+          subst.
+          by eapply r_get_local.
           
       - (** [AI_basic (Set_local i0)] **)
         explode_and_simplify. pattern_match.
         rewrite -update_list_at_is_set_nth => //=.
         auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate (2 := [::]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ; _]) => //=.
+        subst.
         by apply: r_set_local.
 
       - (** [AI_basic (Tee_local i0)] **)
         explode_and_simplify. pattern_match. subst_rev_const_list.
-        by frame_out (v_to_e_list (rev l)) les'.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _; _; _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ; _]) => //=.
+        subst.
+        by repeat econstructor.
 
       - (** [AI_basic (Get_global i0)] **)
         explode_and_simplify. pattern_match. auto_frame. stack_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _]) => //=.
+        subst.
+        by eapply r_get_global.
 
       - (** [AI_basic (Set_global i0)] **)
-        explode_and_simplify. pattern_match. by auto_frame.
+        explode_and_simplify. pattern_match.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: ]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ; _]) => //=.
+        subst.
+        by eapply r_set_global.
 
       - (** [AI_basic (Load v o a0 s0)] **)
         explode_and_simplify; try (pattern_match; auto_frame).
-        + by apply: r_load_packed_success; eassumption.
-        + by apply: r_load_packed_failure; eassumption.
-        + by apply: r_load_success; eassumption.
-        + by apply: r_load_failure; eassumption.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [:: _]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_load_packed_success; eassumption.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [:: _]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_load_packed_failure; eassumption.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [:: _]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_load_success; eassumption.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [:: _]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _]) => //=.
+          subst.
+          by apply: r_load_failure; eassumption.
 
       - (** [AI_basic (Store v o a0 s0)] **)
         explode_and_simplify; pattern_match; auto_frame.
-        + by apply: r_store_packed_success => //=; try eassumption; try apply/eqP; eauto.
-        + by apply: r_store_packed_failure => //=; eauto.
-        + by apply: r_store_success => //=; eauto.
-        + by apply: r_store_failure => //=; eassumption.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [::]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _ ; _]) => //=.
+          subst.
+          by apply: r_store_packed_success => //=; try eassumption; try apply/eqP; eauto.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [:: _]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          rewrite rev_cons_app.
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+          instantiate (1 := [:: _ ; _ ; _ ]) => //=.
+          subst.
+          by apply: r_store_packed_failure => //=; eauto.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [::]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          instantiate (1 := [:: _ ; _ ; _]) => //=.
+          subst.
+          by apply: r_store_success => //=; eauto.
+        + eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          instantiate ( 2 := [:: _]) => //=.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list => /=.
+          rewrite rev_cons_app.
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+          instantiate (1 := [:: _ ; _ ; _ ]) => //=.
+          subst.
+          by apply: r_store_failure => //=; eassumption.
 
       - (** [AI_basic Current_memory] **)
         explode_and_simplify. pattern_match. auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ]) => //=.
+        subst.
         by apply: r_current_memory; eauto.
 
       - (** [AI_basic Grow_memory] **)
         explode_and_simplify. pattern_match. auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
         by apply: r_grow_memory_success => //=.
 
       - (** [AI_basic (Econst _)] **)
         by pattern_match.
 
       - (** [AI_basic Unop v u] **)
-        by explode_and_simplify;  pattern_match; auto_frame.
+        explode_and_simplify;  pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
 
       - (** [AI_basic Binop v2 v1 b] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        rewrite rev_cons_app.
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+        instantiate (1 := [:: _ ;_;_]) => //=.
+        subst.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        rewrite rev_cons_app.
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+        instantiate (1 := [:: _ ;_;_]) => //=.
+        subst.
+        by repeat econstructor.
 
       - (** [AI_basic (Testop v t)] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
 
       - (** [AI_basic (Relop v2 v1 r)] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+         rewrite rev_cons_app.
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+        instantiate (1 := [:: _ ;_;_]) => //=.
+        subst.
+        by repeat econstructor.
 
       - (** [AI_basic (Cvtop v c v0 o)] **)
-        by explode_and_simplify; pattern_match; auto_frame.
+        explode_and_simplify; pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ;_]) => //=.
+        subst.
+        by repeat econstructor.
+        
     }
     { (** [Trap] **)
       by pattern_match.
@@ -1186,10 +1620,25 @@ Proof.
     { (** [Invoke] **)
       explode_and_simplify.
       - (** [Func_native] **)
-        pattern_match; auto_frame; frame_cat.
+        pattern_match; auto_frame.
+        eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+         erewrite (take_drop (l := lconst)) at 1.
+        rewrite - v_to_e_cat.
+        rewrite - catA.
+        rewrite (catA (v_to_e_list (drop _ _))).
+        done.
+        rewrite length_is_size.
+        by apply leq_subr.
+
+        subst.
         apply: r_invoke_native => //=; eauto.
-        simplify_lists. by rewrite subKn.
-      - (** [Func_host] **)
+        simplify_lists. by rewrite subKn. }
+(*      - (** [Func_host] **)
         destruct host_application_impl eqn:HHost; explode_and_simplify; try pattern_match; try frame_cat.
         + auto_frame.
           apply host_application_impl_correct in HHost.
@@ -1202,18 +1651,58 @@ Proof.
           rewrite (v_to_e_take_drop_split lconst (size lconst - size r)); rewrite -catA;
           apply: r_eliml; try apply: v_to_e_is_const_list.
           eapply r_invoke_host_diverge; eauto => //=.          
-          { explode_and_simplify. by rewrite subKn. } 
-    }
+          { explode_and_simplify. by rewrite subKn. } *)
+    
+    
     { (** [Label] **)
       explode_and_simplify; try (pattern_match; auto_frame).
-      + destruct run_step_with_fuel as [[[hs'' s''] f''] r] eqn: EH.
-        destruct r as [|nd es''| |es''] => //.
+      eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ]) => //=.
+        subst.
+        by repeat econstructor.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ]) => //=.
+        subst.
+        by repeat econstructor.
+
+        
+      + destruct run_step_with_fuel as [[s'' f''] r] eqn: EH.
+        destruct r as [|nd es''| |es'' |] => //.
         * (** [RS_break] **)
-          destruct nd => //. explode_and_simplify. pattern_match. auto_frame.
-          eapply reduce_label_break => //; by eauto.
+          destruct nd => //. explode_and_simplify.
+          destruct (n <= length es'') eqn:Hn => //.
+          inversion H2 ; subst.
+          eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          2:{ 
+            unfold lfilled, lfill.
+            rewrite v_to_e_is_const_list => /=.
+            instantiate (2 := [:: _ ]) => //=. }
+          
+          rewrite rev_cat.
+
+          rewrite rev_rev.
+          
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+          rewrite (catA _ es1).
+          done.
+          subst.
+          eapply reduce_label_break => // ; by eauto.
              
         * (** [RS_normal] **)
-          pattern_match.
+          inversion H2 ; subst.
           (* We actually want to keep the frame here for later use in lfilled.*)
           apply H in EH; last by lias.
           eapply r_label.
@@ -1228,22 +1717,67 @@ Proof.
     }
     { (** [Local] **)
       explode_and_simplify; try (pattern_match; auto_frame).
-      + destruct run_step_with_fuel as [[[hs'' s''] f''] r] eqn: EH.
-        destruct r as [| |vs'''|es''] => //.
+       eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ]) => //=.
+        subst.
+        by repeat econstructor.
+         eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        done.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ]) => //=.
+        subst.
+        by repeat econstructor.
+      + destruct run_step_with_fuel as [[s'' f''] r] eqn: EH.
+        destruct r as [| |vs'''|es''| ] => //.
         * (** [RS_return] **)
-          explode_and_simplify. pattern_match. auto_frame.
+          explode_and_simplify.
+           destruct (n <= length vs''') eqn:Hn => //.
+          inversion H2 ; subst.
+          eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+          unfold lfilled, lfill.
+          rewrite v_to_e_is_const_list.
+          2:{ 
+            unfold lfilled, lfill.
+            rewrite v_to_e_is_const_list => /=.
+            instantiate (2 := [:: _ ]) => //=. }
+          
+          rewrite rev_cat.
+
+          rewrite rev_rev.
+          
+          rewrite - v_to_e_cat.
+          repeat rewrite - catA.
+          done.
+          subst.
           eapply reduce_label_return => //; by eauto. 
         * (** [RS_normal] **)
-          pattern_match. auto_frame. apply H in EH; last by lias.
+          inversion H2 ; subst. auto_frame. apply H in EH; last by lias.
+          eapply (r_label (k := 0) (lh := LH_base (v_to_e_list _) _)) ; last first.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list.
+        instantiate ( 2 := [:: _]) => //=.
+        unfold lfilled, lfill.
+        rewrite v_to_e_is_const_list => /=.
+        instantiate (1 := [:: _ ]) => //=.
+        subst.
           by apply r_local.
     }
+    { by pattern_match. } 
 Qed.
 
-Theorem run_step_soundness : forall d hs s f es hs' s' f' es',
-  run_step d (hs, s, f, es) = (hs', s', f', RS_normal es') ->
-  reduce hs s f es hs' s' f' es'.
+Theorem run_step_soundness : forall d s f es s' f' es',
+  run_step d (s, f, es) = (s', f', RS_normal es') ->
+  reduce s f es s' f' es'.
 Proof.
-  move=> d hs s f es hs' s' f' es'. by apply: run_step_soundness_aux.
+  move=> d s f es s' f' es'. by apply: run_step_soundness_aux.
 Qed.
 
-End Host.
+

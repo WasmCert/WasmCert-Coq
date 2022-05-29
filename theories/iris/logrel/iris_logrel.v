@@ -33,7 +33,7 @@ Close Scope byte_scope.
 (* Example Programs *)
 Section logrel.
   
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
 
@@ -119,17 +119,19 @@ Section logrel.
                                        CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
                         {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f1 }}.
   
-  Definition interp_closure_host tf1s tf2s h : iProp Σ :=
+  Definition interp_closure_host tf1s tf2s (h : hostfuncidx) : iProp Σ :=
     ∀ vcs, interp_val tf1s (immV vcs) -∗
+                      ∃ r, (interp_val tf2s) r.
+(*    ∀ vcs, interp_val tf1s (immV vcs) -∗
              wp_host HWP NotStuck ⊤ h vcs
-                        (λ r, from_option (interp_val tf2s) False (iris.to_val (result_to_stack r))).
+                        (λ r, from_option (interp_val tf2s) False (iris.to_val (result_to_stack r))).  *)
   
   Definition interp_closure (τf : function_type) : ClR :=
       λne cl, (match cl with
                | FC_func_native i (Tf tf1s tf2s) tlocs e => ⌜τf = Tf tf1s tf2s⌝ ∗
                        □ ▷ interp_closure_native i tf1s tf2s tlocs (to_e_list e)
                | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ □ interp_closure_host tf1s tf2s h
-               end)%I.
+               end)%I. 
   
   Definition interp_function (τf : function_type) (interp_closure' : N -> function_type -> ClR) : FfR :=
     λne n, (∃ (cl : function_closure), na_inv logrel_nais (wfN n) (n ↦[wf] cl)
@@ -219,14 +221,14 @@ Section logrel.
             (* Global declarations *)
            ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.
 
-  Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx (λ n, interp_closure) (λ n, interp_closure).
+   Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx (λ n, interp_closure) (λ n, interp_closure). 
   
   
   Global Instance interp_function_persistent τf n (icl : N -> function_type -> ClR) :
     (∀ n τf cl, Persistent (icl n τf cl)) -> Persistent (interp_function τf icl n).
   Proof.
     intros Hpers.
-    unfold interp_function, interp_closure, interp_closure_host, interp_closure_native.
+    unfold interp_function. (* , interp_closure, interp_closure_host, interp_closure_native. *)
     apply exist_persistent =>cl/=.
     apply sep_persistent;[apply _|]. auto.
   Qed.

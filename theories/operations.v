@@ -11,12 +11,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
 
-Variable host_function : eqType.
 
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
 
 (** read `len` bytes from `m` starting at `start_idx` *)
 Definition read_bytes (m : memory) (start_idx : N) (len : nat) : option bytes :=
@@ -62,7 +58,7 @@ Definition mem_size (m : memory) : N :=
 
 (** Grow the memory a given number of bytes.
   * @param len_delta: the number of bytes to grow the memory by
-  *)
+  *) 
 Definition mem_grow (m : memory) (len_delta : N) : option memory :=
   let new_size := N.add (mem_size m) len_delta in
   let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
@@ -772,7 +768,7 @@ Definition n_zeros (ts : seq value_type) : seq value :=
 
 (* TODO: lots of lemmas *)
 
-End Host.
 
-Arguments cl_type {host_function}.
+
+
 

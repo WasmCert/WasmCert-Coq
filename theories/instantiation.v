@@ -16,32 +16,17 @@ From Coq Require Import BinNat.
 
 (* TODO: get rid of old notation that doesn't follow standard *)
 
-Section Host.
 
-Variable host_function : eqType.
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let store_record_eq_dec := @store_record_eq_dec host_function.
-Let store_record_eqType := @store_record_eqType host_function.
 
 (* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
-Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-Let host_state := host_state host_instance.
-
-Let executable_host := executable_host host_function.
-Variable executable_host_instance : executable_host.
-Let host_event := host_event executable_host_instance.
 
 Context {eff : Type -> Type}.
-Context {eff_has_host_event : host_event -< eff}.
+(* Context {eff_has_host_event : host_event -< eff}. 
 
 Let run_v {eff' eff'_has_host_event} :=
-  @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event.
+  @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event. *)
 
 Definition addr := nat.
 Definition funaddr := addr.
@@ -500,23 +485,23 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   typing.global_agree g gt ->
   external_typing s (MED_global (Mk_globalidx i)) (ET_glob gt).
 
-Definition instantiate_globals inst (hs' : host_state) (s' : store_record) m g_inits : Prop :=
+Definition instantiate_globals inst (s' : store_record) m g_inits : Prop :=
   List.Forall2 (fun g v =>
-      opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list g.(modglob_init))
-                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const v)]))
+      opsem.reduce_trans (s', (Build_frame nil inst), operations.to_e_list g.(modglob_init))
+                         (s', (Build_frame nil inst), [::AI_basic (BI_const v)]))
     m.(mod_globals) g_inits.
 
-Definition instantiate_elem inst (hs' : host_state) (s' : store_record) m e_offs : Prop :=
+Definition instantiate_elem inst (s' : store_record) m e_offs : Prop :=
   List.Forall2 (fun e c =>
-      opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list e.(modelem_offset))
-                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
+      opsem.reduce_trans (s', (Build_frame nil inst), operations.to_e_list e.(modelem_offset))
+                         (s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
     m.(mod_elem)
     e_offs.
 
-Definition instantiate_data inst (hs' : host_state) (s' : store_record) m d_offs : Prop :=
+Definition instantiate_data inst (s' : store_record) m d_offs : Prop :=
   List.Forall2 (fun d c =>
-      opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list d.(moddata_offset))
-                         (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
+      opsem.reduce_trans (s', (Build_frame nil inst), operations.to_e_list d.(moddata_offset))
+                         (s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
     m.(mod_data)
     d_offs.
 
@@ -571,13 +556,13 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
                        (s : store_record) (m : module) (v_imps : list v_ext)
                        (z : (store_record * instance * list module_export) * option nat) : Prop :=
   let '((s_end, inst, v_exps), start) := z in
-  exists t_imps t_exps hs' s' g_inits e_offs d_offs,
+  exists t_imps t_exps s' g_inits e_offs d_offs,
     module_typing m t_imps t_exps /\
     List.Forall2 (external_typing s) v_imps t_imps /\
     alloc_module s m v_imps g_inits (s', inst, v_exps) /\
-    instantiate_globals inst hs' s' m g_inits /\
-    instantiate_elem inst hs' s' m e_offs /\
-    instantiate_data inst hs' s' m d_offs /\
+    instantiate_globals inst s' m g_inits /\
+    instantiate_elem inst s' m e_offs /\
+    instantiate_data inst s' m d_offs /\
     check_bounds_elem inst s' m e_offs /\
     check_bounds_data inst s' m d_offs /\
     check_start m inst start /\
@@ -854,7 +839,7 @@ Definition interp_instantiate_wrapper (m : module)
   interp_instantiate empty_store_record m nil.
 
 Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export)
-    : option (config_tuple host_function) :=
+    : option (config_tuple) :=
   let '(s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>
@@ -876,14 +861,14 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
     exps
     None.
 
-End Host.
+
 
 (** As-is, [eqType] tends not to extract well.
   This section provides alternative definitions for better extraction. **)
-Module Instantiation (EH : Executable_Host).
+(*Module Instantiation (EH : Executable_Host).
 
 Module Exec := convert_to_executable_host EH.
-Import Exec.
+Import Exec. 
 
 Definition lookup_exported_function :
     name -> store_record * instance * seq module_export ->
@@ -896,5 +881,5 @@ Definition interp_instantiate_wrapper :
     (store_record * instance * seq module_export * option nat) :=
   @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
 
-End Instantiation.
+End Instantiation. *)
 

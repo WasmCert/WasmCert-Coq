@@ -14,7 +14,7 @@ Require Import iris_fundamental_br.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -26,7 +26,7 @@ Section fundamental.
 
   Lemma typing_br_table C i t1s ts t2s ins :
     all (λ i : nat, ssrnat.leq (S i) (length (tc_label C)) && plop2 C i ts) (ins ++ [i])%list ->
-    ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_br_table ins i]) (Tf (t1s ++ ts ++ [T_i32]) t2s).
+    ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_br_table ins i]) (Tf (t1s ++ ts ++ [T_i32]) t2s).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hall j lh).
@@ -44,7 +44,7 @@ Section fundamental.
     rewrite (app_assoc t1s ts).
     iDestruct (big_sepL2_app_inv with "Hv") as "[Hv' Hw]";[auto|].
     iDestruct (big_sepL2_app_inv_r with "Hv'") as (ws1 ws2 Heqw) "[Hv1 Hv2]".
-    iSimpl. rewrite fmap_app -app_assoc -app_assoc. iSimpl.
+    iSimpl. rewrite -v_to_e_cat -app_assoc -app_assoc. iSimpl.
     iSimpl in "Hw". iDestruct "Hw" as "[Hw _]".
     iDestruct "Hw" as (z) "->" .
 

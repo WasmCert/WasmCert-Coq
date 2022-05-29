@@ -5,9 +5,6 @@ From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations iris_properties.
 Require Export datatypes host operations properties opsem.
 
-Section Host.
-
-Import DummyHosts.
   (*
 Variable host_function : eqType.
 
@@ -17,7 +14,7 @@ Let store_record := store_record host_function.
 
 Variable host_instance : host.
 *)
-Let reduce := @reduce host_function host_instance.
+
 
 Let reducible := @reducible wasm_lang.
 
@@ -63,8 +60,8 @@ Proof.
     move => *. right;left. repeat eexists. }
 Qed.
 
-Lemma atomic_no_hole_load hs s0 f es hs' s' f' es' k lh k0 x0 x1 x2 x3 :
-  reduce hs s0 f es hs' s' f' es' -> 
+Lemma atomic_no_hole_load s0 f es s' f' es' k lh k0 x0 x1 x2 x3 :
+  reduce s0 f es s' f' es' -> 
   lfilled k lh es [::AI_basic (BI_const (VAL_int32 k0)); AI_basic (BI_load x0 x1 x2 x3)] ->
   lh = LH_base [] [] ∧ k = 0.
 Proof.  
@@ -80,8 +77,8 @@ Proof.
     eapply reduce_load_false;eauto. }
 Qed.
     
-Lemma atomic_no_hole_store hs s0 f es hs' s' f' es' k lh k0 v x0 x1 x2 x3 :
-  reduce hs s0 f es hs' s' f' es' -> 
+Lemma atomic_no_hole_store s0 f es s' f' es' k lh k0 v x0 x1 x2 x3 :
+  reduce s0 f es s' f' es' -> 
   lfilled k lh es [::AI_basic (BI_const (VAL_int32 k0)); AI_basic (BI_const v); AI_basic (BI_store x0 x1 x2 x3)] ->
   lh = LH_base [] [] ∧ k = 0.
 Proof.
@@ -103,8 +100,8 @@ Proof.
     eapply reduce_val_false;eauto. eauto. }
 Qed.
 
-Lemma atomic_no_hole_trap hs s0 f es hs' s' f' es' k lh :
-  reduce hs s0 f es hs' s' f' es' -> 
+Lemma atomic_no_hole_trap s0 f es s' f' es' k lh :
+  reduce s0 f es s' f' es' -> 
   lfilled k lh es [::AI_trap] ->
   lh = LH_base [] [] ∧ k = 0.
 Proof.
@@ -155,7 +152,7 @@ Proof.
     erewrite app_nil_r. erewrite app_nil_l. apply IHHstep. auto. }
 Qed.
 
-End Host.
+
 
 Ltac solve_atomic :=
   apply is_atomic_correct; simpl; repeat split;

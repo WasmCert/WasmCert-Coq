@@ -37,12 +37,12 @@ Ltac take_drop_app_rewrite_twice n m :=
       rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
   end.
 
-Import DummyHosts.
+
 
 (* Example Programs *)
 Section Examples.
 
-  Import DummyHost.
+
 
   Context `{!wasmG Σ,
         !logrel_na_invs Σ, HWP:host_program_logic}.
@@ -113,7 +113,7 @@ Section Examples.
     ⊢ {{{ ↪[frame] f
          ∗ na_own logrel_nais ⊤
          ∗ na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] (FC_func_native i (Tf [] []) locs es))
-         ∗ interp_instance (HWP:=HWP) C i
+         ∗ interp_instance (* HWP:=HWP *) C i
          ∗ (∃ gv, N.of_nat k ↦[wg] {| g_mut := MUT_mut; g_val := gv |})
          ∗ ∃ c, (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) }}}
       lse j g
@@ -206,10 +206,10 @@ End Examples.
 
 Section Examples_host.
 
-  Import DummyHost.
 
-  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
-        !logrel_na_invs Σ, HWP:host_program_logic,!hvisG Σ, !hmsG Σ}.
+
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ,
+        !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ}.
 
 
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
@@ -299,7 +299,7 @@ Section Examples_host.
           (∃ name, 1%N ↪[vis] {| modexp_name := name; modexp_desc := MED_global (Mk_globalidx (N.to_nat g_ret)) |}) ∗
           (∃ vs, 0%N ↪[vis] vs) }}}
         ((adv_lse_instantiate,[]) : host_expr)
-      {{{ v, ⌜v = (trapV : host_val)⌝ ∨ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := xx 42|} }}} .
+      {{{ v, ⌜v = (trapHV : host_val)⌝ ∨ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := xx 42|} }}} .
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
     iModIntro. iIntros (Φ) "(Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
@@ -448,8 +448,16 @@ Section Examples_host.
         { rewrite Heqadvm /=. eauto. }
         { rewrite Heqadvm /= /get_import_func_count /= drop_0 /= -nth_error_lookup. eauto. }
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
+        iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_host_wasm.
+        iIntros "!>" (v).
+        instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) ∗
+   ↪[frame]empty_frame)%I) => //=.
+        iIntros "H".
+        iDestruct "H" as "[[% | H2] H3]" ; iFrame.
+        iLeft ; iPureIntro.
+        by destruct v => //=. 
+        by apply HWEV_invoke.
 
-        iApply wp_host_wasm;[apply HWEV_invoke|]. (* iSimpl in "H". *)
         (* iDestruct "H" as (inst g_inits t_inits m_inits Hinst (Ht_inits & Hm_inits & (Heqg & Hg_inits))) "[Hlse _]". *)
         (* destruct g_inits;[|done]. *)
         (* cbn in Hinst. destruct Hinst as (Hinst_typ & Hinst_f & _ & _ & Hinst_g & Hstart). *)
@@ -522,7 +530,7 @@ Section Examples_host.
         iApply (wp_frame_value with "Hf");eauto.
       }
     }
-    Unshelve. apply HWP.
+
   Qed.
   
 

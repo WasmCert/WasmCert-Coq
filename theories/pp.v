@@ -10,17 +10,6 @@ Require Import ansi list_extra.
 
 Open Scope string_scope.
 
-Section Host.
-
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-Let function_closure := function_closure host_function.
-Let config_tuple := config_tuple host_function.
-Let res_tuple := res_tuple host_function.
-
-Variable show_host_function : host_function -> string.
 
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
 
@@ -320,6 +309,11 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
 Definition pp_basic_instructions n bes :=
   String.concat "" (List.map (pp_basic_instruction n) bes).
 
+Definition pp_hostfuncidx (i : hostfuncidx) : string :=
+  match i with
+  | Mk_hostfuncidx n => pp_immediate n
+  end.
+
 Definition pp_function_closure (n : indentation) (fc : function_closure) : string :=
   match fc with
   | FC_func_native i ft vs bes =>
@@ -330,7 +324,7 @@ Definition pp_function_closure (n : indentation) (fc : function_closure) : strin
     pp_basic_instructions (n.+1) bes ++
     indent n ("end native" ++ newline)
   | FC_func_host ft h =>
-    indent n ("host " ++ show_host_function h
+    indent n ("host " ++ pp_hostfuncidx h
               ++ " : " ++ pp_function_type ft ++ newline)
   end.
 
@@ -361,6 +355,10 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
     indent n (with_fg ae_style "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline) ++
     pp_administrative_instructions (n.+1) es ++
     indent n (with_fg ae_style "end local" ++ newline)
+  | AI_call_host tf h cvs =>
+      indent n (with_fg ae_style "call host function " ++ pp_hostfuncidx h ++ newline) ++
+             indent n (with_fg ae_style "with values " ++ pp_values_hint_empty cvs ++ newline)
+             
   end.
 
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
@@ -408,16 +406,19 @@ Definition pp_res_tuple_except_store (res_cfg : res_tuple) : string :=
     "normal" ++ newline ++
     String.concat "" (List.map (pp_administrative_instruction 1) es) ++
     "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
+  | RS_call_host tf h cvs =>
+      "call host " ++ pp_hostfuncidx h ++ " with parameters " ++ pp_values_hint_empty cvs
+                   ++ newline
   end.
 
-End Host.
+
 
 (** As-is, [eqType] tends not to extract well.
   This section provides alternative definitions for better extraction. **)
-Module PP (EH : Executable_Host).
+(* Module PP (EH : Executable_Host).
 
 Module Exec := convert_to_executable_host EH.
-Import Exec.
+Import Exec. 
 
 Section Show.
 
@@ -435,5 +436,5 @@ Definition pp_config_tuple_except_store : config_tuple -> string :=
 
 End Show.
 
-End PP.
+End PP. *)
 

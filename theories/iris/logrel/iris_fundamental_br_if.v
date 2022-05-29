@@ -14,7 +14,7 @@ Require Import iris_fundamental_br.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -26,7 +26,7 @@ Section fundamental.
   
   Lemma typing_br_if C i ts : ssrnat.leq (S i) (length (tc_label C)) ->
                               plop2 C i ts ->
-                              ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_br_if i]) (Tf (ts ++ [T_i32]) ts).
+                              ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_br_if i]) (Tf (ts ++ [T_i32]) ts).
   Proof.
     iIntros (Hleq Hlookup) "".
     iIntros (j lh).
@@ -43,7 +43,7 @@ Section fundamental.
     assert (∃ w ws', ws = ws' ++ [w]) as [w [ws' Heq]].
     { induction ws using rev_ind;eauto. destruct ts =>//. } subst ws.
     iDestruct (big_sepL2_app_inv with "Hv") as "[Hv' Hw]";[auto|].
-    iSimpl. rewrite fmap_app -app_assoc. iSimpl.
+    iSimpl. rewrite -v_to_e_cat -app_assoc. iSimpl.
     iSimpl in "Hw". iDestruct "Hw" as "[Hw _]".
     iDestruct "Hw" as (z) "->" .
 

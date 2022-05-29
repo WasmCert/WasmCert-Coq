@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -25,7 +25,7 @@ Section fundamental.
   
   Lemma typing_br C i t1s ts t2s : ssrnat.leq (S i) (length (tc_label C)) ->
                                    plop2 C i ts ->
-                                   ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_br i]) (Tf (t1s ++ ts) t2s).
+                                   ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_br i]) (Tf (t1s ++ ts) t2s).
   Proof.
     iIntros (Hleq Hlookup) "".
     iIntros (j lh).

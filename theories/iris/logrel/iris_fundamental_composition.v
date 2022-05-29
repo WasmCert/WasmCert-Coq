@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -41,9 +41,9 @@ Section fundamental.
   
   (* -------------------------------------- COMPOSITION ------------------------------------ *)
 
-  Lemma typing_composition C es t1s t2s t3s e : (⊢ semantic_typing (HWP:=HWP) C es (Tf t1s t2s)) ->
-                               (⊢ semantic_typing (HWP:=HWP) C [e] (Tf t2s t3s)) ->
-                               ⊢ semantic_typing (HWP:=HWP) C (es ++ [e]) (Tf t1s t3s).
+  Lemma typing_composition C es t1s t2s t3s e : (⊢ semantic_typing (* HWP:=HWP*) C es (Tf t1s t2s)) ->
+                               (⊢ semantic_typing (*HWP:=HWP*) C [e] (Tf t2s t3s)) ->
+                               ⊢ semantic_typing (*HWP:=HWP*) C (es ++ [e]) (Tf t1s t3s).
   Proof.
     iIntros (Ht1 Ht2).
     unfold semantic_typing, interp_expression.

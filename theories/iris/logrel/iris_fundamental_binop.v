@@ -12,7 +12,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -79,7 +79,7 @@ Section fundamental.
   Qed.
     
   Lemma typing_binop C t op : binop_type_agree t op ->
-                              ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_binop t op]) (Tf [t; t] [t]).
+                              ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_binop t op]) (Tf [t; t] [t]).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hbinop i lh).

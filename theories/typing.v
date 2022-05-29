@@ -21,16 +21,9 @@ There are three files related to typing:
 
 Set Implicit Arguments.
 Unset Strict Implicit.
-Unset Printing Implicit Defensive.
+Unset Printing Implicit Defensive. 
 
-Section Host.
 
-Variable host_function : eqType.
-
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.*)
 
 
 (* TODO: Documentation *)
@@ -531,6 +524,9 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   e_typing s (upd_label C ([::ts] ++ tc_label C)) es (Tf [::] t2s) ->
   length ts = n ->
   e_typing s C [::AI_label n e0s es] (Tf [::] t2s)
+| ety_call_host : forall s C t1s t2s h vs,
+    length vs = length t1s ->
+    e_typing s C [::AI_call_host (Tf t1s t2s) h vs] (Tf [::] t2s) 
 
 with s_typing : store_record -> option (seq value_type) -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
 | mk_s_typing : forall s f es rs ts C C0,
@@ -600,5 +596,4 @@ Inductive config_typing : store_record -> frame -> seq administrative_instructio
   config_typing s f es ts.
 
 
-End Host.
 

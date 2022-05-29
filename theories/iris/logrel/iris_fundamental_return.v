@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -24,7 +24,7 @@ Section fundamental.
   (* ----------------------------------------- RETURN -------------------------------------- *)
 
   Lemma typing_return C ts t1s t2s : tc_return C = Some ts ->
-                          ⊢ semantic_typing (HWP:=HWP) C (to_e_list [BI_return]) (Tf (t1s ++ ts) t2s).
+                                     ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_return]) (Tf (t1s ++ ts) t2s).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hsome).
@@ -66,7 +66,7 @@ Section fundamental.
       { iApply wp_value. 2:eauto. done. }
       { simpl. apply to_val_fmap. }
       { simpl. rewrite fmap_length. auto. }
-      { simpl. rewrite fmap_app. rewrite <- app_assoc.
+      { simpl. rewrite - v_to_e_cat. rewrite <- app_assoc.
         instantiate (2:=0). instantiate (1:= LH_base ((λ x : value, AI_basic (BI_const x)) <$> take (length t1s) ws) []).
         unfold lfilled. simpl. rewrite const_list_of_val.
         apply/eqP. simpl. rewrite app_nil_r. auto. }

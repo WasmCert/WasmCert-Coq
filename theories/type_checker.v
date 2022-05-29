@@ -10,13 +10,6 @@ Unset Printing Implicit Defensive.
 Require Import operations typing datatypes_properties.
 
 
-Section Host.
-
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
 
 
 Inductive checker_type_aux : Type :=
@@ -444,5 +437,5 @@ Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
   | Func_host tf h => true
   end.
 *)
-End Host.
+
 

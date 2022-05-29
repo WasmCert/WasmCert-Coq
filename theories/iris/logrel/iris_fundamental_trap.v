@@ -13,7 +13,7 @@ Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 
 Section fundamental.
-  Import DummyHosts. (* placeholder *)
+
 
   Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
   
@@ -23,7 +23,7 @@ Section fundamental.
 
   (* ----------------------------------------- TRAP ---------------------------------------- *)
 
-  Lemma typing_trap C tf : ⊢ semantic_typing (HWP:=HWP) C [AI_trap] tf.
+  Lemma typing_trap C tf : ⊢ semantic_typing (*HWP:=HWP*) C [AI_trap] tf.
   Proof.
     unfold semantic_typing, interp_expression.
     destruct tf.
