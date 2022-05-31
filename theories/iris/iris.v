@@ -146,7 +146,7 @@ Inductive val : Type :=
 | trapV : val
 | brV (i : nat) (lh : valid_holed i) : val
 | retV : simple_valid_holed -> val
-| callHostV : function_type -> hostfuncidx -> seq.seq value -> local_holed -> val.
+| callHostV : function_type -> hostfuncidx -> seq.seq value -> simple_valid_holed -> val.
 
 
 Definition memory_eq_dec : forall m1 m2: memory, {m1 = m2} + {m1 <> m2}.
@@ -179,28 +179,9 @@ Proof.
     apply eq_sigT_fst in H2.
     done.
   - destruct (simple_valid_holed_eq_dec s s0);subst;[by left|right;congruence..].
-  - destruct l0, l2 => //= ; try by right ; congruence.
-     destruct 
-      (function_type_eq_dec f f0),
-      (hostfuncidx_eq_dec h h0),
-      (decide (l = l1)),
-      (simple_valid_holed_eq_dec s s0) ;
-      try by right ; congruence
-    . 
-    by subst ; left.
-    
-    destruct 
-      (function_type_eq_dec f f0),
-      (hostfuncidx_eq_dec h h0),
-      (decide (l = l1)),
-      (simple_valid_holed_eq_dec s s0),
-      (decide (n = n0)),
-      (decide (l0 = l2)),
-      (decide (l3 = l4)),
-      (frame_eq_dec f1 f2) ;
-      try by right ; congruence
-    . 
-    by subst ; left.
+  - destruct (function_type_eq_dec f f0), (simple_valid_holed_eq_dec s s0),
+      (hostfuncidx_eq_dec h h0), (decide (l = l0)) ;subst; try by right;congruence.
+    by left.
    
 Defined.
 Definition val_eqb (v1 v2: val) : bool := val_eq_dec v1 v2.
@@ -276,7 +257,7 @@ Definition of_val (v : val) : expr :=
   | trapV => [::AI_trap]
   | brV i vh => vfill vh [AI_basic (BI_br i)]
   | retV sh => sfill sh [AI_basic BI_return]
-  | callHostV tf h vcs lh => locfill lh [AI_call_host tf h vcs]
+  | callHostV tf h vcs sh => sfill sh [AI_call_host tf h vcs]
   end.
 
 Lemma of_val_imm (vs : list value) :
@@ -379,12 +360,12 @@ Definition val_combine (v1 v2 : val) :=
              | trapV => trapV
              | brV i vh => brV (vh_push_const vh l)
              | retV lh => retV (sh_push_const lh l)
-             | callHostV tf h vcs lh => callHostV tf h vcs (loch_push_const lh l) 
+             | callHostV tf h cvs sh => callHostV tf h cvs (sh_push_const sh l)
              end
   | trapV => trapV
   | brV i vh => brV (vh_append vh (of_val v2))
   | retV lh => retV (sh_append lh (of_val v2))
-  | callHostV tf h vcs lh => callHostV tf h vcs (loch_append lh (of_val v2))
+  | callHostV tf h vcs sh => callHostV tf h vcs (sh_append sh (of_val v2))
   end.
 
 (* Intuitively, when writing [NotVal e], we intend to mean e is not a value.
@@ -420,7 +401,7 @@ Definition val_not_val_combine (v1 : val) (v2 : ValNotVal) : ValNotVal :=
                            end
              | Val (brV i vh) => Val (brV (vh_push_const vh l))
              | Val (retV lh) => Val (retV (sh_push_const lh l))
-             | Val (callHostV tf h vcs lh) => Val (callHostV tf h vcs (loch_push_const lh l))
+             | Val (callHostV tf h vcs lh) => Val (callHostV tf h vcs (sh_push_const lh l))
              | NotVal e => NotVal (v_to_e_list l ++ e)
              end
   | trapV => match expr_of_val_not_val v2 with
@@ -432,7 +413,7 @@ Definition val_not_val_combine (v1 : val) (v2 : ValNotVal) : ValNotVal :=
   | retV lh =>
       Val (retV (sh_append lh (expr_of_val_not_val v2)))
   | callHostV tf h vcs lh =>
-      Val (callHostV tf h vcs (loch_append lh (expr_of_val_not_val v2)))
+      Val (callHostV tf h vcs (sh_append lh (expr_of_val_not_val v2)))
   end.
 
 
@@ -676,16 +657,16 @@ Fixpoint to_val_instr (instr : administrative_instruction) : ValNotVal :=
           | None => NotVal [instr]
           end 
       | Val (retV lh) => Val (retV (SH_rec [] n labe lh []))
-      | Val (callHostV tf h cvs (No_local lh)) => Val (callHostV tf h cvs (No_local (SH_rec [] n labe lh [])))
+      | Val (callHostV tf h cvs lh) => Val (callHostV tf h cvs (SH_rec [] n labe lh []))
       | _ => NotVal [instr]
       end
-  | AI_local n f es =>
+(*  | AI_local n f es =>
       match merge_values_list (map to_val_instr es) with
-      | Val (callHostV tf h cvs (No_local sh)) =>
+      | Val (callHostV tf h cvs (sh)) =>
           Val (callHostV tf h cvs (One_local [] n f sh []))
       | _ => NotVal [instr]
-      end
-  | AI_call_host tf h cvs => Val (callHostV tf h cvs (No_local (SH_base [] [])))
+      end *)
+  | AI_call_host tf h cvs => Val (callHostV tf h cvs (SH_base [] []))
   | _ => NotVal [instr]
   end.
 
@@ -805,15 +786,11 @@ Proof.
   by rewrite - v_to_e_cat.
   destruct l => //=.
   destruct lh => //= ; rewrite - v_to_e_cat ; by rewrite app_assoc.
-  destruct s => //= ; rewrite - v_to_e_cat ; by rewrite app_assoc.
-  destruct l1 => //= ; last by rewrite - v_to_e_cat ; rewrite app_assoc.
-  destruct s => //= ; rewrite - v_to_e_cat ; by rewrite app_assoc.
-  destruct (of_val v) => //=.
-  destruct e => //=.
+  all : try by destruct s => //= ; rewrite - v_to_e_cat ; by rewrite app_assoc.
+  all : try by destruct (of_val v) => //=.
+  all : try by destruct e => //=.
   all : try by destruct lh => //= ; rewrite app_comm_cons ; rewrite app_assoc.
   all : try by destruct s => //= ; rewrite app_comm_cons ; rewrite app_assoc.
-  all : destruct l0 => //= ; last by rewrite app_comm_cons app_assoc.
-  all : by destruct s => //= ; rewrite app_comm_cons ; rewrite app_assoc.  
 Qed.
 
 Lemma list_fmap_app a b c d e :
@@ -841,37 +818,36 @@ Proof.
   all: try done.
   all: (try rewrite - vh_push_const_app) ;
     (try rewrite - sh_push_const_app) ;
-    (try rewrite - loch_push_const_app) ;
+(*    (try rewrite - loch_push_const_app) ; *)
     (try rewrite - vh_append_app) ;
     (try rewrite - sh_append_app) ;
-    (try rewrite - loch_append_app) ;
+(*     (try rewrite - loch_append_app) ; *)
     (try rewrite - v_to_e_cat) ; 
     (try rewrite vh_append_nil) ;
     (try rewrite sh_append_nil) ;
-    (try rewrite loch_append_nil) ;
+(*    (try rewrite loch_append_nil) ; *)
     (try rewrite vh_push_const_nil) ;
     (try rewrite sh_push_const_nil) ;
-    (try rewrite loch_push_const_nil) ;
+(*    (try rewrite loch_push_const_nil) ; *)
     (try rewrite vh_append_nil) ;
     (try rewrite sh_append_nil) ;
-    (try rewrite loch_append_nil) ;
+(*     (try rewrite loch_append_nil) ; *)
     (try rewrite vh_push_const_nil) ;
     (try rewrite sh_push_const_nil) ;
-    (try rewrite loch_push_conts_nil) ;
+(*     (try rewrite loch_push_conts_nil) ; *)
     (try destruct (vfill _ _) eqn:Habs ; try by apply vfill_is_nil in Habs as [? _]) ;
     (try destruct (sfill _ _) eqn:Habs ; try by apply sfill_is_nil in Habs as [? _]) ;
-    (try destruct (locfill _ _) eqn:Habs ; try by apply locfill_is_nil in Habs as [? _]) ;
+(*    (try destruct (locfill _ _) eqn:Habs ; try by apply locfill_is_nil in Habs as [? _]) ; *)
     (try rewrite - Habs).
 
   
   all : (try done).
   all : simpl.
   all: (try destruct l0).
-  all: (try destruct l0).
   all: (try destruct l).
-  all: (try destruct l).
-  (*  all: (try destruct l1).
-  all: (try destruct l2).
+
+    all: (try destruct l1).
+  (* all: (try destruct l2).
   all: try destruct l3. *)
   all : simpl ; try done.
   (* the following tactics try to manage the 800+ subgoals we have now.
@@ -1008,15 +984,15 @@ Proof.
   done.
 Qed.
 
-Lemma merge_call_host tf h cvs lh es :
-  merge_values (callHostV tf h cvs lh) es =
-    Val (callHostV tf h cvs (loch_append lh (flatten (map expr_of_val_not_val es)))).
+Lemma merge_call_host tf h cvs sh es :
+  merge_values (callHostV tf h cvs sh) es =
+    Val (callHostV tf h cvs (sh_append sh (flatten (map expr_of_val_not_val es)))).
 Proof.
-  generalize dependent lh.
+    generalize dependent sh.
   induction es => //=.
-  intros. by rewrite loch_append_nil.
+  intros. destruct sh ; simpl ; by rewrite cats0.
   intros.
-  rewrite loch_append_app.
+  rewrite sh_append_app.
   rewrite - IHes.
   done.
 Qed.
@@ -1041,7 +1017,7 @@ Proof.
     + by rewrite cats0.
     + by rewrite vh_append_nil.
     + by rewrite sh_append_nil.
-    + by rewrite loch_append_nil.
+    + by rewrite sh_append_nil.
   - destruct a => //=.
     + destruct IHvs as [IHvs1 IHvs2].
       rewrite (IHvs1 v).
@@ -1060,9 +1036,9 @@ Proof.
       * rewrite merge_br.
         by rewrite vh_append_app.
       * rewrite merge_return.
-        by rewrite sh_append_app.
+        by rewrite sh_append_app. 
       * rewrite merge_call_host.
-        by rewrite loch_append_app.
+        by rewrite sh_append_app.
 Qed.
 
 (* For convenience, we provide lemmas for usage of each identity separately *)
@@ -1256,16 +1232,17 @@ Proof.
         rewrite -> IHl0 at 1 => //=.
         simpl in Hsize.
         lia.
-      + destruct l4 => //=.
+(*      + destruct l4 => //=.
         rewrite merge_call_host in Hmerge. inversion Hmerge.
       + simpl in Hmerge.
         destruct (merge_values_list _) => //=.
         destruct v0 => //=.
         destruct l3 => //=.
         rewrite merge_call_host in Hmerge.
-        inversion Hmerge.
+        inversion Hmerge. *)
       + simpl in Hmerge. rewrite merge_call_host in Hmerge.
-        inversion Hmerge.
+        simpl in Hmerge.
+        destruct (flatten _) => //=.
     }
     { simpl. 
     replace (sfill s [AI_basic BI_return]) with l0 ; first done.
@@ -1332,19 +1309,19 @@ Proof.
       rewrite -> IHl0 at 1 => //=.
       simpl in Hsize.
       lia.
-    + destruct l4 => //=.
-      rewrite merge_call_host in Hmerge.
-      done.
+(*    + destruct l4 => //=. *)
+      (*rewrite merge_call_host in Hmerge.
+      done. *)
     + simpl in Hmerge.
       destruct (merge_values_list _) => //=.
       destruct v => //=.
-      destruct l3 => //=.
-      rewrite merge_call_host in Hmerge. done.
+      rewrite merge_call_host in Hmerge. done. 
     + simpl in Hmerge.
       rewrite merge_call_host in Hmerge.
-      done. } 
-    destruct l2 => //=.
-      replace (sfill s [AI_call_host f h l1]) with l0 ; first done.
+      simpl in Hmerge.
+      destruct (flatten _) => //=. } 
+    (* destruct l2 => //=. *)
+      simpl. replace (sfill s [AI_call_host f h l1]) with l0 ; first done.
       remember (length_rec l0) as m'. 
       assert (length_rec l0 < S m') ; first lia.
       remember (S m') as m.
@@ -1361,7 +1338,7 @@ Proof.
         inversion Hmerge.
       + simpl in Hmerge.
         rewrite merge_return in Hmerge.
-        inversion Hmerge => //.
+        inversion Hmerge => //. 
       (*       rewrite map_map.
       replace (flatten
                  (map (λ x, expr_of_val_not_val (to_val_instr x)) l0))
@@ -1379,10 +1356,9 @@ Proof.
         last by inversion Hmerge.
       destruct v0 ; inversion Hmerge. subst.
       assert (size_of_instruction (AI_label n0 l l0) < S n). simpl in Hsize. simpl. lia.
-      destruct l3 => //=.
+(*      destruct l3 => //=.  *)
       erewrite (IHm _ l0) => //=.
-      simpl in H4.
-      destruct s0 => //= ; try by inversion H4.
+      destruct s0 => //=. 
       specialize (cons_length_rec (AI_basic (BI_const v)) l0).
       lia.
     + simpl in Hmerge.
@@ -1395,7 +1371,7 @@ Proof.
       destruct (vh_decrease _) => //.
       by rewrite merge_br in Hmerge.
       by rewrite merge_return in Hmerge.
-      destruct l5 => //=.
+      (* destruct l5 => //=. *)
       rewrite merge_call_host in Hmerge.
       replace (flatten (map expr_of_val_not_val (map to_val_instr l0))) with l0 in Hmerge.
       inversion Hmerge. subst.
@@ -1412,12 +1388,12 @@ Proof.
       rewrite -> IHl0 at 1 => //=.
       simpl in Hsize.
       lia.
-    + simpl in Hmerge.
+(*    + simpl in Hmerge.
       destruct (merge_values_list _) => //=.
       destruct v => //=.
       destruct l4 => //=.
       rewrite merge_call_host in Hmerge.
-      inversion Hmerge => /=.
+      inversion Hmerge => /=. *)
     + simpl in Hmerge.
       rewrite merge_call_host in Hmerge.
       inversion Hmerge => /=.
@@ -1431,8 +1407,8 @@ Proof.
       simpl.
       rewrite -> IHl0 at 1 => //=.
       simpl in Hsize.
-      lia. } 
-  - destruct (merge_values_list _) eqn:Hmerge => //=.
+      lia.  } 
+(*  - destruct (merge_values_list _) eqn:Hmerge => //=.
     destruct v => //=.
     destruct l1 => //=.
     replace (sfill s [AI_call_host f0 h l0]) with l ; first done.
@@ -1521,7 +1497,7 @@ Proof.
       simpl.
       rewrite -> IHl at 1 => //=.
       simpl in Hsize.
-      lia.
+      lia. *) 
 Qed.
 
 Lemma flatten_simplify es :
@@ -1688,8 +1664,8 @@ Proof.
         clear IHs.
         destruct (merge_values_list _) => //.
         inversion IHl ; subst => //=.
-  - unfold of_val, to_val.
-    destruct l0.
+  - unfold of_val, to_val => //=.
+(*    destruct l0. *)
     induction s.
     + induction l0 => //=.
       * rewrite merge_call_host.
@@ -1705,8 +1681,8 @@ Proof.
       * rewrite merge_prepend.
         clear IHs.
         destruct (merge_values_list _) => //.
-        inversion IHl0 ; subst => //.
-  - induction l0 => //=.
+        inversion IHl0 ; subst => //. 
+(*  - induction l0 => //=.
     { induction s.
       + induction l0 => //=.
         * rewrite merge_call_host.
@@ -1742,7 +1718,7 @@ Proof.
     rewrite merge_prepend.
     destruct (merge_values_list _) => //=.
     destruct v => //=.
-    inversion IHl0 ; subst => //=.
+    inversion IHl0 ; subst => //=. *)
 Qed.
 
 
@@ -1799,12 +1775,12 @@ Proof.
     + destruct (vh_decrease _) eqn:Hdecr => //=.
       rewrite merge_br => //=.
     + rewrite merge_return => //=.
-    + destruct l2 => //=. rewrite merge_call_host => //=.
-      unfold to_val => //=.
+    + (* destruct l2 => //=. *)  rewrite merge_call_host => //=. 
+(*      unfold to_val => //=.
       destruct (merge_values_list _) eqn:Hmerge => //=.
       destruct v => //=.
       destruct l1 => //=.
-      rewrite merge_call_host => //=.
+      rewrite merge_call_host => //=. *)
   - unfold to_val => //=. rewrite merge_call_host => //=.
 Qed.
     
@@ -1831,15 +1807,20 @@ Proof.
     destruct (vh_decrease _) => //=.
     rewrite merge_br => //=.
     rewrite merge_return => //=.
-    destruct l2 => //=.
-    rewrite merge_call_host => //=.
-  - unfold to_val => //=.
+(*    destruct l2 => //=. *)
+    rewrite merge_call_host => //=. 
+(*  - unfold to_val => //=.
     destruct (merge_values_list _) eqn:Hmerge => //=.
     destruct v => //=.
     destruct l1 => //=.
-    rewrite merge_call_host => //=.
-  - unfold to_val => //= ; by rewrite merge_call_host.
-Qed.
+    rewrite merge_call_host => //=. *)
+  - unfold to_val => //= ; rewrite merge_call_host => /=.
+    destruct (flatten _) => //=.
+Qed. 
+
+(*Lemma to_val_call_host_is_singleton e tf h cvs :
+  to_val e = Some (callHostV tf h cvs) -> e = [:: AI_call_host tf h cvs]. *)
+
 
 
 Lemma split_vals_not_empty_res : forall es v vs es',
@@ -2015,7 +1996,8 @@ Proof.
     destruct v => //.
     by rewrite vh_push_const_nil.
     by rewrite sh_push_const_nil.
-    by rewrite loch_push_const_nil. }
+    by rewrite sh_push_const_nil.
+  }
   destruct a => //.
   { do 2 rewrite merge_prepend.
     rewrite IHvs1.  
@@ -2029,7 +2011,8 @@ Proof.
     destruct (merge_values_list vs2) ;
       by rewrite sh_append_app.
     destruct (merge_values_list vs2) ;
-      by rewrite loch_append_app. }
+      by rewrite sh_append_app.
+    } 
   rewrite map_app.
   rewrite flatten_cat.
   rewrite (flatten_map_expr_of_val_not_val vs2).
@@ -2064,20 +2047,23 @@ Proof.
   destruct v => //.
   destruct i => //.
   destruct (vh_decrease _) => //.
-  destruct l4 => //.
+  simpl in H.
+  destruct l => //.
+  simpl in H.
+  destruct l => //.
+  (* destruct l4 => //. 
   unfold to_val_instr in Ha.
   destruct (merge_values_list _) => //=.
   destruct v => //=.
   destruct l3 => //=.
   destruct l => //.
-  destruct l => //.
+  destruct l => //. *)
   simpl in H.
   destruct (vfill lh _) => //.
   simpl in H.
   destruct (sfill _ _) => //.
   simpl in H.
-  destruct (locfill _ _) eqn:Habs ; first by apply locfill_is_nil in Habs as [? _].
-  done.
+  destruct (sfill _ _) => //. 
   destruct v => //.
   destruct e => //.
 Qed.
@@ -2100,6 +2086,7 @@ Proof.
       intro H ; inversion H ; subst.
       rewrite (to_val_trap_is_singleton (e := es)) => //.
       unfold to_val ; by rewrite Hmerge.
+      
       intro H ; inversion H.
       by erewrite IHes. }
     { inversion Ha.
@@ -2123,15 +2110,15 @@ Proof.
     inversion Ha.
     rewrite merge_return => //.
     inversion Ha.
-    destruct l2 => //=.
+    (* destruct l2 => //=. *)
     inversion Ha ; subst.
     rewrite merge_call_host => //.
-    destruct (merge_values_list (map _ l)) => //=.
+(*    destruct (merge_values_list (map _ l)) => //=.
     destruct v0 => //.
-    destruct l1 => //.
+    destruct l1 => //. *)
     inversion Ha.
     rewrite merge_call_host => //.
-    inversion Ha ; rewrite merge_call_host => //.
+(*    inversion Ha ; rewrite merge_call_host => //. *)
   }
   rewrite flatten_simplify.
   intro H ; inversion H.
@@ -2142,7 +2129,7 @@ Proof.
   destruct v => // ; try by inversion Ha.
   destruct i => // ; try by inversion Ha.
   destruct (vh_decrease lh) ; try by inversion Ha.
-  destruct l2 => //=.
+  (* destruct l2 => //=. 
   simplify_eq => //=.
   unfold to_val_instr in Ha.
   destruct (merge_values_list (map _ l)) => //=.
@@ -2150,7 +2137,7 @@ Proof.
                simplify_eq => //=.
   destruct l1 => //=.
   simplify_eq => //.
-  simplify_eq => //.
+  simplify_eq => //. *)
 Qed. 
 
 
@@ -2180,15 +2167,15 @@ Lemma splits_vals_e_to_val_hd : forall e1 e es vs,
     ∨ (vs = [] ∧ to_val e1 = Some trapV)
     ∨ (∃ i, e = AI_basic (BI_br i) ∧ to_val e1 = Some (brV (VH_base i vs es)))
     ∨ (e = AI_basic BI_return ∧ to_val e1 = Some (retV (SH_base vs es)))
-    \/ (∃ tf h vcs, e = AI_call_host tf h vcs /\ to_val e1 = Some (callHostV tf h vcs (No_local (SH_base vs es))))
+    \/ (∃ tf h vcs, e = AI_call_host tf h vcs /\ to_val e1 = Some (callHostV tf h vcs ((SH_base vs es))))
     \/ (∃ i n es' LI (vh : valid_holed i),
           e = AI_label n es' LI /\ to_val e1 = Some (brV (VH_rec vs n es' vh es))
           /\ vfill vh [AI_basic (BI_br (S i))] = LI)
     \/ (∃ n es' LI sh, e = AI_label n es' LI /\ to_val e1 = Some (retV (SH_rec vs n es' sh es))
                       /\ sfill sh [AI_basic BI_return] = LI)
-    \/ (∃ tf h vcs n es' LI sh, e = AI_label n es' LI /\ to_val e1 = Some (callHostV tf h vcs (No_local (SH_rec vs n es' sh es)))
+    \/ (∃ tf h vcs n es' LI sh, e = AI_label n es' LI /\ to_val e1 = Some (callHostV tf h vcs ((SH_rec vs n es' sh es)))
                                /\ sfill sh [AI_call_host tf h vcs] = LI)
-    \/ (∃ tf h vcs n f LI sh, e = AI_local n f LI /\ to_val e1 = Some (callHostV tf h vcs (One_local vs n f sh es)) /\ sfill sh [AI_call_host tf h vcs] = LI).
+.
 Proof.
   intros e1.
   induction e1 ; intros e es vs Hsplit.
@@ -2208,11 +2195,11 @@ Proof.
       - left.
         unfold to_val => /=. destruct a => //.
         destruct b => //. rewrite of_to_val_instr => //.
-      - inversion Hsplit ; subst.
+(*      - inversion Hsplit ; subst.
         simpl.
         destruct (merge_values_list _) => //=.
         destruct v => //=.
-        destruct l1 => //=.
+        destruct l1 => //=. *)
       - inversion Hsplit ; subst.
         destruct (to_val (_ :: _)) eqn:Htv ; try by left.
         right. right. right. right.
@@ -2239,15 +2226,15 @@ Proof.
           unfold to_val ; by rewrite Hmerge.
           apply of_to_val in H.
           unfold of_val in H => //.
-        + destruct l2 => //=. rewrite merge_call_host flatten_simplify in Htv.
+        + rewrite merge_call_host flatten_simplify in Htv.
           inversion Htv ; subst.
-          right ; right ; right ; left. repeat eexists _.
+          right ; right ; right. repeat eexists _.
           repeat split => //.
-          assert (to_val l0 = Some (callHostV f h l1 (No_local s))).
+          assert (to_val l0 = Some (callHostV f h l1 (s))).
           unfold to_val ; by rewrite Hmerge.
           apply of_to_val in H.
           unfold of_val in H => //.
-      - inversion Hsplit ; subst.
+      (*- inversion Hsplit ; subst.
         destruct (to_val (_ :: _)) eqn:Htv ; try by left.
         right. right. right. right. right. right. right. right.
         unfold to_val in Htv ; simpl in Htv.
@@ -2259,10 +2246,10 @@ Proof.
         eexists f0, h, l0, n, f, l, _. repeat split => //.
         rewrite flatten_simplify.
         done.
-        replace (sfill s [AI_call_host f0 h l0]) with (of_val (callHostV f0 h l0 (No_local s))) ; last done.
+        replace (sfill s [AI_call_host f0 h l0]) with (of_val (callHostV f0 h l0 (s))) ; last done.
         apply of_to_val.
         unfold to_val.
-        rewrite Hmerge => //=.
+        rewrite Hmerge => //=. *)
       - unfold to_val => /=.
         rewrite merge_call_host flatten_simplify.
         inversion Hsplit.
@@ -2274,7 +2261,7 @@ Proof.
       destruct (split_vals_e e1) eqn:Hsome.
       assert ((l, l0) = (vs, (e :: es)%SEQ)) as Heq%IHe1.
       { simplify_eq. auto. }
-      destruct Heq as [?|[[??]|[[?[??]]|[[??]|[(?&?&?&?&?)|[(?&?&?&?&?&?&?&?)|[(?&?&?&?&?&?&?)|[(?&?&?&?&?&?&?&?&?&?)|(?&?&?&?&?&?&?&?&?&?)]]]]]]]] ;
+      destruct Heq as [?|[[??]|[[?[??]]|[[??]|[(?&?&?&?&?)|[(?&?&?&?&?&?&?&?)|[(?&?&?&?&?&?&?)|(?&?&?&?&?&?&?&?&?&?)]]]]]]] ;
         unfold to_val => /= ; rewrite merge_prepend.
       { left. unfold to_val in H. destruct (merge_values_list _) => //. } 
       { left. unfold to_val in H0. destruct (merge_values_list _) => //. by inversion H0. }
@@ -2294,11 +2281,11 @@ Proof.
         inversion H0 => /=. do 6 right.  left. repeat eexists _. repeat split => //.
         by inversion Hsplit. }
       { unfold to_val in H0. destruct (merge_values_list _) => //. 
-        inversion H0 => /=. do 7 right. left. repeat eexists _. repeat split => //.
+        inversion H0 => /=. do 7 right. repeat eexists _. repeat split => //.
         by inversion Hsplit. }
-      { unfold to_val in H0. destruct (merge_values_list _) => //.
+(*      { unfold to_val in H0. destruct (merge_values_list _) => //.
         inversion H0 => /=. do 8 right. repeat eexists _. repeat split => //.
-        by inversion Hsplit. } 
+        by inversion Hsplit. }  *)
         
     }  }
 Qed.
@@ -2351,19 +2338,19 @@ Proof.
       right ; right. left.
       rewrite merge_return flatten_simplify.
       by eexists.
-    + destruct l2 => //= ; try by left.
+    + (* destruct l2 => //= ; try by left. *)
       rewrite merge_call_host flatten_simplify.
       right ; right ; right.
       rewrite merge_call_host flatten_simplify.
       by repeat eexists.
-  - unfold to_val => /=.
+(*  - unfold to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => // ; try by left.
     destruct v => //= ; try by left.
     destruct l1 => //= ; try by left.
     rewrite merge_call_host flatten_simplify.
     right ; right ; right.
     rewrite merge_call_host flatten_simplify.
-    by repeat eexists.
+    by repeat eexists. *)
   - unfold to_val => /=.
     repeat right ; repeat eexists.
     rewrite merge_call_host flatten_simplify.
@@ -2415,7 +2402,7 @@ Proof.
     destruct v0 => //.
     simpl in Hes1.
     inversion Hes1 ; subst.
-    apply (IHes1 H l0) => //.
+    apply (IHes1 H s) => //.
     unfold to_val.
     rewrite Hmerge.
     done.
@@ -2453,14 +2440,14 @@ Proof.
       repeat rewrite merge_br => //.
     + repeat rewrite merge_return => //.
     + repeat rewrite merge_call_host => //.
-  - unfold to_val => /=. destruct l2 => //=. by rewrite merge_call_host flatten_simplify.
-  - unfold to_val => /=.
+  - unfold to_val => /=. by rewrite merge_call_host flatten_simplify.
+(*  - unfold to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //=.
     destruct v => //=.
     destruct l1 => //=.
     rewrite merge_call_host flatten_simplify => //.
   - unfold to_val => /=.
-    rewrite merge_call_host => //.
+    rewrite merge_call_host => //. *)
 Qed.
 
   
@@ -2660,9 +2647,9 @@ Proof.
       destruct (vh_decrease lh) => //.
       rewrite merge_br flatten_simplify => //.
     + rewrite merge_return flatten_simplify => //.
-    + destruct l2 => //=. rewrite merge_call_host flatten_simplify => //.
-  - unfold to_val => /=. destruct (merge_values_list _) => //=.
-    destruct v => //=. destruct l1 => //=. rewrite merge_call_host flatten_simplify => //.
+    + rewrite merge_call_host flatten_simplify => //.
+(*  - unfold to_val => /=. destruct (merge_values_list _) => //=.
+    destruct v => //=. destruct l1 => //=. rewrite merge_call_host flatten_simplify => //. *)
   - unfold to_val => /= ; by rewrite merge_call_host flatten_simplify.
 Qed.
 
@@ -3228,8 +3215,8 @@ Proof.
       rewrite - cat_app in Hfill.
       exact Hfill.
       all : try done.
-      destruct l0 => //=.
-      assert (to_val LI = Some (callHostV f0 h l (No_local s0))) ;
+(*      destruct l0 => //=. *)
+      assert (to_val LI = Some (callHostV f0 h l (s0))) ;
         first by unfold to_val ; rewrite Hmerge.
       apply of_to_val in H1. unfold of_val in H1. 
       specialize (sfill_to_lfilled s0 [AI_call_host f0 h l]) as Hfill.
@@ -3241,10 +3228,10 @@ Proof.
       rewrite - cat_app in Hfill.
       exact Hfill.
       all : try done.
-    + unfold to_val => /=.
+    (* + unfold to_val => /=.
       destruct (merge_values_list _) eqn:Hmerge => //.
       destruct v => //.
-      destruct l0 => //.
+      destruct l => //.
       assert (to_val e' = Some (callHostV f1 h l (No_local s0))) ;
         first by unfold to_val ; rewrite Hmerge.
       apply of_to_val in H1.
@@ -3286,7 +3273,7 @@ Proof.
       exact H2.
       rewrite - (app_nil_l [_]) - cat_app in Hfill.
       exact Hfill.
-      all : try done.
+      all : try done. *)
     + destruct v => //.
       by destruct b => //=.
     + move/lfilledP in H1.
@@ -3334,10 +3321,10 @@ Proof.
            eapply lfilled_return_and_reduce ; first (exact HRed) ;
              (try exact Hfilled) => //=.
         -- exfalso.
-           assert (to_val l2 = Some (callHostV f0 h l l3)) ;
+           assert (to_val l2 = Some (callHostV f0 h l s0)) ;
              first by unfold to_val ; rewrite Hmerge.
            apply of_to_val in H. unfold of_val in H.
-           destruct l3.
+(*           destruct s0. *)
            specialize (sfill_to_lfilled s0 [AI_call_host f0 h l]) as Hfilled.
            simpl in H.
            rewrite H in Hfilled.
@@ -3346,7 +3333,7 @@ Proof.
            rewrite - cat_app in Hfilled.
            eapply lfilled_call_host_and_reduce ; first (exact HRed) ;
              (try exact Hfilled) => //=.
-           simpl in H.
+(*           simpl in H.
            rewrite - H in Hfill.
            unfold lfill in Hfill.
            destruct k => // ; last first.
@@ -3399,7 +3386,7 @@ Proof.
            rewrite forallb_app.
            apply andb_true_iff ; split => //=.
            apply v_to_e_is_const_list.
-           apply v_to_e_is_const_list.            
+           apply v_to_e_is_const_list.             *)
       * destruct a => //.
         destruct b => //=.
         rewrite merge_prepend.
@@ -3415,7 +3402,7 @@ Proof.
         apply IHl in H => //.
         unfold to_val in H.
         destruct (merge_values_list _) => //.
-  - unfold to_val => //=.
+(*  - unfold to_val => //=.
     destruct (merge_values_list _) eqn:Hmerge => //=.
     destruct v => //=.
     destruct l0 => //=.
@@ -3431,7 +3418,7 @@ Proof.
     simpl ; exact Hfill.
     instantiate (1 := LH_base [] []).
     instantiate (1 := 0) ; unfold lfilled, lfill => //=.
-    by rewrite app_nil_r. 
+    by rewrite app_nil_r.  *)
 Qed.
 
 Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,

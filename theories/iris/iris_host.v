@@ -272,8 +272,8 @@ Proof.
   intro H ; inversion H ; subst ; clear H.
   generalize dependent l1 ; induction l ; intros l1 H ; destruct l1 => //=.
   simpl in H ; inversion H. specialize (IHl _ H2). by inversion IHl.
-  intro H ; inversion H ; subst ; clear H. rewrite (IHs0 _ H4).
-  clear IHs0. generalize dependent l2 ; induction l ; intros l2 H ; destruct l2 => //=.
+  intro H ; inversion H ; subst ; clear H. rewrite (IHs0 _ H4). 
+ clear IHs0. generalize dependent l2 ; induction l ; intros l2 H ; destruct l2 => //=.
   simpl in H ; inversion H. specialize (IHl _ H2). by inversion IHl.
 Qed.
 
@@ -338,7 +338,114 @@ Proof.
       (try by right ; right ; right ; right ; repeat eexists ; right).
 Qed.
 
-    
+Lemma sfill_const_list sh es :
+  const_list (sfill sh es) -> const_list es.
+Proof.
+  destruct sh => //= ;
+  intro H ; unfold const_list in H ; repeat rewrite forallb_app in H.
+  apply andb_true_iff in H as [_ H].
+  apply andb_true_iff in H as [? _] => //.
+  simpl in H. apply andb_true_iff in H as [??] => //.
+Qed.
+  
+
+
+Lemma call_host_no_reduce tf h vcs lh s0 f s'0 f' es' :
+  reduce s0 f (locfill lh [AI_call_host tf h vcs]) s'0 f' es' -> False.
+Proof.
+  intro H.
+  destruct lh ; unfold locfill in H.
+  apply val_head_stuck_reduce in H.
+  specialize (iris.to_of_val (callHostV tf h vcs s)) as Htv.
+  unfold of_val in Htv. rewrite H in Htv => //.
+  cut (forall m bef aft es' f f' , length bef + length aft < m -> reduce s0 f (v_to_e_list bef ++ AI_local n f0 (sfill s [AI_call_host tf h vcs]) :: aft) s'0 f' es' -> False).
+  intro H'.
+  exfalso ; apply (H' (S (length l + length l0)) l l0 es' f f') => //.
+  lia.
+  clear H es' f f'.
+  induction m ; first lia.
+  intros bef aft es' f f' Hm H.
+  remember (v_to_e_list bef ++ AI_local n f0 (sfill s [AI_call_host tf h vcs]) :: aft)%SEQ as es.
+  (* remember empty_frame as f.
+      remember empty_frame as f'.
+      rewrite -> Heqf in H at 2.
+      assert (reduce s0 f es s'0 f' es') as Hcopy => //. *)
+  induction H ; (try by do 3 destruct bef => //=) ; 
+    (try by subst ; apply first_values in Heqes as (? & ? & ?) => //= ;
+                                                                 apply v_to_e_is_const_list). 
+  inversion H ; subst ; (try by do 4 destruct bef => //=) ;
+    (try by subst ; apply first_values in H4 as (? & ? & ?) => //= ;
+                                                              apply v_to_e_is_const_list).
+  destruct bef ; inversion H2 => //.
+  subst. apply sfill_const_list in H0 => //.
+  destruct bef ; inversion H0 => //.
+  subst. destruct s ; simpl in H4 ; destruct l1 => //.
+  destruct bef ; inversion H3 => //.
+  subst. specialize (sfill_to_lfilled s [AI_call_host tf h vcs]) as Hfill.
+  rewrite - (app_nil_l [_]) - cat_app in Hfill.
+  specialize (lfilled_first_values H2 Hfill) as (? & ? & ?) => //.
+  destruct bef ; inversion H1 => //.
+  subst => //.
+  destruct bef => //.
+  unfold lfilled, lfill in H1.
+  destruct lh => //.
+  destruct (const_list l1) eqn:Hl1 => //.
+  apply b2p in H1.
+  apply first_values in H1 as (? & ? & ?) => // ; apply v_to_e_is_const_list.
+  subst.
+  unfold lfilled, lfill in H0.
+  destruct k, lh => // ; last first.
+  fold lfill in H0.
+  destruct (const_list l1) eqn:Hl1 => //.
+  destruct (lfill _ _ _) => //.
+  apply b2p in H0.
+  apply first_values in H0 as (_ & ? & _) => // ; apply v_to_e_is_const_list.
+  destruct (const_list l1) eqn:Hl1 => //.
+  apply b2p in H0.
+  destruct (first_non_value_reduce _ _ _ _ _ _ H) as (bef' & e & aft' & ? & ? & ?).
+  subst.
+  repeat rewrite app_assoc in H0.
+  rewrite - (app_assoc (l1 ++ bef')) in H0.
+  rewrite - app_comm_cons in H0.
+  rewrite - (v_to_e_length bef) in Hm.
+  apply first_values in H0 as (? & <- & ->) => // ; last first.
+  unfold const_list ; rewrite forallb_app.
+  unfold const_list in H2 ; rewrite H2.
+  unfold const_list in Hl1 ; rewrite Hl1.
+  done.
+  apply v_to_e_is_const_list.
+  destruct e => //.
+  destruct b => //.
+  unfold to_val in H3 ; simpl in H3.
+  by destruct H3.
+  rewrite H0 in Hm.
+  apply const_es_exists in H2 as [vs' ->].
+  destruct l1. destruct l2.
+  { apply IHreduce => //.
+    rewrite H0 => //=.
+    rewrite app_nil_r.
+    done. }
+  eapply IHm ; last first.
+  exact H.
+  simpl in Hm.
+  rewrite v_to_e_length app_length in Hm.
+  simpl in Hm.
+  lia.
+  eapply IHm ; last first.
+  exact H.
+  simpl in Hm.
+  rewrite app_length app_length v_to_e_length in Hm.
+  lia.
+  destruct bef ; inversion Heqes.
+  subst.
+  apply val_head_stuck_reduce in H.
+  specialize (to_of_val (callHostV tf h vcs s)) as H'.
+  unfold of_val in H'.
+  by rewrite H in H'.
+Qed.
+
+
+
 Lemma call_host_reduce_det s vis ms idecs fs LI lh tf h vcs hc1 hc2 :
   locfill lh [AI_call_host tf h vcs] = LI ->
   host_reduce (s, vis, ms, idecs, fs, LI) hc1 ->
@@ -368,9 +475,9 @@ Proof.
       inversion H ; subst.
       rewrite H0 in H5 ; inversion H5 ; subst.
       remember (HA_instantiate f0) as ha ; destruct H1 => //=.
-    + simplify_eq. apply val_head_stuck_reduce in H4.
-      specialize (iris.to_of_val (callHostV tf h vcs lh)) as Htv.
-      unfold of_val in Htv. rewrite H4 in Htv => //. 
+    + simplify_eq.
+      exfalso ; by eapply call_host_no_reduce.
+      
   - remember (s0, vis0, ms0, idecs0, fs0, LI0) as hc.
     destruct Hred2 => //= ; 
                      try by apply locfill_const in Hfill ; simplify_eq  => //=.
@@ -384,12 +491,9 @@ Proof.
           as [[H ->]|[?|[?|[(?&?&?&[?|?])|(?&?&?&[?|?])]]]] => //=.
       inversion H ; subst.
       rewrite H0 in H4 ; inversion H4 ; subst => //.
-    + simplify_eq. apply val_head_stuck_reduce in H3.
-      specialize (to_of_val (callHostV tf h vcs lh)) as Htv.
-      unfold of_val in Htv. rewrite H3 in Htv => //. 
-  - simplify_eq. apply val_head_stuck_reduce in H.
-    specialize (to_of_val (callHostV tf h vcs lh)) as Htv.
-    unfold of_val in Htv. rewrite H in Htv => //.
+    + simplify_eq.
+      exfalso ; by eapply call_host_no_reduce.
+  - simplify_eq. exfalso ; by eapply call_host_no_reduce. 
 Qed.
 
 
@@ -621,8 +725,13 @@ Proof.
   iApply lifting.wp_lift_step => //=.
   - destruct hes => //.
     subst.
-    fold (iris.of_val (callHostV tf (Mk_hostfuncidx hi) vcs lh)).
+    destruct lh => //=.
+    fold (iris.of_val (callHostV tf (Mk_hostfuncidx hi) vcs s0)).
     rewrite iris.to_of_val => //=.
+    unfold iris.to_val.
+    rewrite map_app merge_app.
+    destruct (merge_values_list _) => //=.
+    destruct v => //=. 
   - iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_mask_intro ; first by solve_ndisj.
     iIntros "Hfupd".
@@ -662,8 +771,13 @@ Proof.
   iIntros (Hh Hfill Hfill') "(Hhi & Hwp)".
   iApply lifting.wp_lift_step => //=.
   - destruct hes => //. subst.
-    fold (iris.of_val (callHostV (Tf [] []) (Mk_hostfuncidx hi) [] lh)).
+    destruct lh => //=. 
+    fold (iris.of_val (callHostV (Tf [] []) (Mk_hostfuncidx hi) [] s0)).
     rewrite iris.to_of_val => //=.
+    unfold iris.to_val.
+    rewrite map_app merge_app.
+    destruct (merge_values_list _) => //=.
+    destruct v => //=. 
   - iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_mask_intro ; first by solve_ndisj.
     iIntros "Hfupd".
@@ -873,26 +987,50 @@ Proof.
 Qed.
 
 
+Lemma wp_lift_wasm s E δ es Φ:
+  WP es {{ v, WP ((δ, iris.of_val v) : host_expr) {{ Φ }} }}
+     ⊢ WP ((δ, es) : host_expr) @ s; E {{ Φ }}.
+Proof.
+Admitted.
 
+Lemma wp_host_bind_local s E δ n f es Φ :
+  WP ((δ, es) : host_expr) @ s; E {{ v, WP ((δ, [AI_local n f (iris.of_val (val_of_host_val v))]) : host_expr) {{ Φ }} }}
+  ⊢ WP ((δ, [AI_local n f es]) : host_expr) @ s; E {{ Φ }}.
+Proof.
+Admitted.
+
+Lemma wp_value s E (e : host_expr) v Φ :
+  to_val e = Some v ->
+  Φ v ⊢ WP e @ s; E {{ Φ }}.
+Proof.
+  intro.
+  iIntros "HΦ".
+  iApply weakestpre.wp_value.
+  unfold IntoVal.
+  apply of_to_val.
+  done.
+  done.
+Qed.
+
+
+(*
 (* Lifting wasm wp to host wp *)
 Lemma wp_host_wasm (s: stuckness) E (es: iris.expr) (Φ: iris.val -> iProp Σ):
   (* wp_wasm s E es Φ *)
   (* This abuse of notation is somehow possible. It is the weirdest thing I've 
      seen in a while *)
-  host_wasm_expr_valid es ->
-(*  (* lifting only holds if final value is not a stuck br or return, and not a callHostV 
+(*  host_wasm_expr_valid es -> *)
+  (* lifting only holds if final value is not a stuck br or return, and not a callHostV 
      (as this reduces forward) *)
-  (∀ i (lh : valid_holed i), ¬ (Φ (brV lh))) -∗
-    (∀ sh, ¬ (Φ (retV sh))) -∗
-    (∀ tf h vcs sh, ¬ (Φ (callHostV tf h vcs sh))) -∗  *)
+  (∀ v, Φ v -∗ ⌜ (exists vs, v = immV vs) \/ v = trapV ⌝ ) -∗ 
     WP es @ s; E {{ Φ }} -∗
                  WP (([::], es): host_expr) @ s; E {{ v, Φ (val_of_host_val v) }}.
 Proof.
   iLöb as "IH" forall (s E es Φ).
-  iIntros (Hhwev).
+(*   iIntros (Hhwev). *)
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
   repeat rewrite wp_unfold /wp_pre /=. 
-  iIntros "Hwp".
+  iIntros "HΦ Hwp".
   destruct (iris.to_val es) eqn: Hes => //=.
   destruct v => //=.
   admit.
@@ -923,7 +1061,9 @@ Proof.
   iSplit.
   - destruct s => //.
     iPureIntro.
-    by apply reducible_lift.
+    apply reducible_lift.
+    admit.
+    done.
   - iIntros ([hes' wes'] [[[ws' vis'] ms'] fs'] efs HStep).
     unfold Iris_host.prim_step in HStep.
     destruct HStep as [HStep [-> ->]].
@@ -942,10 +1082,16 @@ Proof.
     iDestruct "Hwp" as (f) "(Hf & Hwp & ?)".
     iFrame.
     iSplit => //.
-    iApply ("IH" with "[]") ; first by apply hwev_reduce_closed in H0.
+    iApply ("IH" with "HΦ") (* ; first by apply hwev_reduce_closed in H0 *) .
     iApply "Hwp".
     by iApply "Hf".
 Admitted.
+
+Lemma wp_lift_call_host :
+  locfill lh es = LI ->
+  WP es @ s; E {{ v, WP (( [::], of_val v))}
+    ⊢ WP (( [::], LI) : host_expr) @ s; E {{ Φ }} *)
+
 
 End host_lifting.
 

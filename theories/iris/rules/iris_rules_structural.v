@@ -147,6 +147,7 @@ Qed.
 
 (* Contextual rules for Local computation *)
 
+(*
 Lemma to_val_local_change_frame n f es f' :
   iris.to_val [AI_local n f' es] =
     match iris.to_val [AI_local n f es] with
@@ -158,7 +159,7 @@ Proof.
   destruct (merge_values_list _) => //.
   destruct v => //.
   destruct l0 => //.
-Qed. 
+Qed.  *)
 
 Lemma wp_frame_rewrite (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es n f:
   WP es @ s; E FRAME n; f {{ v, Φ v }} ⊣⊢
@@ -178,11 +179,11 @@ Proof.
   rewrite wp_frame_rewrite.
   apply to_val_const_list in Hv as Hconst.
   iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
-  unfold iris.to_val => /=.
+(*  unfold iris.to_val => /=.
   apply const_list_to_val in Hconst as [??].
   unfold iris.to_val in H.
   destruct (merge_values_list _) => //.
-  by inversion H. 
+  by inversion H.  *)
   iIntros (σ ns κ κs nt) "Hσ !>".
   iSplit.
   - iPureIntro.
@@ -374,7 +375,7 @@ Qed. *)
     destruct Heq as [vs' [Heq Hfilled']].
     repeat rewrite wp_unfold /wp_pre /=.
     rewrite Heq.
-    destruct (iris.to_val [_]) eqn:Htv.
+(*    destruct (iris.to_val [_]) eqn:Htv.
     { unfold iris.to_val in Htv ; simpl in Htv.
       destruct (merge_values_list _) eqn:Hmerge => //.
       destruct v0 => //.
@@ -386,7 +387,7 @@ Qed. *)
       specialize (H _ Logic.eq_refl).
       unfold iris.of_val, locfill in H.
       specialize (sfill_to_lfilled s0 [AI_call_host f2 h l]) as H0.
-      rewrite H in H0. admit. }
+      rewrite H in H0. admit. } *)
      
     iIntros (? ? ? ? ?) "Hσ".
     destruct σ1 as [[s1 locs] inst].
@@ -403,17 +404,17 @@ Qed. *)
     iSpecialize ("Hes2" $! _ Hfilled').
     iDestruct (wp_unfold with "Hes2") as "Hes2".
     rewrite /wp_pre /=.
-    rewrite (to_val_local_change_frame _ f _ f1).
-    rewrite Htv => /=.
+
+    
     iSpecialize ("Hes2" $! (s1,locs,inst) _ _ _ _ with "[$Hfuncs $Htables $Hmems $Hglobals $Hlen $Hframe]").
     iFrame.
   }
   {
     (* Ind *)
     repeat rewrite wp_unfold /wp_pre /=.
-    unfold iris.to_val at 2 => /=.
+    (*unfold iris.to_val at 2 => /=.
     unfold iris.to_val in Hetov.
-    destruct (merge_values_list _) eqn:Hmerge => //. 
+    destruct (merge_values_list _) eqn:Hmerge => //.  *)
     iIntros (σ ns κ κs nt) "Hσ". 
     destruct (iris.to_val es1) as [vs|] eqn:Hes.
   { apply of_to_val in Hes as <-.
@@ -429,7 +430,7 @@ Qed. *)
     iSpecialize ("Hes2" $! _ Hfilled).
     iDestruct (wp_unfold with "Hes2") as "Hes2"; rewrite /wp_pre /=.
     (* rewrite Hetov. *)
-    unfold iris.to_val => /= ; rewrite Hmerge => //=.
+(*    unfold iris.to_val => /= ; rewrite Hmerge => //=. *)
     iSpecialize ("Hes2" $! (s1,locs,inst) ns κ κs nt with "[$]"). subst f.
     iMod "Hes2" as "[%H1 H2]".
     iIntros "!>".
@@ -506,7 +507,7 @@ Qed. *)
           by iSpecialize ("Htrap" with "Hes''").
         Unshelve. all: try apply 0. all: apply [].
   } } }
-Admitted.
+Qed.
 
 
 
@@ -723,7 +724,7 @@ Proof.
     iSimpl. destruct vs';auto.
     by rewrite -vh_push_const_app.
     by rewrite -sh_push_const_app.
-    by rewrite -loch_push_const_app.
+    by rewrite -sh_push_const_app.
   }
 Qed.
   
