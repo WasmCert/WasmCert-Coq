@@ -448,15 +448,16 @@ Section Examples_host.
         { rewrite Heqadvm /=. eauto. }
         { rewrite Heqadvm /= /get_import_func_count /= drop_0 /= -nth_error_lookup. eauto. }
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
-        iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_host_wasm.
+        iApply wp_lift_wasm.
+(*        iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
         iIntros "!>" (v).
         instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) ∗
-   ↪[frame]empty_frame)%I) => //=.
+   ↪[frame]empty_frame)%I) => //=. 
         iIntros "H".
         iDestruct "H" as "[[% | H2] H3]" ; iFrame.
         iLeft ; iPureIntro.
         by destruct v => //=. 
-        by apply HWEV_invoke.
+        by apply HWEV_invoke. *)
 
         (* iDestruct "H" as (inst g_inits t_inits m_inits Hinst (Ht_inits & Hm_inits & (Heqg & Hg_inits))) "[Hlse _]". *)
         (* destruct g_inits;[|done]. *)
@@ -485,7 +486,8 @@ Section Examples_host.
         destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|]. destruct l;[done|].
         simpl in Heq5. revert Heq5. move/eqP =>Hstart. rewrite Hinstfuncseq /= in Hstart.
         inversion Heq2;subst f f0 l. inversion Hstart.
-        
+        iApply wp_wand_r.
+        iSplitL.
         iApply (wp_invoke_native with "Hf Hr");[eauto|eauto..|].
         iModIntro. iNext. iIntros "[Hf Hidnstart]".
         iApply (wp_frame_bind with "Hf"). iIntros "Hf".
@@ -517,7 +519,7 @@ Section Examples_host.
           iExists _. iFrame "Hf".
           iIntros "Hf".
           iApply (wp_frame_trap with "Hf").
-          iNext. by iLeft. }
+          iNext.  instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ ⌜ v = immV [] ⌝ ∗ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) )%I) => //=. by iLeft. }
 
         rewrite N2Nat.id. simpl of_val.
 
@@ -528,6 +530,20 @@ Section Examples_host.
         iExists _. iFrame "Hf".
         iIntros "Hf".
         iApply (wp_frame_value with "Hf");eauto.
+        iIntros "!>" (v) "[[% | [% H]] Hf]".
+        iApply weakestpre.wp_value.
+        unfold IntoVal.
+        apply of_to_val.
+        subst.
+        done.
+        iFrame.
+        by iLeft.
+        iApply weakestpre.wp_value.
+        unfold IntoVal.
+        apply of_to_val.
+        subst.
+        done.
+        iFrame.
       }
     }
 

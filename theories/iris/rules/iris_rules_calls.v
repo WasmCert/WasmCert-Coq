@@ -43,12 +43,7 @@ Context `{!wasmG Σ}.
         destruct (vh_decrease _) => //.
         rewrite merge_br flatten_simplify in Hval => //.
         rewrite merge_return flatten_simplify in Hval => //.
-        destruct l2 => //. 
         rewrite merge_call_host flatten_simplify in Hval => //.
-      - destruct (merge_values_list _) => //.
-        destruct v => //.
-        destruct l1 => //.
-        rewrite merge_call_host flatten_simplify in Hval => //. 
       - rewrite merge_call_host flatten_simplify in Hval => //.
     }
   Qed.

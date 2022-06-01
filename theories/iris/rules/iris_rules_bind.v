@@ -26,9 +26,7 @@ Context `{!wasmG Σ}.
     repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply wp_unfold.
-      unfold wp_pre.
-      destruct (language.to_val ([_] : iris.expr)).
-      admit. 
+      unfold wp_pre. simpl.
       iIntros (σ ns κ κs nt) "Hσ".
       destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
@@ -43,14 +41,10 @@ Context `{!wasmG Σ}.
       iDestruct ("H" with "Hf") as "H".
       iDestruct (wp_unfold with "H") as "H".
       rewrite /wp_pre /=. rewrite lookup_insert in Hlook;inversion Hlook.
-      destruct (iris.to_val [_]) eqn:Htv.
-      admit. 
       iSpecialize ("H" $! (_,_,_) 0 κ [] 0 with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]").
       erewrite of_to_val;[|apply Hetov].
       iMod "H" as "[? H]". iModIntro. iFrame. }
-    { iApply wp_unfold. unfold wp_pre.
-      destruct (language.to_val ([_] : iris.expr)) eqn:Htv.
-      admit. 
+    { iApply wp_unfold. unfold wp_pre. simpl.
       iIntros (σ ns κ κs nt) "Hσ".
       destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
@@ -94,7 +88,7 @@ Context `{!wasmG Σ}.
       iDestruct "Hcont" as "[Hcont _]".
       iApply ("IH" with "Hf Hcont").
     }
-  Admitted.
+Qed.
 
   Lemma wp_label_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e n es l1 l2 :
     WP e @ s; E {{ w, WP of_val w @ s; E CTX 1; LH_rec l1 n es (LH_base [] []) l2 {{ w, Φ w }} }} -∗
