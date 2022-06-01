@@ -5,7 +5,7 @@ From Wasm Require Import common memory_list.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
 From Wasm Require Export datatypes_properties list_extra.
-From Coq Require Import BinNat.
+From Coq Require Import BinNat Eqdep_dec.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -518,6 +518,8 @@ Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruc
   | _ => ([::], es)
   end.
 
+
+
 (** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
     are all of the form [Basic (EConst v)];
     returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
@@ -529,6 +531,25 @@ Fixpoint split_vals_e (es : seq administrative_instruction) : seq value * seq ad
     (v :: vs', es'')
   | _ => ([::], es)
   end.
+
+Lemma split_vals_not_empty_res : forall es v vs es',
+  split_vals_e es = (v :: vs, es') -> es <> [::].
+Proof. by case. Qed.
+
+Lemma split_vals_e_not_const es vs e es' :
+  split_vals_e es = (vs, e :: es') -> is_const e -> False.
+Proof.
+  generalize dependent vs ; generalize dependent e ; generalize dependent es'. 
+  induction es => //= ; intros.
+  destruct a => //= ; try by inversion H ; subst. 
+  destruct b => //= ; try by inversion H ; subst.
+  destruct (split_vals_e es) as [??] eqn:Hes.
+  destruct l0 => //=.
+  inversion H ; subst. by eapply IHes.
+Qed.
+
+
+
 
 Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
   match (es, n) with
@@ -648,6 +669,13 @@ Fixpoint lfill_exact (k : nat) (lh : lholed) (es : seq administrative_instructio
 
 Definition lfilled_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
   if lfill_exact k lh es is Some es'' then es' == es'' else false.
+
+Fixpoint lh_depth lh :=
+  match lh with
+  | LH_base _ _ => 0
+  | LH_rec _ _ _ lh _ => S (lh_depth lh)
+  end.
+
 
 Definition result_types_agree (ts : result_type) r :=
   match r with
@@ -769,6 +797,51 @@ Definition n_zeros (ts : seq value_type) : seq value :=
 (* TODO: lots of lemmas *)
 
 
+Definition is_none_or {A : Type} (p : A -> bool) (x : option A) : bool :=
+  match x with
+  | None => true
+  | Some y => p y
+  end.
 
+Lemma b2p: forall {T:eqType} (a b:T), a==b -> a=b.
+Proof. move => T a b Hb. by move/eqP in Hb. Qed.
+
+
+Lemma cat_app {A} (l1 : list A) l2 :
+  cat l1 l2 = app l1 l2.
+Proof. done. Qed.
+
+
+
+
+
+
+
+
+
+Lemma first_values vs1 e1 es1 vs2 e2 es2 :
+  (is_const e1 -> False) ->
+  (is_const e2 -> False) ->
+  const_list vs1 ->
+  const_list vs2 ->
+  vs1 ++ e1 :: es1 = vs2 ++ e2 :: es2 ->
+  vs1 = vs2 /\ e1 = e2 /\ es1 = es2.
+Proof.
+  intros He1 He2 Hvs1 Hvs2 Heq.
+  generalize dependent vs2; induction vs1 ; intros.
+  { destruct vs2 ; inversion Heq => //=. rewrite <- H0 in Hvs2.
+    simpl in Hvs2. apply Bool.andb_true_iff in Hvs2 as [ Habs _ ].
+    assert (const_list [::e1]) ; first by apply Bool.andb_true_iff.
+    done. }
+  destruct vs2 ; inversion Heq.
+  { rewrite H0 in Hvs1.
+    simpl in Hvs1. apply Bool.andb_true_iff in Hvs1 as [ Habs _ ].
+    assert (const_list [::e2]) ; first by apply Bool.andb_true_iff.
+    done. }
+  assert (vs1 = vs2 /\ e1 = e2 /\ es1 = es2) as H ; last by destruct H ; subst.
+  apply IHvs1 => //=.
+  - by apply Bool.andb_true_iff in Hvs1 as [ _ Hvs1 ].
+  - by apply Bool.andb_true_iff in Hvs2 as [ _ Hvs2 ].  
+Qed.
 
 
