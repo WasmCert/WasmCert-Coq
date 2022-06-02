@@ -463,7 +463,7 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
   }}})%I.
 
   (* A trap allowing version for code that might trap *)
-Definition spec5_stack_map_trap idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
+(*Definition spec5_stack_map_trap idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
   (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a (* cl *)
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
       {{{  ↪[frame] f0 ∗ na_own logrel_nais ⊤ ∗
@@ -498,7 +498,7 @@ Definition spec5_stack_map_trap idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPr
       N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
       na_own logrel_nais ⊤ ∗
       ↪[frame] f0
-  }}})%I.
+  }}})%I. *)
 
 Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
@@ -568,8 +568,8 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
                     (* Spec for push (call 4) *)
                     spec4_push idf4 i0 l4 f4 isStack ∗
                     (* Spec of stack_map (call 5) *)
-                    spec5_stack_map idf5 i0 l5 f5 isStack idt ∗
-                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt
+                    spec5_stack_map idf5 i0 l5 f5 isStack idt (* ∗
+                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt *)
                                           
              }}.
   Proof.
@@ -594,6 +594,8 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
     - iPureIntro. apply dom_empty.
     - iPureIntro. apply dom_empty.
     - done.
+    - iPureIntro. unfold module_elem_bound_check_gmap => //=.
+    - iPureIntro. unfold module_data_bound_check_gmap => //=.
     - unfold export_ownership_host.
       iSplitL "Hhv0".
       by iExists _.
@@ -611,18 +613,12 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       by iExists _.
       done.
       done.
-      iPureIntro.
-      unfold module_elem_bound_check_gmap.
-      simpl.
-      done.
-      iPureIntro.
-      unfold module_data_bound_check_gmap.
-      simpl.
-      done.
     - iIntros (v) "Hinst". 
       unfold instantiation_resources_post.
       iDestruct "Hinst" as "(Hmod & Himphost & Hinst)".
-      iDestruct "Hinst" as (inst g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm & Hexphost)".
+      iDestruct "Hinst" as (inst) "[Himpwasm Hexphost]".
+      unfold instantiation_resources_post_wasm.
+      iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -1212,7 +1208,7 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΦ".
       by iFrame.
-      iSplitR.
+(*      iSplitR. *)
     - iIntros "!>" (f5 fi v0 s0 a cl Φ Ψ Ξ)
               "!> (Hf & Hf0 & % & %Hs & Hs & HΦ & Htab & Hcl & %Hclt & #Hspec) HΞ".
       iApply wp_wand_r.
@@ -1321,7 +1317,9 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
-    - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
+      (* Proof of the spec with traps, uncomment once the problem with the 
+         formulation is solved *)
+(*    - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
               "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hspec) HΞ".
       iApply wp_wand_r.
       iSplitR "HΞ".
@@ -1436,8 +1434,8 @@ Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : mo
       iSimpl.
       iIntros (w) "[[[-> | (-> & Hs & Hf0)] [Hown Htab]] Hf]".
       all: iApply "HΞ";iFrame. by iLeft.
-      iRight. iSplit;auto. iFrame.
-  Qed.
+      iRight. iSplit;auto. iFrame. *)
+  Qed. 
 
 
   End StackModule.

@@ -268,7 +268,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iDestruct "Hes1" as (i0) "Hes1".  
       iDestruct "Hes1" as (l0 l1 l2 l3 l4 l5) "Hes1".
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
-                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & _)".
+                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5)".
       iFrame "Hmod0".
       iApply (instantiation_spec_operational_start with "[Hmod1 Himport Himp_type Hvis7]") ; try exact module_typing_client.
     - by unfold client_module.
@@ -276,9 +276,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iFrame.
     - unfold export_ownership_host => /=.
       repeat iSplit.
-      by iExists _.
-      done.
-      done.
+    
       iPureIntro ; unfold module_elem_bound_check_gmap ; simpl.
       apply Forall_cons.
       split ; last done.
@@ -286,10 +284,14 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       rewrite lookup_insert.
       done.
       iPureIntro ; unfold module_data_bound_check_gmap ; simpl ; done.
+      by iExists _.
+      done.
+      done.
     - iIntros (idnstart) "Hf Hres".
       unfold instantiation_resources_post.
       iDestruct "Hres" as "(Hmod1 & Himphost & Hres)".
-      iDestruct "Hres" as (inst g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & Hginit & -> & Hexpwasm & Hexphost)".
+      iDestruct "Hres" as (inst) "[Hres Hexphost]".
+      iDestruct "Hres" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob & Hstart).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -417,7 +419,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       simpl in Hstart.
       apply b2p in Hstart.
       inversion Hstart ; subst ; clear Hstart.
-      iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_host_wasm.
+      iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
       iIntros (v).
       instantiate ( 1 := λ v, (1%N↪[mods]client_module ∗
   (∃ (idg : nat) (name7 : datatypes.name),
@@ -425,7 +427,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
      (N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int 20 |}
       ∨ N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int (-1) |})))%I) => //=.
       iIntros "H" ; done. 
-      by apply HWEV_invoke.
+      
 
       
       iApply wp_wand_r.
@@ -1065,6 +1067,8 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iIntros (w0) "[[-> Hwg] Hf]".
       iFrame.
       iDestruct "Hwg" as (g') "[Hwg Hvis7]".
+      iApply weakestpre.wp_value.
+      instantiate (1 := immHV []) => //=.
       iExists g', _.
       iFrame.
   Qed.

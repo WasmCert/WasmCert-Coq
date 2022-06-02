@@ -186,9 +186,8 @@ Ltac take_drop_app_rewrite_twice n m :=
   end.
 
 Section Client_main.
-  Import DummyHost.
 
-  Context `{!wasmG Σ, !logrel_na_invs Σ, HWP:host_program_logic}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ (* , HWP:host_program_logic *) }.
 
   Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) vs vs' es' es'' n f0:
     const_list vs ->
@@ -272,7 +271,7 @@ Section Client_main.
     ⊢ {{{ ↪[frame] f
          ∗ na_own logrel_nais ⊤
          ∗ na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] (FC_func_native i (Tf [T_i32] [T_i32]) locs es))
-         ∗ interp_instance (HWP:=HWP) C i
+         ∗ interp_instance (* HWP:=HWP *) C i
          ∗ (∃ gv, N.of_nat k ↦[wg] {| g_mut := MUT_mut; g_val := gv |})
          (* new stack *)
          ∗ N.of_nat idf0 ↦[wf]FC_func_native istack (Tf [] [T_i32]) l0 f0
@@ -285,7 +284,7 @@ Section Client_main.
          ∗ spec3_pop idf3 istack l3 f3 isStack
          (* map *)
          ∗ N.of_nat idf5↦[wf]FC_func_native istack (Tf [T_i32; T_i32] []) l5 f5
-         ∗ spec5_stack_map_trap idf5 istack l5 f5 isStack idt
+         ∗ spec5_stack_map_trap idf5 istack l5 f5 isStack idt 
          (* table *)
          ∗ N.of_nat idt↦[wtblock]table_init_replace_single stacktab (nat_of_int (Wasm_int.Int32.repr 0)) [Some a]
          (* new stack predicate *)
@@ -600,10 +599,9 @@ Section Client_main.
 End Client_main.
 
 Section Client_instantiation.
-  Import DummyHost.
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
-        !logrel_na_invs Σ, HWP:host_program_logic,!hvisG Σ, !hmsG Σ}.
+        !logrel_na_invs Σ, (* HWP:host_program_logic,!hvisG Σ, *) !hasG Σ}.
 
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
     (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
@@ -949,7 +947,7 @@ Section Client_instantiation.
       iExists v. rewrite N2Nat.id. iFrame.
     }
 
-    Unshelve. apply HWP.
+(*    Unshelve. apply HWP. *)
   Qed.
   
 End Client_instantiation.
