@@ -1046,14 +1046,6 @@ Proof.
   all : try by destruct s => //= ; rewrite app_comm_cons ; rewrite app_assoc.
 Qed.
 
-Lemma list_fmap_app a b c d e :
-  list_fmap a b c (d ++ e) = list_fmap a b c d ++ list_fmap a b c e.
-Proof.
-  fold (fmap c (d ++ e)).
-  rewrite fmap_app.
-  done.
-Qed.
-
 
 (* if we write val_not_val_combine_assoc v1 v2 as v1 + v2, this lemma is just plain
    associativity : v1 + (v2 + x) = (v1 + v2) + x. Because of typing, the phrasing is

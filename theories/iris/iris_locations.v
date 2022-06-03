@@ -482,34 +482,6 @@ Qed.
 Definition new_2d_gmap_at_n {T: Type} (n: N) (l: list T) : gmap (N*N) T :=
   list_to_map (imap (fun i x => ((n, N.of_nat i), x)) l).
 
-Lemma repeat_lookup {T: Type} (x: T) (n i: nat):
-  i < n <->
-  (repeat x n) !! i = Some x.
-Proof.
-  split. 
-  - move : n.
-    induction i; move => n HLen; destruct n => //=; try lia.
-    apply IHi.
-    lia.
-  - move => Hlookup.
-    apply lookup_lt_Some in Hlookup.
-    by rewrite repeat_length in Hlookup.
-Qed.
-
-Lemma repeat_lookup_None {T: Type} (x: T) (n i: nat):
-  i >= n <->
-  (repeat x n) !! i = None.
-Proof.
-  split. 
-  - move : n.
-    induction i; move => n HLen; destruct n => //=; try lia.
-    apply IHi.
-    lia.
-  - move => Hlookup.
-    apply lookup_ge_None in Hlookup.
-    by rewrite repeat_length in Hlookup.
-Qed.
-
 Lemma new_2d_gmap_at_n_lookup {T: Type} n (i: N) (l: list T):
   (new_2d_gmap_at_n n l) !! (n, i) = l !! (N.to_nat i).
 Proof.

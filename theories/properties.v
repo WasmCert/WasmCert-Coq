@@ -24,7 +24,6 @@ Let to_e_list := @to_e_list host_function.
 Let e_is_trap := @e_is_trap host_function.
 Let es_is_trap := @es_is_trap host_function.*)
 
-
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
   length es1 = length es3 ->
@@ -36,6 +35,21 @@ Proof.
   inversion Hlen; clear Hlen.
   apply H in H3 => //.
   by inversion H3 => //; subst.
+Qed.
+
+Lemma combine_app {T1 T2: Type} (l1 l3: list T1) (l2 l4: list T2):
+  length l1 = length l2 ->
+  List.combine (l1 ++ l3) (l2 ++ l4) = List.combine l1 l2 ++ List.combine l3 l4.
+Proof.
+  generalize dependent l2.
+  generalize dependent l3.
+  generalize dependent l4.
+  induction l1; move => l4 l3 l2 Hlen => /=; first by destruct l2 => //.
+  - destruct l2 => //=.
+    simpl in Hlen.
+    inversion Hlen; subst; clear Hlen.
+    f_equal.
+    by apply IHl1.
 Qed.
 
 Lemma const_list_concat: forall vs1 vs2,
@@ -729,6 +743,32 @@ Proof.
     simpl in HALL. move/andP in HALL. destruct HALL.
     eapply IHn; by eauto.
 Qed.
+
+Lemma all2_Forall2 {T1 T2: Type} r (l1: list T1) (l2: list T2):
+  all2 r l1 l2 <-> List.Forall2 r l1 l2.
+Proof.
+  move: l2.
+  elim: l1 => //=.
+  - move => l2; destruct l2 => //=.
+    split => //.
+    move => Hcontra.
+    by inversion Hcontra.
+  - move => e l1 IH l2.
+    destruct l2 => //=.
+    + split => //.
+      move => Hcontra.
+      by inversion Hcontra.
+    + split; move => H.
+      * move/andP in H.
+        destruct H.
+        constructor => //.
+        by apply IH.
+      * apply/andP.
+        inversion H; subst; clear H.
+        split => //.
+        by apply IH.
+Qed.
+
 
 Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
   forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
