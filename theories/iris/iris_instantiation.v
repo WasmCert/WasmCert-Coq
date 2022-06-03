@@ -11,7 +11,63 @@ Require Export type_preservation.
 
 Close Scope byte.
 
-Section instantiation_det.
+Section module_typing_det.
+
+Lemma module_typing_det_import_aux m it1 et1 it2 et2:
+  module_typing m it1 et1 ->
+  module_typing m it2 et2 ->
+  it1 = it2.
+Proof.
+  move => Hmt1 Hmt2.
+  unfold module_typing in Hmt1, Hmt2.
+  destruct m.
+  destruct Hmt1 as [fts1 [gts1 [Hmft1 [Hmtt1 [Hmmt1 [Hmgt1 [Hmet1 [Hmdt1 [Hmst1 [Hmimt1 Hmext1]]]]]]]]]].
+  destruct Hmt2 as [fts2 [gts2 [Hmft2 [Hmtt2 [Hmmt2 [Hmgt2 [Hmet2 [Hmdt2 [Hmst2 [Hmimt2 Hmext2]]]]]]]]]].
+  
+  clear - Hmimt1 Hmimt2.
+  apply list_eq.
+  move => i.
+  rewrite -> Forall2_lookup in Hmimt1.
+  specialize (Hmimt1 i).
+  rewrite -> Forall2_lookup in Hmimt2.
+  specialize (Hmimt2 i).    
+  destruct (it1 !! i) eqn:Hitl1; destruct (it2 !! i) eqn:Hitl2; inversion Hmimt1; inversion Hmimt2; subst => //=.
+  - rewrite <- H in H2.
+    inversion H2; subst; clear H2.
+    destruct x; simpl in *.
+    unfold module_import_typing in *.
+    destruct imp_desc; simpl in *; destruct e; destruct e0 => //.
+    { (* func *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      destruct (nth_error mod_types n) => //.
+      move/eqP in H1.
+      move/eqP in H3.
+      by subst.
+    }
+    { (* table *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      move/eqP in H0.
+      move/eqP in H2.
+      by subst.
+    }
+    { (* memory *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      move/eqP in H0.
+      move/eqP in H2.
+      by subst.
+    }
+    { (* global *)
+      move/eqP in H1.
+      move/eqP in H4.
+      by subst.
+    }
+  - by rewrite <- H in H3.
+  - by rewrite <- H in H0.
+Qed.
+
 
 Lemma module_typing_det m it1 et1 it2 et2:
   module_typing m it1 et1 ->
@@ -19,26 +75,104 @@ Lemma module_typing_det m it1 et1 it2 et2:
   (it1, et1) = (it2, et2).
 Proof.
   move => Hmt1 Hmt2.
+  specialize (module_typing_det_import_aux _ _ _ _ _ Hmt1 Hmt2) as ->.
   unfold module_typing in Hmt1, Hmt2.
   destruct m.
   destruct Hmt1 as [fts1 [gts1 [Hmft1 [Hmtt1 [Hmmt1 [Hmgt1 [Hmet1 [Hmdt1 [Hmst1 [Hmimt1 Hmext1]]]]]]]]]].
   destruct Hmt2 as [fts2 [gts2 [Hmft2 [Hmtt2 [Hmmt2 [Hmgt2 [Hmet2 [Hmdt2 [Hmst2 [Hmimt2 Hmext2]]]]]]]]]].
-Admitted.
-  
-Lemma instantiate_det s m vimps res res':
-  instantiate s m vimps res ->
-  instantiate s m vimps res' ->
-  res = res'.
-Proof.
-  move => Hinst1 Hinst2.
-  destruct res as [[[s1 inst1] exp1] start1].
-  destruct res' as [[[s2 inst2] exp2] start2].
-  unfold instantiate, instantiation.instantiate in *.
-  destruct Hinst1 as (t_imps1 & t_exps1 & ws1 & g_inits1 & e_offs1 & d_offs1 & Hmodtype1 & Hexttype1 & Hallocmodule1 & Hinstglob1 & Hinstelem1 & Hinstdata1 & Hcbelem1 & Hcbdata1 & Hcstart1 & Hws1).
-  destruct Hinst2 as [t_imps2 [t_exps2 [ws2 [g_inits2 [e_offs2 [d_offs2 [Hmodtype2 [Hexttype2 [Hallocmodule2 [Hinstglob2 [Hinstelem2 [Hinstdata2 [Hcbelem2 [Hcbdata2 [Hcstart2 Hws2]]]]]]]]]]]]]]].
-Admitted.
 
-End instantiation_det.
+  (* Function types *)
+  assert (fts1 = fts2) as Heqfts.
+  { clear - Hmft1 Hmft2.
+    apply list_eq.
+    move => i.
+    rewrite -> Forall2_lookup in Hmft1.
+    specialize (Hmft1 i).
+    rewrite -> Forall2_lookup in Hmft2.
+    specialize (Hmft2 i).
+    destruct (mod_funcs !! i) eqn: Hfli; inversion Hmft1; inversion Hmft2; subst => //=.
+    destruct m, modfunc_type, y, y0; simpl in *.
+    destruct H1 as [_ [Heqtf1 _]].
+    destruct H4 as [_ [Heqtf2 _]].
+    move/eqP in Heqtf1.
+    move/eqP in Heqtf2.
+    rewrite Heqtf1 in Heqtf2.
+    by rewrite Heqtf2.
+  }
+  subst.
+
+  (* Global types *)
+  assert (gts1 = gts2) as Heqgts.
+  { clear - Hmgt1 Hmgt2.
+    apply list_eq.
+    move => i.
+    rewrite -> Forall2_lookup in Hmgt1.
+    specialize (Hmgt1 i).
+    rewrite -> Forall2_lookup in Hmgt2.
+    specialize (Hmgt2 i).
+    destruct (mod_globals !! i) eqn: Hgli; inversion Hmgt1; inversion Hmgt2; subst => //=.
+    destruct m, modglob_type, y, y0; simpl in *.
+    destruct H1 as [_ [Heqgt1 _]].
+    destruct H4 as [_ [Heqgt2 _]].
+    inversion Heqgt1.
+    inversion Heqgt2.
+    by subst.
+  }
+  subst.
+  
+  f_equal.
+  clear - Hmext1 Hmext2.
+  apply list_eq.
+  move => i.
+  rewrite -> Forall2_lookup in Hmext1.
+  specialize (Hmext1 i).
+  rewrite -> Forall2_lookup in Hmext2.
+  specialize (Hmext2 i).    
+  destruct (et1 !! i) eqn:Hetl1; destruct (et2 !! i) eqn:Hetl2; inversion Hmext1; inversion Hmext2; subst => //=.
+  - rewrite <- H in H2.
+    inversion H2; subst; clear H2.
+    destruct x; simpl in *.
+    unfold module_export_typing in *.
+    destruct modexp_desc; [destruct f | destruct t | destruct m | destruct g]; simpl in *; destruct e; destruct e0 => //=.
+    { (* func *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      destruct (nth_error _ n) => //.
+      move/eqP in H1.
+      move/eqP in H3.
+      by subst.
+    }
+    { (* table *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      destruct (nth_error _ n) => //.
+      move/eqP in H1.
+      move/eqP in H3.
+      by subst.
+    }
+    { (* memory *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      destruct (nth_error _ n) => //.
+      move/eqP in H1.
+      move/eqP in H3.
+      by subst.
+    }
+    { (* global *)
+      move/andP in H1; destruct H1.
+      move/andP in H4; destruct H4.
+      destruct (nth_error _ n) => //.
+      move/eqP in H1.
+      move/eqP in H3.
+      by subst.
+    }
+  - by rewrite <- H in H3.
+  - by rewrite <- H in H0.
+Qed.    
+  
+End module_typing_det.
+
+
 Section Iris_instantiation.
 
 
