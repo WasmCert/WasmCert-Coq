@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
  
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -23,10 +23,10 @@ Section fundamental.
 
   (* ------------------------------------ UNREACHABLE -------------------------------------- *)
 
-  Lemma typing_unreachable C ts ts' : ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_unreachable]) (Tf ts ts').
+  Lemma typing_unreachable C ts ts' : ⊢ semantic_typing C (to_e_list [BI_unreachable]) (Tf ts ts').
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.

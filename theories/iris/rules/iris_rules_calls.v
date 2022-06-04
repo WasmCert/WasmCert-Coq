@@ -214,7 +214,9 @@ Context `{!wasmG Σ}.
     length t1s = n ->
     (N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
     ↪[frame] f -∗
-     (↪[frame] f -∗ WP [AI_call_host (Tf t1s t2s) h vcs] @ s;E {{ Φ }}) -∗
+    ((N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
+      ↪[frame] f -∗ 
+      WP [AI_call_host (Tf t1s t2s) h vcs] @ s;E {{ Φ }}) -∗
      WP ves ++ [AI_invoke a] @ s; E {{ Φ }}.
 Proof.
   iIntros (Hves Hvcs Ht1s) "Ha Hf Hwp".
@@ -259,7 +261,9 @@ Proof.
     simpl in H => //.
     by subst ; apply v_to_e_is_const_list.
     simplify_eq.
-    iApply bi.sep_exist_l. iExists _. iFrame.
+    iApply bi.sep_exist_l. iExists _.
+    iDestruct ("Hwp" with "Ha") as "Hwp".
+    iFrame.
     iSimpl. done.
 Qed.
 

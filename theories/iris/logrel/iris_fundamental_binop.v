@@ -14,7 +14,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -79,10 +79,10 @@ Section fundamental.
   Qed.
     
   Lemma typing_binop C t op : binop_type_agree t op ->
-                              ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_binop t op]) (Tf [t; t] [t]).
+                              ⊢ semantic_typing C (to_e_list [BI_binop t op]) (Tf [t; t] [t]).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (Hbinop i lh).
+    iIntros (Hbinop i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
     iIntros (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".

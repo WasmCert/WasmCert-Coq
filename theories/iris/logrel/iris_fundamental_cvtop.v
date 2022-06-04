@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -44,10 +44,10 @@ Section fundamental.
     
   (* ----------------------------------------- CVTOP --------------------------------------- *)
 
-  Lemma typing_cvtop_convert C t1 t2 sx : ⊢ semantic_typing (* HWP:=HWP*) C (to_e_list [BI_cvtop t1 CVO_convert t2 sx]) (Tf [t2] [t1]).
+  Lemma typing_cvtop_convert C t1 t2 sx : ⊢ semantic_typing C (to_e_list [BI_cvtop t1 CVO_convert t2 sx]) (Tf [t2] [t1]).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
@@ -76,10 +76,10 @@ Section fundamental.
     iFrame. iExists _. iFrame.
   Qed.
 
-  Lemma typing_cvtop_reinterpret C t1 t2 : ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_cvtop t1 CVO_reinterpret t2 None]) (Tf [t2] [t1]).
+  Lemma typing_cvtop_reinterpret C t1 t2 : ⊢ semantic_typing C (to_e_list [BI_cvtop t1 CVO_reinterpret t2 None]) (Tf [t2] [t1]).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.

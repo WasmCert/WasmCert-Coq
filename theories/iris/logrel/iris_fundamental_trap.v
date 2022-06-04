@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -23,11 +23,11 @@ Section fundamental.
 
   (* ----------------------------------------- TRAP ---------------------------------------- *)
 
-  Lemma typing_trap C tf : ⊢ semantic_typing (*HWP:=HWP*) C [AI_trap] tf.
+  Lemma typing_trap C tf : ⊢ semantic_typing C [AI_trap] tf.
   Proof.
     unfold semantic_typing, interp_expression.
     destruct tf.
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.

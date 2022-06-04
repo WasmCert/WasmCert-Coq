@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -25,11 +25,11 @@ Section fundamental.
 
   Lemma typing_call C i tf : ssrnat.leq (S i) (length (tc_func_t C)) ->
                              nth_error (tc_func_t C) i = Some tf ->
-                             ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_call i]) tf.
+                             ⊢ semantic_typing C (to_e_list [BI_call i]) tf.
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hleq Hlookup). destruct tf as [tf1 tf2].
-    iIntros (j lh) "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
+    iIntros (j lh hl) "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]".
     iIntros (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
@@ -51,7 +51,8 @@ Section fundamental.
     iApply wp_wasm_empty_ctx.
     iApply iRewrite_nil_r_ctx;rewrite -app_assoc.
     iApply wp_base_push;[apply const_list_of_val|].
-    iApply (wp_wand_ctx _ _ _ (λne (v : leibnizO val), (interp_val tf2 v ∗ na_own logrel_nais ⊤) ∗ ↪[frame]f)%I with "[-]").
+    iApply (wp_wand_ctx _ _ _ (λne (v : leibnizO val), ((interp_val tf2 v
+                                                         ∨ interp_call_host (tc_local C) j (tc_return C) hl v lh (tc_label C) tf2) ∗ na_own logrel_nais ⊤) ∗ ↪[frame]f)%I with "[-]").
     { iApply (wp_call_ctx with "Hf").
       { rewrite Hlocs /= -nth_error_lookup. eauto. }
       iNext. iIntros "Hf".
@@ -69,39 +70,47 @@ Section fundamental.
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
-        rewrite -wp_frame_rewrite.
-        iApply wp_wasm_empty_ctx_frame.
-        take_drop_app_rewrite 0.
-        iApply (wp_block_local_ctx with "Hf");eauto.
-        iNext. iIntros "Hf".
-        iApply wp_label_push_nil_local. simpl push_base.
-        unfold interp_closure_native.
-        erewrite app_nil_l.
-        iApply ("Hcl" with "[] Hown Hf").
-        iRight. iExists _. eauto.
+        
+        iApply (wp_wand _ _ _ (λne (v : leibnizO val), (interp_val tf2 v ∗ na_own logrel_nais ⊤) ∗ ↪[frame]_)%I with "[-]").
+        { rewrite -wp_frame_rewrite.
+          iApply wp_wasm_empty_ctx_frame.
+          take_drop_app_rewrite 0.
+          iApply (wp_block_local_ctx with "Hf");eauto.
+          iNext. iIntros "Hf".
+          iApply wp_label_push_nil_local. simpl push_base.
+          unfold interp_closure_native.
+          erewrite app_nil_l.
+          iApply ("Hcl" with "[] Hown Hf").
+          iRight. iExists _. eauto. }
+        iIntros (v) "[[Hw $] $]".
+        by iLeft.
       }
       { (* host function *)
         destruct f.
-        iDestruct "Hcl" as (Heq) "Hcl". inversion Heq;subst r r0.
+        iDestruct "Hcl" as %[Heq HH]. inversion Heq;subst r r0.
         iDestruct (big_sepL2_length with "Hv") as %Hlen.
         iApply (wp_invoke_host with "[$] [$]");eauto.
-        admit.
-(*        { apply to_val_fmap. }
-        { iApply "Hcl". iRight. iExists _. eauto. }
-        iNext. iIntros (r) "[Hf [Ha Hpost]]".
+        iIntros "Ha Hf".
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
-        destruct (iris.to_val (result_to_stack r)) eqn:Hval;[|done].
-        iApply wp_value;[instantiate (1:=v);rewrite /IntoVal /=;erewrite of_to_val;eauto|].
-        iFrame. *)
+        iApply wp_value.
+        { instantiate (1:=callHostV _ _ _ _). eapply of_to_val. eauto. }
+        iFrame. iRight. iApply fixpoint_interp_call_host_eq.
+        iExists _,_,_,_,_,_. do 3 (iSplit;[eauto|]).
+        iSplit.
+        { iRight. iExists _. eauto. }
+        iModIntro. iIntros (v2 f) "#Hv2 [Hf Hfv]".
+        simpl sfill. rewrite app_nil_r. iApply wp_value;[done|].
+        iSplitR;[|iExists _;iFrame].
+        iLeft. done.
       }
     }
 
     iIntros (v) "[[Hw Hown] Hf]".
-    iFrame.
+    iFrame. iSplitR "Hf".
+    { iDestruct "Hw" as "[Hw | Hw]";[by iLeft|by iRight;iRight;iRight]. }
     iExists _. iFrame. eauto.
-  Admitted.
-
+  Qed.
   
 End fundamental.

@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -163,10 +163,10 @@ Section fundamental.
 
   Lemma typing_store C a tp t off : tc_memory C ≠ [] ->
                                     load_store_t_bounds a tp t ->
-                                    ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_store t tp a off]) (Tf [T_i32; t] []).
+                                    ⊢ semantic_typing C (to_e_list [BI_store t tp a off]) (Tf [T_i32; t] []).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (Hnil Hload i lh).
+    iIntros (Hnil Hload i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.

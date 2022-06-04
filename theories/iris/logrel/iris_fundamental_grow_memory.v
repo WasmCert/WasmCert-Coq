@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -24,10 +24,10 @@ Section fundamental.
   (* --------------------------------------- GROW_MEMORY ----------------------------------- *)
 
   Lemma typing_grow_memory C : tc_memory C ≠ [] ->
-                               ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_grow_memory]) (Tf [T_i32] [T_i32]).
+                               ⊢ semantic_typing C (to_e_list [BI_grow_memory]) (Tf [T_i32] [T_i32]).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (Hnil i lh).
+    iIntros (Hnil i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.

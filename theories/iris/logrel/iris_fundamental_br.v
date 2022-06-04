@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -25,10 +25,10 @@ Section fundamental.
   
   Lemma typing_br C i t1s ts t2s : ssrnat.leq (S i) (length (tc_label C)) ->
                                    plop2 C i ts ->
-                                   ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_br i]) (Tf (t1s ++ ts) t2s).
+                                   ⊢ semantic_typing C (to_e_list [BI_br i]) (Tf (t1s ++ ts) t2s).
   Proof.
     iIntros (Hleq Hlookup) "".
-    iIntros (j lh).
+    iIntros (j lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]" (f vs) "[Hf Hfv] #Hv".
     unfold interp_expression.
     apply lholed_lengths_length_depth in Hlh_len as Hleneq.
@@ -76,7 +76,9 @@ Section fundamental.
     { iFrame. }
     rewrite !app_assoc. iFrame.
     iApply (wp_wand with "Hcont").
-    { iIntros (v) "[[H|[H|H]] $]";auto. }
+    { iIntros (v) "[[H|[H|[H|H]]] $]";auto.
+      repeat iRight. iNext. iExists _. iFrame.
+    }
   Qed.
 
 End fundamental.

@@ -575,7 +575,7 @@ Section trap_rules.
 (* This rule is useful in particular for semantic type soundness, which allows traps *)
   Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed)
         (Φf : frame -> iProp Σ) f :
-    ((¬ (Ψ trapV)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (((Ψ trapV ={E}=∗ ⌜False⌝)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
                    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f0, ↪[frame] f0 ∗ Φf f0 }}) ∗
                    ∀ w f0, Ψ w ∗ ↪[frame] f0 ∗ Φf f0 -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }})%I
      ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }}.
@@ -693,7 +693,7 @@ Section trap_rules.
           replace [AI_trap] with (iris.of_val trapV) => //=.
           iDestruct (wp_unfold with "Hes''") as "Hes''".
           rewrite /wp_pre /=. iMod "Hes''" as "[[_ | Hcontr] Hf]".
-          2: by iDestruct ("Hntrap" with "Hcontr") as "?".
+          2: { iApply fupd_wp. by iMod ("Hntrap" with "Hcontr") as "?". }
           apply lfilled_Ind_Equivalent in Hlf;inversion Hlf;subst.
           assert ((vs ++ [AI_trap] ++ es')%SEQ ++ es2 =
                     (vs ++ [AI_trap] ++ (es' ++ es2)))%list as Hassoc;[repeat erewrite app_assoc;auto|].
@@ -713,7 +713,7 @@ Section trap_rules.
   Qed.
 
   Lemma wp_val_can_trap (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) f Φf :
-    (¬ (Φ trapV) ∗ ↪[frame] f ∗
+    ((Φ trapV ={E}=∗ ⌜False⌝) ∗ ↪[frame] f ∗
        (↪[frame] f -∗ WP es @ NotStuck ; E {{ v, (⌜v = trapV⌝ ∨ (Φ (val_combine (immV [v0]) v))) ∗ ∃ f, ↪[frame] f ∗ Φf f }})
        ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, (⌜v = trapV⌝ ∨ Φ v) ∗ ∃ f, ↪[frame] f ∗ Φf f }})%I.
   Proof.
@@ -730,7 +730,7 @@ Section trap_rules.
     { apply to_val_trap_is_singleton in Hes as ->.
       repeat rewrite wp_unfold /wp_pre /=.
       iMod ("Hf" with "H") as "[[_|Hcontr] H]";cycle 1.
-      { iDestruct ("Hntrap" with "Hcontr") as "?". done. }
+      { iApply fupd_wp. iMod ("Hntrap" with "Hcontr") as "?". done. }
       iDestruct "H" as (f0) "[Hf0 Hf0v]".
       iApply (wp_wand  _ _ _ (λ v, ⌜v = trapV⌝ ∗ ↪[frame] f0)%I with "[Hf0]").
       { rewrite -(take_drop 1 [AI_basic (BI_const v0); AI_trap]);simpl take;simpl drop.
@@ -814,7 +814,7 @@ Section trap_rules.
         iDestruct (wp_unfold with "Hes") as "Hes".
         rewrite /wp_pre /=.
         iMod "Hes" as "[[_|Hcontr] Hf]";cycle 1.
-        { by iSpecialize ("Hntrap" with "Hcontr"). }
+        { iApply fupd_wp. by iMod ("Hntrap" with "Hcontr"). }
         iDestruct "Hf" as (f0) "[Hf0 Hf0v]".
         iApply (wp_wand  _ _ _ (λ v, ⌜v = trapV⌝ ∗ ↪[frame] f0)%I with "[Hf0]").
         { rewrite separate1.
@@ -828,7 +828,7 @@ Section trap_rules.
   Lemma wp_val_can_trap_app' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs (es : language.expr wasm_lang) f Φf :
     (* □ is required here -- this knowledge needs to be persistent instead of 
      one-off. *)
-    (□ (¬ Φ trapV )) ∗ ↪[frame] f ∗
+    (□ ((Φ trapV ={E}=∗ ⌜False⌝))) ∗ ↪[frame] f ∗
                      (↪[frame] f -∗  WP es @ NotStuck ; E {{ v, (⌜v = trapV⌝ ∨ (Φ (val_combine (immV vs) v))) ∗ ∃ f, ↪[frame] f ∗ Φf f }}%I)
                      ⊢ WP ((v_to_e_list vs) ++ es) @ s ; E {{ v, (⌜v = trapV⌝ ∨ Φ v) ∗ ∃ f, ↪[frame] f ∗ Φf f }}%I.
   Proof.
@@ -890,7 +890,7 @@ Section trap_rules.
 
   Lemma wp_val_can_trap_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es : language.expr wasm_lang) f Φf :
     iris.to_val vs = Some (immV v') ->
-    (□ (¬ Φ trapV )) ∗ ↪[frame] f ∗
+    (□ ((Φ trapV ={E}=∗ ⌜False⌝))) ∗ ↪[frame] f ∗
                      (↪[frame] f -∗ WP es @ NotStuck ; E {{ v, (⌜v = trapV⌝ ∨ Φ (val_combine (immV v') v)) ∗ ∃ f, ↪[frame] f ∗ Φf f }})%I
                      ⊢ WP (vs ++ es) @ s ; E {{ v, (⌜v = trapV⌝ ∨ Φ v) ∗ ∃ f, ↪[frame] f ∗ Φf f }}%I.
   Proof.

@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -23,13 +23,13 @@ Section fundamental.
 
   (* ----------------------------------------- IF ------------------------------------------ *)
 
-  Lemma typing_if C tn tm es1 es2 : (⊢ semantic_typing (*HWP:=HWP*) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es1) (Tf tn tm)) ->
-                                    (⊢ semantic_typing (*HWP:=HWP*) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es2) (Tf tn tm)) ->
-                                    ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_if (Tf tn tm) es1 es2]) (Tf (tn ++ [T_i32]) tm).
+  Lemma typing_if C tn tm es1 es2 : (⊢ semantic_typing (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es1) (Tf tn tm)) ->
+                                    (⊢ semantic_typing (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es2) (Tf tn tm)) ->
+                                    ⊢ semantic_typing C (to_e_list [BI_if (Tf tn tm) es1 es2]) (Tf (tn ++ [T_i32]) tm).
   Proof.
     intros IHbe_typing1 IHbe_typing2.
     unfold semantic_typing, interp_expression.
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi #Hc". iIntros (f vs) "[Hf Hfv] #Hv".
     
     iDestruct "Hv" as "[-> | Hv]".

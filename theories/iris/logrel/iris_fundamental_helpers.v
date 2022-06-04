@@ -62,7 +62,7 @@ Qed.
 
 Section fundamental.
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------ HELPER TACTICS AND LEMMAS ------------------------------ *)
@@ -481,11 +481,11 @@ Section fundamental.
     auto.
   Qed.
 
-  Lemma interp_instance_function_lookup C i tf j :
+  Lemma interp_instance_function_lookup C hl i tf j :
     ssrnat.leq (S i) (length (tc_func_t C)) ->
     nth_error (tc_func_t C) i = Some tf ->
-    ⊢ interp_instance (* HWP:=HWP *) C j -∗
-      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (λ _, interp_closure (*HWP:=HWP*)) (N.of_nat f).
+    ⊢ interp_instance C hl j -∗
+      ∃ f, ⌜nth_error (inst_funcs j) i = Some f⌝ ∗ interp_function tf (λ _, interp_closure hl) (N.of_nat f).
   Proof.
     iIntros (Hle Hnth) "#Hi".
     destruct C,j.
@@ -501,9 +501,9 @@ Section fundamental.
     iExists _. iFrame "HH". simpl. rewrite nth_error_lookup//.
   Qed.
 
-  Lemma interp_instance_lookup_global C j i t :
+  Lemma interp_instance_lookup_global C hl j i t :
     option_map tg_t (nth_error (tc_global C) i) = Some t ->
-    ⊢ interp_instance (*HWP:=HWP*) C j -∗
+    ⊢ interp_instance C hl j -∗
       ∃ gt mut n, ⌜nth_error (tc_global C) i = Some gt⌝ ∗
                 ⌜nth_error (inst_globs j) i = Some n⌝ ∗
                 ⌜gt = Build_global_type mut t⌝ ∗
@@ -527,9 +527,9 @@ Section fundamental.
     iFrame "Hw".
   Qed.
 
-  Lemma interp_instance_get_mem C i :
+  Lemma interp_instance_get_mem C hl i :
     tc_memory C ≠ [] ->
-    ⊢ interp_instance (*HWP:=HWP*) C i -∗
+    ⊢ interp_instance C hl i -∗
       ∃ τm mem, ⌜nth_error (tc_memory C) 0 = Some τm⌝
               ∗ ⌜nth_error (inst_memory i) 0 = Some mem⌝
               ∗ (N.of_nat mem) ↪[wmlimit] lim_max τm
@@ -620,6 +620,12 @@ Section fundamental.
 
   Lemma sfill_label vh n es e :
     [AI_label n es (sfill vh e)] = sfill (SH_rec [] n es vh []) e.
+  Proof.
+    induction vh;simpl;auto.
+  Qed.
+
+  Lemma locfill_label_No_local vh n es e :
+    [AI_label n es (locfill (No_local vh) e)] = locfill (No_local (SH_rec [] n es vh [])) e.
   Proof.
     induction vh;simpl;auto.
   Qed.
@@ -833,7 +839,7 @@ Section fundamental.
     }
   Qed.
 
-  Lemma interp_br_stuck_push C (j : nat) (vh: valid_holed j) m vs p i tm tm' lh f' e τto :
+  Lemma interp_br_stuck_push C (j : nat) (vh: valid_holed j) m vs p i tm tm' lh f' e τto hl :
     m = length tm ->
     get_base_l vh = vs ->
     lh_depth (lh_of_vh vh) = p ->
@@ -843,12 +849,15 @@ Section fundamental.
     base_is_empty lh ->
     interp_br_body (tc_label (upd_label C ([tm] ++ tc_label C)))
                    (push_base lh (length tm) e [] [])
-                   j p vs (tc_local C) i τto -∗
+                   j p vs (tc_local C) i τto hl -∗
     ↪[frame]f' -∗
     interp_frame (tc_local C) i f' -∗
     WP [AI_label m e
         (vfill vh [AI_basic (BI_br j)])]
-      {{ v, (interp_val tm' v ∨ interp_br (tc_local C) i τto v lh (tc_label C) ∨ interp_return_option τto (tc_local C) i v) ∗
+    {{ v, (interp_val tm' v
+           ∨ interp_br (tc_local C) i τto hl v lh (tc_label C)
+           ∨ interp_return_option τto (tc_local C) i v
+           ∨ interp_call_host (tc_local C) i τto hl v lh (tc_label C) tm') ∗
            (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
     iIntros (Hlen Hbase Hsize n Hlh_length Hlh_valid Hlh_empty) "Hbr Hf Hfv".
@@ -897,6 +906,127 @@ Section fundamental.
     iSplit.
     { iRight. iExists _. iSplit;eauto. simplify_eq. iFrame "Hvalvs". }
     iIntros (f0) "[Hf0 Hf0v]".
+    iSpecialize ("Hbr" with "[$]").
+    rewrite Hbase. rewrite lh_depth_push_base.
+    apply get_layer_lh_depth in Hlayer2 as Hlh0depth;[|lia].
+    rewrite Hlh0depth.
+    iDestruct (big_sepL2_length with "Hvalvs") as %Hlen_vs''.
+    rewrite -(take_drop (length τs'') vs''). rewrite app_length in Hlen_vs''.
+    iDestruct (big_sepL2_app_inv with "Hvalvs") as "[Hvalvs1 Hvalvs2]".
+    { right. rewrite drop_length. lia. }
+    iDestruct (big_sepL2_length with "Hvalvs2") as %HH.
+    iDestruct (wp_br_ctx_shift_inv with "Hbr") as "Hbr".
+    { apply const_list_of_val. }
+    { auto. }
+    { rewrite fmap_length. rewrite drop_length.
+      eapply get_layer_lookup_lh_lengths in Hlh_length;eauto.
+      simplify_eq. rewrite drop_length in HH. auto. }
+    simpl. iFrame.
+  Qed.
+
+  Global Instance global_inhabited : Inhabited global.
+  Proof. apply populate. exact (Build_global MUT_mut (VAL_int32 int32_minus_one)). Qed.
+
+  Global Instance value_inhabited : Inhabited value.
+  Proof. apply populate. exact (VAL_int32 int32_minus_one). Qed.
+
+  Global Instance function_closure_inhabited : Inhabited function_closure.
+  Proof. apply populate. exact (FC_func_native ({| inst_types := [];
+                                                  inst_funcs:=[];
+                                                  inst_tab:=[];
+                                                  inst_memory:=[];
+                                                  inst_globs:=[]|}) (Tf [] []) [] []) . Qed.
+
+
+  Global Instance valid_holed_inhabited j : Inhabited (valid_holed j).
+  Proof. apply populate. exact (VH_base j [] []). Qed.
+
+  Global Instance lholed_inhabited : Inhabited (lholed).
+  Proof. apply populate. exact (LH_base [] []). Qed.
+
+  Global Instance interp_val_timeless t v : Timeless (interp_val (Σ:=Σ) t v).
+  Proof. unfold interp_val. apply or_timeless;[apply _|].
+         apply exist_timeless =>vs.
+         apply sep_timeless;[apply _|].
+         apply big_sepL2_timeless =>n x1 x2.
+         destruct x2;apply _. Qed.
+
+  Global Instance simple_valid_holed_inhabited : Inhabited (simple_valid_holed).
+  Proof. apply populate. exact (SH_base [] []). Qed.
+
+  Global Instance function_type_inhabited : Inhabited (function_type).
+  Proof. apply populate. exact (Tf [] []). Qed.
+
+  Global Instance hostfuncidx_inhabited : Inhabited (hostfuncidx).
+  Proof. apply populate. exact (Mk_hostfuncidx 0). Qed.
+  
+  Lemma interp_br_stuck_push_later C (j : nat) (vh: valid_holed j) m vs p i tm tm' lh f' e τto hl :
+    m = length tm ->
+    get_base_l vh = vs ->
+    lh_depth (lh_of_vh vh) = p ->
+    j ≠ p ->
+    lholed_lengths (rev (tc_label C)) lh ->
+    lholed_valid lh ->
+    base_is_empty lh ->
+    ▷ interp_br_body (tc_label (upd_label C ([tm] ++ tc_label C)))
+                   (push_base lh (length tm) e [] [])
+                   j p vs (tc_local C) i τto hl -∗
+    ↪[frame]f' -∗
+    interp_frame (tc_local C) i f' -∗
+    WP [AI_label m e
+        (vfill vh [AI_basic (BI_br j)])]
+    {{ v, (interp_val tm' v
+           ∨ ▷ interp_br (tc_local C) i τto hl v lh (tc_label C)
+           ∨ interp_return_option τto (tc_local C) i v
+           ∨ interp_call_host (tc_local C) i τto hl v lh (tc_label C) tm') ∗
+           (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
+  Proof.
+    iIntros (Hlen Hbase Hsize n Hlh_length Hlh_valid Hlh_empty) "Hbr Hf Hfv".
+    unfold interp_br_body.
+    apply lh_depth_ge in Hsize as Hge.
+    assert (j > p);[lia|].
+    destruct j;[lia|].
+    assert (lh_depth (lh_of_vh vh) <= j) as Hdec.
+    { rewrite Hsize. lia. }
+    apply lh_depth_le_vh_decrease in Hdec as [vs' Hvs'].
+    rewrite vfill_label.
+    
+    erewrite vfill_decrease;cycle 1.
+    { simpl. rewrite Hvs'. eauto. }
+    eassert (vfill _ [AI_basic (BI_br (S j))] = of_val (brV _)) as ->.
+    { simpl of_val. f_equiv. }
+    rewrite -!minus_Sn_m;[|lia].
+        
+    iApply wp_value;[done|].
+    iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
+    iRight. iLeft.
+    iApply fixpoint_interp_br_eq. iSimpl.
+    rewrite lh_depth_push_base.
+    rewrite PeanoNat.Nat.sub_succ.
+        
+    iDestruct "Hbr" as (? ? ? ? ? ? ? ?) "[>%Hlook [>%Hlayer Hbr]]".
+    simpl in Hlook.
+    iExists _,_,_,(S p). iSplit;[eauto|].
+    iDestruct "Hbr" as "[>%Hdepth [>%Hmin [#>Hvalvs Hbr]]]".
+    iDestruct "Hvalvs" as "[%Hcontr|Hvalvs]";[done|].
+    iDestruct "Hvalvs" as (vs'' Heqv) "Hvalvs".
+    iSplit;[eauto|]. iSplit;[eauto|].
+    { iPureIntro. simpl. erewrite <-lh_depth_vh_decrease_eq;eauto. }
+        
+    rewrite !Nat.sub_succ.
+    apply lholed_lengths_length_depth in Hlh_length as Hlen'.
+    rewrite rev_length in Hlen'. apply lookup_lt_Some in Hlook as Hlt.
+    rewrite Hlen' in Hlt.
+    apply get_layer_push_inv in Hlayer as Hlayer';[|lia].
+    destruct Hlayer' as [lh0 [Hlh'eq Hlayer2]].
+    subst lh'.
+    iExists _,_,_,_,_,_,_,_. iSplit;[eauto|]. iSplit;[eauto|]. iSplit;[eauto|].
+    iSplit.
+    { iPureIntro. eapply lh_minus_push_base_is_Some;eauto. rewrite Hdepth. lia. }
+    iSimpl. erewrite <-get_base_l_vh_decrease_eq;eauto.
+    iSplit.
+    { iRight. iExists _. iSplit;eauto. simplify_eq. iFrame "Hvalvs". }
+    iNext. iIntros (f0) "[Hf0 Hf0v]".
     iSpecialize ("Hbr" with "[$]").
     rewrite Hbase. rewrite lh_depth_push_base.
     apply get_layer_lh_depth in Hlayer2 as Hlh0depth;[|lia].
@@ -965,15 +1095,17 @@ Section fundamental.
       apply lfilled_Ind_Equivalent;eauto. }
   Qed.
 
-  Lemma interp_return_label C tn i w f' tm lh es m :
+  Lemma interp_return_label C tn i w f' tm lh es m hl :
     interp_return_option
       (tc_return (upd_label C ([tn] ++ tc_label C)))
       (tc_local (upd_label C ([tn] ++ tc_label C))) i w -∗
   ↪[frame]f' -∗
   interp_frame (tc_local C) i f' -∗
   WP of_val w CTX 1; LH_rec [] m es (LH_base [] []) []
-  {{ v, (interp_val tm v ∨ interp_br (tc_local C) i (tc_return C) v lh (tc_label C)
-         ∨ interp_return_option (tc_return C) (tc_local C) i v) ∗
+  {{ v, (interp_val tm v
+         ∨ interp_br (tc_local C) i (tc_return C) hl v lh (tc_label C)
+         ∨ interp_return_option (tc_return C) (tc_local C) i v
+         ∨ interp_call_host (tc_local C) i (tc_return C) hl v lh (tc_label C) tm) ∗
            (∃ f0 : frame,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
     iIntros "Hret Hf Hfv".
@@ -998,7 +1130,7 @@ Section fundamental.
     rewrite !Hval.
     iApply wp_value;[done|].
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
-    iRight. iRight.
+    iRight. iRight. iLeft.
     iExists _,_. iSplit;[eauto|]. iSplit;[eauto|].
     assert (tc_return C = Some l) as ->;auto.
     iExists _. iSplitR. { iRight. iExists _. eauto. }
@@ -1015,19 +1147,203 @@ Section fundamental.
     { apply const_list_of_val. }
     { rewrite fmap_length drop_length. rewrite app_length in Hlen'.
       apply Nat.add_sub_eq_r. rewrite Hlen'. lia. }
-  Qed.    
+  Qed.
   
-  Global Instance global_inhabited : Inhabited global.
-  Proof. apply populate. exact (Build_global MUT_mut (VAL_int32 int32_minus_one)). Qed.
+  Lemma interp_br_step C (j : nat) (vh: valid_holed j) m vs p i tm lh f' hl :
+    m = length tm ->
+    get_base_l vh = vs ->
+    lh_depth (lh_of_vh vh) = p ->
+    j = p ->
+    (▷ interp_br_body (tc_label (upd_label C ([tm] ++ tc_label C)))
+                   (push_base lh (length tm) [] [] [])
+                   j p vs (tc_local C) i (tc_return C) hl) -∗
+    ↪[frame]f' -∗
+    interp_frame (tc_local C) i f' -∗
+    WP [AI_label m [] (vfill vh [AI_basic (BI_br j)])]
+    {{ v, (interp_val tm v
+           ∨ interp_br (tc_local C) i (tc_return C) hl v lh (tc_label C)
+           ∨ interp_return_option (tc_return C) (tc_local C) i v
+           ∨ interp_call_host (tc_local C) i (tc_return C) hl v lh (tc_label C) tm) ∗
+           (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
+  Proof.
+    iIntros (Hlen Hbase Hsize e) "Hbr Hf Hfv".
+    unfold interp_br_body.
+    destruct (pull_base_l_drop_len vh (length vs - length tm)) eqn:Hpb.
+    erewrite vfill_pull_base_l_take_len;[|eauto].
+    pose proof (vfill_to_lfilled v ((v_to_e_list l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
+    erewrite <-lh_depth_pull_base_l_take_len in Hfill;[|eauto]. 
+    rewrite Hsize -e in Hfill.
+    assert (j - p = 0) as ->;[lia|].
+    iDestruct "Hbr" as (? ? ? ? ? ? ? ?) "[>%Hlook [>%Hlayer Hbr]]".
+    simpl in Hlook. inversion Hlook;subst τs'.
+    iDestruct "Hbr" as "[>%Hdepth [>%Hmin [>#Hvalvs Hbr]]]".
+    iDestruct "Hvalvs" as "[%|Hvalvs]";[done|].
+    iDestruct "Hvalvs" as (ws' Heq') "Hvalvs". inversion Heq';subst ws'.
+    iDestruct (big_sepL2_length with "Hvalvs") as %Hlen2.
+    rewrite app_length in Hlen2. subst j.
+        
+    iApply (wp_br_alt with "Hf");[..|apply Hfill|].
+    { apply const_list_of_val. }
+    { rewrite fmap_length. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
+      rewrite Hlen.
+      assert (length vs >= length tm);[|lia]. rewrite Hlen2. lia. }
+    iNext. iIntros "Hf".
+    rewrite app_nil_r.
+    rewrite of_val_imm.
+    iApply wp_value;[done|].
+    iSplitR "Hfv Hf";[|iExists _;iFrame;iExists _;eauto].
+    iLeft. iRight. iExists _. iSplit;eauto.
+    eapply take_drop_pull_base_l_take_len in Hpb as Happ;[|eauto..];[|lia].
+    rewrite Happ.
+    iDestruct (big_sepL2_app_inv with "Hvalvs") as "[? ?]".
+    { right. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
+      assert (length vs >= length tm);[|lia]. rewrite Hlen2. lia. }
+    iFrame "#".
+  Qed.
 
-  Global Instance value_inhabited : Inhabited value.
-  Proof. apply populate. exact (VAL_int32 int32_minus_one). Qed.
+  Lemma interp_br_label C i w f' tm lh hl :
+    interp_ctx (tc_label C) (tc_return C) hl (tc_local C) i lh -∗
+    interp_br (tc_local C) i (tc_return C) hl w (push_base lh (length tm) [] [] []) (tc_label (upd_label C ([tm] ++ tc_label C))) -∗
+    ↪[frame]f' -∗
+    interp_frame (tc_local C) i f' -∗
+    WP of_val w CTX 1; LH_rec [] (length tm) [] (LH_base [] []) []
+    {{ v, (interp_val tm v
+           ∨ interp_br (tc_local C) i (tc_return C) hl v lh (tc_label C)
+           ∨ interp_return_option (tc_return C) (tc_local C) i v
+           ∨ interp_call_host (tc_local C) i (tc_return C) hl v lh (tc_label C) tm) ∗
+           (∃ f0 : frame,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
+  Proof.
+    iIntros "#Hc Hbr Hf Hfv".
+    rewrite fixpoint_interp_br_eq.
+    iDestruct "Hbr" as (j vh vs p) "[%Heq' [%Hbase [%Hsize Hbr]]]". rewrite Heq'.
+    simpl of_val.
 
-  Global Instance function_closure_inhabited : Inhabited function_closure.
-  Proof. apply populate. exact (FC_func_native ({| inst_types := [];
-                                                  inst_funcs:=[];
-                                                  inst_tab:=[];
-                                                  inst_memory:=[];
-                                                  inst_globs:=[]|}) (Tf [] []) [] []) . Qed.
+    assert (LH_rec [] (length tm) [] (LH_base [] []) [] =
+              push_base (LH_base [] []) (length tm) [] [] []) as Heq;[auto|].
+    rewrite Heq.
+    iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
+
+    destruct (decide (j = p)).
+    { iApply (interp_br_step with "Hbr Hf Hfv");eauto. }
+
+    { iAssert (⌜lholed_lengths (rev (tc_label C)) lh⌝ ∧ ⌜lholed_valid lh⌝ ∧ ⌜base_is_empty lh⌝)%I as %[Hlh_length [Hlh_valid Hlh_empty]].
+      { iDestruct "Hc" as "[% [% [% _]]]". auto. }
+      iApply (interp_br_stuck_push with "Hbr Hf Hfv");eauto. }
+  Qed.
+
+  Lemma interp_call_host_label C i w f' tm lh hl :
+    interp_ctx (tc_label C) (tc_return C) hl (tc_local C) i lh -∗
+    interp_call_host (tc_local C) i (tc_return C) hl w (push_base lh (length tm) [] [] []) (tc_label (upd_label C ([tm] ++ tc_label C))) tm -∗
+    ↪[frame]f' -∗
+    interp_frame (tc_local C) i f' -∗
+    WP of_val w CTX 1; LH_rec [] (length tm) [] (LH_base [] []) []
+    {{ v, (interp_val tm v
+           ∨ interp_br (tc_local C) i (tc_return C) hl v lh (tc_label C)
+           ∨ interp_return_option (tc_return C) (tc_local C) i v
+           ∨ interp_call_host (tc_local C) i (tc_return C) hl v lh (tc_label C) tm) ∗
+           (∃ f0 : frame,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
+  Proof.
+    iIntros "#Hc Hch Hf Hfv".
+    
+    
+    iDestruct (fixpoint_interp_call_host_eq with "Hch") as "Hch".
+    iDestruct "Hch" as (? ? ? ? ? ? Heqw Htf Hin) "[#Hv #Hch]".
+    rewrite Heqw.
+
+    assert (LH_rec [] (length tm) [] (LH_base [] []) [] =
+              push_base (LH_base [] []) (length tm) [] [] []) as Heq';[auto|].
+    rewrite Heq'.
+    iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
+
+    rewrite locfill_label_No_local.
+    eassert (locfill (No_local (SH_rec [] (length tm) [] vh [])) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
+    { simpl of_val. f_equiv; eauto. }
+    iApply wp_value;[done|].
+    iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
+    iRight. iRight. iRight. clear Hval. iRevert "Hv Hch".
+    iLöb as "IH"
+  forall (tf h v w vh τs1 τs2 Heqw Htf Hin);iIntros "#Hv #Hch".
+    match goal with
+    | |- context [ (▷ ?IH0)%I ] =>
+        set (IH:=IH0)
+    end.
+
+    iApply fixpoint_interp_call_host_eq.
+    iExists _,_,_,_,_,_. do 4 (iSplitR;[eauto|]).
+    iModIntro. iIntros (v2 f) "#Hw [Hf Hfv]".
+
+    simpl sfill.
+    iApply wp_wasm_empty_ctx.
+    iApply wp_label_push_nil.
+    iApply wp_ctx_bind;[simpl;auto|].
+    iDestruct ("Hch" with "Hw [$]") as "Hch'".
+    iApply (wp_wand with "Hch'").
+    
+    iIntros (v') "[[Hv' | [Hv' | [Hv' | Hv']]] Hf]";iDestruct "Hf" as (f0) "[Hf Hfv]".
+    { iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
+      iDestruct "Hv'" as "[-> | Hv']".
+      { iApply (wp_wand with "[Hf]").
+        { iApply (wp_label_trap with "Hf");[auto|].
+          by instantiate (1:=(λ v, ⌜v = trapV⌝)%I). }
+        iIntros (v0) "[-> Hf]".
+        iSplitR "Hf Hfv";[|iExists _;iFrame].
+        iLeft. iLeft. done. }
+      iDestruct "Hv'" as (ws ->) "Hv'".
+      iApply (wp_wand with "[Hf]").
+      { iApply (wp_label_value with "Hf");[eapply to_of_val|].
+        by instantiate (1:=(λ v, ⌜v = immV _⌝)%I). }
+      iIntros (v0) "[-> Hf]".
+      iSplitR "Hf Hfv";[|iExists _;iFrame].
+      iLeft. iRight. iExists _. iSplit;eauto.
+    }
+    { rewrite fixpoint_interp_br_eq.
+      iDestruct "Hv'" as (j vh' vs p) "[>%Heqbr [>%Hbase [>%Hsize Hbr]]]".
+      rewrite -/(wp_wasm_ctx _ _ _ _ _ _).
+      rewrite Heqbr.
+
+      iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
+      
+      destruct (decide (j = p)).
+      { iApply (wp_wand with "[-]").
+        { iApply (interp_br_step with "Hbr Hf Hfv");[eauto|apply Hbase|apply Hsize|apply e]. }
+        iIntros (v0) "[[H|[H|[H|H]]] $]".
+        { iLeft. iFrame. }
+        { iRight. iLeft. iNext. iFrame. }
+        { iRight. iRight. iLeft. iFrame. }
+        { repeat iRight. iNext. iFrame. } }
+        
+      { iAssert (⌜lholed_lengths (rev (tc_label C)) lh⌝ ∧ ⌜lholed_valid lh⌝ ∧ ⌜base_is_empty lh⌝)%I as %[Hlh_length [Hlh_valid Hlh_empty]].
+        { iDestruct "Hc" as "[% [% [% _]]]". auto. }
+        iApply (wp_wand with "[-]").
+        { iApply (interp_br_stuck_push_later with "Hbr Hf Hfv");eauto. }
+        iIntros (v0) "[[H|[H|[H|H]]] $]".
+        { iLeft. iFrame. }
+        { iRight. iLeft. iNext. iFrame. }
+        { iRight. iRight. iLeft. iFrame. }
+        { repeat iRight. iNext. iFrame. } }
+    }
+    { iDestruct (interp_return_label with "Hv' Hf Hfv") as "Hv'".
+      iApply (wp_wand_ctx with "Hv'").
+      iIntros (v0) "[[H|[H|[H|H]]] $]".
+        { iLeft. iFrame. }
+        { iRight. iLeft. iNext. iFrame. }
+        { iRight. iRight. iLeft. iFrame. }
+        { repeat iRight. iNext. iFrame. } Unshelve. apply [].
+    }
+    { rewrite fixpoint_interp_call_host_eq.
+      iDestruct "Hv'" as (? ? ? ? ? ?) "[>%Heq [>%Htf0 [>%Hin' [#Hv' #Hch']]]]".
+      rewrite -/(wp_wasm_ctx _ _ _ _ _ _). rewrite Heq.
+
+      iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
+      rewrite locfill_label_No_local.
+      eassert (locfill (No_local (SH_rec [] (length tm) [] vh0 [])) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
+      { simpl of_val. f_equiv; eauto. }
+      rewrite Hval'.
+      iApply wp_value;[done|].
+      iSplitR "Hf Hfv";[|iExists _;iFrame].
+      repeat iRight. iNext.
+      unfold IH. iApply "IH";auto.
+    }    
+  Qed.
   
 End fundamental.

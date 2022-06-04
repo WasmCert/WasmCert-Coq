@@ -27,15 +27,12 @@ Definition wtN (a b: N) : namespace := nroot .@ wt .@ a .@ b.
 Definition wmN (a: N) : namespace := nroot .@ wm .@ a.
 Definition wgN (a: N) : namespace := nroot .@ wg .@ a.
 
-
 Close Scope byte_scope.
 
 (* Example Programs *)
 Section logrel.
-  
 
-
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
 
   
   Definition xb b := (VAL_int32 (wasm_bool b)).
@@ -58,6 +55,7 @@ Section logrel.
   Notation IR := ((leibnizO instance) -n> iPropO Σ).
   Notation BR := ((leibnizO val) -n> (leibnizO lholed) -n> (leibnizO (list (list value_type))) -n> iPropO Σ).
   Notation RR := ((leibnizO val) -n> iPropO Σ).
+  Notation HR := ((leibnizO val) -n> (leibnizO lholed) -n> (leibnizO (list (list value_type))) -n> (leibnizO result_type) -n> iPropO Σ).
 
   Implicit Types w : (leibnizO value).
   Implicit Types ws : (list (leibnizO value)).
@@ -118,19 +116,20 @@ Section logrel.
              ∀ f1, ↪[frame] f1 -∗ WP e FRAME (length tf2s); (Build_frame (vcs ++ (n_zeros tlocs)) i)
                                        CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
                         {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f1 }}.
-  
-  Definition interp_closure_host tf1s tf2s (h : hostfuncidx) : iProp Σ :=
+
+  (*
+  Definition interp_closure_host (hctx : host_ctx) tf1s tf2s (h : hostfuncidx) : iProp Σ :=
     ∀ vcs, interp_val tf1s (immV vcs) -∗
-                      ∃ r, (interp_val tf2s) r.
-(*    ∀ vcs, interp_val tf1s (immV vcs) -∗
-             wp_host HWP NotStuck ⊤ h vcs
-                        (λ r, from_option (interp_val tf2s) False (iris.to_val (result_to_stack r))).  *)
+           na_own logrel_nais ⊤ -∗
+           wp_host NotStuck ⊤
+             (fill_host hctx (locfill loch [AI_call_host (Tf tf1s tf2s) h vcs]))
+             (λ r, interp_val tf2s (val_of_host_val r) ∗ na_own logrel_nais ⊤). *)
   
-  Definition interp_closure (τf : function_type) : ClR :=
+  Definition interp_closure (host_list : list (hostfuncidx * function_type)) (τf : function_type) : ClR :=
       λne cl, (match cl with
                | FC_func_native i (Tf tf1s tf2s) tlocs e => ⌜τf = Tf tf1s tf2s⌝ ∗
                        □ ▷ interp_closure_native i tf1s tf2s tlocs (to_e_list e)
-               | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ □ interp_closure_host tf1s tf2s h
+               | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ ⌜(h,τf) ∈ host_list⌝ (* ∗ □ interp_closure_host tf1s tf2s h *)
                end)%I. 
   
   Definition interp_function (τf : function_type) (interp_closure' : N -> function_type -> ClR) : FfR :=
@@ -221,7 +220,7 @@ Section logrel.
             (* Global declarations *)
            ([∗ list] g;gt ∈ gs;tgs, interp_global gt (N.of_nat g)))%I.
 
-   Definition interp_instance (τctx : t_context) : IR := interp_instance' τctx (λ n, interp_closure) (λ n, interp_closure). 
+   Definition interp_instance (τctx : t_context) (host_list : list (hostfuncidx * function_type)) : IR := interp_instance' τctx (λ n, interp_closure host_list) (λ n, interp_closure host_list). 
   
   
   Global Instance interp_function_persistent τf n (icl : N -> function_type -> ClR) :
@@ -256,11 +255,11 @@ Section logrel.
     destruct xx;apply _.
   Qed.
 
-  Global Instance interp_instance_persistent τctx i : Persistent (interp_instance τctx i).
+  Global Instance interp_instance_persistent τctx hl i : Persistent (interp_instance τctx hl i).
   Proof.
     apply interp_instance_persistent'.
     all: intros. all: unfold interp_closure. all: simpl.
-    all: destruct cl,f; apply sep_persistent;apply _.
+    all: destruct cl,f; try apply sep_persistent;apply _.
   Qed.
   
   (* --------------------------------------------------------------------------------------- *)
@@ -277,6 +276,11 @@ Section logrel.
     | SH_base vs _ => vs
     | SH_rec _ _ _ lh' _ => simple_get_base_l lh'
     end.
+  Fixpoint local_get_base_l (lh : local_holed) :=
+    match lh with
+    | No_local vh => simple_get_base_l vh
+    | One_local v n f vh es => simple_get_base_l vh
+    end.
 
   Definition interp_return_option (τr : option result_type) (τl : result_type) (i : instance) : RR :=
     λne (w : leibnizO val), (∃ (vh : simple_valid_holed) (v : seq.seq value), ⌜w = retV vh⌝ ∗ ⌜simple_get_base_l vh = v⌝ ∗
@@ -287,50 +291,128 @@ Section logrel.
                              | None => False
                              end)%I.
 
-  Definition interp_br_def (τl : result_type) (i : instance) (τro : option result_type)
-                       (interp_br' : BR) : BR :=
-    λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))),
+  Definition interp_call_host_br_def (τl : result_type) (i : instance) (τro : option result_type) (host_list : list (hostfuncidx * function_type))
+             (interp_call_host_br' : HR * BR) : HR * BR :=
+    (* let '(interp_call_host', interp_br') := interp_call_host_br' in *)
+    (λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))) (τ2 : leibnizO result_type),
+      (∃ (vh : simple_valid_holed) (v : seq.seq value) (tf : function_type)
+                              (h : hostfuncidx) (τs1 τs2 : result_type),
+                               ⌜w = callHostV tf h v (No_local vh)⌝ ∗
+                               ⌜tf = Tf τs1 τs2⌝ ∗
+                               ⌜(h,tf) ∈ host_list⌝ ∗
+                               interp_val τs1 (immV v) ∗
+                               (* continuation for when the host function reenters *)
+                               □ (∀ v2 f, interp_val τs2 v2 -∗
+                                        ↪[frame] f ∗ interp_frame τl i f -∗
+                                        WP sfill vh (iris.of_val v2)
+                                        {{ vs, (interp_val τ2 vs
+                                                ∨ ▷ interp_call_host_br'.2 vs lh τc
+                                                ∨ interp_return_option τro τl i vs
+                                                ∨ ▷ interp_call_host_br'.1 vs lh τc τ2)
+                                                 ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}
+                               )
+                           )%I
+                              
+      ,
+      
+      λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))
+                                                    ),
       ((∃ j, ∃ (vh : valid_holed j) (v : seq.seq value) p, ⌜w = brV vh⌝ ∗ ⌜get_base_l vh = v⌝ ∗ ⌜lh_depth (lh_of_vh vh) = p⌝ ∗
                               ∃ τs' vs k es lh' es' lh'' τs'',
                                 ⌜τc !! (j - p) = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S (j - p)) = Some (vs,k,es,lh',es')⌝ ∗
                                 ⌜lh_depth lh'' = (lh_depth lh) - S (j - p)⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
                                      interp_val (τs'' ++ τs') (immV v) ∗
                                      ∀ f, ↪[frame] f ∗ interp_frame τl i f -∗
-                                     WP of_val (immV (drop (length τs'') v)) ++ [::AI_basic (BI_br (j - p))] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
-                                        {{ vs, ((∃ τs, interp_val τs vs) ∨ ▷ interp_br' vs lh'' (drop (S (j - p)) τc) ∨ interp_return_option τro τl i vs)
-                                                 ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I.
+                                           WP of_val (immV (drop (length τs'') v)) ++ [::AI_basic (BI_br (j - p))]
+                                           CTX S (lh_depth lh'); LH_rec vs k es lh' es'
+                                           {{ vs, ((∃ τs, interp_val τs vs)
+                                                   ∨ ▷ interp_call_host_br'.2 vs lh'' (drop (S (j - p)) τc)
+                                                   ∨ interp_return_option τro τl i vs
+                                                   ∨ ▷ (∃ τs, interp_call_host_br'.1 vs lh'' (drop (S (j - p)) τc) τs))
+                              ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}))%I
+      
+    ).
 
-  Global Instance interp_br_def_contractive τl i τto : Contractive (interp_br_def τl i τto).
+  Lemma dist_later_prod (o o1 : HR) (o0 o2 : BR) (n : nat) :
+    dist_later n (o, o0) (o1, o2) ->
+    dist_later n o o1 ∧ dist_later n o0 o2.
+  Proof.
+    intros Hdist.
+    destruct n;auto.
+  Qed.
+  
+  Global Instance interp_call_host_br_def_contractive τl i τto hl : Contractive (interp_call_host_br_def τl i τto hl).
   Proof.
     solve_proper_prepare.
-    repeat (apply exist_ne +
-            apply sep_ne +
-            apply and_ne +
-            auto +
-            (rewrite /pointwise_relation; intros) +
-            apply forall_ne + apply wand_ne).
-    solve_contractive.
+    destruct x,y.
+    apply dist_later_prod in H as [? ?].
+    apply pair_ne.
+    { solve_proper_prepare.
+      repeat (apply exist_ne +
+                apply intuitionistically_ne +
+                apply or_ne +
+                apply sep_ne +
+                apply and_ne +
+                apply wp_ne +
+                auto +
+                (rewrite /pointwise_relation; intros) +
+                apply forall_ne + apply wand_ne).
+      { f_contractive. apply H0. }
+      { f_contractive. apply H. }
+    }
+    { solve_proper_prepare.
+      repeat (apply exist_ne +
+                apply or_ne +
+                apply sep_ne +
+                apply and_ne +
+                apply wp_ne +
+                auto +
+                (rewrite /pointwise_relation; intros) +
+                apply forall_ne + apply wand_ne).
+      { f_contractive. apply H0. }
+      { f_contractive. apply exist_ne. apply H. }
+    }
   Defined.
-  
-  Definition interp_br (τl : result_type) (i : instance) (τto : option result_type) : BR :=
-    fixpoint (interp_br_def τl i τto).
 
-  Definition interp_br_body τc lh j p (w : seq.seq value) τl i τto : iProp Σ :=
+  Definition interp_call_host_br (τl : result_type) (i : instance) (τto : option result_type) (host_list : list (hostfuncidx * function_type)) : HR * BR :=
+    fixpoint (interp_call_host_br_def τl i τto host_list).
+
+  Definition interp_call_host (τl : result_type) (i : instance) (τto : option result_type) (host_list : list (hostfuncidx * function_type))
+    := (interp_call_host_br τl i τto host_list).1.
+  Definition interp_br (τl : result_type) (i : instance) (τto : option result_type) (host_list : list (hostfuncidx * function_type))
+    := (interp_call_host_br τl i τto host_list).2.
+
+  Lemma fixpoint_interp_br_eq (τc : list (list (value_type))) (τl : result_type) (i : instance) (τto : option result_type)
+        (host_list : list (hostfuncidx * function_type)) v lh :
+    interp_br τl i τto host_list v lh τc ≡ (interp_call_host_br_def τl i τto host_list (interp_call_host_br τl i τto host_list)).2 v lh τc.
+  Proof. pose proof (fixpoint_unfold (interp_call_host_br_def τl i τto host_list)). destruct H as [? ?].
+         specialize (H0 v lh τc). auto. Qed.
+
+  Lemma fixpoint_interp_call_host_eq lh (τc : list (list (value_type))) (τl : result_type) (i : instance) (τto : option result_type)
+        (host_list : list (hostfuncidx * function_type)) v t2 :
+    interp_call_host τl i τto host_list v lh τc t2 ≡ (interp_call_host_br_def τl i τto host_list (interp_call_host_br τl i τto host_list)).1 v lh τc t2.
+  Proof. pose proof (fixpoint_unfold (interp_call_host_br_def τl i τto host_list)). destruct H as [? ?].
+         specialize (H v lh τc t2). auto. Qed.
+  
+  Definition interp_br_body τc lh j p (w : seq.seq value) τl i τto hl : iProp Σ :=
     ∃ τs' vs k es lh' es' lh'' τs'',
       ⌜τc !! (j - p) = Some τs'⌝ ∗ ⌜get_layer lh ((lh_depth lh) - S (j - p)) = Some (vs,k,es,lh',es')⌝ ∗
       ⌜lh_depth lh'' = (lh_depth lh) - S (j - p)⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∗
       interp_val (τs'' ++ τs') (immV w) ∗
       ∀ f, ↪[frame] f ∗ interp_frame τl i f -∗
             WP of_val (immV (drop (length τs'') w)) ++ [::AI_basic (BI_br (j - p))] CTX S (lh_depth lh'); LH_rec vs k es lh' es'
-            {{ vs, ((∃ τs, interp_val τs vs) ∨ ▷ interp_br τl i τto vs lh'' (drop (S (j - p)) τc) ∨ interp_return_option τto τl i vs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}.
+                {{ vs, ((∃ τs, interp_val τs vs) ∨
+                          ▷ interp_br τl i τto hl vs lh'' (drop (S (j - p)) τc) ∨
+                          interp_return_option τto τl i vs ∨
+                          ▷ (∃ τs, interp_call_host τl i τto hl vs lh'' (drop (S (j - p)) τc) τs)) 
+                         ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}.
   
-  Lemma fixpoint_interp_br_eq (τc : list (list (value_type))) (lh : lholed) (τl : result_type) (i : instance) (τto : option result_type) v :
-    interp_br τl i τto v lh τc ≡ interp_br_def τl i τto (interp_br τl i τto) v lh τc.
-  Proof. exact: (fixpoint_unfold (interp_br_def τl i τto) v lh τc). Qed.
-  
-  Definition interp_expression (τc : list (list (value_type))) (τto : option result_type)
+  Definition interp_expression (τc : list (list (value_type))) (τto : option result_type) (host_list : list (hostfuncidx * function_type))
              (τs : result_type) (lh : lholed) (τl : result_type) (i : instance) (es : expr) : iProp Σ :=
-    (WP es {{ vs, (interp_val τs vs ∨ interp_br τl i τto vs lh τc ∨ interp_return_option τto τl i vs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})%I.
+    (WP es {{ vs, (interp_val τs vs
+                   ∨ interp_br τl i τto host_list vs lh τc
+                   ∨ interp_return_option τto τl i vs
+                   ∨ interp_call_host τl i τto host_list vs lh τc τs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})%I.
   
   
   (* --------------------------------------------------------------------------------------- *)
@@ -358,67 +440,155 @@ Section logrel.
     | _,_ => False
     end.
 
-  Definition interp_ctx_continuation (τc : list (list (value_type))) (τto : option result_type) (lh : lholed) (k : nat) (τs τl : result_type) (i : instance) : iProp Σ :=
+  Definition interp_ctx_continuation (τc : list (list (value_type))) (τto : option result_type) (hl : list (hostfuncidx * function_type)) (lh : lholed) (k : nat) (τs τl : result_type) (i : instance) : iProp Σ :=
     (∃ vs j es lh' es' lh'', ⌜get_layer lh ((lh_depth lh) - S k) = Some (vs,j,es,lh',es')⌝ ∧ ⌜lh_depth lh'' = (lh_depth lh) - S k⌝ ∧ ⌜is_Some (lh_minus lh lh'')⌝ ∧
                           (□ ∀ v f, interp_val τs v -∗ ↪[frame] f ∗ interp_frame τl i f -∗
-                                    ∃ τs2, interp_expression (drop (S k) τc) τto τs2 lh'' τl i (vs ++ ((of_val v) ++ es) ++ es')))%I.
+                                    ∃ τs2, interp_expression (drop (S k) τc) τto hl τs2 lh'' τl i (vs ++ ((of_val v) ++ es) ++ es')))%I.
   
-  Definition interp_ctx_continuations (τc : list (list (value_type))) (τto : option result_type) (τl : result_type) (i : instance) : CtxR :=
-    λne lh, ([∗ list] k↦τs ∈ τc, interp_ctx_continuation τc τto lh k τs τl i)%I.
+  Definition interp_ctx_continuations (τc : list (list (value_type))) (τto : option result_type) (hl : list (hostfuncidx * function_type)) (τl : result_type) (i : instance) : CtxR :=
+    λne lh, ([∗ list] k↦τs ∈ τc, interp_ctx_continuation τc τto hl lh k τs τl i)%I.
   
-  Definition interp_ctx (τc : list (list value_type)) (τto : option result_type) (τl : result_type) (i : instance) : CtxR :=
+  Definition interp_ctx (τc : list (list value_type)) (τto : option result_type) (hl : list (hostfuncidx * function_type)) (τl : result_type) (i : instance) : CtxR :=
     λne lh, (⌜base_is_empty lh⌝ ∗
              ⌜lholed_lengths (rev τc) lh⌝ ∗
              ⌜lholed_valid lh⌝ ∗
-             interp_ctx_continuations τc τto τl i lh
+             interp_ctx_continuations τc τto hl τl i lh
             )%I.
 
-  Global Instance interp_ctx_continuations_persistent τc τl τto i lh : Persistent (interp_ctx_continuations τc τl τto i lh).
+  Global Instance interp_ctx_continuations_persistent τc τl τto hl i lh : Persistent (interp_ctx_continuations τc τl τto hl i lh).
   Proof. apply _. Qed.
-  Global Instance interp_ctx_persistent τc τto τl i lh : Persistent (interp_ctx τc τto τl i lh).
+  Global Instance interp_ctx_persistent τc τto hl τl i lh : Persistent (interp_ctx τc τto τl hl i lh).
   Proof. apply _. Qed.
 
   Notation IctxR := ((leibnizO instance) -n> (leibnizO lholed) -n> (leibnizO frame) -n> iPropO Σ).
 
   Definition semantic_typing (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
     match tf with
-    | Tf τ1 τ2 => ∀ i lh, interp_instance τctx i -∗
-                         interp_ctx (tc_label τctx) (tc_return τctx) (tc_local τctx) i lh -∗
+    | Tf τ1 τ2 => ∀ i lh hl, interp_instance τctx hl i -∗
+                         interp_ctx (tc_label τctx) (tc_return τctx) hl (tc_local τctx) i lh -∗
                          ∀ f vs, ↪[frame] f ∗ interp_frame (tc_local τctx) i f -∗
                                   interp_val τ1 vs -∗
-                                  interp_expression (tc_label τctx) (tc_return τctx) τ2 lh (tc_local τctx) i ((of_val vs) ++ es)
+                                  interp_expression (tc_label τctx) (tc_return τctx) hl τ2 lh (tc_local τctx) i ((of_val vs) ++ es)
     end.
 
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------- RELATIONS FOR CLOSED CONTEXTS ----------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Definition interp_expression_closed (τs : result_type) (τl : result_type) (i : instance) (es : expr) : iProp Σ :=
-    (WP es {{ vs, interp_val τs vs ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }})%I.
-
-  Definition semantic_typing_closed (τctx : t_context) (es : expr) (tf : function_type) : iProp Σ :=
-    ⌜(tc_label τctx) = [] ∧ (tc_return τctx) = None⌝ ∧
-    match tf with
-    | Tf τ1 τ2 => ∀ i, interp_instance τctx i -∗
-                      ∀ f vs, ↪[frame] f ∗ interp_frame (tc_local τctx) i f -∗
-                               interp_val τ1 vs -∗
-                               interp_expression_closed τ2 (tc_local τctx) i ((of_val vs) ++ es)
-    end.
-
-
-  Definition interp_expression_closure (τs : result_type) (f : frame) (es : expr) : iProp Σ :=
+  Definition interp_expression_closure_no_host (τs : result_type) (f : frame) (es : expr) : iProp Σ :=
     (WP es {{ vs, (interp_val τs vs ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }})%I.
 
-  Definition semantic_typing_local (τctx : t_context) (es : seq.seq basic_instruction) (ts : result_type) (tf : function_type) : iProp Σ :=
+  Definition semantic_typing_local_no_host (τctx : t_context) (es : seq.seq basic_instruction) (ts : result_type) (tf : function_type) : iProp Σ :=
     ⌜(tc_label τctx) = [] ∧ (tc_return τctx) = None⌝ ∧
     match tf with
-    | Tf τ1 τ2 => ∀ i, interp_instance τctx i -∗
+    | Tf τ1 τ2 => ∀ i, interp_instance τctx [] i -∗
                       ∀ f vs, ↪[frame] f -∗ na_own logrel_nais ⊤ -∗
                                interp_val (τ1 ++ ts) (immV vs) -∗
-                               interp_expression_closure τ2 f [::AI_local (length τ2)
+                               interp_expression_closure_no_host τ2 f [::AI_local (length τ2)
                                                                 (Build_frame vs i)
                                                                 [::AI_label (length τ2) [] (to_e_list es)]]
     end.
   
-
 End logrel.
+
+Reserved Notation "'WPh' h {{ Φ } }" (at level 20, h, Φ at level 200).
+
+Class host_program_logic Σ `{wasmG Σ} := {
+    host_function : Type ;
+    result : Type ;
+
+    (* host context *)
+    host_ctx : Type ;
+    fill_host : host_ctx -> iris.expr -> host_function ;
+
+    (* we need functions that translates result to a logical wasm value *)
+    val_of_host_val : result -> iris.val ;
+
+    (* the host WP *)
+    wp_host (s : stuckness) : coPset -d> host_function -d> (result -d> iPropO Σ) -d> iPropO Σ
+    where "'WPh' h {{ Φ } }" := (wp_host NotStuck ⊤ h Φ);
+
+    (* host bind lemma *)
+    wp_host_bind :
+    (∀ hctx es Φ, 
+        WP es {{ v, WPh fill_host hctx (iris.of_val v) {{ Φ }} }} -∗
+           WPh fill_host hctx es {{ Φ }});
+
+    wp_host_local_bind :
+    (∀ hctx es Φ f0 f n,
+        ↪[frame] f0 -∗
+         (↪[frame] f -∗ WPh fill_host hctx es {{ λ v, ∃ f, (↪[frame] f0 -∗
+                                                             WPh fill_host hctx [AI_local n f (iris.of_val (val_of_host_val v))] {{ Φ }})
+                                                             ∗ ↪[frame] f}}) -∗
+         WPh fill_host hctx [AI_local n f es] {{ Φ }});
+
+    wp_host_local_return :
+    (∀ hctx Φ n f v,
+      ▷ Φ v -∗ WPh fill_host hctx [AI_local n f (iris.of_val (val_of_host_val v))] {{ Φ }})
+  }.
+
+Notation "'WPh' h {{ Φ } }" := (wp_host NotStuck ⊤ h Φ).
+
+Section logrel_host.
+  Context `{!wasmG Σ, !logrel_na_invs Σ, !host_program_logic Σ}.
+
+  Let expr := iris.expr.
+  Let val := iris.val.
+
+  Definition interp_expression_closure (hctx : host_ctx) (τs : result_type) (* (hl : list (hostfuncidx * function_type)) *) (f : frame) (es : expr) : iProp Σ :=
+    (WPh fill_host hctx es {{ λ vs, (interp_val τs (val_of_host_val vs) ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }})%I.
+
+  Definition interp_closure_host loch (hctx : host_ctx) (τ2 : result_type) tf1s tf2s (h : hostfuncidx) : iProp Σ :=
+    ∀ vcs f, interp_val tf1s (immV vcs) -∗
+                ↪[frame] f -∗
+                na_own logrel_nais ⊤ -∗
+                WPh fill_host hctx (sfill loch [AI_call_host (Tf tf1s tf2s) h vcs]) {{ λ r, (interp_val τ2 (val_of_host_val r) ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }}.
+
+  Definition interp_host_calls (τl : result_type) (i : instance) (hctx : host_ctx) (τ2 : result_type) (hl : list (hostfuncidx * function_type)) : iProp Σ :=
+    ∀ K,
+    [∗ list] ht ∈ hl, let '(h, t) := ht in
+                      let 'Tf tf1s tf2s := t in
+                      (∀ v2 f, interp_val tf2s v2 -∗
+                               ↪[frame] f ∗ interp_frame τl i f -∗
+                                          
+                               WPh fill_host hctx (sfill K (iris.of_val v2))
+                               {{ λ vs, (interp_val τ2 (val_of_host_val vs))
+                                        ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}) -∗
+                      interp_closure_host K hctx τ2 tf1s tf2s h.
+
+  Definition interp_host_return (hctx : host_ctx) (τ2 : result_type) : iProp Σ :=
+    ∀ v, interp_val τ2 v -∗ WPh fill_host hctx (iris.of_val v) {{ λ r, interp_val τ2 (val_of_host_val r) }}.
+  
+  Definition semantic_typing_local (τctx : t_context) (hl : list (hostfuncidx * function_type))
+             (es : seq.seq basic_instruction) (ts : result_type) (tf : function_type) (hctx : host_ctx) : iProp Σ :=
+    ⌜(tc_label τctx) = [] ∧ (tc_return τctx) = None⌝ ∧
+    match tf with
+    | Tf τ1 τ2 => ∀ i, interp_instance τctx hl i -∗
+                      ∀ f vs, ↪[frame] f -∗ na_own logrel_nais ⊤ -∗
+                               interp_val (τ1 ++ ts) (immV vs) -∗
+                               interp_expression_closure hctx τ2 f [::AI_local (length τ2)
+                                                                (Build_frame vs i)
+                                                                [::AI_label (length τ2) [] (to_e_list es)]]
+    end.
+
+  (*
+    
+    TODO: the following lemmas will be the one that depend on host WPs etc.
+    They will need to put the host wp expression inside a LOCAL constructor, 
+    apply the LOCAL bind for host, and assume that every funcid in hl yields a host wp.
+
+  Definition interp_expression_closure (τs : result_type) (hl : list hostfuncidx) (f : frame) (es : expr) : iProp Σ :=
+    (WP es {{ vs, ((interp_val τs vs ∨ interp_call_host hl vs) ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }})%I.
+
+  Definition semantic_typing_local (τctx : t_context) (hl : list hostfuncidx) (es : seq.seq basic_instruction) (ts : result_type) (tf : function_type) : iProp Σ :=
+    ⌜(tc_label τctx) = [] ∧ (tc_return τctx) = None⌝ ∧
+    match tf with
+    | Tf τ1 τ2 => ∀ i, interp_instance τctx hl i -∗
+                      ∀ f vs, ↪[frame] f -∗ na_own logrel_nais ⊤ -∗
+                               interp_val (τ1 ++ ts) (immV vs) -∗
+                               interp_expression_closure τ2 hl f [::AI_local (length τ2)
+                                                                (Build_frame vs i)
+                                                                [::AI_label (length τ2) [] (to_e_list es)]]
+    end.*)
+
+End logrel_host.

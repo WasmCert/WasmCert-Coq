@@ -155,7 +155,7 @@ End code.
 Section specs.
 
 
-   Context `{!wasmG Σ}. 
+   (* Context `{!wasmG Σ}.  *)
 
 
 Definition points_to_i32 n i v :=
@@ -2615,7 +2615,7 @@ Proof.
 Qed.
 
    
-Lemma spec_stack_map_trap `{!logrel_na_invs Σ} (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32)
+Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32)
       j0 a (* cl  *)
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) :
   ⊢ {{{  ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝  ∗

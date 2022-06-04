@@ -15,19 +15,19 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Lemma interp_instance_get_table C j :
+  Lemma interp_instance_get_table C hl j :
     tc_table C ≠ [] ->
-    ⊢ interp_instance (*HWP:=HWP*) C j -∗
+    ⊢ interp_instance C hl j -∗
       ∃ τt a, ⌜(tc_table C) !! 0 = Some τt⌝
             ∗ ⌜(inst_tab j) !! 0 = Some a⌝
             ∗ ∃ table_size, (N.of_nat a) ↪[wtsize] table_size
-                          ∗ (interp_table table_size (λ _, interp_closure (*HWP:=HWP*))) (N.of_nat a).
+                          ∗ (interp_table table_size (λ _, interp_closure hl)) (N.of_nat a).
   Proof.
     iIntros (Hnil) "#Hi".
     destruct C,j.
@@ -42,9 +42,9 @@ Section fundamental.
     iFrame "% #". iSplit;auto.
   Qed.    
   
-  Lemma interp_instance_type_lookup C i tf j :
+  Lemma interp_instance_type_lookup C hl i tf j :
     nth_error (tc_types_t C) i = Some tf ->
-    ⊢ interp_instance (*HWP:=HWP*) C j -∗
+    ⊢ interp_instance C hl j -∗
       ⌜nth_error (inst_types j) i = Some tf⌝.
   Proof.
     iIntros (Hnth) "#Hi".
@@ -59,10 +59,10 @@ Section fundamental.
     ssrnat.leq (S i) (length (tc_types_t C)) ->
     nth_error (tc_types_t C) i = Some (Tf t1s t2s) ->
     tc_table C ≠ [] ->
-    ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_call_indirect i]) (Tf (t1s ++ [T_i32]) t2s).
+    ⊢ semantic_typing C (to_e_list [BI_call_indirect i]) (Tf (t1s ++ [T_i32]) t2s).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (Hleq Hnth Htable j lh).
+    iIntros (Hleq Hnth Htable j lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
@@ -90,8 +90,11 @@ Section fundamental.
       { iIntros (v) "H". rewrite -or_assoc. iExact "H". }
       iApply wp_val_can_trap_app'. iFrame.
       iSplitR.
-      { iModIntro. rewrite fixpoint_interp_br_eq.
-        iIntros "[H|[H|H]]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ? ?) "_"|iDestruct "H" as (? ? ?) "_"];try done. }
+      { iModIntro. rewrite fixpoint_interp_br_eq fixpoint_interp_call_host_eq.
+        iIntros "[H|[H|[H|H]]]";[iDestruct "H" as (? ?) "_"
+                                |iDestruct "H" as (? ? ? ? ?) "_"
+                                |iDestruct "H" as (? ? ?) "_"
+                                |iDestruct "H" as (? ? ? ? ? ? ?) "[% _]"];try done. }
       iIntros "Hf".
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗  ↪[frame]f)%I with "[Hf]").
       { iApply (wp_call_indirect_failure_outofbounds with "[$] [$]");auto.
@@ -116,8 +119,12 @@ Section fundamental.
       { iIntros (v) "H". rewrite -or_assoc. iExact "H". }
       iApply wp_val_can_trap_app'. iFrame.
       iSplitR.
-      { iModIntro. rewrite fixpoint_interp_br_eq.
-        iIntros "[H|[H|H]]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ? ?) "_"|iDestruct "H" as (? ? ?) "_"];try done. }
+      { iModIntro. rewrite fixpoint_interp_br_eq fixpoint_interp_call_host_eq.
+        iIntros "[H|[H|[H|H]]]";[iDestruct "H" as (? ?) "_"
+                                |iDestruct "H" as (? ? ? ? ?) "_"
+                                |iDestruct "H" as (? ? ?) "_"
+                                |iDestruct "H" as (? ? ? ? ? ? ? ?) "_"];try done.
+      }
       iIntros "Hf".
       iApply wp_fupd.
       iApply (wp_wand _ _ _ (λ vs, (⌜vs = trapV⌝ ∗ _) ∗  ↪[frame]f)%I with "[Hf Ha]").
@@ -141,8 +148,12 @@ Section fundamental.
       { iIntros (v) "H". rewrite -or_assoc. iExact "H". }
       iApply wp_val_can_trap_app'. iFrame.
       iSplitR.
-      { iModIntro. rewrite fixpoint_interp_br_eq.
-        iIntros "[H|[H|H]]";[iDestruct "H" as (? ?) "_"|iDestruct "H" as (? ? ? ? ?) "_"|iDestruct "H" as (? ? ?) "_"];try done. }
+      { iModIntro. rewrite fixpoint_interp_br_eq fixpoint_interp_call_host_eq.
+        iIntros "[H|[H|[H|H]]]";[iDestruct "H" as (? ?) "_"
+                                |iDestruct "H" as (? ? ? ? ?) "_"
+                                |iDestruct "H" as (? ? ?) "_"
+                                |iDestruct "H" as (? ? ? ? ? ? ? ?) "_"];try done.
+      }
       iIntros "Hf".
       iApply wp_fupd.
       iApply (wp_wand _ _ _ (λ vs, (⌜vs = trapV⌝ ∗ _) ∗  ↪[frame]f)%I with "[Hf Ha Hn]").
@@ -164,7 +175,7 @@ Section fundamental.
     iApply wp_base_push;[apply v_to_e_is_const_list|].
     
     iApply iRewrite_nil_r_ctx.
-    iApply (wp_wand_ctx _ _ _ (λne (v : leibnizO val), (interp_val t2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame]f)%I with "[-]").
+    iApply (wp_wand_ctx _ _ _ (λne (v : leibnizO val), ((interp_val t2s v ∨ interp_call_host (tc_local C) j (tc_return C) hl v lh (tc_label C) t2s) ∗ na_own logrel_nais ⊤) ∗ ↪[frame]f)%I with "[-]").
     { iApply (wp_call_indirect_success_ctx with "[$] [$] [$] [-]");[rewrite Heq /= //..|].
       { rewrite nth_error_lookup in Htlook. rewrite Htlook//. f_equiv. auto. }
       iNext. iIntros "[Ha [Hn Hf]]".
@@ -190,37 +201,46 @@ Section fundamental.
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
-        rewrite -wp_frame_rewrite.
-        iApply wp_wasm_empty_ctx_frame.
-        take_drop_app_rewrite 0.
-        iApply (wp_block_local_ctx with "Hf");eauto.
-        iNext. iIntros "Hf".
-        iApply wp_label_push_nil_local. simpl push_base.
-        unfold interp_closure_native.
-        erewrite app_nil_l.
-        iApply ("Hcl" with "[] Hown Hf").
-        iRight. iExists _. eauto.
+        iApply (wp_wand _ _ _ (λne v, (interp_val t2s v ∗ _) ∗ _)%I with "[Hown Hf]").
+        { rewrite -wp_frame_rewrite.
+          iApply wp_wasm_empty_ctx_frame.
+          take_drop_app_rewrite 0.
+          iApply (wp_block_local_ctx with "Hf");eauto.
+          iNext. iIntros "Hf".
+          iApply wp_label_push_nil_local. simpl push_base.
+          unfold interp_closure_native.
+          erewrite app_nil_l.
+          iApply ("Hcl" with "[] Hown Hf").
+          iRight. iExists _. eauto.
+        }
+        iIntros (v) "[[Hw $] $]". by iLeft.
       }
       { (* host function *)
         destruct f.
-        iDestruct "Hcl" as (Heq) "Hcl". destruct τf;simplify_eq. inversion e;subst r r0.
+        iDestruct "Hcl" as %[Heq HH]. destruct τf;simplify_eq. inversion e;subst r r0.
         iDestruct (big_sepL2_length with "Hv'") as %Hlen'.
         iApply (wp_invoke_host with "[$] [$]");eauto.
-        admit.
-(*        { apply to_val_fmap. }
-        { iApply "Hcl". iRight. iExists _. eauto. }
-        iNext. iIntros (r) "[Hf [Ha Hpost]]".
+        iIntros "Ha Hf".
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
-        destruct (iris.to_val (result_to_stack r)) eqn:Hval;[|done].
-        iApply wp_value;[instantiate (1:=v);rewrite /IntoVal /=;erewrite of_to_val;eauto|].
-        iFrame. *)
+        iApply wp_value.
+        { instantiate (1:=callHostV _ _ _ _). eapply of_to_val. eauto. }
+        iFrame. iRight. iApply fixpoint_interp_call_host_eq.
+        iExists _,_,_,_,_,_. do 3 (iSplit;[eauto|]).
+        iSplit.
+        { iRight. iExists _. eauto. }
+        iModIntro. iIntros (v2 f) "#Hv2 [Hf Hfv]".
+        simpl sfill. rewrite app_nil_r. iApply wp_value;[done|].
+        iSplitR;[|iExists _;iFrame].
+        iLeft. done.
       }
     }
 
-    iIntros (v) "[[$ $] Hf]".
+    iIntros (v) "[[Hw Hown] Hf]".
+    iFrame. iSplitR "Hf".
+    { iDestruct "Hw" as "[Hw | Hw]";[by iLeft|by iRight;iRight;iRight]. }
     iExists _. iFrame. eauto.
-  Admitted.
+  Qed.
     
 End fundamental.

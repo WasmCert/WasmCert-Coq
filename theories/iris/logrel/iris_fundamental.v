@@ -20,6 +20,7 @@ Require Import iris_fundamental_const
         iris_fundamental_unop
         iris_fundamental_binop
         iris_fundamental_br
+        iris_fundamental_block
         iris_fundamental_loop
         iris_fundamental_br_if
         iris_fundamental_call
@@ -37,7 +38,6 @@ Require Import iris_fundamental_const
         iris_fundamental_nil
         iris_fundamental_weakening
         iris_fundamental_br_table
-        iris_fundamental_block
         iris_fundamental_if
         iris_fundamental_return
         iris_fundamental_trap
@@ -47,13 +47,13 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- FTLR: simple typing ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
   
-  Theorem be_fundamental C es τ : be_typing C es τ -> ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list es) τ.
+  Theorem be_fundamental C es τ : be_typing C es τ -> ⊢ semantic_typing C (to_e_list es) τ.
   Proof.
     induction 1.
     { by apply typing_const. }
@@ -93,8 +93,10 @@ Section fundamental.
     { by apply typing_weakening. }
   Qed.
 
+  (* TODO: update corollary to version as discussed in logrel file
+     
   Corollary be_fundamental_closed C es τ : (tc_label C) = [] ∧ (tc_return C) = None ->
-                                           be_typing C es τ -> ⊢ semantic_typing_closed (* HWP:=HWP *) C (to_e_list es) τ.
+                                           be_typing C es τ -> ⊢ semantic_typing_closed C (to_e_list es) τ.
   Proof.
     intros Hnil Htyping.
     iSplit;[auto|]. destruct τ.
@@ -112,15 +114,15 @@ Section fundamental.
       exfalso. destruct Hnil as [Hnil _]. rewrite Hnil in Hcontr. done. }
     { iDestruct "H" as (? ? ? ?) "H".
       destruct Hnil as [_ ->]. done. }
-  Qed.
+  Qed. *)
 
   
   Corollary be_fundamental_local C es τ1 τ2 τs : (tc_label C) = [] ∧ (tc_return C) = None ->
                                                  be_typing (upd_local_label_return C (τ1 ++ τs) [τ2] (Some τ2)) es (Tf [] τ2) ->
-                                                 ⊢ semantic_typing_local (* HWP:=HWP *) C es τs (Tf τ1 τ2).
+                                                 ⊢ semantic_typing_local_no_host C es τs (Tf τ1 τ2).
   Proof.
     intros Hnil Htyp.
-    apply typing_local;auto.
+    apply typing_local_no_host;auto.
     apply be_fundamental.
   Qed.
       

@@ -1,4 +1,3 @@
- 
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
@@ -23,7 +22,7 @@ Section StackModule.
 
   
 
-  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ, !logrel_na_inv Σ}. 
+  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
 
 
 
@@ -463,7 +462,7 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
   }}})%I.
 
   (* A trap allowing version for code that might trap *)
-Definition spec5_stack_map_trap idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
+Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
   (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a (* cl *)
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
       {{{  ↪[frame] f0 ∗ na_own logrel_nais ⊤ ∗
@@ -500,7 +499,7 @@ Definition spec5_stack_map_trap idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPr
       ↪[frame] f0
   }}})%I.
 
-Lemma instantiate_stack_spec (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
+Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
      (* … and we own the vis 0%N thru 4%N … *)

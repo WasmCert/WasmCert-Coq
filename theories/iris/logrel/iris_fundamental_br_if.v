@@ -16,7 +16,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -26,10 +26,10 @@ Section fundamental.
   
   Lemma typing_br_if C i ts : ssrnat.leq (S i) (length (tc_label C)) ->
                               plop2 C i ts ->
-                              ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_br_if i]) (Tf (ts ++ [T_i32]) ts).
+                              ⊢ semantic_typing C (to_e_list [BI_br_if i]) (Tf (ts ++ [T_i32]) ts).
   Proof.
     iIntros (Hleq Hlookup) "".
-    iIntros (j lh).
+    iIntros (j lh hl).
     iIntros "#Hi #Hc" (f vs) "[Hf Hfv] #Hv".
     unfold interp_expression.
     

@@ -15,17 +15,17 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Lemma interp_ctx_continuations_push_label_block lh C i tm :
+  Lemma interp_ctx_continuations_push_label_block lh C hl i tm :
     base_is_empty lh ->
     lholed_lengths (rev (tc_label C)) lh ->
-    interp_ctx_continuations (tc_label C) (tc_return C) (tc_local C) i lh -∗
-    interp_ctx_continuation (tc_label (upd_label C ([tm] ++ tc_label C))) (tc_return C) (push_base lh (length tm) [] [] [])
+    interp_ctx_continuations (tc_label C) (tc_return C) hl (tc_local C) i lh -∗
+    interp_ctx_continuation (tc_label (upd_label C ([tm] ++ tc_label C))) (tc_return C) hl (push_base lh (length tm) [] [] [])
                               0 tm (tc_local C) i.
   Proof.
     iIntros (Hlh_base Hlh_len) "#Hc". unfold interp_ctx_continuation.
@@ -55,10 +55,10 @@ Section fundamental.
     iLeft. iRight. iExists _. eauto.
   Qed.
 
-  Lemma interp_ctx_push_label_block C tm i lh :
-    interp_ctx (tc_label C) (tc_return C) (tc_local C) i lh -∗
+  Lemma interp_ctx_push_label_block C hl tm i lh :
+    interp_ctx (tc_label C) (tc_return C) hl (tc_local C) i lh -∗
     interp_ctx (tc_label (upd_label C ([tm] ++ tc_label C)%list))
-      (tc_return C) (tc_local (upd_label C ([tm] ++ tc_label C)%list)) i
+      (tc_return C) hl (tc_local (upd_label C ([tm] ++ tc_label C)%list)) i
       (push_base lh (length tm) [] [] []).
   Proof.
     iIntros "[%Hlh_base [%Hlh_len [%Hlh_valid #Hc]]]".
@@ -85,63 +85,14 @@ Section fundamental.
     }
   Qed.
 
-  Lemma interp_br_step C (j : nat) (vh: valid_holed j) m vs p i tm lh f' :
-    m = length tm ->
-    get_base_l vh = vs ->
-    lh_depth (lh_of_vh vh) = p ->
-    j = p ->
-    interp_br_body (tc_label (upd_label C ([tm] ++ tc_label C)))
-                   (push_base lh (length tm) [] [] [])
-                   j p vs (tc_local C) i (tc_return C) -∗
-    ↪[frame]f' -∗
-    interp_frame (tc_local C) i f' -∗
-    WP [AI_label m [] (vfill vh [AI_basic (BI_br j)])]
-      {{ v, (interp_val tm v ∨ interp_br (tc_local C) i (tc_return C) v lh (tc_label C) ∨ interp_return_option (tc_return C) (tc_local C) i v) ∗
-           (∃ f0,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
-  Proof.
-    iIntros (Hlen Hbase Hsize e) "Hbr Hf Hfv".
-    unfold interp_br_body.
-    destruct (pull_base_l_drop_len vh (length vs - length tm)) eqn:Hpb.
-    erewrite vfill_pull_base_l_take_len;[|eauto].
-    pose proof (vfill_to_lfilled v ((v_to_e_list l) ++ [AI_basic (BI_br j)])) as [Hle Hfill].
-    erewrite <-lh_depth_pull_base_l_take_len in Hfill;[|eauto]. 
-    rewrite Hsize -e in Hfill.
-    assert (j - p = 0) as ->;[lia|].
-    iDestruct "Hbr" as (? ? ? ? ? ? ? ? Hlook Hlayer) "Hbr".
-    simpl in Hlook. inversion Hlook;subst τs'.
-    iDestruct "Hbr" as (Hdepth Hmin) "[#Hvalvs Hbr]".
-    iDestruct "Hvalvs" as "[%|Hvalvs]";[done|].
-    iDestruct "Hvalvs" as (ws' Heq') "Hvalvs". inversion Heq';subst ws'.
-    iDestruct (big_sepL2_length with "Hvalvs") as %Hlen2.
-    rewrite app_length in Hlen2. subst j.
-        
-    iApply (wp_br_alt with "Hf");[..|apply Hfill|].
-    { apply const_list_of_val. }
-    { rewrite fmap_length. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
-      rewrite Hlen.
-      assert (length vs >= length tm);[|lia]. rewrite Hlen2. lia. }
-    iNext. iIntros "Hf".
-    rewrite app_nil_r.
-    rewrite of_val_imm.
-    iApply wp_value;[done|].
-    iSplitR "Hfv Hf";[|iExists _;iFrame;iExists _;eauto].
-    iLeft. iRight. iExists _. iSplit;eauto.
-    eapply take_drop_pull_base_l_take_len in Hpb as Happ;[|eauto..];[|lia].
-    rewrite Happ.
-    iDestruct (big_sepL2_app_inv with "Hvalvs") as "[? ?]".
-    { right. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
-      assert (length vs >= length tm);[|lia]. rewrite Hlen2. lia. }
-    iFrame "#".
-  Qed.
-
   (* ----------------------------------------- BLOCK --------------------------------------- *)
 
-  Lemma typing_block C tn tm es : (⊢ semantic_typing (* HWP:=HWP *) (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es) (Tf tn tm)) ->
-                                  ⊢ semantic_typing (* HWP:=HWP *) C (to_e_list [BI_block (Tf tn tm) es]) (Tf tn tm).
+  Lemma typing_block C tn tm es : (⊢ semantic_typing (upd_label C ([tm] ++ tc_label C)%list) (to_e_list es) (Tf tn tm)) ->
+                                  ⊢ semantic_typing C (to_e_list [BI_block (Tf tn tm) es]) (Tf tn tm).
   Proof.
     intros IHbe_typing.
     unfold semantic_typing, interp_expression.
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi".
     
     iDestruct (IHbe_typing $! i (push_base lh (length tm) [] [] []) with "[]") as "HH"; [by (destruct C,i;eauto)|].
@@ -166,7 +117,7 @@ Section fundamental.
     iAssert (∀ f, interp_frame (tc_local C) i f -∗ ↪[frame] f -∗ WP of_val (immV ws) ++ to_e_list es
               {{ v, (⌜v = trapV⌝ ∨
                        interp_values tm v ∨
-                       interp_br (tc_local C) i (tc_return C) v _ _ ∨ _)
+                       interp_br (tc_local C) i (tc_return C) hl v _ _ ∨ _)
                       ∗ ∃ f, ↪[frame] f ∗ interp_frame (tc_local C) i f }})%I as "Hcont".
     { iIntros (f') "Hfv Hf".
       iDestruct ("HH" with "[] [Hf Hfv] []") as "Hcont".
@@ -181,14 +132,15 @@ Section fundamental.
 
     iApply (wp_seq_can_trap_ctx). iFrame.
     iSplitR.
-    { iIntros "[Hcontr | [Hcontr|Hcontr]]";[iDestruct "Hcontr" as (? ?) "_";done|
-                                             rewrite fixpoint_interp_br_eq; iDestruct "Hcontr" as (? ? ? ? ?) "_";done|
-        iDestruct "Hcontr" as (? ? ?) "_";done]. }
+    { iIntros "[Hcontr | [Hcontr | [Hcontr | Hcontr] ] ]";[by iDestruct "Hcontr" as (? ?) "_"|..].
+      { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ? ?) "_". done. }
+      { iDestruct "Hcontr" as (? ? ?) "_";done. }
+      { rewrite fixpoint_interp_call_host_eq. iDestruct "Hcontr" as (? ? ? ? ? ? ?) "_";done. } }
     iSplitR;[by iLeft;iLeft|].
 
     iIntros (w f') "[Hred [Hf Hfv]]".
     rewrite app_nil_r.
-    iDestruct "Hred" as "[#Hval | [Hbr|Hret]]".
+    iDestruct "Hred" as "[#Hval | [Hbr|[Hret|Hch]]]".
     
     { iDestruct "Hval" as (vs ->) "Hval".
       iDestruct (big_sepL2_length with "Hval") as %Hlen'.
@@ -216,7 +168,8 @@ Section fundamental.
         { iDestruct "Hc" as "[% [% [% _]]]". auto. }
         iApply (interp_br_stuck_push with "Hbr Hf Hfv");eauto. }
     }
-    { iApply (interp_return_label  with "Hret Hf Hfv"). }
+    { iApply (interp_return_label with "Hret Hf Hfv"). }
+    { iApply (interp_call_host_label with "Hc Hch Hf Hfv"). }
   Qed.
 
 End fundamental.

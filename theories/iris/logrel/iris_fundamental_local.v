@@ -15,31 +15,31 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Lemma interp_instance_change_label lbs C i :
-    interp_instance (*HWP:=HWP*) C i -∗ interp_instance (*HWP:=HWP*) (upd_label C lbs) i.
+  Lemma interp_instance_change_label lbs C i hl :
+    interp_instance C hl i -∗ interp_instance (upd_label C lbs) hl i.
   Proof. destruct C,i;simpl. auto. Qed.
 
-  Lemma interp_instance_change_return ret C i :
-    interp_instance (*HWP:=HWP*) C i -∗ interp_instance (*HWP:=HWP*) (upd_return C ret) i.
+  Lemma interp_instance_change_return ret C i hl :
+    interp_instance C hl i -∗ interp_instance (upd_return C ret) hl i.
   Proof. destruct C,i;simpl. auto. Qed.
 
-  Lemma interp_instance_change_local locs C i :
-    interp_instance (*HWP:=HWP*) C i -∗ interp_instance (*HWP:=HWP*) (upd_local C locs) i.
+  Lemma interp_instance_change_local locs C i hl :
+    interp_instance C hl i -∗ interp_instance (upd_local C locs) hl i.
   Proof. destruct C,i;simpl. auto. Qed.
   
   (* ----------------------------------------- LOCAL --------------------------------------- *)
 
-  Lemma typing_local C es τ1 τ2 τs :
-    (∀ C es τ, be_typing C es τ -> ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list es) τ) ->
+  Lemma typing_local_no_host C es τ1 τ2 τs :
+    (∀ C es τ, be_typing C es τ -> ⊢ semantic_typing C (to_e_list es) τ) ->
     (tc_label C) = [] ∧ (tc_return C) = None ->
     be_typing (upd_local (upd_label (upd_return C (Some τ2)) [τ2]) (τ1 ++ τs)) es (Tf [] τ2) ->
-    ⊢ semantic_typing_local (*HWP:=HWP*) C es τs (Tf τ1 τ2).
+    ⊢ semantic_typing_local_no_host C es τs (Tf τ1 τ2).
   Proof.
     intros be_fundamental Hnil Htyping.
     iSplit;[auto|].
@@ -60,7 +60,6 @@ Section fundamental.
       iSplitR;[|iExists _;iFrame].
       iLeft. iFrame "Hv'". }
 
-    unfold interp_expression_closed.
     iApply (wp_frame_bind with "Hf").
     iIntros "Hf".
     iApply wp_wasm_empty_ctx.
@@ -75,7 +74,7 @@ Section fundamental.
     iClear "Ht".
     iIntros (v) "[Hv' Hf0]".
     iDestruct "Hf0" as (f0) "[Hf0 Hf0v]".
-    iDestruct "Hv'" as "[[-> | Hv'] | [Hbr | Hret]]";simpl language.of_val.
+    iDestruct "Hv'" as "[[-> | Hv'] | [Hbr | [Hret | Hch] ]]";simpl language.of_val.
     { rewrite -(app_nil_l [AI_trap]) -(app_nil_r [AI_trap]).
       iApply (wp_wand_ctx _ _ _ (λ vs, _ ∗ ↪[frame] _)%I with "[Hf0]").
       { iApply wp_trap_ctx;eauto. }
@@ -174,6 +173,8 @@ Section fundamental.
       iIntros (v) "[-> Hf]". iFrame.
       iSplitR;[iRight;iExists _;eauto|].
       iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame. }
+    { rewrite fixpoint_interp_call_host_eq.
+      iDestruct "Hch" as (? ? ? ? ? ? ? ? Hcontr) "Hch". inversion Hcontr. }
   Qed.
 
 End fundamental.

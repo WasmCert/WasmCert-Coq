@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -23,10 +23,10 @@ Section fundamental.
 
   (* ------------------------------------------ RELOP -------------------------------------- *)
 
-  Lemma typing_relop C t op : relop_type_agree t op -> ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_relop t op]) (Tf [t; t] [T_i32]).
+  Lemma typing_relop C t op : relop_type_agree t op -> ⊢ semantic_typing C (to_e_list [BI_relop t op]) (Tf [t; t] [T_i32]).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (Hisint i lh).
+    iIntros (Hisint i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.

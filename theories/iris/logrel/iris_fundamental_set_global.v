@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -26,10 +26,10 @@ Section fundamental.
   Lemma typing_set_global C i g t : nth_error (tc_global C) i = Some g ->
                               tg_t g = t ->
                               is_mut g ->
-                              ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_set_global i]) (Tf [t] []).
+                              ⊢ semantic_typing C (to_e_list [BI_set_global i]) (Tf [t] []).
   Proof.
     unfold semantic_typing, interp_expression.
-    iIntros (Hnth Hg Hmut j lh).
+    iIntros (Hnth Hg Hmut j lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
@@ -40,7 +40,7 @@ Section fundamental.
     iDestruct (big_sepL2_length with "Hv") as %Hlen.
     destruct ws as [|w ws];[done|destruct ws;[|done]].
 
-    iDestruct (interp_instance_lookup_global _ _ i with "Hi") as (gt mut n Hnth' Hn Htg) "Hg".
+    iDestruct (interp_instance_lookup_global _ _ _ i with "Hi") as (gt mut n Hnth' Hn Htg) "Hg".
     { rewrite Hnth. simpl. rewrite Hg. eauto. }
     destruct g.
     simplify_eq. rewrite /is_mut /= in Hmut. revert Hmut. move/eqP =>Hmut.

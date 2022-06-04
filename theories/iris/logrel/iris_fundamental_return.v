@@ -15,7 +15,7 @@ Import uPred.
 Section fundamental.
 
 
-  Context `{!wasmG Σ, HWP: host_program_logic, !logrel_na_invs Σ}.
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
   
   (* --------------------------------------------------------------------------------------- *)
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
@@ -24,11 +24,11 @@ Section fundamental.
   (* ----------------------------------------- RETURN -------------------------------------- *)
 
   Lemma typing_return C ts t1s t2s : tc_return C = Some ts ->
-                                     ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_return]) (Tf (t1s ++ ts) t2s).
+                                     ⊢ semantic_typing C (to_e_list [BI_return]) (Tf (t1s ++ ts) t2s).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (Hsome).
-    iIntros (i lh).
+    iIntros (i lh hl).
     iIntros "#Hi [%Hlh_base [%Hlh_len [%Hlh_valid #Hcont]]]" (f vs) "[Hf Hfv] #Hv".
     iDestruct "Hv" as "[-> | Hv]".
     { take_drop_app_rewrite_twice 0 1.
@@ -45,7 +45,7 @@ Section fundamental.
       rewrite app_assoc. auto. }
 
     iSplitR;[|iExists _;iFrame;iExists _;eauto].
-    iRight. iRight.
+    iRight. iRight. iLeft.
     unfold interp_return_option.
     iSimpl.
     iExists _,ws. iSplit;[eauto|]. iSplit;[eauto|].
