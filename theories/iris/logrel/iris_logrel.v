@@ -297,7 +297,7 @@ Section logrel.
     (λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))) (τ2 : leibnizO result_type),
       (∃ (vh : simple_valid_holed) (v : seq.seq value) (tf : function_type)
                               (h : hostfuncidx) (τs1 τs2 : result_type),
-                               ⌜w = callHostV tf h v (No_local vh)⌝ ∗
+                               ⌜w = callHostV tf h v vh⌝ ∗
                                ⌜tf = Tf τs1 τs2⌝ ∗
                                ⌜(h,tf) ∈ host_list⌝ ∗
                                interp_val τs1 (immV v) ∗

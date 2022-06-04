@@ -58,6 +58,17 @@ Definition proph_id := positive. (* ??? *)
 Instance eqdecision_frame: EqDecision frame.
 Proof. decidable_equality. Qed.
 
+Definition gen_heap_wasm_store `{!wasmG Σ} (s: store_record) : iProp Σ :=
+  ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
+   (gen_heap_interp (gmap_of_table s.(s_tables))) ∗
+   (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
+   (gen_heap_interp (gmap_of_list s.(s_globals))) ∗
+   (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
+   (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables)))) ∗
+   (gen_heap_interp (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
+   (gen_heap_interp (gmap_of_list (fmap table_max_opt s.(s_tables)))))%I.
+
+(* TODO: let this use the above gen_heap as well. Currently too much a hassle as this needs to update every file. *)
 Global Instance heapG_irisG `{!wasmG Σ} : irisGS wasm_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _ :=

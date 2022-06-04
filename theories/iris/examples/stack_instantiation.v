@@ -593,6 +593,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
     - iPureIntro. apply dom_empty.
     - iPureIntro. apply dom_empty.
     - done.
+    - iPureIntro. unfold module_elem_bound_check_gmap => //=.
+    - iPureIntro. unfold module_data_bound_check_gmap => //=.
     - unfold export_ownership_host.
       iSplitL "Hhv0".
       by iExists _.
@@ -610,18 +612,12 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       by iExists _.
       done.
       done.
-      iPureIntro.
-      unfold module_elem_bound_check_gmap.
-      simpl.
-      done.
-      iPureIntro.
-      unfold module_data_bound_check_gmap.
-      simpl.
-      done.
     - iIntros (v) "Hinst". 
       unfold instantiation_resources_post.
       iDestruct "Hinst" as "(Hmod & Himphost & Hinst)".
-      iDestruct "Hinst" as (inst g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm & Hexphost)".
+      iDestruct "Hinst" as (inst) "[Himpwasm Hexphost]".
+      unfold instantiation_resources_post_wasm.
+      iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
@@ -1320,6 +1316,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
+      (* Proof of the spec with traps, uncomment once the problem with the 
+         formulation is solved *)
     - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
               "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hspec) HΞ".
       iApply wp_wand_r.

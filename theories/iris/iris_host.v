@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
-Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
+Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris_instantiation iris.
 Require Export datatypes host operations properties opsem instantiation.
 (* We need a few helper lemmas from preservation. *)
 Require Export type_preservation.
@@ -12,8 +12,6 @@ Require Export type_preservation.
 Close Scope byte.
 
 Section Iris_host.
-
-
 
 
 (* Domain of the variable instantiation store *)
@@ -48,24 +46,12 @@ Inductive host_action : Type :=
 .
 
 
-Definition host_config : Type := store_record * vi_store * (list module) * (list inst_decl) * (list host_action) * (list administrative_instruction).
+Definition host_config : Type := store_record * vi_store * (list module) * (list inst_decl) * (list host_action) * frame * (list administrative_instruction).
 
 (* Definition instantiate := instantiate host_function host_instance. *)
 
 Section instantiation_det.
 
-Lemma module_typing_det m it1 et1 it2 et2:
-  module_typing m it1 et1 ->
-  module_typing m it2 et2 ->
-  (it1, et1) = (it2, et2).
-Proof.
-  move => Hmt1 Hmt2.
-  unfold module_typing in Hmt1, Hmt2.
-  destruct m.
-  destruct Hmt1 as [fts1 [gts1 [Hmft1 [Hmtt1 [Hmmt1 [Hmgt1 [Hmet1 [Hmdt1 [Hmst1 [Hmimt1 Hmext1]]]]]]]]]].
-  destruct Hmt2 as [fts2 [gts2 [Hmft2 [Hmtt2 [Hmmt2 [Hmgt2 [Hmet2 [Hmdt2 [Hmst2 [Hmimt2 Hmext2]]]]]]]]]].
-Admitted.
-  
 Lemma instantiate_det s m vimps res res':
   instantiate s m vimps res ->
   instantiate s m vimps res' ->
@@ -119,87 +105,11 @@ Definition empty_frame := Build_frame [::] empty_instance.
 
 (* Note that instantiation takes imports as module_export_desc but gives exports as module_export (i.e. with a name). *)
 
-Print instantiation.instantiate.
-
-Print check_bounds_elem.
-
-Print module_elem_typing.
-
-Print module_element.
-
-Print module_typing.
-
-Print s_tables.
-
-Print tableinst.
-
-Definition assert_const1 (es: expr) : option value :=
-  match es with
-  | [:: BI_const v] => Some v
-  | _ => None
-  end.
-
-Definition assert_const1_i32 (es: expr) : option i32 :=
-  match es with
-  | [:: BI_const (VAL_int32 v)] => Some v
-  | _ => None
-  end.
-
-Definition assert_const1_i32_to_nat (es:expr) : nat :=
-  match assert_const1_i32 es with
-  | Some v => nat_of_int v
-  | _ => 0
-  end.
-
-Definition module_elem_bound_check_gmap (wts: gmap N tableinst) (imp_descs: list module_export_desc) (m: module) :=
-  Forall (fun '{| modelem_table := (Mk_tableidx n);
-                modelem_offset := eoff;
-                modelem_init := fids |} =>
-            match assert_const1_i32 eoff with
-            | Some eoffi =>
-              match (ext_tabs imp_descs) !! n with
-              | Some (Mk_tableidx k) =>
-                match wts !! (N.of_nat k) with
-                | Some ti => nat_of_int eoffi + length fids <= length ti.(table_data)
-                | None => False
-                end
-              | _ => 
-                match (m.(mod_tables) !! (n - length (ext_tabs imp_descs))) with
-                | Some modtab => (N.of_nat (nat_of_int eoffi + length fids) <= modtab.(modtab_type).(tt_limits).(lim_min))%N
-                | None => False
-                end
-              end
-            | None => False
-              end
-      ) m.(mod_elem).
-
-Definition module_data_bound_check_gmap (wms: gmap N memory) (imp_descs: list module_export_desc) (m: module) :=
-  Forall (fun '{| moddata_data := (Mk_memidx n);
-                moddata_offset := doff;
-                moddata_init := bs |} =>
-            match assert_const1_i32 doff with
-            | Some doffi =>
-              match (ext_mems imp_descs) !! n with
-              | Some (Mk_memidx k) =>
-                match wms !! (N.of_nat k) with
-                | Some mi => (N.of_nat (nat_of_int doffi + length bs) <= mem_length mi)%N
-                | None => False
-                end
-              | _ => 
-                match (m.(mod_mems) !! (n - length (ext_mems imp_descs))) with
-                | Some modmem => (N.of_nat (nat_of_int doffi + length bs) <= page_size * (modmem.(lim_min)))%N
-                | None => False
-                end
-              end
-            | None => False
-              end
-         ) m.(mod_data).
-
 
 
 Inductive host_reduce: host_config -> host_config -> Prop :=
 | HR_host_step:
-  forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs fs,
+  forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs s' vis' ms idecs' inst (exps: list module_export) start vs f fs,
     ms !! (N.to_nat vm) = Some m ->
     those ((lookup_export_vi vis) <$> vimps) = Some imps ->
     fmap (fun imp => imp.(modexp_desc)) imps = imp_descs ->
@@ -207,37 +117,37 @@ Inductive host_reduce: host_config -> host_config -> Prop :=
     length viexps = length exps ->
     const_list vs ->
     insert_exports vis viexps exps = Some vis' ->
-    host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', fs, vs) (s', vis', ms, idecs', fs, map_start start)
-| HR_host_step_init_oob: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs ms idecs' (exps: list module_export) vs fs,
+    host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', fs, f, vs) (s', vis', ms, idecs', fs, f, map_start start)
+| HR_host_step_init_oob: forall s (vis: vi_store) m (viexps: list vi) vm vimps imps imp_descs ms idecs' (exps: list module_export) f vs fs,
     ms !! (N.to_nat vm) = Some m ->
     those ((lookup_export_vi vis) <$> vimps) = Some imps ->
     fmap (fun imp => imp.(modexp_desc)) imps = imp_descs ->
     const_list vs ->
     (not (module_elem_bound_check_gmap (gmap_of_list s.(s_tables)) imp_descs m /\
             module_data_bound_check_gmap (gmap_of_list s.(s_mems)) imp_descs m)) ->
-    host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', fs, vs) (s, vis, ms, idecs', fs, [AI_trap])
+    host_reduce (s, vis, ms, (ID_instantiate viexps vm vimps) :: idecs', fs, f, vs) (s, vis, ms, idecs', fs, f, [AI_trap])
 | HR_call_host_action :
   forall (s:store_record) vis ms idecs (s':store_record) (tf:function_type)
     (h:hostfuncidx) (hi:nat) f
     (vcs:seq.seq value) fs
-    (res : seq.seq administrative_instruction) (LI : seq.seq administrative_instruction) LI' lh,
+    (res : seq.seq administrative_instruction) (LI : seq.seq administrative_instruction) LI' lh f0,
     h = Mk_hostfuncidx hi ->
     fs !! hi = Some f ->
     execute_action f s vcs s' res ->
     locfill lh [AI_call_host tf h vcs] = LI ->
     locfill lh res = LI' ->
-    host_reduce (s, vis, ms, idecs, fs, LI) (s', vis, ms, idecs, fs, LI')
+    host_reduce (s, vis, ms, idecs, fs, f0, LI) (s', vis, ms, idecs, fs, f0, LI')
 | HR_call_host_instantiate :
-  forall s vis ms idecs h hi f fs LI LI' lh,
+  forall s vis ms idecs h hi f fs LI LI' lh f0,
     h = Mk_hostfuncidx hi ->
     fs !! hi = Some (HA_instantiate f) ->
     locfill lh [AI_call_host (Tf [] []) h []] = LI ->
     locfill lh [] = LI' ->
-    host_reduce (s, vis, ms, idecs, fs, LI) (s, vis, ms, f :: idecs, fs, LI')
-| HR_wasm_step: forall s vis ms idecs s' es es' fs,
+    host_reduce (s, vis, ms, idecs, fs, f0, LI) (s, vis, ms, f :: idecs, fs, f0, LI')
+| HR_wasm_step: forall s vis ms idecs s' es es' f1 f2 fs,
     (* No reentrancy and no host functions, so hs should just be dummy *)
-    opsem.reduce s empty_frame es s' empty_frame es' ->
-    host_reduce (s, vis, ms, idecs, fs, es) (s', vis, ms, idecs, fs, es')
+    opsem.reduce s f1 es s' f2 es' ->
+    host_reduce (s, vis, ms, idecs, fs, f1, es) (s', vis, ms, idecs, fs, f2, es')
 
                 
 with execute_action : host_action -> store_record -> list value -> store_record -> list administrative_instruction -> Prop :=
@@ -272,8 +182,8 @@ Proof.
   intro H ; inversion H ; subst ; clear H.
   generalize dependent l1 ; induction l ; intros l1 H ; destruct l1 => //=.
   simpl in H ; inversion H. specialize (IHl _ H2). by inversion IHl.
-  intro H ; inversion H ; subst ; clear H. rewrite (IHs0 _ H4).
-  clear IHs0. generalize dependent l2 ; induction l ; intros l2 H ; destruct l2 => //=.
+  intro H ; inversion H ; subst ; clear H. rewrite (IHs0 _ H4). 
+ clear IHs0. generalize dependent l2 ; induction l ; intros l2 H ; destruct l2 => //=.
   simpl in H ; inversion H. specialize (IHl _ H2). by inversion IHl.
 Qed.
 
@@ -338,18 +248,125 @@ Proof.
       (try by right ; right ; right ; right ; repeat eexists ; right).
 Qed.
 
-    
-Lemma call_host_reduce_det s vis ms idecs fs LI lh tf h vcs hc1 hc2 :
+Lemma sfill_const_list sh es :
+  const_list (sfill sh es) -> const_list es.
+Proof.
+  destruct sh => //= ;
+  intro H ; unfold const_list in H ; repeat rewrite forallb_app in H.
+  apply andb_true_iff in H as [_ H].
+  apply andb_true_iff in H as [? _] => //.
+  simpl in H. apply andb_true_iff in H as [??] => //.
+Qed.
+  
+
+
+Lemma call_host_no_reduce tf h vcs lh s0 f s'0 f' es' :
+  reduce s0 f (locfill lh [AI_call_host tf h vcs]) s'0 f' es' -> False.
+Proof.
+  intro H.
+  destruct lh ; unfold locfill in H.
+  apply val_head_stuck_reduce in H.
+  specialize (iris.to_of_val (callHostV tf h vcs s)) as Htv.
+  unfold of_val in Htv. rewrite H in Htv => //.
+  cut (forall m bef aft es' f f' , length bef + length aft < m -> reduce s0 f (v_to_e_list bef ++ AI_local n f0 (sfill s [AI_call_host tf h vcs]) :: aft) s'0 f' es' -> False).
+  intro H'.
+  exfalso ; apply (H' (S (length l + length l0)) l l0 es' f f') => //.
+  lia.
+  clear H es' f f'.
+  induction m ; first lia.
+  intros bef aft es' f f' Hm H.
+  remember (v_to_e_list bef ++ AI_local n f0 (sfill s [AI_call_host tf h vcs]) :: aft)%SEQ as es.
+  (* remember empty_frame as f.
+      remember empty_frame as f'.
+      rewrite -> Heqf in H at 2.
+      assert (reduce s0 f es s'0 f' es') as Hcopy => //. *)
+  induction H ; (try by do 3 destruct bef => //=) ; 
+    (try by subst ; apply first_values in Heqes as (? & ? & ?) => //= ;
+                                                                 apply v_to_e_is_const_list). 
+  inversion H ; subst ; (try by do 4 destruct bef => //=) ;
+    (try by subst ; apply first_values in H4 as (? & ? & ?) => //= ;
+                                                              apply v_to_e_is_const_list).
+  destruct bef ; inversion H2 => //.
+  subst. apply sfill_const_list in H0 => //.
+  destruct bef ; inversion H0 => //.
+  subst. destruct s ; simpl in H4 ; destruct l1 => //.
+  destruct bef ; inversion H3 => //.
+  subst. specialize (sfill_to_lfilled s [AI_call_host tf h vcs]) as Hfill.
+  rewrite - (app_nil_l [_]) - cat_app in Hfill.
+  specialize (lfilled_first_values H2 Hfill) as (? & ? & ?) => //.
+  destruct bef ; inversion H1 => //.
+  subst => //.
+  destruct bef => //.
+  unfold lfilled, lfill in H1.
+  destruct lh => //.
+  destruct (const_list l1) eqn:Hl1 => //.
+  apply b2p in H1.
+  apply first_values in H1 as (? & ? & ?) => // ; apply v_to_e_is_const_list.
+  subst.
+  unfold lfilled, lfill in H0.
+  destruct k, lh => // ; last first.
+  fold lfill in H0.
+  destruct (const_list l1) eqn:Hl1 => //.
+  destruct (lfill _ _ _) => //.
+  apply b2p in H0.
+  apply first_values in H0 as (_ & ? & _) => // ; apply v_to_e_is_const_list.
+  destruct (const_list l1) eqn:Hl1 => //.
+  apply b2p in H0.
+  destruct (first_non_value_reduce _ _ _ _ _ _ H) as (bef' & e & aft' & ? & ? & ?).
+  subst.
+  repeat rewrite app_assoc in H0.
+  rewrite - (app_assoc (l1 ++ bef')) in H0.
+  rewrite - app_comm_cons in H0.
+  rewrite - (v_to_e_length bef) in Hm.
+  apply first_values in H0 as (? & <- & ->) => // ; last first.
+  unfold const_list ; rewrite forallb_app.
+  unfold const_list in H2 ; rewrite H2.
+  unfold const_list in Hl1 ; rewrite Hl1.
+  done.
+  apply v_to_e_is_const_list.
+  destruct e => //.
+  destruct b => //.
+  unfold to_val in H3 ; simpl in H3.
+  by destruct H3.
+  rewrite H0 in Hm.
+  apply const_es_exists in H2 as [vs' ->].
+  destruct l1. destruct l2.
+  { apply IHreduce => //.
+    rewrite H0 => //=.
+    rewrite app_nil_r.
+    done. }
+  eapply IHm ; last first.
+  exact H.
+  simpl in Hm.
+  rewrite v_to_e_length app_length in Hm.
+  simpl in Hm.
+  lia.
+  eapply IHm ; last first.
+  exact H.
+  simpl in Hm.
+  rewrite app_length app_length v_to_e_length in Hm.
+  lia.
+  destruct bef ; inversion Heqes.
+  subst.
+  apply val_head_stuck_reduce in H.
+  specialize (to_of_val (callHostV tf h vcs s)) as H'.
+  unfold of_val in H'.
+  by rewrite H in H'.
+Qed.
+
+
+
+Lemma call_host_reduce_det s vis ms idecs fs LI lh tf h vcs hc1 hc2 f0 :
   locfill lh [AI_call_host tf h vcs] = LI ->
-  host_reduce (s, vis, ms, idecs, fs, LI) hc1 ->
-  host_reduce (s, vis, ms, idecs, fs, LI)  hc2 ->
+  host_reduce (s, vis, ms, idecs, fs, f0, LI) hc1 ->
+  host_reduce (s, vis, ms, idecs, fs, f0, LI)  hc2 ->
   hc1 = hc2.
 Proof.
   intros Hfill Hred1 Hred2.
-  remember (s, vis, ms, idecs, fs, LI) as hc.
+  remember (s, vis, ms, idecs, fs, f0, LI) as hc.
   destruct Hred1 => //= ; 
                    try by apply locfill_const in Hfill ; simplify_eq  => //=.
-  - remember (s0, vis0, ms0, idecs0, fs0, LI0) as hc.
+  - remember (s0, vis0, ms0, idecs0, fs0, f1, LI0) as hc.
     destruct Hred2 => //= ; 
                      try by apply locfill_const in Hfill ; simplify_eq => //=.
     + simplify_eq. 
@@ -367,11 +384,11 @@ Proof.
       eapply locfill_unique in H2 as [[H ->] | [? | [? | [ (?&?&?&[?|?]) | (?&?&?&[?|?])]]]] => //=.
       inversion H ; subst.
       rewrite H0 in H5 ; inversion H5 ; subst.
-      remember (HA_instantiate f0) as ha ; destruct H1 => //=.
-    + simplify_eq. apply val_head_stuck_reduce in H4.
-      specialize (iris.to_of_val (callHostV tf h vcs lh)) as Htv.
-      unfold of_val in Htv. rewrite H4 in Htv => //. 
-  - remember (s0, vis0, ms0, idecs0, fs0, LI0) as hc.
+      remember (HA_instantiate f2) as ha ; destruct H1 => //=.
+    + simplify_eq.
+      exfalso ; by eapply call_host_no_reduce.
+      
+  - remember (s0, vis0, ms0, idecs0, fs0, f1, LI0) as hc.
     destruct Hred2 => //= ; 
                      try by apply locfill_const in Hfill ; simplify_eq  => //=.
     + simplify_eq. 
@@ -384,12 +401,9 @@ Proof.
           as [[H ->]|[?|[?|[(?&?&?&[?|?])|(?&?&?&[?|?])]]]] => //=.
       inversion H ; subst.
       rewrite H0 in H4 ; inversion H4 ; subst => //.
-    + simplify_eq. apply val_head_stuck_reduce in H3.
-      specialize (to_of_val (callHostV tf h vcs lh)) as Htv.
-      unfold of_val in Htv. rewrite H3 in Htv => //. 
-  - simplify_eq. apply val_head_stuck_reduce in H.
-    specialize (to_of_val (callHostV tf h vcs lh)) as Htv.
-    unfold of_val in Htv. rewrite H in Htv => //.
+    + simplify_eq.
+      exfalso ; by eapply call_host_no_reduce.
+  - simplify_eq. exfalso ; by eapply call_host_no_reduce. 
 Qed.
 
 
@@ -415,7 +429,7 @@ Definition val_of_host_val hv :=
   | retHV sh => retV sh *)
   end.
 
-Definition state : Type := store_record * vi_store * (list module) * (list host_action ).
+Definition state : Type := store_record * vi_store * (list module) * (list host_action ) * frame.
 
 Definition observation := unit. 
 
@@ -448,11 +462,11 @@ Definition to_val (e: host_expr) : option host_val :=
 
 
 Definition prim_step (e : host_expr) (s : state) (os : list observation) (e' : host_expr) (s' : state) (fork_es' : list host_expr) : Prop :=
-  let '(ws, vis, ms, fs) := s in
-  let '(ws', vis', ms', fs') := s' in
+  let '(ws, vis, ms, fs, f) := s in
+  let '(ws', vis', ms', fs', f') := s' in
   let '(hes, wes) := e in
   let '(hes', wes') := e' in
-    host_reduce (ws, vis, ms, hes, fs, wes) (ws', vis', ms', hes', fs', wes') /\ os = [] /\ fork_es' = [].
+    host_reduce (ws, vis, ms, hes, fs, f, wes) (ws', vis', ms', hes', fs', f', wes') /\ os = [] /\ fork_es' = [].
 
 
 Lemma to_of_val v : to_val (of_val v) = Some v.
@@ -477,7 +491,7 @@ Lemma val_head_stuck : forall e1 s1 κ e2 s2 efs,
   to_val e1 = None.
 Proof.
   rewrite /prim_step.
-  move => [hes wes] [[[ws vis] hprog] fs] κ [hes' wes'] [[[ws' vis'] hprog'] fs'] efs [HRed _].
+  move => [hes wes] [[[[ws vis] hprog] fs] f] κ [hes' wes'] [[[[ws' vis'] hprog'] fs'] f'] efs [HRed _].
   inversion HRed => //=; subst.
   - destruct hes' => //.
     destruct (iris.to_val (locfill lh _)) eqn:Hwes => //.
@@ -498,12 +512,15 @@ Proof.
     destruct s ; unfold sfill in Hwes.
     destruct l => //=. destruct l => //=. destruct l => //=. 
   - destruct hes' => //.
+    destruct f as [l1 i1].
+    destruct f' as [l2 i2].
     erewrite iris.val_head_stuck => //.
     unfold iris.prim_step.
     instantiate (1 := []).
     instantiate (1 := []).
-    instantiate (2 := (ws', [::], empty_instance)).
-    instantiate (2 := (ws, [::], empty_instance)).
+    
+    instantiate (2 := (ws', l2, i2)).
+    instantiate (2 := (ws, l1, i1)).
     repeat split => //.
 Qed.
 
@@ -583,7 +600,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
 Global Instance host_heapG_irisG `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
   state_interp σ _ κs _  :=
-    let: (s, vis, ms, fs) := σ in
+    let: (s, vis, ms, fs, f) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
       (gen_heap_interp (gmap_of_table s.(s_tables))) ∗
       (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
@@ -591,7 +608,7 @@ Global Instance host_heapG_irisG `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ} : w
       (ghost_map_auth visGName 1 vis) ∗ 
       (ghost_map_auth msGName 1 (gmap_of_list ms)) ∗
       (ghost_map_auth haGName 1 (gmap_of_list fs)) ∗
-      (ghost_map_auth frameGName 1 (<[ tt := empty_frame ]> ∅)) ∗ 
+      (ghost_map_auth frameGName 1 (<[ tt := f ]> ∅)) ∗ 
       (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
       (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables)))) ∗
       (gen_heap_interp (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
@@ -621,12 +638,17 @@ Proof.
   iApply lifting.wp_lift_step => //=.
   - destruct hes => //.
     subst.
-    fold (iris.of_val (callHostV tf (Mk_hostfuncidx hi) vcs lh)).
+    destruct lh => //=.
+    fold (iris.of_val (callHostV tf (Mk_hostfuncidx hi) vcs s0)).
     rewrite iris.to_of_val => //=.
+    unfold iris.to_val.
+    rewrite map_app merge_app.
+    destruct (merge_values_list _) => //=.
+    destruct v => //=. 
   - iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_mask_intro ; first by solve_ndisj.
     iIntros "Hfupd".
-    destruct σ as [[[ws vi] ms] has].
+    destruct σ as [[[[ws vi] ms] has] f0].
     iDestruct "Hσ" as "(? & ? & ? & ? & ? & ? & Hha & ? & ? & ? & ? & ?)".
     iDestruct (ghost_map_lookup with "Hha Hhi") as "%Hf0".
     rewrite gmap_of_list_lookup Nat2N.id in Hf0.
@@ -634,11 +656,11 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold language.reducible, language.prim_step => /=.
-    eexists [], (_,_), (_,_,_,_), [].
+    eexists [], (_,_), (_,_,_,_,_), [].
     repeat split => //=.
     eapply HR_call_host_action => //.
   - iIntros "!>" (es σ2 efs HStep).
-    destruct σ2 as [[[s2 vi2] ms2] has2].
+    destruct σ2 as [[[[s2 vi2] ms2] has2] f2].
     destruct es as [hes2 es2].
     iMod "Hfupd".
     iModIntro.
@@ -662,12 +684,17 @@ Proof.
   iIntros (Hh Hfill Hfill') "(Hhi & Hwp)".
   iApply lifting.wp_lift_step => //=.
   - destruct hes => //. subst.
-    fold (iris.of_val (callHostV (Tf [] []) (Mk_hostfuncidx hi) [] lh)).
+    destruct lh => //=. 
+    fold (iris.of_val (callHostV (Tf [] []) (Mk_hostfuncidx hi) [] s0)).
     rewrite iris.to_of_val => //=.
+    unfold iris.to_val.
+    rewrite map_app merge_app.
+    destruct (merge_values_list _) => //=.
+    destruct v => //=. 
   - iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_mask_intro ; first by solve_ndisj.
     iIntros "Hfupd".
-    destruct σ as [[[ws vi] ms] has].
+    destruct σ as [[[[ws vi] ms] has] f0].
     iDestruct "Hσ" as "(? & ? & ? & ? & ? & ? & Hha & ? & ? & ? & ? & ?)".
     iDestruct (ghost_map_lookup with "Hha Hhi") as "%Hf0".
     rewrite gmap_of_list_lookup Nat2N.id in Hf0.
@@ -675,11 +702,11 @@ Proof.
   - iPureIntro.
     destruct s => //=.
     unfold language.reducible, language.prim_step => /=.
-    eexists [], (_,_), (_,_,_,_), [].
+    eexists [], (_,_), (_,_,_,_,_), [].
     repeat split => //=.
     eapply HR_call_host_instantiate => //.
   - iIntros "!>" (es σ2 efs HStep).
-    destruct σ2 as [[[s2 vi2] ms2] has2].
+    destruct σ2 as [[[[s2 vi2] ms2] has2] f2].
     destruct es as [hes2 es2].
     iMod "Hfupd".
     iModIntro.
@@ -693,16 +720,6 @@ Qed.
   
   
 
-
-(*
-(* adding this would nullify all lemmas in weakestpre -- why? Is this not the 
-   correct instance? *)
-
-Global Instance wp_host : Wp (iProp Σ) host_expr host_val stuckness.
-Proof. (* using Σ wfuncG0 wtabG0 wmemG0 wmemsizeG0 wglobG0 (* wframeG0 *) hvisG0 hmsG0. *)
-  by eapply weakestpre.wp'.
-Qed.
-*)
 (*
 Lemma wp_host_test_const (s: stuckness) E vs:
   ⊢ wp s E (([::], (v_to_e_list vs)): host_expr) (λ v, ⌜ v = immV vs ⌝).
@@ -855,44 +872,256 @@ Qed.
 
 
 (* Lifting reduction of valid wasm expressions to host configurations. *)
-Lemma reducible_lift es ws vis ms fs:
+Lemma reducible_lift es ws vis ms fs locs inst:
   host_wasm_expr_valid es ->
-  iris_wp_def.reducible es (ws, [], empty_instance) ->
-  reducible ([], es) (ws, vis, ms, fs).
+  iris_wp_def.reducible es (ws, locs, inst ) ->
+  reducible ([], es) (ws, vis, ms, fs, {| f_locs := locs ; f_inst := inst |} ).
 Proof.
   move => Hvalid.
   unfold reducible, iris_wp_def.reducible, language.reducible, prim_step.
   move => [κ [es' [σ' [efs HStep]]]].
-  destruct σ' as [[ws' vs'] inst'].
-  exists [], ([], es'), (ws', vis, ms, fs), [].
-  simpl in *.
+  destruct σ' as [[ws' vs'] locs'].
   destruct HStep as [HStep [-> ->]].
+  eexists [], ([], es'), (ws', vis, ms, fs, _), [].
+  simpl in *.
   split => //.
   eapply HR_wasm_step.
-  by eapply hwev_reduce_ignore_frame in Hvalid => //.
+  exact HStep. (* by eapply hwev_reduce_ignore_frame in Hvalid => //. *)
 Qed.
 
 
+(* Inductive CHVal : Type :=
+| CH_const : list value -> CHVal
+| CH_call_host : function_type -> hostfuncidx -> list value -> local_holed -> CHVal
+| CH_other : iris.expr -> CHVal.
 
+
+
+Definition of_chval chv :=
+  match chv with
+  | CH_const vs => v_to_e_list vs
+  | CH_other e => e
+  | CH_call_host tf h cvs loch => locfill loch [AI_call_host tf h cvs]
+  end.
+
+
+Fixpoint chval_combine chv1 chv2 :=
+  match chv1 with
+  | CH_call_host tf h cvs loch => CH_call_host tf h cvs (loch_append loch (of_chval chv2))
+  | CH_other e1 => CH_other (e1 ++ of_chval chv2)
+  | CH_const vs =>
+      match chv2 with
+      | CH_call_host tf h cvs loch => CH_call_host tf h cvs (loch_push_const loch vs)
+      | CH_other e2 => CH_other (v_to_e_list vs ++ e2)
+      | CH_const vs2 => CH_const (vs ++ vs2)
+      end end.
+
+Fixpoint merge_chval chvs :=
+  match chvs with
+  | [] => CH_const []
+  | chv :: chvs => chval_combine chv (merge_chval chvs)
+  end.
+
+
+Fixpoint to_chval_instr (instr : administrative_instruction) : CHVal :=
+  match instr with
+  | AI_basic (BI_const v) => CH_const [v]
+  | AI_label n labe es =>
+      match merge_chval (map to_chval_instr es) with
+      | CH_call_host tf h cvs (No_local sh) =>
+          CH_call_host tf h cvs (No_local (SH_rec [] n labe sh []))
+      | _ => CH_other [instr]
+      end
+  | AI_local n f es =>
+      match merge_chval (map to_chval_instr es) with
+      | CH_call_host tf h cvs (No_local sh) =>
+          CH_call_host tf h cvs (One_local [] n f sh [])
+      | _ => CH_other [instr]
+      end
+  | AI_call_host tf h cvs =>
+      CH_call_host tf h cvs (No_local (SH_base [] []))
+  | _ => CH_other [instr]
+  end.
+
+Definition to_chval e :=
+  merge_chval (map to_chval_instr e). *)
+
+
+
+
+Lemma wp_value s E (e : host_expr) v Φ :
+  to_val e = Some v ->
+  Φ v ⊢ WP e @ s; E {{ Φ }}.
+Proof.
+  intro.
+  iIntros "HΦ".
+  iApply weakestpre.wp_value.
+  unfold IntoVal.
+  apply of_to_val.
+  done.
+  done.
+Qed.
+
+Lemma wp_lift_wasm s E δ es Φ:
+  WP es @ NotStuck; E {{ v, WP ((δ, iris.of_val v) : host_expr) @ s; E {{ Φ }} }}
+     ⊢ WP ((δ, es) : host_expr) @ s; E {{ Φ }}.
+Proof.
+  iLöb as "IH" forall (s E es Φ).
+                 iIntros "Hwp".
+                 destruct (to_val ((δ,es))) eqn:Htv.
+                 { iApply weakestpre.wp_unfold.
+                    rewrite /weakestpre.wp_pre /=.
+                    iDestruct (wp_unfold with "Hwp") as "Hwp".
+                    rewrite /wp_pre /=.
+                    destruct δ => //.
+                    simpl in Htv.
+                    destruct (iris.to_val es) => //.
+                    rewrite weakestpre.wp_unfold /weakestpre.wp_pre /= iris.to_of_val.
+                    destruct v ; by iMod "Hwp". }
+                 rewrite weakestpre.wp_unfold.
+                 iDestruct (wp_unfold with "Hwp") as "Hwp".
+                 rewrite /wp_pre /=.
+                 rewrite /weakestpre.wp_pre /=.
+                 unfold to_val in Htv ; rewrite Htv.
+                 iIntros (σ ns κ κs nt) "Hσ".
+                 destruct (iris.to_val es) eqn:Hes.
+                 { apply iris.of_to_val in Hes as <-.
+                   iMod "Hwp".
+                   iDestruct (weakestpre.wp_unfold with "Hwp") as "Hwp".
+                   rewrite /weakestpre.wp_pre /=.
+                   rewrite iris.to_of_val Htv.
+                   iSpecialize ("Hwp" $! σ ns κ κs nt with "[$]").
+                   by iApply "Hwp". }
+                 destruct σ as [[[[s0 vis] ms] has] f].
+                 iDestruct "Hσ" as "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?)".
+(*                 destruct δ.
+                 destruct (to_chval es) eqn:Htchv. *)
+                 destruct f as [loc ins].
+                 iSpecialize ("Hwp" $! (s0, loc, ins) ns κ κs nt with "[$]").
+                 iMod "Hwp" as "[%Hs He2]".
+                 iModIntro.
+                 iSplit.
+                 { destruct s => //.
+                   iPureIntro.
+                   destruct Hs as (obs & es' & [[??]?] & efs & ? & -> & ->).
+                   eexists [], (_,_), (_,_,_,_,_), [].
+                   repeat split => //.
+                   eapply HR_wasm_step.
+                   exact H. }
+                 iIntros ([δ2 es2] [[[[s2 vis2] ms2] has2] f2] efs (Hred & -> & ->)).
+                 destruct Hs as (obs & es' & [[??]?] & efs & ? & -> & ->).
+                 inversion Hred ; (try by exfalso ; eapply values_no_reduce) ;
+                   try by subst ; exfalso ; eapply call_host_no_reduce.
+                 destruct f2 as [l2 i2].
+                 assert (iris.prim_step es (s0, loc, ins) [] es2 (s2, l2, i2) []) as Hstep.
+                 repeat split => //.
+                 iSpecialize ("He2" $! es2 (s2, l2, i2) [] Hstep).
+                 iMod "He2".
+                 repeat iModIntro.
+                 repeat iMod "He2".
+                 iDestruct "He2" as "[Hσ Hf]".
+                 iDestruct "Hσ" as "(?&?&?&?&?&?&?&?&?)".
+                 iFrame.
+                 iDestruct "Hf" as (f) "(Hf & Hwp & ?)".
+                 iDestruct ("Hwp" with "Hf") as "Hwp".
+                 iModIntro ; iSplit ; last done.
+                 iApply ("IH" with "Hwp").
+Qed.
+
+(*
+Lemma wp_host_bind_local s E δ n f es Φ :
+  WP ((δ, es) : host_expr) @ s; E {{ v, WP ((δ, [AI_local n f (iris.of_val (val_of_host_val v))]) : host_expr) @ s; E {{ Φ }} }}
+  ⊢ WP ((δ, [AI_local n f es]) : host_expr) @ s; E {{ Φ }}.
+Proof.
+  iLöb as "IH" forall (s E es Φ).
+                 iIntros "Hwp".
+(*                 destruct (to_val ((δ,es))) eqn:Htv.
+                 { iApply weakestpre.wp_unfold.
+                    rewrite /weakestpre.wp_pre /=.
+                    iDestruct (wp_unfold with "Hwp") as "Hwp".
+                    rewrite /wp_pre /=.
+                    destruct δ => //.
+                    simpl in Htv.
+                    destruct (iris.to_val es) => //.
+                    rewrite weakestpre.wp_unfold /weakestpre.wp_pre /= iris.to_of_val.
+                    destruct v ; by iMod "Hwp". } *)
+                 repeat rewrite weakestpre.wp_unfold.
+                 repeat rewrite /weakestpre.wp_pre /=.
+                 assert (match δ with | [] | _ => None end = None) as -> ;
+                   first by destruct δ.
+                 iIntros (σ ns κ κs nt) "Hσ".
+                 destruct (to_val (δ,es)) eqn:Hes.
+                 { unfold to_val in Hes ; rewrite Hes.
+                   destruct δ => //.
+                   iMod "Hwp".
+                   iDestruct (weakestpre.wp_unfold with "Hwp") as "Hwp".
+                   rewrite /weakestpre.wp_pre /=.
+                   iSpecialize ("Hwp" $! σ ns κ κs nt with "[$]").
+                   destruct (iris.to_val es) eqn:Hes' => //.
+                   apply iris.of_to_val in Hes' as <-.
+                   destruct v => // ;
+                                inversion Hes ; subst ; by iApply "Hwp". }
+                 unfold to_val in Hes ; rewrite Hes.
+                 iSpecialize ("Hwp" $! σ ns κ κs nt with "[$]").
+                 iMod "Hwp".
+                 iModIntro.
+                 iDestruct "Hwp" as "[%Hs H]".
+                 destruct s => //.
+                  
+                 iSplit.
+                 { destruct s => //.
+                   iPureIntro.
+                   destruct σ as [[[[??]?]?]?].
+                   destruct Hs as (obs & [δ' es'] & [[[[??]?]?]?] & efs & ? & -> & ->).
+                   inversion H.
+                   eexists [], (_,_), (_,_,_,_,_), [].
+                   repeat split => //.
+                   eapply HR_wasm_step.
+                   eapply r_simple.
+                   apply rs_local_const => //. 
+                   exact H. }
+                 iIntros ([δ2 es2] [[[[s2 vis2] ms2] has2] f2] efs (Hred & -> & ->)).
+                 destruct Hs as (obs & es' & [[??]?] & efs & ? & -> & ->).
+                 inversion Hred ; (try by exfalso ; eapply values_no_reduce) ;
+                   try by subst ; exfalso ; eapply call_host_no_reduce.
+                 destruct f2 as [l2 i2].
+                 assert (iris.prim_step es (s0, loc, ins) [] es2 (s2, l2, i2) []) as Hstep.
+                 repeat split => //.
+                 iSpecialize ("He2" $! es2 (s2, l2, i2) [] Hstep).
+                 iMod "He2".
+                 repeat iModIntro.
+                 repeat iMod "He2".
+                 iDestruct "He2" as "[Hσ Hf]".
+                 iDestruct "Hσ" as "(?&?&?&?&?&?&?&?&?)".
+                 iFrame.
+                 iDestruct "Hf" as (f) "(Hf & Hwp & ?)".
+                 iDestruct ("Hwp" with "Hf") as "Hwp".
+                 iModIntro ; iSplit ; last done.
+                 iApply ("IH" with "Hwp").
+                 
+Admitted. *)
+
+
+
+
+(*
 (* Lifting wasm wp to host wp *)
 Lemma wp_host_wasm (s: stuckness) E (es: iris.expr) (Φ: iris.val -> iProp Σ):
   (* wp_wasm s E es Φ *)
   (* This abuse of notation is somehow possible. It is the weirdest thing I've 
      seen in a while *)
-  host_wasm_expr_valid es ->
-(*  (* lifting only holds if final value is not a stuck br or return, and not a callHostV 
+(*  host_wasm_expr_valid es -> *)
+  (* lifting only holds if final value is not a stuck br or return, and not a callHostV 
      (as this reduces forward) *)
-  (∀ i (lh : valid_holed i), ¬ (Φ (brV lh))) -∗
-    (∀ sh, ¬ (Φ (retV sh))) -∗
-    (∀ tf h vcs sh, ¬ (Φ (callHostV tf h vcs sh))) -∗  *)
+  (∀ v, Φ v -∗ ⌜ (exists vs, v = immV vs) \/ v = trapV ⌝ ) -∗ 
     WP es @ s; E {{ Φ }} -∗
                  WP (([::], es): host_expr) @ s; E {{ v, Φ (val_of_host_val v) }}.
 Proof.
   iLöb as "IH" forall (s E es Φ).
-  iIntros (Hhwev).
+(*   iIntros (Hhwev). *)
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
   repeat rewrite wp_unfold /wp_pre /=. 
-  iIntros "Hwp".
+  iIntros "HΦ Hwp".
   destruct (iris.to_val es) eqn: Hes => //=.
   destruct v => //=.
   admit.
@@ -923,7 +1152,9 @@ Proof.
   iSplit.
   - destruct s => //.
     iPureIntro.
-    by apply reducible_lift.
+    apply reducible_lift.
+    admit.
+    done.
   - iIntros ([hes' wes'] [[[ws' vis'] ms'] fs'] efs HStep).
     unfold Iris_host.prim_step in HStep.
     destruct HStep as [HStep [-> ->]].
@@ -942,10 +1173,16 @@ Proof.
     iDestruct "Hwp" as (f) "(Hf & Hwp & ?)".
     iFrame.
     iSplit => //.
-    iApply ("IH" with "[]") ; first by apply hwev_reduce_closed in H0.
+    iApply ("IH" with "HΦ") (* ; first by apply hwev_reduce_closed in H0 *) .
     iApply "Hwp".
     by iApply "Hf".
 Admitted.
+
+Lemma wp_lift_call_host :
+  locfill lh es = LI ->
+  WP es @ s; E {{ v, WP (( [::], of_val v))}
+    ⊢ WP (( [::], LI) : host_expr) @ s; E {{ Φ }} *)
+
 
 End host_lifting.
 
@@ -1081,136 +1318,6 @@ Definition export_ownership_host (hs_exps: list vi) : iProp Σ :=
   [∗ list] i ↦ hs_exp ∈ hs_exps,
   ∃ hv, hs_exp ↪[vis] hv.
 
-
-Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
-Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
-Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
-Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
-
-(* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later.*)
-Definition get_import_func_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_func id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-
-Definition get_import_table_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_table id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-Definition get_import_mem_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_mem id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-Definition get_import_global_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_global id => Some id
-                                                                   | _ => None
-                                                                    end) m.(mod_imports)).
-
-Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global) : iProp Σ :=
-  ⌜ dom (gset N) wfs ≡ list_to_set (fmap N.of_nat (ext_func_addrs (fmap modexp_desc v_imps))) /\
-    dom (gset N) wts ≡ list_to_set (fmap N.of_nat (ext_tab_addrs (fmap modexp_desc v_imps))) /\
-    dom (gset N) wms ≡ list_to_set (fmap N.of_nat (ext_mem_addrs (fmap modexp_desc v_imps))) /\
-    dom (gset N) wgs ≡ list_to_set (fmap N.of_nat (ext_glob_addrs (fmap modexp_desc v_imps))) ⌝.
-
-(* Resources in the Wasm store, corresponding to those referred by the host vis store. This needs to also type-check
-   with the module import. *)
-Definition import_resources_wasm_typecheck (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
-  (* Note that we do not actually need to know the exact content of the imports. However, these information are present
-     in this predicate to make sure that they are kept incontact in the post. Note how these four gmaps are quantified
-     in the instantiation spec. *)
-  import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
-  [∗ list] i ↦ v; t ∈ v_imps; t_imps,
-  match v.(modexp_desc) with
-  | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! (N.of_nat i) = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
-  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! (N.of_nat i) = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
-  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! (N.of_nat i) = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
-  | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
-  end.
-
-(*
-(* An alternate definition that splits the above into the four different components from the start. *)
-Definition import_resources_wasm_typecheck_split (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
-  import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
-  ([∗ list] i ↦ v; t ∈ (ext_func_addrs (fmap modexp_desc v_imps)); (ext_t_funcs t_imps), ∃ cl, N.of_nat v ↦[wf] cl ∗ ⌜ wfs !! (N.of_nat v) = Some cl /\ t = (cl_type cl)⌝) ∗
-  ([∗ list] i ↦ v; t ∈ (ext_tab_addrs (fmap modexp_desc v_imps)); (ext_t_tabs t_imps), ∃ tab, N.of_nat v ↦[wtblock] tab ∗ ⌜ wts !! (N.of_nat v) = Some tab /\ tab_typing tab t ⌝) ∗
-  ([∗ list] i ↦ v; t ∈ (ext_mem_addrs (fmap modexp_desc v_imps)); (ext_t_mems t_imps), ∃ mem, N.of_nat v ↦[wmblock] mem ∗ ⌜ wms !! (N.of_nat v) = Some mem /\ mem_typing mem t ⌝) ∗
-  ([∗ list] i ↦ v; t ∈ (ext_glob_addrs (fmap modexp_desc v_imps)); (ext_t_globs t_imps), ∃ g, N.of_nat v ↦[wg] g ∗ ⌜ wgs !! (N.of_nat v) = Some g /\ global_agree g t ⌝).
-
-(* Note that the original definition applies the alt, but not the other way round. *)
-Lemma import_resources_wasm_equivalent_aux (v_imps: list module_export) (t_imps: list extern_t) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global):
-  (*import_resources_wasm_domcheck v_imps wfs wts wms wgs*) ⊢
-  (([∗ list] i ↦ v; t ∈ v_imps; t_imps,
-  match v.(modexp_desc) with
-  | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! (N.of_nat i) = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
-  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! (N.of_nat i) = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
-  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! (N.of_nat i) = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
-  | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝) end) ↔
-  (([∗ list] i ↦ v; t ∈ (ext_func_addrs (fmap modexp_desc v_imps)); (ext_t_funcs t_imps), ∃ cl, N.of_nat v ↦[wf] cl ∗ ⌜ wfs !! (N.of_nat v) = Some cl /\ t = (cl_type cl)⌝) ∗
-  ([∗ list] i ↦ v; t ∈ (ext_tab_addrs (fmap modexp_desc v_imps)); (ext_t_tabs t_imps), ∃ tab, N.of_nat v ↦[wtblock] tab ∗ ⌜ wts !! (N.of_nat v) = Some tab /\ tab_typing tab t ⌝) ∗
-  ([∗ list] i ↦ v; t ∈ (ext_mem_addrs (fmap modexp_desc v_imps)); (ext_t_mems t_imps), ∃ mem, N.of_nat v ↦[wmblock] mem ∗ ⌜ wms !! (N.of_nat v) = Some mem /\ mem_typing mem t ⌝) ∗
-  ([∗ list] i ↦ v; t ∈ (ext_glob_addrs (fmap modexp_desc v_imps)); (ext_t_globs t_imps), ∃ g, N.of_nat v ↦[wg] g ∗ ⌜ wgs !! (N.of_nat v) = Some g /\ global_agree g t ⌝)))%I.
-Proof.
-  move: wgs wms wts wfs t_imps.
-  iInduction v_imps as [ | v] "IH"; iIntros (wgs wms wts wfs t_imps) => /=; destruct t_imps => //=.
-  - iSplit; first by iIntros "?" => //=.
-    destruct e; by iIntros "(?&?&?&?)".
-  - iSplit; first by iIntros "?".
-    destruct v, modexp_desc => /=; by iIntros "(?&?&?&?)".
-  - iSplit.
-    + destruct v, modexp_desc; iIntros "(Hhead & Htail)" => /=.
-      * destruct f.
-        iDestruct "Hhead" as (cl) "(Hhead & %Hhead)".
-        destruct Hhead as [Hlookup ->].
-        iSimpl.
-        unfold ext_tab_addrs, ext_mem_addrs, ext_glob_addrs.
-        simpl.
-        iDestruct ("IH" with "Htail") as "(Hf & Ht & Hm & Hg)".
-        iFrame.
-        iExists cl; by iFrame.
-      * destruct t.
-        iDestruct "Hhead" as (tab tt) "(Hhead & %Hhead)".
-        destruct Hhead as [Hlookup [-> Htt]].
-        iSimpl.
-        unfold ext_func_addrs, ext_mem_addrs, ext_glob_addrs.
-        simpl.
-        iDestruct ("IH" with "Htail") as "(Hf & Ht & Hm & Hg)".
-        iFrame.
-        iExists tab; by iFrame.
-      * destruct m.
-        iDestruct "Hhead" as (mem mt) "(Hhead & %Hhead)".
-        destruct Hhead as [Hlookup [-> Hmt]].
-        iSimpl.
-        unfold ext_func_addrs, ext_tab_addrs, ext_glob_addrs.
-        simpl.
-        iDestruct ("IH" with "Htail") as "(Hf & Ht & Hm & Hg)".
-        iFrame.
-        iExists mem; by iFrame.
-      * destruct g.
-        iDestruct "Hhead" as (glob gt) "(Hhead & %Hhead)".
-        destruct Hhead as [Hlookup [-> Hgt]].
-        iSimpl.
-        unfold ext_func_addrs, ext_tab_addrs, ext_mem_addrs.
-        simpl.
-        iDestruct ("IH" with "Htail") as "(Hf & Ht & Hm & Hg)".
-        iFrame.
-        iExists glob; by iFrame.
-   (* + destruct v, modexp_desc; iIntros "(Hf & Ht & Hm & Hg)" => /=.
-      * destruct f.
-        unfold ext_func_addrs => /=.
-        unfold oapp.
-        iDestruct ("IH" with "Hf Ht Hm Hg") as "Hcons".
-        iDestruct (big_sepL2_length with "Hf") as "%Hlength".
-        simpl in Hlength.
-        destruct e => //=.
-        admit.
-        iDestruct (big_sepL2_length with "Hf") as "%Hlength2".
-        iDestruct "Hf" as "(Hhead & Htail)".*)
-        admit.
-Admitted.
-        
-*)
-Definition exp_default := MED_func (Mk_funcidx 0).
-
 (* The resources for module exports. This is a bit more complicated since it is allowed to export the imported elements,
    adding another case to be considered. *)
 Definition module_export_resources_host (hs_exps: list vi) (m_exps: list module_export) (inst: instance) : iProp Σ :=
@@ -1234,46 +1341,6 @@ Definition module_export_resources_host (hs_exps: list vi) (m_exps: list module_
                                                    ).
 
 
-Lemma ext_tabs_lookup_exist (modexps: list module_export_desc) n tn:
-  (ext_tabs modexps) !! n = Some tn ->
-  exists k, modexps !! k = Some (MED_table tn).
-Proof.
-  move: n tn.
-  induction modexps; move => n tn Hexttablookup => //=.
-  simpl in Hexttablookup.
-  destruct a => //. 
-  2: { simpl in *.
-       destruct n; simpl in *; first by inversion Hexttablookup; subst; exists 0.
-       apply IHmodexps in Hexttablookup.
-       destruct Hexttablookup as [k ?].
-       by exists (S k).
-  }
-  all: simpl in *. 
-  all: apply IHmodexps in Hexttablookup.
-  all: destruct Hexttablookup as [k ?].
-  all: by exists (S k).
-Qed.
-
-Lemma ext_mems_lookup_exist (modexps: list module_export_desc) n mn:
-  (ext_mems modexps) !! n = Some mn ->
-  exists k, modexps !! k = Some (MED_mem mn).
-Proof.
-  move: n mn.
-  induction modexps; move => n mn Hextmemlookup => //=.
-  simpl in Hextmemlookup.
-  destruct a => //. 
-  3: { simpl in *.
-       destruct n; simpl in *; first try by inversion Hextmemlookup; subst; exists 0.
-       apply IHmodexps in Hextmemlookup.
-       destruct Hextmemlookup as [k ?].
-       by exists (S k).
-  }
-  all: simpl in *. 
-  all: apply IHmodexps in Hextmemlookup.
-  all: destruct Hextmemlookup as [k ?].
-  all: by exists (S k).
-Qed.
-
 Lemma import_resources_host_lookup hs_imps v_imps vis:
   ⊢ ghost_map_auth visGName 1 vis -∗
     ([∗ list] hs_imp; v_imp ∈ hs_imps; v_imps, hs_imp ↪[vis] v_imp) -∗
@@ -1289,884 +1356,19 @@ Proof.
   - by iApply ("IH" with "[$]").   
 Qed.
 
-
-
-Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
-  ⊢ gen_heap_interp (gmap_of_list (s_funcs ws)) -∗
-    gen_heap_interp (gmap_of_table (s_tables ws)) -∗
-    gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
-    gen_heap_interp (gmap_of_list (s_globals ws)) -∗
-    gen_heap_interp (gmap_of_list (fmap tab_size (s_tables ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_length (s_mems ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
-    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-    ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
-      match modexp_desc v with
-      | MED_func (Mk_funcidx i) => ∃ cl, ws.(s_funcs) !! i = Some cl /\ wfs !! N.of_nat i = Some cl /\ t = ET_func (cl_type cl) 
-      | MED_table (Mk_tableidx i) => ∃ tab tt, ws.(s_tables) !! i = Some tab /\ wts !! N.of_nat i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt
-      | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! N.of_nat i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
-      | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! N.of_nat i = Some g /\ t = ET_glob gt /\ global_agree g gt
-      end ⌝.
-Proof. 
-  iIntros "Hwf Hwt Hwm Hwg Hwtsize Hwtlimit Hwmlength Hwmlimit (Himpwasmdom & Himpwasm)".
-  iSplit; first by iApply big_sepL2_length.
-  iIntros (k v t Hv Ht).
-  destruct v as [? modexp_desc].
-  iDestruct (big_sepL2_lookup with "Himpwasm") as "Hvimp" => //.
-  destruct modexp_desc as [e|e|e|e]; destruct e as [n] => /=.
-  - (* functions *)
-    iDestruct "Hvimp" as (cl) "(Hcl & %Hwfs)".
-    destruct Hwfs as [Hwfs ->].
-    iDestruct (gen_heap_valid with "Hwf Hcl") as "%Hwf".
-    rewrite gmap_of_list_lookup in Hwf.
-    rewrite Nat2N.id in Hwf.
-    rewrite Hwf.
-    iPureIntro.
-    exists cl.
-    by repeat split => //.
-  - (* tables *)
-    iDestruct "Hvimp" as (tab tt) "(Htab & %Hwts)".
-    destruct Hwts as [Hwts [-> Htabletype]]. 
-    iDestruct (tab_block_lookup with "Hwt Hwtsize Hwtlimit Htab") as "%Hwt".
-    rewrite Nat2N.id in Hwt.
-    iPureIntro.
-    exists tab, tt.
-    by repeat split => //.
-  - (* memories *)
-    iDestruct "Hvimp" as (mem mt) "(Hmem & %Hwms)".
-    destruct Hwms as [Hwms [-> Hmemtype]]. 
-    iDestruct (mem_block_lookup with "Hwm Hwmlength Hwmlimit Hmem") as "%Hwm".
-    rewrite Nat2N.id in Hwm.
-    destruct Hwm as [m [Hwmlookup [Hmdata Hmlimit]]].
-    iPureIntro.
-    eexists _, mt, m.(mem_data).(ml_init).
-    repeat split => //.
-    rewrite Hwmlookup.
-    f_equal.
-    destruct m.
-    simpl in *.
-    f_equal => //.
-    destruct mem_data.
-    simpl in *.
-    by f_equal.
-  - (* globals *)
-    iDestruct "Hvimp" as (g gt) "(Hg & %Hwgs)".
-    destruct Hwgs as [Hwgs [-> Hgt]].
-    iDestruct (gen_heap_valid with "Hwg Hg") as "%Hwg".
-    rewrite gmap_of_list_lookup in Hwg.
-    rewrite Nat2N.id in Hwg.
-    iPureIntro.
-    exists g, gt.
-    by repeat split => //.
-Qed.
-
-
-Lemma import_resources_wts_subset v_imps t_imps wfs wts wms wgs (ws: store_record):
-  ⊢ gen_heap_interp (gmap_of_table (s_tables ws)) -∗
-    gen_heap_interp (gmap_of_list (fmap tab_size (s_tables ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
-    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-    ⌜ length v_imps = length t_imps ⌝ -∗
-    ⌜ wts ⊆ gmap_of_list (s_tables ws) ⌝.
-Proof.
-  iIntros "Hwt Hwtsize Hwtlimit (%Himpwasmdom & Himpwasm) %Himplen".
-  rewrite map_subseteq_spec.
-  iIntros (i x Hwtslookup).
-  destruct Himpwasmdom as [_ [Hwtdom _]].
-  assert (i ∈ dom (gset N) wts) as Hidom.
-  { by apply elem_of_dom. }
-  rewrite -> Hwtdom in Hidom.
-  rewrite -> elem_of_list_to_set in Hidom.
-
-  unfold ext_tab_addrs, compose in Hidom.
-  rewrite -> elem_of_list_fmap in Hidom.
-  destruct Hidom as [? [-> Hidom]].
-  rewrite -> elem_of_list_fmap in Hidom.
-  destruct Hidom as [t [-> Hidom]].
-  destruct t.
-  rewrite -> elem_of_list_lookup in Hidom.
-  destruct Hidom as [k Hdom].
-  apply ext_tabs_lookup_exist in Hdom.
-  destruct Hdom as [k' Hdom].
-  rewrite list_lookup_fmap in Hdom.
-  destruct (v_imps !! k') eqn:Hvimpslookup => //.
-  simpl in Hdom.
-
-  inversion Hdom; clear Hdom.
-
-  assert (exists t, t_imps !! k' = Some t) as Htimpslookup.
-  { apply lookup_lt_Some in Hvimpslookup.
-    rewrite Himplen in Hvimpslookup.
-    destruct (t_imps !! k') eqn:Htimpslookup; try by eexists.
-    apply lookup_ge_None in Htimpslookup.
-    by lias.
-  }
-
-  destruct Htimpslookup as [t Htimpslookup].
-  
-  iDestruct (big_sepL2_lookup with "Himpwasm") as "Hvimp" => //.
-  rewrite H0.
-  iDestruct "Hvimp" as (tab tt) "(Htab & %Hwts)".
-  destruct Hwts as [Hwtslookup' [-> Htt]].
-  rewrite Hwtslookup in Hwtslookup'.
-  inversion Hwtslookup'; subst; clear Hwtslookup'.
-
-  iDestruct (tab_block_lookup with "Hwt Hwtsize Hwtlimit Htab") as "%Hwtblock".
-
-  rewrite gmap_of_list_lookup.
-
-  by rewrite Hwtblock.
-Qed.
-
-Definition mem_equiv (m1 m2: memory): Prop :=
-  m1.(mem_max_opt) = m2.(mem_max_opt) /\
-  m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).
-
-Definition map_related {K: Type} {M: Type -> Type} {H0: forall A: Type, Lookup K A (M A)} {A: Type} (r: relation A) (m1 m2: M A) :=
-  forall (i: K) (x: A), m1 !! i = Some x -> exists y, m2 !! i = Some y /\ r x y.
-
-Lemma import_resources_wms_subset v_imps t_imps wfs wts wms wgs (ws: store_record):
-  ⊢ gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_length (s_mems ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
-    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-    ⌜ length v_imps = length t_imps ⌝ -∗
-    ⌜ map_related mem_equiv wms (gmap_of_list (s_mems ws)) ⌝.
-Proof.
-  iIntros "Hwm Hwmlength Hwmlimit (%Himpwasmdom & Himpwasm) %Himplen".
-  unfold map_related.
-  iIntros (i x Hwmslookup).
-  destruct Himpwasmdom as [_ [_ [Hwmdom _]]].
-  assert (i ∈ dom (gset N) wms) as Hidom.
-  { by apply elem_of_dom. }
-  rewrite -> Hwmdom in Hidom.
-  rewrite -> elem_of_list_to_set in Hidom.
-
-  unfold ext_mem_addrs, compose in Hidom.
-  rewrite -> elem_of_list_fmap in Hidom.
-  destruct Hidom as [? [-> Hidom]].
-  rewrite -> elem_of_list_fmap in Hidom.
-  destruct Hidom as [memid [-> Hidom]].
-  destruct memid.
-  rewrite -> elem_of_list_lookup in Hidom.
-  destruct Hidom as [k Hdom].
-  apply ext_mems_lookup_exist in Hdom.
-  destruct Hdom as [k' Hdom].
-  rewrite list_lookup_fmap in Hdom.
-  destruct (v_imps !! k') eqn:Hvimpslookup => //.
-  simpl in Hdom.
-
-  inversion Hdom; clear Hdom.
-
-  assert (exists t, t_imps !! k' = Some t) as Htimpslookup.
-  { apply lookup_lt_Some in Hvimpslookup.
-    rewrite Himplen in Hvimpslookup.
-    destruct (t_imps !! k') eqn:Htimpslookup; try by eexists.
-    apply lookup_ge_None in Htimpslookup.
-    by lias.
-  }
-
-  destruct Htimpslookup as [t Htimpslookup].
-  
-  iDestruct (big_sepL2_lookup with "Himpwasm") as "Hvimp" => //.
-  rewrite H0.
-  iDestruct "Hvimp" as (mem mt) "(Hmem & %Hwms)".
-  destruct Hwms as [Hwmslookup' [-> Hmt]].
-  rewrite Hwmslookup in Hwmslookup'.
-  inversion Hwmslookup'; subst; clear Hwmslookup'.
-
-  iDestruct (mem_block_lookup with "Hwm Hwmlength Hwmlimit Hmem") as "%Hwmblock".
-
-  destruct Hwmblock as [mem' [Hwmlookup [Hmdata Hmmax]]].
-
-  rewrite gmap_of_list_lookup.
-
-  rewrite Hwmlookup.
-  by iExists mem'.
-Qed.
-
-Lemma module_elem_bound_check_gmap_extend wts1 wts2 imp_descs m:
-  module_elem_bound_check_gmap wts1 imp_descs m ->
-  wts1 ⊆ wts2 ->
-  module_elem_bound_check_gmap wts2 imp_descs m.
-Proof.
-  move => Hbc Hsubset.
-  unfold module_elem_bound_check_gmap in *.
-  rewrite -> List.Forall_forall in Hbc.
-  apply List.Forall_forall.
-  move => x Hin.
-  specialize (Hbc x Hin).
-  destruct x.
-  destruct modelem_table.
-  destruct (assert_const1_i32 modelem_offset) eqn:Hoffseti32 => //.
-  destruct (ext_tabs imp_descs !! n) eqn:Himpslookup => //.
-  destruct t.
-  destruct (wts1 !! N.of_nat n0) eqn:Hwts1lookup => //.
-  replace (wts2 !! N.of_nat n0) with (Some t) => //.
-  by erewrite lookup_weaken => //.
-Qed.
-
-Lemma module_data_bound_check_gmap_extend wms1 wms2 imp_descs m:
-  module_data_bound_check_gmap wms1 imp_descs m ->
-  map_related mem_equiv wms1 wms2 ->
-  module_data_bound_check_gmap wms2 imp_descs m.
-Proof.
-  move => Hbc Hrelate.
-  unfold module_data_bound_check_gmap in *.
-  rewrite -> List.Forall_forall in Hbc.
-  apply List.Forall_forall.
-  move => x Hin.
-  specialize (Hbc x Hin).
-  destruct x.
-  destruct moddata_data.
-  destruct (assert_const1_i32 moddata_offset) eqn:Hoffseti32 => //.
-  destruct (ext_mems imp_descs !! n) eqn:Himpslookup => //.
-  destruct m0.
-  destruct (wms1 !! N.of_nat n0) eqn:Hwms1lookup => //.
-  unfold map_related in Hrelate.
-  specialize (Hrelate _ _ Hwms1lookup).
-  destruct Hrelate as [mem [Hwms2lookup Hmequiv]].
-  rewrite Hwms2lookup.
-  unfold mem_equiv in Hmequiv.
-  destruct Hmequiv as [_ Hmdata].
-  replace (mem_length mem) with (mem_length m0) => //.
-  unfold mem_length, memory_list.mem_length.
-  by rewrite Hmdata.
-Qed.
-
-Definition gen_index offset len : list nat :=
-  imap (fun i x => i+offset+x) (repeat 0 len).
-
-Lemma gen_index_lookup offset len k:
-  k < len ->
-  (gen_index offset len) !! k = Some (offset + k).
-Proof.
-  move => Hlen.
-  unfold gen_index.
-  rewrite list_lookup_imap => /=.
-  eapply repeat_lookup with (x := 0) in Hlen.
-  rewrite Hlen.
-  simpl.
-  f_equal.
-  by lias.
-Qed.
-
-Lemma gen_index_extend offset len:
-  gen_index offset (len+1) = gen_index offset len ++ [::offset+len].
-Proof.
-  unfold gen_index.
-  rewrite repeat_app => /=.
-  induction len => //=.
-  f_equal => //.
-  do 2 rewrite - fmap_imap.
-  rewrite IHlen.
-  rewrite fmap_app => /=.
-  repeat f_equal.
-  by lias.
-Qed.
-
-Lemma combine_app {T1 T2: Type} (l1 l3: list T1) (l2 l4: list T2):
-  length l1 = length l2 ->
-  combine (l1 ++ l3) (l2 ++ l4) = combine l1 l2 ++ combine l3 l4.
-Proof.
-  generalize dependent l2.
-  generalize dependent l3.
-  generalize dependent l4.
-  induction l1; move => l4 l3 l2 Hlen => /=; first by destruct l2 => //.
-  - destruct l2 => //=.
-    simpl in Hlen.
-    inversion Hlen; subst; clear Hlen.
-    f_equal.
-    by apply IHl1.
-Qed.
-
-Definition gen_func_instance mf inst : function_closure :=
-  let ft := nth match modfunc_type mf with
-                | Mk_typeidx n => n
-                end (inst_types inst) (Tf [] []) in
-  FC_func_native inst ft (modfunc_locals mf) (modfunc_body mf).
-                
-
-(* This is an actual interesting proof, technically *)
-(* TODO: see if it's possible to refactor the 4 proofs into one *)
-Lemma alloc_func_gen_index modfuncs ws inst ws' l:
-  alloc_funcs ws modfuncs inst = (ws', l) ->
-  map (fun x => match x with | Mk_funcidx i => i end) l = gen_index (length (s_funcs ws)) (length modfuncs) /\
-  ws'.(s_funcs) = ws.(s_funcs) ++ fmap (fun mf => gen_func_instance mf inst) modfuncs /\
- (* length ws'.(s_funcs) = length ws.(s_funcs) + length modfuncs /\*)
-  ws.(s_tables) = ws'.(s_tables) /\
-  ws.(s_mems) = ws'.(s_mems) /\
-  ws.(s_globals) = ws'.(s_globals).
-Proof.
-  unfold alloc_funcs, alloc_Xs.
-  generalize dependent l.
-  generalize dependent ws'.
-  generalize dependent ws.
-  induction modfuncs using List.rev_ind; move => ws ws' l Hallocfuncs.
-  - inversion Hallocfuncs; subst; clear Hallocfuncs.
-    simpl.
-    repeat split => //.
-    by rewrite app_nil_r.
-  - rewrite fold_left_app in Hallocfuncs.
-    remember (fold_left _ modfuncs (ws,[])) as fold_res.
-    simpl in Hallocfuncs.
-    destruct fold_res as [ws0 l0].
-    symmetry in Heqfold_res.
-    unfold add_func in Hallocfuncs.
-    inversion Hallocfuncs; subst; clear Hallocfuncs.
-    rewrite map_app app_length /=.
-    rewrite gen_index_extend.
-    specialize (IHmodfuncs ws ws0 (rev l0)).
-    destruct IHmodfuncs as [? [? [? [? ?]]]]; first by rewrite Heqfold_res.
-    repeat split => //; try by eapply IHmodfuncs; rewrite Heqfold_res.
-    + rewrite H.
-      rewrite H0.
-      by rewrite app_length map_length.
-    + rewrite H0.
-      rewrite - app_assoc.
-      f_equal.
-      by rewrite -> list_fmap_app.
-Qed.
-
-Lemma alloc_tab_gen_index modtabtypes ws ws' l:
-  alloc_tabs ws modtabtypes = (ws', l) ->
-  map (fun x => match x with | Mk_tableidx i => i end) l = gen_index (length (s_tables ws)) (length modtabtypes) /\
-  ws'.(s_tables) = ws.(s_tables) ++ fmap (fun '{| tt_limits := {| lim_min := min; lim_max := maxo |} |} => {| table_data := repeat None (ssrnat.nat_of_bin min); table_max_opt := maxo |}) modtabtypes /\
-  ws.(s_funcs) = ws'.(s_funcs) /\
-  ws.(s_mems) = ws'.(s_mems) /\
-  ws.(s_globals) = ws'.(s_globals).
-Proof.
-  unfold alloc_tabs, alloc_Xs.
-  generalize dependent l.
-  generalize dependent ws'.
-  generalize dependent ws.
-  induction modtabtypes using List.rev_ind; move => ws ws' l Halloc.
-  - inversion Halloc; subst; clear Halloc.
-    repeat split => //.
-    simpl.
-    by rewrite app_nil_r.
-  - rewrite fold_left_app in Halloc.
-    remember (fold_left _ modtabtypes (ws,[])) as fold_res.
-    simpl in Halloc.
-    destruct fold_res as [ws0 l0].
-    symmetry in Heqfold_res.
-    unfold alloc_tab, add_table in Halloc.
-    destruct x => /=.
-    destruct tt_limits => /=.
-    specialize (IHmodtabtypes ws ws0 (rev l0)).
-    rewrite Heqfold_res in IHmodtabtypes.
-    inversion Halloc; subst; clear Halloc.
-    simpl in *.
-    rewrite map_app app_length /=.
-    rewrite gen_index_extend.
-    destruct IHmodtabtypes as [? [? [? [? ?]]]] => //.
-    repeat split => //.
-    + rewrite H.
-      rewrite H0.
-      by rewrite app_length map_length.
-    + rewrite H0.
-      rewrite - app_assoc.
-      f_equal.
-      by rewrite -> list_fmap_app => /=.
-Qed.
-
-Lemma alloc_mem_gen_index modmemtypes ws ws' l:
-  alloc_mems ws modmemtypes = (ws', l) ->
-  map (fun x => match x with | Mk_memidx i => i end) l = gen_index (length (s_mems ws)) (length modmemtypes) /\
-  ws'.(s_mems) = ws.(s_mems) ++ fmap (fun '{| lim_min := min; lim_max := maxo |} => {| mem_data := mem_make #00%byte (page_size * min)%N; mem_max_opt := maxo |}) modmemtypes /\
-  ws.(s_funcs) = ws'.(s_funcs) /\
-  ws.(s_tables) = ws'.(s_tables) /\
-  ws.(s_globals) = ws'.(s_globals).
-Proof.
-  unfold alloc_mems, alloc_Xs.
-  generalize dependent l.
-  generalize dependent ws'.
-  generalize dependent ws.
-  induction modmemtypes using List.rev_ind; move => ws ws' l Halloc.
-  - inversion Halloc; subst; clear Halloc.
-    repeat split => //=.
-    by rewrite app_nil_r.
-  - rewrite fold_left_app in Halloc.
-    remember (fold_left _ modmemtypes (ws,[])) as fold_res.
-    simpl in Halloc.
-    destruct fold_res as [ws0 l0].
-    symmetry in Heqfold_res.
-    unfold alloc_mem, add_mem in Halloc.
-    destruct x => /=.
-    specialize (IHmodmemtypes ws ws0 (rev l0)).
-    rewrite Heqfold_res in IHmodmemtypes.
-    inversion Halloc; subst; clear Halloc.
-    simpl in *.
-    rewrite map_app app_length /=.
-    rewrite gen_index_extend.
-    destruct IHmodmemtypes as [? [? [? [? ?]]]] => //.
-    repeat split => //.
-    + rewrite H.
-      rewrite H0.
-      by rewrite app_length fmap_length.
-    + rewrite H0.
-      rewrite - app_assoc.
-      f_equal.
-      by rewrite -> list_fmap_app => /=.
-Qed.
-
-Lemma alloc_glob_gen_index modglobs ws g_inits ws' l:
-  length g_inits = length modglobs ->
-  alloc_globs ws modglobs g_inits = (ws', l) ->
-  map (fun x => match x with | Mk_globalidx i => i end) l = gen_index (length (s_globals ws)) (length modglobs) /\
-  ws'.(s_globals) = ws.(s_globals) ++ fmap (fun '({| modglob_type := gt; modglob_init := ge |}, v) => {| g_mut := gt.(tg_mut); g_val := v |} ) (combine modglobs g_inits) /\
- (* length ws'.(s_globals) = length ws.(s_globals) + length modglobs /\*)
-  ws.(s_funcs) = ws'.(s_funcs) /\
-  ws.(s_tables) = ws'.(s_tables) /\
-  ws.(s_mems) = ws'.(s_mems).
-Proof.
-  unfold alloc_globs, alloc_Xs.
-  generalize dependent l.
-  generalize dependent ws'.
-  generalize dependent ws.
-  generalize dependent g_inits.
-  induction modglobs using List.rev_ind; move => g_inits ws ws' l Hlen Halloc.
-  - inversion Halloc; subst; clear Halloc.
-    repeat split => //=.
-    by rewrite app_nil_r.
-  - destruct g_inits using List.rev_ind; first by destruct modglobs => /=.
-    repeat rewrite app_length in Hlen; simpl in Hlen.
-    repeat rewrite - cat_app in Halloc.
-    rewrite combine_app in Halloc; last by lias.
-    simpl in Halloc.
-    rewrite fold_left_app in Halloc.
-    lazymatch goal with
-    | _: context C [fold_left ?f (combine modglobs g_inits) (ws, [])] |- _ =>
-      remember (fold_left f (combine modglobs g_inits) (ws, [])) as fold_res
-    end.
-    (* rewrite - Heqfold_res in Halloc. *)
-    destruct fold_res as [ws0 l0].
-    symmetry in Heqfold_res.
-    unfold alloc_glob, add_glob in Halloc.
-    simpl in Halloc.
-    inversion Halloc; subst; clear Halloc.
-    rewrite map_app app_length /=.
-    rewrite gen_index_extend.
-    specialize (IHmodglobs g_inits ws ws0 (rev l0)).
-    destruct IHmodglobs as [? [? [? [? ?]]]] => //.
-    + by lias.
-    + by rewrite Heqfold_res.
-    repeat split => //.
-    + rewrite H.
-      rewrite H0.
-      rewrite app_length fmap_length combine_length.
-      repeat f_equal.
-      by lias.
-    + rewrite H0.
-      rewrite - app_assoc.
-      f_equal.
-      rewrite combine_app => /=.
-      rewrite -> list_fmap_app => /=.
-      repeat f_equal.
-      destruct x => //.
-      by lias.
-Qed.
-
-
-Definition module_glob_init_value (modglobs: list module_glob): option (list value) :=
-  those (fmap (assert_const1 ∘ modglob_init) modglobs).
-
-(* Table initialisers work as follows:
-   - Each initialiser specifies a tableidx which is an index to the table list in the current module instance. 
-   - Each initialiser specifies an offset eo (has to be const), which is the starting index that is going to be filled in.
-   - For each f_j in the init array, replace s.tables[inst.tables(tableidx)][offset+j] with inst.funcs(f_j). Note how
-     both the tableidx and the f_j (funcidx) here are referring to the index in the current module. 
-   
-   Memory initiliasers work similarly.
-*)
-
 Definition instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗
-  import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗
+  instantiation_resources_pre_wasm m v_imps t_imps wfs wts wms wgs ∗       
   export_ownership_host hs_exps ∗
-  ⌜ length hs_exps = length m.(mod_exports) ⌝ ∗
-  ⌜ module_elem_bound_check_gmap wts (fmap modexp_desc v_imps) m ⌝ ∗
-  ⌜ module_data_bound_check_gmap wms (fmap modexp_desc v_imps) m ⌝.
-
-(* This builds a gmap from (tableid * index) to funcelem, representing the initial values dictated by the elem segment. However, note that the tableid here refers to the id in the instance instead of that in the store.
-
-   Note that this tableid does not count the imported tables. 
- *)
-Definition build_tab_initialiser (instfuncs: list funcaddr) (elem: module_element) (tabid: nat) (offset: nat) : gmap (nat * nat) funcelem :=
-  fold_left (fun acc actor => actor acc) (imap (fun j e_init => match e_init with
-                     | Mk_funcidx fid => map_insert (tabid, j + offset) (nth_error instfuncs fid) end) elem.(modelem_init) ) ∅.
-
-Fixpoint module_tab_init_values (m: module) (inst: instance) (modelems: list module_element) : gmap (nat * nat) funcelem :=
-  match modelems with
-  | e_init :: e_inits' => match e_init.(modelem_table) with
-                        | Mk_tableidx i => (module_tab_init_values m inst e_inits') ∪ (build_tab_initialiser inst.(inst_funcs) e_init i (assert_const1_i32_to_nat (e_init.(modelem_offset))))
-                        end
-                          
-  | [] => ∅
-  end.
-
-(* Note that we use compcert byte for our internal memory representation, but module uses the pure Coq version of byte. *)
-Definition build_mem_initialiser (datum: module_data) (memid: nat) (offset: nat) : gmap (nat * nat) byte :=
-  fold_left (fun acc actor => actor acc)
-            (imap (fun j b => map_insert (memid, j + offset) (compcert_byte_of_byte b)) datum.(moddata_init) ) ∅.
-
-
-Fixpoint module_mem_init_values (m: module) (moddata: list module_data) : gmap (nat * nat) byte :=
-  match moddata with
-  | d_init :: d_inits' => match d_init.(moddata_data) with
-                        | Mk_memidx i => (module_mem_init_values m d_inits') ∪ (build_mem_initialiser d_init i (assert_const1_i32_to_nat (d_init.(moddata_offset))))
-                        end
-                          
-  | [] => ∅
-  end.
-
-(* g_inits have the correct types and values. Typing is redundant given the current restriction *)
-Definition module_glob_init_values m g_inits :=
-  (fmap typeof g_inits = fmap (tg_t ∘ modglob_type) m.(mod_globals)) /\
-  module_glob_init_value m.(mod_globals) = Some g_inits.
-
-(* The starting point for newly allocated tables. *)
-Definition module_inst_table_base_create :=
-  fun mt => match mt.(modtab_type).(tt_limits) with
-         | {| lim_min := min; lim_max := omax |} =>
-             (Build_tableinst
-                (repeat (None: funcelem) (ssrnat.nat_of_bin min))
-                (omax))
-         end.
-Definition module_inst_table_base (mtabs: list module_table) : list tableinst :=
-  fmap module_inst_table_base_create mtabs.
-
-(* Given a tableinst, an offset and a list of funcelems, replace the corresponding segment with the initialisers. *)
-Definition table_init_replace_single (t: tableinst) (offset: nat) (fns: list funcelem) : tableinst :=
-  Build_tableinst
-    (take (length t.(table_data)) ((take offset t.(table_data)) ++ fns ++ (drop (offset + length fns) t.(table_data))))
-    t.(table_max_opt).
-
-Lemma table_init_replace_single_preserve_len t offset fns t':
-  table_init_replace_single t offset fns = t' ->
-  length t.(table_data) = length t'.(table_data).
-Proof.
-  move => Hreplace.
-  unfold table_init_replace_single in Hreplace.
-  subst => /=.
-  rewrite take_length.
-  repeat rewrite app_length.
-  rewrite take_length drop_length.
-  by lias.
-Qed.
-
-(*
-Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A):
-  P acc ->
-  (forall (x:A) (act: B), P x -> P (f x act)) ->
-  P (fold_left f l acc).
-Proof.
-Admitted.
-*)
-
-(* Each of these is guaranteed to be a some due to validation. *)
-Definition lookup_funcaddr (inst: instance) (me_init: list funcidx) : list funcelem :=
-  fmap (fun '(Mk_funcidx fidx) => nth_error inst.(inst_funcs) fidx) me_init.
-
-(* For each table initialiser elem, if the target table is not imported, then
-   we use its content to update the corresponding table build from the base. *)
-Definition module_inst_build_tables (m : module) (inst: instance) : list tableinst :=
-  fold_left (fun tabs '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
-               let itc := get_import_table_count m in 
-               match mt with
-               | Mk_tableidx k =>
-                 if k <? itc then tabs else
-                   (* These are guaranteed to succeed due to validation. *)
-                   match nth_error tabs (k-itc) with
-                   | Some t => <[ (k-itc) := table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init) ]> tabs
-                   | None => tabs
-                   end
-               end
-                 ) m.(mod_elem) (module_inst_table_base m.(mod_tables)).
-
-Definition module_import_init_tabs (m: module) (inst: instance) (wts: gmap N tableinst) : gmap N tableinst :=
-  fold_left (fun wts '{| modelem_table := mt; modelem_offset := moff; modelem_init := me_init |} =>
-               let itc := get_import_table_count m in 
-               match mt with
-               | Mk_tableidx k =>
-                 if k <? itc then
-                   match nth_error inst.(inst_tab) k with
-                   | Some t_addr =>
-                     match wts !! (N.of_nat t_addr) with
-                     | Some t => <[ (N.of_nat t_addr) := table_init_replace_single t (assert_const1_i32_to_nat moff) (lookup_funcaddr inst me_init) ]> wts
-                     | None => wts
-                     end
-                   | None => wts
-                   end
-                 else wts
-               end
-            ) m.(mod_elem) wts.
-
-(* A similar set of predicate but for memories instead. *)
-Definition module_inst_mem_base_func := (fun '{| lim_min := min; lim_max := omax |} =>
-          (Build_memory
-             (Build_memory_list
-               #00%byte
-               (repeat #00%byte (ssrnat.nat_of_bin min))
-               )
-             (omax))).
-Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
-  fmap module_inst_mem_base_func mmemtypes.
-
-Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) : memory :=
-  Build_memory
-    (Build_memory_list
-       mem.(mem_data).(ml_init)
-       (take (length mem.(mem_data).(ml_data)) ((take offset mem.(mem_data).(ml_data)) ++ bs ++ (drop (offset + length bs) mem.(mem_data).(ml_data)))))
-    mem.(mem_max_opt).
-
-
-
-Definition module_inst_build_mems (m : module) (inst: instance) : list memory :=
-  fold_left (fun mems '{| moddata_data := md; moddata_offset := moff; moddata_init := md_init |} =>
-               let imc := get_import_mem_count m in 
-               match md with
-               | Mk_memidx k =>
-                 if k <? imc then mems else
-                   (* These are guaranteed to succeed due to validation. *)
-                   match nth_error mems (k-imc) with
-                   | Some mem => <[ (k-imc) := mem_init_replace_single mem (assert_const1_i32_to_nat moff) (fmap compcert_byte_of_byte md_init) ]> mems
-                   | None => mems
-                   end
-               end
-                 ) m.(mod_data) (module_inst_mem_base m.(mod_mems)).
-
-Definition module_import_init_mems (m: module) (inst: instance) (wms: gmap N memory) : gmap N memory :=
-  fold_left (fun wms '{| moddata_data := md; moddata_offset := moff; moddata_init := md_init |} =>
-               let imc := get_import_mem_count m in 
-               match md with
-               | Mk_memidx k =>
-                 if k <? imc then
-                   match nth_error inst.(inst_memory) k with
-                   | Some m_addr =>
-                     match wms !! (N.of_nat m_addr) with
-                     | Some mem => <[ (N.of_nat m_addr) := mem_init_replace_single mem (assert_const1_i32_to_nat moff) (fmap compcert_byte_of_byte md_init) ]> wms
-                     | None => wms
-                     end
-                   | None => wms
-                   end
-                 else wms
-               end
-            ) m.(mod_data) wms.
-
-
-(* Again the allocated resources but for globals. Note that the initial value
-   here is purely dummy. *)
-Definition module_inst_global_base (mglobs: list module_glob) : list global :=
-  fmap (fun '{| modglob_type := {| tg_mut := tgm; tg_t := tgvt |} ; modglob_init := mgi |} => (Build_global tgm (bitzero tgvt))) mglobs.
-
-Definition global_init_replace_single (g: global) (v: value) : global :=
-  Build_global g.(g_mut) v.
-
-Fixpoint module_inst_global_init (gs: list global) (g_inits: list value) : list global :=
-  match gs with
-  | [::] => [::]
-  | g :: gs' =>
-    match g_inits with
-    | [::] => g :: gs'
-    | gi :: g_inits' => global_init_replace_single g gi :: module_inst_global_init gs' g_inits'
-    end
-  end.
-
-Lemma module_inst_global_init_cat (gs1 gs2: list global) (gi1 gi2: list value):
-  length gs1 = length gi1 ->
-  module_inst_global_init (gs1 ++ gs2) (gi1 ++ gi2) =
-  module_inst_global_init gs1 gi1 ++ module_inst_global_init gs2 gi2.
-Proof.
-  move : gi1 gi2 gs2.
-  induction gs1; move => gi1 gi2 gs2 Hlen; destruct gi1 => //=.
-  simpl in Hlen.
-  f_equal.
-  apply IHgs1.
-  by lias.
-Qed.
-  
-(* The newly allocated resources due to instantiation. *)
-Definition module_inst_resources_func (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
-  ([∗ list] f; addr ∈ mfuncs; inst_f,
-   (* Allocated wasm resources *)
-     N.of_nat addr ↦[wf] (FC_func_native
-                             inst
-                             (nth match f.(modfunc_type) with
-                                 | Mk_typeidx k => k
-                                 end (inst.(inst_types)) (Tf [] []))
-                             f.(modfunc_locals)
-                             f.(modfunc_body))
-  )%I.
-
-Definition module_inst_resources_tab (tabs: list tableinst) (inst_t: list tableaddr) : iProp Σ :=
-  ([∗ list] i ↦ tab; addr ∈ tabs; inst_t,
-    N.of_nat addr ↦[wtblock] tab
-  )%I.
-
-Definition module_inst_resources_mem (mems: list memory) (inst_m: list memaddr) : iProp Σ := 
-  ([∗ list] i ↦ mem; addr ∈ mems; inst_m,
-    N.of_nat addr ↦[wmblock] mem
-  ).
-
-Definition module_inst_resources_glob (globs: list global) (inst_g: list globaladdr) : iProp Σ :=
-  ([∗ list] i↦g; addr ∈ globs; inst_g,
-    N.of_nat addr ↦[wg] g
-  ).
-
-(* The collection of the four types of newly allocated resources *)
-Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: list tableinst) (mem_inits: list memory) (glob_inits: list global) : iProp Σ :=
-  (module_inst_resources_func m.(mod_funcs) inst (drop (get_import_func_count m) inst.(inst_funcs)) ∗
-  module_inst_resources_tab tab_inits (drop (get_import_table_count m) inst.(inst_tab)) ∗
-  module_inst_resources_mem mem_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
-  module_inst_resources_glob glob_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
+  ⌜ length hs_exps = length m.(mod_exports) ⌝.
 
 Definition instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (idfstart: option nat) : iProp Σ :=
   hs_mod ↪[mods] m ∗
   import_resources_host hs_imps v_imps ∗ (* vis, for the imports stored in host *)
-  ∃ (inst: instance) (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',  
-  import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks *)
-    ⌜ inst.(inst_types) = m.(mod_types) /\
-   (* We know what the imported part of the instance must be. *)
-  let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
-    prefix (ext_func_addrs v_imp_descs) inst.(inst_funcs) /\
-    prefix (ext_tab_addrs v_imp_descs) inst.(inst_tab) /\
-    prefix (ext_mem_addrs v_imp_descs) inst.(inst_memory) /\
-    prefix (ext_glob_addrs v_imp_descs) inst.(inst_globs) /\
-    check_start m inst idfstart ⌝ ∗
-   (* The relevant initial values of allocated resources, as well as the newly
-      initialised segments in the imported tables and memories *)
-    ⌜ tab_inits = module_inst_build_tables m inst ⌝ ∗
-    ⌜ wts' = module_import_init_tabs m inst wts ⌝ ∗
-    ⌜ module_elem_bound_check_gmap wts (fmap modexp_desc v_imps) m ⌝ ∗
-    ⌜ mem_inits = module_inst_build_mems m inst ⌝ ∗
-    ⌜ wms' = module_import_init_mems m inst wms ⌝ ∗
-    ⌜ module_data_bound_check_gmap wms (fmap modexp_desc v_imps) m ⌝ ∗
-    ⌜ module_glob_init_values m g_inits ⌝ ∗
-    ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
-    module_inst_resources_wasm m inst tab_inits mem_inits glob_inits ∗ (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
-    module_export_resources_host hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
-
-Definition module_restrictions (m: module) : Prop :=
-  (* Initializers for globals are only values. This is not that much a restriction as it seems, since they can
-     only be either values or get_globals (from immutable globals) anyway. *)
-  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
-  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
-  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
-
-Lemma fmap_fmap_lookup {T1 T2 T: Type} (f1: T1 -> T) (f2: T2 -> T) (l1: list T1) (l2: list T2):
-  fmap f1 l1 = fmap f2 l2 ->
-  forall i, fmap f1 (l1 !! i) = fmap f2 (l2 !! i).
-Proof.
-  move => Heq i.
-  assert (length l1 = length l2) as Hlen.
-  { erewrite <- fmap_length with (f := f1).
-    rewrite Heq.
-    by rewrite fmap_length.
-  }
-  destruct (l1 !! i) eqn:Hl1; destruct (l2 !! i) eqn:Hl2 => //=.
-  - assert ((fmap f1 l1) !! i = (fmap f2 l2) !! i) as Heqi; first by rewrite Heq.
-    repeat rewrite list_lookup_fmap in Heqi.
-    rewrite Hl1 Hl2 in Heqi.
-    by simpl in Heqi.
-  - by apply lookup_lt_Some in Hl1; apply lookup_ge_None in Hl2; lias.
-  - by apply lookup_lt_Some in Hl2; apply lookup_ge_None in Hl1; lias.
-Qed.
-
-Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
-  es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
-  those (fmap assert_const1_i32 es) = Some vs.
-Proof.
-  move: es.
-  elim: vs => //=.
-  - by move => es ->.
-  - move => v vs IH es Hes.
-    destruct es => //=.
-    inversion Hes; subst; clear Hes.
-    simpl.
-    rewrite - cat1s.
-    erewrite those_app => //=; last by apply IH.
-    by [].
-Qed.
-
-Lemma all2_Forall2 {T1 T2: Type} r (l1: list T1) (l2: list T2):
-  all2 r l1 l2 <-> Forall2 r l1 l2.
-Proof.
-  move: l2.
-  elim: l1 => //=.
-  - move => l2; destruct l2 => //=.
-    split => //.
-    move => Hcontra.
-    by inversion Hcontra.
-  - move => e l1 IH l2.
-    destruct l2 => //=.
-    + split => //.
-      move => Hcontra.
-      by inversion Hcontra.
-    + split; move => H.
-      * move/andP in H.
-        destruct H.
-        constructor => //.
-        by apply IH.
-      * apply/andP.
-        inversion H; subst; clear H.
-        split => //.
-        by apply IH.
-Qed.
-
-Lemma map_fmap {T1 T2: Type} (f: T1 -> T2) (l: list T1):
-  map f l = fmap f l.
-Proof.
-  trivial.
-Qed.
-
-(* Ok, this is not built-in, but fair enough since it is across 3 libraries *)
-Lemma N_nat_bin n:
-  n = N.of_nat (ssrnat.nat_of_bin n).
-Proof.
-  destruct n => //=.
-  replace (ssrnat.nat_of_pos p) with (Pos.to_nat p); first by rewrite positive_nat_N.
-  induction p => //=.
-  - rewrite Pos2Nat.inj_xI.
-    f_equal.
-    rewrite IHp.
-    rewrite ssrnat.NatTrec.doubleE.
-    rewrite - ssrnat.mul2n.
-    by lias.
-  - rewrite Pos2Nat.inj_xO.
-    rewrite IHp.
-    rewrite ssrnat.NatTrec.doubleE.
-    rewrite - ssrnat.mul2n.
-    by lias.
-Qed.
-
-Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
-  P acc ->
-  (forall (x:A) (act: B), P x -> P (f x act)) ->
-  P (fold_left f l acc).
-Proof.
-  rewrite -fold_left_rev_right.
-  revert acc.
-  induction l;simpl;auto.
-  intros acc Ha Hnext.
-  rewrite foldr_snoc /=. apply IHl =>//.
-  apply Hnext=>//.
-Qed.    
-  
-Lemma module_inst_build_tables_length m i :
-  length (module_inst_build_tables m i) = length (mod_tables m).
-Proof.
-  unfold module_inst_build_tables.
-  apply fold_left_preserve.
-  { apply fmap_length. }
-  { intros x me Heq.
-    destruct me,modelem_table.
-    destruct (n <? get_import_table_count m);auto.
-    destruct (nth_error x (n - get_import_table_count m));auto.
-    rewrite insert_length//. }
-Qed.
+  ∃ (inst: instance), 
+  instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs idfstart inst ∗       
+  module_export_resources_host hs_exps m.(mod_exports) inst. (* export resources, in the host store *)
 
 Lemma insert_exports_none_len vis iexps exps:
   insert_exports vis iexps exps = None ->
@@ -2182,694 +1384,11 @@ Proof.
   by eapply IHiexps in H1 => //.
 Qed.
 
-
-
-
-
 Ltac forward H Hname :=
   lazymatch type of H with
   | ?Hx -> _ => let Hp := fresh "Hp" in
               assert Hx as Hp; last specialize (H Hp) as Hname end.
 
-  
-Lemma alloc_func_state_update funcs funcs' nf:
-  funcs' = funcs ++ nf ->
-  gen_heap_interp (gmap_of_list funcs) -∗ |==> 
-  ((gen_heap_interp (gmap_of_list funcs')) ∗
-   ([∗ list] i ↦ v ∈ nf, N.of_nat (length funcs + i) ↦[wf] v)).
-Proof.
-  move => Hfuncs; subst.
-  iIntros "Hf".
-  specialize (gmap_of_list_append_big funcs nf) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite Hgunion.
-  iDestruct (gen_heap_alloc_big with "Hf") as "Hf" => //.
-  iMod "Hf".
-  iModIntro.
-  iDestruct "Hf" as "(Hf & Hfmaps & Hftoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  rewrite big_opM_map_to_list.
-  rewrite map_to_list_to_map; last first.
-  (* TODO: refactor this proof *)
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  clear Hgunion Hgdisj.
-  iClear "Hftoken".
-  iInduction nf as [ | f'] "IH" using List.rev_ind => //=.
-  rewrite imap_app.
-  repeat rewrite big_sepL_app.
-  iDestruct "Hfmaps" as "(Hfm1 & Hfm2)".
-  iSplitL "Hfm1"; first by iApply "IH".
-  simpl.
-  by iFrame.
-Qed.
-
-(* TODO: This is an extremely atrocious proof with a lot of repetitions on
-   similar but unidentical things. Refactor them as first priority after
-   the main work is done. *)
-Lemma alloc_tab_state_update tabs tabs' nt:
-  tabs' = tabs ++ nt ->
-  gen_heap_interp (gmap_of_table tabs) -∗
-  gen_heap_interp (gmap_of_list (fmap tab_size tabs)) -∗
-  gen_heap_interp (gmap_of_list (fmap table_max_opt tabs)) -∗ |==> 
-  ((gen_heap_interp (gmap_of_table tabs')) ∗
-   (gen_heap_interp (gmap_of_list (fmap tab_size tabs'))) ∗
-   (gen_heap_interp (gmap_of_list (fmap table_max_opt tabs'))) ∗
-   ([∗ list] i ↦ v ∈ nt, N.of_nat (length tabs + i) ↦[wtblock] v)).
-Proof.
-  move => Htabs; subst.
-  iIntros "Ht Htsize Htlim".
-  
-  (* table data *)
-  unfold gmap_of_table.
-  specialize (gmap_of_list_2d_append_big (fmap table_to_list tabs) (fmap table_to_list nt)) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite <- fmap_app in Hgunion.
-  rewrite Hgunion.
-
-  iDestruct (gen_heap_alloc_big with "Ht") as "Ht" => //.
-  iMod "Ht".
-  iDestruct "Ht" as "(Ht & Htmaps & Httoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  clear Hgunion Hgdisj.
-  
-  (* table size *)
-  specialize (gmap_of_list_append_big (tab_size <$> tabs) (tab_size <$> nt)) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite fmap_app.
-  rewrite Hgunion.
-
-  iDestruct (gen_heap_alloc_big with "Htsize") as "Htsize" => //.
-  iMod "Htsize".
-  iDestruct "Htsize" as "(Htsize & Htsizemaps & Htsizetoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  clear Hgunion Hgdisj.
-
-  (* table lim *)
-  specialize (gmap_of_list_append_big (table_max_opt <$> tabs) (table_max_opt <$> nt)) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite fmap_app.
-  rewrite Hgunion.
-  
-  iDestruct (gen_heap_alloc_big with "Htlim") as "Htlim" => //.
-  iMod "Htlim".
-  iDestruct "Htlim" as "(Htlim & Htlimmaps & Htlimtoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  clear Hgunion Hgdisj.
-
-  iClear "Httoken Htsizetoken Htlimtoken".
-
-  repeat rewrite fmap_length.
-  
-  iInduction nt as [ | t'] "IH" using List.rev_ind => //=.
-  repeat rewrite fmap_app => /=.
-  repeat rewrite gmap_of_list_2d_offset_append_general.
-  rewrite big_opM_union; last by apply gmap_of_list_2d_offset_append_disjoint; lias.
-  repeat rewrite imap_app.
-  repeat rewrite list_to_map_app.
-  repeat rewrite big_opM_union; last first.
-  { apply map_disjoint_list_to_map_l.
-    rewrite List.Forall_forall.
-    move => [x1 x2] Hin.
-    apply not_elem_of_list_to_map => /=.
-    apply elem_of_list_In in Hin.
-    apply elem_of_lookup_imap in Hin.
-    destruct Hin as [i [y [Heq Helem]]].
-    inversion Heq; subst; clear Heq.
-    move => Hcontra.
-    apply elem_of_list_singleton in Hcontra.
-    apply Nat2N.inj in Hcontra.
-    rewrite list_lookup_fmap in Helem.
-    destruct (nt !! i) eqn: Hntl => //.
-    apply lookup_lt_Some in Hntl.
-    rewrite fmap_length in Hcontra.
-    by lias.
-  }
-  { apply map_disjoint_list_to_map_l.
-    rewrite List.Forall_forall.
-    move => [x1 x2] Hin.
-    apply not_elem_of_list_to_map => /=.
-    apply elem_of_list_In in Hin.
-    apply elem_of_lookup_imap in Hin.
-    destruct Hin as [i [y [Heq Helem]]].
-    inversion Heq; subst; clear Heq.
-    move => Hcontra.
-    apply elem_of_list_singleton in Hcontra.
-    apply Nat2N.inj in Hcontra.
-    rewrite list_lookup_fmap in Helem.
-    destruct (nt !! i) eqn: Hntl => //.
-    apply lookup_lt_Some in Hntl.
-    rewrite fmap_length in Hcontra.
-    by lias.
-  }
-
-  iDestruct "Htmaps" as "(Htmapsnew & Htmapsold)".
-  iDestruct "Htsizemaps" as "(Htsizemapsold & Htsizemapsnew)".
-  iDestruct "Htlimmaps" as "(Htlimmapsold & Htlimmapsnew)".
-  
-  repeat rewrite big_sepL_app.
-  
-  repeat rewrite big_opM_map_to_list.
-  repeat rewrite map_to_list_to_map; last first.
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => [a0 b0] y3 z4 Hin1 Hin2.
-      apply elem_of_list_fmap in Hin1 as [[[i1 j1] x1] [Heq1 Hl1]].
-      apply elem_of_list_fmap in Hin2 as [[[i2 j2] x2] [Heq2 Hl2]].
-      inversion Heq1; subst; clear Heq1.
-      inversion Heq2; subst; clear Heq2.
-      apply flatten_2d_list_lookup in Hl1.
-      apply flatten_2d_list_lookup in Hl2.
-      assert (i1 = i2); first by lias.
-      subst. clear H0.
-      rewrite Hl1 in Hl2.
-      by inversion Hl2.
-    }
-    {
-      apply NoDup_fmap; last by apply flatten_2d_list_nodup.
-      unfold Inj.
-      move => n1 n2 H2.
-      destruct n1 as [[i1 j1] x1].
-      destruct n2 as [[i2 j2] x2].
-      inversion H2; subst; clear H2.
-      repeat f_equal.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => [a0 b0] y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-
-  repeat rewrite fmap_length.
-  repeat unfold tab_block.
-  iSplitL "Htmapsold Htsizemapsold Htlimmapsold".
-  - by iApply ("IH" with "[$] [$] [$]").
-  - simpl.
-    iDestruct "Htsizemapsnew" as "(Htsizemapsnew & _)".
-    iDestruct "Htlimmapsnew" as "(Htlimmapsnew & _)".
-    iMod (mapsto_persist with "Htsizemapsnew") as "Htsizemapsnew".
-    iMod (mapsto_persist with "Htlimmapsnew") as "Htlimmapsnew".
-    iModIntro.
-    iFrame.
-    unfold table_to_list.
-    iClear "IH".
-    remember (table_data t') as td.
-    clear Heqtd t'.
-    iInduction td as [ | v] "IH" using List.rev_ind => //=.
-    rewrite imap_app.
-    rewrite big_sepL_app.
-    iDestruct "Htmapsnew" as "(Htd0 & (Htd1 & _))" => /=.
-    rewrite Nat.add_0_r.
-    iSplitL "Htd0" => /=.
-    + rewrite Nat2N.inj_add.
-      rewrite N.add_comm.
-      by iApply "IH".
-    + rewrite Nat2N.inj_add.
-      rewrite N.add_comm.
-      by iFrame.
-Qed.  
-  
-Lemma alloc_mem_state_update mems mems' nm:
-  mems' = mems ++ nm ->
-  gen_heap_interp (gmap_of_memory mems) -∗
-  gen_heap_interp (gmap_of_list (fmap mem_length mems)) -∗
-  gen_heap_interp (gmap_of_list (fmap mem_max_opt mems)) -∗ |==> 
-  ((gen_heap_interp (gmap_of_memory mems')) ∗
-   (gen_heap_interp (gmap_of_list (fmap mem_length mems'))) ∗
-   (gen_heap_interp (gmap_of_list (fmap mem_max_opt mems'))) ∗
-   ([∗ list] i ↦ v ∈ nm, N.of_nat (length mems + i) ↦[wmblock] v)).
-Proof.
-  move => Hmems; subst.
-  iIntros "Ht Htsize Htlim".
-  
-  (* table data *)
-  unfold gmap_of_memory.
-  specialize (gmap_of_list_2d_append_big (fmap memory_to_list mems) (fmap memory_to_list nm)) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite <- fmap_app in Hgunion.
-  rewrite Hgunion.
-
-  iDestruct (gen_heap_alloc_big with "Ht") as "Ht" => //.
-  iMod "Ht".
-  iDestruct "Ht" as "(Ht & Htmaps & Httoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  clear Hgunion Hgdisj.
-  
-  (* table size *)
-  specialize (gmap_of_list_append_big (mem_length <$> mems) (mem_length <$> nm)) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite fmap_app.
-  rewrite Hgunion.
-
-  iDestruct (gen_heap_alloc_big with "Htsize") as "Htsize" => //.
-  iMod "Htsize".
-  iDestruct "Htsize" as "(Htsize & Htsizemaps & Htsizetoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  clear Hgunion Hgdisj.
-
-  (* table lim *)
-  specialize (gmap_of_list_append_big (mem_max_opt <$> mems) (mem_max_opt <$> nm)) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite fmap_app.
-  rewrite Hgunion.
-  
-  iDestruct (gen_heap_alloc_big with "Htlim") as "Htlim" => //.
-  iMod "Htlim".
-  iDestruct "Htlim" as "(Htlim & Htlimmaps & Htlimtoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  clear Hgunion Hgdisj.
-
-  iClear "Httoken Htsizetoken Htlimtoken".
-
-  repeat rewrite fmap_length.
-  
-  iInduction nm as [ | m'] "IH" using List.rev_ind => //=.
-  repeat rewrite fmap_app => /=.
-  repeat rewrite gmap_of_list_2d_offset_append_general.
-  rewrite big_opM_union; last by apply gmap_of_list_2d_offset_append_disjoint; lias.
-  repeat rewrite imap_app.
-  repeat rewrite list_to_map_app.
-  repeat rewrite big_opM_union; last first.
-  { apply map_disjoint_list_to_map_l.
-    rewrite List.Forall_forall.
-    move => [x1 x2] Hin.
-    apply not_elem_of_list_to_map => /=.
-    apply elem_of_list_In in Hin.
-    apply elem_of_lookup_imap in Hin.
-    destruct Hin as [i [y [Heq Helem]]].
-    inversion Heq; subst; clear Heq.
-    move => Hcontra.
-    apply elem_of_list_singleton in Hcontra.
-    apply Nat2N.inj in Hcontra.
-    rewrite list_lookup_fmap in Helem.
-    destruct (nm !! i) eqn: Hnml => //.
-    apply lookup_lt_Some in Hnml.
-    rewrite fmap_length in Hcontra.
-    by lias.
-  }
-  { apply map_disjoint_list_to_map_l.
-    rewrite List.Forall_forall.
-    move => [x1 x2] Hin.
-    apply not_elem_of_list_to_map => /=.
-    apply elem_of_list_In in Hin.
-    apply elem_of_lookup_imap in Hin.
-    destruct Hin as [i [y [Heq Helem]]].
-    inversion Heq; subst; clear Heq.
-    move => Hcontra.
-    apply elem_of_list_singleton in Hcontra.
-    apply Nat2N.inj in Hcontra.
-    rewrite list_lookup_fmap in Helem.
-    destruct (nm !! i) eqn: Hnml => //.
-    apply lookup_lt_Some in Hnml.
-    rewrite fmap_length in Hcontra.
-    by lias.
-  }
-
-  iDestruct "Htmaps" as "(Htmapsnew & Htmapsold)".
-  iDestruct "Htsizemaps" as "(Htsizemapsold & Htsizemapsnew)".
-  iDestruct "Htlimmaps" as "(Htlimmapsold & Htlimmapsnew)".
-  
-  repeat rewrite big_sepL_app.
-  
-  repeat rewrite big_opM_map_to_list.
-  repeat rewrite map_to_list_to_map; last first.
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => [a0 b0] y3 z4 Hin1 Hin2.
-      apply elem_of_list_fmap in Hin1 as [[[i1 j1] x1] [Heq1 Hl1]].
-      apply elem_of_list_fmap in Hin2 as [[[i2 j2] x2] [Heq2 Hl2]].
-      inversion Heq1; subst; clear Heq1.
-      inversion Heq2; subst; clear Heq2.
-      apply flatten_2d_list_lookup in Hl1.
-      apply flatten_2d_list_lookup in Hl2.
-      assert (i1 = i2); first by lias.
-      subst. clear H0.
-      rewrite Hl1 in Hl2.
-      by inversion Hl2.
-    }
-    {
-      apply NoDup_fmap; last by apply flatten_2d_list_nodup.
-      unfold Inj.
-      move => n1 n2 H2.
-      destruct n1 as [[i1 j1] x1].
-      destruct n2 as [[i2 j2] x2].
-      inversion H2; subst; clear H2.
-      repeat f_equal.
-      by lias.
-    }
-  }
-  { apply NoDup_fmap_fst.
-    { move => [a0 b0] y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-
-  repeat rewrite fmap_length.
-  repeat unfold tab_block.
-  iSplitL "Htmapsold Htsizemapsold Htlimmapsold".
-  - by iApply ("IH" with "[$] [$] [$]").
-  - simpl.
-    iDestruct "Htsizemapsnew" as "(Htsizemapsnew & _)".
-    iDestruct "Htlimmapsnew" as "(Htlimmapsnew & _)".
-    iMod (mapsto_persist with "Htlimmapsnew") as "Htlimmapsnew".
-    iModIntro.
-    iFrame.
-    unfold table_to_list.
-    iClear "IH".
-    unfold memory_to_list.
-    remember (ml_data (mem_data m')) as md.
-    clear Heqmd m'.
-    iInduction md as [ | v] "IH" using List.rev_ind => //=.
-    rewrite imap_app.
-    rewrite big_sepL_app.
-    iDestruct "Htmapsnew" as "(Htd0 & (Htd1 & _))" => /=.
-    rewrite Nat.add_0_r.
-    iSplitL "Htd0" => /=.
-    + rewrite Nat2N.inj_add.
-      rewrite N.add_comm.
-      by iApply "IH".
-    + rewrite Nat2N.inj_add.
-      rewrite N.add_comm.
-      by iFrame.
-Qed.
-      
-Lemma alloc_glob_state_update globs globs' ng:
-  globs' = globs ++ ng ->
-  gen_heap_interp (gmap_of_list globs) -∗ |==> 
-  ((gen_heap_interp (gmap_of_list globs')) ∗
-  ([∗ list] i ↦ v ∈ ng, N.of_nat (length globs + i) ↦[wg] v)).
-Proof.
-  move => Hglobs; subst.
-  iIntros "Hg".
-  specialize (gmap_of_list_append_big globs ng) as Hgmap.
-  destruct Hgmap as [Hgunion Hgdisj].
-  rewrite Hgunion.
-  iDestruct (gen_heap_alloc_big with "Hg") as "Hg" => //.
-  iMod "Hg".
-  iModIntro.
-  iDestruct "Hg" as "(Hg & Hgmaps & Hgtoken)".
-  rewrite map_union_comm => //.
-  iFrame.
-  rewrite big_opM_map_to_list.
-  rewrite map_to_list_to_map; last first.
-  (* TODO: refactor this proof *)
-  { apply NoDup_fmap_fst.
-    { move => x0 y3 z4 Hin1 Hin2.
-      apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
-      apply elem_of_lookup_imap in Hin2 as [i2 [z2 [Heq4 Hl4]]].
-      inversion Heq3; subst; clear Heq3.
-      inversion Heq4; subst; clear Heq4.
-      replace i2 with i1 in Hl4; last by lias.
-      rewrite Hl3 in Hl4.
-      by inversion Hl4.
-    }
-    {
-      apply nodup_imap_inj1.
-      move => n1 n2 t1 t2 H2.
-      inversion H2; subst; clear H2.
-      by lias.
-    }
-  }
-  clear Hgunion Hgdisj.
-  iClear "Hgtoken".
-  iInduction ng as [ | g'] "IH" using List.rev_ind => //=.
-  rewrite imap_app.
-  repeat rewrite big_sepL_app.
-  iDestruct "Hgmaps" as "(Hgm1 & Hgm2)".
-  iSplitL "Hgm1"; first by iApply "IH".
-  simpl.
-  by iFrame.
-Qed.
-
-Lemma init_tabs_state_update ws ws' inst e_inits m v_imps t_imps wfs wts wms wgs:
-  let wts' := module_import_init_tabs m inst wts in
-  ⌜init_tabs ws inst e_inits m.(mod_elem) = ws'⌝ -∗
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-  gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
-  gen_heap_interp (gmap_of_list (tab_size <$> ws.(s_tables))) -∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
-  ([∗ list] i↦v ∈ ((λ '{|
-                        tt_limits :=
-                          {| lim_min := min; lim_max := maxo |}
-                      |},
-                    {|
-                      table_data :=
-                        repeat None (ssrnat.nat_of_bin min);
-                      table_max_opt := maxo
-                    |}) <$> map modtab_type (mod_tables m)),
-   N.of_nat (length ws.(s_tables) - length (mod_tables m) + i)↦[wtblock]v) -∗
- |==>
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts' wms wgs ∗
-  gen_heap_interp (gmap_of_table ws'.(s_tables)) ∗
-  gen_heap_interp (gmap_of_list (tab_size <$> ws'.(s_tables))) ∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))) ∗
-  module_inst_resources_tab (module_inst_build_tables m inst) (drop (get_import_table_count m) inst.(inst_tab))))%I.
-Proof.
-Admitted.
-
-Lemma init_tabs_preserve ws inst e_inits melem ws':
-  init_tabs ws inst e_inits melem = ws' ->
-  ws.(s_funcs) = ws'.(s_funcs) /\
-  ws.(s_mems) = ws'.(s_mems) /\
-  ws.(s_globals) = ws'.(s_globals).
-Proof.
-  move => Hinit.
-  unfold init_tabs in Hinit.
-  rewrite - Hinit.
-  apply fold_left_preserve => //.
-  move => x [n me] Heq.
-  destruct ws, x.
-  simpl in *.
-  destruct Heq as [-> [-> ->]].
-  unfold init_tab => /=.
-  by destruct (nth _ _) eqn:Hl => /=.
-Qed.
-  
-Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs:
-  let wms' := module_import_init_mems m inst wms in
-  ⌜init_mems ws inst d_inits m.(mod_data) = ws'⌝ -∗
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-  gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
-  gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
-  ([∗ list] i↦v ∈ ((λ '{| lim_min := min; lim_max := maxo |},
-                   {|
-                     mem_data :=
-                       mem_make #00%byte
-                                match min with
-                                | 0%N => 0%N
-                                | N.pos q => N.pos (64 * 1024 * q)
-                                end;
-                     mem_max_opt := maxo
-                   |}) <$> mod_mems m),
-   N.of_nat (length ws.(s_mems) - length (m.(mod_mems)) + i)↦[wmblock]v) -∗
-  |==>
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms' wgs ∗
-  gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
-  gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
-  module_inst_resources_mem (module_inst_build_mems m inst) (drop (get_import_mem_count m) inst.(inst_memory))))%I.
-Proof.
-Admitted.
-
-Lemma init_mems_preserve ws inst d_inits mdata ws':
-  init_mems ws inst d_inits mdata = ws' ->
-  ws.(s_funcs) = ws'.(s_funcs) /\
-  ws.(s_tables) = ws'.(s_tables) /\
-  ws.(s_globals) = ws'.(s_globals).
-Proof.
-  move => Hinit.
-  unfold init_mems in Hinit.
-  rewrite - Hinit.
-  apply fold_left_preserve => //.
-  move => x [n md] Heq.
-  destruct ws, x.
-  simpl in *.
-  destruct Heq as [-> [-> ->]].
-  by unfold init_mem => /=.
-Qed.
 
 Lemma host_export_state_update vis vis' inst hs_exps mexp:
   ⌜ length hs_exps = length mexp ⌝ -∗
@@ -2909,61 +1428,7 @@ Proof.
     iFrame.
     by iExists (modexp_name m).
 Qed.
-    
-Lemma mod_imps_len_t m t_imps t_exps:
-  module_typing m t_imps t_exps ->
-  get_import_func_count m = length (ext_t_funcs t_imps) /\
-  get_import_table_count m = length (ext_t_tabs t_imps) /\
-  get_import_mem_count m = length (ext_t_mems t_imps) /\
-  get_import_global_count m = length (ext_t_globs t_imps).
-Proof.
-  unfold get_import_func_count, get_import_table_count, get_import_mem_count, get_import_global_count.
-  unfold module_typing.
-  move => Hmt.
-  destruct m.
-  destruct Hmt as [fts [gts [? [? [? [? [? [? [? [Himptype ?]]]]]]]]]].
-  simpl in *.
-  clear - mod_imports Himptype.
-  move : Himptype.
-  move : t_imps fts gts.
-  induction mod_imports; move => t_imps fts gts Himptype => //=.
-  - apply Forall2_nil_inv_l in Himptype as ->.
-    by simpl.
-  - destruct t_imps; first by apply Forall2_nil_inv_r in Himptype.
-    simpl in *.
-    inversion Himptype; subst; clear Himptype.
-    unfold module_import_typing in H2.
-    destruct a, imp_desc => /=; simpl in H2; destruct e => //.
-    all:
-      try by (move/andP in H2;
-      destruct H2 as [Hlen Hnth];
-      move/eqP in Hnth; subst;
-      simpl;
-      apply IHmod_imports in H4 as [? [? [? ?]]] => //;
-      repeat split => //;
-      f_equal).
-    move/eqP in H2; subst.
-    simpl.
-    apply IHmod_imports in H4 as [? [? [? ?]]] => //.
-    repeat split => //.
-    by f_equal.
-Qed.
 
-Lemma module_inst_build_tables_nil m inst:
-  m.(mod_tables) = [] ->
-  module_inst_build_tables m inst = [].
-Proof.
-  move => Hempty.
-  unfold module_inst_build_tables.
-  rewrite Hempty. clear Hempty => /=.
-  apply fold_left_preserve => //.
-  move => x me ->.
-  destruct me => /=.
-  destruct modelem_table => /=.
-  destruct (n <? get_import_table_count m) eqn:? => //=.
-  by rewrite Coqlib.nth_error_nil.
-Qed.
-  
 Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs :
   m.(mod_start) = None ->
   module_typing m t_imps t_exps ->
@@ -2974,11 +1439,15 @@ Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_i
 Proof.
   
   move => Hmodstart Hmodtype Hmodrestr.
-  iIntros "(Hmod & Himphost & Himpwasm & Hexphost & %Hlenexp & %Hebound & %Hdbound)".
+  (* Duplicate module restrictions for later *)
+  assert (module_restrictions m) as Hmodrestr2 => //.
+  
+  iIntros "(Hmod & Himphost & Himpwasmpre & Hexphost & %Hlenexp)".
+  iDestruct "Himpwasmpre" as "(Himpwasm & %Hebound & %Hdbound)".
   
   repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
   
-  iIntros ([[[ws vis] ms] has] ns κ κs nt) "Hσ".
+  iIntros ([[[[ws vis] ms] has] f] ns κ κs nt) "Hσ".
   iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hhas & Hframe & Hmsize & Htsize & Hmlimit & Htlimit)".
 
   (* Reflecting the assertions back *)
@@ -3103,7 +1572,7 @@ Proof.
       simpl in Himpwasm.
       destruct modexp_desc.
       + (* functions *)
-        destruct f.
+        destruct f0.
         destruct Himpwasm as [cl [Hws [? ->]]].
         eapply ETY_func => //; last by rewrite nth_error_lookup.
         apply lookup_lt_Some in Hws.
@@ -3424,20 +1893,6 @@ Proof.
         destruct moddata_data => /=.
         destruct m.
         simpl in *.
-        (*
-        unfold module_typing in Hmodtype.
-        destruct Hmodtype as [fts [gts [? [? [? [? [Helemtype _]]]]]]].
-        rewrite -> Forall_lookup in Helemtype.
-        specialize (Helemtype _ _ Hmelem).
-        unfold module_elem_typing in Helemtype.
-        destruct Helemtype as [_ [_ [Hlen1 Hlen2]]].
-        rewrite app_length in Hlen1.
-        rewrite map_length in Hlen1.
-        simpl in *.
-
-        rewrite -> Forall_lookup in Hebound.
-        specialize (Hebound _ _ Hmelem).
-        simpl in Hebound.*)
 
         rewrite -> Forall_lookup in Hdbound.
 
@@ -3627,10 +2082,10 @@ Proof.
   - destruct s => //.
     iPureIntro.
     unfold language.reducible, language.prim_step.
-    exists [::], ([::], map_start None), (ws_res, vis', ms, has), [::].
+    exists [::], ([::], map_start None), (ws_res, vis', ms, has, f), [::].
     repeat split => //.
     by eapply HR_host_step.
-  - iIntros ([hes' wes'] [[[ws3 vis3] ms3] has3] efs HStep).
+  - iIntros ([hes' wes'] [[[[ws3 vis3] ms3] has3] f3] efs HStep).
     destruct HStep as [HStep [-> ->]].
     revert Heqinst_res.
     inversion HStep; subst; clear HStep; move => Heqinst_res.
@@ -3642,7 +2097,10 @@ Proof.
       by apply empty_no_reduce in H0.
     }
 
-    all: try by apply locfill_is_nil in H13 as [??] => //. 
+    (* The two branches about host actions *)
+    4: by apply locfill_is_nil in H15 as [??] => //.
+    
+    3: by apply locfill_is_nil in H16 as [??] => //. 
     
     2: {
       (* oob case is impossible, because we've proven the bound check conditions. *)
@@ -3655,13 +2113,13 @@ Proof.
       specialize (Hwm Hvtlen).
       
       exfalso.
-      apply H18. clear H18.
+      apply H20. clear H20.
       (* First clear out some generated variables. *)
       rewrite Hmod in H4.
       inversion H4; symmetry in H0; subst; clear H4.
     
-      rewrite Hvilookup in H15.
-      inversion H15; subst; clear H15.
+      rewrite Hvilookup in H17.
+      inversion H17; subst; clear H17.
 
       split.
       - by eapply module_elem_bound_check_gmap_extend.
@@ -3676,8 +2134,8 @@ Proof.
     revert Heqinst_res.
     inversion H6; symmetry in H0; subst; clear H6.
     
-    rewrite Hvilookup in H15.
-    inversion H15; subst; clear H15.
+    rewrite Hvilookup in H17.
+    inversion H17; subst; clear H17.
 
     move => Heqinst_res.
     
@@ -3685,117 +2143,43 @@ Proof.
 
     (* We need to mass update the state interp. To do that, we first need to retrieve some relations between the resulting variables from inversion and those specified by the precondition -- essentially, instantiation should be a deterministic process. *)
     (* Now use determinism of instantiation to eliminate a lot of generated variables. *)
-    specialize (instantiate_det _ _ _ _ _ Hinst H17) as Hinsteq.
+    specialize (instantiate_det _ _ _ _ _ Hinst H19) as Hinsteq.
 
     destruct ws3.
     simpl in *.
     inversion Hinsteq.
     simpl.
 
-    iDestruct "Himpwasm" as "(Himpdom & Himpwasm)".
-
-  (*  iDestruct (import_resources_wasm_equivalent_aux with "Himpwasm") as "(Himpwf & Himpwt & Himpwm & Himpwg)".*)
-    iFrame "Hmod Himphost".
-    unfold import_resources_wasm_typecheck.
-    unfold instantiation_resources_post.
-    unfold import_resources_host.
-
-    (* We now have to perform the state update step by step... *)
-
-    (* Simplify the state relations first *)
-    destruct ws, s0, s1, s2, s3.
-    simpl in *.
-    
-    (* alloc_funcs *)
-    apply alloc_func_gen_index in Hallocfunc.
-    simpl in Hallocfunc.
-    destruct Hallocfunc as [Hfindex [Hfapp [-> [-> ->]]]].
-    
-    (* alloc_tabs *)
-    apply alloc_tab_gen_index in Halloctab.
-    simpl in Halloctab.
-    destruct Halloctab as [Htindex [Htapp [-> [-> ->]]]].
-    
-    (* alloc_mems *)
-    apply alloc_mem_gen_index in Hallocmem.
-    simpl in Hallocmem.
-    destruct Hallocmem as [Hmindex [Hmapp [-> [-> ->]]]].
-    
-    (* alloc_globs *)
-    apply alloc_glob_gen_index in Hallocglob => //.
-    simpl in Hallocglob.
-    destruct Hallocglob as [Hgindex [Hgapp [-> [-> ->]]]].
-
-    simpl in *.
-
-    (* Now we perform the state updates *)
-
-    (* alloc_funcs *)
-    iDestruct (alloc_func_state_update with "Hwf") as "Hwf"; first by apply Hfapp.
-
-    iMod "Hwf" as "(Hwf & Hfmapsto)".
-
-    (* alloc_tabs *)
-    iDestruct (alloc_tab_state_update with "Hwt Htsize Htlimit") as "Hwt"; first by apply Htapp.
-
-    iMod "Hwt" as "(Hwt & Htsize & Htlimit & Htmapsto)".
-    
-    (* alloc_mems *)
-    iDestruct (alloc_mem_state_update with "Hwm Hmsize Hmlimit") as "Hwm"; first by apply Hmapp.
-
-    iMod "Hwm" as "(Hwm & Hmsize & Hmlimit & Hmmapsto)".
-
-    (* alloc_globs *)
-    iDestruct (alloc_glob_state_update with "Hwg") as "Hwg"; first by apply Hgapp.
-
-    iMod "Hwg" as "(Hwg & Hwgmapsto)".
-
-    (* initialisers *)
-
-    remember (init_tabs _ inst_res _ _) as s4.
-
-    (* init_tabs *)
-    symmetry in Heqs4.
-    iDestruct (init_tabs_state_update $! Heqs4 with "[$] [$] [$] [$] [Htmapsto]") as "H" => /=.
-    {
-      replace (length s_tables4 - length (mod_tables m)) with (length s_tables1) => //.
-      rewrite Htapp.
-      rewrite app_length fmap_length map_length.
-      by lias.
+    (* Wasm state update, using the instantiation characterisation lemma *)
+    iDestruct (instantiation_wasm_spec with "") as "H" => //.
+    iDestruct ("H" with "[Himpwasm] [Hwf Hwt Hwm Hwg Hmsize Htsize Hmlimit Htlimit]") as "Hq".
+    { unfold instantiation_resources_pre_wasm.
+      by iFrame.
     }
-    iMod "H" as "(Hwimport & Hwt & Htsize & Htlimit & Htmapsto)".
-
-    destruct s4.
-    
-    specialize (init_tabs_preserve _ _ _ _ _ Heqs4) as [Hf4 [Hm4 Hg4]].
-    simpl in Hf4, Hm4, Hg4.
-    revert Heqinst_res.
-    subst.
-    move => Heqinst_res.
-    
-    (* init_mems *)
-    iDestruct (init_mems_state_update $! H0 with "[$] [$] [$] [$] [Hmmapsto]") as "H" => /=.
-    {
-      rewrite app_length fmap_length.
-      by rewrite Nat.add_sub.
+    { unfold gen_heap_wasm_store.
+      by iFrame.
     }
-    
-    iMod "H" as "(Hwimport & Hwm & Hmsize & Hmlimit & Hmmapsto)".
 
-    specialize (init_mems_preserve _ _ _ _ _ H0) as [Hf4 [Ht4 Hg4]].
-    simpl in Hf4, Ht4, Hg4.
-    revert Heqinst_res.
-    subst.
-    move => Heqinst_res.
+    iClear "H".
 
-    (* host_exports *)
-    rewrite Hinsertexp in H20.
+    iMod "Hq" as "(Hwasmpost & Hσ)".
+    unfold gen_heap_wasm_store => /=.
+    iDestruct "Hσ" as "(?&?&?&?&?&?&?&?)".
+    iFrame.
+
+    rewrite <- H3.
+    rewrite <- H2 in H22.
+
+    rewrite -> H1 in *.
+
+    (* host state update *)
+    rewrite Hinsertexp in H22.
     revert Heqinst_res.
-    inversion H20; subst; clear H20.
+    inversion H22; subst; clear H22.
     move => Heqinst_res.
     
-    rewrite fmap_length in H18.
-    iDestruct (host_export_state_update $! H18 Hinsertexp with "[$] [$]") as "H".
+    rewrite fmap_length in H20.
+    iDestruct (host_export_state_update $! H20 Hinsertexp with "[$] [$]") as "H".
     
     iMod "H" as "(Hvis & Hexphost)".
     
@@ -3803,186 +2187,15 @@ Proof.
 
     iMod "Hmask".
 
+
     iModIntro.
 
     iApply weakestpre.wp_value; first by instantiate (1 := immHV []) => //.
 
-    iExists inst, g_inits, (module_inst_build_tables m inst), (module_inst_build_mems m inst), (module_inst_global_init (module_inst_global_base (mod_globals m)) g_inits), (module_import_init_tabs m inst wts), (module_import_init_mems m inst wms).
+    iExists inst.
     
-    iFrame.
+    by iFrame.
 
-    (* Tweak the rest to fulfill the remaining (mostly-pure) predicates *)
-    
-    (* Instance check *)
-    iSplit.
-    { rewrite Heqinst_res.
-      iPureIntro.
-      repeat split => //=; try by apply prefix_app_r => //.
-      unfold check_start=> /=.
-      by rewrite Hmodstart.
-    }
-    (* Next are some trivial equalities on existential variables *)
-    do 6 iSplit => //.
-    (* global initialiser *)
-    iSplit => //.
-    { iPureIntro.
-      unfold module_glob_init_values.
-      split => //.
-      unfold module_glob_init_value.
-      rewrite list_fmap_compose.
-      rewrite Hmodglob.
-      clear.
-      induction g_inits => //=.
-      rewrite - those_those0 => /=.
-      rewrite those_those0.
-      by rewrite IHg_inits.
-    }
-    (* Then, a trivial equality again *)
-    iSplit => //.
-
-    (* Lastly, confirming that we do have the correct Wasm resources from instantiation. Note that each mapsto resources correspond very nicely to one part of the goal. *)
-    unfold module_inst_resources_wasm.
-
-    (* mod imports of m and imps are connected tortuously via t_imps. *)
-    specialize (mod_imps_len_t _ _ _ Hmodtype) as [Himpflen [Himptlen [Himpmlen Himpglen]]].
-
-    assert (
-    length (ext_func_addrs (modexp_desc <$> imps)) = length (ext_t_funcs t_imps) /\
-    length (ext_tab_addrs (modexp_desc <$> imps)) = length (ext_t_tabs t_imps) /\
-    length (ext_mem_addrs (modexp_desc <$> imps)) = length (ext_t_mems t_imps) /\
-    length (ext_glob_addrs (modexp_desc <$> imps)) = length (ext_t_globs t_imps)) as Hvtcomplen.
-    {
-      clear - Himpwasm Hvtlen.
-      move: Hvtlen Himpwasm.
-      move: t_imps.
-      induction imps => /=; move => t_imps Hvtlen Himpwasm; destruct t_imps => //.
-      simpl in *.
-      specialize (IHimps t_imps).
-      forward IHimps IHimps; first by lias.
-      forward IHimps IHimps.
-      { intros.
-        specialize (Himpwasm (S k) v t).
-        simpl in *.
-        by specialize (Himpwasm H H0).
-      }
-      destruct IHimps as [Hflen [Htlen [Hmlen Hglen]]].
-      specialize (Himpwasm 0 a e).
-      do 2 forward Himpwasm Himpwasm => //.
-      
-      destruct a, modexp_desc; simpl in Himpwasm => /=.
-      - destruct f.
-        destruct Himpwasm as [? [? [? ->]]] => /=.
-        repeat split => //.
-        by f_equal.
-      - destruct t.
-        destruct Himpwasm as [? [? [? [? [-> ?]]]]] => /=.
-        repeat split => //.
-        by f_equal.
-      - destruct m.
-        destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]] => /=.
-        repeat split => //.
-        by f_equal.
-      - destruct g.
-        destruct Himpwasm as [? [? [? [? [-> ?]]]]] => /=.
-        repeat split => //.
-        by f_equal.
-    }
-
-    destruct Hvtcomplen as [Hvtflen [Hvttlen [Hvtmlen Hvtglen]]].
-    
-    rewrite Heqinst_res => /=.
-    rewrite - Heqinst_res.
-    
-    (* Functions *)
-    iSplitL "Hfmapsto".
-    {
-      unfold module_inst_resources_func.
-      rewrite Himpflen - Hvtflen.
-      rewrite drop_app.
-      unfold gen_index, gen_func_instance.
-      remember (mod_funcs m) as mfuncs.
-      clear.
-      iInduction mfuncs as [ | f'] "IH" using List.rev_ind => //=.
-      rewrite app_length repeat_app imap_app fmap_app => /=.
-      rewrite big_sepL_app.
-      iDestruct "Hfmapsto" as "(Hh & Ht)".
-      iDestruct ("IH" with "Hh") as "Hh".
-      iFrame.
-      rewrite repeat_length.
-      simpl.
-      iDestruct "Ht" as "(Ht & _)".
-      iSplit => //.
-      rewrite fmap_length.
-      repeat rewrite Nat.add_0_r.
-      rewrite Nat.add_comm.
-      by iApply "Ht".
-    }
-    
-    (* Globals *)
-    {
-      iClear "Hmask".
-      unfold module_inst_resources_glob.
-      rewrite Himpglen - Hvtglen.
-      rewrite drop_app.
-      unfold gen_index.
-      remember (mod_globals m) as mglobs.
-      (* The variables need to be preserved, else there are weird errors later. *)
-      clear - Hginitslen hvisG0 hmsG0.
-      iRevert (Hginitslen).
-      iRevert "Hwgmapsto".
-      iRevert (g_inits).
-      iInduction mglobs as [ | g'] "IH" using List.rev_ind; iIntros (g_inits) "Hwgmapsto"; iIntros "%Hginitslen" => //=.
-      rewrite app_length in Hginitslen.
-      simpl in Hginitslen.
-      assert (exists gi g', g_inits = gi ++ [g']).
-      { destruct g_inits => //; first by simpl in Hginitslen; lias.
-        clear.
-        move: v.
-        induction g_inits; intros => /=.
-        - by exists [::], v.
-        - specialize (IHg_inits a).
-          destruct IHg_inits as [gi [g' Heq]].
-          exists (v::gi), g'.
-          simpl.
-          by f_equal.
-      }
-      destruct H as [gi [gt ->]].
-      rewrite app_length in Hginitslen.
-      simpl in Hginitslen.
-      rewrite app_length repeat_app imap_app => /=.
-      rewrite combine_app => /=; last by lias.
-      rewrite fmap_app.
-      rewrite repeat_length.
-      rewrite big_sepL_app.
-      iDestruct "Hwgmapsto" as "(Hh & Ht)".
-      iDestruct ("IH" with "Hh") as "Hh".
-      iClear "IH".
-      iSpecialize ("Hh" with "[%]"); first by lias.
-      unfold module_inst_global_base.
-      rewrite fmap_app.
-      simpl.
-
-      rewrite module_inst_global_init_cat; last by rewrite fmap_length; lias.
-
-      simpl.
-
-      (* Clear out the head of sepL2 *)
-      iFrame => /=.
-
-      repeat rewrite Nat.add_0_r.
-
-      iDestruct "Ht" as "(Ht & _)".
-      iSplit => //.
-      rewrite fmap_length combine_length.
-      replace (length gi) with (length mglobs); last by lias.
-      rewrite Nat.min_id Nat.add_comm.
-      unfold global_init_replace_single.
-      destruct g', modglob_type => /=.
-
-      by iApply "Ht".
-    }
-    apply locfill_is_nil in H14 as [??] => //. 
-    
 Qed.
 
 Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
@@ -4118,602 +2331,6 @@ Proof.
     by unfold module_export_typing => /=.    
 Qed.
 
-(*
-Lemma add_instantiate_spec (s: stuckness) E hv:
-  0%N ↪[mods] Add_module -∗
-  0%N ↪[vis] hv -∗
-  WP (([::ID_instantiate [::0%N] 0 [::]], [::]): host_expr) @ s; E
-      {{ v, 0%N ↪[mods] Add_module ∗
-             ∃ idf name,
-               0%N ↪[vis] {| modexp_name := name; modexp_desc := (MED_func (Mk_funcidx idf)) |} ∗
-                    N.of_nat idf ↦[wf] (FC_func_native
-                                          (Build_instance [::Tf [::T_i32; T_i32] [::T_i32]] [::idf] [::] [::] [::])
-                                          (Tf [::T_i32; T_i32] [::T_i32]) (* Function type *)
-                                          [::] (* list of local variable types to be created -- none *)
-                                          [BI_get_local 0; BI_get_local 1; BI_binop T_i32 (Binop_i BOI_add)])
-      }}.
-Proof.
-  iIntros "Hmod Hhv".
-  iApply weakestpre.wp_mono; last first.
-  iApply (instantiation_spec_operational_no_start with "[Hmod Hhv]"); unfold instantiation_resources_pre; [ | | iFrame] => //.
-  - by apply add_module_valid.
-  - unfold import_resources_host, import_resources_wasm_typecheck, export_ownership_host.
-    instantiate (1 := [::]).
-    do 4 (instantiate (1 := ∅)).
-    repeat iSplit => //=.
-    by iExists hv.
-  - iIntros (v) "H".
-    iDestruct "H" as "(Hmod & Himphost & Himpwasm & Hinst)".
-    iDestruct "Hinst" as (inst g_inits) "(%Hinst & Hexpwasm & Hexphost)".
-
-    destruct Hinst as [Hinsttype [Hinstfunc [Hinsttab [Hinstmem Hinstglob]]]].
-    
-    (* Extract the resources from the post of the instantiation lemma *)
-    unfold module_inst_resources_wasm, module_export_resources_host => /=.
-    
-    destruct inst => /=.
-    
-    (* Extracting the allocated wasm resources *)
-
-    iDestruct "Hexpwasm" as "(Hexpwf & Hexpwt & Hexpwm & Hexpwg)".
-    
-    unfold module_inst_resources_func, module_inst_resources_tab, module_inst_resources_mem, module_inst_resources_glob => /=.
-    unfold big_sepL2 => /=.
-
-    (* functions *)
-    destruct inst_funcs as [|n inst_funcs] => //=.
-    iDestruct "Hexpwf" as "(Hwfcl & Hexpwf)".
-    destruct inst_funcs => //=.
-
-    (* tables *)
-    destruct inst_tab => //=.
-
-    (* memories *)
-    destruct inst_memory => //=.
-
-    (* globals *)
-    destruct inst_globs => //=.
-
-    
-
-    (* Extracting the exported function indices in host. Note that we've lost the export name, but it's superfluous anyway *)
-    iDestruct "Hexphost" as "(Hexphost & ?)".
-    iDestruct "Hexphost" as (name) "Hexphost" => /=.
-
-    simpl in *; subst.
-    iFrame.
-    iExists n, name.
-    by iFrame.
-Qed.
-
-Lemma M2_instantiate_spec (s: stuckness) E hv expname0 n cl:
-  (* Note that we don't require to know the exact body of the import -- the only important thing is that its type matches. *)
-  cl_type cl = (Tf [::T_i32; T_i32] [::T_i32]) ->
-  1%N ↪[mods] M2 -∗
-  0%N ↪[vis] {| modexp_name := expname0; modexp_desc := MED_func (Mk_funcidx n) |} -∗
-  N.of_nat n ↦[wf] cl -∗
-  1%N ↪[vis] hv -∗
-  WP (([::ID_instantiate [::1%N] 1 [::0%N]], [::]): host_expr) @ s; E
-      {{ v,  1%N ↪[mods] M2 ∗
-             0%N ↪[vis] {| modexp_name := expname0; modexp_desc := MED_func (Mk_funcidx n) |} ∗
-             N.of_nat n ↦[wf] cl ∗
-             ∃ idf name,
-               1%N ↪[vis] {| modexp_name := name; modexp_desc := (MED_func (Mk_funcidx idf)) |} ∗
-                    N.of_nat idf ↦[wf] (FC_func_native
-                                          (Build_instance [::Tf [::T_i32; T_i32] [::T_i32]; Tf [::] [::T_i32]] [::n; idf] [::] [::] [::])
-                                          (Tf [::] [::T_i32]) 
-                                          [::] 
-                                          [BI_const (xx 13); BI_const (xx 2); BI_call 0])
-      }}.
-Proof.
-  move => Hcltype.
-  iIntros "Hmod Hvimp Hwfcl Hhv".
-  iApply weakestpre.wp_mono; last first.
-  iApply (instantiation_spec_operational_no_start with "[Hmod Hvimp Hwfcl Hhv]"); [ | by apply M2_valid |] => //.
-  - unfold instantiation_resources_pre.
-    do 3 instantiate (1 := ∅).
-    instantiate (1 := <[ n := cl ]> ∅).
-    unfold import_resources_host.
-    unfold big_sepL2.
-    instantiate (1 := [::{| modexp_name := expname0; modexp_desc := MED_func (Mk_funcidx n) |}]) => /=.
-    unfold import_resources_wasm_typecheck => /=.
-    unfold export_ownership_host => /=.
-    iFrame.
-    iSplitL "Hwfcl".
-    + iSplit => //.
-      iExists cl.
-      iFrame.
-      iPureIntro.
-      rewrite lookup_insert.
-      split => //.
-      by rewrite Hcltype.
-    + iSplit => //.
-      by iExists hv.
-  - iIntros (v) "H".
-    iDestruct "H" as "(Hmod & Himphost & Himpwasm & Hinst)".
-    iDestruct "Hinst" as (inst g_inits) "(%Hinst & Hexpwasm & Hexphost)".
-    
-    destruct Hinst as [Hinsttype [Hinstfunc [Hinsttab [Hinstmem Hinstglob]]]].
-    
-    (* Extract the resources from the post of the instantiation lemma *)
-    unfold module_inst_resources_wasm, module_export_resources_host => /=.
-    
-    destruct inst => /=.
-    
-    (* Extracting the allocated wasm resources *)
-
-    iDestruct "Hexpwasm" as "(Hexpwf & Hexpwt & Hexpwm & Hexpwg)".
-    
-    unfold module_inst_resources_func, module_inst_resources_tab, module_inst_resources_mem, module_inst_resources_glob => /=.
-    unfold big_sepL2 => /=.
-
-    (* functions *)
-    destruct inst_funcs as [|k inst_funcs] => //=.
-    rewrite drop_0.
-    destruct inst_funcs => //=.
-    iDestruct "Hexpwf" as "(Hwfcl & Hexpwf)".
-    destruct inst_funcs => //=.
-
-    (* tables *)
-    destruct inst_tab => //=.
-
-    (* memories *)
-    destruct inst_memory => //=.
-
-    (* globals *)
-    destruct inst_globs => //=.
-
-    
-
-    (* Extracting the exported function indices in host. Note that we've lost the export name, but it's superfluous anyway *)
-    iDestruct "Hexphost" as "(Hexphost & ?)".
-    iDestruct "Hexphost" as (name) "Hexphost" => /=.
-
-    (* Extracting the imported resources in the host *)
-    unfold import_resources_host => /=.
-    iDestruct "Himphost" as "(Himphost & _)".
-
-    (* Extracting the imported resources in Wasm *)
-    unfold import_resources_wasm_typecheck => /=.
-    iDestruct "Himpwasm" as "(Himpwasm & _)".
-    iDestruct "Himpwasm" as (cl0) "(Hwfcl0 & %Hcltype0)" => /=.
-    rewrite lookup_insert in Hcltype0.
-    destruct Hcltype0 as [Hcl _].
-    inversion Hcl; subst; clear Hcl.
-    
-    simpl in *; subst.
-    unfold ext_func_addrs in Hinstfunc => /=.
-    simpl in Hinstfunc.
-    unfold prefix in Hinstfunc.
-    destruct Hinstfunc as [l Hinstfunc].
-    repeat destruct l => //=.
-    inversion Hinstfunc; subst; clear Hinstfunc.
-    
-    iFrame.
-    iExists n0, name.
-    iFrame.
-
-Qed.
-
-(* Demonstrating that we have the correct resources after instantiating two modules in sequence. *)
-Lemma add_program_instantiate_spec (s: stuckness) E hv0 hv1:
-  0%N ↪[mods] Add_module -∗
-  1%N ↪[mods] M2 -∗
-  0%N ↪[vis] hv0 -∗
-  1%N ↪[vis] hv1 -∗
-  WP ((add_program_instantiate, [::]): host_expr) @ s; E {{ v,
-             0%N ↪[mods] Add_module ∗
-             1%N ↪[mods] M2 ∗
-             ∃ idf0 idf1 name0 name1,
-             0%N ↪[vis] {| modexp_name := name0; modexp_desc := (MED_func (Mk_funcidx idf0)) |} ∗
-             1%N ↪[vis] {| modexp_name := name1; modexp_desc := (MED_func (Mk_funcidx idf1)) |} ∗
-             N.of_nat idf0 ↦[wf] (FC_func_native
-                                          (Build_instance [::Tf [::T_i32; T_i32] [::T_i32]] [::idf0] [::] [::] [::])
-                                          (Tf [::T_i32; T_i32] [::T_i32]) (* Function type *)
-                                          [::] (* list of local variable types to be created -- none *)
-                                          [BI_get_local 0; BI_get_local 1; BI_binop T_i32 (Binop_i BOI_add)]) ∗
-             N.of_nat idf1 ↦[wf] (FC_func_native
-                                          (Build_instance [::Tf [::T_i32; T_i32] [::T_i32]; Tf [::] [::T_i32]] [::idf0; idf1] [::] [::] [::])
-                                          (Tf [::] [::T_i32]) 
-                                          [::] 
-                                          [BI_const (xx 13); BI_const (xx 2); BI_call 0]) }}.
-Proof.
-  iIntros "Hmod0 Hmod1 Hvis0 Hvis1".
-  iApply (wp_seq_host_nostart with "[$Hmod0] [Hvis0]") => //.
-  - iIntros "Hmod0".
-    iApply weakestpre.wp_mono; last by iApply (add_instantiate_spec with "[$]").
-    iIntros (v) "(?&H)".
-    iFrame.
-    by iApply "H".
-  - iIntros (w) "Hes1 Hmod0".
-    iDestruct "Hes1" as (idf0 name0) "(Hvis0 & Hwf0)".
-    iFrame "Hmod0".
-    iApply weakestpre.wp_mono; last by iApply (M2_instantiate_spec with "[$] [$] [$]") => //=.
-    
-    iIntros (v) "Hes2".
-    iDestruct "Hes2" as "(Hmod1 & Hvis0 & Hwf0 & Hes2)".
-    iDestruct "Hes2" as (idf1 name1) "(Hvis1 & Hwf1)".
-    iFrame.
-    iExists idf0, idf1, name0, name1.
-    iFrame.
-Qed.
-
-*)
-(* ***************** END OF EXAMPLES ********************* *)
-
-(* No longer in use
-
-Print instantiation.instantiate.
-Print module_export.
-Print module_export_desc.
-
-Print Build_instance.
-Print funcaddr.
-
-Print function_closure.
-
-Print instance.
-
-Lemma Add_module_instantiate_spec ws n inst ws':
-  length (ws.(s_funcs)) = n ->
-  inst = Build_instance [::Tf [::T_i32; T_i32] [::T_i32]] [::(* wait... this is 1-indexed ???? *)n] [::] [::] [::] ->
-  ws' = (Build_store_record
-            (ws.(s_funcs) ++ [::FC_func_native
-                                       inst 
-                                       (Tf [::T_i32; T_i32] [::T_i32]) (* Function type *)
-                                       [::] (* list of local variable types to be created -- none *)
-                                       [BI_get_local 0; BI_get_local 1; BI_binop T_i32 (Binop_i BOI_add)]])
-            ws.(s_tables)
-            ws.(s_mems)
-            ws.(s_globals)) ->
-  instantiate ws Add_module [::]
-              (
-                ws',
-                inst,
-                [:: Build_module_export (list_byte_of_string "add") (MED_func (Mk_funcidx (n)))],
-                (None: option nat)
-              ).
-Proof.
-  move => Hfunclen Hinst Hstore.
-  unfold instantiate, instantiation.instantiate.
-  
-  (* Types of imports and exports. This might be useful to craft a 'spec for a module' *)
-  exists [::], [::ET_func (Tf [::T_i32; T_i32] [::T_i32])].
-  exists hs. (* updated host state... but our host is built on dummyhost -- so this should really be just a dummy *)
-  exists ws'.
-  exists [::], [::], [::]. (* all of these should be empty *)
-  
-  repeat split; (try by apply Forall2_nil); (try by apply Forall_nil).
-  - (* module_typing of the module, proved above *)
-    by apply add_module_valid.
-  - (* alloc_module *)
-    unfold alloc_module => /=.
-    repeat (apply/andP; split => //; try by rewrite Hinst).
-    rewrite Hinst Hstore => /=.
-    apply/eqP.
-    f_equal.
-    rewrite app_length.
-    by rewrite Hfunclen.
-  - (* This seems to be a recursive check that our store is containing the correct memories and tables -- but how
-       are these working exactly when we actually have some non-empty memories/tables? *)
-    simpl.
-    (* potential bug in instantiation *)
-    unfold init_mems => /=.
-    unfold init_tabs => /=.
-    by apply/eqP.    
-Qed.
-
-
-
-Lemma M2_instantiate_spec ws n inst ws' k:
-  k < n ->
-  length (ws.(s_funcs)) = n ->
-  (* So the instance has to contain imported functions as well *)
-  inst = Build_instance [::Tf [::T_i32; T_i32] [::T_i32]; Tf [::] [::T_i32]] [::k; n+1] [::] [::] [::] ->
-  nth_error ws.(s_funcs) k = Some (FC_func_native
-                                       inst (* redundant instance?? *)
-                                       (Tf [::T_i32; T_i32] [::T_i32]) (* Function type *)
-                                       [::] (* list of local variable types to be created -- none *)
-                                       [BI_get_local 0; BI_get_local 1; BI_binop T_i32 (Binop_i BOI_add)]) ->
-  ws' = (Build_store_record
-            (ws.(s_funcs) ++ [::FC_func_native
-                                       inst 
-                                       (Tf [::] [::T_i32]) 
-                                       [::] 
-                                       [ BI_const (xx 13); BI_const (xx 2); BI_call 0]])
-            ws.(s_tables)
-            ws.(s_mems)
-            ws.(s_globals)) ->
-  instantiate ws M2 [::MED_func (Mk_funcidx k)]
-              (
-                ws',
-                inst,
-                [:: Build_module_export (list_byte_of_string "f") (MED_func (Mk_funcidx (n+1)))],
-                (None: option nat)
-              ).
-Proof.
-  move => Hindexsize Hfunclen Hinst Hfuncimport Hstore.
-  unfold instantiate, instantiation.instantiate.
-  
-  exists [::ET_func (Tf [::T_i32; T_i32] [::T_i32])], [::ET_func (Tf [::] [::T_i32])], hs, ws', [::], [::], [::].
-  
-  repeat split; (try by apply Forall2_nil); (try by apply Forall_nil).
-  - (* module_typing of the module, proved above *)
-    by apply M2_valid.
-  - (* external_typing *)
-    constructor => //.
-    econstructor => //.
-    by lias.
-  - (* alloc_module *)
-    unfold alloc_module => /=.
-    repeat (apply/andP; split => //; try by rewrite Hinst).
-    rewrite Hinst Hstore => /=.
-    apply/eqP.
-    repeat f_equal.
-    rewrite app_length.
-    by rewrite Hfunclen.
-  - simpl.
-    unfold init_mems => /=.
-    unfold init_tabs => /=.
-    by apply/eqP.    
-Qed.
-
-(* Currently only states what are the exports we're getting instead of what the specs are.  *)
-Lemma example_add_spec (s: stuckness) E:
-  (* Module declaration resources *)
-  0%N ↪[mods] Add_module -∗
-  1%N ↪[mods] M2 -∗
-  (* original vis resources -- this is required since the instantiation updates these two entries *)
-  0 ↪[vis] ([::]: list module_export) -∗
-  1 ↪[vis] ([::]: list module_export) -∗
-  WP ((add_program_instantiate, [::]): host_expr) @ s; E
-           {{ v, ⌜ v = immV [::] ⌝ ∗
-                   0%N ↪[mods] Add_module ∗
-                   1%N ↪[mods] M2 ∗
-                   (* It now really seems that this exported funcid is a reference to the location in the store *)
-                   0 ↪[vis] [:: Build_module_export (list_byte_of_string "add") (MED_func (Mk_funcidx 0))] ∗
-                   1 ↪[vis] [:: Build_module_export (list_byte_of_string "f") (MED_func (Mk_funcidx 1))] ∗
-                   (∃ k inst1 inst2, k ↪[wf] (FC_func_native
-                                     inst1
-                                     (Tf [::T_i32; T_i32] [::T_i32]) (* Function type *)
-                                     [::] (* list of local variable types to be created -- none *)
-                                     [BI_get_local 0; BI_get_local 1; BI_binop T_i32 (Binop_i BOI_add)]) ∗
-                   k+1 ↪[wf] (FC_func_native
-                                       inst2 
-                                       (Tf [::] [::T_i32]) 
-                                       [::] 
-                                       [ BI_const (xx 13); BI_const (xx 2); BI_call 0]))
-           }}.
-Proof.
-  iIntros "Hmod1 Hmod2 Hmodexp1 Hmodexp2".
-  repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
-  
-  iIntros ([[ws vis] ms] ns κ κs nt) "Hσ".
-  iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & Hmsize)".
-  iDestruct (ghost_map_lookup with "Hms Hmod1") as "%Hmod1".
-  iDestruct (ghost_map_lookup with "Hms Hmod2") as "%Hmod2".
-  iDestruct (ghost_map_lookup with "Hvis Hmodexp1") as "%Hmodexp1".
-  iDestruct (ghost_map_lookup with "Hvis Hmodexp2") as "%Hmodexp2".
-
-  remember (length ws.(s_funcs)) as wflen.
-  remember (Build_instance [::Tf [::T_i32; T_i32] [::T_i32]] [::wflen + 1] [::] [::] [::]) as inst1.
-  remember (Build_store_record
-            (ws.(s_funcs) ++ [::FC_func_native
-                                       inst1
-                                       (Tf [::T_i32; T_i32] [::T_i32]) 
-                                       [::] 
-                                       [BI_get_local 0; BI_get_local 1; BI_binop T_i32 (Binop_i BOI_add)]])
-            ws.(s_tables)
-            ws.(s_mems)
-            ws.(s_globals)) as ws1.
-  
-  specialize (Add_module_instantiate_spec ws wflen inst1 ws1) as Hinstantiate1.
-  
-
-  remember (Build_instance [::Tf [::T_i32; T_i32] [::T_i32]; Tf [::] [::T_i32]] [::wflen; wflen+1] [::] [::] [::]) as inst2.
-  remember (Build_store_record
-            (ws.(s_funcs) ++ [::FC_func_native
-                                       inst2
-                                       (Tf [::] [::T_i32]) 
-                                       [::] 
-                                       [ BI_const (xx 13); BI_const (xx 2); BI_call 0]])
-            ws.(s_tables)
-            ws.(s_mems)
-            ws.(s_globals)) as ws2.
-  
-  specialize (M2_instantiate_spec ws1 (wflen+1) inst2 ws2 (wflen)) as Hinstantiate2.
-
-  iApply fupd_mask_intro; first by set_solver.
-
-  iIntros "Hmask".
-  iSplit.
-  
-  - destruct s => //.
-    iPureIntro.
-    unfold language.reducible.
-      
-    exists [], (([::], [::]): host_expr), (ws2,
-                                    <[ 0 := [:: Build_module_export (list_byte_of_string "add") (MED_func (Mk_funcidx 0))]]>
-                                    (<[ 1 := [:: Build_module_export (list_byte_of_string "f") (MED_func (Mk_funcidx 1))]]> vis) ,
-                                    ms), [].
-    unfold prim_step.
-    repeat split => //.
-    admit.
-    (*
-    eapply HR_host_step => //.
-    by rewrite gmap_of_list_lookup in Hmods.
-*)
-        
-  - iIntros ([hes' wes'] [[ws3 vis3] ms3] efs HStep).
-    destruct HStep as [HStep [-> ->]].
-    inversion HStep; subst; clear HStep.
-    iIntros "!>!>!>".
-    iMod "Hmask".
-    iModIntro.
-    (* It's probably a bad idea to iFrame now... *)
-    (*
-    iFrame.
-*)
-      (*
-      iSpecialize ("Hwp" $! wes' (hs', ws2, [::], empty_instance) [::] with "[%]"); first by unfold iris.prim_step.
-      iMod "Hwp".
-      do 2 iModIntro.
-      iFrame.
-      iSplit => //.
-      iApply "IH"; first by apply hwev_reduce_closed in H0.
-      iApply "Hwp".
-      by iApply "Hf".
-*)
-Admitted.
-
-
-
 End Example_Add.
-
-
-
-Definition build_module_one_func (ft: function_type) (bes: expr) :=
-  Build_module [:: ft] [:: (Build_module_func (Mk_typeidx 0) [::] bes)] [] [] [] [] [] (Some (Build_module_start (Mk_funcidx 0))) [] [].
-
-Print module_typing.
-
-Print module_func_typing.
-
-Print module_func.
-
-Print typeidx.
-
-(*
-Section Host_wp_import.
-  (* Host wp must depend on the same memory model as for wasm *)
-  Context `{!wfuncG Σ, !wtabG Σ, !wmemG Σ, !wmemsizeG Σ, !wglobG Σ, !wframeG Σ}.
-
-  Record host_program_logic := {
-      wp_host (s : stuckness) : coPset -d> host_function -d> seq.seq value -d> (result -d> iPropO Σ) -d> iPropO Σ;
-      wp_host_not_stuck : (forall σ ns κs nt Φ h E vcs t1s t2s a, (let '(hs,s,_,_) := σ in
-                                              s_funcs s !! a = Some (FC_func_host (Tf t1s t2s) h)) ->
-                                              state_interp σ ns κs nt -∗
-                                              wp_host NotStuck E h vcs Φ ={E}=∗
-                                              state_interp σ ns κs nt ∗ wp_host NotStuck E h vcs Φ ∗
-                                              ⌜(let '(hs,s,_,_) := σ in (∃ hs' s' r, host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r))) ∨
-                                               (∃ hs', host_application hs s (Tf t1s t2s) h vcs hs' None))⌝);
-      wp_host_step_red : (∀ σ ns κ κs nt Φ h E vcs t1s t2s, (
-                                                               
-                                              state_interp σ ns (κ ++ κs) nt -∗
-                                              wp_host NotStuck E h vcs Φ ={E,∅}=∗
-                                              (∀ σ' r, ⌜(let '(hs,s,_,_) := σ in let '(hs',s',_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r)))⌝
-                                              ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
-                                                 state_interp σ' (S ns) κs nt ∗ Φ r) ∗
-                                              (∀ σ', ⌜(let '(hs,s,_,_) := σ in let '(hs',_,_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' None)⌝
-                                              ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
-                                                 state_interp σ' (S ns) κs nt ∗ wp_host NotStuck E h vcs Φ)));
-    }.
-  
-End Host_wp_import.
- *)
-
-
-(*
-| HR_host_step: forall s vis m vi vm vimps imps s' vis' ms idecs' inst exps start vs,
-    ms !! vm = Some m ->
-    those ((lookup_export_vi vis) <$> vimps) = Some imps ->
-    instantiate s m imps ((s', inst, exps), start) ->
-    const_list vs ->
-    vis' = <[ vi := exps ]> vis ->
-    host_reduce (s, vis, ms, (ID_instantiate vi vm vimps) :: idecs', vs) (s', vis', ms, idecs', map_start start)
- *)
-Lemma wp_host_inst_func_only (s: stuckness) E (bes: expr) (Φ: iris.val -> iProp Σ) (m: module) (ft: function_type) (es: expr) (impts expts : list extern_t) q:
-  m = build_module_one_func ft es ->
-  module_typing m impts expts ->
-  WP ((to_e_list bes): iris.expr) @ s; E {{ Φ }} -∗
-  (ghost_map_elem msGName 0%N q m)%I -∗
-  (* Instantiating the 0th module and store exports (None) in the 0th resource should result in the expression containing
-     the resulting value of the function body of the start function, with an empty resource generated at the 0th location *)
-  WP (([::ID_instantiate 0 0 [::]], [::]): host_expr) @ s; E {{ v, Φ v ∗ (ghost_map_elem visGName 0 (DfracOwn 1) ([::]: list module_export)) }}.
-Proof.
-  move => Hmodule Hmoduletype.
-  iIntros "Hwp Hmods".
-  repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
-  repeat rewrite wp_unfold /wp_pre /=.
-  
-  iIntros ([[ws vis] ms] ns κ κs nt) "Hσ".
-  iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hframe & Hmsize)".
-  iDestruct (ghost_map_lookup with "Hms Hmods") as "%Hmods".
-  
-  assert (exists s' inst, (instantiate ws m [::] ((s', inst, [::]), (Some 0)))) as [ws' Hinst].
-  {
-    (*
-    destruct ws.
-    exists Build_store_record (s.(s_funcs) ++ (Build_module_func (Mk_typeidx 0) [::] bes)) s.(s_tables) s.(s_mems) s.(s_globals).
-    repeat split; unfold all2.*)
-    admit.
-  }
-  destruct Hinst as [inst Hinstantiate].
-  destruct (iris.to_val (to_e_list bes)) eqn: Hes => //.
-  - (* Can a function body be consisted of only a list of consts? *)
-    iMod "Hwp".
-    iApply fupd_mask_intro; first by set_solver.
-    iIntros "Hmask".
-    iSplit.
-    + iPureIntro.
-      destruct s => //.
-      econstructor.
-      Search ID_instantiate.
-      exists ([],map_start (Some 0)), (ws', <[0:=[]]> vis, ms), [].
-      constructor => //.
-      eapply HR_host_step => //; by rewrite gmap_of_list_lookup in Hmods.
-    + iIntros (e2 σ2 efs HStep) "!>!>!>".
-      iMod "Hmask".
-      iModIntro.
-      destruct σ2 as [[ws2 vis2] ms2].
-      destruct e2 as [he2 we2].
-      destruct HStep as [HStep [-> ->]].
-      inversion HStep; subst; last by apply empty_no_reduce in H0.
-      (* It appears that we need more resources in the precondition, so as to update the wasm store at this point. *)
-      admit.
-      
-  - iSpecialize ("Hwp" $! (hs, ws, [::], empty_instance) ns κ κs nt).
-    iSpecialize ("Hwp" with "[$]").
-    iMod "Hwp" as "(%Hred & Hwp)".
-    iModIntro.
-    iSplit.
-    
-    + destruct s => //.
-      iPureIntro.
-      unfold language.reducible.
-      
-      exists [], (([::], [AI_invoke 0]): host_expr), (ws', <[ 0 := [::] ]> vis , ms), [].
-      unfold prim_step => /=.
-      repeat split => //.
-      replace [AI_invoke 0] with (map_start (Some 0)); last trivial.
-      eapply HR_host_step => //.
-      by rewrite gmap_of_list_lookup in Hmods.
-        
-    + iIntros ([hes' wes'] [[ws2 vis2] ms2] efs HStep).
-      destruct HStep as [HStep [-> ->]].
-      inversion HStep; subst; clear HStep.
-      (* Latter case is impossible *)
-      (*
-      iSpecialize ("Hwp" $! wes' (hs', ws2, [::], empty_instance) [::] with "[%]"); first by unfold iris.prim_step.
-      iMod "Hwp".
-      do 2 iModIntro.
-      iMod "Hwp".
-      iModIntro.
-      iMod "Hwp".
-      iModIntro.
-      iDestruct "Hwp" as "((Hwf & Hwt & Hwm & Hwg & Hwframe & Hmsize) & Hwp)".
-      iDestruct "Hwp" as (f) "(Hf & Hwp & ?)".
-      iFrame.
-      iSplit => //.
-      iApply "IH"; first by apply hwev_reduce_closed in H0.
-      iApply "Hwp".
-      by iApply "Hf".
-*)
-Admitted.
-      
-*)
-End Example_Add.
-
-                   
 
 End Iris_host.

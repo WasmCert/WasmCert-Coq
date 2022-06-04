@@ -154,12 +154,9 @@ Section fundamental.
 
     assert (forall tf h v lh es,
                  iris.of_val (callHostV tf h v lh) ++ es =
-                   iris.of_val (callHostV tf h v (loch_append lh es))) as Heq.
+                   iris.of_val (callHostV tf h v (sh_append lh es))) as Heq.
     { intros. simpl. destruct lh0;simpl.
-      { destruct s =>//; simpl.
-        all: by rewrite app_comm_cons app_assoc. }
-      { by rewrite app_comm_cons app_assoc. }
-    }
+      all: by rewrite app_comm_cons app_assoc. }
     
     rewrite Heq.
     iApply wp_wasm_empty_ctx.
@@ -238,7 +235,7 @@ Section fundamental.
       eassert (sfill (SH_base [] [e]) (sfill vh0 [_]) = sfill vh0 [AI_call_host tf0 h0 v0] ++ [e]) as <-.
       { simpl. eauto. }
       iApply wp_wasm_empty_ctx.
-      eassert (sfill _ _ = iris.of_val (callHostV _ _ _ (No_local (sh_append vh0 [e])))) as ->.
+      eassert (sfill _ _ = iris.of_val (callHostV _ _ _ (sh_append vh0 [e]))) as ->.
       { simpl. rewrite sfill_sh_append. eauto. }
       iApply wp_value;[done|].
       iSplitR "Hf Hfv";[|iExists _;iFrame].

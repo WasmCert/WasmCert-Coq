@@ -316,9 +316,10 @@ Section Examples_host.
     }
 
     iIntros (w) "[Himps Hinst_adv] Hmod_adv".
-    iDestruct "Hinst_adv" as (inst_adv g_adv_inits t_adv_inits m_adv_inits glob_adv_inits wts' wms')
+    iDestruct "Hinst_adv" as (inst_adv) "[Hinst_adv Hadv_exports]".
+    iDestruct "Hinst_adv" as (g_adv_inits t_adv_inits m_adv_inits glob_adv_inits wts' wms')
                                "(Himpstyp & %HH & %Htyp_inits & %Hwts' & %Hbounds_elem & %Hmem_inits 
-                               & %Hwms' & %Hbounds_data & %Hglob_inits_vals & %Hglob_inits & Hinst_adv_res & Hadv_exports)".
+                               & %Hwms' & %Hbounds_data & %Hglob_inits_vals & %Hglob_inits & Hinst_adv_res)".
     destruct HH as (?&?&?&?&?&?).
     iDestruct (big_sepL2_length with "Hadv_exports") as %Hexp_len.
     destruct (mod_exports adv_module) eqn:Hexp;[done|].
@@ -378,26 +379,44 @@ Section Examples_host.
     { iApply (instantiation_spec_operational_start with "[$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
       { apply lse_module_typing. }
       { unfold import_resources_host.
-        instantiate (1:=[_;_]). iFrame "Hn Hvis1".
+        instantiate (5:=[_;_]). iFrame "Hn Hvis1".
         unfold import_resources_wasm_typecheck,export_ownership_host.
         iSimpl. do 3 iSplit =>//.
         { instantiate (1:={[g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
           instantiate (1:=∅).
           instantiate (1:=∅).
           instantiate (1:= {[N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
-          iPureIntro. cbn. repeat split;auto.
-          all: try rewrite N2Nat.id.
-          all: rewrite dom_singleton_L;clear;set_solver.
+          unfold import_resources_wasm_typecheck => /=.
+          iSplit.
+          - iPureIntro. cbn. repeat split;auto.
+            all: try rewrite N2Nat.id.
+            all: try by rewrite dom_singleton_L;clear;set_solver.
+          - iSplitL "Hadvf".
+            iExists _.
+            iFrame.
+            iPureIntro => //=.
+            rewrite lookup_insert => //=.
+          - iSplit ; last done.
+            iExists _,_.
+            iFrame.
+            iPureIntro.
+            rewrite lookup_insert => //=.
+            repeat split => //=.
+            unfold global_agree => //=.
+            by rewrite Hgrettyp.
+          
         }
-        { iSplitR "Hgret".
+(*        { iSplitR "Hgret".
+          iPureIntro. unfold module_elem_bound_check_gmap => //=.
+          iPureIntro. unfold module_data_bound_check_gmap => //=.
           { iExists _. iFrame. repeat iSplit;auto.
             iPureIntro. apply lookup_singleton. }
           { iSplit =>//. iExists _,_. rewrite N2Nat.id. iFrame. repeat iSplit;auto.
             iPureIntro. apply lookup_singleton.
-            iPureIntro. cbn. rewrite Hgrettyp. done. }
-        }
+            iPureIntro. cbn. rewrite Hgrettyp. done. } 
+        } *)
         { iSplit;auto.
-          iSplit.
+(*          iSplit. *)
           { rewrite /module_elem_bound_check_gmap /=.
             iPureIntro. by apply Forall_nil. }
           { rewrite /module_data_bound_check_gmap /=.
@@ -406,8 +425,9 @@ Section Examples_host.
       }
       { iIntros (idnstart) "Hf [Hmod_lse Hr]".
         iDestruct "Hr" as "([Himph Hexp] & Hr)".
-        iDestruct "Hr" as (? ? ? ? ? ? ?) "([%Hdom [Himpr [Hgret _]]] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
-        %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & Hmem & _) & _)".
+        iDestruct "Hr" as (?) "[Hr _]".
+        iDestruct "Hr" as (? ? ? ? ? ?) "([%Hdom [Himpr [Hgret _]]] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
+        %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & Hmem & _))".
         destruct Htypr as (Heq1&[? Heq2]&[? Heq3]&[? Heq4]&[? Heq6]&Heq5).
         rewrite Heq2 Heq4.
         iSimpl in "Himpr Hgret". rewrite !drop_0. cbn.
@@ -448,15 +468,16 @@ Section Examples_host.
         { rewrite Heqadvm /=. eauto. }
         { rewrite Heqadvm /= /get_import_func_count /= drop_0 /= -nth_error_lookup. eauto. }
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
-        iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_host_wasm.
+        iApply wp_lift_wasm.
+(*        iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
         iIntros "!>" (v).
         instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) ∗
-   ↪[frame]empty_frame)%I) => //=.
+   ↪[frame]empty_frame)%I) => //=. 
         iIntros "H".
         iDestruct "H" as "[[% | H2] H3]" ; iFrame.
         iLeft ; iPureIntro.
         by destruct v => //=. 
-        by apply HWEV_invoke.
+        by apply HWEV_invoke. *)
 
         (* iDestruct "H" as (inst g_inits t_inits m_inits Hinst (Ht_inits & Hm_inits & (Heqg & Hg_inits))) "[Hlse _]". *)
         (* destruct g_inits;[|done]. *)
@@ -485,7 +506,8 @@ Section Examples_host.
         destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|]. destruct l;[done|].
         simpl in Heq5. revert Heq5. move/eqP =>Hstart. rewrite Hinstfuncseq /= in Hstart.
         inversion Heq2;subst f f0 l. inversion Hstart.
-        
+        iApply wp_wand_r.
+        iSplitL.
         iApply (wp_invoke_native with "Hf Hr");[eauto|eauto..|].
         iModIntro. iNext. iIntros "[Hf Hidnstart]".
         iApply (wp_frame_bind with "Hf"). iIntros "Hf".
@@ -517,7 +539,7 @@ Section Examples_host.
           iExists _. iFrame "Hf".
           iIntros "Hf".
           iApply (wp_frame_trap with "Hf").
-          iNext. by iLeft. }
+          iNext.  instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ ⌜ v = immV [] ⌝ ∗ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) )%I) => //=. by iLeft. }
 
         rewrite N2Nat.id. simpl of_val.
 
@@ -528,6 +550,20 @@ Section Examples_host.
         iExists _. iFrame "Hf".
         iIntros "Hf".
         iApply (wp_frame_value with "Hf");eauto.
+        iIntros "!>" (v) "[[% | [% H]] Hf]".
+        iApply weakestpre.wp_value.
+        unfold IntoVal.
+        apply of_to_val.
+        subst.
+        done.
+        iFrame.
+        by iLeft.
+        iApply weakestpre.wp_value.
+        unfold IntoVal.
+        apply of_to_val.
+        subst.
+        done.
+        iFrame.
       }
     }
 

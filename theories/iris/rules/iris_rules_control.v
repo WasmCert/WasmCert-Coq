@@ -217,7 +217,7 @@ Section control_rules.
   Proof.
     iIntros (Hval Hlen Hlf) "HΦ".
     iApply wp_lift_atomic_step => //=.
-    unfold iris.to_val => /=.
+(*    unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -229,10 +229,10 @@ Section control_rules.
     rewrite H in Hfill.
     rewrite - (app_nil_l [_]) - cat_app in Hfill.
     specialize (lfilled_first_values Hfill Hlf) as (? & ? & _) => //.
-    by eapply to_val_const_list. 
+    by eapply to_val_const_list.  *)
     iDestruct (wp_unfold with "HΦ") as "HΦ".
     rewrite /wp_pre /=.
-    rewrite Hval.
+    rewrite Hval. 
     iIntros (σ ns κ κs nt) "Hσ !>".
     assert (const_list vs) as Hcvs; first by apply to_val_const_list in Hval.
     iSplit.
@@ -976,7 +976,7 @@ Section control_rules.
     (*   destruct Hfill as [? Hfill]. *)
     (*   assert (iris.to_val [AI_basic (BI_loop (Tf t1s t2s) es)] = None) as HH;auto. *)
     (*   apply (to_val_cat_None2 vs) in HH. rewrite Hfill in HH. done. } *)
-    unfold iris.to_val => /=.
+(*    unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -987,7 +987,7 @@ Section control_rules.
     specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
     rewrite H in Hfill2.
     rewrite - (cat0s [_]) in Hfill2.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. 
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1102,7 +1102,7 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    unfold iris.to_val => /=.
+    (* unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -1114,7 +1114,7 @@ Section control_rules.
     rewrite H in Hfill2.
     rewrite - (cat0s [_]) in Hfill2.
     rewrite separate1 - cat_app in Hfill. 
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. 
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1228,7 +1228,7 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    unfold iris.to_val => /=.
+    (* unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -1240,7 +1240,7 @@ Section control_rules.
     rewrite H in Hfill2.
     rewrite - (cat0s [_]) in Hfill2.
     rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. 
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1348,7 +1348,7 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    unfold iris.to_val => /=.
+    (* unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -1360,7 +1360,7 @@ Section control_rules.
     rewrite H in Hfill2.
     rewrite - (cat0s [_]) in Hfill2.
     rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. 
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1498,7 +1498,7 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-     unfold iris.to_val => /=.
+    (*  unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -1510,7 +1510,7 @@ Section control_rules.
     rewrite H in Hfill2.
     rewrite - (cat0s [_]) in Hfill2.
     rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. 
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1616,7 +1616,7 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-     unfold iris.to_val => /=.
+    (* unfold iris.to_val => /=.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
     destruct l0 => //.
@@ -1628,7 +1628,7 @@ Section control_rules.
     rewrite H in Hfill2.
     rewrite - (cat0s [_]) in Hfill2.
     rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. 
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1862,7 +1862,7 @@ Section control_rules.
 
     iApply wp_unfold. iDestruct (wp_unfold with "Hwp") as "Hwp".
     rewrite /wp_pre /=.
-    destruct (iris.to_val [_]) eqn:Htv.
+(*    destruct (iris.to_val [_]) eqn:Htv.
     {  unfold iris.to_val in Htv ; simpl in Htv.
        destruct (merge_values_list _) eqn:Hmerge => //. 
        destruct v0 => //.
@@ -1887,7 +1887,7 @@ Section control_rules.
     specialize (sfill_to_lfilled s0 [AI_call_host f0 h l]) as Hfill.
     rewrite H in Hfill.
     rewrite - (cat0s [_]) in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. }
+    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. } *)
     iIntros (σ1 k κ1 κ2 m) "Hσ".
     iSpecialize ("Hwp" $! σ1 k κ1 κ2 m with "Hσ").
     destruct σ1 as [[? ?] ?].

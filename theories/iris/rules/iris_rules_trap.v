@@ -453,7 +453,6 @@ Section trap_rules.
     repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
-      admit.
       iIntros (σ ns κ κs nt) "Hσ".
       destruct σ as [[? ?] ?].
       iDestruct "Hσ" as "(?&?&?&?&Hff&?&?)".
@@ -476,9 +475,7 @@ Section trap_rules.
         apply reduce_det_local_trap in H as [? [? ?]]. simplify_eq.
         rewrite lookup_insert in Hlook. inversion Hlook. iFrame.
         iModIntro. iSimpl. done. }
-    { iApply wp_unfold. unfold wp_pre.
-      destruct (language.to_val ([AI_local n f LI] : iris.expr)) eqn:Htv => //.
-      { admit. }
+    { iApply wp_unfold. unfold wp_pre. simpl.
       iIntros (σ ns κ κs nt) "Hσ".
       destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
@@ -523,7 +520,7 @@ Section trap_rules.
       iDestruct ("IH" with "Hframe Hcont") as "Hcont".
       auto.
     }
-    Admitted.
+  Qed.
 
     
   Lemma wp_seq_trap_ctx (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f f' i lh :

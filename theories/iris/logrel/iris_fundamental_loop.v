@@ -210,9 +210,9 @@ Section fundamental.
     iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
 
     rewrite locfill_label_No_local.
-    eassert (locfill (No_local (SH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh [])) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
+    eassert (sfill (SH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh []) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
     { simpl of_val. f_equiv; eauto. }
-    rewrite Hval. iApply wp_value;[done|].
+    iApply wp_value;[done|].
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
     iRight. iRight. iRight. clear Hval. iRevert "Hv Hch".
     iLöb as "IH"
@@ -290,9 +290,8 @@ Section fundamental.
 
       iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
       rewrite locfill_label_No_local.
-      eassert (locfill (No_local (SH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh0 [])) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
+      eassert (sfill (SH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh0 []) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
       { simpl of_val. f_equiv; eauto. }
-      rewrite Hval'.
       iApply wp_value;[done|].
       iSplitR "Hf Hfv";[|iExists _;iFrame].
       repeat iRight. iNext.
