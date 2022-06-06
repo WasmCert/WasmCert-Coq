@@ -56,6 +56,7 @@ Section logrel.
   Notation BR := ((leibnizO val) -n> (leibnizO lholed) -n> (leibnizO (list (list value_type))) -n> iPropO Σ).
   Notation RR := ((leibnizO val) -n> iPropO Σ).
   Notation HR := ((leibnizO val) -n> (leibnizO lholed) -n> (leibnizO (list (list value_type))) -n> (leibnizO result_type) -n> iPropO Σ).
+  Notation HRcls := ((leibnizO val) -n> iPropO Σ).
 
   Implicit Types w : (leibnizO value).
   Implicit Types ws : (list (leibnizO value)).
@@ -100,7 +101,40 @@ Section logrel.
     λne v, (∃ ws, ⌜v = immV ws⌝ ∗ [∗ list] w;τ ∈ ws;τs, interp_value τ w)%I.
   Definition interp_val (τs : result_type) : VR :=
     λne v, ((⌜v = trapV⌝) ∨ interp_values τs v)%I.
+  
 
+  (* --------------------------------------------------------------------------------------- *)
+  (* ---------------------------------- FRAME RELATION ------------------------------------- *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  (* the frame interpretation includes all resources needed by the currently running frame *)
+  Definition interp_frame (τs : result_type) (i : instance) : FR :=
+    λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ na_own logrel_nais ⊤)%I.
+
+  
+  (* --------------------------------------------------------------------------------------- *)
+  (* ---------------------------------- RETURN RELATION ------------------------------------ *)
+  (* --------------------------------------------------------------------------------------- *)
+
+  Fixpoint get_base_l {i : nat} (lh : valid_holed i) :=
+    match lh with
+    | VH_base _ vs _ => vs
+    | VH_rec _ _ _ _ lh' _ => get_base_l lh'
+    end.
+  Fixpoint simple_get_base_l (lh : simple_valid_holed) :=
+    match lh with
+    | SH_base vs _ => vs
+    | SH_rec _ _ _ lh' _ => simple_get_base_l lh'
+    end.
+
+  Definition interp_return_option (τr : option result_type) (τl : result_type) (i : instance) : RR :=
+    λne (w : leibnizO val), (∃ (vh : simple_valid_holed) (v : seq.seq value), ⌜w = retV vh⌝ ∗ ⌜simple_get_base_l vh = v⌝ ∗
+                             match τr with 
+                             | Some τr => (∃ τs'', interp_val (τs'' ++ τr) (immV v) ∗
+                                           ∀ f f', ↪[frame] f' -∗
+                                               WP [AI_local (length τr) f (of_val w)] {{ vs, interp_val τr vs ∗ ↪[frame] f' }})
+                             | None => False
+                             end)%I.
   
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------------- CLOSURE RELATION ------------------------------------ *)
@@ -110,12 +144,59 @@ Section logrel.
   (* this is fine for a simple host with no reentrancy, but is not *)
   (* powerful enough to prove examples such as Landin's Knot *)
 
-  Definition interp_closure_native i tf1s tf2s tlocs e : iProp Σ :=
+  (* The following definition is a fixed point for the call host host, in an empty context *)
+  Definition interp_call_host_cls_def (τr : option result_type) (τl : result_type) (i : instance) (host_list : list (hostfuncidx * function_type)) (τ2 : result_type)
+             (interp_call_host' : HRcls) : HRcls :=
+    (* let '(interp_call_host', interp_br') := interp_call_host_br' in *)
+    (λne (w : leibnizO val),
+      (∃ (vh : simple_valid_holed) (v : seq.seq value) (tf : function_type)
+                              (h : hostfuncidx) (τs1 τs2 : result_type),
+                               ⌜w = callHostV tf h v vh⌝ ∗
+                               ⌜tf = Tf τs1 τs2⌝ ∗
+                               ⌜(h,tf) ∈ host_list⌝ ∗
+                               interp_val τs1 (immV v) ∗
+                               (* continuation for when the host function reenters *)
+                               □ (∀ v2 f, interp_val τs2 v2 -∗
+                                        ↪[frame] f -∗
+                                        WP sfill vh (iris.of_val v2)
+                                        {{ vs, (interp_val τ2 vs
+                                                ∨ interp_return_option τr τl i vs
+                                                ∨ ▷ interp_call_host' vs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}
+                               ))
+    )%I.
+
+  Global Instance interp_call_host_cls_def_contractive tr tl i hl t2 : Contractive (interp_call_host_cls_def tr tl i hl t2).
+  Proof.
+    solve_proper_prepare.
+    repeat (apply exist_ne +
+                apply intuitionistically_ne +
+                apply or_ne +
+                apply sep_ne +
+                apply and_ne +
+                apply wp_ne +
+                auto +
+                (rewrite /pointwise_relation; intros) +
+                apply forall_ne + apply wand_ne).
+    f_contractive. apply H.
+  Defined.
+
+  Definition interp_call_host_cls (τr : option result_type) (τl : result_type) (i : instance) (host_list : list (hostfuncidx * function_type)) (t2 : result_type)
+    := fixpoint (interp_call_host_cls_def τr τl i host_list t2).
+
+  Lemma fixpoint_interp_call_host_cls_eq
+        (τr : option result_type) (τl : result_type) (i : instance) (host_list : list (hostfuncidx * function_type)) (t2 : result_type) v :
+    interp_call_host_cls τr τl i host_list t2 v ≡ (interp_call_host_cls_def τr τl i host_list t2 (interp_call_host_cls τr τl i host_list t2)) v.
+  Proof. exact : (fixpoint_unfold (interp_call_host_cls_def τr τl i host_list t2)). Qed.
+
+  Definition interp_closure_native i tf1s tf2s tlocs e hl : iProp Σ :=
     ∀ vcs, interp_val tf1s (immV vcs) -∗
              na_own logrel_nais ⊤ -∗
-             ∀ f1, ↪[frame] f1 -∗ WP e FRAME (length tf2s); (Build_frame (vcs ++ (n_zeros tlocs)) i)
-                                       CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
-                        {{ v, (interp_val tf2s v ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f1 }}.
+             ↪[frame] (Build_frame (vcs ++ (n_zeros tlocs)) i) -∗
+             WP e CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
+                                {{ v, (interp_val tf2s v
+                                       ∨ interp_return_option (Some tf2s) (tf1s ++ tlocs) i v
+                                       ∨ interp_call_host_cls (Some tf2s) (tf1s ++ tlocs) i hl tf2s v)
+                                        ∗ ∃ f1, ↪[frame] f1 ∗ interp_frame (tf1s ++ tlocs) i f1 }}.
 
   (*
   Definition interp_closure_host (hctx : host_ctx) tf1s tf2s (h : hostfuncidx) : iProp Σ :=
@@ -174,15 +255,6 @@ Section logrel.
          na_inv logrel_nais (wgN n) (∃ w, n ↦[wg] Build_global MUT_immut w ∗ P (tg_t τg) w)
       | MUT_mut => na_inv logrel_nais (wgN n) (∃ w, n ↦[wg] Build_global MUT_mut w ∗ interp_value (tg_t τg) w)
       end)%I.
-
-
-  (* --------------------------------------------------------------------------------------- *)
-  (* ---------------------------------- FRAME RELATION ------------------------------------- *)
-  (* --------------------------------------------------------------------------------------- *)
-
-  (* the frame interpretation includes all resources needed by the currently running frame *)
-  Definition interp_frame (τs : result_type) (i : instance) : FR :=
-    λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ na_own logrel_nais ⊤)%I.
 
   (* --------------------------------------------------------------------------------------- *)
   (* --------------------------------- INSTANCE RELATION ----------------------------------- *)
@@ -254,6 +326,13 @@ Section logrel.
     apply big_sepL2_persistent =>n ? xx.
     destruct xx;apply _.
   Qed.
+  Global Instance interp_call_host_cls_persistent hl t2 v : Persistent (interp_call_host_cls hl t2 v).
+  Proof. rewrite fixpoint_interp_call_host_cls_eq. cbn.
+         repeat ((apply exist_persistent =>?) +
+                   apply sep_persistent + apply or_persistent).
+         all: try apply _.
+  Qed.
+         
 
   Global Instance interp_instance_persistent τctx hl i : Persistent (interp_instance τctx hl i).
   Proof.
@@ -265,31 +344,6 @@ Section logrel.
   (* --------------------------------------------------------------------------------------- *)
   (* ------------------------------- EXPRESSION RELATION ----------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
-
-  Fixpoint get_base_l {i : nat} (lh : valid_holed i) :=
-    match lh with
-    | VH_base _ vs _ => vs
-    | VH_rec _ _ _ _ lh' _ => get_base_l lh'
-    end.
-  Fixpoint simple_get_base_l (lh : simple_valid_holed) :=
-    match lh with
-    | SH_base vs _ => vs
-    | SH_rec _ _ _ lh' _ => simple_get_base_l lh'
-    end.
-  Fixpoint local_get_base_l (lh : local_holed) :=
-    match lh with
-    | No_local vh => simple_get_base_l vh
-    | One_local v n f vh es => simple_get_base_l vh
-    end.
-
-  Definition interp_return_option (τr : option result_type) (τl : result_type) (i : instance) : RR :=
-    λne (w : leibnizO val), (∃ (vh : simple_valid_holed) (v : seq.seq value), ⌜w = retV vh⌝ ∗ ⌜simple_get_base_l vh = v⌝ ∗
-                             match τr with 
-                             | Some τr => (∃ τs'', interp_val (τs'' ++ τr) (immV v) ∗
-                                           ∀ f f', ↪[frame] f' -∗
-                                               WP [AI_local (length τr) f (of_val w)] {{ vs, interp_val τr vs ∗ ↪[frame] f' }})
-                             | None => False
-                             end)%I.
 
   Definition interp_call_host_br_def (τl : result_type) (i : instance) (τro : option result_type) (host_list : list (hostfuncidx * function_type))
              (interp_call_host_br' : HR * BR) : HR * BR :=
