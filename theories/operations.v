@@ -820,8 +820,8 @@ Proof. done. Qed.
 
 
 Lemma first_values vs1 e1 es1 vs2 e2 es2 :
-  (is_const e1 -> False) ->
-  (is_const e2 -> False) ->
+  (is_const e1 = false) ->
+  (is_const e2 = false) ->
   const_list vs1 ->
   const_list vs2 ->
   vs1 ++ e1 :: es1 = vs2 ++ e2 :: es2 ->
@@ -831,13 +831,13 @@ Proof.
   generalize dependent vs2; induction vs1 ; intros.
   { destruct vs2 ; inversion Heq => //=. rewrite <- H0 in Hvs2.
     simpl in Hvs2. apply Bool.andb_true_iff in Hvs2 as [ Habs _ ].
-    assert (const_list [::e1]) ; first by apply Bool.andb_true_iff.
-    done. }
+    rewrite Habs in He1 => //.
+  } 
   destruct vs2 ; inversion Heq.
   { rewrite H0 in Hvs1.
     simpl in Hvs1. apply Bool.andb_true_iff in Hvs1 as [ Habs _ ].
-    assert (const_list [::e2]) ; first by apply Bool.andb_true_iff.
-    done. }
+    rewrite Habs in He2 => //.
+  }
   assert (vs1 = vs2 /\ e1 = e2 /\ es1 = es2) as H ; last by destruct H ; subst.
   apply IHvs1 => //=.
   - by apply Bool.andb_true_iff in Hvs1 as [ _ Hvs1 ].
