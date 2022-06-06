@@ -94,7 +94,7 @@ Context `{!wasmG Σ}.
       destruct (iris.to_val [AI_local n {| f_locs := f_locs0; f_inst := f_inst0 |} es2']) eqn:Hsome.
       { apply to_val_local_inv in Hsome as Hsome'.
         destruct Hsome' as [tf [h [w [vh Heq]]]]. subst v.
-        apply to_val_call_host_local in Hsome as Heq.
+        apply to_val_call_host_rec_local in Hsome as Heq.
         destruct Heq as [LI' [Heq HLI]].
         erewrite app_nil_l, app_nil_r in Heq. inversion Heq;subst.
         iDestruct ("Hcont" with "Hf") as "Hcont".
@@ -114,8 +114,8 @@ Context `{!wasmG Σ}.
         iDestruct ("Hcont" with "Hf") as "Hcont".
         iDestruct (wp_unfold with "Hcont") as "Hcont".
         eassert (iris.to_val [AI_local n {| f_locs := f_locs0; f_inst := f_inst0 |}
-                                       (iris.of_val (callHostV tf h w (No_local vh)))]
-                = Some (callHostV tf h w (One_local [] n {| f_locs := f_locs0; f_inst := f_inst0 |} vh []))) as Hetov2.
+                                       (iris.of_val (callHostV tf h w vh))]
+                = Some (callHostV tf h w (LL_local [] n {| f_locs := f_locs0; f_inst := f_inst0 |} vh []))) as Hetov2.
         { erewrite of_to_val;[|eauto].
           apply to_val_local_add_frame. auto. }
         rewrite /wp_pre /= Hetov2. iFrame. }
@@ -127,82 +127,6 @@ Context `{!wasmG Σ}.
       iApply ("IH" with "[] Hf Hcont");[auto|..].
     }
   Qed.
-
-  Lemma wp_frame_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) n f f0 LI :
-    ↪[frame] f0 -∗
-     (↪[frame] f -∗ WP LI @ s; E {{ w, ∃ f, (↪[frame] f0 -∗ WP of_val w @ s; E FRAME n; f {{ w, Φ w }}) ∗ ↪[frame] f }}) -∗
-     WP LI @ s; E FRAME n; f {{ w, Φ w }}.
-  Proof.
-    iIntros "Hframe H".
-    rewrite wp_frame_rewrite.
-    iLöb as "IH" forall (s E LI f f0).
-    (* iApply wp_unfold. *)
-    repeat rewrite wp_unfold /wp_pre /=.
-    destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
-    { iApply wp_unfold.
-      unfold wp_pre. simpl.
-      iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[ ? ?] ?].
-      iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
-      iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
-      iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
-      iMod ("H" with "Hframe") as "Hf".
-      iDestruct "Hf" as (f') "[H Hf]".
-      rewrite wp_frame_rewrite.
-      iDestruct (ghost_map_lookup with "Hff Hf") as %Hlook'.
-      iMod (ghost_map_update f0 with "Hff Hf") as "[Hff Hf]".
-      rewrite !insert_insert. rewrite lookup_insert in Hlook'. inversion Hlook'.
-      iDestruct ("H" with "Hf") as "H".
-      iDestruct (wp_unfold with "H") as "H".
-      rewrite /wp_pre /=. rewrite lookup_insert in Hlook;inversion Hlook.
-      iSpecialize ("H" $! (_,_,_) 0 κ [] 0 with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]").
-      erewrite of_to_val;[|apply Hetov].
-      iMod "H" as "[? H]". iModIntro. iFrame. }
-    { iApply wp_unfold. unfold wp_pre. simpl.
-      iIntros (σ ns κ κs nt) "Hσ".
-      destruct σ as [[ ? ?] ?].
-      iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
-      iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
-      iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
-      rewrite insert_insert.
-      iDestruct ("H" with "Hframe") as "H". destruct f.
-      iSpecialize ("H" $! (_,_,_) 0 κ [] 0). 
-      iDestruct ("H" with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]") as "H".
-      rewrite lookup_insert in Hlook;inversion Hlook.
-
-      iMod "H" as "[%Hred H]".
-      iModIntro. iSplit.
-      { iPureIntro. destruct s =>//.
-        destruct Hred as [x [e' [σ' [efs Hstep]]]].
-        destruct σ' as [[ ? ?] ?].
-        eexists x,[AI_local n {| f_locs := l0; f_inst := i0 |} e'],(_,l,i),efs.
-        simpl. destruct Hstep as [Hstep [-> ->]]. split;auto.
-        apply r_local. eauto. }
-
-      iIntros (e2 σ2 efs Hstep).
-      destruct σ2 as [[ ? ?] ?].
-      destruct Hstep as [Hstep [-> ->]].
-      apply reduce_det_local in Hstep as Hstep';[|auto].
-      destruct Hstep' as [es2' [f1 [Heq1 [Heq2 Hstep']]]].
-      simplify_eq. destruct f1.
-      iSpecialize ("H" $! _ (_,_,_) _ with "[]").
-      { iPureIntro. split;eauto. }
-
-      repeat iMod "H". iModIntro. iNext.
-      repeat iMod "H". simpl.
-      iDestruct "H" as "[H Hf]".
-      iDestruct "Hf" as (f1) "[Hf Hcont]".
-      iDestruct "H" as "(H1&H2&H3&H4&Hff&H5&H6)".
-      iDestruct (ghost_map_lookup with "Hff Hf") as %Hlook'.
-      rewrite lookup_insert in Hlook'. inversion Hlook'.
-      iMod (ghost_map_update {| f_locs := l0; f_inst := i0 |} with "Hff Hf") as "[Hff Hframe]".
-      rewrite insert_insert.
-      simpl. iApply fupd_mask_intro_subseteq;[solve_ndisj|]. iFrame.
-      iExists _. iFrame. iSplit =>//. iIntros "Hf".
-      iDestruct "Hcont" as "[Hcont _]".
-      iApply ("IH" with "Hf Hcont").
-    }
-Qed.
 
   Lemma wp_label_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e n es l1 l2 :
     WP e @ s; E {{ w, WP of_val w @ s; E CTX 1; LH_rec l1 n es (LH_base [] []) l2 {{ w, Φ w }} }} -∗

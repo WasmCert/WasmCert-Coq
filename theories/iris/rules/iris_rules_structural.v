@@ -188,169 +188,6 @@ Proof.
     1,2:rewrite find_first_const// in Hstart.
 Qed.
 
-  Lemma to_val_local_inv n f LI v :
-    iris.to_val [AI_local n f LI] = Some v ->
-    ∃ tf h w vh, v = callHostV tf h w (One_local [] n f vh []).
-  Proof.
-    intros Hv.
-    unfold iris.to_val in Hv. cbn in Hv.
-    destruct (merge_values_list (map to_val_instr LI));try done.
-    destruct v0;try done.
-    destruct l0;try done. simplify_eq.
-    eauto.
-  Qed.
-
-  Lemma to_val_local_add_frame LI' tf h w vh n f :
-    iris.to_val LI' = Some (callHostV tf h w (No_local vh)) ->
-    iris.to_val [AI_local n f LI'] = Some (callHostV tf h w (One_local [] n f vh [])).
-  Proof.
-    intros Hv.
-    unfold iris.to_val in Hv. cbn in Hv.
-    unfold iris.to_val. cbn.
-    destruct (merge_values_list (map to_val_instr LI'));try done.
-    simplify_eq.  auto.
-  Qed.
-
-Lemma sfill_call_host_compose wh vh tf h w es1 :
-  iris.to_val es1 = None ->
-  sfill wh [AI_call_host tf h w] = sfill vh es1 ->
-  ∃ vh', es1 = sfill vh' [AI_call_host tf h w].
-  intros Hnone Hs.
-  assert (es1 ≠ []);[intros Hcontr;subst;done|].
-  assert (const_list es1 → False).
-  { intros Hcontr. apply const_list_to_val in Hcontr as [? ?]. congruence. }
-  assert (es1 = [AI_trap] → False).
-  { intros Hcontr. subst. done. }
-  
-  revert wh Hs. induction vh;intros wh Hs.
-  { destruct wh.
-    { cbn in *.
-      rewrite separate1 in Hs.
-      symmetry in Hs.
-      apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
-      destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
-      apply const_es_exists in Hconst as [? ?].
-      simplify_eq. exists (SH_base x es2). cbn. auto.
-    }
-    { cbn in *.
-      rewrite separate1 in Hs.
-      symmetry in Hs.
-      apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
-      destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
-      apply const_es_exists in Hconst as [? ?].
-      simplify_eq. exists (SH_rec x n l2 wh es2). cbn. auto.
-    }    
-  }
-  { destruct wh.
-    { cbn in *.
-      rewrite separate1 in Hs.
-      rewrite (separate1 _ l1) in Hs.
-      apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-      2: done.
-      destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
-      apply const_es_exists in Hconst as [? ?].
-      simplify_eq. destruct x =>//.
-    }
-    { cbn in *.
-      rewrite separate1 in Hs.
-      rewrite (separate1 _ l1) in Hs.
-      apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-      2: done.
-      destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
-      apply const_es_exists in Hconst as [? ?].
-      simplify_eq. destruct x =>//. destruct es2 =>//.
-      rewrite app_nil_l app_nil_r in Heq2. simplify_eq.
-      apply IHvh in H5 as [vh' Hvh'].
-      subst es1. eauto.
-    }
-  }
-Qed.
-
-Lemma sfill_nested vh wh e :
-  ∃ vh', sfill vh (sfill wh e) = sfill vh' e.
-Proof.
-  induction vh.
-  { destruct wh.
-    { exists (SH_base (l ++ l1) (l2 ++ l0)).
-      cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc. auto. }
-    { exists (SH_rec (l ++ l1) n l2 wh (l3 ++ l0)).
-      cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
-      rewrite app_comm_cons. rewrite (separate1 _ l3).
-      repeat erewrite app_assoc. auto. } }
-  { destruct IHvh as [vh' Heq].
-    cbn. rewrite Heq.
-    exists (SH_rec l n l0 vh' l1). cbn. auto. }
-Qed.
-
-Lemma to_val_local_none n f es1 vh :
-  iris.to_val [AI_local n f (sfill vh es1)] = None ->
-  iris.to_val [AI_local n f es1] = None.
-Proof.
-  intros Hv.
-  destruct (iris.to_val [AI_local n f es1]) eqn:Hsome;auto.
-  exfalso.
-  apply to_val_local_inv in Hsome as Heq.
-  destruct Heq as [tf [h [w [wh Heq]]]]. subst v.
-  assert ([AI_local n f es1] = locfill (One_local [] n f (SH_base [] []) []) es1) as Heq.
-  { simpl. rewrite app_nil_r. auto. }
-  rewrite Heq in Hsome.
-  apply of_to_val in Hsome.
-  simpl in Hsome. inversion Hsome.
-  rewrite app_nil_r in H0. subst es1.
-  simplify_eq. pose proof (sfill_nested vh wh [AI_call_host tf h w]) as [vh' Hvh'].
-  rewrite Hvh' in Hv.
-  assert (iris.of_val (callHostV tf h w (One_local [] n f vh' [])) =
-            [AI_local n f (sfill vh' [AI_call_host tf h w])]).
-  { cbn. auto. }
-  assert (iris.to_val [AI_local n f (sfill vh' [AI_call_host tf h w])] =
-            Some (callHostV tf h w (One_local [] n f vh' []))).
-  { rewrite -H0. apply to_of_val. }
-  congruence.
-Qed.
-
-Lemma to_val_local_none_inv n f es1 vh :
-  iris.to_val es1 = None ->
-  iris.to_val [AI_local n f es1] = None ->
-  iris.to_val [AI_local n f (sfill vh es1)] = None.
-Proof.
-  intros Hnone Hv.
-  destruct (iris.to_val [AI_local n f (sfill vh es1)]) eqn:Hsome;auto.
-  exfalso.
-  apply to_val_local_inv in Hsome as Heq.
-  destruct Heq as [tf [h [w [wh Heq]]]]. subst v.
-  assert ([AI_local n f (sfill vh es1)] = locfill (One_local [] n f vh []) es1) as Heq.
-  { simpl. auto. }
-  rewrite Heq in Hsome.
-  apply of_to_val in Hsome.
-  simpl in Hsome. inversion Hsome.
-  apply sfill_call_host_compose in H0 as [vh' Hvh'];auto.
-  assert ([AI_local n f es1] =
-            iris.of_val (callHostV tf h w (One_local [] n f vh' []))).
-  { cbn. rewrite Hvh'. auto. }
-  
-  assert (iris.to_val [AI_local n f es1] = Some (callHostV tf h w (One_local [] n f vh' [])));[|congruence].
-  rewrite H. apply to_of_val.
-Qed.
-
-(* The following lemma will generalise to any local fill *)
-Lemma to_val_local_no_local_none n f e :
-  iris.to_val [AI_local n f e] = None ->
-  match iris.to_val e with
-  | Some (callHostV _ _ _ (No_local _)) => False
-  | _ => True
-  end.
-Proof.
-  intros Hv.
-  destruct (iris.to_val e) eqn:He;auto.
-  destruct v;auto.
-  unfold iris.to_val in Hv.
-  unfold iris.to_val in He.
-  cbn in *.
-  destruct (merge_values_list (map to_val_instr e)) eqn:Hmerge;try done.
-  destruct v;try done.
-  simplify_eq. destruct l0;try done.
-Qed.
-
 Lemma wp_seq_ctx_frame (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) (n : nat) (f : frame) (f0 : frame) (f1 : frame) :
   (forall LI, lfilled i lh (es1 ++ es2) LI -> iris.to_val [AI_local n f LI] = None) ->
   ((¬ (Ψ trapV)) ∗ ↪[frame] f0 ∗
@@ -369,12 +206,13 @@ Proof.
     unfold iris.to_val in Hetov ; simpl in Hetov.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
-    destruct l0 => //. 
+    (* destruct l0 => //. *) 
     eapply lfilled_to_val_app in Hfilled as Heq;[|eauto] ; last first.
     unfold iris.to_val ; rewrite Hmerge => //. 
     destruct Heq as [vs' [Heq Hfilled']].
     repeat rewrite wp_unfold /wp_pre /=.
-    rewrite Heq. apply Hnone in Hfilled. simplify_eq.
+    rewrite Heq. apply Hnone in Hfilled. congruence.
+    
   }
   { repeat rewrite wp_unfold /wp_pre /=. rewrite Hetov.
     unfold iris.to_val in Hetov.
@@ -382,7 +220,7 @@ Proof.
     apply Hnone in Hfilled as Hnone'.
     apply lfilled_to_sfill in Hfilled as Hsfill.
     destruct Hsfill as [sh Hsh].
-    rewrite Hsh in Hnone'.
+    rewrite Hsh in Hnone'. rewrite sfill_to_llfill in Hnone'.
     apply to_val_local_none in Hnone' as Hnone2.
 
     iIntros (σ ns κ κs nt) "Hσ".
@@ -407,7 +245,7 @@ Proof.
       { iPureIntro. eauto. }
       iDestruct (wp_frame_rewrite with "Hes2") as "Hes2".
       iDestruct (wp_unfold with "Hes2") as "Hes2".
-      rewrite /wp_pre /= Hsh Hnone'.
+      rewrite /wp_pre /= Hsh sfill_to_llfill Hnone'.
       iSpecialize ("Hes2" $! (s1,locs,inst) ns κ κs nt with "[$]").
       iFrame. }
 
@@ -441,7 +279,8 @@ Proof.
       destruct (iris.to_val [AI_local n {| f_locs := v''; f_inst := i'' |} e']) eqn:Hetov2.
       { apply to_val_local_inv in Hetov2 as Heq.
         destruct Heq as [tf [h [w [vh Heq]]]]. subst v.
-        apply to_val_call_host_local in Hetov2 as HH.
+        
+        apply to_val_call_host_rec_local in Hetov2 as HH.
         destruct HH as [LI2 [HeqLI HLI]].
         rewrite app_nil_l app_nil_r in HeqLI. simplify_eq.
         
@@ -478,7 +317,9 @@ Proof.
       
       assert (e' ++ es2 = sfill (SH_base [] es2) e') as Hsh'';[auto|].
       pose proof (sfill_nested sh' (SH_base [] es2) e') as [vh' Hvh'].
-      apply to_val_local_none_inv with (vh:=vh') in Hetov2 as Hetov4;[|auto].
+      
+      apply to_val_local_none_inv with (vh:=ll_of_sh vh') in Hetov2 as Hetov4;[|auto].
+      rewrite - sfill_to_llfill in Hetov4.
       rewrite -Hvh' -Hsh'' - Hsh' in Hetov4.
 
       iFrame.
@@ -726,7 +567,7 @@ Proof.
     all: iIntros (v).
     all: destruct v => /=.
     all: iIntros "HΦ" => //.
-    all: by rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite loch_push_const_nil.
+    all: by rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite llh_push_const_nil.
   }
   { iIntros "(#Hntrap & HWP)".
     iSimpl.
@@ -739,7 +580,7 @@ Proof.
     iSimpl. destruct vs';auto.
     by rewrite -vh_push_const_app.
     by rewrite -sh_push_const_app.
-    by rewrite -loch_push_const_app.
+    by rewrite -llh_push_const_app.
   }
 Qed.
   

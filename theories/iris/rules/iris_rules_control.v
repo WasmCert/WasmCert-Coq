@@ -217,19 +217,16 @@ Section control_rules.
   Proof.
     iIntros (Hval Hlen Hlf) "HΦ".
     iApply wp_lift_atomic_step => //=.
-(*    unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := es)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f1 h l]) as Hfill.
-    rewrite H in Hfill.
-    rewrite - (app_nil_l [_]) - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hlf) as (? & ? & _) => //.
-    by eapply to_val_const_list.  *)
+    { apply lfilled_to_sfill in Hlf as Hsh.
+      destruct Hsh as [sh Hsh].
+      assert (vs = v_to_e_list vs0).
+      { apply of_to_val in Hval. simpl in Hval. auto. }
+      assert (vs ++ [AI_basic BI_return] = sfill (SH_base vs0 []) [AI_basic BI_return])%SEQ as Heq;[cbn;rewrite -H;auto|].
+      pose proof (sfill_nested sh (SH_base vs0 []) [AI_basic BI_return]) as [vh' Hsh'].
+      apply to_val_local_ret_none with (vh:=vh').
+      rewrite Hsh Heq Hsh'.
+      rewrite -/(iris.of_val (retV vh')).
+      apply iris.to_of_val. }
     iDestruct (wp_unfold with "HΦ") as "HΦ".
     rewrite /wp_pre /=.
     rewrite Hval. 
@@ -287,13 +284,13 @@ Section control_rules.
     iApply wp_return;eauto.
   Qed.
 
-  Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 f:
+  Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 :
     const_list vs ->
     length vs = n ->
     lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI ->
     ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v ∗ ↪[frame] f }})
-     -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
+     ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v }})
+     -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v }}.
   Proof.
     iIntros (Hvs Hlen Hfill) "Hf0 HΦ".
     iApply wp_lift_step => //=.
@@ -325,46 +322,6 @@ Section control_rules.
                                                   unfold first_instr in Hstart ; simpl in Hstart ;
                                                   unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
                                                   inversion Hstart.    
-  Qed.
-
-  Lemma wp_br_alt (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 Φf :
-    const_list vs ->
-    length vs = n ->
-    lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }})
-     -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }}.
-  Proof.
-    iIntros (Hvs Hlen Hfill) "Hf0 HΦ".
-    iApply wp_lift_step => //=.
-    { eapply to_val_brV_None;eauto. }
-    iIntros (σ ns κ κs nt) "Hσ".
-    iApply fupd_frame_l.
-    iSplit.
-    - iPureIntro. destruct s => //=.
-      unfold language.reducible, language.prim_step => /=.
-      exists [], (vs ++ es), σ, [].
-      destruct σ as [[ ws locs] inst].
-      unfold iris.prim_step => /=.
-      repeat split => //.
-      constructor. econstructor =>//.
-    - destruct σ as [[ws locs] inst] => //=.
-      iApply fupd_mask_intro;[solve_ndisj|].
-      iIntros "Hcls !>" (es1 σ2 efs HStep).
-      iMod "Hcls". iModIntro.
-      destruct σ2 as [[ws' locs'] inst'] => //=.
-      destruct HStep as [H [-> ->]].
-      iApply bi.sep_exist_l.
-      assert (lfilled 0 (LH_base vs []) [AI_basic (BI_br i)]
-                      (vs ++ [AI_basic (BI_br i)])).
-      { unfold lfilled. rewrite /= Hvs. done. }
-      only_one_reduction H.
-      all:
-        eapply lfilled_trans in Hfill as Hfill';eauto;destruct Hfill' as [lh' Hfill'];
-        eapply lfilled_implies_starts in Hfill' => //= ;
-                                                  unfold first_instr in Hstart ; simpl in Hstart ;
-                                                  unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
-                                                  inversion Hstart.
   Qed.
 
   Lemma wp_br_ctx_nested (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i j lh lh' lh'' vs' es' f0 vs0' n0 es0 es0' :
@@ -488,7 +445,7 @@ Section control_rules.
   Lemma wp_label_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx v f0 :
     iris.to_val es = Some (immV v) -> 
     ↪[frame] f0 -∗
-     Φ (immV v) -∗ WP [::AI_label m ctx es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+     ▷ Φ (immV v) -∗ WP [::AI_label m ctx es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Hval) "Hf0 HP".
     iApply wp_lift_atomic_step => //=.
@@ -528,7 +485,7 @@ Section control_rules.
   Lemma wp_label_trap (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx f0 :
     iris.to_val es = Some trapV -> 
     ↪[frame] f0 -∗
-     Φ trapV -∗ WP [::AI_label m ctx es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+     ▷ Φ trapV -∗ WP [::AI_label m ctx es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
   Proof.
     iIntros (Hval) "Hf0 HP".
     iApply wp_lift_atomic_step => //=.
@@ -603,11 +560,11 @@ Section control_rules.
       inversion Habs.
   Qed.
 
-  Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 f:
+  Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
     const_list vs ->
     ↪[frame] f0 -∗
-     (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v ∗ ↪[frame] f }})
-     -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v ∗ ↪[frame] f }}.
+     (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v }})
+     -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v }}.
   Proof.
     iIntros (Hconst) "Hf0 HWP".
     iLöb as "IH".
@@ -971,23 +928,9 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    (* { destruct (iris.to_val LI) eqn:Hcontr;auto. *)
-    (*   apply lfilled_to_val in Hfill;eauto. *)
-    (*   destruct Hfill as [? Hfill]. *)
-    (*   assert (iris.to_val [AI_basic (BI_loop (Tf t1s t2s) es)] = None) as HH;auto. *)
-    (*   apply (to_val_cat_None2 vs) in HH. rewrite Hfill in HH. done. } *)
-(*    unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
-    rewrite H in Hfill2.
-    rewrite - (cat0s [_]) in Hfill2.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
+    { apply to_val_local_none_none.
+      eapply to_val_None_lfilled;eauto.
+      apply to_val_cat_None2;auto. }
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1102,19 +1045,10 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    (* unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
-    rewrite H in Hfill2.
-    rewrite - (cat0s [_]) in Hfill2.
-    rewrite separate1 - cat_app in Hfill. 
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
+    { apply to_val_local_none_none.
+      eapply to_val_None_lfilled;eauto.
+      rewrite separate1.
+      apply to_val_cat_None2;auto. }
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1228,19 +1162,10 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    (* unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
-    rewrite H in Hfill2.
-    rewrite - (cat0s [_]) in Hfill2.
-    rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
+    { apply to_val_local_none_none.
+      eapply to_val_None_lfilled;eauto.
+      rewrite separate1.
+      apply to_val_cat_None2;auto. }
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1348,19 +1273,10 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    (* unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
-    rewrite H in Hfill2.
-    rewrite - (cat0s [_]) in Hfill2.
-    rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
+    { apply to_val_local_none_none.
+      eapply to_val_None_lfilled;eauto.
+      rewrite separate1.
+      apply to_val_cat_None2;auto. }
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1498,19 +1414,10 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    (*  unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
-    rewrite H in Hfill2.
-    rewrite - (cat0s [_]) in Hfill2.
-    rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
+    { apply to_val_local_none_none.
+      eapply to_val_None_lfilled;eauto.
+      rewrite separate1.
+      apply to_val_cat_None2;auto. }
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1616,19 +1523,10 @@ Section control_rules.
     iIntros (LI Hfill).
     eapply lfilled_swap in Hfill as Hfill'; destruct Hfill' as [LI' Hfill'].
     iApply wp_lift_step => //=.
-    (* unfold iris.to_val => /=.
-    destruct (merge_values_list _) eqn:Hmerge => //.
-    destruct v => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI)) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f h l]) as Hfill2.
-    rewrite H in Hfill2.
-    rewrite - (cat0s [_]) in Hfill2.
-    rewrite separate1 - cat_app in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //.  *)
+    { apply to_val_local_none_none.
+      eapply to_val_None_lfilled;eauto.
+      rewrite separate1.
+      apply to_val_cat_None2;auto. }
     iIntros (σ ns κ κs nt) "Hσ".
     iApply fupd_frame_l.
     iSplitR.
@@ -1862,32 +1760,27 @@ Section control_rules.
 
     iApply wp_unfold. iDestruct (wp_unfold with "Hwp") as "Hwp".
     rewrite /wp_pre /=.
-(*    destruct (iris.to_val [_]) eqn:Htv.
-    {  unfold iris.to_val in Htv ; simpl in Htv.
-       destruct (merge_values_list _) eqn:Hmerge => //. 
-       destruct v0 => //.
-       destruct l0 => //.
-       specialize (iris.of_to_val (es := LI)) as H.
-       unfold iris.to_val in H ; rewrite Hmerge in H.
-       specialize (H _ Logic.eq_refl).
-       unfold iris.of_val, locfill in H.
-       specialize (sfill_to_lfilled s0 [AI_call_host f0 h l]) as Hfill.
-       rewrite H in Hfill.
-       rewrite - (cat0s [_]) in Hfill.
-       specialize (lfilled_first_values Hfill Hfill1) as [? _] => //. } 
-    destruct (iris.to_val [AI_local n f LI']) eqn: Htv'.
-    { unfold iris.to_val in Htv' ; simpl in Htv'. 
-    destruct (merge_values_list _) eqn:Hmerge => //. 
-    destruct v0 => //.
-    destruct l0 => //.
-    specialize (iris.of_to_val (es := LI')) as H.
-    unfold iris.to_val in H ; rewrite Hmerge in H.
-    specialize (H _ Logic.eq_refl).
-    unfold iris.of_val, locfill in H.
-    specialize (sfill_to_lfilled s0 [AI_call_host f0 h l]) as Hfill.
-    rewrite H in Hfill.
-    rewrite - (cat0s [_]) in Hfill.
-    specialize (lfilled_first_values Hfill Hfill2) as [? _] => //. } *)
+    assert (iris.to_val [AI_local n f LI] = None) as ->.
+    { apply lfilled_to_sfill in Hfill1 as Hsh.
+      destruct Hsh as [sh Hsh].
+      apply const_es_exists in Hconst as Hvs0;destruct Hvs0 as [vs0 Hvs0].
+      assert (vs ++ [AI_basic BI_return] = sfill (SH_base vs0 []) [AI_basic BI_return])%SEQ as Heq;[cbn;rewrite -Hvs0;auto|].
+      pose proof (sfill_nested sh (SH_base vs0 []) [AI_basic BI_return]) as [vh' Hsh'].
+      apply to_val_local_ret_none with (vh:=vh').
+      rewrite Hsh Heq Hsh'.
+      rewrite -/(iris.of_val (retV vh')).
+      apply iris.to_of_val. }
+    assert (iris.to_val [AI_local n f LI'] = None) as ->.
+    { apply lfilled_to_sfill in Hfill2 as Hsh.
+      destruct Hsh as [sh Hsh].
+      apply const_es_exists in Hconst as Hvs0;destruct Hvs0 as [vs0 Hvs0].
+      assert (vs ++ [AI_basic BI_return] = sfill (SH_base vs0 []) [AI_basic BI_return])%SEQ as Heq;[cbn;rewrite -Hvs0;auto|].
+      pose proof (sfill_nested sh (SH_base vs0 []) [AI_basic BI_return]) as [vh' Hsh'].
+      apply to_val_local_ret_none with (vh:=vh').
+      rewrite Hsh Heq Hsh'.
+      rewrite -/(iris.of_val (retV vh')).
+       apply iris.to_of_val. }
+    
     iIntros (σ1 k κ1 κ2 m) "Hσ".
     iSpecialize ("Hwp" $! σ1 k κ1 κ2 m with "Hσ").
     destruct σ1 as [[? ?] ?].
