@@ -32,7 +32,50 @@ Section fundamental.
   Lemma interp_instance_change_local locs C i hl :
     interp_instance C hl i -∗ interp_instance (upd_local C locs) hl i.
   Proof. destruct C,i;simpl. auto. Qed.
-  
+
+
+  Lemma to_val_call_host_label_inv n es1 es tf h w vh :
+    iris.to_val [AI_label n es1 es] = Some (callHostV tf h w vh) ->
+    ∃ vh', vh = LL_label [] n es1 vh' [] ∧ es = llfill vh' [AI_call_host tf h w].
+  Proof.
+    intros HH.
+    assert (Hv:=HH).
+    unfold iris.to_val in Hv. simpl in Hv.
+    destruct (merge_values_list (map to_val_instr es)) eqn:Hmerge;try done.
+    destruct v;try done.
+    { destruct i;try done.
+      destruct (vh_decrease lh );try done. }
+    simplify_eq.
+    apply to_val_call_host_rec_label in HH as Heq.
+    destruct Heq as [LI [Heq HLI]]. simpl in Heq.
+    simplify_eq. apply of_to_val in HH.
+    simpl in HH. simplify_eq. eauto.
+  Qed.
+
+  Lemma to_es_list_llfill_contr es vh' tf h w :
+    to_e_list es = llfill vh' [AI_call_host tf h w] -> False.
+  Proof.
+    revert es; induction vh';intros es.
+    { simpl. intros Heq.
+      revert l Heq. induction es;intros l Heq.
+      { destruct l;try done. }
+      destruct l;try done.
+      simpl in Heq. inversion Heq;subst.
+      apply IHes in H1. done. }
+    { intros Heq. cbn in Heq.
+      revert l Heq. induction es;intros l Heq.
+      { destruct l;try done. }
+      destruct l;try done.
+      simpl in Heq. inversion Heq;subst.
+      apply IHes in H1. done. }
+    { intros Heq. cbn in Heq.
+      revert l Heq. induction es;intros l Heq.
+      { destruct l;try done. }
+      destruct l;try done.
+      simpl in Heq. inversion Heq;subst.
+      apply IHes in H1. done. }
+  Qed.
+    
   (* ----------------------------------------- LOCAL --------------------------------------- *)
 
   Lemma typing_local_no_host C es τ1 τ2 τs :
@@ -60,7 +103,19 @@ Section fundamental.
       iSplitR;[|iExists _;iFrame].
       iLeft. iFrame "Hv'". }
 
-    iApply (wp_frame_bind with "Hf").
+    destruct (iris.to_val [AI_local (length τ2) {| f_locs := vs; f_inst := i |}
+                                    [AI_label (length τ2) [] (to_e_list es)]]) eqn:Hetov.
+    { apply to_val_local_inv in Hetov as Heq.
+      destruct Heq as [tf [h [w [vh Heq]]]]. subst v.
+      apply to_val_call_host_rec_local in Hetov as Heq.
+      destruct Heq as [LI [Heq HLI]].
+      simpl in Heq. inversion Heq. subst.
+      apply to_val_call_host_label_inv in HLI as Heq'.
+      destruct Heq' as [vh' [Heq' Hvh']]. subst.
+      apply to_es_list_llfill_contr in Hvh'. done.
+    }
+
+    iApply (wp_frame_bind with "Hf");[auto|].
     iIntros "Hf".
     iApply wp_wasm_empty_ctx.
     iApply wp_label_push_nil.

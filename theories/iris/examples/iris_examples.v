@@ -425,6 +425,7 @@ Proof.
       iApply wp_wasm_empty_ctx_frame.
       take_drop_app_rewrite 1.
       iApply (wp_seq_ctx_frame _ _ _ (λ v', ⌜v' = immV _⌝ ∗ N.of_nat a ↦[wf] _)%I with "[$Hf Hi]").
+      { intros LI HLI%lfilled_Ind_Equivalent. inversion HLI;subst. cbn. auto. }
       iSplitR; [by iIntros "[%Hcontr _]"|].
       iSplitL.
       { (* focus on block *)
@@ -559,6 +560,7 @@ Proof.
   iApply wp_wasm_empty_ctx_frame.
   take_drop_app_rewrite 1.
   iApply (wp_seq_ctx_frame _ _ _ (λ v, fact_val n v ∗ (N.of_nat a) ↦[wf] _)%I with "[$Hf Hi]").
+  { intros LI HLI%lfilled_Ind_Equivalent. inversion HLI;subst. cbn. auto. }
   iSplitR;[by iIntros "[%Hcontr _]"|].
   iSplitL.
   { iIntros "Hf".
@@ -682,6 +684,7 @@ Proof.
   iApply wp_wasm_empty_ctx_frame.
   take_drop_app_rewrite 1.
   iApply (wp_seq_ctx_frame _ _ _ (λ w, ⌜w = immV [v]⌝ ∗ N.of_nat n↦[wms][0]bits v)%I).
+  { intros LI HLI%lfilled_Ind_Equivalent. inversion HLI;subst. cbn. auto. }
   iFrame "Hf".
   iSplitR;[by iIntros "[%Hcontr _]"|].
   iSplitL "Hn".

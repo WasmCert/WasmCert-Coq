@@ -145,11 +145,11 @@ Section logrel.
   (* powerful enough to prove examples such as Landin's Knot *)
 
   (* The following definition is a fixed point for the call host host, in an empty context *)
-  Definition interp_call_host_cls_def (τr : option result_type) (τl : result_type) (i : instance) (host_list : list (hostfuncidx * function_type)) (τ2 : result_type)
+  Definition interp_call_host_cls_def (host_list : list (hostfuncidx * function_type)) (τ2 : result_type)
              (interp_call_host' : HRcls) : HRcls :=
     (* let '(interp_call_host', interp_br') := interp_call_host_br' in *)
     (λne (w : leibnizO val),
-      (∃ (vh : simple_valid_holed) (v : seq.seq value) (tf : function_type)
+      (∃ (vh : llholed) (v : seq.seq value) (tf : function_type)
                               (h : hostfuncidx) (τs1 τs2 : result_type),
                                ⌜w = callHostV tf h v vh⌝ ∗
                                ⌜tf = Tf τs1 τs2⌝ ∗
@@ -157,15 +157,15 @@ Section logrel.
                                interp_val τs1 (immV v) ∗
                                (* continuation for when the host function reenters *)
                                □ (∀ v2 f, interp_val τs2 v2 -∗
-                                        ↪[frame] f -∗
-                                        WP sfill vh (iris.of_val v2)
+                                        na_own logrel_nais ⊤ -∗
+                                        ↪[frame] f -∗             
+                                        WP llfill vh (iris.of_val v2)
                                         {{ vs, (interp_val τ2 vs
-                                                ∨ interp_return_option τr τl i vs
-                                                ∨ ▷ interp_call_host' vs) ∗ ∃ f, ↪[frame] f ∗ interp_frame τl i f }}
+                                                ∨ ▷ interp_call_host' vs) ∗ na_own logrel_nais ⊤ ∗ ↪[frame] f }}
                                ))
     )%I.
 
-  Global Instance interp_call_host_cls_def_contractive tr tl i hl t2 : Contractive (interp_call_host_cls_def tr tl i hl t2).
+  Global Instance interp_call_host_cls_def_contractive hl t2 : Contractive (interp_call_host_cls_def hl t2).
   Proof.
     solve_proper_prepare.
     repeat (apply exist_ne +
@@ -180,23 +180,22 @@ Section logrel.
     f_contractive. apply H.
   Defined.
 
-  Definition interp_call_host_cls (τr : option result_type) (τl : result_type) (i : instance) (host_list : list (hostfuncidx * function_type)) (t2 : result_type)
-    := fixpoint (interp_call_host_cls_def τr τl i host_list t2).
+  Definition interp_call_host_cls (host_list : list (hostfuncidx * function_type)) (t2 : result_type)
+    := fixpoint (interp_call_host_cls_def host_list t2).
 
-  Lemma fixpoint_interp_call_host_cls_eq
-        (τr : option result_type) (τl : result_type) (i : instance) (host_list : list (hostfuncidx * function_type)) (t2 : result_type) v :
-    interp_call_host_cls τr τl i host_list t2 v ≡ (interp_call_host_cls_def τr τl i host_list t2 (interp_call_host_cls τr τl i host_list t2)) v.
-  Proof. exact : (fixpoint_unfold (interp_call_host_cls_def τr τl i host_list t2)). Qed.
+  Lemma fixpoint_interp_call_host_cls_eq (host_list : list (hostfuncidx * function_type)) (t2 : result_type) v :
+    interp_call_host_cls host_list t2 v ≡ (interp_call_host_cls_def host_list t2 (interp_call_host_cls host_list t2)) v.
+  Proof. exact : (fixpoint_unfold (interp_call_host_cls_def host_list t2)). Qed.
 
   Definition interp_closure_native i tf1s tf2s tlocs e hl : iProp Σ :=
-    ∀ vcs, interp_val tf1s (immV vcs) -∗
+    ∀ vcs f, interp_val tf1s (immV vcs) -∗
              na_own logrel_nais ⊤ -∗
-             ↪[frame] (Build_frame (vcs ++ (n_zeros tlocs)) i) -∗
-             WP e CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
+             ↪[frame] f -∗
+             WP e FRAME (length tf2s); (Build_frame (vcs ++ (n_zeros tlocs)) i)
+                  CTX 1; LH_rec [] (length tf2s) [] (LH_base [] []) []
                                 {{ v, (interp_val tf2s v
-                                       ∨ interp_return_option (Some tf2s) (tf1s ++ tlocs) i v
-                                       ∨ interp_call_host_cls (Some tf2s) (tf1s ++ tlocs) i hl tf2s v)
-                                        ∗ ∃ f1, ↪[frame] f1 ∗ interp_frame (tf1s ++ tlocs) i f1 }}.
+                                       ∨ interp_call_host_cls hl tf2s v)
+                                        ∗ na_own logrel_nais ⊤ ∗ ↪[frame] f }}.
 
   (*
   Definition interp_closure_host (hctx : host_ctx) tf1s tf2s (h : hostfuncidx) : iProp Σ :=
@@ -209,7 +208,7 @@ Section logrel.
   Definition interp_closure (host_list : list (hostfuncidx * function_type)) (τf : function_type) : ClR :=
       λne cl, (match cl with
                | FC_func_native i (Tf tf1s tf2s) tlocs e => ⌜τf = Tf tf1s tf2s⌝ ∗
-                       □ ▷ interp_closure_native i tf1s tf2s tlocs (to_e_list e)
+                       □ ▷ interp_closure_native i tf1s tf2s tlocs (to_e_list e) host_list
                | FC_func_host (Tf tf1s tf2s) h => ⌜τf = Tf tf1s tf2s⌝ ∗ ⌜(h,τf) ∈ host_list⌝ (* ∗ □ interp_closure_host tf1s tf2s h *)
                end)%I. 
   
@@ -326,7 +325,7 @@ Section logrel.
     apply big_sepL2_persistent =>n ? xx.
     destruct xx;apply _.
   Qed.
-  Global Instance interp_call_host_cls_persistent hl t2 v : Persistent (interp_call_host_cls hl t2 v).
+  Global Instance interp_call_host_cls_persistent hl t v : Persistent (interp_call_host_cls hl t v).
   Proof. rewrite fixpoint_interp_call_host_cls_eq. cbn.
          repeat ((apply exist_persistent =>?) +
                    apply sep_persistent + apply or_persistent).
@@ -349,7 +348,7 @@ Section logrel.
              (interp_call_host_br' : HR * BR) : HR * BR :=
     (* let '(interp_call_host', interp_br') := interp_call_host_br' in *)
     (λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))) (τ2 : leibnizO result_type),
-      (∃ (vh : simple_valid_holed) (v : seq.seq value) (tf : function_type)
+      (∃ (vh : llholed) (v : seq.seq value) (tf : function_type)
                               (h : hostfuncidx) (τs1 τs2 : result_type),
                                ⌜w = callHostV tf h v vh⌝ ∗
                                ⌜tf = Tf τs1 τs2⌝ ∗
@@ -358,7 +357,7 @@ Section logrel.
                                (* continuation for when the host function reenters *)
                                □ (∀ v2 f, interp_val τs2 v2 -∗
                                         ↪[frame] f ∗ interp_frame τl i f -∗
-                                        WP sfill vh (iris.of_val v2)
+                                        WP llfill vh (iris.of_val v2)
                                         {{ vs, (interp_val τ2 vs
                                                 ∨ ▷ interp_call_host_br'.2 vs lh τc
                                                 ∨ interp_return_option τro τl i vs

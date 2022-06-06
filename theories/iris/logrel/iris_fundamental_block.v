@@ -144,10 +144,10 @@ Section fundamental.
     
     { iDestruct "Hval" as (vs ->) "Hval".
       iDestruct (big_sepL2_length with "Hval") as %Hlen'.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ _)%I with "[Hf]").
+      iApply (wp_wand_ctx _ _ _ (λ vs0, ⌜vs0 = immV vs⌝ ∗ ↪[frame] _)%I with "[Hf]").
       { iApply (wp_val_return with "Hf");[apply const_list_of_val|].
         iIntros "Hf". rewrite app_nil_l app_nil_r.
-        iApply wp_value;[done|]. iFrame. eauto. }
+        iApply wp_value;[done|].  eauto. }
       iIntros (v) "[-> Hf]".
       iSplitR;[|iExists _;iFrame;iExists _;eauto].
       iLeft. iRight. iExists _. iSplit;eauto. }
