@@ -210,8 +210,8 @@ Section wasm_lang_properties.
   Qed.
 
   Lemma first_values_elem_of vs1 e1 es1 vs2 e2 es2 :
-    (is_const e1 -> False) ->
-    (is_const e2 -> False) ->
+    (is_const e1 = false) ->
+    (is_const e2 = false) ->
     e2 ∉ vs1 ->
     e1 ∉ vs2 ->
     vs1 ++ e1 :: es1 = vs2 ++ e2 :: es2 ->
@@ -231,17 +231,16 @@ Section wasm_lang_properties.
   Qed.
   Lemma const_list_elem_of e es :
     const_list es ->
-    (is_const e -> False) ->
+    (is_const e = false) ->
     e ∉ es.
   Proof.
     intros Hes Hv.
     intro Hin.
     unfold const_list in Hes.
     edestruct forallb_forall.
-    apply Hv.
-    eapply H in Hes.
-    exact Hes.
+    eapply H in Hes ; last first.
     by apply elem_of_list_In.
+    rewrite Hes in Hv => //. 
   Qed.
 
   Lemma to_val_br_base es1 n l e :
@@ -421,7 +420,7 @@ Section wasm_lang_properties.
   Qed.
 
   Lemma to_val_None_first_singleton es :
-    (const_list es -> False) ->
+    (const_list es = false) ->
     (es <> [AI_trap]) ->
     ∃ vs e es', es = vs ++ [e] ++ es' ∧ const_list vs ∧
                   ((to_val ([e]) = None)
@@ -437,7 +436,7 @@ Section wasm_lang_properties.
                    .
   Proof.
     induction es;intros Hes1 Hes2.
-    { exfalso. apply Hes1. eauto. }
+    { exfalso. simpl in Hes1. eauto. }
     { destruct (to_val [a]) eqn:Ha.
       { destruct v.
         { destruct (to_val es) eqn:Hes.
@@ -446,7 +445,7 @@ Section wasm_lang_properties.
             destruct v. 
             { eapply to_val_cat_inv in Hes;[|apply Ha].
               rewrite -separate1 in Hes. unfold to_val in Hes1.
-              exfalso. apply Hes1. by eapply to_val_const_list. }
+              exfalso. by erewrite to_val_const_list in Hes1. }
             { apply to_val_trap_is_singleton in Hes as ->.
               apply to_val_const_list in Ha.
               exists [a],AI_trap,[]. cbn. repeat split;auto. }
@@ -510,7 +509,8 @@ Section wasm_lang_properties.
                 split ; first apply v_to_e_is_const_list.
                 do 6 right. eexists _,_,_,_,_,_,_. split => //=.
           } }
-          { destruct IHes as [vs [e [es' [Heq [Hconst HH]]]]];auto.  intros Hconst. apply const_list_to_val in Hconst as [??]. unfold to_val in Hes ; congruence. intro. rewrite H in Hes. unfold to_val, iris.to_val in Hes ; done.
+          { destruct IHes as [vs [e [es' [Heq [Hconst HH]]]]];auto.
+            destruct (const_list es) eqn:Hconst => //. apply const_list_to_val in Hconst as [??]. unfold to_val in Hes ; congruence. intro. rewrite H in Hes. unfold to_val, iris.to_val in Hes ; done.
             apply to_val_const_list in Ha.
             destruct HH as [Hnone | [[-> Hne] | [[? Hne] | Hne]]].
             { exists (a::vs),e,es'. subst. split;auto. split;[|left;auto].
@@ -625,9 +625,9 @@ Section wasm_lang_properties.
       const_list ves ->
       const_list vs ->
       es ≠ [] ->
-      (const_list es -> False) ->
-      (es = [AI_trap] -> False) ->
-      (is_const e -> False) ->
+      (const_list es = false) ->
+      (es <> [AI_trap]) ->
+      (is_const e = false ) ->
       (vs ++ es ++ es')%SEQ = ves ++ [e] ++ es'' ->
       ∃ vs2 es2, ves = vs ++ vs2 ∧ es = vs2 ++ [e] ++ es2 ∧ es'' = es2 ++ es' ∧ const_list vs2.
   Proof.
@@ -659,9 +659,9 @@ Section wasm_lang_properties.
       const_list ves ->
       e ∉ vs ->
       es ≠ [] ->
-      (const_list es -> False) ->
+      (const_list es = false) ->
       (es <> [AI_trap]) ->
-      (is_const e -> False) ->
+      (is_const e = false ) ->
       (vs ++ es ++ es')%SEQ = ves ++ [e] ++ es'' ->
       ∃ vs2 es2, ves = vs ++ vs2 ∧ es = vs2 ++ [e] ++ es2 ∧ es'' = es2 ++ es' ∧ const_list vs2.
   Proof.
@@ -867,8 +867,8 @@ Section wasm_lang_properties.
     lfilled i1 lh1 [e1] LI -> lfilled i2 lh2 [e2] LI ->
     (* (to_val [e1] = None /\ (forall a b c, e1 <> AI_label a b c) \/ e1 = AI_trap) -> *)
     (* (to_val [e2] = None /\ (forall a b c, e2 <> AI_label a b c) \/ e2 = AI_trap) -> *)
-    ((is_const e1 -> False) /\ (forall a b c, e1 <> AI_label a b c)) ->
-    ((is_const e2 -> False) /\ (forall a b c, e2 <> AI_label a b c)) ->
+    ((is_const e1 = false ) /\ (forall a b c, e1 <> AI_label a b c)) ->
+    ((is_const e2 = false ) /\ (forall a b c, e2 <> AI_label a b c)) ->
     i1 = i2 /\ lh1 = lh2 /\ e1 = e2.
   Proof.
     intros Hfill1 Hfill2 He1 He2.
@@ -1189,9 +1189,9 @@ Search (iris.to_val _ = Some (immV _)).
 
   Lemma lfilled_singleton (a : administrative_instruction) k lh es (les : list administrative_instruction) i lh'  :
     es ≠ [] ->
-    (const_list es -> False) ->
+    (const_list es = false ) ->
     (es <> [AI_trap]) ->
-    (is_const a -> False) ->
+    (is_const a = false ) ->
     (∀ n e1 e2, a ≠ AI_label n e1 e2) ->
     lfilled k lh es les -> 
     lfilled i lh' [a] les ->
@@ -1258,8 +1258,9 @@ Search (iris.to_val _ = Some (immV _)).
       apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
       2: apply v_to_e_is_const_list.
       2: apply const_list_elem_of;auto;by intros [? ?].
-      2: unfold const_list ; repeat rewrite forallb_app ; intros Habs ;
-      repeat apply andb_true_iff in Habs as [Habs ?] => //.
+      2:{ unfold const_list ; repeat rewrite forallb_app.
+          simpl. rewrite andb_false_iff. left.
+          by rewrite andb_false_iff ; right. } 
       2: do 2 destruct l1 => //.
       destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]]. Unshelve.
       rewrite separate1 in Heq2. rewrite -!app_assoc in Heq2.
@@ -1343,8 +1344,8 @@ Search (iris.to_val _ = Some (immV _)).
       apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
       2: apply v_to_e_is_const_list.
       2: apply const_list_elem_of;auto;by intros [? ?].
-      2: unfold const_list ; repeat rewrite forallb_app ; intros Habs ;
-      repeat apply andb_true_iff in Habs as [Habs ?] => //.
+      2: unfold const_list ; repeat rewrite forallb_app ; simpl ; 
+      apply andb_false_iff ; left ; apply andb_false_iff ; by right.
       2: do 2 destruct l1 => //.
       destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]]. Unshelve.
       rewrite separate1 in Heq2. rewrite -!app_assoc in Heq2.
@@ -1429,15 +1430,14 @@ Search (iris.to_val _ = Some (immV _)).
       apply const_list_l_snoc_eq3 in Heq;auto; try by intros [? ?].
       2: apply v_to_e_is_const_list.
       2: apply const_list_elem_of;auto;by intros [? ?].
-      2: unfold const_list ; repeat rewrite forallb_app ; intros Habs ;
-      repeat apply andb_true_iff in Habs as [Habs ?] => //.
-      2: do 2 destruct l1 => //.
+      2: unfold const_list ; repeat rewrite forallb_app ; simpl ;
+      apply andb_false_iff ; left ; apply andb_false_iff ; by right.      2: do 2 destruct l1 => //.
       destruct Heq as [vs2 [es3 [Heq1 [Heq2 [Heq3 Hconst]]]]]. Unshelve.
       rewrite separate1 in Heq2. rewrite -!app_assoc in Heq2.
       apply const_list_l_snoc_eq3 in Heq2;auto;try by intros [? ?].
       destruct Heq2 as [vs3 [es4 [Heq21 [Heq22 [Heq23 Hconst']]]]].
-      destruct vs3 =>//;[|destruct vs3 =>//].
-      destruct es4 =>//. rewrite app_nil_l in Heq23.
+      destruct vs3 => //;[|destruct vs3 => //].
+      destruct es4 => //. rewrite app_nil_l in Heq23.
       rewrite app_nil_l app_nil_r in Heq22.
       rewrite app_nil_r in Heq21. simplify_eq.
       exists l1,l2. split;auto. }
