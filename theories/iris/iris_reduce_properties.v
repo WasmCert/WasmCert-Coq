@@ -864,8 +864,10 @@ Section reduce_properties_lemmas.
       apply lfilled_Ind_Equivalent in H0. inversion H0;simplify_eq.
       apply val_head_stuck_reduce in Hred as Hnv.
       apply const_list_snoc_eq3 in H1;auto.
-      2: destruct es =>//.
-      2: intros [? Hcontr]%const_list_to_val;congruence.
+      2: destruct es => //.
+      2:{ destruct (const_list es) eqn:Habs => //.
+          apply const_list_to_val in Habs as [??] => //.
+          rewrite H2 in Hnv => //. } 
       2: intros ->;done.
       destruct H1 as [? [? [? [? [? ?]]]]];simplify_eq.
       assert (lfilledInd 0 (LH_base x x0) [AI_trap] (x ++ [AI_trap] ++ x0)%list) as HH;[by constructor|].
@@ -939,12 +941,12 @@ Section reduce_properties_lemmas.
   
   Lemma reduce_focus s f es s' f' es':
     reduce s f es s' f' es' ->
-    (exists k lh vs e es'', const_list vs /\ (is_const e -> False) /\
+    (exists k lh vs e es'', const_list vs /\ (is_const e = false) /\
                          reduce s f (vs ++ [e]) s' f' es''  /\
                          lfilled k lh (vs ++ [e]) es /\ 
                          lfilled k lh es'' es')
     \/
-      (exists k lh bef aft, const_list bef /\ (bef ++ aft = [] -> False) /\
+      (exists k lh bef aft, const_list bef /\ (bef ++ aft <> []) /\
                          lfilled k lh (bef ++ [AI_trap] ++ aft) es /\
                          lfilled k lh [AI_trap] es' /\
                          (s, f) = (s', f')).
@@ -997,7 +999,7 @@ Section reduce_properties_lemmas.
         repeat split ; unfold lfilled, lfill ; simpl ; (try done) ; (try done) ;
         (try by rewrite app_nil_r) ;
         try  constructor.
-      done. apply (rs_block _ H H0 H1 H2). done. apply (rs_loop _ H H0 H1 H2).
+      apply (rs_block _ H H0 H1 H2). apply (rs_loop _ H H0 H1 H2).
       instantiate (1 := [v]) => //=. by rewrite H.
       instantiate (1 := AI_basic (BI_tee_local i)) => //=.
       by constructor. by rewrite app_nil_r. }
@@ -1263,7 +1265,9 @@ Section reduce_properties_lemmas.
                                     (try done) ; (try by intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ; unfold to_val in He0 ; destruct He0 as [?|?] ; [congruence | subst]).
                                   apply (IHn es' (LH_base vs0 es0) es) => //=.
                                   simpl in Hlen. rewrite app_length in Hlen. simpl in Hlen.
-                                  lia. unfold lfilled, lfill ; rewrite Hvs0 ; by subst. }
+                                  lia. unfold lfilled, lfill ; rewrite Hvs0 ; by subst. destruct He0 as [? | ->] => //.
+                                  destruct (is_const e0) eqn:Habs => //. assert (const_list [e0]). unfold const_list => /= ; by rewrite Habs. apply const_list_to_val in H2 as [? Habs'] => //.
+                                  unfold to_val in H1. rewrite Habs' in H1 => //. }
         destruct (first_non_value_reduce  _ _ _ _ _ _ Hred) as
           (vs0 & e0 & es0 & Hvs0 & He0 & Hes). rewrite Hfill H in Hlen.
                     rewrite Hes in H. simpl in H.
@@ -1294,7 +1298,7 @@ Section reduce_properties_lemmas.
                     (s, f) = (s', f') /\
                       (const_list LI \/ LI = [AI_trap] \/
                          exists k lh vs i, lfilled k lh (vs ++ [AI_basic (BI_br i)]) LI)) /\
-        (is_const e -> False) /\ 
+        (is_const e = false ) /\ 
         reduce s f (vs ++ e :: esf) s' f' es' /\
         lfilled k0 lh0 (vs ++ e :: esf) les /\
         lfilled k0 lh0 es' les'.
@@ -1538,7 +1542,8 @@ Section reduce_properties_lemmas.
     { apply lfilled_Ind_Equivalent in H. inversion H;subst.
       apply const_list_snoc_eq3 in H1;auto.
       2: eapply reduce_not_nil;eauto.
-      2: eapply values_no_reduce => //.
+      2:{ destruct (const_list es) eqn:Habs => //.
+          exfalso ; eapply values_no_reduce => //. }
       2: intros -> ; eapply AI_trap_irreducible => //.
       destruct H1 as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst2]]]]].
       subst.
@@ -1630,7 +1635,9 @@ Section reduce_properties_lemmas.
       apply lfilled_Ind_Equivalent in H.
       inversion H;subst.
       { apply const_list_snoc_eq3 in H1 as [? [? [? [? [? ?]]]]];auto;subst.
-        eapply IHHred;eauto. by eapply values_no_reduce.
+        eapply IHHred;eauto.
+        destruct (const_list es) eqn:Habs => //.
+        exfalso ; by eapply values_no_reduce.
         by intros -> ; eapply AI_trap_irreducible. }
       { apply first_values in H1 as [? [? ?]];auto. simplify_eq.
         apply lfilled_Ind_Equivalent in H6.
@@ -1678,7 +1685,8 @@ Section reduce_properties_lemmas.
       eapply lfilled_singleton in Hlh' as [? [? ?]];[..|apply H];auto.
       eapply IHHred. apply H1.
       eapply reduce_not_nil;eauto.
-      eapply values_no_reduce => //.
+      destruct (const_list es) eqn:Habs => //.
+      exfalso ; eapply values_no_reduce => //.
       intros -> ; eapply AI_trap_irreducible => //.
     }
     { intros i lh Hfill%lfilled_Ind_Equivalent.
@@ -1696,10 +1704,10 @@ Section reduce_properties_lemmas.
     induction Hred;[|intros i' lh' Hfill%lfilled_Ind_Equivalent..].
     2-24: inversion Hfill;
     try done;
-    try by destruct vs =>//;
-    try by do 2 destruct vs =>//;
-    try by do 3 destruct vs =>//;
-    try by do 4 destruct vs =>//.
+    try by destruct vs => //;
+    try by do 2 destruct vs => //;
+    try by do 3 destruct vs => //;
+    try by do 4 destruct vs => //.
     { induction H;intros i' lh' Hfill%lfilled_Ind_Equivalent.
       all: inversion Hfill;
         try by destruct vs =>//;
@@ -1736,11 +1744,11 @@ Section reduce_properties_lemmas.
         inversion Hcontr.
         1,2: apply first_values in H2 as [? [? ?]];auto;try by intros [? ?]. done. done.
         unfold const_list. rewrite forallb_app.
-        intros [??]%andb_true_iff. done.
+        apply andb_false_iff ; right => //. 
         do 2 destruct vs => //. }
-      { destruct vs =>//;[|do 2 destruct vs =>//].
+      { destruct vs => //;[|do 2 destruct vs => //].
         inversion H0;subst. done. }
-      { destruct vs =>//;[|do 2 destruct vs =>//].
+      { destruct vs => //;[|do 2 destruct vs => //].
         inversion H0;subst. done. }
       { exists (LH_base [] []),0. by cbn. }
       { exists (LH_base [] []),0. split;[|lia]. by cbn. }
@@ -1766,7 +1774,7 @@ Section reduce_properties_lemmas.
         inversion H0;subst.
         apply const_list_snoc_eq3 in H2 as [? [? [? [? [? ?]]]]];auto.
         2: eapply reduce_not_nil;eauto.
-        2: eapply values_no_reduce => //.
+        2: destruct (const_list es) eqn:Habs => // ; exfalso ; eapply values_no_reduce => //.
         2: intros -> ; eapply AI_trap_irreducible => //.
         subst.
         assert (lfilled 0 (LH_base x x0) [AI_trap] (x ++ [AI_trap] ++ x0)) as Hf%IHHred.
@@ -1795,7 +1803,7 @@ Section reduce_properties_lemmas.
       inversion H;subst.
       { apply const_list_snoc_eq3 in H3 as [? [? [? [? [? ?]]]]];auto.
         2: eapply reduce_not_nil;eauto.
-        2: eapply values_no_reduce => //.
+        2: destruct (const_list es) eqn:Habs => // ; exfalso ; eapply values_no_reduce => //.
         2: intros -> ; eapply AI_trap_irreducible => //.
         subst.
         inversion H0;subst.
@@ -1822,7 +1830,7 @@ Section reduce_properties_lemmas.
         apply lfilled_Ind_Equivalent in H8.
         eapply lfilled_singleton in H2 as [? [? [HH%IHHred Heq]]];[..|apply H8];auto.
         2: eapply reduce_not_nil;eauto.
-        2: eapply values_no_reduce => //.
+        2: destruct (const_list es) eqn:Habs => // ; exfalso ; eapply values_no_reduce => //.
         2: intros -> ; eapply AI_trap_irreducible => //.
         inversion H0;subst.
         destruct HH as [lh2 [j2 [Hlh2 Hle2]]].
@@ -1944,7 +1952,9 @@ Section reduce_properties_lemmas.
       apply val_head_stuck_reduce in H as Hstuck.
       apply const_list_snoc_eq3 in H2;auto.
       2,4: intros ->;done.
-      2: intros [? ?]%const_list_to_val;congruence.
+      2:{ destruct (const_list es) eqn:Habs => //.
+          apply const_list_to_val in Habs as [? ?].
+          rewrite H3 in Hstuck => //. } 
       destruct H2 as [? [? [? [? [? ?]]]]].
       simplify_eq. destruct vs,x,x0,es'0 =>//.
       apply lfilled_Ind_Equivalent in H1.
@@ -2006,7 +2016,9 @@ Section reduce_properties_lemmas.
       { apply val_head_stuck_reduce in H as Hstuck.
         apply const_list_snoc_eq3 in H2;auto.
         2,4: intros ->;done.
-        2: intros [? ?]%const_list_to_val;congruence.
+        2:{ destruct (const_list es0) eqn:Habs => //.
+            apply const_list_to_val in Habs as [? Habs] ;
+              rewrite Habs in Hstuck => //. } 
         destruct H2 as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst']]]]].
         apply IHreduce in Heq2;auto.
         simplify_eq.
