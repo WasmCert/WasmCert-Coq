@@ -70,10 +70,9 @@ Section fundamental.
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
-        
-        iApply (wp_wand _ _ _ (λne (v : leibnizO val), (interp_val tf2 v ∗ na_own logrel_nais ⊤) ∗ ↪[frame]_)%I with "[-]").
-        { rewrite -wp_frame_rewrite.
-          iApply wp_wasm_empty_ctx_frame.
+
+        iApply (wp_wand with "[Hf Hown]").
+        { iApply wp_wasm_empty_ctx_frame.
           take_drop_app_rewrite 0.
           iApply (wp_block_local_ctx with "Hf");eauto.
           iNext. iIntros "Hf".
@@ -82,8 +81,25 @@ Section fundamental.
           erewrite app_nil_l.
           iApply ("Hcl" with "[] Hown Hf").
           iRight. iExists _. eauto. }
-        iIntros (v) "[[Hw $] $]".
-        by iLeft.
+        iIntros (v) "[[Hw | Hw] [$ $]]".
+        { by iLeft. }
+        { iRight. iClear "#". iLöb as "IH" forall (v).
+          rewrite fixpoint_interp_call_host_cls_eq.
+          rewrite fixpoint_interp_call_host_eq.
+          iDestruct "Hw" as (? ? ? ? ? ? ? ? ?) "[#? #H]".
+          iExists _,_,_,_,_,_. repeat (iSplit;[eauto|]).
+          iModIntro. iIntros (v2 f) "? [? Hfrv]".
+          iDestruct "Hfrv" as (?) "[Hv1 [Hv2 ?]]".
+          iDestruct ("H" with "[$] [$] [$]") as "H'".
+          iApply (wp_wand with "H'").
+          iIntros (w) "[[#Hw | Hw] [? ?]]".
+          { iSplitR;[by iLeft|].
+            iExists _. iFrame. iExists _. iFrame. }
+          { iSplitL "Hw".
+            { repeat iRight. iNext.
+              iApply "IH". iFrame. }
+            iExists _. iFrame. iExists _. iFrame. }          
+        }
       }
       { (* host function *)
         destruct f.
@@ -101,7 +117,7 @@ Section fundamental.
         iSplit.
         { iRight. iExists _. eauto. }
         iModIntro. iIntros (v2 f) "#Hv2 [Hf Hfv]".
-        simpl sfill. rewrite app_nil_r. iApply wp_value;[done|].
+        simpl llfill. rewrite app_nil_r. iApply wp_value;[done|].
         iSplitR;[|iExists _;iFrame].
         iLeft. done.
       }

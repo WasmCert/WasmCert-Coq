@@ -156,7 +156,7 @@ Section fundamental.
     iDestruct (big_sepL2_length with "Hvalvs") as %Hlen2.
     rewrite app_length in Hlen2.
         
-    iApply (wp_br_alt with "Hf");[..|eauto|].
+    iApply (wp_br with "Hf");[..|eauto|].
     { apply const_list_of_val. }
     { rewrite fmap_length. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
       rewrite Hlen.
@@ -209,8 +209,8 @@ Section fundamental.
     rewrite Heq'.
     iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
 
-    rewrite locfill_label_No_local.
-    eassert (sfill (SH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh []) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
+    rewrite llfill_label.
+    eassert (llfill (LL_label [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh []) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
     { simpl of_val. f_equiv; eauto. }
     iApply wp_value;[done|].
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
@@ -289,8 +289,8 @@ Section fundamental.
       rewrite -/(wp_wasm_ctx _ _ _ _ _ _). rewrite Heq.
 
       iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
-      rewrite locfill_label_No_local.
-      eassert (sfill (SH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh0 []) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
+      rewrite llfill_label.
+      eassert (llfill (LL_label [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] vh0 []) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
       { simpl of_val. f_equiv; eauto. }
       iApply wp_value;[done|].
       iSplitR "Hf Hfv";[|iExists _;iFrame].
@@ -360,7 +360,7 @@ Section fundamental.
     
     { iDestruct "Hval" as (vs ->) "Hval".
       rewrite fmap_length Hlen. iDestruct (big_sepL2_length with "Hval") as %Hlen'.
-      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ _)%I with "[Hf]").
+      iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
       { iApply (wp_val_return with "Hf");[apply const_list_of_val|].
         iIntros "Hf". rewrite app_nil_l app_nil_r.
         iApply wp_value;[done|]. iFrame. eauto. }

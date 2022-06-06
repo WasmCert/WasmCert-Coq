@@ -51,13 +51,13 @@ Section fundamental.
     induction lh;simpl;auto.
   Qed.
 
-  Lemma local_get_base_l_push_const (lh : local_holed) w :
-    local_get_base_l (loch_push_const lh w) = (w ++ local_get_base_l lh) ∨
-    local_get_base_l (loch_push_const lh w) = local_get_base_l lh.
-  Proof.
-    destruct lh;simpl. 1: apply simple_get_base_l_push_const.
-    right;auto.
-  Qed.
+  (* Lemma local_get_base_l_push_const (lh : llholed) w : *)
+  (*   local_get_base_l (loch_push_const lh w) = (w ++ local_get_base_l lh) ∨ *)
+  (*   local_get_base_l (loch_push_const lh w) = local_get_base_l lh. *)
+  (* Proof. *)
+  (*   destruct lh;simpl. 1: apply simple_get_base_l_push_const. *)
+  (*   right;auto. *)
+  (* Qed. *)
 
 
   Lemma weakening_br C i hl v lh ws1 ts :
@@ -173,12 +173,11 @@ Section fundamental.
     }
   Qed.
 
-  Lemma sfill_push_const vh ws1 e :
-    sfill (sh_push_const vh ws1) e = sfill (SH_base ws1 []) (sfill vh e).
+  Lemma llfill_push_const vh ws1 e :
+    llfill (llh_push_const vh ws1) e = llfill (LL_base ws1 []) (llfill vh e).
   Proof.
     induction vh;simpl.
-    { rewrite -v_to_e_cat !app_assoc app_nil_r. auto. }
-    { rewrite -v_to_e_cat !app_assoc app_nil_r. auto. }
+    all: rewrite -v_to_e_cat !app_assoc app_nil_r; auto.
   Qed.    
   
   Lemma weakening_call_host ws1 ts C i v hl lh t2s :
@@ -197,7 +196,7 @@ Section fundamental.
     iExists _,v0,tf,h,τs1,τs2. rewrite Heqv.
     do 4 (iSplit;[eauto|]). iModIntro.
     iIntros (v2 f) "#Hv2 [Hf Hfv]".
-    rewrite sfill_push_const. simpl sfill.
+    rewrite llfill_push_const. simpl sfill.
     
     iApply (wp_wand with "[-]").
     { iApply wp_val_can_trap_app;[apply to_val_fmap|].

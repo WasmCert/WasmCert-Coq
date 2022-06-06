@@ -624,8 +624,8 @@ Section fundamental.
     induction vh;simpl;auto.
   Qed.
 
-  Lemma locfill_label_No_local vh n es e :
-    [AI_label n es (locfill (No_local vh) e)] = locfill (No_local (SH_rec [] n es vh [])) e.
+  Lemma llfill_label vh n es e :
+    [AI_label n es (llfill vh e)] = llfill (LL_label [] n es vh []) e.
   Proof.
     induction vh;simpl;auto.
   Qed.
@@ -954,6 +954,9 @@ Section fundamental.
   Global Instance simple_valid_holed_inhabited : Inhabited (simple_valid_holed).
   Proof. apply populate. exact (SH_base [] []). Qed.
 
+  Global Instance llholed_inhabited : Inhabited (llholed).
+  Proof. apply populate. exact (LL_base [] []). Qed.
+
   Global Instance function_type_inhabited : Inhabited (function_type).
   Proof. apply populate. exact (Tf [] []). Qed.
 
@@ -1182,7 +1185,7 @@ Section fundamental.
     iDestruct (big_sepL2_length with "Hvalvs") as %Hlen2.
     rewrite app_length in Hlen2. subst j.
         
-    iApply (wp_br_alt with "Hf");[..|apply Hfill|].
+    iApply (wp_br with "Hf");[..|apply Hfill|].
     { apply const_list_of_val. }
     { rewrite fmap_length. eapply length_pull_base_l_take_len in Hpb;[|eauto]. rewrite Hpb.
       rewrite Hlen.
@@ -1255,8 +1258,8 @@ Section fundamental.
     rewrite Heq'.
     iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
 
-    rewrite locfill_label_No_local.
-    eassert (sfill (SH_rec [] (length tm) [] vh []) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
+    rewrite llfill_label.
+    eassert (llfill (LL_label [] (length tm) [] vh []) [AI_call_host tf h v] = of_val (callHostV _ _ _ _)) as Hval.
     { simpl of_val. f_equiv; eauto. }
     iApply wp_value;[done|].
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
@@ -1335,8 +1338,8 @@ Section fundamental.
       rewrite -/(wp_wasm_ctx _ _ _ _ _ _). rewrite Heq.
 
       iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
-      rewrite locfill_label_No_local.
-      eassert (sfill (SH_rec [] (length tm) [] vh0 []) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
+      rewrite llfill_label.
+      eassert (llfill (LL_label [] (length tm) [] vh0 []) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
       { simpl of_val. f_equiv; eauto. }
       (* rewrite Hval'. *)
       iApply wp_value;[done|].

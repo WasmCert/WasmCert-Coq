@@ -121,11 +121,12 @@ Section fundamental.
       rewrite app_length in Hlen. apply Nat.add_sub_eq_r. rewrite Hlen. lia. }
   Qed.
 
-  Lemma sfill_sh_append vh es es' :
-    sfill (sh_append vh es) es' = sfill (SH_base [] es) (sfill vh es').
+  Lemma llfill_sh_append vh es es' :
+    llfill (llh_append vh es) es' = llfill (LL_base [] es) (llfill vh es').
   Proof.
     induction vh;simpl.
     { rewrite !app_assoc. auto. }
+    { rewrite app_comm_cons app_assoc. auto. }
     { rewrite app_comm_cons app_assoc. auto. }
   Qed.
   
@@ -154,7 +155,7 @@ Section fundamental.
 
     assert (forall tf h v lh es,
                  iris.of_val (callHostV tf h v lh) ++ es =
-                   iris.of_val (callHostV tf h v (sh_append lh es))) as Heq.
+                   iris.of_val (callHostV tf h v (llh_append lh es))) as Heq.
     { intros. simpl. destruct lh0;simpl.
       all: by rewrite app_comm_cons app_assoc. }
     
@@ -167,13 +168,13 @@ Section fundamental.
     iExists _,_,tf,h,τs1,τs2. rewrite Heqv.
     do 4 (iSplit;[eauto|]). iModIntro.
     iIntros (v2 f) "#Hv2 [Hf Hfv]".
-    rewrite sfill_sh_append. simpl sfill.
+    rewrite llfill_sh_append. simpl llfill.
 
     iRevert "Hv2 HK". clear Heqv Heqt. iLöb as "IH"
   forall (f vh v2 τs2);iIntros "#Hv2 #HK".
 
     iAssert (↪[frame] f -∗
-             WP sfill vh (iris.of_val v2)
+             WP llfill vh (iris.of_val v2)
              {{ vs1, (⌜vs1 = trapV⌝ ∨ interp_values t2s vs1
                       ∨ ▷ interp_br (tc_local C) i (tc_return C) hl vs1 lh (tc_label C)
                       ∨ interp_return_option (tc_return C) (tc_local C) i vs1
@@ -232,11 +233,11 @@ Section fundamental.
 
       rewrite Heqch.
       simpl iris.of_val.
-      eassert (sfill (SH_base [] [e]) (sfill vh0 [_]) = sfill vh0 [AI_call_host tf0 h0 v0] ++ [e]) as <-.
+      eassert (llfill (LL_base [] [e]) (llfill vh0 [_]) = llfill vh0 [AI_call_host tf0 h0 v0] ++ [e]) as <-.
       { simpl. eauto. }
       iApply wp_wasm_empty_ctx.
-      eassert (sfill _ _ = iris.of_val (callHostV _ _ _ (sh_append vh0 [e]))) as ->.
-      { simpl. rewrite sfill_sh_append. eauto. }
+      eassert (llfill _ _ = iris.of_val (callHostV _ _ _ (llh_append vh0 [e]))) as ->.
+      { simpl. rewrite llfill_sh_append. eauto. }
       iApply wp_value;[done|].
       iSplitR "Hf Hfv";[|iExists _;iFrame].
       repeat iRight.
@@ -245,7 +246,7 @@ Section fundamental.
       iExists _,_,_,_,_,_. do 4 (iSplitR;[eauto|]).
       iModIntro.
       iIntros (v1 f1) "#Hv1 [Hf Hfv]".
-      rewrite sfill_sh_append. simpl sfill.
+      rewrite llfill_sh_append. simpl sfill.
       iApply ("IH" with "Hf Hfv Hv1 H").
     }
   Qed.

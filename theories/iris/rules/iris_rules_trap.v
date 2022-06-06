@@ -414,7 +414,7 @@ Section trap_rules.
         apply IHreduce;auto. }
       { do 2 destruct vs =>//. }
     }
-  Qed.    
+  Qed.
   
   Lemma wp_frame_trap (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) n f f0 :
     ↪[frame] f0 -∗
@@ -442,15 +442,16 @@ Section trap_rules.
   Qed.
 
   Lemma wp_frame_trap_nested (s : stuckness) (E : coPset) n f f0 LI f' :
+    iris.to_val [AI_local n f LI] = None ->
       ↪[frame] f0 -∗
      (↪[frame] f -∗ WP LI @ s; E {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f' }}) -∗
      WP LI @ s; E FRAME n; f {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f0 }}.
   Proof.
-    iIntros "Hframe H".
+    iIntros (Hnone) "Hframe H".
     rewrite wp_frame_rewrite.
-    iLöb as "IH" forall (s E LI f f' f0).
+    iLöb as "IH"
+  forall (s E LI f f' f0 Hnone).
     (* iApply wp_unfold. *)
-    repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
       iIntros (σ ns κ κs nt) "Hσ".
@@ -458,7 +459,9 @@ Section trap_rules.
       iDestruct "Hσ" as "(?&?&?&?&Hff&?&?)".
       iDestruct (ghost_map_lookup with "Hff Hframe") as %Hlook.
       iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
-      iMod ("H" with "Hframe") as "[-> Hf]".
+      iDestruct ("H" with "Hframe") as "H".
+      iDestruct (wp_unfold with "H") as "H". rewrite /wp_pre /= Hetov.
+      iMod "H" as "[-> Hf]".
       apply to_val_trap_is_singleton in Hetov as ->.
       iModIntro.
       iSplit.
@@ -475,7 +478,7 @@ Section trap_rules.
         apply reduce_det_local_trap in H as [? [? ?]]. simplify_eq.
         rewrite lookup_insert in Hlook. inversion Hlook. iFrame.
         iModIntro. iSimpl. done. }
-    { iApply wp_unfold. unfold wp_pre. simpl.
+    { iApply wp_unfold. unfold wp_pre. simpl. rewrite Hnone.
       iIntros (σ ns κ κs nt) "Hσ".
       destruct σ as [[ ? ?] ?].
       iDestruct "Hσ" as "(H1&H2&H3&H4&Hff&H5&H6)".
@@ -484,6 +487,7 @@ Section trap_rules.
       iMod (ghost_map_update f with "Hff Hframe") as "[Hff Hframe]".
       iSpecialize ("H" with "Hframe"). rewrite insert_insert.
       destruct f.
+      iDestruct (wp_unfold with "H") as "H". rewrite /wp_pre /= Hetov.
       iSpecialize ("H" $! (s0,f_locs,f_inst) 0 [] [] 0).
       iDestruct ("H" with "[$H1 $H2 $H3 $H4 $H5 $H6 $Hff]") as "H".
       iMod "H" as "[%Hred H]".
@@ -511,14 +515,28 @@ Section trap_rules.
       iDestruct "H" as "(H1&H2&H3&H4&Hff&H5&H6)".
       iDestruct (ghost_map_lookup with "Hff Hf") as %Hlook'.
       rewrite lookup_insert in Hlook'. inversion Hlook'.
+      iDestruct "Hcont" as "[Hcont _]".
+
+      destruct (iris.to_val [AI_local n {| f_locs := f_locs0; f_inst := f_inst0 |} x]) eqn:Hetov'.
+      { iFrame.
+        iDestruct ("Hcont" with "Hf") as "Hx".
+        iDestruct (wp_unfold with "Hx") as "Hx".
+        apply to_val_local_inv in Hetov' as Heq.
+        destruct Heq as [tf [h [w [vh Heq]]]]. subst v.
+        apply to_val_call_host_rec_local in Hetov' as Heq.
+        destruct Heq as [LI' [Heq HLI]].
+        simpl in Heq. simplify_eq.
+        rewrite /wp_pre /= HLI.
+        iMod "Hx" as "[%Hcontr Hf]". done.
+      }
+      
       iMod (ghost_map_update {| f_locs := l; f_inst := i |} with "Hff Hf") as "[Hff Hframe]".
       rewrite insert_insert.
       simpl. iApply fupd_mask_intro_subseteq;[solve_ndisj|].
       iFrame "H1 H2 H3 H4 H5 H6". simplify_eq. iFrame "Hff".
-      iDestruct "Hcont" as "[Hcont _]".
       iExists _. iFrame. iSplit =>//. iIntros "Hframe".
-      iDestruct ("IH" with "Hframe Hcont") as "Hcont".
-      auto.
+      iDestruct ("IH" with "[] Hframe Hcont") as "Hcont".
+      all: auto.
     }
   Qed.
 
@@ -570,8 +588,7 @@ Section trap_rules.
           
 (* Sequencing rule which is always allowed to trap *)
 (* This rule is useful in particular for semantic type soundness, which allows traps *)
-  Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed)
-        (Φf : frame -> iProp Σ) f :
+  Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) (Φf : frame -> iProp Σ) f :
     (((Ψ trapV ={E}=∗ ⌜False⌝)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
                    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f0, ↪[frame] f0 ∗ Φf f0 }}) ∗
                    ∀ w f0, Ψ w ∗ ↪[frame] f0 ∗ Φf f0 -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }})%I
@@ -839,7 +856,7 @@ Section trap_rules.
       all: iIntros (v).
       all: destruct v => /=.
       all: iIntros "HΦ" => //.
-      all: rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite loch_push_const_nil.
+      all: rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite llh_push_const_nil.
       all: auto.
     }
     { iIntros "(#Hntrap & Hf & HWP)".
@@ -852,7 +869,7 @@ Section trap_rules.
       iApply (wp_mono with "HWP").
       iIntros (vs') "HΦ".
       iSimpl. destruct vs';auto.
-      all: rewrite -vh_push_const_app + rewrite -sh_push_const_app + rewrite -loch_push_const_app;auto.
+      all: rewrite -vh_push_const_app + rewrite -sh_push_const_app + rewrite -llh_push_const_app;auto.
     }
   Qed.
 

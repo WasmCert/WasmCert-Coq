@@ -2116,5 +2116,317 @@ Search (iris.to_val _ = Some (immV _)).
     apply to_val_cons_retV with (v:=a) in Hes.
     rewrite Hes. auto.
   Qed.
+
+  Lemma to_val_local_inv n f LI v :
+    iris.to_val [AI_local n f LI] = Some v ->
+    ∃ tf h w vh, v = callHostV tf h w (LL_local [] n f vh []).
+  Proof.
+    intros Hv.
+    unfold iris.to_val in Hv. cbn in Hv.
+    destruct (merge_values_list (map to_val_instr LI));try done.
+    destruct v0;try done.
+    inversion Hv;eauto.
+  Qed.
+
+  Lemma to_val_local_add_frame LI' tf h w vh n f :
+    iris.to_val LI' = Some (callHostV tf h w vh) ->
+    iris.to_val [AI_local n f LI'] = Some (callHostV tf h w (LL_local [] n f vh [])).
+  Proof.
+    intros Hv.
+    unfold iris.to_val in Hv. cbn in Hv.
+    unfold iris.to_val. cbn.
+    destruct (merge_values_list (map to_val_instr LI'));try done.
+    simplify_eq.  auto.
+  Qed.
+
+  Lemma sfill_call_host_compose wh vh tf h w es1 :
+    iris.to_val es1 = None ->
+    sfill wh [AI_call_host tf h w] = sfill vh es1 ->
+    ∃ vh', es1 = sfill vh' [AI_call_host tf h w].
+    intros Hnone Hs.
+    assert (es1 ≠ []);[intros Hcontr;subst;done|].
+    assert (const_list es1 = false).
+    { destruct (const_list es1) eqn:Hcontr; auto. apply const_list_to_val in Hcontr as [? ?]. congruence. }
+    assert (es1 = [AI_trap] → False).
+    { intros Hcontr. subst. done. }
+    
+    revert wh Hs. induction vh;intros wh Hs.
+    { destruct wh.
+      { cbn in *.
+        rewrite separate1 in Hs.
+        symmetry in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. exists (SH_base x es2). cbn. auto.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        symmetry in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. exists (SH_rec x n l2 wh es2). cbn. auto.
+      }    
+    }
+    { destruct wh.
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l1) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l1) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//. destruct es2 =>//.
+        rewrite app_nil_l app_nil_r in Heq2. simplify_eq.
+        apply IHvh in H5 as [vh' Hvh'].
+        subst es1. eauto.
+      }
+    }
+  Qed.
+
+  Lemma llfill_call_host_compose wh vh tf h w es1 :
+    iris.to_val es1 = None ->
+    llfill wh [AI_call_host tf h w] = llfill vh es1 ->
+    ∃ vh', es1 = llfill vh' [AI_call_host tf h w].
+    intros Hnone Hs.
+    assert (es1 ≠ []);[intros Hcontr;subst;done|].
+    assert (const_list es1 = false).
+    { destruct (const_list es1) eqn:Hcontr; auto. apply const_list_to_val in Hcontr as [? ?]. congruence. }
+    assert (es1 = [AI_trap] → False).
+    { intros Hcontr. subst. done. }
+    
+    revert wh Hs. induction vh;intros wh Hs.
+    { destruct wh.
+      { cbn in *.
+        rewrite separate1 in Hs.
+        symmetry in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. exists (LL_base x es2). cbn. auto.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        symmetry in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. exists (LL_label x n l2 wh es2). cbn. auto.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        symmetry in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. exists (LL_local x n f wh es2). cbn. auto.
+      }
+    }
+    { destruct wh.
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l1) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l1) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//. destruct es2 =>//.
+        rewrite app_nil_l app_nil_r in Heq2. simplify_eq.
+        apply IHvh in H5 as [vh' Hvh'].
+        subst es1. eauto.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l1) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//.
+      }
+    }
+    { destruct wh.
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l0) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l0) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq. destruct x =>//.
+      }
+      { cbn in *.
+        rewrite separate1 in Hs.
+        rewrite (separate1 _ l0) in Hs.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
+        destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
+        apply const_es_exists in Hconst as [? ?].
+        simplify_eq.
+        destruct x =>//. destruct es2 =>//.
+        rewrite app_nil_l app_nil_r in Heq2. simplify_eq.
+        apply IHvh in H5 as [vh' Hvh'].
+        subst es1. eauto.
+      }
+    }  
+  Qed.
+
+  Lemma sfill_nested vh wh e :
+    ∃ vh', sfill vh (sfill wh e) = sfill vh' e.
+  Proof.
+    induction vh.
+    { destruct wh.
+      { exists (SH_base (l ++ l1) (l2 ++ l0)).
+        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc. auto. }
+      { exists (SH_rec (l ++ l1) n l2 wh (l3 ++ l0)).
+        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
+        rewrite app_comm_cons. rewrite (separate1 _ l3).
+        repeat erewrite app_assoc. auto. } }
+    { destruct IHvh as [vh' Heq].
+      cbn. rewrite Heq.
+      exists (SH_rec l n l0 vh' l1). cbn. auto. }
+  Qed.
+
+  Lemma llfill_nested vh wh e :
+    ∃ vh', llfill vh (llfill wh e) = llfill vh' e.
+  Proof.
+    induction vh.
+    { destruct wh.
+      { exists (LL_base (l ++ l1) (l2 ++ l0)).
+        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc. auto. }
+      { exists (LL_label (l ++ l1) n l2 wh (l3 ++ l0)).
+        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
+        rewrite app_comm_cons. rewrite (separate1 _ l3).
+        repeat erewrite app_assoc. auto. }
+      { exists (LL_local (l ++ l1) n f wh (l2 ++ l0)).
+        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
+        rewrite app_comm_cons.
+        repeat erewrite app_assoc. auto. }
+    }
+    { destruct IHvh as [vh' Heq].
+      cbn. rewrite Heq.
+      exists (LL_label l n l0 vh' l1). cbn. auto. }
+    { destruct IHvh as [vh' Heq].
+      cbn. rewrite Heq.
+      exists (LL_local l n f vh' l0). cbn. auto. }
+  Qed.
+
+  Lemma to_val_local_none n f es1 vh :
+    iris.to_val [AI_local n f (llfill vh es1)] = None ->
+    iris.to_val [AI_local n f es1] = None.
+  Proof.
+    intros Hv.
+    destruct (iris.to_val [AI_local n f es1]) eqn:Hsome;auto.
+    exfalso.
+    apply to_val_local_inv in Hsome as Heq.
+    destruct Heq as [tf [h [w [wh Heq]]]]. subst v.
+    assert ([AI_local n f es1] = llfill (LL_local [] n f (LL_base [] []) []) es1) as Heq.
+    { simpl. rewrite app_nil_r. auto. }
+    rewrite Heq in Hsome.
+    apply of_to_val in Hsome.
+    simpl in Hsome. inversion Hsome.
+    rewrite app_nil_r in H0. subst es1.
+    simplify_eq. pose proof (llfill_nested vh wh [AI_call_host tf h w]) as [vh' Hvh'].
+    rewrite Hvh' in Hv.
+    assert (iris.of_val (callHostV tf h w (LL_local [] n f vh' [])) =
+              [AI_local n f (llfill vh' [AI_call_host tf h w])]).
+    { cbn. auto. }
+    assert (iris.to_val [AI_local n f (llfill vh' [AI_call_host tf h w])] =
+              Some (callHostV tf h w (LL_local [] n f vh' []))).
+    { rewrite -H0. apply to_of_val. }
+    congruence.
+  Qed.
+
+  Lemma to_val_local_none_inv n f es1 vh :
+    iris.to_val es1 = None ->
+    iris.to_val [AI_local n f es1] = None ->
+    iris.to_val [AI_local n f (llfill vh es1)] = None.
+  Proof.
+    intros Hnone Hv.
+    destruct (iris.to_val [AI_local n f (llfill vh es1)]) eqn:Hsome;auto.
+    exfalso.
+    apply to_val_local_inv in Hsome as Heq.
+    destruct Heq as [tf [h [w [wh Heq]]]]. subst v.
+    assert ([AI_local n f (llfill vh es1)] = llfill (LL_local [] n f vh []) es1) as Heq.
+    { simpl. auto. }
+    rewrite Heq in Hsome.
+    apply of_to_val in Hsome.
+    simpl in Hsome. inversion Hsome.
+    apply llfill_call_host_compose in H0 as [vh' Hvh'];auto.
+    assert ([AI_local n f es1] =
+              iris.of_val (callHostV tf h w (LL_local [] n f vh' []))).
+    { cbn. rewrite Hvh'. auto. }
+    
+    assert (iris.to_val [AI_local n f es1] = Some (callHostV tf h w (LL_local [] n f vh' [])));[|congruence].
+    rewrite H. apply to_of_val.
+  Qed.
+
+  (* The following lemma will generalise to any local fill *)
+  Lemma to_val_local_no_local_none n f e :
+    iris.to_val [AI_local n f e] = None ->
+    match iris.to_val e with
+    | Some (callHostV _ _ _ _) => False
+    | _ => True
+    end.
+  Proof.
+    intros Hv.
+    destruct (iris.to_val e) eqn:He;auto.
+    destruct v;auto.
+    unfold iris.to_val in Hv.
+    unfold iris.to_val in He.
+    cbn in *.
+    destruct (merge_values_list (map to_val_instr e)) eqn:Hmerge;try done.
+    destruct v;try done.
+  Qed.
+
+  Fixpoint ll_of_sh sh :=
+    match sh with
+    | SH_base bef aft => LL_base bef aft
+    | SH_rec bef n es sh aft => LL_label bef n es (ll_of_sh sh) aft end.
+
+  Lemma sfill_to_llfill sh e :
+    sfill sh e = llfill (ll_of_sh sh) e.
+  Proof.
+    induction sh;auto.
+    simpl. rewrite IHsh.
+    auto.
+  Qed.
+
+  Lemma to_val_local_ret_none n f e vh :
+    iris.to_val e = Some (retV vh) ->
+    iris.to_val [AI_local n f e] = None.
+  Proof.
+    unfold iris.to_val. cbn.
+    destruct (merge_values_list (map to_val_instr e)); try done.
+    destruct v; done.
+  Qed.
+
+  Lemma to_val_local_none_none n f e :
+    iris.to_val e = None ->
+    iris.to_val [AI_local n f e] = None.
+  Proof.
+    unfold iris.to_val. cbn.
+    destruct (merge_values_list (map to_val_instr e)); try done.
+  Qed.
   
 End wasm_lang_properties.
