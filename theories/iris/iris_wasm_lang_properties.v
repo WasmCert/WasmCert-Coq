@@ -2145,8 +2145,8 @@ Search (iris.to_val _ = Some (immV _)).
     ∃ vh', es1 = sfill vh' [AI_call_host tf h w].
     intros Hnone Hs.
     assert (es1 ≠ []);[intros Hcontr;subst;done|].
-    assert (const_list es1 → False).
-    { intros Hcontr. apply const_list_to_val in Hcontr as [? ?]. congruence. }
+    assert (const_list es1 = false).
+    { destruct (const_list es1) eqn:Hcontr; auto. apply const_list_to_val in Hcontr as [? ?]. congruence. }
     assert (es1 = [AI_trap] → False).
     { intros Hcontr. subst. done. }
     
@@ -2173,8 +2173,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l1) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//.
@@ -2182,8 +2181,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l1) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//. destruct es2 =>//.
@@ -2200,8 +2198,8 @@ Search (iris.to_val _ = Some (immV _)).
     ∃ vh', es1 = llfill vh' [AI_call_host tf h w].
     intros Hnone Hs.
     assert (es1 ≠ []);[intros Hcontr;subst;done|].
-    assert (const_list es1 → False).
-    { intros Hcontr. apply const_list_to_val in Hcontr as [? ?]. congruence. }
+    assert (const_list es1 = false).
+    { destruct (const_list es1) eqn:Hcontr; auto. apply const_list_to_val in Hcontr as [? ?]. congruence. }
     assert (es1 = [AI_trap] → False).
     { intros Hcontr. subst. done. }
     
@@ -2236,8 +2234,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l1) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//.
@@ -2245,8 +2242,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l1) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//. destruct es2 =>//.
@@ -2257,8 +2253,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l1) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//.
@@ -2268,8 +2263,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l0) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//.
@@ -2277,8 +2271,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l0) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq. destruct x =>//.
@@ -2286,8 +2279,7 @@ Search (iris.to_val _ = Some (immV _)).
       { cbn in *.
         rewrite separate1 in Hs.
         rewrite (separate1 _ l0) in Hs.
-        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..|].
-        2: done.
+        apply const_list_snoc_eq3 in Hs;auto;[|apply v_to_e_is_const_list..].
         destruct Hs as [vs2 [es2 [Heq1 [Heq2 [Heq3 Hconst]]]]].
         apply const_es_exists in Hconst as [? ?].
         simplify_eq.
