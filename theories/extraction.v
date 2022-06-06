@@ -19,11 +19,12 @@ From Coq Require Import
 Extraction Language OCaml.
 (*Set Extraction Conservative Types.*)
 
+(* TODO: Instantiation and interpreter need an update after the rework on host. Maybe rollback to the non-monadic version for a relatively easier fix for now, or simply disable extraction temporarily. *)
 Extraction "extract"
   run_parse_module
-  Instantiation
-  Interpreter
+  (*Instantiation*)
+  (*Interpreter *)
   value_rec_safe
-  PP
+  (*PP*).
 
 
