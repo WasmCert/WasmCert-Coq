@@ -225,11 +225,8 @@ Section split_reduce_properties.
         rewrite <- He. rewrite <- Heqf. rewrite <- Heqf0. rewrite Hn1.
         apply r_simple. apply (rs_block es H H1 H2 H3).
         destruct He1 as [? | ?] => //.
-        intro He1'. assert (const_list [e1]) ;
-                      first by unfold const_list => /= ; rewrite He1'.
-        apply const_list_to_val in H6 as [? ?] => //.
-        unfold to_val in H4 ; congruence.
-        subst => //. 
+        destruct e1 => //. destruct b => //.
+        destruct e1 => //. 
       - left ; destruct (first_non_value _ Hes1) as (vs1 & e1 & es'1 & Hvs1 & He1 & Hes'1).
         rewrite Hes'1 in Heqes. rewrite <- app_assoc in Heqes.
         rewrite <- app_comm_cons in Heqes.
@@ -241,9 +238,7 @@ Section split_reduce_properties.
         apply r_simple. apply (rs_loop es H H1 H2 H3).
         intros ; unfold to_val in He1.
         destruct He1 as [?| ?].
-        assert (const_list [e1]) ; first by unfold const_list => /= ; rewrite H4.
-        apply const_list_to_val in H7 as [? ?] ; congruence.
-        subst ; by unfold iris.to_val in H4.
+        destruct e1 => //. destruct b => //. destruct e1 => //. 
       - solve_prim_step_split_reduce_r H4 [AI_basic (BI_block tf e2s)] Heqf0 ;
           by apply r_simple, rs_if_false.
       - solve_prim_step_split_reduce_r H4 [AI_basic (BI_block tf e1s)] Heqf0 ;
@@ -289,9 +284,7 @@ Section split_reduce_properties.
         by unfold lfilled, lfill ; rewrite Hvs1.
         intros ; unfold to_val in He1.
         destruct He1 as [?| ?].
-        assert (const_list [e1]) ; first by unfold const_list => /= ; rewrite H3.
-        apply const_list_to_val in H7 as [? ?] ; congruence.
-        subst ; by unfold iris.to_val in H3. }
+        destruct e1 => // ; destruct b => //. destruct e1 => //. }
     - solve_prim_step_split_reduce_r H2 [AI_invoke a] Heqf0 ; apply r_call ;
         by rewrite Heqf0 in H.
     - solve_prim_step_split_reduce_r H5 [AI_invoke a] Heqf0.
@@ -315,9 +308,7 @@ Section split_reduce_properties.
       by apply (r_invoke_native f H H0 H1 H2 H3 H4 H5 H6).
       intros ; unfold to_val in He1.
       destruct He1 as [?| ?].
-      assert (const_list [e1]) ; first by unfold const_list => /= ; rewrite H9.
-      apply const_list_to_val in H12 as [??] ; congruence.
-      subst ; by unfold iris.to_val in H9.
+      destruct e1 => // ; destruct b => //. destruct e1 => //. 
       rewrite H1. by apply v_to_e_is_const_list.
     - left ; destruct (first_non_value _ Hes1) as (vs1 & e1 & es'1 & Hvs1 & He1 & Hes'1).
       rewrite Hes'1 in Heqes. rewrite <- app_assoc in Heqes.
@@ -331,9 +322,7 @@ Section split_reduce_properties.
       by eapply (r_invoke_host). 
       intros ; unfold to_val in He1.
       destruct He1 as [?| ?].
-      assert (const_list [e1]) ; first by unfold const_list => /= ; rewrite H5.
-      apply const_list_to_val in H8 as [??] ; congruence.
-      subst ; by unfold iris.to_val in H5.
+      destruct e1 => // ; destruct b => //. destruct e1 => //. 
       rewrite H1. by apply v_to_e_is_const_list. 
  (*    - left ; destruct (first_non_value _ Hes1) as (vs1 & e1 & es'1 & Hvs1 & He1 & Hes'1).
       rewrite Hes'1 in Heqes. rewrite <- app_assoc in Heqes.
@@ -649,9 +638,7 @@ Section split_reduce_properties.
       by rewrite <- Heqlfilledk'.
       intros ; unfold to_val in He.
       destruct He as [? | ?].
-      assert (const_list [e]) ; first by unfold const_list => /= ; rewrite H2.
-      apply const_list_to_val in H4 as [??] ; congruence.
-      subst ; by unfold iris.to_val in H2.
+      destruct e => //. destruct b => //. destruct e => //. 
       unfold iris.to_val => /=.
     (*    destruct (merge_values_list _) ; try by intros [? ?].
     destruct v ; try by intros [? ?].
@@ -1084,8 +1071,7 @@ Section split_reduce_properties.
         simpl.
         rewrite app_length.
         lia.
-        intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-          unfold to_val in He ; destruct He as [? | ?] ; [congruence | subst] => //.
+        destruct He ; destruct e => //. destruct b => //. 
         by const_list_app.
         apply in_app_or in Hxl1 as [Habs | Habs].
         intruse_among_values vs Habs H.
@@ -1111,8 +1097,7 @@ Section split_reduce_properties.
         simpl.
         rewrite app_length.
         lia.
-        intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-          unfold to_val in He ; destruct He as [? | ?] ; [congruence | subst] => //.
+        destruct He ; destruct e => //. destruct b => //. 
         by const_list_app.
         apply in_app_or in Hxl1 as [Habs | Habs].
         intruse_among_values vs Habs H.
@@ -1209,8 +1194,7 @@ Section split_reduce_properties.
         unfold lfilled, lfill.
         rewrite Hcvs.
         done.
-        intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-          unfold to_val in He ; destruct He as [?|?] ; [congruence | subst] => //.
+        destruct He ; destruct e => // ; destruct b => //.
         by const_list_app.
         apply first_values in Hfill as (_ & Habs & _) => //= ; try by (intros [? ?]). } 
     - left ; simple_filled Hfill i lh bef aft nn ll ll'.
@@ -1237,8 +1221,7 @@ Section split_reduce_properties.
       rewrite Hvs'. simpl.
       rewrite app_length.
       lia.
-      intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-        unfold to_val in He ; destruct He as [?|?] ; [congruence | subst] => //.
+      destruct He ; destruct e => // ; destruct b => //. 
       rewrite H1.
       by eapply v_to_e_is_const_list.
       unfold const_list.
@@ -1272,8 +1255,7 @@ Section split_reduce_properties.
       rewrite Hvs'. simpl.
       rewrite app_length.
       lia.
-      intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-        unfold to_val in He ; destruct He as [?|?] ; [congruence | subst] => //.
+      destruct He ; destruct e => // ; destruct b => //. 
       rewrite H1.
       by eapply v_to_e_is_const_list.
       unfold const_list.
@@ -1389,8 +1371,7 @@ Section split_reduce_properties.
         repeat rewrite app_assoc.
         repeat rewrite - app_assoc.
         done.
-        intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-          unfold to_val in He ; destruct He as [?|?] ; [congruence | subst] => //.
+        destruct He ; destruct e => // ; destruct b => //. 
         unfold const_list.
         rewrite forallb_app.
         apply andb_true_iff ; split => //=. }
@@ -1464,8 +1445,7 @@ Section split_reduce_properties.
         rewrite app_nil_r in H0.
         subst.
         apply IHHLI => //=.
-        intros Hconst ; apply const_list_singleton, const_list_to_val in Hconst as [??] ;
-          unfold to_val in He ; destruct He as [?|?] ; [congruence | subst] => //.
+        destruct He ; destruct e => // ; destruct b => //. 
       + by const_list_app.
   Qed.
 

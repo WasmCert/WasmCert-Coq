@@ -120,7 +120,7 @@ Lemma lfilled_first_values i lh vs e i' lh' vs' e' LI :
   lfilled i lh (vs ++ [::e]) LI ->
   lfilled i' lh' (vs' ++ [::e']) LI ->
   const_list vs -> const_list vs' ->
-  (is_const e -> False) -> (is_const e' -> False) ->
+  (is_const e = false) -> (is_const e' = false) ->
   (forall n es LI, e <> AI_label n es LI) -> (forall n es LI, e' <> AI_label n es LI) ->
   e = e' /\ i = i' /\ (length vs = length vs' -> (vs = vs' /\ lh = lh')).
 Proof.
@@ -129,7 +129,7 @@ Proof.
           lfilled i lh (vs ++ [::e]) LI ->
           lfilled i' lh' (vs' ++ [::e']) LI ->
           const_list vs -> const_list vs' ->
-          (is_const e -> False) -> (is_const e' -> False) ->
+          (is_const e = false) -> (is_const e' = false) ->
           (forall n es LI, e <> AI_label n es LI) -> (forall n es LI, e' <> AI_label n es LI) ->
           e = e' /\ i = i' /\ (length vs = length vs' -> (vs = vs' /\ lh = lh'))).
   { intro Hn ; apply (Hn (S (length_rec LI))) ; lia. }
@@ -154,7 +154,8 @@ Proof.
       apply first_values in Hfill' as (Hvvs & Hee & ?) ; (try done) ; (try by left);
         try by unfold const_list ; rewrite forallb_app ; apply andb_true_iff.
       repeat split => //=. apply (app_inj_2 _ _ _ _ H0 Hvvs).
-      apply app_inj_2 in Hvvs as [-> _] => //. by subst. }
+      apply app_inj_2 in Hvvs as [-> _] => //. by subst.
+    }
     fold lfill in Hfill'. destruct lh' => //. 
     remember (const_list l) as b ; destruct b => //. 
     destruct (lfill i' lh' _) => //. 
@@ -2731,8 +2732,8 @@ Lemma llfill_all_values' lh vs e lh' n0 es vs' LI :
   llfill lh (vs ++ [e]) = LI ->
   llfill lh' [AI_label n0 es vs'] = LI ->
   const_list vs -> (const_list vs' ∨ vs' = [AI_trap]) ->
-  (is_const e -> False ) ->
-  (to_val [e] = Some trapV -> False) ->
+  (is_const e = false ) ->
+  (to_val [e] <> Some trapV) ->
   (forall n es LI, e <> AI_label n es LI) ->
   (forall n f LI, e <> AI_local n f LI) ->
   False.
@@ -2742,8 +2743,8 @@ Proof.
           llfill lh (vs ++ [e]) = LI ->
           llfill lh' [AI_label n0 es vs'] = LI ->
           const_list vs -> (const_list vs' ∨ vs' = [AI_trap]) ->
-          (is_const e -> False ) ->
-          (to_val [e] = Some trapV -> False) ->
+          (is_const e = false ) ->
+          (to_val [e] <> Some trapV) ->
           (forall n es LI, e <> AI_label n es LI) ->
           (forall n f LI, e <> AI_local n f LI) ->
           False).
@@ -2851,8 +2852,8 @@ Lemma lfilled_all_values' i lh vs e i' lh' n0 es vs' LI :
   lfilled i lh (vs ++ [e]) LI ->
   lfilled i' lh' [AI_label n0 es vs'] LI ->
   const_list vs -> (const_list vs' ∨ vs' = [AI_trap]) ->
-  (is_const e -> False ) ->
-  (to_val [e] = Some trapV -> False) ->
+  (is_const e = false ) ->
+  (to_val [e] <> Some trapV) ->
   (forall n es LI, e <> AI_label n es LI) ->
   False.
 Proof.
@@ -2865,8 +2866,8 @@ Proof.
           lfilled i lh (vs ++ [e]) LI ->
           lfilled i' lh' [AI_label n0 es vs'] LI ->
           const_list vs -> (const_list vs' ∨ vs' = [AI_trap]) ->
-          (is_const e -> False ) ->
-          (to_val [e] = Some trapV -> False) ->
+          (is_const e = false ) ->
+          (to_val [e] <> Some trapV) ->
           (forall n es LI, e <> AI_label n es LI) ->
           False).
   { intro Hn ; apply (Hn (S (length_rec LI))) ; lia. }
@@ -3058,8 +3059,8 @@ Lemma llfill_all_values'' lh vs e lh' n0 es vs' LI :
   llfill lh (vs ++ [e]) = LI ->
   llfill lh' [AI_local n0 es vs'] = LI ->
   const_list vs -> (const_list vs' ∨ vs' = [AI_trap]) ->
-  (is_const e -> False ) ->
-  (to_val [e] = Some trapV -> False) ->
+  (is_const e = false ) ->
+  (to_val [e] <> Some trapV) ->
   (forall n es LI, e <> AI_label n es LI) ->
   (forall n f LI, e <> AI_local n f LI) ->
   False.
@@ -3069,8 +3070,8 @@ Proof.
           llfill lh (vs ++ [e]) = LI ->
           llfill lh' [AI_local n0 es vs'] = LI ->
           const_list vs -> (const_list vs' ∨ vs' = [AI_trap]) ->
-          (is_const e -> False ) ->
-          (to_val [e] = Some trapV -> False) ->
+          (is_const e = false  ) ->
+          (to_val [e] <> Some trapV) ->
           (forall n es LI, e <> AI_label n es LI) ->
           (forall n f LI, e <> AI_local n f LI) ->
           False).
@@ -3367,7 +3368,7 @@ Lemma llfill_first_values lh vs e lh' vs' e' LI :
   llfill lh (vs ++ [::e]) = LI ->
   llfill lh' (vs' ++ [::e']) = LI ->
   const_list vs -> const_list vs' ->
-  (is_const e -> False) -> (is_const e' -> False) ->
+  (is_const e = false) -> (is_const e' = false) ->
   (forall n es LI, e <> AI_label n es LI) ->
   (forall n es LI, e' <> AI_label n es LI) ->
   (forall n f LI, e <> AI_local n f LI) ->
@@ -3379,7 +3380,7 @@ Proof.
           llfill lh (vs ++ [::e]) = LI ->
           llfill lh' (vs' ++ [::e']) = LI ->
           const_list vs -> const_list vs' ->
-          (is_const e -> False) -> (is_const e' -> False) ->
+          (is_const e = false) -> (is_const e' = false) ->
           (forall n es LI, e <> AI_label n es LI) -> (forall n es LI, e' <> AI_label n es LI) ->
           (forall n f LI, e <> AI_local n f LI) ->
           (forall n f LI, e' <> AI_local n f LI) ->
@@ -3491,7 +3492,7 @@ Lemma lfilled_llfill_first_values i lh vs e lh' vs' e' LI :
   lfilled i lh (vs ++ [::e]) LI ->
   llfill lh' (vs' ++ [::e']) = LI ->
   const_list vs -> const_list vs' ->
-  (is_const e -> False) -> (is_const e' -> False) ->
+  (is_const e = false) -> (is_const e' = false) ->
   (forall n es LI, e <> AI_label n es LI) ->
   (forall n es LI, e' <> AI_label n es LI) ->
   (forall n f LI, e <> AI_local n f LI) ->
@@ -3502,7 +3503,7 @@ Proof.
           lfilled i lh (vs ++ [::e]) LI ->
           llfill lh' (vs' ++ [::e']) = LI ->
           const_list vs -> const_list vs' ->
-          (is_const e -> False) -> (is_const e' -> False) ->
+          (is_const e = false) -> (is_const e' = false) ->
           (forall n es LI, e <> AI_label n es LI) -> (forall n es LI, e' <> AI_label n es LI) ->
           (forall n f LI, e <> AI_local n f LI) ->
           e = e' /\ (length vs = length vs' -> (vs = vs'))).
