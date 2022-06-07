@@ -437,7 +437,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       done. done. done.
       iIntros "!> [Hf Hwfcl]".
       iApply (wp_frame_bind with "Hf").
-      iIntros "Hf".
+      done. iIntros "Hf".
       rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
       iApply (wp_block with "Hf").
       done. done. done. done.
@@ -761,7 +761,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           done.
           iIntros "!> [Hf Hcl]".
           iApply (wp_frame_bind with "Hf").
-          iIntros "Hf".
+          done. iIntros "Hf".
           rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
           iApply (wp_block with "Hf").
           done.

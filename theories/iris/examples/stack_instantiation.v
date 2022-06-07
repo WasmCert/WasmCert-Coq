@@ -616,7 +616,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       unfold instantiation_resources_post.
       iDestruct "Hinst" as "(Hmod & Himphost & Hinst)".
       iDestruct "Hinst" as (inst) "[Himpwasm Hexphost]".
-      unfold instantiation_resources_post_wasm.
       iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
@@ -744,6 +743,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
+        unfold iris.to_val => //=.
         iIntros "Hf".
         rewrite - (app_nil_l [AI_basic _]).
         iApply (wp_block with "Hf") => //.
@@ -768,7 +768,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iApply wp_value => //=.
         unfold IntoVal.
         apply of_to_val => //.
-        iFrame.
         instantiate (1 := λ v, (⌜ v = immV [value_of_int k] ⌝ ∗
                                            (⌜k = (-1)%Z⌝ ∗N.of_nat m↦[wmlength]N.of_nat addr ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] m ∗
                                                                                              N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N) ∗
@@ -791,11 +790,11 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                              BI_tee_local 0; BI_get_local 0; 
                               i32const 4; BI_binop T_i32 (Binop_i BOI_add);
                              BI_store T_i32 None N.zero N.zero; 
-                              BI_get_local 0]])%I).
+                              BI_get_local 0]] ∗ ↪[frame] f5 )%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H & Hf0 & Hf)". 
         iExists _.
         iFrame.
         iIntros "Hf".
@@ -856,7 +855,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
-        iIntros "Hf".
+        done. iIntros "Hf".
         rewrite - (app_nil_l [AI_basic _]).
         iApply (wp_block with "Hf") => //.
         iIntros "!> Hf".
@@ -898,11 +897,11 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                             BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
                             BI_binop T_i32 (Binop_i BOI_add); 
                             BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_relop T_i32 (Relop_i ROI_eq)])%I).
+                            BI_relop T_i32 (Relop_i ROI_eq)] ∗ ↪[frame] f5)%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
         iExists _.
         iFrame.
         iIntros "Hf".
@@ -947,7 +946,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
-        iIntros "Hf".
+        done. iIntros "Hf".
         rewrite - (app_nil_l [AI_basic _]).
         iApply (wp_block with "Hf") => //.
         iIntros "!> Hf".
@@ -989,11 +988,13 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                             BI_const (VAL_int32 (Wasm_int.Int32.repr 1));
                             BI_get_local 0; BI_load T_i32 None N.zero N.zero;
                             BI_const (VAL_int32 (Wasm_int.Int32.repr 65536));
-                            BI_binop T_i32 (Binop_i (BOI_rem SX_U)); BI_select])%I).
+                             BI_binop T_i32 (Binop_i (BOI_rem SX_U)); BI_select]
+                            ∗ ↪[frame] f5
+                              )%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
         iExists _.
         iFrame.
         iIntros "Hf".
@@ -1038,7 +1039,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
-        iIntros "Hf".
+        done. iIntros "Hf".
         rewrite - (app_nil_l [AI_basic _]).
         iApply (wp_block with "Hf") => //.
         iIntros "!> Hf".
@@ -1082,11 +1083,11 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                             BI_binop T_i32 (Binop_i BOI_sub); 
                             BI_tee_local 1; BI_load T_i32 None N.zero N.zero;
                             BI_get_local 0; BI_get_local 1;
-                            BI_store T_i32 None N.zero N.zero])%I).
+                            BI_store T_i32 None N.zero N.zero] ∗ ↪[frame] f5)%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
         iExists _.
         iFrame.
         iIntros "Hf".
@@ -1126,7 +1127,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
-        iIntros "Hf".
+        done. iIntros "Hf".
         rewrite - (app_nil_l [AI_basic _]).
         iApply (wp_block with "Hf") => //.
         iIntros "!> Hf".
@@ -1170,11 +1171,11 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                             BI_get_local 1; BI_get_local 2;
                             BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
                             BI_binop T_i32 (Binop_i BOI_add);
-                            BI_store T_i32 None N.zero N.zero])%I).
+                            BI_store T_i32 None N.zero N.zero] ∗ ↪[frame] f5)%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
         iExists _.
         iFrame.
         iIntros "Hf".
@@ -1218,7 +1219,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
-        iIntros "Hf".
+        done. iIntros "Hf".
         rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
         iApply (wp_block with "Hf") => //.
         iIntros "!> Hf".
@@ -1270,11 +1271,11 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                                  BI_get_local 0; BI_call_indirect 1;
                                  BI_store T_i32 None N.zero N.zero; 
                                  i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                                 BI_set_local 2; BI_br 0]]])%I).
+                                 BI_set_local 2; BI_br 0]]] ∗ ↪[frame] f6 )%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
         iExists _.
         iFrame.
         iIntros "Hf".
@@ -1316,8 +1317,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       iIntros (w) "[(-> & Hs & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
-      (* Proof of the spec with traps, uncomment once the problem with the 
-         formulation is solved *)
     - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
               "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hspec) HΞ".
       iApply wp_wand_r.
@@ -1328,7 +1327,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iIntros "!> [Hf Hf0]".
         iSimpl.
         iApply (wp_frame_bind with "Hf").
-        iIntros "Hf".
+        done. iIntros "Hf".
         rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
         iApply (wp_block with "Hf") => //.
         iIntros "!> Hf".
@@ -1390,11 +1389,11 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                                  BI_get_local 0; BI_call_indirect 1;
                                  BI_store T_i32 None N.zero N.zero; 
                                  i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                                 BI_set_local 2; BI_br 0]]])%I).
+                                 BI_set_local 2; BI_br 0]]] ∗ ↪[frame] f6)%I).
         iSimpl.
         iFrame.
         done.
-        iIntros (w) "[(-> & H &  Hf0) Hf]".
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
         iExists _.
         iFrame.
         iIntros "Hf".
