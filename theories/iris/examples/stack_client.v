@@ -40,19 +40,19 @@ Section Client.
       BI_if (Tf [] []) [i32const (-1) ; BI_set_global 0 ; BI_return] [] ;
       i32const 4 ;
       BI_get_local 0 ;
-      BI_call 4 ;
+      BI_call 4 ; (* Push 4 onto the stack *)
       i32const 6 ;
       BI_get_local 0 ;
-      BI_call 4 ;
+      BI_call 4 ; (* Push 6 onto the stack *)
       i32const 0 ;
       BI_get_local 0 ;
-      BI_call 5 ;
+      BI_call 5 ; (* Map square onto the stack *)
       BI_get_local 0 ;
-      BI_call 3 ;
+      BI_call 3 ; (* Pop 36 *)
       BI_get_local 0 ;
-      BI_call 3 ;
-      BI_binop T_i32 (Binop_i BOI_sub) ;
-      BI_set_global 0
+      BI_call 3 ; (* Pop 16 *)
+      BI_binop T_i32 (Binop_i BOI_sub) ; (* Subtract those two, to get 20 *)
+      BI_set_global 0 (* Assign the 0th global the value 20 *)
     ].
 
   Definition square :=
