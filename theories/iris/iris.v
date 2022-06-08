@@ -3373,7 +3373,7 @@ Lemma llfill_first_values lh vs e lh' vs' e' LI :
   (forall n es LI, e' <> AI_label n es LI) ->
   (forall n f LI, e <> AI_local n f LI) ->
   (forall n f LI, e' <> AI_local n f LI) ->
-  e = e' /\ (length vs = length vs' -> (vs = vs')).
+  e = e' /\ (length vs = length vs' -> (vs = vs' /\ lh = lh')).
 Proof.
    cut (forall n,
           length_rec LI < n ->
@@ -3384,7 +3384,7 @@ Proof.
           (forall n es LI, e <> AI_label n es LI) -> (forall n es LI, e' <> AI_label n es LI) ->
           (forall n f LI, e <> AI_local n f LI) ->
           (forall n f LI, e' <> AI_local n f LI) ->
-          e = e' /\ (length vs = length vs' -> (vs = vs'))).
+          e = e' /\ (length vs = length vs' -> (vs = vs' /\ lh = lh'))).
   { intro Hn ; apply (Hn (S (length_rec LI))) ; lia. }
   intro n. generalize dependent LI. generalize dependent e'.
   generalize dependent vs'. generalize dependent lh'. 
@@ -3404,7 +3404,8 @@ Proof.
       split => //. intro H0.
       repeat rewrite cat_app in Hvvs.
       apply Logic.eq_sym in Hvvs.
-      apply (app_inj_2 _ _ _ _ H0 Hvvs).
+      apply app_inj_2 in Hvvs as [Hbef ->] => //.
+      apply v_to_e_inj in Hbef as ->. by subst. 
       unfold const_list ; rewrite forallb_app ; apply andb_true_iff.
       repeat split => //=. apply v_to_e_is_const_list.
       unfold const_list ; rewrite forallb_app ; apply andb_true_iff => //. split => //. apply v_to_e_is_const_list. } 
@@ -3440,8 +3441,8 @@ Proof.
       split => //. all: apply v_to_e_is_const_list. }
     { simpl in Hfill'. rewrite - Hfill in Hfill'.
       apply first_values in Hfill' as ( Hl & Hlab' & -> ) => //=. 
-      inversion Hlab' ; subst.
-      assert (e = e' /\ (length vs = length vs' -> vs = vs')) as (? & ?).
+      apply v_to_e_inj in Hl as ->. inversion Hlab' ; subst.
+      assert (e = e' /\ (length vs = length vs' -> vs = vs' /\ lh = lh')) as (? & ?).
       eapply (IHn lh vs e lh' vs' e' _) => //=.
       rewrite app_length_rec in Hlab.
       rewrite list_extra.cons_app in Hlab.
@@ -3451,6 +3452,8 @@ Proof.
       fold (length_rec (llfill lh (vs ++ [e]))) in Hlab.
       rewrite - H2 in Hlab. lia.
       repeat split => //=.
+      by destruct (H0 H1).
+      destruct (H0 H1) ; subst => //. 
       all: apply v_to_e_is_const_list. }
     { simpl in Hfill'.
       rewrite - Hfill in Hfill'.
@@ -3470,8 +3473,8 @@ Proof.
       all: apply v_to_e_is_const_list. }
     { simpl in Hfill'. rewrite - Hfill in Hfill'.
       apply first_values in Hfill' as ( Hl & Hlab' & -> ) => //=. 
-      inversion Hlab' ; subst.
-      assert (e = e' /\ (length vs = length vs' -> vs = vs')) as (? & ?).
+      apply v_to_e_inj in Hl as ->. inversion Hlab' ; subst.
+      assert (e = e' /\ (length vs = length vs' -> vs = vs' /\ lh = lh')) as (? & ?).
       eapply (IHn lh vs e lh' vs' e' _) => //=.
       rewrite app_length_rec in Hlab.
       rewrite list_extra.cons_app in Hlab.
@@ -3480,7 +3483,7 @@ Proof.
       
       fold (length_rec (llfill lh (vs ++ [e]))) in Hlab.
       rewrite - H2 in Hlab. lia.
-      repeat split => //=.
+      repeat split => //= ; by destruct (H0 H1) ; subst. 
       all: apply v_to_e_is_const_list. }
     } 
 

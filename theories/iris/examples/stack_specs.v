@@ -1830,7 +1830,9 @@ Lemma spec_stack_map (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq
     to_e_list stack_map
     {{{ w, ⌜ w = immV [] ⌝ ∗
            (∃ s', isStack v s' n ∗ stackAll2 s s' Ψ) ∗
-           (∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝ )
+           (∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝) ∗
+            (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
+            (N.of_nat a) ↦[wf] cl
     }}}.
 Proof.
   iIntros "!>" (Ξ) "(%Hinstmem & %Hlocs0 & %Hlocs1 & %Hlocs & %Hvb & %Hv & Hs & HΦ & %Htypes & %Htab & Htab & Hcl & %Hclt & #Hspec & Hf) HΞ" => /=.
@@ -1949,7 +1951,9 @@ Proof.
                     N.of_nat a↦[wf] cl -∗
                     (∀ w : val,
                         ⌜w = immV []⌝ ∗ (∃ s' : seq.seq i32, isStack v s' n ∗ stackAll2 s s' Ψ) ∗
-                                  (∃ f1 : frame,  ↪[frame]f1 ∗ ⌜f_inst f0 = f_inst f1⌝) -∗ 
+                                  (∃ f1 : frame,  ↪[frame]f1 ∗ ⌜f_inst f0 = f_inst f1⌝) ∗
+              N.of_nat j0↦[wt][N.of_nat (Z.to_nat (Wasm_int.Int32.unsigned f))]
+              Some a ∗ N.of_nat a↦[wf]cl -∗ 
                                   Ξ w) -∗
                     WP [AI_basic (BI_get_local 2); AI_basic (BI_get_local 3);
      AI_basic (BI_relop T_i32 (Relop_i (ROI_ge SX_U))); AI_basic (BI_br_if 1);
@@ -1971,7 +1975,7 @@ Proof.
           BI_br 0])] [] []
     {{ v0, Ξ v0 }})%I as "H".
   { iIntros (j).
-  iInduction j as [|j] "IHj".
+    iInduction j as [|j] "IHj".
   { iIntros (s') "%Hj %Hs' Hf Hs HΦ HΨ Htab Hcl HΞ".
     rewrite (separate1 (AI_basic (BI_get_local 2))).
     iApply wp_seq_ctx.
@@ -2039,7 +2043,7 @@ Proof.
     by apply of_to_val.
     iApply "HΞ".
     iSplit ; first done.
-    iSplitR "Hf".
+    iFrame. iSplitR "Hf".
     iExists s'.
     unfold take.
     unfold drop.

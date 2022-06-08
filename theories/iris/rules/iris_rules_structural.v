@@ -201,6 +201,7 @@ Proof.
   iIntros (LI Hfilled).
   iApply wp_unfold.
   (* Base case, when both es1 and es2 are values *)
+
   destruct (iris.to_val [AI_local n f LI]) as [vs|] eqn:Hetov.
   { assert (iris.to_val [AI_local n f LI] = Some vs) as Hetov' => //.
     unfold iris.to_val in Hetov ; simpl in Hetov.
@@ -230,6 +231,7 @@ Proof.
     iMod (ghost_map_update f with "Hframe Hf0") as "[Hframe Hf]"; rewrite insert_insert.
     iDestruct ("Hes1" with "Hf") as "Hes1".
     destruct f.
+
     
     destruct (iris.to_val es1) eqn:Hetov'.
     { (* apply to_val_local_no_local_none in Hnone2. *)
@@ -250,6 +252,7 @@ Proof.
       iFrame. }
 
     
+
     iSpecialize ("Hes1" $! (s1,f_locs,f_inst) ns κ κs nt with "[$]").
     iMod "Hes1" as "[%H1 H2]".
     iModIntro.

@@ -552,7 +552,7 @@ Definition check_start m inst start : bool :=
     m.(mod_start) in
   start' == start.
 
-Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *)
+Definition instantiate 
                        (s : store_record) (m : module) (v_imps : list v_ext)
                        (z : (store_record * instance * list module_export) * option nat) : Prop :=
   let '((s_end, inst, v_exps), start) := z in
