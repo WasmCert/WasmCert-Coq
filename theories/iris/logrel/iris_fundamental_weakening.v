@@ -178,7 +178,14 @@ Section fundamental.
   Proof.
     induction vh;simpl.
     all: rewrite -v_to_e_cat !app_assoc app_nil_r; auto.
-  Qed.    
+  Qed.
+
+  Lemma llholed_basic_push_const vh ws1 :
+    llholed_basic vh ->
+    llholed_basic (llh_push_const vh ws1).
+  Proof.
+    induction vh;simpl;auto.
+  Qed.
   
   Lemma weakening_call_host ws1 ts C i v hl lh t2s :
     ([∗ list] y1;y2 ∈ ws1;ts, interp_value y2 y1) -∗
@@ -187,14 +194,16 @@ Section fundamental.
   Proof.
     iIntros "#Hv1 Hch".
     rewrite fixpoint_interp_call_host_eq.
-    iDestruct "Hch" as (? ? ? ? ? ? Heqv Heqt Hin) "[#Hw #HK]".
+    iDestruct "Hch" as (? ? ? ? ? ? Heqv Heqt Hin Hb) "[#Hw #HK]".
     iRevert "Hw HK".
     iLöb as "IH"
-  forall (tf h v v0 vh τs1 τs2 Heqv Heqt Hin);iIntros "#Hv #Hch".
+  forall (tf h v v0 vh τs1 τs2 Heqv Heqt Hin Hb);iIntros "#Hv #Hch".
 
     iApply fixpoint_interp_call_host_eq.
     iExists _,v0,tf,h,τs1,τs2. rewrite Heqv.
-    do 4 (iSplit;[eauto|]). iModIntro.
+    do 4 (iSplit;[eauto|]).
+    { iPureIntro. apply llholed_basic_push_const. auto. }
+    iFrame "#". iModIntro.
     iIntros (v2 f) "#Hv2 [Hf Hfv]".
     rewrite llfill_push_const. simpl sfill.
     
@@ -225,7 +234,7 @@ Section fundamental.
         { repeat iRight.
           iNext. rewrite -/(interp_call_host _ _ _ _).
           rewrite fixpoint_interp_call_host_eq.
-          iDestruct "H" as (? ? ? ? ? ? ? ? ?) "[#Hv3 #H3]".
+          iDestruct "H" as (? ? ? ? ? ? ? ? ? ?) "[#Hv3 #H3]".
           iApply "IH";eauto.
         }
       }
@@ -241,7 +250,7 @@ Section fundamental.
     { iRight. by iLeft. }
     { iRight. iRight. by iLeft. }
     { by repeat iRight. }
-  Qed.   
+  Qed.
   
   (* -------------------------------------- WEAKENING -------------------------------------- *)
 

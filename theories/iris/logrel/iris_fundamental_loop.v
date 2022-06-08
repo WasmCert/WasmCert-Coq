@@ -201,7 +201,7 @@ Section fundamental.
     iIntros "#HIH #Hc Hch Hf Hfv".
     
     iDestruct (fixpoint_interp_call_host_eq with "Hch") as "Hch".
-    iDestruct "Hch" as (? ? ? ? ? ? Heqw Htf Hin) "[#Hv #Hch]".
+    iDestruct "Hch" as (? ? ? ? ? ? Heqw Htf Hin Hb) "[#Hv #Hch]".
     rewrite Heqw.
 
     eassert (LH_rec [] (length tn) [AI_basic (BI_loop (Tf tn tm) es)] (LH_base [] []) [] =
@@ -216,14 +216,14 @@ Section fundamental.
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
     iRight. iRight. iRight. clear Hval. iRevert "Hv Hch".
     iLöb as "IH"
-  forall (tf h v w vh τs1 τs2 Heqw Htf Hin);iIntros "#Hv #Hch".
+  forall (tf h v w vh τs1 τs2 Heqw Htf Hin Hb);iIntros "#Hv #Hch".
     match goal with
     | |- context [ (▷ ?IH0)%I ] =>
         set (IH:=IH0)
     end.
 
     iApply fixpoint_interp_call_host_eq.
-    iExists _,_,_,_,_,_. do 4 (iSplitR;[eauto|]).
+    iExists _,_,_,_,_,_. do 5 (iSplitR;[eauto|]).
     iModIntro. iIntros (v2 f) "#Hw [Hf Hfv]".
 
     simpl sfill.
@@ -285,7 +285,7 @@ Section fundamental.
         { repeat iRight. iNext. iFrame. } Unshelve. apply [].
     }
     { rewrite fixpoint_interp_call_host_eq.
-      iDestruct "Hv'" as (? ? ? ? ? ?) "[>%Heq [>%Htf0 [>%Hin' [#Hv' #Hch']]]]".
+      iDestruct "Hv'" as (? ? ? ? ? ?) "[>%Heq [>%Htf0 [>%Hin' [>%Hb' [#Hv' #Hch']]]]]".
       rewrite -/(wp_wasm_ctx _ _ _ _ _ _). rewrite Heq.
 
       iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
