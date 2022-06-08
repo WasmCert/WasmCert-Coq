@@ -603,8 +603,9 @@ Lemma wp_call_host_action_no_state_change s E hes tf h hi f vcs (Φ : host_val -
   llfill llh [AI_call_host tf h vcs] = LI ->
   llfill llh res = LI' ->
   (forall s0 f0, execute_action f s0 f0 vcs s0 f0 res) -> 
-  N.of_nat hi ↦[ha] f ∗ WP ((hes, LI') : host_expr) @ s ; E {{ v, Φ v  }}
-  ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ v, Φ v ∗ N.of_nat hi ↦[ha] f }}.
+  N.of_nat hi ↦[ha] f ∗
+  ▷ (N.of_nat hi ↦[ha] f -∗ WP ((hes, LI') : host_expr) @ s ; E {{ v, Φ v }})
+  ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ v, Φ v }}.
 Proof.
   iIntros (Hh HLI HLI' Hexec) "(Hhi & Hwp)".
   iApply lifting.wp_lift_step => //=.
@@ -628,13 +629,13 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep).
     destruct σ2 as [[[[s2 vi2] ms2] has2] f2].
     destruct es as [hes2 es2].
-    iMod "Hfupd".
+    iMod "Hfupd". iDestruct ("Hwp" with "Hhi") as "Hwp".
     iModIntro.
     destruct HStep as [HStep [-> ->]].
     eapply call_host_reduce_det in HStep ; last first.
     eapply HR_call_host_action => //=.
     exact HLI. inversion HStep ; subst.
-    iFrame. iFrame. done.  
+    iFrame. done.  
 Qed.
   
 
@@ -643,8 +644,9 @@ Lemma wp_call_host_instantiate s E hes h hi f (Φ : host_val -> iProp Σ) llh LI
   h = Mk_hostfuncidx hi ->
   llfill llh [AI_call_host (Tf [] []) h []] = LI ->
   llfill llh [] = LI' ->
-  N.of_nat hi ↦[ha] (HA_instantiate f) ∗  WP ((f :: hes, LI') : host_expr) @ s ; E {{ v, Φ v }}
-  ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ v, Φ v ∗ N.of_nat hi ↦[ha] (HA_instantiate f) }}.
+  N.of_nat hi ↦[ha] (HA_instantiate f) ∗
+  ▷ (N.of_nat hi ↦[ha] (HA_instantiate f) -∗ WP ((f :: hes, LI') : host_expr) @ s ; E {{ v, Φ v }})
+  ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ v, Φ v }}.
 Proof.
   iIntros (Hh HLI HLI') "(Hhi & Hwp)".
   iApply lifting.wp_lift_step => //=.
@@ -670,11 +672,12 @@ Proof.
     destruct es as [hes2 es2].
     iMod "Hfupd".
     iModIntro.
+    iDestruct ("Hwp" with "[$]") as "Hwp".
     destruct HStep as [HStep [-> ->]].
     eapply call_host_reduce_det in HStep ; last first.
     eapply HR_call_host_instantiate => //=.
     exact HLI. inversion HStep ; subst.
-    iFrame. iFrame. done.  
+    iFrame. done.  
 Qed.
 
 Lemma nth_error_none_fmap {A B} (l : seq.seq A) n (f : A -> B) :
@@ -704,11 +707,11 @@ Lemma wp_call_host_modify_table s E h hi tab_idx func_idx LI LI' llh f0 n func_i
   ↪[frame] f0 ∗
    N.of_nat hi ↦[ha] HA_modify_table ∗
    N.of_nat n ↦[wt][ Wasm_int.N_of_uint i32m tab_idx ] func_idx0 ∗
-   WP ((hes, LI') : host_expr) @ s ; E {{ Φ }}
-   ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ v, Φ v ∗
-                                                ↪[frame] f0 ∗
-                                                N.of_nat hi ↦[ha] HA_modify_table ∗
-                                                N.of_nat n ↦[wt][ Wasm_int.N_of_uint i32m tab_idx ] Some a }}.
+   ▷ (↪[frame] f0 ∗
+       N.of_nat hi ↦[ha] HA_modify_table ∗
+       N.of_nat n ↦[wt][ Wasm_int.N_of_uint i32m tab_idx ] Some a -∗
+       WP ((hes, LI') : host_expr) @ s ; E {{ Φ }})
+   ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ Φ }}.
 Proof.
   iIntros (Hh HLI HLI' Ha Hn) "(Hf & Hhi & Hwt & Hwp)".
   iApply lifting.wp_lift_step => //=.
@@ -767,7 +770,8 @@ Proof.
     inversion HStep ; subst. simpl.
     iMod (gen_heap_update with "Htab Hwt") as "[Htab Hwt]".
     iMod "Hfupd".
-    instantiate (1:= Some a). 
+    iDestruct ("Hwp" with "[$]") as "Hwp".
+    (* instantiate (1:= Some a).  *)
     iFrame. repeat rewrite fmap_update_list_at => /=.
     rewrite (update_trivial (table_max_opt <$> _)).
     rewrite (update_trivial (tab_size <$> _)). iFrame.
@@ -787,8 +791,6 @@ Proof.
     apply (map_nth_error table_max_opt) in Htables.
     rewrite nth_error_lookup in Htables. done. 
 Qed.
-
-
 
 Definition reducible := @reducible wasm_host_lang.
 

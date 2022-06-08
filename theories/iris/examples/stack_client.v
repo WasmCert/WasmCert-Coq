@@ -119,7 +119,7 @@ Section Client.
         |} ;
         {| imp_module := list_byte_of_string "Stack" ;
           imp_name := list_byte_of_string "table" ;
-          imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
+          imp_desc := ID_table {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
                                  tt_elem_type := ELT_funcref |} |}
       ] ;
       mod_exports := [
