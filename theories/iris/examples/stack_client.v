@@ -828,7 +828,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           iApply "HΛ".
           iFrame.
           by iExists _.
-          iIntros (w0) "(-> & H & Hwimpcl5 & Hf)".
+          iIntros (w0) "(-> & H & Hwimpcl5 & Hf & Ht & Ha)".
           iDestruct "H" as (s') "[Hs Hs']".
           destruct s' ; first by iExFalso ; iExact "Hs'".
           iDestruct "Hs'" as "[-> Hs']".

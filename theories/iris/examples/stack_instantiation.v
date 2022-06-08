@@ -66,7 +66,7 @@ Definition stack_module :=
         modfunc_body := stack_map
       |}
     ] ;
-    mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
+    mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
                                         tt_elem_type := ELT_funcref |} |} ] ;
     mod_mems := [
       {| lim_min := 0%N ; lim_max := None |}
@@ -112,7 +112,7 @@ Definition stack_module :=
 Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32 ; T_i32] []) ; ET_func (Tf [T_i32 ; T_i32] []) ;
-                     ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
+                     ET_tab {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
                               tt_elem_type := ELT_funcref |} ].
 
 Ltac bet_first f :=
@@ -458,7 +458,9 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
     {{{ w, ⌜ w = immV [] ⌝ ∗
            (∃ s', isStack v s' ∗ stackAll2 s s' Ψ) ∗
            N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5 ∗
-           ↪[frame] f0
+           ↪[frame] f0 ∗
+            N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
+            (N.of_nat a) ↦[wf] cl
   }}})%I.
 
   (* A trap allowing version for code that might trap *)
@@ -1234,7 +1236,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         repeat iSplit ; try iPureIntro => //=.
         lia.
         iExact "Hspec".
-        iIntros (w) "(-> & Hs & Hf)".
+        iIntros (w) "(-> & Hs & Hf & Ht & Ha)".
         iDestruct "Hf" as (f6) "[Hf %Hf4]".
         iApply (wp_wand_ctx with "[Hs Hf Hf0]").
         iApply (wp_val_return with "Hf") => //.
@@ -1284,6 +1286,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iNext.
          instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
                                             ( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
+                                            N.of_nat t↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m fi)]Some a ∗
+                                            N.of_nat a↦[wf]cl ∗
                                  N.of_nat f4↦[wf]FC_func_native
                             {|
                               inst_types :=
@@ -1314,7 +1318,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         iFrame.
         iFrame.
         done. }
-      iIntros (w) "[(-> & Hs & Hf0) Hf]".
+      iIntros (w) "[(-> & Hs & Ht & Ha & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
     - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
