@@ -413,11 +413,11 @@ Section fundamental.
       iSimpl.
       iApply iRewrite_nil_r_ctx.
       iApply (wp_seq_can_trap_ctx _ _ _
-                (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w))))%I.
+                (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w) (* ∗ ∃ f, ↪[frame] f ∗ Φf f *))))%I.
       iFrame. iSplitR.
       { iIntros "Hcontr".
         iDestruct "Hcontr" as "[%Hcontr _]". done. }
-      iSplit;[auto|].
+      iSplitR;[auto|].
       iSplitL "Hfv".
       { iIntros "Hf".
         iApply (wp_wand _ _ _ (λ w, ((⌜w = trapV⌝ ∨ ⌜w = immV v⌝ ∗ ([∗ list] w0;τ ∈ v;tm, interp_value τ w0)) ∗ ↪[frame] f) ∗ Φf f )%I with "[Hf Hfv]").

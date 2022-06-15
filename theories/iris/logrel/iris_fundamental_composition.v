@@ -219,8 +219,7 @@ Section fundamental.
       { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ?) "[>%H _]". done. }
       { iDestruct "Hcontr" as (? ? ?) "_";done. }
       { rewrite fixpoint_interp_call_host_eq. iDestruct "Hcontr" as (? ? ? ? ? ?) "[>%H _]";done. } }
-    iSplitR.
-    { iLeft. by iLeft. }
+    iSplitR;[iIntros (?) "?"; iSplitR;[by iLeft;iLeft|eauto]|].
     iIntros (w0 f0) "[Hw0 [Hf Hfv]]".
     iDestruct "Hw0" as "[#H|[H|[H|H]]]".
     { iApply wp_wasm_empty_ctx.
@@ -310,8 +309,7 @@ Section fundamental.
       { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ?) "[%H _]". done. }
       { iDestruct "Hcontr" as (? ? ?) "_";done. }
       { rewrite fixpoint_interp_call_host_eq. iDestruct "Hcontr" as (? ? ? ? ?  ?) "[%H _]";done. } }
-    iSplitR.
-    { iLeft. by iLeft. }
+    iSplitR;[iIntros (?) "?"; iSplitR;[by iLeft;iLeft|eauto]|].
 
     iIntros (w f') "[Hw [Hf Hfv]]".
     iDestruct "Hw" as "[#Hw|[Hbr|[Hret|Hch]]]".

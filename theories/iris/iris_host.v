@@ -1145,75 +1145,75 @@ Lemma wp_lift_wasm s E δ es Φ:
   WP es @ NotStuck; E {{ v, WP ((δ, iris.of_val v) : host_expr) @ s; E {{ Φ }} }}
      ⊢ WP ((δ, es) : host_expr) @ s; E {{ Φ }}.
 Proof.
-  iLöb as "IH" forall (s E es Φ).
-                 iIntros "Hwp".
-                 destruct (to_val ((δ,es))) eqn:Htv.
-                 { iApply weakestpre.wp_unfold.
-                    rewrite /weakestpre.wp_pre /=.
-                    iDestruct (wp_unfold with "Hwp") as "Hwp".
-                    rewrite /wp_pre /=.
-                    destruct δ => //.
-                    simpl in Htv.
-                    destruct (iris.to_val es) => //.
-                    rewrite weakestpre.wp_unfold /weakestpre.wp_pre /= iris.to_of_val.
-                    destruct v ; by iMod "Hwp". }
-                 rewrite weakestpre.wp_unfold.
-                 iDestruct (wp_unfold with "Hwp") as "Hwp".
-                 rewrite /wp_pre /=.
-                 rewrite /weakestpre.wp_pre /=.
-                 unfold to_val in Htv ; rewrite Htv.
-                 iIntros (σ ns κ κs nt) "Hσ".
-                 destruct (iris.to_val es) eqn:Hes.
-                 { apply iris.of_to_val in Hes as <-.
-                   iMod "Hwp".
-                   iDestruct (weakestpre.wp_unfold with "Hwp") as "Hwp".
-                   rewrite /weakestpre.wp_pre /=.
-                   rewrite iris.to_of_val Htv.
-                   iSpecialize ("Hwp" $! σ ns κ κs nt with "[$]").
-                   by iApply "Hwp". }
-                 destruct σ as [[[[s0 vis] ms] has] f].
-                 iDestruct "Hσ" as "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?)".
-(*                 destruct δ.
+  iLöb as "IH"
+forall (s E es Φ).
+  iIntros "Hwp".
+  destruct (to_val ((δ,es))) eqn:Htv.
+  { iApply weakestpre.wp_unfold.
+    rewrite /weakestpre.wp_pre /=.
+    iDestruct (wp_unfold with "Hwp") as "Hwp".
+    rewrite /wp_pre /=.
+    destruct δ => //.
+    simpl in Htv.
+    destruct (iris.to_val es) => //.
+    rewrite weakestpre.wp_unfold /weakestpre.wp_pre /= iris.to_of_val.
+    destruct v ; by iMod "Hwp". }
+  rewrite weakestpre.wp_unfold.
+  iDestruct (wp_unfold with "Hwp") as "Hwp".
+  rewrite /wp_pre /=.
+  rewrite /weakestpre.wp_pre /=.
+  unfold to_val in Htv ; rewrite Htv.
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct (iris.to_val es) eqn:Hes.
+  { apply iris.of_to_val in Hes as <-.
+    iMod "Hwp".
+    iDestruct (weakestpre.wp_unfold with "Hwp") as "Hwp".
+    rewrite /weakestpre.wp_pre /=.
+    rewrite iris.to_of_val Htv.
+    iSpecialize ("Hwp" $! σ ns κ κs nt with "[$]").
+    by iApply "Hwp". }
+  destruct σ as [[[[s0 vis] ms] has] f].
+  iDestruct "Hσ" as "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?)".
+  (*                 destruct δ.
                  destruct (to_chval es) eqn:Htchv. *)
-                 destruct f as [loc ins].
-                 iSpecialize ("Hwp" $! (s0, loc, ins) ns κ κs nt with "[$]").
-                 iMod "Hwp" as "[%Hs He2]".
-                 iModIntro.
-                 iSplit.
-                 { destruct s => //.
-                   iPureIntro.
-                   destruct Hs as (obs & es' & [[??]?] & efs & ? & -> & ->).
-                   eexists [], (_,_), (_,_,_,_,_), [].
-                   repeat split => //.
-                   eapply HR_wasm_step.
-                   exact H. }
-                 iIntros ([δ2 es2] [[[[s2 vis2] ms2] has2] f2] efs (Hred & -> & ->)).
-                 destruct Hs as (obs & es' & [[??]?] & efs & Hredes & -> & ->).
+  destruct f as [loc ins].
+  iSpecialize ("Hwp" $! (s0, loc, ins) ns κ κs nt with "[$]").
+  iMod "Hwp" as "[%Hs He2]".
+  iModIntro.
+  iSplit.
+  { destruct s => //.
+    iPureIntro.
+    destruct Hs as (obs & es' & [[??]?] & efs & ? & -> & ->).
+    eexists [], (_,_), (_,_,_,_,_), [].
+    repeat split => //.
+    eapply HR_wasm_step.
+    exact H. }
+  iIntros ([δ2 es2] [[[[s2 vis2] ms2] has2] f2] efs (Hred & -> & ->)).
+  destruct Hs as (obs & es' & [[??]?] & efs & Hredes & -> & ->).
 
 
 
-                 
-                 (*remember (s0, vis, ms, δ, has, Build_frame loc ins, es) as hc.
+  
+  (*remember (s0, vis, ms, δ, has, Build_frame loc ins, es) as hc.
                  remember (s2, vis2, ms2, δ2, has2, f2, es2) as hc2. *)
-                 inversion Hred ; simplify_eq ; 
-                   (try by exfalso ; eapply values_no_reduce) ;
-                   try by subst ; exfalso ; eapply call_host_no_reduce.
-                 destruct f2 as [l2 i2].
-                 assert (iris.prim_step es (s0, loc, ins) [] es2 (s2, l2, i2) []) as Hstep.
-                 repeat split => //.
-                 iSpecialize ("He2" $! es2 (s2, l2, i2) [] Hstep).
-                 iMod "He2".
-                 repeat iModIntro.
-                 repeat iMod "He2".
-                 iDestruct "He2" as "[Hσ Hf]".
-                 iDestruct "Hσ" as "(?&?&?&?&?&?&?&?&?)".
-                 iFrame.
-                 iDestruct "Hf" as (f) "(Hf & Hwp & ?)".
-                 iDestruct ("Hwp" with "Hf") as "Hwp".
-                 iModIntro ; iSplit ; last done.
-                 iApply ("IH" with "Hwp").
+  inversion Hred ; simplify_eq ; 
+    (try by exfalso ; eapply values_no_reduce) ;
+    try by subst ; exfalso ; eapply call_host_no_reduce.
+  destruct f2 as [l2 i2].
+  assert (iris.prim_step es (s0, loc, ins) [] es2 (s2, l2, i2) []) as Hstep.
+  repeat split => //.
+  iSpecialize ("He2" $! es2 (s2, l2, i2) [] Hstep).
+  iMod "He2".
+  repeat iModIntro.
+  repeat iMod "He2".
+  iDestruct "He2" as "[Hσ Hf]".
+  iDestruct "Hσ" as "(?&?&?&?&?&?&?&?&?)".
+  iFrame.
+  iDestruct "Hf" as (f) "(Hf & Hwp & ?)".
+  iDestruct ("Hwp" with "Hf") as "Hwp".
+  iModIntro ; iSplit ; last done.
+  iApply ("IH" with "Hwp").
 Qed.
-
 
 
 (*

@@ -1874,7 +1874,9 @@ Section InterpInstance.
     import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs -∗
     module_inst_resources_wasm m inst tab_inits mem_inits glob_inits
     ={E}=∗ interp_instance C hl inst ∗
-           module_inst_resources_wasm_invs m inst gts tab_inits mem_inits glob_inits (* it is useful to remember the exact values for each allocated invariant *).
+        module_inst_resources_wasm_invs m inst gts tab_inits mem_inits glob_inits ∗
+        import_resources_wasm_typecheck_invs v_imps t_imps wfs wts' wms' wgs
+  (* it is useful to remember the exact values for each allocated invariant *).
   Proof.
     iIntros (C tab_inits wts' mem_inits wms' glob_inits Hmod Himps_of_inst Hinit_vals) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
     subst C.

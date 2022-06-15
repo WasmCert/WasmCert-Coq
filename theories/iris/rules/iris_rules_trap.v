@@ -589,10 +589,10 @@ Section trap_rules.
 (* Sequencing rule which is always allowed to trap *)
 (* This rule is useful in particular for semantic type soundness, which allows traps *)
   Lemma wp_seq_can_trap_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) (Φf : frame -> iProp Σ) f :
-    (((Ψ trapV ={E}=∗ ⌜False⌝)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
-                   (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f0, ↪[frame] f0 ∗ Φf f0 }}) ∗
-                   ∀ w f0, Ψ w ∗ ↪[frame] f0 ∗ Φf f0 -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }})%I
-     ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ∃ f, ↪[frame] f ∗ Φf f }}.
+    (((Ψ trapV ={E}=∗ ⌜False⌝)) ∗ (∀ f, ↪[frame] f ∗ Φf f -∗ Φ trapV) ∗ ↪[frame] f ∗
+    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ∃ f0, ↪[frame] f0 ∗ Φf f0 }}) ∗
+    ∀ w f0, Ψ w ∗ ↪[frame] f0 ∗ Φf f0 -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }})%I
+     ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v }}.
   Proof.
     iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh f).
 { iIntros "[Hntrap [Ht [Hf [Hes1 Hes2]]]]".
@@ -619,7 +619,7 @@ Section trap_rules.
       apply lfilled_Ind_Equivalent in Hfilled. inversion Hfilled;simplify_eq.
       destruct vs0,es'.
       erewrite app_nil_l, app_nil_r, app_nil_r in Hetov.
-      destruct vs;try done. iFrame. eauto.
+      destruct vs;try done. iDestruct "Hf" as (?) "[? ?]". iApply "Ht"; by iFrame. eauto.
       all: rewrite to_val_not_trap_interweave in Hetov;try done;auto.
     }
     iDestruct "Hf" as (f0) "[Hf Hfv]".
@@ -640,7 +640,7 @@ Section trap_rules.
         iPoseProof (wp_trap_ctx s E f0 i lh [] es2 with "Hf") as "HH";auto.
         iSpecialize ("HH" $! LI with "[]");auto.
         iApply (wp_wand with "HH").
-        iIntros (v) "[-> Hf]". iFrame. iExists _. iFrame. 
+        iIntros (v) "[-> Hf]". iFrame. iApply "Ht";iFrame. (* iExists _. iFrame.  *)
       }
       { iApply wp_unfold. rewrite /wp_pre /= Hetov.
         iIntros (σ ns κ κs nt) "Hσ".
@@ -722,7 +722,7 @@ Section trap_rules.
           iPoseProof (wp_trap_ctx s E f0 j _ [] [] with "Hf") as "HH";auto.
           iSpecialize ("HH" $! _ Hlh').
           iApply (wp_wand with "HH").
-          iIntros (v) "[-> Hf]". iFrame. iExists _. iFrame. 
+          iIntros (v) "[-> Hf]". iApply "Ht"; iFrame. (* iExists _. iFrame.  *)
 } } }
   Qed.
 

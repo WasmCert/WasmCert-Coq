@@ -60,7 +60,9 @@ Section Examples.
     iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
     { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
     iApply wp_seq_can_trap_ctx.
-    iFrame. iSplitL "Hes1".
+    iFrame. iSplitR.
+    { iIntros (f') "[Hf Heq]". iExists f';iFrame. iExact "Heq". }
+    iSplitL "Hes1".
     { iIntros "Hf". iDestruct ("Hes1" with "Hf") as "Hes1".
       iApply (wp_wand with "Hes1").
       iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
@@ -209,7 +211,7 @@ Section Examples_host.
 
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ,
-        !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ}.
+        !logrel_na_invs Σ}.
 
 
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
@@ -435,7 +437,7 @@ Section Examples_host.
         rewrite N2Nat.id lookup_singleton in Hlookg. inversion Hgteq;inversion Hlookg. rewrite N2Nat.id.
         
         iApply weakestpre.fupd_wp.
-        iMod (interp_instance_alloc [] with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [#Hires _]]";
+        iMod (interp_instance_alloc [] with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] _]]";
           [apply Htyp|repeat split;eauto|eauto|..].
         3,4,5: by instantiate (1:=∅).
         { rewrite Heqadvm /=. auto. }
@@ -452,7 +454,7 @@ Section Examples_host.
                   /get_import_func_count /= !drop_0 -H.
           iFrame. 
         }
-
+        
         rewrite !app_nil_l.
         iDestruct (big_sepL2_lookup with "Hires") as "Ha".
         { rewrite Heqadvm /=. eauto. }

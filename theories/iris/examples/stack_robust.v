@@ -228,10 +228,13 @@ Section Client_main.
     iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
     { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
     iApply wp_seq_can_trap_ctx.
-    iFrame. iSplitL "Hes1".
-    { iIntros "Hf". iDestruct ("Hes1" with "Hf") as "Hes1".
+    iFrame.
+    iSplitR.
+    { instantiate (1:=(λ f', ⌜f' = f⌝)%I). iIntros (f') "[Hf ->]". eauto. }
+    iSplitL "Hes1".
+    { iIntros "Hf". iDestruct ("Hes1" with "[$]") as "Hes1".
       iApply (wp_wand with "Hes1").
-      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
+      iIntros (v) "[$ H]". iExists _. iFrame. auto. }
     { iIntros (w f') "[H [Hf ->]]".
       iDestruct ("Hes2" with "[$]") as "Hes2".
       iApply (wp_wand_ctx with "Hes2").
@@ -476,7 +479,7 @@ Section Client_main.
       iApply (wp_wand with "[-HΦ]").
       { iApply wp_wasm_empty_ctx.
         iApply wp_seq_can_trap_same_ctx. iFrame "Hf".
-        instantiate (2:=(λ v, ⌜ v = immV [] ⌝ ∗ _)%I).
+        (* instantiate (1:=(λ v, ⌜ v = immV [] ⌝ ∗ _)%I). *)
         iSplitR;[|iSplitR];cycle 2.
         iSplitL "HisStack Hidf5 Ht Hown".
         { iIntros "Hf". iApply (wp_wand with "[-]").
@@ -540,7 +543,8 @@ Section Client_main.
           iIntros (v) "[[Hv [Htab Hown]] Hf]".
           iSplitR "Hf".
           iDestruct "Hv" as "[Htrap | [-> [Hs Hidf]]]";[by iLeft|].
-          iRight. iCombine "Hs Hidf Htab Hown" as "H". iSplit;[auto|]. iExact "H".
+          iRight. iCombine "Hs Hidf Htab Hown" as "H".
+          instantiate (1:=(λ v, ⌜v = immV []⌝ ∗ _ )%I). iSplit;auto. iExact "H".
           iFrame.
         }
         2: by iIntros "[%Hcontr _]".
@@ -864,7 +868,7 @@ Section Client_instantiation.
     subst tab.
     
     iApply weakestpre.fupd_wp.
-    iMod (interp_instance_alloc with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [#Hires _]]";
+    iMod (interp_instance_alloc with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] _]]";
       [apply Htyp|repeat split;eauto|eauto|..].
     3,4,5: by instantiate (1:=∅).
     { rewrite Heqadvm /=. auto. }
