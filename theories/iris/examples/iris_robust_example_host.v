@@ -144,8 +144,7 @@ Section Host_robust_example.
     iApply (wp_invoke_host with "Hlog Hf");[| |eauto|..].
     { instantiate (1:=[_]). cbn. constructor. }
     { simpl;auto. }
-    iModIntro.
-    iIntros "Hlog Hf".
+    iIntros "!>!> Hlog Hf".
     iApply fupd_wp. iMod ("Hcls" with "[$]") as "Hown". iModIntro.    
     assert ([AI_call_host (Tf [T_i32] []) (Mk_hostfuncidx h) [xx 42]]
             = iris.of_val (callHostV (Tf [T_i32] []) (Mk_hostfuncidx h) [xx 42] (LL_base [][]))) as ->.

@@ -106,7 +106,7 @@ Section fundamental.
         iDestruct "Hcl" as %[Heq HH]. inversion Heq;subst r r0.
         iDestruct (big_sepL2_length with "Hv") as %Hlen.
         iApply (wp_invoke_host with "[$] [$]");eauto.
-        iIntros "Ha Hf".
+        iIntros "!> Ha Hf".
         iApply fupd_wp.
         iMod ("Hcls" with "[$]") as "Hown".
         iModIntro.
