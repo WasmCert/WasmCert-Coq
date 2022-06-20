@@ -1378,6 +1378,8 @@ Proof.
     rewrite lookup_app_l => //=. by rewrite <- H1. }
   destruct n. rewrite <- H1. apply Logic.eq_sym, nil_length_inv in H1. rewrite H1.
   unfold those => //=. rewrite H. rewrite H1 => //=. lia.
+  (* Minor todo: check this *)
+ (* rewrite <- (cat_take_drop (length ys) (iota 0 (S (length ys)))).*)
   rewrite (take_drop (length ys) (iota 0 (S (length ys)))).
   rewrite take_iota. 
   unfold ssrnat.minn. 

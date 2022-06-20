@@ -212,7 +212,7 @@ Context `{!wasmG Σ}.
     length t1s = n ->
     (N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
     ↪[frame] f -∗
-    ((N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
+    ▷ ((N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
       ↪[frame] f -∗ 
       WP [AI_call_host (Tf t1s t2s) h vcs] @ s;E {{ Φ }}) -∗
      WP ves ++ [AI_invoke a] @ s; E {{ Φ }}.

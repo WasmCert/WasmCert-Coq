@@ -212,7 +212,7 @@ Section control_rules.
     iris.to_val vs = Some (immV vs0) ->
     length vs = n ->
     lfilled i lh (vs ++ [AI_basic BI_return]) es ->
-    WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }} -∗
+    ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }} -∗
                  WP [AI_local n f es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}%I.
   Proof.
     iIntros (Hval Hlen Hlf) "HΦ".
@@ -266,7 +266,7 @@ Section control_rules.
     iris.to_val vs = Some (immV vs0) ->
     length vs = n ->
     lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
-    ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
+    ( ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
                    ⊢ WP LI @ s; E FRAME n ; f {{ v, Φ v ∗ ↪[frame] f0 }}).
   Proof.
     iIntros (Hval Hlen Hlf) "HΦ".
@@ -276,7 +276,7 @@ Section control_rules.
   Lemma wp_ctx_frame_return (s: stuckness) (E: coPset) (Φ: iris.val -> iProp Σ) vs vs0 n f0 f i lh :
     iris.to_val vs = Some (immV vs0) ->
     length vs = n ->
-    ( WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
+    ( ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
                    ⊢ WP vs ++ [AI_basic BI_return] @ s; E FRAME n ; f CTX i ; lh {{ v, Φ v ∗ ↪[frame] f0 }}).
   Proof.
     iIntros (Hval Hlen) "HΦ".

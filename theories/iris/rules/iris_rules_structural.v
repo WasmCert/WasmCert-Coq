@@ -44,12 +44,147 @@ Proof.
   iIntros "(Hframe & H)". iApply wp_wasm_empty_ctx.
   rewrite wp_unfold /wp_pre /=. iFrame. eauto.
 Qed.
+
+Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
+  (* Like for wp_seq, this lemma is true without the trap condition, but would
+     be problematic to prove without it. *)
+  ((¬ Φ trapV) ∗
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v))  }}
+  ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }})%I.
+Proof.
+  (* This also needs an iLob. *)
+  iLöb as "IH" forall (v0 es Φ).
+  iIntros "(Hntrap & H)".
+  iApply wp_unfold.               
+  repeat rewrite wp_unfold /wp_pre /=.
+  destruct (iris.to_val es) as [vs|] eqn:Hes.
+  { destruct vs.
+    { apply of_to_val in Hes as <-. rewrite to_val_cons_immV. auto. }
+    apply to_val_trap_is_singleton in Hes as ->. simpl.
+    iIntros (?????) "?".
+    iMod "H".
+    by iSpecialize ("Hntrap" with "H").
+    erewrite to_val_cons_brV;eauto.
+    erewrite to_val_cons_retV;eauto.
+    erewrite to_val_cons_callHostV;eauto.
+  }
+  { rewrite to_val_cons_None.
+    iIntros (σ ns κ κs nt) "Hσ".
+    iSpecialize ("H" $! σ ns κ κs nt with "[$]").
+    iMod "H".
+    iModIntro.
+    iDestruct "H" as "(%H1 & H)".
+    iSplit.
+    - iPureIntro.
+      destruct s => //=.
+      rewrite - cat1s.
+      by eapply prepend_reducible; eauto.
+    - iIntros (es2 σ2 efs HStep).
+      rewrite -cat1s in HStep.
+      eapply reduce_ves in H1; last by apply HStep.
+      assert (κ = [] /\ efs = []) as [-> ->]; first by apply prim_step_obs_efs_empty in HStep; inversion HStep.
+      destruct H1 as [[-> HStep2] | [lh1 [lh2 [Hlf1 [Hlf2 ->]]]]].
+      + iSpecialize ("H" $! (drop 1 es2) σ2 [] HStep2).
+        iMod "H".
+        repeat iModIntro.
+        repeat iMod "H".
+        iModIntro.
+        iDestruct "H" as "[Hσ H]".
+        iDestruct "H" as  (f1) "(Hf1 & Hes & Hefs)".
+        iSimpl.
+        iFrame. iExists _. iFrame.
+        iSplit => //.
+        iIntros "?"; iSpecialize ("Hes" with "[$]").
+        iApply "IH".
+        by iFrame.
+      + move/lfilledP in Hlf1.
+        inversion Hlf1; subst; clear Hlf1.
+        move/lfilledP in Hlf2.
+        inversion Hlf2; subst; clear Hlf2.
+        assert (iris.prim_step (vs0 ++ [AI_trap] ++ es'0) σ2 [] [AI_trap] σ2 []) as HStep2.
+        { unfold iris.prim_step.
+          destruct σ2 as [[??]?].
+          repeat split => //.
+          apply r_simple; eapply rs_trap => //.
+          - move => HContra.
+            by replace (vs0 ++ [AI_trap] ++ es'0)%SEQ with [AI_trap] in Hes.
+          - apply/lfilledP.
+            by apply LfilledBase.
+        }
+        iSpecialize ("H" $! [AI_trap] σ2 [] HStep2).
+        iMod "H".
+        repeat iModIntro.
+        repeat iMod "H".
+        iDestruct "H" as "[Hσ H]".
+        iDestruct "H" as (f1) "(Hf1 & Hes & Hefs)".
+        iFrame.
+        iModIntro. iExists _. iFrame.
+        iSplit => //.
+        iIntros "?"; iSpecialize ("Hes" with "[$]").
+        repeat rewrite wp_unfold /wp_pre /=.
+        destruct (iris.to_val (vs ++ AI_trap :: es')%SEQ) eqn:Hx.
+        * iMod "Hes".
+          by iSpecialize ("Hntrap" with "Hes").
+        * iIntros (?????) "?".
+          iMod "Hes".
+          by iSpecialize ("Hntrap" with "Hes").
+          auto.
+  }
+Qed.
+
+Lemma wp_val_app' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs (es : language.expr wasm_lang) :
+  (* □ is required here -- this knowledge needs to be persistent instead of 
+     one-off. *)
+  (□ (¬ Φ trapV )) ∗
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV vs) v)) }}%I
+  ⊢ WP ((v_to_e_list vs) ++ es) @ s ; E {{ v, Φ v }}%I.
+
+Proof.
+  iInduction vs as [|c vs] "IH" forall (Φ s E es).
+  { simpl.
+    iIntros "(#Hntrap & HWP)".
+    destruct s.
+    2: iApply wp_stuck_weaken.
+    all: iApply (wp_wand with "HWP").
+    all: iIntros (v).
+    all: destruct v => /=.
+    all: iIntros "HΦ" => //.
+    all: by rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite llh_push_const_nil.
+  }
+  { iIntros "(#Hntrap & HWP)".
+    iSimpl.
+    iApply wp_val.
+    iSplitR => //.
+    iApply "IH" => //=.
+    iSplit => //.
+    iApply (wp_mono with "HWP").
+    iIntros (vs') "HΦ".
+    iSimpl. destruct vs';auto.
+    by rewrite -vh_push_const_app.
+    by rewrite -sh_push_const_app.
+    by rewrite -llh_push_const_app.
+  }
+Qed.
   
-(* Sequencing rule which is guaranteed not to trap *)
+Lemma wp_val_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es : language.expr wasm_lang) :
+  iris.to_val vs = Some (immV v') ->
+  (□ (¬ Φ trapV )) ∗
+  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV v') v)) }}%I
+  ⊢ WP (vs ++ es) @ s ; E {{ v, Φ v }}%I.
+Proof.
+  iIntros "%Hves [#Hntrap Hwp]".
+  apply iris.of_to_val in Hves; subst.
+  iApply wp_val_app'.
+  by iFrame.
+Qed.
+
+(* This rule needs to be deprecated as it incorrectly covers too many cases, 
+   rendering the most precise modalities impossible to be specified. See the step    rule below. That being said, this rule shouldn't be used anyway since we can
+   bind into lfilled0. *)
 Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
   ((¬ (Ψ trapV)) ∗
   WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
-  ∀ w, Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }})%I
+  ∀ w, (Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }}))%I
   ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v }}.
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh).
@@ -144,6 +279,105 @@ Proof.
   } } }
 Qed.
 
+(*
+(* We should propose a slightly different version, where es1 is known to take
+   a step. This is fine because we can resort to wp_val_app' later anyway for the    other case. *)
+Lemma wp_seq_ctx_step (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
+  iris.to_val es1 = None ->
+  ((¬ (Ψ trapV)) ∗
+  WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
+  ∀ w, ▷ (Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }}))%I
+  ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v }}.
+Proof.
+  iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh).
+{ iIntros (Hes1) "[Hntrap [Hes1 Hes2]]".
+  (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
+  iIntros (LI Hfilled).
+  iApply wp_unfold. rewrite /wp_pre /=.
+  (* This case now cannot happen *)
+  destruct (iris.to_val LI) as [vs|] eqn:Hetov.
+  { eapply lfilled_to_val_app in Hfilled as Hv;eauto.
+    destruct Hv as [vs' [Hvs' Hfilled']].
+    by rewrite Hvs' in Hes1.
+  }
+  {
+  repeat rewrite wp_unfold. rewrite /wp_pre /=.
+  (* Ind *)
+  iIntros (σ ns κ κs nt) "Hσ".
+  (* No val case either *)
+  destruct (iris.to_val es1) as [vs|] eqn:Hes => //.
+  {
+    iSpecialize ("Hes1" $! σ ns κ κs nt with "[$]").
+    iMod "Hes1" as "[%H1 H2]".
+    iModIntro.
+    iSplit.
+    - iPureIntro.
+      destruct s => //.
+      apply append_reducible with (es2:=es2) in H1;auto.
+      eapply lfilled_reducible. apply Hfilled. auto.
+    - iIntros (e2 σ2 efs HStep').
+      eapply lfilled_prim_step_split_reduce_r in HStep' as Heq;[|apply Hfilled|apply H1].
+      apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
+      destruct Heq as [[e' [HStep'' Hlfilled']] | [[lh' Hlf] <-]].
+      + apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
+        iSpecialize ("H2" $! e' σ2 [] HStep'').
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        iModIntro.
+        iDestruct "H2" as "(Hσ & Hes)".
+        iDestruct "Hes" as (f1) "(Hf & Hes'' & Hefs)".
+        iFrame. iExists _. iFrame.
+        iSplit =>//.
+        iIntros "?"; iSpecialize ("Hes''" with "[$]").
+        iClear "Hefs".
+        (* The problem now is that, we don't know whether e' is a value or not, so we cannot directly apply IH yet. However, we can resort to val_app if it's a value. *)
+        (* 20220619: Ok maybe not, even if to_val e' is not None, we don't
+           have an easy val rule to be applied since e' can still be not a wasm
+           value... *)
+        destruct (iris.to_val e') eqn: He'.
+        {
+          rewrite iris.of_to_val in He'.
+          iApply wp_val_app'.
+        }
+        admit.
+        iApply ("IH" with "[%] [$Hntrap Hes'' Hes2]").
+        * by apply He'.
+        * iFrame.
+          iIntros (w).
+          iModIntro.
+          by iApply "Hes2".
+        * by [].
+      + assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
+        { unfold iris.prim_step.
+          destruct σ as [[??]?].
+          repeat split => //.
+          apply r_simple; eapply rs_trap => //.
+          move => HContra; subst.
+          by simpl in Hes.
+        }
+        iSpecialize ("H2" $! [AI_trap] σ [] HStep2).
+        iMod "H2".
+        repeat iModIntro.
+        repeat iMod "H2".
+        destruct σ as [[? ?]?].
+        iDestruct "H2" as "[Hσ H]".
+        iDestruct "H" as (f) "(Hf1 & Hes'' & Hefs)".
+        iModIntro => /=.
+        iFrame. iExists _. iFrame.
+        iIntros "?"; iSpecialize ("Hes''" with "[$]").
+        replace [AI_trap] with (iris.of_val trapV) => //=.
+        iDestruct (wp_unfold with "Hes''") as "Hes''";rewrite /wp_pre /=.
+        destruct (iris.to_val e2) eqn:Hx.
+        * iMod "Hes''". 
+          by iSpecialize ("Hntrap" with "Hes''").
+        * iApply wp_unfold. rewrite /wp_pre /= Hx /=.
+          iIntros (?????) "?".
+          iMod "Hes''".
+          by iSpecialize ("Hntrap" with "Hes''").
+  } } }
+Qed.
+*)
 
 (* Contextual rules for Local computation *)
 
@@ -466,139 +700,7 @@ Proof.
   }
 Qed.
 
-Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
-  (* Like for wp_seq, this lemma is true without the trap condition, but would
-     be problematic to prove without it. *)
-  ((¬ Φ trapV) ∗
-  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v))  }}
-  ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }})%I.
-Proof.
-  (* This also needs an iLob. *)
-  iLöb as "IH" forall (v0 es Φ).
-  iIntros "(Hntrap & H)".
-  iApply wp_unfold.               
-  repeat rewrite wp_unfold /wp_pre /=.
-  destruct (iris.to_val es) as [vs|] eqn:Hes.
-  { destruct vs.
-    { apply of_to_val in Hes as <-. rewrite to_val_cons_immV. auto. }
-    apply to_val_trap_is_singleton in Hes as ->. simpl.
-    iIntros (?????) "?".
-    iMod "H".
-    by iSpecialize ("Hntrap" with "H").
-    erewrite to_val_cons_brV;eauto.
-    erewrite to_val_cons_retV;eauto.
-    erewrite to_val_cons_callHostV;eauto.
-  }
-  { rewrite to_val_cons_None.
-    iIntros (σ ns κ κs nt) "Hσ".
-    iSpecialize ("H" $! σ ns κ κs nt with "[$]").
-    iMod "H".
-    iModIntro.
-    iDestruct "H" as "(%H1 & H)".
-    iSplit.
-    - iPureIntro.
-      destruct s => //=.
-      rewrite - cat1s.
-      by eapply prepend_reducible; eauto.
-    - iIntros (es2 σ2 efs HStep).
-      rewrite -cat1s in HStep.
-      eapply reduce_ves in H1; last by apply HStep.
-      assert (κ = [] /\ efs = []) as [-> ->]; first by apply prim_step_obs_efs_empty in HStep; inversion HStep.
-      destruct H1 as [[-> HStep2] | [lh1 [lh2 [Hlf1 [Hlf2 ->]]]]].
-      + iSpecialize ("H" $! (drop 1 es2) σ2 [] HStep2).
-        iMod "H".
-        repeat iModIntro.
-        repeat iMod "H".
-        iModIntro.
-        iDestruct "H" as "[Hσ H]".
-        iDestruct "H" as  (f1) "(Hf1 & Hes & Hefs)".
-        iSimpl.
-        iFrame. iExists _. iFrame.
-        iSplit => //.
-        iIntros "?"; iSpecialize ("Hes" with "[$]").
-        iApply "IH".
-        by iFrame.
-      + move/lfilledP in Hlf1.
-        inversion Hlf1; subst; clear Hlf1.
-        move/lfilledP in Hlf2.
-        inversion Hlf2; subst; clear Hlf2.
-        assert (iris.prim_step (vs0 ++ [AI_trap] ++ es'0) σ2 [] [AI_trap] σ2 []) as HStep2.
-        { unfold iris.prim_step.
-          destruct σ2 as [[??]?].
-          repeat split => //.
-          apply r_simple; eapply rs_trap => //.
-          - move => HContra.
-            by replace (vs0 ++ [AI_trap] ++ es'0)%SEQ with [AI_trap] in Hes.
-          - apply/lfilledP.
-            by apply LfilledBase.
-        }
-        iSpecialize ("H" $! [AI_trap] σ2 [] HStep2).
-        iMod "H".
-        repeat iModIntro.
-        repeat iMod "H".
-        iDestruct "H" as "[Hσ H]".
-        iDestruct "H" as (f1) "(Hf1 & Hes & Hefs)".
-        iFrame.
-        iModIntro. iExists _. iFrame.
-        iSplit => //.
-        iIntros "?"; iSpecialize ("Hes" with "[$]").
-        repeat rewrite wp_unfold /wp_pre /=.
-        destruct (iris.to_val (vs ++ AI_trap :: es')%SEQ) eqn:Hx.
-        * iMod "Hes".
-          by iSpecialize ("Hntrap" with "Hes").
-        * iIntros (?????) "?".
-          iMod "Hes".
-          by iSpecialize ("Hntrap" with "Hes").
-          auto.
-  }
-Qed.
   
-Lemma wp_val_app' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs (es : language.expr wasm_lang) :
-  (* □ is required here -- this knowledge needs to be persistent instead of 
-     one-off. *)
-  (□ (¬ Φ trapV )) ∗
-  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV vs) v)) }}%I
-  ⊢ WP ((v_to_e_list vs) ++ es) @ s ; E {{ v, Φ v }}%I.
-
-Proof.
-  iInduction vs as [|c vs] "IH" forall (Φ s E es).
-  { simpl.
-    iIntros "(#Hntrap & HWP)".
-    destruct s.
-    2: iApply wp_stuck_weaken.
-    all: iApply (wp_wand with "HWP").
-    all: iIntros (v).
-    all: destruct v => /=.
-    all: iIntros "HΦ" => //.
-    all: by rewrite vh_push_const_nil + rewrite sh_push_const_nil + rewrite llh_push_const_nil.
-  }
-  { iIntros "(#Hntrap & HWP)".
-    iSimpl.
-    iApply wp_val.
-    iSplitR => //.
-    iApply "IH" => //=.
-    iSplit => //.
-    iApply (wp_mono with "HWP").
-    iIntros (vs') "HΦ".
-    iSimpl. destruct vs';auto.
-    by rewrite -vh_push_const_app.
-    by rewrite -sh_push_const_app.
-    by rewrite -llh_push_const_app.
-  }
-Qed.
-  
-Lemma wp_val_app (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs v' (es : language.expr wasm_lang) :
-  iris.to_val vs = Some (immV v') ->
-  (□ (¬ Φ trapV )) ∗
-  WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV v') v)) }}%I
-  ⊢ WP (vs ++ es) @ s ; E {{ v, Φ v }}%I.
-Proof.
-  iIntros "%Hves [#Hntrap Hwp]".
-  apply iris.of_to_val in Hves; subst.
-  iApply wp_val_app'.
-  by iFrame.
-Qed.
-
 
 (* Trying to resolve the problem by naively not allowing any consumption of ↪ in
    the WP premises.
