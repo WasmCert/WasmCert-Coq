@@ -558,9 +558,12 @@ Definition module_inst_mem_base_func := (fun '{| lim_min := min; lim_max := omax
                (repeat #00%byte (ssrnat.nat_of_bin min))
                )
              (omax))).
+
+(* The first step of building the correct memories: creating a list of empty memories of the correct sizes. *)
 Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
   fmap module_inst_mem_base_func mmemtypes.
 
+(* A function preparing for the contents of memory to be replaced by initialisers. *)
 Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) : memory :=
   Build_memory
     (Build_memory_list
@@ -569,7 +572,14 @@ Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) :
     mem.(mem_max_opt).
 
 
-
+(* For each module data segment:
+   - Finds the correct memory targeted; we only deal with the case where the 
+     memory to be initialised is newly allocated (not imported) here.
+   - In that case, simply replace the memory by a new memory with the contents
+     replaced by the corresponding initialisers.
+   - Return the list of memories obtained: this corresponds to the correct
+     contents of all the memories freshly declared in the module.
+*)
 Definition module_inst_build_mems (m : module) (inst: instance) : list memory :=
   fold_left (fun mems '{| moddata_data := md; moddata_offset := moff; moddata_init := md_init |} =>
                let imc := get_import_mem_count m in 
@@ -584,6 +594,20 @@ Definition module_inst_build_mems (m : module) (inst: instance) : list memory :=
                end
                  ) m.(mod_data) (module_inst_mem_base m.(mod_mems)).
 
+(*
+   For each module data segment:
+   - Finds the correct memory targeted. In this function we deal with the 
+     remaining ones, i.e. those targeted at imported memories.
+   - We have to locate the memory in the Wasm store by looking up in the instance
+     to find the correct index.
+   - After that, we recall from wms the correct content of the imported memory.
+     This must exists since wms records all of the memories that we have 
+     access to.
+   - Modify that memory in wms by a new memory with the contents replaced by 
+     the corresponding initialisers.
+   - Return wms: this is the new gmap recording the correct contents of the
+     imported memories.
+*)
 Definition module_import_init_mems (m: module) (inst: instance) (wms: gmap N memory) : gmap N memory :=
   fold_left (fun wms '{| moddata_data := md; moddata_offset := moff; moddata_init := md_init |} =>
                let imc := get_import_mem_count m in 
@@ -671,7 +695,7 @@ Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: l
 
 Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (idfstart: option nat) (inst: instance) : iProp Σ :=
   ∃ (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',  
-  import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks *)
+  import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks; this described the new contents of tables and memories that have been modified by the initialisers *)
     ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)
   let v_imp_descs := map (fun mexp => mexp.(modexp_desc)) v_imps in
@@ -1325,46 +1349,276 @@ Proof.
   by iFrame.
 Qed.
 
+Lemma insert_at_insert {T: Type} v n (l: list T):
+  n < length l ->
+  insert_at v n l = <[ n := v ]> l.
+Proof.
+  move : v n.
+  induction l; intros; simpl in H; destruct n => /=; try by inversion H.
+  - specialize (IHl v n).
+    unfold insert_at.
+    simpl.
+    f_equal.
+    rewrite <- IHl; last by lias.
+    by unfold insert_at.
+Qed.
+
+Definition update_tab tabs n off td' : option (list tableinst) :=
+  match tabs !! n with
+  | Some tab =>
+    if off + length td' <=? length tab.(table_data) then
+      Some (<[ n := {| table_data := take off tab.(table_data) ++ td' ++ drop (off + length td') tab.(table_data); table_max_opt := tab.(table_max_opt) |} ]> tabs)
+    else None
+  | None => None
+  end.
+
+Lemma update_nil_id tabs n off tabs':
+  update_tab tabs n off [] = Some tabs' ->
+  tabs = tabs'.
+Proof.
+  unfold update_tab.
+  destruct (_ !! _) eqn: Htab => //.
+  destruct (_ <=? _) => //.
+  move => H.
+  inversion H; subst; clear H.
+  rewrite Nat.add_0_r.
+  rewrite cat_app.
+  rewrite -> (take_drop off (table_data t)).
+  rewrite list_insert_id => //.
+  rewrite Htab.
+  by destruct t.
+Qed.
+
+(* Nothing interesting, mainly numerical and string massages *)
+Lemma update_tab_shift tabs tabs' n off t td':
+  update_tab tabs n off (t :: td') = Some tabs' ->
+  exists tabs0, update_tab tabs n off [t] = Some tabs0 /\
+           update_tab tabs0 n (off+1) td' = Some tabs'.
+Proof.
+  unfold update_tab.
+  destruct (tabs !! n) eqn: Htab => //=.
+  destruct (_ <=? _) eqn: Hle => //=.
+  move => H.
+  inversion H; subst; clear H.
+  rewrite -> PeanoNat.Nat.leb_le in Hle.
+  eexists. split.
+  - assert (off+1 <=? length (table_data t0)) as Hle2.
+    { apply PeanoNat.Nat.leb_le.
+      by lias. }
+    by rewrite Hle2. 
+  - rewrite list_lookup_insert => /=; last by eapply lookup_lt_Some.
+    rewrite app_length take_length => /=; rewrite drop_length.
+    assert (off + 1 + length td' <=? off `min` length (table_data t0) + S (length (table_data t0) - (off+1))) as Hle2.
+    {
+      apply PeanoNat.Nat.leb_le.
+      by lias.
+    }
+    rewrite Hle2.
+    f_equal.
+    rewrite list_insert_insert.
+    do 2 f_equal.
+    replace (take off (table_data t0) ++ _ :: drop (off + 1) (table_data t0)) with (((take off (table_data t0)) ++ [t]) ++ drop (off+1) (table_data t0)); last first.
+    {
+      rewrite <- app_assoc.
+      by f_equal.
+    }
+    rewrite take_app_alt; last first.
+    { rewrite app_length take_length => /=.
+      by lias.
+    }
+    rewrite <- app_assoc => /=.
+    do 3 f_equal.
+    Search drop "+".
+    rewrite <- drop_drop.
+    rewrite drop_app_alt; last first.
+    { rewrite app_length take_length => /=.
+      by lias.
+    }
+    rewrite drop_drop.
+    f_equal.
+    by lias.
+Qed.
+    
+(* Auxiliary lemma for handling update of table segments at arbitrary offsets *)
+Lemma tab_block_update_aux off td td' n tabs tabs':
+  length td = length td' ->
+  update_tab tabs n off td' = Some tabs' ->
+  ([∗ list] i↦telem ∈ td, (N.of_nat n)↦[wt][N.of_nat (off + i)] telem)%I -∗
+   gen_heap_interp (gmap_of_table tabs) -∗
+   |==>
+  ([∗ list] i↦telem ∈ td', (N.of_nat )n↦[wt][N.of_nat (off + i)] telem) ∗
+  gen_heap_interp (gmap_of_table tabs').
+Proof.
+  move: tabs tabs' n td' off.
+  iInduction (td) as [|?] "IH"; iIntros (tabs tabs' n td' off Hlen Hupdate) "Htm Ht"; destruct td' => //=.
+  { apply update_nil_id in Hupdate; subst.
+    by iFrame. }
+  simpl in Hlen.
+  iDestruct "Htm" as "(Htm0 & Htm)".
+  iDestruct (gen_heap_valid with "Ht Htm0") as "%H".
+  iMod (gen_heap_update with "Ht Htm0") as "(Ht & Htm0)".
+  iFrame.
+  
+  assert (length td = length td') as Hlen'; first by lias.
+  clear Hlen.
+  apply update_tab_shift in Hupdate.
+  destruct Hupdate as [tabs0 [Hupd1 Hupd2]].
+  iSpecialize ("IH" $! _ tabs' n td' (off+1) Hlen' Hupd2 with "[Htm] [Ht]").
+  { iApply (big_sepL_mono with "Htm").
+    iIntros (???) "?".
+    by replace (off + S k) with (off + 1 + k); last by lias.
+  }
+  { unfold gmap_of_table in H.
+    rewrite gmap_of_list_2d_lookup in H.
+    simplify_lookup.
+    rewrite list_lookup_fmap in Heq.
+    destruct (tabs !! n) eqn: Htablookup => //=.
+    simpl in Heq.
+    inversion Heq; subst; clear Heq.
+    erewrite (gmap_of_table_insert); rewrite Nat2N.id => //=.
+    - unfold update_tab in Hupd1.
+      rewrite Htablookup in Hupd1.
+      simpl in Hupd1.
+      destruct (off+1 <=? length (table_data t)) eqn:Hlen => //.
+      simpl in Hupd1.
+      inversion Hupd1; subst; clear Hupd1.
+      replace (off+1) with (S off); last by lias.
+      rewrite <- (insert_take_drop (table_data t)).
+      + rewrite Nat2N.id.
+        by rewrite Nat.add_0_r.
+      + rewrite -> PeanoNat.Nat.leb_le in Hlen.
+        by lias.
+    - unfold table_to_list in H.
+      by eapply lookup_lt_Some.
+  }
+  iMod "IH" as "(Htm & Ht)".
+  iFrame.
+  iApply (big_sepL_mono with "Htm").
+  iIntros (???) "?".
+  by replace (off + S k) with (off + 1 + k); last by lias.
+Qed.
+  
+Lemma tab_block_update tab tab' n ws ws':
+  tab_size tab = tab_size tab' ->
+  table_max_opt tab = table_max_opt tab' -> 
+  ws'.(s_tables) = <[ n := tab' ]> ws.(s_tables) ->
+  (N.of_nat n) ↦[wtblock] tab -∗
+  gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
+  gen_heap_interp (gmap_of_list (tab_size <$> ws.(s_tables))) -∗
+  gen_heap_interp (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
+  |==>
+  (N.of_nat n) ↦[wtblock] tab' ∗
+  gen_heap_interp (gmap_of_table ws'.(s_tables)) ∗
+  gen_heap_interp (gmap_of_list (tab_size <$> ws'.(s_tables))) ∗
+  gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))).
+Proof.
+  move => Htabsize Htablim Hws'.
+  iIntros "Htmapsto Ht Htsize Htlim".
+  iDestruct (tab_block_lookup with "Ht Htsize Htlim Htmapsto") as "%Htab".
+  rewrite Nat2N.id in Htab.
+  destruct tab => /=.
+  destruct tab' => /=.
+  simpl in *; subst.
+  unfold tab_block.
+  iDestruct "Htmapsto" as "(Htm & Htsizem & Htlimm)".
+  replace (tab_size <$> s_tables ws') with (tab_size <$> s_tables ws); last first.
+  {
+    rewrite Hws' => /=.
+    rewrite list_fmap_insert => /=.
+    rewrite list_insert_id => //.
+    rewrite list_lookup_fmap.
+    rewrite Htab.
+    by rewrite <- Htabsize.
+  }
+  replace (datatypes.table_max_opt <$> s_tables ws') with (datatypes.table_max_opt <$> s_tables ws); last first.
+  {
+    rewrite Hws' => /=.
+    rewrite list_fmap_insert => /=.   
+    rewrite list_insert_id => //.
+    rewrite list_lookup_fmap.
+    by rewrite Htab.    
+  }
+  rewrite Hws'; simpl in *.
+  rewrite Htabsize.
+  iFrame.
+
+  unfold tab_size in *.
+  simpl in Htabsize.
+  (* Now, update the contents *)
+  destruct ws, ws' => /=.
+  simpl in *.
+  clear s_funcs s_mems s_globals s_funcs0 s_mems0 s_globals0.
+
+  iDestruct (tab_block_update_aux with "[Htm] [Ht]") as "H" => //.
+  2: { by instantiate (1 := 0). }
+  2: { by iFrame. }
+  unfold update_tab.
+  rewrite Htab => /=.
+  rewrite Htabsize => /=.
+  rewrite PeanoNat.Nat.leb_refl.
+  repeat f_equal.
+  rewrite <- Htabsize.
+  rewrite drop_all.
+  by rewrite cats0.
+Qed.
+
+Lemma init_tab_state_update ws ws' inst e_ind e t_ind tab e_pay:
+  init_tab ws inst e_ind e = ws' ->
+  t_ind = nth match modelem_table e with | Mk_tableidx i => i end (inst_tab inst) 0 ->
+  e_pay = map (fun i => nth_error (inst_funcs inst) match i with
+                                                | Mk_funcidx j => j end
+              ) (e.(modelem_init)) ->
+  e_ind + length e.(modelem_init) <= length (tab.(table_data)) ->
+  (N.of_nat t_ind) ↦[wtblock] tab -∗
+  gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
+  gen_heap_interp (gmap_of_list (tab_size <$> ws.(s_tables))) -∗
+  gen_heap_interp (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
+  |==>
+  (N.of_nat t_ind) ↦[wtblock] {| table_data := take e_ind tab.(table_data) ++ e_pay ++ drop (ssrnat.addn e_ind (length e_pay)) tab.(table_data); table_max_opt := tab.(table_max_opt) |} ∗
+  gen_heap_interp (gmap_of_table ws'.(s_tables)) ∗
+  gen_heap_interp (gmap_of_list (tab_size <$> ws'.(s_tables))) ∗
+  gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))).
+Proof.
+  move => Hinittab Htind Hepay Heboundcheck.
+  unfold init_tab in Hinittab.
+  iIntros "Htmapsto Ht Htsize Htlim".
+  iDestruct (tab_block_lookup with "Ht Htsize Htlim Htmapsto") as "%Htab".
+  rewrite Nat2N.id in Htab.
+  rewrite <- Htind in Hinittab.
+  rewrite <- Hepay in Hinittab.
+  assert (nth t_ind (s_tables ws) dummy_table = tab) as Htablookup.
+  {
+    apply nth_error_nth.
+    by rewrite nth_error_lookup.
+  }
+  rewrite Htablookup in Hinittab.
+  (* Only the table content needs to get a state update. However, we have to 
+     prove that the other state interps stay the same. *)
+  destruct tab => /=.
+  iApply (tab_block_update with "[$] [$] [$] [$]") => //.
+  {
+    unfold tab_size => /=.
+    repeat rewrite app_length.
+    rewrite take_length drop_length.
+    rewrite Hepay.
+    rewrite map_length.
+    simpl in Heboundcheck.
+    by lias.
+  }
+  {
+    rewrite <- Hinittab => /=.
+    by rewrite insert_at_insert; last by eapply lookup_lt_Some.
+  }
+Qed.
+
+
+
+
+
+
+
 Lemma init_tabs_state_update ws ws' inst e_inits m v_imps t_imps wfs wts wms wgs:
   let wts' := module_import_init_tabs m inst wts in
-(*
-  let inst := {|
-    inst_types := mod_types m;
-    inst_funcs :=
-      ext_func_addrs (modexp_desc <$> v_imps) ++
-      gen_index (length s_funcs0) (length (mod_funcs m));
-    inst_tab :=
-      ext_tab_addrs (modexp_desc <$> v_imps) ++
-      gen_index (length s_tables0) (length (mod_tables m));
-    inst_memory :=
-      ext_mem_addrs (modexp_desc <$> v_imps) ++
-      gen_index (length s_mems0) (length (mod_mems m));
-    inst_globs :=
-      ext_glob_addrs (modexp_desc <$> v_imps) ++
-      gen_index (length s_globals0) (length (mod_globals m))
-  |} in
-  let ws := {| s_funcs := s_funcs0 ++ (gen_func_instance^~ inst_res <$> mod_funcs m);
-               s_tables := s_tables0 ++ ((λ '{| tt_limits := {| lim_min := min; lim_max := maxo |} |},
-      {|
-        table_data := repeat None (ssrnat.nat_of_bin min);
-        table_max_opt := maxo
-      |}) <$> map modtab_type (mod_tables m));
-              s_mems := s_mems0 ++ ((λ '{| lim_min := min; lim_max := maxo |},
-      {|
-        mem_data :=
-          mem_make #00%byte
-            match min with
-            | 0%N => 0%N
-            | N.pos q => N.pos (64 * 1024 * q)
-            end;
-        mem_max_opt := maxo
-      |}) <$> mod_mems m);
-              s_globals := s_globals0 ++ ((λ '({| modglob_type := gt |}, v), {| g_mut := tg_mut gt; g_val := v |}) <$>
-   combine (mod_globals m) g_inits) |} in
- ⌜ modelem_offset <$> mod_elem m =
-  (λ v : Wasm_int.Int32.T, [BI_const (VAL_int32 v)]) <$> e_inits ⌝ -∗
-
-*)
   ⌜init_tabs ws inst e_inits m.(mod_elem) = ws'⌝ -∗
   (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
   gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
@@ -1397,6 +1651,39 @@ Proof.
     iFrame.
 Admitted.
 
+(*
+Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs:
+  let wms' := module_import_init_mems m inst wms in
+  (* initialisers implementation in basic Wasm *)
+  ⌜init_mems ws inst d_inits m.(mod_data) = ws'⌝ -∗
+  (* resources and contents for the imported states *)
+  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
+  (* heap interpretations for memory-related states *)
+  gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
+  gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
+  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
+  (* memory mapstos *)
+  ([∗ list] i↦v ∈ ((λ '{| lim_min := min; lim_max := maxo |},
+                   {|
+                     mem_data :=
+                       mem_make #00%byte
+                                match min with
+                                | 0%N => 0%N
+                                | N.pos q => N.pos (64 * 1024 * q)
+                                end;
+                     mem_max_opt := maxo
+                   |}) <$> mod_mems m),
+   N.of_nat (length ws.(s_mems) + i - length (m.(mod_mems)))↦[wmblock]v) -∗
+  |==>
+  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms' wgs ∗
+  gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
+  gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
+  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
+  module_inst_resources_mem (module_inst_build_mems m inst) (drop (get_import_mem_count m) inst.(inst_memory))))%I.
+Proof.
+Admitted.
+*)
+
 Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs:
   let wms' := module_import_init_mems m inst wms in
   ⌜init_mems ws inst d_inits m.(mod_data) = ws'⌝ -∗
@@ -1414,7 +1701,7 @@ Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs
                                 end;
                      mem_max_opt := maxo
                    |}) <$> mod_mems m),
-   N.of_nat (length ws.(s_mems) - length (m.(mod_mems)) + i)↦[wmblock]v) -∗
+   N.of_nat (length ws.(s_mems) + i - length (m.(mod_mems)))↦[wmblock]v) -∗
   |==>
   (import_resources_wasm_typecheck v_imps t_imps wfs wts wms' wgs ∗
   gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
@@ -1422,6 +1709,61 @@ Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs
   gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
   module_inst_resources_mem (module_inst_build_mems m inst) (drop (get_import_mem_count m) inst.(inst_memory))))%I.
 Proof.
+  assert (length (inst_memory inst) = length m.(mod_mems) + get_import_mem_count m) as Hinstmemlen; first admit.
+  destruct m => /=.
+  move: Hinstmemlen.
+  move: ws ws' inst d_inits mod_types mod_funcs mod_tables mod_mems mod_globals mod_elem mod_start mod_imports mod_exports v_imps t_imps wfs wts wms wgs.
+  induction mod_data; intros.
+  - unfold init_mems.
+    rewrite combine_nil => /=.
+    iIntros "%Heq"; subst.
+    iIntros "Hwasm Hwm Hwmlength Hwmlim Hwmmapsto".
+    iFrame.
+    iModIntro.
+    unfold module_inst_resources_mem.
+    unfold module_inst_build_mems => /=.
+    unfold module_inst_mem_base.
+    unfold module_inst_mem_base_func => /=.
+    unfold get_import_mem_count in * => /=.
+    
+    simpl in Hinstmemlen.
+    iRevert (Hinstmemlen).
+    iRevert (mod_imports).
+    iRevert (inst).
+    iRevert "Hwmmapsto".
+
+    iInduction (mod_mems) as [|?] "IH" => //=.
+    + iIntros (_ inst mod_imports Hinstmemlen).
+      simpl in Hinstmemlen.
+      rewrite <- Hinstmemlen.
+      by rewrite drop_all.
+    + iIntros "Hwmmapsto".
+      iIntros (inst mod_imports Hinstmemlen).
+      simpl in *.
+      destruct inst => /=.
+      destruct inst_memory => //.
+      iDestruct "Hwmmapsto" as "(Hm & Hwmmapsto)".
+      remember (drop _ _) as mindex.
+      assert (length mindex > 0) as Hmindexlen.
+      { rewrite Heqmindex.
+        rewrite drop_length.
+        rewrite Hinstmemlen.
+        by lias.
+      }
+      destruct mindex => /=.
+      { exfalso.
+        simpl in Hmindexlen.
+        by inversion Hmindexlen.
+      }
+      iSplitL "Hm".
+      { admit.
+      }
+      {
+        simpl.
+        assert (forall a b c, a+(S b) - (S c) = a+b-c); first by lias.
+        admit.
+      }
+  admit.
 Admitted.
 
 Lemma module_inst_build_tables_nil m inst:
@@ -1682,6 +2024,7 @@ Proof.
   (* init_mems *)
   move/eqP in Hs'.
   symmetry in Hs'.
+  Search inst m.
   iDestruct (init_mems_state_update $! Hs' with "[$] [$] [$] [$] [Hmmapsto]") as "H" => /=.
   {
     replace (length s_mems - length (mod_mems m)) with (length s_mems1) => //.
