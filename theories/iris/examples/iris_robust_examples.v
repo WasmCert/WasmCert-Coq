@@ -45,13 +45,13 @@ Section Examples.
 
 
   Context `{!wasmG Σ,
-        !logrel_na_invs Σ, HWP:host_program_logic}.
+        !logrel_na_invs Σ}.
 
   Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
   Definition xb b := (VAL_int32 (wasm_bool b)).
 
   Lemma wp_seq_can_trap_same_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f i lh :
-    (¬ (Ψ trapV)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
     (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
     (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }})%I
     ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }}.
@@ -60,7 +60,9 @@ Section Examples.
     iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
     { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
     iApply wp_seq_can_trap_ctx.
-    iFrame. iSplitL "Hes1".
+    iFrame. iSplitR.
+    { iIntros (f') "[Hf Heq]". iExists f';iFrame. iExact "Heq". }
+    iSplitL "Hes1".
     { iIntros "Hf". iDestruct ("Hes1" with "Hf") as "Hes1".
       iApply (wp_wand with "Hes1").
       iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
@@ -71,7 +73,7 @@ Section Examples.
   Qed.
 
   Lemma wp_seq_can_trap_same_empty_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f :
-    (¬ (Ψ trapV)) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
     (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
     (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }})%I
     ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
@@ -113,7 +115,7 @@ Section Examples.
     ⊢ {{{ ↪[frame] f
          ∗ na_own logrel_nais ⊤
          ∗ na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] (FC_func_native i (Tf [] []) locs es))
-         ∗ interp_instance (* HWP:=HWP *) C i
+         ∗ interp_instance C [] i
          ∗ (∃ gv, N.of_nat k ↦[wg] {| g_mut := MUT_mut; g_val := gv |})
          ∗ ∃ c, (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) }}}
       lse j g
@@ -209,7 +211,7 @@ Section Examples_host.
 
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ,
-        !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ}.
+        !logrel_na_invs Σ}.
 
 
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
@@ -406,17 +408,7 @@ Section Examples_host.
             by rewrite Hgrettyp.
           
         }
-(*        { iSplitR "Hgret".
-          iPureIntro. unfold module_elem_bound_check_gmap => //=.
-          iPureIntro. unfold module_data_bound_check_gmap => //=.
-          { iExists _. iFrame. repeat iSplit;auto.
-            iPureIntro. apply lookup_singleton. }
-          { iSplit =>//. iExists _,_. rewrite N2Nat.id. iFrame. repeat iSplit;auto.
-            iPureIntro. apply lookup_singleton.
-            iPureIntro. cbn. rewrite Hgrettyp. done. } 
-        } *)
         { iSplit;auto.
-(*          iSplit. *)
           { rewrite /module_elem_bound_check_gmap /=.
             iPureIntro. by apply Forall_nil. }
           { rewrite /module_data_bound_check_gmap /=.
@@ -445,7 +437,7 @@ Section Examples_host.
         rewrite N2Nat.id lookup_singleton in Hlookg. inversion Hgteq;inversion Hlookg. rewrite N2Nat.id.
         
         iApply weakestpre.fupd_wp.
-        iMod (interp_instance_alloc with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [#Hires _]]";
+        iMod (interp_instance_alloc [] with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] _]]";
           [apply Htyp|repeat split;eauto|eauto|..].
         3,4,5: by instantiate (1:=∅).
         { rewrite Heqadvm /=. auto. }
@@ -462,45 +454,13 @@ Section Examples_host.
                   /get_import_func_count /= !drop_0 -H.
           iFrame. 
         }
-
+        
         rewrite !app_nil_l.
         iDestruct (big_sepL2_lookup with "Hires") as "Ha".
         { rewrite Heqadvm /=. eauto. }
         { rewrite Heqadvm /= /get_import_func_count /= drop_0 /= -nth_error_lookup. eauto. }
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
         iApply wp_lift_wasm.
-(*        iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
-        iIntros "!>" (v).
-        instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) ∗
-   ↪[frame]empty_frame)%I) => //=. 
-        iIntros "H".
-        iDestruct "H" as "[[% | H2] H3]" ; iFrame.
-        iLeft ; iPureIntro.
-        by destruct v => //=. 
-        by apply HWEV_invoke. *)
-
-        (* iDestruct "H" as (inst g_inits t_inits m_inits Hinst (Ht_inits & Hm_inits & (Heqg & Hg_inits))) "[Hlse _]". *)
-        (* destruct g_inits;[|done]. *)
-        (* cbn in Hinst. destruct Hinst as (Hinst_typ & Hinst_f & _ & _ & Hinst_g & Hstart). *)
-        (* destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|]. *)
-        (* destruct l;[done|]. simpl in Hstart. revert Hstart. move/eqP =>Hstart. subst f0. *)
-        (* destruct (inst_globs inst) eqn:Hinstglobseq;[by inversion Hinst_g|]. *)
-        (* simpl in Hinst_f, Hinst_g. *)
-        (* apply prefix_cons_inv_1 in Hinst_f as Heq. *)
-        (* apply prefix_cons_inv_1 in Hinst_g as Heq'. subst f g0. *)
-        
-        (* iDestruct "Hlse" as "[Hlsef [_ [Hlsem _]]]". iClear "Hmod_lse". *)
-        
-        (* rewrite /lse_module /get_import_func_count /get_import_mem_count /get_import_global_count !drop_0. *)
-        (* iSimpl in "Hlsef Hlsem". *)
-        (* rewrite Hinstfuncseq. iSimpl in "Hlsef". *)
-        (* iDestruct "Hlsef" as "[Hidnstart _]". *)
-        (* rewrite Hinst_typ. iSimpl in "Hidnstart". *)
-        (* clear Hdom. *)
-        (* iDestruct (big_sepL2_length with "Hlsem") as %Hinstmem_len. *)
-        (* simpl in Hinstmem_len. *)
-        (* destruct (inst_memory inst) eqn:Hinstmemeq;[done|]. *)
-        (* iDestruct "Hlsem" as "[Hm _]". *)
         
         take_drop_app_rewrite 0.
         destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|]. destruct l;[done|].
@@ -510,7 +470,9 @@ Section Examples_host.
         iSplitL.
         iApply (wp_invoke_native with "Hf Hr");[eauto|eauto..|].
         iModIntro. iNext. iIntros "[Hf Hidnstart]".
-        iApply (wp_frame_bind with "Hf"). iIntros "Hf".
+        iApply (wp_frame_bind with "Hf").
+        { by cbn. } 
+        iIntros "Hf".
         take_drop_app_rewrite 0. iApply (wp_block with "Hf");[auto..|].
         iNext. iIntros "Hf".
         iApply wp_wasm_empty_ctx.
@@ -543,7 +505,7 @@ Section Examples_host.
 
         rewrite N2Nat.id. simpl of_val.
 
-        iApply (wp_wand_ctx _ _ _ (λ v, ⌜v = immV []⌝ ∗ _)%I with "[Hf]").
+        iApply (wp_wand_ctx _ _ _ (λ v, ⌜v = immV []⌝ ∗ ↪[frame] _)%I with "[Hf]").
         { iApply (wp_val_return with "Hf");auto.
           iIntros "Hf". iApply wp_value;eauto. done. }
         iIntros (v) "[-> Hf]".
@@ -566,7 +528,6 @@ Section Examples_host.
         iFrame.
       }
     }
-
   Qed.
   
 

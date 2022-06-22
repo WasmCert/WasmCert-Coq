@@ -19,28 +19,28 @@ Close Scope byte_scope.
 Section InterpInstance.
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
-        !logrel_na_invs Σ, HWP:host_program_logic}.
+        !logrel_na_invs Σ}.
 
-  Definition interp_closure_pre τctx (fimps : gmap N function_closure) (i : instance) (n : N) (τf : function_type) :=
+  Definition interp_closure_pre τctx (fimps : gmap N function_closure) (i : instance) hl (n : N) (τf : function_type) :=
     λne (cl : leibnizO function_closure),
          match cl with
          | FC_func_native j τ' t_locs b_es =>
              match fimps !! n with
-             | Some cl' => (⌜cl' = cl⌝ ∗ interp_closure (* HWP:=HWP *) τf cl)%I
+             | Some cl' => (⌜cl' = cl⌝ ∗ interp_closure hl τf cl)%I
              | None => (⌜i = j ∧ τf = τ' ∧
                          let 'Tf tn tm := τf in
                          be_typing (upd_local_label_return τctx (tn ++ t_locs) [tm] (Some tm)) b_es (Tf [] tm)⌝)%I
              end
-         | _ => interp_closure (* HWP:=HWP *) τf cl
+         | _ => interp_closure hl τf cl
          end.
-  Global Instance interp_closure_pre_persistent τctx fimps n i τf cl : Persistent (interp_closure_pre τctx fimps i n τf cl).
+  Global Instance interp_closure_pre_persistent τctx fimps n i τf cl hl : Persistent (interp_closure_pre τctx fimps i n τf hl cl).
   Proof. destruct cl,f;try apply _. Qed.
-  Global Instance interp_closure_persistent τf cl : Persistent (interp_closure (* HWP:=HWP *) τf cl).
+  Global Instance interp_closure_persistent τf cl hl : Persistent (interp_closure hl τf cl).
   Proof. destruct cl,f;try apply _. Qed.
   
-  Definition interp_instance_pre (τctx : t_context) (fimps : gmap N function_closure) :=
-    λne (i : leibnizO instance), interp_instance' τctx (interp_closure_pre τctx fimps i) (interp_closure_pre τctx fimps i) i.
-  Global Instance interp_instance_pre_persistent τctx fimps i : Persistent (interp_instance_pre τctx fimps i).
+  Definition interp_instance_pre (τctx : t_context) (fimps : gmap N function_closure) hl :=
+    λne (i : leibnizO instance), interp_instance' τctx (interp_closure_pre τctx fimps i hl) (interp_closure_pre τctx fimps i hl) i.
+  Global Instance interp_instance_pre_persistent τctx fimps i hl : Persistent (interp_instance_pre τctx fimps i hl).
   Proof. apply interp_instance_persistent';intros; destruct cl,f; apply _.  Qed.
 
   Lemma n_zeros_length l :
@@ -67,11 +67,11 @@ Section InterpInstance.
     rewrite take_length. lia.
   Qed.
 
-  Lemma interp_closure_pre_ind C i ft cl fimps n :
+  Lemma interp_closure_pre_ind C i ft cl fimps n (hl : seq.seq (hostfuncidx * function_type)) :
     tc_label C = [] ∧ tc_return C = None ->
-    (□ ▷ interp_instance (*HWP:=HWP*) C i) -∗
-    interp_closure_pre C fimps i n ft cl -∗
-    interp_closure (*HWP:=HWP*) ft cl.
+    (□ ▷ interp_instance C hl i) -∗
+    interp_closure_pre C fimps i hl n ft cl -∗
+    interp_closure hl ft cl.
   Proof.
     iIntros (Hnil) "#IH #Hcl".
     destruct cl.
@@ -84,9 +84,9 @@ Section InterpInstance.
         iDestruct "Htyp" as "%Htyp".
         iModIntro.
         iNext.
-        iIntros (vcs) "Hv Hown". iIntros (f1) "Hf".
+        iIntros (vcs f) "Hv Hown Hf".
         iDestruct "Hv" as "[%Hcontr|Hv]";[done|iDestruct "Hv" as (v' Heqv) "#Hv"].
-        iDestruct (be_fundamental_local with "IH") as "HH";eauto. inversion Heqv.
+        iDestruct (be_fundamental_local_stuck_host with "IH") as "HH";eauto. inversion Heqv.
         
         iDestruct ("HH" $! _ (v' ++ n_zeros l) with "[$] [$] []") as "Hcont".
         { iRight. iExists _. iSplit;[eauto|]. iApply big_sepL2_app;iFrame "#".
@@ -95,21 +95,23 @@ Section InterpInstance.
         iIntros (LI Hfill%lfilled_Ind_Equivalent).
         inversion Hfill;inversion H9;simplify_eq.
         repeat erewrite app_nil_l, app_nil_r.
-        iFrame. }
+        unfold interp_expression_closure_stuck_host.
+        iApply (wp_wand with "Hcont"). iIntros (v) "[[$ $] $]".
+      }
     }
     { simpl. auto. }
   Qed.
     
   
-  Lemma interp_instance_pre_create τctx i fimps :
+  Lemma interp_instance_pre_create τctx i fimps hl :
     (tc_label τctx) = [] ∧ (tc_return τctx) = None ->
-    interp_instance_pre τctx fimps i -∗
-    interp_instance (*HWP:=HWP*) τctx i.
+    interp_instance_pre τctx fimps hl i -∗
+    interp_instance τctx hl i.
   Proof.
     iIntros (Hnil) "#Hpre".
     iLöb as "IH".
-    set (IH := (▷ interp_instance τctx i)%I).
-    destruct τctx, i.
+    set (IH := (▷ interp_instance τctx hl i)%I).
+    destruct τctx, i. 
     iDestruct "Hpre" as "[Htypes [Hfunc [Htable [Hmem Hglob]]]]".
     iFrame "#". iSplit.
     { iDestruct (big_sepL2_length with "Hfunc") as %Hlen.
@@ -1818,9 +1820,26 @@ Section InterpInstance.
     apply elem_of_dom_2 in Hlook. rewrite dom_insert_L.
     rewrite Hdom. rewrite - subseteq_union_L. rewrite -Hdom. set_solver.
   Qed.
+
+  Definition map_host_func (v : function_closure) :=
+    match v with
+    | FC_func_host tf h => Some (tf,h)
+    | _ => None
+    end.
+  Definition filter_Some (a : option (function_type * hostfuncidx)) :=
+    match a with | None => False | Some _ => True end.
+
+  Global Instance filter_Some_dec x : Decision (filter_Some x).
+  Proof. destruct x;[left|right];eauto.  simpl. done. Qed.
   
+  Definition host_funcs (wfs : gmap N function_closure) :=
+    filter (filter_Some) (map map_host_func (map_to_list wfs).*2).
+
+  (* Since host functions can only be imported, the host function is already accounted for
+     and determined by the validity of imports. Thus, the hl list that the imports are valid against 
+     are sufficient to determine the validity of the instance *)
   
-  Lemma interp_instance_alloc E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
+  Lemma interp_instance_alloc hl E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
     let C := {|
               tc_types_t := (mod_types m);
               tc_func_t := ((ext_t_funcs t_imps) ++ fts)%list;
@@ -1847,15 +1866,17 @@ Section InterpInstance.
     (* module_init_values m inst tab_inits mem_inits glob_inits -> *)
     typeof <$> g_inits = tg_t ∘ modglob_type <$> mod_globals m ->
     
-    ([∗ map] _↦cl ∈ wfs, interp_closure (*HWP:=HWP*) (cl_type cl) cl)%I -∗ (* we must assume that the imported closures are valid *)
-    ([∗ map] n↦t ∈ wts, interp_table (tab_size t) (interp_closure_pre C wfs inst) n) -∗ (* that imported tables are valid, note that the table might be reinitialized by current module *)
+    ([∗ map] _↦cl ∈ wfs, interp_closure hl (cl_type cl) cl)%I -∗ (* we must assume that the imported closures are valid *)
+    ([∗ map] n↦t ∈ wts, interp_table (tab_size t) (interp_closure_pre C wfs inst hl) n) -∗ (* that imported tables are valid, note that the table might be reinitialized by current module *)
     ([∗ map] n↦m ∈ wms, interp_mem n) -∗ (* that imported memories are valid *)
     
                                                                    
     import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs -∗
     module_inst_resources_wasm m inst tab_inits mem_inits glob_inits
-    ={E}=∗ interp_instance (*HWP:=HWP*) C inst ∗
-           module_inst_resources_wasm_invs m inst gts tab_inits mem_inits glob_inits (* it is useful to remember the exact values for each allocated invariant *).
+    ={E}=∗ interp_instance C hl inst ∗
+        module_inst_resources_wasm_invs m inst gts tab_inits mem_inits glob_inits ∗
+        import_resources_wasm_typecheck_invs v_imps t_imps wfs wts' wms' wgs
+  (* it is useful to remember the exact values for each allocated invariant *).
   Proof.
     iIntros (C tab_inits wts' mem_inits wms' glob_inits Hmod Himps_of_inst Hinit_vals) "#Himps_val #Htabs_val #Hmems_val Hir Hmr".
     subst C.

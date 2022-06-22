@@ -2324,10 +2324,10 @@ Proof.
   iPureIntro => //=.
   iIntros (w) "(H & Hf & ?)".
   iDestruct "H" as (v1) "[-> Hv1]".
-  instantiate (1 := λ x, (∃ v1, ⌜ x = immV _ ⌝ ∗ stackAll ys Φ ∗ Ψ y v1 ∗
+  instantiate (1 := λ x, ((∃ v1, ⌜ x = immV _ ⌝ ∗ stackAll ys Φ ∗ Ψ y v1 ∗
                          N.of_nat j0↦[wt][N.of_nat (Z.to_nat (Wasm_int.Int32.unsigned f))]
                          Some a ∗
-                         N.of_nat a↦[wf]cl )%I) ;
+                         N.of_nat a↦[wf]cl)∗ ↪[frame] _)%I) ;
     iFrame.
   iExists  _; by iFrame.
   iIntros (w) "[H Hf]".

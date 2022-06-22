@@ -413,11 +413,11 @@ Section fundamental.
       iSimpl.
       iApply iRewrite_nil_r_ctx.
       iApply (wp_seq_can_trap_ctx _ _ _
-                (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w))))%I.
+                (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w) (* ∗ ∃ f, ↪[frame] f ∗ Φf f *))))%I.
       iFrame. iSplitR.
       { iIntros "Hcontr".
         iDestruct "Hcontr" as "[%Hcontr _]". done. }
-      iSplit;[auto|].
+      iSplitR;[auto|].
       iSplitL "Hfv".
       { iIntros "Hf".
         iApply (wp_wand _ _ _ (λ w, ((⌜w = trapV⌝ ∨ ⌜w = immV v⌝ ∗ ([∗ list] w0;τ ∈ v;tm, interp_value τ w0)) ∗ ↪[frame] f) ∗ Φf f )%I with "[Hf Hfv]").
@@ -1250,7 +1250,7 @@ Section fundamental.
     
     
     iDestruct (fixpoint_interp_call_host_eq with "Hch") as "Hch".
-    iDestruct "Hch" as (? ? ? ? ? ? Heqw Htf Hin) "[#Hv #Hch]".
+    iDestruct "Hch" as (? ? ? ? ? ? Heqw Htf Hin ?) "[#Hv #Hch]".
     rewrite Heqw.
 
     assert (LH_rec [] (length tm) [] (LH_base [] []) [] =
@@ -1265,14 +1265,14 @@ Section fundamental.
     iSplitR "Hf Hfv";[|iExists _;iFrame;iExists _;eauto].
     iRight. iRight. iRight. clear Hval. iRevert "Hv Hch".
     iLöb as "IH"
-  forall (tf h v w vh τs1 τs2 Heqw Htf Hin);iIntros "#Hv #Hch".
+  forall (tf h v w vh τs1 τs2 Heqw Htf Hin H);iIntros "#Hv #Hch".
     match goal with
     | |- context [ (▷ ?IH0)%I ] =>
         set (IH:=IH0)
     end.
 
     iApply fixpoint_interp_call_host_eq.
-    iExists _,_,_,_,_,_. do 4 (iSplitR;[eauto|]).
+    iExists _,_,_,_,_,_. do 5 (iSplitR;[eauto|]).
     iModIntro. iIntros (v2 f) "#Hw [Hf Hfv]".
 
     simpl sfill.
@@ -1334,7 +1334,7 @@ Section fundamental.
         { repeat iRight. iNext. iFrame. } Unshelve. apply [].
     }
     { rewrite fixpoint_interp_call_host_eq.
-      iDestruct "Hv'" as (? ? ? ? ? ?) "[>%Heq [>%Htf0 [>%Hin' [#Hv' #Hch']]]]".
+      iDestruct "Hv'" as (? ? ? ? ? ?) "[>%Heq [>%Htf0 [>%Hin' [>%Hvh [#Hv' #Hch']]]]]".
       rewrite -/(wp_wasm_ctx _ _ _ _ _ _). rewrite Heq.
 
       iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
@@ -1347,6 +1347,677 @@ Section fundamental.
       repeat iRight. iNext.
       unfold IH. iApply "IH";auto.
     }    
+  Qed.
+
+  
+  Lemma interp_instance_change_label lbs C i hl :
+    interp_instance C hl i -∗ interp_instance (upd_label C lbs) hl i.
+  Proof. destruct C,i;simpl. auto. Qed.
+
+  Lemma interp_instance_change_return ret C i hl :
+    interp_instance C hl i -∗ interp_instance (upd_return C ret) hl i.
+  Proof. destruct C,i;simpl. auto. Qed.
+
+  Lemma interp_instance_change_local locs C i hl :
+    interp_instance C hl i -∗ interp_instance (upd_local C locs) hl i.
+  Proof. destruct C,i;simpl. auto. Qed.
+
+
+  Lemma to_val_call_host_label_inv n es1 es tf h w vh :
+    iris.to_val [AI_label n es1 es] = Some (callHostV tf h w vh) ->
+    ∃ vh', vh = LL_label [] n es1 vh' [] ∧ es = llfill vh' [AI_call_host tf h w].
+  Proof.
+    intros HH.
+    assert (Hv:=HH).
+    unfold iris.to_val in Hv. simpl in Hv.
+    destruct (merge_values_list (map to_val_instr es)) eqn:Hmerge;try done.
+    destruct v;try done.
+    { destruct i;try done.
+      destruct (vh_decrease lh );try done. }
+    simplify_eq.
+    apply to_val_call_host_rec_label in HH as Heq.
+    destruct Heq as [LI [Heq HLI]]. simpl in Heq.
+    simplify_eq. apply of_to_val in HH.
+    simpl in HH. simplify_eq. eauto.
+  Qed.
+
+  Lemma to_es_list_llfill_contr es vh' tf h w :
+    to_e_list es = llfill vh' [AI_call_host tf h w] -> False.
+  Proof.
+    revert es; induction vh';intros es.
+    { simpl. intros Heq.
+      revert l Heq. induction es;intros l Heq.
+      { destruct l;try done. }
+      destruct l;try done.
+      simpl in Heq. inversion Heq;subst.
+      apply IHes in H1. done. }
+    { intros Heq. cbn in Heq.
+      revert l Heq. induction es;intros l Heq.
+      { destruct l;try done. }
+      destruct l;try done.
+      simpl in Heq. inversion Heq;subst.
+      apply IHes in H1. done. }
+    { intros Heq. cbn in Heq.
+      revert l Heq. induction es;intros l Heq.
+      { destruct l;try done. }
+      destruct l;try done.
+      simpl in Heq. inversion Heq;subst.
+      apply IHes in H1. done. }
+  Qed.
+
+  Lemma llfill_local vh n f e :
+    [AI_local n f (llfill vh e)] = llfill (LL_local [] n f vh []) e.
+  Proof.
+    induction vh;simpl;auto.
+  Qed.
+
+  Lemma to_val_local_imm_none e v n f :
+    iris.to_val e = Some (immV v) → iris.to_val [AI_local n f e] = None.
+  Proof.
+    unfold iris.to_val. simpl.
+    destruct (merge_values_list (map to_val_instr e));try done.
+    intros Heq. simplify_eq. auto.
+  Qed.
+
+  Lemma to_val_local_trap_none e n f :
+    iris.to_val e = Some trapV → iris.to_val [AI_local n f e] = None.
+  Proof.
+    unfold iris.to_val. simpl.
+    destruct (merge_values_list (map to_val_instr e));try done.
+    intros Heq. simplify_eq. auto.
+  Qed.
+
+  Lemma to_val_local_br_none {i : nat} e n f (vh : valid_holed i) :
+    iris.to_val e = Some (brV vh) → iris.to_val [AI_local n f e] = None.
+  Proof.
+    unfold iris.to_val. simpl.
+    destruct (merge_values_list (map to_val_instr e));try done.
+    intros Heq. simplify_eq. auto.
+  Qed.
+
+  Lemma to_val_llfill_trap vh v :
+    iris.to_val (llfill vh [AI_trap]) = Some v ->
+    vh = LL_base [] [].
+  Proof.
+    intros Hv.
+    apply iris.of_to_val in Hv.
+    destruct v.
+    { exfalso. revert l Hv. simpl. induction vh;intros l' Hv.
+      { simpl in Hv. revert l' Hv.
+        induction l;intros l' Hv.
+        { destruct l' =>//. }
+        { destruct l' =>//. inversion Hv. eapply IHl;eauto. }
+      }
+      { simpl in Hv.
+        revert l Hv.
+        induction l';intros l Hv.
+        { destruct l =>//. }
+        { destruct l =>//. inversion Hv. eapply IHl';eauto. }
+      }
+      { simpl in Hv.
+        revert l Hv.
+        induction l';intros l Hv.
+        { destruct l =>//. }
+        { destruct l =>//. inversion Hv. eapply IHl';eauto. }
+      }
+    }
+    { simpl in Hv. destruct vh;simpl in Hv.
+      { destruct l,l0 =>//. }
+      { destruct l =>//. }
+      { destruct l =>//. }
+    }
+    { exfalso. simpl in Hv. remember (BI_br i).
+      assert (∀ w, b = BI_const w -> False) as HH;[intros w; rewrite Heqb;done|].
+      clear Heqb.
+      revert i lh Hv.
+      induction vh;intros i lh Hv.
+      { destruct lh;simpl in Hv.
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          { inversion Hv. subst. eapply HH. eauto. }
+          inversion Hv. by apply IHl in H1. }
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          inversion Hv. by apply IHl in H1. }
+      }
+      { destruct lh;simpl in Hv.
+        { revert l2 Hv;induction l;intros l2 Hv;destruct l2 =>//.
+          { inversion Hv. subst. eapply HH. eauto. }
+          inversion Hv. by apply IHl in H1. }
+        { revert l2 Hv;induction l;intros l2 Hv;destruct l2 =>//.
+          { simpl in Hv. simplify_eq.
+            simpl in IHvh. apply IHvh in H1. done. }
+          inversion Hv. by apply IHl in H1. }
+      }
+      { destruct lh;simpl in Hv.
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          { inversion Hv. subst. eapply HH. eauto. }
+          inversion Hv. by apply IHl in H1. }
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          inversion Hv. by apply IHl in H1. }        
+      }
+    }
+    { exfalso. simpl in Hv.
+      revert s Hv.
+      induction vh;intros s Hv.
+      { destruct s;simpl in Hv.
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          inversion Hv. by apply IHl in H1. }
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          inversion Hv. by apply IHl in H1. }
+      }
+      { destruct s;simpl in Hv.
+        { revert l2 Hv;induction l;intros l2 Hv;destruct l2 =>//.
+          inversion Hv. by apply IHl in H1. }
+        { revert l2 Hv;induction l;intros l2 Hv;destruct l2 =>//.
+          { simpl in Hv. simplify_eq.
+            simpl in IHvh. apply IHvh in H1. done. }
+          inversion Hv. by apply IHl in H1. }
+      }
+      { destruct s;simpl in Hv.
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          inversion Hv. by apply IHl in H1. }
+        { revert l1 Hv;induction l;intros l1 Hv;destruct l1 =>//.
+          inversion Hv. by apply IHl in H1. }        
+      }      
+    }
+    { exfalso. simpl in Hv.
+      revert l0 Hv.
+      induction vh;intros s Hv.
+      { destruct s;simpl in Hv.
+        all: revert l2 Hv;induction l0;intros l2 Hv;destruct l2 =>//.
+        all: inversion Hv; by apply IHl0 in H1. }
+      { destruct s;simpl in Hv.
+        all: revert l3 Hv;induction l0;intros l3 Hv;destruct l3 =>//.
+        all: inversion Hv;subst. all: try by apply IHl0 in H1.
+        by apply IHvh in H2. }
+      { destruct s;simpl in Hv.
+        all: revert l2 Hv;induction l0;intros l2 Hv;destruct l2 =>//.
+        all: inversion Hv;subst. all: try by apply IHl0 in H1.
+        by apply IHvh in H2. }
+    }
+  Qed.
+
+  Lemma to_val_trapV_lfilled_None n e vh :
+    iris.to_val [AI_label n e (llfill vh (iris.of_val trapV))] = None.
+  Proof.
+    destruct (iris.to_val [AI_label n e (llfill vh (iris.of_val trapV))]) eqn:Hsome;auto.
+    exfalso. rewrite llfill_label in Hsome.
+    apply to_val_llfill_trap in Hsome. done.
+  Qed.
+
+  Lemma merge_values_list_v_to_e_list l :
+    merge_values_list (map to_val_instr (v_to_e_list l)) = Val (immV l).
+  Proof.
+    rewrite of_val_imm.
+    pose proof (iris.to_of_val (immV l)).
+    unfold iris.to_val in H.
+    destruct (merge_values_list (map to_val_instr (iris.of_val (immV l))));try done.
+    inversion H. auto.
+  Qed.
+
+  Fixpoint flatten_left_leaves (vh : llholed) :=
+    match vh with
+    | LL_base v1 _ => v1
+    | LL_label v1 _ _ vh _ => v1 ++ flatten_left_leaves vh
+    | LL_local v1 _ _ vh _ => v1 ++ flatten_left_leaves vh
+    end.
+
+  Fixpoint flatten_right_leaves (vh : llholed) :=
+    match vh with
+    | LL_base _ v1 => v1
+    | LL_label _ _ _ vh v1 => v1 ++ flatten_right_leaves vh
+    | LL_local _ _ _ vh v1 => v1 ++ flatten_right_leaves vh
+    end.
+
+  Lemma is_basic_Forall l0 :
+    is_basic_expr l0 ↔ Forall (λ a : administrative_instruction, is_basic a) l0.
+  Proof.
+    induction l0;try done.
+    simpl. rewrite Forall_cons.
+    split;intros [? ?];split;auto.
+    { apply IHl0;auto. }
+    { apply IHl0;auto. }
+  Qed.
+  
+  Lemma llholed_basic_right_leaves vh :
+    llholed_basic vh <-> Forall (λ a, is_basic a) (flatten_right_leaves vh).
+  Proof.
+    remember (flatten_right_leaves vh) as l. revert l Heql; induction vh;intros l' Heql.
+    { cbn in *. rewrite Heql. apply is_basic_Forall. }
+    { cbn in *. subst l'.
+      rewrite Forall_app.
+      split;intros [? ?];(split;[by apply is_basic_Forall|]).
+      { apply IHvh;auto. }
+      { apply IHvh in H0;auto. }
+    }
+    { cbn in *. subst l'.
+      rewrite Forall_app.
+      split;intros [? ?];(split;[by apply is_basic_Forall|]).
+      { apply IHvh;auto. }
+      { apply IHvh in H0;auto. }
+    }
+  Qed.
+
+  (* Lemma vfill_find vh a b : *)
+  Lemma elem_of_const_false l a :
+    is_const a = false ->
+    a ∈ v_to_e_list l -> False.
+  Proof.
+    intros Ha Hin.
+    induction l;simpl in *.
+    { inversion Hin. }
+    { inversion Hin.
+      { simplify_eq. }
+      { simplify_eq. apply IHl. auto. }
+    }
+  Qed.
+    
+  Lemma vfill_eq_find_call_host e vh vh' tf h ves :
+    llholed_basic vh ->
+    const_list e = true ->
+    llfill vh e = llfill vh' [AI_call_host tf h ves] ->
+    (AI_call_host tf h ves) ∈ flatten_right_leaves vh.
+  Proof.
+    revert vh' e.
+    induction vh;intros vh' e.
+    { cbn. revert l e l0 e. induction vh';simpl;intros l' e l0' e'.
+      all:intros Hbasic He Heq (* Hconst *).
+      all: assert (AI_call_host tf h ves ∉ e') as Hnin.
+      1,3,5: apply const_list_elem_of;auto.
+      { 
+        assert (AI_call_host tf h ves ∈ v_to_e_list l' ++ e' ++ l0').
+        { rewrite Heq. apply elem_of_app. right. constructor. }
+        apply elem_of_app in H as [Hcontr|H].
+        { exfalso. eapply elem_of_const_false;[|eauto]. auto. }
+        apply elem_of_app in H as [Hcontr|H];auto.
+        done. }
+      { 
+        assert (AI_label n l0 (llfill vh' [AI_call_host tf h ves]) ∈ v_to_e_list l' ++ e' ++ l0').
+        { rewrite Heq. apply elem_of_app. right. constructor. }
+        
+        apply elem_of_app in H as [Hcontr|H].
+        { exfalso. clear -Hcontr. induction l'=>//;simpl in Hcontr;inversion Hcontr.
+          simplify_eq. apply IHl'. auto. }
+        apply elem_of_app in H as [Hcontr|H];auto.
+        { exfalso. clear -He Hcontr. induction e';inversion Hcontr.
+          { simplify_eq. }
+          { simplify_eq. apply IHe';auto. simpl in He.
+            apply andb_true_iff in He as [? ?];auto. }
+        }
+        { apply is_basic_Forall in Hbasic.
+          revert Hbasic. rewrite Forall_forall => Hf. apply Hf in H. done. }
+      }
+      { 
+        assert (AI_local n f (llfill vh' [AI_call_host tf h ves]) ∈ v_to_e_list l' ++ e' ++ l0').
+        { rewrite Heq. apply elem_of_app. right. constructor. }
+        
+        apply elem_of_app in H as [Hcontr|H].
+        { exfalso. clear -Hcontr. induction l'=>//;simpl in Hcontr;inversion Hcontr.
+          simplify_eq. apply IHl'. auto. }
+        apply elem_of_app in H as [Hcontr|H];auto.
+        { exfalso. clear -He Hcontr. induction e';inversion Hcontr.
+          { simplify_eq. }
+          { simplify_eq. apply IHe';auto. simpl in He.
+            apply andb_true_iff in He as [? ?];auto. }
+        }
+        { apply is_basic_Forall in Hbasic.
+          revert Hbasic. rewrite Forall_forall => Hf. apply Hf in H. done. }
+      } }
+    { cbn. induction vh';simpl;intros Hbasic He Heq.
+      all: assert (AI_call_host tf h ves ∉ e) as Hnin.
+      1,3,5: apply const_list_elem_of;auto.      
+      { assert (AI_call_host tf h ves ∈ v_to_e_list l ++ AI_label n l0 (llfill vh e) :: l1).
+        { rewrite Heq. apply elem_of_app. right. constructor. }
+        apply elem_of_app in H as [Hcontr|H].
+        { exfalso. eapply elem_of_const_false;[|eauto]. auto. }
+        inversion H.
+        { simplify_eq.
+          eapply const_list_concat_inv in Heq as [? [? ?]];auto;[|apply v_to_e_is_const_list..].
+          simplify_eq. }
+      }
+      { eapply const_list_concat_inv in Heq as [? [? ?]];auto;[|apply v_to_e_is_const_list..].
+        simplify_eq. apply elem_of_app. right. eapply IHvh;eauto. destruct Hbasic as [? ?];auto. }
+      { eapply const_list_concat_inv in Heq as [? [? ?]];auto;[|apply v_to_e_is_const_list..].
+        done. }
+    }
+    { cbn. induction vh';simpl;intros Hbasic He Heq.
+      all: assert (AI_call_host tf h ves ∉ e) as Hnin.
+      1,3,5: apply const_list_elem_of;auto.      
+      { assert (AI_call_host tf h ves ∈ v_to_e_list l ++ AI_local n f (llfill vh e) :: l0).
+        { rewrite Heq. apply elem_of_app. right. constructor. }
+        apply elem_of_app in H as [Hcontr|H].
+        { exfalso. eapply elem_of_const_false;[|eauto]. auto. }
+        inversion H.
+        { simplify_eq.
+          eapply const_list_concat_inv in Heq as [? [? ?]];auto;[|apply v_to_e_is_const_list..].
+          simplify_eq. }
+      }
+      { eapply const_list_concat_inv in Heq as [? [? ?]];auto;[|apply v_to_e_is_const_list..].
+        simplify_eq. }
+      { eapply const_list_concat_inv in Heq as [? [? ?]];auto;[|apply v_to_e_is_const_list..].
+        simplify_eq. apply elem_of_app. right. eapply IHvh;eauto. destruct Hbasic as [? ?];auto. }
+    }
+  Qed.
+
+    
+  Lemma to_val_immV_AI_local_is_basic_None m f n e vh ws :
+    llholed_basic vh ->
+    iris.to_val [AI_local m f [AI_label n e (llfill vh (iris.of_val (immV ws)))]] = None.
+  Proof.
+    destruct (iris.to_val [AI_local m f [AI_label n e (llfill vh (iris.of_val (immV ws)))]]) eqn:Hsome;auto.
+    intros Hbasic. exfalso.
+    apply to_val_local_inv in Hsome as Heq.
+    destruct Heq as [tf [h [w [vh' Hv]]]].
+    subst.
+    apply to_val_call_host_rec_local in Hsome as Heq.
+    destruct Heq as [LI [Heq HLI]].
+    simpl in Heq. simplify_eq.
+    apply to_val_call_host_label_inv in HLI as Heq.
+    destruct Heq as [vh'' [Hvh'' Heq]]. subst.
+    eapply vfill_eq_find_call_host in Heq;auto;[|apply v_to_e_is_const_list].
+    apply llholed_basic_right_leaves in Hbasic.
+    revert Hbasic. rewrite Forall_forall =>Hbasic.
+    apply Hbasic in Heq.
+    done.
+  Qed.
+    
+  Lemma local_host_trap f0 τ1 τs i f τ2 hl :
+    ↪[frame]f0 -∗
+     interp_frame (τ1 ++ τs) i f0 -∗
+     WP [AI_trap]
+     CTX
+     1; LH_rec [] (length τ2) [] (LH_base [] []) []
+     {{ w,
+     ∃ f1 : frame,
+       ( ↪[frame]f -∗
+        WP iris.of_val w
+        @ NotStuck; ⊤ FRAME
+        length τ2; f1
+        {{ w0, (interp_val τ2 w0 ∨ interp_call_host_cls hl τ2 w0) ∗
+            ↪[frame]f ∗ na_own logrel_nais ⊤ }}) ∗  ↪[frame]f1 }}.
+  Proof.
+    iIntros "Hf0 Hf0v".
+    rewrite -(app_nil_l [AI_trap]) -(app_nil_r [AI_trap]).
+    iApply (wp_wand_ctx _ _ _ (λ vs, _ ∗ ↪[frame] _)%I with "[Hf0]").
+    { iApply wp_trap_ctx;eauto. }
+    iIntros (v) "[-> Hf]".
+    iExists _. iFrame. iIntros "Hf".
+    iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗ ↪[frame] _)%I with "[Hf]").
+    { iApply (wp_frame_trap with "Hf");eauto. }
+    iIntros (v) "[-> Hf]".
+    iFrame.
+    iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame.
+    iLeft. by iLeft.
+  Qed.
+
+  Lemma local_host_val v f0 τ2 τ1 τs i f hl :
+    interp_values τ2 v -∗
+    ↪[frame]f0 -∗
+    interp_frame (τ1 ++ τs) i f0 -∗
+    WP iris.of_val v
+    CTX
+    1; LH_rec [] (length τ2) [] (LH_base [] []) []
+    {{ w,
+     ∃ f1 : frame,
+       ( ↪[frame]f -∗
+        WP iris.of_val w
+        @ NotStuck; ⊤ FRAME
+        length τ2; f1
+        {{ w0, (interp_val τ2 w0 ∨ interp_call_host_cls hl τ2 w0) ∗
+           ↪[frame]f ∗ na_own logrel_nais ⊤ }}) ∗  ↪[frame]f1 }}.
+  Proof.
+    iIntros "Hv' Hf0 Hf0v".
+    iDestruct "Hv'" as (v' ->) "#Hv'".
+    iSimpl.
+    iApply (wp_wand_ctx _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf0]").
+    { iApply (wp_val_return with "Hf0");[apply v_to_e_is_const_list|].
+      iIntros "Hf".
+      rewrite app_nil_l app_nil_r.
+      rewrite of_val_imm.
+      iApply wp_value;[done|].
+      iFrame. eauto. }
+    iIntros (v) "[-> Hf]".
+    iExists _. iFrame. iIntros "Hf".
+    iDestruct (big_sepL2_length with "Hv'") as %Hlen.
+    iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
+    { iApply (wp_frame_value with "Hf");eauto. 1: apply to_of_val.
+      rewrite fmap_length. auto. }
+    iIntros (v) "[-> Hf]". iFrame.
+    iDestruct "Hf0v" as (?) "[_ [_ Hown]]".
+    iFrame. iLeft. iRight. iExists _. eauto.
+  Qed.
+
+  Lemma local_host_br v f0 τ2 τ1 τs i f hl :
+    ▷ interp_br (τ1 ++ τs) i (Some τ2) hl v
+            (LH_rec [] (length τ2) [] (LH_base [] []) []) [τ2] -∗
+    ↪[frame]f0 -∗
+    interp_frame (τ1 ++ τs) i f0 -∗
+    WP iris.of_val v
+    CTX
+    1; LH_rec [] (length τ2) [] (LH_base [] []) []
+    {{ w,
+     ∃ f1 : frame,
+       ( ↪[frame]f -∗
+        WP iris.of_val w
+        @ NotStuck; ⊤ FRAME
+        length τ2; f1
+        {{ w0, (interp_val τ2 w0 ∨ interp_call_host_cls hl τ2 w0) ∗
+           ↪[frame]f ∗ na_own logrel_nais ⊤ }}) ∗  ↪[frame]f1 }}.
+  Proof.
+    iIntros "Hbr Hf0 Hf0v".
+    rewrite fixpoint_interp_br_eq.
+    iDestruct "Hbr" as (n vh vs' p) "[>%Heq [>%Hbase [>%Hdepth Hbr]]]".
+    apply lh_depth_ge in Hdepth as Hle.
+    iDestruct "Hbr" as (τs' ws' k es1 lh' es' lh'' τs'') "[>%Hlook [>%Hlayer Hbr]]".
+    iDestruct "Hbr" as "[>%Hdepth' [>%Hmin [#>Hws' _]]]".
+    simpl in Hlayer.
+    destruct (n - p) eqn:Heqnp;[|simplify_eq].
+    assert (n = p) as HH;[lia|]. simpl iris.of_val.
+    simplify_eq.
+    destruct Hmin as [lh3 Hmin%lh_minus_Ind_Equivalent].
+    inversion Hmin;simplify_eq. simpl lh_depth.
+    pose proof (vfill_to_lfilled vh [AI_basic (BI_br p)]) as [_ Hfill].
+    iDestruct "Hws'" as "[%Hcontr|Hws']";[done|iDestruct "Hws'" as (ww Heqw) "Hws'"].
+    iDestruct (big_sepL2_length with "Hws'") as %Hlen. rewrite !app_length in Hlen.
+    rewrite -(take_drop (length (τs'')) ww). inversion Heqw.
+    rewrite -(take_drop (length (τs'')) ww) in H0.
+    eapply lfilled_get_base_pull in H0 as [lh' Hlh'];[|eauto].
+    iIntros (LI Hfill'%lfilled_Ind_Equivalent). inversion Hfill';simplify_eq.
+    inversion H8;simplify_eq. repeat erewrite app_nil_l,app_nil_r.      
+    iDestruct (big_sepL2_app_inv with "Hws'") as "[Hws1 Hws2]".
+    { right. rewrite drop_length. lia. }
+    iDestruct (big_sepL2_length with "Hws2") as %Hlen2.
+    simpl in Hlook. inversion Hlook;subst τs'. rewrite Hdepth in Hlh'.
+    iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf0]").
+    { iApply (wp_br with "Hf0") ;[| |apply Hlh'|];[apply const_list_of_val|by rewrite /= fmap_length|].
+      iNext. iIntros "Hf". rewrite app_nil_r.
+      iApply wp_value;[done|].
+      iFrame;eauto. }
+    iIntros (v) "[-> Hf]".
+    iExists _. iFrame. iIntros "Hf".
+    iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
+    { iApply (wp_frame_value with "Hf");eauto. 1: apply to_of_val.
+      rewrite fmap_length. auto. }
+    iIntros (v) "[-> Hf]". iFrame.
+    iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame. iLeft.
+    iRight. iExists _. eauto.
+  Qed.
+
+  Lemma local_host_ret v f0 τ2 τ1 τs i f hl :
+    interp_return_option (Some τ2) (τ1 ++ τs) i v -∗
+    ↪[frame]f0 -∗
+    interp_frame (τ1 ++ τs) i f0 -∗
+    WP iris.of_val v
+    CTX
+    1; LH_rec [] (length τ2) [] (LH_base [] []) []
+    {{ w,
+     ∃ f1 : frame,
+       ( ↪[frame]f -∗
+        WP iris.of_val w
+        @ NotStuck; ⊤ FRAME
+        length τ2; f1
+        {{ w0, (interp_val τ2 w0 ∨ interp_call_host_cls hl τ2 w0) ∗
+           ↪[frame]f ∗ na_own logrel_nais ⊤ }}) ∗  ↪[frame]f1 }}.
+  Proof.
+    iIntros "Hret Hf0 Hf0v".
+    iDestruct "Hret" as (vh vs' -> Hbase) "Hret".
+    iDestruct "Hret" as (τs'') "[#Hws' _]".
+    iDestruct "Hws'" as "[%Hcontr|Hws']";[done|iDestruct "Hws'" as (ww Heqw) "Hws'"].
+    iDestruct (big_sepL2_length with "Hws'") as %Hlen. rewrite !app_length in Hlen.
+    rewrite -(take_drop (length (τs'')) ww). inversion Heqw.
+    rewrite -(take_drop (length (τs'')) ww) in H0. rewrite H0 in Hbase.
+    iDestruct (big_sepL2_app_inv with "Hws'") as "[Hws1 Hws2]".
+    { right. rewrite drop_length. lia. }
+    iDestruct (big_sepL2_length with "Hws2") as %Hlen2.
+    simpl iris.of_val.
+    pose proof (sfill_to_lfilled vh [AI_basic BI_return]) as Hfill.
+    eapply lfilled_simple_get_base_pull in Hbase as [lh' Hlh'];[|eauto].
+    iIntros (LI Hfill'%lfilled_Ind_Equivalent). inversion Hfill';simplify_eq.
+    inversion H9;simplify_eq. repeat erewrite app_nil_l,app_nil_r.
+    rewrite sfill_label.
+    eassert (iris.of_val (retV _) = sfill _ _) as <-;[eauto|].
+    iApply wp_value;[done|].
+    iExists _. iFrame. iIntros "Hf".
+    simpl iris.of_val.
+    iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV _⌝ ∗ ↪[frame] _)%I with "[Hf]").
+    { iApply wp_return;cycle 2.
+      { rewrite -(app_nil_l [AI_label _ _ _])  -(app_nil_r [AI_label _ _ _]).
+        apply lfilled_Ind_Equivalent. constructor;auto.
+        apply lfilled_Ind_Equivalent. apply Hlh'. }
+      { iApply wp_value;[done|]. iFrame;eauto. }
+      { apply to_of_val. }
+      { rewrite fmap_length. auto. } }
+    iIntros (v) "[-> Hf]". iFrame.
+    iSplitR;[iLeft;iRight;iExists _;eauto|].
+    iDestruct "Hf0v" as (?) "[_ [_ Hown]]". iFrame.
+  Qed.
+
+  Lemma local_host_call v f0 τ2 τ1 τs i f hl :
+    interp_call_host (τ1 ++ τs) i (Some τ2) hl v
+            (LH_rec [] (length τ2) [] (LH_base [] []) []) [τ2] τ2 -∗
+    ↪[frame]f0 -∗
+    interp_frame (τ1 ++ τs) i f0 -∗
+    WP iris.of_val v
+    CTX
+    1; LH_rec [] (length τ2) [] (LH_base [] []) []
+    {{ w,
+     ∃ f1 : frame,
+       ( ↪[frame]f -∗
+        WP iris.of_val w
+        @ NotStuck; ⊤ FRAME
+        length τ2; f1
+        {{ w0, (interp_val τ2 w0 ∨ interp_call_host_cls hl τ2 w0) ∗
+           ↪[frame]f ∗ na_own logrel_nais ⊤ }}) ∗  ↪[frame]f1 }}.
+  Proof.
+    iIntros "Hch Hf0 Hf0v".
+    rewrite fixpoint_interp_call_host_eq.
+    iDestruct "Hch" as (? ? ? ? ? ? Heq Htf Hin Hb) "[#Hw #Hch]".
+    rewrite Heq.
+    eassert (LH_rec [] (length τ2) [] (LH_base [] []) [] = push_base (LH_base [] []) _ _ _ _) as -> ;[eauto|].
+    iApply wp_label_push_inv;[auto|].
+    iApply wp_wasm_empty_ctx.
+    
+    iSimpl.
+    rewrite seq.cats0. rewrite llfill_label.
+    rewrite -/(iris.of_val (callHostV tf h v0 _)).
+    iApply wp_value;[done|].
+    iExists _. iFrame. iIntros "Hf".
+    simpl iris.of_val.
+    rewrite llfill_label wp_frame_rewrite llfill_local.
+    rewrite -/(iris.of_val (callHostV tf h v0 _)).
+    iApply wp_value;[done|].
+    iDestruct "Hf0v" as (?) "[%Heqf [#Hfv Hown]]".
+    iFrame.
+    iRight.
+    iApply fixpoint_interp_call_host_cls_eq.
+    iExists _,_,_,_,_,_. do 5 (iSplitR;[eauto|]).
+    iModIntro.
+    iIntros (v2 f1) "#Hv2 Hf Hown".
+    rewrite -llfill_local -llfill_label.
+    
+    iAssert (⌜iris.to_val
+              [AI_local (length τ2) f0
+                        [AI_label (length τ2) [] (llfill vh (iris.of_val v2))]] = None⌝)%I as %Hnone.
+    { iDestruct "Hv2" as "[-> | Hv2]".
+      { iPureIntro.
+        apply to_val_local_none_none.
+        apply to_val_trapV_lfilled_None. }
+      iDestruct "Hv2" as (? ->) "_".
+      iPureIntro. apply to_val_immV_AI_local_is_basic_None.
+      auto.
+    }
+
+    iRevert (Hin τs1 τs2 Htf) "Hv2 Hfv Hw Hch".
+    iLöb as "IH"
+  forall (v2 f1 f0 vs Heqf vh Hnone v0 h tf v Heq Hb);iIntros (Hin τs1 τs2 Hft) "#Hv2 #Hfv #Hw #Hch".
+    
+    rewrite - wp_frame_rewrite.
+    iApply (wp_frame_bind with "Hf");[auto|].
+    iIntros "Hf".
+    iApply wp_wasm_empty_ctx.
+    iApply wp_label_push_nil.
+    iApply wp_label_bind.
+    iDestruct ("Hch" with "Hv2 [$Hf Hown]") as "Hcont".
+    { iExists _. iSplit;eauto. }
+    
+    iApply (wp_wand with "Hcont").
+    iIntros (v1) "[Hres Hf]".
+    iDestruct "Hf" as (f2) "[Hf2 Hfv2]".
+    iDestruct "Hres" as "[[->|Hres] | [Hres | [Hres | Hres]]]".
+    { simpl of_val.
+      iDestruct (local_host_trap with "[$] [$]") as "Hcont".
+      iApply (wp_wand_ctx with "Hcont").
+      iIntros (v1) "H";iDestruct "H" as (?) "[H Hf]";iExists _;iFrame.
+      iIntros "Hf". iDestruct ("H" with "Hf") as "H".
+      iApply (wp_wand with "H");iIntros (?) "[[$|$] [$ $]]". }
+    { iDestruct (local_host_val with "[$] [$] [$]") as "Hcont".
+      iApply (wp_wand_ctx with "Hcont").
+      iIntros (?) "H";iDestruct "H" as (?) "[H Hf]";iExists _;iFrame.
+      iIntros "Hf". iDestruct ("H" with "Hf") as "H".
+      iApply (wp_wand with "H");iIntros (?) "[[$|$] [$ $]]". }
+    { rewrite -/(interp_br _ _ _ _). iDestruct (local_host_br with "[$] [$] [$]") as "Hcont".
+      iApply (wp_wand_ctx with "Hcont").
+      iIntros (?) "H";iDestruct "H" as (?) "[H Hf]";iExists _;iFrame.
+      iIntros "Hf". iDestruct ("H" with "Hf") as "H".
+      iApply (wp_wand with "H");iIntros (?) "[[$|$] [$ $]]". }
+    { iDestruct (local_host_ret with "[$] [$] [$]") as "Hcont".
+      iApply (wp_wand_ctx with "Hcont").
+      iIntros (?) "H";iDestruct "H" as (?) "[H Hf]";iExists _;iFrame.
+      iIntros "Hf". iDestruct ("H" with "Hf") as "H".
+      iApply (wp_wand with "H");iIntros (?) "[[$|$] [$ $]]". }
+    { rewrite fixpoint_interp_call_host_eq.
+      iDestruct "Hres" as (? ? ? ? ? ?) "[>%Heq2 [>%Htf2 [>%Hin2 [>%Hvh2 [>#Hv2' #Hcont]]]]]".
+      rewrite -/(wp_wasm_ctx _ _ _ _ _ _).
+      rewrite Heq2.
+      simpl iris.of_val.
+      eassert (LH_rec [] (length τ2) [] (LH_base [] []) [] = push_base (LH_base [] []) _ _ [] []) as ->;[simpl;auto|].
+      iApply wp_label_push_nil_inv.
+      iApply wp_wasm_empty_ctx.
+      rewrite llfill_label.
+      eassert (llfill _ _ = iris.of_val (callHostV _ _ _ (LL_label [] _ _ _ []))) as ->.
+      { simpl. eauto. }
+      iApply wp_value;[done|].
+      iExists _. iFrame. iIntros "Hf".
+      rewrite wp_frame_rewrite.
+      rewrite llfill_local.
+      eassert (llfill _ _ = iris.of_val (callHostV _ _ _ (LL_local [] _ _ (LL_label [] _ _ _ []) []))) as ->.
+      { simpl. eauto. }
+      iApply wp_value;[done|].
+      iDestruct "Hfv2" as (?) "[#Heqf2 [#Hfv2 Hown]]".
+      iFrame. iRight. iNext.
+      iApply fixpoint_interp_call_host_cls_eq.
+      iExists _,_,_,_,_,_. do 5 (iSplit;[eauto|]).
+      iModIntro. iIntros (? ?) "#Hv3 Hf Hown".
+      rewrite -llfill_local -llfill_label.
+      iApply ("IH" $! v4 f3 f2 with "[] [] [] [] Hf Hown [] [] Hv3 Hfv2 Hv2' Hcont");eauto.
+      
+      iDestruct "Hv3" as "[-> | Hv3]".
+      { iPureIntro.
+        apply to_val_local_none_none.
+        apply to_val_trapV_lfilled_None. }
+      iDestruct "Hv3" as (? ->) "_".
+      iPureIntro. apply to_val_immV_AI_local_is_basic_None.
+      auto.
+    }
   Qed.
   
 End fundamental.

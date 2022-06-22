@@ -136,7 +136,7 @@ Section fundamental.
       { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ? ?) "_". done. }
       { iDestruct "Hcontr" as (? ? ?) "_";done. }
       { rewrite fixpoint_interp_call_host_eq. iDestruct "Hcontr" as (? ? ? ? ? ? ?) "_";done. } }
-    iSplitR;[by iLeft;iLeft|].
+    iSplitR;[iIntros (?) "?"; iSplitR;[by iLeft;iLeft|eauto]|].
 
     iIntros (w f') "[Hred [Hf Hfv]]".
     rewrite app_nil_r.

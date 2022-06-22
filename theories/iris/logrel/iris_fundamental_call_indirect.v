@@ -216,7 +216,7 @@ Section fundamental.
         { iRight. iClear "#". iLöb as "IH" forall (v).
           rewrite fixpoint_interp_call_host_cls_eq.
           rewrite fixpoint_interp_call_host_eq.
-          iDestruct "Hw" as (? ? ? ? ? ? ? ? ?) "[#? #H]".
+          iDestruct "Hw" as (? ? ? ? ? ? ? ? ? ?) "[#? #H]".
           iExists _,_,_,_,_,_. repeat (iSplit;[eauto|]).
           iModIntro. iIntros (v2 f) "? [? Hfrv]".
           iDestruct "Hfrv" as (?) "[Hv1 [Hv2 ?]]".
@@ -244,6 +244,7 @@ Section fundamental.
         { instantiate (1:=callHostV _ _ _ _). eapply of_to_val. eauto. }
         iFrame. iRight. iApply fixpoint_interp_call_host_eq.
         iExists _,_,_,_,_,_. do 3 (iSplit;[eauto|]).
+        iSplit;[auto|].
         iSplit.
         { iRight. iExists _. eauto. }
         iModIntro. iIntros (v2 f) "#Hv2 [Hf Hfv]".

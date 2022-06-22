@@ -119,7 +119,7 @@ Section Client.
         |} ;
         {| imp_module := list_byte_of_string "Stack" ;
           imp_name := list_byte_of_string "table" ;
-          imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
+          imp_desc := ID_table {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
                                  tt_elem_type := ELT_funcref |} |}
       ] ;
       mod_exports := [
@@ -465,9 +465,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           done.
           iIntros (v0) "(H & Himpfcl0 & Hf)".
           iFrame.
-          instantiate (1 := λ v0, (( ∃ k : Z, ⌜v0 = immV [value_of_int k]⌝ ∗
+          instantiate (1 := λ v0, ((( ∃ k : Z, ⌜v0 = immV [value_of_int k]⌝ ∗
                                                          (⌜k = (-1)%Z⌝ ∗ nextStackAddrIs 0 ∨  ⌜ (0 ≤ k)%Z ∧ (k + Z.pos (64 * 1024) ≤ two32)%Z⌝ ∗ isStack k [] ∗ nextStackAddrIs (0 + Pos.to_nat (64 * 1024)))) ∗ 
-                                     N.of_nat idf0↦[wf]FC_func_native i0 (Tf [] [T_i32]) l0 f0)%I). 
+                                     N.of_nat idf0↦[wf]FC_func_native i0 (Tf [] [T_i32]) l0 f0) ∗ ↪[frame] _)%I). 
           iFrame. }
         iIntros (w0) "[[H Himpfcl0] Hf]". 
         iDestruct "H" as (k) "[-> H]".
@@ -651,9 +651,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           by destruct Hk2 ; lia.
           iIntros (w0) "(-> & Hs & Himpfcl4 & Hf)".
           iFrame.
-          instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
+          instantiate (1 := λ v, ((⌜ v = immV [] ⌝ ∗
                                              isStack k [ (Wasm_int.int_of_Z i32m 4)] ∗
-                                             N.of_nat idf4↦[wf]FC_func_native i0 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
+                                             N.of_nat idf4↦[wf]FC_func_native i0 (Tf [T_i32 ; T_i32] []) l4 f4) ∗ ↪[frame] _)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl4) Hf]".
           iSimpl.
@@ -703,9 +703,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           by destruct Hk2 ; lia.
           iIntros (w0) "(-> & Hs & Himpfcl4 & Hf)".
           iFrame.
-          instantiate (1 := λ v, (⌜ v = immV [] ⌝ ∗
+          instantiate (1 := λ v, ((⌜ v = immV [] ⌝ ∗
                                              isStack k [_;_] ∗
-                                             N.of_nat idf4↦[wf]FC_func_native i0 (Tf [T_i32 ; T_i32] []) l4 f4)%I).
+                                             N.of_nat idf4↦[wf]FC_func_native i0 (Tf [T_i32 ; T_i32] []) l4 f4) ∗ ↪[frame] _)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl4) Hf]".
           iSimpl.
@@ -836,7 +836,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           iDestruct "Hs'" as "[-> Hs']".
           destruct s' ; last by iExFalso ; iExact "Hs'".
           iFrame.
-          by instantiate (1 := λ x, (⌜ x = immV _ ⌝ ∗ isStack _ _ ∗ N.of_nat idf5 ↦[wf] _)%I) ; iFrame.
+          by instantiate (1 := λ x, ((⌜ x = immV _ ⌝ ∗ isStack _ _ ∗ N.of_nat idf5 ↦[wf] _) ∗ ↪[frame] _)%I) ; iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl5) Hf]".
           iSimpl.
           rewrite (separate1 (AI_basic _)).
@@ -873,9 +873,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           by destruct Hk2 ; lia.
           iIntros (w0) "(-> & Hs & Himpfcl3 & Hf)".
           iFrame.
-          instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗
+          instantiate (1 := λ v, ((⌜ v = immV _ ⌝ ∗
                                              isStack k _ ∗
-                                             N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3)%I).
+                                             N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3)∗ ↪[frame] _)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl3) Hf]".
           iSimpl.
@@ -930,9 +930,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
           by destruct Hk2 ; lia.
           iIntros (w0) "(-> & Hs & Himpfcl3 & Hf)".
           iFrame.
-          instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗
+          instantiate (1 := λ v, ((⌜ v = immV _ ⌝ ∗
                                              isStack k [] ∗
-                                             N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3)%I).
+                                             N.of_nat idf3 ↦[wf] FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3)∗ ↪[frame] _)%I).
           by iFrame.
           iIntros (w0) "[(-> & Hs & Himpfcl3) Hf]".
           iSimpl.

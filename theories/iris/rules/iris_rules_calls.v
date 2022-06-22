@@ -62,8 +62,8 @@ Context `{!wasmG Σ}.
     ↪[frame] f0 -∗
      (N.of_nat a) ↦[wf] (FC_func_native i (Tf t1s t2s) ts es) -∗
      ▷ (↪[frame] f0 ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf t1s t2s) ts es) -∗
-       WP [::AI_local m (Build_frame (vcs ++ (n_zeros ts)) i) [::AI_basic (BI_block (Tf [::] t2s) es)]] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-     WP ves ++ [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+       WP [::AI_local m (Build_frame (vcs ++ (n_zeros ts)) i) [::AI_basic (BI_block (Tf [::] t2s) es)]] @ s; E {{ v, Φ v }}) -∗
+     WP ves ++ [AI_invoke a] @ s; E {{ v, Φ v }}.
   Proof.
     iIntros (Hparams Hlen Hret) "Hf Hi HΦ".
     iApply wp_lift_step.
@@ -212,7 +212,7 @@ Context `{!wasmG Σ}.
     length t1s = n ->
     (N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
     ↪[frame] f -∗
-    ((N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
+    ▷ ((N.of_nat a) ↦[wf] (FC_func_host (Tf t1s t2s) h) -∗
       ↪[frame] f -∗ 
       WP [AI_call_host (Tf t1s t2s) h vcs] @ s;E {{ Φ }}) -∗
      WP ves ++ [AI_invoke a] @ s; E {{ Φ }}.
@@ -341,8 +341,8 @@ Qed.
   Lemma wp_call_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a j lh :
     (inst_funcs (f_inst f0)) !! i = Some a -> 
     ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E CTX j; lh {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-     WP [AI_basic (BI_call i)] @ s; E CTX j; lh {{ v, Φ v ∗ ↪[frame] f0 }}.
+     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E CTX j; lh {{ v, Φ v }}) -∗
+     WP [AI_basic (BI_call i)] @ s; E CTX j; lh {{ v, Φ v }}.
   Proof.
     iIntros (Hfuncs) "Hf HΦ".
     iIntros (LI Hfill).
@@ -381,8 +381,8 @@ Qed.
   Lemma wp_call (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) f0 (i : nat) a :
     (inst_funcs (f_inst f0)) !! i = Some a -> 
     ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-     WP [AI_basic (BI_call i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+     ▷ (↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v }}) -∗
+     WP [AI_basic (BI_call i)] @ s; E {{ v, Φ v }}.
   Proof.
     iIntros (Hfuncs) "Hf HΦ".
     iApply wp_wasm_empty_ctx.
@@ -400,8 +400,8 @@ Qed.
     ↪[frame] f0 -∗
     ▷ ((N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
        ∗ (N.of_nat a) ↦[wf] cl
-       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E CTX d; lh {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E CTX d; lh {{ v, Φ v ∗ ↪[frame] f0 }}.
+       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E CTX d; lh {{ v, Φ v }}) -∗
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E CTX d; lh {{ v, Φ v }}.
   Proof.
     iIntros (Htype Hc) "Ha Hcl Hf Hcont".
     iIntros (LI Hfill).
@@ -465,8 +465,8 @@ Qed.
     ↪[frame] f0 -∗
     ▷ ((N.of_nat j) ↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m c)] (Some a)
        ∗ (N.of_nat a) ↦[wf] cl
-       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}) -∗
-    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+       ∗ ↪[frame] f0 -∗ WP [AI_invoke a] @ s; E {{ v, Φ v }}) -∗
+    WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] @ s; E {{ v, Φ v }}.
   Proof.
     iIntros (? ?) "? ? ? H".
     iApply wp_wasm_empty_ctx.

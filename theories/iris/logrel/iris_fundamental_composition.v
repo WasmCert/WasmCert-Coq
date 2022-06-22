@@ -129,8 +129,32 @@ Section fundamental.
     { rewrite app_comm_cons app_assoc. auto. }
     { rewrite app_comm_cons app_assoc. auto. }
   Qed.
+
+  Lemma is_basic_app l1 l2 :
+    is_basic_expr l1 ->
+    is_basic_expr l2 ->
+    is_basic_expr (l1 ++ l2).
+  Proof.
+    revert l2. induction l1;intros l2;auto.
+    simpl. intros [? ?]. intros.
+    split;auto.
+  Qed.
+  
+  Lemma llholed_basic_sh_append vh e :
+    is_basic e ->
+    llholed_basic vh ->
+    llholed_basic (llh_append vh [e]).
+  Proof.
+    induction vh;simpl;intros;auto.
+    { apply is_basic_app;auto. simpl. split;auto. }
+    { destruct H0 as [? ?]. split;auto.
+      apply is_basic_app;auto. simpl. split;auto. }
+    { destruct H0 as [? ?]. split;auto.
+      apply is_basic_app;auto. simpl. split;auto. }
+  Qed.
   
   Lemma composition_call_host t2s t3s C i hl w lh f' e :
+    is_basic e ->
     (⊢ semantic_typing C [e] (Tf t2s t3s)) ->
     interp_instance C hl i -∗
     interp_ctx (tc_label C) (tc_return C) hl (tc_local C) i lh -∗
@@ -148,9 +172,9 @@ Section fundamental.
          ∨ interp_call_host (tc_local C) i (tc_return C) hl v lh (tc_label C) t3s) ∗
      (∃ f0 : frame,  ↪[frame]f0 ∗ interp_frame (tc_local C) i f0) }}.
   Proof.
-    iIntros (Ht2) "#Hi #Hc Hch Hf Hfv".
+    iIntros (He Ht2) "#Hi #Hc Hch Hf Hfv".
     rewrite fixpoint_interp_call_host_eq.
-    iDestruct "Hch" as (? ? ? ? ? ? Heqv Heqt Hin) "[#Hw #HK]".
+    iDestruct "Hch" as (? ? ? ? ? ? Heqv Heqt Hin Hb) "[#Hw #HK]".
     rewrite Heqv.
 
     assert (forall tf h v lh es,
@@ -166,12 +190,14 @@ Section fundamental.
     repeat iRight.
     iApply fixpoint_interp_call_host_eq.
     iExists _,_,tf,h,τs1,τs2. rewrite Heqv.
-    do 4 (iSplit;[eauto|]). iModIntro.
+    do 4 (iSplit;[eauto|]).
+    { iPureIntro. apply llholed_basic_sh_append;auto. }
+    iFrame "Hw". iModIntro.
     iIntros (v2 f) "#Hv2 [Hf Hfv]".
     rewrite llfill_sh_append. simpl llfill.
 
     iRevert "Hv2 HK". clear Heqv Heqt. iLöb as "IH"
-  forall (f vh v2 τs2);iIntros "#Hv2 #HK".
+  forall (f vh v2 τs2 Hb);iIntros "#Hv2 #HK".
 
     iAssert (↪[frame] f -∗
              WP llfill vh (iris.of_val v2)
@@ -193,8 +219,7 @@ Section fundamental.
       { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ?) "[>%H _]". done. }
       { iDestruct "Hcontr" as (? ? ?) "_";done. }
       { rewrite fixpoint_interp_call_host_eq. iDestruct "Hcontr" as (? ? ? ? ? ?) "[>%H _]";done. } }
-    iSplitR.
-    { iLeft. by iLeft. }
+    iSplitR;[iIntros (?) "?"; iSplitR;[by iLeft;iLeft|eauto]|].
     iIntros (w0 f0) "[Hw0 [Hf Hfv]]".
     iDestruct "Hw0" as "[#H|[H|[H|H]]]".
     { iApply wp_wasm_empty_ctx.
@@ -228,7 +253,7 @@ Section fundamental.
       { by repeat iRight. }
     }
     { rewrite fixpoint_interp_call_host_eq.
-      iDestruct "H" as (? ? ? ? ? ?) "[>%Heqch [>%Htf [>%Hin' [>#Hval #H]]]]".
+      iDestruct "H" as (? ? ? ? ? ?) "[>%Heqch [>%Htf [>%Hin' [>%Hb' [>#Hval #H]]]]]".
       rewrite -/(wp_wasm_ctx _ _ _ _ _ _).
 
       rewrite Heqch.
@@ -244,23 +269,24 @@ Section fundamental.
       iNext.
       rewrite fixpoint_interp_call_host_eq.
       iExists _,_,_,_,_,_. do 4 (iSplitR;[eauto|]).
-      iModIntro.
+      { iPureIntro. apply llholed_basic_sh_append;auto. }
+      iFrame "Hval". iModIntro.
       iIntros (v1 f1) "#Hv1 [Hf Hfv]".
       rewrite llfill_sh_append. simpl sfill.
-      iApply ("IH" with "Hf Hfv Hv1 H").
+      iApply ("IH" with "[] Hf Hfv Hv1 H"). auto.
     }
   Qed.
     
   (* -------------------------------------- COMPOSITION ------------------------------------ *)
 
-  Lemma typing_composition C es t1s t2s t3s e : (⊢ semantic_typing C es (Tf t1s t2s)) ->
+  Lemma typing_composition C es t1s t2s t3s e : is_basic e -> (⊢ semantic_typing C es (Tf t1s t2s)) ->
                                (⊢ semantic_typing C [e] (Tf t2s t3s)) ->
                                ⊢ semantic_typing C (es ++ [e]) (Tf t1s t3s).
   Proof.
-    iIntros (Ht1 Ht2).
+    iIntros (Hbasic Ht1 Ht2).
     unfold semantic_typing, interp_expression.
     iIntros (i lh hl).
-    iIntros "#Hi #Hc" (f vs) "[Hf Hfv] #Hv". 
+    iIntros "#Hi #Hc" (f vs) "[Hf Hfv] #Hv".
     
     iAssert (↪[frame] f -∗
              WP of_val vs ++ es
@@ -283,8 +309,7 @@ Section fundamental.
       { rewrite fixpoint_interp_br_eq. iDestruct "Hcontr" as (? ? ? ?) "[%H _]". done. }
       { iDestruct "Hcontr" as (? ? ?) "_";done. }
       { rewrite fixpoint_interp_call_host_eq. iDestruct "Hcontr" as (? ? ? ? ?  ?) "[%H _]";done. } }
-    iSplitR.
-    { iLeft. by iLeft. }
+    iSplitR;[iIntros (?) "?"; iSplitR;[by iLeft;iLeft|eauto]|].
 
     iIntros (w f') "[Hw [Hf Hfv]]".
     iDestruct "Hw" as "[#Hw|[Hbr|[Hret|Hch]]]".
@@ -294,7 +319,7 @@ Section fundamental.
 
     { iApply (composition_br with "Hv Hbr Hf Hfv"). }
     { iApply (composition_return with "Hv Hret Hf Hfv"). }
-    { iApply (composition_call_host with "Hi Hc Hch Hf Hfv"). auto. }
+    { iApply (composition_call_host with "Hi Hc Hch Hf Hfv"); auto. }
   Qed.
 
 End fundamental.

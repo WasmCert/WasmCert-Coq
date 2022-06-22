@@ -41,7 +41,9 @@ Require Import iris_fundamental_const
         iris_fundamental_if
         iris_fundamental_return
         iris_fundamental_trap
-        iris_fundamental_local.
+        iris_fundamental_local
+        iris_fundamental_stuck_host
+        iris_fundamental_host.
 Import uPred.
 
 Section fundamental.
@@ -88,33 +90,11 @@ Section fundamental.
     { by apply typing_nil. }
     { rewrite to_e_list_cat.
       eapply typing_composition.
+      { simpl. auto. }
       { apply IHbe_typing1. }
       { apply IHbe_typing2. } }
     { by apply typing_weakening. }
   Qed.
-
-  (* TODO: update corollary to version as discussed in logrel file
-     
-  Corollary be_fundamental_closed C es τ : (tc_label C) = [] ∧ (tc_return C) = None ->
-                                           be_typing C es τ -> ⊢ semantic_typing_closed C (to_e_list es) τ.
-  Proof.
-    intros Hnil Htyping.
-    iSplit;[auto|]. destruct τ.
-    iIntros (i) "#Hi". iIntros (f vs) "[Hf Hfv] #Hv".
-    apply be_fundamental in Htyping.
-    iDestruct (Htyping) as "Ht".
-    iSpecialize ("Ht" $! _ (LH_base [] []) with "[$] []").
-    { destruct Hnil as [-> ->]. iSimpl. auto. }
-    iSpecialize ("Ht" with "[$] [$]").
-    iApply (wp_wand with "Ht").
-    iIntros (v) "[H Hf]". iFrame.
-    iDestruct "H" as "[$ | [H|H]]".
-    { rewrite fixpoint_interp_br_eq. iDestruct "H" as (? ? ? ? ? ? ?) "H".
-      iDestruct "H" as (? ? ? ? ? ? ? ? Hcontr) "H".
-      exfalso. destruct Hnil as [Hnil _]. rewrite Hnil in Hcontr. done. }
-    { iDestruct "H" as (? ? ? ?) "H".
-      destruct Hnil as [_ ->]. done. }
-  Qed. *)
 
   
   Corollary be_fundamental_local C es τ1 τ2 τs : (tc_label C) = [] ∧ (tc_return C) = None ->
@@ -125,5 +105,30 @@ Section fundamental.
     apply typing_local_no_host;auto.
     apply be_fundamental.
   Qed.
+
+  Corollary be_fundamental_local_stuck_host C es τ1 τ2 τs hl : (tc_label C) = [] ∧ (tc_return C) = None ->
+                                                 be_typing (upd_local_label_return C (τ1 ++ τs) [τ2] (Some τ2)) es (Tf [] τ2) ->
+                                                 ⊢ semantic_typing_local_stuck_host hl C es τs (Tf τ1 τ2).
+  Proof.
+    intros Hnil Htyp.
+    apply typing_local_stuck_host;auto.
+    apply be_fundamental.
+  Qed.
       
 End fundamental.
+
+Section fundamental_host.
+
+  Context `{!wasmG Σ, !logrel_na_invs Σ, !host_program_logic Σ}.
+
+
+  Corollary be_fundamental_local_host C es τ1 τ2 τs hl hctx : (tc_label C) = [] ∧ (tc_return C) = None ->
+                                                 be_typing (upd_local_label_return C (τ1 ++ τs) [τ2] (Some τ2)) es (Tf [] τ2) ->
+                                                 ⊢ semantic_typing_local C hl es τs (Tf τ1 τ2) hctx.
+  Proof.
+    intros Hnil Htyp.
+    apply typing_local_host;auto.
+    apply be_fundamental.
+  Qed.
+  
+End fundamental_host.

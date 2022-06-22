@@ -14,6 +14,10 @@ Section bind_rules.
   
 Context `{!wasmG Σ}.
 
+(* Not that trivial to add modality here -- same issue with seq: the expression
+   being binded into the context might be a value, and the same headache of
+   iris val and wasm val exist. This is a general inconvenience for all
+   the bind rules here.*)
   Lemma wp_frame_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) n f f0 LI :
     iris.to_val [AI_local n f LI] = None ->
     ↪[frame] f0 -∗

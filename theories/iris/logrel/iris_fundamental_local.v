@@ -21,19 +21,6 @@ Section fundamental.
   (* -------------------------------------- EXPRESSIONS ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  Lemma interp_instance_change_label lbs C i hl :
-    interp_instance C hl i -∗ interp_instance (upd_label C lbs) hl i.
-  Proof. destruct C,i;simpl. auto. Qed.
-
-  Lemma interp_instance_change_return ret C i hl :
-    interp_instance C hl i -∗ interp_instance (upd_return C ret) hl i.
-  Proof. destruct C,i;simpl. auto. Qed.
-
-  Lemma interp_instance_change_local locs C i hl :
-    interp_instance C hl i -∗ interp_instance (upd_local C locs) hl i.
-  Proof. destruct C,i;simpl. auto. Qed.
-
-
   Lemma to_val_call_host_label_inv n es1 es tf h w vh :
     iris.to_val [AI_label n es1 es] = Some (callHostV tf h w vh) ->
     ∃ vh', vh = LL_label [] n es1 vh' [] ∧ es = llfill vh' [AI_call_host tf h w].
