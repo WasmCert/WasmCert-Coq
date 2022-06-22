@@ -122,6 +122,20 @@ Definition update_table s f idx newval :=
   end.
 
 
+Fixpoint no_more_locals llh :=
+  match llh with
+  | LL_base _ _ => true
+  | LL_label _ _ _ llh _ => no_more_locals llh
+  | LL_local _ _ _ _ _  => false end. 
+
+Fixpoint innermost_frame llh defaultf :=
+  match llh with
+  | LL_base _ _ => defaultf 
+  | LL_label _ _ _ llh _ => innermost_frame llh defaultf
+  | LL_local _ _ f llh _ => if no_more_locals llh then f else innermost_frame llh defaultf
+  end. 
+
+
 
 Inductive host_reduce: store_record -> vi_store -> list module -> list inst_decl -> list host_action -> frame -> list administrative_instruction -> store_record -> vi_store -> list module -> list inst_decl -> list host_action -> frame -> list administrative_instruction -> Prop :=
 | HR_host_step:
@@ -146,13 +160,19 @@ Inductive host_reduce: store_record -> vi_store -> list module -> list inst_decl
   forall (s:store_record) vis ms idecs (s':store_record) (tf:function_type)
     (h:hostfuncidx) (hi:nat) f
     (vcs:seq.seq value) fs
-    (res : seq.seq administrative_instruction) (LI : seq.seq administrative_instruction) LI' lh f0 f1,
+    (res : seq.seq administrative_instruction) (LI : seq.seq administrative_instruction) LI' lh f0,
     h = Mk_hostfuncidx hi ->
     fs !! hi = Some f ->
-    execute_action f s f0 vcs s' f1 res ->
+    (* if the action requires knowledge of the frame, it looks up the innermost frame 
+       closest to the AI_call_host *)
+    execute_action f s (innermost_frame lh f0) vcs s' res ->
     llfill lh [AI_call_host tf h vcs] = LI ->
     llfill lh res = LI' ->
-    host_reduce s vis ms idecs fs f0 LI s' vis ms idecs fs f1 LI'
+    (* If we want host actions to be able to also modify the frame, some effort will need 
+       to be made to modify the innermost frame of lh before filling it with res ;
+       this innermost frame could (only in theory) not exist and in that case, we must
+       figure out what to do *)
+    host_reduce s vis ms idecs fs f0 LI s' vis ms idecs fs f0 LI'
 | HR_call_host_instantiate :
   forall s vis ms idecs h hi f fs LI LI' lh f0,
     h = Mk_hostfuncidx hi ->
@@ -165,15 +185,15 @@ Inductive host_reduce: store_record -> vi_store -> list module -> list inst_decl
     host_reduce s vis ms idecs fs f1 es s' vis ms idecs fs f2 es'
 
                 
-with execute_action : host_action -> store_record -> frame -> list value -> store_record -> frame -> list administrative_instruction -> Prop :=
-| execute_nothing : forall s f, execute_action HA_nothing s f [] s f []
-| execute_print : forall s f v, execute_action HA_print s f [v] s f []
-| execute_call_wasm : forall s f i, execute_action HA_call_wasm s f [VAL_int32 i] s f [AI_basic (BI_call (Wasm_int.nat_of_uint i32m i))]
+with execute_action : host_action -> store_record -> frame -> list value -> store_record -> list administrative_instruction -> Prop :=
+| execute_nothing : forall s f, execute_action HA_nothing s f [] s []
+| execute_print : forall s f v, execute_action HA_print s f [v] s []
+| execute_call_wasm : forall s f i, execute_action HA_call_wasm s f [VAL_int32 i] s [AI_basic (BI_call (Wasm_int.nat_of_uint i32m i))]
 | execute_modify_table : forall s f tab_idx func_idx s' a,
     List.nth_error f.(f_inst).(inst_funcs) (Wasm_int.nat_of_uint i32m func_idx) = Some a ->
     update_table s f (Wasm_int.nat_of_uint i32m tab_idx) a = Some s' ->
     execute_action HA_modify_table s f [VAL_int32 tab_idx ; VAL_int32 func_idx]
-                   s' f []
+                   s' []
 .
 
 
@@ -347,15 +367,15 @@ Proof.
 Qed.
 *)
 
-Lemma execute_action_det f s vcs s1 f0 f1 res1 s2 f2 res2 :
-  execute_action f s f0 vcs s1 f1 res1 -> execute_action f s f0 vcs s2 f2 res2 ->
-  s1 = s2 /\ res1 = res2 /\ f1 = f2.
+Lemma execute_action_det f s vcs s1 f0 res1 s2 res2 :
+  execute_action f s f0 vcs s1 res1 -> execute_action f s f0 vcs s2 res2 ->
+  s1 = s2 /\ res1 = res2.
 Proof.
   intros Hea1 Hea2.
   inversion Hea1 ; inversion Hea2 ; subst => //.
-  inversion H9 => //.
-  inversion H13 ; subst. rewrite H in H8. inversion H8 ; subst.
-  rewrite H0 in H9. by inversion H9. 
+  inversion H8 => //.
+  inversion H12 ; subst. rewrite H in H7. inversion H7 ; subst.
+  rewrite H0 in H8. by inversion H8. 
 Qed.
 
 
