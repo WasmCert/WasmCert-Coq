@@ -151,6 +151,7 @@ Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gma
     dom (gset N) wms ≡ list_to_set (fmap N.of_nat (ext_mem_addrs (fmap modexp_desc v_imps))) /\
     dom (gset N) wgs ≡ list_to_set (fmap N.of_nat (ext_glob_addrs (fmap modexp_desc v_imps))) ⌝.
 
+
 Definition import_func_resources (wfs: gmap N function_closure) : iProp Σ :=
   [∗ map] n ↦ v ∈ wfs, n ↦[wf] v.
 
@@ -229,6 +230,73 @@ Definition import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs: iProp 
   import_mem_wasm_check v_imps t_imps wms ∗
   import_glob_wasm_check v_imps t_imps wgs.
 
+  Ltac unfold_irwt_all :=
+    unfold import_func_wasm_check;
+    unfold import_tab_wasm_check;
+    unfold import_mem_wasm_check;
+    unfold import_glob_wasm_check;
+    unfold import_func_resources;
+    unfold import_tab_resources;
+    unfold import_mem_resources;
+    unfold import_glob_resources;
+    unfold func_typecheck;
+    unfold tab_typecheck;
+    unfold mem_typecheck;
+    unfold glob_typecheck;
+    unfold func_domcheck;
+    unfold tab_domcheck;
+    unfold mem_domcheck;
+    unfold glob_domcheck.
+  
+Definition import_resources_wasm_typecheck_nodup v_imps t_imps wfs wts wms wgs: iProp Σ :=
+  import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
+  [∗ list] i ↦ v; t ∈ v_imps; t_imps,
+  match v.(modexp_desc) with
+  | MED_func (Mk_funcidx i) => ((∃ cl, N.of_nat i ↦[wf] cl ∗ ⌜ wfs !! (N.of_nat i) = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
+  | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↦[wtblock] tab ∗ ⌜ wts !! (N.of_nat i) = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
+  | MED_mem (Mk_memidx i) => (∃ mem mt, N.of_nat i ↦[wmblock] mem ∗ ⌜ wms !! (N.of_nat i) = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝) 
+  | MED_global (Mk_globalidx i) => (∃ g gt, N.of_nat i ↦[wg] g ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
+  end.
+
+(* If v_imps do not contain duplicates, then the two versions are equivalent. *)
+Definition irwt_nodup_equiv v_imps t_imps wfs wts wms wgs:
+  NoDup v_imps ->
+  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ≡
+   import_resources_wasm_typecheck_nodup v_imps t_imps wfs wts wms wgs).
+Proof.
+  iRevert (t_imps wfs wts wms wgs).
+  iInduction (v_imps) as [|?] "IH"; iIntros (t_imps wfs wts wms wgs Hnodup); destruct t_imps => //=.
+  - unfold import_resources_wasm_typecheck_nodup => //=.
+    unfold import_resources_wasm_domcheck => /=.
+    unfold import_resources_wasm_typecheck.
+    unfold_irwt_all => /=.
+    iSplit => //=.
+    + iIntros "((?&?& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom))".
+      by [].
+    + iIntros "%H".
+      destruct H as ((?&?&?&?)&?).
+      apply dom_empty_inv in H.
+      apply dom_empty_inv in H0.
+      apply dom_empty_inv in H1.
+      apply dom_empty_inv in H2.
+      subst.
+      by repeat iSplit => //.
+  - admit.
+  - admit.
+(*  - iIntros "Hirwt".
+    iDestruct "Hirwt" as "(Hfwc & Htwc & Hmwc & Hgwc)".
+    iDestruct "Hfwc" as "(Hfm & Hft & %Hfdom)".
+    iDestruct "Htwc" as "(Htm & Htt & %Htdom)".
+    iDestruct "Hmwc" as "(Hmm & Hmt & %Hmdom)".
+    iDestruct "Hgwc" as "(Hgm & Hgt & %Hgdom)".
+    unfold import_func_resources.
+    unfold import_tab_resources.
+    unfold import_mem_resources.
+    unfold import_glob_resources.
+    unfold import_resources_wasm_typecheck_nodup.*)
+    admit.
+Admitted.
+    
 Definition exp_default := MED_func (Mk_funcidx 0).
 
 Lemma import_func_wasm_lookup v_imps t_imps wfs ws :
