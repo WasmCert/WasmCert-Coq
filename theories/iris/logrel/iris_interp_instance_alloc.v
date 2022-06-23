@@ -134,7 +134,56 @@ Section InterpInstance.
       iApply interp_closure_pre_ind;eauto.
     }
   Qed.
-      
+
+  Definition import_func_wasm_check_invs v_imps t_imps wfs : iProp Σ :=
+    ⌜ func_domcheck v_imps wfs ⌝ ∗
+    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
+    match v.(modexp_desc) with
+    | MED_func (Mk_funcidx i) => ((∃ cl, na_inv logrel_nais (wfN (N.of_nat i)) (N.of_nat i ↦[wf] cl) ∗ ⌜ wfs !! (N.of_nat i) = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
+    | _ => True
+    end.
+
+  Definition import_tab_wasm_check_invs v_imps t_imps wts : iProp Σ :=
+    ⌜ tab_domcheck v_imps wts ⌝ ∗
+    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
+    match v.(modexp_desc) with
+    | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↪[wtsize]tab_size tab ∗
+                                           N.of_nat i ↪[wtlimit]table_max_opt tab ∗
+                                           ([∗ list] j↦tabelem ∈ table_data tab, na_inv logrel_nais (wtN (N.of_nat i) (N.of_nat j)) (N.of_nat i ↦[wt][N.of_nat j]tabelem))
+                                           ∗ ⌜ wts !! (N.of_nat i) = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
+    | _ => True
+    end.
+
+  Definition import_mem_wasm_check_invs v_imps t_imps wms : iProp Σ :=
+    ⌜ mem_domcheck v_imps wms ⌝ ∗
+    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
+    match v.(modexp_desc) with
+    | MED_mem (Mk_memidx i) => (∃ mem mt, (na_inv logrel_nais (wmN (N.of_nat i)) (∃ (mem : memory),
+                                ([∗ list] j ↦ b ∈ (mem.(mem_data).(ml_data)), N.of_nat i ↦[wm][N.of_nat j] b) ∗
+                                N.of_nat i ↦[wmlength] mem_length mem)) ∗
+                            N.of_nat i ↪[wmlimit] mem_max_opt mem ∗ ⌜ wms !! (N.of_nat i) = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝)
+    | _ => True
+    end.
+
+  Definition import_glob_wasm_check_invs v_imps t_imps wgs : iProp Σ :=
+    ⌜ glob_domcheck v_imps wgs ⌝ ∗
+    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
+    match v.(modexp_desc) with
+    | MED_global (Mk_globalidx i) => (∃ g gt, na_inv logrel_nais (wgN (N.of_nat i)) (∃ w, N.of_nat i ↦[wg] Build_global (tg_mut gt) w ∗ interp_value (tg_t gt) w)
+                                                  ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
+    | _ => True
+    end.
+
+  Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
+             (t_imps: list extern_t) (wfs: gmap N function_closure)
+             (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
+    import_func_wasm_check_invs v_imps t_imps wfs ∗
+    import_tab_wasm_check_invs v_imps t_imps wts ∗
+    import_mem_wasm_check_invs v_imps t_imps wms ∗
+    import_glob_wasm_check_invs v_imps t_imps wgs.
+
+  
+  (*
   Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
              (t_imps: list extern_t) (wfs: gmap N function_closure)
              (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
@@ -155,16 +204,18 @@ Section InterpInstance.
                               
   | MED_global (Mk_globalidx i) => (∃ g gt, na_inv logrel_nais (wgN (N.of_nat i)) (∃ w, N.of_nat i ↦[wg] Build_global (tg_mut gt) w ∗ interp_value (tg_t gt) w)
                                                   ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
-  end.
+  end.*)
+
 
   Global Instance imports_invs_persistent v_imps t_imps wfs wts wms wgs : Persistent (import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs).
   Proof.
-    apply bi.sep_persistent;[apply _|].
-    apply big_sepL2_persistent=>n exp expt.
-    destruct (modexp_desc exp);[destruct f;apply _|
-                                 destruct t;apply _|
-                                 destruct m;apply _|
-                                 destruct g;apply _].
+    repeat apply bi.sep_persistent => //; try apply _.
+    all: apply big_sepL2_persistent => n exp expt.
+    all: destruct (modexp_desc exp) => //; (try by apply _).
+    - by destruct f; apply _ => //.
+    - by destruct t; apply _ => //.
+    - by destruct m; apply _ => //.
+    - by destruct g; apply _ => //.
   Qed.
 
 
@@ -172,8 +223,20 @@ Section InterpInstance.
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ={E}=∗
     import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs.
   Proof.
-    iIntros "[Hdom Himps]".
-    iFrame "Hdom".
+    iIntros "(Hfwc & Htwc & Hmwc & Hgwc)".
+    iDestruct "Hfwc" as "(Hfm & Hft & %Hfdom)".
+    iDestruct "Htwc" as "(Htm & Htt & %Htdom)".
+    iDestruct "Hmwc" as "(Hmm & Hmt & %Hmdom)".
+    iDestruct "Hgwc" as "(Hgm & Hgt & %Hgdom)".
+    unfold import_resources_wasm_typecheck_invs.
+    iSplitL "Hfm Hft".
+    - unfold import_func_resources, func_typecheck, import_func_wasm_check_invs.
+      iModIntro.
+      iSplit => //.
+    unfold import_func_wasm_check_invs.
+    unfold import_tab_wasm_check_invs.
+    unfold import_mem_wasm_check_invs.
+    unfold import_glob_wasm_check_invs.
     iApply big_sepL2_fupd.
     iApply (big_sepL2_mono with "Himps");intros k exp expt Hlook1 Hlook2;simpl.
     destruct (modexp_desc exp);[destruct f|destruct t|destruct m|destruct g];iIntros "Hres".
