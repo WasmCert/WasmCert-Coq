@@ -743,7 +743,6 @@ Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) :
        (take (length mem.(mem_data).(ml_data)) ((take offset mem.(mem_data).(ml_data)) ++ bs ++ (drop (offset + length bs) mem.(mem_data).(ml_data)))))
     mem.(mem_max_opt).
 
-
 (* For each module data segment:
    - Finds the correct memory targeted; we only deal with the case where the 
      memory to be initialised is newly allocated (not imported) here.
@@ -1934,54 +1933,6 @@ Proof.
       by rewrite IHe_offs => //.
 Qed.
 
-(*
-Lemma update_wts_split (wts1 wts2: gmap N tableinst) inst e_offs elems:
-  map_disjoint wts1 wts2 ->
-  update_wts (wts1 ∪ wts2) inst e_offs elems = 
-  match (update_wts_partial wts1 inst e_offs elems) with
-    | Some wts1' =>
-      match (update_wts_partial wts2 inst e_offs elems) with
-      | Some wts2' => Some (wts1' ∪ wts2')
-      | None => None
-      end
-    | None => None
-  end.
-Proof.
-  move : wts1 wts2 inst elems.
-  induction e_offs; unfold update_wts, update_wts_partial; intros; destruct elems => //=.
-  - destruct m => /=.
-    destruct modelem_table => /=.
-    fold update_wts.
-    fold update_wts_partial.
-    destruct (inst_tab inst !! n) eqn:Hinstlookup => //=.
-    
-    destruct ((wts1 ∪ wts2) !! _) eqn:Hwtslookup => //=.
-    { apply lookup_union_Some in Hwtslookup => //.
-      destruct Hwtslookup as [Hwts1l | Hwts2l].
-      + rewrite Hwts1l.
-        destruct (update_tab t a _) eqn:Hupdatetab => //=.
-        rewrite insert_union_l.
-        assert (wts2 !! N.of_nat n0 = None) as Hwts2l.
-        { by eapply map_disjoint_Some_l. }
-        rewrite Hwts2l.
-        apply IHe_offs.
-        by apply map_disjoint_insert_l_2 => //.
-      + rewrite Hwts2l.
-        assert (wts1 !! N.of_nat n0 = None) as Hwts1l.
-        { by eapply map_disjoint_Some_r. }
-        rewrite Hwts1l.
-        destruct (update_tab t a _) eqn:Hupdatetab => //=.
-        { rewrite insert_union_r => //.
-          apply IHe_offs.
-          by apply map_disjoint_insert_r_2 => //.
-        }
-        { by destruct (update_wts_partial _ _ _ _) => //. }
-    }
-    { apply lookup_union_None in Hwtslookup.
-      destruct Hwtslookup as [Hwts1l Hwts2l].
-      rewrite Hwts1l Hwts2l.
-Admitted.*)
-
 Lemma update_wts_split (wts' wts1 wts2: gmap N tableinst) inst e_offs elems:
   map_disjoint wts1 wts2 ->
   update_wts (wts1 ∪ wts2) inst e_offs elems = Some wts' ->
@@ -2215,127 +2166,157 @@ Proof.
     by iFrame.
 Qed.
 
+Definition update_mem (mem: memory) off md : option memory :=
+  let mld := mem.(mem_data).(ml_data) in
+  if off + length md <=? length mld then
+    Some ({| mem_data := {| ml_data := (take off mld) ++ md ++ (drop (off + length md) mld); ml_init := mem.(mem_data).(ml_init) |}; mem_max_opt := mem.(mem_max_opt) |})
+  else None.
+
+Lemma write_bytes_spec m off md mres:
+  write_bytes m (N.of_nat off) md = Some mres <->
+  ((length md = 0 /\ m = mres) \/ (update_mem m off md = Some mres)).
+Proof.
+  move: m off mres.
+  unfold write_bytes, fold_lefti.
+  induction md using List.rev_ind; intros; unfold update_mem, write_bytes => //=.
+  - split.
+    + move => H; left; split => //.
+      by destruct m; inversion H.
+    + move => [[_ H]|H]; first by destruct m; inversion H.
+      
+    move/Nat.leb_le in H.
+    rewrite Nat.add_0_r.
+    rewrite H.
+    destruct m => /=.
+    destruct mem_data => /=.
+    rewrite cat_app.
+    by rewrite take_drop.
+  - rewrite app_length.
+    rewrite fold_left_app.
+    rewrite <- IHmd.
+Qed.
+
+Definition update_tabs (tabs: list tableinst) off n td' : option (list tableinst) :=
+  match tabs !! n with
+  | Some tab =>
+    match update_tab tab off td' with
+    | Some tab' => Some (<[ n := tab' ]> tabs)
+    | None => None
+    end
+  | None => None
+  end.
+
+Lemma update_tab_length tab off td' tab':
+  update_tab tab off td' = Some tab' ->
+  length (table_data tab) = length (table_data tab').
+Proof.
+  unfold update_tab.
+  destruct (_ <=? _) eqn:Hle => //.
+  move => H; inversion H; subst; clear H.
+  apply PeanoNat.Nat.leb_le in Hle => /=.
+  repeat rewrite app_length.
+  rewrite take_length drop_length.
+  by lias.
+Qed.
+
+Lemma update_tab_nil_id tab off tab':
+  update_tab tab off [] = Some tab' ->
+  tab = tab'.
+Proof.
+  unfold update_tab.
+  destruct (_ <=? _) => //.
+  move => H.
+  inversion H; subst; clear H.
+  rewrite Nat.add_0_r.
+  rewrite cat_app.
+  rewrite -> (take_drop off (table_data tab)).
+  by destruct tab.
+Qed.
+
+Lemma update_tabs_nil_id tabs n off tabs':
+  update_tabs tabs off n [] = Some tabs' ->
+  tabs = tabs'.
+Proof.
+  unfold update_tabs.
+  destruct (_ !! _) eqn: Htab => //.
+  destruct (update_tab _ _ _) eqn:Hupd => //.
+  apply update_tab_nil_id in Hupd; subst.
+  rewrite list_insert_id => //.
+  by move => H; inversion H.
+Qed.
+
+(* Nothing interesting, mainly numerical and string massages *)
+Lemma update_tab_shift tab tab' off t td':
+  update_tab tab off (t :: td') = Some tab' ->
+  exists tab0, update_tab tab off [t] = Some tab0 /\
+           update_tab tab0 (off+1) td' = Some tab'.
+Proof.
+  unfold update_tab.
+  destruct (_ <=? _) eqn: Hle => //=.
+  move => H.
+  inversion H; subst; clear H.
+  rewrite -> PeanoNat.Nat.leb_le in Hle.
+  eexists. split.
+  - assert (off+1 <=? length (table_data tab)) as Hle2.
+    { apply PeanoNat.Nat.leb_le.
+      simpl in Hle.
+      by lias. }
+    by rewrite Hle2. 
+  - rewrite app_length take_length => /=; rewrite drop_length.
+    assert (off + 1 + length td' <=? off `min` length (table_data tab) + S (length (table_data tab) - (off+1))) as Hle2.
+    {
+      apply PeanoNat.Nat.leb_le.
+      simpl in Hle.
+      by lias.
+    }
+    rewrite Hle2.
+    do 2 f_equal.
+    replace (take off (table_data tab) ++ _ :: drop (off + 1) (table_data tab)) with (((take off (table_data tab)) ++ [t]) ++ drop (off+1) (table_data tab)); last first.
+    {
+      rewrite <- app_assoc.
+      by f_equal.
+    }
+    rewrite take_app_alt; last first.
+    { rewrite app_length take_length => /=.
+      by lias.
+    }
+    rewrite <- app_assoc => /=.
+    do 3 f_equal.
+    rewrite <- drop_drop.
+    rewrite drop_app_alt; last first.
+    { rewrite app_length take_length => /=.
+      by lias.
+    }
+    rewrite drop_drop.
+    f_equal.
+    by lias.
+Qed.
+
+Lemma update_tabs_shift tabs tabs' off n t td':
+  update_tabs tabs off n (t :: td') = Some tabs' ->
+  exists tabs0, update_tabs tabs off n [t] = Some tabs0 /\
+           update_tabs tabs0 (off+1) n td' = Some tabs'.
+Proof.
+  unfold update_tabs.
+  destruct (_ !! _) eqn:Htab => //.
+  destruct (update_tab _ _ _) eqn:Hupd => //.
+  apply update_tab_shift in Hupd.
+  destruct Hupd as [tab0 [Hupd1 Hupd2]].
+  move => H; inversion H; subst; clear H.
+  exists (<[ n := tab0 ]> tabs).
+  rewrite Hupd1.
+  split => //.
+  rewrite list_lookup_insert; last by eapply lookup_lt_Some.
+  rewrite Hupd2.
+  by rewrite list_insert_insert.
+Qed.
+  
+
 Lemma ext_tab_addrs_aux l:
   ext_tab_addrs l = fmap (fun '(Mk_tableidx i) => i) (ext_tabs l).
 Proof.
   by [].
 Qed.
-
-(*
-Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs:
-  let wms' := module_import_init_mems m inst wms in
-  (* initialisers implementation in basic Wasm *)
-  ⌜init_mems ws inst d_inits m.(mod_data) = ws'⌝ -∗
-  (* resources and contents for the imported states *)
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-  (* heap interpretations for memory-related states *)
-  gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
-  gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
-  (* memory mapstos *)
-  ([∗ list] i↦v ∈ ((λ '{| lim_min := min; lim_max := maxo |},
-                   {|
-                     mem_data :=
-                       mem_make #00%byte
-                                match min with
-                                | 0%N => 0%N
-                                | N.pos q => N.pos (64 * 1024 * q)
-                                end;
-                     mem_max_opt := maxo
-                   |}) <$> mod_mems m),
-   N.of_nat (length ws.(s_mems) + i - length (m.(mod_mems)))↦[wmblock]v) -∗
-  |==>
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms' wgs ∗
-  gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
-  gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
-  module_inst_resources_mem (module_inst_build_mems m inst) (drop (get_import_mem_count m) inst.(inst_memory))))%I.
-Proof.
-Admitted.
-*)
-(*
-Lemma init_mems_state_update ws ws' inst d_inits m v_imps t_imps wfs wts wms wgs:
-  let wms' := module_import_init_mems m inst wms in
-  ⌜init_mems ws inst d_inits m.(mod_data) = ws'⌝ -∗
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
-  gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
-  gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
-  ([∗ list] i↦v ∈ ((λ '{| lim_min := min; lim_max := maxo |},
-                   {|
-                     mem_data :=
-                       mem_make #00%byte
-                                match min with
-                                | 0%N => 0%N
-                                | N.pos q => N.pos (64 * 1024 * q)
-                                end;
-                     mem_max_opt := maxo
-                   |}) <$> mod_mems m),
-   N.of_nat (length ws.(s_mems) + i - length (m.(mod_mems)))↦[wmblock]v) -∗
-  |==>
-  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms' wgs ∗
-  gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
-  gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
-  module_inst_resources_mem (module_inst_build_mems m inst) (drop (get_import_mem_count m) inst.(inst_memory))))%I.
-Proof.
-  assert (length (inst_memory inst) = length m.(mod_mems) + get_import_mem_count m) as Hinstmemlen; first admit.
-  destruct m => /=.
-  move: Hinstmemlen.
-  move: ws ws' inst d_inits mod_types mod_funcs mod_tables mod_mems mod_globals mod_elem mod_start mod_imports mod_exports v_imps t_imps wfs wts wms wgs.
-  induction mod_data; intros.
-  - unfold init_mems.
-    rewrite combine_nil => /=.
-    iIntros "%Heq"; subst.
-    iIntros "Hwasm Hwm Hwmlength Hwmlim Hwmmapsto".
-    iFrame.
-    iModIntro.
-    unfold module_inst_resources_mem.
-    unfold module_inst_build_mems => /=.
-    unfold module_inst_mem_base.
-    unfold module_inst_mem_base_func => /=.
-    unfold get_import_mem_count in * => /=.
-    
-    simpl in Hinstmemlen.
-    iRevert (Hinstmemlen).
-    iRevert (mod_imports).
-    iRevert (inst).
-    iRevert "Hwmmapsto".
-
-    iInduction (mod_mems) as [|?] "IH" => //=.
-    + iIntros (_ inst mod_imports Hinstmemlen).
-      simpl in Hinstmemlen.
-      rewrite <- Hinstmemlen.
-      by rewrite drop_all.
-    + iIntros "Hwmmapsto".
-      iIntros (inst mod_imports Hinstmemlen).
-      simpl in *.
-      destruct inst => /=.
-      destruct inst_memory => //.
-      iDestruct "Hwmmapsto" as "(Hm & Hwmmapsto)".
-      remember (drop _ _) as mindex.
-      assert (length mindex > 0) as Hmindexlen.
-      { rewrite Heqmindex.
-        rewrite drop_length.
-        rewrite Hinstmemlen.
-        by lias.
-      }
-      destruct mindex => /=.
-      { exfalso.
-        simpl in Hmindexlen.
-        by inversion Hmindexlen.
-      }
-      iSplitL "Hm".
-      { admit.
-      }
-      {
-        simpl.
-        assert (forall a b c, a+(S b) - (S c) = a+b-c); first by lias.
-        admit.
-      }
-  admit.
-Admitted.
- *)
 
 Lemma big_sepL2_big_sepM {X Y: Type} (E0 : EqDecision X) (H0: Countable X) (l1: list X) (l2: list Y) (Φ: X -> Y -> iProp Σ) (m: gmap X Y):
   NoDup l1 ->
