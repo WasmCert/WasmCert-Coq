@@ -135,46 +135,47 @@ Section InterpInstance.
     }
   Qed.
 
+  Definition import_func_nainv (wfs: gmap N function_closure) : iProp Σ :=
+    [∗ map] i ↦ v ∈ wfs, na_inv logrel_nais (wfN i) (i ↦[wf] v).
+
+  Definition import_tab_nainv (wts: gmap N tableinst) : iProp Σ :=
+    [∗ map] i ↦ v ∈ wts, ((i ↪[wtsize] tab_size v) ∗
+                          (i ↪[wtlimit] table_max_opt v) ∗
+                          ([∗ list] j↦tabelem ∈ table_data v,
+                           na_inv logrel_nais (wtN i (N.of_nat j)) (i ↦[wt][N.of_nat j] tabelem))).
+
+  Definition import_mem_nainv (wms: gmap N memory) : iProp Σ :=
+    [∗ map] i ↦ v ∈ wms, ((na_inv logrel_nais (wmN i) (∃ (mem: memory),
+                                                         ([∗ list] j ↦ b ∈ (mem.(mem_data).(ml_data)), i ↦[wm][N.of_nat j] b) ∗
+                                            i ↦[wmlength] mem_length mem)) ∗
+                                        i ↪[wmlimit] mem_max_opt v).
+
+  Definition import_glob_nainv (wgs: gmap N global) : iProp Σ :=
+    [∗ map] i ↦ v ∈ wgs, na_inv logrel_nais (wgN i)
+                                      (∃ w, i ↦[wg] Build_global (g_mut v) w
+                                           ∗ interp_value (typeof (g_val v)) w).
+
   Definition import_func_wasm_check_invs v_imps t_imps wfs : iProp Σ :=
     ⌜ func_domcheck v_imps wfs ⌝ ∗
-    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
-    match v.(modexp_desc) with
-    | MED_func (Mk_funcidx i) => ((∃ cl, na_inv logrel_nais (wfN (N.of_nat i)) (N.of_nat i ↦[wf] cl) ∗ ⌜ wfs !! (N.of_nat i) = Some cl /\ t = ET_func (cl_type cl) ⌝)%I)
-    | _ => True
-    end.
+    func_typecheck v_imps t_imps wfs ∗
+    import_func_nainv wfs.  
 
   Definition import_tab_wasm_check_invs v_imps t_imps wts : iProp Σ :=
     ⌜ tab_domcheck v_imps wts ⌝ ∗
-    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
-    match v.(modexp_desc) with
-    | MED_table (Mk_tableidx i) => (∃ tab tt, N.of_nat i ↪[wtsize]tab_size tab ∗
-                                           N.of_nat i ↪[wtlimit]table_max_opt tab ∗
-                                           ([∗ list] j↦tabelem ∈ table_data tab, na_inv logrel_nais (wtN (N.of_nat i) (N.of_nat j)) (N.of_nat i ↦[wt][N.of_nat j]tabelem))
-                                           ∗ ⌜ wts !! (N.of_nat i) = Some tab /\ t = ET_tab tt /\ tab_typing tab tt ⌝)
-    | _ => True
-    end.
-
+    tab_typecheck v_imps t_imps wts ∗
+    import_tab_nainv wts.
+  
   Definition import_mem_wasm_check_invs v_imps t_imps wms : iProp Σ :=
     ⌜ mem_domcheck v_imps wms ⌝ ∗
-    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
-    match v.(modexp_desc) with
-    | MED_mem (Mk_memidx i) => (∃ mem mt, (na_inv logrel_nais (wmN (N.of_nat i)) (∃ (mem : memory),
-                                ([∗ list] j ↦ b ∈ (mem.(mem_data).(ml_data)), N.of_nat i ↦[wm][N.of_nat j] b) ∗
-                                N.of_nat i ↦[wmlength] mem_length mem)) ∗
-                            N.of_nat i ↪[wmlimit] mem_max_opt mem ∗ ⌜ wms !! (N.of_nat i) = Some mem /\ t = ET_mem mt /\ mem_typing mem mt ⌝)
-    | _ => True
-    end.
-
+    mem_typecheck v_imps t_imps wms ∗
+    import_mem_nainv wms.
+  
   Definition import_glob_wasm_check_invs v_imps t_imps wgs : iProp Σ :=
     ⌜ glob_domcheck v_imps wgs ⌝ ∗
-    [∗ list] i ↦ v; t ∈ v_imps; t_imps,
-    match v.(modexp_desc) with
-    | MED_global (Mk_globalidx i) => (∃ g gt, na_inv logrel_nais (wgN (N.of_nat i)) (∃ w, N.of_nat i ↦[wg] Build_global (tg_mut gt) w ∗ interp_value (tg_t gt) w)
-                                                  ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
-    | _ => True
-    end.
-
-  Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
+    glob_typecheck v_imps t_imps wgs ∗
+    import_glob_nainv wgs.
+  
+  Definition import_resources_wasm_typecheck_invs_alt (v_imps: list module_export)
              (t_imps: list extern_t) (wfs: gmap N function_closure)
              (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
     import_func_wasm_check_invs v_imps t_imps wfs ∗
@@ -183,7 +184,7 @@ Section InterpInstance.
     import_glob_wasm_check_invs v_imps t_imps wgs.
 
   
-  (*
+  
   Definition import_resources_wasm_typecheck_invs (v_imps: list module_export)
              (t_imps: list extern_t) (wfs: gmap N function_closure)
              (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global): iProp Σ :=
@@ -204,26 +205,39 @@ Section InterpInstance.
                               
   | MED_global (Mk_globalidx i) => (∃ g gt, na_inv logrel_nais (wgN (N.of_nat i)) (∃ w, N.of_nat i ↦[wg] Build_global (tg_mut gt) w ∗ interp_value (tg_t gt) w)
                                                   ∗ ⌜ wgs !! (N.of_nat i) = Some g /\ t = ET_glob gt /\ global_agree g gt ⌝)
-  end.*)
+  end.
 
 
   Global Instance imports_invs_persistent v_imps t_imps wfs wts wms wgs : Persistent (import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs).
   Proof.
-    repeat apply bi.sep_persistent => //; try apply _.
-    all: apply big_sepL2_persistent => n exp expt.
-    all: destruct (modexp_desc exp) => //; (try by apply _).
-    - by destruct f; apply _ => //.
-    - by destruct t; apply _ => //.
-    - by destruct m; apply _ => //.
-    - by destruct g; apply _ => //.
+    apply bi.sep_persistent;[apply _|].
+    apply big_sepL2_persistent=>n exp expt.
+    destruct (modexp_desc exp);[destruct f;apply _|
+                                 destruct t;apply _|
+                                 destruct m;apply _|
+                                 destruct g;apply _].
   Qed.
 
+  Lemma import_resources_wasm_typecheck_alloc_alt E v_imps t_imps wfs wts wms wgs :
+    import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ={E}=∗
+    import_resources_wasm_typecheck_invs_alt v_imps t_imps wfs wts wms wgs.
+  Proof.
+  Admitted.
 
+  Lemma irwt_invs_alt_equiv v_imps t_imps wfs wts wms wgs:
+    import_resources_wasm_typecheck_invs_alt v_imps t_imps wfs wts wms wgs -∗
+    import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs.
+  Proof.
+  Admitted.
+    
   Lemma import_resources_wasm_typecheck_alloc E v_imps t_imps wfs wts wms wgs :
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ={E}=∗
     import_resources_wasm_typecheck_invs v_imps t_imps wfs wts wms wgs.
   Proof.
-    iIntros "(Hfwc & Htwc & Hmwc & Hgwc)".
+    iIntros "H".
+    iApply irwt_invs_alt_equiv.
+    by iApply import_resources_wasm_typecheck_alloc_alt.
+(*    iIntros "(Hfwc & Htwc & Hmwc & Hgwc)".
     iDestruct "Hfwc" as "(Hfm & Hft & %Hfdom)".
     iDestruct "Htwc" as "(Htm & Htt & %Htdom)".
     iDestruct "Hmwc" as "(Hmm & Hmt & %Hmdom)".
@@ -233,10 +247,15 @@ Section InterpInstance.
     - unfold import_func_resources, func_typecheck, import_func_wasm_check_invs.
       iModIntro.
       iSplit => //.
-    unfold import_func_wasm_check_invs.
-    unfold import_tab_wasm_check_invs.
-    unfold import_mem_wasm_check_invs.
-    unfold import_glob_wasm_check_invs.
+      iFrame "Hft".
+      unfold import_func_nainv.
+      
+
+      
+      unfold import_func_wasm_check_invs.
+      unfold import_tab_wasm_check_invs.
+      unfold import_mem_wasm_check_invs.
+      unfold import_glob_wasm_check_invs.
     iApply big_sepL2_fupd.
     iApply (big_sepL2_mono with "Himps");intros k exp expt Hlook1 Hlook2;simpl.
     destruct (modexp_desc exp);[destruct f|destruct t|destruct m|destruct g];iIntros "Hres".
@@ -257,7 +276,7 @@ Section InterpInstance.
       revert Htyp. move/eqP=>Htyp.
       revert Hmut. move/eqP=>Hmut.
       rewrite Htyp. destruct g;simplify_eq. simpl. iExists g_val. iFrame.
-      iApply interp_value_type_of. }
+      iApply interp_value_type_of. } *)
   Qed.
 
   Lemma import_resources_wasm_typecheck_lengths v_imps t_imps wfs wts wms wgs :
@@ -267,7 +286,7 @@ Section InterpInstance.
     ∧ length (ext_mem_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_mems t_imps)
     ∧ length (ext_glob_addrs (map (λ mexp : module_export, modexp_desc mexp) v_imps)) = length (ext_t_globs t_imps)⌝.
   Proof.
-    iIntros "[_ Hi]".
+   (* iIntros "(H".
     iDestruct (big_sepL2_length with "Hi") as %Hlen.
     iInduction (v_imps) as [] "IH"
   forall (t_imps Hlen).
@@ -290,8 +309,8 @@ Section InterpInstance.
       { destruct g. simpl. destruct HlenIH as (Heq1&Heq2&Heq3&Heq4).
         iDestruct "Hx" as (? ?) "[_ [_ [%H _]]]".
         rewrite H //. simpl. rewrite Heq1 Heq2 Heq3 Heq4. auto. }
-    }
-  Qed.
+    }*)
+  Admitted.
 
   Definition module_inst_resources_func_invs (mfuncs: list module_func) (inst: instance) (inst_f: list funcaddr) : iProp Σ :=
     ([∗ list] f; addr ∈ mfuncs; inst_f,
@@ -409,7 +428,7 @@ Section InterpInstance.
      module_inst_resources_func (mod_funcs m) inst (drop (get_import_func_count m) (inst_funcs inst)) -∗
      ⌜∀ i fa, (drop (get_import_func_count m) (inst_funcs inst)) !! i = Some fa -> wfs !! (N.of_nat fa) = None⌝.
   Proof.
-    iIntros "[[%Hdom _] Hi] Hf".
+   (* iIntros "[[%Hdom _] Hi] Hf".
     iIntros (i fa Hsome).
     iDestruct (big_sepL2_length with "Hf") as %Hlen.
     apply lookup_lt_Some in Hsome as Hlt. rewrite -Hlen in Hlt.
@@ -430,7 +449,8 @@ Section InterpInstance.
     iDestruct (big_sepL2_lookup with "Hi") as "HH";eauto.
     simpl. iDestruct "HH" as (cl') "[H' _]".
     iDestruct (mapsto_valid_2 with "H H'") as "[% ?]". done.
-  Qed.    
+  Qed.    *)
+    Admitted.
     
 
   (* Definition module_inst_resources_tab_invs (mtabs: list module_table) (t_inits : gmap (nat * nat) funcelem) (inst_t: list tableaddr) : iProp Σ := *)
