@@ -242,6 +242,27 @@ Definition get_import_global_count (m: module) := length (pmap (fun x => match x
                                                                    | _ => None
                                                                       end) m.(mod_imports)).
 
+
+Lemma ext_funcs_lookup_exist (modexps: list module_export_desc) n fn:
+  (ext_funcs modexps) !! n = Some fn ->
+  exists k, modexps !! k = Some (MED_func fn).
+Proof.
+  move: n fn.
+  induction modexps; move => n tn Hextfunclookup => //=.
+  simpl in Hextfunclookup.
+  destruct a => //. 
+  { simpl in *.
+       destruct n; simpl in *; first by inversion Hextfunclookup; subst; exists 0.
+       apply IHmodexps in Hextfunclookup.
+       destruct Hextfunclookup as [k ?].
+       by exists (S k).
+  }
+  all: simpl in *. 
+  all: apply IHmodexps in Hextfunclookup.
+  all: destruct Hextfunclookup as [k ?].
+  all: by exists (S k).
+Qed.
+
 Lemma ext_tabs_lookup_exist (modexps: list module_export_desc) n tn:
   (ext_tabs modexps) !! n = Some tn ->
   exists k, modexps !! k = Some (MED_table tn).
@@ -279,6 +300,26 @@ Proof.
   all: simpl in *. 
   all: apply IHmodexps in Hextmemlookup.
   all: destruct Hextmemlookup as [k ?].
+  all: by exists (S k).
+Qed.
+
+Lemma ext_globs_lookup_exist (modexps: list module_export_desc) n fn:
+  (ext_globs modexps) !! n = Some fn ->
+  exists k, modexps !! k = Some (MED_global fn).
+Proof.
+  move: n fn.
+  induction modexps; move => n tn Hextgloblookup => //=.
+  simpl in Hextgloblookup.
+  destruct a => //. 
+  4: { simpl in *.
+       destruct n; simpl in *; first by inversion Hextgloblookup; subst; exists 0.
+       apply IHmodexps in Hextgloblookup.
+       destruct Hextgloblookup as [k ?].
+       by exists (S k).
+  }
+  all: simpl in *. 
+  all: apply IHmodexps in Hextgloblookup.
+  all: destruct Hextgloblookup as [k ?].
   all: by exists (S k).
 Qed.
 
