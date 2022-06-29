@@ -240,7 +240,7 @@ Section Examples_host.
           modfunc_body := lse_expr 0 0
         |} ] ;
       mod_tables := [];
-      mod_mems := [ {| lim_min := 4%N ; lim_max := None |} ];
+      mod_mems := [ {| lim_min := 1%N ; lim_max := None |} ];
       mod_globals := (* [ {| modglob_type := {| tg_mut := MUT_mut; tg_t := T_i32 |} ; modglob_init := [BI_const (xx 0)] |} ]; *) [];
       mod_elem := [];
       mod_data := [];
@@ -263,6 +263,24 @@ Section Examples_host.
       rewrite -(list.take_drop (length e - 1) e);simpl take; simpl drop;
       eapply bet_composition;[|econstructor;eauto];simpl
   end.
+  
+  Ltac unfold_irwt_all :=
+    unfold import_func_wasm_check;
+    unfold import_tab_wasm_check;
+    unfold import_mem_wasm_check;
+    unfold import_glob_wasm_check;
+    unfold import_func_resources;
+    unfold import_tab_resources;
+    unfold import_mem_resources;
+    unfold import_glob_resources;
+    unfold func_typecheck;
+    unfold tab_typecheck;
+    unfold mem_typecheck;
+    unfold glob_typecheck;
+    unfold func_domcheck;
+    unfold tab_domcheck;
+    unfold mem_domcheck;
+    unfold glob_domcheck.
   
   Lemma lse_module_typing :
     module_typing lse_module (lse_func_impts ++ lse_glob_impts) [].
@@ -309,12 +327,19 @@ Section Examples_host.
     { iIntros "Hmod_adv".
       iApply weakestpre.wp_mono.
       2: iApply (instantiation_spec_operational_no_start _ _ _ [] [] _ _ _ _ ∅ ∅ ∅ ∅);eauto;iFrame.
-      2: cbn; repeat iSplit =>//.
-      iIntros (v) "[$ Hv]". iExact "Hv".
-      iPureIntro. destruct Htyp as [fts [gts Htyp]].
+      2: cbn.
+      { iIntros (v) "[$ Hv]". by iExact "Hv". }
+      destruct Htyp as [fts [gts Htyp]].
       destruct adv_module;simpl in *.
       destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
       apply Forall2_length in Htyp. rewrite /lse_func_impts /= // in Htyp.
+      do 2 iSplit => //.
+      unfold instantiation_resources_pre_wasm => /=.
+      iSplit => //.
+      unfold import_resources_wasm_typecheck.
+      unfold_irwt_all => //=.
+      repeat rewrite dom_empty.
+      repeat (iSplit; try by iSplit) => //.
     }
 
     iIntros (w) "[Himps Hinst_adv] Hmod_adv".
@@ -375,7 +400,7 @@ Section Examples_host.
     erewrite !nth_error_nth;eauto.
     
     iDestruct "Hvis1" as (gr) "Hvis1".
-
+    
     iApply (wp_wand_host _ _ _ (λ v, _ ∗ ↪[frame]empty_frame)%I with "[-HΦ] [HΦ]");cycle 1.
     { iIntros (v) "[Hv ?]". iApply "HΦ". iExact "Hv". }
     { iApply (instantiation_spec_operational_start with "[$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
@@ -383,30 +408,55 @@ Section Examples_host.
       { unfold import_resources_host.
         instantiate (5:=[_;_]). iFrame "Hn Hvis1".
         unfold import_resources_wasm_typecheck,export_ownership_host.
-        iSimpl. do 3 iSplit =>//.
-        { instantiate (1:={[g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
-          instantiate (1:=∅).
-          instantiate (1:=∅).
-          instantiate (1:= {[N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
-          unfold import_resources_wasm_typecheck => /=.
-          iSplit.
-          - iPureIntro. cbn. repeat split;auto.
-            all: try rewrite N2Nat.id.
-            all: try by rewrite dom_singleton_L;clear;set_solver.
-          - iSplitL "Hadvf".
-            iExists _.
-            iFrame.
-            iPureIntro => //=.
-            rewrite lookup_insert => //=.
-          - iSplit ; last done.
-            iExists _,_.
-            iFrame.
-            iPureIntro.
-            rewrite lookup_insert => //=.
-            repeat split => //=.
-            unfold global_agree => //=.
-            by rewrite Hgrettyp.
-          
+        iSimpl.
+        instantiate (1:={[g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
+        instantiate (1:=∅).
+        instantiate (1:=∅).
+        instantiate (1:= {[N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
+        unfold import_resources_wasm_typecheck => /=.
+        do 3 iSplit => //.
+        { unfold import_resources_wasm_typecheck; unfold_irwt_all => /=.
+          repeat rewrite dom_empty.
+          iSplitL "Hadvf" => /=.
+          { iSplit => //.
+            { rewrite big_sepM_delete; first iFrame; last by rewrite lookup_singleton.
+              by rewrite delete_singleton. }
+            iSplit => //=.
+            { rewrite Forall2_cons; iSplit => //=.
+              { rewrite lookup_singleton.
+                by iExists _.
+              }
+              by rewrite Forall2_cons; iSplit => //=.
+            }
+            { rewrite dom_singleton => /=.
+              iPureIntro.
+              by set_solver+.
+            }
+          }
+          iSplitL "" => //.
+          { by repeat (rewrite Forall2_cons => /=; iSplit => //). }
+          iSplitL "" => //.
+          { by repeat (rewrite Forall2_cons => /=; iSplit => //). }
+          { iSplit => //=.
+            { rewrite big_sepM_delete; first iFrame; last by rewrite lookup_singleton.
+              by rewrite delete_singleton. }
+            iSplit => //=.
+            { repeat rewrite Forall2_cons; iSplit => //=.
+              iSplit => //=.
+              rewrite N2Nat.id.
+              iPureIntro.
+              rewrite lookup_singleton.
+              repeat eexists.
+              unfold global_agree.
+              apply/andP.
+              by split; apply/eqP => //=.
+            }
+            { rewrite dom_singleton => /=.
+              rewrite N2Nat.id.
+              iPureIntro.
+              by set_solver+.
+            }
+          }
         }
         { iSplit;auto.
           { rewrite /module_elem_bound_check_gmap /=.
@@ -418,33 +468,95 @@ Section Examples_host.
       { iIntros (idnstart) "Hf [Hmod_lse Hr]".
         iDestruct "Hr" as "([Himph Hexp] & Hr)".
         iDestruct "Hr" as (?) "[Hr _]".
-        iDestruct "Hr" as (? ? ? ? ? ?) "([%Hdom [Himpr [Hgret _]]] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
+    (*    iDestruct "Hr" as (? ? ? ? ? ?) "([%Hdom [Himpr [Hgret _]]] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
+        %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & Hmem & _))".*)
+        iDestruct "Hr" as (? ? ? ? ? ?) "(Hirwt & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
         %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & Hmem & _))".
+        iDestruct "Hirwt" as "(Hfc & Htc & Hmc & Hgc)".
+        unfold_irwt_all => /=.
+        repeat rewrite dom_singleton.
+        iDestruct "Hfc" as "(Hf' & %Hft' & %Hfdom')".
+        iDestruct "Htc" as "(Ht & _ & %Htdom)".
+        iDestruct "Hmc" as "(Hm & _ & %Hmdom)".
+        iDestruct "Hgc" as "(Hg & %Hgt & %Hgdom)".
+        
+        apply dom_empty_inv in Htdom.
+        apply dom_empty_inv in Hmdom.
+        subst wts'0 wms'0.
+
+        iDestruct "Himpstyp" as "(_ & Htc & Hmc & _)".
+        iDestruct "Htc" as "(_&_&%Htdom')".
+        iDestruct "Hmc" as "(_&_&%Hmdom')".
+        unfold tab_domcheck in Htdom'.
+        unfold mem_domcheck in Hmdom'.
+        simpl in *.
+        apply dom_empty_inv in Htdom'.
+        apply dom_empty_inv in Hmdom'.
+        subst wts' wms'.
+
+        
+        rewrite -> Forall2_cons in Hft'.
+        destruct Hft' as [Hcl _].
+        rewrite -> Forall2_cons in Hgt.
+        destruct Hgt as [_ Hgt].
+        inversion Hgt; subst x l y l'. clear Hgt H10.
+        simpl in *.
+
+        destruct Hcl as [cl [Hlookcl Hcltyp]].
+        rewrite lookup_singleton in Hlookcl.
+        inversion Hcltyp; inversion Hlookcl.
+
+        destruct H8 as [g [gt [Hlookg [Hgteq Hagree]]]].
+
+        rewrite N2Nat.id lookup_singleton in Hlookg.
+
+        inversion Hgteq; inversion Hlookg.
+
         destruct Htypr as (Heq1&[? Heq2]&[? Heq3]&[? Heq4]&[? Heq6]&Heq5).
         rewrite Heq2 Heq4.
-        iSimpl in "Himpr Hgret". rewrite !drop_0. cbn.
+        rewrite !drop_0. cbn.
         rewrite Hmem_initsr. cbn.
         iDestruct (big_sepL2_length with "Hr") as %Himprlen.
         destruct x;[done|destruct x;[|done]].
         iDestruct (big_sepL2_length with "Hmem") as %Himpmlen.
         destruct x1;[done|destruct x1;[|done]].
-        iDestruct "Hr" as "[Hr _] /=". rewrite Heq1 /=.
-        iDestruct "Hmem" as "[Hmem _]".
-        iDestruct "Himpr" as (cl) "[Hcl %Hcl]". destruct Hcl as [Hlookcl Hcltyp].
-        rewrite lookup_singleton in Hlookcl. inversion Hcltyp;inversion Hlookcl.
+        clear Himpmlen.
+        cbn.
+        
+        iDestruct "Hr" as "[Hr _]". rewrite Heq1.
+        iDestruct "Hmem" as "[Hmem _]". cbn.
+        subst cl.
+        iDestruct (big_sepM_delete with "Hf'") as "(Hcl & _)".
+        { instantiate (2 := N.of_nat advf); by rewrite lookup_singleton. }
         iDestruct ("Hcls" with "Hcl") as "Hresf".
-        iDestruct "Hgret" as (g gt) "(Hgret & %Hlookg & %Hgteq & %Hagree)".
-        rewrite N2Nat.id lookup_singleton in Hlookg. inversion Hgteq;inversion Hlookg. rewrite N2Nat.id.
+        iDestruct (big_sepM_delete with "Hg") as "(Hgret & _)".
+        { instantiate (2 := g_ret); by rewrite lookup_singleton. }
+        subst g gt.
         
         iApply weakestpre.fupd_wp.
         iMod (interp_instance_alloc [] with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] _]]";
           [apply Htyp|repeat split;eauto|eauto|..].
-        3,4,5: by instantiate (1:=∅).
-        { rewrite Heqadvm /=. auto. }
+        7,8,9: by instantiate (1:=∅).
+        { instantiate (1 := inst_adv). rewrite Heqadvm /=. auto. }
+        instantiate (1 := []).
+        1,2,3,4: by [].
         { destruct Hglob_inits_vals as [? ?];eauto. }
-        { instantiate (1:=∅). repeat iSplit;auto.
-          rewrite module_import_init_tabs_dom. auto.
-          rewrite module_import_init_mems_dom. auto.
+        { instantiate (1:=∅).
+          unfold import_resources_wasm_typecheck.
+          unfold_irwt_all.
+          rewrite module_import_init_tabs_dom.
+          rewrite module_import_init_mems_dom.
+          iSplitL.
+          { iSplit => //. }
+          iSplitL => //.
+          { iSplit => //.
+            by rewrite Htdom'.
+          }
+          iSplitL => //.
+          { iSplit => //.
+            by rewrite Hmdom'.
+          }
+          by iSplit => //.
         }
         { rewrite Htyp_inits Hmem_inits Hglob_inits
                   /module_inst_resources_wasm Heqadvm /=
@@ -480,21 +592,29 @@ Section Examples_host.
         iApply wp_ctx_bind;[simpl;auto|]. repeat erewrite app_nil_l.
 
         iApply (wp_wand with "[Hf Hgret Hmem Hown]").
-        { iApply (lse_spec with "[$Hi $Hf $Hown $Ha Hgret Hmem]");[by simpl|simpl..|].
+        { iApply (lse_spec with "[$Hi $Hf $Hown $Ha Hgret Hmem]");[by cbn|cbn..|] => //.
           { rewrite Heq4. eauto. }
           { rewrite Hinstfuncseq;eauto. }
           { rewrite Heq6;eauto. }
           { unfold upd_local_label_return;simpl.
             rewrite Heqadvm /=. eauto. }
           { iSplitR "Hmem". rewrite N2Nat.id. eauto.
-            iDestruct "Hmem" as "[Hm _]". iSimpl in "Hm".
-            iDestruct "Hm" as "(Hm1 & Hm2 & Hm3 & Hm4 & _)". 
-            iExists (Wasm_int.int_of_Z i32m 0).
-            unfold serialise_i32. cbn. iFrame. done. }
+            iDestruct "Hmem" as "[Hm _]".
+            cbn.
+            replace (repeat #00%byte (Pos.to_nat (64*1024*1))) with (repeat #00%byte 4%nat ++ repeat #00%byte (Pos.to_nat 65532)).
+            { iDestruct (big_sepL_app with "Hm") as "(Hm & _)".
+              iDestruct "Hm" as "(Hm1 & Hm2 & Hm3 & Hm4 & _)". 
+              iExists (Wasm_int.int_of_Z i32m 0).
+              unfold serialise_i32. cbn. iFrame. done. }
+            { rewrite <- repeat_app.
+              by f_equal.
+            }
+          }
           iIntros (w0) "Hw". iExact "Hw".
         }
 
-        iIntros (wres) "[[-> | [-> [Hgret Hm]]] Hf]". 
+        iIntros (wres) "H".
+        iDestruct "H" as "[[-> | [-> [Hgret' Hm']]] Hf]".
         { iApply (wp_wand_ctx with "[Hf]").
           { take_drop_app_rewrite_twice 0 0. iApply (wp_trap_ctx with "Hf");auto. }
           iIntros (v) "[-> Hf]".

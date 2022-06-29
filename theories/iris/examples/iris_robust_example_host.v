@@ -478,6 +478,24 @@ Section Host_robust_example.
       eapply bet_composition;[|econstructor;eauto];simpl
   end.
   
+  Ltac unfold_irwt_all :=
+    unfold import_func_wasm_check;
+    unfold import_tab_wasm_check;
+    unfold import_mem_wasm_check;
+    unfold import_glob_wasm_check;
+    unfold import_func_resources;
+    unfold import_tab_resources;
+    unfold import_mem_resources;
+    unfold import_glob_resources;
+    unfold func_typecheck;
+    unfold tab_typecheck;
+    unfold mem_typecheck;
+    unfold glob_typecheck;
+    unfold func_domcheck;
+    unfold tab_domcheck;
+    unfold mem_domcheck;
+    unfold glob_domcheck.
+  
   Lemma lse_module_typing :
     module_typing lse_log_module (lse_func_impts) [].
   Proof.
@@ -525,15 +543,39 @@ Section Host_robust_example.
                     {[ N.of_nat log_func := (FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h)) ]} ∅ ∅ ∅);eauto;iFrame.
       2: cbn; repeat iSplit =>//.
       iIntros (v) "[$ Hv]". iExact "Hv".
-      { cbn. rewrite dom_singleton_L. iPureIntro. set_solver. }
-      { iSimpl. iSplit =>//. iExists _. iFrame. rewrite lookup_singleton. auto. }
+      { unfold import_func_resources => /=.
+        rewrite -> big_sepM_delete; first iFrame; last by rewrite lookup_singleton.
+        by rewrite delete_singleton.
+      }
+      { unfold func_typecheck. iSimpl.
+        rewrite Forall2_cons => /=.
+        iPureIntro.
+        split => //.
+        eexists; by rewrite lookup_singleton. }
       (* unfold instantiation_resources_pre_wasm. cbn. *)
       (* unfold import_resources_wasm_typecheck. cbn. *)
       
-      iPureIntro. destruct Htyp as [fts [gts Htyp]].
-      destruct adv_module;simpl in *.
-      destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
-      apply Forall2_length in Htyp. rewrite /lse_func_impts /= // in Htyp.
+      { unfold func_domcheck.
+        rewrite dom_singleton => /=.
+        iPureIntro.
+        by set_solver.
+      }
+      { by unfold import_tab_resources. }
+      { unfold tab_typecheck.
+        iPureIntro.
+        by rewrite Forall2_cons => //.
+      }
+      { by unfold import_mem_resources. }
+      { unfold mem_typecheck. by rewrite Forall2_cons. }
+      { by unfold import_glob_resources. }
+      { unfold glob_typecheck. by rewrite Forall2_cons. }
+      { iPureIntro. destruct Htyp as [fts [gts Htyp]].
+        destruct adv_module;simpl in *.
+        destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
+        apply Forall2_length in Htyp.
+        by simpl in Htyp.
+      }
+      
     }
 
     iIntros (w) "[Himps Hinst_adv] Hmod_adv".
@@ -604,9 +646,24 @@ Section Host_robust_example.
     { destruct (inst_funcs inst_adv). by rewrite Coqlib.nth_error_nil in Hadv.
       simpl in *. rewrite drop_0 in Hadv. auto. }
 
-    iDestruct "Himpstyp" as "[%Himpsdom [Himp _]]".
-    iSimpl in "Himp". iDestruct "Himp" as (cl) "[Hlogfunc [%Hlookcl _]]".
-    rewrite lookup_singleton in Hlookcl. inversion Hlookcl;subst cl;clear Hlookcl.
+    iDestruct "Himpstyp" as "(Hfc & Htc & Hmc & _)".
+    iDestruct "Hfc" as "(Hf & %Hft & %Hfdom)".
+    iDestruct "Htc" as "(_ & _ & %Htdom)".
+    iDestruct "Hmc" as "(_ & _ & %Hmdom)".
+    unfold import_func_resources.
+    unfold func_typecheck in Hft.
+
+    iDestruct (big_sepM_delete with "Hf") as "(Hlogfunc & _)".
+    { instantiate (2 := N.of_nat log_func).
+      by rewrite lookup_singleton. }
+
+    apply Forall2_cons in Hft as [Hft _].
+    simpl in Hft.
+    destruct Hft as [cl [Hcl Hft]].
+    rewrite lookup_singleton in Hcl.
+    inversion Hcl; subst cl; clear Hcl.
+    clear Hft.
+    
     iDestruct (mapsto_ne with "Hadvf Hlogfunc") as %Hne.
     
     iApply (weakestpre.wp_wand _ _ _ (λ v, _ ∗ ↪[frame]empty_frame)%I with "[-HΦ] [HΦ]");cycle 1.
@@ -616,20 +673,46 @@ Section Host_robust_example.
       { unfold import_resources_host.
         instantiate (5:=[_;_]). iFrame "Hn Hm".
         unfold import_resources_wasm_typecheck,export_ownership_host.
-        iSimpl. do 3 iSplit =>//.
-        { instantiate (1:=∅).
-          instantiate (1:=∅).
-          instantiate (1:=∅).
-          instantiate (1:= {[ N.of_nat log_func := (FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h));
-                            N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
-          unfold import_resources_wasm_typecheck => /=.
-          iSplit.
-          - iPureIntro. cbn. repeat split;auto.
-            all: try by rewrite dom_insert_L dom_singleton_L;set_solver+.
-          - iSplitL "Hadvf".
-            { iExists _. iFrame. simpl. rewrite lookup_insert_ne //.
-              rewrite lookup_insert. auto. }
-            { iSplit =>//. iExists _. iFrame. simpl. rewrite lookup_insert. auto. }
+        iSimpl.
+        unfold instantiation_resources_pre_wasm.
+        instantiate (1 := ∅).
+        instantiate (1 := ∅).
+        instantiate (1 := ∅).
+        instantiate (1 := {[N.of_nat log_func := FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h); N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
+        do 3 iSplit => //.
+        { unfold import_resources_wasm_typecheck.
+          unfold_irwt_all.
+          repeat iSplit => //=.
+          (* resources *)
+          { rewrite big_sepM_delete; first iFrame; last by rewrite lookup_insert.
+            rewrite delete_insert; last by rewrite lookup_insert_ne.
+            rewrite big_sepM_delete; first iFrame; last by rewrite lookup_singleton.
+            by rewrite delete_singleton.
+          }
+          (* typecheck *)
+          {
+            rewrite Forall2_cons => /=.
+            iSplit => //.
+            iPureIntro.
+            eexists.
+            rewrite lookup_insert_ne => //.
+            rewrite lookup_insert.
+            by split => //.
+            rewrite Forall2_cons => /=.
+            iSplit => //.
+            iPureIntro.
+            eexists.
+            by rewrite lookup_insert => //.
+          }
+          (* domcheck *)
+          { repeat rewrite dom_insert => /=.
+            rewrite dom_empty.
+            iPureIntro.
+            by set_solver+.
+          }
+          { by repeat rewrite Forall2_cons => /=; iSplit => //. }
+          { by repeat rewrite Forall2_cons => /=; iSplit => //. }
+          { by repeat rewrite Forall2_cons => /=; iSplit => //. }
         }
         { iSplit;auto.
           { rewrite /module_elem_bound_check_gmap /=.
@@ -641,23 +724,55 @@ Section Host_robust_example.
       { iIntros (idnstart) "Hf [Hmod_lse Hr]".
         iDestruct "Hr" as "([Himph Hexp] & Hr)".
         iDestruct "Hr" as (?) "[Hr _]".
-        iDestruct "Hr" as (? ? ? ? ? ?) "([%Hdom [Himpr [Hlogfunc _]]] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
+        iDestruct "Hr" as (? ? ? ? ? ?) "(Hirwt & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
         %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & _ & _))".
+        unfold import_resources_wasm_typecheck.
+        unfold_irwt_all.
+        simpl.
+        iDestruct "Hirwt" as "(Hfc & _ & _ & _)".
+        iDestruct "Hfc" as "(Hf' & %Hft' & %Hfdom')".
         destruct Htypr as (Heq1&[? Heq2]&[? Heq3]&[? Heq4]&[? Heq6]&Heq5).
         rewrite Heq2.
-        iSimpl in "Himpr Hlogfunc". cbn.
+        cbn.
         iDestruct (big_sepL2_length with "Hr") as %Himprlen.
         destruct x;[done|destruct x;[|done]].
         iDestruct "Hr" as "[Hr _] /=". rewrite Heq1 /=.
-        iDestruct "Himpr" as (cl) "[Hcl %Hcl]". destruct Hcl as [Hlookcl Hcltyp].
+        iDestruct (big_sepM_delete with "Hf'") as "(Hcl & Hf')".
+        { instantiate (2 := N.of_nat advf).
+          rewrite lookup_insert_ne => //.
+          by rewrite lookup_singleton. }
+        apply Forall2_cons in Hft'.
+        destruct Hft' as [Hcl Hft'].
+        simpl in Hcl.
+        destruct Hcl as [cl [Hlookcl Hcltyp]].
         rewrite lookup_insert_ne// lookup_singleton in Hlookcl. inversion Hcltyp;inversion Hlookcl.
-        iDestruct ("Hcls" with "Hcl") as "Hresf". subst cl. clear Hlookcl H6 Hcltyp.
-        iDestruct "Hlogfunc" as (cl) "[Hcl %Hcl]". destruct Hcl as [Hlookcl Hcltyp].
+        iDestruct ("Hcls" with "Hcl") as "Hresf". subst cl. clear Hlookcl Hcltyp.
+        rewrite delete_insert_ne => //.
+        rewrite delete_insert => //.
+        iDestruct (big_sepM_delete with "Hf'") as "(Hcl & _)".
+        { instantiate (2 := N.of_nat log_func).
+          by rewrite lookup_insert.
+        }
+        
+        apply Forall2_cons in Hft'.
+        destruct Hft' as [Hcl Hft'].
+        simpl in Hcl.
+        destruct Hcl as [cl [Hlookcl Hcltyp]].
         rewrite lookup_insert in Hlookcl. inversion Hcltyp;inversion Hlookcl. subst cl. clear Hlookcl H6 Hcltyp.
+
+        unfold tab_domcheck in Htdom.
+        simpl in Htdom.
+        apply dom_empty_inv in Htdom.
+        subst wts'.
+        
+        unfold mem_domcheck in Hmdom.
+        simpl in Hmdom.
+        apply dom_empty_inv in Hmdom.
+        subst wms'.
         
         iApply weakestpre.fupd_wp.
         iMod (interp_instance_alloc [(Mk_hostfuncidx h, Tf [T_i32] [])]
-               with "[] [] [] [Hcl] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] #Himpres]]";
+                with "[] [] [] [Hcl] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] #Himpres]]"; 
           [apply Htyp|repeat split;eauto|eauto|..].
         4,5: by instantiate (1:=∅).
         { rewrite Heqadvm /=. auto. }
@@ -665,11 +780,41 @@ Section Host_robust_example.
         { instantiate (1:={[ N.of_nat log_func := FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h)]}).
           iApply big_sepM_singleton. simpl.
           iPureIntro. split;auto. constructor. }
-        { instantiate (1:=∅). repeat iSplit;auto.
-          rewrite dom_singleton_L /=. iPureIntro. set_solver+.
-          rewrite module_import_init_tabs_dom. auto.
-          rewrite module_import_init_mems_dom. auto.
-          iSimpl. iSplit =>//. iExists _. iFrame. rewrite lookup_insert. auto.
+        { instantiate (1:=∅).
+          unfold import_resources_wasm_typecheck.
+          unfold_irwt_all => /=.
+          
+          rewrite dom_singleton_L /=.
+          iSplitL "Hcl".
+          { iSplit => //.
+            { rewrite big_sepM_delete; first iFrame.
+              { by rewrite delete_singleton. }
+              { by rewrite lookup_singleton. }
+            }
+            { iPureIntro.
+              split => //; last by set_solver+.
+              apply Forall2_cons; split => //=.
+              rewrite lookup_singleton.
+              by eexists.
+            }
+          }
+          rewrite module_import_init_tabs_dom.
+          rewrite module_import_init_mems_dom.
+          rewrite Htdom Hmdom.
+          iSplitL.
+          { iSplit => //.
+            iPureIntro.
+            by rewrite Forall2_cons; split => //.
+          }
+          iSplitL.
+          { iSplit => //.
+            iPureIntro.
+            by rewrite Forall2_cons; split => //.
+          }
+          { iSplit => //.
+            iPureIntro.
+            by rewrite Forall2_cons; split => //.
+          }
         }
         { rewrite Htyp_inits Hmem_inits Hglob_inits
                   /module_inst_resources_wasm Heqadvm /=
@@ -685,17 +830,26 @@ Section Host_robust_example.
         { rewrite Heqadvm /= /get_import_func_count /= Himpm0 /= -nth_error_lookup. eauto. }
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
 
-        iDestruct "Himpres" as "[_ Himpres]".
-        iSimpl in "Himpres". iDestruct "Himpres" as "[Himpres _]".
-        iDestruct "Himpres" as (cl) "[Himpres %Hcl]".
-        destruct Hcl as [Hcl _]. rewrite lookup_insert in Hcl. inversion Hcl;subst cl;clear Hcl.
+        unfold import_resources_wasm_typecheck_invs.
+        iDestruct "Himpres" as "(Hfres & Htres & Hmres & Hgres)".
+        unfold import_func_wasm_check_invs.
+        iDestruct "Hfres" as "(Hfinv & _ & %Hftc)".
+        unfold import_func_nainv.
+        iDestruct (big_sepM_delete with "Hfinv") as "(Hinv & _)".
+        { instantiate (2 := N.of_nat log_func).
+          by rewrite lookup_singleton. }
+        unfold func_typecheck in Hftc.
+        apply Forall2_cons in Hftc as [Hcl _].
+        simpl in Hcl.
+        destruct Hcl as [cl [Hcl Hclt]].
+        rewrite lookup_insert in Hcl. inversion Hcl;subst cl;clear Hcl.
 
         destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|]. destruct l;[done|].
         simpl in Heq5. revert Heq5. move/eqP =>Hstart. rewrite Hinstfuncseq /= in Hstart.
         inversion Heq2;subst f f0 l. inversion Hstart.
         iMod (na_inv_alloc logrel_nais _ logN with "Hh") as "#Hh".
         iModIntro.
-        iApply (lse_log_spec with "[$Hr $Hown $Hi $Ha $Hh $Hf $Himpres]");auto.
+        iApply (lse_log_spec with "[$Hr $Hown $Hi $Ha $Hh $Hf]");auto.
         { simplify_eq. simpl. auto. }
         { rewrite Hinstfuncseq;eauto. }
         { rewrite Hinstfuncseq;eauto. }
