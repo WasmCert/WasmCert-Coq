@@ -711,13 +711,51 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       unfold import_resources_wasm_typecheck => /=.
       iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4".
       + (* Functions *)
-        unfold_irwt_all => /=.
-        simpl in *.
-        iSplitL.
-        (* resources *)
-        { (* Splitting the big_sepM into single resources. *)
-          repeat (iApply big_sepM_insert; first (by repeat rewrite lookup_insert_ne);iFrame).
-          by iApply big_sepM_empty.
+         unfold_irwt_all => /=.
+         simpl in *.
+         iSplitL.
+         (* resources *)
+         { (* Splitting the big_sepM into single resources. *)
+           repeat (iApply big_sepM_insert; first (by repeat rewrite lookup_insert_ne);iFrame).
+           by iApply big_sepM_empty.
+         }
+         simpl in *.
+         iModIntro.
+         iSplitL.
+         (* typechecks for each function *)
+         { iPureIntro.
+           repeat (apply Forall2_cons ; split ; first by eexists _ ;
+                   repeat (rewrite lookup_insert_ne ; last assumption) ; rewrite lookup_insert).
+           apply Forall2_cons => //=. } 
+(*           split.
+           eexists _.
+           by rewrite lookup_insert. zz
+         { repeat iSplit => //.
+          
+        { iExists _.
+          iFrame.
+          iPureIntro.
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          rewrite lookup_insert_ne ; last assumption.
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 2 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 3 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 4 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
         }
         simpl in *.
         iModIntro.
@@ -725,20 +763,10 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         (* typechecks for each function *)
         {
           iPureIntro.
-          apply Forall2_cons. split => //=.
-          { rewrite lookup_insert. by eexists. }
-          apply Forall2_cons. split => //=.
-          { rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
-          apply Forall2_cons. split => //=.
-          { do 2 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
-          apply Forall2_cons. split => //=.
-          { do 3 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
-          apply Forall2_cons. split => //=.
-          { do 4 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
-          apply Forall2_cons. split => //=.
-          { do 5 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
-          apply Forall2_cons. by split => //=.
-      }
+          do 5 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+      } *)
       (* domcheck *)
       { by repeat rewrite dom_insert. }
       + (* Tables *)
@@ -752,13 +780,12 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         }
         iSplitL.
         iModIntro.
-        cbn.
-        repeat (rewrite Forall2_cons; iSplit => //=).
-        iExists _, _.
         iPureIntro.
+        repeat (apply Forall2_cons => /= ; split => //).
+        eexists _, _.
         repeat split => //.
         { by rewrite lookup_insert. }
-        { by []. }
+        { done. } (* by []. } *)
         (* table domcheck *)
         { by rewrite dom_insert. } 
       + (* Memories *)
@@ -766,16 +793,13 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         unfold_irwt_all.
         iSplitL.
         { by iApply big_sepM_empty. }
-        cbn.
-        iSplitL => //.
-        iModIntro.
-        by repeat (rewrite Forall2_cons; iSplit => //=).
+        { iPureIntro. split.
+          repeat (apply Forall2_cons => /= ; split => //). by simpl. }
       + (* Globals *)
         unfold_irwt_all => /=.
         iSplitL; first by iApply big_sepM_empty.
-        iSplitL => //.
-        iModIntro.
-        by repeat (rewrite Forall2_cons; iSplit => //=).
+        iPureIntro. split.
+        repeat (apply Forall2_cons => /= ; split => //). by simpl.
     iSplitL "" .
     { simpl. iModIntro. iPureIntro. by lias. }
     simpl in *.
