@@ -278,7 +278,7 @@ Definition import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs: iProp 
     unfold mem_domcheck;
     unfold glob_domcheck.
   
-Definition import_resources_wasm_typecheck_nodup v_imps t_imps wfs wts wms wgs: iProp Σ :=
+Definition import_resources_wasm_typecheck_sepL2 v_imps t_imps wfs wts wms wgs: iProp Σ :=
   import_resources_wasm_domcheck v_imps wfs wts wms wgs ∗
   [∗ list] i ↦ v; t ∈ v_imps; t_imps,
   match v.(modexp_desc) with
@@ -291,17 +291,18 @@ Definition import_resources_wasm_typecheck_nodup v_imps t_imps wfs wts wms wgs: 
 
 (* If v_imps do not contain duplicated imports, then the two versions are equivalent. *)
 Definition irwt_nodup_equiv v_imps t_imps wfs wts wms wgs:
-  ((import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs ∗ ⌜ NoDup (fmap modexp_desc v_imps) ⌝)%I ≡
-   import_resources_wasm_typecheck_nodup v_imps t_imps wfs wts wms wgs).
+  NoDup (modexp_desc <$> v_imps) ->
+  (import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs%I ≡
+   import_resources_wasm_typecheck_sepL2 v_imps t_imps wfs wts wms wgs).
 Proof.
   iRevert (t_imps wfs wts wms wgs).
-  iInduction (v_imps) as [|?] "IH"; iIntros (t_imps wfs wts wms wgs); destruct t_imps => //=.
-  - unfold import_resources_wasm_typecheck_nodup => //=.
+  iInduction (v_imps) as [|?] "IH"; iIntros (t_imps wfs wts wms wgs Hnd); destruct t_imps => //=.
+  - unfold import_resources_wasm_typecheck_sepL2 => //=.
     unfold import_resources_wasm_domcheck => /=.
     unfold import_resources_wasm_typecheck.
     unfold_irwt_all => /=.
     iSplit => //=.
-    + iIntros "(((?&?& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom)) & _)".
+    + iIntros "((?&?& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom))".
       by [].
     + iIntros "%H".
       destruct H as ((?&?&?&?)&?).
@@ -310,28 +311,28 @@ Proof.
       apply dom_empty_inv in H1.
       apply dom_empty_inv in H2.
       subst.
-      repeat iSplit => //.
-      by rewrite NoDup_nil.
+      by repeat iSplit => //.
   - unfold import_resources_wasm_typecheck.
     unfold_irwt_all.
     iSplit => //=.
-    + iIntros "(((?&%Hfc& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom)) & _)".
+    + iIntros "((?&%Hfc& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom))".
       by inversion Hfc.
     + iIntros "(_ & H)".
-      by unfold import_resources_wasm_typecheck_nodup.
+      by unfold import_resources_wasm_typecheck_sepL2.
   - unfold import_resources_wasm_typecheck.
     unfold_irwt_all.
     iSplit => //=.
-    + iIntros "(((?&%Hfc& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom)) & _)".
+    + iIntros "((?&%Hfc& %Hfdom) & (?&?& %Htdom) & (?&?& %Hmdom) & (?&?& %Hgdom))".
       by inversion Hfc.
     + iIntros "(_ & H)".
-      by unfold import_resources_wasm_typecheck_nodup.
+      by unfold import_resources_wasm_typecheck_sepL2.
   - iSplit.
     { iIntros "Hirwt".
-      iDestruct "Hirwt" as "((Hfwc & Htwc & Hmwc & Hgwc) & %Hnd)".
+      iDestruct "Hirwt" as "(Hfwc & Htwc & Hmwc & Hgwc)".
+      simpl in Hnd.
       apply NoDup_cons in Hnd.
       destruct Hnd as [Hnelem Hnd].
-      unfold import_resources_wasm_typecheck_nodup.
+      unfold import_resources_wasm_typecheck_sepL2.
       iSplit => /=.
       { unfold import_resources_wasm_domcheck.
         iDestruct "Hfwc" as "(_&_&%Hfdom)".
@@ -401,10 +402,9 @@ Proof.
           { iExists cl.
             by iFrame.
           }
-          iSpecialize ("IH" $! t_imps wfs' wts wms wgs).
+          iSpecialize ("IH" $! t_imps wfs' wts wms wgs Hnd).
           rewrite -> bi.wand_iff_sym.
           iDestruct ("IH" with "[Ht Hm Hg Hf]") as "IHapply".
-          iSplit => //.
           { unfold import_resources_wasm_typecheck.
             unfold_irwt_all.
             iFrame.
@@ -498,10 +498,9 @@ Proof.
           { iExists t, tt.
             by iFrame.
           }
-          iSpecialize ("IH" $! t_imps wfs wts' wms wgs).
+          iSpecialize ("IH" $! t_imps wfs wts' wms wgs Hnd).
           rewrite -> bi.wand_iff_sym.
           iDestruct ("IH" with "[Ht Hm Hg Hf]") as "IHapply".
-          iSplit => //.
           { unfold import_resources_wasm_typecheck.
             unfold_irwt_all.
             iFrame.
@@ -596,10 +595,9 @@ Proof.
           { iExists m, mt.
             by iFrame.
           }
-          iSpecialize ("IH" $! t_imps wfs wts wms' wgs).
+          iSpecialize ("IH" $! t_imps wfs wts wms' wgs Hnd).
           rewrite -> bi.wand_iff_sym.
           iDestruct ("IH" with "[Ht Hm Hg Hf]") as "IHapply".
-          iSplit => //.
           { unfold import_resources_wasm_typecheck.
             unfold_irwt_all.
             iFrame.
@@ -694,10 +692,9 @@ Proof.
           { iExists g, gt.
             by iFrame.
           }
-          iSpecialize ("IH" $! t_imps wfs wts wms wgs').
+          iSpecialize ("IH" $! t_imps wfs wts wms wgs' Hnd).
           rewrite -> bi.wand_iff_sym.
           iDestruct ("IH" with "[Ht Hm Hg Hf]") as "IHapply".
-          iSplit => //.
           { unfold import_resources_wasm_typecheck.
             unfold_irwt_all.
             iFrame.
@@ -755,11 +752,78 @@ Proof.
       }
     }
     iIntros "(%Hdomn & Hirwtn)".
-    destruct Hdomn as [Hfdom [Htdom [Hmdom Hgdom]]].
+    simpl in Hnd.
     cbn.
+    apply NoDup_cons in Hnd.
+    destruct Hnd as [Hnelem Hnd].
     iDestruct "Hirwtn" as "(Hn & Hirwtn)".
-    
-    
+    destruct Hdomn as [Hfdom [Htdom [Hmdom Hgdom]]].
+    destruct a, modexp_desc; [destruct f|destruct t|destruct m|destruct g] => /=.
+    { iDestruct "Hn" as (cl) "(Hn & %Hwfs & ->)".
+      rewrite ext_func_addrs_aux in Hfdom.
+      rewrite ext_tab_addrs_aux in Htdom.
+      rewrite ext_mem_addrs_aux in Hmdom.
+      rewrite ext_glob_addrs_aux in Hgdom.
+
+      simpl in *.
+      
+      remember ( delete (N.of_nat n) wfs ) as wfs'.
+      specialize (dom_delete wfs (N.of_nat n)) as Hdomdelete.
+      rewrite -> Hfdom in Hdomdelete.
+      rewrite -> difference_union_distr_l in Hdomdelete.
+      simpl in Hdomdelete.
+      replace ({[N.of_nat n]} ∖ {[N.of_nat n]}) with (∅: gset N) in Hdomdelete; last by set_solver+.
+      rewrite -> union_empty_l_L in Hdomdelete.
+      rewrite -> difference_disjoint in Hdomdelete; last first.
+      { apply disjoint_singleton_r.
+        apply not_elem_of_list_to_set.
+        rewrite -> elem_of_list_fmap.
+        move => HContra.
+        destruct HContra as [? [Heq HContra]].
+        apply Nat2N.inj in Heq; subst.
+        apply elem_of_list_fmap in HContra.
+        destruct HContra as [idx [Heq HContra]].
+        destruct idx => /=; subst.
+        apply elem_of_list_lookup in HContra.
+        destruct HContra as [i HContra].
+        apply ext_funcs_lookup_exist in HContra.
+        destruct HContra as [k HContra].
+        rewrite list_lookup_fmap in HContra.
+        destruct (v_imps !! k) eqn:Hlookup => //.
+        simpl in HContra.
+        destruct m; simpl in *.
+        inversion HContra; subst; clear HContra.
+        apply Hnelem.
+        apply elem_of_list_fmap.
+        exists {| modexp_name := modexp_name0; modexp_desc := MED_func (Mk_funcidx n) |}.
+        rewrite elem_of_list_lookup; split => //.
+          by exists k.
+      }
+      rewrite <- Heqwfs' in Hdomdelete.
+
+      iDestruct ("IH" $! t_imps wfs' wts wms wgs with "[] [Hirwtn]") as "IHapply" => //; unfold import_resources_wasm_typecheck_sepL2.
+      { iSplit => //.
+        iApply (big_sepL2_mono with "Hirwtn") => //.
+        move => k y1 y2 Hl1 Hl2.
+        iIntros "Hn".
+        destruct (modexp_desc y1) eqn:Hy1 => //.
+        destruct f.
+        iDestruct "Hn" as (cl0) "(Hn & %Hwfs0 & %)".
+        iExists cl0; iFrame.
+        iSplit => //.
+        subst.
+        rewrite <- Hwfs0.
+        rewrite lookup_delete_ne => //.
+        move => HContra; apply Nat2N.inj in HContra; subst.
+        apply Hnelem.
+        apply elem_of_list_fmap.
+        exists y1; split => //.
+        by apply elem_of_list_lookup; eexists.
+      }
+      iDestruct "IHapply" as "(Hfc & Htc & Hmc & Hgc)".
+      iSplitL "Hfc Hn" => //.
+      iFrame.
+
     admit.
 Admitted.
 
