@@ -2330,11 +2330,11 @@ Proof.
       (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
       iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt".
-      { done. } (* by iDestruct "Himpwasm" as "(?&?&?&?)". } *)
+      { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
       specialize (Hwt Hvtlen).
       
       iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit [Himpwasm]") as "%Hwm".
-      { done. } (* by iDestruct "Himpwasm" as "(?&?&?&?)". } *)
+      { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
       specialize (Hwm Hvtlen).
       
       exfalso.
