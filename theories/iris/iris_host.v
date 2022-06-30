@@ -398,7 +398,7 @@ Proof.
       apply llfill_unique in H2 as [[H ->] | [? | [? | [ (?&?&?&[?|?]) | (?&?&?&[?|?])]]]] => //=.
       inversion H ; subst.
       rewrite H0 in H5. inversion H5 ; subst.
-      destruct (execute_action_det _ _ _ _ _ _ _ _ _ _ H1 H6) as (-> & -> & ->) => //. 
+      destruct (execute_action_det _ _ _ _ _ _ _ _ H1 H6) as (-> & ->) => //. 
     + simplify_eq. rewrite - H6 in H2. 
       apply llfill_unique in H2 as [[H ->] | [? | [? | [ (?&?&?&[?|?]) | (?&?&?&[?|?])]]]] => //=.
       inversion H ; subst.
@@ -622,7 +622,7 @@ Lemma wp_call_host_action_no_state_change s E hes tf h hi f vcs (Φ : host_val -
   h = Mk_hostfuncidx hi ->
   llfill llh [AI_call_host tf h vcs] = LI ->
   llfill llh res = LI' ->
-  (forall s0 f0, execute_action f s0 f0 vcs s0 f0 res) -> 
+  (forall s0 f0, execute_action f s0 f0 vcs s0 res) -> 
   N.of_nat hi ↦[ha] f ∗
   ▷ (N.of_nat hi ↦[ha] f -∗ WP ((hes, LI') : host_expr) @ s ; E {{ v, Φ v }})
   ⊢ WP ((hes, LI) : host_expr) @ s ; E {{ v, Φ v }}.
@@ -722,8 +722,8 @@ Lemma wp_call_host_modify_table s E h hi tab_idx func_idx LI LI' llh f0 n func_i
   h = Mk_hostfuncidx hi ->
   llfill llh [AI_call_host (Tf [T_i32 ; T_i32] []) h [VAL_int32 tab_idx ; VAL_int32 func_idx]] = LI ->
   llfill llh [] = LI' ->
-  f0.(f_inst).(inst_funcs) !! (Wasm_int.nat_of_uint i32m func_idx) = Some a -> 
-  f0.(f_inst).(inst_tab) !! 0 = Some n ->
+  (innermost_frame llh f0).(f_inst).(inst_funcs) !! (Wasm_int.nat_of_uint i32m func_idx) = Some a -> 
+  (innermost_frame llh f0).(f_inst).(inst_tab) !! 0 = Some n ->
   ↪[frame] f0 ∗
    N.of_nat hi ↦[ha] HA_modify_table ∗
    N.of_nat n ↦[wt][ Wasm_int.N_of_uint i32m tab_idx ] func_idx0 ∗
@@ -746,7 +746,7 @@ Proof.
     rewrite - nth_error_lookup in Ha.
     iDestruct (ghost_map_lookup with "Hf1 Hf") as "%Hf0".
     rewrite lookup_insert in Hf0. inversion Hf0 ; subst ; clear Hf0.
-    destruct (inst_tab (f_inst f0)) eqn:Hf => //.
+    destruct (inst_tab (f_inst (innermost_frame llh f0))) eqn:Hf => //. 
     simpl in Hn ; inversion Hn ; subst ; clear Hn.
     iDestruct (gen_heap_valid with "Htab Hwt") as "%H".
     simplify_lookup.
@@ -2330,11 +2330,11 @@ Proof.
       (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
       iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt".
-      { by iDestruct "Himpwasm" as "(?&?&?&?)". }
+      { done. } (* by iDestruct "Himpwasm" as "(?&?&?&?)". } *)
       specialize (Hwt Hvtlen).
       
       iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit [Himpwasm]") as "%Hwm".
-      { by iDestruct "Himpwasm" as "(?&?&?&?)". }
+      { done. } (* by iDestruct "Himpwasm" as "(?&?&?&?)". } *)
       specialize (Hwm Hvtlen).
       
       exfalso.
