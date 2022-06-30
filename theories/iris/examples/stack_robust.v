@@ -603,6 +603,13 @@ Section Client_main.
     
 End Client_main.
 
+Ltac simplify_map_lookup H :=
+  repeat lazymatch H with
+  | <[ _ := _]> _ !! _ = _ => rewrite lookup_insert in H
+  | <[ _ := _]> _ !! _ = _ => rewrite lookup_insert_ne in H => //
+  end.
+    
+
 Section Client_instantiation.
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
@@ -667,6 +674,14 @@ Section Client_instantiation.
       2: iApply (instantiation_spec_operational_no_start _ _ _ [] [] _ _ _ _ ∅ ∅ ∅ ∅);eauto;iFrame.
       2: cbn; repeat iSplit =>//.
       iIntros (v) "[$ Hv]". iExact "Hv".
+      { by unfold import_func_resources. }
+      { by unfold func_typecheck. }
+      { by unfold import_tab_resources. }
+      { by unfold tab_typecheck. }
+      { by unfold import_mem_resources. }
+      { by unfold mem_typecheck. }
+      { by unfold import_glob_resources. }
+      { by unfold glob_typecheck. }
       iPureIntro. destruct Htyp as [fts [gts Htyp]].
       destruct adv_module;simpl in *.
       destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
@@ -738,8 +753,13 @@ Section Client_instantiation.
     iDestruct "Hstack" as "(HimpsH & HimpsW & %Htablen & HnewStackAddrIs 
     & #Hnewstack & #Hisempty & #Hisfull & #Hpop & #Hpush & #Hmap & #Hmaptrap)".
 
-    iDestruct "HimpsW" as "(_ & Hidf0 & Hidf1 & Hidf2 & Hidf3 & Hidf4 & Hidf5 & Hidtab & _) /=".
-    repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
+    iDestruct "HimpsW" as "(Hfc & Htc & Hmc & Hgc)".
+    iDestruct "Hfc" as "(Hf & %Hft & %Hfdom)".
+    unfold func_typecheck in Hft.
+    unfold func_domcheck in Hfdom.
+    unfold import_func_resources.
+    cbn.
+    iDestruct (big_sepM_delete with "Hf") eqn:
     iDestruct "Hidf0" as (cl0) "[Himpfcl0 Hcl0]".
     iDestruct "Hidf1" as (cl1) "[Himpfcl1 Hcl1]".
     iDestruct "Hidf2" as (cl2) "[Himpfcl2 Hcl2]".
@@ -768,6 +788,21 @@ Section Client_instantiation.
     iDestruct (mapsto_frac_ne with "Hadvf Himpfcl3") as "%Hadv3" ; first by eauto.
     iDestruct (mapsto_frac_ne with "Hadvf Himpfcl4") as "%Hadv4" ; first by eauto.
     iDestruct (mapsto_frac_ne with "Hadvf Himpfcl5") as "%Hadv5" ; first by eauto.
+    repeat (apply Forall2_cons in Hft; destruct Hft as [Heq Hft];
+    simpl in Heq; destruct Heq as [cl [Heqcl _]];
+    repeat (rewrite lookup_insert in Heqcl + (rewrite lookup_insert_ne in Heqcl;[|done])); 
+    inversion Heqcl; subst cl; clear Heqcl).
+    
+    (apply Forall2_cons in Hft; destruct Hft as [Heq Hft];
+    simpl in Heq; destruct Heq as [cl [Heqcl _]];
+    repeat (rewrite lookup_insert in Heqcl + (rewrite lookup_insert_ne in Heqcl;[|done])); 
+    inversion Heqcl). subst cl; clear Heqcl).
+    apply Forall2_cons in Hft; destruct Hft as [Heq Hft];
+    simpl in Heq; destruct Heq as [cl [Heqcl _]]).
+    do 1 rewrite lookup_insert_ne in Heqcl => //. rewrite lookup_insert in Heqcl.
+    inversion Heqcl; subst cl; clear Heqcl.
+    apply all2_Forall2 in Hft.
+    repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
     repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
     iDestruct "Hcl0" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
     iDestruct "Hcl1" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.

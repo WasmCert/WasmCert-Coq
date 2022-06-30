@@ -24,9 +24,6 @@ Section StackModule.
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
 
-Print import_resources_wasm_typecheck.
-Print import_func_wasm_check.
-
   Ltac unfold_irwt_all :=
     unfold import_func_wasm_check;
     unfold import_tab_wasm_check;
@@ -714,49 +711,33 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       unfold import_resources_wasm_typecheck => /=.
       iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4".
       + (* Functions *)
-         unfold_irwt_all => /=.
-         simpl in *.
-         iSplitL.
-         (* resources *)
-         { (* Splitting the big_sepM into single resources. *)
-           repeat (iApply big_sepM_insert; first (by repeat rewrite lookup_insert_ne);iFrame).
-           by iApply big_sepM_empty.
-         }
-         simpl in *.
-         iModIntro.
-         iSplitL.
-         (* typechecks for each function *)
-      { repeat iSplit => //.
-        { iExists _.
-          iFrame.
-          iPureIntro.
-          by rewrite lookup_insert.
+        unfold_irwt_all => /=.
+        simpl in *.
+        iSplitL.
+        (* resources *)
+        { (* Splitting the big_sepM into single resources. *)
+          repeat (iApply big_sepM_insert; first (by repeat rewrite lookup_insert_ne);iFrame).
+          by iApply big_sepM_empty.
         }
-        { iExists _ ; iFrame.
+        simpl in *.
+        iModIntro.
+        iSplitL.
+        (* typechecks for each function *)
+        {
           iPureIntro.
-          rewrite lookup_insert_ne ; last assumption.
-          by rewrite lookup_insert.
-        }
-        { iExists _ ; iFrame.
-          iPureIntro.
-          do 2 (rewrite lookup_insert_ne ; last assumption).
-          by rewrite lookup_insert.
-        }
-        { iExists _ ; iFrame.
-          iPureIntro.
-          do 3 (rewrite lookup_insert_ne ; last assumption).
-          by rewrite lookup_insert.
-        }
-        { iExists _ ; iFrame.
-          iPureIntro.
-          do 4 (rewrite lookup_insert_ne ; last assumption).
-          by rewrite lookup_insert.
-        }
-        { iExists _ ; iFrame.
-          iPureIntro.
-          do 5 (rewrite lookup_insert_ne ; last assumption).
-          by rewrite lookup_insert.
-        }
+          apply Forall2_cons. split => //=.
+          { rewrite lookup_insert. by eexists. }
+          apply Forall2_cons. split => //=.
+          { rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
+          apply Forall2_cons. split => //=.
+          { do 2 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
+          apply Forall2_cons. split => //=.
+          { do 3 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
+          apply Forall2_cons. split => //=.
+          { do 4 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
+          apply Forall2_cons. split => //=.
+          { do 5 rewrite lookup_insert_ne => //. rewrite lookup_insert. by eexists. }
+          apply Forall2_cons. by split => //=.
       }
       (* domcheck *)
       { by repeat rewrite dom_insert. }
@@ -771,7 +752,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         }
         iSplitL.
         iModIntro.
-        repeat iSplit => //.
+        cbn.
+        repeat (rewrite Forall2_cons; iSplit => //=).
         iExists _, _.
         iPureIntro.
         repeat split => //.
@@ -784,11 +766,16 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         unfold_irwt_all.
         iSplitL.
         { by iApply big_sepM_empty. }
-        { by simpl. }
+        cbn.
+        iSplitL => //.
+        iModIntro.
+        by repeat (rewrite Forall2_cons; iSplit => //=).
       + (* Globals *)
         unfold_irwt_all => /=.
         iSplitL; first by iApply big_sepM_empty.
-        by simpl.
+        iSplitL => //.
+        iModIntro.
+        by repeat (rewrite Forall2_cons; iSplit => //=).
     iSplitL "" .
     { simpl. iModIntro. iPureIntro. by lias. }
     simpl in *.

@@ -323,6 +323,62 @@ Proof.
   all: by exists (S k).
 Qed.
 
+Lemma ext_funcs_lookup_exist_inv (modexps: list module_export_desc) n idx:
+  modexps !! n = Some (MED_func idx) ->
+  exists k, ((ext_funcs modexps) !! k = Some idx).
+Proof.
+  move : n idx.
+  induction modexps; move => n idx H => //=.
+  destruct n; simpl in *.
+  { inversion H; subst; by exists 0 => /=. }
+  apply IHmodexps in H.
+  destruct H as [k Hl].
+  destruct a; try by exists k.
+  by exists (S k).
+Qed.
+
+Lemma ext_tabs_lookup_exist_inv (modexps: list module_export_desc) n idx:
+  modexps !! n = Some (MED_table idx) ->
+  exists k, ((ext_tabs modexps) !! k = Some idx).
+Proof.
+  move : n idx.
+  induction modexps; move => n idx H => //=.
+  destruct n; simpl in *.
+  { inversion H; subst; by exists 0 => /=. }
+  apply IHmodexps in H.
+  destruct H as [k Hl].
+  destruct a; try by exists k.
+  by exists (S k).
+Qed.
+
+Lemma ext_mems_lookup_exist_inv (modexps: list module_export_desc) n idx:
+  modexps !! n = Some (MED_mem idx) ->
+  exists k, ((ext_mems modexps) !! k = Some idx).
+Proof.
+  move : n idx.
+  induction modexps; move => n idx H => //=.
+  destruct n; simpl in *.
+  { inversion H; subst; by exists 0 => /=. }
+  apply IHmodexps in H.
+  destruct H as [k Hl].
+  destruct a; try by exists k.
+  by exists (S k).
+Qed.
+
+Lemma ext_globs_lookup_exist_inv (modexps: list module_export_desc) n idx:
+  modexps !! n = Some (MED_global idx) ->
+  exists k, ((ext_globs modexps) !! k = Some idx).
+Proof.
+  move : n idx.
+  induction modexps; move => n idx H => //=.
+  destruct n; simpl in *.
+  { inversion H; subst; by exists 0 => /=. }
+  apply IHmodexps in H.
+  destruct H as [k Hl].
+  destruct a; try by exists k.
+  by exists (S k).
+Qed.
+
 Definition gen_index offset len : list nat :=
   imap (fun i x => i+offset+x) (repeat 0 len).
 
