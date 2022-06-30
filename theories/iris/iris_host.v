@@ -2329,10 +2329,12 @@ Proof.
       (* oob case is impossible, because we've proven the bound check conditions. *)
       (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
-      iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit Himpwasm") as "%Hwt".
+      iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt".
+      { by iDestruct "Himpwasm" as "(?&?&?&?)". }
       specialize (Hwt Hvtlen).
       
-      iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit Himpwasm") as "%Hwm".
+      iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit [Himpwasm]") as "%Hwm".
+      { by iDestruct "Himpwasm" as "(?&?&?&?)". }
       specialize (Hwm Hvtlen).
       
       exfalso.

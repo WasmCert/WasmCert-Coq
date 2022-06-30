@@ -24,7 +24,26 @@ Section StackModule.
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}. 
 
+Print import_resources_wasm_typecheck.
+Print import_func_wasm_check.
 
+  Ltac unfold_irwt_all :=
+    unfold import_func_wasm_check;
+    unfold import_tab_wasm_check;
+    unfold import_mem_wasm_check;
+    unfold import_glob_wasm_check;
+    unfold import_func_resources;
+    unfold import_tab_resources;
+    unfold import_mem_resources;
+    unfold import_glob_resources;
+    unfold func_typecheck;
+    unfold tab_typecheck;
+    unfold mem_typecheck;
+    unfold glob_typecheck;
+    unfold func_domcheck;
+    unfold tab_domcheck;
+    unfold mem_domcheck;
+    unfold glob_domcheck.
 
 
 Definition stack_module :=
@@ -590,13 +609,20 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       iSplitL "Hmod" ; first done.
       repeat iSplit.
     - by unfold import_resources_host.
-    - iPureIntro. apply dom_empty.
-    - iPureIntro. apply dom_empty.
-    - iPureIntro. apply dom_empty.
-    - iPureIntro. apply dom_empty.
-    - done.
-    - iPureIntro. unfold module_elem_bound_check_gmap => //=.
-    - iPureIntro. unfold module_data_bound_check_gmap => //=.
+    - by unfold import_func_resources.
+    - by unfold func_typecheck.
+    - by unfold func_domcheck.
+    - by unfold import_tab_resources.
+    - by unfold tab_typecheck.
+    - by unfold tab_domcheck.
+    - by unfold import_mem_resources.
+    - by unfold mem_typecheck.
+    - by unfold mem_domcheck.
+    - by unfold import_glob_resources.
+    - by unfold glob_typecheck.
+    - by unfold glob_domcheck.
+    - by unfold module_elem_bound_check_gmap => //=.
+    - by unfold module_data_bound_check_gmap => //=.
     - unfold export_ownership_host.
       iSplitL "Hhv0".
       by iExists _.
@@ -683,59 +709,90 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6".
       unfold import_resources_host.
       iFrame. by iModIntro.
+      (* Only the exported resources are required to formulate the export. *)
       iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Htab".
       unfold import_resources_wasm_typecheck => /=.
-      iSplitR.
-    - iPureIntro.
-      simpl.
-      repeat rewrite dom_insert.
-      done.
-    - iSplitL "Hf".
-      iExists _.
-      iFrame.
-      iPureIntro.
-      rewrite lookup_insert.
-      split => //.
-      iSplitL "Hf0".
-      iExists _ ; iFrame.
-      iPureIntro.
-      rewrite lookup_insert_ne ; last assumption.
-      rewrite lookup_insert.
-      split => //.
-      iSplitL "Hf1".
-      iExists _ ; iFrame.
-      iPureIntro.
-      do 2 (rewrite lookup_insert_ne ; last assumption).
-      rewrite lookup_insert.
-      split => //.
-      iSplitL "Hf2".
-      iExists _ ; iFrame.
-      iPureIntro.
-      do 3 (rewrite lookup_insert_ne ; last assumption).
-      rewrite lookup_insert.
-      split => //.
-      iSplitL "Hf3".
-      iExists _ ; iFrame.
-      iPureIntro.
-      do 4 (rewrite lookup_insert_ne ; last assumption).
-      rewrite lookup_insert.
-      split => //.
-      iSplitL "Hf4".
-      iExists _ ; iFrame.
-      iPureIntro.
-      do 5 (rewrite lookup_insert_ne ; last assumption).
-      rewrite lookup_insert.
-      split => //.
-      iSplitL ; last done.
-      iExists _, _ ; iFrame.
-      iPureIntro.
-      rewrite lookup_insert.
-      split => //.
-      iSplitR.
-      iPureIntro.
-      simpl.
-      lia.
-      iSplitL "Hmemlength" ; first done.
+      iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4".
+      + (* Functions *)
+         unfold_irwt_all => /=.
+         simpl in *.
+         iSplitL.
+         (* resources *)
+         { (* Splitting the big_sepM into single resources. *)
+           repeat (iApply big_sepM_insert; first (by repeat rewrite lookup_insert_ne);iFrame).
+           by iApply big_sepM_empty.
+         }
+         simpl in *.
+         iModIntro.
+         iSplitL.
+         (* typechecks for each function *)
+      { repeat iSplit => //.
+        { iExists _.
+          iFrame.
+          iPureIntro.
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          rewrite lookup_insert_ne ; last assumption.
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 2 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 3 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 4 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+        { iExists _ ; iFrame.
+          iPureIntro.
+          do 5 (rewrite lookup_insert_ne ; last assumption).
+          by rewrite lookup_insert.
+        }
+      }
+      (* domcheck *)
+      { by repeat rewrite dom_insert. }
+      + (* Tables *)
+        iSplitL "Htab".
+        unfold_irwt_all.
+        simpl in *.
+        iSplitL.
+        { iApply big_sepM_insert => //.
+          iFrame.
+          by iApply big_sepM_empty.
+        }
+        iSplitL.
+        iModIntro.
+        repeat iSplit => //.
+        iExists _, _.
+        iPureIntro.
+        repeat split => //.
+        { by rewrite lookup_insert. }
+        { by []. }
+        (* table domcheck *)
+        { by rewrite dom_insert. } 
+      + (* Memories *)
+        iSplitL.
+        unfold_irwt_all.
+        iSplitL.
+        { by iApply big_sepM_empty. }
+        { by simpl. }
+      + (* Globals *)
+        unfold_irwt_all => /=.
+        iSplitL; first by iApply big_sepM_empty.
+        by simpl.
+    iSplitL "" .
+    { simpl. iModIntro. iPureIntro. by lias. }
+    simpl in *.
+    iFrame "Hmemlength".
     - iSplitR. iIntros "!>" (fr addr Φ) "!> (Hf & Hwf & Hlen & % & % & %) HΦ".
       iApply wp_wand_r.
       iSplitR "HΦ".

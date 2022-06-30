@@ -340,7 +340,13 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       
       iDestruct "Hexphost" as "[Hexphost _]".
       iDestruct "Hexphost" as (name) "Hexphost" => /=.
-      unfold import_resources_wasm_typecheck => /=.
+
+      (* Rewrite to the old resource collection *)
+      iDestruct (irwt_nodup_equiv with "Himpwasm") as "Himpwasm".
+      { (* TODO: this is true due to allocation, but think about where to add it. *)
+        admit.
+      }
+      
       iDestruct "Himpwasm" as "(%Hdom & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Htab & _)". 
       iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
       iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
@@ -1071,8 +1077,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       instantiate (1 := immHV []) => //=.
       iExists g', _.
       iFrame.
-  Qed.
-
+   Admitted.
 
 End Client.
   
