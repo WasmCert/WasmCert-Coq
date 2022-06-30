@@ -726,7 +726,15 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
          iModIntro.
          iSplitL.
          (* typechecks for each function *)
-      { repeat iSplit => //.
+         { iPureIntro.
+           repeat (apply Forall2_cons ; split ; first by eexists _ ;
+                   repeat (rewrite lookup_insert_ne ; last assumption) ; rewrite lookup_insert).
+           apply Forall2_cons => //=. } 
+(*           split.
+           eexists _.
+           by rewrite lookup_insert. zz
+         { repeat iSplit => //.
+          
         { iExists _.
           iFrame.
           iPureIntro.
@@ -757,7 +765,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
           do 5 (rewrite lookup_insert_ne ; last assumption).
           by rewrite lookup_insert.
         }
-      }
+      } *)
       (* domcheck *)
       { by repeat rewrite dom_insert. }
       + (* Tables *)
@@ -771,12 +779,12 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         }
         iSplitL.
         iModIntro.
-        repeat iSplit => //.
-        iExists _, _.
         iPureIntro.
+        repeat (apply Forall2_cons => /= ; split => //).
+        eexists _, _.
         repeat split => //.
         { by rewrite lookup_insert. }
-        { by []. }
+        { done. } (* by []. } *)
         (* table domcheck *)
         { by rewrite dom_insert. } 
       + (* Memories *)
@@ -784,11 +792,13 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         unfold_irwt_all.
         iSplitL.
         { by iApply big_sepM_empty. }
-        { by simpl. }
+        { iPureIntro. split.
+          repeat (apply Forall2_cons => /= ; split => //). by simpl. }
       + (* Globals *)
         unfold_irwt_all => /=.
         iSplitL; first by iApply big_sepM_empty.
-        by simpl.
+        iPureIntro. split.
+        repeat (apply Forall2_cons => /= ; split => //). by simpl.
     iSplitL "" .
     { simpl. iModIntro. iPureIntro. by lias. }
     simpl in *.
