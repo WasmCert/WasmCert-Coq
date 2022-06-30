@@ -66,7 +66,7 @@ Definition stack_module :=
         modfunc_body := stack_map
       |}
     ] ;
-    mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+    mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                         tt_elem_type := ELT_funcref |} |} ] ;
     mod_mems := [
       {| lim_min := 0%N ; lim_max := None |}
@@ -112,7 +112,7 @@ Definition stack_module :=
 Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32 ; T_i32] []) ; ET_func (Tf [T_i32 ; T_i32] []) ;
-                     ET_tab {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+                     ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                               tt_elem_type := ELT_funcref |} ].
 
 Ltac bet_first f :=
