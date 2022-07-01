@@ -89,7 +89,7 @@ Section Client.
         |} ;
         {| imp_module := list_byte_of_string "Stack" ;
           imp_name := list_byte_of_string "table" ;
-          imp_desc := ID_table {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+          imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                  tt_elem_type := ELT_funcref |}
         |} ;
         {| imp_module := list_byte_of_string "Adv";
@@ -750,16 +750,19 @@ Section Client_instantiation.
     iDestruct "Hstack" as (nm0 nm1 nm2 nm3 nm4 nm5 nm6 f0 f1 f2) "Hstack".
     iDestruct "Hstack" as (f3 f4 f5 istack l0 l1 l2 l3 l4 l5) "Hstack".
     iDestruct "Hstack" as (stacktab isStack newStackAddrIs) "Hstack".
-    iDestruct "Hstack" as "(HimpsH & HimpsW & %Htablen & HnewStackAddrIs 
+    iDestruct "Hstack" as "(HimpsH & HimpsW & %Hnodup & %Htablen & HnewStackAddrIs 
     & #Hnewstack & #Hisempty & #Hisfull & #Hpop & #Hpush & #Hmap & #Hmaptrap)".
 
-    iDestruct "HimpsW" as "(Hfc & Htc & Hmc & Hgc)".
+    rewrite irwt_nodup_equiv; last by apply NoDup_nil.
+    iDestruct "HimpsW" as "(_ & Hidf0 & Hidf1 & Hidf2 & Hidf3 & Hidf4 & Hidf5 & Hidtab & _) /=".
+     repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
+   (* iDestruct "HimpsW" as "(Hfc & Htc & Hmc & Hgc)".
     iDestruct "Hfc" as "(Hf & %Hft & %Hfdom)".
     unfold func_typecheck in Hft.
     unfold func_domcheck in Hfdom.
     unfold import_func_resources.
     cbn.
-    iDestruct (big_sepM_delete with "Hf") eqn:
+    iDestruct (big_sepM_delete with "Hf") eqn:*)
     iDestruct "Hidf0" as (cl0) "[Himpfcl0 Hcl0]".
     iDestruct "Hidf1" as (cl1) "[Himpfcl1 Hcl1]".
     iDestruct "Hidf2" as (cl2) "[Himpfcl2 Hcl2]".
@@ -788,7 +791,7 @@ Section Client_instantiation.
     iDestruct (mapsto_frac_ne with "Hadvf Himpfcl3") as "%Hadv3" ; first by eauto.
     iDestruct (mapsto_frac_ne with "Hadvf Himpfcl4") as "%Hadv4" ; first by eauto.
     iDestruct (mapsto_frac_ne with "Hadvf Himpfcl5") as "%Hadv5" ; first by eauto.
-    repeat (apply Forall2_cons in Hft; destruct Hft as [Heq Hft];
+ (*   repeat (apply Forall2_cons in Hft; destruct Hft as [Heq Hft];
     simpl in Heq; destruct Heq as [cl [Heqcl _]];
     repeat (rewrite lookup_insert in Heqcl + (rewrite lookup_insert_ne in Heqcl;[|done])); 
     inversion Heqcl; subst cl; clear Heqcl).
@@ -802,7 +805,7 @@ Section Client_instantiation.
     do 1 rewrite lookup_insert_ne in Heqcl => //. rewrite lookup_insert in Heqcl.
     inversion Heqcl; subst cl; clear Heqcl.
     apply all2_Forall2 in Hft.
-    repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
+    repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).*)
     repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
     iDestruct "Hcl0" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
     iDestruct "Hcl1" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.

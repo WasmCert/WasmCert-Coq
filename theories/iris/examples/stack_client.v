@@ -119,7 +119,7 @@ Section Client.
         |} ;
         {| imp_module := list_byte_of_string "Stack" ;
           imp_name := list_byte_of_string "table" ;
-          imp_desc := ID_table {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+          imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                  tt_elem_type := ELT_funcref |} |}
       ] ;
       mod_exports := [
@@ -268,13 +268,16 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iDestruct "Hes1" as (i0) "Hes1".  
       iDestruct "Hes1" as (l0 l1 l2 l3 l4 l5) "Hes1".
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
-                            "(Himport & Himp_type & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6)".
+                            "(Himport & Himp_type & %Hnodup & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6)".
       iFrame "Hmod0".
       iApply (instantiation_spec_operational_start with "[Hmod1 Himport Himp_type Hvis7]") ; try exact module_typing_client.
     - by unfold client_module.
     - unfold instantiation_resources_pre.
       iFrame.
     - unfold export_ownership_host => /=.
+      unfold instantiation_resources_pre_wasm.
+      rewrite irwt_nodup_equiv => //.
+      iFrame "Himp_type".
       repeat iSplit.
     
       iPureIntro ; unfold module_elem_bound_check_gmap ; simpl.
@@ -341,12 +344,8 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iDestruct "Hexphost" as "[Hexphost _]".
       iDestruct "Hexphost" as (name) "Hexphost" => /=.
 
-      (* Rewrite to the old resource collection *)
-      iDestruct (irwt_nodup_equiv with "Himpwasm") as "Himpwasm".
-      { (* TODO: this is true due to allocation, but think about where to add it. *)
-        admit.
-      }
-      
+      rewrite irwt_nodup_equiv; last by [].
+
       iDestruct "Himpwasm" as "(%Hdom & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Htab & _)". 
       iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
       iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
@@ -1077,7 +1076,8 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       instantiate (1 := immHV []) => //=.
       iExists g', _.
       iFrame.
-   Admitted.
-
+  Qed.
+  
+      
 End Client.
   

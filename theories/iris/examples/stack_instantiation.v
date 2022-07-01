@@ -66,7 +66,7 @@ Definition stack_module :=
         modfunc_body := stack_map
       |}
     ] ;
-    mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+    mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                         tt_elem_type := ELT_funcref |} |} ] ;
     mod_mems := [
       {| lim_min := 0%N ; lim_max := None |}
@@ -112,7 +112,7 @@ Definition stack_module :=
 Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32 ; T_i32] []) ; ET_func (Tf [T_i32 ; T_i32] []) ;
-                     ET_tab {| tt_limits := {| lim_min := 2%N ; lim_max := None |} ;
+                     ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                               tt_elem_type := ELT_funcref |} ].
 
 Ltac bet_first f :=
@@ -551,9 +551,10 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                        to the correct exports/functions, i.e. a client will be able 
                        to successfully import them *)
                     import_resources_host [0%N; 1%N; 2%N; 3%N; 4%N ; 5%N ; 6%N] inst_vis ∗
-                    import_resources_wasm_typecheck inst_vis expts inst_map
+                    import_resources_wasm_typecheck_sepL2 inst_vis expts inst_map
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
+                    ⌜ NoDup (modexp_desc <$> inst_vis) ⌝ ∗
                     ⌜ length tab.(table_data) >= 1 ⌝ ∗
                     (* We own a token that hides ressources needed for the new_stack function *)
                     nextStackAddrIs 0 ∗
@@ -588,6 +589,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       exists [] => //.
     - unfold instantiation_resources_pre.
       iSplitL "Hmod" ; first done.
+      unfold instantiation_resources_pre_wasm.
+      rewrite irwt_nodup_equiv.
       repeat iSplit.
     - by unfold import_resources_host.
     - iPureIntro. apply dom_empty.
@@ -614,6 +617,9 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       by iExists _.
       done.
       done.
+    (* Nodup equiv *)
+    - simpl.
+      by apply NoDup_nil.
     - iIntros (v) "Hinst". 
       unfold instantiation_resources_post.
       iDestruct "Hinst" as "(Hmod & Himphost & Hinst)".
@@ -684,7 +690,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       unfold import_resources_host.
       iFrame. by iModIntro.
       iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Htab".
-      unfold import_resources_wasm_typecheck => /=.
       iSplitR.
     - iPureIntro.
       simpl.
@@ -726,11 +731,17 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
       do 5 (rewrite lookup_insert_ne ; last assumption).
       rewrite lookup_insert.
       split => //.
-      iSplitL ; last done.
+      iSplitL; cbn; last done.
       iExists _, _ ; iFrame.
       iPureIntro.
       rewrite lookup_insert.
       split => //.
+      (* NoDup *)
+      iSplitR.
+      { iPureIntro.
+        repeat (apply NoDup_cons; split; cbn; first by set_solver).
+        by apply NoDup_nil.
+      }
       iSplitR.
       iPureIntro.
       simpl.
