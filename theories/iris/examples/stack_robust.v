@@ -837,6 +837,12 @@ Section Client_instantiation.
       (*                     N.of_nat idf5 := FC_func_native istack (Tf [T_i32; T_i32] []) l5 f5 ; *)
       (*                     N.of_nat advf := (FC_func_native inst_adv (Tf [T_i32] [T_i32]) modfunc_locals modfunc_body)]}). *)
       (* cbn.  unfold client_glob_impts. *)
+      unfold instantiation_resources_pre_wasm.
+      rewrite irwt_nodup_equiv => /=; last first.
+      { clear - H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hadv0 Hadv1 Hadv2 Hadv3 Hadv4 Hadv5.
+        repeat (apply NoDup_cons; split; cbn; first by set_solver).
+        by apply NoDup_nil.
+      }
       iSplitL;[|auto]. iSplitL.
       { iSplit.
         { iPureIntro.
@@ -874,7 +880,14 @@ Section Client_instantiation.
     iIntros (idnstart) "Hf [Hmod_lse Hr]".
     iDestruct "Hr" as "((Himpf0 & Himpf1 & Himpf2 & Himpf3 & Himpf4 & Himpf5 & Htab & Hadvf & Hg) & Hr)".
     iDestruct "Hr" as (?) "[Hr' _]".
-    iDestruct "Hr'" as (? ? ? ? ? ?) "([%Hdom (Himpr0 & Himpr1 & Himpr2 & Himpr3 & Himpr4 & Himpr5 & Htabr & Hadv & Hgret & _)] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
+    unfold instantiation_resources_post_wasm.
+    iDestruct "Hr'" as (? ? ? ? ? ?) "Hr'".
+    rewrite irwt_nodup_equiv => /=; last first.
+    { clear - H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hadv0 Hadv1 Hadv2 Hadv3 Hadv4 Hadv5.
+      repeat (apply NoDup_cons; split; cbn; first by set_solver).
+      by apply NoDup_nil.
+    }
+    iDestruct "Hr'" as "([%Hdom (Himpr0 & Himpr1 & Himpr2 & Himpr3 & Himpr4 & Himpr5 & Htabr & Hadv & Hgret & _)] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
         %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & Hr )".
     iDestruct "Hr" as "(Hr&_&_&_)".
     destruct Htypr as (Heq1&[? Heq2]&[? Heq3]&[? Heq4]&[? Heq6]&Heq5).
@@ -911,7 +924,9 @@ Section Client_instantiation.
     3,4,5: by instantiate (1:=∅).
     { rewrite Heqadvm /=. auto. }
     { destruct Hglob_inits_vals as [? ?];eauto. }
-    { instantiate (1:=∅). repeat iSplit;auto.
+    { instantiate (1:=∅).
+      rewrite irwt_nodup_equiv; last by apply NoDup_nil.
+      repeat iSplit;auto.
       rewrite module_import_init_tabs_dom. auto.
       rewrite module_import_init_mems_dom. auto.
     }
