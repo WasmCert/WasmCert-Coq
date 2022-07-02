@@ -639,7 +639,7 @@ Section Client_instantiation.
     WP e @ s; E {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E {{ Ψ }}.
   Proof. iApply (weakestpre.wp_wand). Qed.
 
-  Lemma instantiate_client adv_module g_ret wret :
+  Lemma instantiate_client adv_module g_ret wret  :
     module_typing adv_module [] [ET_func (Tf [T_i32] [T_i32])] -> (* we assume the adversary module has an export of the () → () *)
     mod_start adv_module = None -> (* that it does not have a start function *)
     module_restrictions adv_module -> (* that it adheres to the module restrictions (i.e. only constant initializers for globals) *)
@@ -657,26 +657,31 @@ Section Client_instantiation.
           (∃ vs, 7%N ↪[vis] vs) ∗
           ↪[frame] empty_frame
       }}}
-        ((stack_adv_client_instantiate,[]) : host_expr)
+        ((stack_adv_client_instantiate,[]) : host_expr) 
       {{{ v, ⌜v = (trapHV : host_val)⌝ ∨ ∃ v, g_ret ↦[wg] {| g_mut := MUT_mut; g_val := VAL_int32 v|} }}} .
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
     iModIntro. iIntros (Φ) "(Hgret & Hmod_stack & Hmod_adv & Hmod_lse & Hown & Hvis8 & 
                         Hvisvst & Hvis7 & Hemptyframe) HΦ".
     iDestruct "Hvisvst" as (vs0 vs1 vs2 vs3 vs4 vs5 vs6) "Hvis".
-    iApply (wp_seq_host_nostart with "[$Hmod_stack] [Hvis] ") => //.
-    { iIntros "Hmod_stack".
+    iApply (wp_seq_host_nostart NotStuck with "[] [$Hmod_stack] [Hvis] ") => //.
+    2: { iIntros "Hmod_stack".
       iApply weakestpre.wp_mono;cycle 1.
       iApply (instantiate_stack_spec with "[$]").
       { iFrame "Hvis". }
-      iIntros (v) "[$ Hv]". iExact "Hv". }
+      iIntros (v) "[Hvsucc [$ Hv]]".
+      iCombine "Hvsucc Hv" as "Hv".
+      iExact "Hv". }
+    { by iIntros "(% & ?)". }
     iIntros (w) "Hstack Hmod_stack".
-    iApply (wp_seq_host_nostart with "[$Hmod_adv] [Hvis7] ") => //.
-    { iIntros "Hmod_adv".
+    iApply (wp_seq_host_nostart NotStuck with "[] [$Hmod_adv] [Hvis7] ") => //.
+    2: { iIntros "Hmod_adv".
       iApply weakestpre.wp_mono.
       2: iApply (instantiation_spec_operational_no_start _ _ _ [] [] _ _ _ _ ∅ ∅ ∅ ∅);eauto;iFrame.
       2: cbn; repeat iSplit =>//.
-      iIntros (v) "[$ Hv]". iExact "Hv".
+      { iIntros (v) "[Hvsucc [$ Hv]]".
+        iCombine "Hvsucc Hv" as "Hv".
+        by iExact "Hv". }
       { by unfold import_func_resources. }
       { by unfold func_typecheck. }
       { by unfold import_tab_resources. }
@@ -689,8 +694,9 @@ Section Client_instantiation.
       destruct adv_module;simpl in *.
       destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
       apply Forall2_length in Htyp. auto. }
+    { by iIntros "(% & ?)". }
 
-    iIntros (w') "[Himps Hinst_adv] Hmod_adv".
+    iIntros (w') "(-> & [Himps Hinst_adv]) Hmod_adv".
     iDestruct "Hinst_adv" as (inst_adv) "[Hinst_adv Hadv_exports]".
     iDestruct "Hinst_adv" as (g_adv_inits t_adv_inits m_adv_inits glob_adv_inits wts' wms')
                                "(Himpstyp & %HH & %Htyp_inits & %Hwts' & %Hbounds_elem & %Hmem_inits 
@@ -748,6 +754,8 @@ Section Client_instantiation.
     erewrite !nth_error_nth;eauto.
     
     iDestruct "Hvis8" as (gr) "Hvis8".
+
+    iDestruct "Hstack" as "(-> & Hstack)".
     
     iDestruct "Hstack" as (idf0 idf1 idf2 idf3 idf4 idf5 idt) "Hstack".
     iDestruct "Hstack" as (nm0 nm1 nm2 nm3 nm4 nm5 nm6 f0 f1 f2) "Hstack".

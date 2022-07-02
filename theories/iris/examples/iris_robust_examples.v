@@ -331,12 +331,14 @@ Section Examples_host.
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
     iModIntro. iIntros (Φ) "(Hemptyframe & Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
-    iApply (wp_seq_host_nostart with "[$Hmod_adv] [Hvis] ") => //.
-    { iIntros "Hmod_adv".
+    iApply (wp_seq_host_nostart NotStuck with "[] [$Hmod_adv] [Hvis] ") => //.
+    2: { iIntros "Hmod_adv".
       iApply weakestpre.wp_mono.
       2: iApply (instantiation_spec_operational_no_start _ _ _ [] [] _ _ _ _ ∅ ∅ ∅ ∅);eauto;iFrame.
       2: cbn.
-      { iIntros (v) "[$ Hv]". by iExact "Hv". }
+      { iIntros (v) "[Hvsucc [$ Hv]]".
+        iCombine "Hvsucc Hv" as "Hv".
+        by iExact "Hv". }
       destruct Htyp as [fts [gts Htyp]].
       destruct adv_module;simpl in *.
       destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
@@ -349,8 +351,8 @@ Section Examples_host.
       repeat rewrite dom_empty.
       repeat (iSplit; try by iSplit) => //.
     }
-
-    iIntros (w) "[Himps Hinst_adv] Hmod_adv".
+    { by iIntros "(% & ?)". }
+    iIntros (w) "(-> & [Himps Hinst_adv]) Hmod_adv".
     iDestruct "Hinst_adv" as (inst_adv) "[Hinst_adv Hadv_exports]".
     iDestruct "Hinst_adv" as (g_adv_inits t_adv_inits m_adv_inits glob_adv_inits wts' wms')
                                "(Himpstyp & %HH & %Htyp_inits & %Hwts' & %Hbounds_elem & %Hmem_inits 

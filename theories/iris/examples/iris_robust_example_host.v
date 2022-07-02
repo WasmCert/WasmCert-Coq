@@ -547,13 +547,16 @@ Section Host_robust_example.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm).
     iModIntro. iIntros (Φ) "(Hemptyframe & Hlogfunc & Hh & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
     iDestruct "Hvis1" as (log) "Hvis1".
-    iApply (wp_seq_host_nostart with "[$Hmod_adv] [Hvis Hvis1 Hlogfunc] ") => //.
-    { iIntros "Hmod_adv".
+    iApply (wp_seq_host_nostart NotStuck with "[] [$Hmod_adv] [Hvis Hvis1 Hlogfunc] ") => //.
+    2: { iIntros "Hmod_adv".
       iApply weakestpre.wp_mono.
       2: iApply (instantiation_spec_operational_no_start _ _ _ [0%N] [_] _ _ _ _
                     {[ N.of_nat log_func := (FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h)) ]} ∅ ∅ ∅);eauto;iFrame.
       2: cbn; repeat iSplit =>//.
-      iIntros (v) "[$ Hv]". iExact "Hv".
+      { iIntros (v) "[Hvsucc [$ Hv]]".
+        iCombine "Hvsucc Hv" as "Hv".
+        by iExact "Hv".
+      }
       { unfold import_func_resources => /=.
         rewrite -> big_sepM_delete; first iFrame; last by rewrite lookup_singleton.
         by rewrite delete_singleton.
@@ -588,8 +591,8 @@ Section Host_robust_example.
       }
       
     }
-
-    iIntros (w) "[Himps Hinst_adv] Hmod_adv".
+    { by iIntros "(% & ?)". }
+    iIntros (w) "(Hvsucc & [Himps Hinst_adv]) Hmod_adv".
     iDestruct "Hinst_adv" as (inst_adv) "[Hinst_adv Hadv_exports]".
     iDestruct "Hinst_adv" as (g_adv_inits t_adv_inits m_adv_inits glob_adv_inits wts' wms')
                                "(Himpstyp & %HH & %Htyp_inits & %Hwts' & %Hbounds_elem & %Hmem_inits 

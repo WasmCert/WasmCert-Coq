@@ -234,14 +234,14 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
 
   
 
-Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
+Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
    ↪[frame] empty_frame -∗
     0%N ↪[mods] stack_module -∗
      1%N ↪[mods] client_module -∗
      ( [∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5 ; hv6 ; hv7], N.of_nat k↪[vis] hvk) -∗
      WP ((stack_instantiate , []) : host_expr)
-     @ s; E
-            {{ v,
+     @ E
+            {{ v, ⌜ v = immHV [] ⌝ ∗ 
                ↪[frame] empty_frame ∗
                 0%N ↪[mods] stack_module ∗
                  1%N ↪[mods] client_module ∗
@@ -252,9 +252,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
   Proof.
     iIntros "Hemptyframe Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _)".
-    iApply (wp_seq_host_nostart
-             with "[$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
-    - iIntros "Hmod0".
+    iApply (wp_seq_host_nostart NotStuck
+              with "[] [$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
+    2: { iIntros "Hmod0".
       iApply weakestpre.wp_mono ;
         last iApply (instantiate_stack_spec
                       with "Hmod0 [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]").
@@ -265,10 +265,14 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iSplitL "Hvis4" ; first done.
           iSplitL "Hvis5" ; first done.
           by iSplitL. }
-      iIntros (v) "[? H]".
+      iIntros (v) "[Hvsucc [? H]]".
       iFrame.
+      iCombine "Hvsucc H" as "H".
       by iApply "H".
+    }
+    { by iIntros "(% & _)". }
     - iIntros (w) "Hes1 Hmod0".
+      iDestruct "Hes1" as "(-> & Hes1)".
       iDestruct "Hes1" as (idf0 idf1 idf2 idf3 idf4 idf5 idt) "Hes1".
       iDestruct "Hes1" as (name0 name1 name2 name3 name4 name5 name6) "Hes1".
       iDestruct "Hes1" as (f0 f1 f2 f3 f4 f5) "Hes1".
@@ -434,7 +438,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       inversion Hstart ; subst ; clear Hstart.
       iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
       iIntros (v).
-      instantiate ( 1 := λ v, (↪[frame] empty_frame ∗ 1%N↪[mods]client_module ∗
+      instantiate ( 1 := λ v, (⌜ v = immHV [] ⌝ ∗ ↪[frame] empty_frame ∗ 1%N↪[mods]client_module ∗
   (∃ (idg : nat) (name7 : datatypes.name),
       7%N↪[vis] {| modexp_name := name7; modexp_desc := MED_global (Mk_globalidx idg) |} ∗
      (N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int 20 |}
@@ -470,8 +474,6 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
         { iApply (wp_call with "Hf").
           done.
           iIntros "!> Hf".
-          Unset Printing Notations.
-          Print spec0_new_stack.
           iApply ("Hspec0" with "[Hf Hnextaddr Himpfcl0]").
           iFrame.
           repeat iSplit ; iPureIntro => //.
@@ -1084,6 +1086,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iDestruct "Hwg" as (g') "[Hwg Hvis7]".
       iApply weakestpre.wp_value.
       instantiate (1 := immHV []) => //=.
+      iSplit => //.
       iExists g', _.
       iFrame.
   Qed.

@@ -510,8 +510,9 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
      WP ((stack_instantiate, []) : host_expr)
      @ s ; E
-             {{ λ v : host_val, 
-                    
+             {{ λ v : host_val,
+                 (* Instantiation succeeds *)
+                 ⌜ v = immHV [] ⌝ ∗
                  (* 0%N still owns the stack_module *)
                  0%N ↪[mods] stack_module ∗ 
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt : nat)
@@ -620,9 +621,10 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
     (* Nodup equiv *)
     - simpl.
       by apply NoDup_nil.
-    - iIntros (v) "Hinst". 
+    - iIntros (v) "Hinst".
       unfold instantiation_resources_post.
-      iDestruct "Hinst" as "(Hmod & Himphost & Hinst)".
+      iDestruct "Hinst" as "(%Hvsucc & Hmod & Himphost & Hinst)".
+      subst v; iSplitR => //.
       iDestruct "Hinst" as (inst) "[Himpwasm Hexphost]".
       iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
