@@ -1,8 +1,6 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
-From iris.proofmode Require Import tactics.
-From iris.base_logic Require Export gen_heap proph_map.
-Require Export iris iris_locations stdpp_aux iris_lfilled_properties.
+Require Export iris stdpp_aux iris_lfilled_properties.
 Require Export datatypes (* host *) operations properties opsem.
 
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.

@@ -8,6 +8,13 @@ Proof.
   trivial.
 Qed.
 
+Lemma nth_error_lookup {T: Type} (l: list T) i:
+  nth_error l i = l !! i.
+Proof.
+  move: i.
+  by induction l; move => i; destruct i => //=.
+Qed.
+  
 Lemma fmap_split: forall {X Y:Type} (f: X -> Y) vs es1 es2,
   fmap f vs = es1 ++ es2 ->
   fmap f (take (length es1) vs) = es1 /\ fmap f (drop (length es1) vs) = es2.

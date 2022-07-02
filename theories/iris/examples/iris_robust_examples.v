@@ -299,6 +299,13 @@ Section Examples_host.
       apply Forall2_cons. split;auto. }
   Qed.
 
+  Lemma module_restrictions_lse:
+    module_restrictions lse_module.
+  Proof.
+    unfold module_restrictions.
+    repeat split; by exists [] => //=.
+  Qed.
+  
   Definition adv_lse_instantiate :=
     [ ID_instantiate [0%N] 0 [] ;
       ID_instantiate [] 1 [0%N;1%N] ].
@@ -312,7 +319,8 @@ Section Examples_host.
     module_data_bound_check_gmap ∅ [] adv_module -> (* if the adversary module declares a memory, there cannot be more initializers that its size *)
     typeof wret = T_i32 -> (* the imported return global has type i32 *)
 
-    ⊢ {{{ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := wret |} ∗
+    ⊢ {{{ ↪[frame] empty_frame ∗
+          g_ret ↦[wg] {| g_mut := MUT_mut; g_val := wret |} ∗
           0%N ↪[mods] adv_module ∗
           1%N ↪[mods] lse_module ∗
           na_own logrel_nais ⊤ ∗
@@ -322,7 +330,7 @@ Section Examples_host.
       {{{ v, ⌜v = (trapHV : host_val)⌝ ∨ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := xx 42|} }}} .
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
-    iModIntro. iIntros (Φ) "(Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
+    iModIntro. iIntros (Φ) "(Hemptyframe & Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
     iApply (wp_seq_host_nostart with "[$Hmod_adv] [Hvis] ") => //.
     { iIntros "Hmod_adv".
       iApply weakestpre.wp_mono.
@@ -400,11 +408,12 @@ Section Examples_host.
     erewrite !nth_error_nth;eauto.
     
     iDestruct "Hvis1" as (gr) "Hvis1".
-    
+
     iApply (wp_wand_host _ _ _ (λ v, _ ∗ ↪[frame]empty_frame)%I with "[-HΦ] [HΦ]");cycle 1.
     { iIntros (v) "[Hv ?]". iApply "HΦ". iExact "Hv". }
-    { iApply (instantiation_spec_operational_start with "[$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
-      { apply lse_module_typing. }
+    { iApply (instantiation_spec_operational_start with "[$Hemptyframe] [$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
+      { by apply lse_module_typing. }
+      { by apply module_restrictions_lse. }
       { unfold import_resources_host.
         instantiate (5:=[_;_]). iFrame "Hn Hvis1".
         unfold import_resources_wasm_typecheck,export_ownership_host.

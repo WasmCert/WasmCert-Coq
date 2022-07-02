@@ -1,6 +1,3 @@
-
-
-
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
@@ -209,7 +206,15 @@ Section Client.
       repeat split => //.
   Qed.
 
-
+  Lemma module_restrictions_client:
+    module_restrictions client_module.
+  Proof.
+    unfold module_restrictions.
+    repeat split => //=.
+    { by exists [VAL_int32 (Wasm_int.int_of_Z i32m 0)]. }
+    { by exists [Wasm_int.int_of_Z i32m 0]. }
+    { by exists []. }
+  Qed.
 
     Definition stack_instantiate :=
     [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N] 0 [] ;
@@ -229,13 +234,15 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
 
   
 
-  Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
+Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
+   ↪[frame] empty_frame -∗
     0%N ↪[mods] stack_module -∗
      1%N ↪[mods] client_module -∗
      ( [∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5 ; hv6 ; hv7], N.of_nat k↪[vis] hvk) -∗
      WP ((stack_instantiate , []) : host_expr)
      @ s; E
             {{ v,
+               ↪[frame] empty_frame ∗
                 0%N ↪[mods] stack_module ∗
                  1%N ↪[mods] client_module ∗
                  ∃ idg name,
@@ -244,7 +251,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
                     (N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 20%Z |} ∨
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
   Proof.
-    iIntros "Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _)".
+    iIntros "Hemptyframe Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _)".
     iApply (wp_seq_host_nostart
              with "[$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
     - iIntros "Hmod0".
@@ -270,8 +277,9 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
                             "(Himport & Himp_type & %Hnodup & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6)".
       iFrame "Hmod0".
-      iApply (instantiation_spec_operational_start with "[Hmod1 Himport Himp_type Hvis7]") ; try exact module_typing_client.
+      iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hmod1 Himport Himp_type Hvis7]") ; try exact module_typing_client.
     - by unfold client_module.
+    - by apply module_restrictions_client.
     - unfold instantiation_resources_pre.
       iFrame.
     - unfold export_ownership_host => /=.
@@ -426,7 +434,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
       inversion Hstart ; subst ; clear Hstart.
       iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
       iIntros (v).
-      instantiate ( 1 := λ v, (1%N↪[mods]client_module ∗
+      instantiate ( 1 := λ v, (↪[frame] empty_frame ∗ 1%N↪[mods]client_module ∗
   (∃ (idg : nat) (name7 : datatypes.name),
       7%N↪[vis] {| modexp_name := name7; modexp_desc := MED_global (Mk_globalidx idg) |} ∗
      (N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int 20 |}
@@ -462,6 +470,8 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
         { iApply (wp_call with "Hf").
           done.
           iIntros "!> Hf".
+          Unset Printing Notations.
+          Print spec0_new_stack.
           iApply ("Hspec0" with "[Hf Hnextaddr Himpfcl0]").
           iFrame.
           repeat iSplit ; iPureIntro => //.

@@ -6,6 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
 Require Export datatypes host operations properties opsem instantiation instantiation_properties.
+Require Import Coq.Program.Equality.
 (* We need a few helper lemmas from preservation. *)
 Require Export type_preservation.
 
@@ -1792,6 +1793,16 @@ Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: l
   module_inst_resources_mem mem_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
   module_inst_resources_glob glob_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
 
+Definition module_restrictions (m: module) : Prop :=
+  (* We further restrict the offsets and global initialisers to values only. 
+     This is not that much a restriction as it seems, since they can only 
+     be either values or get_globals (from imported immutable globals only) 
+     anyway, and their contents can always be modified by other instructions
+     later. *)
+  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
+  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
+  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
+
 Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (idfstart: option nat) (inst: instance) : iProp Σ :=
   ∃ (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',  
   import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks; this described the new contents of tables and memories that have been modified by the initialisers *)
@@ -1814,13 +1825,6 @@ Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (id
     ⌜ module_glob_init_values m g_inits ⌝ ∗
     ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
     module_inst_resources_wasm m inst tab_inits mem_inits glob_inits. (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
-
-Definition module_restrictions (m: module) : Prop :=
-  (* Initializers for globals are only values. This is not that much a restriction as it seems, since they can
-     only be either values or get_globals (from immutable globals) anyway. *)
-  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
-  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
-  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
 
 Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
   es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
@@ -3869,19 +3873,6 @@ Proof.
   destruct modelem_table => /=.
   destruct (n <? get_import_table_count m) eqn:? => //=.
   by rewrite Coqlib.nth_error_nil.
-Qed.
-
-Lemma reduce_trans_const s1 f1 v1 s2 f2 v2:
-  reduce_trans (s1, f1, [AI_basic (BI_const v1)]) (s2, f2, [AI_basic (BI_const v2)]) ->
-  v1 = v2.
-Proof.
-  move => Hred.
-  unfold reduce_trans in Hred.
-  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
-  inversion Hred => //.
-  unfold reduce_tuple in H.
-  destruct y as [[??]?].
-  by apply test_no_reduce1 in H.
 Qed.
 
 Lemma zip_lookup_Some_inv {X Y: Type} (l1: list X) (l2: list Y) k v1 v2:

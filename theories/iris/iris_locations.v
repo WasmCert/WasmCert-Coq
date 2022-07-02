@@ -6,7 +6,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Export common operations datatypes datatypes_properties memory_list.
+Require Export common operations datatypes datatypes_properties memory_list stdpp_aux.
 From stdpp Require Import gmap.
 
 Definition create_table (len: N) : tableinst :=
@@ -804,14 +804,7 @@ Proof.
     rewrite new_2d_gmap_at_n_lookup_None; last by lias.
     by repeat destruct (_ !! _) => //=.
 Qed.
-  
-Lemma nth_error_lookup {T: Type} (l: list T) i:
-  nth_error l i = l !! i.
-Proof.
-  move: i.
-  by induction l; move => i; destruct i => //=.
-Qed.
-  
+
 Axiom mem_length_divisible: forall m,
   (((mem_length m) `div` page_size) * page_size)%N = mem_length m.
 

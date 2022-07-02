@@ -84,6 +84,9 @@ End Host_instance.
 Section Host_robust_example.
   Context `{!wasmG Σ, !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}.
 
+  Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
+  Definition xb b := (VAL_int32 (wasm_bool b)).
+  
   Definition lse_log_expr f log :=
     [BI_const (xx 42);
      BI_set_local 0;
@@ -507,6 +510,13 @@ Section Host_robust_example.
     { apply Forall2_cons. split;auto. }
   Qed.
 
+  Lemma module_restrictions_lse:
+    module_restrictions lse_log_module.
+  Proof.
+    unfold module_restrictions.
+    repeat split; by exists [] => //=.
+  Qed.
+
   Definition adv_lse_instantiate :=
     [ ID_instantiate [1%N] 0 [0%N] ;
       ID_instantiate [] 1 [1%N;0%N] ].
@@ -523,7 +533,8 @@ Section Host_robust_example.
     module_data_bound_check_gmap ∅ [] adv_module ->
     (* if the adversary module declares a memory, there cannot be more initializers that its size *)
 
-    ⊢ {{{ N.of_nat log_func ↦[wf] (FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h)) ∗
+    ⊢ {{{ ↪[frame] empty_frame ∗
+          N.of_nat log_func ↦[wf] (FC_func_host (Tf [T_i32] []) (Mk_hostfuncidx h)) ∗
           N.of_nat h ↦[ha] HA_print ∗
           0%N ↪[mods] adv_module ∗
           1%N ↪[mods] lse_log_module ∗
@@ -534,7 +545,7 @@ Section Host_robust_example.
       {{{ v, (⌜v = trapHV⌝ ∨ (⌜v = immHV []⌝ ∗ na_own logrel_nais ⊤)) }}} .
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm).
-    iModIntro. iIntros (Φ) "(Hlogfunc & Hh & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
+    iModIntro. iIntros (Φ) "(Hemptyframe & Hlogfunc & Hh & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
     iDestruct "Hvis1" as (log) "Hvis1".
     iApply (wp_seq_host_nostart with "[$Hmod_adv] [Hvis Hvis1 Hlogfunc] ") => //.
     { iIntros "Hmod_adv".
@@ -668,8 +679,9 @@ Section Host_robust_example.
     
     iApply (weakestpre.wp_wand _ _ _ (λ v, _ ∗ ↪[frame]empty_frame)%I with "[-HΦ] [HΦ]");cycle 1.
     { iIntros (v) "[Hv ?]". iApply "HΦ". iExact "Hv". }
-    { iApply (instantiation_spec_operational_start with "[$Hmod_lse Hadvf Hn Hm Hlogfunc]");[eauto|..].
-      { apply lse_module_typing. }
+    { iApply (instantiation_spec_operational_start with "[$Hemptyframe] [$Hmod_lse Hadvf Hn Hm Hlogfunc]");[eauto|..].
+      { by apply lse_module_typing. }
+      { by apply module_restrictions_lse. }
       { unfold import_resources_host.
         instantiate (5:=[_;_]). iFrame "Hn Hm".
         unfold import_resources_wasm_typecheck,export_ownership_host.

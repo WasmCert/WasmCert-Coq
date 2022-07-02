@@ -18,6 +18,8 @@ Close Scope byte_scope.
 Notation "{{{ P }}} es {{{ v , Q }}}" :=
   (□ ∀ Φ, P -∗ (∀ v : iris.val, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50). 
    
+Notation "{{{ P }}} es @ E {{{ v , Q }}}" :=
+  (□ ∀ Φ, P -∗ (∀ v : iris.val, Q -∗ Φ v) -∗ (WP (es : iris.expr) @ NotStuck ; E {{ v, Φ v }}))%I (at level 50).
 
 
 Section stack.
@@ -295,11 +297,7 @@ Proof.
   lia.
 Qed.
 
-  
-
-
-
-Lemma spec_new_stack f0 n len : 
+Lemma spec_new_stack f0 n len E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ length (f_locs f0) >= 1 ⌝ ∗
         ⌜ (Wasm_int.Int32.modulus - 1)%Z <>
@@ -308,7 +306,7 @@ Lemma spec_new_stack f0 n len :
         ⌜ (page_size | len)%N ⌝ ∗
         ↪[frame] f0 ∗
         N.of_nat n ↦[wmlength] len }}}
-    to_e_list new_stack
+    to_e_list new_stack @ E
     {{{ v , (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
                                    (⌜ (k = -1)%Z ⌝ ∗
                                       N.of_nat n↦[wmlength] len ∨
@@ -347,7 +345,7 @@ Proof.
   - iSplitR "HΦ".
     unfold i32const.
     iApply (wp_grow_memory
-              NotStuck ⊤ n f0 len
+              NotStuck E n f0 len
               (λ x, ⌜ x = immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin
                                                                      (len `div`
                                                                           page_size)))] ⌝%I)
@@ -363,7 +361,7 @@ Proof.
     unfold fmap, list_fmap.
     rewrite - separate1.
     rewrite separate2.
-    iApply (wp_seq NotStuck ⊤ _ (λ x, (⌜ x = immV [v] ⌝
+    iApply (wp_seq _ E _ (λ x, (⌜ x = immV [v] ⌝
                                       ∗ ↪[frame] {|
                                             f_locs := set_nth v (f_locs f0) 0 v;
                                             f_inst := f_inst f0
@@ -893,13 +891,13 @@ Qed.
 
 
 
-Lemma spec_is_empty f0 n v s : 
+Lemma spec_is_empty f0 n v s E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
         ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4)%Z ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
-    to_e_list is_empty
+    to_e_list is_empty @  E
     {{{ w, ∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
                            ⌜ (k = 1 /\ s = []) \/
                   (k = 0 /\ s <> []) ⌝ ∗
@@ -1025,13 +1023,13 @@ Proof.
 Qed.
     
     
-Lemma spec_is_full f0 n (v : Z) (s : seq.seq i32) : 
+Lemma spec_is_full f0 n (v : Z) (s : seq.seq i32) E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
         ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4 )%Z ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
-    to_e_list is_full
+    to_e_list is_full @ E
     {{{ w, ∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
                            ⌜ k = 1 \/ (length s < two14 - 1)%Z ⌝ ∗
           ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1⌝ }}}.
@@ -1193,14 +1191,14 @@ Qed.
 
 
 
-Lemma spec_pop f0 n v (a : i32) s :
+Lemma spec_pop f0 n v (a : i32) s E:
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
          ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝
          ∗ ⌜ length f0.(f_locs) >= 2 ⌝
          ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
          ∗ isStack v (a :: s) n
          ∗ ↪[frame] f0 }}}
-    to_e_list pop
+    to_e_list pop @ E
     {{{ w, ⌜ w = immV [VAL_int32 a] ⌝ ∗
                       isStack v s n ∗
                       ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝ }}}.
@@ -1465,7 +1463,7 @@ Qed.
                                                                          
                                                                         
     
-Lemma spec_push f0 n v (a : i32) s :
+Lemma spec_push f0 n v (a : i32) s E :
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
          ∗ ⌜ f0.(f_locs) !! 0 = Some (VAL_int32 a) ⌝ 
          ∗ ⌜ f0.(f_locs) !! 1 = Some (value_of_int v) ⌝
@@ -1474,7 +1472,7 @@ Lemma spec_push f0 n v (a : i32) s :
          ∗ ⌜ (length s < two14 - 1)%Z ⌝
          ∗ isStack v s n
          ∗ ↪[frame] f0 }}}
-    to_e_list push
+    to_e_list push @ E
     {{{ w, ⌜ w = immV [] ⌝ ∗
            isStack v (a :: s) n ∗
            ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝ }}}. 
@@ -1795,7 +1793,7 @@ Qed.
   
 
 
-Lemma spec_stack_map (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32)
+Lemma spec_stack_map (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32) E
       j0 a cl 
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) :
   ⊢ {{{  ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝  ∗
@@ -1821,13 +1819,13 @@ Lemma spec_stack_map (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq
                        (N.of_nat a) ↦[wf] cl
                   }}}
                   [ AI_basic (BI_const (VAL_int32 u)) ;
-                    AI_invoke a ]
+                    AI_invoke a ] @ E
                   {{{ w, (∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)
                            ∗ ↪[frame] fc
                            ∗ (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) 
                            ∗ (N.of_nat a) ↦[wf] cl }}}) ∗   
             ↪[frame] f0 }}}
-    to_e_list stack_map
+    to_e_list stack_map @ E
     {{{ w, ⌜ w = immV [] ⌝ ∗
            (∃ s', isStack v s' n ∗ stackAll2 s s' Ψ) ∗
            (∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝) ∗
@@ -1961,7 +1959,7 @@ Proof.
      AI_basic (BI_load T_i32 None N.zero N.zero); AI_basic (BI_get_local 0);
      AI_basic (BI_call_indirect 1); AI_basic (BI_store T_i32 None N.zero N.zero);
      AI_basic (i32const 4); AI_basic (BI_binop T_i32 (Binop_i BOI_add));
-     AI_basic (BI_set_local 2); AI_basic (BI_br 0)]
+     AI_basic (BI_set_local 2); AI_basic (BI_br 0)] @  E
   CTX
   2;
   push_base (LH_rec [] 0 [] (LH_base [] []) []) 0
@@ -2619,7 +2617,7 @@ Proof.
 Qed.
 
    
-Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32)
+Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32) E
       j0 a (* cl  *)
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) :
   ⊢ {{{  ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝  ∗
@@ -2646,13 +2644,13 @@ Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f :
                        na_own logrel_nais ⊤
                   }}}
                   [ AI_basic (BI_const (VAL_int32 u)) ;
-                    AI_invoke a ]
+                    AI_invoke a ] @ E
                   {{{ w, (⌜ w = trapV ⌝ ∨ ((∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)
                                              (* ∗ (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a)  *)
                                              (* ∗ (N.of_nat a) ↦[wf] cl *)))
                            ∗ na_own logrel_nais ⊤ ∗ ↪[frame] fc}}}) ∗
             na_own logrel_nais ⊤ ∗ ↪[frame] f0 }}}
-    to_e_list stack_map
+    to_e_list stack_map @ E
     {{{ w, (⌜ w = trapV ⌝ ∨ (⌜ w = immV [] ⌝ ∗
                                         (∃ s', isStack v s' n ∗ stackAll2 s s' Ψ)))
              ∗ (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a)
