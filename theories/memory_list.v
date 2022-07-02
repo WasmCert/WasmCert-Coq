@@ -86,15 +86,33 @@ Lemma bar : forall A n n' (l : list A) v,
   List.nth_error (take n' l ++ v :: drop (n' + 1) l) n =
   List.nth_error l n.
 Proof.
-(* TODO *)
-Admitted.
-
+  move => A n n' l.
+  move: n n'.
+  induction l; move => n n' v Hneq Hlen => //=.
+  { simpl in Hlen. by destruct n'; lia. }
+  destruct n' => //=.
+  { rewrite drop0.
+    by destruct n.
+  }
+  destruct n => //=.
+  simpl in *.
+  apply IHl; lia.
+Qed.
+  
 Lemma split_preserves_length : forall A i b (l : list A),
   i < List.length l ->
   List.length (take i l ++ b :: drop (i + 1) l) = List.length l.
 Proof.
-Admitted.
-
+  move => A i b l.
+  move: i b.
+  induction l; move => i b Hlen => //=.
+  { simpl in Hlen; by destruct i; lia. }
+  destruct i => //=; first by rewrite drop0.
+  f_equal.
+  apply IHl.
+  by simpl in Hlen; lia.
+Qed.
+  
 Lemma memory_list_ax_lookup_make : Memory.mem_ax_lookup_make memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
 move => i len b mem.
