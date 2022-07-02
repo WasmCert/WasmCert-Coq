@@ -7,7 +7,7 @@ Require Export stdpp_aux.
 Require Export type_preservation type_progress.
 
 Section module_typing_det.
-
+  
 Lemma module_typing_det_import_aux m it1 et1 it2 et2:
   module_typing m it1 et1 ->
   module_typing m it2 et2 ->

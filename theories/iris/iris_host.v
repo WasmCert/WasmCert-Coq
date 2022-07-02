@@ -2042,7 +2042,6 @@ Proof.
           simpl in Hebound.
           unfold N_of_int.
           unfold nat_of_int in Hebound.
-          Search N.of_nat.
           rewrite Nat2N.inj_add in Hebound.
           rewrite Z_nat_N in Hebound.
           rewrite repeat_length.
@@ -2115,7 +2114,6 @@ Proof.
           inversion Hexplookup; subst; clear Hexplookup.
           destruct mexp => /=.
           simpl in *; subst.
-          Search v_imps.
           destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
           specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
           simpl in *.
@@ -2729,7 +2727,6 @@ Proof.
           inversion Hexplookup; subst; clear Hexplookup.
           destruct mexp => /=.
           simpl in *; subst.
-          Search v_imps.
           destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
           specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
           simpl in *.
@@ -2811,7 +2808,6 @@ Proof.
           simpl in Hebound.
           unfold N_of_int.
           unfold nat_of_int in Hebound.
-          Search N.of_nat.
           rewrite Nat2N.inj_add in Hebound.
           rewrite Z_nat_N in Hebound.
           rewrite repeat_length.
@@ -2884,7 +2880,6 @@ Proof.
           inversion Hexplookup; subst; clear Hexplookup.
           destruct mexp => /=.
           simpl in *; subst.
-          Search v_imps.
           destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
           specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
           simpl in *.

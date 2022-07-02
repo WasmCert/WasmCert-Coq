@@ -50,6 +50,9 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
 
 Definition page_size : N := (64 % N) * (1024 % N).
 
+Definition ml_valid (m: memory_list) : Prop :=
+  N.modulo (memory_list.mem_length m) page_size = 0%N.
+
 Definition mem_length (m : memory) : N :=
   mem_length m.(mem_data).
 
