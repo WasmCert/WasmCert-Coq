@@ -811,8 +811,6 @@ Lemma mem_length_divisible (m: memory_list):
 Proof.
   move => Hmlvalid.
   unfold ml_valid in Hmlvalid.
-  Search N.div N.modulo.
-  Search N.mul.
   rewrite N.mul_comm.
   specialize (N.div_mod (mem_length m) page_size) as Hdm.
   rewrite Hmlvalid in Hdm.
@@ -823,7 +821,7 @@ Qed.
 
 Lemma mem_grow_data m n m':
   operations.mem_grow m n = Some m' ->
-  m'.(mem_data).(memory_list.ml_data) = (m.(mem_data).(memory_list.ml_data) ++ (repeat (m.(mem_data).(memory_list.ml_init)) (N.to_nat (n*page_size))))%SEQ.
+  m'.(mem_data).(memory_list.ml_data) = (m.(mem_data).(memory_list.ml_data) ++ (repeat #00 (N.to_nat (n*page_size))))%SEQ.
 Proof.
   unfold operations.mem_grow, mem_size, mem_length, memory_list.mem_length => //=.
   move => H.
@@ -845,7 +843,7 @@ Proof.
   by rewrite Nat2N.inj_add N2Nat.id.
 Qed.
 
-Definition mem_grow_appendix (m:memory) (mn: nat) (n:N) : gmap (N*N) byte := list_to_map (imap (fun i x => ((N.of_nat mn, ((N.of_nat i) + (mem_size m) * page_size)%N), x)) (repeat (m.(mem_data).(memory_list.ml_init)) (N.to_nat (n * page_size)))).
+Definition mem_grow_appendix (m:memory) (mn: nat) (n:N) : gmap (N*N) byte := list_to_map (imap (fun i x => ((N.of_nat mn, ((N.of_nat i) + (mem_size m) * page_size)%N), x)) (repeat #00 (N.to_nat (n * page_size)))).
 
 Lemma mem_grow_appendix_disjoint m n mn m' mems:
   mn < length mems ->

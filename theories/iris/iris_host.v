@@ -497,11 +497,6 @@ Canonical Structure wasm_host_lang := Language wasm_host_mixin.
 
 Implicit Type σ : state.
 
-(*
-Require Export iris_wp_def.
-
-Definition function_closure := function_closure host_function.
-*)
 (* The host expands the memory model of Wasm by vi_store and a list of module declarations. *)
 
 Class hvisG Σ := HVisG {
@@ -1804,7 +1799,7 @@ Proof.
         by lias.
       + (* memories *)
         destruct m0.
-        destruct Himpwasm as [mem [mt [b_init [Hwm [? [-> Hmt]]]]]].
+        destruct Himpwasm as [mem [mt [Hwm [? [-> Hmt]]]]].
         eapply ETY_mem; [ | rewrite nth_error_lookup; by apply Hwm |].
         * apply lookup_lt_Some in Hwm; by lias.
         * unfold mem_typing.
@@ -2045,7 +2040,7 @@ Proof.
                 simpl.
                 by f_equal.
               * destruct m.
-                destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]].
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
                 apply H.
                 by apply Hp.
               * destruct g.
@@ -2139,7 +2134,7 @@ Proof.
           destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
           specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
           simpl in *.
-          destruct Himpwasm as [mem [mt [b_init [Hmemlookup [Hwmslookup2 [Hwmslookup3 Hmemtype]]]]]].
+          destruct Himpwasm as [mem [mt [Hmemlookup [Hwmslookup2 [Hwmslookup3 Hmemtype]]]]].
           rewrite - nth_error_lookup in Hextmemlookup.
           rewrite Hextmemlookup.
           simpl in *.
@@ -2201,7 +2196,7 @@ Proof.
                 destruct Himpwasm as [? [? [? [? [-> ?]]]]].
                 by f_equal.
               * destruct m.
-                destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]].
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
                 simpl.
                 by f_equal.
               * destruct g.
@@ -2572,7 +2567,7 @@ Proof.
         by lias.
       + (* memories *)
         destruct m0.
-        destruct Himpwasm as [mem [mt [b_init [Hwm [? [-> Hmt]]]]]].
+        destruct Himpwasm as [mem [mt [Hwm [? [-> Hmt]]]]].
         eapply ETY_mem; [ | rewrite nth_error_lookup; by apply Hwm |].
         * apply lookup_lt_Some in Hwm; by lias.
         * unfold mem_typing.
@@ -2813,7 +2808,7 @@ Proof.
                 simpl.
                 by f_equal.
               * destruct m.
-                destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]].
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
                 apply H.
                 by apply Hp.
               * destruct g.
@@ -2907,7 +2902,7 @@ Proof.
           destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
           specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
           simpl in *.
-          destruct Himpwasm as [mem [mt [b_init [Hmemlookup [Hwmslookup2 [Hwmslookup3 Hmemtype]]]]]].
+          destruct Himpwasm as [mem [mt [Hmemlookup [Hwmslookup2 [Hwmslookup3 Hmemtype]]]]].
           rewrite - nth_error_lookup in Hextmemlookup.
           rewrite Hextmemlookup.
           simpl in *.
@@ -2969,7 +2964,7 @@ Proof.
                 destruct Himpwasm as [? [? [? [? [-> ?]]]]].
                 by f_equal.
               * destruct m.
-                destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]].
+                destruct Himpwasm as [? [? [? [? [-> ?]]]]].
                 simpl.
                 by f_equal.
               * destruct g.
@@ -3086,7 +3081,7 @@ Proof.
         repeat split => //.
         by f_equal.
       - destruct m.
-        destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]] => /=.
+        destruct Himpwasm as [? [? [? [? [-> ?]]]]] => /=.
         repeat split => //.
         by f_equal.
       - destruct g.

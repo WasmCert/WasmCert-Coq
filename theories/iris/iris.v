@@ -396,8 +396,7 @@ Definition memory_eq_dec : forall m1 m2: memory, {m1 = m2} + {m1 <> m2}.
 Proof.
   intros m1 m2. destruct m1, m2; auto.
   destruct mem_data, mem_data0.
-  destruct (byte_eq_dec ml_init ml_init0),
-    (list_eq_dec (dec := byte_eq_dec) ml_data ml_data0),
+  destruct  (list_eq_dec (dec := byte_eq_dec) ml_data ml_data0),
     (decide (mem_max_opt = mem_max_opt0)) ;
     try by right ; congruence.
   subst ; by left.

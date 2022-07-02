@@ -10,7 +10,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
 Section Host.
 
 (* Variable host_function : eqType.

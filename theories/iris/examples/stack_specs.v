@@ -335,8 +335,8 @@ Proof.
                    (((⌜ x = immV [VAL_int32 (Wasm_int.int_of_Z
                                             i32m (ssrnat.nat_of_bin
                                                     (len `div` page_size)))] ⌝ ∗
-                               (∃ b, N.of_nat n ↦[wms][ len ]
-                                              repeat b (N.to_nat page_size)) ∗
+                               (N.of_nat n ↦[wms][ len ]
+                                              repeat #00%byte (N.to_nat page_size)) ∗
                               N.of_nat n↦[wmlength] (len + page_size)%N)
                               
                    ∨ (⌜ x = immV [VAL_int32 int32_minus_one] ⌝%I ∗
@@ -449,7 +449,6 @@ Proof.
 
       iDestruct "H" as "[ (%Hvv & Hb & Hlen) | [%Hvv Hlen]]" ; inversion Hvv ; subst ;
         last by rewrite eq_refl in Hv ; inversion Hv.
-      iDestruct "Hb" as (b) "Hb".
       unfold page_size at 2.
       replace (N.to_nat (64 * 1024)) with (4 + N.to_nat (65532)) ; last done.
       rewrite repeat_app.
@@ -459,7 +458,7 @@ Proof.
       iDestruct (wms_append with "Hb") as "[H2 Hb]".
       iDestruct (wms_append with "Hb") as "[H3 Hb]".
       iDestruct (wms_append with "Hb") as "[H4 Hb]".
-      iAssert (N.of_nat n↦[wms][ len ] [b;b;b;b])%I with "[H1 H2 H3 H4]" as "Hbs".
+      iAssert (N.of_nat n↦[wms][ len ] [(#00%byte) ; (#00%byte) ; (#00%byte) ; (#00%byte)])%I with "[H1 H2 H3 H4]" as "Hbs".
       { unfold mem_block_at_pos, big_opL.
         repeat rewrite of_nat_to_nat_plus ; rewrite N.add_0_r.
         replace (len + 1 + 1)%N with (len + 2)%N ; last lia.
@@ -606,7 +605,7 @@ Proof.
         iSplitL.
         iApply (wp_store with "[Hf Hbs]").
         done.
-        instantiate (1 := [b ; b ; b ; b]).
+        instantiate (1 := [(#00%byte); (#00%byte); (#00%byte); (#00%byte)]).
         done.
         instantiate (2 := {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
                                                (VAL_int32 (Wasm_int.Int32.imul
@@ -880,7 +879,7 @@ Proof.
         unfold two14 ; lia.
         iSplitL "Hn" ; first done.
         iSplit ; first done.
-        iExists (repeat b ( N.to_nat 65532)).
+        iExists (repeat #00%byte ( N.to_nat 65532)).
         iSplit ; first by rewrite repeat_length.
         replace (Z.to_N (N.to_nat len + 4)) with (len + 1 + 1 + 1 + 1)%N ; last lia.
         done.

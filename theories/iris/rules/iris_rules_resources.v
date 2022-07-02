@@ -838,8 +838,7 @@ Proof.
                                     if (k + (off + 1) + N.of_nat k0 <?
                                           N.of_nat (length (ml_data dat)))%N
                                     then
-                                      Some {| ml_init := ml_init dat ;
-                                             ml_data :=
+                                      Some {| ml_data :=
                                              seq.take (N.to_nat (k + (off + 1) +
                                                                    N.of_nat k0))
                                                       (ml_data dat) ++
@@ -952,7 +951,7 @@ Qed.
     
 Lemma mem_update_insert k b dat dat':
   mem_update k b dat = Some dat' ->
-  dat' = Build_memory_list (ml_init dat) (<[(N.to_nat k) := b]> (ml_data dat)) /\
+  dat' = Build_memory_list (<[(N.to_nat k) := b]> (ml_data dat)) /\
   (N.to_nat k) < length (ml_data dat).
 Proof.
   unfold mem_update.
@@ -980,7 +979,7 @@ Proof.
   { subst => /=.
     by rewrite insert_length.
   }
-  exists (Build_memory_list (ml_init dat) (<[(N.to_nat k') := b']> (ml_data dat))).
+  exists (Build_memory_list (<[(N.to_nat k') := b']> (ml_data dat))).
   unfold mem_update.
   assert (k' <? N.of_nat (length (ml_data dat')))%N as Hk'0.
   { apply N.ltb_lt. lia. }
@@ -1470,9 +1469,8 @@ Qed.
 Lemma iota_length len i :
   length (iota i len) = (len).
 Proof.
-  revert i.
-  induction len;intros i;auto.
-  simpl. f_equiv. by rewrite IHlen.
+  rewrite length_is_size.
+  by apply size_iota.
 Qed.
 
 Lemma load_prefix m k off bs len :
@@ -1602,12 +1600,14 @@ Proof.
     unfold option_map.
     destruct (those0 (map f l));try done. }
 Qed.
+
 Lemma those_not_nil {A B : Type} (f : A -> option B) l a a' :
   those (map f l) = Some (a :: a') -> l ≠ [].
 Proof.
   rewrite -those_those0.
   induction l;auto.
 Qed.
+
 Lemma those_length  {A B : Type} (f : A -> option B) l l' :
   those (map f l) = Some l' -> length l = length l'.
 Proof.
@@ -2610,62 +2610,6 @@ Proof.
     iFrame.
 Qed.
 
-
-(*
-Lemma reduce_grow_memory hs ws f c hs' ws' f' es' k mem mem':
-  f.(f_inst).(inst_memory) !! 0 = Some k ->
-  nth_error (s_mems ws) k = Some mem ->
-  reduce hs ws f [AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_grow_memory)] hs' ws' f' es' ->
-  ((hs', ws', f', es') = (hs, ws, f, [AI_basic (BI_const (VAL_int32 int32_minus_one))] ) \/
-   (hs', ws', f', es') = (hs, (upd_s_mem ws (update_list_at (s_mems ws) k mem')), f, [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))]) /\
-  mem_grow mem (Wasm_int.N_of_uint i32m c) = Some mem').
-Proof.
-  move => Hinst Hmem HReduce.
-  destruct f as [locs inst].
-  destruct f' as [locs' inst'].
-  (*only_one_reduction HReduce [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (mem_size mem)))))] locs inst locs' inst'.*)
-Admitted. *)
-
-Lemma big_opL_app {A} (l1 : list A) l2 (f : nat -> A -> iProp Σ) :
-  ⊢ ([∗ list] i↦b ∈ (l1 ++ l2), f i b) ∗-∗
-                               (([∗ list] i↦b ∈ l1, f i b) ∗
-                                                           [∗ list] i↦b ∈ l2, f (i + length l1) b).
-Proof.
-  generalize dependent f.
-  induction l1 ; intros f => //=.
-  iSplit.
-  iIntros "H".
-  iSplitR => //=.
-  iApply (big_sepL_impl with "H") => //=.
-  iIntros "!>" (k x) "%Hk Hfx".
-  by rewrite - plus_n_O.
-  iIntros "[_ H]".
-  iApply (big_sepL_impl with "H") => //=.
-  iIntros "!>" (k x) "%Hk Hfx".
-  by rewrite - plus_n_O.
-  iSplit.
-  iIntros "[H0 Hplus]".
-  iDestruct (IHl1 (λ i b, f (S i) b) with "Hplus") as "[H1 H2]".
-  iSplitR "H2".
-  iFrame.
-  iApply (big_sepL_impl with "H2") => //=.
-  iIntros "!>" (k x) "%Hk Hfx".
-  replace (k + S (length l1)) with (S (k + length l1)) => //= ; last lia.
-  iIntros "[[H0 H1] H2]".
-  iSplitL "H0" => //=.
-  iDestruct (big_sepL_impl with "H2") as "H2".
-  iAssert (□ (∀ k x, ⌜ l2 !! k = Some x ⌝ → f (k + S (length l1)) x -∗
-                                              (λ i b, f (S (i + length l1)) b) k x))%I
-    as "H".
-  iIntros "!>" (k x) "%Hk Hfx".
-  replace (k + S (length l1)) with (S (k + length l1)) => //= ; last lia.
-  iDestruct ("H2" with "H") as "H2".
-  iDestruct (IHl1 (λ i b, f (S i) b)) as "[Hl Hr]".
-  iApply "Hr". iFrame.
-Qed.
-
-
-
 Lemma gen_heap_alloc_grow (m m' : memory) (mems mems' : list memory) (k : nat) (n : N) : 
   mems !! k = Some m ->
   mem_grow m n = Some m' ->
@@ -2673,7 +2617,7 @@ Lemma gen_heap_alloc_grow (m m' : memory) (mems mems' : list memory) (k : nat) (
   gen_heap_interp (gmap_of_memory mems) ==∗
                   gen_heap_interp (gmap_of_memory mems')
                   ∗ N.of_nat k↦[wms][ mem_length m ]
-                  repeat (ml_init (mem_data m)) (N.to_nat (n * page_size)).
+                  repeat (#00%byte) (N.to_nat (n * page_size)).
 Proof.
   iIntros (Hmems Hgrow Hupd) "Hmems".
   assert (k < length mems) as Hk ; first by eapply lookup_lt_Some.
@@ -2717,15 +2661,14 @@ Proof.
         lia.
       * iModIntro. 
         iSplitL "Hmems".
-        -- instantiate (1 := ml_init (mem_data m)).
+        -- instantiate (1 := #00%byte).
            replace (<[ _ := _ ]> (gmap_of_memory _)) with
              (gmap_of_memory
                 (update_list_at
                    mems k
                    {| mem_data :=
-                     {| ml_init := ml_init (mem_data m);
-                       ml_data := ml_data (mem_data m) ++
-                                          repeat (ml_init (mem_data m)) (S size)
+                     {| ml_data := ml_data (mem_data m) ++
+                                          repeat #00%byte (S size)
                      |} ;
                      mem_max_opt := mem_max_opt m
                    |})).
@@ -2784,11 +2727,12 @@ Proof.
            rewrite repeat_app.
            unfold mem_block_at_pos.
            iApply big_opL_app.
-           iSplitL "Hm" => //=.
+           iFrame "Hm".
            iSplitL => //=.
            rewrite repeat_length.
            rewrite Nat2N.inj_add.
            rewrite N2Nat.id.
+           rewrite Nat.add_0_r.
            done.
   - remember (N.to_nat (n * page_size)) as size.
     inversion Hgrow.
@@ -2823,15 +2767,14 @@ Proof.
         lia.
       * iModIntro. 
         iSplitL "Hmems".
-        -- instantiate (1 := ml_init (mem_data m)).
+        -- instantiate (1 := #00%byte).
            replace (<[ _ := _ ]> (gmap_of_memory _)) with
              (gmap_of_memory
                 (update_list_at
                    mems k
                    {| mem_data :=
-                     {| ml_init := ml_init (mem_data m);
-                       ml_data := ml_data (mem_data m) ++
-                                          repeat (ml_init (mem_data m)) (S size)
+                     {| ml_data := ml_data (mem_data m) ++
+                                          repeat #00%byte (S size)
                      |} ;
                      mem_max_opt := mem_max_opt m
                    |})).
@@ -2890,11 +2833,12 @@ Proof.
            rewrite repeat_app.
            unfold mem_block_at_pos.
            iApply big_opL_app.
-           iSplitL "Hm" => //=.
+           iFrame "Hm".
            iSplitL => //=.
            rewrite repeat_length.
            rewrite Nat2N.inj_add.
            rewrite N2Nat.id.
+           rewrite Nat.add_0_r.
            done.
 Qed.
 
@@ -2910,8 +2854,8 @@ Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
      ▷ Ψ (immV [VAL_int32 int32_minus_one]))
     ⊢ WP [AI_basic (BI_const (VAL_int32 c)) ; AI_basic (BI_grow_memory)]
     @ s; E {{ w, ((Φ w ∗
-                    (∃ b, (N.of_nat k) ↦[wms][ n ]
-                    repeat b (N.to_nat (Wasm_int.N_of_uint i32m c * page_size))) ∗
+                    ((N.of_nat k) ↦[wms][ n ]
+                    repeat #00%byte (N.to_nat (Wasm_int.N_of_uint i32m c * page_size))) ∗
                     (N.of_nat k) ↦[wmlength]
                     (n + Wasm_int.N_of_uint i32m c * page_size)%N)
                  ∨ (Ψ w ∗ (N.of_nat k) ↦[wmlength] n)) ∗ ↪[frame] f0 }}.
@@ -2993,8 +2937,7 @@ Proof.
         rewrite Hmemlength'.
         replace (Wasm_int.N_of_uint i32m c) with (Z.to_N (Wasm_int.Int32.unsigned c)) ;
           last done.
-        iFrame.
-        by iExists _. }
+        by iFrame. }
     { (* grow_memory failed *)
       iSplitR "Hframe HΨ Hmlength"  => //.
       iFrame => //.

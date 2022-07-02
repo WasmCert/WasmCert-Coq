@@ -57,12 +57,10 @@ Section fundamental.
       iSplit;eauto. }
     iIntros (v) "[Hdisj Hf]".
     iDestruct "Hdisj" as "[[-> [Hb Hsize]]|[-> Hsize]]".
-    { iDestruct "Hb" as (b) "Hb".
-      iMod ("Hcls" with "[$Hown Hsize Hmem Hb]") as "Hown".
+    {  iMod ("Hcls" with "[$Hown Hsize Hmem Hb]") as "Hown".
       { iNext.
-        set (mem' := {| ml_init := ml_init (mem_data ms) ;
-                       ml_data := ml_data (mem_data ms) ++
-                                  repeat b (N.to_nat (Wasm_int.N_of_uint i32m z * page_size))|}).
+        set (mem' := {| ml_data := ml_data (mem_data ms) ++
+                                  repeat #00%byte (N.to_nat (Wasm_int.N_of_uint i32m z * page_size))|}).
         iExists {| mem_data := mem' ;
                   mem_max_opt := (mem_max_opt ms) |}.
         unfold mem_block. simpl ml_data.
