@@ -1341,18 +1341,19 @@ Proof.
 Qed.
 
 
-
+(*
 Lemma map_app {A B} (l1 : list A) l2 (f : A -> B) : map f (l1 ++ l2) = map f l1 ++ map f l2.
 Proof.
+  Search map app.
   induction l1 ; intros ; try done.
   simpl. by rewrite IHl1.
 Qed. 
+ *)
 
-Lemma take_drop {A} n (l : list A) : n < length l -> l = seq.take n l ++ seq.drop n l.
+Lemma take_drop {A} n (l : list A) :(* n < length l -> *)l = seq.take n l ++ seq.drop n l.
 Proof.
-  intros. generalize dependent n. induction l ; intros.  by inversion H.
-  destruct n. by unfold take, drop.
-  simpl. rewrite <- (IHl n) => //=. simpl in H ; lia.
+  rewrite <- cat_app.
+  by rewrite cat_take_drop.
 Qed.
 
 
@@ -1392,9 +1393,6 @@ Proof.
   rewrite map_app. apply those_app. rewrite <- H1. apply (IHn ys H1 H0).
   unfold those => //=. rewrite H. 
   rewrite list_lookup_middle => //=. rewrite <- H1 ; lia.
-  replace (length (iota 0 (S (length ys)))) with (seq.size (iota 0 (S (length ys)))) ;
-    last done.
-  rewrite size_iota. lia.
 Qed.
 
 
@@ -1500,7 +1498,6 @@ Proof.
   { apply/ssrnat.minn_idPl/ssrnat.leP. lia. }
   rewrite HH in Hload1.
   eexists _,_. split;eauto.
-  rewrite iota_length. auto.
 Qed.
 
 Lemma if_load_then_store bs bs' m k off :
