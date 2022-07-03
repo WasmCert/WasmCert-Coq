@@ -1,8 +1,9 @@
 (include_subdirs qualified)
 
+
 (coq.theory
   (name Wasm)
-  (flags -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier))
+  (flags -w -ambiguous-paths -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier))
 
 ;(coq.extraction
 ;	(prelude extraction)

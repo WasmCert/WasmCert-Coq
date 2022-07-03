@@ -1,12 +1,13 @@
+Require Import Coq.Program.Equality.
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
 Require Export datatypes host operations properties opsem instantiation.
 From stdpp Require Import list fin_maps gmap.
 Require Export stdpp_aux.
 (* We need a few helper lemmas from preservation. *)
-Require Export type_preservation.
+Require Export type_preservation type_progress.
 
 Section module_typing_det.
-
+  
 Lemma module_typing_det_import_aux m it1 et1 it2 et2:
   module_typing m it1 et1 ->
   module_typing m it2 et2 ->
@@ -670,6 +671,582 @@ Proof.
     repeat split => //.
     by f_equal.
 Qed.
+
+Section Instantiation_det.
+
+Lemma bet_const_exprs_len tc es t1 t2:
+  const_exprs tc es ->
+  be_typing tc es (Tf t1 t2) ->
+  length t2 = length es + length t1.
+Proof.
+  move: t1 t2.
+  induction es; move => t1 t2 Hconst Hbet; destruct t2 => //=.
+  { apply empty_typing in Hbet. by subst. }
+  { apply empty_typing in Hbet. by subst. }
+  { rewrite <- cat1s in Hbet.
+    apply composition_typing in Hbet.
+    destruct Hbet as [ts [t1s [t2s [t3s [-> [Heqt2 [Hbet1 Hbet2]]]]]]].
+    destruct ts, t2s => //=.
+    simpl in Hconst.
+    move/andP in Hconst.
+    destruct Hconst as [Hconst Hconsts].
+    apply IHes in Hbet2 => //.
+    destruct es, t3s => //=.
+    unfold const_expr in Hconst.
+    destruct a => //.
+    { apply Get_global_typing in Hbet1.
+      destruct Hbet1 as [t [? [HContra ?]]].
+      by destruct t1s.
+    }
+    { apply BI_const_typing in Hbet1.
+      by destruct t1s.
+    }
+  }
+  { rewrite <- cat1s in Hbet.
+    apply composition_typing in Hbet.
+    destruct Hbet as [ts [t1s [t2s [t3s [-> [Heqt2 [Hbet1 Hbet2]]]]]]].
+    simpl in Hconst.
+    move/andP in Hconst.
+    destruct Hconst as [Hconst Hconsts].
+    eapply IHes in Hconsts => //.
+    f_equal.
+    assert (length t2 + 1 = length ts + length t2s) as Hlent2.
+    { rewrite <- app_length.
+      rewrite <- cat_app.
+      rewrite <- Heqt2.
+      by lias.
+    }
+    unfold const_expr in Hconst.
+    destruct a => //.
+    { apply Get_global_typing in Hbet1.
+      destruct Hbet1 as [t [? [HContra ?]]].
+      subst.
+      rewrite -> app_length in *.
+      simpl in *.
+      by lias.
+    }
+    { apply BI_const_typing in Hbet1.
+      subst.
+      rewrite -> app_length in *.
+      simpl in *.
+      by lias.
+    }
+  }
+Qed.
+  
+Lemma const_exprs_impl tc es t:
+  const_exprs tc es ->
+  be_typing tc es (Tf [] [::t]) ->
+  exists e, es = [:: e] /\ const_expr tc e.
+Proof.
+  move => Hconst Hbet.
+  eapply bet_const_exprs_len in Hbet => //.
+  do 2 destruct es => //=.
+  exists b; split => //.
+  unfold const_exprs in Hconst.
+  simpl in Hconst.
+  move/andP in Hconst.
+  by destruct Hconst.
+Qed.
+
+Lemma const_no_reduce s f v s' f' e':
+  reduce s f [AI_basic (BI_const v)] s' f' e' ->
+  False.
+Proof.
+  move => Hred.
+  dependent induction Hred; subst; try by repeat destruct vcs => //.
+  { inversion H; subst; clear H; try by repeat destruct vs => //.
+    by apply lfilled_implies_starts in H1 => //.
+  }
+  { move/lfilledP in H.
+    inversion H; subst; clear H; last by repeat destruct vs => //.
+    destruct vs => //=; last first.
+    { destruct vs, es, es'0 => //=.
+      by apply reduce_not_nil in Hred.
+    }
+    destruct es => //=; first by apply reduce_not_nil in Hred.
+    destruct es, es'0 => //=.
+    simpl in H1.
+    inversion H1; subst; clear H1.
+    by eapply IHHred.
+  }
+Qed.
+  
+Lemma reduce_trans_const s1 f1 v1 s2 f2 v2:
+  reduce_trans (s1, f1, [AI_basic (BI_const v1)]) (s2, f2, [AI_basic (BI_const v2)]) ->
+  v1 = v2.
+Proof.
+  move => Hred.
+  unfold reduce_trans in Hred.
+  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
+  inversion Hred => //.
+  unfold reduce_tuple in H.
+  destruct y as [[??]?].
+  by apply const_no_reduce in H.
+Qed.
+
+Lemma reduce_get_global s f s' f' i e:
+  reduce s f [AI_basic (BI_get_global i)] s' f' e ->
+  exists v, sglob_val s (f_inst f) i = Some v /\ e = [AI_basic (BI_const v)].
+Proof.
+  move => Hred.
+  dependent induction Hred; subst; try by repeat destruct vcs => //.
+  { inversion H; subst; clear H; try by repeat destruct vs => //.
+    by apply lfilled_implies_starts in H1 => //.
+  }
+  { by exists v. }
+  { move/lfilledP in H.
+    inversion H; subst; clear H; last by repeat destruct vs => //.
+    destruct vs => //=; last first.
+    { inversion H1; subst.
+      by destruct vs => //=.
+    }
+    simpl in H1.
+    destruct es => //=; first by apply reduce_not_nil in Hred.
+    destruct es, es'0 => //=.
+    simpl in H1.
+    inversion H1; subst; clear H1.
+    specialize (IHHred i).
+    move/lfilledP in H0.
+    inversion H0; subst; clear H0.
+    simpl; rewrite cats0.
+    by apply IHHred.
+  }
+Qed.
+    
+Lemma reduce_trans_get_global s f s' f' i v:
+  reduce_trans (s, f, [AI_basic (BI_get_global i)]) (s', f', [AI_basic (BI_const v)]) ->
+  sglob_val s (f_inst f) i = Some v.
+Proof.
+  move => Hred.
+  unfold reduce_trans in *.
+  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
+  inversion Hred; subst; clear Hred.
+  destruct y as [[??]?].
+  unfold reduce_tuple in H.
+  apply reduce_get_global in H.
+  destruct H as [v' [Hsgv ->]].
+  inversion H0; subst; clear H0 => //.
+  unfold reduce_tuple in H.
+  destruct y as [[??]?].
+  by apply const_no_reduce in H.
+Qed.
+  
+Lemma module_glob_init_det m v_imps t_imps inst s1 s2 gi1 gi2:
+  module_typing m v_imps t_imps ->
+  instantiate_globals inst s1 m gi1 ->
+  instantiate_globals inst s2 m gi2 ->
+  (forall i, i < length (ext_t_globs v_imps) -> sglob_val s1 inst i = sglob_val s2 inst i) ->
+  gi1 = gi2.
+Proof.
+  move => Hmt Hgi1 Hgi2 Hsgveq.
+  unfold module_typing in Hmt.
+  unfold instantiate_globals in *.
+  destruct m; simpl in *.
+  destruct Hmt as [fts [gts [_ [_ [_ [Hmgt _]]]]]].
+  assert (length gi1 = length gi2) as Hlen; first by (apply Forall2_length in Hgi1; apply Forall2_length in Hgi2; rewrite Hgi1 in Hgi2).
+  apply list_eq.
+  move => i.
+  destruct (gi1 !! i) as [v1 | ] eqn:Hg1; last first.
+  { destruct (gi2 !! i) eqn:Hg2 => //; by apply lookup_lt_Some in Hg2; apply lookup_ge_None in Hg1; lias. }
+  { destruct (gi2 !! i) as [v2 | ] eqn:Hg2 => //; last by apply lookup_lt_Some in Hg1; apply lookup_ge_None in Hg2; lias.
+    rewrite -> Forall2_lookup in Hgi1.
+    rewrite -> Forall2_lookup in Hgi2.
+    rewrite -> Forall2_lookup in Hmgt.
+    specialize (Hgi1 i).
+    specialize (Hgi2 i).
+    specialize (Hmgt i).
+    rewrite Hg1 in Hgi1.
+    rewrite Hg2 in Hgi2.
+    inversion Hgi1; subst; clear Hgi1.
+    inversion Hgi2; subst; clear Hgi2.
+    rewrite <- H0 in H.
+    inversion H; subst; clear H.
+    rewrite <- H0 in Hmgt.
+    inversion Hmgt; subst; clear Hmgt.
+    destruct x0.
+    unfold module_glob_typing in H4.
+    destruct H4 as [Hconst [-> Hbet]].
+    apply const_exprs_impl in Hbet => //.
+    destruct Hbet as [e [-> Hconste]].
+    unfold const_exprs, const_expr in Hconste.
+    destruct e => //; simpl in *.
+    { apply reduce_trans_get_global in H1.
+      apply reduce_trans_get_global in H3.
+      specialize (Hsgveq i0).
+      simpl in H1, H3.
+      move/andP in Hconst.
+      destruct Hconst as [Hconst _].
+      move/andP in Hconst.
+      destruct Hconst as [Hilen _].
+      move/ssrnat.ltP in Hilen.
+      rewrite <- Hsgveq in H3 => //.
+      by rewrite H3 in H1.
+    }
+    { apply reduce_trans_const in H1.
+      apply reduce_trans_const in H3.
+      by subst.
+    }
+  }
+Qed.
+
+Lemma module_elem_init_det m v_imps t_imps inst s eo1 eo2:
+  module_typing m v_imps t_imps ->
+  instantiate_elem inst s m eo1 ->
+  instantiate_elem inst s m eo2 ->
+  eo1 = eo2.
+Proof.
+  move => Hmt Heo1 Heo2.
+  unfold module_typing in Hmt.
+  unfold instantiate_elem in *.
+  destruct m; simpl in *.
+  destruct Hmt as [fts [gts [_ [_ [_ [_ [Hmet _]]]]]]].
+  assert (length eo1 = length eo2) as Hlen; first by (apply Forall2_length in Heo1; apply Forall2_length in Heo2; rewrite Heo1 in Heo2).
+  apply list_eq.
+  move => i.
+  destruct (eo1 !! i) as [v1 | ] eqn:He1; last first.
+  { destruct (eo2 !! i) eqn:He2 => //; by apply lookup_lt_Some in He2; apply lookup_ge_None in He1; lias. }
+  { destruct (eo2 !! i) as [v2 | ] eqn:He2 => //; last by apply lookup_lt_Some in He1; apply lookup_ge_None in He2; lias.
+    rewrite -> Forall2_lookup in Heo1.
+    rewrite -> Forall2_lookup in Heo2.
+    rewrite -> Forall_lookup in Hmet.
+    specialize (Heo1 i).
+    specialize (Heo2 i).
+    specialize (Hmet i).
+    rewrite He1 in Heo1.
+    rewrite He2 in Heo2.
+    inversion Heo1; subst; clear Heo1.
+    inversion Heo2; subst; clear Heo2.
+    rewrite <- H0 in H.
+    inversion H; subst; clear H.
+    rewrite <- H0 in Hmet.
+    specialize (Hmet x0).
+    destruct x0, modelem_table; simpl in *.
+    destruct Hmet as [Hconst [Hbet [Hlen1 Hlen2]]] => //.
+    apply const_exprs_impl in Hbet => //.
+    destruct Hbet as [e [-> Hconste]].
+    unfold const_exprs, const_expr in Hconste.
+    destruct e => //; simpl in *.
+    { apply reduce_trans_get_global in H1.
+      apply reduce_trans_get_global in H3.
+      rewrite H1 in H3.
+      by inversion H3.
+    }
+    { apply reduce_trans_const in H1.
+      apply reduce_trans_const in H3.
+      subst; by inversion H1.
+    }
+  }
+Qed.
+
+Lemma module_data_init_det m v_imps t_imps inst s do1 do2:
+  module_typing m v_imps t_imps ->
+  instantiate_data inst s m do1 ->
+  instantiate_data inst s m do2 ->
+  do1 = do2.
+Proof.
+  move => Hmt Hdo1 Hdo2.
+  unfold module_typing in Hmt.
+  unfold instantiate_data in *.
+  destruct m; simpl in *.
+  destruct Hmt as [fts [gts [_ [_ [_ [_ [_ [Hmdt _]]]]]]]].
+  assert (length do1 = length do2) as Hlen; first by (apply Forall2_length in Hdo1; apply Forall2_length in Hdo2; rewrite Hdo1 in Hdo2).
+  apply list_eq.
+  move => i.
+  destruct (do1 !! i) as [v1 | ] eqn:Hd1; last first.
+  { destruct (do2 !! i) eqn:Hd2 => //; by apply lookup_lt_Some in Hd2; apply lookup_ge_None in Hd1; lias. }
+  { destruct (do2 !! i) as [v2 | ] eqn:Hd2 => //; last by apply lookup_lt_Some in Hd1; apply lookup_ge_None in Hd2; lias.
+    rewrite -> Forall2_lookup in Hdo1.
+    rewrite -> Forall2_lookup in Hdo2.
+    rewrite -> Forall_lookup in Hmdt.
+    specialize (Hdo1 i).
+    specialize (Hdo2 i).
+    specialize (Hmdt i).
+    rewrite Hd1 in Hdo1.
+    rewrite Hd2 in Hdo2.
+    inversion Hdo1; subst; clear Hdo1.
+    inversion Hdo2; subst; clear Hdo2.
+    rewrite <- H0 in H.
+    inversion H; subst; clear H.
+    rewrite <- H0 in Hmdt.
+    specialize (Hmdt x0).
+    destruct x0, moddata_data; simpl in *.
+    destruct Hmdt as [Hconst [Hbet Hleni]] => //.
+    apply const_exprs_impl in Hbet => //.
+    destruct Hbet as [e [-> Hconste]].
+    unfold const_exprs, const_expr in Hconste.
+    destruct e => //; simpl in *.
+    { apply reduce_trans_get_global in H1.
+      apply reduce_trans_get_global in H3.
+      rewrite H1 in H3.
+      by inversion H3.
+    }
+    { apply reduce_trans_const in H1.
+      apply reduce_trans_const in H3.
+      subst; by inversion H1.
+    }
+  }
+Qed.
+
+Lemma vt_imps_comp_len s (v_imps: list v_ext) t_imps:
+  Forall2 (external_typing s) v_imps t_imps ->
+  (length (ext_funcs v_imps) = length (ext_t_funcs t_imps) /\
+    length (ext_tabs v_imps) = length (ext_t_tabs t_imps) /\
+    length (ext_mems v_imps) = length (ext_t_mems t_imps) /\
+    length (ext_globs v_imps) = length (ext_t_globs t_imps)).
+Proof.
+  move: t_imps.
+  induction v_imps; move => t_imps Hexttype; destruct t_imps; try by apply Forall2_length in Hexttype.
+  inversion Hexttype; subst; clear Hexttype.
+  apply IHv_imps in H4.
+  destruct H4 as [Hft [Htt [Hmt Hgt]]].
+  destruct a; inversion H2; subst; clear H2 => //=; by repeat split; lias.
+Qed.
+  
+Lemma alloc_module_det s m v_imps t_imps t_exps g_inits g_inits' s_res1 s_res2 inst inst' exps exps':
+  module_typing m t_imps t_exps ->
+  Forall2 (external_typing s) v_imps t_imps ->
+  length g_inits = length (mod_globals m) -> 
+  length g_inits' = length (mod_globals m) -> 
+  alloc_module s m v_imps g_inits (s_res1, inst, exps) ->
+  alloc_module s m v_imps g_inits' (s_res2, inst', exps') ->
+  instantiate_globals inst s_res1 m g_inits ->
+  instantiate_globals inst' s_res2 m g_inits' ->
+  (inst, exps) = (inst', exps') /\
+  g_inits = g_inits' /\
+  (s_res1 = s_res2).
+Proof.
+  move => Hmt Hexttype Hglen1 Hglen2 Ham1 Ham2 Hinitg1 Hinitg2.
+  unfold alloc_module in *.
+  remember (alloc_funcs s (mod_funcs m) inst) as res_f.
+  destruct res_f as [s0 idf].
+  remember (alloc_tabs s0 (map modtab_type (mod_tables m))) as res_t.
+  destruct res_t as [s1 idt].
+  remember (alloc_mems s1 (mod_mems m)) as res_m.
+  destruct res_m as [s2 idm].
+  remember (alloc_globs s2 (mod_globals m) g_inits) as res_g.
+  destruct res_g as [s3 idg].
+  symmetry in Heqres_f.
+  symmetry in Heqres_t.
+  symmetry in Heqres_m.
+  symmetry in Heqres_g.
+  apply alloc_func_gen_index in Heqres_f.
+  apply alloc_tab_gen_index in Heqres_t.
+  apply alloc_mem_gen_index in Heqres_m.
+  apply alloc_glob_gen_index in Heqres_g => //.
+  destruct s0, s1, s2, s3; simpl in *.
+  destruct Heqres_f as [Hidf [-> [<- [<- <-]]]].
+  destruct Heqres_t as [Hidt [-> [<- [<- <-]]]].
+  destruct Heqres_m as [Hidm [-> [<- [<- <-]]]].
+  destruct Heqres_g as [Hidg [-> [<- [<- <-]]]].
+  
+  remember (alloc_funcs s (mod_funcs m) inst') as res_f'.
+  destruct res_f' as [s0' idf'].
+  remember (alloc_tabs s0' (map modtab_type (mod_tables m))) as res_t'.
+  destruct res_t' as [s1' idt'].
+  remember (alloc_mems s1' (mod_mems m)) as res_m'.
+  destruct res_m' as [s2' idm'].
+  remember (alloc_globs s2' (mod_globals m) g_inits') as res_g'.
+  destruct res_g' as [s3' idg'].
+  symmetry in Heqres_f'.
+  symmetry in Heqres_t'.
+  symmetry in Heqres_m'.
+  symmetry in Heqres_g'.
+  apply alloc_func_gen_index in Heqres_f'.
+  apply alloc_tab_gen_index in Heqres_t'.
+  apply alloc_mem_gen_index in Heqres_m'.
+  apply alloc_glob_gen_index in Heqres_g' => //.
+  destruct s0', s1', s2', s3'; simpl in *.
+  destruct Heqres_f' as [Hidf' [-> [<- [<- <-]]]].
+  destruct Heqres_t' as [Hidt' [-> [<- [<- <-]]]].
+  destruct Heqres_m' as [Hidm' [-> [<- [<- <-]]]].
+  destruct Heqres_g' as [Hidg' [-> [<- [<- <-]]]].
+  
+  rewrite <- Hidf' in Hidf.
+
+  assert (idf = idf').
+  { clear - Hidf.
+    move: Hidf.
+    move: idf'.
+    induction idf as [|fi ?]; move => idf'; destruct idf' => //=.
+    move => H.
+    destruct fi, f.
+    inversion H; subst; clear H.
+    f_equal.
+    by apply IHidf.
+  }
+  subst.
+
+  
+  rewrite <- Hidt' in Hidt.
+
+  assert (idt = idt').
+  { clear - Hidt.
+    move: Hidt.
+    move: idt'.
+    induction idt as [|ti ?]; move => idt'; destruct idt' => //=.
+    move => H.
+    destruct ti, t.
+    inversion H; subst; clear H.
+    f_equal.
+    by apply IHidt.
+  }
+  subst.
+
+  
+  rewrite <- Hidm' in Hidm.
+
+  assert (idm = idm').
+  { clear - Hidm.
+    move: Hidm.
+    move: idm'.
+    induction idm as [|mi ?]; move => idm'; destruct idm' => //=.
+    move => H.
+    destruct mi, m.
+    inversion H; subst; clear H.
+    f_equal.
+    by apply IHidm.
+  }
+  subst.
+
+  
+  rewrite <- Hidg' in Hidg.
+
+  assert (idg = idg').
+  { clear - Hidg.
+    move: Hidg.
+    move: idg'.
+    induction idg as [|gi ?]; move => idg'; destruct idg' => //=.
+    move => H.
+    destruct gi, g.
+    inversion H; subst; clear H.
+    f_equal.
+    by apply IHidg.
+  }
+  subst.
+
+  move/andP in Ham1; move/andP in Ham2.
+  destruct Ham1 as [Ham1 Hsres1].
+  destruct Ham2 as [Ham2 Hsres2].
+  move/eqP in Hsres1; move/eqP in Hsres2; subst.
+  move/andP in Ham1; move/andP in Ham2.
+  destruct Ham1 as [Ham1 Hig1].
+  destruct Ham2 as [Ham2 Hig2].
+  move/eqP in Hig1.
+  move/eqP in Hig2.
+  move/andP in Ham1; move/andP in Ham2.
+  destruct Ham1 as [Ham1 Him1].
+  destruct Ham2 as [Ham2 Him2].
+  move/eqP in Him1.
+  move/eqP in Him2.
+  move/andP in Ham1; move/andP in Ham2.
+  destruct Ham1 as [Ham1 Hit1].
+  destruct Ham2 as [Ham2 Hit2].
+  move/eqP in Hit1.
+  move/eqP in Hit2.
+  move/andP in Ham1; move/andP in Ham2.
+  destruct Ham1 as [Ham1 Hif1].
+  destruct Ham2 as [Ham2 Hif2].
+  move/eqP in Hif1.
+  move/eqP in Hif2.
+  move/andP in Ham1; move/andP in Ham2.
+  destruct Ham1 as [Ham1 Hitype1].
+  destruct Ham2 as [Ham2 Hitype2].
+  move/eqP in Hitype1.
+  move/eqP in Hitype2.
+  rewrite <- Hif2 in Hif1.
+  rewrite <- Hit2 in Hit1.
+  rewrite <- Him2 in Him1.
+  rewrite <- Hig2 in Hig1.
+  rewrite <- Hitype2 in Hitype1.
+  destruct inst, inst'.
+  simpl in *.
+  subst.
+  split => //.
+
+  move/eqP in Ham1; move/eqP in Ham2.
+  assert (g_inits = g_inits') as Heqgi.
+  {
+    eapply module_glob_init_det => //.
+    move => i Hilen.
+    unfold sglob_val, sglob, sglob_ind => /=.
+    repeat rewrite nth_error_lookup.
+    repeat rewrite map_fmap.
+    repeat rewrite list_lookup_fmap.
+    remember ((ext_globs v_imps ++ idg') !! i) as gi.
+    specialize (vt_imps_comp_len _ _ _ Hexttype) as Hcomplen.
+    destruct Hcomplen as [_ [_ [_ Hglen]]].
+    rewrite lookup_app in Heqgi.
+    rewrite <- Hglen in Hilen.
+    destruct (ext_globs v_imps !! i) eqn:Hgvi; last by apply lookup_ge_None in Hgvi; lias.
+    subst gi.
+    simpl.
+    destruct g.
+    assert (n < length (s_globals s)) as Hnlen.
+    { unfold module_typing in Hmt.
+      destruct m; simpl in *.
+      destruct Hmt as [fts [gts [_ [_ [_ [_ [_ [_ [_ [Hit _]]]]]]]]]].
+      rewrite -> Forall2_lookup in Hexttype.
+      apply ext_globs_lookup_exist in Hgvi.
+      destruct Hgvi as [k Hvi].
+      specialize (Hexttype k).
+      rewrite Hvi in Hexttype.
+      inversion Hexttype; subst; clear Hexttype.
+      inversion H1; subst; clear H1.
+      by move/ssrnat.ltP in H2.
+    }
+    subst s_res1 s_res2 => /=.
+    repeat rewrite nth_error_lookup.
+    repeat rewrite lookup_app.
+    destruct (s_globals s !! n) eqn:Hsgn => //=.
+    exfalso. apply lookup_ge_None in Hsgn. by lias.
+  }
+  split => //; last by subst.
+Qed.
+  
+Lemma instantiate_det s m vimps res res':
+  instantiate s m vimps res ->
+  instantiate s m vimps res' ->
+  res = res'.
+Proof.
+  move => Hinst1 Hinst2.
+  destruct res as [[[s1 inst1] exp1] start1].
+  destruct res' as [[[s2 inst2] exp2] start2].
+  unfold instantiate, instantiation.instantiate in *.
+  destruct Hinst1 as (t_imps1 & t_exps1 & ws1 & g_inits1 & e_offs1 & d_offs1 & Hmodtype1 & Hexttype1 & Hallocmodule1 & Hinstglob1 & Hinstelem1 & Hinstdata1 & Hcbelem1 & Hcbdata1 & Hcstart1 & Hws1).
+  destruct Hinst2 as [t_imps2 [t_exps2 [ws2 [g_inits2 [e_offs2 [d_offs2 [Hmodtype2 [Hexttype2 [Hallocmodule2 [Hinstglob2 [Hinstelem2 [Hinstdata2 [Hcbelem2 [Hcbdata2 [Hcstart2 Hws2]]]]]]]]]]]]]]].
+
+  specialize (module_typing_det _ _ _ _ _ Hmodtype1 Hmodtype2) as Hvteq.
+  inversion Hvteq; subst; clear Hvteq.
+
+  (* Instance, alloc_module store, and exports *)
+  eapply alloc_module_det in Hallocmodule1 => //.
+  3: { by apply Forall2_length in Hinstglob1. }
+  2: { by apply Forall2_length in Hinstglob2. }
+
+  destruct Hallocmodule1 as [Hieeq [Hgieq Hwseq]].
+  inversion Hieeq; subst; clear Hieeq.
+
+  (* Start *)
+  unfold check_start in *.
+  move/eqP in Hcstart1; move/eqP in Hcstart2.
+  rewrite Hcstart2 in Hcstart1; subst.
+  repeat f_equal.
+
+  (* Final store *)
+  assert (e_offs1 = e_offs2) as Heoffeq.
+  { by eapply module_elem_init_det. }
+  
+  assert (d_offs1 = d_offs2) as Hdoffeq.
+  { by eapply module_data_init_det. }
+
+  subst.
+  move/eqP in Hws1.
+  move/eqP in Hws2.
+  by subst.
+Qed.
+  
+End Instantiation_det.
 
 End Instantiation_properties.
 

@@ -6,6 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
 Require Export datatypes host operations properties opsem instantiation instantiation_properties.
+Require Import Coq.Program.Equality.
 (* We need a few helper lemmas from preservation. *)
 Require Export type_preservation.
 
@@ -1292,7 +1293,7 @@ Lemma import_mem_wasm_lookup v_imps t_imps wms ws :
     import_mem_wasm_check v_imps t_imps wms -∗
     ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
       match modexp_desc v with
-      | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! N.of_nat i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
+      | MED_mem (Mk_memidx i) => ∃ mem mt, ws.(s_mems) !! i = Some {| mem_data := {| ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! N.of_nat i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
       | _ => True
       end ⌝.
 Proof.
@@ -1314,7 +1315,7 @@ Proof.
   iPureIntro.
   rewrite Hlookup.
   destruct Hw as [m [Hw [Hmdata Hmlim]]].
-  exists mem, mt, m.(mem_data).(ml_init).
+  exists mem, mt.
   rewrite Nat2N.id in Hw.
   rewrite Hw.
   destruct m, mem, mem_data => /=.
@@ -1368,7 +1369,7 @@ Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
       match modexp_desc v with
       | MED_func (Mk_funcidx i) => ∃ cl, ws.(s_funcs) !! i = Some cl /\ wfs !! N.of_nat i = Some cl /\ t = ET_func (cl_type cl) 
       | MED_table (Mk_tableidx i) => ∃ tab tt, ws.(s_tables) !! i = Some tab /\ wts !! N.of_nat i = Some tab /\ t = ET_tab tt /\ tab_typing tab tt
-      | MED_mem (Mk_memidx i) => ∃ mem mt b_init, ws.(s_mems) !! i = Some {| mem_data := {| ml_init := b_init; ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! N.of_nat i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
+      | MED_mem (Mk_memidx i) => ∃ mem mt, ws.(s_mems) !! i = Some {| mem_data := {| ml_data := mem.(mem_data).(ml_data) |}; mem_max_opt := mem.(mem_max_opt) |} /\ wms !! N.of_nat i = Some mem /\ t = ET_mem mt /\ mem_typing mem mt
       | MED_global (Mk_globalidx i) => ∃ g gt, ws.(s_globals) !! i = Some g /\ wgs !! N.of_nat i = Some g /\ t = ET_glob gt /\ global_agree g gt
       end ⌝.
 Proof. 
@@ -1654,8 +1655,7 @@ Definition module_import_init_tabs (m: module) (inst: instance) (wts: gmap N tab
 Definition module_inst_mem_base_func := (fun '{| lim_min := min; lim_max := omax |} =>
           (Build_memory
              (Build_memory_list
-               #00%byte
-               (repeat #00%byte (N.to_nat (64 * 1024 * min)))
+               (repeat #00%byte (N.to_nat (page_size * min)))
                )
              (omax))).
 
@@ -1667,7 +1667,6 @@ Definition module_inst_mem_base (mmemtypes: list memory_type) : list memory :=
 Definition mem_init_replace_single (mem: memory) (offset: nat) (bs: list byte) : memory :=
   Build_memory
     (Build_memory_list
-       mem.(mem_data).(ml_init)
        (take (length mem.(mem_data).(ml_data)) ((take offset mem.(mem_data).(ml_data)) ++ bs ++ (drop (offset + length bs) mem.(mem_data).(ml_data)))))
     mem.(mem_max_opt).
 
@@ -1792,6 +1791,16 @@ Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: l
   module_inst_resources_mem mem_inits (drop (get_import_mem_count m) inst.(inst_memory)) ∗                        
   module_inst_resources_glob glob_inits (drop (get_import_global_count m) inst.(inst_globs)))%I.
 
+Definition module_restrictions (m: module) : Prop :=
+  (* We further restrict the offsets and global initialisers to values only. 
+     This is not that much a restriction as it seems, since they can only 
+     be either values or get_globals (from imported immutable globals only) 
+     anyway, and their contents can always be modified by other instructions
+     later. *)
+  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
+  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
+  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
+
 Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (idfstart: option nat) (inst: instance) : iProp Σ :=
   ∃ (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',  
   import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks; this described the new contents of tables and memories that have been modified by the initialisers *)
@@ -1814,13 +1823,6 @@ Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (id
     ⌜ module_glob_init_values m g_inits ⌝ ∗
     ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
     module_inst_resources_wasm m inst tab_inits mem_inits glob_inits. (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
-
-Definition module_restrictions (m: module) : Prop :=
-  (* Initializers for globals are only values. This is not that much a restriction as it seems, since they can
-     only be either values or get_globals (from immutable globals) anyway. *)
-  (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
-  (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
-  (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
 
 Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
   es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
@@ -3097,7 +3099,7 @@ Qed.
 Definition update_mem (mem: memory) off md : option memory :=
   let mld := mem.(mem_data).(ml_data) in
   if off + length md <=? length mld then
-    Some ({| mem_data := {| ml_data := (take off mld) ++ md ++ (drop (off + length md) mld); ml_init := mem.(mem_data).(ml_init) |}; mem_max_opt := mem.(mem_max_opt) |})
+    Some ({| mem_data := {| ml_data := (take off mld) ++ md ++ (drop (off + length md) mld)|}; mem_max_opt := mem.(mem_max_opt) |})
   else None.
 
 Definition update_mems (mems: list memory) off n md : option (list memory) :=
@@ -3304,7 +3306,7 @@ Qed.
 
 (*
   Note that, from gen_heap's point of view, two equivalent memories are completely
-  the same -- ml_init doesn't matter, and cannot be observed anyway.  
+  the same.
 *)
 Lemma mem_block_update mem mem' n ws ws':
   mem_length mem = mem_length mem' ->
@@ -3399,7 +3401,7 @@ Qed.
 Lemma init_mem_state_update (ws ws': store_record) (inst: instance) (d_off: N) (d: module_data) (m_ind: nat) (mem: memory) (d_pay: list byte) mem' :
   init_mem ws inst d_off d = ws' ->
   m_ind = nth match moddata_data d with | Mk_memidx i => i end (inst_memory inst) 0 ->
-  mem_equiv mem' {| mem_data := {| ml_data := take (N.to_nat d_off) mem.(mem_data).(ml_data) ++ d_pay ++ drop ((N.to_nat d_off) + (length d_pay)) mem.(mem_data).(ml_data); ml_init := mem.(mem_data).(ml_init) |} ; mem_max_opt := mem.(mem_max_opt) |} ->
+  mem_equiv mem' {| mem_data := {| ml_data := take (N.to_nat d_off) mem.(mem_data).(ml_data) ++ d_pay ++ drop ((N.to_nat d_off) + (length d_pay)) mem.(mem_data).(ml_data) |} ; mem_max_opt := mem.(mem_max_opt) |} ->
   d_pay = fmap compcert_byte_of_byte (d.(moddata_init)) ->
   (d_off + N.of_nat (length d.(moddata_init)) <= mem_length mem)%N ->
   (N.of_nat m_ind) ↦[wmblock] mem -∗
@@ -3433,8 +3435,7 @@ Proof.
   { instantiate (1 := {|
                      mem_data :=
                        {|
-                         ml_init := ml_init (mem_data m);
-                         ml_data :=
+                          ml_data :=
                            (take (ssrnat.nat_of_bin d_off)
                               (ml_data (mem_data m)) ++
                             map compcert_byte_of_byte moddata_init ++
@@ -3871,19 +3872,6 @@ Proof.
   by rewrite Coqlib.nth_error_nil.
 Qed.
 
-Lemma reduce_trans_const s1 f1 v1 s2 f2 v2:
-  reduce_trans (s1, f1, [AI_basic (BI_const v1)]) (s2, f2, [AI_basic (BI_const v2)]) ->
-  v1 = v2.
-Proof.
-  move => Hred.
-  unfold reduce_trans in Hred.
-  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
-  inversion Hred => //.
-  unfold reduce_tuple in H.
-  destruct y as [[??]?].
-  by apply test_no_reduce1 in H.
-Qed.
-
 Lemma zip_lookup_Some_inv {X Y: Type} (l1: list X) (l2: list Y) k v1 v2:
   (zip l1 l2) !! k = Some (v1, v2) ->
   l1 !! k = Some v1 /\ l2 !! k = Some v2.
@@ -4171,7 +4159,7 @@ Proof.
           move => k.
           by specialize (Himpwasm (S k)); simpl in *.
         }
-        { destruct Hl as [? [? [? [? [? [-> ?]]]]]].
+        { destruct Hl as [? [? [? [? [-> ?]]]]].
           apply IHv_imps; last by lias.
           move => k.
           by specialize (Himpwasm (S k)); simpl in *.
@@ -5240,7 +5228,7 @@ Proof.
           move => k.
           by specialize (Himpwasm (S k)); simpl in *.
         }
-        { destruct Hl as [? [? [? [? [? [-> ?]]]]]].
+        { destruct Hl as [? [? [? [? [-> ?]]]]].
           simpl.
           f_equal.
           apply IHv_imps; last by lias.
@@ -5355,7 +5343,7 @@ Proof.
     specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup) as Hvtlookup.
     simpl in Hvtlookup.
 
-    destruct Hvtlookup as [mem [mt [bi [Hwslookup [Hwmslookup [-> Htt]]]]]].
+    destruct Hvtlookup as [mem [mt [Hwslookup [Hwmslookup [-> Htt]]]]].
 
     (* We've finally reached the contradiction: s_tables0 cannot contain 
        that many elements. *)
@@ -5637,7 +5625,7 @@ Proof.
         destruct m0; inversion Hlookup; subst; clear Hlookup.
         simpl in *.
         destruct m => /=.
-        destruct Hmdesc as [mem [mt [bi [Hwslookup [Hwmslookup [-> Hmt]]]]]].
+        destruct Hmdesc as [mem [mt [Hwslookup [Hwmslookup [-> Hmt]]]]].
         erewrite -> lookup_union_Some_l => //.
         rewrite Hwslookup in H1.
         apply N.leb_le in H1.
@@ -5765,7 +5753,7 @@ Proof.
             destruct m0, modexp_desc=> //=.
             destruct m0.
             simpl in Hvtlookup.
-            destruct Hvtlookup as [mem [mt [bi [Hwm [Hwms [-> Hmt]]]]]].
+            destruct Hvtlookup as [mem [mt [Hwm [Hwms [-> Hmt]]]]].
             eapply update_wms_partial_lookup_type in Hwms => //.
             destruct Hwms as [mem' [Hwmslookup Hmt']].
             by exists mem', mt.
@@ -5989,7 +5977,7 @@ Proof.
       destruct m; simpl in *.
       move/eqP in H1.
       rewrite Hmtlen.
-      assert (Forall2 (fun (mt: memory_type) m => N.of_nat (length (m.(mem_data).(ml_data))) = (64%N * 1024%N * mt.(lim_min))%N) mod_mems memorybase) as Hmbprop.
+      assert (Forall2 (fun (mt: memory_type) m => N.of_nat (length (m.(mem_data).(ml_data))) = (page_size * mt.(lim_min))%N) mod_mems memorybase) as Hmbprop.
       {
         apply Forall2_same_length_lookup.
         split.
@@ -6343,7 +6331,7 @@ Proof.
         repeat split => //.
         by f_equal.
       - destruct m.
-        destruct Himpwasm as [? [? [? [? [? [-> ?]]]]]] => /=.
+        destruct Himpwasm as [? [? [? [? [-> ?]]]]] => /=.
         repeat split => //.
         by f_equal.
       - destruct g.

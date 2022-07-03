@@ -349,7 +349,7 @@ Definition stack_instance idfs m t :=
 
 Definition spec0_new_stack (idf0 : nat) (i0 : instance) (l0 : seq.seq value_type)
            (f0 : seq.seq basic_instruction) (isStack : Z -> seq.seq i32 -> iPropI Σ)
-           (nextStackAddrIs : nat -> iPropI Σ) : iPropI Σ :=
+           (nextStackAddrIs : nat -> iPropI Σ) E : iPropI Σ :=
 
  (∀ (f : frame) (addr : nat), 
       {{{ ↪[frame] f ∗ 
@@ -358,7 +358,7 @@ Definition spec0_new_stack (idf0 : nat) (i0 : instance) (l0 : seq.seq value_type
            ⌜ (Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (N.of_nat addr `div` page_size)) ⌝ ∗
            ⌜ (N.of_nat addr + 4 < Z.to_N (two_power_nat 32))%N ⌝ ∗
            ⌜ (page_size | N.of_nat addr)%N ⌝  }}}
-        [AI_invoke idf0]
+        [AI_invoke idf0] @ E
         {{{  v, (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
                                        (⌜ (k = -1)%Z ⌝  ∗
                                           nextStackAddrIs addr ∨
@@ -371,12 +371,12 @@ Definition spec0_new_stack (idf0 : nat) (i0 : instance) (l0 : seq.seq value_type
 
 
   
-Definition spec1_is_empty idf1 i1 l1 f1 (isStack : Z -> seq.seq i32 -> iPropI Σ) :=
+Definition spec1_is_empty idf1 i1 l1 f1 (isStack : Z -> seq.seq i32 -> iPropI Σ) (E: coPset) :=
   (∀ v s f, {{{ ↪[frame] f  ∗
                  N.of_nat idf1 ↦[wf] FC_func_native i1 (Tf [T_i32] [T_i32]) l1 f1 ∗
                  ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4)%Z ⌝ ∗ 
                  isStack v s }}}
-              [AI_basic (i32const v) ; AI_invoke idf1]
+              [AI_basic (i32const v) ; AI_invoke idf1] @ E
               {{{ w, (∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s ∗
                                       ⌜ (k = 1 /\ s = []) \/
                              (k = 0 /\ s <> []) ⌝) ∗
@@ -385,24 +385,24 @@ Definition spec1_is_empty idf1 i1 l1 f1 (isStack : Z -> seq.seq i32 -> iPropI Σ
 
 
 
-Definition spec2_is_full idf2 i2 l2 f2 (isStack : Z -> seq.seq i32 -> iPropI Σ) :=
+Definition spec2_is_full idf2 i2 l2 f2 (isStack : Z -> seq.seq i32 -> iPropI Σ) E :=
   (∀ v s f, {{{ ↪[frame] f ∗
                  N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
                  ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - length s * 4 )%Z ⌝ ∗ 
-                 isStack v s }}}
-              [AI_basic (i32const v) ; AI_invoke idf2]
+                 isStack v s }}} 
+              [AI_basic (i32const v) ; AI_invoke idf2] @ E
               {{{ w, (∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗
                                       isStack v s ∗
                                       ⌜ k = 1 \/ (length s < two14 - 1)%Z ⌝) ∗
                                                                             N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗ 
                                                                             ↪[frame] f }}})%I.
 
-Definition spec3_pop idf3 i3 l3 f3 (isStack : Z -> seq.seq i32 -> iPropI Σ) :=
+Definition spec3_pop idf3 i3 l3 f3 (isStack : Z -> seq.seq i32 -> iPropI Σ) E :=
   (∀ a v s f, {{{ ↪[frame] f ∗
                    N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3
                    ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
                    ∗ isStack v (a :: s) }}}
-                [AI_basic (i32const v) ; AI_invoke idf3]
+                [AI_basic (i32const v) ; AI_invoke idf3] @ E
                 {{{ w, ⌜ w = immV [VAL_int32 a] ⌝ ∗
                                   isStack v s ∗
                                   N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
@@ -413,21 +413,21 @@ Definition spec3_pop idf3 i3 l3 f3 (isStack : Z -> seq.seq i32 -> iPropI Σ) :=
 
 
 
-Definition spec4_push idf4 i4 l4 f4 isStack :=
+Definition spec4_push idf4 i4 l4 f4 isStack E :=
   (∀ a v s f, {{{ ↪[frame] f ∗
                    N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4 
                    ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
                    ∗ ⌜ (length s < two14 - 1)%Z ⌝
                    ∗ isStack v s }}}
                 [ AI_basic (BI_const (VAL_int32 a)) ; AI_basic (i32const v) ;
-                  AI_invoke idf4 ]
+                  AI_invoke idf4 ] @ E
                 {{{ w, ⌜ w = immV [] ⌝ ∗
                                   isStack v (a :: s) ∗
                                   N.of_nat idf4 ↦[wf] FC_func_native i4 (Tf [T_i32 ; T_i32] []) l4 f4 ∗
                                   ↪[frame] f }}})%I.
 
 
-Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
+Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 E :=
   (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a cl
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
       {{{  ↪[frame] f0 ∗
@@ -448,13 +448,13 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
                        (N.of_nat a) ↦[wf] cl
                   }}}
                   [ AI_basic (BI_const (VAL_int32 u)) ;
-                    AI_invoke a ]
+                    AI_invoke a ] @ E
                   {{{ w, (∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)
                            ∗ ↪[frame] fc
                            ∗ N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) 
                            ∗ (N.of_nat a) ↦[wf] cl }}}
                   )  }}}
-    [ AI_basic (BI_const (VAL_int32 f)) ; AI_basic (i32const v) ; AI_invoke idf5 ]
+    [ AI_basic (BI_const (VAL_int32 f)) ; AI_basic (i32const v) ; AI_invoke idf5 ] @ E
     {{{ w, ⌜ w = immV [] ⌝ ∗
            (∃ s', isStack v s' ∗ stackAll2 s s' Ψ) ∗
            N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5 ∗
@@ -464,7 +464,7 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
   }}})%I.
 
   (* A trap allowing version for code that might trap *)
-Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 :=
+Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 E :=
   (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a (* cl *)
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
       {{{  ↪[frame] f0 ∗ na_own logrel_nais ⊤ ∗
@@ -486,13 +486,13 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                        (* (N.of_nat a) ↦[wf] cl *)
                   }}}
                   [ AI_basic (BI_const (VAL_int32 u)) ;
-                    AI_invoke a ]
+                    AI_invoke a ] @ E
                   {{{ w, (⌜ w = trapV ⌝ ∨ ((∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)
                                              (* ∗ N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a)  *)
                                              (* ∗ (N.of_nat a) ↦[wf] cl *)))
                            ∗ na_own logrel_nais ⊤ ∗ ↪[frame] fc }}}
                   )  }}}
-    [ AI_basic (BI_const (VAL_int32 f)) ; AI_basic (i32const v) ; AI_invoke idf5 ]
+    [ AI_basic (BI_const (VAL_int32 f)) ; AI_basic (i32const v) ; AI_invoke idf5 ] @ E
     {{{ w, (⌜ w = trapV ⌝ ∨ (⌜ w = immV [] ⌝ ∗
                               (∃ s', isStack v s' ∗ stackAll2 s s' Ψ) ∗
                               N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5)) ∗
@@ -501,7 +501,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
       ↪[frame] f0
   }}})%I.
 
-Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
+Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
      (* … and we own the vis 0%N thru 4%N … *)
@@ -510,8 +510,9 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
      WP ((stack_instantiate, []) : host_expr)
      @ s ; E
-             {{ λ v : host_val, 
-                    
+             {{ λ v : host_val,
+                 (* Instantiation succeeds *)
+                 ⌜ v = immHV [] ⌝ ∗
                  (* 0%N still owns the stack_module *)
                  0%N ↪[mods] stack_module ∗ 
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt : nat)
@@ -560,18 +561,18 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
                     nextStackAddrIs 0 ∗
                     (* And finally we have specs for all our exports : *)
                     (* Spec for new_stack (call 0) *)
-                    spec0_new_stack idf0 i0 l0 f0 isStack nextStackAddrIs ∗
+                    spec0_new_stack idf0 i0 l0 f0 isStack nextStackAddrIs E ∗
                     (* Spec for is_empty (call 1) *)
-                    spec1_is_empty idf1 i0 l1 f1 isStack ∗
+                    spec1_is_empty idf1 i0 l1 f1 isStack E ∗
                     (* Spec for is_full (call 2) *)
-                    spec2_is_full idf2 i0 l2 f2 isStack ∗
+                    spec2_is_full idf2 i0 l2 f2 isStack E ∗
                     (* Spec for pop (call 3) *)
-                    spec3_pop idf3 i0 l3 f3 isStack ∗
+                    spec3_pop idf3 i0 l3 f3 isStack E ∗
                     (* Spec for push (call 4) *)
-                    spec4_push idf4 i0 l4 f4 isStack ∗
+                    spec4_push idf4 i0 l4 f4 isStack E ∗
                     (* Spec of stack_map (call 5) *)
-                    spec5_stack_map idf5 i0 l5 f5 isStack idt ∗
-                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt
+                    spec5_stack_map idf5 i0 l5 f5 isStack idt E ∗
+                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt E
                                           
              }}.
   Proof.
@@ -620,9 +621,10 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
     (* Nodup equiv *)
     - simpl.
       by apply NoDup_nil.
-    - iIntros (v) "Hinst". 
+    - iIntros (v) "Hinst".
       unfold instantiation_resources_post.
-      iDestruct "Hinst" as "(Hmod & Himphost & Hinst)".
+      iDestruct "Hinst" as "(%Hvsucc & Hmod & Himphost & Hinst)".
+      subst v; iSplitR => //.
       iDestruct "Hinst" as (inst) "[Himpwasm Hexphost]".
       iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
@@ -1352,7 +1354,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) E (hv0 hv1 hv
         instantiate (5 := []) => /=.
         rewrite app_nil_r.
         done.
-        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ Φ Ψ
+        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ _ Φ Ψ
                  with "[Hs Hf HΦ Htab Hown]").
         iFrame.
         repeat iSplit ; try iPureIntro => //=.

@@ -222,8 +222,7 @@ Section fundamental.
         (* closing the invariant requires showing that its size has not changed *)
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
         { iNext. unfold mem_block.
-          set (mem' := {| ml_init := ml_init (mem_data ms) ;
-                         ml_data := update_list_range (ml_data (mem_data ms))
+          set (mem' := {| ml_data := update_list_range (ml_data (mem_data ms))
                                                       (bytes_takefill #00%byte (tp_length p) (bits w1))
                                                       (N.to_nat (Wasm_int.N_of_uint i32m z + off)) |}).
           iExists {| mem_data := mem' ;
@@ -261,8 +260,7 @@ Section fundamental.
         (* closing the invariant requires showing that its size has not changed *)
         iMod ("Hcls" with "[$Hown Hsize Hmem]") as "Hown".
         { iNext. unfold mem_block.
-          set (mem' := {| ml_init := ml_init (mem_data ms) ;
-                         ml_data := update_list_range (ml_data (mem_data ms))
+          set (mem' := {|ml_data := update_list_range (ml_data (mem_data ms))
                                                       (bits w1)
                                                       (N.to_nat (Wasm_int.N_of_uint i32m z + off)) |}).
           iExists {| mem_data := mem' ;

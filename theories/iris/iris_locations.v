@@ -6,7 +6,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Export common operations datatypes datatypes_properties memory_list.
+Require Export common operations datatypes datatypes_properties memory_list stdpp_aux.
 From stdpp Require Import gmap.
 
 Definition create_table (len: N) : tableinst :=
@@ -804,20 +804,24 @@ Proof.
     rewrite new_2d_gmap_at_n_lookup_None; last by lias.
     by repeat destruct (_ !! _) => //=.
 Qed.
-  
-Lemma nth_error_lookup {T: Type} (l: list T) i:
-  nth_error l i = l !! i.
+
+Lemma mem_length_divisible (m: memory_list):
+  ml_valid m ->
+  ((N.div (mem_length m) page_size) * page_size)%N = mem_length m.
 Proof.
-  move: i.
-  by induction l; move => i; destruct i => //=.
+  move => Hmlvalid.
+  unfold ml_valid in Hmlvalid.
+  rewrite N.mul_comm.
+  specialize (N.div_mod (mem_length m) page_size) as Hdm.
+  rewrite Hmlvalid in Hdm.
+  rewrite N.add_0_r in Hdm.
+  symmetry.
+  by apply Hdm.
 Qed.
-  
-Axiom mem_length_divisible: forall m,
-  (((mem_length m) `div` page_size) * page_size)%N = mem_length m.
 
 Lemma mem_grow_data m n m':
   operations.mem_grow m n = Some m' ->
-  m'.(mem_data).(memory_list.ml_data) = (m.(mem_data).(memory_list.ml_data) ++ (repeat (m.(mem_data).(memory_list.ml_init)) (N.to_nat (n*page_size))))%SEQ.
+  m'.(mem_data).(memory_list.ml_data) = (m.(mem_data).(memory_list.ml_data) ++ (repeat #00 (N.to_nat (n*page_size))))%SEQ.
 Proof.
   unfold operations.mem_grow, mem_size, mem_length, memory_list.mem_length => //=.
   move => H.
@@ -839,15 +843,16 @@ Proof.
   by rewrite Nat2N.inj_add N2Nat.id.
 Qed.
 
-Definition mem_grow_appendix (m:memory) (mn: nat) (n:N) : gmap (N*N) byte := list_to_map (imap (fun i x => ((N.of_nat mn, ((N.of_nat i) + (mem_size m) * page_size)%N), x)) (repeat (m.(mem_data).(memory_list.ml_init)) (N.to_nat (n * page_size)))).
+Definition mem_grow_appendix (m:memory) (mn: nat) (n:N) : gmap (N*N) byte := list_to_map (imap (fun i x => ((N.of_nat mn, ((N.of_nat i) + (mem_size m) * page_size)%N), x)) (repeat #00 (N.to_nat (n * page_size)))).
 
 Lemma mem_grow_appendix_disjoint m n mn m' mems:
   mn < length mems ->
   mems !! mn = Some m ->
+  ml_valid m.(mem_data) ->
   operations.mem_grow m n = Some m' ->
   (mem_grow_appendix m mn n) ##ₘ gmap_of_memory mems.
 Proof.
-  move => HLen Hmem Hmemgrow.
+  move => HLen Hmem Hmlvalid Hmemgrow.
   unfold mem_grow_appendix.
   apply map_disjoint_spec.
   move => [i j] x y Hlookup1 Hlookup2.
@@ -864,7 +869,7 @@ Proof.
     rewrite - Hlookup2. clear Hlookup2.
     apply lookup_ge_None.
     unfold memory_to_list, mem_size.
-    rewrite mem_length_divisible.
+    rewrite mem_length_divisible => //.
     unfold mem_length, memory_list.mem_length.
     lia.
   - assert (x1 = x3); first lia.
@@ -880,11 +885,12 @@ Qed.
 Lemma gmap_of_memory_grow m n m' mn mems:
   mn < length mems ->
   mems !! mn = Some m ->
+  ml_valid m.(mem_data) ->
   operations.mem_grow m n = Some m' ->
   (mem_grow_appendix m mn n) ∪ gmap_of_memory mems =
   gmap_of_memory (<[ mn := m' ]> mems).
 Proof.
-  move => Hlen Hmemlookup Hmemgrow.
+  move => Hlen Hmemlookup Hmlvalid Hmemgrow.
   remember (mem_grow_length Hmemgrow) as Hmemlen; clear HeqHmemlen.
   unfold operations.mem_length, mem_length in Hmemlen.
   remember (mem_grow_data Hmemgrow) as Hmemgrowdata; clear HeqHmemgrowdata.
@@ -922,7 +928,7 @@ Proof.
            ++ repeat f_equal.
               rewrite N2Nat.id.
               unfold mem_size.
-              rewrite mem_length_divisible.
+              rewrite mem_length_divisible => //.
               unfold mem_length, memory_list.mem_length.
               lia.
            ++ rewrite Hmemgrowdata in Hl.
@@ -930,7 +936,7 @@ Proof.
               rewrite - Hl.
               f_equal.
               unfold mem_size.
-              rewrite mem_length_divisible.
+              rewrite mem_length_divisible => //.
               unfold mem_length, memory_list.mem_length.
               lia.
       * destruct (_ !! N.to_nat j) eqn:Hl; first by apply lookup_lt_Some in Hl; lia.
@@ -949,7 +955,7 @@ Proof.
            repeat rewrite Nat2N.id in Hmemlen.
            rewrite Hmemlen.
            unfold mem_size.
-           rewrite mem_length_divisible.
+           rewrite mem_length_divisible => //.
            unfold mem_length, memory_list.mem_length.
            lia.
         -- rewrite gmap_of_list_2d_lookup list_lookup_fmap Hmemlookup => /=.

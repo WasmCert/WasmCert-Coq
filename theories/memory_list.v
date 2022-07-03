@@ -6,12 +6,11 @@ Require Import BinNat Lia.
 From Wasm Require Import numerics bytes memory.
 
 Record memory_list : Type := {
-  ml_init : byte;
   ml_data : list byte;
 }.
 
 Definition mem_make : Memory.mem_make_t memory_list :=
-  fun v len => {| ml_init := v; ml_data := List.repeat v (N.to_nat len) |}.
+  fun v len => {| ml_data := List.repeat v (N.to_nat len) |}.
 
 Definition mem_length : Memory.mem_length_t memory_list :=
     fun ml => N.of_nat (List.length ml.(ml_data)).
@@ -19,8 +18,7 @@ Definition mem_length : Memory.mem_length_t memory_list :=
 Definition mem_grow : Memory.mem_grow_t memory_list :=
   fun len_delta ml =>
     {|
-      ml_init := ml.(ml_init);
-      ml_data := ml.(ml_data) ++ List.repeat ml.(ml_init) (N.to_nat len_delta)
+      ml_data := ml.(ml_data) ++ List.repeat #00 (N.to_nat len_delta)
     |}.
 
 Definition mem_lookup : Memory.mem_lookup_t memory_list :=
@@ -29,8 +27,7 @@ Definition mem_lookup : Memory.mem_lookup_t memory_list :=
 Definition mem_update : Memory.mem_update_t memory_list :=
   fun i v ml =>
     if N.ltb i (N.of_nat (List.length ml.(ml_data)))
-    then Some {| ml_init := ml.(ml_init);
-                ml_data := take (N.to_nat i) ml.(ml_data) ++ [::v] ++ drop (N.to_nat i+1) ml.(ml_data) |}
+    then Some {| ml_data := take (N.to_nat i) ml.(ml_data) ++ [::v] ++ drop (N.to_nat i+1) ml.(ml_data) |}
     else None.
 
 Lemma memory_list_ax_lookup_out_of_bounds :
@@ -86,15 +83,33 @@ Lemma bar : forall A n n' (l : list A) v,
   List.nth_error (take n' l ++ v :: drop (n' + 1) l) n =
   List.nth_error l n.
 Proof.
-(* TODO *)
-Admitted.
-
+  move => A n n' l.
+  move: n n'.
+  induction l; move => n n' v Hneq Hlen => //=.
+  { simpl in Hlen. by destruct n'; lia. }
+  destruct n' => //=.
+  { rewrite drop0.
+    by destruct n.
+  }
+  destruct n => //=.
+  simpl in *.
+  apply IHl; lia.
+Qed.
+  
 Lemma split_preserves_length : forall A i b (l : list A),
   i < List.length l ->
   List.length (take i l ++ b :: drop (i + 1) l) = List.length l.
 Proof.
-Admitted.
-
+  move => A i b l.
+  move: i b.
+  induction l; move => i b Hlen => //=.
+  { simpl in Hlen; by destruct i; lia. }
+  destruct i => //=; first by rewrite drop0.
+  f_equal.
+  apply IHl.
+  by simpl in Hlen; lia.
+Qed.
+  
 Lemma memory_list_ax_lookup_make : Memory.mem_ax_lookup_make memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
 move => i len b mem.
@@ -110,8 +125,8 @@ rewrite /mem_update in H0.
 apply N.ltb_lt in H.
 rewrite /mem_length in H.
 rewrite H in H0.
-case: mem' H0 => init_ data_ [Hinit Hdata].
-rewrite Hinit Hdata /= {init_ data_ Hinit Hdata}.
+case: mem' H0 => data_ [Hdata].
+rewrite Hdata /= {data_ Hdata}.
 set nn := N.to_nat i.
 have Hx: nn < length (ml_data mem).
 apply N.ltb_lt in H.
@@ -123,10 +138,10 @@ Lemma memory_list_ax_lookup_skip :
   Memory.mem_ax_lookup_skip memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
 move => mem mem' i i' b Hii' H0.
-case: mem' H0 => init_ data_.
+case: mem' H0 => data_.
 rewrite /mem_update /mem_lookup.
 case_eq (N.ltb i' (N.of_nat (length (ml_data mem)))); last by discriminate.
-move => Hlen [Hinit Hdata] /=.
+move => Hlen [Hdata] /=.
 rewrite Hdata => {Hdata}.
 apply: bar.
 lia.
@@ -137,10 +152,10 @@ Qed.
 Lemma memory_list_ax_length_constant_update :
   Memory.mem_ax_length_constant_update memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
-move => i b [dv_init1 dv_list1] [dv_init2 dv_list2].
+move => i b [dv_list1] [dv_list2].
 rewrite /mem_update /mem_length /=.
 case_eq (N.ltb i (N.of_nat (length dv_list1))); last by discriminate.
-move => Hlen [Hinit Hlist].
+move => Hlen [Hlist].
 apply N.ltb_lt in Hlen.
 rewrite Hlist.
 f_equal.
