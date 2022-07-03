@@ -13,8 +13,8 @@ Require Import operations opsem interpreter_func properties.
 
 
   
-Hint Constructors reduce_simple : core.
-Hint Constructors reduce : core.
+Global Hint Constructors reduce_simple : core.
+Global Hint Constructors reduce : core.
 
 (* Variable host_function : eqType.
 Let store_record := store_record host_function.
@@ -40,10 +40,10 @@ Let host := host host_function. *)
 
 (*Let run_one_step_fuel := @run_one_step_fuel host_function.*)
 
-Let RS_crash := interpreter_func.RS_crash.
-Let RS_break := interpreter_func.RS_break.
-Let RS_return := interpreter_func.RS_return.
-Let RS_normal := interpreter_func.RS_normal.
+Local Definition RS_crash := interpreter_func.RS_crash.
+Local Definition RS_break := interpreter_func.RS_break.
+Local Definition RS_return := interpreter_func.RS_return.
+Local Definition RS_normal := interpreter_func.RS_normal.
 
 (* Variable host_instance : host.
 

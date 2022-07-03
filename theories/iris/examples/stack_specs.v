@@ -25,8 +25,6 @@ Notation "{{{ P }}} es @ E {{{ v , Q }}}" :=
 Section stack.
 
 
-Canonical Structure wasm_lang := Language wasm_mixin.
-
  Context `{!wasmG Σ}. 
 
 

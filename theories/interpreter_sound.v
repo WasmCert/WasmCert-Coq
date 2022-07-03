@@ -48,8 +48,8 @@ Let run_one_step : fuel -> depth -> instance -> config_one_tuple_without_e ->
 Let run_v : depth -> instance -> config_tuple -> itree eff (store_record * res)%type :=
   @run_v _ executable_host_instance _ eff_has_host_event. *) *)
 
-Hint Constructors reduce_simple : core.
-Hint Constructors reduce : core.
+Global Hint Constructors reduce_simple : core.
+Global Hint Constructors reduce : core.
 
 (*
 Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=

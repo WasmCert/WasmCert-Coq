@@ -16,12 +16,11 @@ Variable host_instance : host.
 *)
 
 
-Let reducible := @reducible wasm_lang.
+Local Definition reducible := @reducible wasm_lang.
 
-
-Let expr := iris.expr.
-Let val := iris.val.
-Let to_val := iris.to_val.
+Local Definition expr := iris.expr.
+Local Definition val := iris.val.
+Local Definition to_val := iris.to_val.
 
 
 (* The following atomicity definition will be useful for opening invariants *)
