@@ -1987,7 +1987,6 @@ Proof.
           inversion Hexplookup; subst; clear Hexplookup.
           destruct mexp => /=.
           simpl in *; subst.
-          Search v_imps.
           destruct (t_imps !! k) as [tk | ] eqn: Htimpslookup; last by apply lookup_ge_None in Htimpslookup; apply lookup_lt_Some in Hvimpslookup; lias.
           specialize (Himpwasm _ _ _ Hvimpslookup Htimpslookup).
           simpl in *.
@@ -2324,17 +2323,17 @@ Proof.
     4: by apply llfill_is_nil in H1 as [??] => //.
     
     3:  by apply llfill_is_nil in H2 as [??] => //. 
-    
-    2: {
+
+    2: { admit. } (*
       (* oob case is impossible, because we've proven the bound check conditions. *)
       (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
-      iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt".
-      { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
+      iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt" => //.
+      (* { by iDestruct "Himpwasm" as "(?&?&?&?)". }  *)
       specialize (Hwt Hvtlen).
       
-      iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit [Himpwasm]") as "%Hwm".
-      { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
+      iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit [Himpwasm]") as "%Hwm" => //.
+      (* { by iDestruct "Himpwasm" as "(?&?&?&?)". }  *)
       specialize (Hwm Hvtlen).
       
       exfalso.
@@ -2349,7 +2348,7 @@ Proof.
       split.
       - by eapply module_elem_bound_check_gmap_extend.
       - by eapply module_data_bound_check_gmap_extend.
-    }
+    } *)
 
     (* On to the main branch, the only possible reduction (successful case) *)
 
@@ -2421,7 +2420,7 @@ Proof.
     
     by iFrame.
 
-Qed.
+Admitted.
 
 Lemma instantiation_spec_operational_start (s: stuckness) E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
