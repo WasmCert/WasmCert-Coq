@@ -332,7 +332,7 @@ Proof.
   iApply (wp_seq _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
   iSplitR;[by iIntros "[%Hcontr _]"|].
   iSplitL "Hf".
-  { iApply (wp_get_local with "[$]"). unfold f. eauto.
+  { iApply (wp_get_local with "[] [$]"). unfold f. eauto.
     simpl. eauto. }
     
   (* le *)
@@ -388,7 +388,7 @@ Proof.
     iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame] f)%I).
     iSplitR; [by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
-    { iApply (wp_get_local with "[$]"). unfold f. eauto.
+    { iApply (wp_get_local with "[] [$]"). unfold f. eauto.
       simpl. eauto. }
 
     (* sub *)
@@ -492,7 +492,7 @@ Proof.
     iApply (wp_seq_ctx _ _ _ (λ v', ⌜v' = immV _⌝ ∗ ↪[frame]f)%I).
     iSplitR;[by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
-    { iApply (wp_get_local with "[$Hf]"). eauto. simpl. eauto. }
+    { iApply (wp_get_local with "[] [$Hf]"). eauto. simpl. eauto. }
 
     (* mul *)
     iIntros (w) "[-> Hf] /=".

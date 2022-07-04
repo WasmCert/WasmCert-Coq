@@ -50,7 +50,7 @@ Section fundamental.
     rewrite -Hlen' in Hlt.
 
     iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV ([])⌝ ∗ ↪[frame] _)%I with "[Hf]").
-    { iSimpl. iApply (wp_set_local with "Hf");[subst;eauto|].
+    { iSimpl. iApply (wp_set_local with "[] [$Hf]");[subst;eauto|].
       simpl. done. }
     iIntros (v) "[-> Hf]".
     iSplitR;[|iExists _;iFrame].

@@ -150,13 +150,13 @@ Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
 
 (* Instance related *)
 
-Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (ϕ: iris.val -> Prop) f0 :
-  (f_locs f0) !! i = Some v -> 
-  ϕ (immV [v]) ->
-  ↪[frame] f0 -∗
-  WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] f0 }}.
+Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (Φ: iris.val -> iProp Σ) f :
+  (f_locs f) !! i = Some v -> 
+  ▷Φ (immV [v]) -∗
+  ↪[frame] f -∗
+   WP ([AI_basic (BI_get_local i)]) @ s; E {{ w, Φ w ∗ ↪[frame] f }}.
 Proof.
-  iIntros (Hlook Hϕ) "Hli".
+  iIntros (Hlook) "HΦ Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[ws locs] inst].
@@ -178,13 +178,13 @@ Proof.
     iFrame "# ∗ %".
 Qed.
 
-Lemma wp_set_local (s : stuckness) (E : coPset) (v : value) (i: nat) (ϕ: iris.val -> Prop) f0 :
-  i < length (f_locs f0) ->
-  ϕ (immV []) ->
-  ↪[frame] f0 -∗
-  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, ⌜ ϕ w ⌝ ∗ ↪[frame] (Build_frame (set_nth v (f_locs f0) i v) (f_inst f0)) }}.
+Lemma wp_set_local (s : stuckness) (E : coPset) (v : value) (i: nat) (Φ: iris.val -> iProp Σ) f :
+  i < length (f_locs f) ->
+  ▷ Φ (immV []) -∗
+  ↪[frame] f -∗
+  WP ([AI_basic (BI_const v); AI_basic (BI_set_local i)]) @ s; E {{ w, Φ w  ∗ ↪[frame] (Build_frame (set_nth v (f_locs f) i v) (f_inst f)) }}.
 Proof.
-  iIntros (Hlen Hϕ) "Hli".
+  iIntros (Hlen) "HΦ Hli".
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[ws locs] inst].
@@ -215,7 +215,7 @@ Qed.
 
 Lemma wp_tee_local (s : stuckness) (E : coPset) (v : value) (i : nat) (Φ : iris.val -> iProp Σ) f :
   ⊢ ↪[frame] f -∗
-    (↪[frame] f -∗ WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ;
+    ▷ (↪[frame] f -∗ WP [AI_basic (BI_const v) ; AI_basic (BI_const v) ;
                        AI_basic (BI_set_local i)]
      @ s ; E {{ Φ }}) -∗
              WP [AI_basic (BI_const v) ; AI_basic (BI_tee_local i)] @ s ; E {{ Φ }}.
@@ -243,13 +243,13 @@ Proof.
     iApply bi.sep_exist_l. iExists _. iFrame.
 Qed.
 
-Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (inst: frame) (n: nat) (ϕ: iris.val -> iProp Σ) (g: global) (k: nat):
-  (f_inst inst).(inst_globs) !! n = Some k ->
+Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (f: frame) (n: nat) (Φ: iris.val -> iProp Σ) (g: global) (k: nat):
+  (f_inst f).(inst_globs) !! n = Some k ->
   g.(g_val) = v ->
-  ▷ ϕ (immV [v]) -∗
-  ↪[frame] inst -∗
+  ▷ Φ(immV [v]) -∗
+  ↪[frame] f -∗
   N.of_nat k ↦[wg] g -∗
-  WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, (ϕ w ∗ N.of_nat k ↦[wg] g) ∗ ↪[frame] inst }}.
+  WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, (Φ w ∗ N.of_nat k ↦[wg] g) ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hinstg Hgval) "HΦ Hinst Hglob".
   iApply wp_lift_atomic_step => //=.
@@ -282,12 +282,12 @@ Proof.
     only_one_reduction H. iFrame.
 Qed.
 
-Lemma wp_set_global (s : stuckness) (E : coPset) (v: value) (inst: frame) (n: nat) (ϕ: iris.val -> iProp Σ) (g: global) (k: nat):
-  (f_inst inst).(inst_globs) !! n = Some k ->
-  ▷ ϕ (immV []) -∗
-  ↪[frame] inst -∗
+Lemma wp_set_global (s : stuckness) (E : coPset) (v: value) (f: frame) (n: nat) (Φ: iris.val -> iProp Σ) (g: global) (k: nat):
+  (f_inst f).(inst_globs) !! n = Some k ->
+  ▷ Φ (immV []) -∗
+  ↪[frame] f -∗
   N.of_nat k ↦[wg] g -∗
-  WP [AI_basic (BI_const v); AI_basic (BI_set_global n)] @ s; E {{ w, (ϕ w ∗ N.of_nat k ↦[wg] Build_global (g_mut g) v) ∗ ↪[frame] inst }}.
+  WP [AI_basic (BI_const v); AI_basic (BI_set_global n)] @ s; E {{ w, (Φ w ∗ N.of_nat k ↦[wg] Build_global (g_mut g) v) ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hinstg) "HΦ Hinst Hglob".
   iApply wp_lift_atomic_step => //=.
@@ -2152,15 +2152,15 @@ Qed.
 
 Lemma wp_load (Φ:iris.val -> iProp Σ) (s:stuckness) (E:coPset) (t:value_type) (v:value)
       (off: static_offset) (a: alignment_exponent)
-      (k: i32) (n:nat) (f0: frame):
+      (k: i32) (n:nat) (f: frame):
   types_agree t v ->
-  f0.(f_inst).(inst_memory) !! 0 = Some n ->
+  f.(f_inst).(inst_memory) !! 0 = Some n ->
   (▷ Φ (immV [v]) ∗
-   ↪[frame] f0 ∗
+   ↪[frame] f ∗
      N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ]
      (bits v) ⊢
      (WP [AI_basic (BI_const (VAL_int32 k)) ;
-          AI_basic (BI_load t None a off)] @ s; E {{ w, (Φ w ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ](bits v)) ∗ ↪[frame] f0 }})).
+          AI_basic (BI_load t None a off)] @ s; E {{ w, (Φ w ∗ (N.of_nat n) ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ](bits v)) ∗ ↪[frame] f }})).
 Proof.
   iIntros (Htv Hinstn) "[HΦ [Hf0 Hwms]]".
   iApply wp_load_deserialize;auto.
@@ -2321,14 +2321,14 @@ Qed.
 
 
 Lemma wp_store (ϕ: iris.val -> iProp Σ) (s: stuckness) (E: coPset) (t: value_type) (v: value)
-      (bs : bytes) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (f0: frame) :
+      (bs : bytes) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (f: frame) :
   types_agree t v ->
   length bs = t_length t ->
-  f0.(f_inst).(inst_memory) !! 0 = Some n ->
+  f.(f_inst).(inst_memory) !! 0 = Some n ->
   (▷ ϕ (immV []) ∗
-   ↪[frame] f0 ∗
+   ↪[frame] f ∗
   N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] bs) ⊢
-  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, (ϕ w ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v)) ∗ ↪[frame] f0 }}).
+  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, (ϕ w ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v)) ∗ ↪[frame] f }}).
 Proof.
   iIntros (Hvt Hbs Hinstn) "[HΦ [Hf0 Hwms]]".
   iApply wp_lift_atomic_step => //=.
