@@ -1,4 +1,3 @@
-
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
@@ -249,6 +248,15 @@ Section Client2.
       repeat split => //.
   Qed.
 
+  Lemma module_restrictions_client:
+    module_restrictions client_module.
+  Proof.
+    unfold module_restrictions.
+    repeat split => //=.
+    { by exists [VAL_int32 (Wasm_int.int_of_Z i32m 0)]. }
+    { by exists [Wasm_int.int_of_Z i32m 0]. }
+    { by exists []. }
+  Qed.
 
 
   Definition stack_instantiate :=
@@ -275,6 +283,7 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
 (* How to populate the table with the desired call_host at position 1 ? *)
 
 Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 name idmodtab :
+  ↪[frame] empty_frame -∗
   0%N ↪[mods] stack_module -∗
      1%N ↪[mods] client_module -∗
      ( [∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5 ; hv6 ; hv7], N.of_nat k↪[vis] hvk) -∗
@@ -287,8 +296,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
 
      
      WP ((stack_instantiate , []) : host_expr)
-     @ s; E
-            {{ v,
+     @ E
+     {{ v, ⌜ v = immHV [] ⌝ ∗
+              ↪[frame] empty_frame ∗
                 0%N ↪[mods] stack_module ∗
                  1%N ↪[mods] client_module ∗
                  ∃ idg name,
@@ -297,10 +307,10 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
                     (N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 40%Z |} ∨
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
   Proof.
-    iIntros "Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _) Hvis8 Hwfcallhost Hha".
-    iApply (wp_seq_host_nostart
-             with "[$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
-    - iIntros "Hmod0".
+    iIntros "Hemptyframe Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _) Hvis8 Hwfcallhost Hha".
+    iApply (wp_seq_host_nostart NotStuck
+             with "[] [$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
+    2: { iIntros "Hmod0".
       iApply weakestpre.wp_mono ;
         last iApply (instantiate_stack_spec
                       with "Hmod0 [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]").
@@ -310,11 +320,15 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iSplitL "Hvis3" ; first done.
           iSplitL "Hvis4" ; first done.
           iSplitL "Hvis5" ; first done.
-          by iSplitL. }
-      iIntros (v) "[? H]".
+            by iSplitL. }
+      iIntros (v) "[Hsuccv [? H]]".
       iFrame.
-      by iApply "H".
+      iCombine "Hsuccv H" as "H".
+      by iExact "H".
+    }
+    { by iIntros "(% & ?)". }
     - iIntros (w) "Hes1 Hmod0".
+      iDestruct "Hes1" as "(-> & Hes1)".
       iDestruct "Hes1" as (idf0 idf1 idf2 idf3 idf4 idf5 idt) "Hes1".
       iDestruct "Hes1" as (name0 name1 name2 name3 name4 name5 name6) "Hes1".
       iDestruct "Hes1" as (f0 f1 f2 f3 f4 f5) "Hes1".
@@ -323,8 +337,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
                             "(Himport & Himp_type & %Hnodup & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6)".
       iFrame "Hmod0".
-      iApply (instantiation_spec_operational_start with "[Hwfcallhost Hmod1 Himport Himp_type Hvis7 Hvis8]") ; try exact module_typing_client.
+      iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hwfcallhost Hmod1 Himport Himp_type Hvis7 Hvis8]") ; try exact module_typing_client.
     - by unfold client_module.
+    - by apply module_restrictions_client.
       (* Because of the extra host import, a lot of the clever work done 
          in stack_instantiation.v is now unusable, so we must destruct the 
          hypotheses that were usefull in the no-reentrancy example *)
@@ -631,16 +646,16 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
         iSplitR ; last first.
         iSplitL "Hf".
         iApply (wp_tee_local with "Hf").
-        iIntros "Hf".
+        iIntros "!> Hf".
         rewrite (separate1 (AI_basic (i32const _))).
         iApply wp_val_app => //.
         iSplitR ; last first.
         iApply wp_wand_r.
         iSplitL "Hf".
-        iApply (wp_set_local with "Hf").
+        iApply (wp_set_local with "[] [$Hf]").
         simpl.
         lia.
-        instantiate (1 := λ v, v = immV []) => //.
+        instantiate (1 := λ v, ⌜v = immV []⌝%I) => //.
         iIntros (v0) "[-> Hf]".
         iSimpl.
         iSimpl in "Hf".
@@ -769,9 +784,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
             iSplitR ; last first.
             iApply wp_wand_r.
             iSplitL.
-            iApply (wp_get_local with "Hf").
+            iApply (wp_get_local with "[] [$Hf]").
             done.
-            instantiate (1 := λ v, v = immV [VAL_int32 (Wasm_int.Int32.repr k)]).
+            instantiate (1 := λ v, ⌜v = immV [VAL_int32 (Wasm_int.Int32.repr k)]⌝%I).
             done.
             iIntros (w0) "[-> Hf]".
             iSimpl.
@@ -821,9 +836,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iSplitR ; last first.
           iApply wp_wand_r.
           iSplitL.
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          instantiate (1 := λ v, v = immV [value_of_int k]).
+          instantiate (1 := λ v, ⌜v = immV [value_of_int k]⌝%I).
           done.
           iIntros (v0) "[-> Hf]".
           iSimpl.
@@ -871,9 +886,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iApply wp_val_app ; first done.
           iSplitR ; last first.
           iApply wp_wand_r ; iSplitL.
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          by instantiate (1 := λ v, v = immV _).
+          by instantiate (1 := λ v, ⌜v = immV _⌝%I).
           iIntros (v0) "[-> Hf]".
           by instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗ ↪[frame] _)%I) ; iFrame.
           by iIntros "!> [% _]".
@@ -932,9 +947,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iApply wp_seq.
           iSplitR ; last first.
           iSplitL "Hf".
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          by instantiate (1 := λ x, x = immV _).
+          by instantiate (1 := λ x, ⌜x = immV _⌝%I).
           iIntros (w0) "[-> Hf]".
           iSimpl.
           rewrite (separate2 (AI_basic _)).
@@ -946,9 +961,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iSplitR ; last first.
           iApply wp_wand_r.
           iSplitL.
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          by instantiate (1 := λ x, x = immV _).
+          by instantiate (1 := λ x, ⌜x = immV _⌝%I).
           iIntros (v0) "[-> Hf]".
           by instantiate (1 := λ x, (⌜ x = immV _ ⌝ ∗ ↪[frame] _)%I) ; iFrame.
           by iIntros "!> [% _]".
@@ -1168,8 +1183,8 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       rewrite (separate1 (AI_basic _)).
       iSplitL "Hf". iApply wp_val_app. done.
       iSplitR ; last first.
-      iApply wp_wand_r. iSplitL. iApply (wp_get_local with "Hf").
-      done. by instantiate ( 1 := λ x, x = immV _).
+      iApply wp_wand_r. iSplitL. iApply (wp_get_local with "[] [$Hf]").
+      done. by instantiate ( 1 := λ x, ⌜x = immV _⌝%I).
       iIntros (v) "[-> Hf]".
       simpl.
       by instantiate (1 := λ x, (⌜ x = immV _ ⌝ ∗ ↪[frame] _)%I) ; iFrame.
@@ -1225,8 +1240,8 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iApply wp_seq.
       iSplitR ; last first.
       iSplitL "Hf".
-      iApply (wp_get_local with "Hf").
-      done. by instantiate (1 := λ x, x = immV _).
+      iApply (wp_get_local with "[] [$Hf]").
+      done. by instantiate (1 := λ x, ⌜x = immV _⌝%I).
       iIntros (w0) "[-> Hf]".
       iApply wp_wand_r. iSplitL "Hf". iApply (wp_binop with "Hf").
       done. by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
@@ -1285,9 +1300,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iApply wp_seq.
       iSplitR ; last first.
       iSplitL "Hf".
-      iApply (wp_get_local with "Hf").
+      iApply (wp_get_local with "[] [$Hf]").
       done.
-      by instantiate (1 := λ x, x = immV _).
+      by instantiate (1 := λ x, ⌜x = immV _⌝%I).
       iIntros (w0) "[-> Hf]". simpl.
       rewrite (separate2 (AI_basic _)).
       iApply wp_seq. iSplitR ; last first.
@@ -1329,9 +1344,9 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iSplitR ; last first.
       iApply wp_wand_r.
       iSplitL.
-      iApply (wp_get_local with "Hf").
+      iApply (wp_get_local with "[] [$Hf]").
       done.
-      instantiate (1 := λ v, v = immV [value_of_int k]).
+      instantiate (1 := λ v, ⌜v = immV [value_of_int k]⌝%I).
       done.
       iIntros (v0) "[-> Hf]".
       iSimpl.
@@ -1422,10 +1437,14 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       all: try by iIntros "[% _]".
       iIntros (v) "[-> Hf]".
       iApply iris_host.wp_value. done.
+      iSplit => //.
+      iFrame "Hf".
       iExists _, _.
       iFrame.
       iApply iris_host.wp_value. done.
-      iFrame. iExists _, _. iFrame.
+      iSplit => //.
+      iFrame "Hf Hmod1".
+      iExists _, _. by iFrame.
       admit.
   Admitted. 
 
