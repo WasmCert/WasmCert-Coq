@@ -887,27 +887,6 @@ Definition ishl (i1 i2 : T) : T :=
 (* TODO: Make it match better the specification. *)
 Definition ishr_u : T -> T -> T := shru.
 
-(* TODO
-(** Shift [i] by [k] bits, extended with the most significant bit of the original value. **)
-Definition shift_signed l k :=
-  if k is k.+1 then
-    if l is d :: l then
-      let: l := d :: d :: l (* TODO: Drop the last one. *) in
-      shift_signed l k
-    else l
-  else l.
-
-Definition ishr_s (i1 i2 : T) :=
-  let: k := unsigned i2 mod wordsize in
-  let: r := shift_signed (convert_to_bits i1) k in
-  (* TODO: convert back to a number. *)
-
-(* LATER
-Lemma ishr_s_shr : forall i1 i2,
-  ishr_s i1 i2 = shr i1 i2.
-Admitted.
-*)
-*)
 
 Definition Tmixin : mixin_of T := {|
      int_zero := zero ;

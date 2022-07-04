@@ -3608,12 +3608,6 @@ Qed.
 
 
 
-(* Lemma lfilled_local_lfilled k1 lh1 es1 es k lh n f LI :
-  lfilled k1 lh1 es1 es ->
-  lfilled k lh [AI_local n f es] LI ->
-  exists llh, llfill llh es1 = LI.
-Proof.
-Admitted. *)
 
 Lemma lfilled_in_llfill k lh es LI llh LI' :
   lfilled k lh es LI ->
@@ -3626,20 +3620,6 @@ Proof.
 Qed. 
 
 
-(*
-Lemma llfill_and_lfilled_local vs e llh LI k lh n f es :
-  const_list vs ->
-  is_const e = false ->
-  (forall n es l, e <> AI_label n es l) ->
-  (forall n f l, e <> AI_local n f l) ->
-  llfill llh (vs ++ [e]) = LI ->
-  lfilled k lh [AI_local n f es] LI ->
-  exists llh', llfill llh' (vs ++ [e]) = es.
-Proof.
-  zz
-  Qed. 
-Admitted.
-*)
 
 Lemma llfill_call_host_and_reduce s f es LI s' f' es' lh lh' tf h cvs vs :
   reduce s f es s' f' es' ->

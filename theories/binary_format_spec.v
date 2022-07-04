@@ -15,9 +15,9 @@ Inductive repr_module : list byte -> module -> Prop :=
 (* TODO: we should have ast->binary->ast = id
    but not binary->ast->binary /= id, because of non-unique representation  *)
 
-Lemma encode_decode_is_identity : forall m,
+(* Lemma encode_decode_is_identity : forall m,
 (* TODO: probably need some well-formedness condition, for example of block types *)
   run_parse_module (binary_of_module m) = Some m.
 (* TODO *)
-Admitted.
+*)
 
