@@ -1204,6 +1204,40 @@ forall (s E es Φ).
   iApply ("IH" with "Hwp").
 Qed.
 
+(*
+Lemma wp_project_wasm s E es (Φ: iris.val -> iProp Σ):
+  WP (([], es) : host_expr) @ s; E {{ v, Φ (val_of_host_val v) }} -∗
+  WP es @ NotStuck; E {{ v, Φ v }}.
+Proof.
+  iLöb as "IH"
+forall (s E es Φ).
+  iIntros "Hwp".
+  iApply iris_wp.wp_unfold.
+  rewrite /iris_wp.wp_pre /=.
+  iDestruct (weakestpre.wp_unfold with "Hwp") as "Hwp".
+  rewrite /weakestpre.wp_pre /=.
+  destruct (iris.to_val es) => //.
+  { destruct v => //=.
+    
+  rewrite wp_unfold /wp_pre /= iris.to_of_val.
+  destruct v ; by iMod "Hwp". }
+  rewrite weakestpre.wp_unfold.
+  iDestruct (wp_unfold with "Hwp") as "Hwp".
+  rewrite /wp_pre /=.
+  rewrite /weakestpre.wp_pre /=.
+  unfold to_val in Htv ; rewrite Htv.
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct (iris.to_val es) eqn:Hes.
+  { apply iris.of_to_val in Hes as <-.
+    iMod "Hwp".
+    iDestruct (weakestpre.wp_unfold with "Hwp") as "Hwp".
+    rewrite /weakestpre.wp_pre /=.
+    rewrite iris.to_of_val Htv.
+    iSpecialize ("Hwp" $! σ ns κ κs nt with "[$]").
+    by iApply "Hwp". }
+  destruct σ as [[[[s0 vis] ms] has] f].
+Admitted.
+    *)
 
 (*
 Lemma wp_host_bind_local s E δ n f f0 f1 es Φ :
@@ -1508,40 +1542,118 @@ Proof.
       by iDestruct ("Hntrap" with "HΨ") as "%".
     } 
 Qed.
+
 (*
-Lemma prim_step_inst_cons_reduce v_exps modi m v_imps ws1 vis1 ms1 ha1 f1 κ (es es': list inst_decl) wes σ2 efs:
-  ms1 !! N.to_nat modi = Some m ->
-  mod_start m = None -> 
-  prim_step ((ID_instantiate v_exps modi v_imps :: es), []) (ws1, vis1, ms1, ha1, f1) κ (es', wes) σ2 efs ->
-  prim_step ([ID_instantiate v_exps modi v_imps], []) (ws1, vis1, ms1, ha1, f1) [] ([], wes) σ2 [] /\ κ = [] /\ efs = [] /\ es' = es /\ (wes = [] \/ wes = [AI_trap]).
+Lemma wp_seq_host_start (s : stuckness) (E : coPset) (Φ Ψ : host_val -> iProp Σ) v_exps modi v_imps m (es : list inst_decl) vs idf:
+  m.(mod_start) = Some idf ->
+  const_list vs ->
+  ¬ Ψ (trapHV) -∗
+  modi ↪[mods] m -∗
+  (modi ↪[mods] m -∗ WP (([::ID_instantiate v_exps modi v_imps], [::]): host_expr) @ E {{ w, Ψ w ∗ modi ↪[mods] m }}) -∗
+  (∀ w, Ψ w -∗ modi↪[mods] m -∗ WP ((es, [::]): host_expr) @ E {{ v, Φ v }}) -∗
+  WP (((ID_instantiate v_exps modi v_imps :: es), vs): host_expr) @ E {{ v, Φ v }}.
 Proof.
-  move => Hmodi Hnostart HStep.
-  destruct σ2 as [[[[ws2 vis2] ms2] ha2] f2].
-  simpl in *.
-  destruct HStep as [HStep [-> ->]].
-  inversion HStep; subst; clear HStep.
-  { repeat split => //; last first.
-    { rewrite H3 in Hmodi.
-      inversion Hmodi; subst m0.
+  move => Hidstart Hconst.
+  iIntros "Hntrap Hmod Hes1 Hes2".
+                 
+  iApply weakestpre.wp_unfold. repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
+
+  iIntros (σ ns κ κs nt) "Hσ".
+  destruct σ as [[[[ws vis] ms] ha] f].
+  iDestruct "Hσ" as "(Hf & Ht & Hm & Hg & Hvis & Hms & Hha & Hframe & Hmemlen & Htabsize & Hmemlim & Htablim)".
+  iDestruct (ghost_map_lookup with "Hms Hmod") as "%Hmodlookup".
+  iSpecialize ("Hes1" with "Hmod").
+  iSpecialize ("Hes1" $! (ws, vis, ms, ha, f) ns κ κs nt).
+  iSpecialize ("Hes1" with "[$]").
+
+  iMod "Hes1".
+  iModIntro.
+  iDestruct "Hes1" as "(%Hred & Hes1)".
+  iFrame.
+
+  rewrite gmap_of_list_lookup in Hmodlookup.
+  
+  iSplit.
+  - unfold language.reducible in *.
+    destruct Hred as [κ' [e' [σ' [efs HStep]]]].
+    destruct e' as [we' he'].
+    unfold language.prim_step.
+    simpl in HStep.
+    destruct σ' as [[[[ws' vis'] ms'] fs'] f'].
+    destruct HStep as [HStep [-> ->]].
+    inversion HStep; subst; clear HStep.
+    { iPureIntro.
+      rewrite H3 in Hmodlookup; inversion Hmodlookup; subst m0; clear Hmodlookup.
+      unfold instantiate in H9.
+   (*   destruct H9 as [? [? [? [? [? [? [_ [_ [_ [_ [_ [_ [_ [_ [Hstart _]]]]]]]]]]]]]]].
+      unfold check_start in Hstart.
+      rewrite Hidstart in Hstart.
+      move/eqP in Hstart.
+      simpl in Hstart.
+      unfold modstart_func in Hstart.
+      destruct idf.
+      exists [::], ((es, map_start None): host_expr), (ws', vis', ms', fs', f'), [::].
+      repeat split => //.
+      eapply HR_host_step => //.
+      instantiate (1 := inst).
+      replace start with (None: option nat) in H9 => //.
       unfold instantiate in H9.
       destruct H9 as [? [? [? [? [? [? [_ [_ [_ [_ [_ [_ [_ [_ [Hstart _]]]]]]]]]]]]]]].
       unfold check_start in Hstart.
       rewrite Hnostart in Hstart.
       move/eqP in Hstart.
-      simpl in Hstart.
-      by subst start; simpl; left.
+      by simpl in Hstart.*)
+      admit.
     }
-    by eapply HR_host_step => //.
-  }
-  { repeat split => //.
-    { by eapply HR_host_step_init_oob. }
-    { by right. }
-  }
-  { by apply llfill_is_nil in H2; destruct H2 as [??]. }
-  { by apply llfill_is_nil in H1; destruct H1 as [??]. }
-  { by apply empty_no_reduce in H. }
+    { iPureIntro.
+      exists [::], ((es, [AI_trap]): host_expr), (ws', vis', ms', fs', f'), [::].
+      repeat split => //.
+      by eapply HR_host_step_init_oob => //.
+    }
+    { by apply llfill_is_nil in H2; destruct H2 as [??]. }
+    { by apply llfill_is_nil in H1; destruct H1 as [??]. }
+    { by apply empty_no_reduce in H. }
+
+  - iIntros (e2 σ2 efs HStep).
+    destruct σ2 as [[[[ws2 vis2] ms2] fs2] f2].
+    destruct e2 as [he2 we2].
+    eapply prim_step_inst_cons_reduce_nostart in HStep as [HStep [-> [-> [-> Hwsor]]]] => //.
+    destruct Hwsor.
+    { subst we2.
+      iSpecialize ("Hes1" $! ([], []) (ws2, vis2, ms2, fs2, f2) [] HStep).
+      iMod "Hes1"; iModIntro.
+      iModIntro.
+      repeat (iMod "Hes1"; iModIntro).
+      iFrame.
+      iDestruct "Hes1" as "(Hσ & Hwp)".
+      iFrame.
+      iSplit => //.
+      iDestruct "Hwp" as "(Hwp & _)".
+      replace (([], []): host_expr) with (language.of_val (immHV [::])) => //.
+      rewrite weakestpre.wp_value_fupd'.
+      iMod "Hwp".
+      iDestruct "Hwp" as "(HΨ & Hmodi)".
+      by iApply ("Hes2" with "[$HΨ] [$Hmodi]").
+    }
+    { subst we2.
+      iSpecialize ("Hes1" $! ([], [AI_trap]) (ws2, vis2, ms2, fs2, f2) [] HStep).
+      iMod "Hes1"; iModIntro.
+      iModIntro.
+      repeat (iMod "Hes1"; iModIntro).
+      iFrame.
+      iDestruct "Hes1" as "(Hσ & Hwp)".
+      iFrame.
+      iSplit => //.
+      iDestruct "Hwp" as "(Hwp & _)".
+      replace (([], [AI_trap]): host_expr) with (language.of_val (trapHV)) => //.
+      rewrite weakestpre.wp_value_fupd'.
+      iMod "Hwp".
+      iDestruct "Hwp" as "(HΨ & Hmodi)".
+      by iDestruct ("Hntrap" with "HΨ") as "%".
+    } 
 Qed.
-    *)
+*)
+
 End host_structural.
 
 
@@ -2438,15 +2550,47 @@ Proof.
 
 Qed.
 
+Lemma prim_step_inst_cons_reduce_start v_exps modi m v_imps ws1 vis1 ms1 ha1 f1 κ (es es': list inst_decl) wes σ2 efs vs idf s_res inst_res exps start imps:
+  ms1 !! N.to_nat modi = Some m ->
+  mod_start m = Some idf ->
+  const_list vs ->
+  those (lookup_export_vi vis1 <$> v_imps) = Some imps ->
+  instantiate ws1 m (modexp_desc <$> imps) (s_res, inst_res, exps, start) ->
+  prim_step ((ID_instantiate v_exps modi v_imps :: es), vs) (ws1, vis1, ms1, ha1, f1) κ (es', wes) σ2 efs ->
+  prim_step ([ID_instantiate v_exps modi v_imps], []) (ws1, vis1, ms1, ha1, f1) [] ([], wes) σ2 [] /\ κ = [] /\ efs = [] /\ es' = es /\ (wes = (map_start start) \/ wes = [AI_trap]).
+Proof.
+  move => Hmodi Hidstart Hconst Hvilookup Hinstantiate HStep.
+  destruct σ2 as [[[[ws2 vis2] ms2] ha2] f2].
+  destruct HStep as [HStep [-> ->]].
+  inversion HStep; subst; clear HStep.
+  { repeat split => //; last first.
+    { rewrite H3 in Hmodi.
+      inversion Hmodi; subst m0; clear Hmodi.
+      rewrite H4 in Hvilookup; inversion Hvilookup; subst imps0; clear Hvilookup.
+      eapply instantiate_det in H9; last by apply Hinstantiate.
+      inversion H9; subst; clear H9.
+      by left.
+    }
+    by eapply HR_host_step => //.
+  }
+  { repeat split => //.
+    { by eapply HR_host_step_init_oob. }
+    { by right. }
+  }
+  { by eapply llfill_const in Hconst => //. }
+  { by eapply llfill_const in Hconst => //. }
+  { by eapply values_no_reduce in Hconst => //. }
+Qed.
 
-Lemma instantiation_spec_operational_start s E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
+
+Lemma instantiation_spec_operational_start_seq s E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ) idecls:
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
   module_typing m t_imps t_exps ->
   module_restrictions m ->
   ↪[frame] empty_frame -∗                            
   instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
-  (∀ idnstart, (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP (([::], [::AI_invoke idnstart]) : host_expr) @ s; E {{ Φ }}) -∗
-  WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E {{ Φ }}.
+  (∀ idnstart, (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP ((idecls, [::AI_invoke idnstart]) : host_expr) @ s; E {{ Φ }}) -∗
+  WP (((ID_instantiate hs_exps hs_mod hs_imps) :: idecls, [::]): host_expr) @ s; E {{ Φ }}.
 Proof.
   move => Hmodstart Hmodtype Hmodrestr.
   (* Duplicate module restrictions for later *)
@@ -3155,7 +3299,7 @@ Proof.
   - destruct s => //.
     iPureIntro.
     unfold language.reducible, language.prim_step.
-    exists [::], ([::], map_start (Some idfstart)), (ws_res, vis', ms, has, f), [::].
+    exists [::], (idecls, map_start (Some idfstart)), (ws_res, vis', ms, has, f), [::].
     repeat split => //.
     by eapply HR_host_step.
   - iIntros ([hes' wes'] [[[[ws3 vis3] ms3] has3] f3] efs HStep).
@@ -3276,6 +3420,19 @@ Proof.
     by iFrame.
 Qed.
     
+Lemma instantiation_spec_operational_start s E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
+  m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
+  module_typing m t_imps t_exps ->
+  module_restrictions m ->
+  ↪[frame] empty_frame -∗                            
+  instantiation_resources_pre hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps -∗
+  (∀ idnstart, (↪[frame] empty_frame) -∗ (instantiation_resources_post hs_mod m hs_imps v_imps t_imps wfs wts wms wgs hs_exps (Some idnstart)) -∗ WP (([::], [::AI_invoke idnstart]) : host_expr) @ s; E {{ Φ }}) -∗
+  WP (([:: ID_instantiate hs_exps hs_mod hs_imps], [::]): host_expr) @ s; E {{ Φ }}.
+Proof.
+  iIntros.
+  by iApply (instantiation_spec_operational_start_seq with "[$] [$] [$]").
+Qed.
+  
 End Instantiation_spec_operational.
 
 (*
