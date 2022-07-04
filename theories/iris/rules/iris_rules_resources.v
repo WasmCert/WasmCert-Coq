@@ -2321,14 +2321,14 @@ Qed.
 
 
 Lemma wp_store (ϕ: iris.val -> iProp Σ) (s: stuckness) (E: coPset) (t: value_type) (v: value)
-      (bs : bytes) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (f0: frame) :
+      (bs : bytes) (off: static_offset) (a: alignment_exponent) (k: i32) (n: nat) (f: frame) :
   types_agree t v ->
   length bs = t_length t ->
-  f0.(f_inst).(inst_memory) !! 0 = Some n ->
+  f.(f_inst).(inst_memory) !! 0 = Some n ->
   (▷ ϕ (immV []) ∗
-   ↪[frame] f0 ∗
+   ↪[frame] f ∗
   N.of_nat n ↦[wms][ N.add (Wasm_int.N_of_uint i32m k) off ] bs) ⊢
-  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, (ϕ w ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v)) ∗ ↪[frame] f0 }}).
+  (WP ([AI_basic (BI_const (VAL_int32 k)); AI_basic (BI_const v); AI_basic (BI_store t None a off)]) @ s; E {{ w, (ϕ w ∗ (N.of_nat n) ↦[wms][ Wasm_int.N_of_uint i32m k + off ] (bits v)) ∗ ↪[frame] f }}).
 Proof.
   iIntros (Hvt Hbs Hinstn) "[HΦ [Hf0 Hwms]]".
   iApply wp_lift_atomic_step => //=.
