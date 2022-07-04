@@ -2571,12 +2571,12 @@ Proof.
 Qed.
   
 
-Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f0:frame) (Φ: iris.val -> iProp Σ) :
-  f0.(f_inst).(inst_memory) !! 0 = Some k ->
+Lemma wp_current_memory (s: stuckness) (E: coPset) (k: nat) (n: N) (f:frame) (Φ: iris.val -> iProp Σ) :
+  f.(f_inst).(inst_memory) !! 0 = Some k ->
   (▷ Φ (immV [(VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (N.div n page_size))))]) ∗
-   ↪[frame] f0 ∗
+   ↪[frame] f ∗
    (N.of_nat k) ↦[wmlength] n) ⊢
-   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, (Φ w ∗ (N.of_nat k) ↦[wmlength] n) ∗ ↪[frame] f0 }}.
+   WP ([AI_basic (BI_current_memory)]) @ s; E {{ w, (Φ w ∗ (N.of_nat k) ↦[wmlength] n) ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hf) "(HΦ & Hf0 & Hmemlength)".
   iApply wp_lift_atomic_step => //=.
@@ -2845,10 +2845,10 @@ Qed.
 
   
  
-Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
+Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f : frame)
       (n: N) (Φ Ψ : iris.val -> iProp Σ) (c: i32) :
-  f0.(f_inst).(inst_memory) !! 0 = Some k ->
-  ( ↪[frame] f0 ∗
+  f.(f_inst).(inst_memory) !! 0 = Some k ->
+  ( ↪[frame] f ∗
      (N.of_nat k) ↦[wmlength] n ∗
      ▷ Φ (immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin (n `div` page_size)%N))]) ∗
      ▷ Ψ (immV [VAL_int32 int32_minus_one]))
@@ -2858,7 +2858,7 @@ Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f0 : frame)
                     repeat #00%byte (N.to_nat (Wasm_int.N_of_uint i32m c * page_size))) ∗
                     (N.of_nat k) ↦[wmlength]
                     (n + Wasm_int.N_of_uint i32m c * page_size)%N)
-                 ∨ (Ψ w ∗ (N.of_nat k) ↦[wmlength] n)) ∗ ↪[frame] f0 }}.
+                 ∨ (Ψ w ∗ (N.of_nat k) ↦[wmlength] n)) ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hfm) "(Hframe & Hmlength & HΦ & HΨ)".
   iApply wp_lift_atomic_step => //=.

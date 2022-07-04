@@ -55,13 +55,13 @@ Context `{!wasmG Σ}.
   (* ----------------------------- Native invocations ------------------------- *)
   (* -------------------------------------------------------------------------- *)
 
-  Lemma wp_invoke_native (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) ves vcs t1s t2s ts a es i m f0 :
+  Lemma wp_invoke_native (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) ves vcs t1s t2s ts a es i m f :
     iris.to_val ves = Some (immV vcs) ->
     length vcs = length t1s ->
     length t2s = m ->
-    ↪[frame] f0 -∗
+    ↪[frame] f -∗
      (N.of_nat a) ↦[wf] (FC_func_native i (Tf t1s t2s) ts es) -∗
-     ▷ (↪[frame] f0 ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf t1s t2s) ts es) -∗
+     ▷ (↪[frame] f ∗ (N.of_nat a) ↦[wf] (FC_func_native i (Tf t1s t2s) ts es) -∗
        WP [::AI_local m (Build_frame (vcs ++ (n_zeros ts)) i) [::AI_basic (BI_block (Tf [::] t2s) es)]] @ s; E {{ v, Φ v }}) -∗
      WP ves ++ [AI_invoke a] @ s; E {{ v, Φ v }}.
   Proof.
@@ -94,7 +94,7 @@ Context `{!wasmG Σ}.
       { apply first_instr_const. eapply to_val_const_list. eauto. }
       eapply reduce_det in H as HH;[|apply Hred].
       destruct HH as [HH | [[? Hstart] | (*[(?&?&?&?&?&?&?&?) | *) (?&?&?&Hstart & Hstart1 & Hstart2 & Hσ) (* ] *)]]; try done.
-      simplify_eq. iApply bi.sep_exist_l. iExists f0. iFrame.
+      simplify_eq. iApply bi.sep_exist_l. iExists f. iFrame.
       iSplit => //. iIntros "Hf".
       iSpecialize ("HΦ" with "[$]"). iFrame.
       rewrite Hf in Hstart. done.
@@ -457,6 +457,7 @@ Qed.
       iSpecialize ("Hcont" with "[$]").
       iSpecialize ("Hcont" $! _ Hfill'). iFrame.      
   Qed.
+  
   Lemma wp_call_indirect_success (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (f0 : frame) (i j : immediate) a c cl :
     (inst_types (f_inst f0)) !! i = Some (cl_type cl) ->
     (inst_tab (f_inst f0)) !! 0 = Some j-> (* current frame points to correct table? *)
