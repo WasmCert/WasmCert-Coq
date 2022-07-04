@@ -2303,16 +2303,16 @@ Proof.
     
     3:  by apply llfill_is_nil in H2 as [??] => //. 
 
-    2: { admit. } (*
+    2: { 
       (* oob case is impossible, because we've proven the bound check conditions. *)
       (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
       iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt" => //.
-      (* { by iDestruct "Himpwasm" as "(?&?&?&?)". }  *)
+      { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
       specialize (Hwt Hvtlen).
       
       iDestruct (import_resources_wms_subset with "Hwm Hmsize Hmlimit [Himpwasm]") as "%Hwm" => //.
-      (* { by iDestruct "Himpwasm" as "(?&?&?&?)". }  *)
+      { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
       specialize (Hwm Hvtlen).
       
       exfalso.
@@ -2327,7 +2327,7 @@ Proof.
       split.
       - by eapply module_elem_bound_check_gmap_extend.
       - by eapply module_data_bound_check_gmap_extend.
-    } *)
+    } 
 
     (* On to the main branch, the only possible reduction (successful case) *)
 
@@ -2401,7 +2401,8 @@ Proof.
     
     by iFrame.
 
-Admitted.
+Qed.
+
 
 Lemma instantiation_spec_operational_start s E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ):
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
