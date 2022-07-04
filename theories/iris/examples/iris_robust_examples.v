@@ -407,9 +407,10 @@ Section Examples_host.
     repeat split; by exists [] => //=.
   Qed.
   
-  Definition adv_lse_instantiate :=
+  Definition adv_lse_instantiate g :=
     [ ID_instantiate [0%N] 0 [] ;
-      ID_instantiate [] 1 [0%N;1%N] ].
+      ID_instantiate [] 1 [0%N;1%N] ;
+      H_get_global g ].
 
   
   Lemma instantiate_lse adv_module g_ret wret :
@@ -421,14 +422,14 @@ Section Examples_host.
     typeof wret = T_i32 -> (* the imported return global has type i32 *)
 
     ⊢ {{{ ↪[frame] empty_frame ∗
-          g_ret ↦[wg] {| g_mut := MUT_mut; g_val := wret |} ∗
+          (N.of_nat g_ret) ↦[wg] {| g_mut := MUT_mut; g_val := wret |} ∗
           0%N ↪[mods] adv_module ∗
           1%N ↪[mods] lse_module ∗
           na_own logrel_nais ⊤ ∗
-          (∃ name, 1%N ↪[vis] {| modexp_name := name; modexp_desc := MED_global (Mk_globalidx (N.to_nat g_ret)) |}) ∗
+          (∃ name, 1%N ↪[vis] {| modexp_name := name; modexp_desc := MED_global (Mk_globalidx g_ret) |}) ∗
           (∃ vs, 0%N ↪[vis] vs) }}}
-        ((adv_lse_instantiate,[]) : host_expr)
-      {{{ v, ⌜v = (trapHV : host_val)⌝ ∨ g_ret ↦[wg] {| g_mut := MUT_mut; g_val := xx 42|} }}} .
+        ((adv_lse_instantiate g_ret,[]) : host_expr)
+      {{{ v, ⌜v = (trapHV : host_val)⌝ ∨ ⌜v = immHV [xx 42]⌝ }}} .
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
     iModIntro. iIntros (Φ) "(Hemptyframe & Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
