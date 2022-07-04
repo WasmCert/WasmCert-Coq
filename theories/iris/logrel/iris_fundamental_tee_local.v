@@ -50,11 +50,12 @@ Section fundamental.
 
     iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV ([w])⌝ ∗ ↪[frame] _)%I with "[Hf]").
     { iSimpl. iApply (wp_tee_local with "Hf").
+      iModIntro.
       iIntros "Hf".
       take_drop_app_rewrite 1.
       iApply wp_val_app;[eauto|].
       iSplitR;[iModIntro;iIntros "[%Hcontr _]";done|].
-      iApply (wp_set_local with "Hf");[subst;eauto|].
+      iApply (wp_set_local with "[] [$Hf]"); [subst;eauto|].
       simpl. done. }
 
     iIntros (v) "[-> Hf]".

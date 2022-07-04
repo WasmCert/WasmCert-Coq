@@ -50,7 +50,7 @@ Section fundamental.
     iDestruct (big_sepL2_lookup with "Hlocs") as "Hw";[eauto..|].
     
     iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV ([w])⌝ ∗ ↪[frame] f)%I with "[Hf]").
-    { iApply (wp_get_local with "Hf");[subst;eauto|].
+    { iApply (wp_get_local with "[] [$Hf]");[subst;eauto|].
       simpl. done. }
     iIntros (v) "[-> Hf]".
     iSplitR;[|iExists _;iFrame].

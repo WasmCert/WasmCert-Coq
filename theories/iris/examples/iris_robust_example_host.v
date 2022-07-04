@@ -131,7 +131,7 @@ Section Host_robust_example.
     iApply (wp_seq _ _ _ (λ vs, ⌜vs = immV [xx 42]⌝ ∗ ↪[frame] _)%I).
     iSplitR;[by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
-    { iApply (wp_get_local with "Hf");[|done]. simpl. auto. }
+    { iApply (wp_get_local with "[] [$Hf]");[|done]. simpl. auto. }
     iIntros (w) "[-> Hf]". iSimpl.
 
     take_drop_app_rewrite_twice 1 0.
@@ -371,7 +371,7 @@ Section Host_robust_example.
     iApply (wp_seq _ _ _ (λ vs, ⌜vs = immV []⌝ ∗ _)%I).
     iSplitR;[by iIntros "[%Hcontr _]"|].
     iSplitL "Hf".
-    { iApply (wp_set_local with "Hf");[|done]. simpl. lia. }
+    { iApply (wp_set_local with "[] [$Hf]");[|done]. simpl. lia. }
     iIntros (w) "[-> Hf]". iSimpl. iSimpl in "Hf".
 
     iApply fupd_wp.
