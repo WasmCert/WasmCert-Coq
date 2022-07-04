@@ -1507,20 +1507,6 @@ Proof.
       unfold first_instr in HLF.
       rewrite HLF.
       done. } 
-(*      unfold lfilled, lfill.
-      instantiate (6 := S _) => /=.
-      fold lfill.
-      instantiate (6 := LH_rec [::] _ _ _ [::]) => /=.
-      unfold lfilled in HLF.
-      instantiate (3 := vcs).
-      instantiate (3 := h).
-      instantiate (3 := tf).
-      instantiate (3 := s0).
-      instantiate (3 := lh).
-      instantiate (3 := n).
-      destruct (lfill _ _ _) eqn:Hfill => //.
-      admit.
-    } *)
     + (* Const *)
       destruct H.
       exists s, f, es.
@@ -1605,21 +1591,6 @@ Proof.
       unfold first_instr in HLF.
       rewrite HLF.
       done. } 
-(*      unfold lfilled, lfill.
-      instantiate (6 := S _) => /=.
-      fold lfill.
-      instantiate (6 := LH_rec [::] _ _ _ [::]) => /=.
-      unfold lfilled in HLF.
-      instantiate (3 := vcs).
-      instantiate (3 := h).
-      instantiate (3 := tf).
-      instantiate (3 := s0).
-      instantiate (3 := lh).
-      instantiate (3 := n).
-      destruct (lfill _ _ _) eqn:Hfill => //.
-      apply b2p in HLF ; subst.
-      done.
-    } *)
     + (* Terminal *)
       apply terminal_form_v_e in H.
       unfold terminal_form in H. destruct H.
@@ -1647,10 +1618,6 @@ Proof.
     exfalso. eapply H1.
     unfold first_instr => /=.
     done.
-(*    unfold lfilled, lfill.
-    instantiate (6 := 0) => /=.
-    instantiate (5 := LH_base [::] [::]) => /=.
-    done. *)
   - (* s_typing *)
     move => s f es rs ts C C0 HFT HContext HType IHHType HRetType HST HBI_brDepth HNRet HCallHost.
     inversion HFT.

@@ -189,7 +189,6 @@ Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh).
 { iIntros "[Hntrap [Hes1 Hes2]]".
-  (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
   iIntros (LI Hfilled).
   iApply wp_unfold. rewrite /wp_pre /=.
   (* Base case, when both es1 and es2 are values *)
@@ -279,105 +278,7 @@ Proof.
   } } }
 Qed.
 
-(*
-(* We should propose a slightly different version, where es1 is known to take
-   a step. This is fine because we can resort to wp_val_app' later anyway for the    other case. *)
-Lemma wp_seq_ctx_step (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
-  iris.to_val es1 = None ->
-  ((¬ (Ψ trapV)) ∗
-  WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
-  ∀ w, ▷ (Ψ w -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v }}))%I
-  ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v }}.
-Proof.
-  iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh).
-{ iIntros (Hes1) "[Hntrap [Hes1 Hes2]]".
-  (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
-  iIntros (LI Hfilled).
-  iApply wp_unfold. rewrite /wp_pre /=.
-  (* This case now cannot happen *)
-  destruct (iris.to_val LI) as [vs|] eqn:Hetov.
-  { eapply lfilled_to_val_app in Hfilled as Hv;eauto.
-    destruct Hv as [vs' [Hvs' Hfilled']].
-    by rewrite Hvs' in Hes1.
-  }
-  {
-  repeat rewrite wp_unfold. rewrite /wp_pre /=.
-  (* Ind *)
-  iIntros (σ ns κ κs nt) "Hσ".
-  (* No val case either *)
-  destruct (iris.to_val es1) as [vs|] eqn:Hes => //.
-  {
-    iSpecialize ("Hes1" $! σ ns κ κs nt with "[$]").
-    iMod "Hes1" as "[%H1 H2]".
-    iModIntro.
-    iSplit.
-    - iPureIntro.
-      destruct s => //.
-      apply append_reducible with (es2:=es2) in H1;auto.
-      eapply lfilled_reducible. apply Hfilled. auto.
-    - iIntros (e2 σ2 efs HStep').
-      eapply lfilled_prim_step_split_reduce_r in HStep' as Heq;[|apply Hfilled|apply H1].
-      apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp.
-      destruct Heq as [[e' [HStep'' Hlfilled']] | [[lh' Hlf] <-]].
-      + apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
-        iSpecialize ("H2" $! e' σ2 [] HStep'').
-        iMod "H2".
-        repeat iModIntro.
-        repeat iMod "H2".
-        iModIntro.
-        iDestruct "H2" as "(Hσ & Hes)".
-        iDestruct "Hes" as (f1) "(Hf & Hes'' & Hefs)".
-        iFrame. iExists _. iFrame.
-        iSplit =>//.
-        iIntros "?"; iSpecialize ("Hes''" with "[$]").
-        iClear "Hefs".
-        (* The problem now is that, we don't know whether e' is a value or not, so we cannot directly apply IH yet. However, we can resort to val_app if it's a value. *)
-        (* 20220619: Ok maybe not, even if to_val e' is not None, we don't
-           have an easy val rule to be applied since e' can still be not a wasm
-           value... *)
-        destruct (iris.to_val e') eqn: He'.
-        {
-          rewrite iris.of_to_val in He'.
-          iApply wp_val_app'.
-        }
-        admit.
-        iApply ("IH" with "[%] [$Hntrap Hes'' Hes2]").
-        * by apply He'.
-        * iFrame.
-          iIntros (w).
-          iModIntro.
-          by iApply "Hes2".
-        * by [].
-      + assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
-        { unfold iris.prim_step.
-          destruct σ as [[??]?].
-          repeat split => //.
-          apply r_simple; eapply rs_trap => //.
-          move => HContra; subst.
-          by simpl in Hes.
-        }
-        iSpecialize ("H2" $! [AI_trap] σ [] HStep2).
-        iMod "H2".
-        repeat iModIntro.
-        repeat iMod "H2".
-        destruct σ as [[? ?]?].
-        iDestruct "H2" as "[Hσ H]".
-        iDestruct "H" as (f) "(Hf1 & Hes'' & Hefs)".
-        iModIntro => /=.
-        iFrame. iExists _. iFrame.
-        iIntros "?"; iSpecialize ("Hes''" with "[$]").
-        replace [AI_trap] with (iris.of_val trapV) => //=.
-        iDestruct (wp_unfold with "Hes''") as "Hes''";rewrite /wp_pre /=.
-        destruct (iris.to_val e2) eqn:Hx.
-        * iMod "Hes''". 
-          by iSpecialize ("Hntrap" with "Hes''").
-        * iApply wp_unfold. rewrite /wp_pre /= Hx /=.
-          iIntros (?????) "?".
-          iMod "Hes''".
-          by iSpecialize ("Hntrap" with "Hes''").
-  } } }
-Qed.
-*)
+
 
 (* Contextual rules for Local computation *)
 
@@ -417,7 +318,6 @@ Proof.
     iIntros "!>" (es2 σ2 efs HStep) "!>".
     destruct σ2 as [[ws' locs'] inst'].
     destruct HStep as (H & -> & ->). iFrame.
-    (* iDestruct ("H" with "Hframe") as "[H Hframe]". iFrame. *)
     only_one_reduction H. all:simplify_eq;iFrame. rewrite Hv. iFrame.
     1,2:rewrite find_first_const// in Hstart.
 Qed.
@@ -431,7 +331,6 @@ Lemma wp_seq_ctx_frame (s : stuckness) (E : coPset) (Φ Ψ : val -> iProp Σ) (e
 Proof.
   iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh n f f0 f1).
 { iIntros (Hnone) "[Htrap [Hf0 [Hes1 Hes2]]]".
-  (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
   iIntros (LI Hfilled).
   iApply wp_unfold.
   (* Base case, when both es1 and es2 are values *)
@@ -441,7 +340,6 @@ Proof.
     unfold iris.to_val in Hetov ; simpl in Hetov.
     destruct (merge_values_list _) eqn:Hmerge => //.
     destruct v => //.
-    (* destruct l0 => //. *) 
     eapply lfilled_to_val_app in Hfilled as Heq;[|eauto] ; last first.
     unfold iris.to_val ; rewrite Hmerge => //. 
     destruct Heq as [vs' [Heq Hfilled']].
@@ -468,9 +366,7 @@ Proof.
 
     
     destruct (iris.to_val es1) eqn:Hetov'.
-    { (* apply to_val_local_no_local_none in Hnone2. *)
-      (* rewrite Hetov' in Hnone2. *)
-      iMod "Hes1" as "[HPsi Hf]".
+    { iMod "Hes1" as "[HPsi Hf]".
       iDestruct (ghost_map_lookup with "Hframe Hf") as %Hlook';rewrite lookup_insert in Hlook';inversion Hlook'.
       subst f1 f0.
       iMod (ghost_map_update {| f_locs := locs; f_inst := inst |}
@@ -500,14 +396,12 @@ Proof.
     eapply local_frame_lfilled_prim_step_split_reduce_r in HStep' as Heq;[|apply Hfilled|apply H1].
     destruct Heq as [[e' [v'' [i'' [LI' [HStep'' [-> [-> [-> Hfill]]]]]]]]|[lh' [Hlh HH]]].
     { apply prim_step_obs_efs_empty in HStep'' as Hemp. inversion Hemp;subst;clear Hemp.
-      (* apply prim_step_obs_efs_empty in HStep' as Hemp. inversion Hemp;subst;clear Hemp. *)
       iSpecialize ("H2" $! e' (s3,v'',i'') [] HStep'').
       iMod "H2".
       repeat iModIntro.
       repeat iMod "H2".
       iDestruct "H2" as "(Hσ & H)".
       iDestruct "H" as (f) "(Hf1 & Hes'' & Hefs)".
-      (* iExists f. *)
       iDestruct "Hσ" as "(Hfuncs&Htables&Hmems&Hglobals&Hframe&Hlen)".
       iDestruct (ghost_map_lookup with "Hframe Hf1") as %Hlook';rewrite lookup_insert in Hlook';inversion Hlook'.
       subst f.

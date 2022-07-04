@@ -1004,7 +1004,7 @@ Lemma host_return_no_reduce s vis ms δ fs f LI k lh vs s' vis' ms' δ' fs' f' e
   host_reduce s vis ms δ fs f LI s' vis' ms' δ' fs' f' es' ->
   False.
 Proof.
-Admitted.
+
 
 
 Lemma host_reduce_via_wasm s f es vis ms δ fs s' vis' ms' δ' fs' f' es' :
@@ -1093,7 +1093,7 @@ Proof.
         destruct e' ; inversion H2 ; destruct e' => //.
         apply filled_singleton in H7 as (? & ? & ?) => // ; try by destruct e'.
         destruct e' ; inversion H2 ; destruct e' => //.
-        admit.
+
         eapply lfilled_return_and_reduce in H.
         done.
         exact H4.
@@ -1291,7 +1291,7 @@ Proof.
                  iDestruct ("Hwp" with "Hf") as "Hwp".
                  iModIntro ; iSplit ; last done.
                  iApply ("IH" with "Hwp").
-Admitted. *)
+ *)
 
 
 
@@ -1316,9 +1316,6 @@ Proof.
   iIntros "HΦ Hwp".
   destruct (iris.to_val es) eqn: Hes => //=.
   destruct v => //=.
-  admit.
-  admit.
-  admit.
 (*  iIntros ([[[ ws vis] ms ] fs] ns κ κs nt) "Hσ".
   iMod "Hwp".
   iExFalso.
@@ -1345,14 +1342,11 @@ Proof.
   - destruct s => //.
     iPureIntro.
     apply reducible_lift.
-    admit.
     done.
   - iIntros ([hes' wes'] [[[ws' vis'] ms'] fs'] efs HStep).
     unfold Iris_host.prim_step in HStep.
     destruct HStep as [HStep [-> ->]].
     inversion HStep; subst; clear HStep.
-    admit.
-    admit.
     iSpecialize ("Hwp" $! wes' (ws', [::], empty_instance) [::] with "[%]") ;
       first by unfold iris.prim_step.
     iMod "Hwp".
@@ -1368,7 +1362,7 @@ Proof.
     iApply ("IH" with "HΦ") (* ; first by apply hwev_reduce_closed in H0 *) .
     iApply "Hwp".
     by iApply "Hf".
-Admitted.
+
 
 Lemma wp_lift_call_host :
   locfill lh es = LI ->
