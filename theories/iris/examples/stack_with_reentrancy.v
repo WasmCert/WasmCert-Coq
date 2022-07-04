@@ -298,8 +298,8 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
   Proof.
     iIntros "Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _) Hvis8 Hwfcallhost Hha".
-    iApply (wp_seq_host_nostart
-             with "[$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
+    iApply (wp_seq_host_nostart 
+             with "[] [$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
     - iIntros "Hmod0".
       iApply weakestpre.wp_mono ;
         last iApply (instantiate_stack_spec
