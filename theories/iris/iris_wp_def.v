@@ -47,10 +47,10 @@ Class wasmG Σ :=
 
       glob_gen_hsG :> gen_heapGS N global Σ;
 
-      locs_gen_hsG :> ghost_mapG Σ unit frame
-    }.
+      locs_gen_hsG :> ghost_mapG Σ unit frame;
 
-Definition frameGName : positive := 10%positive.
+      frameGName : gname
+    }.
 
 Definition proph_id := positive. (* ??? *)
 
