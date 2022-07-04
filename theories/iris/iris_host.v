@@ -1375,13 +1375,14 @@ End host_lifting.
 Section host_structural.
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ }.
 
-Lemma prim_step_inst_cons_reduce v_exps modi m v_imps ws1 vis1 ms1 ha1 f1 κ (es es': list inst_decl) wes σ2 efs:
+Lemma prim_step_inst_cons_reduce_nostart v_exps modi m v_imps ws1 vis1 ms1 ha1 f1 κ (es es': list inst_decl) wes σ2 efs vs:
   ms1 !! N.to_nat modi = Some m ->
-  mod_start m = None -> 
-  prim_step ((ID_instantiate v_exps modi v_imps :: es), []) (ws1, vis1, ms1, ha1, f1) κ (es', wes) σ2 efs ->
+  mod_start m = None ->
+  const_list vs ->
+  prim_step ((ID_instantiate v_exps modi v_imps :: es), vs) (ws1, vis1, ms1, ha1, f1) κ (es', wes) σ2 efs ->
   prim_step ([ID_instantiate v_exps modi v_imps], []) (ws1, vis1, ms1, ha1, f1) [] ([], wes) σ2 [] /\ κ = [] /\ efs = [] /\ es' = es /\ (wes = [] \/ wes = [AI_trap]).
 Proof.
-  move => Hmodi Hnostart HStep.
+  move => Hmodi Hnostart Hconst HStep.
   destruct σ2 as [[[[ws2 vis2] ms2] ha2] f2].
   simpl in *.
   destruct HStep as [HStep [-> ->]].
@@ -1403,20 +1404,21 @@ Proof.
     { by eapply HR_host_step_init_oob. }
     { by right. }
   }
-  { by apply llfill_is_nil in H2; destruct H2 as [??]. }
-  { by apply llfill_is_nil in H1; destruct H1 as [??]. }
-  { by apply empty_no_reduce in H. }
+  { by eapply llfill_const in Hconst => //. }
+  { by eapply llfill_const in Hconst => //. }
+  { by eapply values_no_reduce in Hconst => //. }
 Qed.
   
-Lemma wp_seq_host_nostart (s : stuckness) (E : coPset) (Φ Ψ : host_val -> iProp Σ) v_exps modi v_imps m (es : list inst_decl) :
+Lemma wp_seq_host_nostart (s : stuckness) (E : coPset) (Φ Ψ : host_val -> iProp Σ) v_exps modi v_imps m (es : list inst_decl) vs:
   m.(mod_start) = None ->
+  const_list vs ->
   ¬ Ψ (trapHV) -∗
   modi ↪[mods] m -∗
   (modi ↪[mods] m -∗ WP (([::ID_instantiate v_exps modi v_imps], [::]): host_expr) @ E {{ w, Ψ w ∗ modi ↪[mods] m }}) -∗
   (∀ w, Ψ w -∗ modi↪[mods] m -∗ WP ((es, [::]): host_expr) @ E {{ v, Φ v }}) -∗
-  WP (((ID_instantiate v_exps modi v_imps :: es), [::]): host_expr) @ E {{ v, Φ v }}.
+  WP (((ID_instantiate v_exps modi v_imps :: es), vs): host_expr) @ E {{ v, Φ v }}.
 Proof.
-  move => Hnostart.
+  move => Hnostart Hconst.
   iIntros "Hntrap Hmod Hes1 Hes2".
                  
   iApply weakestpre.wp_unfold. repeat rewrite weakestpre.wp_unfold /weakestpre.wp_pre /=.
@@ -1471,7 +1473,7 @@ Proof.
   - iIntros (e2 σ2 efs HStep).
     destruct σ2 as [[[[ws2 vis2] ms2] fs2] f2].
     destruct e2 as [he2 we2].
-    eapply prim_step_inst_cons_reduce in HStep as [HStep [-> [-> [-> Hwsor]]]] => //.
+    eapply prim_step_inst_cons_reduce_nostart in HStep as [HStep [-> [-> [-> Hwsor]]]] => //.
     destruct Hwsor.
     { subst we2.
       iSpecialize ("Hes1" $! ([], []) (ws2, vis2, ms2, fs2, f2) [] HStep).
@@ -1506,7 +1508,40 @@ Proof.
       by iDestruct ("Hntrap" with "HΨ") as "%".
     } 
 Qed.
-    
+(*
+Lemma prim_step_inst_cons_reduce v_exps modi m v_imps ws1 vis1 ms1 ha1 f1 κ (es es': list inst_decl) wes σ2 efs:
+  ms1 !! N.to_nat modi = Some m ->
+  mod_start m = None -> 
+  prim_step ((ID_instantiate v_exps modi v_imps :: es), []) (ws1, vis1, ms1, ha1, f1) κ (es', wes) σ2 efs ->
+  prim_step ([ID_instantiate v_exps modi v_imps], []) (ws1, vis1, ms1, ha1, f1) [] ([], wes) σ2 [] /\ κ = [] /\ efs = [] /\ es' = es /\ (wes = [] \/ wes = [AI_trap]).
+Proof.
+  move => Hmodi Hnostart HStep.
+  destruct σ2 as [[[[ws2 vis2] ms2] ha2] f2].
+  simpl in *.
+  destruct HStep as [HStep [-> ->]].
+  inversion HStep; subst; clear HStep.
+  { repeat split => //; last first.
+    { rewrite H3 in Hmodi.
+      inversion Hmodi; subst m0.
+      unfold instantiate in H9.
+      destruct H9 as [? [? [? [? [? [? [_ [_ [_ [_ [_ [_ [_ [_ [Hstart _]]]]]]]]]]]]]]].
+      unfold check_start in Hstart.
+      rewrite Hnostart in Hstart.
+      move/eqP in Hstart.
+      simpl in Hstart.
+      by subst start; simpl; left.
+    }
+    by eapply HR_host_step => //.
+  }
+  { repeat split => //.
+    { by eapply HR_host_step_init_oob. }
+    { by right. }
+  }
+  { by apply llfill_is_nil in H2; destruct H2 as [??]. }
+  { by apply llfill_is_nil in H1; destruct H1 as [??]. }
+  { by apply empty_no_reduce in H. }
+Qed.
+    *)
 End host_structural.
 
 
