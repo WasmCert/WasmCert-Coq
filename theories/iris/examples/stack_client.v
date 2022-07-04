@@ -494,16 +494,16 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
         iSplitR ; last first.
         iSplitL "Hf".
         iApply (wp_tee_local with "Hf").
-        iIntros "Hf".
+        iIntros "!> Hf".
         rewrite (separate1 (AI_basic (i32const _))).
         iApply wp_val_app => //.
         iSplitR ; last first.
         iApply wp_wand_r.
         iSplitL "Hf".
-        iApply (wp_set_local with "Hf").
+        iApply (wp_set_local with "[] [$Hf]").
         simpl.
         lia.
-        instantiate (1 := λ v, v = immV []) => //.
+        instantiate (1 := λ v, ⌜v = immV []⌝%I) => //.
         iIntros (v0) "[-> Hf]".
         iSimpl.
         iSimpl in "Hf".
@@ -632,9 +632,9 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
             iSplitR ; last first.
             iApply wp_wand_r.
             iSplitL.
-            iApply (wp_get_local with "Hf").
+            iApply (wp_get_local with "[] [$Hf]").
             done.
-            instantiate (1 := λ v, v = immV [VAL_int32 (Wasm_int.Int32.repr k)]).
+            instantiate (1 := λ v, ⌜v = immV [VAL_int32 (Wasm_int.Int32.repr k)]⌝%I).
             done.
             iIntros (w0) "[-> Hf]".
             iSimpl.
@@ -684,9 +684,9 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           iSplitR ; last first.
           iApply wp_wand_r.
           iSplitL.
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          instantiate (1 := λ v, v = immV [value_of_int k]).
+          instantiate (1 := λ v, ⌜v = immV [value_of_int k]⌝%I).
           done.
           iIntros (v0) "[-> Hf]".
           iSimpl.
@@ -734,9 +734,9 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           iApply wp_val_app ; first done.
           iSplitR ; last first.
           iApply wp_wand_r ; iSplitL.
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          by instantiate (1 := λ v, v = immV _).
+          by instantiate (1 := λ v, ⌜v = immV _⌝%I).
           iIntros (v0) "[-> Hf]".
           by instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗ ↪[frame] _)%I) ; iFrame.
           by iIntros "!> [% _]".
@@ -795,9 +795,9 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           iApply wp_seq.
           iSplitR ; last first.
           iSplitL "Hf".
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          by instantiate (1 := λ x, x = immV _).
+          by instantiate (1 := λ x, ⌜x = immV _⌝%I).
           iIntros (w0) "[-> Hf]".
           iSimpl.
           rewrite (separate2 (AI_basic _)).
@@ -809,9 +809,9 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           iSplitR ; last first.
           iApply wp_wand_r.
           iSplitL.
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          by instantiate (1 := λ x, x = immV _).
+          by instantiate (1 := λ x, ⌜x = immV _⌝%I).
           iIntros (v0) "[-> Hf]".
           by instantiate (1 := λ x, (⌜ x = immV _ ⌝ ∗ ↪[frame] _)%I) ; iFrame.
           by iIntros "!> [% _]".
@@ -860,9 +860,9 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           iApply wp_seq.
           iSplitR ; last first.
           iSplitL "Hf".
-          iApply (wp_get_local with "Hf").
+          iApply (wp_get_local with "[] [$Hf]").
           done.
-          instantiate (1 := λ v, v = immV [value_of_int k]).
+          instantiate (1 := λ v, ⌜v = immV [value_of_int k]⌝%I).
           done.
           iIntros (v0) "[-> Hf]".
           iSimpl.
@@ -906,9 +906,8 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           iSplitR ; last first.
           iApply wp_wand_r.
           iSplitL.
-          iApply (wp_get_local with "Hf").
-          done.
-          instantiate (1 := λ v, v = immV [value_of_int k]).
+          iApply (wp_get_local with "[] [$Hf]") => //.
+          instantiate (1 := λ v, ⌜v = immV [value_of_int k]⌝%I).
           done.
           iIntros (v0) "[-> Hf]".
           iSimpl.

@@ -321,12 +321,12 @@ Section Client_main.
     take_drop_app_rewrite 2.
     iApply wp_seq. iSplitR;[|iSplitL "Hf"];cycle 1.
     { iApply (wp_tee_local with "[$]").
-      iIntros "Hf".
+      iIntros "!> Hf".
       take_drop_app_rewrite 1.
       iApply wp_val.
       iSplitR;cycle 1.
       { iApply (wp_wand _ _ _ (λ v, ⌜v = immV []⌝ ∗ _)%I with "[Hf]").
-        iApply (wp_set_local with "Hf");[rewrite Hflocs;simpl;lia|done|..].
+        iApply (wp_set_local with "[] [$Hf]");[rewrite Hflocs;simpl;lia|done|..].
         iIntros (v) "[-> Hf]". iSimpl.
         instantiate (1:=(λ v, ⌜v = immV _⌝ ∗ _)%I).
         iSplitR;eauto. iExact "Hf". }
@@ -411,7 +411,7 @@ Section Client_main.
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
       { take_drop_app_rewrite 1.
         iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|].
-        iApply (wp_get_local with "Hf");simpl;eauto. }
+        iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
       (* push *)
@@ -440,7 +440,7 @@ Section Client_main.
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
       { take_drop_app_rewrite 1.
         iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|].
-        iApply (wp_get_local with "Hf");simpl;eauto. }
+        iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
       (* push *)
@@ -468,7 +468,7 @@ Section Client_main.
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
       { take_drop_app_rewrite 1.
         iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|].
-        iApply (wp_get_local with "Hf");simpl;eauto. }
+        iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
       (* map *)
@@ -556,7 +556,7 @@ Section Client_main.
           take_drop_app_rewrite 1.
           iApply (wp_seq _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I).
           iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
-          { iApply (wp_get_local with "Hf");simpl;eauto. }
+          { iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
           iIntros (w) "[-> Hf]".
           iSimpl.
           (* pop *)

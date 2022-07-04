@@ -1432,5 +1432,5 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
   Qed.
   
 
-End Client.
+End Client2.
   
