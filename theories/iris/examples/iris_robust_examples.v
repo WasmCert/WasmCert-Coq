@@ -204,6 +204,107 @@ Section Examples.
     iRight. iFrame. auto.
   Qed.
 
+  Definition lse_expr_return a :=
+      [BI_const (xx 0);
+       BI_const (xx 42);
+       BI_store T_i32 None 0%N 0%N;
+       BI_call a;
+       BI_const (xx 0);
+       BI_load T_i32 None 0%N 0%N].
+
+  Definition lse_return a :=
+    to_e_list (lse_expr_return a).
+
+  Lemma lse_return_spec f n j a C i es locs :
+    (tc_label C) = [] ∧ (tc_return C) = None ->
+
+    f.(f_inst).(inst_memory) !! 0 = Some n ->
+    f.(f_inst).(inst_funcs) !! j = Some a ->
+    
+    be_typing (upd_local_label_return C locs [[]] (Some [])) es (Tf [] []) ->
+    
+    ⊢ {{{ ↪[frame] f
+         ∗ na_own logrel_nais ⊤
+         ∗ na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] (FC_func_native i (Tf [] []) locs es))
+         ∗ interp_instance C [] i
+         ∗ ∃ c, (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) }}}
+      lse_return j
+      {{{ w, (⌜w = trapV⌝ ∨ (⌜w = immV [xx 42]⌝))
+               ∗ ↪[frame] f }}}.
+  Proof.
+    iIntros (Hc Hn Ha Hes Φ). iModIntro.
+    iIntros "(Hf & Hown & #Ha & #Hi & Hn) HΦ".
+    iDestruct "Hn" as (c) "Hn".
+    iApply (wp_wand with "[-HΦ] HΦ").
+
+    unfold lse.
+
+    take_drop_app_rewrite 3.
+    iApply (wp_seq _ _ _ (λ w, (⌜w = immV []⌝ ∗ N.of_nat n↦[wms][0] bits (xx 42)) ∗ ↪[frame] f)%I).
+    iSplitR;[by iIntros "[[%Hcontr _] _]"|].
+    iSplitR "Hown".
+    { unfold serialise_i32. simpl. iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
+      by rewrite Memdata.encode_int_length. }
+    iIntros (w) "[[-> Hn] Hf]". iSimpl.
+
+    take_drop_app_rewrite_twice 0 2.
+    iApply wp_wasm_empty_ctx.
+    iApply wp_base_push;auto.
+    iApply (wp_call_ctx with "Hf");eauto.
+    iNext. iIntros "Hf".
+    iApply wp_base_pull.
+    iApply wp_wasm_empty_ctx.
+    iSimpl.
+    
+    take_drop_app_rewrite_twice 0 2.
+    iApply wp_wasm_empty_ctx.
+    iApply wp_base_push;auto.
+    rewrite -(app_nil_r [_]).
+    iApply (wp_seq_can_trap_same_ctx _ (λ v, interp_values [] v ∗ na_own logrel_nais ⊤)%I).
+    iSplitR;[by iIntros "[H _]";iDestruct "H" as (v) "[%Hcontr _]"|].
+    iSplitR;[auto|].
+    iFrame.
+    iSplitL "Hown".
+    { iIntros "Hf". iApply fupd_wp.
+      iMod (na_inv_acc with "Ha Hown") as "(>Haf & Hown & Hcls)";[solve_ndisj..|].
+      rewrite -(app_nil_l [_]).
+      iApply (wp_invoke_native with "Hf Haf");eauto.
+      iModIntro. iNext. iIntros "[Hf Haf]".
+      rewrite -wp_frame_rewrite.
+      iApply wp_wasm_empty_ctx_frame.
+      take_drop_app_rewrite 0.
+      iApply (wp_block_local_ctx with "Hf");[eauto..|].
+      iNext. iIntros "Hf".
+      iApply wp_wasm_empty_ctx_frame.
+      rewrite wp_frame_rewrite.
+      
+      iApply fupd_wp.
+      iMod ("Hcls" with "[$]") as "Hown". iModIntro.
+      simpl.
+
+      iDestruct (be_fundamental_local _ _ [] _ locs with "Hi") as "Hl";eauto.
+      iSpecialize ("Hl" $! _ (n_zeros locs) with "Hf Hown []").
+      { iRight. iExists _. iSplit;eauto. rewrite app_nil_l. iApply n_zeros_interp_values. }
+      unfold interp_expression_closure. simpl.
+      iApply (wp_wand with "Hl").
+      iIntros (v) "[[[H|H] Hown] HH]";iFrame. iRight;auto.
+    }
+
+    iIntros (w) "[[#Hval Hown] Hf]".
+    iApply wp_base_pull. iApply wp_wasm_empty_ctx.
+    iDestruct "Hval" as (ws) "[-> Heq]".
+    iDestruct (big_sepL2_length with "Heq") as %Heq. destruct ws;[|done].
+    iSimpl.
+
+    take_drop_app_rewrite 2.
+    iApply (wp_seq _ _ _ (λ v, (⌜v = immV _⌝ ∗ _) ∗ _)%I).
+    iSplitR;[by iIntros "[[% _] _]";done|].
+    iSplitL "Hn Hf".
+    { iApply wp_load;eauto;[|iFrame];eauto. }
+    iIntros (v) "[[-> Hn] Hf]". iSimpl.
+    iApply wp_value;eauto. done.
+  Qed.
+
 End Examples.
 
 Section Examples_host.

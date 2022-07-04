@@ -500,22 +500,19 @@ Implicit Type σ : state.
 (* The host expands the memory model of Wasm by vi_store and a list of module declarations. *)
 
 Class hvisG Σ := HVisG {
-  vis_genG :> ghost_mapG Σ N module_export
+                    vis_genG :> ghost_mapG Σ N module_export;
+                    visGName : gname
 }.
 
 Class hmsG Σ := HMsG {
-  ms_genG :> ghost_mapG Σ N module
+                   ms_genG :> ghost_mapG Σ N module;
+                   msGName : gname
                  }.
 
 Class hasG Σ := HAsG {
-                   ha_genG :> ghost_mapG Σ N host_action
+                   ha_genG :> ghost_mapG Σ N host_action;
+                   haGName : gname
                  }.
-
-
-Definition frameGName : positive := 10%positive.
-Definition visGName : positive := 11%positive.
-Definition msGName : positive := 12%positive.
-Definition haGName : positive := 13%positive.
 
 Definition proph_id := positive. (* still have no idea about what this is *)
 
