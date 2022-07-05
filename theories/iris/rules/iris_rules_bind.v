@@ -21,7 +21,7 @@ Context `{!wasmG Σ}.
   Lemma wp_frame_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) n f f0 LI :
     iris.to_val [AI_local n f LI] = None ->
     ↪[frame] f0 -∗
-     (↪[frame] f -∗ WP LI @ s; E {{ w, ∃ f, (↪[frame] f0 -∗ WP of_val w @ s; E FRAME n; f {{ w, Φ w }}) ∗ ↪[frame] f }}) -∗
+     (↪[frame] f -∗ WP LI @ s; E {{ w, ∃ f', (↪[frame] f0 -∗ WP of_val w @ s; E FRAME n; f' {{ w, Φ w }}) ∗ ↪[frame] f' }})-∗
      WP LI @ s; E FRAME n; f {{ w, Φ w }}.
   Proof.
     iIntros (Hetov') "Hframe H".
@@ -289,8 +289,8 @@ Context `{!wasmG Σ}.
       inversion HLI';simplify_eq.
       inversion H15;simplify_eq.
       erewrite app_nil_l,app_nil_r. eauto. }
-  Qed.    
-
+  Qed.
+  
   Lemma wp_ctx_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) e i lh :
     base_is_empty lh ->
     WP e @ s; E {{ w, WP of_val w @ s; E CTX i; lh {{ w, Φ w }} }} -∗
