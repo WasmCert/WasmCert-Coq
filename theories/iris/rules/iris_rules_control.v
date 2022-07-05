@@ -207,13 +207,12 @@ Section control_rules.
 
 
   (* Control flow rules *)
-
   Lemma wp_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) es vs vs0 n f0 f i lh:
     iris.to_val vs = Some (immV vs0) ->
     length vs = n ->
     lfilled i lh (vs ++ [AI_basic BI_return]) es ->
-    ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }} -∗
-                 WP [AI_local n f es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}%I.
+    ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f }} -∗
+                 WP [AI_local n f0 es] @ s; E {{ v, Φ v ∗ ↪[frame] f }}%I.
   Proof.
     iIntros (Hval Hlen Hlf) "HΦ".
     iApply wp_lift_atomic_step => //=.
@@ -243,7 +242,7 @@ Section control_rules.
     - destruct σ as [[ ws locs] inst] => //=.
       iModIntro.
       iIntros (es1 σ2 efs HStep).
-      iMod "HΦ" as "(HΦ & Hf0)".
+      iMod "HΦ" as "(HΦ & Hf)".
       iModIntro.
       destruct σ2 as [[ ws' locs'] inst'] => //=.
       destruct HStep as [H [-> ->]]. iFrame.
@@ -261,13 +260,13 @@ Section control_rules.
                                                     unfold first_instr in Hfill' ; rewrite Hfill' in Hstart ;
                                                     inversion Hstart.
   Qed.
-
+  
   Lemma wp_frame_return (s: stuckness) (E: coPset) (Φ: val -> iProp Σ) vs vs0 n f0 f i lh LI:
     iris.to_val vs = Some (immV vs0) ->
     length vs = n ->
     lfilled i lh (vs ++ [AI_basic BI_return]) LI ->
-    ( ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
-                   ⊢ WP LI @ s; E FRAME n ; f {{ v, Φ v ∗ ↪[frame] f0 }}).
+    ( ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f }}
+                   ⊢ WP LI @ s; E FRAME n ; f0 {{ v, Φ v ∗ ↪[frame] f }}).
   Proof.
     iIntros (Hval Hlen Hlf) "HΦ".
     by iApply wp_return.
@@ -276,23 +275,23 @@ Section control_rules.
   Lemma wp_ctx_frame_return (s: stuckness) (E: coPset) (Φ: iris.val -> iProp Σ) vs vs0 n f0 f i lh :
     iris.to_val vs = Some (immV vs0) ->
     length vs = n ->
-    ( ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}
-                   ⊢ WP vs ++ [AI_basic BI_return] @ s; E FRAME n ; f CTX i ; lh {{ v, Φ v ∗ ↪[frame] f0 }}).
+    ( ▷ WP vs @ s; E {{ v, Φ v ∗ ↪[frame] f }}
+                   ⊢ WP vs ++ [AI_basic BI_return] @ s; E FRAME n ; f0 CTX i ; lh {{ v, Φ v ∗ ↪[frame] f }}).
   Proof.
     iIntros (Hval Hlen) "HΦ".
     iIntros (LI HLI).
     iApply wp_return;eauto.
   Qed.
 
-  Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f0 :
+  Lemma wp_br (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i LI lh f :
     const_list vs ->
     length vs = n ->
     lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP (vs ++ es) @ s; E {{ v, Φ v }})
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP (vs ++ es) @ s; E {{ v, Φ v }})
      -∗ WP [AI_label n es LI] @ s; E {{ v, Φ v }}.
   Proof.
-    iIntros (Hvs Hlen Hfill) "Hf0 HΦ".
+    iIntros (Hvs Hlen Hfill) "Hf HΦ".
     iApply wp_lift_step => //=.
     { eapply to_val_brV_None;eauto. }
     iIntros (σ ns κ κs nt) "Hσ".
@@ -324,17 +323,17 @@ Section control_rules.
                                                   inversion Hstart.    
   Qed.
 
-  Lemma wp_br_ctx_nested (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i j lh lh' lh'' vs' es' f0 vs0' n0 es0 es0' :
+  Lemma wp_br_ctx_nested (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n vs es i j lh lh' lh'' vs' es' f vs0' n0 es0 es0' :
     S i < j ->
     get_layer lh' (lh_depth lh' - (S (S i))) = Some (vs0', n0, es0, (LH_rec vs' n es lh es'), es0') ->
     lh_minus lh' lh'' = Some (LH_rec vs' n es lh es') ->
     const_list vs ->
     length vs = n ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP (vs' ++ (vs ++ es) ++ es') @ s; E CTX j - S i ; lh'' {{ Φ }})
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP (vs' ++ (vs ++ es) ++ es') @ s; E CTX j - S i ; lh'' {{ Φ }})
      -∗ WP vs ++ [::AI_basic (BI_br i)] @ s; E CTX j ; lh' {{ Φ }}.
   Proof.
-    iIntros (Hlt Hlayer Hminus Hvs Hlen) "Hf0 HΦ".
+    iIntros (Hlt Hlayer Hminus Hvs Hlen) "Hf HΦ".
     iIntros (LI Hfill).
 
     eapply lfilled_minus with (i:=S i) in Hfill as Hfill';[|eauto..].
@@ -398,24 +397,24 @@ Section control_rules.
                                                           (i1 & i2 & i3 & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *)]] ; try congruence.
     2: apply Hstep.
     inversion Heq; subst; clear Heq.
-    iExists f0.
+    iExists f.
     iFrame. iSplit => //.
-    iIntros "Hf0".
+    iIntros "Hf".
     iSpecialize ("HΦ" with "[$]").
     iSpecialize ("HΦ" $! _ Hfill2').
     eauto.
   Qed.
 
-  Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s f0 :
+  Lemma wp_block (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s f :
     const_list vs ->
     length vs = n ->
     length t1s = n ->
     length t2s = m ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E {{ v, Φ v }})
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_label m [::] (vs ++ to_e_list es)] @ s; E {{ v, Φ v }})
      -∗ WP (vs ++ [::AI_basic (BI_block (Tf t1s t2s) es)]) @ s; E {{ v, Φ v }}.
   Proof.
-    iIntros (Hvs Hlen1 Hlen2 Hlen3) "Hf0 HΦ".
+    iIntros (Hvs Hlen1 Hlen2 Hlen3) "Hf HΦ".
     iApply wp_lift_step => //=.
     apply to_val_cat_None2;auto.
     iIntros (σ ns κ κs nt) "Hσ".
@@ -438,14 +437,14 @@ Section control_rules.
       eapply reduce_det in H as [H | [[i0 Hstart] | (* [ (a & cl & tf & h & i0 & Hstart & Hstart1 & Hstart2) | *)
                                                       (i1 & i2 & i3 & Hstart & Hstart1 & Hstart2 & Hσ) (* ] *)]];
         last (by eapply r_simple, rs_block) ;
-        first (inversion H; subst; clear H ; by iExists f0; iFrame) ;
+        first (inversion H; subst; clear H ; by iExists f; iFrame) ;
         rewrite first_instr_const in Hstart => //=.
   Qed.
-
-  Lemma wp_label_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ctx v f0 :
+  
+  Lemma wp_label_value (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es m ces v f :
     iris.to_val es = Some (immV v) -> 
-    ↪[frame] f0 -∗
-     ▷ Φ (immV v) -∗ WP [::AI_label m ctx es] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+    ↪[frame] f -∗
+     ▷ Φ (immV v) -∗ WP [::AI_label m ces es] @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
   Proof.
     iIntros (Hval) "Hf0 HP".
     iApply wp_lift_atomic_step => //=.
@@ -560,13 +559,13 @@ Section control_rules.
       inversion Habs.
   Qed.
 
-  Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f0 :
+  Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs vs' es' es'' n f :
     const_list vs ->
-    ↪[frame] f0 -∗
-     (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v }})
+    ↪[frame] f -∗
+     (↪[frame] f -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v }})
      -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v }}.
   Proof.
-    iIntros (Hconst) "Hf0 HWP".
+    iIntros (Hconst) "Hf HWP".
     iLöb as "IH".
     iIntros (LI Hfill%lfilled_Ind_Equivalent).
     inversion Hfill;subst.
@@ -577,13 +576,13 @@ Section control_rules.
     apply const_list_to_val in Hconst as [v1 Hv1].
     apply const_list_to_val in H7 as [v2 Hv2].
     eapply to_val_cat_inv in Hv1 as Hvv;[|apply Hv2].
-    iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f0))%I).
+    iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f))%I).
     iSplitR; first by iIntros "(%H & ?)".
     iSplitR "HWP".
     - iApply wp_val_app; first by apply Hv2.
       iSplit; first by iIntros "!> (%H & ?)".
       iApply (wp_label_value with "[$]") => //=; first by erewrite app_nil_r; apply Hv1 .
-    - iIntros (w) "(-> & Hf0)".
+    - iIntros (w) "(-> & Hf)".
       erewrite iris.of_to_val => //.
       rewrite app_assoc.
       by iApply "HWP".
@@ -972,16 +971,16 @@ Section control_rules.
       by iSpecialize ("HP" with "[%]").
   Qed.
 
-  Lemma wp_loop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s f0:
+  Lemma wp_loop (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs es n m t1s t2s f:
     const_list vs ->
     length vs = n ->
     length t1s = n ->
     length t2s = m ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_label n [::AI_basic (BI_loop (Tf t1s t2s) es)] (vs ++ to_e_list es)] @ s; E {{ Φ }})
-     -∗ WP vs ++ [::AI_basic (BI_loop (Tf t1s t2s) es)] @ s; E {{ Φ }}.
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_label n [::AI_basic (BI_loop (Tf t1s t2s) es)] (vs ++ to_e_list es)] @ s; E {{ w, Φ w }})
+     -∗ WP vs ++ [::AI_basic (BI_loop (Tf t1s t2s) es)] @ s; E {{ w, Φ w }}.
   Proof.
-    iIntros (Hvs Hn Hn' Hm) "Hf0 HP".
+    iIntros (Hvs Hn Hn' Hm) "Hf HP".
     iApply wp_wasm_empty_ctx. iApply (wp_loop_ctx with "[$]") => //.
     iNext.
     iIntros "?"; iSpecialize ("HP" with "[$]").
@@ -1089,13 +1088,13 @@ Section control_rules.
       by iSpecialize ("HP" with "[%]").
   Qed.
 
-  Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s f0:
-    n ≠ Wasm_int.int_zero i32m ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e1s)] @ s; E {{ Φ }})
-     -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
+  Lemma wp_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) c tf e1s e2s f:
+    c ≠ Wasm_int.int_zero i32m ->
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_basic (BI_block tf e1s)] @ s; E {{ w, Φ w }})
+     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ w, Φ w }}.
   Proof.
-    iIntros (?) "Hf0 HP".
+    iIntros (?) "Hf HP".
     iApply wp_wasm_empty_ctx. iApply (wp_if_true_ctx with "[$]");eauto.
     iNext. iIntros "?"; iSpecialize ("HP" with "[$]").
     by iApply wp_wasm_empty_ctx.
@@ -1207,13 +1206,13 @@ Section control_rules.
       by iApply "HP".
   Qed.
 
-  Lemma wp_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n tf e1s e2s f0:
-    n = Wasm_int.int_zero i32m ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_block tf e2s)] @ s; E {{ Φ }})
-     -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ Φ }}.
+  Lemma wp_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) c tf e1s e2s f:
+    c = Wasm_int.int_zero i32m ->
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_basic (BI_block tf e2s)] @ s; E {{ w, Φ w }})
+     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_if tf e1s e2s)] @ s; E {{ w, Φ w }}.
   Proof.
-    iIntros (?) "Hf0 HP".
+    iIntros (?) "Hf HP".
     iApply wp_wasm_empty_ctx. iApply (wp_if_false_ctx with "[$]");eauto.
     iNext. iIntros "?". iApply wp_wasm_empty_ctx.
     by iApply "HP".
@@ -1318,26 +1317,26 @@ Section control_rules.
       by iApply "HP".
   Qed.
 
-  Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i f0:
-    n ≠ Wasm_int.int_zero i32m ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }})
-     -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ Φ }}.
+  Lemma wp_br_if_true (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) c i f:
+    c ≠ Wasm_int.int_zero i32m ->
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_basic (BI_br i)] @ s; E {{ w, Φ w }})
+     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_if i)] @ s; E {{ w, Φ w }}.
   Proof.
-    iIntros (?) "Hf0 HP".
+    iIntros (?) "Hf HP".
     iApply wp_wasm_empty_ctx. iApply (wp_br_if_true_ctx with "[$]");eauto.
     iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]").
   Qed.
 
   (* The following expression reduces to a value reguardless of context, 
    and thus does not need a context aware version *)
-  Lemma wp_br_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) n i f0:
-    n = Wasm_int.int_zero i32m ->
-    ↪[frame] f0 -∗
+  Lemma wp_br_if_false (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) c i f:
+    c = Wasm_int.int_zero i32m ->
+    ↪[frame] f -∗
      ▷ Φ (immV [])
-     -∗ WP [::AI_basic (BI_const (VAL_int32 n)); AI_basic (BI_br_if i)] @ s; E {{ v, Φ v ∗ ↪[frame] f0 }}.
+     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_if i)] @ s; E {{ w, Φ w ∗ ↪[frame] f }}.
   Proof.
-    iIntros (Hn) "Hf0 HΦ".
+    iIntros (Hn) "Hf HΦ".
     iApply wp_lift_atomic_step => //=.
     iIntros (σ ns κ κs nt) "Hσ !>".
     iSplit.
@@ -1403,6 +1402,7 @@ Section control_rules.
       iExists f0; iFrame.
       iIntros "?"; by iApply ("HP" with "[$]").
   Qed.
+  
   Lemma wp_br_table_local_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j k lh f0 n1 f1 :
     ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
     List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
@@ -1458,15 +1458,16 @@ Section control_rules.
       iIntros "?"; iSpecialize ("HP" with "[$]").
       by iApply "HP".
   Qed.
-  Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j f0:
-    ssrnat.leq (S (Wasm_int.nat_of_uint i32m c)) (length iss) ->
+  
+  Lemma wp_br_table (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i j f:
     List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br j)] @ s; E {{ Φ }})
-     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_basic (BI_br j)] @ s; E {{ w, Φ w }})
+     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ w, Φ w }}.
   Proof.
-    iIntros (? ?) "Hf0 HP".
-    iApply wp_wasm_empty_ctx. iApply (wp_br_table_ctx with "[$]");eauto.
+    iIntros (?) "Hf0 HP".
+    iApply wp_wasm_empty_ctx. iApply (wp_br_table_ctx with "[$]") => //.
+    { rewrite nth_error_lookup in H. apply lookup_lt_Some in H. by lias. }
     iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]"). 
   Qed.
 
@@ -1567,14 +1568,15 @@ Section control_rules.
       iIntros "?"; iSpecialize ("HP" with "[$]").
       by iApply "HP".
   Qed.
-  Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i f0:
-    ssrnat.leq (length iss) (Wasm_int.nat_of_uint i32m c) ->
-    ↪[frame] f0 -∗
-     ▷ (↪[frame] f0 -∗ WP [::AI_basic (BI_br i)] @ s; E {{ Φ }})
-     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ Φ }}.
+  
+  Lemma wp_br_table_length (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) iss c i f:
+    length iss <= Wasm_int.nat_of_uint i32m c ->
+    ↪[frame] f -∗
+     ▷ (↪[frame] f -∗ WP [::AI_basic (BI_br i)] @ s; E {{ w, Φ w }})
+     -∗ WP [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_br_table iss i)] @ s; E {{ w, Φ w }}.
   Proof.
-    iIntros (?) "Hf0 HP".
-    iApply wp_wasm_empty_ctx. iApply (wp_br_table_length_ctx with "[$]");eauto.
+    iIntros (?) "Hf HP".
+    iApply wp_wasm_empty_ctx. iApply (wp_br_table_length_ctx with "[$]");eauto; first by lias.
     iNext. iIntros "?". iApply wp_wasm_empty_ctx. by iApply ("HP" with "[$]").
   Qed.
 
