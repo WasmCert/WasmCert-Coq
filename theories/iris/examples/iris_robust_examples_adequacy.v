@@ -5,8 +5,13 @@ From iris.program_logic Require Import adequacy.
 Require Import Eqdep_dec.
 Require Import iris_robust_examples.
 
-(* Instance DisjointList_list_Addr : DisjointList (list Addr). *)
-(* Proof. exact (@disjoint_list_default _ _ app []). Defined. *)
+Class adv_module_record :=
+  { adv_module : module;
+    no_start : mod_start adv_module = None;
+    restrictions : module_restrictions adv_module;
+    elem_bounds : module_elem_bound_check_gmap ∅ [] adv_module;
+    data_bounds : module_data_bound_check_gmap ∅ [] adv_module
+  }.  
 
 Section adequacy.
   Context (Σ: gFunctors).
@@ -26,27 +31,24 @@ Section adequacy.
   Context {has_preg: gen_heapGpreS N host_action Σ}.
 
 
-  Definition S wret := Build_store_record [] [] [] [ {| g_mut := MUT_mut; g_val := wret |} ].
+  Definition S := Build_store_record [] [] [] [ {| g_mut := MUT_mut; g_val := xx 0 |} ].
   Definition V (vs : module_export) : vi_store :=
     <[0%N:=vs]> (<[1%N:={| modexp_name := [Byte.x00]; modexp_desc := MED_global (Mk_globalidx (N.to_nat 0)) |} ]> ∅).
   Definition M adv_module := [adv_module; lse_module].
+
   
-  Lemma ex_adequacy he' S' V' M' HA' F wret vs adv_module :
-    module_typing adv_module [] lse_func_impts
-    → mod_start adv_module = None
-    → module_restrictions adv_module
-    → module_elem_bound_check_gmap ∅ [] adv_module
-    → module_data_bound_check_gmap ∅ [] adv_module
-    → typeof wret = T_i32
-    -> rtc erased_step (([(adv_lse_instantiate,[])],
-                      ((S wret),(V vs),(M adv_module),[],empty_frame)) : cfg wasm_host_lang)
+  
+  Lemma ex_adequacy `{Hadv:adv_module_record} he' S' V' M' HA' F vs :
+    module_typing adv_module [] lse_func_impts ->
+    rtc erased_step (([(adv_lse_instantiate 0,[])],
+                      (S,(V vs),(M adv_module),[],empty_frame)) : cfg wasm_host_lang)
         ([he'], (S',V', M', HA', F)) →
     (∀ v, to_val he' = Some v ->
-          v = trapHV ∨ (s_globals S') !! 0 = Some {| g_mut := MUT_mut; g_val := (xx 42) |} ).
+          v = trapHV ∨ v = immHV [xx 42] ).
   Proof.
-    intros Hmodtyp Hmodstart Hmodrestr Hmodbounds1 Hmodbounds2 Hwret Hstep.
-    pose proof (wp_adequacy Σ wasm_host_lang NotStuck (adv_lse_instantiate,[])
-                            ((S wret),(V vs),(M adv_module),[],empty_frame)
+    intros Hmodtyping Hstep.
+    pose proof (wp_adequacy Σ wasm_host_lang NotStuck (adv_lse_instantiate 0,[])
+                            (S,(V vs),(M adv_module),[],empty_frame)
     (λ v, v = trapHV ∨ v = immHV [xx 42])).
     simpl in H.
     
@@ -79,62 +81,57 @@ Section adequacy.
       pose msgg := HMsG Σ ms_heapg γms.
       pose hasgg := HAsG Σ has_heapg γhas.
       pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
-      pose proof (instantiate_lse 0 Hmodtyp Hmodstart Hmodrestr Hmodbounds1 Hmodbounds2 Hwret).
+      assert (typeof (xx 0) = T_i32) as Hwret;[auto|].
+      pose proof (instantiate_lse 0 Hmodtyping no_start restrictions elem_bounds data_bounds Hwret).
 
-      (* iMod (ghost_map_insert tt empty_frame with "Hframe_ctx") as "[Hframe_ctx Hf]";[auto|]. *)
+      iMod (ghost_map_insert tt empty_frame with "Hframe_ctx") as "[Hframe_ctx Hf]";[auto|].
       iMod (ghost_map_insert 1%N {| modexp_name := [Byte.x00]; modexp_desc := MED_global (Mk_globalidx (N.to_nat 0)) |}
              with "Hvis_ctx") as "[Hvis_ctx Hv1]";[auto|].
       iMod (ghost_map_insert 0%N vs with "Hvis_ctx") as "[Hvis_ctx Hv0]";[auto|].
       iMod (ghost_map_insert 1%N lse_module with "Hms_ctx") as "[Hms_ctx Hm1]";[auto|].
       iMod (ghost_map_insert 0%N adv_module with "Hms_ctx") as "[Hms_ctx Hm0]";[auto|].
-      iMod (gen_heap_alloc _ 0%N {| g_mut := MUT_mut; g_val := wret |} with "Hglobal_ctx") as "[Hglobal_ctx [Hg _]]";[auto|].
+      iMod (gen_heap_alloc _ (N.of_nat 0) {| g_mut := MUT_mut; g_val := xx 0 |} with "Hglobal_ctx") as "[Hglobal_ctx [Hg _]]";[auto|].
 
-      iModIntro.
-      iExists (λ σ κs,
-                let: (s, vis, ms, fs, f) := σ in
-                ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
-                 (gen_heap_interp (gmap_of_table s.(s_tables))) ∗
-                 (gen_heap_interp (gmap_of_memory s.(s_mems))) ∗
-                 (gen_heap_interp (gmap_of_list s.(s_globals))) ∗
-                 (ghost_map_auth γvis 1 vis) ∗ 
-                 (ghost_map_auth γms 1 (gmap_of_list ms)) ∗
-                 (ghost_map_auth γhas 1 (gmap_of_list fs)) ∗
-                 (ghost_map_auth γframe 1 (∅ : gmap unit frame)) ∗ 
-                 (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
-                 (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables)))) ∗
-                 (@gen_heap_interp _ _ _ _ _ memlimit_heapg (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
-                 (@gen_heap_interp _ _ _ _ _ tablimit_heapg (gmap_of_list (fmap table_max_opt s.(s_tables))))
-                )%I),(λ _, True%I).
-      unfold gmap_of_list. iSimpl. iFrame.
-      iDestruct (instantiate_lse $! (λ v, ⌜v = trapHV
-     ∨ s_globals S' !! 0 = Some {| g_mut := MUT_mut; g_val := xx 42 |}⌝%I) with "[$Hg $Hm1 $Hm0 $Hna Hv0 Hv1]") as "HH";[eauto..|].
+      iDestruct (instantiate_lse $! (λ v, ⌜v = trapHV ∨ v = immHV [xx 42]⌝%I)
+                  with "[$Hg $Hm1 $Hm0 $Hna $Hf Hv0 Hv1]") as "HH";
+        [eauto|apply no_start|apply restrictions|apply elem_bounds|apply data_bounds|eauto..].
       { iSplitL "Hv1";[iExists _;iFrame|]. iExists _;iFrame. }
-      iDestruct ("HH" with "[]") as "HH".
-      { admit. }
-      
-
-      Set Printing All. cbn.
-      iExact "HH".
-      iFrame.
-      specialize (1:(λ (v : host_val), ⌜True⌝)%I).
-      
-      (*  *)
-    
+      iDestruct ("HH" with "[]") as "HH";[auto|].
+      iModIntro.
+      iExists _,_. iFrame "HH". iFrame.
     }
     intros v Hval.
     destruct X. eapply adequate_result with (t2 := []).
     apply of_to_val in Hval as <-. eauto.
-    
-    specialize (adequate_result []).
-    
-  
-
-  store_record * vi_store * (list module) * (list host_action ) * frame.
-  (∃ name, 1%N ↪[vis] {| modexp_name := name; modexp_desc := MED_global (Mk_globalidx (N.to_nat g_ret)) |}) ∗
-          (∃ vs, 0%N ↪[vis] vs)
-
-          (λ (w : host_val), ⌜w = trapHV⌝ ∨ 0%N ↦[wg] {| g_mut := MUT_mut; g_val := xx 42|})%I 
-
-
+  Qed.
           
 End adequacy.
+
+Theorem lse_adequacy `{adv_module_record}
+        he' S' V' M' HA' F vs :
+  module_typing adv_module [] lse_func_impts ->
+  rtc erased_step (([(adv_lse_instantiate 0,[])],
+                     (S,(V vs),(M adv_module),[],empty_frame)) : cfg wasm_host_lang)
+      ([he'], (S',V', M', HA', F)) →
+  (∀ v, to_val he' = Some v -> v = trapHV ∨ v = immHV [xx 42] ).
+Proof.
+  set (Σ := #[invΣ;
+              na_invΣ;
+              gen_heapΣ N function_closure;
+              gen_heapΣ (N*N) funcelem;
+              gen_heapΣ N nat;
+              gen_heapΣ N (option N);
+              gen_heapΣ (N*N) byte;
+              gen_heapΣ N N;
+              gen_heapΣ N (option N);
+              gen_heapΣ N global;
+              gen_heapΣ unit frame;
+              gen_heapΣ N module_export;
+              gen_heapΣ N module;
+              gen_heapΣ N host_action
+      ]).
+  eapply (@ex_adequacy Σ); typeclasses eauto.
+Qed.
+
+
+
