@@ -2619,6 +2619,7 @@ Qed.
 Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32) E
       j0 a cl 
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) :
+  ↑wfN (N.of_nat a) ⊆ E ->
   ⊢ {{{  ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝  ∗
             ⌜ f0.(f_locs) !! 0 = Some (VAL_int32 f) ⌝  ∗
             ⌜ f0.(f_locs) !! 1 = Some (value_of_int v) ⌝ ∗
@@ -2631,15 +2632,13 @@ Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f :
 
             ⌜ f0.(f_inst).(inst_tab) !! 0 = Some j0 ⌝ ∗
             (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
-             (N.of_nat a) ↦[wf] cl ∗ 
+            na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] cl) ∗
              ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end 
           = Tf [T_i32] [T_i32] ⌝ ∗  
             (∀ (u : i32) (fc : frame),
                 {{{ Φ u ∗
                       ⌜ f_inst f0 = f_inst fc ⌝ ∗
                        ↪[frame] fc ∗
-                       (* (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗ *)
-                       (* (N.of_nat a) ↦[wf] cl *)
                        na_own logrel_nais ⊤
                   }}}
                   [ AI_basic (BI_const (VAL_int32 u)) ;
@@ -2653,11 +2652,11 @@ Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f :
     {{{ w, (⌜ w = trapV ⌝ ∨ (⌜ w = immV [] ⌝ ∗
                                         (∃ s', isStack v s' n ∗ stackAll2 s s' Ψ)))
              ∗ (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a)
-             ∗ (N.of_nat a) ↦[wf] cl 
              ∗ (∃ f1, ↪[frame] f1 ∗ na_own logrel_nais ⊤ ∗ ⌜ f_inst f0 = f_inst f1 ⌝ )
     }}}.
 Proof.
-  iIntros "!>" (Ξ) "(%Hinstmem & %Hlocs0 & %Hlocs1 & %Hlocs & %Hvb & %Hv & Hs & HΦ & %Htypes & %Htab & Htab & Hcl & %Hcl & #Hspec & Hinv & Hf) HΞ" => /=.
+  intros Hsub.
+  iIntros "!>" (Ξ) "(%Hinstmem & %Hlocs0 & %Hlocs1 & %Hlocs & %Hvb & %Hv & Hs & HΦ & %Htypes & %Htab & Htab & #Hcl & %Hcl & #Hspec & Hinv & Hf) HΞ" => /=.
   iApply wp_wand_r.
   iSplitR "HΞ" ; last first.
   iIntros (w) "H".
@@ -2677,7 +2676,7 @@ Proof.
   iIntros (w) "[-> Hf]".
   iSplitR. iRight. by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
   iExists f0 ; iFrame.
-  iCombine "Htab Hcl Hinv" as "H".
+  iCombine "Htab Hinv" as "H".
   instantiate (1 := λ x, (⌜ x = f0 ⌝ ∗ _)%I).
   iSplit ; first done. iExact "H". 
   (* We now have the required resources from Φf. *)
@@ -2813,7 +2812,7 @@ Proof.
                     stackAll (take j s) Φ -∗
                     stackAll2 (drop j s) s' Ψ -∗
                     na_own logrel_nais ⊤ -∗
-                    N.of_nat a ↦[wf] cl -∗
+                    (* N.of_nat a ↦[wf] cl -∗ *)
                     N.of_nat j0 ↦[wt][N.of_nat (Z.to_nat (Wasm_int.Int32.unsigned f))]Some a -∗
 (*                   (∀ w : iris.val,
            (⌜w = trapV⌝ ∨ ⌜w = immV []⌝ ∗
@@ -2843,11 +2842,11 @@ Proof.
     {{ v0, (* Ξ v0 *) (⌜v0 = trapV⌝ ∨ ⌜v0 = immV []⌝ ∗
       (∃ s' : seq.seq Wasm_int.Int32.T, isStack v s' n ∗ stackAll2 s s' Ψ)) ∗
      N.of_nat j0↦[wt][N.of_nat (Z.to_nat (Wasm_int.Int32.unsigned f))]
-     Some a ∗ N.of_nat a↦[wf]cl ∗
+     Some a ∗ (* N.of_nat a↦[wf]cl ∗ *)
      (∃ f1 : frame,  ↪[frame]f1 ∗ na_own logrel_nais ⊤ ∗ ⌜f_inst f0 = f_inst f1⌝)  }})%I as "Hloop".
   { iIntros (j).
     iInduction j as [|j] "IHj".
-    { iIntros (s') "%Hj %Hs' Hf Hs HΦ HΨ Hown Hcl Htab".
+    { iIntros (s') "%Hj %Hs' Hf Hs HΦ HΨ Hown Htab".
       rewrite (separate1 (AI_basic (BI_get_local 2))).
       iApply wp_seq_can_trap_ctx. 
       iSplitR ; last first.
@@ -2863,7 +2862,7 @@ Proof.
       iSplitR. iRight.
       by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
       iExists _ ; iFrame. instantiate (1 := λ x, (⌜ x = {| f_locs := _ ; f_inst := _ |} ⌝ ∗ _)%I).
-      iSplit ; first done. iCombine "Htab Hcl Hown" as "H". iExact "H".
+      iSplit ; first done. iCombine "Htab Hown" as "H". iExact "H".
       iIntros (w f1) "(-> & Hf & [-> HΦf])". iSimpl.
       rewrite (separate2 _ (AI_basic (BI_get_local 3))).
       iApply wp_seq_can_trap_ctx.
@@ -2921,7 +2920,7 @@ Proof.
       iSplitR. iRight. by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
       iExists _ ; iFrame. instantiate (1 := λ x, (⌜ x = {| f_locs := _ ; f_inst := _ |} ⌝ ∗ _)%I).
       iSplit ; first done. iExact "HΦf".
-      iIntros (w f1) "(-> & Hf & (-> & Htab & Hcl & Hown))". iSimpl.
+      iIntros (w f1) "(-> & Hf & (-> & Htab & Hown))". iSimpl.
       rewrite - (app_nil_l (AI_basic (i32const 1) :: _)).
       rewrite (separate2 _ (AI_basic (BI_br_if 1))).
       iApply wp_base_push ; first done.
@@ -2943,11 +2942,11 @@ Proof.
       iExists _.
       iFrame.
       done.
-      all : try by iIntros (f1) "(Hf & -> & Htab & Hcl & Hown)" ; 
+      all : try by iIntros (f1) "(Hf & -> & Htab & Hown)" ; 
       iFrame ; iSplitR ; [by iLeft | by iExists _ ; iFrame]. 
       all : try by iIntros "%".
     }
-  iIntros (s') "%Hj %Hs' Hf Hs HΦ HΨ Hown Hcl Htab".
+  iIntros (s') "%Hj %Hs' Hf Hs HΦ HΨ Hown Htab".
   destruct s as [|v0 s]; first by inversion Hj.
   cut (exists ys y, v0 :: take j s = ys ++ [y]) ;
   [ intro Htail ; destruct Htail as (ys & y & Htail) |
@@ -2972,7 +2971,7 @@ Proof.
   iIntros (w) "[-> Hf]".
   iSplitR. iRight. by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
   iExists _ ; iFrame. instantiate (1 := λ x, (⌜ x = {| f_locs := _ ; f_inst := _ |} ⌝ ∗ _)%I).
-  iSplit ; first done. iCombine "Hcl Htab Hown" as "H". iExact "H".
+  iSplit ; first done. iCombine "Htab Hown" as "H". iExact "H".
   iIntros (w f1) "(-> & Hf & -> & HΦf)". iSimpl.
   rewrite (separate2 _ (AI_basic (BI_get_local 3))).
   iApply wp_seq_can_trap_ctx.
@@ -3268,7 +3267,7 @@ Proof.
   iSplitR. iRight. by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
   iExact "Hf".
   by iIntros "%".
-  iIntros (w f1) "(-> & Hf & -> & Hcl & Htab & Hown)". iSimpl.
+  iIntros (w f1) "(-> & Hf & -> & Htab & Hown)". iSimpl.
 (*  by instantiate (1 := λ x, (⌜ x = immV _ ⌝ ∗ ↪[frame] _)%I) ; iFrame.
   by iIntros "!> [% _]".
   iIntros (w) "[-> Hf]".
@@ -3277,7 +3276,7 @@ Proof.
   iApply wp_seq_can_trap_ctx.
   iSplitR ; last first.
   iFrame "Hf". iSplitR ; last first.
-  iSplitL "HΦ Htab Hcl Hown".
+  iSplitL "HΦ Htab Hown".
   iIntros "Hf". 
   iApply wp_val_can_trap.
   iSplitR ; last first.
@@ -3292,24 +3291,25 @@ Proof.
   iDestruct (stackAll_app with "HΦ") as "(HΦ & Hy & _)".
   rewrite (separate1 _ [_;AI_basic (BI_call_indirect 1)]).
   rewrite - (app_nil_r [_ ; AI_basic (BI_call_indirect 1)]).
+  iApply fupd_wp. iMod (na_inv_acc with "Hcl Hown") as "(>Ha & Hown & Hcls)";[auto|solve_ndisj|].
   iApply wp_wasm_empty_ctx.
   iApply wp_base_push ; first done.
-  iApply (wp_call_indirect_success_ctx with "Htab Hcl Hf").
+  iApply (wp_call_indirect_success_ctx with "Htab Ha Hf").
   simpl.
   unfold cl_type.
   rewrite Hcl.
   done.
   simpl.
-  done.
-  iIntros "!> (Htab & Hcl & Hf)".
+  done. iModIntro.
+  iIntros "!> (Htab & Ha & Hf)".
   iApply wp_base_pull.
   iApply wp_wasm_empty_ctx.
-  simpl.
+  iApply fupd_wp. iMod ("Hcls" with "[$]") as "Hown". simpl.
   iApply ("Hspec" with "[Hy Hf Hown]").
   iFrame.
   iPureIntro => //=.
-  iIntros (w) "H".
-  iCombine "HΦ Htab Hcl H" as "H".
+  iModIntro. iIntros (w) "H".
+  iCombine "HΦ Htab H" as "H".
   iExact "H".
   (*iDestruct "H" as (v1) "[-> Hv1]".
   instantiate (1 := λ x, ((∃ v1, ⌜ x = immV _ ⌝ ∗ stackAll ys Φ ∗ Ψ y v1 ∗
@@ -3318,11 +3318,11 @@ Proof.
                          N.of_nat a↦[wf]cl)∗ ↪[frame] _)%I) ;
     iFrame. 
   iExists  _; by iFrame. *)
-  iIntros (w) "(HΦ & Htab & Hcl & H & Hown & Hf)".
+  iIntros (w) "(HΦ & Htab & H & Hown & Hf)".
   iDestruct "H" as "[-> | H]".
   iSplitL "HΦ". by iLeft.
   iExists _ ; iFrame. instantiate (1 := λ x, (⌜ x = {| f_locs := _ ; f_inst := _ |}⌝ ∗ _)%I).
-  iSplit ; first done. iCombine "Htab Hcl Hown" as "H".
+  iSplit ; first done. iCombine "Htab Hown" as "H".
   iExact "H".
   iSplitL "HΦ H". iRight. instantiate (1 := λ x, (∃ v1, ⌜ x = immV _ ⌝ ∗ stackAll ys Φ ∗ Ψ y v1)%I).
   (* instantiate (1 := λ x, (⌜ x = trapV ⌝ ∨ (∃ v1, ⌜ x = immV _ ⌝ ∗ stackAll ys Φ ∗ Ψ y v1 ∗
@@ -3403,9 +3403,9 @@ Proof.
   iSplitR. iRight. by instantiate (1 := λ x, ⌜x = immV _⌝%I).
   iExists _ ; iFrame. instantiate (1 := λ x, (⌜ x = {| f_locs := _ ; f_inst := _ |} ⌝ ∗ _)%I).
   iSplit ; first done. iExact "HΦf".
-  iIntros (w f1) "(-> & Hf & -> & Htab & Hcl & Hown)". simpl.
+  iIntros (w f1) "(-> & Hf & -> & Htab & Hown)". simpl.
   rewrite set_nth_write.
-  all : try by iIntros (f1) "(Hf & -> & Htab & Hcl & Hown)" ; 
+  all : try by iIntros (f1) "(Hf & -> & Htab & Hown)" ; 
     iFrame ; iSplitR ; [by iLeft | by iExists _ ; iFrame]. 
   all : try by iIntros "%".
   all : try by iIntros "[% _]".
@@ -3428,7 +3428,7 @@ Proof.
   rewrite - (cat0s (AI_basic (BI_get_local 2) :: _)).
   rewrite - (cats0 [AI_basic _;_;_;_;_;_;_;_;_;_;_;_;_;_;_]). 
   iApply wp_label_push ; first done.
-  iApply ("IHj" with "[] [] [Hf] [Hv Hbs Hs' Hs H Hlen Hdiv] [HΦ] [HΨ Hv1] Hown Hcl Htab").
+  iApply ("IHj" with "[] [] [Hf] [Hv Hbs Hs' Hs H Hlen Hdiv] [HΦ] [HΨ Hv1] Hown Htab").
   iPureIntro.
   lia.
   instantiate (1 := v1 :: s').
@@ -3595,8 +3595,8 @@ Proof.
   rewrite app_length.
   rewrite - Hl.
   lia. }
-  iDestruct "HΦf" as "(Htab & Hcl & Hown)".
-  iApply ("Hloop" with "[] [] [Hf] [Hn H] [HΦ] [] Hown Hcl Htab").
+  iDestruct "HΦf" as "(Htab & Hown)".
+  iApply ("Hloop" with "[] [] [Hf] [Hn H] [HΦ] [] Hown Htab").
   instantiate (1 := length s).
   iPureIntro ; lia.
   instantiate (1 := []).
@@ -3632,7 +3632,7 @@ Proof.
   done.
   rewrite drop_all.
   done.
-  all : try by iIntros (f1) "(Hf & -> & Htab & Hcl & Hown)" ; 
+  all : try by iIntros (f1) "(Hf & -> & Htab & Hown)" ; 
     iFrame ; iSplitR ; [by iLeft | by iExists _ ; iFrame]. 
   all : try by iIntros "%".
   by iIntros "[% _]".

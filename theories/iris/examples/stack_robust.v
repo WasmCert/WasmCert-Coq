@@ -497,7 +497,7 @@ Section Client_main.
             
             (* iMod (na_inv_acc with "Hadv Hown") as "(>Ha & Hown & Hcls)";[solve_ndisj..|]. *)
             (* iModIntro. *)
-            iApply ("Hmap" with "[$HisStack $Hf $Hidf5 Ht $Hown]").
+            iApply ("Hmap" with "[] [$HisStack $Hf $Hidf5 Ht $Hown $Hadv]");[iPureIntro;solve_ndisj|..].
             iSimpl. iFrame "Ht".
             instantiate (2:=(λ _, True)%I).
             instantiate (1:=(λ _ _, True)%I).
