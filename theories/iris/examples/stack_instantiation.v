@@ -465,8 +465,9 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
 
   (* A trap allowing version for code that might trap *)
 Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 E :=
-  (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a (* cl *)
-      (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
+  (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a cl
+     (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
+      ⌜↑wfN (N.of_nat a) ⊆ E⌝ →
       {{{  ↪[frame] f0 ∗ na_own logrel_nais ⊤ ∗
             N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5 ∗
             ⌜ (0 <= v)%Z ⌝ ∗
@@ -474,22 +475,18 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
             isStack v s ∗
             stackAll s Φ ∗
             N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
-            (* (N.of_nat a) ↦[wf] cl ∗ *)
-            (* ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end *)
-         (* = Tf [T_i32] [T_i32] ⌝ ∗  *)
+            na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] cl) ∗
+            ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end 
+           = Tf [T_i32] [T_i32] ⌝ ∗  
               (∀ (u : i32) (fc : frame),
                    {{{ Φ u ∗
                       ⌜ i5 = f_inst fc ⌝ ∗
                        ↪[frame] fc ∗
                        na_own logrel_nais ⊤
-                       (* N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗ *)
-                       (* (N.of_nat a) ↦[wf] cl *)
                   }}}
                   [ AI_basic (BI_const (VAL_int32 u)) ;
                     AI_invoke a ] @ E
-                  {{{ w, (⌜ w = trapV ⌝ ∨ ((∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)
-                                             (* ∗ N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a)  *)
-                                             (* ∗ (N.of_nat a) ↦[wf] cl *)))
+                  {{{ w, (⌜ w = trapV ⌝ ∨ ((∃ v, ⌜ w = immV [VAL_int32 v] ⌝ ∗ Ψ u v)))
                            ∗ na_own logrel_nais ⊤ ∗ ↪[frame] fc }}}
                   )  }}}
     [ AI_basic (BI_const (VAL_int32 f)) ; AI_basic (i32const v) ; AI_invoke idf5 ] @ E
@@ -501,7 +498,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
       ↪[frame] f0
   }}})%I.
 
-Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
+  Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
      (* … and we own the vis 0%N thru 4%N … *)
@@ -1334,8 +1331,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
       iIntros (w) "[(-> & Hs & Ht & Ha & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
-    - iIntros "!>" (f5 fi v0 s0 a Φ Ψ Ξ)
-              "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hspec) HΞ".
+    - iIntros "!>" (f5 fi v0 s0 a cl Φ Ψ Hsub Ξ)
+              "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hcl & [%Htyp #Hspec]) HΞ".
       iApply wp_wand_r.
       iSplitR "HΞ".
       { rewrite (separate2 _ (AI_basic (i32const _)) _).
@@ -1354,12 +1351,12 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
         instantiate (5 := []) => /=.
         rewrite app_nil_r.
         done.
-        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ _ Φ Ψ
-                 with "[Hs Hf HΦ Htab Hown]").
-        iFrame.
+        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ Φ Ψ
+                 with "[Hs Hf HΦ Htab Hown]");[apply Hsub|..].
+        iFrame "∗ #".
         repeat iSplit ; try iPureIntro => //=.
         lia.
-        iExact "Hspec".
+        (* iExact "Hspec". *)
         iIntros (w) "[[-> | Hs] [Htab Hf]]";
         iDestruct "Hf" as (f6) "[Hf [Hown %Hf4]]".
         { iApply (wp_wand_ctx with "[Hf]").
