@@ -61,6 +61,7 @@ Section fundamental.
     iSplitL "Hf".
     { destruct (ssrnat.leq (length ins) (Wasm_int.nat_of_uint i32m z)) eqn:Hle.
       { iApply (wp_br_table_length with "Hf");auto.
+        { by move/ssrnat.leP in Hle. }
         iNext. iIntros "Hf".
         iApply wp_value.
         { instantiate (1:=brV (VH_base i [] [])). done. }
@@ -72,7 +73,6 @@ Section fundamental.
         apply lookup_lt_is_Some_2 in Hi' as [i' Hi'].
         rewrite -nth_error_lookup in Hi'.
         iApply (wp_br_table with "Hf");eauto.
-        { apply/ssrnat.leP. apply Nat.lt_nge in Hle. apply lt_le_S. auto. }
         iNext. iIntros "Hf".
         iApply wp_value.
         { instantiate (1:=brV (VH_base i' [] [])). done. }
