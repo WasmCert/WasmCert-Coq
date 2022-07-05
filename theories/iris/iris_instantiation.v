@@ -1258,7 +1258,7 @@ Qed.
 Lemma import_tab_wasm_lookup v_imps t_imps wts ws :
     gen_heap_interp (gmap_of_table (s_tables ws)) -∗
     gen_heap_interp (gmap_of_list (fmap tab_size (s_tables ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
+    @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
     import_tab_wasm_check v_imps t_imps wts -∗
     ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
       match modexp_desc v with
@@ -1289,7 +1289,7 @@ Qed.
 Lemma import_mem_wasm_lookup v_imps t_imps wms ws :
     gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
     gen_heap_interp (gmap_of_list (fmap mem_length (s_mems ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
+    @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
     import_mem_wasm_check v_imps t_imps wms -∗
     ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
       match modexp_desc v with
@@ -1361,9 +1361,9 @@ Lemma import_resources_wasm_lookup v_imps t_imps wfs wts wms wgs ws:
     gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
     gen_heap_interp (gmap_of_list (s_globals ws)) -∗
     gen_heap_interp (gmap_of_list (fmap tab_size (s_tables ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
+    @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
     gen_heap_interp (gmap_of_list (fmap mem_length (s_mems ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
+    @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
     import_resources_wasm_typecheck v_imps t_imps wfs wts wms wgs -∗
     ⌜ length v_imps = length t_imps /\ ∀ k v t, v_imps !! k = Some v -> t_imps !! k = Some t ->
       match modexp_desc v with
@@ -1394,7 +1394,7 @@ Qed.
 Lemma import_resources_wts_subset v_imps t_imps wts (ws: store_record):
   ⊢ gen_heap_interp (gmap_of_table (s_tables ws)) -∗
     gen_heap_interp (gmap_of_list (fmap tab_size (s_tables ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
+    @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt (s_tables ws))) -∗
     import_tab_wasm_check v_imps t_imps wts -∗
     ⌜ length v_imps = length t_imps ⌝ -∗
     ⌜ wts ⊆ gmap_of_list (s_tables ws) ⌝.
@@ -1446,7 +1446,7 @@ Definition map_related {K: Type} {M: Type -> Type} {H0: forall A: Type, Lookup K
 Lemma import_resources_wms_subset v_imps t_imps wms (ws: store_record):
   ⊢ gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
     gen_heap_interp (gmap_of_list (fmap mem_length (s_mems ws))) -∗
-    gen_heap_interp (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
+    @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt (s_mems ws))) -∗
     import_mem_wasm_check v_imps t_imps wms -∗
     ⌜ length v_imps = length t_imps ⌝ -∗
     ⌜ map_related mem_equiv wms (gmap_of_list (s_mems ws)) ⌝.
@@ -1914,10 +1914,10 @@ Lemma alloc_tab_state_update tabs tabs' nt:
   tabs' = tabs ++ nt ->
   gen_heap_interp (gmap_of_table tabs) -∗
   gen_heap_interp (gmap_of_list (fmap tab_size tabs)) -∗
-  gen_heap_interp (gmap_of_list (fmap table_max_opt tabs)) -∗ |==> 
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt tabs)) -∗ |==> 
   ((gen_heap_interp (gmap_of_table tabs')) ∗
    (gen_heap_interp (gmap_of_list (fmap tab_size tabs'))) ∗
-   (gen_heap_interp (gmap_of_list (fmap table_max_opt tabs'))) ∗
+   (@gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt tabs'))) ∗
    ([∗ list] i ↦ v ∈ nt, N.of_nat (length tabs + i) ↦[wtblock] v)).
 Proof.
   move => Htabs; subst.
@@ -2160,10 +2160,10 @@ Lemma alloc_mem_state_update mems mems' nm:
   mems' = mems ++ nm ->
   gen_heap_interp (gmap_of_memory mems) -∗
   gen_heap_interp (gmap_of_list (fmap mem_length mems)) -∗
-  gen_heap_interp (gmap_of_list (fmap mem_max_opt mems)) -∗ |==> 
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt mems)) -∗ |==> 
   ((gen_heap_interp (gmap_of_memory mems')) ∗
    (gen_heap_interp (gmap_of_list (fmap mem_length mems'))) ∗
-   (gen_heap_interp (gmap_of_list (fmap mem_max_opt mems'))) ∗
+   (@gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt mems'))) ∗
    ([∗ list] i ↦ v ∈ nm, N.of_nat (length mems + i) ↦[wmblock] v)).
 Proof.
   move => Hmems; subst.
@@ -2651,12 +2651,12 @@ Lemma tab_block_update tab tab' n ws ws':
   (N.of_nat n) ↦[wtblock] tab -∗
   gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
   gen_heap_interp (gmap_of_list (tab_size <$> ws.(s_tables))) -∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
   |==>
   (N.of_nat n) ↦[wtblock] tab' ∗
   gen_heap_interp (gmap_of_table ws'.(s_tables)) ∗
   gen_heap_interp (gmap_of_list (tab_size <$> ws'.(s_tables))) ∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))).
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (table_max_opt <$> ws'.(s_tables))).
 Proof.
   move => Htabsize Htablim Hws'.
   iIntros "Htmapsto Ht Htsize Htlim".
@@ -2720,12 +2720,12 @@ Lemma init_tab_state_update ws ws' inst e_off e t_ind tab e_pay:
   (N.of_nat t_ind) ↦[wtblock] tab -∗
   gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
   gen_heap_interp (gmap_of_list (tab_size <$> ws.(s_tables))) -∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
   |==>
   (N.of_nat t_ind) ↦[wtblock] {| table_data := take e_off tab.(table_data) ++ e_pay ++ drop (ssrnat.addn e_off (length e_pay)) tab.(table_data); table_max_opt := tab.(table_max_opt) |} ∗
   gen_heap_interp (gmap_of_table ws'.(s_tables)) ∗
   gen_heap_interp (gmap_of_list (tab_size <$> ws'.(s_tables))) ∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))).
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (table_max_opt <$> ws'.(s_tables))).
 Proof.
   move => Hinittab Htind Hepay Heboundcheck.
   unfold init_tab in Hinittab.
@@ -3023,12 +3023,12 @@ Lemma init_tabs_state_update ws ws' inst e_offs elems (wts wts': gmap N tableins
   update_wts wts inst e_offs elems = Some wts' ->
   gen_heap_interp (gmap_of_table ws.(s_tables)) -∗
   gen_heap_interp (gmap_of_list (tab_size <$> ws.(s_tables))) -∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (table_max_opt <$> ws.(s_tables))) -∗
   ([∗ map] n ↦ tabinst ∈ wts, n ↦[wtblock] tabinst) -∗
   |==>
   gen_heap_interp (gmap_of_table ws'.(s_tables)) ∗
   gen_heap_interp (gmap_of_list (tab_size <$> ws'.(s_tables))) ∗
-  gen_heap_interp (gmap_of_list (table_max_opt <$> ws'.(s_tables))) ∗
+  @gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (table_max_opt <$> ws'.(s_tables))) ∗
   ([∗ map] n ↦ tabinst ∈ wts', n ↦[wtblock] tabinst).
 Proof.
   move : ws ws' inst e_offs wts wts'.
@@ -3315,12 +3315,12 @@ Lemma mem_block_update mem mem' n ws ws':
   (N.of_nat n) ↦[wmblock] mem -∗
   gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
   gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
   |==>
   (N.of_nat n) ↦[wmblock] mem' ∗
   gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
   gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))).
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (mem_max_opt <$> ws'.(s_mems))).
 Proof.
   move => Hmemlength Hmemlim Hws'.
   iIntros "Hmmapsto Hm Hmlength Hmlim".
@@ -3407,12 +3407,12 @@ Lemma init_mem_state_update (ws ws': store_record) (inst: instance) (d_off: N) (
   (N.of_nat m_ind) ↦[wmblock] mem -∗
   gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
   gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
   |==>
   (N.of_nat m_ind) ↦[wmblock] mem' ∗
   gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
   gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))).
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (mem_max_opt <$> ws'.(s_mems))).
 Proof.
   move => Hinitmem Htind Hmem' Hdpay Heboundcheck.
   unfold init_mem in Hinitmem.
@@ -3740,12 +3740,12 @@ Lemma init_mems_state_update ws ws' inst d_offs d_offnats datas (wms wms': gmap 
   update_wms wms inst d_offnats datas = Some wms' ->
   gen_heap_interp (gmap_of_memory ws.(s_mems)) -∗
   gen_heap_interp (gmap_of_list (mem_length <$> ws.(s_mems))) -∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (mem_max_opt <$> ws.(s_mems))) -∗
   ([∗ map] n ↦ meminst ∈ wms, n ↦[wmblock] meminst) -∗
   |==>
   gen_heap_interp (gmap_of_memory ws'.(s_mems)) ∗
   gen_heap_interp (gmap_of_list (mem_length <$> ws'.(s_mems))) ∗
-  gen_heap_interp (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
+  @gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (mem_max_opt <$> ws'.(s_mems))) ∗
   ([∗ map] n ↦ meminst ∈ wms', n ↦[wmblock] meminst).
 Proof.
   move => Hn; subst.

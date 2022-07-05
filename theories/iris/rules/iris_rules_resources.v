@@ -61,7 +61,7 @@ Qed.
 Lemma mem_block_lookup wms n mem:
   ⊢ (gen_heap_interp (gmap_of_memory wms)) -∗
   (gen_heap_interp (gmap_of_list (fmap mem_length wms))) -∗
-  (gen_heap_interp (gmap_of_list (fmap mem_max_opt wms))) -∗
+  (@gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt wms))) -∗
   n ↦[wmblock] mem -∗
   ⌜ ∃ m, wms !! (N.to_nat n) = Some m /\ m.(mem_data).(ml_data) = mem.(mem_data).(ml_data) /\ m.(mem_max_opt) = mem.(mem_max_opt)⌝.
 Proof.
@@ -119,7 +119,7 @@ Qed.
 Lemma tab_block_lookup wts n tab:
   ⊢ (gen_heap_interp (gmap_of_table wts)) -∗
   (gen_heap_interp (gmap_of_list (fmap tab_size wts))) -∗
-  (gen_heap_interp (gmap_of_list (fmap table_max_opt wts))) -∗
+  (@gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt wts))) -∗
   n ↦[wtblock] tab -∗
   ⌜ wts !! (N.to_nat n) = Some tab⌝.
 Proof.

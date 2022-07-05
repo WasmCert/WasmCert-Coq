@@ -619,8 +619,8 @@ Global Instance host_heapG_irisG `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ} : w
       (ghost_map_auth frameGName 1 (<[ tt := f ]> ∅)) ∗ 
       (gen_heap_interp (gmap_of_list (fmap mem_length s.(s_mems)))) ∗
       (gen_heap_interp (gmap_of_list (fmap tab_size s.(s_tables)))) ∗
-      (gen_heap_interp (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
-      (gen_heap_interp (gmap_of_list (fmap table_max_opt s.(s_tables))))
+      (@gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
+      (@gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt s.(s_tables))))
     )%I;
     num_laters_per_step _ := 0;
     fork_post _ := True%I;

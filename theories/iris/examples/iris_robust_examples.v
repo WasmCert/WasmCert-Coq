@@ -515,14 +515,14 @@ Section Examples_host.
 
     iApply (wp_wand_host _ _ _ (λ v, _ ∗ ↪[frame]empty_frame)%I with "[-HΦ] [HΦ]");cycle 1.
     { iIntros (v) "[Hv ?]". iApply "HΦ". iExact "Hv". }
-    { iApply (instantiation_spec_operational_start with "[$Hemptyframe] [$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
+    { iApply (instantiation_spec_operational_start_seq with "[$Hemptyframe] [$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
       { by apply lse_module_typing. }
       { by apply module_restrictions_lse. }
       { unfold import_resources_host.
         instantiate (5:=[_;_]). iFrame "Hn Hvis1".
         unfold import_resources_wasm_typecheck,export_ownership_host.
         iSimpl.
-        instantiate (1:={[g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
+        instantiate (1:={[N.of_nat g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}).
         instantiate (1:=∅).
         instantiate (1:=∅).
         instantiate (1:= {[N.of_nat advf := (FC_func_native inst_adv (Tf [] []) modfunc_locals modfunc_body)]}).
@@ -556,7 +556,6 @@ Section Examples_host.
             iSplit => //=.
             { repeat rewrite Forall2_cons; iSplit => //=.
               iSplit => //=.
-              rewrite N2Nat.id.
               iPureIntro.
               rewrite lookup_singleton.
               repeat eexists.
@@ -565,7 +564,6 @@ Section Examples_host.
               by split; apply/eqP => //=.
             }
             { rewrite dom_singleton => /=.
-              rewrite N2Nat.id.
               iPureIntro.
               by set_solver+.
             }
@@ -621,7 +619,7 @@ Section Examples_host.
 
         destruct H8 as [g [gt [Hlookg [Hgteq Hagree]]]].
 
-        rewrite N2Nat.id lookup_singleton in Hlookg.
+        rewrite lookup_singleton in Hlookg.
 
         inversion Hgteq; inversion Hlookg.
 
@@ -643,7 +641,7 @@ Section Examples_host.
         { instantiate (2 := N.of_nat advf); by rewrite lookup_singleton. }
         iDestruct ("Hcls" with "Hcl") as "Hresf".
         iDestruct (big_sepM_delete with "Hg") as "(Hgret & _)".
-        { instantiate (2 := g_ret); by rewrite lookup_singleton. }
+        { instantiate (2 := N.of_nat g_ret); by rewrite lookup_singleton. }
         subst g gt.
         
         iApply weakestpre.fupd_wp.
@@ -711,7 +709,7 @@ Section Examples_host.
           { rewrite Heq6;eauto. }
           { unfold upd_local_label_return;simpl.
             rewrite Heqadvm /=. eauto. }
-          { iSplitR "Hmem". rewrite N2Nat.id. eauto.
+          { iSplitR "Hmem".  eauto.
             iDestruct "Hmem" as "[Hm _]".
             cbn.
             replace (repeat #00%byte (Pos.to_nat (64*1024*1))) with (repeat #00%byte 4%nat ++ repeat #00%byte (Pos.to_nat 65532)).
@@ -734,9 +732,11 @@ Section Examples_host.
           iExists _. iFrame "Hf".
           iIntros "Hf".
           iApply (wp_frame_trap with "Hf").
-          iNext.  instantiate ( 1 := λ v, ((⌜v = trapV⌝ ∨ ⌜ v = immV [] ⌝ ∗ g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) )%I) => //=. by iLeft. }
+          iNext. instantiate
+                 ( 1 := λ v, ((⌜v = trapV⌝ ∨ ⌜v = immV []⌝
+                                  ∗ N.of_nat  g_ret↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}) )%I) => //=. by iLeft. }
 
-        rewrite N2Nat.id. simpl of_val.
+        simpl of_val.
 
         iApply (wp_wand_ctx _ _ _ (λ v, ⌜v = immV []⌝ ∗ ↪[frame] _)%I with "[Hf]").
         { iApply (wp_val_return with "Hf");auto.
@@ -746,19 +746,16 @@ Section Examples_host.
         iIntros "Hf".
         iApply (wp_frame_value with "Hf");eauto.
         iIntros "!>" (v) "[[% | [% H]] Hf]".
-        iApply weakestpre.wp_value.
-        unfold IntoVal.
-        apply of_to_val.
-        subst.
-        done.
-        iFrame.
-        by iLeft.
-        iApply weakestpre.wp_value.
-        unfold IntoVal.
-        apply of_to_val.
-        subst.
-        done.
-        iFrame.
+        { subst v.
+          simpl iris.of_val.
+          iApply wp_get_global_trap_host.
+          iFrame. iNext. by iLeft. }
+        { subst v. simpl iris.of_val.
+          assert ([] = v_to_e_list []) as ->;auto.
+          iApply (wp_get_global_host with "H").
+          iNext. iIntros "H". iFrame.
+          iSimpl. by iRight.
+        }
       }
     }
   Qed.

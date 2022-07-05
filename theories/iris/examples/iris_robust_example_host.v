@@ -65,7 +65,7 @@ Section Host_instance.
   Global Program Instance host_wp : host_program_logic Σ :=
     { host_function := host_expr ;
       result := host_val;
-      host_ctx := list inst_decl;
+      host_ctx := list host_e;
       fill_host := λ decls es, (decls,es);
       val_of_host_val := iris_host.val_of_host_val;
       wp_host := λ (s : stuckness), (λ (E : coPset) (he : host_expr) (Φ : host_val -d> iPropO Σ), (WP he @ s; E {{ Φ }})%I);
