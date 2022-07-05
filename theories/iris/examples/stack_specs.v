@@ -2666,18 +2666,31 @@ Proof.
   iApply wp_wasm_empty_ctx.
   rewrite (separate1 (AI_basic _)).
   iApply wp_seq_can_trap_ctx.
-  iSplitR ; last first.
+  iSplitR; last first.
   iFrame "Hf".
-  iSplitR ; last first.
-  iSplitR.
+  iSplitR; last first.
+  (* Be very careful -- cherry-pick the resources required to mix into Φf. *)
+  iSplitR "Hs HΦ".
   iIntros "Hf".
-  iApply wp_wand_r. iSplitL. iApply wp_get_local => //.
+  iApply wp_wand_r. iSplitL "Hf". iApply wp_get_local => //.
   instantiate (1 := λ x, ⌜x = immV [value_of_int v]⌝%I) => //.
   iIntros (w) "[-> Hf]".
   iSplitR. iRight. by instantiate (1 := λ x, ⌜ x = immV _ ⌝%I).
-  iExists _ ; iFrame. instantiate (1 := λ x, ⌜ x = f0 ⌝%I). done.
+  iExists f0 ; iFrame.
+  iCombine "Htab Hcl Hinv" as "H".
+  instantiate (1 := fun x => (⌜ x = f0 ⌝%I ∗ N.of_nat j0 ↦[wt][N.of_nat (Z.to_nat (Wasm_int.Int32.unsigned f))] Some a ∗ N.of_nat a ↦[wf] cl ∗ na_own logrel_nais ⊤)%I).
+  by iFrame.
   2:{ (* This is impossible to prove !!!! *)
-  iIntros (w f2) "(-> & Hf & ->)".
+    iIntros (f1) "(Hf1 & HΦf)".
+    iDestruct "HΦf" as "(-> & Htab & Hcl & Hinv)".
+    iSplitL ""; first by iLeft.
+    iFrame.
+    iExists f0.
+    by iSplit. }
+  (* We now have the required resources from Φf. *)
+  iIntros (w f2) "(-> & Hf & HΦf)".
+
+  (* Rest to be done, but the resources are here *)
   iSimpl.
   rewrite (separate2 (AI_basic _)).
   iApply wp_seq_can_trap_ctx.
@@ -3499,7 +3512,7 @@ Proof.
   done.
   all : try by iIntros "[% _]".
   by iIntros "[[[% _] _] _]".
-Qed. *)
+Qed. 
 
 (*
   iIntros "!>" (Ξ) "(%Hinstmem & %Hlocs0 & %Hlocs1 & %Hlocs & %Hvb & %Hv & Hs & HΦ & %Htypes & %Htab & Htab & #Hspec & Hinv & Hf) HΞ" => /=.
