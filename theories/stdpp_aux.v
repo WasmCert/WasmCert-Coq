@@ -356,3 +356,36 @@ Proof.
   by induction l; destruct n => //=.
 Qed.
   
+Lemma nth_error_none_fmap {A B} (l : seq.seq A) n (f : A -> B) :
+  nth_error l n = None -> nth_error (f <$> l) n = None.
+Proof.
+  repeat rewrite nth_error_lookup.
+  rewrite list_lookup_fmap.
+  by move => Hl; rewrite Hl.
+Qed.
+
+Lemma fmap_update_list_at {A B} l i x (f : A -> B) :
+  f <$> update_list_at l i x = update_list_at (f <$> l) i (f x).
+Proof.
+  unfold update_list_at.
+  rewrite fmap_app => /=.
+  rewrite - fmap_drop => /=.
+  f_equal.
+  repeat rewrite - firstn_is_take_n.
+  by rewrite fmap_take.
+Qed. 
+
+Lemma rcons_eq (T: Type) (es1: list T) e1 es2 e2:
+  es1 ++ [e1] = es2 ++ [e2] ->
+  es1 = es2 /\ e1 = e2.
+Proof.
+  move: es2.
+  induction es1 => //; move => es2 H.
+  - destruct es2 => //=; first simpl in H; inversion H => //.
+    by destruct es2.
+  - destruct es2 => //=; first by destruct es1 => //.
+    inversion H; subst; clear H.
+    apply IHes1 in H2 as [-> ->].
+    split => //.
+Qed.
+  
