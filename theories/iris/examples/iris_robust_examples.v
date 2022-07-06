@@ -18,6 +18,9 @@ Close Scope byte_scope.
 Section Examples.
 
 
+Notation "{{{ P }}} es {{{ v , Q }}}" :=
+  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
+
 
   Context `{!wasmG Σ,
         !logrel_na_invs Σ}.
@@ -233,7 +236,7 @@ Section Examples.
     iSplitL "Hn Hf".
     { iApply wp_load;eauto;[|iFrame];eauto. }
     iIntros (v) "[[-> Hn] Hf]". iSimpl.
-    iApply wp_value;eauto. done.
+    iApply iris_wp.wp_value; by eauto.
   Qed.
 
 End Examples.
@@ -671,7 +674,7 @@ Section Examples_host.
 
         iApply (wp_wand_ctx _ _ _ (λ v, ⌜v = immV []⌝ ∗ ↪[frame] _)%I with "[Hf]").
         { iApply (wp_val_return with "Hf");auto.
-          iIntros "Hf". iApply wp_value;eauto. done. }
+          iIntros "Hf". iApply iris_wp.wp_value;eauto. done. }
         iIntros (v) "[-> Hf]".
         iExists _. iFrame "Hf".
         iIntros "Hf".

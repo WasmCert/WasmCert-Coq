@@ -42,6 +42,8 @@ End Host_instance.
 Section Host_robust_example.
   Context `{!wasmG Σ, !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}.
 
+Notation "{{{ P }}} es {{{ v , Q }}}" :=
+  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
   
   Definition lse_log_expr f log :=
     [BI_const (xx 42);
@@ -108,7 +110,7 @@ Section Host_robust_example.
     assert ([AI_call_host (Tf [T_i32] []) (Mk_hostfuncidx h) [xx 42]]
             = iris.of_val (callHostV (Tf [T_i32] []) (Mk_hostfuncidx h) [xx 42] (LL_base [][]))) as ->.
     { simpl. auto. }
-    iApply wp_value;[done|].
+    iApply iris_wp.wp_value;[done|].
     (* iSimpl. *)
 
     eassert (LH_rec [] 0 [] (LH_base [] []) [] = push_base (LH_base [] []) _ _ _ _) as ->.
@@ -116,12 +118,12 @@ Section Host_robust_example.
     iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
     rewrite llfill_label.
     rewrite -/(iris.of_val (callHostV _ _ _ _)).
-    iApply wp_value;[done|].
+    iApply iris_wp.wp_value;[done|].
     iExists _. iFrame. iIntros "Hf".
     rewrite wp_frame_rewrite.
     rewrite llfill_local.
     rewrite -/(iris.of_val (callHostV _ _ _ _)).
-    iApply wp_value;[done|].
+    iApply iris_wp.wp_value;[done|].
     
     iApply weakestpre.fupd_wp. iMod (na_inv_acc with "Hh Hown") as "(>HL & Hown & Hcls)";[solve_ndisj..|].
     iApply (wp_call_host_action_no_state_change with "[$HL Hown Hcls Hf]");[eauto|..].
@@ -195,7 +197,7 @@ Section Host_robust_example.
                      (llfill vh [AI_call_host (Tf [T_i32] []) (Mk_hostfuncidx h) v]) ) as ->;[simpl;auto|].
     rewrite -iris_fundamental_composition.llfill_sh_append.
     rewrite -/(iris.of_val (callHostV _ _ _ _)).
-    iApply wp_value;[done|].
+    iApply iris_wp.wp_value;[done|].
     iSimpl.
 
     iDestruct "Hw" as "[%Hcontr|Hv]";[done|].
@@ -210,12 +212,12 @@ Section Host_robust_example.
     iApply wp_label_push_nil_inv. iApply wp_wasm_empty_ctx.
     rewrite llfill_label.
     rewrite -/(iris.of_val (callHostV _ _ _ _)).
-    iApply wp_value;[done|].
+    iApply iris_wp.wp_value;[done|].
     iExists _. iFrame. iIntros "Hf".
     rewrite wp_frame_rewrite.
     rewrite llfill_local.
     rewrite -/(iris.of_val (callHostV _ _ _ _)).
-    iApply wp_value;[done|].
+    iApply iris_wp.wp_value;[done|].
 
     iApply weakestpre.fupd_wp. iMod (na_inv_acc with "Hh Hown") as "(>HL & Hown & Hcls)";[solve_ndisj..|].
     iApply (wp_call_host_action_no_state_change with "[- $HL]");[eauto|..].
@@ -827,7 +829,5 @@ Section Host_robust_example.
       }
     }
   Qed.
-
-    
 
 End Host_robust_example.

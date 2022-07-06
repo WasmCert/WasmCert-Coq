@@ -19,13 +19,6 @@ Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
 Definition xb b := (VAL_int32 (wasm_bool b)).
 
 (* Notations *)
-Notation "{{{ P }}} es {{{ v , Q }}}" :=
-  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
-
-Notation "{{{ P }}} es {{{ v , Q }}}" :=
-  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
-
-
 
 Notation " n ↦[ha]{ q } f" := (ghost_map_elem (V := host_action) haGName n q f%V)
                                 (at level 20, q at level 5, format " n ↦[ha]{ q } f") .
@@ -108,7 +101,7 @@ Section wp_helpers.
     WP e @ s; E {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E {{ Ψ }}.
   Proof. iApply (wp_wand). Qed.
   
-
+End wp_helpers.
 
 (* Example Programs *)
 Section Example_Add.
@@ -226,6 +219,4 @@ Qed.
 
 End Example_Add.
 
-
-End Examples.
 
