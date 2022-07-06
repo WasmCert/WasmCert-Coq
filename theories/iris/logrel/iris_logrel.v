@@ -11,13 +11,6 @@ Require Export iris_rules.
 Require Export datatypes host operations properties opsem typing.
 Import uPred.
 
-(* functor needed for NA invariants *)
-Class logrel_na_invs Σ :=
-  {
-    logrel_na_invG :> na_invG Σ;
-    logrel_nais : na_inv_pool_name;
-  }.
-
 Definition wf : string := "wfN".
 Definition wt : string := "wtN".
 Definition wm : string := "wmN".

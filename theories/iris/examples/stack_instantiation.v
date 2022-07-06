@@ -465,9 +465,9 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI �
 
   (* A trap allowing version for code that might trap *)
 Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z -> seq.seq i32 -> iPropI Σ) j0 E :=
-  (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a cl
+  (∀ (f0 : frame) (f : i32) (v : Z) (s : seq.seq i32) a cl γ
      (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
-      ⌜↑wfN (N.of_nat a) ⊆ E⌝ →
+      ⌜↑γ ⊆ E⌝ →
       {{{  ↪[frame] f0 ∗ na_own logrel_nais ⊤ ∗
             N.of_nat idf5 ↦[wf] FC_func_native i5 (Tf [T_i32 ; T_i32] []) l5 f5 ∗
             ⌜ (0 <= v)%Z ⌝ ∗
@@ -475,7 +475,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
             isStack v s ∗
             stackAll s Φ ∗
             N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
-            na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] cl) ∗
+            na_inv logrel_nais γ ((N.of_nat a) ↦[wf] cl) ∗
             ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end 
            = Tf [T_i32] [T_i32] ⌝ ∗  
               (∀ (u : i32) (fc : frame),
@@ -1331,7 +1331,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
       iIntros (w) "[(-> & Hs & Ht & Ha & Hf0) Hf]".
       iApply "HΞ".
       by iFrame.
-    - iIntros "!>" (f5 fi v0 s0 a cl Φ Ψ Hsub Ξ)
+    - iIntros "!>" (f5 fi v0 s0 a cl γ Φ Ψ Hsub Ξ)
               "!> (Hf & Hown & Hf0 & % & %Hs & Hs & HΦ & Htab & #Hcl & [%Htyp #Hspec]) HΞ".
       iApply wp_wand_r.
       iSplitR "HΞ".
@@ -1351,7 +1351,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
         instantiate (5 := []) => /=.
         rewrite app_nil_r.
         done.
-        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ Φ Ψ
+        iApply (spec_stack_map_trap _ m _ v0 s0 _ _ _ Φ Ψ
                  with "[Hs Hf HΦ Htab Hown]");[apply Hsub|..].
         iFrame "∗ #".
         repeat iSplit ; try iPureIntro => //=.

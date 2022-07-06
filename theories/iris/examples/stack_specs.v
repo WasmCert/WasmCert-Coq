@@ -5,7 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_host iris_rules iris_logrel.
+Require Export iris_host iris_rules.
 Require Export datatypes host operations properties opsem.
 
 Set Implicit Arguments.
@@ -2616,10 +2616,10 @@ Proof.
 Qed.
 
    
-Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32) E
-      j0 a cl 
+Lemma spec_stack_map_trap `{!logrel_na_invs Σ} (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32) E
+      j0 a cl γ 
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) :
-  ↑wfN (N.of_nat a) ⊆ E ->
+  ↑γ ⊆ E ->
   ⊢ {{{  ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝  ∗
             ⌜ f0.(f_locs) !! 0 = Some (VAL_int32 f) ⌝  ∗
             ⌜ f0.(f_locs) !! 1 = Some (value_of_int v) ⌝ ∗
@@ -2632,7 +2632,7 @@ Lemma spec_stack_map_trap `{!logrel_na_invs Σ}(f0 : frame) (n : immediate) (f :
 
             ⌜ f0.(f_inst).(inst_tab) !! 0 = Some j0 ⌝ ∗
             (N.of_nat j0) ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
-            na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] cl) ∗
+            na_inv logrel_nais γ ((N.of_nat a) ↦[wf] cl) ∗
              ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end 
           = Tf [T_i32] [T_i32] ⌝ ∗  
             (∀ (u : i32) (fc : frame),

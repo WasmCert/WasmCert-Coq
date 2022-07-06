@@ -132,6 +132,3 @@ Proof.
       ]).
   eapply (@ex_adequacy Σ); typeclasses eauto.
 Qed.
-
-
-

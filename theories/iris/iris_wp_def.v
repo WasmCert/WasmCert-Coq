@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
-From iris.base_logic Require Export gen_heap ghost_map proph_map.
+From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 (* From iris.bi Require Export weakestpre. *)
 Require Export datatypes (* host *) operations properties opsem.
@@ -51,6 +51,13 @@ Class wasmG Σ :=
 
       frameGName : gname
     }.
+
+(* functor needed for NA invariants *)
+Class logrel_na_invs Σ :=
+  {
+    logrel_na_invG :> na_invG Σ;
+    logrel_nais : na_inv_pool_name;
+  }.
 
 Definition proph_id := positive. (* ??? *)
 
