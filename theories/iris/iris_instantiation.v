@@ -12,47 +12,6 @@ Require Export type_preservation.
 
 Close Scope byte.
 
-Lemma big_sepL2_big_sepM {X Y: Type} {E0 : EqDecision X} {H0: Countable X} (l1: list X) (l2: list Y) (Φ: X -> Y -> iProp Σ) (m: gmap X Y):
-  NoDup l1 ->
-  length l1 = length l2 ->
-  m = list_to_map (zip l1 l2) ->
-  (([∗ map] k ↦ v ∈ m, Φ k v) -∗
-  ([∗ list] i ↦ x; y ∈ l1; l2, Φ x y)%I).
-Proof.
-  move => Hnd Hlen ->.
-  iIntros "Hm".
-  iDestruct (big_opM_map_to_list with "Hm") as "Hm".
-  rewrite map_to_list_to_map; last rewrite fst_zip => //; last by lias.
-  rewrite big_sepL2_alt.
-  by iSplit => //.
-Qed.
-
-Lemma big_sepM_l2m_zip_f {X Y Z: Type} {E: EqDecision X} {E0: EqDecision Z} {H: Countable X} {H0: Countable Z} (l1 : list X) (l2: list Y) (Φ: Z -> Y -> iProp Σ) (f: X -> Z) :
-  length l1 = length l2 ->
-  NoDup l1 ->
-  Inj eq eq f ->
-  ([∗ map] k ↦ v ∈ list_to_map (zip l1 l2), Φ (f k) v)%I ≡ ([∗ map] k ↦ v ∈ list_to_map (zip (f <$> l1) l2), Φ k v)%I.
-Proof.
-  iRevert (l2).
-  iInduction (l1) as [|?] "IH"; iIntros (l2 Hlen Hnd Hinj); destruct l2 => //=; try by repeat rewrite big_sepM_empty.
-  simpl in Hlen.
-  inversion Hlen; subst; clear Hlen.
-  inversion Hnd; subst; clear Hnd.
-  rewrite big_opM_insert; last first.
-  { apply not_elem_of_list_to_map.
-    rewrite fst_zip => //; last by lias.
-  }
-  rewrite big_opM_insert; last first.
-  { apply not_elem_of_list_to_map.
-    rewrite fst_zip; last by rewrite fmap_length; lias.
-    rewrite elem_of_list_fmap.
-    move => HContra.
-    destruct HContra as [x [Heq Helem]].
-    by apply Hinj in Heq; subst.
-  }
-  iSplit; iIntros "(?&?)"; iFrame; by iApply "IH".
-Qed.
-
 Section Iris_instantiation.
 
 Definition assert_const1 (es: expr) : option value :=
@@ -120,6 +79,47 @@ Definition module_data_bound_check_gmap (wms: gmap N memory) (imp_descs: list mo
 
 
 Context `{!wasmG Σ}.
+
+Lemma big_sepL2_big_sepM {X Y: Type} {E0 : EqDecision X} {H0: Countable X} (l1: list X) (l2: list Y) (Φ: X -> Y -> iProp Σ) (m: gmap X Y):
+  NoDup l1 ->
+  length l1 = length l2 ->
+  m = list_to_map (zip l1 l2) ->
+  (([∗ map] k ↦ v ∈ m, Φ k v) -∗
+  ([∗ list] i ↦ x; y ∈ l1; l2, Φ x y)%I).
+Proof.
+  move => Hnd Hlen ->.
+  iIntros "Hm".
+  iDestruct (big_opM_map_to_list with "Hm") as "Hm".
+  rewrite map_to_list_to_map; last rewrite fst_zip => //; last by lias.
+  rewrite big_sepL2_alt.
+  by iSplit => //.
+Qed.
+
+Lemma big_sepM_l2m_zip_f {X Y Z: Type} {E: EqDecision X} {E0: EqDecision Z} {H: Countable X} {H0: Countable Z} (l1 : list X) (l2: list Y) (Φ: Z -> Y -> iProp Σ) (f: X -> Z) :
+  length l1 = length l2 ->
+  NoDup l1 ->
+  Inj eq eq f ->
+  ([∗ map] k ↦ v ∈ list_to_map (zip l1 l2), Φ (f k) v)%I ≡ ([∗ map] k ↦ v ∈ list_to_map (zip (f <$> l1) l2), Φ k v)%I.
+Proof.
+  iRevert (l2).
+  iInduction (l1) as [|?] "IH"; iIntros (l2 Hlen Hnd Hinj); destruct l2 => //=; try by repeat rewrite big_sepM_empty.
+  simpl in Hlen.
+  inversion Hlen; subst; clear Hlen.
+  inversion Hnd; subst; clear Hnd.
+  rewrite big_opM_insert; last first.
+  { apply not_elem_of_list_to_map.
+    rewrite fst_zip => //; last by lias.
+  }
+  rewrite big_opM_insert; last first.
+  { apply not_elem_of_list_to_map.
+    rewrite fst_zip; last by rewrite fmap_length; lias.
+    rewrite elem_of_list_fmap.
+    move => HContra.
+    destruct HContra as [x [Heq Helem]].
+    by apply Hinj in Heq; subst.
+  }
+  iSplit; iIntros "(?&?)"; iFrame; by iApply "IH".
+Qed.
 
 Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global) : iProp Σ :=
   ⌜ dom (gset N) wfs ≡ list_to_set (fmap N.of_nat (ext_func_addrs (fmap modexp_desc v_imps))) /\
