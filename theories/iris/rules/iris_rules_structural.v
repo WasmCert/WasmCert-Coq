@@ -596,28 +596,6 @@ Qed.
 
   
 
-(* Trying to resolve the problem by naively not allowing any consumption of ↪ in
-   the WP premises.
-
-   However, we then cannot connect the resulting frame after executing es1 to 
-   that at the start of es2: the only way to achieve that is to have a 
-   ↪[frame] in the post condition of es1; but to prove any WP with that post
-   condition, we need to provide a ↪[frame] to its precondition as well; 
-   so we will need two copies of the same ↪ to prove any WP, rendering the 
-   spec useless.
-
-   What we need in the post condition is some predicate like ↪ which gives
-   us the knowledge of the new frame, but does not actually assert any 
-   ownership -- in some sense, we need to be able to assert 0 ownership of 
-   something while still asserting the knowledge of that value. This seems to
-   be a weird feature to ask for, however.
- *)
-(* Upd: THIS IS DONE!!!!
-        Note how the post condition successfully prevents the leakage of any
-        frame resources from the inner to the outer frame via Ψ -- the outer 
-        frame predicate remains unchanged despite that it could undergo 
-        arbitrary changes inside the frames. *)
-
 Lemma wp_frame_seq es1 es2 n (f0 f f': frame) E s Ψ Φ :
   (iris.to_val [AI_local n f (es1 ++ es2)] = None) ->
   ¬ Ψ trapV -∗ ↪[frame] f0 -∗
@@ -632,6 +610,14 @@ Proof.
   iIntros (w) "[H1 H2]".
   iApply wp_wasm_empty_ctx_frame.
   iApply ("Hcont" with "[$] [$]").
+Qed.
+
+Lemma wp_wand_ctx s E e Φ Ψ i lh :
+  WP e @ s; E CTX i; lh {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E CTX i; lh {{ Ψ }}.
+Proof.
+  iIntros "Hwp H". iIntros (LI HLI).
+  iSpecialize ("Hwp" $! LI HLI).
+  iApply (wp_wand with "Hwp"). auto.
 Qed.
 
   

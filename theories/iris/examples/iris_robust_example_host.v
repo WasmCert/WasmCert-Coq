@@ -5,6 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_rules iris_fundamental iris_wp iris_interp_instance_alloc.
+Require Export iris_example_helper.
 Require Export datatypes host operations properties opsem.
 
 Set Implicit Arguments.
@@ -12,49 +13,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Close Scope byte_scope.
-
-Notation "{{{ P }}} es {{{ v , Q }}}" :=
-  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
-
-Notation "{{{ P }}} es {{{ v , Q }}}" :=
-  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
-
-Notation " n ↦[ha]{ q } f" := (ghost_map_elem (V := host_action) haGName n q f%V)
-                                (at level 20, q at level 5, format " n ↦[ha]{ q } f") .
-Notation " n ↦[ha] f" := (ghost_map_elem (V := host_action) haGName n (DfracOwn 1) f%V)
-                           (at level 20, format " n ↦[ha] f") .
-
-Notation " n ↪[vis]{ q } v" := (ghost_map_elem (V := module_export) visGName n q v%V)
-                           (at level 20, q at level 5, format " n ↪[vis]{ q } v") .
-Notation " n ↪[vis] v" := (ghost_map_elem (V := module_export) visGName n (DfracOwn 1) v%V)
-                          (at level 20, format " n ↪[vis] v").
-
-Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
-                           (at level 20, q at level 5, format " n ↪[mods]{ q } v") .
-Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
-                            (at level 20, format " n ↪[mods] v").
-
-
-Ltac take_drop_app_rewrite n :=
-  match goal with
-  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  end.
-  
-Ltac take_drop_app_rewrite_twice n m :=
-  take_drop_app_rewrite n;
-  match goal with
-  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  end.
 
 
 
@@ -84,8 +42,6 @@ End Host_instance.
 Section Host_robust_example.
   Context `{!wasmG Σ, !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}.
 
-  Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
-  Definition xb b := (VAL_int32 (wasm_bool b)).
   
   Definition lse_log_expr f log :=
     [BI_const (xx 42);

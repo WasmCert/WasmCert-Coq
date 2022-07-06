@@ -82,14 +82,6 @@ Section fundamental.
     (WP e ++ [] @ s; E CTX i; lh {{ Φ }} ⊢ WP e @ s; E CTX i; lh {{ Φ }}).
   Proof. rewrite app_nil_r. auto. Qed.
 
-  Lemma wp_wand_ctx s E e Φ Ψ i lh :
-    WP e @ s; E CTX i; lh {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E CTX i; lh {{ Ψ }}.
-  Proof.
-    iIntros "Hwp H". iIntros (LI HLI).
-    iSpecialize ("Hwp" $! LI HLI).
-    iApply (wp_wand with "Hwp"). auto.
-  Qed.
-
   Lemma interp_value_type_of v : (⊢ interp_value (Σ:=Σ) (typeof v) v)%I.
   Proof.
     unfold interp_value.
@@ -330,12 +322,6 @@ Section fundamental.
     { done. }
     destruct i;simpl;auto.
     intros Heq;simplify_eq. auto.
-  Qed.
-
-  Lemma lookup_snoc {A : Type} (l : list A) (a : A) :
-    (l ++ [a]) !! (length l) = Some a.
-  Proof.
-    induction l;auto.
   Qed.
 
   Lemma get_layer_lookup_lh_lengths l lh i ts vs' n2 es lh' es2' :

@@ -389,3 +389,8 @@ Proof.
     split => //.
 Qed.
   
+Lemma lookup_snoc {A : Type} (l : list A) (a : A) :
+  (l ++ [a]) !! (length l) = Some a.
+Proof.
+  induction l;auto.
+Qed.

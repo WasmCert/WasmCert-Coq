@@ -5,6 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_rules iris_fundamental iris_wp iris_interp_instance_alloc.
+Require Export iris_example_helper.
 Require Export datatypes host operations properties opsem.
 
 Set Implicit Arguments.
@@ -12,32 +13,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Close Scope byte_scope.
-
-Notation "{{{ P }}} es {{{ v , Q }}}" :=
-  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
-
-Ltac take_drop_app_rewrite n :=
-  match goal with
-  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  end.
-  
-Ltac take_drop_app_rewrite_twice n m :=
-  take_drop_app_rewrite n;
-  match goal with
-  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  end.
-
-
 
 (* Example Programs *)
 Section Examples.
@@ -47,50 +22,6 @@ Section Examples.
   Context `{!wasmG Σ,
         !logrel_na_invs Σ}.
 
-  Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
-  Definition xb b := (VAL_int32 (wasm_bool b)).
-
-  Lemma wp_seq_can_trap_same_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f i lh :
-    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
-    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
-    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }})%I
-    ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }}.
-  Proof.
-    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
-    iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
-    { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
-    iApply wp_seq_can_trap_ctx.
-    iFrame. iSplitR.
-    { iIntros (f') "[Hf Heq]". iExists f';iFrame. iExact "Heq". }
-    iSplitL "Hes1".
-    { iIntros "Hf". iDestruct ("Hes1" with "Hf") as "Hes1".
-      iApply (wp_wand with "Hes1").
-      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
-    { iIntros (w f') "[H [Hf ->]]".
-      iDestruct ("Hes2" with "[$]") as "Hes2".
-      iApply (wp_wand_ctx with "Hes2").
-      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
-  Qed.
-
-  Lemma wp_seq_can_trap_same_empty_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f :
-    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
-    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
-    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }})%I
-    ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
-  Proof.
-    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
-    iApply wp_wasm_empty_ctx.
-    iApply wp_seq_can_trap_same_ctx.
-    iFrame.
-    iIntros (w) "?".
-    iApply wp_wasm_empty_ctx.
-    iApply "Hes2". done.
-  Qed.
-
-  Lemma wp_wand s E (e : iris.expr) (Φ Ψ : iris.val -> iProp Σ) :
-    WP e @ s; E {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E {{ Ψ }}.
-  Proof. iApply (wp_wand). Qed.
-  
   Definition lse_expr a n :=
       [BI_const (xx 0);
        BI_const (xx 42);

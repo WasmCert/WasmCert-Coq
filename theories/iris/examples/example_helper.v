@@ -14,10 +14,106 @@ Unset Printing Implicit Defensive.
 
 Close Scope byte_scope.
 
+(* Shorthands for common constructors *)
+Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
+Definition xb b := (VAL_int32 (wasm_bool b)).
+
+(* Notations *)
+Notation "{{{ P }}} es {{{ v , Q }}}" :=
+  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
+
+Notation "{{{ P }}} es {{{ v , Q }}}" :=
+  (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
+
+
+
+Notation " n ↦[ha]{ q } f" := (ghost_map_elem (V := host_action) haGName n q f%V)
+                                (at level 20, q at level 5, format " n ↦[ha]{ q } f") .
+Notation " n ↦[ha] f" := (ghost_map_elem (V := host_action) haGName n (DfracOwn 1) f%V)
+                           (at level 20, format " n ↦[ha] f") .
+
+Notation " n ↪[vis]{ q } v" := (ghost_map_elem (V := module_export) visGName n q v%V)
+                           (at level 20, q at level 5, format " n ↪[vis]{ q } v") .
+Notation " n ↪[vis] v" := (ghost_map_elem (V := module_export) visGName n (DfracOwn 1) v%V)
+                          (at level 20, format " n ↪[vis] v").
+
+Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
+                           (at level 20, q at level 5, format " n ↪[mods]{ q } v") .
+Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
+                            (at level 20, format " n ↪[mods] v").
+
+(* Tactics *)
+Ltac take_drop_app_rewrite n :=
+  match goal with
+  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  end.
+  
+Ltac take_drop_app_rewrite_twice n m :=
+  take_drop_app_rewrite n;
+  match goal with
+  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
+  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
+  end.
+
+Section wp_helpers.
+  Context `{!wasmG Σ}.
+
+  Lemma wp_seq_can_trap_same_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f i lh :
+    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
+    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }})%I
+    ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }}.
+  Proof.
+    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
+    iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
+    { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
+    iApply wp_seq_can_trap_ctx.
+    iFrame. iSplitR.
+    { iIntros (f') "[Hf Heq]". iExists f';iFrame. iExact "Heq". }
+    iSplitL "Hes1".
+    { iIntros "Hf". iDestruct ("Hes1" with "Hf") as "Hes1".
+      iApply (wp_wand with "Hes1").
+      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
+    { iIntros (w f') "[H [Hf ->]]".
+      iDestruct ("Hes2" with "[$]") as "Hes2".
+      iApply (wp_wand_ctx with "Hes2").
+      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
+  Qed.
+
+  Lemma wp_seq_can_trap_same_empty_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f :
+    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
+    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }})%I
+    ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
+  Proof.
+    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
+    iApply wp_wasm_empty_ctx.
+    iApply wp_seq_can_trap_same_ctx.
+    iFrame.
+    iIntros (w) "?".
+    iApply wp_wasm_empty_ctx.
+    iApply "Hes2". done.
+  Qed.
+
+  Lemma wp_wand s E (e : iris.expr) (Φ Ψ : iris.val -> iProp Σ) :
+    WP e @ s; E {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E {{ Ψ }}.
+  Proof. iApply (wp_wand). Qed.
+  
+
+
 (* Example Programs *)
 Section Example_Add.
 
-  
+(* Simple examples demonstrating the contents of modules *)
 Definition Add_module :=
   Build_module
     (* Function types *) [:: (Tf [::T_i32; T_i32] [::T_i32]) ]
