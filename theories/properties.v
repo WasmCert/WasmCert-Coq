@@ -1433,5 +1433,3 @@ Proof.
   { intros. destruct ves => //. }
   { intros. apply: lfilled_not_nil. exact H1. exact H0. }
 Qed.
-
-

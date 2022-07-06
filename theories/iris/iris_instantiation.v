@@ -12,6 +12,47 @@ Require Export type_preservation.
 
 Close Scope byte.
 
+Lemma big_sepL2_big_sepM {X Y: Type} {E0 : EqDecision X} {H0: Countable X} (l1: list X) (l2: list Y) (Φ: X -> Y -> iProp Σ) (m: gmap X Y):
+  NoDup l1 ->
+  length l1 = length l2 ->
+  m = list_to_map (zip l1 l2) ->
+  (([∗ map] k ↦ v ∈ m, Φ k v) -∗
+  ([∗ list] i ↦ x; y ∈ l1; l2, Φ x y)%I).
+Proof.
+  move => Hnd Hlen ->.
+  iIntros "Hm".
+  iDestruct (big_opM_map_to_list with "Hm") as "Hm".
+  rewrite map_to_list_to_map; last rewrite fst_zip => //; last by lias.
+  rewrite big_sepL2_alt.
+  by iSplit => //.
+Qed.
+
+Lemma big_sepM_l2m_zip_f {X Y Z: Type} {E: EqDecision X} {E0: EqDecision Z} {H: Countable X} {H0: Countable Z} (l1 : list X) (l2: list Y) (Φ: Z -> Y -> iProp Σ) (f: X -> Z) :
+  length l1 = length l2 ->
+  NoDup l1 ->
+  Inj eq eq f ->
+  ([∗ map] k ↦ v ∈ list_to_map (zip l1 l2), Φ (f k) v)%I ≡ ([∗ map] k ↦ v ∈ list_to_map (zip (f <$> l1) l2), Φ k v)%I.
+Proof.
+  iRevert (l2).
+  iInduction (l1) as [|?] "IH"; iIntros (l2 Hlen Hnd Hinj); destruct l2 => //=; try by repeat rewrite big_sepM_empty.
+  simpl in Hlen.
+  inversion Hlen; subst; clear Hlen.
+  inversion Hnd; subst; clear Hnd.
+  rewrite big_opM_insert; last first.
+  { apply not_elem_of_list_to_map.
+    rewrite fst_zip => //; last by lias.
+  }
+  rewrite big_opM_insert; last first.
+  { apply not_elem_of_list_to_map.
+    rewrite fst_zip; last by rewrite fmap_length; lias.
+    rewrite elem_of_list_fmap.
+    move => HContra.
+    destruct HContra as [x [Heq Helem]].
+    by apply Hinj in Heq; subst.
+  }
+  iSplit; iIntros "(?&?)"; iFrame; by iApply "IH".
+Qed.
+
 Section Iris_instantiation.
 
 Definition assert_const1 (es: expr) : option value :=
@@ -32,78 +73,6 @@ Definition assert_const1_i32_to_nat (es:expr) : nat :=
   | _ => 0
   end.
 
-Lemma gen_index_length n len:
-  length (gen_index n len) = len.
-Proof.
-  unfold gen_index.
-  rewrite imap_length.
-  by rewrite repeat_length.
-Qed.
-
-Lemma take_all_alt {X: Type} (l: list X) n:
-  n = length l ->
-  take n l = l.
-Proof.
-  move => H. subst. by rewrite firstn_all.
-Qed.
-  
-Lemma seq_map_fmap {X Y: Type} (f: X -> Y) (l: list X):
-  seq.map f l = fmap f l.
-Proof.
-  by [].
-Qed.
-
-Lemma repeat_lookup_Some {X: Type} n (v: X) i res:
-  repeat v n !! i = Some res ->
-  res = v /\ i < n.
-Proof.
-  move => Hrlookup.
-  assert (i < length (repeat v n)); first by eapply lookup_lt_Some.
-
-  split; last by rewrite repeat_length in H.
-  assert (repeat v n !! i = Some v); first by apply repeat_lookup; rewrite repeat_length in H.
-  rewrite H0 in Hrlookup.
-  by inversion Hrlookup.
-Qed.
-
-Lemma gen_index_lookup_Some n l i x:
-  (gen_index n l) !! i = Some x ->
-  x = n + i /\ i < l.
-Proof.
-  unfold gen_index.
-  move => Hl.
-  rewrite list_lookup_imap in Hl.
-  destruct (repeat _ _ !! i) eqn: Hrl => //.
-  simpl in Hl.
-  inversion Hl; subst; clear Hl.
-  apply repeat_lookup_Some in Hrl as [-> ?].
-  by lias.
-Qed.
- 
-Lemma gen_index_NoDup n l:
-  NoDup (gen_index n l).
-Proof.
-  apply NoDup_alt.
-  move => i j x Hli Hlj.
-  apply gen_index_lookup_Some in Hli as [-> ?].
-  apply gen_index_lookup_Some in Hlj as [? ?].
-  by lias.
-Qed.
-
-Lemma zip_lookup_Some {T1 T2: Type} (l1 : list T1) (l2: list T2) i x1 x2:
-  length l1 = length l2 ->
-  l1 !! i = Some x1 ->
-  l2 !! i = Some x2 ->
-  (zip l1 l2) !! i = Some (x1, x2).
-Proof.
-  move : l2 i x1 x2.
-  induction l1; intros; destruct l2; destruct i => //=.
-  - simpl in *.
-    by inversion H0; inversion H1.
-  - simpl in *.
-    apply IHl1 => //.
-    by inversion H.
-Qed.
   
 Definition module_elem_bound_check_gmap (wts: gmap N tableinst) (imp_descs: list module_export_desc) (m: module) :=
   Forall (fun '{| modelem_table := (Mk_tableidx n);
@@ -151,30 +120,6 @@ Definition module_data_bound_check_gmap (wms: gmap N memory) (imp_descs: list mo
 
 
 Context `{!wasmG Σ}.
-
-Lemma ext_func_addrs_aux l:
-  ext_func_addrs l = fmap (fun '(Mk_funcidx i) => i) (ext_funcs l).
-Proof.
-  by [].
-Qed.
-
-Lemma ext_tab_addrs_aux l:
-  ext_tab_addrs l = fmap (fun '(Mk_tableidx i) => i) (ext_tabs l).
-Proof.
-  by [].
-Qed.
-
-Lemma ext_mem_addrs_aux l:
-  ext_mem_addrs l = fmap (fun '(Mk_memidx i) => i) (ext_mems l).
-Proof.
-  by [].
-Qed.
-
-Lemma ext_glob_addrs_aux l:
-  ext_glob_addrs l = fmap (fun '(Mk_globalidx i) => i) (ext_globs l).
-Proof.
-  by [].
-Qed.
 
 Definition import_resources_wasm_domcheck (v_imps: list module_export) (wfs: gmap N function_closure) (wts: gmap N tableinst) (wms: gmap N memory) (wgs: gmap N global) : iProp Σ :=
   ⌜ dom (gset N) wfs ≡ list_to_set (fmap N.of_nat (ext_func_addrs (fmap modexp_desc v_imps))) /\
@@ -1223,8 +1168,6 @@ Proof.
     }
 Qed.
     
-Definition exp_default := MED_func (Mk_funcidx 0).
-
 Lemma import_func_wasm_lookup v_imps t_imps wfs ws :
   ⊢ gen_heap_interp (gmap_of_list (s_funcs ws)) -∗
     import_func_wasm_check v_imps t_imps wfs -∗
@@ -1425,23 +1368,6 @@ Proof.
 
   by rewrite Hwtblock.
 Qed.
-
-Definition mem_equiv (m1 m2: memory): Prop :=
-  m1.(mem_max_opt) = m2.(mem_max_opt) /\
-  m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).
-
-Lemma mem_equiv_wmblock_rewrite (m1 m2: memory) n:
-  mem_equiv m1 m2 ->
-  (n ↦[wmblock] m1)%I ≡ (n ↦[wmblock] m2)%I.
-Proof.
-  unfold mem_equiv, mem_block.
-  destruct m1, m2.
-  destruct mem_data, mem_data0 => //=.
-  by move => [-> ->] => //.
-Qed.
-
-Definition map_related {K: Type} {M: Type -> Type} {H0: forall A: Type, Lookup K A (M A)} {A: Type} (r: relation A) (m1 m2: M A) :=
-  forall (i: K) (x: A), m1 !! i = Some x -> exists y, m2 !! i = Some y /\ r x y.
 
 Lemma import_resources_wms_subset v_imps t_imps wms (ws: store_record):
   ⊢ gen_heap_interp (gmap_of_memory (s_mems ws)) -∗
@@ -1853,12 +1779,6 @@ Proof.
     rewrite insert_length//. }
 Qed.
 
-Ltac forward H Hname :=
-  lazymatch type of H with
-  | ?Hx -> _ => let Hp := fresh "Hp" in
-              assert Hx as Hp; last specialize (H Hp) as Hname end.
-
-  
 Lemma alloc_func_state_update funcs funcs' nf:
   funcs' = funcs ++ nf ->
   gen_heap_interp (gmap_of_list funcs) -∗ |==> 
@@ -1907,9 +1827,6 @@ Proof.
   by iFrame.
 Qed.
 
-(* TODO: This is an extremely atrocious proof with a lot of repetitions on
-   similar but unidentical things. Refactor them as first priority after
-   the main work is done. *)
 Lemma alloc_tab_state_update tabs tabs' nt:
   tabs' = tabs ++ nt ->
   gen_heap_interp (gmap_of_table tabs) -∗
@@ -2448,20 +2365,6 @@ Proof.
   iSplitL "Hgm1"; first by iApply "IH".
   simpl.
   by iFrame.
-Qed.
-
-Lemma insert_at_insert {T: Type} v n (l: list T):
-  n < length l ->
-  insert_at v n l = <[ n := v ]> l.
-Proof.
-  move : v n.
-  induction l; intros; simpl in H; destruct n => /=; try by inversion H.
-  - specialize (IHl v n).
-    unfold insert_at.
-    simpl.
-    f_equal.
-    rewrite <- IHl; last by lias.
-    by unfold insert_at.
 Qed.
 
 Definition update_tab (tab: tableinst) off td' : option tableinst :=
@@ -3216,14 +3119,6 @@ Proof.
   by rewrite list_insert_insert.
 Qed.
 
-(* Quite stupid that there's no lemma for drop but only for skip *)
-Lemma skipn_is_drop_n {T: Type} (l: list T) n:
-  drop n l = seq.drop n l.
-Proof.
-  move: n.
-  by induction l; destruct n => //=.
-Qed.
-  
 (* Auxiliary lemma for handling update of memory segments at arbitrary offsets *)
 Lemma mem_block_update_aux off md md' n mems mems':
   length md = length md' ->
@@ -3390,14 +3285,6 @@ Proof.
   by unfold memory_to_list, memory_list.ml_data => /=.
 Qed.
 
-Lemma nat_bin n:
-  ssrnat.nat_of_bin n = N.to_nat n.
-Proof.
-  rewrite -> (N_nat_bin n).
-  rewrite Nat2N.id.
-  by rewrite <- N_nat_bin.
-Qed.
-  
 Lemma init_mem_state_update (ws ws': store_record) (inst: instance) (d_off: N) (d: module_data) (m_ind: nat) (mem: memory) (d_pay: list byte) mem' :
   init_mem ws inst d_off d = ws' ->
   m_ind = nth match moddata_data d with | Mk_memidx i => i end (inst_memory inst) 0 ->
@@ -3815,47 +3702,6 @@ Proof.
     by iFrame.
 Qed.
 
-Lemma big_sepL2_big_sepM {X Y: Type} {E0 : EqDecision X} {H0: Countable X} (l1: list X) (l2: list Y) (Φ: X -> Y -> iProp Σ) (m: gmap X Y):
-  NoDup l1 ->
-  length l1 = length l2 ->
-  m = list_to_map (zip l1 l2) ->
-  (([∗ map] k ↦ v ∈ m, Φ k v) -∗
-  ([∗ list] i ↦ x; y ∈ l1; l2, Φ x y)%I).
-Proof.
-  move => Hnd Hlen ->.
-  iIntros "Hm".
-  iDestruct (big_opM_map_to_list with "Hm") as "Hm".
-  rewrite map_to_list_to_map; last rewrite fst_zip => //; last by lias.
-  rewrite big_sepL2_alt.
-  by iSplit => //.
-Qed.
-
-Lemma big_sepM_l2m_zip_f {X Y Z: Type} {E: EqDecision X} {E0: EqDecision Z} {H: Countable X} {H0: Countable Z} (l1 : list X) (l2: list Y) (Φ: Z -> Y -> iProp Σ) (f: X -> Z) :
-  length l1 = length l2 ->
-  NoDup l1 ->
-  Inj eq eq f ->
-  ([∗ map] k ↦ v ∈ list_to_map (zip l1 l2), Φ (f k) v)%I ≡ ([∗ map] k ↦ v ∈ list_to_map (zip (f <$> l1) l2), Φ k v)%I.
-Proof.
-  iRevert (l2).
-  iInduction (l1) as [|?] "IH"; iIntros (l2 Hlen Hnd Hinj); destruct l2 => //=; try by repeat rewrite big_sepM_empty.
-  simpl in Hlen.
-  inversion Hlen; subst; clear Hlen.
-  inversion Hnd; subst; clear Hnd.
-  rewrite big_opM_insert; last first.
-  { apply not_elem_of_list_to_map.
-    rewrite fst_zip => //; last by lias.
-  }
-  rewrite big_opM_insert; last first.
-  { apply not_elem_of_list_to_map.
-    rewrite fst_zip; last by rewrite fmap_length; lias.
-    rewrite elem_of_list_fmap.
-    move => HContra.
-    destruct HContra as [x [Heq Helem]].
-    by apply Hinj in Heq; subst.
-  }
-  iSplit; iIntros "(?&?)"; iFrame; by iApply "IH".
-Qed.
-
   
 Lemma module_inst_build_tables_nil m inst:
   m.(mod_tables) = [] ->
@@ -3872,84 +3718,6 @@ Proof.
   by rewrite Coqlib.nth_error_nil.
 Qed.
 
-Lemma zip_lookup_Some_inv {X Y: Type} (l1: list X) (l2: list Y) k v1 v2:
-  (zip l1 l2) !! k = Some (v1, v2) ->
-  l1 !! k = Some v1 /\ l2 !! k = Some v2.
-Proof.
-  move: l2 k v1 v2.
-  induction l1; intros; destruct l2; destruct k; simpl in * => //=.
-  - by inversion H.
-  - by apply IHl1.
-Qed.
-    
-Lemma list_to_map_zip_lookup {X Y: Type} (E: EqDecision X) (H: Countable X) (l1 : list X) (l2: list Y) (k: X) (v: Y) (m: gmap X Y):
-  NoDup l1 ->
-  length l1 = length l2 ->
-  (((list_to_map (zip l1 l2)): gmap X Y) !! k = Some v <->
-   (exists k', l1 !! k' = Some k /\ l2 !! k' = Some v)).
-Proof.
-  move => Hnd Hlen.
-  split; move => Hl.
-  { rewrite <- elem_of_list_to_map in Hl; last first.
-    { rewrite fst_zip => //; by lias. }
-    simplify_lookup.
-    exists x.
-    by apply zip_lookup_Some_inv in Helem.
-  }
-  destruct Hl as [k' [Hl1 Hl2]].
-  rewrite <- elem_of_list_to_map; last first.
-  { rewrite fst_zip => //; by lias. }
-  apply elem_of_list_lookup.
-  exists k'.
-  by apply zip_lookup_Some.
-Qed.
-  
-Lemma list_to_map_zip_insert {X Y: Type} (E: EqDecision X) (H: Countable X) (l1 : list X) (l2: list Y) (k: X) (k': nat) (v: Y) (m: gmap X Y):
-  NoDup l1 ->
-  m = list_to_map (zip l1 l2) ->
-  length l1 = length l2 ->
-  l1 !! k' = Some k ->
-  <[ k := v ]> m = list_to_map (zip l1 (<[ k' := v ]> l2)).
-Proof.
-  move => Hnd -> Hlen Hk.
-  apply map_eq.
-  move => i.
-  destruct (decide (i=k)); subst => //=.
-  - rewrite lookup_insert.
-    symmetry.
-    rewrite list_to_map_zip_lookup => //.
-    { exists k'.
-      split => //.
-      rewrite list_lookup_insert => //.
-      by apply lookup_lt_Some in Hk; lias.
-    }
-    { by rewrite insert_length. }
-  - rewrite lookup_insert_ne => //.
-    destruct (list_to_map (zip l1 _) !! i) eqn:Hli => /=.
-    { symmetry.
-      apply list_to_map_zip_lookup => //.
-      { by rewrite insert_length. }
-      { apply elem_of_list_to_map in Hli; last first.
-        { rewrite fst_zip => //; by lias. }
-        apply elem_of_list_lookup in Hli.
-        destruct Hli as [j Hli].
-        apply zip_lookup_Some_inv in Hli.
-        exists j.
-        rewrite list_lookup_insert_ne => //.
-        destruct Hli as [Hli _].
-        move => HContra; subst.
-        by rewrite Hk in Hli; inversion Hli.
-      }
-    }
-    {
-      simplify_lookup.
-      rewrite fst_zip in H2; last by lias.
-      rewrite not_elem_of_list_to_map_1 => //.
-      rewrite fst_zip => //.
-      by rewrite insert_length; lias.
-    }
-Qed.
-    
 Lemma instantiation_wasm_spec (v_imps: list module_export) (m: module) t_imps t_exps wfs wts wms wgs (s s': store_record) inst v_exps start: 
   module_typing m t_imps t_exps ->
   module_restrictions m ->

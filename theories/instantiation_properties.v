@@ -167,62 +167,52 @@ Qed.
   
 End module_typing_det.
 
-Lemma N_nat_bin n:
-  n = N.of_nat (ssrnat.nat_of_bin n).
+Definition exp_default := MED_func (Mk_funcidx 0).
+
+Lemma insert_at_insert {T: Type} v n (l: list T):
+  n < length l ->
+  insert_at v n l = <[ n := v ]> l.
 Proof.
-  destruct n => //=.
-  replace (ssrnat.nat_of_pos p) with (Pos.to_nat p); first by rewrite positive_nat_N.
-  induction p => //=.
-  - rewrite Pos2Nat.inj_xI.
+  move : v n.
+  induction l; intros; simpl in H; destruct n => /=; try by inversion H.
+  - specialize (IHl v n).
+    unfold insert_at.
+    simpl.
     f_equal.
-    rewrite IHp.
-    rewrite ssrnat.NatTrec.doubleE.
-    rewrite - ssrnat.mul2n.
-    by lias.
-  - rewrite Pos2Nat.inj_xO.
-    rewrite IHp.
-    rewrite ssrnat.NatTrec.doubleE.
-    rewrite - ssrnat.mul2n.
-    by lias.
+    rewrite <- IHl; last by lias.
+    by unfold insert_at.
 Qed.
 
-Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
-  P acc ->
-  (forall (x:A) (act: B), P x -> P (f x act)) ->
-  P (fold_left f l acc).
-Proof.
-  rewrite -fold_left_rev_right.
-  revert acc.
-  induction l;simpl;auto.
-  intros acc Ha Hnext.
-  rewrite foldr_snoc /=. apply IHl =>//.
-  apply Hnext=>//.
-Qed.    
-
 Section Instantiation_properties.
-
-Definition assert_const1 (es: expr) : option value :=
-  match es with
-  | [:: BI_const v] => Some v
-  | _ => None
-  end.
-
-Definition assert_const1_i32 (es: expr) : option i32 :=
-  match es with
-  | [:: BI_const (VAL_int32 v)] => Some v
-  | _ => None
-  end.
-
-Definition assert_const1_i32_to_nat (es:expr) : nat :=
-  match assert_const1_i32 es with
-  | Some v => nat_of_int v
-  | _ => 0
-  end.
 
 Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) ∘ ext_funcs.
 Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) ∘ ext_tabs.
 Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) ∘ ext_mems.
 Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) ∘ ext_globs.
+
+Lemma ext_func_addrs_aux l:
+  ext_func_addrs l = fmap (fun '(Mk_funcidx i) => i) (ext_funcs l).
+Proof.
+  by [].
+Qed.
+
+Lemma ext_tab_addrs_aux l:
+  ext_tab_addrs l = fmap (fun '(Mk_tableidx i) => i) (ext_tabs l).
+Proof.
+  by [].
+Qed.
+
+Lemma ext_mem_addrs_aux l:
+  ext_mem_addrs l = fmap (fun '(Mk_memidx i) => i) (ext_mems l).
+Proof.
+  by [].
+Qed.
+
+Lemma ext_glob_addrs_aux l:
+  ext_glob_addrs l = fmap (fun '(Mk_globalidx i) => i) (ext_globs l).
+Proof.
+  by [].
+Qed.
 
 (* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later. *)
 Definition get_import_func_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
@@ -395,6 +385,38 @@ Proof.
   simpl.
   f_equal.
   by lias.
+Qed.
+
+Lemma gen_index_lookup_Some n l i x:
+  (gen_index n l) !! i = Some x ->
+  x = n + i /\ i < l.
+Proof.
+  unfold gen_index.
+  move => Hl.
+  rewrite list_lookup_imap in Hl.
+  destruct (repeat _ _ !! i) eqn: Hrl => //.
+  simpl in Hl.
+  inversion Hl; subst; clear Hl.
+  apply repeat_lookup_Some in Hrl as [-> ?].
+  by lias.
+Qed.
+ 
+Lemma gen_index_NoDup n l:
+  NoDup (gen_index n l).
+Proof.
+  apply NoDup_alt.
+  move => i j x Hli Hlj.
+  apply gen_index_lookup_Some in Hli as [-> ?].
+  apply gen_index_lookup_Some in Hlj as [? ?].
+  by lias.
+Qed.
+
+Lemma gen_index_length n len:
+  length (gen_index n len) = len.
+Proof.
+  unfold gen_index.
+  rewrite imap_length.
+  by rewrite repeat_length.
 Qed.
 
 Lemma gen_index_extend offset len:

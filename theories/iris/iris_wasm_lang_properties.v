@@ -997,8 +997,6 @@ Section wasm_lang_properties.
     by apply HIn => //.
   Qed.
 
-Search (iris.to_val _ = Some (immV _)).
-  
   Lemma to_val_immV_inj es es' vs :
     iris.to_val es = Some (immV vs) ->
     iris.to_val es' = Some (immV vs) ->
