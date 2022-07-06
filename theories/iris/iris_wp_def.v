@@ -154,11 +154,24 @@ Definition mem_block `{!wasmG Σ} (n: N) (m: memory) :=
 Definition mem_block_at_pos `{!wasmG Σ} (n: N) (l:bytes) k :=
   ([∗ list] i ↦ b ∈ l, n ↦[wm][ (N.of_nat (N.to_nat k+i)) ] b)%I.
 
+Notation "n ↦[wmblock] m" := (mem_block n m)
+                           (at level 20, format "n ↦[wmblock] m"): bi_scope.
+Notation "n ↦[wms][ i ] l" := (mem_block_at_pos n l i)                    
+                                (at level 20, format "n ↦[wms][ i ] l"): bi_scope.
+
+
+Definition tab_block `{!wasmG Σ} (n: N) (tab: tableinst) :=
+  (([∗ list] i ↦ tabelem ∈ (tab.(table_data)), n ↦[wt][ (N.of_nat i) ] tabelem ) ∗
+     (n ↪[wtsize] (tab_size tab)) ∗ (n ↪[wtlimit] (table_max_opt tab)))%I.
+
+Notation "n ↦[wtblock] t" := (tab_block n t)
+                           (at level 20, format "n ↦[wtblock] t"): bi_scope.
+
 Definition mem_equiv (m1 m2: memory): Prop :=
   m1.(mem_max_opt) = m2.(mem_max_opt) /\
   m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).
 
-Lemma mem_equiv_wmblock_rewrite (m1 m2: memory) n:
+Lemma mem_equiv_wmblock_rewrite `{!wasmG Σ} (m1 m2: memory) n:
   mem_equiv m1 m2 ->
   (n ↦[wmblock] m1)%I ≡ (n ↦[wmblock] m2)%I.
 Proof.
@@ -168,17 +181,6 @@ Proof.
   by move => [-> ->] => //.
 Qed.
 
-Definition tab_block `{!wasmG Σ} (n: N) (tab: tableinst) :=
-  (([∗ list] i ↦ tabelem ∈ (tab.(table_data)), n ↦[wt][ (N.of_nat i) ] tabelem ) ∗
-     (n ↪[wtsize] (tab_size tab)) ∗ (n ↪[wtlimit] (table_max_opt tab)))%I.
-
-
-Notation "n ↦[wmblock] m" := (mem_block n m)
-                           (at level 20, format "n ↦[wmblock] m"): bi_scope.
-Notation "n ↦[wms][ i ] l" := (mem_block_at_pos n l i)
-                                (at level 20, format "n ↦[wms][ i ] l"): bi_scope.
-Notation "n ↦[wtblock] t" := (tab_block n t)
-                           (at level 20, format "n ↦[wtblock] t"): bi_scope.
 
 Section Wasm_wp.
   Context `{!wasmG Σ}.
