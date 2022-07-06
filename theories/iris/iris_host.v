@@ -11,8 +11,7 @@ Require Export type_preservation.
 
 Close Scope byte.
 
-Section Iris_host.
-
+Section Iris_host_def.
 
 (* Domain of the variable instantiation store *)
 Definition vi := N.
@@ -480,6 +479,7 @@ Proof. move => m m'. unfold Decision. destruct m, m' ; try by (left + right).
        by left ; subst.
        by right ; congruence. Qed.
 
+End Iris_host_def.
 
 Notation " n ↦[ha]{ q } f" := (ghost_map_elem (V := host_action) haGName n q f%V)
                                 (at level 20, q at level 5, format " n ↦[ha]{ q } f") .
@@ -495,6 +495,7 @@ Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
                            (at level 20, q at level 5, format " n ↪[mods]{ q } v") .
 Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
                             (at level 20, format " n ↪[mods] v").
+
 
 Global Instance host_heapG_irisG `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ} : weakestpre.irisGS wasm_host_lang Σ := {
   iris_invGS := func_invG; (* ??? *)
@@ -520,6 +521,9 @@ Global Instance host_heapG_irisG `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ} : w
 
 
 
+
+Section Iris_host.
+  
 
 Section host_lifting.
 Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}.

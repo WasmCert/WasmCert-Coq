@@ -594,7 +594,14 @@ Proof.
   }
 Qed.
 
-  
+Lemma wp_wand_ctx s E e Φ Ψ i lh :
+  WP e @ s; E CTX i; lh {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E CTX i; lh {{ Ψ }}.
+Proof.
+  iIntros "Hwp H". iIntros (LI HLI).
+  iSpecialize ("Hwp" $! LI HLI).
+  iApply (wp_wand with "Hwp"). auto.
+Qed.
+
 
 Lemma wp_frame_seq es1 es2 n (f0 f f': frame) E s Ψ Φ :
   (iris.to_val [AI_local n f (es1 ++ es2)] = None) ->
@@ -611,14 +618,5 @@ Proof.
   iApply wp_wasm_empty_ctx_frame.
   iApply ("Hcont" with "[$] [$]").
 Qed.
-
-Lemma wp_wand_ctx s E e Φ Ψ i lh :
-  WP e @ s; E CTX i; lh {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E CTX i; lh {{ Ψ }}.
-Proof.
-  iIntros "Hwp H". iIntros (LI HLI).
-  iSpecialize ("Hwp" $! LI HLI).
-  iApply (wp_wand with "Hwp"). auto.
-Qed.
-
   
 End structural_rules.

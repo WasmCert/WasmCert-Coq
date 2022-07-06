@@ -1090,26 +1090,6 @@ Section InterpInstance.
       }
   Qed.
 
-  (*
-  Lemma interp_table_alloc n0 (P : function_type -> nat -> iProp Σ) n :
-    (∀ x y, Persistent (P x y)) ->
-    ([∗ list] j↦tabelem ∈ repeat None n0, na_inv logrel_nais (wtN (N.of_nat n) (N.of_nat j))
-                                                                         (N.of_nat n↦[wt][N.of_nat j]tabelem)) -∗
-    [∗ list] i↦_ ∈ repeat 0 n0, 
-      ∃ (τf : function_type) (fe : funcelem),
-        na_inv logrel_nais (wtN (N.of_nat n) (N.of_nat i))
-               (N.of_nat n↦[wt][N.of_nat i]fe) ∗ from_option (P τf) True fe.
-  Proof.
-    iIntros (Hpers) "#H".
-    iApply (big_sepL_forall).
-    iIntros (k x Hlook).
-    apply lookup_lt_Some in Hlook as Hlt.
-    rewrite repeat_length in Hlt.
-    eapply repeat_lookup in Hlt as Hy.
-    iDestruct (big_sepL_lookup with "H") as "H'";eauto.
-    Unshelve. exact (Tf [] []).
-  Qed.*)
-
   Lemma repeat_imap_eq {A B C : Type} (a : A) (b : B) (f : nat -> C) (m : nat) :
     imap (λ i _, f i) (repeat a m) = imap (λ i _, f i) (repeat b m).
   Proof.
@@ -1994,8 +1974,8 @@ Section InterpInstance.
   (* Since host functions can only be imported, the host function is already accounted for
      and determined by the validity of imports. Thus, the hl list that the imports are valid against 
      are sufficient to determine the validity of the instance *)
-  
-  Lemma interp_instance_alloc hl E m t_imps t_exps v_imps (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
+
+  Lemma interp_instance_alloc hl E (m: module) (t_imps t_exps: list extern_t) (v_imps: list module_export) (wfs : gmap N function_closure) wts wms wgs inst fts gts g_inits :
     let C := {|
               tc_types_t := (mod_types m);
               tc_func_t := ((ext_t_funcs t_imps) ++ fts)%list;

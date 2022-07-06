@@ -914,4 +914,42 @@ Section trap_rules.
     by iFrame.
   Qed.
   
+
+Lemma wp_seq_can_trap_same_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f i lh :
+    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
+    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }})%I
+    ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }}.
+  Proof.
+    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
+    iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
+    { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
+    iApply wp_seq_can_trap_ctx.
+    iFrame. iSplitR.
+    { iIntros (f') "[Hf Heq]". iExists f';iFrame. iExact "Heq". }
+    iSplitL "Hes1".
+    { iIntros "Hf". iDestruct ("Hes1" with "Hf") as "Hes1".
+      iApply (wp_wand with "Hes1").
+      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
+    { iIntros (w f') "[H [Hf ->]]".
+      iDestruct ("Hes2" with "[$]") as "Hes2".
+      iApply (wp_wand_ctx with "Hes2").
+      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
+  Qed.
+
+Lemma wp_seq_can_trap_same_empty_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f :
+    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
+    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
+    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }})%I
+    ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
+  Proof.
+    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
+    iApply wp_wasm_empty_ctx.
+    iApply wp_seq_can_trap_same_ctx.
+    iFrame.
+    iIntros (w) "?".
+    iApply wp_wasm_empty_ctx.
+    iApply "Hes2". done.
+  Qed.
+
 End trap_rules.

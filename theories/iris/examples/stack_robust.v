@@ -6,6 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_fundamental_helpers stack_specs stack_instantiation iris_interp_instance_alloc.
+Require Export iris_example_helper.
 Require Export datatypes host operations properties opsem.
 
 Set Implicit Arguments.
@@ -18,8 +19,6 @@ Close Scope byte_scope.
 Section Client.
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ}.
 
-  Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
-  
   Definition main :=
     [ BI_call 0 ;
       BI_tee_local 0 ;
@@ -191,73 +190,6 @@ Section Client_main.
 
   Context `{!wasmG Σ, !logrel_na_invs Σ }.
 
-  Lemma wp_val_return (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) vs vs' es' es'' n f0:
-    const_list vs ->
-    ↪[frame] f0 -∗
-     (↪[frame] f0 -∗ WP vs' ++ vs ++ es'' @ s; E {{ v, Φ v }})
-     -∗ WP vs @ s; E CTX 1; LH_rec vs' n es' (LH_base [] []) es'' {{ v, Φ v }}.
-  Proof.
-    iIntros (Hconst) "Hf0 HWP".
-    iLöb as "IH".
-    iIntros (LI Hfill%lfilled_Ind_Equivalent).
-    inversion Hfill;subst.
-    inversion H8;subst.
-    assert (vs' ++ [AI_label n es' ([] ++ vs ++ [])] ++ es''
-            = ((vs' ++ [AI_label n es' ([] ++ vs ++ [])]) ++ es''))%SEQ as ->.
-    { erewrite app_assoc. auto. }
-    apply const_list_to_val in Hconst as [v1 Hv1].
-    apply const_list_to_val in H7 as [v2 Hv2].
-    eapply to_val_cat_inv in Hv1 as Hvv;[|apply Hv2].
-    iApply (wp_seq _ _ _ (λ v, (⌜v = immV (v2 ++ v1)⌝ ∗ ↪[frame] f0))%I).
-    iSplitR; first by iIntros "(%H & ?)".
-    iSplitR "HWP".
-    - iApply wp_val_app; first by apply Hv2.
-      iSplit; first by iIntros "!> (%H & ?)".
-      iApply (wp_label_value with "[$]") => //=; first by erewrite app_nil_r; apply Hv1 .
-    - iIntros (w) "(-> & Hf0)".
-      erewrite iris.of_to_val => //.
-      rewrite app_assoc.
-      by iApply "HWP".
-  Qed.
-
-  Lemma wp_seq_can_trap_same_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f i lh :
-    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
-    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
-    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }})%I
-    ⊢ WP (es1 ++ es2) @ s; E CTX i; lh {{ v, Φ v ∗ ↪[frame] f }}.
-  Proof.
-    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
-    iApply (wp_wand_ctx _ _ _ (λ  v, Φ v ∗ ∃ f0, ↪[frame] f0 ∗ ⌜f0 = f⌝) with "[-]")%I;cycle 1.
-    { iIntros (v) "[$ Hv]". iDestruct "Hv" as (f0) "[Hv ->]". iFrame. }
-    iApply wp_seq_can_trap_ctx.
-    iFrame.
-    iSplitR.
-    { instantiate (1:=(λ f', ⌜f' = f⌝)%I). iIntros (f') "[Hf ->]". eauto. }
-    iSplitL "Hes1".
-    { iIntros "Hf". iDestruct ("Hes1" with "[$]") as "Hes1".
-      iApply (wp_wand with "Hes1").
-      iIntros (v) "[$ H]". iExists _. iFrame. auto. }
-    { iIntros (w f') "[H [Hf ->]]".
-      iDestruct ("Hes2" with "[$]") as "Hes2".
-      iApply (wp_wand_ctx with "Hes2").
-      iIntros (v) "[$ Hv]". iExists _. iFrame. eauto. }
-  Qed.
-
-  Lemma wp_seq_can_trap_same_empty_ctx (Φ Ψ : iris.val -> iProp Σ) (s : stuckness) (E : coPset) (es1 es2 : language.expr wasm_lang) f :
-    (Ψ trapV ={E}=∗ False) ∗ (Φ trapV) ∗ ↪[frame] f ∗
-    (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, (⌜w = trapV⌝ ∨ Ψ w) ∗ ↪[frame] f }}) ∗
-    (∀ w, Ψ w ∗ ↪[frame] f -∗ WP (iris.of_val w ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }})%I
-    ⊢ WP (es1 ++ es2) @ s; E {{ v, Φ v ∗ ↪[frame] f }}.
-  Proof.
-    iIntros "(HPsi & Hphi & Hf & Hes1 & Hes2)".
-    iApply wp_wasm_empty_ctx.
-    iApply wp_seq_can_trap_same_ctx.
-    iFrame.
-    iIntros (w) "?".
-    iApply wp_wasm_empty_ctx.
-    iApply "Hes2". done.
-  Qed.
-
   Lemma main_spec C k idt locs es f a i idf0 l0 f0 idf3 l3 f3 idf4 l4 f4 idf5 l5 f5
         istack isStack newStackAddrIs stacktab :
     (tc_label C) = [] ∧ (tc_return C) = None ->
@@ -367,13 +299,13 @@ Section Client_main.
       iIntros (w) "[[-> Hg] Hf]". iSimpl.
       assert (iris.to_val [AI_basic BI_return] = Some (retV (SH_base [] []))) as Hval.
       { cbn. eauto. }
-      iApply wp_value;[unfold IntoVal;by eapply of_to_val|].
+      iApply iris_wp.wp_value;[unfold IntoVal;by eapply iris.of_to_val|].
       iIntros (LI HLI%lfilled_Ind_Equivalent);inversion HLI;subst. iSimpl.
       inversion H8;subst. iSimpl.
       match goal with |- context [ WP ?e @ _ {{ _ }}%I ] => set (v:=e) end.
       eassert (iris.to_val v = Some (retV (SH_rec _ _ _ (SH_base [] []) _))) as Hval'.
       { cbn. eauto. }
-      iApply wp_value;[unfold IntoVal;by eapply of_to_val|].
+      iApply iris_wp.wp_value;[unfold IntoVal;by eapply iris.of_to_val|].
       iApply "HΦ".
       iSplitR "Hf";[|iExists _;iFrame;iExists _;eauto].
       iRight. iLeft. iExists _. iSplit;eauto.
@@ -767,20 +699,12 @@ Section Client_instantiation.
     rewrite irwt_nodup_equiv; last by apply NoDup_nil.
     iDestruct "HimpsW" as "(_ & Hidf0 & Hidf1 & Hidf2 & Hidf3 & Hidf4 & Hidf5 & Hidtab & _) /=".
      repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
-   (* iDestruct "HimpsW" as "(Hfc & Htc & Hmc & Hgc)".
-    iDestruct "Hfc" as "(Hf & %Hft & %Hfdom)".
-    unfold func_typecheck in Hft.
-    unfold func_domcheck in Hfdom.
-    unfold import_func_resources.
-    cbn.
-    iDestruct (big_sepM_delete with "Hf") eqn:*)
     iDestruct "Hidf0" as (cl0) "[Himpfcl0 Hcl0]".
     iDestruct "Hidf1" as (cl1) "[Himpfcl1 Hcl1]".
     iDestruct "Hidf2" as (cl2) "[Himpfcl2 Hcl2]".
     iDestruct "Hidf3" as (cl3) "[Himpfcl3 Hcl3]".
     iDestruct "Hidf4" as (cl4) "[Himpfcl4 Hcl4]".
     iDestruct "Hidf5" as (cl5) "[Himpfcl5 Hcl5]".
-    (* TODO: find solution to avoid the following *)
     iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl1") as "%H01" ; first by eauto.
     iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl2") as "%H02" ; first by eauto.
     iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl3") as "%H03" ; first by eauto.
@@ -827,17 +751,6 @@ Section Client_instantiation.
       instantiate (5:=[_;_;_;_;_;_;_;_;_]).
       iDestruct "HimpsH" as "($&$&$&$&$&$&$&_)". iFrame "Hn Hvis8".
       iSplitR;[done|].
-      (* instantiate (4:={[g_ret := {| g_mut := MUT_mut; g_val := wret |} ]}). *)
-      (* instantiate (2:=∅). *)
-      (* instantiate (1:={[N.of_nat idt := stacktab]}). *)
-      (* instantiate (1:= {[ N.of_nat idf0 := FC_func_native istack (Tf [] [T_i32]) l0 f0 ; *)
-      (*                     N.of_nat idf1 := FC_func_native istack (Tf [T_i32] [T_i32]) l1 f1 ;                  *)
-      (*                     N.of_nat idf2 := FC_func_native istack (Tf [T_i32] [T_i32]) l2 f2 ; *)
-      (*                     N.of_nat idf3 := FC_func_native istack (Tf [T_i32] [T_i32]) l3 f3 ; *)
-      (*                     N.of_nat idf4 := FC_func_native istack (Tf [T_i32; T_i32] []) l4 f4 ; *)
-      (*                     N.of_nat idf5 := FC_func_native istack (Tf [T_i32; T_i32] []) l5 f5 ; *)
-      (*                     N.of_nat advf := (FC_func_native inst_adv (Tf [T_i32] [T_i32]) modfunc_locals modfunc_body)]}). *)
-      (* cbn.  unfold client_glob_impts. *)
       unfold instantiation_resources_pre_wasm.
       rewrite irwt_nodup_equiv => /=; last first.
       { clear - H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hadv0 Hadv1 Hadv2 Hadv3 Hadv4 Hadv5.
@@ -943,7 +856,7 @@ Section Client_instantiation.
     revert Heq5;move/eqP=>Heq5. subst n1.
     iModIntro.
 
-    iApply wp_lift_wasm. (* [apply HWEV_invoke|]. *)
+    iApply wp_lift_wasm.
     take_drop_app_rewrite 0.
     iApply (wp_invoke_native with "Hf Hr");[eauto|eauto..|].
     iNext. iIntros "[Hf Hidnstart]".
@@ -996,7 +909,7 @@ Section Client_instantiation.
       iSimpl.
       iIntros (LI HLI%lfilled_Ind_Equivalent). inversion HLI;inversion H30.
       iSimpl. erewrite app_nil_r. rewrite sfill_label.
-      iApply wp_value.
+      iApply iris_wp.wp_value.
       { unfold IntoVal. instantiate (1:=retV _). simpl of_val. eauto. }
       iExists _;iFrame. iIntros "Hf". iSimpl.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV []⌝ ∗ _)%I with "[Hf]").
@@ -1009,7 +922,7 @@ Section Client_instantiation.
           apply lfilled_Ind_Equivalent.
           erewrite app_nil_l.
           apply sfill_to_lfilled. }
-        iApply wp_value;[eapply of_to_val;eauto|].
+        iApply iris_wp.wp_value;[eapply iris.of_to_val;eauto|].
         iFrame. eauto. }
       iIntros (v) "[-> Hf]". iFrame.
       iApply weakestpre.wp_value. eapply of_to_val. eauto.
@@ -1017,7 +930,7 @@ Section Client_instantiation.
     { iDestruct "Hres" as "[-> Hgret]".
       iSimpl. iApply (wp_val_return with "Hf");[auto..|].
       iIntros "Hf".
-      iSimpl. iApply wp_value;[eapply of_to_val;eauto|].
+      iSimpl. iApply iris_wp.wp_value;[eapply iris.of_to_val;eauto|].
       iExists _;iFrame.
       iIntros "Hf".
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV []⌝ ∗ _)%I with "[Hf]").
@@ -1026,7 +939,7 @@ Section Client_instantiation.
       iIntros (v) "[-> Hf]". iFrame.
       iApply weakestpre.wp_value. eapply of_to_val. eauto.
       iRight. iDestruct "Hgret" as (v) "[Hgret Hown]".
-      iExists v. rewrite N2Nat.id. iFrame.
+      iExists v. rewrite N2Nat.id. iFrame "Hgret".
     }
   Qed.
   
