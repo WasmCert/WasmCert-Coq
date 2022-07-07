@@ -217,7 +217,7 @@ Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMi
 
 
 
-Let administrative_instruction_rect :=
+Local Definition administrative_instruction_rect :=
   @administrative_instruction_rect
   : forall (P : administrative_instruction -> Type), _.
 

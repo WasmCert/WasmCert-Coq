@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect ssrbool eqtype seq.
 From iris.program_logic Require Import language.
 From Coq Require Import Eqdep_dec.
-Require Import common operations opsem interpreter properties list_extra.
+Require Import common operations opsem properties list_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

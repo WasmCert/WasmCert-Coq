@@ -359,11 +359,10 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
 
 
 
-Let empty_instance := Build_instance [::] [::] [::] [::] [::].
+Definition empty_instance := Build_instance [::] [::] [::] [::] [::].
 
 Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
   List.nth_error (inst_types i) j.
-(* TODO: optioned *)
 
 Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option nat :=
   List.nth_error (inst_funcs i) j.
