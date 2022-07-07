@@ -6,7 +6,6 @@ From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
 Require Export datatypes host operations properties opsem instantiation instantiation_properties.
 Require Import Coq.Program.Equality.
-(* We need a few helper lemmas from preservation. *)
 Require Export type_preservation.
 
 Close Scope byte.
@@ -1719,9 +1718,8 @@ Definition module_inst_resources_wasm (m: module) (inst: instance) (tab_inits: l
 Definition module_restrictions (m: module) : Prop :=
   (* We further restrict the offsets and global initialisers to values only. 
      This is not that much a restriction as it seems, since they can only 
-     be either values or get_globals (from imported immutable globals only) 
-     anyway, and their contents can always be modified by other instructions
-     later. *)
+     be constants anyway, and their contents can always be modified by other 
+     instructions later. *)
   (exists (vs: list value), fmap modglob_init m.(mod_globals) = fmap (fun v => [BI_const v]) vs) /\
   (exists (vi32s: list i32), fmap modelem_offset m.(mod_elem) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s) /\
   (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
@@ -1797,7 +1795,6 @@ Proof.
   iFrame.
   rewrite big_opM_map_to_list.
   rewrite map_to_list_to_map; last first.
-  (* TODO: refactor this proof *)
   { apply NoDup_fmap_fst.
     { move => x0 y3 z4 Hin1 Hin2.
       apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
@@ -2337,7 +2334,6 @@ Proof.
   iFrame.
   rewrite big_opM_map_to_list.
   rewrite map_to_list_to_map; last first.
-  (* TODO: refactor this proof *)
   { apply NoDup_fmap_fst.
     { move => x0 y3 z4 Hin1 Hin2.
       apply elem_of_lookup_imap in Hin1 as [i1 [z1 [Heq3 Hl3]]].
@@ -2420,7 +2416,6 @@ Proof.
   by move => H; inversion H.
 Qed.
 
-(* Nothing interesting, mainly numerical and string massages *)
 Lemma update_tab_shift tab tab' off t td':
   update_tab tab off (t :: td') = Some tab' ->
   exists tab0, update_tab tab off [t] = Some tab0 /\
@@ -3198,10 +3193,6 @@ Proof.
   by replace (off + S k) with (off + 1 + k); last by lias.
 Qed.
 
-(*
-  Note that, from gen_heap's point of view, two equivalent memories are completely
-  the same.
-*)
 Lemma mem_block_update mem mem' n ws ws':
   mem_length mem = mem_length mem' ->
   mem_max_opt mem = mem_max_opt mem' ->
@@ -3836,8 +3827,6 @@ Proof.
   destruct (alloc_mems s1 (mod_mems m)) eqn:Hallocmem.
   destruct (alloc_globs s2 (mod_globals m) g_inits) eqn:Hallocglob.
 
-  (* We now have to perform the state update step by step... *)
-
   (* Simplify the state relations first *)
   destruct s, s0, s1, s2, s3.
   simpl in *.
@@ -4014,9 +4003,6 @@ Proof.
 
     destruct Hvtlookup as [tab [tt [Hwslookup [Hwtslookup [-> Htt]]]]].
 
-    (* We've finally reached the contradiction: s_tables0 cannot contain 
-       that many elements. *)
-
     apply lookup_lt_Some in Hwslookup.
     by lias.
   }
@@ -4180,17 +4166,9 @@ Proof.
 
   destruct Hwtsupd as [wts' Hwtsupd].
 
-  (* Perform the state update now *)
-  
   iDestruct (init_tabs_state_update with "[Hwt] [Htsize] [Htlimit] [Htmapsto Htm]") as "H".
   { by apply Heqs4. }
-  6: { (* bringing up the mapsto assertion first to instantiate wts *)
-    (* Note: "Htmapsto" itself does not provide all the tables -- it only 
-       contains the ownership of tables generated from alloc_tab (i.e. the new
-       ones allocated by the module. We also need the imported ones. 
-       It's quite painful to express it in Iris, but the wts gmap we want here
-       for applying the init_tabs spec is wts ∪ wtsalloc here. That's why
-       we've done the painful disjointness proof previously. *)
+  6: { 
     instantiate (1 := wts ∪ wtsalloc).
     iApply big_opM_union => //.
     unfold import_tab_resources.
@@ -4220,7 +4198,6 @@ Proof.
         inversion Hl1. inversion Hl2.
         by lias.
       }
-      (* We still need to manipulate the existing big_sepL to the one in the goal. *)
       remember (length s_tables0) as off.
       destruct m => /=.
       clear.
@@ -4447,8 +4424,6 @@ Proof.
       }
       (* replace *)
       {
-        (* Extremely tricky proof: having to two ways of obtaining the 
-           final table contents are equivalent. *)
         unfold module_import_init_tabs.
         destruct m; simpl in *.
         rewrite Httlen.
@@ -4478,7 +4453,6 @@ Proof.
         destruct (assert_const1_i32 modelem_offset) eqn:Hmeoff => //=.
         destruct (wts !! N.of_nat t0) eqn: Hwtslookup => //=.
         { destruct (update_tab _ _ _) eqn: Hupdtab => //=.
-          (* The key is that updtab shouldn't change the size of table. *)
           apply IHmod_elem in Hwtsimpupdate => //.
           3: (* Dom *)
           { rewrite <- Htdom.
@@ -4510,7 +4484,6 @@ Proof.
           rewrite Hinstlookup.
           rewrite Hwtslookup.
           destruct inst; simpl in *; subst.
-          (* We deduce that the table is one of the import only via the dom of wts. *)
           assert (N.of_nat t0 ∈ (dom (gset N) wts)) as Ht0dom; first by apply elem_of_dom.
           rewrite -> Htdom in Ht0dom.
           rewrite -> elem_of_list_to_set in Ht0dom.
@@ -4541,7 +4514,6 @@ Proof.
               by lias.
             }
           }
-          (* To the main goal, where the two methods of obtaining single table is the same *)
           { f_equal.
             unfold update_tab in Hupdtab.
             unfold table_init_replace_single.
@@ -4616,8 +4588,6 @@ Proof.
 
     (* alloc *)
     {
-      (* The spirit of this is similar to the above part, although now
-         updating the allocated part of the state instead of the imported. *)      
       unfold module_inst_resources_tab.
       assert (length (gen_index (length s_tables0) (length (mod_tables m))) =
   length (module_inst_build_tables m inst)) as Htblen.
@@ -4664,7 +4634,6 @@ Proof.
         repeat f_equal.
         by rewrite nat_bin.
       }
-      (* Typeclasses for nat somehow do not resolve themselves *)
       Unshelve.
       3: { by apply nat_countable. }
       iApply big_sepM_l2m_zip_f.
@@ -4681,7 +4650,6 @@ Proof.
         by rewrite insert_length.
       }
       { by apply gen_index_NoDup. }
-      (* Get the iris assertion away *)
       replace (list_to_map _) with wts2' => //.
       rewrite -> Heqwtsalloc in *.
       destruct m; simpl in *.
@@ -4863,7 +4831,7 @@ Proof.
         rewrite -> Hvttablen in *.
         rewrite lookup_app in Hnl.
         destruct ((_ <$> _) !! n) eqn:Himplookup => //=.
-        { (* Not updating the table since it's targeting at imports *)
+        { 
           inversion Hnl; subst; clear Hnl.
           erewrite not_elem_of_list_to_map_1 in Hwtsallocupdate.
           2: {
@@ -4967,8 +4935,6 @@ Proof.
   iClear "Htabsplit".
             
   (* init_mems *)
-
-  (* A very similar proof to the init_tabs part overall. *)
 
 
   (* Some preparatory facts. *)
@@ -5112,14 +5078,10 @@ Proof.
 
     destruct Hvtlookup as [mem [mt [Hwslookup [Hwmslookup [-> Htt]]]]].
 
-    (* We've finally reached the contradiction: s_tables0 cannot contain 
-       that many elements. *)
-
     apply lookup_lt_Some in Hwslookup.
     by lias.
   }
 
-  (* A lemma about looking up in ext_tab_addrs must fall in the original store *)
   assert (forall x j, ext_mems (modexp_desc <$> v_imps) !! j = Some (Mk_memidx x) -> x < length s_mems1) as Hextmemelem.
   {
     move => x j Helem.
@@ -5316,7 +5278,6 @@ Proof.
         inversion Hl1. inversion Hl2.
         by lias.
       }
-      (* We still need to manipulate the existing big_sepL to the one in the goal. *)
       remember (length s_mems1) as off.
       destruct m => /=.
       clear.
@@ -5603,7 +5564,6 @@ Proof.
           rewrite Hinstlookup.
           rewrite Hwmslookup.
           destruct inst; simpl in *; subst.
-          (* We deduce that the mem is one of the import only via the dom of wms. *)
           assert (N.of_nat m ∈ (dom (gset N) wms)) as Hm0dom; first by apply elem_of_dom.
           rewrite -> Hmdom in Hm0dom.
           rewrite -> elem_of_list_to_set in Hm0dom.
@@ -5660,7 +5620,6 @@ Proof.
             by lias.
           }
         }
-       (* When wms lookup is none. In this case the mem is not one of the imports and wms should not get updated. *)
         { 
           apply IHmod_data in Hwmsimpupdate => //.
           rewrite Hwmsimpupdate.
@@ -5738,7 +5697,6 @@ Proof.
         by rewrite insert_length.
       }
       { by apply gen_index_NoDup. }
-      (* Get the iris assertion away *)
       replace (list_to_map _) with wms2' => //.
       rewrite -> Heqwmsalloc in *.
       destruct m; simpl in *.
@@ -5894,7 +5852,7 @@ Proof.
         rewrite lookup_app in Hml.
         rewrite lookup_app list_lookup_fmap in Hnl.
         destruct (ext_mems (modexp_desc <$> v_imps) !! n) eqn:Himplookup => //=.
-        { (* Not updating the mem since it's targeting at imports *)
+        {
           simpl in Hnl.
           inversion Hnl; subst; clear Hnl.
           destruct m1.
@@ -6014,7 +5972,7 @@ Proof.
     
   iFrame.
 
-  (* Tweak the rest to fulfill the remaining (mostly-pure) predicates *)
+  (* Massage the rest to fulfill the remaining (mostly-pure) predicates *)
 
 
   
@@ -6040,7 +5998,7 @@ Proof.
 
   iClear "Htt Hmt".
   
-  (* Next are some trivial equalities on existential variables *)
+  (* Trivial equalities on existential variables *)
   do 6 iSplit => //.
   (* global initialiser *)
   iSplit => //.
@@ -6056,13 +6014,10 @@ Proof.
     rewrite those_those0.
     by rewrite IHg_inits.
   }
-  (* Then, a trivial equality again *)
   iSplit => //.
 
-  (* Lastly, confirming that we do have the correct Wasm resources from instantiation. Note that each mapsto resources correspond very nicely to one part of the goal. *)
   unfold module_inst_resources_wasm.
 
-  (* mod imports of m and imps are connected tortuously via t_imps. *)
   specialize (mod_imps_len_t _ _ _ Hmodtype) as [Himpflen [Himptlen [Himpmlen Himpglen]]].
 
   assert (
@@ -6193,7 +6148,6 @@ Proof.
 
     simpl.
 
-    (* Clear out the head of sepL2 *)
     iFrame => /=.
 
     repeat rewrite Nat.add_0_r.
