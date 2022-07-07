@@ -1,5 +1,4 @@
 (** The Wasm type checker reflects typing (soundness and completeness) **)
-(* (C) J. Pichon - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
@@ -306,8 +305,6 @@ Ltac simplify_hypothesis Hb :=
   | context C [_ && true] => rewrite Bool.andb_true_r in Hb
   | context C [false || _] => rewrite Bool.orb_false_l in Hb
   | context C [_ || false] => rewrite Bool.orb_false_r in Hb
-  (* It looks really like a bad idea to unfold type_update in general. *)
-(*  | context C [type_update _ _] => unfold type_update in Hb; try simpl in Hb*)
   | context C [ct_suffix [::] _] => rewrite ct_suffix_empty in Hb; try simpl in Hb
   | context C [ct_suffix [::CTA_any] (_::_)] => rewrite ct_suffix_any_1 in Hb => //; try simpl in Hb
   | context C [ct_suffix ?l ?l] => rewrite ct_suffix_self in Hb => //; try simpl in Hb
@@ -506,7 +503,6 @@ Proof with auto_rewrite_cond.
   move : C.
   induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond; simplify_goal; subst => //=; try by apply type_update_prefix...
   - do 3 destruct ts => //=; clear H.
-    (* Numerical disaster *)
     rewrite length_is_size; rewrite size_cat.
     replace (_ < _) with true => /=; last by lias.
     repeat (rewrite List.nth_error_app2; last by rewrite length_is_size; lias).
@@ -548,7 +544,6 @@ Lemma check_weaken: forall C es ts ts2 ts0,
 Proof.
   move => C es.
   move: C.
-  (* It's much easier to do induction from the right side due to how check works. *)
   induction es using List.rev_ind => //=; move => C ts ts2 ts0 Htc; first by inversion Htc.
   rewrite check_rcons in Htc.
   rewrite check_rcons.
@@ -862,7 +857,6 @@ Proof.
                  move/eqP in Hcs3.
                  subst.
                  by apply/eqP.
-              (* Finally the IH applies here... *)
               ** eapply IHts1; by eauto.
 Qed.
 
