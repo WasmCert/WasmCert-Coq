@@ -3,7 +3,7 @@ From iris.proofmode Require Import tactics.
 From iris.base_logic Require Import invariants.
 From iris.program_logic Require Import adequacy.
 Require Import Eqdep_dec.
-Require Import iris_robust_examples.
+Require Import iris_robust_example.
 
 Class adv_module_record :=
   { adv_module : module;

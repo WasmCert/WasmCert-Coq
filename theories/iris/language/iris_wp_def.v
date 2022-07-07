@@ -3,8 +3,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
-(* From iris.bi Require Export weakestpre. *)
-Require Export datatypes (* host *) operations properties opsem.
+Require Export datatypes operations properties opsem.
 Require Export iris_locations iris_properties iris_atomicity iris_wp stdpp_aux.
 
 Import uPred.
@@ -75,9 +74,8 @@ Definition gen_heap_wasm_store `{!wasmG Σ} (s: store_record) : iProp Σ :=
    (@gen_heap_interp _ _ _ _ _ memlimit_hsG (gmap_of_list (fmap mem_max_opt s.(s_mems)))) ∗
    (@gen_heap_interp _ _ _ _ _ tablimit_hsG (gmap_of_list (fmap table_max_opt s.(s_tables)))))%I.
 
-(* TODO: let this use the above gen_heap as well. Currently too much a hassle as this needs to update every file. *)
 Global Instance heapG_irisG `{!wasmG Σ} : irisGS wasm_lang Σ := {
-  iris_invGS := func_invG; (* ??? *)
+  iris_invGS := func_invG; 
   state_interp σ _ κs _ :=
     let: (s, locs, inst) := σ in
      ((gen_heap_interp (gmap_of_list s.(s_funcs))) ∗
@@ -95,33 +93,6 @@ Global Instance heapG_irisG `{!wasmG Σ} : irisGS wasm_lang Σ := {
     fork_post _ := True%I;
     state_interp_mono _ _ _ _ := fupd_intro _ _
   }.
-
-(* Section Host_wp_import.
-  (* Host wp must depend on the same memory model as for wasm *)
-  Context `{!wasmG Σ}.
-
-  Record host_program_logic := {
-      wp_host (s : stuckness) : coPset -d> host_function -d> seq.seq value -d> (result -d> iPropO Σ) -d> iPropO Σ;
-      wp_host_not_stuck : (forall σ ns κs nt Φ h E vcs t1s t2s a, (let '(hs,s,_,_) := σ in
-                                              s_funcs s !! a = Some (FC_func_host (Tf t1s t2s) h)) ->
-                                              state_interp σ ns κs nt -∗
-                                              wp_host NotStuck E h vcs Φ ={E}=∗
-                                              state_interp σ ns κs nt ∗ wp_host NotStuck E h vcs Φ ∗
-                                              ⌜(let '(hs,s,_,_) := σ in (∃ hs' s' r, host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r))) ∨
-                                               (∃ hs', host_application hs s (Tf t1s t2s) h vcs hs' None))⌝);
-      wp_host_step_red : (∀ σ ns κ κs nt Φ h E vcs t1s t2s, (
-                                                               
-                                              state_interp σ ns (κ ++ κs) nt -∗
-                                              wp_host NotStuck E h vcs Φ ={E,∅}=∗
-                                              (∀ σ' r, ⌜(let '(hs,s,_,_) := σ in let '(hs',s',_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' (Some (s',r)))⌝
-                                              ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
-                                                 state_interp σ' (S ns) κs nt ∗ Φ r) ∗
-                                              (∀ σ', ⌜(let '(hs,s,_,_) := σ in let '(hs',_,_,_) := σ' in host_application hs s (Tf t1s t2s) h vcs hs' None)⌝
-                                              ={∅}▷=∗^(S $ num_laters_per_step ns) |={∅,E}=>
-                                                 state_interp σ' (S ns) κs nt ∗ wp_host NotStuck E h vcs Φ)));
-    }.
-  
-End Host_wp_import. *)
 
 (* Resource ownerships *)
 Notation "n ↦[wf]{ q } v" := (mapsto (L:=N) (V:=function_closure) n q v%V)

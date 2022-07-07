@@ -1,10 +1,9 @@
 From iris.proofmode Require Import base proofmode classes.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.program_logic Require Export language.
-(* FIXME: If we import iris.bi.weakestpre earlier texan triples do not
-   get pretty-printed correctly. *)
 From iris.bi Require Export weakestpre.
 From iris.prelude Require Import options.
+
 Import uPred.
 
 
@@ -68,8 +67,6 @@ Local Instance wp_pre_contractive `{!irisGS Λ Σ} {A : Type} (P : A -> iProp Σ
 Proof.
   rewrite /wp_pre /= => n wp wp' Hwp E e1 Φ.
   do 24 (f_contractive || f_equiv).
-  (* FIXME : simplify this proof once we have a good definition and a
-     proper instance for step_fupdN. *)
   induction num_laters_per_step as [|k IH]; simpl => //.
   - repeat (f_contractive || f_equiv); apply Hwp.
   - by rewrite -IH.
@@ -111,13 +108,8 @@ Section wp.
   Proof.
     revert e. induction (lt_wf n) as [n _ IH]=> e Φ Ψ HΦ.
     rewrite !wp_unfold /wp_pre /=.
-    (* FIXME: figure out a way to properly automate this proof *)
-    (* FIXME: reflexivity, as being called many times by f_equiv and f_contractive
-       is very slow here *)
     do 23 (f_contractive || f_equiv).
     
-    (* FIXME : simplify this proof once we have a good definition and a
-       proper instance for step_fupdN. *)
     induction num_laters_per_step as [|k IHk]; simpl; last by rewrite IHk.
     do 5 (f_contractive || f_equiv).
     rewrite IH; [done|lia|]. intros v. eapply dist_S, HΦ.
@@ -133,8 +125,6 @@ Section wp.
   Proof.
     intros He Φ Ψ HΦ. rewrite !wp_unfold /wp_pre He /=.
     do 23 (f_contractive || f_equiv).
-    (* FIXME : simplify this proof once we have a good definition and a
-       proper instance for step_fupdN. *)
     induction num_laters_per_step as [|k IHk]; simpl; last by rewrite IHk.
     repeat f_equiv.
   Qed.
@@ -167,8 +157,7 @@ Section wp.
     iIntros (σ1 ns κ κs nt) "Hσ1". iMod "H". by iApply "H".
   Qed.
   Lemma wp_fupd s E e Φ : WP e @ s; E {{ v, |={E}=> Φ v }} ⊢ WP e @ s; E {{ Φ }}.
-  Proof. iIntros "H". iApply (wp_strong_mono s s E with "H"); auto.
-         (* iIntros (v) "[H H']". iMod "H". iModIntro. iFrame.  *)Qed.
+  Proof. iIntros "H". iApply (wp_strong_mono s s E with "H"); auto. Qed.
   
   Lemma wp_atomic s E1 E2 e Φ a `{!Atomic (stuckness_to_atomicity s) e} :
     (|={E1,E2}=> WP e @ s; E2 {{ v, |={E2,E1}=> Φ v ∗ Pred a }}) ⊢ WP e @ s; E1 {{ v, Φ v ∗ Pred a }}.

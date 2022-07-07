@@ -5,14 +5,6 @@ From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations iris_properties.
 Require Export datatypes host operations properties opsem.
 
-  (*
-Variable host_function : eqType.
-Let host := host.host host_function.
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
-Variable host_instance : host.
-*)
-
 
 Local Definition reducible := @reducible wasm_lang.
 

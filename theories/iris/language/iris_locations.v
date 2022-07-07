@@ -1,4 +1,4 @@
-(** Iris location definitions and lemmas **)
+(** Iris state interp predicates and lemmas **)
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq.
 
@@ -716,7 +716,6 @@ Proof.
     by rewrite HLookup.
 Qed.
 
-(* We need to enforce the new memory to be of at least the same size as the old one. *)
 Lemma gmap_of_memory_insert_block (n: nat) (m mem :memory) l:
   l !! n = Some mem ->
   length m.(mem_data).(ml_data) >= length mem.(mem_data).(ml_data) ->
