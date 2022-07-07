@@ -1,5 +1,4 @@
 (** Miscellaneous properties about Wasm operations **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -12,17 +11,6 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Lemmas **)
 
-
-
-(*Let administrative_instruction := administrative_instruction host_function.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
-Let lfilled := @lfilled host_function.
-Let lfilledInd := @lfilledInd host_function.
-Let es_is_basic := @es_is_basic host_function.
-Let to_e_list := @to_e_list host_function.
-Let e_is_trap := @e_is_trap host_function.
-Let es_is_trap := @es_is_trap host_function.*)
 
 Lemma app_app (es1 es2 es3 es4: list administrative_instruction) :
   es1 ++ es2 = es3 ++ es4 ->
@@ -166,7 +154,6 @@ Proof.
 Qed.
 
 
-(* Check with Martin for split_n: it's just take+drop *)
 Lemma split_n_is_take_drop: forall es n,
     split_n es n = (take n es, drop n es).
 Proof.
@@ -176,7 +163,6 @@ Proof.
     + by rewrite IH.
 Qed.
 
-(* Ask Martin *)
 Lemma update_list_at_is_set_nth: forall {X:Type} (l:list X) n x,
     n < size l ->
     set_nth x l n x = update_list_at l n x.
@@ -186,16 +172,12 @@ Proof.
   unfold update_list_at. simpl. f_equal. by apply IH.
 Qed.
 
-(* Check with Martin: size is the standard function used in ssreflect.seq; should we
-   change all occurrences of length to size instead? *)
 Lemma length_is_size: forall {X:Type} (l: list X),
     length l = size l.
 Proof.
   move => X l. by elim: l.
 Qed.
 
-(* Very interestingly, the following lemma has EXACTLY the same proof as the
-   lemma split_n_is_take_drop, although they are not related at all! *)
 Lemma v_to_e_take_exchange: forall vs n,
     v_to_e_list (take n vs) = take n (v_to_e_list vs).
 Proof.
@@ -385,8 +367,6 @@ Proof.
   move => bes2. simpl. by f_equal.
 Qed.
 
-(* Maybe there are better/standard tactics for dealing with these, but I didn't find
-     anything helpful *)
 Lemma concat_cancel_last: forall {X:Type} (l1 l2: seq X) (e1 e2:X),
     l1 ++ [::e1] = l2 ++ [::e2] ->
     l1 = l2 /\ e1 = e2.
@@ -469,7 +449,6 @@ Ltac gen_ind_pre H :=
       let only_do_if_ok_direct t cont :=
         lazymatch t with
         | Type => idtac
-(*        | host _ => idtac *)
         | _ => cont tt
         end in
       let t := type of x in
@@ -617,16 +596,6 @@ Ltac fold_upd_context :=
 (** * More Advanced Lemmas **)
 
 
-(* Let administrative_instruction := administrative_instruction host_function. 
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
-Let lfilled := @lfilled host_function.
-Let lfilledInd := @lfilledInd host_function.
-Let es_is_basic := @es_is_basic host_function.
-Let to_e_list := @to_e_list host_function.*)
-
-
-
 
 Lemma lfilled_swap : forall i lh es LI es', 
   lfilled i lh es LI ->
@@ -668,10 +637,8 @@ Lemma lfilled_collapse1: forall n lh vs es LI l,
     exists lh', lfilledInd n lh' ((drop (length vs-l) vs) ++ es) LI.
 Proof.
   move => n lh vs es LI l HLF HConst HLen.
-  (* Comparing this proof to the original proof in Isabelle, it seems that (induction X rule: Y) in Isabelle means induction on proposition Y remembering X (in Coq). *)
   remember (vs++es) as es'. induction HLF; subst.
   - exists (LH_base (vs0 ++ (take (length vs - l) vs)) es').
-    (* The proof to this case should really have finished here; the below is just rearranging brackets and applying cat_take_drop and assumptions. *)
     replace (vs0++(vs++es)++es') with ((vs0++take (length vs - l) vs) ++ (drop (length vs - l) vs ++ es) ++ es').
     { apply LfilledBase. apply const_list_concat => //=.
       by apply const_list_take. }
@@ -802,7 +769,7 @@ Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction
        (fun _ => 0)
        (fun _ LI1 LI2 m1 m2 => 1 + TProp.max m2)
        (fun _ _ LI' m => 0)
-       (fun _ _ _ => 0) (* added this to make it typecheck *)
+       (fun _ _ _ => 0)
        LI).
 
 Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
@@ -966,8 +933,6 @@ Proof.
   - move=> nE. right. move=> [lh I]. apply: nE. inversion I. subst. by repeat eexists.
 Defined.
 
-(** A helper definition for the decidability of [br_reduce] and [return_reduce]
-  (see type_soundness.v). **)
 Definition lfilled_pickable_rec : forall es,
   (forall es' lh, decidable (lfilled 0 lh es es')) ->
   forall es', pickable2 (fun n lh => lfilled n lh es es').
@@ -1073,13 +1038,6 @@ Proof.
   by rewrite cats0 in H.
 Qed.
 
-(*
-  This is actually very non-trivial to prove, unlike I first thought.
-  The main difficulty arises due to the two rules bet_composition and bet_weakening,
-    which will apply for EVERY hypothesis of be_typing when doing inversion/induction.
-  Moreover, bet_weakening has a reversed inductive structure, so the proof in fact
-    required induction (where one would hardly expect an induction here!).
-*)
 Lemma empty_typing: forall C t1s t2s,
     be_typing C [::] (Tf t1s t2s) ->
     t1s = t2s.
@@ -1332,8 +1290,6 @@ End composition_typing_proofs.
 Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
   xs ++ (y :: ys) <> [::].
 Proof. move => T xs y ys E. by move: (List.app_eq_nil _ _ E) => [? ?]. Qed.
-
-
 
 Lemma not_reduce_simple_nil : forall es', ~ reduce_simple [::] es'.
 Proof.
