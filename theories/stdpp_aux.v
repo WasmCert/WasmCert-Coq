@@ -423,16 +423,10 @@ Proof.
   }
 Qed.
 
-(* Note : the following lemma exists already in Coq's standard library, and 
-   is called app_eq_unit *)
 Lemma app_eq_singleton: ∀ T (l1 l2 : list T) (a : T),
     l1 ++ l2 = [a] ->
     (l1 = [a] ∧ l2 = []) ∨ (l1 = [] ∧ l2 = [a]).
 Proof.
-  move =>T.
-  elim.
-  move => l2 a Heq. right. by rewrite app_nil_l in Heq.
-  move => a l l2 a0 a1 Heq. inversion Heq;subst.
-  left. split. f_equiv.
-  all: destruct l, a0;try done.
+  intros.
+  apply app_eq_unit in H as [?|?]; by [ right | left ].
 Qed.
