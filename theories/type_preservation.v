@@ -1,5 +1,4 @@
 (** Proof of preservation **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -11,30 +10,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.
-Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
-
-(* Let host := host host_function.
-
-Variable host_instance : host.
-
-Let host_state := host_state host_instance.
-
-Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
-             host_state -> store_record -> frame -> seq administrative_instruction -> Prop
-  := @reduce _ _. 
-
-Let s_globals : store_record -> seq global := @s_globals _.
-Let s_mems : store_record -> seq memory := @s_mems _.
-Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
-Let cl_type : function_closure -> function_type := @cl_type _.
-Let store_extension: store_record -> store_record -> Prop := @store_extension _. *)
 
 Definition t_be_value bes : Prop :=
   const_list (to_e_list bes).
@@ -57,12 +32,6 @@ Lemma upd_label_overwrite: forall C l1 l2,
 Proof.
   by [].
 Qed.
-
-(*
-  These proofs are largely similar.
-  A sensible thing to do is to make tactics for all of them.
-  However, some of the proofs depend on the previous ones...
-*)
 
 Lemma BI_const_typing: forall C econst t1s t2s,
     be_typing C [::BI_const econst] (Tf t1s t2s) ->
@@ -341,11 +310,6 @@ Proof.
     subst.
     by repeat rewrite catA.
 Qed.
-(*
-  Unlike the above proofs which have a linear dependent structure therefore hard
-    to factorize into a tactic, the following proofs are independent of each other
-    and should therefore be easily refactorable.
-*)
 
 Ltac invert_be_typing:=
   repeat lazymatch goal with
@@ -487,8 +451,6 @@ Proof.
   by apply bet_const.
 Qed.
 
-(* It seems very hard to refactor the i32 and i64 cases into one because of
-     the polymorphism of app_testop_i. *)
 Lemma t_Testop_i32_preserve: forall C c testop tf,
     be_typing C [::BI_const (VAL_int32 c); BI_testop T_i32 testop] tf ->
     be_typing C [::BI_const (VAL_int32 (wasm_bool (app_testop_i testop c)))] tf.
@@ -670,7 +632,7 @@ Proof.
   gen_ind_subst HType => //=.
   - (* Composition *)
     invert_be_typing.
-    by apply bet_br => //=. (* Surprisingly convenient! *)
+    by apply bet_br => //=. 
   - (* Weakening *)
     apply bet_weakening.
     by eapply IHHType => //=.
@@ -748,13 +710,7 @@ Proof.
     apply bet_weakening.
     by eapply IHHType => //=.
 Qed.
- (*
-Ltac invert_non_be:=
-  repeat lazymatch goal with
-  | H: exists e, _ = AI_basic e |- _ =>
-    try by destruct H
-  end.
-*)
+
 (*
   Preservation for all be_typeable simple reductions.
 *)
@@ -771,7 +727,6 @@ Proof.
   move => bes bes' es es' C tf HType HReduce HAI_basic1 HAI_basic2 HBES1 HBES2.
   destruct tf.
   inversion HReduce; b_to_a_revert; subst; simpl in HType => //; basic_inversion.
-(* The proof itself should be refactorable further into tactics as well. *)
   - (* Unop *)
     by eapply t_Unop_preserve; eauto => //=.
   - (* Binop_success *)
@@ -857,7 +812,6 @@ Ltac auto_basic :=
     by unfold e_is_basic; exists e
 end.
 
-(* We need this version for dealing with the version of predicate with host. *)
 Ltac basic_inversion' :=
    repeat lazymatch goal with
          | H: True |- _ =>
@@ -885,7 +839,6 @@ Proof.
   apply et_to_bet in HType => //; last by apply const_list_is_basic.
   apply ety_a'; first by apply const_list_is_basic.
 
-  (* A trick on doing induction from tail since composition needs that... *)
   remember (rev es) as es'.
   assert (es = rev es'). rewrite Heqes'. symmetry. by apply revK.
   rewrite H.
@@ -912,8 +865,7 @@ Proof.
       -- by apply H.
       -- by rewrite revK.
       -- rewrite to_b_list_rev in H3. by apply H3.
-    + (* The main reason that this holds *)
-      simpl in H0. move/andP in H0. destruct H0.
+    + simpl in H0. move/andP in H0. destruct H0.
       destruct a => //=.
       destruct b => //=.
       simpl in H4. apply BI_const_typing in H4. subst.
@@ -1014,17 +966,7 @@ Lemma Label_typing: forall s C n es0 es ts1 ts2,
                     length ts = n.
 Proof.
   move => s C n es0 es ts1 ts2 HType.
-(*  (* Without the powerful generalize_dependent tactic, we need to manually remember
-     the dependent terms. However, it's very easy to mess up the induction hypothesis
-     if variables are not correctly generalized.
-     Reading source: https://stackoverflow.com/questions/58349365/coq-how-to-correctly-remember-dependent-values-without-messing-up-the-inductio 
-     ( the missing letter n at the end of link is not a typo )
-   *)
-  remember ([::Label n es0 es]) as les.
-  remember (Tf ts1 ts2) as tf.
-  generalize dependent Heqtf. generalize dependent ts1. generalize dependent ts2.*)
   et_dependent_ind HType => //.
-(*  induction HType => //. *)
   - (* ety_a *)
     assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
     rewrite Hremes in H0. by basic_inversion'.
@@ -1042,41 +984,6 @@ Proof.
     inversion Hremes. inversion Hremtf. subst.
     by exists ts, ts2.
 Qed.
-
-(*
-  Looking at what we want to prove in the Lfilled_break case, it might be tempting to
-    prove the following:
-
-Lemma Lfilled_break_typing: forall n lh vs LI ts s C t2s,
-    e_typing s (upd_label C ([::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (Br n)]) LI ->
-    e_typing s C vs (Tf [::] ts).
-
-  The lemma itself is definitely correct, and an apparent approach is to do induction
-    on n (or induction on the lfilled hypothesis).
-
-  However, this will *NOT* work: the culprit is that there is no inductive relationship
-    that changes the instruction (Br n+1) into (Br n), and we will get a useless
-    induction hypothesis that can never be applied.
-
-  We need to somehow avoid getting the parameter of Br into induction. By the lfilled
-    hypothesis, we know LI is a nested Label which, at the innermost level, has (Br n)
-    as its first non-constant instruction, and vs at the top of the value stack.
-
-  Recall that (Br n) looks at the nth entry in the label of the typing context and
-    needs to consume that type. Since we can only induct on the depth of lfilled
-    (but not the n in the instruction), they have to be two separate numbers, say
-    n and m. Now if n is 0, the instruction will basically look at the mth entry;
-    what if n is not 0? In that case if we trace the expansion of LI and simulate
-    how the typing is evaluated, we realize that there will be n entries prepended
-    to the label of the typing context, after which we'll then find the mth element
-    of it due to the (Br m).
-
-  So a more sensible lemma to prove is the following, which the original lemma we
-    wanted is a special case of:
-*)
 
 Lemma Lfilled_break_typing: forall n m k lh vs LI ts s C t2s tss,
     e_typing s (upd_label C (tss ++ [::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
@@ -1157,72 +1064,6 @@ Proof.
     by lias.
 Qed.
 
-(*
-  And yes, the above observation was obviously the result of some futile attempt
-    to prove the unprovable version of the lemma.
-
-Lemma Lfilled_break_typing: forall n lh vs LI ts s C t2s,
-    e_typing s (upd_label C ([::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (Br n)]) LI ->
-    e_typing s C vs (Tf [::] ts).
-Proof.
-  move => n lh vs LI ts s C ts2 HType HConst HLength HLF.
-  apply const_es_exists in HConst. destruct HConst. subst.
-  move/lfilledP in HLF.
-  generalize dependent ts2.
-  generalize dependent LI.
-  induction n.
-  - move => LI HLF ts2 HType.
-    repeat rewrite catA in HType.
-    inversion HLF.
-    apply const_es_exists in H. destruct H. subst.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    subst. clear H1.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
-    subst.
-    apply e_composition_typing in H7.
-    destruct H7 as [ts0'' [t1s'' [t2s'' [t3s'' [H9 [H10 [H11 H12]]]]]]].
-    subst.
-    apply et_to_bet in H12; last by auto_basic.
-    apply Break_typing in H12.
-    destruct H12 as [ts0 [ts1 [H13 [H14 H15]]]]. clear H13.
-    unfold plop2 in H14. simpl in H14. move/eqP in H14. inversion H14. subst.
-    clear H14.
-    apply et_to_bet in H11; last by (apply const_list_is_basic; apply v_to_e_is_const_list).
-    apply Const_list_typing in H11.
-    repeat rewrite length_is_size in HLength.
-    assert ((ts1 == t1s'') && (ts0 == vs_to_vts x)).
-    + apply concat_cancel_last_n => //=. rewrite size_map.
-      by rewrite v_to_e_size in HLength.
-    + move/andP in H. destruct H.
-      move/eqP in H0. subst.
-      apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-      by apply Const_list_typing_empty.
-  - move => LI HLF ts2 HType.
-    inversion HLF. subst.
-    repeat rewrite catA in HType.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H2 [H3 [H4 H5]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    clear H2. clear H3.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H6 [H7 [H8 H9]]]]]]].
-    destruct ts0' => //=.
-    destruct t1s' => //=.
-    clear H6. clear H7.
-    apply Label_typing in H9.
-    destruct H9 as [ts0'' [t2s'' [H10 [H11 [H12 H13]]]]]. subst.
-    simpl in H12.
-
- *)
-
 Lemma Local_typing: forall s C n f es t1s t2s,
     e_typing s C [::AI_local n f es] (Tf t1s t2s) ->
     exists ts, t2s = t1s ++ ts /\
@@ -1272,16 +1113,6 @@ Proof.
     split => //=.
     by rewrite -catA.
 Qed.
-
-(*
-  Similarly, Local does not involve in induction either. So what we want to prove
-    is also slightly different from what we desire. However, this one is easier
-    to observe.
-
-  The only thing that got me stuck for a while is to observe that label of the
-    typing context plays no role in typing for this case; this is required since
-    we'll get an extra label update from inverting the Label instruction.
- *)
 
 Lemma Lfilled_return_typing: forall n lh vs LI ts s C lab t2s,
     e_typing s (upd_label C lab) LI (Tf [::] t2s) ->
@@ -1373,7 +1204,6 @@ Theorem t_simple_preservation: forall s i es es' C loc lab ret tf,
 Proof.
   move => s i es es' C loc lab ret tf HInstType HType HReduce.
   inversion HReduce; subst; try (by (apply et_to_bet in HType => //; auto_basic; apply ety_a' => //; auto_basic; eapply t_be_simple_preservation; try by eauto; auto_basic)); try by apply ety_trap.
-  (* Though only a few cases, these cases are expected to be much more difficult. *)
   - (* Block *)
     destruct tf.
     apply et_to_bet in HType.
@@ -1451,30 +1281,6 @@ Proof.
          unfold vs_to_vts. rewrite size_map.
          by rewrite v_to_e_size.
   - (* Label_const *)
- (*   Check HType.
-    dependent induction HType.
-    Print e_typing.
-    gen_ind_pre HType.
-    Set Ltac Debug.
-    Check Datatypes.cons.
-    gen_ind_gen HType.
-    gen_ind_subst HType.*)
- (* After several futile attempts to fix gen_ind_gen, I gave up on it and 
-      made a more cumbersome et_dependent_ind that only works for e_typing.
-
-    For future reference: the reason gen_ind_gen fails here is because when we get to
-      the second last term 
-          [::Label n es0 es'] 
-      which is effectively
-          cons (Label n es0 es') nil
-      we first try to generalize the token 'cons', which obviously cannot be 
-        generalized (which is fine); but then when we try to look at the term 'Label',
-        the tactic somehow wants to generalize on the type of it, i.e.
-          'administrative_instruction', 
-        which is unfortunately redefined with host to be 
-          'administrative_instruction host_function'
-        which means we will generalize host_function which is what we tried to avoid.
- *)
     et_dependent_ind HType => //.
     + (* ety_a *)
       assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
@@ -1530,8 +1336,7 @@ Proof.
       by eapply t_const_ignores_context; eauto.
   - (* Local_lfilled_Return *)
     by eapply Local_return_typing; eauto.
-  - (* Tee_local -- actually a simple reduction *)
-    destruct v => //.
+  - destruct v => //.
     destruct b => //.
     apply et_to_bet in HType => //; auto_basic.
     apply ety_a' => //; auto_basic.
@@ -1837,7 +1642,6 @@ Proof.
   remove_bools_options.
   simpl in HN.
   destruct HST.
-  (* arrow actually required to avoid ssreflect hijacking the rewrite tactic! *)
   rewrite -> List.Forall_forall in H.
   apply List.nth_error_In in HN.
   apply H in HN. unfold cl_type_check_single in HN. destruct HN.
@@ -2162,7 +1966,6 @@ Ltac convert_et_to_bet:=
     apply et_to_bet in H; try auto_basic; simpl in H
   end.
 
-(* TODO: find better fixes than the current duplication. *)
 Ltac split_et_composition:=
   lazymatch goal with
   | H: e_typing _ _ (_ ++ _) _ |- _ =>
@@ -2245,24 +2048,6 @@ Proof.
   + by apply all2_glob_extension_same.
 Qed.
 
-(* This is the only questionable lemma that I'm not >99% sure of it's correctness.
-   But it seems to be absolutely required. Maybe I'm 98% sure. *)
-(*
-   UPD: oops, this is in fact completely nonsense and in no way required --
-          I overlooked another possibility here. This is now abandoned and
-          replaced by a correct version.
-
-Lemma store_reduce_same_es_typing: forall s vs es i s' vs' es' es0 C C' loc lab ret tf,
-    reduce s vs es i s' vs' es' ->
-    store_typing s ->
-    store_typing s' ->
-    inst_typing s i C ->
-    inst_typing s' i C' ->
-    e_typing s (upd_label (upd_local_return C loc ret) lab) es0 tf ->
-    e_typing s' (upd_label (upd_local_return C' loc ret) lab) es0 tf.
-Proof.
- *)
-
 Lemma store_extension_cl_typing: forall s s' cl tf,
     store_extension s s' ->
     cl_typing s cl tf ->
@@ -2274,11 +2059,6 @@ Proof.
     by eapply inst_typing_extension; eauto.
   - by eapply cl_typing_host; eauto.
 Qed.
-
-(*
-  The correct version. We need a mutual induction on e_typing and s_typing
-    since they were defined with a mutual induction.
- *)
 
 Lemma store_extension_e_typing: forall s s' C es tf,
     store_typing s ->
@@ -2321,14 +2101,11 @@ Proof.
       by remove_bools_options. }  
   - move=> s C es es' t1s t2s n HType1 IHHType1 HType2 IHHType2 E s' HST1 HST2 Hext.
     eapply ety_label => //; eauto.
-(*    + by apply IHHType1.
-    + by apply IHHType2. *)
   - move => s C t1s t2s h vs Hlen s'0 HST1 HST2 Hext.
     eapply ety_call_host ; eauto.
   - move=> s f es rs ts C C' HFType HContext HType IHHType E' s' HST1 HST2 Hext.
     eapply mk_s_typing; eauto.
     + by eapply frame_typing_extension; eauto.
-(*    + by apply IHHType. *)
 Defined.
 
 Lemma glob_extension_update_nth: forall sglobs n g g',
@@ -2510,8 +2287,6 @@ Proof.
     subst.
     repeat eexists.
     injection HF. move => H1 H2. subst. clear HF.
-    (* TODO: Use mem_ax_length_constant_update to prove this after porting in the 
-         parameterized memory branch *)
     unfold memory_list.mem_update in H1.
     destruct (pos + N.of_nat n1 <? N.of_nat (length (memory_list.ml_data m3)))%N eqn:HMemSize => //=.
     injection H1. move => H2. clear H1. subst.
@@ -2564,8 +2339,6 @@ Proof.
   move => m c mem HMGrow.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
-  (* assert (HMemExt: ((dv_length (mem_data m) / page_size) <= ((dv_length (mem_data m) + c) / page_size))%N).
-  { apply N.div_le_mono => //. by lias. }*)
   destruct (mem_max_opt m) eqn:HLimMax => //=.
   - destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
     move : HMGrow.
@@ -2574,8 +2347,6 @@ Proof.
     simpl.
     apply/andP.
     split => //.
-    (* TODO: Add a lemma for size of mem_grow, and use it to prove this after porting 
-         in the parameterized memory branch *)
     { unfold mem_size, mem_length, memory_list.mem_length in *.
       simpl.
       repeat rewrite length_is_size.
@@ -2816,11 +2587,6 @@ Proof.
   generalize dependent C. generalize dependent tf.
   generalize dependent loc. generalize dependent lab. generalize dependent ret.
   induction HReduce => //; try move => ret lab loc tf C HIT HType HST; try intros; destruct tf; try by (split => //; apply store_extension_same).
-(*  - (* invoke *)
-    destruct host_instance.
-    split.
-    + by eapply host_application_extension; eauto.
-    + by eapply host_application_typing; eauto. *)
   - (* update glob *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const v; BI_set_global i] with ([::BI_const v] ++ [::BI_set_global i]) in HType => //=.
@@ -2884,7 +2650,7 @@ Proof.
     eapply store_mem_agree; eauto.
     * by destruct v => //=.
     * by move/ltP in H3.
-  - (* another update memory : store some *)
+  - (* store some *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const (VAL_int32 k); BI_const v; BI_store t (Some tp) a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t (Some tp) a off]) in HType => //.
     apply composition_typing in HType.
@@ -2915,7 +2681,7 @@ Proof.
     eapply store_mem_agree; eauto.
     * by destruct tp => //=.
     * by move/ltP in H3.
-  - (* again update memory : grow_memory *)
+  - (* grow_memory *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const (VAL_int32 c); BI_grow_memory] with ([::BI_const (VAL_int32 c)] ++ [::BI_grow_memory]) in HType => //.
     apply composition_typing in HType.
@@ -3251,8 +3017,6 @@ Proof.
     rewrite catA.
     apply bet_weakening_empty_1.
     by apply bet_const.
-  (* From the structure, it seems that some form of induction is required to prove these
-   2 cases. *)
   - (* r_label *)
     generalize dependent lh. generalize dependent les. generalize dependent les'.
     generalize dependent ty. generalize dependent tx. generalize dependent lab.
@@ -3307,9 +3071,6 @@ Proof.
               eapply store_extension_e_typing; try apply HST1 => //; try by [].
               eapply store_extension_reduce; eauto.
               by eapply t_preservation_vs_type; eauto.
-(*            * simpl.
-              simpl in H16.
-              by eapply IHk; eauto. *)
          ++ repeat apply ety_weakening.
             assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
             rewrite HCEmpty in H13. rewrite HCEmpty.

@@ -3,7 +3,6 @@ From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
 Require Export datatypes host operations properties opsem instantiation.
 From stdpp Require Import list fin_maps gmap.
 Require Export stdpp_aux.
-(* We need a few helper lemmas from preservation. *)
 Require Export type_preservation type_progress.
 
 Section module_typing_det.
@@ -440,13 +439,10 @@ Definition gen_func_instance mf inst : function_closure :=
   FC_func_native inst ft (modfunc_locals mf) (modfunc_body mf).
                 
 
-(* This is an actual interesting proof, technically *)
-(* TODO: see if it's possible to refactor the 4 proofs into one *)
 Lemma alloc_func_gen_index modfuncs ws inst ws' l:
   alloc_funcs ws modfuncs inst = (ws', l) ->
   map (fun x => match x with | Mk_funcidx i => i end) l = gen_index (length (s_funcs ws)) (length modfuncs) /\
   ws'.(s_funcs) = ws.(s_funcs) ++ fmap (fun mf => gen_func_instance mf inst) modfuncs /\
- (* length ws'.(s_funcs) = length ws.(s_funcs) + length modfuncs /\*)
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
   ws.(s_globals) = ws'.(s_globals).
@@ -568,7 +564,6 @@ Lemma alloc_glob_gen_index modglobs ws g_inits ws' l:
   alloc_globs ws modglobs g_inits = (ws', l) ->
   map (fun x => match x with | Mk_globalidx i => i end) l = gen_index (length (s_globals ws)) (length modglobs) /\
   ws'.(s_globals) = ws.(s_globals) ++ fmap (fun '({| modglob_type := gt; modglob_init := ge |}, v) => {| g_mut := gt.(tg_mut); g_val := v |} ) (combine modglobs g_inits) /\
- (* length ws'.(s_globals) = length ws.(s_globals) + length modglobs /\*)
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems).
@@ -592,7 +587,6 @@ Proof.
     | _: context C [fold_left ?f (combine modglobs g_inits) (ws, [])] |- _ =>
       remember (fold_left f (combine modglobs g_inits) (ws, [])) as fold_res
     end.
-    (* rewrite - Heqfold_res in Halloc. *)
     destruct fold_res as [ws0 l0].
     symmetry in Heqfold_res.
     unfold alloc_glob, add_glob in Halloc.

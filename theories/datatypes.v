@@ -1,10 +1,6 @@
 (** Definition of Wasm datatypes
     See https://webassembly.github.io/spec/core/syntax/index.html
     and https://webassembly.github.io/spec/core/exec/index.html **)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
-
-(* TODO: use better representations than "nat", which is expensive;
-   maybe N? maybe a 32-bit word type? *)
 
 Require Import BinNat.
 From Wasm Require array.
@@ -20,21 +16,14 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Datatypes **)
 
-(* TODO: Documentation. *)
-
-(* TODO: make these have structure; this will require monad-ifying the whole thing *)
-(* Definition host := unit.
-Definition host_state := unit. *)
-
 Definition depth := nat.
 
 Definition immediate (* i *) :=
-  (* TODO: this is not a great representation *)
   nat.
 
-Definition static_offset := (* off *) N. (* TODO: should be u32 *)
+Definition static_offset := (* off *) N.
 
-Definition alignment_exponent := (* a *) N. (* TODO: should be u32 *)
+Definition alignment_exponent := (* a *) N.
 
 Definition serialise_i32 (i : i32) : bytes :=
   common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
@@ -54,11 +43,10 @@ If no maximum is given, the respective storage can grow to any size.
 [https://webassembly.github.io/spec/core/syntax/types.html#limits]
  *)
 Record limits : Type := {
-  lim_min : N; (* TODO: should be u32 *)
-  lim_max : option N; (* TODO: should be u32 *)
+  lim_min : N; 
+  lim_max : option N;
 }.
 
-(* TODO: factor this out, following the `memory` branch *)
 Module Byte_Index <: array.Index_Sig.
 Definition Index := N.
 Definition Value := byte.
@@ -74,7 +62,7 @@ Record data_vec : Type := {
 
 Record memory : Type := {
   mem_data : memory_list;
-  mem_max_opt: option N; (* TODO: should be u32 *)
+  mem_max_opt: option N; 
 }.
 
 (** std-doc:
@@ -105,7 +93,6 @@ Inductive packed_type : Type := (* tp *)
   | Tp_i32
   .
 
-(* TODO: the standard calls those const and var *)
 (** std-doc:
 [https://webassembly.github.io/spec/core/syntax/types.html#global-types]
 *)
@@ -132,7 +119,6 @@ Definition result_type : Type :=
 (** Note from the specification:
   In the current version of WebAssembly, at most one value is allowed as a result.
   However, this may be generalized to sequences of values in future versions. **)
-(* FIXME: Do we want to enforce it? *)
 
 
 (** std-doc:
@@ -145,7 +131,6 @@ Inductive function_type := (* tf *)
   | Tf : result_type -> result_type -> function_type
   (** Note from the specification:
     In the current version of Wasm, the result list has an arity of at most [1]. **)
-  (* FIXME: Shouldn’t we enforce it? *)
   .
 
 (** std-doc:
@@ -348,17 +333,15 @@ Inductive basic_instruction : Type := (* be *)
 
 
 
-  (** We assume a family of host functions. **)
   (* We assume the host keeps track of the functions it populates onto the 
      Wasm table by assigning each function an integer. *)
   Inductive hostfuncidx : Type :=
 | Mk_hostfuncidx : nat -> hostfuncidx.
-(* Variable host_function : Type. *)
 
-Definition funcaddr := immediate (* TODO: should be funcidx *).
-Definition tableaddr := immediate (* TODO: should be tableidx *).
-Definition memaddr := immediate. (* TODO: should be memidx *)
-Definition globaladdr := immediate. (* TODO: should be globalidx *)
+Definition funcaddr := immediate.
+Definition tableaddr := immediate.
+Definition memaddr := immediate.
+Definition globaladdr := immediate.
 
 
 (** std-doc:
@@ -381,7 +364,6 @@ Record instance : Type := (* inst *) {
   inst_tab : list tableaddr;
   inst_memory : list memaddr;
   inst_globs : list globaladdr;
-  (* TODO: exports field? *)
 }.
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively
@@ -412,7 +394,7 @@ exceeds the maximum size, if present.
 *)
 Record tableinst : Type := {
   table_data: list funcelem;
-  table_max_opt: option N; (* TODO: should be u32 *)
+  table_max_opt: option N;
 }.
 
 (** std-doc:

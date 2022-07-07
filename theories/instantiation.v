@@ -1,6 +1,5 @@
 (* Instantiation *)
 (* see https://webassembly.github.io/spec/core/exec/modules.html#exec-instantiation *)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From ITree Require Import ITree.
@@ -10,23 +9,10 @@ From Wasm Require Import list_extra datatypes datatypes_properties
                          typing opsem type_checker memory memory_list.
 From Coq Require Import BinNat.
 
-(* TODO: Documentation *)
-
-(* TODO: separate algorithmic aspects from specification, incl. dependencies *)
-
-(* TODO: get rid of old notation that doesn't follow standard *)
-
-
-
-(* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
 
 Context {eff : Type -> Type}.
-(* Context {eff_has_host_event : host_event -< eff}. 
-
-Let run_v {eff' eff'_has_host_event} :=
-  @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event. *)
 
 Definition addr := nat.
 Definition funaddr := addr.
@@ -71,7 +57,7 @@ Definition add_func (s : store_record) funcinst := {|
 
 Definition alloc_func (s : store_record) (m_f : module_func) (mi : instance) : store_record * funcidx :=
   let funcaddr := List.length s.(s_funcs) in
-  let functype := List.nth (match m_f.(modfunc_type) with | Mk_typeidx n => n end) mi.(inst_types) (Tf nil nil (* TODO: partiality problem *) ) in
+  let functype := List.nth (match m_f.(modfunc_type) with | Mk_typeidx n => n end) mi.(inst_types) (Tf nil nil ) in
   let funcinst := FC_func_native mi functype m_f.(modfunc_locals) m_f.(modfunc_body) in
   let S' := add_func s funcinst in
   (S', Mk_funcidx funcaddr).
@@ -135,8 +121,6 @@ Definition alloc_glob (s : store_record) (m_g_v : module_glob * value) : store_r
 
 Definition alloc_globs s m_gs vs :=
   alloc_Xs alloc_glob s (List.combine m_gs vs).
-
-(* TODO: lemmas *)
 
 Definition v_ext := module_export_desc.
 
@@ -247,10 +231,8 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list v_ex
   let exps := List.map (fun m_exp => {| modexp_name := m_exp.(modexp_name); modexp_desc := export_get_v_ext inst m_exp.(modexp_desc) |}) m.(mod_exports) in
   (s', inst, exps).
 
-(* TODO: lemmas *)
-
 Definition insert_at {A} (v : A) (n : nat) (l : list A) : list A :=
-List.app (List.firstn n l) (List.app [::v] (List.skipn (n + 1) l)).
+  List.app (List.firstn n l) (List.app [::v] (List.skipn (n + 1) l)).
 
 Definition dummy_table := {| table_data := nil; table_max_opt := None; |}.
 
@@ -275,14 +257,11 @@ Definition dummy_mem := {|
   mem_max_opt := None
 |}.
 
-(* Originally using the write_bytes operation to keep memory implementation parametric, albeit a less convenient definition to use. However, there's an edge case in the bound check that renders its behaviour slightly off when offset is oob with an empty initialiser payload, so replaced by the following version. *)
 Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module_data) : store_record :=
   let m_ind := List.nth (match d.(moddata_data) with Mk_memidx i => i end) inst.(inst_memory) 0 in
   let mem := List.nth m_ind s.(s_mems) dummy_mem in
   let d_pay := List.map bytes.compcert_byte_of_byte d.(moddata_init) in
   let mem'_e := List.app (List.firstn d_ind mem.(mem_data).(ml_data)) (List.app d_pay (List.skipn (d_ind + length d_pay) mem.(mem_data).(ml_data))) in
-(*  let mem'_opt := operations.write_bytes mem d_ind (List.map bytes.compcert_byte_of_byte d.(moddata_init)) in
-  let mems' := match mem'_opt with None => s.(s_mems) | Some mem' => insert_at mem' m_ind s.(s_mems) end in*)
   let mems' := insert_at {| mem_data := {| ml_data := mem'_e |}; mem_max_opt := mem.(mem_max_opt) |} m_ind s.(s_mems) in
   {| s_funcs := s.(s_funcs);
      s_tables := s.(s_tables);
@@ -397,8 +376,7 @@ Definition module_export_typing (c : t_context) (d : module_export_desc) (e : ex
     (i < List.length c.(tc_memory)) &&
     match List.nth_error c.(tc_memory) i with
     | None => false
-    | Some lim' => t_m == lim' (* TODO: should check for equality of `memory_type`s *)
-                            (* UPD: changed a bit *)
+    | Some lim' => t_m == lim'
     end
   | (MED_global (Mk_globalidx i), ET_glob gt) =>
     (i < List.length c.(tc_global)) &&
@@ -438,7 +416,7 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
     tc_func_t := List.app ifts fts;
     tc_global := List.app igs gts;
     tc_table := List.app its (List.map (fun t => t.(modtab_type)) ts);
-    tc_memory := List.app ims ms; (* TODO: should use `mem_type`s *) (* UPD: fixed? *)
+    tc_memory := List.app ims ms; 
     tc_local := nil;
     tc_label := nil;
     tc_return := None;
@@ -475,7 +453,7 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   i < List.length s.(s_tables) ->
   List.nth_error s.(s_tables) i = Some ti ->
   typing.tab_typing ti tt ->
-  external_typing s (MED_table (Mk_tableidx i)) (ET_tab tt) (* {| tt_limits := lim; tt_elem_type := ELT_funcref |})*)
+  external_typing s (MED_table (Mk_tableidx i)) (ET_tab tt) 
 | ETY_mem :
   forall (s : store_record) (i : nat) (m : memory) (mt : memory_type),
   i < List.length s.(s_mems) ->
@@ -745,7 +723,6 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
     | Some cl => tf == operations.cl_type cl
     end
   | (MED_table (Mk_tableidx i), ET_tab tf) =>
-(* TODO   let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in*)
     (i < List.length s.(s_tables)) &&
     match List.nth_error s.(s_tables) i with
     | None => false
@@ -824,13 +801,6 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
     else trigger_inl1 Instantiation_error
   end.
 
-Lemma interp_instantiate_imp_instantiate :
-  forall s m v_imps s_end inst v_exps start,
-  interp_instantiate s m v_imps ≈ ret ((s_end, inst, v_exps), start) ->
-  instantiate s m v_imps ((s_end, inst, v_exps), start).
-Proof.
-Admitted. (* TODO *)
-
 Definition empty_store_record : store_record := {|
     s_funcs := nil;
     s_tables := nil;
@@ -853,7 +823,6 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
         if e.(modexp_name) == n then
           match e.(modexp_desc) with
           | MED_func (Mk_funcidx fi) =>
-(*            Some (s, (Build_frame nil inst), [::AI_invoke fi])*)
             match List.nth_error s.(s_funcs) fi with
             | None => None
             | Some fc => Some (s, (Build_frame nil inst), [::AI_invoke fi])
@@ -864,26 +833,4 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
       end)
     exps
     None.
-
-
-
-(** As-is, [eqType] tends not to extract well.
-  This section provides alternative definitions for better extraction. **)
-(*Module Instantiation (EH : Executable_Host).
-
-Module Exec := convert_to_executable_host EH.
-Import Exec. 
-
-Definition lookup_exported_function :
-    name -> store_record * instance * seq module_export ->
-    option config_tuple :=
-  @lookup_exported_function _.
-
-Definition interp_instantiate_wrapper :
-  module ->
-  itree (instantiation_error +' host_event)
-    (store_record * instance * seq module_export * option nat) :=
-  @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
-
-End Instantiation. *)
 

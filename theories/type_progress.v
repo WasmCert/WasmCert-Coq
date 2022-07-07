@@ -1,5 +1,4 @@
 (** Proof of progress **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
@@ -174,18 +173,6 @@ Ltac invert_typeof_vcs :=
     destruct vcs => //=;
     simpl in H; inversion H; subst; clear H
   end.
-(*
-Ltac invert_inst_typing :=
-  lazymatch goal with
-  | H: inst_typing _ ?i ?C |- _ =>
-    unfold inst_typing in H;
-    destruct i => //=;
-    destruct C => //=;
-    destruct tc_local => //=;
-    destruct tc_label => //=;
-    destruct tc_return => //=
-  end.
-*)
 
 Lemma nth_error_map: forall {X Y:Type} (l: seq X) n f {fx: Y},
     List.nth_error (map f l) n = Some fx ->
@@ -207,7 +194,6 @@ Lemma func_context_store: forall s i C j x,
     List.nth_error (tc_func_t C) j = Some x ->
     exists a, List.nth_error i.(inst_funcs) j = Some a.
 Proof.
-  (* TODO: inst_funcs is a fragile name *)
   move => s i C j x HIT HLength HN.
   unfold sfunc. unfold operations.sfunc. unfold option_bind.
   unfold sfunc_ind.
@@ -232,7 +218,6 @@ Lemma glob_context_store: forall s i C j g,
     List.nth_error (tc_global C) j = Some g ->
     sglob s i j <> None.
 Proof.
-  (* TODO: inst_globs is a fragile name *)
   move => s i C j g HIT HLength HN.
   unfold sglob. unfold operations.sglob. unfold option_bind.
   unfold sglob_ind.
@@ -261,7 +246,6 @@ Lemma mem_context_store: forall s i C,
     exists n, smem_ind s i = Some n /\
               List.nth_error (s_mems s) n <> None.
 Proof.
-  (* TODO: inst_memory is a fragile name *)
   move => s i C HIT HMemory.
   unfold inst_typing, typing.inst_typing in HIT.
   destruct i => //=. destruct C => //=.
@@ -421,19 +405,13 @@ Proof.
 Qed.
 
 (*
-  The version in properties.v cannot be applied since we need to apply this lemma
-    on the version of to_e_list with host (defined in this section).
-  Interestingly enough, Coq somehow allows the statement to be proved trivially
-    by invoking the same lemma in properties.v (but not allowing the application
-    of that lemma directly?... 
-*)
 Lemma to_e_list_cat: forall l1 l2,
     to_e_list (l1 ++ l2) = to_e_list l1 ++ to_e_list l2.
 Proof.
     by apply properties.to_e_list_cat.
 Qed.
+*)
 
-(* TODO: find better fixes than the current duplication. *)
 Ltac split_et_composition:=
   lazymatch goal with
   | H: e_typing _ _ (_ ++ _) _ |- _ =>
@@ -846,30 +824,6 @@ Proof.
     by apply v_to_e_is_const_list.
 Qed. 
 
-(*
-Traceback:
-  WTP: config_typing i s vs es ts <=
-       s_typing s None i vs es ts && (store_typing s) <=
-       e_typing s (C [local = map typeof vs, label = [::], return = None]) es (Tf [::] ts) && ...
-
-  So we only need the part of e_typing with label and return being empty.
-
-  However, it's insufficient to state the e_typing lemma as above, since non-empty label and
-    return are required for the Local and AI_label cases respectively.
-
-  Note that for BI_br i to be typeable, the length of label must be at least i+1 due to the
-    requirement List.nth_error (tc_label C) i = Some ts. This means that there must be
-    at least k+1 labels below the current BI_br i instruction. So say if the current instruction
-    list satisfies lfilled n ..., then we have i<n.
-
-  In particular, since in the be_typing case we have no labels (as label is not a basic
-    instruction, we have i<0, i.e. we don't need to deal with BI_br there!
-
-  Similarly, for Return to be typeable, tc_return C must be not None; but that is the case
-    only if there's already a Local outside the Return instruction. So we don't have to deal
-    with Return in be_typing either.
- *)
-
 Definition br_reduce (es: seq administrative_instruction) :=
   exists n lh, lfilled n lh [::AI_basic (BI_br n)] es.
 
@@ -920,7 +874,6 @@ Proof.
     apply/ltP.
     apply List.nth_error_Some. by rewrite H8.
   - invert_e_typing.
-    (* the above tactic somehow does not recognize H5. *)
     destruct ts => //=; destruct t1s => //=; clear H1.
     assert (Inf : k+1 < length (tc_label (upd_label C ([::ts1] ++ tc_label C)))).
     { eapply IHHLF; eauto.
@@ -1067,15 +1020,6 @@ Proof.
     + move: (IHm n Hn) => [k Hk].
       exists k.
       by lias.
-(*
-  move => n m. generalize dependent n.
-  induction m => //=; move => n H.
-  - destruct n => //=. by exists 0.
-  - destruct n => //=.
-    + by exists (m.+1).
-    + apply IHm in H. destruct H as [k H].
-      exists k. by lias.
-*)
 Qed.
 
 (*
@@ -1111,22 +1055,6 @@ Proof.
   by eapply return_reduce_return_some in H1; eauto.
 Qed.
 
-
-Lemma b2p: forall {T:eqType} (a b:T), a==b -> a=b.
-Proof. move => T a b Hb. by move/eqP in Hb. Qed.
-
-(* Lemma s_typing_lf_call_host: forall s rs f es ts,
-    s_typing s rs f es ts ->
-    (forall n lh s tf h vcs, lfilled n lh [::AI_call_host s tf h vcs] es -> False).
-Proof.
-  move => s rs f es ts HType n lh s0 tf h vcs HLF.
-  inversion HType. inversion H. subst.
-  induction n.
-  { unfold lfilled, lfill in HLF.
-    destruct lh => //.
-    destruct (const_list l) eqn:Hl => //.
-    apply b2p in HLF. subst.
-    simpl in H1.  *)
 
 Fixpoint find_first_some {A : Type} (l : seq.seq (option A)) :=
   match l with
@@ -1179,9 +1107,6 @@ Proof.
     unfold first_instr in IHes. eauto. eauto.
     destruct (find_first_some _) => //=. destruct p; try done. eauto. eauto.
     destruct (find_first_some _) => //=;eauto. destruct p => //. }
-  (*    destruct Hstart ; subst ; repeat rewrite app_assoc ;
-      repeat rewrite <- (app_assoc (l ++ vs)) ; constructor ; (try done) ;
-      unfold const_list ; rewrite forallb_app ; apply andb_true_iff ; split => //=. }  *)
   fold lfill in Hfill. destruct lh => //. 
   remember (const_list l) as b eqn:Hl ; destruct b => //. 
   remember (lfill k lh es) as fill ; destruct fill => //. 
@@ -1191,7 +1116,6 @@ Proof.
   unfold first_instr => //=.
   unfold first_instr in IHk. eapply IHk in H;eauto. rewrite H => //=.
   rewrite - addnS. done. 
-  (*  apply start_label => //=. by eapply IHk. *)
 Qed.
 
 Lemma lfilled_implies_starts k lh e es :
@@ -1216,8 +1140,6 @@ Proof.
   unfold first_instr => //=. unfold first_instr in IHk.
   assert (lfilled k lh [::e] l2) ; first by unfold lfilled ; rewrite <- Heqfill.
   eapply IHk in H => //=. rewrite H => //=.
-(* subst ; constructor => //=. eapply IHk => //=.
-  unfold lfilled ; by rewrite <- Heqfill. *)
 Qed.
 
 
@@ -1228,49 +1150,6 @@ Qed.
     cbn. destruct (first_instr_instr a) eqn:Ha;auto.
     intros Hf. eapply IHe with (es':=es') in Hf. auto.
   Qed.
-
-(* Lemma starts_implies_lfilled k e es :
-  first_instr es = Some (e,k) ->
-  exists lh, lfilled k lh [::e] es.
-Proof.
-  cut (forall n, 
-  induction es.
-  { unfold first_instr => //=. }
-  unfold first_instr => /=.
-  destruct a => /= ;
-               try by intro H ; inversion H ; subst ;
-               exists (LH_base [::] es) ;
-               unfold lfilled, lfill => //=.
-  destruct b => /= ;
-               try by intro H ; inversion H ; subst ;
-               exists (LH_base [::] es) ;
-               unfold lfilled, lfill => //=.
-  - intro H.
-    unfold first_instr in IHes.
-    apply IHes in H as [lh Hfill].
-    destruct lh.
-    exists (LH_base (AI_basic (BI_const v) :: l) l0).
-    unfold lfilled, lfill.
-    unfold lfilled, lfill in Hfill.
-    destruct k => //=.
-    destruct (const_list l) => //.
-    apply b2p in Hfill.
-    by subst.
-    exists (LH_rec (AI_basic (BI_const v) :: l) n l0 lh l1).
-    unfold lfilled, lfill.
-    unfold lfilled, lfill in Hfill.
-    destruct k => //=.
-    fold lfill.
-    fold lfill in Hfill.
-    destruct (const_list l) => //.
-    destruct (lfill _ _ _) => //.
-    apply b2p in Hfill.
-    by subst.
-  - destruct (find_first_some _) eqn:Hl0.
-    + destruct p. *)
- 
-(* Axiom host_application_exists: forall s tf hf vcs,
-    exists res, host_application s tf hf vcs res. *)
 
 Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret,
     e_typing s C es tf ->
@@ -1288,9 +1167,7 @@ Proof.
   (* e_typing *)
   move => s C C' f vcs es tf ts1 ts2 lab ret HType.
   move: f C' vcs ts1 ts2 lab ret.
-  (* Initially I had the wrong order of lab and ret --
-       The error message here is extremely misleading *)
-  apply e_typing_ind' with (* (e := HType) *)
+  apply e_typing_ind' with 
     (P := fun s C es tf (_ : e_typing s C es tf) => forall f C' vcs ts1 ts2 lab ret,
               tf = Tf ts1 ts2 ->
               C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) ->
@@ -1310,11 +1187,6 @@ Proof.
               (const_list es /\ length es = length ts) \/
               es = [::AI_trap] \/
               exists s' f' es', reduce s f es s' f' es') ; try clear HType s C es tf.
-  (* The previous variables s/C/es/tf still lingers here so we need to clear *)
-  (* UPD (23 Sep 2020): with the new wrapper approach to deal with host, we can no longer
-     clear everything like we did originally: this is because the clear tactic also 
-     removes some section variables which make application of t_progress_be impossible
-     (in this case, it's function_closure). See https://github.com/coq/coq/pull/883*)
   - (* AI_basic *)
     move => s C bes tf HType.
     move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet.
@@ -1345,13 +1217,6 @@ Proof.
       eapply HCallHost.
       eapply first_instr_app.
       exact HLF. } 
-      
-(*      assert (lfilled 0 (LH_base [::] [::]) [::AI_call_host s0 tf h vcs0] [::AI_call_host s0 tf h vcs0]).
-      unfold lfilled, lfill => //=. 
-      eapply lf_composition in HLF as [lh' HLF].
-      instantiate (1 := [::e]) in HLF.
-      eapply HCallHost.
-      by apply HLF. } *)
     + (* Terminal *)
       unfold terminal_form in H. destruct H.
       * (* Const *)
@@ -1381,10 +1246,6 @@ Proof.
           unfold lfilled, lfill => /=.
           rewrite v_to_e_is_const_list.
           done. } 
-(*          eapply lf_composition_left in HLF as [lh' HLF].
-          instantiate (1 := v_to_e_list esv) in HLF.
-          eapply HCallHost; eauto.
-          by apply v_to_e_is_const_list. } *)
         -- (* Terminal *)
           unfold terminal_form in H. destruct H.
           ++ left. unfold terminal_form. left.
@@ -1420,10 +1281,6 @@ Proof.
         simpl in LF. rewrite -catA in LF. by apply LF.
       * by apply LfilledBase.
   - (* Weakening *)
-    (* This is interetingly easy. Think more carefully: the only part that is
-       relevant in the reduction is ts1, but ts1 is only required for typing the
-       const list. So we just separate the new const list into 2 parts and add
-       the first part to the result correspondingly! *)
     move => s C es ts t1s t2s HType IHHType.
     move => f C' vcs ts1 ts2 lab ret HTF HContext HInst HConstType HST HBI_brDepth HNRet HCallHost.
     inversion HTF; subst.
@@ -1461,7 +1318,6 @@ Proof.
       exists s', f', (v_to_e_list (take (size ts) vcs) ++ es').
       rewrite -catA.
       apply reduce_composition_left => //; first by apply v_to_e_is_const_list.
-      (* by eapply HReduce. *)
       
   - (* AI_trap *)
     destruct vcs => //; first by left; apply terminal_trap.
@@ -1481,9 +1337,6 @@ Proof.
     { inversion HType; subst.
       unfold return_reduce in HEMT.
       destruct HEMT as [n [lh HLF]].
-      (* HEMT is almost what we need to prove the rs_return reduction, but we also need to prove
-           that there are some consts of suitable length before the [::AI_basic Return] as well.
-         Done as a separate lemma. *)
       eapply return_reduce_extract_vs in HLF; eauto.
       instantiate (1 := ts2) in HLF.
       destruct HLF as [cs [lh' [HConst [HLF2 HLength]]]].
@@ -1560,7 +1413,7 @@ Proof.
     { rewrite upd_label_overwrite. simpl. eauto. }
     { unfold br_reduce in HEMF.
       move => n lh k HLF.
-      assert (Inf : k < n.+1). (* FIXME: Proof items to be added here. *)
+      assert (Inf : k < n.+1).
       { eapply HBI_brDepth.
       move/lfilledP in HLF.
       apply/lfilledP.
