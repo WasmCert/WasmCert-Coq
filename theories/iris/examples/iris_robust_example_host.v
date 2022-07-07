@@ -16,7 +16,6 @@ Close Scope byte_scope.
 
 
 
-(* Example Programs *)
 Section Host_instance.
   Context `{!wasmG Σ, !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}.
 
@@ -111,7 +110,6 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
             = iris.of_val (callHostV (Tf [T_i32] []) (Mk_hostfuncidx h) [xx 42] (LL_base [][]))) as ->.
     { simpl. auto. }
     iApply iris_wp.wp_value;[done|].
-    (* iSimpl. *)
 
     eassert (LH_rec [] 0 [] (LH_base [] []) [] = push_base (LH_base [] []) _ _ _ _) as ->.
     { simpl. eauto. }
@@ -248,8 +246,7 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
     instantiate (1:=λ f', (⌜f' = {| f_locs := [xx 42]; f_inst := inst |}⌝)%I).
     instantiate (2:=λ vs,((interp_values [] vs
                            ∨ ▷ interp_call_host_cls
-                               [(Mk_hostfuncidx h, Tf [T_i32] [])] [] vs) ∗
-                  (* ↪[frame] {| f_locs := [xx 42]; f_inst := f_inst f |} ∗ *) na_own logrel_nais ⊤)%I).
+                               [(Mk_hostfuncidx h, Tf [T_i32] [])] [] vs) ∗ na_own logrel_nais ⊤)%I).
     iSplitR.
     { rewrite fixpoint_interp_call_host_cls_eq.
       iIntros "[[H|H] _]";[by iDestruct "H" as (? ?) "_"|].
@@ -290,7 +287,6 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
     
     (tc_label C) = [] ∧ (tc_return C) = None ->
     be_typing (upd_local_label_return C locs [[]] (Some [])) es (Tf [] []) ->
-    (* (f_locs f) = [xx 0] -> *)
     (inst_funcs inst) !! g = Some g_func ->
     (inst_funcs inst) !! log = Some log_func -> 
     
@@ -338,8 +334,6 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
     iApply wp_wasm_empty_ctx. iApply wp_base_push;auto.
     iApply (wp_call_ctx with "Hf");[simpl;eauto|].
     iNext. iIntros "Hf".
-    (* iApply wp_base_pull. iApply wp_wasm_empty_ctx. *)
-    (* iSimpl. *)
   
     take_drop_app_rewrite 1.
     iApply (wp_seq_can_trap_ctx).
@@ -524,9 +518,6 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
         iPureIntro.
         split => //.
         eexists; by rewrite lookup_singleton. }
-      (* unfold instantiation_resources_pre_wasm. cbn. *)
-      (* unfold import_resources_wasm_typecheck. cbn. *)
-      
       { unfold func_domcheck.
         rewrite dom_singleton => /=.
         iPureIntro.

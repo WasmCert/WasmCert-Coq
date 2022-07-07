@@ -6,7 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_rules.
-Require Export datatypes (* host *) operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -516,7 +516,6 @@ Proof.
     repeat f_equiv.
     unfold Wasm_int.Int32.imul, Wasm_int.Int32.mul. simpl.
     f_equiv.
-    (* rewrite Wasm_int.Int32.Z_mod_modulus_eq. *)
     clear -Ha Hbool Hoverflow.
     unfold Wasm_int.Int32.ltu in Hbool.
     destruct n;simpl in *.

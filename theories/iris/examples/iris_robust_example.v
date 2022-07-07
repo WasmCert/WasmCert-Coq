@@ -14,7 +14,6 @@ Unset Printing Implicit Defensive.
 
 Close Scope byte_scope.
 
-(* Example Programs *)
 Section Examples.
 
 
@@ -276,7 +275,7 @@ Section Examples_host.
         |} ] ;
       mod_tables := [];
       mod_mems := [ {| lim_min := 1%N ; lim_max := None |} ];
-      mod_globals := (* [ {| modglob_type := {| tg_mut := MUT_mut; tg_t := T_i32 |} ; modglob_init := [BI_const (xx 0)] |} ]; *) [];
+      mod_globals :=  [];
       mod_elem := [];
       mod_data := [];
       mod_start := Some {| modstart_func := Mk_funcidx 1 |};
@@ -320,7 +319,7 @@ Section Examples_host.
   Lemma lse_module_typing :
     module_typing lse_module (lse_func_impts ++ lse_glob_impts) [].
   Proof.
-    exists [Tf [] []],[ (* {| tg_mut := MUT_mut; tg_t := T_i32 |} *)]. simpl.
+    exists [Tf [] []],[ ]. simpl.
     repeat split;eauto.
     { apply Forall2_cons. split;auto. cbn.
       repeat split;auto.
@@ -513,8 +512,6 @@ Section Examples_host.
       { iIntros (idnstart) "Hf [Hmod_lse Hr]".
         iDestruct "Hr" as "([Himph Hexp] & Hr)".
         iDestruct "Hr" as (?) "[Hr _]".
-    (*    iDestruct "Hr" as (? ? ? ? ? ?) "([%Hdom [Himpr [Hgret _]]] & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
-        %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & Hmem & _))".*)
         iDestruct "Hr" as (? ? ? ? ? ?) "(Hirwt & %Htypr & %Htab_inits & %Hwts'0 & %Hbounds_elemr & 
         %Hmem_initsr & %Hwms0' & %Hbounds_datar & %Hglobsr & %Hglob_initsr & (Hr & _ & Hmem & _))".
         iDestruct "Hirwt" as "(Hfc & Htc & Hmc & Hgc)".

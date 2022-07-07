@@ -615,7 +615,6 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
       by iExists _.
       done.
       done.
-    (* Nodup equiv *)
     - simpl.
       by apply NoDup_nil.
     - iIntros (v) "Hinst".
@@ -735,7 +734,6 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
       iPureIntro.
       rewrite lookup_insert.
       split => //.
-      (* NoDup *)
       iSplitR.
       { iPureIntro.
         repeat (apply NoDup_cons; split; cbn; first by set_solver).
@@ -1356,7 +1354,6 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
         iFrame "∗ #".
         repeat iSplit ; try iPureIntro => //=.
         lia.
-        (* iExact "Hspec". *)
         iIntros (w) "[[-> | Hs] [Htab Hf]]";
         iDestruct "Hf" as (f6) "[Hf [Hown %Hf4]]".
         { iApply (wp_wand_ctx with "[Hf]").
@@ -1376,7 +1373,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
         unfold IntoVal.
         apply of_to_val => //.
         iFrame.
-        instantiate (1 :=  (λ v, ⌜ v = immV [] ⌝ ∗ (* na_own logrel_nais ⊤ ∗ N.of_nat t↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m fi)]Some a ∗ *)
+        instantiate (1 :=  (λ v, ⌜ v = immV [] ⌝ ∗
                                            ( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
                                            N.of_nat f4↦[wf]FC_func_native
                             {|
@@ -1414,7 +1411,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
         iSimpl.         
         iApply (wp_frame_value with "Hf") => //.
         iNext. iRight.
-         instantiate (1 :=  ((* na_own logrel_nais ⊤ ∗ N.of_nat t↦[wt][N.of_nat (Wasm_int.nat_of_uint i32m fi)]Some a ∗  *)( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
+         instantiate (1 :=  (( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
                                  N.of_nat f4↦[wf]FC_func_native
                             {|
                               inst_types :=

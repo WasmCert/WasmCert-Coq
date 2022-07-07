@@ -280,8 +280,6 @@ Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1
                              (at level 20, format " n ↪[mods] v").
 
   
-(* How to populate the table with the desired call_host at position 1 ? *)
-
 Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 name idmodtab :
   ↪[frame] empty_frame -∗
   0%N ↪[mods] stack_module -∗
@@ -337,8 +335,6 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
                             "(Himport & Himp_type & %Hnodup & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6)".
 
-
-      (* Extract the individual point-tos earlier, so we can establish the uniqueness of imports, which is true anyway. This also saves us from needing to prove this twice later. *)
       iDestruct "Himp_type" as "[_ (H0&H1&H2&H3&H4&H5&Ht&_)]".
       simpl.
       iDestruct "H0" as (cl0) "[H0 %H0]".
@@ -370,7 +366,6 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iDestruct (mapsto_frac_ne with "H4 H5") as "%H45" ; first by eauto.
 
 
-      (* It's possible to do this later, but easier to just get it out of the way now so we don't need to prove it again later; set_solver is pretty slow *)
       simpl in Hnodup.
       assert (NoDup [MED_func (Mk_funcidx idf0); MED_func (Mk_funcidx idf1);
              MED_func (Mk_funcidx idf2); MED_func (Mk_funcidx idf3);
@@ -1096,22 +1091,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
                    AI_basic (BI_call 5); AI_basic (BI_get_local 0);
                    AI_basic (BI_call 3); AI_basic (BI_get_local 0);
                    AI_basic (BI_call 3); AI_basic (BI_binop T_i32 (Binop_i BOI_sub));
-                   AI_basic (BI_set_global 0)]))) as H'. (* [AI_basic
-                      (BI_const
-                         (VAL_int32 (Wasm_int.Int32.repr 4)));
-                   AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 4);
-                   AI_basic
-                     (BI_const (VAL_int32 (Wasm_int.Int32.repr 6)));
-                   AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 4);
-                   AI_basic (i32const 0) ; AI_basic (BI_get_local 0) ; AI_basic (BI_call 5) ;                                  
-                   AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 3);
-                   AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 3);
-                   AI_basic (BI_binop T_i32 (Binop_i BOI_sub));
-                                                     AI_basic (BI_set_global 0)]))) as H. *)
+                   AI_basic (BI_set_global 0)]))) as H'. 
           unfold iris.to_val, iris.to_val, iris.of_val in H'.
           rewrite app_nil_r.
           destruct (merge_values_list _).
@@ -1252,9 +1232,6 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       lia.
       destruct H1. unfold Wasm_int.Int32.unsigned.
       split.
-      (* Maybe it's just my computer, but lia takes a painfull
-         amount of time to solve this, so I proved a dummy lemma
-         in order for lia to run in a simpler environment *)
       assert (forall v:Z, (0 <= v)%Z -> (0 <= v * 2)%Z).
       clear. intros. lia.
       by apply H3.

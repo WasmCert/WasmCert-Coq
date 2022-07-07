@@ -122,7 +122,7 @@ Section Client.
   Lemma client_module_typing :
     module_typing client_module (client_func_impts ++ client_glob_impts) [].
   Proof.
-    exists [Tf [] []],[ (* {| tg_mut := MUT_mut; tg_t := T_i32 |} *)]. simpl.
+    exists [Tf [] []],[]. simpl.
     repeat split;eauto.
     { apply Forall2_cons. split;auto. cbn.
       repeat split;auto. repeat type_next.
@@ -409,11 +409,9 @@ Section Client_main.
       rewrite firstn_cons. iDestruct "Ht" as "[Ht _]".
       
       take_drop_app_rewrite 3.
-      (* iApply (wp_wand with "[-HΦ] HΦ"). *)
       iApply (wp_wand with "[-HΦ]").
       { iApply wp_wasm_empty_ctx.
         iApply wp_seq_can_trap_same_ctx. iFrame "Hf".
-        (* instantiate (1:=(λ v, ⌜ v = immV [] ⌝ ∗ _)%I). *)
         iSplitR;[|iSplitR];cycle 2.
         iSplitL "HisStack Hidf5 Ht Hown".
         { iIntros "Hf". iApply (wp_wand with "[-]").
@@ -427,8 +425,6 @@ Section Client_main.
             iDestruct (be_fundamental_local _ _ [] _ (T_i32 :: locs) with "Hi") as "Hl";eauto.
             unfold interp_expression_closure.
             
-            (* iMod (na_inv_acc with "Hadv Hown") as "(>Ha & Hown & Hcls)";[solve_ndisj..|]. *)
-            (* iModIntro. *)
             iApply ("Hmap" with "[] [$HisStack $Hf $Hidf5 Ht $Hown $Hadv]");[iPureIntro;solve_ndisj|..].
             iSimpl. iFrame "Ht".
             instantiate (2:=(λ _, True)%I).
