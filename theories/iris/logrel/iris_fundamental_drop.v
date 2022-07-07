@@ -23,7 +23,7 @@ Section fundamental.
 
   (* ----------------------------------------- DROP ---------------------------------------- *)
 
-  Lemma typing_drop C t : ⊢ semantic_typing (*HWP:=HWP*) C (to_e_list [BI_drop]) (Tf [t] []).
+  Lemma typing_drop C t : ⊢ semantic_typing C (to_e_list [BI_drop]) (Tf [t] []).
   Proof.
     unfold semantic_typing, interp_expression.
     iIntros (i lh hl).

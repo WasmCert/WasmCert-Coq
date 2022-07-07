@@ -158,7 +158,6 @@ Section fundamental.
     (⊢ semantic_typing C [e] (Tf t2s t3s)) ->
     interp_instance C hl i -∗
     interp_ctx (tc_label C) (tc_return C) hl (tc_local C) i lh -∗
-    (* interp_val t1s vs -∗ *)
     interp_call_host (tc_local C) i (tc_return C) hl w lh (tc_label C) t2s -∗
     ↪[frame]f' -∗
     interp_frame (tc_local C) i f' -∗

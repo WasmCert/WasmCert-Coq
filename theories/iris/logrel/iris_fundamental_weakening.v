@@ -51,14 +51,6 @@ Section fundamental.
     induction lh;simpl;auto.
   Qed.
 
-  (* Lemma local_get_base_l_push_const (lh : llholed) w : *)
-  (*   local_get_base_l (loch_push_const lh w) = (w ++ local_get_base_l lh) ∨ *)
-  (*   local_get_base_l (loch_push_const lh w) = local_get_base_l lh. *)
-  (* Proof. *)
-  (*   destruct lh;simpl. 1: apply simple_get_base_l_push_const. *)
-  (*   right;auto. *)
-  (* Qed. *)
-
 
   Lemma weakening_br C i hl v lh ws1 ts :
       ([∗ list] y1;y2 ∈ ws1;ts, interp_value y2 y1) -∗

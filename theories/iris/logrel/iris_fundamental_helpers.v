@@ -8,7 +8,7 @@ From iris.prelude Require Import options.
 
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_rules.
-Require Export datatypes (* host *) operations properties opsem typing.
+Require Export datatypes operations properties opsem typing.
 Require Export iris_logrel.
 Import uPred.
 
@@ -399,7 +399,7 @@ Section fundamental.
       iSimpl.
       iApply iRewrite_nil_r_ctx.
       iApply (wp_seq_can_trap_ctx _ _ _
-                (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w) (* ∗ ∃ f, ↪[frame] f ∗ Φf f *))))%I.
+                (λ vs, (⌜vs = immV v⌝ ∗ ([∗ list] w;τ ∈ v;tm, interp_value τ w))))%I.
       iFrame. iSplitR.
       { iIntros "Hcontr".
         iDestruct "Hcontr" as "[%Hcontr _]". done. }
@@ -1327,7 +1327,6 @@ Section fundamental.
       rewrite llfill_label.
       eassert (llfill (LL_label [] (length tm) [] vh0 []) [AI_call_host tf0 h0 v0] = of_val (callHostV _ _ _ _)) as Hval'.
       { simpl of_val. f_equiv; eauto. }
-      (* rewrite Hval'. *)
       iApply wp_value;[done|].
       iSplitR "Hf Hfv";[|iExists _;iFrame].
       repeat iRight. iNext.
@@ -1583,7 +1582,6 @@ Section fundamental.
     }
   Qed.
 
-  (* Lemma vfill_find vh a b : *)
   Lemma elem_of_const_false l a :
     is_const a = false ->
     a ∈ v_to_e_list l -> False.

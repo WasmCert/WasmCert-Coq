@@ -46,7 +46,7 @@ Section fundamental.
     (* we open the invariant containing the function reference *)
     iApply fupd_wp.
     iMod (na_inv_acc _ ⊤ with "Hfunc Hown") as "(>Ha & Hown & Hcls)";[solve_ndisj..|].
-    iModIntro. (* TODO: fix tactic instance for wp mod *)
+    iModIntro.
 
     iApply wp_wasm_empty_ctx.
     iApply iRewrite_nil_r_ctx;rewrite -app_assoc.

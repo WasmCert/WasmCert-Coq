@@ -22,7 +22,6 @@ Definition wgN (a: N) : namespace := nroot .@ wg .@ a.
 
 Close Scope byte_scope.
 
-(* Example Programs *)
 Section logrel.
 
   Context `{!wasmG Σ, !logrel_na_invs Σ}.
@@ -133,9 +132,6 @@ Section logrel.
   (* --------------------------------- CLOSURE RELATION ------------------------------------ *)
   (* --------------------------------------------------------------------------------------- *)
 
-  (* Note: here we assume that the function table does not mutate *)
-  (* this is fine for a simple host with no reentrancy, but is not *)
-  (* powerful enough to prove examples such as Landin's Knot *)
   Definition is_basic (a : administrative_instruction) : Prop :=
     match a with
     | AI_basic _ => True
@@ -158,7 +154,6 @@ Section logrel.
   (* The following definition is a fixed point for the call host host, in an empty context *)
   Definition interp_call_host_cls_def (host_list : list (hostfuncidx * function_type)) (τ2 : result_type)
              (interp_call_host' : HRcls) : HRcls :=
-    (* let '(interp_call_host', interp_br') := interp_call_host_br' in *)
     (λne (w : leibnizO val),
       (∃ (vh : llholed) (v : seq.seq value) (tf : function_type)
                               (h : hostfuncidx) (τs1 τs2 : result_type),
@@ -208,14 +203,6 @@ Section logrel.
                                        ∨ interp_call_host_cls hl tf2s v)
                                         ∗ na_own logrel_nais ⊤ ∗ ↪[frame] f }}.
 
-  (*
-  Definition interp_closure_host (hctx : host_ctx) tf1s tf2s (h : hostfuncidx) : iProp Σ :=
-    ∀ vcs, interp_val tf1s (immV vcs) -∗
-           na_own logrel_nais ⊤ -∗
-           wp_host NotStuck ⊤
-             (fill_host hctx (locfill loch [AI_call_host (Tf tf1s tf2s) h vcs]))
-             (λ r, interp_val tf2s (val_of_host_val r) ∗ na_own logrel_nais ⊤). *)
-  
   Definition interp_closure (host_list : list (hostfuncidx * function_type)) (τf : function_type) : ClR :=
       λne cl, (match cl with
                | FC_func_native i (Tf tf1s tf2s) tlocs e => ⌜τf = Tf tf1s tf2s⌝ ∗
@@ -309,7 +296,7 @@ Section logrel.
     (∀ n τf cl, Persistent (icl n τf cl)) -> Persistent (interp_function τf icl n).
   Proof.
     intros Hpers.
-    unfold interp_function. (* , interp_closure, interp_closure_host, interp_closure_native. *)
+    unfold interp_function. 
     apply exist_persistent =>cl/=.
     apply sep_persistent;[apply _|]. auto.
   Qed.
@@ -357,7 +344,6 @@ Section logrel.
 
   Definition interp_call_host_br_def (τl : result_type) (i : instance) (τro : option result_type) (host_list : list (hostfuncidx * function_type))
              (interp_call_host_br' : HR * BR) : HR * BR :=
-    (* let '(interp_call_host', interp_br') := interp_call_host_br' in *)
     (λne (w : leibnizO val) (lh : leibnizO lholed) (τc : leibnizO (list (list value_type))) (τ2 : leibnizO result_type),
       (∃ (vh : llholed) (v : seq.seq value) (tf : function_type)
                               (h : hostfuncidx) (τs1 τs2 : result_type),
@@ -616,7 +602,7 @@ Section logrel_host.
   Let expr := iris.expr.
   Let val := iris.val.
 
-  Definition interp_expression_closure (hctx : host_ctx) (τs : result_type) (* (hl : list (hostfuncidx * function_type)) *) (f : frame) (es : expr) : iProp Σ :=
+  Definition interp_expression_closure (hctx : host_ctx) (τs : result_type)  (f : frame) (es : expr) : iProp Σ :=
     (WPh fill_host hctx es {{ λ vs, (interp_val τs (val_of_host_val vs) ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }})%I.
 
   Definition interp_closure_host (t2 : result_type) (hctx : host_ctx) tf1s tf2s (h : hostfuncidx) : iProp Σ :=
