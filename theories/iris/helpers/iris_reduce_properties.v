@@ -24,8 +24,6 @@ Ltac get_tail x xs ys y Htail :=
 
 Section reduce_properties.
   
-(*  Let reducible := @reducible wasm_lang.
-  Let reduce := @reduce host_function host_instance.*)
 
   Let expr := iris.expr.
   Let val := iris.val.
@@ -203,9 +201,6 @@ Ltac no_reduce Heqes Hred :=
   ].
 
 Section reduce_properties_lemmas.
-
-(*  Let reducible := @reducible wasm_lang.
-  Let reduce := @reduce host_function host_instance. *)
 
   Let expr := iris.expr.
   Let val := iris.val.
@@ -476,7 +471,6 @@ Ltac not_enough_arguments s f vs obj t1s s' f' es' :=
 
 Section reduce_properties_lemmas.
    Let reducible := @reducible wasm_lang.
-(*  Let reduce := @reduce host_function host_instance. *)
 
   Let expr := iris.expr.
   Let val := iris.val.
@@ -620,12 +614,7 @@ Section reduce_properties_lemmas.
     inversion Hinvoke as [Ha]. rewrite Ha in H.
     rewrite H in Hs. rewrite H0 in Hs. inversion Hs as [[ Ht1s Ht2s Hh ]].
     rewrite Ht1s in H3. rewrite H3 in Hlen.
-    rewrite <- Hves in Hlen. rewrite H1 in Hlen. rewrite v_to_e_length in Hlen. lia. (*
-  - apply app_inj_tail in Heqes. destruct Heqes as [Hves  Hinvoke ].
-    inversion Hinvoke as [Ha]. rewrite Ha in H.
-    rewrite H in Hs. rewrite H0 in Hs. inversion Hs as [[ Ht1s Ht2s Hh ]].
-    rewrite Ht1s in H3. rewrite H3 in Hlen.
-    rewrite <- Hves in Hlen. rewrite H1 in Hlen. rewrite v_to_e_length in Hlen. lia. *)
+    rewrite <- Hves in Hlen. rewrite H1 in Hlen. rewrite v_to_e_length in Hlen. lia. 
     - simple_filled H0 k lh bef aft n0 l l'.
       destruct aft.
       { destruct es. { empty_list_no_reduce. }
@@ -1019,10 +1008,6 @@ Section reduce_properties_lemmas.
     (try unfold lfilled, lfill => //=) ; (try done) ; (try by rewrite app_nil_r).
     rewrite H1 ; by apply v_to_e_is_const_list. done.
     apply (r_invoke_host _ H H0 H1 H2 H3 H4).
-(*  left ; eexists 0, (LH_base [] []), _, _, _ ; repeat split ;
-    (try unfold lfilled, lfill => //=) ; (try done) ; (try by rewrite app_nil_r).
-  rewrite H1 ; by apply v_to_e_is_const_list. done.
-  apply (r_invoke_host_diverge _ H H0 H1 H2 H3 H4 H5).*)
     left ; eexists 0, (LH_base [] []), [AI_basic (BI_const _)], _, _.
     repeat split ; unfold lfilled, lfill ; simpl ; (try done) ; (try done) ;
       (try by rewrite app_nil_r). 
@@ -1438,10 +1423,6 @@ Section reduce_properties_lemmas.
         k, lh ; repeat split => //=.
       rewrite H1 ; by apply v_to_e_is_const_list.
       by apply (r_invoke_host _ H H0 H1 H2 H3 H4).
-(*    - exists ves, (AI_invoke a), [], (ves ++ [AI_invoke a]),
-      k, lh ; repeat split => //=.
-    (* rewrite H1 ; by apply v_to_e_is_const_list.
-    by apply (r_invoke_host_diverge _ H H0 H1 H2 H3 H4 H5).*) *)
     - exists [], (AI_basic (BI_get_local j)), [], [AI_basic (BI_const v)], k, lh ;
       repeat split => //=.
       by apply r_get_local.
@@ -1791,8 +1772,6 @@ Section reduce_properties_lemmas.
           assert (vs0 ++ (vs ++ [AI_label n es'0 LI] ++ es'') ++ es'1 =
                  (vs0 ++ vs) ++ [AI_label n es'0 LI] ++ (es'' ++ es'1))%SEQ as ->.
           { repeat erewrite app_assoc. auto. } inversion Hle.
-          (* apply lfilled_Ind_Equivalent. constructor;auto. *)
-          (* apply const_list_app;auto. *)
         }
       }
       { apply first_values in H2 as [? [? ?]];auto. done. }
