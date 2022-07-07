@@ -3,14 +3,12 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations stdpp_aux.
-Require Export datatypes (* host *) operations properties opsem.
+Require Export datatypes operations properties opsem.
 Require Import iris_reduce_properties iris_wasm_lang_properties iris_reduction_core.
 
 
 
 Ltac solve_prim_step_split_reduce_r H objs Heqf0 :=
-  (* this code has to be written so many times in the following proof, with just
-     minor changes, so I wrote a tactic. *)
   left ; subst ;
   apply Logic.eq_sym, app_eq_nil in H as [? ?] ;
   exists objs ; subst ; rewrite app_nil_r ;

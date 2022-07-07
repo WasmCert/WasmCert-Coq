@@ -1,7 +1,7 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 Require Export iris stdpp_aux iris_lfilled_properties.
-Require Export datatypes (* host *) operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
 
@@ -818,8 +818,6 @@ Section wasm_lang_properties.
 
   Lemma lfilled_eq i1 i2 lh1 lh2 e1 e2 LI :
     lfilled i1 lh1 [e1] LI -> lfilled i2 lh2 [e2] LI ->
-    (* (to_val [e1] = None /\ (forall a b c, e1 <> AI_label a b c) \/ e1 = AI_trap) -> *)
-    (* (to_val [e2] = None /\ (forall a b c, e2 <> AI_label a b c) \/ e2 = AI_trap) -> *)
     ((is_const e1 = false ) /\ (forall a b c, e1 <> AI_label a b c)) ->
     ((is_const e2 = false ) /\ (forall a b c, e2 <> AI_label a b c)) ->
     i1 = i2 /\ lh1 = lh2 /\ e1 = e2.

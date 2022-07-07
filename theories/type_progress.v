@@ -155,8 +155,8 @@ Proof.
   rewrite -HDrop. by rewrite cat_take_drop.
 Qed.
 
-Hint Constructors reduce_simple : core.
-Hint Constructors opsem.reduce_simple : core.
+Global Hint Constructors reduce_simple : core.
+Global Hint Constructors opsem.reduce_simple : core.
 
 Ltac invert_typeof_vcs :=
   lazymatch goal with
@@ -1567,6 +1567,7 @@ Proof.
 
 
 Qed.
+
 
 
 
