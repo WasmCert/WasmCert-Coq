@@ -3,10 +3,8 @@ From iris.program_logic Require Import language weakestpre lifting.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-(* From iris.bi Require Export weakestpre. *)
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris_instantiation iris.
 Require Export datatypes host operations properties opsem instantiation.
-(* We need a few helper lemmas from preservation. *)
 Require Export type_preservation.
 
 Close Scope byte.
@@ -16,7 +14,7 @@ Section Iris_host_def.
 (* Domain of the variable instantiation store *)
 Definition vi := N.
 
-(* variable instantiation store. *)
+(* variable import/export store. *)
 Definition vi_store := gmap vi module_export.
 
 Definition module_decl := module.
@@ -24,17 +22,12 @@ Definition module_decl := module.
 (* an import is specified by giving the index of the instance to the module_export and a second index in the list*)
 Definition vimp : Type := vi.
 
-(* There is only one instance declaration instruction: instantiating a module.
-   ID_instantiate vi vm vimps is supposed to instantiate the module vmth module
-   in the program state, taking imports as specified by each of the vimps, 
-   and store the list of exports in the vi_store for future use.
- *)
+
 Inductive host_e: Type :=
 | ID_instantiate: list vi -> N -> list vimp -> host_e
 | H_get_global: globaladdr -> host_e.
 
 (* What a host function can do : *)
-(* So far, a host function cannot do much *)
 Inductive host_action : Type :=
 | HA_nothing : host_action
 | HA_print : host_action
@@ -46,7 +39,6 @@ Inductive host_action : Type :=
 
 
 
-(* Does the start function always take 0 arguments? *)
 Definition map_start (start: option nat) : list administrative_instruction :=
   match start with
   | Some n => [AI_invoke n]
@@ -56,7 +48,6 @@ Definition map_start (start: option nat) : list administrative_instruction :=
 Definition lookup_export_vi (vis: vi_store) (vimp: vimp) : option module_export:=
   vis !! vimp.
 
-(* some kind of folding on 2 lists *)
 Fixpoint insert_exports (vis: vi_store) (iexps: list vi) (exps: list module_export) : option vi_store :=
   match iexps with
   | [::] => Some vis
@@ -140,10 +131,6 @@ Inductive host_reduce: store_record -> vi_store -> list module -> list host_e ->
     execute_action f s (innermost_frame lh f0) vcs s' res ->
     llfill lh [AI_call_host tf h vcs] = LI ->
     llfill lh res = LI' ->
-    (* If we want host actions to be able to also modify the frame, some effort will need 
-       to be made to modify the innermost frame of lh before filling it with res ;
-       this innermost frame could (only in theory) not exist and in that case, we must
-       figure out what to do *)
     host_reduce s vis ms idecs fs f0 LI s' vis ms idecs fs f0 LI'
 | HR_call_host_instantiate :
   forall s vis ms idecs h hi f fs LI LI' lh f0,
@@ -452,7 +439,7 @@ Class hasG Σ := HAsG {
                    haGName : gname
                  }.
 
-Definition proph_id := positive. (* still have no idea about what this is *)
+Definition proph_id := positive.
 
 Instance eqdecision_vi: EqDecision vi.
 Proof. move => n n'. unfold Decision. by decidable_equality. Qed.
@@ -811,8 +798,6 @@ forall (s E es Φ).
     by iApply "Hwp". }
   destruct σ as [[[[s0 vis] ms] has] f].
   iDestruct "Hσ" as "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?)".
-  (*                 destruct δ.
-                 destruct (to_chval es) eqn:Htchv. *)
   destruct f as [loc ins].
   iSpecialize ("Hwp" $! (s0, loc, ins) ns κ κs nt with "[$]").
   iMod "Hwp" as "[%Hs He2]".
@@ -1007,15 +992,6 @@ Definition export_ownership_host (hs_exps: list vi) : iProp Σ :=
 (* The resources for module exports. This is a bit more complicated since it is allowed to export the imported elements,
    adding another case to be considered. *)
 Definition module_export_resources_host (hs_exps: list vi) (m_exps: list module_export) (inst: instance) : iProp Σ :=
-  (* For each export, if it is actually imported by the module (i.e. not newly allocated), then we should have the
-     host vis points to the old location; otherwise it should point to the address as specified in one of the four
-     address lists. 
-
-     We implement the above by first construct the list of exports corresponding to all the entities in the module
-     (i.e. imports + new declarations), then lookup from this list to find the correct export.
-
-     Upd: This is now obsolete, since the instance directly gives the above knowledge.
-*)
   [∗ list] hs_exp; m_exp ∈ hs_exps; m_exps,
                                     ∃ name, hs_exp ↪[vis] Build_module_export name
                                                    (match m_exp.(modexp_desc) with
@@ -1126,7 +1102,6 @@ Lemma instantiation_spec_operational_no_start (s: stuckness) E (hs_mod: N) (hs_i
 Proof.
   
   move => Hmodstart Hmodtype Hmodrestr.
-  (* Duplicate module restrictions for later *)
   assert (module_restrictions m) as Hmodrestr2 => //.
   
   iIntros "(Hmod & Himphost & Himpwasmpre & Hexphost & %Hlenexp)".
@@ -1137,7 +1112,6 @@ Proof.
   iIntros ([[[[ws vis] ms] has] f] ns κ κs nt) "Hσ".
   iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hhas & Hframe & Hmsize & Htsize & Hmlimit & Htlimit)".
 
-  (* Reflecting the assertions back *)
   (* module declaration *)
   iDestruct (ghost_map_lookup with "Hms Hmod") as "%Hmod".
   rewrite gmap_of_list_lookup in Hmod.
@@ -1293,10 +1267,7 @@ Proof.
       + (* Functions *)
         unfold ext_func_addrs => /=.
         rewrite map_app => /=.
-        (* The first part is the same. *)
         f_equal.
-        (* We now have to prove that gen_index gives the correct indices of the newly allocated functions. This should
-           be a general property that holds for alloc_Xs, tbh. *)
         by apply alloc_func_gen_index in Hallocfunc as [-> ?].
       + (* Tables *)
         unfold ext_tab_addrs => /=.
@@ -1384,8 +1355,6 @@ Proof.
         by constructor.
     - (* table initializers bound check *)
 
-      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)
-      (* First we note that s_tables of s3 only differs from the original list of tables by the result of alloc_tab. *)
       apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
       apply alloc_mem_gen_index in Hallocmem as [? [? [? [? ?]]]].
       apply alloc_tab_gen_index in Halloctab as [? [? [? [? ?]]]].
@@ -1395,7 +1364,6 @@ Proof.
 
       unfold module_elem_bound_check_gmap in Hebound.
 
-      (* Prove all2 by proving arbitrary lookups *)
       apply all2_Forall2.
       rewrite Forall2_lookup.
       move => i.
@@ -1546,7 +1514,6 @@ Proof.
     - (* memory initializers bound check *)
 
       
-      (* Method is similar to table initialisers, but details are a bit simpler *)
       apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
       apply alloc_mem_gen_index in Hallocmem as [? [? [? [? ?]]]].
       apply alloc_tab_gen_index in Halloctab as [? [? [? [? ?]]]].
@@ -1556,7 +1523,6 @@ Proof.
 
       unfold module_data_bound_check_gmap in Hdbound.
 
-      (* Prove all2 by proving arbitrary lookups *)
       apply all2_Forall2.
       rewrite Forall2_lookup.
       move => i.
@@ -1770,10 +1736,9 @@ Proof.
     revert Heqinst_res.
     inversion HStep; subst; clear HStep; move => Heqinst_res.
     
-    (* Clear out the other two cases first. *)
 
     5: {
-      (* Wasm reduction is impossible, because we have nothing in the Wasm part. *)
+      (* Wasm reduction is impossible. *)
       by apply empty_no_reduce in H.
     }
 
@@ -1783,8 +1748,6 @@ Proof.
     3:  by apply llfill_is_nil in H2 as [??] => //. 
 
     2: { 
-      (* oob case is impossible, because we've proven the bound check conditions. *)
-      (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
       iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt" => //.
       { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
@@ -1796,7 +1759,6 @@ Proof.
       
       exfalso.
       apply H20. clear H20.
-      (* First clear out some generated variables. *)
       rewrite Hmod in H3. 
       inversion H3; symmetry in H0; subst; clear H3. 
     
@@ -1810,7 +1772,6 @@ Proof.
 
     (* On to the main branch, the only possible reduction (successful case) *)
 
-    (* Similarly, clear out some generated variables *)
     rewrite Hmod in H3.
     
     revert Heqinst_res.
@@ -1823,8 +1784,6 @@ Proof.
     
     iIntros "!>!>!>".
 
-    (* We need to mass update the state interp. To do that, we first need to retrieve some relations between the resulting variables from inversion and those specified by the precondition -- essentially, instantiation should be a deterministic process. *)
-    (* Now use determinism of instantiation to eliminate a lot of generated variables. *)
     specialize (instantiate_det _ _ _ _ _ Hinst H9) as Hinsteq.
 
     destruct ws3.
@@ -1882,39 +1841,7 @@ Proof.
 
 Qed.
 
-Lemma prim_step_inst_cons_reduce_start v_exps modi m v_imps ws1 vis1 ms1 ha1 f1 κ (es es': list host_e) wes σ2 efs vs idf s_res inst_res exps start imps:
-  ms1 !! N.to_nat modi = Some m ->
-  mod_start m = Some idf ->
-  const_list vs ->
-  those (lookup_export_vi vis1 <$> v_imps) = Some imps ->
-  instantiate ws1 m (modexp_desc <$> imps) (s_res, inst_res, exps, start) ->
-  prim_step ((ID_instantiate v_exps modi v_imps :: es), vs) (ws1, vis1, ms1, ha1, f1) κ (es', wes) σ2 efs ->
-  prim_step ([ID_instantiate v_exps modi v_imps], []) (ws1, vis1, ms1, ha1, f1) [] ([], wes) σ2 [] /\ κ = [] /\ efs = [] /\ es' = es /\ (wes = (map_start start) \/ wes = [AI_trap]).
-Proof.
-  move => Hmodi Hidstart Hconst Hvilookup Hinstantiate HStep.
-  destruct σ2 as [[[[ws2 vis2] ms2] ha2] f2].
-  destruct HStep as [HStep [-> ->]].
-  inversion HStep; subst; clear HStep.
-  { repeat split => //; last first.
-    { rewrite H3 in Hmodi.
-      inversion Hmodi; subst m0; clear Hmodi.
-      rewrite H4 in Hvilookup; inversion Hvilookup; subst imps0; clear Hvilookup.
-      eapply instantiate_det in H9; last by apply Hinstantiate.
-      inversion H9; subst; clear H9.
-      by left.
-    }
-    by eapply HR_host_step => //.
-  }
-  { repeat split => //.
-    { by eapply HR_host_step_init_oob. }
-    { by right. }
-  }
-  { by eapply llfill_const in Hconst => //. }
-  { by eapply llfill_const in Hconst => //. }
-  { by eapply values_no_reduce in Hconst => //. }
-Qed.
-
-
+(* Instantiating modules with a start function. We combine the handling of sequence here all in one. *)
 Lemma instantiation_spec_operational_start_seq s E (hs_mod: N) (hs_imps: list vimp) (v_imps: list module_export) (hs_exps: list vi) (m: module) t_imps t_exps wfs wts wms wgs nstart (Φ: host_val -> iProp Σ) idecls:
   m.(mod_start) = Some (Build_module_start (Mk_funcidx nstart)) ->
   module_typing m t_imps t_exps ->
@@ -1925,7 +1852,6 @@ Lemma instantiation_spec_operational_start_seq s E (hs_mod: N) (hs_imps: list vi
   WP (((ID_instantiate hs_exps hs_mod hs_imps) :: idecls, [::]): host_expr) @ s; E {{ Φ }}.
 Proof.
   move => Hmodstart Hmodtype Hmodrestr.
-  (* Duplicate module restrictions for later *)
   assert (module_restrictions m) as Hmodrestr2 => //.
   
   iIntros "Hframeown (Hmod & Himphost & Himpwasmpre & Hexphost & %Hlenexp) Hwpstart".
@@ -1936,7 +1862,6 @@ Proof.
   iIntros ([[[[ws vis] ms] has] f] ns κ κs nt) "Hσ".
   iDestruct "Hσ" as "(Hwf & Hwt & Hwm & Hwg & Hvis & Hms & Hhas & Hframe & Hmsize & Htsize & Hmlimit & Htlimit)".
 
-  (* Reflecting the assertions back *)
   (* module declaration *)
   iDestruct (ghost_map_lookup with "Hms Hmod") as "%Hmod".
   rewrite gmap_of_list_lookup in Hmod.
@@ -2094,10 +2019,7 @@ Proof.
       + (* Functions *)
         unfold ext_func_addrs => /=.
         rewrite map_app => /=.
-        (* The first part is the same. *)
         f_equal.
-        (* We now have to prove that gen_index gives the correct indices of the newly allocated functions. This should
-           be a general property that holds for alloc_Xs, tbh. *)
         by apply alloc_func_gen_index in Hallocfunc as [-> ?].
       + (* Tables *)
         unfold ext_tab_addrs => /=.
@@ -2185,8 +2107,6 @@ Proof.
         by constructor.
     - (* table initializers bound check *)
 
-      (* This is a complicated/messy proof; there are a lot of playing around the indices. *)
-      (* First we note that s_tables of s3 only differs from the original list of tables by the result of alloc_tab. *)
       apply alloc_glob_gen_index in Hallocglob as [? [? [? [? ?]]]]; last by lias.
       apply alloc_mem_gen_index in Hallocmem as [? [? [? [? ?]]]].
       apply alloc_tab_gen_index in Halloctab as [? [? [? [? ?]]]].
@@ -2196,7 +2116,6 @@ Proof.
 
       unfold module_elem_bound_check_gmap in Hebound.
 
-      (* Prove all2 by proving arbitrary lookups *)
       apply all2_Forall2.
       rewrite Forall2_lookup.
       move => i.
@@ -2639,10 +2558,8 @@ Proof.
     revert Heqinst_res.
     inversion HStep; subst; clear HStep; move => Heqinst_res.
     
-    (* Clear out the other two cases first. *)
 
     5: {
-      (* Wasm reduction is impossible, because we have nothing in the Wasm part. *)
       by apply empty_no_reduce in H.
     }
 
@@ -2653,7 +2570,6 @@ Proof.
     
     2: {
       (* oob case is impossible, because we've proven the bound check conditions. *)
-      (* Some preparation work, establishing the relation between wts/wms and the physical store *)
 
       iDestruct (import_resources_wts_subset with "Hwt Htsize Htlimit [Himpwasm]") as "%Hwt".
       { by iDestruct "Himpwasm" as "(?&?&?&?)". } 
@@ -2665,7 +2581,6 @@ Proof.
       
       exfalso.
       apply H20. clear H20.
-      (* First clear out some generated variables. *)
       rewrite Hmod in H3. 
       inversion H3; symmetry in H0; subst; clear H3. 
     
@@ -2679,7 +2594,6 @@ Proof.
 
     (* On to the main branch, the only possible reduction (successful case) *)
 
-    (* Similarly, clear out some generated variables *)
     rewrite Hmod in H3.
     
     revert Heqinst_res.
@@ -2692,8 +2606,6 @@ Proof.
     
     iIntros "!>!>!>".
 
-    (* We need to mass update the state interp. To do that, we first need to retrieve some relations between the resulting variables from inversion and those specified by the precondition -- essentially, instantiation should be a deterministic process. *)
-    (* Now use determinism of instantiation to eliminate a lot of generated variables. *)
     specialize (instantiate_det _ _ _ _ _ Hinst H9) as Hinsteq.
 
     destruct ws3.
