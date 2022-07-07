@@ -6,18 +6,12 @@ From iris.base_logic.lib Require Export fancy_updates.
 Require Export datatypes host operations properties opsem iris_rules_control iris_properties.
 Require Export iris_wp_def stdpp_aux.
 
-(* empty lists, frame and context rules *)
-
 Close Scope byte_scope.
 
 Section bind_rules.
   
 Context `{!wasmG Σ}.
 
-(* Not that trivial to add modality here -- same issue with seq: the expression
-   being binded into the context might be a value, and the same headache of
-   iris val and wasm val exist. This is a general inconvenience for all
-   the bind rules here.*)
   Lemma wp_frame_bind (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) n f f0 LI :
     iris.to_val [AI_local n f LI] = None ->
     ↪[frame] f0 -∗
@@ -27,7 +21,6 @@ Context `{!wasmG Σ}.
     iIntros (Hetov') "Hframe H".
     rewrite wp_frame_rewrite.
     iLöb as "IH" forall (s E LI f f0 Hetov').
-    (* iApply wp_unfold. *)
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply wp_unfold.
       unfold wp_pre. simpl language.to_val. rewrite Hetov'; simpl.
@@ -138,7 +131,6 @@ Context `{!wasmG Σ}.
   Proof.
     iIntros "H". iIntros (LI HLI).
     iLöb as "IH" forall (s E e LI HLI).
-    (* iApply wp_unfold. *)
     repeat rewrite wp_unfold /wp_pre /=.
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply wp_unfold.
@@ -196,9 +188,8 @@ Context `{!wasmG Σ}.
     WP e @ s; E CTX 1; LH_rec l1 n es (LH_base [] []) l2 {{ w, Φ w }} -∗
     WP e @ s; E {{ w, WP of_val w @ s; E CTX 1; LH_rec l1 n es (LH_base [] []) l2 {{ w, Φ w }} }}.
   Proof.
-    iIntros (Hconst) "H". (* iIntros (LI HLI). *)
+    iIntros (Hconst) "H".
     iLöb as "IH" forall (s E e).
-    (* iApply wp_unfold. *)
     eassert (lfilled 1 (LH_rec l1 n es (LH_base [] []) l2) e _) as Hfill.
     { apply lfilled_Ind_Equivalent. constructor;eauto. constructor;eauto. }
     repeat rewrite wp_unfold /wp_pre /=.

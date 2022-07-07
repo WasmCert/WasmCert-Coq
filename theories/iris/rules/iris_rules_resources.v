@@ -9,7 +9,7 @@ Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def st
 
 Import uPred.
 
-Set Default Proof Using "Type". (* what is this? *)
+Set Default Proof Using "Type". 
 
 Close Scope byte_scope.
 
@@ -141,13 +141,6 @@ Proof.
 Qed.
 
 
-Definition mem_block_equiv (m1 m2: memory) :=
-  m1.(mem_data).(ml_data) = m2.(mem_data).(ml_data).
-
-Notation "m1 ≡ₘ m2" := (mem_block_equiv m1 m2)
-                        (at level 70, format "m1 ≡ₘ m2").
-
-
 (* Instance related *)
 
 Lemma wp_get_local (s : stuckness) (E : coPset) (v: value) (i: nat) (Φ: iris.val -> iProp Σ) f :
@@ -204,8 +197,8 @@ Proof.
     iModIntro.
     destruct σ2 as [[ws' locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [H | [ [? Hstart] | (* [[ a [cl [tf [h [Hstart [Hnth Hcl]]]]] ] |*) (?&?&?&Hstart & Hstart1 & Hstart2
-                                                               & Hσ) (* ] *)]] ;
+    eapply reduce_det in H as [H | [ [? Hstart] |  (?&?&?&Hstart & Hstart1 & Hstart2
+                                                               & Hσ)]] ;
       last (eapply r_set_local with (f' := {| f_locs := set_nth v locs i v; f_inst := inst |}); eauto) ;
     try by unfold first_instr in Hstart ; simpl in Hstart ; inversion Hstart.
     inversion H; subst; clear H. simpl.
@@ -368,8 +361,8 @@ Qed.
 
 
 
-Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) : (* (l: nat) : *)
-  store m n off bs (length bs) = Some m' -> (* is this lemma even true with any l as length ? *)
+Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) :
+  store m n off bs (length bs) = Some m' -> 
   length m.(mem_data).(ml_data) = length m'.(mem_data).(ml_data).
 Proof.
   intros.
@@ -439,16 +432,6 @@ Proof.
   destruct (fold_lefti _ _ _) ; try by inversion H.
 Qed.
 
-  
-Lemma mem_equiv_length (m m': memory):
-  m ≡ₘ m' ->
-  mem_length m = mem_length m'.
-Proof.
-  move => Hm.
-  unfold mem_length, memory_list.mem_length.
-  by rewrite Hm.
-Qed.
-
 Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
   n < length l ->
   update_list_at l n x = <[n := x]> l.
@@ -470,41 +453,20 @@ Qed.
 Lemma update_trivial {A} l i (x : A) :
   l !! i = Some x -> update_list_at l i x = l.
 Proof.
-  generalize dependent l.
-  induction i ; intros ;
-    destruct l ; inversion H => //=.
-  unfold update_list_at. simpl.
-  unfold update_list_at in IHi.
-  by rewrite IHi.
+  move => H.
+  rewrite update_list_at_insert; last by apply lookup_lt_Some in H.
+  by apply list_insert_id.
 Qed.
 
 Lemma update_twice {A} l i (x : A) y :
   i < length l ->
   update_list_at (update_list_at l i x) i y = update_list_at l i y.
 Proof.
-  generalize dependent l.
-  induction i ; intros.
-  destruct l ; inversion H => //=.
-  unfold update_list_at. simpl.
-  rewrite seq.take_cat.
-  rewrite size_take.
-  assert (ssrnat.leq (S (S i)) (seq.size l)).
-  { unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-    rewrite length_is_size in H.
-    replace (S (S i) - seq.size l) with 0 ; last lia.
-    done. }
-  rewrite H0.
-  rewrite ssrnat.ltnn.
-  rewrite ssrnat.subnn.
-  rewrite take0.
-  rewrite cats0.
-  rewrite - drop_drop.
-  replace (S i) with (length (seq.take (S i) l)) at 2.
-  rewrite drop_app.
-  unfold drop at 1. done.
-  rewrite length_is_size.
-  rewrite size_take.
-  by rewrite H0.
+  move => H.
+  rewrite update_list_at_insert; last first.
+  { rewrite update_list_at_insert => //; by rewrite insert_length. }
+  repeat rewrite update_list_at_insert => //.
+  by rewrite list_insert_insert.
 Qed.
 
 
@@ -512,19 +474,9 @@ Lemma update_length {A} l i (x : A) :
   i < length l ->
   length (update_list_at l i x) = length l.
 Proof.
-  intros.
-  unfold update_list_at.
-  rewrite app_length => //=.
-  rewrite length_is_size.
-  rewrite size_take.
-  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-  rewrite length_is_size in H.
-  replace (S i - seq.size l) with 0 ; last lia.
-  simpl.
-  rewrite drop_length.
-  unfold ssrnat.addn, ssrnat.addn_rec.
-  rewrite length_is_size.
-  lia.
+  move => H.
+  rewrite update_list_at_insert => //.
+  by rewrite insert_length.
 Qed.
 
 
@@ -632,19 +584,10 @@ Proof.
   replace (i - length l) with 0 => //= ; last lia.
 Qed.
 
-  
 Lemma those_app {A} (l1 : list (option A)) l2 tl1 tl2 :
   those l1 = Some tl1 -> those l2 = Some tl2 -> those (l1 ++ l2) = Some (tl1 ++ tl2).
 Proof.
-  generalize dependent tl1. induction l1 ; intros.
-  unfold those in H ; inversion H. by rewrite app_nil_l.
-  rewrite <- those_those0 in H. 
-  unfold those0 in H. destruct a ; try by inversion H.
-  fold (those0 l1) in H. rewrite those_those0 in H.
-  destruct tl1 ; destruct (those l1) ; inversion H.
-  assert (those (l1 ++ l2) = Some (l ++ tl2)) ; first by eapply IHl1.
-  rewrite <- those_those0. unfold those0 => //=.
-  fold (those0 (l1 ++ l2)). rewrite those_those0 H1. simpl. by subst.
+  by apply those_app.
 Qed.
 
 
@@ -652,23 +595,7 @@ Lemma those_app_inv {A} (l1 : list (option A)) l2 tl :
   those (l1 ++ l2) = Some tl ->
   exists tl1 tl2, those l1 = Some tl1 /\ those l2 = Some tl2 /\ tl1 ++ tl2 = tl.
 Proof.
-  generalize dependent tl ; induction l1 ; intros.
-  eexists _, _ ; repeat split => //=.
-  rewrite <- app_comm_cons in H.
-  rewrite <- those_those0 in H.
-  unfold those0 in H. destruct a eqn:Ha ; try by inversion H.
-  destruct (those0 (l1 ++ l2)) eqn:Hth ; unfold those0 in Hth ; rewrite Hth in H ;
-    try by inversion H.
-  fold (those0 (l1 ++ l2)) in Hth.
-  rewrite those_those0 in Hth.
-  rewrite Hth in IHl1.
-  assert (Some l = Some l) ; first done.
-  destruct (IHl1 l H0) as (tl1 & tl2 & Hth1 & Hth2 & Htl).
-  rewrite <- those_those0.
-  unfold those0. fold (those0 l1).
-  unfold option_map. rewrite those_those0 Hth1.
-  eexists _,_ ; repeat split => //=. rewrite Htl.
-  unfold option_map in H. by inversion H.
+  by apply those_app_inv.
 Qed.
 
 
@@ -1340,15 +1267,6 @@ Proof.
 Qed.
 
 
-(*
-Lemma map_app {A B} (l1 : list A) l2 (f : A -> B) : map f (l1 ++ l2) = map f l1 ++ map f l2.
-Proof.
-  Search map app.
-  induction l1 ; intros ; try done.
-  simpl. by rewrite IHl1.
-Qed. 
- *)
-
 Lemma take_drop {A} n (l : list A) :(* n < length l -> *)l = seq.take n l ++ seq.drop n l.
 Proof.
   rewrite <- cat_app.
@@ -1378,8 +1296,6 @@ Proof.
     rewrite lookup_app_l => //=. by rewrite <- H1. }
   destruct n. rewrite <- H1. apply Logic.eq_sym, nil_length_inv in H1. rewrite H1.
   unfold those => //=. rewrite H. rewrite H1 => //=. lia.
-  (* Minor todo: check this *)
- (* rewrite <- (cat_take_drop (length ys) (iota 0 (S (length ys)))).*)
   rewrite (take_drop (length ys) (iota 0 (S (length ys)))).
   rewrite take_iota. 
   unfold ssrnat.minn. 
@@ -2143,8 +2059,8 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[ws' locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [ H | [ [? Hfirst] | (*[ [a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]]] | *) (?&?&?&Hfirst & Hfirst2 &
-                                                                  Hfirst3 & Hσ)(* ] *)]] ;
+    eapply reduce_det in H as [ H | [ [? Hfirst] |  (?&?&?&Hfirst & Hfirst2 &
+                                                                  Hfirst3 & Hσ)]] ;
       last (eapply r_load_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H;subst. iFrame. done.
@@ -2214,7 +2130,7 @@ Proof.
   - iIntros "!>" (es σ2 efs HStep) "!>".
     destruct σ2 as [[ws' locs'] inst'] => //=.
     destruct HStep as [H [-> ->]].
-    eapply reduce_det in H as [ H | [ [? Hfirst] | (*[ [a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]]] | *) (?&?&?&Hfirst & Hfirst2 &
+    eapply reduce_det in H as [ H | [ [? Hfirst] | (?&?&?&Hfirst & Hfirst2 &
                                                                   Hfirst3 & Hσ)(* ] *)]] ;
       last (eapply r_load_packed_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
@@ -2262,8 +2178,8 @@ Proof.
     rewrite -nth_error_lookup in Hm.
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [[? Hfirst] | (* [ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | *) (?&?&?& Hfirst & Hfirst2 &
-                                                                       Hfirst3 & Hσ) (* ] *)]] ;
+    eapply reduce_det in HStep as [H | [[? Hfirst] | (?&?&?& Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ)]] ;
       last (eapply r_load_failure => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H ; subst; clear H => /=.
@@ -2311,8 +2227,8 @@ Proof.
     rewrite -nth_error_lookup in Hm.
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [[? Hfirst] | (* [ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | *) (?&?&?& Hfirst & Hfirst2 &
-                                                                       Hfirst3 & Hσ) (* ] *)]] ;
+    eapply reduce_det in HStep as [H | [[? Hfirst] | (?&?&?& Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ)]] ;
       last (eapply r_load_packed_failure => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H ; subst; clear H => /=.
@@ -2380,8 +2296,8 @@ Proof.
     rewrite nth_error_lookup in Hm => //=.
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [[? Hfirst] | (* [ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | *) (?&?&?& Hfirst & Hfirst2 &
-                                                                       Hfirst3 & Hσ) (* ] *)]] ;
+    eapply reduce_det in HStep as [H | [[? Hfirst] | (?&?&?& Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ) ]] ;
       last (eapply r_store_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H ; subst; clear H => /=.
@@ -2456,9 +2372,8 @@ Proof.
     { by rewrite nth_error_lookup in Hm. }
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [[? Hfirst] | (*[ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ]
-                                                     | *) (?&?&?& Hfirst & Hfirst2 &
-                                                          Hfirst3 & Hσ) (* ] *)]] ;
+    eapply reduce_det in HStep as [H | [[? Hfirst] |  (?&?&?& Hfirst & Hfirst2 &
+                                                          Hfirst3 & Hσ) ]] ;
       last (eapply r_store_packed_success => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H ; subst; clear H => /=.
@@ -2513,8 +2428,8 @@ Proof.
     rewrite -nth_error_lookup in Hm.
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [[? Hfirst] | (*[ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | *) (?&?&?& Hfirst & Hfirst2 &
-                                                                       Hfirst3 & Hσ) (* ] *)]] ;
+    eapply reduce_det in HStep as [H | [[? Hfirst] | (?&?&?& Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ)]] ;
       last (eapply r_store_failure => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H ; subst; clear H => /=.
@@ -2562,8 +2477,8 @@ Proof.
     rewrite -nth_error_lookup in Hm.
     iModIntro.
     destruct HStep as [HStep [-> ->]].
-    eapply reduce_det in HStep as [H | [[? Hfirst] | (* [ [ a0 [cl [tf [h [Hfirst [Hnth Hcl]]]]] ] | *) (?&?&?& Hfirst & Hfirst2 &
-                                                                       Hfirst3 & Hσ) (* ] *)]] ;
+    eapply reduce_det in HStep as [H | [[? Hfirst] | (?&?&?& Hfirst & Hfirst2 &
+                                                                       Hfirst3 & Hσ)]] ;
       last (eapply r_store_packed_failure => //= ; unfold smem_ind ; by rewrite Hinstmem) ;
       try by     unfold first_instr in Hfirst ; simpl in Hfirst ; inversion Hfirst.
     inversion H ; subst; clear H => /=.
@@ -2897,7 +2812,6 @@ Proof.
       rewrite Heqes0 in H0.
       filled_trap H0 Hxl1. }
     { (* grow_memory succeeded *)
-      (* iExists f. *)
       inversion Heqes0 ; subst c0 ; clear Heqes0.
       unfold smem_ind in H.
       destruct (inst_memory (f_inst f)) ; try by inversion Hfm.
@@ -2929,8 +2843,7 @@ Proof.
         + rewrite Nat2N.id.
           rewrite fmap_length.
           by apply lookup_lt_Some in Hmemlookup.
-      - (* iSplitL => //=. *)
-        (* iIntros "Hframe". *)
+      - 
         iLeft.
         rewrite Hmemlength' H1.
         erewrite mem_grow_length => //=.

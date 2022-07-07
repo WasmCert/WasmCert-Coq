@@ -6,8 +6,6 @@ From iris.base_logic.lib Require Export fancy_updates.
 Require Export datatypes host operations properties opsem iris_rules_control iris_properties.
 Require Export iris_wp_def stdpp_aux.
 
-(* empty lists, frame and context rules *)
-
 Close Scope byte_scope.
 
 Section trap_rules.
@@ -184,10 +182,8 @@ Section trap_rules.
      (↪[frame] f -∗ WP es1 @ NotStuck; E {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f' }})
      ⊢ WP ((AI_basic (BI_const v0)) :: es1) @ s; E {{ w, ⌜w = trapV⌝ ∗ ↪[frame] f' }}.
   Proof.
-  (* This also needs an iLob. *)
   iLöb as "IH" forall (v0 es1 f f').
   iIntros "(Hntrap & H)".
-  (* iApply wp_unfold.                *)
   destruct (iris.to_val es1) as [vs|] eqn:Hes.
   { repeat rewrite wp_unfold /wp_pre /= Hes.
     iMod ("H"  with "Hntrap") as "[%Hcontr Hf]". subst.
@@ -451,7 +447,6 @@ Section trap_rules.
     rewrite wp_frame_rewrite.
     iLöb as "IH"
   forall (s E LI f f' f0 Hnone).
-    (* iApply wp_unfold. *)
     destruct (iris.to_val (LI)) as [vs|] eqn:Hetov.
     { iApply (wp_lift_atomic_step with "[H Hframe]"); simpl ; trivial;eauto.
       iIntros (σ ns κ κs nt) "Hσ".
@@ -596,10 +591,8 @@ Section trap_rules.
   Proof.
     iLöb as "IH" forall (s E es1 es2 Φ Ψ i lh f).
 { iIntros "[Hntrap [Ht [Hf [Hes1 Hes2]]]]".
-  (* iDestruct (wp_wasm_empty_ctx with "Hes1") as "Hes1". *)
   iIntros (LI Hfilled).
   repeat rewrite wp_unfold /wp_pre /=.
-  (* iApply wp_unfold. rewrite /wp_pre /=. *)
   (* Base case, when both es1 and es2 are values *)
   destruct (iris.to_val LI) as [vs|] eqn:Hetov.
   { iApply wp_unfold. rewrite /wp_pre /= Hetov.
@@ -631,7 +624,6 @@ Section trap_rules.
   }
   {
     (* Ind *)
-    (* iIntros (σ ns κ κs nt) "Hσ". *)
     destruct (iris.to_val es1) as [vs|] eqn:Hes.
     { apply of_to_val in Hes as <-.
       iMod ("Hes1" with "Hf") as "[Hes1 Hf]".
@@ -683,7 +675,7 @@ Section trap_rules.
           iDestruct "Hes" as (f1) "(Hf & Hes'' & Hefs)".
           iFrame. iExists _. iFrame.
           iSplit =>//.
-          iIntros "Hf". (* iSpecialize ("Hes''" with "[$]"). *)
+          iIntros "Hf".
           iDestruct ("IH" with "[Hf Ht $Hntrap $Hes'' $Hes2 ]") as "Hcont". iFrame. by iApply "Hcont".
           
         + assert (iris.prim_step es1 σ [] [AI_trap] σ []) as HStep2.
@@ -722,7 +714,7 @@ Section trap_rules.
           iPoseProof (wp_trap_ctx s E f0 j _ [] [] with "Hf") as "HH";auto.
           iSpecialize ("HH" $! _ Hlh').
           iApply (wp_wand with "HH").
-          iIntros (v) "[-> Hf]". iApply "Ht"; iFrame. (* iExists _. iFrame.  *)
+          iIntros (v) "[-> Hf]". iApply "Ht"; iFrame.
 } } }
   Qed.
 
@@ -731,7 +723,6 @@ Section trap_rules.
        (↪[frame] f -∗ WP es @ NotStuck ; E {{ v, (⌜v = trapV⌝ ∨ (Φ (val_combine (immV [v0]) v))) ∗ ∃ f, ↪[frame] f ∗ Φf f }})
        ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, (⌜v = trapV⌝ ∨ Φ v) ∗ ∃ f, ↪[frame] f ∗ Φf f }})%I.
   Proof.
-  (* This also needs an iLob. *)
   iLöb as "IH" forall (v0 es Φ f).
   iIntros "(Hntrap & H & Hf)".
   destruct (iris.to_val es) as [vs|] eqn:Hes.
@@ -840,8 +831,6 @@ Section trap_rules.
   (* Some alternative formulations, useful for soundness proof *)
 
   Lemma wp_val_can_trap_app' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs (es : language.expr wasm_lang) f Φf :
-    (* □ is required here -- this knowledge needs to be persistent instead of 
-     one-off. *)
     (□ ((Φ trapV ={E}=∗ ⌜False⌝))) ∗ ↪[frame] f ∗
                      (↪[frame] f -∗  WP es @ NotStuck ; E {{ v, (⌜v = trapV⌝ ∨ (Φ (val_combine (immV vs) v))) ∗ ∃ f, ↪[frame] f ∗ Φf f }}%I)
                      ⊢ WP ((v_to_e_list vs) ++ es) @ s ; E {{ v, (⌜v = trapV⌝ ∨ Φ v) ∗ ∃ f, ↪[frame] f ∗ Φf f }}%I.

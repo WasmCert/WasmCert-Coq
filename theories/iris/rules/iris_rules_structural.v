@@ -46,13 +46,10 @@ Proof.
 Qed.
 
 Lemma wp_val (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (v0 : value) (es : language.expr wasm_lang) :
-  (* Like for wp_seq, this lemma is true without the trap condition, but would
-     be problematic to prove without it. *)
   ((¬ Φ trapV) ∗
   WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV [v0]) v))  }}
   ⊢ WP ((AI_basic (BI_const v0)) :: es) @ s ; E {{ v, Φ v }})%I.
 Proof.
-  (* This also needs an iLob. *)
   iLöb as "IH" forall (v0 es Φ).
   iIntros "(Hntrap & H)".
   iApply wp_unfold.               
@@ -133,8 +130,6 @@ Proof.
 Qed.
 
 Lemma wp_val_app' (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) vs (es : language.expr wasm_lang) :
-  (* □ is required here -- this knowledge needs to be persistent instead of 
-     one-off. *)
   (□ (¬ Φ trapV )) ∗
   WP es @ NotStuck ; E {{ v, (Φ (val_combine (immV vs) v)) }}%I
   ⊢ WP ((v_to_e_list vs) ++ es) @ s ; E {{ v, Φ v }}%I.
@@ -178,9 +173,6 @@ Proof.
   by iFrame.
 Qed.
 
-(* This rule needs to be deprecated as it incorrectly covers too many cases, 
-   rendering the most precise modalities impossible to be specified. See the step    rule below. That being said, this rule shouldn't be used anyway since we can
-   bind into lfilled0. *)
 Lemma wp_seq_ctx (s : stuckness) (E : coPset) (Φ Ψ : iris.val -> iProp Σ) (es1 es2 : language.expr wasm_lang) (i : nat) (lh : lholed) :
   ((¬ (Ψ trapV)) ∗
   WP es1 @ NotStuck; E {{ w, Ψ w }} ∗
@@ -475,7 +467,6 @@ Proof.
       apply r_simple; eapply rs_trap => //.
       move => HContra; subst. done.
     }
-    (* apply prim_step_obs_efs_empty in HStep' as Heq. *)
     destruct HStep' as [HStep' [-> ->]].
     simplify_eq.
     iSpecialize ("H2" $! [AI_trap] σ [] HStep2).
