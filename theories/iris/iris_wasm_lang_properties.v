@@ -51,52 +51,7 @@ Proof.
   rewrite separate1 app_assoc. eauto.
 Qed.
 
-Lemma elem_of_app_l :
-  ∀ (A : Type) (l1 l2 : seq.seq A) (x : A) (eqA : EqDecision A), x ∈ l1 ++ l2 ↔ x ∈ l1 ∨ (x ∈ l2 ∧ x ∉ l1).
-Proof.
-  intros A l1 l2 x eqA.
-  induction l1.
-  { rewrite app_nil_l.
-    split;intros.
-    right.
-    split;auto.
-    apply not_elem_of_nil.
-    destruct H as [? | [? ?]];try done.
-    inversion H.
-  }
-  { simpl. destruct (decide (x = a)).
-    { simplify_eq. split.
-      intros Ha. left. constructor.
-      intros _. constructor. }
-    { split.
-      { intros [Hcontr|[Ha | [Ha Hnin]]%IHl1]%elem_of_cons;[done|..].
-        left. by constructor.
-        right. split;auto. apply not_elem_of_cons;auto. }
-      { intros [[Hcontr|Ha]%elem_of_cons|[Hin Hnin]];[done|..].
-        constructor. apply elem_of_app. by left.
-        constructor. apply elem_of_app. by right. }
-    }
-  }
-Qed.
-
-(* Note : the following lemma exists already in Coq's standard library, and 
-   is called app_eq_unit *)
-Lemma app_eq_singleton: ∀ T (l1 l2 : list T) (a : T),
-    l1 ++ l2 = [a] ->
-    (l1 = [a] ∧ l2 = []) ∨ (l1 = [] ∧ l2 = [a]).
-Proof.
-  move =>T.
-  elim.
-  move => l2 a Heq. right. by rewrite app_nil_l in Heq.
-  move => a l l2 a0 a1 Heq. inversion Heq;subst.
-  left. split. f_equiv.
-  all: destruct l, a0;try done.
-Qed.
-
 Section wasm_lang_properties.
-  (*
-  Let reducible := @reducible wasm_lang.
-  Let reduce := @reduce host_function host_instance. *)
 
   Let expr := iris.expr.
   Let val := iris.val.
@@ -1005,47 +960,6 @@ Section wasm_lang_properties.
     intros. apply to_val_is_immV in H as ->.
     apply to_val_is_immV in H0 as -> => //.
   Qed. 
-(*    revert es' vs.
-    induction es;intros es' vs Hsome Heq.
-    { unfold iris.to_val in Hsome. simpl in Hsome. simplify_eq.
-      apply to_val_nil in Heq. auto. }
-    { destruct vs.
-      apply to_val_nil in Hsome. done.
-      destruct es'.
-      symmetry in Heq. unfold iris.to_val in Heq. simpl in *. simplify_eq.
-      unfold iris.to_val in *.
-      simpl in *.
-      destruct a,a0 ; simpl in * ; (try done) ;
-        (try destruct b ; simpl in * ; try done) ;
-        (try destruct b0 ; simpl in * ; try done) ;
-        (try destruct (merge_values_list (map _ l0)) as [vv|]; try done) ;
-        try destruct vv ;
-        try destruct i ;
-        try destruct (vh_decrease _) ;
-        try rewrite merge_br flatten_simplify in Hsome ;
-        try rewrite merge_br flatten_simplify in Heq ;
-        try rewrite merge_return flatten_simplify in Hsome ;
-        try rewrite merge_return flatten_simplify in Heq ;
-        try rewrite merge_call_host flatten_simplify in Hsome ;
-        try rewrite merge_call_host flatten_simplify in Heq ;
-        try rewrite merge_trap flatten_simplify in Hsome ;
-        try rewrite merge_trap flatten_simplify in Heq ;
-        simpl in * ; simplify_eq.
-      - rewrite merge_prepend in Hsome.
-        rewrite merge_prepend in Heq.
-        destruct (merge_values_list _) => //.
-        destruct (merge_values_list _) eqn:Hmerge => //.
-        simpl in *.
-        destruct v2 => //.
-        destruct v3 => //.
-        simplify_eq.
-        erewrite IHes => //.
-        by rewrite Hmerge.
-      - destruct es' => //.
-      - destruct es => //.
-      - 
-      - destruct es, es' => //. }
-  Qed. *)
 
   Lemma const_list_snoc_eq vs :
     forall ves es es' e,
@@ -1523,8 +1437,7 @@ Section wasm_lang_properties.
         simpl. eauto. eauto. }
       { apply app_nil in HH as [-> ->]. eauto. }
     }
-    { (* destruct es1 (*(decide (es1 ++ es2 = [])).*) ; first eauto. *)
-      (*    { apply app_nil in e as [-> ->]. eauto. } *)
+    {
       remember (length_rec LI) as n.
       assert (length_rec LI < S n) ; first lia.
       remember (S n) as m.
@@ -1533,7 +1446,6 @@ Section wasm_lang_properties.
       generalize dependent i.
       generalize dependent LI.
       induction m ; intros LI Hsize ; intros ; first lia.
-      (*     { destruct i ; destruct lh ; unfold lfilled, lfill in Hfilled => //. } *)
       destruct es1 ; first eauto.
       unfold to_val, iris.to_val in Hetov ; simpl in Hetov.
       destruct LI ; first by inversion Hetov.
@@ -1673,7 +1585,6 @@ Section wasm_lang_properties.
       generalize dependent i. 
       generalize dependent LI.
       induction m ; intros LI Hsize ; intros ; first lia.
-      (*     { destruct i ; destruct lh ; unfold lfilled, lfill in Hfilled => //. } *)
       destruct es1 ; first eauto.
       unfold to_val, iris.to_val in Hetov ; simpl in Hetov.
       destruct LI ; first by inversion Hetov.
@@ -1809,7 +1720,6 @@ Section wasm_lang_properties.
       generalize dependent i. 
       generalize dependent LI.
       induction m ; intros LI Hsize ; intros ; first lia.
-      (*     { destruct i ; destruct lh ; unfold lfilled, lfill in Hfilled => //. } *)
       destruct es1 ; first eauto.
       unfold to_val, iris.to_val in Hetov ; simpl in Hetov.
       destruct LI ; first by inversion Hetov.

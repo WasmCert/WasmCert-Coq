@@ -394,3 +394,45 @@ Lemma lookup_snoc {A : Type} (l : list A) (a : A) :
 Proof.
   induction l;auto.
 Qed.
+
+Lemma elem_of_app_l :
+  ∀ (A : Type) (l1 l2 : seq.seq A) (x : A) (eqA : EqDecision A), x ∈ l1 ++ l2 ↔ x ∈ l1 ∨ (x ∈ l2 ∧ x ∉ l1).
+Proof.
+  intros A l1 l2 x eqA.
+  induction l1.
+  { rewrite app_nil_l.
+    split;intros.
+    right.
+    split;auto.
+    apply not_elem_of_nil.
+    destruct H as [? | [? ?]];try done.
+    inversion H.
+  }
+  { simpl. destruct (decide (x = a)).
+    { simplify_eq. split.
+      intros Ha. left. constructor.
+      intros _. constructor. }
+    { split.
+      { intros [Hcontr|[Ha | [Ha Hnin]]%IHl1]%elem_of_cons;[done|..].
+        left. by constructor.
+        right. split;auto. apply not_elem_of_cons;auto. }
+      { intros [[Hcontr|Ha]%elem_of_cons|[Hin Hnin]];[done|..].
+        constructor. apply elem_of_app. by left.
+        constructor. apply elem_of_app. by right. }
+    }
+  }
+Qed.
+
+(* Note : the following lemma exists already in Coq's standard library, and 
+   is called app_eq_unit *)
+Lemma app_eq_singleton: ∀ T (l1 l2 : list T) (a : T),
+    l1 ++ l2 = [a] ->
+    (l1 = [a] ∧ l2 = []) ∨ (l1 = [] ∧ l2 = [a]).
+Proof.
+  move =>T.
+  elim.
+  move => l2 a Heq. right. by rewrite app_nil_l in Heq.
+  move => a l l2 a0 a1 Heq. inversion Heq;subst.
+  left. split. f_equiv.
+  all: destruct l, a0;try done.
+Qed.

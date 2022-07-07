@@ -697,7 +697,7 @@ Section InterpInstance.
        |} in
     Forall2 (module_glob_typing c') mglobs gts ->
     (typeof <$> g_inits = (tg_t ∘ modglob_type) <$> mglobs) ->
-    glob_inits = module_inst_global_init (module_inst_global_base mglobs) g_inits ->
+    glob_inits = module_inst_global_init (module_inst_build_globals mglobs) g_inits ->
 
     module_inst_resources_glob glob_inits inst_g ={E}=∗
     module_inst_resources_glob_invs glob_inits inst_g gts.
@@ -1990,7 +1990,7 @@ Section InterpInstance.
     let wts' := module_import_init_tabs m inst wts in
     let mem_inits := module_inst_build_mems m inst in
     let wms' := module_import_init_mems m inst wms in
-    let glob_inits := module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits in
+    let glob_inits := module_inst_global_init (module_inst_build_globals m.(mod_globals)) g_inits in
                                                                             
     module_typing_body m t_imps t_exps fts gts ->
     (inst.(inst_types) = m.(mod_types) /\

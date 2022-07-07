@@ -1653,7 +1653,7 @@ Definition module_import_init_mems (m: module) (inst: instance) (wms: gmap N mem
 
 (* Again the allocated resources but for globals. Note that the initial value
    here is purely dummy. *)
-Definition module_inst_global_base (mglobs: list module_glob) : list global :=
+Definition module_inst_build_globals (mglobs: list module_glob) : list global :=
   fmap (fun '{| modglob_type := {| tg_mut := tgm; tg_t := tgvt |} ; modglob_init := mgi |} => (Build_global tgm (bitzero tgvt))) mglobs.
 
 Definition global_init_replace_single (g: global) (v: value) : global :=
@@ -1728,7 +1728,7 @@ Definition module_restrictions (m: module) : Prop :=
   (exists (vi32s: list i32), fmap moddata_offset m.(mod_data) = fmap (fun v => [BI_const (VAL_int32 v)]) vi32s).
 
 Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (idfstart: option nat) (inst: instance) : iProp Σ :=
-  ∃ (g_inits: list value) tab_inits mem_inits glob_inits wts' wms',  
+  ∃ (g_inits: list value) tab_allocs mem_allocs glob_allocs wts' wms',  
   import_resources_wasm_typecheck v_imps t_imps wfs wts' wms' wgs ∗ (* locations in the wasm store and type-checks; this described the new contents of tables and memories that have been modified by the initialisers *)
     ⌜ inst.(inst_types) = m.(mod_types) /\
    (* We know what the imported part of the instance must be. *)
@@ -1740,15 +1740,15 @@ Definition instantiation_resources_post_wasm m v_imps t_imps wfs wts wms wgs (id
     check_start m inst idfstart ⌝ ∗
    (* The relevant initial values of allocated resources, as well as the newly
       initialised segments in the imported tables and memories *)
-    ⌜ tab_inits = module_inst_build_tables m inst ⌝ ∗
+    ⌜ tab_allocs = module_inst_build_tables m inst ⌝ ∗
     ⌜ wts' = module_import_init_tabs m inst wts ⌝ ∗
     ⌜ module_elem_bound_check_gmap wts (fmap modexp_desc v_imps) m ⌝ ∗
-    ⌜ mem_inits = module_inst_build_mems m inst ⌝ ∗
+    ⌜ mem_allocs = module_inst_build_mems m inst ⌝ ∗
     ⌜ wms' = module_import_init_mems m inst wms ⌝ ∗
     ⌜ module_data_bound_check_gmap wms (fmap modexp_desc v_imps) m ⌝ ∗
     ⌜ module_glob_init_values m g_inits ⌝ ∗
-    ⌜ glob_inits = module_inst_global_init (module_inst_global_base m.(mod_globals)) g_inits ⌝ ∗
-    module_inst_resources_wasm m inst tab_inits mem_inits glob_inits. (* allocated wasm resources. This also specifies the information about the newly allocated part of the instance. *)
+    ⌜ glob_allocs = module_inst_global_init (module_inst_build_globals m.(mod_globals)) g_inits ⌝ ∗
+    module_inst_resources_wasm m inst tab_allocs mem_allocs glob_allocs. (* allocated wasm resources *)
 
 Lemma BI_const_assert_const1_i32 (es: list expr) (vs: list i32):
   es = fmap (fun v => [BI_const (VAL_int32 v)]) vs ->
@@ -6011,7 +6011,7 @@ Proof.
 
   iModIntro.
 
-  iExists g_inits, (module_inst_build_tables m inst), (module_inst_build_mems m inst), (module_inst_global_init (module_inst_global_base (mod_globals m)) g_inits), (module_import_init_tabs m inst wts), (module_import_init_mems m inst wms).
+  iExists g_inits, (module_inst_build_tables m inst), (module_inst_build_mems m inst), (module_inst_global_init (module_inst_build_globals (mod_globals m)) g_inits), (module_import_init_tabs m inst wts), (module_import_init_mems m inst wms).
     
   iFrame.
 
@@ -6186,7 +6186,7 @@ Proof.
     iDestruct ("IH" with "Hh") as "Hh".
     iClear "IH".
     iSpecialize ("Hh" with "[%]"); first by lias.
-    unfold module_inst_global_base.
+    unfold module_inst_build_globals.
     rewrite fmap_app.
     simpl.
 
