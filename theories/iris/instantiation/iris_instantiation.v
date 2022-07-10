@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
-Require Export datatypes host operations properties opsem instantiation instantiation_properties.
+Require Export datatypes operations properties opsem instantiation instantiation_properties.
 Require Import Coq.Program.Equality.
 Require Export type_preservation.
 

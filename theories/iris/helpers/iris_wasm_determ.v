@@ -3,7 +3,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export stdpp_aux.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 Require Import iris_reduce_properties iris_wasm_lang_properties iris_reduction_core iris_split_reduce.
 
 

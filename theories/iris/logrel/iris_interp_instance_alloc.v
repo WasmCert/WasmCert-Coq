@@ -6,7 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_rules iris_fundamental iris_wp.
 
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1160,7 +1160,7 @@ Section InterpInstance.
               tc_func_t := List.app ifts fts;
               tc_global := List.app igs gts;
               tc_table := List.app its (List.map (fun t => t.(modtab_type)) ts);
-              tc_memory := List.app ims ms; (* TODO: should use `mem_type`s *) (* UPD: fixed? *)
+              tc_memory := List.app ims ms;
               tc_local := nil;
               tc_label := nil;
               tc_return := None;

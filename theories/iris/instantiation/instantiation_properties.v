@@ -1,6 +1,6 @@
 Require Import Coq.Program.Equality.
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
-Require Export datatypes host operations properties opsem instantiation.
+Require Export datatypes operations properties opsem instantiation.
 From stdpp Require Import list fin_maps gmap.
 Require Export stdpp_aux.
 Require Export type_preservation type_progress.

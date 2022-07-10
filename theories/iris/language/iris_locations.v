@@ -398,7 +398,6 @@ Lemma gmap_of_list_2d_offset_0 {T: Type} (l: list (list T)):
 Proof.
   unfold gmap_of_list_2d, gmap_of_list_2d_offset.
   f_equal.
-  (* A bit stupid *)
   apply list_eq.
   move => i.
   rewrite list_lookup_fmap.

@@ -7,7 +7,7 @@ From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_fundamental_helpers stack_specs stack_instantiation iris_interp_instance_alloc.
 Require Export iris_example_helper.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

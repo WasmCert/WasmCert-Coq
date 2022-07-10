@@ -3,7 +3,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations stdpp_aux.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
 

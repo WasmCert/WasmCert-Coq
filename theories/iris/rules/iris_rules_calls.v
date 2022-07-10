@@ -5,7 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def iris_rules_structural stdpp_aux.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 
 Close Scope byte_scope.

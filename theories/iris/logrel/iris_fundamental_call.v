@@ -8,7 +8,7 @@ From iris.prelude Require Import options.
 
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_rules iris_wp.
-Require Export datatypes host operations properties opsem typing.
+Require Export datatypes operations properties opsem typing.
 Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
 

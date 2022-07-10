@@ -3,7 +3,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import tactics.
 From iris.base_logic Require Export gen_heap proph_map.
 Require Export iris iris_locations iris_properties.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 
 Local Definition reducible := @reducible wasm_lang.

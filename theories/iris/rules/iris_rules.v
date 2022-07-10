@@ -11,4 +11,4 @@ Require Export iris_rules_structural
         iris_rules_calls
         iris_rules_trap
         iris_rules_bind.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.

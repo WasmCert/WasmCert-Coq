@@ -6,7 +6,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_fundamental_helpers stack_specs stack_instantiation.
-Require Export datatypes host operations properties opsem.
+Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
