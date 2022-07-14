@@ -17,7 +17,6 @@ Note that despite using `npm` to be installed, `esy` is not JavaScript-based.
 If you prefer to avoid `npm` altogether, there are other ways to install `esy`: see <https://esy.sh/> for more information.
 
 Once `esy` is installed, simply type `esy` to download and install the dependencies and compile everything.
-Warning: compiling the dependencies requires having about 3 or 4 GB of RAM on your computer.
 ```bash
 esy
 ```
