@@ -162,7 +162,7 @@ Proof.
     split => //. by destruct c.
   - assert (size (drop n l) = 1).
     { rewrite size_drop. by lias. }
-    remember (drop n l) as l'.
+    simpl. remember (drop n l) as l'.
     do 2 destruct l' => //=.
     by destruct c0.
 Qed.
@@ -799,12 +799,14 @@ Proof.
       * rewrite Heq2 in Hct1, Hct2.
         rewrite subnn in Hct1, Hct2.
         replace (CTA_some v :: to_ct_list ts) with (to_ct_list (v :: ts)) in * => //=.
+        rewrite drop0 in Hct1, Hct2.
         eapply ct_list_compat_trans in Hct1; eauto.
         by simpl in Hct1.
       * destruct (_-_) eqn:Hsub.
         -- assert ((size (to_ct_list ts)).+1 <= (size ts1).+1); first by lias.
            simpl in *. by lias.
         -- unfold to_ct_list in Hct1, Hct2.
+           simpl in Hct1, Hct2.
            rewrite - map_drop in Hct1, Hct2.
            eapply ct_list_compat_trans in Hct1; eauto.
            by simpl in Hct1.
@@ -823,6 +825,7 @@ Proof.
            move/andP in Hct2; destruct Hct2 as [_ Hct2].
            eapply ct_list_compat_drop in Hct2.
            unfold to_ct_list in Hct1, Hct2.
+           simpl in Hct1, Hct2.
            rewrite - map_drop in Hct1.
            rewrite - map_drop in Hct2.
            by eapply ct_list_compat_trans in Hct1; eauto.
@@ -839,7 +842,9 @@ Proof.
               rewrite - Hsub2 in H1.
               rewrite - Hsub4 in H2.
               rewrite H0.
+              simpl in Hct1.
               rewrite H1 in Hct1.
+              simpl in Hct2.
               rewrite H2 in Hct2.
               simpl in *.
               rewrite -> subSS in *.

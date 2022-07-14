@@ -293,8 +293,9 @@ Definition dummy_mem := {|
 Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module_data) : store_record :=
   let m_ind := List.nth (match d.(moddata_data) with Mk_memidx i => i end) inst.(inst_memory) 0 in
   let mem := List.nth m_ind s.(s_mems) dummy_mem in
-  let mem'_opt := operations.write_bytes mem d_ind (List.map bytes.compcert_byte_of_byte d.(moddata_init)) in
-  let mems' := match mem'_opt with None => s.(s_mems) | Some mem' => insert_at mem' m_ind s.(s_mems) end in
+  let d_pay := List.map bytes.compcert_byte_of_byte d.(moddata_init) in
+  let mem'_e := List.app (List.firstn d_ind mem.(mem_data).(ml_data)) (List.app d_pay (List.skipn (d_ind + length d_pay) mem.(mem_data).(ml_data))) in
+  let mems' := insert_at {| mem_data := {| ml_data := mem'_e; ml_init := #00 |}; mem_max_opt := mem.(mem_max_opt) |} m_ind s.(s_mems) in
   {| s_funcs := s.(s_funcs);
      s_tables := s.(s_tables);
      s_mems := mems';
@@ -579,7 +580,7 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     instantiate_elem inst hs' s' m e_offs /\
     instantiate_data inst hs' s' m d_offs /\
     check_bounds_elem inst s' m e_offs /\
-    check_bounds_data inst s' m e_offs /\
+    check_bounds_data inst s' m d_offs /\
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
     (s_end : store_record_eqType)

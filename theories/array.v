@@ -26,7 +26,7 @@ Fixpoint get (arr : array) (idx : Index) : Value :=
     else get arr' idx
   end.
 
-Fixpoint set (arr : array) (idx : Index) (a : Value) : array :=
+Definition set (arr : array) (idx : Index) (a : Value) : array :=
   A_update idx a arr.
 
 End Make.
