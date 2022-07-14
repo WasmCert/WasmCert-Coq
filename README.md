@@ -1,28 +1,3 @@
-# wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, based on the [official formalisation](https://www.w3.org/TR/wasm-core-1/).
-Our definitions and proofs draw from those given in the [Isabelle mechanisation of Conrad Watt](https://www.isa-afp.org/entries/WebAssembly.html).
-
-(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, R. Xiaojia 2019-2020 - see LICENSE.txt
-
-The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
-
-This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. 
-
-# TODOs
-
-- [x] Give core definitions of WasmCert and WasmRef.
-- [x] Prove soundness result for WasmRef with respect to WasmCert.
-- [x] Update the definition of WebAssembly's global store to match the 1.0 standard.
-- [x] Update the function frame and related definitions to match the 1.0 standard.
-- [x] Finish type soundness result.
-- [ ] Validate WasmRef (conformance tests).
-- [x] Verify executable type checker correctness.
-- [ ] Verify instantiation correctness properties.
-- [ ] Link WasmCert to CompCert.
-- [ ] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/host-iris).
-
-This repository contains some experimental work on a binary parser and Iris integration. 
-
 # Usage
 
 ## Installation and Compilation
@@ -36,7 +11,7 @@ Installing `esy` itself can be done through `npm`.
 It should then look like something like that:
 ```bash
 sudo apt install npm git curl m4 autoconf
-sudo npm install --global esy@latest # Tested with version 0.6.10 of esy.
+sudo npm install --global esy@latest # Tested with version 0.6.12 of esy.
 ```
 Note that despite using `npm` to be installed, `esy` is not JavaScript-based.
 If you prefer to avoid `npm` altogether, there are other ways to install `esy`: see <https://esy.sh/> for more information.
@@ -46,6 +21,14 @@ Warning: compiling the dependencies requires having about 3 or 4 GB of RAM on yo
 ```bash
 esy
 ```
+
+Compiling the dependencies may require at least 16GB of RAM.
+
+## Troubleshooting
+
+- On MacOS Monterey, it is required to use at least esy >=0.6.12 as there is a sandboxing bug for versions below that.
+
+- Due to compatibility issues of several dependencies, the codebase currently fails to build on any OS using glibc >= 2.34.
 
 ## Editing the Project
 
