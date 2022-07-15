@@ -8,8 +8,8 @@
 		"buildEnv": {
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
-			"COQPATH": "#{coq-ext-lib.install}/user-contrib:#{coq-flocq.install}/coq:#{coq-itree.install}/user-contrib:#{coq-paco.install}/user-contrib:#{strong-induction.install}/lib/coq/user-contrib:#{compcert.install}/coq:#{coq-mathcomp-ssreflect.install}/user-contrib:#{parseque.install}/lib/coq/user-contrib",
-			"VSCODESETTINGS": "{\"coqtop.binPath\":\"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{coq-ext-lib.install}/user-contrib\",\"ExtLib\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{coq-itree.install}/user-contrib\",\"ITree\",\"-R\",\"#{coq-paco.install}/user-contrib\",\"Paco\",\"-R\",\"#{strong-induction.install}/lib/coq/user-contrib\",\"StrongInduction\",\"-R\",\"#{compcert.install}/coq\",\"compcert\",\"-R\",\"#{coq-mathcomp-ssreflect.install}/user-contrib\",\"mathcomp\",\"-R\",\"#{parseque.install}/lib/coq/user-contrib\",\"parseque\",\"-R\",\"#{self.root}/_build/default/theories\",\"\"]}",
+			"COQPATH": "#{coq-ext-lib.install}/user-contrib:#{coq-flocq.install}/coq:#{coq-itree.install}/user-contrib:#{coq-paco.install}/user-contrib:#{strong-induction.install}/lib/coq/user-contrib:#{compcert.install}/coq:#{coq-mathcomp-ssreflect.install}/user-contrib:#{parseque.install}/lib/coq/user-contrib:#{@opam/coq-stdpp.install}/user-contrib",
+			"VSCODESETTINGS": "{\"coqtop.binPath\":\"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{coq-ext-lib.install}/user-contrib\",\"ExtLib\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{coq-itree.install}/user-contrib\",\"ITree\",\"-R\",\"#{coq-paco.install}/user-contrib\",\"Paco\",\"-R\",\"#{strong-induction.install}/lib/coq/user-contrib\",\"StrongInduction\",\"-R\",\"#{compcert.install}/coq\",\"compcert\",\"-R\",\"#{coq-mathcomp-ssreflect.install}/user-contrib\",\"mathcomp\",\"-R\",\"#{parseque.install}/lib/coq/user-contrib\",\"parseque\",\"-R\",\"#{@opam/coq-stdpp.install}/user-contrib\",\"stdpp\",\"-R\",\"#{self.root}/_build/default/theories\",\"\"]}",
 			"TARGETDIR": "#{self.target_dir}"
 		},
 		"build": "make"
@@ -24,6 +24,7 @@
 		"ocaml": "4.8.1000",
 		"@opam/cmdliner": "1.0.4",
 		"@opam/coq": "8.13.2",
+		"@opam/coq-stdpp": "*",
 		"@opam/dune": ">=2.9",
 		"@opam/linenoise": "*",
 		"@opam/mdx": ">=1.9.0",
@@ -95,6 +96,44 @@
 					],
 					[
 						"./remake",
+						"install"
+					]
+				]
+			}
+		},
+		"@opam/coq-stdpp": {
+			"source": "git:https://gitlab.mpi-sws.org/iris/stdpp.git#ebfb79dd8b7d0a1b2d317037cb13969adfa9306c",
+			"override": {
+				"dependencies": {
+					"@opam/coq": "8.13.2"
+				},
+				"buildsInSource": true,
+				"buildEnv": {
+					"HOME": "#{self.target_dir}",
+					"COQBIN": "#{@opam/coq.bin}/",
+					"COQLIB": "#{@opam/coq.lib}/coq/",
+					"COQPATH": "#{@opam/coq.lib}/coq/user-contrib"
+				},
+				"build": [
+					[
+						"#{@opam/coq.bin}/coq_makefile",
+						"-f",
+						"_CoqProject",
+						"-o",
+						"Makefile.coq",
+						"DESTDIR",
+						"=",
+						"#{self.install}",
+						"COQMF_WINDRIVE",
+						"=",
+						"#{@opam/coq.lib}/coq"
+					],
+					[
+						"make",
+						"-j4"
+					],
+					[
+						"make",
 						"install"
 					]
 				]
