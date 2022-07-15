@@ -1183,5 +1183,113 @@ Qed.
 
 End composition_typing_proofs.
 
+Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
+  xs ++ (y :: ys) <> [::].
+Proof. move => T xs y ys E. by move: (List.app_eq_nil _ _ E) => [? ?]. Qed.
+
+Lemma not_reduce_simple_nil : forall es', ~ reduce_simple [::] es'.
+Proof.
+  assert (forall es es', reduce_simple es es' -> es = [::] -> False) as H.
+  { move => es es' H.
+    elim: {es es'} H => //=.
+    { move => vs es _ _ t1s t2s _ _ _ _ H.
+      apply: cat_cons_not_nil. exact H. }
+    { move => vs es _ _ t1s t2s _ _ _ _ H.
+      apply: cat_cons_not_nil. exact H. }
+    { move => es lh _ H Hes.
+      rewrite Hes {es Hes} /lfilled /operations.lfilled /= in H.
+      case: lh H => //=.
+      { move => es es2.
+        case_eq (const_list es) => //=.
+        move=> _ /eqP H.
+        symmetry in H.
+        by move: (List.app_eq_nil _ _ H) => [? ?]. } } }
+  { move => es' H2.
+    apply: H. exact H2. done. }
+Qed.
+
+
+Lemma lfill_cons_not_Some_nil : forall i lh es es' e es0,
+  lfill i lh es = es' -> es = e :: es0 -> es' <> Some [::].
+Proof.
+  elim.
+  { elim; last by intros; subst.
+    move=> l l0 es es' /=.
+    case: (const_list l).
+    { move => Hfill H1 H2 H3 H4.
+      rewrite H4 in H2.
+      injection H2 => H5 {H2}.
+      rewrite H3 in H5.
+      apply: cat_cons_not_nil.
+      exact H5.
+       }
+    { intros; subst; discriminate. } }
+  { move=> n IH.
+    elim; first by intros; subst.
+    intros.
+    rewrite /= in H0.
+    move: H0.
+    case: (const_list l).
+    { rewrite H1 {H1}.
+      case_eq (lfill n l1 (e :: es0)).
+      { move=> l3 H1 H2 H3.
+        rewrite H3 in H2.
+        injection H2.
+        move=> {} H2.
+        apply: cat_cons_not_nil.
+        exact H2. }
+      { intros; subst; discriminate. } }
+    { intros; subst; discriminate. } }
+Qed.
+
+Lemma lfilled_not_nil : forall i lh es es', lfilled i lh es es' -> es <> [::] -> es' <> [::].
+Proof.
+  move => i lh es es' H Hes Hes'.
+  move: (List.exists_last Hes) => [e [e0 H']].
+  rewrite H' in H.
+  move: H.
+  rewrite /lfilled /operations.lfilled.
+  case_eq (operations.lfill i lh es).
+  { intros; subst.
+    rewrite H in H0.
+    assert ([::] = l) as H0'.
+    { apply/eqP.
+      apply H0. }
+    { rewrite H0' in H.
+      rewrite /= in H.
+      case E: (e ++ (e0 :: l)%SEQ)%list; first by move: (List.app_eq_nil _ _ E) => [? ?].
+      apply: lfill_cons_not_Some_nil.
+      apply: H.
+      apply: E.
+      by rewrite H0'. } }
+  { intros; subst.
+    rewrite H in H0.
+    done. }
+Qed.
+
+Variable host_instance: host host_function.
+
+Local Definition reduce := @reduce host_function host_instance.
+
+Lemma reduce_not_nil : forall hs hs' σ1 f es σ2 f' es',
+  reduce hs σ1 f es hs' σ2 f' es' -> es <> [::].
+Proof.
+  move => hs hs' σ1 f es σ2 f' es' Hred.
+  elim: {σ1 f es f' σ2} Hred => //;
+    try solve [ repeat intro;
+                match goal with
+                | H : (_ ++ _)%SEQ = [::] |- _ =>
+                  by move: (app_eq_nil _ _ H) => [? ?]
+                end ].
+  { move => e e' _ _ _ Hreds He.
+    rewrite He in Hreds.
+    apply: not_reduce_simple_nil.
+    apply: Hreds. }
+  { intros. destruct ves => //. }
+  { intros. destruct ves => //. }
+  { intros. by destruct ves => //. }
+  { intros. apply: lfilled_not_nil. exact H1. exact H0. }
+Qed.
+
 End Host.
 
