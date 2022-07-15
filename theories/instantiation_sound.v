@@ -34,10 +34,6 @@ Variable executable_host_instance : executable_host.
 Let host_event := host_event executable_host_instance.
 
 Let instantiate := instantiate host_function host_instance.
-Let instantiate_simpl := instantiate_simpl host_function.
-(*
-Let tab_agree := @typing.tab_agree host_function.
- *)
 
 Inductive ext_typing_list: store_record -> seq.seq module_export -> seq.seq extern_t -> Prop :=
 | ext_typing_list_nil: forall s,

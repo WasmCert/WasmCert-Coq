@@ -587,19 +587,6 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     (s_end : store_record_eqType)
     == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
 
-Definition alloc_funcs_bool (s : store_record) (m : module) (imps : list v_ext) (s'_inst : store_record * instance) : bool :=
-  let '(s'_goal, inst) := s'_inst in
-  let '(s', i_fs) := alloc_funcs s m.(mod_funcs) inst in
-  (s'_goal == s') &&
-  (inst.(inst_funcs) == List.map (fun '(Mk_funcidx i) => i) (List.app (ext_funcs imps) i_fs)). 
-
-Definition instantiate_simpl (s : store_record) (m : module) (v_imps : list v_ext)
-                             (z : (store_record * instance * list module_export) * option nat) : Prop := 
-  let '((s_end, inst, v_exps), start) := z in
-  exists t_imps t_exps,
-  module_typing m t_imps t_exps /\
-  alloc_funcs_bool s m v_imps (s_end, inst).
-
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   let '(Mk_typeidx i) := m_f.(modfunc_type) in
   if i < List.length tfs then List.nth_error tfs i
