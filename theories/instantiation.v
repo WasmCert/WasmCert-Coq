@@ -295,11 +295,12 @@ Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module
   let mem := List.nth m_ind s.(s_mems) dummy_mem in
   let d_pay := List.map bytes.compcert_byte_of_byte d.(moddata_init) in
   let mem'_e := List.app (List.firstn d_ind mem.(mem_data).(ml_data)) (List.app d_pay (List.skipn (d_ind + length d_pay) mem.(mem_data).(ml_data))) in
-  let mems' := insert_at {| mem_data := {| ml_data := mem'_e; ml_init := #00 |}; mem_max_opt := mem.(mem_max_opt) |} m_ind s.(s_mems) in
+  let mems' := insert_at {| mem_data := {| ml_data := mem'_e; ml_init := mem.(mem_data).(ml_init) |}; mem_max_opt := mem.(mem_max_opt) |} m_ind s.(s_mems) in
   {| s_funcs := s.(s_funcs);
      s_tables := s.(s_tables);
      s_mems := mems';
      s_globals := s.(s_globals); |}.
+
 
 Definition init_mems (s : store_record) (inst : instance) (d_inds : list N) (ds : list module_data) : store_record :=
   List.fold_left (fun s' '(d_ind, d) => init_mem s' inst d_ind d) (List.combine d_inds ds) s.
@@ -325,7 +326,7 @@ Definition limit_typing (lim : limits) (k : N) : bool :=
   let '{| lim_min := min; lim_max := maxo |} := lim in
   (N.leb k (N.pow 2 32)) &&
   (match maxo with None => true | Some max => N.leb max k end) &&
-  (match maxo with None => true | Some max => N.leb min k end).
+  (match maxo with None => true | Some max => N.leb min max end).
 
 Definition module_tab_typing (t : module_table) : bool :=
   limit_typing t.(modtab_type).(tt_limits) (N.pow 2 32).
@@ -584,7 +585,20 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
     (s_end : store_record_eqType)
-      == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
+    == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
+
+Definition alloc_funcs_bool (s : store_record) (m : module) (imps : list v_ext) (s'_inst : store_record * instance) : bool :=
+  let '(s'_goal, inst) := s'_inst in
+  let '(s', i_fs) := alloc_funcs s m.(mod_funcs) inst in
+  (s'_goal == s') &&
+  (inst.(inst_funcs) == List.map (fun '(Mk_funcidx i) => i) (List.app (ext_funcs imps) i_fs)). 
+
+Definition instantiate_simpl (s : store_record) (m : module) (v_imps : list v_ext)
+                             (z : (store_record * instance * list module_export) * option nat) : Prop := 
+  let '((s_end, inst, v_exps), start) := z in
+  exists t_imps t_exps,
+  module_typing m t_imps t_exps /\
+  alloc_funcs_bool s m v_imps (s_end, inst).
 
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   let '(Mk_typeidx i) := m_f.(modfunc_type) in
