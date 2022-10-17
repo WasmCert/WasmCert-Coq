@@ -22,6 +22,7 @@ Section stack.
 Section code.
 
 Definition stack_map :=
+  validate_stack 1 ++
   [
     BI_get_local 1 ;
     BI_load T_i32 None N.zero N.zero ;
@@ -99,7 +100,13 @@ Lemma spec_stack_map (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq
     }}}.
 Proof.
   iIntros "!>" (Ξ) "(%Hinstmem & %Hlocs0 & %Hlocs1 & %Hlocs & %Hvb & %Hv & Hs & HΦ & %Htypes & %Htab & Htab & Hcl & %Hclt & #Hspec & Hf) HΞ" => /=.
-  unfold stack_map.
+  rewrite separate4.
+  iApply wp_seq.
+  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hs Hf"; first by iApply (is_stack_valid with "[$Hs $Hf]").
+  iIntros (w) "(-> & Hs & Hf)".
+  simpl.
   rewrite (separate1 (AI_basic (BI_get_local 1))).
   iApply wp_seq.
   iSplitR ; last first.
@@ -922,6 +929,13 @@ Lemma spec_stack_map_trap `{!logrel_na_invs Σ} (f0 : frame) (n : immediate) (f 
 Proof.
   intros Hsub.
   iIntros "!>" (Ξ) "(%Hinstmem & %Hlocs0 & %Hlocs1 & %Hlocs & %Hvb & %Hv & Hs & HΦ & %Htypes & %Htab & Htab & #Hcl & %Hcl & #Hspec & Hinv & Hf) HΞ" => /=.
+  rewrite separate4.
+  iApply wp_seq.
+  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hs Hf"; first by iApply (is_stack_valid with "[$Hs $Hf]").
+  iIntros (w) "(-> & Hs & Hf)".
+  simpl.
   iApply wp_wand_r.
   iSplitR "HΞ" ; last first.
   iIntros (w) "H".

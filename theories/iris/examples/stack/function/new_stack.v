@@ -45,8 +45,6 @@ Definition new_stack :=
 
 End code.
 
-
-
 Section specs.
 
 Lemma spec_new_stack f0 n len E: 

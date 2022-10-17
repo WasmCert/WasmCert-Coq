@@ -118,51 +118,106 @@ Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
 Ltac bet_first f :=
   eapply bet_composition_front ; first eapply f => //=.
 
-Lemma module_typing_stack :
-  module_typing stack_module [] expts.
+
+
+Lemma validate_stack_typing x tloc tlab tret:
+    nth_error tloc x = Some T_i32 ->
+    be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := tloc;
+      tc_label := tlab;
+      tc_return := tret
+    |} (validate_stack x) (Tf [] []).
 Proof.
-  unfold module_typing => /=. 
-  exists [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ;
-     Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] [] ; Tf [T_i32 ; T_i32] [] ], [].
-  repeat split => //.
-  repeat (apply Forall2_cons ; repeat split => //) => /=.
-  - bet_first bet_const.
-    bet_first bet_grow_memory.
-    bet_first bet_tee_local.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32 []).
-    apply bet_weakening.
+  move => Htloc.
+  bet_first bet_get_local => //.
+  { rewrite nth_error_lookup in Htloc.
+    apply lookup_lt_Some in Htloc.
+      by lias. }
+  eapply bet_composition_front.
+  rewrite (separate1 T_i32 []).
+  apply bet_weakening.
+  apply bet_const => //.
+  simpl.
+  bet_first bet_binop; first by apply Binop_i32_agree.
+  apply bet_if_wasm => //.
+  { by apply bet_unreachable. }
+  { by apply bet_empty. }
+Qed.
+
+  
+Lemma new_stack_typing :
+    be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32];
+      tc_label := [[T_i32]];
+      tc_return := Some [T_i32]
+    |} new_stack (Tf [] [T_i32]).
+Proof.
+  bet_first bet_const.
+  bet_first bet_grow_memory.
+  bet_first bet_tee_local.
+  eapply bet_composition_front.
+  rewrite (separate1 T_i32 []).
+  apply bet_weakening.
     by apply bet_const.
     bet_first bet_relop.
-    by apply Relop_i32_agree.
-    apply bet_if_wasm => /=.
-    apply bet_const.
-    bet_first bet_get_local.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32 []).
-    apply bet_weakening.
-    apply bet_const.
-    bet_first bet_binop.
-    apply Binop_i32_agree.
-    bet_first bet_tee_local.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    simpl.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32 ; _]).
-    apply bet_weakening.
-    apply bet_const.
-    simpl.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32 [_ ; _]). 
-    apply bet_weakening.
-    apply bet_binop.
-    apply Binop_i32_agree.
-    bet_first bet_store. 
-    apply bet_get_local => //.
-  - bet_first bet_get_local.
+      by apply Relop_i32_agree.
+      apply bet_if_wasm => /=.
+      apply bet_const.
+      bet_first bet_get_local.
+      eapply bet_composition_front.
+      rewrite (separate1 T_i32 []).
+      apply bet_weakening.
+      apply bet_const.
+      bet_first bet_binop.
+      apply Binop_i32_agree.
+      bet_first bet_tee_local.
+      eapply bet_composition_front.
+      rewrite - (app_nil_r [T_i32]).
+      apply bet_weakening.
+      apply bet_get_local => //.
+      simpl.
+      eapply bet_composition_front.
+      rewrite - (app_nil_r [T_i32 ; _]).
+      apply bet_weakening.
+      apply bet_const.
+      simpl.
+      eapply bet_composition_front.
+      rewrite (separate1 T_i32 [_ ; _]). 
+      apply bet_weakening.
+      apply bet_binop.
+      apply Binop_i32_agree.
+      bet_first bet_store. 
+      apply bet_get_local => //.
+Qed.
+
+Lemma is_empty_typing:
+  be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32];
+      tc_label := [[T_i32]];
+      tc_return := Some [T_i32]
+    |} is_empty (Tf [] [T_i32]).
+Proof.
+  unfold is_empty.
+  eapply bet_composition'; first by apply validate_stack_typing.
+  bet_first bet_get_local.
     eapply bet_composition_front.
     rewrite - (app_nil_r [T_i32]).
     apply bet_weakening.
@@ -178,7 +233,24 @@ Proof.
     apply bet_load => //.
     apply bet_relop.
     apply Relop_i32_agree.
-  - bet_first bet_const.
+Qed.
+    
+Lemma is_full_typing :
+  be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32];
+      tc_label := [[T_i32]];
+      tc_return := Some [T_i32]
+    |} is_full (Tf [] [T_i32]).
+Proof.
+  unfold is_empty.
+  eapply bet_composition'; first by apply validate_stack_typing.
+  bet_first bet_const.
     unfold typeof.
     eapply bet_composition_front.
     rewrite - (app_nil_r [T_i32]).
@@ -204,7 +276,24 @@ Proof.
     apply bet_binop.
     apply Binop_i32_agree.
     apply bet_select.
-  - bet_first bet_get_local. 
+Qed.
+    
+Lemma pop_typing :
+   be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32; T_i32];
+      tc_label := [[T_i32]];
+      tc_return := Some [T_i32]
+    |} pop (Tf [] [T_i32]).
+Proof.
+  unfold is_empty.
+  eapply bet_composition'; first by apply validate_stack_typing.
+  bet_first bet_get_local. 
     bet_first bet_load.
     eapply bet_composition_front.
     rewrite - (app_nil_r [T_i32]).
@@ -212,7 +301,16 @@ Proof.
     apply bet_const.
     bet_first bet_binop.
     apply Binop_i32_agree.
-    bet_first bet_tee_local. 
+    bet_first bet_tee_local.
+    eapply bet_composition_front.
+    rewrite - (app_nil_r [T_i32]).
+    apply bet_weakening.
+    apply bet_get_local => //.
+    bet_first bet_relop; first by apply Relop_i32_agree.
+    bet_first bet_if_wasm.
+    { by apply bet_unreachable. }
+    { by apply bet_empty. }
+    bet_first bet_get_local.
     bet_first bet_load.
     eapply bet_composition_front.
     rewrite - (app_nil_r [T_i32]).
@@ -228,9 +326,36 @@ Proof.
     rewrite - (app_nil_r [T_i32]).
     apply bet_weakening.
     apply bet_store => //.
-  - bet_first bet_get_local. 
+Qed.
+    
+Lemma push_typing:
+  be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32; T_i32; T_i32];
+      tc_label := [[]];
+      tc_return := Some []
+    |} push (Tf [] []).
+Proof.
+  unfold is_empty.
+  eapply bet_composition'; first by apply validate_stack_typing.
+  bet_first bet_get_local. 
     bet_first bet_load.
     bet_first bet_tee_local.
+    eapply bet_composition_front.
+    rewrite - (app_nil_r [T_i32]).
+    apply bet_weakening.
+    apply bet_const.
+    simpl.
+    bet_first bet_binop; first by apply Binop_i32_agree.
+    bet_first bet_if_wasm.
+    { by apply bet_empty. }
+    { by apply bet_unreachable. }
+    bet_first bet_get_local => //.
     eapply bet_composition_front.
     rewrite - (app_nil_r [T_i32]).
     apply bet_weakening.
@@ -253,7 +378,24 @@ Proof.
     apply bet_binop.
     apply Binop_i32_agree.
     apply bet_store => //.
-  - bet_first bet_get_local.
+Qed.
+    
+Lemma stack_map_typing:
+    be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32; T_i32; T_i32; T_i32];
+      tc_label := [[]];
+      tc_return := Some []
+    |} stack_map (Tf [] []).
+Proof.
+  unfold is_empty.
+  eapply bet_composition'; first by apply validate_stack_typing.
+  bet_first bet_get_local.
     bet_first bet_load.
     bet_first bet_set_local.
     bet_first bet_get_local.
@@ -309,11 +451,26 @@ Proof.
     bet_first bet_set_local.
     rewrite - (app_nil_l []).
     apply bet_br => //. 
+Qed.
+    
+
+Lemma module_typing_stack :
+  module_typing stack_module [] expts.
+Proof.
+  unfold module_typing => /=. 
+  exists [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ;
+     Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] [] ; Tf [T_i32 ; T_i32] [] ], [].
+  repeat split => //.
+  repeat (apply Forall2_cons ; repeat split => //) => /=.
+  - by apply new_stack_typing.
+  - by apply is_empty_typing.
+  - by apply is_full_typing.
+  - by apply pop_typing.
+  - by apply push_typing.
+  - by apply stack_map_typing.
   - unfold module_export_typing.
     repeat (apply Forall2_cons ; repeat split => //) => //=.
 Qed.
-
-
 
 
 
@@ -790,17 +947,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                              inst_memory := [m];
                              inst_globs := []
                            |} (Tf [] [T_i32]) [T_i32]
-                           [BI_const (VAL_int32 (Wasm_int.Int32.repr 1));
-                           BI_grow_memory; BI_tee_local 0;
-                           BI_const (VAL_int32 (Wasm_int.Int32.repr (-1)));
-                           BI_relop T_i32 (Relop_i ROI_eq);
-                           BI_if (Tf [] [T_i32]) [i32const (-1)]
-                             [BI_get_local 0; i32const 65536;
-                             BI_binop T_i32 (Binop_i BOI_mul); 
-                             BI_tee_local 0; BI_get_local 0; 
-                              i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                             BI_store T_i32 None N.zero N.zero; 
-                              BI_get_local 0]] ∗ ↪[frame] f5 )%I).
+                           new_stack ∗ ↪[frame] f5 )%I).
         iSimpl.
         iFrame.
         done.
@@ -823,17 +970,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                              inst_memory := [m];
                              inst_globs := []
                            |} (Tf [] [T_i32]) [T_i32]
-                           [BI_const (VAL_int32 (Wasm_int.Int32.repr 1));
-                           BI_grow_memory; BI_tee_local 0;
-                           BI_const (VAL_int32 (Wasm_int.Int32.repr (-1)));
-                           BI_relop T_i32 (Relop_i ROI_eq);
-                           BI_if (Tf [] [T_i32]) [i32const (-1)]
-                             [BI_get_local 0; i32const 65536;
-                             BI_binop T_i32 (Binop_i BOI_mul); 
-                             BI_tee_local 0; BI_get_local 0; 
-                              i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                             BI_store T_i32 None N.zero N.zero; 
-                              BI_get_local 0]])%I).
+                           new_stack)%I).
         iSimpl.
         iFrame.
         iExists k.
@@ -903,11 +1040,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32] [T_i32]) []
-                            [BI_get_local 0;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add); 
-                            BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_relop T_i32 (Relop_i ROI_eq)] ∗ ↪[frame] f5)%I).
+                            is_empty ∗ ↪[frame] f5)%I).
         iSimpl.
         iFrame.
         done.
@@ -931,11 +1064,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32] [T_i32]) []
-                            [BI_get_local 0;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add); 
-                            BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_relop T_i32 (Relop_i ROI_eq)])%I).                            
+                            is_empty)%I).                            
         iSimpl.
         iFrame.
         iExists k.
@@ -994,11 +1123,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32] [T_i32]) []
-                            [BI_const (VAL_int32 (Wasm_int.Int32.repr 0));
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 1));
-                            BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 65536));
-                             BI_binop T_i32 (Binop_i (BOI_rem SX_U)); BI_select]
+                            is_full
                             ∗ ↪[frame] f5
                               )%I).
         iSimpl.
@@ -1024,11 +1149,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32] [T_i32]) []
-                            [BI_const (VAL_int32 (Wasm_int.Int32.repr 0));
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 1));
-                            BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 65536));
-                            BI_binop T_i32 (Binop_i (BOI_rem SX_U)); BI_select])%I).                            
+                            is_full)%I).                            
         iSimpl.
         iFrame.
         iExists k.
@@ -1088,12 +1209,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32] [T_i32]) [T_i32]
-                            [BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_sub); 
-                            BI_tee_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_get_local 0; BI_get_local 1;
-                            BI_store T_i32 None N.zero N.zero] ∗ ↪[frame] f5)%I).
+                            pop ∗ ↪[frame] f5)%I).
         iSimpl.
         iFrame.
         done.
@@ -1116,12 +1232,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32] [T_i32]) [T_i32]
-                            [BI_get_local 0; BI_load T_i32 None N.zero N.zero;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_sub); 
-                            BI_tee_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_get_local 0; BI_get_local 1;
-                             BI_store T_i32 None N.zero N.zero])%I).
+                            pop)%I).
         iSimpl.
         iFrame.
         done. }
@@ -1175,13 +1286,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32; T_i32] []) [T_i32]
-                            [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_tee_local 2; BI_get_local 0;
-                            BI_store T_i32 None N.zero N.zero; 
-                            BI_get_local 1; BI_get_local 2;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add);
-                            BI_store T_i32 None N.zero N.zero] ∗ ↪[frame] f5)%I).
+                            push ∗ ↪[frame] f5)%I).
         iSimpl.
         iFrame.
         done.
@@ -1204,13 +1309,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32; T_i32] []) [T_i32]
-                            [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_tee_local 2; BI_get_local 0;
-                            BI_store T_i32 None N.zero N.zero; 
-                            BI_get_local 1; BI_get_local 2;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add);
-                            BI_store T_i32 None N.zero N.zero])%I).
+                            push)%I).
         iSimpl.
         iFrame.
         iFrame.
@@ -1266,22 +1365,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32; T_i32] []) [T_i32 ; T_i32 ]
-                           [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_set_local 3; BI_get_local 1;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add); 
-                            BI_set_local 2;
-                            BI_block (Tf [] [])
-                              [BI_loop (Tf [] [])
-                                 [BI_get_local 2; BI_get_local 3;
-                                 BI_relop T_i32 (Relop_i (ROI_ge SX_U)); 
-                                 BI_br_if 1; BI_get_local 2; 
-                                 BI_get_local 2; BI_get_local 2;
-                                 BI_load T_i32 None N.zero N.zero; 
-                                 BI_get_local 0; BI_call_indirect 1;
-                                 BI_store T_i32 None N.zero N.zero; 
-                                 i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                                 BI_set_local 2; BI_br 0]]] ∗ ↪[frame] f6 )%I).
+                           stack_map ∗ ↪[frame] f6 )%I).
         iSimpl.
         iFrame.
         done.
@@ -1306,22 +1390,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32; T_i32] []) [T_i32; T_i32]
-                            [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_set_local 3; BI_get_local 1;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add); 
-                            BI_set_local 2;
-                            BI_block (Tf [] [])
-                              [BI_loop (Tf [] [])
-                                 [BI_get_local 2; BI_get_local 3;
-                                 BI_relop T_i32 (Relop_i (ROI_ge SX_U)); 
-                                 BI_br_if 1; BI_get_local 2; 
-                                 BI_get_local 2; BI_get_local 2;
-                                 BI_load T_i32 None N.zero N.zero; 
-                                 BI_get_local 0; BI_call_indirect 1;
-                                 BI_store T_i32 None N.zero N.zero; 
-                                 i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                                 BI_set_local 2; BI_br 0]]])%I).
+                            stack_map)%I).
         iSimpl.
         iFrame.
         iFrame.
@@ -1385,22 +1454,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32; T_i32] []) [T_i32 ; T_i32 ]
-                           [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_set_local 3; BI_get_local 1;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add); 
-                            BI_set_local 2;
-                            BI_block (Tf [] [])
-                              [BI_loop (Tf [] [])
-                                 [BI_get_local 2; BI_get_local 3;
-                                 BI_relop T_i32 (Relop_i (ROI_ge SX_U)); 
-                                 BI_br_if 1; BI_get_local 2; 
-                                 BI_get_local 2; BI_get_local 2;
-                                 BI_load T_i32 None N.zero N.zero; 
-                                 BI_get_local 0; BI_call_indirect 1;
-                                 BI_store T_i32 None N.zero N.zero; 
-                                 i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                                 BI_set_local 2; BI_br 0]]] ∗ ↪[frame] f6)%I).
+                           stack_map ∗ ↪[frame] f6)%I).
         iSimpl.
         iFrame.
         done.
@@ -1422,22 +1476,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : Z
                               inst_memory := [m];
                               inst_globs := []
                             |} (Tf [T_i32; T_i32] []) [T_i32; T_i32]
-                            [BI_get_local 1; BI_load T_i32 None N.zero N.zero;
-                            BI_set_local 3; BI_get_local 1;
-                            BI_const (VAL_int32 (Wasm_int.Int32.repr 4));
-                            BI_binop T_i32 (Binop_i BOI_add); 
-                            BI_set_local 2;
-                            BI_block (Tf [] [])
-                              [BI_loop (Tf [] [])
-                                 [BI_get_local 2; BI_get_local 3;
-                                 BI_relop T_i32 (Relop_i (ROI_ge SX_U)); 
-                                 BI_br_if 1; BI_get_local 2; 
-                                 BI_get_local 2; BI_get_local 2;
-                                 BI_load T_i32 None N.zero N.zero; 
-                                 BI_get_local 0; BI_call_indirect 1;
-                                 BI_store T_i32 None N.zero N.zero; 
-                                 i32const 4; BI_binop T_i32 (Binop_i BOI_add);
-                                 BI_set_local 2; BI_br 0]]])%I).
+                            stack_map)%I).
         iSimpl. iSplitR;[done|].
         iFrame. }
       iSimpl.

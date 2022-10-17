@@ -22,6 +22,7 @@ Section stack.
 Section code.
 
 Definition is_full :=
+  validate_stack 0 ++
   [
     i32const 0 ;
     i32const 1 ;
@@ -35,10 +36,8 @@ Definition is_full :=
 
 End code.
 
-
-
 Section specs.
-    
+
 Lemma spec_is_full f0 n (v : Z) (s : seq.seq i32) E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
@@ -51,7 +50,13 @@ Lemma spec_is_full f0 n (v : Z) (s : seq.seq i32) E:
           ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1⌝ }}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & %Hv & Hf & Hstack) HΦ" => /=.
-  unfold is_full.
+  rewrite separate4.
+  iApply wp_seq.
+  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hstack Hf"; first by iApply (is_stack_valid with "[$Hstack $Hf]").
+  iIntros (w) "(-> & Hstack & Hf)".
+  simpl.
   rewrite separate3.
   iApply wp_seq.
   instantiate (1 := λ x, (⌜ x = immV [value_of_int 0 ; value_of_int 1 ;

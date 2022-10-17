@@ -21,6 +21,7 @@ Section stack.
 Section code.
 
 Definition is_empty :=
+  validate_stack 0 ++
   [
     BI_get_local 0 ;
     i32const 4 ;
@@ -49,7 +50,13 @@ Lemma spec_is_empty f0 n v s E:
            ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝}}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & %Hv & Hf & Hstack) HΦ" => /=.
-  unfold is_empty.
+  rewrite separate4.
+  iApply wp_seq.
+  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hstack Hf"; first by iApply (is_stack_valid with "[$Hstack $Hf]").
+  iIntros (w) "(-> & Hstack & Hf)".
+  simpl.
   rewrite separate1.
   iApply wp_seq.
   instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f0)%I).

@@ -117,6 +117,66 @@ Lemma separate9 {A} (a : A) b c d e f g h i l :
   a :: b :: c :: d :: e :: f :: g :: h :: i :: l = [a ; b ; c ; d ; e ; f ; g ; h ; i] ++ l.
 Proof. done. Qed.
 
+Definition validate_stack (x: immediate) :=
+  [
+    BI_get_local x ;
+    i32const 65536 ;
+    BI_binop T_i32 (Binop_i (BOI_rem SX_U)) ;
+    BI_if (Tf [] []) [BI_unreachable] []
+  ].
+  
+Lemma is_stack_divide (v : Z) s n:
+  isStack v s n ⊢
+  ⌜ Z.divide 65536 v ⌝.
+Proof.
+  iIntros "Hstack".
+  unfold isStack.
+  by iDestruct "Hstack" as "(%Hdiv & _)".
+Qed.
+
+Lemma is_stack_valid (v : Z) s n f E x:
+    ⌜ (f_locs f) !! x = Some (value_of_int v) ⌝ ∗ 
+    isStack v s n ∗ ↪[frame] f ⊢ 
+    WP to_e_list (validate_stack x) @ E
+    {{ w, ⌜ w = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f }}.
+Proof.
+  iIntros "(%Hlocs & Hstack & Hf)".
+  simpl.
+  rewrite separate1.
+  iApply wp_seq.
+  instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hf"; first by iApply wp_get_local.
+  iIntros (w) "(-> & Hf)" => /=.
+  rewrite separate3.
+  iApply wp_seq.
+  instantiate (1 := λ x, (⌜ x = immV [value_of_int 0] ⌝ ∗ isStack v s n ∗ ↪[frame] f)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iDestruct (is_stack_divide with "Hstack") as "%Hdiv".
+  iFrame "Hstack".
+  iSplitL; first iApply (wp_binop with "Hf") => //.
+  { iIntros "!>".
+    iPureIntro => /=.
+    unfold value_of_int.
+    unfold Wasm_int.Int32.modu.
+    simpl.
+    repeat f_equal.
+    rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+    unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
+    apply Znumtheory.Zdivide_mod in Hdiv.
+    rewrite <- Znumtheory.Zmod_div_mod => //.
+    by apply Znumtheory.Zmod_divide => //.
+  }
+  iIntros (w) "(-> & Hstack & Hf)".
+  iFrame "Hstack".
+  iApply (wp_if_false with "Hf") => //.
+  iIntros "!> Hf".
+  replace ([AI_basic (BI_block (Tf [] []) [])]) with ([] ++ [AI_basic (BI_block (Tf [] []) [])]) => //.
+  iApply (wp_block with "Hf") => //.
+  iIntros "!> Hf".
+  by iApply (wp_label_value with "Hf").
+Qed.
+  
 Lemma positive_add a b :
   a + b = ssrnat.NatTrec.add a b.
 Proof.
