@@ -12,16 +12,16 @@ build: [
   ["dune" "build" "@doc" "-p" name] {with-doc}
 ]
 depends: [
-  "dune" {>= "1.1"}
+  "dune" { >= "1.1" }
   "result"
-  "ocaml" { >= "4.02.0" }
+  "ocaml" { >= "4.03.0" }
   "odoc" {with-doc}
 ]
 url {
   src:
-    "https://github.com/ocaml-community/ocaml-linenoise/archive/v1.3.1.tar.gz"
+    "https://github.com/ocaml-community/ocaml-linenoise/archive/v1.4.0.tar.gz"
   checksum: [
-    "md5=56b9354fd2a1b5ff0c4b7bccd82ad60b"
-    "sha512=02d5c002a37b41254d6f9d1645117b99209129ba8b808871e6bd48ab2c8c4486fa12aca98db9a8cd44fafccca4c88b517fe0311afbcb9791f270a7329176f793"
+    "md5=373cadced7663934b91c64c5bbdf9640"
+    "sha512=d510ffea00d792c63f23a363c5e564fa6c161a2eaffc391c5080325adb26f0bdedf998f11d10e98ec6edb96344e93ac835e5ea5aa683a5b36c9ff0d6d190ecee"
   ]
 }
