@@ -21,24 +21,24 @@
 		"vscode": "make vscode"
 	},
 	"dependencies": {
-		"ocaml": "4.8.1000",
+		"ocaml": "4.14.0",
 		"@opam/cmdliner": "1.0.4",
 		"@opam/coq": "8.13.2",
 		"@opam/coq-stdpp": "*",
 		"@opam/dune": ">=2.9",
 		"@opam/linenoise": "*",
 		"@opam/mdx": ">=1.9.0",
-		"@opam/ocamlfind": "1.8.1",
+		"@opam/ocamlfind": "1.9.3",
 		"@opam/odoc": "*",
-		"compcert": "github:iriswasm/CompCert#c978ec542351267e5ac222a686714ee060754b36",
+		"compcert": "github:raoxiaojia/CompCert#8afd4acacee7175fc71007730322294fff738454",
 		"coq-ext-lib": "*",
 		"coq-flocq": "*",
 		"coq-iris": "*",
 		"coq-itree": "github:iriswasm/InteractionTrees#21119d09ec48edcf430202a847f21e9877c5d1c5",
 		"coq-mathcomp-ssreflect": "*",
 		"coq-paco": "github:iriswasm/coq-paco#40cea8feac992e4b69266516ed70f0916366d622",
-		"parseque": "github:iriswasm/parseque#02cea4c0d60786010c9878586c3d78865102112f",
-		"strong-induction": "github:iriswasm/strong-induction#cf8400acfc6931cf98490d5592d0f515f913a923"
+		"parseque": "github:iriswasm/parseque",
+		"strong-induction": "github:iriswasm/strong-induction"
 	},
 	"devDependencies": {},
 	"resolutions": {
@@ -74,7 +74,7 @@
 			}
 		},
 		"coq-flocq": {
-			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#ca655d2542bdcf024bce5c26dbc0f13b856aa1f6",
+			"source": "git:https://gitlab.inria.fr/flocq/flocq.git#63ae222c9125a42a44c706c9cbf04709cfaaedf2",
 			"override": {
 				"buildsInSource": true,
 				"buildEnv": {
