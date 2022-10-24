@@ -563,7 +563,7 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
             done.
             instantiate (1 := λ v, ⌜ v = immV [] ⌝%I ).
             done.
-            iIntros (w0) "[[-> Hwg] Hf]".
+            iIntros (w0) "[-> [Hwg Hf]]".
             iSimpl.
             iApply wp_value.
             unfold IntoVal.
@@ -578,7 +578,7 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
             iRight.
             iFrame.
             iPureIntro ; by eexists _.
-            by iIntros "[[%H _] _]". }
+            by iIntros "[%H _]". }
         + { rewrite Wasm_int.Int32.eq_false.
             2:{ intro Habs ; inversion Habs.
                 rewrite Wasm_int.Int32.Z_mod_modulus_eq in H0.
@@ -992,7 +992,7 @@ Lemma instantiate_stack_client_spec E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 :
           done.
           instantiate (1 := λ v, ⌜ v = immV [] ⌝%I).
           by iNext.
-          iIntros (v0) "[[ -> Hwg] Hf]".
+          iIntros (v0) "[ -> [Hwg Hf]]".
           iSimpl.
           iIntros (lh) "%Hfill".
           unfold lfilled, lfill in Hfill ; simpl in Hfill.

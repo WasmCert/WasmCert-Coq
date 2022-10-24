@@ -44,6 +44,23 @@ Section control_operations.
     { inversion Hfill;subst. simpl. constructor. auto.
       apply IHi. auto. auto. }
   Qed.
+  Lemma lfilledInd_push_inv i : ∀ lh n es' es LI l1 l2,
+      const_list l1 ->
+      lfilledInd (S i) (push_base lh n es' l1 l2) es LI ->
+      lfilledInd i lh ([::AI_label n es' (l1 ++ es ++ l2)]) LI.
+  Proof.
+    induction i.
+    all: intros lh n es' es LI l1 l2 Hconst Hfill.
+    { inversion Hfill;subst. inversion H2;subst.
+      destruct lh;simpl in *;inversion H0;subst. constructor;auto.
+      destruct lh;simpl in *;inversion H7. }
+    { inversion Hfill;subst. simpl.
+      destruct lh,lh';try done;simpl in *;inversion H0;subst.
+      inversion H2.
+      inversion H2. rewrite H6 in H2.
+      apply IHi in H2;auto.
+      constructor;auto. }
+  Qed.
   Lemma lfilledInd_frame i : ∀ lh l1 es l2 LI,
       const_list l1 ->
       lfilledInd i lh (l1 ++ es ++ l2) LI ->
@@ -171,6 +188,27 @@ Section control_rules.
     iDestruct (wp_label_push with "HWP") as "HWP". auto.
     erewrite app_nil_l. erewrite app_nil_r. done.
   Qed.
+  Lemma wp_label_pull (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh n es' l1 l2 :
+    const_list l1 ->
+    WP [::AI_label n es' (l1 ++ es ++ l2)] @ s; E CTX i; lh {{ Φ }}
+    ⊢ WP es @ s; E CTX S i; push_base lh n es' l1 l2 {{ Φ }}.
+  Proof.
+    iIntros (Hconst) "HWP".
+    iIntros (LI Hfill%lfilled_Ind_Equivalent).
+    inversion Hfill;subst. auto.
+    iDestruct ("HWP" with "[]") as "HWP";[|iFrame].
+    iPureIntro. apply lfilledInd_push_inv in Hfill;auto.
+    apply lfilled_Ind_Equivalent. auto.
+  Qed.
+  Lemma wp_label_pull_nil (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) es i lh n es' :
+    WP [::AI_label n es' es] @ s; E CTX i; lh {{ Φ }}
+    ⊢ WP es @ s; E CTX S i; push_base lh n es' [] [] {{ Φ }}.
+  Proof.
+    iIntros "HWP".
+    iApply wp_label_pull;auto.
+    simpl. erewrite app_nil_r. auto.
+  Qed.
+  
 
   (* Structural lemmas for contexts within a local scope *)
 

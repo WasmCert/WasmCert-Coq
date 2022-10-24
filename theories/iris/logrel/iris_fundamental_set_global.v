@@ -55,10 +55,10 @@ Section fundamental.
     iSimpl.
     
     iApply wp_fupd.
-    iApply (wp_wand _ _ _ (λ vs, (⌜vs = immV ([])⌝
-                                   ∗ N.of_nat n↦[wg] Build_global MUT_mut w) ∗ ↪[frame] f)%I with "[Hf Hn]").
+    iApply (wp_wand _ _ _ (λ vs, ⌜vs = immV ([])⌝
+                                   ∗ N.of_nat n↦[wg] Build_global MUT_mut w ∗ ↪[frame] f)%I with "[Hf Hn]").
     { iApply (wp_set_global with "[] Hf Hn");eauto;by rewrite -nth_error_lookup Hlocs /=. }
-    iIntros (v) "[[-> Hn] Hf]".
+    iIntros (v) "[-> [Hn Hf]]".
     iMod ("Hcls" with "[$Hown Hn]") as "Hown".
     { iNext. iExists _. iFrame. iSimpl.
       iSimpl in "Hv". iDestruct "Hv" as "[$ _]". }

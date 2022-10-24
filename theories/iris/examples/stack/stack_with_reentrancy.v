@@ -693,7 +693,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
             done.
             instantiate (1 := λ v, ⌜ v = immV [] ⌝%I ).
             done.
-            iIntros (w0) "[[-> Hwg] Hf]".
+            iIntros (w0) "[-> [Hwg Hf]]".
             iSimpl.
             iApply wp_value.
             unfold IntoVal.
@@ -708,7 +708,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
             iRight.
             iFrame.
             iPureIntro ; by eexists _.
-            by iIntros "[[% _] _]". }
+            by iIntros "[% _]". }
         + { rewrite Wasm_int.Int32.eq_false.
             2:{ intro Habs ; inversion Habs.
                 rewrite Wasm_int.Int32.Z_mod_modulus_eq in H1.
@@ -1373,7 +1373,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       done.
       instantiate (1 := λ v, ⌜ v = immV [] ⌝%I).
       by iNext.
-      iIntros (v0) "[[ -> Hwg] Hf]".
+      iIntros (v0) "[ -> [Hwg Hf]]".
       iSimpl.
       iIntros (lh) "%Hfill".
       unfold lfilled, lfill in Hfill ; simpl in Hfill.
@@ -1411,3 +1411,4 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
 
 End Client2.
   
+

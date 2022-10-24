@@ -242,9 +242,10 @@ Lemma wp_get_global (s : stuckness) (E : coPset) (v: value) (f: frame) (n: nat) 
   ▷ Φ(immV [v]) -∗
   ↪[frame] f -∗
   N.of_nat k ↦[wg] g -∗
-  WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, (Φ w ∗ N.of_nat k ↦[wg] g) ∗ ↪[frame] f }}.
+  WP ([AI_basic (BI_get_global n)]) @ s; E {{ w, Φ w ∗ N.of_nat k ↦[wg] g ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hinstg Hgval) "HΦ Hinst Hglob".
+  iApply (wp_wand _ _ _ (λ w, (Φ w ∗ N.of_nat k↦[wg]g) ∗  ↪[frame]f)%I with "[-]");[|iIntros (?) "[[? ?] ?]";iFrame].
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[ws locs] winst].
@@ -280,9 +281,10 @@ Lemma wp_set_global (s : stuckness) (E : coPset) (v: value) (f: frame) (n: nat) 
   ▷ Φ (immV []) -∗
   ↪[frame] f -∗
   N.of_nat k ↦[wg] g -∗
-  WP [AI_basic (BI_const v); AI_basic (BI_set_global n)] @ s; E {{ w, (Φ w ∗ N.of_nat k ↦[wg] Build_global (g_mut g) v) ∗ ↪[frame] f }}.
+  WP [AI_basic (BI_const v); AI_basic (BI_set_global n)] @ s; E {{ w, Φ w ∗ N.of_nat k ↦[wg] Build_global (g_mut g) v ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hinstg) "HΦ Hinst Hglob".
+  iApply (wp_wand _ _ _ (λ w, (Φ w ∗ N.of_nat k ↦[wg] Build_global (g_mut g) v) ∗  ↪[frame]f)%I with "[-]");[|iIntros (?) "[[? ?] ?]";iFrame].
   iApply wp_lift_atomic_step => //=.
   iIntros (σ ns κ κs nt) "Hσ !>".
   destruct σ as [[ws locs] winst].

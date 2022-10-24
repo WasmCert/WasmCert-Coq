@@ -58,11 +58,11 @@ Section fundamental.
     iDestruct "Hn" as (w) "[>Hn HP]".
 
     iApply wp_fupd.
-    iApply (wp_wand _ _ _ (λ vs, ((⌜vs = immV ([w])⌝
+    iApply (wp_wand _ _ _ (λ vs, (⌜vs = immV ([w])⌝
                                    ∗ P t w)
-                                   ∗ N.of_nat n↦[wg] Build_global mut w) ∗ ↪[frame] f)%I with "[Hf Hn HP]").
+                                   ∗ N.of_nat n↦[wg] Build_global mut w ∗ ↪[frame] f)%I with "[Hf Hn HP]").
     { iApply (wp_get_global with "[HP] Hf Hn");eauto;by rewrite -nth_error_lookup Hlocs /=. }
-    iIntros (v) "[[[-> HP] Hn] Hf]".
+    iIntros (v) "[[-> HP] [Hn Hf]]".
     iDestruct ("Hcond" with "HP") as "#Hg_val".
     iMod ("Hcls" with "[$Hown Hn HP]") as "Hown".
     { iNext. iExists _. iFrame. }

@@ -295,8 +295,8 @@ Section Client_main.
       iApply wp_seq. iSplitR;[|iSplitL "Hf Hg"];cycle 1.
       { iApply (wp_set_global with "[] Hf Hg");auto.
         iNext. instantiate (1:=(λ v, ⌜v = immV _⌝)%I);eauto. }
-      2: iIntros "[[%Hcontr _] _]";done.
-      iIntros (w) "[[-> Hg] Hf]". iSimpl.
+      2: iIntros "[%Hcontr _]";done.
+      iIntros (w) "[-> [Hg Hf]]". iSimpl.
       assert (iris.to_val [AI_basic BI_return] = Some (retV (SH_base [] []))) as Hval.
       { cbn. eauto. }
       iApply iris_wp.wp_value;[unfold IntoVal;by eapply iris.of_to_val|].
@@ -521,7 +521,7 @@ Section Client_main.
           iApply (wp_wand with "[Hf Hg]").
           { iApply (wp_set_global with "[] Hf Hg");[simpl;auto|].
             instantiate (1:=(λ v, ⌜ v = immV [] ⌝)%I). iNext. auto. }
-          iIntros (v) "[[-> Hg] Hf]". iFrame. iRight. iRight. iSplitR "Hg Hown";[auto|].
+          iIntros (v) "[-> [Hg Hf]]". iFrame. iRight. iRight. iSplitR "Hg Hown";[auto|].
           iExists _. iFrame.
         }
         { by iLeft. }

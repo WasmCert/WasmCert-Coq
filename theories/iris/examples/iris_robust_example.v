@@ -130,10 +130,10 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
     { iApply wp_load;eauto;[|iFrame];eauto. }
     iIntros (v) "[[-> Hn] Hf]". iSimpl.
 
-    iApply (wp_wand _ _ _ (λ v, (⌜v = immV _⌝ ∗ _) ∗ _)%I with "[Hf Hg]").
+    iApply (wp_wand _ _ _ (λ v, ⌜v = immV _⌝ ∗ _ ∗ _)%I with "[Hf Hg]").
     { iApply (wp_set_global with "[] Hf Hg"); eauto. }
 
-    iIntros (v) "[[-> Hg] Hf]". iFrame.
+    iIntros (v) "[-> [Hg Hf]]". iFrame.
     iRight. iFrame. auto.
   Qed.
 
