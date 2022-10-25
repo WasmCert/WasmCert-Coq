@@ -79,6 +79,16 @@ Definition isStack v (l : seq.seq i32) n :=
             ∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length l * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N st_p] bs
   )%I.
 
+Definition stk : string := "STACK".
+Definition stkN : namespace := nroot .@ stk.
+
+(* stack module invariant *)
+        
+Definition stackModuleInv (isStack : Z -> seq.seq i32 -> iPropI Σ) (nextStackAddrIs : nat -> iPropI Σ) : iProp Σ :=
+  ∃ (nextStack : nat), ⌜(Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (N.of_nat nextStack `div` page_size))⌝ ∗
+                     ⌜(N.of_nat nextStack + 4 < Z.to_N (two_power_nat 32))%N⌝ ∗
+                     ⌜(page_size | N.of_nat nextStack)%N⌝ ∗ nextStackAddrIs nextStack ∗
+                       ∀ (s : nat), ⌜(0 <= s < nextStack)%Z ∧ (page_size | N.of_nat s)%N⌝ -∗ ∃ l, isStack s l.
 
 
 Lemma separate1 {A} (a : A) l :

@@ -543,7 +543,7 @@ Ltac simplify_map_lookup H :=
 Section Client_instantiation.
 
   Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ,
-        !logrel_na_invs Σ, !hasG Σ}.
+      !logrel_na_invs Σ, !hasG Σ}.
 
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
     (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).

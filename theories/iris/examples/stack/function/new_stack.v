@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export stack_common.
+Require Export stack_common iris_fundamental proofmode.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -47,11 +47,13 @@ End code.
 
 Section specs.
 
+  Definition overflow : N -> Prop :=
+    λ len, (Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (len `div` page_size)).
+
 Lemma spec_new_stack f0 n len E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ length (f_locs f0) >= 1 ⌝ ∗
-        ⌜ (Wasm_int.Int32.modulus - 1)%Z <>
-         Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (len `div` page_size)) ⌝ ∗
+        ⌜ overflow len ⌝ ∗
         ⌜ (len + 4 < Z.to_N (two_power_nat 32))%N ⌝ ∗
         ⌜ (page_size | len)%N ⌝ ∗
         ↪[frame] f0 ∗
@@ -60,7 +62,9 @@ Lemma spec_new_stack f0 n len E:
     {{{ v , (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
                                    (⌜ (k = -1)%Z ⌝ ∗
                                       N.of_nat n↦[wmlength] len ∨
-                                      ⌜ (0 <= k)%Z /\ (k + Z.of_N page_size <= two32)%Z ⌝ ∗
+                                      ⌜ (0 <= k)%Z /\ (k + Z.of_N page_size + 4 < two32)%Z ⌝ ∗
+                                      ⌜ (k = N.to_nat len) ⌝ ∗
+                                      ⌜ overflow (len + page_size)%N ⌝ ∗
                                      isStack k [] n ∗
                                      N.of_nat n ↦[wmlength] (len + page_size)%N) ∗
             ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f0 ⌝)%I }}}.
@@ -198,7 +202,7 @@ Proof.
 
       iDestruct "H" as "[ (%Hvv & Hb & Hlen) | [%Hvv Hlen]]" ; inversion Hvv ; subst ;
         last by rewrite eq_refl in Hv ; inversion Hv.
-      unfold page_size at 2.
+      unfold page_size at 3.
       replace (N.to_nat (64 * 1024)) with (4 + N.to_nat (65532)) ; last done.
       rewrite repeat_app.
       unfold repeat at 1.
@@ -609,7 +613,9 @@ Proof.
           assert (k + 1 <= 65536)%N ; first lia.
           replace (N.to_nat (k * (64 * 1024)) + Z.pos (64 * 1024))%Z
             with (N.to_nat (k + 1)%N * (64 * 1024))%Z ; last lia.
-          lia. }
+          admit. }
+        iSplit;[auto|].
+        iSplit;[admit|].
         iSplitR "Hlen". 
         unfold isStack.
         replace (Z.to_N (N.to_nat len)) with len ; last lia.
@@ -636,10 +642,68 @@ Proof.
         done.
         iExists _ ; iFrame.
         done.
-Qed.
-
+Admitted.
 
 End specs.
+
+Section valid.
+  Context `{!logrel_na_invs Σ}.
+  Set Bullet Behavior "Strict Subproofs".
+
+  Lemma valid_new_stack m t funcs :
+    let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+                     inst_funcs := funcs;
+                     inst_tab := [t];
+                     inst_memory := [m];
+                     inst_globs := []
+              |} in
+    na_inv logrel_nais stkN (stackModuleInv (λ (a : Z) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
+    interp_closure_native i0 [] [T_i32] [T_i32] (to_e_list new_stack) [].
+  Proof.
+    iIntros "#Hstk".
+    iIntros (vcs f) "#Hv Hown Hf".
+    iIntros (LI HLI%lfilled_Ind_Equivalent);inversion HLI;inversion H8;subst;simpl.
+    iApply (wp_frame_bind with "[$]");auto.
+    iIntros "Hf".
+    match goal with | |- context [ [AI_label _ _ ?l] ] => set (e:=l) end.
+    build_ctx e.
+    iApply wp_label_bind.
+    subst e.
+    iDestruct "Hv" as "[%Hcontr|Hws]";[done|iDestruct "Hws" as (ws) "[%Heq Hws]"].
+    iDestruct (big_sepL2_length with "Hws") as %Hlen. inversion Heq. destruct ws;[|done]. simpl.
+    iApply fupd_wp.
+    iMod (na_inv_acc with "Hstk Hown") as "(>Hstkres & Hown & Hcls)";[solve_ndisj..|].
+    iDestruct "Hstkres" as (len) "[% [% [% [Hlen Hstkres]]]]".
+    iApply (spec_new_stack with "[$Hf $Hlen]");[auto|].
+    iModIntro.
+    iIntros (v) "HH".
+    iDestruct "HH" as (k) "[-> [Hcases Hf]]".
+    iDestruct "Hf" as (f') "[Hf %Hfinst]". simpl in Hfinst.
+    iApply (wp_val_return with "[$]");auto.
+    iIntros "Hf /=".
+    iApply wp_value;[eapply of_to_val;eauto|].
+    iExists _. iFrame. iIntros "Hf".
+    iApply fupd_wp.
+    iMod ("Hcls" with "[$Hown Hcases Hstkres]").
+    { iNext.
+      iDestruct "Hcases" as "[[Heq Hm] | [[% %] [% [% [Hs Hm]]]]]".
+      - iExists _. iFrame. auto.
+      - iExists _.
+        rewrite <- (N2Nat.id page_size), <- Nat2N.inj_add.
+        iFrame "Hm". repeat iSplit.
+        + iPureIntro. rewrite (N2Nat.id page_size) Nat2N.inj_add N2Nat.id. auto.
+        + iPureIntro. subst k.
+          rewrite Nat2N.inj_add. unfold page_size.
+          clear -H4. rewrite N2Nat.id. unfold two32 in H4.
+          replace (Z.to_N (two_power_nat 32)) with 4294967296%N;[|done].
+          lia.
+        + iPureIntro. rewrite N2Nat.id Nat2N.inj_add N2Nat.id.
+          apply N.divide_add_r;auto. apply N.divide_refl.
+        + admit. }
+    admit.
+  Admitted.    
+
+End valid.
 
 
 End stack.    

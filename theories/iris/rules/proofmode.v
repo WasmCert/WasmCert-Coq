@@ -2,9 +2,9 @@ From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_rules iris_example_helper.
-Require Export datatypes operations properties opsem.
+Require Import iris iris_locations iris_properties iris_atomicity stdpp_aux.
+Require Import iris_rules iris_example_helper.
+Require Import datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
