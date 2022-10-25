@@ -1192,6 +1192,7 @@ Lemma mem_grow_max m n m':
 Proof.
   move => Hgrow.
   unfold mem_grow in Hgrow.
+  destruct (mem_size m + n <=? page_limit)%N eqn:HLP => //=.
   destruct (mem_max_opt m) eqn:Hmlimit => //=.
   - destruct (mem_size m + n <=? n0)%N => //=.
     by inversion Hgrow.
@@ -2544,6 +2545,7 @@ Proof.
     rewrite - length_is_size.
     replace (k - length mems) with 0 => //= ; lia. }
   unfold mem_grow, memory_list.mem_grow in Hgrow.
+  destruct (mem_size m + n <=? page_limit)%N => //=.
   destruct (mem_max_opt m) eqn:Hmaxlim.
   destruct (mem_size m +n <=? n0)%N ; inversion Hgrow.
   - remember (N.to_nat (n * page_size)) as size.
@@ -2759,9 +2761,8 @@ Proof.
            done.
 Qed.
 
+Definition mem_in_bound (c: N):= (c <= page_limit)%N.
 
-  
- 
 Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f : frame)
       (n: N) (Φ Ψ : iris.val -> iProp Σ) (c: i32) :
   f.(f_inst).(inst_memory) !! 0 = Some k ->
@@ -2774,7 +2775,8 @@ Lemma wp_grow_memory (s: stuckness) (E: coPset) (k: nat) (f : frame)
                     ((N.of_nat k) ↦[wms][ n ]
                     repeat #00%byte (N.to_nat (Wasm_int.N_of_uint i32m c * page_size))) ∗
                     (N.of_nat k) ↦[wmlength]
-                    (n + Wasm_int.N_of_uint i32m c * page_size)%N)
+                    (n + Wasm_int.N_of_uint i32m c * page_size)%N) ∗
+                    ⌜ mem_in_bound ((n `div` page_size + Wasm_int.N_of_uint i32m c)) ⌝
                  ∨ (Ψ w ∗ (N.of_nat k) ↦[wmlength] n)) ∗ ↪[frame] f }}.
 Proof.
   iIntros (Hfm) "(Hframe & Hmlength & HΦ & HΨ)".
@@ -2847,12 +2849,21 @@ Proof.
           by apply lookup_lt_Some in Hmemlookup.
       - 
         iLeft.
-        rewrite Hmemlength' H1.
-        erewrite mem_grow_length => //=.
-        rewrite Hmemlength'.
-        replace (Wasm_int.N_of_uint i32m c) with (Z.to_N (Wasm_int.Int32.unsigned c)) ;
+        iSplit.
+        + rewrite Hmemlength' H1.
+          erewrite mem_grow_length => //=.
+          rewrite Hmemlength'.
+          replace (Wasm_int.N_of_uint i32m c) with (Z.to_N (Wasm_int.Int32.unsigned c)) ;
           last done.
-        by iFrame. }
+          by iFrame.
+        + iPureIntro.
+          unfold mem_in_bound.
+          unfold mem_grow in H2.
+          destruct (_ <=? page_limit)%N eqn:HLP => //=.
+          unfold mem_size in HLP.
+          move/N.leb_spec0 in HLP.
+          by apply HLP.
+    }
     { (* grow_memory failed *)
       iSplitR "Hframe HΨ Hmlength"  => //.
       iFrame => //.

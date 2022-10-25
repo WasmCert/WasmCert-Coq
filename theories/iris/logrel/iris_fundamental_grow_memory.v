@@ -52,11 +52,11 @@ Section fundamental.
     iModIntro.
 
     iApply wp_fupd.
-    iApply (wp_wand _ _ _ (λ vs, ((⌜vs = immV _⌝ ∗ _) ∨ (⌜vs = immV _⌝ ∗ _))∗ _)%I with "[Hsize Hf]").
-    { iApply (wp_grow_memory with "[$Hf $Hsize]");[by rewrite Hlocs /=|].
-      iSplit;eauto. }
+    iDestruct (wp_grow_memory with "[$Hf $Hsize]") as "HWP"; first by rewrite Hlocs => //.
+    { iSplitL; by instantiate (1 := λ vs, (⌜ vs = immV _⌝)%I). }
+    iApply (wp_wand with "HWP").
     iIntros (v) "[Hdisj Hf]".
-    iDestruct "Hdisj" as "[[-> [Hb Hsize]]|[-> Hsize]]".
+    iDestruct "Hdisj" as "[[[-> [Hb Hsize]] Hbound]|[-> Hsize]]".
     {  iMod ("Hcls" with "[$Hown Hsize Hmem Hb]") as "Hown".
       { iNext.
         set (mem' := {| ml_data := ml_data (mem_data ms) ++

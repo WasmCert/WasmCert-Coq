@@ -762,6 +762,7 @@ Lemma mem_grow_data m n m':
   m'.(mem_data).(memory_list.ml_data) = (m.(mem_data).(memory_list.ml_data) ++ (repeat #00 (N.to_nat (n*page_size))))%SEQ.
 Proof.
   unfold operations.mem_grow, mem_size, mem_length, memory_list.mem_length => //=.
+  destruct (_ <=? page_limit)%N => //=.
   move => H.
   destruct (mem_max_opt m) in H => //=.
   - destruct (_ <=? n0)%N => //=.
