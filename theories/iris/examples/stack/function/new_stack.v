@@ -47,16 +47,9 @@ End code.
 
 Section specs.
 
-
-  
-  Definition overflow : N -> Prop :=
-    λ len, (Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (len `div` page_size)).
-
 Lemma spec_new_stack f0 n len E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ length (f_locs f0) >= 1 ⌝ ∗
-        ⌜ overflow len ⌝ ∗
-        ⌜ (len + 4 < Z.to_N (two_power_nat 32))%N ⌝ ∗
         ⌜ (page_size | len)%N ⌝ ∗
         ↪[frame] f0 ∗
         N.of_nat n ↦[wmlength] len }}}
@@ -64,64 +57,33 @@ Lemma spec_new_stack f0 n len E:
     {{{ v , (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
                                    (⌜ (k = -1)%Z ⌝ ∗
                                       N.of_nat n↦[wmlength] len ∨
-                                      ⌜ (0 <= k)%Z /\ (k + Z.of_N page_size + 4 < two32)%Z ⌝ ∗
                                       ⌜ (k = N.to_nat len) ⌝ ∗
-                                      ⌜ overflow (len + page_size)%N ⌝ ∗
                                      isStack k [] n ∗
                                      N.of_nat n ↦[wmlength] (len + page_size)%N) ∗
             ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f0 ⌝)%I }}}.
 Proof.
-  iIntros "!>" (Φ) "(%Hinst & %Hflocs & %Hmod & %Hlenoverflow4 & %Hlendiv & Hframe & Hlen) HΦ".
+  iIntros "!>" (Φ) "(%Hinst & %Hflocs & %Hlendiv & Hframe & Hlen) HΦ".
   assert (page_size | len)%N as Hlenmod => //=.
   apply divide_and_multiply in Hlenmod => //=.
-  assert (len < Z.to_N (two_power_nat 32))%N as Hlenoverflow ; first lia.
-  assert (len `div` page_size < Z.to_N (two_power_nat 32))%N.
-  { destruct len ; first done.
-    remember (N.pos p) as len.
-    assert (len `div`page_size < len)%N.
-    apply N.div_lt.
-    subst. lia.
-    unfold page_size. lia.
-    lia. }
   rewrite separate2.
   iApply wp_seq => /=.
-  iSplitR.
-  - instantiate (1 := λ x,
-                   (((⌜ x = immV [VAL_int32 (Wasm_int.int_of_Z
-                                            i32m (ssrnat.nat_of_bin
-                                                    (len `div` page_size)))] ⌝ ∗
-                               (N.of_nat n ↦[wms][ len ]
-                                              repeat #00%byte (N.to_nat page_size)) ∗
-                              N.of_nat n↦[wmlength] (len + page_size)%N)
-                              
-                   ∨ (⌜ x = immV [VAL_int32 int32_minus_one] ⌝%I ∗
-                N.of_nat n↦[wmlength] len)) ∗ ↪[frame] f0)%I).
-    iIntros "[[(%Habs & _ & _) | (%Habs & _)] Hf]" ; inversion Habs.
-  - iSplitR "HΦ".
-    unfold i32const.
-    iApply (wp_grow_memory
-              NotStuck E n f0 len
-              (λ x, ⌜ x = immV [VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin
-                                                                     (len `div`
-                                                                          page_size)))] ⌝%I)
-              (λ x, ⌜ x = immV [VAL_int32 int32_minus_one] ⌝%I) (Wasm_int.int_of_Z i32m 1)).
-    + exact Hinst.
-    + iFrame. 
-      iSplit ; by iPureIntro.
-  - iIntros (w) "H".
+  iDestruct (wp_grow_memory with "[$Hframe $Hlen]") as "HWP" => //.
+  { iSplitL; by instantiate (1 := λ v, ⌜ v = immV _ ⌝%I ). }
+  iSplitR; last iSplitL "HWP".
+  2: { by iApply "HWP". }
+  { iIntros "[[((%Habs & _ & _) & _) | (%Habs & _)] Hf]" ; by inversion Habs. }
+  - iIntros (w) "(H & Hf)".
     unfold of_val.
-    destruct w ; try by iDestruct "H" as "[[[%Habs _ ]| [%Habs _]] _]" ; inversion Habs.
-    destruct l ; try by iDestruct "H" as "[[[%Habs _ ]| [%Habs _]] _]" ; inversion Habs.
-    destruct l ; try by iDestruct "H" as "[[[%Habs _ ]| [%Habs _]] _]" ; inversion Habs.
-    unfold fmap, list_fmap.
+    destruct w ; try by iDestruct "H" as "[[[%Habs _] _ ]| [%Habs _]]" ; inversion Habs.
+    destruct l ; try by iDestruct "H" as "[[[%Habs _] _ ]| [%Habs _]]" ; inversion Habs.
+    destruct l ; try by iDestruct "H" as "[[[%Habs _] _ ]| [%Habs _]]" ; inversion Habs.
     rewrite - separate1.
     rewrite separate2.
     iApply (wp_seq _ E _ (λ x, (⌜ x = immV [v] ⌝
                                       ∗ ↪[frame] {|
                                             f_locs := set_nth v (f_locs f0) 0 v;
                                             f_inst := f_inst f0
-                                          |} )%I) ).
-    iDestruct "H" as "[H Hf]".
+                                      |} )%I) ).
     iSplitR.
   - iIntros "[%Habs _]" ; done.
   - iSplitL "Hf". 
@@ -138,12 +100,12 @@ Proof.
     rewrite separate3.
     iApply wp_seq.
     iSplitR.
-  - instantiate (1 := (λ x, (⌜ if v == value_of_int (-1) then
+    instantiate (1 := (λ x, (⌜ if v == value_of_int (-1) then
                                  x = immV [value_of_int 1]
                                else x = immV [value_of_int 0] ⌝ ∗
                                              ↪[frame] {| f_locs := set_nth v
                                                                            (f_locs f0) 0 v ;
-                                                        f_inst := f_inst f0 |})%I)).
+                                                         f_inst := f_inst f0 |})%I)).
     iIntros "[%Habs _]".
     by destruct (v == value_of_int (-1)).
   - iSplitL "Hf".
@@ -161,13 +123,13 @@ Proof.
     rewrite Hv' in Hv.
     rewrite eq_refl in Hv.
     inversion Hv.
+  (* If *)
   - iIntros (w) "[%Hw Hf]".
     destruct w ; try by destruct (v == value_of_int (-1)).
     destruct l ; first by destruct (v == value_of_int (-1)).
     destruct l ; last by destruct (v == value_of_int (-1)).
-    unfold of_val, fmap, list_fmap.
     iSimpl.
-    destruct (v == value_of_int (-1)) eqn:Hv.
+    destruct (v == value_of_int (-1)) eqn:Hv. 
     + (* grow_memory failed *)
       move/eqP in Hv ; subst v.
       inversion Hw ; subst v0.
@@ -188,24 +150,50 @@ Proof.
       iExists _.
       iSplit.
       done.
-      iDestruct "H" as "[(%Hm1 & Hb & Hlen) | [_ Hlen]]".
+      iDestruct "H" as "[((%Hm1 & Hb & Hlen) & %Hbound) | [_ Hlen]]".
       inversion Hm1.
-      exfalso. done.
+      exfalso.
+      unfold mem_in_bound in Hbound.
+      simpl in Hbound.
+      unfold page_limit in Hbound.
+      remember (len `div` page_size)%N as pagenum.
+      assert (pagenum <= 65535)%N as Hbound'; first by lias.
+      clear - H0 Hbound'.
+      rewrite Wasm_int.Int32.Z_mod_modulus_eq in H0.
+      unfold Wasm_int.Int32.modulus in H0.
+      unfold Wasm_int.Int32.wordsize in H0.
+      unfold Integers.Wordsize_32.wordsize in H0.
+      rewrite nat_bin in H0.
+      rewrite Zmod_small in H0; last first.
+      split; try by lias.
+      replace (two_power_nat 32) with (4294967296)%Z; by lias.
+      replace (two_power_nat 32) with (4294967296)%Z in H0; by lias.
       iSplitR "Hf".
       iLeft.
       by iSplit.
       iExists _ ; by iFrame.
     + (* grow_memory succeeded *)
       inversion Hw ; subst v0.
-      iApply (wp_if_false with "Hf").
-      done.
+      iApply (wp_if_false with "Hf"). done.
       iIntros "!> Hf".
       rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
 
-      iDestruct "H" as "[ (%Hvv & Hb & Hlen) | [%Hvv Hlen]]" ; inversion Hvv ; subst ;
+      iDestruct "H" as "[ ((%Hvv & Hb & Hlen) & %Hbound) | [%Hvv Hlen]]" ; inversion Hvv ; subst ;
         last by rewrite eq_refl in Hv ; inversion Hv.
+      (* len bound *)
+      assert (len `div` page_size <= 65535)%N as Hpagebound.
+      { unfold mem_in_bound, page_limit in Hbound.
+        simpl in Hbound.
+        by lias.
+      }
+      assert (len <= 4294901760)%N as Hlenbound.
+      { rewrite <- Hlenmod.
+        remember (len `div` page_size)%N as pagenum.
+        replace page_size with 65536%N => //.
+        by lias.
+      }
       unfold page_size at 3.
-      replace (N.to_nat (64 * 1024)) with (4 + N.to_nat (65532)) ; last done.
+      replace (N.to_nat (_ * (64 * 1024))) with (4 + N.to_nat (65532)) ; last done.
       rewrite repeat_app.
       unfold repeat at 1.
       rewrite - separate4.
@@ -378,23 +366,21 @@ Proof.
         unfold Wasm_int.Int32.modulus.
         unfold Wasm_int.Int32.wordsize.
         unfold Integers.Wordsize_32.wordsize.
-        rewrite (Z.mod_small (ssrnat.nat_of_bin (len `div` page_size)) (two_power_nat 32)).
-        replace (ssrnat.nat_of_bin (len `div` page_size) * 65536)%Z with (Z.of_N len).
-        rewrite Z.mod_small.
-        lia.
-        lia.
-        rewrite <- Hlenmod at 1.
+        rewrite nat_bin.
+        unfold mem_in_bound in Hbound.
+        simpl in Hbound.
+        remember (len `div` page_size)%N as pagenum.
+        unfold page_limit in Hbound.
+        assert (pagenum <= 65535)%N; first by lias.
+        rewrite (Zmod_small (N.to_nat pagenum) _); last first.
+        { split; try by lias.
+          replace (two_power_nat 32) with (4294967296)%Z; by lias. }
+        rewrite Zmod_small; last first.
+        { split; try by lias.
+          replace (two_power_nat 32) with (4294967296)%Z; by lias. }
+        rewrite - Hlenmod.
         unfold page_size.
-        replace (64 * 1024)%N with 65536%N ; last done.
-        rewrite - (Z2N.id (_ * _)%Z) ; last lia.
-        rewrite Z2N.inj_mul ; try lia.
-        rewrite nat_of_bin_to_N.
-        lia.
-        split.
-        lia.
-        rewrite - (Z2N.id (ssrnat.nat_of_bin _)) ; last lia.
-        rewrite nat_of_bin_to_N.
-        lia.
+        replace (64*1024)%N with (65536)%N; by lias.
         iIntros (w) "((-> & Hwm) & Hf)".
         unfold of_val, fmap, list_fmap.
         iSimpl.
@@ -453,7 +439,7 @@ Proof.
         lia.
         lia.
         assert (len `div` 2 < Z.to_N (two_power_nat 32) `div` 2)%N.
-        apply div_lt => //=.
+        apply div_lt => //=; first lias.
         assert (2 | page_size)%N.
         unfold page_size.
         replace (64*1024)%N with 65536%N ; last done.
@@ -473,12 +459,12 @@ Proof.
         instantiate (1 := Z.of_N (len `div` 2)).
         lia.
         assert (len `div`2 <= Z.to_N (two_power_nat 32) `div` 2 - 1)%N ; first lia.
-        apply N2Z.inj_le in H3.
-        rewrite N2Z.inj_sub in H3.
-        rewrite (N2Z.inj_div (Z.to_N _)) in H3.
-        rewrite Z2N.id in H3.
+        apply N2Z.inj_le in H2.
+        rewrite N2Z.inj_sub in H2.
+        rewrite (N2Z.inj_div (Z.to_N _)) in H2.
+        rewrite Z2N.id in H2.
         lia.
-        lia.
+        lias.
         unfold two_power_nat.
         simpl.
         replace (4294967296 `div` 2)%N with 2147483648%N ; last done.
@@ -523,22 +509,22 @@ Proof.
         unfold Wasm_int.Int32.modulus.
         unfold Wasm_int.Int32.wordsize.
         unfold Integers.Wordsize_32.wordsize.
-        lia.
+        replace (two_power_nat 32) with 4294967296%Z; lias.
         unfold Wasm_int.Int32.max_unsigned.
         unfold Wasm_int.Int32.modulus.
         unfold Wasm_int.Int32.wordsize.
         unfold Integers.Wordsize_32.wordsize.
-        lia.
+        replace (two_power_nat 32) with 4294967296%Z; lias.
         unfold Wasm_int.Int32.max_unsigned.
         unfold Wasm_int.Int32.modulus.
         unfold Wasm_int.Int32.wordsize.
         unfold Integers.Wordsize_32.wordsize.
-        lia.
+        replace (two_power_nat 32) with 4294967296%Z; lias.
         unfold Wasm_int.Int32.max_unsigned.
         unfold Wasm_int.Int32.modulus.
         unfold Wasm_int.Int32.wordsize.
         unfold Integers.Wordsize_32.wordsize.
-        lia.
+        replace (two_power_nat 32) with 4294967296%Z; lias.
         rewrite <- Hlenmod at 1.
         unfold page_size.
         lia.
@@ -551,6 +537,7 @@ Proof.
         unfold Wasm_int.Int32.modulus.
         unfold Wasm_int.Int32.wordsize.
         unfold Integers.Wordsize_32.wordsize.
+        replace (two_power_nat 32) with 4294967296%Z; last by lias.
         split ; last lia.
         assert (len >= 0)%N ; first lia.
         assert (page_size > 0)%N ; first by unfold page_size.
@@ -580,6 +567,7 @@ Proof.
         replace (64 * 1024)%N with 65536%N ; last done.
         replace (64 * 1024)%N with 65536%N in Hlenmod ; last done.
         rewrite Hlenmod.
+        replace (two_power_nat 32) with 4294967296%Z; last by lias.
         lia.
         lia.
         lia.
@@ -589,6 +577,7 @@ Proof.
         unfold Integers.Wordsize_32.wordsize.
         rewrite - (Z2N.id (ssrnat.nat_of_bin _)).
         rewrite nat_of_bin_to_N.
+        replace (two_power_nat 32) with 4294967296%Z; last by lias.
         split ; last lia.
         assert (len >= 0)%N ; first lia.
         assert (page_size > 0)%N ; first by unfold page_size ; lia.
@@ -602,22 +591,7 @@ Proof.
         iSplit ; first done.
         iSplitR "Hf".
         iRight.
-        iSplit.
-        iPureIntro.
-        split ; first lia.
-        { destruct Hlendiv as [k ->].
-          unfold page_size.
-          unfold two32.
-          replace (Z.to_N (two_power_nat 32)) with 4294967296%N in Hlenoverflow ; last done.
-          unfold page_size in Hlenoverflow.
-          assert (k < 65536)%N.
-          lia.
-          assert (k + 1 <= 65536)%N ; first lia.
-          replace (N.to_nat (k * (64 * 1024)) + Z.pos (64 * 1024))%Z
-            with (N.to_nat (k + 1)%N * (64 * 1024))%Z ; last lia.
-          admit. }
-        iSplit;[auto|].
-        iSplit;[admit|].
+        iSplit => //.
         iSplitR "Hlen". 
         unfold isStack.
         replace (Z.to_N (N.to_nat len)) with len ; last lia.
@@ -644,8 +618,8 @@ Proof.
         done.
         iExists _ ; iFrame.
         done.
-Admitted.
-
+Qed.
+        
 End specs.
 
 Section valid.
