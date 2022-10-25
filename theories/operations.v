@@ -54,32 +54,40 @@ Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
 
 Definition page_size : N := (64 % N) * (1024 % N).
 
+Definition page_limit : N := 65536%N.
+
+Definition ml_valid (m: memory_list) : Prop :=
+  N.modulo (memory_list.mem_length m) page_size = 0%N.
+
 Definition mem_length (m : memory) : N :=
   mem_length m.(mem_data).
 
 Definition mem_size (m : memory) : N :=
   N.div (mem_length m) page_size.
 
-(** Grow the memory a given number of bytes.
-  * @param len_delta: the number of bytes to grow the memory by
+(** Grow the memory a given number of pages.
+  * @param len_delta: the number of pages to grow the memory by
   *)
+
 Definition mem_grow (m : memory) (len_delta : N) : option memory :=
   let new_size := N.add (mem_size m) len_delta in
   let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
+  if N.leb new_size page_limit then
   match m.(mem_max_opt) with
   | Some maxlim =>
     if N.leb new_size maxlim then
-      Some {|
-        mem_data := new_mem_data;
-        mem_max_opt := m.(mem_max_opt);
-      |}
+        Some {|
+          mem_data := new_mem_data;
+          mem_max_opt := m.(mem_max_opt);
+          |}
     else None
   | None =>
     Some {|
       mem_data := new_mem_data;
       mem_max_opt := m.(mem_max_opt);
-    |}
-  end.
+      |}
+  end
+  else None.
 
 (* TODO: We crucially need documentation here. *)
 

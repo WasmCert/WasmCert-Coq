@@ -2573,10 +2573,9 @@ Proof.
   move => m c mem HMGrow.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
-  (* assert (HMemExt: ((dv_length (mem_data m) / page_size) <= ((dv_length (mem_data m) + c) / page_size))%N).
-  { apply N.div_le_mono => //. by lias. }*)
-  destruct (mem_max_opt m) eqn:HLimMax => //=.
-  - destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
+  destruct (mem_size m + c <=? page_limit)%N eqn:HLP => //.
+  - destruct (mem_max_opt m) eqn:HLimMax => //=.
+    destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
     move : HMGrow.
     case: mem => mem_data_ mem_max_opt_ H.
     inversion H. subst. clear H.
@@ -2795,8 +2794,9 @@ Proof.
   unfold mem_grow in HGrow.
   unfold mem_agree. simpl.
   unfold mem_agree in H.
-  destruct (mem_max_opt m) eqn:HLimMax => //=.
-  - destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
+  destruct (mem_size m + c <=? page_limit)%N eqn:HLP => //.
+  - destruct (mem_max_opt m) eqn:HLimMax => //=.
+    destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
     inversion HGrow. unfold mem_size, mem_length, memory_list.mem_length in *. simpl in *. subst. clear HGrow.
     rewrite length_is_size. rewrite size_cat.
     repeat rewrite - length_is_size. rewrite List.repeat_length.
