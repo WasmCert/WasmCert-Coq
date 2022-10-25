@@ -1,5 +1,5 @@
 {
-  "checksum": "3318519e8861485d943634372e5effcd",
+  "checksum": "129e59dfa63de591f5a5d68712952581",
   "root": "wasm_coq@link-dev:./package.json",
   "node": {
     "wasm_coq@link-dev:./package.json": {
@@ -21,7 +21,7 @@
         "coq-itree@github:iriswasm/InteractionTrees#21119d09ec48edcf430202a847f21e9877c5d1c5@d41d8cd9",
         "coq-flocq@git:https://gitlab.inria.fr/flocq/flocq.git#63ae222c9125a42a44c706c9cbf04709cfaaedf2@ee61b4ed",
         "coq-ext-lib@github:coq-community/coq-ext-lib#159c36111a95e5e587020c9f10b2e2ecd9fa3914@65e3b9aa",
-        "compcert@github:raoxiaojia/CompCert#8afd4acacee7175fc71007730322294fff738454@d41d8cd9",
+        "compcert@github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721@d41d8cd9",
         "@opam/odoc@opam:2.1.1@ccba8a4e",
         "@opam/ocamlfind@opam:1.9.3@6f4741ee",
         "@opam/menhir@opam:20220210@ff87a93b",
@@ -242,16 +242,16 @@
       "dependencies": [ "@opam/coq@opam:8.13.2@d8e9a38c" ],
       "devDependencies": []
     },
-    "compcert@github:raoxiaojia/CompCert#8afd4acacee7175fc71007730322294fff738454@d41d8cd9": {
+    "compcert@github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721@d41d8cd9": {
       "id":
-        "compcert@github:raoxiaojia/CompCert#8afd4acacee7175fc71007730322294fff738454@d41d8cd9",
+        "compcert@github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721@d41d8cd9",
       "name": "compcert",
       "version":
-        "github:raoxiaojia/CompCert#8afd4acacee7175fc71007730322294fff738454",
+        "github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721",
       "source": {
         "type": "install",
         "source": [
-          "github:raoxiaojia/CompCert#8afd4acacee7175fc71007730322294fff738454"
+          "github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721"
         ]
       },
       "overrides": [],
