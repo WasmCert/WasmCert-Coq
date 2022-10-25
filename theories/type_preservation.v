@@ -9,8 +9,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
-
 Definition t_be_value bes : Prop :=
   const_list (to_e_list bes).
 
@@ -2339,8 +2337,9 @@ Proof.
   move => m c mem HMGrow.
   unfold mem_extension.
   unfold mem_grow in HMGrow.
-  destruct (mem_max_opt m) eqn:HLimMax => //=.
-  - destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
+  destruct (mem_size m + c <=? page_limit)%N eqn:HLP => //.
+  - destruct (mem_max_opt m) eqn:HLimMax => //=.
+    destruct ((mem_size m + c <=? n)%N) eqn:HLT => //.
     move : HMGrow.
     case: mem => mem_data_ mem_max_opt_ H.
     inversion H. subst. clear H.
@@ -2557,8 +2556,9 @@ Proof.
   unfold mem_grow in HGrow.
   unfold mem_agree. simpl.
   unfold mem_agree in H.
-  destruct (mem_max_opt m) eqn:HLimMax => //=.
-  - destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
+  destruct (mem_size m + c <=? page_limit)%N eqn:HLP => //.
+  - destruct (mem_max_opt m) eqn:HLimMax => //=.
+    destruct ((mem_size m + c <=? n0)%N) eqn:H1 => //.
     inversion HGrow. unfold mem_size, mem_length, memory_list.mem_length in *. simpl in *. subst. clear HGrow.
     rewrite length_is_size. rewrite size_cat.
     repeat rewrite - length_is_size. rewrite List.repeat_length.
