@@ -577,5 +577,29 @@ Proof.
   unfold two16. exists 65536%Z. lia.
 Qed.
 
+Lemma wasm_int_signed x:
+  (-2147483648 <= x <= 2147483647)%Z ->
+  Wasm_int.Int32.signed (Wasm_int.Int32.repr x) = x.
+Proof.
+  move => Hbound.
+  rewrite Wasm_int.Int32.signed_repr; first by lias.
+  unfold Wasm_int.Int32.min_signed.
+  unfold Wasm_int.Int32.max_signed.
+  unfold Wasm_int.Int32.half_modulus.
+  rewrite u32_modulus.
+  replace (4294967296 `div` 2)%Z with (2147483648)%Z; by lias.
+Qed.
+
+Lemma wasm_int_unsigned x:
+  (0 <= x <= 4294967295)%Z ->
+  Wasm_int.Int32.unsigned (Wasm_int.Int32.repr x) = x.
+Proof.
+  move => Hbound.
+  rewrite Wasm_int.Int32.unsigned_repr; first by lias.
+  unfold Wasm_int.Int32.max_unsigned.
+  rewrite u32_modulus.
+  by lias.
+Qed.
+
 
 End Stack.

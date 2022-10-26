@@ -12,8 +12,6 @@ Unset Printing Implicit Defensive.
 
 Close Scope byte_scope.
 
-
-
 Section stack.
 
 
@@ -36,8 +34,6 @@ Definition new_stack :=
         BI_binop T_i32 (Binop_i BOI_mul) ;
         BI_tee_local 0 ;
         BI_get_local 0 ;
-        i32const 4 ;
-        BI_binop T_i32 (Binop_i BOI_add) ;
         BI_store T_i32 None N.zero N.zero ;
         BI_get_local 0 
       ]                             
@@ -160,14 +156,11 @@ Proof.
       assert (pagenum <= 65535)%N as Hbound'; first by lias.
       clear - H0 Hbound'.
       rewrite Wasm_int.Int32.Z_mod_modulus_eq in H0.
-      unfold Wasm_int.Int32.modulus in H0.
-      unfold Wasm_int.Int32.wordsize in H0.
-      unfold Integers.Wordsize_32.wordsize in H0.
+      rewrite u32_modulus in H0.
       rewrite nat_bin in H0.
       rewrite Zmod_small in H0; last first.
       split; try by lias.
       replace (two_power_nat 32) with (4294967296)%Z; by lias.
-      replace (two_power_nat 32) with (4294967296)%Z in H0; by lias.
       iSplitR "Hf".
       iLeft.
       by iSplit.
@@ -209,7 +202,7 @@ Proof.
         iFrame. }
       remember (Wasm_int.Int32.repr (ssrnat.nat_of_bin (len `div` page_size))) as c.
       iApply wp_wand_r.        
-      instantiate (1 := λ x, ((⌜ x = immV [value_of_int (N.to_nat len)] ⌝ ∗ N.of_nat n↦[i32][ len ] (Wasm_int.Int32.repr (N.to_nat len + 4))) ∗ ↪[frame] {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
+      instantiate (1 := λ x, ((⌜ x = immV [value_of_int (N.to_nat len)] ⌝ ∗ N.of_nat n↦[i32][ len ] (Wasm_int.Int32.repr (N.to_nat len))) ∗ ↪[frame] {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
                                                                                                                                                                        (VAL_int32 (Wasm_int.Int32.imul c (Wasm_int.Int32.repr 65536))); f_inst := f_inst f0 |} )%I).
       iSplitL "Hf Hbs".
       * { iApply wp_wasm_empty_ctx.
@@ -250,30 +243,7 @@ Proof.
             iApply (wp_tee_local with "Hf").
             iIntros "!> Hf".
             rewrite separate1.
-        instantiate (1 :=  ( λ x,  (⌜ x = immV [(VAL_int32 (
-                                                    Wasm_int.int_mul
-                                                      Wasm_int.Int32.Tmixin
-                                                      c (Wasm_int.int_of_Z
-                                                           i32m 65536))
-                                           )] ⌝
-                                              ∗ ↪[frame]
-                                              {| f_locs := set_nth
-                                                             (VAL_int32 (
-                                                                  Wasm_int.int_mul
-                                                                    Wasm_int.Int32.Tmixin
-                                                                    c (Wasm_int.int_of_Z
-                                                                         i32m 65536)))
-                                                            (set_nth
-                                                               (VAL_int32 c)
-                                                               (f_locs f0) 0
-                                                               (VAL_int32 c))
-                                                            0
-                                                             (VAL_int32 (
-                                                                  Wasm_int.int_mul
-                                                                    Wasm_int.Int32.Tmixin
-                                                                    c (Wasm_int.int_of_Z
-                                                                         i32m 65536)))
-                                              |})%I)).
+            instantiate (1 := (λ x, (⌜ x = immV _ ⌝ ∗ ↪[frame] _)%I)). 
         iApply wp_val_app => //=.
         iSplit; first by iIntros "!> (%HContra & _)" => //.
         iApply (wp_set_local with "[] [$Hf]") => //=.
@@ -292,97 +262,43 @@ Proof.
         iSplitL "Hf".
         rewrite separate1.
         iApply wp_val_app => //=.
-        instantiate (1 := (λ x, (⌜ x = immV [VAL_int32 (Wasm_int.int_mul
-                                                          Wasm_int.Int32.Tmixin
-                                                          c (Wasm_int.int_of_Z
-                                                               i32m 65536)) ;
-                                             VAL_int32 (Wasm_int.int_mul
-                                                          Wasm_int.Int32.Tmixin
-                                                          c (Wasm_int.int_of_Z
-                                                               i32m 65536))] ⌝ 
-                                            ∗ ↪[frame]
-                                            {| f_locs := set_nth (VAL_int32 c)
-                                                                 (f_locs f0) 0
-                                                                 (VAL_int32
-                                                                    (Wasm_int.Int32.imul
-                                                                       c (Wasm_int.int_of_Z
-                                                                            i32m 65536))) ;
-                                              f_inst := f_inst f0
-                                            |})%I )).
+        instantiate (1 := (λ x, (⌜ x = immV _ ⌝ ∗ ↪[frame] _)%I)).
         iSplitL ""; first by iIntros "!> (%HContra & _)" => //.
         iApply (wp_get_local with "[] [$Hf]") => //=.
         rewrite set_nth_read => //=.
         iIntros (w) "[-> Hf]".
-        unfold of_val, fmap, list_fmap.
-        rewrite - separate2.
-        rewrite (separate4 (AI_basic _)).
-        iApply wp_seq_ctx.
-        iSplitL ""; last first.
-        iSplitL "Hf".
-        rewrite separate1.
-        iApply wp_val_app => //=.
-        instantiate (1 := (λ x, (⌜ x = immV [VAL_int32 (Wasm_int.Int32.imul
-                                                          c (Wasm_int.Int32.repr 65536)) ;
-                                             VAL_int32 (Wasm_int.Int32.iadd
-                                                          (Wasm_int.Int32.imul
-                                                             c (Wasm_int.int_of_Z
-                                                                  i32m 65536))
-                                                          (Wasm_int.int_of_Z i32m 4))] ⌝
-                                            ∗ ↪[frame]
-                                            {| f_locs := set_nth
-                                                           (VAL_int32 c)
-                                                           (f_locs f0)
-                                                           0 (VAL_int32 (
-                                                                  Wasm_int.Int32.imul
-                                                                    c (Wasm_int.Int32.repr
-                                                                         65536))) ;
-                                              f_inst := f_inst f0 |})%I )).
-        iSplitL ""; first by iIntros "!> (%HContra & _)" => //.
-        iApply (wp_binop with "Hf") => //=.
-        iIntros (w) "[-> Hf]".
-        unfold of_val, fmap, list_fmap.
-        rewrite - separate2.
+        simpl.
         rewrite (separate3 (AI_basic _)).
-        iApply wp_seq_ctx.
-        iSplitL ""; last first.
-        iSplitL.
-        iApply (wp_store with "[Hf Hbs]").
-        done.
-        instantiate (1 := [(#00%byte); (#00%byte); (#00%byte); (#00%byte)]).
-        done.
-        instantiate (2 := {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
-                                               (VAL_int32 (Wasm_int.Int32.imul
-                                                             c (Wasm_int.Int32.repr
-                                                                  65536))) ;
-                            f_inst := f_inst f0 |}) => //=.
-        instantiate (1 := λ x, ⌜x = immV []⌝%I ) => //=.
-        iSplitL "" => //.
-        iFrame.
-        replace len with (Z.to_N (Wasm_int.Int32.Z_mod_modulus (Wasm_int.Int32.unsigned c * 65536)) + N.zero)%N => //.
-        rewrite Heqc.
-        unfold Wasm_int.Int32.unsigned.
-        rewrite N.add_0_r => /=.
-        do 2 rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        rewrite nat_bin.
-        unfold mem_in_bound in Hbound.
-        simpl in Hbound.
-        remember (len `div` page_size)%N as pagenum.
-        unfold page_limit in Hbound.
-        assert (pagenum <= 65535)%N; first by lias.
-        rewrite (Zmod_small (N.to_nat pagenum) _); last first.
-        { split; try by lias.
-          replace (two_power_nat 32) with (4294967296)%Z; by lias. }
-        rewrite Zmod_small; last first.
-        { split; try by lias.
-          replace (two_power_nat 32) with (4294967296)%Z; by lias. }
-        rewrite - Hlenmod.
-        unfold page_size.
-        replace (64*1024)%N with (65536)%N; by lias.
+        iApply wp_seq_ctx; iSplitR; last iSplitL.
+        2: { iApply (wp_store with "[Hf Hbs]") => /=.
+             { done. }
+             { by instantiate (1 := [(#00%byte); (#00%byte); (#00%byte); (#00%byte)]) => //. }
+             2: { iFrame "Hf".
+                  instantiate (2 := λ x, ⌜x = immV []⌝%I ) => //=.
+                  iSplit => //.
+                  rewrite N.add_0_r => /=.
+                  instantiate (1 := n).
+                  replace len with (Z.to_N (Wasm_int.Int32.Z_mod_modulus (Wasm_int.Int32.unsigned c * 65536)))%N => //.
+                  rewrite Heqc.
+                  unfold Wasm_int.Int32.unsigned => /=.
+                  do 2 rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+                  rewrite u32_modulus.
+                  rewrite nat_bin.
+                  unfold mem_in_bound in Hbound.
+                  simpl in Hbound.
+                  remember (len `div` page_size)%N as pagenum.
+                  unfold page_limit in Hbound.
+                  assert (pagenum <= 65535)%N; first by lias.
+                  rewrite (Zmod_small (N.to_nat pagenum) _); last by lias.
+                  rewrite Zmod_small; last by lias.
+                  rewrite - Hlenmod.
+                  unfold page_size.
+                  replace (64*1024)%N with (65536)%N; by lias.
+             }
+             { done. }
+        }
+        { by iIntros "((%Hcontra & _)&_)". }
         iIntros (w) "((-> & Hwm) & Hf)".
-        unfold of_val, fmap, list_fmap.
         iSimpl.
         rewrite - (app_nil_r ([AI_basic _])).
         iApply wp_seq_ctx.
@@ -392,83 +308,21 @@ Proof.
         simpl.
         rewrite set_nth_read.
         done.
-        iModIntro.
-        instantiate (1 := λ x, ⌜x = immV [ value_of_int (N.to_nat len) ]⌝%I).
-        iPureIntro.
-        simpl.
-        unfold value_of_int.
-        rewrite Heqc.
-        unfold Wasm_int.Int32.imul.
-        rewrite Wasm_int.Int32.mul_signed => /=.
-        repeat f_equal.
-        rewrite Wasm_int.Int32.signed_repr.
-        rewrite Wasm_int.Int32.signed_repr.
-        rewrite <- Hlenmod at 2.
-        unfold page_size.
-        replace (64 * 1024)%N with 65536%N ; last done.
-        rewrite - (Z2N.id (ssrnat.nat_of_bin _)) ; last lia.
-        rewrite nat_of_bin_to_N.
-        lia.
-        unfold Wasm_int.Int32.min_signed.
-        unfold Wasm_int.Int32.max_signed.
-        unfold Wasm_int.Int32.half_modulus.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        done.
-        unfold Wasm_int.Int32.min_signed.
-        unfold Wasm_int.Int32.max_signed.
-        unfold Wasm_int.Int32.half_modulus.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        rewrite - (Z2N.id (ssrnat.nat_of_bin _)) ; last lia.
-        rewrite nat_of_bin_to_N.
-        split.
-        assert (len >= 0)%N ; first lia.
-        assert (page_size > 0)%N ; first by unfold page_size ; lia.
-        assert (len `div` page_size >= 0)%N ; first lia.
-        assert (two_power_nat 32 >= 2)%Z.
-        unfold two_power_nat.
-        unfold shift_nat.
-        simpl.
-        lia.
-        assert ( 2 > 0 )%Z ; first lia.
-        assert (0 < two_power_nat 32 `div` 2)%Z.
-        apply Z.div_str_pos.
-        lia.
-        lia.
-        assert (len `div` 2 < Z.to_N (two_power_nat 32) `div` 2)%N.
-        apply div_lt => //=; first lias.
-        assert (2 | page_size)%N.
-        unfold page_size.
-        replace (64*1024)%N with 65536%N ; last done.
-        unfold N.divide.
-        exists 32768%N.
-        done.
-        eapply N.divide_trans => //=.
-        unfold N.divide.
-        exists 2147483648%N.
-        done.
-        assert ( 2 < page_size )%N .
-        unfold page_size ; lia.
-        assert (len `div` page_size <= len `div` 2)%N.
-        apply N.div_le_compat_l.
-        done.
-        eapply Z.le_trans.
-        instantiate (1 := Z.of_N (len `div` 2)).
-        lia.
-        assert (len `div`2 <= Z.to_N (two_power_nat 32) `div` 2 - 1)%N ; first lia.
-        apply N2Z.inj_le in H2.
-        rewrite N2Z.inj_sub in H2.
-        rewrite (N2Z.inj_div (Z.to_N _)) in H2.
-        rewrite Z2N.id in H2.
-        lia.
-        lias.
-        unfold two_power_nat.
-        simpl.
-        replace (4294967296 `div` 2)%N with 2147483648%N ; last done.
-        lia.
+        { iModIntro.
+          instantiate (1 := λ x, ⌜x = immV [ value_of_int (N.to_nat len) ]⌝%I).
+          iPureIntro.
+          unfold value_of_int.
+          rewrite Heqc.
+          unfold Wasm_int.Int32.imul.
+          rewrite Wasm_int.Int32.mul_signed => /=.
+          repeat f_equal.
+          rewrite nat_bin.
+          clear - Hlenmod Hpagebound.
+          remember (len `div` page_size)%N as pagenum.
+          repeat (rewrite wasm_int_signed; last by lias).
+          replace page_size with 65536%N in Hlenmod; by lias.
+        }
+        
         iIntros (w) "[-> Hf]".
         unfold of_val, fmap, list_fmap.
         rewrite app_nil_r.
@@ -480,123 +334,51 @@ Proof.
         unfold IntoVal.
         apply language.of_to_val.
         done.
-        iFrame.
-        iSplit => //=.
-        replace (Z.to_N (Wasm_int.Int32.Z_mod_modulus
-                           (Wasm_int.Int32.unsigned c * 65536)) + N.zero)%N
-          with len.
-        subst c.
-        unfold Wasm_int.Int32.imul.
-        unfold Wasm_int.Int32.mul.
-        rewrite - (Z2N.id (ssrnat.nat_of_bin _)) ; last lia.
-        rewrite nat_of_bin_to_N.
-        rewrite Wasm_int.Int32.unsigned_repr.
-        rewrite Wasm_int.Int32.unsigned_repr.
-        replace (Z.of_N (len `div` page_size) * 65536)%Z with (Z.of_N len).
-        unfold Wasm_int.Int32.iadd, Wasm_int.Int32.add.
-        rewrite Wasm_int.Int32.unsigned_repr.
-        rewrite Wasm_int.Int32.unsigned_repr.
-        unfold serialise_i32.
-        rewrite Wasm_int.Int32.unsigned_repr.
-        unfold value_of_int.
-        iApply i32_wms => //.
-        unfold bits, serialise_i32.
-        simpl.
-        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-        rewrite Z.mod_small.
-        replace (Z.of_N len + 4)%Z with (N.to_nat len + 4)%Z ; last lia.
-        done.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        replace (two_power_nat 32) with 4294967296%Z; lias.
-        unfold Wasm_int.Int32.max_unsigned.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        replace (two_power_nat 32) with 4294967296%Z; lias.
-        unfold Wasm_int.Int32.max_unsigned.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        replace (two_power_nat 32) with 4294967296%Z; lias.
-        unfold Wasm_int.Int32.max_unsigned.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        replace (two_power_nat 32) with 4294967296%Z; lias.
-        rewrite <- Hlenmod at 1.
-        unfold page_size.
-        lia.
-        unfold Wasm_int.Int32.max_unsigned.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        unfold two_power_nat => //=.
-        unfold Wasm_int.Int32.max_unsigned.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        replace (two_power_nat 32) with 4294967296%Z; last by lias.
-        split ; last lia.
-        assert (len >= 0)%N ; first lia.
-        assert (page_size > 0)%N ; first by unfold page_size.
-        lia.
-        subst c.
-        rewrite Wasm_int.Int32.unsigned_repr.
-        rewrite - (Z2N.id (ssrnat.nat_of_bin _)).
-        rewrite nat_of_bin_to_N.
-        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-        rewrite Z.mod_small.
-        rewrite <- Hlenmod at 1.
-        unfold page_size.
-        replace (64 * 1024)%N with 65536%N ; last done.
-        rewrite - (Z2N.id 65536%Z).
-        rewrite - N2Z.inj_mul.
-        rewrite N2Z.id.
-        unfold N.zero.
-        lia.
-        lia.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        rewrite - (Z2N.id 65536).
-        rewrite - N2Z.inj_mul.
-        unfold page_size.
-        unfold page_size in Hlenmod.
-        replace (64 * 1024)%N with 65536%N ; last done.
-        replace (64 * 1024)%N with 65536%N in Hlenmod ; last done.
-        rewrite Hlenmod.
-        replace (two_power_nat 32) with 4294967296%Z; last by lias.
-        lia.
-        lia.
-        lia.
-        unfold Wasm_int.Int32.max_unsigned.
-        unfold Wasm_int.Int32.modulus.
-        unfold Wasm_int.Int32.wordsize.
-        unfold Integers.Wordsize_32.wordsize.
-        rewrite - (Z2N.id (ssrnat.nat_of_bin _)).
-        rewrite nat_of_bin_to_N.
-        replace (two_power_nat 32) with 4294967296%Z; last by lias.
-        split ; last lia.
-        assert (len >= 0)%N ; first lia.
-        assert (page_size > 0)%N ; first by unfold page_size ; lia.
-        lia.
-        lia.
+        { iFrame "Hf".
+          iSplit => //=.
+          rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+          unfold Wasm_int.Int32.imul.
+          unfold Wasm_int.Int32.mul.
+          rewrite wasm_int_unsigned; last by lias.
+          rewrite N.add_0_r.
+          rewrite nat_bin in Heqc.
+          replace (Z.to_N _) with len; last first.
+          { 
+            subst c.
+            remember (len `div` page_size)%N as pagenum.
+            rewrite wasm_int_unsigned; last by lias.
+            rewrite - Hlenmod.
+            replace (page_size) with (65536)%N; last by lias.
+            rewrite Z.mod_small; first by lias.
+            split; first by lias.
+            rewrite u32_modulus.
+            by lias.
+          }
+          iApply i32_wms.
+          subst c.
+          remember (len `div` page_size)%N as pagenum.
+          rewrite wasm_int_unsigned; last by lias.
+          rewrite - Hlenmod.
+          replace (page_size) with 65536%N; last by lias.
+          repeat rewrite N_nat_Z.
+          replace (Z.of_N (pagenum * 65536)) with (Z.of_N pagenum * 65536)%Z => //; last by lias.
+        }
         all: try by iIntros "(%HContra & _)".
-        by iIntros "((%HContra & _) & _)". } 
+      }
       * iIntros (w) "[[-> Hn] Hf]".
         iApply "HΦ".
         iExists _.
         iSplit ; first done.
-        iSplitR "Hf".
+        iSplitR "Hf"; last first.
+        { iExists _.
+          by iSplitL "Hf" => //.
+        }
         iRight.
         iSplit => //.
         iSplitR "Hlen". 
         unfold isStack.
         replace (Z.to_N (N.to_nat len)) with len ; last lia.
         iSimpl.
-        replace (N.to_nat len + 4 + 0%nat * 4)%Z with (N.to_nat len + 4)%Z ; last lia.
         iSplitR.
         iPureIntro.
         unfold page_size in Hlendiv.
@@ -608,15 +390,18 @@ Proof.
         unfold two16 ; lia.
         iSplitR.
         iPureIntro.
-        unfold two14 ; lia.
-        iSplitL "Hn" ; first done.
+        unfold ffff0000; by lias.
+        replace (0%nat*4)%Z with 0%Z; last by lias.
+        rewrite Z.add_0_r.
+        iSplit => //.
+        iSplitL "Hn" => //.
         iSplit ; first done.
         iExists (repeat #00%byte ( N.to_nat 65532)).
         iSplit ; first by rewrite repeat_length.
-        replace (Z.to_N (N.to_nat len + 4)) with (len + 1 + 1 + 1 + 1)%N ; last lia.
+        remember (repeat _ _) as l.
+        clear.
+        replace (Z.to_N (N.to_nat len) + 4%N)%N with (len + 1 + 1 + 1 + 1)%N ; last lia.
         done.
-        done.
-        iExists _ ; iFrame.
         done.
 Qed.
         
