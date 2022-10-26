@@ -35,9 +35,7 @@ Section code.
   Parameters/Locals:
   0 (input)     stack pointer
 *)
-Definition is_empty :=
-  validate_stack 0 ++
-  validate_stack_bound 0 ++
+Definition is_empty_op :=
   [
     BI_get_local 0 ;
     BI_get_local 0 ;
@@ -45,41 +43,31 @@ Definition is_empty :=
     BI_relop T_i32 (Relop_i ROI_eq)
   ].
 
+
+Definition is_empty :=
+  validate_stack 0 ++
+  validate_stack_bound 0 ++
+  is_empty_op.
+
 End code.
 
 
 
 Section specs.
   
-Lemma spec_is_empty f0 n v s E: 
+Lemma spec_is_empty_op f0 n v s E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
         ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
-    to_e_list is_empty @  E
+    to_e_list is_empty_op @  E
     {{{ w, ∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
                            ⌜ (k = 1 /\ s = []) \/
                   (k = 0 /\ s <> []) ⌝ ∗
-           ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝}}}.
+           ↪[frame] f0}}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & Hf & Hstack) HΦ" => /=.
 
-  
-  rewrite separate4.
-  iApply wp_seq.
-  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
-  iSplitR; first by iIntros "(%H & _)".
-  iSplitL "Hstack Hf"; first by iApply (is_stack_valid with "[$Hstack $Hf]").
-  iIntros (w) "(-> & Hstack & Hf)".
-  simpl.
-
-  rewrite separate3.
-  iApply wp_seq.
-  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
-  iSplitR; first by iIntros "(%H & _)".
-  iSplitL "Hstack Hf"; first by iApply (is_stack_bound_valid with "[$Hstack $Hf]").
-  iIntros (w) "(-> & Hstack & Hf)".
-  simpl.
   
   rewrite separate1.
   iApply wp_seq.
@@ -109,8 +97,7 @@ Proof.
                                             value_of_int (v + length s * 4)%Z] ⌝
                                           ∗ [∗ list] i↦w ∈ s,
                                 N.of_nat n ↦[i32][ Z.to_N (v + length s * 4 -  4 * i)] w) ∗
-
-                                                                                                 (∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length s * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + length s * 4) + 4]bs))
+                                           (∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length s * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + length s * 4) + 4]bs))
                                            ∗  N.of_nat n↦[wms][(Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m v) + N.zero)%N]bits (value_of_int (v + length s * 4)) )
                                            ∗ ↪[frame] f0)%I).
     iSplitR ; first by iIntros "[[[[%Habs _ ]_ ] _] _]".
@@ -159,8 +146,7 @@ Proof.
                                 (Wasm_int.Int32.repr (v + length s * 4))) as eqv.
     rewrite - Heqeqv.
     by destruct eqv => //=.
-  - iFrame "Hstack".
-    iSplit; last by iExists f0; iFrame "Hf".
+  - iFrame "Hstack Hf".
     iPureIntro.
     destruct s.
     left.
@@ -176,7 +162,40 @@ Proof.
     unfold two14 in Hlen.
     apply Wasm_int.Int32.repr_inv in H ; try rewrite u32_modulus; by lias.
 Qed.
-    
+
+
+
+Lemma spec_is_empty f0 n v s E: 
+  ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
+        ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
+        ↪[frame] f0 ∗
+        isStack v s n }}}
+    to_e_list is_empty @  E
+    {{{ w, ∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
+                           ⌜ (k = 1 /\ s = []) \/
+                  (k = 0 /\ s <> []) ⌝ ∗
+           ↪[frame] f0}}}.
+Proof.
+  iIntros "!>" (Φ) "(%Hinst & %Hlocv & Hf & Hstack) HΦ" => /=.
+  rewrite separate4.
+  iApply wp_seq.
+  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hstack Hf"; first by iApply (is_stack_valid with "[$Hstack $Hf]").
+  iIntros (w) "(-> & Hstack & Hf)".
+  simpl.
+
+  rewrite separate3.
+  iApply wp_seq.
+  instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hstack Hf"; first by iApply (is_stack_bound_valid with "[$Hstack $Hf]").
+  
+  iIntros (w) "(-> & Hstack & Hf)".
+  simpl.
+  by iApply (spec_is_empty_op with "[$Hf $Hstack] [HΦ]") => //.
+Qed.
+
 End specs.
 
 
