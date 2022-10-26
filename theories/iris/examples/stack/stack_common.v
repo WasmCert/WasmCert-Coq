@@ -25,9 +25,11 @@ Definition i32const (n:Z) := BI_const (VAL_int32 (Wasm_int.int_of_Z i32m n)).
 Definition value_of_int (n:Z) := VAL_int32 (Wasm_int.int_of_Z i32m n).
 
 
+(* Some useful constants *)
 Definition two14 := 16384%Z.
 Definition two16 := 65536%Z.
 Definition two32 := 4294967296%Z.
+Definition ffff0000 := 4294901760%Z.
 
 
 Definition points_to_i32 `{!wasmG Σ} n i v :=
@@ -68,7 +70,7 @@ Qed.
   
 Definition isStack v (l : seq.seq i32) n :=
   (let st_p := (v + 4 + length l * 4)%Z in
-    ⌜ (two16 | v)%Z ⌝ ∗ ⌜ (length l < two14)%Z ⌝ ∗
+    ⌜ (two16 | v)%Z ⌝ ∗ ⌜(0 ≤ v ≤ ffff0000)%Z⌝ ∗ ⌜ (length l < two14)%Z ⌝ ∗
    N.of_nat n ↦[i32][ Z.to_N v ]
             (Wasm_int.Int32.repr st_p) ∗
             ([∗ list] i ↦ w ∈ l,
@@ -305,6 +307,9 @@ Lemma separate9 {A} (a : A) b c d e f g h i l :
   a :: b :: c :: d :: e :: f :: g :: h :: i :: l = [a ; b ; c ; d ; e ; f ; g ; h ; i] ++ l.
 Proof. done. Qed.
 
+
+
+
 Definition validate_stack (x: immediate) :=
   [
     BI_get_local x ;
@@ -435,6 +440,63 @@ Proof.
     deconstruct_ctx.
     iApply (wp_label_trap with "Hf");auto.
 Qed.
+
+
+
+Definition validate_stack_bound (x: immediate) :=
+  [
+    BI_get_local x ;
+    BI_load T_i32 None N.zero N.zero ;
+    BI_drop
+  ].
+
+Lemma is_stack_bound_valid (v : Z) s n f E x:
+   ⌜ f.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
+   ⌜ (f_locs f) !! x = Some (value_of_int v) ⌝ ∗
+    isStack v s n ∗ ↪[frame] f ⊢ 
+    WP to_e_list (validate_stack_bound x) @ E
+    {{ w, ⌜ w = immV [] ⌝ ∗ isStack v s n ∗ ↪[frame] f }}.
+Proof.
+  iIntros "(%Hinst & %Hlocs & Hstack & Hf)".
+  simpl.
+  rewrite separate1.
+  iApply wp_seq.
+  instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hf"; first by iApply wp_get_local.
+  iIntros (w) "(-> & Hf)" => /=.
+  rewrite separate2.
+  iApply wp_seq.
+  iDestruct "Hstack" as "(%Hdiv & %Hvub & %Hlen & Hv & Hs & Hrest)".
+  iSplitR; last iSplitL "Hv Hf".
+  2: { iApply wp_load => //; last first.
+       iFrame "Hf".
+       iDestruct (i32_wms with "Hv") as "Hv" => //=.
+       rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+       iSplitR "Hv"; last first.
+       { rewrite Z.mod_small.
+         unfold N.zero.
+         rewrite N.add_0_r.
+         instantiate (1 := VAL_int32 _) => /=.
+         by iFrame "Hv".
+         split; try by lias.
+         unfold ffff0000 in Hvub.
+         replace Wasm_int.Int32.modulus with 4294967296%Z; by lias.
+       }
+       { by instantiate (1 := λ v, ⌜ v = immV [_] ⌝%I ). }
+       { done. }
+  }
+  { iIntros "((%Habs & _) & _)"; by inversion Habs. }
+  iIntros (w) "((-> & Hv) & Hf)".
+  simpl.
+  unfold isStack.
+  iFrame "Hs Hrest".
+  unfold N.zero.
+  rewrite N.add_0_r.
+  iDestruct (i32_wms with "Hv") as "Hv" => //=.
+Admitted.
+  
+
   
 Lemma positive_add a b :
   a + b = ssrnat.NatTrec.add a b.
