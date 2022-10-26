@@ -66,9 +66,6 @@ Proof.
 Qed.
     
   
-
-
-
 Definition isStack v (l : seq.seq i32) n :=
   (let st_p := (v + 4 + length l * 4)%Z in
     ⌜ (two16 | v)%Z ⌝ ∗ ⌜ (length l < two14)%Z ⌝ ∗
@@ -267,9 +264,7 @@ Proof.
 Qed.
 
 Definition stackModuleInv (isStack : Z -> seq.seq i32 -> iPropI Σ) (nextStackAddrIs : nat -> iPropI Σ) : iProp Σ :=
-  ∃ (nextStack : nat), ⌜(Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (N.of_nat nextStack `div` page_size))⌝ ∗
-                     ⌜(N.of_nat nextStack + 4 < Z.to_N (two_power_nat 32))%N⌝ ∗
-                     ⌜(page_size | N.of_nat nextStack)%N⌝ ∗ nextStackAddrIs nextStack ∗
+  ∃ (nextStack : nat), ⌜(page_size | N.of_nat nextStack)%N⌝ ∗ nextStackAddrIs nextStack ∗
                      ∃ l, ⌜multiples_upto page_size (N.of_nat nextStack) l⌝ ∗
                           [∗ list] s ∈ l, ∃ stk, isStack (Z.of_N s) stk.
 

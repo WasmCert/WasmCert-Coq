@@ -649,8 +649,8 @@ Section valid.
     iDestruct (big_sepL2_length with "Hws") as %Hlen. inversion Heq. destruct ws;[|done]. simpl.
     iApply fupd_wp.
     iMod (na_inv_acc with "Hstk Hown") as "(>Hstkres & Hown & Hcls)";[solve_ndisj..|].
-    iDestruct "Hstkres" as (len) "[% [% [% [Hlen Hstkres]]]]".
-    iApply (spec_new_stack with "[$Hf $Hlen]");[auto|].
+    iDestruct "Hstkres" as (len) "[% [Hlen Hstkres]]".
+    iApply (spec_new_stack with "[$Hf $Hlen]") ;[auto|].
     iModIntro.
     iIntros (v) "HH".
     iDestruct "HH" as (k) "[-> [Hcases Hf]]".
@@ -662,21 +662,15 @@ Section valid.
     iApply fupd_wp.
     iMod ("Hcls" with "[$Hown Hcases Hstkres]") as "Hown".
     { iNext.
-      iDestruct "Hcases" as "[[Heq Hm] | [[% %] [% [% [Hs Hm]]]]]".
+      iDestruct "Hcases" as "[[Heq Hm] | [% [Hs Hm]]]".
       - iExists _. iFrame. auto.
       - iExists _.
         rewrite <- (N2Nat.id page_size), <- Nat2N.inj_add.
         iFrame "Hm". repeat iSplit.
-        + iPureIntro. rewrite (N2Nat.id page_size) Nat2N.inj_add N2Nat.id. auto.
-        + iPureIntro. subst k.
-          rewrite Nat2N.inj_add. unfold page_size.
-          clear -H4. rewrite N2Nat.id. unfold two32 in H4.
-          replace (Z.to_N (two_power_nat 32)) with 4294967296%N;[|done].
-          lia.
         + iPureIntro. rewrite N2Nat.id Nat2N.inj_add N2Nat.id.
           apply N.divide_add_r;auto. apply N.divide_refl.
         + iDestruct "Hstkres" as (l Hmul) "Hstkres".
-          rewrite N2Nat.id in Hmul. rewrite Nat2N.id in H5. subst k.
+          rewrite N2Nat.id in Hmul. rewrite Nat2N.id in H1. subst k.
           rewrite N2Nat.id. iExists (N.of_nat len :: l).
           iSplit.
           { iPureIntro. rewrite Nat2N.inj_add N2Nat.id. constructor. auto. }
