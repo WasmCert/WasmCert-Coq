@@ -105,6 +105,48 @@ Section stack.
       iIntros "!> Hf".
       by iApply (wp_label_value with "Hf").
     Qed.
+
+    Lemma push_full v (s: list i32) f E:
+      (0 ≤ v ≤ ffff0000)%Z ->
+      (two16 | v)%Z ->  
+      (Z.of_nat (length s) = two14 - 1)%Z ->
+      ↪[frame] f ⊢
+        WP [AI_basic (BI_const (value_of_int (v + 4 + length s * 4))); AI_basic (i32const 65536);
+            AI_basic (BI_binop T_i32 (Binop_i (BOI_rem SX_U))); AI_basic (BI_if (Tf [] []) [] [BI_unreachable])] @ E
+        {{ w, ⌜ w = trapV ⌝ ∗ ↪[frame] f }}.
+    Proof.
+      move => Hoverflow Hdiv Hsize.
+      iIntros "Hf".
+      rewrite separate3.
+      iApply wp_seq.
+      instantiate (1 := λ w, (⌜ w = immV [ _ ]⌝ ∗ ↪[frame] f)%I).
+      iSplitR; first by iIntros "(%H & _)".
+      iSplitL "Hf"; first by iApply (wp_binop with "Hf") => //.
+      iIntros (w) "(-> & Hf)".
+      iApply (wp_if_false with "Hf").
+      { unfold Wasm_int.Int32.modu. simpl.
+        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+        fold two16.
+        rewrite Hsize.
+        rewrite - Z.add_assoc.
+        assert (4 + (two14 - 1) * 4 = two16)%Z as ->;[lias|].
+        rewrite - Znumtheory.Zmod_div_mod;try lias.
+        f_equal. apply Znumtheory.Zdivide_mod.
+        apply Z.divide_add_r;auto. apply Z.divide_refl.
+        apply two16_div_i32.
+      }
+      iIntros "!> Hf".
+      take_drop_app_rewrite 0.
+      iApply (wp_block with "Hf") => //.
+      iIntros "!> Hf /=".
+      build_ctx [AI_basic BI_unreachable].
+      iApply wp_label_bind.
+      iApply (wp_wand _ _ _ (λ v, ⌜v = trapV⌝ ∗ _)%I with "[Hf]").
+      iApply (wp_unreachable with "[$]");auto.
+      iIntros (w) "[-> Hf]".
+      deconstruct_ctx.
+      iApply (wp_label_trap with "Hf");auto.
+    Qed.
     
     Lemma spec_op_push f0 n v (a : i32) s E :
       ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
@@ -141,7 +183,7 @@ Section stack.
                                     ∗  N.of_nat n↦[wms][(Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m v) + N.zero)%N]bits (value_of_int (v + 4 + length (s) * 4)) )
                                    ∗ ↪[frame] f0)%I).
         iSplitR ; first by iIntros "[[[[%Habs _] _] _] _]".
-        iDestruct "Hstack" as "(%Hdiv & %Hlen & Hv & Hs & Hrest)".
+        iDestruct "Hstack" as "(%Hdiv & %Hoverflo & %Hlen & Hv & Hs & Hrest)".
         iSplitR "HΦ".
       - iApply wp_load => //.
         iSplitL "Hs Hrest".
@@ -221,7 +263,7 @@ Section stack.
           (1 := λ x, (((⌜ x = immV [] ⌝ ∗ N.of_nat n↦[i32][ Z.to_N v] Wasm_int.Int32.repr (v+4+length s * 4) ∗ ([∗ list] i↦w ∈ s, N.of_nat n↦[i32][Z.to_N (v + 4 + length s * 4 - 4 - 4 * i)] w) ∗ (∃ bs, ⌜ Z.of_nat (length bs) = (two16 - 4 - length (s) * 4 - 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + 4 + S (length s) * 4)]bs) )
                          ∗ N.of_nat n ↦[wms][Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m (v + 4 + length s * 4)%Z) + N.zero]bits (VAL_int32 a)) ∗ ↪[frame] f1)%I).
         iSplitR ; first by iIntros "[[[ %Habs _ ] _] _]". 
-        iDestruct "Hstack" as "(_ & _ & Hp & Hs & Hrest)".
+        iDestruct "Hstack" as "(_ & _ & _ & Hp & Hs & Hrest)".
         iDestruct "Hrest" as (bs) "[%Hbs Hrest]".
         unfold two16 in Hbs.
         unfold two14 in Hlens.
