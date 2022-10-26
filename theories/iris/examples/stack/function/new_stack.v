@@ -19,6 +19,21 @@ Section stack.
 
 Section code.
 
+(*
+  new_stack: [] -> [i32]
+  locals declared: [i32]
+
+  Attempts to create a new stack of i32s, at the end of memory 0 by allocating a new page of memory.
+
+  Can fail non-deterministically if grow_memory fails.
+  Upon successful grow_memory, store a pointer to the top element of the stack at the start of stack (0th cell).
+  The maximum number of elements that can be stored is therefore 2^14-1.
+
+  Returns the pointer to the start of stack as i32, or -1 if memory allocation fails. Cannot trap.
+
+  Parameters/Locals:
+  0     local variable, storing the address to the start of the page for return
+*)
 Definition new_stack :=
   [
     i32const 1 ;

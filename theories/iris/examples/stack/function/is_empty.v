@@ -20,6 +20,21 @@ Section stack.
  
 Section code.
 
+(*
+  is_empty: [i32] -> [i32]
+  locals declared: []
+
+  Given a stack pointer, determine if the stack is empty.
+
+  Implemented by comparing the stack top pointer against the stack pointer itself: in the case of an empty stack,
+    the stack top pointer will be identical to the stack pointer itself.
+  Performs an input validation check prior to execution. Can trap only if validation fails.
+
+  Returns 1 if the stack is empty, 0 otherwise.
+
+  Parameters/Locals:
+  0 (input)     stack pointer
+*)
 Definition is_empty :=
   validate_stack 0 ++
   validate_stack_bound 0 ++

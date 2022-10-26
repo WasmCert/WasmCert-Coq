@@ -23,6 +23,21 @@ Print BI_relop.
  
 Section code.
 
+(*
+  is_full: [i32] -> [i32]
+  locals declared: []
+
+  Given a stack pointer, determine if the stack is full.
+
+  Implemented by reading the stack top pointer address and taking remainder against 65536. In the case of a full stack,
+  the stack top pointer will be pointing to (starting address + 65532), resulting in the remainder being 65532.
+  Performs an input validation check prior to execution. Can trap only if validation fails.
+
+  Returns 1 if the stack is full, 0 otherwise.
+
+  Parameters/Locals:
+  0 (input)     stack pointer
+*)
 Definition is_full :=
   validate_stack 0 ++
   validate_stack_bound 0 ++
