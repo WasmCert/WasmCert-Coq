@@ -70,7 +70,7 @@ Qed.
 (* The isStack v l n predicate describe a stack starting at location v, containing
    the mathematical stack (l: list i32), at memory n, of size 1 page.
    The first cell v points to the current top cell of the stack, so the maximum 
-   number of elements the stack could contain is 16383. 
+   number of elements the stack could contain is 16383.
 *)  
 Definition isStack v (l : seq.seq i32) n :=
   (let st_p := (v + length l * 4)%Z in
@@ -121,10 +121,7 @@ Lemma multiples_upto_le n m l :
   (n <= m)%N.
 Proof.
   intros Hm.
-  induction 1.
-  lia.
-  intros.
-  lia. 
+  induction 1; by lias.
 Qed.
 
 Lemma le_mul x n :
@@ -132,38 +129,14 @@ Lemma le_mul x n :
   (0 < n)%N ->
   (n < x * n)%N.
 Proof.
-  intros Hle Hlt.
-  assert (forall n m, (n < m)%N <-> (N.to_nat n < N.to_nat m)) as cond;[lia|].
-  assert (forall n m, (n <= m)%N <-> (N.to_nat n <= N.to_nat m)) as cond';[lia|].
-  apply cond' in Hle. apply cond in Hlt.
-  apply cond. clear cond cond'.
-  rewrite N2Nat.inj_mul.
-  remember (N.to_nat n) as n'.
-  remember (N.to_nat x) as x'. clear Heqx' Heqn'.
-  assert (N.to_nat 2 = 2);[lia|]. rewrite H in Hle;clear H.
-  assert (N.to_nat 0 = 0);[lia|]. rewrite H in Hlt;clear H.
-  generalize dependent x'.
-  induction n';intros x' Hx'.
-  lia.
-  do 2 (destruct x';[lia|]).
-  destruct x'. lia.
-  assert (2 <= S (S x')) as res;[lia|].
-  destruct n'. lia.
-  apply IHn' in res;[|lia].
-  lia.
+  by lias.
 Qed.
 
 Lemma lt_mul x n :
   (x * n < n)%N ->
   x = 0%N.
 Proof.
-  intros H.
-  assert (N.to_nat x * N.to_nat n < N.to_nat n);[lia|].
-  assert (forall n, n = 0%N <-> N.to_nat n = 0) as cond;[lia|].
-  apply cond;clear cond.
-  clear H. remember (N.to_nat x) as x'.
-  remember (N.to_nat n) as n'. clear Heqx' Heqn' x n.
-  induction x';lia.
+  by lias.
 Qed.
 
 Lemma multiples_upto_div :
@@ -207,7 +180,7 @@ Lemma times_lt n1 n2 n3 :
   n1 * n3 < n2 * n3 ->
   n1 < n2.
 Proof.
-  induction n3;lia.
+  by lias.
 Qed.
   
 Lemma times_lt_plus x x0 n :
@@ -215,10 +188,7 @@ Lemma times_lt_plus x x0 n :
   (x * n < x0 * n + n) ->
   (x <= x0).
 Proof.
-  intros pos lt.
-  assert (x0 * n + n = (x0 + 1) * n) as eq;[lia|].
-  rewrite eq in lt.
-  apply times_lt in lt. lia.
+  by lias.
 Qed.
 
 Lemma Nat2N_le_inj n1 n2 :
@@ -595,10 +565,15 @@ Proof.
   by eexists.
 Qed.
 
+Lemma u32_modulus: Wasm_int.Int32.modulus = 4294967296%Z.
+Proof.
+  by lias.
+Qed.
+
 Lemma two16_div_i32 :
   (two16 | Wasm_int.Int32.modulus)%Z.
 Proof.
-  replace Wasm_int.Int32.modulus with 4294967296%Z =>//.
+  rewrite u32_modulus.
   unfold two16. exists 65536%Z. lia.
 Qed.
 
