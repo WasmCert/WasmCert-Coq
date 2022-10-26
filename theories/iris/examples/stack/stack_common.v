@@ -5,7 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_host iris_rules.
+Require Export iris_host iris_rules proofmode.
 Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
@@ -42,7 +42,7 @@ Lemma of_nat_to_nat_plus a b :
 Proof. lia. Qed.
 
 Section Stack.
-
+  Set Bullet Behavior "Strict Subproofs".
   Context `{!wasmG Σ}.
 
 
@@ -83,12 +83,195 @@ Definition stk : string := "STACK".
 Definition stkN : namespace := nroot .@ stk.
 
 (* stack module invariant *)
-        
+
+Lemma N_divide_dec: ∀ a b : N, {(a | b)%N} + {¬ (a | b)%N}.
+Proof.
+  intros. destruct (decide ((N.to_nat a) | (N.to_nat b))).
+  - left. destruct d. exists (N.of_nat x). lia.
+  - right. intros Hcontr. apply n.
+    destruct Hcontr. exists (N.to_nat x). lia.
+Qed.
+
+(* Lemma Z_divide_dec: ∀ a b : Z, {(a | b)%Z} + {¬ (a | b)%Z}. *)
+(* Proof. *)
+(*   intros. destruct (decide ((Z.to_nat a) | (Z.to_nat b))). *)
+(*   - left. destruct d. exists (Z.of_nat x). lia. *)
+(*   - right. intros Hcontr. apply n. *)
+(*     destruct Hcontr. exists (N.to_nat x). lia. *)
+(* Qed. *)
+
+Inductive multiples_upto: N -> N -> list N -> Prop :=
+| mu_base_nil n: (n > 0)%N -> multiples_upto n 0 []
+| mu_ind n m l: multiples_upto n m l ->
+                multiples_upto n (m + n) (m :: l).
+
+Lemma multiples_upto_nil n m l :
+  multiples_upto n m l -> (n > 0)%N.
+Proof.
+  intros. induction H;auto.
+Qed.
+
+Lemma multiples_upto_le n m l :
+  (m > 0)%N ->
+  multiples_upto n m l ->
+  (n <= m)%N.
+Proof.
+  intros Hm.
+  induction 1.
+  lia.
+  intros.
+  lia. 
+Qed.
+
+Lemma le_mul x n :
+  (2 <= x)%N ->
+  (0 < n)%N ->
+  (n < x * n)%N.
+Proof.
+  intros Hle Hlt.
+  assert (forall n m, (n < m)%N <-> (N.to_nat n < N.to_nat m)) as cond;[lia|].
+  assert (forall n m, (n <= m)%N <-> (N.to_nat n <= N.to_nat m)) as cond';[lia|].
+  apply cond' in Hle. apply cond in Hlt.
+  apply cond. clear cond cond'.
+  rewrite N2Nat.inj_mul.
+  remember (N.to_nat n) as n'.
+  remember (N.to_nat x) as x'. clear Heqx' Heqn'.
+  assert (N.to_nat 2 = 2);[lia|]. rewrite H in Hle;clear H.
+  assert (N.to_nat 0 = 0);[lia|]. rewrite H in Hlt;clear H.
+  generalize dependent x'.
+  induction n';intros x' Hx'.
+  lia.
+  do 2 (destruct x';[lia|]).
+  destruct x'. lia.
+  assert (2 <= S (S x')) as res;[lia|].
+  destruct n'. lia.
+  apply IHn' in res;[|lia].
+  lia.
+Qed.
+
+Lemma lt_mul x n :
+  (x * n < n)%N ->
+  x = 0%N.
+Proof.
+  intros H.
+  assert (N.to_nat x * N.to_nat n < N.to_nat n);[lia|].
+  assert (forall n, n = 0%N <-> N.to_nat n = 0) as cond;[lia|].
+  apply cond;clear cond.
+  clear H. remember (N.to_nat x) as x'.
+  remember (N.to_nat n) as n'. clear Heqx' Heqn' x n.
+  induction x';lia.
+Qed.
+
+Lemma multiples_upto_div :
+  forall n m l,
+    multiples_upto n m l ->
+    (n | m)%N.
+Proof.
+  induction 1.
+  - apply N.divide_0_r.
+  - apply N.divide_add_r;auto.
+    apply N.divide_refl.
+Qed.
+
+Lemma multiples_upto_in_lt :
+  forall n m l i,
+    multiples_upto n m l ->
+    i ∈ l -> (i < m)%N.
+Proof.
+  induction 1;intros Hin.
+  inversion Hin.
+  inversion Hin;subst.
+  { apply multiples_upto_nil in H. lia. }
+  apply IHmultiples_upto in H2.
+  lia.
+Qed.
+
+Lemma multiples_upto_in_div :
+  forall n m l i,
+    multiples_upto n m l ->
+    i ∈ l -> (n | i)%N.
+Proof.
+  induction 1;intros Hin.
+  inversion Hin.
+  inversion Hin;subst.
+  { apply multiples_upto_div in H. auto. }
+  apply IHmultiples_upto in H2.
+  auto.
+Qed.
+  
+Lemma times_lt n1 n2 n3 :
+  n1 * n3 < n2 * n3 ->
+  n1 < n2.
+Proof.
+  induction n3;lia.
+Qed.
+  
+Lemma times_lt_plus x x0 n :
+  n > 0 ->
+  (x * n < x0 * n + n) ->
+  (x <= x0).
+Proof.
+  intros pos lt.
+  assert (x0 * n + n = (x0 + 1) * n) as eq;[lia|].
+  rewrite eq in lt.
+  apply times_lt in lt. lia.
+Qed.
+
+Lemma Nat2N_le_inj n1 n2 :
+  n1 <= n2 <-> (N.of_nat n1 <= N.of_nat n2)%N.
+Proof. lia. Qed.
+Lemma Nat2N_lt_inj n1 n2 :
+  n1 < n2 <-> (N.of_nat n1 < N.of_nat n2)%N.
+Proof. lia. Qed.
+Lemma N2Nat_le_inj n1 n2 :
+  N.to_nat n1 <= N.to_nat n2 <-> (n1 <= n2)%N.
+Proof. lia. Qed.
+Lemma N2Nat_lt_inj n1 n2 :
+  N.to_nat n1 < N.to_nat n2 <-> (n1 < n2)%N.
+Proof. lia. Qed.
+
+Lemma multiples_upto_in :
+  forall n m l i, multiples_upto n m l ->
+  (i < m)%N ->
+  (n | i)%N ->
+  i ∈ l.
+Proof.
+  intros n m l i H lt.
+  assert (0 < m)%N as lm. lia.
+  revert H lm lt.
+  generalize dependent i.
+  generalize dependent l.
+  generalize dependent m.
+  generalize dependent n.
+  induction 1.
+  - lia.
+  - intros lm lt div.
+    apply multiples_upto_div in H as div'.
+    destruct (decide (i = m));subst.
+    + constructor.
+    + constructor.
+      apply IHmultiples_upto;auto.
+      { destruct m;[|lia].
+        rewrite N.add_0_l in lt.
+        rewrite N.add_0_l in lm.
+        destruct div. subst i.
+        apply lt_mul in lt;subst.
+        rewrite N.mul_0_l in n0. lia. }
+      destruct div,div';subst.
+      apply N2Nat_lt_inj in lt.
+      rewrite !N2Nat.inj_add !N2Nat.inj_mul in lt.
+      apply times_lt_plus in lt;[|lia].
+      apply N2Nat_le_inj in lt.
+      apply N.mul_le_mono_r with _ _ n in lt.
+      lia.
+Qed.
+
 Definition stackModuleInv (isStack : Z -> seq.seq i32 -> iPropI Σ) (nextStackAddrIs : nat -> iPropI Σ) : iProp Σ :=
   ∃ (nextStack : nat), ⌜(Wasm_int.Int32.modulus - 1)%Z <> Wasm_int.Int32.Z_mod_modulus (ssrnat.nat_of_bin (N.of_nat nextStack `div` page_size))⌝ ∗
                      ⌜(N.of_nat nextStack + 4 < Z.to_N (two_power_nat 32))%N⌝ ∗
                      ⌜(page_size | N.of_nat nextStack)%N⌝ ∗ nextStackAddrIs nextStack ∗
-                       ∀ (s : nat), ⌜(0 <= s < nextStack)%Z ∧ (page_size | N.of_nat s)%N⌝ -∗ ∃ l, isStack s l.
+                     ∃ l, ⌜multiples_upto page_size (N.of_nat nextStack) l⌝ ∗
+                          [∗ list] s ∈ l, ∃ stk, isStack (Z.of_N s) stk.
 
 
 Lemma separate1 {A} (a : A) l :
@@ -185,6 +368,77 @@ Proof.
   iApply (wp_block with "Hf") => //.
   iIntros "!> Hf".
   by iApply (wp_label_value with "Hf").
+Qed.
+
+Lemma check_stack_valid (v : Z) (* s *) (* n *) f E x:
+    ⌜ (f_locs f) !! x = Some (value_of_int v) ⌝ ∗ 
+     ↪[frame] f ⊢ 
+    WP to_e_list (validate_stack x) @ E
+    {{ w, (⌜ w = trapV ⌝ ∨ ⌜ w = immV [] ⌝ ∗ ⌜ (65536 | v)%Z ⌝) ∗ ↪[frame] f }}.
+Proof.
+  iIntros "(%Hlocs & Hf)".
+  simpl.
+  rewrite separate1.
+  iApply wp_seq.
+  instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hf"; first by iApply wp_get_local.
+  iIntros (w) "(-> & Hf)" => /=.
+  rewrite separate3.
+
+  (* case splitting *)
+  destruct (decide ((v `mod` 65536)%Z = 0%Z)).
+  - iApply wp_seq.
+    instantiate (1 := λ x, (⌜ x = immV [value_of_int 0] ⌝ ∗ ↪[frame] f)%I).
+    iSplitR; first by iIntros "(%H & _)".
+    iSplitL. iApply (wp_binop with "Hf") => //.
+    { iIntros "!>".
+      iPureIntro => /=.
+      unfold value_of_int.
+      unfold Wasm_int.Int32.modu.
+      simpl.
+      repeat f_equal.
+      rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+      unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
+      rewrite <- Znumtheory.Zmod_div_mod => //.
+      by apply Znumtheory.Zmod_divide => //.
+    }
+    iIntros (w) "(-> & Hf)".
+    iApply (wp_if_false with "Hf") => //.
+    iIntros "!> Hf".
+    replace ([AI_basic (BI_block (Tf [] []) [])]) with ([] ++ [AI_basic (BI_block (Tf [] []) [])]) => //.
+    iApply (wp_block with "Hf") => //.
+    iIntros "!> Hf".
+    iApply (wp_label_value with "Hf");eauto.
+    iNext. iRight. iSplit;auto. iPureIntro.
+    apply Z.mod_divide;[unfold page_size;lia|]. auto.
+  - iApply wp_seq.
+    instantiate (1 := λ x, (⌜ x = immV [value_of_int _] ⌝ ∗ ↪[frame] f)%I).
+    iSplitR; first by (iIntros "[%H _]").
+    iSplitL. iApply (wp_binop with "Hf") => //.
+    iIntros (w) "[-> Hf]".
+    iApply (wp_if_true with "Hf") => //.
+    { simpl.
+      repeat f_equal.
+      rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+      unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
+      rewrite <- Znumtheory.Zmod_div_mod => //.
+      2: by apply Znumtheory.Zmod_divide => //.
+      intros Hcontr. inversion Hcontr.
+      rewrite Wasm_int.Int32.Z_mod_modulus_id in H0; [lia|].
+      unfold Wasm_int.Int32.modulus.
+      unfold two_power_nat. simpl.
+      pose proof (Z_mod_lt v 65536). lia. }
+    iNext. iIntros "Hf".
+    take_drop_app_rewrite 0. iApply (wp_block with "Hf") => //.
+    iIntros "!> Hf /=".
+    build_ctx [AI_basic BI_unreachable].
+    iApply wp_label_bind.
+    iApply (wp_wand _ _ _ (λ v, ⌜v = trapV⌝ ∗ _)%I with "[Hf]").
+    iApply (wp_unreachable with "Hf");eauto.
+    iIntros (w) "[-> Hf]".
+    deconstruct_ctx.
+    iApply (wp_label_trap with "Hf");auto.
 Qed.
   
 Lemma positive_add a b :

@@ -257,3 +257,24 @@ Ltac bind_seq_base_callhost e h :=
 
 Tactic Notation "bind_seq_base_callhost" constr(e) "with" constr(h) :=
   bind_seq_base_callhost e h.
+
+Ltac take_drop_app_rewrite n :=
+  match goal with
+  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop n e);simpl take; simpl drop
+  end.
+  
+Ltac take_drop_app_rewrite_twice n m :=
+  take_drop_app_rewrite n;
+  match goal with
+  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
+  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
+      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
+  end.

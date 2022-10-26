@@ -660,7 +660,7 @@ Section valid.
     iApply wp_value;[eapply of_to_val;eauto|].
     iExists _. iFrame. iIntros "Hf".
     iApply fupd_wp.
-    iMod ("Hcls" with "[$Hown Hcases Hstkres]").
+    iMod ("Hcls" with "[$Hown Hcases Hstkres]") as "Hown".
     { iNext.
       iDestruct "Hcases" as "[[Heq Hm] | [[% %] [% [% [Hs Hm]]]]]".
       - iExists _. iFrame. auto.
@@ -675,9 +675,20 @@ Section valid.
           lia.
         + iPureIntro. rewrite N2Nat.id Nat2N.inj_add N2Nat.id.
           apply N.divide_add_r;auto. apply N.divide_refl.
-        + admit. }
-    admit.
-  Admitted.    
+        + iDestruct "Hstkres" as (l Hmul) "Hstkres".
+          rewrite N2Nat.id in Hmul. rewrite Nat2N.id in H5. subst k.
+          rewrite N2Nat.id. iExists (N.of_nat len :: l).
+          iSplit.
+          { iPureIntro. rewrite Nat2N.inj_add N2Nat.id. constructor. auto. }
+          iSimpl. iFrame. iExists _. rewrite nat_N_Z. iFrame. }
+    iModIntro.
+    iApply (wp_wand _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I with "[Hf]").
+    { iApply (wp_frame_value with "[$]"). eauto. auto. eauto. }
+    iIntros (v) "[-> Hf]". iFrame.
+    iLeft. iRight. iExists _. iSplit;[eauto|]. iSplit;[|done].
+    iExists _. eauto.
+  Qed.
+    
 
 End valid.
 
