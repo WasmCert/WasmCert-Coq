@@ -595,5 +595,12 @@ Proof.
   by eexists.
 Qed.
 
+Lemma two16_div_i32 :
+  (two16 | Wasm_int.Int32.modulus)%Z.
+Proof.
+  replace Wasm_int.Int32.modulus with 4294967296%Z =>//.
+  unfold two16. exists 65536%Z. lia.
+Qed.
+
 
 End Stack.
