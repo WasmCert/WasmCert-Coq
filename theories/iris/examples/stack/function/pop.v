@@ -43,8 +43,6 @@ Definition pop :=
 
 End code.
 
-
-
 Section specs.
 
 Lemma pop_not_empty (s: list i32) v E f:
@@ -108,7 +106,6 @@ Lemma spec_pop f0 n v (a : i32) s E:
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
          ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝
          ∗ ⌜ length f0.(f_locs) >= 2 ⌝
-         ∗ ⌜ (0 <= v <= Wasm_int.Int32.max_unsigned - 4 - S (length s) * 4 )%Z ⌝
          ∗ isStack v (a :: s) n
          ∗ ↪[frame] f0 }}}
     to_e_list pop @ E
@@ -116,7 +113,7 @@ Lemma spec_pop f0 n v (a : i32) s E:
                       isStack v s n ∗
                       ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f0 = f_inst f1 ⌝ }}}.
 Proof.
-  iIntros "!>" (Φ) "(%Hinst & %Hlocv & %Hlocs & %Hv & Hstack & Hf) HΦ" => /=.
+  iIntros "!>" (Φ) "(%Hinst & %Hlocv & %Hlocs & Hstack & Hf) HΦ" => /=.
   rewrite separate4.
   iApply wp_seq.
   instantiate (1 := λ x,  (⌜ x = immV [] ⌝ ∗ isStack v (a :: s) n ∗ ↪[frame] f0)%I).
@@ -136,14 +133,15 @@ Proof.
     rewrite separate2.
     iApply wp_seq.
     iSplitR ; last first.
-    iDestruct "Hstack" as "(%Hdiv & %Hlen & Hv & Hs & Hrest)".
+    iDestruct "Hstack" as "(%Hdiv & %Hvub & %Hlen & Hv & Hs & Hrest)".
     iSplitR "HΦ".
   - iApply wp_load ; last first.
     iSplitL "Hs Hrest" ; last first.
     iFrame.
     iDestruct (i32_wms with "Hv") as "Hv" => //=.
     rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    rewrite Z.mod_small ; last by unfold Wasm_int.Int32.max_unsigned in Hv ; lia.
+    rewrite Z.mod_small; last first.
+    { unfold ffff0000 in Hvub; replace Wasm_int.Int32.modulus with 4294967296%Z; by lias. }
     instantiate (1 := VAL_int32 _) => /=.
     rewrite N.add_0_r.
     done.
@@ -162,7 +160,8 @@ Proof.
     rewrite N.add_0_r.
     simpl.
     rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    rewrite Z.mod_small ; last by unfold Wasm_int.Int32.max_unsigned in Hv ; lia.
+    rewrite Z.mod_small ; last first.
+    { unfold ffff0000 in Hvub; replace Wasm_int.Int32.modulus with 4294967296%Z; by lias. }
     repeat iSplit => //=.
     iApply i32_wms => //.
   - unfold of_val, fmap, list_fmap.
@@ -176,6 +175,8 @@ Proof.
   - iApply (wp_binop with "Hf") => //=.
     iPureIntro.
     unfold Wasm_int.Int32.isub, Wasm_int.Int32.sub.
+    unfold value_of_int.
+    repeat f_equal.
     rewrite Wasm_int.Int32.unsigned_repr.
     rewrite Wasm_int.Int32.unsigned_repr.
     unfold value_of_int.
@@ -191,6 +192,14 @@ Proof.
     unfold Integers.Wordsize_32.wordsize.
     replace (two_power_nat 32) with 4294967296%Z ; last done.
     lia.
+    simpl in Hlen.
+    unfold ffff0000 in Hvub.
+    unfold two14 in Hlen.
+    unfold Wasm_int.Int32.max_unsigned.
+    unfold Wasm_int.Int32.modulus.
+    unfold Wasm_int.Int32.wordsize.
+    unfold Integers.Wordsize_32.wordsize.
+    replace (two_power_nat 32) with 4294967296%Z ; last done.
     remember (length s) as x.
     rewrite - Heqx.
     clear Heqx Hlen s.

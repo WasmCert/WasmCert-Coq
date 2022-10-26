@@ -66,17 +66,22 @@ Proof.
     iFrame.
     done.
 Qed.
-    
-  
+
+(* The isStack v l n predicate describe a stack starting at location v, containing
+   the mathematical stack (l: list i32), at memory n, of size 1 page.
+   The first cell v points to the current top cell of the stack, so the maximum 
+   number of elements the stack could contain is 16383. 
+*)  
 Definition isStack v (l : seq.seq i32) n :=
-  (let st_p := (v + 4 + length l * 4)%Z in
+  (let st_p := (v + length l * 4)%Z in
     ⌜ (two16 | v)%Z ⌝ ∗ ⌜(0 ≤ v ≤ ffff0000)%Z⌝ ∗ ⌜ (length l < two14)%Z ⌝ ∗
    N.of_nat n ↦[i32][ Z.to_N v ]
             (Wasm_int.Int32.repr st_p) ∗
             ([∗ list] i ↦ w ∈ l,
-              N.of_nat n ↦[i32][ Z.to_N (st_p - 4 - 4 * i)%Z ] w) ∗
-            ∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length l * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N st_p] bs
+              N.of_nat n ↦[i32][ Z.to_N (st_p - 4 * i)%Z ] w) ∗
+            ∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length l * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N st_p + 4%N] bs
   )%I.
+
 
 Definition stk : string := "STACK".
 Definition stkN : namespace := nroot .@ stk.
@@ -489,13 +494,18 @@ Proof.
   { iIntros "((%Habs & _) & _)"; by inversion Habs. }
   iIntros (w) "((-> & Hv) & Hf)".
   simpl.
-  unfold isStack.
-  iFrame "Hs Hrest".
   unfold N.zero.
   rewrite N.add_0_r.
   iDestruct (i32_wms with "Hv") as "Hv" => //=.
-Admitted.
-  
+  rewrite Wasm_int.Int32.Z_mod_modulus_eq Z.mod_small; last first.
+  { unfold ffff0000 in Hvub.
+    replace Wasm_int.Int32.modulus with 4294967296%Z; by lias.
+  }
+  iFrame "Hs Hrest Hv".
+  iApply (wp_wand with "[Hf]"); first by iApply (wp_drop with "Hf"); instantiate (1 := λ v, ⌜ v = immV _ ⌝%I).
+  iIntros (w) "(-> & Hf)".
+  by repeat iSplit => //.
+Qed.
 
   
 Lemma positive_add a b :
