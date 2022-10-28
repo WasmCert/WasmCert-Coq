@@ -212,7 +212,7 @@ Lemma multiples_upto_in :
   i ∈ l.
 Proof.
   intros n m l i H lt.
-  assert (0 < m)%N as lm. lia.
+  assert (0 <= m)%N as lm. lia.
   revert H lm lt.
   generalize dependent i.
   generalize dependent l.
@@ -351,24 +351,24 @@ Proof.
   by iApply (wp_label_value with "Hf").
 Qed.
 
-Lemma check_stack_valid (v : Z) (* s *) (* n *) f E x:
-    ⌜ (f_locs f) !! x = Some (value_of_int v) ⌝ ∗ 
+Lemma check_stack_valid (v : N) (* s *) (* n *) f E x:
+    ⌜ (f_locs f) !! x = Some (value_of_uint v) ⌝ ∗ 
      ↪[frame] f ⊢ 
     WP to_e_list (validate_stack x) @ E
-    {{ w, (⌜ w = trapV ⌝ ∨ ⌜ w = immV [] ⌝ ∗ ⌜ (65536 | v)%Z ⌝) ∗ ↪[frame] f }}.
+    {{ w, (⌜ w = trapV ⌝ ∨ ⌜ w = immV [] ⌝ ∗ ⌜ (65536 | v)%N ⌝) ∗ ↪[frame] f }}.
 Proof.
   iIntros "(%Hlocs & Hf)".
   simpl.
   rewrite separate1.
   iApply wp_seq.
-  instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f)%I).
+  instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f)%I).
   iSplitR; first by iIntros "(%H & _)".
   iSplitL "Hf"; first by iApply wp_get_local.
   iIntros (w) "(-> & Hf)" => /=.
   rewrite separate3.
 
   (* case splitting *)
-  destruct (decide ((v `mod` 65536)%Z = 0%Z)).
+  destruct (decide ((Z.of_N v `mod` 65536)%Z = 0%Z)).
   - iApply wp_seq.
     instantiate (1 := λ x, (⌜ x = immV [value_of_int 0] ⌝ ∗ ↪[frame] f)%I).
     iSplitR; first by iIntros "(%H & _)".
@@ -382,7 +382,7 @@ Proof.
       rewrite Wasm_int.Int32.Z_mod_modulus_eq.
       unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
       rewrite <- Znumtheory.Zmod_div_mod => //.
-      by apply Znumtheory.Zmod_divide => //.
+      by apply Znumtheory.Zmod_divide => //. 
     }
     iIntros (w) "(-> & Hf)".
     iApply (wp_if_false with "Hf") => //.
@@ -392,7 +392,9 @@ Proof.
     iIntros "!> Hf".
     iApply (wp_label_value with "Hf");eauto.
     iNext. iRight. iSplit;auto. iPureIntro.
-    apply Z.mod_divide;[unfold page_size;lia|]. auto.
+    apply N.mod_divide;[unfold page_size;lia|].
+    apply Z_of_N_inj.
+    rewrite N2Z.inj_mod;[|lia]. simpl. auto.
   - iApply wp_seq.
     instantiate (1 := λ x, (⌜ x = immV [value_of_int _] ⌝ ∗ ↪[frame] f)%I).
     iSplitR; first by (iIntros "[%H _]").
@@ -409,7 +411,7 @@ Proof.
       rewrite Wasm_int.Int32.Z_mod_modulus_id in H0; [lia|].
       unfold Wasm_int.Int32.modulus.
       unfold two_power_nat. simpl.
-      pose proof (Z_mod_lt v 65536). lia. }
+      pose proof (Z_mod_lt (Z.of_N v) 65536). lia. }
     iNext. iIntros "Hf".
     take_drop_app_rewrite 0. iApply (wp_block with "Hf") => //.
     iIntros "!> Hf /=".
@@ -532,6 +534,42 @@ Proof.
     iApply (wp_wand with "[-Hlen]").
     iApply (is_stack_bound_valid with "[$Hf $Hstack]"); auto. iFrame.
     iIntros (x0) "[? [? ?]]". iFrame. iRight. iFrame. iPureIntro. lias.
+Qed.
+
+Lemma fail_stack_bound_valid (v : N) n f E x len es :
+  let k := Wasm_int.N_of_uint i32m ((Wasm_int.int_of_Z i32m (Z.of_N v))) in
+   ⌜ f.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
+   ⌜ (f_locs f) !! x = Some (value_of_uint v) ⌝ ∗
+   ⌜ (k >= len)%N ⌝ ∗
+    ↪[frame] f ∗ N.of_nat n ↦[wmlength] len -∗
+    WP to_e_list (validate_stack_bound x) ++ es @ E
+    {{ w, ⌜ w = trapV ⌝ ∗ N.of_nat n ↦[wmlength] len ∗ ↪[frame] f }}.
+Proof.
+  iIntros "(%Hinst & %Hlocs & %Hlen & Hf & Hlen)".
+  simpl.
+  rewrite separate1.
+  iApply wp_seq.
+  instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f)%I).
+  iSplitR; first by iIntros "(%H & _)".
+  iSplitL "Hf"; first by iApply wp_get_local.
+  iIntros (w) "(-> & Hf)" => /=.
+  rewrite separate2.
+  unfold value_of_int in Hlocs.
+  match goal with | |- context [ (WP ?e0 ++ _ @ _; _ {{ _ }} )%I ] => set (e:=e0) end.
+  build_ctx e. take_drop_app_rewrite 2.
+  iApply wp_seq_can_trap_ctx.
+  instantiate (1:=(λ f', ⌜f = f'⌝ ∗ N.of_nat n ↦[wmlength] len)%I).
+  instantiate (1:=(λ v0, ⌜v0 = immV [xx 0]⌝ ∗ ⌜(Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m (Z.of_N v)) < len)%N⌝)%I).
+  iSplitR;[by iIntros "[% _]"|].
+  instantiate (1:=f).
+  iSplitR. { iIntros (f') "[Hf [-> Hlen]]". iFrame. auto. }
+  iFrame "Hf".
+  iSplitL "Hlen".
+  { iIntros "Hf".
+    iApply (wp_wand _ _ _ (λ v, (⌜v = trapV⌝ ∗ _) ∗ _)%I with "[-]").
+    iApply (wp_load_failure with "[$Hf $Hlen]");eauto. simpl t_length. lias.
+    iIntros (v0) "[[-> ?] ?]". iFrame. auto. }
+  iIntros (w f0) "[[-> %Hlen'] [Hf [-> Hlen]]] /=". lia.
 Qed.
 
 Lemma u32_modulus: Wasm_int.Int32.modulus = 4294967296%Z.
@@ -889,4 +927,34 @@ Proof.
   pose proof (Wasm_int.Int32.unsigned_range a) as [? ?]. auto.
 Qed.
 
+Lemma div_mod_i32 v:
+  let k:=Wasm_int.N_of_uint i32m ((Wasm_int.int_of_Z i32m (Z.of_N v))) in
+  (65536 | v)%N ->
+  (65536 | k)%N.
+Proof.
+  intros k Hdiv. subst k.
+  simpl. destruct Hdiv. subst.
+  rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+  replace (Wasm_int.Int32.modulus) with (65536 * 65536)%Z => //.    (* 4294967296 *)
+  rewrite Z2N.inj_mod;try lia.
+  rewrite N2Z.id.
+  rewrite Z2N.inj_mul;try lia.
+  simpl Z.to_N.
+  apply N.mod_divide;[lia|].
+  rewrite N.mul_mod_distr_r;try lia.
+  rewrite N.mul_mod_idemp_l;try lia.
+  rewrite N.mod_mul;lia.
+Qed.
+
+Lemma int_of_Z_mod v :
+  Wasm_int.int_of_Z i32m (Z.of_N v) =
+  Wasm_int.int_of_Z i32m (Z.of_N (Z.to_N (Wasm_int.Int32.Z_mod_modulus (Z.of_N v)))).
+Proof.
+  simpl.
+  rewrite Z2N.id;[|pose proof (Wasm_int.Int32.Z_mod_modulus_range (Z.of_N v)) as [? ?];auto].
+  rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+  rewrite - Wasm_int.Int32.unsigned_repr_eq.
+  rewrite Wasm_int.Int32.repr_unsigned. auto.
+Qed.
+  
 End Stack.
