@@ -65,12 +65,11 @@ Lemma spec_new_stack f0 n len E:
         ↪[frame] f0 ∗
         N.of_nat n ↦[wmlength] len }}}
     to_e_list new_stack @ E
-    {{{ v , (∃ (k : Z), ⌜ v = immV [value_of_int k] ⌝ ∗
-                                   (⌜ (k = -1)%Z ⌝ ∗
-                                      N.of_nat n↦[wmlength] len ∨
-                                      ⌜ (k = N.to_nat len) ⌝ ∗
-                                     isStack k [] n ∗
-                                     N.of_nat n ↦[wmlength] (len + page_size)%N) ∗
+    {{{ v , ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗
+              N.of_nat n↦[wmlength] len) ∨
+             (⌜ v = immV [value_of_uint len]⌝ ∗
+                   isStack len [] n ∗
+                   N.of_nat n ↦[wmlength] (len + page_size)%N) ∗
             ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f0 ⌝)%I }}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hflocs & %Hlendiv & Hframe & Hlen) HΦ".
@@ -158,9 +157,6 @@ Proof.
       done.
       iIntros (v) "[%Hv Hf]".
       iApply "HΦ".
-      iExists _.
-      iSplit.
-      done.
       iDestruct "H" as "[((%Hm1 & Hb & Hlen) & %Hbound) | [_ Hlen]]".
       inversion Hm1.
       exfalso.
@@ -176,10 +172,8 @@ Proof.
       rewrite Zmod_small in H0; last first.
       split; try by lias.
       replace (two_power_nat 32) with (4294967296)%Z; by lias.
-      iSplitR "Hf".
       iLeft.
       by iSplit.
-      iExists _ ; by iFrame.
     + (* grow_memory succeeded *)
       inversion Hw ; subst v0.
       iApply (wp_if_false with "Hf"). done.
@@ -217,7 +211,7 @@ Proof.
         iFrame. }
       remember (Wasm_int.Int32.repr (ssrnat.nat_of_bin (len `div` page_size))) as c.
       iApply wp_wand_r.        
-      instantiate (1 := λ x, ((⌜ x = immV [value_of_int (N.to_nat len)] ⌝ ∗ N.of_nat n↦[i32][ len ] (Wasm_int.Int32.repr (N.to_nat len))) ∗ ↪[frame] {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
+      instantiate (1 := λ x, ((⌜ x = immV [value_of_uint len] ⌝ ∗ N.of_nat n↦[i32][ len ] (Wasm_int.Int32.repr (Z.of_N len))) ∗ ↪[frame] {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
                                                                                                                                                                        (VAL_int32 (Wasm_int.Int32.imul c (Wasm_int.Int32.repr 65536))); f_inst := f_inst f0 |} )%I).
       iSplitL "Hf Hbs".
       * { iApply wp_wasm_empty_ctx.
@@ -324,9 +318,9 @@ Proof.
         rewrite set_nth_read.
         done.
         { iModIntro.
-          instantiate (1 := λ x, ⌜x = immV [ value_of_int (N.to_nat len) ]⌝%I).
+          instantiate (1 := λ x, ⌜x = immV [ value_of_uint len ]⌝%I).
           iPureIntro.
-          unfold value_of_int.
+          unfold value_of_uint.
           rewrite Heqc.
           unfold Wasm_int.Int32.imul.
           rewrite Wasm_int.Int32.mul_signed => /=.
@@ -382,13 +376,11 @@ Proof.
       }
       * iIntros (w) "[[-> Hn] Hf]".
         iApply "HΦ".
-        iExists _.
-        iSplit ; first done.
+        iRight.
         iSplitR "Hf"; last first.
         { iExists _.
           by iSplitL "Hf" => //.
         }
-        iRight.
         iSplit => //.
         iSplitR "Hlen". 
         unfold isStack.
@@ -398,24 +390,18 @@ Proof.
         iPureIntro.
         unfold page_size in Hlendiv.
         replace (64 * 1024)%N with 65536%N in Hlendiv ; last done.
-        unfold Z.divide.
-        unfold N.divide in Hlendiv.
-        destruct Hlendiv as [r ->].
-        exists (Z.of_N r).
-        unfold two16 ; lia.
+        by unfold two16.
+        rewrite N.add_0_r.
         iSplitR.
         iPureIntro.
         unfold ffff0000; by lias.
-        replace (0%nat*4)%Z with 0%Z; last by lias.
-        rewrite Z.add_0_r.
         iSplit => //.
         iSplitL "Hn" => //.
-        iSplit ; first done.
+        iSplit => //.
         iExists (repeat #00%byte ( N.to_nat 65532)).
-        iSplit ; first by rewrite repeat_length.
-        remember (repeat _ _) as l.
-        clear.
-        replace (Z.to_N (N.to_nat len) + 4%N)%N with (len + 1 + 1 + 1 + 1)%N ; last lia.
+        rewrite repeat_length N2Nat.id.
+        iSplit; first done.
+        replace (len + 1 + 1 + 1 + 1)%N with (len + 4)%N; last lia.
         done.
         done.
 Qed.
@@ -425,7 +411,7 @@ End specs.
 Section valid.
   Context `{!logrel_na_invs Σ}.
   Set Bullet Behavior "Strict Subproofs".
-
+(*
   Lemma valid_new_stack m t funcs :
     let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
                      inst_funcs := funcs;
@@ -482,7 +468,7 @@ Section valid.
     iLeft. iRight. iExists _. iSplit;[eauto|]. iSplit;[|done].
     iExists _. eauto.
   Qed.
-    
+*)    
 
 End valid.
 
