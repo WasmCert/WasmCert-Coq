@@ -59,7 +59,8 @@ Section stack.
   End code.
 
   Section specs.
-
+    
+(*
     Lemma push_not_full v (s: list i32) f E:
       (two16 | v)%Z ->  
       (length s < two14 - 1)%Z ->
@@ -164,13 +165,14 @@ Section stack.
       deconstruct_ctx.
       iApply (wp_label_trap with "Hf");auto.
     Qed.    
-    
-    Lemma spec_push_op f0 n v (a : i32) s E :
+*)    
+
+    Lemma spec_push_op f0 n (v: N) (a : i32) s E :
       ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
-          ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝
+          ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_uint v) ⌝
           ∗ ⌜ f0.(f_locs) !! 1 = Some (VAL_int32 a) ⌝ 
           ∗ ⌜ length f0.(f_locs) >= 3 ⌝
-          ∗ ⌜ (length s < two14 - 1)%Z ⌝
+          ∗ ⌜ (N.of_nat (length s) < two14 - 1)%N ⌝
           ∗ isStack v s n
           ∗ ↪[frame] f0 }}}
         to_e_list push_op @ E
@@ -186,9 +188,8 @@ Section stack.
       iApply wp_seq.
       iSplitR; last iSplitL "Hf Hstack".
       2: { iApply (spec_is_full_op with "[$Hf $Hstack] []") => //.
-           iIntros (w).
-           instantiate (1 := λ w, (∃ k : Z, ⌜w = immV [value_of_int k]⌝ ∗ isStack v s n ∗ ⌜(k = 1 ∧ (Z.of_nat (length s)) = (two14 - 1)%Z) ∨ k = 0 ∧ (length s < two14 - 1)%Z⌝ ∗ ↪[frame] f0)%I).
-           auto.
+           iIntros (w) "H".
+           by iApply "H".
       }
       { iIntros "H".
         by iDestruct "H" as (k) "(%Habs & ?)".
@@ -222,7 +223,7 @@ Section stack.
       rewrite (separate1 (AI_basic _)).
       iApply wp_seq.
       
-      instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f0)%I).
+      instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f0)%I).
       iSplitR ; first by iIntros "[%Habs _]".
       iSplitL "Hf".
       - iApply (wp_get_local with "[] [$Hf]") => //=.
@@ -230,21 +231,21 @@ Section stack.
         simpl.
         rewrite separate2.
         iApply wp_seq.
-        instantiate ( 1 := λ x, ((⌜ x = immV [ value_of_int (v + (length s) * 4)%Z] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I)).
+        instantiate ( 1 := λ x, ((⌜ x = immV [ value_of_uint (v + N.of_nat (length s) * 4)%N] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I)).
         iSplitR ; first by iIntros "(%Habs & _)".
         iSplitR "HΦ".
         { by iApply (stack_load_0 with "[] [$] [$]") => //. }
 
       - iIntros (w) "(-> & Hstack & Hf)" => /=.
         rewrite separate3.
-        iApply (wp_seq _ _ _ (λ x, (⌜ x = immV [value_of_int (v + 4 + length s * 4)] ⌝
+        iApply (wp_seq _ _ _ (λ x, (⌜ x = immV [value_of_uint (v + 4 + N.of_nat (length s) * 4)] ⌝
                                             ∗ ↪[frame] _)%I)).
         iSplitR ; first by iIntros "[%Habs _]".
         iSplitL "Hf".
         iApply (wp_binop with "Hf") => //.
         iIntros "!>".
         iPureIntro.
-        unfold value_of_int => /=.
+        unfold value_of_int, value_of_uint => /=.
         repeat f_equal.
         unfold Wasm_int.Int32.iadd, Wasm_int.Int32.add => /=.
         f_equal.
@@ -261,7 +262,7 @@ Section stack.
 
         rewrite separate2.
         iApply wp_seq; iSplitR; last iSplitL "Hf".
-        instantiate (1 := λ w, (⌜ w = immV [value_of_int (v + 4 + length s * 4)] ⌝ ∗ ↪[frame] _) %I).
+        instantiate (1 := λ w, (⌜ w = immV [value_of_uint (v + 4 + N.of_nat (length s) * 4)] ⌝ ∗ ↪[frame] _) %I).
         2: {
              iApply (wp_tee_local with "Hf").
              iIntros "!> Hf".
@@ -275,13 +276,13 @@ Section stack.
       - iIntros (w) "[-> Hf]".
         simpl.
 
-        remember {| f_locs := set_nth (value_of_int (v + 4 + length s * 4))
-                                (f_locs f0) 2 (value_of_int (v + 4 + length s * 4)) ;
+        remember {| f_locs := set_nth (value_of_uint (v + 4 + N.of_nat (length s) * 4))
+                                (f_locs f0) 2 (value_of_uint (v + 4 + N.of_nat (length s) * 4)) ;
                    f_inst := f_inst f0 |} as f1.
         rewrite - Heqf1.
         rewrite separate2.
         iApply wp_seq.
-        instantiate (1 := λ x, (⌜ x = immV [value_of_int (v + 4 + length s * 4) ;
+        instantiate (1 := λ x, (⌜ x = immV [value_of_uint (v + 4 + N.of_nat (length s) * 4) ;
                                             VAL_int32 a] ⌝ ∗ ↪[frame] f1)%I).
         iSplitR ; first by iIntros "[%Habs _]".
         iSplitL "Hf".
@@ -296,17 +297,29 @@ Section stack.
         iSimpl.
         rewrite separate3.
         iApply wp_seq.
-        instantiate
-          (1 := λ x, (((⌜ x = immV [] ⌝ ∗ N.of_nat n↦[i32][ Z.to_N v] Wasm_int.Int32.repr (v+length s * 4) ∗ ([∗ list] i↦w ∈ s, N.of_nat n↦[i32][Z.to_N (v + length s * 4 - 4 * i)] w) ∗ (∃ bs, ⌜ Z.of_nat (length bs) = (two16 - 4 - length (s) * 4 - 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + 4 + S (length s) * 4)]bs) )
-                         ∗ N.of_nat n ↦[wms][Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m (v + 4 + length s * 4)%Z) + N.zero]bits (VAL_int32 a)) ∗ ↪[frame] f1)%I).
-        iSplitR ; first by iIntros "[[[ %Habs _ ] _] _]". 
+        instantiate (1 := λ x, (⌜ x = immV [] ⌝ ∗ (N.of_nat n
+        ↦[i32][ v] Wasm_int.Int32.repr (Z.of_N (v + N.of_nat (length s) * 4)) ∗
+        (([∗ list] i↦w ∈ s, N.of_nat n
+                            ↦[i32][ v + N.of_nat (length s) * 4 -
+                                    4 * N.of_nat i] w) ∗
+         (∃ bs, ⌜ N.of_nat (length bs) = (two16 - 4 - N.of_nat (length s) * 4 - 4)%N ⌝ ∗ [∗ list] k↦y ∈ bs, N.of_nat n↦[wm][N.of_nat
+                                               (N.to_nat
+                                                  (v + N.of_nat (length s) * 4 +
+                                                  4) +
+                                                (4 + k))]y)) ∗
+        N.of_nat n↦[wms][Wasm_int.N_of_uint i32m
+                           (Wasm_int.int_of_Z i32m
+                              (Z.of_N (v + 4 + N.of_nat (length s) * 4))) + N.zero]
+        bits (VAL_int32 a) ∗  ↪[frame]f1))%I).
+        iSplitR ; first by iIntros " [%Habs _]".
         iDestruct "Hstack" as "(_ & _ & _ & Hp & Hs & Hrest)".
         iDestruct "Hrest" as (bs) "[%Hbs Hrest]".
         unfold two16 in Hbs.
         unfold two14 in Hlens.
         remember (length s) as x.
         rewrite - Heqx.
-        do 4 (destruct bs ; first by exfalso ; clear Heqx s ; simpl in Hbs ; lia).
+        assert ((65536-4-N.of_nat x * 4)%N >= 4)%N as Hlen; first lia.
+        do 4 (destruct bs; first by exfalso; rewrite - Hbs in Hlen; lias).
         rewrite separate4.
         unfold mem_block_at_pos at 1.
         rewrite big_sepL_app.
@@ -316,52 +329,48 @@ Section stack.
         iFrame.
         iSplitR "Ha".
         iNext.
-        simpl.
         subst x.
-        by instantiate (1 := λ x, (⌜ x = immV [] ⌝ ∗ N.of_nat n ↦[i32][ Z.to_N v] Wasm_int.Int32.repr (v + length s * 4) ∗ ([∗ list] i↦w ∈ s, N.of_nat n ↦[i32][ Z.to_N (v + length s * 4 - 4 * i)] w) ∗ ([∗ list] k↦y ∈ bs, N.of_nat n↦[wm][N.of_nat (N.to_nat (Z.to_N (v + length s * 4)+4) + S (S (S (S k))))]y))%I);
-        iFrame.
-        3: instantiate (1 := [b ; b0 ; b1 ; b2]) => //=. 
+        iCombine "Hp Hs Hrest" as "H".
+        instantiate (1 := λ x, (⌜ x = immV [] ⌝ ∗ _)%I).
+        iSplit => //.
+        by iApply "H".
+        3: instantiate (1 := [b ; b0 ; b1 ; b2]) => //. 
         3: done.
-        2: subst f1 => //=.
+        2: subst f1 => //.
         iApply (big_sepL_impl with "Ha").
         iIntros "!>" (k y) "% H".
         rewrite of_nat_to_nat_plus.
         simpl.
         rewrite Wasm_int.Int32.Z_mod_modulus_eq Z.mod_small.
-        rewrite of_nat_to_nat_plus.
+        rewrite of_nat_to_nat_plus N2Z.id.
         rewrite N.add_0_r.
-        replace (Z.to_N (v+x*4)+4)%N with (Z.to_N (v+4+x*4)) => //; last by lias.
+        replace (v + N.of_nat x * 4 + 4 + N.of_nat k)%N with (v + 4 + N.of_nat x * 4 + N.of_nat k)%N => //; last by lias.
         unfold ffff0000 in Hvb.
         rewrite u32_modulus.
         lia.
-        
-      - iIntros (w) "[[(-> & Hp & Hs & Hrest) Ha] Hf]".
+
+      - iIntros (w) "(((-> & (H0 & H1 & H1')) & H2) & H3)".
+        iSplit => //.
+        rewrite - Heqx.
         iFrame.
-        iSplit ; first done.
-        subst x ; iFrame.
         iExists bs.
-        iSplit ; first iPureIntro.
-        simpl in Hbs.
-        remember (length s) as x.
-        rewrite - Heqx in Hbs.
-        unfold two16. lia.
-        iApply (big_sepL_impl with "Hrest").
-        iIntros "!>" (k x) "% H".
-        do 2 rewrite of_nat_to_nat_plus.
-        remember (length s) as y.
-        clear Heqy s.
-        replace (Z.to_N (v + y * 4) + 4 + N.of_nat (S (S (S (S k)))))%N with
-          (Z.to_N (v + 4 + S y * 4) + N.of_nat k)%N => //.
+        iSplit; last by iFrame.
+        unfold two16.
+        repeat rewrite cons_length in Hbs.
+        remember (length bs) as x'.
+        iPureIntro.
         lia.
-      - iIntros (w) "[[(-> & Hp & Hs & Hrest) Ha] Hf]".
+        
+      - iIntros (w) "(-> & H)".
+        iDestruct "H" as "(Hp & (Hs & Hrest) & Ha & Hf)".
         iSimpl.
         rewrite (separate1 (AI_basic _)).
         iApply wp_seq.
-        instantiate (1 := λ x, ( ⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame]f1)%I).
+        instantiate (1 := λ x, ( ⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame]f1)%I).
         iSplitR ; first by iIntros "[%Habs _]".
         iSplitL "Hf".
       - iApply (wp_get_local with "[] [$Hf]") => //.
-        subst f1 => //=.
+        subst f1 => //.
         rewrite - fmap_insert_set_nth; last by lias.
         by rewrite list_lookup_insert_ne => //.
           
@@ -369,8 +378,8 @@ Section stack.
         iSimpl.
         rewrite separate2.
         iApply wp_seq.
-        instantiate (1 := λ x, ( ⌜ x = immV [value_of_int v ;
-                                             value_of_int ( v + 4 + length s * 4 ) ] ⌝
+        instantiate (1 := λ x, ( ⌜ x = immV [value_of_uint v ;
+                                             value_of_uint ( v + 4 + N.of_nat (length s) * 4 ) ] ⌝
                                          ∗ ↪[frame] f1)%I).
         iSplitR ; first by iIntros "[%Habs _]".
         iSplitL "Hf".
@@ -378,7 +387,7 @@ Section stack.
         iApply wp_val_app => //.
         iSplitR ; first by iIntros "!> [%Habs _]".
         iApply (wp_get_local with "[] [$Hf]") => //.
-        subst f1 => //=.
+        subst f1 => //.
         rewrite set_nth_read => //=.
         by subst x.
           
@@ -388,68 +397,72 @@ Section stack.
         iSplitL "Hf Hp".
       - iApply wp_store.
         done.
-        instantiate (1 := bits (value_of_int (v + length s * 4))) => //=.
+        instantiate (1 := bits (value_of_uint (v + N.of_nat (length s) * 4))) => //=.
         instantiate (2 := f1).
-        subst f1 => //=.
+        subst f1 => //.
         instantiate (1 := λ x, ⌜ x = immV [] ⌝%I).
         iFrame.
         iSplit => //=.
         rewrite Wasm_int.Int32.Z_mod_modulus_eq.
         rewrite Z.mod_small ; last by unfold ffff0000 in Hvb ; rewrite u32_modulus; lia.
         iDestruct (i32_wms with "Hp") as "Hp" => //.
-        rewrite N.add_0_r.
+        rewrite N.add_0_r N2Z.id.
         by subst x.
       - iIntros (w) "[[-> Hp] Hf]".
         iApply "HΦ".
-        iSplit => //=.
+        iSplit => //.
         unfold isStack.
-        iSplitR "Hf".
-        repeat iSplit => //=.
-        iPureIntro ; rewrite - Heqx ; clear Heqx s ; unfold two14 ; lia.
+        iSplitR "Hf"; last by iExists f1; subst f1; iFrame.
+        repeat iSplit => //.
+        iPureIntro=> /= ; rewrite - Heqx ; clear Heqx s ; unfold two14 ; lia.
         iSplitL "Hp".
+        simpl.
         rewrite Wasm_int.Int32.Z_mod_modulus_eq.
         rewrite Z.mod_small ; last by unfold ffff0000 in Hvb ; rewrite u32_modulus; lia.
         iApply i32_wms => //.
-        rewrite N.add_0_r.
+        rewrite N.add_0_r N2Z.id.
         rewrite -Heqx.
-        replace (v+4+x*4)%Z with (v+S x * 4)%Z => //.
+        replace (v+4+N.of_nat x * 4)%N with (v+N.pos (Pos.of_succ_nat x * 4))%N => //.
         by lias.
         
         iSplitR "Hrest".
         iSplitL "Ha".
-        iApply i32_wms => //.
+        iApply i32_wms => //=.
         rewrite Wasm_int.Int32.Z_mod_modulus_eq.
         rewrite Z.mod_small ; last by unfold ffff0000 in Hvb ; rewrite u32_modulus; lia.
-        rewrite N.add_0_r.
+        rewrite N.add_0_r N.sub_0_r N2Z.id.
         rewrite - Heqx.
-        replace (v + S x * 4 - 4 * 0%nat)%Z
-          with (v + 4 + x * 4)%Z ; last lia.
-        done.
+        replace (v+4+N.of_nat x * 4)%N with (v+N.pos (Pos.of_succ_nat x * 4))%N => //.
+        lia.
         iApply (big_sepL_impl with "Hs").
         iIntros "!>" (k y) "%Hbits H".
+        replace (v + N.of_nat x * 4 - 4 * N.of_nat k)%N with (v + N.of_nat (S x) * 4 - 4 * N.of_nat (S k))%N; last lia.
+        simpl.
         rewrite - Heqx.
-        replace (v + S x * 4 - 4 * S k)%Z
-          with  (v + x * 4 - 4 * k)%Z ; last lia.
         done.
-        iDestruct "Hrest" as (bs0) "[%Hbs0 Hrest]".
+        iDestruct "Hrest" as (bs0) "(%Hbslen & Hrest)".
         iExists bs0.
-        iSplit => //=.
+        iSplit => //.
         iPureIntro.
+        rewrite cons_length.
+        repeat rewrite cons_length in Hbs.
         rewrite - Heqx.
+        lias.
+        rewrite cons_length -Heqx.
+        unfold mem_block_at_pos.
+        iApply (big_sepL_impl with "Hrest").
+        iIntros "!>" (k y) "%Hl Hy".
+        do 2 rewrite of_nat_to_nat_plus.
+        replace (v + N.of_nat x * 4 + 4 + N.of_nat (4+k))%N with (v + N.of_nat (S x) * 4 + 4 + N.of_nat k)%N => //.
         lia.
-        rewrite - Heqx.
-        replace (Z.to_N (v+4+S x*4)) with (Z.to_N (v+S x * 4) + 4)%N => //.
-        by lias.
-        subst x.
-        iExists _ ; by subst ; iFrame.
     Qed.
 
-    Lemma spec_push f0 n v (a : i32) s E :
+    Lemma spec_push f0 n (v: N) (a : i32) s E :
       ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
-          ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝
+          ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_uint v) ⌝
           ∗ ⌜ f0.(f_locs) !! 1 = Some (VAL_int32 a) ⌝ 
           ∗ ⌜ length f0.(f_locs) >= 3 ⌝
-          ∗ ⌜ (length s < two14 - 1)%Z ⌝
+         ∗ ⌜ (N.of_nat (length s) < two14 - 1)%N ⌝
           ∗ isStack v s n
           ∗ ↪[frame] f0 }}}
         to_e_list push @ E
@@ -483,7 +496,7 @@ Section stack.
   Section valid.
     Context `{!logrel_na_invs Σ}.
     Set Bullet Behavior "Strict Subproofs".
-
+(*
     Lemma valid_new_stack m t funcs :
     let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
                      inst_funcs := funcs;
@@ -582,7 +595,7 @@ Section stack.
     iApply fupd_wp.
     iMod (na_inv_acc with "Hstk Hown") as "(>Hstkres & Hown & Hcls)";[solve_ndisj..|].
     iDestruct "Hstkres" as (len) "[% [Hlen Hstkres]]".
-    
+    *)
 
     
   End valid.
