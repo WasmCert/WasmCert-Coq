@@ -57,14 +57,14 @@ End code.
 
 Section specs.
 
-Lemma spec_is_full_op f0 n (v : Z) (s : seq.seq i32) E: 
+Lemma spec_is_full_op f0 n (v : N) (s : seq.seq i32) E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
-        ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
+        ⌜ (f_locs f0) !! 0 = Some (value_of_uint v) ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
     to_e_list is_full_op @ E
     {{{ w, ∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
-                           ⌜ (k = 1) /\ (Z.of_nat (length s) = (two14 - 1)%Z)%Z \/ (k = 0) /\ (length s < two14 - 1)%Z ⌝ ∗
+                           ⌜ (k = 1) /\ (N.of_nat (length s) = (two14 - 1)%N)%N \/ (k = 0) /\ (N.of_nat (length s) < two14 - 1)%N ⌝ ∗
           ↪[frame] f0 }}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & Hf & Hstack) HΦ" => /=.
@@ -74,7 +74,7 @@ Proof.
   rewrite separate3.
   iApply wp_seq.
   instantiate (1 := λ x, (⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
-                                      value_of_int v] ⌝ ∗ ↪[frame] f0)%I).
+                                      value_of_uint v] ⌝ ∗ ↪[frame] f0)%I).
   iSplitR ; first by iIntros "[%Habs _]".
   iSplitL "Hf".
   - rewrite separate2.
@@ -87,7 +87,7 @@ Proof.
     rewrite separate4.
     iApply wp_seq.
     instantiate ( 1 := λ x, ((⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
-                                            value_of_int (v + length s * 4)%Z] ⌝
+                                            value_of_uint (v + N.of_nat (length s) * 4)%N] ⌝
                                           ∗ isStack v s n ∗ ↪[frame] f0)%I)).
     iSplitR ; first by iIntros "(%Habs & _)".
     iSplitR "HΦ".
@@ -105,7 +105,7 @@ Proof.
     rewrite separate5.
     iApply wp_seq.
     instantiate (1 := λ x, (⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
-                                        value_of_int ((v + length s * 4) `mod` 65536)%Z
+                                        value_of_uint ((v + N.of_nat (length s) * 4) `mod` 65536)%N
                                     ]⌝ ∗ ↪[frame] f0)%I).
     iSplitR ; first by iIntros "[%Habs _]".
     iSplitL "Hf".
@@ -114,10 +114,12 @@ Proof.
     iSplitR ; first by iIntros "!> [%Habs _]".
     iApply (wp_binop with "Hf") => //.
     iPureIntro => //=.
-    unfold value_of_int.
+    unfold value_of_int, value_of_uint.
     repeat f_equal.
     unfold Wasm_int.Int32.modu.
-    rewrite wasm_int_unsigned => //.
+    rewrite wasm_int_unsigned => //=.
+    repeat f_equal.
+    by rewrite N2Z.inj_mod.
     unfold ffff0000 in Hvb; unfold two14 in Hlens.
     clear - Hvb Hlens.
     remember (length s) as x.
@@ -136,9 +138,9 @@ Proof.
     iApply (wp_relop with "Hf") => //.
   - iIntros (w) "[-> Hf]".
     iSimpl.
-    remember ((v+length s * 4) `mod` 65536)%Z as modres.
+    remember ((v+N.of_nat (length s) * 4) `mod` 65536)%N as modres.
     rewrite -Heqmodres.
-    destruct (decide ((modres)%Z = 65532))%Z eqn:Hmod.
+    destruct (decide (modres = 65532)%N) eqn:Hmod.
     { rewrite e.
       simpl.
       iApply wp_wand_r.
@@ -156,8 +158,8 @@ Proof.
       unfold two14, two16 in *.
       destruct Hdiv as [m Hdiv].
       subst v.
-      rewrite Z.add_comm Z_mod_plus_full in Heqmodres.
-      rewrite Z.mod_small in Heqmodres; last by lias.
+      rewrite N.add_comm N.mod_add in Heqmodres => //.
+      rewrite N.mod_small in Heqmodres; last by lias.
       by lias.
     }
     { rewrite Wasm_int.Int32.eq_false => //=; last first.
@@ -167,15 +169,10 @@ Proof.
         clear - Hvb Hlens Heqmodres.
         remember (length s) as x.
         rewrite u32_modulus.
-        split.
-        { assert (0 <= modres)%Z.
+        split; first lia.
+        { assert (modres < 65536)%N.
           subst.
-          apply Z_mod_pos; by lias.
-          by lias.
-        }
-        { assert (modres < 65536)%Z.
-          subst.
-          apply Z.mod_pos_bound; lias.
+          apply N.mod_upper_bound => //.
           by lias.
         }
       }
@@ -195,21 +192,21 @@ Proof.
       unfold two14, two16 in *.
       destruct Hdiv as [e Hdiv].
       subst v.
-      rewrite Z.add_comm Z_mod_plus_full in Heqmodres.
-      rewrite Z.mod_small in Heqmodres; last by lias.
+      rewrite N.add_comm N.mod_add in Heqmodres => //.
+      rewrite N.mod_small in Heqmodres; last by lias.
       by lias.
     }
 Qed.    
     
-Lemma spec_is_full f0 n (v : Z) (s : seq.seq i32) E: 
+Lemma spec_is_full f0 n (v : N) (s : seq.seq i32) E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
-        ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
+        ⌜ (f_locs f0) !! 0 = Some (value_of_uint v) ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
     to_e_list is_full @ E
     {{{ w, ∃ k, ⌜ w = immV [value_of_int k] ⌝ ∗ isStack v s n ∗
-                           ⌜ (k = 1) /\ (Z.of_nat (length s) = (two14 - 1)%Z)%Z \/ (k = 0) /\ (length s < two14 - 1)%Z ⌝ ∗
-                ↪[frame] f0 }}}.
+                           ⌜ (k = 1) /\ (N.of_nat (length s) = (two14 - 1)%N)%N \/ (k = 0) /\ (N.of_nat (length s) < two14 - 1)%N ⌝ ∗
+          ↪[frame] f0 }}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & Hf & Hstack) HΦ" => /=.
   
@@ -231,8 +228,6 @@ Proof.
 
   by iApply (spec_is_full_op with "[$Hf $Hstack] [HΦ]") => //.
 Qed.
-
-
 
 End specs.
 
