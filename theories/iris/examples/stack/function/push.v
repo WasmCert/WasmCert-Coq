@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export stack_common is_full.
+Require Export stack_common is_full iris_fundamental proofmode.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -60,6 +60,111 @@ Section stack.
 
   Section specs.
 
+    Lemma push_not_full v (s: list i32) f E:
+      (two16 | v)%Z ->  
+      (length s < two14 - 1)%Z ->
+      ↪[frame] f ⊢
+        WP [AI_basic (BI_const (value_of_int (v + 4 + length s * 4))); AI_basic (i32const 65536);
+            AI_basic (BI_binop T_i32 (Binop_i (BOI_rem SX_U))); AI_basic (BI_if (Tf [] []) [] [BI_unreachable])] @ E
+        {{ w, ⌜ w = immV [] ⌝ ∗ ↪[frame] f }}.
+    Proof.
+      move => Hdiv Hsize.
+      iIntros "Hf".
+      rewrite separate3.
+      iApply wp_seq.
+      instantiate (1 := λ w, (⌜ w = immV [ _ ]⌝ ∗ ↪[frame] f)%I).
+      iSplitR; first by iIntros "(%H & _)".
+      iSplitL "Hf"; first by iApply (wp_binop with "Hf") => //.
+      iIntros (w) "(-> & Hf)".
+      iApply (wp_if_true with "Hf").
+      {
+        unfold Wasm_int.Int32.modu.
+        simpl.
+        move => Hcontra.
+        apply Znumtheory.Zdivide_mod in Hdiv.
+        assert ((4 + length s * 4 < 65536)%Z) as Hsub.
+        { unfold two14 in Hsize. by lias. }
+        assert ((4 <= 4 + length s * 4)%Z) as Hslb.
+        { by lias. }
+        unfold Wasm_int.Int32.zero in Hcontra.
+        apply Wasm_int.Int32.repr_inv in Hcontra => //=.
+        { 
+          rewrite Wasm_int.Int32.Z_mod_modulus_eq in Hcontra.
+          unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize in Hcontra.
+          rewrite <- Znumtheory.Zmod_div_mod in Hcontra => //; last by apply Znumtheory.Zmod_divide => //.
+          unfold two16 in Hdiv.
+          rewrite - Z.add_assoc in Hcontra.
+          rewrite Zplus_mod Hdiv Z.add_0_l in Hcontra.
+          rewrite Z.mod_mod in Hcontra => //.
+          rewrite Z.mod_small in Hcontra; first by lias.
+          split; by lias.
+        }
+        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+        unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
+        rewrite <- Znumtheory.Zmod_div_mod => //; last by apply Znumtheory.Zmod_divide => //.
+        rewrite - Z.add_assoc.
+        rewrite Zplus_mod Hdiv Z.add_0_l.
+        rewrite Z.mod_mod => //.
+        remember (4 + length s * 4)%Z as x.
+        rewrite - Heqx.
+        split.
+        { 
+          assert ((0 <= x `mod` 65536)%Z); first by apply Z_mod_pos.
+          by lias.
+        }
+        assert ((x `mod` 65536 < 65536)%Z); first by apply Z_mod_lt.
+        replace (two_power_nat 32) with (4294967296)%Z => //.
+        by lias.
+      }
+      iIntros "!> Hf".
+      replace ([AI_basic (BI_block (Tf [] []) [])]) with ([] ++ [AI_basic (BI_block (Tf [] []) [])]) => //.
+      iApply (wp_block with "Hf") => //.
+      iIntros "!> Hf".
+      by iApply (wp_label_value with "Hf").
+    Qed.
+
+    Lemma push_full v (s: list i32) f E:
+      (0 ≤ v ≤ ffff0000)%Z ->
+      (two16 | v)%Z ->  
+      (Z.of_nat (length s) = two14 - 1)%Z ->
+      ↪[frame] f ⊢
+        WP [AI_basic (BI_const (value_of_int (v + 4 + length s * 4))); AI_basic (i32const 65536);
+            AI_basic (BI_binop T_i32 (Binop_i (BOI_rem SX_U))); AI_basic (BI_if (Tf [] []) [] [BI_unreachable])] @ E
+        {{ w, ⌜ w = trapV ⌝ ∗ ↪[frame] f }}.
+    Proof.
+      move => Hoverflow Hdiv Hsize.
+      iIntros "Hf".
+      rewrite separate3.
+      iApply wp_seq.
+      instantiate (1 := λ w, (⌜ w = immV [ _ ]⌝ ∗ ↪[frame] f)%I).
+      iSplitR; first by iIntros "(%H & _)".
+      iSplitL "Hf"; first by iApply (wp_binop with "Hf") => //.
+      iIntros (w) "(-> & Hf)".
+      iApply (wp_if_false with "Hf").
+      { unfold Wasm_int.Int32.modu. simpl.
+        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+        fold two16.
+        rewrite Hsize.
+        rewrite - Z.add_assoc.
+        assert (4 + (two14 - 1) * 4 = two16)%Z as ->;[lias|].
+        rewrite - Znumtheory.Zmod_div_mod;try lias.
+        f_equal. apply Znumtheory.Zdivide_mod.
+        apply Z.divide_add_r;auto. apply Z.divide_refl.
+        apply two16_div_i32.
+      }
+      iIntros "!> Hf".
+      take_drop_app_rewrite 0.
+      iApply (wp_block with "Hf") => //.
+      iIntros "!> Hf /=".
+      build_ctx [AI_basic BI_unreachable].
+      iApply wp_label_bind.
+      iApply (wp_wand _ _ _ (λ v, ⌜v = trapV⌝ ∗ _)%I with "[Hf]").
+      iApply (wp_unreachable with "[$]");auto.
+      iIntros (w) "[-> Hf]".
+      deconstruct_ctx.
+      iApply (wp_label_trap with "Hf");auto.
+    Qed.    
+    
     Lemma spec_push_op f0 n v (a : i32) s E :
       ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
           ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝
@@ -339,7 +444,6 @@ Section stack.
         iExists _ ; by subst ; iFrame.
     Qed.
 
-    
     Lemma spec_push f0 n v (a : i32) s E :
       ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝
           ∗ ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝
@@ -375,6 +479,113 @@ Section stack.
       
   End specs.
 
+
+  Section valid.
+    Context `{!logrel_na_invs Σ}.
+    Set Bullet Behavior "Strict Subproofs".
+
+    Lemma valid_new_stack m t funcs :
+    let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+                     inst_funcs := funcs;
+                     inst_tab := [t];
+                     inst_memory := [m];
+                     inst_globs := []
+              |} in
+    na_inv logrel_nais stkN (stackModuleInv (λ (a : Z) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
+    interp_closure_native i0 [T_i32;T_i32] [] [T_i32] (to_e_list push) [].
+  Proof.
+    iIntros "#Hstk".
+    iIntros (vcs f) "#Hv Hown Hf".
+    iIntros (LI HLI%lfilled_Ind_Equivalent);inversion HLI;inversion H8;subst;simpl.
+    iApply (wp_frame_bind with "[$]");auto.
+    iIntros "Hf".
+    match goal with | |- context [ [AI_label _ _ ?l] ] => set (e:=l) end.
+    build_ctx e.
+    iApply wp_label_bind.
+    subst e.
+    iDestruct "Hv" as "[%Hcontr|Hws]";[done|iDestruct "Hws" as (ws) "[%Heq Hws]"].
+    iDestruct (big_sepL2_length with "Hws") as %Hlen. inversion Heq;subst.
+    destruct ws as [|w0 ws];[done|destruct ws as [|w1 ws];[done|destruct ws as [|w2 ws];[|done]]].
+    iSimpl in "Hws".
+    iDestruct "Hws" as "[Hw0 [Hw1 _]]".
+    iDestruct "Hw0" as (z0) "->".
+    iDestruct "Hw1" as (z1) "->".
+    pose proof (value_of_int_repr z0) as [v ->]. iSimpl in "Hf".
+    take_drop_app_rewrite (length (validate_stack 1)).
+
+    match goal with | |- context [ (WP ?e @ _; _ {{ _ }} )%I ] => set (e0:=e) end.
+    match goal with | |- context [ (↪[frame] ?f0)%I ] => set (f':=f0) end.
+    build_ctx e0. subst e0.
+    iApply wp_seq_can_trap_ctx.
+    instantiate (1:=(λ f0, ⌜f0 = f'⌝ ∗ na_own logrel_nais ⊤)%I).
+    iFrame "Hf".
+    iSplitR;[|iSplitR;[|iSplitL]];cycle 1.
+    - iIntros (f0) "(Hf & -> & Hown)".
+      deconstruct_ctx.
+      iApply (wp_wand _ _ _ (λ v, ⌜v = trapV⌝ ∗ _)%I with "[Hf]").
+      iApply (wp_label_trap with "Hf");auto.
+      iIntros (v0) "[-> Hf]". iExists _. iFrame.
+      iIntros "Hf".
+      iApply (wp_frame_trap with "Hf").
+      iNext. iLeft. iLeft. auto.
+    - iIntros "Hf". iFrame.
+      iApply (wp_wand with "[Hf]").
+      iApply check_stack_valid;iFrame;subst;eauto.
+      iIntros (v0) "[$ HH]". eauto.
+    - subst f'. iIntros (w f0) "([-> %Hdiv] & Hf & -> & Hown) /=".
+      deconstruct_ctx.
+      take_drop_app_rewrite (length (validate_stack_bound 0)).
+      
+      
+      
+      (* bind_seq_base_imm [AI_basic (BI_get_local 1)] with "[Hf]". *)
+      (* iApply (wp_get_local with "[] Hf");eauto. *)
+      (* iIntros (v0) "[-> Hf] /=". *)
+      iApply fupd_wp.
+      iMod (na_inv_acc with "Hstk Hown") as "(>Hstkres & Hown & Hcls)";[solve_ndisj..|].
+      iDestruct "Hstkres" as (l Hmul) "[Hlen Hstkres]".
+      iDestruct "Hstkres" as (l' Hmultiple) "Hl'".
+      assert (0 <= v < l)%Z as Hbounds. admit.
+      assert (page_size | Z.to_N v)%N as Hdiv';[destruct Hdiv;exists (Z.to_N x)|].
+      { rewrite H Z2N.inj_mul. replace page_size with 65536%N =>//. all: lia. }
+      eapply multiples_upto_in in Hmultiple as Hin;[..|apply Hdiv'];[|lia].
+      apply elem_of_list_lookup_1 in Hin as [i Hi].
+      iDestruct (big_sepL_lookup_acc with "Hl'") as "[Hv Hl']";[eauto|].
+      iDestruct "Hv" as (stk) "Hstack".
+      rewrite Z2N.id;[|lia].
+      iModIntro.
+      
+      iApply (spec_op_push with "[$Hf $Hstack]").
+      simpl. repeat iSplit;eauto. iPureIntro;lia.
+      admit.
+      
+      iDestruct (big_sepL_)
+      
+      build_ctx [AI_basic (BI_get_local 1)].
+      
+      iApply (wp_wand _ _ _)
+      iApply (wp_get_local).
+      
+
+    
+    iApply (wp_wand with "[Hf Hown]").
+    { iApply (wp_seq_can_trap_same_empty_ctx with "[$Hf Hown]").
+      iSplitR;[|iSplitR;[|iSplitR;[iIntros "Hf";iApply check_stack_valid;eauto|]]].
+      - by iIntros "[% _]".
+      - instantiate (1:=(λ w1, ((⌜w1 = trapV⌝ ∨ (∃ ws : seq.seq (leibnizO value), ⌜w1 = immV ws⌝
+          ∗ ([∗ list] w2;τ ∈ ws;[], interp_value τ w2))) ∨ interp_call_host_cls [] [] w1) ∗ _)%I). iSimpl. iLeft;auto.
+      - iIntros (w) "([-> %Hdiv] & Hf) /=".
+        
+      
+    }
+    
+    iApply fupd_wp.
+    iMod (na_inv_acc with "Hstk Hown") as "(>Hstkres & Hown & Hcls)";[solve_ndisj..|].
+    iDestruct "Hstkres" as (len) "[% [Hlen Hstkres]]".
+    
+
+    
+  End valid.
 
 End stack.    
 
