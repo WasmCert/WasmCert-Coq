@@ -68,6 +68,7 @@ Lemma spec_is_empty_op f0 n v s E:
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & Hf & Hstack) HΦ" => /=.
 
+  iDestruct (stack_pure with "Hstack") as "(%Hdiv & %Hvb & %Hlens & Hstack)".
   
   rewrite separate1.
   iApply wp_seq.
@@ -93,41 +94,26 @@ Proof.
     rewrite - separate2.
     rewrite separate3.
     iApply wp_seq.
-    instantiate ( 1 := λ x, ((((⌜ x = immV [value_of_int v%Z ;
-                                            value_of_int (v + length s * 4)%Z] ⌝
-                                          ∗ [∗ list] i↦w ∈ s,
-                                N.of_nat n ↦[i32][ Z.to_N (v + length s * 4 -  4 * i)] w) ∗
-                                           (∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length s * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + length s * 4) + 4]bs))
-                                           ∗  N.of_nat n↦[wms][(Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m v) + N.zero)%N]bits (value_of_int (v + length s * 4)) )
-                                           ∗ ↪[frame] f0)%I).
-    iSplitR ; first by iIntros "[[[[%Habs _ ]_ ] _] _]".
-    iDestruct "Hstack" as "(%Hdiv & %Hvb & %Hlen & Hv & Hs & Hrest)". 
-    iSplitR "HΦ".
-  - rewrite separate1.
-    iApply wp_val_app => //.
-    iSplitR ; first by iIntros "!> [[[[%Habs _ ] _ ] _ ] _ ]".
-    unfold value_of_int.
-    iApply wp_load => //=.
-    iSplitL "Hs Hrest".
-    iFrame.
-    done.
-    iFrame.
-    rewrite N.add_0_r.
-    rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    rewrite Z.mod_small ; last by unfold ffff0000 in Hvb; rewrite u32_modulus ; lia.
-    iDestruct (i32_wms with "Hv") as "Hv" => //.
-  - iIntros (w) "[[[[->  Hs] Hrest] Hp] Hf]".
-    iAssert (isStack v s n)%I with "[Hrest Hp Hs]" as "Hstack".
-    unfold isStack.
-    iFrame.
-    rewrite N.add_0_r.
-    simpl.
-    rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    rewrite Z.mod_small ; last by unfold ffff0000 in Hvb; rewrite u32_modulus ; lia.
-    repeat iSplit => //=.
-    iApply i32_wms => //.
-  - unfold of_val, fmap, list_fmap.
-    rewrite - separate2.
+    iSplitR; last iSplitL "Hstack Hf".
+    2: {
+       rewrite separate1.
+       iApply wp_val_app => //.
+       iSplitR; last first.
+       { iApply wp_wand_r.
+         iSplitL.
+         iApply (stack_load_0 with "[] [$Hstack] [$Hf]") => //.
+         iIntros (w) "(-> & Hstack & Hf)".
+         simpl.
+         instantiate (1 := λ x, (⌜ x = immV _ ⌝ ∗ _)%I).
+         iSplit => //.
+         iCombine "Hstack Hf" as "H".
+         by iApply "H".
+       }
+       by iIntros "!> (%Habs & _)".
+    }
+    { by iIntros "(%Habs & _)". }
+
+  - iIntros (w) "(-> & Hstack & Hf)" => /=.
     iApply wp_wand_r.
     iSplitL "Hf".
     iApply (wp_relop with "Hf") => //=.
@@ -158,11 +144,10 @@ Proof.
     rewrite Wasm_int.Int32.eq_false => //=.
     intro.
     unfold ffff0000 in Hvb.
-    simpl in Hlen.
-    unfold two14 in Hlen.
+    simpl in Hlens.
+    unfold two14 in Hlens.
     apply Wasm_int.Int32.repr_inv in H ; try rewrite u32_modulus; by lias.
 Qed.
-
 
 
 Lemma spec_is_empty f0 n v s E: 

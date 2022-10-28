@@ -19,8 +19,6 @@ Section stack.
  Context `{!wasmG Σ}. 
 
 
-Print BI_relop.
- 
 Section code.
 
 (*
@@ -71,6 +69,8 @@ Lemma spec_is_full_op f0 n (v : Z) (s : seq.seq i32) E:
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hlocv & Hf & Hstack) HΦ" => /=.
   
+  iDestruct (stack_pure with "Hstack") as "(%Hdiv & %Hvb & %Hlens & Hstack)".
+  
   rewrite separate3.
   iApply wp_seq.
   instantiate (1 := λ x, (⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
@@ -86,41 +86,22 @@ Proof.
     iSimpl.
     rewrite separate4.
     iApply wp_seq.
-    instantiate ( 1 := λ x, ((((⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
+    instantiate ( 1 := λ x, ((⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
                                             value_of_int (v + length s * 4)%Z] ⌝
-                                          ∗ [∗ list] i↦w ∈ s,
-                                N.of_nat n ↦[i32][ Z.to_N (v + length s * 4 - 4 * i)] w) ∗ (∃ bs, ⌜ (Z.of_nat (length bs) = two16 - 4 - length s * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + length s * 4) + 4] bs)
-                              )
-                                           ∗  N.of_nat n↦[wms][(Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m v) + N.zero)]bits (value_of_int (v + length s * 4)) )
-                               ∗ ↪[frame] f0)%I).
-    iSplitR ; first by iIntros "[[[[%Habs _] _] _] _]".
-    iDestruct "Hstack" as "(%Hdiv & %Hvb & %Hlen & Hv & Hs & Hrest)".
+                                          ∗ isStack v s n ∗ ↪[frame] f0)%I)).
+    iSplitR ; first by iIntros "(%Habs & _)".
     iSplitR "HΦ".
   - rewrite separate2.
     iApply wp_val_app => //.
-    iSplitR ; first by iIntros "!> [[[[%Habs _] _] _] _]".
-    unfold value_of_int.
-    iApply wp_load => //.
-    iSplitL "Hs Hrest".
-    iFrame.
-    done.
-    iFrame.
-    rewrite N.add_0_r.
-    iSimpl.
-    rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    rewrite Z.mod_small ; last by unfold ffff0000 in Hvb; rewrite u32_modulus; lia.
-    iDestruct (i32_wms with "Hv") as "Hv" => //.
-  - iIntros (w) "[[[[->  Hs] Hrest] Hp] Hf]".
-    iAssert (isStack v s n)%I with "[Hrest Hp Hs]" as "Hstack".
-    unfold isStack.
-    iFrame.
-    rewrite N.add_0_r.
-    simpl.
-    rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    rewrite Z.mod_small ; last by unfold ffff0000 in Hvb; rewrite u32_modulus; lia.
-    repeat iSplit => //.
-    iApply i32_wms => //.
-  - iSimpl.
+    iSplitR ; first by iIntros "!> (%Habs & _)".
+    iApply wp_wand_r.
+    iSplitL.
+    iApply (stack_load_0 with "[] [$] [$]") => //.
+    
+  - iIntros (w) "(-> & Hstack & Hf)" => /=.
+    by iFrame => //.
+      
+  - iIntros (w) "(-> & Hstack & Hf)" => /=.
     rewrite separate5.
     iApply wp_seq.
     instantiate (1 := λ x, (⌜ x = immV [value_of_int 1 ; value_of_int 0 ;
@@ -137,8 +118,8 @@ Proof.
     repeat f_equal.
     unfold Wasm_int.Int32.modu.
     rewrite wasm_int_unsigned => //.
-    unfold ffff0000 in Hvb; unfold two14 in Hlen.
-    clear - Hvb Hlen.
+    unfold ffff0000 in Hvb; unfold two14 in Hlens.
+    clear - Hvb Hlens.
     remember (length s) as x.
     rewrite - Heqx.
     by lias.
@@ -182,8 +163,8 @@ Proof.
     { rewrite Wasm_int.Int32.eq_false => //=; last first.
       { move => H.
         apply Wasm_int.Int32.repr_inv in H; try by lias.
-        unfold ffff0000 in Hvb; unfold two14 in Hlen.
-        clear - Hvb Hlen Heqmodres.
+        unfold ffff0000 in Hvb; unfold two14 in Hlens.
+        clear - Hvb Hlens Heqmodres.
         remember (length s) as x.
         rewrite u32_modulus.
         split.
@@ -210,7 +191,7 @@ Proof.
       right; split => //.
       remember (length s) as x.
       rewrite - Heqx.
-      clear - Hlen Heqmodres n0 Hdiv.
+      clear - Hlens Heqmodres n0 Hdiv.
       unfold two14, two16 in *.
       destruct Hdiv as [e Hdiv].
       subst v.

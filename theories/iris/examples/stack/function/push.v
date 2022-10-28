@@ -75,6 +75,8 @@ Section stack.
     Proof.
       iIntros "!>" (Φ) "(%Hinst & %Hlocv & %Hloca & %Hlocs & %Hlens & Hstack & Hf) HΦ" => /=.
       
+      iDestruct (stack_pure with "Hstack") as "(%Hdiv & %Hvb & _ & Hstack)".
+      
       rewrite (separate9 (AI_basic _)).
       iApply wp_seq.
       iSplitR; last iSplitL "Hf Hstack".
@@ -123,40 +125,13 @@ Section stack.
         simpl.
         rewrite separate2.
         iApply wp_seq.
-        instantiate ( 1 := λ x, ((((⌜ x = immV [ value_of_int (v + (length s) * 4)%Z] ⌝
-                                            ∗ [∗ list] i↦w ∈  s,
-                                     N.of_nat n ↦[i32][ Z.to_N (v + (length s) * 4 - 4 * i)] w) ∗
-
-                                     (∃ bs, ⌜ Z.of_nat (length bs) = (two16 - 4 - length s * 4)%Z ⌝ ∗ N.of_nat n↦[wms][Z.to_N (v + length s * 4) + 4]bs)
-                                  )
-                                    ∗  N.of_nat n↦[wms][(Wasm_int.N_of_uint i32m (Wasm_int.int_of_Z i32m v) + N.zero)%N]bits (value_of_int (v + length s * 4)) )
-                                   ∗ ↪[frame] f0)%I).
-        iSplitR ; first by iIntros "[[[[%Habs _] _] _] _]".
-        iDestruct "Hstack" as "(%Hdiv & %Hvb & %Hlen & Hv & Hs & Hrest)".
+        instantiate ( 1 := λ x, ((⌜ x = immV [ value_of_int (v + (length s) * 4)%Z] ⌝ ∗ isStack v s n ∗ ↪[frame] f0)%I)).
+        iSplitR ; first by iIntros "(%Habs & _)".
         iSplitR "HΦ".
-      - iApply wp_load => //.
-        iSplitL "Hs Hrest".
-        iFrame.
-        done.
-        iFrame.
-        rewrite N.add_0_r.
-        iSimpl.
-        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-        rewrite Z.mod_small ; last by unfold ffff0000 in Hvb ; rewrite u32_modulus; lia.
-        by iDestruct (i32_wms with "Hv") as "Hv" => //.
+        { by iApply (stack_load_0 with "[] [$] [$]") => //. }
 
-      - iIntros (w) "[[[[->  Hs] Hrest] Hp] Hf]".
-        iSimpl.
-        iAssert (isStack v (s) n)%I with "[Hrest Hp Hs]" as "Hstack".
-        unfold isStack.
-        iFrame.
-        rewrite N.add_0_r.
-        simpl.
-        rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-        rewrite Z.mod_small ; last by unfold ffff0000 in Hvb ; rewrite u32_modulus; lia.
-        repeat iSplit => //=.
-        by iApply i32_wms => //.
-      - rewrite separate3.
+      - iIntros (w) "(-> & Hstack & Hf)" => /=.
+        rewrite separate3.
         iApply (wp_seq _ _ _ (λ x, (⌜ x = immV [value_of_int (v + 4 + length s * 4)] ⌝
                                             ∗ ↪[frame] _)%I)).
         iSplitR ; first by iIntros "[%Habs _]".
@@ -172,7 +147,7 @@ Section stack.
         rewrite Z.mod_small ; first by lias.
         rewrite u32_modulus.
         unfold ffff0000 in Hvb.
-        unfold two14 in Hlen.
+        unfold two14 in Hlens.
         remember (length s) as x.
         rewrite -Heqx.
         by lias.
