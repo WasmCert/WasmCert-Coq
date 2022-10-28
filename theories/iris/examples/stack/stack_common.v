@@ -241,10 +241,10 @@ Proof.
       lia.
 Qed.
 
-Definition stackModuleInv (isStack : Z -> seq.seq i32 -> iPropI Σ) (nextStackAddrIs : nat -> iPropI Σ) : iProp Σ :=
+Definition stackModuleInv (isStack : N -> seq.seq i32 -> iPropI Σ) (nextStackAddrIs : nat -> iPropI Σ) : iProp Σ :=
   ∃ (nextStack : nat), ⌜(page_size | N.of_nat nextStack)%N⌝ ∗ nextStackAddrIs nextStack ∗
                      ∃ l, ⌜multiples_upto page_size (N.of_nat nextStack) l⌝ ∗
-                          [∗ list] s ∈ l, ∃ stk, isStack (Z.of_N s) stk.
+                          [∗ list] s ∈ l, ∃ stk, isStack s stk.
 
 
 Lemma separate1 {A} (a : A) l :

@@ -69,8 +69,8 @@ Lemma spec_new_stack f0 n len E:
               N.of_nat n↦[wmlength] len) ∨
              (⌜ v = immV [value_of_uint len]⌝ ∗
                    isStack len [] n ∗
-                   N.of_nat n ↦[wmlength] (len + page_size)%N) ∗
-            ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f0 ⌝)%I }}}.
+                   N.of_nat n ↦[wmlength] (len + page_size)%N)) ∗
+            ∃ f1, ↪[frame] f1 ∗ ⌜ f_inst f1 = f_inst f0 ⌝ }}}.
 Proof.
   iIntros "!>" (Φ) "(%Hinst & %Hflocs & %Hlendiv & Hframe & Hlen) HΦ".
   assert (page_size | len)%N as Hlenmod => //=.
@@ -172,8 +172,7 @@ Proof.
       rewrite Zmod_small in H0; last first.
       split; try by lias.
       replace (two_power_nat 32) with (4294967296)%Z; by lias.
-      iLeft.
-      by iSplit.
+      iSplitR "Hf";eauto.
     + (* grow_memory succeeded *)
       inversion Hw ; subst v0.
       iApply (wp_if_false with "Hf"). done.
@@ -376,11 +375,12 @@ Proof.
       }
       * iIntros (w) "[[-> Hn] Hf]".
         iApply "HΦ".
-        iRight.
         iSplitR "Hf"; last first.
         { iExists _.
           by iSplitL "Hf" => //.
         }
+        iRight.
+        
         iSplit => //.
         iSplitR "Hlen". 
         unfold isStack.
@@ -411,7 +411,19 @@ End specs.
 Section valid.
   Context `{!logrel_na_invs Σ}.
   Set Bullet Behavior "Strict Subproofs".
-(*
+
+  Lemma interp_value_of_int i :
+    ⊢ @interp_value Σ T_i32 (value_of_int i).
+  Proof.
+    iIntros "". unfold interp_value. simpl.
+    iExists _. eauto. Qed.
+
+  Lemma interp_value_of_uint i :
+    ⊢ @interp_value Σ T_i32 (value_of_uint i).
+  Proof.
+    iIntros "". unfold interp_value. simpl.
+    iExists _. eauto. Qed.
+
   Lemma valid_new_stack m t funcs :
     let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
                      inst_funcs := funcs;
@@ -419,7 +431,7 @@ Section valid.
                      inst_memory := [m];
                      inst_globs := []
               |} in
-    na_inv logrel_nais stkN (stackModuleInv (λ (a : Z) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
+    na_inv logrel_nais stkN (stackModuleInv (λ (a : N) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
     interp_closure_native i0 [] [T_i32] [T_i32] (to_e_list new_stack) [].
   Proof.
     iIntros "#Hstk".
@@ -439,12 +451,25 @@ Section valid.
     iApply (spec_new_stack with "[$Hf $Hlen]") ;[auto|].
     iModIntro.
     iIntros (v) "HH".
-    iDestruct "HH" as (k) "[-> [Hcases Hf]]".
+    iDestruct "HH" as "[Hcases Hf]".
     iDestruct "Hf" as (f') "[Hf %Hfinst]". simpl in Hfinst.
+    iAssert (⌜const_list (iris.of_val v)⌝)%I as %Hval.
+    { iDestruct "Hcases" as "[[-> Hm] | [-> [Hs Hm]]]";auto. }
+    apply const_list_to_val in Hval as Hvs. destruct Hvs as [vs Hvs].
+    rewrite to_of_val in Hvs.
+    iAssert (⌜length vs = 1⌝)%I as %Hlenvs.
+    { inversion Hvs;subst v.
+      iDestruct "Hcases" as "[[%eq1 Hm] | [%eq1 [Hs Hm]]]";inversion eq1;auto. }
+    iAssert (interp_values [T_i32] v) as "#Hv".
+    { iDestruct "Hcases" as "[[-> Hm] | [-> [Hs Hm]]]"; iSimpl.
+      iExists _. iSplit;eauto. iSplit =>//. iApply interp_value_of_int.
+      iExists _. iSplit;eauto. iSplit =>//. iApply interp_value_of_uint.
+    }
     iApply (wp_val_return with "[$]");auto.
     iIntros "Hf /=".
-    iApply wp_value;[eapply of_to_val;eauto|].
+    iApply wp_value;[rewrite app_nil_r;eapply of_to_val;eauto;eapply to_of_val|].
     iExists _. iFrame. iIntros "Hf".
+    
     iApply fupd_wp.
     iMod ("Hcls" with "[$Hown Hcases Hstkres]") as "Hown".
     { iNext.
@@ -456,19 +481,18 @@ Section valid.
         + iPureIntro. rewrite N2Nat.id Nat2N.inj_add N2Nat.id.
           apply N.divide_add_r;auto. apply N.divide_refl.
         + iDestruct "Hstkres" as (l Hmul) "Hstkres".
-          rewrite N2Nat.id in Hmul. rewrite Nat2N.id in H1. subst k.
-          rewrite N2Nat.id. iExists (N.of_nat len :: l).
+          rewrite N2Nat.id in Hmul. iExists (N.of_nat len :: l).
           iSplit.
           { iPureIntro. rewrite Nat2N.inj_add N2Nat.id. constructor. auto. }
-          iSimpl. iFrame. iExists _. rewrite nat_N_Z. iFrame. }
+          iSimpl. iFrame. iExists _. iFrame. }
     iModIntro.
-    iApply (wp_wand _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I with "[Hf]").
-    { iApply (wp_frame_value with "[$]"). eauto. auto. eauto. }
+    inversion Hvs;subst v.
+    iApply (wp_wand _ _ _ (λ v, ⌜v = immV vs⌝ ∗ _)%I with "[Hf]").
+    { iApply (wp_frame_value with "[$]");eauto. apply to_of_val. simpl.
+      rewrite v_to_e_length. auto. }
     iIntros (v) "[-> Hf]". iFrame.
-    iLeft. iRight. iExists _. iSplit;[eauto|]. iSplit;[|done].
-    iExists _. eauto.
+    iLeft. iRight. iFrame "#". 
   Qed.
-*)    
 
 End valid.
 
