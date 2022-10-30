@@ -15,8 +15,6 @@ Unset Printing Implicit Defensive.
 Close Scope byte_scope.
 
 
-Locate wp_value.
-
 Notation "{{{ P }}} es {{{ v , Q }}}" :=
   (□ ∀ Φ, P -∗ (∀ v : iris.val, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50). 
    

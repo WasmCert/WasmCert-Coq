@@ -838,13 +838,13 @@ Proof.
   done.
 Qed.
 
-(*
-Lemma spec_stack_map_trap `{!logrel_na_invs Σ} (f0 : frame) (n : immediate) (f : i32) (v : Z) (s : seq.seq i32) E
+
+Lemma spec_stack_map_trap `{!logrel_na_invs Σ} (f0 : frame) (n : immediate) (f : i32) (v : N) (s : seq.seq i32) E
       j0 a cl γ 
       (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) :
   ↑γ ⊆ E ->
   ⊢ {{{  ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝  ∗
-            ⌜ f0.(f_locs) !! 0 = Some (value_of_int v) ⌝ ∗
+            ⌜ f0.(f_locs) !! 0 = Some (value_of_uint v) ⌝ ∗
             ⌜ f0.(f_locs) !! 1 = Some (VAL_int32 f) ⌝  ∗
             ⌜ length f0.(f_locs) >= 4 ⌝ ∗
             isStack v s n ∗
@@ -932,12 +932,13 @@ Proof.
       by rewrite Hlocs1.
     }
     { rewrite list_lookup_insert; last by rewrite insert_length; lia.
-      instantiate (1 := (length s)).
+      instantiate (1 := N.of_nat (length s)).
       instantiate (1 := s).
       simpl.
       iPureIntro.
       do 2 f_equal.
-      lia.
+      remember (N.of_nat (length s)) as x; rewrite - Heqx.
+      by destruct x => //; lia.
     }
     { rewrite list_lookup_insert_ne; last lia.
       rewrite list_lookup_insert; last lia.
@@ -948,17 +949,18 @@ Proof.
     { done. }
     { instantiate (1 := []) => /=.
       iPureIntro. lia. }
-    { rewrite Nat2Z.id.
+    { rewrite Nat2N.id.
       rewrite firstn_all cats0.
       iFrame.
       rewrite drop_all.
       instantiate (2 := Ψ).
       repeat iSplit => //.
+      { admit. }
+      { admit. }
     }
   }
-  done.
+  admit.
 Admitted.
-*)
 
 
 
