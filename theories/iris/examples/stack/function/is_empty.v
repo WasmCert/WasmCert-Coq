@@ -55,9 +55,9 @@ End code.
 
 Section specs.
   
-Lemma spec_is_empty_op f0 n v s E: 
+Lemma spec_is_empty_op f0 n (v: N) s E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
-        ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
+        ⌜ (f_locs f0) !! 0 = Some (value_of_uint v) ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
     to_e_list is_empty_op @  E
@@ -72,7 +72,7 @@ Proof.
   
   rewrite separate1.
   iApply wp_seq.
-  instantiate (1 := λ x, (⌜ x = immV [value_of_int v] ⌝ ∗ ↪[frame] f0)%I).
+  instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f0)%I).
   iSplitR.
   by iIntros "[%Habs _]".
   iSplitL "Hf".
@@ -81,7 +81,7 @@ Proof.
     rewrite - separate1.
     rewrite separate2.
     iApply wp_seq.
-    instantiate (1 := λ x, (⌜ x = immV [value_of_int v%Z; value_of_int v%Z] ⌝ ∗ ↪[frame] f0)%I).
+    instantiate (1 := λ x, (⌜ x = immV [value_of_uint v; value_of_uint v] ⌝ ∗ ↪[frame] f0)%I).
     iSplitR.
     by iIntros "[%Habs _]".
     iSplitL "Hf".
@@ -125,19 +125,19 @@ Proof.
     iPureIntro.
     unfold value_of_int.
     unfold wasm_bool.
-    instantiate (1 := if Wasm_int.Int32.eq (Wasm_int.Int32.repr v)
-                                           (Wasm_int.Int32.repr (v + length s * 4))
-                      then 1%Z else 0%Z).
-    remember (Wasm_int.Int32.eq (Wasm_int.Int32.repr v)
-                                (Wasm_int.Int32.repr (v + length s * 4))) as eqv.
-    rewrite - Heqeqv.
-    by destruct eqv => //=.
+    repeat f_equal.
+    instantiate (1 := if (Wasm_int.Int32.eq (Wasm_int.Int32.repr (Z.of_N v))
+                                           (Wasm_int.Int32.repr (Z.of_N (v + N.of_nat (length s) * 4)))) then 1%Z else 0%Z).
+    remember (Wasm_int.Int32.eq (Wasm_int.Int32.repr (Z.of_N v))
+                                           (Wasm_int.Int32.repr (Z.of_N (v + N.of_nat (length s) * 4)))) as cmpres.
+    rewrite - Heqcmpres.
+    by destruct cmpres => //=.
   - iFrame "Hstack Hf".
     iPureIntro.
     destruct s.
     left.
     split => //=.
-    replace (v + 0%nat * 4)%Z with v%Z ; last lia.
+    rewrite N.add_0_r.
     by rewrite Wasm_int.Int32.eq_true.
     right.
     split => //=.
@@ -152,7 +152,7 @@ Qed.
 
 Lemma spec_is_empty f0 n v s E: 
   ⊢ {{{ ⌜ f0.(f_inst).(inst_memory) !! 0 = Some n ⌝ ∗
-        ⌜ (f_locs f0) !! 0 = Some (value_of_int v) ⌝ ∗ 
+        ⌜ (f_locs f0) !! 0 = Some (value_of_uint v) ⌝ ∗ 
         ↪[frame] f0 ∗
         isStack v s n }}}
     to_e_list is_empty @  E
