@@ -5,7 +5,7 @@ From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_host iris_rules proofmode.
+Require Export iris_rules proofmode.
 Require Export datatypes operations properties opsem iris_example_helper.
 
 Set Implicit Arguments.
@@ -14,6 +14,8 @@ Unset Printing Implicit Defensive.
 
 Close Scope byte_scope.
 
+
+Locate wp_value.
 
 Notation "{{{ P }}} es {{{ v , Q }}}" :=
   (□ ∀ Φ, P -∗ (∀ v : iris.val, Q -∗ Φ v) -∗ WP (es : iris.expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50). 
