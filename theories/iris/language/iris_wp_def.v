@@ -51,11 +51,12 @@ Class wasmG Σ :=
       frameGName : gname
     }.
 
-(* functor needed for NA invariants *)
+(* functor needed for NA invariants -- those used by the logical
+relation have a separate name from general ones *)
 Class logrel_na_invs Σ :=
   {
     logrel_na_invG :> na_invG Σ;
-    logrel_nais : na_inv_pool_name;
+    logrel_nais : na_inv_pool_name
   }.
 
 Definition proph_id := positive. (* ??? *)

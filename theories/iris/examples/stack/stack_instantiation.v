@@ -117,7 +117,25 @@ Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
 
 Ltac bet_first f :=
   eapply bet_composition_front ; first eapply f => //=.
-
+Ltac type_next_rewrite :=
+  match goal with
+  | |- context [ be_typing _ ?e _  ] =>
+      rewrite -(list.take_drop (length e - 1) e);simpl take; simpl drop
+  end.
+Ltac type_next :=
+  match goal with
+  | |- context [ be_typing _ ?e _  ] =>
+      rewrite -(list.take_drop (length e - 1) e);simpl take; simpl drop;
+      eapply bet_composition;[|econstructor;eauto];simpl
+  end.
+Ltac weaken :=
+  match goal with
+  | |- context [ be_typing _ ?e (Tf ?t1 ?t)  ] =>
+      try rewrite <- (app_nil_r t1);
+      rewrite -(list.take_drop (length t - 1) t);simpl take; simpl drop;
+      eapply bet_weakening;constructor;auto
+  end.
+Ltac type_go := repeat (constructor || type_next || weaken || (type_next_rewrite; eapply bet_composition; [constructor|])).
 
 
 Lemma validate_stack_typing x tloc tlab tret:
@@ -187,19 +205,7 @@ Proof.
       rewrite - (app_nil_r [T_i32]).
       apply bet_weakening.
       apply bet_get_local => //.
-      simpl.
-      eapply bet_composition_front.
-      rewrite - (app_nil_r [T_i32 ; _]).
-      apply bet_weakening.
-      apply bet_const.
-      simpl.
-      eapply bet_composition_front.
-      rewrite (separate1 T_i32 [_ ; _]). 
-      apply bet_weakening.
-      apply bet_binop.
-      apply Binop_i32_agree.
-      bet_first bet_store. 
-      apply bet_get_local => //.
+      type_go. simpl. auto.
 Qed.
 
 Lemma is_empty_typing:
@@ -217,22 +223,20 @@ Lemma is_empty_typing:
 Proof.
   unfold is_empty.
   eapply bet_composition'; first by apply validate_stack_typing.
-  bet_first bet_get_local.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_const.
-    bet_first bet_binop.
-    apply Binop_i32_agree.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    eapply bet_composition_front.
-    apply bet_weakening.
-    apply bet_load => //.
-    apply bet_relop.
-    apply Relop_i32_agree.
+  bet_first bet_get_local. type_go.
+  eapply bet_composition_front.
+  rewrite - (app_nil_r [T_i32]).
+  apply bet_load;simpl;auto.
+  eapply bet_composition_front.
+  rewrite - (app_nil_r [T_i32]).
+  apply bet_drop.
+  eapply bet_composition_front.
+  rewrite - (app_nil_r [T_i32]).
+  apply bet_get_local;auto.
+  apply bet_composition_front with [T_i32;T_i32].
+  weaken.
+  assert ([T_i32; T_i32] = [T_i32] ++ [T_i32]) as ->;auto.
+  apply bet_weakening. type_next. weaken.
 Qed.
     
 Lemma is_full_typing :
