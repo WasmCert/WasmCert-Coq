@@ -7,6 +7,7 @@ From iris.bi Require Export weakestpre.
 Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_fundamental_helpers stack_specs.
 Require Export datatypes operations properties opsem.
+Require Export type_checker_reflects_typing.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -153,21 +154,38 @@ Lemma validate_stack_typing x tloc tlab tret:
     |} (validate_stack x) (Tf [] []).
 Proof.
   move => Htloc.
+  apply/b_e_type_checker_reflects_typing => /=.
+  rewrite Htloc.
+  replace (ssrnat.leq (S x) (length tloc)) with (true); first by apply/eqP.
+  assert (x<length tloc); first by eapply nth_error_Some; rewrite Htloc.
+  symmetry.
+  apply/ssrnat.leP.
+  lia.
+Qed.
+
+Lemma validate_stack_bound_typing x tloc tlab tret:
+    nth_error tloc x = Some T_i32 ->
+    be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := tloc;
+      tc_label := tlab;
+      tc_return := tret
+    |} (validate_stack_bound x) (Tf [] []).
+Proof.
+  move => Htloc.
   bet_first bet_get_local => //.
   { rewrite nth_error_lookup in Htloc.
     apply lookup_lt_Some in Htloc.
       by lias. }
-  eapply bet_composition_front.
-  rewrite (separate1 T_i32 []).
-  apply bet_weakening.
-  apply bet_const => //.
-  simpl.
-  bet_first bet_binop; first by apply Binop_i32_agree.
-  apply bet_if_wasm => //.
-  { by apply bet_unreachable. }
-  { by apply bet_empty. }
+  bet_first bet_load => //.
+  bet_first bet_drop => //.
+  by apply bet_empty.
 Qed.
-
   
 Lemma new_stack_typing :
     be_typing
@@ -182,33 +200,11 @@ Lemma new_stack_typing :
       tc_return := Some [T_i32]
     |} new_stack (Tf [] [T_i32]).
 Proof.
-  bet_first bet_const.
-  bet_first bet_grow_memory.
-  bet_first bet_tee_local.
-  eapply bet_composition_front.
-  rewrite (separate1 T_i32 []).
-  apply bet_weakening.
-    by apply bet_const.
-    bet_first bet_relop.
-      by apply Relop_i32_agree.
-      apply bet_if_wasm => /=.
-      apply bet_const.
-      bet_first bet_get_local.
-      eapply bet_composition_front.
-      rewrite (separate1 T_i32 []).
-      apply bet_weakening.
-      apply bet_const.
-      bet_first bet_binop.
-      apply Binop_i32_agree.
-      bet_first bet_tee_local.
-      eapply bet_composition_front.
-      rewrite - (app_nil_r [T_i32]).
-      apply bet_weakening.
-      apply bet_get_local => //.
-      type_go. simpl. auto.
+  apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
 Qed.
 
-Lemma is_empty_typing:
+Lemma is_empty_typing tloc tlab tret:
+  nth_error tloc 0 = Some T_i32 ->
   be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
@@ -216,30 +212,19 @@ Lemma is_empty_typing:
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
-      tc_local := [T_i32];
-      tc_label := [[T_i32]];
-      tc_return := Some [T_i32]
+      tc_local := tloc;
+      tc_label := tlab;
+      tc_return := tret
     |} is_empty (Tf [] [T_i32]).
 Proof.
-  unfold is_empty.
+  move => Htloc.
   eapply bet_composition'; first by apply validate_stack_typing.
-  bet_first bet_get_local. type_go.
-  eapply bet_composition_front.
-  rewrite - (app_nil_r [T_i32]).
-  apply bet_load;simpl;auto.
-  eapply bet_composition_front.
-  rewrite - (app_nil_r [T_i32]).
-  apply bet_drop.
-  eapply bet_composition_front.
-  rewrite - (app_nil_r [T_i32]).
-  apply bet_get_local;auto.
-  apply bet_composition_front with [T_i32;T_i32].
-  weaken.
-  assert ([T_i32; T_i32] = [T_i32] ++ [T_i32]) as ->;auto.
-  apply bet_weakening. type_next. weaken.
+  eapply bet_composition'; first by apply validate_stack_bound_typing.
+  apply/b_e_type_checker_reflects_typing => /=; destruct tloc => //=.
+  simpl in Htloc. inversion Htloc; subst. by apply/eqP.
 Qed.
     
-Lemma is_full_typing :
+Lemma is_full_typing tlab tret:
   be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
@@ -248,41 +233,16 @@ Lemma is_full_typing :
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
       tc_local := [T_i32];
-      tc_label := [[T_i32]];
-      tc_return := Some [T_i32]
+      tc_label := tlab;
+      tc_return := tret
     |} is_full (Tf [] [T_i32]).
 Proof.
-  unfold is_empty.
   eapply bet_composition'; first by apply validate_stack_typing.
-  bet_first bet_const.
-    unfold typeof.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_const.
-    unfold typeof => /=.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32 ; T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    eapply bet_composition_front.
-    apply bet_weakening.
-    apply bet_load => //.
-    simpl.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32;_;_]).
-    apply bet_weakening.
-    apply bet_const.
-    simpl.
-    eapply bet_composition_front.
-    rewrite (separate2 T_i32 T_i32 [_;_]).
-    apply bet_weakening.
-    apply bet_binop.
-    apply Binop_i32_agree.
-    apply bet_select.
+  eapply bet_composition'; first by apply validate_stack_bound_typing.
+  apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
 Qed.
     
-Lemma pop_typing :
+Lemma pop_typing tlab tret:
    be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
@@ -291,48 +251,17 @@ Lemma pop_typing :
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
       tc_local := [T_i32; T_i32];
-      tc_label := [[T_i32]];
-      tc_return := Some [T_i32]
+      tc_label := tlab;
+      tc_return := tret;
     |} pop (Tf [] [T_i32]).
 Proof.
-  unfold is_empty.
-  eapply bet_composition'; first by apply validate_stack_typing.
-  bet_first bet_get_local. 
-    bet_first bet_load.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_const.
-    bet_first bet_binop.
-    apply Binop_i32_agree.
-    bet_first bet_tee_local.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    bet_first bet_relop; first by apply Relop_i32_agree.
-    bet_first bet_if_wasm.
-    { by apply bet_unreachable. }
-    { by apply bet_empty. }
-    bet_first bet_get_local.
-    bet_first bet_load.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    simpl.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32 ; _]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    simpl.
-    rewrite (separate1 T_i32 [_;_]).
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_store => //.
+  unfold pop, pop_op.
+  repeat rewrite app_assoc.
+  eapply bet_composition'; first by apply is_empty_typing.
+  apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
 Qed.
     
-Lemma push_typing:
+Lemma push_typing tlab tret:
   be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
@@ -341,47 +270,18 @@ Lemma push_typing:
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
       tc_local := [T_i32; T_i32; T_i32];
-      tc_label := [[]];
-      tc_return := Some []
+      tc_label := tlab;
+      tc_return := tret
     |} push (Tf [] []).
 Proof.
-  unfold is_empty.
   eapply bet_composition'; first by apply validate_stack_typing.
-  bet_first bet_get_local. 
-    bet_first bet_load.
-    bet_first bet_tee_local.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_const.
-    simpl.
-    bet_first bet_binop; first by apply Binop_i32_agree.
-    bet_first bet_if_wasm.
-    { by apply bet_empty. }
-    { by apply bet_unreachable. }
-    bet_first bet_get_local => //.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    bet_first bet_store.
-    bet_first bet_get_local.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32]).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    simpl.
-    eapply bet_composition_front.
-    rewrite - (app_nil_r [T_i32 ; _]).
-    apply bet_weakening.
-    apply bet_const.
-    unfold typeof => /=.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32 [_;_]).
-    apply bet_weakening.
-    apply bet_binop.
-    apply Binop_i32_agree.
-    apply bet_store => //.
+  eapply bet_composition'; first by apply validate_stack_bound_typing.
+  unfold push_op.
+  (* Type checker is O(n^2), so it's much faster if we split the expression
+     up earlier. *)
+  eapply bet_composition'.
+  { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
+  { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
 Qed.
     
 Lemma stack_map_typing:
@@ -397,66 +297,21 @@ Lemma stack_map_typing:
       tc_return := Some []
     |} stack_map (Tf [] []).
 Proof.
-  unfold is_empty.
   eapply bet_composition'; first by apply validate_stack_typing.
-  bet_first bet_get_local.
-    bet_first bet_load.
-    bet_first bet_set_local.
-    bet_first bet_get_local.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32).
-    apply bet_weakening.
-    apply bet_const.
-    bet_first bet_binop.
-    apply Binop_i32_agree.
-    bet_first bet_set_local.
-    apply bet_block.
+  eapply bet_composition'; first by apply validate_stack_bound_typing.
+  unfold map_op.
+  eapply bet_composition'.
+  { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
+  { apply bet_block => /=.
     apply bet_loop => /=.
-    bet_first bet_get_local.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    bet_first bet_relop.
-    apply Relop_i32_agree.
-    rewrite - (app_nil_l [T_i32]).
-    bet_first bet_br_if.
-    bet_first bet_get_local.
-    eapply bet_composition_front.
-    rewrite (separate1 T_i32).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    eapply bet_composition_front.
-    simpl ; rewrite (separate2 T_i32).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    eapply bet_composition_front.
-    simpl ; rewrite (separate2 T_i32 _ [_]).
-    apply bet_weakening.
-    apply bet_load => //.
-    eapply bet_composition_front.
-    simpl ; rewrite (separate3 T_i32 T_i32 T_i32 []).
-    apply bet_weakening.
-    apply bet_get_local => //.
-    eapply bet_composition_front.
-    simpl ; rewrite (separate2 T_i32 T_i32 [_;_]).
-    apply bet_weakening.
-    rewrite (separate1 T_i32 [_]).
-    apply bet_call_indirect => //=.
-    eapply bet_composition_front.
-    simpl ; rewrite (separate1 T_i32 [_;_]).
-    apply bet_weakening.
-    apply bet_store => //.
-    eapply bet_composition_front.
-    apply bet_weakening.
-    apply bet_const.
-    bet_first bet_binop.
-    apply Binop_i32_agree.
-    bet_first bet_set_local.
-    rewrite - (app_nil_l []).
-    apply bet_br => //. 
+    unfold upd_label => /=.
+    unfold map_loop_body.
+    rewrite separate9.
+    eapply bet_composition'.
+    { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
+    { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
+  }
 Qed.
-    
 
 Lemma module_typing_stack :
   module_typing stack_module [] expts.
