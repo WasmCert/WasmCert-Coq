@@ -390,7 +390,7 @@ Section stack.
     Context `{!logrel_na_invs Σ}.
     Set Bullet Behavior "Strict Subproofs".
 
-    Lemma valid_new_stack m t funcs :
+    Lemma valid_push m t funcs :
     let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
                      inst_funcs := funcs;
                      inst_tab := [t];
