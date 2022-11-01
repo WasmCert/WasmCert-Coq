@@ -375,7 +375,8 @@ Definition spec0_new_stack (idf0 : nat) (i0 : instance) (l0 : seq.seq value_type
         [AI_invoke idf0] @ E
         {{{  v, (( ⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗
                               nextStackAddrIs addr ) ∨
-                   (∃ k, (⌜ v = immV [value_of_uint k]⌝ ∗
+                 (∃ k, (⌜ v = immV [value_of_uint k]⌝ ∗
+                     ⌜ (0 <= k <= ffff0000)%N ⌝ ∗
                      isStack k []  ∗
                      nextStackAddrIs (addr + N.to_nat page_size)) ))   ∗
                      N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗
@@ -782,7 +783,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         iApply (wp_val_return with "Hf") => //.
         iIntros "Hf".
         rewrite app_nil_r app_nil_l.
-        instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ isStack k [] m ∗
+        instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ ⌜ (0 <= k <= ffff0000)%N⌝ ∗ isStack k [] m ∗
                                                                                              N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N))) ∗
                                                                                              N.of_nat f↦[wf]FC_func_native
                            {|
@@ -801,7 +802,9 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
           iFrame.
           done.
         }
-        { iFrame.
+        { iDestruct (stack_pure with "Hstack") as "H".
+          iDestruct "H" as "(%Hdiv & %Hvb & %Hlen & Hstack)".
+          iFrame.
           iRight.
           iExists _.
           iFrame.
@@ -820,7 +823,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         destruct Hv as [kv ->].
         iApply (wp_frame_value with "Hf") => //.
         iNext.
-        instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ isStack k [] m ∗
+        instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ ⌜ (0 <= k <= ffff0000)%N⌝ ∗ isStack k [] m ∗
                                                                                              N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N))) ∗
                                                                                              N.of_nat f↦[wf]FC_func_native
                            {|
