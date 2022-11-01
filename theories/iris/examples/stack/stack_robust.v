@@ -26,14 +26,14 @@ Section Client.
       BI_relop T_i32 (Relop_i ROI_eq) ;
       (* If new_stack failed, set global v0 to -1 and return *)
       BI_if (Tf [] []) [i32const (-1) ; BI_set_global 0 ; BI_return] [] ;
+      BI_get_local 0 ;
       i32const 4 ;
-      BI_get_local 0 ;
       BI_call 4 ;
+      BI_get_local 0 ;
       i32const 2 ;
-      BI_get_local 0 ;
       BI_call 4 ;
-      i32const 0 ;
       BI_get_local 0 ;
+      i32const 0 ;
       BI_call 5 ;
       BI_get_local 0 ;
       BI_call 3 ;
@@ -246,9 +246,12 @@ Section Client_main.
       iIntros (v) "[Hres [Hidf Hf]]".
       instantiate (1:= (λ vs, _ ∗ ↪[frame] _)%I). iFrame "Hf".
       iCombine "Hres" "Hidf" as "Hres". iExact "Hres". }
-    2: iIntros "[[Hcontr _] _]";iDestruct "Hcontr" as (? Hcontr) "_";done.
+    2: { iIntros "[[[[% _]|Hcontr] _] _]". done. iDestruct "Hcontr" as (? Hcontr) "_";done. }
     iIntros (w) "[[Hres Hidf] Hf]".
-    iDestruct "Hres" as (r Hweq) "Hres". subst w. iSimpl.
+    iAssert (⌜∃ k, w = immV [VAL_int32 k]⌝)%I as %Hw.
+    { iDestruct "Hres" as "[[-> _]|Hres]";eauto. iDestruct "Hres" as (?) "[-> _]". eauto. }
+    destruct Hw as [k' ->].
+    iSimpl.
     (* tee_local + set_local *)
     take_drop_app_rewrite 2.
     iApply wp_seq. iSplitR;[|iSplitL "Hf"];cycle 1.
@@ -274,8 +277,9 @@ Section Client_main.
     iIntros (w) "[-> Hf]". iSimpl.
 
     (* CASES: new stack succeeded/failed *)
-    iDestruct "Hres" as "[[-> Hnewstackaddr]|[[%Hpos %Hle] [HisStack Hnewstackaddr]]]".
+    iDestruct "Hres" as "[[%Heq Hnewstackaddr]|Hres]".
     { (* failure *)
+      inversion Heq;subst k'.
       iSimpl.
       iApply wp_wasm_empty_ctx.
       (* if *)
@@ -312,15 +316,19 @@ Section Client_main.
     }
 
     { (* success *)
-      assert (VAL_int32 (wasm_bool (Wasm_int.Int32.eq (Wasm_int.Int32.repr r) (Wasm_int.Int32.repr (-1))))
+      iDestruct "Hres" as (r) "[%Heq [%Hle [HisStack HnewStackAddrIs]]]". inversion Heq;subst k'.
+      assert (VAL_int32 (wasm_bool (Wasm_int.Int32.eq (Wasm_int.Int32.repr (Z.of_N r)) (Wasm_int.Int32.repr (-1))))
               = VAL_int32 Wasm_int.Int32.zero) as ->.
       { unfold wasm_bool.
-        assert (Wasm_int.Int32.eq (Wasm_int.Int32.repr r) (Wasm_int.Int32.repr (-1)) = false) as ->;auto.
+        assert (Wasm_int.Int32.eq (Wasm_int.Int32.repr (Z.of_N r)) (Wasm_int.Int32.repr (-1)) = false) as ->;auto.
         apply Wasm_int.Int32.eq_false. intros Hcontr.
         rewrite Wasm_int.Int32.repr_m1 in Hcontr.
-        inversion Hcontr. rewrite Wasm_int.Int32.Z_mod_modulus_id in H0;simplify_eq. lias. split;try lia.
+        inversion Hcontr. rewrite Wasm_int.Int32.Z_mod_modulus_id in H0;simplify_eq.
+        unfold ffff0000 in Hle.
+        unfold Wasm_int.Int32.modulus,Wasm_int.Int32.wordsize,Integers.Wordsize_32.wordsize,two_power_nat in H0.
+        simpl in H0. lias. split;try lia.
         unfold Wasm_int.Int32.modulus,Wasm_int.Int32.wordsize,Integers.Wordsize_32.wordsize,two_power_nat. simpl.
-        unfold two32 in Hle. unfold page_size in Hle. lia. }
+        unfold ffff0000 in Hle. lia. }
 
       iSimpl.
       iApply wp_wasm_empty_ctx.
@@ -337,12 +345,12 @@ Section Client_main.
       iApply (wp_val_return with "Hf");auto.
       iIntros "Hf". iSimpl.
       (* get_local *)
-      take_drop_app_rewrite 2.
+      take_drop_app_rewrite 1.
       rewrite Hflocs. iSimpl in "Hf".
       iApply (wp_seq _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I).
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
-      { take_drop_app_rewrite 1.
-        iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|].
+      { (* take_drop_app_rewrite 1. *)
+        (* iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|]. *)
         iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
@@ -355,10 +363,9 @@ Section Client_main.
         iApply (wp_call_ctx with "Hf");[simpl;apply Hidf4|].
         iNext. iIntros "Hf".
         iApply wp_base_pull. iApply wp_wasm_empty_ctx.
-        iSimpl. iApply ("Hpush" with "[$Hf $Hidf4 $HisStack]").
-        { iPureIntro. simpl. unfold two14,Wasm_int.Int32.max_unsigned,Wasm_int.Int32.modulus.
-          unfold two_power_nat, Wasm_int.Int32.wordsize.
-          unfold page_size,two32 in Hle. simpl. lia. }
+        iSimpl. rewrite -/(u32const 4).
+        iApply ("Hpush" with "[$Hf $Hidf4 $HisStack]").
+        { iPureIntro. simpl. lia. }
         iIntros (w). rewrite (bi.sep_assoc _ _ (↪[frame] _)%I).
         iIntros "[-> [HH Hf]]".
         instantiate (1:=(λ v, ⌜v = immV []⌝ ∗ ↪[frame] _ ∗ _)%I).
@@ -367,11 +374,11 @@ Section Client_main.
       iIntros (w) "( -> & Hf & HisStack & Hidf4)".
       iSimpl. 2: by iIntros "[%Hcontr _]".
       (* get_local *)
-      take_drop_app_rewrite 2.
+      take_drop_app_rewrite 1.
       iApply (wp_seq _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I).
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
-      { take_drop_app_rewrite 1.
-        iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|].
+      { (* take_drop_app_rewrite 1. *)
+        (* iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|]. *)
         iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
@@ -385,9 +392,7 @@ Section Client_main.
         iNext. iIntros "Hf".
         iApply wp_base_pull. iApply wp_wasm_empty_ctx.
         iSimpl. iApply ("Hpush" with "[$Hf $Hidf4 $HisStack]").
-        { iPureIntro. simpl. unfold two14,Wasm_int.Int32.max_unsigned,Wasm_int.Int32.modulus.
-          unfold two_power_nat, Wasm_int.Int32.wordsize.
-          unfold page_size,two32 in Hle. simpl. lia. }
+        { iPureIntro. simpl. lia. }
         iIntros (w). rewrite (bi.sep_assoc _ _ (↪[frame] _)%I).
         iIntros "[-> [HH Hf]]".
         instantiate (1:=(λ v, (⌜v = immV []⌝ ∗ _ ) ∗ ↪[frame] _)%I). iFrame "Hf".
@@ -395,12 +400,10 @@ Section Client_main.
       iIntros (w) "[[-> [HisStack Hidf4]] Hf]".
       iSimpl. 2: by iIntros "[[%Hcontr _] _]".
       (* get_local *)
-      take_drop_app_rewrite 2.
+      take_drop_app_rewrite 1.
       iApply (wp_seq _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I).
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
-      { take_drop_app_rewrite 1.
-        iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|].
-        iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
+      { iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
       (* map *)
@@ -424,18 +427,26 @@ Section Client_main.
             iSimpl.
             iDestruct (be_fundamental_local _ _ [] _ (T_i32 :: locs) with "Hi") as "Hl";eauto.
             unfold interp_expression_closure.
-            
-            iApply ("Hmap" with "[] [$HisStack $Hf $Hidf5 Ht $Hown $Hadv]");[iPureIntro;solve_ndisj|..].
+
+            iApply fupd_wp.
+            iMod (na_inv_alloc logrel_nais _ (wtN (N.of_nat idt) (N.of_nat 0)) with "Ht") as "#Ht".
+            iApply ("Hmap" with "[] [$HisStack $Hf $Hidf5 Ht $Hown Hadv]");[iPureIntro;solve_ndisj|..].
             iSimpl. iFrame "Ht".
             instantiate (2:=(λ _, True)%I).
             instantiate (1:=(λ _ _, True)%I).
             
             repeat iSplit;[auto| |auto..|].
-            { iPureIntro. unfold page_size, two32 in Hle.
-              unfold Wasm_int.Int32.max_unsigned,Wasm_int.Int32.modulus,
-                Wasm_int.Int32.wordsize,Integers.Wordsize_32.wordsize,two_power_nat. simpl. lia. }
+            { iPureIntro. auto. }
             { (* This is the most interesting part of the proof: since we do not assume a spec for the 
              imported function, we apply the ftlr to get a specifiction for the function *)
+              iExists (wfN (N.of_nat a)). iFrame "Hadv".
+              iSplitR;[iPureIntro;split;[solve_ndisj|]|].
+              { apply namespaces.coPset_subseteq_difference_r;auto.
+                unfold wfN,wtN.
+                apply ndot_preserve_disjoint_r,ndot_preserve_disjoint_l.
+                apply ndot_preserve_disjoint_r.
+                unfold iris_logrel.wf,wt. solve_ndisj. }
+              iSplitR;[auto|].
               iIntros (u fc). iModIntro.
               iIntros (Ψ) "(_ & %Histack & Hf & Hown) HΨ".
               iApply fupd_wp.
@@ -467,18 +478,18 @@ Section Client_main.
               destruct ws as [|w ws];[done|destruct ws;[|done]].
               iDestruct "Hw" as "[Hw _]". iDestruct "Hw" as (z) "->". unfold interp_value. eauto.
             }
-            { iIntros (w) "[H [Htab [Hown Hf]]]".
-              iCombine "H Htab Hown" as "H". instantiate (1:=(λ vs, _ ∗ ↪[frame] _)%I). iFrame "Hf". iExact "H". }
+            { iModIntro. iIntros (w) "[H [Hown Hf]]".
+              iCombine "H Hown" as "H". instantiate (1:=(λ vs, _ ∗ ↪[frame] _)%I). iFrame "Hf". iExact "H". }
           }
-          iIntros (v) "[[Hv [Htab Hown]] Hf]".
+          iIntros (v) "[[Hv Hown] Hf]".
           iSplitR "Hf".
           iDestruct "Hv" as "[Htrap | [-> [Hs Hidf]]]";[by iLeft|].
-          iRight. iCombine "Hs Hidf Htab Hown" as "H".
+          iRight. iCombine "Hs Hidf Hown" as "H".
           instantiate (1:=(λ v, ⌜v = immV []⌝ ∗ _ )%I). iSplit;auto. iExact "H".
           iFrame.
         }
         2: by iIntros "[%Hcontr _]".
-        { iIntros (w) "[[-> [Hs [Hidf5 [Htab Hown]]]] Hf]".
+        { iIntros (w) "[[-> [Hs [Hidf5 Hown]]] Hf]".
           iSimpl. iApply wp_wasm_empty_ctx.
           (* get_local *)
           take_drop_app_rewrite 1.
@@ -502,9 +513,6 @@ Section Client_main.
             iNext. iIntros "Hf".
             iApply wp_base_pull. iApply wp_wasm_empty_ctx.
             iSimpl. unfold spec3_pop. unfold i32const. iApply ("Hpop" with "[$Hf $Hidf3 $HisStack]").
-            { iPureIntro. simpl. unfold two14,Wasm_int.Int32.max_unsigned,Wasm_int.Int32.modulus.
-              unfold two_power_nat, Wasm_int.Int32.wordsize.
-              unfold page_size,two32 in Hle. simpl. lia. }
             iIntros (w). rewrite (bi.sep_assoc _ _ (↪[frame] _)%I).
             iIntros "[-> [HH Hf]]". instantiate (1:=(λ vs, ⌜vs = immV [_]⌝ ∗ _ ∗ ↪[frame] _)%I). iFrame "Hf".
             iSplit;[auto|]. iExact "HH". }

@@ -187,7 +187,7 @@ Section valid.
   Context `{!logrel_na_invs Σ}.
   Set Bullet Behavior "Strict Subproofs".
 
-  Lemma valid_is_full m t funcs :
+  Lemma valid_is_empty m t funcs :
     let i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
                      inst_funcs := funcs;
                      inst_tab := [t];
@@ -195,7 +195,7 @@ Section valid.
                      inst_globs := []
               |} in
     na_inv logrel_nais stkN (stackModuleInv (λ (a : N) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
-    interp_closure_native i0 [T_i32] [T_i32] [T_i32] (to_e_list is_empty) [].
+    interp_closure_native i0 [T_i32] [T_i32] [] (to_e_list is_empty) [].
   Proof.
     iIntros "#Hstk".
     iIntros (vcs f) "#Hv Hown Hf".

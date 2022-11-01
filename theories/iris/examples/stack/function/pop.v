@@ -374,7 +374,7 @@ Section valid.
                      inst_globs := []
               |} in
     na_inv logrel_nais stkN (stackModuleInv (λ (a : N) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
-    interp_closure_native i0 [T_i32;T_i32] [T_i32] [T_i32] (to_e_list pop) [].
+    interp_closure_native i0 [T_i32] [T_i32] [T_i32] (to_e_list pop) [].
   Proof.
     iIntros "#Hstk".
     iIntros (vcs f) "#Hv Hown Hf".
@@ -387,11 +387,10 @@ Section valid.
     subst e.
     iDestruct "Hv" as "[%Hcontr|Hws]";[done|iDestruct "Hws" as (ws) "[%Heq Hws]"].
     iDestruct (big_sepL2_length with "Hws") as %Hlen. inversion Heq;subst.
-    destruct ws as [|w0 ws];[done|destruct ws as [|w1 ws];[done|destruct ws as [|w2 ws];[|done]]].
+    destruct ws as [|w0 ws];[done|destruct ws as [|w1 ws];[|done]].
     iSimpl in "Hws".
-    iDestruct "Hws" as "[Hw0 [Hw1 _]]".
+    iDestruct "Hws" as "[Hw0 _]".
     iDestruct "Hw0" as (z0) "->".
-    iDestruct "Hw1" as (z1) "->".
     pose proof (value_of_uint_repr z0) as [v ->]. iSimpl in "Hf".
     take_drop_app_rewrite (length (validate_stack 1)).
 

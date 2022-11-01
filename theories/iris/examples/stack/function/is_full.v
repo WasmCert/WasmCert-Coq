@@ -243,7 +243,7 @@ Section valid.
                      inst_globs := []
               |} in
     na_inv logrel_nais stkN (stackModuleInv (λ (a : N) (b : seq.seq i32), isStack a b m) (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)) -∗
-    interp_closure_native i0 [T_i32] [T_i32] [T_i32] (to_e_list is_full) [].
+    interp_closure_native i0 [T_i32] [T_i32] [] (to_e_list is_full) [].
   Proof.
     iIntros "#Hstk".
     iIntros (vcs f) "#Hv Hown Hf".
