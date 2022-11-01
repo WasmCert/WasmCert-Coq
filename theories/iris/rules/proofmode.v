@@ -92,6 +92,9 @@ Hint Mode DecomposeBase ! ! - - : typeclass_instances.
 (* Instance DecomposeBaseAppHere : forall e l2, DecomposeBase (e ++ l2) e [] l2. *)
 (* Proof. intros. constructor. auto. Qed. *)
 
+Instance DecomposeBaseConsAppNil : forall e, DecomposeBase e e [] [].
+Proof. intros. constructor. simpl. rewrite app_nil_r. auto. Qed.
+
 Instance DecomposeBaseConsSingletonHere : forall e l2, DecomposeBase (e :: l2) [e] [] l2.
 Proof. intros. constructor. auto. Qed.
 

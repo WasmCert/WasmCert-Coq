@@ -29,8 +29,31 @@ Section StackModule.
     tc_label := [];
     tc_return := None
   |}.
+
+  Lemma stackModuleInvIff P1 P2 Q :
+    (∀ n l, P1 n l ≡ P2 n l) -> ⊢ (stackModuleInv P1 Q ∗-∗ @stackModuleInv Σ P2 Q)%I.
+  Proof.
+    intros Hcond.
+    iSplit;iIntros "H".
+    - iDestruct "H" as (?) "(? & ? & Hl)".
+      iExists _. iFrame.
+      iDestruct "Hl" as (?) "[? Hl]".
+      iExists _. iFrame.
+      iApply (big_sepL_mono with "Hl").
+      intros. simpl. iIntros "H".
+      iDestruct "H" as (stk) "H".
+      rewrite Hcond. eauto.
+    - iDestruct "H" as (?) "(? & ? & Hl)".
+      iExists _. iFrame.
+      iDestruct "Hl" as (?) "[? Hl]".
+      iExists _. iFrame.
+      iApply (big_sepL_mono with "Hl").
+      intros. simpl. iIntros "H".
+      iDestruct "H" as (stk) "H".
+      rewrite - Hcond. eauto.
+  Qed.      
   
-  Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
+  Lemma instantiate_stack_valid `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
      (* … and we own the vis 0%N thru 4%N … *)
@@ -88,11 +111,11 @@ Section StackModule.
                     ∅ ∅ ∗
                     ⌜ NoDup (modexp_desc <$> inst_vis) ⌝ ∗
                     ⌜ tab_size >= 1 ⌝ ∗
-                    na_inv logrel_nais stkN (stackModuleInv isStack nextStackAddrIs) ∗
+                    na_inv logrel_nais stkN (stackModuleInv (λ n, isStack (Z.of_N n)) nextStackAddrIs) ∗
                     (* table starts out as empty *)
                     ([∗ list] elem ∈ tab_data, ⌜elem = None⌝) ∗
                     (* each export function is valid *)
-                    [∗ map] f↦cl ∈ inst_map, interp_closure [] (cl_type cl) cl
+                    [∗ map] f↦cl ∈ delete (N.of_nat idf5) inst_map, interp_closure [] (cl_type cl) cl
              }}.
   Proof.
     iIntros "Hmod (Hhv0 & Hhv1 & Hhv2 & Hhv3 & Hhv4 & Hhv5 & Hhv6 & _)".
@@ -188,7 +211,7 @@ Section StackModule.
       iExists _.
       iExists _, _, _, _, _, _.
       iExists _.
-      iExists (λ a b, isStack a b m).
+      iExists (λ a b, isStack (Z.to_N a) b m).
       iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
       iDestruct (mapsto_frac_ne with "Hf Hf0") as "%H01" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf Hf1") as "%H02" ; first by eauto.
@@ -267,8 +290,8 @@ Section StackModule.
 
         iMod (na_inv_alloc logrel_nais _ stkN (stackModuleInv _ (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)%I) with "[Hmemlength]") as "#Hstk".
         { iNext. iExists 0. iSplit.
-          - iPureIntro. apply PeanoNat.Nat.divide_0_r.
-          - iFrame. iIntros (? [? ?]). exfalso. lia. }
+          - iPureIntro. apply N.divide_0_r.
+          - iFrame. iExists []. simpl. iSplit;auto. iPureIntro. constructor. lias. }
         iFrame "Hstk". iClear "∗".
         set (i0 := {| inst_types := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
                      inst_funcs := [f; f0; f1; f2; f3; f4];
@@ -277,11 +300,26 @@ Section StackModule.
                      inst_globs := []
                    |}).
         iSplitR;[simpl;auto|].
+        iDestruct (na_inv_iff with "Hstk []") as "Hstk'".
+        { iNext; iModIntro. iSplit.
+          - iIntros "H". iDestruct (stackModuleInvIff with "H") as "H";[|iExact "H"].
+            intros. simpl. rewrite N2Z.id.
+            apply class_instances.as_emp_valid_equiv.
+            iSplit;iIntros "H";iExact "H".
+          - iIntros "H". iDestruct (stackModuleInvIff with "H") as "H";[|iExact "H"].
+            intros. simpl. rewrite N2Z.id.
+            apply class_instances.as_emp_valid_equiv.
+            iSplit;iIntros "H";iExact "H". }
+        
+        repeat (rewrite delete_insert_ne;[|done]). 
         repeat (rewrite big_sepM_insert;[|simplify_map_eq; done]).
+        rewrite delete_insert;[|auto].
         repeat iSplitR;iModIntro;[..|iApply big_sepM_empty;done];auto;iModIntro;iNext.
-        * 
-        
-        
-    
-
+        * iApply (valid_new_stack with "Hstk'").
+        * iApply (valid_is_empty with "Hstk'").
+        * iApply (valid_is_full with "Hstk'").
+        * iApply (valid_pop with "Hstk'").
+        * iApply (valid_push with "Hstk'").
+  Qed.        
+   
 End StackModule.
