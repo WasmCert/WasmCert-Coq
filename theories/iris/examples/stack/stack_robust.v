@@ -316,16 +316,19 @@ Section Client_main.
     }
 
     { (* success *)
-      iDestruct "Hres" as (r) "[%Heq [HisStack HnewStackAddrIs]]". inversion Heq;subst k'.
+      iDestruct "Hres" as (r) "[%Heq [%Hle [HisStack HnewStackAddrIs]]]". inversion Heq;subst k'.
       assert (VAL_int32 (wasm_bool (Wasm_int.Int32.eq (Wasm_int.Int32.repr (Z.of_N r)) (Wasm_int.Int32.repr (-1))))
               = VAL_int32 Wasm_int.Int32.zero) as ->.
       { unfold wasm_bool.
         assert (Wasm_int.Int32.eq (Wasm_int.Int32.repr (Z.of_N r)) (Wasm_int.Int32.repr (-1)) = false) as ->;auto.
         apply Wasm_int.Int32.eq_false. intros Hcontr.
         rewrite Wasm_int.Int32.repr_m1 in Hcontr.
-        inversion Hcontr. rewrite Wasm_int.Int32.Z_mod_modulus_id in H0;simplify_eq. admit. split;try lia.
+        inversion Hcontr. rewrite Wasm_int.Int32.Z_mod_modulus_id in H0;simplify_eq.
+        unfold ffff0000 in Hle.
+        unfold Wasm_int.Int32.modulus,Wasm_int.Int32.wordsize,Integers.Wordsize_32.wordsize,two_power_nat in H0.
+        simpl in H0. lias. split;try lia.
         unfold Wasm_int.Int32.modulus,Wasm_int.Int32.wordsize,Integers.Wordsize_32.wordsize,two_power_nat. simpl.
-        admit. (* unfold two32 in Hle. unfold page_size in Hle. lia.  *) }
+        unfold ffff0000 in Hle. lia. }
 
       iSimpl.
       iApply wp_wasm_empty_ctx.
@@ -533,7 +536,7 @@ Section Client_main.
       }
       iIntros (v) "[Hv Hf]".
       iApply "HΦ". iFrame. iExists _. iFrame. eauto. }
-  Admitted.
+  Qed.
       
     
 End Client_main.
