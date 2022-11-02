@@ -10,8 +10,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Close Scope byte_scope.
-
 
 
 Section stack.
@@ -229,7 +227,6 @@ Proof.
   2: { iApply (wp_br_if_true with "Hf") => //=.
        iIntros "!> Hf".
        instantiate (1 := λ w, (⌜ w = brV (VH_base 1 [] []) ⌝ ∗ ↪[frame] f)%I).
-       Locate wp_value.
        iApply wp_value; last by iFrame.
        done.
   }

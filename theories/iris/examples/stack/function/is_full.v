@@ -10,8 +10,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Close Scope byte_scope.
-
 
 
 Section stack.
