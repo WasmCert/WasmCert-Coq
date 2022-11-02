@@ -38,17 +38,153 @@ Definition points_to_i32 `{!wasmG Σ} n i v :=
   (∃ a b c d, n ↦[wm][ i ] a ∗ n ↦[wm][N.add i 1] b ∗
                 n ↦[wm][N.add i 2] c ∗ n ↦[wm][N.add i 3] d ∗
                 ⌜ serialise_i32 v = [a ; b ; c ; d] ⌝)%I.
+
 Notation "n ↦[i32][ k ] v" := (points_to_i32 n k v) (at level 50).
 
+Lemma u32_modulus: Wasm_int.Int32.modulus = 4294967296%Z.
+Proof.
+  by lias.
+Qed.
 
 Lemma of_nat_to_nat_plus a b :
   N.of_nat (N.to_nat a + b) = (a + N.of_nat b)%N.
 Proof. lia. Qed.
 
+Lemma drop_is_nil {A} n (s : seq.seq A) :
+  drop n s = [] -> n >= length s.
+Proof.
+  move => Hdrop.
+  assert (length s - n = 0) as Hdroplen; first by rewrite - drop_length; rewrite Hdrop.
+  by lias.
+Qed.
+
+Lemma in_take {A} n s (x : A) :
+  In x (take n s) -> In x s.
+Proof.
+  move => Hin.
+  apply elem_of_list_In, elem_of_take in Hin as [i [? ?]].
+  apply elem_of_list_In, elem_of_list_lookup.
+  by eexists.
+Qed.
+
+Lemma two16_div_i32 :
+  (Z.of_N two16 | Wasm_int.Int32.modulus)%Z.
+Proof.
+  rewrite u32_modulus.
+  unfold two16. exists 65536%Z. lia.
+Qed.
+
+Lemma wasm_int_signed x:
+  (-2147483648 <= x <= 2147483647)%Z ->
+  Wasm_int.Int32.signed (Wasm_int.Int32.repr x) = x.
+Proof.
+  move => Hbound.
+  rewrite Wasm_int.Int32.signed_repr; first by lias.
+  unfold Wasm_int.Int32.min_signed.
+  unfold Wasm_int.Int32.max_signed.
+  unfold Wasm_int.Int32.half_modulus.
+  rewrite u32_modulus.
+  replace (4294967296 `div` 2)%Z with (2147483648)%Z; by lias.
+Qed.
+
+Lemma wasm_int_unsigned x:
+  (0 <= x <= 4294967295)%Z ->
+  Wasm_int.Int32.unsigned (Wasm_int.Int32.repr x) = x.
+Proof.
+  move => Hbound.
+  rewrite Wasm_int.Int32.unsigned_repr; first by lias.
+  unfold Wasm_int.Int32.max_unsigned.
+  rewrite u32_modulus.
+  by lias.
+Qed.
+
+Lemma value_of_int_repr a :
+  exists v, VAL_int32 a = value_of_int v.
+Proof.
+  intros. exists (Wasm_int.Z_of_uint i32m a).
+  unfold value_of_int. simpl.
+  rewrite Wasm_int.Int32.repr_unsigned.
+  auto.
+Qed.
+
+Lemma value_of_uint_repr a :
+  exists v, VAL_int32 a = value_of_uint v.
+Proof.
+  intros. exists (Z.to_N (Wasm_int.Z_of_uint i32m a)).
+  unfold value_of_uint. simpl.
+  rewrite Z2N.id.
+  rewrite Wasm_int.Int32.repr_unsigned.
+  auto.
+  pose proof (Wasm_int.Int32.unsigned_range a) as [? ?]. auto.
+Qed.
+
+Lemma div_mod_i32 v:
+  let k:=Wasm_int.N_of_uint i32m ((Wasm_int.int_of_Z i32m (Z.of_N v))) in
+  (65536 | v)%N ->
+  (65536 | k)%N.
+Proof.
+  intros k Hdiv. subst k.
+  simpl. destruct Hdiv. subst.
+  rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+  replace (Wasm_int.Int32.modulus) with (65536 * 65536)%Z => //.    (* 4294967296 *)
+  rewrite Z2N.inj_mod;try lia.
+  rewrite N2Z.id.
+  rewrite Z2N.inj_mul;try lia.
+  simpl Z.to_N.
+  apply N.mod_divide;[lia|].
+  rewrite N.mul_mod_distr_r;try lia.
+  rewrite N.mul_mod_idemp_l;try lia.
+  rewrite N.mod_mul;lia.
+Qed.
+
+Lemma int_of_Z_mod v :
+  Wasm_int.int_of_Z i32m (Z.of_N v) =
+  Wasm_int.int_of_Z i32m (Z.of_N (Z.to_N (Wasm_int.Int32.Z_mod_modulus (Z.of_N v)))).
+Proof.
+  simpl.
+  rewrite Z2N.id;[|pose proof (Wasm_int.Int32.Z_mod_modulus_range (Z.of_N v)) as [? ?];auto].
+  rewrite Wasm_int.Int32.Z_mod_modulus_eq.
+  rewrite - Wasm_int.Int32.unsigned_repr_eq.
+  rewrite Wasm_int.Int32.repr_unsigned. auto.
+Qed.
+  
 Section Stack.
   Set Bullet Behavior "Strict Subproofs".
   Context `{!wasmG Σ}.
 
+Lemma points_to_i32_eq n1 i1 v1 n2 i2 v2:
+   n1 = n2 ->
+   i1 = i2 ->
+   v1 = v2 ->
+   n1 ↦[i32][i1] v1 -∗
+   n2 ↦[i32][i2] v2.
+ Proof.
+   intros -> -> ->.
+   by iIntros.
+ Qed.
+
+Lemma points_to_wm_eq n1 b1 k1 n2 b2 k2:
+   n1 = n2 ->
+   b1 = b2 ->
+   k1 = k2 ->
+   n1 ↦[wm][k1] b1 -∗
+   n2 ↦[wm][k2] b2.
+ Proof.
+   intros -> -> ->.
+   by iIntros.
+ Qed.
+ 
+Lemma points_to_wms_eq n1 l1 k1 n2 l2 k2:
+   n1 = n2 ->
+   l1 = l2 ->
+   k1 = k2 ->
+   n1 ↦[wms][k1] l1 -∗
+   n2 ↦[wms][k2] l2.
+ Proof.
+   intros -> -> ->.
+   by iIntros.
+ Qed.
+ 
 Lemma i32_wms n i v :
   n ↦[i32][ i ] v ⊣⊢ n ↦[wms][ i ]serialise_i32 v.
 Proof.
@@ -227,11 +363,8 @@ Proof.
     + constructor.
       apply IHmultiples_upto;auto.
       { destruct m;[|lia].
-        rewrite N.add_0_l in lt.
-        rewrite N.add_0_l in lm.
-        destruct div. subst i.
-        apply lt_mul in lt;subst.
-        rewrite N.mul_0_l in n0. lia. }
+        lias.
+      }
       destruct div,div';subst.
       apply N2Nat_lt_inj in lt.
       rewrite !N2Nat.inj_add !N2Nat.inj_mul in lt.
@@ -286,6 +419,7 @@ Proof. done. Qed.
 
 
 
+
 Definition validate_stack (x: immediate) :=
   [
     BI_get_local x ;
@@ -308,6 +442,15 @@ Proof.
   lia.
 Qed.
 
+Lemma stack_pure v s n:
+  isStack v s n -∗
+  ⌜(two16 | v)%N⌝ ∗ ⌜(0 <= v <= ffff0000)%N⌝ ∗ ⌜(N.of_nat (length s) < two14)%N⌝ ∗ isStack v s n.
+Proof.
+  iIntros "Hs".
+  repeat iSplit => //; by iDestruct "Hs" as "(% & (% & %) & % & ?)".
+Qed.
+
+
 Lemma is_stack_valid (v : N) s n f E x:
     ⌜ (f_locs f) !! x = Some (value_of_uint v) ⌝ ∗ 
     isStack v s n ∗ ↪[frame] f ⊢ 
@@ -316,11 +459,13 @@ Lemma is_stack_valid (v : N) s n f E x:
 Proof.
   iIntros "(%Hlocs & Hstack & Hf)".
   simpl.
+  
   rewrite separate1.
   iApply wp_seq.
   instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f)%I).
   iSplitR; first by iIntros "(%H & _)".
   iSplitL "Hf"; first by iApply wp_get_local.
+  
   iIntros (w) "(-> & Hf)" => /=.
   rewrite separate3.
   iApply wp_seq.
@@ -336,17 +481,20 @@ Proof.
     simpl.
     repeat f_equal.
     rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-    unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
+    rewrite u32_modulus.
     rewrite <- Znumtheory.Zmod_div_mod => //; last by apply Znumtheory.Zmod_divide => //.
     destruct Hdiv as [a ->].
     by apply Z_mod_mult.
   }
+  
   iIntros (w) "(-> & Hstack & Hf)".
   iFrame "Hstack".
   iApply (wp_if_false with "Hf") => //.
+  
   iIntros "!> Hf".
   replace ([AI_basic (BI_block (Tf [] []) [])]) with ([] ++ [AI_basic (BI_block (Tf [] []) [])]) => //.
   iApply (wp_block with "Hf") => //.
+  
   iIntros "!> Hf".
   by iApply (wp_label_value with "Hf").
 Qed.
@@ -359,14 +507,15 @@ Lemma check_stack_valid (v : N) (* s *) (* n *) f E x:
 Proof.
   iIntros "(%Hlocs & Hf)".
   simpl.
+  
   rewrite separate1.
   iApply wp_seq.
   instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f)%I).
   iSplitR; first by iIntros "(%H & _)".
   iSplitL "Hf"; first by iApply wp_get_local.
+  
   iIntros (w) "(-> & Hf)" => /=.
   rewrite separate3.
-
   (* case splitting *)
   destruct (decide ((Z.of_N v `mod` 65536)%Z = 0%Z)).
   - iApply wp_seq.
@@ -380,25 +529,30 @@ Proof.
       simpl.
       repeat f_equal.
       rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-      unfold Wasm_int.Int32.modulus, Wasm_int.Int32.wordsize, Integers.Wordsize_32.wordsize.
+      rewrite u32_modulus.
       rewrite <- Znumtheory.Zmod_div_mod => //.
       by apply Znumtheory.Zmod_divide => //. 
     }
+    
     iIntros (w) "(-> & Hf)".
     iApply (wp_if_false with "Hf") => //.
+    
     iIntros "!> Hf".
     replace ([AI_basic (BI_block (Tf [] []) [])]) with ([] ++ [AI_basic (BI_block (Tf [] []) [])]) => //.
     iApply (wp_block with "Hf") => //.
+    
     iIntros "!> Hf".
     iApply (wp_label_value with "Hf");eauto.
     iNext. iRight. iSplit;auto. iPureIntro.
     apply N.mod_divide;[unfold page_size;lia|].
     apply Z_of_N_inj.
     rewrite N2Z.inj_mod;[|lia]. simpl. auto.
+    
   - iApply wp_seq.
     instantiate (1 := λ x, (⌜ x = immV [value_of_int _] ⌝ ∗ ↪[frame] f)%I).
     iSplitR; first by (iIntros "[%H _]").
     iSplitL. iApply (wp_binop with "Hf") => //.
+    
     iIntros (w) "[-> Hf]".
     iApply (wp_if_true with "Hf") => //.
     { simpl.
@@ -414,11 +568,13 @@ Proof.
       pose proof (Z_mod_lt (Z.of_N v) 65536). lia. }
     iNext. iIntros "Hf".
     take_drop_app_rewrite 0. iApply (wp_block with "Hf") => //.
+    
     iIntros "!> Hf /=".
     build_ctx [AI_basic BI_unreachable].
     iApply wp_label_bind.
     iApply (wp_wand _ _ _ (λ v, ⌜v = trapV⌝ ∗ _)%I with "[Hf]").
     iApply (wp_unreachable with "Hf");eauto.
+    
     iIntros (w) "[-> Hf]".
     deconstruct_ctx.
     iApply (wp_label_trap with "Hf");auto.
@@ -447,6 +603,7 @@ Proof.
   instantiate (1 := λ x, (⌜ x = immV [value_of_uint v] ⌝ ∗ ↪[frame] f)%I).
   iSplitR; first by iIntros "(%H & _)".
   iSplitL "Hf"; first by iApply wp_get_local.
+  
   iIntros (w) "(-> & Hf)" => /=.
   rewrite separate2.
   iApply wp_seq.
@@ -459,30 +616,26 @@ Proof.
        iSplitR "Hv"; last first.
        { rewrite Z.mod_small.
          rewrite N2Z.id.
-         unfold N.zero.
          rewrite N.add_0_r.
          instantiate (1 := VAL_int32 _) => /=.
          by iFrame "Hv".
-         split; try by lias.
-         unfold ffff0000 in Hvub.
-         replace Wasm_int.Int32.modulus with 4294967296%Z; by lias.
+         rewrite u32_modulus; unfold ffff0000 in Hvub; lia.
        }
        { by instantiate (1 := λ v, ⌜ v = immV [_] ⌝%I ). }
        { done. }
   }
   { iIntros "((%Habs & _) & _)"; by inversion Habs. }
+  
   iIntros (w) "((-> & Hv) & Hf)".
   simpl.
-  unfold N.zero.
   rewrite N.add_0_r.
   iDestruct (i32_wms with "Hv") as "Hv" => //=.
   rewrite Wasm_int.Int32.Z_mod_modulus_eq Z.mod_small; last first.
-  { unfold ffff0000 in Hvub.
-    replace Wasm_int.Int32.modulus with 4294967296%Z; by lias.
-  }
+  { unfold ffff0000 in Hvub; rewrite u32_modulus; by lias. }
   rewrite N2Z.id.
   iFrame "Hs Hrest Hv".
   iApply (wp_wand with "[Hf]"); first by iApply (wp_drop with "Hf"); instantiate (1 := λ v, ⌜ v = immV _ ⌝%I).
+  
   iIntros (w) "(-> & Hf)".
   by repeat iSplit => //.
 Qed.
@@ -570,19 +723,6 @@ Proof.
     iApply (wp_load_failure with "[$Hf $Hlen]");eauto. simpl t_length. lias.
     iIntros (v0) "[[-> ?] ?]". iFrame. auto. }
   iIntros (w f0) "[[-> %Hlen'] [Hf [-> Hlen]]] /=". lia.
-Qed.
-
-Lemma u32_modulus: Wasm_int.Int32.modulus = 4294967296%Z.
-Proof.
-  by lias.
-Qed.
-
-Lemma stack_pure v s n:
-  isStack v s n -∗
-  ⌜(two16 | v)%N⌝ ∗ ⌜(0 <= v <= ffff0000)%N⌝ ∗ ⌜(N.of_nat (length s) < two14)%N⌝ ∗ isStack v s n.
-Proof.
-  iIntros "Hs".
-  repeat iSplit => //; by iDestruct "Hs" as "(% & (% & %) & % & ?)".
 Qed.
 
 Lemma stack_load_0 v s n f E:
@@ -859,102 +999,4 @@ Proof.
     exact IHs.
 Qed.
 
-Lemma drop_is_nil {A} n (s : seq.seq A) :
-  drop n s = [] -> n >= length s.
-Proof.
-  move => Hdrop.
-  assert (length s - n = 0) as Hdroplen; first by rewrite - drop_length; rewrite Hdrop.
-  by lias.
-Qed.
-
-Lemma in_take {A} n s (x : A) :
-  In x (take n s) -> In x s.
-Proof.
-  move => Hin.
-  apply elem_of_list_In, elem_of_take in Hin as [i [? ?]].
-  apply elem_of_list_In, elem_of_list_lookup.
-  by eexists.
-Qed.
-
-Lemma two16_div_i32 :
-  (Z.of_N two16 | Wasm_int.Int32.modulus)%Z.
-Proof.
-  rewrite u32_modulus.
-  unfold two16. exists 65536%Z. lia.
-Qed.
-
-Lemma wasm_int_signed x:
-  (-2147483648 <= x <= 2147483647)%Z ->
-  Wasm_int.Int32.signed (Wasm_int.Int32.repr x) = x.
-Proof.
-  move => Hbound.
-  rewrite Wasm_int.Int32.signed_repr; first by lias.
-  unfold Wasm_int.Int32.min_signed.
-  unfold Wasm_int.Int32.max_signed.
-  unfold Wasm_int.Int32.half_modulus.
-  rewrite u32_modulus.
-  replace (4294967296 `div` 2)%Z with (2147483648)%Z; by lias.
-Qed.
-
-Lemma wasm_int_unsigned x:
-  (0 <= x <= 4294967295)%Z ->
-  Wasm_int.Int32.unsigned (Wasm_int.Int32.repr x) = x.
-Proof.
-  move => Hbound.
-  rewrite Wasm_int.Int32.unsigned_repr; first by lias.
-  unfold Wasm_int.Int32.max_unsigned.
-  rewrite u32_modulus.
-  by lias.
-Qed.
-
-Lemma value_of_int_repr a :
-  exists v, VAL_int32 a = value_of_int v.
-Proof.
-  intros. exists (Wasm_int.Z_of_uint i32m a).
-  unfold value_of_int. simpl.
-  rewrite Wasm_int.Int32.repr_unsigned.
-  auto.
-Qed.
-
-Lemma value_of_uint_repr a :
-  exists v, VAL_int32 a = value_of_uint v.
-Proof.
-  intros. exists (Z.to_N (Wasm_int.Z_of_uint i32m a)).
-  unfold value_of_uint. simpl.
-  rewrite Z2N.id.
-  rewrite Wasm_int.Int32.repr_unsigned.
-  auto.
-  pose proof (Wasm_int.Int32.unsigned_range a) as [? ?]. auto.
-Qed.
-
-Lemma div_mod_i32 v:
-  let k:=Wasm_int.N_of_uint i32m ((Wasm_int.int_of_Z i32m (Z.of_N v))) in
-  (65536 | v)%N ->
-  (65536 | k)%N.
-Proof.
-  intros k Hdiv. subst k.
-  simpl. destruct Hdiv. subst.
-  rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-  replace (Wasm_int.Int32.modulus) with (65536 * 65536)%Z => //.    (* 4294967296 *)
-  rewrite Z2N.inj_mod;try lia.
-  rewrite N2Z.id.
-  rewrite Z2N.inj_mul;try lia.
-  simpl Z.to_N.
-  apply N.mod_divide;[lia|].
-  rewrite N.mul_mod_distr_r;try lia.
-  rewrite N.mul_mod_idemp_l;try lia.
-  rewrite N.mod_mul;lia.
-Qed.
-
-Lemma int_of_Z_mod v :
-  Wasm_int.int_of_Z i32m (Z.of_N v) =
-  Wasm_int.int_of_Z i32m (Z.of_N (Z.to_N (Wasm_int.Int32.Z_mod_modulus (Z.of_N v)))).
-Proof.
-  simpl.
-  rewrite Z2N.id;[|pose proof (Wasm_int.Int32.Z_mod_modulus_range (Z.of_N v)) as [? ?];auto].
-  rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-  rewrite - Wasm_int.Int32.unsigned_repr_eq.
-  rewrite Wasm_int.Int32.repr_unsigned. auto.
-Qed.
-  
 End Stack.

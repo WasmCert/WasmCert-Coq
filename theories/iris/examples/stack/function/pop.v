@@ -18,41 +18,6 @@ Section stack.
 
  Context `{!wasmG Σ}. 
 
-Print mem_block_at_pos.
- 
- Lemma points_to_i32_eq n1 i1 v1 n2 i2 v2:
-   n1 = n2 ->
-   i1 = i2 ->
-   v1 = v2 ->
-   n1 ↦[i32][i1] v1 -∗
-   n2 ↦[i32][i2] v2.
- Proof.
-   intros -> -> ->.
-   by iIntros.
- Qed.
-
-Lemma points_to_wm_eq n1 b1 k1 n2 b2 k2:
-   n1 = n2 ->
-   b1 = b2 ->
-   k1 = k2 ->
-   n1 ↦[wm][k1] b1 -∗
-   n2 ↦[wm][k2] b2.
- Proof.
-   intros -> -> ->.
-   by iIntros.
- Qed.
- 
-Lemma points_to_wms_eq n1 l1 k1 n2 l2 k2:
-   n1 = n2 ->
-   l1 = l2 ->
-   k1 = k2 ->
-   n1 ↦[wms][k1] l1 -∗
-   n2 ↦[wms][k2] l2.
- Proof.
-   intros -> -> ->.
-   by iIntros.
- Qed.
- 
 Section code.
 
 

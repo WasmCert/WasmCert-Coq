@@ -171,7 +171,7 @@ Proof.
       rewrite nat_bin in H0.
       rewrite Zmod_small in H0; last first.
       split; try by lias.
-      replace (two_power_nat 32) with (4294967296)%Z; by lias.
+      lia.
       iSplitR "Hf";eauto.
     + (* grow_memory succeeded *)
       inversion Hw ; subst v0.
@@ -187,10 +187,11 @@ Proof.
         simpl in Hbound.
         by lias.
       }
-      assert (len <= 4294901760)%N as Hlenbound.
+      assert (len <= ffff0000)%N as Hlenbound.
       { rewrite <- Hlenmod.
         remember (len `div` page_size)%N as pagenum.
         replace page_size with 65536%N => //.
+        unfold ffff0000.
         by lias.
       }
       unfold page_size at 3.
@@ -210,8 +211,7 @@ Proof.
         iFrame. }
       remember (Wasm_int.Int32.repr (ssrnat.nat_of_bin (len `div` page_size))) as c.
       iApply wp_wand_r.        
-      instantiate (1 := λ x, ((⌜ x = immV [value_of_uint len] ⌝ ∗ N.of_nat n↦[i32][ len ] (Wasm_int.Int32.repr (Z.of_N len))) ∗ ↪[frame] {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0
-                                                                                                                                                                       (VAL_int32 (Wasm_int.Int32.imul c (Wasm_int.Int32.repr 65536))); f_inst := f_inst f0 |} )%I).
+      instantiate (1 := λ x, ((⌜ x = immV [value_of_uint len] ⌝ ∗ N.of_nat n↦[i32][ len ] (Wasm_int.Int32.repr (Z.of_N len))) ∗ ↪[frame] {| f_locs := set_nth (VAL_int32 c) (f_locs f0) 0 (VAL_int32 (Wasm_int.Int32.imul c (Wasm_int.Int32.repr 65536))); f_inst := f_inst f0 |} )%I).
       iSplitL "Hf Hbs".
       * { iApply wp_wasm_empty_ctx.
           iApply (wp_block_ctx with "Hf") => //=.
@@ -235,11 +235,7 @@ Proof.
           - iSplitL "Hf".
             iApply (wp_binop with "Hf").
             unfold app_binop, app_binop_i. done.
-            instantiate (1 := λ x,
-                           ⌜ x = immV [VAL_int32 (Wasm_int.int_mul Wasm_int.Int32.Tmixin
-                                                                   c (Wasm_int.int_of_Z i32m
-                                                                                        65536))
-                                   ] ⌝%I ) => //=.
+            instantiate (1 := λ x,  ⌜ x = immV _ ⌝%I ) => //=.
           - 2: { simpl. by iIntros "(%HContra & _ )". }
             iIntros (w) "[-> Hf]".
             unfold of_val, fmap, list_fmap.
@@ -286,12 +282,11 @@ Proof.
                   iSplit => //.
                   rewrite N.add_0_r => /=.
                   instantiate (1 := n).
-                  replace len with (Z.to_N (Wasm_int.Int32.Z_mod_modulus (Wasm_int.Int32.unsigned c * 65536)))%N => //.
+                  iApply (points_to_wms_eq with "Hbs") => //.
                   rewrite Heqc.
                   unfold Wasm_int.Int32.unsigned => /=.
                   do 2 rewrite Wasm_int.Int32.Z_mod_modulus_eq.
-                  rewrite u32_modulus.
-                  rewrite nat_bin.
+                  rewrite u32_modulus nat_bin.
                   unfold mem_in_bound in Hbound.
                   simpl in Hbound.
                   remember (len `div` page_size)%N as pagenum.
@@ -369,7 +364,9 @@ Proof.
           rewrite - Hlenmod.
           replace (page_size) with 65536%N; last by lias.
           repeat rewrite N_nat_Z.
-          replace (Z.of_N (pagenum * 65536)) with (Z.of_N pagenum * 65536)%Z => //; last by lias.
+          iApply (points_to_wms_eq with "Hwm") => //.
+          repeat f_equal.
+          lia.
         }
         all: try by iIntros "(%HContra & _)".
       }
@@ -384,7 +381,6 @@ Proof.
         iSplit => //.
         iSplitR "Hlen". 
         unfold isStack.
-        replace (Z.to_N (N.to_nat len)) with len ; last lia.
         iSimpl.
         iSplitR.
         iPureIntro.
@@ -401,8 +397,7 @@ Proof.
         iExists (repeat #00%byte ( N.to_nat 65532)).
         rewrite repeat_length N2Nat.id.
         iSplit; first done.
-        replace (len + 1 + 1 + 1 + 1)%N with (len + 4)%N; last lia.
-        done.
+        iApply (points_to_wms_eq with "Hb") => //; lia.
         done.
 Qed.
         

@@ -234,13 +234,10 @@ Section stack.
         iIntros "!>" (k y) "% H".
         rewrite of_nat_to_nat_plus.
         simpl.
-        rewrite Wasm_int.Int32.Z_mod_modulus_eq Z.mod_small.
-        rewrite of_nat_to_nat_plus N2Z.id.
-        rewrite N.add_0_r.
-        replace (v + N.of_nat x * 4 + 4 + N.of_nat k)%N with (v + 4 + N.of_nat x * 4 + N.of_nat k)%N => //; last by lias.
-        unfold ffff0000 in Hvb.
-        rewrite u32_modulus.
-        lia.
+        rewrite Wasm_int.Int32.Z_mod_modulus_eq Z.mod_small; last first.
+        { unfold ffff0000 in Hvb; rewrite u32_modulus; lia. }
+        rewrite of_nat_to_nat_plus N2Z.id N.add_0_r.
+        iApply (points_to_wm_eq with "H") => //; lia.
 
       - iIntros (w) "(((-> & (H0 & H1 & H1')) & H2) & H3)".
         iSplit => //.
@@ -315,8 +312,7 @@ Section stack.
         iApply i32_wms => //.
         rewrite N.add_0_r N2Z.id.
         rewrite -Heqx.
-        replace (v+4+N.of_nat x * 4)%N with (v+N.pos (Pos.of_succ_nat x * 4))%N => //.
-        by lias.
+        iApply (points_to_wms_eq with "Hp") => //; do 3 f_equal; lia.
         
         iSplitR "Hrest".
         iSplitL "Ha".
@@ -325,14 +321,14 @@ Section stack.
         rewrite Z.mod_small ; last by unfold ffff0000 in Hvb ; rewrite u32_modulus; lia.
         rewrite N.add_0_r N.sub_0_r N2Z.id.
         rewrite - Heqx.
-        replace (v+4+N.of_nat x * 4)%N with (v+N.pos (Pos.of_succ_nat x * 4))%N => //.
-        lia.
+        iApply (points_to_wms_eq with "Ha") => //; lia.
+        
         iApply (big_sepL_impl with "Hs").
         iIntros "!>" (k y) "%Hbits H".
-        replace (v + N.of_nat x * 4 - 4 * N.of_nat k)%N with (v + N.of_nat (S x) * 4 - 4 * N.of_nat (S k))%N; last lia.
-        simpl.
-        rewrite - Heqx.
-        done.
+        iApply (points_to_i32_eq with "H") => //.
+        rewrite cons_length - Heqx.
+        lia.
+        
         iDestruct "Hrest" as (bs0) "(%Hbslen & Hrest)".
         iExists bs0.
         iSplit => //.
@@ -346,8 +342,7 @@ Section stack.
         iApply (big_sepL_impl with "Hrest").
         iIntros "!>" (k y) "%Hl Hy".
         do 2 rewrite of_nat_to_nat_plus.
-        replace (v + N.of_nat x * 4 + 4 + N.of_nat (4+k))%N with (v + N.of_nat (S x) * 4 + 4 + N.of_nat k)%N => //.
-        lia.
+        iApply (points_to_wm_eq with "Hy") => //; lia.
     Qed.
 
     Lemma spec_push f0 n (v: N) (a : i32) s E :
