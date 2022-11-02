@@ -327,7 +327,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
     - by apply module_restrictions_client.
       (* Because of the extra host import, a lot of the clever work done 
          in stack_instantiation.v is now unusable, so we must destruct the 
-         hypotheses that were usefull in the no-reentrancy example *)
+         hypotheses that were useful in the no-reentrancy example *)
     - unfold instantiation_resources_pre.
       unfold import_resources_host.
       instantiate (5 := [_;_;_;_;_;_;_;_]).
@@ -528,6 +528,10 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       rewrite app_nil_r.
       done.
 
+      (* Clearing away some premises to improve compilation time *)
+      all: clear Hinstmem Hinstglob H Hnodup Hnodup2 Hc0 Hc1 Hc2 Hc3 Hc4 Hc5 H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hbound Hbound' Htab Hinsttab.
+      all: iClear "Hspec1 Hspec2 Hspec6".
+      
       (* Proving spec of the client main *)
       { rewrite (separate1 (AI_basic (BI_call 0)) (_ :: _)).
         iApply wp_seq.
@@ -624,7 +628,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
               by apply of_to_val.
               iIntros (lh) "%Hfill".
               unfold lfilled, lfill in Hfill ; simpl in Hfill.
-              apply b2p in Hfill ; subst.
+              move/eqP in Hfill; subst.
               iApply wp_value.
               unfold IntoVal.
                 by apply of_to_val.
@@ -702,7 +706,6 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
         }
         (* new_stack succeeded *)
         {
-          clear Hinstmem Hinstglob H Hnodup Hnodup2 Hc0 Hc1 Hc2 Hc3 Hc4 Hc5 H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hbound Hbound'.
           iSimpl.
           rewrite (separate2 (AI_basic _)).
           iApply wp_seq; iSplitR; last iSplitL "Hf".
@@ -877,7 +880,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
             rewrite - (app_nil_r [AI_basic (BI_call 5)]).
             iApply wp_wasm_empty_ctx.
             iApply wp_base_push => //.
-            iApply (wp_call_ctx with "Hf") => //=.
+            iApply (wp_call_ctx with "Hf"); first done.
             iIntros "!> Hf".
             iApply wp_base_pull.
             rewrite app_nil_r.
@@ -1033,7 +1036,6 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
         }
       }
       
-      clear Hinstmem Hinstglob H Hnodup Hnodup2 Hc0 Hc1 Hc2 Hc3 Hc4 Hc5 H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hbound Hbound'.
       
       iIntros (w0) "[(Hf14 & Hvis7 & Himpfcl0 & Himpfcl4 & Himpfcl5 & Himpidt & Hf13 & Hmodtab & H) Hf]".
       iDestruct "H" as (k) "[(% & -> & Hnextaddr & Hwg & Hs) | [-> Hwg]]".
