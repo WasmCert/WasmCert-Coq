@@ -4,9 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
 Require Export iris_host iris_fundamental_helpers stack_specs.
-Require Export datatypes operations properties opsem.
 Require Export type_checker_reflects_typing.
 
 Set Implicit Arguments.
@@ -65,6 +63,11 @@ Definition stack_module :=
         modfunc_type := Mk_typeidx 2 ;
         modfunc_locals := [T_i32 ; T_i32] ;
         modfunc_body := stack_map
+      |} ;
+      {|
+        modfunc_type := Mk_typeidx 1 ;
+        modfunc_locals := [] ;
+        modfunc_body := stack_length
       |}
     ] ;
     mod_tables := [ {| modtab_type := {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
@@ -105,6 +108,10 @@ Definition stack_module :=
       {|
         modexp_name := list_byte_of_string "table" ;
         modexp_desc := MED_table (Mk_tableidx 0)
+      |} ;
+      {|
+        modexp_name := list_byte_of_string "stack_length" ;
+        modexp_desc := MED_func (Mk_funcidx 6)
       |}
     ]
   |}.
@@ -114,7 +121,8 @@ Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
                      ET_func (Tf [T_i32 ; T_i32] []) ; ET_func (Tf [T_i32 ; T_i32] []) ;
                      ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
-                              tt_elem_type := ELT_funcref |} ].
+                               tt_elem_type := ELT_funcref |};
+                    ET_func (Tf [T_i32] [T_i32])].
 
 Ltac bet_first f :=
   eapply bet_composition_front ; first eapply f => //=.
@@ -139,12 +147,12 @@ Ltac weaken :=
 Ltac type_go := repeat (constructor || type_next || weaken || (type_next_rewrite; eapply bet_composition; [constructor|])).
 
 
-Lemma validate_stack_typing x tloc tlab tret:
+Lemma validate_stack_typing x tf tloc tlab tret:
     nth_error tloc x = Some T_i32 ->
     be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -163,12 +171,12 @@ Proof.
   lia.
 Qed.
 
-Lemma validate_stack_bound_typing x tloc tlab tret:
+Lemma validate_stack_bound_typing x tf tloc tlab tret:
     nth_error tloc x = Some T_i32 ->
     be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -187,11 +195,11 @@ Proof.
   by apply bet_empty.
 Qed.
   
-Lemma new_stack_typing :
+Lemma new_stack_typing tf :
     be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -203,12 +211,12 @@ Proof.
   apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
 Qed.
 
-Lemma is_empty_typing tloc tlab tret:
+Lemma is_empty_typing tf tloc tlab tret:
   nth_error tloc 0 = Some T_i32 ->
   be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -224,11 +232,11 @@ Proof.
   simpl in Htloc. inversion Htloc; subst. by apply/eqP.
 Qed.
     
-Lemma is_full_typing tlab tret:
+Lemma is_full_typing tf tlab tret:
   be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -242,11 +250,11 @@ Proof.
   apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
 Qed.
     
-Lemma pop_typing tlab tret:
+Lemma pop_typing tf tlab tret:
    be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -261,11 +269,11 @@ Proof.
   apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
 Qed.
     
-Lemma push_typing tlab tret:
+Lemma push_typing tf tlab tret:
   be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -283,12 +291,12 @@ Proof.
   { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
   { apply/b_e_type_checker_reflects_typing => /=; by apply/eqP. }
 Qed.
-    
-Lemma stack_map_typing:
+
+Lemma stack_map_typing tf:
     be_typing
     {|
       tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-      tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
       tc_global := [];
       tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
       tc_memory := [ {| lim_min := 0; lim_max := None |}];
@@ -313,12 +321,30 @@ Proof.
   }
 Qed.
 
+Lemma stack_length_typing tf tlab tret:
+   be_typing
+    {|
+      tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
+      tc_func_t := tf;
+      tc_global := [];
+      tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
+      tc_memory := [ {| lim_min := 0; lim_max := None |}];
+      tc_local := [T_i32];
+      tc_label := tlab;
+      tc_return := tret;
+    |} stack_length (Tf [] [T_i32]).
+Proof.
+  eapply bet_composition'; first by apply validate_stack_typing.
+  eapply bet_composition'; first by apply validate_stack_bound_typing.
+  apply/b_e_type_checker_reflects_typing => /=; by apply/eqP.
+Qed.
+
 Lemma module_typing_stack :
   module_typing stack_module [] expts.
 Proof.
   unfold module_typing => /=. 
   exists [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ;
-     Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] [] ; Tf [T_i32 ; T_i32] [] ], [].
+     Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] [] ; Tf [T_i32 ; T_i32] []; Tf [T_i32] [T_i32]], [].
   repeat split => //.
   repeat (apply Forall2_cons ; repeat split => //) => /=.
   - by apply new_stack_typing.
@@ -327,6 +353,7 @@ Proof.
   - by apply pop_typing.
   - by apply push_typing.
   - by apply stack_map_typing.
+  - by apply stack_length_typing.
   - unfold module_export_typing.
     repeat (apply Forall2_cons ; repeat split => //) => //=.
 Qed.
@@ -335,7 +362,7 @@ Qed.
 
 
 Definition stack_instantiate :=
-  [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N] 0 []  ].
+  [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 42%N] 0 []  ].
 
 Notation " n ↪[vis]{ q } v" := (ghost_map_elem (V := module_export) visGName n q v%V)
                                  (at level 20, q at level 5, format " n ↪[vis]{ q } v") .
@@ -446,8 +473,7 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : N -> seq.seq i32 -> iPropI �
             stackAll s Φ ∗
             N.of_nat j0 ↦[wt][ N.of_nat (Wasm_int.nat_of_uint i32m f) ] (Some a) ∗
             (N.of_nat a) ↦[wf] cl ∗
-            ⌜ match cl with FC_func_native _ t _ _ => t | FC_func_host t _ => t end
-         = Tf [T_i32] [T_i32] ⌝ ∗ 
+            ⌜ cl_type cl = Tf [T_i32] [T_i32] ⌝ ∗ 
               (∀ (u : i32) (fc : frame),
                    {{{ Φ u ∗
                       ⌜ i5 = f_inst fc ⌝ ∗
@@ -471,7 +497,7 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : N -> seq.seq i32 -> iPropI �
             (N.of_nat a) ↦[wf] cl
   }}})%I.
 
-  (* A trap allowing version for code that might trap *)
+(* A trap allowing version for code that might trap *)
 Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N -> seq.seq i32 -> iPropI Σ) j0 E :=
   (∀ (f0 : frame) (f : i32) (v : N) (s : seq.seq i32) a cl γ1
      (Φ : i32 -> iPropI Σ) (Ψ : i32 -> i32 -> iPropI Σ) ,
@@ -504,11 +530,21 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       ↪[frame] f0
   }}})%I.
 
-  Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
+Definition spec6_stack_length idf i l fn (isStack : N -> seq.seq i32 -> iPropI Σ) (E: coPset) :=
+  (∀ (v: N) s f len, {{{ ↪[frame] f  ∗
+                      N.of_nat idf ↦[wf] FC_func_native i (Tf [T_i32] [T_i32]) l fn ∗
+                      ⌜ (N.of_nat (length s) = len)%N ⌝ ∗
+                 isStack v s }}}
+              [AI_basic (u32const v) ; AI_invoke idf] @ E
+              {{{ w, ⌜ w = immV [value_of_uint len] ⌝ ∗ isStack v s ∗
+                     N.of_nat idf ↦[wf] FC_func_native i (Tf [T_i32] [T_i32]) l fn ∗ 
+                     ↪[frame] f}}})%I.
+
+  Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 : module_export) :
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
      (* … and we own the vis 0%N thru 4%N … *)
-     ([∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5 ; hv6], N.of_nat k ↪[vis] hvk) -∗
+     (([∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5; hv6], N.of_nat k ↪[vis] hvk) ∗ 42%N ↪[vis] hv6) -∗
      (* … instantiating the stack-module (by lazyness, this is expressed here with
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
      WP ((stack_instantiate, []) : host_expr)
@@ -518,11 +554,11 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
                  ⌜ v = immHV [] ⌝ ∗
                  (* 0%N still owns the stack_module *)
                  0%N ↪[mods] stack_module ∗ 
-                  ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt : nat)
-                    (name0 name1 name2 name3 name4 name5 name6 : name)
-                    (f0 f1 f2 f3 f4 f5 : list basic_instruction)
+                  ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt idf6 : nat)
+                    (name0 name1 name2 name3 name4 name5 name6 name7 : name)
+                    (f0 f1 f2 f3 f4 f5 f6 : list basic_instruction)
                     (i0 : instance)
-                    (l0 l1 l2 l3 l4 l5 : list value_type)
+                    (l0 l1 l2 l3 l4 l5 l6: list value_type)
                     tab 
                     (isStack : N -> seq.seq i32 -> iPropI Σ)
                     (nextStackAddrIs : nat -> iPropI Σ), 
@@ -540,7 +576,9 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
                                                       (name2, idf2) ; (name3, idf3) ;
                                                       (name4, idf4) ; (name5, idf5) ])
                                         ++ [ {| modexp_name := name6 ;
-                                               modexp_desc := MED_table (Mk_tableidx idt) |} ]
+                                                modexp_desc := MED_table (Mk_tableidx idt) |} ] ++
+                                        [ {| modexp_name := name7 ;
+                                             modexp_desc := MED_func (Mk_funcidx idf6) |} ]
                     in 
                     let inst_map := fold_left (λ fs '(idf,i,t,l,f),
                                                 <[ N.of_nat idf := FC_func_native i t l f ]> fs)
@@ -549,12 +587,13 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
                                                     (idf2, i0, Tf [T_i32] [T_i32], l2, f2) ;
                                                     (idf3, i0, Tf [T_i32] [T_i32], l3, f3) ;
                                                     (idf4, i0, Tf [T_i32 ; T_i32] [], l4, f4) ;
-                                              (idf5, i0, Tf [T_i32 ; T_i32] [], l5, f5)])
+                                              (idf5, i0, Tf [T_i32 ; T_i32] [], l5, f5) ;
+                                              (idf6, i0, Tf [T_i32] [T_i32], l6, f6)])
                                               ∅ in 
                     (* These two import functions state that all [vis] and [wf] point 
                        to the correct exports/functions, i.e. a client will be able 
                        to successfully import them *)
-                    import_resources_host [0%N; 1%N; 2%N; 3%N; 4%N ; 5%N ; 6%N] inst_vis ∗
+                    import_resources_host [0%N; 1%N; 2%N; 3%N; 4%N ; 5%N ; 6%N; 42%N] inst_vis ∗
                     import_resources_wasm_typecheck_sepL2 inst_vis expts inst_map
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
@@ -575,15 +614,16 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
                     spec4_push idf4 i0 l4 f4 isStack E ∗
                     (* Spec of stack_map (call 5) *)
                     spec5_stack_map idf5 i0 l5 f5 isStack idt E ∗
-                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt E
+                    spec5_stack_map_trap idf5 i0 l5 f5 isStack idt E ∗
+                    spec6_stack_length idf6 i0 l6 f6 isStack E
                                           
              }}.
   Proof.
-    iIntros "Hmod (Hhv0 & Hhv1 & Hhv2 & Hhv3 & Hhv4 & Hhv5 & Hhv6 & _)".
+    iIntros "Hmod ((Hhv0 & Hhv1 & Hhv2 & Hhv3 & Hhv4 & Hhv5 & Hhv6 & _) & Hhv7)".
     iApply (weakestpre.wp_strong_mono s _ E
-             with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4 Hhv5 Hhv6]") => //.
+             with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4 Hhv5 Hhv6 Hhv7]") => //.
     iApply (instantiation_spec_operational_no_start
-             with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4 Hhv5 Hhv6]") ;
+             with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4 Hhv5 Hhv6 Hhv7]") ;
       try exact module_typing_stack => //.
     - by unfold stack_module.
     - unfold module_restrictions => /=.
@@ -619,6 +659,8 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       by iExists _.
       iSplitL "Hhv6".
       by iExists _.
+      iSplitL "Hhv7".
+      by iExists _.
       done.
       done.
     - simpl.
@@ -648,6 +690,8 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         iDestruct "Hexpwf" as "[Hf3 Hexpwf]".
       destruct inst_funcs as [| ? inst_funcs] ; first done ;
         iDestruct "Hexpwf" as "[Hf4 Hexpwf]".
+      destruct inst_funcs as [| ? inst_funcs] ; first done ;
+        iDestruct "Hexpwf" as "[Hf5 Hexpwf]".
       destruct inst_funcs ; last done.
       destruct inst_tab ; first done.
       iDestruct "Hexpwt" as "[Htab Hexpwt]".
@@ -657,7 +701,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       destruct inst_memory ; last done.
       iDestruct "Hexpwm" as "(Hexpwm & Hmemlength & Hmemlim)".
       destruct inst_globs ; last done.
-      iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & Hexp5 & Hexp6 & _)".
+      iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & Hexp5 & Hexp6 & Hexp7 & _)".
       iDestruct "Hexp0" as (name0) "Hexp0".
       iDestruct "Hexp1" as (name1) "Hexp1".
       iDestruct "Hexp2" as (name2) "Hexp2".
@@ -665,13 +709,14 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       iDestruct "Hexp4" as (name4) "Hexp4".
       iDestruct "Hexp5" as (name5) "Hexp5".
       iDestruct "Hexp6" as (name6) "Hexp6".
+      iDestruct "Hexp7" as (name7) "Hexp7".
       simpl in * ; subst.
       iSplitL "Hmod" ; first done.
-      iExists f, f0, f1, f2, f3, f4, t.
-      iExists name0, name1, name2, name3, name4, name5, name6.
-      iExists _, _, _, _, _, _.
+      iExists f, f0, f1, f2, f3, f4, t, f5.
+      iExists name0, name1, name2, name3, name4, name5, name6, name7.
+      iExists _, _, _, _, _, _, _.
       iExists _.
-      iExists _, _, _, _, _, _.
+      iExists _, _, _, _, _, _, _.
       iExists _.
       iExists (λ a b, isStack a b m).
       iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
@@ -680,20 +725,26 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       iDestruct (mapsto_frac_ne with "Hf Hf2") as "%H03" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf Hf3") as "%H04" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf Hf4") as "%H05" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf Hf5") as "%H06" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf0 Hf1") as "%H12" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf0 Hf2") as "%H13" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf0 Hf3") as "%H14" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf0 Hf4") as "%H15" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf0 Hf5") as "%H16" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf1 Hf2") as "%H23" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf1 Hf3") as "%H24" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf1 Hf4") as "%H25" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf1 Hf5") as "%H26" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf2 Hf3") as "%H34" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf2 Hf4") as "%H35" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf2 Hf5") as "%H36" ; first by eauto.
       iDestruct (mapsto_frac_ne with "Hf3 Hf4") as "%H45" ; first by eauto.
-      iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6".
+      iDestruct (mapsto_frac_ne with "Hf3 Hf5") as "%H46" ; first by eauto.
+      iDestruct (mapsto_frac_ne with "Hf4 Hf5") as "%H56" ; first by eauto.
+      iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6 Hexp7".
       unfold import_resources_host.
       iFrame. by iModIntro.
-      iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Htab".
+      iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Htab Hf5".
       iSplitR.
     - iPureIntro.
       simpl.
@@ -735,11 +786,22 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       do 5 (rewrite lookup_insert_ne ; last assumption).
       rewrite lookup_insert.
       split => //.
-      iSplitL; cbn; last done.
+      
+      iSplitL "Htab".
       iExists _, _ ; iFrame.
       iPureIntro.
       rewrite lookup_insert.
       split => //.
+
+      iSplitL "Hf5".
+      iExists _ ; iFrame.
+      iPureIntro.
+      do 6 (rewrite lookup_insert_ne ; last assumption).
+      rewrite lookup_insert.
+      split => //.
+
+      simpl => //.
+      
       iSplitR.
       { iPureIntro.
         repeat (apply NoDup_cons; split; cbn; first by set_solver).
@@ -776,25 +838,14 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         lia.
         iIntros (w) "H".
         iDestruct "H" as "(H & Hf)" => /=.
-        iDestruct "Hf" as (f5) "[Hf %Hf4]".
+        iDestruct "Hf" as (f6) "[Hf %Hf4]".
         iApply (wp_wand_ctx with "[H Hf Hf0]").
         iAssert (⌜const_list (iris.of_val w)⌝%I) as "%Hconstw".
         { by iDestruct "H" as "[(-> & ?) | (-> & ?)]" => //. }
         iApply (wp_val_return with "Hf") => //.
         iIntros "Hf".
         rewrite app_nil_r app_nil_l.
-        instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ ⌜ (0 <= k <= ffff0000)%N⌝ ∗ isStack k [] m ∗
-                                                                                             N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N))) ∗
-                                                                                             N.of_nat f↦[wf]FC_func_native
-                           {|
-                             inst_types :=
-                               [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-                             inst_funcs := [f; f0; f1; f2; f3;f4];
-                             inst_tab := [t];
-                             inst_memory := [m];
-                             inst_globs := []
-                           |} (Tf [] [T_i32]) [T_i32]
-                           new_stack ∗ ↪[frame] f5 )%I).
+        instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ ⌜ (0 <= k <= ffff0000)%N⌝ ∗ isStack k [] m ∗ N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N))) ∗ N.of_nat f↦[wf] _ ∗ ↪[frame] f6 )%I).
         iApply wp_value => //=.
         iDestruct "H" as "[(-> & Hmlen) | (-> & Hstack & Hmlen)]" => //. 
         { iFrame.
@@ -825,16 +876,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         iNext.
         instantiate (1 := (λ v, ((⌜ v = immV [value_of_int (-1)%Z] ⌝ ∗ N.of_nat m↦[wmlength]N.of_nat addr)%I ∨ ((∃ k, ⌜ v = immV [value_of_uint k]⌝ ∗ ⌜ (0 <= k <= ffff0000)%N⌝ ∗ isStack k [] m ∗
                                                                                              N.of_nat m↦[wmlength](N.of_nat addr + page_size)%N))) ∗
-                                                                                             N.of_nat f↦[wf]FC_func_native
-                           {|
-                             inst_types :=
-                               [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-                             inst_funcs := [f; f0; f1; f2; f3;f4];
-                             inst_tab := [t];
-                             inst_memory := [m];
-                             inst_globs := []
-                           |} (Tf [] [T_i32]) [T_i32]
-                           new_stack)%I).
+                                                                                             N.of_nat f↦[wf]_)%I).
         iSimpl.
         by iFrame.
       }
@@ -1013,7 +1055,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         lia.
         iIntros (w) "H".
         iDestruct "H" as "(-> & Hs & Hf)" => /=.
-        iDestruct "Hf" as (f5) "[Hf %Hf4]".
+        iDestruct "Hf" as (f6) "[Hf %Hf4]".
         iApply (wp_wand_ctx with "[Hs Hf Hf0]").
         iApply (wp_val_return with "Hf") => //.
         iIntros "Hf".
@@ -1071,7 +1113,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         lia.
         lia.
         iIntros (w) "(-> & Hs & Hf)".
-        iDestruct "Hf" as (f5) "[Hf %Hf4]".
+        iDestruct "Hf" as (f6) "[Hf %Hf4]".
         iApply (wp_wand_ctx with "[Hs Hf Hf0]").
         iApply (wp_val_return with "Hf") => //.
         iIntros "Hf".
@@ -1106,7 +1148,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
 
         
       iSplitR.
-    - iIntros "!>" (f5 fi v0 s0 a cl Φ Ψ Ξ)
+    - iIntros "!>" (f6 fi v0 s0 a cl Φ Ψ Ξ)
               "!> (Hf & Hf0 & Hs & HΦ & Htab & Hcl & %Hclt & #Hspec) HΞ".
       iApply wp_wand_r.
       iSplitR "HΞ".
@@ -1132,7 +1174,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         lia.
         iExact "Hspec".
         iIntros (w) "(-> & Hs & Hf & Ht & Ha)".
-        iDestruct "Hf" as (f6) "[Hf %Hf4]".
+        iDestruct "Hf" as (f7) "[Hf %Hf4]".
         iApply (wp_wand_ctx with "[Hs Hf Hf0]").
         iApply (wp_val_return with "Hf") => //.
         iIntros "Hf".
@@ -1167,9 +1209,9 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       iApply "HΞ".
       by iFrame.
 
-
+      iSplitR.
     (* Trap spec *)  
-    - iIntros "!>" (f5 fi v0 s0 a cl γ Φ Ψ Hsub Ξ)
+    - iIntros "!>" (f6 fi v0 s0 a cl γ Φ Ψ Hsub Ξ)
               "!> (Hf & Hs & HΦ & #Htab & #Hcl & Hown & Hf0) HΞ".
       iApply wp_wand_r.
       iSplitR "HΞ".
@@ -1195,7 +1237,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         repeat iSplit ; try iPureIntro => //=.
         lia. iFrame "Hcl".
         iIntros (w) "[[-> | Hs] Hf]";
-        iDestruct "Hf" as (f6) "[Hf [Hown %Hf4]]".
+        iDestruct "Hf" as (f7) "[Hf [Hown %Hf4]]".
         { iApply (wp_wand_ctx with "[Hf]").
           iSimpl. take_drop_app_rewrite_twice 0 0.
           iApply wp_trap_ctx;auto.
@@ -1215,17 +1257,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         iFrame.
         instantiate (1 :=  (λ v, ⌜ v = immV [] ⌝ ∗
                                            ( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
-                                           N.of_nat f4↦[wf]FC_func_native
-                            {|
-                              inst_types :=
-                                [Tf [] [T_i32]; Tf [T_i32] [T_i32];
-                                Tf [T_i32; T_i32] []];
-                              inst_funcs := [f; f0; f1; f2; f3;f4];
-                              inst_tab := [t];
-                              inst_memory := [m];
-                              inst_globs := []
-                            |} (Tf [T_i32; T_i32] []) [T_i32 ; T_i32 ]
-                           stack_map ∗ ↪[frame] f6)%I).
+                                           N.of_nat f4↦[wf] _ ∗ ↪[frame] _)%I).
         iSimpl.
         iFrame.
         done.
@@ -1237,23 +1269,67 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
         iApply (wp_frame_value with "Hf") => //.
         iNext. iRight.
          instantiate (1 :=  (( ∃ s', isStack v0 s' m ∗ stackAll2 s0 s' Ψ) ∗
-                                 N.of_nat f4↦[wf]FC_func_native
-                            {|
-                              inst_types :=
-                                [Tf [] [T_i32]; Tf [T_i32] [T_i32];
-                                Tf [T_i32; T_i32] []];
-                              inst_funcs := [f; f0; f1; f2; f3; f4];
-                              inst_tab := [t];
-                              inst_memory := [m];
-                              inst_globs := []
-                            |} (Tf [T_i32; T_i32] []) [T_i32; T_i32]
-                            stack_map)%I).
+                                 N.of_nat f4↦[wf] _)%I).
         iSimpl. iSplitR;[done|].
         iFrame. }
+
       iSimpl.
       iIntros (w) "[[[-> | (-> & Hs & Hf0)] Hown] Hf]".
-      all: iApply "HΞ";iFrame. by iLeft.
+      all: try iApply "HΞ";iFrame. by iLeft.
       iRight. iSplit;auto. iFrame.
+
+    (* length spec *)
+    - iIntros "!>" (v0 s0 f6 len Φ) "!> (Hf & Hf0 & %Hret & Hs) HΦ".
+      iApply wp_wand_r.
+      iSplitR "HΦ".
+      { rewrite (separate1 (AI_basic (i32const _)) _).
+        rewrite - (app_nil_r [AI_basic _]).
+        iApply (wp_invoke_native with "Hf Hf0") => //.
+        iIntros "!> [Hf Hf0]".
+        iSimpl.
+        iApply (wp_frame_bind with "Hf").
+        done. iIntros "Hf".
+        rewrite - (app_nil_l [AI_basic _]).
+        iApply (wp_block with "Hf") => //.
+        iIntros "!> Hf".
+        iApply (wp_label_bind with "[Hs Hf Hf0]") ; last first.
+        iPureIntro.
+        unfold lfilled, lfill => /=.
+        instantiate (5 := []) => /=.
+        rewrite app_nil_r.
+        done.
+        iApply (spec_stack_length with "[Hs Hf]").
+        iFrame.
+        repeat iSplit ; iPureIntro => //=.
+        iIntros (w) "(-> & Hs & Hf)".
+        iApply (wp_wand_ctx with "[Hs Hf Hf0]").
+        iApply (wp_val_return with "Hf") => //.
+        iIntros "Hf".
+        rewrite app_nil_r app_nil_l.
+        iApply wp_value => //=.
+        unfold IntoVal.
+        apply of_to_val => //.
+        iFrame.
+        instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗
+                                           isStack v0 s0 m ∗
+                                            N.of_nat f5 ↦[wf] _ ∗ ↪[frame] _)%I).
+        iSimpl.
+        iFrame.
+        done.
+        iIntros (w) "(-> & H &  Hf0 & Hf)".
+        iExists _.
+        iFrame.
+        iIntros "Hf".
+        iSimpl.         
+        iApply (wp_frame_value with "Hf") => //.
+        iNext.
+        instantiate (1 := λ v, ( ⌜ v = immV [value_of_uint _] ⌝ ∗ isStack v0 s0 m ∗ N.of_nat f5↦[wf] _)%I).
+        iSimpl.
+        iFrame.
+        done. }
+      iIntros (w) "[(-> & Hs & Hf0) Hf]".
+      iApply "HΦ".
+      by iFrame.
   Qed.
   
 
