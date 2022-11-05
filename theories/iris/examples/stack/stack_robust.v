@@ -539,7 +539,6 @@ Section Client_instantiation.
           na_own logrel_nais ⊤ ∗
           (∃ name, 9%N ↪[vis] {| modexp_name := name; modexp_desc := MED_global (Mk_globalidx (N.to_nat g_ret)) |}) ∗
           (own_vis_pointers [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N]) ∗
-        (*  (∃ vs0 vs1 vs2 vs3 vs4 vs5 vs6 vs7, [∗ list] v↦vs∈[vs0;vs1;vs2;vs3;vs4;vs5;vs6;vs7], N.of_nat v ↪[vis] vs) ∗*)
           (∃ vs, 8%N ↪[vis] vs) ∗
           ↪[frame] empty_frame
       }}}
@@ -646,7 +645,7 @@ Section Client_instantiation.
     iDestruct "Hstack" as (nm0 nm1 nm2 nm3 nm4 nm5 nm6 nm7 f0 f1) "Hstack".
     iDestruct "Hstack" as (f2 f3 f4 f5 f6 istack l0 l1 l2 l3) "Hstack".
     iDestruct "Hstack" as (l4 l5 l6 stacktab isStack newStackAddrIs) "Hstack".
-    iDestruct "Hstack" as "(HimpsH & HimpsW & %Hnodup & %Htablen & HnewStackAddrIs 
+    iDestruct "Hstack" as "(HimpsH & HimpsW & %Hnodup & %Hfnodup & %Htablen & HnewStackAddrIs 
     & #Hnewstack & #Hisempty & #Hisfull & #Hpop & #Hpush & #Hmap & #Hmaptrap & #Hstacklen)".
 
     rewrite irwt_nodup_equiv; last by apply NoDup_nil.

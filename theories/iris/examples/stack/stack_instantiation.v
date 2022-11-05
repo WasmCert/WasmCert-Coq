@@ -629,6 +629,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
                     ⌜ NoDup (modexp_desc <$> inst_vis) ⌝ ∗
+                    (* This is technically redundant, but is commonly used in other modules that import the stack *)
+                    ⌜ NoDup [idf0; idf1; idf2; idf3; idf4; idf5; idf6] ⌝ ∗
                     ⌜ length tab.(table_data) >= 1 ⌝ ∗
                     (* We own a token that hides ressources needed for the new_stack function *)
                     nextStackAddrIs 0 ∗
@@ -774,6 +776,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
         Unshelve.
         { move => x y Heq. by inversion Heq. }
       }
+
+      iSplitR => //.
       
       iSplitR; first by iPureIntro => /=; lia.
 
@@ -1305,8 +1309,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
       iApply "HΦ".
       by iFrame.
     }
-    
-  
 Qed.
   
 
