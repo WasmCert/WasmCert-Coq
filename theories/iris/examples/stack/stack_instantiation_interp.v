@@ -15,7 +15,7 @@ Section StackModule.
 
   Set Bullet Behavior "Strict Subproofs".
 
-  Definition stack_t_context :=
+ (* Definition stack_t_context :=
   {| tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
     tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
     tc_global := [];
@@ -24,7 +24,7 @@ Section StackModule.
     tc_local := [];
     tc_label := [];
     tc_return := None
-  |}.
+  |}.*)
 
   Lemma stackModuleInvIff P1 P2 Q :
     (∀ n l, P1 n l ≡ P2 n l) -> ⊢ (stackModuleInv P1 Q ∗-∗ @stackModuleInv Σ P2 Q)%I.
@@ -49,29 +49,30 @@ Section StackModule.
       rewrite - Hcond. eauto.
   Qed.      
   
-  Lemma instantiate_stack_valid `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (hv0 hv1 hv2 hv3 hv4 hv5 hv6 : module_export) :
+  Lemma instantiate_stack_valid `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (exp_addrs: list N) :
+    length exp_addrs = 8 ->
   (* Knowing 0%N holds the stack module… *)
   0%N ↪[mods] stack_module -∗
-     (* … and we own the vis 0%N thru 4%N … *)
-     ([∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5 ; hv6], N.of_nat k ↪[vis] hvk) -∗
+   (* … and we own the vis pointers … *)
+   own_vis_pointers exp_addrs -∗
      (* … instantiating the stack-module (by lazyness, this is expressed here with
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
-     WP ((stack_instantiate, []) : host_expr)
+     WP ((stack_instantiate_para exp_addrs, []) : host_expr)
      @ s ; E
              {{ λ v : host_val,
                  (* Instantiation succeeds *)
                  ⌜ v = immHV [] ⌝ ∗
                  (* 0%N still owns the stack_module *)
                  0%N ↪[mods] stack_module ∗ 
-                  ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idt : nat)
-                    (name0 name1 name2 name3 name4 name5 name6 : name)
-                    (f0 f1 f2 f3 f4 f5 : list basic_instruction)
+                  ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idf6 idt : nat)
+                    (name0 name1 name2 name3 name4 name5 name6 name7 : name)
+                    (f0 f1 f2 f3 f4 f5 f6: list basic_instruction)
                     (i0 : instance)
-                    (l0 l1 l2 l3 l4 l5 : list value_type)
+                    (l0 l1 l2 l3 l4 l5 l6: list value_type)
                     tab 
-                    (isStack : Z -> seq.seq i32 -> iPropI Σ)
+                    (isStack : N -> seq.seq i32 -> iPropI Σ)
                     (nextStackAddrIs : nat -> iPropI Σ), 
-                    (* Our exports are in the vis 0%N thru 4%N. Note that everything is 
+                    (* Our exports are in the vis 0%N thru 7%N. Note that everything is 
                        existantially quantified. In fact, all the f_i, i_i and l_i 
                        could be given explicitely, but we quantify them existantially 
                        to show modularity : we do not care what the functions are, 
@@ -83,42 +84,50 @@ Section StackModule.
                                                    modexp_desc := MED_func (Mk_funcidx idf)
                                                  |}) [(name0, idf0) ; (name1, idf1) ;
                                                       (name2, idf2) ; (name3, idf3) ;
-                                                      (name4, idf4) ; (name5, idf5) ])
-                                        ++ [ {| modexp_name := name6 ;
+                                                      (name4, idf4) ; (name5, idf5); (name6, idf6) ])
+                                        ++ [ {| modexp_name := name7 ;
                                                modexp_desc := MED_table (Mk_tableidx idt) |} ]
-                    in 
-                    let inst_map := fold_left (λ fs '(idf,i,t,l,f),
-                                                <[ N.of_nat idf := FC_func_native i t l f ]> fs)
-                                              (rev [(idf0, i0, Tf [] [T_i32], l0, f0) ;
-                                               (idf1, i0, Tf [T_i32] [T_i32], l1, f1) ;
-                                                    (idf2, i0, Tf [T_i32] [T_i32], l2, f2) ;
-                                                    (idf3, i0, Tf [T_i32] [T_i32], l3, f3) ;
-                                                    (idf4, i0, Tf [T_i32 ; T_i32] [], l4, f4) ;
-                                              (idf5, i0, Tf [T_i32 ; T_i32] [], l5, f5)])
-                                              ∅ in
+                    in let inst_map := (list_to_map (zip (fmap N.of_nat [idf0; idf1; idf2; idf3; idf4; idf5; idf6])
+                                                    [(FC_func_native i0 (Tf [] [T_i32]) l0 f0) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3) ;
+                                                     (FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4) ;
+                                                     (FC_func_native i0 (Tf [T_i32; T_i32] []) l5 f5) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l6 f6)]))
+                    in let inst_map_exp := (list_to_map (zip (fmap N.of_nat [idf0; idf1; idf2; idf3; idf4])
+                                                    [(FC_func_native i0 (Tf [] [T_i32]) l0 f0) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2) ;
+                                                     (FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3) ;
+                                                     (FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4)])) in
                     let tab_data := tab.(table_data) in
                     let tab_size := length tab_data in
                     (* These two import functions state that all [vis] and [wf] point 
                        to the correct exports/functions, i.e. a client will be able 
                        to successfully import them *)
-                    import_resources_host [0%N; 1%N; 2%N; 3%N; 4%N ; 5%N ; 6%N] inst_vis ∗
+                    import_resources_host exp_addrs inst_vis ∗
                     import_resources_wasm_typecheck_sepL2 inst_vis expts inst_map
                     (<[ N.of_nat idt := tab ]> ∅) 
                     ∅ ∅ ∗
                     ⌜ NoDup (modexp_desc <$> inst_vis) ⌝ ∗
+                    (* This is technically redundant, but is commonly used in other modules that import the stack *)
+                    ⌜ NoDup [idf0; idf1; idf2; idf3; idf4; idf5; idf6] ⌝ ∗
                     ⌜ tab_size >= 1 ⌝ ∗
-                    na_inv logrel_nais stkN (stackModuleInv (λ n, isStack (Z.of_N n)) nextStackAddrIs) ∗
+                    na_inv logrel_nais stkN (stackModuleInv (λ n, isStack n) nextStackAddrIs) ∗
                     (* table starts out as empty *)
                     ([∗ list] elem ∈ tab_data, ⌜elem = None⌝) ∗
                     (* each export function is valid *)
-                    [∗ map] f↦cl ∈ delete (N.of_nat idf5) inst_map, interp_closure [] (cl_type cl) cl
+                    [∗ map] f↦cl ∈ inst_map_exp, interp_closure [] (cl_type cl) cl
              }}.
   Proof.
-    iIntros "Hmod (Hhv0 & Hhv1 & Hhv2 & Hhv3 & Hhv4 & Hhv5 & Hhv6 & _)".
+    iIntros (Hvislen) "Hmod Hvis".
+    do 9 (destruct exp_addrs => //).
+    iDestruct (own_vis_pointers_nodup with "Hvis") as "%Hnodup".
     iApply (weakestpre.wp_strong_mono s _ E
-             with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4 Hhv5 Hhv6]") => //.
+             with "[Hmod Hvis]") => //.
     iApply (instantiation_spec_operational_no_start
-             with "[Hmod Hhv0 Hhv1 Hhv2 Hhv3 Hhv4 Hhv5 Hhv6]") ;
+             with "[Hmod Hvis]") ;
       try exact module_typing_stack => //.
     - by unfold stack_module.
     - unfold module_restrictions => /=.
@@ -139,59 +148,56 @@ Section StackModule.
       + done.
       + iPureIntro. unfold module_elem_bound_check_gmap => //=.
       + iPureIntro. unfold module_data_bound_check_gmap => //=.
-      + unfold export_ownership_host.
-        iSplitL "Hhv0".
-        by iExists _.
-        iSplitL "Hhv1".
-        by iExists _.
-        iSplitL "Hhv2".
-        by iExists _.
-        iSplitL "Hhv3".
-        by iExists _.
-        iSplitL "Hhv4".
-        by iExists _.
-        iSplitL "Hhv5".
-        by iExists _.
-        iSplitL "Hhv6".
-        by iExists _.
-        done.
+      + by iFrame. 
       + done.
       + simpl. by apply NoDup_nil.
+        
     - iIntros (v) "Hinst".
       unfold instantiation_resources_post.
       iDestruct "Hinst" as "(%Hvsucc & Hmod & Himphost & Hinst)".
+      iFrame "Hmod".
       subst v; iSplitR => //.
       iDestruct "Hinst" as (inst) "[Himpwasm Hexphost]".
       iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hexpwasm)".
       destruct Hinst as (Hinsttype & Hinstfunc & Hinsttab & Hinstmem & Hinstglob).
+
+      Opaque list_to_map.
+      Opaque zip_with.
+      
       unfold module_inst_resources_wasm, module_export_resources_host => /=.
       destruct inst => /=.
-      iDestruct "Hexpwasm" as "(Hexpwf & Hexpwt & Hexpwm & Hexpwg)".
-      unfold module_inst_resources_func, module_inst_resources_glob,
-        module_inst_resources_tab, module_inst_resources_mem => /=.
-      unfold big_sepL2 => /=.
-      destruct inst_funcs as [|? inst_funcs] ; first done ;
-        iDestruct "Hexpwf" as "[Hf Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] ; first done ;
-        iDestruct "Hexpwf" as "[Hf0 Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] ; first done ;
-        iDestruct "Hexpwf" as "[Hf1 Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] ; first done ;
-        iDestruct "Hexpwf" as "[Hf2 Hexpwf]".
-      destruct inst_funcs as [|? inst_funcs] ; first done ;
-        iDestruct "Hexpwf" as "[Hf3 Hexpwf]".
-      destruct inst_funcs as [| ? inst_funcs] ; first done ;
-        iDestruct "Hexpwf" as "[Hf4 Hexpwf]".
-      destruct inst_funcs ; last done.
-      destruct inst_tab ; first done.
-      iDestruct "Hexpwt" as "[Htab Hexpwt]".
-      destruct inst_tab ; last done.
-      destruct inst_memory as [|m inst_memory] ; first done.
-      iDestruct "Hexpwm" as "[Hexpwm ?]".
-      destruct inst_memory ; last done.
-      iDestruct "Hexpwm" as "(Hexpwm & Hmemlength & Hmemlim)".
-      destruct inst_globs ; last done.
-      iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & Hexp5 & Hexp6 & _)".
+      iDestruct "Hexpwasm" as "(Hwf & Hwt & Hwm & Hwg)".
+      iDestruct (module_inst_resources_func_nodup with "Hwf") as "%Hnodupwf".
+      unfold module_inst_resources_func, module_inst_resources_tab, module_inst_resources_mem => /=.
+
+      simpl in Hinsttype; subst inst_types.
+      
+      iDestruct (big_sepL2_length with "Hwf") as "%Hiflen".
+      simpl in Hiflen.
+      unfold get_import_func_count in * => /=; simpl in Hiflen.
+
+      iDestruct (big_sepL2_length with "Hwt") as "%Hitlen".
+      simpl in Hitlen.
+      unfold get_import_table_count in * => /=; simpl in Hitlen.
+      
+      iDestruct (big_sepL2_length with "Hwm") as "%Himlen".
+      simpl in Himlen.
+      unfold get_import_mem_count in * => /=; simpl in Himlen.
+      
+      iDestruct (big_sepL2_length with "Hwg") as "%Higlen".
+      simpl in Higlen.
+      unfold get_import_global_count in * => /=; simpl in Higlen.
+
+      rewrite -> drop_0 in *.
+
+      do 8 (destruct inst_funcs => //).
+      do 2 (destruct inst_tab => //).
+      do 2 (destruct inst_memory => //).
+      destruct inst_globs => //.
+      iExists f, f0, f1, f2, f3, f4, f5, t.
+
+      iSimpl in "Hexphost".
+      iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & Hexp5 & Hexp6 & Hexp7 & _)".
       iDestruct "Hexp0" as (name0) "Hexp0".
       iDestruct "Hexp1" as (name1) "Hexp1".
       iDestruct "Hexp2" as (name2) "Hexp2".
@@ -199,90 +205,67 @@ Section StackModule.
       iDestruct "Hexp4" as (name4) "Hexp4".
       iDestruct "Hexp5" as (name5) "Hexp5".
       iDestruct "Hexp6" as (name6) "Hexp6".
-      simpl in * ; subst.
-      iSplitL "Hmod" ; first done.
-      iExists f, f0, f1, f2, f3, f4, t.
-      iExists name0, name1, name2, name3, name4, name5, name6.
-      iExists _, _, _, _, _, _.
+      iDestruct "Hexp7" as (name7) "Hexp7".
+      iExists name0, name1, name2, name3, name4, name5, name6, name7.
+      
+      iExists _, _, _, _, _, _, _.
       iExists _.
-      iExists _, _, _, _, _, _.
+      iExists _, _, _, _, _, _, _.
       iExists _.
-      iExists (λ a b, isStack (Z.to_N a) b m).
+      iExists (λ a b, isStack a b m).
       iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
-      iDestruct (mapsto_frac_ne with "Hf Hf0") as "%H01" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf Hf1") as "%H02" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf Hf2") as "%H03" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf Hf3") as "%H04" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf Hf4") as "%H05" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf0 Hf1") as "%H12" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf0 Hf2") as "%H13" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf0 Hf3") as "%H14" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf0 Hf4") as "%H15" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf1 Hf2") as "%H23" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf1 Hf3") as "%H24" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf1 Hf4") as "%H25" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf2 Hf3") as "%H34" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf2 Hf4") as "%H35" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "Hf3 Hf4") as "%H45" ; first by eauto.
-      iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6".
-      unfold import_resources_host.
-      iFrame. by iModIntro.
-      iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Htab".
-      iSplitR.
-      + iPureIntro.
-        simpl.
-        repeat rewrite dom_insert.
-        done.
-      + iSplitL "Hf".
-        iExists _.
-        iFrame.
-        iPureIntro.
-        rewrite lookup_insert.
-        split => //.
-        iSplitL "Hf0".
-        iExists _ ; iFrame.
-        iPureIntro.
-        rewrite lookup_insert_ne ; last assumption.
-        rewrite lookup_insert.
-        split => //.
-        iSplitL "Hf1".
-        iExists _ ; iFrame.
-        iPureIntro.
-        do 2 (rewrite lookup_insert_ne ; last assumption).
-        rewrite lookup_insert.
-        split => //.
-        iSplitL "Hf2".
-        iExists _ ; iFrame.
-        iPureIntro.
-        do 3 (rewrite lookup_insert_ne ; last assumption).
-        rewrite lookup_insert.
-        split => //.
-        iSplitL "Hf3".
-        iExists _ ; iFrame.
-        iPureIntro.
-        do 4 (rewrite lookup_insert_ne ; last assumption).
-        rewrite lookup_insert.
-        split => //.
-        iSplitL "Hf4".
-        iExists _ ; iFrame.
-        iPureIntro.
-        do 5 (rewrite lookup_insert_ne ; last assumption).
-        rewrite lookup_insert.
-        split => //.
-        iSplitL; cbn; last done.
-        iExists _, _ ; iFrame.
-        iPureIntro.
-        rewrite lookup_insert.
-        split => //.
-      + iSplitR.
-        { iPureIntro.
-          repeat (apply NoDup_cons; split; cbn; first by set_solver).
-          by apply NoDup_nil.
-        }
+
+      iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6 Hexp7"; first by iFrame => /=.
+      
+      iDestruct "Hwf" as "(Hf & Hf0 & Hf1 & Hf2 & Hf3 & Hf4 & Hf5 & _)".
+      iDestruct "Hwt" as "(Ht & _)".
+      iDestruct "Hwm" as "(Hm & _)".
+
+      iDestruct "Hm" as "(Hmem & Hmemlength & Hmlim)".
+      
+      iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Hf5 Ht".
+      { unfold import_resources_wasm_typecheck_sepL2.
         iSplitR.
-        iPureIntro.
-        simpl.
-        lia.
+        { unfold import_resources_wasm_domcheck.
+          by repeat rewrite dom_insert.
+        }
+        { simpl.
+          apply (NoDup_fmap_2 N.of_nat) in Hnodupwf.
+          iSplitL "Hf";
+            last iSplitL "Hf0"; 
+            last iSplitL "Hf1"; 
+            last iSplitL "Hf2"; 
+            last iSplitL "Hf3"; 
+            last iSplitL "Hf4"; 
+            last iSplitL "Hf5";
+            last first.
+          { iModIntro; iSplit => //.
+            iExists _, _.
+            iFrame.
+            rewrite lookup_insert.
+            iPureIntro.
+            by split => //.
+          }
+          all: (iExists _; iFrame; rewrite - elem_of_list_to_map => //=; iPureIntro; split => //; apply elem_of_list_In; repeat ((try by left); right)).
+        }
+      }
+      
+      iSplitR.
+      { iPureIntro.
+        eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hnodupwf.
+        { simpl in Hnodupwf.
+          rewrite separate7.
+          apply NoDup_app; split => //.
+          split => //; last by apply NoDup_singleton.
+          by set_solver+.
+        }
+        Unshelve.
+        { move => x y Heq. by inversion Heq. }
+      }
+
+      iSplitR => //.
+      
+      iSplitR => //=; first by iPureIntro; lia.
 
         iMod (na_inv_alloc logrel_nais _ stkN (stackModuleInv _ (λ n : nat, N.of_nat m↦[wmlength]N.of_nat n)%I) with "[Hmemlength]") as "#Hstk".
         { iNext. iExists 0. iSplit.
@@ -299,18 +282,24 @@ Section StackModule.
         iDestruct (na_inv_iff with "Hstk []") as "Hstk'".
         { iNext; iModIntro. iSplit.
           - iIntros "H". iDestruct (stackModuleInvIff with "H") as "H";[|iExact "H"].
-            intros. simpl. rewrite N2Z.id.
+            intros. simpl. 
             apply class_instances.as_emp_valid_equiv.
             iSplit;iIntros "H";iExact "H".
           - iIntros "H". iDestruct (stackModuleInvIff with "H") as "H";[|iExact "H"].
-            intros. simpl. rewrite N2Z.id.
+            intros. simpl.
             apply class_instances.as_emp_valid_equiv.
             iSplit;iIntros "H";iExact "H". }
-        
-        repeat (rewrite delete_insert_ne;[|done]). 
-        repeat (rewrite big_sepM_insert;[|simplify_map_eq; done]).
-        rewrite delete_insert;[|auto].
-        repeat iSplitR;iModIntro;[..|iApply big_sepM_empty;done];auto;iModIntro;iNext.
+
+        iApply big_opM_map_to_list.
+        rewrite map_to_list_to_map; last first.
+        { rewrite fst_zip => //. rewrite separate5 in Hnodupwf.
+          apply NoDup_app in Hnodupwf as [Hnodupwf _].
+          by apply (NoDup_fmap_2 N.of_nat) in Hnodupwf.
+        }
+        iModIntro.
+        Transparent zip_with.
+        simpl.
+        repeat (iSplitR => //; first (iSplit => //; iIntros "!>!>")).
         * iApply (valid_new_stack with "Hstk'").
         * iApply (valid_is_empty with "Hstk'").
         * iApply (valid_is_full with "Hstk'").

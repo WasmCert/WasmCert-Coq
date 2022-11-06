@@ -22,7 +22,7 @@ Section RobustStack.
     (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
   
   Definition stack_adv_instantiate :=
-    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N] 0 [] ;
+    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N] 0 [] ;
       ID_instantiate [] 1 [0%N ; 1%N ; 2%N ; 3%N ; 4%N ] ].
 
   Definition stack_module_imports :=
@@ -128,96 +128,121 @@ Section RobustStack.
     ⊢ {{{ 0%N ↪[mods] stack_module ∗
           1%N ↪[mods] adv_module ∗
           na_own logrel_nais ⊤ ∗
-          (∃ vs0 vs1 vs2 vs3 vs4 vs5 vs6, [∗ list] v↦vs∈[vs0;vs1;vs2;vs3;vs4;vs5;vs6], N.of_nat v ↪[vis] vs) ∗
+          own_vis_pointers [0%N; 1%N; 2%N; 3%N; 4%N; 5%N; 6%N; 7%N] ∗
           ↪[frame] empty_frame
       }}}
         ((stack_adv_instantiate,[]) : host_expr) 
         {{{ v, ((⌜v = trapHV ∨ v = immHV []⌝) ∗ na_own logrel_nais ⊤
-                  ∗ ∃ newStackAddrIs isStack, na_inv logrel_nais stkN (stackModuleInv (λ n0, isStack (Z.of_N n0)) newStackAddrIs))
+                  ∗ ∃ newStackAddrIs isStack, na_inv logrel_nais stkN (stackModuleInv (λ n0, isStack n0) newStackAddrIs))
                  ∗ ↪[frame] empty_frame }}} .
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm).
     iModIntro. iIntros (Φ) "(Hmod_stack & Hmod_adv & Hown & 
-                        Hvisvst & Hemptyframe) HΦ".
-    iDestruct "Hvisvst" as (vs0 vs1 vs2 vs3 vs4 vs5 vs6) "Hvis".
+                        Hvis & Hemptyframe) HΦ".
 
     (* instantiate stack module *)
     iApply (wp_seq_host_nostart NotStuck with "[] [$Hmod_stack] [Hvis] ") => //.
     2: { iIntros "Hmod_stack".
       iApply weakestpre.wp_mono;cycle 1.
-      iApply (instantiate_stack_valid with "[$]").
-      { iFrame "Hvis". }
+      iApply (instantiate_stack_valid with "[$]") => //.
       iIntros (v) "[Hvsucc [$ Hv]]".
       iCombine "Hvsucc Hv" as "Hv".
       iExact "Hv". }
     { by iIntros "(% & ?)". }
+    
     iIntros (w) "Hstack Hmod_stack".
 
     iDestruct "Hstack" as "(-> & Hstack)".
     
-    iDestruct "Hstack" as (idf0 idf1 idf2 idf3 idf4 idf5 idt) "Hstack".
-    iDestruct "Hstack" as (nm0 nm1 nm2 nm3 nm4 nm5 nm6 f0 f1 f2) "Hstack".
-    iDestruct "Hstack" as (f3 f4 f5 istack l0 l1 l2 l3 l4 l5) "Hstack".
-    iDestruct "Hstack" as (stacktab isStack newStackAddrIs) "Hstack".
-    iDestruct "Hstack" as "(HimpsH & HimpsW & %Hnodup & %Htablen & #Hinv & #Hnewstack & #Hinterp)".
+    iDestruct "Hstack" as (idf0 idf1 idf2 idf3 idf4 idf5 idf6 idt) "Hstack".
+    iDestruct "Hstack" as (nm0 nm1 nm2 nm3 nm4 nm5 nm6 nm7 f0 f1) "Hstack".
+    iDestruct "Hstack" as (f2 f3 f4 f5 f6 istack l0 l1 l2 l3) "Hstack".
+    iDestruct "Hstack" as (l4 l5 l6 stacktab isStack newStackAddrIs) "Hstack".
+    iDestruct "Hstack" as "(HimpsH & HimpsW & %Hnodup & %Hfnodup & %Htablen & #Hinv & #Hnewstack & #Hinterp)".
     
     (* Cleanup of stack resources *)
-    iDestruct "HimpsW" as "(_ & Hidf0 & Hidf1 & Hidf2 & Hidf3 & Hidf4 & Hidf5 & Hidtab & _) /=".
-     repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
-    iDestruct "Hidf0" as (cl0) "[Himpfcl0 Hcl0]".
-    iDestruct "Hidf1" as (cl1) "[Himpfcl1 Hcl1]".
-    iDestruct "Hidf2" as (cl2) "[Himpfcl2 Hcl2]".
-    iDestruct "Hidf3" as (cl3) "[Himpfcl3 Hcl3]".
-    iDestruct "Hidf4" as (cl4) "[Himpfcl4 Hcl4]".
-    iDestruct "Hidf5" as (cl5) "[Himpfcl5 Hcl5]".
-    iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl1") as "%H01" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl2") as "%H02" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl3") as "%H03" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl4") as "%H04" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl0 Himpfcl5") as "%H05" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl2") as "%H12" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl3") as "%H13" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl4") as "%H14" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl1 Himpfcl5") as "%H15" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl2 Himpfcl3") as "%H23" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl2 Himpfcl4") as "%H24" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl2 Himpfcl5") as "%H25" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl3 Himpfcl4") as "%H34" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl3 Himpfcl5") as "%H35" ; first by eauto.
-    iDestruct (mapsto_frac_ne with "Himpfcl4 Himpfcl5") as "%H45" ; first by eauto.
-    repeat (rewrite lookup_insert + (rewrite lookup_insert_ne;[|done])).
-    iDestruct "Hcl0" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
-    iDestruct "Hcl1" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
-    iDestruct "Hcl2" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
-    iDestruct "Hcl3" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
-    iDestruct "Hcl4" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
-    iDestruct "Hcl5" as %[Heq1 Heq2];inversion Heq1;inversion Heq2;clear Heq1 Heq2.
-    subst cl0 cl1 cl2 cl3 cl4 cl5.
-    iDestruct "Hidtab" as (tab tt) "[Hidtab [%Heq %Htt]]". inversion Heq;subst tab.
-    repeat (rewrite delete_insert_ne;[|done]). rewrite delete_insert;[|auto].
-    clear (* H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 *) H1 H3 H5 H7 H9 H11.
-    iDestruct "HimpsH" as "(Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & _)".
+    Opaque list_to_map.
+    Opaque zip_with.
+    iDestruct "HimpsW" as "(_ & Hidf0 & Hidf1 & Hidf2 & Hidf3 & Hidf4 & Hidf5 & Hidf6 & Hidtab & _) /=".
+
+    iDestruct "Hidf0" as (cl0) "[Himpfcl0 %Hcltype0]".
+    iDestruct "Hidf1" as (cl1) "[Himpfcl1 %Hcltype1]".
+    iDestruct "Hidf2" as (cl2) "[Himpfcl2 %Hcltype2]".
+    iDestruct "Hidf3" as (cl3) "[Himpfcl3 %Hcltype3]".
+    iDestruct "Hidf4" as (cl4) "[Himpfcl4 %Hcltype4]".
+    iDestruct "Hidf5" as (cl5) "[Himpfcl5 %Hcltype5]".
+    iDestruct "Hidf6" as (cl6) "[Himpfcl6 %Hcltype6]".
+
+    apply (NoDup_fmap_2 N.of_nat) in Hfnodup; simpl in Hfnodup.
+    
+    remember (list_to_map _) as mtmp.
+    rewrite -> Heqmtmp in *.
+    rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6 => //.
+    destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
+    destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
+    destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
+    destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
+    destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
+    destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
+    destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
+    assert (k0=0) as ->; first by eapply NoDup_lookup => //.
+    assert (k1=1) as ->; first by eapply NoDup_lookup => //.
+    assert (k2=2) as ->; first by eapply NoDup_lookup => //.
+    assert (k3=3) as ->; first by eapply NoDup_lookup => //.
+    assert (k4=4) as ->; first by eapply NoDup_lookup => //.
+    assert (k5=5) as ->; first by eapply NoDup_lookup => //.
+    assert (k6=6) as ->; first by eapply NoDup_lookup => //.
+    inversion Hcl0.
+    inversion Hcl1.
+    inversion Hcl2.
+    inversion Hcl3.
+    inversion Hcl4.
+    inversion Hcl5.
+    inversion Hcl6.
+    subst cl0 cl1 cl2 cl3 cl4 cl5 cl6.
+    clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6.
+
+    rewrite lookup_insert.
+    iDestruct "Hidtab" as (tab tt) "[Hidtab [%Heq %Htt]]". inversion Heq;subst tab; clear Heq.
+    iDestruct "HimpsH" as "(Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 & _)".
 
     (* instantiate adversary module *)
     iApply (weakestpre.wp_wand _ _ _ (λ v, _)%I with "[-HΦ] [HΦ]");cycle 1.
     { iIntros (v) "Hv". iApply "HΦ". iExact "Hv". }
-    { iApply (instantiation_spec_operational_start_seq with "[$Hemptyframe] [$Hmod_adv Hvis0 Hvis1 Hvis2 Hvis3 Hvis4
-      Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4]");[eauto|apply Htyp|auto|..].
+    { iApply (instantiation_spec_operational_start_seq with "[$Hemptyframe] [$Hmod_adv Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4]");[eauto|apply Htyp|auto|..].
       - instantiate (5:=[_;_;_;_;_]).
         unfold import_resources_host. iSimpl. iFrame "Hvis0 Hvis1 Hvis2 Hvis3 Hvis4".
         instantiate (1:=∅).
         instantiate (1:=∅).
         instantiate (1:=∅).
-        instantiate (1:={[ (N.of_nat idf0):=_ ; (N.of_nat idf1):=_ ; (N.of_nat idf2):=_ ; (N.of_nat idf3):=_ ; (N.of_nat idf4):=_]}).
+        instantiate (1:= (list_to_map (zip (fmap N.of_nat [idf0; idf1; idf2; idf3; idf4]) [_;_;_;_;_]))).
+
+        rewrite separate5 in Hfnodup.
+        apply NoDup_app in Hfnodup as [Hfnodup _].
         
         iSplit;[iSplit;[|auto]|iSplit].
-        + unfold import_resources_wasm_typecheck.
+        + simpl.
           iSplitL. unfold import_func_wasm_check,import_func_resources.
           rewrite /func_typecheck /func_domcheck /= !dom_insert_L !Forall2_cons Forall2_nil /=.
           iClear "Hinterp".
-          do 4 (rewrite big_sepM_insert;[|simplify_map_eq;auto]).
-          rewrite big_sepM_singleton. iFrame. simplify_map_eq.
-          iSplit;iPureIntro. repeat split;eauto. set_solver -.
+          iSplit => //.
+          { 
+            iApply big_opM_map_to_list.
+            rewrite map_to_list_to_map; last done.
+            Transparent zip_with.
+            iFrame.
+            done.
+          }
+          iSplit => //.
+          { iPureIntro.
+            repeat (split; first eexists) => //.
+            all: rewrite -> list_to_map_zip_lookup => //.
+            { split; first exists 0 => //; done. }
+            { split; first exists 1 => //; done. }
+            { split; first exists 2 => //; done. }
+            { split; first exists 3 => //; done. }
+            { split; first exists 4 => //; done. }
+          }
           repeat iSplit;auto.
           2: rewrite /tab_typecheck !Forall2_cons /= //.
           3: rewrite /mem_typecheck !Forall2_cons /= //.
@@ -228,6 +253,8 @@ Section RobustStack.
         + unfold export_ownership_host. auto.
         + iPureIntro. erewrite module_typing_exports_length;eauto. auto.
       - iIntros (idnstart) "Hf Hres".
+        Transparent list_to_map.
+        Transparent zip_with.
         iDestruct "Hres" as "[Hadv [Himp Hinst]]".
         iDestruct "Hinst" as (inst) "[Hres Hexpts]".
         unfold instantiation_resources_post_wasm.
