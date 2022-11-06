@@ -24,11 +24,12 @@ Section Client2.
      2 - is_full
      3 - pop
      4 - push 
-     5 - map *)
- (* Function 6 is a call_host that modifies the table *)
- (* Function 7 is main *)
- (* Function 8 is the square function *)
- (* Function 9 is the *2 function *)
+     5 - map
+     6 - length *)
+ (* Function 7 is a call_host that modifies the table *)
+ (* Function 8 is main *)
+ (* Function 9 is the square function *)
+ (* Function 10 is the *2 function *)
  
   Definition main :=
     [ BI_call 0 ;
@@ -47,8 +48,8 @@ Section Client2.
       i32const 0 ;
       BI_call 5 ; (* Map square onto the stack *)
       i32const 0 ;
-      i32const 9 ;
-      BI_call 6 ; (* Modify the table to now have *2 as the 0th function *)
+      i32const 10 ;
+      BI_call 7 ; (* Modify the table to now have *2 as the 0th function *)
       BI_get_local 0 ;
       i32const 0 ;
       BI_call 5 ; (* Map *2 onto the stack *)
@@ -98,9 +99,9 @@ Section Client2.
                          modglob_init := [i32const 0] |} ] ;
       mod_elem := [ {| modelem_table := Mk_tableidx 0 ;
                       modelem_offset := [i32const 0] ;
-                      modelem_init := [Mk_funcidx 8] |} ] ; (* the (imported) table originally contains the square function *)
+                      modelem_init := [Mk_funcidx 9] |} ] ; (* the (imported) table originally contains the square function *)
       mod_data := [] ;
-      mod_start := Some {| modstart_func := Mk_funcidx 7 |} ;
+      mod_start := Some {| modstart_func := Mk_funcidx 8 |} ;
       mod_imports := [
         {|
           imp_module := list_byte_of_string "Stack" ;
@@ -131,6 +132,10 @@ Section Client2.
           imp_name := list_byte_of_string "stack_map" ;
           imp_desc := ID_func 3
         |} ;
+        {| imp_module := list_byte_of_string "Stack" ;
+          imp_name := list_byte_of_string "stack_length" ;
+          imp_desc := ID_func 2
+        |} ;
         {| imp_module := list_byte_of_string "Host" ;
           imp_name := list_byte_of_string "modify_table" ;
           imp_desc := ID_func 3 |} ;
@@ -152,9 +157,8 @@ Section Client2.
   Ltac bet_first f :=
   eapply bet_composition_front ; first eapply f => //=.
 
-
   Lemma module_typing_client :
-    module_typing client_module (take 6 expts ++ [ET_func (Tf [T_i32 ; T_i32] [])] ++ drop 6 expts) [ET_glob {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
+    module_typing client_module (take 7 expts ++ [ET_func (Tf [T_i32 ; T_i32] [])] ++ drop 7 expts) [ET_glob {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
   Proof.
     unfold module_typing => /=.
     exists [ Tf [] [] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ],
@@ -197,36 +201,19 @@ Section Client2.
     { by exists []. }
   Qed.
 
-
   Definition stack_instantiate :=
-    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N] 0 [] ;
-      ID_instantiate [7%N] 1 [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 8%N ; 6%N] ].
-  (* vis 8 is the host import *)
+    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N] 0 [] ;
+      ID_instantiate [8%N] 1 [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 9%N ; 7%N] ].
+  (* vis 9 is the host import *)
 
-
-Notation " n ↦[ha]{ q } f" := (ghost_map_elem (V := host_action) haGName n q f%V)
-                                (at level 20, q at level 5, format " n ↦[ha]{ q } f") .
-Notation " n ↦[ha] f" := (ghost_map_elem (V := host_action) haGName n (DfracOwn 1) f%V)
-                           (at level 20, format " n ↦[ha] f") .
-    Notation " n ↪[vis]{ q } v" := (ghost_map_elem (V := module_export) visGName n q v%V)
-                                 (at level 20, q at level 5, format " n ↪[vis]{ q } v") .
-Notation " n ↪[vis] v" := (ghost_map_elem (V := module_export) visGName n (DfracOwn 1) v%V)
-                            (at level 20, format " n ↪[vis] v").
-
-Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
-                                  (at level 20, q at level 5, format " n ↪[mods]{ q } v") .
-Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
-                             (at level 20, format " n ↪[mods] v").
-
-  
-Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6 hv7 name idmodtab :
+Lemma instantiate_stack_client_spec (s: stuckness) E name idmodtab :
   ↪[frame] empty_frame -∗
   0%N ↪[mods] stack_module -∗
-     1%N ↪[mods] client_module -∗
-     ( [∗ list] k↦hvk ∈ [hv0 ; hv1 ; hv2 ; hv3 ; hv4 ; hv5 ; hv6 ; hv7], N.of_nat k↪[vis] hvk) -∗
+  1%N ↪[mods] client_module -∗
+  own_vis_pointers [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N; 8%N] -∗
      (* The next lines assert that the host import does indeed point to the desired
         modify_table host-instruction *)
-     8%N ↪[vis] {| modexp_name := name ;
+     9%N ↪[vis] {| modexp_name := name ;
                   modexp_desc := MED_func (Mk_funcidx idmodtab) |} -∗
      N.of_nat idmodtab ↦[wf] FC_func_host (Tf [T_i32 ; T_i32] []) (Mk_hostfuncidx 0) -∗
      0%N ↦[ha] HA_modify_table -∗
@@ -239,133 +226,142 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
                 0%N ↪[mods] stack_module ∗
                  1%N ↪[mods] client_module ∗
                  ∃ idg name,
-                   7%N ↪[vis] {| modexp_name := name ;
+                   8%N ↪[vis] {| modexp_name := name ;
                                 modexp_desc := MED_global (Mk_globalidx idg) |} ∗
                     (N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 40%Z |} ∨
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
-  Proof.
-    iIntros "Hemptyframe Hmod0 Hmod1 (Hvis0 & Hvis1 & Hvis2 & Hvis3 & Hvis4 & Hvis5 & Hvis6 & Hvis7 &  _) Hvis8 Hwfcallhost Hha".
+Proof.
+  iIntros "Hemptyframe Hmod0 Hmod1 Hvis Hvis9 Hwfcallhost Hha".
+  
+  rewrite separate8.
+  iDestruct (big_sepL_app with "Hvis") as "(Hvis & (Hvis8 & _))".
     iApply (wp_seq_host_nostart NotStuck
-             with "[] [$Hmod0] [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]") => //.
+              with "[] [$Hmod0] [Hvis]") => //.
     2: { iIntros "Hmod0".
       iApply weakestpre.wp_mono ;
-        last iApply (instantiate_stack_spec
-                      with "Hmod0 [Hvis0 Hvis1 Hvis2 Hvis3 Hvis4 Hvis5 Hvis6]").
-      2:{ iSplitL "Hvis0" ; first done.
-          iSplitL "Hvis1" ; first done.
-          iSplitL "Hvis2" ; first done.
-          iSplitL "Hvis3" ; first done.
-          iSplitL "Hvis4" ; first done.
-          iSplitL "Hvis5" ; first done.
-            by iSplitL. }
-      iIntros (v) "[Hsuccv [? H]]".
+        last iApply (instantiate_stack_spec with "Hmod0 [Hvis]") => //.
+      iIntros (v) "[Hvsucc [? H]]".
       iFrame.
-      iCombine "Hsuccv H" as "H".
-      by iExact "H".
+      iCombine "Hvsucc H" as "H".
+      by iApply "H".
     }
     { by iIntros "(% & ?)". }
+    
     - iIntros (w) "Hes1 Hmod0".
       iDestruct "Hes1" as "(-> & Hes1)".
-      iDestruct "Hes1" as (idf0 idf1 idf2 idf3 idf4 idf5 idt) "Hes1".
-      iDestruct "Hes1" as (name0 name1 name2 name3 name4 name5 name6) "Hes1".
-      iDestruct "Hes1" as (f0 f1 f2 f3 f4 f5) "Hes1".
+      iDestruct "Hes1" as (idf0 idf1 idf2 idf3 idf4 idf5 idf6 idt) "Hes1".
+      iDestruct "Hes1" as (name0 name1 name2 name3 name4 name5 name6 name7) "Hes1".
+      iDestruct "Hes1" as (f0 f1 f2 f3 f4 f5 f6) "Hes1".
       iDestruct "Hes1" as (i0) "Hes1".  
-      iDestruct "Hes1" as (l0 l1 l2 l3 l4 l5) "Hes1".
+      iDestruct "Hes1" as (l0 l1 l2 l3 l4 l5 l6) "Hes1".
       iDestruct "Hes1" as (tab isStack nextStackAddrIs)
-                            "(Himport & Himp_type & %Hnodup & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6)".
-
-      iDestruct "Himp_type" as "[_ (H0&H1&H2&H3&H4&H5&Ht&_)]".
-      simpl.
-      iDestruct "H0" as (cl0) "[H0 %H0]".
-      iDestruct "H1" as (cl1) "[H1 %H1]".
-      iDestruct "H2" as (cl2) "[H2 %H2]".
-      iDestruct "H3" as (cl3) "[H3 %H3]".
-      iDestruct "H4" as (cl4) "[H4 %H4]".
-      iDestruct "H5" as (cl5) "[H5 %H5]".
-      iDestruct (mapsto_frac_ne with "H0 Hwfcallhost") as "%Hc0" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H1 Hwfcallhost") as "%Hc1" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H2 Hwfcallhost") as "%Hc2" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H3 Hwfcallhost") as "%Hc3" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H4 Hwfcallhost") as "%Hc4" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H5 Hwfcallhost") as "%Hc5" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H0 H1") as "%H01" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H0 H2") as "%H02" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H0 H3") as "%H03" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H0 H4") as "%H04" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H0 H5") as "%H05" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H1 H2") as "%H12" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H1 H3") as "%H13" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H1 H4") as "%H14" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H1 H5") as "%H15" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H2 H3") as "%H23" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H2 H4") as "%H24" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H2 H5") as "%H25" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H3 H4") as "%H34" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H3 H5") as "%H35" ; first by eauto.
-      iDestruct (mapsto_frac_ne with "H4 H5") as "%H45" ; first by eauto.
-
-
-      simpl in Hnodup.
-      assert (NoDup [MED_func (Mk_funcidx idf0); MED_func (Mk_funcidx idf1);
-             MED_func (Mk_funcidx idf2); MED_func (Mk_funcidx idf3);
-             MED_func (Mk_funcidx idf4); MED_func (Mk_funcidx idf5);
-             MED_func (Mk_funcidx idmodtab);
-             MED_table (Mk_tableidx idt)]) as Hnodup2.
-      { (* A trick to make set_solver faster -- it's really slow when there are a lot of premises in the context *)
-        clear - Hc0 Hc1 Hc2 Hc3 Hc4 Hc5 H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45.
-        repeat (apply NoDup_cons; split => //; first by set_solver).
-        by apply NoDup_nil.
-      }
+                            "(Himport & Himp_type & %Hnodup & %Hfnodup & %Htab & Hnextaddr & #Hspec0 & #Hspec1 & #Hspec2 & #Hspec3 & #Hspec4 & #Hspec5 & #Hspec6 & #Hspec7)".
 
       iFrame "Hmod0".
-      iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hwfcallhost Hmod1 Himport H0 H1 H2 H3 H4 H5 Ht Hvis7 Hvis8]") ; try exact module_typing_client.
+      iDestruct "Himp_type" as "(_ & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Himpw6 & Htab & _)".
+      iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
+      iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
+      iDestruct "Himpw2" as (cl2) "[Himpfcl2 %Hcltype2]".
+      iDestruct "Himpw3" as (cl3) "[Himpfcl3 %Hcltype3]".
+      iDestruct "Himpw4" as (cl4) "[Himpfcl4 %Hcltype4]".
+      iDestruct "Himpw5" as (cl5) "[Himpfcl5 %Hcltype5]".
+      iDestruct "Himpw6" as (cl6) "[Himpfcl6 %Hcltype6]".
+      iDestruct "Htab" as (tab0 tt) "[Htab %Htab0]".
+
+      apply (NoDup_fmap_2 N.of_nat) in Hfnodup; simpl in Hfnodup.
+      
+      remember (list_to_map _) as mtmp.
+      rewrite -> Heqmtmp in *.
+      rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6 => //.
+      destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
+      destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
+      destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
+      destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
+      destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
+      destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
+      destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
+      assert (k0=0) as ->; first by eapply NoDup_lookup => //.
+      assert (k1=1) as ->; first by eapply NoDup_lookup => //.
+      assert (k2=2) as ->; first by eapply NoDup_lookup => //.
+      assert (k3=3) as ->; first by eapply NoDup_lookup => //.
+      assert (k4=4) as ->; first by eapply NoDup_lookup => //.
+      assert (k5=5) as ->; first by eapply NoDup_lookup => //.
+      assert (k6=6) as ->; first by eapply NoDup_lookup => //.
+      inversion Hcl0.
+      inversion Hcl1.
+      inversion Hcl2.
+      inversion Hcl3.
+      inversion Hcl4.
+      inversion Hcl5.
+      inversion Hcl6.
+      subst cl0 cl1 cl2 cl3 cl4 cl5 cl6.
+      clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6.
+      iDestruct (mapsto_ne with "Himpfcl0 Hwfcallhost") as "%Hne0".
+      iDestruct (mapsto_ne with "Himpfcl1 Hwfcallhost") as "%Hne1".
+      iDestruct (mapsto_ne with "Himpfcl2 Hwfcallhost") as "%Hne2".
+      iDestruct (mapsto_ne with "Himpfcl3 Hwfcallhost") as "%Hne3".
+      iDestruct (mapsto_ne with "Himpfcl4 Hwfcallhost") as "%Hne4".
+      iDestruct (mapsto_ne with "Himpfcl5 Hwfcallhost") as "%Hne5".
+      iDestruct (mapsto_ne with "Himpfcl6 Hwfcallhost") as "%Hne6".
+      assert (NoDup (fmap N.of_nat [idf0; idf1; idf2; idf3; idf4; idf5; idf6; idmodtab])) as Hfnodup2.
+      { simpl.
+        rewrite separate7.
+        apply NoDup_app; repeat split => //; last by apply NoDup_singleton.
+        move => x Hin.
+        by set_solver.
+      }
+      
+      iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hwfcallhost Hmod1 Himport Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Himpfcl5 Himpfcl6 Htab Hvis8 Hvis9]") ; try exact module_typing_client.
     - by unfold client_module.
     - by apply module_restrictions_client.
       (* Because of the extra host import, a lot of the clever work done 
          in stack_instantiation.v is now unusable, so we must destruct the 
          hypotheses that were useful in the no-reentrancy example *)
-    - unfold instantiation_resources_pre.
+    - Opaque list_to_map.
+      Opaque zip_with.
+      unfold instantiation_resources_pre.
       unfold import_resources_host.
-      instantiate (5 := [_;_;_;_;_;_;_;_]).
+      instantiate (5 := [_;_;_;_;_;_;_;_;_]).
       iSplitL "Hmod1" ; first done.
-      iSplitL "Himport Hvis8".
-      iDestruct "Himport" as "(H0 & H1 & H2 & H3 & H4 & H5 & H6 & _)".
+      iSplitL "Himport Hvis9".
+      iDestruct "Himport" as "(H0 & H1 & H2 & H3 & H4 & H5 & H6 & H7 & _)".
       iFrame.
       done. 
     - unfold instantiation_resources_pre_wasm.
       unfold export_ownership_host => /=.
       instantiate ( 1 := ∅) .
       instantiate ( 1 := <[ N.of_nat idt := tab ]> ∅) .
-      instantiate ( 1 := ∅) . 
-      instantiate (1:= (<[N.of_nat idf0:=FC_func_native i0 (Tf [] [T_i32]) l0 f0]>
-            (<[N.of_nat idf1:=FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1]>
-               (<[N.of_nat idf2:=FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2]>
-                  (<[N.of_nat idf3:=FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3]>
-                     (<[N.of_nat idf4:=FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4]>
-                        (<[N.of_nat idf5:=FC_func_native i0 (Tf [T_i32; T_i32] []) l5 f5]>
-                         (<[ N.of_nat idmodtab := FC_func_host (Tf [T_i32; T_i32] []) (Mk_hostfuncidx 0) ]> ∅)))))))).
-      iSplitL "H0 H1 H2 H3 H4 H5 Ht Hwfcallhost".
+      instantiate ( 1 := ∅) .
+      iFrame "Hvis8".
+      instantiate (1 := (list_to_map
+                     (zip
+                        [N.of_nat idf0; N.of_nat idf1; N.of_nat idf2; N.of_nat idf3; N.of_nat idf4; 
+                        N.of_nat idf5; N.of_nat idf6; N.of_nat idmodtab]
+                        [FC_func_native i0 (Tf [] [T_i32]) l0 f0; FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1;
+                        FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2; FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3;
+                        FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4; FC_func_native i0 (Tf [T_i32; T_i32] []) l5 f5;
+                        FC_func_native i0 (Tf [T_i32] [T_i32]) l6 f6; FC_func_host (Tf [T_i32; T_i32] []) (Mk_hostfuncidx 0) ]))).
+      iSplitL. 2: { done. }
       rewrite irwt_nodup_equiv => //=.
       unfold import_resources_wasm_typecheck_sepL2. 
-      repeat iSplit. iPureIntro. simpl. repeat rewrite dom_insert. done.
+      repeat iSplit.
+      { iPureIntro. rewrite dom_list_to_map. by rewrite fst_zip => //=. }
       simpl. by rewrite dom_insert.
       done. done.
       cbn.
-      repeat (rewrite lookup_insert + (rewrite lookup_insert_ne ; last assumption)).
-      repeat (rewrite lookup_insert in H0 + (rewrite lookup_insert_ne in H0; last assumption)).
-      repeat (rewrite lookup_insert in H1 + (rewrite lookup_insert_ne in H1 ; last assumption)).
-      repeat (rewrite lookup_insert in H2 + (rewrite lookup_insert_ne in H2 ; last assumption)).
-      repeat (rewrite lookup_insert in H3 + (rewrite lookup_insert_ne in H3 ; last assumption)).
-      repeat (rewrite lookup_insert in H4 + (rewrite lookup_insert_ne in H4 ; last assumption)).
-      repeat (rewrite lookup_insert in H5 + (rewrite lookup_insert_ne in H5 ; last assumption)).
-      iSplitL "H0"; first by iExists _ ; iFrame.
-      iSplitL "H1" ; first by iExists _ ; iFrame.
-      iSplitL "H2" ; first by iExists _ ; iFrame.
-      iSplitL "H3" ; first by iExists _ ; iFrame.
-      iSplitL "H4" ; first by iExists _ ; iFrame.
-      iSplitL "H5" ; first by iExists _ ; iFrame. 
+      
+      iSplitL "Himpfcl0". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 0. }
+      iSplitL "Himpfcl1". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 1. }
+      iSplitL "Himpfcl2". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 2. }
+      iSplitL "Himpfcl3". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 3. }
+      iSplitL "Himpfcl4". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 4. }
+      iSplitL "Himpfcl5". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 5. }
+      iSplitL "Himpfcl6". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 6. }
+      iSplitL "Hwfcallhost". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 7. }
+
+      iSplit => //.
+      iExists _, _.
       iFrame.
-      iExists _. iFrame.
       done.
       iPureIntro ; unfold module_elem_bound_check_gmap ; simpl.
       apply Forall_cons.
@@ -374,8 +370,16 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       rewrite lookup_insert.
       done.
       iPureIntro ; unfold module_data_bound_check_gmap ; simpl ; done.
-    - repeat iSplit => //.
-      by iExists _.
+    - apply NoDup_fmap in Hfnodup2; last by lias.
+      clear - Hfnodup2.
+      eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hfnodup2; simpl in Hfnodup2.
+      { rewrite separate8.
+        apply NoDup_app; repeat split => //; last by apply NoDup_singleton.
+        intros; by set_solver.
+      }
+      Unshelve.
+      2: { move => x y Heq. by inversion Heq. }
+      
     - iIntros (idnstart) "Hf Hres".
       unfold instantiation_resources_post.
       iDestruct "Hres" as "(Hmod1 & Himphost & Hres)".
@@ -388,7 +392,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       unfold module_inst_resources_func, module_inst_resources_tab,
         module_inst_resources_mem, module_inst_resources_glob => /=.
       unfold big_sepL2 => /=.
-      do 8 (destruct inst_funcs as [| ? inst_funcs] ; first by iExFalso ; iExact "Hexpwf").
+      do 9 (destruct inst_funcs as [| ? inst_funcs] ; first by iExFalso ; iExact "Hexpwf").
       simpl.
       iDestruct "Hexpwf" as "[Hwfcl Hexpwf]".
       destruct inst_funcs ; first by iExFalso ; iExact "Hexpwf".
@@ -431,11 +435,21 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       
       iDestruct "Hexphost" as "[Hexphost _]".
       iDestruct "Hexphost" as (nameh) "Hexphost" => /=.
-      rewrite irwt_nodup_equiv => //.
+      rewrite irwt_nodup_equiv => //; last first.
+      { simpl.
+        apply NoDup_fmap in Hfnodup2; last by lias.
+        clear - Hfnodup2.
+        eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hfnodup2; simpl in Hfnodup2.
+        { rewrite separate8.
+          apply NoDup_app; repeat split => //; last by apply NoDup_singleton.
+          intros; by set_solver.
+        }
+        Unshelve.
+        move => x y Heq. by inversion Heq.
+      }
+      
       unfold import_resources_wasm_typecheck_sepL2 => /=.
-      clear H0 H1 H2 H3 H4 H5.
-      clear cl0 cl1 cl2 cl3 cl4 cl5.
-      iDestruct "Himpwasm" as "(% & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Himpw6 & Htab & _)".
+      iDestruct "Himpwasm" as "(% & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Himpw6 & Himpw7 & Htab & _)".
       iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
       iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
       iDestruct "Himpw2" as (cl2) "[Himpfcl2 %Hcltype2]".
@@ -443,30 +457,43 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iDestruct "Himpw4" as (cl4) "[Himpfcl4 %Hcltype4]".
       iDestruct "Himpw5" as (cl5) "[Himpfcl5 %Hcltype5]".
       iDestruct "Himpw6" as (cl6) "[Himpfcl6 %Hcltype6]".
-      iDestruct "Htab" as (tab0 tt) "[Htab %Htab0]".
-      rewrite lookup_insert in Hcltype0.
-      destruct Hcltype0 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      rewrite lookup_insert_ne in Hcltype1 ; last assumption.
-      rewrite lookup_insert in Hcltype1.
-      destruct Hcltype1 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 2 (rewrite lookup_insert_ne in Hcltype2 ; last assumption).
-      rewrite lookup_insert in Hcltype2.
-      destruct Hcltype2 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 3 (rewrite lookup_insert_ne in Hcltype3 ; last assumption).
-      rewrite lookup_insert in Hcltype3.
-      destruct Hcltype3 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 4 (rewrite lookup_insert_ne in Hcltype4 ; last assumption).
-      rewrite lookup_insert in Hcltype4.
-      destruct Hcltype4 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 5 (rewrite lookup_insert_ne in Hcltype5 ; last assumption).
-      rewrite lookup_insert in Hcltype5.
-      destruct Hcltype5 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
-      do 6 (rewrite lookup_insert_ne in Hcltype6 ; last assumption).
-      rewrite lookup_insert in Hcltype6.
-      destruct Hcltype6 as [Hcl _] ; inversion Hcl ; subst ; clear Hcl.
+      iDestruct "Himpw7" as (cl7) "[Himpfcl7 %Hcltype7]".
+      remember (list_to_map _) as mtmp.
+      rewrite -> Heqmtmp in *.
+      rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6, Hcltype7 => //.
+      destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
+      destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
+      destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
+      destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
+      destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
+      destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
+      destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
+      destruct Hcltype7 as ((k7 & Hind7 & Hcl7) & _).
+      assert (k0=0) as ->; first by eapply NoDup_lookup => //.
+      assert (k1=1) as ->; first by eapply NoDup_lookup => //.
+      assert (k2=2) as ->; first by eapply NoDup_lookup => //.
+      assert (k3=3) as ->; first by eapply NoDup_lookup => //.
+      assert (k4=4) as ->; first by eapply NoDup_lookup => //.
+      assert (k5=5) as ->; first by eapply NoDup_lookup => //.
+      assert (k6=6) as ->; first by eapply NoDup_lookup => //.
+      assert (k7=7) as ->; first by eapply NoDup_lookup => //.
+      inversion Hcl0.
+      inversion Hcl1.
+      inversion Hcl2.
+      inversion Hcl3.
+      inversion Hcl4.
+      inversion Hcl5.
+      inversion Hcl6.
+      inversion Hcl7.
+      subst cl0 cl1 cl2 cl3 cl4 cl5 cl6 cl7.
+      clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hcl7 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6 Hind7.
+      
       (* Now for our last export (the table), we have a little more work to do,
          because we are populating it. This is where the knowledge of the exact
          elements of inst_tab (not just its length) is important *)
+      clear Htab0.
+      clear tab0 tt.
+      iDestruct "Htab" as (tab0 tt) "[Htab %Htab0]".
       unfold module_import_init_tabs in Htab0.
       simpl in Htab0.
       do 2 rewrite lookup_insert in Htab0.
@@ -485,7 +512,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       simpl.
       iDestruct "Htab" as "[Htab _]".
       simpl.
-      replace (length (table_data tab)) with (length (Some f12 :: drop 1 (table_data tab))) ; last first => /=.
+      replace (length (table_data tab)) with (length (Some f15 :: drop 1 (table_data tab))) ; last first => /=.
       rewrite drop_length.
       destruct (table_data tab) ; first by simpl in Htab ; clear - Htab ; lia.
       simpl.
@@ -500,7 +527,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
         
       unfold check_start in Hstart.
       simpl in Hstart.
-      apply b2p in Hstart.
+      move/eqP in Hstart.
       inversion Hstart ; subst ; clear Hstart.
       iApply wp_lift_wasm.
       
@@ -517,7 +544,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       done. done. done. done.
       iIntros "!> Hf".
       iApply (wp_label_bind with
-               "[Hwg Ht0 Hwfsq Hwfdbl Hf Himpfcl0 Himpfcl4 Himpfcl5 Hexphost Hnextaddr Himpfcl6]") ; last first.
+               "[Hwg Ht0 Hwfsq Hwfdbl Hf Himpfcl0 Himpfcl4 Himpfcl5 Hexphost Hnextaddr Himpfcl7]") ; last first.
       iPureIntro.
       unfold lfilled, lfill => /=.
       instantiate (5 := []) => /=.
@@ -525,8 +552,8 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       done.
 
       (* Clearing away some premises to improve compilation time *)
-      all: clear Hinstmem Hinstglob H Hnodup Hnodup2 Hc0 Hc1 Hc2 Hc3 Hc4 Hc5 H01 H02 H03 H04 H05 H12 H13 H14 H15 H23 H24 H25 H34 H35 H45 Hbound Hbound' Htab Hinsttab.
-      all: iClear "Hspec1 Hspec2 Hspec6".
+      all: clear Hinstmem Hinstglob H Hnodup Hfnodup Hfnodup2 Hne0 Hne1 Hne2 Hne3 Hne4 Hne5 Hne6 Hbound Hbound' Htab Hinsttab.
+      all: iClear "Hspec1 Hspec2 Hspec6 Hspec7".
       
       (* Proving spec of the client main *)
       { rewrite (separate1 (AI_basic (BI_call 0)) (_ :: _)).
@@ -655,7 +682,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           unfold iris.to_val => /=.
           specialize (iris.to_of_val (retV (sh_append sh [AI_basic (BI_get_local 0); AI_basic (i32const 4); AI_basic (BI_call 4); AI_basic (BI_get_local 0);
                    AI_basic (i32const 6); AI_basic (BI_call 4); AI_basic (BI_get_local 0); AI_basic (i32const 0);
-                   AI_basic (BI_call 5); AI_basic (i32const 0); AI_basic (i32const 9); AI_basic (BI_call 6);
+                   AI_basic (BI_call 5); AI_basic (i32const 0); AI_basic (i32const 10); AI_basic (BI_call 7);
                    AI_basic (BI_get_local 0); AI_basic (i32const 0); AI_basic (BI_call 5); AI_basic (BI_get_local 0);
                    AI_basic (BI_call 3); AI_basic (BI_get_local 0); AI_basic (BI_call 3);
                    AI_basic (BI_binop T_i32 (Binop_i BOI_sub)); AI_basic (BI_set_global 0)]))) as Hv.
@@ -678,7 +705,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           unfold IntoVal.
           by apply of_to_val.
           iFrame.
-          instantiate ( 1 := λ x, (( N.of_nat f14 ↦[wf] _ ∗
+          instantiate ( 1 := λ x, (( N.of_nat f15 ↦[wf] _ ∗
                                                    _ ↪[vis] _ ∗
                                                    
                                                    N.of_nat idf0 ↦[wf] _ ∗
@@ -686,7 +713,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
                                                    N.of_nat idf4 ↦[wf] _ ∗
                                                    N.of_nat idf5 ↦[wf] _ ∗
                                                    _ ↦[wt][0%N] _ ∗
-                                                   N.of_nat f13 ↦[wf] _ ∗
+                                                   N.of_nat f16 ↦[wf] _ ∗
                                                    N.of_nat idmodtab ↦[wf] _
                                                    ∗ ∃ k, ⌜ (0 <= k <= ffff0000)%N ⌝ ∗ ⌜ x = callHostV _ _ _ _ ⌝ ∗
        nextStackAddrIs _ ∗
@@ -695,7 +722,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       ∨ ⌜ x = immV [] ⌝ ∗ _ ↦[wg] {| g_mut := MUT_mut; g_val := value_of_int (-1) |}))%I).
           
           iIntros "!>".
-          iFrame "Hwfdbl Hexphost Hcl Himpfcl4 Himpfcl5 Himpfcl6 Ht0 Hwfsq".
+          iFrame "Hwfdbl Hexphost Hcl Himpfcl4 Himpfcl5 Himpfcl7 Ht0 Hwfsq".
           iExists 0%N.
           iRight.
           by iFrame.
@@ -957,7 +984,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iApply (wp_frame_value with "Hf") ; first done.
           done.
           iNext.
-          by instantiate (1 := λ x, (⌜ x = immV _⌝ ∗ N.of_nat f13 ↦[wf] _)%I) ; iFrame.
+          by instantiate (1 := λ x, (⌜ x = immV _⌝ ∗ N.of_nat f15 ↦[wf] _)%I) ; iFrame.
           all : try by iIntros "[% _]".
 
           
@@ -975,7 +1002,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           destruct s' ; first by iExFalso ; iExact "Hs'".
           iDestruct "Hs'" as "[-> Hs']".
           destruct s' ; last by iExFalso ; iExact "Hs'".
-          by instantiate (1 := λ x, ((⌜ x = immV _ ⌝ ∗ isStack _ _ ∗ N.of_nat idf5 ↦[wf] _ ∗ (N.of_nat idt) ↦[wt][_] _ ∗ N.of_nat f13 ↦[wf] _) ∗ ↪[frame] _)%I) ; iFrame.
+          by instantiate (1 := λ x, ((⌜ x = immV _ ⌝ ∗ isStack _ _ ∗ N.of_nat idf5 ↦[wf] _ ∗ (N.of_nat idt) ↦[wt][_] _ ∗ N.of_nat f15 ↦[wf] _) ∗ ↪[frame] _)%I) ; iFrame.
           }
           { iIntros "((%Habs & _) & _)"; by inversion Habs. }
         
@@ -984,7 +1011,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           rewrite (separate3 (AI_basic _)).
           iApply wp_seq.
           iSplitR ; last first.
-          iSplitL "Hf Himpfcl6".
+          iSplitL "Hf Himpfcl7".
           rewrite (separate2 (AI_basic _)).
           rewrite - (app_nil_r [AI_basic (BI_call _)]).
           iApply wp_wasm_empty_ctx.
@@ -994,7 +1021,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iApply wp_base_pull.
           rewrite app_nil_r.
           iApply wp_wasm_empty_ctx.
-          iApply (wp_invoke_host with "Himpfcl6 Hf").
+          iApply (wp_invoke_host with "Himpfcl7 Hf").
           instantiate (1 := [_;_]) => //.
           done.
           done.
@@ -1005,7 +1032,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
           iFrame.
           by instantiate (1 := λ x, (⌜ x = callHostV _ _ _ _ ⌝ ∗ _ ↦[wf] _∗ ↪[frame] _)%I) ; iFrame.
             
-          iIntros (w0) "(-> & Himpfcl6 & Hf)".
+          iIntros (w0) "(-> & Himpfcl7 & Hf)".
           iApply wp_value.
           unfold IntoVal.
           apply of_to_val => //=.
@@ -1033,7 +1060,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       }
       
       
-      iIntros (w0) "[(Hf14 & Hvis7 & Himpfcl0 & Himpfcl4 & Himpfcl5 & Himpidt & Hf13 & Hmodtab & H) Hf]".
+      iIntros (w0) "[(Hf15 & Hvis8 & Himpfcl0 & Himpfcl4 & Himpfcl5 & Himpidt & Hf16 & Hmodtab & H) Hf]".
       iDestruct "H" as (k) "[(% & -> & Hnextaddr & Hwg & Hs) | [-> Hwg]]".
       simpl.
       iApply wp_call_host_modify_table ; last first.
@@ -1048,7 +1075,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iApply wp_lift_wasm.
       iApply (wp_frame_bind with "Hf"). done.
       iIntros "Hf".
-      iApply (wp_label_bind with "[Hf Hwg Himpfcl5 Himpfcl3 Hs Hwt Hf14 Hvis7]") ; last first.
+      iApply (wp_label_bind with "[Hf Hwg Himpfcl5 Himpfcl3 Hs Hwt Hf16 Hvis8]") ; last first.
       iPureIntro.
       unfold lfilled, lfill => //=.
       instantiate (5 := []) => //=.
@@ -1070,7 +1097,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       iApply wp_seq.
       iSplitR ; last first.
       rewrite (separate2 (AI_basic _)).
-      iSplitR "Hvis7 Himpfcl3 Hwg".
+      iSplitR "Hvis8 Himpfcl3 Hwg".
       rewrite (separate2 (AI_basic _)).
       rewrite - (app_nil_r [AI_basic (BI_call _)]).
       iApply wp_wasm_empty_ctx.
@@ -1081,23 +1108,23 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       rewrite app_nil_r.
       iApply wp_wasm_empty_ctx.
       simpl. 
-      iApply ("Hspec5" with "[Himpfcl5 Hf Hs Hf14 Hwt]"). iFrame.
+      iApply ("Hspec5" with "[Himpfcl5 Hf Hs Hf16 Hwt]"). iFrame.
       repeat iSplit => //.
       instantiate (1 := λ x, ⌜ (0 <= (Wasm_int.Int32.intval x) < 65536%Z)%Z ⌝%I).
       done.
       
       iIntros (u f) "!>".
-      iIntros (Φ) "(% & -> & Hf & Hwt & Hf14) HΦ".
+      iIntros (Φ) "(% & -> & Hf & Hwt & Hf16) HΦ".
       rewrite (separate1 (AI_basic _)).
-      iApply (wp_invoke_native with "Hf Hf14"). done.
+      iApply (wp_invoke_native with "Hf Hf16"). done.
       done. done.
-      iIntros "!> [Hf Hf14]".
+      iIntros "!> [Hf Hf16]".
       iApply (wp_frame_bind with "Hf"). done.
       iIntros "Hf".
       rewrite - (app_nil_l [AI_basic _]).
       iApply (wp_block with "Hf"). done. done. done. done.
       iIntros "!> Hf".
-      iApply (wp_label_bind with "[Hf HΦ Hwt Hf14]") ; last first.
+      iApply (wp_label_bind with "[Hf HΦ Hwt Hf16]") ; last first.
       iPureIntro. unfold lfilled, lfill.
       instantiate (6 := []) => /=.
       by rewrite app_nil_r.
@@ -1145,7 +1172,7 @@ Lemma instantiate_stack_client_spec (s: stuckness) E hv0 hv1 hv2 hv3 hv4 hv5 hv6
       instantiate (1 := λ x, (⌜ x = immV [] ⌝ ∗ _)%I).
       iSplitR ; first done.
       iExact "H".
-      iIntros (w0) "(-> & H & Himpfcl5 & Hf & Hwt & Hf14)".
+      iIntros (w0) "(-> & H & Himpfcl5 & Hf & Hwt & Hf16)".
       iDestruct "H" as (s') "[Hs Hs']".
       destruct s'; first by iExFalso ; iExact "Hs'".
       destruct s'; first iExFalso.
@@ -1293,4 +1320,3 @@ Qed.
 
 End Client2.
   
-
