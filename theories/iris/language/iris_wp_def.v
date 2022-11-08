@@ -3,14 +3,11 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map na_invariants.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export datatypes operations properties opsem.
-Require Export iris_locations iris_properties iris_atomicity iris_wp stdpp_aux.
+Require Export iris_locations iris iris_wp iris_properties stdpp_aux.
 
 Import uPred.
 
 Set Default Proof Using "Type".
-
-Close Scope byte_scope.
 
 Definition expr := iris.expr.
 Definition val := iris.val.
@@ -23,7 +20,6 @@ Definition to_val := iris.to_val.
 Canonical Structure wasm_lang := Language wasm_mixin.
  
 Local Definition reducible := @reducible wasm_lang.
-Local Definition state := state wasm_lang.
 
 Implicit Type σ : state.
 

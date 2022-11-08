@@ -1,9 +1,8 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
-From iris.program_logic Require Import language.
-From iris.proofmode Require Import tactics.
-From iris.base_logic Require Export gen_heap proph_map.
-Require Export iris iris_locations stdpp_aux.
-Require Export datatypes operations properties opsem.
+From Coq Require Import List.
+From stdpp Require Import base list.
+Require Export stdpp_aux datatypes operations properties opsem.
+Require Export lfill_prelude.
 
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
 
@@ -71,13 +70,13 @@ Ltac simple_filled2 H k lh vs l0 n l1 l3 :=
     destruct les as [l3|] ; [| false_assumption ] ;
     move/eqP in H ; try by found_intruse (AI_label n l1 l3) H Hxl1].
 
-Global Instance ai_list_eq_dec: EqDecision (seq.seq administrative_instruction).
-Proof.
-  apply list_eq_dec.
-Defined.
 Global Instance ai_eq_dec: EqDecision (administrative_instruction).
 Proof.
-  pose proof administrative_instruction_eq_dec. eauto.
+  by decidable_equality.
+Defined.
+Global Instance ai_list_eq_dec: EqDecision (seq.seq administrative_instruction).
+Proof.
+  by decidable_equality.
 Defined.
 
 Lemma ai_eq_true a a0 : administrative_instruction_eqb a a0 = true <-> a = a0.
@@ -1012,5 +1011,4 @@ Section lfilled_properties.
       apply lfilled_Ind_Equivalent. cbn. rewrite app_nil_r;by apply/eqP. }
   Qed.
 
-  
 End lfilled_properties.

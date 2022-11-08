@@ -116,7 +116,7 @@ Section fundamental.
     iClear "Ht".
     iIntros (v) "[Hv' Hf0]".
     iDestruct "Hf0" as (f0) "[Hf0 Hf0v]".
-    iDestruct "Hv'" as "[[-> | Hv'] | [Hbr | [Hret | Hch] ]]";simpl language.of_val.
+    iDestruct "Hv'" as "[[-> | Hv'] | [Hbr | [Hret | Hch] ]]";simpl of_val.
     { rewrite -(app_nil_l [AI_trap]) -(app_nil_r [AI_trap]).
       iApply (wp_wand_ctx _ _ _ (λ vs, _ ∗ ↪[frame] _)%I with "[Hf0]").
       { iApply wp_trap_ctx;eauto. }

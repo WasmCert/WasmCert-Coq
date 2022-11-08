@@ -310,11 +310,11 @@ Section RobustStack.
         iRight. iExists _. iSplitR;[eauto|]. iApply n_zeros_interp_values.
         iIntros (v) "[[Hv Hown] Hf]".
         iDestruct "Hv" as "[-> | Hv]".
-        + iApply weakestpre.wp_value;[unfold IntoVal;eapply of_to_val;eauto|].
+        + iApply weakestpre.wp_value; first by unfold IntoVal; apply language.of_to_val; eauto.
           iFrame. auto.
         + iDestruct "Hv" as (ws) "[-> Hv]".
           iDestruct (big_sepL2_length with "Hv") as %Hnil. destruct ws;[|done].
-          iApply weakestpre.wp_value;[unfold IntoVal;eapply of_to_val;eauto|].
+          iApply weakestpre.wp_value; first by unfold IntoVal; apply language.of_to_val;eauto.
           iFrame. auto. }
   Qed.
 

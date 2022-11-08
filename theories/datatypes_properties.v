@@ -362,6 +362,15 @@ Definition eqmemory_typeP : Equality.axiom memory_type_eqb :=
 Canonical Structure memory_type_eqMixin := EqMixin eqmemory_typeP.
 Canonical Structure memory_type_eqType := Eval hnf in EqType memory_type memory_type_eqMixin.
 
+Definition memory_eq_dec : forall m1 m2: memory, {m1 = m2} + {m1 <> m2}.
+Proof.
+  by decidable_equality.
+Defined.
+
+Definition hostfuncidx_eq_dec : forall h1 h2:hostfuncidx, {h1 = h2} + {h1 <> h2}.
+  by decidable_equality.
+Defined.
+
 Scheme Equality for res_crash.
 Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
 Definition eqres_crashP : Equality.axiom res_crash_eqb :=

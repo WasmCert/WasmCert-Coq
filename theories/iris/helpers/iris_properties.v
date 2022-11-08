@@ -9,4 +9,9 @@ Require Export iris_lfilled_properties
         iris_reduce_properties
         iris_reduction_core
         iris_split_reduce
-        iris_wasm_determ.
+        iris_wasm_determ
+        iris_reduce_det_prelude
+        first_instr
+        lfill_prelude
+        lfilled_reduce
+        iris_prim_step_split.

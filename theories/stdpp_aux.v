@@ -430,3 +430,39 @@ Proof.
   intros.
   apply app_eq_unit in H as [?|?]; by [ right | left ].
 Qed.
+
+Lemma separate1 {A} (a : A) l :
+  a :: l = [a] ++ l.
+Proof. done. Qed.
+
+Lemma separate2 {A} (a : A) b l :
+  a :: b :: l = [a ; b] ++ l.
+Proof. done. Qed.
+
+Lemma separate3 {A} (a : A) b c l :
+  a :: b :: c :: l = [a ; b ; c] ++ l.
+Proof. done. Qed.
+
+Lemma separate4 {A} (a : A) b c d l :
+  a :: b :: c :: d :: l  = [a ; b ; c ; d ] ++ l.
+Proof. done. Qed.
+
+Lemma separate5 {A} (a : A) b c d e l :
+  a :: b :: c :: d :: e :: l = [a ; b ; c ; d ; e] ++ l.
+Proof. done. Qed.
+
+Lemma separate6 {A} (a : A) b c d e f l :
+  a :: b :: c :: d :: e :: f :: l = [a ; b ; c ; d ; e ; f] ++ l.
+Proof. done. Qed.
+
+Lemma separate7 {A} (a : A) b c d e f g l :
+  a :: b :: c :: d :: e :: f :: g :: l = [a ; b ; c ; d ; e ; f ; g] ++ l.
+Proof. done. Qed.
+
+Lemma separate8 {A} (a : A) b c d e f g h l :
+  a :: b :: c :: d :: e :: f :: g :: h :: l = [a ; b ; c ; d ; e ; f ; g ; h] ++ l.
+Proof. done. Qed.
+                                                              
+Lemma separate9 {A} (a : A) b c d e f g h i l :
+  a :: b :: c :: d :: e :: f :: g :: h :: i :: l = [a ; b ; c ; d ; e ; f ; g ; h ; i] ++ l.
+Proof. done. Qed.

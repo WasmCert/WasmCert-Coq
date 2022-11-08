@@ -868,7 +868,7 @@ Section Client_instantiation.
       iApply (wp_wand _ _ _ (λ vs, ⌜vs = trapV⌝ ∗ _)%I with "[Hf]").
       { iApply (wp_frame_trap with "Hf"). iNext. auto. }
       iIntros (v) "[-> Hf]". iFrame.
-      iApply weakestpre.wp_value. eapply of_to_val. eauto.
+      iApply weakestpre.wp_value. apply language.of_to_val. eauto.
       by iLeft. }
     { iDestruct "Hres" as "[-> Hgret]".
       iSimpl. iApply (wp_val_return with "Hf");[auto..|].
@@ -880,7 +880,7 @@ Section Client_instantiation.
       { iApply (wp_frame_value with "Hf");[eauto|auto|..].
         iNext. auto. }
       iIntros (v) "[-> Hf]". iFrame.
-      iApply weakestpre.wp_value. eapply of_to_val. eauto.
+      iApply weakestpre.wp_value. apply language.of_to_val. eauto.
       iRight. rewrite N2Nat.id. iDestruct "Hgret" as "[$ Hown]".
     }
   Qed.

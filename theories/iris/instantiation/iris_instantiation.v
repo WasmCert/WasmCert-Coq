@@ -4,7 +4,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 Require Export iris_locations iris_properties iris_rules_resources iris_wp_def stdpp_aux iris.
-Require Export datatypes operations properties opsem instantiation instantiation_properties.
+Require Export instantiation instantiation_properties.
 Require Import Coq.Program.Equality.
 Require Export type_preservation.
 
@@ -2526,7 +2526,7 @@ Proof.
       simpl in Hupd1.
       inversion Hupd1; subst; clear Hupd1.
       replace (off+1) with (S off); last by lias.
-      rewrite <- (insert_take_drop (table_data t)).
+      rewrite <- list.insert_take_drop.
       + rewrite Nat2N.id.
         by rewrite Nat.add_0_r.
       + rewrite -> PeanoNat.Nat.leb_le in Hlen.
@@ -3164,7 +3164,7 @@ Proof.
       inversion Hupd1; subst; clear Hupd1.
       replace (off+1) with (S off); last by lias.
       rewrite Nat2N.id.
-      rewrite <- (insert_take_drop (ml_data (mem_data m))) => //.
+      rewrite <- (list.insert_take_drop (ml_data (mem_data m))) => //.
       move/Nat.leb_le in Hmlen.
       by lias.
     - rewrite Nat2N.id.
@@ -3178,7 +3178,7 @@ Proof.
         by lias.
       }
       do 2 f_equal.
-      rewrite insert_take_drop; last by lias.
+      rewrite list.insert_take_drop; last by lias.
       rewrite firstn_is_take_n.
       rewrite skipn_is_drop_n.
       simpl.

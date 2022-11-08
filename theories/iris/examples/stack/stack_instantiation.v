@@ -109,12 +109,10 @@ Definition stack_module :=
     ]
   |}.
 
+Definition func_types := [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ;
+     Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] [] ; Tf [T_i32 ; T_i32] []; Tf [T_i32] [T_i32]].
 
-Definition expts := [ET_func (Tf [] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
-                     ET_func (Tf [T_i32] [T_i32]) ; ET_func (Tf [T_i32] [T_i32]);
-                     ET_func (Tf [T_i32 ; T_i32] []) ; ET_func (Tf [T_i32 ; T_i32] []) ;
-                     ET_func (Tf [T_i32] [T_i32]) ;
-                     ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
+Definition expts := (fmap ET_func func_types) ++ [ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                tt_elem_type := ELT_funcref |}].
 
 Ltac bet_first f :=
@@ -340,8 +338,7 @@ Lemma module_typing_stack :
   module_typing stack_module [] expts.
 Proof.
   unfold module_typing => /=. 
-  exists [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ;
-     Tf [T_i32] [T_i32] ; Tf [T_i32 ; T_i32] [] ; Tf [T_i32 ; T_i32] []; Tf [T_i32] [T_i32]], [].
+  exists func_types, [].
   repeat split => //.
   repeat (apply Forall2_cons ; repeat split => //) => /=.
   - by apply new_stack_typing.
@@ -389,8 +386,6 @@ Definition spec0_new_stack (idf0 : nat) (i0 : instance) (l0 : seq.seq value_type
                      N.of_nat idf0 ↦[wf] FC_func_native i0 (Tf [] [T_i32]) l0 f0 ∗
                       ↪[frame] f }}} )%I.
 
-
-
   
 Definition spec1_is_empty idf1 i1 l1 f1 (isStack : N -> seq.seq i32 -> iPropI Σ) (E: coPset) :=
   (∀ (v: N) s f, {{{ ↪[frame] f  ∗
@@ -404,7 +399,6 @@ Definition spec1_is_empty idf1 i1 l1 f1 (isStack : N -> seq.seq i32 -> iPropI Σ
                                                  ↪[frame] f}}})%I.
 
 
-
 Definition spec2_is_full idf2 i2 l2 f2 (isStack : N -> seq.seq i32 -> iPropI Σ) E :=
   (∀ (v: N) s f, {{{ ↪[frame] f ∗
                  N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗
@@ -416,6 +410,7 @@ Definition spec2_is_full idf2 i2 l2 f2 (isStack : N -> seq.seq i32 -> iPropI Σ)
                                       N.of_nat idf2 ↦[wf] FC_func_native i2 (Tf [T_i32] [T_i32]) l2 f2 ∗ 
                                                                             ↪[frame] f }}})%I.
 
+
 Definition spec3_pop idf3 i3 l3 f3 (isStack : N -> seq.seq i32 -> iPropI Σ) E :=
   (∀ a (v: N) s f, {{{ ↪[frame] f ∗
                    N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3
@@ -425,10 +420,6 @@ Definition spec3_pop idf3 i3 l3 f3 (isStack : N -> seq.seq i32 -> iPropI Σ) E :
                                   isStack v s ∗
                                   N.of_nat idf3 ↦[wf] FC_func_native i3 (Tf [T_i32] [T_i32]) l3 f3 ∗
                                   ↪[frame] f }}})%I.
-
-
-
-
 
 
 Definition spec4_push idf4 i4 l4 f4 (isStack: N -> list i32 -> iPropI Σ) E :=
@@ -477,6 +468,7 @@ Definition spec5_stack_map idf5 i5 l5 f5 (isStack : N -> seq.seq i32 -> iPropI �
             (N.of_nat a) ↦[wf] cl
   }}})%I.
 
+
 (* A trap allowing version for code that might trap *)
 Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N -> seq.seq i32 -> iPropI Σ) j0 E :=
   (∀ (f0 : frame) (f : i32) (v : N) (s : seq.seq i32) a cl γ1
@@ -510,6 +502,7 @@ Definition spec5_stack_map_trap `{!logrel_na_invs Σ} idf5 i5 l5 f5 (isStack : N
       ↪[frame] f0
   }}})%I.
 
+
 Definition spec6_stack_length idf i l fn (isStack : N -> seq.seq i32 -> iPropI Σ) (E: coPset) :=
   (∀ (v: N) s f len, {{{ ↪[frame] f  ∗
                       N.of_nat idf ↦[wf] FC_func_native i (Tf [T_i32] [T_i32]) l fn ∗
@@ -520,11 +513,8 @@ Definition spec6_stack_length idf i l fn (isStack : N -> seq.seq i32 -> iPropI �
                      N.of_nat idf ↦[wf] FC_func_native i (Tf [T_i32] [T_i32]) l fn ∗ 
                      ↪[frame] f}}})%I.
 
+
 Definition stack_instantiate_para (exp_addrs: list N) := [ ID_instantiate exp_addrs 0 []  ].
-
-
-Definition valid_exp (exp_addrs: list N): Prop := NoDup exp_addrs.
-
 
 Definition own_vis_pointers (exp_addrs: list N): iProp Σ :=
    ([∗ list] exp_addr ∈ exp_addrs, (∃ mexp, exp_addr ↪[vis] mexp)).
@@ -651,140 +641,140 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
                     spec6_stack_length idf6 i0 l6 f6 isStack E
                                           
              }}.
-  Proof.
-    move => Hexpaddrlen.
-    do 9 (destruct exp_addrs => //).
-    iIntros "Hmod Hexps".
-    iDestruct (own_vis_pointers_nodup with "Hexps") as "%Hnodupexp".
-    iApply (weakestpre.wp_strong_mono s _ E with "[Hmod Hexps]") => //.
-    iApply (instantiation_spec_operational_no_start with "[Hmod Hexps]"); (try exact module_typing_stack); auto => //.
-    { unfold module_restrictions => /=.
+Proof.
+  move => Hexpaddrlen.
+  do 9 (destruct exp_addrs => //).
+  iIntros "Hmod Hexps".
+  iDestruct (own_vis_pointers_nodup with "Hexps") as "%Hnodupexp".
+  iApply (weakestpre.wp_strong_mono s _ E with "[Hmod Hexps]") => //.
+  iApply (instantiation_spec_operational_no_start with "[Hmod Hexps]"); (try exact module_typing_stack); auto => //.
+  { unfold module_restrictions => /=.
       by repeat split => //=; exists [] => //.
-    }
+  }
+  
+  - unfold instantiation_resources_pre.
+    iSplitL "Hmod" ; first done.
+    unfold instantiation_resources_pre_wasm.
+    instantiate (1 := []).
+    rewrite irwt_nodup_equiv => /=; last by apply NoDup_nil.
+    repeat iSplit => //=; try by (iPureIntro; apply dom_empty).
+    { by unfold import_resources_host. }
+    { iPureIntro. by unfold module_elem_bound_check_gmap => //=. }
+    { iPureIntro. by unfold module_data_bound_check_gmap => //=. }
     
-    - unfold instantiation_resources_pre.
-      iSplitL "Hmod" ; first done.
-      unfold instantiation_resources_pre_wasm.
-      instantiate (1 := []).
-      rewrite irwt_nodup_equiv => /=; last by apply NoDup_nil.
-      repeat iSplit => //=; try by (iPureIntro; apply dom_empty).
-      { by unfold import_resources_host. }
-      { iPureIntro. by unfold module_elem_bound_check_gmap => //=. }
-      { iPureIntro. by unfold module_data_bound_check_gmap => //=. }
-      
-    - iIntros (v) "(-> & Hinst)".
-      unfold instantiation_resources_post.
-      Opaque list_to_map.
-      iDestruct "Hinst" as "(Hmod & _ & (%inst & Himpwasm & Hexphost))".
-      iSplitR => //.
-      iFrame "Hmod".
-      iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hwasm)".
-      destruct Hinst as (Hinsttype & _ & _ & _ & _ & Hstart).
-      unfold module_inst_resources_wasm, module_export_resources_host => /=.
-      destruct inst => /=.
-      iDestruct "Hwasm" as "(Hwf & Hwt & Hwm & _)".
-      iDestruct (module_inst_resources_func_nodup with "Hwf") as "%Hnodupwf".
-      unfold module_inst_resources_func, module_inst_resources_tab, module_inst_resources_mem => /=.
+  - iIntros (v) "(-> & Hinst)".
+    unfold instantiation_resources_post.
+    Opaque list_to_map.
+    iDestruct "Hinst" as "(Hmod & _ & (%inst & Himpwasm & Hexphost))".
+    iSplitR => //.
+    iFrame "Hmod".
+    iDestruct "Himpwasm" as (g_inits t_inits m_inits gms wts wms) "(Himpwasm & %Hinst & -> & -> & %Hbound & -> & -> & %Hbound' & %Hginit & -> & Hwasm)".
+    destruct Hinst as (Hinsttype & _ & _ & _ & _ & Hstart).
+    unfold module_inst_resources_wasm, module_export_resources_host => /=.
+    destruct inst => /=.
+    iDestruct "Hwasm" as "(Hwf & Hwt & Hwm & _)".
+    iDestruct (module_inst_resources_func_nodup with "Hwf") as "%Hnodupwf".
+    unfold module_inst_resources_func, module_inst_resources_tab, module_inst_resources_mem => /=.
 
-      simpl in Hinsttype; subst inst_types.
-      
-      iDestruct (big_sepL2_length with "Hwf") as "%Hiflen".
-      simpl in Hiflen.
-      unfold get_import_func_count in * => /=; simpl in Hiflen.
+    simpl in Hinsttype; subst inst_types.
+    
+    iDestruct (big_sepL2_length with "Hwf") as "%Hiflen".
+    simpl in Hiflen.
+    unfold get_import_func_count in * => /=; simpl in Hiflen.
 
-      iDestruct (big_sepL2_length with "Hwt") as "%Hitlen".
-      simpl in Hitlen.
-      unfold get_import_table_count in * => /=; simpl in Hitlen.
-      
-      iDestruct (big_sepL2_length with "Hwm") as "%Himlen".
-      simpl in Himlen.
-      unfold get_import_mem_count in * => /=; simpl in Himlen.
+    iDestruct (big_sepL2_length with "Hwt") as "%Hitlen".
+    simpl in Hitlen.
+    unfold get_import_table_count in * => /=; simpl in Hitlen.
+    
+    iDestruct (big_sepL2_length with "Hwm") as "%Himlen".
+    simpl in Himlen.
+    unfold get_import_mem_count in * => /=; simpl in Himlen.
 
-      rewrite -> drop_0 in *.
+    rewrite -> drop_0 in *.
 
-      do 8 (destruct inst_funcs => //).
-      do 2 (destruct inst_tab => //).
-      do 2 (destruct inst_memory => //).
-      iExists f, f0, f1, f2, f3, f4, f5, t.
+    do 8 (destruct inst_funcs => //).
+    do 2 (destruct inst_tab => //).
+    do 2 (destruct inst_memory => //).
+    iExists f, f0, f1, f2, f3, f4, f5, t.
 
-      iSimpl in "Hexphost".
-      iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & Hexp5 & Hexp6 & Hexp7 & _)".
-      iDestruct "Hexp0" as (name0) "Hexp0".
-      iDestruct "Hexp1" as (name1) "Hexp1".
-      iDestruct "Hexp2" as (name2) "Hexp2".
-      iDestruct "Hexp3" as (name3) "Hexp3".
-      iDestruct "Hexp4" as (name4) "Hexp4".
-      iDestruct "Hexp5" as (name5) "Hexp5".
-      iDestruct "Hexp6" as (name6) "Hexp6".
-      iDestruct "Hexp7" as (name7) "Hexp7".
-      iExists name0, name1, name2, name3, name4, name5, name6, name7.
-      
-      iExists _, _, _, _, _, _, _.
-      iExists _.
-      iExists _, _, _, _, _, _, _.
-      iExists _.
+    iSimpl in "Hexphost".
+    iDestruct "Hexphost" as "(Hexp0 & Hexp1 & Hexp2 & Hexp3 & Hexp4 & Hexp5 & Hexp6 & Hexp7 & _)".
+    iDestruct "Hexp0" as (name0) "Hexp0".
+    iDestruct "Hexp1" as (name1) "Hexp1".
+    iDestruct "Hexp2" as (name2) "Hexp2".
+    iDestruct "Hexp3" as (name3) "Hexp3".
+    iDestruct "Hexp4" as (name4) "Hexp4".
+    iDestruct "Hexp5" as (name5) "Hexp5".
+    iDestruct "Hexp6" as (name6) "Hexp6".
+    iDestruct "Hexp7" as (name7) "Hexp7".
+    iExists name0, name1, name2, name3, name4, name5, name6, name7.
+    
+    iExists _, _, _, _, _, _, _.
+    iExists _.
+    iExists _, _, _, _, _, _, _.
+    iExists _.
 
-      iExists (λ a b, isStack a b m).
-      iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
+    iExists (λ a b, isStack a b m).
+    iExists (λ n, (N.of_nat m↦[wmlength] N.of_nat n)%I).
 
-      iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6 Hexp7"; first by iFrame => /=.
-      
-      iDestruct "Hwf" as "(Hf & Hf0 & Hf1 & Hf2 & Hf3 & Hf4 & Hf5 & _)".
-      iDestruct "Hwt" as "(Ht & _)".
-      iDestruct "Hwm" as "(Hm & _)".
+    iSplitL "Hexp0 Hexp1 Hexp2 Hexp3 Hexp4 Hexp5 Hexp6 Hexp7"; first by iFrame => /=.
+    
+    iDestruct "Hwf" as "(Hf & Hf0 & Hf1 & Hf2 & Hf3 & Hf4 & Hf5 & _)".
+    iDestruct "Hwt" as "(Ht & _)".
+    iDestruct "Hwm" as "(Hm & _)".
 
-      iDestruct "Hm" as "(Hmem & Hmemlength & Hmlim)".
-      
-      iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Hf5 Ht".
-      { unfold import_resources_wasm_typecheck_sepL2.
-        iSplitR.
-        { unfold import_resources_wasm_domcheck.
-          by repeat rewrite dom_insert.
-        }
-        { simpl.
-          apply (NoDup_fmap_2 N.of_nat) in Hnodupwf.
-          iSplitL "Hf";
-            last iSplitL "Hf0"; 
-            last iSplitL "Hf1"; 
-            last iSplitL "Hf2"; 
-            last iSplitL "Hf3"; 
-            last iSplitL "Hf4"; 
-            last iSplitL "Hf5";
-            last first.
-          { iModIntro; iSplit => //.
-            iExists _, _.
-            iFrame.
-            rewrite lookup_insert.
-            iPureIntro.
-            by split => //.
-          }
-          all: (iExists _; iFrame; rewrite - elem_of_list_to_map => //=; iPureIntro; split => //; apply elem_of_list_In; repeat ((try by left); right)).
-        }
-      }
-
-      Transparent list_to_map.
-      
+    iDestruct "Hm" as "(Hmem & Hmemlength & Hmlim)".
+    
+    iSplitL "Hf Hf0 Hf1 Hf2 Hf3 Hf4 Hf5 Ht".
+    { unfold import_resources_wasm_typecheck_sepL2.
       iSplitR.
-      { iPureIntro.
-        eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hnodupwf.
-        { simpl in Hnodupwf.
-          rewrite separate7.
-          apply NoDup_app; split => //.
-          split => //; last by apply NoDup_singleton.
-          by set_solver+.
-        }
-        Unshelve.
-        { move => x y Heq. by inversion Heq. }
+      { unfold import_resources_wasm_domcheck.
+          by repeat rewrite dom_insert.
       }
+      { simpl.
+        apply (NoDup_fmap_2 N.of_nat) in Hnodupwf.
+        iSplitL "Hf";
+          last iSplitL "Hf0"; 
+          last iSplitL "Hf1"; 
+          last iSplitL "Hf2"; 
+          last iSplitL "Hf3"; 
+          last iSplitL "Hf4"; 
+          last iSplitL "Hf5";
+          last first.
+        { iModIntro; iSplit => //.
+          iExists _, _.
+          iFrame.
+          rewrite lookup_insert.
+          iPureIntro.
+            by split => //.
+        }
+        all: (iExists _; iFrame; rewrite - elem_of_list_to_map => //=; iPureIntro; split => //; apply elem_of_list_In; repeat ((try by left); right)).
+      }
+    }
 
-      iSplitR => //.
-      
-      iSplitR; first by iPureIntro => /=; lia.
+    Transparent list_to_map.
+    
+    iSplitR.
+    { iPureIntro.
+      eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hnodupwf.
+      { simpl in Hnodupwf.
+        rewrite separate7.
+        apply NoDup_app; split => //.
+        split => //; last by apply NoDup_singleton.
+          by set_solver+.
+      }
+      Unshelve.
+      { move => x y Heq. by inversion Heq. }
+    }
 
-      iSplitL "Hmemlength" ; first done.
+    iSplitR => //.
+    
+    iSplitR; first by iPureIntro => /=; lia.
 
-      
-      (* Proving the parametric spec of each function in the post condition *)
+    iSplitL "Hmemlength" ; first done.
+
+    
+    (* Proving the parametric spec of each function in the post condition *)
     repeat iSplitR.
     { iIntros "!>" (fr addr Φ) "!> (Hf & Hwf & Hlen & % & % & %) HΦ".
       iApply wp_wand_r.
@@ -935,8 +925,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
       iFrame.
       by iExists _.
     }
-    
-
         
     { iIntros "!>" (v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Hlen & %Hdiv & Hlen) HΦ".
       iApply wp_wand_r.
@@ -990,7 +978,7 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
         instantiate (1 := λ v, ((∃ (k: Z), ⌜ v = immV [value_of_int k] ⌝ ∗
                                                  ⌜ (k = 1 /\ (N.of_nat (length s0) = two14 - 1)%N) \/ (k = 0 /\ (N.of_nat (length s0) < (two14 - 1))%N) ⌝) ∗
                                                                                         isStack v0 s0 m ∗
-                                                                                        N.of_nat f1↦[wf] _)%I).                            
+                                                                                        N.of_nat f1↦[wf] _)%I). 
         iSimpl.
         iFrame.
         iExists k.
@@ -1063,7 +1051,6 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
       iApply "HΦ".
       by iFrame.
     }
-    
         
     { iIntros "!>" (a v0 s0 vs Φ) "!> (Hf & Hf0 & %H & %Ha & %Hlen & Hs) HΦ".
       iApply wp_wand_r.

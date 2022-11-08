@@ -1,25 +1,8 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
-From iris.program_logic Require Import language.
-From iris.proofmode Require Import tactics.
-From iris.base_logic Require Export gen_heap proph_map.
-Require Export iris iris_locations stdpp_aux iris_wasm_lang_properties iris_lfilled_properties.
-Require Export datatypes operations properties opsem.
+From stdpp Require Import base list.
+Require Export iris stdpp_aux iris_wasm_lang_properties iris_lfilled_properties.
 
-Ltac not_const e He :=
-  let b := fresh "b" in
-  destruct e as [b| | | | ] ; (try by (left + right)) ;
-  destruct b ; (try by left) ;
-    by exfalso ; apply He.
-
-(* given a nonempty list x :: xs, gives user a hypothesis "Htail : x :: xs = ys ++ [y]" *)
-Ltac get_tail x xs ys y Htail :=
-  cut (exists ys y, x :: xs = ys ++ [y]) ;
-  [ intro Htail ; destruct Htail as (ys & y & Htail) |
-    exists (removelast (x :: xs)) ;
-    exists (List.last (x :: xs) AI_trap) ;
-    apply app_removelast_last ;
-    apply not_eq_sym ; apply nil_cons ].
-
+Open Scope list_scope.
 
 
 Section reduce_properties.
@@ -35,23 +18,23 @@ Section reduce_properties.
     reduce s f vs s' f' es' -> const_list vs -> False.
   Proof.
     intros H Hvs. induction H ; try by inversion Hvs ; unfold const_list in Hvs ;
-                    rewrite forallb_app in Hvs ; apply andb_true_iff in Hvs ;
+                    rewrite forallb_app in Hvs ; move/andP in Hvs ;
                     destruct Hvs as [_ Hvs] ; inversion Hvs.
-    { destruct H ; try by inversion Hvs ;
-        unfold const_list in Hvs ; rewrite forallb_app in Hvs; 
-        apply andb_true_iff in Hvs ; destruct Hvs as [_ Hvs] ; 
+    { destruct H; try by inversion Hvs ;
+        unfold const_list in Hvs ; rewrite forallb_app in Hvs;
+        move/andP in Hvs ; destruct Hvs as [_ Hvs] ; 
         inversion Hvs.
-      - inversion Hvs. apply andb_true_iff in H1. destruct H1.
-        false_assumption.
-      - filled_trap H0 Hxl1. unfold const_list in Hvs. rewrite H0 in Hvs.
-        rewrite forallb_app in Hvs. apply andb_true_iff in Hvs. destruct Hvs as [_ Hvs].
-        inversion Hvs. 
+      - inversion Hvs. move/andP in H1. by destruct H1.
+      - filled_trap H0 Hxl1.
+        unfold const_list in Hvs. rewrite H0 in Hvs.
+        rewrite forallb_app in Hvs. move/andP in Hvs. destruct Hvs as [_ Hvs].
+        by inversion Hvs. 
     }
     simple_filled H0 k lh bef aft n l l' ; rewrite H0 in Hvs ; unfold const_list in Hvs ;
-      rewrite forallb_app in Hvs ; apply andb_true_iff in Hvs ; destruct Hvs as [_ Hvs].
-    + rewrite forallb_app in Hvs. apply andb_true_iff in Hvs. destruct Hvs as [Hvs _].
-      apply (IHreduce Hvs).
-    + inversion Hvs.
+      rewrite forallb_app in Hvs ; move/andP in Hvs ; destruct Hvs as [_ Hvs].
+    + rewrite forallb_app in Hvs. move/andP in Hvs. destruct Hvs as [Hvs _].
+      by apply (IHreduce Hvs).
+    + by inversion Hvs.
   Qed.
 
 End reduce_properties.
@@ -470,7 +453,7 @@ Ltac not_enough_arguments s f vs obj t1s s' f' es' :=
   )).
 
 Section reduce_properties_lemmas.
-   Let reducible := @reducible wasm_lang.
+   Let reducible := @iris.program_logic.language.reducible wasm_lang.
 
   Let expr := iris.expr.
   Let val := iris.val.
@@ -756,9 +739,6 @@ Section reduce_properties_lemmas.
   
   Lemma prepend_reducible (es1 es2: list administrative_instruction) σ :
     (const_list es1 \/ es1 = [AI_trap]) ->
-(*    (∀ n (vh: valid_holed n), vs ≠ brV vh) ->
-    (∀ sh, vs ≠ retV sh) ->
-    iris.to_val es1 = Some vs -> *)
     reducible es2 σ ->
     reducible (es1 ++ es2) σ.
   Proof.
@@ -1460,11 +1440,11 @@ Section reduce_properties_lemmas.
         (AI_basic (BI_store t (Some tp) a off)), [], [AI_trap], k, lh ; repeat split => //=.
       by apply (r_store_packed_failure _ H H0 H1 H2).
     - exists [], (AI_basic BI_current_memory), [],
-        [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin n))))],
+        [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (ssrnat.nat_of_bin n)))))],
         k, lh ; repeat split => //=.
       by apply (r_current_memory H H0 H1).
     - exists [AI_basic (BI_const (VAL_int32 c))], (AI_basic BI_grow_memory), [],
-        [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (ssrnat.nat_of_bin n))))],
+        [AI_basic (BI_const (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (ssrnat.nat_of_bin n)))))],
         k, lh ; repeat split => //=.
       by apply (r_grow_memory_success H H0 H1 H2).
     - exists [AI_basic (BI_const (VAL_int32 c))], (AI_basic BI_grow_memory), [],

@@ -3,8 +3,7 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def stdpp_aux.
-Require Export datatypes operations properties opsem.
+Require Export iris_locations iris_properties iris_atomicity iris_wp_def.
 
 
 Close Scope byte_scope.

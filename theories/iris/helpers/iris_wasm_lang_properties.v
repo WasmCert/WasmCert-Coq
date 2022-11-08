@@ -1,15 +1,8 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From iris.program_logic Require Import language.
 Require Export iris stdpp_aux iris_lfilled_properties.
-Require Export datatypes operations properties opsem.
 
 Ltac false_assumption := exfalso ; apply ssrbool.not_false_is_true ; assumption.
-
-Ltac first_not_const Hconst :=
-  unfold const_list, forallb in Hconst ;
-  subst ; simpl in Hconst ;
-  repeat rewrite andb_false_r in Hconst ;
-  false_assumption.
 
 Ltac const_list_app :=
    unfold const_list ; 
@@ -23,21 +16,21 @@ Proof.
   subst. rewrite Hla1 in Hla2. inversion Hla2. done.
 Qed.
 
-Lemma separate1 {A} (a : A) l :
-  a :: l = [a] ++ l.
-Proof. done. Qed.
+Ltac not_const e He :=
+  let b := fresh "b" in
+  destruct e as [b| | | | ] ; (try by (left + right)) ;
+  destruct b ; (try by left) ;
+    by exfalso ; apply He.
 
-Lemma separate2 {A} (a : A) b l :
-  a :: b :: l = [a ; b] ++ l.
-Proof. done. Qed.
+(* given a nonempty list x :: xs, gives user a hypothesis "Htail : x :: xs = ys ++ [y]" *)
+Ltac get_tail x xs ys y Htail :=
+  cut (exists ys y, x :: xs = ys ++ [y]) ;
+  [ intro Htail ; destruct Htail as (ys & y & Htail) |
+    exists (removelast (x :: xs)) ;
+    exists (List.last (x :: xs) AI_trap) ;
+    apply app_removelast_last ;
+    apply not_eq_sym ; apply nil_cons ].
 
-Lemma separate3 {A} (a : A) b c l :
-  a :: b :: c :: l = [a ; b ; c] ++ l.
-Proof. done. Qed.
-
-Lemma separate4 {A} (a : A) b c d l :
-  a :: b :: c :: d :: l  = [a ; b ; c ; d ] ++ l.
-Proof. done. Qed.
 
 Lemma destruct_list_rev {A : Type} (l : list A) :
   l = [] ∨ ∃ a l', l = l' ++ [a].
@@ -60,7 +53,6 @@ Section wasm_lang_properties.
   Lemma v_to_e_is_fmap vs :
     v_to_e_list vs = (fun x => AI_basic (BI_const x)) <$> vs.
   Proof. done. Qed. 
-
 
   
   Lemma to_val_cat (es1 es2: list administrative_instruction) (vs: list value) :
@@ -1399,7 +1391,6 @@ Section wasm_lang_properties.
     simpl. destruct sh => //= ; by rewrite app_comm_cons app_assoc.
   Qed.
 
-  
   Lemma lfilled_to_val_app i lh es1 es2 LI vs :
     lfilled i lh (es1 ++ es2)%list LI ->
     to_val LI = Some vs ->
@@ -2100,6 +2091,7 @@ Section wasm_lang_properties.
     iris.to_val es1 = None ->
     llfill wh [AI_call_host tf h w] = llfill vh es1 ->
     ∃ vh', es1 = llfill vh' [AI_call_host tf h w].
+  Proof.
     intros Hnone Hs.
     assert (es1 ≠ []);[intros Hcontr;subst;done|].
     assert (const_list es1 = false).
@@ -2193,46 +2185,6 @@ Section wasm_lang_properties.
         subst es1. eauto.
       }
     }  
-  Qed.
-
-  Lemma sfill_nested vh wh e :
-    ∃ vh', sfill vh (sfill wh e) = sfill vh' e.
-  Proof.
-    induction vh.
-    { destruct wh.
-      { exists (SH_base (l ++ l1) (l2 ++ l0)).
-        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc. auto. }
-      { exists (SH_rec (l ++ l1) n l2 wh (l3 ++ l0)).
-        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
-        rewrite app_comm_cons. rewrite (separate1 _ l3).
-        repeat erewrite app_assoc. auto. } }
-    { destruct IHvh as [vh' Heq].
-      cbn. rewrite Heq.
-      exists (SH_rec l n l0 vh' l1). cbn. auto. }
-  Qed.
-
-  Lemma llfill_nested vh wh e :
-    ∃ vh', llfill vh (llfill wh e) = llfill vh' e.
-  Proof.
-    induction vh.
-    { destruct wh.
-      { exists (LL_base (l ++ l1) (l2 ++ l0)).
-        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc. auto. }
-      { exists (LL_label (l ++ l1) n l2 wh (l3 ++ l0)).
-        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
-        rewrite app_comm_cons. rewrite (separate1 _ l3).
-        repeat erewrite app_assoc. auto. }
-      { exists (LL_local (l ++ l1) n f wh (l2 ++ l0)).
-        cbn. rewrite - v_to_e_cat. repeat erewrite app_assoc.
-        rewrite app_comm_cons.
-        repeat erewrite app_assoc. auto. }
-    }
-    { destruct IHvh as [vh' Heq].
-      cbn. rewrite Heq.
-      exists (LL_label l n l0 vh' l1). cbn. auto. }
-    { destruct IHvh as [vh' Heq].
-      cbn. rewrite Heq.
-      exists (LL_local l n f vh' l0). cbn. auto. }
   Qed.
 
   Lemma to_val_local_none n f es1 vh :

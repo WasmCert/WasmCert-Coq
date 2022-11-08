@@ -1,21 +1,22 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
-From iris.program_logic Require Import language.
-From iris.proofmode Require Import tactics.
-From iris.base_logic Require Export gen_heap proph_map.
-Require Export iris iris_locations stdpp_aux.
-Require Export datatypes operations properties opsem.
-Require Import iris_reduce_properties iris_wasm_lang_properties.
+From stdpp Require Import base list.
+Require Export iris stdpp_aux iris_reduce_properties.
 
+
+Ltac first_not_const Hconst :=
+  unfold const_list, forallb in Hconst ;
+  subst ; simpl in Hconst ;
+  repeat rewrite andb_false_r in Hconst ;
+  false_assumption.
 
 
 Section reduction_core.
 
-  Let reducible := @reducible wasm_lang.
-
+  Let reducible := @iris.program_logic.language.reducible wasm_lang.
+  
   Let expr := iris.expr.
   Let val := iris.val.
   Let to_val := iris.to_val.
-
 
 
   Lemma reduction_core bef0 es0 aft0 bef1 es1 aft1 es0' es1' s f s' f' s0 f0 :
