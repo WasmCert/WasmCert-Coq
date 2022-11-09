@@ -16,7 +16,6 @@ Section Client2.
 
  Context `{!wasmG Σ, !hvisG Σ, !hmsG Σ, !hasG Σ, !logrel_na_invs Σ}. 
 
-
   
 (* Functions from the stack module are : 
      0 - new_stack
@@ -152,11 +151,6 @@ Section Client2.
       ]
     |}.
 
-
-
-  Ltac bet_first f :=
-  eapply bet_composition_front ; first eapply f => //=.
-
   Lemma module_typing_client :
     module_typing client_module (expts ++ [ET_func (Tf [T_i32 ; T_i32] [])]) [ET_glob {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
   Proof.
@@ -200,7 +194,7 @@ Section Client2.
     { by exists [Wasm_int.int_of_Z i32m 0]. }
     { by exists []. }
   Qed.
-
+  
   Definition stack_instantiate (exp_addrs : list N) (stack_mod_addr client_mod_addr : N) :=
     [ ID_instantiate (take 8 exp_addrs) stack_mod_addr [] ;
       ID_instantiate [exp_addrs !!! 8] client_mod_addr ((take 8 exp_addrs) ++ [(exp_addrs !!! 9)]) ].
@@ -277,29 +271,13 @@ Proof.
       remember (list_to_map _) as mtmp.
       rewrite -> Heqmtmp in *.
       rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6 => //.
-      destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
-      destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
-      destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
-      destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
-      destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
-      destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
-      destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
-      assert (k0=0) as ->; first by eapply NoDup_lookup => //.
-      assert (k1=1) as ->; first by eapply NoDup_lookup => //.
-      assert (k2=2) as ->; first by eapply NoDup_lookup => //.
-      assert (k3=3) as ->; first by eapply NoDup_lookup => //.
-      assert (k4=4) as ->; first by eapply NoDup_lookup => //.
-      assert (k5=5) as ->; first by eapply NoDup_lookup => //.
-      assert (k6=6) as ->; first by eapply NoDup_lookup => //.
-      inversion Hcl0.
-      inversion Hcl1.
-      inversion Hcl2.
-      inversion Hcl3.
-      inversion Hcl4.
-      inversion Hcl5.
-      inversion Hcl6.
-      subst cl0 cl1 cl2 cl3 cl4 cl5 cl6.
-      clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6.
+      invert_cllookup Hcltype0 0.
+      invert_cllookup Hcltype1 1.
+      invert_cllookup Hcltype2 2.
+      invert_cllookup Hcltype3 3.
+      invert_cllookup Hcltype4 4.
+      invert_cllookup Hcltype5 5.
+      invert_cllookup Hcltype6 6.
       iDestruct (mapsto_ne with "Himpfcl0 Hwfcallhost") as "%Hne0".
       iDestruct (mapsto_ne with "Himpfcl1 Hwfcallhost") as "%Hne1".
       iDestruct (mapsto_ne with "Himpfcl2 Hwfcallhost") as "%Hne2".
@@ -314,6 +292,15 @@ Proof.
         move => x Hin.
         by set_solver.
       }
+      
+      remember ((list_to_map
+                     (zip
+                        [N.of_nat idf0; N.of_nat idf1; N.of_nat idf2; N.of_nat idf3; N.of_nat idf4; 
+                        N.of_nat idf5; N.of_nat idf6; N.of_nat idmodtab]
+                        [FC_func_native i0 (Tf [] [T_i32]) l0 f0; FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1;
+                        FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2; FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3;
+                        FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4; FC_func_native i0 (Tf [T_i32; T_i32] []) l5 f5;
+                        FC_func_native i0 (Tf [T_i32] [T_i32]) l6 f6; FC_func_host (Tf [T_i32; T_i32] []) (Mk_hostfuncidx ha_mod_table_addr) ]): gmap N function_closure)) as mtmp.
       
       iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hwfcallhost Hmod1 Himport Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Himpfcl5 Himpfcl6 Htab Hvisglob Hvishost]") ; try exact module_typing_client.
     - by unfold client_module.
@@ -337,14 +324,8 @@ Proof.
       instantiate ( 1 := <[ N.of_nat idt := tab ]> ∅) .
       instantiate ( 1 := ∅) .
       iFrame "Hvisglob".
-      instantiate (1 := (list_to_map
-                     (zip
-                        [N.of_nat idf0; N.of_nat idf1; N.of_nat idf2; N.of_nat idf3; N.of_nat idf4; 
-                        N.of_nat idf5; N.of_nat idf6; N.of_nat idmodtab]
-                        [FC_func_native i0 (Tf [] [T_i32]) l0 f0; FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1;
-                        FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2; FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3;
-                        FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4; FC_func_native i0 (Tf [T_i32; T_i32] []) l5 f5;
-                        FC_func_native i0 (Tf [T_i32] [T_i32]) l6 f6; FC_func_host (Tf [T_i32; T_i32] []) (Mk_hostfuncidx ha_mod_table_addr) ]))).
+      instantiate (1 := mtmp).
+      rewrite -> Heqmtmp.
       iSplitL. 2: { done. }
       rewrite irwt_nodup_equiv => //=.
       unfold import_resources_wasm_typecheck_sepL2. 
@@ -354,16 +335,16 @@ Proof.
       done. done.
       cbn.
       
-      iSplitL "Himpfcl0". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 0. }
-      iSplitL "Himpfcl1". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 1. }
-      iSplitL "Himpfcl2". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 2. }
-      iSplitL "Himpfcl3". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 3. }
-      iSplitL "Himpfcl4". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 4. }
-      iSplitL "Himpfcl5". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 5. }
-      iSplitL "Himpfcl6". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 6. }
+      iSplitL "Himpfcl0"; first by resolve_cl_lookup 0. 
+      iSplitL "Himpfcl1"; first by resolve_cl_lookup 1. 
+      iSplitL "Himpfcl2"; first by resolve_cl_lookup 2. 
+      iSplitL "Himpfcl3"; first by resolve_cl_lookup 3. 
+      iSplitL "Himpfcl4"; first by resolve_cl_lookup 4. 
+      iSplitL "Himpfcl5"; first by resolve_cl_lookup 5. 
+      iSplitL "Himpfcl6"; first by resolve_cl_lookup 6. 
       iSplitL "Htab". {iExists _, _; iFrame. done. }
-      iSplit => //. { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 7. }
-
+      iSplitL "Hwfcallhost"; first by resolve_cl_lookup 7. 
+      done.
       iPureIntro ; unfold module_elem_bound_check_gmap ; simpl.
       apply Forall_cons.
       split ; last done.
@@ -460,32 +441,14 @@ Proof.
       remember (list_to_map _) as mtmp.
       rewrite -> Heqmtmp in *.
       rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6, Hcltype7 => //.
-      destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
-      destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
-      destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
-      destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
-      destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
-      destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
-      destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
-      destruct Hcltype7 as ((k7 & Hind7 & Hcl7) & _).
-      assert (k0=0) as ->; first by eapply NoDup_lookup => //.
-      assert (k1=1) as ->; first by eapply NoDup_lookup => //.
-      assert (k2=2) as ->; first by eapply NoDup_lookup => //.
-      assert (k3=3) as ->; first by eapply NoDup_lookup => //.
-      assert (k4=4) as ->; first by eapply NoDup_lookup => //.
-      assert (k5=5) as ->; first by eapply NoDup_lookup => //.
-      assert (k6=6) as ->; first by eapply NoDup_lookup => //.
-      assert (k7=7) as ->; first by eapply NoDup_lookup => //.
-      inversion Hcl0.
-      inversion Hcl1.
-      inversion Hcl2.
-      inversion Hcl3.
-      inversion Hcl4.
-      inversion Hcl5.
-      inversion Hcl6.
-      inversion Hcl7.
-      subst cl0 cl1 cl2 cl3 cl4 cl5 cl6 cl7.
-      clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hcl7 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6 Hind7.
+      invert_cllookup Hcltype0 0.
+      invert_cllookup Hcltype1 1.
+      invert_cllookup Hcltype2 2.
+      invert_cllookup Hcltype3 3.
+      invert_cllookup Hcltype4 4.
+      invert_cllookup Hcltype5 5.
+      invert_cllookup Hcltype6 6.
+      invert_cllookup Hcltype7 7.
       
       (* Now for our last export (the table), we have a little more work to do,
          because we are populating it. This is where the knowledge of the exact
@@ -497,7 +460,6 @@ Proof.
       simpl in Htab0.
       do 2 rewrite lookup_insert in Htab0.
       destruct Htab0 as [Htab0 _] ; inversion Htab0 ; subst ; clear Htab0.
-     
       
       simpl in * ; subst.
 
@@ -677,20 +639,13 @@ Proof.
           move/eqP in Hfill; subst.
           iApply wp_value.
           unfold IntoVal.
+          remember (sh_append sh _) as shret.
           apply iris.of_to_val.
           unfold iris.to_val => /=.
-          specialize (iris.to_of_val (retV (sh_append sh [AI_basic (BI_get_local 0); AI_basic (i32const 4); AI_basic (BI_call 4); AI_basic (BI_get_local 0);
-                   AI_basic (i32const 6); AI_basic (BI_call 4); AI_basic (BI_get_local 0); AI_basic (i32const 0);
-                   AI_basic (BI_call 5); AI_basic (i32const 0); AI_basic (i32const 10); AI_basic (BI_call 7);
-                   AI_basic (BI_get_local 0); AI_basic (i32const 0); AI_basic (BI_call 5); AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 3); AI_basic (BI_get_local 0); AI_basic (BI_call 3);
-                   AI_basic (BI_binop T_i32 (Binop_i BOI_sub)); AI_basic (BI_set_global 0)]))) as Hv.
+          specialize (iris.to_of_val (retV shret)) as Hv.
           unfold iris.to_val, iris.to_val, iris.of_val in Hv.
           rewrite app_nil_r.
-          destruct (merge_values_list _).
-          inversion Hv.
-          done.
-          done.
+          destruct (merge_values_list _); by subst; inversion Hv.
           iExists _.
           iFrame.
           iIntros "Hf".
@@ -704,25 +659,12 @@ Proof.
           unfold IntoVal.
           by apply of_to_val.
           iFrame.
-          instantiate ( 1 := λ x, (( N.of_nat f15 ↦[wf] _ ∗
-                                                   _ ↪[vis] _ ∗
-                                                   
-                                                   N.of_nat idf0 ↦[wf] _ ∗
-                                               
-                                                   N.of_nat idf4 ↦[wf] _ ∗
-                                                   N.of_nat idf5 ↦[wf] _ ∗
-                                                   _ ↦[wt][0%N] _ ∗
-                                                   N.of_nat f16 ↦[wf] _ ∗
-                                                   N.of_nat idmodtab ↦[wf] _
-                                                   ∗ ∃ k, ⌜ (0 <= k <= ffff0000)%N ⌝ ∗ ⌜ x = callHostV _ _ _ _ ⌝ ∗
-       nextStackAddrIs _ ∗
-           _ ↦[wg] _ ∗
-       isStack k _
-      ∨ ⌜ x = immV [] ⌝ ∗ _ ↦[wg] {| g_mut := MUT_mut; g_val := value_of_int (-1) |}))%I).
-          
+          instantiate (1 := λ x, (( _ ∗
+                                      ((∃ k, ⌜ (0 <= k <= ffff0000)%N ⌝ ∗ ⌜ x = callHostV _ _ _ _ ⌝ ∗ nextStackAddrIs _ ∗  _ ↦[wg] _ ∗ isStack k _)
+                                            ∨ ⌜ x = immV [] ⌝ ∗ _ ↦[wg] {| g_mut := MUT_mut; g_val := value_of_int (-1) |})))%I).
           iIntros "!>".
-          iFrame "Hwfdbl Hexphost Hcl Himpfcl4 Himpfcl5 Himpfcl7 Ht0 Hwfsq".
-          iExists 0%N.
+          iCombine "Hwfdbl Hexphost Hcl Himpfcl4 Himpfcl5 Himpfcl7 Ht0 Hwfsq" as "H".
+          iSplitL "H"; first by iApply "H".
           iRight.
           by iFrame.
         }
@@ -923,11 +865,8 @@ Proof.
           iApply (wp_frame_bind with "Hf").
           done. iIntros "Hf".
           rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
-          iApply (wp_block with "Hf").
-          done.
-          done.
-          done.
-          done.
+          iApply (wp_block with "Hf") => //.
+          
           iIntros "!> Hf".
           iApply (wp_label_bind with "[Hf Hcl]") ; last first.
           iPureIntro.
@@ -1050,17 +989,17 @@ Proof.
           iApply wp_value.
           unfold IntoVal ; apply of_to_val => //=.
           simpl.
-          iFrame "Hf".
-          
-          iExists (k). iLeft. iFrame.
-          done.
+          iFrame.
+          iLeft.
+          iExists k.
+          by iFrame.
           by iIntros "[% _]".
         }
       }
       
       
-      iIntros (w0) "[(Hf15 & Hvis8 & Himpfcl0 & Himpfcl4 & Himpfcl5 & Himpidt & Hf16 & Hmodtab & H) Hf]".
-      iDestruct "H" as (k) "[(% & -> & Hnextaddr & Hwg & Hs) | [-> Hwg]]".
+      iIntros (w0) "(((Hf16 & Hvis8 & Himpfcl0 & Himpfcl4 & Himpfcl5 & Hmodtab & Himpidt & Hf15) & H) & Hf)".
+      iDestruct "H" as "[[%k (% & -> & Hnextaddr & Hwg & Hs)] | [-> Hwg]]".
       simpl.
       iApply wp_call_host_modify_table ; last first.
       rewrite <- (N2Nat.id 0). iFrame.
@@ -1121,7 +1060,7 @@ Proof.
       iApply (wp_frame_bind with "Hf"). done.
       iIntros "Hf".
       rewrite - (app_nil_l [AI_basic _]).
-      iApply (wp_block with "Hf"). done. done. done. done.
+      iApply (wp_block with "Hf") => //.
       iIntros "!> Hf".
       iApply (wp_label_bind with "[Hf HΦ Hwt Hf16]") ; last first.
       iPureIntro. unfold lfilled, lfill.
@@ -1225,8 +1164,7 @@ Proof.
       done.
       iIntros (v0) "[-> Hf]".
       iSimpl.
-      instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗
-                                         ↪[frame] _)%I). 
+      instantiate (1 := λ v, (⌜ v = immV _ ⌝ ∗ ↪[frame] _)%I). 
       by iFrame.
       by iIntros "!> [% _]".
       iIntros (w0) "[-> Hf]".
@@ -1315,7 +1253,6 @@ Proof.
       iFrame "Hf Hmod1".
       iExists _, _. by iFrame.
 Qed.
-  
 
 End Client2.
   

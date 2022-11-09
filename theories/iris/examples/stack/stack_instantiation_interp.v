@@ -15,17 +15,6 @@ Section StackModule.
 
   Set Bullet Behavior "Strict Subproofs".
 
- (* Definition stack_t_context :=
-  {| tc_types_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []];
-    tc_func_t := [Tf [] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32] [T_i32]; Tf [T_i32; T_i32] []; Tf [T_i32; T_i32] []];
-    tc_global := [];
-    tc_table := [ {| tt_limits := {| lim_min := 1; lim_max := None |}; tt_elem_type := ELT_funcref |}];
-    tc_memory := [ {| lim_min := 0; lim_max := None |}];
-    tc_local := [];
-    tc_label := [];
-    tc_return := None
-  |}.*)
-
   Lemma stackModuleInvIff P1 P2 Q :
     (∀ n l, P1 n l ≡ P2 n l) -> ⊢ (stackModuleInv P1 Q ∗-∗ @stackModuleInv Σ P2 Q)%I.
   Proof.
@@ -51,8 +40,8 @@ Section StackModule.
   
   Lemma instantiate_stack_valid `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (exp_addrs: list N) (stack_mod_addr : N):
     length exp_addrs = 8 ->
-  (* Knowing 0%N holds the stack module… *)
-  stack_mod_addr%N ↪[mods] stack_module -∗
+  (* Knowing we hold the stack module… *)
+  stack_mod_addr ↪[mods] stack_module -∗
    (* … and we own the vis pointers … *)
    own_vis_pointers exp_addrs -∗
      (* … instantiating the stack-module (by lazyness, this is expressed here with
@@ -62,8 +51,8 @@ Section StackModule.
              {{ λ v : host_val,
                  (* Instantiation succeeds *)
                  ⌜ v = immHV [] ⌝ ∗
-                 (* 0%N still owns the stack_module *)
-                 stack_mod_addr%N ↪[mods] stack_module ∗ 
+                 (* we still own the stack_module *)
+                 stack_mod_addr ↪[mods] stack_module ∗ 
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idf6 idt : nat)
                     (name0 name1 name2 name3 name4 name5 name6 name7 : name)
                     (f0 f1 f2 f3 f4 f5 f6: list basic_instruction)

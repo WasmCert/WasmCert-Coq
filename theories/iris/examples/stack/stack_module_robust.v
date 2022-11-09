@@ -178,32 +178,14 @@ Section RobustStack.
 
     apply (NoDup_fmap_2 N.of_nat) in Hfnodup; simpl in Hfnodup.
     
-    remember (list_to_map _) as mtmp.
-    rewrite -> Heqmtmp in *.
-    rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6 => //.
-    destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
-    destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
-    destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
-    destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
-    destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
-    destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
-    destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
-    assert (k0=0) as ->; first by eapply NoDup_lookup => //.
-    assert (k1=1) as ->; first by eapply NoDup_lookup => //.
-    assert (k2=2) as ->; first by eapply NoDup_lookup => //.
-    assert (k3=3) as ->; first by eapply NoDup_lookup => //.
-    assert (k4=4) as ->; first by eapply NoDup_lookup => //.
-    assert (k5=5) as ->; first by eapply NoDup_lookup => //.
-    assert (k6=6) as ->; first by eapply NoDup_lookup => //.
-    inversion Hcl0.
-    inversion Hcl1.
-    inversion Hcl2.
-    inversion Hcl3.
-    inversion Hcl4.
-    inversion Hcl5.
-    inversion Hcl6.
-    subst cl0 cl1 cl2 cl3 cl4 cl5 cl6.
-    clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6.
+    rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6 => //; try by exact ∅.
+    invert_cllookup Hcltype0 0.
+    invert_cllookup Hcltype1 1.
+    invert_cllookup Hcltype2 2.
+    invert_cllookup Hcltype3 3.
+    invert_cllookup Hcltype4 4.
+    invert_cllookup Hcltype5 5.
+    invert_cllookup Hcltype6 6.
 
     rewrite lookup_insert.
     iDestruct "Hidtab" as (tab tt) "[Hidtab [%Heq %Htt]]". inversion Heq;subst tab; clear Heq.
@@ -239,7 +221,7 @@ Section RobustStack.
           iSplit => //.
           { iPureIntro.
             repeat (split; first eexists) => //.
-            all: rewrite -> list_to_map_zip_lookup => //.
+            all: rewrite -> list_to_map_zip_lookup => //; try by exact ∅.
             { split; first exists 0 => //; done. }
             { split; first exists 1 => //; done. }
             { split; first exists 2 => //; done. }

@@ -308,20 +308,14 @@ Proof.
       remember (list_to_map _) as mtmp.
       rewrite -> Heqmtmp in *.
       rewrite -> list_to_map_zip_lookup in Hcltype0, Hcltype1, Hcltype2, Hcltype3, Hcltype4, Hcltype5, Hcltype6 => //.
-      destruct Hcltype0 as ((k0 & Hind0 & Hcl0) & _).
-      destruct Hcltype1 as ((k1 & Hind1 & Hcl1) & _).
-      destruct Hcltype2 as ((k2 & Hind2 & Hcl2) & _).
-      destruct Hcltype3 as ((k3 & Hind3 & Hcl3) & _).
-      destruct Hcltype4 as ((k4 & Hind4 & Hcl4) & _).
-      destruct Hcltype5 as ((k5 & Hind5 & Hcl5) & _).
-      destruct Hcltype6 as ((k6 & Hind6 & Hcl6) & _).
-      assert (k0=0) as ->; first by eapply NoDup_lookup => //.
-      assert (k1=1) as ->; first by eapply NoDup_lookup => //.
-      assert (k2=2) as ->; first by eapply NoDup_lookup => //.
-      assert (k3=3) as ->; first by eapply NoDup_lookup => //.
-      assert (k4=4) as ->; first by eapply NoDup_lookup => //.
-      assert (k5=5) as ->; first by eapply NoDup_lookup => //.
-      assert (k6=6) as ->; first by eapply NoDup_lookup => //.
+
+      invert_cllookup Hcltype0 0.
+      invert_cllookup Hcltype1 1.
+      invert_cllookup Hcltype2 2.
+      invert_cllookup Hcltype3 3.
+      invert_cllookup Hcltype4 4.
+      invert_cllookup Hcltype5 5.
+      invert_cllookup Hcltype6 6.
       
       (* Now for our last export (the table), we have a little more work to do,
          because we are populating it. This is where the knowledge of the exact
@@ -330,17 +324,7 @@ Proof.
       simpl in Htab0.
       do 2 rewrite lookup_insert in Htab0.
       destruct Htab0 as [Htab0 _] ; inversion Htab0 ; subst ; clear Htab0.
-      
       simpl in * ; subst.
-      inversion Hcl0.
-      inversion Hcl1.
-      inversion Hcl2.
-      inversion Hcl3.
-      inversion Hcl4.
-      inversion Hcl5.
-      inversion Hcl6.
-      subst.
-      clear Hcl0 Hcl1 Hcl2 Hcl3 Hcl4 Hcl5 Hcl6 Hind0 Hind1 Hind2 Hind3 Hind4 Hind5 Hind6.
 
       (* And now we invoke Hinstfunc to get the exact values in list inst_func *)
       unfold ext_func_addrs in Hinstfunc ; simpl in Hinstfunc.
@@ -367,7 +351,7 @@ Proof.
         
       unfold check_start in Hstart.
       simpl in Hstart.
-      apply b2p in Hstart.
+      move/eqP in Hstart.
       inversion Hstart ; subst ; clear Hstart.
       iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
       iIntros (v).
@@ -399,6 +383,9 @@ Proof.
       rewrite app_nil_r.
       done.
 
+      clear Hdom Hbound Hbound' Hinsttab Hinstmem Hinstglob Hnodup Hfnodup Htab.
+      clear n n0 n1 n2 n3 n4 n5 n6 name0 name1 name2 name3 name4 name5 name6.
+      
       (* Proving the spec of main *)
      
       { rewrite (separate1 (AI_basic (BI_call 0)) (_ :: _)).
@@ -493,20 +480,19 @@ Proof.
             iSimpl.
             iApply wp_value.
             unfold IntoVal.
-              by apply of_to_val.
-              iIntros (lh) "%Hfill".
-              unfold lfilled, lfill in Hfill ; simpl in Hfill.
-              apply b2p in Hfill ; subst.
-              iApply wp_value.
-              unfold IntoVal.
-                by apply of_to_val.
-                iFrame.
-                iPureIntro ; by eexists _.
-                  by iIntros "[%H _]".
+            by apply of_to_val.
+            iIntros (lh) "%Hfill".
+            unfold lfilled, lfill in Hfill ; simpl in Hfill.
+            move/eqP in Hfill ; subst.
+            iApply wp_value.
+            unfold IntoVal.
+            by apply of_to_val.
+            iFrame.
+            iPureIntro ; by eexists _.
+            by iIntros "[%H _]".
           }
-          {
-            iIntros "((%Habs & _) & _)"; by inversion Habs.
-          }
+          { iIntros "((%Habs & _) & _)"; by inversion Habs. }
+          
           iIntros (w).
           iIntros "((%Habs & Hwg) & Hf)".
           destruct Habs as [sh ->].
@@ -523,28 +509,13 @@ Proof.
           iApply wp_value.
           unfold IntoVal.
           apply iris.of_to_val.
+          remember (sh_append sh _) as shret.
           unfold iris.to_val => /=.
-          specialize (iris.to_of_val (retV (sh_append sh [
-                   AI_basic (BI_get_local 0);
-                   AI_basic (i32const 4);
-                   AI_basic (BI_call 4);
-                   AI_basic (BI_get_local 0);
-                   AI_basic (i32const 6);
-                   AI_basic (BI_call 4);
-                   AI_basic (BI_get_local 0);
-                   AI_basic (i32const 0) ; AI_basic (BI_call 5) ;                                  
-                   AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 3);
-                   AI_basic (BI_get_local 0);
-                   AI_basic (BI_call 3);
-                   AI_basic (BI_binop T_i32 (Binop_i BOI_sub));
-                                                     AI_basic (BI_set_global 0)]))) as H.
+          specialize (iris.to_of_val (retV shret)) as H.
           unfold iris.to_val, iris.to_val, iris.of_val in H.
           rewrite app_nil_r.
           destruct (merge_values_list _).
-          inversion H.
-          done.
-          done.
+          inversion H; subst => //. done.
           iExists _.
           iFrame.
           iIntros "Hf".
@@ -560,8 +531,7 @@ Proof.
           iFrame.
           instantiate ( 1 := λ v, (⌜ v = immV [] ⌝ ∗ ∃ g, (N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 20 |} ∨ N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1) |}) ∗ n7%N ↪[vis] {|
                                                                                                                                                                                                      modexp_name := name;
-                           modexp_desc :=
-                             MED_global (Mk_globalidx g)
+                           modexp_desc := MED_global (Mk_globalidx g)
                                                                                                                                                                                                     |} )%I ).
           iIntros "!>".
           iSplit => //.
@@ -570,7 +540,6 @@ Proof.
         }
         (* new_stack succeeded *)
         {
-          clear Hinstmem Hinstglob Hbound Hbound' Hdom Hnodup Hfnodup.
           iSimpl.
           rewrite (separate2 (AI_basic _)).
           iApply wp_seq; iSplitR; last iSplitL "Hf".
@@ -766,11 +735,7 @@ Proof.
           iApply (wp_frame_bind with "Hf").
           done. iIntros "Hf".
           rewrite - (app_nil_l [AI_basic (BI_block _ _)]).
-          iApply (wp_block with "Hf").
-          done.
-          done.
-          done.
-          done.
+          iApply (wp_block with "Hf") => //.
           iIntros "!> Hf".
           iApply (wp_label_bind with "[Hf Hcl]") ; last first.
           iPureIntro.
@@ -829,7 +794,6 @@ Proof.
           by instantiate (1 := λ x, (⌜ x = immV _⌝ ∗ N.of_nat f14 ↦[wf] _)%I) ; iFrame.
           all : try by iIntros "[% _]".
 
-          
           instantiate (1 := (λ x y, ⌜y = Wasm_int.Int32.imul x x⌝%I)).
           iIntros (v0) "[[-> Hcl] Hf]".
           iApply "HΦ".
@@ -854,10 +818,9 @@ Proof.
           iApply wp_seq.
           iSplitR ; last first.
           iSplitL "Hf".
-          iApply (wp_get_local with "[] [$Hf]").
-          done.
-          instantiate (1 := λ v, ⌜v = immV [value_of_uint k]⌝%I).
-          done.
+          iApply (wp_get_local with "[] [$Hf]") => //.
+          by instantiate (1 := λ v, ⌜v = immV [value_of_uint k]⌝%I).
+            
           iIntros (v0) "[-> Hf]".
           iSimpl.
           rewrite (separate2 (AI_basic (i32const _))).
@@ -1007,7 +970,6 @@ Proof.
       iExists ga, _.
       by iFrame.
   Qed.
-  
       
 End Client.
   

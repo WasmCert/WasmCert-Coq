@@ -11,6 +11,15 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Ltac invert_cllookup H n :=
+  let k := fresh "k" in
+  let Hind := fresh "Hind" in
+  let Hcl := fresh "Hcl" in
+  destruct H as ((k & Hind & Hcl) & _); assert (k = n) as ->; first (by eapply NoDup_lookup => //); inversion Hcl; subst; clear Hcl Hind.
+
+Ltac resolve_cl_lookup n :=
+  iExists _; iFrame; iSplit => //; iPureIntro; rewrite list_to_map_zip_lookup => //; exists n; try done.
+   
 Set Bullet Behavior "Strict Subproofs".
 
 
@@ -115,29 +124,6 @@ Definition func_types := [Tf [] [T_i32] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32
 Definition expts := (fmap ET_func func_types) ++ [ET_tab {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
                                tt_elem_type := ELT_funcref |}].
 
-Ltac bet_first f :=
-  eapply bet_composition_front ; first eapply f => //=.
-Ltac type_next_rewrite :=
-  match goal with
-  | |- context [ be_typing _ ?e _  ] =>
-      rewrite -(list.take_drop (length e - 1) e);simpl take; simpl drop
-  end.
-Ltac type_next :=
-  match goal with
-  | |- context [ be_typing _ ?e _  ] =>
-      rewrite -(list.take_drop (length e - 1) e);simpl take; simpl drop;
-      eapply bet_composition;[|econstructor;eauto];simpl
-  end.
-Ltac weaken :=
-  match goal with
-  | |- context [ be_typing _ ?e (Tf ?t1 ?t)  ] =>
-      try rewrite <- (app_nil_r t1);
-      rewrite -(list.take_drop (length t - 1) t);simpl take; simpl drop;
-      eapply bet_weakening;constructor;auto
-  end.
-Ltac type_go := repeat (constructor || type_next || weaken || (type_next_rewrite; eapply bet_composition; [constructor|])).
-
-
 Lemma validate_stack_typing x tt tf tloc tlab tret:
     nth_error tloc x = Some T_i32 ->
     be_typing
@@ -177,13 +163,13 @@ Lemma validate_stack_bound_typing x tt tf tloc tlab tret:
     |} (validate_stack_bound x) (Tf [] []).
 Proof.
   move => Htloc.
-  bet_first bet_get_local => //.
-  { rewrite nth_error_lookup in Htloc.
-    apply lookup_lt_Some in Htloc.
-      by lias. }
-  bet_first bet_load => //.
-  bet_first bet_drop => //.
-  by apply bet_empty.
+  apply/b_e_type_checker_reflects_typing => /=.
+  rewrite Htloc.
+  replace (ssrnat.leq (S x) (length tloc)) with (true); first by apply/eqP.
+  assert (x<length tloc); first by eapply nth_error_Some; rewrite Htloc.
+  symmetry.
+  apply/ssrnat.leP.
+  lia.
 Qed.
   
 Lemma new_stack_typing tt tf :
@@ -362,8 +348,6 @@ Definition stack_instance idfs m t :=
     inst_globs := []
   |}.
 
- 
-
 
 Definition spec0_new_stack (idf0 : nat) (i0 : instance) (l0 : seq.seq value_type)
            (f0 : seq.seq basic_instruction) (isStack : N -> seq.seq i32 -> iPropI Σ)
@@ -538,7 +522,7 @@ Proof.
 Qed.
 
 (* The similar result does *not* hold for tables and memories, because wtblock and wmblock are not necessarily
-   exclusive resources. This is an undesirable feature. *)
+   exclusive resources. *)
 Lemma module_inst_resources_func_nodup ms inst addrs:
   module_inst_resources_func ms inst addrs -∗
   ⌜ NoDup addrs ⌝.
@@ -638,8 +622,8 @@ Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (
                     (* Spec of stack_map (call 5) *)
                     spec5_stack_map idf5 i0 l5 f5 isStack idt E ∗
                     spec5_stack_map_trap idf5 i0 l5 f5 isStack idt E ∗
+                    (* Spec of stack_length (call 6) *)
                     spec6_stack_length idf6 i0 l6 f6 isStack E
-                                          
              }}.
 Proof.
   move => Hexpaddrlen.

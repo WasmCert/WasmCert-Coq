@@ -30,7 +30,7 @@
 		"@opam/mdx": ">=1.9.0",
 		"@opam/ocamlfind": "1.9.3",
 		"@opam/odoc": "*",
-		"compcert": "github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721",
+		"compcert": "github:iriswasm/CompCert#ad331c0f60d53d14601cd44412269a184ba63721",
 		"coq-ext-lib": "*",
 		"coq-flocq": "*",
 		"coq-iris": "*",

@@ -1793,43 +1793,6 @@ Module Float64.
 Include Make(FloatSize64).
 End Float64.
 
-(** ** Unit Tests **)
-
-(* FIXME: Frustration: these tests seem not to compute well, even with a [vm_compute].
-Lemma normalise_unit_test_64 : Float64.normalise_unit_test.
-Proof. reflexivity. Qed.
-
-Lemma ceil_unit_test_1_ok : ceil_unit_test_1.
-Proof. reflexivity. Qed.
-
-Lemma ceil_unit_test_2_ok : ceil_unit_test_2.
-Proof. reflexivity. Qed.
-
-Lemma floor_unit_test_1_ok : floor_unit_test_1.
-Proof. reflexivity. Qed.
-
-Lemma floor_unit_test_2_ok : floor_unit_test_2.
-Proof. reflexivity. Qed.
-
-Lemma trunc_unit_test_1_ok : trunc_unit_test_1.
-Proof. reflexivity. Qed.
-
-Lemma trunc_unit_test_2_ok : trunc_unit_test_2.
-Proof. reflexivity. Qed.
-
-Lemma nearest_unit_test_1_ok : nearest_unit_test_1.
-Proof. reflexivity. Qed.
-
-Lemma nearest_unit_test_2_ok : nearest_unit_test_2.
-Proof. reflexivity. Qed.
-
-Lemma nearest_unit_test_3_ok : nearest_unit_test_3.
-Proof. reflexivity. Qed.
-
-Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
-Proof. reflexivity. Qed.
-*)
-
 End Wasm_float.
 
 Definition f32 : eqType := Wasm_float.Float32.eqType.
