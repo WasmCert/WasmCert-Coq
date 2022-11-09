@@ -22,7 +22,8 @@ Section Client.
      2 - is_full
      3 - pop
      4 - push 
-     5 - map *)
+     5 - map
+     6 - length *)
   Definition main :=
     [ BI_call 0 ;
       BI_tee_local 0 ;
@@ -49,80 +50,80 @@ Section Client.
 
   Definition square :=
     [ BI_get_local 0 ;
-      BI_get_local 0 ;
-      BI_binop T_i32 (Binop_i BOI_mul) ].
+    BI_get_local 0 ;
+    BI_binop T_i32 (Binop_i BOI_mul) ].
 
   
   Definition client_module :=
     {|
-      mod_types := [ Tf [] [] ; Tf [] [T_i32] ; Tf [T_i32] [T_i32] ;
-                     Tf [T_i32 ; T_i32] [] ] ;
-      mod_funcs :=
+    mod_types := [ Tf [] [] ; Tf [] [T_i32] ; Tf [T_i32] [T_i32] ;
+                 Tf [T_i32 ; T_i32] [] ] ;
+    mod_funcs :=
       [ {|
           modfunc_type := Mk_typeidx 0 ;
           modfunc_locals := [T_i32] ;
           modfunc_body := main
         |} ;
-        {|
-          modfunc_type := Mk_typeidx 2 ;
-          modfunc_locals := [] ;
-          modfunc_body := square
-        |} ] ;
-      mod_tables := [] ; 
-      mod_mems := [] ;
-      mod_globals := [ {| modglob_type := {| tg_t := T_i32 ;
-                                            tg_mut := MUT_mut |} ;
-                         modglob_init := [i32const 0] |} ] ;
-      mod_elem := [ {| modelem_table := Mk_tableidx 0 ;
-                      modelem_offset := [i32const 0] ;
-                      modelem_init := [Mk_funcidx 8] |} ] ;
-      mod_data := [] ;
-      mod_start := Some {| modstart_func := Mk_funcidx 7 |} ;
-      mod_imports := [
-        {|
-          imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "new_stack" ;
-          imp_desc := ID_func 1
-        |} ;
-        {|
-          imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "is_empty" ;
-          imp_desc := ID_func 2
-        |} ;
-        {|
-          imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "is_full" ;
-          imp_desc := ID_func 2
-        |} ;
-        {|
-          imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "pop" ;
-          imp_desc := ID_func 2
-        |} ;
-        {|
-          imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "push" ;
-          imp_desc := ID_func 3
-        |} ;
-        {| imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "stack_map" ;
-          imp_desc := ID_func 3
-        |} ;
-        {| imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "stack_length" ;
-          imp_desc := ID_func 2
-        |} ;
-        {| imp_module := list_byte_of_string "Stack" ;
-          imp_name := list_byte_of_string "table" ;
-          imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
-                                 tt_elem_type := ELT_funcref |} |}
-      ] ;
-      mod_exports := [
-        {|
-          modexp_name := list_byte_of_string "answer" ;
-          modexp_desc := MED_global (Mk_globalidx 0)
-        |}
-      ]
+      {|
+        modfunc_type := Mk_typeidx 2 ;
+        modfunc_locals := [] ;
+        modfunc_body := square
+      |} ] ;
+    mod_tables := [] ; 
+    mod_mems := [] ;
+    mod_globals := [ {| modglob_type := {| tg_t := T_i32 ;
+                                           tg_mut := MUT_mut |} ;
+                        modglob_init := [i32const 0] |} ] ;
+    mod_elem := [ {| modelem_table := Mk_tableidx 0 ;
+                     modelem_offset := [i32const 0] ;
+                     modelem_init := [Mk_funcidx 8] |} ] ;
+    mod_data := [] ;
+    mod_start := Some {| modstart_func := Mk_funcidx 7 |} ;
+    mod_imports := [
+                    {|
+                      imp_module := list_byte_of_string "Stack" ;
+                      imp_name := list_byte_of_string "new_stack" ;
+                      imp_desc := ID_func 1
+                    |} ;
+                  {|
+                    imp_module := list_byte_of_string "Stack" ;
+                    imp_name := list_byte_of_string "is_empty" ;
+                    imp_desc := ID_func 2
+                  |} ;
+                  {|
+                    imp_module := list_byte_of_string "Stack" ;
+                    imp_name := list_byte_of_string "is_full" ;
+                    imp_desc := ID_func 2
+                  |} ;
+                  {|
+                    imp_module := list_byte_of_string "Stack" ;
+                    imp_name := list_byte_of_string "pop" ;
+                    imp_desc := ID_func 2
+                  |} ;
+                  {|
+                    imp_module := list_byte_of_string "Stack" ;
+                    imp_name := list_byte_of_string "push" ;
+                    imp_desc := ID_func 3
+                  |} ;
+                  {| imp_module := list_byte_of_string "Stack" ;
+                     imp_name := list_byte_of_string "stack_map" ;
+                     imp_desc := ID_func 3
+                  |} ;
+                  {| imp_module := list_byte_of_string "Stack" ;
+                     imp_name := list_byte_of_string "stack_length" ;
+                     imp_desc := ID_func 2
+                  |} ;
+                  {| imp_module := list_byte_of_string "Stack" ;
+                     imp_name := list_byte_of_string "table" ;
+                     imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
+                                             tt_elem_type := ELT_funcref |} |}
+                  ] ;
+    mod_exports := [
+                    {|
+                      modexp_name := list_byte_of_string "answer" ;
+                      modexp_desc := MED_global (Mk_globalidx 0)
+                    |}
+                  ]
     |}.
 
   Lemma module_typing_client :
@@ -130,7 +131,7 @@ Section Client.
   Proof.
     unfold module_typing => /=.
     exists [ Tf [] [] ; Tf [T_i32] [T_i32] ],
-      [ {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
+    [ {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
     repeat split => //.
     (* Functions *)
     { repeat (apply Forall2_cons ; repeat split => //) => /=.
@@ -143,7 +144,7 @@ Section Client.
     }
     - apply Forall2_cons.
       repeat split => //.
-      by apply bet_const.
+        by apply bet_const.
     - unfold module_elem_typing.
       apply Forall_cons.
       repeat split => //.
@@ -164,42 +165,31 @@ Section Client.
     { by exists []. }
   Qed.
 
-    Definition stack_instantiate :=
-    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N] 0 [] ;
-      ID_instantiate [8%N] 1 [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N] ].
+  Definition stack_instantiate (vis_addrs: list N) (stack_mod_addr client_mod_addr: N) :=
+    [ ID_instantiate (take 8 vis_addrs) stack_mod_addr [] ;
+    ID_instantiate (drop 8 vis_addrs) client_mod_addr (take 8 vis_addrs) ].
 
-
-
-Notation " n ↪[vis]{ q } v" := (ghost_map_elem (V := module_export) visGName n q v%V)
-                                 (at level 20, q at level 5, format " n ↪[vis]{ q } v") .
-Notation " n ↪[vis] v" := (ghost_map_elem (V := module_export) visGName n (DfracOwn 1) v%V)
-                            (at level 20, format " n ↪[vis] v").
-
-Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
-                                  (at level 20, q at level 5, format " n ↪[mods]{ q } v") .
-Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
-                             (at level 20, format " n ↪[mods] v").
-
-  
-
-Lemma instantiate_stack_client_spec E :
+  Lemma instantiate_stack_client_spec E (vis_addrs: list N) (stack_mod_addr client_mod_addr: N) :
+    length vis_addrs = 9 ->
    ↪[frame] empty_frame -∗
-    0%N ↪[mods] stack_module -∗
-    1%N ↪[mods] client_module -∗
-    own_vis_pointers [0%N; 1%N; 2%N; 3%N; 4%N; 5%N; 6%N; 7%N; 8%N] -∗
-     WP ((stack_instantiate , []) : host_expr)
+    stack_mod_addr ↪[mods] stack_module -∗
+    client_mod_addr ↪[mods] client_module -∗
+    own_vis_pointers vis_addrs -∗
+     WP ((stack_instantiate vis_addrs stack_mod_addr client_mod_addr, []) : host_expr)
      @ E
             {{ v, ⌜ v = immHV [] ⌝ ∗ 
                ↪[frame] empty_frame ∗
-                0%N ↪[mods] stack_module ∗
-                 1%N ↪[mods] client_module ∗
+                stack_mod_addr ↪[mods] stack_module ∗
+                 client_mod_addr ↪[mods] client_module ∗
                  ∃ idg name,
-                   8%N ↪[vis] {| modexp_name := name ;
+                   (vis_addrs !!! 8) ↪[vis] {| modexp_name := name ;
                                 modexp_desc := MED_global (Mk_globalidx idg) |} ∗
                     (N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 20%Z |} ∨
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
 Proof.
-  iIntros "Hemptyframe Hmod0 Hmod1 Hvis".
+  iIntros (Hvisaddrlen) "Hemptyframe Hmod0 Hmod1 Hvis".
+  do 10 (destruct vis_addrs => //); clear Hvisaddrlen.
+  
   rewrite separate8.
   iDestruct (big_sepL_app with "Hvis") as "(Hvis & (Hvis8 & _))".
   unfold own_vis_pointers.
@@ -381,9 +371,9 @@ Proof.
       inversion Hstart ; subst ; clear Hstart.
       iApply weakestpre.wp_wand_l. iSplitR ; last iApply wp_lift_wasm.
       iIntros (v).
-      instantiate ( 1 := λ v, (⌜ v = immHV [] ⌝ ∗ ↪[frame] empty_frame ∗ 1%N↪[mods]client_module ∗
+      instantiate ( 1 := λ v, (⌜ v = immHV [] ⌝ ∗ ↪[frame] empty_frame ∗ client_mod_addr↪[mods]client_module ∗
   (∃ (idg : nat) (name8: datatypes.name),
-      8%N↪[vis] {| modexp_name := name8; modexp_desc := MED_global (Mk_globalidx idg) |} ∗
+      n7↪[vis] {| modexp_name := name8; modexp_desc := MED_global (Mk_globalidx idg) |} ∗
      (N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int 20 |}
       ∨ N.of_nat idg↦[wg] {| g_mut := MUT_mut; g_val := value_of_int (-1) |})))%I) => //=.
       iIntros "H" ; done. 
@@ -568,7 +558,7 @@ Proof.
           unfold IntoVal.
           by apply of_to_val.
           iFrame.
-          instantiate ( 1 := λ v, (⌜ v = immV [] ⌝ ∗ ∃ g, (N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 20 |} ∨ N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1) |}) ∗ 8%N ↪[vis] {|
+          instantiate ( 1 := λ v, (⌜ v = immV [] ⌝ ∗ ∃ g, (N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 20 |} ∨ N.of_nat g↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1) |}) ∗ n7%N ↪[vis] {|
                                                                                                                                                                                                      modexp_name := name;
                            modexp_desc :=
                              MED_global (Mk_globalidx g)

@@ -136,13 +136,13 @@ Section Client2.
           imp_name := list_byte_of_string "stack_length" ;
           imp_desc := ID_func 2
         |} ;
-        {| imp_module := list_byte_of_string "Host" ;
-          imp_name := list_byte_of_string "modify_table" ;
-          imp_desc := ID_func 3 |} ;
         {| imp_module := list_byte_of_string "Stack" ;
           imp_name := list_byte_of_string "table" ;
           imp_desc := ID_table {| tt_limits := {| lim_min := 1%N ; lim_max := None |} ;
-                                 tt_elem_type := ELT_funcref |} |}
+                                 tt_elem_type := ELT_funcref |} |} ;
+        {| imp_module := list_byte_of_string "Host" ;
+          imp_name := list_byte_of_string "modify_table" ;
+          imp_desc := ID_func 3 |} 
       ] ;
       mod_exports := [
         {|
@@ -158,7 +158,7 @@ Section Client2.
   eapply bet_composition_front ; first eapply f => //=.
 
   Lemma module_typing_client :
-    module_typing client_module (take 7 expts ++ [ET_func (Tf [T_i32 ; T_i32] [])] ++ drop 7 expts) [ET_glob {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
+    module_typing client_module (expts ++ [ET_func (Tf [T_i32 ; T_i32] [])]) [ET_glob {| tg_t := T_i32 ; tg_mut := MUT_mut |} ].
   Proof.
     unfold module_typing => /=.
     exists [ Tf [] [] ; Tf [T_i32] [T_i32] ; Tf [T_i32] [T_i32] ],
@@ -201,40 +201,44 @@ Section Client2.
     { by exists []. }
   Qed.
 
-  Definition stack_instantiate :=
-    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N] 0 [] ;
-      ID_instantiate [8%N] 1 [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 9%N ; 7%N] ].
-  (* vis 9 is the host import *)
+  Definition stack_instantiate (exp_addrs : list N) (stack_mod_addr client_mod_addr : N) :=
+    [ ID_instantiate (take 8 exp_addrs) stack_mod_addr [] ;
+      ID_instantiate [exp_addrs !!! 8] client_mod_addr ((take 8 exp_addrs) ++ [(exp_addrs !!! 9)]) ].
+  (* the 7th element is the host import *)
 
-Lemma instantiate_stack_client_spec (s: stuckness) E name idmodtab :
+  Lemma instantiate_stack_client_spec (s: stuckness) E name idmodtab (exp_addrs: list N) (stack_mod_addr client_mod_addr: N) (ha_mod_table_addr: nat) :
+    length exp_addrs = 10 -> 
   ↪[frame] empty_frame -∗
-  0%N ↪[mods] stack_module -∗
-  1%N ↪[mods] client_module -∗
-  own_vis_pointers [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N; 8%N] -∗
+  stack_mod_addr%N ↪[mods] stack_module -∗
+  client_mod_addr%N ↪[mods] client_module -∗
+  own_vis_pointers (take 9 exp_addrs) -∗
      (* The next lines assert that the host import does indeed point to the desired
         modify_table host-instruction *)
-     9%N ↪[vis] {| modexp_name := name ;
+     (exp_addrs !!! 9) ↪[vis] {| modexp_name := name ;
                   modexp_desc := MED_func (Mk_funcidx idmodtab) |} -∗
-     N.of_nat idmodtab ↦[wf] FC_func_host (Tf [T_i32 ; T_i32] []) (Mk_hostfuncidx 0) -∗
-     0%N ↦[ha] HA_modify_table -∗
+     N.of_nat idmodtab ↦[wf] FC_func_host (Tf [T_i32 ; T_i32] []) (Mk_hostfuncidx ha_mod_table_addr) -∗
+     (N.of_nat ha_mod_table_addr) ↦[ha] HA_modify_table -∗
 
      
-     WP ((stack_instantiate , []) : host_expr)
+     WP ((stack_instantiate exp_addrs stack_mod_addr client_mod_addr , []) : host_expr)
      @ E
      {{ v, ⌜ v = immHV [] ⌝ ∗
               ↪[frame] empty_frame ∗
-                0%N ↪[mods] stack_module ∗
-                 1%N ↪[mods] client_module ∗
+                stack_mod_addr ↪[mods] stack_module ∗
+                 client_mod_addr ↪[mods] client_module ∗
                  ∃ idg name,
-                   8%N ↪[vis] {| modexp_name := name ;
+                   (exp_addrs !!! 8) ↪[vis] {| modexp_name := name ;
                                 modexp_desc := MED_global (Mk_globalidx idg) |} ∗
                     (N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int 40%Z |} ∨
                        N.of_nat idg ↦[wg] {| g_mut := MUT_mut ; g_val := value_of_int (-1)%Z |}) }}.
 Proof.
-  iIntros "Hemptyframe Hmod0 Hmod1 Hvis Hvis9 Hwfcallhost Hha".
+  iIntros (Hvisaddrlen) "Hemptyframe Hmod0 Hmod1 Hvis Hvishost Hwfcallhost Hha".
+  
+  do 11 (destruct exp_addrs => //); clear Hvisaddrlen.
+  simpl.
   
   rewrite separate8.
-  iDestruct (big_sepL_app with "Hvis") as "(Hvis & (Hvis8 & _))".
+  iDestruct (big_sepL_app with "Hvis") as "(Hvis & (Hvisglob & _))".
     iApply (wp_seq_host_nostart NotStuck
               with "[] [$Hmod0] [Hvis]") => //.
     2: { iIntros "Hmod0".
@@ -311,7 +315,7 @@ Proof.
         by set_solver.
       }
       
-      iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hwfcallhost Hmod1 Himport Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Himpfcl5 Himpfcl6 Htab Hvis8 Hvis9]") ; try exact module_typing_client.
+      iApply (instantiation_spec_operational_start with "[$Hemptyframe] [Hwfcallhost Hmod1 Himport Himpfcl0 Himpfcl1 Himpfcl2 Himpfcl3 Himpfcl4 Himpfcl5 Himpfcl6 Htab Hvisglob Hvishost]") ; try exact module_typing_client.
     - by unfold client_module.
     - by apply module_restrictions_client.
       (* Because of the extra host import, a lot of the clever work done 
@@ -323,7 +327,7 @@ Proof.
       unfold import_resources_host.
       instantiate (5 := [_;_;_;_;_;_;_;_;_]).
       iSplitL "Hmod1" ; first done.
-      iSplitL "Himport Hvis9".
+      iSplitL "Himport Hvishost".
       iDestruct "Himport" as "(H0 & H1 & H2 & H3 & H4 & H5 & H6 & H7 & _)".
       iFrame.
       done. 
@@ -332,7 +336,7 @@ Proof.
       instantiate ( 1 := ∅) .
       instantiate ( 1 := <[ N.of_nat idt := tab ]> ∅) .
       instantiate ( 1 := ∅) .
-      iFrame "Hvis8".
+      iFrame "Hvisglob".
       instantiate (1 := (list_to_map
                      (zip
                         [N.of_nat idf0; N.of_nat idf1; N.of_nat idf2; N.of_nat idf3; N.of_nat idf4; 
@@ -340,7 +344,7 @@ Proof.
                         [FC_func_native i0 (Tf [] [T_i32]) l0 f0; FC_func_native i0 (Tf [T_i32] [T_i32]) l1 f1;
                         FC_func_native i0 (Tf [T_i32] [T_i32]) l2 f2; FC_func_native i0 (Tf [T_i32] [T_i32]) l3 f3;
                         FC_func_native i0 (Tf [T_i32; T_i32] []) l4 f4; FC_func_native i0 (Tf [T_i32; T_i32] []) l5 f5;
-                        FC_func_native i0 (Tf [T_i32] [T_i32]) l6 f6; FC_func_host (Tf [T_i32; T_i32] []) (Mk_hostfuncidx 0) ]))).
+                        FC_func_native i0 (Tf [T_i32] [T_i32]) l6 f6; FC_func_host (Tf [T_i32; T_i32] []) (Mk_hostfuncidx ha_mod_table_addr) ]))).
       iSplitL. 2: { done. }
       rewrite irwt_nodup_equiv => //=.
       unfold import_resources_wasm_typecheck_sepL2. 
@@ -357,12 +361,9 @@ Proof.
       iSplitL "Himpfcl4". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 4. }
       iSplitL "Himpfcl5". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 5. }
       iSplitL "Himpfcl6". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 6. }
-      iSplitL "Hwfcallhost". { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 7. }
+      iSplitL "Htab". {iExists _, _; iFrame. done. }
+      iSplit => //. { iExists _; iFrame. iSplit => //. iPureIntro. rewrite list_to_map_zip_lookup => //. by exists 7. }
 
-      iSplit => //.
-      iExists _, _.
-      iFrame.
-      done.
       iPureIntro ; unfold module_elem_bound_check_gmap ; simpl.
       apply Forall_cons.
       split ; last done.
@@ -371,7 +372,6 @@ Proof.
       done.
       iPureIntro ; unfold module_data_bound_check_gmap ; simpl ; done.
     - apply NoDup_fmap in Hfnodup2; last by lias.
-      clear - Hfnodup2.
       eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hfnodup2; simpl in Hfnodup2.
       { rewrite separate8.
         apply NoDup_app; repeat split => //; last by apply NoDup_singleton.
@@ -438,7 +438,6 @@ Proof.
       rewrite irwt_nodup_equiv => //; last first.
       { simpl.
         apply NoDup_fmap in Hfnodup2; last by lias.
-        clear - Hfnodup2.
         eapply (NoDup_fmap_2 (λ x, (MED_func (Mk_funcidx x)))) in Hfnodup2; simpl in Hfnodup2.
         { rewrite separate8.
           apply NoDup_app; repeat split => //; last by apply NoDup_singleton.
@@ -449,7 +448,7 @@ Proof.
       }
       
       unfold import_resources_wasm_typecheck_sepL2 => /=.
-      iDestruct "Himpwasm" as "(% & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Himpw6 & Himpw7 & Htab & _)".
+      iDestruct "Himpwasm" as "(% & Himpw0 & Himpw1 & Himpw2 & Himpw3 & Himpw4 & Himpw5 & Himpw6 & Htab & Himpw7 & _)".
       iDestruct "Himpw0" as (cl0) "[Himpfcl0 %Hcltype0]".
       iDestruct "Himpw1" as (cl1) "[Himpfcl1 %Hcltype1]".
       iDestruct "Himpw2" as (cl2) "[Himpfcl2 %Hcltype2]".
@@ -552,7 +551,7 @@ Proof.
       done.
 
       (* Clearing away some premises to improve compilation time *)
-      all: clear Hinstmem Hinstglob H Hnodup Hfnodup Hfnodup2 Hne0 Hne1 Hne2 Hne3 Hne4 Hne5 Hne6 Hbound Hbound' Htab Hinsttab.
+      all: clear Hinstmem Hinstglob H Hnodup Hfnodup Hfnodup2 Hne0 Hne1 Hne2 Hne3 Hne4 Hne5 Hne6 Hbound Hbound' Htab Hinsttab name0 name1 name2 name3 name4 name5 name6 name7 n n0 n1 n2 n3 n4 n5 n6.
       all: iClear "Hspec1 Hspec2 Hspec6 Hspec7".
       
       (* Proving spec of the client main *)
@@ -1064,7 +1063,7 @@ Proof.
       iDestruct "H" as (k) "[(% & -> & Hnextaddr & Hwg & Hs) | [-> Hwg]]".
       simpl.
       iApply wp_call_host_modify_table ; last first.
-      rewrite <- (N2Nat.id 0). iFrame. 
+      rewrite <- (N2Nat.id 0). iFrame.
       instantiate (3 := Wasm_int.int_of_Z i32m 0%Z).
       simpl. iFrame.
       iIntros "!> (Hf & Ha & Hwt)".

@@ -21,9 +21,9 @@ Section RobustStack.
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
     (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
   
-  Definition stack_adv_instantiate :=
-    [ ID_instantiate [0%N ; 1%N ; 2%N ; 3%N ; 4%N ; 5%N ; 6%N; 7%N] 0 [] ;
-      ID_instantiate [] 1 [0%N ; 1%N ; 2%N ; 3%N ; 4%N ] ].
+  Definition stack_adv_instantiate (exp_addrs: list N) (stack_mod_addr adv_mod_addr: N) :=
+    [ ID_instantiate exp_addrs stack_mod_addr [] ;
+      ID_instantiate [] adv_mod_addr (take 5 exp_addrs) ].
 
   Definition stack_module_imports :=
     [ET_func (Tf [] [T_i32]);
@@ -118,25 +118,28 @@ Section RobustStack.
     revert HH. move =>/eqP. auto.
   Qed.
     
-  Lemma instantiate_stack_adv_spec adv_module start :
+  Lemma instantiate_stack_adv_spec adv_module start (exp_addrs: list N) (stack_mod_addr adv_mod_addr: N) :
+    length exp_addrs = 8 ->
     module_typing adv_module stack_module_imports [] -> (* we assume the adversary module imports the stack module) *)
     mod_start adv_module = Some {| modstart_func := Mk_funcidx start |} -> (* that it does have a start function *)
     module_restrictions adv_module -> (* that it adheres to the module restrictions (i.e. only constant initializers for globals) *)
     module_elem_bound_check_gmap ∅ [] adv_module -> (* if the adversary module declares a table, there cannot be more initializers that its size *)
     module_data_bound_check_gmap ∅ [] adv_module -> (* if the adversary module declares a memory, there cannot be more initializers that its size *)
 
-    ⊢ {{{ 0%N ↪[mods] stack_module ∗
-          1%N ↪[mods] adv_module ∗
+    ⊢ {{{ stack_mod_addr ↪[mods] stack_module ∗
+          adv_mod_addr ↪[mods] adv_module ∗
           na_own logrel_nais ⊤ ∗
-          own_vis_pointers [0%N; 1%N; 2%N; 3%N; 4%N; 5%N; 6%N; 7%N] ∗
+          own_vis_pointers exp_addrs ∗
           ↪[frame] empty_frame
       }}}
-        ((stack_adv_instantiate,[]) : host_expr) 
+        ((stack_adv_instantiate exp_addrs stack_mod_addr adv_mod_addr,[]) : host_expr) 
         {{{ v, ((⌜v = trapHV ∨ v = immHV []⌝) ∗ na_own logrel_nais ⊤
                   ∗ ∃ newStackAddrIs isStack, na_inv logrel_nais stkN (stackModuleInv (λ n0, isStack n0) newStackAddrIs))
                  ∗ ↪[frame] empty_frame }}} .
   Proof.
-    iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm).
+    iIntros (Hexpaddrlen Htyp Hnostart Hrestrict Hboundst Hboundsm).
+    do 9 (destruct exp_addrs => //); clear Hexpaddrlen.
+    
     iModIntro. iIntros (Φ) "(Hmod_stack & Hmod_adv & Hown & 
                         Hvis & Hemptyframe) HΦ".
 
@@ -277,7 +280,7 @@ Section RobustStack.
         destruct (mod_start adv_module) eqn:Hstart.
         2: { congruence. }
         destruct (modstart_func m) eqn:Hstartfunc.
-        rewrite /check_start Hstart /= Hstartfunc /= nth_error_lookup in H8. apply b2p in H8.
+        rewrite /check_start Hstart /= Hstartfunc /= nth_error_lookup in H8. move/eqP in H8.
         iDestruct (interp_instance_func_lookup with "Hi") as (tf Htf) "_";[eauto|].
         iDestruct (module_typing_start_type with "Hi") as %Heq;[apply Htyp|auto|apply Hstart|apply Hstartfunc|eauto|eauto|].
         subst tf.

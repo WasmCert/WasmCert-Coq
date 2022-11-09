@@ -514,7 +514,7 @@ Definition spec6_stack_length idf i l fn (isStack : N -> seq.seq i32 -> iPropI �
                      ↪[frame] f}}})%I.
 
 
-Definition stack_instantiate_para (exp_addrs: list N) := [ ID_instantiate exp_addrs 0 []  ].
+Definition stack_instantiate_para (exp_addrs: list N) (stack_mod_addr : N) := [ ID_instantiate exp_addrs stack_mod_addr [] ].
 
 Definition own_vis_pointers (exp_addrs: list N): iProp Σ :=
    ([∗ list] exp_addr ∈ exp_addrs, (∃ mexp, exp_addr ↪[vis] mexp)).
@@ -565,20 +565,20 @@ Proof.
   iDestruct (big_sepL2_lookup with "Hw") as "Hcontra" => //; last by iDestruct (mapsto_ne with "Hf Hcontra") as "%".
 Qed.
 
-Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (exp_addrs: list N) :
+Lemma instantiate_stack_spec `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (exp_addrs: list N) (stack_mod_addr : N) :
   length exp_addrs = 8 ->
-  (* Knowing 0%N holds the stack module… *)
-  0%N ↪[mods] stack_module -∗
+  (* Knowing that we hold the stack module… *)
+  stack_mod_addr ↪[mods] stack_module -∗
      (* … and we own the vis of the export targets … *)
    own_vis_pointers exp_addrs -∗
      (* … instantiating the stack-module, yields the following : *)
-     WP ((stack_instantiate_para exp_addrs, []) : host_expr)
+     WP ((stack_instantiate_para exp_addrs stack_mod_addr, []) : host_expr)
      @ s ; E
              {{ λ v : host_val,
                  (* Instantiation succeeds *)
                  ⌜ v = immHV [] ⌝ ∗
-                 (* 0%N still owns the stack_module *)
-                 0%N ↪[mods] stack_module ∗ 
+                 (* we still own the stack_module *)
+                 stack_mod_addr ↪[mods] stack_module ∗ 
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idf6 idt : nat)
                     (name0 name1 name2 name3 name4 name5 name6 name7 : name)
                     (f0 f1 f2 f3 f4 f5 f6 : list basic_instruction)

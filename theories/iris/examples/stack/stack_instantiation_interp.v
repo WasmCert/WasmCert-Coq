@@ -49,21 +49,21 @@ Section StackModule.
       rewrite - Hcond. eauto.
   Qed.      
   
-  Lemma instantiate_stack_valid `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (exp_addrs: list N) :
+  Lemma instantiate_stack_valid `{!logrel_na_invs Σ} (s : stuckness) (E: coPset) (exp_addrs: list N) (stack_mod_addr : N):
     length exp_addrs = 8 ->
   (* Knowing 0%N holds the stack module… *)
-  0%N ↪[mods] stack_module -∗
+  stack_mod_addr%N ↪[mods] stack_module -∗
    (* … and we own the vis pointers … *)
    own_vis_pointers exp_addrs -∗
      (* … instantiating the stack-module (by lazyness, this is expressed here with
         a take 1 in order to avoir rewriting the instantiation), yields the following : *)
-     WP ((stack_instantiate_para exp_addrs, []) : host_expr)
+     WP ((stack_instantiate_para exp_addrs stack_mod_addr, []) : host_expr)
      @ s ; E
              {{ λ v : host_val,
                  (* Instantiation succeeds *)
                  ⌜ v = immHV [] ⌝ ∗
                  (* 0%N still owns the stack_module *)
-                 0%N ↪[mods] stack_module ∗ 
+                 stack_mod_addr%N ↪[mods] stack_module ∗ 
                   ∃ (idf0 idf1 idf2 idf3 idf4 idf5 idf6 idt : nat)
                     (name0 name1 name2 name3 name4 name5 name6 name7 : name)
                     (f0 f1 f2 f3 f4 f5 f6: list basic_instruction)
