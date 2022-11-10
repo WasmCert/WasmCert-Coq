@@ -4,14 +4,10 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris_properties iris_wp_def stdpp_aux.
-Require Export datatypes operations properties opsem.
-
+Require Export iris_wp_def.
 
 
 (* empty lists, frame and context rules *)
-
-Close Scope byte_scope.
 
 Section structural_rules.
 Context `{!wasmG Σ}.
@@ -248,6 +244,7 @@ Proof.
           move => HContra; subst.
           by simpl in Hes.
         }
+        clear Hlf.
         iSpecialize ("H2" $! [AI_trap] σ [] HStep2).
         iMod "H2".
         repeat iModIntro.

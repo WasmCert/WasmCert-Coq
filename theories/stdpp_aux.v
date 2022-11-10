@@ -431,6 +431,226 @@ Proof.
   apply app_eq_unit in H as [?|?]; by [ right | left ].
 Qed.
 
+Lemma list_insert_destruct {T: Type} k (l: list T) v:
+  k < length l ->
+  seq.take k l ++ v:: seq.drop (k+1) l = <[k := v]> l.
+Proof.
+  move: l v.
+  induction k; move => l v Hlen; destruct l; simpl in Hlen => //=.
+  - by inversion Hlen.
+  - f_equal. by rewrite drop0.
+  - by inversion Hlen.
+  - f_equal.
+    apply IHk.
+    lia.
+Qed.
+
+Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
+  n < length l ->
+  update_list_at l n x = <[n := x]> l.
+Proof.
+  move => Hlen.
+  unfold update_list_at => /=.
+  rewrite - list_insert_destruct => //=.
+  repeat f_equal.
+  by rewrite skipn_is_drop_n.
+Qed.
+
+Lemma update_trivial {A} l i (x : A) :
+  l !! i = Some x -> update_list_at l i x = l.
+Proof.
+  move => H.
+  rewrite update_list_at_insert; last by apply lookup_lt_Some in H.
+  by apply list_insert_id.
+Qed.
+
+Lemma update_twice {A} l i (x : A) y :
+  i < length l ->
+  update_list_at (update_list_at l i x) i y = update_list_at l i y.
+Proof.
+  move => H.
+  rewrite update_list_at_insert; last first.
+  { rewrite update_list_at_insert => //; by rewrite insert_length. }
+  repeat rewrite update_list_at_insert => //.
+  by rewrite list_insert_insert.
+Qed.
+
+
+Lemma update_length {A} l i (x : A) :
+  i < length l ->
+  length (update_list_at l i x) = length l.
+Proof.
+  move => H.
+  rewrite update_list_at_insert => //.
+  by rewrite insert_length.
+Qed.
+
+
+Lemma lookup_seq_nth {A} (l : seq.seq A) k :
+  l !! k = seq.nth None (fmap (λ x, Some x) l) k.
+Proof.
+  generalize dependent l. 
+  induction k ; intros ; destruct l => //=.
+Qed.
+
+Lemma take_fmap {A B} (l : seq.seq A) (f : A -> B) k :
+  f <$> seq.take k l = seq.take k (f <$> l).
+Proof.
+  generalize dependent l.
+  induction k ; intros ; destruct l => //=.
+  unfold fmap in IHk.
+  by rewrite IHk.
+Qed.
+
+Lemma ncons_fmap {A B} l (f : A -> B) i x :
+  f <$> ncons i x l = ncons i (f x) (f <$> l).
+Proof.
+  induction i ; intros ; destruct l => //=.
+  by rewrite - IHi.
+  by rewrite - IHi.
+Qed.
+
+Lemma set_nth_read {A} (l : seq.seq A) x0 i x :
+  set_nth x0 l i x !! i = Some x.
+Proof.
+  generalize dependent l.
+  induction i ; intros ; destruct l => //=.
+  rewrite lookup_seq_nth.
+  rewrite ncons_fmap.
+  rewrite nth_ncons.
+  rewrite ssrnat.ltnn.
+  by rewrite ssrnat.subnn => //=.
+Qed.
+
+Lemma set_nth_ncons {A} x0 y0 i (x : A) y :
+  set_nth x0 (ncons i y0 [y]) i x = ncons i y0 [x].
+Proof.
+  induction i => //=.
+  by rewrite IHi.
+Qed.
+
+Lemma set_nth_write {A} (l : seq.seq A) x0 y0 i x y :
+  set_nth x0 (set_nth y0 l i y) i x = set_nth y0 l i x.
+Proof.
+  generalize dependent l.
+  induction i ; intros ; destruct l => //=.
+  by rewrite set_nth_ncons.
+  by rewrite IHi.
+Qed.
+
+Lemma set_nth_fmap {A B} (l : seq.seq A) (f : A -> B) x0 i x :
+  f <$> set_nth x0 l i x = set_nth (f x0) (f <$> l) i (f x).
+Proof.
+  generalize dependent l.
+  induction i ; intros ; destruct l => //=.
+  specialize (ncons_fmap [x] f i x0) ; unfold fmap ; intros.
+  rewrite H. done.
+  unfold fmap in IHi.
+  by rewrite IHi.
+Qed.
+
+Lemma update_ne {A} l i k (x : A) :
+  i < length l -> i <> k -> (update_list_at l i x) !! k = l !! k.
+Proof.
+  intros.
+  rewrite update_list_at_insert => //.
+  by rewrite list_lookup_insert_ne.
+Qed.
+
+Lemma those_nil {A B : Type} (f : A -> option B) l :
+  those (map f l) = Some [] -> l = [].
+Proof.
+  rewrite -those_those0.
+  induction l;auto.
+  { simpl in *. destruct (f a);try done.
+    unfold option_map.
+    destruct (those0 (map f l));try done. }
+Qed.
+
+Lemma those_not_nil {A B : Type} (f : A -> option B) l a a' :
+  those (map f l) = Some (a :: a') -> l ≠ [].
+Proof.
+  rewrite -those_those0.
+  induction l;auto.
+Qed.
+
+Lemma those_length  {A B : Type} (f : A -> option B) l l' :
+  those (map f l) = Some l' -> length l = length l'.
+Proof.
+  rewrite -those_those0.
+  revert l'. induction l;intros l' Hl'.
+  { simpl in *. destruct l';auto. done. }
+  { simpl in *. destruct (f a);try done.
+    unfold option_map in Hl'.
+    destruct (those0 (map f l)) eqn:Hl;[|done].
+    destruct l';[done|].
+    simplify_eq. simpl.  
+    f_equiv. apply IHl;auto. }
+Qed.
+
+Definition gen_index offset len : list nat :=
+  imap (fun i x => i+offset+x) (repeat 0 len).
+
+Lemma gen_index_lookup offset len k:
+  k < len ->
+  (gen_index offset len) !! k = Some (offset + k).
+Proof.
+  move => Hlen.
+  unfold gen_index.
+  rewrite list_lookup_imap => /=.
+  eapply repeat_lookup with (x := 0) in Hlen.
+  rewrite Hlen.
+  simpl.
+  f_equal.
+  by lias.
+Qed.
+
+Lemma gen_index_lookup_Some n l i x:
+  (gen_index n l) !! i = Some x ->
+  x = n + i /\ i < l.
+Proof.
+  unfold gen_index.
+  move => Hl.
+  rewrite list_lookup_imap in Hl.
+  destruct (repeat _ _ !! i) eqn: Hrl => //.
+  simpl in Hl.
+  inversion Hl; subst; clear Hl.
+  apply repeat_lookup_Some in Hrl as [-> ?].
+  by lias.
+Qed.
+ 
+Lemma gen_index_NoDup n l:
+  NoDup (gen_index n l).
+Proof.
+  apply NoDup_alt.
+  move => i j x Hli Hlj.
+  apply gen_index_lookup_Some in Hli as [-> ?].
+  apply gen_index_lookup_Some in Hlj as [? ?].
+  by lias.
+Qed.
+
+Lemma gen_index_length n len:
+  length (gen_index n len) = len.
+Proof.
+  unfold gen_index.
+  rewrite imap_length.
+  by rewrite repeat_length.
+Qed.
+
+Lemma gen_index_extend offset len:
+  gen_index offset (len+1) = gen_index offset len ++ [::offset+len].
+Proof.
+  unfold gen_index.
+  rewrite repeat_app => /=.
+  induction len => //=.
+  f_equal => //.
+  do 2 rewrite - fmap_imap.
+  rewrite IHlen.
+  rewrite fmap_app => /=.
+  repeat f_equal.
+  by lias.
+Qed.
+    
 Lemma separate1 {A} (a : A) l :
   a :: l = [a] ++ l.
 Proof. done. Qed.

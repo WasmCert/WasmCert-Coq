@@ -3,14 +3,11 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export datatypes operations properties opsem iris_rules_control iris_properties.
-Require Export iris_wp_def stdpp_aux.
+Require Export iris_rules_control.
 
-Close Scope byte_scope.
 
 Section trap_rules.
   Context `{!wasmG Σ}.
-
 
   Lemma wp_trap (s : stuckness) (E : coPset) (Φ : iris.val -> iProp Σ) (vs1 es2 : iris.expr) f :
     const_list vs1 ->
@@ -350,7 +347,7 @@ Section trap_rules.
         set (σ2 := (s0,l,i)).
         destruct Hstep as [Hstep _].
         erewrite app_nil_r in Hfill.
-        eapply lfilled_trans in Hfill as Hfillf;[|apply Hfill'].
+        eapply lfilled_trans in Hfill as Hfillf; [|apply Hfill'].
         destruct Hfillf as [lh'' Hlh''].
         eapply trap_reduce_nested in Hlh'' as [Heq _];[|eauto].
         destruct Heq as [lh' [j [Hj Hle]]].

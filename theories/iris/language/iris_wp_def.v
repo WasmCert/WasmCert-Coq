@@ -9,12 +9,13 @@ Import uPred.
 
 Set Default Proof Using "Type".
 
+Close Scope byte_scope.
+
 Definition expr := iris.expr.
 Definition val := iris.val.
 Definition to_val := iris.to_val.
 
 (* Defining a Wasm-specific WP with frame existence *)
-
 
 
 Canonical Structure wasm_lang := Language wasm_mixin.

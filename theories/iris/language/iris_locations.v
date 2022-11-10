@@ -1033,6 +1033,17 @@ Proof.
       by lias.
 Qed.
 
+Lemma no_memory_no_memories ws n :
+  s_mems ws !! n = None ->
+  forall k, gmap_of_memory (s_mems ws) !! (N.of_nat n, k) = None.
+Proof.
+  intros.
+  unfold gmap_of_memory.
+  rewrite gmap_of_list_2d_lookup => //=.
+  rewrite Nat2N.id. 
+  rewrite list_lookup_fmap H => //=.
+Qed.
+
 Ltac simplify_lookup :=
   repeat match goal with
   | H: gmap_of_table _ !! _ = _ |- _ =>

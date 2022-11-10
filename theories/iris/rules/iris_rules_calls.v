@@ -4,18 +4,13 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def iris_rules_structural stdpp_aux.
-Require Export datatypes operations properties opsem.
+Require Export iris_rules_structural.
 
-
-Close Scope byte_scope.
 
 Section iris_rules_calls.
   
 Context `{!wasmG Σ}.
 
-  
-  
   Lemma v_to_e_list_to_val es vs :
     iris.to_val es = Some (immV vs) ->
     v_to_e_list vs = es.

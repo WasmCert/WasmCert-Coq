@@ -1,9 +1,8 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From stdpp Require Import base list.
 Require Export iris_reduce_properties first_instr.
-Require Export reduce_det_invoke_native reduce_det_unop reduce_det_binop reduce_det_binop_none
-        reduce_det_testop_i32 reduce_det_testop_i64 reduce_det_relop reduce_det_cvtop_convert
-        reduce_det_cvtop_convert_none reduce_det_cvtop_reinterpret reduce_det_select
+Require Export reduce_det_invoke_native reduce_det_unop reduce_det_binop
+        reduce_det_testop reduce_det_relop reduce_det_cvtop reduce_det_select
         reduce_det_block reduce_det_loop reduce_det_return reduce_det_label reduce_det_local.
 
 Section determ.

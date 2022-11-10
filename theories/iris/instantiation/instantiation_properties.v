@@ -5,6 +5,7 @@ From stdpp Require Import list fin_maps gmap.
 Require Export stdpp_aux.
 Require Export type_preservation type_progress.
 
+
 Section module_typing_det.
   
 Lemma module_typing_det_import_aux m it1 et1 it2 et2:
@@ -181,6 +182,7 @@ Proof.
     rewrite <- IHl; last by lias.
     by unfold insert_at.
 Qed.
+
 
 Section Instantiation_properties.
 
@@ -367,69 +369,6 @@ Proof.
   destruct H as [k Hl].
   destruct a; try by exists k.
   by exists (S k).
-Qed.
-
-Definition gen_index offset len : list nat :=
-  imap (fun i x => i+offset+x) (repeat 0 len).
-
-Lemma gen_index_lookup offset len k:
-  k < len ->
-  (gen_index offset len) !! k = Some (offset + k).
-Proof.
-  move => Hlen.
-  unfold gen_index.
-  rewrite list_lookup_imap => /=.
-  eapply repeat_lookup with (x := 0) in Hlen.
-  rewrite Hlen.
-  simpl.
-  f_equal.
-  by lias.
-Qed.
-
-Lemma gen_index_lookup_Some n l i x:
-  (gen_index n l) !! i = Some x ->
-  x = n + i /\ i < l.
-Proof.
-  unfold gen_index.
-  move => Hl.
-  rewrite list_lookup_imap in Hl.
-  destruct (repeat _ _ !! i) eqn: Hrl => //.
-  simpl in Hl.
-  inversion Hl; subst; clear Hl.
-  apply repeat_lookup_Some in Hrl as [-> ?].
-  by lias.
-Qed.
- 
-Lemma gen_index_NoDup n l:
-  NoDup (gen_index n l).
-Proof.
-  apply NoDup_alt.
-  move => i j x Hli Hlj.
-  apply gen_index_lookup_Some in Hli as [-> ?].
-  apply gen_index_lookup_Some in Hlj as [? ?].
-  by lias.
-Qed.
-
-Lemma gen_index_length n len:
-  length (gen_index n len) = len.
-Proof.
-  unfold gen_index.
-  rewrite imap_length.
-  by rewrite repeat_length.
-Qed.
-
-Lemma gen_index_extend offset len:
-  gen_index offset (len+1) = gen_index offset len ++ [::offset+len].
-Proof.
-  unfold gen_index.
-  rewrite repeat_app => /=.
-  induction len => //=.
-  f_equal => //.
-  do 2 rewrite - fmap_imap.
-  rewrite IHlen.
-  rewrite fmap_app => /=.
-  repeat f_equal.
-  by lias.
 Qed.
 
 Definition gen_func_instance mf inst : function_closure :=
@@ -687,6 +626,7 @@ Proof.
     repeat split => //.
     by f_equal.
 Qed.
+
 
 Section Instantiation_det.
 

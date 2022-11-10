@@ -3,19 +3,15 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export datatypes operations properties opsem.
 Require Import Coq.Program.Equality.
-Require Export iris iris_locations iris_properties iris_atomicity iris_wp_def stdpp_aux.
+Require Export iris_wp_def.
 
 Import uPred.
 
 Set Default Proof Using "Type". 
 
-Close Scope byte_scope.
-
 
 Section iris_rules_resources.
-
 
 Let reducible := @reducible wasm_lang.
 
@@ -28,12 +24,10 @@ Lemma mem_block_lookup_data wms n mem:
   ⌜ ∃ m, wms !! (N.to_nat n) = Some m /\ m.(mem_data).(ml_data) = mem.(mem_data).(ml_data)⌝.
 Proof.
   iIntros "Hwm Hwmlength Hm".
-  unfold mem_block.
   iDestruct "Hm" as "(Hmelem & Hmlength & _)".
   iDestruct (gen_heap_valid with "Hwmlength Hmlength") as "%Hmlength".
   rewrite gmap_of_list_lookup list_lookup_fmap in Hmlength.
   destruct (wms !! N.to_nat n) eqn:Hmem => //.
-  
   iAssert (⌜∀ i, mem.(mem_data).(ml_data) !! i = m.(mem_data).(ml_data) !! i⌝%I) as "%Hmldata".
   {
     iIntros (i).
@@ -336,32 +330,12 @@ Lemma mem_update_length dat dat' k b:
 Proof.
   intros Hupd.
   unfold mem_update in Hupd.
-  destruct ( _ <? _)%N eqn:Hl ; inversion Hupd.
-  destruct (length (ml_data dat)) eqn:Hdat => //=.
-  ** by exfalso ; apply N.ltb_lt in Hl ; apply N.nlt_0_r in Hl.
-  **
-    apply N.ltb_lt in Hl.
-    rewrite app_length => //=.
-    repeat rewrite length_is_size.
-    rewrite size_takel.
-    rewrite size_drop.
-    unfold ssrnat.subn, ssrnat.subn_rec.
-    rewrite length_is_size in Hdat ; rewrite Hdat.
-    rewrite Nat.sub_add_distr.
-    replace (S n - N.to_nat k - 1) with (n - N.to_nat k) ; last lia.
-    rewrite minus_Sn_m.
-    rewrite le_plus_minus_r. 
-    done.
-    lia. lia. 
-    rewrite length_is_size in Hdat.
-    rewrite Hdat.
-    unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-    assert (N.to_nat k - S n = 0) ; first lia.
-    by rewrite H.
+  destruct ( _ <? _)%N eqn:Hl ; inversion Hupd; clear Hupd.
+  subst => /=.
+  rewrite split_preserves_length => //.
+  remember (length _) as x.
+  move/N.ltb_spec0 in Hl; by lias.
 Qed.
-
-
-
 
 Lemma store_length (m m': memory) (n: N) (off: static_offset) (bs: bytes) :
   store m n off bs (length bs) = Some m' -> 
@@ -434,164 +408,12 @@ Proof.
   destruct (fold_lefti _ _ _) ; try by inversion H.
 Qed.
 
-Lemma update_list_at_insert {T: Type} (l: list T) (x: T) (n: nat):
-  n < length l ->
-  update_list_at l n x = <[n := x]> l.
-Proof.
-  move => Hlen.
-  unfold update_list_at.
-  move: n x Hlen.
-  elim: l => //=.
-  - move => n.
-    by destruct n; lia.
-  - move => a l IH n x Hlen.
-    destruct n => //=.
-    f_equal.
-    apply IH.
-    lia.
-Qed.
-
-
-Lemma update_trivial {A} l i (x : A) :
-  l !! i = Some x -> update_list_at l i x = l.
-Proof.
-  move => H.
-  rewrite update_list_at_insert; last by apply lookup_lt_Some in H.
-  by apply list_insert_id.
-Qed.
-
-Lemma update_twice {A} l i (x : A) y :
-  i < length l ->
-  update_list_at (update_list_at l i x) i y = update_list_at l i y.
-Proof.
-  move => H.
-  rewrite update_list_at_insert; last first.
-  { rewrite update_list_at_insert => //; by rewrite insert_length. }
-  repeat rewrite update_list_at_insert => //.
-  by rewrite list_insert_insert.
-Qed.
-
-
-Lemma update_length {A} l i (x : A) :
-  i < length l ->
-  length (update_list_at l i x) = length l.
-Proof.
-  move => H.
-  rewrite update_list_at_insert => //.
-  by rewrite insert_length.
-Qed.
-
-
-Lemma lookup_seq_nth {A} (l : seq.seq A) k :
-  l !! k = seq.nth None (fmap (λ x, Some x) l) k.
-Proof.
-  generalize dependent l. 
-  induction k ; intros ; destruct l => //=.
-Qed.
-
-Lemma take_fmap {A B} (l : seq.seq A) (f : A -> B) k :
-  f <$> seq.take k l = seq.take k (f <$> l).
-Proof.
-  generalize dependent l.
-  induction k ; intros ; destruct l => //=.
-  unfold fmap in IHk.
-  by rewrite IHk.
-Qed.
-
-Lemma ncons_fmap {A B} l (f : A -> B) i x :
-  f <$> ncons i x l = ncons i (f x) (f <$> l).
-Proof.
-  induction i ; intros ; destruct l => //=.
-  by rewrite - IHi.
-  by rewrite - IHi.
-Qed.
-
-Lemma set_nth_read {A} (l : seq.seq A) x0 i x :
-  set_nth x0 l i x !! i = Some x.
-Proof.
-  generalize dependent l.
-  induction i ; intros ; destruct l => //=.
-  rewrite lookup_seq_nth.
-  rewrite ncons_fmap.
-  rewrite nth_ncons.
-  rewrite ssrnat.ltnn.
-  rewrite ssrnat.subnn => //=.
-Qed.
-
-
-Lemma set_nth_ncons {A} x0 y0 i (x : A) y :
-  set_nth x0 (ncons i y0 [y]) i x = ncons i y0 [x].
-Proof.
-  induction i => //=.
-  by rewrite IHi.
-Qed.
-
-
-Lemma set_nth_write {A} (l : seq.seq A) x0 y0 i x y :
-  set_nth x0 (set_nth y0 l i y) i x = set_nth y0 l i x.
-Proof.
-  generalize dependent l.
-  induction i ; intros ; destruct l => //=.
-  by rewrite set_nth_ncons.
-  by rewrite IHi.
-Qed.
-
-  
-
-
-Lemma set_nth_fmap {A B} (l : seq.seq A) (f : A -> B) x0 i x :
-  f <$> set_nth x0 l i x = set_nth (f x0) (f <$> l) i (f x).
-Proof.
-  generalize dependent l.
-  induction i ; intros ; destruct l => //=.
-  specialize (ncons_fmap [x] f i x0) ; unfold fmap ; intros.
-  rewrite H. done.
-  unfold fmap in IHi.
-  by rewrite IHi.
-Qed.
-
-
-
-Lemma update_ne {A} l i k (x : A) :
-  i < length l -> i <> k -> (update_list_at l i x) !! k = l !! k.
-Proof.
-  intros.
-  unfold update_list_at.
-  destruct (decide (k < i)).
-  rewrite lookup_app_l.
-  rewrite lookup_seq_nth.
-  rewrite take_fmap.
-  rewrite nth_take.
-  by rewrite lookup_seq_nth.
-  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-  replace (S k - i) with 0 => //= ; last lia.
-  rewrite length_is_size size_takel ; first done.
-  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-  rewrite - length_is_size.
-  replace (i - length l) with 0 => //= ; last lia.
-  rewrite lookup_app_r.
-  rewrite length_is_size size_takel.
-  destruct (k - i) eqn:Hki ; first by exfalso ; lia.
-  simpl.
-  rewrite lookup_drop.
-  unfold ssrnat.addn, ssrnat.addn_rec.
-  replace (i + 1 + n0) with k => //= ; last lia.
-  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-  rewrite - length_is_size.
-  replace (i - length l) with 0 => //= ; last lia.
-  rewrite length_is_size size_takel.
-  lia.
-  unfold ssrnat.leq, ssrnat.subn, ssrnat.subn_rec.
-  rewrite - length_is_size.
-  replace (i - length l) with 0 => //= ; last lia.
-Qed.
 
 Lemma those_app {A} (l1 : list (option A)) l2 tl1 tl2 :
   those l1 = Some tl1 -> those l2 = Some tl2 -> those (l1 ++ l2) = Some (tl1 ++ tl2).
 Proof.
   by apply those_app.
 Qed.
-
 
 Lemma those_app_inv {A} (l1 : list (option A)) l2 tl :
   those (l1 ++ l2) = Some tl ->
@@ -692,11 +514,7 @@ Lemma incr_fst_equals {A} x n (o : A) :
   incr_fst x = (n,o) -> x = (n-1,o).
 Proof.
   intros ; destruct x. unfold incr_fst in H. simpl in H.
-  assert (n > 0). { inversion H ; lia. }
-  rewrite Nat.sub_1_r.
-  inversion H.
-  replace (n0 + 1) with (S n0) ; last lia.
-  rewrite Nat.pred_succ. done.
+  inversion H; subst; f_equal; by lias.
 Qed.
 
 Lemma fold_left_lift {A B} (f : (nat * A) -> B -> (nat * A)) g l i acc :
@@ -713,7 +531,6 @@ Proof.
   rewrite IHl.
   unfold incr_fst => //=.
 Qed.
-
 
 
 Lemma store_append1 m k off b bs m':
@@ -864,20 +681,6 @@ Proof.
            by erewrite <- mem_update_length.
 Qed.
 
-Lemma list_insert_destruct {T: Type} k (l: list T) v:
-  k < length l ->
-  seq.take k l ++ v:: seq.drop (k+1) l = <[k := v]> l.
-Proof.
-  move: l v.
-  induction k; move => l v Hlen; destruct l; simpl in Hlen => //=.
-  - by inversion Hlen.
-  - f_equal. by rewrite drop0.
-  - by inversion Hlen.
-  - f_equal.
-    apply IHk.
-    lia.
-Qed.
-    
 Lemma mem_update_insert k b dat dat':
   mem_update k b dat = Some dat' ->
   dat' = Build_memory_list (<[(N.to_nat k) := b]> (ml_data dat)) /\
@@ -924,9 +727,6 @@ Proof.
   by rewrite insert_length.
 Qed.
   
-
-  
-
 
 Lemma swap_stores m m' m'' k off b bs :
   store m k off [b] 1 = Some m' ->
@@ -1270,7 +1070,7 @@ Proof.
 Qed.
 
 
-Lemma take_drop {A} n (l : list A) :(* n < length l -> *)l = seq.take n l ++ seq.drop n l.
+Lemma take_drop {A} n (l : list A) : l = seq.take n l ++ seq.drop n l.
 Proof.
   rewrite <- cat_app.
   by rewrite cat_take_drop.
@@ -1508,37 +1308,6 @@ Proof.
            replace (length bs - i) with (length bs - S i + 1) ; last lia.
            rewrite - drop_drop.
            rewrite Hdrop0 => //=.
-Qed.
-
-Lemma those_nil {A B : Type} (f : A -> option B) l :
-  those (map f l) = Some [] -> l = [].
-Proof.
-  rewrite -those_those0.
-  induction l;auto.
-  { simpl in *. destruct (f a);try done.
-    unfold option_map.
-    destruct (those0 (map f l));try done. }
-Qed.
-
-Lemma those_not_nil {A B : Type} (f : A -> option B) l a a' :
-  those (map f l) = Some (a :: a') -> l ≠ [].
-Proof.
-  rewrite -those_those0.
-  induction l;auto.
-Qed.
-
-Lemma those_length  {A B : Type} (f : A -> option B) l l' :
-  those (map f l) = Some l' -> length l = length l'.
-Proof.
-  rewrite -those_those0.
-  revert l'. induction l;intros l' Hl'.
-  { simpl in *. destruct l';auto. done. }
-  { simpl in *. destruct (f a);try done.
-    unfold option_map in Hl'.
-    destruct (those0 (map f l)) eqn:Hl;[|done].
-    destruct l';[done|].
-    simplify_eq. simpl.  
-    f_equiv. apply IHl;auto. }
 Qed.
 
 Lemma load_length m k off len tl1 :
@@ -1978,20 +1747,6 @@ Proof.
   unfold wasm_deserialise.
   by destruct t.
 Qed.
-
-
-
-Lemma no_memory_no_memories ws n :
-  s_mems ws !! n = None ->
-  forall k, gmap_of_memory (s_mems ws) !! (N.of_nat n, k) = None.
-Proof.
-  intros.
-  unfold gmap_of_memory.
-  rewrite gmap_of_list_2d_lookup => //=.
-  rewrite Nat2N.id. 
-  rewrite list_lookup_fmap H => //=.
-Qed.
-
 
 
 Lemma wms_implies_smems_is_Some ws n k b bs :
