@@ -23,8 +23,7 @@ Section prim_step_split_properties.
     (∃ e', prim_step es1 σ obs2 e' σ2 efs2 ∧ lfilled i lh (e' ++ es2) e2)
     \/ (exists lh, lfilled 0 lh [AI_trap] es1) /\ σ = σ2.
   Proof.
-    intros Hfil
-           clear Hlf.l Hred Hstep.
+    intros Hfill Hred Hstep.
     edestruct lfilled_reduce as [(es' & Hstep' & Hfill') | (lh0 & Htrap & Hσ) ] => //=.
     - destruct σ as [[s locs ] inst ].
       destruct Hred as (obs & e1 & [[ s1 locs1 ] inst1] & efs & (Hes1 & -> & ->)).
