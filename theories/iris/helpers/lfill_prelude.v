@@ -3,6 +3,7 @@ From Coq Require Import Eqdep_dec.
 From stdpp Require Import base list.
 Require Export common operations opsem properties list_extra stdpp_aux.
 Require Export lfill_extension.
+Require Import Coq.Program.Equality.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -23,78 +24,26 @@ Qed.
 Lemma lfilled_length_rec k lh es les :
   lfilled k lh es les -> length_rec es <= length_rec les.
 Proof.
-  generalize dependent lh ; generalize dependent les.
-  induction k ; intros les lh Hfill ; unfold lfilled, lfill in Hfill.
-  { destruct lh => //. 
-    destruct (const_list l) => //. 
-    move/eqP in Hfill. rewrite Hfill. do 2 rewrite app_length_rec. lia. }
-  fold lfill in Hfill. destruct lh => //. 
-  destruct (const_list l) => //. 
-  remember (lfill _ _ _ ) as fill ; destruct fill => //. 
-  move/eqP in Hfill. assert (lfilled k lh es l2) as Hfill'.
-  { unfold lfilled ; by rewrite <- Heqfill. }
-  apply IHk in Hfill'.
-  replace (AI_label n l0 l2 :: l1) with ([AI_label n l0 l2] ++ l1) in Hfill => //=.
-  rewrite Hfill. do 2 rewrite app_length_rec.
-  assert (length_rec l2 <= length_rec [AI_label n l0 l2]) ; last lia.
-  unfold length_rec => //=. lia.
+  move => Hlf; move/lfilledP in Hlf.
+  induction Hlf; repeat rewrite app_length_rec => /=; first lia.
+  unfold length_rec in * => /=; by lias.
 Qed.
 
 Lemma lfill_cons_not_Some_nil : forall i lh es es' e es0,
   lfill i lh es = es' -> es = e :: es0 -> es' <> Some [::].
 Proof.
-  elim.
-  { elim; last by intros; subst.
-    move=> l l0 es es' /=.
-    case: (const_list l).
-    { move => Hfill H1 H2 H3 H4.
-      rewrite H4 in H2.
-      injection H2 => H5 {H2}.
-      rewrite H3 in H5.
-      by apply: cat_cons_not_nil.
-       }
-    { intros; subst; discriminate. } }
-  { move=> n IH.
-    elim; first by intros; subst.
-    intros.
-    rewrite /= in H0.
-    move: H0.
-    case: (const_list l).
-    { rewrite H1 {H1}.
-      case_eq (lfill n l1 (e :: es0)).
-      { move=> l3 H1 H2 H3.
-        rewrite H3 in H2.
-        injection H2.
-        move=> {} H2.
-        apply: cat_cons_not_nil.
-        done. }
-      { intros; subst; discriminate. } }
-    { intros; subst; discriminate. } }
+  move => i lh es es' e es0 Hlf Hes Hcontra.
+  destruct es' => //; inversion Hcontra; subst; clear Hcontra.
+  assert (lfilled i lh (e :: es0) []) as Hlf'; first by unfold lfilled; rewrite Hlf.
+  move/lfilledP in Hlf'.
+  inversion Hlf'; subst; by destruct vs => //.
 Qed.
 
 Lemma lfilled_not_nil : forall i lh es es', lfilled i lh es es' -> es <> [::] -> es' <> [::].
 Proof.
   move => i lh es es' H Hes Hes'.
-  move: (List.exists_last Hes) => [e [e0 H']].
-  rewrite H' in H.
-  move: H.
-  rewrite /lfilled /operations.lfilled.
-  case_eq (operations.lfill i lh es).
-  { intros; subst.
-    rewrite H in H0.
-    assert ([::] = l) as H0'.
-    { apply/eqP.
-      apply H0. }
-    { rewrite H0' in H.
-      rewrite /= in H.
-      case E: (e ++ (e0 :: l)%SEQ)%list; first by move: (List.app_eq_nil _ _ E) => [? ?].
-      apply: lfill_cons_not_Some_nil.
-      apply: H.
-      apply: E.
-      by rewrite H0'. } }
-  { intros; subst.
-    rewrite H in H0.
-    done. }
+  move/lfilledP in H.
+  inversion H; subst; clear H; by destruct vs, es => //.
 Qed.
 
 Lemma lfilled_first_values i lh vs e i' lh' vs' e' LI :
@@ -178,8 +127,6 @@ Proof.
   apply H1 in H2 as [??] => //.
   apply H1 in H2 as [-> ->] => //.
 Qed.
-
-
 
 Lemma lfilled_trans : forall k lh es1 es2 k' lh' es3,
     lfilled k lh es1 es2 -> lfilled k' lh' es2 es3 -> exists lh'', lfilled (k+k') lh'' es1 es3.

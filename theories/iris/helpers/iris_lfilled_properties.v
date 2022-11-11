@@ -333,33 +333,6 @@ Section lfilled_properties.
     by inversion Hlab ; subst. all: by intros [? ?].
   Qed.
 
-  Lemma lfilled_same_index k0 k1 lh es0 es1 LI0 LI1 :
-    lfilled k0 lh es0 LI0 ->
-    lfilled k1 lh es1 LI1 ->
-    k0 = k1.
-  Proof.
-    generalize dependent k1 ; generalize dependent lh ; generalize dependent LI0 ;
-      generalize dependent LI1.
-    induction k0 ; intros LI1 LI0 lh k1 Hfill0 Hfill1.
-    { unfold lfilled, lfill in Hfill0.
-      destruct lh ; last by false_assumption.
-      unfold lfilled, lfill in Hfill1.
-      destruct k1 ; last by false_assumption.
-      done. }
-    unfold lfilled, lfill in Hfill0 ; fold lfill in Hfill0.
-    destruct lh ; first by false_assumption.
-    unfold lfilled, lfill in Hfill1.
-    destruct k1 ; first by false_assumption.
-    fold lfill in Hfill1.
-    destruct (const_list l) ; last by false_assumption.
-    destruct (lfill k0 lh es0) eqn:Hfill'0 ; last by false_assumption.
-    destruct (lfill k1 lh es1) eqn:Hfill'1 ; last by false_assumption.
-    assert (lfilled k0 lh es0 l2) ; first by unfold lfilled ; rewrite Hfill'0.
-    assert (lfilled k1 lh es1 l3) ; first by unfold lfilled ; rewrite Hfill'1.
-    eapply IHk0 in H0 => //=.
-    lia.
-  Qed.
-
   Lemma lfilled_depth k lh es LI :
     lfilled k lh es LI ->
     lh_depth lh = k.
@@ -378,6 +351,15 @@ Section lfilled_properties.
     lia.
   Qed.
   
+  Lemma lfilled_same_index k0 k1 lh es0 es1 LI0 LI1 :
+    lfilled k0 lh es0 LI0 ->
+    lfilled k1 lh es1 LI1 ->
+    k0 = k1.
+  Proof.
+    move => Hlf1 Hlf2.
+    by apply lfilled_depth in Hlf1, Hlf2; subst.
+  Qed.
+
   Lemma lh_minus_depth lh0 lh1 lh2 :
     lh_minus lh0 lh1 = Some lh2 ->
     lh_depth lh2 = lh_depth lh0 - lh_depth lh1.
@@ -396,7 +378,6 @@ Section lfilled_properties.
   Qed.
 
   
-
   Lemma lh_minus_minus2 k0 k1 lh0 lh1 lh2 es0 es1 es2 :
     lh_minus lh0 lh1 = Some lh2 ->
     k0 >= k1 ->
@@ -455,7 +436,6 @@ Section lfilled_properties.
   Qed.
   
 
-
   Lemma filled_twice k0 k1 lh0 lh1 es0 es1 LI :
     lfilled k0 lh0 es0 LI ->
     lfilled k1 lh1 es1 LI ->
@@ -498,39 +478,20 @@ Section lfilled_properties.
     lia. all: intros [? ?];done.
   Qed.                                 
 
+  
   Lemma lfilled_length_rec_or_same k lh es LI :
     lfilled k lh es LI -> length_rec es < length_rec LI \/ es = LI.
   Proof.
-    generalize dependent k ; generalize dependent LI.
-    induction lh ; intros LI k Hfill.
-    unfold lfilled, lfill in Hfill.
-    destruct k ; last by false_assumption.
-    destruct (const_list l) ; last by false_assumption.
-    move/eqP in Hfill; subst.
-    destruct l.
-    destruct l0.
-    right.
-    by rewrite app_nil_r.
-    left.
-    simpl.
-    rewrite app_length_rec.
-    specialize (cons_length_rec a l0) ; intro ; lia.
-    repeat rewrite app_length_rec.
-    left.
-    specialize (cons_length_rec a l) ; intro ; lia.
-    unfold lfilled, lfill in Hfill.
-    destruct k ; first by false_assumption.
-    fold lfill in Hfill.
-    destruct (const_list l) ; last by false_assumption.
-    destruct (lfill k lh es) eqn:Hfill' ; last by false_assumption.
-    move/eqP in Hfill; subst.
-    rewrite list_extra.cons_app.
-    repeat rewrite app_length_rec.
-    unfold length_rec at 3.
-    simpl.
-    fold (length_rec l2).
-    assert (lfilled k lh es l2) ; first by unfold lfilled ; rewrite Hfill'.
-    apply IHlh in H as [Hlen | ->] ; lia.
+    move => Hlf; move/lfilledP in Hlf.
+    induction Hlf.
+    { repeat rewrite app_length_rec.
+      destruct vs, es' => /=; try by left; unfold length_rec; destruct a; lias.
+      right. by rewrite cats0.
+    }
+    { destruct IHHlf; last subst.
+      all: rewrite app_length_rec cat_app app_length_rec;
+        unfold length_rec in * => /=; lia.
+    }
   Qed.
   
   
