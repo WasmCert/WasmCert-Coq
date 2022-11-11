@@ -1,6 +1,7 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool.
 From stdpp Require Import base list.
 Require Import iris_wasm_lang_properties.
+Require Import Coq.Program.Equality.
 
 Fixpoint find_first_some {A : Type} (l : seq.seq (option A)) :=
   match l with
@@ -297,4 +298,50 @@ Proof.
       { cbn. destruct bi;try done. specialize (H v). done. }
     }
   }
+Qed.
+
+Lemma llfill_prepend llh vs es lles:
+  llfill llh es = lles ->
+  const_list vs ->
+  exists llh', llfill llh' es = (vs ++ lles).
+Proof.
+  move => Hllf Hconst.
+  apply const_es_exists in Hconst as [vs0 ->].
+  destruct llh.
+  { eexists (LL_base (vs0 ++ l) l0); simpl in *.
+    unfold v_to_e_list; rewrite map_cat -Hllf.
+    repeat rewrite cat_app.
+    by rewrite - app_assoc.
+  }
+  { eexists (LL_label (vs0 ++ l) n l0 llh l1); simpl in *.
+    unfold v_to_e_list; rewrite map_cat -Hllf.
+    repeat rewrite cat_app.
+    by rewrite - app_assoc.
+  }
+  { eexists (LL_local (vs0 ++ l) n f llh l0); simpl in *.
+    unfold v_to_e_list; rewrite map_cat -Hllf.
+    repeat rewrite cat_app.
+    by rewrite - app_assoc.
+  }
+Qed.
+  
+Lemma first_instr_Ind_llfill es a i:
+  first_instr_Ind es a i ->
+  (exists llh, llfill llh [a] = es).
+Proof.
+  move => Hf.
+  dependent induction Hf; (try by exists (LL_base [] es)); (try by exists (LL_base [] es')).
+  { destruct IHHf as [llh Hllf].
+    by eapply llfill_prepend. }
+  { destruct IHHf as [llh Hllf]; subst.
+    by exists (LL_local [] n f llh es'). }
+  { destruct IHHf as [llh Hllf]; subst.
+    by exists (LL_label [] n es1 llh es'). }
+Qed.
+
+Lemma first_instr_llfill es a i:
+  first_instr es = Some (a, i) ->
+  (exists llh, llfill llh [a] = es).
+Proof.
+  move => Hf; eapply first_instr_Ind_llfill; by apply first_instr_Ind_Equivalent.
 Qed.
