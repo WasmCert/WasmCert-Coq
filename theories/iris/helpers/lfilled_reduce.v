@@ -121,7 +121,13 @@ Section lfilled_reduce_properties.
   Let expr := iris.expr.
   Let val := iris.val.
   Let to_val := iris.to_val.
-  
+
+  (*
+This lemma basically states that, enclosing es in an lh context cannot generate
+new reduction paths. It can almost be proved using the determinacy lemma, but the arbitrary level of labels in the r_label case prevents an easy proof.
+
+Note that this is a property very similar to Iris context.
+*)
   Lemma lfilled_reduce i lh es LI σ LI' σ' obs efs :
     lfilled i lh es LI ->
     reducible es σ ->
