@@ -35,13 +35,7 @@ Ltac get_tail x xs ys y Htail :=
 Lemma destruct_list_rev {A : Type} (l : list A) :
   l = [] ∨ ∃ a l', l = l' ++ [a].
 Proof.
-  induction l;eauto.
-  right. destruct l;eauto.
-  exists a,[]. auto.
-  destruct IHl as [Hcontr | [a' [l' Heq]]].
-  done. rewrite Heq.
-  eexists. eexists.
-  rewrite separate1 app_assoc. eauto.
+  destruct l using List.rev_ind; by [ left | right; eexists _, _].
 Qed.
 
 Section wasm_lang_properties.
@@ -53,7 +47,6 @@ Section wasm_lang_properties.
   Lemma v_to_e_is_fmap vs :
     v_to_e_list vs = (fun x => AI_basic (BI_const x)) <$> vs.
   Proof. done. Qed. 
-
   
   Lemma to_val_cat (es1 es2: list administrative_instruction) (vs: list value) :
     iris.to_val (es1 ++ es2) = Some (immV vs) ->
@@ -61,7 +54,7 @@ Section wasm_lang_properties.
       iris.to_val es2 = Some (immV ((drop (length es1) vs))).
   Proof.
     move => H.
-    apply iris.of_to_val in H. 
+    apply iris.of_to_val in H.
     apply fmap_split in H; destruct H as [H1 H2].
     remember (length es1) as n1.
     remember (length es2) as n2.
@@ -78,15 +71,10 @@ Section wasm_lang_properties.
     iris.to_val es2 = Some (immV vs2) ->
     iris.to_val (es1 ++ es2) = Some (immV (vs1 ++ vs2)).
   Proof.
-    intros. apply of_to_val in H, H0. subst.
-    unfold of_val, iris.to_val.
-    induction vs1 => //=.
-    induction vs2 => //=.
-    rewrite merge_prepend => //=.
-    destruct (merge_values_list _ ) => //=.
-    inversion IHvs2 => //=.
-    rewrite merge_prepend => //=.
-    destruct (merge_values_list _) ; inversion IHvs1 => //.
+    move => Htv1 Htv2.
+    apply to_val_is_immV in Htv1, Htv2; subst.
+    repeat rewrite map_fmap.
+    rewrite - fmap_app -to_of_val; by f_equal => /=.
   Qed.
 
   Lemma to_val_cat_None1 (es1 es2: list administrative_instruction) :
@@ -174,6 +162,7 @@ Section wasm_lang_properties.
     apply not_elem_of_cons in Hvs2 as [Hne' Hvs2].
     apply IHvs1 => //=.
   Qed.
+  
   Lemma const_list_elem_of e es :
     const_list es ->
     (is_const e = false) ->
@@ -617,9 +606,8 @@ Section wasm_lang_properties.
     rewrite Heq' in Heqcopy.
     assert (vs ++ (vs' ++ [e'] ++ es2)%list ++ es' = (vs ++ vs') ++ [e'] ++ (es2 ++ es'))%SEQ as Heq2.
     { rewrite !app_assoc. repeat erewrite app_assoc. auto. }
-    rewrite Heq2 in Heqcopy. clear Heq2. unfold to_val in He. (* unfold to_val in HH. *)
+    rewrite Heq2 in Heqcopy. clear Heq2. unfold to_val in He.
     apply first_values_elem_of in Heqcopy as [Heq1 [Heq2 Heq3]];auto.
-    (* all: unfold iris.to_val in HH. *)
     2: (destruct HH as [He' | [[-> _] | [[? ->] | [-> | [(?&?&?& ->) | [(? & ? & ? & -> & ?) |(?&?&?&?&?&?&?& -> & ?)]]]]]] => //).
     2: destruct e' => //; destruct b => //.
     2: { apply not_elem_of_app. split;[|apply const_list_elem_of;auto]. auto. }
@@ -643,23 +631,14 @@ Section wasm_lang_properties.
       lfilled i lh es LI ->
       ∃ vs es', i = 0 ∧ lh = LH_base vs es' ∧ const_list vs ∧ const_list es'.
   Proof.
-    intros i.
-    destruct i;
-      intros lh es LI vals Hval Hfill%lfilled_Ind_Equivalent.
-    { inversion Hfill;subst.
-      apply to_val_cat in Hval as [Hval1 Hval2].
-      apply to_val_cat in Hval2 as [Hval21 Hval22].
-      eexists _,_. repeat split;eauto.
-      eapply to_val_const_list. eauto. }
-    { exfalso. inversion Hfill;subst.
-      apply to_val_cat in Hval as [Hval1 Hval2].
-      apply to_val_cat in Hval2 as [Hval21 Hval22].
-      rewrite /= in Hval21. unfold iris.to_val in Hval21.
-      simpl in Hval21. destruct (merge_values_list _) => //.
-      destruct v => //. destruct i0 => //.
-      destruct (vh_decrease _) => //.
-    }
+    move => i lh es LI vals Htv Hlf.
+    apply to_val_const_list in Htv.
+    specialize (lfilled_const _ _ _ _ Hlf Htv) as [-> Hconst].
+    move/lfilledP in Hlf; inversion Hlf; subst; clear Hlf.
+    exists vs, es'.
+    by do 2 apply const_list_app in Htv as [? Htv]. 
   Qed.
+  
   Lemma filled_is_val_trap : ∀ i lh es LI,
       iris.to_val LI = Some trapV ->
       lfilled i lh es LI ->
@@ -761,29 +740,8 @@ Section wasm_lang_properties.
   Lemma to_val_nil : ∀ e,
       iris.to_val e = Some (immV []) -> e = [].
   Proof.
-    intros e He. destruct e;auto.
-    unfold iris.to_val in He ; simpl in He.
-    destruct a => //= ; simpl in He.
-    destruct b => //= ; simpl in He.
-    rewrite merge_br flatten_simplify in He => //.
-    rewrite merge_return flatten_simplify in He => //.
-    rewrite merge_prepend in He.
-    destruct (merge_values_list _) ; simpl in He => //. 
-    destruct v0 ; simpl in He => //.
-    rewrite merge_trap in He ; simpl in He.
-    rewrite flatten_simplify in He.
-    destruct e => //.
-    destruct (merge_values_list _) ; simpl in He => //.
-    destruct v => //.
-    destruct i => //.
-    destruct (vh_decrease _) => //.
-    rewrite merge_br flatten_simplify in He => //.
-    rewrite merge_return flatten_simplify in He => //.
-    rewrite merge_call_host flatten_simplify in He => //.
-    destruct (merge_values_list _) => //.
-    destruct v => //.
-    rewrite merge_call_host flatten_simplify in He => //. 
-    rewrite merge_call_host flatten_simplify in He => //. 
+    move => e Htv.
+    by apply to_val_is_immV in Htv.
   Qed.
 
   Lemma fill_val : ∀ l LI v1 v2 vs es' es,
@@ -814,61 +772,11 @@ Section wasm_lang_properties.
     ((is_const e2 = false ) /\ (forall a b c, e2 <> AI_label a b c)) ->
     i1 = i2 /\ lh1 = lh2 /\ e1 = e2.
   Proof.
-    intros Hfill1 Hfill2 He1 He2.
-    generalize dependent lh2 ; generalize dependent i2.
-    generalize dependent lh1 ; generalize dependent LI.
-    induction i1 ; intros LI lh1 Hfill1 i2 lh2 Hfill2.
-    { unfold lfilled, lfill in Hfill1.
-      destruct lh1 as [bef aft |]; last by false_assumption.
-      destruct (const_list bef) eqn:Hbef ; last by false_assumption.
-      move/eqP in Hfill1.
-      rewrite Hfill1 in Hfill2.
-      unfold lfilled, lfill in Hfill2.
-      destruct i2.
-      { destruct lh2 as [bef' aft' |] ; last by false_assumption.
-        destruct (const_list bef') eqn:Hbef' ; last by false_assumption.
-        move/eqP in Hfill2.
-        eapply first_values in Hfill2 as (-> & -> & ->) => //=.
-        destruct He1 as [? ?]. done. 
-        destruct He2 as [? ?]. done. 
-      }
-      fold lfill in Hfill2.
-      destruct lh2 ; first by false_assumption.
-      destruct (const_list l) eqn:Hl ; last by false_assumption.
-      destruct (lfill _ _ _) ; last by false_assumption.
-      move/eqP in Hfill2.
-      eapply first_values in Hfill2 as (-> & -> & ->) => //=.
-      destruct He1 as [_ Habs] ; try by inversion Habs.
-      exfalso ; by eapply Habs.
-      destruct He1 as [? ?]. destruct e1; try done; destruct b;try done.
-    }
-    unfold lfilled, lfill in Hfill1 ; fold lfill in Hfill1.
-    destruct lh1 as [| bef n es1 lh1 es'1] ; first by false_assumption.
-    destruct (const_list bef) eqn:Hbef ; last by false_assumption.
-    destruct (lfill i1 _ _) eqn:Hfill'1 ; last by false_assumption.
-    move/eqP in Hfill1.
-    unfold lfilled, lfill in Hfill2 ; destruct i2.
-    { destruct lh2 as [bef2 aft2 |] ; last by false_assumption.
-      destruct (const_list bef2) eqn:Hbef2 ; last by false_assumption.
-      move/eqP in Hfill2.
-      rewrite Hfill2 in Hfill1.
-      eapply first_values in Hfill1 as (-> & -> & ->) => //=.
-      destruct He2 as  [_ Habs ] ; try by inversion Habs.
-      exfalso ; by eapply Habs.
-      destruct He2 as [? ?]. destruct e2; try done; destruct b;try done. }    
-    fold lfill in Hfill2.
-    destruct lh2 as [| bef2 n2 es2 lh2 es'2] ; first by false_assumption.
-    destruct (const_list bef2) eqn:Hbef2 ; last by false_assumption.
-    destruct (lfill i2 _ _) eqn:Hfill'2 ; last by false_assumption.
-    move/eqP in Hfill2.
-    assert (lfilled i1 lh1 [e1] l) ; first by unfold lfilled ; rewrite Hfill'1.
-    assert (lfilled i2 lh2 [e2] l0) ; first by unfold lfilled ; rewrite Hfill'2.
-    rewrite Hfill1 in Hfill2.
-    eapply first_values in Hfill2 as (-> & Hlab & ->) => //= ; try by intros [? ?].
-    inversion Hlab ; subst ; clear Hlab.
-    eapply IHi1 in H as (-> & -> & ->) => //=.
+    move => Hlf1 Hlf2 [Hnconst1 Hnlab1] [Hnconst2 Hnlab2].
+    eapply (lfilled_first_values) with (vs := []) (vs' := []) in Hnconst1 => //.
+    destruct Hnconst1 as (?&?&Hlheq).
+    by destruct Hlheq.
   Qed.
-
 
   Lemma lfilled_trans2 : forall k lh es1 es1' es2 es2' k' lh' es3 es3',
       lfilled k lh es1 es2 -> lfilled k lh es1' es2' -> 
