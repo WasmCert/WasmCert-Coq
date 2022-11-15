@@ -1,7 +1,6 @@
-(* TODO: more tests *)
 Require Import leb128.
-Require Import Coq.Init.Byte.
-Require Import NArith.BinNat.
+Require Import Coq.Init.Byte Coq.Numbers.BinNums.
+Require Import NArith.BinNat ZArith.ZArith.
 From parseque Require Import Running Induction.
 Require Import check_toks.
 
@@ -14,13 +13,25 @@ Definition encode_unsigned_check (k : N) :=
   Singleton (encode_unsigned k).
 
 Lemma test_wikipedia_encode :
-  encode_unsigned_check 624485 = Singleton test_wikipedia.
+  encode_unsigned_check 624485%N = Singleton test_wikipedia.
 Proof.
   vm_compute. reflexivity.
 Qed.
 
 Definition test_wikipedia_decode :
   check_toks test_wikipedia parse_unsigned = Singleton 624485%N.
+Proof.
+  vm_compute. reflexivity.
+Qed.
+
+Definition test_wikipedia_signed: list Byte.byte :=
+  xc0 :: xbb :: x78 :: nil.
+
+Definition encode_signed_check (k : Z) :=
+  Singleton (encode_signed k).
+
+Lemma test_wikipedia_signed_encode:
+  encode_signed_check (-123456)%Z = Singleton test_wikipedia_signed.
 Proof.
   vm_compute. reflexivity.
 Qed.
