@@ -418,7 +418,7 @@ Definition binary_of_module_start (s : module_start) : list byte :=
   binary_of_funcidx s.(modstart_func).
 
 Definition binary_of_startsec (s : module_start) : list byte :=
-  x08 :: with_length (binary_of_vec binary_of_module_start (cons s nil)).
+  x08 :: with_length (binary_of_module_start s).
 
 Definition binary_of_module_elem (e : module_element) : list byte :=
   binary_of_tableidx e.(modelem_table) ++
