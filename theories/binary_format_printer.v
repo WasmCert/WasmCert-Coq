@@ -40,10 +40,10 @@ Definition binary_of_memarg a o : list byte :=
   binary_of_u32_nat a ++ binary_of_u32_nat o.
 
 Definition binary_of_i32 (x : i32) : list byte :=
-  leb128.encode_signed x.(Wasm_int.Int32.intval).
+  leb128.encode_signed (Wasm_int.Int32.signed x).
 
 Definition binary_of_i64 (x : i64) : list byte :=
-  leb128.encode_signed x.(Wasm_int.Int64.intval).
+  leb128.encode_signed (Wasm_int.Int64.signed x).
 
 Definition binary_of_f32 (x : f32) : list byte :=
   List.map byte_of_compcert_byte (serialise_f32 x).
