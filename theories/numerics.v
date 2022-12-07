@@ -679,11 +679,36 @@ Proof.
   - move: wordsize_modulus. by lias.
 Qed.
 
-(* FIXME: stuff that we may want to prove.
 Lemma ctz_wordsize : forall i,
   ctz i = repr wordsize ->
   i = repr 0.
+Proof.
+  rewrite/clz. move=> i E.
+  apply repr_inv in E.
+  - have: ~~ seq.has (fun b => b == true) (rev (convert_to_bits i)).
+    { rewrite has_find. rewrite size_rev convert_to_bits_size. by lias. }
+    rewrite -all_predC => N.
+    have Ec: (rev (convert_to_bits i) = convert_to_bits zero).
+    {
+      move/all_nthP: N => /= F. rewrite size_rev convert_to_bits_size in F.
+      apply (@seq_nth_eq _ false).
+      - rewrite size_rev. by repeat rewrite convert_to_bits_size.
+      - rewrite size_rev convert_to_bits_size => n I. rewrite convert_to_bits_zero nth_nseq.
+        move: (F false n I). move/eqP. destruct nth => //.
+          by destruct leq.
+    }
+    apply rev_move in Ec.
+    have Ep: (rev (convert_to_bits zero) = convert_to_bits zero).
+    { by rewrite convert_to_bits_zero rev_nseq => //. }
+    rewrite Ep in Ec.
+    apply: convert_to_bits_inj Ec.
+  - split; first by lias. apply: (Z.le_lt_trans _ _ _ _ wordsize_modulus).
+    match goal with |- context C [find ?p ?l] => move: (find_size p l) end.
+    rewrite size_rev convert_to_bits_size. by lias.
+  - move: wordsize_modulus. by lias.
+Qed.
 
+(* FIXME: stuff that we may want to prove. 
 Lemma popcnt_wordsize : forall i,
   popcnt i = repr wordsize ->
   i = repr 0.
@@ -1863,40 +1888,39 @@ End Float64.
 
 (** ** Unit Tests **)
 
-(* FIXME: Frustration: these tests seem not to compute well, even with a [vm_compute].
 Lemma normalise_unit_test_64 : Float64.normalise_unit_test.
 Proof. reflexivity. Qed.
 
-Lemma ceil_unit_test_1_ok : ceil_unit_test_1.
+Lemma ceil_unit_test_1_ok : Float64.ceil_unit_test_1.
 Proof. reflexivity. Qed.
 
-Lemma ceil_unit_test_2_ok : ceil_unit_test_2.
+Lemma ceil_unit_test_2_ok : Float64.ceil_unit_test_2.
 Proof. reflexivity. Qed.
 
-Lemma floor_unit_test_1_ok : floor_unit_test_1.
+Lemma floor_unit_test_1_ok : Float64.floor_unit_test_1.
 Proof. reflexivity. Qed.
 
-Lemma floor_unit_test_2_ok : floor_unit_test_2.
+Lemma floor_unit_test_2_ok : Float64.floor_unit_test_2.
 Proof. reflexivity. Qed.
 
-Lemma trunc_unit_test_1_ok : trunc_unit_test_1.
+Lemma trunc_unit_test_1_ok : Float64.trunc_unit_test_1.
 Proof. reflexivity. Qed.
 
-Lemma trunc_unit_test_2_ok : trunc_unit_test_2.
+Lemma trunc_unit_test_2_ok : Float64.trunc_unit_test_2.
 Proof. reflexivity. Qed.
 
-Lemma nearest_unit_test_1_ok : nearest_unit_test_1.
+Lemma nearest_unit_test_1_ok : Float64.nearest_unit_test_1.
 Proof. reflexivity. Qed.
 
-Lemma nearest_unit_test_2_ok : nearest_unit_test_2.
+Lemma nearest_unit_test_2_ok : Float64.nearest_unit_test_2.
 Proof. reflexivity. Qed.
 
-Lemma nearest_unit_test_3_ok : nearest_unit_test_3.
+Lemma nearest_unit_test_3_ok : Float64.nearest_unit_test_3.
 Proof. reflexivity. Qed.
 
-Lemma nearest_unit_test_4_ok : nearest_unit_test_4.
+Lemma nearest_unit_test_4_ok : Float64.nearest_unit_test_4.
 Proof. reflexivity. Qed.
-*)
+
 
 End Wasm_float.
 

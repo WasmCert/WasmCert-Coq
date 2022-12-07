@@ -17,6 +17,7 @@
 *.vok
 *.glob
 *.aux
+.DS_Store
 .lia.cache
 .nia.cache
 
