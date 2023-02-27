@@ -9,8 +9,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Canonical Structure immediate_eqType :=
-  Eval hnf in EqType immediate nat_eqMixin.
+
+(*
 Canonical Structure funcaddr_eqType :=
   Eval hnf in EqType funcaddr nat_eqMixin.
 Canonical Structure tableaddr_eqType :=
@@ -19,6 +19,7 @@ Canonical Structure memaddr_eqType :=
   Eval hnf in EqType memaddr nat_eqMixin.
 Canonical Structure globaladdr_eqType :=
   Eval hnf in EqType globaladdr nat_eqMixin.
+*)
 
 Definition ascii_eq_dec : forall tf1 tf2 : Ascii.ascii,
   {tf1 = tf2} + {tf1 <> tf2}.
@@ -39,6 +40,14 @@ Definition eqbyteP : Equality.axiom byte_eqb :=
 Canonical Structure byte_eqMixin := EqMixin eqbyteP.
 Canonical Structure byte_eqType :=
   Eval hnf in EqType Byte.byte byte_eqMixin.
+
+Scheme Equality for number_type.
+Definition number_type_eqb v1 v2 : bool := number_type_eq_dec v1 v2.
+Definition eqnumber_typeP : Equality.axiom number_type_eqb :=
+  eq_dec_Equality_axiom number_type_eq_dec.
+
+Canonical Structure number_type_eqMixin := EqMixin eqnumber_typeP.
+Canonical Structure number_type_eqType := Eval hnf in EqType number_type number_type_eqMixin.
 
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
@@ -176,6 +185,27 @@ Definition eqvalueP : Equality.axiom value_eqb :=
 Canonical Structure value_eqMixin := EqMixin eqvalueP.
 Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
 
+Definition value_num_eq_dec : forall v1 v2 : value_num, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition value_num_eqb v1 v2 : bool := value_num_eq_dec v1 v2.
+Definition eqvalue_numP : Equality.axiom value_num_eqb :=
+  eq_dec_Equality_axiom value_num_eq_dec.
+
+Canonical Structure value_num_eqMixin := EqMixin eqvalue_numP.
+Canonical Structure value_num_eqType := Eval hnf in EqType value_num value_num_eqMixin.
+
+Definition value_ref_eq_dec : forall v1 v2 : value_ref, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition value_ref_eqb v1 v2 : bool := value_ref_eq_dec v1 v2.
+Definition eqvalue_refP : Equality.axiom value_ref_eqb :=
+  eq_dec_Equality_axiom value_ref_eq_dec.
+
+Canonical Structure value_ref_eqMixin := EqMixin eqvalue_refP.
+Canonical Structure value_ref_eqType := Eval hnf in EqType value_ref value_ref_eqMixin.
+(*
+(* TODO: update *)
 (** Some helper functions for [value] that can safely extract. **)
 Definition value_rec_safe (P : Type)
            (i32 : Wasm_int.Int32.int -> P)
@@ -183,6 +213,7 @@ Definition value_rec_safe (P : Type)
            (f32 : Wasm_float.FloatSize32.T -> P)
            (f64 : Wasm_float.FloatSize64.T -> P) v : P :=
   value_rect i32 i64 f32 f64 v.
+*)
 
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
@@ -214,6 +245,8 @@ Definition eqinstanceP : Equality.axiom instance_eqb :=
 
 Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
 Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
+
+
 
 Section Host.
 
@@ -248,15 +281,35 @@ Definition eqtableinstP : Equality.axiom tableinst_eqb :=
 Canonical Structure tableinst_eqMixin := EqMixin eqtableinstP.
 Canonical Structure tableinst_eqType := Eval hnf in EqType tableinst tableinst_eqMixin.
 
-Definition global_eq_dec : forall v1 v2 : global, {v1 = v2} + {v1 <> v2}.
+Definition globalinst_eq_dec : forall v1 v2 : globalinst, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 
-Definition global_eqb v1 v2 : bool := global_eq_dec v1 v2.
-Definition eqglobalP : Equality.axiom global_eqb :=
-  eq_dec_Equality_axiom global_eq_dec.
+Definition globalinst_eqb v1 v2 : bool := globalinst_eq_dec v1 v2.
+Definition eqglobalinstP : Equality.axiom globalinst_eqb :=
+  eq_dec_Equality_axiom globalinst_eq_dec.
 
-Canonical Structure global_eqMixin := EqMixin eqglobalP.
-Canonical Structure global_eqType := Eval hnf in EqType global global_eqMixin.
+Canonical Structure globalinst_eqMixin := EqMixin eqglobalinstP.
+Canonical Structure globalinst_eqType := Eval hnf in EqType globalinst globalinst_eqMixin.
+
+Definition eleminst_eq_dec : forall v1 v2 : eleminst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition eleminst_eqb v1 v2 : bool := eleminst_eq_dec v1 v2.
+Definition eqeleminstP : Equality.axiom eleminst_eqb :=
+  eq_dec_Equality_axiom eleminst_eq_dec.
+
+Canonical Structure eleminst_eqMixin := EqMixin eqeleminstP.
+Canonical Structure eleminst_eqType := Eval hnf in EqType eleminst eleminst_eqMixin.
+
+Definition datainst_eq_dec : forall v1 v2 : datainst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition datainst_eqb v1 v2 : bool := datainst_eq_dec v1 v2.
+Definition eqdatainstP : Equality.axiom datainst_eqb :=
+  eq_dec_Equality_axiom datainst_eq_dec.
+
+Canonical Structure datainst_eqMixin := EqMixin eqdatainstP.
+Canonical Structure datainst_eqType := Eval hnf in EqType datainst datainst_eqMixin.
 
 Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
@@ -330,6 +383,18 @@ Definition eqadministrative_instructionP : Equality.axiom administrative_instruc
 Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrative_instructionP.
 Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
+
+Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality.
+       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
+Defined.
+
+Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
+Definition eqlholedP : Equality.axiom lholed_eqb :=
+  eq_dec_Equality_axiom lholed_eq_dec.
+
+Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
+Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
 
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.

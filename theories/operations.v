@@ -14,33 +14,105 @@ Unset Printing Implicit Defensive.
 Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
 
 (** read `len` bytes from `m` starting at `start_idx` *)
-Definition read_bytes (m : memory) (start_idx : N) (len : nat) : option bytes :=
+Definition read_bytes (m : meminst) (start_idx : N) (len : nat) : option bytes :=
   those
     (List.map
       (fun off =>
-        let idx := BinNatDef.N.add start_idx (N.of_nat off) in
-        mem_lookup idx m.(mem_data))
+        let idx := N.add start_idx (N.of_nat off) in
+        mem_lookup idx m.(meminst_data))
     (iota 0 len)).
 
 (** write bytes `bs` to `m` starting at `start_idx` *)
-Definition write_bytes (m : memory) (start_idx : N) (bs : bytes) : option memory :=
+Definition write_bytes (m : meminst) (start_idx : N) (bs : bytes) : option meminst :=
   let x :=
     list_extra.fold_lefti
       (fun off dat_o b =>
         match dat_o with
         | None => None
         | Some dat =>
-          let idx := BinNatDef.N.add start_idx (N.of_nat off) in
+          let idx := N.add start_idx (N.of_nat off) in
           mem_update idx b dat
         end)
       bs
-      (Some m.(mem_data)) in
+      (Some m.(meminst_data)) in
   match x with
-  | Some dat => Some {| mem_data := dat; mem_max_opt := m.(mem_max_opt); |}
+  | Some dat => Some {| meminst_data := dat; meminst_type := m.(meminst_type); |}
   | None => None
   end.
 
-Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
+Definition upd_s_mem (s : store_record) (m : list meminst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := s.(s_tables);
+    s_mems := m;
+    s_globals := s.(s_globals);
+    s_elems := s.(s_elems);
+    s_datas := s.(s_datas);
+|}.
+
+Definition page_size : N := 65536%N.
+
+Definition page_limit : N := 65536%N.
+
+Definition ml_valid (m: memory_list) : Prop :=
+  N.modulo (memory_list.mem_length m) page_size = 0%N.
+
+Definition mem_length (m : meminst) : N :=
+  mem_length m.(meminst_data).
+
+Definition mem_size (m : meminst) : N :=
+  N.div (mem_length m) page_size.
+
+(** Grow the memory a given number of pages.
+  * @param len_delta: the number of pages to grow the memory by
+  *)
+
+Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
+  let new_size := N.add (mem_size m) len_delta in
+  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(meminst_data) in
+  if N.leb new_size page_limit then
+  match m.(meminst_type).(lim_max) with
+  | Some maxlim =>
+    if N.leb new_size maxlim then
+        Some {|
+          meminst_data := new_mem_data;
+          meminst_type := m.(meminst_type);
+          |}
+    else None
+  | None =>
+    Some {|
+      meminst_data := new_mem_data;
+      meminst_type := m.(meminst_type);
+      |}
+  end
+  else None.
+
+(* TODO: We crucially need documentation here. *)
+
+Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
+  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+  then read_bytes m (N.add n off) l
+  else None.
+
+Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
+  (* TODO: implement sign extension *) bs.
+(* TODO
+  let: msb := msb (msbyte bytes) in
+  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
+  bytes_takefill byte l bytes
+*)
+
+Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
+  option_map (sign_extend s l) (load m n off lp).
+
+Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
+  if N.leb (n + off + N.of_nat l) (mem_length m)
+  then write_bytes m (n + off) (bytes_takefill #00 l bs)
+  else None.
+
+Definition store_packed := store.
+
+Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   match vt with
   | T_i32 => VAL_int32 (Wasm_int.Int32.repr (common.Memdata.decode_int bs))
   | T_i64 => VAL_int64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
@@ -49,7 +121,7 @@ Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
   end.
 
 
-Definition typeof (v : value) : value_type :=
+Definition typeof_num (v : value_num) : number_type :=
   match v with
   | VAL_int32 _ => T_i32
   | VAL_int64 _ => T_i64
@@ -57,19 +129,46 @@ Definition typeof (v : value) : value_type :=
   | VAL_float64 _ => T_f64
   end.
 
+Definition typeof_vec (v: value_vec) : vector_type :=
+  match v with
+  | VAL_vec128 _ => T_v128
+  end.
+
+Definition typeof_ref (v: value_ref) : reference_type :=
+  match v with
+  | VAL_ref_null vt => vt
+  | VAL_ref_func _ => T_funcref
+  | VAL_ref_extern _ => T_externref
+  end.
+
+Definition typeof (v: value) : value_type :=
+  match v with
+  | VAL_num v' => T_num (typeof_num v')
+  | VAL_vec v' => T_vec (typeof_vec v')
+  | VAL_ref v' => T_ref (typeof_ref v')
+  end.
+    
+
+
 Definition option_projl (A B : Type) (x : option (A * B)) : option A :=
   option_map fst x.
 
 Definition option_projr (A B : Type) (x : option (A * B)) : option B :=
   option_map snd x.
 
-Definition t_length (t : value_type) : nat :=
+Definition tnum_length (t : number_type) : N :=
   match t with
   | T_i32 => 4
   | T_i64 => 8
   | T_f32 => 4
   | T_f64 => 8
   end.
+
+Definition tvec_length (t: vector_type) : N :=
+  match t with
+  | T_v128 => 16
+  end.
+    
 
 Definition tp_length (tp : packed_type) : nat :=
   match tp with
@@ -78,7 +177,7 @@ Definition tp_length (tp : packed_type) : nat :=
   | Tp_i32 => 4
   end.
 
-Definition is_int_t (t : value_type) : bool :=
+Definition is_int_t (t : number_type) : bool :=
   match t with
   | T_i32 => true
   | T_i64 => true
@@ -86,7 +185,7 @@ Definition is_int_t (t : value_type) : bool :=
   | T_f64 => false
   end.
 
-Definition is_float_t (t : value_type) : bool :=
+Definition is_float_t (t : number_type) : bool :=
   match t with
   | T_i32 => false
   | T_i64 => false
@@ -95,7 +194,7 @@ Definition is_float_t (t : value_type) : bool :=
   end.
 
 Definition is_mut (tg : global_type) : bool :=
-  tg_mut tg == MUT_mut.
+  tg_mut tg == MUT_var.
 
 
 Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) : Wasm_int.sort e -> Wasm_int.sort e :=
@@ -120,7 +219,7 @@ Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -
   | UOF_sqrt => Wasm_float.float_sqrt mx
   end.
 
-Definition app_unop (op: unop) (v: value) :=
+Definition app_unop (op: unop) (v: value_num) :=
   match op with
   | Unop_i iop =>
     match v with
@@ -174,7 +273,7 @@ Definition app_binop_f (e : Wasm_float.type) (fop : binop_f)
   | BOF_copysign => add_some (Wasm_float.float_copysign mx)
   end.
 
-Definition app_binop (op: binop) (v1: value) (v2: value) :=
+Definition app_binop (op: binop) (v1: value_num) (v2: value_num) :=
   match op with
   | Binop_i iop =>
     match v1 with
@@ -242,7 +341,7 @@ Definition app_relop_f (e : Wasm_float.type) (rop : relop_f)
   | ROF_ge => Wasm_float.float_ge mx
   end.
 
-Definition app_relop (op: relop) (v1: value) (v2: value) :=
+Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
   match op with
   | Relop_i iop =>
     match v1 with
@@ -277,8 +376,14 @@ Definition app_relop (op: relop) (v1: value) (v2: value) :=
 Definition types_agree (t : value_type) (v : value) : bool :=
   (typeof v) == t.
 
-Definition rglob_is_mut (g : global) : bool :=
-  g_mut g == MUT_mut.
+Definition cl_type (cl : function_closure) : function_type :=
+  match cl with
+  | FC_func_native _ tf _ _ => tf
+  | FC_func_host tf _ => tf
+  end.
+
+Definition rglob_is_mut (g : module_global) : bool :=
+  g.(modglob_type).(tg_mut) == MUT_var.
 
 Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   match x with
@@ -370,32 +475,69 @@ Definition store_packed := store.
 
 Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
   List.nth_error (inst_types i) j.
-(* TODO: optioned *)
 
-Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option nat :=
+
+Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option funcaddr :=
   List.nth_error (inst_funcs i) j.
 
 Definition sfunc (s : store_record) (i : instance) (j : nat) : option function_closure :=
-  option_bind (List.nth_error (s_funcs s)) (sfunc_ind s i j).
+  match sfunc_ind s i j with
+  | Some a => List.nth_error (s_funcs s) (N.to_nat a)
+  | None => None
+  end.
 
-Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option nat :=
-  List.nth_error (inst_globs i) j.
+                                         
+Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option globaladdr :=
+  List.nth_error (inst_globals i) j.
 
-Definition sglob (s : store_record) (i : instance) (j : nat) : option global :=
-  option_bind (List.nth_error (s_globals s))
-    (sglob_ind s i j).
+Definition sglob (s : store_record) (i : instance) (j : nat) : option globalinst :=
+  match sglob_ind s i j with
+  | Some a => List.nth_error (s_globals s) (N.to_nat a)
+  | None => None
+  end.
 
 Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value :=
   option_map g_val (sglob s i j).
 
-Definition smem_ind (s : store_record) (i : instance) : option nat :=
-  match i.(inst_memory) with
+
+Definition smem_ind (s : store_record) (i : instance) : option memaddr :=
+  match i.(inst_mems) with
   | nil => None
   | cons k _ => Some k
   end.
 
 Definition tab_size (t: tableinst) : nat :=
-  length (table_data t).
+  length (tableinst_elem t).
+
+
+Definition stab_elem (s: store_record) (inst: instance) (x: tableaddr) (i: nat) : option value_ref :=
+  match List.nth_error inst.(inst_tables) x with
+  | Some tabaddr =>
+      match List.nth_error s.(s_tables) tabaddr with
+      | Some tab => List.nth_error tab.(tableinst_elem) i
+      | _ => None
+      end
+  | _ => None
+  end.
+
+
+Definition stab_update (s: store_record) (inst: instance) (x: tableaddr) (i: nat) (tabv: value_ref) : option store_record :=
+  match List.nth_error inst.(inst_tables) x with
+  | Some tabaddr =>
+      match List.nth_error s.(s_tables) tabaddr with
+      | Some tab =>
+          if i < tab_size tab then
+            let: tab' := {| tableinst_type := tab.(tableinst_type);
+                           tableinst_elem := set_nth tabv tab.(tableinst_elem) i tabv |} in
+            let: tabs' := set_nth tab' s.(s_tables) x tab' in
+            Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
+          else None
+      | None => None
+      end
+  | None => None
+  end.
+    
+
 
 (**
   Get the ith table in the store s, and then get the jth index in the table;
@@ -404,16 +546,19 @@ Definition tab_size (t: tableinst) : nat :=
 (**
   There is the interesting use of option_bind (fun x => x) to convert an element
   of type option (option x) to just option x.
-**)
+ **)
+(* TODO: update wrt the new table instructions *)
+(*
 Definition stab_index (s: store_record) (i j: nat) : option nat :=
   let: stabinst := List.nth_error (s_tables s) i in
   option_bind (fun x => x) (
     option_bind
-      (fun stab_i => List.nth_error (table_data stab_i) j)
+      (fun stab_i => List.nth_error (tableinst_elem stab_i) j)
   stabinst).
 
+
 Definition stab_addr (s: store_record) (f: frame) (c: nat) : option nat :=
-  match f.(f_inst).(inst_tab) with
+  match f.(f_inst).(inst_tableaddrs) with
   | nil => None
   | ta :: _ => stab_index s ta c
   end.
@@ -430,13 +575,14 @@ Definition stab (s : store_record) (i : instance) (j : nat) : option function_cl
   | nil => None
   | k :: _ => stab_s s k j
   end.
+ *)
 
-Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option store_record :=
+Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : option store_record :=
   option_map
     (fun g =>
-      let: g' := Build_global (g_mut g) v in
+      let: g' := Build_globalinst (g_type g) v in
       let: gs' := set_nth g' (s_globals s) k g' in
-      Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs')
+      Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs' (s_elems s) (s_datas s))
     (List.nth_error (s_globals s) k).
 
 Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
@@ -447,24 +593,38 @@ Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) 
 Definition is_const (e : administrative_instruction) : bool :=
   if e is AI_basic (BI_const _) then true else false.
 
-Definition const_list (es : seq administrative_instruction) : bool :=
+Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
 
 (* The expected terminal instructions *)
 Definition terminal_form (es: seq administrative_instruction) :=
   const_list es \/ es = [::AI_trap].
 
-Definition glob_extension (g1 g2: global) : bool :=
-  ((g_mut g1 == MUT_mut) || ((g_val g1) == (g_val g2))) &&
-    (g_mut g1 == g_mut g2) &&
-    (typeof (g_val g1) == typeof (g_val g2)).
+Definition func_extension (f1 f2: function_closure) : bool :=
+  f1 == f2.
 
-Definition tab_extension (t1 t2 : tableinst) :=
-  (tab_size t1 <= tab_size t2) &&
-  (t1.(table_max_opt) == t2.(table_max_opt)).
+Definition table_extension (t1 t2 : tableinst) :=
+  (tableinst_type t1 == tableinst_type t2) &&
+  (tab_size t1 <= tab_size t2).
 
-Definition mem_extension (m1 m2 : memory) :=
-  (N.leb (mem_size m1) (mem_size m2)) && (mem_max_opt m1 == mem_max_opt m2).
+Definition mem_extension (m1 m2 : meminst) :=
+  (meminst_type m1 == meminst_type m2) &&
+  (mem_length m1 <= mem_length m2).
+
+Definition global_extension (g1 g2: globalinst) : bool :=
+  (g_type g1 == g_type g2) &&
+    let (mut, t) := g_type g1 in
+    ((mut == MUT_var) || (g_val g1 == g_val g2)).
+
+Definition elem_extension (e1 e2: eleminst) : bool :=
+  (eleminst_elem e1 == eleminst_elem e2) || (eleminst_elem e2 == [::]).
+
+Definition data_extension (d1 d2: datainst) : bool :=
+  (datainst_data d1 == datainst_data d2) || (datainst_data d2 == [::]).
+
+Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list T): bool :=
+  (length l1 <= length l2) &&
+  all2 ext_rel l1 (List.firstn (length l1) l2).
 
 Definition func_extension (f1 f2: function_closure) :=
   f1 == f2.
@@ -474,21 +634,25 @@ Definition comp_extension {T: Type} (l1 l2: list T) (f: T -> T -> bool) : bool :
   (all2 f l1 (take (length l1) l2)).
 
 Definition store_extension (s s' : store_record) : bool :=
-  comp_extension s.(s_funcs) s'.(s_funcs) func_extension &&
-  comp_extension s.(s_tables) s'.(s_tables) tab_extension &&
-  comp_extension s.(s_mems) s'.(s_mems) mem_extension &&
-  comp_extension s.(s_globals) s'.(s_globals) glob_extension.
+  component_extension func_extension s.(s_funcs) s'.(s_funcs) &&
+  component_extension table_extension s.(s_tables) s'.(s_tables) &&
+  component_extension mem_extension s.(s_mems) s'.(s_mems) &&
+  component_extension global_extension s.(s_globals) s'.(s_globals) &&
+  component_extension elem_extension s.(s_elems) s'.(s_elems) &&
+  component_extension data_extension s.(s_datas) s'.(s_datas).
 
-Definition vs_to_vts (vs : seq value) := map typeof vs.
 
-Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruction :=
+
+Definition vs_to_vts (vs : list value) : list value_type := map typeof vs.
+
+Definition to_e_list (bes : list basic_instruction) : seq administrative_instruction :=
   map AI_basic bes.
 
 (* Two versions of converting admin instructions back to basic *)
 Definition to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
   | AI_basic x => x
-  | _ => BI_const (VAL_int32 (Wasm_int.Int32.zero))
+  | _ => BI_const (VAL_num (VAL_int32 (Wasm_int.Int32.zero)))
   end.
 
 Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
@@ -506,18 +670,14 @@ Definition to_b_list_opt (es: seq administrative_instruction) : option (seq basi
 Definition e_is_basic (e: administrative_instruction) :=
   exists be, e = AI_basic be.
 
-Fixpoint es_is_basic (es: seq administrative_instruction) :=
-  match es with
-  | [::] => True
-  | e :: es' =>
-    e_is_basic e /\ es_is_basic es'
-  end.
+Definition es_is_basic (es: list administrative_instruction) :=
+  List.Forall e_is_basic es.
 
 Definition v_to_e (v: value) : administrative_instruction :=
   AI_basic (BI_const v).
 
 (** [v_to_e_list]: 
-    takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
+    takes a list of [v] and gives back a list where each [v] is mapped to the corresponding administrative instruction. **)
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
   map v_to_e ves.
 
@@ -578,11 +738,9 @@ Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
     (e :: es', es'')
   end.
 
+(* TODO: eliminate the use of this *)
 Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
-  match ao with
-  | Some a => f a
-  | None => b
-  end.
+  oapp f b ao.
 
 Definition expect' {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   match ao as ao0 return (ao = ao0) -> B with
@@ -594,17 +752,11 @@ Definition vs_to_es (vs : seq value) : seq administrative_instruction :=
   v_to_e_list (rev vs).
 
 Definition e_is_trap (e : administrative_instruction) : bool :=
-  match e with
-  | AI_trap => true
-  | _ => false
-  end.
+  (e == AI_trap).
 
-(** [es_is_trap es] is equivalent to [es == [:: Trap]]. **)
 Definition es_is_trap (es : seq administrative_instruction) : bool :=
-  match es with
-  | [::e] => e_is_trap e
-  | _ => false
-  end.
+  (es == [:: AI_trap]).
+
 
 (** Converting a result into a stack. **)
 Definition result_to_stack (r : result) :=
@@ -619,13 +771,30 @@ Definition result_types_agree (ts : result_type) r :=
   | result_trap => true
   end.
 
-Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : value_type) : bool :=
+(** std-doc:
+https://www.w3.org/TR/wasm-core-2/exec/runtime.html#exec-expand
+**)
+Definition expand (inst: instance) (tb: block_type) : option function_type :=
+  match tb with
+  | BT_id n => List.nth_error inst.(inst_types) n
+  | BT_valtype (Some t) => Some (Tf [::] [::t])
+  | BT_valtype None => Some (Tf [::] [::])
+  end.
+  
+Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
+  match tb with
+  | BT_id n => List.nth_error C.(tc_type) n
+  | BT_valtype (Some t) => Some (Tf [::] [::t])
+  | BT_valtype None => Some (Tf [::] [::])
+  end.
+  
+Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
-  | None => Nat.pow 2 a <= t_length t
-  | Some tp' => (Nat.pow 2 a <= tp_length tp') && (tp_length tp' < t_length t) && (is_int_t t)
+  | None => Nat.pow 2 a <= tnum_length t
+  | Some tp' => (Nat.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
   end.
 
-Definition cvt_i32 (s : option sx) (v : value) : option i32 :=
+Definition cvt_i32 (s : option sx) (v : value_num) : option i32 :=
   match v with
   | VAL_int32 _ => None
   | VAL_int64 c => Some (wasm_wrap c)
@@ -643,7 +812,7 @@ Definition cvt_i32 (s : option sx) (v : value) : option i32 :=
     end
   end.
 
-Definition cvt_i64 (s : option sx) (v : value) : option i64 :=
+Definition cvt_i64 (s : option sx) (v : value_num) : option i64 :=
   match v with
   | VAL_int32 c =>
     match s with
@@ -666,7 +835,7 @@ Definition cvt_i64 (s : option sx) (v : value) : option i64 :=
     end
   end.
 
-Definition cvt_f32 (s : option sx) (v : value) : option f32 :=
+Definition cvt_f32 (s : option sx) (v : value_num) : option f32 :=
   match v with
   | VAL_int32 c =>
     match s with
@@ -684,7 +853,7 @@ Definition cvt_f32 (s : option sx) (v : value) : option f32 :=
   | VAL_float64 c => Some (wasm_demote c)
   end.
 
-Definition cvt_f64 (s : option sx) (v : value) : option f64 :=
+Definition cvt_f64 (s : option sx) (v : value_num) : option f64 :=
   match v with
   | VAL_int32 c =>
     match s with
@@ -703,7 +872,7 @@ Definition cvt_f64 (s : option sx) (v : value) : option f64 :=
   end.
 
 
-Definition cvt (t : value_type) (s : option sx) (v : value) : option value :=
+Definition cvt (t : number_type) (s : option sx) (v : value_num) : option value_num :=
   match t with
   | T_i32 => option_map VAL_int32 (cvt_i32 s v)
   | T_i64 => option_map VAL_int64 (cvt_i64 s v)
@@ -711,7 +880,7 @@ Definition cvt (t : value_type) (s : option sx) (v : value) : option value :=
   | T_f64 => option_map VAL_float64 (cvt_f64 s v)
   end.
 
-Definition bits (v : value) : bytes :=
+Definition bits (v : value_num) : bytes :=
   match v with
   | VAL_int32 c => serialise_i32 c
   | VAL_int64 c => serialise_i64 c
@@ -719,7 +888,7 @@ Definition bits (v : value) : bytes :=
   | VAL_float64 c => serialise_f64 c
   end.
 
-Definition bitzero (t : value_type) : value :=
+Definition bitzero (t : number_type) : value_num :=
   match t with
   | T_i32 => VAL_int32 (Wasm_int.int_zero i32m)
   | T_i64 => VAL_int64 (Wasm_int.int_zero i64m)
@@ -727,8 +896,22 @@ Definition bitzero (t : value_type) : value :=
   | T_f64 => VAL_float64 (Wasm_float.float_zero f64m)
   end.
 
+
+(** std-doc:
+Each value type has an associated default value; it is the respective value 0 for number types and
+ null for reference types.
+
+https://www.w3.org/TR/wasm-core-2/exec/runtime.html#default-val
+**)
+Definition default_val (t: value_type) : value :=
+  match t with
+  | T_num t => VAL_num (bitzero t)
+  | T_vec t => VAL_vec (VAL_vec128 tt)
+  | T_ref t => VAL_ref (VAL_ref_null t)
+  end.
+
 Definition n_zeros (ts : seq value_type) : seq value :=
-  map bitzero ts.
+  map default_val ts.
 
 End Host.
 
