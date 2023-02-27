@@ -24,32 +24,23 @@ Unset Printing Implicit Defensive.
 
 Definition u32 : Type := N.
 
-Inductive typeidx : Type :=
-| Mk_typeidx : u32 -> typeidx.
+Definition typeidx : Type := u32.
   
-Inductive funcidx : Type :=
-| Mk_funcidx : u32 -> funcidx.
+Definition funcidx : Type := u32.
 
-Inductive tableidx : Type :=
-| Mk_tableidx : u32 -> tableidx.
+Definition tableidx : Type := u32.
 
-Inductive memidx : Type :=
-| Mk_memidx : u32 -> memidx.
+Definition memidx : Type := u32.
 
-Inductive globalidx : Type :=
-| Mk_globalidx : u32 -> globalidx.
+Definition globalidx : Type := u32.
 
-Inductive elemidx : Type :=
-| Mk_elemidx : u32 -> elemidx.
+Definition elemidx : Type := u32.
 
-Inductive dataidx : Type :=
-| Mk_dataidx : u32 -> dataidx.
+Definition dataidx : Type := u32.
 
-Inductive localidx : Type :=
-| Mk_localidx : u32 -> localidx.
+Definition localidx : Type := u32.
 
-Inductive labelidx : Type :=
-| Mk_labelidx : u32 -> labelidx.
+Definition labelidx : Type := u32.
 
 
 (** std-doc:
@@ -67,33 +58,13 @@ instances or immutable globals).
 
 Definition addr := N.
 
-Inductive funcaddr : Type :=
-| Mk_funcaddr : addr -> funcaddr
-.
-
-Inductive tableaddr : Type :=
-| Mk_tableaddr : addr -> tableaddr
-.
-
-Inductive memaddr : Type :=
-| Mk_memaddr : addr -> memaddr
-.
-
-Inductive globaladdr : Type :=
-| Mk_globaladdr : addr -> globaladdr
-.
-
-Inductive elemaddr : Type :=
-| Mk_elemaddr : addr -> elemaddr
-.
-
-Inductive dataaddr : Type :=
-| Mk_dataaddr : addr -> dataaddr
-.
-
-Inductive externaddr : Type :=
-| Mk_externaddr : addr -> externaddr
-.
+Definition funcaddr : Type := addr.
+Definition tableaddr : Type := addr.
+Definition memaddr : Type := addr.
+Definition globaladdr : Type := addr.
+Definition elemaddr : Type := addr.
+Definition dataaddr : Type := addr.
+Definition externaddr : Type := addr.
 
 
 Section Types.
@@ -107,10 +78,10 @@ The types f32 and f64 classify 32 and 64 bit floating-point data, respectively. 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#number-types]
 *)
 Inductive number_type : Type := 
-  | T_num_i32
-  | T_num_i64
-  | T_num_f32
-  | T_num_f64
+  | T_i32
+  | T_i64
+  | T_f32
+  | T_f64
   .
 
 
@@ -126,7 +97,7 @@ Vector types, like number types are transparent, meaning that their bit patterns
 *)
   
 Inductive vector_type : Type :=
-| T_vec_v128
+| T_v128
 .
 
 (** std-doc:
@@ -142,8 +113,8 @@ Reference types are opaque, meaning that neither their size nor their bit patter
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#reference-types]
 *)
 Inductive reference_type : Type := 
-| T_ref_func
-| T_ref_extern
+| T_funcref
+| T_externref
 .
 
 (** std-doc:
@@ -153,9 +124,9 @@ Value types classify the individual values that WebAssembly code can compute wit
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#value-types]
 *)
 Inductive value_type: Type := (* t *)
-| T_numtype: number_type -> value_type
-| T_vectortype: vector_type -> value_type
-| T_reftype: reference_type -> value_type
+| T_num: number_type -> value_type
+| T_vec: vector_type -> value_type
+| T_ref: reference_type -> value_type
 .
 
 
@@ -285,6 +256,7 @@ Definition serialise_f32 (f : f32) : bytes :=
 Definition serialise_f64 (f : f64) : bytes :=
   common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
 
+(*
 (* TODO: factor this out, following the `memory` branch *)
 Module Byte_Index <: array.Index_Sig.
 Definition Index := N.
@@ -303,7 +275,7 @@ Record memory : Type := {
   mem_data : memory_list;
   mem_max_opt: option N; (* TODO: should be u32 *)
 }.
-
+*)
 
 (** Typing context. **)
 (** std-doc:
@@ -319,6 +291,10 @@ in scope:
   their memory type.
 - Globals: the list of globals declared in the current module, represented by
   their global type.
+- Element Segments: the list of element segments declared in the current module,
+  represented by their element type.
+- Data Segments: the list of data segments declared in the current module, each
+  represented by an ok entry.
 - Locals: the list of locals declared in the current function (including
   parameters), represented by their value type.
 - Labels: the stack of labels accessible from the current position, represented
@@ -326,21 +302,28 @@ in scope:
 - Return: the return type of the current function, represented as an optional
   result type that is absent when no return is allowed, as in free-standing
   expressions.
+- References: the list of function indices that occur in the module outside functions and can hence be used to form references inside them.
+
 In other words, a context contains a sequence of suitable types for each index
 space, describing each defined entry in that space. Locals, labels and return
 type are only used for validating instructions in function bodies, and are left
 empty elsewhere. The label stack is the only part of the context that changes
 as validation of an instruction sequence proceeds.
+
+https://www.w3.org/TR/wasm-core-2/valid/conventions.html#contexts
 *)
 Record t_context : Type := {
-  tc_types_t : list function_type;
-  tc_func_t : list function_type;
-  tc_global : list global_type;
+  tc_type : list function_type;
+  tc_func : list function_type;
   tc_table : list table_type;
   tc_memory : list memory_type;
+  tc_global : list global_type;
+  tc_elem : list reference_type;
+  tc_data : list unit;
   tc_local : list value_type;
   tc_label : list (list value_type);
   tc_return : option (list value_type);
+  tc_ref : list funcidx;
 }.
 
 (* TODO: update the name *)
@@ -362,7 +345,7 @@ Inductive value_vec : Type :=
 .
 
 Inductive value_ref : Type :=
-| VAL_ref_null: value_type -> value_ref
+| VAL_ref_null: reference_type -> value_ref
 | VAL_ref_func: funcaddr -> value_ref
 | VAL_ref_extern: externaddr -> value_ref
 .
@@ -372,7 +355,6 @@ Inductive value : Type :=
 | VAL_vec: value_vec -> value
 | VAL_ref: value_ref -> value
 .
-
 
 Inductive result : Type :=
 | result_values : list value -> result
@@ -512,9 +494,9 @@ Inductive basic_instruction : Type := (* be *)
   | BI_table_copy : tableidx -> tableidx -> basic_instruction
   | BI_table_init : tableidx -> elemidx -> basic_instruction
   | BI_elem_drop : elemidx -> basic_instruction
-  (* TODO: add comments on the supported subset *)                     
-  | BI_load : value_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
-  | BI_store : value_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
+  (* TODO: add comments on the implemented subset of instructions *)                     
+  | BI_load : number_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
+  | BI_store : number_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
   | BI_memory_fill
@@ -539,7 +521,6 @@ In some places, validation restricts expressions to be constant, which limits th
 Definition expr := list basic_instruction.
 
 End Instructions.
-  
 
 (* TODO: Unicode support? *)
 Definition name := list Byte.byte.
@@ -740,7 +721,7 @@ size, never exceeds the maximum size of memtype, if present.
 *)
 Record meminst : Type := {
   meminst_type : memory_type;
-  meminst_data: list byte;
+  meminst_data: memory_list;
 }.
 
 
@@ -756,8 +737,8 @@ It is an invariant of the semantics that the value has a type equal to the value
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#global-instances]
 *)
 Record globalinst : Type := {
-  globalinst_type : value_type;
-  globalinst_val : value;
+  g_type : global_type;
+  g_val : value;
 }.
 
 
@@ -811,14 +792,14 @@ instance have different names.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#module-instances]
 *)
-Record moduleinst : Type := (* inst *) {
+Record instance : Type := (* inst *) {
   inst_types : list function_type;
-  inst_funcaddrs : list funcaddr;
-  inst_tableaddrs : list tableaddr;
-  inst_memaddrs : list memaddr;
-  inst_globaladdrs : list globaladdr;
-  inst_elemaddrs : list elemaddr;
-  inst_dataaddrs : list dataaddr;
+  inst_funcs : list funcaddr;
+  inst_tables : list tableaddr;
+  inst_mems : list memaddr;
+  inst_globals : list globaladdr;
+  inst_elems : list elemaddr;
+  inst_datas : list dataaddr;
   inst_exports: list exportinst;  
 }.
 
@@ -837,9 +818,9 @@ constraints that ensure the integrity of the runtime.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#function-instances]
 *)
-Inductive funcinst : Type := (* cl *)
-  | FC_func_native : moduleinst -> function_type -> list basic_instruction -> funcinst
-  | FC_func_host : function_type -> host_function -> funcinst
+Inductive function_closure : Type := (* cl *)
+  | FC_func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
+  | FC_func_host : function_type -> host_function -> function_closure
 .
 
 
@@ -856,7 +837,7 @@ anywhere else but the owning module instances.
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#store]
 *)
 Record store_record : Type := (* s *) {
-  s_funcs : list funcinst;
+  s_funcs : list function_closure;
   s_tables : list tableinst;
   s_mems : list meminst;
   s_globals : list globalinst;
@@ -885,7 +866,7 @@ Inductive extern_value: Type :=
 *)
 Record frame : Type := (* f *) {
   f_locs: list value;
-  f_inst: moduleinst
+  f_inst: instance
 }.
 
 
@@ -913,8 +894,8 @@ Inductive administrative_instruction : Type := (* e *)
 | AI_ref : funcaddr -> administrative_instruction
 | AI_ref_extern: externaddr -> administrative_instruction
 | AI_invoke : funcaddr -> administrative_instruction
-| AI_label : N -> list administrative_instruction -> list administrative_instruction -> administrative_instruction
-| AI_local : N -> frame -> list administrative_instruction -> administrative_instruction
+| AI_label : nat -> list administrative_instruction -> list administrative_instruction -> administrative_instruction
+| AI_local : nat -> frame -> list administrative_instruction -> administrative_instruction
 .
 
 
@@ -927,9 +908,10 @@ This definition allows to index active labels surrounding a branch or return ins
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#block-contexts]
  *)
-Inductive lholed : Type :=
-| LH_base : list value -> list administrative_instruction -> lholed
-| LH_rec : list value -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+Inductive lholed : nat -> Type :=
+| LH_base : list value -> list administrative_instruction -> lholed 0
+| LH_rec : forall {k: nat},
+    list value -> nat -> list administrative_instruction -> lholed k -> list administrative_instruction -> lholed (S k)
 .
 
 
@@ -962,5 +944,10 @@ Inductive res_step : Type :=
 Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
+
+Notation "$VA v" := (AI_basic (BI_const (VAL_num v))) (at level 60). 
+Notation "$VB v" := (BI_const (VAL_num v)) (at level 60). 
+
 Arguments FC_func_native [host_function].
+
 

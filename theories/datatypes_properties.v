@@ -9,8 +9,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Canonical Structure immediate_eqType :=
-  Eval hnf in EqType immediate nat_eqMixin.
+
+(*
 Canonical Structure funcaddr_eqType :=
   Eval hnf in EqType funcaddr nat_eqMixin.
 Canonical Structure tableaddr_eqType :=
@@ -19,6 +19,7 @@ Canonical Structure memaddr_eqType :=
   Eval hnf in EqType memaddr nat_eqMixin.
 Canonical Structure globaladdr_eqType :=
   Eval hnf in EqType globaladdr nat_eqMixin.
+*)
 
 Definition ascii_eq_dec : forall tf1 tf2 : Ascii.ascii,
   {tf1 = tf2} + {tf1 <> tf2}.
@@ -39,6 +40,14 @@ Definition eqbyteP : Equality.axiom byte_eqb :=
 Canonical Structure byte_eqMixin := EqMixin eqbyteP.
 Canonical Structure byte_eqType :=
   Eval hnf in EqType Byte.byte byte_eqMixin.
+
+Scheme Equality for number_type.
+Definition number_type_eqb v1 v2 : bool := number_type_eq_dec v1 v2.
+Definition eqnumber_typeP : Equality.axiom number_type_eqb :=
+  eq_dec_Equality_axiom number_type_eq_dec.
+
+Canonical Structure number_type_eqMixin := EqMixin eqnumber_typeP.
+Canonical Structure number_type_eqType := Eval hnf in EqType number_type number_type_eqMixin.
 
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
@@ -176,6 +185,27 @@ Definition eqvalueP : Equality.axiom value_eqb :=
 Canonical Structure value_eqMixin := EqMixin eqvalueP.
 Canonical Structure value_eqType := Eval hnf in EqType value value_eqMixin.
 
+Definition value_num_eq_dec : forall v1 v2 : value_num, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition value_num_eqb v1 v2 : bool := value_num_eq_dec v1 v2.
+Definition eqvalue_numP : Equality.axiom value_num_eqb :=
+  eq_dec_Equality_axiom value_num_eq_dec.
+
+Canonical Structure value_num_eqMixin := EqMixin eqvalue_numP.
+Canonical Structure value_num_eqType := Eval hnf in EqType value_num value_num_eqMixin.
+
+Definition value_ref_eq_dec : forall v1 v2 : value_ref, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition value_ref_eqb v1 v2 : bool := value_ref_eq_dec v1 v2.
+Definition eqvalue_refP : Equality.axiom value_ref_eqb :=
+  eq_dec_Equality_axiom value_ref_eq_dec.
+
+Canonical Structure value_ref_eqMixin := EqMixin eqvalue_refP.
+Canonical Structure value_ref_eqType := Eval hnf in EqType value_ref value_ref_eqMixin.
+(*
+(* TODO: update *)
 (** Some helper functions for [value] that can safely extract. **)
 Definition value_rec_safe (P : Type)
            (i32 : Wasm_int.Int32.int -> P)
@@ -183,6 +213,7 @@ Definition value_rec_safe (P : Type)
            (f32 : Wasm_float.FloatSize32.T -> P)
            (f64 : Wasm_float.FloatSize64.T -> P) v : P :=
   value_rect i32 i64 f32 f64 v.
+*)
 
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
@@ -215,15 +246,14 @@ Definition eqinstanceP : Equality.axiom instance_eqb :=
 Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
 Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
 
+
+
 Section Host.
 
 Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.
-Let res_step := res_step host_function.*)
 
 Let administrative_instruction_rect :=
   @administrative_instruction_rect (*host_function*)
@@ -251,15 +281,35 @@ Definition eqtableinstP : Equality.axiom tableinst_eqb :=
 Canonical Structure tableinst_eqMixin := EqMixin eqtableinstP.
 Canonical Structure tableinst_eqType := Eval hnf in EqType tableinst tableinst_eqMixin.
 
-Definition global_eq_dec : forall v1 v2 : global, {v1 = v2} + {v1 <> v2}.
+Definition globalinst_eq_dec : forall v1 v2 : globalinst, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 
-Definition global_eqb v1 v2 : bool := global_eq_dec v1 v2.
-Definition eqglobalP : Equality.axiom global_eqb :=
-  eq_dec_Equality_axiom global_eq_dec.
+Definition globalinst_eqb v1 v2 : bool := globalinst_eq_dec v1 v2.
+Definition eqglobalinstP : Equality.axiom globalinst_eqb :=
+  eq_dec_Equality_axiom globalinst_eq_dec.
 
-Canonical Structure global_eqMixin := EqMixin eqglobalP.
-Canonical Structure global_eqType := Eval hnf in EqType global global_eqMixin.
+Canonical Structure globalinst_eqMixin := EqMixin eqglobalinstP.
+Canonical Structure globalinst_eqType := Eval hnf in EqType globalinst globalinst_eqMixin.
+
+Definition eleminst_eq_dec : forall v1 v2 : eleminst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition eleminst_eqb v1 v2 : bool := eleminst_eq_dec v1 v2.
+Definition eqeleminstP : Equality.axiom eleminst_eqb :=
+  eq_dec_Equality_axiom eleminst_eq_dec.
+
+Canonical Structure eleminst_eqMixin := EqMixin eqeleminstP.
+Canonical Structure eleminst_eqType := Eval hnf in EqType eleminst eleminst_eqMixin.
+
+Definition datainst_eq_dec : forall v1 v2 : datainst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition datainst_eqb v1 v2 : bool := datainst_eq_dec v1 v2.
+Definition eqdatainstP : Equality.axiom datainst_eqb :=
+  eq_dec_Equality_axiom datainst_eq_dec.
+
+Canonical Structure datainst_eqMixin := EqMixin eqdatainstP.
+Canonical Structure datainst_eqType := Eval hnf in EqType datainst datainst_eqMixin.
 
 Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
@@ -330,17 +380,59 @@ Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrati
 Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
-Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality.
-       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
-Defined.
 
-Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
-Definition eqlholedP : Equality.axiom lholed_eqb :=
-  eq_dec_Equality_axiom lholed_eq_dec.
+(* We use a known trick to avoid using UIP or JMeq for deciding dependently-typed lholed. *)
 
-Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
-Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
+Lemma lholed_destructP: forall (k: nat) (P: lholed k -> Type),
+    (forall vs es (pf: k = 0),
+        P (eq_rect 0 lholed (LH_base vs es) k (Logic.eq_sym pf))) ->
+    (forall k' vs n es lh' les (pf: k = S k'),
+        P (eq_rect (S k') lholed (LH_rec vs n es lh' les) k (Logic.eq_sym pf))) ->
+    (forall lh, P lh).
+Proof.
+  move => k P Hbase Hrec.
+  destruct lh as [vs es | k vs n es lh' les] eqn:Hlh; subst.
+  - by specialize (Hbase vs es Logic.eq_refl).
+  - by specialize (Hrec k vs n es lh' les Logic.eq_refl).
+Qed.
+
+Ltac lholed_destruct lh :=
+  pattern lh; apply lholed_destructP => //; clear lh.
+
+Definition lholed_eq_dec : forall {k: nat} (lh1 lh2: lholed k), {lh1 = lh2} + {lh1 <> lh2}.
+Proof.
+  move => k lh1; induction lh1 as [vs es | k' vs n es lh' IHdec les]; move => lh2.
+  - lholed_destruct lh2; move => vs2 es2 ?.
+    rewrite <- Eqdep_dec.eq_rect_eq_dec; last by decidable_equality.
+    destruct ((vs == vs2) && (es == es2)) eqn:Heqb;move/andP in Heqb.
+    + destruct Heqb as [Heql1 Heql2]; move/eqP in Heql1; move/eqP in Heql2; subst; by left.
+    + right. move => Hcontra; apply Heqb.
+      inversion Hcontra; by subst.
+  - lholed_destruct lh2; move => k2 vs2 n2 es2 lh'2 les2 Heqk.
+    assert (k' = k2); first by lias. subst.
+    rewrite <- Eqdep_dec.eq_rect_eq_dec; last by decidable_equality.
+    specialize (IHdec lh'2).
+    destruct IHdec as [ | Hneq]; subst.
+    + destruct ((vs == vs2) && (n == n2) && (es == es2) && (les == les2)) eqn:Heqb.
+      * move/andP in Heqb; destruct Heqb as [Heql1 Heql4]; move/eqP in Heql4.
+      * move/andP in Heql1; destruct Heql1 as [Heql1 Heql3]; move/eqP in Heql3.
+        move/andP in Heql1; destruct Heql1 as [Heql1 Heql2]; move/eqP in Heql1; move/eqP in Heql2; subst.
+        by left.
+      * move/andP in Heqb.
+        right. move => Hcontra; apply Heqb.
+        inversion Hcontra; subst; by lias.
+    + right. move => Hcontra.
+      inversion Hcontra as [[H1 H2 H3 H4 H5]].
+      apply Eqdep_dec.inj_pair2_eq_dec in H4 => //.
+      decide equality.
+Qed.
+
+Definition lholed_eqb {k: nat} (lh1 lh2: lholed k) : bool := lholed_eq_dec lh1 lh2.
+Definition eqlholedP {k: nat}: Equality.axiom lholed_eqb :=
+  eq_dec_Equality_axiom (@lholed_eq_dec k).
+
+Canonical Structure lholed_eqMixin {k: nat} := EqMixin (@eqlholedP k).
+Canonical Structure lholed_eqType {k: nat} := Eval hnf in EqType (lholed k) lholed_eqMixin.
 
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
