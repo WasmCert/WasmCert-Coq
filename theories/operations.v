@@ -5,7 +5,7 @@ From Wasm Require Import common memory_list.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
 From Wasm Require Export datatypes_properties list_extra.
-From Coq Require Import BinNat.
+From Coq Require Import BinNat BinNums.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -17,6 +17,24 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
+
+(** std-doc:
+Limits must have meaningful bounds that are within a given range.
+https://www.w3.org/TR/wasm-core-2/valid/types.html#limits
+**)
+Definition limit_valid_range (lim: limits) (k: N) : bool :=
+  (N.leb lim.(lim_min) k) &&
+    match lim.(lim_max) with
+    | Some lmax => (N.leb lim.(lim_min) lmax) && (N.leb lmax k)
+    | None => true
+    end.
+
+Definition limit_valid (lim: limits) : bool :=
+  match lim.(lim_max) with
+  | Some lmax => N.leb lim.(lim_min) lmax
+  | None => true
+  end.
+
 
 (** read `len` bytes from `m` starting at `start_idx` *)
 Definition read_bytes (m : meminst) (start_idx : N) (len : nat) : option bytes :=
@@ -58,6 +76,8 @@ Definition upd_s_mem (s : store_record) (m : list meminst) : store_record :=
 Definition page_size : N := 65536%N.
 
 Definition page_limit : N := 65536%N.
+
+Definition u32_bound : N := 4294967296%N.
 
 Definition ml_valid (m: memory_list) : Prop :=
   N.modulo (memory_list.mem_length m) page_size = 0%N.
@@ -396,6 +416,9 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   | Some y => f y
   end.
 
+(** std-doc:
+Auxiliary operations that look up in different parts of the store through a module instance.
+**)
 Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
   List.nth_error (inst_types i) j.
 
@@ -429,39 +452,84 @@ Definition smem_ind (s : store_record) (i : instance) : option memaddr :=
   | cons k _ => Some k
   end.
 
-Definition tab_size (t: tableinst) : nat :=
-  length (tableinst_elem t).
-
-
-Definition stab_elem (s: store_record) (inst: instance) (x: tableaddr) (i: nat) : option value_ref :=
-  match List.nth_error inst.(inst_tables) x with
-  | Some tabaddr =>
-      match List.nth_error s.(s_tables) tabaddr with
-      | Some tab => List.nth_error tab.(tableinst_elem) i
-      | _ => None
-      end
-  | _ => None
+Definition smem (s: store_record) (inst: instance) : option meminst :=
+  match inst.(inst_mems) with
+  | nil => None
+  | cons k _ => List.nth_error s.(s_mems) k
   end.
 
 
+Definition tab_size (t: tableinst) : nat :=
+  length (tableinst_elem t).
+
+Definition stab (s: store_record) (inst: instance) (x: tableaddr): option tableinst :=
+  match List.nth_error inst.(inst_tables) (N.to_nat x) with
+  | Some tabaddr => List.nth_error s.(s_tables) (N.to_nat tabaddr)
+  | _ => None
+  end.
+    
+Definition stab_elem (s: store_record) (inst: instance) (x: tableaddr) (i: nat) : option value_ref :=
+  match stab s inst x with
+  | Some tab => List.nth_error tab.(tableinst_elem) i
+  | _ => None
+  end.
+
 Definition stab_update (s: store_record) (inst: instance) (x: tableaddr) (i: nat) (tabv: value_ref) : option store_record :=
-  match List.nth_error inst.(inst_tables) x with
-  | Some tabaddr =>
-      match List.nth_error s.(s_tables) tabaddr with
-      | Some tab =>
-          if i < tab_size tab then
-            let: tab' := {| tableinst_type := tab.(tableinst_type);
-                           tableinst_elem := set_nth tabv tab.(tableinst_elem) i tabv |} in
-            let: tabs' := set_nth tab' s.(s_tables) x tab' in
-            Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
-          else None
+  match stab s inst x with
+  | Some tab =>
+      if (Nat.ltb i (tab_size tab)) then
+        let: tab' := {| tableinst_type := tab.(tableinst_type);
+                       tableinst_elem := set_nth tabv tab.(tableinst_elem) i tabv |} in
+        let: tabs' := set_nth tab' s.(s_tables) (N.to_nat x) tab' in
+        Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
+      else None
+  | None => None
+  end.
+
+
+Definition growtable (tab: tableinst) (n: N) (tabinit: value_ref) : option tableinst :=
+  let len := (N.of_nat (tab_size tab) + n)%N in
+  if N.leb u32_bound len then None
+  else
+    let: {| tt_limits := lim; tt_elem_type := tabtype |} := tab.(tableinst_type) in
+    let lim' := {| lim_min := len; lim_max := lim.(lim_max) |} in
+    if limit_valid lim' then
+      let elem' := tab.(tableinst_elem) ++ (List.repeat tabinit (N.to_nat n)) in
+      let tab' := {| tableinst_type := {| tt_limits := lim'; tt_elem_type := tabtype |}; tableinst_elem := elem' |} in
+      Some tab'
+    else
+      None.
+
+Definition stab_grow (s: store_record) (inst: instance) (x: tableaddr) (n: N) (tabinit: value_ref) : option store_record :=
+  match stab s inst x with
+  | Some tab =>
+      match growtable tab n tabinit with
+      | Some tab' => 
+          let tabs' := (set_nth tab' s.(s_tables) (N.to_nat x) tab') in
+          Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
       | None => None
       end
   | None => None
   end.
-    
 
 
+Definition elem_size (t: eleminst) : nat :=
+  length (eleminst_elem t).
+
+Definition selem (s: store_record) (inst: instance) (x: elemaddr): option eleminst :=
+  match List.nth_error inst.(inst_elems) (N.to_nat x) with
+  | Some eaddr => List.nth_error s.(s_elems) (N.to_nat eaddr)
+  | _ => None
+  end.
+
+Definition selem_drop (s: store_record) (inst: instance) (x: tableaddr) : option store_record :=
+  match selem s inst x with
+  | Some elem =>
+      let empty_elem := {| eleminst_type := elem.(eleminst_type); eleminst_elem := [::] |} in
+      let: elems' := set_nth empty_elem s.(s_elems) (N.to_nat x) empty_elem in
+      Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) elems' (s_datas s))
+  | None => None
+  end.
 (**
   Get the ith table in the store s, and then get the jth index in the table;
   in the end, retrieve the corresponding function closure from the store.
@@ -504,9 +572,9 @@ Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : opti
   option_map
     (fun g =>
       let: g' := Build_globalinst (g_type g) v in
-      let: gs' := set_nth g' (s_globals s) k g' in
+      let: gs' := set_nth g' (s_globals s) (N.to_nat k) g' in
       Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs' (s_elems s) (s_datas s))
-    (List.nth_error (s_globals s) k).
+    (List.nth_error (s_globals s) (N.to_nat k)).
 
 Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
   option_bind
@@ -527,11 +595,11 @@ Definition func_extension (f1 f2: function_closure) : bool :=
 
 Definition table_extension (t1 t2 : tableinst) :=
   (tableinst_type t1 == tableinst_type t2) &&
-  (tab_size t1 <= tab_size t2).
+  (Nat.leb (tab_size t1) (tab_size t2)).
 
 Definition mem_extension (m1 m2 : meminst) :=
   (meminst_type m1 == meminst_type m2) &&
-  (mem_length m1 <= mem_length m2).
+  (N.leb (mem_length m1) (mem_length m2)).
 
 Definition global_extension (g1 g2: globalinst) : bool :=
   (g_type g1 == g_type g2) &&
@@ -545,7 +613,7 @@ Definition data_extension (d1 d2: datainst) : bool :=
   (datainst_data d1 == datainst_data d2) || (datainst_data d2 == [::]).
 
 Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list T): bool :=
-  (length l1 <= length l2) &&
+  (Nat.leb (length l1) (length l2)) &&
   all2 ext_rel l1 (List.firstn (length l1) l2).
 
 Definition store_extension (s s' : store_record) : bool :=

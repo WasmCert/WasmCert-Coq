@@ -102,7 +102,7 @@ types in a point-wise manner.
 
 https://www.w3.org/TR/wasm-core-2/valid/instructions.html
  **)
-Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Type :=
+Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 | bet_const : forall C v, be_typing C [::BI_const v] (Tf [::] [::typeof v])
 | bet_unop : forall C t op,
     unop_type_agree t op -> be_typing C [::BI_unop t op] (Tf [::T_num t] [::T_num t])
@@ -238,6 +238,8 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Typ
   be_typing C es (Tf t1s t2s) ->
   be_typing C es (Tf (app ts t1s) (app ts t2s))
 .
+
+
 
 
 (** std-doc:
@@ -384,6 +386,8 @@ with s_typing : store_record -> option (seq value_type) -> frame -> seq administ
 
 Scheme e_typing_ind' := Induction for e_typing Sort Prop
   with s_typing_ind' := Induction for s_typing Sort Prop.
+
+
 
 Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
   cl_typing s fc (cl_type fc).
