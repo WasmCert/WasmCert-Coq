@@ -79,7 +79,7 @@ Inductive res_step' : Type :=
 (* No need to use a sigma type? *)
 
 (* Using this as a TODO placeholder *)
-Axiom admit_wildcard_TODO : forall P : Prop, P.
+Axiom admitted_TODO : forall P : Prop, P.
 
 Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
 Proof. decidable_equality. Defined.
@@ -92,6 +92,7 @@ Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
 Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
 
 Definition crash_error := RS_crash C_error.
+Definition crash_error' := RS'_crash C_error.
 
 Definition depth := nat.
 
@@ -103,132 +104,163 @@ Definition config_one_tuple_without_e := (host_state * store_record * frame * li
 
 Definition res_tuple := (host_state * store_record * frame * res_step)%type.
 
-Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple :=
+(* TODO there is some redundancy here,
+ * hs,s,f are stored both in the tuple and in res_step' *)
+Definition res_tuple' := (host_state * store_record * frame * res_step')%type.
+
+Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple' :=
   let: (hs, s, f, es) := cfg in
   match fuel with
-  | 0 => (hs, s, f, RS_crash C_exhaustion)
+  | 0 => (hs, s, f, RS'_crash C_exhaustion)
   | fuel.+1 =>
     let: (ves, es') := split_vals_e es in (** Framing out constants. **)
     match es' with
-    | [::] => (hs, s, f, crash_error)
+    | [::] => (hs, s, f, crash_error')
     | e :: es'' =>
       if e_is_trap e
       then
         if (es'' != [::]) || (ves != [::])
-        then (hs, s, f, RS_normal [::AI_trap])
-        else (hs, s, f, crash_error)
+        then (hs, s, f, RS'_normal (admitted_TODO (reduce hs s f es hs s f [::AI_trap])))
+        else (hs, s, f, crash_error')
       else
         let: (hs', s', f', r) := run_one_step' fuel d (hs, s, f, (rev ves)) e in
-        if r is RS_normal res
-        then (hs', s', f', RS_normal (res ++ es''))
+        if r is RS'_normal _ _ _ _ _ _ _ res _ (* TODO *)
+        then (hs', s', f', RS'_normal (admitted_TODO (reduce hs s f es hs' s' f' (res ++ es''))))
         else (hs', s', f', r)
     end
   end
 
-with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple :=
+with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple' :=
   let: (hs, s, f, ves) := cfg in
+  let: es0 := (vs_to_es ves) ++ [::e] in (* initial es, useful as an arg for reduce *)
   match fuel with
-  | 0 => (hs, s, f, RS_crash C_exhaustion)
+  | 0 => (hs, s, f, RS'_crash C_exhaustion)
   | fuel.+1 =>
     match e with
     (* unop *)
     | AI_basic (BI_unop t op) =>
       if ves is v :: ves' then
-        (hs, s, f, RS_normal (vs_to_es (app_unop op v :: ves')))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (app_unop op v :: ves')))))
+      else (hs, s, f, crash_error')
     (* binop *)
     | AI_basic (BI_binop t op) =>
       if ves is v2 :: v1 :: ves' then
         expect (app_binop op v1 v2)
-               (fun v => (hs, s, f, RS_normal (vs_to_es (v :: ves'))))
-               (hs, s, f, RS_normal ((vs_to_es ves') ++ [::AI_trap]))
-      else (hs, s, f, crash_error)
+               (fun v => (hs, s, f, RS'_normal (admitted_TODO
+                 (reduce hs s f es0 hs s f (vs_to_es (v :: ves'))))))
+               (hs, s, f, RS'_normal (admitted_TODO
+                 (reduce hs s f es0 hs s f ((vs_to_es ves') ++ [::AI_trap]))))
+      else (hs, s, f, crash_error')
     (* testops *)
     | AI_basic (BI_testop T_i32 testop) =>
       if ves is (VAL_int32 c) :: ves' then
-        (hs, s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: ves')))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_testop T_i64 testop) =>
       if ves is (VAL_int64 c) :: ves' then
-        (hs, s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))
-      else (hs, s, f, crash_error)
-    | AI_basic (BI_testop _ _) => (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: ves')))))
+      else (hs, s, f, crash_error')
+    | AI_basic (BI_testop _ _) => (hs, s, f, crash_error')
     (* relops *)
     | AI_basic (BI_relop t op) =>
       if ves is v2 :: v1 :: ves' then
-        (hs, s, f, RS_normal (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')))))
+      else (hs, s, f, crash_error')
     (* convert & reinterpret *)
     | AI_basic (BI_cvtop t2 CVO_convert t1 sx) =>
       if ves is v :: ves' then
         if types_agree t1 v
         then
           expect (cvt t2 sx v) (fun v' =>
-               (hs, s, f, RS_normal (vs_to_es (v' :: ves'))))
-            (hs, s, f, RS_normal ((vs_to_es ves') ++ [::AI_trap]))
-        else (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+               (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (v' :: ves'))))))
+            (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f ((vs_to_es ves') ++ [::AI_trap]))))
+        else (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) =>
       if ves is v :: ves' then
         if types_agree t1 v && (sx == None)
-        then (hs, s, f, RS_normal (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))
-        else (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+        then (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))))
+        else (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     (**)
-    | AI_basic BI_unreachable => (hs, s, f, RS_normal ((vs_to_es ves) ++ [::AI_trap]))
-    | AI_basic BI_nop => (hs, s, f, RS_normal (vs_to_es ves))
+    | AI_basic BI_unreachable => (hs, s, f, RS'_normal (admitted_TODO
+        (reduce hs s f es0 hs s f ((vs_to_es ves) ++ [::AI_trap]))))
+    | AI_basic BI_nop => (hs, s, f, RS'_normal (admitted_TODO
+        (reduce hs s f es0 hs s f (vs_to_es ves))))
     | AI_basic BI_drop =>
       if ves is v :: ves' then
-        (hs, s, f, RS_normal (vs_to_es ves'))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+        (reduce hs s f es0 hs s f (vs_to_es ves'))))
+      else (hs, s, f, crash_error')
     | AI_basic BI_select =>
       if ves is (VAL_int32 c) :: v2 :: v1 :: ves' then
         if c == Wasm_int.int_zero i32m
-        then (hs, s, f, RS_normal (vs_to_es (v2 :: ves')))
-        else (hs, s, f, RS_normal (vs_to_es (v1 :: ves')))
-      else (hs, s, f, crash_error)
+        then (hs, s, f, RS'_normal (admitted_TODO
+          (reduce hs s f es0 hs s f (vs_to_es (v2 :: ves')))))
+        else (hs, s, f, RS'_normal (admitted_TODO
+          (reduce hs s f es0 hs s f (vs_to_es (v1 :: ves')))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_block (Tf t1s t2s) es) =>
       if length ves >= length t1s
       then
         let: (ves', ves'')  := split_n ves (length t1s) in
-        (hs, s, f, RS_normal (vs_to_es ves''
-                ++ [::AI_label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)]))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+          (reduce hs s f es0 hs s f
+            (vs_to_es ves'' ++ [::AI_label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)])
+        )))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_loop (Tf t1s t2s) es) =>
       if length ves >= length t1s
       then
         let: (ves', ves'') := split_n ves (length t1s) in
-        (hs, s, f, RS_normal (vs_to_es ves''
-                ++ [::AI_label (length t1s) [::AI_basic (BI_loop (Tf t1s t2s) es)]
-                        (vs_to_es ves' ++ to_e_list es)]))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+          (reduce hs s f es0 hs s f
+            (vs_to_es ves''
+                    ++ [::AI_label (length t1s) [::AI_basic (BI_loop (Tf t1s t2s) es)]
+                            (vs_to_es ves' ++ to_e_list es)])
+        )))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_if tf es1 es2) =>
       if ves is VAL_int32 c :: ves' then
         if c == Wasm_int.int_zero i32m
-        then (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es2)]))
-        else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_block tf es1)]))
-      else (hs, s, f, crash_error)
-    | AI_basic (BI_br j) => (hs, s, f, RS_break j ves)
+        then (hs, s, f, RS'_normal (admitted_TODO
+        (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_basic (BI_block tf es2)]))))
+        else (hs, s, f, RS'_normal (admitted_TODO 
+        (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_basic (BI_block tf es1)]))))
+      else (hs, s, f, crash_error')
+    | AI_basic (BI_br j) => (hs, s, f, RS'_break j ves)
     | AI_basic (BI_br_if j) =>
       if ves is VAL_int32 c :: ves' then
         if c == Wasm_int.int_zero i32m
-        then (hs, s, f, RS_normal (vs_to_es ves'))
-        else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
-      else (hs, s, f, crash_error)
+        then (hs, s, f, RS'_normal (admitted_TODO
+        (reduce hs s f es0 hs s f (vs_to_es ves'))))
+        else (hs, s, f, RS'_normal (admitted_TODO
+        (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_basic (BI_br j)]))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_br_table js j) =>
       if ves is VAL_int32 c :: ves' then
         let: k := Wasm_int.nat_of_uint i32m c in
         if k < length js
         then
           expect (List.nth_error js k) (fun js_at_k =>
-              (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br js_at_k)])))
-            (hs, s, f, crash_error)
-        else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_basic (BI_br j)]))
-      else (hs, s, f, crash_error)
+              (hs, s, f, RS'_normal (admitted_TODO
+                (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_basic (BI_br js_at_k)])))))
+            (hs, s, f, crash_error')
+        else (hs, s, f, RS'_normal (admitted_TODO
+               (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_basic (BI_br j)]))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_call j) =>
       if List.nth_error f.(f_inst).(inst_funcs) j is Some a then
-        (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+          (reduce hs s f es0 hs s f (vs_to_es ves ++ [::AI_invoke a]))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_call_indirect j) =>
       if ves is VAL_int32 c :: ves' then
         match stab_addr s f (Wasm_int.nat_of_uint i32m c) with
@@ -236,41 +268,51 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
           match List.nth_error s.(s_funcs) a with
           | Some cl =>
             if stypes s f.(f_inst) j == Some (cl_type cl)
-            then (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke a]))
-            else (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))        
-          | None => (hs, s, f, crash_error)
+            then (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_invoke a]))))
+            else (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_trap]))))
+          | None => (hs, s, f, crash_error')
           end
-        | None => (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+        | None => (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_trap]))))
         end
-      else (hs, s, f, crash_error)
-    | AI_basic BI_return => (hs, s, f, RS_return ves)
+      else (hs, s, f, crash_error')
+    | AI_basic BI_return => (hs, s, f, RS'_return ves)
     | AI_basic (BI_get_local j) =>
       if j < length f.(f_locs)
       then
         expect (List.nth_error f.(f_locs) j) (fun vs_at_j =>
-            (hs, s, f, RS_normal (vs_to_es (vs_at_j :: ves))))
-          (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+            (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (vs_at_j :: ves))))))
+          (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_set_local j) =>
       if ves is v :: ves' then
         if j < length f.(f_locs)
-        then (hs, s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
-        else (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+        then
+          let f' := Build_frame (update_list_at f.(f_locs) j v) f.(f_inst) in
+          (hs, s, f', RS'_normal (admitted_TODO
+            (reduce hs s f es0 hs s f' (vs_to_es ves'))))
+        else (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_tee_local j) =>
       if ves is v :: ves' then
-        (hs, s, f, RS_normal (vs_to_es (v :: ves) ++ [::AI_basic (BI_set_local j)]))
-      else (hs, s, f, crash_error)
+        (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (v :: ves) ++ [::AI_basic (BI_set_local j)]))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_get_global j) =>
       if sglob_val s f.(f_inst) j is Some xx
-      then (hs, s, f, RS_normal (vs_to_es (xx :: ves)))
-      else (hs, s, f, crash_error)
+      then (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (xx :: ves)))))
+      else (hs, s, f, crash_error')
     | AI_basic (BI_set_global j) =>
       if ves is v :: ves' then
         if supdate_glob s f.(f_inst) j v is Some xx
-        then (hs, xx, f, RS_normal (vs_to_es ves'))
-        else (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+        then (hs, xx, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves'))))
+        else (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_load t None a off) =>
       if ves is VAL_int32 k :: ves' then
         expect
@@ -279,11 +321,13 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
                  (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (t_length t))
-                 (fun bs => (hs, s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
-                 (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
-             else (hs, s, f, crash_error))
-          (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+                 (fun bs => (hs, s, f, RS'_normal (admitted_TODO
+                   (reduce hs s f es0 hs s f (vs_to_es (wasm_deserialise bs t :: ves'))))))
+                 (hs, s, f, RS'_normal (admitted_TODO
+                   (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_trap]))))
+             else (hs, s, f, crash_error'))
+          (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_load t (Some (tp, sx)) a off) =>
       if ves is VAL_int32 k :: ves' then
         expect
@@ -292,11 +336,13 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
                  (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t))
-                 (fun bs => (hs, s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
-                 (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
-             else (hs, s, f, crash_error))
-          (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+                 (fun bs => (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (wasm_deserialise bs t :: ves'))))))
+                 (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_trap]))))
+             else (hs, s, f, crash_error'))
+          (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_store t None a off) =>
       if ves is v :: VAL_int32 k :: ves' then
         if types_agree t v
@@ -308,12 +354,15 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
                  expect
                    (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
                    (fun mem' =>
-                      (hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves')))
-                   (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
-               else (hs, s, f, crash_error))
-            (hs, s, f, crash_error)
-        else (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+                      let s' := upd_s_mem s (update_list_at s.(s_mems) j mem') in
+                      (hs, s', f, RS'_normal (admitted_TODO
+                        (reduce hs s f es0 hs s f (vs_to_es ves')))))
+                   (hs, s, f, RS'_normal (admitted_TODO
+                     (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_trap]))))
+               else (hs, s, f, crash_error'))
+            (hs, s, f, crash_error')
+        else (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic (BI_store t (Some tp) a off) =>
       if ves is v :: VAL_int32 k :: ves' then
         if types_agree t v
@@ -325,20 +374,24 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
                  expect
                    (store_packed mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
-                      (hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves')))
-                   (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
-               else (hs, s, f, crash_error))
-            (hs, s, f, crash_error)
-        else (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
+                      let s' := upd_s_mem s (update_list_at s.(s_mems) j mem') in
+                      (hs, s', f, RS'_normal (admitted_TODO
+                         (reduce hs s f es0 hs s' f (vs_to_es ves')))))
+                   (hs, s, f, RS'_normal (admitted_TODO
+                      (reduce hs s f es0 hs s f (vs_to_es ves' ++ [::AI_trap]))))
+               else (hs, s, f, crash_error'))
+            (hs, s, f, crash_error')
+        else (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
     | AI_basic BI_current_memory =>
       expect
         (smem_ind s f.(f_inst))
         (fun j =>
            if List.nth_error s.(s_mems) j is Some s_mem_s_j then
-             (hs, s, f, RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))
-           else (hs, s, f, crash_error))
-        (hs, s, f, crash_error)
+             (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) :: ves)))))
+           else (hs, s, f, crash_error'))
+        (hs, s, f, crash_error')
     | AI_basic BI_grow_memory =>
       if ves is VAL_int32 c :: ves' then
         expect
@@ -348,13 +401,15 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
               let: l := mem_size s_mem_s_j in
               let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
               if mem' is Some mem'' then
-                (hs, upd_s_mem s (update_list_at s.(s_mems) j mem''), f,
-                 RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
-              else (hs, s, f, crash_error)
-            else (hs, s, f, crash_error))
-          (hs, s, f, crash_error)
-      else (hs, s, f, crash_error)
-    | AI_basic (BI_const _) => (hs, s, f, crash_error)
+                let s' := upd_s_mem s (update_list_at s.(s_mems) j mem'') in
+                (hs, s', f,
+                 RS'_normal (admitted_TODO
+                 (reduce hs s f es0 hs s' f (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))))
+              else (hs, s, f, crash_error')
+            else (hs, s, f, crash_error'))
+          (hs, s, f, crash_error')
+      else (hs, s, f, crash_error')
+    | AI_basic (BI_const _) => (hs, s, f, crash_error')
     | AI_invoke a =>
       match List.nth_error s.(s_funcs) a with
       | Some cl => 
@@ -366,9 +421,9 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
             then
             let: (ves', ves'') := split_n ves n in
             let: zs := n_zeros ts in
-            (hs, s, f, RS_normal (vs_to_es ves''
-                    ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))
-            else (hs, s, f, crash_error)
+            (hs, s, f, RS'_normal (admitted_TODO (reduce hs s f es0 hs s f
+              (vs_to_es ves'' ++ [::AI_local m (Build_frame (rev ves' ++ zs) i) [::AI_basic (BI_block (Tf [::] t2s) es)]]))))
+            else (hs, s, f, crash_error')
         | FC_func_host (Tf t1s t2s) cl' =>
             let: n := length t1s in
             let: m := length t2s in
@@ -377,54 +432,64 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
             let: (ves', ves'') := split_n ves n in
             match host_application_impl hs s (Tf t1s t2s) cl' (rev ves') with
             | (hs', Some (s', rves)) =>
-                (hs', s', f, RS_normal (vs_to_es ves'' ++ (result_to_stack rves)))
-            | (hs', None) => (hs', s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
+                (hs', s', f, RS'_normal (admitted_TODO
+                  (reduce hs s f es0 hs' s' f (vs_to_es ves'' ++ (result_to_stack rves)))))
+            | (hs', None) => (hs', s, f, RS'_normal (admitted_TODO
+                (reduce hs s f es0 hs' s f (vs_to_es ves ++ [::AI_invoke a]))))
             end
-            else (hs, s, f, crash_error)
+            else (hs, s, f, crash_error')
         end
-      | None => (hs, s, f, crash_error)
+      | None => (hs, s, f, crash_error')
       end
     | AI_label ln les es =>
       if es_is_trap es
-      then (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
+      then (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves ++ [::AI_trap]))))
       else
         if const_list es
-        then (hs, s, f, RS_normal (vs_to_es ves ++ es))
+        then (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves ++ es))))
         else
           let: (hs', s', f', res) := run_step_with_fuel' fuel d (hs, s, f, es) in
           match res with
-          | RS_break 0 bvs =>
+          | RS'_break 0 bvs =>
             if length bvs >= ln
-            then (hs', s', f', RS_normal ((vs_to_es ((take ln bvs) ++ ves)) ++ les))
-            else (hs', s', f', crash_error)
-          | RS_break (n.+1) bvs => (hs', s', f', RS_break n bvs)
-          | RS_return rvs => (hs', s', f', RS_return rvs)
-          | RS_normal es' =>
-            (hs', s', f', RS_normal (vs_to_es ves ++ [::AI_label ln les es']))
-          | RS_crash error => (hs', s', f', RS_crash error)
+            then (hs', s', f', RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs' s' f' ((vs_to_es ((take ln bvs) ++ ves)) ++ les))))
+            else (hs', s', f', crash_error')
+          | RS'_break (n.+1) bvs => (hs', s', f', RS'_break n bvs)
+          | RS'_return rvs => (hs', s', f', RS'_return rvs)
+          | RS'_normal _ _ _ _ _ _ _ es' _ =>
+            (hs', s', f', RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs' s' f' (vs_to_es ves ++ [::AI_label ln les es']))))
+          | RS'_crash error => (hs', s', f', RS'_crash error)
           end
     | AI_local ln lf es =>
       if es_is_trap es
-      then (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
+      then (hs, s, f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs s f (vs_to_es ves ++ [::AI_trap]))))
       else
         if const_list es
         then
           if length es == ln
-          then (hs, s, f, RS_normal (vs_to_es ves ++ es))
-          else (hs, s, f, crash_error)
+          then (hs, s, f, RS'_normal (admitted_TODO
+                 (reduce hs s f es0 hs s f (vs_to_es ves ++ es))))
+          else (hs, s, f, crash_error')
         else
           let: (hs', s', f', res) := run_step_with_fuel' fuel d (hs, s, lf, es) in
           match res with
-          | RS_return rvs =>
+          | RS'_return rvs =>
             if length rvs >= ln
-            then (hs', s', f, RS_normal (vs_to_es (take ln rvs ++ ves)))
-            else (hs', s', f, crash_error)
-          | RS_normal es' =>
-            (hs', s', f, RS_normal (vs_to_es ves ++ [::AI_local ln f' es']))
-          | RS_crash error => (hs', s', f, RS_crash error)
-          | RS_break _ _ => (hs', s', f, crash_error)
+            then (hs', s', f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs' s' f (vs_to_es (take ln rvs ++ ves)))))
+            else (hs', s', f, crash_error')
+          | RS'_normal _ _ _ _ _ _ _ es' _ =>
+            (hs', s', f, RS'_normal (admitted_TODO
+              (reduce hs s f es0 hs' s' f (vs_to_es ves ++ [::AI_local ln f' es']))))
+          | RS'_crash error => (hs', s', f, RS'_crash error)
+          | RS'_break _ _ => (hs', s', f, crash_error')
           end
-    | AI_trap => (hs, s, f, crash_error)
+    | AI_trap => (hs, s, f, crash_error')
     end
   end.
 
