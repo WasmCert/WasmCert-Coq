@@ -1,7 +1,7 @@
 (** Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import common opsem.
+From Wasm Require Import common opsem properties.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host type_checker.
@@ -108,6 +108,45 @@ Definition res_tuple := (host_state * store_record * frame * res_step)%type.
  * hs,s,f are stored both in the tuple and in res_step' *)
 Definition res_tuple' := (host_state * store_record * frame * res_step')%type.
 
+(* NOTE: could've added something like `ves = v :: ves'` (similarly for es0),
+ * but having to supply a proof of that in non-proof mode would be annoying *)
+(* XXX this came out annoyingly long because of lfilled.
+ * Is there an ltac I'm missing? I saw some lemmas but not sure if they
+ * would've helped much here. I couldn't get (e)auto to do any work here *)
+Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
+  reduce hs s f ((vs_to_es (v :: ves')) ++ [::AI_basic (BI_unop t op)]) hs s f (vs_to_es (app_unop op v :: ves')).
+Proof.
+  intros hs s f t op v ves'.
+  eapply r_label.
+  - apply r_simple.
+    by apply rs_unop.
+  - apply/lfilledP.
+    assert (Hv : vs_to_es (v :: ves') = vs_to_es ves' ++ [::AI_basic (BI_const v)]).
+    { (* XXX why is this not doable by eauto? *)
+      unfold vs_to_es. rewrite rev_cons. unfold v_to_e_list.
+      rewrite map_rcons. rewrite cats1. by reflexivity.
+    }
+    rewrite Hv.
+    assert (cats_assoc :
+      (vs_to_es ves' ++ [:: AI_basic (BI_const v)]) ++ [:: AI_basic (BI_unop t op)]
+      = (vs_to_es ves') ++ ([:: AI_basic (BI_const v)] ++ [:: AI_basic (BI_unop t op)]) ++ [::]
+    ).
+    { rewrite cats0. rewrite catA. by reflexivity. }
+    rewrite cats_assoc.
+    apply LfilledBase.
+    by apply v_to_e_is_const_list.
+
+  - apply/lfilledP.
+    assert (Hv : (vs_to_es (app_unop op v :: ves')) = (vs_to_es ves') ++ [:: AI_basic (BI_const (app_unop op v))] ++ [::]).
+    {
+      unfold vs_to_es. rewrite rev_cons. unfold v_to_e_list.
+      rewrite map_rcons. rewrite cats1. reflexivity.
+    }
+    rewrite Hv.
+    apply LfilledBase.
+    by apply v_to_e_is_const_list.
+Qed.
+
 Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple' :=
   let: (hs, s, f, es) := cfg in
   match fuel with
@@ -140,8 +179,7 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
     (* unop *)
     | AI_basic (BI_unop t op) =>
       if ves is v :: ves' then
-        (hs, s, f, RS'_normal (admitted_TODO
-              (reduce hs s f es0 hs s f (vs_to_es (app_unop op v :: ves')))))
+        (hs, s, f, RS'_normal (reduce_unop hs s f t op v ves'))
       else (hs, s, f, crash_error')
     (* binop *)
     | AI_basic (BI_binop t op) =>
