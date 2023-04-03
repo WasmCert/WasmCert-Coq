@@ -108,44 +108,75 @@ Definition res_tuple := (host_state * store_record * frame * res_step)%type.
  * hs,s,f are stored both in the tuple and in res_step' *)
 Definition res_tuple' := (host_state * store_record * frame * res_step')%type.
 
+(* XXX Is there an ltac I'm missing that would be useful here?
+ * I couldn't get (e)auto to do much work here *)
+Lemma lfilled_helper_1 : forall t op v ves',
+  lfilled 0 (LH_base (vs_to_es ves') [::])
+  [:: AI_basic (BI_const v); AI_basic (BI_unop t op)]
+  (vs_to_es (v :: ves') ++ [:: AI_basic (BI_unop t op)]).
+Proof.
+  intros t op v ves'.
+  apply/lfilledP.
+  assert (Hv : vs_to_es (v :: ves') = vs_to_es ves' ++ [::AI_basic (BI_const v)]).
+  { (* XXX why is this not doable by eauto? *)
+    unfold vs_to_es. rewrite rev_cons. unfold v_to_e_list.
+    rewrite map_rcons. rewrite cats1. by reflexivity.
+  }
+  rewrite Hv.
+  assert (cats_assoc :
+    (vs_to_es ves' ++ [:: AI_basic (BI_const v)]) ++ [:: AI_basic (BI_unop t op)]
+    = (vs_to_es ves') ++ ([:: AI_basic (BI_const v)] ++ [:: AI_basic (BI_unop t op)]) ++ [::]
+  ).
+  { rewrite cats0. rewrite catA. by reflexivity. }
+  rewrite cats_assoc.
+  apply LfilledBase.
+  by apply v_to_e_is_const_list.
+Qed.
+
+Lemma lfilled_helper_2 : forall op v ves',
+  lfilled 0 (LH_base (vs_to_es ves') [::])
+  [:: AI_basic (BI_const (app_unop op v))]
+  (vs_to_es (app_unop op v :: ves')).
+Proof.
+  intros op v ves'.
+  apply/lfilledP.
+  assert (Hv : (vs_to_es (app_unop op v :: ves')) = (vs_to_es ves') ++ [:: AI_basic (BI_const (app_unop op v))] ++ [::]).
+  {
+    unfold vs_to_es. rewrite rev_cons. unfold v_to_e_list.
+    rewrite map_rcons. rewrite cats1. reflexivity.
+  }
+  rewrite Hv.
+  apply LfilledBase.
+  by apply v_to_e_is_const_list.
+Qed.
+
 (* NOTE: could've added something like `ves = v :: ves'` (similarly for es0),
  * but having to supply a proof of that in non-proof mode would be annoying *)
-(* XXX this came out annoyingly long because of lfilled.
- * Is there an ltac I'm missing? I saw some lemmas but not sure if they
- * would've helped much here. I couldn't get (e)auto to do any work here *)
+(* TODO most of the effort here is in the lfilled helpers. Try to generalise
+ * them to apply them in other lemmas. *)
 Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
   reduce hs s f ((vs_to_es (v :: ves')) ++ [::AI_basic (BI_unop t op)]) hs s f (vs_to_es (app_unop op v :: ves')).
 Proof.
   intros hs s f t op v ves'.
   eapply r_label.
-  - apply r_simple.
-    by apply rs_unop.
-  - apply/lfilledP.
-    assert (Hv : vs_to_es (v :: ves') = vs_to_es ves' ++ [::AI_basic (BI_const v)]).
-    { (* XXX why is this not doable by eauto? *)
-      unfold vs_to_es. rewrite rev_cons. unfold v_to_e_list.
-      rewrite map_rcons. rewrite cats1. by reflexivity.
-    }
-    rewrite Hv.
-    assert (cats_assoc :
-      (vs_to_es ves' ++ [:: AI_basic (BI_const v)]) ++ [:: AI_basic (BI_unop t op)]
-      = (vs_to_es ves') ++ ([:: AI_basic (BI_const v)] ++ [:: AI_basic (BI_unop t op)]) ++ [::]
-    ).
-    { rewrite cats0. rewrite catA. by reflexivity. }
-    rewrite cats_assoc.
-    apply LfilledBase.
-    by apply v_to_e_is_const_list.
-
-  - apply/lfilledP.
-    assert (Hv : (vs_to_es (app_unop op v :: ves')) = (vs_to_es ves') ++ [:: AI_basic (BI_const (app_unop op v))] ++ [::]).
-    {
-      unfold vs_to_es. rewrite rev_cons. unfold v_to_e_list.
-      rewrite map_rcons. rewrite cats1. reflexivity.
-    }
-    rewrite Hv.
-    apply LfilledBase.
-    by apply v_to_e_is_const_list.
+  - apply r_simple. by apply rs_unop.
+  - by apply lfilled_helper_1.
+  - by apply lfilled_helper_2.
 Qed.
+
+Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves',
+  app_binop op v1 v2 = Some v ->
+  reduce hs s f ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t op)]) hs s f (vs_to_es (v :: ves')).
+Proof.
+  intros hs s f t op v1 v2 v ves' Hv.
+  eapply r_label.
+  - apply r_simple.
+    apply rs_binop_success.
+    by apply Hv.
+  (* TODO generalise and apply lfilled lemmas *)
+  - give_up.
+  - give_up.
+Admitted.
 
 Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple' :=
   let: (hs, s, f, es) := cfg in
@@ -185,8 +216,10 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
     | AI_basic (BI_binop t op) =>
       if ves is v2 :: v1 :: ves' then
         expect (app_binop op v1 v2)
-               (fun v => (hs, s, f, RS'_normal (admitted_TODO
-                 (reduce hs s f es0 hs s f (vs_to_es (v :: ves'))))))
+               (* XXX how to get proof of `app_binop op v1 v2 = Some v`?
+                * doesn't seem easy in non-proof mode *)
+               (fun v => (hs, s, f, RS'_normal (reduce_binop hs s f t ves' (admitted_TODO (app_binop op v1 v2 = Some v)))))
+               (* XXX need proof of `app_binop op v1 v2 = None` *)
                (hs, s, f, RS'_normal (admitted_TODO
                  (reduce hs s f es0 hs s f ((vs_to_es ves') ++ [::AI_trap]))))
       else (hs, s, f, crash_error')
