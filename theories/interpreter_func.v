@@ -102,6 +102,18 @@ Definition config_tuple := ((host_state * store_record * frame * list administra
 
 Definition config_one_tuple_without_e := (host_state * store_record * frame * list value)%type.
 
+Check config_typing.
+
+Definition config_tuple_typing (cfg : config_tuple) (t : seq value_type) : Prop :=
+  match cfg with
+  | (_, s, f, es) => config_typing s f es t
+  end.
+
+Definition config_tuple_separate_e_typing (cfg : config_one_tuple_without_e) (e : administrative_instruction) (t : seq value_type) : Prop :=
+  match cfg with
+  | (_, s, f, vs) => config_typing s f ((vs_to_es vs) ++ [::e]) t
+  end.
+
 Definition res_tuple := (host_state * store_record * frame * res_step)%type.
 
 (* TODO there is some redundancy here,
@@ -139,7 +151,7 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
-Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple' :=
+Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) (Htype : exists t, config_tuple_typing cfg t) : res_tuple' :=
   let: (hs, s, f, es) := cfg in
   match fuel with
   | 0 => (hs, s, f, RS'_crash C_exhaustion)
@@ -154,14 +166,21 @@ Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) : re
         then (hs, s, f, RS'_normal (admitted_TODO (reduce hs s f es hs s f [::AI_trap])))
         else (hs, s, f, crash_error')
       else
-        let: (hs', s', f', r) := run_one_step' fuel d (hs, s, f, (rev ves)) e in
+        let: (hs', s', f', r) := run_one_step' fuel d (hs, s, f, (rev ves))
+                                   (* TODO:
+                                    * this will need some proof of (es
+                                    * = (rev ves) ++ [::e] ++ es'') (or
+                                    * similar), not sure how that will
+                                    * work*)
+                                   (* mk_config_tuple_separate_e_typing Htype *)
+                                   e in
         if r is RS'_normal _ _ _ _ _ _ _ res _ (* TODO *)
         then (hs', s', f', RS'_normal (admitted_TODO (reduce hs s f es hs' s' f' (res ++ es''))))
         else (hs', s', f', r)
     end
   end
 
-with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (e : administrative_instruction) : res_tuple' :=
+with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (e : administrative_instruction) (* TODO Htype : exists t, config_tuple_separate_e_typing cfg e t*) : res_tuple' :=
   let: (hs, s, f, ves) := cfg in
   let: es0 := (vs_to_es ves) ++ [::e] in (* initial es, useful as an arg for reduce *)
   match fuel with
@@ -482,7 +501,7 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
         then (hs, s, f, RS'_normal (admitted_TODO
               (reduce hs s f es0 hs s f (vs_to_es ves ++ es))))
         else
-          let: (hs', s', f', res) := run_step_with_fuel' fuel d (hs, s, f, es) in
+          let: (hs', s', f', res) := run_step_with_fuel' fuel d (admitted_TODO (exists t, config_tuple_typing (hs, s, f, es) t)) in
           match res with
           | RS'_break 0 bvs =>
             if length bvs >= ln
@@ -508,7 +527,7 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
                  (reduce hs s f es0 hs s f (vs_to_es ves ++ es))))
           else (hs, s, f, crash_error')
         else
-          let: (hs', s', f', res) := run_step_with_fuel' fuel d (hs, s, lf, es) in
+          let: (hs', s', f', res) := run_step_with_fuel' fuel d (admitted_TODO (exists t, config_tuple_typing (hs, s, lf, es) t)) in
           match res with
           | RS'_return rvs =>
             if length rvs >= ln
