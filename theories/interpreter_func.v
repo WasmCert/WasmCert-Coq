@@ -166,21 +166,19 @@ Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) (Hty
         then (hs, s, f, RS'_normal (admitted_TODO (reduce hs s f es hs s f [::AI_trap])))
         else (hs, s, f, crash_error')
       else
-        let: (hs', s', f', r) := run_one_step' fuel d (hs, s, f, (rev ves))
-                                   (* TODO:
-                                    * this will need some proof of (es
-                                    * = (rev ves) ++ [::e] ++ es'') (or
-                                    * similar), not sure how that will
-                                    * work*)
-                                   (* mk_config_tuple_separate_e_typing Htype *)
-                                   e in
+        let: cfg'             := (hs, s, f, (rev ves)) in
+        (* TODO: this will need some proof of (es = (rev ves) ++ [::e] ++ es'')
+         * or similar, not sure how that will work*)
+        let: Htype'           := admitted_TODO (exists t, config_tuple_separate_e_typing cfg' e t) in
+        let: (hs', s', f', r) := run_one_step' fuel d Htype'
+                                   in
         if r is RS'_normal _ _ _ _ _ _ _ res _ (* TODO *)
         then (hs', s', f', RS'_normal (admitted_TODO (reduce hs s f es hs' s' f' (res ++ es''))))
         else (hs', s', f', r)
     end
   end
 
-with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (e : administrative_instruction) (* TODO Htype : exists t, config_tuple_separate_e_typing cfg e t*) : res_tuple' :=
+with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (e : administrative_instruction) (Htype : exists t, config_tuple_separate_e_typing cfg e t) : res_tuple' :=
   let: (hs, s, f, ves) := cfg in
   let: es0 := (vs_to_es ves) ++ [::e] in (* initial es, useful as an arg for reduce *)
   match fuel with
