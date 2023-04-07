@@ -1,7 +1,7 @@
 (** Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import common opsem properties tactic.
+From Wasm Require Import common opsem properties tactic type_preservation type_progress.
 From Coq Require Import ZArith.BinInt.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host type_checker.
@@ -120,6 +120,9 @@ Definition res_tuple := (host_state * store_record * frame * res_step)%type.
  * hs,s,f are stored both in the tuple and in res_step' *)
 Definition res_tuple' := (host_state * store_record * frame * res_step')%type.
 
+(* TODO use that once res_step' finalised *)
+(* Notation "<< hs' , s' , f' , es' >>[ H ]" := (hs', s', f', RS'_normal _ _ _ _ hs' s' f' es' H). *)
+
 (* TODO auto instantiate lh, k? *)
 (* TODO better name *)
 Ltac solve_lfilled_0 :=
@@ -151,6 +154,58 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
+(* TODO should probably use Binop_typing from ./type_preservation.v? *)
+(* TODO use be_typing instead of config_typing? *)
+Lemma binop_typing_inversion : forall (hs : host_state) s f t1 t2 op v1 v2 ves',
+  config_tuple_typing (hs, s, f, ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t2 op)])) t1 ->
+  (* XXX would be easier to start with
+   * be_typing [::v1; v2; AI_basic (BI_binop t2 op)] *)
+  exists v, app_binop op v1 v2 = Some v.
+Proof.
+  intros hs s f t1 t2 op v1 v2 ves' Hctype.
+  destruct (app_binop op v1 v2) eqn:Heqapp.
+  (* TODO need to show typeof v1 = typeof v2 = t1 = t2 *)
+  (* by htype inversion *)
+  - exists v. reflexivity.
+  - destruct t1, t2 => //.
+Admitted.
+
+  (*
+  induction ves'.
+  - simpl in Hctype.
+    inversion Hctype as [????? Hstype].
+    inversion Hstype as [????????? Hetype].
+    inversion Hetype; subst.
+    * assert (Hbes : bes = [:: BI_const v1; BI_const v2; BI_binop t2 op]).
+      { give_up. (* by H12 *) }
+      subst bes. destruct H12.
+      inversion H15.
+    Check Binop_typing.
+    *)
+
+  (*
+  intros hs s f t1 t2 op v1 v2 ves' Hctype.
+  inversion Hctype as [????? Hstype].
+  inversion Hstype as [????????? Hetype].
+  inversion Hetype; subst.
+  - give_up.
+  - repeat rewrite cats1 in H12.
+    assert (Heqe : e = AI_basic (BI_binop t2 op)). { (* by H12 *) give_up. }
+    subst e.
+    inversion H18.
+    * give_up.
+   *)
+
+Lemma reduce_binop' : forall (hs : host_state) s f t2 op v1 v2 ves',
+  (exists t1, config_tuple_typing (hs, s, f, ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t2 op)])) t1) ->
+  exists v, reduce hs s f ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t2 op)]) hs s f (vs_to_es (v :: ves')).
+Proof.
+  intros ???????? [t1 Htype].
+  apply binop_typing_inversion in Htype as [v Hv].
+  exists v. apply reduce_binop. by apply Hv.
+Qed.
+
+(* XXX be_typing instead? *)
 Fixpoint run_step_with_fuel' (fuel : fuel) (d : depth) (cfg : config_tuple) (Htype : exists t, config_tuple_typing cfg t) : res_tuple' :=
   let: (hs, s, f, es) := cfg in
   match fuel with
@@ -193,13 +248,25 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
     (* binop *)
     | AI_basic (BI_binop t op) =>
       if ves is v2 :: v1 :: ves' then
-        expect (app_binop op v1 v2)
-               (* XXX how to get proof of `app_binop op v1 v2 = Some v`?
-                * doesn't seem easy in non-proof mode *)
-               (fun v => (hs, s, f, RS'_normal (reduce_binop hs s f t ves' (admitted_TODO (app_binop op v1 v2 = Some v)))))
-               (* XXX need proof of `app_binop op v1 v2 = None` *)
-               (hs, s, f, RS'_normal (admitted_TODO
-                 (reduce hs s f es0 hs s f ((vs_to_es ves') ++ [::AI_trap]))))
+        let vo := app_binop op v1 v2 in
+        match vo as vo0 return (vo = vo0) -> res_tuple' with
+        | Some v =>
+               fun eq_vo => (hs, s, f, RS'_normal (reduce_binop hs s f t ves' eq_vo))
+        | None =>
+               (* TODO to get proof of False here:
+                * get proof of `app_binop op v1 v2 = None` from the match
+                * get proof of `app_binop op v1 v2 = Some v` from typing inversion *)
+            (*
+               lemma :
+               config_typing es t ->
+               app_binop op ... = None ->
+               False
+               app_binop op ... = None ->
+               config_typing es t ->
+               False
+             *)
+               fun _ => (False_rect res_tuple' (admitted_TODO False))
+        end (Logic.eq_refl vo)
       else (hs, s, f, crash_error')
     (* testops *)
     | AI_basic (BI_testop T_i32 testop) =>
@@ -544,7 +611,7 @@ with run_one_step' (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) 
 
 (***************************************)
 
-Fixpoint run_step_with_fuel_reduce (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple :=
+Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple :=
   let: (hs, s, f, es) := cfg in
   match fuel with
   | 0 => (hs, s, f, RS_crash C_exhaustion)
@@ -832,7 +899,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         if const_list es
         then (hs, s, f, RS_normal (vs_to_es ves ++ es))
         else
-          let: (hs', s', f', res) := run_step_with_fuel' fuel d (hs, s, f, es) in
+          let: (hs', s', f', res) := run_step_with_fuel fuel d (hs, s, f, es) in
           match res with
           | RS_break 0 bvs =>
             if length bvs >= ln
@@ -854,7 +921,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
           then (hs, s, f, RS_normal (vs_to_es ves ++ es))
           else (hs, s, f, crash_error)
         else
-          let: (hs', s', f', res) := run_step_with_fuel' fuel d (hs, s, lf, es) in
+          let: (hs', s', f', res) := run_step_with_fuel fuel d (hs, s, lf, es) in
           match res with
           | RS_return rvs =>
             if length rvs >= ln

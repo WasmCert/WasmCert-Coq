@@ -553,6 +553,12 @@ Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   | None => b
   end.
 
+Definition expect' {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
+  match ao as ao0 return (ao = ao0) -> B with
+  | Some a => (fun _ => f a)
+  | None => fun _ => b
+  end (Logic.eq_refl ao).
+
 Definition vs_to_es (vs : seq value) : seq administrative_instruction :=
   v_to_e_list (rev vs).
 
