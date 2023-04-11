@@ -5,7 +5,7 @@ From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
 Require Import bytes_pp datatypes interpreter.
-Require BinNatDef.
+Require Import BinNat.
 Require Import ansi list_extra.
 
 Open Scope string_scope.
@@ -81,11 +81,18 @@ Definition pp_immediate (i : immediate) : string :=
   (* TODO: it's not clear that's the right way to print it, but hey *)
   string_of_uint (Nat.to_uint i).
 
+Definition pp_Z (z: Z) : string :=
+  match z with
+  | Z0 => "0"
+  | Zpos p => string_of_uint (BinPos.Pos.to_uint p)
+  | Zneg p => "-" ++ string_of_uint (BinPos.Pos.to_uint p)
+  end.
+
 Definition pp_i32 i :=
-  pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int32.unsigned i)).
+  pp_Z (Wasm_int.Int32.signed i).
 
 Definition pp_i64 i :=
-  pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int64.unsigned i)).
+  pp_Z (Wasm_int.Int64.signed i).
 
 (* TODO: all this printing of floats business is highly dubious,
    and completely untested *)
@@ -346,7 +353,7 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
   | AI_basic be => pp_basic_instruction n be
   | AI_trap => indent n (with_fg ae_style "trap" ++ newline)
   | AI_invoke a =>
-    indent n (with_fg ae_style "invoke" ++ string_of_nat a ++ newline)
+    indent n (with_fg ae_style "invoke " ++ string_of_nat a ++ newline)
   (*    pp_function_closure (n.+1) fc*)
            
   | AI_label k es1 es2 =>
