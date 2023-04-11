@@ -203,7 +203,7 @@ Proof.
 Qed.
 
 (* XXX be_typing instead? *)
-Fixpoint run_step_with_fuel' hs s f es (fuel : fuel) (d : depth) (cfg : config_tuple) (Htype : exists t, config_tuple_typing cfg t) : res_step' hs s f es :=
+Fixpoint run_step_with_fuel' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es :=
   match fuel with
   | 0 => RS'_exhaustion hs s f es
   | fuel.+1 =>
@@ -219,16 +219,14 @@ Fixpoint run_step_with_fuel' hs s f es (fuel : fuel) (d : depth) (cfg : config_t
         let: cfg'             := (hs, s, f, (rev ves)) in
         (* TODO: this will need some proof of (es = (rev ves) ++ [::e] ++ es'')
          * or similar, not sure how that will work*)
-        let: Htype'           := admitted_TODO (exists t, config_tuple_separate_e_typing cfg' e t) in
-        let: r := run_one_step' fuel d Htype'
-                                   in
+        let: r := run_one_step' hs s f ves e fuel d in
         if r is RS'_normal hs' s' f' es' _ (* TODO *)
         then RS'_normal (admitted_TODO (reduce hs s f es hs' s' f' (es' ++ es'')))
         else coerce_res _ r (* TODO *)
     end
   end
 
-with run_one_step' hs s f ves e (fuel : fuel) (d : depth) (Htype : exists t, config_tuple_separate_e_typing (hs, s, f, ves) e t) : res_step' hs s f ((vs_to_es ves) ++ [::e]) :=
+with run_one_step' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((vs_to_es ves) ++ [::e]) :=
   let: es0 := (vs_to_es ves) ++ [::e] in (* initial es, useful as an arg for reduce *)
   match fuel with
   | 0 => RS'_exhaustion _ _ _ _
@@ -536,9 +534,7 @@ with run_one_step' hs s f ves e (fuel : fuel) (d : depth) (Htype : exists t, con
         then RS'_normal (admitted_TODO
               (reduce hs s f es0 hs s f (vs_to_es ves ++ es)))
         else
-          match
-            run_step_with_fuel' hs s f es fuel d (admitted_TODO (exists t, config_tuple_typing (hs, s, f, es) t))
-            with
+          match run_step_with_fuel' hs s f es fuel d with
           | RS'_break hs' s' f' 0 bvs =>
             if length bvs >= ln
             then RS'_normal (admitted_TODO
@@ -564,9 +560,7 @@ with run_one_step' hs s f ves e (fuel : fuel) (d : depth) (Htype : exists t, con
                  (reduce hs s f es0 hs s f (vs_to_es ves ++ es)))
           else RS'_error _ _ (admitted_TODO _)
         else
-          match
-            run_step_with_fuel' hs s f es fuel d (admitted_TODO (exists t, config_tuple_typing (hs, s, lf, es) t))
-            with
+          match run_step_with_fuel' hs s f es fuel d with
           | RS'_return hs' s' f' rvs =>
             if length rvs >= ln
             then RS'_normal (admitted_TODO
