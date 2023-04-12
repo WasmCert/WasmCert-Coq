@@ -126,12 +126,12 @@ Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
   try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //.
 
-(* NOTE: could've added something like `ves = v :: ves'` (similarly for es0),
- * but having to supply a proof of that in non-proof mode would be annoying *)
-Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
-  reduce hs s f ((vs_to_es (v :: ves')) ++ [::AI_basic (BI_unop t op)]) hs s f (vs_to_es (app_unop op v :: ves')).
+Lemma reduce_unop : forall (hs : host_state) s f t op v ves' es0,
+  es0 = vs_to_es (v :: ves') ++ [:: AI_basic (BI_unop t op)] ->
+  reduce hs s f es0 hs s f (vs_to_es (app_unop op v :: ves')).
 Proof.
-  intros hs s f t op v ves'.
+  intros hs s f t op v ves' es0 Heqes0.
+  subst es0.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple. by apply rs_unop.
   - by solve_lfilled_0.
@@ -692,9 +692,26 @@ Proof.
     * (* AI_basic (BI_const _) *)
       give_up.
     * (* AI_basic (BI_unop t op) *)
-      give_up.
+      destruct ves as [|v ves'] eqn:Heqves.
+      + (* [::] *)
+        apply (RS'_error _ _ (admitted_TODO _)).
+      + (* v :: ves' *)
+          Check reduce_unop.
+        apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>[
+          reduce_unop _ _ _ Heqes0
+        ].
     * (* AI_basic (BI_binop t op) *)
-      give_up.
+      destruct ves as [|v2 [|v1 ves']] eqn:foobar.
+      + (* [::] *)
+        apply (RS'_error _ _ (admitted_TODO _)).
+      + (* [:: v2] *)
+        apply (RS'_error _ _ (admitted_TODO _)).
+      + (* [:: v2, v1 & ves'] *)
+        destruct (app_binop op v1 v2) as [v|].
+        -- (* Some v *)
+           apply <<hs, s, f, vs_to_es (v :: ves')>>[ admitted_TODO _ ].
+        -- (* None *)
+           apply (RS'_error _ _ (admitted_TODO _)).
     * (* AI_basic (BI_testop _ testop) *) (* TODO match further *)
       give_up.
     * (* AI_basic (BI_relop t op) *)
