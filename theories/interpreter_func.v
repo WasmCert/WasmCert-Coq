@@ -565,8 +565,11 @@ with run_one_step' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((v
     end
   end.
 
-Definition run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es.
+Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
+with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((vs_to_es ves) ++ [::e]).
 Proof.
+  (* NOTE: not indenting the two main subgoals *)
+  (* run_step_with_fuel'' *)
   destruct fuel as [|fuel].
   - (* 0 *)
     apply (RS'_exhaustion hs s f es).
@@ -581,14 +584,12 @@ Proof.
       + destruct ((es'' != [::]) || (ves != [::])).
         -- apply <<hs, s, f, [::AI_trap]>>[admitted_TODO _].
         -- apply (RS'_error hs f (admitted_TODO (~ exists C t, e_typing s C es t))).
-      + remember (run_one_step' hs s f (rev ves) e fuel d) as r.
+      + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
         apply (if r is RS'_normal hs' s' f' es' _
           then <<hs', s', f', (es' ++ es'')>>[admitted_TODO _]
           else coerce_res _ r).
-Defined.
 
-Definition run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((vs_to_es ves) ++ [::e]).
-Proof.
+  (* run_one_step'' *)
   (* initial es, useful as an arg for reduce *)
   remember ((vs_to_es ves) ++ [::e]) as es0 eqn:Heqes0.
   destruct fuel as [|fuel].
