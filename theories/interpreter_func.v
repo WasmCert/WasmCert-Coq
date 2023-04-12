@@ -130,23 +130,23 @@ Lemma reduce_unop : forall (hs : host_state) s f t op v ves' es0,
   es0 = vs_to_es (v :: ves') ++ [:: AI_basic (BI_unop t op)] ->
   reduce hs s f es0 hs s f (vs_to_es (app_unop op v :: ves')).
 Proof.
-  intros hs s f t op v ves' es0 Heqes0.
-  subst es0.
+  intros hs s f t op v ves' es0 ?. subst es0.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple. by apply rs_unop.
   - by solve_lfilled_0.
   - by solve_lfilled_0.
 Qed.
 
-Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves',
+Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves' es0,
+  es0 = vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_binop t op)] ->
   app_binop op v1 v2 = Some v ->
-  reduce hs s f ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t op)]) hs s f (vs_to_es (v :: ves')).
+  reduce hs s f es0 hs s f (vs_to_es (v :: ves')).
 Proof.
-  intros hs s f t op v1 v2 v ves' Hv.
+  intros hs s f t op v1 v2 v ves' es0 ? Heqapp. subst es0.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple.
     apply rs_binop_success.
-    by apply Hv.
+    by apply Heqapp.
   - by solve_lfilled_0.
   - by solve_lfilled_0.
 Qed.
@@ -166,7 +166,6 @@ Proof.
   - exists v. reflexivity.
   - destruct t1, t2 => //.
 Admitted.
-
   (*
   induction ves'.
   - simpl in Hctype.
@@ -179,7 +178,6 @@ Admitted.
       inversion H15.
     Check Binop_typing.
     *)
-
   (*
   intros hs s f t1 t2 op v1 v2 ves' Hctype.
   inversion Hctype as [????? Hstype].
@@ -192,15 +190,6 @@ Admitted.
     inversion H18.
     * give_up.
    *)
-
-Lemma reduce_binop' : forall (hs : host_state) s f t2 op v1 v2 ves',
-  (exists t1, config_tuple_typing (hs, s, f, ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t2 op)])) t1) ->
-  exists v, reduce hs s f ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t2 op)]) hs s f (vs_to_es (v :: ves')).
-Proof.
-  intros ???????? [t1 Htype].
-  apply binop_typing_inversion in Htype as [v Hv].
-  exists v. apply reduce_binop. by apply Hv.
-Qed.
 
 Fixpoint run_step_with_fuel' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es :=
   match fuel with
@@ -707,9 +696,11 @@ Proof.
       + (* [:: v2] *)
         apply (RS'_error _ _ (admitted_TODO _)).
       + (* [:: v2, v1 & ves'] *)
-        destruct (app_binop op v1 v2) as [v|].
+        destruct (app_binop op v1 v2) as [v|] eqn:Heqapp.
         -- (* Some v *)
-           apply <<hs, s, f, vs_to_es (v :: ves')>>[ admitted_TODO _ ].
+           apply <<hs, s, f, vs_to_es (v :: ves')>>[
+             reduce_binop _ _ _ Heqes0 Heqapp
+           ].
         -- (* None *)
            apply (RS'_error _ _ (admitted_TODO _)).
     * (* AI_basic (BI_testop _ testop) *) (* TODO match further *)
