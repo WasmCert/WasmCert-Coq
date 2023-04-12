@@ -202,7 +202,6 @@ Proof.
   exists v. apply reduce_binop. by apply Hv.
 Qed.
 
-(* XXX be_typing instead? *)
 Fixpoint run_step_with_fuel' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es :=
   match fuel with
   | 0 => RS'_exhaustion hs s f es
@@ -576,6 +575,28 @@ with run_one_step' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((v
     | AI_trap => RS'_error _ _ (admitted_TODO _)
     end
   end.
+
+Definition run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es.
+Proof.
+  destruct fuel as [|fuel].
+  - (* 0 *)
+    apply (RS'_exhaustion hs s f es).
+  - (* fuel.+1 *)
+    (** Framing out constants. **)
+    destruct (split_vals_e es) as [ves es'] eqn:Heqes.
+    destruct es' as [|e es''] eqn:Heqes'.
+    * (* es' = [::] *)
+      apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
+    * (* es' = e :: es'' *)
+      destruct (e_is_trap e).
+      + destruct ((es'' != [::]) || (ves != [::])).
+        -- apply <<hs, s, f, [::AI_trap]>>[admitted_TODO _].
+        -- apply (RS'_error hs f (admitted_TODO (~ exists C t, e_typing s C es t))).
+      + remember (run_one_step' hs s f (rev ves) e fuel d) as r.
+        apply (if r is RS'_normal hs' s' f' es' _
+          then <<hs', s', f', (es' ++ es'')>>[admitted_TODO _]
+          else coerce_res _ r).
+Defined.
 
 (***************************************)
 
