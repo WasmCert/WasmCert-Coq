@@ -598,6 +598,119 @@ Proof.
           else coerce_res _ r).
 Defined.
 
+Definition run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((vs_to_es ves) ++ [::e]).
+Proof.
+  (* initial es, useful as an arg for reduce *)
+  remember ((vs_to_es ves) ++ [::e]) as es0 eqn:Heqes0.
+  destruct fuel as [|fuel].
+  - (* 0 *)
+    apply RS'_exhaustion.
+  - (* fuel.+1 *)
+    destruct e as [
+      (* AI_basic *) [
+      (* BI_unreachable *) |
+      (* BI_nop *) |
+      (* BI_drop *) |
+      (* BI_select *) |
+      (* BI_block (Tf t1s t2s) es *) [t1s t2s] es |
+      (* BI_loop (Tf t1s t2s) es *) [t1s t2s] es |
+      (* BI_if tf es1 es2 *) tf es1 es2 |
+      (* BI_br j *) j |
+      (* BI_br_if j *) j |
+      (* BI_br_table js j *) js j |
+      (* BI_return *) |
+      (* BI_call j *) j |
+      (* BI_call_indirect j *) j |
+      (* BI_get_local j *) j |
+      (* BI_set_local j *) j |
+      (* BI_tee_local j *) j |
+      (* BI_get_global j *) j |
+      (* BI_set_global j *) j |
+      (* BI_load t [Some (tp, sx)|None] a off *) t [[tp sx]|] a off |
+      (* BI_store t [Some tp|None] a off *) t [tp|] a off |
+      (* BI_current_memory *) |
+      (* BI_grow_memory *) |
+      (* BI_const _ *) |
+      (* BI_unop t op *) t op |
+      (* BI_binop t op *) t op |
+      (* BI_testop _ testop *) ? testop |
+      (* BI_relop t op *) t op |
+      (* BI_cvtop t2 _ t1 sx *) t2 ? t1 sx ] |
+      (* AI_trap *) |
+      (* AI_invoke a *) a |
+      (* AI_label ln les es *) ln les es |
+      (* AI_local ln lf es *) ln lf es ].
+
+    * (* AI_basic BI_unreachable *)
+      give_up.
+    * (* AI_basic BI_nop *)
+      give_up.
+    * (* AI_basic BI_drop *)
+      give_up.
+    * (* AI_basic BI_select *)
+      give_up.
+    * (* AI_basic (BI_block (Tf t1s t2s) es) *)
+      give_up.
+    * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
+      give_up.
+    * (* AI_basic (BI_if tf es1 t2) *)
+      give_up.
+    * (* AI_basic (BI_br j) *)
+      give_up.
+    * (* AI_basic (BI_br_if j) *)
+      give_up.
+    * (* AI_basic (BI_br_table js j) *)
+      give_up.
+    * (* AI_basic BI_return *)
+      give_up.
+    * (* AI_basic (BI_call j) *)
+      give_up.
+    * (* AI_basic (BI_call_indirect j) *)
+      give_up.
+    * (* AI_basic (BI_get_local j) *)
+      give_up.
+    * (* AI_basic (BI_set_local j) *)
+      give_up.
+    * (* AI_basic (BI_tee_local j) *)
+      give_up.
+    * (* AI_basic (BI_get_global j) *)
+      give_up.
+    * (* AI_basic (BI_set_global j) *)
+      give_up.
+    * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
+      give_up.
+    * (* AI_basic (BI_load t None a off) *)
+      give_up.
+    * (* AI_basic (BI_store t (Some tp) a off) *)
+      give_up.
+    * (* AI_basic (BI_store t None a off) *)
+      give_up.
+    * (* AI_basic BI_current_memory *)
+      give_up.
+    * (* AI_basic BI_grow_memory *)
+      give_up.
+    * (* AI_basic (BI_const _) *)
+      give_up.
+    * (* AI_basic (BI_unop t op) *)
+      give_up.
+    * (* AI_basic (BI_binop t op) *)
+      give_up.
+    * (* AI_basic (BI_testop _ testop) *) (* TODO match further *)
+      give_up.
+    * (* AI_basic (BI_relop t op) *)
+      give_up.
+    * (* AI_basic (BI_cvtop t2 _ t1 sx) *) (* TODO match further *)
+      give_up.
+    * (* AI_trap *)
+      give_up.
+    * (* AI_invoke a *)
+      give_up.
+    * (* AI_label ln les es *)
+      give_up.
+    * (* AI_local ln lf es *)
+      give_up.
+Admitted.
+
 (***************************************)
 
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple :=
