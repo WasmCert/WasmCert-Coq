@@ -52,6 +52,8 @@ Let host_state := host_state host_instance.
 
 (*Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.*)
 
+Let e_typing := @e_typing host_function.
+
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
 
@@ -74,6 +76,22 @@ Inductive res_step'
 | RS'_break : host_state -> store_record -> frame -> nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_return : host_state -> store_record -> frame -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_normal hs' s' f' es': reduce hs s f es hs' s' f' es' -> res_step' hs s f es.
+
+Inductive res_step'_separate_e
+  (hs : host_state) (s : store_record) (f : frame)
+  (ves : list value) (e : administrative_instruction) : Type :=
+| RS''_exhaustion : res_step'_separate_e hs s f ves e
+| RS''_error (inst : instance) :
+    (~ exists C ts1 ts2 ts1',
+      map typeof ves = ts1' ++ ts1 /\
+      inst_typing s inst C /\
+      e_typing s C ((vs_to_es ves) ++ [::e]) (Tf ts1 ts2)) ->
+    res_step'_separate_e hs s f ves e
+(* | RS''_break *)
+(* | RS''_return *)
+| RS''_normal hs' s' f' es' :
+    reduce hs s f ((vs_to_es ves) ++ [::e]) hs' s' f' es' ->
+    res_step'_separate_e hs s f ves e.
 
 (* Notation for RS'_normal. This forces hs', s', f' es' to be explicitly
  * stated. Their values could be inferred from the type of H instead but we
@@ -136,6 +154,27 @@ Proof.
   - by solve_lfilled_0.
   - by solve_lfilled_0.
 Qed.
+
+(* TODO see Unop_typing in type_preservation *)
+Lemma unop_error' : forall s inst ves t op,
+  ves = [::] ->
+  (~ exists C t1s t2s t1s',
+    map typeof ves = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C ((vs_to_es ves) ++ [:: AI_basic (BI_unop t op)]) (Tf t1s t2s)).
+Proof.
+  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves.
+  simpl in Ht1s.
+  assert (t1s = [::]). { by destruct t1s' => //. }
+  subst t1s.
+  simpl in Hetype. inversion Hetype => //.
+  - assert (bes = [:: BI_unop t op]). { (* by H. *) give_up. }
+    subst bes.
+    inversion H2.
+    assert (es = [::]). { (* by H4 *) give_up. } subst es.
+    inversion H8.
+Admitted.
 
 Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves' es0,
   es0 = vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_binop t op)] ->
@@ -567,6 +606,7 @@ with run_one_step' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((v
 
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step' hs s f ((vs_to_es ves) ++ [::e]).
+(* TODO should use res_step'_separate_e *)
 Proof.
   (* NOTE: not indenting the two main subgoals *)
   (* run_step_with_fuel'' *)
@@ -583,7 +623,7 @@ Proof.
       destruct (e_is_trap e).
       + destruct ((es'' != [::]) || (ves != [::])).
         -- apply <<hs, s, f, [::AI_trap]>>[admitted_TODO _].
-        -- apply (RS'_error hs f (admitted_TODO (~ exists C t, e_typing s C es t))).
+        -- apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
         apply (if r is RS'_normal hs' s' f' es' _
           then <<hs', s', f', (es' ++ es'')>>[admitted_TODO _]
@@ -684,7 +724,8 @@ Proof.
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
-        apply (RS'_error _ _ (admitted_TODO _)).
+        Check (unop_error Heqes0).
+        apply (RS'_error _ _ (unop_error Heqes0)).
       + (* v :: ves' *)
           Check reduce_unop.
         apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>[
