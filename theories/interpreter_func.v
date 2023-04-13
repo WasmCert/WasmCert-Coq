@@ -53,6 +53,7 @@ Let host_state := host_state host_instance.
 (*Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.*)
 
 Let e_typing := @e_typing host_function.
+Let inst_typing := @inst_typing host_function.
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
@@ -155,8 +156,40 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
-(* TODO see Unop_typing in type_preservation *)
-Lemma unop_error' : forall s inst ves t op,
+(* NOTE unused, simpler version of unop_error *)
+Lemma unop_error_be : forall s inst ves t op,
+  ves = [::] ->
+  (~ exists C t1s t2s t1s',
+    map typeof ves = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    be_typing C ((map BI_const ves) ++ [:: BI_unop t op]) (Tf t1s t2s)).
+Proof.
+  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hbtype]]]]]].
+  subst ves.
+  assert (t1s = [::]). { by destruct t1s' => //. } subst t1s.
+  apply Unop_typing in Hbtype as [? [ts ?]].
+  by destruct ts => //.
+Qed.
+
+(* NOTE seems like this wasn't needed, proved unop_error directly instead *)
+Lemma unop_error_helper : forall s t op C ts,
+  ~ e_typing s C [:: AI_basic (BI_unop t op)] (Tf [::] ts).
+Proof.
+  intros s t op C ts Hetype.
+  gen_ind_subst Hetype.
+  - assert (bes = [:: BI_unop t op]). { give_up. (* by H3 *) } subst bes.
+    apply Unop_typing in H as [? [ts' ?]].
+    by destruct ts' => //.
+  - assert (e = AI_basic (BI_unop t op)). { give_up. (* by H2 *) } subst e.
+    assert (es = [::]). { give_up. (* by H2 *) } subst es.
+    assert (t2s = [::]). { give_up. (* by Hetype1 *) } subst t2s.
+    by eapply IHHetype2 => //.
+  - assert (t1s = [::]). { apply cat0_inv in H3 as [??]. by assumption. } subst t1s.
+    by eapply IHHetype => //.
+Admitted.
+
+(* XXX could move C t1s t2s t1s' into the forall without changing semantics *)
+Lemma unop_error : forall s inst ves t op,
   ves = [::] ->
   (~ exists C t1s t2s t1s',
     map typeof ves = t1s' ++ t1s /\
@@ -165,16 +198,22 @@ Lemma unop_error' : forall s inst ves t op,
 Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
-  simpl in Ht1s.
-  assert (t1s = [::]). { by destruct t1s' => //. }
-  subst t1s.
-  simpl in Hetype. inversion Hetype => //.
-  - assert (bes = [:: BI_unop t op]). { (* by H. *) give_up. }
-    subst bes.
-    inversion H2.
-    assert (es = [::]). { (* by H4 *) give_up. } subst es.
-    inversion H8.
-Admitted.
+  gen_ind_subst Hetype.
+  - symmetry in H4. apply cat0_inv in H4 as [??]. subst t1s t1s'.
+    assert (bes = [:: BI_unop t op]).
+    { repeat destruct bes => //. simpl in H3. by inversion H3. } subst bes.
+    apply Unop_typing in H as [? [ts ?]]. by destruct ts => //.
+  - assert (es = [::]).
+    { destruct es => //. apply extract_list1 in H2 as [H?]. discriminate H. }
+    subst es.
+    assert (e = AI_basic (BI_unop t op)). { simpl in H2. by inversion H2. } subst e.
+    symmetry in H3. apply cat0_inv in H3 as [??]. subst t1s' t1s0.
+    assert (t2s = [::]). { by apply empty_e_typing in Hetype1. } subst t2s.
+    eapply IHHetype2 => //. by assumption.
+    (* alt: by apply (unop_error_helper Hetype2). *)
+  - symmetry in H3. repeat apply cat0_inv in H3 as [? H3]. subst t1s t1s'.
+    eapply IHHetype => //. by assumption.
+Qed.
 
 Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves' es0,
   es0 = vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_binop t op)] ->
@@ -724,8 +763,10 @@ Proof.
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
-        Check (unop_error Heqes0).
-        apply (RS'_error _ _ (unop_error Heqes0)).
+        assert (inst : instance). { give_up. (* TODO need an instance *) }
+        (* TODO need to change return type to be able to apply RS''_error *)
+        Check (@RS''_error hs s f ves _ inst (unop_error Heqves)).
+        give_up.
       + (* v :: ves' *)
           Check reduce_unop.
         apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>[

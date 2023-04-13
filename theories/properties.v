@@ -966,6 +966,19 @@ Proof.
   + apply bet_weakening. by eapply IHHType => //.
 Qed.
 
+(* TODO is this a good place for this lemma?
+ * is it even needed? maybe this is obtainable from empty_typing in a simpler way *)
+Lemma empty_e_typing: forall s C t1s t2s,
+    e_typing s C [::] (Tf t1s t2s) ->
+    t1s = t2s.
+Proof.
+  move => s C t1s t2s HType.
+  gen_ind_subst HType => //.
+  - assert (bes = [::]). by destruct bes => //. subst bes. by apply (empty_typing H).
+  - by destruct es => //.
+  - assert (t1s = t2s). by eapply IHHType => //. by subst t1s.
+Qed.
+
 Section composition_typing_proofs.
 
 Hint Constructors be_typing : core.
