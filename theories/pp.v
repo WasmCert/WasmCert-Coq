@@ -81,11 +81,17 @@ Definition pp_immediate (i : immediate) : string :=
   (* TODO: it's not clear that's the right way to print it, but hey *)
   string_of_uint (Nat.to_uint i).
 
+Definition pp_N (n: N) : string :=
+  string_of_uint (N.to_uint n).
+
+Definition pp_positive (p: positive) : string :=
+  string_of_uint (BinPos.Pos.to_uint p).
+
 Definition pp_Z (z: Z) : string :=
   match z with
   | Z0 => "0"
-  | Zpos p => string_of_uint (BinPos.Pos.to_uint p)
-  | Zneg p => "-" ++ string_of_uint (BinPos.Pos.to_uint p)
+  | Zpos p => pp_positive p
+  | Zneg p => "-" ++ pp_positive p
   end.
 
 Definition pp_i32 i :=
@@ -229,8 +235,8 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   | ROF_ge => "ge"
   end.
 
-Definition pp_memarg a o : string :=
-  "offset=" ++ pp_immediate o ++ " " ++ "align=" ++ pp_immediate a.
+Definition pp_memarg (a: alignment_exponent) (o: static_offset) : string :=
+  "offset=" ++ pp_N o ++ " " ++ "align=" ++ pp_N a.
 
 Definition pp_packing (p : packed_type) :=
   match p with
