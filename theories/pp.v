@@ -81,11 +81,17 @@ Definition pp_immediate (i : immediate) : string :=
   (* TODO: it's not clear that's the right way to print it, but hey *)
   string_of_uint (Nat.to_uint i).
 
+Definition pp_N (n: N) : string :=
+  string_of_uint (N.to_uint n).
+
+Definition pp_positive (p: positive) : string :=
+  string_of_uint (BinPos.Pos.to_uint p).
+
 Definition pp_Z (z: Z) : string :=
   match z with
   | Z0 => "0"
-  | Zpos p => string_of_uint (BinPos.Pos.to_uint p)
-  | Zneg p => "-" ++ string_of_uint (BinPos.Pos.to_uint p)
+  | Zpos p => pp_positive p
+  | Zneg p => "-" ++ pp_positive p
   end.
 
 Definition pp_i32 i :=
@@ -229,8 +235,8 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   | ROF_ge => "ge"
   end.
 
-Definition pp_ao a o : string :=
-  pp_immediate a ++ " " ++ pp_immediate o.
+Definition pp_memarg (a: alignment_exponent) (o: static_offset) : string :=
+  "offset=" ++ pp_N o ++ " " ++ "align=" ++ pp_N a.
 
 Definition pp_packing (p : packed_type) :=
   match p with
@@ -294,13 +300,13 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
   | BI_set_global x =>
     indent i (with_fg be_style "global.set " ++ pp_immediate x ++ newline)
   | BI_load vt None a o =>
-    indent i (pp_value_type vt ++ ".load " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".load " ++ pp_memarg a o ++ newline)
   | BI_load vt (Some ps) a o =>
-    indent i (pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_memarg a o ++ newline)
   | BI_store vt None a o =>
-    indent i (pp_value_type vt ++ ".store " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".store " ++ pp_memarg a o ++ newline)
   | BI_store vt (Some p) a o =>
-    indent i (pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_memarg a o ++ newline)
   | BI_current_memory =>
     indent i (with_fg be_style "memory.size" ++ newline ++ newline)
   | BI_grow_memory =>
