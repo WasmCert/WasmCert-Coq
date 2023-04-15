@@ -220,6 +220,27 @@ Proof. intros ???. apply contra_not. by apply seq_size_eq. Qed.
 
 From Coq Require Import PeanoNat.
 
+Lemma plus0_helper : forall (x y : nat),
+  x = y + x -> y = 0.
+Proof.
+  intros x y H.
+  destruct y => //.
+  induction x as [|x IHx] => //.
+  injection H as H.
+  apply IHx.
+Admitted.
+
+Lemma cat_helper : forall A (xs ys : seq A),
+  xs = ys ++ xs -> ys = [::].
+Proof.
+  intros A xs ys Heq.
+  destruct ys => //. exfalso.
+  apply seq_size_eq in Heq.
+  rewrite size_cat in Heq.
+  simpl in Heq.
+  by apply plus0_helper in Heq => //.
+Qed.
+
 Lemma binop_error_1 : forall s inst ves t op v,
   ves = [:: v] ->
   ~ exists C t1s t2s t1s',
@@ -232,58 +253,32 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   simpl in Hbtype.
 
-  (* no longer applicable *)
-  (* show t1s = t1s' = [::] *)
-  (* symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'. *)
-
   replace [:: BI_const v; BI_binop t op] with ([:: BI_const v] ++ [:: BI_binop t op]) in Hbtype => //.
-  Check composition_typing.
   apply composition_typing in Hbtype
     as [ts [t1s'' [t2s'' [t3s [Heqt1s [Heqt2s [Hbtype1 Hbtype2]]]]]]].
+    subst t1s t2s.
 
   replace [:: BI_const v] with (to_b_list (v_to_e_list [:: v])) in Hbtype1 => //.
-  apply Const_list_typing in Hbtype1. simpl in Hbtype1. subst t1s t2s t3s.
-  simpl in Ht1s.
+  apply Const_list_typing in Hbtype1. simpl in Hbtype1, Ht1s. subst t3s.
   apply Binop_typing in Hbtype2 as [? [ts' ?]]. subst t2s''.
-  destruct t1s''.
-  - (* if t1s'' is empty then H is an easy contradiction *)
-    give_up.
-  - (* if t1s'' is non-empty then from Ht1s we get t1s' = ts = t1s'' = [::] *)
-    assert (ts = [::]). { by give_up. }
-    assert (t1s' = [::]). { by give_up. }
-    assert (t1s'' = [::]). { by give_up. }
-    subst ts t1s' t1s''.
-    assert (ts' = [::]). { by give_up. (* by H *) }
-    subst ts'.
-    simpl in *.
-    (* arrived at no contradiction? *)
-    (* Hetype : e_typing s C [:: AI_basic (BI_const v); AI_basic (BI_binop t op)]
-     * (Tf [:: v0] [:: t]) *)
 
-  (* apply Binop_typing in Hbtype2 as [? [??]]. *)
-  (* replace [:: BI_const v] with (to_b_list (v_to_e_list [:: v])) in Hbtype1 => //. *)
-  (* subst t2s''. *)
-  (* apply Const_list_typing in Hbtype1. *)
-  (* simpl in Hbtype1. *)
-  (**)
-  (* destruct t1s. *)
-  (* - symmetry in Heqt1s. apply cat0_inv in Heqt1s as [??]. subst ts t1s'' t3s. *)
-  (*   apply seq_size_eq in H. simpl in H. *)
-  (*   rewrite size_cat in H. simpl in H. *)
-  (*   assert (H0 : 0 = size (x ++ [:: t])). *)
-  (*   { (* XXX there must be a better way to do this *) *)
-  (*     rewrite <- Nat.add_comm in H. *)
-  (*     destruct (size (x ++ [:: t])) => //. *)
-  (*   } *)
-  (*   (* XXX should make a lemma for [::] <> xs ++ [:: x]? *) *)
-  (*   rewrite size_cat in H0. simpl in H0. rewrite <- Nat.add_comm in H. *)
-  (*   by destruct (size x) => //. *)
-  (* - simpl in Ht1s. *)
-  (*   assert (t1s = [::]). { give_up. (* by Ht1s *) } subst t1s. *)
-  (*   assert (t1s' = [::]). { give_up. (* by Ht1s *) } subst t1s'. *)
-  (*   simpl in *. *)
-  (*   subst t3s. *)
-Qed.
+  rewrite cats1 in H. rewrite cats1 in H.
+  apply rcons_inj in H. apply pair_equal_spec in H as [??].
+  subst t t1s''.
+
+  replace (t1s' ++ ts ++ ts' ++ [:: typeof v])
+    with ((t1s' ++ ts ++ ts') ++ [:: typeof v]) in Ht1s;
+    last by repeat rewrite <- catA.
+  apply cat_helper in Ht1s.
+  repeat apply cat0_inv in Ht1s as [? Ht1s].
+  subst t1s' ts ts'.
+  simpl in *.
+
+  (* arrived at no contradiction? *)
+  (* Hetype : e_typing s C *)
+  (*            [:: AI_basic (BI_const v); AI_basic (BI_binop (typeof v) op)] *)
+  (*            (Tf [:: typeof v] [:: typeof v]) *)
+Admitted.
 
 (* TODO should probably use Binop_typing from ./type_preservation.v? *)
 (* TODO use be_typing instead of config_typing? *)
