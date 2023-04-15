@@ -162,10 +162,10 @@ Qed.
 (* XXX could move C t1s t2s t1s' into the forall without changing semantics *)
 Lemma unop_error : forall s inst ves t op,
   ves = [::] ->
-  (~ exists C t1s t2s t1s',
+  ~ exists C t1s t2s t1s',
     map typeof ves = t1s' ++ t1s /\
     inst_typing s inst C /\
-    e_typing s C ((vs_to_es ves) ++ [:: AI_basic (BI_unop t op)]) (Tf t1s t2s)).
+    e_typing s C ((vs_to_es ves) ++ [:: AI_basic (BI_unop t op)]) (Tf t1s t2s).
 Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves. simpl in Hetype.
@@ -188,6 +188,101 @@ Proof.
     by apply Heqapp.
   - by solve_lfilled_0.
   - by solve_lfilled_0.
+Qed.
+
+Lemma binop_error_0 : forall s inst ves t op,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    map typeof ves = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C (vs_to_es ves ++ [:: AI_basic (BI_binop t op)]) (Tf t1s t2s).
+Proof.
+  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves. simpl in Hetype.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  (* show t1s = t1s' = [::] *)
+  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
+  apply Binop_typing in Hbtype as [? [??]]. destruct t2s => //.
+Qed.
+
+Lemma seq_size_eq : forall A (xs ys : seq A),
+  xs = ys -> size xs = size ys.
+Proof.
+  intros ? xs ys ?.
+  generalize dependent ys. induction xs; destruct ys => //.
+  intros. f_equal => //.
+Qed.
+
+(* XXX unused *)
+Lemma seq_size_eq_contra : forall A (xs ys : seq A),
+  size xs <> size ys -> xs <> ys.
+Proof. intros ???. apply contra_not. by apply seq_size_eq. Qed.
+
+From Coq Require Import PeanoNat.
+
+Lemma binop_error_1 : forall s inst ves t op v,
+  ves = [:: v] ->
+  ~ exists C t1s t2s t1s',
+    map typeof ves = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C (vs_to_es ves ++ [:: AI_basic (BI_binop t op)]) (Tf t1s t2s).
+Proof.
+  intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves. simpl in Hetype.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  simpl in Hbtype.
+
+  (* no longer applicable *)
+  (* show t1s = t1s' = [::] *)
+  (* symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'. *)
+
+  replace [:: BI_const v; BI_binop t op] with ([:: BI_const v] ++ [:: BI_binop t op]) in Hbtype => //.
+  Check composition_typing.
+  apply composition_typing in Hbtype
+    as [ts [t1s'' [t2s'' [t3s [Heqt1s [Heqt2s [Hbtype1 Hbtype2]]]]]]].
+
+  replace [:: BI_const v] with (to_b_list (v_to_e_list [:: v])) in Hbtype1 => //.
+  apply Const_list_typing in Hbtype1. simpl in Hbtype1. subst t1s t2s t3s.
+  simpl in Ht1s.
+  apply Binop_typing in Hbtype2 as [? [ts' ?]]. subst t2s''.
+  destruct t1s''.
+  - (* if t1s'' is empty then H is an easy contradiction *)
+    give_up.
+  - (* if t1s'' is non-empty then from Ht1s we get t1s' = ts = t1s'' = [::] *)
+    assert (ts = [::]). { by give_up. }
+    assert (t1s' = [::]). { by give_up. }
+    assert (t1s'' = [::]). { by give_up. }
+    subst ts t1s' t1s''.
+    assert (ts' = [::]). { by give_up. (* by H *) }
+    subst ts'.
+    simpl in *.
+    (* arrived at no contradiction? *)
+    (* Hetype : e_typing s C [:: AI_basic (BI_const v); AI_basic (BI_binop t op)]
+     * (Tf [:: v0] [:: t]) *)
+
+  (* apply Binop_typing in Hbtype2 as [? [??]]. *)
+  (* replace [:: BI_const v] with (to_b_list (v_to_e_list [:: v])) in Hbtype1 => //. *)
+  (* subst t2s''. *)
+  (* apply Const_list_typing in Hbtype1. *)
+  (* simpl in Hbtype1. *)
+  (**)
+  (* destruct t1s. *)
+  (* - symmetry in Heqt1s. apply cat0_inv in Heqt1s as [??]. subst ts t1s'' t3s. *)
+  (*   apply seq_size_eq in H. simpl in H. *)
+  (*   rewrite size_cat in H. simpl in H. *)
+  (*   assert (H0 : 0 = size (x ++ [:: t])). *)
+  (*   { (* XXX there must be a better way to do this *) *)
+  (*     rewrite <- Nat.add_comm in H. *)
+  (*     destruct (size (x ++ [:: t])) => //. *)
+  (*   } *)
+  (*   (* XXX should make a lemma for [::] <> xs ++ [:: x]? *) *)
+  (*   rewrite size_cat in H0. simpl in H0. rewrite <- Nat.add_comm in H. *)
+  (*   by destruct (size x) => //. *)
+  (* - simpl in Ht1s. *)
+  (*   assert (t1s = [::]). { give_up. (* by Ht1s *) } subst t1s. *)
+  (*   assert (t1s' = [::]). { give_up. (* by Ht1s *) } subst t1s'. *)
+  (*   simpl in *. *)
+  (*   subst t3s. *)
 Qed.
 
 (* TODO should probably use Binop_typing from ./type_preservation.v? *)
@@ -357,9 +452,11 @@ Proof.
           reduce_unop _ _ _ _ _ _ _
         ].
     * (* AI_basic (BI_binop t op) *)
-      destruct ves as [|v2 [|v1 ves']] eqn:foobar.
+      destruct ves as [|v2 [|v1 ves']] eqn:Heqves.
       + (* [::] *)
-        apply (RS''_error _ (admitted_TODO _)).
+        (* TODO restate the lemmas to avoid this rewrite? *)
+        rewrite <- Heqves.
+        apply (RS''_error _ (binop_error_0 Heqves)).
       + (* [:: v2] *)
         apply (RS''_error _ (admitted_TODO _)).
       + (* [:: v2, v1 & ves'] *)
