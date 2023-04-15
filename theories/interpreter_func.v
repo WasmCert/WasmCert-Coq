@@ -213,32 +213,13 @@ Proof.
   intros. f_equal => //.
 Qed.
 
-(* XXX unused *)
-Lemma seq_size_eq_contra : forall A (xs ys : seq A),
-  size xs <> size ys -> xs <> ys.
-Proof. intros ???. apply contra_not. by apply seq_size_eq. Qed.
-
-From Coq Require Import PeanoNat.
-
-Lemma plus0_helper : forall (x y : nat),
-  x = y + x -> y = 0.
+Lemma absurd_add_test : forall (n m : nat),
+  1 <> n + 1 + 1.
 Proof.
-  intros x y H.
-  destruct y => //.
-  induction x as [|x IHx] => //.
-  injection H as H.
-  apply IHx.
-Admitted.
-
-Lemma cat_helper : forall A (xs ys : seq A),
-  xs = ys ++ xs -> ys = [::].
-Proof.
-  intros A xs ys Heq.
-  destruct ys => //. exfalso.
-  apply seq_size_eq in Heq.
-  rewrite size_cat in Heq.
-  simpl in Heq.
-  by apply plus0_helper in Heq => //.
+  intros n m.
+  (* Nat.add_comm needs coq_nat scope *)
+  Fail rewrite Nat.add_comm.
+  lias.
 Qed.
 
 (* ves only has one value, binop needs at least two *)
@@ -252,16 +233,15 @@ Proof.
   intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  simpl in Hbtype.
-
   apply Binop_typing in Hbtype as [? [ts' ?]].
   subst t1s t2s.
+
+  (* TODO there should be an easier way to get to a contradiction? *)
   apply seq_size_eq in Ht1s.
   repeat rewrite size_cat in Ht1s.
-  simpl in Ht1s.
-
-  (* TODO get contradiction from Ht1s : 1 = size t1s' + (size ts' + 1 + 1) *)
-Admitted.
+  assert (Ht1s' : 1 <> size t1s' + (size ts' + 1 + 1)). { by lias. }
+  apply Ht1s'. apply Ht1s.
+Qed.
 
 (* TODO should probably use Binop_typing from ./type_preservation.v? *)
 (* TODO use be_typing instead of config_typing? *)
