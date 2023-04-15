@@ -86,7 +86,7 @@ Inductive res_step'_separate_e
     (~ exists C ts1 ts2 ts1',
       map typeof ves = ts1' ++ ts1 /\
       inst_typing s f.(f_inst) C /\
-      e_typing s C ((vs_to_es ves) ++ [::e]) (Tf ts1 ts2)) ->
+      e_typing s C [::e] (Tf ts1 ts2)) ->
     res_step'_separate_e hs s f ves e
 (* | RS''_break *)
 (* | RS''_return *)
@@ -165,10 +165,10 @@ Lemma unop_error : forall s inst ves t op,
   ~ exists C t1s t2s t1s',
     map typeof ves = t1s' ++ t1s /\
     inst_typing s inst C /\
-    e_typing s C ((vs_to_es ves) ++ [:: AI_basic (BI_unop t op)]) (Tf t1s t2s).
+    e_typing s C [:: AI_basic (BI_unop t op)] (Tf t1s t2s).
 Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
-  subst ves. simpl in Hetype.
+  subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   (* show t1s = t1s' = [::] *)
   symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
@@ -195,10 +195,10 @@ Lemma binop_error_0 : forall s inst ves t op,
   ~ exists C t1s t2s t1s',
     map typeof ves = t1s' ++ t1s /\
     inst_typing s inst C /\
-    e_typing s C (vs_to_es ves ++ [:: AI_basic (BI_binop t op)]) (Tf t1s t2s).
+    e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
-  subst ves. simpl in Hetype.
+  subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   (* show t1s = t1s' = [::] *)
   symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
@@ -241,43 +241,26 @@ Proof.
   by apply plus0_helper in Heq => //.
 Qed.
 
+(* ves only has one value, binop needs at least two *)
 Lemma binop_error_1 : forall s inst ves t op v,
   ves = [:: v] ->
   ~ exists C t1s t2s t1s',
     map typeof ves = t1s' ++ t1s /\
     inst_typing s inst C /\
-    e_typing s C (vs_to_es ves ++ [:: AI_basic (BI_binop t op)]) (Tf t1s t2s).
+    e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
   intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
-  subst ves. simpl in Hetype.
+  subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   simpl in Hbtype.
 
-  replace [:: BI_const v; BI_binop t op] with ([:: BI_const v] ++ [:: BI_binop t op]) in Hbtype => //.
-  apply composition_typing in Hbtype
-    as [ts [t1s'' [t2s'' [t3s [Heqt1s [Heqt2s [Hbtype1 Hbtype2]]]]]]].
-    subst t1s t2s.
+  apply Binop_typing in Hbtype as [? [ts' ?]].
+  subst t1s t2s.
+  apply seq_size_eq in Ht1s.
+  repeat rewrite size_cat in Ht1s.
+  simpl in Ht1s.
 
-  replace [:: BI_const v] with (to_b_list (v_to_e_list [:: v])) in Hbtype1 => //.
-  apply Const_list_typing in Hbtype1. simpl in Hbtype1, Ht1s. subst t3s.
-  apply Binop_typing in Hbtype2 as [? [ts' ?]]. subst t2s''.
-
-  rewrite cats1 in H. rewrite cats1 in H.
-  apply rcons_inj in H. apply pair_equal_spec in H as [??].
-  subst t t1s''.
-
-  replace (t1s' ++ ts ++ ts' ++ [:: typeof v])
-    with ((t1s' ++ ts ++ ts') ++ [:: typeof v]) in Ht1s;
-    last by repeat rewrite <- catA.
-  apply cat_helper in Ht1s.
-  repeat apply cat0_inv in Ht1s as [? Ht1s].
-  subst t1s' ts ts'.
-  simpl in *.
-
-  (* arrived at no contradiction? *)
-  (* Hetype : e_typing s C *)
-  (*            [:: AI_basic (BI_const v); AI_basic (BI_binop (typeof v) op)] *)
-  (*            (Tf [:: typeof v] [:: typeof v]) *)
+  (* TODO get contradiction from Ht1s : 1 = size t1s' + (size ts' + 1 + 1) *)
 Admitted.
 
 (* TODO should probably use Binop_typing from ./type_preservation.v? *)
