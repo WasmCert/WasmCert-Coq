@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations opsem interpreter_func properties.
+Require Import operations opsem interpreter_func properties tactics.
 
 
 Section Host.
@@ -20,26 +20,10 @@ Hint Constructors reduce : core.
 Variable host_function : eqType.
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.
-Let lfilledInd : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @lfilledInd _.
-Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
-
 Let host := host host_function.
-
-(*Let run_one_step_fuel := @run_one_step_fuel host_function.*)
 
 Let RS_crash := interpreter_func.RS_crash.
 Let RS_break := interpreter_func.RS_break.
@@ -65,239 +49,6 @@ Hypothesis host_application_impl_correct :
 Let run_one_step := @run_one_step host_function host_instance host_application_impl.
 Let run_step := @run_step host_function host_instance host_application_impl.
 Let run_step_with_fuel := @run_step_with_fuel host_function host_instance host_application_impl.
-
-(** The lemmas [r_eliml] and [r_elimr] are the fundamental framing lemmas.
-  They enable to focus on parts of the stack, ignoring the context. **)
-
-Lemma r_eliml: forall s f es s' f' es' lconst hs hs',
-    const_list lconst ->
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (lconst ++ es) hs' s' f' (lconst ++ es').
-Proof.
-  move => s f es s' f' es' lconst hs hs' HConst H.
-  apply: r_label; try apply/lfilledP.
-  - by apply: H.
-  - replace (lconst++es) with (lconst++es++[::]); first by apply: LfilledBase.
-    f_equal. by apply: cats0.
-  - replace (lconst++es') with (lconst++es'++[::]); first by apply: LfilledBase.
-    f_equal. by apply: cats0.
-Qed.
-
-Lemma r_elimr: forall s f es s' f' es' les hs hs',
-    reduce hs s f es hs' s' f' es' ->
-    reduce hs s f (es ++ les) hs' s' f' (es' ++ les).
-Proof.
-  move => s f es s' f' es' les hs hs' H.
-  apply: r_label; try apply/lfilledP.
-  - apply: H.
-  - replace (es++les) with ([::]++es++les) => //. by apply: LfilledBase.
-  - replace (es'++les) with ([::]++es'++les) => //. by apply: LfilledBase.
-Qed.
-
-(** [r_eliml_empty] and [r_elimr_empty] are useful instantiations on empty stacks. **)
-
-Lemma r_eliml_empty: forall s f es s' f' lconst hs hs',
-    const_list lconst ->
-    reduce hs s f es hs' s' f' [::] ->
-    reduce hs s f (lconst ++ es) hs' s' f' lconst.
-Proof.
-  move => s f es s' f' lconst hs hs' HConst H.
-  assert (reduce hs s f (lconst++es) hs' s' f' (lconst++[::])); first by apply: r_eliml.
-  by rewrite cats0 in H0.
-Qed.
-
-Lemma r_elimr_empty: forall s f es s' f' les hs hs',
-    reduce hs s f es hs' s' f' [::] ->
-    reduce hs s f (es ++ les) hs' s' f' les.
-Proof.
-  move => s f es s' f' les hs hs' H.
-  assert (reduce hs s f (es++les) hs' s' f' ([::] ++les)); first by apply: r_elimr.
-  by rewrite cat0s in H0.
-Qed.
-
-Lemma run_step_fuel_not_zero : forall tt,
-  run_step_fuel tt <> 0.
-Proof.
-  move=> [[st vs] es].
-  rewrite/run_step_fuel.
-  unfold interpreter_func.run_step_fuel.
-  destruct st.
-  by lias.    
-Qed.
-
-Local Lemma ves_projection: forall vs e es vs' e' es',
-  const_list vs ->
-  const_list vs' ->
-  ~ is_const e ->
-  ~ is_const e' ->
-  vs ++ e :: es = vs' ++ e' :: es' ->
-  e = e'.
-Proof.
-  move => vs. induction vs => //=.
-  - move => e es vs' e' es' _ HConstList HNConst HNConst'.
-    destruct vs' => //=.
-    + move => H. by inversion H.
-    + simpl in HConstList. move => H. inversion H. subst.
-      move/andP in HConstList. destruct HConstList as [Ha _].
-      rewrite Ha in HNConst. exfalso. by apply HNConst.
-  - move => e es vs' e' es' HConstList HConstList' HNConst HNConst'.
-    destruct vs' => //=.
-    + move => H. inversion H. subst.
-      move/andP in HConstList. destruct HConstList as [He' _].
-      exfalso. by apply HNConst'.
-    + simpl in HConstList'. move => H. inversion H. subst.
-      move/andP in HConstList. move/andP in HConstList'.
-      destruct HConstList as [Ha Hvs]. destruct HConstList' as [Ha' Hvs'].
-      eapply IHvs => //=.
-      * by apply Hvs'.
-      * by apply H2.
-Qed.
-
-Lemma lfilled0: forall es,
-  lfilledInd 0 (LH_base [::] [::]) es es.
-Proof.
-  move => es.
-  assert (lfilledInd 0 (LH_base [::] [::]) es ([::]++es++[::])) as H; first by apply LfilledBase.
-  simpl in H. by rewrite cats0 in H.
-Qed.
-
-Lemma lfilled0_frame_l: forall vs es es' LI vs',
-  lfilledInd 0 (LH_base vs es') es LI ->
-  const_list vs' ->
-  lfilledInd 0 (LH_base (vs' ++ vs) es') es (vs' ++ LI).
-Proof.
-  move => vs es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
-  assert (HList: vs' ++ vs ++ es ++ es' = (vs' ++ vs) ++ es ++ es'); first by repeat rewrite catA.
-  rewrite HList.
-  apply LfilledBase. by rewrite const_list_concat.
-Qed.
-
-Lemma lfilled0_frame_l_empty: forall es es' LI vs',
-  lfilledInd 0 (LH_base [::] es') es LI ->
-  const_list vs' ->
-  lfilledInd 0 (LH_base vs' es') es (vs' ++ LI).
-Proof.
-  move => es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
-  repeat rewrite catA.
-  rewrite cats0.
-  rewrite -catA.
-  by apply LfilledBase.
-Qed.
-
-Lemma lfilled0_frame_r: forall vs es es' LI es'',
-  lfilledInd 0 (LH_base vs es') es LI ->
-  lfilledInd 0 (LH_base vs (es' ++ es'')) es (LI ++ es'').
-Proof.
-  move => vs es es' LI es'' HLF. inversion HLF; subst; clear HLF.
-  repeat rewrite -catA.
-  by apply LfilledBase.
-Qed.
-      
-Lemma lfilled0_frame_r_empty: forall vs es LI es'',
-  lfilledInd 0 (LH_base vs [::]) es LI ->
-  lfilledInd 0 (LH_base vs es'') es (LI ++ es'').
-Proof.
-  move => vs es LI es'' HLF. inversion HLF; subst; clear HLF.
-  repeat rewrite -catA.
-  by apply LfilledBase.
-Qed.
-
-Lemma lfilled0_take_drop: forall vs es n es',
-  const_list vs ->
-  n <= size vs ->
-  lfilledInd 0 (LH_base (take n vs) es') (drop n vs ++ es) (vs ++ es ++ es').
-Proof.
-  move => vs es n es' HConst HSize.
-  replace (vs++es++es') with (take n vs ++ (drop n vs ++ es) ++ es').
-  apply LfilledBase. by apply const_list_take.
-  { repeat rewrite catA. by rewrite cat_take_drop. }
-Qed.
-
-(** The following tactics are meant to help the proof of [run_step_soundness] below. **)
-
-(** Simplify an hypothesis, possibly rewriting it everywhere. **)
-Ltac simplify_hypothesis Hb :=
-  repeat rewrite length_is_size in Hb;
-  repeat match type of Hb with
-  | is_true (es_is_trap _) => move/es_is_trapP: Hb => Hb
-  | is_true (const_list (_ :: _)) => rewrite const_list_cons in Hb
-  | ?b = true => fold (is_true b) in Hb
-  | (_ == _) = false => move/eqP in Hb
-  | context C [size (rev _)] => rewrite size_rev in Hb
-  | context C [take _ (rev _)] => rewrite take_rev in Hb
-  | context C [rev (rev _)] => rewrite revK in Hb
-  | context C [true && _] => rewrite Bool.andb_true_l in Hb
-  | context C [_ && true] => rewrite Bool.andb_true_r in Hb
-  | context C [false || _] => rewrite Bool.orb_false_l in Hb
-  | context C [_ || false] => rewrite Bool.orb_false_r in Hb
-  | is_true true => clear Hb
-  | is_true false => exfalso; apply: notF; apply: Hb
-  | is_true (_ == _) => move/eqP in Hb
-  | ?x = ?x => clear Hb
-  | _ = _ => rewrite Hb in *
-  end.
-
-(** Apply [simplify_hypothesis] to all hypotheses. **)
-Ltac simplify_goal :=
-  repeat match goal with H: _ |- _ => progress simplify_hypothesis H end.
-
-(** A common pattern in the proof: using an hypothesis on the form [rev l = l'] to rewrite [l]. **)
-Ltac subst_rev_const_list :=
- repeat lazymatch goal with
- | HRevConst: rev ?lconst = ?h :: ?t |- _ =>
-   apply rev_move in HRevConst; rewrite HRevConst; rewrite -cat1s; rewrite rev_cat;
-   rewrite -v_to_e_cat; rewrite -catA
- end.
-
-(** Simplify the lists in the goal. **)
-Ltac simplify_lists :=
-  (** Common rewriting rules. **)
-  repeat first [
-      rewrite drop_rev
-    | rewrite take_rev
-    | rewrite revK
-    | rewrite length_is_size
-    | rewrite size_take
-    | rewrite size_drop
-    | rewrite size_rev
-    | rewrite v_to_e_size
-    | rewrite rev_cat
-    | rewrite rev_cons -cats1
-    | rewrite -v_to_e_cat
-    | rewrite -v_to_e_rev
-    | rewrite -v_to_e_take
-    | rewrite -v_to_e_drop];
-  (** Putting all the lists into a normal form, as concatenations of as many things.
-    Because [cat1s] conflicts with [cats0], replacing any occurence of [[X]] to
-    [[X] ++ [::]], it has to be done separately.
-    Rewrite with the associated [math goal with] is avoid to deal with existential
-    vairables. **)
-  repeat match goal with
-  |- context C [?x :: ?l] =>
-     lazymatch l with [::] => fail | _ => rewrite -(cat1s x l) end
-  end;
-  repeat lazymatch goal with
-  | |- context C [[::] ++ _] => rewrite cat0s
-  | |- context C [_ ++ [::]] => rewrite cats0
-  | |- context C [rcons _ _] => rewrite -cats1
-  | |- context C [(_ ++ _) ++ _] => rewrite -catA
-  | |- context C [rev [::]] => rewrite rev0
-  | |- context C [v_to_e_list [::]] => rewrite v_to_e_list0
-  | |- context C [v_to_e_list [:: _]] => rewrite v_to_e_list1
-  end;
-  try subst_rev_const_list.
-
-(** Explode a tuple into all its components. **)
-Ltac explode_value v :=
-  lazymatch type of v with
-  | (_ * _)%type =>
-    let v1 := fresh "v1" in
-    let v2 := fresh "v2" in
-    destruct v as [v1 v2];
-    explode_value v1;
-    explode_value v2
-  | _ => idtac
-  end.
 
 (** Try to find which variable to pattern match on, destruct it,
   then simplify the destructing equality. **)
@@ -422,25 +173,7 @@ Ltac stack_frame :=
   | |- reduce _ _ _ (operations.v_to_e_list ?l1 ++ _) _ _ _ (operations.v_to_e_list (take ?n ?l1) ++ _) =>
     rewrite (v_to_e_take_drop_split l1 n); rewrite -catA;
     apply: r_eliml; try apply: v_to_e_is_const_list
-  end.
-
-(** Try to solve a goal of the form [const_list _]. **)
-Ltac solve_const_list :=
-  repeat rewrite const_list_concat;
-  repeat rewrite const_list_cons;
-  by [| apply: v_to_e_is_const_list ].
-
-(** Try to solve a goal of the form [l1 = l2] where [l1] and [l2] are two lists. **)
-Ltac show_list_equality :=
-  simplify_lists; simplify_goal;
-  by [| repeat f_equal
-      | repeat rewrite catA; repeat f_equal
-      | repeat rewrite -catA; repeat f_equal
-      | eauto
-      | erewrite cats0; eauto
-      | erewrite cat0s; eauto
-      | repeat (repeat rewrite catA; f_equal; repeat rewrite -catA; f_equal)
-      | repeat (repeat rewrite -catA; f_equal; repeat rewrite catA; f_equal) ].
+end.
 
 (** Given a left and a right frame, rewrite the goal to move these frames out. **)
 Ltac frame_out l r :=
@@ -498,6 +231,105 @@ Ltac eframe :=
   let r := fresh "r" in
   evar (r : seq administrative_instruction);
   frame_out l r.
+
+
+Lemma run_step_fuel_not_zero : forall tt,
+  run_step_fuel tt <> 0.
+Proof.
+  move=> [[st vs] es].
+  rewrite/run_step_fuel.
+  unfold interpreter_func.run_step_fuel.
+  destruct st.
+  by lias.    
+Qed.
+
+Local Lemma ves_projection: forall vs e es vs' e' es',
+  const_list vs ->
+  const_list vs' ->
+  ~ is_const e ->
+  ~ is_const e' ->
+  vs ++ e :: es = vs' ++ e' :: es' ->
+  e = e'.
+Proof.
+  move => vs. induction vs => //=.
+  - move => e es vs' e' es' _ HConstList HNConst HNConst'.
+    destruct vs' => //=.
+    + move => H. by inversion H.
+    + simpl in HConstList. move => H. inversion H. subst.
+      move/andP in HConstList. destruct HConstList as [Ha _].
+      rewrite Ha in HNConst. exfalso. by apply HNConst.
+  - move => e es vs' e' es' HConstList HConstList' HNConst HNConst'.
+    destruct vs' => //=.
+    + move => H. inversion H. subst.
+      move/andP in HConstList. destruct HConstList as [He' _].
+      exfalso. by apply HNConst'.
+    + simpl in HConstList'. move => H. inversion H. subst.
+      move/andP in HConstList. move/andP in HConstList'.
+      destruct HConstList as [Ha Hvs]. destruct HConstList' as [Ha' Hvs'].
+      eapply IHvs => //=.
+      * by apply Hvs'.
+      * by apply H2.
+Qed.
+
+Lemma lfilled0: forall es,
+  lfilledInd 0 (LH_base [::] [::]) es es.
+Proof.
+  move => es.
+  assert (lfilledInd 0 (LH_base [::] [::]) es ([::]++es++[::])) as H; first by apply LfilledBase.
+  simpl in H. by rewrite cats0 in H.
+Qed.
+
+Lemma lfilled0_frame_l: forall vs es es' LI vs',
+  lfilledInd 0 (LH_base vs es') es LI ->
+  const_list vs' ->
+  lfilledInd 0 (LH_base (vs' ++ vs) es') es (vs' ++ LI).
+Proof.
+  move => vs es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
+  assert (HList: vs' ++ vs ++ es ++ es' = (vs' ++ vs) ++ es ++ es'); first by repeat rewrite catA.
+  rewrite HList.
+  apply LfilledBase. by rewrite const_list_concat.
+Qed.
+
+Lemma lfilled0_frame_l_empty: forall es es' LI vs',
+  lfilledInd 0 (LH_base [::] es') es LI ->
+  const_list vs' ->
+  lfilledInd 0 (LH_base vs' es') es (vs' ++ LI).
+Proof.
+  move => es es' LI vs' HLF HConst. inversion HLF; subst; clear HLF.
+  repeat rewrite catA.
+  rewrite cats0.
+  rewrite -catA.
+  by apply LfilledBase.
+Qed.
+
+Lemma lfilled0_frame_r: forall vs es es' LI es'',
+  lfilledInd 0 (LH_base vs es') es LI ->
+  lfilledInd 0 (LH_base vs (es' ++ es'')) es (LI ++ es'').
+Proof.
+  move => vs es es' LI es'' HLF. inversion HLF; subst; clear HLF.
+  repeat rewrite -catA.
+  by apply LfilledBase.
+Qed.
+      
+Lemma lfilled0_frame_r_empty: forall vs es LI es'',
+  lfilledInd 0 (LH_base vs [::]) es LI ->
+  lfilledInd 0 (LH_base vs es'') es (LI ++ es'').
+Proof.
+  move => vs es LI es'' HLF. inversion HLF; subst; clear HLF.
+  repeat rewrite -catA.
+  by apply LfilledBase.
+Qed.
+
+Lemma lfilled0_take_drop: forall vs es n es',
+  const_list vs ->
+  n <= size vs ->
+  lfilledInd 0 (LH_base (take n vs) es') (drop n vs ++ es) (vs ++ es ++ es').
+Proof.
+  move => vs es n es' HConst HSize.
+  replace (vs++es++es') with (take n vs ++ (drop n vs ++ es) ++ es').
+  apply LfilledBase. by apply const_list_take.
+  { repeat rewrite catA. by rewrite cat_take_drop. }
+Qed.
 
 Local Lemma run_step_fuel_increase_aux : forall d es s f s' f' r' fuel fuel' hs hs',
   fuel <= fuel' ->

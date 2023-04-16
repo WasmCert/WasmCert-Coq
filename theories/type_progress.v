@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Export operations typing datatypes_properties typing opsem properties type_preservation.
+From Wasm Require Export operations typing datatypes_properties typing opsem properties type_preservation tactics.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -15,22 +15,12 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 Let s_typing := @s_typing host_function.
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.*)
 Let inst_typing := @inst_typing host_function.
-Let sglob : store_record -> instance -> nat -> option global := @sglob _.
-Let smem_ind : store_record -> instance -> option nat := @smem_ind _.
+Let sglob : store_record -> instance -> nat -> option globalinst := @sglob _.
+Let smem_ind : store_record -> instance -> option memaddr := @smem_ind _.
 
 Let host := host host_function.
 
@@ -53,11 +43,10 @@ Lemma reduce_trap_left: forall vs,
     reduce_simple (vs ++ [::AI_trap]) [::AI_trap].
 Proof.
   move => vs HConst H.
-  destruct vs => //=; eapply rs_trap; try by destruct vs => //=.
-  assert (LF : lfilledInd 0 (LH_base (a::vs) [::]) [::AI_trap] (a::vs++[::AI_trap])).
-  { by apply LfilledBase. }
-  apply/lfilledP.
-  by apply LF.
+  apply const_es_exists in HConst as [vs' Hconst].
+  eapply rs_trap; first by repeat destruct vs => //.
+  instantiate (1 := LH_base vs' [::]).
+  unfold lfilled => /=; subst; by apply/eqP.
 Qed.
 
 Lemma v_e_trap: forall vs es,
@@ -92,10 +81,8 @@ Lemma reduce_composition: forall s cs f es es0 s' f' es' hs hs',
     reduce hs s f (cs ++ es ++ es0) hs' s' f' (cs ++ es' ++ es0).
 Proof.
   move => s cs f es es0 s' f' es' hs hs' HConst HReduce.
-  eapply r_label; eauto; apply/lfilledP.
-  - instantiate (1 := (LH_base cs es0)). instantiate (1 := 0).
-    by apply LfilledBase.
-  - by apply LfilledBase.
+  apply const_es_exists in HConst as [vs' Hconst].
+  eapply r_label with (lh := (LH_base vs' es0)); eauto; unfold lfilled => /=; apply/eqP; by subst.
 Qed.
 
 Lemma reduce_composition_right: forall s f es es0 s' f' es' hs hs',
@@ -122,23 +109,17 @@ Proof.
 Qed.
 
 Lemma lfilled0_empty: forall es,
-    lfilled 0 (LH_base [::] [::]) es es.
+    lfilled (LH_base [::] [::]) es es.
 Proof.
   move => es.
-  apply/lfilledP.
-  assert (LF : lfilledInd 0 (LH_base [::] [::]) es ([::] ++ es ++ [::])); first by apply LfilledBase.
-  by rewrite cats0 in LF.
+  unfold lfilled. apply/eqP => /=. by simplify_lists.
 Qed.
 
 Lemma label_lfilled1: forall n es es0,
-    lfilled 1 (LH_rec [::] n es0 (LH_base [::] [::]) [::]) es [::AI_label n es0 es].
+    lfilled (LH_rec [::] n es0 (LH_base [::] [::]) [::]) es [::AI_label n es0 es].
 Proof.
   move => n es es0.
-  apply/lfilledP.
-  replace [:: AI_label n es0 es] with ([::] ++ [::AI_label n es0 es] ++ [::]) => //.
-  apply LfilledRec => //.
-  assert (LF : lfilledInd 0 (LH_base [::] [::]) es ([::] ++ es ++ [::])); first by apply LfilledBase.
-  simpl in LF. by rewrite cats0 in LF.
+  unfold lfilled. apply/eqP => /=. by simplify_lists.
 Qed.
 
 Lemma terminal_form_v_e: forall vs es,
@@ -208,18 +189,6 @@ Ltac invert_typeof_vcs :=
     destruct vcs => //=;
     simpl in H; inversion H; subst; clear H
   end.
-(*
-Ltac invert_inst_typing :=
-  lazymatch goal with
-  | H: inst_typing _ ?i ?C |- _ =>
-    unfold inst_typing in H;
-    destruct i => //=;
-    destruct C => //=;
-    destruct tc_local => //=;
-    destruct tc_label => //=;
-    destruct tc_return => //=
-  end.
-*)
 
 Lemma nth_error_map: forall {X Y:Type} (l: seq X) n f {fx: Y},
     List.nth_error (map f l) n = Some fx ->
@@ -235,6 +204,9 @@ Proof.
     simpl in HN. by apply IHn.
 Qed.
 
+(* TODO: fix the rest of progress *)
+
+(*
 Lemma func_context_store: forall s i C j x,
     inst_typing s i C ->
     j < length (tc_func_t C) ->
@@ -1507,6 +1479,6 @@ Proof.
   - by eapply s_typing_lf_br; eauto.
   - by eapply s_typing_lf_return; eauto.
 Qed.
-
+*)
 End Host.
 

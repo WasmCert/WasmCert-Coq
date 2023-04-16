@@ -1039,11 +1039,11 @@ Proof.
   generalize dependent es1.
   clear Heqes2'. subst.
   induction es2' => //=; move => es1 t1s t2s HType.
-  - unfold rev in HType; simpl in HType. subst.
+  - unfold rev in HType; simpl in HType.
     rewrite cats0 in HType.
     exists [::], t1s, t2s, t2s.
     repeat split => //=.
-    apply ety_a' => //=.
+    apply ety_a'; first by unfold rev => //=.
     apply bet_weakening_empty_both.
     by apply bet_empty.
   - rewrite rev_cons in HType.

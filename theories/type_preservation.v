@@ -16,20 +16,9 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.
-Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
 
 Let host := host host_function.
 
@@ -41,9 +30,8 @@ Let reduce : host_state -> store_record -> frame -> seq administrative_instructi
              host_state -> store_record -> frame -> seq administrative_instruction -> Prop
   := @reduce _ _.
 
-Let s_globals : store_record -> seq global := @s_globals _.
-Let s_mems : store_record -> seq memory := @s_mems _.
-Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
+Let s_globals : store_record -> seq globalinst := @s_globals _.
+Let s_mems : store_record -> seq meminst := @s_mems _.
 Let cl_type : function_closure -> function_type := @cl_type _.
 Let store_extension: store_record -> store_record -> Prop := @store_extension _.
 
@@ -134,7 +122,7 @@ Qed.
 
 Lemma Unop_typing: forall C t op t1s t2s,
     be_typing C [::BI_unop t op] (Tf t1s t2s) ->
-    t1s = t2s /\ exists ts, t1s = ts ++ [::t].
+    t1s = t2s /\ exists ts, t1s = ts ++ [::T_num t].
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
@@ -152,7 +140,7 @@ Qed.
 
 Lemma Binop_typing: forall C t op t1s t2s,
     be_typing C [::BI_binop t op] (Tf t1s t2s) ->
-    t1s = t2s ++ [::t] /\ exists ts, t2s = ts ++ [::t].
+    t1s = t2s ++ [::T_num t] /\ exists ts, t2s = ts ++ [::T_num t].
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
@@ -172,7 +160,7 @@ Qed.
 
 Lemma Testop_typing: forall C t op t1s t2s,
     be_typing C [::BI_testop t op] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t] /\ t2s = ts ++ [::T_i32].
+    exists ts, t1s = ts ++ [::T_num t] /\ t2s = ts ++ [::T_num T_i32].
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
@@ -188,7 +176,7 @@ Qed.
 
 Lemma Relop_typing: forall C t op t1s t2s,
     be_typing C [::BI_relop t op] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t; t] /\ t2s = ts ++ [::T_i32].
+    exists ts, t1s = ts ++ [::T_num t; T_num t] /\ t2s = ts ++ [::T_num T_i32].
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
@@ -204,7 +192,7 @@ Qed.
 
 Lemma Cvtop_typing: forall C t1 t2 op sx t1s t2s,
     be_typing C [::BI_cvtop t2 op t1 sx] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t1] /\ t2s = ts ++ [::t2].
+    exists ts, t1s = ts ++ [::T_num t1] /\ t2s = ts ++ [::T_num t2].
 Proof.
   move => C t1 t2 op sx t1s t2s HType.
   gen_ind_subst HType.
@@ -245,9 +233,24 @@ Proof.
     exists x. repeat rewrite -catA. by f_equal.
 Qed.
 
-Lemma Select_typing: forall C t1s t2s,
-    be_typing C [::BI_select] (Tf t1s t2s) ->
-    exists ts t, t1s = ts ++ [::t; t; T_i32] /\ t2s = ts ++ [::t].
+Lemma Select_typing_Some: forall C t1s t2s t,
+    be_typing C [::BI_select (Some [::t])] (Tf t1s t2s) ->
+    exists ts, t1s = ts ++ [::t; t; T_num T_i32] /\ t2s = ts ++ [::t].
+Proof.
+  move => C t1s t2s t HType.
+  gen_ind_subst HType => //.
+  - by exists [::].
+  - apply extract_list1 in Econs; destruct Econs; subst.
+    apply empty_typing in HType1; subst.
+    by eapply IHHType2.
+  - edestruct IHHType => //=; subst.
+    edestruct H as [-> ->].
+    exists (ts ++ x). by split; repeat rewrite -catA.
+Qed.
+
+Lemma Select_typing_None: forall C t1s t2s,
+    be_typing C [::BI_select None] (Tf t1s t2s) ->
+    exists ts t, is_numeric_type t /\ t1s = ts ++ [::t; t; T_num T_i32] /\ t2s = ts ++ [::t].
 Proof.
   move => C t1s t2s HType.
   gen_ind_subst HType => //.
@@ -256,13 +259,16 @@ Proof.
     apply empty_typing in HType1; subst.
     by eapply IHHType2.
   - edestruct IHHType => //=; subst.
-    edestruct H as [x2 [H3 H4]]; subst.
-    exists (ts ++ x), x2. by split; repeat rewrite -catA.
+    edestruct H as [t [Hnumtype [-> ->]]].
+    exists (ts ++ x), t. by split; repeat rewrite -catA.
 Qed.
 
+
+(* TODO: fix preservation *)
+(*
 Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
     be_typing C [::BI_if (Tf t1s t2s) e1s e2s] (Tf ts ts') ->
-    exists ts0, ts = ts0 ++ t1s ++ [::T_i32] /\ ts' = ts0 ++ t2s /\
+    exists ts0, ts = ts0 ++ t1s ++ [::T_num T_i32] /\ ts' = ts0 ++ t2s /\
                 be_typing (upd_label C ([:: t2s] ++ tc_label C)) e1s (Tf t1s t2s) /\
                 be_typing (upd_label C ([:: t2s] ++ tc_label C)) e2s (Tf t1s t2s).
 Proof.
@@ -3376,5 +3382,5 @@ Proof.
   fold_upd_context.
   by eapply t_preservation_e; eauto.
 Qed.
-
+*)
 End Host.
