@@ -235,8 +235,9 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   | ROF_ge => "ge"
   end.
 
+(* The alignment exponent is the exponent in both the spec and the binary, but needs to be the power in the text format. *)
 Definition pp_memarg (a: alignment_exponent) (o: static_offset) : string :=
-  "offset=" ++ pp_N o ++ " " ++ "align=" ++ pp_N a.
+  "offset=" ++ pp_N o ++ " " ++ "align=" ++ pp_N (N.shiftl 1 a).
 
 Definition pp_packing (p : packed_type) :=
   match p with
