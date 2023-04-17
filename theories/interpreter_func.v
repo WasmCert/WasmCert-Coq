@@ -83,10 +83,10 @@ Inductive res_step'_separate_e
   (ves : list value) (e : administrative_instruction) : Type :=
 | RS''_exhaustion : res_step'_separate_e hs s f ves e
 | RS''_error :
-    (~ exists C ts1 ts2 ts1',
-      map typeof ves = ts1' ++ ts1 /\
+    (~ exists C t1s t2s t1s',
+      map typeof ves = t1s' ++ t1s /\
       inst_typing s f.(f_inst) C /\
-      e_typing s C [::e] (Tf ts1 ts2)) ->
+      e_typing s C [::e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
 (* | RS''_break *)
 (* | RS''_return *)
@@ -190,6 +190,23 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
+(* XXX why is there a rule for this? shouldn't happen in a well typed
+ * configuration *)
+Lemma reduce_binop_trap : forall (hs : host_state) s f t op v1 v2 ves',
+  app_binop op v1 v2 = None ->
+  reduce
+    hs s f (vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_binop t op)])
+    hs s f ((vs_to_es ves') ++ [:: AI_trap]).
+Proof.
+  intros hs s f t op v1 v2 ves' Heqapp.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    apply rs_binop_failure.
+    by apply Heqapp.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
 Lemma binop_error_0 : forall s inst ves t op,
   ves = [::] ->
   ~ exists C t1s t2s t1s',
@@ -230,7 +247,7 @@ Lemma binop_error_1 : forall s inst ves t op v,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Binop_typing in Hbtype as [? [ts' ?]].
@@ -385,7 +402,9 @@ Proof.
              reduce_binop _ _ _ _ _ Heqapp
            ].
         -- (* None *)
-           apply (RS''_error _ (admitted_TODO _)).
+           apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'[
+             reduce_binop_trap _ _ _ _ _ Heqapp
+           ].
     * (* AI_basic (BI_testop _ testop) *) (* TODO match further *)
       give_up.
     * (* AI_basic (BI_relop t op) *)
