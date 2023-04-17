@@ -504,10 +504,50 @@ Proof.
       by apply (admitted_TODO _).
     * (* AI_basic BI_current_memory *)
       by apply (admitted_TODO _).
+
     * (* AI_basic BI_grow_memory *)
-      by apply (admitted_TODO _).
+      (* XXX this branch is fairly complicated,
+       * would moving it out into a separate function be justified?
+       * perhaps use a convoy pattern match there?  *)
+      destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
+      + (* [::] *)
+        rewrite <- Heqves.
+        by apply (RS''_error _ (admitted_TODO _)).
+      + (* VAL_int32 c :: ves' *)
+        destruct (smem_ind s f.(f_inst)) as [j|] eqn:Heqj.
+        -- (* Some j *)
+           destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
+           ** (* Some s_mem_s_j *)
+              remember (mem_size s_mem_s_j) as l.
+              remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
+              destruct mem' as [mem''|] eqn:Heqmem.
+              ++ (* Some mem'' *)
+                 remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l))) as v eqn:Heqv.
+                 by apply <<
+                   hs,
+                   upd_s_mem s (update_list_at s.(s_mems) j mem''),
+                   f,
+                   (vs_to_es (v :: ves'))
+                 >>'[admitted_TODO _].
+              ++ (* None *)
+                 by apply (RS''_error _ (admitted_TODO _)).
+           ** (* None *)
+              by apply (RS''_error _ (admitted_TODO _)).
+
+        -- (* None *)
+           by apply (RS''_error _ (admitted_TODO _)).
+
+      + (* VAL_int64 c :: ves' *)
+        by apply (RS''_error _ (admitted_TODO _)).
+      + (* VAL_float32 c :: ves' *)
+        by apply (RS''_error _ (admitted_TODO _)).
+      + (* VAL_float64 c :: ves' *)
+        by apply (RS''_error _ (admitted_TODO _)).
+
     * (* AI_basic (BI_const _) *)
+      (* XXX this won't happen if ves has been correctly split(?) *)
       by apply (admitted_TODO _).
+
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
