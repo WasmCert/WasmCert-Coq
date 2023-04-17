@@ -326,20 +326,20 @@ Proof.
   (* run_step_with_fuel'' *)
   destruct fuel as [|fuel].
   - (* 0 *)
-    apply (RS'_exhaustion hs s f es).
+    by apply (RS'_exhaustion hs s f es).
   - (* fuel.+1 *)
     (** Framing out constants. **)
     destruct (split_vals_e es) as [ves es'] eqn:Heqes.
     destruct es' as [|e es''] eqn:Heqes'.
     * (* es' = [::] *)
-      apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
+      by apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
     * (* es' = e :: es'' *)
       destruct (e_is_trap e).
       + destruct ((es'' != [::]) || (ves != [::])).
-        -- apply <<hs, s, f, [::AI_trap]>>[admitted_TODO _].
-        -- apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
+        -- by apply <<hs, s, f, [::AI_trap]>>[admitted_TODO _].
+        -- by apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
-        apply (if r is RS''_normal hs' s' f' es' _
+        by apply (if r is RS''_normal hs' s' f' es' _
           then <<hs', s', f', (es' ++ es'')>>[admitted_TODO _]
           else coerce_res _ r).
 
@@ -348,7 +348,7 @@ Proof.
   remember ((vs_to_es ves) ++ [::e]) as es0 eqn:Heqes0.
   destruct fuel as [|fuel].
   - (* 0 *)
-    apply RS''_exhaustion.
+    by apply RS''_exhaustion.
   - (* fuel.+1 *)
     destruct e as [
       (* AI_basic *) [
@@ -386,62 +386,62 @@ Proof.
       (* AI_local ln lf es *) ln lf es ].
 
     * (* AI_basic BI_unreachable *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic BI_nop *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic BI_drop *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic BI_select *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_if tf es1 t2) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_br j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_br_if j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_br_table js j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic BI_return *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_call j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_call_indirect j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_get_local j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_set_local j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_tee_local j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_get_global j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_set_global j) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_load t None a off) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_store t (Some tp) a off) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_store t None a off) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic BI_current_memory *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic BI_grow_memory *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_const _) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
         rewrite <- Heqves.
-        apply (RS''_error _ (unop_error Heqves)).
+        by apply (RS''_error _ (unop_error Heqves)).
       + (* v :: ves' *)
-        apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>'[
+        by apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>'[
           reduce_unop _ _ _ _ _ _ _
         ].
     * (* AI_basic (BI_binop t op) *)
@@ -449,44 +449,44 @@ Proof.
       + (* [::] *)
         (* TODO restate the lemmas to avoid this rewrite? *)
         rewrite <- Heqves.
-        apply (RS''_error _ (binop_error_0 Heqves)).
+        by apply (RS''_error _ (binop_error_0 Heqves)).
       + (* [:: v2] *)
         rewrite <- Heqves.
-        apply (RS''_error _ (binop_error_1 Heqves)).
+        by apply (RS''_error _ (binop_error_1 Heqves)).
       + (* [:: v2, v1 & ves'] *)
         destruct (app_binop op v1 v2) as [v|] eqn:Heqapp.
         -- (* Some v *)
-           apply <<hs, s, f, vs_to_es (v :: ves')>>'[
+           by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
              reduce_binop _ _ _ _ _ Heqapp
            ].
         -- (* None *)
-           apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'[
+           by apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'[
              reduce_binop_trap _ _ _ _ _ Heqapp
            ].
     * (* AI_basic (BI_testop T_i32 testop) *)
       destruct ves as [|[c| | |] ves'] eqn:Heqves.
       + (* [::] *)
-        apply (admitted_TODO _).
+        by apply (admitted_TODO _).
       + (* VAL_int32 c :: ves' *)
         remember (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) as v.
         rewrite <- Heqves.
-        apply <<hs, s, f, vs_to_es (v :: ves')>>'[
+        by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
           testop_i32 _ _ _ Heqves Heqv
         ].
         (* NOTE three identical branches, maybe use match ... with
          * to reduce duplication? *)
       + (* VAL_int64 _ :: ves' *)
-        apply (RS''_error _ False).
+        by apply (RS''_error _ False).
       + (* VAL_float32 _ :: ves' *)
-        apply (admitted_TODO _).
+        by apply (admitted_TODO _).
       + (* VAL_float64 _ :: ves' *)
-        apply (admitted_TODO _).
+        by apply (admitted_TODO _).
     * (* AI_basic (BI_testop T_i64 testop) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_testop T_f32 testop) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_testop T_f64 testop) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
 
     (* | AI_basic (BI_testop T_i32 testop) => *)
     (*   if ves is (VAL_int32 c) :: ves' then *)
@@ -499,17 +499,17 @@ Proof.
     (* | AI_basic (BI_testop _ _) => (hs, s, f, crash_error) *)
 
     * (* AI_basic (BI_relop t op) *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_basic (BI_cvtop t2 _ t1 sx) *) (* TODO match further *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_trap *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_invoke a *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_label ln les es *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
     * (* AI_local ln lf es *)
-      apply (admitted_TODO _).
+      by apply (admitted_TODO _).
 Defined.
 
 (***************************************)
