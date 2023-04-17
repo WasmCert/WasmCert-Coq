@@ -223,14 +223,6 @@ Proof.
   apply Binop_typing in Hbtype as [? [??]]. destruct t2s => //.
 Qed.
 
-Lemma seq_size_eq : forall A (xs ys : seq A),
-  xs = ys -> size xs = size ys.
-Proof.
-  intros ? xs ys ?.
-  generalize dependent ys. induction xs; destruct ys => //.
-  intros. f_equal => //.
-Qed.
-
 Lemma absurd_add_test : forall (n m : nat),
   1 <> n + 1 + 1.
 Proof.
@@ -254,11 +246,8 @@ Proof.
   apply Binop_typing in Hbtype as [? [ts' ?]].
   subst t1s t2s.
 
-  (* TODO there should be an easier way to get to a contradiction? *)
-  apply seq_size_eq in Ht1s.
-  repeat rewrite size_cat in Ht1s.
-  assert (Ht1s' : 1 <> size t1s' + (size ts' + 1 + 1)). { by lias. }
-  apply Ht1s'. apply Ht1s.
+  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
+  simpl in Ht1s. revert Ht1s. by lias.
 Qed.
 
 Lemma testop_i32 : forall (hs : host_state) s f ves ves' c testop v,
