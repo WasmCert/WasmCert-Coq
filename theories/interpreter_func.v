@@ -101,7 +101,7 @@ Notation "<< hs' , s' , f' , es' >>[ H ]" := (@RS'_normal _ _ _ _ hs' s' f' es' 
 Notation "<< hs' , s' , f' , es' >>'[ H ]" := (@RS''_normal _ _ _ _ _ hs' s' f' es' H).
 
 (* Using this as a TODO placeholder *)
-Axiom admitted_TODO : forall P : Prop, P.
+Axiom admitted_TODO : forall A : Type, A.
 
 Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
 Proof. decidable_equality. Defined.
@@ -328,55 +328,55 @@ Proof.
       (* AI_local ln lf es *) ln lf es ].
 
     * (* AI_basic BI_unreachable *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic BI_nop *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic BI_drop *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic BI_select *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_if tf es1 t2) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_br j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_br_if j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_br_table js j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic BI_return *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_call j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_call_indirect j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_get_local j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_set_local j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_tee_local j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_get_global j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_set_global j) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_load t None a off) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_store t (Some tp) a off) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_store t None a off) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic BI_current_memory *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic BI_grow_memory *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_const _) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
@@ -406,20 +406,20 @@ Proof.
              reduce_binop_trap _ _ _ _ _ Heqapp
            ].
     * (* AI_basic (BI_testop _ testop) *) (* TODO match further *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_relop t op) *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_basic (BI_cvtop t2 _ t1 sx) *) (* TODO match further *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_trap *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_invoke a *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_label ln les es *)
-      give_up.
+      apply (admitted_TODO _).
     * (* AI_local ln lf es *)
-      give_up.
-Admitted.
+      apply (admitted_TODO _).
+Defined.
 
 (***************************************)
 
