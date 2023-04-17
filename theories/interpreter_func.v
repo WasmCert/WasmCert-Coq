@@ -416,7 +416,8 @@ Proof.
         rewrite <- Heqves.
         apply (RS''_error _ (binop_error_0 Heqves)).
       + (* [:: v2] *)
-        apply (RS''_error _ (admitted_TODO _)).
+        rewrite <- Heqves.
+        apply (RS''_error _ (binop_error_1 Heqves)).
       + (* [:: v2, v1 & ves'] *)
         destruct (app_binop op v1 v2) as [v|] eqn:Heqapp.
         -- (* Some v *)
