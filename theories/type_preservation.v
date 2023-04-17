@@ -186,6 +186,23 @@ Proof.
     by repeat rewrite - catA.
 Qed.
 
+(* XXX right place for this? *)
+Lemma Testop_typing_is_int_t: forall C t op t1s t2s,
+    be_typing C [::BI_testop t op] (Tf t1s t2s) ->
+    is_int_t t.
+Proof.
+  move => C t op t1s t2s HType.
+  destruct t => //.
+  - gen_ind_subst HType => //.
+    * eapply IHHType2 => //.
+      by apply extract_list1 in Econs as [??]; subst e.
+    * eapply IHHType => //.
+  - gen_ind_subst HType => //.
+    * eapply IHHType2 => //.
+      by apply extract_list1 in Econs as [??]; subst e.
+    * eapply IHHType => //.
+Qed.
+
 Lemma Relop_typing: forall C t op t1s t2s,
     be_typing C [::BI_relop t op] (Tf t1s t2s) ->
     exists ts, t1s = ts ++ [::t; t] /\ t2s = ts ++ [::T_i32].
