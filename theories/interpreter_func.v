@@ -277,7 +277,6 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
-(* generalisation of the above *)
 Lemma testop_i32_error : forall s inst v ves ves' testop,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
@@ -292,10 +291,42 @@ Proof.
   subst ves t1s t2s.
 
   (* show Ht1s contradicts typeof v <> T_i32 *)
-  rewrite rev_cons in Ht1s.
-  rewrite catA in Ht1s. rewrite cats1 in Ht1s.
-  apply rcons_inj in Ht1s.
-  injection Ht1s => //.
+  rewrite rev_cons in Ht1s. rewrite catA in Ht1s. rewrite cats1 in Ht1s.
+  apply rcons_inj in Ht1s. injection Ht1s => //.
+Qed.
+
+Lemma testop_i64 : forall (hs : host_state) s f ves ves' c testop v,
+  ves = VAL_int64 c :: ves' ->
+  v = VAL_int32 (wasm_bool (app_testop_i testop c)) ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_testop T_i64 testop)])
+    hs s f (vs_to_es (v :: ves')).
+Proof.
+  intros hs s f ves ves' c testop v Heqves HEqv.
+  subst v ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    apply rs_testop_i64.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma testop_i64_error : forall s inst v ves ves' testop,
+  typeof v <> T_i64 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_testop T_i64 testop)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' testop Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Testop_typing in Hbtype as [? [ts' ?]].
+  subst ves t1s t2s.
+
+  (* show Ht1s contradicts typeof v <> T_i64 *)
+  rewrite rev_cons in Ht1s. rewrite catA in Ht1s. rewrite cats1 in Ht1s.
+  apply rcons_inj in Ht1s. injection Ht1s => //.
 Qed.
 
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
@@ -467,7 +498,28 @@ Proof.
         assert (Hv : typeof (VAL_float64 c) <> T_i32). { by discriminate. }
         by apply (RS''_error _ (testop_i32_error Hv Heqves)).
     * (* AI_basic (BI_testop T_i64 testop) *)
-      by apply (admitted_TODO _).
+      destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
+      + (* [::] *)
+        by apply (admitted_TODO _).
+      + (* VAL_int32 c :: ves' *)
+        (* NOTE three similar branches, any way to dedupe? *)
+        rewrite <- Heqves.
+        assert (Hv : typeof (VAL_int32 c) <> T_i64). { by discriminate. }
+        by apply (RS''_error _ (testop_i64_error Hv Heqves)).
+      + (* VAL_int64 c :: ves' *)
+        remember (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) as v.
+        rewrite <- Heqves.
+        by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
+          testop_i64 _ _ _ Heqves Heqv
+        ].
+      + (* VAL_float32 c :: ves' *)
+        rewrite <- Heqves.
+        assert (Hv : typeof (VAL_float32 c) <> T_i64). { by discriminate. }
+        by apply (RS''_error _ (testop_i64_error Hv Heqves)).
+      + (* VAL_float64 c :: ves' *)
+        rewrite <- Heqves.
+        assert (Hv : typeof (VAL_float64 c) <> T_i64). { by discriminate. }
+        by apply (RS''_error _ (testop_i64_error Hv Heqves)).
     * (* AI_basic (BI_testop T_f32 testop) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_testop T_f64 testop) *)
