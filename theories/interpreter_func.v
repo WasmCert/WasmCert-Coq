@@ -243,46 +243,6 @@ Proof.
   apply Ht1s'. apply Ht1s.
 Qed.
 
-(* TODO should probably use Binop_typing from ./type_preservation.v? *)
-(* TODO use be_typing instead of config_typing? *)
-Lemma binop_typing_inversion : forall (hs : host_state) s f t1 t2 op v1 v2 ves',
-  config_tuple_typing (hs, s, f, ((vs_to_es (v2 :: v1 :: ves')) ++ [::AI_basic (BI_binop t2 op)])) t1 ->
-  (* XXX would be easier to start with
-   * be_typing [::v1; v2; AI_basic (BI_binop t2 op)] *)
-  exists v, app_binop op v1 v2 = Some v.
-Proof.
-  intros hs s f t1 t2 op v1 v2 ves' Hctype.
-  destruct (app_binop op v1 v2) eqn:Heqapp.
-  (* TODO need to show typeof v1 = typeof v2 = t1 = t2 *)
-  (* by htype inversion *)
-  - exists v. reflexivity.
-  - destruct t1, t2 => //.
-Admitted.
-  (*
-  induction ves'.
-  - simpl in Hctype.
-    inversion Hctype as [????? Hstype].
-    inversion Hstype as [????????? Hetype].
-    inversion Hetype; subst.
-    * assert (Hbes : bes = [:: BI_const v1; BI_const v2; BI_binop t2 op]).
-      { give_up. (* by H12 *) }
-      subst bes. destruct H12.
-      inversion H15.
-    Check Binop_typing.
-    *)
-  (*
-  intros hs s f t1 t2 op v1 v2 ves' Hctype.
-  inversion Hctype as [????? Hstype].
-  inversion Hstype as [????????? Hetype].
-  inversion Hetype; subst.
-  - give_up.
-  - repeat rewrite cats1 in H12.
-    assert (Heqe : e = AI_basic (BI_binop t2 op)). { (* by H12 *) give_up. }
-    subst e.
-    inversion H18.
-    * give_up.
-   *)
-
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
 (* TODO should use res_step'_separate_e *)
