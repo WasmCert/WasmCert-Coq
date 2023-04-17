@@ -343,11 +343,59 @@ Proof.
   apply Testop_typing_is_int_t in Hbtype => //.
 Qed.
 
+(* XXX relop is very similar to binop, TODO dedupe *)
+Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 v ves',
+  v = (VAL_int32 (wasm_bool (app_relop op v1 v2))) ->
+  reduce
+    hs s f (vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_relop t op)])
+    hs s f (vs_to_es (v :: ves')).
+Proof.
+  intros hs s f t op v1 v2 v ves' Heqv. subst v.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple. by apply rs_relop.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma relop_error_0 : forall s inst ves t op,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_relop t op)] (Tf t1s t2s).
+Proof.
+  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  (* show t1s = t1s' = [::] *)
+  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
+  apply Relop_typing in Hbtype as [ts [??]]. destruct ts => //.
+Qed.
+
+(* ves only has one value, relop needs at least two *)
+(* TODO dedupe with binop_error_1 *)
+Lemma relop_error_1 : forall s inst ves t op v,
+  ves = [:: v] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_relop t op)] (Tf t1s t2s).
+Proof.
+  intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Relop_typing in Hbtype as [? [ts' ?]].
+  subst t1s t2s.
+
+  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
+  simpl in Ht1s. revert Ht1s. by lias.
+Qed.
+
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
 (* TODO should use res_step'_separate_e *)
 Proof.
-  (* NOTE: not indenting the two main subgoals *)
+  (* NOTE: not indenting the two main subgoals - XXX use {}? *)
   (* run_step_with_fuel'' *)
   destruct fuel as [|fuel].
   - (* 0 *)
@@ -469,6 +517,7 @@ Proof.
         by apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>'[
           reduce_unop _ _ _ _ _ _ _
         ].
+
     * (* AI_basic (BI_binop t op) *)
       destruct ves as [|v2 [|v1 ves']] eqn:Heqves.
       + (* [::] *)
@@ -488,6 +537,7 @@ Proof.
            by apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'[
              reduce_binop_trap _ _ _ _ _ Heqapp
            ].
+
     * (* AI_basic (BI_testop T_i32 testop) *)
       destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
       + (* [::] *)
@@ -511,6 +561,7 @@ Proof.
         rewrite <- Heqves.
         assert (Hv : typeof (VAL_float64 c) <> T_i32). { by discriminate. }
         by apply (RS''_error _ (testop_i32_error Hv Heqves)).
+
     * (* AI_basic (BI_testop T_i64 testop) *)
       destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
       + (* [::] *)
@@ -534,14 +585,29 @@ Proof.
         rewrite <- Heqves.
         assert (Hv : typeof (VAL_float64 c) <> T_i64). { by discriminate. }
         by apply (RS''_error _ (testop_i64_error Hv Heqves)).
+
     * (* AI_basic (BI_testop T_f32 testop) *)
       by apply (RS''_error _ (@testop_f32_error _ _ _ _)).
+
     * (* AI_basic (BI_testop T_f64 testop) *)
       (* XXX why does this not work without @?
        * by apply (RS''_error _ testop_f64_error). *)
       by apply (RS''_error _ (@testop_f64_error _ _ _ _)).
+
     * (* AI_basic (BI_relop t op) *)
-      by apply (admitted_TODO _).
+      destruct ves as [|v2 [|v1 ves']] eqn:Heqves.
+      + (* [::] *)
+        rewrite <- Heqves.
+        by apply (RS''_error _ (relop_error_0 Heqves)).
+      + (* [:: v2] *)
+        rewrite <- Heqves.
+        by apply (RS''_error _ (relop_error_1 Heqves)).
+      + (* [:: v2, v1 & ves'] *)
+        remember (VAL_int32 (wasm_bool (app_relop op v1 v2))) as v eqn:Heqv.
+        by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
+          reduce_relop _ _ _ _ _ Heqv
+        ].
+
     * (* AI_basic (BI_cvtop t2 _ t1 sx) *) (* TODO match further *)
       by apply (admitted_TODO _).
     * (* AI_trap *)
