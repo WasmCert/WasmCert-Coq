@@ -84,9 +84,8 @@ Inductive res_step'_separate_e
 | RS''_exhaustion : res_step'_separate_e hs s f ves e
 | RS''_error :
     (~ exists C t1s t2s t1s',
-    (* XXX should be this instead? *)
-    (*   rev (map typeof ves) = t1s' ++ t1s *)
-      map typeof ves = t1s' ++ t1s /\
+      (* XXX easier to rev LHS or RHS? *)
+      rev (map typeof ves) = t1s' ++ t1s /\
       inst_typing s f.(f_inst) C /\
       e_typing s C [::e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
@@ -165,7 +164,7 @@ Qed.
 Lemma unop_error : forall s inst ves t op,
   ves = [::] ->
   ~ exists C t1s t2s t1s',
-    map typeof ves = t1s' ++ t1s /\
+    rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_unop t op)] (Tf t1s t2s).
 Proof.
@@ -212,7 +211,7 @@ Qed.
 Lemma binop_error_0 : forall s inst ves t op,
   ves = [::] ->
   ~ exists C t1s t2s t1s',
-    map typeof ves = t1s' ++ t1s /\
+    rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
@@ -245,7 +244,7 @@ Qed.
 Lemma binop_error_1 : forall s inst ves t op v,
   ves = [:: v] ->
   ~ exists C t1s t2s t1s',
-    map typeof ves = t1s' ++ t1s /\
+    rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
@@ -476,7 +475,8 @@ Proof.
         (* NOTE three identical branches, maybe use match ... with
          * to reduce duplication? *)
       + (* VAL_int64 _ :: ves' *)
-        by apply (RS''_error _ False).
+        rewrite <- Heqves.
+        by apply (RS''_error _ (testop_i32_error_i64 Heqves)).
       + (* VAL_float32 _ :: ves' *)
         by apply (admitted_TODO _).
       + (* VAL_float64 _ :: ves' *)
