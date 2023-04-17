@@ -84,6 +84,8 @@ Inductive res_step'_separate_e
 | RS''_exhaustion : res_step'_separate_e hs s f ves e
 | RS''_error :
     (~ exists C t1s t2s t1s',
+    (* XXX should be this instead? *)
+    (*   rev (map typeof ves) = t1s' ++ t1s *)
       map typeof ves = t1s' ++ t1s /\
       inst_typing s f.(f_inst) C /\
       e_typing s C [::e] (Tf t1s t2s)) ->
@@ -260,6 +262,62 @@ Proof.
   apply Ht1s'. apply Ht1s.
 Qed.
 
+Lemma testop_i32 : forall (hs : host_state) s f ves ves' c testop v,
+  ves = VAL_int32 c :: ves' ->
+  v = VAL_int32 (wasm_bool (app_testop_i testop c)) ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_testop T_i32 testop)])
+    hs s f (vs_to_es (v :: ves')).
+Proof.
+  intros hs s f ves ves' c testop v Heqves HEqv.
+  subst v ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    apply rs_testop_i32.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+(* testop expects an i32 value but an i64 value is given *)
+Lemma testop_i32_error_i64 : forall s inst ves ves' c testop,
+  ves = VAL_int64 c :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_testop T_i32 testop)] (Tf t1s t2s).
+Proof.
+  intros s inst ves ves' c testop Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Testop_typing in Hbtype as [? [ts' ?]].
+  subst ves t1s t2s.
+
+  (* show Ht1s is contradictory *)
+  rewrite rev_cons in Ht1s.
+  rewrite catA in Ht1s. rewrite cats1 in Ht1s.
+  apply rcons_inj in Ht1s => //.
+Qed.
+
+(* generalisation of the above *)
+Lemma testop_i32_error : forall s inst v ves ves' testop,
+  typeof v <> T_i32 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_testop T_i32 testop)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' testop Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Testop_typing in Hbtype as [? [ts' ?]].
+  subst ves t1s t2s.
+
+  (* show Ht1s contradicts typeof v <> T_i32 *)
+  rewrite rev_cons in Ht1s.
+  rewrite catA in Ht1s. rewrite cats1 in Ht1s.
+  apply rcons_inj in Ht1s.
+  injection Ht1s => //.
+Qed.
+
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
 (* TODO should use res_step'_separate_e *)
@@ -319,7 +377,7 @@ Proof.
       (* BI_const _ *) |
       (* BI_unop t op *) t op |
       (* BI_binop t op *) t op |
-      (* BI_testop _ testop *) ? testop |
+      (* BI_testop [T_i32|T_i64|T_f32|T_f64] testop *) [| | |] testop |
       (* BI_relop t op *) t op |
       (* BI_cvtop t2 _ t1 sx *) t2 ? t1 sx ] |
       (* AI_trap *) |
@@ -405,8 +463,41 @@ Proof.
            apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'[
              reduce_binop_trap _ _ _ _ _ Heqapp
            ].
-    * (* AI_basic (BI_testop _ testop) *) (* TODO match further *)
+    * (* AI_basic (BI_testop T_i32 testop) *)
+      destruct ves as [|[c| | |] ves'] eqn:Heqves.
+      + (* [::] *)
+        apply (admitted_TODO _).
+      + (* VAL_int32 c :: ves' *)
+        remember (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) as v.
+        rewrite <- Heqves.
+        apply <<hs, s, f, vs_to_es (v :: ves')>>'[
+          testop_i32 _ _ _ Heqves Heqv
+        ].
+        (* NOTE three identical branches, maybe use match ... with
+         * to reduce duplication? *)
+      + (* VAL_int64 _ :: ves' *)
+        apply (RS''_error _ False).
+      + (* VAL_float32 _ :: ves' *)
+        apply (admitted_TODO _).
+      + (* VAL_float64 _ :: ves' *)
+        apply (admitted_TODO _).
+    * (* AI_basic (BI_testop T_i64 testop) *)
       apply (admitted_TODO _).
+    * (* AI_basic (BI_testop T_f32 testop) *)
+      apply (admitted_TODO _).
+    * (* AI_basic (BI_testop T_f64 testop) *)
+      apply (admitted_TODO _).
+
+    (* | AI_basic (BI_testop T_i32 testop) => *)
+    (*   if ves is (VAL_int32 c) :: ves' then *)
+    (*     (hs, s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: ves'))) *)
+    (*   else (hs, s, f, crash_error) *)
+    (* | AI_basic (BI_testop T_i64 testop) => *)
+    (*   if ves is (VAL_int64 c) :: ves' then *)
+    (*     (hs, s, f, RS_normal (vs_to_es ((VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: ves'))) *)
+    (*   else (hs, s, f, crash_error) *)
+    (* | AI_basic (BI_testop _ _) => (hs, s, f, crash_error) *)
+
     * (* AI_basic (BI_relop t op) *)
       apply (admitted_TODO _).
     * (* AI_basic (BI_cvtop t2 _ t1 sx) *) (* TODO match further *)
