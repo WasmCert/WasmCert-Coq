@@ -166,6 +166,24 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
+(* XXX why is this needed for Grow_memory_typing and not for Binop_typing etc? *)
+Let Grow_memory_typing := @Grow_memory_typing host_function.
+
+Lemma grow_memory_error_0 : forall s inst ves,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
+Proof.
+  intros s inst ves Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  (* show t1s = t1s' = [::] *)
+  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
+  by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
+Qed.
+
 Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
   reduce
     hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_unop t op)])
@@ -186,12 +204,14 @@ Lemma unop_error : forall s inst ves t op,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_unop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   (* show t1s = t1s' = [::] *)
   symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
-  apply Unop_typing in Hbtype as [? [ts ?]]. by destruct ts => //.
+  by apply Unop_typing in Hbtype as [? [[|] ?]].
+  (* XXX which is better?
+   * apply Unop_typing in Hbtype as [? [ts ?]]. by destruct ts => //. *)
 Qed.
 
 Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves',
@@ -233,7 +253,7 @@ Lemma binop_error_0 : forall s inst ves t op,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   (* show t1s = t1s' = [::] *)
@@ -527,10 +547,11 @@ Proof.
       (* XXX this branch is fairly complicated,
        * would moving it out into a separate function be justified?
        * perhaps use a convoy pattern match there?  *)
+      (* XXX do we ever have to handle r_grow_memory_failure? *)
       destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
       + (* [::] *)
         rewrite <- Heqves.
-        by apply (RS''_error _ (admitted_TODO _)).
+        by apply (RS''_error _ (grow_memory_error_0 Heqves)).
       + (* VAL_int32 c :: ves' *)
         destruct (smem_ind s f.(f_inst)) as [j|] eqn:Heqj.
         -- (* Some j *)
