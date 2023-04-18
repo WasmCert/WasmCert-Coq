@@ -353,7 +353,7 @@ Lemma testop_i32 : forall (hs : host_state) s f ves ves' c testop v,
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_testop T_i32 testop)])
     hs s f (vs_to_es (v :: ves')).
 Proof.
-  intros hs s f ves ves' c testop v Heqves HEqv.
+  intros hs s f ves ves' c testop v ??.
   subst v ves.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple.
@@ -370,7 +370,7 @@ Lemma testop_i32_error : forall s inst v ves ves' testop,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_testop T_i32 testop)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' testop Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s inst v ves ves' testop ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing in Hbtype as [? [ts' ?]].
   subst ves t1s t2s.
@@ -384,7 +384,7 @@ Lemma testop_i64 : forall (hs : host_state) s f ves ves' c testop v,
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_testop T_i64 testop)])
     hs s f (vs_to_es (v :: ves')).
 Proof.
-  intros hs s f ves ves' c testop v Heqves HEqv.
+  intros hs s f ves ves' c testop v ??.
   subst v ves.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple.
@@ -401,7 +401,7 @@ Lemma testop_i64_error : forall s inst v ves ves' testop,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_testop T_i64 testop)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' testop Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s inst v ves ves' testop ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing in Hbtype as [? [ts' ?]].
   subst ves t1s t2s.
@@ -439,7 +439,7 @@ Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 v ves',
     hs s f (vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_relop t op)])
     hs s f (vs_to_es (v :: ves')).
 Proof.
-  intros hs s f t op v1 v2 v ves' Heqv. subst v.
+  intros hs s f t op v1 v2 v ves' ?. subst v.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple. by apply rs_relop.
   - by solve_lfilled_0.
@@ -453,7 +453,7 @@ Lemma relop_error_0 : forall s inst ves t op,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_relop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s inst ves t op ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
@@ -486,12 +486,41 @@ Lemma reduce_cvtop_success : forall (hs : host_state) s f t1 t2 sx v v' ves',
     hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_cvtop t2 CVO_convert t1 sx)])
     hs s f (vs_to_es (v' :: ves')).
 Proof.
-  intros hs s f t1 t2 sx v v' ves' Ht1 Heqv'.
+  intros hs s f t1 t2 sx v v' ves' ??.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple.
     by apply rs_convert_success with (t1 := t1) (t2 := t2) (v := v) (v' := v') (sx := sx).
   - by solve_lfilled_0.
   - by solve_lfilled_0.
+Qed.
+
+Lemma reduce_cvtop_trap : forall (hs : host_state) s f t1 t2 sx v ves',
+  types_agree t1 v ->
+  cvt t2 sx v = None ->
+  reduce
+    hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_cvtop t2 CVO_convert t1 sx)])
+    hs s f (vs_to_es ves' ++ [::AI_trap]).
+Proof.
+  intros hs s f t1 t2 sx v ves' ??.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    by apply rs_convert_failure with (t1 := t1) (t2 := t2) (v := v) (sx := sx).
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma cvtop_error_0 : forall s inst ves t1 t2 cvtop sx,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_cvtop t2 cvtop t1 sx)] (Tf t1s t2s).
+Proof.
+  intros s inst ves t1 t2 cvtop sx ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply_cat0_inv Ht1s.
+  by apply Cvtop_typing in Hbtype as [[|] [??]].
 Qed.
 
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
@@ -709,7 +738,7 @@ Proof.
     * (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
       destruct ves as [|v ves'] eqn:?.
       + (* [::] *)
-        apply RS''_error. by apply (admitted_TODO _).
+        apply RS''_error. by apply cvtop_error_0.
       + destruct (types_agree t1 v) eqn:Ht1.
         -- (* true *)
            destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
@@ -718,7 +747,7 @@ Proof.
               by apply reduce_cvtop_success.
            ** (* None *)
               apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
-              by apply (admitted_TODO _).
+              by apply reduce_cvtop_trap.
         -- (* false *)
            apply RS''_error. by apply (admitted_TODO _).
 
