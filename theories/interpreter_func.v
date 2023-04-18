@@ -189,7 +189,7 @@ Proof.
   by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
 Qed.
 
-Lemma grow_memory_error_TODO_name : forall s f ves ves' j s_mem_s_j l c,
+Lemma grow_memory_error_TODO : forall s f ves ves' j s_mem_s_j l c,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
@@ -462,6 +462,22 @@ Proof.
   simpl in Ht1s. revert Ht1s. by lias.
 Qed.
 
+Lemma reduce_cvtop_success : forall (hs : host_state) s f t1 t2 sx v v' ves',
+  types_agree t1 v ->
+  cvt t2 sx v = Some v' ->
+  reduce
+    hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_cvtop t2 CVO_convert t1 sx)])
+    hs s f (vs_to_es (v' :: ves')).
+Proof.
+  intros hs s f t1 t2 sx v v' ves' Ht1 Heqv'.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    by apply rs_convert_success with (t1 := t1) (t2 := t2) (v := v) (v' := v') (sx := sx).
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+(* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
 (* TODO should use res_step'_separate_e *)
@@ -523,7 +539,7 @@ Proof.
       (* BI_binop t op *) t op |
       (* BI_testop [T_i32|T_i64|T_f32|T_f64] testop *) [| | |] testop |
       (* BI_relop t op *) t op |
-      (* BI_cvtop t2 _ t1 sx *) t2 ? t1 sx ] |
+      (* BI_cvtop t2 [CVO_convert|CVO_reinterpret] t1 sx *) t2 [|] t1 sx ] |
       (* AI_trap *) |
       (* AI_invoke a *) a |
       (* AI_label ln les es *) ln les es |
@@ -603,7 +619,7 @@ Proof.
                  ].
               ++ (* None *)
                  apply RS''_error.
-                 by eapply grow_memory_error_TODO_name with (j := j) (s_mem_s_j := s_mem_s_j) => //.
+                 by eapply grow_memory_error_TODO with (j := j) (s_mem_s_j := s_mem_s_j) => //.
            ** (* None *)
               by apply (RS''_error _ (admitted_TODO _)).
 
@@ -683,7 +699,23 @@ Proof.
           reduce_relop _ _ _ _ _ Heqv
         ].
 
-    * (* AI_basic (BI_cvtop t2 _ t1 sx) *) (* TODO match further *)
+    * (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
+      destruct ves as [|v ves'] eqn:Heqves.
+      + (* [::] *)
+        apply RS''_error. by apply (admitted_TODO _).
+      + destruct (types_agree t1 v) eqn:Ht1.
+        -- (* true *)
+           destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
+           ** (* Some v' *)
+              by apply <<hs, s, f, vs_to_es (v' :: ves')>>'[
+                reduce_cvtop_success _ _ _ _ Ht1 Heqv'
+              ].
+           ** (* None *)
+              by apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'[admitted_TODO _].
+        -- (* false *)
+           apply RS''_error. by apply (admitted_TODO _).
+
+    * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
       by apply (admitted_TODO _).
     * (* AI_trap *)
       by apply (admitted_TODO _).
