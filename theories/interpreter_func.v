@@ -583,8 +583,7 @@ Proof.
       (* XXX do we ever have to handle r_grow_memory_failure? *)
       destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
       + (* [::] *)
-        rewrite <- Heqves.
-        by apply (RS''_error _ (grow_memory_error_0 Heqves)).
+        apply RS''_error. by apply grow_memory_error_0.
       + (* VAL_int32 c :: ves' *)
         destruct (smem_ind s f.(f_inst)) as [j|] eqn:Heqj.
         -- (* Some j *)
@@ -602,8 +601,8 @@ Proof.
                    reduce_grow_memory _ _ Heqj Heqsmem Heql Heqmem' Heqs' Heqv
                  ].
               ++ (* None *)
-                 subst mem'. rewrite <- Heqves.
-                 by apply (RS''_error _ (grow_memory_error_TODO_name Heqves Heqj Heqsmem Heql Heqmem')).
+                 apply RS''_error.
+                 by eapply grow_memory_error_TODO_name with (j := j) (s_mem_s_j := s_mem_s_j) => //.
            ** (* None *)
               by apply (RS''_error _ (admitted_TODO _)).
 
@@ -611,13 +610,11 @@ Proof.
            by apply (RS''_error _ (admitted_TODO _)).
 
       + (* VAL_int64 c :: ves' *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_int64 c) <> T_i32) => //.
-        by apply (RS''_error _ (grow_memory_error_typeof Hv Heqves)).
+        apply RS''_error. by eapply grow_memory_error_typeof => //.
       + (* VAL_float32 c :: ves' *)
-        by apply (RS''_error _ (admitted_TODO _)).
+        apply RS''_error. by eapply grow_memory_error_typeof => //.
       + (* VAL_float64 c :: ves' *)
-        by apply (RS''_error _ (admitted_TODO _)).
+        apply RS''_error. by eapply grow_memory_error_typeof => //.
 
     * (* AI_basic (BI_const _) *)
       (* XXX this won't happen if ves has been correctly split(?) *)
@@ -626,8 +623,7 @@ Proof.
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
-        rewrite <- Heqves.
-        by apply (RS''_error _ (unop_error Heqves)).
+        apply RS''_error. by apply unop_error.
       + (* v :: ves' *)
         by apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>'[
           reduce_unop _ _ _ _ _ _ _
@@ -636,12 +632,9 @@ Proof.
     * (* AI_basic (BI_binop t op) *)
       destruct ves as [|v2 [|v1 ves']] eqn:Heqves.
       + (* [::] *)
-        (* TODO restate the lemmas to avoid this rewrite? *)
-        rewrite <- Heqves.
-        by apply (RS''_error _ (binop_error_0 Heqves)).
+        apply RS''_error. by apply binop_error_0.
       + (* [:: v2] *)
-        rewrite <- Heqves.
-        by apply (RS''_error _ (binop_error_1 Heqves)).
+        apply RS''_error. by eapply binop_error_1.
       + (* [:: v2, v1 & ves'] *)
         destruct (app_binop op v1 v2) as [v|] eqn:Heqapp.
         -- (* Some v *)
@@ -665,17 +658,11 @@ Proof.
         ].
         (* NOTE three similar branches, any way to dedupe? *)
       + (* VAL_int64 c :: ves' *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_int64 c) <> T_i32) => //.
-        by apply (RS''_error _ (testop_i32_error Hv Heqves)).
+        apply RS''_error. by eapply testop_i32_error => //.
       + (* VAL_float32 c :: ves' *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float32 c) <> T_i32) => //.
-        by apply (RS''_error _ (testop_i32_error Hv Heqves)).
+        apply RS''_error. by eapply testop_i32_error => //.
       + (* VAL_float64 c :: ves' *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float64 c) <> T_i32) => //.
-        by apply (RS''_error _ (testop_i32_error Hv Heqves)).
+        apply RS''_error. by eapply testop_i32_error => //.
 
     * (* AI_basic (BI_testop T_i64 testop) *)
       destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
@@ -683,9 +670,7 @@ Proof.
         by apply (admitted_TODO _).
       + (* VAL_int32 c :: ves' *)
         (* NOTE three similar branches, any way to dedupe? *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_int32 c) <> T_i64) => //.
-        by apply (RS''_error _ (testop_i64_error Hv Heqves)).
+        apply RS''_error. by eapply testop_i64_error => //.
       + (* VAL_int64 c :: ves' *)
         remember (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) as v.
         rewrite <- Heqves.
@@ -693,30 +678,22 @@ Proof.
           testop_i64 _ _ _ Heqves Heqv
         ].
       + (* VAL_float32 c :: ves' *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float32 c) <> T_i64) => //.
-        by apply (RS''_error _ (testop_i64_error Hv Heqves)).
+        apply RS''_error. by eapply testop_i64_error => //.
       + (* VAL_float64 c :: ves' *)
-        rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float64 c) <> T_i64) => //.
-        by apply (RS''_error _ (testop_i64_error Hv Heqves)).
+        apply RS''_error. by eapply testop_i64_error => //.
 
     * (* AI_basic (BI_testop T_f32 testop) *)
-      by apply (RS''_error _ (@testop_f32_error _ _ _ _)).
+      apply RS''_error. by apply testop_f32_error.
 
     * (* AI_basic (BI_testop T_f64 testop) *)
-      (* XXX why does this not work without @?
-       * by apply (RS''_error _ testop_f64_error). *)
-      by apply (RS''_error _ (@testop_f64_error _ _ _ _)).
+      apply RS''_error. by apply testop_f64_error.
 
     * (* AI_basic (BI_relop t op) *)
       destruct ves as [|v2 [|v1 ves']] eqn:Heqves.
       + (* [::] *)
-        rewrite <- Heqves.
-        by apply (RS''_error _ (relop_error_0 Heqves)).
+        apply RS''_error. by apply relop_error_0.
       + (* [:: v2] *)
-        rewrite <- Heqves.
-        by apply (RS''_error _ (relop_error_1 Heqves)).
+        apply RS''_error. by eapply relop_error_1.
       + (* [:: v2, v1 & ves'] *)
         remember (VAL_int32 (wasm_bool (app_relop op v1 v2))) as v eqn:Heqv.
         by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
