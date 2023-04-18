@@ -153,6 +153,12 @@ Ltac cats1_last_eq H :=
   rewrite rev_cons in H; rewrite <- cats1 in H; rewrite catA in H;
   apply concat_cancel_last in H as [??].
 
+(* using (H : rev (map f [::]) = xs ++ ys), substitute xs = ys = [::] *)
+Ltac apply_cat0_inv H :=
+  match type of H with
+  | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??]; subst xs ys
+  end.
+
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
@@ -181,11 +187,10 @@ Lemma grow_memory_error_0 : forall s inst ves,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
 Proof.
-  intros s inst ves Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  (* show t1s = t1s' = [::] *)
-  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
+  apply_cat0_inv Ht1s.
   by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
 Qed.
 
@@ -200,7 +205,7 @@ Lemma grow_memory_error_TODO : forall s f ves ves' j s_mem_s_j l c,
     inst_typing s f.(f_inst) C /\
     e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' j s_mem_s_j l c Heqves Heqj Heqsmem Heql Heqmemgrow
+  intros s f ves ves' j s_mem_s_j l c ?????
     [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves l.
     (* NOTE Heqmemgrow went wrong, get a contradiction with Hetype/Hitype? *)
@@ -247,8 +252,7 @@ Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  (* show t1s = t1s' = [::] *)
-  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
+  apply_cat0_inv Ht1s.
   by apply Unop_typing in Hbtype as [? [[|] ?]].
   (* XXX which is better?
    * apply Unop_typing in Hbtype as [? [ts ?]]. by destruct ts => //. *)
@@ -296,9 +300,8 @@ Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  (* show t1s = t1s' = [::] *)
-  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
-  apply Binop_typing in Hbtype as [? [??]]. destruct t2s => //.
+  apply_cat0_inv Ht1s.
+  apply Binop_typing in Hbtype as [? [??]]. by destruct t2s => //.
 Qed.
 
 Lemma absurd_add_test : forall (n m : nat),
@@ -326,6 +329,21 @@ Proof.
 
   apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
   simpl in Ht1s. revert Ht1s. by lias.
+Qed.
+
+(* 0 arguments given to testop *)
+Lemma testop_error_0 : forall s inst ves t testop,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_testop t testop)] (Tf t1s t2s).
+Proof.
+  intros s inst ves t testop ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply_cat0_inv Ht1s.
+  by apply Testop_typing in Hbtype as [[|] [??]].
 Qed.
 
 Lemma testop_i32 : forall (hs : host_state) s f ves ves' c testop v,
@@ -438,9 +456,8 @@ Proof.
   intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  (* show t1s = t1s' = [::] *)
-  symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
-  apply Relop_typing in Hbtype as [ts [??]]. destruct ts => //.
+  apply_cat0_inv Ht1s.
+  by apply Relop_typing in Hbtype as [[|] [??]].
 Qed.
 
 (* ves only has one value, relop needs at least two *)
@@ -655,7 +672,7 @@ Proof.
       destruct ves as [|[c| | |] ves'] eqn:?;
         try by (apply RS''_error; by eapply testop_i32_error => //).
       + (* [::] *)
-        by apply (admitted_TODO _).
+        apply RS''_error. by apply testop_error_0.
       + (* VAL_int32 c :: ves' *)
         remember (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) as v.
         apply <<hs, s, f, vs_to_es (v :: ves')>>'.
@@ -666,7 +683,7 @@ Proof.
       destruct ves as [|[|c| |] ves'] eqn:?;
           try by (apply RS''_error; by eapply testop_i64_error => //).
       + (* [::] *)
-        by apply (admitted_TODO _).
+        apply RS''_error. by apply testop_error_0.
       + (* VAL_int64 c :: ves' *)
         remember (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) as v.
         apply <<hs, s, f, vs_to_es (v :: ves')>>'.
