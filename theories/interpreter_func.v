@@ -229,17 +229,37 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
+Lemma vs_to_es_helper : forall v ves,
+  vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
+Proof.
+  intros.
+  unfold vs_to_es. rewrite rev_cons. rewrite cats1. unfold v_to_e_list. rewrite map_rcons.
+  by apply f_equal.
+Qed.
+
+Ltac simpl_reduce_simple :=
+  try rewrite <- cat1s;
+  try match goal with
+  | |- reduce _ _ _ _ _ _ _ (vs_to_es (?v' :: ?ves')) =>
+      replace (vs_to_es (v' :: ves')) with (vs_to_es ves' ++ [:: AI_basic (BI_const v')]);
+      last by apply vs_to_es_helper
+  end;
+  match goal with
+  | |- reduce
+      _ _ _ (vs_to_es (?vs ++ ?ves') ++ [:: ?e])
+      _ _ _ (vs_to_es ?ves' ++ [:: ?e']) =>
+        eapply r_label with
+          (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
+          (es := vs_to_es vs ++ [:: e])
+          (es' := [:: e']);
+        try solve_lfilled_0; apply r_simple
+  end.
+
 Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
   reduce
     hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_unop t op)])
     hs s f (vs_to_es (app_unop op v :: ves')).
-Proof.
-  intros hs s f t op v ves'.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple. by apply rs_unop.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
-Qed.
+Proof. intros. simpl_reduce_simple. by apply rs_unop. Qed.
 
 (* XXX could move C t1s t2s t1s' into the forall without changing semantics *)
 Lemma unop_error : forall s inst ves t op,
@@ -261,34 +281,18 @@ Qed.
 Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves',
   app_binop op v1 v2 = Some v ->
   reduce
-    hs s f (vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_binop t op)])
+    hs s f (vs_to_es ([:: v2; v1] ++ ves') ++ [:: AI_basic (BI_binop t op)])
     hs s f (vs_to_es (v :: ves')).
-Proof.
-  intros hs s f t op v1 v2 v ves' Heqapp.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    apply rs_binop_success.
-    by apply Heqapp.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
-Qed.
+Proof. intros. simpl_reduce_simple. by apply rs_binop_success. Qed.
 
 (* XXX why is there a rule for this? shouldn't happen in a well typed
  * configuration *)
 Lemma reduce_binop_trap : forall (hs : host_state) s f t op v1 v2 ves',
   app_binop op v1 v2 = None ->
   reduce
-    hs s f (vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_binop t op)])
-    hs s f ((vs_to_es ves') ++ [:: AI_trap]).
-Proof.
-  intros hs s f t op v1 v2 ves' Heqapp.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    apply rs_binop_failure.
-    by apply Heqapp.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
-Qed.
+    hs s f (vs_to_es ([:: v2; v1] ++ ves') ++ [:: AI_basic (BI_binop t op)])
+    hs s f (vs_to_es ves' ++ [:: AI_trap]).
+Proof. intros. simpl_reduce_simple. by apply rs_binop_failure. Qed.
 
 Lemma binop_error_0 : forall s inst ves t op,
   ves = [::] ->
@@ -346,21 +350,11 @@ Proof.
   by apply Testop_typing in Hbtype as [[|] [??]].
 Qed.
 
-Lemma testop_i32 : forall (hs : host_state) s f ves ves' c testop v,
-  ves = VAL_int32 c :: ves' ->
-  v = VAL_int32 (wasm_bool (app_testop_i testop c)) ->
+Lemma reduce_testop_i32 : forall (hs : host_state) s f ves' c testop,
   reduce
-    hs s f (vs_to_es ves ++ [:: AI_basic (BI_testop T_i32 testop)])
-    hs s f (vs_to_es (v :: ves')).
-Proof.
-  intros hs s f ves ves' c testop v ??.
-  subst v ves.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    apply rs_testop_i32.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
-Qed.
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic (BI_testop T_i32 testop)])
+    hs s f (vs_to_es (VAL_int32 (wasm_bool (app_testop_i testop c)) :: ves')).
+Proof. intros. simpl_reduce_simple. by apply rs_testop_i32. Qed.
 
 Lemma testop_i32_error : forall s inst v ves ves' testop,
   typeof v <> T_i32 ->
@@ -377,21 +371,11 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
-Lemma testop_i64 : forall (hs : host_state) s f ves ves' c testop v,
-  ves = VAL_int64 c :: ves' ->
-  v = VAL_int32 (wasm_bool (app_testop_i testop c)) ->
+Lemma reduce_testop_i64 : forall (hs : host_state) s f ves' c testop,
   reduce
-    hs s f (vs_to_es ves ++ [:: AI_basic (BI_testop T_i64 testop)])
-    hs s f (vs_to_es (v :: ves')).
-Proof.
-  intros hs s f ves ves' c testop v ??.
-  subst v ves.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    apply rs_testop_i64.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
-Qed.
+    hs s f (vs_to_es (VAL_int64 c :: ves') ++ [:: AI_basic (BI_testop T_i64 testop)])
+    hs s f (vs_to_es (VAL_int32 (wasm_bool (app_testop_i testop c)) :: ves')).
+Proof. intros. simpl_reduce_simple. by apply rs_testop_i64. Qed.
 
 Lemma testop_i64_error : forall s inst v ves ves' testop,
   typeof v <> T_i64 ->
@@ -433,18 +417,11 @@ Proof.
 Qed.
 
 (* XXX relop is very similar to binop, TODO dedupe *)
-Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 v ves',
-  v = (VAL_int32 (wasm_bool (app_relop op v1 v2))) ->
+Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 ves',
   reduce
-    hs s f (vs_to_es [:: v2, v1 & ves'] ++ [:: AI_basic (BI_relop t op)])
-    hs s f (vs_to_es (v :: ves')).
-Proof.
-  intros hs s f t op v1 v2 v ves' ?. subst v.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple. by apply rs_relop.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
-Qed.
+    hs s f (vs_to_es ([:: v2; v1] ++ ves') ++ [:: AI_basic (BI_relop t op)])
+    hs s f (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')).
+Proof. intros. simpl_reduce_simple. by apply rs_relop. Qed.
 
 Lemma relop_error_0 : forall s inst ves t op,
   ves = [::] ->
@@ -488,11 +465,8 @@ Lemma reduce_cvtop_success : forall (hs : host_state) s f t1 t2 sx v v' ves',
     hs s f (vs_to_es (v' :: ves')).
 Proof.
   intros hs s f t1 t2 sx v v' ves' ??.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    by apply rs_convert_success with (t1 := t1) (t2 := t2) (v := v) (v' := v') (sx := sx).
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
+  simpl_reduce_simple.
+  by apply rs_convert_success with (t1 := t1) (t2 := t2) (v := v) (v' := v') (sx := sx).
 Qed.
 
 Lemma reduce_cvtop_trap : forall (hs : host_state) s f t1 t2 sx v ves',
@@ -503,11 +477,8 @@ Lemma reduce_cvtop_trap : forall (hs : host_state) s f t1 t2 sx v ves',
     hs s f (vs_to_es ves' ++ [::AI_trap]).
 Proof.
   intros hs s f t1 t2 sx v ves' ??.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    by apply rs_convert_failure with (t1 := t1) (t2 := t2) (v := v) (sx := sx).
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
+  simpl_reduce_simple.
+  by apply rs_convert_failure with (t1 := t1) (t2 := t2) (v := v) (sx := sx).
 Qed.
 
 Lemma cvtop_error_0 : forall s inst ves t1 t2 cvtop sx,
@@ -547,11 +518,8 @@ Lemma reduce_reinterpret : forall (hs : host_state) s f t1 t2 v ves',
     hs s f (vs_to_es (wasm_deserialise (bits v) t2 :: ves')).
 Proof.
   intros hs s f t1 t2 v ves' ?.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_simple.
-    by apply rs_reinterpret with (t1 := t1) (v := v) => //.
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
+  simpl_reduce_simple.
+  by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
 
@@ -735,9 +703,8 @@ Proof.
       + (* [::] *)
         apply RS''_error. by apply testop_error_0.
       + (* VAL_int32 c :: ves' *)
-        remember (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) as v.
-        apply <<hs, s, f, vs_to_es (v :: ves')>>'.
-        by eapply testop_i32.
+        apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (@app_testop_i i32t testop c)) :: ves')>>'.
+        by apply reduce_testop_i32.
 
     * (* AI_basic (BI_testop T_i64 testop) *)
       (* TODO un-nest this destruct? could make the 'try by' clearer *)
@@ -746,9 +713,8 @@ Proof.
       + (* [::] *)
         apply RS''_error. by apply testop_error_0.
       + (* VAL_int64 c :: ves' *)
-        remember (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) as v.
-        apply <<hs, s, f, vs_to_es (v :: ves')>>'.
-        by eapply testop_i64.
+        apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (@app_testop_i i64t testop c)) :: ves')>>'.
+        by eapply reduce_testop_i64.
 
     * (* AI_basic (BI_testop T_f32 testop) *)
       apply RS''_error. by apply testop_f32_error.
@@ -763,8 +729,7 @@ Proof.
       + (* [:: v2] *)
         apply RS''_error. by eapply relop_error_1.
       + (* [:: v2, v1 & ves'] *)
-        remember (VAL_int32 (wasm_bool (app_relop op v1 v2))) as v.
-        apply <<hs, s, f, vs_to_es (v :: ves')>>'.
+        apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')>>'.
         by apply reduce_relop.
 
     * (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
