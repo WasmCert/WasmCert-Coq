@@ -148,6 +148,24 @@ Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
   try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //.
 
+Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
+  smem_ind s (f_inst f) = Some j ->
+  List.nth_error (s_mems s) j = Some s_mem_s_j ->
+  l = mem_size s_mem_s_j ->
+  Some mem'' = mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) ->
+  s' = upd_s_mem s (update_list_at (s_mems s) j mem'') ->
+  v = VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic BI_grow_memory])
+    hs s' f (vs_to_es (v :: ves')).
+Proof.
+  intros hs s s' f c v ves' mem'' s_mem_s_j j l ??????. subst s' v l.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_grow_memory_success with (m := s_mem_s_j) (c := c) => //.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
 Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
   reduce
     hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_unop t op)])
@@ -518,17 +536,17 @@ Proof.
         -- (* Some j *)
            destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
            ** (* Some s_mem_s_j *)
-              remember (mem_size s_mem_s_j) as l.
-              remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
+              remember (mem_size s_mem_s_j) as l eqn:Heql.
+              remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem' eqn:Heqmem'.
               destruct mem' as [mem''|] eqn:Heqmem.
               ++ (* Some mem'' *)
                  remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l))) as v eqn:Heqv.
-                 by apply <<
-                   hs,
-                   upd_s_mem s (update_list_at s.(s_mems) j mem''),
-                   f,
-                   (vs_to_es (v :: ves'))
-                 >>'[admitted_TODO _].
+                 remember (upd_s_mem s (update_list_at s.(s_mems) j mem'')) as s' eqn:Heqs'.
+                 (* TODO maybe a better approach would be to use eapply and let
+                  * coq find Heq* automatically? *)
+                 by apply <<hs, s', f, (vs_to_es (v :: ves'))>>'[
+                   reduce_grow_memory _ _ Heqj Heqsmem Heql Heqmem' Heqs' Heqv
+                 ].
               ++ (* None *)
                  by apply (RS''_error _ (admitted_TODO _)).
            ** (* None *)
