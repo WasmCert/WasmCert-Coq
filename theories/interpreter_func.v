@@ -581,7 +581,8 @@ Proof.
        * would moving it out into a separate function be justified?
        * perhaps use a convoy pattern match there?  *)
       (* XXX do we ever have to handle r_grow_memory_failure? *)
-      destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
+      destruct ves as [|[c| | |] ves'] eqn:Heqves;
+        try by (apply RS''_error; by eapply grow_memory_error_typeof => //).
       + (* [::] *)
         apply RS''_error. by apply grow_memory_error_0.
       + (* VAL_int32 c :: ves' *)
@@ -608,13 +609,6 @@ Proof.
 
         -- (* None *)
            by apply (RS''_error _ (admitted_TODO _)).
-
-      + (* VAL_int64 c :: ves' *)
-        apply RS''_error. by eapply grow_memory_error_typeof => //.
-      + (* VAL_float32 c :: ves' *)
-        apply RS''_error. by eapply grow_memory_error_typeof => //.
-      + (* VAL_float64 c :: ves' *)
-        apply RS''_error. by eapply grow_memory_error_typeof => //.
 
     * (* AI_basic (BI_const _) *)
       (* XXX this won't happen if ves has been correctly split(?) *)
@@ -647,7 +641,8 @@ Proof.
            ].
 
     * (* AI_basic (BI_testop T_i32 testop) *)
-      destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
+      destruct ves as [|[c| | |] ves'] eqn:Heqves;
+        try by (apply RS''_error; by eapply testop_i32_error => //).
       + (* [::] *)
         by apply (admitted_TODO _).
       + (* VAL_int32 c :: ves' *)
@@ -656,31 +651,19 @@ Proof.
         by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
           testop_i32 _ _ _ Heqves Heqv
         ].
-        (* NOTE three similar branches, any way to dedupe? *)
-      + (* VAL_int64 c :: ves' *)
-        apply RS''_error. by eapply testop_i32_error => //.
-      + (* VAL_float32 c :: ves' *)
-        apply RS''_error. by eapply testop_i32_error => //.
-      + (* VAL_float64 c :: ves' *)
-        apply RS''_error. by eapply testop_i32_error => //.
 
     * (* AI_basic (BI_testop T_i64 testop) *)
-      destruct ves as [|[c|c|c|c] ves'] eqn:Heqves.
+      (* TODO un-nest this destruct? could make the 'try by' clearer *)
+      destruct ves as [|[|c| |] ves'] eqn:Heqves;
+          try by (apply RS''_error; by eapply testop_i64_error => //).
       + (* [::] *)
         by apply (admitted_TODO _).
-      + (* VAL_int32 c :: ves' *)
-        (* NOTE three similar branches, any way to dedupe? *)
-        apply RS''_error. by eapply testop_i64_error => //.
       + (* VAL_int64 c :: ves' *)
         remember (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) as v.
         rewrite <- Heqves.
         by apply <<hs, s, f, vs_to_es (v :: ves')>>'[
           testop_i64 _ _ _ Heqves Heqv
         ].
-      + (* VAL_float32 c :: ves' *)
-        apply RS''_error. by eapply testop_i64_error => //.
-      + (* VAL_float64 c :: ves' *)
-        apply RS''_error. by eapply testop_i64_error => //.
 
     * (* AI_basic (BI_testop T_f32 testop) *)
       apply RS''_error. by apply testop_f32_error.
