@@ -148,6 +148,11 @@ Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
   try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //.
 
+(* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
+Ltac cats1_last_eq H :=
+  rewrite rev_cons in H; rewrite <- cats1 in H; rewrite catA in H;
+  apply concat_cancel_last in H as [??].
+
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
@@ -182,6 +187,41 @@ Proof.
   (* show t1s = t1s' = [::] *)
   symmetry in Ht1s. apply cat0_inv in Ht1s as [??]. subst t1s t1s'.
   by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
+Qed.
+
+Lemma grow_memory_error_TODO_name : forall s f ves ves' j s_mem_s_j l c,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error (s_mems s) j = Some s_mem_s_j ->
+  l = mem_size s_mem_s_j ->
+  None = mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
+Proof.
+  intros s f ves ves' j s_mem_s_j l c Heqves Heqj Heqsmem Heql Heqmemgrow
+    [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves l.
+    (* NOTE Heqmemgrow went wrong, get a contradiction with Hetype/Hitype? *)
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  (* show t1s = t1s' = [::] *)
+  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
+Admitted.
+
+Lemma grow_memory_error_typeof : forall s inst v ves ves',
+  typeof v <> T_i32 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //. subst t1s t2s.
+  by cats1_last_eq Ht1s.
 Qed.
 
 Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
@@ -316,11 +356,7 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing in Hbtype as [? [ts' ?]].
   subst ves t1s t2s.
-
-  (* show Ht1s contradicts typeof v <> T_i32 *)
-  (* TODO simplify using extract_list1 or similar? *)
-  rewrite rev_cons in Ht1s. rewrite catA in Ht1s. rewrite cats1 in Ht1s.
-  apply rcons_inj in Ht1s. injection Ht1s => //.
+  by cats1_last_eq Ht1s.
 Qed.
 
 Lemma testop_i64 : forall (hs : host_state) s f ves ves' c testop v,
@@ -351,10 +387,7 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing in Hbtype as [? [ts' ?]].
   subst ves t1s t2s.
-
-  (* show Ht1s contradicts typeof v <> T_i64 *)
-  rewrite rev_cons in Ht1s. rewrite catA in Ht1s. rewrite cats1 in Ht1s.
-  apply rcons_inj in Ht1s. injection Ht1s => //.
+  by cats1_last_eq Ht1s.
 Qed.
 
 (* TODO dedupe these two (is_int_t = false)
@@ -569,7 +602,8 @@ Proof.
                    reduce_grow_memory _ _ Heqj Heqsmem Heql Heqmem' Heqs' Heqv
                  ].
               ++ (* None *)
-                 by apply (RS''_error _ (admitted_TODO _)).
+                 subst mem'. rewrite <- Heqves.
+                 by apply (RS''_error _ (grow_memory_error_TODO_name Heqves Heqj Heqsmem Heql Heqmem')).
            ** (* None *)
               by apply (RS''_error _ (admitted_TODO _)).
 
@@ -577,7 +611,9 @@ Proof.
            by apply (RS''_error _ (admitted_TODO _)).
 
       + (* VAL_int64 c :: ves' *)
-        by apply (RS''_error _ (admitted_TODO _)).
+        rewrite <- Heqves.
+        assert (Hv : typeof (VAL_int64 c) <> T_i32) => //.
+        by apply (RS''_error _ (grow_memory_error_typeof Hv Heqves)).
       + (* VAL_float32 c :: ves' *)
         by apply (RS''_error _ (admitted_TODO _)).
       + (* VAL_float64 c :: ves' *)
@@ -630,15 +666,15 @@ Proof.
         (* NOTE three similar branches, any way to dedupe? *)
       + (* VAL_int64 c :: ves' *)
         rewrite <- Heqves.
-        assert (Hv : typeof (VAL_int64 c) <> T_i32). { by discriminate. }
+        assert (Hv : typeof (VAL_int64 c) <> T_i32) => //.
         by apply (RS''_error _ (testop_i32_error Hv Heqves)).
       + (* VAL_float32 c :: ves' *)
         rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float32 c) <> T_i32). { by discriminate. }
+        assert (Hv : typeof (VAL_float32 c) <> T_i32) => //.
         by apply (RS''_error _ (testop_i32_error Hv Heqves)).
       + (* VAL_float64 c :: ves' *)
         rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float64 c) <> T_i32). { by discriminate. }
+        assert (Hv : typeof (VAL_float64 c) <> T_i32) => //.
         by apply (RS''_error _ (testop_i32_error Hv Heqves)).
 
     * (* AI_basic (BI_testop T_i64 testop) *)
@@ -648,7 +684,7 @@ Proof.
       + (* VAL_int32 c :: ves' *)
         (* NOTE three similar branches, any way to dedupe? *)
         rewrite <- Heqves.
-        assert (Hv : typeof (VAL_int32 c) <> T_i64). { by discriminate. }
+        assert (Hv : typeof (VAL_int32 c) <> T_i64) => //.
         by apply (RS''_error _ (testop_i64_error Hv Heqves)).
       + (* VAL_int64 c :: ves' *)
         remember (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) as v.
@@ -658,11 +694,11 @@ Proof.
         ].
       + (* VAL_float32 c :: ves' *)
         rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float32 c) <> T_i64). { by discriminate. }
+        assert (Hv : typeof (VAL_float32 c) <> T_i64) => //.
         by apply (RS''_error _ (testop_i64_error Hv Heqves)).
       + (* VAL_float64 c :: ves' *)
         rewrite <- Heqves.
-        assert (Hv : typeof (VAL_float64 c) <> T_i64). { by discriminate. }
+        assert (Hv : typeof (VAL_float64 c) <> T_i64) => //.
         by apply (RS''_error _ (testop_i64_error Hv Heqves)).
 
     * (* AI_basic (BI_testop T_f32 testop) *)
