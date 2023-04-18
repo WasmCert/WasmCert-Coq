@@ -479,6 +479,7 @@ Proof.
   simpl in Ht1s. revert Ht1s. by lias.
 Qed.
 
+(* TODO rename this and following lemmas from cvtop to convert *)
 Lemma reduce_cvtop_success : forall (hs : host_state) s f t1 t2 sx v v' ves',
   types_agree t1 v ->
   cvt t2 sx v = Some v' ->
@@ -522,6 +523,37 @@ Proof.
   apply_cat0_inv Ht1s.
   by apply Cvtop_typing in Hbtype as [[|] [??]].
 Qed.
+
+Lemma cvtop_error_types_disagree : forall s inst v ves ves' t1 t2 sx,
+  ves = v :: ves' ->
+  ~ types_agree t1 v ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_cvtop t2 CVO_convert t1 sx)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' t1 t2 sx ? Hdisagree [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Cvtop_convert_typing in Hbtype.
+  unfold convert_helper in Hbtype.
+  (* TODO contradict Hbtype with Hdisagree *)
+Admitted.
+
+Lemma reduce_reinterpret : forall (hs : host_state) s f t1 t2 v ves',
+  types_agree t1 v ->
+  reduce
+    hs s f (vs_to_es (v :: ves') ++ [:: AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)])
+    hs s f (vs_to_es (wasm_deserialise (bits v) t2 :: ves')).
+Proof.
+  intros hs s f t1 t2 v ves' ?.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    by apply rs_reinterpret with (t1 := t1) (v := v) => //.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
 
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
@@ -749,10 +781,25 @@ Proof.
               apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
               by apply reduce_cvtop_trap.
         -- (* false *)
-           apply RS''_error. by apply (admitted_TODO _).
+           apply RS''_error.
+           assert (~ types_agree t1 v). { rewrite Ht1. by apply not_false_is_true. }
+           eapply cvtop_error_types_disagree => //.  (* TODO lemma not finished *)
 
     * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
-      by apply (admitted_TODO _).
+      destruct ves as [|v ves'] eqn:?.
+      + (* [::] *)
+        apply RS''_error. by apply cvtop_error_0.
+      + destruct (types_agree t1 v) eqn:Ht1.
+        -- (* true *)
+           destruct sx eqn:Heqsx.
+           ** (* Some _ *)
+              apply RS''_error. by apply (admitted_TODO _).
+           ** (* None *)
+              apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
+              by apply reduce_reinterpret.
+        -- (* false *)
+           apply RS''_error. by apply (admitted_TODO _).
+
     * (* AI_trap *)
       by apply (admitted_TODO _).
     * (* AI_invoke a *)

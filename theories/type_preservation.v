@@ -236,6 +236,19 @@ Proof.
     by repeat rewrite - catA.
 Qed.
 
+(* XXX should this stay in this file? *)
+Lemma Cvtop_convert_typing: forall C t1 t2 sx t1s t2s,
+    be_typing C [::BI_cvtop t2 CVO_convert t1 sx] (Tf t1s t2s) ->
+    convert_helper sx t2 t1.
+Proof.
+  move => C t1 t2 sx t1s t2s HType.
+  gen_ind_subst HType => //.
+  - apply extract_list1 in H1; destruct H1; subst.
+    apply empty_typing in HType1; subst.
+    by eapply IHHType2.
+  - by eapply IHHType.
+Qed.
+
 Lemma Nop_typing: forall C t1s t2s,
     be_typing C [::BI_nop] (Tf t1s t2s) ->
     t1s = t2s.
