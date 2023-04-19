@@ -150,7 +150,7 @@ Ltac solve_lfilled_0 :=
 
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
 Ltac cats1_last_eq H :=
-  rewrite rev_cons in H; rewrite <- cats1 in H; rewrite catA in H;
+  rewrite rev_cons in H; rewrite <- cats1 in H; repeat rewrite catA in H;
   apply concat_cancel_last in H as [??].
 
 (* using (H : rev (map f [::]) = xs ++ ys), substitute xs = ys = [::] *)
@@ -209,7 +209,7 @@ Lemma reduce_nop : forall (hs : host_state) s f ves,
     hs s f (vs_to_es ves ++ [:: AI_basic BI_nop])
     hs s f (vs_to_es ves).
 Proof.
-  intros.
+  intros ??? ves.
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves) [::]))
     (es := [:: AI_basic BI_nop])
@@ -224,7 +224,7 @@ Lemma reduce_drop : forall (hs : host_state) s f v ves',
     hs s f (vs_to_es (v :: ves') ++ [:: AI_basic BI_drop])
     hs s f (vs_to_es ves').
 Proof.
-  intros.
+  intros ??? v ves'.
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
     (es := vs_to_es [:: v] ++ [:: AI_basic BI_drop])
@@ -245,6 +245,97 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
   apply Drop_typing in Hbtype as [??]. by destruct t2s.
+Qed.
+
+Lemma reduce_select_false : forall (hs : host_state) s f c v2 v1 ves',
+  c == Wasm_int.int_zero i32m ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: v2 :: v1 :: ves') ++ [:: AI_basic BI_select])
+    hs s f (vs_to_es (v2 :: ves')).
+Proof.
+  intros ??? c v2 v1 ves' Hc.
+  replace (VAL_int32 c :: v2 :: v1 :: ves')
+    with ([:: VAL_int32 c; v2; v1] ++ ves') => //.
+  simpl_reduce_simple.
+  apply rs_select_false.
+  by apply/eqP.
+Qed.
+
+Lemma reduce_select_true : forall (hs : host_state) s f c v2 v1 ves',
+  c != Wasm_int.int_zero i32m ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: v2 :: v1 :: ves') ++ [:: AI_basic BI_select])
+    hs s f (vs_to_es (v1 :: ves')).
+Proof.
+  intros ??? c v2 v1 ves' Hc.
+  replace (VAL_int32 c :: v2 :: v1 :: ves')
+    with ([:: VAL_int32 c; v2; v1] ++ ves') => //.
+  simpl_reduce_simple.
+  apply rs_select_true.
+  by apply/eqP.
+Qed.
+
+Lemma select_error_i32 : forall s inst v3 v2 v1 ves ves',
+  typeof v3 <> T_i32 ->
+  ves = v3 :: v2 :: v1 :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
+Proof.
+  intros s inst v3 v2 v1 ves ves' Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Select_typing in Hbtype as [? [? [??]]]. subst t1s t2s.
+
+  (* TODO move this into the ltac? *)
+  replace ([:: x0; x0; T_i32]) with ([:: x0; x0] ++ [:: T_i32]) in Ht1s => //.
+  by cats1_last_eq Ht1s.
+Qed.
+
+Lemma select_error_0 : forall s inst ves,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
+Proof.
+  intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply_cat0_inv Ht1s.
+  by apply Select_typing in Hbtype as [[|] [? [??]]].
+Qed.
+
+Lemma select_error_1 : forall s inst ves v,
+  ves = [:: v] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
+Proof.
+  intros s inst ves v ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Select_typing in Hbtype as [ts [? [??]]].
+  subst t1s t2s.
+  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
+  simpl in Ht1s. revert Ht1s. by lias.
+Qed.
+
+(* XXX this follows exactly as the previous proof,
+ * dedupe using a lemma with length ves < 3? *)
+Lemma select_error_2 : forall s inst ves v1 v2,
+  ves = [:: v1; v2] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
+Proof.
+  intros s inst ves v1 v2 ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Select_typing in Hbtype as [ts [? [??]]].
+  subst t1s t2s.
+  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
+  simpl in Ht1s. revert Ht1s. by lias.
 Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
@@ -274,7 +365,7 @@ Lemma grow_memory_error_0 : forall s inst ves,
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
     inst_typing s inst C /\
-    e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
+    e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
   intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
@@ -665,14 +756,31 @@ Proof.
     * (* AI_basic BI_drop *)
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
-        apply RS''_error.
-        by apply drop_error.
+        apply RS''_error. by apply drop_error.
       + (* v :: ves' *)
-        apply <<hs, s, f, vs_to_es ves'>>'.
-        by apply reduce_drop.
+        apply <<hs, s, f, vs_to_es ves'>>'. by apply reduce_drop.
 
     * (* AI_basic BI_select *)
-      by apply (admitted_TODO _).
+      destruct ves as [|v3 [|v2 [|v1 ves']]].
+      + (* [::] *)
+        apply RS''_error. by apply select_error_0.
+      + (* [:: v3] *)
+        apply RS''_error. by eapply select_error_1.
+      + (* [:: v3; v2] *)
+        apply RS''_error. by eapply select_error_2.
+      + (* [:: v3, v2, v1 & ves'] *)
+        destruct v3 as [c| | |] eqn:?;
+          try by
+            (apply RS''_error; eapply select_error_i32 with (v3 := v3); subst v3).
+        (* VAL_int32 c *)
+        destruct (c == Wasm_int.int_zero i32m) eqn:?.
+        ** (* true *)
+           apply <<hs, s, f, vs_to_es (v2 :: ves')>>'.
+           by apply reduce_select_false.
+        ** (* false *)
+           apply <<hs, s, f, vs_to_es (v1 :: ves')>>'.
+           by apply reduce_select_true; lias.
+
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
