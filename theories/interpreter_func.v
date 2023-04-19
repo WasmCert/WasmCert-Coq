@@ -293,49 +293,20 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
-Lemma select_error_0 : forall s inst ves,
-  ves = [::] ->
+Lemma select_error_size : forall s inst ves,
+  size ves < 3 ->
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
     inst_typing s inst C /\
     e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
 Proof.
-  intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
-  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply_cat0_inv Ht1s.
-  by apply Select_typing in Hbtype as [[|] [? [??]]].
-Qed.
-
-Lemma select_error_1 : forall s inst ves v,
-  ves = [:: v] ->
-  ~ exists C t1s t2s t1s',
-    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
-    e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
-Proof.
-  intros s inst ves v ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Select_typing in Hbtype as [ts [? [??]]].
   subst t1s t2s.
-  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
-  simpl in Ht1s. revert Ht1s. by lias.
-Qed.
-
-(* XXX this follows exactly as the previous proof,
- * dedupe using a lemma with length ves < 3? *)
-Lemma select_error_2 : forall s inst ves v1 v2,
-  ves = [:: v1; v2] ->
-  ~ exists C t1s t2s t1s',
-    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
-    e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
-Proof.
-  intros s inst ves v1 v2 ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
-  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Select_typing in Hbtype as [ts [? [??]]].
-  subst t1s t2s.
-  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
-  simpl in Ht1s. revert Ht1s. by lias.
+  apply (f_equal size) in Ht1s. revert Ht1s.
+  repeat rewrite size_cat. rewrite size_rev. rewrite size_map. simpl.
+  by lias.
 Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
@@ -761,25 +732,20 @@ Proof.
         apply <<hs, s, f, vs_to_es ves'>>'. by apply reduce_drop.
 
     * (* AI_basic BI_select *)
-      destruct ves as [|v3 [|v2 [|v1 ves']]].
-      + (* [::] *)
-        apply RS''_error. by apply select_error_0.
-      + (* [:: v3] *)
-        apply RS''_error. by eapply select_error_1.
-      + (* [:: v3; v2] *)
-        apply RS''_error. by eapply select_error_2.
-      + (* [:: v3, v2, v1 & ves'] *)
-        destruct v3 as [c| | |] eqn:?;
-          try by
-            (apply RS''_error; eapply select_error_i32 with (v3 := v3); subst v3).
-        (* VAL_int32 c *)
-        destruct (c == Wasm_int.int_zero i32m) eqn:?.
-        ** (* true *)
-           apply <<hs, s, f, vs_to_es (v2 :: ves')>>'.
-           by apply reduce_select_false.
-        ** (* false *)
-           apply <<hs, s, f, vs_to_es (v1 :: ves')>>'.
-           by apply reduce_select_true; lias.
+      destruct ves as [|v3 [|v2 [|v1 ves']]];
+        try by (apply RS''_error; apply select_error_size).
+      (* [:: v3, v2, v1 & ves'] *)
+      destruct v3 as [c| | |] eqn:?;
+        try by
+          (apply RS''_error; eapply select_error_i32 with (v3 := v3); subst v3).
+      (* VAL_int32 c *)
+      destruct (c == Wasm_int.int_zero i32m) eqn:?.
+      + (* true *)
+        apply <<hs, s, f, vs_to_es (v2 :: ves')>>'.
+        by apply reduce_select_false.
+      + (* false *)
+        apply <<hs, s, f, vs_to_es (v1 :: ves')>>'.
+        by apply reduce_select_true; lias.
 
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
       by apply (admitted_TODO _).
