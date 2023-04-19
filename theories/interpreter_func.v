@@ -159,8 +159,12 @@ Ltac apply_cat0_inv H :=
   | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??]; subst xs ys
   end.
 
-(* TODO naming *)
-Lemma vs_to_es_helper : forall v ves,
+Ltac size_unequal H :=
+  apply (f_equal size) in H;
+  revert H;
+  repeat rewrite size_cat; rewrite size_rev; rewrite size_map; simpl; lias.
+
+Lemma vs_to_es_cons : forall v ves,
   vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
 Proof.
   intros.
@@ -184,7 +188,7 @@ Ltac simpl_reduce_simple :=
   | |- reduce _ _ _ _ _ _ _ (vs_to_es (?v' :: ?ves')) =>
       replace (vs_to_es (v' :: ves'))
          with (vs_to_es ves' ++ [:: AI_basic (BI_const v')]);
-      last by apply vs_to_es_helper
+      last by apply vs_to_es_cons
   end;
   match goal with
   | |- reduce
@@ -304,9 +308,7 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Select_typing in Hbtype as [ts [? [??]]].
   subst t1s t2s.
-  apply (f_equal size) in Ht1s. revert Ht1s.
-  repeat rewrite size_cat. rewrite size_rev. rewrite size_map. simpl.
-  by lias.
+  by size_unequal Ht1s.
 Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
@@ -419,45 +421,18 @@ Lemma reduce_binop_trap : forall (hs : host_state) s f t op v1 v2 ves',
     hs s f (vs_to_es ves' ++ [:: AI_trap]).
 Proof. intros. simpl_reduce_simple. by apply rs_binop_failure. Qed.
 
-Lemma binop_error_0 : forall s inst ves t op,
-  ves = [::] ->
+Lemma binop_error_size : forall s inst ves t op,
+  size ves < 2 ->
   ~ exists C t1s t2s t1s',
     rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
-  subst ves.
-  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply_cat0_inv Ht1s.
-  apply Binop_typing in Hbtype as [? [??]]. by destruct t2s => //.
-Qed.
-
-Lemma absurd_add_test : forall (n m : nat),
-  1 <> n + 1 + 1.
-Proof.
-  intros n m.
-  (* Nat.add_comm needs coq_nat scope *)
-  Fail rewrite Nat.add_comm.
-  lias.
-Qed.
-
-(* ves only has one value, binop needs at least two *)
-Lemma binop_error_1 : forall s inst ves t op v,
-  ves = [:: v] ->
-  ~ exists C t1s t2s t1s',
-    rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
-    e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
-Proof.
-  intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
-  subst ves.
+  intros s inst ves t op ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Binop_typing in Hbtype as [? [ts' ?]].
   subst t1s t2s.
-
-  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
-  simpl in Ht1s. revert Ht1s. by lias.
+  by size_unequal Ht1s.
 Qed.
 
 (* 0 arguments given to testop *)
@@ -576,9 +551,7 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Relop_typing in Hbtype as [? [ts' ?]].
   subst t1s t2s.
-
-  apply (f_equal size) in Ht1s. repeat rewrite size_cat in Ht1s.
-  simpl in Ht1s. revert Ht1s. by lias.
+  by size_unequal Ht1s.
 Qed.
 
 (* TODO rename this and following lemmas from cvtop to convert *)
@@ -829,19 +802,16 @@ Proof.
         by apply reduce_unop.
 
     * (* AI_basic (BI_binop t op) *)
-      destruct ves as [|v2 [|v1 ves']].
-      + (* [::] *)
-        apply RS''_error. by apply binop_error_0.
-      + (* [:: v2] *)
-        apply RS''_error. by eapply binop_error_1.
-      + (* [:: v2, v1 & ves'] *)
-        destruct (app_binop op v1 v2) as [v|] eqn:?.
-        -- (* Some v *)
-           apply <<hs, s, f, vs_to_es (v :: ves')>>'.
-           by apply reduce_binop.
-        -- (* None *)
-           apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'.
-           by apply reduce_binop_trap.
+      destruct ves as [|v2 [|v1 ves']];
+        try by (apply RS''_error; apply binop_error_size).
+      (* [:: v2, v1 & ves'] *)
+      destruct (app_binop op v1 v2) as [v|] eqn:?.
+      + (* Some v *)
+        apply <<hs, s, f, vs_to_es (v :: ves')>>'.
+        by apply reduce_binop.
+      + (* None *)
+        apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'.
+        by apply reduce_binop_trap.
 
     * (* AI_basic (BI_testop T_i32 testop) *)
       destruct ves as [|[c| | |] ves'] eqn:?;
