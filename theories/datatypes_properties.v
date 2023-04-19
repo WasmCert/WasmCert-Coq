@@ -49,6 +49,14 @@ Definition eqnumber_typeP : Equality.axiom number_type_eqb :=
 Canonical Structure number_type_eqMixin := EqMixin eqnumber_typeP.
 Canonical Structure number_type_eqType := Eval hnf in EqType number_type number_type_eqMixin.
 
+Scheme Equality for reference_type.
+Definition reference_type_eqb v1 v2 : bool := reference_type_eq_dec v1 v2.
+Definition eqreference_typeP : Equality.axiom reference_type_eqb :=
+  eq_dec_Equality_axiom reference_type_eq_dec.
+
+Canonical Structure reference_type_eqMixin := EqMixin eqreference_typeP.
+Canonical Structure reference_type_eqType := Eval hnf in EqType reference_type reference_type_eqMixin.
+
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
 Definition eqvalue_typeP : Equality.axiom value_type_eqb :=

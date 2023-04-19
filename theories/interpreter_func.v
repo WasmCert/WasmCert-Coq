@@ -12,6 +12,8 @@ Unset Strict Implicit.
 
 Unset Printing Implicit Defensive.
 
+(* TODO: update from the new certified interpreter instead. *)
+(*
 Inductive res_crash : Type :=
 | C_error : res_crash
 | C_exhaustion : res_crash.
@@ -519,5 +521,5 @@ Fixpoint run_v (fuel : fuel) (d : depth) (cfg : config_tuple) : ((host_state * s
         | _ => (hs', s', R_crash C_error)
         end
   end.
-
+*)
 End Host_func.

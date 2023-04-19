@@ -12,6 +12,8 @@ Unset Printing Implicit Defensive.
 Require Import operations opsem interpreter_func properties tactics.
 
 
+(* TODO: update from the new certified interpreter instead. *)
+(*
 Section Host.
   
 Hint Constructors reduce_simple : core.
@@ -1079,3 +1081,4 @@ Proof.
 Qed.
 
 End Host.
+*)

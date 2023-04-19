@@ -24,9 +24,6 @@ Variable host_function : eqType.
 
 Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-
-(*Let vs_to_es := @vs_to_es host_function.*)
 
 Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
@@ -88,7 +85,6 @@ Definition eqresP : Equality.axiom res_eqb :=
 Canonical Structure res_eqMixin := EqMixin eqresP.
 Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
 
-(*Let ret res_step := res_step host_function.*)
 Let res_tuple := res_tuple host_function.
 Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
 
@@ -117,7 +113,7 @@ Context {eff_has_host_event : host_event -< eff}.
 Definition run_step_base (call : run_stepE ~> itree (run_stepE +' eff))
     (d : depth) (cgf : config_tuple)
   : itree (run_stepE +' eff) res_tuple :=
-  let: (s, f, es) := cgf in
+  let: (s, (f, es)) := cgf in
   let: (ves, es') := split_vals_e es in (** Framing out constants. **)
   match es' with
   | [::] => ret (s, f, crash_error)
