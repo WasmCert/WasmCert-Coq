@@ -214,10 +214,40 @@ Proof.
     (k := 0) (lh := (LH_base (vs_to_es ves) [::]))
     (es := [:: AI_basic BI_nop])
     (es' := [::]); try solve_lfilled_0.
-  - apply r_simple. apply rs_nop.
-  - solve_lfilled_0. by repeat rewrite List.app_nil_r.
+  - apply r_simple. by apply rs_nop.
+  - by repeat rewrite List.app_nil_r.
 Qed.
 
+(* TODO extend simpl_reduce_simple to handle this? *)
+Lemma reduce_drop : forall (hs : host_state) s f v ves',
+  reduce
+    hs s f (vs_to_es (v :: ves') ++ [:: AI_basic BI_drop])
+    hs s f (vs_to_es ves').
+Proof.
+  intros.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
+    (es := vs_to_es [:: v] ++ [:: AI_basic BI_drop])
+    (es' := [::]); try solve_lfilled_0.
+  - apply r_simple. by apply rs_drop.
+  - by repeat rewrite List.app_nil_r.
+Qed.
+
+Lemma drop_error : forall s inst ves,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic BI_drop] (Tf t1s t2s).
+Proof.
+  intros s inst ves Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply_cat0_inv Ht1s.
+  apply Drop_typing in Hbtype as [??]. by destruct t2s.
+Qed.
+
+(* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
@@ -231,7 +261,7 @@ Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_
 Proof.
   intros hs s s' f c v ves' mem'' s_mem_s_j j l ??????. subst s' v l.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_grow_memory_success with (m := s_mem_s_j) (c := c) => //.
+  - by apply r_grow_memory_success with (m := s_mem_s_j) (c := c).
   - by solve_lfilled_0.
   - by solve_lfilled_0.
 Qed.
@@ -636,10 +666,10 @@ Proof.
       destruct ves as [|v ves'] eqn:Heqves.
       + (* [::] *)
         apply RS''_error.
-        by apply (admitted_TODO _).
+        by apply drop_error.
       + (* v :: ves' *)
         apply <<hs, s, f, vs_to_es ves'>>'.
-        by apply (admitted_TODO _).
+        by apply reduce_drop.
 
     * (* AI_basic BI_select *)
       by apply (admitted_TODO _).
@@ -692,17 +722,15 @@ Proof.
       + (* [::] *)
         apply RS''_error. by apply grow_memory_error_0.
       + (* VAL_int32 c :: ves' *)
-        destruct (smem_ind s f.(f_inst)) as [j|] eqn:Heqj.
+        destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
         -- (* Some j *)
            destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
            ** (* Some s_mem_s_j *)
-              remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem' eqn:Heqmem'.
-              destruct mem' as [mem''|] eqn:Heqmem.
+              remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
+              destruct mem' as [mem''|].
               ++ (* Some mem'' *)
                  remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v.
                  remember (upd_s_mem s (update_list_at s.(s_mems) j mem'')) as s'.
-                 (* TODO maybe a better approach would be to use eapply and let
-                  * coq find Heq* automatically? *)
                  apply <<hs, s', f, (vs_to_es (v :: ves'))>>'.
                  eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
               ++ (* None *)
