@@ -29,7 +29,7 @@
 		"@opam/mdx": ">=1.9.0",
 		"@opam/menhir": "*",
 		"@opam/ocamlfind": "1.9.3",
-		"@opam/odoc": "*",
+	        "@opam/odoc": "*",
 		"compcert": "github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721",
 		"coq-ext-lib": "*",
 		"coq-flocq": "*",
@@ -40,7 +40,8 @@
 		"strong-induction": "github:iriswasm/strong-induction"
 	},
 	"devDependencies": {},
-	"resolutions": {
+	"resolutions": {  
+	        "esy-gmp": "github:esy-packages/esy-gmp#99191060430b6656e0948d8b31fb622a9ea99039",
 		"coq-mathcomp-ssreflect": {
 			"source": "github:math-comp/math-comp#6bff567e84b01c1b3502985ec936b9e74ea252b4",
 			"override": {

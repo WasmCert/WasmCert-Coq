@@ -445,7 +445,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       | RS_crash error => ret (s', f', RS_crash error)
       end
 
-  | AI_local ln f es =>
+  | AI_local ln f0 es =>
     if es_is_trap es
     then ret (s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
     else
@@ -455,7 +455,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         then ret (s, f, RS_normal (vs_to_es ves ++ es))
         else ret (s, f, crash_error)
       else
-        '(s', f', res) <- call _ (call_run_step_base d (s, f, es)) ;;
+        '(s', f', res) <- call _ (call_run_step_base d (s, f0, es)) ;;
         match res return itree (run_stepE +' eff) res_tuple with
         | RS_return rvs =>
           if length rvs >= ln
