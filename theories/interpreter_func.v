@@ -523,34 +523,16 @@ Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 ves',
     hs s f (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')).
 Proof. intros. simpl_reduce_simple. by apply rs_relop. Qed.
 
-Lemma relop_error_0 : forall s inst ves t op,
-  ves = [::] ->
+Lemma relop_error_size : forall s inst ves t op,
+  size ves < 2 ->
   ~ exists C t1s t2s t1s',
     rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_relop t op)] (Tf t1s t2s).
 Proof.
   intros s inst ves t op ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
-  subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply_cat0_inv Ht1s.
-  by apply Relop_typing in Hbtype as [[|] [??]].
-Qed.
-
-(* ves only has one value, relop needs at least two *)
-(* TODO dedupe with binop_error_1 *)
-Lemma relop_error_1 : forall s inst ves t op v,
-  ves = [:: v] ->
-  ~ exists C t1s t2s t1s',
-    rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
-    e_typing s C [:: AI_basic (BI_relop t op)] (Tf t1s t2s).
-Proof.
-  intros s inst ves t op v Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
-  subst ves.
-  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Relop_typing in Hbtype as [? [ts' ?]].
-  subst t1s t2s.
+  apply Relop_typing in Hbtype as [? [??]]. subst t1s t2s.
   by size_unequal Ht1s.
 Qed.
 
@@ -630,7 +612,7 @@ Proof.
   (* run_step_with_fuel'' *)
   destruct fuel as [|fuel].
   - (* 0 *)
-    by apply (RS'_exhaustion hs s f es).
+    by apply RS'_exhaustion.
   - (* fuel.+1 *)
     (** Framing out constants. **)
     destruct (split_vals_e es) as [ves es'] eqn:Heqes.
@@ -764,30 +746,30 @@ Proof.
        * would moving it out into a separate function be justified?
        * perhaps use a convoy pattern match there?  *)
       (* XXX do we ever have to handle r_grow_memory_failure? *)
-      destruct ves as [|[c| | |] ves'] eqn:Heqves;
+      destruct ves as [|v ves'] eqn:?;
+        try by (apply RS''_error; apply grow_memory_error_0).
+      (* v :: ves' *)
+      destruct v as [c| | |] eqn:?;
         try by (apply RS''_error; by eapply grow_memory_error_typeof => //).
-      + (* [::] *)
-        apply RS''_error. by apply grow_memory_error_0.
-      + (* VAL_int32 c :: ves' *)
-        destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
-        -- (* Some j *)
-           destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
-           ** (* Some s_mem_s_j *)
-              remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
-              destruct mem' as [mem''|].
-              ++ (* Some mem'' *)
-                 remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v.
-                 remember (upd_s_mem s (update_list_at s.(s_mems) j mem'')) as s'.
-                 apply <<hs, s', f, (vs_to_es (v :: ves'))>>'.
-                 eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
-              ++ (* None *)
-                 apply RS''_error.
-                 by eapply grow_memory_error_TODO with (j := j) (s_mem_s_j := s_mem_s_j) => //.
+      (* VAL_int32 c *)
+      destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
+      + (* Some j *)
+        destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
+        -- (* Some s_mem_s_j *)
+           remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
+           destruct mem' as [mem''|].
+           ** (* Some mem'' *)
+              remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
+              remember (upd_s_mem s (update_list_at s.(s_mems) j mem'')) as s'.
+              apply <<hs, s', f, (vs_to_es (v' :: ves'))>>'.
+              eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
            ** (* None *)
-              by apply (RS''_error _ (admitted_TODO _)).
-
+              apply RS''_error.
+              by eapply grow_memory_error_TODO with (j := j) (s_mem_s_j := s_mem_s_j) => //.
         -- (* None *)
            by apply (RS''_error _ (admitted_TODO _)).
+      + (* None *)
+         by apply (RS''_error _ (admitted_TODO _)).
 
     * (* AI_basic (BI_const _) *)
       (* XXX this won't happen if ves has been correctly split(?) *)
@@ -824,11 +806,13 @@ Proof.
 
     * (* AI_basic (BI_testop T_i64 testop) *)
       (* TODO un-nest this destruct? could make the 'try by' clearer *)
-      destruct ves as [|[|c| |] ves'] eqn:?;
-          try by (apply RS''_error; by eapply testop_i64_error => //).
+      destruct ves as [|v ves'].
       + (* [::] *)
         apply RS''_error. by apply testop_error_0.
-      + (* VAL_int64 c :: ves' *)
+      + (* v :: ves' *)
+        destruct v as [|c| |];
+          try by (apply RS''_error; by eapply testop_i64_error => //).
+        (* VAL_int64 c *)
         apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (@app_testop_i i64t testop c)) :: ves')>>'.
         by eapply reduce_testop_i64.
 
@@ -839,47 +823,43 @@ Proof.
       apply RS''_error. by apply testop_f64_error.
 
     * (* AI_basic (BI_relop t op) *)
-      destruct ves as [|v2 [|v1 ves']] eqn:?.
-      + (* [::] *)
-        apply RS''_error. by apply relop_error_0.
-      + (* [:: v2] *)
-        apply RS''_error. by eapply relop_error_1.
-      + (* [:: v2, v1 & ves'] *)
-        apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')>>'.
-        by apply reduce_relop.
+      destruct ves as [|v2 [|v1 ves']];
+          try by (apply RS''_error; apply relop_error_size).
+      (* [:: v2, v1 & ves'] *)
+      apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')>>'.
+      by apply reduce_relop.
 
     * (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
-      destruct ves as [|v ves'] eqn:?.
-      + (* [::] *)
-        apply RS''_error. by apply cvtop_error_0.
-      + destruct (types_agree t1 v) eqn:Ht1.
-        -- (* true *)
-           destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
-           ** (* Some v' *)
-              apply <<hs, s, f, vs_to_es (v' :: ves')>>'.
-              by apply reduce_cvtop_success.
-           ** (* None *)
-              apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
-              by apply reduce_cvtop_trap.
-        -- (* false *)
-           apply RS''_error.
-           assert (~ types_agree t1 v). { rewrite Ht1. by apply not_false_is_true. }
-           eapply cvtop_error_types_disagree => //.  (* TODO lemma not finished *)
+      destruct ves as [|v ves'];
+        try by (apply RS''_error; apply cvtop_error_0).
+      (* v :: ves' *)
+      destruct (types_agree t1 v) eqn:Ht1.
+      + (* true *)
+        destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
+        -- (* Some v' *)
+           apply <<hs, s, f, vs_to_es (v' :: ves')>>'.
+           by apply reduce_cvtop_success.
+        -- (* None *)
+           apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
+           by apply reduce_cvtop_trap.
+      + (* false *)
+        apply RS''_error.
+        assert (~ types_agree t1 v). { rewrite Ht1. by apply not_false_is_true. }
+        eapply cvtop_error_types_disagree => //.  (* TODO lemma not finished *)
 
     * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
-      destruct ves as [|v ves'] eqn:?.
-      + (* [::] *)
-        apply RS''_error. by apply cvtop_error_0.
-      + destruct (types_agree t1 v) eqn:Ht1.
-        -- (* true *)
-           destruct sx eqn:Heqsx.
-           ** (* Some _ *)
-              apply RS''_error. by apply (admitted_TODO _).
-           ** (* None *)
-              apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
-              by apply reduce_reinterpret.
-        -- (* false *)
+      destruct ves as [|v ves'];
+        try by (apply RS''_error; apply cvtop_error_0).
+      destruct (types_agree t1 v) eqn:?.
+      + (* true *)
+        destruct sx eqn:Heqsx.
+        -- (* Some _ *)
            apply RS''_error. by apply (admitted_TODO _).
+        -- (* None *)
+           apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
+           by apply reduce_reinterpret.
+      + (* false *)
+        apply RS''_error. by apply (admitted_TODO _).
 
     * (* AI_trap *)
       (* NOTE trap is 'terminal/value form' *)
