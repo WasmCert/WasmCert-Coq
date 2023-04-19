@@ -159,6 +159,65 @@ Ltac apply_cat0_inv H :=
   | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??]; subst xs ys
   end.
 
+(* TODO naming *)
+Lemma vs_to_es_helper : forall v ves,
+  vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
+Proof.
+  intros.
+  unfold vs_to_es. rewrite rev_cons. rewrite cats1. unfold v_to_e_list. rewrite map_rcons.
+  by apply f_equal.
+Qed.
+
+Ltac simpl_reduce_simple :=
+  (* TODO use some existing list ltacs instead of these initial matches? *)
+  try match goal with
+  | |- reduce _ _ _ (vs_to_es (?v :: ?ves') ++ [:: ?e]) _ _ _ _ =>
+      replace (v :: ves') with ([:: v] ++ ves');
+      last by apply cat1s
+  | |- reduce
+      _ _ _ (vs_to_es ?ves ++ [:: ?e])
+      _ _ _ (vs_to_es ?ves ++ [:: ?e']) =>
+      replace ves with ([::] ++ ves) at 1;
+      last by apply cat0s
+  end;
+  try match goal with
+  | |- reduce _ _ _ _ _ _ _ (vs_to_es (?v' :: ?ves')) =>
+      replace (vs_to_es (v' :: ves'))
+         with (vs_to_es ves' ++ [:: AI_basic (BI_const v')]);
+      last by apply vs_to_es_helper
+  end;
+  match goal with
+  | |- reduce
+      _ _ _ (vs_to_es (?vs ++ ?ves') ++ [:: ?e])
+      _ _ _ (vs_to_es ?ves' ++ [:: ?e']) =>
+        eapply r_label with
+          (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
+          (es := vs_to_es vs ++ [:: e])
+          (es' := [:: e']);
+        try solve_lfilled_0; apply r_simple
+  end.
+
+Lemma reduce_unreachable : forall (hs : host_state) s f ves,
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic BI_unreachable])
+    hs s f (vs_to_es ves ++ [:: AI_trap]).
+Proof. intros. simpl_reduce_simple. by apply rs_unreachable. Qed.
+
+(* TODO extend simpl_reduce_simple to handle this? *)
+Lemma reduce_nop : forall (hs : host_state) s f ves,
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic BI_nop])
+    hs s f (vs_to_es ves).
+Proof.
+  intros.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves) [::]))
+    (es := [:: AI_basic BI_nop])
+    (es' := [::]); try solve_lfilled_0.
+  - apply r_simple. apply rs_nop.
+  - solve_lfilled_0. by repeat rewrite List.app_nil_r.
+Qed.
+
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
@@ -228,32 +287,6 @@ Proof.
   apply Grow_memory_typing in Hbtype as [? [? [??]]] => //. subst t1s t2s.
   by cats1_last_eq Ht1s.
 Qed.
-
-Lemma vs_to_es_helper : forall v ves,
-  vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
-Proof.
-  intros.
-  unfold vs_to_es. rewrite rev_cons. rewrite cats1. unfold v_to_e_list. rewrite map_rcons.
-  by apply f_equal.
-Qed.
-
-Ltac simpl_reduce_simple :=
-  try rewrite <- cat1s;
-  try match goal with
-  | |- reduce _ _ _ _ _ _ _ (vs_to_es (?v' :: ?ves')) =>
-      replace (vs_to_es (v' :: ves')) with (vs_to_es ves' ++ [:: AI_basic (BI_const v')]);
-      last by apply vs_to_es_helper
-  end;
-  match goal with
-  | |- reduce
-      _ _ _ (vs_to_es (?vs ++ ?ves') ++ [:: ?e])
-      _ _ _ (vs_to_es ?ves' ++ [:: ?e']) =>
-        eapply r_label with
-          (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
-          (es := vs_to_es vs ++ [:: e])
-          (es' := [:: e']);
-        try solve_lfilled_0; apply r_simple
-  end.
 
 Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
   reduce
@@ -592,11 +625,22 @@ Proof.
       (* AI_local ln lf es *) ln lf es ].
 
     * (* AI_basic BI_unreachable *)
-      by apply (admitted_TODO _).
+      apply <<hs, s, f, vs_to_es ves ++ [:: AI_trap]>>'.
+      by apply reduce_unreachable.
+
     * (* AI_basic BI_nop *)
-      by apply (admitted_TODO _).
+      apply <<hs, s, f, vs_to_es ves>>'.
+      by apply reduce_nop.
+
     * (* AI_basic BI_drop *)
-      by apply (admitted_TODO _).
+      destruct ves as [|v ves'] eqn:Heqves.
+      + (* [::] *)
+        apply RS''_error.
+        by apply (admitted_TODO _).
+      + (* v :: ves' *)
+        apply <<hs, s, f, vs_to_es ves'>>'.
+        by apply (admitted_TODO _).
+
     * (* AI_basic BI_select *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
@@ -766,7 +810,9 @@ Proof.
            apply RS''_error. by apply (admitted_TODO _).
 
     * (* AI_trap *)
+      (* NOTE trap is 'terminal/value form' *)
       by apply (admitted_TODO _).
+
     * (* AI_invoke a *)
       by apply (admitted_TODO _).
     * (* AI_label ln les es *)
