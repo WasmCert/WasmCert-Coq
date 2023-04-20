@@ -78,6 +78,12 @@ Inductive res_step'
 | RS'_return : host_state -> store_record -> frame -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_normal hs' s' f' es': reduce hs s f es hs' s' f' es' -> res_step' hs s f es.
 
+(** Main proof for the [RS_break] case. **)
+(* Lemma reduce_label_break: forall fuel d hs s f es es' hs' s' f' es'' n, *)
+(* run_step_with_fuel fuel d (hs, s, f, es') = (hs', s', f', RS_break 0 es'') -> *)
+(*   n <= size es'' -> *)
+(*   reduce hs s f ([:: AI_label n es es']) hs' s' f' *)
+(*    (v_to_e_list (rev (take n es'')) ++ es). *)
 Inductive res_step'_separate_e
   (hs : host_state) (s : store_record) (f : frame)
   (ves : list value) (e : administrative_instruction) : Type :=
@@ -89,8 +95,16 @@ Inductive res_step'_separate_e
       inst_typing s f.(f_inst) C /\
       e_typing s C [::e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
-(* | RS''_break *)
-(* | RS''_return *)
+(* NOTE renamed es'' to ves' (cf reduce_label_break ) *)
+| RS''_break hs' s' f' n ves' :
+    (forall es es',
+       n <= size ves' ->
+       es' = ((vs_to_es ves) ++ [::e]) ->
+       reduce
+         hs s f [:: AI_label n es es']
+         hs' s' f' (v_to_e_list (rev (take n ves')) ++ es)) ->
+    res_step'_separate_e hs s f ves e
+(* TODO | RS''_return *)
 | RS''_normal hs' s' f' es' :
     reduce hs s f ((vs_to_es ves) ++ [::e]) hs' s' f' es' ->
     res_step'_separate_e hs s f ves e.
@@ -100,6 +114,8 @@ Inductive res_step'_separate_e
  * want to make those values clear. *)
 Notation "<< hs' , s' , f' , es' >>[ H ]" := (@RS'_normal _ _ _ _ hs' s' f' es' H).
 Notation "<< hs' , s' , f' , es' >>'" := (@RS''_normal _ _ _ _ _ hs' s' f' es').
+Check @RS''_break.
+Notation "<< hs' , s' , f' , break( n , ves' ) >>'" := (@RS''_break _ _ _ _ _ hs' s' f' n ves').
 
 (* Using this as a TODO placeholder *)
 Axiom admitted_TODO : forall A : Type, A.
@@ -157,6 +173,15 @@ Ltac cats1_last_eq H :=
 Ltac apply_cat0_inv H :=
   match type of H with
   | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??]; subst xs ys
+  end.
+
+Ltac simpl_vs_to_es_size :=
+    unfold vs_to_es, v_to_e_list; rewrite size_map; rewrite size_rev.
+
+Ltac if_lias :=
+  match goal with
+  | |- (if ?cond then _ else _) = _ =>
+    destruct cond eqn:?; lias
   end.
 
 Ltac size_unequal H :=
@@ -331,12 +356,12 @@ Proof.
     with (vs := vs_to_es ves') (t1s := t1s) => //.
   - by apply v_to_e_is_const_list.
   - repeat rewrite length_is_size.
-    unfold vs_to_es, v_to_e_list.
-    rewrite size_map; rewrite size_rev.
+    simpl_vs_to_es_size.
     (* TODO ltac for this? *)
     rewrite Heqves'. rewrite <- Heqn.
     rewrite size_take.
-    destruct (n < size ves) eqn:?; by lias.
+    (* TODO put symmetry into the ltac? *)
+    by symmetry; if_lias.
   - solve_lfilled_0. apply f_equal. by rewrite List.app_nil_r.
   - solve_lfilled_0. apply List.app_inj_tail_iff. by split; subst m.
 Qed.
@@ -356,6 +381,33 @@ Proof.
   apply Block_typing in Hbtype as [ts [? [??]]] => //.
   subst t1s. by size_unequal Ht1s.
 Qed.
+
+(* | rs_br : *)
+(*     forall n vs es i LI lh, *)
+(*       const_list vs -> *)
+(*       length vs = n -> *)
+(*       lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI -> *)
+(*       reduce_simple [::AI_label n es LI] (vs ++ es) *)
+
+Lemma break_br : forall (hs : host_state) s f ves j es es',
+  j <= size ves ->
+  es' = vs_to_es ves ++ [:: AI_basic (BI_br j)] ->
+  reduce
+    hs s f [:: AI_label j es es']
+    hs s f (v_to_e_list (rev (take j ves)) ++ es).
+Proof.
+  intros hs s f ves j es es' Hj Heqes'.
+  apply r_simple. eapply rs_br with (i := j).
+  - by apply v_to_e_is_const_list.
+  - rewrite length_is_size.
+    simpl_vs_to_es_size.
+    rewrite size_take.
+    by if_lias.
+  - apply/lfilledP.
+
+    (* solve_lfilled_0. *)
+
+Admitted.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
@@ -765,8 +817,11 @@ Proof.
       by apply (admitted_TODO _).
     * (* AI_basic (BI_if tf es1 t2) *)
       by apply (admitted_TODO _).
+
     * (* AI_basic (BI_br j) *)
-      by apply (admitted_TODO _).
+      apply <<hs, s, f, break(j, ves)>>'.
+      by apply break_br.
+
     * (* AI_basic (BI_br_if j) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_br_table js j) *)
