@@ -96,6 +96,7 @@ Inductive res_step'_separate_e
       e_typing s C [::e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
 (* NOTE renamed es'' to ves' (cf reduce_label_break ) *)
+(* XXX drop hs' s' f'? seems like we always have hs'=hs etc *)
 | RS''_break hs' s' f' n ves' :
     (forall es es',
        n <= size ves' ->
@@ -170,9 +171,11 @@ Ltac cats1_last_eq H :=
   apply concat_cancel_last in H as [??].
 
 (* using (H : rev (map f [::]) = xs ++ ys), substitute xs = ys = [::] *)
+(* TODO generalize to handle ([::] = as ++ (bs ++ cs) ++ ds), see br_if_error_0 *)
 Ltac apply_cat0_inv H :=
   match type of H with
-  | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??]; subst xs ys
+  | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??];
+                      try subst xs; try subst ys
   end.
 
 Ltac simpl_vs_to_es_size :=
@@ -226,6 +229,7 @@ Ltac simpl_reduce_simple :=
         try solve_lfilled_0; apply r_simple
   end.
 
+(* TODO consistent lemma naming *)
 Lemma reduce_unreachable : forall (hs : host_state) s f ves,
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic BI_unreachable])
@@ -403,11 +407,77 @@ Proof.
     simpl_vs_to_es_size.
     rewrite size_take.
     by if_lias.
+
   - apply/lfilledP.
-
-    (* solve_lfilled_0. *)
-
+    subst es'.
+    destruct j.
+    Print lfilledInd.
+    Check LfilledBase.
+    Check LfilledRec.
+    Fail apply lfilled0.
 Admitted.
+
+Lemma reduce_br_if_true : forall (hs : host_state) s f c ves' j,
+  c != Wasm_int.int_zero i32m ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic (BI_br_if j)])
+    hs s f (vs_to_es ves' ++ [:: AI_basic (BI_br j)]).
+Proof.
+  intros ??? c ves' j ?.
+  (* TODO make simpl_reduce_simple applicable? *)
+  apply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
+    (es := vs_to_es [::VAL_int32 c] ++ [:: AI_basic (BI_br_if j)])
+    (es' := [:: AI_basic (BI_br j)]);
+    try by solve_lfilled_0.
+  apply r_simple. apply rs_br_if_true. by apply/eqP.
+Qed.
+
+Lemma reduce_br_if_false : forall (hs : host_state) s f c ves' j,
+  c == Wasm_int.int_zero i32m ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic (BI_br_if j)])
+    hs s f (vs_to_es ves').
+Proof.
+  intros ??? c ves' j ?.
+  (* TODO make simpl_reduce_simple applicable? *)
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
+    (es := vs_to_es [::VAL_int32 c] ++ [:: AI_basic (BI_br_if j)])
+    (es' := [::]);
+    try solve_lfilled_0.
+  - apply r_simple. apply rs_br_if_false. by apply/eqP.
+  - by repeat rewrite List.app_nil_r.
+Qed.
+
+Lemma br_if_error_0 : forall s inst ves j,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_br_if j)] (Tf t1s t2s).
+Proof.
+  intros s inst ves j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Br_if_typing in Hbtype as [ts [ts' [? [? [??]]]]]. subst t1s t2s.
+  by apply_cat0_inv Ht1s; destruct ts, ts'.
+Qed.
+
+Lemma br_if_error_i32 : forall s inst v ves ves' j,
+  typeof v <> T_i32 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_br_if j)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' j ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Br_if_typing in Hbtype as [? [? [? [? [??]]]]]. subst t1s t2s.
+  by cats1_last_eq Ht1s.
+Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
@@ -823,7 +893,20 @@ Proof.
       by apply break_br.
 
     * (* AI_basic (BI_br_if j) *)
-      by apply (admitted_TODO _).
+      destruct ves as [|v ves'];
+        try by (apply RS''_error; apply br_if_error_0).
+      (* v :: ves' *)
+      destruct v as [c| | |] eqn:?;
+        try by (apply RS''_error; eapply br_if_error_i32 with (v := v); subst v).
+      (* VAL_int32 c *)
+      destruct (c == Wasm_int.int_zero i32m) eqn:?.
+      ** (* true *)
+         apply <<hs, s, f, vs_to_es ves'>>'.
+         by eapply reduce_br_if_false.
+      ** (* false *)
+         apply <<hs, s, f, vs_to_es ves' ++ [:: AI_basic (BI_br j)]>>'.
+         by eapply reduce_br_if_true; lias.
+
     * (* AI_basic (BI_br_table js j) *)
       by apply (admitted_TODO _).
     * (* AI_basic BI_return *)
