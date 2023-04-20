@@ -311,15 +311,19 @@ Proof.
   by size_unequal Ht1s.
 Qed.
 
-Lemma reduce_block : forall (hs : host_state) s f ves' ves'' es t1s t2s m n,
-  size ves' = n ->
-  size t1s = n ->
-  size t2s = m ->
+Lemma reduce_block : forall (hs : host_state) s f ves ves' ves'' es t1s t2s m n,
+  size ves >= size t1s ->
+  n = size t1s ->
+  m = size t2s ->
+  (ves', ves'') = split_n ves n ->
   reduce
-    hs s f (vs_to_es (ves' ++ ves'') ++ [:: AI_basic (BI_block (Tf t1s t2s) es)])
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_block (Tf t1s t2s) es)])
     hs s f (vs_to_es ves'' ++ [::AI_label m [::] (vs_to_es ves' ++ to_e_list es)]).
 Proof.
-  intros ??? ves' ves'' es t1s t2s m n Hves' Ht1s Ht2s.
+  intros ??? ves ves' ves'' es t1s t2s m n Hlen Heqn Heqm Hsplit.
+  rewrite split_n_is_take_drop in Hsplit.
+  injection Hsplit as Heqves' Heqves''.
+  replace ves with (ves' ++ ves''); last by subst ves' ves''; rewrite cat_take_drop.
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves'') [::])).
   apply r_simple.
@@ -329,7 +333,10 @@ Proof.
   - repeat rewrite length_is_size.
     unfold vs_to_es, v_to_e_list.
     rewrite size_map; rewrite size_rev.
-    by rewrite Ht1s.
+    (* TODO ltac for this? *)
+    rewrite Heqves'. rewrite <- Heqn.
+    rewrite size_take.
+    destruct (n < size ves) eqn:?; by lias.
   - solve_lfilled_0. apply f_equal. by rewrite List.app_nil_r.
   - solve_lfilled_0. apply List.app_inj_tail_iff. by split; subst m.
 Qed.
@@ -727,15 +734,13 @@ Proof.
 
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
       destruct (length ves >= length t1s) eqn:?.
-      + (* false *)
-        apply RS''_error.
-        by apply (admitted_TODO _).
       + (* true *)
         destruct (split_n ves (length t1s)) as [ves' ves''] eqn:?.
         remember (AI_label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)) as e'.
         apply <<hs, s, f, vs_to_es ves'' ++ [:: e']>>'.
-        subst e'.
-        Fail eapply reduce_block.
+        by subst e'; eapply reduce_block.
+      + (* false *)
+        apply RS''_error.
         by apply (admitted_TODO _).
 
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
