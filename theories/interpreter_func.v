@@ -341,6 +341,22 @@ Proof.
   - solve_lfilled_0. apply List.app_inj_tail_iff. by split; subst m.
 Qed.
 
+(* XXX why is this needed? *)
+Let Block_typing := @Block_typing host_function.
+
+Lemma block_error : forall s inst ves bt1s bt2s es,
+  size ves < size bt1s ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_block (Tf bt1s bt2s) es)] (Tf t1s t2s).
+Proof.
+  intros s inst ves bt1s bt2s es ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Block_typing in Hbtype as [ts [? [??]]] => //.
+  subst t1s. by size_unequal Ht1s.
+Qed.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -741,7 +757,9 @@ Proof.
         by subst e'; eapply reduce_block.
       + (* false *)
         apply RS''_error.
-        by apply (admitted_TODO _).
+        (* TODO should use length in lemmas instead? *)
+        repeat rewrite length_is_size in Heqb.
+        by apply block_error; lias.
 
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
       by apply (admitted_TODO _).
