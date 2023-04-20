@@ -171,11 +171,14 @@ Ltac cats1_last_eq H :=
   apply concat_cancel_last in H as [??].
 
 (* using (H : rev (map f [::]) = xs ++ ys), substitute xs = ys = [::] *)
-(* TODO generalize to handle ([::] = as ++ (bs ++ cs) ++ ds), see br_if_error_0 *)
 Ltac apply_cat0_inv H :=
+  try match type of H with
+  | _ = ?xs ++ ?ys => symmetry in H
+  end;
   match type of H with
-  | _ = ?xs ++ ?ys => symmetry in H; apply cat0_inv in H as [??];
-                      try subst xs; try subst ys
+  | ?xs ++ ?ys = _ =>
+      repeat rewrite catA in H; apply cat0_inv in H as [H ?];
+      try subst xs; try subst ys; try apply_cat0_inv H
   end.
 
 Ltac simpl_vs_to_es_size :=
@@ -461,7 +464,7 @@ Proof.
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_if_typing in Hbtype as [ts [ts' [? [? [??]]]]]. subst t1s t2s.
-  by apply_cat0_inv Ht1s; destruct ts, ts'.
+  by apply_cat0_inv Ht1s.
 Qed.
 
 Lemma br_if_error_i32 : forall s inst v ves ves' j,
