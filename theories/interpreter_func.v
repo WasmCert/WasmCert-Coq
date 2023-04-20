@@ -311,6 +311,29 @@ Proof.
   by size_unequal Ht1s.
 Qed.
 
+Lemma reduce_block : forall (hs : host_state) s f ves' ves'' es t1s t2s m n,
+  size ves' = n ->
+  size t1s = n ->
+  size t2s = m ->
+  reduce
+    hs s f (vs_to_es (ves' ++ ves'') ++ [:: AI_basic (BI_block (Tf t1s t2s) es)])
+    hs s f (vs_to_es ves'' ++ [::AI_label m [::] (vs_to_es ves' ++ to_e_list es)]).
+Proof.
+  intros ??? ves' ves'' es t1s t2s m n Hves' Ht1s Ht2s.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves'') [::])).
+  apply r_simple.
+  eapply rs_block
+    with (vs := vs_to_es ves') (t1s := t1s) => //.
+  - by apply v_to_e_is_const_list.
+  - repeat rewrite length_is_size.
+    unfold vs_to_es, v_to_e_list.
+    rewrite size_map; rewrite size_rev.
+    by rewrite Ht1s.
+  - solve_lfilled_0. apply f_equal. by rewrite List.app_nil_r.
+  - solve_lfilled_0. apply List.app_inj_tail_iff. by split; subst m.
+Qed.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -703,7 +726,18 @@ Proof.
         by apply reduce_select_true; lias.
 
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
-      by apply (admitted_TODO _).
+      destruct (length ves >= length t1s) eqn:?.
+      + (* false *)
+        apply RS''_error.
+        by apply (admitted_TODO _).
+      + (* true *)
+        destruct (split_n ves (length t1s)) as [ves' ves''] eqn:?.
+        remember (AI_label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)) as e'.
+        apply <<hs, s, f, vs_to_es ves'' ++ [:: e']>>'.
+        subst e'.
+        Fail eapply reduce_block.
+        by apply (admitted_TODO _).
+
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_if tf es1 t2) *)
