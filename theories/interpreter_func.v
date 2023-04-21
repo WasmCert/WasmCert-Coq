@@ -396,14 +396,44 @@ Qed.
 (*       lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI -> *)
 (*       reduce_simple [::AI_label n es LI] (vs ++ es) *)
 
-Lemma break_br : forall (hs : host_state) s f ves j es es',
-  j <= size ves ->
+Lemma break_br_0 : forall (hs : host_state) s f ves n es es',
+  n <= size ves ->
+  es' = vs_to_es ves ++ [:: AI_basic (BI_br 0)] ->
+  reduce
+    hs s f [:: AI_label n es es']
+    hs s f (v_to_e_list (rev (take n ves)) ++ es).
+Proof.
+  intros hs s f ves n es es' Hn Heqes'.
+  apply r_simple. eapply rs_br with (i := 0).
+  - by apply v_to_e_is_const_list.
+  - rewrite length_is_size.
+    simpl_vs_to_es_size.
+    rewrite size_take.
+    by if_lias.
+  - subst es'.
+    replace (vs_to_es ves)
+      with (v_to_e_list (rev (drop n ves)) ++ v_to_e_list (rev (take n ves)));
+      last by (rewrite <- cat_take_drop with (n0 := n) (s := ves) at 3;
+        unfold vs_to_es; rewrite rev_cat; by rewrite <- v_to_e_cat).
+    rewrite <- catA.
+    replace
+      (v_to_e_list (rev (drop n ves)) ++ v_to_e_list (rev (take n ves)) ++ [:: AI_basic (BI_br 0)])
+      with
+      (v_to_e_list (rev (drop n ves)) ++ (v_to_e_list (rev (take n ves)) ++ [:: AI_basic (BI_br 0)]) ++ [::]);
+      last by rewrite cats0.
+    apply/lfilledP.
+    apply LfilledBase.
+    apply v_to_e_is_const_list.
+Qed.
+
+Lemma break_br : forall (hs : host_state) s f ves n j es es',
+  n <= size ves ->
   es' = vs_to_es ves ++ [:: AI_basic (BI_br j)] ->
   reduce
-    hs s f [:: AI_label j es es']
-    hs s f (v_to_e_list (rev (take j ves)) ++ es).
+    hs s f [:: AI_label n es es']
+    hs s f (v_to_e_list (rev (take n ves)) ++ es).
 Proof.
-  intros hs s f ves j es es' Hj Heqes'.
+  intros hs s f ves n j es es' Hn Heqes'.
   apply r_simple. eapply rs_br with (i := j).
   - by apply v_to_e_is_const_list.
   - rewrite length_is_size.
@@ -413,11 +443,14 @@ Proof.
 
   - apply/lfilledP.
     subst es'.
-    destruct j.
-    Print lfilledInd.
-    Check LfilledBase.
-    Check LfilledRec.
-    Fail apply lfilled0.
+
+    replace (vs_to_es ves)
+      with (v_to_e_list (rev (drop n ves)) ++ v_to_e_list (rev (take n ves)));
+      last by (rewrite <- cat_take_drop with (n0 := n) (s := ves) at 3;
+        unfold vs_to_es; rewrite rev_cat; by rewrite <- v_to_e_cat).
+
+        (* TODO induction on j? *)
+    Fail eapply LfilledBase.
 Admitted.
 
 Lemma reduce_br_if_true : forall (hs : host_state) s f c ves' j,
