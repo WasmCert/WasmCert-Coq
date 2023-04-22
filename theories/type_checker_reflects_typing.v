@@ -51,16 +51,19 @@ Proof.
   eapply IHl; eauto; by lias.
 Qed.
 
+Lemma ct_compat_self: forall c1,
+  ct_compat c1 c1.
+Proof.
+  destruct c1 as [ | p | ] => //=.
+  by destruct p => //.
+Qed.
+
 Lemma ct_compat_symmetry: forall c1 c2,
   ct_compat c1 c2 ->
   ct_compat c2 c1.
 Proof.
   intros.
-  destruct c1, c2 => //=.
-  simpl in H.
-  move/eqP in H.
-  subst.
-  by apply/eqP.
+  destruct c1, c2 => //=; simpl in H; move/eqP in H; subst; by apply/eqP.
 Qed.
 
 Lemma ct_list_compat_rcons_bool: forall l1 l2 x1 x2,
@@ -170,10 +173,9 @@ Qed.
 Lemma ct_list_compat_self: forall l,
   ct_list_compat l l.
 Proof.
-  induction l => //.
-  unfold all2.
+  induction l => //=.
   apply/andP; split => //.
-  by destruct a => //=.
+  by apply ct_compat_self.
 Qed.
 
 Lemma ct_suffix_self: forall l,
@@ -352,9 +354,16 @@ Proof.
   by rewrite ct_suffix_empty.
 Qed.
 
+Definition populate_poly_single (pt: poly_type) : value_type :=
+  match pt with
+  | PT_num_vec => T_num T_i32
+  | PT_ref => T_ref (T_funcref)
+  end.
+
 Definition populate_ct_aux_single (cta: checker_type_aux): value_type :=
   match cta with
-  | CTA_any => T_i32
+  | CTA_any => T_num T_i32
+  | CTA_poly pt => populate_poly_single pt
   | CTA_some vt => vt
   end.
 
@@ -414,7 +423,6 @@ Ltac auto_rewrite_cond:=
          | H: option_map _ _ = _ |- _ => unfold option_map in H
          | H: Some _ = Some _ |- _ => inversion H; subst; clear H => //=
          | H: CT_type _ = CT_type _ |- _ => inversion H; subst; clear H => //=
-         | H: is_true (plop2 _ _ _) |- _ => unfold plop2 in H => //=
          | H: is_true (List.nth_error _ _ == _) |- _ => move/eqP in H; rewrite H => //=
          | H: is_true (_ == _) |- _ => move/eqP in H
          | H: ?x = ?x |- _ => clear H
@@ -432,10 +440,10 @@ Proof with auto_rewrite_cond.
   - unfold ct_list_compat.
     unfold ct_suffix, ct_list_compat, to_ct_list, populate_ct_aux in IHl...
     repeat rewrite size_map.
-    rewrite subnn.
-    simpl.
-    destruct a => //=.
-    by apply/andP.
+    rewrite subnn drop0 => /=.
+    apply/andP; split => //.
+    destruct a as [ | p | ] => //=.
+    by destruct p.
 Qed.
 
 Lemma populate_ct_agree: forall l,
@@ -489,6 +497,13 @@ Proof with auto_rewrite_cond.
   move => C ct ts e.
   move : C ct ts.
   induction e; move => C ct ts Htc; destruct ct; auto_rewrite_cond; try (unfold type_update in Htc); try by eexists...
+  (* select is a bit more complicated. *)
+  unfold type_update_select in Htc.
+  destruct o as [ot | ] => //=.
+  { do 2 destruct ot => //.
+    unfold type_update in Htc; by auto_rewrite_cond.
+  }
+  { unfold type_update in Htc; by auto_rewrite_cond. }
 Qed.
   
 Lemma check_single_bot: forall C e,
@@ -497,27 +512,32 @@ Proof.
   move => C e.
   by destruct e => //=.
 Qed.
-  
-Lemma check_single_weaken: forall C e ts ts2 ts0,
-  check_single C (CT_type ts) e = CT_type ts0 ->
-  check_single C (CT_type (ts2 ++ ts)) e = CT_type (ts2 ++ ts0).
-Proof with auto_rewrite_cond.
-  move => C e.
-  move : C.
-  induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond; simplify_goal; subst => //=; try by apply type_update_prefix...
-  - do 3 destruct ts => //=; clear H.
-    (* Numerical disaster *)
-    rewrite length_is_size; rewrite size_cat.
+
+
+Lemma select_weaken: forall ot ts ts' ts2,
+  type_update_select ot (CT_type ts) = CT_type ts' ->
+  type_update_select ot (CT_type (ts2 ++ ts)) = CT_type (ts2 ++ ts').
+Proof.
+  move => ot ts ts' ts2 H.
+  unfold type_update_select in *.
+  destruct ot as [ t | ] => //; simpl in *.
+  { repeat destruct t => //.
+    by apply type_update_prefix.
+  }
+  {
+    (* sub-optimal *)
+    do 3 destruct ts => //; simpl in *.
+    auto_rewrite_cond.
+    rewrite List.app_length; simpl.
+    repeat (rewrite List.nth_error_app2; last by lias).
     replace (_ < _) with true => /=; last by lias.
-    repeat (rewrite List.nth_error_app2; last by rewrite length_is_size; lias).
     repeat rewrite length_is_size.
-    replace (_ + _ - 2 - _) with (size ts + 1); last by lias.
+    replace (_ + _ - 2 - _) with (S (size ts)); last by lias.
     replace (_ + _ - 3 - _) with (size ts); last by lias.
-    replace (_ - 2) with (length ts + 1) in H0; last by lias.
-    replace (_ - 3) with (length ts) in H0; last by lias.
-    rewrite length_is_size in H0.
-    rewrite H0.
-    rewrite eq_refl.
+    replace (_ - 3) with (length ts) in Hexpr; last by lias.
+    rewrite length_is_size in Hexpr.
+    simpl.
+    rewrite Hexpr eq_refl.
     unfold to_ct_list.
     rewrite map_cat.
     rewrite ct_suffix_extend => //.
@@ -525,9 +545,18 @@ Proof with auto_rewrite_cond.
     replace (_ < _) with false; last by lias.
     replace (_ + _ - _ - _) with (size ts + 1); last by lias.
     repeat f_equal => //=.
-    replace (size ts + 1) with (1 + size ts); last by lias.
-    simpl.
-    by f_equal.
+    by replace (size ts + 1) with (1 + size ts); last by lias.
+  }
+Qed.
+
+Lemma check_single_weaken: forall C e ts ts2 ts0,
+  check_single C (CT_type ts) e = CT_type ts0 ->
+  check_single C (CT_type (ts2 ++ ts)) e = CT_type (ts2 ++ ts0).
+Proof with auto_rewrite_cond.
+  move => C e.
+  move : C.
+  induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond; simplify_goal; subst => //=; try by apply type_update_prefix...
+  - by apply select_weaken.
   - destruct f => //=.
     simplify_goal.
     by apply type_update_prefix.
@@ -539,7 +568,7 @@ Lemma check_single_weaken_top: forall C e ts ts2 ts0,
 Proof with auto_rewrite_cond.
   move => C e.
   move : C.
-  induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond => //=; try (destruct f); simplify_goal; by erewrite type_update_prefix_top; eauto...
+  induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond => //=; try (destruct f); simplify_goal; try by erewrite type_update_prefix_top; eauto...
 Qed.
     
 Lemma check_weaken: forall C es ts ts2 ts0,

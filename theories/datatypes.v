@@ -256,27 +256,6 @@ Definition serialise_f32 (f : f32) : bytes :=
 Definition serialise_f64 (f : f64) : bytes :=
   common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
 
-(*
-(* TODO: factor this out, following the `memory` branch *)
-Module Byte_Index <: array.Index_Sig.
-Definition Index := N.
-Definition Value := byte.
-Definition index_eqb := N.eqb.
-End Byte_Index.
-
-Module Byte_array := array.Make Byte_Index.
-
-Record data_vec : Type := {
-  dv_length : N;
-  dv_array : Byte_array.array;
-}.
-
-Record memory : Type := {
-  mem_data : memory_list;
-  mem_max_opt: option N; (* TODO: should be u32 *)
-}.
-*)
-
 (** Typing context. **)
 (** std-doc:
 Validity of an individual definition is specified relative to a context, which
@@ -503,7 +482,8 @@ Inductive basic_instruction : Type := (* be *)
   | BI_memory_copy
   | BI_memory_init: dataidx -> basic_instruction
   | BI_data_drop: dataidx -> basic_instruction
-  | BI_const : value -> basic_instruction
+  | BI_const_num : value_num -> basic_instruction
+  | BI_const_vec : value_vec -> basic_instruction
   | BI_unop : number_type -> unop -> basic_instruction
   | BI_binop : number_type -> binop -> basic_instruction
   | BI_testop : number_type -> testop -> basic_instruction
@@ -945,8 +925,8 @@ Definition res_tuple : Type := store_record * frame * res_step.
 
 End Host.
 
-Notation "$VA v" := (AI_basic (BI_const (VAL_num v))) (at level 60). 
-Notation "$VB v" := (BI_const (VAL_num v)) (at level 60). 
+Notation "$VAN v" := (AI_basic (BI_const_num v)) (at level 60). 
+Notation "$VBN v" := (BI_const_num v) (at level 60). 
 
 Arguments FC_func_native [host_function].
 

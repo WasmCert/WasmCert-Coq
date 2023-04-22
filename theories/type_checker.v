@@ -300,7 +300,8 @@ in
   if ts == CT_bot then CT_bot
   else
   match be with
-  | BI_const v => type_update ts [::] (CT_type [::typeof v])
+  | BI_const_num v => type_update ts [::] (CT_type [::T_num (typeof_num v)])
+  | BI_const_vec v => type_update ts [::] (CT_type [::T_vec (typeof_vec v)])
   | BI_ref_null t => type_update ts [::] (CT_type [::T_ref t])
   | BI_ref_is_null => type_update ts [::CTA_poly PT_ref] (CT_type [::T_num T_i32])
   | BI_ref_func x =>
@@ -570,8 +571,7 @@ Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : 
 
 (* TODO: This definition is kind of a duplication of inst_typing, to avoid more dependent definitions becoming Prop downstream *)
 
-(* UPD: This in fact makes the soundness proof extremely tedious and dependent on the type_checker reflecting typing.
-  I have edited the later functions to avoid using these. *)
+(* TODO: update these *)
 (*
 Definition inst_type_check (s : store_record) (i : instance) : t_context := {|
   (* TODO: ported this from option to list, but not too sure it's right *)

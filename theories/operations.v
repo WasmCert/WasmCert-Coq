@@ -13,6 +13,11 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
+(* It is possible that we need an efficient lookup where the address is of type N instead. 
+   Use this function for a placeholder instead of using List.nth_error directly. *)
+Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
+  List.nth_error l (N.to_nat n).
+  
 Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
@@ -428,7 +433,7 @@ Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option funcad
 
 Definition sfunc (s : store_record) (i : instance) (j : nat) : option function_closure :=
   match sfunc_ind s i j with
-  | Some a => List.nth_error (s_funcs s) (N.to_nat a)
+  | Some a => lookup_N (s_funcs s) a
   | None => None
   end.
 
@@ -438,7 +443,7 @@ Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option global
 
 Definition sglob (s : store_record) (i : instance) (j : nat) : option globalinst :=
   match sglob_ind s i j with
-  | Some a => List.nth_error (s_globals s) (N.to_nat a)
+  | Some a => lookup_N (s_globals s) a
   | None => None
   end.
 
@@ -463,8 +468,8 @@ Definition tab_size (t: tableinst) : nat :=
   length (tableinst_elem t).
 
 Definition stab (s: store_record) (inst: instance) (x: tableaddr): option tableinst :=
-  match List.nth_error inst.(inst_tables) (N.to_nat x) with
-  | Some tabaddr => List.nth_error s.(s_tables) (N.to_nat tabaddr)
+  match lookup_N inst.(inst_tables) x with
+  | Some tabaddr => lookup_N s.(s_tables) tabaddr
   | _ => None
   end.
     
@@ -517,8 +522,8 @@ Definition elem_size (t: eleminst) : nat :=
   length (eleminst_elem t).
 
 Definition selem (s: store_record) (inst: instance) (x: elemaddr): option eleminst :=
-  match List.nth_error inst.(inst_elems) (N.to_nat x) with
-  | Some eaddr => List.nth_error s.(s_elems) (N.to_nat eaddr)
+  match lookup_N inst.(inst_elems) x with
+  | Some eaddr => lookup_N s.(s_elems) eaddr
   | _ => None
   end.
 
@@ -530,43 +535,6 @@ Definition selem_drop (s: store_record) (inst: instance) (x: tableaddr) : option
       Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) elems' (s_datas s))
   | None => None
   end.
-(**
-  Get the ith table in the store s, and then get the jth index in the table;
-  in the end, retrieve the corresponding function closure from the store.
- **)
-(**
-  There is the interesting use of option_bind (fun x => x) to convert an element
-  of type option (option x) to just option x.
- **)
-(* TODO: update wrt the new table instructions *)
-(*
-Definition stab_index (s: store_record) (i j: nat) : option nat :=
-  let: stabinst := List.nth_error (s_tables s) i in
-  option_bind (fun x => x) (
-    option_bind
-      (fun stab_i => List.nth_error (tableinst_elem stab_i) j)
-  stabinst).
-
-
-Definition stab_addr (s: store_record) (f: frame) (c: nat) : option nat :=
-  match f.(f_inst).(inst_tableaddrs) with
-  | nil => None
-  | ta :: _ => stab_index s ta c
-  end.
-
-
-Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
-  let n := stab_index s i j in
-  option_bind
-    (fun id => List.nth_error (s_funcs s) id)
-  n.
-
-Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
-  match i.(inst_tab) with
-  | nil => None
-  | k :: _ => stab_s s k j
-  end.
- *)
 
 Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : option store_record :=
   option_map
@@ -574,21 +542,48 @@ Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : opti
       let: g' := Build_globalinst (g_type g) v in
       let: gs' := set_nth g' (s_globals s) (N.to_nat k) g' in
       Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs' (s_elems s) (s_datas s))
-    (List.nth_error (s_globals s) (N.to_nat k)).
+    (lookup_N (s_globals s) k).
 
 Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
   option_bind
     (fun k => supdate_glob_s s k v)
     (sglob_ind s i j).
 
+(* Conversion between values and expressions *)
+
+Definition v_to_e (v: value) : administrative_instruction :=
+  match v with
+  | VAL_num v => AI_basic (BI_const_num v)
+  | VAL_vec v => AI_basic (BI_const_vec v)
+  | VAL_ref (VAL_ref_null t) => AI_basic (BI_ref_null t)
+  | VAL_ref (VAL_ref_func addr) => AI_ref addr
+  | VAL_ref (VAL_ref_extern ext) => AI_ref_extern ext
+  end.
+
+Definition be_to_v (be: basic_instruction) : option value :=
+  match be with
+  | BI_const_num v => Some (VAL_num v)
+  | BI_const_vec v => Some (VAL_vec v)
+  | BI_ref_null t => Some (VAL_ref (VAL_ref_null t))
+  | _ => None
+  end.
+
+Definition e_to_v (e: administrative_instruction) : option value :=
+  match e with
+  | AI_basic be => be_to_v be
+  | AI_ref addr => Some (VAL_ref (VAL_ref_func addr))
+  | AI_ref_extern ext => Some (VAL_ref (VAL_ref_extern ext))
+  | _ => None
+  end.
+
 Definition is_const (e : administrative_instruction) : bool :=
-  if e is AI_basic (BI_const _) then true else false.
+  if e_to_v e is Some v then true else false.
 
 Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
 
 Definition those_const_list (es : list administrative_instruction) : option (list value) :=
-  those (List.map (fun e => match e with | AI_basic (BI_const v) => Some v | _ => None end) es).
+  those (List.map e_to_v es).
 
 Definition func_extension (f1 f2: function_closure) : bool :=
   f1 == f2.
@@ -634,7 +629,7 @@ Definition to_e_list (bes : list basic_instruction) : seq administrative_instruc
 Definition to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
   | AI_basic x => x
-  | _ => BI_const (VAL_num (VAL_int32 (Wasm_int.Int32.zero)))
+  | _ => BI_const_num (VAL_int32 (Wasm_int.Int32.zero))
   end.
 
 Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
@@ -647,18 +642,22 @@ Definition es_is_basic (es: list administrative_instruction) :=
   List.Forall e_is_basic es.
 
 (** [v_to_e_list]: 
-    takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
+    takes a list of [v] and gives back a list where each [v] is mapped to the corresponding instruction. **)
 Definition v_to_e_list (ves : list value) : list administrative_instruction :=
-  map (fun v => AI_basic (BI_const v)) ves.
+  map v_to_e ves.
 
 (* interpreter related *)
 
 Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruction :=
   match es with
-  | (BI_const v) :: es' =>
-    let: (vs', es'') := split_vals es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
+  | [::] => ([::], [::])
+  | e :: es' =>
+      match be_to_v e with
+      | Some v =>
+         let: (vs', es'') := split_vals es' in
+         (v :: vs', es'')
+      | None => ([::], es)
+      end
   end.
 
 (** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
@@ -667,10 +666,14 @@ Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruc
     segment and [es] is the remainder of the original [es]. **)
 Fixpoint split_vals_e (es : seq administrative_instruction) : seq value * seq administrative_instruction :=
   match es with
-  | (AI_basic (BI_const v)) :: es' =>
-    let: (vs', es'') := split_vals_e es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
+  | [::] => ([::], [::])
+  | e :: es' =>
+      match e_to_v e with
+      | Some v =>
+         let: (vs', es'') := split_vals_e es' in
+         (v :: vs', es'')
+      | None => ([::], es)
+      end
   end.
 
 Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=

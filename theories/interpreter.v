@@ -130,6 +130,8 @@ Definition run_step_base (call : run_stepE ~> itree (run_stepE +' eff))
       else ret (s', f', r)
   end.
 
+
+
 Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       (d : depth) (cgf : config_one_tuple_without_e) (e : administrative_instruction)
     : itree (run_stepE +' eff) res_tuple :=
@@ -192,7 +194,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       ret (s, f, RS_normal (vs_to_es ves'))
     else ret (s, f, crash_error)
 
-  | AI_basic BI_select =>
+  | AI_basic (BI_select ot) =>
     if ves is (VAL_int32 c) :: v2 :: v1 :: ves' then
       if c == Wasm_int.int_zero i32m
       then ret (s, f, RS_normal (vs_to_es (v2 :: ves')))
@@ -242,32 +244,36 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
     else ret (s, f, crash_error)
 
   | AI_basic (BI_call j) =>
-    (*    if sfunc s f.(f_inst) j is Some sfunc_i_j then*)
     if List.nth_error f.(f_inst).(inst_funcs) j is Some a then
       ret (s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
     else ret (s, f, crash_error)
 
-  | AI_basic (BI_call_indirect j) =>
-    if ves is VAL_int32 c :: ves' then
-(*      match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
-      | Some cl =>*)
-      match stab_addr s f (Wasm_int.nat_of_uint i32m c) with
-      | Some a =>
-        match List.nth_error s.(s_funcs) a with
-        | Some cl =>
-          if stypes s f.(f_inst) j == Some (cl_type cl)
-          then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke a]))
-          else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
-     (* Not Trap because this is not supposed to happen after validation *)
-        | None => ret (s, f, crash_error)
-        end
+  | AI_basic (BI_call_indirect x y) =>
+      if ves is VAL_int32 i :: ves' then
+        match stab_elem s f x (Wasm_int.nat_of_uint i32m i) with
+        | Some r =>
+            if r is (VAL_ref (VAL_ref_null t)) then
+              ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+            else
+              if r is (VAL_ref (VAL_ref_func a)) then
+                match List.nth_error s.(s_funcs) a with
+                | Some cl =>
+                    if stypes s f.(f_inst) y == Some (cl_type cl)
+                    then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_invoke a]))
+                    else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+                (* Not Trap because this is not supposed to happen after validation *)
+                | None => ret (s, f, crash_error)
+                end
+              else
+                (* Not Trap because this is not supposed to happen after validation *)
+                ret (s, f, crash_error)
       | None => ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
-      end
-    else ret (s, f, crash_error)
+        end
+      else ret (s, f, crash_error)
 
   | AI_basic BI_return => ret (s, f, RS_return ves)
 
-  | AI_basic (BI_get_local j) =>
+  | AI_basic (BI_local_get j) =>
     if j < length f.(f_locs)
     then
       expect (List.nth_error f.(f_locs) j) (fun vs_at_j =>
@@ -275,24 +281,24 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         (ret (s, f, crash_error))
     else ret (s, f, crash_error)
 
-  | AI_basic (BI_set_local j) =>
+  | AI_basic (BI_local_set j) =>
     if ves is v :: ves' then
       if j < length f.(f_locs)
-      then ret (s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
+      then ret (s, Build_frame (set_nth f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
 
-  | AI_basic (BI_tee_local j) =>
+  | AI_basic (BI_local_tee j) =>
     if ves is v :: ves' then
-      ret (s, f, RS_normal (vs_to_es (v :: ves) ++ [::AI_basic (BI_set_local j)]))
+      ret (s, f, RS_normal (vs_to_es (v :: ves) ++ [::AI_basic (BI_local_set j)]))
     else ret (s, f, crash_error)
 
-  | AI_basic (BI_get_global j) =>
+  | AI_basic (BI_global_get j) =>
     if sglob_val s f.(f_inst) j is Some xx
     then ret (s, f, RS_normal (vs_to_es (xx :: ves)))
     else ret (s, f, crash_error)
 
-  | AI_basic (BI_set_global j) =>
+  | AI_basic (BI_global_set j) =>
     if ves is v :: ves' then
       if supdate_glob s f.(f_inst) j v is Some xx
       then ret (xx, f, RS_normal (vs_to_es ves'))
@@ -306,7 +312,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           (fun j =>
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
-                 (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (t_length t))
+                 (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tnum_length t))
                  (fun bs => ret (s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
              else ret (s, f, crash_error))
@@ -320,7 +326,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           (fun j =>
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
-                 (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t))
+                 (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (tnum_length t))
                  (fun bs => ret (s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
              else ret (s, f, crash_error))
@@ -336,9 +342,9 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
             (fun j =>
                if List.nth_error s.(s_mems) j is Some mem_s_j then
                  expect
-                   (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
+                   (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tnum_length t))
                    (fun mem' =>
-                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
+                      (ret (upd_s_mem s (set_nth s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
                    (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
@@ -356,14 +362,14 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                  expect
                    (store_packed mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
-                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
+                      (ret (upd_s_mem s (set_nth s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
                    (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
         else ret (s, f, crash_error)
       else ret (s, f, crash_error)
 
-    | AI_basic BI_current_memory =>
+    | AI_basic BI_memory_size =>
       expect
         (smem_ind s f.(f_inst))
         (fun j =>
@@ -372,7 +378,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
            else ret (s, f, crash_error))
         (ret (s, f, crash_error))
 
-    | AI_basic BI_grow_memory =>
+    | AI_basic BI_memory_grow =>
       if ves is VAL_int32 c :: ves' then
         expect
           (smem_ind s f.(f_inst))
@@ -381,14 +387,17 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
               let: l := mem_size s_mem_s_j in
               let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
               if mem' is Some mem'' then
-                ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), f,
+                ret (upd_s_mem s (set_nth s.(s_mems) j mem''), f,
                      RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               else ret (s, f, crash_error)
             else ret (s, f, crash_error))
           (ret (s, f, crash_error))
       else ret (s, f, crash_error)
 
+    (* These values are not supposed to get into here *)
     | AI_basic (BI_const _) => ret (s, f, crash_error)
+
+    | AI_basic (BI_ref_null _) => ret (s, f, crash_error)                    
 
     | AI_invoke i =>
       match List.nth_error s.(s_funcs) i with

@@ -65,34 +65,52 @@ Proof.
       apply andb_true_iff. split => //. by apply IHvs.
 Qed.
 
+Lemma v_to_e_is_const: forall v,
+    is_const (v_to_e v).
+Proof.
+  destruct v as [ | | ref] => //; last by destruct ref.
+Qed.
+
+Lemma v_to_e_to_v: forall v e,
+    v_to_e v = e <->
+    e_to_v e = Some v.
+Proof.
+  move => v e.
+  split; move => H.
+  - destruct v as [ | | ref]; subst => //=; last by destruct ref.
+  - destruct e; simpl in H; subst; try by inversion H => //=.
+    destruct b; simpl in H; inversion H; by subst => //=.
+Qed.
+
 Lemma v_to_e_is_const_list: forall vs,
     const_list (v_to_e_list vs).
 Proof.
-  move => vs. by elim: vs.
+  move => vs. elim: vs => //=.
+  intros; apply/andP; split => //.
+  by apply v_to_e_is_const.
 Qed.
 
 Lemma v_to_e_cat: forall vs1 vs2,
     v_to_e_list vs1 ++ v_to_e_list vs2 = v_to_e_list (vs1 ++ vs2).
 Proof.
-  move => vs1. elim: vs1 => //=.
-  - move => a l IH vs2. by rewrite IH.
+  intros. unfold v_to_e_list.
+  by rewrite map_cat.
 Qed.
 
 Lemma split_vals_e_v_to_e_duality: forall es vs es',
     split_vals_e es = (vs, es') ->
     es = (v_to_e_list vs) ++ es'.
 Proof.
-  move => es vs. move: es. elim: vs => //.
-  - move=> es es'. destruct es => //=.
-    + by inversion 1.
-    + case a; try by inversion 1; [idtac].
-      move => b. case b; try by inversion 1.
-      move => v H.  by destruct (split_vals_e es).
-  - move => a l H es es' HSplit. unfold split_vals_e in HSplit.
-    destruct es => //. destruct a0 => //. destruct b => //.
-    fold split_vals_e in HSplit.
-    destruct (split_vals_e es) eqn:Heqn. inversion HSplit; subst.
-    simpl. f_equal. by apply: H.
+  move => es. elim: es => //=.
+  - move => vs es'; by inversion 1.
+  - move => a l H es es' HSplit.
+    destruct (split_vals_e l) as [lvs les] eqn:Hlves.
+    destruct (e_to_v a) as [v | ] eqn:Hetov => //=.
+    + inversion HSplit; subst; clear HSplit => /=.
+      apply v_to_e_to_v in Hetov; subst.
+      f_equal.
+      by apply H.
+    + by inversion HSplit.
 Qed.
 
 Lemma const_list_cons : forall a l,
@@ -100,9 +118,6 @@ Lemma const_list_cons : forall a l,
 Proof. by []. Qed.
 
 Lemma v_to_e_list0 : v_to_e_list [::] = [::].
-Proof. reflexivity. Qed.
-
-Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: AI_basic (BI_const v)].
 Proof. reflexivity. Qed.
 
 Lemma e_is_trapP : forall e, reflect (e = AI_trap) (e_is_trap e).
@@ -218,6 +233,8 @@ Proof.
   intros; by apply List.Forall_app.
 Qed.
 
+(* No longer holds *)
+(*
 Lemma const_list_is_basic: forall es,
     const_list es ->
     es_is_basic es.
@@ -229,6 +246,7 @@ Proof.
   destruct a => //.
   by eexists.
 Qed.
+*)
 
 Lemma to_b_list_rev: forall es : seq administrative_instruction,
     rev (to_b_list es) = to_b_list (rev es).
@@ -247,7 +265,18 @@ Lemma vs_to_vts_rev: forall vs,
 Proof.
   unfold vs_to_vts. intros. by rewrite map_rev.
 Qed.
-  
+
+Lemma const_e_exists: forall e,
+    is_const e ->
+    exists v, e = v_to_e v.
+Proof.
+  move => e H.
+  unfold is_const in H.
+  destruct (e_to_v e) eqn:Hetov => //.
+  apply v_to_e_to_v in Hetov; subst.
+  by eexists.
+Qed.
+
 Lemma const_es_exists: forall es,
     const_list es ->
     exists vs, es = v_to_e_list vs.
@@ -256,7 +285,8 @@ Proof.
   - by exists [::].
   - move => HConst.
     move/andP in HConst. destruct HConst as [H Hs].
-    destruct a => //=. destruct b => //=.
+    apply const_e_exists in H.
+    destruct H as [v ->].
     apply IHes in Hs as [vs ->].
     by exists (v :: vs).
 Qed.
