@@ -163,7 +163,8 @@ Axiom coerce_res : forall hs s f es ves e (r : res_step'_separate_e hs s f ves e
 (* TODO better name *)
 Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
-  try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //.
+  try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //;
+  try by repeat rewrite List.app_nil_r.
 
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
 Ltac cats1_last_eq H :=
@@ -250,8 +251,7 @@ Proof.
     (k := 0) (lh := (LH_base (vs_to_es ves) [::]))
     (es := [:: AI_basic BI_nop])
     (es' := [::]); try solve_lfilled_0.
-  - apply r_simple. by apply rs_nop.
-  - by repeat rewrite List.app_nil_r.
+  apply r_simple. by apply rs_nop.
 Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
@@ -265,8 +265,7 @@ Proof.
     (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
     (es := vs_to_es [:: v] ++ [:: AI_basic BI_drop])
     (es' := [::]); try solve_lfilled_0.
-  - apply r_simple. by apply rs_drop.
-  - by repeat rewrite List.app_nil_r.
+  apply r_simple. by apply rs_drop.
 Qed.
 
 Lemma drop_error : forall s inst ves,
@@ -369,7 +368,7 @@ Proof.
     rewrite size_take.
     (* TODO put symmetry into the ltac? *)
     by symmetry; if_lias.
-  - solve_lfilled_0. apply f_equal. by rewrite List.app_nil_r.
+  - by solve_lfilled_0.
   - solve_lfilled_0. apply List.app_inj_tail_iff. by split; subst m.
 Qed.
 
@@ -455,8 +454,7 @@ Proof.
     (es := vs_to_es [::VAL_int32 c] ++ [:: AI_basic (BI_br_if j)])
     (es' := [::]);
     try solve_lfilled_0.
-  - apply r_simple. apply rs_br_if_false. by apply/eqP.
-  - by repeat rewrite List.app_nil_r.
+  apply r_simple. apply rs_br_if_false. by apply/eqP.
 Qed.
 
 Lemma br_if_error_0 : forall s inst ves j,
@@ -548,7 +546,7 @@ Proof.
   - apply r_set_local with (i := j) (v := v) (vd := v) => //.
     by rewrite update_list_at_is_set_nth => //.
   - by solve_lfilled_0.
-  - by solve_lfilled_0; repeat rewrite List.app_nil_r.
+  - by solve_lfilled_0.
 Qed.
 
 Lemma set_local_error_0 : forall (hs : host_state) s f ves j,
@@ -648,7 +646,7 @@ Proof.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_set_global with (i := j) (v := v) => //.
   - by solve_lfilled_0.
-  - by solve_lfilled_0; repeat rewrite List.app_nil_r.
+  - by solve_lfilled_0.
 Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
