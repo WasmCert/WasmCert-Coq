@@ -649,6 +649,37 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
+Lemma set_global_error_0 : forall (hs : host_state) s f ves j,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_set_global j)] (Tf t1s t2s).
+Proof.
+  intros hs s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply_cat0_inv Ht1s.
+  apply (Set_global_typing host_instance) in Hbtype as [? [? [? [? [? [??]]]]]].
+  by destruct t2s => //.
+Qed.
+
+Lemma set_global_error_jth : forall (hs : host_state) s f v ves ves' j,
+  ves = v :: ves' ->
+  supdate_glob s f.(f_inst) j v = None ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_set_global j)] (Tf t1s t2s).
+Proof.
+  intros hs s f v ves ves' j ? Hjth [C [t1s [t2s [t1s' [Ht1s [Hinst Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Set_global_typing host_instance) in Hbtype as [? [? [Hjth' [? [? [??]]]]]].
+  (* do these two give a contradiction? *)
+  (* Hjth : supdate_glob s (f_inst f) j v = None *)
+  (* Hjth' : List.nth_error (tc_global C) j = Some x *)
+Admitted.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -1130,14 +1161,14 @@ Proof.
     * (* AI_basic (BI_set_global j) *)
       destruct ves as [|v ves'] eqn:?.
       + (* [::] *)
-        apply RS''_error. by apply admitted_TODO.
+        apply RS''_error. by apply set_global_error_0.
       + (* v :: ves' *)
         destruct (supdate_glob s f.(f_inst) j v) as [s'|] eqn:?.
         -- (* Some s' *)
            apply <<hs, s', f, vs_to_es ves'>>'.
            by eapply reduce_set_global => //.
         -- (* None *)
-           apply RS''_error. by apply admitted_TODO.
+           apply RS''_error. by eapply set_global_error_jth.  (* TODO *)
 
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
       by apply admitted_TODO.
