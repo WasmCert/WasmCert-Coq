@@ -545,8 +545,6 @@ Lemma reduce_set_local : forall (hs : host_state) s f f' v ves ves' j,
 Proof.
   intros hs s f f' v ves ves' j ???. subst ves f'.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  Check set_nth.
-  Check r_set_local.
   - apply r_set_local with (i := j) (v := v) (vd := v) => //.
     by rewrite update_list_at_is_set_nth => //.
   - by solve_lfilled_0.
@@ -581,6 +579,34 @@ Proof.
   apply (Set_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
   apply inst_t_context_local_empty in Hinst.
   rewrite Hinst in Hlen'. by destruct j => //.
+Qed.
+
+Lemma reduce_tee_local : forall (hs : host_state) s f v ves ves' j,
+  ves = v :: ves' ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_tee_local j)])
+    hs s f (vs_to_es (v :: ves) ++ [:: AI_basic (BI_set_local j)]).
+Proof.
+  intros hs s f v ves ves' j ?.
+  subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple.
+    by apply rs_tee_local with (i := j) (v := AI_basic (BI_const v)).
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma tee_local_error_0 : forall (hs : host_state) s f ves j,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_tee_local j)] (Tf t1s t2s).
+Proof.
+  intros hs s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply_cat0_inv Ht1s.
+  by apply Tee_local_typing in Hbtype as [[|] [? [? [? [??]]]]] => //.
 Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
@@ -1046,7 +1072,13 @@ Proof.
            apply RS''_error. by eapply set_local_error_length.
 
     * (* AI_basic (BI_tee_local j) *)
-      by apply (admitted_TODO _).
+      destruct ves as [|v ves'] eqn:?.
+      + (* [::] *)
+        apply RS''_error. by apply tee_local_error_0.
+      + (* v :: ves' *)
+        apply <<hs, s, f, vs_to_es (v :: v :: ves') ++ [:: AI_basic (BI_set_local j)]>>'.
+        by eapply reduce_tee_local.
+
     * (* AI_basic (BI_get_global j) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_set_global j) *)
