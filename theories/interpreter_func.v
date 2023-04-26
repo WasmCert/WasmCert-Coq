@@ -644,7 +644,7 @@ Lemma reduce_set_global : forall (hs : host_state) s s' f v ves ves' j,
 Proof.
   intros hs s s' f v ves ves' j Heqs' ?. subst ves.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - apply r_set_global with (i := j) (v := v) => //.
+  - by apply r_set_global with (i := j) (v := v).
   - by solve_lfilled_0.
   - by solve_lfilled_0.
 Qed.
@@ -679,6 +679,37 @@ Proof.
   (* Hjth : supdate_glob s (f_inst f) j v = None *)
   (* Hjth' : List.nth_error (tc_global C) j = Some x *)
 Admitted.
+
+Lemma reduce_load_none_success : forall (hs : host_state) s f c ves ves' t a off j mem_s_j bs,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = Some mem_s_j ->
+  load (mem_s_j) (Wasm_int.N_of_uint i32m c) off (t_length t) = Some bs ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_load t None a off)])
+    hs s f (vs_to_es (wasm_deserialise bs t :: ves')).
+Proof.
+  intros hs s f c ves ves' t a off j mem_s_j bs ????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by apply r_load_success
+    with (i := j) (m := mem_s_j) (bs := bs) (k := c) (off := off) (t := t).
+Qed.
+
+Lemma reduce_load_none_failure : forall (hs : host_state) s f c ves ves' t a off j mem_s_j,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = Some mem_s_j ->
+  load (mem_s_j) (Wasm_int.N_of_uint i32m c) off (t_length t) = None ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_load t None a off)])
+    hs s f (vs_to_es ves' ++ [:: AI_trap]).
+Proof.
+  intros hs s f c ves ves' t a off j mem_s_j ????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by apply r_load_failure with (i := j) (m := mem_s_j).
+Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
@@ -725,7 +756,7 @@ Lemma grow_memory_error_TODO : forall s f ves ves' j s_mem_s_j l c,
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
     inst_typing s f.(f_inst) C /\
-    e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
+    e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
   intros s f ves ves' j s_mem_s_j l c ?????
     [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
@@ -742,7 +773,7 @@ Lemma grow_memory_error_typeof : forall s inst v ves ves',
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
     inst_typing s inst C /\
-    e_typing s C [:: AI_basic (BI_grow_memory)] (Tf t1s t2s).
+    e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
   intros s inst v ves ves' Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
@@ -1172,8 +1203,35 @@ Proof.
 
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
       by apply admitted_TODO.
+
     * (* AI_basic (BI_load t None a off) *)
-      by apply admitted_TODO.
+      destruct ves as [|v ves'] eqn:?.
+      + (* [::] *)
+        apply RS''_error. apply admitted_TODO.
+      + (* v :: ves' *)
+        destruct v as [c| | |] eqn:?.
+        -- (* VAL_int32 c *)
+           destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
+           ** (* Some j*)
+              destruct (List.nth_error s.(s_mems) j) as [mem_s_j|] eqn:?.
+              ++ (* Some mem_s_j*)
+                 destruct (load (mem_s_j) (Wasm_int.N_of_uint i32m c) off (t_length t)) as [bs|] eqn:?.
+                 --- (* Some bs *)
+                     apply <<hs, s, f, vs_to_es (wasm_deserialise bs t :: ves')>>'.
+                     by apply reduce_load_none_success
+                       with (c := c) (j := j) (mem_s_j := mem_s_j).
+                 --- (* None *)
+                     apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
+                     by apply reduce_load_none_failure
+                       with (c := c) (j := j) (mem_s_j := mem_s_j).
+              ++ (* None*)
+                 apply RS''_error. by apply admitted_TODO.
+           ** (* None*)
+              apply RS''_error. by apply admitted_TODO.
+        -- apply RS''_error. by apply admitted_TODO.
+        -- apply RS''_error. by apply admitted_TODO.
+        -- apply RS''_error. by apply admitted_TODO.
+
     * (* AI_basic (BI_store t (Some tp) a off) *)
       by apply admitted_TODO.
     * (* AI_basic (BI_store t None a off) *)
