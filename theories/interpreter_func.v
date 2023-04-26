@@ -739,6 +739,40 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
+Lemma load_error_jth : forall s f ves ves' c t a off j,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_load t None a off)] (Tf t1s t2s).
+Proof.
+  intros s f ves ves' c t a off j ? Heqj Hjth [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
+  (* TODO need to contradict this with something *)
+  (* Hjth : List.nth_error (s_mems s) j = None *)
+Admitted.
+
+Lemma load_error_smem_ind : forall s f ves ves' c t a off,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_load t None a off)] (Tf t1s t2s).
+Proof.
+  intros s f ves ves' c t a off ? Hsmemind [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
+  Search tc_memory.
+  (* TODO need to contradict this with something *)
+  (* Hsmemind : smem_ind s (f_inst f) = None *)
+Admitted.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -1254,9 +1288,9 @@ Proof.
                  by apply reduce_load_none_failure
                    with (c := c) (j := j) (mem_s_j := mem_s_j).
            ** (* None*)
-              apply RS''_error. by apply admitted_TODO.
+              apply RS''_error. by eapply load_error_jth with (j := j).
         -- (* None*)
-           apply RS''_error. by apply admitted_TODO.
+           apply RS''_error. by eapply load_error_smem_ind.
 
     * (* AI_basic (BI_store t (Some tp) a off) *)
       by apply admitted_TODO.
