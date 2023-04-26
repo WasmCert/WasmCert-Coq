@@ -609,6 +609,34 @@ Proof.
   by apply Tee_local_typing in Hbtype as [[|] [? [? [? [??]]]]] => //.
 Qed.
 
+Lemma reduce_get_global : forall (hs : host_state) s f ves j xx,
+  sglob_val s f.(f_inst) j = Some xx ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_get_global j)])
+    hs s f (vs_to_es (xx :: ves)).
+Proof.
+  intros hs s f ves j xx Heqxx.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves) [::])).
+  - by apply r_get_global with (i := j) (v := xx).
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma get_global_error : forall (hs : host_state) s f ves j,
+  sglob_val s f.(f_inst) j = None ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_get_global j)] (Tf t1s t2s).
+Proof.
+  intros hs s f ves j Hjth [C [t1s [t2s [t1s' [Ht1s [Hinst Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Get_global_typing host_instance) in Hbtype as [? [Hjth' [??]]].
+  (* do these two give a contradiction? *)
+  (* Hjth : sglob_val s (f_inst f) j = None *)
+  (* Hjth' : option_map tg_t (List.nth_error (tc_global C) j) = Some x *)
+Admitted.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -1080,7 +1108,13 @@ Proof.
         by eapply reduce_tee_local.
 
     * (* AI_basic (BI_get_global j) *)
-      by apply (admitted_TODO _).
+      destruct (sglob_val s f.(f_inst) j) as [xx|] eqn:?.
+      + (* Some xx *)
+        apply <<hs, s, f, vs_to_es (xx :: ves)>>'.
+        by apply reduce_get_global.
+      + (* None *)
+        apply RS''_error. by apply get_global_error.  (* TODO *)
+
     * (* AI_basic (BI_set_global j) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
