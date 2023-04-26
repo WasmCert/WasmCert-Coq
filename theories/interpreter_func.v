@@ -1042,14 +1042,14 @@ Proof.
         by apply block_error; lias.
 
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_if tf es1 t2) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 
     * (* AI_basic (BI_br j) *)
       apply <<hs, s, f, break(j, ves)>>'.
       Fail by apply break_br.  (* XXX *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 
     * (* AI_basic (BI_br_if j) *)
       destruct ves as [|v ves'];
@@ -1067,13 +1067,13 @@ Proof.
          by eapply reduce_br_if_true; lias.
 
     * (* AI_basic (BI_br_table js j) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic BI_return *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_call j) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_call_indirect j) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 
     * (* AI_basic (BI_get_local j) *)
       destruct (j < length f.(f_locs)) eqn:?.
@@ -1116,17 +1116,17 @@ Proof.
         apply RS''_error. by apply get_global_error.  (* TODO *)
 
     * (* AI_basic (BI_set_global j) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_load t None a off) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_store t (Some tp) a off) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic (BI_store t None a off) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_basic BI_current_memory *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 
     * (* AI_basic BI_grow_memory *)
       (* XXX this branch is fairly complicated,
@@ -1160,7 +1160,7 @@ Proof.
 
     * (* AI_basic (BI_const _) *)
       (* XXX this won't happen if ves has been correctly split(?) *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'].
@@ -1241,23 +1241,23 @@ Proof.
       + (* true *)
         destruct sx eqn:Heqsx.
         -- (* Some _ *)
-           apply RS''_error. by apply (admitted_TODO _).
+           apply RS''_error. by apply admitted_TODO.
         -- (* None *)
            apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
            by apply reduce_reinterpret.
       + (* false *)
-        apply RS''_error. by apply (admitted_TODO _).
+        apply RS''_error. by apply admitted_TODO.
 
     * (* AI_trap *)
       (* NOTE trap is 'terminal/value form' *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 
     * (* AI_invoke a *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_label ln les es *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
     * (* AI_local ln lf es *)
-      by apply (admitted_TODO _).
+      by apply admitted_TODO.
 Defined.
 
 (***************************************)
