@@ -637,6 +637,20 @@ Proof.
   (* Hjth' : option_map tg_t (List.nth_error (tc_global C) j) = Some x *)
 Admitted.
 
+Lemma reduce_set_global : forall (hs : host_state) s s' f v ves ves' j,
+  supdate_glob s f.(f_inst) j v = Some s' ->
+  ves = v :: ves' ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_set_global j)])
+    hs s' f (vs_to_es ves').
+Proof.
+  intros hs s s' f v ves ves' j Heqs' ?. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_set_global with (i := j) (v := v) => //.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0; repeat rewrite List.app_nil_r.
+Qed.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -1116,7 +1130,17 @@ Proof.
         apply RS''_error. by apply get_global_error.  (* TODO *)
 
     * (* AI_basic (BI_set_global j) *)
-      by apply admitted_TODO.
+      destruct ves as [|v ves'] eqn:?.
+      + (* [::] *)
+        apply RS''_error. by apply admitted_TODO.
+      + (* v :: ves' *)
+        destruct (supdate_glob s f.(f_inst) j v) as [s'|] eqn:?.
+        -- (* Some s' *)
+           apply <<hs, s', f, vs_to_es ves'>>'.
+           by eapply reduce_set_global => //.
+        -- (* None *)
+           apply RS''_error. by apply admitted_TODO.
+
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
       by apply admitted_TODO.
     * (* AI_basic (BI_load t None a off) *)
