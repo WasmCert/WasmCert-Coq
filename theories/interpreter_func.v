@@ -488,6 +488,58 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
+Lemma reduce_get_local : forall (hs : host_state) s f ves j vs_at_j,
+  j < length f.(f_locs) ->
+  List.nth_error f.(f_locs) j = Some vs_at_j ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_get_local j)])
+    hs s f (vs_to_es (vs_at_j :: ves)).
+Proof.
+  intros hs s f ves j vs_at_j ??.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves) [::])).
+  - apply r_get_local with (j := j) (v := vs_at_j) => //.
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Section Get_local_typing_sect.
+
+(* XXX including this outside of a section
+ * breaks lias in some seemingly unrelated case later *)
+Let Get_local_typing := @Get_local_typing host_function.
+
+End Get_local_typing_sect.
+
+Lemma get_local_error_jth_none : forall s f ves j,
+  List.nth_error f.(f_locs) j = None ->
+  j < length f.(f_locs) -> (* unused? *)
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_get_local j)] (Tf t1s t2s).
+Proof.
+  intros s f ves j Hjth ? [C [t1s [t2s [t1s' [? [Hinst Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Get_local_typing host_instance) in Hbtype as [? [Hjth' [??]]].
+  apply inst_t_context_local_empty in Hinst.
+  rewrite Hinst in Hjth'.
+  destruct j => //.
+Qed.
+
+Lemma get_local_error_length : forall s f ves j,
+  j >= length f.(f_locs) ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_get_local j)] (Tf t1s t2s).
+Proof.
+  intros s f ves j Hlen [C [t1s [t2s [t1s' [? [Hinst Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Get_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
+  apply inst_t_context_local_empty in Hinst.
+  rewrite Hinst in Hlen'. destruct j => //.
+Qed.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -899,7 +951,7 @@ Proof.
 
     * (* AI_basic (BI_br j) *)
       apply <<hs, s, f, break(j, ves)>>'.
-      Fail by apply break_br.
+      Fail by apply break_br.  (* XXX *)
       by apply (admitted_TODO _).
 
     * (* AI_basic (BI_br_if j) *)
@@ -925,8 +977,19 @@ Proof.
       by apply (admitted_TODO _).
     * (* AI_basic (BI_call_indirect j) *)
       by apply (admitted_TODO _).
+
     * (* AI_basic (BI_get_local j) *)
-      by apply (admitted_TODO _).
+      destruct (j < length f.(f_locs)) eqn:?.
+      + (* true *)
+        destruct (List.nth_error f.(f_locs) j) as [vs_at_j|] eqn:?.
+        -- (* Some vs_at_j *)
+           apply <<hs, s, f, vs_to_es (vs_at_j :: ves)>>'.
+           by apply reduce_get_local.
+        -- (* None *)
+           apply RS''_error. by apply get_local_error_jth_none.
+      + (* false *)
+        apply RS''_error. by apply get_local_error_length; lias.
+
     * (* AI_basic (BI_set_local j) *)
       by apply (admitted_TODO _).
     * (* AI_basic (BI_tee_local j) *)
