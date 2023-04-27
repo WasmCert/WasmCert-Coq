@@ -1180,7 +1180,7 @@ Qed.
 
 Lemma cvtop_error_types_disagree : forall s inst v ves ves' t1 t2 sx,
   ves = v :: ves' ->
-  ~ types_agree t1 v ->
+  types_agree t1 v = false ->
   ~ exists C t1s t2s t1s',
     rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
@@ -1614,8 +1614,7 @@ Proof.
            by apply reduce_cvtop_trap.
       + (* false *)
         apply RS''_error.
-        assert (~ types_agree t1 v). { rewrite Ht1. by apply not_false_is_true. } (* XXX move into lemma / use eauto? *)
-        eapply cvtop_error_types_disagree => //.  (* TODO lemma not finished *)
+        by eapply cvtop_error_types_disagree.  (* TODO lemma not finished *)
 
     * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
       destruct ves as [|v ves'];
