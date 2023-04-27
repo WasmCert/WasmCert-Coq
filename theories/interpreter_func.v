@@ -169,7 +169,7 @@ Ltac solve_lfilled_0 :=
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
 Ltac cats1_last_eq H :=
   rewrite rev_cons in H; rewrite <- cats1 in H; repeat rewrite catA in H;
-  apply concat_cancel_last in H as [??].
+  apply concat_cancel_last in H as [H ?].
 
 (* using (H : rev (map f [::]) = xs ++ ys), substitute xs = ys = [::] *)
 Ltac apply_cat0_inv H :=
@@ -387,13 +387,6 @@ Proof.
   apply Block_typing in Hbtype as [ts [? [??]]] => //.
   subst t1s. by size_unequal Ht1s.
 Qed.
-
-(* | rs_br : *)
-(*     forall n vs es i LI lh, *)
-(*       const_list vs -> *)
-(*       length vs = n -> *)
-(*       lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI -> *)
-(*       reduce_simple [::AI_label n es LI] (vs ++ es) *)
 
 Lemma break_br : forall (hs : host_state) s f ves n es es',
   n <= size ves ->
@@ -803,6 +796,123 @@ Proof.
   (* TODO need to contradict this with something *)
   (* Hsmemind : smem_ind s (f_inst f) = None *)
 Admitted.
+
+Lemma reduce_store_packed_success : forall (hs : host_state) s f c v ves ves' t tp a off j mem_s_j mem',
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = Some mem_s_j ->
+  store_packed mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (tp_length tp) = Some mem' ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_store t (Some tp) a off)])
+    hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) f (vs_to_es ves').
+Proof.
+  intros hs s f c v ves ves' t tp a off j mem_s_j mem' ?????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - by apply r_store_packed_success
+      with (m := mem_s_j) (k := c) (off := off) (t := t) (v := v) (tp := tp).
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma reduce_store_packed_failure : forall (hs : host_state) s f c v ves ves' t tp a off j mem_s_j,
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = Some mem_s_j ->
+  store_packed mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (tp_length tp) = None ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_store t (Some tp) a off)])
+    hs s f (vs_to_es ves' ++ [:: AI_trap]).
+Proof.
+  intros hs s f c v ves ves' t tp a off j mem_s_j ?????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by apply r_store_packed_failure with (i := j) (m := mem_s_j).
+Qed.
+
+Lemma reduce_store_success : forall (hs : host_state) s f c v ves ves' t a off j mem_s_j mem',
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = Some mem_s_j ->
+  store mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (t_length t) = Some mem' ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_store t None a off)])
+    hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) f (vs_to_es ves').
+Proof.
+  intros hs s f c v ves ves' t a off j mem_s_j mem' ?????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - by apply r_store_success
+      with (m := mem_s_j) (k := c) (off := off) (t := t) (v := v).
+  - by solve_lfilled_0.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma reduce_store_failure : forall (hs : host_state) s f c v ves ves' t a off j mem_s_j,
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = Some mem_s_j ->
+  store mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (t_length t) = None ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_store t None a off)])
+    hs s f (vs_to_es ves' ++ [:: AI_trap]).
+Proof.
+  intros hs s f c v ves ves' t a off j mem_s_j ?????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by apply r_store_failure
+    with (i := j) (m := mem_s_j) (k := c) (off := off) (t := t) (v := v).
+Qed.
+
+Lemma store_error_size : forall s inst ves t tp a off,
+  size ves < 2 ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
+Proof.
+  intros s inst ves t tp a off ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  subst t1s. by size_unequal Ht1s.
+Qed.
+
+Lemma store_error_typeof : forall s inst v v' ves ves' t tp a off,
+  ves = v :: v' :: ves' ->
+  typeof v' <> T_i32 ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
+Proof.
+  intros s inst v v' ves ves' t tp a off ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  subst t1s.
+  (* TODO move this into the ltac? *)
+  replace [:: T_i32; t] with ([:: T_i32] ++ [:: t]) in Ht1s => //.
+  by repeat cats1_last_eq Ht1s.
+Qed.
+
+Lemma store_error_types_disagree : forall s inst v c ves ves' t tp a off,
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v = false ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
+Proof.
+  intros s inst v c ves ves' t tp a off ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  subst t1s.
+  replace [:: T_i32; t] with ([:: T_i32] ++ [:: t]) in Ht1s => //.
+  cats1_last_eq Ht1s. by destruct v, t => //.
+Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
@@ -1345,9 +1455,59 @@ Proof.
            apply RS''_error. by eapply load_error_smem_ind.
 
     * (* AI_basic (BI_store t (Some tp) a off) *)
-      by apply admitted_TODO.
+      destruct ves as [|v [|v' ves']] eqn:?;
+        try by (apply RS''_error; apply store_error_size).
+      (* v :: v' :: ves' *)
+      destruct v' as [c| | |] eqn:?;
+        try by (apply RS''_error; eapply store_error_typeof => //).
+      (* VAL_int32 c *)
+      destruct (types_agree t v) eqn:?.
+      + (* true *)
+        destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
+        -- (* Some j *)
+           destruct (List.nth_error s.(s_mems) j) as [mem_s_j|] eqn:?.
+           ** (* Some mem_s_j *)
+              destruct (store_packed mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (tp_length tp)) as [mem'|] eqn:?.
+              ++ (* Some mem' *)
+                 apply <<hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, vs_to_es ves'>>'.
+                 by eapply reduce_store_packed_success with (mem_s_j := mem_s_j).
+              ++ (* None *)
+                 apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
+                 by eapply reduce_store_packed_failure with (j := j) (mem_s_j := mem_s_j).
+           ** (* None *)
+              apply RS''_error. by apply admitted_TODO.
+        -- (* None *)
+           apply RS''_error. by apply admitted_TODO.
+      + (* false *)
+        apply RS''_error. by apply store_error_types_disagree with (v := v) (c := c) (ves' := ves').
+
     * (* AI_basic (BI_store t None a off) *)
-      by apply admitted_TODO.
+      destruct ves as [|v [|v' ves']] eqn:?;
+        try by (apply RS''_error; apply store_error_size).
+      (* v :: v' :: ves' *)
+      destruct v' as [c| | |] eqn:?;
+        try by (apply RS''_error; eapply store_error_typeof => //).
+      (* VAL_int32 c *)
+      destruct (types_agree t v) eqn:?.
+      + (* true *)
+        destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
+        -- (* Some j *)
+           destruct (List.nth_error s.(s_mems) j) as [mem_s_j|] eqn:?.
+           ** (* Some mem_s_j *)
+              destruct (store mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (t_length t)) as [mem'|] eqn:?.
+              ++ (* Some mem' *)
+                 apply <<hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, vs_to_es ves'>>'.
+                 by eapply reduce_store_success with (mem_s_j := mem_s_j).
+              ++ (* None *)
+                 apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
+                 by eapply reduce_store_failure with (j := j) (mem_s_j := mem_s_j).
+           ** (* None *)
+              apply RS''_error. by apply admitted_TODO.
+        -- (* None *)
+           apply RS''_error. by apply admitted_TODO.
+      + (* false *)
+        apply RS''_error. by apply store_error_types_disagree with (v := v) (c := c) (ves' := ves').
+
     * (* AI_basic BI_current_memory *)
       by apply admitted_TODO.
 
@@ -1454,7 +1614,7 @@ Proof.
            by apply reduce_cvtop_trap.
       + (* false *)
         apply RS''_error.
-        assert (~ types_agree t1 v). { rewrite Ht1. by apply not_false_is_true. }
+        assert (~ types_agree t1 v). { rewrite Ht1. by apply not_false_is_true. } (* XXX move into lemma / use eauto? *)
         eapply cvtop_error_types_disagree => //.  (* TODO lemma not finished *)
 
     * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
