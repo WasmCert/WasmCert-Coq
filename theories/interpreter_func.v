@@ -430,6 +430,19 @@ Proof.
   - solve_lfilled_0. by rewrite Hlen'.
 Qed.
 
+Lemma loop_error : forall s inst ves lt1s lt2s es,
+  size lt1s > size ves ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_loop (Tf lt1s lt2s) es)] (Tf t1s t2s).
+Proof.
+  intros s inst ves lt1s lt2s es Hlen [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Loop_typing host_instance) in Hbtype as [ts [? [??]]] => //.
+  subst t1s t2s. by size_unequal Ht1s.
+Qed.
+
 Lemma break_br : forall (hs : host_state) s f ves n es es',
   n <= size ves ->
   es' = vs_to_es ves ++ [:: AI_basic (BI_br 0)] ->
@@ -1370,7 +1383,8 @@ Proof.
         by apply reduce_loop.
       + (* false *)
         apply RS''_error.
-        by apply admitted_TODO.
+        (* TODO use size or length in the lemmas? *)
+        apply loop_error; repeat rewrite -length_is_size; lias.
 
     * (* AI_basic (BI_if tf es1 t2) *)
       by apply admitted_TODO.
