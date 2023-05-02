@@ -443,6 +443,44 @@ Proof.
   subst t1s t2s. by size_unequal Ht1s.
 Qed.
 
+Lemma reduce_if : forall (hs : host_state) s f c ves ves' tf es1 es2,
+  ves = VAL_int32 c :: ves' ->
+  c == Wasm_int.int_zero i32m ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_if tf es1 es2)])
+    hs s f (vs_to_es ves' ++ [:: AI_basic (BI_block tf es2)]).
+Proof.
+Admitted.
+
+Lemma if_error_0 : forall s inst ves tf es1 es2,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_if tf es1 es2)] (Tf t1s t2s).
+Proof.
+  intros s inst ves tf es1 es2 ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves. destruct tf.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
+  by size_unequal Ht1s.
+Qed.
+
+Lemma if_error_typeof : forall s inst v ves ves' tf es1 es2,
+  typeof v <> T_i32 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_if tf es1 es2)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' tf es1 es2 ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves. destruct tf.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
+  by cats1_last_eq Ht1s.
+Qed.
+
 Lemma break_br : forall (hs : host_state) s f ves n es es',
   n <= size ves ->
   es' = vs_to_es ves ++ [:: AI_basic (BI_br 0)] ->
@@ -1386,8 +1424,20 @@ Proof.
         (* TODO use size or length in the lemmas? *)
         apply loop_error; repeat rewrite -length_is_size; lias.
 
-    * (* AI_basic (BI_if tf es1 t2) *)
-      by apply admitted_TODO.
+    * (* AI_basic (BI_if tf es1 es2) *)
+      destruct ves as [|v ves'] eqn:?;
+        try by (apply RS''_error; apply if_error_0).
+      (* v :: ves' *)
+      destruct v as [c| | |] eqn:?;
+        try by (apply RS''_error; eapply if_error_typeof => //).
+      (* VAL_int32 c *)
+      destruct (c == Wasm_int.int_zero i32m) eqn:?.
+      + (* true *)
+        apply <<hs, s, f, vs_to_es ves' ++ [:: AI_basic (BI_block tf es2)]>>'.
+        by apply admitted_TODO.
+      + (* false *)
+        apply <<hs, s, f, vs_to_es ves' ++ [:: AI_basic (BI_block tf es1)]>>'.
+        by apply admitted_TODO.
 
     * (* AI_basic (BI_br j) *)
       apply <<hs, s, f, break(j, ves)>>'.
