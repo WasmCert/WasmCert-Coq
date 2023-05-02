@@ -164,8 +164,9 @@ Axiom coerce_res : forall hs s f es ves e (r : res_step'_separate_e hs s f ves e
 Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
   try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //;
-  (* TODO remove 'by' to allow for partial resolution? *)
-  try by repeat rewrite List.app_nil_r.
+  repeat rewrite List.app_nil_r;
+  (* XXX is this the right way to attempt trivial completion? *)
+  try by idtac.
 
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
 Ltac cats1_last_eq H :=
@@ -417,8 +418,7 @@ Proof.
       repeat rewrite length_is_size.
       rewrite v_to_e_size.
       by rewrite size_rev.
-  (* TODO the ltac should be doing at least some of the simplifcation here *)
-  - solve_lfilled_0. rewrite List.app_nil_r.
+  - solve_lfilled_0.
     replace (v_to_e_list (rev ves))
       with (v_to_e_list (rev ves'') ++ v_to_e_list (rev ves')).
     * by rewrite <- catA.
