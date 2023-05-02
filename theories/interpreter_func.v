@@ -403,40 +403,31 @@ Proof.
   intros hs s f ves ves' ves'' t1s t2s es Hlen Hsplit.
   rewrite split_n_is_take_drop in Hsplit.
   injection Hsplit as Hsplit' Hsplit''.
+  assert (Hlen' : size t1s = size ves').
+  {
+    subst ves'. rewrite size_take. rewrite length_is_size.
+    by destruct (size t1s < size ves) eqn:? => //; lias.
+  }
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves'') [::])).
   - apply r_simple.
     eapply rs_loop with (vs := vs_to_es ves') (t1s := t1s) (t2s := t2s) (es := es) => //.
     * by apply v_to_e_is_const_list.
     * unfold vs_to_es.
-      subst ves'.
       repeat rewrite length_is_size.
-      simpl_vs_to_es_size.
-      rewrite size_take.
-      destruct (size t1s == size ves) eqn:Heqb; move/eqP in Heqb.
-      + rewrite Heqb. by rewrite ltnn.
-      + replace (size t1s < size ves) with true; by lias.
-
+      rewrite v_to_e_size.
+      by rewrite size_rev.
   (* TODO the ltac should be doing at least some of the simplifcation here *)
   - solve_lfilled_0. rewrite List.app_nil_r.
-    assert (Hves : v_to_e_list (rev ves) = v_to_e_list (rev ves'') ++ v_to_e_list (rev ves')).
-    {
-      rewrite <- (cat_take_drop (length t1s) ves).
+    replace (v_to_e_list (rev ves))
+      with (v_to_e_list (rev ves'') ++ v_to_e_list (rev ves')).
+    * by rewrite <- catA.
+    * rewrite <- (cat_take_drop (length t1s) ves).
       repeat rewrite v_to_e_rev.
       rewrite <- v_to_e_cat.
       rewrite <- rev_cat.
       by subst ves' ves''.
-    }
-    rewrite Hves.
-    by rewrite <- catA.
-  - solve_lfilled_0.
-    (* TODO reuse this above? *)
-    assert (Hlen' : size t1s = size ves').
-    {
-      subst ves'. rewrite size_take. rewrite length_is_size.
-      by destruct (size t1s < size ves) eqn:? => //; lias.
-    }
-    by rewrite Hlen'.
+  - solve_lfilled_0. by rewrite Hlen'.
 Qed.
 
 Lemma break_br : forall (hs : host_state) s f ves n es es',
