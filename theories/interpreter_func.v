@@ -164,6 +164,7 @@ Axiom coerce_res : forall hs s f es ves e (r : res_step'_separate_e hs s f ves e
 Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
   try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //;
+  (* TODO remove 'by' to allow for partial resolution? *)
   try by repeat rewrite List.app_nil_r.
 
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
@@ -387,6 +388,58 @@ Proof.
   apply Block_typing in Hbtype as [ts [? [??]]] => //.
   subst t1s. by size_unequal Ht1s.
 Qed.
+
+(* destruct (length ves >= length t1s) eqn:?. *)
+(* + (* true *) *)
+(*   destruct (split_n ves (length t1s)) as [ves' ves''] eqn:?. *)
+(*   apply <<hs, s, f, vs_to_es ves'' *)
+(*     ++ [:: AI_label (length t1s) [:: AI_basic (BI_loop (Tf t1s t2s) es)] (vs_to_es ves' ++ to_e_list es)] *)
+
+Lemma reduce_loop : forall (hs : host_state) s f ves ves' ves'' t1s t2s es,
+  (* TODO > or >= ? *)
+  size ves > size t1s ->
+  split_n ves (length t1s) = (ves', ves'') ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_loop (Tf t1s t2s) es)])
+    hs s f (vs_to_es ves'' ++ [:: AI_label
+      (length t1s)
+      [:: AI_basic (BI_loop (Tf t1s t2s) es)]
+      (vs_to_es ves' ++ to_e_list es)
+    ]).
+Proof.
+  intros hs s f ves ves' ves'' t1s t2s es Hlen Hsplit.
+  rewrite split_n_is_take_drop in Hsplit.
+  injection Hsplit as Hsplit' Hsplit''.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves'') [::])).
+  - apply r_simple.
+    eapply rs_loop with (vs := vs_to_es ves') (t1s := t1s) (t2s := t2s) (es := es) => //.
+    * by apply v_to_e_is_const_list.
+    * unfold vs_to_es.
+      subst ves'.
+      repeat rewrite length_is_size.
+      simpl_vs_to_es_size.
+      rewrite size_take.
+      by destruct (size t1s < size ves).
+  - solve_lfilled_0. rewrite List.app_nil_r.
+    assert (Hves : v_to_e_list (rev ves) = v_to_e_list (rev ves'') ++ v_to_e_list (rev ves')).
+    {
+      rewrite <- (cat_take_drop (length t1s) ves).
+      repeat rewrite v_to_e_rev.
+      rewrite <- v_to_e_cat.
+      rewrite <- rev_cat.
+      by subst ves' ves''.
+    }
+    rewrite Hves.
+    by rewrite <- catA.
+  - solve_lfilled_0.
+    rewrite List.app_nil_r.
+    Search ((_ ++ _)%list).
+    apply f_equal.
+    (* XXX size t1s != size ves' *)
+    admit.
+Admitted.
+
 
 Lemma break_br : forall (hs : host_state) s f ves n es es',
   n <= size ves ->
@@ -1319,7 +1372,17 @@ Proof.
         by apply block_error; lias.
 
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
-      by apply admitted_TODO.
+      destruct (length ves >= length t1s) eqn:?.
+      + (* true *)
+        destruct (split_n ves (length t1s)) as [ves' ves''] eqn:?.
+        apply <<hs, s, f, vs_to_es ves''
+          ++ [:: AI_label (length t1s) [:: AI_basic (BI_loop (Tf t1s t2s) es)] (vs_to_es ves' ++ to_e_list es)]
+        >>'.
+        by apply reduce_loop.
+      + (* false *)
+        apply RS''_error.
+        by apply admitted_TODO.
+
     * (* AI_basic (BI_if tf es1 t2) *)
       by apply admitted_TODO.
 
