@@ -389,15 +389,8 @@ Proof.
   subst t1s. by size_unequal Ht1s.
 Qed.
 
-(* destruct (length ves >= length t1s) eqn:?. *)
-(* + (* true *) *)
-(*   destruct (split_n ves (length t1s)) as [ves' ves''] eqn:?. *)
-(*   apply <<hs, s, f, vs_to_es ves'' *)
-(*     ++ [:: AI_label (length t1s) [:: AI_basic (BI_loop (Tf t1s t2s) es)] (vs_to_es ves' ++ to_e_list es)] *)
-
 Lemma reduce_loop : forall (hs : host_state) s f ves ves' ves'' t1s t2s es,
-  (* TODO > or >= ? *)
-  size ves > size t1s ->
+  size t1s <= size ves ->
   split_n ves (length t1s) = (ves', ves'') ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_loop (Tf t1s t2s) es)])
@@ -420,7 +413,11 @@ Proof.
       repeat rewrite length_is_size.
       simpl_vs_to_es_size.
       rewrite size_take.
-      by destruct (size t1s < size ves).
+      destruct (size t1s == size ves) eqn:Heqb; move/eqP in Heqb.
+      + rewrite Heqb. by rewrite ltnn.
+      + replace (size t1s < size ves) with true; by lias.
+
+  (* TODO the ltac should be doing at least some of the simplifcation here *)
   - solve_lfilled_0. rewrite List.app_nil_r.
     assert (Hves : v_to_e_list (rev ves) = v_to_e_list (rev ves'') ++ v_to_e_list (rev ves')).
     {
@@ -433,13 +430,14 @@ Proof.
     rewrite Hves.
     by rewrite <- catA.
   - solve_lfilled_0.
-    rewrite List.app_nil_r.
-    Search ((_ ++ _)%list).
-    apply f_equal.
-    (* XXX size t1s != size ves' *)
-    admit.
-Admitted.
-
+    (* TODO reuse this above? *)
+    assert (Hlen' : size t1s = size ves').
+    {
+      subst ves'. rewrite size_take. rewrite length_is_size.
+      by destruct (size t1s < size ves) eqn:? => //; lias.
+    }
+    by rewrite Hlen'.
+Qed.
 
 Lemma break_br : forall (hs : host_state) s f ves n es es',
   n <= size ves ->
