@@ -596,6 +596,83 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
+Lemma reduce_br_table : forall (hs : host_state) s f c ves' k j js js_at_k,
+  k = Wasm_int.nat_of_uint i32m c ->
+  k < length js ->
+  List.nth_error js k = Some js_at_k ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic (BI_br_table js j)])
+    hs s f (vs_to_es ves' ++ [:: AI_basic (BI_br js_at_k)]).
+Proof.
+  intros ??? c ves' k j js js_at_k ???. subst k.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  apply r_simple. by apply rs_br_table.
+Qed.
+
+Lemma reduce_br_table_length : forall (hs : host_state) s f c ves' k j js,
+  k = Wasm_int.nat_of_uint i32m c ->
+  k >= length js ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic (BI_br_table js j)])
+    hs s f (vs_to_es ves' ++ [:: AI_basic (BI_br j)]).
+Proof.
+  intros ??? c ves' k j js ??. subst k.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  apply r_simple. by apply rs_br_table_length.
+Qed.
+
+Lemma br_table_error_0 : forall s inst ves js j,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
+Proof.
+  intros s inst ves js j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Br_table_typing in Hbtype as [ts [ts' [??]]]. subst t1s.
+  by apply_cat0_inv Ht1s.
+Qed.
+
+Lemma br_table_error_kth : forall s inst c ves ves' k js j,
+  ves = VAL_int32 c :: ves' ->
+  k = Wasm_int.nat_of_uint i32m c ->
+  k < length js ->
+  List.nth_error js k = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
+Proof.
+  intros s inst c ves ves' k js j ???? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves k.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Br_table_typing in Hbtype as [? [? [??]]]. subst t1s.
+  admit.
+  (* TODO need a contradiction with nth_error ... = None
+     is Br_table_typing strong enough? *)
+Admitted.
+
+Lemma br_table_error_i32 : forall s inst v ves ves' js j,
+  typeof v <> T_i32 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' js j ?? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Br_table_typing in Hbtype as [ts [ts' [??]]]. subst t1s.
+  by cats1_last_eq Ht1s.
+Qed.
+
 Lemma reduce_get_local : forall (hs : host_state) s f ves j vs_at_j,
   j < length f.(f_locs) ->
   List.nth_error f.(f_locs) j = Some vs_at_j ->
@@ -1484,7 +1561,25 @@ Proof.
          by eapply reduce_br_if_true; lias.
 
     * (* AI_basic (BI_br_table js j) *)
-      by apply admitted_TODO.
+      destruct ves as [|v ves'];
+        try by (apply RS''_error; apply br_table_error_0).
+      (* v :: ves' *)
+      destruct v as [c| | |] eqn:?;
+        try by (apply RS''_error; eapply br_table_error_i32 with (v := v); subst v).
+      remember (Wasm_int.nat_of_uint i32m c) as k.
+      destruct (k < length js) eqn:?.
+      + (* true *)
+        destruct (List.nth_error js k) as [js_at_k|] eqn:?.
+        -- (* Some js_at_k *)
+           apply <<hs, s, f, vs_to_es ves' ++ [::AI_basic (BI_br js_at_k)]>>'.
+           by apply reduce_br_table with (k := k).
+        -- (* None *)
+           apply RS''_error.
+           by apply br_table_error_kth with (k := k) (c := c) (ves' := ves').
+      + (* false *)
+        apply <<hs, s, f, vs_to_es ves' ++ [::AI_basic (BI_br j)]>>'.
+        by apply reduce_br_table_length with (k := k); lias.
+
     * (* AI_basic BI_return *)
       by apply admitted_TODO.
     * (* AI_basic (BI_call j) *)
