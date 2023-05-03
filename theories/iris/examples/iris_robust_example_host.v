@@ -3,18 +3,12 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_host iris_rules iris_fundamental iris_wp iris_interp_instance_alloc.
+Require Export iris_interp_instance_alloc.
 Require Export iris_example_helper.
-Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Close Scope byte_scope.
-
-
 
 Section Host_instance.
   Context `{!wasmG Σ, !logrel_na_invs Σ, !hvisG Σ, !hmsG Σ, !hasG Σ}.

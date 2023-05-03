@@ -28,7 +28,7 @@ Proof. simpl. auto. Qed.
 Class DecomposeLocal (l: list administrative_instruction) l1 n f es l2 :=
   { MkDecomposeLocal: l = (v_to_e_list l1) ++ [AI_local n f es] ++ l2 }.
 
-Hint Mode DecomposeLocal ! - - - - - : typeclass_instances.
+Global Hint Mode DecomposeLocal ! - - - - - : typeclass_instances.
 
 Instance DecomposeLocalConsHere : forall n f es l2, DecomposeLocal (AI_local n f es :: l2) [] n f es l2.
 Proof. intros. constructor. auto. Qed.
@@ -56,7 +56,7 @@ Ltac build_llfill_local :=
 Class DecomposeLabel (l: list administrative_instruction) l1 n f es l2 :=
   { MkDecomposeLabel: l = (v_to_e_list l1) ++ [AI_label n f es] ++ l2 }.
 
-Hint Mode DecomposeLabel ! - - - - - : typeclass_instances.
+Global Hint Mode DecomposeLabel ! - - - - - : typeclass_instances.
 
 Instance DecomposeLabelConsHere : forall n f es l2, DecomposeLabel (AI_label n f es :: l2) [] n f es l2.
 Proof. intros. constructor. auto. Qed.
@@ -84,10 +84,7 @@ Ltac build_llfill_label :=
 Class DecomposeBase l e l1 l2 :=
   { MkDecomposeBase: l = (v_to_e_list l1) ++ e ++ l2 }.
 
-Hint Mode DecomposeBase ! ! - - : typeclass_instances.
-
-(* Instance DecomposeBaseAppHere : forall e l2, DecomposeBase (e ++ l2) e [] l2. *)
-(* Proof. intros. constructor. auto. Qed. *)
+Global Hint Mode DecomposeBase ! ! - - : typeclass_instances.
 
 Instance DecomposeBaseConsAppNil : forall e, DecomposeBase e e [] [].
 Proof. intros. constructor. simpl. rewrite app_nil_r. auto. Qed.
@@ -121,12 +118,12 @@ Ltac build_llfill :=
 Class BuildCtx i lh es LI :=
   { MkBuildCtx: lfilled i lh es LI }.
 
-Hint Mode BuildCtx - - ! ! : typeclass_instances.
+Global Hint Mode BuildCtx - - ! ! : typeclass_instances.
 
 Class DeconstructCtx i lh es LI :=
   { MkDeconstruct: lfilled i lh es LI }.
 
-Hint Mode DeconstructCtx - - ! - : typeclass_instances.
+Global Hint Mode DeconstructCtx - - ! - : typeclass_instances.
 
 Instance DeconstructCtxBaseApp :
   forall es l1 l2,

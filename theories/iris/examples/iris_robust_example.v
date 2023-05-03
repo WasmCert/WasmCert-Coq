@@ -3,16 +3,12 @@ From iris.program_logic Require Import language.
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_host iris_rules iris_fundamental iris_wp iris_interp_instance_alloc.
+Require Export iris_host iris_interp_instance_alloc.
 Require Export iris_example_helper.
-Require Export datatypes operations properties opsem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Close Scope byte_scope.
 
 Section Examples.
 
@@ -24,119 +20,9 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
   Context `{!wasmG Σ,
         !logrel_na_invs Σ}.
 
-  Definition lse_expr a n :=
-      [BI_const (xx 0);
-       BI_const (xx 42);
-       BI_store T_i32 None 0%N 0%N;
-       BI_call a;
-       BI_const (xx 0);
-       BI_load T_i32 None 0%N 0%N;
-       BI_set_global n].
-
-  Definition lse a n :=
-    to_e_list (lse_expr a n).
-
-  Lemma lse_spec f n j a C i es g k locs :
-    (tc_label C) = [] ∧ (tc_return C) = None ->
-
-    f.(f_inst).(inst_memory) !! 0 = Some n ->
-    f.(f_inst).(inst_funcs) !! j = Some a ->
-    f.(f_inst).(inst_globs) !! g = Some k ->
-    
-    be_typing (upd_local_label_return C locs [[]] (Some [])) es (Tf [] []) ->
-    
-    ⊢ {{{ ↪[frame] f
-         ∗ na_own logrel_nais ⊤
-         ∗ na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] (FC_func_native i (Tf [] []) locs es))
-         ∗ interp_instance C [] i
-         ∗ (∃ gv, N.of_nat k ↦[wg] {| g_mut := MUT_mut; g_val := gv |})
-         ∗ ∃ c, (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) }}}
-      lse j g
-      {{{ w, (⌜w = trapV⌝ ∨ (⌜w = immV []⌝
-                                      ∗ (N.of_nat k) ↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}
-                                      ∗ (N.of_nat n) ↦[wms][ 0%N ] (bits (xx 42))
-                                      ∗ na_own logrel_nais ⊤))
-               ∗ ↪[frame] f }}}.
-  Proof.
-    iIntros (Hc Hn Ha Hg Hes Φ). iModIntro.
-    iIntros "(Hf & Hown & #Ha & #Hi & Hg & Hn) HΦ".
-    iDestruct "Hn" as (c) "Hn".
-    iDestruct "Hg" as (gv) "Hg".
-    iApply (wp_wand with "[-HΦ] HΦ").
-
-    unfold lse.
-
-    take_drop_app_rewrite 3.
-    iApply (wp_seq _ _ _ (λ w, (⌜w = immV []⌝ ∗ N.of_nat n↦[wms][0] bits (xx 42)) ∗ ↪[frame] f)%I).
-    iSplitR;[by iIntros "[[%Hcontr _] _]"|].
-    iSplitR "Hown Hg".
-    { unfold serialise_i32. simpl. iApply (wp_store (λ w, ⌜w = immV ([])⌝)%I with "[$Hf Hn]");eauto.
-      by rewrite Memdata.encode_int_length. }
-    iIntros (w) "[[-> Hn] Hf]". iSimpl.
-
-    take_drop_app_rewrite_twice 0 3.
-    iApply wp_wasm_empty_ctx.
-    iApply wp_base_push;auto.
-    iApply (wp_call_ctx with "Hf");eauto.
-    iNext. iIntros "Hf".
-    iApply wp_base_pull.
-    iApply wp_wasm_empty_ctx.
-    iSimpl.
-    
-    take_drop_app_rewrite_twice 0 3.
-    iApply wp_wasm_empty_ctx.
-    iApply wp_base_push;auto.
-    rewrite -(app_nil_r [_]).
-    iApply (wp_seq_can_trap_same_ctx _ (λ v, interp_values [] v ∗ na_own logrel_nais ⊤)%I).
-    iSplitR;[by iIntros "[H _]";iDestruct "H" as (v) "[%Hcontr _]"|].
-    iSplitR;[auto|].
-    iFrame.
-    iSplitL "Hown".
-    { iIntros "Hf". iApply fupd_wp.
-      iMod (na_inv_acc with "Ha Hown") as "(>Haf & Hown & Hcls)";[solve_ndisj..|].
-      rewrite -(app_nil_l [_]).
-      iApply (wp_invoke_native with "Hf Haf");eauto.
-      iModIntro. iNext. iIntros "[Hf Haf]".
-      rewrite -wp_frame_rewrite.
-      iApply wp_wasm_empty_ctx_frame.
-      take_drop_app_rewrite 0.
-      iApply (wp_block_local_ctx with "Hf");[eauto..|].
-      iNext. iIntros "Hf".
-      iApply wp_wasm_empty_ctx_frame.
-      rewrite wp_frame_rewrite.
-      
-      iApply fupd_wp.
-      iMod ("Hcls" with "[$]") as "Hown". iModIntro.
-      simpl.
-
-      iDestruct (be_fundamental_local _ _ [] _ locs with "Hi") as "Hl";eauto.
-      iSpecialize ("Hl" $! _ (n_zeros locs) with "Hf Hown []").
-      { iRight. iExists _. iSplit;eauto. rewrite app_nil_l. iApply n_zeros_interp_values. }
-      unfold interp_expression_closure. simpl.
-      iApply (wp_wand with "Hl").
-      iIntros (v) "[[[H|H] Hown] HH]";iFrame. iRight;auto.
-    }
-
-    iIntros (w) "[[#Hval Hown] Hf]".
-    iApply wp_base_pull. iApply wp_wasm_empty_ctx.
-    iDestruct "Hval" as (ws) "[-> Heq]".
-    iDestruct (big_sepL2_length with "Heq") as %Heq. destruct ws;[|done].
-    iSimpl.
-
-    take_drop_app_rewrite 2.
-    iApply (wp_seq _ _ _ (λ v, (⌜v = immV _⌝ ∗ _) ∗ _)%I).
-    iSplitR;[by iIntros "[[% _] _]";done|].
-    iSplitL "Hn Hf".
-    { iApply wp_load;eauto;[|iFrame];eauto. }
-    iIntros (v) "[[-> Hn] Hf]". iSimpl.
-
-    iApply (wp_wand _ _ _ (λ v, ⌜v = immV _⌝ ∗ _ ∗ _)%I with "[Hf Hg]").
-    { iApply (wp_set_global with "[] Hf Hg"); eauto. }
-
-    iIntros (v) "[-> [Hg Hf]]". iFrame.
-    iRight. iFrame. auto.
-  Qed.
-
+  (* Store 42 to the memory, invoke an external function, and load the memory entry again.
+     This program is called 'return' because the value is returned instead of being
+     set to a global. *)
   Definition lse_expr_return a :=
       [BI_const (xx 0);
        BI_const (xx 42);
@@ -162,7 +48,9 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
          ∗ interp_instance C [] i
          ∗ ∃ c, (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) }}}
       lse_return j
-      {{{ w, (⌜w = trapV⌝ ∨ (⌜w = immV [xx 42]⌝))
+      {{{ w, (⌜w = trapV⌝ ∨ (⌜w = immV [xx 42]⌝
+                                      ∗ (N.of_nat n) ↦[wms][ 0%N ] (bits (xx 42))
+                                      ∗ na_own logrel_nais ⊤))
                ∗ ↪[frame] f }}}.
   Proof.
     iIntros (Hc Hn Ha Hes Φ). iModIntro.
@@ -170,8 +58,8 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
     iDestruct "Hn" as (c) "Hn".
     iApply (wp_wand with "[-HΦ] HΦ").
 
-    unfold lse.
-
+    unfold lse_return.
+    
     take_drop_app_rewrite 3.
     iApply (wp_seq _ _ _ (λ w, (⌜w = immV []⌝ ∗ N.of_nat n↦[wms][0] bits (xx 42)) ∗ ↪[frame] f)%I).
     iSplitR;[by iIntros "[[%Hcontr _] _]"|].
@@ -234,10 +122,90 @@ Notation "{{{ P }}} es {{{ v , Q }}}" :=
     iSplitR;[by iIntros "[[% _] _]";done|].
     iSplitL "Hn Hf".
     { iApply wp_load;eauto;[|iFrame];eauto. }
-    iIntros (v) "[[-> Hn] Hf]". iSimpl.
-    iApply iris_wp.wp_value; by eauto.
+    
+    iIntros (v) "[[-> Hn] Hf]". iSimpl in "Hn". iSimpl.
+    iApply iris_wp.wp_value; first instantiate (1 := immV [xx 42]) => //.
+    iFrame "Hf".
+    iRight; iSplit => //.
+    by iFrame "Hn".
   Qed.
 
+  (* Setting the memory value to a global instead of returning it. *)
+  Definition lse_expr a n :=
+      [BI_const (xx 0);
+       BI_const (xx 42);
+       BI_store T_i32 None 0%N 0%N;
+       BI_call a;
+       BI_const (xx 0);
+       BI_load T_i32 None 0%N 0%N;
+       BI_set_global n].
+
+  Definition lse a n :=
+    to_e_list (lse_expr a n).
+
+  Lemma lse_spec f n j a C i es g k locs :
+    (tc_label C) = [] ∧ (tc_return C) = None ->
+
+    f.(f_inst).(inst_memory) !! 0 = Some n ->
+    f.(f_inst).(inst_funcs) !! j = Some a ->
+    f.(f_inst).(inst_globs) !! g = Some k ->
+    
+    be_typing (upd_local_label_return C locs [[]] (Some [])) es (Tf [] []) ->
+    
+    ⊢ {{{ ↪[frame] f
+         ∗ na_own logrel_nais ⊤
+         ∗ na_inv logrel_nais (wfN (N.of_nat a)) ((N.of_nat a) ↦[wf] (FC_func_native i (Tf [] []) locs es))
+         ∗ interp_instance C [] i
+         ∗ (∃ gv, N.of_nat k ↦[wg] {| g_mut := MUT_mut; g_val := gv |})
+         ∗ ∃ c, (N.of_nat n) ↦[wms][ 0%N ] (bits (VAL_int32 c)) }}}
+      lse j g
+      {{{ w, (⌜w = trapV⌝ ∨ (⌜w = immV []⌝
+                                      ∗ (N.of_nat k) ↦[wg] {| g_mut := MUT_mut; g_val := xx 42 |}
+                                      ∗ (N.of_nat n) ↦[wms][ 0%N ] (bits (xx 42))
+                                      ∗ na_own logrel_nais ⊤))
+               ∗ ↪[frame] f }}}.
+  Proof.
+    iIntros (Hc Hn Ha Hg Hes Φ). iModIntro.
+    iIntros "(Hf & Hown & #Ha & #Hi & Hg & Hn) HΦ".
+    iDestruct "Hn" as (c) "Hn".
+    iDestruct "Hg" as (gv) "Hg".
+    iApply (wp_wand with "[-HΦ] HΦ").
+
+    unfold lse.
+
+    take_drop_app_rewrite 6.
+    iApply wp_wasm_empty_ctx.
+    iApply (wp_seq_can_trap_same_ctx _ (λ w, _)%I).
+    iSplitR.
+    2: { iSplitR; first by iLeft.
+         iFrame.
+         iSplitL.
+         { iIntros "Hf".
+           iApply (lse_return_spec with "[$Hf $Hown Hn $Ha $Hi]") => //; first by iExists c.
+           iIntros (w) "(H & Hf)".
+           iFrame "Hf".
+           iDestruct "H" as "[-> | H]"; first by iLeft.
+           iRight.
+           iCombine "H Hg" as "H".
+           iFrame.
+           by iApply "H".
+         }
+         iIntros (w) "(((-> & Hn & Hown) & Hg) & Hf)".
+         { 
+           iApply (wp_wand_ctx _ _ _ (λ v, ⌜v = immV _⌝ ∗ _ ∗ _)%I with "[Hf Hg]").
+           { iApply wp_base_pull.
+             iApply wp_wasm_empty_ctx.
+             iApply (wp_set_global with "[] Hf Hg"); eauto.
+           }
+
+           iIntros (v) "[-> [Hg Hf]]". iFrame.
+           iRight. iFrame. auto.
+         }
+    }
+    iSimpl.
+    by iIntros "((%HContra & _) & _)".
+  Qed.
+  
 End Examples.
 
 Section Examples_host.
@@ -250,16 +218,6 @@ Section Examples_host.
 
   Notation "{{{ P }}} es {{{ v , Q }}}" :=
     (□ ∀ Φ, P -∗ (∀ v, Q -∗ Φ v) -∗ WP (es : host_expr) @ NotStuck ; ⊤ {{ v, Φ v }})%I (at level 50).
-
-  Notation " n ↪[vis]{ q } v" := (ghost_map_elem (V := module_export) visGName n q v%V)
-                           (at level 20, q at level 5, format " n ↪[vis]{ q } v") .
-  Notation " n ↪[vis] v" := (ghost_map_elem (V := module_export) visGName n (DfracOwn 1) v%V)
-                          (at level 20, format " n ↪[vis] v").
-  
-  Notation " n ↪[mods]{ q } v" := (ghost_map_elem (V := module) msGName n q v%V)
-                           (at level 20, q at level 5, format " n ↪[mods]{ q } v") .
-  Notation " n ↪[mods] v" := (ghost_map_elem (V := module) msGName n (DfracOwn 1) v%V)
-                               (at level 20, format " n ↪[mods] v").
 
   Lemma wp_wand_host s E (e : host_expr) (Φ Ψ : host_val -> iProp Σ) :
     WP e @ s; E {{ Φ }} -∗ (∀ v, Φ v -∗ Ψ v) -∗ WP e @ s; E {{ Ψ }}.

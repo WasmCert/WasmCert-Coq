@@ -4,15 +4,12 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic Require Export gen_heap ghost_map proph_map.
 From iris.base_logic.lib Require Export fancy_updates.
 From iris.bi Require Export weakestpre.
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_rules.
-Require Export datatypes operations properties opsem.
+Require Export iris_example_helper.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Close Scope byte_scope.
 
 (* Example Programs *)
 Section Examples.
@@ -20,11 +17,6 @@ Section Examples.
 
 
 Context `{!wasmG Σ}.
-
-Definition xx i := (VAL_int32 (Wasm_int.int_of_Z i32m i)).
-Definition xb b := (VAL_int32 (wasm_bool b)).
-
-Let expr := iris.expr.
 
 Definition my_add : expr :=
   [AI_basic (BI_const (xx 3));
@@ -76,27 +68,6 @@ Proof. rewrite app_nil_l. auto. Qed.
 Lemma iRewrite_nil_r_ctx (s : stuckness) (E : coPset) (Φ : val -> iProp Σ) (e : iris.expr) i lh :
   (WP e ++ [] @ s; E CTX i; lh {{ Φ }} ⊢ WP e @ s; E CTX i; lh {{ Φ }}).
 Proof. rewrite app_nil_r. auto. Qed.
-
-Ltac take_drop_app_rewrite n :=
-  match goal with
-  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  end.
-
-Ltac take_drop_app_rewrite_twice n m :=
-  take_drop_app_rewrite n;
-  match goal with
-  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  end.
 
 (* Examples of blocks that return normally *)
 Lemma label_check_easy f0:

@@ -588,9 +588,6 @@ Notation "'WPh' h {{ Φ } }" := (wp_host NotStuck ⊤ h Φ).
 Section logrel_host.
   Context `{!wasmG Σ, !logrel_na_invs Σ, !host_program_logic Σ}.
 
-  Let expr := iris.expr.
-  Let val := iris.val.
-
   Definition interp_expression_closure (hctx : host_ctx) (τs : result_type)  (f : frame) (es : expr) : iProp Σ :=
     (WPh fill_host hctx es {{ λ vs, (interp_val τs (val_of_host_val vs) ∗ na_own logrel_nais ⊤) ∗ ↪[frame] f }})%I.
 
