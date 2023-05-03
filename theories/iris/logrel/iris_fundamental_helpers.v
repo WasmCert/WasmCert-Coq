@@ -6,9 +6,6 @@ From iris.base_logic.lib Require Export fancy_updates.
 From iris.algebra Require Import list.
 From iris.prelude Require Import options.
 
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_rules.
-Require Export datatypes operations properties opsem typing.
 Require Export iris_logrel.
 Import uPred.
 
@@ -255,21 +252,10 @@ Section fundamental.
     ∃ ws1 ws2 : list A,
       ws = ws1 ++ ws2 ∧ length ws1 = n1 ∧ length ws2 = n2.
   Proof.
-    revert n1 n2.
-    induction ws;intros n1 n2.
-    { destruct n1,n2;try done.
-      intros.
-      repeat eexists;eauto. auto. }
-    { intros Hlen. simpl in Hlen.
-      destruct (decide (length ws = n2)).
-      { assert (n1 = 1) as ->;[lia|]. exists [a], ws. auto. }
-      { destruct n1.
-        { exists [],(a::ws). auto. }
-        { assert (length ws = n1 + n2) as [ws1 [ws2 [Heq [Hlen1 Hlen2]]]]%IHws;[lia|].
-          simplify_eq.
-          exists (a::ws1),ws2. auto. }
-      }
-    }
+    exists (take n1 ws), (drop n1 ws).
+    split => //; first by rewrite take_drop.
+    rewrite take_length drop_length.
+    split; by lias.
   Qed.
 
   Lemma get_layer_next lh i vs n es lh' es' vs0' n1 es0 vs' n2 es2 lh0 es2' es0' :

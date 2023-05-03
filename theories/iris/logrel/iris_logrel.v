@@ -19,19 +19,9 @@ Definition wtN (a b: N) : namespace := nroot .@ wt .@ a .@ b.
 Definition wmN (a: N) : namespace := nroot .@ wm .@ a.
 Definition wgN (a: N) : namespace := nroot .@ wg .@ a.
 
-Close Scope byte_scope.
-
 Section logrel.
-
-  Context `{!wasmG Σ, !logrel_na_invs Σ}.
-
   
-  Definition xb b := (VAL_int32 (wasm_bool b)).
-
-  Let expr := iris.expr.
-  Let val := iris.val.
-
-
+  Context `{!wasmG Σ, !logrel_na_invs Σ}.
 
   Notation VR := ((leibnizO val) -n> iPropO Σ).
   Notation WR := ((leibnizO value) -n> iPropO Σ).
@@ -74,14 +64,13 @@ Section logrel.
   (* ---------------------------------- VALUE RELATION ------------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
 
-
   Definition interp_value_i32 : WR := λne w, ⌜∃ z, w = VAL_int32 z⌝%I.
   Definition interp_value_i64 : WR := λne w, ⌜∃ z, w = VAL_int64 z⌝%I.
   Definition interp_value_f32 : WR := λne w, ⌜∃ z, w = VAL_float32 z⌝%I.
   Definition interp_value_f64 : WR := λne w, ⌜∃ z, w = VAL_float64 z⌝%I.
-
+  
    Definition interp_value (τ : value_type) : WR :=
-    match τ return _ with
+    match τ with
     | T_i32 => interp_value_i32
     | T_i64 => interp_value_i64
     | T_f32 => interp_value_f32
@@ -97,7 +86,7 @@ Section logrel.
   (* --------------------------------------------------------------------------------------- *)
   (* ---------------------------------- FRAME RELATION ------------------------------------- *)
   (* --------------------------------------------------------------------------------------- *)
-
+  
   (* the frame interpretation includes all resources needed by the currently running frame *)
   Definition interp_frame (τs : result_type) (i : instance) : FR :=
     λne f, (∃ vs, ⌜f = Build_frame vs i⌝ ∗ interp_val τs (immV vs) ∗ na_own logrel_nais ⊤)%I.
@@ -142,14 +131,14 @@ Section logrel.
     | [] => True
     | a :: ai => is_basic a ∧ is_basic_expr ai
     end.
-
+  
   Fixpoint llholed_basic (vh : llholed) : Prop :=
     match vh with
     | LL_base _ ai => is_basic_expr ai
     | LL_label _ _ _ vh ai => is_basic_expr ai ∧ llholed_basic vh
     | LL_local _ _ _ vh ai => is_basic_expr ai ∧ llholed_basic vh
     end.
-
+  
   (* The following definition is a fixed point for the call host host, in an empty context *)
   Definition interp_call_host_cls_def (host_list : list (hostfuncidx * function_type)) (τ2 : result_type)
              (interp_call_host' : HRcls) : HRcls :=
@@ -388,6 +377,7 @@ Section logrel.
     dist_later n o o1 ∧ dist_later n o0 o2.
   Proof.
     intros Hdist.
+    auto.
     destruct n;auto.
   Qed.
   

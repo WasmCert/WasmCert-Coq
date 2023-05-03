@@ -6,9 +6,6 @@ From iris.base_logic.lib Require Export fancy_updates.
 From iris.algebra Require Import list.
 From iris.prelude Require Import options.
 
-Require Export iris iris_locations iris_properties iris_atomicity stdpp_aux.
-Require Export iris_rules.
-Require Export datatypes operations properties opsem typing.
 Require Export iris_logrel iris_fundamental_helpers.
 Import uPred.
   
