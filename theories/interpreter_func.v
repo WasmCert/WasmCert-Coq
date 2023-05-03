@@ -443,14 +443,38 @@ Proof.
   subst t1s t2s. by size_unequal Ht1s.
 Qed.
 
-Lemma reduce_if : forall (hs : host_state) s f c ves ves' tf es1 es2,
+Lemma reduce_if_false : forall (hs : host_state) s f c ves ves' tf es1 es2,
   ves = VAL_int32 c :: ves' ->
   c == Wasm_int.int_zero i32m ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_if tf es1 es2)])
     hs s f (vs_to_es ves' ++ [:: AI_basic (BI_block tf es2)]).
 Proof.
-Admitted.
+  intros hs s f c ves ves' tf es1 es2 ? Heqc. subst ves.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
+  - apply r_simple. by apply rs_if_false.
+  - solve_lfilled_0.
+    (* TODO can this be simplified? *)
+    replace c with (Wasm_int.int_zero i32m) => //.
+    symmetry. by apply/eqP.
+  - by solve_lfilled_0.
+Qed.
+
+Lemma reduce_if_true : forall (hs : host_state) s f c ves ves' tf es1 es2,
+  ves = VAL_int32 c :: ves' ->
+  (c == Wasm_int.int_zero i32m) = false ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_if tf es1 es2)])
+    hs s f (vs_to_es ves' ++ [:: AI_basic (BI_block tf es1)]).
+Proof.
+  intros hs s f c ves ves' tf es1 es2 ? Heqc. subst ves.
+  eapply r_label with
+    (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  apply r_simple. apply rs_if_true with (n := c).
+  apply/eqP. by lias.
+Qed.
 
 Lemma if_error_0 : forall s inst ves tf es1 es2,
   ves = [::] ->
@@ -1434,10 +1458,10 @@ Proof.
       destruct (c == Wasm_int.int_zero i32m) eqn:?.
       + (* true *)
         apply <<hs, s, f, vs_to_es ves' ++ [:: AI_basic (BI_block tf es2)]>>'.
-        by apply admitted_TODO.
+        by eapply reduce_if_false.
       + (* false *)
         apply <<hs, s, f, vs_to_es ves' ++ [:: AI_basic (BI_block tf es1)]>>'.
-        by apply admitted_TODO.
+        by eapply reduce_if_true.
 
     * (* AI_basic (BI_br j) *)
       apply <<hs, s, f, break(j, ves)>>'.
