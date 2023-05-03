@@ -467,19 +467,19 @@ Definition smem (s: store_record) (inst: instance) : option meminst :=
 Definition tab_size (t: tableinst) : nat :=
   length (tableinst_elem t).
 
-Definition stab (s: store_record) (inst: instance) (x: tableaddr): option tableinst :=
+Definition stab (s: store_record) (inst: instance) (x: N): option tableinst :=
   match lookup_N inst.(inst_tables) x with
   | Some tabaddr => lookup_N s.(s_tables) tabaddr
   | _ => None
   end.
     
-Definition stab_elem (s: store_record) (inst: instance) (x: tableaddr) (i: nat) : option value_ref :=
+Definition stab_elem (s: store_record) (inst: instance) (x: N) (i: nat) : option value_ref :=
   match stab s inst x with
   | Some tab => List.nth_error tab.(tableinst_elem) i
   | _ => None
   end.
 
-Definition stab_update (s: store_record) (inst: instance) (x: tableaddr) (i: nat) (tabv: value_ref) : option store_record :=
+Definition stab_update (s: store_record) (inst: instance) (x: N) (i: nat) (tabv: value_ref) : option store_record :=
   match stab s inst x with
   | Some tab =>
       if (Nat.ltb i (tab_size tab)) then
@@ -505,7 +505,7 @@ Definition growtable (tab: tableinst) (n: N) (tabinit: value_ref) : option table
     else
       None.
 
-Definition stab_grow (s: store_record) (inst: instance) (x: tableaddr) (n: N) (tabinit: value_ref) : option store_record :=
+Definition stab_grow (s: store_record) (inst: instance) (x: N) (n: N) (tabinit: value_ref) : option store_record :=
   match stab s inst x with
   | Some tab =>
       match growtable tab n tabinit with

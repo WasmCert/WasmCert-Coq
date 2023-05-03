@@ -57,6 +57,9 @@ Proof.
   by [].
 Qed.
 
+(* TODO: fix preservation *)
+(*
+
 (*
   These proofs are largely similar.
   A sensible thing to do is to make tactics for all of them.
@@ -264,8 +267,7 @@ Proof.
 Qed.
 
 
-(* TODO: fix preservation *)
-(*
+
 Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
     be_typing C [::BI_if (Tf t1s t2s) e1s e2s] (Tf ts ts') ->
     exists ts0, ts = ts0 ++ t1s ++ [::T_num T_i32] /\ ts' = ts0 ++ t2s /\

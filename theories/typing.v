@@ -1,9 +1,19 @@
 (** Wasm typing rules **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+
+From Coq Require Import String List.
+
+Import ListNotations.
+
+Locate "!=".
+Print unit.
+
+Locate "++".
+
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+
 From Wasm Require Import operations.
 From Coq Require Import NArith.
-
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -16,7 +16,6 @@ Section Host.
 
 Variable host_function : eqType.
 
-
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
@@ -139,6 +138,8 @@ Proof.
   - move => n IH es'. destruct es' => //=.
     + by rewrite IH.
 Qed.
+
+
 
 Lemma length_is_size: forall {X:Type} (l: list X),
     length l = size l.
