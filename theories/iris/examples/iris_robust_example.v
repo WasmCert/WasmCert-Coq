@@ -324,14 +324,19 @@ Section Examples_host.
   Proof.
     iIntros (Htyp Hnostart Hrestrict Hboundst Hboundsm Hgrettyp).
     iModIntro. iIntros (Φ) "(Hemptyframe & Hgret & Hmod_adv & Hmod_lse & Hown & Hvis1 & Hvis) HΦ".
+
+    (* Apply host sequence rule to focus on the first host instruction *)
     iApply (wp_seq_host_nostart NotStuck with "[] [$Hmod_adv] [Hvis] ") => //.
-    2: { iIntros "Hmod_adv".
+    2: {
+      iIntros "Hmod_adv".
       iApply weakestpre.wp_mono.
+      (* Apply the host instantiation proof rule to instantiate the adversarial module *)
       2: iApply (instantiation_spec_operational_no_start _ _ _ [] [] _ _ _ _ ∅ ∅ ∅ ∅);eauto;iFrame.
       2: cbn.
       { iIntros (v) "[Hvsucc [$ Hv]]".
         iCombine "Hvsucc Hv" as "Hv".
         by iExact "Hv". }
+      (* The adversarial module is assumed to take no imports and have no initialiser, so no resource is needed to instantiate it *)
       destruct Htyp as [fts [gts Htyp]].
       destruct adv_module;simpl in *.
       destruct Htyp as (_&_&_&_&_&_&_&_&Htyp).
@@ -345,6 +350,7 @@ Section Examples_host.
       repeat (iSplit; try by iSplit) => //.
     }
     { by iIntros "(% & ?)". }
+    (* Cleaning up, and getting the export resource from the instantiation post to be used by the lse module *)
     iIntros (w) "(-> & [Himps Hinst_adv]) Hmod_adv".
     iDestruct "Hinst_adv" as (inst_adv) "[Hinst_adv Hadv_exports]".
     iDestruct "Hinst_adv" as (g_adv_inits t_adv_inits m_adv_inits glob_adv_inits wts' wms')
@@ -403,12 +409,14 @@ Section Examples_host.
     erewrite !nth_error_nth;eauto.
     
     iDestruct "Hvis1" as (gr) "Hvis1".
-
+    
     iApply (wp_wand_host _ _ _ (λ v, _ ∗ ↪[frame]empty_frame)%I with "[-HΦ] [HΦ]");cycle 1.
     { iIntros (v) "[Hv ?]". iApply "HΦ". iExact "Hv". }
+    (* Instantiate the lse module *)
     { iApply (instantiation_spec_operational_start_seq with "[$Hemptyframe] [$Hmod_lse Hgret Hadvf Hn Hvis1]");[eauto|..].
       { by apply lse_module_typing. }
       { by apply module_restrictions_lse. }
+      (* Satisfy the instantiation with the required resources *)
       { unfold import_resources_host.
         instantiate (5:=[_;_]). iFrame "Hn Hvis1".
         unfold import_resources_wasm_typecheck,export_ownership_host.
@@ -467,6 +475,7 @@ Section Examples_host.
             iPureIntro. by apply Forall_nil. }
         }
       }
+      (* lse module is almost instantiated -- we now need to execute its start function *)
       { iIntros (idnstart) "Hf [Hmod_lse Hr]".
         iDestruct "Hr" as "([Himph Hexp] & Hr)".
         iDestruct "Hr" as (?) "[Hr _]".
@@ -532,7 +541,8 @@ Section Examples_host.
         iDestruct (big_sepM_delete with "Hg") as "(Hgret & _)".
         { instantiate (2 := N.of_nat g_ret); by rewrite lookup_singleton. }
         subst g gt.
-        
+
+        (* Establishing instance relation to be used for robustness results later *)
         iApply weakestpre.fupd_wp.
         iMod (interp_instance_alloc [] with "[] [] [] [] [Hrest Hresm Hresg Hresf]") as "[#Hi [[#Hires _] _]]";
           [apply Htyp|repeat split;eauto|eauto|..].
@@ -566,6 +576,8 @@ Section Examples_host.
                   /get_import_func_count /= !drop_0 -H.
           iFrame. 
         }
+        (* After the above, we have encased the physical states into ghost states represented by the instance relation and the ghost function
+           resource *)
         
         rewrite !app_nil_l.
         iDestruct (big_sepL2_lookup with "Hires") as "Ha".
@@ -573,6 +585,8 @@ Section Examples_host.
         { rewrite Heqadvm /= /get_import_func_count /= drop_0 /= -nth_error_lookup. eauto. }
         iSimpl in "Ha". erewrite H, nth_error_nth;eauto.
         iApply wp_lift_wasm.
+
+        (* Instance relation and na invariant on the function closure are established. Now we enter Wasm execution of start *)
         
         take_drop_app_rewrite 0.
         destruct (inst_funcs inst) eqn:Hinstfuncseq;[done|]. destruct l;[done|].
@@ -590,9 +604,10 @@ Section Examples_host.
         iApply wp_wasm_empty_ctx.
         iApply wp_label_push_nil.
         iApply wp_ctx_bind;[simpl;auto|]. repeat erewrite app_nil_l.
-
+        
         iApply (wp_wand with "[Hf Hgret Hmem Hown]").
-        { iApply (lse_spec with "[$Hi $Hf $Hown $Ha Hgret Hmem]");[by cbn|cbn..|] => //.
+        { (* Using the previously proved lse spec to resolve the reasoning *)
+          iApply (lse_spec with "[$Hi $Hf $Hown $Ha Hgret Hmem]");[by cbn|cbn..|] => //.
           { rewrite Heq4. eauto. }
           { rewrite Hinstfuncseq;eauto. }
           { rewrite Heq6;eauto. }

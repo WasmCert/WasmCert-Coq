@@ -128,27 +128,6 @@ Section Client.
 
 End Client.
 
-Ltac take_drop_app_rewrite n :=
-  match goal with
-  | |- context [ WP ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ CTX _; _  {{ _, _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  | |- context [ WP ?e @ _; _ FRAME _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop n e);simpl take; simpl drop
-  end.
-  
-Ltac take_drop_app_rewrite_twice n m :=
-  take_drop_app_rewrite n;
-  match goal with
-  | |- context [ WP _ ++ ?e @ _; _ CTX _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  | |- context [ WP _ ++ ?e @ _; _ {{ _ }} %I ] =>
-      rewrite -(list.take_drop (length e - m) e);simpl take; simpl drop
-  end.
-
 Section Client_main.
 
   Context `{!wasmG Σ, !logrel_na_invs Σ }.
@@ -297,9 +276,7 @@ Section Client_main.
       rewrite Hflocs. iSimpl in "Hf".
       iApply (wp_seq _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I).
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
-      { (* take_drop_app_rewrite 1. *)
-        (* iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|]. *)
-        iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
+      { iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
       (* push *)
@@ -325,9 +302,7 @@ Section Client_main.
       take_drop_app_rewrite 1.
       iApply (wp_seq _ _ _ (λ v, ⌜v = immV _⌝ ∗ _)%I).
       iSplitR;[|iSplitL "Hf"];[by iIntros "[%Hcontr _]"|..].
-      { (* take_drop_app_rewrite 1. *)
-        (* iApply wp_val. iSplitR;[by iIntros "[%Hcontr _]"|]. *)
-        iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
+      { iApply (wp_get_local with "[] [$Hf]");simpl;eauto. }
       iIntros (w) "[-> Hf]".
       iSimpl.
       (* push *)
@@ -374,7 +349,6 @@ Section Client_main.
             iApply wp_base_pull. iApply wp_wasm_empty_ctx.
             iSimpl.
             iDestruct (be_fundamental_local _ _ [] _ (T_i32 :: locs) with "Hi") as "Hl";eauto.
-            unfold interp_expression_closure.
 
             iApply fupd_wp.
             iMod (na_inv_alloc logrel_nais _ (wtN (N.of_nat idt) (N.of_nat 0)) with "Ht") as "#Ht".
