@@ -649,14 +649,13 @@ Lemma br_table_error_kth : forall s inst c ves ves' k js j,
     inst_typing s inst C /\
     e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
 Proof.
-  intros s inst c ves ves' k js j ???? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s inst c ves ves' k js j ??? Hkth [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves k.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_table_typing in Hbtype as [? [? [??]]]. subst t1s.
-  admit.
-  (* TODO need a contradiction with nth_error ... = None
-     is Br_table_typing strong enough? *)
-Admitted.
+  apply List.nth_error_None in Hkth.
+  by lias.
+Qed.
 
 Lemma br_table_error_i32 : forall s inst v ves ves' js j,
   typeof v <> T_i32 ->
