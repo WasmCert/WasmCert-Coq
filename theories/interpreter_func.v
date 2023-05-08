@@ -164,9 +164,7 @@ Axiom coerce_res : forall hs s f es ves e (r : res_step'_separate_e hs s f ves e
 Ltac solve_lfilled_0 :=
   unfold lfilled, lfill, vs_to_es;
   try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //;
-  repeat rewrite List.app_nil_r;
-  (* XXX is this the right way to attempt trivial completion? *)
-  try by idtac.
+  repeat rewrite List.app_nil_r.
 
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
 Ltac cats1_last_eq H :=
@@ -272,7 +270,7 @@ Proof.
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves) [::]))
     (es := [:: AI_basic BI_nop])
-    (es' := [::]); try solve_lfilled_0.
+    (es' := [::]); try by solve_lfilled_0.
   apply r_simple. by apply rs_nop.
 Qed.
 
@@ -286,7 +284,7 @@ Proof.
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
     (es := vs_to_es [:: v] ++ [:: AI_basic BI_drop])
-    (es' := [::]); try solve_lfilled_0.
+    (es' := [::]); try by solve_lfilled_0.
   apply r_simple. by apply rs_drop.
 Qed.
 
@@ -583,7 +581,7 @@ Proof.
     (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
     (es := vs_to_es [::VAL_int32 c] ++ [:: AI_basic (BI_br_if j)])
     (es' := [::]);
-    try solve_lfilled_0.
+    try by solve_lfilled_0.
   apply r_simple. apply rs_br_if_false. by apply/eqP.
 Qed.
 
@@ -627,7 +625,7 @@ Proof.
   intros ??? c ves' k j js js_at_k ???. subst k.
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
-    try by solve_lfilled_0.
+    try by by solve_lfilled_0.
   apply r_simple. by apply rs_br_table.
 Qed.
 
