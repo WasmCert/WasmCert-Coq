@@ -235,6 +235,26 @@ Ltac simpl_reduce_simple :=
         try solve_lfilled_0; apply r_simple
   end.
 
+Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
+  es' = e :: es'' ->
+  split_vals_e es = (ves, es') ->
+  reduce hs s f (vs_to_es (rev ves) ++ [:: e]) hs' s' f' res ->
+  reduce hs s f es hs' s' f' (res ++ es').
+Proof.
+  intros hs hs' s s' f f' e es es' es'' ves res ?? Hreduce.
+
+  assert (es = v_to_e_list ves ++ es').
+  { by apply split_vals_e_v_to_e_duality. }
+  subst es es'.
+
+  eapply r_label with (k := 0) (lh := (LH_base [::] es'')).
+  - by apply Hreduce.
+  - solve_lfilled_0. by rewrite <- catA.
+  - solve_lfilled_0.
+    simpl. apply f_equal. admit.
+    (* e :: es'' = es'' *)
+Admitted.
+
 (* TODO consistent lemma naming *)
 Lemma reduce_unreachable : forall (hs : host_state) s f ves,
   reduce
@@ -1439,7 +1459,8 @@ Proof.
            by apply (coerce_res _ r).
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es')>>.
-           by apply admitted_TODO.
+           apply reduce_rec with (e := e) (es' := es') (es'' := es'') (ves := ves);
+             by subst es'.
 
   (* run_one_step'' *)
   (* initial es, useful as an arg for reduce *)
