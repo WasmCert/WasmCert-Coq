@@ -712,6 +712,33 @@ Proof.
    * List.nth_error (tc_func_t C) j = Some (Tf x0 x1) *)
 Admitted.
 
+Lemma call_indirect_error_0 : forall s f ves j,
+  ves = [::] ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_call_indirect j)] (Tf t1s t2s).
+Proof.
+  intros s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
+  subst t1s. by size_unequal Ht1s.
+Qed.
+
+Lemma call_indirect_error_typeof : forall s f v ves ves' j,
+  typeof v <> T_i32 ->
+  ves = v :: ves' ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_call_indirect j)] (Tf t1s t2s).
+Proof.
+  intros s f v ves ves' j Hv ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
+  subst t1s. by cats1_last_eq Ht1s.
+Qed.
+
 Lemma reduce_get_local : forall (hs : host_state) s f ves j vs_at_j,
   j < length f.(f_locs) ->
   List.nth_error f.(f_locs) j = Some vs_at_j ->
@@ -1652,7 +1679,29 @@ Proof.
         by apply call_error.  (* TODO *)
 
     * (* AI_basic (BI_call_indirect j) *)
-      by apply admitted_TODO.
+      destruct ves as [|v ves'] eqn:?;
+        try by (apply RS''_error; apply call_indirect_error_0).
+      (* v :: ves' *)
+      destruct v as [c| | |] eqn:?;
+        try by (apply RS''_error; eapply call_indirect_error_typeof => //).
+      (* VAL_int32 c *)
+      destruct (stab_addr s f (Wasm_int.nat_of_uint i32m c)) as [a|].
+      + (* Some a *)
+        destruct (List.nth_error s.(s_funcs) a) as [cl|].
+        -- (* Some cl *)
+           destruct (stypes s f.(f_inst) j == Some (cl_type cl)) eqn:?.
+           ** (* true *)
+              apply <<hs, s, f, vs_to_es ves' ++ [::AI_invoke a]>>'.
+              by apply admitted_TODO.
+           ** (* false *)
+              apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
+              by apply admitted_TODO.
+        -- (* None *)
+           apply RS''_error.
+           by apply admitted_TODO.
+      + (* None *)
+        apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
+        by apply admitted_TODO.
 
     * (* AI_basic (BI_get_local j) *)
       destruct (j < length f.(f_locs)) eqn:?.
