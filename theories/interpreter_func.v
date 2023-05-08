@@ -113,7 +113,7 @@ Inductive res_step'_separate_e
 (* Notation for RS'_normal. This forces hs', s', f' es' to be explicitly
  * stated. Their values could be inferred from the type of H instead but we
  * want to make those values clear. *)
-Notation "<< hs' , s' , f' , es' >>[ H ]" := (@RS'_normal _ _ _ _ hs' s' f' es' H).
+Notation "<< hs' , s' , f' , es' >>" := (@RS'_normal _ _ _ _ hs' s' f' es').
 Notation "<< hs' , s' , f' , es' >>'" := (@RS''_normal _ _ _ _ _ hs' s' f' es').
 Check @RS''_break.
 Notation "<< hs' , s' , f' , break( n , ves' ) >>'" := (@RS''_break _ _ _ _ _ hs' s' f' n ves').
@@ -1420,16 +1420,26 @@ Proof.
     destruct (split_vals_e es) as [ves es'] eqn:Heqes.
     destruct es' as [|e es''] eqn:Heqes'.
     * (* es' = [::] *)
-      by apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
+      apply RS'_error.
+      by apply admitted_TODO.
     * (* es' = e :: es'' *)
       destruct (e_is_trap e).
       + destruct ((es'' != [::]) || (ves != [::])).
-        -- by apply <<hs, s, f, [::AI_trap]>>[admitted_TODO _].
-        -- by apply (RS'_error _ _ (admitted_TODO (~ exists C t, e_typing s C es t))).
+        -- apply <<hs, s, f, [::AI_trap]>>.
+           by apply admitted_TODO.
+        -- apply RS'_error.
+           by apply admitted_TODO.
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
-        by apply (if r is RS''_normal hs' s' f' es' _
-          then <<hs', s', f', (es' ++ es'')>>[admitted_TODO _]
-          else coerce_res _ r).
+        destruct r as [| | |hs' s' f' res Hreduce] eqn:?.
+        -- (* RS''_exhaustion *)
+           by apply (coerce_res _ r).
+        -- (* RS''_error *)
+           by apply (coerce_res _ r).
+        -- (* RS''_break *)
+           by apply (coerce_res _ r).
+        -- (* RS''_normal hs' s' f' res *)
+           apply <<hs', s', f', (res ++ es')>>.
+           by apply admitted_TODO.
 
   (* run_one_step'' *)
   (* initial es, useful as an arg for reduce *)
