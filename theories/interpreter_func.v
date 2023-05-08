@@ -784,6 +784,23 @@ Proof.
   subst t1s. by cats1_last_eq Ht1s.
 Qed.
 
+Lemma call_indirect_error_ath : forall s f c ves ves' j a,
+  ves = VAL_int32 c :: ves' ->
+  stab_addr s f (Wasm_int.nat_of_uint i32m c) = Some a ->
+  List.nth_error s.(s_funcs) a = None ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_call_indirect j)] (Tf t1s t2s).
+Proof.
+  intros s f c ves ves' j a ??? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]]. subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
+  (* TODO get a contradiction with
+   * List.nth_error s.(s_funcs) a = None -> *)
+  admit.
+Admitted.
+
 Lemma reduce_get_local : forall (hs : host_state) s f ves j vs_at_j,
   j < length f.(f_locs) ->
   List.nth_error f.(f_locs) j = Some vs_at_j ->
@@ -1743,7 +1760,7 @@ Proof.
               by eapply reduce_call_indirect_failure_1 with (cl := cl) (a := a).
         -- (* None *)
            apply RS''_error.
-           by apply admitted_TODO.
+           by eapply call_indirect_error_ath with (a := a).
       + (* None *)
         apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
         by eapply reduce_call_indirect_failure_2.
