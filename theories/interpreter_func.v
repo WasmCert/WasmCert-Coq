@@ -105,7 +105,8 @@ Inductive res_step'_separate_e
          hs s f [:: AI_label n es es']
          hs' s' f' (v_to_e_list (rev (take n ves')) ++ es)) ->
     res_step'_separate_e hs s f ves e
-(* TODO | RS''_return *)
+| RS''_return (ves' : list value) : False -> res_step'_separate_e hs s f ves e
+(* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
     reduce hs s f ((vs_to_es ves) ++ [::e]) hs' s' f' es' ->
     res_step'_separate_e hs s f ves e.
@@ -684,6 +685,32 @@ Proof.
   apply Br_table_typing in Hbtype as [ts [ts' [??]]]. subst t1s.
   by cats1_last_eq Ht1s.
 Qed.
+
+Lemma reduce_call : forall (hs : host_state) s f ves j a,
+  List.nth_error (inst_funcs f.(f_inst)) j = Some a ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_call j)])
+    hs s f (vs_to_es ves ++ [:: AI_invoke a]).
+Proof.
+  intros hs s f ves j a ?.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves) [::]));
+    try by solve_lfilled_0.
+  apply r_call with (a := a) (i := j) => //.
+Qed.
+
+Lemma call_error : forall (hs : host_state) s f ves j,
+  List.nth_error (inst_funcs f.(f_inst)) j = None ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_call j)] (Tf t1s t2s).
+Proof.
+  intros s f v ves j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Call_typing host_instance) in Hbtype as [? [? [? [? [? [??]]]]]].
+  (* TODO get a contradiction with
+   * List.nth_error (tc_func_t C) j = Some (Tf x0 x1) *)
+Admitted.
 
 Lemma reduce_get_local : forall (hs : host_state) s f ves j vs_at_j,
   j < length f.(f_locs) ->
@@ -1442,7 +1469,7 @@ Proof.
         -- apply RS'_error.
            by apply admitted_TODO.
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
-        destruct r as [| | |hs' s' f' res Hreduce] eqn:?.
+        destruct r as [| | | |hs' s' f' res Hreduce] eqn:?.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
         -- (* RS''_error *)
@@ -1451,9 +1478,11 @@ Proof.
            by apply (coerce_res _ r).
         -- (* RS''_break *)
            by apply (coerce_res _ r).
+        -- (* RS''_return *)
+           by apply (coerce_res _ r).
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es'')>>.
-           eapply reduce_rec with (es' := es') (ves := ves); by subst es'.
+           by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
 
   (* run_one_step'' *)
   (* initial es, useful as an arg for reduce *)
@@ -1610,9 +1639,18 @@ Proof.
         by apply reduce_br_table_length with (k := k); lias.
 
     * (* AI_basic BI_return *)
+      apply (RS''_return _ _ _ _ _ ves).
       by apply admitted_TODO.
+
     * (* AI_basic (BI_call j) *)
-      by apply admitted_TODO.
+      destruct (List.nth_error f.(f_inst).(inst_funcs) j) as [a|] eqn:?.
+      + (* Some a *)
+        apply <<hs, s, f, vs_to_es ves ++ [:: AI_invoke a]>>'.
+        by apply reduce_call.
+      + (* None *)
+        apply RS''_error.
+        by apply call_error.  (* TODO *)
+
     * (* AI_basic (BI_call_indirect j) *)
       by apply admitted_TODO.
 
