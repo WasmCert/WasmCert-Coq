@@ -712,6 +712,51 @@ Proof.
    * List.nth_error (tc_func_t C) j = Some (Tf x0 x1) *)
 Admitted.
 
+Lemma reduce_call_indirect_success : forall (hs : host_state) s f c ves ves' j a cl,
+  ves = VAL_int32 c :: ves' ->
+  stab_addr s f (Wasm_int.nat_of_uint i32m c) = Some a ->
+  List.nth_error s.(s_funcs) a = Some cl ->
+  stypes s f.(f_inst) j == Some (cl_type cl) ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_call_indirect j)])
+    hs s f (vs_to_es ves' ++ [:: AI_invoke a]).
+Proof.
+  intros hs s f c ves ves' j a cl ????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  apply r_call_indirect_success with (cl := cl) => //.
+  by apply/eqP.
+Qed.
+
+Lemma reduce_call_indirect_failure_1 : forall (hs : host_state) s f c ves ves' j a cl,
+  ves = VAL_int32 c :: ves' ->
+  stab_addr s f (Wasm_int.nat_of_uint i32m c) = Some a ->
+  List.nth_error s.(s_funcs) a = Some cl ->
+  (stypes s f.(f_inst) j == Some (cl_type cl)) = false ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_call_indirect j)])
+    hs s f (vs_to_es ves' ++ [:: AI_trap]).
+Proof.
+  intros hs s f c ves ves' j a cl ????. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  eapply r_call_indirect_failure1 with (cl := cl) (a := a) => //.
+  by apply/eqP; lias.
+Qed.
+
+Lemma reduce_call_indirect_failure_2 : forall (hs : host_state) s f c ves ves' j,
+  ves = VAL_int32 c :: ves' ->
+  stab_addr s f (Wasm_int.nat_of_uint i32m c) = None ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic (BI_call_indirect j)])
+    hs s f (vs_to_es ves' ++ [:: AI_trap]).
+Proof.
+  intros hs s f c ves ves' j ??. subst ves.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by apply r_call_indirect_failure2.
+Qed.
+
 Lemma call_indirect_error_0 : forall s f ves j,
   ves = [::] ->
   ~ exists C t1s t2s t1s',
@@ -1685,23 +1730,23 @@ Proof.
       destruct v as [c| | |] eqn:?;
         try by (apply RS''_error; eapply call_indirect_error_typeof => //).
       (* VAL_int32 c *)
-      destruct (stab_addr s f (Wasm_int.nat_of_uint i32m c)) as [a|].
+      destruct (stab_addr s f (Wasm_int.nat_of_uint i32m c)) as [a|] eqn:?.
       + (* Some a *)
-        destruct (List.nth_error s.(s_funcs) a) as [cl|].
+        destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
         -- (* Some cl *)
            destruct (stypes s f.(f_inst) j == Some (cl_type cl)) eqn:?.
            ** (* true *)
-              apply <<hs, s, f, vs_to_es ves' ++ [::AI_invoke a]>>'.
-              by apply admitted_TODO.
+              apply <<hs, s, f, vs_to_es ves' ++ [:: AI_invoke a]>>'.
+              by eapply reduce_call_indirect_success with (cl := cl).
            ** (* false *)
-              apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
-              by apply admitted_TODO.
+              apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
+              by eapply reduce_call_indirect_failure_1 with (cl := cl) (a := a).
         -- (* None *)
            apply RS''_error.
            by apply admitted_TODO.
       + (* None *)
-        apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
-        by apply admitted_TODO.
+        apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
+        by eapply reduce_call_indirect_failure_2.
 
     * (* AI_basic (BI_get_local j) *)
       destruct (j < length f.(f_locs)) eqn:?.
