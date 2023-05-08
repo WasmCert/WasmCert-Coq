@@ -1444,8 +1444,10 @@ Proof.
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
         destruct r as [| | |hs' s' f' res Hreduce] eqn:?.
         -- (* RS''_exhaustion *)
-           by apply (coerce_res _ r).
+           by apply RS'_exhaustion.
         -- (* RS''_error *)
+           (* TODO fix RS'_error type first
+            * apply RS'_error. *)
            by apply (coerce_res _ r).
         -- (* RS''_break *)
            by apply (coerce_res _ r).
