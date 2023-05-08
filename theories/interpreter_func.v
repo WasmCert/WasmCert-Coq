@@ -1382,10 +1382,16 @@ Proof.
   intros s inst v ves ves' t1 t2 sx ? Hdisagree [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Cvtop_convert_typing in Hbtype.
-  unfold convert_helper in Hbtype.
-  (* TODO contradict Hbtype with Hdisagree *)
-Admitted.
+
+  apply Cvtop_typing in Hbtype as [? [??]].
+  subst t1s.
+  cats1_last_eq Ht1s.
+
+  unfold types_agree in Hdisagree.
+  destruct (typeof v == t1) eqn:Hv => //.
+  assert (Hv' : typeof v <> t1). { apply/eqP. by rewrite Hv. }
+  by apply Hv'.
+Qed.
 
 Lemma reduce_reinterpret : forall (hs : host_state) s f t1 t2 v ves',
   types_agree t1 v ->
@@ -1848,7 +1854,7 @@ Proof.
            by apply reduce_cvtop_trap.
       + (* false *)
         apply RS''_error.
-        by eapply cvtop_error_types_disagree.  (* TODO lemma not finished *)
+        by eapply cvtop_error_types_disagree.
 
     * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
       destruct ves as [|v ves'];
