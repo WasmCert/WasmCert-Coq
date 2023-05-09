@@ -1255,7 +1255,7 @@ Proof.
   by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
 Qed.
 
-Lemma grow_memory_error_TODO : forall s f ves ves' j s_mem_s_j l c,
+Lemma grow_memory_error_grow : forall s f ves ves' j s_mem_s_j l c,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
@@ -1930,7 +1930,7 @@ Proof.
               eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
            ** (* None *)
               apply RS''_error.
-              by eapply grow_memory_error_TODO with (j := j) (s_mem_s_j := s_mem_s_j) => //.
+              by eapply grow_memory_error_grow with (j := j) (s_mem_s_j := s_mem_s_j). (* TODO *)
         -- (* None *)
            by apply (RS''_error _ (admitted_TODO _)).
       + (* None *)
