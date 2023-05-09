@@ -29,5 +29,5 @@ vscode: .vscode/settings.json
 
 .vscode/settings.json:
 	mkdir -p .vscode
-	echo $(VSCODESETTINGS) > $@
+	echo "$(subst ",\",$(VSCODESETTINGS))" > $@
 
