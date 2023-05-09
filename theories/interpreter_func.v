@@ -95,19 +95,16 @@ Inductive res_step'_separate_e
       inst_typing s f.(f_inst) C /\
       e_typing s C [::e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
-(* NOTE renamed es'' to ves' (cf reduce_label_break ) *)
-(* XXX drop hs' s' f'? seems like we always have hs'=hs etc *)
 
-| RS''_break n ves' :
-    (exists k m vs0 lh es,
-      k + n = m /\
-      lfilled k lh (vs0 ++ [:: AI_basic (BI_br m)]) es /\
-      (* XXX (drop _ vs0) instead of vs0? *)
-      (* XXX used to be `Label_sequence k vs0 (AI_basic (BI_br m)) es`
-       * (in rs_break_wellfounded), is this as strong? *)
-      v_to_e_list ves' = rev vs0
-    ) ->
-    res_step'_separate_e hs s f ves e
+| RS''_break k ves' :
+    forall n lh es vs0 ces,
+      lfilled k lh (vs0 ++ [::AI_basic (BI_br k)]) es ->
+      v_to_e_list ves' = rev vs0 ->
+      reduce
+        hs s f [::AI_label n ces es]
+        hs s f (drop (size vs0 - n) vs0 ++ ces) ->
+      res_step'_separate_e hs s f ves e
+
 | RS''_return (ves' : list value) : False -> res_step'_separate_e hs s f ves e
 (* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
@@ -1674,8 +1671,8 @@ Proof.
         by eapply reduce_if_true.
 
     * (* AI_basic (BI_br j) *)
-      apply break(j, ves).
-      by apply break_br.
+      (* apply break(j, ves'). *)
+      by apply admitted_TODO.
 
     * (* AI_basic (BI_br_if j) *)
       destruct ves as [|v ves'];
@@ -2410,5 +2407,20 @@ Fixpoint run_v (fuel : fuel) (d : depth) (cfg : config_tuple) : ((host_state * s
         | _ => (hs', s', R_crash C_error)
         end
   end.
+
+(** Main proof for the [RS_break] case. **)
+Lemma reduce_label_break: forall (hs : host_state) s f es es' es'' hs' s' f' n,
+  (exists m vs0 lh es,
+    lfilled m lh (vs0 ++ [:: AI_basic (BI_br m)]) es /\
+    v_to_e_list es'' = rev vs0) ->
+  n <= size es'' ->
+  reduce
+    hs s f ([:: AI_label n es es'])
+    hs' s' f' (v_to_e_list (rev (take n es'')) ++ es).
+Proof.
+  intros hs s f es es' es'' hs' s' f' n [m [vs0 [lh [es''' [HLF HES'']]]]] ?.
+  destruct m.
+  - move/lfilledP in HLF. inversion HLF. subst. admit.
+Admitted.
 
 End Host_func.
