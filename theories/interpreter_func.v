@@ -12,8 +12,6 @@ Unset Strict Implicit.
 
 Unset Printing Implicit Defensive.
 
-(* TODO: update from the new certified interpreter instead. *)
-(*
 Inductive res_crash : Type :=
 | C_error : res_crash
 | C_exhaustion : res_crash.
@@ -49,10 +47,8 @@ Let host := host host_function.
 Variable host_instance : host.
 
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
 Let host_state := host_state host_instance.
 
-(*Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.*)
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
@@ -87,71 +83,8 @@ Definition config_tuple := ((host_state * store_record * frame * list administra
 Definition config_one_tuple_without_e := (host_state * store_record * frame * list value)%type.
 
 Definition res_tuple := (host_state * store_record * frame * res_step)%type.
-(*
-Fixpoint split_vals (es : list basic_instruction) : ((list value) * (list basic_instruction))%type :=
-  match es with
-  | (EConst v) :: es' =>
-    let: (vs', es'') := split_vals es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
-  end.
 
-(** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
-    are all of the form [AI_basic (EConst v)];
-    returns a pair of lists [(ves, es')] where [ves] are those [v]'s in that initial
-    segment and [es] is the remainder of the original [es]. **)
-Fixpoint split_vals_e (es : list administrative_instruction) : ((list value) * (list administrative_instruction))%type :=
-  match es with
-  | (AI_basic (EConst v)) :: es' =>
-    let: (vs', es'') := split_vals_e es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
-  end.
-
-Fixpoint split_n (es : list value) (n : nat) : ((list value) * (list value))%type :=
-  match (es, n) with
-  | ([::], _) => ([::], [::])
-  | (_, 0) => ([::], es)
-  | (e :: esX, n.+1) =>
-    let: (es', es'') := split_n esX n in
-    (e :: es', es'')
-  end.
-
-Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
-  match ao with
-  | Some a => f a
-  | None => b
-  end.
-
-Definition vs_to_es (vs : list value) : list administrative_instruction :=
-  v_to_e_list (rev vs).
-
-Definition e_is_trap (e : administrative_instruction) : bool :=
-  match e with
-  | AI_trap => true
-  | _ => false
-  end.
-
-Lemma e_is_trapP : forall e, reflect (e = AI_trap) (e_is_trap e).
-Proof.
-  case => //= >; by [ apply: ReflectF | apply: ReflectT ].
-Qed.
-
-(** [es_is_trap es] is equivalent to [es == [:: AI_trap]]. **)
-Definition es_is_trap (es : list administrative_instruction) : bool :=
-  match es with
-  | [::e] => e_is_trap e
-  | _ => false
-  end.
-
-Lemma es_is_trapP : forall l, reflect (l = [::AI_trap]) (es_is_trap l).
-Proof.
-  case; first by apply: ReflectF.
-  move=> // a l. case l => //=.
-  - apply: (iffP (e_is_trapP _)); first by elim.
-    by inversion 1.
-  - move=> >. by apply: ReflectF.
-Qed.*)
+Definition update_list_at {T: Type} (l: list T) n v := set_nth v l n v.
 
 Fixpoint run_step_with_fuel (fuel : fuel) (d : depth) (cfg : config_tuple) : res_tuple :=
   let: (hs, s, f, es) := cfg in
@@ -231,7 +164,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
       if ves is v :: ves' then
         (hs, s, f, RS_normal (vs_to_es ves'))
       else (hs, s, f, crash_error)
-    | AI_basic BI_select =>
+    | AI_basic (BI_select _) =>
       if ves is (VAL_int32 c) :: v2 :: v1 :: ves' then
         if c == Wasm_int.int_zero i32m
         then (hs, s, f, RS_normal (vs_to_es (v2 :: ves')))
@@ -279,9 +212,9 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
       if List.nth_error f.(f_inst).(inst_funcs) j is Some a then
         (hs, s, f, RS_normal (vs_to_es ves ++ [::AI_invoke a]))
       else (hs, s, f, crash_error)
-    | AI_basic (BI_call_indirect j) =>
+    | AI_basic (BI_call_indirect i j) =>
       if ves is VAL_int32 c :: ves' then
-        match stab_addr s f (Wasm_int.nat_of_uint i32m c) with
+        match stab s f (Wasm_int.nat_of_uint i32m c) with
         | Some a =>
           match List.nth_error s.(s_funcs) a with
           | Some cl =>
@@ -294,28 +227,28 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
         end
       else (hs, s, f, crash_error)
     | AI_basic BI_return => (hs, s, f, RS_return ves)
-    | AI_basic (BI_get_local j) =>
+    | AI_basic (BI_local_get j) =>
       if j < length f.(f_locs)
       then
         expect (List.nth_error f.(f_locs) j) (fun vs_at_j =>
             (hs, s, f, RS_normal (vs_to_es (vs_at_j :: ves))))
           (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
-    | AI_basic (BI_set_local j) =>
+    | AI_basic (BI_local_set j) =>
       if ves is v :: ves' then
         if j < length f.(f_locs)
         then (hs, s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
         else (hs, s, f, crash_error)
       else (hs, s, f, crash_error)
-    | AI_basic (BI_tee_local j) =>
+    | AI_basic (BI_local_tee j) =>
       if ves is v :: ves' then
-        (hs, s, f, RS_normal (vs_to_es (v :: ves) ++ [::AI_basic (BI_set_local j)]))
+        (hs, s, f, RS_normal (vs_to_es (v :: ves) ++ [::AI_basic (BI_local_set j)]))
       else (hs, s, f, crash_error)
-    | AI_basic (BI_get_global j) =>
+    | AI_basic (BI_global_get j) =>
       if sglob_val s f.(f_inst) j is Some xx
       then (hs, s, f, RS_normal (vs_to_es (xx :: ves)))
       else (hs, s, f, crash_error)
-    | AI_basic (BI_set_global j) =>
+    | AI_basic (BI_global_set j) =>
       if ves is v :: ves' then
         if supdate_glob s f.(f_inst) j v is Some xx
         then (hs, xx, f, RS_normal (vs_to_es ves'))
@@ -328,7 +261,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
           (fun j =>
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
-                 (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (t_length t))
+                 (load (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tnum_length t))
                  (fun bs => (hs, s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
              else (hs, s, f, crash_error))
@@ -341,7 +274,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
           (fun j =>
              if List.nth_error s.(s_mems) j is Some mem_s_j then
                expect
-                 (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (t_length t))
+                 (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m k) off (tp_length tp) (tnum_length t))
                  (fun bs => (hs, s, f, RS_normal (vs_to_es (wasm_deserialise bs t :: ves'))))
                  (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
              else (hs, s, f, crash_error))
@@ -356,7 +289,7 @@ with run_one_step (fuel : fuel) (d : depth) (cfg : config_one_tuple_without_e) (
             (fun j =>
                if List.nth_error s.(s_mems) j is Some mem_s_j then
                  expect
-                   (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
+                   (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tnum_length t))
                    (fun mem' =>
                       (hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves')))
                    (hs, s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))

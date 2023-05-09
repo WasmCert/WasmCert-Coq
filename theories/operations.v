@@ -249,7 +249,9 @@ Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -
   | UOF_sqrt => Wasm_float.float_sqrt mx
   end.
 
-Definition app_unop (op: unop) (v: value_num) :=
+(* Note: this doesn't include a typecheck, so it should only be used in a context
+   after type-checking is done. *)
+Definition app_unop_num (op: unop) (v: value_num) : value_num :=
   match op with
   | Unop_i iop =>
     match v with
@@ -264,6 +266,13 @@ Definition app_unop (op: unop) (v: value_num) :=
     | _ => v
     end
   end.
+
+Definition app_unop (op: unop) (v: value) : value :=
+  match v with
+  | VAL_num vn => VAL_num (app_unop_num op vn)
+  | _ => v
+  end.
+
 
 Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
     : Wasm_int.sort e -> Wasm_int.sort e -> option (Wasm_int.sort e) :=
@@ -303,7 +312,7 @@ Definition app_binop_f (e : Wasm_float.type) (fop : binop_f)
   | BOF_copysign => add_some (Wasm_float.float_copysign mx)
   end.
 
-Definition app_binop (op: binop) (v1: value_num) (v2: value_num) :=
+Definition app_binop_num (op: binop) (v1: value_num) (v2: value_num): option value_num :=
   match op with
   | Binop_i iop =>
     match v1 with
@@ -334,6 +343,17 @@ Definition app_binop (op: binop) (v1: value_num) (v2: value_num) :=
     | _ => None
     end
   end.
+
+Definition app_binop (op: binop) (v1: value) (v2: value) : option value :=
+  match v1 with
+  | VAL_num vn1 =>
+      match v2 with
+      | VAL_num vn2 => option_map VAL_num (app_binop_num op vn1 vn2)
+      | _ => None
+      end
+  | _ => None
+  end.
+
 
 Definition app_testop_i (e : Wasm_int.type) (o : testop) : Wasm_int.sort e -> bool :=
   let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> bool in
@@ -371,7 +391,7 @@ Definition app_relop_f (e : Wasm_float.type) (rop : relop_f)
   | ROF_ge => Wasm_float.float_ge mx
   end.
 
-Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
+Definition app_relop_num (op: relop) (v1: value_num) (v2: value_num) :=
   match op with
   | Relop_i iop =>
     match v1 with
@@ -401,6 +421,16 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
       end                              
     | _ => false
     end
+  end.
+
+Definition app_relop (op: relop) (v1: value) (v2: value) : bool :=
+  match v1 with
+  | VAL_num vn1 =>
+      match v2 with
+      | VAL_num vn2 => app_relop_num op vn1 vn2
+      | _ => false
+      end
+  | _ => false
   end.
 
 Definition types_agree (t : value_type) (v : value) : bool :=
@@ -518,8 +548,8 @@ Definition stab_grow (s: store_record) (inst: instance) (x: N) (n: N) (tabinit: 
   end.
 
 
-Definition elem_size (t: eleminst) : nat :=
-  length (eleminst_elem t).
+Definition elem_size (e: eleminst) : nat :=
+  length (eleminst_elem e).
 
 Definition selem (s: store_record) (inst: instance) (x: elemaddr): option eleminst :=
   match lookup_N inst.(inst_elems) x with
@@ -527,12 +557,30 @@ Definition selem (s: store_record) (inst: instance) (x: elemaddr): option elemin
   | _ => None
   end.
 
-Definition selem_drop (s: store_record) (inst: instance) (x: tableaddr) : option store_record :=
+Definition selem_drop (s: store_record) (inst: instance) (x: elemaddr) : option store_record :=
   match selem s inst x with
   | Some elem =>
       let empty_elem := {| eleminst_type := elem.(eleminst_type); eleminst_elem := [::] |} in
       let: elems' := set_nth empty_elem s.(s_elems) (N.to_nat x) empty_elem in
       Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) elems' (s_datas s))
+  | None => None
+  end.
+
+Definition data_size (d: datainst) : nat :=
+  length (datainst_data d).
+
+Definition sdata (s: store_record) (inst: instance) (x: dataaddr): option datainst :=
+  match lookup_N inst.(inst_datas) x with
+  | Some daddr => lookup_N s.(s_datas) daddr
+  | _ => None
+  end.
+
+Definition sdata_drop (s: store_record) (inst: instance) (x: dataaddr) : option store_record :=
+  match sdata s inst x with
+  | Some data =>
+      let empty_data := {| datainst_data := [::] |} in
+      let: datas' := set_nth empty_data s.(s_datas) (N.to_nat x) empty_data in
+      Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) (s_elems s) datas')
   | None => None
   end.
 

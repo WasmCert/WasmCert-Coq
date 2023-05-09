@@ -908,7 +908,8 @@ Definition thread : Type := frame * list administrative_instruction.
 
 Definition config_tuple : Type := store_record * thread.
 
-Definition config_one_tuple_without_e : Type := store_record * frame * seq value.
+(* Used by interpreters *)
+Definition config_one_tuple_without_e : Type := store_record * (frame * seq value).
 
 Inductive res_crash : Type :=
   | C_error : res_crash
@@ -921,7 +922,9 @@ Inductive res_step : Type :=
   | RS_normal : seq administrative_instruction -> res_step
   .
 
-Definition res_tuple : Type := store_record * frame * res_step.
+Definition res_thread : Type := frame * res_step.
+  
+Definition res_tuple : Type := store_record * res_thread.
 
 End Host.
 

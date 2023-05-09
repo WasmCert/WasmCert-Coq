@@ -74,8 +74,8 @@ Ltac simplify_lists :=
   | |- context C [rcons _ _] => rewrite -cats1
   | |- context C [(_ ++ _) ++ _] => rewrite -catA
   | |- context C [rev [::]] => rewrite rev0
-  | |- context C [v_to_e_list [::]] => rewrite v_to_e_list0
-  | |- context C [v_to_e_list [:: _]] => rewrite v_to_e_list1
+  | |- context C [v_to_e_list [::]] => simpl v_to_e_list
+  | |- context C [v_to_e_list [:: _]] => simpl v_to_e_list
   end;
   try subst_rev_const_list.
 

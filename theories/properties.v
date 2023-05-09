@@ -116,9 +116,6 @@ Lemma const_list_cons : forall a l,
   const_list (a :: l) = is_const a && const_list l.
 Proof. by []. Qed.
 
-Lemma v_to_e_list0 : v_to_e_list [::] = [::].
-Proof. reflexivity. Qed.
-
 Lemma e_is_trapP : forall e, reflect (e = AI_trap) (e_is_trap e).
 Proof.
   case => //= >; by [ apply: ReflectF | apply: ReflectT ].
