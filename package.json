@@ -9,7 +9,7 @@
 			"COQBIN": "#{@opam/coq.bin}/",
 			"COQLIB": "#{@opam/coq.lib}/coq/",
 			"COQPATH": "#{coq-ext-lib.install}/user-contrib:#{coq-flocq.install}/coq:#{coq-itree.install}/user-contrib:#{coq-paco.install}/user-contrib:#{strong-induction.install}/lib/coq/user-contrib:#{compcert.install}/coq:#{coq-mathcomp-ssreflect.install}/user-contrib:#{parseque.install}/lib/coq/user-contrib",
-			"VSCODESETTINGS": "{\"coqtop.binPath\":\"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{coq-ext-lib.install}/user-contrib\",\"ExtLib\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{coq-itree.install}/user-contrib\",\"ITree\",\"-R\",\"#{coq-paco.install}/user-contrib\",\"Paco\",\"-R\",\"#{strong-induction.install}/lib/coq/user-contrib\",\"StrongInduction\",\"-R\",\"#{compcert.install}/coq\",\"compcert\",\"-R\",\"#{coq-mathcomp-ssreflect.install}/user-contrib\",\"mathcomp\",\"-R\",\"#{parseque.install}/lib/coq/user-contrib\",\"parseque\",\"-R\",\"#{self.root}/_build/default/theories\",\"\"]}",
+			"VSCODESETTINGS": "{\"coqtop.binPath\":\"#{@opam/coq.root}/bin\",\"coqtop.args\":[\"-coqlib\",\"#{@opam/coq.root}\",\"-R\",\"#{coq-ext-lib.install}/user-contrib/ExtLib\",\"ExtLib\",\"-R\",\"#{coq-flocq.install}/coq\",\"Flocq\",\"-R\",\"#{coq-itree.install}/user-contrib/ITree\",\"ITree\",\"-R\",\"#{coq-paco.install}/user-contrib/Paco\",\"Paco\",\"-R\",\"#{strong-induction.install}/lib/coq/user-contrib/StrongInduction\",\"StrongInduction\",\"-R\",\"#{compcert.install}/coq\",\"compcert\",\"-R\",\"#{coq-mathcomp-ssreflect.install}/user-contrib/mathcomp\",\"mathcomp\",\"-R\",\"#{parseque.install}/lib/coq/user-contrib/parseque\",\"parseque\",\"-R\",\"#{self.root}/_build/default/theories\",\"Wasm\"]}",
 			"TARGETDIR": "#{self.target_dir}"
 		},
 		"build": "make"
@@ -18,7 +18,7 @@
 		"clean": "make clean",
 		"doc": "dune build @doc",
 		"test": "dune runtest",
-		"vscode": "make vscode"
+		"vscode": "make --always-make vscode"
 	},
 	"dependencies": {
 		"ocaml": "4.14.0", 
