@@ -1077,12 +1077,17 @@ Lemma load_error_jth : forall s f ves ves' c t a off j,
     inst_typing s f.(f_inst) C /\
     e_typing s C [:: AI_basic (BI_load t None a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c t a off j ? Heqj Hjth [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s f ves ves' c t a off j ? Heqj Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
   (* TODO need to contradict this with something *)
   (* Hjth : List.nth_error (s_mems s) j = None *)
+
+  unfold inst_typing in Hitype.
+  unfold typing.inst_typing in Hitype.
+  Search typing.inst_typing.
+
 Admitted.
 
 Lemma load_error_smem_ind : forall s f ves ves' c t a off,
@@ -1267,12 +1272,16 @@ Lemma grow_memory_error_grow : forall s f ves ves' j s_mem_s_j l c,
     e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
   intros s f ves ves' j s_mem_s_j l c ?????
-    [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+    [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves l.
     (* NOTE Heqmemgrow went wrong, get a contradiction with Hetype/Hitype? *)
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   (* show t1s = t1s' = [::] *)
   apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
+
+  unfold inst_typing in Hitype.
+  unfold typing.inst_typing in Hitype.
+
 Admitted.
 
 Lemma grow_memory_error_typeof : forall s inst v ves ves',
