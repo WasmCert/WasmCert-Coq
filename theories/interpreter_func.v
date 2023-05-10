@@ -1104,38 +1104,38 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
-Lemma load_error_jth : forall s f ves ves' c t a off j,
+Lemma load_error_jth : forall s f ves ves' c t tp_sx a off j,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error s.(s_mems) j = None ->
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
     inst_typing s f.(f_inst) C /\
-    e_typing s C [:: AI_basic (BI_load t None a off)] (Tf t1s t2s).
+    e_typing s C [:: AI_basic (BI_load t tp_sx a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c t a off j ? Heqj Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  intros s f ves ves' c t tp_sx a off j ? Hsmem Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
-  apply mem_context_store in Hitype as [j' [Heqj' Hjth']] => //.
-  rewrite Heqj in Heqj'. injection Heqj' as Heqj'. subst j'.
+  apply mem_context_store in Hitype as [j' [Hsmem' Hjth']] => //.
+  rewrite Hsmem in Hsmem'. injection Hsmem' as Hsmem'. subst j'.
   by apply Hjth'.
 Qed.
 
-Lemma load_error_smem_ind : forall s f ves ves' c t a off,
+Lemma load_error_smem_ind : forall s f ves ves' c t tp_sx a off,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = None ->
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
     inst_typing s f.(f_inst) C /\
-    e_typing s C [:: AI_basic (BI_load t None a off)] (Tf t1s t2s).
+    e_typing s C [:: AI_basic (BI_load t tp_sx a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c t a off ? Hsmemind [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  intros s f ves ves' c t tp_sx a off ? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
-  apply mem_context_store in Hitype as [j [Heqj ?]] => //.
-  by rewrite Heqj in Hsmemind.
+  apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
+  by rewrite Hsmem' in Hsmem.
 Qed.
 
 Lemma reduce_store_packed_success : forall (hs : host_state) s f c v ves ves' t tp a off j mem_s_j mem',
@@ -1255,6 +1255,44 @@ Proof.
   cats1_last_eq Ht1s. by destruct v, t => //.
 Qed.
 
+Lemma store_error_jth : forall s f v c ves ves' t tp a off j,
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error s.(s_mems) j = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
+Proof.
+  intros s inst v c ves ves' t tp a off j ?? Hsmem ?
+    [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  apply mem_context_store in Hitype as [j' [Hsmem' Hjth']] => //.
+  (* TODO this repeats elsewhere -- make a lemma / ltac? *)
+  rewrite Hsmem in Hsmem'. injection Hsmem' as Hsmem'. subst j'.
+  by apply Hjth'.
+Qed.
+
+Lemma store_error_smem : forall s f v c ves ves' t tp a off,
+  ves = v :: VAL_int32 c :: ves' ->
+  types_agree t v ->
+  smem_ind s f.(f_inst) = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
+Proof.
+  intros s inst v c ves ves' t tp a off ?? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
+  by rewrite Hsmem in Hsmem'.
+Qed.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -1330,12 +1368,12 @@ Lemma grow_memory_error_jth : forall s f ves ves' j c,
     inst_typing s f.(f_inst) C /\
     e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' j c ? Heqj ? [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  intros s f ves ves' j c ? Hsmem ? [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
-  apply mem_context_store in Hitype as [j' [Heqj' Hjth]] => //.
-  rewrite Heqj' in Heqj. injection Heqj as Heqj. subst j'.
+  apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
+  rewrite Hsmem' in Hsmem. injection Hsmem as Hsmem. subst j'.
   by apply Hjth.
 Qed.
 
@@ -1351,8 +1389,8 @@ Proof.
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
-  apply mem_context_store in Hitype as [j [Heqj ?]] => //.
-  by rewrite Heqj in Hsmem.
+  apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
+  by rewrite Hsmem' in Hsmem.
 Qed.
 
 Lemma grow_memory_error_typeof : forall s inst v ves ves',
@@ -1880,6 +1918,7 @@ Proof.
            apply RS''_error. by eapply set_global_error_jth.
 
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
+      (* TODO can this and the next branch be deduped? *)
       destruct ves as [|v ves'] eqn:?.
       + (* [::] *)
         apply RS''_error. by apply load_error_0.
@@ -1899,9 +1938,9 @@ Proof.
                  apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
                  by apply reduce_load_packed_failure with (mem_s_j := mem_s_j) (j := j) (c := c).
            ** (* None*)
-              apply RS''_error. by apply admitted_TODO.
+              apply RS''_error. by eapply load_error_jth with (j := j).
         -- (* None *)
-           apply RS''_error. by apply admitted_TODO.
+           apply RS''_error. by eapply load_error_smem_ind.
 
     * (* AI_basic (BI_load t None a off) *)
       destruct ves as [|v ves'] eqn:?.
@@ -1930,6 +1969,7 @@ Proof.
            apply RS''_error. by eapply load_error_smem_ind.
 
     * (* AI_basic (BI_store t (Some tp) a off) *)
+      (* TODO dedupe with the branch below by matching tp later? *)
       destruct ves as [|v [|v' ves']] eqn:?;
         try by (apply RS''_error; apply store_error_size).
       (* v :: v' :: ves' *)
@@ -1950,9 +1990,9 @@ Proof.
                  apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
                  by eapply reduce_store_packed_failure with (j := j) (mem_s_j := mem_s_j).
            ** (* None *)
-              apply RS''_error. by apply admitted_TODO.
+              apply RS''_error. by eapply store_error_jth with (j := j).
         -- (* None *)
-           apply RS''_error. by apply admitted_TODO.
+           apply RS''_error. by eapply store_error_smem.
       + (* false *)
         apply RS''_error. by apply store_error_types_disagree with (v := v) (c := c) (ves' := ves').
 
@@ -1977,9 +2017,9 @@ Proof.
                  apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
                  by eapply reduce_store_failure with (j := j) (mem_s_j := mem_s_j).
            ** (* None *)
-              apply RS''_error. by apply admitted_TODO.
+              apply RS''_error. by eapply store_error_jth with (j := j).
         -- (* None *)
-           apply RS''_error. by apply admitted_TODO.
+           apply RS''_error. by eapply store_error_smem.
       + (* false *)
         apply RS''_error. by apply store_error_types_disagree with (v := v) (c := c) (ves' := ves').
 
