@@ -1002,14 +1002,17 @@ Lemma set_global_error_jth : forall (hs : host_state) s f v ves ves' j,
     inst_typing s f.(f_inst) C /\
     e_typing s C [:: AI_basic (BI_set_global j)] (Tf t1s t2s).
 Proof.
-  intros hs s f v ves ves' j ? Hjth [C [t1s [t2s [t1s' [Ht1s [Hinst Hetype]]]]]].
+  intros hs s f v ves ves' j ? Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Set_global_typing host_instance) in Hbtype as [? [? [Hjth' [? [? [??]]]]]].
-  (* do these two give a contradiction? *)
-  (* Hjth : supdate_glob s (f_inst f) j v = None *)
-  (* Hjth' : List.nth_error (tc_global C) j = Some x *)
-Admitted.
+  apply (Set_global_typing host_instance) in Hbtype as [g [? [Hjth' [? [? [??]]]]]].
+  apply glob_context_store with (j := j) (g := g) in Hitype => //.
+  unfold sglob in Hitype. unfold option_bind in Hitype.
+  unfold supdate_glob in Hjth. unfold option_bind in Hjth.
+  destruct (sglob_ind s f.(f_inst) j) eqn:? => //.
+  unfold supdate_glob_s in Hjth.
+  by destruct (List.nth_error (s_globals s) n).
+Qed.
 
 Lemma reduce_load_packed_success : forall (hs : host_state) s f c ves ves' t tp sx a off j mem_s_j bs,
   ves = VAL_int32 c :: ves' ->
@@ -1114,14 +1117,10 @@ Proof.
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
-  (* TODO need to contradict this with something *)
-  (* Hjth : List.nth_error (s_mems s) j = None *)
-
-  unfold inst_typing in Hitype.
-  unfold typing.inst_typing in Hitype.
-  Search typing.inst_typing.
-
-Admitted.
+  apply mem_context_store in Hitype as [j' [Heqj' Hjth']] => //.
+  rewrite Heqj in Heqj'. injection Heqj' as Heqj'. subst j'.
+  by apply Hjth'.
+Qed.
 
 Lemma load_error_smem_ind : forall s f ves ves' c t a off,
   ves = VAL_int32 c :: ves' ->
@@ -1131,14 +1130,13 @@ Lemma load_error_smem_ind : forall s f ves ves' c t a off,
     inst_typing s f.(f_inst) C /\
     e_typing s C [:: AI_basic (BI_load t None a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c t a off ? Hsmemind [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s f ves ves' c t a off ? Hsmemind [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
-  Search tc_memory.
-  (* TODO need to contradict this with something *)
-  (* Hsmemind : smem_ind s (f_inst f) = None *)
-Admitted.
+  apply mem_context_store in Hitype as [j [Heqj ?]] => //.
+  by rewrite Heqj in Hsmemind.
+Qed.
 
 Lemma reduce_store_packed_success : forall (hs : host_state) s f c v ves ves' t tp a off j mem_s_j mem',
   ves = v :: VAL_int32 c :: ves' ->
@@ -1297,7 +1295,7 @@ Lemma grow_memory_error_grow : forall s f ves ves' j s_mem_s_j l c,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
-  l = mem_size s_mem_s_j ->
+  l = mem_size s_mem_s_j ->  (* TODO unused? *)
   None = mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) ->
   ~ exists C t1s t2s t1s',
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
@@ -1312,9 +1310,15 @@ Proof.
   (* show t1s = t1s' = [::] *)
   apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
 
-  unfold inst_typing in Hitype.
-  unfold typing.inst_typing in Hitype.
+  (* XXX store typing needed? *)
+  (* XXX mem_grow_mem_agree relevant? it needs mem_grow m c = Some mem *)
 
+  unfold mem_grow in H3.
+  destruct (mem_size s_mem_s_j + Wasm_int.N_of_uint i32m c <=? page_limit)%N eqn:? => //.
+  - destruct (mem_max_opt s_mem_s_j) as [n|] eqn:? => //.
+    destruct (mem_size s_mem_s_j + Wasm_int.N_of_uint i32m c <=? n)%N eqn:? => //.
+    admit.
+  - admit.
 Admitted.
 
 Lemma grow_memory_error_typeof : forall s inst v ves ves',
@@ -1839,7 +1843,7 @@ Proof.
            apply <<hs, s', f, vs_to_es ves'>>'.
            by eapply reduce_set_global => //.
         -- (* None *)
-           apply RS''_error. by eapply set_global_error_jth.  (* TODO *)
+           apply RS''_error. by eapply set_global_error_jth.
 
     * (* AI_basic (BI_load t (Some (tp, sx)) a off) *)
       destruct ves as [|v ves'] eqn:?.
