@@ -1321,6 +1321,40 @@ Proof.
   - admit.
 Admitted.
 
+Lemma grow_memory_error_jth : forall s f ves ves' j c,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error (s_mems s) j = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
+Proof.
+  intros s f ves ves' j c ? Heqj ? [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
+  apply mem_context_store in Hitype as [j' [Heqj' Hjth]] => //.
+  rewrite Heqj' in Heqj. injection Heqj as Heqj. subst j'.
+  by apply Hjth.
+Qed.
+
+Lemma grow_memory_error_smem : forall s f ves ves' c,
+  ves = VAL_int32 c :: ves' ->
+  smem_ind s f.(f_inst) = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
+Proof.
+  intros s f ves ves' c ? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
+  apply mem_context_store in Hitype as [j [Heqj ?]] => //.
+  by rewrite Heqj in Hsmem.
+Qed.
+
 Lemma grow_memory_error_typeof : forall s inst v ves ves',
   typeof v <> T_i32 ->
   ves = v :: ves' ->
@@ -1973,14 +2007,16 @@ Proof.
               remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
               remember (upd_s_mem s (update_list_at s.(s_mems) j mem'')) as s'.
               apply <<hs, s', f, (vs_to_es (v' :: ves'))>>'.
-              eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
+              by eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
            ** (* None *)
               apply RS''_error.
               by eapply grow_memory_error_grow with (j := j) (s_mem_s_j := s_mem_s_j). (* TODO *)
         -- (* None *)
-           by apply (RS''_error _ (admitted_TODO _)).
+           apply RS''_error.
+           by eapply grow_memory_error_jth with (j := j).
       + (* None *)
-         by apply (RS''_error _ (admitted_TODO _)).
+        apply RS''_error.
+        by eapply grow_memory_error_smem => //.
 
     * (* AI_basic (BI_const _) *)
       (* XXX this won't happen if ves has been correctly split(?) *)
