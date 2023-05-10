@@ -688,12 +688,13 @@ Lemma call_error : forall (hs : host_state) s f ves j,
     inst_typing s f.(f_inst) C /\
     e_typing s C [:: AI_basic (BI_call j)] (Tf t1s t2s).
 Proof.
-  intros s f v ves j ? [C [t1s [t2s [t1s' [Ht1s [? Hetype]]]]]].
+  intros s f v ves j Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Call_typing host_instance) in Hbtype as [? [? [? [? [? [??]]]]]].
-  (* TODO get a contradiction with
-   * List.nth_error (tc_func_t C) j = Some (Tf x0 x1) *)
-Admitted.
+  apply (Call_typing host_instance) in Hbtype as [? [t1s'' [t2s'' [? [? [??]]]]]].
+  apply func_context_store with (j := j) (x := Tf t1s'' t2s'') in Hitype
+    as [? Hjth'] => //.
+  by rewrite Hjth' in Hjth.
+Qed.
 
 Lemma reduce_call_indirect_success : forall (hs : host_state) s f c ves ves' j a cl,
   ves = VAL_int32 c :: ves' ->
@@ -1729,7 +1730,7 @@ Proof.
         by apply reduce_call.
       + (* None *)
         apply RS''_error.
-        by apply call_error.  (* TODO *)
+        by apply call_error.
 
     * (* AI_basic (BI_call_indirect j) *)
       destruct ves as [|v ves'] eqn:?;
