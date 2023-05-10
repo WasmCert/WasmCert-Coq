@@ -931,40 +931,13 @@ Proof.
   intros hs s f ves j Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype Hetype]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Get_global_typing host_instance) in Hbtype as [t [Hjth' [??]]].
-
-  Print mutability.
-  Search (value_type -> global_type).
-  Search (global_type -> value_type).
-  Locate tg_t.
-  Print global_type.
-  Check tg_mut.
-
-  (* assert (tg_t_inverse : forall vt : value_type, exists gt : global_type, tg_t gt = vt). *)
-  (* { intros vt. by exists (Build_global_type MUT_immut vt). } *)
-
   destruct (List.nth_error (tc_global C) j) eqn:Heqg => //.
-  eapply glob_context_store with (j := j) in Hitype => //.
-
-  -
-    (* unfold option_map in Hjth'. *)
-    (* destruct (List.nth_error (tc_global C) j) => //. *)
-    (* injection Hjth' as Hjth'. *)
-
-    unfold sglob_val in Hjth.
-    unfold option_map in Hjth.
-    unfold sglob in Hitype.
-    unfold option_bind in Hitype.
-    by destruct (sglob s f.(f_inst) j) eqn:? => //.
-
-    (* (g := Build_global_type MUT_immut t) or (g := Build_global_type MUT_mut t) *)
-  - unfold option_map in Hjth'.
-    injection Hjth' as Hjth'.
-
-    instantiate (1 := Build_global_type (tg_mut g) t).
-    rewrite Heqg. f_equal.
-    subst t.
-    (* TODO equality by defn of a record? *)
-Admitted.
+  eapply glob_context_store with (j := j) in Hitype => //;
+    last by (rewrite Heqg; f_equal).
+  unfold sglob_val, option_map in Hjth.
+  unfold sglob, option_bind in Hitype.
+  by destruct (sglob s f.(f_inst) j) eqn:? => //.
+Qed.
 
 Lemma reduce_set_global : forall (hs : host_state) s s' f v ves ves' j,
   supdate_glob s f.(f_inst) j v = Some s' ->
@@ -1903,7 +1876,7 @@ Proof.
         apply <<hs, s, f, vs_to_es (xx :: ves)>>'.
         by apply reduce_get_global.
       + (* None *)
-        apply RS''_error. by apply get_global_error.  (* TODO *)
+        apply RS''_error. by apply get_global_error.
 
     * (* AI_basic (BI_set_global j) *)
       destruct ves as [|v ves'] eqn:?.
