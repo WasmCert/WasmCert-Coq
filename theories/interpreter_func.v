@@ -258,19 +258,21 @@ Lemma error_rec : forall s f e es es' es'' ves,
       inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es t).
 Proof.
   (* TODO consistent naming: Hsplit / Hesves *)
-  intros s f e es es' es'' ves ? Hsplit Hrec [C [[t1s t2s] [? [? Hetype]]]].
+  intros s f e es es' es'' ves ? Hsplit Hrec [C [[??] [? [? Hetype]]]].
   apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
-  apply e_composition_typing in Hetype as [ts [t1s' [t2s' [t3s [? [? [Hetypeves Hetype]]]]]]].
+  apply e_composition_typing in Hetype as [? [t1s [? [? [? [? [Hetypeves Hetype]]]]]]].
+  subst r r0.
   rewrite <- cat1s in Hetype.
-  apply e_composition_typing in Hetype as [ts' [t1s'' [t2s'' [t3s' [? [? [? _]]]]]]].
-  apply Hrec.
-  exists C, t1s'', t3s', ts'.
-  repeat split => //.
-  apply et_to_bet in Hetypeves as Hbtype;
+  apply e_composition_typing in Hetype as [ts [t2s [t4s [t3s [? [? [??]]]]]]].
+  subst x0 x1.
+  apply et_to_bet in Hetypeves as Hbtypeves;
     last by apply const_list_is_basic; apply v_to_e_is_const_list.
-  apply Const_list_typing in Hbtype.
-  rewrite <- H3. (* TODO fragile name *)
-  rewrite Hbtype.
+  apply Const_list_typing in Hbtypeves.
+  apply Hrec.
+  exists C, (ts ++ t2s), (ts ++ t3s), t1s.
+  repeat split => //.
+  - rewrite map_rev. rewrite revK. rewrite Hbtypeves. admit.
+  - by apply ety_weakening.
 Admitted.
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
