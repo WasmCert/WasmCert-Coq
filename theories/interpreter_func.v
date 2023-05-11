@@ -104,7 +104,8 @@ Inductive res_step'_separate_e
       rev (map typeof ves) = t1s' ++ t1s /\
       inst_typing s f.(f_inst) C /\
       store_typing s /\
-      e_typing s C [::e] (Tf t1s t2s)) ->
+      e_typing s C [:: e] (Tf t1s t2s)) ->
+      (* e_typing s C [:: e] (Tf (t1s' ++ t1s) (t1s' ++ t2s))) -> *)
     res_step'_separate_e hs s f ves e
 
 | RS''_break k ves' :
@@ -119,7 +120,7 @@ Inductive res_step'_separate_e
 | RS''_return (ves' : list value) : False -> res_step'_separate_e hs s f ves e
 (* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
-    reduce hs s f ((vs_to_es ves) ++ [::e]) hs' s' f' es' ->
+    reduce hs s f ((vs_to_es ves) ++ [:: e]) hs' s' f' es' ->
     res_step'_separate_e hs s f ves e.
 
 (* Notation for RS'_normal. This forces hs', s', f' es' to be explicitly
@@ -247,6 +248,36 @@ Ltac simpl_reduce_simple :=
         try solve_lfilled_0; apply r_simple
   end.
 
+Lemma error_rec_simpl : forall s f e es ves,
+  split_vals_e es = (ves, [:: e]) ->
+  (exists C t1s t2s,
+    inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es (Tf t1s t2s)) ->
+
+    (* This is saying: there's a typing setup where e takes input *exclusively* from ves
+     * (not necessarily the whole ves, some of it may be left over) *)
+  (exists C t1s t2s t1s',
+    rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
+    inst_typing s (f_inst f) C /\
+    store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)).
+Proof.
+  intros s f e es ves Hsplit [C [t1s [t2s [? [? Hetype]]]]].
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  assert (Hetype' : e_typing s C (v_to_e_list ves ++ [:: e]) (Tf t1s t2s)) => //.
+  apply e_composition_typing in Hetype as [ts [t1s' [t2s' [t3s [? [? [Hetypeves Hetype]]]]]]].
+  apply et_to_bet in Hetypeves as Hbtypeves;
+    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+  apply Const_list_typing in Hbtypeves. subst t3s.
+  subst t1s t2s.
+  exists C, (t1s' ++ map typeof ves), t2s'. eexists.
+  repeat split => //.
+  rewrite map_rev. rewrite revK.
+
+  (* Goal:
+   * [seq typeof i | i <- ves] = ?t1s' ++ t1s' ++ [seq typeof i | i <- ves]
+   * This can't work *)
+
+Admitted.
+
 Lemma error_rec : forall s f e es es' es'' ves,
   es' = e :: es'' ->
   split_vals_e es = (ves, es') ->
@@ -267,15 +298,37 @@ Proof.
   subst x0 x1.
   apply et_to_bet in Hetypeves as Hbtypeves;
     last by apply const_list_is_basic; apply v_to_e_is_const_list.
-  Check Const_list_typing.
   apply Const_list_typing in Hbtypeves.
+  apply ety_weakening with (ts := ts) in H3.
   apply Hrec.
-  Check drop.
-  exists C, t2s, t3s, (drop (size t1s) ts).
-  repeat split => //.
-  rewrite map_rev. rewrite revK.
-  assert (size t1s <= size ts). admit.
-  assert (H' : drop (size t1s) ts ++ t2s = drop (size t1s) (ts ++ t2s)). admit.
+  exists C, (t1s ++ map typeof ves), (ts ++ t3s), [::].
+  repeat split => //; try by rewrite <- Hbtypeves.
+  - rewrite map_rev. rewrite revK. simpl.
+    rewrite <- Hbtypeves.
+    admit.
+
+  assert (size t1s <= size ts).
+  {
+    apply f_equal with (f := size) in Hbtypeves.
+    repeat rewrite size_cat in Hbtypeves.
+    assert (size t1s <= size ts + size t2s). by lias.
+    assert (size ts <= size ts + size t2s). by lias.
+    lias.
+
+    admit.
+  }
+
+  assert (H' : drop (size t1s) ts ++ t2s = drop (size t1s) (ts ++ t2s)).
+  {
+    rewrite drop_cat.
+    destruct (size t1s < size ts) eqn:? => //.
+    assert (Hsize : size t1s = size ts). { by lias. }
+    rewrite Hsize.
+    rewrite drop_size.
+    replace (size ts - size ts) with 0; last by lias.
+    by rewrite drop0.
+  }
+
   rewrite H'.
   apply f_equal with (f := drop (size t1s)) in Hbtypeves.
   rewrite Hbtypeves.
