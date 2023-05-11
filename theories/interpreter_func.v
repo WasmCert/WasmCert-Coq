@@ -267,12 +267,23 @@ Proof.
   subst x0 x1.
   apply et_to_bet in Hetypeves as Hbtypeves;
     last by apply const_list_is_basic; apply v_to_e_is_const_list.
+  Check Const_list_typing.
   apply Const_list_typing in Hbtypeves.
   apply Hrec.
-  exists C, (ts ++ t2s), (ts ++ t3s), t1s.
+  Check drop.
+  exists C, t2s, t3s, (drop (size t1s) ts).
   repeat split => //.
-  - rewrite map_rev. rewrite revK. rewrite Hbtypeves. admit.
-  - by apply ety_weakening.
+  rewrite map_rev. rewrite revK.
+  assert (size t1s <= size ts). admit.
+  assert (H' : drop (size t1s) ts ++ t2s = drop (size t1s) (ts ++ t2s)). admit.
+  rewrite H'.
+  apply f_equal with (f := drop (size t1s)) in Hbtypeves.
+  rewrite Hbtypeves.
+  rewrite drop_cat.
+  rewrite ltnn.
+  Search (_ - ?a).
+  replace (size t1s - size t1s) with 0; last by lias.
+  by rewrite drop0.
 Admitted.
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
