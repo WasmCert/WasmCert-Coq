@@ -797,11 +797,9 @@ Proof.
   intros s f c ves ves' j a ?? Hath [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
-  (* TODO need to add store typing to the goal? *)
-  assert (store_typing s). by admit.
   eapply store_typing_stabaddr with (a := a) (c := Wasm_int.nat_of_uint i32m c) in Hitype as [? Hath'] => //.
   by rewrite Hath in Hath'.
-Admitted.
+Qed.
 
 Lemma reduce_get_local : forall (hs : host_state) s f ves j vs_at_j,
   j < length f.(f_locs) ->
