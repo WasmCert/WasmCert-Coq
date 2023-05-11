@@ -247,6 +247,32 @@ Ltac simpl_reduce_simple :=
         try solve_lfilled_0; apply r_simple
   end.
 
+Lemma error_rec : forall s f e es es' es'' ves,
+  es' = e :: es'' ->
+  split_vals_e es = (ves, es') ->
+  ~ (exists C t1s t2s t1s',
+      rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
+      inst_typing s (f_inst f) C /\
+      store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)) ->
+  ~ (exists C t,
+      inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es t).
+Proof.
+  (* TODO consistent naming: Hsplit / Hesves *)
+  intros s f e es es' es'' ves ? Hsplit Hrec [C [[t1s t2s] [? [? Hetype]]]].
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
+  apply e_composition_typing in Hetype as [ts [t1s' [t2s' [t3s [? [? [Hetypeves Hetype]]]]]]].
+  rewrite <- cat1s in Hetype.
+  apply e_composition_typing in Hetype as [ts' [t1s'' [t2s'' [t3s' [? [? [? _]]]]]]].
+  apply Hrec.
+  exists C, t1s'', t3s', ts'.
+  repeat split => //.
+  apply et_to_bet in Hetypeves as Hbtype;
+    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+  apply Const_list_typing in Hbtype.
+  rewrite <- H3. (* TODO fragile name *)
+  rewrite Hbtype.
+Admitted.
+
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
   es' = e :: es'' ->
   split_vals_e es = (ves, es') ->
@@ -1770,9 +1796,8 @@ Proof.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
         -- (* RS''_error *)
-           (* TODO fix RS'_error type first
-            * apply RS'_error. *)
-           by apply (coerce_res _ r).
+           apply RS'_error.
+           by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
         -- (* RS''_break *)
            by apply (coerce_res _ r).
         -- (* RS''_return *)
