@@ -82,6 +82,20 @@ Inductive res_step'
       store_typing s /\
       e_typing s C es (Tf [::] ts)) ->
     res_step' hs s f es
+
+(* Instead of [::] split out ves and do `map typeof vcs = ts1`? *)
+(* Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret hs, *)
+(*     e_typing s C es tf -> *)
+(*     tf = Tf ts1 ts2 -> *)
+(*     C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) -> *)
+(*     inst_typing s f.(f_inst) C' -> *)
+(*     map typeof vcs = ts1 -> *)
+(*     store_typing s -> *)
+(*     (forall n lh k, lfilled n lh [::AI_basic (BI_br k)] es -> k < n) -> *)
+(*     (forall n, not_lf_return es n) -> *)
+(*     terminal_form (v_to_e_list vcs ++ es) \/ *)
+(*     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'. *)
+
 | RS'_break : host_state -> store_record -> frame -> nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_return : host_state -> store_record -> frame -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_normal hs' s' f' es' :
