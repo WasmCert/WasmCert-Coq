@@ -73,10 +73,20 @@ Inductive res_step'
   (hs : host_state) (s : store_record) (f : frame)
   (es : list administrative_instruction) : Type :=
 | RS'_exhaustion : res_step' hs s f es
-| RS'_error : (~ exists C t, e_typing s C es t) -> res_step' hs s f es
+| RS'_value :
+    const_list es ->
+    res_step' hs s f es
+| RS'_error :
+    (~ exists C t,
+      inst_typing s f.(f_inst) C /\
+      store_typing s /\
+      e_typing s C es t) ->
+    res_step' hs s f es
 | RS'_break : host_state -> store_record -> frame -> nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_return : host_state -> store_record -> frame -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
-| RS'_normal hs' s' f' es': reduce hs s f es hs' s' f' es' -> res_step' hs s f es.
+| RS'_normal hs' s' f' es' :
+    reduce hs s f es hs' s' f' es' ->
+    res_step' hs s f es.
 
 (** Main proof for the [RS_break] case. **)
 (* Lemma reduce_label_break: forall fuel d hs s f es es' hs' s' f' es'' n, *)
@@ -250,6 +260,15 @@ Proof.
   - by apply Hreduce.
   - solve_lfilled_0. by rewrite <- catA.
   - by solve_lfilled_0.
+Qed.
+
+Lemma value_split_0 : forall es ves,
+  split_vals_e es = (ves, [::]) ->
+  const_list es.
+Proof.
+  intros es ves Hsplit.
+  apply split_vals_e_v_to_e_duality in Hsplit.
+  subst es. rewrite cats0. by apply v_to_e_is_const_list.
 Qed.
 
 (* TODO consistent lemma naming *)
@@ -1692,7 +1711,6 @@ Proof.
   by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
-
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
@@ -1707,8 +1725,7 @@ Proof.
     destruct (split_vals_e es) as [ves es'] eqn:Heqes.
     destruct es' as [|e es''] eqn:Heqes'.
     * (* es' = [::] *)
-      apply RS'_error.
-      by apply admitted_TODO.
+      apply RS'_value. by apply value_split_0 with (ves := ves).
     * (* es' = e :: es'' *)
       destruct (e_is_trap e).
       + destruct ((es'' != [::]) || (ves != [::])).
