@@ -74,7 +74,7 @@ Inductive res_step'
   (es : list administrative_instruction) : Type :=
 | RS'_exhaustion : res_step' hs s f es
 | RS'_value :
-    const_list es ->
+    const_list es \/ es_is_trap es ->
     res_step' hs s f es
 | RS'_error :
     (~ exists C t,
@@ -264,11 +264,11 @@ Qed.
 
 Lemma value_split_0 : forall es ves,
   split_vals_e es = (ves, [::]) ->
-  const_list es.
+  const_list es \/ es_is_trap es.
 Proof.
-  intros es ves Hsplit.
-  apply split_vals_e_v_to_e_duality in Hsplit.
-  subst es. rewrite cats0. by apply v_to_e_is_const_list.
+  intros es ves Hsplit. left.
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  rewrite cats0. by apply v_to_e_is_const_list.
 Qed.
 
 Lemma reduce_trap : forall (hs : host_state) s f e es es'' ves,
@@ -288,6 +288,19 @@ Proof.
     intros Hcontr. by size_unequal Hcontr.
   - assert (size ves > 0); first by destruct ves => //.
     intros Hcontr. by size_unequal Hcontr.
+Qed.
+
+Lemma value_trap : forall e es es'' ves,
+  split_vals_e es = (ves, e :: es'') ->
+  e_is_trap e ->
+  ((es'' != [::]) || (ves != [::])) = false ->
+  const_list es \/ es_is_trap es.
+Proof.
+  intros e es es'' ves Hsplit Htrap Hesves. right.
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  rewrite <- negb_and in Hesves. move/andP in Hesves. destruct Hesves as [Hes Hves].
+  move/eqP in Hes. move/eqP in Hves. subst es'' ves.
+  by destruct e.
 Qed.
 
 (* TODO consistent lemma naming *)
@@ -1750,8 +1763,8 @@ Proof.
       + destruct ((es'' != [::]) || (ves != [::])) eqn:?.
         -- apply <<hs, s, f, [:: AI_trap]>>.
            by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
-        -- apply RS'_error.
-           by apply admitted_TODO.
+        -- apply RS'_value.
+           by apply value_trap with (e := e) (es'' := es'') (ves := ves).
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
         destruct r as [| | | |hs' s' f' res Hreduce] eqn:?.
         -- (* RS''_exhaustion *)
