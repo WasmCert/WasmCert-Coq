@@ -208,7 +208,7 @@ Ltac if_lias :=
 Ltac size_unequal H :=
   apply (f_equal size) in H;
   revert H;
-  repeat rewrite size_cat; rewrite size_rev; rewrite size_map; simpl; lias.
+  repeat rewrite size_cat; try rewrite size_rev; rewrite size_map; simpl; lias.
 
 Lemma vs_to_es_cons : forall v ves,
   vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
@@ -269,6 +269,25 @@ Proof.
   intros es ves Hsplit.
   apply split_vals_e_v_to_e_duality in Hsplit.
   subst es. rewrite cats0. by apply v_to_e_is_const_list.
+Qed.
+
+Lemma reduce_trap : forall (hs : host_state) s f e es es'' ves,
+  split_vals_e es = (ves, e :: es'') ->
+  e_is_trap e ->
+  (es'' != [::]) || (ves != [::]) ->
+  reduce hs s f es hs s f [:: AI_trap].
+Proof.
+  intros hs s f e es es'' ves Hsplit Htrap Hesves.
+  destruct e => //.
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  move/orP in Hesves.
+  apply r_simple. eapply rs_trap with (lh := LH_base (vs_to_es (rev ves)) es'');
+    try by solve_lfilled_0.
+  destruct Hesves as [Hes | Hves].
+  - assert (size es'' > 0); first by destruct es'' => //.
+    intros Hcontr. by size_unequal Hcontr.
+  - assert (size ves > 0); first by destruct ves => //.
+    intros Hcontr. by size_unequal Hcontr.
 Qed.
 
 (* TODO consistent lemma naming *)
@@ -1727,10 +1746,10 @@ Proof.
     * (* es' = [::] *)
       apply RS'_value. by apply value_split_0 with (ves := ves).
     * (* es' = e :: es'' *)
-      destruct (e_is_trap e).
-      + destruct ((es'' != [::]) || (ves != [::])).
-        -- apply <<hs, s, f, [::AI_trap]>>.
-           by apply admitted_TODO.
+      destruct (e_is_trap e) eqn:?.
+      + destruct ((es'' != [::]) || (ves != [::])) eqn:?.
+        -- apply <<hs, s, f, [:: AI_trap]>>.
+           by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
         -- apply RS'_error.
            by apply admitted_TODO.
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
