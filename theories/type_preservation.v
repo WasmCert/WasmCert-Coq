@@ -236,6 +236,20 @@ Proof.
     by repeat rewrite - catA.
 Qed.
 
+(* TODO move this to a different file?
+ * interpreter_func.v?
+ * or move all typing inversion lemmas out to a common file? *)
+Lemma Cvtop_reinterpret_typing: forall C t1 t2 sx t1s t2s,
+    be_typing C [::BI_cvtop t2 CVO_reinterpret t1 sx] (Tf t1s t2s) ->
+    sx = None.
+Proof.
+  move => C t1 t2 sx t1s t2s HType.
+  gen_ind_subst HType => //.
+  - apply extract_list1 in H1; destruct H1; subst.
+    by eapply IHHType2.
+  - by edestruct IHHType.
+Qed.
+
 Lemma Nop_typing: forall C t1s t2s,
     be_typing C [::BI_nop] (Tf t1s t2s) ->
     t1s = t2s.

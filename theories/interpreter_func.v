@@ -1654,27 +1654,38 @@ Proof.
   by apply Cvtop_typing in Hbtype as [[|] [??]].
 Qed.
 
-Lemma cvtop_error_types_disagree : forall s inst v ves ves' t1 t2 sx,
+Lemma cvtop_error_types_disagree : forall s inst v ves ves' t1 t2 cvtop sx,
   ves = v :: ves' ->
   types_agree t1 v = false ->
   ~ exists C t1s t2s t1s',
     rev (map typeof ves) = t1s' ++ t1s /\
     inst_typing s inst C /\
     store_typing s /\
-    e_typing s C [:: AI_basic (BI_cvtop t2 CVO_convert t1 sx)] (Tf t1s t2s).
+    e_typing s C [:: AI_basic (BI_cvtop t2 cvtop t1 sx)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' t1 t2 sx ? Hdisagree [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s inst v ves ves' t1 t2 cvtop sx ? Hdisagree [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-
   apply Cvtop_typing in Hbtype as [? [??]].
-  subst t1s.
-  cats1_last_eq Ht1s.
-
+  subst t1s. cats1_last_eq Ht1s.
   unfold types_agree in Hdisagree.
   destruct (typeof v == t1) eqn:Hv => //.
-  assert (Hv' : typeof v <> t1). { apply/eqP. by rewrite Hv. }
-  by apply Hv'.
+  assert (Hv' : typeof v <> t1). { apply/eqP. by rewrite Hv. } by apply Hv'.
+Qed.
+
+Lemma cvtop_error_reinterpret_sx : forall s inst v ves ves' t1 t2 sx,
+  ves = v :: ves' ->
+  types_agree t1 v = true ->
+  ~ exists C t1s t2s t1s',
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s inst C /\
+    store_typing s /\
+    e_typing s C [:: AI_basic (BI_cvtop t2 CVO_reinterpret t1 (Some sx))] (Tf t1s t2s).
+Proof.
+  intros s inst v ves ves' t1 t2 sx ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  subst ves.
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  by apply Cvtop_reinterpret_typing in Hbtype.
 Qed.
 
 Lemma reduce_reinterpret : forall (hs : host_state) s f t1 t2 v ves',
@@ -2192,8 +2203,7 @@ Proof.
            apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
            by apply reduce_cvtop_trap.
       + (* false *)
-        apply RS''_error.
-        by eapply cvtop_error_types_disagree.
+        apply RS''_error. by eapply cvtop_error_types_disagree.
 
     * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
       destruct ves as [|v ves'];
@@ -2202,12 +2212,12 @@ Proof.
       + (* true *)
         destruct sx eqn:Heqsx.
         -- (* Some _ *)
-           apply RS''_error. by apply admitted_TODO.
+           apply RS''_error. by eapply cvtop_error_reinterpret_sx.
         -- (* None *)
            apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
            by apply reduce_reinterpret.
       + (* false *)
-        apply RS''_error. by apply admitted_TODO.
+        apply RS''_error. by eapply cvtop_error_types_disagree.
 
     * (* AI_trap *)
       (* NOTE trap is 'terminal/value form' *)
