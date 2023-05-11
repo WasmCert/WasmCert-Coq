@@ -253,6 +253,8 @@ Proof.
 Qed.
 
 (* TODO consistent lemma naming *)
+(* TODO add comments to separate lemmas for different instrs? *)
+(* AI_basic BI_unreachable *)
 Lemma reduce_unreachable : forall (hs : host_state) s f ves,
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic BI_unreachable])
@@ -1300,6 +1302,53 @@ Proof.
   by rewrite Hsmem in Hsmem'.
 Qed.
 
+Lemma reduce_current_memory : forall (hs : host_state) s f v ves s_mem_s_j j,
+  smem_ind s (f_inst f) = Some j ->
+  List.nth_error (s_mems s) j = Some s_mem_s_j ->
+  v = VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_basic BI_current_memory])
+    hs s f (vs_to_es (v :: ves)).
+Proof.
+  intros hs s f v ves s_mem_s_j j ???. subst v.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves) [::]));
+    try by solve_lfilled_0.
+  (* TODO rename s_mem_s_j to m? *)
+  by apply r_current_memory with (i := j) (m := s_mem_s_j).
+Qed.
+
+Lemma current_memory_error_jth : forall s f ves j,
+  smem_ind s f.(f_inst) = Some j ->
+  List.nth_error (s_mems s) j = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    store_typing s /\
+    e_typing s C [:: AI_basic BI_current_memory] (Tf t1s t2s).
+Proof.
+  intros s f ves j Hsmem ? [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Current_memory_typing host_instance) in Hbtype as [??] => //.
+  apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
+  rewrite Hsmem' in Hsmem. injection Hsmem as Hsmem. subst j'.
+  by apply Hjth.
+Qed.
+
+Lemma current_memory_error_smem : forall s f ves,
+  smem_ind s f.(f_inst) = None ->
+  ~ exists C t1s t2s t1s',
+    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C /\
+    store_typing s /\
+    e_typing s C [:: AI_basic BI_current_memory] (Tf t1s t2s).
+Proof.
+  intros s f ves Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
+  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
+  apply (Current_memory_typing host_instance) in Hbtype as [??] => //.
+  apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
+  by rewrite Hsmem' in Hsmem.
+Qed.
+
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
   smem_ind s (f_inst f) = Some j ->
@@ -1313,10 +1362,9 @@ Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_
     hs s' f (vs_to_es (v :: ves')).
 Proof.
   intros hs s s' f c v ves' mem'' s_mem_s_j j l ??????. subst s' v l.
-  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
-  - by apply r_grow_memory_success with (m := s_mem_s_j) (c := c).
-  - by solve_lfilled_0.
-  - by solve_lfilled_0.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by apply r_grow_memory_success with (m := s_mem_s_j) (c := c).
 Qed.
 
 Lemma reduce_grow_memory_failure : forall (hs : host_state) s f c ves' s_mem_s_j j l,
@@ -2030,7 +2078,17 @@ Proof.
         apply RS''_error. by apply store_error_types_disagree with (v := v) (c := c) (ves' := ves').
 
     * (* AI_basic BI_current_memory *)
-      by apply admitted_TODO.
+      destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
+      + (* Some j *)
+        destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:?.
+        -- (* Some j *)
+           remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v' eqn:?.
+           apply <<hs, s, f, vs_to_es (v' :: ves)>>'.
+           by apply reduce_current_memory with (j := j) (s_mem_s_j := s_mem_s_j).
+        -- (* None *)
+           apply RS''_error. by apply current_memory_error_jth with (j := j).
+      + (* None *)
+        apply RS''_error. by apply current_memory_error_smem => //.
 
     * (* AI_basic BI_grow_memory *)
       (* XXX this branch is fairly complicated,
@@ -2058,11 +2116,9 @@ Proof.
               apply <<hs, s, f, vs_to_es (VAL_int32 int32_minus_one :: ves')>>'.
               by eapply reduce_grow_memory_failure with (j := j) (s_mem_s_j := s_mem_s_j).
         -- (* None *)
-           apply RS''_error.
-           by eapply grow_memory_error_jth with (j := j).
+           apply RS''_error. by eapply grow_memory_error_jth with (j := j).
       + (* None *)
-        apply RS''_error.
-        by eapply grow_memory_error_smem => //.
+        apply RS''_error. by eapply grow_memory_error_smem => //.
 
     * (* AI_basic (BI_const _) *)
       (* XXX this won't happen if ves has been correctly split(?) *)
