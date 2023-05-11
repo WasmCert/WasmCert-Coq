@@ -77,10 +77,10 @@ Inductive res_step'
     const_list es \/ es_is_trap es ->
     res_step' hs s f es
 | RS'_error :
-    (~ exists C t,
+    (~ exists C ts,
       inst_typing s f.(f_inst) C /\
       store_typing s /\
-      e_typing s C es t) ->
+      e_typing s C es (Tf [::] ts)) ->
     res_step' hs s f es
 | RS'_break : host_state -> store_record -> frame -> nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_return : host_state -> store_record -> frame -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
@@ -248,29 +248,6 @@ Ltac simpl_reduce_simple :=
         try solve_lfilled_0; apply r_simple
   end.
 
-Lemma error_rec_simpl : forall s f e es ves,
-  split_vals_e es = (ves, [:: e]) ->
-  (exists C t1s,
-    inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es (Tf [::] t1s)) ->
-  (exists C t1s t2s t1s',
-    rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
-    inst_typing s (f_inst f) C /\
-    store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)).
-Proof.
-  intros s f e es ves Hsplit [C [t1s [? [? Hetype]]]].
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
-  assert (Hetype' : e_typing s C (v_to_e_list ves ++ [:: e]) (Tf [::] t1s)) => //.
-  apply e_composition_typing in Hetype as [ts [t1s' [t2s' [t3s [Ht1s' [? [Hetypeves Hetype]]]]]]].
-  apply et_to_bet in Hetypeves as Hbtypeves;
-    last by apply const_list_is_basic; apply v_to_e_is_const_list.
-  apply Const_list_typing in Hbtypeves. subst t3s.
-  subst t1s.
-  exists C, (t1s' ++ map typeof ves), t2s', [::].
-  repeat split => //.
-  rewrite map_rev. rewrite revK.
-  by apply_cat0_inv Ht1s'.
-Qed.
-
 Lemma error_rec : forall s f e es es' es'' ves,
   es' = e :: es'' ->
   split_vals_e es = (ves, es') ->
@@ -278,28 +255,24 @@ Lemma error_rec : forall s f e es es' es'' ves,
       rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
       inst_typing s (f_inst f) C /\
       store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)) ->
-  ~ (exists C t,
-      inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es t).
+  ~ (exists C ts,
+      inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
 Proof.
   (* TODO consistent naming: Hsplit / Hesves *)
-  intros s f e es es' es'' ves ? Hsplit Hrec [C [[??] [? [? Hetype]]]].
+  intros s f e es es' es'' ves ? Hsplit Hrec [C [? [? [? Hetype]]]].
   apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
-  apply e_composition_typing in Hetype as [? [t1s [? [? [? [? [Hetypeves Hetype]]]]]]].
-  subst r r0.
+  apply e_composition_typing in Hetype as [? [t1s [? [? [Ht1s [? [Hetypeves Hetype]]]]]]].
+  apply_cat0_inv Ht1s.
   rewrite <- cat1s in Hetype.
-  apply e_composition_typing in Hetype as [ts [t2s [t4s [t3s [? [? [??]]]]]]].
-  subst x0 x1.
+  apply e_composition_typing in Hetype as [ts [t2s [? [t3s [Ht2s [? [??]]]]]]].
   apply et_to_bet in Hetypeves as Hbtypeves;
     last by apply const_list_is_basic; apply v_to_e_is_const_list.
   apply Const_list_typing in Hbtypeves.
-  apply ety_weakening with (ts := ts) in H3.
-  apply Hrec.
-  exists C, (t1s ++ map typeof ves), (ts ++ t3s), [::].
-  repeat split => //; try by rewrite <- Hbtypeves.
-  - rewrite map_rev. rewrite revK. simpl.
-    rewrite <- Hbtypeves.
-    admit.
-Admitted.
+  apply Hrec. exists C, (ts ++ t2s), (ts ++ t3s), [::].
+  repeat split => //; try by apply ety_weakening.
+  rewrite map_rev. rewrite revK.
+  rewrite <- Ht2s. by rewrite Hbtypeves.
+Qed.
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
   es' = e :: es'' ->
