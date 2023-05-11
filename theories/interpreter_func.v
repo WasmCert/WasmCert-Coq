@@ -161,6 +161,8 @@ Definition res_tuple := (host_state * store_record * frame * res_step)%type.
 Axiom coerce_res : forall hs s f es ves e (r : res_step'_separate_e hs s f ves e),
   res_step' hs s f es.
 
+(* TODO use some ltacs from progress/preservation? invert_typeof_vcs etc *)
+
 (* TODO auto instantiate lh, k? *)
 (* TODO better name *)
 Ltac solve_lfilled_0 :=
@@ -1317,6 +1319,21 @@ Proof.
   - by solve_lfilled_0.
 Qed.
 
+Lemma reduce_grow_memory_failure : forall (hs : host_state) s f c ves' s_mem_s_j j l,
+  smem_ind s (f_inst f) = Some j ->
+  List.nth_error (s_mems s) j = Some s_mem_s_j ->
+  l = mem_size s_mem_s_j ->
+  mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) = None ->
+  reduce
+    hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic BI_grow_memory])
+    hs s f (vs_to_es (VAL_int32 int32_minus_one :: ves')).
+Proof.
+  intros hs s f c ves' s_mem_s_j j l ????. subst l.
+  eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::]));
+    try by solve_lfilled_0.
+  by eapply r_grow_memory_failure with (m := s_mem_s_j) (i := j).
+Qed.
+
 (* XXX why is this needed for Grow_memory_typing and not for Binop_typing etc? *)
 Let Grow_memory_typing := @Grow_memory_typing host_function.
 
@@ -1334,37 +1351,6 @@ Proof.
   apply_cat0_inv Ht1s.
   by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
 Qed.
-
-Lemma grow_memory_error_grow : forall s f ves ves' j s_mem_s_j l c,
-  ves = VAL_int32 c :: ves' ->
-  smem_ind s f.(f_inst) = Some j ->
-  List.nth_error (s_mems s) j = Some s_mem_s_j ->
-  l = mem_size s_mem_s_j ->  (* TODO unused? *)
-  None = mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) ->
-  ~ exists C t1s t2s t1s',
-    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
-    store_typing s /\
-    e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
-Proof.
-  intros s f ves ves' j s_mem_s_j l c ?????
-    [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves l.
-    (* NOTE Heqmemgrow went wrong, get a contradiction with Hetype/Hitype? *)
-  apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  (* show t1s = t1s' = [::] *)
-  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
-
-  (* XXX store typing needed? *)
-  (* XXX mem_grow_mem_agree relevant? it needs mem_grow m c = Some mem *)
-
-  unfold mem_grow in H3.
-  destruct (mem_size s_mem_s_j + Wasm_int.N_of_uint i32m c <=? page_limit)%N eqn:? => //.
-  - destruct (mem_max_opt s_mem_s_j) as [n|] eqn:? => //.
-    destruct (mem_size s_mem_s_j + Wasm_int.N_of_uint i32m c <=? n)%N eqn:? => //.
-    admit.
-  - admit.
-Admitted.
 
 Lemma grow_memory_error_jth : forall s f ves ves' j c,
   ves = VAL_int32 c :: ves' ->
@@ -2069,8 +2055,8 @@ Proof.
               apply <<hs, s', f, (vs_to_es (v' :: ves'))>>'.
               by eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
            ** (* None *)
-              apply RS''_error.
-              by eapply grow_memory_error_grow with (j := j) (s_mem_s_j := s_mem_s_j). (* TODO *)
+              apply <<hs, s, f, vs_to_es (VAL_int32 int32_minus_one :: ves')>>'.
+              by eapply reduce_grow_memory_failure with (j := j) (s_mem_s_j := s_mem_s_j).
         -- (* None *)
            apply RS''_error.
            by eapply grow_memory_error_jth with (j := j).
