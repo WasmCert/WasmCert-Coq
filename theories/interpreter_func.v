@@ -396,9 +396,6 @@ Proof.
   - solve_lfilled_0. apply List.app_inj_tail_iff. by split; subst m.
 Qed.
 
-(* XXX why is this needed? *)
-Let Block_typing := @Block_typing host_function.
-
 Lemma block_error : forall s inst ves bt1s bt2s es,
   size ves < size bt1s ->
   ~ exists C t1s t2s t1s',
@@ -409,7 +406,7 @@ Lemma block_error : forall s inst ves bt1s bt2s es,
 Proof.
   intros s inst ves bt1s bt2s es ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Block_typing in Hbtype as [ts [? [??]]] => //.
+  apply (Block_typing host_instance) in Hbtype as [ts [? [??]]] => //.
   subst t1s. by size_unequal Ht1s.
 Qed.
 
@@ -818,9 +815,6 @@ Proof.
   - by solve_lfilled_0.
   - by solve_lfilled_0.
 Qed.
-
-(* XXX including this breaks lias in some seemingly unrelated case later *)
-(* Let Get_local_typing := @Get_local_typing host_function. *)
 
 Lemma get_local_error_jth_none : forall s f ves j,
   List.nth_error f.(f_locs) j = None ->
@@ -1382,9 +1376,6 @@ Proof.
   by eapply r_grow_memory_failure with (m := s_mem_s_j) (i := j).
 Qed.
 
-(* XXX why is this needed for Grow_memory_typing and not for Binop_typing etc? *)
-Let Grow_memory_typing := @Grow_memory_typing host_function.
-
 Lemma grow_memory_error_0 : forall s inst ves,
   ves = [::] ->
   ~ exists C t1s t2s t1s',
@@ -1397,7 +1388,9 @@ Proof.
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
-  by apply Grow_memory_typing in Hbtype as [[|] [? [??]]].
+  (* XXX why is host_instance needed for Grow_memory_typing
+   * and not for Binop_typing etc? *)
+  by apply (Grow_memory_typing host_instance) in Hbtype as [[|] [? [??]]].
 Qed.
 
 Lemma grow_memory_error_jth : forall s f ves ves' j c,
@@ -1413,7 +1406,7 @@ Proof.
   intros s f ves ves' j c ? Hsmem ? [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
+  apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
   rewrite Hsmem' in Hsmem. injection Hsmem as Hsmem. subst j'.
   by apply Hjth.
@@ -1431,7 +1424,7 @@ Proof.
   intros s f ves ves' c ? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //.
+  apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
   by rewrite Hsmem' in Hsmem.
 Qed.
@@ -1448,7 +1441,7 @@ Proof.
   intros s inst v ves ves' Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Grow_memory_typing in Hbtype as [? [? [??]]] => //. subst t1s t2s.
+  apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //. subst t1s t2s.
   by cats1_last_eq Ht1s.
 Qed.
 
