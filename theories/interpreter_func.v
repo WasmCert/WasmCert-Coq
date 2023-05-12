@@ -1840,7 +1840,7 @@ Proof.
   by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
-Lemma error_label_rec : forall s f es ves ln les,
+Lemma label_error_rec : forall s f es ves ln les,
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       inst_typing s (f_inst f) C' /\
@@ -2455,8 +2455,7 @@ Proof.
               by apply admitted_TODO.
            ** (* RS'_error hs Herr *)
               apply RS''_error.
-              by apply admitted_TODO.
-              (* by apply error_label_rec. *)
+              by apply label_error_rec.
            ** (* RS'_break hs s f es hs' s' f' n bvs *)
               by apply admitted_TODO.
            ** (* RS'_return hs s f es hs' s' f' rvs *)
