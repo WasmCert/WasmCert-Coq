@@ -645,8 +645,8 @@ Record module : Type := {
   mod_tables : list module_table;
   mod_mems : list module_mem;
   mod_globals : list module_global;
-  mod_elem : list module_element;
-  mod_data : list module_data;
+  mod_elems : list module_element;
+  mod_datas : list module_data;
   mod_start : option module_start;
   mod_imports : list module_import;
   mod_exports : list module_export;
@@ -912,7 +912,8 @@ Definition config_tuple : Type := store_record * thread.
 Definition config_one_tuple_without_e : Type := store_record * (frame * seq value).
 
 Inductive res_crash : Type :=
-  | C_error : res_crash
+| C_error : res_crash
+| C_exhaustion: res_crash
   .
 
 Inductive res_step : Type :=
