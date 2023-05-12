@@ -112,6 +112,10 @@ Inductive res_step'_separate_e
   (hs : host_state) (s : store_record) (f : frame)
   (ves : list value) (e : administrative_instruction) : Type :=
 | RS''_exhaustion : res_step'_separate_e hs s f ves e
+(* TODO value needed? or should we get no values with separate e? trap? *)
+(* | RS'_value : *)
+(*     const_list es \/ es_is_trap es -> *)
+(*     res_step' hs s f es *)
 | RS''_error :
     (~ exists C t1s t2s t1s',
       (* XXX easier to rev LHS or RHS? *)
@@ -1806,17 +1810,18 @@ Proof.
            by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
         -- apply RS'_value.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
+        (* TODO run_one_step'' should take a proof of ~(e_is_trap e) *)
       + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
-        destruct r as [| | | |hs' s' f' res Hreduce] eqn:?.
+        destruct r as [| | | |hs' s' f' res] eqn:?.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
         -- (* RS''_error *)
            apply RS'_error.
            by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
         -- (* RS''_break *)
-           by apply (coerce_res _ r).
+           by apply (coerce_res _ r).  (* TODO *)
         -- (* RS''_return *)
-           by apply (coerce_res _ r).
+           by apply (coerce_res _ r).  (* TODO *)
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es'')>>.
            by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
@@ -2306,7 +2311,43 @@ Proof.
       by apply admitted_TODO.
 
     * (* AI_invoke a *)
-      by apply admitted_TODO.
+      destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
+      + (* Some cl *)
+        destruct cl as [i [t1s t2s] ts es | [t1s t2s] cl'] eqn:?.
+        -- (* FC_func_native i (Tf t1s t2s) ts es *)
+           remember (length t1s) as n eqn:?.
+           remember (length t2s) as m eqn:?.
+           destruct (length ves >= n) eqn:?.
+           ** (* true *)
+              destruct (split_n ves n) as [ves' ves''] eqn:?.
+              remember (n_zeros ts) as zs eqn:?.
+              apply <<hs, s, f, vs_to_es ves'' ++ [::
+                AI_local
+                m
+                (Build_frame (rev ves' ++ zs) i)
+                [::AI_basic (BI_block (Tf [::] t2s) es)]
+              ]>>'.
+              by apply admitted_TODO.
+           ** (* false *)
+              apply RS''_error. by apply admitted_TODO.
+        -- (* FC_func_host (Tf t1s t2s) cl' *)
+           remember (length t1s) as n eqn:?.
+           remember (length t2s) as m eqn:?.
+           destruct (length ves >= n) eqn:?.
+           ** (* true *)
+              destruct (split_n ves n) as [ves' ves''] eqn:?.
+              destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev ves')) as [hs' [[s' rves]|]] eqn:?.
+              ++ (* (hs', Some (s', rves)) *)
+                 apply <<hs', s', f, vs_to_es ves'' ++ (result_to_stack rves)>>'.
+                 by apply admitted_TODO.
+              ++ (* (hs', None) *)
+                 apply <<hs', s, f, vs_to_es ves ++ [::AI_invoke a]>>'.
+                 by apply admitted_TODO.
+           ** (* false *)
+              apply RS''_error. by apply admitted_TODO.
+      + (* None *)
+        apply RS''_error. by apply admitted_TODO.
+
     * (* AI_label ln les es *)
       by apply admitted_TODO.
     * (* AI_local ln lf es *)
