@@ -942,13 +942,11 @@ Lemma get_local_error_jth_none : forall s f ves j,
     e_typing s C [:: AI_basic (BI_get_local j)] (Tf t1s t2s).
 Proof.
   (* TODO rename Hitype to Hitype everywhere *)
-  intros s f ves j Hjth ? [C [C' [ret [lab [t1s [t2s [t1s' [? [? [Hitype [? Hetype]]]]]]]]]]].
+  intros s f ves j Hjth ? [C [C' [ret [lab [t1s [t2s [t1s' [? [? [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Get_local_typing host_instance) in Hbtype as [? [Hjth' [??]]].
-  apply inst_t_context_local_empty in Hitype.
-  Fail rewrite Hitype in Hjth'.
-  Fail by destruct j => //.
-Admitted. (* XXX *)
+  by apply List.nth_error_None in Hjth; lias.
+Qed.
 
 Lemma get_local_error_length : forall s f ves j,
   j >= length f.(f_locs) ->
@@ -959,12 +957,12 @@ Lemma get_local_error_length : forall s f ves j,
     store_typing s /\
     e_typing s C [:: AI_basic (BI_get_local j)] (Tf t1s t2s).
 Proof.
-  intros s f ves j Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [Hitype [? Hetype]]]]]]]]]]].
+  intros s f ves j Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [? [? Hetype]]]]]]]]]]].
+  subst C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Get_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
-  apply inst_t_context_local_empty in Hitype.
-  Fail rewrite Hitype in Hlen'. Fail by destruct j => //.
-Admitted.
+  by rewrite List.map_length in Hlen'; lias.
+Qed.
 
 Lemma reduce_set_local : forall (hs : host_state) s f f' v ves ves' j,
   ves = v :: ves' ->
@@ -1008,13 +1006,12 @@ Lemma set_local_error_length : forall (hs : host_state) s f v ves ves' j,
     store_typing s /\
     e_typing s C [:: AI_basic (BI_set_local j)] (Tf t1s t2s).
 Proof.
-  intros hs s f v ves ves' j ? Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [Hitype [? Hetype]]]]]]]]]]].
-  subst ves.
+  intros hs s f v ves ves' j ? Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [? [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Set_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
-  apply inst_t_context_local_empty in Hitype.
-  Fail rewrite Hitype in Hlen'. Fail by destruct j => //.
-Admitted.
+  by rewrite List.map_length in Hlen'; lias.
+Qed.
 
 Lemma reduce_tee_local : forall (hs : host_state) s f v ves ves' j,
   ves = v :: ves' ->
