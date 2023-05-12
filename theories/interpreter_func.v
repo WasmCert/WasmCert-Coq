@@ -1802,28 +1802,13 @@ Lemma error_label_rec : forall s f es ves ln les,
 Proof.
   intros s f es ves ln les H ret lab [C [C' [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]].
   apply Label_typing in Hetype as [t1s' [t2s' [? [? [??]]]]].
-  (* XXX should `lab` be prepended here ? *)
-  remember (lab ++ [:: t1s'] ++ tc_label C) as lab' eqn:?.
+  remember ([:: t1s'] ++ tc_label C) as lab' eqn:?.
   remember (upd_label C lab') as C'' eqn:HeqC''.
   apply H with (ret := ret) (lab := lab').
   exists C'', C', t2s'.
   repeat split => //.
-
-  {
-    assert (Hupd :
-        upd_label (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) lab'
-        = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab').
-    admit. (* XXX this is probably wrong *)
-
-    rewrite HeqC''. subst C. by rewrite Hupd.
-  }
-
-  {(* e_typing s C'' es (Tf [::] t2s') *)
-    subst C''.
-    subst lab'.
-    admit.
-  }
-Admitted.
+  by subst C C''; unfold upd_label.
+Qed.
 
 Lemma reduce_label_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln les,
   reduce hs s f es hs' s' f' es' ->
