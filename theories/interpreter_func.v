@@ -1788,6 +1788,16 @@ Proof.
   by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
+Lemma reduce_label_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln les,
+  es_is_trap es = false ->
+  const_list es = false ->
+  reduce hs s f es hs' s' f' es' ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_label ln les es])
+    hs' s' f' (vs_to_es ves ++ [:: AI_label ln les es']).
+Proof.
+Admitted.
+
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
@@ -2349,7 +2359,34 @@ Proof.
         apply RS''_error. by apply admitted_TODO.
 
     * (* AI_label ln les es *)
-      by apply admitted_TODO.
+      destruct (es_is_trap es) eqn:?.
+      + (* true *)
+        apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
+        by apply admitted_TODO.
+      + (* false *)
+        destruct (const_list es) eqn:?.
+        -- (* true *)
+           apply <<hs, s, f, vs_to_es ves ++ es>>'.
+           by apply admitted_TODO.
+        -- (* false *)
+           destruct (run_step_with_fuel'' hs s f es fuel d) as
+             [| Hv | Herr | hs' s' f' n bvs | hs' s' f' rvs | hs' s' f' es'] eqn:?.
+           ** (* RS'_exhaustion hs s f es *)
+              by apply RS''_exhaustion.
+           ** (* RS'_value hs s f Hv *)
+              (* XXX which branch did this correspond to previously? *)
+              by apply admitted_TODO.
+           ** (* RS'_error hs Herr *)
+              apply RS''_error.
+              by apply admitted_TODO.
+           ** (* RS'_break hs s f es hs' s' f' n bvs *)
+              by apply admitted_TODO.
+           ** (* RS'_return hs s f es hs' s' f' rvs *)
+              by apply admitted_TODO.
+           ** (* RS'_normal hs s f es hs' s' f' es' *)
+              apply <<hs', s', f', vs_to_es ves ++ [:: AI_label ln les es']>>'.
+              by apply reduce_label_rec.
+
     * (* AI_local ln lf es *)
       by apply admitted_TODO.
 Defined.
