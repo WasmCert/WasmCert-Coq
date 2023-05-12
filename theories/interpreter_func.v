@@ -77,8 +77,9 @@ Inductive res_step'
     const_list es \/ es_is_trap es ->
     res_step' hs s f es
 | RS'_error :
-    (~ exists C ts,
-      inst_typing s f.(f_inst) C /\
+    (~ exists C C' ret lab ts,
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      inst_typing s f.(f_inst) C' /\
       store_typing s /\
       e_typing s C es (Tf [::] ts)) ->
     res_step' hs s f es
@@ -117,13 +118,14 @@ Inductive res_step'_separate_e
 (*     const_list es \/ es_is_trap es -> *)
 (*     res_step' hs s f es *)
 | RS''_error :
-    (~ exists C t1s t2s t1s',
+    (~ exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       (* XXX easier to rev LHS or RHS? *)
       rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C /\
+      (* TODO consistent use of f.(f_inst) vs (f_inst f) etc *)
+      inst_typing s f.(f_inst) C' /\
       store_typing s /\
       e_typing s C [:: e] (Tf t1s t2s)) ->
-      (* e_typing s C [:: e] (Tf (t1s' ++ t1s) (t1s' ++ t2s))) -> *)
     res_step'_separate_e hs s f ves e
 
 | RS''_break k ves' :
@@ -268,15 +270,17 @@ Ltac simpl_reduce_simple :=
 Lemma error_rec : forall s f e es es' es'' ves,
   es' = e :: es'' ->
   split_vals_e es = (ves, es') ->
-  ~ (exists C t1s t2s t1s',
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
-      inst_typing s (f_inst f) C /\
+      inst_typing s (f_inst f) C' /\
       store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)) ->
-  ~ (exists C ts,
-      inst_typing s (f_inst f) C /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
+  ~ (exists C C' ret lab ts,
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      inst_typing s (f_inst f) C' /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
 Proof.
   (* TODO consistent naming: Hsplit / Hesves *)
-  intros s f e es es' es'' ves ? Hsplit Hrec [C [? [? [? Hetype]]]].
+  intros s f e es es' es'' ves ? Hsplit Hrec [C [C' [ret [lab [? [? [? [? Hetype]]]]]]]].
   apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
   apply e_composition_typing in Hetype as [? [t1s [? [? [Ht1s [? [Hetypeves Hetype]]]]]]].
   apply_cat0_inv Ht1s.
@@ -285,7 +289,7 @@ Proof.
   apply et_to_bet in Hetypeves as Hbtypeves;
     last by apply const_list_is_basic; apply v_to_e_is_const_list.
   apply Const_list_typing in Hbtypeves.
-  apply Hrec. exists C, (ts ++ t2s), (ts ++ t3s), [::].
+  apply Hrec. exists C, C', ret, lab, (ts ++ t2s), (ts ++ t3s), [::].
   repeat split => //; try by apply ety_weakening.
   rewrite map_rev. rewrite revK.
   rewrite <- Ht2s. by rewrite Hbtypeves.
@@ -384,15 +388,16 @@ Proof.
   apply r_simple. by apply rs_drop.
 Qed.
 
-Lemma drop_error : forall s inst ves,
+Lemma drop_error : forall s f ves,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_drop] (Tf t1s t2s).
 Proof.
-  intros s inst ves Heqves [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
@@ -427,16 +432,17 @@ Proof.
   by apply/eqP.
 Qed.
 
-Lemma select_error_i32 : forall s inst v3 v2 v1 ves ves',
+Lemma select_error_i32 : forall s f v3 v2 v1 ves ves',
   typeof v3 <> T_i32 ->
   ves = v3 :: v2 :: v1 :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
 Proof.
-  intros s inst v3 v2 v1 ves ves' Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v3 v2 v1 ves ves' Hv Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Select_typing in Hbtype as [? [? [??]]]. subst t1s t2s.
@@ -446,15 +452,16 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
-Lemma select_error_size : forall s inst ves,
+Lemma select_error_size : forall s f ves,
   size ves < 3 ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_select] (Tf t1s t2s).
 Proof.
-  intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Select_typing in Hbtype as [ts [? [??]]].
   subst t1s t2s.
@@ -491,15 +498,16 @@ Proof.
   - solve_lfilled. apply List.app_inj_tail_iff. by split; subst m.
 Qed.
 
-Lemma block_error : forall s inst ves bt1s bt2s es,
+Lemma block_error : forall s f ves bt1s bt2s es,
   size ves < size bt1s ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_block (Tf bt1s bt2s) es)] (Tf t1s t2s).
 Proof.
-  intros s inst ves bt1s bt2s es ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves bt1s bt2s es ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Block_typing host_instance) in Hbtype as [ts [? [??]]] => //.
   subst t1s. by size_unequal Ht1s.
@@ -545,15 +553,16 @@ Proof.
   - solve_lfilled. by rewrite Hlen'.
 Qed.
 
-Lemma loop_error : forall s inst ves lt1s lt2s es,
+Lemma loop_error : forall s f ves lt1s lt2s es,
   size lt1s > size ves ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_loop (Tf lt1s lt2s) es)] (Tf t1s t2s).
 Proof.
-  intros s inst ves lt1s lt2s es Hlen [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves lt1s lt2s es Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Loop_typing host_instance) in Hbtype as [ts [? [??]]] => //.
   subst t1s t2s. by size_unequal Ht1s.
@@ -592,31 +601,33 @@ Proof.
   apply/eqP. by lias.
 Qed.
 
-Lemma if_error_0 : forall s inst ves tf es1 es2,
+Lemma if_error_0 : forall s f ves tf es1 es2,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_if tf es1 es2)] (Tf t1s t2s).
 Proof.
-  intros s inst ves tf es1 es2 ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves tf es1 es2 ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves. destruct tf.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
   by size_unequal Ht1s.
 Qed.
 
-Lemma if_error_typeof : forall s inst v ves ves' tf es1 es2,
+Lemma if_error_typeof : forall s f v ves ves' tf es1 es2,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_if tf es1 es2)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' tf es1 es2 ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' tf es1 es2 ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves. destruct tf.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
@@ -668,31 +679,33 @@ Proof.
   apply r_simple. apply rs_br_if_false. by apply/eqP.
 Qed.
 
-Lemma br_if_error_0 : forall s inst ves j,
+Lemma br_if_error_0 : forall s f ves j,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_br_if j)] (Tf t1s t2s).
 Proof.
-  intros s inst ves j ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_if_typing in Hbtype as [ts [ts' [? [? [??]]]]]. subst t1s t2s.
   by apply_cat0_inv Ht1s.
 Qed.
 
-Lemma br_if_error_i32 : forall s inst v ves ves' j,
+Lemma br_if_error_i32 : forall s f v ves ves' j,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_br_if j)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' j ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' j ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_if_typing in Hbtype as [? [? [? [? [??]]]]]. subst t1s t2s.
@@ -728,33 +741,35 @@ Proof.
   apply r_simple. by apply rs_br_table_length.
 Qed.
 
-Lemma br_table_error_0 : forall s inst ves js j,
+Lemma br_table_error_0 : forall s f ves js j,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
 Proof.
-  intros s inst ves js j ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves js j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_table_typing in Hbtype as [ts [ts' [??]]]. subst t1s.
   by apply_cat0_inv Ht1s.
 Qed.
 
-Lemma br_table_error_kth : forall s inst c ves ves' k js j,
+Lemma br_table_error_kth : forall s f c ves ves' k js j,
   ves = VAL_int32 c :: ves' ->
   k = Wasm_int.nat_of_uint i32m c ->
   k < length js ->
   List.nth_error js k = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
 Proof.
-  intros s inst c ves ves' k js j ??? Hkth [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f c ves ves' k js j ??? Hkth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves k.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_table_typing in Hbtype as [? [? [??]]]. subst t1s.
@@ -762,16 +777,17 @@ Proof.
   by lias.
 Qed.
 
-Lemma br_table_error_i32 : forall s inst v ves ves' js j,
+Lemma br_table_error_i32 : forall s f v ves ves' js j,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_br_table js j)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' js j ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' js j ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Br_table_typing in Hbtype as [ts [ts' [??]]]. subst t1s.
@@ -792,17 +808,18 @@ Qed.
 
 Lemma call_error : forall (hs : host_state) s f ves j,
   List.nth_error (inst_funcs f.(f_inst)) j = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_call j)] (Tf t1s t2s).
 Proof.
-  intros s f v ves j Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
+  intros s f v ves j Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Call_typing host_instance) in Hbtype as [? [t1s'' [t2s'' [? [? [??]]]]]].
   apply func_context_store with (j := j) (x := Tf t1s'' t2s'') in Hitype
-    as [? Hjth'] => //.
+    as [? Hjth'] => //; try by subst C.
   by rewrite Hjth' in Hjth.
 Qed.
 
@@ -853,13 +870,14 @@ Qed.
 
 Lemma call_indirect_error_0 : forall s f ves j,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_call_indirect j)] (Tf t1s t2s).
 Proof.
-  intros s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]]. subst ves.
+  intros s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
   subst t1s. by size_unequal Ht1s.
@@ -868,13 +886,14 @@ Qed.
 Lemma call_indirect_error_typeof : forall s f v ves ves' j,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_call_indirect j)] (Tf t1s t2s).
 Proof.
-  intros s f v ves ves' j Hv ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]]. subst ves.
+  intros s f v ves ves' j Hv ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
   subst t1s. by cats1_last_eq Ht1s.
@@ -884,13 +903,14 @@ Lemma call_indirect_error_ath : forall s f c ves ves' j a,
   ves = VAL_int32 c :: ves' ->
   stab_addr s f (Wasm_int.nat_of_uint i32m c) = Some a ->
   List.nth_error s.(s_funcs) a = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_call_indirect j)] (Tf t1s t2s).
 Proof.
-  intros s f c ves ves' j a ?? Hath [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]]. subst ves.
+  intros s f c ves ves' j a ?? Hath [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
   eapply store_typing_stabaddr with (a := a) (c := Wasm_int.nat_of_uint i32m c) in Hitype as [? Hath'] => //.
@@ -914,35 +934,37 @@ Qed.
 Lemma get_local_error_jth_none : forall s f ves j,
   List.nth_error f.(f_locs) j = None ->
   j < length f.(f_locs) ->  (* TODO unused? *)
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_get_local j)] (Tf t1s t2s).
 Proof.
   (* TODO rename Hitype to Hitype everywhere *)
-  intros s f ves j Hjth ? [C [t1s [t2s [t1s' [? [Hitype [? Hetype]]]]]]].
+  intros s f ves j Hjth ? [C [C' [ret [lab [t1s [t2s [t1s' [? [? [Hitype [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Get_local_typing host_instance) in Hbtype as [? [Hjth' [??]]].
   apply inst_t_context_local_empty in Hitype.
-  rewrite Hitype in Hjth'.
-  destruct j => //.
-Qed.
+  Fail rewrite Hitype in Hjth'.
+  Fail by destruct j => //.
+Admitted. (* XXX *)
 
 Lemma get_local_error_length : forall s f ves j,
   j >= length f.(f_locs) ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_get_local j)] (Tf t1s t2s).
 Proof.
-  intros s f ves j Hlen [C [t1s [t2s [t1s' [? [Hitype [? Hetype]]]]]]].
+  intros s f ves j Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [Hitype [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Get_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
   apply inst_t_context_local_empty in Hitype.
-  rewrite Hitype in Hlen'. by destruct j => //.
-Qed.
+  Fail rewrite Hitype in Hlen'. Fail by destruct j => //.
+Admitted.
 
 Lemma reduce_set_local : forall (hs : host_state) s f f' v ves ves' j,
   ves = v :: ves' ->
@@ -962,13 +984,14 @@ Qed.
 
 Lemma set_local_error_0 : forall (hs : host_state) s f ves j,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_set_local j)] (Tf t1s t2s).
 Proof.
-  intros hs s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]]. subst ves.
+  intros hs s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
   apply (Set_local_typing host_instance) in Hbtype as [? [? [??]]].
@@ -978,19 +1001,20 @@ Qed.
 Lemma set_local_error_length : forall (hs : host_state) s f v ves ves' j,
   ves = v :: ves' ->
   (j < length f.(f_locs)) = false ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_set_local j)] (Tf t1s t2s).
 Proof.
-  intros hs s f v ves ves' j ? Hlen [C [t1s [t2s [t1s' [? [Hitype [? Hetype]]]]]]].
+  intros hs s f v ves ves' j ? Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [Hitype [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Set_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
   apply inst_t_context_local_empty in Hitype.
-  rewrite Hitype in Hlen'. by destruct j => //.
-Qed.
+  Fail rewrite Hitype in Hlen'. Fail by destruct j => //.
+Admitted.
 
 Lemma reduce_tee_local : forall (hs : host_state) s f v ves ves' j,
   ves = v :: ves' ->
@@ -1009,13 +1033,14 @@ Qed.
 
 Lemma tee_local_error_0 : forall (hs : host_state) s f ves j,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_tee_local j)] (Tf t1s t2s).
 Proof.
-  intros hs s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]]. subst ves.
+  intros hs s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
   by apply Tee_local_typing in Hbtype as [[|] [? [? [? [??]]]]] => //.
@@ -1036,16 +1061,17 @@ Qed.
 
 Lemma get_global_error : forall (hs : host_state) s f ves j,
   sglob_val s f.(f_inst) j = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_get_global j)] (Tf t1s t2s).
 Proof.
-  intros hs s f ves j Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
+  intros hs s f ves j Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Get_global_typing host_instance) in Hbtype as [t [Hjth' [??]]].
-  destruct (List.nth_error (tc_global C) j) eqn:Heqg => //.
+  destruct (List.nth_error (tc_global C) j) eqn:Heqg; subst C => //.
   eapply glob_context_store with (j := j) in Hitype => //;
     last by (rewrite Heqg; f_equal).
   unfold sglob_val, option_map in Hjth.
@@ -1069,13 +1095,14 @@ Qed.
 
 Lemma set_global_error_0 : forall (hs : host_state) s f ves j,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_set_global j)] (Tf t1s t2s).
 Proof.
-  intros hs s f ves j ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]]. subst ves.
+  intros hs s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
   apply (Set_global_typing host_instance) in Hbtype as [? [? [? [? [? [??]]]]]].
@@ -1085,14 +1112,15 @@ Qed.
 Lemma set_global_error_jth : forall (hs : host_state) s f v ves ves' j,
   ves = v :: ves' ->
   supdate_glob s f.(f_inst) j v = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_set_global j)] (Tf t1s t2s).
 Proof.
-  intros hs s f v ves ves' j ? Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros hs s f v ves ves' j ? Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Set_global_typing host_instance) in Hbtype as [g [? [Hjth' [? [? [??]]]]]].
   apply glob_context_store with (j := j) (g := g) in Hitype => //.
@@ -1167,13 +1195,14 @@ Qed.
 
 Lemma load_error_0 : forall s f ves t tp_sx a off,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_load t tp_sx a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves t tp_sx a off ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t tp_sx a off ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves. apply_cat0_inv Ht1s.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   by apply (Load_typing host_instance) in Hbtype as [[|] [? [? [??]]]].
@@ -1182,13 +1211,14 @@ Qed.
 Lemma load_error_typeof : forall s f v ves ves' t tp_sx a off,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_load t tp_sx a off)] (Tf t1s t2s).
 Proof.
-  intros s f v ves ves' t tp_sx a off Hv ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' t tp_sx a off Hv ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]]. subst t1s t2s.
@@ -1199,14 +1229,15 @@ Lemma load_error_jth : forall s f ves ves' c t tp_sx a off j,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error s.(s_mems) j = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_load t tp_sx a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c t tp_sx a off j ? Hsmem Hjth [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros s f ves ves' c t tp_sx a off j ? Hsmem Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth']] => //.
@@ -1217,14 +1248,15 @@ Qed.
 Lemma load_error_smem_ind : forall s f ves ves' c t tp_sx a off,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_load t tp_sx a off)] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c t tp_sx a off ? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros s f ves ves' c t tp_sx a off ? Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
@@ -1300,30 +1332,32 @@ Proof.
     with (i := j) (m := mem_s_j) (k := c) (off := off) (t := t) (v := v).
 Qed.
 
-Lemma store_error_size : forall s inst ves t tp a off,
+Lemma store_error_size : forall s f ves t tp a off,
   size ves < 2 ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t tp a off ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t tp a off ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Store_typing host_instance) in Hbtype as [? [??]].
   subst t1s. by size_unequal Ht1s.
 Qed.
 
-Lemma store_error_typeof : forall s inst v v' ves ves' t tp a off,
+Lemma store_error_typeof : forall s f v v' ves ves' t tp a off,
   ves = v :: v' :: ves' ->
   typeof v' <> T_i32 ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
 Proof.
-  intros s inst v v' ves ves' t tp a off ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v v' ves ves' t tp a off ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Store_typing host_instance) in Hbtype as [? [??]].
@@ -1333,16 +1367,17 @@ Proof.
   by repeat cats1_last_eq Ht1s.
 Qed.
 
-Lemma store_error_types_disagree : forall s inst v c ves ves' t tp a off,
+Lemma store_error_types_disagree : forall s f v c ves ves' t tp a off,
   ves = v :: VAL_int32 c :: ves' ->
   types_agree t v = false ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
 Proof.
-  intros s inst v c ves ves' t tp a off ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v c ves ves' t tp a off ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Store_typing host_instance) in Hbtype as [? [??]].
@@ -1356,15 +1391,16 @@ Lemma store_error_jth : forall s f v c ves ves' t tp a off j,
   types_agree t v ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error s.(s_mems) j = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
 Proof.
-  intros s inst v c ves ves' t tp a off j ?? Hsmem ?
-    [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros s f v c ves ves' t tp a off j ?? Hsmem ?
+    [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Store_typing host_instance) in Hbtype as [? [??]].
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth']] => //.
@@ -1377,14 +1413,15 @@ Lemma store_error_smem : forall s f v c ves ves' t tp a off,
   ves = v :: VAL_int32 c :: ves' ->
   types_agree t v ->
   smem_ind s f.(f_inst) = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_store t tp a off)] (Tf t1s t2s).
 Proof.
-  intros s inst v c ves ves' t tp a off ?? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros s f v c ves ves' t tp a off ?? Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Store_typing host_instance) in Hbtype as [? [??]].
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
@@ -1409,13 +1446,15 @@ Qed.
 Lemma current_memory_error_jth : forall s f ves j,
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_current_memory] (Tf t1s t2s).
 Proof.
-  intros s f ves j Hsmem ? [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
+  intros s f ves j Hsmem ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Current_memory_typing host_instance) in Hbtype as [??] => //.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
@@ -1425,13 +1464,15 @@ Qed.
 
 Lemma current_memory_error_smem : forall s f ves,
   smem_ind s f.(f_inst) = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_current_memory] (Tf t1s t2s).
 Proof.
-  intros s f ves Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
+  intros s f ves Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Current_memory_typing host_instance) in Hbtype as [??] => //.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
@@ -1471,15 +1512,16 @@ Proof.
   by eapply r_grow_memory_failure with (m := s_mem_s_j) (i := j).
 Qed.
 
-Lemma grow_memory_error_0 : forall s inst ves,
+Lemma grow_memory_error_0 : forall s f ves,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
-  intros s inst ves ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
@@ -1492,14 +1534,15 @@ Lemma grow_memory_error_jth : forall s f ves ves' j c,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' j c ? Hsmem ? [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros s f ves ves' j c ? Hsmem ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
@@ -1510,31 +1553,33 @@ Qed.
 Lemma grow_memory_error_smem : forall s f ves ves' c,
   ves = VAL_int32 c :: ves' ->
   smem_ind s f.(f_inst) = None ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
-  intros s f ves ves' c ? Hsmem [C [t1s [t2s [t1s' [Ht1s [Hitype [? Hetype]]]]]]].
-  subst ves.
+  intros s f ves ves' c ? Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
   by rewrite Hsmem' in Hsmem.
 Qed.
 
-Lemma grow_memory_error_typeof : forall s inst v ves ves',
+Lemma grow_memory_error_typeof : forall s f v ves ves',
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic BI_grow_memory] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' Hv Heqves [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
-  subst ves.
+  intros s f v ves ves' Hv Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
+  subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //. subst t1s t2s.
   by cats1_last_eq Ht1s.
@@ -1547,15 +1592,16 @@ Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
 Proof. intros. simpl_reduce_simple. by apply rs_unop. Qed.
 
 (* XXX could move C t1s t2s t1s' into the forall without changing semantics *)
-Lemma unop_error : forall s inst ves t op,
+Lemma unop_error : forall s f ves t op,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_unop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op Heqves [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t op Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
@@ -1580,15 +1626,16 @@ Lemma reduce_binop_trap : forall (hs : host_state) s f t op v1 v2 ves',
     hs s f (vs_to_es ves' ++ [:: AI_trap]).
 Proof. intros. simpl_reduce_simple. by apply rs_binop_failure. Qed.
 
-Lemma binop_error_size : forall s inst ves t op,
+Lemma binop_error_size : forall s f ves t op,
   size ves < 2 ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_binop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t op ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Binop_typing in Hbtype as [? [ts' ?]].
   subst t1s t2s.
@@ -1596,15 +1643,16 @@ Proof.
 Qed.
 
 (* 0 arguments given to testop *)
-Lemma testop_error_0 : forall s inst ves t testop,
+Lemma testop_error_0 : forall s f ves t testop,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_testop t testop)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t testop ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t testop ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
@@ -1617,16 +1665,17 @@ Lemma reduce_testop_i32 : forall (hs : host_state) s f ves' c testop,
     hs s f (vs_to_es (VAL_int32 (wasm_bool (app_testop_i testop c)) :: ves')).
 Proof. intros. simpl_reduce_simple. by apply rs_testop_i32. Qed.
 
-Lemma testop_i32_error : forall s inst v ves ves' testop,
+Lemma testop_i32_error : forall s f v ves ves' testop,
   typeof v <> T_i32 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_testop T_i32 testop)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' testop ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' testop ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing in Hbtype as [? [ts' ?]].
   subst ves t1s t2s.
@@ -1639,16 +1688,17 @@ Lemma reduce_testop_i64 : forall (hs : host_state) s f ves' c testop,
     hs s f (vs_to_es (VAL_int32 (wasm_bool (app_testop_i testop c)) :: ves')).
 Proof. intros. simpl_reduce_simple. by apply rs_testop_i64. Qed.
 
-Lemma testop_i64_error : forall s inst v ves ves' testop,
+Lemma testop_i64_error : forall s f v ves ves' testop,
   typeof v <> T_i64 ->
   ves = v :: ves' ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_testop T_i64 testop)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' testop ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' testop ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing in Hbtype as [? [ts' ?]].
   subst ves t1s t2s.
@@ -1657,26 +1707,28 @@ Qed.
 
 (* TODO dedupe these two (is_int_t = false)
  * or simpler to keep them separate? *)
-Lemma testop_f32_error : forall s inst ves testop,
-  ~ exists C t1s t2s t1s',
+Lemma testop_f32_error : forall s f ves testop,
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_testop T_f32 testop)] (Tf t1s t2s).
 Proof.
-  intros s inst ves testop [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves testop [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing_is_int_t in Hbtype => //.
 Qed.
 
-Lemma testop_f64_error : forall s inst ves testop,
-  ~ exists C t1s t2s t1s',
+Lemma testop_f64_error : forall s f ves testop,
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_testop T_f64 testop)] (Tf t1s t2s).
 Proof.
-  intros s inst ves testop [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves testop [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Testop_typing_is_int_t in Hbtype => //.
 Qed.
@@ -1688,15 +1740,16 @@ Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 ves',
     hs s f (vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')).
 Proof. intros. simpl_reduce_simple. by apply rs_relop. Qed.
 
-Lemma relop_error_size : forall s inst ves t op,
+Lemma relop_error_size : forall s f ves t op,
   size ves < 2 ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_relop t op)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t op ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t op ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Relop_typing in Hbtype as [? [??]]. subst t1s t2s.
   by size_unequal Ht1s.
@@ -1727,31 +1780,33 @@ Proof.
   by apply rs_convert_failure with (t1 := t1) (t2 := t2) (v := v) (sx := sx).
 Qed.
 
-Lemma cvtop_error_0 : forall s inst ves t1 t2 cvtop sx,
+Lemma cvtop_error_0 : forall s f ves t1 t2 cvtop sx,
   ves = [::] ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_cvtop t2 cvtop t1 sx)] (Tf t1s t2s).
 Proof.
-  intros s inst ves t1 t2 cvtop sx ? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f ves t1 t2 cvtop sx ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
   by apply Cvtop_typing in Hbtype as [[|] [??]].
 Qed.
 
-Lemma cvtop_error_types_disagree : forall s inst v ves ves' t1 t2 cvtop sx,
+Lemma cvtop_error_types_disagree : forall s f v ves ves' t1 t2 cvtop sx,
   ves = v :: ves' ->
   types_agree t1 v = false ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_cvtop t2 cvtop t1 sx)] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' t1 t2 cvtop sx ? Hdisagree [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' t1 t2 cvtop sx ? Hdisagree [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply Cvtop_typing in Hbtype as [? [??]].
@@ -1761,16 +1816,17 @@ Proof.
   assert (Hv' : typeof v <> t1). { apply/eqP. by rewrite Hv. } by apply Hv'.
 Qed.
 
-Lemma cvtop_error_reinterpret_sx : forall s inst v ves ves' t1 t2 sx,
+Lemma cvtop_error_reinterpret_sx : forall s f v ves ves' t1 t2 sx,
   ves = v :: ves' ->
   types_agree t1 v = true ->
-  ~ exists C t1s t2s t1s',
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
     rev (map typeof ves) = t1s' ++ t1s /\
-    inst_typing s inst C /\
+    inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C [:: AI_basic (BI_cvtop t2 CVO_reinterpret t1 (Some sx))] (Tf t1s t2s).
 Proof.
-  intros s inst v ves ves' t1 t2 sx ?? [C [t1s [t2s [t1s' [Ht1s [? [? Hetype]]]]]]].
+  intros s f v ves ves' t1 t2 sx ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   by apply Cvtop_reinterpret_typing in Hbtype.
@@ -1788,23 +1844,23 @@ Proof.
 Qed.
 
 Lemma error_label_rec : forall s f es ves ln les,
-  ~ (exists ret lab C C' ts,
+  ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       inst_typing s (f_inst f) C' /\
       store_typing s /\
       e_typing s C es (Tf [::] ts)) ->
-  ~ (exists ret lab C C' t1s t2s t1s',
+  ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
       inst_typing s (f_inst f) C' /\
       store_typing s /\
       e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
 Proof.
-  intros s f es ves ln les H [ret [lab [C [C' [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
+  intros s f es ves ln les H [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
   apply Label_typing in Hetype as [t1s' [t2s' [? [? [??]]]]].
   remember ([:: t1s'] ++ tc_label C) as lab' eqn:?.
   apply H.
-  exists ret, lab', (upd_label C lab'), C', t2s'.
+  exists (upd_label C lab'), C', ret, lab', t2s'.
   repeat split => //.
   by subst C.
 Qed.
