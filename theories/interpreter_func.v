@@ -1787,6 +1787,36 @@ Proof.
   by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
+Lemma error_label_rec : forall s f es ves ln les,
+  ~ (exists C ts,
+      inst_typing s (f_inst f) C /\
+      store_typing s /\ e_typing s C es (Tf [::] ts)) ->
+  ~ (exists C t1s t2s t1s',
+      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+          inst_typing s (f_inst f) C /\
+          store_typing s /\ e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
+Proof.
+  intros s f es ves ln les.
+  apply contra_not. (* XXX skip this? *)
+  intros [C [t1s [t2s [ts [? [Hinst [? Hetype]]]]]]].
+  apply Label_typing in Hetype as [t1s' [t2s' [? [? [??]]]]].
+  exists (upd_label C ([:: t1s'] ++ tc_label C)), t2s'.
+  repeat split => //.
+
+  (* manually applying invert_inst_typing *)
+  unfold inst_typing in Hinst.
+  unfold typing.inst_typing in Hinst.
+  destruct f.(f_inst) => //=.
+  destruct C => //=;
+  destruct tc_local => //=;
+  destruct tc_label => //=;
+  destruct tc_return => //=.
+  (* To show: false
+   * can a contradiction be shown here or did I chose the wrong C'? *)
+Admitted.
+
+Search inst_typing.
+
 Lemma reduce_label_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln les,
   reduce hs s f es hs' s' f' es' ->
   reduce
@@ -2380,7 +2410,7 @@ Proof.
               by apply admitted_TODO.
            ** (* RS'_error hs Herr *)
               apply RS''_error.
-              by apply admitted_TODO.
+              by apply error_label_rec.
            ** (* RS'_break hs s f es hs' s' f' n bvs *)
               by apply admitted_TODO.
            ** (* RS'_return hs s f es hs' s' f' rvs *)
