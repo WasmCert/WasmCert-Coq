@@ -1788,26 +1788,25 @@ Proof.
 Qed.
 
 Lemma error_label_rec : forall s f es ves ln les,
-  (forall ret lab, ~ (exists C C' ts,
+  ~ (exists ret lab C C' ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       inst_typing s (f_inst f) C' /\
       store_typing s /\
-      e_typing s C es (Tf [::] ts))) ->
-  (forall ret lab, ~ (exists C C' t1s t2s t1s',
+      e_typing s C es (Tf [::] ts)) ->
+  ~ (exists ret lab C C' t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
       inst_typing s (f_inst f) C' /\
       store_typing s /\
-      e_typing s C [:: AI_label ln les es] (Tf t1s t2s))).
+      e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
 Proof.
-  intros s f es ves ln les H ret lab [C [C' [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]].
+  intros s f es ves ln les H [ret [lab [C [C' [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
   apply Label_typing in Hetype as [t1s' [t2s' [? [? [??]]]]].
   remember ([:: t1s'] ++ tc_label C) as lab' eqn:?.
-  remember (upd_label C lab') as C'' eqn:HeqC''.
-  apply H with (ret := ret) (lab := lab').
-  exists C'', C', t2s'.
+  apply H.
+  exists ret, lab', (upd_label C lab'), C', t2s'.
   repeat split => //.
-  by subst C C''; unfold upd_label.
+  by subst C.
 Qed.
 
 Lemma reduce_label_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln les,
