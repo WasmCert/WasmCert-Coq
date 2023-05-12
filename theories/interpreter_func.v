@@ -2465,7 +2465,47 @@ Proof.
               by apply reduce_label_rec.
 
     * (* AI_local ln lf es *)
-      by apply admitted_TODO.
+      destruct (es_is_trap es) eqn:?.
+      + (* true *)
+        apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
+        by apply admitted_TODO.
+      + (* false *)
+        destruct (const_list es) eqn:?.
+        -- (* true *)
+           destruct (length es == ln) eqn:?.
+           ** (* true *)
+              apply <<hs, s, f, vs_to_es ves ++ es>>'.
+              by apply admitted_TODO.
+           ** (* false *)
+              apply RS''_error.
+              by apply admitted_TODO.
+        -- (* false *)
+           destruct (run_step_with_fuel'' hs s lf es fuel d) as
+             [| Hv | Herr | hs' s' f' n bvs | hs' s' f' rvs | hs' s' f' es'] eqn:?.
+           ** (* RS'_exhaustion hs s f es *)
+              by apply RS''_exhaustion.
+           ** (* RS'_value hs s f Hv *)
+              (* XXX which branch did this correspond to previously? *)
+              by apply admitted_TODO.
+           ** (* RS'_error hs Herr *)
+              apply RS''_error.
+              Fail by apply local_error_rec.
+              by apply admitted_TODO.  (* TODO *)
+           ** (* RS'_break hs s f es hs' s' f' n bvs *)
+              apply RS''_error.
+              by apply admitted_TODO.
+           ** (* RS'_return hs s f es hs' s' f' rvs *)
+              destruct (length rvs >= ln) eqn:?.
+              ++ (* true *)
+                 apply <<hs', s', f, vs_to_es (take ln rvs ++ ves)>>'.
+                 by apply admitted_TODO.
+              ++ (* false *)
+                 apply RS''_error.
+                 by apply admitted_TODO.
+           ** (* RS'_normal hs s f es hs' s' f' es' *)
+              apply <<hs', s', f', vs_to_es ves ++ [:: AI_local ln f' es']>>'.
+              Fail by apply reduce_local_rec.
+              by apply admitted_TODO.  (* TODO *)
 Defined.
 
 (***************************************)
