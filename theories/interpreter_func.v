@@ -1789,14 +1789,17 @@ Proof.
 Qed.
 
 Lemma reduce_label_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln les,
-  es_is_trap es = false ->
-  const_list es = false ->
   reduce hs s f es hs' s' f' es' ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_label ln les es])
     hs' s' f' (vs_to_es ves ++ [:: AI_label ln les es']).
 Proof.
-Admitted.
+  intros hs hs' s s' f f' es es' ves ln les IH.
+  eapply r_label with
+    (k := 1) (lh := (LH_rec (vs_to_es ves) ln les (LH_base [::] [::]) [::]));
+    try by solve_lfilled_0.
+  by apply IH.
+Qed.
 
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
