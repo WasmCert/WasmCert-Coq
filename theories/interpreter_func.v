@@ -1894,11 +1894,21 @@ Proof.
   (* XXX why does Coq let me choose already used names for the first few? *)
   destruct Hstype as [s lf es ret' t2s' C'' C''' Hftype HeqC'' Hetype Heqts'].
   apply H.
-  exists (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab), C''', ret', lab, t2s'.
+  exists (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab), (upd_local C''' (map typeof lf.(f_locs))), ret', lab, t2s'.
   repeat split => //.
   - by subst C''.
-  - admit.
-  - admit.
+  - unfold inst_typing in *.
+    unfold typing.inst_typing in *.
+    (* Got:  inst_typing s (f_inst f) C' *)
+    (* Goal: inst_typing s (f_inst lf) C''' *)
+    admit.
+  - subst C''.
+    destruct C'''.
+    unfold upd_label, upd_local, upd_return.
+    simpl.
+    (* Got:  e_typing s C'' es (Tf [::] t2s') *)
+    (* Goal: e_typing s (upd_label (upd_local C'' [seq typeof i | i <- f_locs lf]) lab) es (Tf [::] t2s') *)
+    admit.
 Admitted.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
