@@ -1901,6 +1901,18 @@ Proof.
   - admit.
 Admitted.
 
+Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
+  reduce hs s lf es hs' s' f' es' ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
+    hs' s' f (vs_to_es ves ++ [:: AI_local ln f' es']).
+Proof.
+  intros hs hs' s s' f f' es es' ves ln lf IH.
+  eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
+    try by solve_lfilled.
+  by apply r_local.
+Qed.
+
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
@@ -2528,9 +2540,8 @@ Proof.
                  apply RS''_error.
                  by apply admitted_TODO.
            ** (* RS'_normal hs s f es hs' s' f' es' *)
-              apply <<hs', s', f', vs_to_es ves ++ [:: AI_local ln f' es']>>'.
-              Fail by apply reduce_local_rec.
-              by apply admitted_TODO.  (* TODO *)
+              apply <<hs', s', f, vs_to_es ves ++ [:: AI_local ln f' es']>>'.
+              by apply reduce_local_rec.
 Defined.
 
 (***************************************)
