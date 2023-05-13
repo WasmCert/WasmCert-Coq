@@ -1875,6 +1875,32 @@ Proof.
   by apply IH.
 Qed.
 
+Lemma local_error_rec : forall s f es ves ln lf,
+  ~ (exists C C' ret lab ts,
+      C = upd_label (upd_local_return C' (map typeof lf.(f_locs)) ret) lab /\
+      inst_typing s lf.(f_inst) C' /\
+      store_typing s /\
+      e_typing s C es (Tf [::] ts)) ->
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+      inst_typing s f.(f_inst) C' /\
+      store_typing s /\
+      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+Proof.
+  intros s f es ves ln lf H [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
+  Check Local_typing.
+  apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
+  (* XXX why does Coq let me choose already used names for the first few? *)
+  destruct Hstype as [s lf es ret' t2s' C'' C''' Hftype HeqC'' Hetype Heqts'].
+  apply H.
+  exists (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab), C''', ret', lab, t2s'.
+  repeat split => //.
+  - by subst C''.
+  - admit.
+  - admit.
+Admitted.
+
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
 with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
@@ -2489,8 +2515,7 @@ Proof.
               by apply admitted_TODO.
            ** (* RS'_error hs Herr *)
               apply RS''_error.
-              Fail by apply local_error_rec.
-              by apply admitted_TODO.  (* TODO *)
+              by apply local_error_rec.
            ** (* RS'_break hs s f es hs' s' f' n bvs *)
               apply RS''_error.
               by apply admitted_TODO.
