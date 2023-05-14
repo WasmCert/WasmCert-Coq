@@ -228,7 +228,7 @@ Ltac if_lias :=
 Ltac size_unequal H :=
   apply (f_equal size) in H;
   revert H;
-  repeat rewrite size_cat; try rewrite size_rev; rewrite size_map; simpl; lias.
+  repeat rewrite size_cat; try rewrite size_rev; try rewrite size_map; simpl; lias.
 
 Lemma vs_to_es_cons : forall v ves,
   vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
@@ -1931,6 +1931,50 @@ Proof.
   - by apply host_application_impl_correct.
 Qed.
 
+Lemma invoke_func_native_error_n : forall s f ves cl i t1s t2s ts es a n m,
+  cl = FC_func_native i (Tf t1s t2s) ts es ->
+  List.nth_error (s_funcs s) a = Some cl ->
+  n = length t1s ->
+  m = length t2s ->
+  (n <= length ves) = false ->
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C' /\
+    store_typing s /\
+    e_typing s C [:: AI_invoke a] (Tf t1s t2s).
+Proof.
+  intros s f ves cl i t1s t2s ts es a n m ? Hcl ?? Hlen
+    [C [C' [ret [lab [t1s' [t2s' [ts' [? [Ht1s' [? [? Hetype]]]]]]]]]]].
+  subst cl n m.
+  eapply Invoke_func_native_typing in Hetype as [? [? [? [? [??]]]]] => //;
+    last by apply Hcl.
+  subst t1s'. repeat rewrite length_is_size in Hlen.
+  by size_unequal Ht1s'.
+Qed.
+
+Lemma invoke_func_host_error_n : forall s f ves cl t1s t2s cl' a n m,
+  cl = FC_func_host (Tf t1s t2s) cl' ->
+  List.nth_error (s_funcs s) a = Some cl ->
+  n = length t1s ->
+  m = length t2s ->
+  (n <= length ves) = false ->
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C' /\
+    store_typing s /\
+    e_typing s C [:: AI_invoke a] (Tf t1s t2s).
+Proof.
+  intros s f ves cl t1s t2s c' a n m ? Hcl ?? Hlen
+    [C [C' [ret [lab [t1s' [t2s' [ts' [? [Ht1s' [? [? Hetype]]]]]]]]]]].
+  subst cl n m.
+  eapply Invoke_func_host_typing in Hetype as [? [??]] => //;
+    last by apply Hcl.
+  subst t1s'. repeat rewrite length_is_size in Hlen.
+  by size_unequal Ht1s'.
+Qed.
+
 Lemma reduce_label_trap : forall (hs : host_state) s f ves ln les es,
   es_is_trap es ->
   reduce
@@ -2622,7 +2666,9 @@ Proof.
               ]>>'.
               by eapply reduce_invoke_native with (n := n) (ts := ts) (t1s := t1s).
            ** (* false *)
-              apply RS''_error. by apply admitted_TODO.
+              apply RS''_error.
+              by eapply invoke_func_native_error_n with
+                (n := n) (t1s := t1s) (t2s := t2s) (i := i) (ts := ts) (es := es).
         -- (* FC_func_host (Tf t1s t2s) cl' *)
            remember (length t1s) as n eqn:?.
            remember (length t2s) as m eqn:?.
@@ -2639,7 +2685,9 @@ Proof.
                  by eapply reduce_invoke_host_diverge with
                    (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl') (ves' := ves') (ves'' := ves'') => //.
            ** (* false *)
-              apply RS''_error. by apply admitted_TODO.
+              apply RS''_error.
+              by eapply invoke_func_host_error_n with
+                (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl').
       + (* None *)
         apply RS''_error. by apply admitted_TODO.
 
