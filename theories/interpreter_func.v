@@ -238,6 +238,8 @@ Proof.
   by apply f_equal.
 Qed.
 
+(* TODO use this in more places? might have to generalise a bit
+ * maybe leave out 'apply r_simple' *)
 Ltac simpl_reduce_simple :=
   (* TODO use some existing list ltacs instead of these initial matches? *)
   try match goal with
@@ -1840,6 +1842,29 @@ Proof.
   by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
+Lemma reduce_label_trap : forall (hs : host_state) s f ves ln les es,
+  es_is_trap es ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_label ln les es])
+    hs s f (vs_to_es ves ++ [:: AI_trap]).
+Proof.
+  intros hs s f ves ln les es Htrap.
+  move/es_is_trapP in Htrap; subst es.
+  by simpl_reduce_simple; apply rs_label_trap.
+Qed.
+
+Lemma reduce_label_const : forall (hs : host_state) s f ves ln les es,
+  const_list es ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_label ln les es])
+    hs s f (vs_to_es ves ++ es).
+Proof.
+  intros hs s f ves ln les es Htrap.
+  eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
+    try by solve_lfilled.
+  by apply r_simple; apply rs_label_const.
+Qed.
+
 Lemma label_error_rec : forall s f es ves ln les,
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -1875,6 +1900,51 @@ Proof.
   by apply IH.
 Qed.
 
+Lemma reduce_local_trap : forall (hs : host_state) s f ves ln lf es,
+  es_is_trap es ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
+    hs s f (vs_to_es ves ++ [:: AI_trap]).
+Proof.
+  intros hs s f ves ln lf es Htrap.
+  move/es_is_trapP in Htrap; subst es.
+  by simpl_reduce_simple; apply rs_local_trap.
+Qed.
+
+Lemma reduce_local_const : forall (hs : host_state) s f ves ln lf es,
+  const_list es ->
+  length es == ln ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
+    hs s f (vs_to_es ves ++ es).
+Proof.
+  intros hs s f ves ln lf es ??.
+  eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
+    try by solve_lfilled.
+  apply r_simple. by apply rs_local_const => //; apply/eqP.
+Qed.
+
+Lemma local_error_const_len : forall s f es ves ln lf,
+  const_list es ->
+  (length es == ln) = false ->
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      rev (map typeof ves) = t1s' ++ t1s /\
+      inst_typing s (f_inst f) C' /\
+      store_typing s /\
+      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+Proof.
+  intros s f es ves ln lf Hconst Hlen [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
+  apply Local_typing in Hetype as [ts' [? [Hstype Hlen']]].
+  destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
+  apply et_to_bet in Hetype as Hbtype; last by apply const_list_is_basic.
+  apply const_es_exists in Hconst as [vs ?]; subst es.
+  apply Const_list_typing in Hbtype; simpl in Hbtype; subst ts'.
+  (* XXX could this be shorter? *)
+  rewrite List.map_length in Hlen'. repeat rewrite length_is_size in Hlen, Hlen'.
+  rewrite v_to_e_size in Hlen. by move/eqP in Hlen.
+Qed.
+
 Lemma local_error_rec : forall s f es ves ln lf,
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof lf.(f_locs)) ret) lab /\
@@ -1889,12 +1959,11 @@ Lemma local_error_rec : forall s f es ves ln lf,
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
   intros s f es ves ln lf H [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
-  Check Local_typing.
   apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
   (* XXX why does Coq let me choose already used names for the first few? *)
-  destruct Hstype as [s lf es ret' t2s' C'' C''' Hftype HeqC'' Hetype Heqts'].
+  destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
   apply H.
-  exists (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab), (upd_local C''' (map typeof lf.(f_locs))), ret', lab, t2s'.
+  exists (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab), (upd_local C''' (map typeof lf.(f_locs))), ret', lab, ts'.
   repeat split => //.
   - by subst C''.
   - unfold inst_typing in *.
@@ -1906,8 +1975,8 @@ Proof.
     destruct C'''.
     unfold upd_label, upd_local, upd_return.
     simpl.
-    (* Got:  e_typing s C'' es (Tf [::] t2s') *)
-    (* Goal: e_typing s (upd_label (upd_local C'' [seq typeof i | i <- f_locs lf]) lab) es (Tf [::] t2s') *)
+    (* Got:  e_typing s C'' es (Tf [::] ts') *)
+    (* Goal: e_typing s (upd_label (upd_local C'' [seq typeof i | i <- f_locs lf]) lab) es (Tf [::] ts') *)
     admit.
 Admitted.
 
@@ -2487,12 +2556,12 @@ Proof.
       destruct (es_is_trap es) eqn:?.
       + (* true *)
         apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
-        by apply admitted_TODO.
+        by apply reduce_label_trap.
       + (* false *)
         destruct (const_list es) eqn:?.
         -- (* true *)
            apply <<hs, s, f, vs_to_es ves ++ es>>'.
-           by apply admitted_TODO.
+           by apply reduce_label_const.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s f es fuel d) as
              [| Hv | Herr | hs' s' f' n bvs | hs' s' f' rvs | hs' s' f' es'] eqn:?.
@@ -2516,17 +2585,17 @@ Proof.
       destruct (es_is_trap es) eqn:?.
       + (* true *)
         apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
-        by apply admitted_TODO.
+        by apply reduce_local_trap.
       + (* false *)
         destruct (const_list es) eqn:?.
         -- (* true *)
            destruct (length es == ln) eqn:?.
            ** (* true *)
               apply <<hs, s, f, vs_to_es ves ++ es>>'.
-              by apply admitted_TODO.
+              by apply reduce_local_const.
            ** (* false *)
               apply RS''_error.
-              by apply admitted_TODO.
+              by apply local_error_const_len.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s lf es fuel d) as
              [| Hv | Herr | hs' s' f' n bvs | hs' s' f' rvs | hs' s' f' es'] eqn:?.
