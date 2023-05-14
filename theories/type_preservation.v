@@ -1684,6 +1684,20 @@ Proof.
   by inversion HN2.
 Qed.
 
+(* TODO move this to a different file? *)
+Lemma Invoke_func_typing: forall s C a t1s t2s,
+    e_typing s C [::AI_invoke a] (Tf t1s t2s) ->
+    exists cl, List.nth_error s.(s_funcs) a = Some cl.
+Proof.
+  move => s C a t1s t2s HType.
+  et_dependent_ind HType => //.
+  - by destruct bes => //=.
+  - apply extract_list1 in Hremes. destruct Hremes. subst.
+    by eapply IHHType2 => //=.
+  - by eapply IHHType => //=.
+  - inversion Hremes; subst; by exists cl.
+Qed.
+
 Lemma Invoke_func_native_typing: forall s i C a cl tn tm ts es t1s t2s,
     e_typing s C [::AI_invoke a] (Tf t1s t2s) ->
     List.nth_error s.(s_funcs) a = Some cl ->

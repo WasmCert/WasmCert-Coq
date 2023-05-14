@@ -1975,6 +1975,21 @@ Proof.
   by size_unequal Ht1s'.
 Qed.
 
+Lemma invoke_host_error_ath : forall s f ves a,
+  List.nth_error (s_funcs s) a = None ->
+  ~ exists C C' ret lab t1s t2s t1s',
+    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+    rev (map typeof ves) = t1s' ++ t1s /\
+    inst_typing s f.(f_inst) C' /\
+    store_typing s /\
+    e_typing s C [:: AI_invoke a] (Tf t1s t2s).
+Proof.
+  intros s f ves a Hath
+    [C [C' [ret [lab [t1s' [t2s' [ts' [? [? [? [? Hetype]]]]]]]]]]].
+  apply Invoke_func_typing in Hetype as [? Hath'].
+  by rewrite Hath in Hath'.
+Qed.
+
 Lemma reduce_label_trap : forall (hs : host_state) s f ves ln les es,
   es_is_trap es ->
   reduce
@@ -2689,7 +2704,7 @@ Proof.
               by eapply invoke_func_host_error_n with
                 (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl').
       + (* None *)
-        apply RS''_error. by apply admitted_TODO.
+        apply RS''_error. by apply invoke_host_error_ath.
 
     * (* AI_label ln les es *)
       destruct (es_is_trap es) eqn:?.
