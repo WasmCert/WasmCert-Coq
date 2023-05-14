@@ -1842,6 +1842,35 @@ Proof.
   by apply rs_reinterpret with (t1 := t1) (v := v).
 Qed.
 
+Lemma reduce_invoke_native : forall (hs : host_state) s f a ves ves' ves'' n m t1s t2s cl ts i zs es,
+  n = length t1s ->
+  m = length t2s ->
+  n <= length ves ->
+  cl = FC_func_native i (Tf t1s t2s) ts es ->
+  List.nth_error s.(s_funcs) a = Some cl ->
+  split_n ves n = (ves', ves'') ->
+  zs = n_zeros ts ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_invoke a ])
+    hs s f (vs_to_es ves'' ++ [:: AI_local m (Build_frame (rev ves' ++ zs) i) [:: AI_basic (BI_block (Tf [::] t2s) es)]]).
+Proof.
+  intros hs s f a ves ves' ves'' n m t1s t2s cl ts i zs es ?? Hn ?? Hsplit ?.
+  subst n m cl zs.
+  rewrite split_n_is_take_drop in Hsplit.
+  injection Hsplit as Heqves' Heqves''.
+  replace ves with (ves' ++ ves''); last by subst ves' ves''; rewrite cat_take_drop.
+  replace (vs_to_es (ves' ++ ves'')) with (vs_to_es ves'' ++ vs_to_es ves');
+    last by unfold vs_to_es; rewrite rev_cat; rewrite v_to_e_cat.
+  eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves'') [::]);
+    try by solve_lfilled.
+  eapply r_invoke_native with (t1s := t1s) => //; try by assumption.
+  (* TODO lias to apply length_is_size aggresively? *)
+  repeat rewrite length_is_size; rewrite size_rev; subst ves'.
+  rewrite size_take; rewrite length_is_size.
+  repeat rewrite length_is_size in Hn.
+  by destruct (size t1s < size ves) eqn:?; lias.
+Qed.
+
 Lemma reduce_label_trap : forall (hs : host_state) s f ves ln les es,
   es_is_trap es ->
   reduce
@@ -2531,7 +2560,7 @@ Proof.
                 (Build_frame (rev ves' ++ zs) i)
                 [::AI_basic (BI_block (Tf [::] t2s) es)]
               ]>>'.
-              by apply admitted_TODO.
+              by eapply reduce_invoke_native with (n := n) (ts := ts) (t1s := t1s).
            ** (* false *)
               apply RS''_error. by apply admitted_TODO.
         -- (* FC_func_host (Tf t1s t2s) cl' *)
@@ -2614,6 +2643,8 @@ Proof.
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
                  apply <<hs', s', f, vs_to_es (take ln rvs ++ ves)>>'.
+                 (* XXX look at this case to figure out
+                  * what IH is needed from RS''_return *)
                  by apply admitted_TODO.
               ++ (* false *)
                  apply RS''_error.
