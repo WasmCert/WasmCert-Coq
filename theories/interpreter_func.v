@@ -2141,7 +2141,7 @@ Qed.
 
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
-with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) (H : (e_is_trap e) = false) : res_step'_separate_e hs s f ves e.
+with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) (Htrap : (e_is_trap e) = false) : res_step'_separate_e hs s f ves e.
 Proof.
   (* NOTE: not indenting the two main subgoals - XXX use {}? *)
   (* run_step_with_fuel'' *)
@@ -2658,8 +2658,7 @@ Proof.
         apply RS''_error. by eapply cvtop_error_types_disagree.
 
     * (* AI_trap *)
-      (* NOTE trap is 'terminal/value form' *)
-      by apply admitted_TODO.
+      by exfalso; discriminate Htrap.
 
     * (* AI_invoke a *)
       destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
