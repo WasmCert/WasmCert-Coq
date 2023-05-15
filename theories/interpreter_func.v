@@ -2035,6 +2035,16 @@ Proof.
   by apply r_simple; apply rs_label_const.
 Qed.
 
+Lemma const_trap_contradiction : forall es,
+  es_is_trap es = false ->
+  const_list es = false ->
+  ~ (const_list es \/ es_is_trap es).
+Proof.
+  intros es Htrap Hconst [Hconst' | Htrap'].
+  - by rewrite Hconst in Hconst'.
+  - by rewrite Htrap in Htrap'.
+Qed.
+
 Lemma label_error_rec : forall s f es ves ln les,
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -2741,8 +2751,7 @@ Proof.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
-              (* XXX which branch did this correspond to previously? *)
-              by apply admitted_TODO.
+              exfalso. by apply const_trap_contradiction with (es := es).
            ** (* RS'_error hs Herr *)
               apply RS''_error.
               by apply label_error_rec.
@@ -2775,8 +2784,7 @@ Proof.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
-              (* XXX which branch did this correspond to previously? *)
-              by apply admitted_TODO.
+              exfalso. by apply const_trap_contradiction with (es := es).
            ** (* RS'_error hs Herr *)
               apply RS''_error.
               by apply local_error_rec.
