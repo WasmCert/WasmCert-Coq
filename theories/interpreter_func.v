@@ -2106,37 +2106,26 @@ Lemma local_error_rec : forall s f es ves ln lf,
       store_typing s /\
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
-  intros s f es ves ln lf H [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
+  intros s f es ves ln lf IH [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
   apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
-  (* XXX these two destructs are acting weird
-   * - why does Coq let me rename already bound s lf es ts' ? *)
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
-  destruct Hftype as [s i ts'' C''' lf Hints' Heqi Heqts''].
+  destruct Hftype as [s i ts'' C''' lf Hitype' Heqi Heqts''].
   subst i ts''.
-  apply H.
+  apply IH.
   exists
-    (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab),
+    (upd_label (upd_local C'' (map typeof lf.(f_locs))) [::]),
     C''',
     ret',
-    lab,
+    [::],
     ts'.
-  repeat split => //.
-  - by subst C''.
-  - (* Got:  e_typing s C'' es (Tf [::] ts') *)
-    (* Goal: e_typing s (upd_label (upd_local C'' [seq typeof i | i <- f_locs lf]) lab) es (Tf [::] ts') *)
-    subst C''.
-    destruct C'''.
-    unfold upd_label; simpl. unfold upd_local; simpl. unfold upd_return; simpl.
-    unfold upd_local in Hetype. unfold upd_return in Hetype. simpl in Hetype.
-    (* XXX the contexts differ
-     * in Hetype:
-     *   tc_local := tc_local ++ [seq typeof i | i <- f_locs lf];
-     *   tc_label := tc_label;
-     * in goal:
-     *   tc_local := [seq typeof i | i <- f_locs lf];
-     *   tc_label := lab; *)
-    admit.
-Admitted.
+  subst C''; repeat split => //.
+  unfold upd_local in Hetype. unfold upd_return in Hetype. simpl in Hetype.
+  replace (tc_local C''') with ([::] : seq value_type) in Hetype;
+    last by apply inst_t_context_local_empty in Hitype'.
+  replace (tc_label C''') with ([::] : seq (seq value_type)) in Hetype;
+    last by apply inst_t_context_label_empty in Hitype'.
+  by apply Hetype.
+Qed.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
   reduce hs s lf es hs' s' f' es' ->
