@@ -2141,7 +2141,7 @@ Qed.
 
 (* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
-with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) : res_step'_separate_e hs s f ves e.
+with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) (H : (e_is_trap e) = false) : res_step'_separate_e hs s f ves e.
 Proof.
   (* NOTE: not indenting the two main subgoals - XXX use {}? *)
   (* run_step_with_fuel'' *)
@@ -2155,14 +2155,14 @@ Proof.
     * (* es' = [::] *)
       apply RS'_value. by apply value_split_0 with (ves := ves).
     * (* es' = e :: es'' *)
-      destruct (e_is_trap e) eqn:?.
+      destruct (e_is_trap e) eqn:Htrap.
       + destruct ((es'' != [::]) || (ves != [::])) eqn:?.
         -- apply <<hs, s, f, [:: AI_trap]>>.
            by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
         -- apply RS'_value.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
         (* TODO run_one_step'' should take a proof of ~(e_is_trap e) *)
-      + remember (run_one_step'' hs s f (rev ves) e fuel d) as r.
+      + remember (run_one_step'' hs s f (rev ves) e fuel d Htrap) as r.
         destruct r as [| | | |hs' s' f' res] eqn:?.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
