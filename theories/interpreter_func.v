@@ -2,7 +2,7 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Import common opsem properties tactic type_preservation type_progress.
-From Coq Require Import ZArith.BinInt.
+From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host type_checker.
 Require Import BinNat.
@@ -351,6 +351,28 @@ Proof.
   rewrite <- negb_and in Hesves. move/andP in Hesves. destruct Hesves as [Hes Hves].
   move/eqP in Hes. move/eqP in Hves. subst es'' ves.
   by destruct e.
+Qed.
+
+Lemma split_vals_e_not_const : forall e es es'' ves,
+  split_vals_e es = (ves, e :: es'') ->
+  (is_const e) = false.
+Proof.
+  intros e es es'' ves. apply contraPF. intros Hconst Hsplit.
+  assert (Hsplit' : split_vals_e es = (ves, e :: es'')). { by assumption. }
+  apply split_vals_e_v_to_e_duality in Hsplit'. subst es.
+  unfold is_const in Hconst.
+  destruct e as [b| | | |] => //. destruct b => //.
+  dependent induction ves.
+  - replace (v_to_e_list [::] ++ AI_basic (BI_const v) :: es'')
+      with (AI_basic (BI_const v) :: es'') in Hsplit;
+      last by auto.
+    simpl in Hsplit.
+    destruct (split_vals_e es'') => //.
+  - apply IHves => //.
+    simpl in Hsplit.
+    destruct (split_vals_e (v_to_e_list ves ++ AI_basic (BI_const v) :: es'')) => //.
+    injection Hsplit as ??.
+    by apply pair_equal_spec.
 Qed.
 
 (* TODO consistent lemma naming *)
@@ -2139,9 +2161,9 @@ Proof.
   by apply r_local.
 Qed.
 
-(* TODO many of the eqn:* can be removed by using partial application of RS_* *)
 Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
-with run_one_step'' hs s f ves e (fuel : fuel) (d : depth) (Htrap : (e_is_trap e) = false) : res_step'_separate_e hs s f ves e.
+with
+  run_one_step'' hs s f ves e (fuel : fuel) (d : depth) (Htrap : (e_is_trap e) = false) (Hconst : (is_const e) = false) : res_step'_separate_e hs s f ves e.
 Proof.
   (* NOTE: not indenting the two main subgoals - XXX use {}? *)
   (* run_step_with_fuel'' *)
@@ -2161,8 +2183,8 @@ Proof.
            by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
         -- apply RS'_value.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
-        (* TODO run_one_step'' should take a proof of ~(e_is_trap e) *)
-      + remember (run_one_step'' hs s f (rev ves) e fuel d Htrap) as r.
+      + remember (split_vals_e_not_const Heqes) as Hconst.
+        remember (run_one_step'' hs s f (rev ves) e fuel d Htrap Hconst) as r.
         destruct r as [| | | |hs' s' f' res] eqn:?.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
@@ -2570,8 +2592,7 @@ Proof.
         apply RS''_error. by eapply grow_memory_error_smem => //.
 
     * (* AI_basic (BI_const _) *)
-      (* XXX this won't happen if ves has been correctly split(?) *)
-      by apply admitted_TODO.
+      by exfalso.
 
     * (* AI_basic (BI_unop t op) *)
       destruct ves as [|v ves'].
@@ -2658,7 +2679,7 @@ Proof.
         apply RS''_error. by eapply cvtop_error_types_disagree.
 
     * (* AI_trap *)
-      by exfalso; discriminate Htrap.
+      by exfalso.
 
     * (* AI_invoke a *)
       destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
