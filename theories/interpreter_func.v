@@ -2108,23 +2108,33 @@ Lemma local_error_rec : forall s f es ves ln lf,
 Proof.
   intros s f es ves ln lf H [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
   apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
-  (* XXX why does Coq let me choose already used names for the first few? *)
+  (* XXX these two destructs are acting weird
+   * - why does Coq let me rename already bound s lf es ts' ? *)
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
+  destruct Hftype as [s i ts'' C''' lf Hints' Heqi Heqts''].
+  subst i ts''.
   apply H.
-  exists (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab), (upd_local C''' (map typeof lf.(f_locs))), ret', lab, ts'.
+  exists
+    (upd_label (upd_local C'' (map typeof lf.(f_locs))) lab),
+    C''',
+    ret',
+    lab,
+    ts'.
   repeat split => //.
   - by subst C''.
-  - unfold inst_typing in *.
-    unfold typing.inst_typing in *.
-    (* Got:  inst_typing s (f_inst f) C' *)
-    (* Goal: inst_typing s (f_inst lf) C''' *)
-    admit.
-  - subst C''.
-    destruct C'''.
-    unfold upd_label, upd_local, upd_return.
-    simpl.
-    (* Got:  e_typing s C'' es (Tf [::] ts') *)
+  - (* Got:  e_typing s C'' es (Tf [::] ts') *)
     (* Goal: e_typing s (upd_label (upd_local C'' [seq typeof i | i <- f_locs lf]) lab) es (Tf [::] ts') *)
+    subst C''.
+    destruct C'''.
+    unfold upd_label; simpl. unfold upd_local; simpl. unfold upd_return; simpl.
+    unfold upd_local in Hetype. unfold upd_return in Hetype. simpl in Hetype.
+    (* XXX the contexts differ
+     * in Hetype:
+     *   tc_local := tc_local ++ [seq typeof i | i <- f_locs lf];
+     *   tc_label := tc_label;
+     * in goal:
+     *   tc_local := [seq typeof i | i <- f_locs lf];
+     *   tc_label := lab; *)
     admit.
 Admitted.
 
