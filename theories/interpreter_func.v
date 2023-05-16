@@ -2110,6 +2110,30 @@ Proof.
   by apply IH.
 Qed.
 
+Lemma reduce_label_break_rec : forall (hs : host_state) s f ln les es ves bvs,
+  ln <= length bvs ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_label ln les es])
+    hs s f (vs_to_es (take ln bvs ++ ves) ++ les).
+Proof.
+  intros hs s f ln les es ves bvs Hlen.
+  unfold vs_to_es. rewrite rev_cat. rewrite <- v_to_e_cat.
+  eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
+    try by solve_lfilled.
+  apply r_simple.
+
+  assert (HLF : exists i lh,
+    lfilled i lh (v_to_e_list (rev (take ln bvs)) ++ [:: AI_basic (BI_br i)]) es).
+  { admit. } (* TODO include this in RS_break *)
+  destruct HLF as [i [lh HLF]].
+
+  apply rs_br with (i := i) (lh := lh) => //.
+  - by apply v_to_e_is_const_list.
+  - rewrite length_is_size. rewrite length_is_size in Hlen.
+    rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
+    by if_lias.
+Admitted.
+
 Lemma reduce_local_trap : forall (hs : host_state) s f ves ln lf es,
   es_is_trap es ->
   reduce
@@ -2861,7 +2885,19 @@ Proof.
               apply RS''_error.
               by apply label_error_rec.
            ** (* RS'_break hs s f es n bvs *)
-              by apply admitted_TODO.
+              destruct n as [|n].
+              ++ (* 0 *)
+                 destruct (length bvs >= ln) eqn:?.
+                 --- (* true *)
+                     apply <<hs, s, f, vs_to_es ((take ln bvs) ++ ves) ++ les>>'.
+                     by apply reduce_label_break_rec.
+                 --- (* false *)
+                     apply RS''_error.
+                     by apply admitted_TODO.
+              ++ (* n.+1 *)
+                 (* apply break(n, bvs). *)
+                 by apply admitted_TODO.
+
            ** (* RS'_return hs s f es rvs H *)
               apply RS''_return with (rvs := rvs).
               (* TODO lemma? *)
