@@ -143,8 +143,10 @@ Inductive res_step'_separate_e
 
 (* XXX oversimplified *)
 | RS''_return rvs :
-    e = AI_basic BI_return ->
-    rvs = ves -> (* redundant? *)
+    (e = AI_basic BI_return /\ rvs = ves) \/ (* redundant? *)
+    (exists ln les es i lh,
+      e = AI_label ln les es /\
+      lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
     res_step'_separate_e hs s f ves e
 (* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
@@ -305,18 +307,33 @@ Proof.
   rewrite <- Ht2s. by rewrite Hbtypeves.
 Qed.
 
-Lemma return_rec : forall es es'' ves rvs,
-  split_vals_e es = (ves, AI_basic BI_return :: es'') ->
-  rvs = rev ves ->
+(* XXX I think the AI_label case is wrong *)
+Lemma return_rec : forall e es es'' ves rvs,
+  split_vals_e es = (ves, e :: es'') ->
+  (e = AI_basic BI_return /\ rvs = rev ves) \/
+  (exists ln les es i lh,
+    e = AI_label ln les es /\
+    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
   exists i lh,
   lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es.
 Proof.
-  intros es es'' ves rvs Hsplit ?.
-  apply split_vals_e_v_to_e_duality in Hsplit.
-  subst es rvs. unfold vs_to_es. rewrite revK.
-  exists 0, (LH_base [::] es'').
-  apply/lfilledP. solve_lfilled. by rewrite <- catA.
-Qed.
+  intros e es es'' ves rvs Hsplit H.
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  destruct H as [[??] | [ln [les [es [i [lh [? HLF]]]]]]]; subst e.
+  - subst rvs. unfold vs_to_es. rewrite revK.
+    exists 0, (LH_base [::] es'').
+    apply/lfilledP. solve_lfilled. by rewrite <- catA.
+    Print lfilledInd.
+  - exists (i + 1), (LH_rec (v_to_e_list ves) ln les lh es'').
+    replace (AI_label ln les es :: es'') with ([:: AI_label ln les es] ++ es'');
+      last by rewrite cat1s.
+    (* XXX need to relate rvs and ves? *)
+    (* apply LfilledRec with (k := i) (). *)
+    (* apply/lfilledP. *)
+    (* solve_lfilled. *)
+Admitted.
+
+Check rs_return.
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
   es' = e :: es'' ->
@@ -2276,7 +2293,7 @@ Proof.
            by apply (coerce_res _ r).  (* TODO *)
         -- (* RS''_return rvs *)
            apply RS'_return with (rvs := rvs).
-           by eapply return_rec with (ves := ves) (es'' := es'') => //; subst e.
+           by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es'')>>.
            by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
@@ -2435,7 +2452,8 @@ Proof.
         by apply reduce_br_table_length with (k := k); lias.
 
     * (* AI_basic BI_return *)
-      by apply RS''_return with (rvs := ves) => //.
+      apply RS''_return with (rvs := ves).
+      by left => //. (* TODO lemma? *)
 
     * (* AI_basic (BI_call j) *)
       destruct (List.nth_error f.(f_inst).(inst_funcs) j) as [a|] eqn:?.
@@ -2818,7 +2836,7 @@ Proof.
            by apply reduce_label_const.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s f es fuel d) as
-             [| Hv | Herr | n bvs | rvs | hs' s' f' es'] eqn:?.
+             [| Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
@@ -2828,8 +2846,11 @@ Proof.
               by apply label_error_rec.
            ** (* RS'_break hs s f es n bvs *)
               by apply admitted_TODO.
-           ** (* RS'_return hs s f es rvs *)
-              by apply admitted_TODO.
+           ** (* RS'_return hs s f es rvs H *)
+              apply RS''_return with (rvs := rvs).
+              (* TODO lemma? *)
+              right. destruct H as [i [lh H]].
+              by exists ln, les, es, i, lh => //.
            ** (* RS'_normal hs s f es hs' s' f' es' *)
               apply <<hs', s', f', vs_to_es ves ++ [:: AI_label ln les es']>>'.
               by apply reduce_label_rec.
