@@ -307,7 +307,6 @@ Proof.
   rewrite <- Ht2s. by rewrite Hbtypeves.
 Qed.
 
-(* XXX I think the AI_label case is wrong *)
 Lemma return_rec : forall e es es'' ves rvs,
   split_vals_e es = (ves, e :: es'') ->
   (e = AI_basic BI_return /\ rvs = rev ves) \/
@@ -323,17 +322,10 @@ Proof.
   - subst rvs. unfold vs_to_es. rewrite revK.
     exists 0, (LH_base [::] es'').
     apply/lfilledP. solve_lfilled. by rewrite <- catA.
-    Print lfilledInd.
-  - exists (i + 1), (LH_rec (v_to_e_list ves) ln les lh es'').
-    replace (AI_label ln les es :: es'') with ([:: AI_label ln les es] ++ es'');
-      last by rewrite cat1s.
-    (* XXX need to relate rvs and ves? *)
-    (* apply LfilledRec with (k := i) (). *)
-    (* apply/lfilledP. *)
-    (* solve_lfilled. *)
-Admitted.
-
-Check rs_return.
+  - exists (i.+1), (LH_rec (v_to_e_list ves) ln les lh es'').
+    replace (AI_label ln les es :: es'') with ([:: AI_label ln les es] ++ es'') => //.
+    by apply LfilledRec => //; apply v_to_e_is_const_list.
+Qed.
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
   es' = e :: es'' ->
