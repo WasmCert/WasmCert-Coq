@@ -97,8 +97,11 @@ Inductive res_step'
 (*     terminal_form (v_to_e_list vcs ++ es) \/ *)
 (*     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'. *)
 
-| RS'_break : nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
-(* XXX this is oversimplified - only the base case for now (see rs_return_trace) *)
+| RS'_break k bvs :
+    (exists i j lh,
+      i + k = j /\
+      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
+    res_step' hs s f es
 | RS'_return rvs :
     (exists i lh, lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
     res_step' hs s f es
@@ -132,18 +135,18 @@ Inductive res_step'_separate_e
     res_step'_separate_e hs s f ves e
 
 (* TODO rename to bvs? *)
-| RS''_break k ves' :
-    forall n lh es vs0 ces,
-      lfilled k lh (vs0 ++ [::AI_basic (BI_br k)]) es ->
-      v_to_e_list ves' = rev vs0 ->
-      reduce
-        hs s f [::AI_label n ces es]
-        hs s f (drop (size vs0 - n) vs0 ++ ces) ->
-      res_step'_separate_e hs s f ves e
+(* XXX lfilled instead of lfilledInd? *)
+| RS''_break k bvs :
+    (e = AI_basic (BI_br k) /\ bvs = ves) \/
+    (exists ln les es k i j lh,
+      e = AI_label ln les es /\
+      i + k = j /\
+      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
+    res_step'_separate_e hs s f ves e
 
-(* XXX oversimplified *)
+(* XXX oversimplified (?) *)
 | RS''_return rvs :
-    (e = AI_basic BI_return /\ rvs = ves) \/ (* redundant? *)
+    (e = AI_basic BI_return /\ rvs = ves) \/ (* rvs redundant? *)
     (exists ln les es i lh,
       e = AI_label ln les es /\
       lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
@@ -159,7 +162,8 @@ Inductive res_step'_separate_e
 Notation "<< hs' , s' , f' , es' >>" := (@RS'_normal _ _ _ _ hs' s' f' es').
 Notation "<< hs' , s' , f' , es' >>'" := (@RS''_normal _ _ _ _ _ hs' s' f' es').
 (* TODO better (or none?) break notation? *)
-Notation "break( n , ves' )" := (@RS''_break _ _ _ _ _ n ves').
+Notation "break( k , bvs )" := (@RS''_break _ _ _ _ _ k bvs).
+(* TODO return notation? *)
 
 (* Using this as a TODO placeholder *)
 Axiom admitted_TODO : forall A : Type, A.
@@ -2110,29 +2114,45 @@ Proof.
   by apply IH.
 Qed.
 
-Lemma reduce_label_break_rec : forall (hs : host_state) s f ln les es ves bvs,
+Lemma reduce_label_break_rec : forall (hs : host_state) s f ln les es ves bvs i j lh,
   ln <= length bvs ->
+  (* TODO need i = j ? *)
+  lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_label ln les es])
     hs s f (vs_to_es (take ln bvs ++ ves) ++ les).
 Proof.
-  intros hs s f ln les es ves bvs Hlen.
+  intros hs s f ln les es ves bvs i j lh Hlen HLF.
+
+  assert (HLF' : exists i lh,
+    lfilled i lh (v_to_e_list (rev (take ln bvs)) ++ [:: AI_basic (BI_br i)]) es).
+  { admit. }
+  destruct HLF' as [i' [lh' HLF']].
+
   unfold vs_to_es. rewrite rev_cat. rewrite <- v_to_e_cat.
   eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
     try by solve_lfilled.
-  apply r_simple.
-
-  assert (HLF : exists i lh,
-    lfilled i lh (v_to_e_list (rev (take ln bvs)) ++ [:: AI_basic (BI_br i)]) es).
-  { admit. } (* TODO include this in RS_break *)
-  destruct HLF as [i [lh HLF]].
-
-  apply rs_br with (i := i) (lh := lh) => //.
+  apply r_simple. apply rs_br with (i := i') (lh := lh') => //.
   - by apply v_to_e_is_const_list.
   - rewrite length_is_size. rewrite length_is_size in Hlen.
     rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
     by if_lias.
 Admitted.
+
+Lemma label_break_rec : forall n ln les es bvs ves,
+  (exists i j lh,
+    i + n.+1 = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+  AI_label ln les es = AI_basic (BI_br n) /\ bvs = ves \/
+  (exists ln' les' es' k i j lh,
+    AI_label ln les es = AI_label ln' les' es' /\
+    i + k = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es').
+Proof.
+  intros n ln les es bvs ves [i [j [lh [??]]]].
+  right.
+  exists ln, les, es, (n.+1), i, j, lh => //.
+Qed.
 
 Lemma reduce_local_trap : forall (hs : host_state) s f ves ln lf es,
   es_is_trap es ->
@@ -2453,8 +2473,9 @@ Proof.
         by eapply reduce_if_true.
 
     * (* AI_basic (BI_br j) *)
-      (* apply break(j, ves'). *)
-      by apply admitted_TODO.
+      apply break(j, ves).
+      (* XXX no need for a lemma? *)
+      by left => //.
 
     * (* AI_basic (BI_br_if j) *)
       destruct ves as [|v ves'];
@@ -2876,7 +2897,7 @@ Proof.
            by apply reduce_label_const.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s f es fuel d) as
-             [| Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?.
+             [| Hv | Herr | n bvs H | rvs H | hs' s' f' es'] eqn:?.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
@@ -2890,13 +2911,15 @@ Proof.
                  destruct (length bvs >= ln) eqn:?.
                  --- (* true *)
                      apply <<hs, s, f, vs_to_es ((take ln bvs) ++ ves) ++ les>>'.
-                     by apply reduce_label_break_rec.
+                     destruct H as [i [j [lh [??]]]].
+                     by apply reduce_label_break_rec
+                       with (i := i) (j := j) (lh := lh) => //.
                  --- (* false *)
                      apply RS''_error.
                      by apply admitted_TODO.
               ++ (* n.+1 *)
-                 (* apply break(n, bvs). *)
-                 by apply admitted_TODO.
+                 apply break(n, bvs).
+                 by apply label_break_rec.
 
            ** (* RS'_return hs s f es rvs H *)
               apply RS''_return with (rvs := rvs).
