@@ -20,8 +20,6 @@ Variable host_instance : host.
 Let store_record_eq_dec := @store_record_eq_dec host_function.
 Let store_record_eqType := @store_record_eqType host_function.
 
-Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
-
 Let store_record := store_record host_function.
 Let host_state := host_state host_instance.
 
@@ -108,12 +106,6 @@ Proof.
   by eapply Forall2_lookup_lr.
 Qed.
 
-(* similar to Forall2_same_length_lookup_2
-Forall2_same_length_lookup_2:
-  ∀ (A B : Type) (P : A → B → Prop) (l : seq.seq A) (k : seq.seq B),
-    length l = length k
-    → (∀ (i : nat) (x : A) (y : B), l !! i = Some x → k !! i = Some y → P x y) → Forall2 P l k
-*)
 Lemma Forall2_lift: forall A B (R : A -> B -> Prop) (l1 : seq.seq A) (l2 : seq.seq B),
     List.length l1 = List.length l2 -> 
     (forall n m k,
@@ -542,11 +534,11 @@ Proof.
       by inversion Hext_tl.
     + simpl in *.
       specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-      destruct IHv_imps as [n Hvimp Htimp].
+      destruct IHv_imps as [n Hvimp].
       by exists (S n).
   }
   all: specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-  all: destruct IHv_imps as [n Hvimp Htimp].
+  all: destruct IHv_imps as [n Hvimp].
   all: by exists (S n).
 Qed.
 
@@ -605,11 +597,11 @@ Proof.
           by inversion Hext_tl; subst.
         + simpl in *.
           specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-          destruct IHv_imps as [n Hvimp Htimp].
+          destruct IHv_imps as [n Hvimp].
           by exists (S n).
   }
   all: specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-  all: destruct IHv_imps as [n Hvimp Htimp].
+  all: destruct IHv_imps as [n Hvimp].
   all: by exists (S n).
 Qed.
 
@@ -668,11 +660,11 @@ Proof.
           by inversion Hext_tl; subst.
         + simpl in *.
           specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-          destruct IHv_imps as [n Hvimp Htimp].
+          destruct IHv_imps as [n Hvimp].
           by exists (S n).
   }
   all: specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-  all: destruct IHv_imps as [n Hvimp Htimp].
+  all: destruct IHv_imps as [n Hvimp].
   all: by exists (S n).
 Qed.
 
@@ -733,11 +725,11 @@ Proof.
           by inversion Hext_tl; subst.
         + simpl in *.
           specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-          destruct IHv_imps as [n Hvimp Htimp].
+          destruct IHv_imps as [n Hvimp].
           by exists (S n).
   }
   all: specialize (IHv_imps l' k HR H3 Hext_vl Hext_tl).
-  all: destruct IHv_imps as [n Hvimp Htimp].
+  all: destruct IHv_imps as [n Hvimp].
   all: by exists (S n).
 Qed.
 
@@ -779,13 +771,28 @@ Proof.
   by rewrite H3.
 Qed. 
 
+Definition comp_extension_extend {T: Type} (l1 l2 l3: list T) f:
+  l2 = l1 ++ l3 ->
+  (forall l, all2 f l l) ->
+  comp_extension l1 l2 f.
+Proof.
+  move => -> Hrefl.
+  unfold comp_extension.
+  apply/andP; split; first by rewrite List.app_length; lias.
+  rewrite - firstn_is_take_n take_app.
+  by apply Hrefl.
+Qed.
+
 Lemma alloc_module_sound s s' m v_imps t_imps v_exps t_exps inst gvs hs: 
   alloc_module host_function s m v_imps gvs (s', inst, v_exps) ->
   module_typing m t_imps t_exps ->
   Forall2 (instantiation.external_typing host_function s) v_imps t_imps -> 
   instantiate_globals host_function host_instance inst hs s' m gvs -> 
   store_typing s ->
-  store_typing s'.
+  ((store_typing s' /\
+   (exists C, inst_typing s' inst C)) /\
+   store_extension s s'
+  ).  
 Proof.
   move => Halloc Hmod_typing Himp_typing Hinit_globs Hstore_typing.
   rewrite /module_typing in Hmod_typing.
@@ -846,13 +853,425 @@ Proof.
   remember (_ <$> map _ mod_tables) as s_tabs_new.
   remember ((λ '{| lim_min := min; lim_max := maxo |}, _) <$> mod_mems) as s_mems_new.
   remember (_ <$> combine mod_globals gvs) as s_globs_new.
+  
+  (* We now know the exact new store and instance *)
 
-  split.
+  remember (Build_t_context mod_types _ _ _ _ nil nil None) as C.
+  remember (Build_store_record (s_funcs0 ++ s_funcs_new)%list (s_tables0 ++ s_tabs_new)%list (s_mems0 ++ s_mems_new)%list (s_globals0 ++ s_globs_new)%list) as s_new.
+  remember (Build_instance mod_types _ _ _ _) as inst_new.
+  assert (inst_typing s_new inst_new C) as HIT.
+  {
+    destruct C.
+    destruct tc_local => //=.
+    destruct tc_label => //=.
+    destruct tc_return => //=.
+
+    inversion HeqC; subst.
+
+    specialize (external_typing_aux _ _ _ Himp_typing) as Hvimps_len.
+    destruct Hvimps_len as [Himps_func_len [Himps_glob_len [Himps_tab_len Himps_mem_len]]].
+    
+    apply/andP. split.
+    apply/andP. split.
+    apply/andP. split.
+    apply/andP. split => //=.
+
+    -- (* functions_agree *) 
+      rewrite /gen_func_instance /typing.functions_agree. simpl.
+      eapply all2_and with (g := (fun n0 f => ssrnat.leq (S n0) _)) => //.
+      assert (Hifs_len: length (map (λ '(Mk_funcidx i), i) ifs) = length mod_funcs).
+      {
+        rewrite <- gen_index_len with (offset := (length s_funcs0)).
+        by rewrite Hfunidx.
+      }
+      specialize (external_typing_aux _ _ _ Himp_typing) as Hvimps_len.
+      split.
+      ++ (* n < length fs *)
+        rewrite <- Forall2_all2. 
+        rewrite List.app_length.
+        rewrite fmap_length.
+        apply Forall_Forall2_l.
+        ** (* v_imps & t_imps *)
+          rewrite map_length.
+          repeat rewrite -> app_length.
+          rewrite Himps_func_len. f_equal.
+          replace (length ifs) with (length (map (λ '(Mk_funcidx i), i) ifs)); last by rewrite map_length.
+          rewrite Hifs_len.
+          by apply Forall2_length in HFuncType.
+        ** rewrite map_app.
+           rewrite Forall_app.
+           split.
+           *** rewrite Forall_lookup.
+               move => i n0 Hnth _.
+               
+               rewrite ->  Forall2_lookup in Himp_typing.
+               rewrite map_fmap in Hnth.
+               rewrite list_lookup_fmap in Hnth.
+               destruct (ext_funcs v_imps !! i) eqn: Hvimp => //.
+               simpl in Hnth.
+               apply ext_funcs_lookup_exist in Hvimp.
+               destruct Hvimp as [k Hvimp].
+               specialize (Himp_typing k).
+               rewrite Hvimp in Himp_typing.
+               inversion Himp_typing; subst.
+               destruct f.
+               inversion Hnth; subst.
+               inversion H1; subst.
+               simpl in H2.
+               apply/ssrnat.ltP. move/ssrnat.ltP in H2.
+               by lias.
+           *** rewrite Hfunidx.
+               rewrite Forall_lookup => n i H _.
+               apply gen_index_in in H.
+               by apply/ssrnat.ltP.
+      ++ (* cl_type *)
+        rewrite <- Forall2_all2.
+        rewrite map_app.
+        apply Forall2_app.
+        ** apply Forall2_lift; first by rewrite map_length.
+           move => i v_imp t_imp Hvimps_nth Htimps_nth.
+           apply/eqP. 
+           specialize (external_typing_funcs_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
+           rewrite <- Hext_typing.
+           f_equal.
+           apply nth_error_app1.
+           rewrite /option_map in Hext_typing.
+           destruct (nth_error s_funcs0 v_imp) eqn: Hfuncs_nth => //.
+           by eapply nth_error_Some_length.
+        ** rewrite /module_func_typing in HFuncType. simpl in HFuncType.
+           apply Forall2_lift.
+           *** (* length (map (λ '(Mk_funcidx i), i) ifs) = length fts *)
+             rewrite Hifs_len.
+             by apply Forall2_length in HFuncType.
+           *** move => i fidx ft Hidxs_nth Hfts_nth.
+               
+               specialize (nth_error_same_length_list _ _ _ _ _ _ Hifs_len Hidxs_nth) as Hfuncs_nth.
+               destruct Hfuncs_nth as [func Hfuncs_nth].
+               specialize (Forall2_nth_error _ _ _ _ _ _ _ _ HFuncType Hfuncs_nth Hfts_nth) as HFuncType_n.
+               simpl in HFuncType_n.
+               destruct func. destruct modfunc_type. destruct ft as [t1s t2s].
+               destruct HFuncType_n as [_ [Hft _]].
+               
+               rewrite Hfunidx in Hidxs_nth.
+               rewrite nth_error_lookup in Hidxs_nth.
+               rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
+               inversion Hidxs_nth; subst. clear Hidxs_nth.
+
+               rewrite nth_error_app2; last by lias.
+               replace (length s_funcs0 + i - length s_funcs0) with i; last by lias.
+
+               rewrite nth_error_lookup.
+               rewrite list_lookup_fmap.
+               rewrite nth_error_lookup in Hfuncs_nth.
+               by rewrite Hfuncs_nth.
+    -- (* globals_agree *)
+      rewrite /globals_agree.
+      eapply all2_and with (g := (fun n tg => ssrnat.leq (S n) _)) => //.
+      assert (Higs_len: length (map (λ '(Mk_globalidx i), i) igs) = length mod_globals).
+      {
+        rewrite <- gen_index_len with (offset := length s_globals0).
+        by rewrite Hglobidx.
+      }
+      assert (Hcombine_len: length (combine mod_globals gvs) = length mod_globals).
+      {
+        rewrite combine_length.
+        rewrite Hgvs_len.
+        by rewrite Nat.min_id.
+      }
+      split.
+      ++ (* n < length gs *)
+        rewrite <- Forall2_all2.
+        rewrite List.app_length.
+        rewrite fmap_length.
+        apply Forall_Forall2_l.
+        ** rewrite map_length.
+           repeat rewrite -> app_length.
+           rewrite Himps_glob_len. f_equal.
+           replace (length igs) with (length (map (λ '(Mk_globalidx i), i) igs)); last by rewrite map_length.
+           rewrite Higs_len.
+           by apply Forall2_length in HGlobType.
+        ** rewrite map_app.
+           rewrite Forall_app.
+           split.
+           *** rewrite Forall_lookup.
+               move => i n0 Hnth _.
+               
+               rewrite map_fmap in Hnth.
+               rewrite list_lookup_fmap in Hnth.
+               destruct (ext_globs v_imps !! i) eqn: Hvimp => //.
+               simpl in Hnth.
+               apply ext_globs_lookup_exist in Hvimp.
+               destruct Hvimp as [k Hvimp].
+
+               rewrite -> Forall2_lookup in Himp_typing.
+               specialize (Himp_typing k).
+               rewrite Hvimp in Himp_typing.
+               inversion Himp_typing; subst.
+               
+               destruct g.
+               inversion Hnth; subst.
+               inversion H1; subst.
+               simpl in H2.
+               apply/ssrnat.ltP. move/ssrnat.ltP in H2.
+               by lias.
+           *** rewrite Hglobidx.
+               rewrite Forall_lookup => i x H _.
+               apply gen_index_in in H.
+               rewrite Hcombine_len.
+               by apply/ssrnat.ltP.
+      ++ (* global_agree *) 
+        rewrite <- Forall2_all2 => /=.
+        rewrite map_app.
+        apply Forall2_app.
+        ** apply Forall2_lift; first by rewrite map_length.
+           move => i v_imp t_imp Hvimps_nth Htimps_nth.
+           apply/eqP.
+           specialize (external_typing_globs_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
+           rewrite <- Hext_typing.
+           f_equal.
+           apply nth_error_app1.
+           rewrite /option_map in Hext_typing.
+           destruct (nth_error s_globals0 v_imp) eqn: Hglobs_nth => //.
+           by eapply nth_error_Some_length.
+        ** rewrite /module_glob_typing in HGlobType. simpl in HGlobType.
+           apply Forall2_lift.
+           *** (* length (map (λ '(Mk_globalidx i), i) igs) = length gts *)
+             rewrite Higs_len.
+             by apply Forall2_length in HGlobType.
+           *** move => i gidx gt Hidxs_nth Hgts_nth.
+
+               specialize (nth_error_same_length_list _ _ _ _ _ _ Higs_len Hidxs_nth) as Hglobs_nth.
+               destruct Hglobs_nth as [glob Hglobs_nth].
+               specialize (Forall2_nth_error _ _ _ _ _ _ _ _ HGlobType Hglobs_nth Hgts_nth) as HGlobType_n.
+               simpl in HGlobType_n.
+               destruct glob.
+               destruct HGlobType_n as [_ [Hgt _]]. subst.
+
+               rewrite Hglobidx in Hidxs_nth.
+               rewrite nth_error_lookup in Hidxs_nth.
+               rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
+               inversion Hidxs_nth; subst. clear Hidxs_nth.
+
+               rewrite nth_error_app2; last by lias.
+               replace (length s_globals0 + i - length s_globals0) with i; last by lias.
+               
+               rewrite nth_error_lookup.
+               rewrite list_lookup_fmap.
+
+               specialize (nth_error_same_length_list _ _ _ _ _ _ (symmetry Hgvs_len) Hglobs_nth) as Hgvs_nth.
+               destruct Hgvs_nth as [gv Hgvs_nth].
+               assert (Hcombine : (combine mod_globals gvs) !! i = Some ({| modglob_type := modglob_type; modglob_init := modglob_init |}, gv)).
+               {
+                 rewrite <- nth_error_lookup.
+                 rewrite -> nth_error_nth' with (d := ({| modglob_type := modglob_type; modglob_init := modglob_init |}, gv)); last by rewrite Hcombine_len; eapply nth_error_Some_length.
+                 rewrite combine_nth => //.
+                 by repeat erewrite nth_error_nth => //. 
+               }
+               rewrite Hcombine. simpl.
+               rewrite /global_agree. simpl.
+               apply/eqP. f_equal.
+               apply/andP. split => //.
+               apply/eqP.
+               
+               rewrite /instantiate_globals in Hinit_globs. simpl in Hinit_globs.
+               rewrite -> Forall2_lookup in Hinit_globs.
+               specialize (Hinit_globs i).
+               rewrite nth_error_lookup in Hglobs_nth.
+               rewrite nth_error_lookup in Hgvs_nth.
+               rewrite Hglobs_nth in Hinit_globs.
+               rewrite Hgvs_nth in Hinit_globs.
+               inversion Hinit_globs; subst. clear Hinit_globs.
+               simpl in H1.
+               
+               rewrite -> Forall2_lookup in HGlobType.
+               specialize (HGlobType i).
+               rewrite nth_error_lookup in Hgts_nth.
+               rewrite Hgts_nth in HGlobType.
+               rewrite Hglobs_nth in HGlobType.
+               inversion HGlobType; subst. clear HGlobType.
+
+               destruct H2 as [Hconst_exprs [_ Hbe_typing]].
+               specialize (const_exprs_impl host_function host_instance _ _ _ Hconst_exprs Hbe_typing) as Hexprs.
+               clear Hconst_exprs.
+               destruct Hexprs as [expr [Hexpr Hconst]].
+               rewrite /const_expr in Hconst. simpl in Hconst.
+               rewrite -> Hexpr in *.  clear Hexpr.
+               destruct expr; simpl in * => //.
+               { (* modglob_init = [BI_get_global i0] *)
+
+                 (* [BI_get_global i0] ->* gv *)
+                 apply reduce_trans_get_global in H1.
+                 rewrite /sglob_val /sglob /sglob_ind in H1.
+                 simpl in H1.
+                 rewrite /option_map in H1.
+                 destruct (option_bind _ _) eqn: Heq1 => //.
+                 inversion H1.
+                 rewrite <- H0 in *. clear H1 H0.
+                 rewrite /option_bind in Heq1.
+                 destruct (nth_error (map _ _) i0) eqn: Heq2 => //.
+
+                 (* [BI_get_global i0] has type modglob_type *)
+                 eapply Get_global_typing in Hbe_typing => //.
+                 simpl in Hbe_typing.
+                 destruct Hbe_typing as [ty [H1 [H2 _]]].
+                 inversion H2; subst.
+                 rewrite /option_map in H1.
+                 destruct (nth_error (ext_t_globs t_imps) i0) eqn: Htl => //.
+
+                 rewrite nth_error_lookup in Heq2.
+                 rewrite map_fmap in Heq2.
+                 rewrite list_lookup_fmap in Heq2.
+                 assert (Heq3: (ext_globs v_imps ++ igs) !! i0 = ext_globs v_imps !! i0).
+                 { apply nth_error_Some_length in Htl.
+                   rewrite <- Himps_glob_len in Htl.
+                   eapply nth_error_app1 with (l' := igs) in Htl.
+                   by repeat rewrite nth_error_lookup in Htl.
+                 }
+                 replace ((ext_globs v_imps ++ igs) !! i0) with (ext_globs v_imps !! i0) in Heq2.
+                 rewrite <- list_lookup_fmap in Heq2.
+                 rewrite <- map_fmap in Heq2.
+                 rewrite <- nth_error_lookup in Heq2.
+                 specialize (external_typing_globs_aux _ _ _ _ _ _ Himp_typing Heq2 Htl) as Htyping. simpl in Htyping.
+                 rewrite /option_map in Htyping.
+                 destruct (nth_error s_globals0 g0) eqn: Heq4 => //.
+                 inversion Htyping. clear Htyping.
+                 rewrite /global_agree in H0.
+                 specialize (nth_error_Some_length _ _ _ _ Heq4) as Hg0.
+                 rewrite nth_error_lookup lookup_app_l in Heq1 => //.
+                 rewrite <- nth_error_lookup in Heq1.
+                 rewrite Heq4 in Heq1. inversion Heq1; subst.
+                 inversion H1; subst.
+                 move/andP in H0. destruct H0 as [_ H0].
+                 by move/eqP in H0.                     
+               }
+               { (* modglob_init = [BI_const v] *)
+                 apply reduce_trans_const in H1. subst.
+                 apply BI_const_typing in Hbe_typing.
+                 simpl in Hbe_typing. by inversion Hbe_typing.
+               }
+    -- (* tabi_agree *) 
+      rewrite <- Forall2_all2 => /=.
+      rewrite map_app.
+      apply Forall2_app.
+      ** apply Forall2_lift; first by rewrite map_length.
+         move => i v_imp t_imp Hvimps_nth Htimps_nth.
+         specialize (external_typing_tabs_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
+         by eapply tabi_agree_aux.
+      ** assert (Hits_len: length (map (λ '(Mk_tableidx i), i) its) = length mod_tables).
+         {
+           rewrite <- gen_index_len with (offset := length s_tables0).
+           rewrite Htabidx.
+           by rewrite map_length.
+         }
+         apply Forall2_lift.
+         *** rewrite Hits_len.
+             by rewrite map_length.
+         *** move => i tidx tt Hidxs_nth Htts_nth.
+
+             rewrite Htabidx in Hidxs_nth.
+             rewrite nth_error_lookup in Hidxs_nth.
+             rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
+             inversion Hidxs_nth; subst. clear Hidxs_nth.
+             
+             rewrite /tabi_agree.
+             apply/andP. split.
+
+             {
+               apply /ssrnat.ltP.
+               rewrite app_length.
+               apply plus_lt_compat_l.
+               rewrite fmap_length.
+               by eapply nth_error_Some_length.
+             }
+             {
+               rewrite nth_error_app2; last by lias.
+               replace (length s_tables0 + i - length s_tables0) with i; last by lias.
+
+               rewrite nth_error_lookup.
+               rewrite list_lookup_fmap.
+               rewrite <- nth_error_lookup.
+               rewrite Htts_nth.
+               
+               destruct tt. destruct tt_limits. simpl.
+               rewrite /tab_typing. simpl.
+               apply/andP. split => //=.
+               rewrite /tab_size. simpl. 
+               by rewrite repeat_length.
+             }
+    -- (* memi_agree *)
+      rewrite <- Forall2_all2 => /=.
+      rewrite map_app.
+      assert (Hims_len: length (map (λ '(Mk_memidx i), i) ims) = length mod_mems).
+      {
+        rewrite <- gen_index_len with (offset := length s_mems0).
+        by rewrite Hmemidx.
+      }
+      apply Forall2_app.
+      ** apply Forall2_lift; first by rewrite map_length.
+         move => i v_imp t_imp Hvimps_nth Htimps_nth.
+         specialize (external_typing_mems_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
+         by eapply memi_agree_aux.            
+      ** rewrite /module_mem_typing in HMemType.
+         apply Forall2_lift; first by rewrite Hims_len.
+         move => i midx mt Hidxs_nth Hmts_nth.
+
+         rewrite Hmemidx in Hidxs_nth.
+         rewrite nth_error_lookup in Hidxs_nth.
+         rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
+         inversion Hidxs_nth; subst. clear Hidxs_nth.
+
+         rewrite /memi_agree.
+         apply/andP. split.
+
+         {
+           apply /ssrnat.ltP.
+           rewrite app_length.
+           apply plus_lt_compat_l.
+           rewrite fmap_length.
+           by eapply nth_error_Some_length.
+         }
+         {
+           rewrite nth_error_app2; last by lias.
+           replace (length s_mems0 + i - length s_mems0) with i; last by lias.
+
+           rewrite nth_error_lookup.
+           rewrite list_lookup_fmap.
+           rewrite <- nth_error_lookup.
+           (* todo: nth_error (f <$> l) i = f <$> nth_error l i *)
+           rewrite Hmts_nth.
+
+           destruct mt. 
+           rewrite /mem_typing. simpl.
+           apply/andP. split => //=.
+           rewrite /mem_size /operations.mem_length /memory_list.mem_length. simpl.
+           destruct lim_min => //.
+           rewrite /page_size. simpl.
+           rewrite repeat_length.
+           rewrite positive_nat_N. 
+
+           assert (Hdiv: N.div (N.pos (64 * 1024 * p)) (N.pos (64 * 1024)) = N.pos p).
+           {
+             replace (N.pos (64 * 1024 * p)) with (N.mul (N.pos (64 * 1024)) (N.pos p)); last by simpl.
+             rewrite N.mul_comm.
+             by apply N.div_mul => //.
+           }
+           rewrite Hdiv.
+           by rewrite N.leb_refl.
+         }
+  }
+  repeat split.
+  4: {
+    exists C; destruct C; inversion HeqC; subst.
+    by apply HIT.
+  }
+
+  (* store_typing and inst_typing *)
   - (* cl_type *)
     rewrite -> List.Forall_app.
     split.
     + (* forall cl_type_check s' s_funcs0 *)
       apply List.Forall_forall => fc Hin.
+      subst.
       apply cl_type_check_single_aux.
       rewrite -> List.Forall_forall in Hcl.
       by apply Hcl.
@@ -878,6 +1297,9 @@ Proof.
         rewrite <- nth_error_lookup in Heqy.
         by exists ty.
       }
+      
+      specialize (external_typing_aux _ _ _ Himp_typing) as Hvimps_len.
+      destruct Hvimps_len as [Himps_func_len [Himps_glob_len [Himps_tab_len Himps_mem_len]]].
 
       destruct Hex_ty as [ty Hty].
       specialize (Forall2_nth_error _ _ _ _ _ n m ty HFuncType Heqm Hty) as HFuncType_n.
@@ -885,409 +1307,8 @@ Proof.
       rewrite /typing.cl_type_check_single.
       destruct ty as [t1s t2s].
       exists (Tf t1s t2s).
-      remember (Build_t_context mod_types _ _ _ _ nil nil None) as C.
 
       eapply cl_typing_native with (C := C) => //=.
-      * (* inst_typing *)
-        destruct C.
-        destruct tc_local => //=.
-        destruct tc_label => //=.
-        destruct tc_return => //=.
-
-        inversion HeqC; subst.
-        clear n m Heqm t1s t2s Hty HFuncType_n.
-
-        specialize (external_typing_aux _ _ _ Himp_typing) as Hvimps_len.
-        destruct Hvimps_len as [Himps_func_len [Himps_glob_len [Himps_tab_len Himps_mem_len]]].
-        
-        apply/andP. split.
-        apply/andP. split.
-        apply/andP. split.
-        apply/andP. split => //=.
-
-        -- (* functions_agree *) 
-           rewrite /gen_func_instance /typing.functions_agree. simpl.
-           eapply all2_and with (g := (fun n0 f => ssrnat.leq (S n0) _)) => //.
-           assert (Hifs_len: length (map (λ '(Mk_funcidx i), i) ifs) = length mod_funcs).
-           {
-             rewrite <- gen_index_len with (offset := (length s_funcs0)).
-             by rewrite Hfunidx.
-           }
-           specialize (external_typing_aux _ _ _ Himp_typing) as Hvimps_len.
-           split.
-           ++ (* n < length fs *)
-              rewrite <- Forall2_all2. 
-              rewrite List.app_length.
-              rewrite fmap_length.
-              apply Forall_Forall2_l.
-              ** (* v_imps & t_imps *)
-                 rewrite map_length.
-                 repeat rewrite -> app_length.
-                 rewrite Himps_func_len. f_equal.
-                 replace (length ifs) with (length (map (λ '(Mk_funcidx i), i) ifs)); last by rewrite map_length.
-                 rewrite Hifs_len.
-                 by apply Forall2_length in HFuncType.
-              ** rewrite map_app.
-                 rewrite Forall_app.
-                 split.
-                 *** rewrite Forall_lookup.
-                     move => i n0 Hnth _.
-                     
-                     rewrite ->  Forall2_lookup in Himp_typing.
-                     rewrite map_fmap in Hnth.
-                     rewrite list_lookup_fmap in Hnth.
-                     destruct (ext_funcs v_imps !! i) eqn: Hvimp => //.
-                     simpl in Hnth.
-                     apply ext_funcs_lookup_exist in Hvimp.
-                     destruct Hvimp as [k Hvimp].
-                     specialize (Himp_typing k).
-                     rewrite Hvimp in Himp_typing.
-                     inversion Himp_typing; subst.
-                     destruct f.
-                     inversion Hnth; subst.
-                     inversion H1; subst.
-                     simpl in H2.
-                     apply/ssrnat.ltP. move/ssrnat.ltP in H2.
-                     by lias.
-                 *** rewrite Hfunidx.
-                     rewrite Forall_lookup => n i H _.
-                     apply gen_index_in in H.
-                     by apply/ssrnat.ltP.
-           ++ (* cl_type *)
-              rewrite <- Forall2_all2.
-              rewrite map_app.
-              apply Forall2_app.
-              ** apply Forall2_lift; first by rewrite map_length.
-                 move => i v_imp t_imp Hvimps_nth Htimps_nth.
-                 apply/eqP. 
-                 specialize (external_typing_funcs_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
-                 rewrite <- Hext_typing.
-                 f_equal.
-                 apply nth_error_app1.
-                 rewrite /option_map in Hext_typing.
-                 destruct (nth_error s_funcs0 v_imp) eqn: Hfuncs_nth => //.
-                 by eapply nth_error_Some_length.
-              ** rewrite /module_func_typing in HFuncType. simpl in HFuncType.
-                 apply Forall2_lift.
-                 *** (* length (map (λ '(Mk_funcidx i), i) ifs) = length fts *)
-                     rewrite Hifs_len.
-                     by apply Forall2_length in HFuncType.
-                 *** move => i fidx ft Hidxs_nth Hfts_nth.
-                     
-                     specialize (nth_error_same_length_list _ _ _ _ _ _ Hifs_len Hidxs_nth) as Hfuncs_nth.
-                     destruct Hfuncs_nth as [func Hfuncs_nth].
-                     specialize (Forall2_nth_error _ _ _ _ _ _ _ _ HFuncType Hfuncs_nth Hfts_nth) as HFuncType_n.
-                     simpl in HFuncType_n.
-                     destruct func. destruct modfunc_type. destruct ft as [t1s t2s].
-                     destruct HFuncType_n as [_ [Hft _]].
-                     
-                     rewrite Hfunidx in Hidxs_nth.
-                     rewrite nth_error_lookup in Hidxs_nth.
-                     rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
-                     inversion Hidxs_nth; subst. clear Hidxs_nth.
-
-                     rewrite nth_error_app2; last by lias.
-                     replace (length s_funcs0 + i - length s_funcs0) with i; last by lias.
-
-                     rewrite nth_error_lookup.
-                     rewrite list_lookup_fmap.
-                     rewrite nth_error_lookup in Hfuncs_nth.
-                     by rewrite Hfuncs_nth.
-        -- (* globals_agree *)
-           rewrite /globals_agree.
-           eapply all2_and with (g := (fun n tg => ssrnat.leq (S n) _)) => //.
-           assert (Higs_len: length (map (λ '(Mk_globalidx i), i) igs) = length mod_globals).
-           {
-             rewrite <- gen_index_len with (offset := length s_globals0).
-             by rewrite Hglobidx.
-           }
-           assert (Hcombine_len: length (combine mod_globals gvs) = length mod_globals).
-           {
-             rewrite combine_length.
-             rewrite Hgvs_len.
-             by rewrite Nat.min_id.
-           }
-           split.
-           ++ (* n < length gs *)
-             rewrite <- Forall2_all2.
-             rewrite List.app_length.
-             rewrite fmap_length.
-             apply Forall_Forall2_l.
-             ** rewrite map_length.
-                repeat rewrite -> app_length.
-                rewrite Himps_glob_len. f_equal.
-                replace (length igs) with (length (map (λ '(Mk_globalidx i), i) igs)); last by rewrite map_length.
-                rewrite Higs_len.
-                by apply Forall2_length in HGlobType.
-             ** rewrite map_app.
-                rewrite Forall_app.
-                split.
-                *** rewrite Forall_lookup.
-                    move => i n0 Hnth _.
-                    
-                    rewrite map_fmap in Hnth.
-                    rewrite list_lookup_fmap in Hnth.
-                    destruct (ext_globs v_imps !! i) eqn: Hvimp => //.
-                    simpl in Hnth.
-                    apply ext_globs_lookup_exist in Hvimp.
-                    destruct Hvimp as [k Hvimp].
-
-                    rewrite -> Forall2_lookup in Himp_typing.
-                    specialize (Himp_typing k).
-                    rewrite Hvimp in Himp_typing.
-                    inversion Himp_typing; subst.
-                    
-                    destruct g.
-                    inversion Hnth; subst.
-                    inversion H1; subst.
-                    simpl in H2.
-                    apply/ssrnat.ltP. move/ssrnat.ltP in H2.
-                    by lias.
-                *** rewrite Hglobidx.
-                    rewrite Forall_lookup => i x H _.
-                    apply gen_index_in in H.
-                    rewrite Hcombine_len.
-                    by apply/ssrnat.ltP.
-           ++ (* global_agree *) 
-              rewrite <- Forall2_all2.
-              rewrite map_app.
-              apply Forall2_app.
-              ** apply Forall2_lift; first by rewrite map_length.
-                 move => i v_imp t_imp Hvimps_nth Htimps_nth.
-                 apply/eqP.
-                 specialize (external_typing_globs_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
-                 rewrite <- Hext_typing.
-                 f_equal.
-                 apply nth_error_app1.
-                 rewrite /option_map in Hext_typing.
-                 destruct (nth_error s_globals0 v_imp) eqn: Hglobs_nth => //.
-                 by eapply nth_error_Some_length.
-              ** rewrite /module_glob_typing in HGlobType. simpl in HGlobType.
-                 apply Forall2_lift.
-                 *** (* length (map (λ '(Mk_globalidx i), i) igs) = length gts *)
-                     rewrite Higs_len.
-                     by apply Forall2_length in HGlobType.
-                 *** move => i gidx gt Hidxs_nth Hgts_nth.
-
-                     specialize (nth_error_same_length_list _ _ _ _ _ _ Higs_len Hidxs_nth) as Hglobs_nth.
-                     destruct Hglobs_nth as [glob Hglobs_nth].
-                     specialize (Forall2_nth_error _ _ _ _ _ _ _ _ HGlobType Hglobs_nth Hgts_nth) as HGlobType_n.
-                     simpl in HGlobType_n.
-                     destruct glob.
-                     destruct HGlobType_n as [_ [Hgt _]]. subst.
-
-                     rewrite Hglobidx in Hidxs_nth.
-                     rewrite nth_error_lookup in Hidxs_nth.
-                     rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
-                     inversion Hidxs_nth; subst. clear Hidxs_nth.
-
-                     rewrite nth_error_app2; last by lias.
-                     replace (length s_globals0 + i - length s_globals0) with i; last by lias.
-                     
-                     rewrite nth_error_lookup.
-                     rewrite list_lookup_fmap.
-
-                     specialize (nth_error_same_length_list _ _ _ _ _ _ (symmetry Hgvs_len) Hglobs_nth) as Hgvs_nth.
-                     destruct Hgvs_nth as [gv Hgvs_nth].
-                     assert (Hcombine : (combine mod_globals gvs) !! i = Some ({| modglob_type := modglob_type; modglob_init := modglob_init |}, gv)).
-                     {
-                       rewrite <- nth_error_lookup.
-                       rewrite -> nth_error_nth' with (d := ({| modglob_type := modglob_type; modglob_init := modglob_init |}, gv)); last by rewrite Hcombine_len; eapply nth_error_Some_length.
-                       rewrite combine_nth => //.
-                       by repeat erewrite nth_error_nth => //. 
-                     }
-                     rewrite Hcombine. simpl.
-                     rewrite /global_agree. simpl.
-                     apply/eqP. f_equal.
-                     apply/andP. split => //.
-                     apply/eqP.
-                     
-                     rewrite /instantiate_globals in Hinit_globs. simpl in Hinit_globs.
-                     rewrite -> Forall2_lookup in Hinit_globs.
-                     specialize (Hinit_globs i).
-                     rewrite nth_error_lookup in Hglobs_nth.
-                     rewrite nth_error_lookup in Hgvs_nth.
-                     rewrite Hglobs_nth in Hinit_globs.
-                     rewrite Hgvs_nth in Hinit_globs.
-                     inversion Hinit_globs; subst. clear Hinit_globs.
-                     simpl in H1.
-                     
-                     rewrite -> Forall2_lookup in HGlobType.
-                     specialize (HGlobType i).
-                     rewrite nth_error_lookup in Hgts_nth.
-                     rewrite Hgts_nth in HGlobType.
-                     rewrite Hglobs_nth in HGlobType.
-                     inversion HGlobType; subst. clear HGlobType.
-
-                     destruct H2 as [Hconst_exprs [_ Hbe_typing]].
-                     specialize (const_exprs_impl host_function host_instance _ _ _ Hconst_exprs Hbe_typing) as Hexprs.
-                     clear Hconst_exprs.
-                     destruct Hexprs as [expr [Hexpr Hconst]].
-                     rewrite /const_expr in Hconst. simpl in Hconst.
-                     rewrite -> Hexpr in *.  clear Hexpr.
-                     destruct expr; simpl in * => //.
-                     { (* modglob_init = [BI_get_global i0] *)
-
-                       (* [BI_get_global i0] ->* gv *)
-                       apply reduce_trans_get_global in H1.
-                       rewrite /sglob_val /sglob /sglob_ind in H1.
-                       simpl in H1.
-                       rewrite /option_map in H1.
-                       destruct (option_bind _ _) eqn: Heq1 => //.
-                       inversion H1.
-                       rewrite <- H0 in *. clear H1 H0.
-                       rewrite /option_bind in Heq1.
-                       destruct (nth_error (map _ _) i0) eqn: Heq2 => //.
-
-                       (* [BI_get_global i0] has type modglob_type *)
-                       eapply Get_global_typing in Hbe_typing => //.
-                       simpl in Hbe_typing.
-                       destruct Hbe_typing as [ty [H1 [H2 _]]].
-                       inversion H2; subst.
-                       rewrite /option_map in H1.
-                       destruct (nth_error (ext_t_globs t_imps) i0) eqn: Htl => //.
-
-                       (* todo: create a lemma nth_error (map f l) i = f <$> l !! i*)
-                       rewrite nth_error_lookup in Heq2.
-                       rewrite map_fmap in Heq2.
-                       rewrite list_lookup_fmap in Heq2.
-                       assert (Heq3: (ext_globs v_imps ++ igs) !! i0 = ext_globs v_imps !! i0).
-                       { apply nth_error_Some_length in Htl.
-                         rewrite <- Himps_glob_len in Htl.
-                         eapply nth_error_app1 with (l' := igs) in Htl.
-                         by repeat rewrite nth_error_lookup in Htl.
-                       }
-                       replace ((ext_globs v_imps ++ igs) !! i0) with (ext_globs v_imps !! i0) in Heq2.
-                       rewrite <- list_lookup_fmap in Heq2.
-                       rewrite <- map_fmap in Heq2.
-                       rewrite <- nth_error_lookup in Heq2.
-                       specialize (external_typing_globs_aux _ _ _ _ _ _ Himp_typing Heq2 Htl) as Htyping. simpl in Htyping.
-                       rewrite /option_map in Htyping.
-                       destruct (nth_error s_globals0 g0) eqn: Heq4 => //.
-                       inversion Htyping. clear Htyping.
-                       rewrite /global_agree in H0.
-                       specialize (nth_error_Some_length _ _ _ _ Heq4) as Hg0.
-                       rewrite nth_error_lookup lookup_app_l in Heq1 => //.
-                       rewrite <- nth_error_lookup in Heq1.
-                       rewrite Heq4 in Heq1. inversion Heq1; subst.
-                       inversion H1; subst.
-                       move/andP in H0. destruct H0 as [_ H0].
-                       by move/eqP in H0.                     
-                     }
-                     { (* modglob_init = [BI_const v] *)
-                       apply reduce_trans_const in H1. subst.
-                       apply BI_const_typing in Hbe_typing.
-                       simpl in Hbe_typing. by inversion Hbe_typing.
-                     }
-        -- (* tabi_agree *) 
-           rewrite <- Forall2_all2.
-           rewrite map_app.
-           apply Forall2_app.
-           ** apply Forall2_lift; first by rewrite map_length.
-              move => i v_imp t_imp Hvimps_nth Htimps_nth.
-              specialize (external_typing_tabs_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
-              by eapply tabi_agree_aux.
-           ** assert (Hits_len: length (map (λ '(Mk_tableidx i), i) its) = length mod_tables).
-              {
-                rewrite <- gen_index_len with (offset := length s_tables0).
-                rewrite Htabidx.
-                by rewrite map_length.
-              }
-              apply Forall2_lift.
-              *** rewrite Hits_len.
-                  by rewrite map_length.
-              *** move => i tidx tt Hidxs_nth Htts_nth.
-
-                  rewrite Htabidx in Hidxs_nth.
-                  rewrite nth_error_lookup in Hidxs_nth.
-                  rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
-                  inversion Hidxs_nth; subst. clear Hidxs_nth.
-                  
-                  rewrite /tabi_agree.
-                  apply/andP. split.
-
-                  {
-                    apply /ssrnat.ltP.
-                    rewrite app_length.
-                    apply plus_lt_compat_l.
-                    rewrite fmap_length.
-                    by eapply nth_error_Some_length.
-                  }
-                  {
-                    rewrite nth_error_app2; last by lias.
-                    replace (length s_tables0 + i - length s_tables0) with i; last by lias.
-
-                    rewrite nth_error_lookup.
-                    rewrite list_lookup_fmap.
-                    rewrite <- nth_error_lookup.
-                    rewrite Htts_nth.
-                    
-                    destruct tt. destruct tt_limits. simpl.
-                    rewrite /tab_typing. simpl.
-                    apply/andP. split => //=.
-                    rewrite /tab_size. simpl. 
-                    by rewrite repeat_length.
-                  }
-        -- (* memi_agree *)
-           rewrite <- Forall2_all2.
-           rewrite map_app.
-           assert (Hims_len: length (map (λ '(Mk_memidx i), i) ims) = length mod_mems).
-           {
-             rewrite <- gen_index_len with (offset := length s_mems0).
-             by rewrite Hmemidx.
-           }
-           apply Forall2_app.
-           ** apply Forall2_lift; first by rewrite map_length.
-              move => i v_imp t_imp Hvimps_nth Htimps_nth.
-              specialize (external_typing_mems_aux _ _ _ _ _ _ Himp_typing Hvimps_nth Htimps_nth) as Hext_typing. simpl in Hext_typing.
-              by eapply memi_agree_aux.            
-           ** rewrite /module_mem_typing in HMemType.
-              apply Forall2_lift; first by rewrite Hims_len.
-              move => i midx mt Hidxs_nth Hmts_nth.
-
-              rewrite Hmemidx in Hidxs_nth.
-              rewrite nth_error_lookup in Hidxs_nth.
-              rewrite gen_index_lookup in Hidxs_nth; last by eapply nth_error_Some_length.
-              inversion Hidxs_nth; subst. clear Hidxs_nth.
-
-              rewrite /memi_agree.
-              apply/andP. split.
-
-              {
-                apply /ssrnat.ltP.
-                rewrite app_length.
-                apply plus_lt_compat_l.
-                rewrite fmap_length.
-                by eapply nth_error_Some_length.
-              }
-              {
-                rewrite nth_error_app2; last by lias.
-                replace (length s_mems0 + i - length s_mems0) with i; last by lias.
-
-                rewrite nth_error_lookup.
-                rewrite list_lookup_fmap.
-                rewrite <- nth_error_lookup.
-                (* todo: nth_error (f <$> l) i = f <$> nth_error l i *)
-                rewrite Hmts_nth.
-
-                destruct mt. 
-                rewrite /mem_typing. simpl.
-                apply/andP. split => //=.
-                rewrite /mem_size /operations.mem_length /memory_list.mem_length. simpl.
-                destruct lim_min => //.
-                rewrite /page_size. simpl.
-                rewrite repeat_length.
-                rewrite positive_nat_N. 
-
-                assert (Hdiv: N.div (N.pos (64 * 1024 * p)) (N.pos (64 * 1024)) = N.pos p).
-                {
-                  replace (N.pos (64 * 1024 * p)) with (N.mul (N.pos (64 * 1024)) (N.pos p)); last by simpl.
-                  rewrite N.mul_comm.
-                  by apply N.div_mul => //.
-                }
-                rewrite Hdiv.
-                by rewrite N.leb_refl.
-              }
       * (* the type index of function m references type (Tf t1s t2s) in mod_types *)
         rewrite /module_func_typing in HFuncType_n.
         destruct m. simpl.
@@ -1295,7 +1316,7 @@ Proof.
         destruct HFuncType_n as [_ [Hnth _]].
         move/eqP in Hnth.
         rewrite <- Hnth.
-        by inversion HeqC.
+        by subst => /=.
       * (* be_typing *)
         rewrite /module_func_typing in HFuncType_n.
         rewrite /upd_local_label_return.
@@ -1303,12 +1324,12 @@ Proof.
         destruct modfunc_type.
         destruct HFuncType_n as [_ [_ Hbe_typing]].
         by apply Hbe_typing. 
-  split.
   - (* tab_agree *)
     rewrite Forall_app.
     split.
     + (* forall tab_agree s' s_tables0 *)
       apply Forall_forall => ti Hin.
+      subst s_new.
       rewrite -> Forall_forall in Htab_agree.
       apply tab_agree_aux.
       by apply Htab_agree.
@@ -1321,6 +1342,13 @@ Proof.
       by exact Hmem_agree.
     + (* forall mem_agree s_mems_new *)
       by eapply mem_agree_from_typing.
+  - (* store_extension *)
+    subst s_new.
+    unfold store_extension => /=.
+    apply/andP; split; last by clear; eapply comp_extension_extend; eauto; apply all2_glob_extension_same.
+    apply/andP; split; last by clear; eapply comp_extension_extend; eauto; apply all2_mem_extension_same.
+    apply/andP; split; last by clear; eapply comp_extension_extend; eauto; apply all2_tab_extension_same.
+    clear; eapply comp_extension_extend; eauto; apply all2_func_extension_same.
 Qed.
 
 Lemma init_tab_preserve ws inst e_inits melem ws':
@@ -2030,14 +2058,14 @@ Proof.
       by apply gen_index_in in H.  
 Qed.
 
-Lemma instantiation_sound_simpl:  forall (s: store_record) m v_imps s' inst v_exps start,
+Lemma instantiation_sound:  forall (s: store_record) m v_imps s' inst v_exps start,
   store_typing s ->
   instantiate s m v_imps ((s', inst, v_exps), start) ->
-  (store_typing s').
-  (* (exists C, inst_typing s' inst C) /\
+  (store_typing s') /\
+  (exists C, inst_typing s' inst C) /\
   (exists tes, ext_typing_list s' v_exps tes) /\
-  (pred_option (fun i => i < length s'.(s_funcs)) start).*)
-  (* /\ store_extension s s' *)
+  (pred_option (fun i => Nat.ltb i (length s'.(s_funcs))) start)
+  /\ store_extension s s'.
 Proof.
   move => s m v_imps s' inst v_exps start HStoreType HInst.
 

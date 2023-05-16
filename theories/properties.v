@@ -27,6 +27,12 @@ Let e_is_trap := @e_is_trap host_function.
 Let es_is_trap := @es_is_trap host_function.*)
 
 
+Lemma length_is_size: forall {X:Type} (l: list X),
+    length l = size l.
+Proof.
+  move => X l. by elim: l.
+Qed.
+
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
@@ -130,7 +136,6 @@ Proof.
 Qed.
 
 
-(* Check with Martin for split_n: it's just take+drop *)
 Lemma split_n_is_take_drop: forall es n,
     split_n es n = (take n es, drop n es).
 Proof.
@@ -140,7 +145,6 @@ Proof.
     + by rewrite IH.
 Qed.
 
-(* Ask Martin *)
 Lemma update_list_at_is_set_nth: forall {X:Type} (l:list X) n x,
     n < size l ->
     set_nth x l n x = update_list_at l n x.
@@ -150,16 +154,22 @@ Proof.
   unfold update_list_at. simpl. f_equal. by apply IH.
 Qed.
 
-(* Check with Martin: size is the standard function used in ssreflect.seq; should we
-   change all occurrences of length to size instead? *)
-Lemma length_is_size: forall {X:Type} (l: list X),
-    length l = size l.
+Lemma update_list_at_length {T: Type} (l: list T) (x: T) n:
+  n < length l ->
+  length (update_list_at l n x) = length l.
 Proof.
-  move => X l. by elim: l.
+  move => Hlen.
+  unfold update_list_at.
+  repeat rewrite List.app_length => /=.
+  rewrite List.skipn_length.
+  repeat rewrite length_is_size.
+  rewrite size_take.
+  repeat rewrite -length_is_size.
+  rewrite Hlen.
+  by lias.
 Qed.
 
-(* Very interestingly, the following lemma has EXACTLY the same proof as the
-   lemma split_n_is_take_drop, although they are not related at all! *)
+
 Lemma v_to_e_take_exchange: forall vs n,
     v_to_e_list (take n vs) = take n (v_to_e_list vs).
 Proof.
@@ -679,6 +689,47 @@ Proof.
     eapply IHn; by eauto.
 Qed.
 
+Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
+    size l1 = size l2 ->
+    (forall n x y, List.nth_error l1 n = Some x ->
+          List.nth_error l2 n = Some y ->
+          f x y) ->
+    all2 f l1 l2.
+Proof.
+  move => X Y f l1.
+  induction l1; move => l2; destruct l2 => //=.
+  move => Hsize Hf.
+  apply/andP; split.
+  { specialize (Hf 0 a y); simpl in *; by apply Hf. }
+  { apply IHl1; first by lias.
+    move => n x1 y1 Hnl1 Hnl2.
+    specialize (Hf (n.+1) x1 y1).
+    by apply Hf.
+  }
+Qed.
+
+Lemma all2_weaken {T1 T2: Type} (l1: list T1) (l2: list T2) (f1 f2: T1 -> T2 -> bool):
+  (forall x y, f1 x y -> f2 x y) ->
+  all2 f1 l1 l2 ->
+  all2 f2 l1 l2.
+Proof.
+  move => Himpl Hall2.
+  apply all2_spec; first by apply all2_size in Hall2.
+  move => n x y Hn1 Hn2.
+  apply Himpl.
+  by apply (all2_projection Hall2 Hn1 Hn2).
+Qed.
+
+Lemma nth_error_take {T: Type} (l: list T) (x: T) (k n: nat):
+  List.nth_error l n = Some x ->
+  n < k ->
+  List.nth_error (take k l) n = Some x.
+Proof.
+  move: x k n.
+  induction l; move => x k n Hnth Hlt; destruct n, k => //=.
+  by apply IHl.
+Qed.
+ 
 Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
   forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
 
