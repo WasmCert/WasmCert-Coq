@@ -135,6 +135,7 @@ Inductive res_step'_separate_e
       e_typing s C [:: e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
 
+(* TODO rename to bvs? *)
 | RS''_break k ves' :
     forall n lh es vs0 ces,
       lfilled k lh (vs0 ++ [::AI_basic (BI_br k)]) es ->
@@ -144,8 +145,11 @@ Inductive res_step'_separate_e
         hs s f (drop (size vs0 - n) vs0 ++ ces) ->
       res_step'_separate_e hs s f ves e
 
-(* TODO rename to rvs? *)
-| RS''_return (ves' : list value) : False -> res_step'_separate_e hs s f ves e
+(* XXX oversimplified *)
+| RS''_return rvs :
+    e = AI_basic BI_return ->
+    rvs = ves -> (* redundant? *)
+    res_step'_separate_e hs s f ves e
 (* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
     reduce hs s f ((vs_to_es ves) ++ [:: e]) hs' s' f' es' ->
@@ -2253,7 +2257,7 @@ Proof.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
       + remember (split_vals_e_not_const Heqes) as Hconst.
         remember (run_one_step'' hs s f (rev ves) e fuel d Htrap Hconst) as r.
-        destruct r as [| | | |hs' s' f' res] eqn:?.
+        destruct r as [| | |rvs|hs' s' f' res] eqn:?.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
         -- (* RS''_error *)
@@ -2261,8 +2265,11 @@ Proof.
            by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
         -- (* RS''_break *)
            by apply (coerce_res _ r).  (* TODO *)
-        -- (* RS''_return *)
-           by apply (coerce_res _ r).  (* TODO *)
+        -- (* RS''_return rvs *)
+           apply RS'_return with (rvs := rvs).
+           (* TODO move this out into a lemma? *)
+           exists e, es', es'', ves.
+           by repeat split; subst es' rvs => //; rewrite revK.
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es'')>>.
            by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
@@ -2421,8 +2428,7 @@ Proof.
         by apply reduce_br_table_length with (k := k); lias.
 
     * (* AI_basic BI_return *)
-      apply (RS''_return _ _ _ _ _ ves).
-      by apply admitted_TODO.
+      by apply RS''_return with (rvs := ves) => //.
 
     * (* AI_basic (BI_call j) *)
       destruct (List.nth_error f.(f_inst).(inst_funcs) j) as [a|] eqn:?.
