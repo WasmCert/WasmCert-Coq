@@ -98,7 +98,14 @@ Inductive res_step'
 (*     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'. *)
 
 | RS'_break : nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
-| RS'_return : list value -> res_step' hs s f es (* TODO needs some reduce proof *)
+(* XXX this is oversimplified - only the base case for now (see rs_return_trace) *)
+| RS'_return rvs :
+    (exists e es' es'' ves,
+      (ves, es') = split_vals_e es /\
+      es' = e :: es'' /\
+      e = AI_basic BI_return /\
+      ves = rev rvs) ->
+    res_step' hs s f es
 | RS'_normal hs' s' f' es' :
     reduce hs s f es hs' s' f' es' ->
     res_step' hs s f es.
@@ -2180,6 +2187,7 @@ Proof.
     by lias.
 Qed.
 
+(* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
 Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln i es lh,
   ln <= length rvs ->
   lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es ->
@@ -2830,7 +2838,7 @@ Proof.
               by apply local_error_const_len.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s lf es fuel d) as
-             [| Hv | Herr | n bvs | rvs | hs' s' f' es'] eqn:?.
+             [| Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
@@ -2841,15 +2849,23 @@ Proof.
            ** (* RS'_break hs s f es n bvs *)
               apply RS''_error.
               by apply admitted_TODO.
-           ** (* RS'_return hs s f es rvs *)
+           ** (* RS'_return hs s f es rvs H *)
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
                  apply <<hs, s, f, vs_to_es (take ln rvs ++ ves)>>'.
-                 (* TODO need this from RS'_return *)
-                 assert (exists i lh,
-                   lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es
-                 ). { by apply admitted_TODO. }
-                 destruct H as [i [lh H]].
+                 destruct H as [e [es' [es'' [ves' [Hsplit [? [??]]]]]]].
+                 (* TODO move this out into the lemma *)
+                 assert (HLF: exists i lh,
+                   lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es).
+                 {
+                   destruct Heqr.
+                   symmetry in Hsplit. apply split_vals_e_v_to_e_duality in Hsplit.
+                   subst e es es' ves'.
+                   unfold vs_to_es.
+                   exists 0, (LH_base [::] es'').
+                   by solve_lfilled; rewrite <- catA.
+                 }
+                 destruct HLF as [i [lh HLF]].
                  by apply reduce_local_return_rec with (i := i) (lh := lh) => //.
               ++ (* false *)
                  apply RS''_error.
