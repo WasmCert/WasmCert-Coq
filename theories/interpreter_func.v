@@ -100,11 +100,7 @@ Inductive res_step'
 | RS'_break : nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 (* XXX this is oversimplified - only the base case for now (see rs_return_trace) *)
 | RS'_return rvs :
-    (exists e es' es'' ves,
-      (ves, es') = split_vals_e es /\
-      es' = e :: es'' /\
-      e = AI_basic BI_return /\
-      ves = rev rvs) ->
+    (exists i lh, lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
     res_step' hs s f es
 | RS'_normal hs' s' f' es' :
     reduce hs s f es hs' s' f' es' ->
@@ -307,6 +303,19 @@ Proof.
   repeat split => //; try by apply ety_weakening.
   rewrite map_rev. rewrite revK.
   rewrite <- Ht2s. by rewrite Hbtypeves.
+Qed.
+
+Lemma return_rec : forall es es'' ves rvs,
+  split_vals_e es = (ves, AI_basic BI_return :: es'') ->
+  rvs = rev ves ->
+  exists i lh,
+  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es.
+Proof.
+  intros es es'' ves rvs Hsplit ?.
+  apply split_vals_e_v_to_e_duality in Hsplit.
+  subst es rvs. unfold vs_to_es. rewrite revK.
+  exists 0, (LH_base [::] es'').
+  apply/lfilledP. solve_lfilled. by rewrite <- catA.
 Qed.
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
@@ -2195,27 +2204,12 @@ Qed.
 Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln es,
   ln <= length rvs ->
   (* XXX this is going to get more complicated when RS_return is corrected *)
-  (exists e es' es'' ves,
-    (ves, es') = split_vals_e es /\
-    es' = e :: es'' /\
-    e = AI_basic BI_return /\
-    ves = rev rvs) ->
+  (exists i lh, lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
     hs s f (vs_to_es (take ln rvs ++ ves)).
 Proof.
-  intros hs s f lf rvs ves ln es Hlen Hret.
-
-  assert (HLF: exists i lh,
-    lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es).
-  {
-    destruct Hret as [e [es' [es'' [ves' [Hsplit [? [??]]]]]]].
-    symmetry in Hsplit. apply split_vals_e_v_to_e_duality in Hsplit.
-    subst e es es' ves'.
-    exists 0, (LH_base [::] es'').
-    by solve_lfilled; rewrite <- catA.
-  }
-  destruct HLF as [i [lh HLF]].
+  intros hs s f lf rvs ves ln es Hlen [i [lh HLF]].
 
   eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
     try by solve_lfilled.
@@ -2226,7 +2220,6 @@ Proof.
     rewrite v_to_e_size. rewrite size_rev. rewrite size_take. by if_lias.
   }
 
-  move/lfilledP in HLF.
   apply lfilled_take_v_to_e with (n := ln) in HLF as [lh' HLF];
     last by rewrite length_is_size in Hlen.
 
@@ -2283,9 +2276,7 @@ Proof.
            by apply (coerce_res _ r).  (* TODO *)
         -- (* RS''_return rvs *)
            apply RS'_return with (rvs := rvs).
-           (* TODO move this out into a lemma? *)
-           exists e, es', es'', ves.
-           by repeat split; subst es' rvs => //; rewrite revK.
+           by eapply return_rec with (ves := ves) (es'' := es'') => //; subst e.
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es'')>>.
            by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
