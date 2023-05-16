@@ -2192,14 +2192,31 @@ Proof.
 Qed.
 
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
-Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln i es lh,
+Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln es,
   ln <= length rvs ->
-  lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es ->
+  (* XXX this is going to get more complicated when RS_return is corrected *)
+  (exists e es' es'' ves,
+    (ves, es') = split_vals_e es /\
+    es' = e :: es'' /\
+    e = AI_basic BI_return /\
+    ves = rev rvs) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
     hs s f (vs_to_es (take ln rvs ++ ves)).
 Proof.
-  intros hs s f lf rvs ves ln i es lh Hlen HLF.
+  intros hs s f lf rvs ves ln es Hlen Hret.
+
+  assert (HLF: exists i lh,
+    lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es).
+  {
+    destruct Hret as [e [es' [es'' [ves' [Hsplit [? [??]]]]]]].
+    symmetry in Hsplit. apply split_vals_e_v_to_e_duality in Hsplit.
+    subst e es es' ves'.
+    exists 0, (LH_base [::] es'').
+    by solve_lfilled; rewrite <- catA.
+  }
+  destruct HLF as [i [lh HLF]].
+
   eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
     try by solve_lfilled.
 
@@ -2217,8 +2234,7 @@ Proof.
   apply rs_return with (i := i) (lh := lh') => //;
     first by apply v_to_e_is_const_list.
 
-  move/lfilledP in HLF.
-  apply HLF.
+  by apply/lfilledP.
 Qed.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
@@ -2859,20 +2875,7 @@ Proof.
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
                  apply <<hs, s, f, vs_to_es (take ln rvs ++ ves)>>'.
-                 destruct H as [e [es' [es'' [ves' [Hsplit [? [??]]]]]]].
-                 (* TODO move this out into the lemma *)
-                 assert (HLF: exists i lh,
-                   lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es).
-                 {
-                   destruct Heqr.
-                   symmetry in Hsplit. apply split_vals_e_v_to_e_duality in Hsplit.
-                   subst e es es' ves'.
-                   unfold vs_to_es.
-                   exists 0, (LH_base [::] es'').
-                   by solve_lfilled; rewrite <- catA.
-                 }
-                 destruct HLF as [i [lh HLF]].
-                 by apply reduce_local_return_rec with (i := i) (lh := lh) => //.
+                 by apply reduce_local_return_rec.
               ++ (* false *)
                  apply RS''_error.
                  by apply admitted_TODO.
