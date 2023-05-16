@@ -97,8 +97,8 @@ Inductive res_step'
 (*     terminal_form (v_to_e_list vcs ++ es) \/ *)
 (*     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'. *)
 
-| RS'_break : host_state -> store_record -> frame -> nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
-| RS'_return : host_state -> store_record -> frame -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
+| RS'_break : nat -> list value -> res_step' hs s f es (* TODO needs some reduce proof *)
+| RS'_return : list value -> res_step' hs s f es (* TODO needs some reduce proof *)
 | RS'_normal hs' s' f' es' :
     reduce hs s f es hs' s' f' es' ->
     res_step' hs s f es.
@@ -137,6 +137,7 @@ Inductive res_step'_separate_e
         hs s f (drop (size vs0 - n) vs0 ++ ces) ->
       res_step'_separate_e hs s f ves e
 
+(* TODO rename to rvs? *)
 | RS''_return (ves' : list value) : False -> res_step'_separate_e hs s f ves e
 (* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
@@ -554,7 +555,7 @@ Proof.
   assert (Hlen' : size t1s = size ves').
   {
     subst ves'. rewrite size_take. rewrite length_is_size.
-    by destruct (size t1s < size ves) eqn:? => //; lias.
+    by symmetry; if_lias.
   }
   eapply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves'') [::])).
@@ -1890,7 +1891,7 @@ Proof.
   repeat rewrite length_is_size; rewrite size_rev; subst ves'.
   rewrite size_take; rewrite length_is_size.
   repeat rewrite length_is_size in Hn.
-  by destruct (size t1s < size ves) eqn:?; lias.
+  by symmetry; if_lias.
 Qed.
 
 (* TODO dedupe with above *)
@@ -2157,6 +2158,55 @@ Proof.
   replace (tc_label C''') with ([::] : seq (seq value_type)) in Hetype;
     last by apply inst_t_context_label_empty in Hitype'.
   by apply Hetype.
+Qed.
+
+Lemma lfilled_take_v_to_e : forall i lh n ves e es,
+  n <= size ves ->
+  lfilledInd i lh (vs_to_es ves ++ [:: e]) es ->
+  exists lh', lfilledInd i lh' (vs_to_es (take n ves) ++ [:: e]) es.
+Proof.
+  intros i lh n ves e es Hn H.
+  unfold vs_to_es. unfold vs_to_es in H.
+  remember (size ves - n) as n'.
+  assert (Hn' : n = (size ves - n')). { by lias. }
+  rewrite Hn'.
+  rewrite <- drop_rev. rewrite v_to_e_drop.
+  apply lfilled_collapse1 with (l := n) in H as [lh' H].
+  - exists lh'.
+    rewrite length_is_size in H. rewrite v_to_e_size in H. rewrite size_rev in H.
+    subst n'. by apply H.
+  - by apply v_to_e_is_const_list.
+  - rewrite length_is_size. rewrite v_to_e_size. rewrite size_rev.
+    by lias.
+Qed.
+
+Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln i es lh,
+  ln <= length rvs ->
+  lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es ->
+  reduce
+    hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
+    hs s f (vs_to_es (take ln rvs ++ ves)).
+Proof.
+  intros hs s f lf rvs ves ln i es lh Hlen HLF.
+  eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
+    try by solve_lfilled.
+
+  assert (length (v_to_e_list (rev (take ln rvs))) = ln).
+  {
+    rewrite length_is_size in Hlen. rewrite length_is_size.
+    rewrite v_to_e_size. rewrite size_rev. rewrite size_take. by if_lias.
+  }
+
+  move/lfilledP in HLF.
+  apply lfilled_take_v_to_e with (n := ln) in HLF as [lh' HLF];
+    last by rewrite length_is_size in Hlen.
+
+  apply r_simple.
+  apply rs_return with (i := i) (lh := lh') => //;
+    first by apply v_to_e_is_const_list.
+
+  move/lfilledP in HLF.
+  apply HLF.
 Qed.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
@@ -2747,7 +2797,7 @@ Proof.
            by apply reduce_label_const.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s f es fuel d) as
-             [| Hv | Herr | hs' s' f' n bvs | hs' s' f' rvs | hs' s' f' es'] eqn:?.
+             [| Hv | Herr | n bvs | rvs | hs' s' f' es'] eqn:?.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
@@ -2755,9 +2805,9 @@ Proof.
            ** (* RS'_error hs Herr *)
               apply RS''_error.
               by apply label_error_rec.
-           ** (* RS'_break hs s f es hs' s' f' n bvs *)
+           ** (* RS'_break hs s f es n bvs *)
               by apply admitted_TODO.
-           ** (* RS'_return hs s f es hs' s' f' rvs *)
+           ** (* RS'_return hs s f es rvs *)
               by apply admitted_TODO.
            ** (* RS'_normal hs s f es hs' s' f' es' *)
               apply <<hs', s', f', vs_to_es ves ++ [:: AI_label ln les es']>>'.
@@ -2780,7 +2830,7 @@ Proof.
               by apply local_error_const_len.
         -- (* false *)
            destruct (run_step_with_fuel'' hs s lf es fuel d) as
-             [| Hv | Herr | hs' s' f' n bvs | hs' s' f' rvs | hs' s' f' es'] eqn:?.
+             [| Hv | Herr | n bvs | rvs | hs' s' f' es'] eqn:?.
            ** (* RS'_exhaustion hs s f es *)
               by apply RS''_exhaustion.
            ** (* RS'_value hs s f Hv *)
@@ -2788,16 +2838,19 @@ Proof.
            ** (* RS'_error hs Herr *)
               apply RS''_error.
               by apply local_error_rec.
-           ** (* RS'_break hs s f es hs' s' f' n bvs *)
+           ** (* RS'_break hs s f es n bvs *)
               apply RS''_error.
               by apply admitted_TODO.
-           ** (* RS'_return hs s f es hs' s' f' rvs *)
+           ** (* RS'_return hs s f es rvs *)
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
-                 apply <<hs', s', f, vs_to_es (take ln rvs ++ ves)>>'.
-                 (* XXX look at this case to figure out
-                  * what IH is needed from RS''_return *)
-                 by apply admitted_TODO.
+                 apply <<hs, s, f, vs_to_es (take ln rvs ++ ves)>>'.
+                 (* TODO need this from RS'_return *)
+                 assert (exists i lh,
+                   lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es
+                 ). { by apply admitted_TODO. }
+                 destruct H as [i [lh H]].
+                 by apply reduce_local_return_rec with (i := i) (lh := lh) => //.
               ++ (* false *)
                  apply RS''_error.
                  by apply admitted_TODO.
