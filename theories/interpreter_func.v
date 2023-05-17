@@ -2114,30 +2114,48 @@ Proof.
   by apply IH.
 Qed.
 
-Lemma reduce_label_break_rec : forall (hs : host_state) s f ln les es ves bvs i j lh,
+Lemma lfilled_take_v_to_e : forall i lh n ves e es,
+  n <= size ves ->
+  lfilledInd i lh (vs_to_es ves ++ [:: e]) es ->
+  exists lh', lfilledInd i lh' (vs_to_es (take n ves) ++ [:: e]) es.
+Proof.
+  intros i lh n ves e es Hn H.
+  unfold vs_to_es. unfold vs_to_es in H.
+  remember (size ves - n) as n'.
+  assert (Hn' : n = (size ves - n')). { by lias. }
+  rewrite Hn'.
+  rewrite <- drop_rev. rewrite v_to_e_drop.
+  apply lfilled_collapse1 with (l := n) in H as [lh' H].
+  - exists lh'.
+    rewrite length_is_size in H. rewrite v_to_e_size in H. rewrite size_rev in H.
+    subst n'. by apply H.
+  - by apply v_to_e_is_const_list.
+  - rewrite length_is_size. rewrite v_to_e_size. rewrite size_rev.
+    by lias.
+Qed.
+
+Lemma reduce_label_break_rec : forall (hs : host_state) s f ln les es ves bvs,
   ln <= length bvs ->
-  (* TODO need i = j ? *)
-  lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es ->
+  (exists i j lh,
+    i + 0 = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_label ln les es])
     hs s f (vs_to_es (take ln bvs ++ ves) ++ les).
 Proof.
-  intros hs s f ln les es ves bvs i j lh Hlen HLF.
-
-  assert (HLF' : exists i lh,
-    lfilled i lh (v_to_e_list (rev (take ln bvs)) ++ [:: AI_basic (BI_br i)]) es).
-  { admit. }
-  destruct HLF' as [i' [lh' HLF']].
-
+  intros hs s f ln les es ves bvs Hlen [i [j [lh [Heqj HLF]]]].
+  rewrite addn0 in Heqj. subst j.
+  apply lfilled_take_v_to_e with (n := ln) in HLF as [lh' HLF] => //.
+  move/lfilledP in HLF.
   unfold vs_to_es. rewrite rev_cat. rewrite <- v_to_e_cat.
   eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
     try by solve_lfilled.
-  apply r_simple. apply rs_br with (i := i') (lh := lh') => //.
+  apply r_simple. apply rs_br with (i := i) (lh := lh') => //.
   - by apply v_to_e_is_const_list.
   - rewrite length_is_size. rewrite length_is_size in Hlen.
     rewrite v_to_e_size. rewrite size_rev. rewrite size_take.
     by if_lias.
-Admitted.
+Qed.
 
 Lemma label_break_rec : forall n ln les es bvs ves,
   (exists i j lh,
@@ -2231,26 +2249,6 @@ Proof.
   replace (tc_label C''') with ([::] : seq (seq value_type)) in Hetype;
     last by apply inst_t_context_label_empty in Hitype'.
   by apply Hetype.
-Qed.
-
-Lemma lfilled_take_v_to_e : forall i lh n ves e es,
-  n <= size ves ->
-  lfilledInd i lh (vs_to_es ves ++ [:: e]) es ->
-  exists lh', lfilledInd i lh' (vs_to_es (take n ves) ++ [:: e]) es.
-Proof.
-  intros i lh n ves e es Hn H.
-  unfold vs_to_es. unfold vs_to_es in H.
-  remember (size ves - n) as n'.
-  assert (Hn' : n = (size ves - n')). { by lias. }
-  rewrite Hn'.
-  rewrite <- drop_rev. rewrite v_to_e_drop.
-  apply lfilled_collapse1 with (l := n) in H as [lh' H].
-  - exists lh'.
-    rewrite length_is_size in H. rewrite v_to_e_size in H. rewrite size_rev in H.
-    subst n'. by apply H.
-  - by apply v_to_e_is_const_list.
-  - rewrite length_is_size. rewrite v_to_e_size. rewrite size_rev.
-    by lias.
 Qed.
 
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
@@ -2911,9 +2909,7 @@ Proof.
                  destruct (length bvs >= ln) eqn:?.
                  --- (* true *)
                      apply <<hs, s, f, vs_to_es ((take ln bvs) ++ ves) ++ les>>'.
-                     destruct H as [i [j [lh [??]]]].
-                     by apply reduce_label_break_rec
-                       with (i := i) (j := j) (lh := lh) => //.
+                     by apply reduce_label_break_rec.
                  --- (* false *)
                      apply RS''_error.
                      by apply admitted_TODO.
