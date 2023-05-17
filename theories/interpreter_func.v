@@ -3338,19 +3338,4 @@ Fixpoint run_v (fuel : fuel) (d : depth) (cfg : config_tuple) : ((host_state * s
         end
   end.
 
-(** Main proof for the [RS_break] case. **)
-Lemma reduce_label_break: forall (hs : host_state) s f es es' es'' hs' s' f' n,
-  (exists m vs0 lh es,
-    lfilled m lh (vs0 ++ [:: AI_basic (BI_br m)]) es /\
-    v_to_e_list es'' = rev vs0) ->
-  n <= size es'' ->
-  reduce
-    hs s f ([:: AI_label n es es'])
-    hs' s' f' (v_to_e_list (rev (take n es'')) ++ es).
-Proof.
-  intros hs s f es es' es'' hs' s' f' n [m [vs0 [lh [es''' [HLF HES'']]]]] ?.
-  destruct m.
-  - move/lfilledP in HLF. inversion HLF. subst. admit.
-Admitted.
-
 End Host_func.
