@@ -1328,12 +1328,12 @@ Qed.
 Lemma Lfilled_return_typing: forall n lh vs LI ts s C lab t2s,
     e_typing s (upd_label C lab) LI (Tf [::] t2s) ->
     const_list vs ->
-    (* length ts = length vs -> *)
+    length ts = length vs ->
     lfilled n lh (vs ++ [::AI_basic BI_return]) LI ->
     Some ts = tc_return C ->
     e_typing s C vs (Tf [::] ts).
 Proof.
-  induction n; move => lh vs LI ts s C lab t2s HType HConst HLF HReturn; move/lfilledP in HLF; inversion HLF; subst => //=.
+  induction n; move => lh vs LI ts s C lab t2s HType HConst HLength HLF HReturn; move/lfilledP in HLF; inversion HLF; subst => //=.
   - repeat rewrite catA in HType.
     apply e_composition_typing in HType.
     destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H1 [H2 [H3 H4]]]]]]].
@@ -1371,9 +1371,13 @@ Proof.
     apply Const_list_typing in H12.
     simpl in H12.
 
-    assert (ts = vs_to_vts vs'). {
-      (* XXX this is where length ts = length vs was used *)
-      admit.
+    assert (ts = vs_to_vts vs') => //. {
+      repeat rewrite length_is_size in HLength.
+      rewrite v_to_e_size in HLength.
+      apply concat_cancel_last_n in H12;
+        last by rewrite size_map.
+      move/andP in H12. destruct H12 as [? H12]. move/eqP in H12.
+      by subst ts.
     }
 
     subst ts.
@@ -1398,7 +1402,7 @@ Proof.
     apply H12.
     apply/lfilledP.
     by apply H1.
-Admitted.
+Qed.
 
 Lemma Local_return_typing: forall s C vs f LI tf n lh,
     e_typing s C [:: AI_local (length vs) f LI] tf ->
