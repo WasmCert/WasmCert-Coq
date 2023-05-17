@@ -2251,10 +2251,28 @@ Proof.
   by apply Hetype.
 Qed.
 
+Lemma local_error_break_rec : forall s f es ves ln lf n bvs,
+  (exists i j lh,
+    i + n = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+      inst_typing s f.(f_inst) C' /\
+      store_typing s /\
+      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+Proof.
+  intros s f es ves ln lf n bvs [i [j [lh [Heqj HLF]]]]
+    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
+  apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
+  destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
+  destruct Hftype as [s i' ts'' C''' lf Hitype' Heqi Heqts''].
+  (* XXX need BI_br typing here to assert something about the labels? *)
+Admitted.
+
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
 Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln es,
   ln <= length rvs ->
-  (* XXX this is going to get more complicated when RS_return is corrected *)
   (exists i lh, lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
@@ -2293,11 +2311,14 @@ Lemma local_return_error : forall s f ln lf es rvs ves,
       store_typing s /\
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
-  intros s f ln lf es rvs ves ? Hlen
+  intros s f ln lf es rvs ves [i [lh HLF]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
   apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
   (* XXX need to get a contradiction with Hlen *)
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
+
+  (* apply Lfilled_return_typing in Hetype. *)
+
   (* we have
    * Hetype : typing.e_typing s C'' es (Tf [::] ts')
    * H4 : length ts' = ln
@@ -2953,7 +2974,7 @@ Proof.
               by apply local_error_rec.
            ** (* RS'_break hs s f es n bvs *)
               apply RS''_error.
-              by apply admitted_TODO.
+              by eapply local_error_break_rec with (n := n) (bvs := bvs).
            ** (* RS'_return hs s f es rvs H *)
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
