@@ -3385,10 +3385,13 @@ Definition run_step_fuel (cfg : config_tuple) : nat :=
   let: (hs, s, f, es) := cfg in
   1 + List.fold_left max (List.map run_one_step_fuel es) 0.
 
-Definition run_step (d : depth) (cfg : config_tuple) : res_tuple :=
+Definition run_step_old (d : depth) (cfg : config_tuple) : res_tuple :=
   run_step_with_fuel (run_step_fuel cfg) d cfg.
 
-Fixpoint run_v (fuel : fuel) (d : depth) (cfg : config_tuple) : ((host_state * store_record * res)%type) :=
+Definition run_step hs s f es (d : depth) : res_step' hs s f es :=
+  run_step_with_fuel'' hs s f es (run_step_fuel (hs, s, f, es)) d.
+
+Fixpoint run_v_old (fuel : fuel) (d : depth) (cfg : config_tuple) : ((host_state * store_record * res)%type) :=
   let: (hs, s, f, es) := cfg in
   match fuel with
   | 0 => (hs, s, R_crash C_exhaustion)
@@ -3399,11 +3402,29 @@ Fixpoint run_v (fuel : fuel) (d : depth) (cfg : config_tuple) : ((host_state * s
       if const_list es
       then (hs, s, R_value (fst (split_vals_e es)))
       else
-        let: (hs', s', f', res) := run_step d (hs, s, f, es) in
+        let: (hs', s', f', res) := run_step_old d (hs, s, f, es) in
         match res with
-        | RS_normal es' => run_v fuel d (hs', s', f', es')
+        | RS_normal es' => run_v_old fuel d (hs', s', f', es')
         | RS_crash error => (hs', s', R_crash error)
         | _ => (hs', s', R_crash C_error)
+        end
+  end.
+
+Fixpoint run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record * res)%type) :=
+  match fuel with
+  | 0 => (hs, s, R_crash C_exhaustion)
+  | fuel.+1 =>
+    if es_is_trap es
+    then (hs, s, R_trap)
+    else
+      if const_list es
+      then (hs, s, R_value (fst (split_vals_e es)))
+      else
+        match run_step hs s f es d with
+        | RS'_normal hs' s' f' es' _ => run_v hs' s' f' es' fuel d
+        | RS'_exhaustion => (hs, s, R_crash C_exhaustion)
+        | RS'_error _ => (hs, s, R_crash C_error)
+        | _ => (hs, s, R_crash C_error)
         end
   end.
 
