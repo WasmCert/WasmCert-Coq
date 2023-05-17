@@ -2172,6 +2172,40 @@ Proof.
   exists ln, les, es, (n.+1), i, j, lh => //.
 Qed.
 
+Lemma label_error_break_rec : forall s f ves bvs ln les es,
+  (exists i j lh,
+    i + 0 = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+  (ln <= length bvs) = false ->
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      rev (map typeof ves) = t1s' ++ t1s /\
+      inst_typing s f.(f_inst) C' /\
+      store_typing s /\
+      e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
+Proof.
+  intros s f ves bvs ln les es [i [j [lh [Heqj HLF]]]] Hlen
+    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
+  rewrite addn0 in Heqj. subst j.
+  apply Label_typing in Hetype as [t1s' [t2s' [? [? [Hetypees Hlen']]]]].
+  move/lfilledP in HLF.
+  apply (Lfilled_break_typing host_instance)
+    with (k := 0) (tss := [::]) (ts := t1s') (s := s) (C := C) (t2s := t2s')
+    in HLF => //.
+  - apply et_to_bet in HLF;
+      (* TODO add this to auto_basic? *)
+      last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply Const_list_typing in HLF. simpl in HLF. subst t1s'.
+    rewrite length_is_size in Hlen. rewrite length_is_size in Hlen'.
+    rewrite size_map in Hlen'. rewrite size_rev in Hlen'.
+    by lias.
+  - by apply v_to_e_is_const_list.
+  - assert (Hlen'' : length (vs_to_es bvs) = ln).
+    { admit. } (* XXX need to add it to RS''_break? *)
+    by rewrite Hlen''.
+  - by apply addn0.
+Admitted.
+
 Lemma reduce_local_trap : forall (hs : host_state) s f ves ln lf es,
   es_is_trap es ->
   reduce
@@ -2268,6 +2302,11 @@ Proof.
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
   destruct Hftype as [s i' ts'' C''' lf Hitype' Heqi Heqts''].
   (* XXX need BI_br typing here to assert something about the labels? *)
+
+  move/lfilledP in HLF.
+  Check Lfilled_break_typing.
+  eapply (Lfilled_break_typing host_instance)
+    with (C := C) (k := n) (ts := ts') (s := s) (t2s := ts') in HLF => //.
 Admitted.
 
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
@@ -2933,7 +2972,7 @@ Proof.
                      by apply reduce_label_break_rec.
                  --- (* false *)
                      apply RS''_error.
-                     by apply admitted_TODO.
+                     by apply label_error_break_rec with (bvs := bvs).
               ++ (* n.+1 *)
                  apply break(n, bvs).
                  by apply label_break_rec.
