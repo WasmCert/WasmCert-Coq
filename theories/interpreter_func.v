@@ -188,8 +188,6 @@ Definition config_tuple := ((host_state * store_record * frame * list administra
 
 Definition config_one_tuple_without_e := (host_state * store_record * frame * list value)%type.
 
-Check config_typing.
-
 Definition config_tuple_typing (cfg : config_tuple) (t : seq value_type) : Prop :=
   match cfg with
   | (_, s, f, es) => config_typing s f es t
@@ -2304,7 +2302,6 @@ Proof.
   (* XXX need BI_br typing here to assert something about the labels? *)
 
   move/lfilledP in HLF.
-  Check Lfilled_break_typing.
   eapply (Lfilled_break_typing host_instance)
     with (C := C) (k := n) (ts := ts') (s := s) (t2s := ts') in HLF => //.
 Admitted.
