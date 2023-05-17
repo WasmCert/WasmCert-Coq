@@ -2349,17 +2349,29 @@ Lemma local_return_error : forall s f ln lf es rvs ves,
 Proof.
   intros s f ln lf es rvs ves [i [lh HLF]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
-  apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
+  apply Local_typing in Hetype as [ts' [? [Hstype Hlen']]].
   (* XXX need to get a contradiction with Hlen *)
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
 
-  (* apply Lfilled_return_typing in Hetype. *)
-
-  (* we have
-   * Hetype : typing.e_typing s C'' es (Tf [::] ts')
-   * H4 : length ts' = ln
-   * and we know that rvs should have the same type as es
-   * but don't have enough information here to show that *)
+  move/lfilledP in HLF.
+  apply (Lfilled_return_typing host_instance)
+    with (ts := ts') (s := s) (C := C'') (lab := tc_label C'') (t2s := ts')
+    in HLF => //.
+  - apply et_to_bet in HLF;
+      (* TODO add this to auto_basic? *)
+      last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply Const_list_typing in HLF. simpl in HLF. subst ts'.
+    rewrite length_is_size in Hlen. rewrite length_is_size in Hlen'.
+    rewrite size_map in Hlen'. rewrite size_rev in Hlen'.
+    by lias.
+  - by unfold upd_label; destruct C''.
+  - by apply v_to_e_is_const_list.
+  - assert (Hlen'' : length (vs_to_es rvs) = ln).
+    { admit. } (* XXX need to add it to RS''_return? *)
+    by rewrite Hlen''.
+  - subst C''. unfold upd_return. destruct Heqts' => //.
+    (* need : ret' <> None *)
+    admit.
 Admitted.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
