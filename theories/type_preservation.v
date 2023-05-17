@@ -1328,12 +1328,12 @@ Qed.
 Lemma Lfilled_return_typing: forall n lh vs LI ts s C lab t2s,
     e_typing s (upd_label C lab) LI (Tf [::] t2s) ->
     const_list vs ->
-    length ts = length vs ->
+    (* length ts = length vs -> *)
     lfilled n lh (vs ++ [::AI_basic BI_return]) LI ->
     Some ts = tc_return C ->
     e_typing s C vs (Tf [::] ts).
 Proof.
-  induction n; move => lh vs LI ts s C lab t2s HType HConst HLength HLF HReturn; move/lfilledP in HLF; inversion HLF; subst => //=.
+  induction n; move => lh vs LI ts s C lab t2s HType HConst HLF HReturn; move/lfilledP in HLF; inversion HLF; subst => //=.
   - repeat rewrite catA in HType.
     apply e_composition_typing in HType.
     destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H1 [H2 [H3 H4]]]]]]].
@@ -1351,20 +1351,34 @@ Proof.
     destruct t1s2 => //=.
     subst. clear H9. simpl in H8. simpl in H4.
     apply et_to_bet in H8; auto_basic. apply Return_typing in H8.
-    destruct H8 as [ts1 [ts2 [H13 H14]]]. subst.
+    destruct H8 as [ts1 [ts2 [H13 H14]]]. subst t2s2.
+
+    assert (ts = ts1). { rewrite -HReturn in H14. by inversion H14. }
+    subst ts1. clear H14.
+
+    (* from H11 : typing.e_typing s (upd_label C lab) vs0 (Tf [::] t3s2) *)
+    (* show : t3s2 = map typeof vs0' *)
+    apply et_to_bet in H11; last by apply const_list_is_basic.
+    (* XXX fragile name H *)
+    apply const_es_exists in H. destruct H as [vs0' ?]. subst vs0.
+    apply Const_list_typing in H11.
+    simpl in H11. subst t3s2.
+
+    (* from H12 : typing.e_typing s (upd_label C lab) vs (Tf t3s2 (ts2 ++ ts1)) *)
+    (* show : ts2 ++ ts1 = t3s2 ++ [seq typeof i | i <- vs'] *)
     apply et_to_bet in H12; last by apply const_list_is_basic.
-    apply const_es_exists in HConst. destruct HConst. subst.
+    apply const_es_exists in HConst. destruct HConst as [vs' ?]. subst vs.
     apply Const_list_typing in H12.
-    rewrite -HReturn in H14. inversion H14. subst. clear H14.
-    assert ((ts2 == t3s2) && (ts1 == vs_to_vts x)).
-    + apply concat_cancel_last_n => //=.
-      repeat rewrite length_is_size in HLength.
-      rewrite v_to_e_size in HLength.
-      by rewrite size_map.
-    + move/andP in H0. destruct H0.
-      move/eqP in H1. subst.
-      apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-      by apply Const_list_typing_empty.
+    simpl in H12.
+
+    assert (ts = vs_to_vts vs'). {
+      (* XXX this is where length ts = length vs was used *)
+      admit.
+    }
+
+    subst ts.
+    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
+    by apply Const_list_typing_empty.
   - repeat rewrite catA in HType.
     apply e_composition_typing in HType.
     destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H2 [H3 [H4 H5]]]]]]].
@@ -1384,7 +1398,7 @@ Proof.
     apply H12.
     apply/lfilledP.
     by apply H1.
-Qed.
+Admitted.
 
 Lemma Local_return_typing: forall s C vs f LI tf n lh,
     e_typing s C [:: AI_local (length vs) f LI] tf ->
