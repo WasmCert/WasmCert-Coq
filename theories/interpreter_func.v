@@ -3098,6 +3098,17 @@ Proof.
     by apply bet_weakening; apply bet_const.
 Qed.
 
+Lemma to_b_v_to_e_is_bi_const : forall vs,
+  to_b_list (v_to_e_list vs) = map BI_const vs.
+Proof.
+  induction vs as [|v vs' IH] => //.
+  rewrite <- cat1s.
+  unfold v_to_e_list. unfold to_b_list.
+  unfold v_to_e_list in IH. unfold to_b_list in IH.
+  repeat rewrite map_cat.
+  f_equal => //.
+Qed.
+
 (* XXX do not separate vcs and es? *)
 Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),
     e_typing s C es (Tf t1s t2s) ->
@@ -3112,12 +3123,11 @@ Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : h
 Proof.
   intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
   destruct (run_step hs s f (v_to_e_list vcs ++ es) d)
-    as [| Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr] eqn:Heqr.
+    as [| Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
   - (* RS'_exhaustion *)
     (* XXX what to do about depth/exhaustion? *)
     admit.
   - (* RS'_value *)
-    clear Heqr. (* TODO *)
     left. unfold terminal_form.
     destruct Hval as [Hconst | Htrap].
     * left => //.
@@ -3129,12 +3139,10 @@ Proof.
     repeat split => //.
     apply et_composition' with (t2s := t1s) => //.
     apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-    assert (Hmap : to_b_list (v_to_e_list vcs) = map BI_const vcs). { admit. }
-    rewrite Hmap. subst t1s.
+    rewrite to_b_v_to_e_is_bi_const. subst t1s.
     by apply bet_const'.
   - (* RS'_break *)
     exfalso.
-    clear Heqr.
     destruct Hbr as [i [j [lh [Heqj HLF]]]].
     move/lfilledP in HLF.
     Fail apply HLF in HLFbr.
@@ -3147,7 +3155,6 @@ Proof.
     admit.
   - (* RS'_return *)
     exfalso.
-    clear Heqr.
     destruct Hret as [i [lh HLF]].
     move/lfilledP in HLF.
     apply (HLFret i lh).
