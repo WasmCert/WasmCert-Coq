@@ -2304,6 +2304,9 @@ Proof.
   move/lfilledP in HLF.
   eapply (Lfilled_break_typing host_instance)
     with (C := C) (k := n) (ts := ts') (s := s) (t2s := ts') in HLF => //.
+  (* XXX typing should not allow us to break out with j if there aren't enough labels to break out of?
+   * see plop2; am I not able to use BI_br typing here?
+   * does Lfilled_break_typing need to be restated? *)
 Admitted.
 
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
@@ -3080,5 +3083,78 @@ Fixpoint run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record
         | _ => (hs, s, R_crash C_error)
         end
   end.
+
+(* XXX does this exist anywhere? *)
+Lemma bet_const' : forall C vs,
+  be_typing C (map BI_const vs) (Tf [::] (map typeof vs)).
+Proof.
+  intros C vs. induction vs as [|vs' v IHvs] using last_ind.
+  - apply bet_empty.
+  - rewrite <- cats1. rewrite map_cat.
+    apply bet_composition with (t2s := map typeof vs') => //.
+    rewrite map_cat.
+    replace (map typeof vs') with ((map typeof vs') ++ [::]) at 1;
+      last by rewrite cats0.
+    by apply bet_weakening; apply bet_const.
+Qed.
+
+(* XXX do not separate vcs and es? *)
+Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),
+    e_typing s C es (Tf t1s t2s) ->
+    C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) ->
+    inst_typing s f.(f_inst) C' ->
+    map typeof vcs = t1s ->
+    store_typing s ->
+    (forall n lh k, lfilled n lh [::AI_basic (BI_br k)] es -> k < n) ->
+    (forall n, not_lf_return es n) ->
+    terminal_form (v_to_e_list vcs ++ es) \/
+    exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'.
+Proof.
+  intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
+  destruct (run_step hs s f (v_to_e_list vcs ++ es) d)
+    as [| Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr] eqn:Heqr.
+  - (* RS'_exhaustion *)
+    (* XXX what to do about depth/exhaustion? *)
+    admit.
+  - (* RS'_value *)
+    clear Heqr. (* TODO *)
+    left. unfold terminal_form.
+    destruct Hval as [Hconst | Htrap].
+    * left => //.
+    * right. by move/es_is_trapP in Htrap.
+  - (* RS'_error *)
+    exfalso.
+    apply Herr.
+    exists C, C', ret, lab, t2s.
+    repeat split => //.
+    apply et_composition' with (t2s := t1s) => //.
+    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
+    assert (Hmap : to_b_list (v_to_e_list vcs) = map BI_const vcs). { admit. }
+    rewrite Hmap. subst t1s.
+    by apply bet_const'.
+  - (* RS'_break *)
+    exfalso.
+    clear Heqr.
+    destruct Hbr as [i [j [lh [Heqj HLF]]]].
+    move/lfilledP in HLF.
+    Fail apply HLF in HLFbr.
+    (* XXX get a contradiction from *)
+    (* HLFbr : forall (n : nat) (lh : lholed) (k : immediate), *)
+    (*         lfilled n lh [:: AI_basic (BI_br k)] es -> k < n *)
+    (* Heqj : i + n = j *)
+    (* HLF : lfilled i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) *)
+    (*         (v_to_e_list vcs ++ es) *)
+    admit.
+  - (* RS'_return *)
+    exfalso.
+    clear Heqr.
+    destruct Hret as [i [lh HLF]].
+    move/lfilledP in HLF.
+    apply (HLFret i lh).
+    (* HLF : lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) (v_to_e_list vcs ++ es) *)
+    (* to show : lfilled i lh [:: AI_basic BI_return] es *)
+    admit.
+  - right. exists s', f', es', hs' => //.
+Admitted.
 
 End Host_func.
