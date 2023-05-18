@@ -17,8 +17,7 @@ Let host := host host_function.
 
 Variable host_instance : host.
 
-Let store_record_eq_dec := @store_record_eq_dec host_function.
-Let store_record_eqType := @store_record_eqType host_function.
+Let functions_agree := @functions_agree host_function.
 
 Let store_record := store_record host_function.
 Let host_state := host_state host_instance.
@@ -32,14 +31,6 @@ Variable executable_host_instance : executable_host.
 Let host_event := host_event executable_host_instance.
 
 Let instantiate := instantiate host_function host_instance.
-
-Inductive ext_typing_list: store_record -> seq.seq module_export -> seq.seq extern_t -> Prop :=
-| ext_typing_list_nil: forall s,
-    ext_typing_list s [::] [::]
-| ext_typing_list_cons: forall s v_exp v_exps te tes,
-    ext_typing_list s v_exps tes ->
-    external_typing s (modexp_desc v_exp) te ->
-    ext_typing_list s (v_exp :: v_exps) (te :: tes).
 
 Lemma Forall2_all2: forall A B (R : A -> B -> bool ) (l1 : seq.seq A) (l2 : seq.seq B),
     List.Forall2 R l1 l2 <-> all2 R l1 l2.
@@ -65,13 +56,10 @@ Lemma all2_forward: forall A B (f1 f2 : A -> B -> bool) l1 l2,
   (forall a b, f1 a b -> f2 a b) ->
   (all2 f1 l1 l2 -> all2 f2 l1 l2).
 Proof.
-  move=> A B f1 f2. elim.
-  - by case.
-  - move=> h1 l1 IH. case=> //= h2 l2 E.
-    move/andP => [H1 H2].
-    apply/andP. split.
-    + by apply E.
-    + by apply IH => //=.
+  move => ? ? f1 f2 l1 l2 Himpl Hall2.
+  apply Forall2_all2.
+  apply Forall2_all2 in Hall2.
+  by eapply Forall2_impl; eauto.
 Qed.
 
 Lemma all2_and: forall A B (f g h : A -> B -> bool) l1 l2,
@@ -122,16 +110,6 @@ Proof.
   by eapply HR.
 Qed.
 
-Lemma nth_error_Some_length:
-  forall A (l : seq.seq A) (i : nat) (m : A),
-  nth_error l i = Some m -> 
-  i < length l.
-Proof.
-  move => A l i m H1.
-  assert (H2 : nth_error l i ≠ None) by rewrite H1 => //.
-  by apply List.nth_error_Some in H2.
-Qed.
-
 Lemma nth_error_same_length_list:
   forall (A B : Type) (l1 : seq.seq A) (l2 : seq.seq B) (i : nat) (m : A),
      length l1 = length l2 ->
@@ -179,8 +157,6 @@ Proof.
   rewrite foldr_snoc /=. apply IHl =>//. 
   apply Hnext=>//.
 Qed. 
-
-Let functions_agree := @functions_agree host_function.
 
 Lemma functions_agree_aux s_funcs funcs f tf: 
   functions_agree s_funcs f tf ->
@@ -1136,7 +1112,7 @@ Proof.
                  destruct (nth_error s_globals0 g0) eqn: Heq4 => //.
                  inversion Htyping. clear Htyping.
                  rewrite /global_agree in H0.
-                 specialize (nth_error_Some_length _ _ _ _ Heq4) as Hg0.
+                 specialize (nth_error_Some_length Heq4) as Hg0.
                  rewrite nth_error_lookup lookup_app_l in Heq1 => //.
                  rewrite <- nth_error_lookup in Heq1.
                  rewrite Heq4 in Heq1. inversion Heq1; subst.
@@ -1237,7 +1213,6 @@ Proof.
            rewrite nth_error_lookup.
            rewrite list_lookup_fmap.
            rewrite <- nth_error_lookup.
-           (* todo: nth_error (f <$> l) i = f <$> nth_error l i *)
            rewrite Hmts_nth.
 
            destruct mt. 
@@ -1361,7 +1336,7 @@ Proof.
   rewrite /init_tab in Hinit.
   destruct ws'.
   destruct (nth _ _) eqn: Hl => /=.
-  by inversion Hinit.
+  inversion Hinit; repeat split => //.
 Qed.
 
 Lemma init_tabs_preserve ws inst e_inits melem ws':
@@ -1382,21 +1357,30 @@ Proof.
   by destruct (nth _ _) eqn:Hl => /=.
 Qed.
 
-Lemma insert_at_insert {T: Type} v n (l: list T):
-  n < length l ->
-  insert_at v n l = <[ n := v ]> l.
+Lemma comp_extension_same_length {T: Type} (l1 l2: list T) f:
+  all2 f l1 l2 ->
+  comp_extension l1 l2 f.
 Proof.
-  move : v n.
-  induction l; intros; simpl in H; destruct n => /=; try by inversion H.
-  - specialize (IHl v n).
-    unfold insert_at.
-    simpl.
-    f_equal.
-    rewrite <- IHl; last by lias.
-    by unfold insert_at.
+  move => Hall2.
+  assert (length l1 = length l2) as Hlen; first by apply all2_size in Hall2; repeat rewrite length_is_size.
+  unfold comp_extension; apply/andP; split => //.
+  - by lias.
+  - by rewrite Hlen length_is_size take_size.
 Qed.
 
-Lemma init_tab_preserve_typing s inst mod_elem e_off:
+Lemma Forall2_insert_2 {T1 T2: Type} (l1: list T1) (l2: list T2) f x y n:
+  Forall2 f l1 l2 ->
+  nth_error l1 n = Some x ->
+  f x y ->
+  Forall2 f l1 (<[n := y]> l2).
+Proof.
+  move => Hall2 Hnth Hf.
+  replace l1 with (<[n := x]> l1); first by apply Forall2_insert.
+  rewrite list_insert_id => //.
+  by rewrite nth_error_lookup in Hnth.
+Qed.
+
+Lemma init_tab_extension s inst mod_elem e_off s':
   store_typing s ->
   Forall (λ n : nat, n < length (s_funcs s)) (inst_funcs inst) ->
   (λ s : seq.seq funcidx, all (λ '(Mk_funcidx i), ssrnat.leq (S i) (length (inst_funcs inst))) s) (modelem_init mod_elem) -> 
@@ -1410,9 +1394,10 @@ Lemma init_tab_preserve_typing s inst mod_elem e_off:
       end
   | None => false
   end ->
-  store_typing (init_tab host_function s inst (Z.to_nat (Wasm_int.Int32.intval e_off)) mod_elem).
+  s' = (init_tab host_function s inst (Z.to_nat (Wasm_int.Int32.intval e_off)) mod_elem) ->
+  all2 tab_extension s.(s_tables) s'.(s_tables).
 Proof.
-  move => Htyping Hinst_typing Hinit_typing Hbound.
+  move => Htyping Hinst_typing Hinit_typing Hbound ->.
   
   rewrite /init_tab.
   destruct mod_elem. simpl in *.
@@ -1430,124 +1415,129 @@ Proof.
   destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
   assert (Hle: taddr < length s_tables). { by eapply nth_error_Some_length. }.
   rewrite insert_at_insert => //.
-  split.
-  - (* cl_type_check *)
-    apply Forall_lookup_2 => i fc Hfuns_nth.
-    eapply Forall_lookup_1 in Hcl_type => //.
-    
-    rewrite /typing.cl_type_check_single in Hcl_type.
-    destruct Hcl_type as [tf Hcl_typing].
-    rewrite /typing.cl_type_check_single.
+  apply Forall2_all2.
+  eapply Forall2_insert_2; [ by apply Forall2_all2, all2_tab_extension_same | eauto | ].
+  unfold tab_extension, tab_size => /=.
+  apply/andP; split => //.
+  
+  repeat rewrite app_length.
+  rewrite take_length map_length drop_length.
+
+  rewrite /N_of_int in Hbound.
+  move/N.leb_spec0 in Hbound. 
+  replace (Z.to_nat (Wasm_int.Int32.intval e_off) `min` length table_data) with (Z.to_nat (Wasm_int.Int32.intval e_off)).
+  2 : { by lias. }
+  rewrite Nat.add_assoc.
+  replace (ssrnat.addn (Z.to_nat (Wasm_int.Int32.intval e_off)) (length modelem_init)) with (Z.to_nat (Wasm_int.Int32.intval e_off) + length modelem_init).
+  2 : { by lias. }
+  
+  rewrite le_plus_minus_r => //.
+  by lias.
+Qed.
+
+Lemma init_tab_typing s inst mod_elem e_off s':
+  store_typing s ->
+  Forall (λ n : nat, n < length (s_funcs s)) (inst_funcs inst) ->
+  (λ s : seq.seq funcidx, all (λ '(Mk_funcidx i), ssrnat.leq (S i) (length (inst_funcs inst))) s) (modelem_init mod_elem) -> 
+  match nth_error (inst_tab inst) match modelem_table mod_elem with
+                                  | Mk_tableidx i => i
+                                  end with
+  | Some i =>
+      match nth_error (s_tables s) i with
+      | Some ti => (N_of_int e_off + N.of_nat (length (modelem_init mod_elem)) <=? N.of_nat (length (table_data ti)))%N
+      | None => false
+      end
+  | None => false
+  end ->
+  s' = (init_tab host_function s inst (Z.to_nat (Wasm_int.Int32.intval e_off)) mod_elem) ->
+  store_typing s'.
+Proof.
+  move => Htyping Hinst_typing Hinit_typing Hbound Heqs'.
+  
+  specialize (init_tab_preserve _ _ _ _ _ (Logic.eq_sym Heqs')) as [Heqf [Heqm Heqg]].
+  specialize (init_tab_extension _ _ _ _ _ Htyping Hinst_typing Hinit_typing Hbound Heqs') as Htext.
+  assert (store_extension s s') as Hext.
+  { unfold store_extension.
+    apply/andP; split; last by rewrite Heqg; apply comp_extension_same_refl; unfold ssrbool.reflexive; apply glob_extension_refl.
+    apply/andP; split; last by rewrite Heqm; apply comp_extension_same_refl; unfold ssrbool.reflexive; apply mem_extension_refl.
+    apply/andP; split; first by rewrite Heqf; apply comp_extension_same_refl; unfold ssrbool.reflexive; apply func_extension_refl.
+    apply comp_extension_same_length.
+    by eapply init_tab_extension.
+  }
+  
+  unfold store_typing, typing.store_typing in *.
+  destruct s, s'. simpl in *.
+  destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
+  repeat split; last by subst s_mems0.
+  - unfold typing.cl_type_check_single in *.
+    apply Forall_forall.
+    rewrite -> Forall_forall in Hcl_type.
+    move => x Hin.
+    subst s_funcs0.
+    apply Hcl_type in Hin as [tf Htype].
     exists tf.
+    unfold init_tab in Hext; simpl in Hext.
+    by eapply store_extension_cl_typing.
+  - (* tab_agree *)
+    clear Hcl_type Hmem_agree.
+    unfold init_tab in Heqs'; simpl in Heqs'.
+    destruct mod_elem, modelem_table; simpl in *.
+    destruct (nth_error (inst_tab inst) _) as [taddr | ] eqn:Hinstlookup => //.
+    destruct (nth_error s_tables taddr) as [tab | ] eqn:Hstablookup => //.
+    rewrite -> nth_error_nth with (x := taddr) in Heqs' => //.
+    rewrite -> nth_error_nth with (x := tab) in Heqs' => //.
 
-    eapply store_extension_cl_typing => //.
-    rewrite /store_extension. simpl.
-    apply/andP. split. 2 : { by apply all2_glob_extension_same. }.
-    apply/andP. split. 2 : { by apply all2_mem_extension_same. }.
-    apply/andP. split; first by apply/eqP.
+    assert (s_tables !! taddr = Some tab) as Hlookup; first by rewrite nth_error_lookup in Hstablookup.
+    
+    destruct tab => /=.
+    subst s_funcs0 s_mems0 s_globals0.
+    assert (Hlt: taddr < length s_tables). { by eapply nth_error_Some_length. }.
+    rewrite insert_at_insert in Heqs' => //.
 
-    rewrite /tab_extension.
-    rewrite <- Forall2_all2.
-    (* clear - host host_function host_function Hbound Htaddr Htinst Hle. *)
-    rewrite Forall2_lookup => taddr'.
-    destruct (decide (taddr = taddr')) as [Heq | Hneq].
-    + (* taddr = taddr' *)
-      rewrite <- Heq.
-      rewrite list_lookup_insert => //.
+    inversion Heqs'; subst s_tables0; clear Heqs'.
+    apply Forall_insert => //.
+    rewrite -> Forall_lookup in Htab_agree.
+    apply Htab_agree in Hlookup as [Htabcl_agree Htabsize].
+    
+    split.
+    + apply Forall_app_2; first by apply Forall_take.
+      apply Forall_app_2; last by apply Forall_drop.
+      (* Forall tabcl_agree (the new table) *)
+      rewrite /tabcl_agree. simpl.
+      apply Forall_lookup_2 => i addr Haddr.
+      rewrite list_lookup_fmap in Haddr.
+      destruct (modelem_init !! i) eqn: Hinit_nth => //.
+      destruct f as [fidx]. simpl in Haddr.
+      inversion Haddr; subst. clear Haddr.
+      destruct (nth_error (inst_funcs inst) fidx) eqn: Hinst_nth => //.
+      rewrite nth_error_lookup in Hinst_nth.
+      eapply Forall_lookup_1 in Hinst_typing => //.
+      apply/ssrnat.ltP. 
+      by rewrite <- length_is_size.
+    + (* tabsize_agree *)
+      rewrite /tabsize_agree /tab_size.
+      simpl in *.
+
+      rewrite /tabsize_agree /tab_size in Htabsize.
+      simpl in Htabsize.
+      destruct table_max_opt => //.
       
-      rewrite nth_error_lookup in Htinst.
-      rewrite Htinst.
-
-      apply Some_Forall2. simpl.
-      apply/andP. split => //.
-      rewrite /tab_size. simpl.
-
       repeat rewrite app_length.
       rewrite take_length map_length drop_length.
 
+      rewrite /N_of_int in Hbound.
+      move/N.leb_spec0 in Hbound. 
       replace (Z.to_nat (Wasm_int.Int32.intval e_off) `min` length table_data) with (Z.to_nat (Wasm_int.Int32.intval e_off)).
-      2 : { move/N.leb_spec0 in Hbound.
-            rewrite /N_of_int in Hbound.
-            by lias. }
-      by lias.
-    + (* taddr /= taddr' *)
-      rewrite list_lookup_insert_ne => //.
-      destruct (s_tables !! taddr').
-      * (* Some *)
-        apply Some_Forall2.
-        apply/andP. by split => //.
-      * (* None *)
-        by apply None_Forall2.
-    split.
-  - (* tab_agree *)
-    clear Hcl_type Hmem_agree.
-    rewrite /typing.tab_agree in Htab_agree.
-    rewrite -> Forall_lookup in Htab_agree.
-    rewrite /typing.tab_agree.
-    apply Forall_lookup_2 => taddr' tinst' Htinst'.    
-    destruct (decide (taddr = taddr')) as [Heq | Hneq].
-    + (* taddr = taddr' *)
-      rewrite nth_error_lookup in Htinst.
-      specialize (Htab_agree taddr {| table_data := table_data; table_max_opt := table_max_opt |} Htinst).
-      destruct Htab_agree as [Htabcl Htabsize]. simpl in Htabcl.
-      rewrite <- Heq in Htinst'.
-      rewrite list_lookup_insert in Htinst' => //.
-      inversion Htinst'; subst. clear Htinst'.
-      simpl. split.
-      * (* tabcl_agree *)
-        apply Forall_app_2.
-        ** (* Forall tabcl_agree (take ... table_data) *)
-           by apply Forall_take.
-        apply Forall_app_2.
-        ** (* Forall tabcl_agree (the new written table)*)
-           rewrite /tabcl_agree. simpl.
-           apply Forall_lookup_2 => i addr Haddr.
-           rewrite list_lookup_fmap in Haddr.
-           destruct (modelem_init !! i) eqn: Hinit_nth => //.
-           destruct f as [fidx]. simpl in Haddr.
-           inversion Haddr; subst. clear Haddr.
-           destruct (nth_error (inst_funcs inst) fidx) eqn: Hinst_nth => //.
-           rewrite nth_error_lookup in Hinst_nth.
-           eapply Forall_lookup_1 in Hinst_typing => //.
-           apply/ssrnat.ltP. 
-           by rewrite <- length_is_size.
-        ** (* Forall tabcl_agree (drop ... table_data) *)
-           by apply Forall_drop.
-      * (* tabsize_agree *)
-        rewrite /tabsize_agree /tab_size.
-        simpl.
-
-        rewrite /tabsize_agree /tab_size in Htabsize.
-        simpl in Htabsize.
-        destruct table_max_opt => //.
-        
-        repeat rewrite app_length.
-        rewrite take_length map_length drop_length.
-
-        rewrite /N_of_int in Hbound.
-        move/N.leb_spec0 in Hbound. 
-        replace (Z.to_nat (Wasm_int.Int32.intval e_off) `min` length table_data) with (Z.to_nat (Wasm_int.Int32.intval e_off)).
-        2 : { by lias. }
-        rewrite Nat.add_assoc.
-        replace (ssrnat.addn (Z.to_nat (Wasm_int.Int32.intval e_off)) (length modelem_init)) with (Z.to_nat (Wasm_int.Int32.intval e_off) + length modelem_init).
-        2 : { by lias. }
-        
-        rewrite le_plus_minus_r => //.
-        by lias.
-    + (* taddr /= taddr' *)
-      rewrite list_lookup_insert_ne in Htinst' => //.
-      specialize (Htab_agree taddr' tinst' Htinst').
-      destruct Htab_agree as [Htabcl Htabsize].
-
-      destruct tinst' as [table_data' table_max_opt'].
-      simpl in *.
+      2 : { by lias. }
+      rewrite Nat.add_assoc.
+      replace (ssrnat.addn (Z.to_nat (Wasm_int.Int32.intval e_off)) (length modelem_init)) with (Z.to_nat (Wasm_int.Int32.intval e_off) + length modelem_init).
+      2 : { by lias. }
       
-      split => //.
-  - (* mem_agree *)
-    exact Hmem_agree.
+      rewrite le_plus_minus_r => //.
+      by lias.
 Qed.
-
-Lemma init_tabs_preserve_typing s s' inst m x:
+  
+Lemma init_tabs_sound s s' inst m x:
   store_typing s ->
   Forall (λ n : nat, n < length (s_funcs s)) (inst_funcs inst) ->
   Forall
@@ -1555,7 +1545,8 @@ Lemma init_tabs_preserve_typing s s' inst m x:
     (map modelem_init (mod_elem m)) ->
   check_bounds_elem host_function inst s m x ->
   s' = (init_tabs host_function s inst [seq Z.to_nat (Wasm_int.Int32.intval o) | o <- x] (mod_elem m)) ->
-  store_typing s'.
+  (comp_extension s.(s_tables) s'.(s_tables) tab_extension /\
+  store_typing s').
 Proof.
   rewrite /check_bounds_elem. destruct m. simpl.
   clear mod_types mod_funcs mod_tables mod_mems mod_globals mod_data mod_start mod_imports mod_exports.
@@ -1564,7 +1555,11 @@ Proof.
   move => s s' e_offs Htyping Hinsts_typing Hinits_typing Hbounds Heqs;
   rewrite <- Forall2_all2 in Hbounds.
   - inversion Hbounds; subst.
-    by rewrite /init_tabs.
+    unfold init_tabs => /=.
+    split => //.
+    apply comp_extension_same_refl.
+    unfold ssrbool.reflexive.
+    by apply tab_extension_refl.
   - inversion Hbounds; subst.
     rename x into e_off. rename l into e_offs.
 
@@ -1574,12 +1569,18 @@ Proof.
     rewrite /init_tabs. simpl.
     remember (init_tab host_function s inst (Z.to_nat (Wasm_int.Int32.intval e_off)) mod_elem) as s1 eqn:Heqs1.
     
-    (* store_typing s1 *)
-    eapply init_tab_preserve_typing in Htyping => //.
-    rewrite <- Heqs1 in Htyping.
+    (* tab extension *)
+    assert (comp_extension (s_tables s) (s_tables s1) tab_extension) as Hext.
+    { apply comp_extension_same_length. by eapply init_tab_extension; eauto. }
+
+    assert (store_typing s1) as Hstoretype.
+    { by eapply init_tab_typing; eauto. }
+    
+    eapply IHmod_elems with (s := s1) (x := e_offs) in Hstoretype as [Hext' Hstype']; eauto.
+
+    + split => //; last by eapply comp_extension_trans; [ by eauto | | by apply tab_extension_trans].
     
     (* recover invariant *)
-    eapply IHmod_elems with (s := s1) (x := e_offs) => //.
     + (* Forall (λ n : nat, n < length (s_funcs s1)) (inst_funcs inst) *)
       symmetry in Heqs1.
       apply init_tab_preserve in Heqs1.
@@ -1654,7 +1655,20 @@ Proof.
         rewrite nth_error_lookup in Hinst0.
         by rewrite Hinst0.
 Qed.
-    
+
+Lemma init_mem_preserve ws inst d_inits mdata ws':
+  init_mem host_function ws inst d_inits mdata = ws' ->
+  ws.(s_funcs) = ws'.(s_funcs) /\
+  ws.(s_tables) = ws'.(s_tables) /\
+  ws.(s_globals) = ws'.(s_globals).
+Proof.
+  move => Hinit.
+  rewrite /init_mem in Hinit.
+  destruct ws'.
+  destruct (nth _ _) eqn: Hl => /=.
+  inversion Hinit; repeat split => //.
+Qed.
+
 Lemma init_mems_preserve ws inst d_inits mdata ws':
   init_mems host_function ws inst d_inits mdata = ws' ->
   ws.(s_funcs) = ws'.(s_funcs) /\
@@ -1672,7 +1686,7 @@ Proof.
   by unfold init_mem => /=.
 Qed.
 
-Lemma init_mem_preserve_typing s inst mod_data d_off:
+Lemma init_mem_extension s inst mod_data d_off s':
   store_typing s ->
   match nth_error (inst_memory inst) match moddata_data mod_data with
                                   | Mk_memidx i => i
@@ -1684,10 +1698,11 @@ Lemma init_mem_preserve_typing s inst mod_data d_off:
       end
   | None => false
   end ->
-  store_typing (init_mem host_function s inst (Z.to_N (Wasm_int.Int32.intval d_off)) mod_data).
+  s' = init_mem host_function s inst (Z.to_N (Wasm_int.Int32.intval d_off)) mod_data ->
+  all2 mem_extension s.(s_mems) s'.(s_mems).
 Proof.
-  move => Htyping Hbound.
-
+  move => Htyping Hbound ->.
+  
   rewrite /init_mem.
   destruct mod_data. simpl in *.
   destruct moddata_data.
@@ -1707,124 +1722,134 @@ Proof.
   { by eapply nth_error_Some_length. }
   
   rewrite insert_at_insert => //.
-  split.
-  - (* cl_type *) {
-    apply Forall_lookup_2 => i fc Hfuncs_nth.
-    eapply Forall_lookup_1 in Hcl_type => //.
-    
-    rewrite /typing.cl_type_check_single in Hcl_type.
-    destruct Hcl_type as [tf Hcl_typing].
-    rewrite /typing.cl_type_check_single.
-    exists tf.
+  apply Forall2_all2.
+  eapply Forall2_insert_2; [ by apply Forall2_all2, all2_mem_extension_same | eauto | ].
+  
+  rewrite /mem_extension /mem_size /operations.mem_length /memory_list.mem_length.
+  apply/andP; split => //.
+  simpl.
 
-    eapply store_extension_cl_typing => //.
-    rewrite /store_extension. simpl.
-    apply/andP. split. 2 : { by apply all2_glob_extension_same. }.
-    apply/andP. split.
-    apply/andP. split; [ by apply/eqP | by apply all2_tab_extension_same ].
+  repeat rewrite app_length.
+  rewrite take_length map_length drop_length.
 
-    rewrite /mem_extension.
-    rewrite <- Forall2_all2.
+  (* using Hbound *)
+  rewrite /mem_length /memory_list.mem_length in Hbound.
+  simpl in Hbound.
 
-    rewrite Forall2_lookup => maddr'.
-    destruct (decide (maddr = maddr')) as [Heq | Hneq].
-    + (* maddr = maddr' *)
-      rewrite <- Heq.
-      rewrite list_lookup_insert => //.
-
-      rewrite nth_error_lookup in Hinst.
-      rewrite Hinst.
-
-      apply Some_Forall2. simpl.
-      apply/andP. split => //.
-
-      rewrite /mem_size /operations.mem_length /memory_list.mem_length.
-      simpl.
-
-      repeat rewrite app_length.
-      rewrite take_length map_length drop_length.
-
-      (* using Hbound *)
-      rewrite /mem_length /memory_list.mem_length in Hbound.
-      simpl in Hbound.
-
-      move/N.leb_spec0 in Hbound.
-      replace (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off))).
-      2 : { rewrite /N_of_int in Hbound.
-            repeat rewrite nat_bin.
-            by lias. }
-      apply/N.leb_spec0.
-      apply N.eq_le_incl. repeat f_equal.
-      rewrite /N_of_int in Hbound. 
-      rewrite nat_bin.
-      by lias.
-    + (* maddr /= maddr' *)
-      rewrite list_lookup_insert_ne => //.
-      destruct (s_mems !! maddr').
-      * (* Some *)
-        apply Some_Forall2.
-        apply/andP.
-        split; [ by rewrite N.leb_refl | by apply/eqP ].
-      * (* None *)
-        by apply None_Forall2.
-  }
-  split.
-  - (* tab_agree *)
-    exact Htab_agree.
-  - (* mem_agree *)
-    clear Hcl_type Htab_agree.
-    rewrite /mem_agree in Hmem_agree.
-    rewrite -> Forall_lookup in Hmem_agree.
-    rewrite /mem_agree.
-    apply Forall_lookup_2 => maddr' inst' Hinst'.
-    destruct (decide (maddr = maddr')) as [Heq | Hneq].
-    + (* maddr = maddr' *)
-      rewrite nth_error_lookup in Hinst.
-      rewrite <- Heq in Hinst'.
-      rewrite list_lookup_insert in Hinst' => //.
-      inversion Hinst'; subst. clear Hinst'.
-      simpl.
-
-      specialize (Hmem_agree maddr' {| mem_data := mem_data; mem_max_opt := mem_max_opt |} Hinst).
-      simpl in Hmem_agree.
-
-      rewrite /mem_size /operations.mem_length /memory_list.mem_length. simpl.
-      rewrite /mem_size /operations.mem_length /memory_list.mem_length in Hmem_agree.
-      simpl in Hmem_agree.
-
-      destruct mem_max_opt => //.
-
-      repeat rewrite app_length.
-      rewrite take_length map_length drop_length.
-
-      rewrite /mem_length /memory_list.mem_length in Hbound.
-      simpl in Hbound.
-
-      move/N.leb_spec0 in Hbound.
-      rewrite /N_of_int in Hbound.
-
-      rewrite nat_bin.
-
-      replace (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))).
-      2 : { by lias. }
-
-      rewrite plus_assoc.
-      replace (ssrnat.addn (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))) (length moddata_init)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) + length moddata_init).
-      2 : { by lias. }
-
-      rewrite le_plus_minus_r => //.      
-      by lias.
-    + (* maddr /= maddr' *)
-      rewrite list_lookup_insert_ne in Hinst' => //.
-      by specialize (Hmem_agree maddr' inst' Hinst').
+  move/N.leb_spec0 in Hbound.
+  replace (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off))).
+  2 : { rewrite /N_of_int in Hbound.
+        repeat rewrite nat_bin.
+        by lias. }
+  apply/N.leb_spec0.
+  apply N.eq_le_incl. repeat f_equal.
+  rewrite /N_of_int in Hbound. 
+  rewrite nat_bin.
+  by lias.
 Qed.
 
-Lemma init_mems_preserve_typing s s' inst m x:
+Lemma init_mem_typing s inst mod_data d_off s':
   store_typing s ->
-  (* instantiate_data host_function host_instance inst hs' s m x -> *)
+  match nth_error (inst_memory inst) match moddata_data mod_data with
+                                  | Mk_memidx i => i
+                                  end with
+  | Some i =>
+      match nth_error (s_mems s) i with
+      | Some mem => (N_of_int d_off + N.of_nat (length (moddata_init mod_data)) <=? mem_length mem)%N
+      | None => false
+      end
+  | None => false
+  end ->
+  s' = init_mem host_function s inst (Z.to_N (Wasm_int.Int32.intval d_off)) mod_data ->
+  store_typing s'.
+Proof.
+  move => Htyping Hbound Heqs'.
+  
+  specialize (init_mem_preserve _ _ _ _ _ (Logic.eq_sym Heqs')) as [Heqf [Heqt Heqg]].
+  specialize (init_mem_extension _ _ _ _ _ Htyping Hbound Heqs') as Htext.
+  assert (store_extension s s') as Hext.
+  { unfold store_extension.
+    apply/andP; split; last by rewrite Heqg; apply comp_extension_same_refl; unfold ssrbool.reflexive; apply glob_extension_refl.
+    apply/andP; split; last by apply comp_extension_same_length; eapply init_mem_extension.
+    apply/andP; split; last by rewrite Heqt; apply comp_extension_same_refl; unfold ssrbool.reflexive; apply tab_extension_refl.
+    by rewrite Heqf; apply comp_extension_same_refl; unfold ssrbool.reflexive; apply func_extension_refl.
+  }
+  
+  unfold store_typing, typing.store_typing in *.
+  destruct s, s'. simpl in *.
+  destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
+  repeat split.
+  - unfold typing.cl_type_check_single in *.
+    apply Forall_forall.
+    rewrite -> Forall_forall in Hcl_type.
+    move => x Hin.
+    subst s_funcs0.
+    apply Hcl_type in Hin as [tf Htype].
+    exists tf.
+    unfold init_mem in Hext; simpl in Hext.
+    by eapply store_extension_cl_typing.
+  - by subst.
+  - (* mem_agree *)
+    clear Hcl_type Htab_agree.
+    destruct mod_data, moddata_data; simpl in *.
+    destruct (nth_error (inst_memory inst) n) as [maddr | ] eqn:Hmaddr => //=.
+    destruct (nth_error s_mems maddr) as [mem | ] eqn:Hsmlookup => //=.
+
+    unfold init_mem in Heqs'; simpl in Heqs'.
+    subst s_funcs0 s_tables0 s_globals0.
+    inversion Heqs'; subst s_mems0; clear Heqs'.
+
+    rewrite insert_at_insert => /=; last first.
+    { rewrite -> nth_error_nth with (x := maddr) => //.
+      by eapply nth_error_Some_length.
+    }
+
+    apply Forall_insert => //.
+
+    rewrite /mem_agree in Hmem_agree.
+    rewrite -> Forall_lookup in Hmem_agree.
+    rewrite /mem_agree => /=.
+    rewrite -> nth_error_nth with (x := maddr) => //.
+    rewrite -> nth_error_nth with (x := mem) => //.
+    clear - Hbound Hmem_agree Hsmlookup.
+
+    rewrite nth_error_lookup in Hsmlookup.
+    apply Hmem_agree in Hsmlookup.
+    destruct mem, mem_max_opt => //=.
+    simpl in *.
+    
+    rewrite /mem_size /operations.mem_length /memory_list.mem_length. simpl.
+    rewrite /mem_size /operations.mem_length /memory_list.mem_length in Hsmlookup.
+    simpl in Hsmlookup.
+
+    repeat rewrite app_length.
+    rewrite take_length map_length drop_length.
+
+    rewrite /mem_length /memory_list.mem_length in Hbound.
+    simpl in Hbound.
+
+    move/N.leb_spec0 in Hbound.
+    rewrite /N_of_int in Hbound.
+
+    rewrite nat_bin.
+
+    replace (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))).
+    2 : { by lias. }
+
+    rewrite plus_assoc.
+    replace (ssrnat.addn (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))) (length moddata_init)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) + length moddata_init).
+    2 : { by lias. }
+
+    rewrite le_plus_minus_r => //.      
+    by lias.
+Qed.
+
+Lemma init_mems_sound s s' inst m x:
+  store_typing s ->
   check_bounds_data host_function inst s m x ->
   s' = (init_mems host_function s inst [seq Z.to_N (Wasm_int.Int32.intval o) | o <- x] (mod_data m)) ->
-  store_typing s'.
+  (comp_extension s.(s_mems) s'.(s_mems) mem_extension /\
+  store_typing s').
 Proof.
   rewrite /check_bounds_data. destruct m. simpl.
   clear mod_types mod_funcs mod_tables mod_mems mod_globals mod_elem mod_start mod_imports mod_exports. 
@@ -1832,19 +1857,28 @@ Proof.
   induction mod_data as [ | mod_data mod_datas]; move => s s' d_offs Htyping Hbounds Heqs;
   rewrite <- Forall2_all2 in Hbounds.
   - inversion Hbounds; subst.
-    by rewrite /init_mems.
+    simpl.
+    rewrite /init_mems.
+    split => //=.
+    apply comp_extension_same_refl; unfold ssrbool.reflexive; by apply mem_extension_refl.
   - inversion Hbounds; subst.
     rename x into d_off. rename l into d_offs.
     rewrite /init_mems. simpl.
     (* d_off & mod_data represent the altered mem segment during s -> s1 *)
     remember (init_mem host_function s inst (Z.to_N (Wasm_int.Int32.intval d_off)) mod_data) as s1 eqn: Heqs1.
 
-    (* store_typing s1 *)
-    eapply init_mem_preserve_typing in Htyping => //.
-    rewrite <- Heqs1 in Htyping.
+    (* mem extension *)
+    assert (comp_extension (s_mems s) (s_mems s1) mem_extension) as Hext.
+    { apply comp_extension_same_length. by eapply init_mem_extension; eauto. }
 
+    assert (store_typing s1) as Hstoretype.
+    { by eapply init_mem_typing; eauto. }
+    
+    eapply IHmod_datas with (s := s1) (x := d_offs) in Hstoretype as [Hext' Hstype']; eauto.
+
+    + split => //; last by eapply comp_extension_trans; [ by eauto | | by apply mem_extension_trans].
+    
     (* recover invariant - check_bound *)
-    eapply IHmod_datas with (s := s1) (x := d_offs) => //.
     clear Htyping Hbounds.
     rewrite <- Forall2_all2.
     rewrite Forall2_same_length_lookup.
@@ -1923,7 +1957,6 @@ Proof.
         rewrite nth_error_lookup in Hinst1.
         by rewrite Hinst1.
 Qed.
-
 
 Lemma elem_typing_proj_is m t_imps t_exps:
   module_typing m t_imps t_exps ->
@@ -2058,14 +2091,79 @@ Proof.
       by apply gen_index_in in H.  
 Qed.
 
-Lemma instantiation_sound:  forall (s: store_record) m v_imps s' inst v_exps start,
+Lemma alloc_module_extract_export s m v_imps g_inits s' inst v_exps:
+  alloc_module host_function s m v_imps g_inits (s', inst, v_exps) ->
+  v_exps = map (fun m_exp => {| modexp_name := modexp_name m_exp; modexp_desc := export_get_v_ext inst (modexp_desc m_exp) |}) (mod_exports m).
+Proof.
+  move => Halloc.
+  simpl in *.
+  destruct (alloc_funcs _ _ _ _) as [s1 i_fs].
+  destruct (alloc_tabs _ _ _) as [s2 i_ts].
+  destruct (alloc_mems _ _ _) as [s3 i_ms].
+  destruct (alloc_globs _ _ _) as [s4 i_gs].
+  by remove_bools_options.
+Qed.
+
+Lemma module_typing_export_sound s m v_imps g_inits s' inst C v_exps t_imps t_exps:
+  alloc_module host_function s m v_imps g_inits (s', inst, v_exps) ->
+  module_typing m t_imps t_exps ->
+  inst_typing s' inst C ->
+  List.Forall (fun x => exists t, external_typing s' (modexp_desc x) t) v_exps.
+Proof.
+  move => Halloc Hmodtype Hinsttype.
+  
+  apply alloc_module_extract_export in Halloc; subst.
+
+  apply Forall_forall.
+  move => x Hin.
+  apply In_nth_error in Hin as [n Hnth].
+  rewrite Coqlib.list_map_nth in Hnth.
+  destruct (nth_error (mod_exports m) n) eqn:Hnth' => //.
+  simpl in Hnth; injection Hnth; clear Hnth.
+  move => <-.
+  remember (modexp_desc m0) as mdesc.
+  destruct mdesc => //=.
+  - destruct f => //.
+    
+Admitted.
+
+Lemma store_extension_export_typing s s' v_exp t_exp:
+  store_extension s s' ->
+  external_typing s v_exp t_exp ->
+  external_typing s' v_exp t_exp.
+Proof.
+  move => Hext Hexttype.
+  unfold external_typing in Hexttype.
+  destruct v_exp, t_exp; inversion Hexttype; simpl in *; subst.
+  - eapply store_extension_lookup_func in Hext; eauto.
+    econstructor; (try eassumption) => //.
+    apply nth_error_Some_length in Hext.
+    by lias.
+  - eapply store_extension_lookup_tab in Hext; eauto.
+    destruct Hext as [y [Hnth Hext]].
+    econstructor; (try eassumption); last by eapply tab_typing_extension.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+  - eapply store_extension_lookup_mem in Hext; eauto.
+    destruct Hext as [y [Hnth Hext]].
+    econstructor; (try eassumption); last by eapply mem_typing_extension.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+  - eapply store_extension_lookup_glob in Hext; eauto.
+    destruct Hext as [y [Hnth Hext]].
+    econstructor; (try eassumption); last by eapply global_agree_extension.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+Qed.
+
+Lemma instantiation_sound: forall (s: store_record) m v_imps s' inst v_exps start,
   store_typing s ->
   instantiate s m v_imps ((s', inst, v_exps), start) ->
   (store_typing s') /\
+  (store_extension s s') /\
   (exists C, inst_typing s' inst C) /\
-  (exists tes, ext_typing_list s' v_exps tes) /\
-  (pred_option (fun i => Nat.ltb i (length s'.(s_funcs))) start)
-  /\ store_extension s s'.
+  (pred_option (fun i => Nat.ltb i (length s'.(s_funcs))) start) /\
+  (List.Forall (fun x => exists t, external_typing s' (modexp_desc x) t) v_exps).
 Proof.
   move => s m v_imps s' inst v_exps start HStoreType HInst.
 
@@ -2073,26 +2171,88 @@ Proof.
   destruct HInst as [t_imps [t_exps [hs' [s'_end [g_inits [e_offs [d_offs [HModType [HImpType [HAllocModule H]]]]]]]]]].
 
   destruct H as [HInstGlob [HInstElem [HInstData [HBoundElem [HBoundData [HStart HStore]]]]]].
+
   simpl in *.
 
   specialize (alloc_module_sound _ _ _ _ _ _ _ _ _ _ HAllocModule HModType HImpType HInstGlob HStoreType) as Htyping. rename s'_end into s1.
 
+  destruct Htyping as [[Hstype' [C Hinsttype]] Hext].
+
+  specialize (module_typing_export_sound _ _ _ _ _ _ _ _ _ _ HAllocModule HModType Hinsttype) as Hexptype.
+  
+  remember (init_tabs host_function s1 inst [seq Z.to_nat (Wasm_int.Int32.intval o) | o <- e_offs] (mod_elem m)) as s2.
+  
   specialize (init_tabs_preserve_typing_aux _ _ _ _ _ _ _ _ _ _  HAllocModule HModType HImpType HInstGlob HStoreType) as Hinit_tabs_aux.
   destruct Hinit_tabs_aux as [Hinst_funcs_len Hinst_func_typing].
 
   specialize (elem_typing_proj_is _ _ _ HModType) as Hinit_typing.
   rewrite <- Hinst_funcs_len in Hinit_typing.
-  
-  remember (init_tabs host_function s1 inst [seq Z.to_nat (Wasm_int.Int32.intval o) | o <- e_offs] (mod_elem m)) as s2. 
+
   specialize (init_tabs_preserve _ _ _ _ _ (symmetry Heqs2)) as Hs2.
-  destruct Hs2 as [_[Hs2_mems _]].
+  destruct Hs2 as [Hs2_funcs [Hs2_mems Hs2_globs]].
   
-  eapply init_tabs_preserve_typing with (s' := s2) in Htyping => //.
+  eapply init_tabs_sound with (s' := s2) in Hstype' => //.
+  destruct Hstype' as [Hext2 Hstype2].
+
+  assert (store_extension s1 s2) as Hsext2.
+  { unfold store_extension.
+    rewrite - Hs2_funcs - Hs2_mems - Hs2_globs.
+    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply glob_extension_refl.
+    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply mem_extension_refl.
+    apply/andP; split; first by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply func_extension_refl.
+    done.
+  }
+  
+  assert (inst_typing s2 inst C) as Hinsttype2.
+  { by eapply inst_typing_extension. }
   
   move/eqP in HStore.
-
   rewrite /check_bounds_data in HBoundData.
   rewrite Hs2_mems in HBoundData.
+  
+  specialize (init_mems_preserve _ _ _ _ _ (symmetry HStore)) as Hs'.
+  destruct Hs' as [Hs'_funcs [Hs'_tabs Hs'_globs]].
+  
+  eapply init_mems_sound in Hstype2 => //.
+  destruct Hstype2 as [Hext3 Hstype3].
+  
+  assert (store_extension s2 s') as Hsext3.
+  { unfold store_extension.
+    rewrite - Hs'_funcs - Hs'_tabs - Hs'_globs.
+    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply glob_extension_refl.
+    apply/andP; split => //.
+    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply tab_extension_refl.
+    by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply func_extension_refl.
+  }
 
-  by eapply init_mems_preserve_typing => //.
+  assert (inst_typing s' inst C) as Hinsttype'; first by eapply inst_typing_extension.
+  
+  repeat split => //.
+  - by do 2 (eapply store_extension_trans; eauto).
+  - by exists C.
+  - destruct start => //=.
+    clear - HStart Hinsttype'.
+    unfold check_start in HStart.
+    destruct m, mod_start as [mstart |] => //=; simpl in HStart.
+    move/eqP in HStart.
+    destruct mstart as [[mstart]]; simpl in HStart.
+    destruct inst, C => /=.
+    unfold inst_typing in Hinsttype'.
+    destruct tc_local, tc_label, tc_return => //.
+    remove_bools_options.
+    simpl in HStart.
+    specialize (all2_element H3 HStart) as [y Hnth'].
+    eapply all2_projection in H3; eauto.
+    unfold typing.functions_agree in H3.
+    remove_bools_options.
+    apply/Nat.ltb_spec0.
+    by apply nth_error_Some_length in Hoption.
+  - eapply Forall_impl => //.
+    move => y Hexttype.
+    simpl in Hexttype.
+    destruct Hexttype as [t Hexttype].
+    exists t.
+    by do 2 (eapply store_extension_export_typing; eauto).
 Qed.
+
+End Host.

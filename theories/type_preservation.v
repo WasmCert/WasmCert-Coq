@@ -34,8 +34,9 @@ Let s_globals : store_record -> seq global := @s_globals _.
 Let s_mems : store_record -> seq memory := @s_mems _.
 Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
 Let cl_type : function_closure -> function_type := @cl_type _.
-Let func_extension: function_closure -> function_closure -> bool := @func_extension _.
-Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+Let func_extension := @func_extension host_function.
+Let frame_typing := @frame_typing host_function.
+
 
 Definition t_be_value bes : Prop :=
   const_list (to_e_list bes).
@@ -1988,58 +1989,6 @@ Proof.
   by eapply mk_frame_typing; eauto.
 Qed.
 
-Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
-    reflexive f ->
-    all2 f l l.
-Proof.
-  move => X f l.
-  induction l; move => H; unfold reflexive in H => //=.
-  apply/andP. split => //=.
-  by apply IHl.
-Qed.
-
-Lemma all2_func_extension_same: forall f,
-    all2 func_extension f f.
-Proof.
-  move => f.
-  apply reflexive_all2_same. unfold reflexive. move => x. unfold func_extension, operations.func_extension.
-  by apply/eqP.
-Qed.
-
-Lemma all2_tab_extension_same: forall t,
-    all2 tab_extension t t.
-Proof.
-  move => t.
-  apply reflexive_all2_same. unfold reflexive. move => x. unfold tab_extension.
-  by apply/andP.
-Qed.
-
-Lemma all2_mem_extension_same: forall t,
-    all2 mem_extension t t.
-Proof.
-  move => t.
-  apply reflexive_all2_same. unfold reflexive. move => x. unfold mem_extension.
-  apply/andP; split => //.
-  by apply N.leb_le; lias.
-Qed.
-
-Lemma glob_extension_refl: forall t,
-    glob_extension t t.
-Proof.
-  move => t.
-  unfold glob_extension.
-  do 2 (apply/andP; split => //).
-  apply/orP.
-  by right.
-Qed.
-
-Lemma all2_glob_extension_same: forall t,
-    all2 glob_extension t t.
-Proof.
-  move => t.
-  apply reflexive_all2_same. unfold reflexive. by apply glob_extension_refl.
-Qed.
-
 Ltac convert_et_to_bet:=
   lazymatch goal with
   | H: e_typing _ _ _ _ |- _ =>
@@ -2118,37 +2067,7 @@ Proof.
     by eauto.
 Qed.
 
-Lemma store_extension_same: forall s,
-    store_extension s s.
-Proof.
-  move => s. unfold store_extension.
-  repeat (apply/andP; split => //); rewrite length_is_size take_size.
-  + by apply all2_func_extension_same.
-  + by apply all2_tab_extension_same.
-  + by apply all2_mem_extension_same.
-  + by apply all2_glob_extension_same.
-Qed.
-
-Lemma store_extension_lookup: forall s s' n cl,
-    store_extension s s' ->
-    List.nth_error (s_funcs s) n = Some cl ->
-    List.nth_error (s_funcs s') n = Some cl.
-Proof.
-  move => s s' n cl Hext Hnth.
-  unfold store_extension, operations.store_extension in Hext.
-  remove_bools_options.
-  clear H0 H1 H2.
-  unfold comp_extension in H.  
-  remove_bools_options.
-  assert (lt n (length (s_funcs s))) as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
-  destruct (List.nth_error (s_funcs s') n) as [cl' |] eqn:Hnth'; last by apply List.nth_error_None in Hnth'; lias.
-  apply (nth_error_take (k := length (s_funcs s))) in Hnth'; last by lias.
-  specialize (all2_projection H0 Hnth Hnth') as Hproj.
-  unfold operations.func_extension in Hproj.
-  by move/eqP in Hproj; subst.
-Qed.
-
-Lemma store_extension_cl_typing: forall s s' cl tf,
+Lemma store_extension_cl_typing: forall (s s': store_record) cl tf,
     store_extension s s' ->
     cl_typing s cl tf ->
     cl_typing s' cl tf.
@@ -2194,7 +2113,7 @@ Proof.
     apply ety_local => //.
     by eapply IHHType; try apply HST1 => //.
   - move=> s a C cl tf HNth HCLType s' HST1 HST2 Hext.
-    eapply ety_invoke; eauto => //; first by eapply store_extension_lookup; eauto.
+    eapply ety_invoke; eauto => //; first by eapply store_extension_lookup_func; eauto.
     by eapply store_extension_cl_typing; eauto.
   - move=> s C es es' t1s t2s n HType1 IHHType1 HType2 IHHType2 E s' HST1 HST2 Hext.
     eapply ety_label => //; eauto.

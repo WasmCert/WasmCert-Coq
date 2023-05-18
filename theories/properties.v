@@ -4,7 +4,7 @@
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From StrongInduction Require Import StrongInduction.
-From Coq Require Import Bool Program.Equality.
+From Coq Require Import Bool Program.Equality NArith ZArith_base.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -660,6 +660,19 @@ Proof.
   symmetry. move: HLF'. by apply/eqseqP. 
 Qed.  
 
+
+(** Additional List properties **)
+
+Lemma nth_error_Some_length:
+  forall A (l : seq.seq A) (i : nat) (m : A),
+  List.nth_error l i = Some m -> 
+  (i < length l)%coq_nat.
+Proof.
+  move => A l i m H1.
+  assert (H2 : List.nth_error l i <> None) by rewrite H1 => //.
+  by apply List.nth_error_Some in H2.
+Qed.
+
 Lemma all_projection: forall {X:Type} f (l:seq X) n x,
     all f l ->
     List.nth_error l n = Some x ->
@@ -687,6 +700,22 @@ Proof.
   - destruct l1 => //=. destruct l2 => //=.
     simpl in HALL. move/andP in HALL. destruct HALL.
     eapply IHn; by eauto.
+Qed.
+
+Lemma all2_element {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
+  all2 f l1 l2 ->
+  List.nth_error l1 n = Some x ->
+  exists y, List.nth_error l2 n = Some y.
+Proof.
+  move => Hall2 Hnth.
+  destruct (List.nth_error l2 n) eqn:Hnth'; first by eauto.
+  exfalso.
+  apply List.nth_error_None in Hnth'.
+  apply all2_size in Hall2.
+  repeat rewrite - length_is_size in Hall2.
+  rewrite -Hall2 in Hnth'.
+  apply nth_error_Some_length in Hnth.
+  by lias.
 Qed.
 
 Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
@@ -1340,6 +1369,264 @@ Proof.
   { intros. destruct ves => //. }
   { intros. by destruct ves => //. }
   { intros. apply: lfilled_not_nil. exact H1. exact H0. }
+Qed.
+
+(** Store extension properties **)
+
+Let func_extension: function_closure -> function_closure -> bool := @func_extension _.
+Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+
+Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
+    reflexive f ->
+    all2 f l l.
+Proof.
+  move => X f l.
+  induction l; move => H; unfold reflexive in H => //=.
+  apply/andP. split => //=.
+  by apply IHl.
+Qed.
+
+Lemma func_extension_refl: forall f,
+    func_extension f f.
+Proof.
+  move => f. by unfold func_extension, operations.func_extension.
+Qed.
+
+Lemma all2_func_extension_same: forall f,
+    all2 func_extension f f.
+Proof.
+  move => f.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply func_extension_refl.
+Qed.
+
+Lemma tab_extension_refl: forall t,
+    tab_extension t t.
+Proof.
+  move => t. unfold tab_extension.
+  by apply/andP.
+Qed.
+
+Lemma all2_tab_extension_same: forall t,
+    all2 tab_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply tab_extension_refl.
+Qed.
+
+Lemma mem_extension_refl: forall m,
+    mem_extension m m.
+Proof.
+  move => m.
+  unfold mem_extension.
+  apply/andP; split => //.
+  by apply N.leb_le; lias.
+Qed.
+
+Lemma all2_mem_extension_same: forall t,
+    all2 mem_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply mem_extension_refl.
+Qed.
+
+Lemma glob_extension_refl: forall t,
+    glob_extension t t.
+Proof.
+  move => t.
+  unfold glob_extension.
+  do 2 (apply/andP; split => //).
+  apply/orP.
+  by right.
+Qed.
+
+Lemma all2_glob_extension_same: forall t,
+    all2 glob_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive. by apply glob_extension_refl.
+Qed.
+
+Lemma comp_extension_same_refl {T: Type} (l: list T) f:
+    reflexive f ->
+    comp_extension l l f.
+Proof.
+  move => Hrefl.
+  unfold comp_extension.
+  apply/andP; split; first by lias.
+  rewrite length_is_size take_size.
+  by apply reflexive_all2_same.
+Qed.
+
+Lemma func_extension_trans:
+  transitive func_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold func_extension, operations.func_extension in *.
+  remove_bools_options.
+  by apply/eqP; subst.
+Qed.
+  
+Lemma tab_extension_trans:
+  transitive tab_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold tab_extension in *.
+  remove_bools_options.
+  apply/andP; split; last apply/eqP.
+  - by lias.
+  - by destruct x2; simpl in *; subst.
+Qed.
+    
+Lemma mem_extension_trans:
+  transitive mem_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold mem_extension in *.
+  remove_bools_options.
+  apply/andP; split; last apply/eqP.
+  - move/N.leb_spec0 in H.
+    move/N.leb_spec0 in H1.
+    apply/N.leb_spec0.
+    by lias.
+  - by destruct x2; simpl in *; subst.
+Qed.
+    
+Lemma glob_extension_trans:
+  transitive glob_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold glob_extension in *.
+  destruct x1, x2, x3 => /=; simpl in *.
+  remove_bools_options; rewrite - H3 in H0; subst => /=; try by apply/eqP.
+  repeat (apply/andP; split => //).
+  apply/orP; by right.
+Qed.
+
+Lemma nth_error_take_longer {T: Type} (l: list T) n k:
+  n < k ->
+  List.nth_error l n = List.nth_error (take k l) n.
+Proof.
+  move: k l.
+  induction n; move => k l Hlt; destruct l, k => //=.
+  apply IHn; by lias.
+Qed.
+
+Lemma comp_extension_trans {T: Type} (l1 l2 l3: list T) f:
+  comp_extension l1 l2 f ->
+  comp_extension l2 l3 f ->
+  transitive f ->
+  comp_extension l1 l3 f.
+Proof.
+  move => Hext1 Hext2 Htrans.
+  unfold comp_extension in *.
+  remove_bools_options.
+  apply/andP; split; first by lias.
+  apply all2_spec.
+  - rewrite size_take.
+    repeat rewrite length_is_size in H H0 H1 H2.
+    rewrite length_is_size.
+    assert (size l1 <= size l3); first lias.
+    destruct (size l1 < size l3) eqn: Hlt => //; last by lias.
+  - move => n x y Hnth1 Hnth2.
+    specialize (all2_element H2 Hnth1) as [z Hnth3].
+    assert (f x z) as Htrans1; first by eapply all2_projection; eauto.
+    assert (f z y) as Htrans2; last eauto.
+    apply nth_error_Some_length in Hnth1.
+    rewrite - nth_error_take_longer in Hnth2; last by lias.
+    rewrite - nth_error_take_longer in Hnth3; last by lias.
+    eapply all2_projection; [by apply H0 | eauto | ].
+    rewrite - nth_error_take_longer => //.
+    by lias.
+Qed.
+    
+Lemma store_extension_trans (s1 s2 s3: store_record):
+  store_extension s1 s2 ->
+  store_extension s2 s3 ->
+  store_extension s1 s3.
+Proof.
+  move => Hext1 Hext2.
+  unfold store_extension, operations.store_extension in *.
+  remove_bools_options.
+  apply/andP; split; last by eapply comp_extension_trans; eauto; apply glob_extension_trans.
+  apply/andP; split; last by eapply comp_extension_trans; eauto; apply mem_extension_trans.
+  apply/andP; split; last by eapply comp_extension_trans; eauto; apply tab_extension_trans.
+  by eapply comp_extension_trans; eauto; apply func_extension_trans.
+Qed.
+  
+Lemma store_extension_same: forall s,
+    store_extension s s.
+Proof.
+  move => s. unfold store_extension.
+  repeat (apply/andP; split => //); rewrite length_is_size take_size.
+  + by apply all2_func_extension_same.
+  + by apply all2_tab_extension_same.
+  + by apply all2_mem_extension_same.
+  + by apply all2_glob_extension_same.
+Qed.
+
+Lemma comp_extension_lookup {T: Type} (l1 l2: list T) f n x:
+  comp_extension l1 l2 f ->
+  List.nth_error l1 n = Some x ->
+  exists y, (List.nth_error l2 n = Some y /\ f x y).
+Proof.
+  move => Hext Hnth.
+  unfold comp_extension in Hext.
+  remove_bools_options.
+  assert (lt n (length l1)) as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
+  destruct (List.nth_error l2 n) as [y |] eqn:Hnth'; last by apply List.nth_error_None in Hnth'; lias.
+  apply (nth_error_take (k := length l1)) in Hnth'; last by lias.
+  specialize (all2_projection H0 Hnth Hnth') as Hproj.
+  by exists y.
+Qed.
+
+Lemma store_extension_lookup_func: forall s s' n cl,
+    store_extension s s' ->
+    List.nth_error (s_funcs s) n = Some cl ->
+    List.nth_error (s_funcs s') n = Some cl.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  eapply comp_extension_lookup in Hnth; eauto.
+  unfold operations.func_extension in Hnth.
+  destruct Hnth as [? [Hnth Heq]].
+  by move/eqP in Heq; subst.
+Qed.
+
+Lemma store_extension_lookup_tab: forall s s' n x,
+    store_extension s s' ->
+    List.nth_error (s_tables s) n = Some x ->
+    exists x', List.nth_error (s_tables s') n = Some x' /\ tab_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply comp_extension_lookup in Hnth; eauto.
+Qed.
+
+Lemma store_extension_lookup_mem: forall s s' n x,
+    store_extension s s' ->
+    List.nth_error (s_mems s) n = Some x ->
+    exists x', List.nth_error (s_mems s') n = Some x' /\ mem_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply comp_extension_lookup in Hnth; eauto.
+Qed.
+
+Lemma store_extension_lookup_glob: forall s s' n x,
+    store_extension s s' ->
+    List.nth_error (s_globals s) n = Some x ->
+    exists x', List.nth_error (s_globals s') n = Some x' /\ glob_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply comp_extension_lookup in Hnth; eauto.
 Qed.
 
 End Host.
