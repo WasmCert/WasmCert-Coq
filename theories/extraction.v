@@ -8,7 +8,7 @@ From Wasm Require Import
   binary_format_parser
   instantiation
   type_checker
-  interpreter
+  interpreter_func
   pp.
 
 From Coq Require Import
