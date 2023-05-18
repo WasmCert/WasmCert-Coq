@@ -83,20 +83,6 @@ Inductive res_step'
       store_typing s /\
       e_typing s C es (Tf [::] ts)) ->
     res_step' hs s f es
-
-(* Instead of [::] split out ves and do `map typeof vcs = ts1`? *)
-(* Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret hs, *)
-(*     e_typing s C es tf -> *)
-(*     tf = Tf ts1 ts2 -> *)
-(*     C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) -> *)
-(*     inst_typing s f.(f_inst) C' -> *)
-(*     map typeof vcs = ts1 -> *)
-(*     store_typing s -> *)
-(*     (forall n lh k, lfilled n lh [::AI_basic (BI_br k)] es -> k < n) -> *)
-(*     (forall n, not_lf_return es n) -> *)
-(*     terminal_form (v_to_e_list vcs ++ es) \/ *)
-(*     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'. *)
-
 | RS'_break k bvs :
     (exists i j lh,
       i + k = j /\
@@ -109,20 +95,10 @@ Inductive res_step'
     reduce hs s f es hs' s' f' es' ->
     res_step' hs s f es.
 
-(** Main proof for the [RS_break] case. **)
-(* Lemma reduce_label_break: forall fuel d hs s f es es' hs' s' f' es'' n, *)
-(* run_step_with_fuel fuel d (hs, s, f, es') = (hs', s', f', RS_break 0 es'') -> *)
-(*   n <= size es'' -> *)
-(*   reduce hs s f ([:: AI_label n es es']) hs' s' f' *)
-(*    (v_to_e_list (rev (take n es'')) ++ es). *)
 Inductive res_step'_separate_e
   (hs : host_state) (s : store_record) (f : frame)
   (ves : list value) (e : administrative_instruction) : Type :=
 | RS''_exhaustion : res_step'_separate_e hs s f ves e
-(* TODO value needed? or should we get no values with separate e? trap? *)
-(* | RS'_value : *)
-(*     const_list es \/ es_is_trap es -> *)
-(*     res_step' hs s f es *)
 | RS''_error :
     (~ exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -134,11 +110,10 @@ Inductive res_step'_separate_e
       e_typing s C [:: e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
 
-(* TODO rename to bvs? *)
 (* XXX lfilled instead of lfilledInd? *)
 | RS''_break k bvs :
     (e = AI_basic (BI_br k) /\ bvs = ves) \/
-    (exists ln les es k i j lh,
+    (exists ln les es i j lh,
       e = AI_label ln les es /\
       i + k = j /\
       lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
@@ -151,7 +126,6 @@ Inductive res_step'_separate_e
       e = AI_label ln les es /\
       lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
     res_step'_separate_e hs s f ves e
-(* TODO RS''_return needs a proof *)
 | RS''_normal hs' s' f' es' :
     reduce hs s f ((vs_to_es ves) ++ [:: e]) hs' s' f' es' ->
     res_step'_separate_e hs s f ves e.
@@ -199,10 +173,6 @@ Definition config_tuple_separate_e_typing (cfg : config_one_tuple_without_e) (e 
   end.
 
 Definition res_tuple := (host_state * store_record * frame * res_step)%type.
-
-(* TODO *)
-Axiom coerce_res : forall hs s f es ves e (r : res_step'_separate_e hs s f ves e),
-  res_step' hs s f es.
 
 (* TODO use some ltacs from progress/preservation? invert_typeof_vcs etc *)
 
@@ -308,6 +278,32 @@ Proof.
   rewrite map_rev. rewrite revK.
   rewrite <- Ht2s. by rewrite Hbtypeves.
 Qed.
+
+Lemma break_rec : forall e es es'' ves k bvs,
+  split_vals_e es = (ves, e :: es'') ->
+  e = AI_basic (BI_br k) /\ bvs = rev ves \/
+  (exists ln les es k i j lh,
+    e = AI_label ln les es /\
+    i + k = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+    (* lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) [::e] ? *)
+  exists i j lh,
+   i + k = j /\
+   lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es.
+Proof.
+  intros e es es'' ves k bvs Hsplit H.
+  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  unfold vs_to_es.
+  destruct H as [[??] | [ln [les [es [k' [i [j [lh [? [Heqj HLF]]]]]]]]]].
+  - subst e bvs. rewrite revK.
+    exists 0, k, (LH_base [::] es'').
+    split => //.
+    replace (AI_basic (BI_br k) :: es'')
+      with ([:: AI_basic (BI_br k)] ++ es'') => //.
+    by rewrite catA; apply LfilledBase => //.
+  - subst e.
+    exists i, j, lh.
+Admitted.
 
 Lemma return_rec : forall e es es'' ves rvs,
   split_vals_e es = (ves, e :: es'') ->
@@ -2160,15 +2156,27 @@ Lemma label_break_rec : forall n ln les es bvs ves,
     i + n.+1 = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
   AI_label ln les es = AI_basic (BI_br n) /\ bvs = ves \/
-  (exists ln' les' es' k i j lh,
+  (exists ln' les' es' i j lh,
     AI_label ln les es = AI_label ln' les' es' /\
-    i + k = j /\
+    i + n = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es').
 Proof.
-  intros n ln les es bvs ves [i [j [lh [??]]]].
+  intros n ln les es bvs ves [i [j [lh [Heqj HLF]]]].
   right.
-  exists ln, les, es, (n.+1), i, j, lh => //.
-Qed.
+  exists ln, les, es, (i.+1), j, (LH_rec (v_to_e_list ves) ln les lh [::]).
+  repeat split; try by lias.
+  (* XXX this seems wrong? the goal should have es wrapped in a label for i+1
+   * to make sense? *)
+  (* | LfilledRec : forall (k : nat) (vs : seq administrative_instruction) *)
+  (*                  (n : nat) (es' : seq administrative_instruction) *)
+  (*                  (lh' : lholed) *)
+  (*                  (es'' es LI : seq administrative_instruction), *)
+  (*                const_list vs -> *)
+  (*                lfilledInd k lh' es LI -> *)
+  (*                lfilledInd k.+1 (LH_rec vs n es' lh' es'') es *)
+  (*                  (vs ++ [:: AI_label n es' LI] ++ es'') *)
+  Fail eapply LfilledRec.
+Admitted.
 
 Lemma label_error_break_rec : forall s f ves bvs ln les es,
   (exists i j lh,
@@ -2413,14 +2421,17 @@ Proof.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
       + remember (split_vals_e_not_const Heqes) as Hconst.
         remember (run_one_step'' hs s f (rev ves) e fuel d Htrap Hconst) as r.
-        destruct r as [| | |rvs|hs' s' f' res] eqn:?.
+        destruct r as [| | k bvs Hbr | rvs | hs' s' f' res] eqn:?.
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
         -- (* RS''_error *)
            apply RS'_error.
            by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
         -- (* RS''_break *)
-           by apply (coerce_res _ r).  (* TODO *)
+           apply RS'_break with (k := k) (bvs := bvs).
+           apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
+           Fail apply Hbr.
+           apply admitted_TODO.
         -- (* RS''_return rvs *)
            apply RS'_return with (rvs := rvs).
            by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
@@ -3109,6 +3120,17 @@ Proof.
   f_equal => //.
 Qed.
 
+Lemma lfilled_collapse': forall n lh vs es LI,
+    lfilledInd n lh (vs ++ es) LI ->
+    const_list vs ->
+    exists lh', lfilledInd n lh' es LI.
+Proof.
+  intros n lh vs es LI HLF Hconst.
+  apply lfilled_collapse1 with (l := 0) in HLF => //.
+  rewrite subn0 in HLF.
+  by rewrite drop_size in HLF => //.
+Qed.
+
 (* XXX do not separate vcs and es? *)
 Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),
     e_typing s C es (Tf t1s t2s) ->
@@ -3144,14 +3166,15 @@ Proof.
   - (* RS'_break *)
     exfalso.
     destruct Hbr as [i [j [lh [Heqj HLF]]]].
+    apply lfilled_collapse' in HLF as [lh' HLF];
+      last by apply v_to_e_is_const_list.
     move/lfilledP in HLF.
     Fail apply HLF in HLFbr.
     (* XXX get a contradiction from *)
     (* HLFbr : forall (n : nat) (lh : lholed) (k : immediate), *)
     (*         lfilled n lh [:: AI_basic (BI_br k)] es -> k < n *)
     (* Heqj : i + n = j *)
-    (* HLF : lfilled i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) *)
-    (*         (v_to_e_list vcs ++ es) *)
+    (* HLF : lfilled i lh' [:: AI_basic (BI_br j)] (v_to_e_list vcs ++ es) *)
     admit.
   - (* RS'_return *)
     exfalso.
