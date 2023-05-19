@@ -2378,10 +2378,21 @@ Lemma lfilled_return_empty_base : forall s C ln lf es t1s t2s i lh rvs,
 Proof.
   intros s C ln lf es t1s t2s i lh rvs Hetype Hbase HLF.
   apply Local_typing in Hetype as [ts [? [Hstype Hlen']]].
-  destruct Hstype as [s lf es ret ts C'' C''' Hftype HeqC'' Hetype Heqret].
-  dependent induction HLF.
-  - destruct vs, es' => //.
-    simpl in Hetype. rewrite cats0 in Hetype.
+  clear host_application_impl host_application_impl_correct.
+  (* revert Hetype Hbase Hlen'. *)
+  revert es i HLF Hstype.
+  induction lh as [vs es' | ].
+  (* dependent induction HLF. *)
+  (* - intros Hetype Hbase Hlen'. *)
+  - intros es i HLF Hstype.
+    destruct vs, es' => //.
+    inversion HLF => //.
+    rewrite cats0 in H4. simpl in H4.
+
+    destruct Hstype as [s lf es ret ts C'' C''' Hftype HeqC'' Hetype Heqret].
+    subst i vs es' es es0 C''.
+    simpl in Hetype.
+
     apply e_composition_typing_single in Hetype
       as [t1s' [t2s' [t3s [ts' [Hemp [Heqts [Hetypervs Hetyperet]]]]]]].
     apply_cat0_inv Hemp. simpl in Heqts. subst ts.
@@ -2396,14 +2407,18 @@ Proof.
       last by apply const_list_is_basic; apply v_to_e_is_const_list.
     apply Const_list_typing in Hetypervs. simpl in Hetypervs. subst ts'.
 
+    subst ln.
     apply f_equal with (f := size) in Heqts'.
     rewrite size_map in Heqts'. rewrite size_rev in Heqts'.
     repeat rewrite length_is_size. rewrite Heqts'. rewrite size_cat.
     by lias.
 
-  - eapply IHHLF with (s := s) => //.
-    + admit.
+  - intros es i HLF Hstype.
+    destruct i => //; try inversion HLF.
+    eapply IHlh with (i := i.+1) => //.
+    eapply LfilledRec in HLF.
 
+    (* destruct Hstype as [s lf es ret ts C'' C''' Hftype HeqC'' Hetype Heqret]. *)
 Admitted.
 
 (* XXX return has not returned enough values *)
