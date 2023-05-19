@@ -67,6 +67,13 @@ Inductive res_step : Type :=
 | RS_return : list value -> res_step
 | RS_normal : list administrative_instruction -> res_step.
 
+Fixpoint lholed_empty_vs lh : bool :=
+  match lh with
+  | LH_base [::] _ => true
+  | LH_rec [::] _ _ lh _ => lholed_empty_vs lh
+  | _ => false
+  end.
+
 (* TODO: the break/return cases also need some proofs to go with them,
  * see interpreter_func_sound. *)
 Inductive res_step'
@@ -89,7 +96,9 @@ Inductive res_step'
       lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
     res_step' hs s f es
 | RS'_return rvs :
-    (exists i lh, lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
+    (exists i lh,
+      lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
+      lholed_empty_vs lh) ->
     res_step' hs s f es
 | RS'_normal hs' s' f' es' :
     reduce hs s f es hs' s' f' es' ->
@@ -121,10 +130,12 @@ Inductive res_step'_separate_e
 
 (* XXX oversimplified (?) *)
 | RS''_return rvs :
+    (* XXX can this be simplified to just lfilled? *)
     (e = AI_basic BI_return /\ rvs = ves) \/ (* rvs redundant? *)
     (exists ln les es i lh,
       e = AI_label ln les es /\
-      lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
+      lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
+      lholed_empty_vs lh) ->
     res_step'_separate_e hs s f ves e
 | RS''_normal hs' s' f' es' :
     reduce hs s f ((vs_to_es ves) ++ [:: e]) hs' s' f' es' ->
@@ -305,25 +316,38 @@ Proof.
     exists i, j, lh.
 Admitted.
 
+Fixpoint empty_base lh : bool :=
+  match lh with
+  | LH_base [::] [::] => true
+  | LH_rec _ _ _ lh _ => empty_base lh
+  | _ => false
+  end.
+
 Lemma return_rec : forall e es es'' ves rvs,
   split_vals_e es = (ves, e :: es'') ->
   (e = AI_basic BI_return /\ rvs = rev ves) \/
   (exists ln les es i lh,
     e = AI_label ln les es /\
-    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
+    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
+    lholed_empty_vs lh) ->
   exists i lh,
-  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es.
+  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
+  lholed_empty_vs lh.
 Proof.
-  intros e es es'' ves rvs Hsplit H.
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
-  destruct H as [[??] | [ln [les [es [i [lh [? HLF]]]]]]]; subst e.
-  - subst rvs. unfold vs_to_es. rewrite revK.
-    exists 0, (LH_base [::] es'').
-    apply/lfilledP. solve_lfilled. by rewrite <- catA.
-  - exists (i.+1), (LH_rec (v_to_e_list ves) ln les lh es'').
-    replace (AI_label ln les es :: es'') with ([:: AI_label ln les es] ++ es'') => //.
-    by apply LfilledRec => //; apply v_to_e_is_const_list.
-Qed.
+Admitted.
+(*   intros e es es'' ves rvs Hsplit H. *)
+(*   apply split_vals_e_v_to_e_duality in Hsplit. subst es. *)
+(*   destruct H as [[??] | [ln [les [es [i [lh [? [HLF Hbase]]]]]]]]; subst e. *)
+(*   - subst rvs. unfold vs_to_es. rewrite revK. *)
+(*     exists 0, (LH_base [::] es''). *)
+(*     split => //. *)
+(*     apply/lfilledP. solve_lfilled. by rewrite <- catA. *)
+(*   - destruct ves => //. *)
+(*     exists (i.+1), (LH_rec (v_to_e_list ves) ln les lh es''). *)
+(*     replace (AI_label ln les es :: es'') with ([:: AI_label ln les es] ++ es'') => //. *)
+(*     split => //. *)
+(*     by apply LfilledRec => //; apply v_to_e_is_const_list. *)
+(* Qed. *)
 
 Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
   es' = e :: es'' ->
@@ -2346,10 +2370,47 @@ Proof.
   by apply/lfilledP.
 Qed.
 
+Lemma lfilled_return_empty_base : forall s C ln lf es t1s t2s i lh rvs,
+  e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) ->
+  empty_base lh ->
+  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es ->
+  length rvs >= ln.
+Proof.
+  intros s C ln lf es t1s t2s i lh rvs Hetype Hbase HLF.
+  apply Local_typing in Hetype as [ts [? [Hstype Hlen']]].
+  destruct Hstype as [s lf es ret ts C'' C''' Hftype HeqC'' Hetype Heqret].
+  dependent induction HLF.
+  - destruct vs, es' => //.
+    simpl in Hetype. rewrite cats0 in Hetype.
+    apply e_composition_typing_single in Hetype
+      as [t1s' [t2s' [t3s [ts' [Hemp [Heqts [Hetypervs Hetyperet]]]]]]].
+    apply_cat0_inv Hemp. simpl in Heqts. subst ts.
+    apply et_to_bet in Hetyperet; last by auto_basic.
+    apply (Return_typing host_instance) in Hetyperet
+      as [ts [ts'' [Heqts' Heqret']]].
+    unfold upd_return in Heqret'. unfold tc_return in Heqret'. subst ret.
+    destruct Heqret as [Heqret|] => //.
+    injection Heqret as Heqret. subst ts.
+
+    apply et_to_bet in Hetypervs;
+      last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply Const_list_typing in Hetypervs. simpl in Hetypervs. subst ts'.
+
+    apply f_equal with (f := size) in Heqts'.
+    rewrite size_map in Heqts'. rewrite size_rev in Heqts'.
+    repeat rewrite length_is_size. rewrite Heqts'. rewrite size_cat.
+    by lias.
+
+  - eapply IHHLF with (s := s) => //.
+    + admit.
+
+Admitted.
+
 (* XXX return has not returned enough values *)
 Lemma local_return_error : forall s f ln lf es rvs ves,
   (exists i lh,
-    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
+    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
+    lholed_empty_vs lh) ->
   (ln <= length rvs) = false ->
   ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -2358,13 +2419,13 @@ Lemma local_return_error : forall s f ln lf es rvs ves,
       store_typing s /\
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
-  intros s f ln lf es rvs ves [i [lh HLF]] Hlen
+  intros s f ln lf es rvs ves [i [lh [HLF Hbase]]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
+  move/lfilledP in HLF.
   apply Local_typing in Hetype as [ts' [? [Hstype Hlen']]].
   (* XXX need to get a contradiction with Hlen *)
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
-
-  move/lfilledP in HLF.
+  Check (Lfilled_return_typing host_instance).
   apply (Lfilled_return_typing host_instance)
     with (ts := ts') (s := s) (C := C'') (lab := tc_label C'') (t2s := ts')
     in HLF => //.
@@ -2372,17 +2433,17 @@ Proof.
       (* TODO add this to auto_basic? *)
       last by apply const_list_is_basic; apply v_to_e_is_const_list.
     apply Const_list_typing in HLF. simpl in HLF. subst ts'.
-    rewrite length_is_size in Hlen. rewrite length_is_size in Hlen'.
-    rewrite size_map in Hlen'. rewrite size_rev in Hlen'.
-    by lias.
-  - by unfold upd_label; destruct C''.
-  - by apply v_to_e_is_const_list.
-  - assert (Hlen'' : length (vs_to_es rvs) = ln).
-    { admit. } (* XXX need to add it to RS''_return? *)
-    by rewrite Hlen''.
-  - subst C''. unfold upd_return. destruct Heqts' => //.
-    (* need : ret' <> None *)
-    admit.
+    rewrite length_is_size in Hlen'. rewrite size_map in Hlen'. rewrite size_rev in Hlen'.
+  (*   rewrite length_is_size. *)
+  (*   by lias. *)
+  (* - by unfold upd_label; destruct C''. *)
+  (* - by apply v_to_e_is_const_list. *)
+  (* - assert (Hlen'' : length (vs_to_es rvs) = ln). *)
+  (*   { admit. } (* XXX need to add it to RS''_return? *) *)
+  (*   by rewrite Hlen''. *)
+  (* - subst C''. unfold upd_return. destruct Heqts' => //. *)
+  (*   (* need : ret' <> None *) *)
+  (*   admit. *)
 Admitted.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
