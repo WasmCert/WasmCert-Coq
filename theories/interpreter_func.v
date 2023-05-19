@@ -2370,55 +2370,65 @@ Proof.
   by apply/lfilledP.
 Qed.
 
-Lemma lfilled_return_empty_base : forall s C ln lf es t1s t2s i lh rvs,
+  Lemma lfilled_return_empty_base : forall lh s C ln lf es t1s t2s i rvs,
   e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) ->
   empty_base lh ->
-  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es ->
+  lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
   length rvs >= ln.
 Proof.
-  intros s C ln lf es t1s t2s i lh rvs Hetype Hbase HLF.
-  apply Local_typing in Hetype as [ts [? [Hstype Hlen']]].
-  clear host_application_impl host_application_impl_correct.
-  (* revert Hetype Hbase Hlen'. *)
-  revert es i HLF Hstype.
-  induction lh as [vs es' | ].
-  (* dependent induction HLF. *)
-  (* - intros Hetype Hbase Hlen'. *)
-  - intros es i HLF Hstype.
-    destruct vs, es' => //.
-    inversion HLF => //.
-    rewrite cats0 in H4. simpl in H4.
+  induction lh as [vs es' | vs j es' lh' IH]; move => s C ln lf es t1s t2s i rvs Hetype Hbase Hlf.
+  - destruct vs, es' => //.
+    inversion Hlf; subst; clear Hlf.
+    rewrite cat0s cats0 in Hetype.
+    apply Local_typing in Hetype as [ts [-> [Hstype <-]]].
+    inversion Hstype; subst; clear Hstype.
+    apply e_composition_typing in H1.
+    destruct H1 as [ts0 [ts1' [ts2' [t3s [Heqt [-> [Hetype1 Hetype2]]]]]]].
+    destruct ts0, ts1' => //; simpl in *.
+    apply et_to_bet in Hetype2; auto_basic.
+    apply (Return_typing host_instance) in Hetype2.
+    destruct Hetype2 as [ts [ts' [-> Hrett]]].
+    apply et_to_bet in Hetype1; last by apply const_list_is_basic, v_to_e_is_const_list.
+    apply Const_list_typing in Hetype1; simpl in *.
+    inversion Hrett; subst; clear Hrett.
+    apply (f_equal (@size _)) in Hetype1.
+    rewrite size_cat size_map in Hetype1.
+    repeat rewrite length_is_size; by lias.
+  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf.
+    apply Local_typing in Hetype.
+    destruct Hetype as [ts [Heqt2s [Hstype <-]]].
+    inversion Hstype as [s0 f es rs ts0 C' C'' Hftype Hupdret Hetype _];
+      subst s0 rs f es ts0; clear Hstype.
 
-    destruct Hstype as [s lf es ret ts C'' C''' Hftype HeqC'' Hetype Heqret].
-    subst i vs es' es es0 C''.
-    simpl in Hetype.
-
-    apply e_composition_typing_single in Hetype
-      as [t1s' [t2s' [t3s [ts' [Hemp [Heqts [Hetypervs Hetyperet]]]]]]].
+    apply e_composition_typing in Hetype
+      as [ts' [t1s' [t2s' [t3s [Hemp [Heqts [Hetype1 Hetype2]]]]]]].
     apply_cat0_inv Hemp. simpl in Heqts. subst ts.
-    apply et_to_bet in Hetyperet; last by auto_basic.
-    apply (Return_typing host_instance) in Hetyperet
-      as [ts [ts'' [Heqts' Heqret']]].
-    unfold upd_return in Heqret'. unfold tc_return in Heqret'. subst ret.
-    destruct Heqret as [Heqret|] => //.
-    injection Heqret as Heqret. subst ts.
+    apply e_composition_typing in Hetype2
+      as [ts [t1s'' [t2s'' [t3s' [Heqts [Heqt2s' [Hetype2 Hetype3]]]]]]].
+    simpl in *.
 
-    apply et_to_bet in Hetypervs;
-      last by apply const_list_is_basic; apply v_to_e_is_const_list.
-    apply Const_list_typing in Hetypervs. simpl in Hetypervs. subst ts'.
+    apply Label_typing in Hetype2
+      as [t1s''' [t2s''' [Heqt3s' [Hetypees' [HetypeLI Heqj]]]]].
 
-    subst ln.
-    apply f_equal with (f := size) in Heqts'.
-    rewrite size_map in Heqts'. rewrite size_rev in Heqts'.
-    repeat rewrite length_is_size. rewrite Heqts'. rewrite size_cat.
-    by lias.
-
-  - intros es i HLF Hstype.
-    destruct i => //; try inversion HLF.
-    eapply IHlh with (i := i.+1) => //.
-    eapply LfilledRec in HLF.
-
-    (* destruct Hstype as [s lf es ret ts C'' C''' Hftype HeqC'' Hetype Heqret]. *)
+    apply IH with
+      (i := k) (es := LI) (s := s) (t1s := [::]) (t2s := t2s''')
+      (lf := lf) (C := C) => //.
+    apply ety_local.
+    * remember (upd_label C' ([:: t1s'''] ++ tc_label C')) as C'''.
+      apply mk_s_typing
+        with (C := upd_return C''' (Some t2s''')) (C0 := C''') => //.
+      + subst C''' C'.
+        (* Hftype : frame_typing s lf C'' *)
+        (* frame_typing s lf *)
+        (*   (upd_label (upd_return C'' (Some t2s')) *)
+        (*      ([:: t1s'''] ++ tc_label (upd_return C'' (Some t2s')))) *)
+        admit.
+      + (* HetypeLI : e_typing s C''' LI (Tf [::] t2s''') *)
+        (* goal : e_typing s (upd_return C''' (Some t2s''')) LI (Tf [::] t2s''') *)
+        admit.
+      + by left.
+    * (* goal : length t2s''' = length t2s' *)
+      (* doesn't look like there's enough information to show this? *)
 Admitted.
 
 (* XXX return has not returned enough values *)
