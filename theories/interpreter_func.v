@@ -2420,120 +2420,17 @@ Lemma lfilled_return_empty_base : forall lh s C ln lf es t1s t2s i rvs,
 Proof.
   induction lh as [vs es' | vs j es' lh' IH]; move => s C ln lf es t1s t2s i rvs Hetype Hbase Hlf.
   - destruct vs => //.
-    inversion Hlf; subst; clear Hlf.
-    rewrite cat0s in Hetype. rewrite <- catA in Hetype.
-    apply Local_typing in Hetype as [ts [-> [Hstype <-]]].
-    inversion Hstype; subst; clear Hstype.
-    apply e_composition_typing in H1.
-    destruct H1 as [ts0 [ts1' [ts2' [t3s [_ [-> [Hetype1 Hetype2]]]]]]].
-    (* destruct ts0, ts1' => //; simpl in *. *)
-    rewrite <- cat1s in Hetype2.
-    apply e_composition_typing in Hetype2
-      as [ts0' [ts1'' [ts2'' [t3s' [Heqt3s [-> [Hetype2 Hetype3]]]]]]].
-    apply et_to_bet in Hetype2; auto_basic.
-    apply (Return_typing host_instance) in Hetype2.
-    destruct Hetype2 as [ts [ts' [-> Hrett]]].
-    apply et_to_bet in Hetype1; last by apply const_list_is_basic, v_to_e_is_const_list.
-    apply Const_list_typing in Hetype1; simpl in *.
-    inversion Hrett; subst; clear Hrett.
-    apply (f_equal (@size _)) in Heqt3s.
-    repeat rewrite size_cat in Heqt3s.
-    rewrite size_map in Heqt3s.
-    repeat rewrite length_is_size.
-    rewrite size_cat.
-    Fail by lias.
-Admitted.
-    (* XXX relaxed version of empty_base messed this up a bit *)
 
-(*   - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf. *)
-(*     apply Local_typing in Hetype. *)
-(*     destruct Hetype as [ts [Heqt2s [Hstype <-]]]. *)
-(*     inversion Hstype as [s0 f es rs ts0 C' C'' Hftype Hupdret Hetype _]; *)
-(*       subst s0 rs f es ts0; clear Hstype. *)
-(**)
-(*     apply e_composition_typing in Hetype *)
-(*       as [ts' [t1s' [t2s' [t3s [Hemp [Heqts [Hetype1 Hetype2]]]]]]]. *)
-(*     apply_cat0_inv Hemp. simpl in Heqts. subst ts. *)
-(*     apply e_composition_typing in Hetype2 *)
-(*       as [ts [t1s'' [t2s'' [t3s' [Heqts [Heqt2s' [Hetype2 Hetype3]]]]]]]. *)
-(*     simpl in *. *)
-(**)
-(*     apply Label_typing in Hetype2 *)
-(*       as [t1s''' [t2s''' [Heqt3s' [Hetypees' [HetypeLI Heqj]]]]]. *)
-(**)
-(*     apply IH with *)
-(*       (i := k) (es := LI) (s := s) (t1s := [::]) (t2s := t2s''') *)
-(*       (lf := lf) (C := C) => //. *)
-(*     apply ety_local. *)
-(*     * remember (upd_label C' ([:: t1s'''] ++ tc_label C')) as C'''. *)
-(*       apply mk_s_typing *)
-(*         with (C := upd_return C''' (Some t2s''')) (C0 := C''') => //. *)
-(*       + subst C''' C'. *)
-(*         (* Hftype : frame_typing s lf C'' *) *)
-(*         (* frame_typing s lf *) *)
-(*         (*   (upd_label (upd_return C'' (Some t2s')) *) *)
-(*         (*      ([:: t1s'''] ++ tc_label (upd_return C'' (Some t2s')))) *) *)
-(*         admit. *)
-(*       + (* HetypeLI : e_typing s C''' LI (Tf [::] t2s''') *) *)
-(*         (* goal : e_typing s (upd_return C''' (Some t2s''')) LI (Tf [::] t2s''') *) *)
-(*         admit. *)
-(*       + by left. *)
-(*     * (* goal : length t2s''' = length t2s' *) *)
-(*       (* doesn't look like there's enough information to show this? *) *)
-
-(* XXX return has not returned enough values *)
-Lemma local_return_error : forall s f ln lf es rvs ves,
-  (exists i lh,
-    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-    empty_base lh) ->
-  (ln <= length rvs) = false ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
-Proof.
-  intros s f ln lf es rvs ves [i [lh [HLF Hbase]]] Hlen
-    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
-  assert (ln <= length rvs).
-  {
-    rewrite length_is_size. rewrite <- size_rev.
-    by apply (lfilled_return_empty_base Hetype Hbase HLF).
-  }
-  by lias.
-Qed.
-
-Lemma local_return_error' : forall s f ln lf es rvs ves,
-  (exists i lh,
-    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
-  (ln <= length rvs) = false ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
-Proof.
-  intros s f ln lf es rvs ves [i [lh HLF]] Hlen
-    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
-  revert es Hetype i HLF.
-  induction lh as [vs es'|].
-  - assert (vs = [::]). { admit. } subst vs.
-    (* XXX can probably get that as an assumption? through empty base or similar *)
-    intros es Hetype i HLF.
-
-    inversion HLF.
+    inversion Hlf; subst.
     (* TODO unstable names *)
-    subst es'0 es0 i vs es.
     simpl in *.
     rewrite <- catA in Hetype.
     apply Local_typing in Hetype as [ts' [-> [Hstype Hlen']]].
     inversion Hstype as [s0 lf0 es ret'0 ts'0 C'' C''' Hftype HeqC'' Hetype _].
     subst s0 ret'0 lf0 ts'0 es.
 
-    (* This should tell us that the type of rvs is ts'
-     * (possibly prefixed, if rvs is too long and some values are discarded) *)
+    (* This should tell us that the type of rvs is ts',
+     * possibly prefixed (if rvs is too long and some values are discarded) *)
     (* HeqC'' : C'' = upd_return C''' (Some ts') *)
     (* Hetype : typing.e_typing s C'' *)
     (*            (vs_to_es rvs ++ [:: AI_basic BI_return] ++ es')  *)
@@ -2560,29 +2457,38 @@ Proof.
     simpl in Hetypervs.
     subst t1s' t0s.
 
-    assert (size rvs >= ln).
-    {
-      apply f_equal with (f := size) in Ht0s.
-      revert Ht0s. rewrite size_map size_rev. repeat rewrite size_cat.
-      subst ln. rewrite length_is_size.
-      by lias.
-    }
-
+    apply f_equal with (f := size) in Ht0s.
+    revert Ht0s. rewrite size_map. repeat rewrite size_cat.
+    subst ln. repeat rewrite length_is_size.
     by lias.
 
-  - intros es Hetype i HLF.
-    inversion HLF.
+  - inversion Hlf; subst.
     (* TODO unstable names *)
-    subst i l n0 l0 lh l1 es0.
-    apply IHlh with (i := k) (es := es) => //.
-    subst es.
-    (* XXX IH is applied with the wrong arguments here
-     * does the IH even make sense? *)
-
-    (* H11 : lfilledInd k lh' (vs_to_es rvs ++ [:: AI_basic BI_return]) LI *)
-    (* ========================= (1 / 1) *)
-    (* lfilledInd k lh' (vs_to_es rvs ++ [:: AI_basic BI_return]) (vs ++ [:: AI_label n es' LI] ++ es'') *)
+    (* apply IH => //. *)
 Admitted.
+
+(* XXX return has not returned enough values *)
+Lemma local_return_error : forall s f ln lf es rvs ves,
+  (exists i lh,
+    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
+    empty_base lh) ->
+  (ln <= length rvs) = false ->
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      rev (map typeof ves) = t1s' ++ t1s /\
+      inst_typing s f.(f_inst) C' /\
+      store_typing s /\
+      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+Proof.
+  intros s f ln lf es rvs ves [i [lh [HLF Hbase]]] Hlen
+    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
+  assert (ln <= length rvs).
+  {
+    rewrite length_is_size. rewrite <- size_rev.
+    by apply (lfilled_return_empty_base Hetype Hbase HLF).
+  }
+  by lias.
+Qed.
 
 Lemma reduce_local_rec : forall (hs hs' : host_state) s s' f f' es es' ves ln lf,
   reduce hs s lf es hs' s' f' es' ->
