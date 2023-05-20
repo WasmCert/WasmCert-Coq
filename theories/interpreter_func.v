@@ -2462,9 +2462,48 @@ Proof.
     subst ln. repeat rewrite length_is_size.
     by lias.
 
-  - inversion Hlf; subst.
-    (* TODO unstable names *)
-    (* apply IH => //. *)
+  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf.
+    apply Local_typing in Hetype as [ts [-> [Hstype <-]]].
+    assert (Hstype' : s_typing s (Some ts) lf (vs ++ [:: AI_label j es' LI] ++ l) ts) => //.
+    inversion Hstype as [s0 f es rs ts0 C' C'' Hftype Hupdret Hetype _]; subst; clear Hstype.
+
+    apply e_composition_typing in Hetype
+      as [? [t0s [ts'' [t1s' [Ht0s [Hts'' [Hetypevs Hetype]]]]]]].
+    apply_cat0_inv Ht0s.
+    simpl in Hts''. subst ts''.
+    apply e_composition_typing in Hetype
+      as [ts'' [t0s [t3s [t2s' [Ht0s [Hts' [Hetypelab Hetype]]]]]]].
+
+    Check Label_typing.
+    apply Label_typing in Hetypelab
+      as [label_ts [t2s'' [Heqt2s' [Hetypees' [HetypeLI Hlen]]]]].
+
+    assert (t2s'' = ts). { admit. } subst t2s''.
+
+    (* Hlf0 : lfilledInd k lh' (v_to_e_list rvs ++ [:: AI_basic BI_return]) LI *)
+    (* NOTE C here is arbitrary, move out into eapply? *)
+    apply IH with
+      (s := s) (rvs := rvs) (t1s := [::]) (t2s := ts)
+      (es := LI) (i := k) (lf := lf) (C := C).
+    * apply ety_local; last by reflexivity.
+      apply mk_s_typing with (C := upd_return C'' (Some ts)) (C0 := C'').
+      + by apply Hftype.
+      + by reflexivity.
+      + admit.
+      + by left.
+      (* Hstype' : s_typing s (Some ts) lf (vs ++ [:: AI_label j es' LI] ++ l) ts *)
+    * by apply Hbase.
+    * by apply Hlf0.
+
+    (* From HetypeLI we know that LI returns rvs (possibly with some elements
+     * dropped) and they are of type ts *)
+    (* Hlf0 : lfilledInd k lh' (v_to_e_list rvs ++ [:: AI_basic BI_return]) LI *)
+    (* HetypeLI : typing.e_typing s *)
+    (*              (upd_label (upd_return C'' (Some ts)) *)
+    (*                 ([:: t0s'] ++ tc_label (upd_return C'' (Some ts)))) LI *)
+    (*              (Tf [::] t2s'') *)
+    (* Ideally would use Lfilled_return_typing but we don't have the length equality? *)
+
 Admitted.
 
 (* XXX return has not returned enough values *)
