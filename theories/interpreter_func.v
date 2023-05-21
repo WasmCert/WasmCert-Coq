@@ -3281,6 +3281,47 @@ Proof.
   by injection Heq => //.
 Qed.
 
+Lemma seq_split_predicate : forall (T : eqType) (xs xs' ys ys' : seq T) (y : T) (P : pred T),
+  xs ++ [:: y] ++ ys = xs' ++ ys' ->
+  all P xs ->
+  all P xs' ->
+  ~ P y ->
+  size xs >= size xs'.
+  (* exists xs'', xs = xs' ++ xs''. *)
+(* alt. prove size xs >= size xs'? *)
+Proof.
+  intros T xs xs' ys ys' y P H HPxs HPxs' HnPy.
+  destruct (size xs < size xs') eqn:Hsize => //; last by lias.
+  exfalso; apply HnPy.
+  apply f_equal with (f := drop (size xs)) in H.
+  rewrite drop_size_cat in H => //.
+  rewrite drop_cat in H.
+  rewrite Hsize in H.
+  assert (size (drop (size xs) xs') > 0). { by rewrite size_drop; lias. }
+  destruct (drop (size xs) xs') as [|x xs''] eqn:Heqdrop => //.
+  assert (List.In x xs').
+  {
+    rewrite <- cat_take_drop with (n0 := size xs).
+    apply List.in_or_app; right.
+    by rewrite Heqdrop; apply List.in_eq.
+  }
+  inversion H; subst x.
+  by apply list_all_forall with (l := xs').
+Qed.
+
+(* XXX can't think of a descriptive name for this *)
+Lemma v_to_e_split_by_non_const : forall vs vs' e es es',
+  vs ++ [:: e] ++ es = vs' ++ es' ->
+  const_list vs ->
+  const_list vs' ->
+  ~ is_const e ->
+  exists vs'', vs = vs' ++ vs''.
+Proof.
+  intros vs vs' e es es' H Hconstvs Hconstvs' Hnconste.
+  simpl in H.
+  remember (seq_split_predicate H Hconstvs Hconstvs' Hnconste) as Hsize.
+Admitted.
+
 (* XXX do I need to somehow assert that return (and break too?)
  * only returns vs from the inner-most layer (i.e. rvs)
  * and discards any other vs (coming from lfilled (i + 1)) *)
@@ -3316,6 +3357,7 @@ Proof.
 
     assert (Heqvs : exists vcs', vs = v_to_e_list vcs ++ v_to_e_list vcs'). { admit. }
     (* similar to the base case, get it from:
+     * H1 : const_list vs
      * vs ++ AI_label n es' (v_to_e_list LIvs ++ LIes) :: es'' = v_to_e_list vcs ++ es *)
     destruct Heqvs as [vcs' ->].
     rewrite <- catA in H0.
