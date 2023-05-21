@@ -75,11 +75,10 @@ Fixpoint lholed_empty_vs lh : bool :=
   | _ => false
   end.
 
-(* XXX migth have to relax this and allow non-empty es *)
-Fixpoint empty_base lh : bool :=
+Fixpoint empty_vs_base lh : bool :=
   match lh with
   | LH_base [::] _ => true
-  | LH_rec _ _ _ lh _ => empty_base lh
+  | LH_rec _ _ _ lh _ => empty_vs_base lh
   | _ => false
   end.
 
@@ -107,7 +106,7 @@ Inductive res_step'
 | RS'_return rvs :
     (exists i lh,
       lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-      empty_base lh) ->
+      empty_vs_base lh) ->
     res_step' hs s f es
 | RS'_normal hs' s' f' es' :
     reduce hs s f es hs' s' f' es' ->
@@ -144,7 +143,7 @@ Inductive res_step'_separate_e
     (exists ln les es i lh,
       e = AI_label ln les es /\
       lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-      empty_base lh) ->
+      empty_vs_base lh) ->
     res_step'_separate_e hs s f ves e
 | RS''_normal hs' s' f' es' :
     reduce hs s f ((vs_to_es ves) ++ [:: e]) hs' s' f' es' ->
@@ -209,30 +208,6 @@ Proof.
   - rewrite length_is_size. rewrite length_is_size in Hlen.
     by rewrite v_to_e_size; rewrite size_rev.
 Qed.
-
-Lemma lfilled_return_typing : forall rvs es n s f C C' ts,
-  length rvs = n ->
-  e_typing s C' es (Tf [::] ts) ->
-  frame_typing s f C ->
-  C' = upd_return C (Some ts) ->
-  (exists i lh,
-    lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es) ->
-  ts = map typeof rvs.
-Proof.
-  intros rvs es n s f C C' ts Hlen Hetype Hftype HeqC' HLF.
-  remember (lfilled_return_reduce f Hlen HLF) as Hreduce eqn:HeqHreduce.
-  clear HeqHreduce.
-  destruct Hftype as [(* TODO *)]. subst i.
-  eapply (t_simple_preservation host_instance)
-    with (i := f.(f_inst)) (s := s) (C := C) (tf := Tf [::] ts)
-    in Hreduce => //.
-  - admit. (* goal *)
-  - apply ety_local => //.
-    * admit. (* s_typing *)
-    * (* !!! to show: length ts = n, which is basically equivalent to what
-       * we're trying to prove here anyways *)
-Admitted.
-
 
 (* TODO use some ltacs from progress/preservation? invert_typeof_vcs etc *)
 
@@ -371,10 +346,10 @@ Lemma return_rec : forall e es es'' ves rvs,
   (exists ln les es i lh,
     e = AI_label ln les es /\
     lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-    empty_base lh) ->
+    empty_vs_base lh) ->
   exists i lh,
   lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-  empty_base lh.
+  empty_vs_base lh.
 Proof.
   intros e es es'' ves rvs Hsplit H.
   apply split_vals_e_v_to_e_duality in Hsplit. subst es.
@@ -2321,6 +2296,17 @@ Proof.
   rewrite v_to_e_size in Hlen. by move/eqP in Hlen.
 Qed.
 
+Lemma lfilled_collapse': forall n lh vs es LI,
+    lfilledInd n lh (vs ++ es) LI ->
+    const_list vs ->
+    exists lh', lfilledInd n lh' es LI.
+Proof.
+  intros n lh vs es LI HLF Hconst.
+  apply lfilled_collapse1 with (l := 0) in HLF => //.
+  rewrite subn0 in HLF.
+  by rewrite drop_size in HLF => //.
+Qed.
+
 Lemma local_error_rec : forall s f es ves ln lf,
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof lf.(f_locs)) ret) lab /\
@@ -2355,7 +2341,34 @@ Proof.
   by apply Hetype.
 Qed.
 
+(* XXX should this be an error case specific to AI_local?
+ * 'if the instruction is (AI_local _ _ es) and the es is an lfilled br j,
+ * there must be at least j labels in the lfill' *)
+(* but shouldn't e_typing be enough?
+ * that is, if the instruction is a well-typed (AI_local _ _ es) and the es is
+ * an lfilled br j, there must be at least j labels in the lfill *)
+(* we should be able to get that from e_typing by using Lfilled_break_typing
+ * (see next lemma below) *)
 Lemma local_error_break_rec : forall s f es ves ln lf n bvs,
+  (exists i j lh,
+    i + n = j /\
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+  ~ (exists C C' ret lab t1s t2s t1s',
+      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
+      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
+      inst_typing s f.(f_inst) C' /\
+      store_typing s /\
+      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) /\
+      (forall i lh j, lfilledInd i lh [::AI_basic (BI_br j)] es -> j < i)).
+Proof.
+  intros s f es ves ln lf n bvs [i [j [lh [Heqj HLF]]]]
+    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? [Hetype HLFji]]]]]]]]]]]].
+  apply lfilled_collapse' in HLF as [lh' HLF]; last by apply v_to_e_is_const_list.
+  remember (HLFji i lh' j HLF) as Hji eqn:HeqHji. clear HeqHji.
+  by lias.
+Qed.
+
+Lemma local_error_break_rec' : forall s f es ves ln lf n bvs,
   (exists i j lh,
     i + n = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
@@ -2368,17 +2381,13 @@ Lemma local_error_break_rec : forall s f es ves ln lf n bvs,
 Proof.
   intros s f es ves ln lf n bvs [i [j [lh [Heqj HLF]]]]
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
-  apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
+
+  apply Local_typing in Hetype as [ts' [-> [Hstype ?]]].
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
-  destruct Hftype as [s i' ts'' C''' lf Hitype' Heqi Heqts''].
-  (* XXX need BI_br typing here to assert something about the labels? *)
+  destruct Hftype as [s i' ts'' C''' lf Hitype' Heqi Heqts'']. subst i'.
 
   move/lfilledP in HLF.
-  eapply (Lfilled_break_typing host_instance)
-    with (C := C) (k := n) (ts := ts') (s := s) (t2s := ts') in HLF => //.
-  (* XXX typing should not allow us to break out with j if there aren't enough labels to break out of?
-   * see plop2; am I not able to use BI_br typing here?
-   * does Lfilled_break_typing need to be restated? *)
+  eapply (Lfilled_break_typing host_instance) with (s := s) in HLF.
 Admitted.
 
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
@@ -2386,7 +2395,7 @@ Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln es,
   ln <= length rvs ->
   (exists i lh,
     lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-    empty_base lh) ->
+    empty_vs_base lh) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_local ln lf es])
     hs s f (vs_to_es (take ln rvs ++ ves)).
@@ -2412,9 +2421,9 @@ Proof.
   by apply/lfilledP.
 Qed.
 
-Lemma lfilled_return_empty_base : forall lh s C ln lf es t1s t2s i rvs,
+Lemma lfilled_return_empty_vs_base : forall lh s C ln lf es t1s t2s i rvs,
   e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) ->
-  empty_base lh ->
+  empty_vs_base lh ->
   lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
   length rvs >= ln.
 Proof.
@@ -2482,6 +2491,7 @@ Proof.
 
     (* Hlf0 : lfilledInd k lh' (v_to_e_list rvs ++ [:: AI_basic BI_return]) LI *)
     (* NOTE C here is arbitrary, move out into eapply? *)
+    (* XXX needs to be 'ts' because of the goal *)
     apply IH with
       (s := s) (rvs := rvs) (t1s := [::]) (t2s := ts)
       (es := LI) (i := k) (lf := lf) (C := C).
@@ -2510,7 +2520,7 @@ Admitted.
 Lemma local_return_error : forall s f ln lf es rvs ves,
   (exists i lh,
     lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
-    empty_base lh) ->
+    empty_vs_base lh) ->
   (ln <= length rvs) = false ->
   ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -2524,7 +2534,7 @@ Proof.
   assert (ln <= length rvs).
   {
     rewrite length_is_size. rewrite <- size_rev.
-    by apply (lfilled_return_empty_base Hetype Hbase HLF).
+    by apply (lfilled_return_empty_vs_base Hetype Hbase HLF).
   }
   by lias.
 Qed.
@@ -3180,7 +3190,7 @@ Proof.
               by apply local_error_rec.
            ** (* RS'_break hs s f es n bvs *)
               apply RS''_error.
-              by eapply local_error_break_rec with (n := n) (bvs := bvs).
+              by eapply local_error_break_rec' with (n := n) (bvs := bvs).
            ** (* RS'_return hs s f es rvs H *)
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
@@ -3262,17 +3272,6 @@ Proof.
   unfold v_to_e_list in IH. unfold to_b_list in IH.
   repeat rewrite map_cat.
   f_equal => //.
-Qed.
-
-Lemma lfilled_collapse': forall n lh vs es LI,
-    lfilledInd n lh (vs ++ es) LI ->
-    const_list vs ->
-    exists lh', lfilledInd n lh' es LI.
-Proof.
-  intros n lh vs es LI HLF Hconst.
-  apply lfilled_collapse1 with (l := 0) in HLF => //.
-  rewrite subn0 in HLF.
-  by rewrite drop_size in HLF => //.
 Qed.
 
 (* XXX do not separate vcs and es? *)
