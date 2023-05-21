@@ -82,8 +82,6 @@ Fixpoint empty_vs_base lh : bool :=
   | _ => false
   end.
 
-(* TODO: the break/return cases also need some proofs to go with them,
- * see interpreter_func_sound. *)
 Inductive res_step'
   (hs : host_state) (s : store_record) (f : frame)
   (es : list administrative_instruction) : Type :=
@@ -121,7 +119,6 @@ Inductive res_step'_separate_e
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       (* XXX easier to rev LHS or RHS? *)
       rev (map typeof ves) = t1s' ++ t1s /\
-      (* TODO consistent use of f.(f_inst) vs (f_inst f) etc *)
       inst_typing s f.(f_inst) C' /\
       store_typing s /\
       e_typing s C [:: e] (Tf t1s t2s)) ->
@@ -292,11 +289,11 @@ Lemma error_rec : forall s f e es es' es'' ves,
   ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
-      inst_typing s (f_inst f) C' /\
+      inst_typing s f.(f_inst) C' /\
       store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)) ->
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      inst_typing s (f_inst f) C' /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
+      inst_typing s f.(f_inst) C' /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
 Proof.
   (* TODO consistent naming: Hsplit / Hesves *)
   intros s f e es es' es'' ves ? Hsplit Hrec [C [C' [ret [lab [? [? [? [? Hetype]]]]]]]].
@@ -1517,7 +1514,7 @@ Proof.
 Qed.
 
 Lemma reduce_current_memory : forall (hs : host_state) s f v ves s_mem_s_j j,
-  smem_ind s (f_inst f) = Some j ->
+  smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
   v = VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j))) ->
   reduce
@@ -1569,7 +1566,7 @@ Qed.
 
 (* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_s_j j l,
-  smem_ind s (f_inst f) = Some j ->
+  smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
   l = mem_size s_mem_s_j ->
   Some mem'' = mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) ->
@@ -1586,7 +1583,7 @@ Proof.
 Qed.
 
 Lemma reduce_grow_memory_failure : forall (hs : host_state) s f c ves' s_mem_s_j j l,
-  smem_ind s (f_inst f) = Some j ->
+  smem_ind s f.(f_inst) = Some j ->
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
   l = mem_size s_mem_s_j ->
   mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) = None ->
@@ -2115,13 +2112,13 @@ Qed.
 Lemma label_error_rec : forall s f es ves ln les,
   ~ (exists C C' ret lab ts,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      inst_typing s (f_inst f) C' /\
+      inst_typing s f.(f_inst) C' /\
       store_typing s /\
       e_typing s C es (Tf [::] ts)) ->
   ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-      inst_typing s (f_inst f) C' /\
+      inst_typing s f.(f_inst) C' /\
       store_typing s /\
       e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
 Proof.
@@ -2281,7 +2278,7 @@ Lemma local_error_const_len : forall s f es ves ln lf,
   ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s (f_inst f) C' /\
+      inst_typing s f.(f_inst) C' /\
       store_typing s /\
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
