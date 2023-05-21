@@ -124,7 +124,7 @@ Inductive res_step'_separate_e
       e_typing s C [:: e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
 
-(* XXX lfilled instead of lfilledInd? *)
+(* XXX lfilled instead of lfilledInd? pick one and be consistent *)
 | RS''_break k bvs :
     (e = AI_basic (BI_br k) /\ bvs = ves) \/
     (exists ln les es i j lh,
@@ -133,7 +133,6 @@ Inductive res_step'_separate_e
       lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
     res_step'_separate_e hs s f ves e
 
-(* XXX oversimplified (?) *)
 | RS''_return rvs :
     (* XXX can this be simplified to just lfilled? *)
     (e = AI_basic BI_return /\ rvs = ves) \/ (* rvs redundant? *)
@@ -2418,6 +2417,9 @@ Proof.
   by apply/lfilledP.
 Qed.
 
+(* XXX none of the existing lemmas Lfilled_return_typing etc
+ * give us this result because they don't have the empty_vs_base assumption,
+ * which is necessary to assert that rvs are all the values we need to consider *)
 Lemma lfilled_return_empty_vs_base : forall lh s C ln lf es t1s t2s i rvs,
   e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) ->
   empty_vs_base lh ->
@@ -3271,6 +3273,63 @@ Proof.
   f_equal => //.
 Qed.
 
+Lemma cats_injective : forall T (s1 : seq T),
+  injective (fun s2 => s1 ++ s2).
+Proof.
+  intros T s1 s2 s2' Heq.
+  induction s1 => //.
+  by injection Heq => //.
+Qed.
+
+(* XXX do I need to somehow assert that return (and break too?)
+ * only returns vs from the inner-most layer (i.e. rvs)
+ * and discards any other vs (coming from lfilled (i + 1)) *)
+Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs es,
+  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) (v_to_e_list vcs ++ es) ->
+  empty_vs_base lh ->
+  exists lh', lfilledInd i lh' [:: AI_basic BI_return] es.
+Proof.
+  induction i as [|i]; intros lh rvs vcs es Hlf Hbase.
+  - inversion Hlf; subst.
+    destruct vs => //. simpl in *.
+    assert (Heqrvs : exists vcs', rvs = rev vcs' ++ rev vcs). { admit. }
+    (* this should be provable using
+     * (vs_to_es rvs ++ [:: AI_basic BI_return] ++ es' = v_to_e_list vcs ++ es) *)
+    destruct Heqrvs as [vcs' ->].
+    unfold vs_to_es in H.
+    rewrite rev_cat in H.
+    repeat rewrite revK in H.
+    rewrite <- v_to_e_cat in H.
+    repeat rewrite <- catA in H.
+    apply cats_injective in H; subst es.
+    exists (LH_base (v_to_e_list vcs') es').
+    apply LfilledBase.
+    by apply v_to_e_is_const_list.
+
+  - inversion Hlf; subst.
+    (* XXX the lfilled here do not make sense *)
+    (* XXX induction on i / lh / Hlf? *)
+    destruct (split_vals_e LI) as [LIvs LIes] eqn:HsplitLI.
+    apply split_vals_e_v_to_e_duality in HsplitLI. subst LI.
+
+    destruct (IHi lh' rvs LIvs LIes H4 Hbase) as [lh'' Hlf''].
+
+    assert (Heqvs : exists vcs', vs = v_to_e_list vcs ++ v_to_e_list vcs'). { admit. }
+    (* similar to the base case, get it from:
+     * vs ++ AI_label n es' (v_to_e_list LIvs ++ LIes) :: es'' = v_to_e_list vcs ++ es *)
+    destruct Heqvs as [vcs' ->].
+    rewrite <- catA in H0.
+    apply cats_injective in H0; subst es.
+
+    apply lfilled_collapse1 with (l := 0) in H4 as [lh''' H4] => //;
+      last by apply v_to_e_is_const_list.
+    rewrite subn0 drop_size in H4 => //.
+
+    eexists.
+    apply LfilledRec; first by apply v_to_e_is_const_list.
+    by apply H4.
+Admitted.
+
 (* XXX do not separate vcs and es? *)
 Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),
     e_typing s C es (Tf t1s t2s) ->
@@ -3318,12 +3377,10 @@ Proof.
     admit.
   - (* RS'_return *)
     exfalso.
-    destruct Hret as [i [lh [HLF _]]].
-    move/lfilledP in HLF.
-    apply (HLFret i lh).
-    (* HLF : lfilled i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) (v_to_e_list vcs ++ es) *)
-    (* to show : lfilled i lh [:: AI_basic BI_return] es *)
-    admit.
+    destruct Hret as [i [lh [HLF Hbase]]].
+    destruct (lfilled_collapse_empty_vs_base HLF Hbase) as [lh' HLF'].
+    move/lfilledP in HLF'.
+    by apply (HLFret i lh').
   - right. exists s', f', es', hs' => //.
 Admitted.
 
