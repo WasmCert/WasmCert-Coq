@@ -101,6 +101,9 @@ Inductive res_step'
       i + k = j /\
       lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
     res_step' hs s f es
+(* XXX do I need to somehow assert that return (and break too?)
+ * only returns vs from the inner-most layer (i.e. rvs)
+ * and discards any other vs (coming from lfilled (i + 1)) *)
 | RS'_return rvs :
     (exists i lh,
       lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
@@ -3281,6 +3284,7 @@ Proof.
   by injection Heq => //.
 Qed.
 
+(* TODO move this and similar out into properties or sth *)
 Lemma seq_split_predicate : forall (T : eqType) (xs xs' ys ys' : seq T) (y : T) (P : pred T),
   xs ++ [:: y] ++ ys = xs' ++ ys' ->
   all P xs ->
@@ -3309,6 +3313,19 @@ Proof.
   by apply list_all_forall with (l := xs').
 Qed.
 
+(* XXX move this to properties? *)
+Lemma concat_cancel_first_n: forall (T : eqType) (l1 l2 l3 l4: seq T),
+    l1 ++ l2 = l3 ++ l4 ->
+    size l1 = size l3 ->
+    (l1 == l3) && (l2 == l4).
+Proof.
+  move => T l1 l2 l3 l4 HCat HSize.
+  rewrite -eqseq_cat; first by apply/eqP.
+  assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
+  repeat rewrite size_cat in H.
+  rewrite HSize in H. by lias.
+Qed.
+
 (* XXX can't think of a descriptive name for this *)
 Lemma v_to_e_split_by_non_const : forall vs vs' e es es',
   vs ++ [:: e] ++ es = vs' ++ es' ->
@@ -3318,59 +3335,65 @@ Lemma v_to_e_split_by_non_const : forall vs vs' e es es',
   exists vs'', vs = vs' ++ vs''.
 Proof.
   intros vs vs' e es es' H Hconstvs Hconstvs' Hnconste.
-  simpl in H.
-  remember (seq_split_predicate H Hconstvs Hconstvs' Hnconste) as Hsize.
-Admitted.
+  assert (Hsize : size vs >= size vs').
+  { by apply (seq_split_predicate H Hconstvs Hconstvs' Hnconste). }
+  exists (drop (size vs') vs).
+  assert (H' : vs ++ e :: es = vs' ++ es') => //.
+  apply f_equal with (f := take (size vs')) in H.
+  rewrite take_cat in H.
+  destruct (size vs' < size vs) eqn:?.
+  - rewrite take_cat ltnn subnn take0 cats0 in H.
+    remember (size vs') as n eqn:Heqn.
+    clear Heqn.
+    subst vs'.
+    by rewrite cat_take_drop.
+  - assert (Heqsize : size vs' = size vs). { by lias. }
+    rewrite Heqsize.
+    rewrite drop_size.
+    rewrite cats0.
+    apply concat_cancel_first_n in H' => //.
+    move/andP in H'.
+    destruct H'.
+    by apply/eqP.
+Qed.
 
-(* XXX do I need to somehow assert that return (and break too?)
- * only returns vs from the inner-most layer (i.e. rvs)
- * and discards any other vs (coming from lfilled (i + 1)) *)
-Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs es,
-  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) (v_to_e_list vcs ++ es) ->
+Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
+  lfilledInd i lh (vs_to_es rvs ++ [:: e]) (v_to_e_list vcs ++ es) ->
+  ~ is_const e ->
   empty_vs_base lh ->
-  exists lh', lfilledInd i lh' [:: AI_basic BI_return] es.
+  exists lh', lfilledInd i lh' [:: e] es.
 Proof.
-  induction i as [|i]; intros lh rvs vcs es Hlf Hbase.
+  (* XXX fragile names *)
+  induction i as [|i]; intros lh rvs vcs e es Hlf He Hbase.
   - inversion Hlf; subst.
     destruct vs => //. simpl in *.
-    assert (Heqrvs : exists vcs', rvs = rev vcs' ++ rev vcs). { admit. }
-    (* this should be provable using
-     * (vs_to_es rvs ++ [:: AI_basic BI_return] ++ es' = v_to_e_list vcs ++ es) *)
-    destruct Heqrvs as [vcs' ->].
-    unfold vs_to_es in H.
-    rewrite rev_cat in H.
-    repeat rewrite revK in H.
-    rewrite <- v_to_e_cat in H.
-    repeat rewrite <- catA in H.
+    rewrite <- catA in H.
+    assert (Heqrvs : exists vcs', vs_to_es rvs = v_to_e_list vcs ++ vcs').
+    { by apply (v_to_e_split_by_non_const H) => //; try by apply v_to_e_is_const_list. }
+    destruct Heqrvs as [vcs' Heqrvs]; rewrite Heqrvs in H, Hlf.
+    rewrite <- catA in H.
     apply cats_injective in H; subst es.
-    exists (LH_base (v_to_e_list vcs') es').
+    exists (LH_base vcs' es').
     apply LfilledBase.
+    eapply const_list_split.
+    rewrite <- Heqrvs.
     by apply v_to_e_is_const_list.
-
   - inversion Hlf; subst.
-    (* XXX the lfilled here do not make sense *)
-    (* XXX induction on i / lh / Hlf? *)
     destruct (split_vals_e LI) as [LIvs LIes] eqn:HsplitLI.
     apply split_vals_e_v_to_e_duality in HsplitLI. subst LI.
-
-    destruct (IHi lh' rvs LIvs LIes H4 Hbase) as [lh'' Hlf''].
-
-    assert (Heqvs : exists vcs', vs = v_to_e_list vcs ++ v_to_e_list vcs'). { admit. }
-    (* similar to the base case, get it from:
-     * H1 : const_list vs
-     * vs ++ AI_label n es' (v_to_e_list LIvs ++ LIes) :: es'' = v_to_e_list vcs ++ es *)
+    destruct (IHi lh' rvs LIvs e LIes H4 He Hbase) as [lh'' Hlf''].
+    assert (Heqvs : exists vcs', vs = v_to_e_list vcs ++ vcs').
+    { by apply (v_to_e_split_by_non_const H0) => //; last by apply v_to_e_is_const_list. }
     destruct Heqvs as [vcs' ->].
     rewrite <- catA in H0.
     apply cats_injective in H0; subst es.
-
     apply lfilled_collapse1 with (l := 0) in H4 as [lh''' H4] => //;
       last by apply v_to_e_is_const_list.
     rewrite subn0 drop_size in H4 => //.
-
     eexists.
-    apply LfilledRec; first by apply v_to_e_is_const_list.
+    apply LfilledRec; first by apply const_list_split in H1 as [??].
     by apply H4.
-Admitted.
+Qed.
 
 (* XXX do not separate vcs and es? *)
 Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),
@@ -3407,20 +3430,15 @@ Proof.
   - (* RS'_break *)
     exfalso.
     destruct Hbr as [i [j [lh [Heqj HLF]]]].
-    apply lfilled_collapse' in HLF as [lh' HLF];
-      last by apply v_to_e_is_const_list.
-    move/lfilledP in HLF.
-    Fail apply HLF in HLFbr.
-    (* XXX get a contradiction from *)
-    (* HLFbr : forall (n : nat) (lh : lholed) (k : immediate), *)
-    (*         lfilled n lh [:: AI_basic (BI_br k)] es -> k < n *)
-    (* Heqj : i + n = j *)
-    (* HLF : lfilled i lh' [:: AI_basic (BI_br j)] (v_to_e_list vcs ++ es) *)
-    admit.
+    assert (empty_vs_base lh). { admit. } (* XXX add it to RS_break? *)
+    apply lfilled_collapse_empty_vs_base in HLF as [lh' HLF'] => //.
+    move/lfilledP in HLF'.
+    apply HLFbr in HLF'.
+    by lias.
   - (* RS'_return *)
     exfalso.
     destruct Hret as [i [lh [HLF Hbase]]].
-    destruct (lfilled_collapse_empty_vs_base HLF Hbase) as [lh' HLF'].
+    apply lfilled_collapse_empty_vs_base in HLF as [lh' HLF'] => //.
     move/lfilledP in HLF'.
     by apply (HLFret i lh').
   - right. exists s', f', es', hs' => //.
