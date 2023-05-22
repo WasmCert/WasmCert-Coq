@@ -2562,9 +2562,10 @@ Lemma lfilled_empty_vs_to_empty_base : forall i lh vs e es,
     empty_base lh' /\
     lfilledInd i lh' (v_to_e_list vs ++ [:: e] ++ es') es.
 Proof.
-  induction i; intros lh vs e es Hbase Hlf.
-  - inversion Hlf as [lh_vs ? lh_es|]; subst; simpl in *.
-    destruct lh_vs => //.
+  induction i;
+    intros lh vs e es Hbase Hlf;
+    inversion Hlf as [lh_vs ? lh_es | ? vs' n es' lh' es'' ? LI ? Hlf']; subst.
+  - destruct lh_vs => //.
     exists (LH_base [::] [::]), lh_es.
     split => //.
     rewrite -catA cat1s.
@@ -2572,8 +2573,7 @@ Proof.
       with ([::] ++ (v_to_e_list vs ++ e :: lh_es) ++ [::]) => //;
       last by rewrite cats0.
     by apply LfilledBase.
-  - inversion Hlf as [|? vs' n es' lh' es'' ? LI ? Hlf']; subst.
-    apply IHi in Hlf' as [lh'' [es''' [Hbase' Hlf'']]] => //.
+  - apply IHi in Hlf' as [lh'' [es''' [Hbase' Hlf'']]] => //.
     exists (LH_rec vs' n es' lh'' es''), es'''.
     by split => //; apply LfilledRec.
 Qed.
