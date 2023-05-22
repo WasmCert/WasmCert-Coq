@@ -2536,7 +2536,6 @@ Proof.
     intros lh s C e1s e2s es' t1s t2s rvs Hetype Hbase Hlf1 Hlf2;
     inversion Hlf1 as [lh_vs ? lh_es | k vs n es''' lh' es'''' es'' LI];
     inversion Hlf2 as [???? H5 Heqbase | ].
-    Print LfilledRec.
   - subst; destruct lh_vs, lh_es => //.
     inversion Heqbase; subst.
     clear Hlf1 Hlf2.
@@ -2555,6 +2554,26 @@ Proof.
     apply et_weakening_empty_1; apply ety_label with (ts := ts'') => //.
     by apply IHi with (e1s := LI) (lh := lh') (rvs := rvs) (es' := es').
 Qed.
+
+Lemma lfilled_empty_base_empty_vs_base : forall i lh vs e es,
+  empty_vs_base lh ->
+  lfilledInd i lh (v_to_e_list vs ++ [:: e]) es ->
+  exists lh' es',
+    empty_base lh' /\
+    lfilledInd i lh' (v_to_e_list vs ++ [:: e] ++ es') es.
+Proof.
+  induction i; intros lh vs e es Hbase Hlf.
+  - inversion Hlf as [lh_vs ? lh_es|]; subst; simpl in *.
+    destruct lh_vs => //.
+    exists (LH_base [::] [::]), lh_es.
+    split => //.
+    rewrite -catA cat1s.
+    replace ([::] ++ v_to_e_list vs ++ e :: lh_es)
+      with ([::] ++ (v_to_e_list vs ++ e :: lh_es) ++ [::]) => //;
+      last by rewrite cats0.
+    by apply LfilledBase.
+  -
+Admitted.
 
 (* XXX none of the existing lemmas Lfilled_return_typing etc
  * give us this result because they don't have the empty_vs_base assumption,
