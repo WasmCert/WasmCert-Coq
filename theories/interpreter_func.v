@@ -2555,7 +2555,7 @@ Proof.
     by apply IHi with (e1s := LI) (lh := lh') (rvs := rvs) (es' := es').
 Qed.
 
-Lemma lfilled_empty_base_empty_vs_base : forall i lh vs e es,
+Lemma lfilled_empty_vs_to_empty_base : forall i lh vs e es,
   empty_vs_base lh ->
   lfilledInd i lh (v_to_e_list vs ++ [:: e]) es ->
   exists lh' es',
@@ -2572,8 +2572,11 @@ Proof.
       with ([::] ++ (v_to_e_list vs ++ e :: lh_es) ++ [::]) => //;
       last by rewrite cats0.
     by apply LfilledBase.
-  -
-Admitted.
+  - inversion Hlf as [|? vs' n es' lh' es'' ? LI ? Hlf']; subst.
+    apply IHi in Hlf' as [lh'' [es''' [Hbase' Hlf'']]] => //.
+    exists (LH_rec vs' n es' lh'' es''), es'''.
+    by split => //; apply LfilledRec.
+Qed.
 
 (* XXX none of the existing lemmas Lfilled_return_typing etc
  * give us this result because they don't have the empty_vs_base assumption,
