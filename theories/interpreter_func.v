@@ -2527,43 +2527,19 @@ Qed.
 Lemma lfilled_typing_skip: forall i lh s C e1s e2s es' t1s t2s rvs,
   e_typing s C e1s (Tf t1s t2s) ->
   empty_base lh ->
-  i > 0 ->
   lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es') e1s ->
   lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) e2s ->
   e_typing s C e2s (Tf t1s t2s).
 Proof.
-  induction i as [|i] => //;
-    intros lh s C e1s e2s es' t1s t2s rvs Hetype Hbase Hi Hlf1 Hlf2.
-  destruct i => //.
-  - inversion Hlf1 as [|??? les lh' ???? Hlf1'].
-    inversion Hlf2 as [|????????? Hlf2' Heqk Heqlh].
-    (* deduce that lh' is used for both Hlf1' and Hlf2' *)
-    subst. inversion Heqlh; clear Heqlh. subst.
-    (* deduce that lh' is a base *)
-    destruct lh' as [lh_vs lh_es|]; try by inversion Hlf1'.
-    (* use empty_base lh' *)
-    destruct lh_vs, lh_es => //.
-    inversion Hlf1'; inversion Hlf2'; simpl in *; subst.
-    clear Hlf1 Hlf2 Hlf1' Hlf2' IHi Hi.
-    rewrite cats0 -cat1s in Hetype.
-
-    apply e_composition_typing in Hetype
-      as [ts [t1s' [t2s' [t3s [Ht1s [Ht2s [Hetypervs Hetype]]]]]]].
-    apply e_composition_typing in Hetype
-      as [ts' [t3s' [t2s'' [t4s' [Ht3s [Ht2s' [Hetypelab Hetypees'']]]]]]].
-
-    rewrite cats0 -cat1s. subst t1s t2s.
-    apply et_composition' with (t2s := ts ++ t3s); apply ety_weakening => //.
-    subst t2s' t3s.
-    apply et_composition' with (t2s := ts' ++ t4s'); apply ety_weakening => //.
-
-    apply Label_typing in Hetypelab
-      as [label_ts [t3s'' [Heqt4s' [Hetypeles [HetypeLI Hlen]]]]].
-
-    subst t4s'; apply et_weakening_empty_1.
-    apply ety_label with (ts := label_ts) => //.
-    by apply return_unreachable_typing in HetypeLI.
-
+  induction i as [|i];
+    intros lh s C e1s e2s es' t1s t2s rvs Hetype Hbase Hlf1 Hlf2.
+  - inversion Hlf1 as [lh_vs ? lh_es|].
+    inversion Hlf2 as [???? H4 Heqbase|].
+    subst; destruct lh_vs, lh_es => //.
+    inversion Heqbase; subst.
+    clear Hlf1 Hlf2.
+    simpl in *. rewrite cats0 -cat1s in Hetype.
+    by rewrite cats0; apply return_unreachable_typing in Hetype.
 Admitted.
 
 (* XXX none of the existing lemmas Lfilled_return_typing etc
