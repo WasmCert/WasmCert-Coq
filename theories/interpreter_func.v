@@ -81,6 +81,13 @@ Fixpoint empty_vs_base lh : bool :=
   | _ => false
   end.
 
+Fixpoint empty_holed lh : bool :=
+  match lh with
+  | LH_base [::] [::] => true
+  | LH_rec [::] _ _ lh [::] => empty_holed lh
+  | _ => false
+  end.
+
 Inductive res_step'
   (hs : host_state) (s : store_record) (f : frame)
   (es : list administrative_instruction) : Type :=
@@ -2521,6 +2528,33 @@ Proof.
   by apply bet_return.
 Qed.
 
+Lemma return_unreachable_typing' : forall s C rvs es' es'' t1s t2s t1s' t2s',
+  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es') (Tf t1s t2s) ->
+  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es'') (Tf t1s' t2s') ->
+  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es'') (Tf t1s t2s).
+Proof.
+  intros s C rvs es' es'' t1s t2s t1s' t2s' Hetype Hetype'.
+  apply e_composition_typing in Hetype
+    as [ts [t1s'' [t2s'' [t3s [Ht1s [Ht2s [Hetypervs Hetype]]]]]]].
+  apply e_composition_typing in Hetype
+    as [ts' [t3s' [t2s''' [t4s' [Ht3s [Ht2s'' [Hetyperet Hetypees']]]]]]].
+
+  apply e_composition_typing in Hetype'
+    as [ts'' [t1s''' [t2s'''' [t3s'' [Ht1s' [Ht2s' [Hetypervs' Hetype']]]]]]].
+  apply e_composition_typing in Hetype'
+    as [ts''' [t3s''' [t2s''''' [t4s'' [Ht3s' [Ht2s''' [Hetyperet' Hetypees'']]]]]]].
+
+  subst t1s t2s t1s' t2s'.
+  apply et_composition' with (t2s := ts ++ t3s); apply ety_weakening => //.
+  apply et_to_bet in Hetyperet; last by auto_basic.
+  apply (Return_typing host_instance) in Hetyperet as [ret_ts [ts'''' [Ht3s'' HretC]]].
+
+  subst; apply ety_weakening.
+  eapply et_composition'. (* with (t2s := t2s''' ++ t4s''). *)
+  - apply ety_a'; first by auto_basic. by apply bet_return.
+  - admit.
+Admitted.
+
 Lemma lfilled_typing_skip: forall i lh s C e1s e2s es' t1s t2s rvs,
   e_typing s C e1s (Tf t1s t2s) ->
   empty_base lh ->
@@ -2674,7 +2708,10 @@ Admitted.
 (* XXX why did it brake stuff above? *)
 Let s_typing := @s_typing host_state.
 
-Lemma lfilled_return_empty_base_s : forall lh s lf es ts i rvs,
+(* XXX none of the existing lemmas Lfilled_return_typing etc
+ * give us this result because they don't have the empty_vs_base assumption,
+ * which is necessary to assert that rvs are all the values we need to consider *)
+Lemma lfilled_return_empty_vs_base_s : forall lh s lf es ts i rvs,
   s_typing s (Some ts) lf es ts ->
   empty_base lh ->
   lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
@@ -2726,20 +2763,19 @@ Proof.
     move => ->.
     by lias.
 
-  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf']; subst; clear Hlf.
-
-    inversion Hstype as [s0 lf0 es ret'0 ts'0 C'' C''' Hftype HeqC'' Hetype _].
-    subst s0 ret'0 lf0 ts'0 es.
+  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf.
 
     assert (s_typing s (Some ts) lf LI ts) as Hstype'.
     {
-      admit.
+      inversion Hstype as [s0 lf0 es ret'0 ts'0 C'' C''' Hftype HeqC'' Hetype _].
+      subst s0 ret'0 lf0 ts'0 es.
+      eapply mk_s_typing => //.
+      - apply Hftype.
+      - admit.
+      - by left.
     }
 
-    (* apply lfilled_empty_vs_to_empty_base in Hlf' as [lh'' [es'' [Hbase' Hlf']]] => //. *)
-    (* eapply lfilled_typing_skip in Hlf'. *)
-
-    eapply IH in Hlf'; by eauto.
+    eapply IH in Hlf0; by eauto.
 Admitted.
 
 (* XXX return has not returned enough values *)
