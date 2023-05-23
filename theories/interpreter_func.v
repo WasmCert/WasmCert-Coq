@@ -2510,273 +2510,69 @@ Proof.
   by apply/lfilledP.
 Qed.
 
-Lemma return_unreachable_typing : forall s C rvs es' t1s t2s,
-  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es') (Tf t1s t2s) ->
-  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return]) (Tf t1s t2s).
-Proof.
-  intros s C rvs es' t1s t2s Hetype.
-  apply e_composition_typing in Hetype
-    as [ts [t1s' [t2s' [t3s [Ht1s [Ht2s [Hetypervs Hetype]]]]]]].
-  apply e_composition_typing in Hetype
-    as [ts' [t3s' [t2s'' [t4s' [Ht3s [Ht2s' [Hetyperet Hetypees']]]]]]].
-  subst t1s t2s.
-  apply et_composition' with (t2s := ts ++ t3s); apply ety_weakening => //.
-  apply et_to_bet in Hetyperet; last by auto_basic.
-  apply (Return_typing host_instance) in Hetyperet as [ts'' [ts''' [Ht3s' HretC]]].
-  apply ety_a'; first by auto_basic. subst.
-  apply bet_weakening.
-  by apply bet_return.
-Qed.
-
-Lemma return_unreachable_typing' : forall s C rvs es' es'' t1s t2s t1s' t2s',
-  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es') (Tf t1s t2s) ->
-  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es'') (Tf t1s' t2s') ->
-  e_typing s C (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es'') (Tf t1s t2s).
-Proof.
-  intros s C rvs es' es'' t1s t2s t1s' t2s' Hetype Hetype'.
-  apply e_composition_typing in Hetype
-    as [ts [t1s'' [t2s'' [t3s [Ht1s [Ht2s [Hetypervs Hetype]]]]]]].
-  apply e_composition_typing in Hetype
-    as [ts' [t3s' [t2s''' [t4s' [Ht3s [Ht2s'' [Hetyperet Hetypees']]]]]]].
-
-  apply e_composition_typing in Hetype'
-    as [ts'' [t1s''' [t2s'''' [t3s'' [Ht1s' [Ht2s' [Hetypervs' Hetype']]]]]]].
-  apply e_composition_typing in Hetype'
-    as [ts''' [t3s''' [t2s''''' [t4s'' [Ht3s' [Ht2s''' [Hetyperet' Hetypees'']]]]]]].
-
-  subst t1s t2s t1s' t2s'.
-  apply et_composition' with (t2s := ts ++ t3s); apply ety_weakening => //.
-  apply et_to_bet in Hetyperet; last by auto_basic.
-  apply (Return_typing host_instance) in Hetyperet as [ret_ts [ts'''' [Ht3s'' HretC]]].
-
-  subst; apply ety_weakening.
-  eapply et_composition'. (* with (t2s := t2s''' ++ t4s''). *)
-  - apply ety_a'; first by auto_basic. by apply bet_return.
-  - admit.
-Admitted.
-
-Lemma lfilled_typing_skip: forall i lh s C e1s e2s es' t1s t2s rvs,
-  e_typing s C e1s (Tf t1s t2s) ->
-  empty_base lh ->
-  lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return] ++ es') e1s ->
-  lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) e2s ->
-  e_typing s C e2s (Tf t1s t2s).
-Proof.
-  (* XXX fragile names from inversion *)
-  induction i as [|i];
-    intros lh s C e1s e2s es' t1s t2s rvs Hetype Hbase Hlf1 Hlf2;
-    inversion Hlf1 as [lh_vs ? lh_es | k vs n es''' lh' es'''' es'' LI];
-    inversion Hlf2 as [???? H5 Heqbase | ].
-  - subst; destruct lh_vs, lh_es => //.
-    inversion Heqbase; subst.
-    clear Hlf1 Hlf2.
-    simpl in *. rewrite cats0 -cat1s in Hetype.
-    by rewrite cats0; apply return_unreachable_typing in Hetype.
-  - subst lh. inversion H8; clear H8. subst.
-    apply e_composition_typing in Hetype
-      as [ts [t1s' [t2s' [t3s [Ht1s [Ht2s [Hetypevs Hetype]]]]]]].
-    apply e_composition_typing in Hetype
-      as [ts' [t3s' [t2s'' [t4s' [Ht3s [Ht2s' [Hetypelab Hetypees'''']]]]]]].
-    subst t1s t2s.
-    apply et_composition' with (t2s := ts ++ t3s); apply ety_weakening => //.
-    subst t3s t2s'.
-    apply et_composition' with (t2s := ts' ++ t4s'); apply ety_weakening => //.
-    apply Label_typing in Hetypelab as [ts'' [ts''' [-> [? [Hetypees''' Hlen]]]]].
-    apply et_weakening_empty_1; apply ety_label with (ts := ts'') => //.
-    by apply IHi with (e1s := LI) (lh := lh') (rvs := rvs) (es' := es').
-Qed.
-
-Lemma lfilled_empty_vs_to_empty_base : forall i lh vs e es,
+Lemma lfilled_hole_typed: forall lh s C es ts i rvs,
+  e_typing s C es (Tf [::] ts) ->
   empty_vs_base lh ->
-  lfilledInd i lh (v_to_e_list vs ++ [:: e]) es ->
-  exists lh' es',
-    empty_base lh' /\
-    lfilledInd i lh' (v_to_e_list vs ++ [:: e] ++ es') es.
+  lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
+  exists ts C',
+    C'.(tc_return) = C.(tc_return) /\
+    e_typing s C' (v_to_e_list rvs ++ [::AI_basic BI_return]) (Tf [::] ts).
 Proof.
-  induction i;
-    intros lh vs e es Hbase Hlf;
-    inversion Hlf as [lh_vs ? lh_es | ? vs' n es' lh' es'' ? LI ? Hlf']; subst.
-  - destruct lh_vs => //.
-    exists (LH_base [::] [::]), lh_es.
-    split => //.
-    rewrite -catA cat1s.
-    replace ([::] ++ v_to_e_list vs ++ e :: lh_es)
-      with ([::] ++ (v_to_e_list vs ++ e :: lh_es) ++ [::]) => //;
-      last by rewrite cats0.
-    by apply LfilledBase.
-  - apply IHi in Hlf' as [lh'' [es''' [Hbase' Hlf'']]] => //.
-    exists (LH_rec vs' n es' lh'' es''), es'''.
-    by split => //; apply LfilledRec.
+  induction lh as [vs es' | vs j es' lh' IH]; move => s C es ts i rvs Hetype Hbase Hlf.
+  - destruct vs => //.
+    inversion Hlf; subst; simpl in *.
+    apply e_composition_typing in Hetype
+        as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypervs Hetype]]]]]]].
+    apply_cat0_inv Ht0s; simpl in *; subst.
+    by exists t1s', C.
+  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf.
+    apply e_composition_typing in Hetype
+        as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypevs Hetype]]]]]]].
+    apply_cat0_inv Ht0s; subst.
+    apply e_composition_typing in Hetype
+        as [? [t0s' [ts'' [t1s'' [Ht0s [Hts'' [Hetypervs Hetype]]]]]]].
+    apply Label_typing in Hetypervs
+        as [? [ts2' [-> [Hetypees' [HetypeLI Hlen]]]]].
+    by eapply IH in HetypeLI; eauto.
 Qed.
 
-(* XXX none of the existing lemmas Lfilled_return_typing etc
- * give us this result because they don't have the empty_vs_base assumption,
- * which is necessary to assert that rvs are all the values we need to consider *)
+Lemma return_arguments_length: forall s C ts t_ret rvs,
+    e_typing s C (vs_to_es rvs ++ [::AI_basic BI_return]) (Tf [::] ts) ->
+    C.(tc_return) = Some t_ret ->
+    length rvs >= length t_ret.
+Proof.
+  move => s C ts t_ret rvs Hetype Heqret.
+  apply e_composition_typing in Hetype
+      as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypervs Hetyperet]]]]]]].
+  apply_cat0_inv Ht0s; simpl in *; subst.
+  apply et_to_bet in Hetyperet; last by auto_basic.
+  apply (Return_typing host_instance) in Hetyperet
+      as [ts'0 [ts'' [Heqt0s Heqts'0]]].
+  rewrite Heqts'0 in Heqret.
+  injection Heqret; subst; clear Heqret.
+  move => <-.
+  apply et_to_bet in Hetypervs;
+    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+  apply Const_list_typing in Hetypervs.
+  simpl in Hetypervs.
+  apply f_equal with (f := size) in Hetypervs.
+  rewrite size_map size_cat size_rev in Hetypervs.
+  repeat rewrite length_is_size; by lias.
+Qed.
+
 Lemma lfilled_return_empty_vs_base : forall lh s C ln lf es t1s t2s i rvs,
   e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) ->
   empty_vs_base lh ->
-  lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
+  lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es ->
   length rvs >= ln.
 Proof.
-  induction lh as [vs es' | vs j es' lh' IH]; move => s C ln lf es t1s t2s i rvs Hetype Hbase Hlf.
-  - destruct vs => //.
-
-    inversion Hlf; subst.
-    (* TODO unstable names *)
-    simpl in *.
-    rewrite <- catA in Hetype.
-    apply Local_typing in Hetype as [ts' [-> [Hstype Hlen']]].
-    inversion Hstype as [s0 lf0 es ret'0 ts'0 C'' C''' Hftype HeqC'' Hetype _].
-    subst s0 ret'0 lf0 ts'0 es.
-
-    (* This should tell us that the type of rvs is ts',
-     * possibly prefixed (if rvs is too long and some values are discarded) *)
-    (* HeqC'' : C'' = upd_return C''' (Some ts') *)
-    (* Hetype : typing.e_typing s C'' *)
-    (*            (vs_to_es rvs ++ [:: AI_basic BI_return] ++ es')  *)
-    (*            (Tf [::] ts') *)
-
-    apply e_composition_typing in Hetype
-      as [? [t0s [ts'' [t1s' [Ht0s [Hts'' [Hetypervs Hetype]]]]]]].
-    apply_cat0_inv Ht0s.
-    simpl in Hts''. subst ts''.
-    apply e_composition_typing in Hetype
-      as [ts'' [t0s [ts''' [t2s' [Ht0s [Hts' [Hetyperet Hetype]]]]]]].
-
-    apply et_to_bet in Hetyperet; last by auto_basic.
-    apply (Return_typing host_instance) in Hetyperet
-      as [ts'0 [ts'''' [Heqt0s Heqts'0]]].
-
-    assert (ts'0 = ts').
-    { subst C''. destruct C'''. simpl in Heqts'0. by injection Heqts'0. }
-    subst ts'0.
-
-    apply et_to_bet in Hetypervs;
-      last by apply const_list_is_basic; apply v_to_e_is_const_list.
-    apply Const_list_typing in Hetypervs.
-    simpl in Hetypervs.
-    subst t1s' t0s.
-
-    apply f_equal with (f := size) in Ht0s.
-    revert Ht0s. rewrite size_map. repeat rewrite size_cat.
-    subst ln. repeat rewrite length_is_size.
-    by lias.
-
-  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf.
-    apply Local_typing in Hetype as [ts [-> [Hstype <-]]].
-    assert (Hstype' : s_typing s (Some ts) lf (vs ++ [:: AI_label j es' LI] ++ l) ts) => //.
-    inversion Hstype as [s0 f es rs ts0 C' C'' Hftype Hupdret Hetype _]; subst; clear Hstype.
-
-    apply e_composition_typing in Hetype
-      as [? [t0s [ts'' [t1s' [Ht0s [Hts'' [Hetypevs Hetype]]]]]]].
-    apply_cat0_inv Ht0s.
-    simpl in Hts''. subst ts''.
-    apply e_composition_typing in Hetype
-      as [ts'' [t0s [t3s [t2s' [Ht0s [Hts' [Hetypelab Hetype]]]]]]].
-
-    apply Label_typing in Hetypelab
-      as [label_ts [t2s'' [Heqt2s' [Hetypees' [HetypeLI Hlen]]]]].
-
-    (* assert (t2s'' = ts). { admit. } subst t2s''. *)
-
-    (* Hlf0 : lfilledInd k lh' (v_to_e_list rvs ++ [:: AI_basic BI_return]) LI *)
-    (* NOTE C here is arbitrary, move out into eapply? *)
-    (* XXX needs to be 'ts' because of the goal *)
-    apply IH with
-      (s := s) (rvs := rvs) (t1s := [::]) (t2s := ts)
-      (es := LI) (i := k) (lf := lf) (C := C).
-    * apply ety_local; last by reflexivity.
-      apply mk_s_typing with (C := upd_return C'' (Some ts)) (C0 := C'').
-      + by apply Hftype.
-      + by reflexivity.
-      + admit.
-      + by left.
-      (* Hstype' : s_typing s (Some ts) lf (vs ++ [:: AI_label j es' LI] ++ l) ts *)
-    * by apply Hbase.
-    * by apply Hlf0.
-
-    (* From HetypeLI we know that LI returns rvs (possibly with some elements
-     * dropped) and they are of type ts *)
-    (* Hlf0 : lfilledInd k lh' (v_to_e_list rvs ++ [:: AI_basic BI_return]) LI *)
-    (* HetypeLI : typing.e_typing s *)
-    (*              (upd_label (upd_return C'' (Some ts)) *)
-    (*                 ([:: t0s'] ++ tc_label (upd_return C'' (Some ts)))) LI *)
-    (*              (Tf [::] t2s'') *)
-    (* Ideally would use Lfilled_return_typing but we don't have the length equality? *)
-Admitted.
-
-(* XXX why did it brake stuff above? *)
-Let s_typing := @s_typing host_state.
-
-(* XXX none of the existing lemmas Lfilled_return_typing etc
- * give us this result because they don't have the empty_vs_base assumption,
- * which is necessary to assert that rvs are all the values we need to consider *)
-Lemma lfilled_return_empty_vs_base_s : forall lh s lf es ts i rvs,
-  s_typing s (Some ts) lf es ts ->
-  empty_base lh ->
-  lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
-  length rvs >= length ts.
-Proof.
-  induction lh as [vs es' | vs j es' lh' IH]; move => s lf es ts i rvs Hstype Hbase Hlf.
-  - destruct vs => //.
-
-    inversion Hlf; subst.
-    (* TODO unstable names *)
-    simpl in *.
-    inversion Hstype as [s0 lf0 es ret'0 ts'0 C'' C''' Hftype HeqC'' Hetype _].
-    subst s0 ret'0 lf0 ts'0 es.
-
-    (* This should tell us that the type of rvs is ts',
-     * possibly prefixed (if rvs is too long and some values are discarded) *)
-    (* HeqC'' : C'' = upd_return C''' (Some ts') *)
-    (* Hetype : typing.e_typing s C'' *)
-    (*            (vs_to_es rvs ++ [:: AI_basic BI_return] ++ es')  *)
-    (*            (Tf [::] ts') *)
-    rewrite - catA in Hetype.
-
-    apply e_composition_typing in Hetype
-        as [? [t0s [ts'' [t1s' [Ht0s [Hts'' [Hetypervs Hetype]]]]]]].
-    apply_cat0_inv Ht0s.
-    simpl in Hts''. subst ts''.
-    apply e_composition_typing in Hetype
-      as [ts'' [t0s [ts''' [t2s' [Ht0s [Hts' [Hetyperet Hetype]]]]]]].
-
-    apply et_to_bet in Hetyperet; last by auto_basic.
-    apply (Return_typing host_instance) in Hetyperet
-      as [ts'0 [ts'''' [Heqt0s Heqts'0]]].
-
-    apply et_to_bet in Hetypervs;
-      last by apply const_list_is_basic; apply v_to_e_is_const_list.
-    apply Const_list_typing in Hetypervs.
-    simpl in Hetypervs.
-    subst t1s' t0s.
-
-    subst ts.
-    rewrite HeqC'' in Heqts'0.
-    simpl in Heqts'0.
-    injection Heqts'0; move => ->.
-
-    apply f_equal with (f := size) in Ht0s.
-    revert Ht0s. rewrite size_map.
-    repeat rewrite length_is_size.
-    repeat rewrite size_cat.
-    move => ->.
-    by lias.
-
-  - inversion Hlf as [ | k vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0]; subst; clear Hlf.
-
-    assert (s_typing s (Some ts) lf LI ts) as Hstype'.
-    {
-      inversion Hstype as [s0 lf0 es ret'0 ts'0 C'' C''' Hftype HeqC'' Hetype _].
-      subst s0 ret'0 lf0 ts'0 es.
-      eapply mk_s_typing => //.
-      - apply Hftype.
-      - admit.
-      - by left.
-    }
-
-    eapply IH in Hlf0; by eauto.
-Admitted.
+  move => lh s C ln lf es t1s t2s i rvs Hetype Hbase Hlf.
+  apply Local_typing in Hetype as [ts' [-> [Hstype Hlen']]].
+  inversion Hstype as [s0 lf0 es' ret'0 ts'0 C'' C' Hftype HeqC'' Hetype _].
+  subst s0 ret'0 lf0 ts'0 es' C''.
+  eapply lfilled_hole_typed in Hetype as [ts0 [C0 [Heqret Hetype]]]; eauto.
+  by eapply return_arguments_length in Hetype; eauto.
+Qed.
 
 (* XXX return has not returned enough values *)
 Lemma local_return_error : forall s f ln lf es rvs ves,
@@ -2791,13 +2587,10 @@ Lemma local_return_error : forall s f ln lf es rvs ves,
       store_typing s /\
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
-  intros s f ln lf es rvs ves [i [lh [HLF Hbase]]] Hlen
+  intros s f ln lf es rvs ves [i [lh [Hlf Hbase]]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
-  assert (ln <= length rvs).
-  {
-    rewrite length_is_size. rewrite <- size_rev.
-    by apply (lfilled_return_empty_vs_base Hetype Hbase HLF).
-  }
+  eapply lfilled_return_empty_vs_base
+    with (i := i) (lh := lh) (rvs := rvs) in Hetype => //.
   by lias.
 Qed.
 
