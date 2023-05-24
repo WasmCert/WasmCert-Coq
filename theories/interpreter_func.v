@@ -137,7 +137,7 @@ Inductive res_step'_separate_e
 | RS''_break k bvs :
     (exists i j lh,
       i + k = j /\
-      lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e]) /\
+      lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (vs_to_es ves ++ [:: e]) /\
       empty_vs_base lh) ->
     res_step'_separate_e hs s f ves e
     (* lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) [::e] ? *)
@@ -318,47 +318,6 @@ Proof.
   rewrite map_rev. rewrite revK.
   rewrite <- Ht2s. by rewrite Hbtypeves.
 Qed.
-
-(* XXX a bit cleaner when stated as the (stronger) helper lemma *)
-Lemma break_rec_helper : forall lh i j e es ves k bvs,
-  i + k = j ->
-  lfilledInd i lh
-    (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e]) ->
-  empty_vs_base lh ->
-  exists lh',
-   lfilledInd i lh'
-     (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e] ++ es) /\
-   empty_vs_base lh'.
-Proof.
-  destruct lh as [lh_vs lh_es | lh_vs n lh_es' lh' lh_es];
-    intros i j e es ves k bvs Heqj Hlf Hbase;
-    inversion Hlf
-      as [???? H1 H2 H3 Heqes | i' vs0 m es'0 lh'0 es''0 es0 LI Hconst Hlf0]; clear Hlf.
-  - destruct lh_vs => //; subst.
-    exists (LH_base [::] es).
-    split => //.
-
-    (* TODO from: *)
-    (* Heqes : (vs_to_es bvs ++ [:: AI_basic (BI_br k)]) ++ lh_es = *)
-    (*         v_to_e_list ves ++ [:: e] *)
-    assert (Hbvs : vs_to_es bvs = v_to_e_list ves). { admit. }
-    assert (He : e = AI_basic (BI_br k)). { admit. } subst e.
-    assert (Hlh_es : lh_es = [::]). { admit. } subst lh_es.
-
-    rewrite -Hbvs. unfold vs_to_es.
-    replace (AI_basic (BI_br k) :: es) with ([:: AI_basic (BI_br k)] ++ es) => //.
-    by rewrite catA; apply LfilledBase.
-  - subst i vs0 m es'0 lh'0 es''0 es0.
-
-    (* TODO from H6 (XXX fragile name) *)
-    (* H6 : lh_vs ++ AI_label n lh_es' LI :: lh_es = v_to_e_list ves ++ [:: e] *)
-    assert (Hlh_vs : lh_vs = v_to_e_list ves). { admit. }
-    assert (He : e = AI_label n lh_es' LI). { admit. }
-    assert (Hlh_es : lh_es = [::]). { admit. } subst lh_vs e lh_es.
-
-    exists (LH_rec (v_to_e_list ves) n lh_es' lh' es).
-    by split => //; apply LfilledRec => //.
-Admitted.
 
 Lemma break_rec : forall e es es'' ves k bvs,
   split_vals_e es = (ves, e :: es'') ->
@@ -788,6 +747,23 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
   by cats1_last_eq Ht1s.
+Qed.
+
+Lemma break_br : forall j ves,
+  exists (i j' : nat) (lh : lholed),
+    i + j = j' /\
+    lfilledInd i lh
+      (vs_to_es ves ++ [:: AI_basic (BI_br j')])
+      (vs_to_es ves ++ [:: AI_basic (BI_br j)]) /\
+    empty_vs_base lh.
+Proof.
+  intros j ves.
+  exists 0, j, (LH_base [::] [::]).
+  repeat split => //.
+  replace (vs_to_es ves ++ [:: AI_basic (BI_br j)])
+    with ([::] ++ (vs_to_es ves ++ [:: AI_basic (BI_br j)]) ++ [::]) at 2;
+    last by rewrite <- catA.
+  by apply LfilledBase => //.
 Qed.
 
 Lemma reduce_br_if_true : forall (hs : host_state) s f c ves' j,
@@ -2662,7 +2638,7 @@ Proof.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
       + remember (split_vals_e_not_const Heqes) as Hconst.
         remember (run_one_step'' hs s f (rev ves) e fuel d Htrap Hconst) as r.
-        destruct r as [| | k bvs Hbr | rvs | hs' s' f' res] eqn:?.
+        destruct r as [| | k bvs Hbr | rvs | hs' s' f' res].
         -- (* RS''_exhaustion *)
            by apply RS'_exhaustion.
         -- (* RS''_error *)
@@ -2671,8 +2647,12 @@ Proof.
         -- (* RS''_break *)
            apply RS'_break with (k := k) (bvs := bvs).
            apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
-           Fail apply Hbr.
-           apply admitted_TODO.
+
+           (* TODO rewriting needed -- fix the statements to avoid this *)
+           unfold vs_to_es. unfold vs_to_es in Hbr.
+           clear Heqr. rewrite revK in Hbr.
+           by apply Hbr.
+
         -- (* RS''_return rvs *)
            apply RS'_return with (rvs := rvs).
            by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
@@ -2796,8 +2776,7 @@ Proof.
 
     * (* AI_basic (BI_br j) *)
       apply break(j, ves).
-      (* XXX no need for a lemma? *)
-      by left => //.
+      by apply break_br.
 
     * (* AI_basic (BI_br_if j) *)
       destruct ves as [|v ves'];
