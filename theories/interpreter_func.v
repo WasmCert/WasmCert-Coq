@@ -105,7 +105,8 @@ Inductive res_step'
 | RS'_break k bvs :
     (exists i j lh,
       i + k = j /\
-      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
+      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es /\
+      empty_vs_base lh) ->
     res_step' hs s f es
 (* XXX do I need to somehow assert that return (and break too?)
  * only returns vs from the inner-most layer (i.e. rvs)
@@ -139,7 +140,8 @@ Inductive res_step'_separate_e
     (exists ln les es i j lh,
       e = AI_label ln les es /\
       i + k = j /\
-      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es) ->
+      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es /\
+      empty_vs_base lh) ->
     res_step'_separate_e hs s f ves e
 
 | RS''_return rvs :
@@ -325,22 +327,25 @@ Lemma break_rec : forall e es es'' ves k bvs,
   (exists ln les es k i j lh,
     e = AI_label ln les es /\
     i + k = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
+    empty_vs_base lh) ->
     (* lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) [::e] ? *)
   exists i j lh,
    i + k = j /\
-   lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es.
+   lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
+   empty_vs_base lh.
 Proof.
   intros e es es'' ves k bvs Hsplit H.
   apply split_vals_e_v_to_e_duality in Hsplit. subst es.
   unfold vs_to_es.
-  destruct H as [[??] | [ln [les [es [k' [i [j [lh [? [Heqj HLF]]]]]]]]]].
+  destruct H as [[??] | [ln [les [es [k' [i [j [lh [? [Heqj [HLF Hbase]]]]]]]]]]].
   - subst e bvs. rewrite revK.
     exists 0, k, (LH_base [::] es'').
     split => //.
     replace (AI_basic (BI_br k) :: es'')
       with ([:: AI_basic (BI_br k)] ++ es'') => //.
-    by rewrite catA; apply LfilledBase => //.
+    split => //.
+    by rewrite catA; apply LfilledBase.
   - subst e.
     exists i, j, lh.
 Admitted.
@@ -2176,12 +2181,13 @@ Lemma reduce_label_break_rec : forall (hs : host_state) s f ln les es ves bvs,
   ln <= length bvs ->
   (exists i j lh,
     i + 0 = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
+    empty_vs_base lh) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_label ln les es])
     hs s f (vs_to_es (take ln bvs ++ ves) ++ les).
 Proof.
-  intros hs s f ln les es ves bvs Hlen [i [j [lh [Heqj HLF]]]].
+  intros hs s f ln les es ves bvs Hlen [i [j [lh [Heqj [HLF Hbase]]]]].
   rewrite addn0 in Heqj. subst j.
   apply lfilled_take_v_to_e with (n := ln) in HLF as [lh' HLF] => //.
   move/lfilledP in HLF.
@@ -2198,14 +2204,16 @@ Qed.
 Lemma label_break_rec : forall n ln les es bvs ves,
   (exists i j lh,
     i + n.+1 = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
+    empty_vs_base lh) ->
   AI_label ln les es = AI_basic (BI_br n) /\ bvs = ves \/
   (exists ln' les' es' i j lh,
     AI_label ln les es = AI_label ln' les' es' /\
     i + n = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es').
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es' /\
+    empty_vs_base lh).
 Proof.
-  intros n ln les es bvs ves [i [j [lh [Heqj HLF]]]].
+  intros n ln les es bvs ves [i [j [lh [Heqj [HLF Hbase]]]]].
   right.
   exists ln, les, es, (i.+1), j, (LH_rec (v_to_e_list ves) ln les lh [::]).
   repeat split; try by lias.
@@ -2297,7 +2305,7 @@ Proof.
 Qed.
 
 (* XXX trying to add empty_vs_base to see if it helps *)
-Lemma label_error_break_rec' : forall s f ves bvs ln les es,
+Lemma label_error_break_rec : forall s f ves bvs ln les es,
   (exists i j lh,
     i + 0 = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
@@ -2320,41 +2328,6 @@ Proof.
   }
   by lias.
 Qed.
-
-(* XXX break does not have enough values *)
-Lemma label_error_break_rec : forall s f ves bvs ln les es,
-  (exists i j lh,
-    i + 0 = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
-  (ln <= length bvs) = false ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
-Proof.
-  intros s f ves bvs ln les es [i [j [lh [Heqj HLF]]]] Hlen
-    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
-  rewrite addn0 in Heqj. subst j.
-  apply Label_typing in Hetype as [t1s' [t2s' [? [? [Hetypees Hlen']]]]].
-  move/lfilledP in HLF.
-  apply (Lfilled_break_typing host_instance)
-    with (k := 0) (tss := [::]) (ts := t1s') (s := s) (C := C) (t2s := t2s')
-    in HLF => //.
-  - apply et_to_bet in HLF;
-      (* TODO add this to auto_basic? *)
-      last by apply const_list_is_basic; apply v_to_e_is_const_list.
-    apply Const_list_typing in HLF. simpl in HLF. subst t1s'.
-    rewrite length_is_size in Hlen. rewrite length_is_size in Hlen'.
-    rewrite size_map in Hlen'. rewrite size_rev in Hlen'.
-    by lias.
-  - by apply v_to_e_is_const_list.
-  - assert (Hlen'' : length (vs_to_es bvs) = ln).
-    { admit. } (* XXX need to add it to RS''_break? *)
-    by rewrite Hlen''.
-  - by apply addn0.
-Admitted.
 
 Lemma reduce_local_trap : forall (hs : host_state) s f ves ln lf es,
   es_is_trap es ->
@@ -2476,7 +2449,8 @@ Qed.
 Lemma local_error_break_rec' : forall s f es ves ln lf n bvs,
   (exists i j lh,
     i + n = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
+    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
+    empty_vs_base lh) ->
   ~ (exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
@@ -2484,7 +2458,7 @@ Lemma local_error_break_rec' : forall s f es ves ln lf n bvs,
       store_typing s /\
       e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
 Proof.
-  intros s f es ves ln lf n bvs [i [j [lh [Heqj HLF]]]]
+  intros s f es ves ln lf n bvs [i [j [lh [Heqj [HLF Hbase]]]]]
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
 
   apply Local_typing in Hetype as [ts' [-> [Hstype ?]]].
@@ -3498,8 +3472,7 @@ Proof.
     by apply bet_const'.
   - (* RS'_break *)
     exfalso.
-    destruct Hbr as [i [j [lh [Heqj HLF]]]].
-    assert (empty_vs_base lh). { admit. } (* XXX add it to RS_break? *)
+    destruct Hbr as [i [j [lh [Heqj [HLF Hbase]]]]].
     apply lfilled_collapse_empty_vs_base in HLF as [lh' HLF'] => //.
     move/lfilledP in HLF'.
     apply HLFbr in HLF'.
