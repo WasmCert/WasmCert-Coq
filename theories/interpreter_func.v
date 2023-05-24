@@ -3494,3 +3494,33 @@ Proof.
 Admitted.
 
 End Host_func.
+
+Module Interpreter (EH : Executable_Host).
+
+Module Exec := convert_to_executable_host EH.
+Import Exec.
+
+Check host_function.
+Check executable_host_instance.
+Check host_state.
+
+Variable host_function : eqType.
+Fail Let store_record := store_record host_function.
+
+Fail Let executable_host := executable_host host_function.
+Variable executable_host_instance : executable_host.
+Fail Let host_event := host_event executable_host_instance.
+
+Fail Check host_application_impl.
+
+(* XXX *)
+Fail Definition run_step hs s f es (d : depth) : res_step' hs s f es :=
+  run_step_with_fuel'' hs s f es (run_step_fuel (hs, s, f, es)) d.
+Fail Definition run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record * res)%type) :=
+  run_v hs s f es fuel depth.
+
+(** State whether a list of administrative instruction is a final value. **)
+Definition is_const_list : list administrative_instruction -> option (list value) :=
+  @those_const_list.
+
+End Interpreter.
