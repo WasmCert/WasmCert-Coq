@@ -2222,63 +2222,96 @@ Proof.
   Fail eapply LfilledRec.
 Admitted.
 
-Lemma lfilled_br_empty_vs_base : forall lh s C ln les es t1s t2s i k j bvs,
-  e_typing s C [:: AI_label ln les es] (Tf t1s t2s) ->
+Lemma br_arguments_length: forall s C ts t_br j bvs,
+  e_typing s C (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (Tf [::] ts) ->
+  plop2 C j t_br ->
+  length bvs >= length t_br.
+Proof.
+  move => s C ts t_br j bvs Hetype Hplop.
+  apply e_composition_typing in Hetype
+      as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypebvs Hetypebr]]]]]]].
+  apply_cat0_inv Ht0s; simpl in *; subst.
+  apply et_to_bet in Hetypebr; last by auto_basic.
+  Check (Break_typing host_instance Hetypebr).
+  apply (Break_typing host_instance) in Hetypebr
+    as [ts'0 [ts'' [Hj [Hplop' Heqt1s']]]].
+  assert (ts'0 = t_br).
+  {
+    unfold plop2 in Hplop, Hplop'. move/eqP in Hplop. move/eqP in Hplop'.
+    rewrite Hplop' in Hplop. by injection Hplop.
+  }
+  subst ts'0 t1s'.
+  apply et_to_bet in Hetypebvs;
+    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+  apply Const_list_typing in Hetypebvs.
+  simpl in Hetypebvs.
+  apply f_equal with (f := size) in Hetypebvs.
+  rewrite size_map size_cat size_rev in Hetypebvs.
+  repeat rewrite length_is_size; by lias.
+Qed.
+
+(* XXX do induction over lh but leave the index to nth error and br constant? *)
+(* XXX simplify -- i = j sufficient? but would it work? *)
+Lemma lfilled_hole_typed_br : forall lh s C es ts i m j bvs,
+  e_typing s C es (Tf [::] ts) ->
   empty_vs_base lh ->
   lfilledInd i lh (v_to_e_list bvs ++ [:: AI_basic (BI_br j)]) es ->
-  (* XXX is this right? or should it be i = j? *)
-  i + k = j ->
+  i + m = j ->
+  exists ts C',
+    (* XXX need to separately assert idx is in range? *)
+    List.nth_error C'.(tc_label) 0 = List.nth_error C.(tc_label) i /\
+    e_typing s C' (v_to_e_list bvs ++ [:: AI_basic (BI_br j)]) (Tf [::] ts).
+Proof.
+  induction lh as [vs es' | vs k es' lh' IH]; move => s C es ts i m j bvs Hetype Hbase Hlf Hj.
+  - destruct vs => //.
+    inversion Hlf; subst; simpl in Hetype; clear Hlf.
+    apply e_composition_typing in Hetype
+      as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypebvs Hetype]]]]]]].
+    apply_cat0_inv Ht0s. simpl in Hts''; subst.
+    by exists t1s', C.
+  - inversion Hlf as [ | i' vs0 n es'0 lh'0 es''0 es0 LI Hconst Hlf0].
+    subst i es vs0 n es'0 lh'0 es''0 es0; clear Hlf.
+    apply e_composition_typing in Hetype
+      as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypevs Hetype]]]]]]].
+    apply_cat0_inv Ht0s; subst ts.
+    apply e_composition_typing in Hetype
+      as [? [t0s' [ts'' [t1s'' [Ht0s [Hts'' [Hetypebvs Hetype]]]]]]].
+    apply Label_typing in Hetypebvs
+      as [? [t2s' [-> [Hetypees' [HetypeLI Hlen]]]]].
+
+    apply IH with (bvs := bvs) (i := i') (m := m.+1) (j := j) in HetypeLI
+      as [ts''' [C' [Hlab Hetypebase]]] => //; last by lias.
+    exists ts''', C'.
+    split => //.
+    destruct C; simpl in *.
+
+    (* apply IH with (es := LI) (ts := t2s') (i := k') (bvs := bvs) (j := j) in HetypeLI => //. *)
+    (* destruct HetypeLI as [ts''' [C' [Hlab Hetypebase]]]. *)
+
+    (* XXX labels are added at the start of the list, so looks like we do need induction over j as well? *)
+(* Hlab : List.nth_error (tc_label C') j = *)
+(*        List.nth_error (tc_label (upd_label C ([:: x0] ++ tc_label C))) j *)
+
+    (* exists ts''', C'. *)
+    (* split => //. *)
+    (* destruct C, C'. simpl in *. *)
+Admitted.
+
+Lemma lfilled_br_empty_vs_base : forall lh s C ln les es t1s t2s i bvs,
+  e_typing s C [:: AI_label ln les es] (Tf t1s t2s) ->
+  empty_vs_base lh ->
+  lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br i)]) es ->
   length bvs >= ln.
 Proof.
-  induction lh as [vs es' | vs i' es' lh' IH];
-    move => s C ln les es t1s t2s i k j bvs Hetype Hbase Hlf Heqj.
-  - destruct vs => //.
-    inversion Hlf; subst.
-    (* TODO unstable names *)
-    simpl in *.
-    rewrite <- catA in Hetype.
-    Check (Label_typing Hetype).
-    apply Label_typing in Hetype as [ts [t2s' [-> [Hetypeles [Hetype Hlen]]]]].
-
-    (* This should tell us that the type of bvs is ts,
-     * possibly prefixed (if bvs is too long and some values are discarded) *)
-    (* Hetype : typing.e_typing s (upd_label C ([:: ts] ++ tc_label C)) *)
-    (*            (v_to_e_list bvs ++ [:: AI_basic (BI_br (0 + k))] ++ es') *)
-    (*            (Tf [::] t2s') *)
-
-    apply e_composition_typing in Hetype
-      as [? [t0s [ts'' [t1s' [Ht0s [Hts'' [Hetypebvs Hetype]]]]]]].
-    apply_cat0_inv Ht0s.
-    simpl in Hts''. subst ts''.
-    apply e_composition_typing in Hetype
-      as [ts'' [t0s [ts''' [t2s'' [Ht0s [Hts' [Hetypebr Hetype]]]]]]].
-
-    apply et_to_bet in Hetypebr; last by auto_basic.
-    apply (Break_typing host_instance) in Hetypebr as [t0s1 [t0s2 [Hk [Hplop Heqt0s]]]].
-
-    unfold plop2 in Hplop. move/eqP in Hplop.
-
-    apply et_to_bet in Hetypebvs;
-      last by apply const_list_is_basic; apply v_to_e_is_const_list.
-    apply Const_list_typing in Hetypebvs.
-    simpl in Hetypebvs.
-    subst t1s' t0s.
-
-    (* Hplop : List.nth_error (tc_label (upd_label C ([:: ts] ++ tc_label C))) *)
-    (*           (0 + k) = Some t0s1 *)
-    assert (ts = t0s1).
-    {
-      (*XXX this only works for k = 0? *)
-      assert (k = 0). { admit. } subst k.
-      by inversion Hplop.
-    }
-
-    apply f_equal with (f := size) in Ht0s.
-    revert Ht0s. rewrite size_map. repeat rewrite size_cat.
-    subst. repeat rewrite length_is_size.
-    by lias.
-
-  - admit.
+  move => lh s C ln les es t1s t2s i bvs Hetype Hbase Hlf.
+  apply Label_typing in Hetype as [ts [t2s' [-> [Hetypeles [Hetypees <-]]]]].
+  eapply lfilled_hole_typed_br in Hetypees as [ts0 [C0 [Heqlab Hetype]]]; eauto.
+  eapply br_arguments_length with (t_br := ts) in Hetype => //.
+  unfold plop2.
+(* XXX should i be 0? *)
+(* Heqlab : List.nth_error (tc_label C0) i = *)
+(*          List.nth_error (tc_label (upd_label C ([:: ts] ++ tc_label C))) i *)
+  destruct C; simpl in *.
 Admitted.
 
 (* XXX trying to add empty_vs_base to see if it helps *)
@@ -2297,15 +2330,16 @@ Lemma label_error_break_rec' : forall s f ves bvs ln les es,
 Proof.
   intros s f ves bvs ln les es [i [j [lh [Heqj [HLF Hbase]]]]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
+  rewrite addn0 in Heqj; subst j.
   assert (ln <= length bvs).
   {
-    rewrite length_is_size. rewrite <- size_rev.
-    eapply (lfilled_br_empty_vs_base Hetype Hbase HLF).
-    by apply Heqj.
+    rewrite length_is_size.
+    by apply (lfilled_br_empty_vs_base Hetype Hbase HLF).
   }
   by lias.
 Qed.
 
+(* XXX break does not have enough values *)
 Lemma label_error_break_rec : forall s f ves bvs ln les es,
   (exists i j lh,
     i + 0 = j /\
@@ -2510,7 +2544,7 @@ Proof.
   by apply/lfilledP.
 Qed.
 
-Lemma lfilled_hole_typed: forall lh s C es ts i rvs,
+Lemma lfilled_hole_typed_return : forall lh s C es ts i rvs,
   e_typing s C es (Tf [::] ts) ->
   empty_vs_base lh ->
   lfilledInd i lh (v_to_e_list rvs ++ [:: AI_basic BI_return]) es ->
@@ -2570,7 +2604,7 @@ Proof.
   apply Local_typing in Hetype as [ts' [-> [Hstype Hlen']]].
   inversion Hstype as [s0 lf0 es' ret'0 ts'0 C'' C' Hftype HeqC'' Hetype _].
   subst s0 ret'0 lf0 ts'0 es' C''.
-  eapply lfilled_hole_typed in Hetype as [ts0 [C0 [Heqret Hetype]]]; eauto.
+  eapply lfilled_hole_typed_return in Hetype as [ts0 [C0 [Heqret Hetype]]]; eauto.
   by eapply return_arguments_length in Hetype; eauto.
 Qed.
 
