@@ -134,15 +134,13 @@ Inductive res_step'_separate_e
       e_typing s C [:: e] (Tf t1s t2s)) ->
     res_step'_separate_e hs s f ves e
 
-(* XXX lfilled instead of lfilledInd? pick one and be consistent *)
 | RS''_break k bvs :
-    (e = AI_basic (BI_br k) /\ bvs = ves) \/
-    (exists ln les es i j lh,
-      e = AI_label ln les es /\
+    (exists i j lh,
       i + k = j /\
-      lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es /\
+      lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e]) /\
       empty_vs_base lh) ->
     res_step'_separate_e hs s f ves e
+    (* lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) [::e] ? *)
 
 | RS''_return rvs :
     (* XXX can this be simplified to just lfilled? *)
@@ -321,33 +319,90 @@ Proof.
   rewrite <- Ht2s. by rewrite Hbtypeves.
 Qed.
 
+(* XXX a bit cleaner when stated as the (stronger) helper lemma *)
+Lemma break_rec_helper : forall lh i j e es ves k bvs,
+  i + k = j ->
+  lfilledInd i lh
+    (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e]) ->
+  empty_vs_base lh ->
+  exists lh',
+   lfilledInd i lh'
+     (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e] ++ es) /\
+   empty_vs_base lh'.
+Proof.
+  destruct lh as [lh_vs lh_es | lh_vs n lh_es' lh' lh_es];
+    intros i j e es ves k bvs Heqj Hlf Hbase;
+    inversion Hlf
+      as [???? H1 H2 H3 Heqes | i' vs0 m es'0 lh'0 es''0 es0 LI Hconst Hlf0]; clear Hlf.
+  - destruct lh_vs => //; subst.
+    exists (LH_base [::] es).
+    split => //.
+
+    (* TODO from: *)
+    (* Heqes : (vs_to_es bvs ++ [:: AI_basic (BI_br k)]) ++ lh_es = *)
+    (*         v_to_e_list ves ++ [:: e] *)
+    assert (Hbvs : vs_to_es bvs = v_to_e_list ves). { admit. }
+    assert (He : e = AI_basic (BI_br k)). { admit. } subst e.
+    assert (Hlh_es : lh_es = [::]). { admit. } subst lh_es.
+
+    rewrite -Hbvs. unfold vs_to_es.
+    replace (AI_basic (BI_br k) :: es) with ([:: AI_basic (BI_br k)] ++ es) => //.
+    by rewrite catA; apply LfilledBase.
+  - subst i vs0 m es'0 lh'0 es''0 es0.
+
+    (* TODO from H6 (XXX fragile name) *)
+    (* H6 : lh_vs ++ AI_label n lh_es' LI :: lh_es = v_to_e_list ves ++ [:: e] *)
+    assert (Hlh_vs : lh_vs = v_to_e_list ves). { admit. }
+    assert (He : e = AI_label n lh_es' LI). { admit. }
+    assert (Hlh_es : lh_es = [::]). { admit. } subst lh_vs e lh_es.
+
+    exists (LH_rec (v_to_e_list ves) n lh_es' lh' es).
+    by split => //; apply LfilledRec => //.
+Admitted.
+
 Lemma break_rec : forall e es es'' ves k bvs,
   split_vals_e es = (ves, e :: es'') ->
-  e = AI_basic (BI_br k) /\ bvs = rev ves \/
-  (exists ln les es k i j lh,
-    e = AI_label ln les es /\
+  (exists i j lh,
     i + k = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
+    lfilledInd i lh
+      (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e]) /\
     empty_vs_base lh) ->
-    (* lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) [::e] ? *)
   exists i j lh,
    i + k = j /\
    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
    empty_vs_base lh.
 Proof.
-  intros e es es'' ves k bvs Hsplit H.
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
-  unfold vs_to_es.
-  destruct H as [[??] | [ln [les [es [k' [i [j [lh [? [Heqj [HLF Hbase]]]]]]]]]]].
-  - subst e bvs. rewrite revK.
+  intros e es es'' ves k bvs Hsplit
+    [i [j [[lh_vs lh_es | lh_vs n lh_es' lh' lh_es] [Heqj [Hlf Hbase]]]]];
+    apply split_vals_e_v_to_e_duality in Hsplit; subst es; unfold vs_to_es.
+  - destruct lh_vs => //.
+    inversion Hlf as [???? H1 H2 H3 Heqes|]; subst; clear Hlf.
     exists 0, k, (LH_base [::] es'').
-    split => //.
+    repeat split => //.
+    rewrite add0n in Heqes.
+
+    (* TODO from: *)
+    (* Heqes : (vs_to_es bvs ++ [:: AI_basic (BI_br k)]) ++ lh_es = *)
+    (*         v_to_e_list ves ++ [:: e] *)
+    assert (Hbvs : vs_to_es bvs = v_to_e_list ves). { admit. }
+    assert (He : e = AI_basic (BI_br k)). { admit. } subst e.
+    assert (Hlh_es : lh_es = [::]). { admit. } subst lh_es.
+
+    rewrite -Hbvs. unfold vs_to_es.
     replace (AI_basic (BI_br k) :: es'')
       with ([:: AI_basic (BI_br k)] ++ es'') => //.
-    split => //.
     by rewrite catA; apply LfilledBase.
-  - subst e.
-    exists i, j, lh.
+  - inversion Hlf as [ | i' vs0 m es'0 lh'0 es''0 es0 LI Hconst Hlf0].
+    subst i vs0 m es'0 lh'0 es''0 es0.
+
+    (* TODO from H6 (XXX fragile name) *)
+    (* H6 : lh_vs ++ AI_label n lh_es' LI :: lh_es = v_to_e_list ves ++ [:: e] *)
+    assert (Hlh_vs : lh_vs = v_to_e_list ves). { admit. }
+    assert (He : e = AI_label n lh_es' LI). { admit. }
+    assert (Hlh_es : lh_es = [::]). { admit. } subst lh_vs e lh_es.
+
+    exists i'.+1, j, (LH_rec (v_to_e_list ves) n lh_es' lh' es'').
+    by repeat split => //; apply LfilledRec => //.
 Admitted.
 
 Lemma return_rec : forall e es es'' ves rvs,
@@ -733,19 +788,6 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
   by cats1_last_eq Ht1s.
-Qed.
-
-Lemma break_br : forall j ves,
-  exists k m vs0 lh es,
-    k + j = m /\
-    lfilled k lh (vs0 ++ [:: AI_basic (BI_br m)]) es /\
-    v_to_e_list ves = rev vs0.
-Proof.
-  intros j ves.
-  exists 0, j, (rev (v_to_e_list ves)).
-  exists ((LH_base (vs_to_es ves) [::])).
-  eexists.
-  repeat split; try by solve_lfilled.
 Qed.
 
 Lemma reduce_br_if_true : forall (hs : host_state) s f c ves' j,
