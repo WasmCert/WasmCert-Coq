@@ -2250,16 +2250,13 @@ Proof.
   repeat rewrite length_is_size; by lias.
 Qed.
 
-(* XXX do induction over lh but leave the index to nth error and br constant? *)
-(* XXX simplify -- i = j sufficient? but would it work? *)
 Lemma lfilled_hole_typed_br : forall lh s C es ts i m j bvs,
   e_typing s C es (Tf [::] ts) ->
   empty_vs_base lh ->
   lfilledInd i lh (v_to_e_list bvs ++ [:: AI_basic (BI_br j)]) es ->
   i + m = j ->
   exists ts C',
-    (* XXX need to separately assert idx is in range? *)
-    List.nth_error C'.(tc_label) 0 = List.nth_error C.(tc_label) i /\
+    List.nth_error C'.(tc_label) j = List.nth_error C.(tc_label) m /\
     e_typing s C' (v_to_e_list bvs ++ [:: AI_basic (BI_br j)]) (Tf [::] ts).
 Proof.
   induction lh as [vs es' | vs k es' lh' IH]; move => s C es ts i m j bvs Hetype Hbase Hlf Hj.
@@ -2281,21 +2278,8 @@ Proof.
 
     apply IH with (bvs := bvs) (i := i') (m := m.+1) (j := j) in HetypeLI
       as [ts''' [C' [Hlab Hetypebase]]] => //; last by lias.
-    exists ts''', C'.
-    split => //.
-    destruct C; simpl in *.
-
-    (* apply IH with (es := LI) (ts := t2s') (i := k') (bvs := bvs) (j := j) in HetypeLI => //. *)
-    (* destruct HetypeLI as [ts''' [C' [Hlab Hetypebase]]]. *)
-
-    (* XXX labels are added at the start of the list, so looks like we do need induction over j as well? *)
-(* Hlab : List.nth_error (tc_label C') j = *)
-(*        List.nth_error (tc_label (upd_label C ([:: x0] ++ tc_label C))) j *)
-
-    (* exists ts''', C'. *)
-    (* split => //. *)
-    (* destruct C, C'. simpl in *. *)
-Admitted.
+    exists ts''', C' => //.
+Qed.
 
 Lemma lfilled_br_empty_vs_base : forall lh s C ln les es t1s t2s i bvs,
   e_typing s C [:: AI_label ln les es] (Tf t1s t2s) ->
@@ -2305,14 +2289,12 @@ Lemma lfilled_br_empty_vs_base : forall lh s C ln les es t1s t2s i bvs,
 Proof.
   move => lh s C ln les es t1s t2s i bvs Hetype Hbase Hlf.
   apply Label_typing in Hetype as [ts [t2s' [-> [Hetypeles [Hetypees <-]]]]].
-  eapply lfilled_hole_typed_br in Hetypees as [ts0 [C0 [Heqlab Hetype]]]; eauto.
+  eapply lfilled_hole_typed_br with (m := 0) in Hetypees
+    as [ts0 [C0 [Heqlab Hetype]]]; eauto; last by lias.
   eapply br_arguments_length with (t_br := ts) in Hetype => //.
-  unfold plop2.
-(* XXX should i be 0? *)
-(* Heqlab : List.nth_error (tc_label C0) i = *)
-(*          List.nth_error (tc_label (upd_label C ([:: ts] ++ tc_label C))) i *)
-  destruct C; simpl in *.
-Admitted.
+  destruct C, C0; simpl in *.
+  by apply/eqP.
+Qed.
 
 (* XXX trying to add empty_vs_base to see if it helps *)
 Lemma label_error_break_rec' : forall s f ves bvs ln les es,
