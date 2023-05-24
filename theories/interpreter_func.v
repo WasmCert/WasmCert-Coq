@@ -2346,7 +2346,6 @@ Proof.
       as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypebvs Hetypebr]]]]]]].
   apply_cat0_inv Ht0s; simpl in *; subst.
   apply et_to_bet in Hetypebr; last by auto_basic.
-  Check (Break_typing host_instance Hetypebr).
   apply (Break_typing host_instance) in Hetypebr
     as [ts'0 [ts'' [Hj [Hplop' Heqt1s']]]].
   assert (ts'0 = t_br).
@@ -2525,34 +2524,43 @@ Proof.
   by apply Hetype.
 Qed.
 
-(* XXX should this be an error case specific to AI_local?
- * 'if the instruction is (AI_local _ _ es) and the es is an lfilled br j,
- * there must be at least j labels in the lfill' *)
-(* but shouldn't e_typing be enough?
- * that is, if the instruction is a well-typed (AI_local _ _ es) and the es is
- * an lfilled br j, there must be at least j labels in the lfill *)
-(* we should be able to get that from e_typing by using Lfilled_break_typing
- * (see next lemma below) *)
-Lemma local_error_break_rec : forall s f es ves ln lf n bvs,
-  (exists i j lh,
-    i + n = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es) ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s) /\
-      (forall i lh j, lfilledInd i lh [::AI_basic (BI_br j)] es -> j < i)).
+(* XXX drop bvs here to simplify? *)
+Lemma lfilled_labels : forall lh i j k s C bvs es t1s t2s,
+  size C.(tc_label) = k ->
+  e_typing s C es (Tf t1s t2s) ->
+  lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es ->
+  j < i + k.
 Proof.
-  intros s f es ves ln lf n bvs [i [j [lh [Heqj HLF]]]]
-    [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? [Hetype HLFji]]]]]]]]]]]].
-  apply lfilled_collapse' in HLF as [lh' HLF]; last by apply v_to_e_is_const_list.
-  remember (HLFji i lh' j HLF) as Hji eqn:HeqHji. clear HeqHji.
-  by lias.
+  induction lh as [vs es' | vs m es' lh' IH];
+    intros i j k s C bvs es t1s t2s Hlab Hetype Hlf;
+    inversion Hlf as [ | i' vs0 m' es'0 lh'0 es''0 es0 LI Hconst Hlf0].
+  - subst. repeat rewrite catA in Hetype.
+    apply e_composition_typing in Hetype as [? [? [? [? [-> [-> [Hetype _]]]]]]].
+    apply e_composition_typing in Hetype as [? [? [? [? [-> [-> [_ Hetypebr]]]]]]].
+    apply et_to_bet in Hetypebr; last by auto_basic.
+    by apply (Break_typing host_instance) in Hetypebr as [? [? [Hj [??]]]]; auto.
+  - subst i k vs0 m' es'0 lh'0 es''0 es0 es.
+    apply e_composition_typing in Hetype as [? [t0s [? [t1s' [-> [-> [_ Hetype]]]]]]].
+    apply e_composition_typing in Hetype as [? [t1s [? [t2s' [-> [-> [Hetype _]]]]]]].
+    apply Label_typing in Hetype as [ts [t3s' [-> [_ [HetypeLI Hlen]]]]].
+    eapply IH with (C := (upd_label C ([:: ts] ++ tc_label C))) in Hlf0 => //;
+      last by apply HetypeLI.
+    by simpl in Hlf0; lias.
 Qed.
 
-Lemma local_error_break_rec' : forall s f es ves ln lf n bvs,
+Lemma lfilled_labels_emp : forall lh i s C bvs j es t1s t2s,
+  C.(tc_label) = [::] ->
+  e_typing s C es (Tf t1s t2s) ->
+  lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es ->
+  j < i.
+Proof.
+  intros lh i s C bvs j es t1s t2s Hlab Hetype Hlf.
+  apply f_equal with (f := size) in Hlab; simpl in Hlab.
+  replace i with (i + 0); last by apply addn0.
+  by eapply lfilled_labels; eauto.
+Qed.
+
+Lemma local_error_break_rec : forall s f es ves ln lf n bvs,
   (exists i j lh,
     i + n = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
@@ -2566,14 +2574,14 @@ Lemma local_error_break_rec' : forall s f es ves ln lf n bvs,
 Proof.
   intros s f es ves ln lf n bvs [i [j [lh [Heqj [HLF Hbase]]]]]
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
-
   apply Local_typing in Hetype as [ts' [-> [Hstype ?]]].
   destruct Hstype as [s lf es ret' ts' C'' C''' Hftype HeqC'' Hetype Heqts'].
   destruct Hftype as [s i' ts'' C''' lf Hitype' Heqi Heqts'']. subst i'.
-
-  move/lfilledP in HLF.
-  eapply (Lfilled_break_typing host_instance) with (s := s) in HLF.
-Admitted.
+  apply inst_t_context_label_empty in Hitype'.
+  assert (Hlab : C''.(tc_label) = [::]). { by subst C''. }
+  eapply lfilled_labels_emp in Hlab; eauto.
+  by lias.
+Qed.
 
 (* XXX this could maybe be simplified by using lfilled_collapse1 more directly *)
 Lemma reduce_local_return_rec : forall (hs : host_state) s f lf rvs ves ln es,
@@ -2627,6 +2635,7 @@ Proof.
     apply_cat0_inv Ht0s; subst.
     apply e_composition_typing in Hetype
         as [? [t0s' [ts'' [t1s'' [Ht0s [Hts'' [Hetypervs Hetype]]]]]]].
+    (* XXX misleading naming *)
     apply Label_typing in Hetypervs
         as [? [ts2' [-> [Hetypees' [HetypeLI Hlen]]]]].
     by eapply IH in HetypeLI; eauto.
@@ -3339,7 +3348,7 @@ Proof.
               by apply local_error_rec.
            ** (* RS'_break hs s f es n bvs *)
               apply RS''_error.
-              by eapply local_error_break_rec' with (n := n) (bvs := bvs).
+              by apply local_error_break_rec with (n := n) (bvs := bvs).
            ** (* RS'_return hs s f es rvs H *)
               destruct (length rvs >= ln) eqn:?.
               ++ (* true *)
