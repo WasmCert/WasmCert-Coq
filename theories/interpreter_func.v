@@ -137,7 +137,8 @@ Inductive res_step'_separate_e
 | RS''_break k bvs :
     (exists i j lh,
       i + k = j /\
-      lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (vs_to_es ves ++ [:: e]) /\
+      lfilledInd i lh
+        (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (vs_to_es ves ++ [:: e]) /\
       empty_vs_base lh) ->
     res_step'_separate_e hs s f ves e
     (* lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) [::e] ? *)
@@ -324,7 +325,7 @@ Lemma break_rec : forall e es es'' ves k bvs,
   (exists i j lh,
     i + k = j /\
     lfilledInd i lh
-      (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (v_to_e_list ves ++ [:: e]) /\
+      (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (vs_to_es (rev ves) ++ [:: e]) /\
     empty_vs_base lh) ->
   exists i j lh,
    i + k = j /\
@@ -2224,29 +2225,18 @@ Lemma label_break_rec : forall n ln les es bvs ves,
     i + n.+1 = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
     empty_vs_base lh) ->
-  AI_label ln les es = AI_basic (BI_br n) /\ bvs = ves \/
-  (exists ln' les' es' i j lh,
-    AI_label ln les es = AI_label ln' les' es' /\
+  (exists i j lh,
     i + n = j /\
-    lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es' /\
+    lfilledInd i lh
+      (vs_to_es bvs ++ [:: AI_basic (BI_br j)])
+      (vs_to_es ves ++ [:: AI_label ln les es]) /\
     empty_vs_base lh).
 Proof.
   intros n ln les es bvs ves [i [j [lh [Heqj [HLF Hbase]]]]].
-  right.
-  exists ln, les, es, (i.+1), j, (LH_rec (v_to_e_list ves) ln les lh [::]).
+  exists (i.+1), j, (LH_rec (vs_to_es ves) ln les lh [::]).
   repeat split; try by lias.
-  (* XXX this seems wrong? the goal should have es wrapped in a label for i+1
-   * to make sense? *)
-  (* | LfilledRec : forall (k : nat) (vs : seq administrative_instruction) *)
-  (*                  (n : nat) (es' : seq administrative_instruction) *)
-  (*                  (lh' : lholed) *)
-  (*                  (es'' es LI : seq administrative_instruction), *)
-  (*                const_list vs -> *)
-  (*                lfilledInd k lh' es LI -> *)
-  (*                lfilledInd k.+1 (LH_rec vs n es' lh' es'') es *)
-  (*                  (vs ++ [:: AI_label n es' LI] ++ es'') *)
-  Fail eapply LfilledRec.
-Admitted.
+  by apply LfilledRec => //; apply v_to_e_is_const_list.
+Qed.
 
 Lemma br_arguments_length: forall s C ts t_br j bvs,
   e_typing s C (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) (Tf [::] ts) ->
@@ -2646,12 +2636,8 @@ Proof.
            by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
         -- (* RS''_break *)
            apply RS'_break with (k := k) (bvs := bvs).
-           apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
-
-           (* TODO rewriting needed -- fix the statements to avoid this *)
-           unfold vs_to_es. unfold vs_to_es in Hbr.
-           clear Heqr. rewrite revK in Hbr.
-           by apply Hbr.
+           (* XXX why is there rev ves (unfoldfed v_to_e_list) in Hbr? *)
+           by apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
 
         -- (* RS''_return rvs *)
            apply RS'_return with (rvs := rvs).
@@ -3219,7 +3205,6 @@ Proof.
               ++ (* n.+1 *)
                  apply break(n, bvs).
                  by apply label_break_rec.
-
            ** (* RS'_return hs s f es rvs H *)
               apply RS''_return with (rvs := rvs).
               (* TODO lemma? *)
