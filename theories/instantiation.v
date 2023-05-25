@@ -35,11 +35,22 @@ Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
 Let host_event := host_event executable_host_instance.
 
-Context {eff : Type -> Type}.
-Context {eff_has_host_event : host_event -< eff}.
+(* XXX are these two necessary? *)
+Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
+                       (host_state * option (store_record * result)).
 
-Let run_v {eff' eff'_has_host_event} :=
-  @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event.
+Hypothesis host_application_impl_correct :
+  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+
+(* Let run_v {eff' eff'_has_host_event} := *)
+(*   @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event. *)
+
+(* XXX still needs
+   (host.host_state host_instance),
+   (datatypes.store_record host_function) *)
+Let run_v :=
+  @interpreter_func.run_v
+    _ host_instance host_application_impl host_application_impl_correct.
 
 Definition addr := nat.
 Definition funaddr := addr.
@@ -776,67 +787,78 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   | (_, _) => false
   end.
 
-Import ITree ITreeFacts.
+Check run_v.
 
-Import Monads.
-Import MonadNotation.
+(* TODO fix actual run_v,
+ * missing "Equality.sort (host.host_state host_instance)". *)
+Hypothesis run_v_mock
+     : datatypes.store_record host_function ->
+       frame ->
+       seq administrative_instruction ->
+       fuel ->
+       interpreter_func.depth ->
+       host.host_state host_instance * datatypes.store_record host_function *
+       res.
+Search frame.
 
-(** The following type is returned as an event when the instantiation failed. **)
-Inductive instantiation_error (T : Type) : Type :=
-  | Instantiation_error : instantiation_error T.
-
-Arguments Instantiation_error {T}.
-
-Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction)
-  : itree (instantiation_error +' eff) value (* FIXME: isa mismatch *) :=
-  res <- burn 2 (run_v 0 inst (s, (Build_frame nil inst), operations.to_e_list b_es)) ;;
-  match res with
-  | (_, interpreter.R_value vs) =>
+Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value (* TODO: isa mismatch *) :=
+  match run_v_mock s (Build_frame [::] inst) (operations.to_e_list b_es) 2 0 with
+  | (_, interpreter_func.R_value vs) =>
     match vs with
-    | v :: nil => ret v
-    | _ => trigger_inl1 Instantiation_error
+    | [:: v] => Some v
+    | _ => None
     end
-  | _ => trigger_inl1 Instantiation_error
+  | _ => None
   end.
 
-Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction)
-  : itree (instantiation_error +' eff) i32 (* FIXME: isa mismatch *) :=
-  v <- interp_get_v s inst b_es ;;
-  match v with
-  | VAL_int32 c => ret c
-  | _ => trigger_inl1 Instantiation_error
+Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction) : option i32 (* TODO: isa mismatch *) :=
+  match interp_get_v s inst b_es with
+  | Some (VAL_int32 c) => Some c
+  | _ => None
   end.
 
-Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext)
-  : itree (instantiation_error +' eff) ((store_record * instance * list module_export) * option nat) :=
+Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext) : option ((store_record * instance * list module_export) * option nat) :=
   match module_type_checker m with
-  | None => trigger_inl1 Instantiation_error
+  | None => None
   | Some (t_imps, t_exps) =>
     if seq.all2 (external_type_checker s) v_imps t_imps then
-      let inst_c := {|
-            inst_types := nil;
-            inst_funcs := nil;
-            inst_tab := nil;
-            inst_memory := nil;
-            inst_globs := List.map (fun '(Mk_globalidx i) => i) (ext_globs v_imps);
-          |} in
-      g_inits <- bind_list (fun g => interp_get_v s inst_c g.(modglob_init)) m.(mod_globals) ;;
-      let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
-      e_offs <- bind_list (fun e => interp_get_i32 s' inst e.(modelem_offset)) m.(mod_elem) ;;
-      d_offs <- bind_list (fun d => interp_get_i32 s' inst d.(moddata_offset)) m.(mod_data) ;;
-      if check_bounds_elem inst s' m e_offs &&
-         check_bounds_data inst s' m d_offs then
-        let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
-        let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
-        let s_end := init_mems s' inst (List.map N_of_int d_offs) m.(mod_data) in
-        ret ((s_end, inst, v_exps), start)
-      else trigger_inl1 Instantiation_error
-    else trigger_inl1 Instantiation_error
+      let g_inits_opt :=
+        let c := {|
+          inst_types := nil;
+          inst_funcs := nil;
+          inst_tab := nil;
+          inst_memory := nil;
+          inst_globs := List.map (fun '(Mk_globalidx i) => i) (ext_globs v_imps);
+        |} in
+        those (map (fun g => interp_get_v s c g.(modglob_init)) m.(mod_globals)) in
+      match g_inits_opt with
+      | None => None
+      | Some g_inits =>
+        let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
+        let e_offs_opt := those (map (fun e => interp_get_i32 s' inst e.(modelem_offset)) m.(mod_elem)) in
+        match e_offs_opt with
+        | None => None
+        | Some e_offs =>
+          let d_offs_opt := those (map (fun d => interp_get_i32 s' inst d.(moddata_offset)) m.(mod_data)) in
+          match d_offs_opt with
+          | None => None
+          | Some d_offs =>
+            if check_bounds_elem inst s m e_offs &&
+               check_bounds_data inst s m d_offs then
+              let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
+              let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
+              let s_end := init_mems s' inst (List.map N_of_int d_offs) m.(mod_data) in
+              Some ((s_end, inst, v_exps), start)
+            else None
+          end
+        end
+      end
+    else None
   end.
 
 Lemma interp_instantiate_imp_instantiate :
   forall s m v_imps s_end inst v_exps start,
-  interp_instantiate s m v_imps ≈ ret ((s_end, inst, v_exps), start) ->
+  interp_instantiate s m v_imps = Some ((s_end, inst, v_exps), start) ->
   instantiate s m v_imps ((s_end, inst, v_exps), start).
 Proof.
 Admitted. (* TODO *)
@@ -848,8 +870,7 @@ Definition empty_store_record : store_record := {|
     s_globals := nil;
   |}.
 
-Definition interp_instantiate_wrapper (m : module)
-  : itree _ ((store_record * instance * list module_export) * option nat) :=
+Definition interp_instantiate_wrapper (m : module) : option ((store_record * instance * list module_export) * option nat) :=
   interp_instantiate empty_store_record m nil.
 
 Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export)
@@ -889,9 +910,12 @@ Definition lookup_exported_function :
     option config_tuple :=
   @lookup_exported_function _.
 
+(* XXX fails with *)
+(* The term "executable_host_instance" has type "executable_host" *)
+(* while it is expected to have type "host ?host_function". *)
 Definition interp_instantiate_wrapper :
   module ->
-  itree (instantiation_error +' host_event)
+  option
     (store_record * instance * seq module_export * option nat) :=
   @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
 
