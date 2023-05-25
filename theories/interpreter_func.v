@@ -3744,6 +3744,8 @@ Defined.
 
 Definition run_v := run_v host_application_impl_correct.
 
+Definition run_step := run_step host_application_impl_correct.
+
 (** State whether a list of administrative instruction is a final value. **)
 Definition is_const_list : list administrative_instruction -> option (list value) :=
   @those_const_list.

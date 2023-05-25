@@ -39,9 +39,9 @@ module type InterpreterType = sig
       string -> ((store_record * Extract.instance) * Extract.module_export list) ->
       config_tuple option
 
-    val interp_instantiate_wrapper :
-      Extract.module0 ->
-      (((store_record * Extract.instance) * Extract.module_export list) * int option) option
+    (* val interp_instantiate_wrapper : *)
+    (*   Extract.module0 -> *)
+    (*   (((store_record * Extract.instance) * Extract.module_export list) * int option) option *)
 
     val run_parse_module : string -> Extract.module0 option
 
@@ -95,7 +95,7 @@ module Interpreter =
       let* b = b in
       pure (a, b)
 
-    module Interpreter = Extract.Interpreter (EH) (TargetMonad (EH))
+    module Interpreter = Extract.Interpreter_func
     module Instantiation = Extract.Instantiation (EH)
     module PP = Extract.PP (EH)
 
@@ -104,9 +104,13 @@ module Interpreter =
     type res_tuple = host_function Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
 
-    let run_v d i cfg = Interpreter.run_v (Convert.to_nat d) i cfg
+    let run_v d i cfg =
+      let (hs, s, f, es) = cfg in
+      Interpreter.run_v hs s f es (Convert.to_nat d) i
 
-    let run_step d i cfg = Interpreter.run_step (Convert.to_nat d) i cfg
+    let run_step d i cfg =
+      let (hs, s, f, es) = cfg in
+      Interpreter.run_step hs s f es (Convert.to_nat d)
 
     let is_const_list = Interpreter.is_const_list
 

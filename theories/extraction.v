@@ -21,7 +21,7 @@ Extraction Language OCaml.
 Extraction "extract"
   run_parse_module
   Instantiation
-  Interpreter
+  Interpreter_func
   value_rec_safe
   PP
   DummyHost.
