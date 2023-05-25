@@ -3407,6 +3407,232 @@ Fixpoint run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record
         end
   end.
 
+(** Simplify an hypothesis, possibly rewriting it everywhere. **)
+Ltac simplify_hypothesis Hb :=
+  repeat rewrite length_is_size in Hb;
+  repeat match type of Hb with
+  | is_true (es_is_trap _) => move/es_is_trapP: Hb => Hb
+  | is_true (const_list (_ :: _)) => rewrite const_list_cons in Hb
+  | ?b = true => fold (is_true b) in Hb
+  | (_ == _) = false => move/eqP in Hb
+  | context C [size (rev _)] => rewrite size_rev in Hb
+  | context C [take _ (rev _)] => rewrite take_rev in Hb
+  | context C [rev (rev _)] => rewrite revK in Hb
+  | context C [true && _] => rewrite Bool.andb_true_l in Hb
+  | context C [_ && true] => rewrite Bool.andb_true_r in Hb
+  | context C [false || _] => rewrite Bool.orb_false_l in Hb
+  | context C [_ || false] => rewrite Bool.orb_false_r in Hb
+  | is_true true => clear Hb
+  | is_true false => exfalso; apply: notF; apply: Hb
+  | is_true (_ == _) => move/eqP in Hb
+  | ?x = ?x => clear Hb
+  | _ = _ => rewrite Hb in *
+  end.
+
+(** Explode a tuple into all its components. **)
+Ltac explode_value v :=
+  lazymatch type of v with
+  | (_ * _)%type =>
+    let v1 := fresh "v1" in
+    let v2 := fresh "v2" in
+    destruct v as [v1 v2];
+    explode_value v1;
+    explode_value v2
+  | _ => idtac
+  end.
+
+(* XXX move out into a file for ltacs? *)
+Ltac explode_and_simplify :=
+  repeat lazymatch goal with
+  | |- ?T = _ -> _ =>
+    lazymatch T with
+    | context C [split_n ?l ?n] => rewrite (split_n_is_take_drop l n)
+    | context C [vs_to_es ?l] => rewrite/vs_to_es
+    | context C [host_application_impl _ _ _ _ _ _] =>
+      destruct host_application_impl
+    | context C [match ?b with true => ?v1 | false => ?v2 end] =>
+      let Hb := fresh "if_expr" in
+      destruct b eqn:Hb;
+      simplify_hypothesis Hb;
+      try by [|apply: Hb]
+    | context C [match rev ?lconst with
+                 | _ :: _ => _
+                 | _ => _
+                 end] =>
+      let HRevConst := fresh "HRevConst" in
+      destruct (rev lconst) eqn:HRevConst;
+      simplify_hypothesis HRevConst;
+      try by [|apply: HRevConst]
+    | context C [match ?v with
+                 | VAL_int32 _ => _
+                 | _ => _
+                 end] =>
+      let Hb := fresh "Ev" in
+      destruct v eqn:Hb;
+      simplify_hypothesis Hb;
+      try by []
+    | context C [match ?v with
+                 | Some _ => _
+                 | _ => _
+                 end] =>
+      let Hv := fresh "option_expr" in
+      let v' := fresh "v" in
+      destruct v as [v'|] eqn:Hv; [ explode_value v' |];
+      simplify_hypothesis Hv;
+      try by [|apply: Hv]
+    | context C [match ?cl with
+                 | FC_func_native _ _ _ _ => _
+                 | FC_func_host _ _ => _
+                 end] =>
+      let Hcl := fresh "Hcl" in
+      destruct cl eqn:Hcl;
+      simplify_hypothesis Hcl;
+      try by []
+    | context C [match ?tf with
+                 | Tf _ _ => _
+                 end] =>
+      let Hcl := fresh "Htf" in
+      destruct tf eqn:Htf;
+      simplify_hypothesis Htf;
+      try by []
+    | context C [match ?v with
+                 | T_i32 => _
+                 | T_i64 => _
+                 | T_f32 => _
+                 | T_f64 => _
+                 end] =>
+      let Hv := fresh "Ev" in
+      destruct v eqn:Hv;
+      simplify_hypothesis Hv;
+      try by []
+    | context C [match ?v with
+                 | CVO_convert => _
+                 | CVO_reinterpret => _
+                 end] =>
+      let Hv := fresh "Ecvtop" in
+      destruct v eqn:Hv;
+      simplify_hypothesis Hv;
+      try by []
+    | context C [match ?v with
+                 | Tf _ _ => _
+                 end] =>
+      let vs1 := fresh "vs" in
+      let vs2 := fresh "vs" in
+      let Hv := fresh "Eft" in
+      destruct v as [vs1 vs2] eqn:Hv;
+      simplify_hypothesis Hv;
+      try by []
+    | context C [expect ?X ?f ?err] =>
+       let HExpect := fresh "HExpect" in
+       destruct X eqn:HExpect;
+       simplify_hypothesis HExpect;
+       simpl;
+       try by [|apply: HExpect]
+    | context C [match ?l with
+                 | _ :: _ => _
+                 | _ => _
+                 end] =>
+      destruct l;
+      try by []
+    end
+  end;
+  simplify_lists.
+
+(** If the goal is on the form [c1 = c2 -> property] where [c1] and [c2] are two configurations,
+  then invert it. **)
+Ltac pattern_match :=
+  let go _ :=
+    lazymatch goal with
+    | |- (_, _, _, _) = (_, _, _, _) -> _ =>
+      let H := fresh in
+      move=> H; inversion H; subst; clear H
+    | |- _ = _ -> _ =>
+      let H' := fresh in
+      move=> H'; subst; clear H'
+    end in
+  go tt || (simpl; go tt).
+
+Definition res_step'_is_exhaustion hs s f es
+  (r : res_step' hs s f es) : bool :=
+  match r with
+  | RS'_exhaustion => true
+  | _ => false
+  end.
+
+Definition res_step'_separate_e_is_exhaustion hs s f ves e
+  (r : res_step'_separate_e hs s f ves e) : bool :=
+  match r with
+  | RS''_exhaustion => true
+  | _ => false
+  end.
+
+(* termination *)
+Local Lemma run_step_fuel_increase_aux : forall hs s f d es r' fuel fuel',
+  fuel <= fuel' ->
+  TProp.Forall (fun e => forall d hs s f ves Ht Hc r fuel fuel',
+     fuel <= fuel' ->
+     @run_one_step'' hs s f ves e fuel d Ht Hc = r ->
+     res_step'_separate_e_is_exhaustion r \/
+     (* r = RS''_exhaustion hs s f ves e \/ *)
+     @run_one_step'' hs s f ves e fuel' d Ht Hc = r) es ->
+  run_step_with_fuel'' hs s f es fuel d = r' ->
+  res_step'_is_exhaustion r' \/
+  run_step_with_fuel'' hs s f es fuel' d = r'.
+Proof.
+  move=> hs s f d es r' fuel fuel' I F. destruct fuel as [|fuel].
+  - unfold run_step_with_fuel''.
+    (* XXX fix pattern_match ltac *)
+    by left; subst r'.
+  - destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
+    simpl. destruct fuel' as [|fuel'] => /=.
+    + by unfold run_step_with_fuel''; inversion I.
+    + apply split_vals_e_v_to_e_duality in HSplitVals.
+      destruct les as [|e les'] eqn:Hles; unfold run_step_with_fuel''.
+      * right. revert H. let H := fresh in move=> H; inversion H; subst.
+        clear H0.
+        admit.
+      * subst. explode_and_simplify; try by pattern_match; right.
+        apply TProp.Forall_forall with (e := e) in F.
+        (* XXX ? *)
+        -- admit.
+           (* destruct run_one_step as [[[hs'' s''] vs''] r''] eqn:E. *)
+           (* eapply F in E; [|by apply I|..]. destruct E as [E|E]. *)
+           (* ++ subst. pattern_match. by left. *)
+           (* ++ unfold run_one_step in E. unfold interpreter_func.run_one_step in E. *)
+           (*    rewrite E. by right. *)
+        -- apply Coqlib.in_app. right. by left.
+Admitted.
+
+Lemma run_one_step_fuel_increase : forall hs s f ves e d Ht Hc r fuel fuel',
+  fuel <= fuel' ->
+  @run_one_step'' hs s f ves e fuel d Ht Hc = r ->
+  res_step'_separate_e_is_exhaustion r \/
+  @run_one_step'' hs s f ves e fuel' d Ht Hc = r.
+Proof.
+  move=> + + + + e. induction e using administrative_instruction_ind';
+  move=> hs s frame ves d Ht Hc r.
+  unfold res_step'_separate_e_is_exhaustion.
+    (case; first by move=> ? ?; pattern_match; left) => fuel;
+
+    (case; first by move=> ? ?; pattern_match; left) => fuel;
+    (case; first by []) => fuel' I /=.
+  - by destruct b; explode_and_simplify; try pattern_match; right.
+  - pattern_match. by right.
+  - by destruct f; explode_and_simplify; try pattern_match; right.
+  - explode_and_simplify; try by pattern_match; right.
+    destruct run_step_with_fuel as [[[hs'' s''] vs''] r''] eqn: E.
+    eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
+    + subst. pattern_match. by left.
+    + unfold run_step_with_fuel in E. unfold interpreter_func.run_step_with_fuel in E.
+      rewrite E. by right.
+  - explode_and_simplify; try by pattern_match; right.
+    destruct run_step_with_fuel as [[[hs'' s''] vs''] r''] eqn: E.
+    eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
+    + subst. pattern_match. by left.
+    + unfold run_step_with_fuel in E. unfold interpreter_func.run_step_with_fuel in E.
+      rewrite E. by right.
+Qed.
+
 Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
   lfilledInd i lh (vs_to_es rvs ++ [:: e]) (v_to_e_list vcs ++ es) ->
   ~ is_const e ->
