@@ -3603,36 +3603,6 @@ Proof.
         -- apply Coqlib.in_app. right. by left.
 Admitted.
 
-Lemma run_one_step_fuel_increase : forall hs s f ves e d Ht Hc r fuel fuel',
-  fuel <= fuel' ->
-  @run_one_step'' hs s f ves e fuel d Ht Hc = r ->
-  res_step'_separate_e_is_exhaustion r \/
-  @run_one_step'' hs s f ves e fuel' d Ht Hc = r.
-Proof.
-  move=> + + + + e. induction e using administrative_instruction_ind';
-  move=> hs s frame ves d Ht Hc r.
-  unfold res_step'_separate_e_is_exhaustion.
-    (case; first by move=> ? ?; pattern_match; left) => fuel;
-
-    (case; first by move=> ? ?; pattern_match; left) => fuel;
-    (case; first by []) => fuel' I /=.
-  - by destruct b; explode_and_simplify; try pattern_match; right.
-  - pattern_match. by right.
-  - by destruct f; explode_and_simplify; try pattern_match; right.
-  - explode_and_simplify; try by pattern_match; right.
-    destruct run_step_with_fuel as [[[hs'' s''] vs''] r''] eqn: E.
-    eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
-    + subst. pattern_match. by left.
-    + unfold run_step_with_fuel in E. unfold interpreter_func.run_step_with_fuel in E.
-      rewrite E. by right.
-  - explode_and_simplify; try by pattern_match; right.
-    destruct run_step_with_fuel as [[[hs'' s''] vs''] r''] eqn: E.
-    eapply run_step_fuel_increase_aux in E; [|by apply I|..] => //. destruct E as [E|E].
-    + subst. pattern_match. by left.
-    + unfold run_step_with_fuel in E. unfold interpreter_func.run_step_with_fuel in E.
-      rewrite E. by right.
-Qed.
-
 Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
   lfilledInd i lh (vs_to_es rvs ++ [:: e]) (v_to_e_list vcs ++ es) ->
   ~ is_const e ->
@@ -3721,18 +3691,62 @@ Admitted.
 
 End Host_func.
 
-Module Interpreter (EH : Executable_Host).
+Module EmptyHost.
 
-Module Exec := convert_to_executable_host DummyHost.
-Import Exec.
+Definition host_function := void.
 
-Definition run_step hs s f es (d : depth) : res_step' hs s f es :=
-  run_step_with_fuel'' hs s f es (run_step_fuel (hs, s, f, es)) d.
-Fail Definition run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record * res)%type) :=
-  run_v hs s f es fuel depth.
+Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+Proof. decidable_equality. Defined.
+
+Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Canonical Structure host_function_eqType :=
+  Eval hnf in EqType host_function host_function_eqMixin.
+
+Definition host : Type := host host_function_eqType.
+
+Definition store_record := store_record host_function_eqType.
+Definition function_closure := function_closure host_function_eqType.
+
+Definition host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}; intros; exfalso; auto.
+Defined.
+
+Definition config_tuple := config_tuple host_instance.
+Definition res_tuple := res_tuple host_instance.
+
+Definition host_state := host_state host_instance.
+
+End EmptyHost.
+
+Module Interpreter_func.
+
+Import EmptyHost.
+
+Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
+                                   (host_state * option (store_record * result)).
+Proof.
+  move => ??? hf; by inversion hf.
+Defined.
+
+Definition host_application_impl_correct :
+  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+Proof.
+  move => ??? hf; by inversion hf.
+Defined.
+
+Definition run_v := run_v host_application_impl_correct.
 
 (** State whether a list of administrative instruction is a final value. **)
 Definition is_const_list : list administrative_instruction -> option (list value) :=
   @those_const_list.
 
-End Interpreter.
+End Interpreter_func.
+
