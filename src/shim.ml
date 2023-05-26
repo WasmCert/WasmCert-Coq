@@ -26,22 +26,33 @@ module type InterpreterType = sig
     type administrative_instruction = Extract.administrative_instruction
 
     val run_v :
-      int -> Extract.instance -> config_tuple ->
-      (store_record * Extract.res) host_event
+      (* int -> Extract.instance -> config_tuple -> *)
+      (* (store_record * Extract.res) host_event *)
+      int -> Extract.typeidx ->
+      Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
+      (Obj.t * Obj.t Extract.store_record) * Extract.res
 
     val run_step :
-      int -> Extract.instance -> config_tuple ->
-      host_function Extract.res_tuple host_event
+      (* int -> Extract.instance -> config_tuple -> *)
+      (* host_function Extract.res_tuple host_event *)
+      int -> 'a ->
+      Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> Extract.res_step'
+
 
     val is_const_list : administrative_instruction list -> Extract.value0 list option
 
     val lookup_exported_function :
-      string -> ((store_record * Extract.instance) * Extract.module_export list) ->
-      config_tuple option
+      (* string -> ((store_record * Extract.instance) * Extract.module_export list) -> *)
+      (* config_tuple option *)
+      string -> (Dune__exe__Extract.EmptyHost.store_record * Extract.instance) *
+      Extract.module_export list ->
+      ((Dune__exe__Extract.EmptyHost.store_record * Extract.frame) * administrative_instruction list) option
 
-    (* val interp_instantiate_wrapper : *)
-    (*   Extract.module0 -> *)
-    (*   (((store_record * Extract.instance) * Extract.module_export list) * int option) option *)
+    val interp_instantiate_wrapper :
+      (* Extract.module0 -> *)
+      (* (((store_record * Extract.instance) * Extract.module_export list) * int option) option *)
+      Extract.module0 ->
+      (((Dune__exe__Extract.EmptyHost.store_record * Extract.instance) * Extract.module_export list) * Extract.typeidx option) option
 
     val run_parse_module : string -> Extract.module0 option
 
@@ -49,28 +60,6 @@ module type InterpreterType = sig
     val pp_store : int -> store_record -> string
     val pp_res_tuple_except_store : res_tuple -> string
     val pp_config_tuple_except_store : config_tuple -> string
-
-  end
-
-
-(** We set the target monad to be exactly the host events.
-   This is not possible in Coq due to universe inconsistencies as it might in some very specific
-   cases yield an infinite computation.
-   It is not an issue in OCaml to have infinite computations. *)
-module TargetMonad =
-  functor (EH : Extract.Executable_Host) -> struct
-
-    type 'v monad = 'v EH.host_event
-
-    let monad_ret = EH.host_ret
-    let monad_bind = EH.host_bind
-
-    let convert x = x
-
-    let rec monad_iter f x =
-      monad_bind (f x) (function
-        | Extract.Inl y -> monad_iter f y
-        | Extract.Inr r -> monad_ret r)
 
   end
 
@@ -96,7 +85,7 @@ module Interpreter =
       pure (a, b)
 
     module Interpreter = Extract.Interpreter_func
-    module Instantiation = Extract.Instantiation (EH)
+    module Instantiation = Extract.Instantiation
     module PP = Extract.PP (EH)
 
     type store_record = host_function Extract.store_record
@@ -118,12 +107,7 @@ module Interpreter =
       Instantiation.lookup_exported_function (Utils.explode name)
 
     let interp_instantiate_wrapper m =
-      Option.map (fun (store_inst_exps, start) ->
-          (store_inst_exps, Option.map Convert.from_nat start))
-        (Interpreter.itree_to_option (fun _ _ _ ->
-          (* Normally, this interaction tree should already have been evaluated at this point. *)
-            assert false)
-          (Instantiation.interp_instantiate_wrapper m))
+      Instantiation.interp_instantiate_wrapper m
 
     let show_host_function_char_list h = Utils.explode (show_host_function h)
 

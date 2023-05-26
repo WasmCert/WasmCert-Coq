@@ -42,27 +42,46 @@ module type InterpreterType = sig
     type administrative_instruction = Extract.administrative_instruction
 
     (** Run the interpreter until reaching a result. *)
+    (* val run_v : *)
+    (*   int (** The depth *) -> Extract.instance -> config_tuple -> *)
+    (*   (store_record * Extract.res) host_event *)
+
     val run_v :
-      int (** The depth *) -> Extract.instance -> config_tuple ->
-      (store_record * Extract.res) host_event
+      int -> Extract.typeidx ->
+      Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
+      (Obj.t * Obj.t Extract.store_record) * Extract.res
+
+    (* val run_v : *)
+    (*   int (** The depth *) -> Extract.instance -> config_tuple -> *)
+    (*   (store_record * Extract.res) host_event *)
+
+    (* val run_v : *)
+    (*   int (** The depth *) -> Extract.typeidx -> *)
+    (*   Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> *)
+    (*   (Obj.t * Obj.t Extract.store_record) * Extract.res *)
 
     (** Run one step of the interpreter. *)
     val run_step :
-      int (** The depth *) -> Extract.instance -> config_tuple ->
-      host_function Extract.res_tuple host_event
+      (* int (** The depth *) -> Extract.instance -> config_tuple -> *)
+      (* host_function Extract.res_tuple host_event *)
+      int -> 'a ->
+      Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> Extract.res_step'
 
     (** State whether a list of administrative instructions is actually just a list of values. *)
     val is_const_list : administrative_instruction list -> Extract.value0 list option
 
     (** Look-up a specific extracted function of the instantiation. *)
     val lookup_exported_function :
-      string -> (store_record * Extract.instance) * Extract.module_export list ->
-      config_tuple option
+      (* string -> (store_record * Extract.instance) * Extract.module_export list -> *)
+      (* config_tuple option *)
+      string -> (Dune__exe__Extract.EmptyHost.store_record * Extract.instance) *
+      Extract.module_export list ->
+      ((Dune__exe__Extract.EmptyHost.store_record * Extract.frame) * administrative_instruction list) option
 
     (** Perform the instantiation of a module. *)
     val interp_instantiate_wrapper :
       Extract.module0 ->
-      (((store_record * Extract.instance) * Extract.module_export list) * int option) option
+      (((Dune__exe__Extract.EmptyHost.store_record * Extract.instance) * Extract.module_export list) * Extract.typeidx option) option
 
     (** Parsing. *)
 

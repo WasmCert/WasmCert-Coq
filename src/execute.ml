@@ -61,8 +61,8 @@ let string_of_crash_reason = function
   | () -> "error"
 
 let take_step verbosity depth i cfg =
-  let ((s, _), _)  = (*Convert.from_triple*) cfg in
-  let* res = run_step depth i cfg in
+  let (((hs, s), f), es)  = (*Convert.from_triple*) cfg in
+  let res = run_step depth i (hs, s, f, es) in
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
   debug_info result verbosity (fun _ ->
