@@ -1,0 +1,21 @@
+diff --git a/extract.ml b/extract.ml
+index a8c627c..f963eb7 100644
+--- a/extract.ml
++++ b/extract.ml
+@@ -15736,13 +15736,13 @@ module Coq_convert_to_executable_host =
+ 
+   (** val executable_host_instance : executable_host **)
+ 
+-  let executable_host_instance =
+-    { Coq__7.host_monad = (Obj.magic host_monad); host_apply =
++  let executable_host_instance : executable_host =
++    { Coq__2.host_monad = (Obj.magic host_monad); Coq__2.host_apply =
+       (Obj.magic H.host_apply) }
+ 
+   (** val host_functor : __ H.host_event functor0 **)
+ 
+-  let host_functor =
++  let host_functor : __ H.host_event functor0 =
+     functor_Monad host_monad
+  end
+ 
