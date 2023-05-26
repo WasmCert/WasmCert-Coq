@@ -16,31 +16,15 @@ From Coq Require Import BinNat.
 
 Section Host.
 
-Variable host_function : eqType.
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let store_record_eq_dec := @store_record_eq_dec host_function.
-Let store_record_eqType := @store_record_eqType host_function.
+Import EmptyHost.
+Import Interpreter_func.
 
 (* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
-Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-Let host_state := host_state host_instance.
-
-Let executable_host := executable_host host_function.
-Variable executable_host_instance : executable_host.
-Let host_event := host_event executable_host_instance.
-
-(* XXX are these two necessary? *)
-Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
-                       (host_state * option (store_record * result)).
-
-Hypothesis host_application_impl_correct :
-  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+(* Let executable_host := executable_host host_function. *)
+(* Variable executable_host_instance : executable_host. *)
+(* Let host_event := host_event executable_host_instance. *)
 
 (* Let run_v {eff' eff'_has_host_event} := *)
 (*   @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event. *)
@@ -48,9 +32,8 @@ Hypothesis host_application_impl_correct :
 (* XXX still needs
    (host.host_state host_instance),
    (datatypes.store_record host_function) *)
-Let run_v :=
-  @interpreter_func.run_v
-    _ host_instance host_application_impl host_application_impl_correct.
+
+Let run_v := run_v tt.
 
 Definition addr := nat.
 Definition funaddr := addr.
@@ -592,7 +575,7 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     check_bounds_data inst s' m d_offs /\
     check_start m inst start /\
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
-    (s_end : store_record_eqType)
+    (s_end : store_record)
       == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
 
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
@@ -787,22 +770,8 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   | (_, _) => false
   end.
 
-Check run_v.
-
-(* TODO fix actual run_v,
- * missing "Equality.sort (host.host_state host_instance)". *)
-Hypothesis run_v_mock
-     : datatypes.store_record host_function ->
-       frame ->
-       seq administrative_instruction ->
-       fuel ->
-       interpreter_func.depth ->
-       host.host_state host_instance * datatypes.store_record host_function *
-       res.
-Search frame.
-
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value (* TODO: isa mismatch *) :=
-  match run_v_mock s (Build_frame [::] inst) (operations.to_e_list b_es) 2 0 with
+  match run_v s (Build_frame [::] inst) (operations.to_e_list b_es) 2 0 with
   | (_, interpreter_func.R_value vs) =>
     match vs with
     | [:: v] => Some v
@@ -874,7 +843,7 @@ Definition interp_instantiate_wrapper (m : module) : option ((store_record * ins
   interp_instantiate empty_store_record m nil.
 
 Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export)
-    : option (config_tuple host_function) :=
+    : option (store_record * frame * seq administrative_instruction) :=
   let '(s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>
@@ -898,26 +867,6 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
 
 End Host.
 
-(** As-is, [eqType] tends not to extract well.
-  This section provides alternative definitions for better extraction. **)
-Module Instantiation (EH : Executable_Host).
-
-Module Exec := convert_to_executable_host EH.
-Import Exec.
-
-Definition lookup_exported_function :
-    name -> store_record * instance * seq module_export ->
-    option config_tuple :=
-  @lookup_exported_function _.
-
-(* XXX fails with *)
-(* The term "executable_host_instance" has type "executable_host" *)
-(* while it is expected to have type "host ?host_function". *)
-Definition interp_instantiate_wrapper :
-  module ->
-  option
-    (store_record * instance * seq module_export * option nat) :=
-  @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
-
-End Instantiation.
+(* From Coq Require Import Extraction. *)
+(* Extraction "instant_extracted" interp_instantiate. *)
 
