@@ -22,17 +22,6 @@ Import Interpreter_func.
 (* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
-(* Let executable_host := executable_host host_function. *)
-(* Variable executable_host_instance : executable_host. *)
-(* Let host_event := host_event executable_host_instance. *)
-
-(* Let run_v {eff' eff'_has_host_event} := *)
-(*   @interpreter.run_v _ executable_host_instance eff' eff'_has_host_event. *)
-
-(* XXX still needs
-   (host.host_state host_instance),
-   (datatypes.store_record host_function) *)
-
 Let run_v := run_v tt.
 
 Definition addr := nat.
@@ -867,6 +856,19 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
 
 End Host.
 
-(* From Coq Require Import Extraction. *)
-(* Extraction "instant_extracted" interp_instantiate. *)
+Module Instantiation.
+
+Import EmptyHost.
+
+Definition lookup_exported_function :
+    name -> store_record * instance * seq module_export ->
+    option (store_record * frame * seq administrative_instruction) :=
+  lookup_exported_function.
+
+Definition interp_instantiate_wrapper :
+  module ->
+  option (store_record * instance * seq module_export * option nat) :=
+  interp_instantiate_wrapper.
+
+End Instantiation.
 

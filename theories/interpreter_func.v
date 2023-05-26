@@ -3566,6 +3566,8 @@ Definition res_step'_separate_e_is_exhaustion hs s f ves e
   | _ => false
   end.
 
+Check RS''_exhaustion.
+
 (* termination *)
 Local Lemma run_step_fuel_increase_aux : forall hs s f d es r' fuel fuel',
   fuel <= fuel' ->
@@ -3579,28 +3581,27 @@ Local Lemma run_step_fuel_increase_aux : forall hs s f d es r' fuel fuel',
   res_step'_is_exhaustion r' \/
   run_step_with_fuel'' hs s f es fuel' d = r'.
 Proof.
-  move=> hs s f d es r' fuel fuel' I F. destruct fuel as [|fuel].
-  - unfold run_step_with_fuel''.
-    (* XXX fix pattern_match ltac *)
-    by left; subst r'.
-  - destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
-    simpl. destruct fuel' as [|fuel'] => /=.
-    + by unfold run_step_with_fuel''; inversion I.
-    + apply split_vals_e_v_to_e_duality in HSplitVals.
-      destruct les as [|e les'] eqn:Hles; unfold run_step_with_fuel''.
-      * right. revert H. let H := fresh in move=> H; inversion H; subst.
-        clear H0.
-        admit.
-      * subst. explode_and_simplify; try by pattern_match; right.
-        apply TProp.Forall_forall with (e := e) in F.
-        (* XXX ? *)
-        -- admit.
-           (* destruct run_one_step as [[[hs'' s''] vs''] r''] eqn:E. *)
-           (* eapply F in E; [|by apply I|..]. destruct E as [E|E]. *)
-           (* ++ subst. pattern_match. by left. *)
-           (* ++ unfold run_one_step in E. unfold interpreter_func.run_one_step in E. *)
-           (*    rewrite E. by right. *)
-        -- apply Coqlib.in_app. right. by left.
+  (* move=> hs s f d es r' fuel fuel' I F. destruct fuel as [|fuel]. *)
+  (* - by left; subst r'. *)
+  (* - unfold run_step_with_fuel''. *)
+  (*   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals. *)
+  (*   simpl. destruct fuel' as [|fuel'] => /=. *)
+  (*   + by unfold run_step_with_fuel''; inversion I. *)
+  (*   + apply split_vals_e_v_to_e_duality in HSplitVals. *)
+  (*     destruct les as [|e les'] eqn:Hles; unfold run_step_with_fuel''. *)
+  (*     * right. revert H. let H := fresh in move=> H; inversion H; subst. *)
+  (*       clear H0. *)
+  (*       admit. *)
+  (*     * subst. explode_and_simplify; try by pattern_match; right. *)
+  (*       apply TProp.Forall_forall with (e := e) in F. *)
+  (*       (* XXX ? *) *)
+  (*       -- admit. *)
+  (*          (* destruct run_one_step as [[[hs'' s''] vs''] r''] eqn:E. *) *)
+  (*          (* eapply F in E; [|by apply I|..]. destruct E as [E|E]. *) *)
+  (*          (* ++ subst. pattern_match. by left. *) *)
+  (*          (* ++ unfold run_one_step in E. unfold interpreter_func.run_one_step in E. *) *)
+  (*          (*    rewrite E. by right. *) *)
+  (*       -- apply Coqlib.in_app. right. by left. *)
 Admitted.
 
 Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
