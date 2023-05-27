@@ -61,26 +61,30 @@ let string_of_crash_reason = function
   | () -> "error"
 
 let take_step verbosity depth i cfg =
-  let (((hs, s), f), es)  = (*Convert.from_triple*) cfg in
-  let res = run_step depth i (hs, s, f, es) in
-  let ((s', _), _)  = (*Convert.from_triple*) res in
-  let store_status = if s = s' then "unchanged" else "changed" in
-  debug_info result verbosity (fun _ ->
-    Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status) ;
-  match (*Convert.from_triple*) res with
-  | ((_, _), Extract.RS_crash) ->
+  let (((hs, s), f), es) = cfg in
+  (* debug_info result verbosity (fun _ -> *)
+  (*   Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status) ; *)
+  match run_step depth i (hs, s, f, es) with
+  | Extract.RS'_exhaustion ->
+    debug_info result verbosity ~style:red (fun _ -> "exhaustion:") ;
+    debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
+    pure cfg
+  | Extract.RS'_value ->
+    debug_info result verbosity ~style:green (fun _ -> "value") ;
+    pure cfg
+  | Extract.RS'_error ->
     debug_info result verbosity ~style:red (fun _ -> "crash:") ;
     debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
     pure cfg
-  | ((_, _), Extract.RS_break _) ->
+  | (Extract.RS'_break _) ->
     debug_info result verbosity ~style:red (fun _ -> "break") ;
     pure cfg
-  | ((_, _), Extract.RS_return vs) ->
+  | (Extract.RS'_return vs) ->
     debug_info result verbosity ~style:green (fun _ -> "return:") ;
     debug_info result verbosity (fun _ -> " " ^ pp_values vs) ;
     pure cfg
-  | ((s', vs'), Extract.RS_normal es) ->
-    pure ((s', vs'), es)
+  | (Extract.RS'_normal (hs', s', f', vs')) ->
+    pure (((hs', s'), f'), es)
 
 let repl verbosity sies (name : string) (depth : int) =
   LNoise.set_hints_callback (fun line ->

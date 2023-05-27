@@ -20,7 +20,7 @@ module type InterpreterType = sig
     val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
     val pure : 'a -> 'a host_event
 
-    type store_record = host_function Extract.store_record
+    type store_record = Dune__exe__Extract.EmptyHost.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
@@ -44,6 +44,7 @@ module type InterpreterType = sig
     val lookup_exported_function :
       (* string -> ((store_record * Extract.instance) * Extract.module_export list) -> *)
       (* config_tuple option *)
+      (* XXX where does "Dune__exe__Extract" come from? should it be exposed? *)
       string -> (Dune__exe__Extract.EmptyHost.store_record * Extract.instance) *
       Extract.module_export list ->
       ((Dune__exe__Extract.EmptyHost.store_record * Extract.frame) * administrative_instruction list) option
@@ -57,7 +58,7 @@ module type InterpreterType = sig
     val run_parse_module : string -> Extract.module0 option
 
     val pp_values : Extract.value0 list -> string
-    val pp_store : int -> store_record -> string
+    val pp_store : int -> Extract.store_record -> string
     val pp_res_tuple_except_store : res_tuple -> string
     val pp_config_tuple_except_store : config_tuple -> string
 
@@ -88,7 +89,7 @@ module Interpreter =
     module Instantiation = Extract.Instantiation
     module PP = Extract.PP (EH)
 
-    type store_record = host_function Extract.store_record
+    type store_record = Dune__exe__Extract.EmptyHost.store_record
     type config_tuple = host_function Extract.config_tuple
     type res_tuple = host_function Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
