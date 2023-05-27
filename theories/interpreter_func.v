@@ -91,7 +91,6 @@ Fixpoint empty_holed lh : bool :=
 Inductive res_step'
   (hs : host_state) (s : store_record) (f : frame)
   (es : list administrative_instruction) : Type :=
-| RS'_exhaustion : res_step' hs s f es
 | RS'_value :
     const_list es \/ es_is_trap es ->
     res_step' hs s f es
@@ -123,7 +122,6 @@ Inductive res_step'
 Inductive res_step'_separate_e
   (hs : host_state) (s : store_record) (f : frame)
   (ves : list value) (e : administrative_instruction) : Type :=
-| RS''_exhaustion : res_step'_separate_e hs s f ves e
 | RS''_error :
     (~ exists C C' ret lab t1s t2s t1s',
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -2701,17 +2699,75 @@ Proof.
   by apply r_local.
 Qed.
 
-Theorem run_step_with_fuel'' hs s f es (fuel : fuel) (d : depth) : res_step' hs s f es
-with
-  run_one_step'' hs s f ves e (fuel : fuel) (d : depth) (Htrap : (e_is_trap e) = false) (Hconst : (is_const e) = false) : res_step'_separate_e hs s f ves e.
+(** A new method of dealing with termination, calculating the exact number of recursive calls required instead of just an upper bound **)
+Fixpoint first_non_zero (l: list nat) : nat :=
+  match l with
+  | [::] => 0
+  | n :: l' =>
+      if n > 0 then n
+      else first_non_zero l'
+  end.
+
+(* Program Fixpoint does not support mutual recursion *)
+Program Fixpoint run_one_step_measure (e: administrative_instruction): nat :=
+  match e with
+  | AI_label _ _ es => (first_non_zero (map run_one_step_measure es)).+2
+  | AI_local _ _ es => (first_non_zero (map run_one_step_measure es)).+2
+  | _ => if is_const e then 0 else 1
+  end.
+Next Obligation.
+  by split => //.
+Qed.
+Next Obligation.
+  by split => //.
+Qed.
+Next Obligation.
+  by split => //.
+Qed.
+
+Definition run_step_measure (es: list administrative_instruction): nat :=
+  match split_vals_e es with
+  | (vs, es') =>
+     match es' with
+     | [::] => 0
+     | e :: es'' => S (run_one_step_measure e)
+     end
+  end.
+
+Lemma run_step_measure_eq (es: list administrative_instruction):
+  const_list es = false ->
+  run_step_measure es = S (first_non_zero (map run_one_step_measure es)).
+Proof.
+  unfold run_step_measure.
+  destruct (split_vals_e es) as [vs es'] eqn:Hsplitvals.
+  move: Hsplitvals.
+  move: es es'.
+  induction vs; move => es es' Hsplitvals Hnconst => //=.
+  - destruct es' => /=.
+    + apply split_vals_e_v_to_e_duality in Hsplitvals; by subst es.
+    + specialize (split_vals_e_not_const Hsplitvals) as Hnconsta.
+      apply split_vals_e_v_to_e_duality in Hsplitvals; subst es => /=.
+      destruct a => //=.
+      by destruct b.
+  - destruct es as [ | e es''] => //.
+    simpl in Hsplitvals.
+    destruct e => //.
+    destruct b => //=.
+    apply IHvs => //.
+    destruct (split_vals_e es'') eqn:Hes.
+    by inversion Hsplitvals.
+Qed.
+    
+Theorem run_step (measure: nat) hs s f (es: list administrative_instruction) (Hmeasure: run_step_measure es = measure): res_step' hs s f es
+  with
+  run_one_step'' (measure: nat) hs s f ves e (Htrap : (e_is_trap e) = false) (Hconst : (is_const e) = false) (Hmeasure: run_one_step_measure e = measure) : res_step'_separate_e hs s f ves e.
 Proof.
   (* NOTE: not indenting the two main subgoals - XXX use {}? *)
-  (* run_step_with_fuel'' *)
-  destruct fuel as [|fuel].
-  - (* 0 *)
-    by apply RS'_exhaustion.
-  - (* fuel.+1 *)
-    (** Framing out constants. **)
+  (* run_step *)
+  (** Framing out constants. **)
+  {
+    clear run_step.
+    unfold run_step_measure in Hmeasure.
     destruct (split_vals_e es) as [ves es'] eqn:Heqes.
     destruct es' as [|e es''] eqn:Heqes'.
     * (* es' = [::] *)
@@ -2724,10 +2780,10 @@ Proof.
         -- apply RS'_value.
            by apply value_trap with (e := e) (es'' := es'') (ves := ves).
       + remember (split_vals_e_not_const Heqes) as Hconst.
-        remember (run_one_step'' hs s f (rev ves) e fuel d Htrap Hconst) as r.
-        destruct r as [| | k bvs Hbr | rvs | hs' s' f' res].
-        -- (* RS''_exhaustion *)
-           by apply RS'_exhaustion.
+        destruct measure as [|measure']=> //.
+        injection Hmeasure; clear Hmeasure; move => Hmeasure.
+        remember (run_one_step'' measure' hs s f (rev ves) e Htrap Hconst Hmeasure) as r.
+        destruct r as [| k bvs Hbr | rvs | hs' s' f' res].
         -- (* RS''_error *)
            apply RS'_error.
            by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
@@ -2742,14 +2798,13 @@ Proof.
         -- (* RS''_normal hs' s' f' res *)
            apply <<hs', s', f', (res ++ es'')>>.
            by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
-
+  }
+  
   (* run_one_step'' *)
+  {
+    clear run_one_step''.
   (* initial es, useful as an arg for reduce *)
   remember ((vs_to_es ves) ++ [::e]) as es0 eqn:Heqes0.
-  destruct fuel as [|fuel].
-  - (* 0 *)
-    by apply RS''_exhaustion.
-  - (* fuel.+1 *)
     destruct e as [
       (* AI_basic *) [
       (* BI_unreachable *) |
@@ -3280,10 +3335,12 @@ Proof.
            apply <<hs, s, f, vs_to_es ves ++ es>>'.
            by apply reduce_label_const.
         -- (* false *)
-           destruct (run_step_with_fuel'' hs s f es fuel d) as
-             [| Hv | Herr | n bvs H | rvs H | hs' s' f' es'] eqn:?.
-           ** (* RS'_exhaustion hs s f es *)
-              by apply RS''_exhaustion.
+          simpl in Hmeasure.
+          destruct measure as [|measure'] => //.
+          injection Hmeasure; clear Hmeasure; move => Hmeasure.
+          rewrite - run_step_measure_eq in Hmeasure; last done.
+          destruct (run_step measure' hs s f es Hmeasure) as
+             [ Hv | Herr | n bvs H | rvs H | hs' s' f' es'] eqn:?.
            ** (* RS'_value hs s f Hv *)
               exfalso. by apply const_trap_contradiction with (es := es).
            ** (* RS'_error hs Herr *)
@@ -3327,10 +3384,12 @@ Proof.
               apply RS''_error.
               by apply local_error_const_len.
         -- (* false *)
-           destruct (run_step_with_fuel'' hs s lf es fuel d) as
-             [| Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?.
-           ** (* RS'_exhaustion hs s f es *)
-              by apply RS''_exhaustion.
+          simpl in Hmeasure.
+          destruct measure as [|measure'] => //.
+          injection Hmeasure; clear Hmeasure; move => Hmeasure.
+          rewrite - run_step_measure_eq in Hmeasure; last done.
+           destruct (run_step measure' hs s lf es Hmeasure) as
+             [ Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?.
            ** (* RS'_value hs s f Hv *)
               exfalso. by apply const_trap_contradiction with (es := es).
            ** (* RS'_error hs Herr *)
@@ -3350,45 +3409,22 @@ Proof.
            ** (* RS'_normal hs s f es hs' s' f' es' *)
               apply <<hs', s', f, vs_to_es ves ++ [:: AI_local ln f' es']>>'.
               by apply reduce_local_rec.
+  }
 Defined.
 
 (***************************************)
 
-(** Enough fuel so that [run_one_step] does not run out of exhaustion. **)
-Definition run_one_step_fuel : administrative_instruction -> nat.
-Proof.
-  move=> es. induction es using administrative_instruction_rect';
-    let rec aux v :=
-      lazymatch goal with
-      | F : TProp.Forall _ _ |- _ =>
-        apply TProp.max in F;
-        move: F;
-        let n := fresh "n" in
-        move=> n;
-        aux (n + v)
-      | |- _ => exact (v.+1)
-      end in
-    aux (1 : nat).
-Defined.
-
-(** Enough fuel so that [run_step] does not run out of exhaustion. **)
-Definition run_step_fuel (cfg : config_tuple) : nat :=
-  let: (hs, s, f, es) := cfg in
-  1 + List.fold_left max (List.map run_one_step_fuel es) 0.
-
-Definition run_step hs s f es (d : depth) : res_step' hs s f es :=
-  run_step_with_fuel'' hs s f es (run_step_fuel (hs, s, f, es)) d.
+Definition run_step_with_measure hs s f es :=
+  @run_step (run_step_measure es) hs s f es (Logic.eq_refl (run_step_measure es)).
 
 Definition run_step_compat (d : depth) (cfg : config_tuple) : res_tuple :=
   let: (hs, s, f, es) := cfg in
-  match run_step hs s f es d with
+  match run_step_with_measure hs s f es with
   | RS'_normal hs' s' f' es' _ => (hs', s', f', RS_normal es')
-  | RS'_exhaustion => (hs, s, f, RS_crash C_exhaustion)
-  | RS'_error _ => (hs, s, f, RS_crash C_error)
   | _ => (hs, s, f, RS_crash C_error)
   end.
 
-Fixpoint run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record * res)%type) :=
+Fixpoint run_v hs s f es (fuel : fuel) : ((host_state * store_record * res)%type) :=
   match fuel with
   | 0 => (hs, s, R_crash C_exhaustion)
   | fuel.+1 =>
@@ -3398,210 +3434,12 @@ Fixpoint run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record
       if const_list es
       then (hs, s, R_value (fst (split_vals_e es)))
       else
-        match run_step hs s f es d with
-        | RS'_normal hs' s' f' es' _ => run_v hs' s' f' es' fuel d
-        | RS'_exhaustion => (hs, s, R_crash C_exhaustion)
+        match run_step_with_measure hs s f es with
+        | RS'_normal hs' s' f' es' _ => run_v hs' s' f' es' fuel
         | RS'_error _ => (hs, s, R_crash C_error)
         | _ => (hs, s, R_crash C_error)
         end
   end.
-
-(** Simplify an hypothesis, possibly rewriting it everywhere. **)
-Ltac simplify_hypothesis Hb :=
-  repeat rewrite length_is_size in Hb;
-  repeat match type of Hb with
-  | is_true (es_is_trap _) => move/es_is_trapP: Hb => Hb
-  | is_true (const_list (_ :: _)) => rewrite const_list_cons in Hb
-  | ?b = true => fold (is_true b) in Hb
-  | (_ == _) = false => move/eqP in Hb
-  | context C [size (rev _)] => rewrite size_rev in Hb
-  | context C [take _ (rev _)] => rewrite take_rev in Hb
-  | context C [rev (rev _)] => rewrite revK in Hb
-  | context C [true && _] => rewrite Bool.andb_true_l in Hb
-  | context C [_ && true] => rewrite Bool.andb_true_r in Hb
-  | context C [false || _] => rewrite Bool.orb_false_l in Hb
-  | context C [_ || false] => rewrite Bool.orb_false_r in Hb
-  | is_true true => clear Hb
-  | is_true false => exfalso; apply: notF; apply: Hb
-  | is_true (_ == _) => move/eqP in Hb
-  | ?x = ?x => clear Hb
-  | _ = _ => rewrite Hb in *
-  end.
-
-(** Explode a tuple into all its components. **)
-Ltac explode_value v :=
-  lazymatch type of v with
-  | (_ * _)%type =>
-    let v1 := fresh "v1" in
-    let v2 := fresh "v2" in
-    destruct v as [v1 v2];
-    explode_value v1;
-    explode_value v2
-  | _ => idtac
-  end.
-
-(* XXX move out into a file for ltacs? *)
-Ltac explode_and_simplify :=
-  repeat lazymatch goal with
-  | |- ?T = _ -> _ =>
-    lazymatch T with
-    | context C [split_n ?l ?n] => rewrite (split_n_is_take_drop l n)
-    | context C [vs_to_es ?l] => rewrite/vs_to_es
-    | context C [host_application_impl _ _ _ _ _ _] =>
-      destruct host_application_impl
-    | context C [match ?b with true => ?v1 | false => ?v2 end] =>
-      let Hb := fresh "if_expr" in
-      destruct b eqn:Hb;
-      simplify_hypothesis Hb;
-      try by [|apply: Hb]
-    | context C [match rev ?lconst with
-                 | _ :: _ => _
-                 | _ => _
-                 end] =>
-      let HRevConst := fresh "HRevConst" in
-      destruct (rev lconst) eqn:HRevConst;
-      simplify_hypothesis HRevConst;
-      try by [|apply: HRevConst]
-    | context C [match ?v with
-                 | VAL_int32 _ => _
-                 | _ => _
-                 end] =>
-      let Hb := fresh "Ev" in
-      destruct v eqn:Hb;
-      simplify_hypothesis Hb;
-      try by []
-    | context C [match ?v with
-                 | Some _ => _
-                 | _ => _
-                 end] =>
-      let Hv := fresh "option_expr" in
-      let v' := fresh "v" in
-      destruct v as [v'|] eqn:Hv; [ explode_value v' |];
-      simplify_hypothesis Hv;
-      try by [|apply: Hv]
-    | context C [match ?cl with
-                 | FC_func_native _ _ _ _ => _
-                 | FC_func_host _ _ => _
-                 end] =>
-      let Hcl := fresh "Hcl" in
-      destruct cl eqn:Hcl;
-      simplify_hypothesis Hcl;
-      try by []
-    | context C [match ?tf with
-                 | Tf _ _ => _
-                 end] =>
-      let Hcl := fresh "Htf" in
-      destruct tf eqn:Htf;
-      simplify_hypothesis Htf;
-      try by []
-    | context C [match ?v with
-                 | T_i32 => _
-                 | T_i64 => _
-                 | T_f32 => _
-                 | T_f64 => _
-                 end] =>
-      let Hv := fresh "Ev" in
-      destruct v eqn:Hv;
-      simplify_hypothesis Hv;
-      try by []
-    | context C [match ?v with
-                 | CVO_convert => _
-                 | CVO_reinterpret => _
-                 end] =>
-      let Hv := fresh "Ecvtop" in
-      destruct v eqn:Hv;
-      simplify_hypothesis Hv;
-      try by []
-    | context C [match ?v with
-                 | Tf _ _ => _
-                 end] =>
-      let vs1 := fresh "vs" in
-      let vs2 := fresh "vs" in
-      let Hv := fresh "Eft" in
-      destruct v as [vs1 vs2] eqn:Hv;
-      simplify_hypothesis Hv;
-      try by []
-    | context C [expect ?X ?f ?err] =>
-       let HExpect := fresh "HExpect" in
-       destruct X eqn:HExpect;
-       simplify_hypothesis HExpect;
-       simpl;
-       try by [|apply: HExpect]
-    | context C [match ?l with
-                 | _ :: _ => _
-                 | _ => _
-                 end] =>
-      destruct l;
-      try by []
-    end
-  end;
-  simplify_lists.
-
-(** If the goal is on the form [c1 = c2 -> property] where [c1] and [c2] are two configurations,
-  then invert it. **)
-Ltac pattern_match :=
-  let go _ :=
-    lazymatch goal with
-    | |- (_, _, _, _) = (_, _, _, _) -> _ =>
-      let H := fresh in
-      move=> H; inversion H; subst; clear H
-    | |- _ = _ -> _ =>
-      let H' := fresh in
-      move=> H'; subst; clear H'
-    end in
-  go tt || (simpl; go tt).
-
-Definition res_step'_is_exhaustion hs s f es
-  (r : res_step' hs s f es) : bool :=
-  match r with
-  | RS'_exhaustion => true
-  | _ => false
-  end.
-
-Definition res_step'_separate_e_is_exhaustion hs s f ves e
-  (r : res_step'_separate_e hs s f ves e) : bool :=
-  match r with
-  | RS''_exhaustion => true
-  | _ => false
-  end.
-
-Check RS''_exhaustion.
-
-(* termination *)
-Local Lemma run_step_fuel_increase_aux : forall hs s f d es r' fuel fuel',
-  fuel <= fuel' ->
-  TProp.Forall (fun e => forall d hs s f ves Ht Hc r fuel fuel',
-     fuel <= fuel' ->
-     @run_one_step'' hs s f ves e fuel d Ht Hc = r ->
-     res_step'_separate_e_is_exhaustion r \/
-     (* r = RS''_exhaustion hs s f ves e \/ *)
-     @run_one_step'' hs s f ves e fuel' d Ht Hc = r) es ->
-  run_step_with_fuel'' hs s f es fuel d = r' ->
-  res_step'_is_exhaustion r' \/
-  run_step_with_fuel'' hs s f es fuel' d = r'.
-Proof.
-  (* move=> hs s f d es r' fuel fuel' I F. destruct fuel as [|fuel]. *)
-  (* - by left; subst r'. *)
-  (* - unfold run_step_with_fuel''. *)
-  (*   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals. *)
-  (*   simpl. destruct fuel' as [|fuel'] => /=. *)
-  (*   + by unfold run_step_with_fuel''; inversion I. *)
-  (*   + apply split_vals_e_v_to_e_duality in HSplitVals. *)
-  (*     destruct les as [|e les'] eqn:Hles; unfold run_step_with_fuel''. *)
-  (*     * right. revert H. let H := fresh in move=> H; inversion H; subst. *)
-  (*       clear H0. *)
-  (*       admit. *)
-  (*     * subst. explode_and_simplify; try by pattern_match; right. *)
-  (*       apply TProp.Forall_forall with (e := e) in F. *)
-  (*       (* XXX ? *) *)
-  (*       -- admit. *)
-  (*          (* destruct run_one_step as [[[hs'' s''] vs''] r''] eqn:E. *) *)
-  (*          (* eapply F in E; [|by apply I|..]. destruct E as [E|E]. *) *)
-  (*          (* ++ subst. pattern_match. by left. *) *)
-  (*          (* ++ unfold run_one_step in E. unfold interpreter_func.run_one_step in E. *) *)
-  (*          (*    rewrite E. by right. *) *)
-  (*       -- apply Coqlib.in_app. right. by left. *)
-Admitted.
 
 Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
   lfilledInd i lh (vs_to_es rvs ++ [:: e]) (v_to_e_list vcs ++ es) ->
@@ -3653,8 +3491,8 @@ Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : h
     terminal_form (v_to_e_list vcs ++ es) \/
     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'.
 Proof.
-  intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
-  destruct (run_step hs s f (v_to_e_list vcs ++ es) d)
+ (* intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
+  destruct (run_step hs s f (v_to_e_list vcs ++ es))
     as [| Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
   - (* RS'_exhaustion *)
     (* XXX what to do about depth/exhaustion? *)
@@ -3686,7 +3524,7 @@ Proof.
     apply lfilled_collapse_empty_vs_base in HLF as [lh' HLF'] => //.
     move/lfilledP in HLF'.
     by apply (HLFret i lh').
-  - right. exists s', f', es', hs' => //.
+  - right. exists s', f', es', hs' => //. *)
 Admitted.
 
 End Host_func.
