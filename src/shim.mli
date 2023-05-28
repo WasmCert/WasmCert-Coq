@@ -92,7 +92,9 @@ module type InterpreterType = sig
     val pp_values : Extract.value0 list -> string
     val pp_store : int (** The indentation level *) -> Dune__exe__Extract.EmptyHost.store_record -> string
     val pp_res_tuple_except_store : res_tuple -> string
-    val pp_config_tuple_except_store : config_tuple -> string
+    val pp_config_tuple_except_store :
+      (store_record * Extract.frame) * administrative_instruction list ->
+      string
 
   end
 

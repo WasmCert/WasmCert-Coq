@@ -10,13 +10,13 @@
 
 (rule
 	(targets "extract.ml" "extract.mli")
-	(deps "../theories/extraction.vo" "extract.patch")
+	(deps "../theories/extraction.vo")
 	(action
 		(progn
 			(run cp "../extract.ml" "../extract.mli" "./")
-			(run chmod "u+w" "./extract.ml")
+			; (run chmod "u+w" "./extract.ml")
 			; What follows is a dirty trick to try to fix Coq’s output and make it accepted by OCaml… (see issue https://github.com/coq/coq/issues/12813 )
-			(run patch extract.ml extract_newer.patch)
+			; (run patch extract.ml extract_newer.patch)
 			(run chmod "a-w" "./extract.ml")
 		)))
 
