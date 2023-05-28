@@ -3496,9 +3496,8 @@ Proof.
     as [Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
   - (* RS'_value *)
     left. unfold terminal_form.
-    destruct Hval as [Hconst | Htrap].
-    * left => //.
-    * right. by move/es_is_trapP in Htrap.
+    destruct Hval as [Hconst | Htrap]; [left | right] => //.
+    by move/es_is_trapP in Htrap.
   - (* RS'_error *)
     exfalso.
     apply Herr.
