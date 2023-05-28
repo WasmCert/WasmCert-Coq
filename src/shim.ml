@@ -38,6 +38,8 @@ module type InterpreterType = sig
       int -> 'a ->
       Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> Extract.res_step'
 
+    val run_step_compat :
+      Extract.nat (** The depth *) -> config_tuple -> Extract.res_tuple
 
     val is_const_list : administrative_instruction list -> Extract.value0 list option
 
@@ -105,6 +107,9 @@ module Interpreter =
     let run_step d i cfg =
       let (hs, s, f, es) = cfg in
       Interpreter.run_step hs s f es (Convert.to_nat d)
+
+    let run_step_compat d cfg =
+      Interpreter.run_step_compat d cfg
 
     let is_const_list = Interpreter.is_const_list
 

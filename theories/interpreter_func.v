@@ -3389,6 +3389,15 @@ Definition run_step_fuel (cfg : config_tuple) : nat :=
 Definition run_step hs s f es (d : depth) : res_step' hs s f es :=
   run_step_with_fuel'' hs s f es (run_step_fuel (hs, s, f, es)) d.
 
+Definition run_step_compat (d : depth) (cfg : config_tuple) : res_tuple :=
+  let: (hs, s, f, es) := cfg in
+  match run_step hs s f es d with
+  | RS'_normal hs' s' f' es' _ => (hs', s', f', RS_normal es')
+  | RS'_exhaustion => (hs, s, f, RS_crash C_exhaustion)
+  | RS'_error _ => (hs, s, f, RS_crash C_error)
+  | _ => (hs, s, f, RS_crash C_error)
+  end.
+
 Fixpoint run_v hs s f es (fuel : fuel) (d : depth) : ((host_state * store_record * res)%type) :=
   match fuel with
   | 0 => (hs, s, R_crash C_exhaustion)
@@ -3746,6 +3755,8 @@ Defined.
 Definition run_v := run_v host_application_impl_correct.
 
 Definition run_step := run_step host_application_impl_correct.
+
+Definition run_step_compat := run_step_compat host_application_impl_correct.
 
 (** State whether a list of administrative instruction is a final value. **)
 Definition is_const_list : list administrative_instruction -> option (list value) :=
