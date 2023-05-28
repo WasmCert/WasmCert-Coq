@@ -49,6 +49,10 @@ module TopHost = Host
 open Host
 open Interpreter
 
+let config_tuple_patch cfg =
+  let ((s, f), es) = cfg in
+  (((Obj.magic s, s), f), es)
+
 (* read-eval-print loop; work in progress *)
 let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
@@ -114,7 +118,7 @@ let repl verbosity sies (name : string) (depth : int) =
   | Some cfg0 ->
     debug_info result verbosity (fun _ ->
       Printf.sprintf "\n%sand store\n%s\n%!"
-        (pp_config_tuple_except_store cfg0)
+        (pp_config_tuple_except_store (config_tuple_patch cfg0))
         (pp_store 1 s)) ;
     (fun from_user cfg ->
       if from_user = "quit" then exit 0;
@@ -122,14 +126,14 @@ let repl verbosity sies (name : string) (depth : int) =
       LNoise.history_save ~filename:"history.txt" |> ignore;
       if from_user = "" || from_user = "step" then take_step verbosity depth i cfg
       else if from_user = "s" || from_user = "store" then
-        (let ((s, _), _) = cfg in
+        (let (((_, s), _), _) = cfg in
          Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
          pure cfg)
       else if from_user = "help" then
         (Printf.sprintf "commands:\nstep: take a step\nstore: display the store\nquit: quit\nhelp: this help message" |> print_endline;
          pure cfg)
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
-    |> (fun cb -> user_input "> " cb cfg0)
+    |> (fun cb -> user_input "> " cb (config_tuple_patch cfg0))
 
 let interpret verbosity error_code_on_crash sies name depth =
   let print_step_header gen =

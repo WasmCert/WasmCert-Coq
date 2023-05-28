@@ -5,7 +5,8 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import common datatypes operations typing.
 From ITree Require Import ITree ITreeFacts.
 
-Import Monads.
+(* XXX unused? *)
+(* Import Monads. *)
 
 Set Implicit Arguments.
 
