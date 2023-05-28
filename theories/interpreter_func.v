@@ -184,16 +184,6 @@ Definition config_tuple := ((host_state * store_record * frame * list administra
 
 Definition config_one_tuple_without_e := (host_state * store_record * frame * list value)%type.
 
-Definition config_tuple_typing (cfg : config_tuple) (t : seq value_type) : Prop :=
-  match cfg with
-  | (_, s, f, es) => config_typing s f es t
-  end.
-
-Definition config_tuple_separate_e_typing (cfg : config_one_tuple_without_e) (e : administrative_instruction) (t : seq value_type) : Prop :=
-  match cfg with
-  | (_, s, f, vs) => config_typing s f ((vs_to_es vs) ++ [::e]) t
-  end.
-
 Definition res_tuple := (host_state * store_record * frame * res_step)%type.
 
 (************ XXX move these to properties once done *************)
@@ -3738,7 +3728,7 @@ End EmptyHost.
 
 Module Interpreter_func.
 
-Import EmptyHost.
+Export EmptyHost.
 
 Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
                                    (host_state * option (store_record * result)).

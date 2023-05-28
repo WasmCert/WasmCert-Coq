@@ -583,9 +583,9 @@ Inductive extern_t : Type :=
 
 (** Some types used in the interpreter. **)
 
-Definition config_tuple : Type := store_record * frame * seq administrative_instruction.
+Definition config_tuple : Type := host_state * store_record * frame * list administrative_instruction.
 
-Definition config_one_tuple_without_e : Type := store_record * frame * seq value.
+Definition config_one_tuple_without_e : Type := host_state * store_record * frame * list value.
 
 Inductive res_crash : Type :=
   | C_error : res_crash
@@ -598,8 +598,10 @@ Inductive res_step : Type :=
   | RS_normal : seq administrative_instruction -> res_step
   .
 
-Definition res_tuple : Type := store_record * frame * res_step.
+Definition res_tuple : Type := host_state * store_record * frame * res_step.
 
 End Host.
 Arguments FC_func_native [host_function].
+
+Check config_tuple.
 

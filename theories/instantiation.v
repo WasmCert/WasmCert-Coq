@@ -775,7 +775,7 @@ Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basi
   | _ => None
   end.
 
-Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext) : option ((store_record * instance * list module_export) * option nat) :=
+Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) (v_imps : list v_ext) : option ((host_state * store_record * instance * list module_export) * option nat) :=
   match module_type_checker m with
   | None => None
   | Some (t_imps, t_exps) =>
@@ -806,7 +806,7 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
               let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
               let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
               let s_end := init_mems s' inst (List.map N_of_int d_offs) m.(mod_data) in
-              Some ((s_end, inst, v_exps), start)
+              Some ((hs, s_end, inst, v_exps), start)
             else None
           end
         end
@@ -815,8 +815,8 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
   end.
 
 Lemma interp_instantiate_imp_instantiate :
-  forall s m v_imps s_end inst v_exps start,
-  interp_instantiate s m v_imps = Some ((s_end, inst, v_exps), start) ->
+  forall (hs : host_state) s m v_imps hs s_end inst v_exps start,
+  interp_instantiate hs s m v_imps = Some ((hs, s_end, inst, v_exps), start) ->
   instantiate s m v_imps ((s_end, inst, v_exps), start).
 Proof.
 Admitted. (* TODO *)
@@ -828,12 +828,12 @@ Definition empty_store_record : store_record := {|
     s_globals := nil;
   |}.
 
-Definition interp_instantiate_wrapper (m : module) : option ((store_record * instance * list module_export) * option nat) :=
-  interp_instantiate empty_store_record m nil.
+Definition interp_instantiate_wrapper (m : module) : option ((host_state * store_record * instance * list module_export) * option nat) :=
+  interp_instantiate tt empty_store_record m nil.
 
-Definition lookup_exported_function (n : name) (store_inst_exps : store_record * instance * list module_export)
-    : option (store_record * frame * seq administrative_instruction) :=
-  let '(s, inst, exps) := store_inst_exps in
+Definition lookup_exported_function (n : name) (store_inst_exps : host_state * store_record * instance * list module_export)
+    : option (host_state * store_record * frame * seq administrative_instruction) :=
+  let '(hs, s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>
       match acc with
@@ -845,7 +845,7 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
 (*            Some (s, (Build_frame nil inst), [::AI_invoke fi])*)
             match List.nth_error s.(s_funcs) fi with
             | None => None
-            | Some fc => Some (s, (Build_frame nil inst), [::AI_invoke fi])
+            | Some fc => Some (hs, s, (Build_frame nil inst), [::AI_invoke fi])
             end
           | _ => None
           end
@@ -861,13 +861,13 @@ Module Instantiation.
 Import EmptyHost.
 
 Definition lookup_exported_function :
-    name -> store_record * instance * seq module_export ->
-    option (store_record * frame * seq administrative_instruction) :=
+    name -> host_state * store_record * instance * seq module_export ->
+    option (host_state * store_record * frame * seq administrative_instruction) :=
   lookup_exported_function.
 
 Definition interp_instantiate_wrapper :
   module ->
-  option (store_record * instance * seq module_export * option nat) :=
+  option (host_state * store_record * instance * seq module_export * option nat) :=
   interp_instantiate_wrapper.
 
 End Instantiation.

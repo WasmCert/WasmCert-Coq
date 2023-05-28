@@ -68,13 +68,18 @@ let rec user_input prompt cb st =
 let string_of_crash_reason = function
   | () -> "error"
 
+(* XXX fix this in Coq? *)
+let tuple_drop_hs res =
+  match res with
+  | (((_, s), f), r) -> ((s, f), r)
+
 let take_step verbosity depth i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
   let res = run_step_compat depth cfg in
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
   debug_info result verbosity (fun _ ->
-    Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status) ;
+    Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store (tuple_drop_hs res)) store_status) ;
   match (*Convert.from_triple*) res with
   | ((_, _), Extract.RS_crash _) ->
     debug_info result verbosity ~style:red (fun _ -> "crash:") ;
@@ -90,7 +95,8 @@ let take_step verbosity depth i cfg =
   | ((s', vs'), Extract.RS_normal es) ->
     pure ((s', vs'), es)
 
-let repl verbosity sies (name : string) (depth : int) =
+(* XXX had to remove (depth : int) to resolve int/nat issues *)
+let repl verbosity sies (name : string) depth =
   LNoise.set_hints_callback (fun line ->
       (* FIXME: Documentation is needed here. I don’t know what these lines do. *)
       if line <> "git remote add " then None
@@ -112,13 +118,13 @@ let repl verbosity sies (name : string) (depth : int) =
    "get tab completion with <TAB>";
    "type quit to exit gracefully"]
   |> List.iter print_endline;
-  let ((s, i), _) = sies in
+  let (((_, s), i), _) = sies in
   match lookup_exported_function name sies with
   | None -> error ("unknown function `" ^ name ^ "`")
   | Some cfg0 ->
     debug_info result verbosity (fun _ ->
       Printf.sprintf "\n%sand store\n%s\n%!"
-        (pp_config_tuple_except_store cfg0)
+        (pp_config_tuple_except_store (tuple_drop_hs cfg0))
         (pp_store 1 s)) ;
     (fun from_user cfg ->
       if from_user = "quit" then exit 0;
@@ -126,7 +132,7 @@ let repl verbosity sies (name : string) (depth : int) =
       LNoise.history_save ~filename:"history.txt" |> ignore;
       if from_user = "" || from_user = "step" then take_step verbosity depth i cfg
       else if from_user = "s" || from_user = "store" then
-        (let ((s, _), _) = cfg in
+        (let (((_, s), _), _) = cfg in
          Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
          pure cfg)
       else if from_user = "help" then
@@ -145,24 +151,23 @@ let interpret verbosity error_code_on_crash sies name depth =
         match lookup_exported_function name sies with
         | None -> Error ("unknown function `" ^ name ^ "`")
         | Some cfg0 -> OK cfg0)) in
-  let ((_, inst), _) = sies in
   let rec eval gen cfg =
-    let* cfg_res = run_step depth inst cfg in
+    let cfg_res = run_step_compat depth cfg in
     print_step_header gen ;
     debug_info verbosity intermediate
-      (fun _ -> pp_res_tuple_except_store cfg_res);
+      (fun _ -> pp_res_tuple_except_store (tuple_drop_hs cfg_res));
     debug_info_span verbosity intermediate intermediate
       (fun () ->
-        let ((s, _), _) = cfg in
-        let ((s', _), _) = cfg_res in
+        let (((_, s), _), _) = cfg in
+        let (((_, s'), _), _) = cfg_res in
         let store_status = if s = s' then "unchanged" else "changed" in
         Printf.sprintf "and store %s\n" store_status);
     debug_info verbosity store
       (fun () ->
-        let ((s', _), _) = cfg_res in
+        let (((_, s'), _), _) = cfg_res in
         Printf.sprintf "and store\n%s" (pp_store 1 s'));
     match cfg_res with
-    | (_, RS_crash) ->
+    | (_, RS_crash _) ->
       wait_message verbosity;
       debug_info verbosity result ~style:red (fun _ -> "crash\n");
       pure None
@@ -175,14 +180,14 @@ let interpret verbosity error_code_on_crash sies name depth =
       debug_info verbosity result ~style:green (fun _ -> "return");
       debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
       pure (Some vs)
-    | ((s', vs'), RS_normal es) ->
+    | (((hs', s'), vs'), RS_normal es) ->
       begin match is_const_list es with
       | Some vs -> pure (Some vs)
-      | None -> eval (gen + 1) (((s', vs'), es))
+      | None -> eval (gen + 1) ((((hs', s'), vs'), es))
       end in
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
-    Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
+    Printf.sprintf "\n%s\n" (pp_config_tuple_except_store (tuple_drop_hs cfg0)));
   let* res = eval 1 cfg0 in
   debug_info_span verbosity result stage (fun _ ->
     match res with

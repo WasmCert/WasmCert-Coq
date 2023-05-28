@@ -47,26 +47,25 @@ module type InterpreterType = sig
       (* string -> ((store_record * Extract.instance) * Extract.module_export list) -> *)
       (* config_tuple option *)
       (* XXX where does "Dune__exe__Extract" come from? should it be exposed? *)
-      string -> (Dune__exe__Extract.EmptyHost.store_record * Extract.instance) *
-      Extract.module_export list ->
-      ((Dune__exe__Extract.EmptyHost.store_record * Extract.frame) * administrative_instruction list) option
+      string ->
+      (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) ->
+      (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.administrative_instruction list) option
 
     val interp_instantiate_wrapper :
       (* Extract.module0 -> *)
       (* (((store_record * Extract.instance) * Extract.module_export list) * int option) option *)
       Extract.module0 ->
-      (((Dune__exe__Extract.EmptyHost.store_record * Extract.instance) * Extract.module_export list) * Extract.typeidx option) option
+      ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * Extract.nat option) option
 
     val run_parse_module : string -> Extract.module0 option
 
     val pp_values : Extract.value0 list -> string
     val pp_store : int -> Dune__exe__Extract.EmptyHost.store_record -> string
-    val pp_res_tuple_except_store : res_tuple -> string
+    val pp_res_tuple_except_store :
+      ((Extract.EmptyHost.store_record * Extract.frame) * Extract.res_step) -> string
     val pp_config_tuple_except_store :
-      (* (store_record * Extract.frame) * administrative_instruction list -> *)
-      config_tuple ->
+      ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
       string
-
 
   end
 

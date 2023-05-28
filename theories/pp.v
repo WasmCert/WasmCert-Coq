@@ -12,14 +12,7 @@ Open Scope string_scope.
 
 Section Host.
 
-Variable host_function : eqType.
-Let host := host host_function.
-Variable host_instance : host.
-
-Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
-Definition config_tuple := config_tuple host_instance.
-Definition res_tuple := res_tuple host_instance.
+Import Interpreter_func.
 
 Variable show_host_function : host_function -> string.
 
@@ -388,12 +381,13 @@ Definition pp_store (n : indentation) (s : store_record) : string :=
   indent n ("memories" ++ newline) ++
   pp_memories (n.+1) s.(s_mems).
 
-Definition pp_config_tuple_except_store (cfg : config_tuple) : string :=
+(* XXX disambiguate between cfg/res tuple with/without hs? *)
+Definition pp_config_tuple_except_store (cfg : store_record * frame * list administrative_instruction) : string :=
   let '(s, f, es) := cfg in
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
-Definition pp_res_tuple_except_store (res_cfg : res_tuple) : string :=
+Definition pp_res_tuple_except_store (res_cfg : store_record * frame * res_step) : string :=
   let '(s, f, res) := res_cfg in
   match res with
   | RS_crash _ =>
@@ -425,13 +419,13 @@ Section Show.
 
 Definition pp_values : list value -> string := pp_values.
 
-Definition pp_store : nat -> store_record -> string := pp_store _.
+Definition pp_store : nat -> store_record -> string := pp_store.
 
-Definition pp_res_tuple_except_store : res_tuple -> string :=
-  pp_res_tuple_except_store _ host_instance.
+Definition pp_res_tuple_except_store : store_record * frame * res_step -> string :=
+  pp_res_tuple_except_store.
 
-Definition pp_config_tuple_except_store : config_tuple -> string :=
-  pp_config_tuple_except_store _ host_instance.
+Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
+  pp_config_tuple_except_store.
 
 End Show.
 
