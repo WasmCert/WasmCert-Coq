@@ -3491,12 +3491,9 @@ Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : h
     terminal_form (v_to_e_list vcs ++ es) \/
     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'.
 Proof.
- (* intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
-  destruct (run_step hs s f (v_to_e_list vcs ++ es))
-    as [| Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
-  - (* RS'_exhaustion *)
-    (* XXX what to do about depth/exhaustion? *)
-    admit.
+  intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
+  destruct (run_step_with_measure hs s f (v_to_e_list vcs ++ es))
+    as [Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
   - (* RS'_value *)
     left. unfold terminal_form.
     destruct Hval as [Hconst | Htrap].
@@ -3524,8 +3521,8 @@ Proof.
     apply lfilled_collapse_empty_vs_base in HLF as [lh' HLF'] => //.
     move/lfilledP in HLF'.
     by apply (HLFret i lh').
-  - right. exists s', f', es', hs' => //. *)
-Admitted.
+  - right. exists s', f', es', hs' => //.
+Qed.
 
 End Host_func.
 
