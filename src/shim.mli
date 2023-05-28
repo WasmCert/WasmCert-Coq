@@ -47,26 +47,11 @@ module type InterpreterType = sig
     (*   (store_record * Extract.res) host_event *)
 
     val run_v :
-      int -> Extract.typeidx ->
+      Extract.nat ->
       Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
       (Obj.t * Obj.t Extract.store_record) * Extract.res
 
-    (* val run_v : *)
-    (*   int (** The depth *) -> Extract.instance -> config_tuple -> *)
-    (*   (store_record * Extract.res) host_event *)
-
-    (* val run_v : *)
-    (*   int (** The depth *) -> Extract.typeidx -> *)
-    (*   Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> *)
-    (*   (Obj.t * Obj.t Extract.store_record) * Extract.res *)
-
     (** Run one step of the interpreter. *)
-    val run_step :
-      (* int (** The depth *) -> Extract.instance -> config_tuple -> *)
-      (* host_function Extract.res_tuple host_event *)
-      int -> 'a ->
-      Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> Extract.res_step'
-
     val run_step_compat :
       Extract.nat (** The depth *) -> config_tuple -> Extract.res_tuple
 

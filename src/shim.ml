@@ -26,17 +26,9 @@ module type InterpreterType = sig
     type administrative_instruction = Extract.administrative_instruction
 
     val run_v :
-      (* int -> Extract.instance -> config_tuple -> *)
-      (* (store_record * Extract.res) host_event *)
-      int -> Extract.typeidx ->
+      Extract.nat ->
       Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
       (Obj.t * Obj.t Extract.store_record) * Extract.res
-
-    val run_step :
-      (* int -> Extract.instance -> config_tuple -> *)
-      (* host_function Extract.res_tuple host_event *)
-      int -> 'a ->
-      Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list -> Extract.res_step'
 
     val run_step_compat :
       Extract.nat (** The depth *) -> config_tuple -> Extract.res_tuple
@@ -99,13 +91,9 @@ module Interpreter =
     type res_tuple = Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
 
-    let run_v d i cfg =
+    let run_v i cfg =
       let (hs, s, f, es) = cfg in
-      Interpreter.run_v hs s f es (Convert.to_nat d) i
-
-    let run_step d i cfg =
-      let (hs, s, f, es) = cfg in
-      Interpreter.run_step hs s f es (Convert.to_nat d)
+      Interpreter.run_v hs s f es i
 
     let run_step_compat d cfg =
       Interpreter.run_step_compat d cfg
