@@ -69,30 +69,26 @@ let string_of_crash_reason = function
   | () -> "error"
 
 let take_step verbosity depth i cfg =
-  let (((hs, s), f), es) = cfg in
-  (* debug_info result verbosity (fun _ -> *)
-  (*   Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status) ; *)
-  match run_step depth i (hs, s, f, es) with
-  | Extract.RS'_exhaustion ->
-    debug_info result verbosity ~style:red (fun _ -> "exhaustion:") ;
-    debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
-    pure cfg
-  | Extract.RS'_value ->
-    debug_info result verbosity ~style:green (fun _ -> "value") ;
-    pure cfg
-  | Extract.RS'_error ->
+  let ((s, _), _)  = (*Convert.from_triple*) cfg in
+  let res = run_step_compat depth cfg in
+  let ((s', _), _)  = (*Convert.from_triple*) res in
+  let store_status = if s = s' then "unchanged" else "changed" in
+  debug_info result verbosity (fun _ ->
+    Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store res) store_status) ;
+  match (*Convert.from_triple*) res with
+  | ((_, _), Extract.RS_crash _) ->
     debug_info result verbosity ~style:red (fun _ -> "crash:") ;
     debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
     pure cfg
-  | (Extract.RS'_break _) ->
+  | ((_, _), Extract.RS_break _) ->
     debug_info result verbosity ~style:red (fun _ -> "break") ;
     pure cfg
-  | (Extract.RS'_return vs) ->
+  | ((_, _), Extract.RS_return vs) ->
     debug_info result verbosity ~style:green (fun _ -> "return:") ;
     debug_info result verbosity (fun _ -> " " ^ pp_values vs) ;
     pure cfg
-  | (Extract.RS'_normal (hs', s', f', vs')) ->
-    pure (((hs', s'), f'), es)
+  | ((s', vs'), Extract.RS_normal es) ->
+    pure ((s', vs'), es)
 
 let repl verbosity sies (name : string) (depth : int) =
   LNoise.set_hints_callback (fun line ->
@@ -122,7 +118,7 @@ let repl verbosity sies (name : string) (depth : int) =
   | Some cfg0 ->
     debug_info result verbosity (fun _ ->
       Printf.sprintf "\n%sand store\n%s\n%!"
-        (pp_config_tuple_except_store (config_tuple_patch cfg0))
+        (pp_config_tuple_except_store cfg0)
         (pp_store 1 s)) ;
     (fun from_user cfg ->
       if from_user = "quit" then exit 0;
@@ -130,14 +126,14 @@ let repl verbosity sies (name : string) (depth : int) =
       LNoise.history_save ~filename:"history.txt" |> ignore;
       if from_user = "" || from_user = "step" then take_step verbosity depth i cfg
       else if from_user = "s" || from_user = "store" then
-        (let (((_, s), _), _) = cfg in
+        (let ((s, _), _) = cfg in
          Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
          pure cfg)
       else if from_user = "help" then
         (Printf.sprintf "commands:\nstep: take a step\nstore: display the store\nquit: quit\nhelp: this help message" |> print_endline;
          pure cfg)
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
-    |> (fun cb -> user_input "> " cb (config_tuple_patch cfg0))
+    |> (fun cb -> user_input "> " cb cfg0)
 
 let interpret verbosity error_code_on_crash sies name depth =
   let print_step_header gen =
@@ -151,53 +147,43 @@ let interpret verbosity error_code_on_crash sies name depth =
         | Some cfg0 -> OK cfg0)) in
   let ((_, inst), _) = sies in
   let rec eval gen cfg =
-    (* TODO move those prints to normal branch? *)
-    (* alt. maybe patch the interpreter in coq to return old RS_*? *)
-    (* let cfg_res = run_step depth inst cfg in *)
-    (* print_step_header gen ; *)
-    (* debug_info verbosity intermediate *)
-    (*   (fun _ -> pp_res_tuple_except_store cfg_res); *)
-    (* debug_info_span verbosity intermediate intermediate *)
-    (*   (fun () -> *)
-    (*     let ((s, _), _) = cfg in *)
-    (*     let ((s', _), _) = cfg_res in *)
-    (*     let store_status = if s = s' then "unchanged" else "changed" in *)
-    (*     Printf.sprintf "and store %s\n" store_status); *)
-    (* debug_info verbosity store *)
-    (*   (fun () -> *)
-    (*     let ((s', _), _) = cfg_res in *)
-    (*     Printf.sprintf "and store\n%s" (pp_store 1 s')); *)
-    match run_step depth inst cfg with
-    | Extract.RS'_exhaustion ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:red (fun _ -> "exhaustion\n");
-      pure None
-    | Extract.RS'_value ->
-      debug_info result verbosity ~style:green (fun _ -> "value") ;
-      pure None
-    | Extract.RS'_error ->
+    let* cfg_res = run_step depth inst cfg in
+    print_step_header gen ;
+    debug_info verbosity intermediate
+      (fun _ -> pp_res_tuple_except_store cfg_res);
+    debug_info_span verbosity intermediate intermediate
+      (fun () ->
+        let ((s, _), _) = cfg in
+        let ((s', _), _) = cfg_res in
+        let store_status = if s = s' then "unchanged" else "changed" in
+        Printf.sprintf "and store %s\n" store_status);
+    debug_info verbosity store
+      (fun () ->
+        let ((s', _), _) = cfg_res in
+        Printf.sprintf "and store\n%s" (pp_store 1 s'));
+    match cfg_res with
+    | (_, RS_crash) ->
       wait_message verbosity;
       debug_info verbosity result ~style:red (fun _ -> "crash\n");
       pure None
-    | Extract.RS'_break _ ->
+    | (_, RS_break _) ->
       wait_message verbosity;
       debug_info verbosity result ~style:bold (fun _ -> "break\n");
       pure None
-    | Extract.RS'_return vs ->
+    | (_, RS_return vs) ->
       wait_message verbosity;
       debug_info verbosity result ~style:green (fun _ -> "return");
       debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
       pure (Some vs)
-    (* FIXME deal with objt *)
-    | Extract.RS'_normal (objt, s', f', es) ->
+    | ((s', vs'), RS_normal es) ->
       begin match is_const_list es with
       | Some vs -> pure (Some vs)
-      | None -> eval (gen + 1) (objt, s', f', es)
+      | None -> eval (gen + 1) (((s', vs'), es))
       end in
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
-    Printf.sprintf "\n%s\n" (pp_config_tuple_except_store (config_tuple_patch cfg0)));
-  let* res = eval 1 (config_tuple_patch_flat cfg0) in
+    Printf.sprintf "\n%s\n" (pp_config_tuple_except_store cfg0));
+  let* res = eval 1 cfg0 in
   debug_info_span verbosity result stage (fun _ ->
     match res with
     | Some vs -> pp_values vs

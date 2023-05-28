@@ -21,15 +21,6 @@ module Host : sig
 
 module Interpreter : Shim.InterpreterType with type 'a host_event = 'a Host.host_event
 
-val config_tuple_patch :
-  (Obj.t Extract.store_record * Extract.frame) * Extract.administrative_instruction list ->
-  Extract.config_tuple
-  (* XXX config_tuple has an extra Obj.t (coming from eqsort?), should fix this
-     when exporting in Coq *)
-  (* config_tuple =
-     ((Obj.t * Obj.t Extract.store_record) * Extract.frame) *
-     administrative_instruction list *)
-
 (** Read-eval-print-loop. *)
 val repl : Output.verbosity -> (Interpreter.store_record * Extract.instance) * Extract.module_export list -> string -> int -> unit Host.host_event
 
