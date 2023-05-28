@@ -47,13 +47,13 @@ module type InterpreterType = sig
     (*   (store_record * Extract.res) host_event *)
 
     val run_v :
-      Extract.nat ->
+      int ->
       Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
       (Obj.t * Obj.t Extract.store_record) * Extract.res
 
     (** Run one step of the interpreter. *)
     val run_step_compat :
-      Extract.nat (** The depth *) -> config_tuple -> Extract.res_tuple
+      int (** The depth *) -> config_tuple -> Extract.res_tuple
 
     (** State whether a list of administrative instructions is actually just a list of values. *)
     val is_const_list : administrative_instruction list -> Extract.value0 list option
@@ -69,7 +69,7 @@ module type InterpreterType = sig
     (** Perform the instantiation of a module. *)
     val interp_instantiate_wrapper :
       Extract.module0 ->
-      ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * Extract.nat option) option
+      ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * int option) option
 
     (** Parsing. *)
 

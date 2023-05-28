@@ -13,6 +13,7 @@ From Wasm Require Import
 
 From Coq Require Import
   extraction.ExtrOcamlBasic
+  extraction.ExtrOcamlNatInt
   extraction.ExtrOcamlString.
 
 Extraction Language OCaml.

@@ -39,11 +39,13 @@ val from_triple : (('a, 'b) Extract.prod, 'c) Extract.prod -> ('a * 'b * 'c)
 val to_triple : ('a * 'b * 'c) -> (('a, 'b) Extract.prod, 'c) Extract.prod
 *)
 
+(*
 (** Convert [int] to [Extract.nat]. **)
 val to_nat : int -> Extract.nat
 
 (** Convert [Extract.nat] to [int]. **)
 val from_nat : Extract.nat -> int
+*)
 
 (** Convert [Extract.positive] to [int]. *)
 val from_positive : Extract.positive -> int

@@ -1,7 +1,5 @@
 (** Main file for the Wasm interpreter **)
 
-open Convert
-
 (** Main function *)
 let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
   let open Execute.Host in
@@ -35,7 +33,7 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name (to_nat depth)
+    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name depth
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)

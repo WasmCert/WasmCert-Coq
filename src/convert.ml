@@ -53,6 +53,7 @@ let string_of_value =
     (fun v -> Printf.sprintf "Float32: %s" (from_string (Extract.pp_f32 v)))
     (fun v -> Printf.sprintf "Float64: %s" (from_string (Extract.pp_f64 v)))
 
+(*
 let rec to_nat = function
   | 0 -> Extract.O
   | n when n > 0 -> Extract.S (to_nat (n - 1))
@@ -61,6 +62,7 @@ let rec to_nat = function
 let rec from_nat = function
   | Extract.O -> 0
   | Extract.S n -> 1 + from_nat n
+*)
 
 let rec from_positive = function
   | Extract.XH -> 1
