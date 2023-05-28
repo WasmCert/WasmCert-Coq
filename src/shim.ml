@@ -20,9 +20,9 @@ module type InterpreterType = sig
     val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
     val pure : 'a -> 'a host_event
 
-    type store_record = Dune__exe__Extract.EmptyHost.store_record
-    type config_tuple = host_function Extract.config_tuple
-    type res_tuple = host_function Extract.res_tuple
+    type store_record = Extract.EmptyHost.store_record
+    type config_tuple = Extract.config_tuple
+    type res_tuple = Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
 
     val run_v :
@@ -61,9 +61,8 @@ module type InterpreterType = sig
     val pp_store : int -> Dune__exe__Extract.EmptyHost.store_record -> string
     val pp_res_tuple_except_store : res_tuple -> string
     val pp_config_tuple_except_store :
-      (store_record * Extract.frame) * administrative_instruction list ->
-      (* XXX should update config_tuple to this? *)
-      (* config_tuple -> *)
+      (* (store_record * Extract.frame) * administrative_instruction list -> *)
+      config_tuple ->
       string
 
 
@@ -92,11 +91,11 @@ module Interpreter =
 
     module Interpreter = Extract.Interpreter_func
     module Instantiation = Extract.Instantiation
-    module PP = Extract.PP (EH)
+    module PP = Extract.PP
 
-    type store_record = Dune__exe__Extract.EmptyHost.store_record
-    type config_tuple = host_function Extract.config_tuple
-    type res_tuple = host_function Extract.res_tuple
+    type store_record = Extract.EmptyHost.store_record
+    type config_tuple = Extract.config_tuple
+    type res_tuple = Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
 
     let run_v d i cfg =

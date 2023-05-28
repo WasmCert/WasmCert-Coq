@@ -36,9 +36,9 @@ module type InterpreterType = sig
     val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
     val pure : 'a -> 'a host_event
 
-    type store_record = Dune__exe__Extract.EmptyHost.store_record
-    type config_tuple = host_function Extract.config_tuple
-    type res_tuple = host_function Extract.res_tuple
+    type store_record = Extract.EmptyHost.store_record
+    type config_tuple = Extract.config_tuple
+    type res_tuple = Extract.res_tuple
     type administrative_instruction = Extract.administrative_instruction
 
     (** Run the interpreter until reaching a result. *)
@@ -90,10 +90,11 @@ module type InterpreterType = sig
     (** Pretty-printing. *)
 
     val pp_values : Extract.value0 list -> string
-    val pp_store : int (** The indentation level *) -> Dune__exe__Extract.EmptyHost.store_record -> string
+    val pp_store : int (** The indentation level *) -> store_record -> string
     val pp_res_tuple_except_store : res_tuple -> string
     val pp_config_tuple_except_store :
-      (store_record * Extract.frame) * administrative_instruction list ->
+      (* (store_record * Extract.frame) * administrative_instruction list -> *)
+      config_tuple ->
       string
 
   end
