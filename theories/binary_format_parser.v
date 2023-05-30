@@ -10,6 +10,8 @@ Require Import leb128.
 Require Import Coq.Arith.Le.
 Require Import BinNat.
 
+(*
+
 Notation "p $> b" := (cmap b p) (at level 59, right associativity).
 
 Section Language.
@@ -990,3 +992,4 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
 
 Definition run_parse_module (bs : list byte) : option module :=
   run (bs ++ cons end_marker nil) (fun n => parse_module).
+*)

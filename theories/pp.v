@@ -7,7 +7,7 @@ Require Import Coq.Init.Decimal.
 Require Import bytes_pp datatypes interpreter.
 Require Import BinNat.
 Require Import ansi list_extra.
-
+(*
 Open Scope string_scope.
 
 Section Host.
@@ -451,3 +451,4 @@ End Show.
 
 End PP.
 
+*)

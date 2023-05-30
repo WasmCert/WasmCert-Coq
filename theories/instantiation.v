@@ -161,12 +161,13 @@ Definition alloc_glob (s : store_record) (m_g_v : module_global * value) : store
 Definition alloc_globs s m_gs vs :=
   alloc_Xs alloc_glob s (List.combine m_gs vs).
 
+(*
 Definition alloc_elem (s: store_record) (m_e: module_element) : store_record * elemidx.
 Admitted.
 
-Definition alloc_mems (s : store_record) (m_ms : list module_mem) : store_record * list memidx :=
+Definition alloc_elems (s : store_record) (m_ms : list module_mem) : store_record * list memidx :=
   alloc_Xs alloc_mem s m_ms.
-
+*)
 (* TODO: lemmas *)
 
 Definition v_ext := module_export_desc.
