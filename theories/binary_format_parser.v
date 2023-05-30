@@ -521,7 +521,7 @@ Definition parse_elem_type {n} : byte_parser elem_type n :=
   exact_byte x70 $> ELT_funcref.
 
 Definition parse_table_type {n} : byte_parser table_type n :=
-  ((fun lims ety => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_limits) <*> parse_elem_type.
+  ((fun ety lims => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_elem_type) <*> parse_limits.
 
 Definition parse_memory_type {n} : byte_parser memory_type n :=
   (fun lim => lim) <$> parse_limits.
@@ -604,7 +604,7 @@ Definition parse_tablesec {n} : byte_parser (list module_table) n :=
   exact_byte x04 &> parse_u32_as_int32 &> parse_vec parse_module_table.
 
 Definition parse_memsec {n} : byte_parser (list memory_type) n :=
-  exact_byte x05 &> parse_memidx &> parse_vec parse_memory_type.
+  exact_byte x05 &> parse_u32_as_int32 &> parse_vec parse_memory_type.
 
 Definition parse_globalsec {n} : byte_parser (list module_glob) n :=
   exact_byte x06 &> parse_u32_as_int32 &> parse_vec parse_module_glob.
