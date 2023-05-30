@@ -567,10 +567,10 @@ Definition parse_nat_value_type {n} : byte_parser (list value_type) n :=
   ((fun k t => List.repeat t k) <$> parse_u32_as_nat) <*> parse_value_type.
 
 Definition parse_locals {n} : byte_parser (list value_type) n :=
-  (fun tss => List.concat tss) <$> (parse_vec parse_nat_value_type).
+  (fun tss => tss) <$> parse_nat_value_type.
 
 Definition parse_func {n} : byte_parser code_func n :=
-  ((fun locals e => {| fc_locals := List.concat locals; fc_expr := e |})  <$> parse_vec parse_locals) <*> parse_expr.
+  ((fun locals e => {| fc_locals := List.concat locals; fc_expr := e |}) <$> parse_vec parse_locals) <*> parse_expr.
 
 Definition parse_code {n} : byte_parser code_func n :=
   guardM

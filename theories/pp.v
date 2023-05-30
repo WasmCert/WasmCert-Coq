@@ -5,7 +5,7 @@ From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
 Require Import bytes_pp datatypes interpreter_func.
-Require BinNatDef.
+Require Import BinNat.
 Require Import ansi list_extra.
 
 Open Scope string_scope.
@@ -75,11 +75,24 @@ Definition pp_immediate (i : immediate) : string :=
   (* TODO: it's not clear that's the right way to print it, but hey *)
   string_of_uint (Nat.to_uint i).
 
+Definition pp_N (n: N) : string :=
+  string_of_uint (N.to_uint n).
+
+Definition pp_positive (p: positive) : string :=
+  string_of_uint (BinPos.Pos.to_uint p).
+
+Definition pp_Z (z: Z) : string :=
+  match z with
+  | Z0 => "0"
+  | Zpos p => pp_positive p
+  | Zneg p => "-" ++ pp_positive p
+  end.
+
 Definition pp_i32 i :=
-  pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int32.unsigned i)).
+  pp_Z (Wasm_int.Int32.signed i).
 
 Definition pp_i64 i :=
-  pp_immediate (BinIntDef.Z.to_nat (Wasm_int.Int64.unsigned i)).
+  pp_Z (Wasm_int.Int64.signed i).
 
 (* TODO: all this printing of floats business is highly dubious,
    and completely untested *)
@@ -216,8 +229,9 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   | ROF_ge => "ge"
   end.
 
-Definition pp_ao a o : string :=
-  pp_immediate a ++ " " ++ pp_immediate o.
+(* The alignment exponent is the exponent in both the spec and the binary, but needs to be the power in the text format. *)
+Definition pp_memarg (a: alignment_exponent) (o: static_offset) : string :=
+  "offset=" ++ pp_N o ++ " " ++ "align=" ++ pp_N (N.shiftl 1 a).
 
 Definition pp_packing (p : packed_type) :=
   match p with
@@ -281,13 +295,13 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
   | BI_set_global x =>
     indent i (with_fg be_style "global.set " ++ pp_immediate x ++ newline)
   | BI_load vt None a o =>
-    indent i (pp_value_type vt ++ ".load " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".load " ++ pp_memarg a o ++ newline)
   | BI_load vt (Some ps) a o =>
-    indent i (pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_memarg a o ++ newline)
   | BI_store vt None a o =>
-    indent i (pp_value_type vt ++ ".store " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".store " ++ pp_memarg a o ++ newline)
   | BI_store vt (Some p) a o =>
-    indent i (pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_ao a o ++ newline)
+    indent i (pp_value_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_memarg a o ++ newline)
   | BI_current_memory =>
     indent i (with_fg be_style "memory.size" ++ newline ++ newline)
   | BI_grow_memory =>
@@ -340,7 +354,7 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
   | AI_basic be => pp_basic_instruction n be
   | AI_trap => indent n (with_fg ae_style "trap" ++ newline)
   | AI_invoke a =>
-    indent n (with_fg ae_style "invoke" ++ string_of_nat a ++ newline)
+    indent n (with_fg ae_style "invoke " ++ string_of_nat a ++ newline)
   (*    pp_function_closure (n.+1) fc*)
            
   | AI_label k es1 es2 =>
