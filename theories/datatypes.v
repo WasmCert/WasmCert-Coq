@@ -603,5 +603,3 @@ Definition res_tuple : Type := host_state * store_record * frame * res_step.
 End Host.
 Arguments FC_func_native [host_function].
 
-Check config_tuple.
-
