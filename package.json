@@ -30,7 +30,7 @@
 		"@opam/menhir": "*",
 		"@opam/ocamlfind": "1.9.3",
 		"@opam/odoc": "*",
-		"compcert": "github:stefanradziuk/CompCert#a67f35f14555222d23e4ae09ed45addc508993eb",
+		"compcert": "github:raoxiaojia/CompCert#ad331c0f60d53d14601cd44412269a184ba63721",
 		"coq-ext-lib": "*",
 		"coq-flocq": "*",
 		"coq-itree": "github:iriswasm/InteractionTrees#21119d09ec48edcf430202a847f21e9877c5d1c5",

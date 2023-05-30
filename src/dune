@@ -22,10 +22,8 @@
 			; (run chmod "a-w" "./extract.ml")
 		)))
 
-(env (dev (flags (:standard -warn-error -A -w -39 -w -50 -w -3))))
+(env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
 ; Removing the following warnings:
-; FIXME: -3 doesn't seem to (always?) work
-; - 3: deprecation alerts, too many are emitted when ExtrOcamlNatInt is used since succ comes from the deprecated Stdlib.Pervasives
 ; - 50: unattached documentation comment, as it doesn’t fit the way we document our code.
 ; - 39: unused rec flag, as Coq generates a lot of these in its extraction.
 ; We could also remove the following, as Coq generates a lot of these in its extraction, but these are useful to track issues in the shim:

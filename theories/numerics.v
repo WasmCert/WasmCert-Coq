@@ -109,7 +109,7 @@ Include Make (WS).
 
 (** We use CompCert’s [int] as a representation, as CompCert is associated
   with very similar operations than Wasm, and has already been overly tested. **)
-Definition T := int_compcert.
+Definition T := int.
 
 Lemma Z_lt_irrelevant : forall x y (p1 p2 : Z.lt x y), p1 = p2.
 Proof.

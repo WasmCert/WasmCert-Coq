@@ -33,19 +33,19 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
 Definition parse_u32_as_N {n} : byte_parser N n :=
   extract parse_unsigned n.
 
-Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int_compcert n :=
+Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
 
-Definition parse_u32_zero_as_int32 {n} : byte_parser Wasm_int.Int32.int_compcert n :=
+Definition parse_u32_zero_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   exact_byte x00 $> Wasm_int.Int32.zero.
 
-Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int_compcert n :=
+Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr x) <$> (extract parse_signed n).
 
-Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int_compcert n :=
+Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int64.repr x) <$> (extract parse_signed n).
 
