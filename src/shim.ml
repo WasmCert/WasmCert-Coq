@@ -26,12 +26,12 @@ module type InterpreterType = sig
     type administrative_instruction = Extract.administrative_instruction
 
     val run_v :
-      int ->
+      Extract.nat ->
       Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
       (Obj.t * Obj.t Extract.store_record) * Extract.res
 
     val run_step_compat :
-      int (** The depth *) -> config_tuple -> Extract.res_tuple
+      Extract.nat (** The depth *) -> config_tuple -> Extract.res_tuple
 
     val is_const_list : administrative_instruction list -> Extract.value0 list option
 
@@ -47,7 +47,7 @@ module type InterpreterType = sig
       (* Extract.module0 -> *)
       (* (((store_record * Extract.instance) * Extract.module_export list) * int option) option *)
       Extract.module0 ->
-      ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * int option) option
+      ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * Extract.nat option) option
 
     val run_parse_module : string -> Extract.module0 option
 
@@ -114,7 +114,7 @@ module Interpreter =
       Utils.implode (PP.pp_values l)
 
     let pp_store i st =
-      Utils.implode (PP.pp_store i st)
+      Utils.implode (PP.pp_store (Convert.to_nat i) st)
 
     let pp_res_tuple_except_store r =
       Utils.implode (PP.pp_res_tuple_except_store r)
