@@ -444,7 +444,7 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte xb8 $> BI_cvtop T_f64 CVO_convert T_i32 (Some SX_U) <|>  (* f64.convert_i32_u *)
   exact_byte xb9 $> BI_cvtop T_f64 CVO_convert T_i64 (Some SX_S) <|>  (* f64.convert_i64_s *)
   exact_byte xba $> BI_cvtop T_f64 CVO_convert T_i64 (Some SX_U) <|>  (* f64.convert_i64_u *)
-  exact_byte xbb $> BI_cvtop T_f32 CVO_convert T_f64 None <|>         (* f64.promote_f32 XXX *)
+  exact_byte xbb $> BI_cvtop T_f64 CVO_convert T_f32 None <|>         (* f64.promote_f32 *)
   exact_byte xbc $> BI_cvtop T_i32 CVO_reinterpret T_f32 None <|>     (* i32.reinterpret_f32 *)
   exact_byte xbd $> BI_cvtop T_i64 CVO_reinterpret T_f64 None <|>     (* i64.reinterpret_f64 *)
   exact_byte xbe $> BI_cvtop T_f32 CVO_reinterpret T_i32 None <|>     (* f32.reinterpret_i32 *)
