@@ -424,31 +424,31 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte xa6 $> BI_binop T_f64 (Binop_f BOF_copysign) <|>
 
   (* TODO: I am really not sure whether this is right :-s *)
-  exact_byte xa7 $> BI_cvtop T_i32 CVO_convert T_i64 (Some SX_U) <|>
-  exact_byte xa8 $> BI_cvtop T_i32 CVO_convert T_f32 (Some SX_S) <|>
-  exact_byte xa9 $> BI_cvtop T_i32 CVO_convert T_f32 (Some SX_U) <|>
-  exact_byte xaa $> BI_cvtop T_i32 CVO_convert T_f64 (Some SX_S) <|>
-  exact_byte xab $> BI_cvtop T_i32 CVO_convert T_f64 (Some SX_U) <|>
-  exact_byte xac $> BI_cvtop T_i64 CVO_convert T_i32 (Some SX_S) <|>
-  exact_byte xad $> BI_cvtop T_i64 CVO_convert T_i32 (Some SX_U) <|>
-  exact_byte xae $> BI_cvtop T_i64 CVO_convert T_f32 (Some SX_S) <|>
-  exact_byte xaf $> BI_cvtop T_i64 CVO_convert T_f32 (Some SX_U) <|>
-  exact_byte xb0 $> BI_cvtop T_i64 CVO_convert T_f64 (Some SX_S) <|>
-  exact_byte xb1 $> BI_cvtop T_i64 CVO_convert T_f64 (Some SX_U) <|>
-  exact_byte xb2 $> BI_cvtop T_f32 CVO_convert T_i32 (Some SX_S) <|>
-  exact_byte xb3 $> BI_cvtop T_f32 CVO_convert T_i32 (Some SX_U) <|>
-  exact_byte xb4 $> BI_cvtop T_f32 CVO_convert T_i64 (Some SX_S) <|>
-  exact_byte xb5 $> BI_cvtop T_f32 CVO_convert T_i64 (Some SX_U) <|>
-  exact_byte xb6 $> BI_cvtop T_f32 CVO_convert T_f64 None <|>
-  exact_byte xb7 $> BI_cvtop T_f64 CVO_convert T_i32 (Some SX_S) <|>
-  exact_byte xb8 $> BI_cvtop T_f64 CVO_convert T_i32 (Some SX_U) <|>
-  exact_byte xb9 $> BI_cvtop T_f64 CVO_convert T_i64 (Some SX_S) <|>
-  exact_byte xba $> BI_cvtop T_f64 CVO_convert T_i64 (Some SX_U) <|>
-  exact_byte xbb $> BI_cvtop T_f32 CVO_convert T_f64 None <|>
-  exact_byte xbc $> BI_cvtop T_i32 CVO_reinterpret T_f32 None <|>
-  exact_byte xbd $> BI_cvtop T_i64 CVO_reinterpret T_f64 None <|>
-  exact_byte xbe $> BI_cvtop T_f32 CVO_reinterpret T_i32 None <|>
-  exact_byte xbf $> BI_cvtop T_f64 CVO_reinterpret T_i64 None.
+  exact_byte xa7 $> BI_cvtop T_i32 CVO_convert T_i64 (Some SX_U) <|>  (* i32.wrap_i64 *) (*XXX SX_U doesn't really make sense here *)
+  exact_byte xa8 $> BI_cvtop T_i32 CVO_convert T_f32 (Some SX_S) <|>  (* i32.trunc_f32_s *)
+  exact_byte xa9 $> BI_cvtop T_i32 CVO_convert T_f32 (Some SX_U) <|>  (* i32.trunc_f32_u *)
+  exact_byte xaa $> BI_cvtop T_i32 CVO_convert T_f64 (Some SX_S) <|>  (* i32.trunc_f64_s *)
+  exact_byte xab $> BI_cvtop T_i32 CVO_convert T_f64 (Some SX_U) <|>  (* i32.trunc_f64_u *)
+  exact_byte xac $> BI_cvtop T_i64 CVO_convert T_i32 (Some SX_S) <|>  (* i64.extend_i32_s *)
+  exact_byte xad $> BI_cvtop T_i64 CVO_convert T_i32 (Some SX_U) <|>  (* i64.extend_i32_u *)
+  exact_byte xae $> BI_cvtop T_i64 CVO_convert T_f32 (Some SX_S) <|>  (* i64.trunc_f32_s *)
+  exact_byte xaf $> BI_cvtop T_i64 CVO_convert T_f32 (Some SX_U) <|>  (* i64.trunc_f32_u *)
+  exact_byte xb0 $> BI_cvtop T_i64 CVO_convert T_f64 (Some SX_S) <|>  (* i64.trunc_f64_s *)
+  exact_byte xb1 $> BI_cvtop T_i64 CVO_convert T_f64 (Some SX_U) <|>  (* i64.trunc_f64_u *)
+  exact_byte xb2 $> BI_cvtop T_f32 CVO_convert T_i32 (Some SX_S) <|>  (* f32.convert_i32_s *)
+  exact_byte xb3 $> BI_cvtop T_f32 CVO_convert T_i32 (Some SX_U) <|>  (* f32.convert_i32_u *)
+  exact_byte xb4 $> BI_cvtop T_f32 CVO_convert T_i64 (Some SX_S) <|>  (* f32.convert_i64_s *)
+  exact_byte xb5 $> BI_cvtop T_f32 CVO_convert T_i64 (Some SX_U) <|>  (* f32.convert_i64_u *)
+  exact_byte xb6 $> BI_cvtop T_f32 CVO_convert T_f64 None <|>         (* f32.demote_f64 *)
+  exact_byte xb7 $> BI_cvtop T_f64 CVO_convert T_i32 (Some SX_S) <|>  (* f64.convert_i32_s *)
+  exact_byte xb8 $> BI_cvtop T_f64 CVO_convert T_i32 (Some SX_U) <|>  (* f64.convert_i32_u *)
+  exact_byte xb9 $> BI_cvtop T_f64 CVO_convert T_i64 (Some SX_S) <|>  (* f64.convert_i64_s *)
+  exact_byte xba $> BI_cvtop T_f64 CVO_convert T_i64 (Some SX_U) <|>  (* f64.convert_i64_u *)
+  exact_byte xbb $> BI_cvtop T_f64 CVO_convert T_f32 None <|>         (* f64.promote_f32 *)
+  exact_byte xbc $> BI_cvtop T_i32 CVO_reinterpret T_f32 None <|>     (* i32.reinterpret_f32 *)
+  exact_byte xbd $> BI_cvtop T_i64 CVO_reinterpret T_f64 None <|>     (* i64.reinterpret_f64 *)
+  exact_byte xbe $> BI_cvtop T_f32 CVO_reinterpret T_i32 None <|>     (* f32.reinterpret_i32 *)
+  exact_byte xbf $> BI_cvtop T_f64 CVO_reinterpret T_i64 None.        (* f64.reinterpret_i64 *)
 
 Record Language (n : nat) : Type := MkLanguage {
   _be : byte_parser basic_instruction n;
