@@ -393,13 +393,27 @@ Definition pp_globals (n : indentation) (gs : list global) : string :=
   String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ pp_global g ++ newline)) gs).
 
 Definition pp_memories (n : indentation) (ms : list memory) : string :=
-String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ "TODO: memory" ++ newline)) ms).
+  String.concat "" (mapi (fun i m => indent n (string_of_nat i ++ ": " ++ "TODO: memory" ++ newline)) ms).
+
+Definition pp_funcelem (elem: funcelem) : string :=
+  match elem with
+  | Some n => string_of_nat n
+  | None => "none"
+  end.
+
+Definition pp_table (n: indentation) (t : tableinst) : string :=
+  String.concat "" (mapi (fun i elem => indent n (string_of_nat i ++ ": " ++ pp_funcelem elem ++ newline)) t.(table_data)).
+
+Definition pp_tables (n : indentation) (ms : list tableinst) : string :=
+  String.concat "" (mapi (fun i t => indent n (string_of_nat i ++ ": " ++ pp_table n t)) ms).
 
 Definition pp_store (n : indentation) (s : store_record) : string :=
   indent n ("globals" ++ newline) ++
   pp_globals (n.+1) s.(s_globals) ++
   indent n ("memories" ++ newline) ++
-  pp_memories (n.+1) s.(s_mems).
+  pp_memories (n.+1) s.(s_mems) ++
+  indent n ("tables" ++ newline) ++
+  pp_tables (n.+1) s.(s_tables).
 
 Definition pp_config_tuple_except_store (cfg : config_tuple) : string :=
   let '(s, f, es) := cfg in
@@ -434,8 +448,6 @@ Module Exec := convert_to_executable_host EH.
 Import Exec.
 
 Section Show.
-
-(*Variable show_host_function : EH.host_function -> string.*)
 
 Definition pp_values : list value -> string := pp_values.
 
