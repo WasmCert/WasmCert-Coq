@@ -805,7 +805,7 @@ Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) 
                check_bounds_data inst s m d_offs then
               let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
               let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
-              let s_end := init_mems s' inst (List.map N_of_int d_offs) m.(mod_data) in
+              let s_end := init_mems s'' inst (List.map N_of_int d_offs) m.(mod_data) in
               Some ((hs, s_end, inst, v_exps), start)
             else None
           end
