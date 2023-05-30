@@ -90,9 +90,65 @@ Let lholed := lholed host_function.*)
     This might also answer some of the FIXMEs below.
    
 **)
+
+(* XXX is convert_helper ever even used in a case where sxo == None? *)
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
+  match (sxo, t1, t2) with
+  | (Some SX_U, T_i32, T_i64)  (* i32.wrap_i64 *)
+  | (Some SX_S, T_i32, T_f32)  (* i32.trunc_f32_s *)
+  | (Some SX_U, T_i32, T_f32)  (* i32.trunc_f32_u *)
+  | (Some SX_S, T_i32, T_f64)  (* i32.trunc_f64_s *)
+  | (Some SX_U, T_i32, T_f64)  (* i32.trunc_f64_u *)
+  | (Some SX_S, T_i64, T_i32)  (* i64.extend_i32_s *)
+  | (Some SX_U, T_i64, T_i32)  (* i64.extend_i32_u *)
+  | (Some SX_S, T_i64, T_f32)  (* i64.trunc_f32_s *)
+  | (Some SX_U, T_i64, T_f32)  (* i64.trunc_f32_u *)
+  | (Some SX_S, T_i64, T_f64)  (* i64.trunc_f64_s *)
+  | (Some SX_U, T_i64, T_f64)  (* i64.trunc_f64_u *)
+  | (Some SX_S, T_f32, T_i32)  (* f32.convert_i32_s *)
+  | (Some SX_U, T_f32, T_i32)  (* f32.convert_i32_u *)
+  | (Some SX_S, T_f32, T_i64)  (* f32.convert_i64_s *)
+  | (Some SX_U, T_f32, T_i64)  (* f32.convert_i64_u *)
+  | (None, T_f32, T_f64)       (* f32.demote_f64 *)
+  | (Some SX_S, T_f64, T_i32)  (* f64.convert_i32_s *)
+  | (Some SX_U, T_f64, T_i32)  (* f64.convert_i32_u *)
+  | (Some SX_S, T_f64, T_i64)  (* f64.convert_i64_s *)
+  | (Some SX_U, T_f64, T_i64)  (* f64.convert_i64_u *)
+  | (None, T_f64, T_f32)       (* f64.promote_f32 *)
+  | (None, T_i32, T_f32)       (* i32.reinterpret_f32 *)
+  | (None, T_i64, T_f64)       (* i64.reinterpret_f64 *)
+  | (None, T_f32, T_i32)       (* f32.reinterpret_i32 *)
+  | (None, T_f64, T_i64)       (* f64.reinterpret_i64 *)
+      => true
+  | _ => false
+  end.
+
+Definition convert_helper_old (sxo : option sx) t1 t2 : bool :=
   (sxo == None) ==
   ((is_float_t t1 && is_float_t t2) || (is_int_t t1 && is_int_t t2 && (t_length t1 < t_length t2))).
+
+Lemma convert_helper_sxu_i32_i64 :
+  convert_helper_old (Some SX_U) T_i32 T_i64 = false /\
+  convert_helper (Some SX_U) T_i32 T_i64 = true.
+Proof. by intros; subst. Qed.
+
+Lemma convert_helper_int_s : forall t,
+  is_int_t t ->
+  convert_helper_old (Some SX_S) t t = true /\
+  convert_helper (Some SX_S) t t = false.
+Proof. by destruct t. Qed.
+
+Lemma convert_helper_none_i32_64 :
+  convert_helper_old None T_i32 T_i64 = true /\
+  convert_helper None T_i32 T_i64 = false.
+Proof. by idtac. Qed.
+
+(* trying to see when these two differ *)
+Lemma convert_helper_same_as_old : forall sxo t1 t2,
+  convert_helper_old sxo t1 t2 = convert_helper sxo t1 t2.
+Proof.
+  destruct sxo as [sx|], t1, t2 => //; try destruct sx => //.
+Admitted.
 
 Definition convert_cond t1 t2 (sxo : option sx) : bool :=
   (t1 != t2) && convert_helper sxo t1 t2.
