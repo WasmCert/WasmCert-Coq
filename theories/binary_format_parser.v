@@ -258,13 +258,13 @@ Definition parse_i32_store16 {n} : byte_parser basic_instruction n :=
   exact_byte x3b &> (prod_curry (BI_store T_i32 (Some Tp_i16)) <$> parse_memarg).
 
 Definition parse_i64_store8 {n} : byte_parser basic_instruction n :=
-  exact_byte x3c &> (prod_curry (BI_store T_i32 (Some Tp_i8)) <$> parse_memarg).
+  exact_byte x3c &> (prod_curry (BI_store T_i64 (Some Tp_i8)) <$> parse_memarg).
 
 Definition parse_i64_store16 {n} : byte_parser basic_instruction n :=
-  exact_byte x3d &> (prod_curry (BI_store T_i32 (Some Tp_i16)) <$> parse_memarg).
+  exact_byte x3d &> (prod_curry (BI_store T_i64 (Some Tp_i16)) <$> parse_memarg).
 
 Definition parse_i64_store32 {n} : byte_parser basic_instruction n :=
-  exact_byte x3e &> (prod_curry (BI_store T_i32 (Some Tp_i32)) <$> parse_memarg).
+  exact_byte x3e &> (prod_curry (BI_store T_i64 (Some Tp_i32)) <$> parse_memarg).
 
 Definition parse_memory_size {n} : byte_parser basic_instruction n :=
   exact_byte x3f &> (exact_byte x00 $> BI_current_memory).
