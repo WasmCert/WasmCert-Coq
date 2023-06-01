@@ -1710,10 +1710,10 @@ Definition fmul (z1 z2 : T) :=
   else if is_infinity z1 && is_infinity z2 then
     if sign z1 == sign z2 then pos_infinity
     else neg_infinity
-  else if is_infinity z2 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z2 && sign z1 != sign z2 then neg_infinity
-  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
+  else if is_infinity z2 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z1 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z2 && (sign z1 != sign z2) then neg_infinity
+  else if is_infinity z1 && (sign z1 != sign z2) then neg_infinity
   else if is_zero z1 && is_zero z2 then
     if sign z1 == sign z2 then pos_zero
     else (** [z1 = ±0], [z2 = ∓0] **) neg_zero
@@ -1723,14 +1723,14 @@ Definition fdiv (z1 z2 : T) :=
   if is_nan z1 || is_nan z2 then nans [:: z1; z2]
   else if is_infinity z1 && is_infinity z2 then nans [:: ]
   else if is_zero z2 && is_zero z1 then nans [:: z1; z2]
-  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
-  else if is_infinity z2 && sign z1 == sign z2 then pos_zero
-  else if is_infinity z2 && sign z1 != sign z2 then neg_zero
-  else if is_zero z1 && sign z1 == sign z2 then pos_zero
-  else if is_zero z1 && sign z1 != sign z2 then neg_zero
-  else if is_zero z2 && sign z1 == sign z2 then pos_infinity
-  else if is_zero z2 && sign z1 != sign z2 then pos_infinity
+  else if is_infinity z1 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z1 && (sign z1 != sign z2) then neg_infinity
+  else if is_infinity z2 && (sign z1 == sign z2) then pos_zero
+  else if is_infinity z2 && (sign z1 != sign z2) then neg_zero
+  else if is_zero z1 && (sign z1 == sign z2) then pos_zero
+  else if is_zero z1 && (sign z1 != sign z2) then neg_zero
+  else if is_zero z2 && (sign z1 == sign z2) then pos_infinity
+  else if is_zero z2 && (sign z1 != sign z2) then pos_infinity
   else div z1 z2.
 
 Definition fmin (z1 z2 : T) :=
@@ -1738,7 +1738,7 @@ Definition fmin (z1 z2 : T) :=
   else if (z1 == neg_infinity) || (z2 == neg_infinity) then neg_infinity
   else if z1 == pos_infinity then z2
   else if z2 == pos_infinity then z1
-  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then neg_zero
+  else if is_zero z1 && is_zero z2 && (sign z1 != sign z2) then neg_zero
   else if cmp Clt z1 z2 then z1 else z2.
 
 Definition fmax (z1 z2 : T) :=
@@ -1746,7 +1746,7 @@ Definition fmax (z1 z2 : T) :=
   else if (z1 == pos_infinity) || (z2 == pos_infinity) then pos_infinity
   else if z1 == neg_infinity then z2
   else if z2 == neg_infinity then z1
-  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then pos_zero
+  else if is_zero z1 && is_zero z2 && (sign z1 != sign z2) then pos_zero
   else if cmp Cgt z1 z2 then z1 else z2.
 
 Definition fcopysign (f1 f2 : T) :=
