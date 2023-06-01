@@ -131,7 +131,9 @@ Definition pp_f32 (f : float32) : string :=
   match BinIntDef.Z.to_N ((Float32.to_bits f).(Integers.Int.intval)) with
   | BinNums.N0 => "0"
   | BinNums.Npos p =>
-    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (bool_list_of_pos nil p))
+    let bools := pp_bools nil (bool_list_of_pos nil p) in
+    bytes_pp.hex_small_no_prefix_of_bytes_compact bools ++ " " ++
+    bytes_pp.hex_small_no_prefix_of_bytes_compact_bin bools
   end.
 
 Definition pp_f64 (f : float) : string :=
