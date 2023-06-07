@@ -1,11 +1,12 @@
 (** Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import common opsem properties tactic type_preservation type_progress.
+From Wasm Require Import common opsem properties tactic.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
 Require Import BinNat.
+From Wasm Require Import typing_inversion.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -3478,6 +3479,12 @@ Proof.
     apply LfilledRec; first by apply const_list_split in H1 as [??].
     by apply H4.
 Qed.
+
+Definition terminal_form (es: seq administrative_instruction) :=
+  const_list es \/ es = [::AI_trap].
+
+Definition not_lf_return (es: seq administrative_instruction) (n: nat) :=
+  forall lh, ~ lfilled n lh [::AI_basic BI_return] es.
 
 (* XXX do not separate vcs and es? *)
 Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),

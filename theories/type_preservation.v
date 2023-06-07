@@ -4,7 +4,7 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export operations datatypes_properties typing opsem properties.
+From Wasm Require Export operations datatypes_properties typing opsem properties typing_inversion tactic.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -63,332 +63,7 @@ Proof.
   by apply properties.b_e_elim.
 Qed.
 
-Lemma upd_label_overwrite: forall C l1 l2,
-    upd_label (upd_label C l1) l2 = upd_label C l2.
-Proof.
-  by [].
-Qed.
-
-(*
-  These proofs are largely similar.
-  A sensible thing to do is to make tactics for all of them.
-  However, some of the proofs depend on the previous ones...
-*)
-
-Lemma BI_const_typing: forall C econst t1s t2s,
-    be_typing C [::BI_const econst] (Tf t1s t2s) ->
-    t2s = t1s ++ [::typeof econst].
-Proof.
-  move => C econst t1s t2s HType.
-  gen_ind_subst HType => //.
-  - apply extract_list1 in H1; inversion H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - rewrite - catA. f_equal.
-    + intros. by subst.
-    + by eapply IHHType.
-Qed.
-
-Lemma BI_const2_typing: forall C econst1 econst2 t1s t2s,
-    be_typing C [::BI_const econst1; BI_const econst2] (Tf t1s t2s) ->
-    t2s = t1s ++ [::typeof econst1; typeof econst2].
-Proof.
-  move => C econst1 econst2 t1s t2s HType.
-  gen_ind_subst HType => //.
-  - apply extract_list2 in H1; inversion H1; subst.
-    apply BI_const_typing in HType1; subst.
-    apply BI_const_typing in HType2; subst.
-    by rewrite -catA.
-  - rewrite - catA. f_equal.
-    + intros. by subst.
-    + by eapply IHHType.
-Qed.
-
-Lemma BI_const3_typing: forall C econst1 econst2 econst3 t1s t2s,
-    be_typing C [::BI_const econst1; BI_const econst2; BI_const econst3] (Tf t1s t2s) ->
-    t2s = t1s ++ [::typeof econst1; typeof econst2; typeof econst3].
-Proof.
-  move => C econst1 econst2 econst3 t1s t2s HType.
-  gen_ind_subst HType => //.
-  - apply extract_list3 in H1; inversion H1; subst.
-    apply BI_const2_typing in HType1; subst.
-    apply BI_const_typing in HType2; subst.
-    by rewrite -catA.
-  - rewrite - catA. f_equal.
-    + intros. by subst.
-    + by eapply IHHType.
-Qed.
-
-Lemma Const_list_typing_empty: forall C vs,
-    be_typing C (to_b_list (v_to_e_list vs)) (Tf [::] (vs_to_vts vs)).
-Proof.
-  move => C vs.
-  generalize dependent vs.
-  induction vs => //=.
-  - by apply bet_empty.
-  - rewrite - cat1s.
-    replace (typeof a :: vs_to_vts vs) with ([::typeof a] ++ vs_to_vts vs) => //.
-    eapply bet_composition'; eauto; first by apply bet_const.
-    by apply bet_weakening_empty_1.
-Qed.
-
-Lemma Unop_typing: forall C t op t1s t2s,
-    be_typing C [::BI_unop t op] (Tf t1s t2s) ->
-    t1s = t2s /\ exists ts, t1s = ts ++ [::t].
-Proof.
-  move => C t op t1s t2s HType.
-  gen_ind_subst HType.
-  - split => //=. by exists [::].
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    split => //=.
-    destruct H0 as [ts' H0].
-    exists (ts ++ ts').
-    rewrite - catA.
-    by rewrite H0.
-Qed.
-
-Lemma Binop_typing: forall C t op t1s t2s,
-    be_typing C [::BI_binop t op] (Tf t1s t2s) ->
-    t1s = t2s ++ [::t] /\ exists ts, t2s = ts ++ [::t].
-Proof.
-  move => C t op t1s t2s HType.
-  gen_ind_subst HType.
-  - split => //=. by exists [::].
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    split => //=.
-    + destruct H0 as [ts' H0].
-      by rewrite - catA.
-    + destruct H0 as [ts' H0].
-      exists (ts ++ ts').
-      subst.
-      by rewrite - catA.
-Qed.
-
-Lemma Testop_typing: forall C t op t1s t2s,
-    be_typing C [::BI_testop t op] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t] /\ t2s = ts ++ [::T_i32].
-Proof.
-  move => C t op t1s t2s HType.
-  gen_ind_subst HType.
-  - by exists [::].
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    destruct H as [ts' H]. subst.
-    exists (ts ++ x).
-    by repeat rewrite - catA.
-Qed.
-
-(* XXX right place for this? *)
-Lemma Testop_typing_is_int_t: forall C t op t1s t2s,
-    be_typing C [::BI_testop t op] (Tf t1s t2s) ->
-    is_int_t t.
-Proof.
-  move => C t op t1s t2s HType.
-  destruct t => //.
-  - gen_ind_subst HType => //.
-    * eapply IHHType2 => //.
-      by apply extract_list1 in Econs as [??]; subst e.
-    * eapply IHHType => //.
-  - gen_ind_subst HType => //.
-    * eapply IHHType2 => //.
-      by apply extract_list1 in Econs as [??]; subst e.
-    * eapply IHHType => //.
-Qed.
-
-Lemma Relop_typing: forall C t op t1s t2s,
-    be_typing C [::BI_relop t op] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t; t] /\ t2s = ts ++ [::T_i32].
-Proof.
-  move => C t op t1s t2s HType.
-  gen_ind_subst HType.
-  - by exists [::].
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    destruct H as [ts' H]. subst.
-    exists (ts ++ x).
-    by repeat rewrite - catA.
-Qed.
-
-Lemma Cvtop_typing: forall C t1 t2 op sx t1s t2s,
-    be_typing C [::BI_cvtop t2 op t1 sx] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t1] /\ t2s = ts ++ [::t2].
-Proof.
-  move => C t1 t2 op sx t1s t2s HType.
-  gen_ind_subst HType.
-  - by exists [::].
-  - by exists [::].
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    destruct H as [ts' H]. subst.
-    exists (ts ++ x).
-    by repeat rewrite - catA.
-Qed.
-
-(* TODO move this to a different file?
- * interpreter_func.v?
- * or move all typing inversion lemmas out to a common file? *)
-Lemma Cvtop_reinterpret_typing: forall C t1 t2 sx t1s t2s,
-    be_typing C [::BI_cvtop t2 CVO_reinterpret t1 sx] (Tf t1s t2s) ->
-    sx = None.
-Proof.
-  move => C t1 t2 sx t1s t2s HType.
-  gen_ind_subst HType => //.
-  - apply extract_list1 in H1; destruct H1; subst.
-    by eapply IHHType2.
-  - by edestruct IHHType.
-Qed.
-
-Lemma Nop_typing: forall C t1s t2s,
-    be_typing C [::BI_nop] (Tf t1s t2s) ->
-    t1s = t2s.
-Proof.
-  move => C t1s t2s HType.
-  gen_ind_subst HType => //.
-  - apply extract_list1 in Econs; destruct Econs; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - f_equal. by eapply IHHType.
-Qed.
-
-Lemma Drop_typing: forall C t1s t2s,
-    be_typing C [::BI_drop] (Tf t1s t2s) ->
-    exists t, t1s = t2s ++ [::t].
-Proof.
-  move => C t1s t2s HType.
-  gen_ind_subst HType => //=.
-  - by eauto.
-  - apply extract_list1 in Econs; destruct Econs; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    exists x. repeat rewrite -catA. by f_equal.
-Qed.
-
-Lemma Select_typing: forall C t1s t2s,
-    be_typing C [::BI_select] (Tf t1s t2s) ->
-    exists ts t, t1s = ts ++ [::t; t; T_i32] /\ t2s = ts ++ [::t].
-Proof.
-  move => C t1s t2s HType.
-  gen_ind_subst HType => //.
-  - by exists [::], t.
-  - apply extract_list1 in Econs; destruct Econs; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    edestruct H as [x2 [H3 H4]]; subst.
-    exists (ts ++ x), x2. by split; repeat rewrite -catA.
-Qed.
-
-Lemma If_typing: forall C t1s t2s e1s e2s ts ts',
-    be_typing C [::BI_if (Tf t1s t2s) e1s e2s] (Tf ts ts') ->
-    exists ts0, ts = ts0 ++ t1s ++ [::T_i32] /\ ts' = ts0 ++ t2s /\
-                be_typing (upd_label C ([:: t2s] ++ tc_label C)) e1s (Tf t1s t2s) /\
-                be_typing (upd_label C ([:: t2s] ++ tc_label C)) e2s (Tf t1s t2s).
-Proof.
-  move => C t1s t2s e1s e2s ts ts' HType.
-  gen_ind_subst HType.
-  - by exists [::].
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1. subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=; subst.
-    destruct H as [H1 [H2 [H3 H4]]]. subst.
-    exists (ts ++ x).
-    repeat rewrite -catA.
-    repeat split => //=.
-Qed.
-
-Lemma Br_if_typing: forall C ts1 ts2 i,
-    be_typing C [::BI_br_if i] (Tf ts1 ts2) ->
-    exists ts ts', ts2 = ts ++ ts' /\ ts1 = ts2 ++ [::T_i32] /\ i < length (tc_label C) /\ plop2 C i ts'.
-Proof.
-  move => C ts1 ts2 i HType.
-  gen_ind_subst HType.
-  - unfold plop2 in H0.
-    by exists [::], ts2.
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - rewrite -catA. f_equal => //=.
-    edestruct IHHType => //=.
-    destruct H as [ts' [H1 [H2 [H3 H4]]]].
-    exists (ts ++ x), ts'. subst.
-    split.
-    + repeat rewrite -catA. by f_equal.
-    + split => //=.
-Qed.
-
-Lemma Br_table_typing: forall C ts1 ts2 ids i0,
-    be_typing C [::BI_br_table ids i0] (Tf ts1 ts2) ->
-    exists ts1' ts, ts1 = ts1' ++ ts ++ [::T_i32] /\
-                         all (fun i => (i < length (tc_label C)) && (plop2 C i ts)) (ids ++ [::i0]).
-Proof.
-  move => C ts1 ts2 ids i0 HType.
-  gen_ind_subst HType.
-  - by exists t1s, ts.
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [ts' [H1 H2]].
-    exists (ts ++ x), ts'. subst.
-    split => //=.
-    + repeat rewrite -catA. by f_equal => //=.
-Qed.
-
-Lemma Tee_local_typing: forall C i ts1 ts2,
-    be_typing C [::BI_tee_local i] (Tf ts1 ts2) ->
-    exists ts t, ts1 = ts2 /\ ts1 = ts ++ [::t] /\ i < length (tc_local C) /\
-                 List.nth_error (tc_local C) i = Some t.
-Proof.
-  move => C i ts1 ts2 HType.
-  gen_ind_subst HType.
-  - by exists [::], t.
-  - apply extract_list1 in H1; destruct H1; subst.
-    apply empty_typing in HType1; subst.
-    by eapply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [t [H1 [H2 [H3 H4]]]]. subst.
-    exists (ts ++ x), t. subst.
-    repeat (try split => //=).
-    by rewrite -catA.
-Qed.
-
-Lemma Const_list_typing: forall C vs t1s t2s,
-    be_typing C (to_b_list (v_to_e_list vs)) (Tf t1s t2s) ->
-    t2s = t1s ++ (map typeof vs).
-Proof.
-  move => C vs.
-  induction vs => //=; move => t1s t2s HType.
-  - apply empty_typing in HType. subst. by rewrite cats0.
-  - rewrite -cat1s in HType.
-    rewrite -cat1s.
-    apply composition_typing in HType.
-    destruct HType as [ts [ts1' [ts2' [ts3 [H1 [H2 [H3 H4]]]]]]].
-    subst.
-    apply BI_const_typing in H3.
-    apply IHvs in H4.
-    subst.
-    by repeat rewrite catA.
-Qed.
-(*
-  Unlike the above proofs which have a linear dependent structure therefore hard
-    to factorize into a tactic, the following proofs are independent of each other
-    and should therefore be easily refactorable.
-*)
-
+(* TODO use this in itp completeness lemmas? *)
 Ltac invert_be_typing:=
   repeat lazymatch goal with
   | H: (?es ++ [::?e])%list = [::_] |- _ =>
@@ -877,47 +552,6 @@ Proof.
     eapply t_Tee_local_preserve => //=.
 Qed.
 
-Ltac auto_basic :=
-  repeat lazymatch goal with
-  | |- es_is_basic [::AI_basic _; AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _; AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _] =>
-    simpl; repeat split
-  | |- operations.e_is_basic (AI_basic ?e) =>
-    by unfold e_is_basic; exists e
-end.
-
-(* We need this version for dealing with the version of predicate with host. *)
-Ltac basic_inversion' :=
-   repeat lazymatch goal with
-         | H: True |- _ =>
-           clear H
-         | H: es_is_basic (_ ++ _) |- _ =>
-           let Ha := fresh H in
-           let Hb := fresh H in
-           apply basic_concat in H; destruct H as [Ha Hb]
-         | H: es_is_basic [::] |- _ =>
-           clear H
-         | H: es_is_basic [::_] |- _ =>
-           let H1 := fresh H in
-           let H2 := fresh H in
-           try by (unfold es_is_basic in H; destruct H as [H1 H2]; inversion H1)
-         | H: e_is_basic _ |- _ =>
-           inversion H; try by []
-         end.
-
 Lemma t_const_ignores_context: forall s s' C C' es tf,
     const_list es ->
     e_typing s C es tf ->
@@ -963,59 +597,8 @@ Proof.
       by apply bet_const.
 Qed.
 
-
-Lemma Block_typing: forall C t1s t2s es tn tm,
-    be_typing C [::BI_block (Tf t1s t2s) es] (Tf tn tm) ->
-    exists ts, tn = ts ++ t1s /\ tm = ts ++ t2s /\
-               be_typing (upd_label C ([::t2s] ++ (tc_label C))) es (Tf t1s t2s).
-Proof.
-  move => C t1s t2s es tn tm HType.
-  dependent induction HType => //=.
-  - by exists [::].
-  - invert_be_typing.
-    by apply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists (ts ++ x).
-    repeat rewrite -catA.
-    by repeat split => //=.
-Qed.
-
-Lemma Loop_typing: forall C t1s t2s es tn tm,
-    be_typing C [::BI_loop (Tf t1s t2s) es] (Tf tn tm) ->
-    exists ts, tn = ts ++ t1s /\ tm = ts ++ t2s /\
-               be_typing (upd_label C ([::t1s] ++ (tc_label C))) es (Tf t1s t2s).
-Proof.
-  move => C t1s t2s es tn tm HType.
-  dependent induction HType => //=.
-  - by exists [::].
-  - invert_be_typing.
-    by apply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists (ts ++ x).
-    repeat rewrite -catA.
-    by repeat split => //=.
-Qed.
-
-Lemma Break_typing: forall n C t1s t2s,
-    be_typing C [::BI_br n] (Tf t1s t2s) ->
-    exists ts ts0, n < size (tc_label C) /\
-               plop2 C n ts /\
-               t1s = ts0 ++ ts.
-Proof.
-  move => n C t1s t2s HType.
-  dependent induction HType => //=.
-  - by exists ts, t1s0.
-  - invert_be_typing.
-    by eapply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [ts0 [H1 [H2 H3]]]. subst.
-    exists x, (ts ++ ts0).
-    repeat split => //=.
-    by rewrite -catA.
-Qed.
-
+(* XXX these two are duplicated but cant seem to be able to import them from
+ * typing_inversion *)
 Ltac et_dependent_ind H :=
   let Ht := type of H in
   lazymatch Ht with
@@ -1048,382 +631,25 @@ Ltac et_dependent_ind H :=
   | _ => fail "hypothesis not an e_typing relation"
   end; intros; subst.
 
-Lemma Label_typing: forall s C n es0 es ts1 ts2,
-    e_typing s C [::AI_label n es0 es] (Tf ts1 ts2) ->
-    exists ts ts2', ts2 = ts1 ++ ts2' /\
-                    e_typing s C es0 (Tf ts ts2') /\
-                    e_typing s (upd_label C ([::ts] ++ (tc_label C))) es (Tf [::] ts2') /\
-                    length ts = n.
-Proof.
-  move => s C n es0 es ts1 ts2 HType.
-(*  (* Without the powerful generalize_dependent tactic, we need to manually remember
-     the dependent terms. However, it's very easy to mess up the induction hypothesis
-     if variables are not correctly generalized.
-     Reading source: https://stackoverflow.com/questions/58349365/coq-how-to-correctly-remember-dependent-values-without-messing-up-the-inductio 
-     ( the missing letter n at the end of link is not a typo )
-   *)
-  remember ([::Label n es0 es]) as les.
-  remember (Tf ts1 ts2) as tf.
-  generalize dependent Heqtf. generalize dependent ts1. generalize dependent ts2.*)
-  et_dependent_ind HType => //.
-(*  induction HType => //. *)
-  - (* ety_a *)
-    assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
-    rewrite Hremes in H0. by basic_inversion'.
-  - (* ety_composition *)
-    apply extract_list1 in Hremes. destruct Hremes. subst.
-    apply et_to_bet in HType1 => //.
-    simpl in HType1. apply empty_typing in HType1. subst.
-    by eapply IHHType2 => //.
-  - (* ety_weakening *)
-    edestruct IHHType => //.
-    inversion Hremtf; subst.
-    destruct H as [ts2' [H1 [H2 [H3 H4]]]]. subst.
-    by exists x, ts2'; try rewrite catA.     
-  - (* ety_label *)
-    inversion Hremes. inversion Hremtf. subst.
-    by exists ts, ts2.
-Qed.
+(* We need this version for dealing with the version of predicate with host. *)
+Ltac basic_inversion' :=
+   repeat lazymatch goal with
+         | H: True |- _ =>
+           clear H
+         | H: es_is_basic (_ ++ _) |- _ =>
+           let Ha := fresh H in
+           let Hb := fresh H in
+           apply basic_concat in H; destruct H as [Ha Hb]
+         | H: es_is_basic [::] |- _ =>
+           clear H
+         | H: es_is_basic [::_] |- _ =>
+           let H1 := fresh H in
+           let H2 := fresh H in
+           try by (unfold es_is_basic in H; destruct H as [H1 H2]; inversion H1)
+         | H: e_is_basic _ |- _ =>
+           inversion H; try by []
+         end.
 
-(*
-  Looking at what we want to prove in the Lfilled_break case, it might be tempting to
-    prove the following:
-
-Lemma Lfilled_break_typing: forall n lh vs LI ts s C t2s,
-    e_typing s (upd_label C ([::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (Br n)]) LI ->
-    e_typing s C vs (Tf [::] ts).
-
-  The lemma itself is definitely correct, and an apparent approach is to do induction
-    on n (or induction on the lfilled hypothesis).
-
-  However, this will *NOT* work: the culprit is that there is no inductive relationship
-    that changes the instruction (Br n+1) into (Br n), and we will get a useless
-    induction hypothesis that can never be applied.
-
-  We need to somehow avoid getting the parameter of Br into induction. By the lfilled
-    hypothesis, we know LI is a nested Label which, at the innermost level, has (Br n)
-    as its first non-constant instruction, and vs at the top of the value stack.
-
-  Recall that (Br n) looks at the nth entry in the label of the typing context and
-    needs to consume that type. Since we can only induct on the depth of lfilled
-    (but not the n in the instruction), they have to be two separate numbers, say
-    n and m. Now if n is 0, the instruction will basically look at the mth entry;
-    what if n is not 0? In that case if we trace the expansion of LI and simulate
-    how the typing is evaluated, we realize that there will be n entries prepended
-    to the label of the typing context, after which we'll then find the mth element
-    of it due to the (Br m).
-
-  So a more sensible lemma to prove is the following, which the original lemma we
-    wanted is a special case of:
-*)
-
-Lemma Lfilled_break_typing: forall n m k lh vs LI ts s C t2s tss,
-    e_typing s (upd_label C (tss ++ [::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (BI_br m)]) LI ->
-    length tss = k ->
-    n + k = m ->
-    e_typing s C vs (Tf [::] ts).
-Proof.
-  move => n m k lh vs LI ts s C ts2 tss HType HConst HLength HLF HTSSLength HSum.
-  apply const_es_exists in HConst. destruct HConst. subst.
-  move/lfilledP in HLF.
-  generalize dependent ts.
-  generalize dependent ts2.
-  generalize dependent LI.
-  generalize dependent tss.
-  generalize dependent lh.
-  induction n.
-  - move => lh tss LI HLF ts2 ts HType HTSSLength.
-    rewrite add0n in HLF.
-    repeat rewrite catA in HType.
-    inversion HLF.
-    apply const_es_exists in H. destruct H. subst.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    subst. clear H1.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
-    subst.
-    apply e_composition_typing in H7.
-    destruct H7 as [ts0'' [t1s'' [t2s'' [t3s'' [H9 [H10 [H11 H12]]]]]]].
-    subst.
-    apply et_to_bet in H12; try auto_basic.
-    apply Break_typing in H12.
-    destruct H12 as [ts0 [ts1 [H13 [H14 H15]]]]. clear H13.
-    unfold plop2 in H14. simpl in H14. move/eqP in H14. inversion H14. subst.
-    clear H14.
-    apply et_to_bet in H11; last by (apply const_list_is_basic; apply v_to_e_is_const_list).
-    apply Const_list_typing in H11.
-    repeat rewrite length_is_size in HTSSLength.
-    rewrite -catA in H0. rewrite list_nth_prefix in H0. inversion H0. subst. clear H0.
-    assert ((ts1 == t1s'') && (ts0 == vs_to_vts x)).
-    + apply concat_cancel_last_n => //=. rewrite size_map.
-      by rewrite v_to_e_size in HTSSLength.
-    + move/andP in H. destruct H.
-      move/eqP in H0. subst.
-      apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-      by apply Const_list_typing_empty.
-  - move => lh tss LI HLF ts2 ts HType HTSSLength.
-    inversion HLF. subst.
-    repeat rewrite catA in HType.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H2 [H3 [H4 H5]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    clear H2. clear H3.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H6 [H7 [H8 H9]]]]]]].
-    destruct ts0' => //=.
-    destruct t1s' => //=.
-    clear H6. clear H7.
-    apply Label_typing in H9.
-    destruct H9 as [ts0'' [t2s'' [H10 [H11 [H12 H13]]]]]. subst.
-    simpl in H12.
-    rewrite upd_label_overwrite in H12.
-    rewrite -cat1s in H12. repeat rewrite catA in H12.
-    remember ([::ts0''] ++ tss) as tss'. rewrite -catA in H12.
-    replace (n.+1+length tss) with (n + length tss') in H1.
-    eapply IHn => //=.
-    + by apply H1.
-    + by apply H12.
-    (* replace *)
-    assert (length tss' = length tss + 1).
-    { rewrite Heqtss'. rewrite cat1s. simpl. by rewrite addn1. }
-    by lias.
-Qed.
-
-(*
-  And yes, the above observation was obviously the result of some futile attempt
-    to prove the unprovable version of the lemma.
-
-Lemma Lfilled_break_typing: forall n lh vs LI ts s C t2s,
-    e_typing s (upd_label C ([::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (Br n)]) LI ->
-    e_typing s C vs (Tf [::] ts).
-Proof.
-  move => n lh vs LI ts s C ts2 HType HConst HLength HLF.
-  apply const_es_exists in HConst. destruct HConst. subst.
-  move/lfilledP in HLF.
-  generalize dependent ts2.
-  generalize dependent LI.
-  induction n.
-  - move => LI HLF ts2 HType.
-    repeat rewrite catA in HType.
-    inversion HLF.
-    apply const_es_exists in H. destruct H. subst.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    subst. clear H1.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
-    subst.
-    apply e_composition_typing in H7.
-    destruct H7 as [ts0'' [t1s'' [t2s'' [t3s'' [H9 [H10 [H11 H12]]]]]]].
-    subst.
-    apply et_to_bet in H12; last by auto_basic.
-    apply Break_typing in H12.
-    destruct H12 as [ts0 [ts1 [H13 [H14 H15]]]]. clear H13.
-    unfold plop2 in H14. simpl in H14. move/eqP in H14. inversion H14. subst.
-    clear H14.
-    apply et_to_bet in H11; last by (apply const_list_is_basic; apply v_to_e_is_const_list).
-    apply Const_list_typing in H11.
-    repeat rewrite length_is_size in HLength.
-    assert ((ts1 == t1s'') && (ts0 == vs_to_vts x)).
-    + apply concat_cancel_last_n => //=. rewrite size_map.
-      by rewrite v_to_e_size in HLength.
-    + move/andP in H. destruct H.
-      move/eqP in H0. subst.
-      apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-      by apply Const_list_typing_empty.
-  - move => LI HLF ts2 HType.
-    inversion HLF. subst.
-    repeat rewrite catA in HType.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H2 [H3 [H4 H5]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    clear H2. clear H3.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H6 [H7 [H8 H9]]]]]]].
-    destruct ts0' => //=.
-    destruct t1s' => //=.
-    clear H6. clear H7.
-    apply Label_typing in H9.
-    destruct H9 as [ts0'' [t2s'' [H10 [H11 [H12 H13]]]]]. subst.
-    simpl in H12.
-
- *)
-
-Lemma Local_typing: forall s C n f es t1s t2s,
-    e_typing s C [::AI_local n f es] (Tf t1s t2s) ->
-    exists ts, t2s = t1s ++ ts /\
-               s_typing s (Some ts) f es ts /\
-               length ts = n.
-Proof.
-  move => s C n f es t1s t2s HType.
-  remember ([::AI_local n f es]) as les.
-  remember (Tf t1s t2s) as tf.
-  generalize dependent Heqtf. generalize dependent t1s. generalize dependent t2s.
-  induction HType; subst => //.
-  - (* ety_a *)
-    assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
-    rewrite Heqles in H0. by basic_inversion'.
-  - (* ety_composition *)
-    apply extract_list1 in Heqles. destruct Heqles. subst.
-    apply et_to_bet in HType1 => //.
-    simpl in HType1. apply empty_typing in HType1. subst.
-    by eapply IHHType2 => //.
-  - (* ety_weakening *)
-    move => ts2 ts1 HTf.
-    inversion HTf. subst.
-    edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst. 
-    exists x.
-    repeat split => //=.
-    by rewrite catA.
-  - (* ety_local *)
-    inversion Heqles. subst.
-    move => t2s t1s HTf. inversion HTf. subst.
-    by exists t2s.
-Qed.
-
-Lemma Return_typing: forall C t1s t2s,
-    be_typing C [::BI_return] (Tf t1s t2s) ->
-    exists ts ts', t1s = ts' ++ ts /\
-                   tc_return C = Some ts.
-Proof.
-  move => C t1s t2s HType.
-  dependent induction HType => //=.
-  - by exists ts, t1s0.
-  - invert_be_typing.
-    by eapply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [ts' [H1 H2]]. subst.
-    exists x, (ts ++ ts').
-    split => //=.
-    by rewrite -catA.
-Qed.
-
-(*
-  Similarly, Local does not involve in induction either. So what we want to prove
-    is also slightly different from what we desire. However, this one is easier
-    to observe.
-
-  The only thing that got me stuck for a while is to observe that label of the
-    typing context plays no role in typing for this case; this is required since
-    we'll get an extra label update from inverting the Label instruction.
- *)
-
-Lemma Lfilled_return_typing: forall n lh vs LI ts s C lab t2s,
-    e_typing s (upd_label C lab) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic BI_return]) LI ->
-    Some ts = tc_return C ->
-    e_typing s C vs (Tf [::] ts).
-Proof.
-  induction n; move => lh vs LI ts s C lab t2s HType HConst HLength HLF HReturn; move/lfilledP in HLF; inversion HLF; subst => //=.
-  - repeat rewrite catA in HType.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H1 [H2 [H3 H4]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s0 => //=.
-    subst. clear H1.
-    apply e_composition_typing in H3.
-    destruct H3 as [ts1 [t1s1 [t2s1 [t3s1 [H5 [H6 [H7 H8]]]]]]].
-    destruct ts1 => //=.
-    destruct t1s1 => //=.
-    subst. clear H5.
-    apply e_composition_typing in H7.
-    destruct H7 as [ts2 [t1s2 [t2s2 [t3s2 [H9 [H10 [H11 H12]]]]]]].
-    destruct ts2 => //=.
-    destruct t1s2 => //=.
-    subst. clear H9. simpl in H8. simpl in H4.
-    apply et_to_bet in H8; auto_basic. apply Return_typing in H8.
-    destruct H8 as [ts1 [ts2 [H13 H14]]]. subst t2s2.
-
-    assert (ts = ts1). { rewrite -HReturn in H14. by inversion H14. }
-    subst ts1. clear H14.
-
-    (* from H11 : typing.e_typing s (upd_label C lab) vs0 (Tf [::] t3s2) *)
-    (* show : t3s2 = map typeof vs0' *)
-    apply et_to_bet in H11; last by apply const_list_is_basic.
-    (* XXX fragile name H *)
-    apply const_es_exists in H. destruct H as [vs0' ?]. subst vs0.
-    apply Const_list_typing in H11.
-    simpl in H11. subst t3s2.
-
-    (* from H12 : typing.e_typing s (upd_label C lab) vs (Tf t3s2 (ts2 ++ ts1)) *)
-    (* show : ts2 ++ ts1 = t3s2 ++ [seq typeof i | i <- vs'] *)
-    apply et_to_bet in H12; last by apply const_list_is_basic.
-    apply const_es_exists in HConst. destruct HConst as [vs' ?]. subst vs.
-    apply Const_list_typing in H12.
-    simpl in H12.
-
-    assert (ts = vs_to_vts vs') => //. {
-      repeat rewrite length_is_size in HLength.
-      rewrite v_to_e_size in HLength.
-      apply concat_cancel_last_n in H12;
-        last by rewrite size_map.
-      move/andP in H12. destruct H12 as [? H12]. move/eqP in H12.
-      by subst ts.
-    }
-
-    subst ts.
-    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-    by apply Const_list_typing_empty.
-  - repeat rewrite catA in HType.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s0 [t2s0 [t3s0 [H2 [H3 [H4 H5]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s0 => //=.
-    subst. clear H2.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts1 [t1s1 [t2s1 [t3s1 [H6 [H7 [H8 H9]]]]]]].
-    destruct ts1 => //=.
-    destruct t1s1 => //=.
-    subst. clear H6.
-    apply Label_typing in H9.
-    destruct H9 as [ts' [ts2' [H10 [H11 [H12 H13]]]]].
-    subst. simpl in H5.
-    eapply IHn => //.
-    simpl in H12.
-    apply H12.
-    apply/lfilledP.
-    by apply H1.
-Qed.
-
-Lemma Local_return_typing: forall s C vs f LI tf n lh,
-    e_typing s C [:: AI_local (length vs) f LI] tf ->
-    const_list vs ->
-    lfilled n lh (vs ++ [::AI_basic BI_return]) LI ->
-    e_typing s C vs tf.
-Proof.
-  move => s C vs f LI tf n lh HType HConst HLF.
-  destruct tf as [t1s t2s].
-  apply Local_typing in HType.
-  destruct HType as [ts [H1 [H2 H3]]]. subst.
-  inversion H2. inversion H. subst. clear H4. clear H2. clear H.
-  apply et_weakening_empty_1.
-  assert (HET: e_typing s (upd_local_return C2 (tc_local C2 ++ map typeof f.(f_locs)) (Some ts)) vs (Tf [::] ts)).
-  { eapply Lfilled_return_typing; eauto. }
-  apply et_to_bet in HET; last by apply const_list_is_basic.
-  apply const_es_exists in HConst. destruct HConst. subst.
-  apply Const_list_typing in HET; subst => /=.
-  apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-  by apply Const_list_typing_empty.
-Qed.
 
 Theorem t_simple_preservation: forall s i es es' C loc lab ret tf,
     inst_typing s i C ->
@@ -1447,7 +673,7 @@ Proof.
     destruct HType as [ts [t1s' [t2s' [t3s [H2 [H3 [H4 H5]]]]]]]. subst.
     apply const_es_exists in H. destruct H. subst.
     apply Const_list_typing in H4. subst.
-    apply Block_typing in H5.
+    apply (Block_typing host_instance) in H5.
     destruct H5 as [t3s [H6 [H7 H8]]].
     subst.
     repeat rewrite length_is_size in H1. rewrite v_to_e_size in H1.
@@ -1485,7 +711,7 @@ Proof.
     destruct HType as [ts [t1s' [t2s' [t3s [H2 [H3 [H4 H5]]]]]]]. subst.
     apply const_es_exists in H. destruct H. subst.
     apply Const_list_typing in H4. subst.
-    apply Loop_typing in H5.
+    apply (Loop_typing host_instance) in H5.
     destruct H5 as [t3s [H6 [H7 H8]]]. subst.
     repeat rewrite length_is_size in H1. rewrite v_to_e_size in H1.
     assert ((t1s' == t3s) && ((vs_to_vts x) == t1s)) => //=.
@@ -1598,44 +824,6 @@ Proof.
     by eapply t_be_simple_preservation; try by eauto; auto_basic.
 Qed.
 
-Lemma Call_typing: forall j C t1s t2s,
-    be_typing C [::BI_call j] (Tf t1s t2s) ->
-    exists ts t1s' t2s', j < length (tc_func_t C) /\
-    List.nth_error (tc_func_t C) j = Some (Tf t1s' t2s') /\
-                         t1s = ts ++ t1s' /\
-                         t2s = ts ++ t2s'.
-Proof.
-  move => j C t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists [::], t1s, t2s.
-  - invert_be_typing.
-    by apply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [t1s' [t2s' [H1 [H2 [H3 H4]]]]].
-    subst.
-    exists (ts ++ x), t1s', t2s'.
-    repeat rewrite -catA.
-    by repeat (split => //=).
-Qed.
-
-Lemma Call_indirect_typing: forall i C t1s t2s,
-    be_typing C [::BI_call_indirect i] (Tf t1s t2s) ->
-    exists tn tm ts, tc_table C <> nil /\
-    i < length (tc_types_t C) /\
-    List.nth_error (tc_types_t C) i = Some (Tf tn tm) /\
-    t1s = ts ++ tn ++ [::T_i32] /\ t2s = ts ++ tm.
-Proof.
-  move => i C t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists t1s0, t2s, [::].
-  - invert_be_typing.
-    by apply IHHType2 => //=.
-  - edestruct IHHType => //=.
-    destruct H as [tm [ts' [H1 [H2 [H3 [H4 H5]]]]]]. subst.
-    exists x, tm, (ts ++ ts').
-    by repeat rewrite -catA.
-Qed.
-
 Lemma globs_agree_function: forall s,
     function (globals_agree (s_globals s)).
 Proof.
@@ -1700,271 +888,6 @@ Proof.
   move/eqP in H. subst.
   rewrite HN1 in HN2.
   by inversion HN2.
-Qed.
-
-(* TODO move this to a different file? *)
-Lemma Invoke_func_typing: forall s C a t1s t2s,
-    e_typing s C [::AI_invoke a] (Tf t1s t2s) ->
-    exists cl, List.nth_error s.(s_funcs) a = Some cl.
-Proof.
-  move => s C a t1s t2s HType.
-  et_dependent_ind HType => //.
-  - by destruct bes => //=.
-  - apply extract_list1 in Hremes. destruct Hremes. subst.
-    by eapply IHHType2 => //=.
-  - by eapply IHHType => //=.
-  - inversion Hremes; subst; by exists cl.
-Qed.
-
-Lemma Invoke_func_native_typing: forall s i C a cl tn tm ts es t1s t2s,
-    e_typing s C [::AI_invoke a] (Tf t1s t2s) ->
-    List.nth_error s.(s_funcs) a = Some cl ->
-    cl = FC_func_native i (Tf tn tm) ts es ->
-    exists ts' C', t1s = ts' ++ tn /\ t2s = ts' ++ tm /\
-                inst_typing s i C' /\
-               be_typing (upd_local_label_return C' (tc_local C' ++ tn ++ ts) ([::tm] ++ tc_label C') (Some tm)) es (Tf [::] tm).
-Proof.
-  move => s i C a cl tn tm ts es t1s t2s HType HNth Hcl.
-  et_dependent_ind HType => //.
-  - by destruct bes => //=.
-  - apply extract_list1 in Hremes. destruct Hremes. subst.
-    apply et_to_bet in HType1 => //=.
-    apply empty_typing in HType1. subst.
-    by eapply IHHType2 => //=.
-  - inversion Hremtf; subst.
-    edestruct IHHType => //=.
-    destruct H as [C' [H1 [H2 [H3 H4]]]]. subst.
-    exists (ts0 ++ x), C'.
-    by repeat split => //; rewrite catA.
-  - inversion Hremes; subst.
-    rewrite H in HNth.
-    inversion HNth; subst; clear HNth.
-    inversion H0; subst.
-    inversion H9; subst.
-    by exists [::], C.
-Qed.
-
-Lemma Invoke_func_host_typing: forall s C a cl h tn tm t1s t2s,
-    e_typing s C [::AI_invoke a] (Tf t1s t2s) ->
-    List.nth_error s.(s_funcs) a = Some cl ->
-    cl = FC_func_host (Tf tn tm) h ->
-    exists ts, t1s = ts ++ tn /\ t2s = ts ++ tm.
-Proof.
-  move => s C a cl h tn tm t1s t2s HType HNth Hcl.
-  et_dependent_ind HType => //.
-  - by destruct bes => //=.
-  - apply extract_list1 in Hremes. destruct Hremes. subst.
-    apply et_to_bet in HType1 => //=.
-    apply empty_typing in HType1. subst.
-    by eapply IHHType2 => //=.
-  - inversion Hremtf; subst.
-    edestruct IHHType => //=.
-    exists (ts ++ x). destruct H. subst.
-    by split; repeat rewrite catA.
-  - inversion Hremes; subst.
-    rewrite H in HNth.
-    inversion HNth; subst; clear HNth.
-    inversion H0; subst.
-    by exists [::].
-Qed.
-
-Lemma Get_local_typing: forall C i t1s t2s,
-    be_typing C [::BI_get_local i] (Tf t1s t2s) ->
-    exists t, List.nth_error (tc_local C) i = Some t /\
-    t2s = t1s ++ [::t] /\
-    i < length (tc_local C).
-Proof.
-  move => C i t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists t.
-  - invert_be_typing.
-    by apply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists x.
-    repeat split => //=.
-    by rewrite -catA.
-Qed.
-
-Lemma Set_local_typing: forall C i t1s t2s,
-    be_typing C [::BI_set_local i] (Tf t1s t2s) ->
-    exists t, List.nth_error (tc_local C) i = Some t /\
-    t1s = t2s ++ [::t] /\
-    i < length (tc_local C).
-Proof.
-  move => C i t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists t.
-  - invert_be_typing.
-    by apply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists x.
-    repeat split => //=.
-    by rewrite -catA.
-Qed.
-
-Lemma Get_global_typing: forall C i t1s t2s,
-    be_typing C [::BI_get_global i] (Tf t1s t2s) ->
-    exists t, option_map tg_t (List.nth_error (tc_global C) i) = Some t /\
-    t2s = t1s ++ [::t] /\
-    i < length (tc_global C).
-Proof.
-  move => C i t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists t.
-  - invert_be_typing.
-    by apply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists x.
-    repeat split => //=.
-    by rewrite -catA.
-Qed.
-
-Lemma Set_global_typing: forall C i t1s t2s,
-    be_typing C [::BI_set_global i] (Tf t1s t2s) ->
-    exists g t, List.nth_error (tc_global C) i = Some g /\
-    tg_t g = t /\
-    is_mut g /\
-    t1s = t2s ++ [::t] /\
-    i < length (tc_global C).
-Proof.
-  move => C i t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists g, (tg_t g).
-  - invert_be_typing.
-    by apply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [t [H1 [H2 [H3 [H4 H5]]]]]. subst.
-    exists x, (tg_t x).
-    repeat split => //=.
-    by rewrite -catA.
-Qed.
-
-Lemma Load_typing: forall C t a off tp_sx t1s t2s,
-    be_typing C [::BI_load t tp_sx a off] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::T_i32] /\ t2s = ts ++ [::t] /\
-                    tc_memory C <> nil /\
-                    load_store_t_bounds a (option_projl tp_sx) t.
-Proof.
-  move => C t a off tp_sx t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists [::].
-  - invert_be_typing.
-    by eapply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 [H3 H4]]]. subst.
-    exists (ts ++ x).
-    by repeat rewrite -catA.
-Qed.
-
-Lemma Store_typing: forall C t a off tp t1s t2s,
-    be_typing C [::BI_store t tp a off] (Tf t1s t2s) ->
-    t1s = t2s ++ [::T_i32; t] /\
-    tc_memory C <> nil /\
-    load_store_t_bounds a tp t.
-Proof.
-  move => C t a off tp t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - invert_be_typing.
-    by eapply IHHType2.
-  - edestruct IHHType => //=. subst.
-    by repeat rewrite -catA.
-Qed.
-
-Lemma Current_memory_typing: forall C t1s t2s,
-    be_typing C [::BI_current_memory] (Tf t1s t2s) ->
-    tc_memory C <> nil /\ t2s = t1s ++ [::T_i32].
-Proof.
-  move => C t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - invert_be_typing.
-    by eapply IHHType2.
-  - edestruct IHHType => //=. subst.
-    by repeat rewrite -catA.
-Qed.
-
-Lemma Grow_memory_typing: forall C t1s t2s,
-    be_typing C [::BI_grow_memory] (Tf t1s t2s) ->
-    exists ts, tc_memory C <> nil /\ t2s = t1s /\ t1s = ts ++ [::T_i32].
-Proof.
-  move => C t1s t2s HType.
-  dependent induction HType; subst => //=.
-  - by exists [::].
-  - invert_be_typing.
-    by eapply IHHType2.
-  - edestruct IHHType => //=.
-    destruct H as [H1 [H2 H3]]. subst.
-    exists (ts ++ x).
-    by repeat rewrite -catA.
-Qed.
-
-Lemma store_typed_cl_typed: forall s n f,
-    List.nth_error (s_funcs s) n = Some f ->
-    store_typing s ->
-    cl_typing s f (cl_type f).
-Proof.
-  move => s n f HN HST.
-  unfold store_typing in HST.
-  destruct s => //=.
-  remove_bools_options.
-  simpl in HN.
-  destruct HST.
-  (* arrow actually required to avoid ssreflect hijacking the rewrite tactic! *)
-  rewrite -> List.Forall_forall in H.
-  apply List.nth_error_In in HN.
-  apply H in HN. unfold cl_type_check_single in HN. destruct HN.
-  by inversion H1; subst.
-Qed.
-
-Lemma inst_t_context_local_empty: forall s i C,
-    inst_typing s i C ->
-    tc_local C = [::].
-Proof.
-  move => s i C HInstType.
-  unfold inst_typing in HInstType.
-  destruct i => //=.
-  destruct C => //=.
-  by destruct tc_local.
-Qed.
-
-Lemma inst_t_context_label_empty: forall s i C,
-    inst_typing s i C ->
-    tc_label C = [::].
-Proof.
-  move => s i C HInstType.
-  unfold inst_typing in HInstType.
-  destruct i => //=.
-  destruct C => //=.
-  by destruct tc_local; destruct tc_label.
-Qed.
-
-Lemma global_type_reference: forall s i j C v t,
-    inst_typing s i C ->
-    sglob_val s i j = Some v ->
-    option_map tg_t (List.nth_error (tc_global C) j) = Some t ->
-    typeof v = t.
-Proof.
-  move => s i j C v t HInstType Hvref Htref.
-  unfold sglob_val in Hvref.
-  unfold sglob in Hvref.
-  unfold sglob_ind in Hvref.
-  destruct (List.nth_error i.(inst_globs) j) eqn:Hi => //=.
-  remove_bools_options.
-  unfold option_bind in Hoption0.
-  remove_bools_options.
-  unfold inst_typing in HInstType.
-  destruct i => //=. destruct C => //=.
-  destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
-  move/andP in HInstType. destruct HInstType.
-  remove_bools_options.
-  eapply all2_projection in H2; eauto.
-  unfold globals_agree in H2. move/andP in H2. destruct H2.
-  remove_bools_options.
-  simpl in Hi. simpl in Hoption.
-  unfold global_agree in H6.
-  by remove_bools_options.
 Qed.
 
 Lemma upd_label_unchanged: forall C lab,
@@ -2899,7 +1822,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]. subst.
     invert_be_typing.
-    apply Set_global_typing in H4.
+    apply (Set_global_typing host_instance) in H4.
     destruct H4 as [g [t [H5 [H6 [H7 [H8 H9]]]]]].
     apply concat_cancel_last in H8. destruct H8. subst.
     unfold supdate_glob in H.
@@ -2930,7 +1853,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
-    apply Store_typing in H6.
+    apply (Store_typing host_instance) in H6.
     destruct H6 as [H7 [H8 H9]]. subst.
     apply concat_cancel_last_n in H7 => //.
     remove_bools_options.
@@ -2962,7 +1885,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
-    apply Store_typing in H6.
+    apply (Store_typing host_instance) in H6.
     destruct H6 as [H7 [H8 H9]]. subst.
     apply concat_cancel_last_n in H7 => //.
     remove_bools_options.
@@ -2993,7 +1916,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
-    apply Grow_memory_typing in H6.
+    apply (Grow_memory_typing host_instance) in H6.
     destruct H6 as [ts' [H7 [H8 H9]]]. subst.
     apply concat_cancel_last in H9 => //. destruct H9. subst.
     assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
@@ -3071,7 +1994,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [? [? [? Hbet]]]]]]]; subst.
     invert_be_typing.
-    apply Set_local_typing in Hbet as [t [Hnth [Hcat _]]].
+    apply (Set_local_typing host_instance) in Hbet as [t [Hnth [Hcat _]]].
     apply concat_cancel_last in Hcat as [-> <-].
     replace (tc_local C) with ([::]: list value_type) in *; last by symmetry; eapply inst_t_context_local_empty; eauto.
     rewrite H1.
@@ -3113,7 +2036,7 @@ Proof.
     by eapply t_simple_preservation; eauto.
   - (* Call *)
     convert_et_to_bet.
-    apply Call_typing in HType.
+    apply (Call_typing host_instance) in HType.
     destruct HType as [ts [t1s' [t2s' [H1 [H2 [H3 H4]]]]]].
     subst. simpl in H1. simpl in H2.
     apply ety_weakening.
@@ -3129,7 +2052,7 @@ Proof.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H1' [H2 [H3 H4]]]]]]].
     subst.
     invert_be_typing.
-    apply Call_indirect_typing in H4.
+    apply (Call_indirect_typing host_instance) in H4.
     destruct H4 as [tn [tm [ts [H5 [H6 [H7 [H8 H9]]]]]]].
     rewrite catA in H8. apply concat_cancel_last in H8. destruct H8. subst. 
     simpl in *.
@@ -3187,7 +2110,7 @@ Proof.
     by apply result_e_type.
   - (* Get_local *)
     convert_et_to_bet.
-    apply Get_local_typing in HType.
+    apply (Get_local_typing host_instance) in HType.
     destruct HType as [t [H1 [H2 H3]]]. subst.
     apply ety_a'; auto_basic => //=.
     assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
@@ -3203,7 +2126,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
-    apply Set_local_typing in H10.
+    apply (Set_local_typing host_instance) in H10.
     destruct H10 as [t [H4 [H5 H6]]]. subst.
     apply ety_a'; auto_basic => //=.
     assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
@@ -3214,7 +2137,7 @@ Proof.
     by apply bet_empty.
   - (* Get_global *)
     convert_et_to_bet.
-    apply Get_global_typing in HType.
+    apply (Get_global_typing host_instance) in HType.
     destruct HType as [t [H4 [H5 H6]]]. subst.
     apply ety_a'; auto_basic => //=.
     assert (tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
@@ -3230,7 +2153,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
-    apply Set_global_typing in H10.
+    apply (Set_global_typing host_instance) in H10.
     destruct H10 as [g [t [H4 [H5 [H6 [H7 H8]]]]]]. subst.
     apply ety_a'; auto_basic => //=.
     simpl in H8. simpl in H4. simpl.
@@ -3243,7 +2166,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
-    apply Load_typing in H10.
+    apply (Load_typing host_instance) in H10.
     destruct H10 as [ts  [H11 [H12 [H13 H14]]]].
     apply concat_cancel_last in H11. destruct H11. subst.
     eapply t_const_ignores_context => //=.
@@ -3260,7 +2183,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
-    apply Load_typing in H10.
+    apply (Load_typing host_instance) in H10.
     destruct H10 as [ts [H11 [H12 [H13 H14]]]].
     apply concat_cancel_last in H11. destruct H11. subst.
     eapply t_const_ignores_context => //=.
@@ -3277,7 +2200,7 @@ Proof.
       apply composition_typing in HType.
       destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
       invert_be_typing.
-      apply Store_typing in H10.
+      apply (Store_typing host_instance) in H10.
       destruct H10 as [H11 [H12 H13]].
       apply concat_cancel_last_n in H11 => //.
       move/andP in H11. destruct H11. move/eqP in H3. subst.
@@ -3291,7 +2214,7 @@ Proof.
       apply composition_typing in HType.
       destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
       invert_be_typing.
-      apply Store_typing in H10.
+      apply (Store_typing host_instance) in H10.
       destruct H10 as [H11 [H12 H13]].
       apply concat_cancel_last_n in H11 => //.
       move/andP in H11. destruct H11. move/eqP in H3. subst.
@@ -3300,7 +2223,7 @@ Proof.
       by apply bet_empty.
   - (* Current_memory *)
     convert_et_to_bet.
-    apply Current_memory_typing in HType.
+    apply (Current_memory_typing host_instance) in HType.
     destruct HType as [H5 H6]. subst.
     simpl.
     apply ety_a'; auto_basic.
@@ -3312,7 +2235,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
-    apply Grow_memory_typing in H10.
+    apply (Grow_memory_typing host_instance) in H10.
     destruct H10 as [ts [H11 [H12 H13]]]. subst.
     simpl.
     apply ety_a'; auto_basic.
@@ -3325,7 +2248,7 @@ Proof.
     apply composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [H7 [H8 [H9 H10]]]]]]].
     invert_be_typing.
-    apply Grow_memory_typing in H10.
+    apply (Grow_memory_typing host_instance) in H10.
     destruct H10 as [ts [H11 [H12 H13]]]. subst.
     simpl.
     apply ety_a'; auto_basic.

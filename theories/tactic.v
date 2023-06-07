@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Import operations opsem properties type_preservation.
+From Wasm Require Import operations opsem properties typing_inversion.
 
 (** A common pattern in the proof: using an hypothesis on the form [rev l = l'] to rewrite [l]. **)
 Ltac subst_rev_const_list :=

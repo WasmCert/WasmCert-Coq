@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith Omega.
-From Wasm Require Export operations typing datatypes_properties typing opsem properties type_preservation.
+From Wasm Require Export operations typing datatypes_properties typing opsem properties type_preservation typing_inversion.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -233,118 +233,6 @@ Proof.
     simpl in HN. inversion HN. subst. by eauto.
   - destruct l => //=.
     simpl in HN. by apply IHn.
-Qed.
-
-Lemma func_context_store: forall s i C j x,
-    inst_typing s i C ->
-    j < length (tc_func_t C) ->
-    List.nth_error (tc_func_t C) j = Some x ->
-    exists a, List.nth_error i.(inst_funcs) j = Some a.
-Proof.
-  (* TODO: inst_funcs is a fragile name *)
-  move => s i C j x HIT HLength HN.
-  unfold sfunc. unfold operations.sfunc. unfold option_bind.
-  unfold sfunc_ind.
-  unfold inst_typing, typing.inst_typing in HIT.
-  destruct i => //=. destruct C => //=.
-  destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
-  remove_bools_options.
-  remember H3 as H4. clear HeqH4.
-  apply all2_size in H3.
-  repeat rewrite -length_is_size in H3.
-  simpl in HLength.
-  rewrite -H3 in HLength.
-  move/ltP in HLength.
-  apply List.nth_error_Some in HLength.
-  destruct (List.nth_error inst_funcs j) eqn:HN1 => //=.
-  by eexists.
-Qed.
-
-Lemma glob_context_store: forall s i C j g,
-    inst_typing s i C ->
-    j < length (tc_global C) ->
-    List.nth_error (tc_global C) j = Some g ->
-    sglob s i j <> None.
-Proof.
-  (* TODO: inst_globs is a fragile name *)
-  move => s i C j g HIT HLength HN.
-  unfold sglob. unfold operations.sglob. unfold option_bind.
-  unfold sglob_ind.
-  unfold inst_typing, typing.inst_typing in HIT.
-  destruct i => //=. destruct C => //=.
-  destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
-  remove_bools_options.
-  remember H2 as H4. clear HeqH4.
-  apply all2_size in H2.
-  repeat rewrite -length_is_size in H2.
-  simpl in HLength.
-  rewrite -H2 in HLength.
-  move/ltP in HLength.
-  apply List.nth_error_Some in HLength.
-  destruct (List.nth_error inst_globs j) eqn:HN1 => //=.
-  apply List.nth_error_Some.
-  unfold globals_agree in H4.
-  eapply all2_projection in H4; eauto.
-  remove_bools_options.
-  by move/ltP in H4.
-Qed.
-
-Lemma mem_context_store: forall s i C,
-    inst_typing s i C ->
-    tc_memory C <> [::] ->
-    exists n, smem_ind s i = Some n /\
-              List.nth_error (s_mems s) n <> None.
-Proof.
-  (* TODO: inst_memory is a fragile name *)
-  move => s i C HIT HMemory.
-  unfold inst_typing, typing.inst_typing in HIT.
-  destruct i => //=. destruct C => //=.
-  destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
-  remove_bools_options.
-  simpl in HMemory. unfold smem_ind. simpl.
-  remember H0 as H4. clear HeqH4.
-  apply all2_size in H0.
-  destruct inst_memory => //=; first by destruct tc_memory.
-  exists m. split => //.
-  destruct tc_memory => //.
-  simpl in H4.
-  unfold memi_agree in H4.
-  by remove_bools_options.
-Qed.
-
-Lemma store_typing_stabaddr: forall s f C c a,
-  stab_addr s f c = Some a ->
-  inst_typing s f.(f_inst) C ->
-  store_typing s ->
-  exists cl, List.nth_error s.(s_funcs) a = Some cl.
-Proof.
-  move => s f C c a HStab HIT HST.
-  unfold inst_typing, typing.inst_typing in HIT.
-  unfold store_typing, tab_agree, tabcl_agree in HST.
-  unfold stab_addr in HStab.
-  destruct s => //=. destruct f => //=. destruct f_inst. destruct f_inst. destruct C => //=.
-  destruct tc_local => //=. destruct tc_label => //=. destruct tc_return => //=.
-  remove_bools_options.
-  simpl in *. destruct inst_tab0 => //=.
-  unfold stab_index in HStab. unfold option_bind in HStab.
-  remove_bools_options.
-  subst. simpl in *.
-  destruct tc_table => //=.
-  remove_bools_options.
-  destruct HST.
-  destruct H5.
-  rewrite -> List.Forall_forall in H5.
-  assert (HIN1: List.In t0 s_tables).
-  { by apply List.nth_error_In in Hoption0. }
-  apply H5 in HIN1. destruct HIN1 as [HIN1 _].
-  rewrite -> List.Forall_forall in HIN1.
-  assert (HIN2: List.In (Some a) (table_data t0)).
-  { by apply List.nth_error_In in Hoption. }
-  apply HIN1 in HIN2.
-  move/ltP in HIN2.
-  apply List.nth_error_Some in HIN2.
-  destruct (List.nth_error s_funcs a) eqn:HNth => //.
-  by eexists.
 Qed.
 
 (*
