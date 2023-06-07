@@ -1,12 +1,11 @@
 (** Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import common opsem properties tactic.
+From Wasm Require Import common opsem properties tactic typing_inversion.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
 Require Import BinNat.
-From Wasm Require Import typing_inversion.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -67,27 +66,6 @@ Inductive res_step : Type :=
 | RS_break : nat -> list value -> res_step
 | RS_return : list value -> res_step
 | RS_normal : list administrative_instruction -> res_step.
-
-Fixpoint empty_base lh : bool :=
-  match lh with
-  | LH_base [::] [::] => true
-  | LH_rec _ _ _ lh _ => empty_base lh
-  | _ => false
-  end.
-
-Fixpoint empty_vs_base lh : bool :=
-  match lh with
-  | LH_base [::] _ => true
-  | LH_rec _ _ _ lh _ => empty_vs_base lh
-  | _ => false
-  end.
-
-Fixpoint empty_holed lh : bool :=
-  match lh with
-  | LH_base [::] [::] => true
-  | LH_rec [::] _ _ lh [::] => empty_holed lh
-  | _ => false
-  end.
 
 Inductive res_step'
   (hs : host_state) (s : store_record) (f : frame)
@@ -184,134 +162,6 @@ Definition config_tuple := ((host_state * store_record * frame * list administra
 Definition config_one_tuple_without_e := (host_state * store_record * frame * list value)%type.
 
 Definition res_tuple := (host_state * store_record * frame * res_step)%type.
-
-(************ XXX move these to properties once done *************)
-
-(* XXX does this exist elsewhere? *)
-Lemma bet_const' : forall C vs,
-  be_typing C (map BI_const vs) (Tf [::] (map typeof vs)).
-Proof.
-  intros C vs. induction vs as [|vs' v IHvs] using last_ind.
-  - apply bet_empty.
-  - rewrite <- cats1. rewrite map_cat.
-    apply bet_composition with (t2s := map typeof vs') => //.
-    rewrite map_cat.
-    replace (map typeof vs') with ((map typeof vs') ++ [::]) at 1;
-      last by rewrite cats0.
-    by apply bet_weakening; apply bet_const.
-Qed.
-
-Lemma to_b_v_to_e_is_bi_const : forall vs,
-  to_b_list (v_to_e_list vs) = map BI_const vs.
-Proof.
-  induction vs as [|v vs' IH] => //.
-  rewrite <- cat1s.
-  unfold v_to_e_list. unfold to_b_list.
-  unfold v_to_e_list in IH. unfold to_b_list in IH.
-  repeat rewrite map_cat.
-  f_equal => //.
-Qed.
-
-Lemma cats_injective : forall T (s1 : seq T),
-  injective (fun s2 => s1 ++ s2).
-Proof.
-  intros T s1 s2 s2' Heq.
-  induction s1 => //.
-  by injection Heq => //.
-Qed.
-
-Lemma seq_split_predicate : forall (T : eqType) (xs xs' ys ys' : seq T) (y : T) (P : pred T),
-  xs ++ [:: y] ++ ys = xs' ++ ys' ->
-  all P xs ->
-  all P xs' ->
-  ~ P y ->
-  size xs >= size xs'.
-Proof.
-  intros T xs xs' ys ys' y P H HPxs HPxs' HnPy.
-  destruct (size xs < size xs') eqn:Hsize => //; last by lias.
-  exfalso; apply HnPy.
-  apply f_equal with (f := drop (size xs)) in H.
-  rewrite drop_size_cat in H => //.
-  rewrite drop_cat in H.
-  rewrite Hsize in H.
-  assert (size (drop (size xs) xs') > 0). { by rewrite size_drop; lias. }
-  destruct (drop (size xs) xs') as [|x xs''] eqn:Heqdrop => //.
-  assert (List.In x xs').
-  {
-    rewrite <- cat_take_drop with (n0 := size xs).
-    apply List.in_or_app; right.
-    by rewrite Heqdrop; apply List.in_eq.
-  }
-  inversion H; subst x.
-  by apply list_all_forall with (l := xs').
-Qed.
-
-Lemma concat_cancel_first_n: forall (T : eqType) (l1 l2 l3 l4: seq T),
-    l1 ++ l2 = l3 ++ l4 ->
-    size l1 = size l3 ->
-    (l1 == l3) && (l2 == l4).
-Proof.
-  move => T l1 l2 l3 l4 HCat HSize.
-  rewrite -eqseq_cat; first by apply/eqP.
-  assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
-  repeat rewrite size_cat in H.
-  rewrite HSize in H. by lias.
-Qed.
-
-Lemma ves_cat_e_split : forall vs vs' e e' es',
-  vs ++ [:: e] ++ es' = vs' ++ [:: e'] ->
-  const_list vs ->
-  const_list vs' ->
-  ~ is_const e ->
-  vs = vs' /\ e = e' /\ es' = [::].
-Proof.
-  intros vs vs' e e' es' H Hconst Hconst' Hnconst.
-  assert (H' : vs ++ [:: e] ++ es' = vs' ++ [:: e']) => //.
-  apply seq_split_predicate with (P := is_const) in H => //.
-  destruct (size vs' == size vs) eqn:Heqb; move/eqP in Heqb.
-  - apply concat_cancel_first_n in H' => //.
-    move/andP in H'; destruct H' as [Heqvs Heqe'].
-    move/eqP in Heqvs. move/eqP in Heqe'.
-    by inversion Heqe'; split => //.
-  - move/leP in H. apply Lt.le_lt_or_eq in H as [H|] => //.
-    assert (size vs' < size vs). { by lias. }
-    apply f_equal with (f := size) in H'.
-    repeat rewrite size_cat in H'.
-    simpl in H'.
-    by lias.
-Qed.
-
-Lemma es_split_by_non_const : forall vs vs' e es es',
-  vs ++ [:: e] ++ es = vs' ++ es' ->
-  const_list vs ->
-  const_list vs' ->
-  ~ is_const e ->
-  exists vs'', vs = vs' ++ vs''.
-Proof.
-  intros vs vs' e es es' H Hconstvs Hconstvs' Hnconste.
-  assert (Hsize : size vs >= size vs').
-  { by apply (seq_split_predicate H Hconstvs Hconstvs' Hnconste). }
-  exists (drop (size vs') vs).
-  assert (H' : vs ++ e :: es = vs' ++ es') => //.
-  apply f_equal with (f := take (size vs')) in H.
-  rewrite take_cat in H.
-  destruct (size vs' < size vs) eqn:?.
-  - rewrite take_cat ltnn subnn take0 cats0 in H.
-    remember (size vs') as n eqn:Heqn.
-    clear Heqn.
-    subst vs'.
-    by rewrite cat_take_drop.
-  - assert (Heqsize : size vs' = size vs). { by lias. }
-    rewrite Heqsize.
-    rewrite drop_size.
-    rewrite cats0.
-    apply concat_cancel_first_n in H' => //.
-    move/andP in H'.
-    destruct H'.
-    by apply/eqP.
-Qed.
-
-(************ properties *************)
 
 (* TODO use some ltacs from progress/preservation? invert_typeof_vcs etc *)
 
@@ -3441,44 +3291,6 @@ Fixpoint run_v hs s f es (fuel : fuel) : ((host_state * store_record * res)%type
         | _ => (hs, s, R_crash C_error)
         end
   end.
-
-Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
-  lfilledInd i lh (vs_to_es rvs ++ [:: e]) (v_to_e_list vcs ++ es) ->
-  ~ is_const e ->
-  empty_vs_base lh ->
-  exists lh', lfilledInd i lh' [:: e] es.
-Proof.
-  (* XXX fragile names *)
-  induction i as [|i]; intros lh rvs vcs e es Hlf He Hbase.
-  - inversion Hlf; subst.
-    destruct vs => //. simpl in *.
-    rewrite <- catA in H.
-    assert (Heqrvs : exists vcs', vs_to_es rvs = v_to_e_list vcs ++ vcs').
-    { by apply (es_split_by_non_const H) => //; try by apply v_to_e_is_const_list. }
-    destruct Heqrvs as [vcs' Heqrvs]; rewrite Heqrvs in H, Hlf.
-    rewrite <- catA in H.
-    apply cats_injective in H; subst es.
-    exists (LH_base vcs' es').
-    apply LfilledBase.
-    eapply const_list_split.
-    rewrite <- Heqrvs.
-    by apply v_to_e_is_const_list.
-  - inversion Hlf; subst.
-    destruct (split_vals_e LI) as [LIvs LIes] eqn:HsplitLI.
-    apply split_vals_e_v_to_e_duality in HsplitLI. subst LI.
-    destruct (IHi lh' rvs LIvs e LIes H4 He Hbase) as [lh'' Hlf''].
-    assert (Heqvs : exists vcs', vs = v_to_e_list vcs ++ vcs').
-    { by apply (es_split_by_non_const H0) => //; last by apply v_to_e_is_const_list. }
-    destruct Heqvs as [vcs' ->].
-    rewrite <- catA in H0.
-    apply cats_injective in H0; subst es.
-    apply lfilled_collapse1 with (l := 0) in H4 as [lh''' H4] => //;
-      last by apply v_to_e_is_const_list.
-    rewrite subn0 drop_size in H4 => //.
-    eexists.
-    apply LfilledRec; first by apply const_list_split in H1 as [??].
-    by apply H4.
-Qed.
 
 Definition terminal_form (es: seq administrative_instruction) :=
   const_list es \/ es = [::AI_trap].
