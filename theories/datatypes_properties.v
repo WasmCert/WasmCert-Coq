@@ -308,6 +308,16 @@ Definition eqdatainstP : Equality.axiom datainst_eqb :=
 Canonical Structure datainst_eqMixin := EqMixin eqdatainstP.
 Canonical Structure datainst_eqType := Eval hnf in EqType datainst datainst_eqMixin.
 
+Definition exportinst_eq_dec : forall v1 v2 : exportinst, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition exportinst_eqb v1 v2 : bool := exportinst_eq_dec v1 v2.
+Definition eqexportinstP : Equality.axiom exportinst_eqb :=
+  eq_dec_Equality_axiom exportinst_eq_dec.
+
+Canonical Structure exportinst_eqMixin := EqMixin eqexportinstP.
+Canonical Structure exportinst_eqType := Eval hnf in EqType exportinst exportinst_eqMixin.
+
 Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 

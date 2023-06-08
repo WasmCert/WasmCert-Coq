@@ -2,6 +2,7 @@
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 From Coq Require Extraction.
+Extraction Language OCaml.
 
 From Wasm Require Import
   datatypes_properties
@@ -17,7 +18,7 @@ From Coq Require Import
 
 Extraction Language OCaml.
 (*Set Extraction Conservative Types.*)
-
+(*
 Extraction "extract"
   run_parse_module
   Instantiation
@@ -26,3 +27,4 @@ Extraction "extract"
   PP
   DummyHost.
 
+*)

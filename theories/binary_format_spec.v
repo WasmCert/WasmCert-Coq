@@ -6,6 +6,7 @@ Require Import Byte.
 Require Import leb128.
 Require Import Coq.Arith.Le.
 
+(*
 Inductive repr_unsigned : list byte -> module -> Prop :=
 .
 
@@ -21,3 +22,4 @@ Lemma encode_decode_is_identity : forall m,
 (* TODO *)
 Admitted.
 
+*)

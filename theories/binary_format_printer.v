@@ -7,6 +7,7 @@ Require leb128.
 Require Import Coq.Arith.Le.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
+(*
 Definition binary_of_value_type (t : value_type) : byte :=
   match t with
   | T_i32 => x7f
@@ -494,3 +495,4 @@ Definition binary_of_module (m : module) : list byte :=
   only_if_non_nil binary_of_elemsec m.(mod_elem) ++
   only_if_non_nil binary_of_codesec m.(mod_funcs) ++
   only_if_non_nil binary_of_datasec m.(mod_data).
+*)

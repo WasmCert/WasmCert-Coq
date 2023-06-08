@@ -743,6 +743,19 @@ Record datainst : Type := {
   datainst_data : list byte;
 }.
 
+(** std-doc:
+An external value is the runtime representation of an entity that can be imported or exported. It is an address denoting either a function instance, table instance, memory instance, or global instances in the shared store. 
+
+https://www.w3.org/TR/wasm-core-2/exec/runtime.html#external-values
+
+Not to be confused with module_export_desc, despite them having a similar construction.
+ *)
+Inductive externval : Type :=
+| EV_func : funcaddr -> externval
+| EV_table : tableaddr -> externval
+| EV_mem : memaddr -> externval
+| EV_global : globaladdr -> externval.
+
 
 (** std-doc:
 An export instance is the runtime representation of an export. It defines the export’s 
@@ -752,9 +765,8 @@ name and the associated external value.
 *)
 Record exportinst : Type := {
   exportinst_name: name;
-  exportinst_val: value;
+  exportinst_val: externval;
 }.
-
 
 (** std-doc:
 A module instance is the runtime representation of a module. It is created by

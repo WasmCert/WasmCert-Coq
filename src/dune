@@ -1,26 +1,26 @@
-(executable
-  (name wasm_interpreter)
-  (libraries cmdliner linenoise)
-  (modes (best exe)))
+;(executable
+;  (name wasm_interpreter)
+;  (libraries cmdliner linenoise)
+;  (modes (best exe)))
 
-(install
-  (package wasm_interpreter)
-  (section bin)
-  (files (wasm_interpreter.exe as wasm_interpreter)))
+;(install
+;  (package wasm_interpreter)
+;  (section bin)
+;  (files (wasm_interpreter.exe as wasm_interpreter)))
 
-(rule
-	(targets "extract.ml" "extract.mli")
-	(deps "../theories/extraction.vo" "extract.patch")
-	(action
-		(progn
-			(run cp "../extract.ml" "../extract.mli" "./")
-			(run chmod "u+w" "./extract.ml")
-			; What follows is a dirty trick to try to fix Coq’s output and make it accepted by OCaml… (see issue https://github.com/coq/coq/issues/12813 )
-			(run patch extract.ml extract.patch)
-			(run chmod "a-w" "./extract.ml")
-		)))
-
-(env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
+;(rule
+;	(targets "extract.ml" "extract.mli")
+;	(deps "../theories/extraction.vo" "extract.patch")
+;	(action
+;		(progn
+;			(run cp "../extract.ml" "../extract.mli" "./")
+;			(run chmod "u+w" "./extract.ml")
+;			; What follows is a dirty trick to try to fix Coq’s output and make it accepted by OCaml… (see issue https://github.com/coq/coq/issues/12813 )
+;			(run patch extract.ml extract.patch)
+;			(run chmod "a-w" "./extract.ml")
+;		)))
+;
+;(env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
 ; Removing the following warnings:
 ; - 50: unattached documentation comment, as it doesn’t fit the way we document our code.
 ; - 39: unused rec flag, as Coq generates a lot of these in its extraction.
