@@ -145,74 +145,74 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
   be_typing (upd_label C ([::tm] ++ (tc_label C))) es2 (Tf tn tm) ->
   be_typing C [::BI_if tb es1 es2] (Tf (tn ++ [::T_num T_i32]) tm)
 | bet_br : forall C i t1s ts t2s,
-  List.nth_error C.(tc_label) (N.to_nat i) = Some ts ->
+  lookup_N C.(tc_label) i = Some ts ->
   be_typing C [::BI_br i] (Tf (t1s ++ ts) t2s)
 | bet_br_if : forall C i ts,
-  List.nth_error C.(tc_label) (N.to_nat i) = Some ts ->
+  lookup_N C.(tc_label) i = Some ts ->
   be_typing C [::BI_br_if i] (Tf (ts ++ [::T_num T_i32]) ts)
 | bet_br_table : forall C i ins ts t1s t2s,
-  List.Forall (fun i => (List.nth_error C.(tc_label) (N.to_nat i) = Some ts)) (ins ++ [::i])  ->
+  List.Forall (fun i => (lookup_N C.(tc_label) i = Some ts)) (ins ++ [::i])  ->
   be_typing C [::BI_br_table ins i] (Tf (t1s ++ (ts ++ [::T_num T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
   tc_return C = Some ts ->
   be_typing C [::BI_return] (Tf (app t1s ts) t2s)
 | bet_call : forall C i tf,
-  List.nth_error (tc_func C) (N.to_nat i) = Some tf ->
+  lookup_N (tc_func C) i = Some tf ->
   be_typing C [::BI_call i] tf
 | bet_call_indirect : forall C x y tabtype t1s t2s,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   tabtype.(tt_elem_type) = T_funcref ->
-  List.nth_error (tc_type C) (N.to_nat y) = Some (Tf t1s t2s) ->
+  lookup_N (tc_type C) y = Some (Tf t1s t2s) ->
   be_typing C [::BI_call_indirect x y] (Tf (t1s ++ [::T_num T_i32]) t2s)
 | bet_local_get : forall C x t,
-  List.nth_error (tc_local C) (N.to_nat x) = Some t ->
+  lookup_N (tc_local C) x = Some t ->
   be_typing C [::BI_local_get x] (Tf [::] [::t])
 | bet_local_set : forall C x t,
-  List.nth_error (tc_local C) (N.to_nat x) = Some t ->
+  lookup_N (tc_local C) x = Some t ->
   be_typing C [::BI_local_set x] (Tf [::t] [::])
 | bet_local_tee : forall C x t,
-  List.nth_error (tc_local C) (N.to_nat x) = Some t ->
+  lookup_N (tc_local C) x = Some t ->
   be_typing C [::BI_local_tee x] (Tf [::t] [::t])
 | bet_global_get : forall C x t,
-  option_map tg_t (List.nth_error (tc_global C) (N.to_nat x)) = Some t ->
+  option_map tg_t (lookup_N (tc_global C) x) = Some t ->
   be_typing C [::BI_global_get x] (Tf [::] [::t])
 | bet_global_set : forall C x g t,
-  List.nth_error (tc_global C) (N.to_nat x) = Some g ->  
+  lookup_N (tc_global C) x = Some g ->  
   tg_t g = t ->
   is_mut g ->
   be_typing C [::BI_global_set x] (Tf [::t] [::])
 | bet_table_get : forall C x tabtype t,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_get x] (Tf [::T_num T_i32] [::T_ref t])
 | bet_table_set : forall C x tabtype t,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_set x] (Tf [::T_num T_i32; T_ref t] [::])
 | bet_table_size : forall C x tabtype,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   be_typing C [::BI_table_size x] (Tf [::] [::T_num T_i32])
 | bet_table_grow : forall C x tabtype t,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_grow x] (Tf [::T_ref t; T_num T_i32] [::T_num T_i32])
 | bet_table_fill : forall C x tabtype t,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_fill x] (Tf [::T_num T_i32; T_ref t; T_num T_i32] [::T_num T_i32])
 | bet_table_copy : forall C x y tabtype1 tabtype2 t,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype1 ->
+  lookup_N (tc_table C) x = Some tabtype1 ->
   tabtype1.(tt_elem_type) = t ->
-  List.nth_error (tc_table C) (N.to_nat y) = Some tabtype2 ->
+  lookup_N (tc_table C) y = Some tabtype2 ->
   tabtype2.(tt_elem_type) = t ->
   be_typing C [::BI_table_copy x y] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
 | bet_table_init : forall C x y tabtype t,
-  List.nth_error (tc_table C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_table C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
-  List.nth_error (tc_elem C) (N.to_nat y) = Some t ->
+  lookup_N (tc_elem C) y = Some t ->
   be_typing C [::BI_table_init x y] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
 | bet_elem_drop : forall C x t,
-  List.nth_error (tc_elem C) (N.to_nat x) = Some t ->
+  lookup_N (tc_elem C) x = Some t ->
   be_typing C [::BI_elem_drop x] (Tf [::] [::])
 | bet_load : forall C a off tp_sx t,
   tc_memory C <> nil ->
@@ -265,24 +265,24 @@ https://www.w3.org/TR/wasm-core-2/appendix/properties.html#store-validity
 Section Store_validity.
 
 Definition funci_agree (fs : seq function_closure) (n : funcaddr) (f : function_type) : bool :=
-  option_map cl_type (List.nth_error fs n) == Some f.
+  option_map cl_type (lookup_N fs n) == Some f.
 
 Definition tab_typing (t : tableinst) (tt : table_type) : bool :=
   (tt.(tt_limits).(lim_min) <= tab_size t) &&
   (t.(tableinst_type) == tt).
 
 Definition tabi_agree (ts: list tableinst) (n : tableaddr) (tab_t : table_type) : bool :=
-  option_map (fun tab => tab_typing tab tab_t) (List.nth_error ts n) == Some true.
+  option_map (fun tab => tab_typing tab tab_t) (lookup_N ts n) == Some true.
 
 Definition mem_typing (m : meminst) (m_t : memory_type) : bool :=
   (N.leb m_t.(lim_min) (mem_size m)) &&
   (m.(meminst_type) == m_t).
 
 Definition memi_agree (ms : list meminst) (n : memaddr) (mem_t : memory_type) : bool :=
-  option_map (fun mem => mem_typing mem mem_t) (List.nth_error ms n) == Some true.
+  option_map (fun mem => mem_typing mem mem_t) (lookup_N ms n) == Some true.
 
 Definition globali_agree (gs : list globalinst) (n : globaladdr) (tg : global_type) : bool :=
-  option_map g_type (List.nth_error gs n) == Some tg.
+  option_map g_type (lookup_N gs n) == Some tg.
 
 (* TODO: figure out what's missing for elem/data/ref *)
 (** std-doc:
@@ -372,7 +372,7 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   funci_agree s.(s_funcs) a tf ->
   e_typing s C [::AI_ref a] (Tf [::] [::T_ref T_funcref])
 | ety_invoke : forall s (a: funcaddr) C cl tf,
-  List.nth_error s.(s_funcs) a = Some cl ->
+  lookup_N s.(s_funcs) a = Some cl ->
   cl_typing s cl tf ->
   e_typing s C [::AI_invoke a] tf
 | ety_label : forall s C e0s es ts t2s n,

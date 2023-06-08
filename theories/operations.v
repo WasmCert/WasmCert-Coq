@@ -14,7 +14,8 @@ Unset Printing Implicit Defensive.
 Section Host.
 
 (* It is possible that we need an efficient lookup where the address is of type N instead. 
-   Use this function for a placeholder instead of using List.nth_error directly. *)
+   Use this function for a placeholder instead of using List.nth_error directly for easier
+   updates in the future. *)
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
   List.nth_error l (N.to_nat n).
   
@@ -34,11 +35,14 @@ Definition limit_valid_range (lim: limits) (k: N) : bool :=
     | None => true
     end.
 
+(* This is no longer a part of 2.0 spec. However, some instructions
+   still refer to a limit simply being 'valid' without specifying a range. *)
 Definition limit_valid (lim: limits) : bool :=
   match lim.(lim_max) with
   | Some lmax => N.leb lim.(lim_min) lmax
   | None => true
-  end.
+end.
+
 
 
 (** read `len` bytes from `m` starting at `start_idx` *)
@@ -124,8 +128,9 @@ Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option b
   then read_bytes m (N.add n off) l
   else None.
 
+(* TODO: implement sign extension *)
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
+  bs.
 (* TODO
   let: msb := msb (msbyte bytes) in
   let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
@@ -633,6 +638,9 @@ Definition const_list (es : list administrative_instruction) : bool :=
 Definition those_const_list (es : list administrative_instruction) : option (list value) :=
   those (List.map e_to_v es).
 
+
+(** Store extensions **)
+
 Definition func_extension (f1 f2: function_closure) : bool :=
   f1 == f2.
 
@@ -733,7 +741,7 @@ Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
     (e :: es', es'')
   end.
 
-(* TODO: eliminate the use of this *)
+(* TODO: eliminate the use of this? *)
 Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   oapp f b ao.
 
@@ -754,7 +762,8 @@ Definition result_to_stack (r : result) :=
   | result_trap => [:: AI_trap]
   end.
 
-
+(* Experiment usage of dependent types for lfilled now. It's possible to switch 
+   back to the old version if this causes unexpected difficulties in proofs. *)
 Fixpoint lfill {k: nat} (lh : lholed k) (es : list administrative_instruction) : list administrative_instruction :=
   match lh with
   | LH_base vs es' => (v_to_e_list vs ++ es ++ es')

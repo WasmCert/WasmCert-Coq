@@ -12,10 +12,6 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Lemmas **)
 
-Section Host.
-
-Variable host_function : eqType.
-
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
@@ -393,8 +389,6 @@ Lemma list_nth_prefix: forall {X:Type} (l1 l2: seq X) x,
 Proof.
   move => X. by induction l1 => //=.
 Qed.
-
-End Host.
 
 
 (** * Tactics **)
@@ -857,7 +851,13 @@ Definition lfilled_pickable_rec : forall es,
 Proof.
   move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
-*)
+ *)
+
+Lemma lfilled_decidable {k: nat}: forall (lh: lholed k) es es',
+  decidable (lfilled lh es es').
+Proof.
+  intros; by decidable_equality.
+Qed.
 
 (* A reformulation of [ety_a] that is easier to be used. *)
 Lemma ety_a': forall s C es ts,

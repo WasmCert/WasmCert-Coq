@@ -193,24 +193,24 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 (** calling operations **)
 | r_call :
   forall s f (i: funcidx) a hs,
-    List.nth_error f.(f_inst).(inst_funcs) (N.to_nat i) = Some a ->
+    lookup_N f.(f_inst).(inst_funcs) i = Some a ->
     reduce hs s f [::AI_basic (BI_call i)] hs s f [::AI_invoke a]
 | r_call_indirect_success :
   forall s f x (y: typeidx) a cl i hs,
     stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_func a) ->
-    List.nth_error s.(s_funcs) (N.to_nat a) = Some cl ->
-    List.nth_error f.(f_inst).(inst_types) (N.to_nat y) = Some (cl_type cl) ->
+    lookup_N s.(s_funcs) a = Some cl ->
+    lookup_N f.(f_inst).(inst_types) y = Some (cl_type cl) ->
     reduce hs s f [::$VAN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_invoke a]
 | r_call_indirect_failure1 :
   forall s f x (y: typeidx) a cl i hs,
     stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_func a) ->
-    List.nth_error s.(s_funcs) (N.to_nat a) = Some cl ->
-    List.nth_error f.(f_inst).(inst_types) (N.to_nat y) <> Some (cl_type cl) ->
+    lookup_N s.(s_funcs) a = Some cl ->
+    lookup_N f.(f_inst).(inst_types) y <> Some (cl_type cl) ->
     reduce hs s f [::$VAN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
 | r_call_indirect_failure2 :
   forall s f x (y: typeidx) a i hs,
     stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_func a) ->
-    List.nth_error s.(s_funcs) (N.to_nat a) = None ->
+    lookup_N s.(s_funcs) a = None ->
     reduce hs s f [::$VAN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
 | r_call_indirect_failure3 :
   forall s f x (y: typeidx) i hs,
@@ -222,7 +222,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     reduce hs s f [::$VAN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
 | r_invoke_native :
   forall a cl t1s t2s ts es ves vcs n m k zs s f f' i hs,
-    List.nth_error s.(s_funcs) (N.to_nat a) = Some cl ->
+    lookup_N s.(s_funcs) a = Some cl ->
     cl = FC_func_native i (Tf t1s t2s) ts es ->
     ves = v_to_e_list vcs ->
     length vcs = n ->
@@ -401,7 +401,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     ((Wasm_int.N_of_uint i32m src) + (Wasm_int.N_of_uint i32m n) <= elem_size elem) ->
     ((Wasm_int.N_of_uint i32m dst) + (Wasm_int.N_of_uint i32m n) <= tab_size tab) ->
     n <> Wasm_int.int_zero i32m ->
-    List.nth_error elem.(eleminst_elem) (Wasm_int.N_of_uint i32m src) = Some v ->
+    lookup_N elem.(eleminst_elem) (Wasm_int.N_of_uint i32m src) = Some v ->
     Wasm_int.N_of_uint i32m n' = N.sub (Wasm_int.N_of_uint i32m n) 1 ->
     Wasm_int.N_of_uint i32m src' = N.add (Wasm_int.N_of_uint i32m src) 1 ->
     Wasm_int.N_of_uint i32m dst' = N.add (Wasm_int.N_of_uint i32m dst) 1 ->
@@ -417,72 +417,72 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 | r_load_success :
   forall s i f t bs k a off m hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     load m (Wasm_int.N_of_uint i32m k) off (tnum_length t) = Some bs ->
     reduce hs s f [::$VAN (VAL_int32 k); AI_basic (BI_load t None a off)] hs s f [::$VAN (wasm_deserialise bs t)]
 | r_load_failure :
   forall s i f t k a off m hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     load m (Wasm_int.N_of_uint i32m k) off (tnum_length t) = None ->
     reduce hs s f [::$VAN (VAL_int32 k); AI_basic (BI_load t None a off)] hs s f [::AI_trap]
 | r_load_packed_success :
   forall s i f t tp k a off m bs sx hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (tnum_length t) = Some bs ->
     reduce hs s f [::$VAN (VAL_int32 k); AI_basic (BI_load t (Some (tp, sx)) a off)] hs s f [::$VAN (wasm_deserialise bs t)]
 | r_load_packed_failure :
   forall s i f t tp k a off m sx hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (tnum_length t) = None ->
     reduce hs s f [::$VAN (VAL_int32 k); AI_basic (BI_load t (Some (tp, sx)) a off)] hs s f [::AI_trap]
 | r_store_success :
   forall t v s i f mem' k a off m hs,
     typeof_num v = t ->
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     store m (Wasm_int.N_of_uint i32m k) off (bits v) (tnum_length t) = Some mem' ->
     reduce hs s f [::$VAN (VAL_int32 k); $VAN v; AI_basic (BI_store t None a off)] hs (upd_s_mem s (set_nth mem' s.(s_mems) i mem')) f [::]
 | r_store_failure :
   forall t v s i f m k off a hs,
     typeof_num v = t ->
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     store m (Wasm_int.N_of_uint i32m k) off (bits v) (tnum_length t) = None ->
     reduce hs s f [::$VAN (VAL_int32 k); $VAN v; AI_basic (BI_store t None a off)] hs s f [::AI_trap]
 | r_store_packed_success :
   forall t v s i f m k off a mem' tp hs,
     typeof_num v = t ->
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = Some mem' ->
     reduce hs s f [::$VAN (VAL_int32 k); $VAN v; AI_basic (BI_store t (Some tp) a off)] hs (upd_s_mem s (set_nth mem' s.(s_mems) i mem')) f [::]
 | r_store_packed_failure :
   forall t v s i f m k off a tp hs,
     typeof_num v = t ->
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = None ->
     reduce hs s f [::$VAN (VAL_int32 k); $VAN v; AI_basic (BI_store t (Some tp) a off)] hs s f [::AI_trap]
 | r_memory_size :
   forall i f m n s hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     mem_size m = n ->
     reduce hs s f [::AI_basic (BI_memory_size)] hs s f [::$VAN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat n)))]
 | r_memory_grow_success :
   forall s i f m n mem' c hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     mem_size m = n ->
     mem_grow m (Wasm_int.N_of_uint i32m c) = Some mem' ->
     reduce hs s f [::$VAN (VAL_int32 c); AI_basic BI_memory_grow] hs (upd_s_mem s (set_nth mem' s.(s_mems) i mem')) f [::$VAN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat n)))]
 | r_memory_grow_failure :
   forall i f m n s c hs,
     smem_ind s f.(f_inst) = Some i ->
-    List.nth_error s.(s_mems) i = Some m ->
+    lookup_N s.(s_mems) i = Some m ->
     mem_size m = n ->
     reduce hs s f [::$VAN (VAL_int32 c); AI_basic BI_memory_grow] hs s f [::$VAN (VAL_int32 int32_minus_one)]
 | r_memory_fill_bound:
@@ -573,7 +573,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     ((Wasm_int.N_of_uint i32m src) + (Wasm_int.N_of_uint i32m n) <= data_size data) ->
     ((Wasm_int.N_of_uint i32m dst) + (Wasm_int.N_of_uint i32m n) <= mem_length mem) ->
     n <> Wasm_int.int_zero i32m ->
-    List.nth_error data.(datainst_data) (Wasm_int.N_of_uint i32m src) = Some b ->
+    lookup_N data.(datainst_data) (Wasm_int.N_of_uint i32m src) = Some b ->
     Wasm_int.N_of_uint i32m n' = N.sub (Wasm_int.N_of_uint i32m n) 1 ->
     Wasm_int.N_of_uint i32m src' = N.add (Wasm_int.N_of_uint i32m src) 1 ->
     Wasm_int.N_of_uint i32m dst' = N.add (Wasm_int.N_of_uint i32m dst) 1 ->

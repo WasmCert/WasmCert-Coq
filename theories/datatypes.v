@@ -3,9 +3,6 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-(* TODO: use better representations than "nat", which is expensive;
-   maybe N? maybe a 32-bit word type? *)
-
 Require Import BinNat.
 From Wasm Require array.
 From Wasm Require Import common memory memory_list.
@@ -19,8 +16,6 @@ Unset Printing Implicit Defensive.
 
 
 (** * Basic Datatypes **)
-
-(* TODO: need to have an appropriate definition of u32. *)
 
 Definition u32 : Type := N.
 
@@ -56,6 +51,7 @@ instances or immutable globals).
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#addresses]
 *)
 
+(* Note that this does not use the u32 definition. *)
 Definition addr := N.
 
 Definition funcaddr : Type := addr.
@@ -159,8 +155,8 @@ If no maximum is given, the respective storage can grow to any size.
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#limits]
 *)
 Record limits : Type := {
-  lim_min : N; (* TODO: should be u32 *)
-  lim_max : option N; (* TODO: should be u32 *)
+  lim_min : u32;
+  lim_max : option u32; 
 }.
 
 
@@ -240,9 +236,9 @@ Definition host_state := unit.
 
 Definition depth := nat.
 
-Definition static_offset := (* off *) N. (* TODO: should be u32 *)
+Definition static_offset := (* off *) u32.
 
-Definition alignment_exponent := (* a *) N. (* TODO: should be u32 *)
+Definition alignment_exponent := (* a *) u32.
 
 Definition serialise_i32 (i : i32) : bytes :=
   common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
@@ -305,7 +301,6 @@ Record t_context : Type := {
   tc_ref : list funcidx;
 }.
 
-(* TODO: update the name *)
 (** std-doc:
 WebAssembly computations manipulate values of the four basic value types:
 integers and floating-point data of 32 or 64 bit width each, respectively.
@@ -318,9 +313,11 @@ Inductive value_num : Type :=
   | VAL_float64 : f64 -> value_num
 .
 
-(* We are not implementing SIMD at the moment. *)
+(* SIMD not implemented at the moment *)
+Definition v128 := unit.
+
 Inductive value_vec : Type :=
-  | VAL_vec128: unit -> value_vec
+  | VAL_vec128: v128 -> value_vec
 .
 
 Inductive value_ref : Type :=
@@ -337,8 +334,6 @@ Inductive value : Type :=
 
 Inductive result : Type :=
 | result_values : list value -> result
-(** Note from the specification:
-  In the current version of WebAssembly, a result can consist of at most one value. **)
 | result_trap : result
 .
 
@@ -658,11 +653,6 @@ End Modules.
 
 (** * Functions and Store **)
 
-Section Host.
-
-(** We assume a family of host functions. **)
-Variable host_function : Type.
-
 
 
 (** std-doc:
@@ -795,6 +785,11 @@ Record instance : Type := (* inst *) {
   inst_exports: list exportinst;  
 }.
 
+
+Section Host.
+
+(** We assume a family of host functions. **)
+Variable host_function : Type.
 
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively

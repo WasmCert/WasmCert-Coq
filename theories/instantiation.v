@@ -353,21 +353,13 @@ Definition init_mems (s : store_record) (inst : instance) (d_inds : list N) (ds 
   List.fold_left (fun s' '(d_ind, d) => init_mem s' inst d_ind d) (List.combine d_inds ds) s.
  *)
 
-Definition limit_typing (lim : limits) (k : N) : bool :=
-  let '{| lim_min := min; lim_max := maxo |} := lim in
-  (N.leb min k) &&
-    match maxo with
-    | None => true
-    | Some max => (N.leb min max) && (N.leb max k)
-    end.
-
 Definition function_type_valid (tf: function_type) : bool := true.
 
 Definition table_type_valid (t: table_type) : bool :=
-  limit_typing t.(tt_limits) (N.sub (N.pow 2 32) 1%N).
+  limit_valid_range t.(tt_limits) (N.sub (N.pow 2 32) 1%N).
 
 Definition memory_type_valid (t: memory_type) : bool :=
-  limit_typing t (N.pow 2 16).
+  limit_valid_range t (N.pow 2 16).
 
 Definition global_type_valid (g: global_type) : bool := true.
 
