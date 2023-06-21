@@ -94,9 +94,6 @@ Inductive res_step'
       lfilledInd i lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) es /\
       empty_vs_base lh) ->
     res_step' hs s f es
-(* XXX do I need to somehow assert that return (and break too?)
- * only returns vs from the inner-most layer (i.e. rvs)
- * and discards any other vs (coming from lfilled (i + 1)) *)
 | RS'_return rvs :
     (exists i lh,
       lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
@@ -137,7 +134,6 @@ Inductive res_step'_separate_e
  * want to make those values clear. *)
 Notation "<< hs' , s' , f' , es' >>" := (@RS'_normal _ _ _ _ hs' s' f' es').
 Notation "<< hs' , s' , f' , es' >>'" := (@RS''_normal _ _ _ _ _ hs' s' f' es').
-(* TODO better (or none?) break notation? *)
 Notation "break( k , bvs )" := (@RS''_break _ _ _ _ _ k bvs).
 (* TODO return notation? *)
 
@@ -252,7 +248,6 @@ Lemma error_rec : forall s f e es es' es'' ves,
       C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
       inst_typing s f.(f_inst) C' /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
 Proof.
-  (* TODO consistent naming: Hsplit / Hesves *)
   intros s f e es es' es'' ves ? Hsplit Hrec [C [C' [ret [lab [? [? [? [? Hetype]]]]]]]].
   apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
   apply e_composition_typing in Hetype as [? [t1s [? [? [Ht1s [? [Hetypeves Hetype]]]]]]].
@@ -404,9 +399,6 @@ Proof.
     by apply pair_equal_spec.
 Qed.
 
-(* TODO consistent lemma naming *)
-(* TODO add comments to separate lemmas for different instrs? *)
-(* AI_basic BI_unreachable *)
 Lemma reduce_unreachable : forall (hs : host_state) s f ves,
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic BI_unreachable])
@@ -427,7 +419,6 @@ Proof.
   apply r_simple. by apply rs_nop.
 Qed.
 
-(* TODO extend simpl_reduce_simple to handle this? *)
 Lemma reduce_drop : forall (hs : host_state) s f v ves',
   reduce
     hs s f (vs_to_es (v :: ves') ++ [:: AI_basic BI_drop])
@@ -608,7 +599,6 @@ Proof.
     (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_simple. by apply rs_if_false.
   - solve_lfilled.
-    (* TODO can this be simplified? *)
     replace c with (Wasm_int.int_zero i32m) => //.
     symmetry. by apply/eqP.
   - by solve_lfilled.
@@ -676,7 +666,6 @@ Lemma reduce_br_if_true : forall (hs : host_state) s f c ves' j,
     hs s f (vs_to_es ves' ++ [:: AI_basic (BI_br j)]).
 Proof.
   intros ??? c ves' j ?.
-  (* TODO make simpl_reduce_simple applicable? *)
   apply r_label with
     (k := 0) (lh := (LH_base (vs_to_es ves') [::]))
     (es := vs_to_es [::VAL_int32 c] ++ [:: AI_basic (BI_br_if j)])
@@ -910,7 +899,7 @@ Qed.
 
 Lemma get_local_error_jth_none : forall s f ves j,
   List.nth_error f.(f_locs) j = None ->
-  j < length f.(f_locs) ->  (* TODO unused? *)
+  j < length f.(f_locs) ->
   ~ fragment_typeable s f ves [:: AI_basic (BI_get_local j)].
 Proof.
   (* TODO rename Hitype to Hitype everywhere *)
@@ -1450,7 +1439,6 @@ Lemma reduce_unop : forall (hs : host_state) s f t op v ves',
     hs s f (vs_to_es (app_unop op v :: ves')).
 Proof. intros. simpl_reduce_simple. by apply rs_unop. Qed.
 
-(* XXX could move C t1s t2s t1s' into the forall without changing semantics *)
 Lemma unop_error : forall s f ves t op,
   ves = [::] ->
   ~ fragment_typeable s f ves [:: AI_basic (BI_unop t op)].
@@ -1460,8 +1448,6 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
   by apply Unop_typing in Hbtype as [? [[|] ?]].
-  (* XXX which is better?
-   * apply Unop_typing in Hbtype as [? [ts ?]]. by destruct ts => //. *)
 Qed.
 
 Lemma reduce_binop : forall (hs : host_state) s f t op v1 v2 v ves',
@@ -1539,8 +1525,7 @@ Proof.
   by cats1_last_eq Ht1s.
 Qed.
 
-(* TODO dedupe these two (is_int_t = false)
- * or simpler to keep them separate? *)
+(* TODO dedupe testop_*_error *)
 Lemma testop_f32_error : forall s f ves testop,
   ~ fragment_typeable s f ves [:: AI_basic (BI_testop T_f32 testop)].
 Proof.
@@ -1557,7 +1542,6 @@ Proof.
   apply Testop_typing_is_int_t in Hbtype => //.
 Qed.
 
-(* XXX relop is very similar to binop, TODO dedupe *)
 Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 ves',
   reduce
     hs s f (vs_to_es ([:: v2; v1] ++ ves') ++ [:: AI_basic (BI_relop t op)])
@@ -1983,7 +1967,6 @@ Proof.
   by apply/eqP.
 Qed.
 
-(* XXX trying to add empty_vs_base to see if it helps *)
 Lemma label_error_break_rec : forall s f ves bvs ln les es,
   (exists i j lh,
     i + 0 = j /\
@@ -2098,7 +2081,6 @@ Proof.
   by apply Hetype.
 Qed.
 
-(* XXX drop bvs here to simplify? *)
 Lemma lfilled_labels : forall lh i j k s C bvs es t1s t2s,
   size C.(tc_label) = k ->
   e_typing s C es (Tf t1s t2s) ->
@@ -2253,7 +2235,7 @@ Proof.
   by eapply return_arguments_length in Hetype; eauto.
 Qed.
 
-(* XXX return has not returned enough values *)
+(* return has not returned enough values *)
 Lemma local_return_error : forall s f ln lf es rvs ves,
   (exists i lh,
     lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
@@ -2348,7 +2330,6 @@ Theorem run_step (measure: nat) hs s f (es: list administrative_instruction) (Hm
   with
   run_one_step'' (measure: nat) hs s f ves e (Htrap : (e_is_trap e) = false) (Hconst : (is_const e) = false) (Hmeasure: run_one_step_measure e = measure) : res_step'_separate_e hs s f ves e.
 Proof.
-  (* NOTE: not indenting the two main subgoals - XXX use {}? *)
   (* run_step *)
   (** Framing out constants. **)
   {
@@ -2377,7 +2358,6 @@ Proof.
            apply RS'_break with (k := k) (bvs := bvs).
            (* XXX why is there rev ves (unfoldfed v_to_e_list) in Hbr? *)
            by apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
-
         -- (* RS''_return rvs *)
            apply RS'_return with (rvs := rvs).
            by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
@@ -2480,7 +2460,6 @@ Proof.
         by apply reduce_loop.
       + (* false *)
         apply RS''_error.
-        (* TODO use size or length in the lemmas? *)
         apply loop_error; repeat rewrite -length_is_size; lias.
 
     * (* AI_basic (BI_if tf es1 es2) *)
@@ -2539,7 +2518,7 @@ Proof.
 
     * (* AI_basic BI_return *)
       apply RS''_return with (rvs := ves).
-      by left => //. (* TODO lemma? *)
+      by left => //.
 
     * (* AI_basic (BI_call j) *)
       destruct (List.nth_error f.(f_inst).(inst_funcs) j) as [a|] eqn:?.
@@ -2747,10 +2726,6 @@ Proof.
         apply RS''_error. by apply current_memory_error_smem => //.
 
     * (* AI_basic BI_grow_memory *)
-      (* XXX this branch is fairly complicated,
-       * would moving it out into a separate function be justified?
-       * perhaps use a convoy pattern match there?  *)
-      (* XXX do we ever have to handle r_grow_memory_failure? *)
       destruct ves as [|v ves'] eqn:?;
         try by (apply RS''_error; apply grow_memory_error_0).
       (* v :: ves' *)
@@ -2947,7 +2922,7 @@ Proof.
                  by apply label_break_rec.
            ** (* RS'_return hs s f es rvs H *)
               apply RS''_return with (rvs := rvs).
-              (* TODO lemma? *)
+              (* TODO move into a lemma? *)
               right. destruct H as [i [lh H]].
               by exists ln, les, es, i, lh => //.
            ** (* RS'_normal hs s f es hs' s' f' es' *)
