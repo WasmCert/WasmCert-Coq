@@ -4,7 +4,7 @@
 From Coq Require Import Lia.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
-From Wasm Require Export pickability.
+From Wasm Require Export pickability stronginduction.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1014,3 +1014,28 @@ Ltac is_variable x cont1 cont2 :=
   | _ => cont1
   end.
 
+(** *  Induction principles **)
+
+Section Inductions.
+
+  Variable P : nat -> Type.
+
+  Hypotheses
+    (P0 : P 0)
+    (P1 : P 1)
+    (P2 : P 2)
+    (P3 : P 3)
+    (P4 : P 4)
+    (P5 : P 5).
+
+  Lemma rect2 :
+    (forall n, P n -> P (2 + n)) ->
+    forall n, P n.
+  Proof.
+    intros IH n. strong induction n.
+    do 2 (destruct n as [|n]; auto).
+    apply IH. auto.
+  Qed.
+End Inductions.
+
+Definition induction2 (P : nat -> Prop) := @rect2 P.

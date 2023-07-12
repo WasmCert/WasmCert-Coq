@@ -10,10 +10,25 @@
 (package
   (name Wasm)
   (synopsis "Wasm formalisation in Coq")
-  (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt"))
+  (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
+  (depends
+    (coq (= 8.14.1))
+    (coq-compcert (= 3.11))
+    (coq-mathcomp-ssreflect (= 1.16.0))
+    (coq-itree (= 5.1.1))
+    (coq-parseque (= 0.1.0))
+  )
+  (authors
+    "Martin Bodin"
+    "Philippa Gardner"
+    "Jean Pichon"
+    "Xiaojia Rao"
+    "Conrad Watt"
+  )
 
-(package
-  (name wasm_interpreter)
-	(depends Wasm)
-  (synopsis "Wasm interpreter extracted from the Coq formalisation"))
+)
 
+; (package
+;   (name wasm_interpreter)
+; 	(depends Wasm)
+;   (synopsis "Wasm interpreter extracted from the Coq formalisation"))

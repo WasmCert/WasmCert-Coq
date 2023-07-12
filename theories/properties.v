@@ -3,7 +3,6 @@
 
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From StrongInduction Require Import StrongInduction.
 From Coq Require Import Bool Program.Equality.
 
 Set Implicit Arguments.

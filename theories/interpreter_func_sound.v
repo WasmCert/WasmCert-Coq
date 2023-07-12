@@ -1,9 +1,8 @@
 (** soundness of the Wasm interpreter **)
 (* (C) J. Pichon, M. Bodin, Rao Xiaojia - see LICENSE.txt *)
 
-Require Import common.
+Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From StrongInduction Require Import StrongInduction Inductions.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
