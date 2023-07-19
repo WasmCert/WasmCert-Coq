@@ -3,6 +3,7 @@
 
 Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From Coq Require Import Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -12,7 +13,7 @@ Require Import operations opsem interpreter_func properties.
 
 
 Section Host.
-  
+
 Hint Constructors reduce_simple : core.
 Hint Constructors reduce : core.
 
@@ -1041,7 +1042,7 @@ Local Lemma run_step_soundness_aux : forall fuel d hs s f es hs' s' f' es',
   = (hs', s', f', RS_normal es') ->
   reduce hs s f es hs' s' f' es'.
 Proof.
-  strong induction fuel.
+  move => f. induction (lt_wf f) as [fuel _ H].
   move=> d hs s f es hs' s' f' es' /=. destruct fuel as [|fuel] => //=.
   unfold run_step_with_fuel. unfold interpreter_func.run_step_with_fuel.
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.

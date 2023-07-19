@@ -3,7 +3,7 @@
 
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Bool Program.Equality.
+From Coq Require Import Bool Program.Equality Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -751,7 +751,7 @@ Proof.
   apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')); first by [].
   move: 0 => k.
   have [m E]: { m | lfilled_pickable_rec_gen_measure es' = m }; first by eexists.
-  move: fes D0 es' E k. strong induction m. rename X into IH. move=> fes D0 es' E k.
+  move: fes D0 es' E k. induction (lt_wf m) as [m _ IH]. move=> fes D0 es' E k.
   have Dcl: forall vs, decidable (const_list vs).
   { move=> vs. by apply: is_true_decidable. }
   (** First, we check whether we can set [n = 0]. **)
