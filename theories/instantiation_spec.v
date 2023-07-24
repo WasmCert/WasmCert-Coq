@@ -551,4 +551,23 @@ Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *
     (s_end : store_record)
       == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
 
+Definition interp_alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value) : (store_record * instance * list module_export) :=
+  let i_fs := List.map (fun i => Mk_funcidx i) (seq.iota (List.length s.(s_funcs)) (List.length m.(mod_funcs))) in
+  let i_ts := List.map (fun i => Mk_tableidx i) (seq.iota (List.length s.(s_tables)) (List.length m.(mod_tables))) in
+  let i_ms := List.map (fun i => Mk_memidx i) (seq.iota (List.length s.(s_mems)) (List.length m.(mod_mems))) in
+  let i_gs := List.map (fun i => Mk_globalidx i) (seq.iota (List.length s.(s_globals)) (min (List.length m.(mod_globals)) (List.length gvs))) in
+  let inst := {|
+    inst_types := m.(mod_types);
+    inst_funcs := List.map (fun '(Mk_funcidx i) => i) (List.app (ext_funcs imps) i_fs);
+    inst_tab := List.map (fun '(Mk_tableidx i) => i) (List.app (ext_tabs imps) i_ts);
+    inst_memory := List.map (fun '(Mk_memidx i) => i) (List.app (ext_mems imps) i_ms);
+    inst_globs := List.map (fun '(Mk_globalidx i) => i) (List.app (ext_globs imps) i_gs);
+  |} in
+  let '(s1, _) := alloc_funcs s m.(mod_funcs) inst in
+  let '(s2, _) := alloc_tabs s1 (List.map (fun t => t.(modtab_type)) m.(mod_tables)) in
+  let '(s3, _) := alloc_mems s2 m.(mod_mems) in
+  let '(s', _) := alloc_globs s3 m.(mod_globals) gvs in
+  let exps := List.map (fun m_exp => {| modexp_name := m_exp.(modexp_name); modexp_desc := export_get_v_ext inst m_exp.(modexp_desc) |}) m.(mod_exports) in
+  (s', inst, exps).
+
 End Instantiation_spec.

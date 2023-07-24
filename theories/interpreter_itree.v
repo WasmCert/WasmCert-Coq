@@ -627,6 +627,8 @@ Import Exec.
 Module Target := convert_target_monad EH TM.
 Import Target.
 
+Local Definition res_tuple := res_tuple host_function.
+
 Definition run_step
   : depth -> instance -> config_tuple -> monad res_tuple :=
   @run_step_extraction_eqType host_function executable_host_instance

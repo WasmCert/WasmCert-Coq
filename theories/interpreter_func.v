@@ -3062,8 +3062,8 @@ Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
 Definition host_functionP : Equality.axiom host_function_eqb :=
   eq_dec_Equality_axiom host_function_eq_dec.
 
-Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Canonical Structure host_function_eqType :=
+Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Global Canonical Structure host_function_eqType :=
   Eval hnf in EqType host_function host_function_eqMixin.
 
 Definition host : Type := host host_function_eqType.

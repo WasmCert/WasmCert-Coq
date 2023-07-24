@@ -1,8 +1,40 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import opsem instantiation_spec.
+From ITree Require Import ITree.
+From ITree Require ITreeFacts.
+From Wasm Require Import opsem interpreter_itree instantiation_spec.
 From Coq Require Import BinNat.
 
 Section Instantiation_itree.
+  
+Variable host_function : eqType.
+Let host := host host_function.
+
+Variable host_instance : host.
+
+Let store_record_eq_dec := @store_record_eq_dec host_function.
+Let store_record_eqType := @store_record_eqType host_function.
+
+Let store_record := store_record host_function.
+Let host_state := host_state host_instance.
+
+Let executable_host := executable_host host_function.
+Variable executable_host_instance : executable_host.
+Let host_event := host_event executable_host_instance.
+
+Let interp_alloc_module := interp_alloc_module host_function.
+Let check_bounds_elem := check_bounds_elem host_function.
+Let check_bounds_data := check_bounds_data host_function.
+Let init_tabs := init_tabs host_function.
+Let init_mems := init_mems host_function.
+
+Let instantiate := instantiate host_function host_instance.
+
+Context {eff : Type -> Type}.
+Context {eff_has_host_event : host_event -< eff}.
+
+Let run_v {eff' eff'_has_host_event} :=
+  @interpreter_itree.run_v _ executable_host_instance eff' eff'_has_host_event.
+
 
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   let '(Mk_typeidx i) := m_f.(modfunc_type) in
@@ -211,7 +243,7 @@ Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_
   : itree (instantiation_error +' eff) value (* FIXME: isa mismatch *) :=
   res <- burn 2 (run_v 0 inst (s, (Build_frame nil inst), operations.to_e_list b_es)) ;;
   match res with
-  | (_, interpreter.R_value vs) =>
+  | (_, interpreter_itree.R_value vs) =>
     match vs with
     | v :: nil => ret v
     | _ => trigger_inl1 Instantiation_error
@@ -283,7 +315,6 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
         if e.(modexp_name) == n then
           match e.(modexp_desc) with
           | MED_func (Mk_funcidx fi) =>
-(*            Some (s, (Build_frame nil inst), [::AI_invoke fi])*)
             match List.nth_error s.(s_funcs) fi with
             | None => None
             | Some fc => Some (s, (Build_frame nil inst), [::AI_invoke fi])
