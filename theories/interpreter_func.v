@@ -1,5 +1,4 @@
-(** Wasm interpreter **)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
+(** Proof-carrying interpreter for Wasm **)
 
 From Wasm Require Import common opsem properties tactic typing_inversion.
 From Coq Require Import ZArith.BinInt Program.Equality.
@@ -47,10 +46,8 @@ Let host := host host_function.
 Variable host_instance : host.
 
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
 Let host_state := host_state host_instance.
 
-(*Let vs_to_es : seq value -> seq administrative_instruction := @vs_to_es _.*)
 
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.

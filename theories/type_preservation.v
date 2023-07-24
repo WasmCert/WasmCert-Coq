@@ -1,5 +1,4 @@
 (** Proof of preservation **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -16,20 +15,9 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.
-Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
 
 Let host := host host_function.
 
@@ -47,6 +35,13 @@ Let functions_agree : seq function_closure -> nat -> function_type -> bool := @f
 Let cl_type : function_closure -> function_type := @cl_type _.
 Let store_extension: store_record -> store_record -> Prop := @store_extension _.
 
+Ltac et_dependent_ind H :=
+  repeat lazymatch (type of H) with
+  | e_typing _ _ _ _ =>
+      unfold e_typing in H
+  | _ => et_dependent_ind' H
+  end.
+
 Definition t_be_value bes : Prop :=
   const_list (to_e_list bes).
 
@@ -62,107 +57,6 @@ Lemma b_e_elim: forall bes es,
 Proof.
   by apply properties.b_e_elim.
 Qed.
-
-(* TODO use this in itp completeness lemmas? *)
-Ltac invert_be_typing:=
-  repeat lazymatch goal with
-  | H: (?es ++ [::?e])%list = [::_] |- _ =>
-    extract_listn
-  | H: (?es ++ [::?e])%list = [::_; _] |- _ =>
-    extract_listn
-  | H: (?es ++ [::?e])%list = [::_; _; _] |- _ =>
-    extract_listn
-  | H: (?es ++ [::?e])%list = [::_; _; _; _] |- _ =>
-    extract_listn
-  | H: be_typing _ [::] _ |- _ =>
-    apply empty_typing in H; subst
-  | H: be_typing _ [:: BI_const _] _ |- _ =>
-    apply BI_const_typing in H; subst
-  | H: be_typing _ [:: BI_const _; BI_const _] _ |- _ =>
-    apply BI_const2_typing in H; subst
-  | H: be_typing _ [:: BI_const _; BI_const _; BI_const _] _ |- _ =>
-    apply BI_const3_typing in H; subst
-  | H: be_typing _ [::BI_unop _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Unop_typing in H; destruct H as [H1 [ts H2]]; subst
-  | H: be_typing _ [::BI_binop _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Binop_typing in H; destruct H as [H1 [ts H2]]; subst
-  | H: be_typing _ [::BI_testop _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Testop_typing in H; destruct H as [ts [H1 H2]]; subst
-  | H: be_typing _ [::BI_relop _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Relop_typing in H; destruct H as [ts [H1 H2]]; subst
-  | H: be_typing _ [::BI_cvtop _ _ _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Cvtop_typing in H; destruct H as [ts [H1 H2]]; subst
-  | H: be_typing _ [::BI_drop] _ |- _ =>
-    apply Drop_typing in H; destruct H; subst
-  | H: be_typing _ [::BI_select] _ |- _ =>
-    let ts := fresh "ts" in
-    let t := fresh "t" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Select_typing in H; destruct H as [ts [t [H1 H2]]]; subst
-  | H: be_typing _ [::BI_if _ _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply If_typing in H; destruct H as [ts [H1 [H2 [H3 H4]]]]; subst
-  | H: be_typing _ [::BI_br_if _] _ |- _ =>
-    let ts := fresh "ts" in
-    let ts' := fresh "ts'" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply Br_if_typing in H; destruct H as [ts [ts' [H1 [H2 [H3 H4]]]]]; subst
-  | H: be_typing _ [::BI_br_table _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let ts' := fresh "ts'" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    apply Br_table_typing in H; destruct H as [ts [ts' [H1 H2]]]; subst
-  | H: be_typing _ [::BI_tee_local _] _ |- _ =>
-    let ts := fresh "ts" in
-    let t := fresh "t" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply Tee_local_typing in H; destruct H as [ts [t [H1 [H2 [H3 H4]]]]]; subst
-  | H: be_typing _ (_ ++ _) _ |- _ =>
-    let ts1 := fresh "ts1" in
-    let ts2 := fresh "ts2" in
-    let ts3 := fresh "ts3" in
-    let ts4 := fresh "ts4" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply composition_typing in H; destruct H as [ts1 [ts2 [ts3 [ts4 [H1 [H2 [H3 H4]]]]]]]
-  | H: be_typing _ [::_;_] _ |- _ =>
-    rewrite -cat1s in H
-  | H: be_typing _ [::_;_;_] _ |- _ =>
-    rewrite -cat1s in H
-  | H: be_typing _ [::_;_;_;_] _ |- _ =>
-    rewrite -cat1s in H
-  | H: _ ++ [::_] = _ ++ [::_] |- _ =>
-    apply concat_cancel_last in H; destruct H; subst
-  end.
 
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
@@ -597,60 +491,6 @@ Proof.
       by apply bet_const.
 Qed.
 
-(* XXX these two are duplicated but cant seem to be able to import them from
- * typing_inversion *)
-Ltac et_dependent_ind H :=
-  let Ht := type of H in
-  lazymatch Ht with
-  | e_typing ?s ?C ?es (Tf ?t1s ?t2s) =>
-    let s2 := fresh "s2" in
-    let C2 := fresh "C2" in
-    let es2 := fresh "es2" in
-    let tf2 := fresh "tf2" in
-    remember s as s2 eqn:Hrems;
-    remember C as C2 eqn:HremC;
-    remember es as es2 eqn:Hremes;
-    remember (Tf t1s t2s) as tf2 eqn:Hremtf;
-    generalize dependent Hrems;
-    generalize dependent HremC;
-    generalize dependent Hremtf;
-    generalize dependent s; generalize dependent C;
-    generalize dependent t1s; generalize dependent t2s;
-    induction H
-  | e_typing ?s ?C ?es ?tf =>
-    let s2 := fresh "s2" in
-    let C2 := fresh "C2" in
-    let es2 := fresh "es2" in
-    remember s as s2 eqn:Hrems;
-    remember C as C2 eqn:HremC;
-    remember es as es2 eqn:Hremes;
-    generalize dependent Hrems;
-    generalize dependent HremC;
-    generalize dependent s; generalize dependent C;
-    induction H
-  | _ => fail "hypothesis not an e_typing relation"
-  end; intros; subst.
-
-(* We need this version for dealing with the version of predicate with host. *)
-Ltac basic_inversion' :=
-   repeat lazymatch goal with
-         | H: True |- _ =>
-           clear H
-         | H: es_is_basic (_ ++ _) |- _ =>
-           let Ha := fresh H in
-           let Hb := fresh H in
-           apply basic_concat in H; destruct H as [Ha Hb]
-         | H: es_is_basic [::] |- _ =>
-           clear H
-         | H: es_is_basic [::_] |- _ =>
-           let H1 := fresh H in
-           let H2 := fresh H in
-           try by (unfold es_is_basic in H; destruct H as [H1 H2]; inversion H1)
-         | H: e_is_basic _ |- _ =>
-           inversion H; try by []
-         end.
-
-
 Theorem t_simple_preservation: forall s i es es' C loc lab ret tf,
     inst_typing s i C ->
     e_typing s (upd_label (upd_local_return C loc ret) lab) es tf ->
@@ -737,31 +577,7 @@ Proof.
          unfold vs_to_vts. rewrite size_map.
          by rewrite v_to_e_size.
   - (* Label_const *)
- (*   Check HType.
-    dependent induction HType.
-    Print e_typing.
-    gen_ind_pre HType.
-    Set Ltac Debug.
-    Check Datatypes.cons.
-    gen_ind_gen HType.
-    gen_ind_subst HType.*)
- (* After several futile attempts to fix gen_ind_gen, I gave up on it and 
-      made a more cumbersome et_dependent_ind that only works for e_typing.
-
-    For future reference: the reason gen_ind_gen fails here is because when we get to
-      the second last term 
-          [::Label n es0 es'] 
-      which is effectively
-          cons (Label n es0 es') nil
-      we first try to generalize the token 'cons', which obviously cannot be 
-        generalized (which is fine); but then when we try to look at the term 'Label',
-        the tactic somehow wants to generalize on the type of it, i.e.
-          'administrative_instruction', 
-        which is unfortunately redefined with host to be 
-          'administrative_instruction host_function'
-        which means we will generalize host_function which is what we tried to avoid.
- *)
-    et_dependent_ind HType => //.
+    et_dependent_ind HType => //; try by (inversion Hremtf; subst; apply ety_weakening; eapply IHHType).
     + (* ety_a *)
       assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
       rewrite Hremes in H1. by basic_inversion'.
@@ -777,7 +593,7 @@ Proof.
       inversion Hremes; subst.
       by eapply t_const_ignores_context; eauto.
   - (* Label_lfilled_Break *)
-    et_dependent_ind HType => //.
+    et_dependent_ind HType => //; try by (inversion Hremtf; subst; apply ety_weakening; eapply IHHType).
     + (* ety_a *)
       assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
       rewrite Hremes in H2. by basic_inversion'.
@@ -799,7 +615,7 @@ Proof.
          ++ simpl. rewrite addn0. by apply H1.
       -- by apply HType1.
   - (* Local_const *)
-    et_dependent_ind HType => //.
+    et_dependent_ind HType => //; try by (inversion Hremtf; subst; apply ety_weakening; eapply IHHType).
     + (* ety_a *)
       assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
       rewrite Hremes in H1. by basic_inversion'.
@@ -1241,24 +1057,6 @@ Proof.
   + by apply all2_mem_extension_same.
   + by apply all2_glob_extension_same.
 Qed.
-
-(* This is the only questionable lemma that I'm not >99% sure of it's correctness.
-   But it seems to be absolutely required. Maybe I'm 98% sure. *)
-(*
-   UPD: oops, this is in fact completely nonsense and in no way required --
-          I overlooked another possibility here. This is now abandoned and
-          replaced by a correct version.
-
-Lemma store_reduce_same_es_typing: forall s vs es i s' vs' es' es0 C C' loc lab ret tf,
-    reduce s vs es i s' vs' es' ->
-    store_typing s ->
-    store_typing s' ->
-    inst_typing s i C ->
-    inst_typing s' i C' ->
-    e_typing s (upd_label (upd_local_return C loc ret) lab) es0 tf ->
-    e_typing s' (upd_label (upd_local_return C' loc ret) lab) es0 tf.
-Proof.
- *)
 
 Lemma store_extension_cl_typing: forall s s' cl tf,
     store_extension s s' ->

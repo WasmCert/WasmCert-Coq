@@ -10,54 +10,11 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
-
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-
-Let to_e_list : seq basic_instruction -> seq administrative_instruction := @to_e_list _.
-Let to_b_list : seq administrative_instruction -> seq basic_instruction := @to_b_list _.*)
-Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
-  @e_typing _.
-Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
-(*Let reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
-  @reduce_simple _.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let lholed := lholed host_function.
-Let lfilled : depth -> lholed -> seq administrative_instruction -> seq administrative_instruction -> bool :=
-  @lfilled _.
-Let es_is_basic : seq administrative_instruction -> Prop := @es_is_basic _.*)
-
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let host_state := host_state host_instance.
-
-Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
-             host_state -> store_record -> frame -> seq administrative_instruction -> Prop
-  := @reduce _ _.
-
-Let s_globals : store_record -> seq global := @s_globals _.
-Let s_mems : store_record -> seq memory := @s_mems _.
-Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
-Let cl_type : function_closure -> function_type := @cl_type _.
-Let store_extension: store_record -> store_record -> Prop := @store_extension _.
-
 Lemma upd_label_overwrite: forall C l1 l2,
     upd_label (upd_label C l1) l2 = upd_label C l2.
 Proof.
   by [].
 Qed.
-
-(*
-  These proofs are largely similar.
-  A sensible thing to do is to make tactics for all of them.
-  However, some of the proofs depend on the previous ones...
-*)
 
 Lemma BI_const_typing: forall C econst t1s t2s,
     be_typing C [::BI_const econst] (Tf t1s t2s) ->
@@ -170,7 +127,6 @@ Proof.
     by repeat rewrite - catA.
 Qed.
 
-(* XXX right place for this? *)
 Lemma Testop_typing_is_int_t: forall C t op t1s t2s,
     be_typing C [::BI_testop t op] (Tf t1s t2s) ->
     is_int_t t.
@@ -220,9 +176,6 @@ Proof.
     by repeat rewrite - catA.
 Qed.
 
-(* TODO move this to a different file?
- * interpreter_func.v?
- * or move all typing inversion lemmas out to a common file? *)
 Lemma Cvtop_reinterpret_typing: forall C t1 t2 sx t1s t2s,
     be_typing C [::BI_cvtop t2 CVO_reinterpret t1 sx] (Tf t1s t2s) ->
     sx = None.
@@ -367,43 +320,6 @@ Proof.
     subst.
     by repeat rewrite catA.
 Qed.
-(*
-  Unlike the above proofs which have a linear dependent structure therefore hard
-    to factorize into a tactic, the following proofs are independent of each other
-    and should therefore be easily refactorable.
-*)
-
-Ltac et_dependent_ind H :=
-  let Ht := type of H in
-  lazymatch Ht with
-  | e_typing ?s ?C ?es (Tf ?t1s ?t2s) =>
-    let s2 := fresh "s2" in
-    let C2 := fresh "C2" in
-    let es2 := fresh "es2" in
-    let tf2 := fresh "tf2" in
-    remember s as s2 eqn:Hrems;
-    remember C as C2 eqn:HremC;
-    remember es as es2 eqn:Hremes;
-    remember (Tf t1s t2s) as tf2 eqn:Hremtf;
-    generalize dependent Hrems;
-    generalize dependent HremC;
-    generalize dependent Hremtf;
-    generalize dependent s; generalize dependent C;
-    generalize dependent t1s; generalize dependent t2s;
-    induction H
-  | e_typing ?s ?C ?es ?tf =>
-    let s2 := fresh "s2" in
-    let C2 := fresh "C2" in
-    let es2 := fresh "es2" in
-    remember s as s2 eqn:Hrems;
-    remember C as C2 eqn:HremC;
-    remember es as es2 eqn:Hremes;
-    generalize dependent Hrems;
-    generalize dependent HremC;
-    generalize dependent s; generalize dependent C;
-    induction H
-  | _ => fail "hypothesis not an e_typing relation"
-  end; intros; subst.
 
 (* We need this version for dealing with the version of predicate with host. *)
 Ltac basic_inversion' :=
@@ -523,6 +439,72 @@ Ltac invert_be_typing:=
     rewrite -cat1s in H
   | H: _ ++ [::_] = _ ++ [::_] |- _ =>
     apply concat_cancel_last in H; destruct H; subst
+  end.
+
+Ltac et_dependent_ind' H :=
+  let Ht := type of H in
+  lazymatch Ht with
+  | e_typing ?s ?C ?es (Tf ?t1s ?t2s) =>
+    let s2 := fresh "s2" in
+    let C2 := fresh "C2" in
+    let es2 := fresh "es2" in
+    let tf2 := fresh "tf2" in
+    remember s as s2 eqn:Hrems;
+    remember C as C2 eqn:HremC;
+    remember es as es2 eqn:Hremes;
+    remember (Tf t1s t2s) as tf2 eqn:Hremtf;
+    generalize dependent Hrems;
+    generalize dependent HremC;
+    generalize dependent Hremtf;
+    generalize dependent s; generalize dependent C;
+    generalize dependent t1s; generalize dependent t2s;
+    induction H
+  | e_typing ?s ?C ?es ?tf =>
+    let s2 := fresh "s2" in
+    let C2 := fresh "C2" in
+    let es2 := fresh "es2" in
+    remember s as s2 eqn:Hrems;
+    remember C as C2 eqn:HremC;
+    remember es as es2 eqn:Hremes;
+    generalize dependent Hrems;
+    generalize dependent HremC;
+    generalize dependent s; generalize dependent C;
+    induction H
+  | _ => fail "hypothesis not an e_typing relation"
+  end; intros; subst.
+
+(* As we get to e_typing, host comes into play. *)
+Section Host.
+  
+Variable host_function : eqType.
+
+Let store_record := store_record host_function.
+Let function_closure := function_closure host_function.
+Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+  @e_typing _.
+Let inst_typing : store_record -> instance -> t_context -> bool := @inst_typing _.
+
+Let host := host host_function.
+
+Variable host_instance : host.
+
+Let host_state := host_state host_instance.
+
+Let reduce : host_state -> store_record -> frame -> seq administrative_instruction ->
+             host_state -> store_record -> frame -> seq administrative_instruction -> Prop
+  := @reduce _ _.
+
+Let s_globals : store_record -> seq global := @s_globals _.
+Let s_mems : store_record -> seq memory := @s_mems _.
+Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
+Let cl_type : function_closure -> function_type := @cl_type _.
+Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+
+Ltac et_dependent_ind H :=
+  repeat lazymatch (type of H) with
+  | e_typing _ _ _ _ =>
+      unfold e_typing in H
+  | _ => et_dependent_ind' H
   end.
 
 Lemma Invoke_func_typing: forall s C a t1s t2s,
@@ -796,7 +778,6 @@ Lemma func_context_store: forall s i C j x,
     List.nth_error (tc_func_t C) j = Some x ->
     exists a, List.nth_error i.(inst_funcs) j = Some a.
 Proof.
-  (* TODO: inst_funcs is a fragile name *)
   move => s i C j x HIT HLength HN.
   unfold sfunc. unfold operations.sfunc. unfold option_bind.
   unfold sfunc_ind.
@@ -821,7 +802,6 @@ Lemma glob_context_store: forall s i C j g,
     List.nth_error (tc_global C) j = Some g ->
     sglob s i j <> None.
 Proof.
-  (* TODO: inst_globs is a fragile name *)
   move => s i C j g HIT HLength HN.
   unfold sglob. unfold operations.sglob. unfold option_bind.
   unfold sglob_ind.
@@ -850,7 +830,6 @@ Lemma mem_context_store: forall s i C,
     exists n, smem_ind s i = Some n /\
               List.nth_error (s_mems s) n <> None.
 Proof.
-  (* TODO: inst_memory is a fragile name *)
   move => s i C HIT HMemory.
   unfold inst_typing, typing.inst_typing in HIT.
   destruct i => //=. destruct C => //=.
@@ -985,17 +964,12 @@ Lemma Label_typing: forall s C n es0 es ts1 ts2,
                     length ts = n.
 Proof.
   move => s C n es0 es ts1 ts2 HType.
-(*  (* Without the powerful generalize_dependent tactic, we need to manually remember
+  (* Without the powerful generalize_dependent tactic, we need to manually remember
      the dependent terms. However, it's very easy to mess up the induction hypothesis
      if variables are not correctly generalized.
      Reading source: https://stackoverflow.com/questions/58349365/coq-how-to-correctly-remember-dependent-values-without-messing-up-the-inductio 
-     ( the missing letter n at the end of link is not a typo )
    *)
-  remember ([::Label n es0 es]) as les.
-  remember (Tf ts1 ts2) as tf.
-  generalize dependent Heqtf. generalize dependent ts1. generalize dependent ts2.*)
   et_dependent_ind HType => //.
-(*  induction HType => //. *)
   - (* ety_a *)
     assert (es_is_basic (operations.to_e_list bes)); first by apply to_e_list_basic.
     rewrite Hremes in H0. by basic_inversion'.
@@ -1014,40 +988,6 @@ Proof.
     by exists ts, ts2.
 Qed.
 
-(*
-  Looking at what we want to prove in the Lfilled_break case, it might be tempting to
-    prove the following:
-
-Lemma Lfilled_break_typing: forall n lh vs LI ts s C t2s,
-    e_typing s (upd_label C ([::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (Br n)]) LI ->
-    e_typing s C vs (Tf [::] ts).
-
-  The lemma itself is definitely correct, and an apparent approach is to do induction
-    on n (or induction on the lfilled hypothesis).
-
-  However, this will *NOT* work: the culprit is that there is no inductive relationship
-    that changes the instruction (Br n+1) into (Br n), and we will get a useless
-    induction hypothesis that can never be applied.
-
-  We need to somehow avoid getting the parameter of Br into induction. By the lfilled
-    hypothesis, we know LI is a nested Label which, at the innermost level, has (Br n)
-    as its first non-constant instruction, and vs at the top of the value stack.
-
-  Recall that (Br n) looks at the nth entry in the label of the typing context and
-    needs to consume that type. Since we can only induct on the depth of lfilled
-    (but not the n in the instruction), they have to be two separate numbers, say
-    n and m. Now if n is 0, the instruction will basically look at the mth entry;
-    what if n is not 0? In that case if we trace the expansion of LI and simulate
-    how the typing is evaluated, we realize that there will be n entries prepended
-    to the label of the typing context, after which we'll then find the mth element
-    of it due to the (Br m).
-
-  So a more sensible lemma to prove is the following, which the original lemma we
-    wanted is a special case of:
-*)
 
 Lemma Lfilled_break_typing: forall n m k lh vs LI ts s C t2s tss,
     e_typing s (upd_label C (tss ++ [::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
@@ -1128,72 +1068,6 @@ Proof.
     by lias.
 Qed.
 
-(*
-  And yes, the above observation was obviously the result of some futile attempt
-    to prove the unprovable version of the lemma.
-
-Lemma Lfilled_break_typing: forall n lh vs LI ts s C t2s,
-    e_typing s (upd_label C ([::ts] ++ tc_label C)) LI (Tf [::] t2s) ->
-    const_list vs ->
-    length ts = length vs ->
-    lfilled n lh (vs ++ [::AI_basic (Br n)]) LI ->
-    e_typing s C vs (Tf [::] ts).
-Proof.
-  move => n lh vs LI ts s C ts2 HType HConst HLength HLF.
-  apply const_es_exists in HConst. destruct HConst. subst.
-  move/lfilledP in HLF.
-  generalize dependent ts2.
-  generalize dependent LI.
-  induction n.
-  - move => LI HLF ts2 HType.
-    repeat rewrite catA in HType.
-    inversion HLF.
-    apply const_es_exists in H. destruct H. subst.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    subst. clear H1.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
-    subst.
-    apply e_composition_typing in H7.
-    destruct H7 as [ts0'' [t1s'' [t2s'' [t3s'' [H9 [H10 [H11 H12]]]]]]].
-    subst.
-    apply et_to_bet in H12; last by auto_basic.
-    apply Break_typing in H12.
-    destruct H12 as [ts0 [ts1 [H13 [H14 H15]]]]. clear H13.
-    unfold plop2 in H14. simpl in H14. move/eqP in H14. inversion H14. subst.
-    clear H14.
-    apply et_to_bet in H11; last by (apply const_list_is_basic; apply v_to_e_is_const_list).
-    apply Const_list_typing in H11.
-    repeat rewrite length_is_size in HLength.
-    assert ((ts1 == t1s'') && (ts0 == vs_to_vts x)).
-    + apply concat_cancel_last_n => //=. rewrite size_map.
-      by rewrite v_to_e_size in HLength.
-    + move/andP in H. destruct H.
-      move/eqP in H0. subst.
-      apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-      by apply Const_list_typing_empty.
-  - move => LI HLF ts2 HType.
-    inversion HLF. subst.
-    repeat rewrite catA in HType.
-    apply e_composition_typing in HType.
-    destruct HType as [ts0 [t1s [t2s [t3s [H2 [H3 [H4 H5]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
-    clear H2. clear H3.
-    apply e_composition_typing in H4.
-    destruct H4 as [ts0' [t1s' [t2s' [t3s' [H6 [H7 [H8 H9]]]]]]].
-    destruct ts0' => //=.
-    destruct t1s' => //=.
-    clear H6. clear H7.
-    apply Label_typing in H9.
-    destruct H9 as [ts0'' [t2s'' [H10 [H11 [H12 H13]]]]]. subst.
-    simpl in H12.
-
- *)
-
 Lemma Local_typing: forall s C n f es t1s t2s,
     e_typing s C [::AI_local n f es] (Tf t1s t2s) ->
     exists ts, t2s = t1s ++ ts /\
@@ -1243,16 +1117,6 @@ Proof.
     split => //=.
     by rewrite -catA.
 Qed.
-
-(*
-  Similarly, Local does not involve in induction either. So what we want to prove
-    is also slightly different from what we desire. However, this one is easier
-    to observe.
-
-  The only thing that got me stuck for a while is to observe that label of the
-    typing context plays no role in typing for this case; this is required since
-    we'll get an extra label update from inverting the Label instruction.
- *)
 
 Lemma Lfilled_return_typing: forall n lh vs LI ts s C lab t2s,
     e_typing s (upd_label C lab) LI (Tf [::] t2s) ->
