@@ -33,7 +33,9 @@ Let s_globals : store_record -> seq global := @s_globals _.
 Let s_mems : store_record -> seq memory := @s_mems _.
 Let functions_agree : seq function_closure -> nat -> function_type -> bool := @functions_agree _.
 Let cl_type : function_closure -> function_type := @cl_type _.
-Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+Let func_extension := @func_extension host_function.
+Let frame_typing := @frame_typing host_function.
+
 
 Ltac et_dependent_ind H :=
   repeat lazymatch (type of H) with
@@ -359,13 +361,7 @@ Proof.
     apply bet_weakening.
     by eapply IHHType => //=.
 Qed.
- (*
-Ltac invert_non_be:=
-  repeat lazymatch goal with
-  | H: exists e, _ = AI_basic e |- _ =>
-    try by destruct H
-  end.
-*)
+
 (*
   Preservation for all be_typeable simple reductions.
 *)
@@ -776,6 +772,7 @@ Proof.
   destruct g0 => //=.
   destruct g1 => //=.
   simpl in H2. simpl in H1.
+  remove_bools_options; subst; first by rewrite H0; lias.
   by destruct g_mut => //=; remove_bools_options;
     apply/andP => //=; subst; split => //=;
     destruct g_mut0 => //=; destruct g_val => //=; destruct g_val0 => //=.
@@ -783,125 +780,129 @@ Qed.
 
 Lemma glob_extension_C: forall sg sg' ig tcg,
     all2 (globals_agree sg) ig tcg ->
-    all2 glob_extension sg sg' ->
+    comp_extension sg sg' glob_extension ->
     all2 (globals_agree sg') ig tcg.
 Proof.
-  move => sg sg' ig.
-  generalize dependent sg; generalize dependent sg'.
-  induction ig; move => sg' sg tcg HA Hext => //=; destruct tcg => //=.
-  - simpl in HA. remove_bools_options.
-    edestruct IHig; eauto.
-    unfold globals_agree in H. remove_bools_options.
-    assert (size sg = size sg'); first by eapply all2_size; eauto.
-    assert (a < length sg')%coq_nat.
-    {
-        rewrite length_is_size in H. rewrite length_is_size.
-        rewrite -H1. by lias.
-    }
-    remember H2 as H5. clear HeqH5.
-    rewrite <- List.nth_error_Some in H2.
-    destruct (List.nth_error sg' a) eqn:HGlob => //=; eauto. clear H2.
-    remember Hext as Hext1. clear HeqHext1.
-    eapply all2_projection in Hext1; eauto.
-    apply/andP. split => //=.
-    + unfold globals_agree. apply/andP; split => //=; first by lias.
-      unfold option_map. rewrite HGlob.
-      apply/eqP. f_equal.
-      by eapply global_agree_extension; eauto.
-    + by eapply IHig; eauto.
+  move => sg sg' ig tcg Hagree Hext.
+  eapply all2_weaken; try apply Hagree.
+  move => x y Hgagree.
+  unfold globals_agree in *.
+  unfold comp_extension in Hext.
+  remove_bools_options.
+  destruct (List.nth_error sg' x) as [g' |] eqn:Hnth; last by apply List.nth_error_None in Hnth; lias.
+  simpl in *.
+  apply (nth_error_take (k := length sg)) in Hnth => //.
+  apply/andP; split; first by lias.
+  specialize (all2_projection H2 Hoption Hnth) as Hproj.
+  eapply global_agree_extension in Hproj; last by apply H4.
+  by apply/eqP; f_equal; lias.
 Qed.
 
-Lemma memi_agree_extension: forall m0 m1 n m,
-    memi_agree m0 n m ->
-    all2 mem_extension m0 m1 ->
-    memi_agree m1 n m.
+Lemma mem_typing_extension: forall m m' y,
+    mem_typing m y ->
+    mem_extension m m' ->
+    mem_typing m' y.
 Proof.
-  move => m0 m1 n m H1 H2.
-  assert (size m0 = size m1) as HSize; first by eapply all2_size; eauto.
-  unfold memi_agree.
-  unfold memi_agree in H1. unfold mem_extension in H2.
-  destruct m => //=.
+  move => m m' y Htype Hext.
+  unfold mem_typing in *.
+  unfold mem_extension in Hext.
   remove_bools_options.
-  rewrite length_is_size in H.
-  apply/andP; split => //=; first by rewrite HSize in H.
-  rewrite HSize in H.
-  rewrite -length_is_size in H.
-  move/ltP in H.
-  rewrite <- List.nth_error_Some in H.
-  destruct (List.nth_error m1 n) eqn:HN => //=.
-  unfold mem_typing. simpl.
-  eapply all2_projection in H2; [| by apply Hoption | by apply HN ].
-  unfold mem_typing in H0. simpl in H0.
-  remove_bools_options.
-  apply/andP; split.
-  - apply N.leb_le. apply N.leb_le in H1. apply N.leb_le in H0.
+  apply/andP; split; last by apply/eqP; rewrite -H2 -H0.
+  { apply/N.leb_spec0.
+    move/N.leb_spec0 in H.
+    move/N.leb_spec0 in H1.
     by lias.
-  - rewrite H3 in H2. rewrite H2. by apply/eqP.
+  }
 Qed.
 
 Lemma mem_extension_C: forall sm sm' im tcm,
     all2 (memi_agree sm) im tcm ->
-    all2 mem_extension sm sm' ->
+    comp_extension sm sm' mem_extension ->
     all2 (memi_agree sm') im tcm.
 Proof.
-  move => sm sm' im.
-  generalize dependent sm; generalize dependent sm'.
-  induction im; move => sm' sm tcm HA Hext => //=; destruct tcm => //=.
-  simpl in HA. remove_bools_options.
-  apply/andP; split => //=; last by eapply IHim; eauto.
-  by eapply memi_agree_extension; eauto.
+  move => sm sm' im tcm Hagree Hext.
+  eapply all2_weaken; try apply Hagree.
+  move => x y Hmagree.
+  unfold memi_agree in *.
+  unfold comp_extension in Hext.
+  remove_bools_options.
+  destruct (List.nth_error sm' x) as [m' |] eqn:Hnth; last by apply List.nth_error_None in Hnth; lias.
+  apply (nth_error_take (k := length sm)) in Hnth => //.
+  apply/andP; split; first by lias.
+  specialize (all2_projection H2 Hoption Hnth) as Hproj.
+  by eapply mem_typing_extension; eauto.
 Qed.
 
-Lemma tabi_agree_extension: forall t0 t1 n t,
-    tabi_agree t0 n t ->
-    all2 tab_extension t0 t1 ->
-    tabi_agree t1 n t.
+Lemma tab_typing_extension: forall t t' y,
+    tab_typing t y ->
+    tab_extension t t' ->
+    tab_typing t' y.
 Proof.
-  move => t0 t1 n t H1 H2.
-  assert (size t0 = size t1) as HSize; first by eapply all2_size; eauto.
-  unfold tabi_agree.
-  unfold tabi_agree in H1. unfold tab_extension in H2.
-  unfold tab_size in H2.
-  destruct t => //=.
-  destruct t0 => //=.
-  destruct t1 => //=.
-  simpl in H2. simpl in H1.
+  move => t t' y Htype Hext.
+  unfold tab_typing in *.
+  unfold tab_extension in Hext.
   remove_bools_options.
-  unfold tab_typing in H3.
-  remove_bools_options.
-  simpl in H3. simpl in H4.
-  unfold tab_typing. simpl.
-  simpl in HSize. inversion HSize. subst. clear HSize.
-  apply/andP; split => //=.
-  - rewrite length_is_size in H1. rewrite length_is_size. by rewrite H6 in H1.
-  - assert (List.nth_error (t1 :: t2) n <> None).
-    { apply List.nth_error_Some. rewrite length_is_size. simpl. rewrite -H6.
-      by lias. }
-    destruct (List.nth_error (t1 :: t2) n) eqn:HN => //=.
-    destruct n => //=.
-    + simpl in HN. simpl in Hoption. inversion HN. inversion Hoption. subst.
-      apply/andP; split => //=; last by rewrite -H2.
-      unfold tab_size. unfold tab_size in H3. by lias.
-    + simpl in HN. simpl in Hoption.
-      eapply all2_projection in H0; eauto.
-      remove_bools_options.
-      apply/andP; split => //=; last by rewrite -H7.
-      unfold tab_size. unfold tab_size in H3. by lias.
+  apply/andP; split; last by apply/eqP; rewrite -H0; lias.
+  by lias.
 Qed.
 
 Lemma tab_extension_C: forall st st' it tct,
     all2 (tabi_agree st) it tct ->
-    all2 tab_extension st st' ->
+    comp_extension st st' tab_extension ->
     all2 (tabi_agree st') it tct.
 Proof.
-  move => st st' it.
-  generalize dependent st; generalize dependent st'.
-  induction it; move => st' st tct HA Hext => //=; destruct tct => //=.
-  simpl in HA. remove_bools_options.
-  apply/andP; split => //=; last by eapply IHit; eauto.
-  by eapply tabi_agree_extension; eauto.
+  move => st st' it tct Hagree Hext.
+  eapply all2_weaken; try apply Hagree.
+  move => x y Htagree.
+  unfold tabi_agree in *.
+  unfold comp_extension in Hext.
+  remove_bools_options.
+  destruct (List.nth_error st' x) as [t' |] eqn:Hnth; last by apply List.nth_error_None in Hnth; lias.
+  apply (nth_error_take (k := length st)) in Hnth => //.
+  apply/andP; split; first by lias.
+  specialize (all2_projection H2 Hoption Hnth) as Hproj.
+  by eapply tab_typing_extension; eauto.
 Qed.
 
+Lemma func_agree_extension: forall f0 f1 n f,
+    typing.functions_agree f0 n f ->
+    comp_extension f0 f1 func_extension ->
+    typing.functions_agree f1 n f.
+Proof.
+  move => f0 f1 n f Hagree Hext.
+  unfold comp_extension, func_extension, operations.func_extension in Hext.
+  unfold typing.functions_agree in *.
+  remove_bools_options.
+  apply/andP; split; first lias.
+  assert (List.nth_error f1 n = Some f2) as Hnth; last by rewrite Hnth.
+  assert (f1 = (take (length f0) f1) ++ (drop (length f0) f1)) as Hcat; first by rewrite cat_take_drop.
+  rewrite -> Hcat.
+  remember (take (length f0) f1) as f0'.
+  assert (f0 = f0') as ->.
+  { clear - H0. move : f0' H0.
+    induction f0; move => f0' H0; destruct f0' => //=.
+    simpl in *.
+    remove_bools_options; subst.
+    f_equal.
+    by apply IHf0.
+  }
+  rewrite List.nth_error_app1 => //.
+  by lias.
+Qed.
+  
+Lemma func_extension_C: forall sf sf' fi tcf,
+    all2 (typing.functions_agree sf) fi tcf ->
+    comp_extension sf sf' func_extension ->
+    all2 (typing.functions_agree sf') fi tcf.
+Proof.
+  move => sf sf' fi.
+  move: sf sf'.
+  induction fi; move => sf sf' tcf HA Hext => //=; destruct tcf => //=.
+  simpl in HA. remove_bools_options.
+  apply/andP; split => //=; last by eapply IHfi; eauto.
+  by eapply func_agree_extension; eauto.
+Qed.
+  
 Lemma inst_typing_extension: forall s s' i C,
     store_extension s s' ->
     inst_typing s i C ->
@@ -914,12 +915,14 @@ Proof.
   destruct i => //=.
   destruct C => //=.
   destruct tc_local => //. destruct tc_label => //. destruct tc_return => //.
-  remove_bools_options. rewrite - H4.
+  remove_bools_options. 
   repeat (apply/andP; split => //=; subst => //=).
+  - by eapply func_extension_C; eauto.
   - by eapply glob_extension_C; eauto.
   - by eapply tab_extension_C; eauto.
   - by eapply mem_extension_C; eauto.
 Qed.
+
 
 Lemma frame_typing_extension: forall s s' f C,
     store_extension s s' ->
@@ -931,42 +934,6 @@ Proof.
   inversion HIT. subst.
   eapply inst_typing_extension in H; eauto.
   by eapply mk_frame_typing; eauto.
-Qed.
-
-Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
-    reflexive f ->
-    all2 f l l.
-Proof.
-  move => X f l.
-  induction l; move => H; unfold reflexive in H => //=.
-  apply/andP. split => //=.
-  by apply IHl.
-Qed.
-
-Lemma all2_tab_extension_same: forall t,
-    all2 tab_extension t t.
-Proof.
-  move => t.
-  apply reflexive_all2_same. unfold reflexive. move => x. unfold tab_extension.
-  by apply/andP.
-Qed.
-
-Lemma all2_mem_extension_same: forall t,
-    all2 mem_extension t t.
-Proof.
-  move => t.
-  apply reflexive_all2_same. unfold reflexive. move => x. unfold mem_extension.
-  apply/andP; split => //.
-  by apply N.leb_le; lias.
-Qed.
-
-Lemma all2_glob_extension_same: forall t,
-    all2 glob_extension t t.
-Proof.
-  move => t.
-  apply reflexive_all2_same. unfold reflexive. move => x. unfold glob_extension.
-  destruct (g_mut x) => //=.
-  by destruct (g_val x).
 Qed.
 
 Ltac convert_et_to_bet:=
@@ -1047,18 +1014,7 @@ Proof.
     by eauto.
 Qed.
 
-Lemma store_extension_same: forall s,
-    store_extension s s.
-Proof.
-  move => s. unfold store_extension.
-  repeat (apply/andP; split).
-  + by apply/eqP.
-  + by apply all2_tab_extension_same.
-  + by apply all2_mem_extension_same.
-  + by apply all2_glob_extension_same.
-Qed.
-
-Lemma store_extension_cl_typing: forall s s' cl tf,
+Lemma store_extension_cl_typing: forall (s s': store_record) cl tf,
     store_extension s s' ->
     cl_typing s cl tf ->
     cl_typing s' cl tf.
@@ -1069,11 +1025,6 @@ Proof.
     by eapply inst_typing_extension; eauto.
   - by eapply cl_typing_host; eauto.
 Qed.
-
-(*
-  The correct version. We need a mutual induction on e_typing and s_typing
-    since they were defined with a mutual induction.
- *)
 
 Lemma store_extension_e_typing: forall s s' C es tf,
     store_typing s ->
@@ -1109,11 +1060,8 @@ Proof.
     apply ety_local => //.
     by eapply IHHType; try apply HST1 => //.
   - move=> s a C cl tf HNth HCLType s' HST1 HST2 Hext.
-    replace (s_funcs s) with (s_funcs s') in HNth.
-    eapply ety_invoke; eauto => //.
+    eapply ety_invoke; eauto => //; first by eapply store_extension_lookup_func; eauto.
     by eapply store_extension_cl_typing; eauto.
-    { unfold store_extension, operations.store_extension in Hext.
-      by remove_bools_options. }  
   - move=> s C es es' t1s t2s n HType1 IHHType1 HType2 IHHType2 E s' HST1 HST2 Hext.
     eapply ety_label => //; eauto.
     + by apply IHHType1.
@@ -1139,7 +1087,7 @@ Proof.
     rewrite -update_list_at_is_set_nth; last by lias.
     simpl.
     apply/andP. split.
-    + unfold glob_extension. destruct (g_mut g0) => //=. by destruct (g_val g0).
+    + by apply glob_extension_refl. 
     + rewrite update_list_at_is_set_nth.
       * by eapply IHn; eauto.
       * simpl in H. rewrite length_is_size in H. by lias.
@@ -1598,6 +1546,33 @@ Proof.
   by induction HReduce.
 Qed.
 
+Lemma store_extension_mem: forall s i mem mem',
+  List.nth_error s.(s_mems) i = Some mem ->
+  mem_extension mem mem' ->
+  store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem')).
+Proof.
+  move => s i mem mem' Hnth Hext.
+  unfold store_extension => //=.
+  repeat (apply/andP; split) => //=.
+  - by rewrite length_is_size take_size; apply all2_func_extension_same.
+  - by rewrite length_is_size take_size; apply all2_tab_extension_same.
+  - rewrite update_list_at_length => //.
+    by apply/ltP; rewrite - List.nth_error_Some; rewrite Hnth.
+  - match goal with
+    | |- context [take ?n ?l] => remember l as l'
+    | _ => idtac
+    end.
+    assert (length l' = length s.(s_mems)) as Hlen.
+    { subst l'; apply update_list_at_length.
+      by apply/ltP; rewrite - List.nth_error_Some; rewrite Hnth.
+    }
+    rewrite - Hlen.
+    rewrite length_is_size take_size.
+    subst l'.
+    eapply mem_extension_update_nth; eauto => //=.
+  - by rewrite length_is_size take_size; apply all2_glob_extension_same.
+Qed. 
+
 Lemma store_extension_reduce: forall s f es s' f' es' C tf loc lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     inst_typing s f.(f_inst) C ->
@@ -1637,13 +1612,27 @@ Proof.
     unfold is_mut in H7. simpl in H7. remove_bools_options. subst.
     + simpl. unfold store_extension => //=.
       repeat (apply/andP; split) => //=.
-      -- by apply all2_tab_extension_same.
-      -- by apply all2_mem_extension_same.
-      -- eapply glob_extension_update_nth; eauto => //=.
+      -- by rewrite length_is_size take_size; apply all2_func_extension_same.
+      -- by rewrite length_is_size take_size; apply all2_tab_extension_same.
+      -- by rewrite length_is_size take_size; apply all2_mem_extension_same.
+      -- rewrite update_list_at_length => //.
+         by apply/ltP; rewrite - List.nth_error_Some; rewrite Hoption0.
+      -- match goal with
+         | |- context [take ?n ?l] => remember l as l'
+         | _ => idtac
+         end.
+         assert (length l' = length s.(s_globals)) as Hlen.
+         { subst l'; apply update_list_at_length.
+           by apply/ltP; rewrite - List.nth_error_Some; rewrite Hoption0.
+         }
+         rewrite - Hlen.
+         rewrite length_is_size take_size.
+         subst l'.
+         eapply glob_extension_update_nth; eauto => //=.
          unfold glob_extension => //=.
          by destruct v => //=; destruct g_val => //=.
-    split => //.
-    by eapply store_global_extension_store_typed; eauto;
+      split => //.
+      by eapply store_global_extension_store_typed; eauto;
       destruct s => //=; destruct s' => //=; remove_bools_options.
   - (* update memory : store none *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
@@ -1657,12 +1646,9 @@ Proof.
     remove_bools_options.
     inversion H4. subst. clear H4.
     assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
-    + unfold store_extension => //=.
-      repeat (apply/andP; split) => //=.
-      * by apply all2_tab_extension_same.
-        eapply mem_extension_update_nth; eauto => //=.
-      * by eapply mem_extension_store; eauto.
-      * by apply all2_glob_extension_same.
+    { eapply store_extension_mem => //; first by rewrite H1.
+      by eapply mem_extension_store; eauto.
+    }
     split => //.
     eapply store_memory_extension_store_typed; eauto => //=.
     remember HST as HST2. clear HeqHST2.
@@ -1689,12 +1675,9 @@ Proof.
     remove_bools_options.
     inversion H4. subst. clear H4.
     assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
-    + unfold store_extension => //=.
-      repeat (apply/andP; split) => //=.
-      * by apply all2_tab_extension_same.
-      * eapply mem_extension_update_nth; eauto => //=.
-        by eapply mem_extension_store; eauto.
-      * by apply all2_glob_extension_same.
+    { eapply store_extension_mem => //; first by rewrite H1.
+      by eapply mem_extension_store; eauto.
+    }
     split => //.
     eapply store_memory_extension_store_typed; eauto => //=.
     remember HST as HST2. clear HeqHST2.
@@ -1718,12 +1701,9 @@ Proof.
     destruct H6 as [ts' [H7 [H8 H9]]]. subst.
     apply concat_cancel_last in H9 => //. destruct H9. subst.
     assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
-    + unfold store_extension => //=.
-      repeat (apply/andP; split) => //=.
-      * by apply all2_tab_extension_same.
-      * eapply mem_extension_update_nth; eauto => //=.
-        by eapply mem_extension_grow_memory; eauto.
-      * by apply all2_glob_extension_same.
+    { eapply store_extension_mem => //; first by rewrite H0.
+      by eapply mem_extension_grow_memory; eauto.
+    }
     split => //.
     eapply store_memory_extension_store_typed; eauto => //=.
     remember HST as HST2. clear HeqHST2.

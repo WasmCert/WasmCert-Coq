@@ -454,25 +454,10 @@ Definition const_list (es : seq administrative_instruction) : bool :=
 Definition those_const_list (es : list administrative_instruction) : option (list value) :=
   those (List.map (fun e => match e with | AI_basic (BI_const v) => Some v | _ => None end) es).
 
-Definition glob_extension (g1 g2: global) : bool.
-Proof.
-  destruct (g_mut g1).
-  - (* Immut *)
-    exact ((g_mut g2 == MUT_immut) && (g_val g1 == g_val g2)).
-  - (* Mut *)
-    destruct (g_mut g2).
-    + exact false.
-    + destruct (g_val g1) eqn:T1;
-      lazymatch goal with
-      | H1: g_val g1 = ?T1 _ |- _ =>
-        destruct (g_val g2) eqn:T2;
-          lazymatch goal with
-          | H2: g_val g2 = T1 _ |- _ => exact true
-          | _ => exact false
-          end
-      | _ => exact false
-      end.
-Defined.
+Definition glob_extension (g1 g2: global) : bool :=
+  ((g_mut g1 == MUT_mut) || ((g_val g1) == (g_val g2))) &&
+    (g_mut g1 == g_mut g2) &&
+    (typeof (g_val g1) == typeof (g_val g2)).
 
 Definition tab_extension (t1 t2 : tableinst) :=
   (tab_size t1 <= tab_size t2) &&
@@ -481,11 +466,18 @@ Definition tab_extension (t1 t2 : tableinst) :=
 Definition mem_extension (m1 m2 : memory) :=
   (N.leb (mem_size m1) (mem_size m2)) && (mem_max_opt m1 == mem_max_opt m2).
 
+Definition func_extension (f1 f2: function_closure) :=
+  f1 == f2.
+
+Definition comp_extension {T: Type} (l1 l2: list T) (f: T -> T -> bool) : bool :=
+  (length l1 <= length l2) &&
+  (all2 f l1 (take (length l1) l2)).
+
 Definition store_extension (s s' : store_record) : bool :=
-  (s_funcs s == s_funcs s') &&
-  (all2 tab_extension s.(s_tables) s'.(s_tables)) &&
-  (all2 mem_extension s.(s_mems) s'.(s_mems)) &&
-  (all2 glob_extension s.(s_globals) s'.(s_globals)).
+  comp_extension s.(s_funcs) s'.(s_funcs) func_extension &&
+  comp_extension s.(s_tables) s'.(s_tables) tab_extension &&
+  comp_extension s.(s_mems) s'.(s_mems) mem_extension &&
+  comp_extension s.(s_globals) s'.(s_globals) glob_extension.
 
 Definition vs_to_vts (vs : seq value) := map typeof vs.
 
