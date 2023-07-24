@@ -1,11 +1,7 @@
 From mathcomp Require Import ssreflect ssrbool eqtype seq.
 From mathcomp Require ssrnat.
-From ITree Require Import ITree.
-From ITree Require ITreeFacts.
 From stdpp Require Import list fin_maps gmap base.
-From Wasm Require Import list_extra datatypes datatypes_properties properties
-     interpreter binary_format_parser operations type_preservation
-                         typing opsem type_checker memory memory_list instantiation instantiation_properties.
+From Wasm Require Import instantiation_spec instantiation_properties.
 Require Export stdpp_aux.
 From Coq Require Import BinNat.
 Require Import Coq.Program.Equality.
@@ -308,7 +304,7 @@ Qed.
 
 
 Lemma external_typing_aux s v_imps t_imps:
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps -> 
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps -> 
   length (ext_funcs v_imps) = length (ext_t_funcs t_imps) /\
   length (ext_globs v_imps) = length (ext_t_globs t_imps) /\
   length (ext_tabs v_imps) = length (ext_t_tabs t_imps) /\
@@ -390,10 +386,11 @@ Proof.
        by lias.
 Qed.
 
+
 Lemma mem_agree_from_typing mod_mems s_mems:
   all module_mem_typing mod_mems ->
   s_mems = (λ '{| lim_min := min; lim_max := maxo |},
-               {| mem_data := mem_make #00 match min with
+               {| mem_data := memory_list.mem_make #00 match min with
                                       | 0%N => 0%N
                                       | N.pos q => N.pos (64 * 1024 * q)
                                       end;
@@ -437,12 +434,10 @@ Proof.
     by apply/N.leb_spec0.
 Qed.
 
-
-
 Lemma external_typing_func s v_imps t_imps n v_imp t_imp:
   nth_error (map (λ '(Mk_funcidx i), i) (ext_funcs v_imps)) n = Some v_imp ->
   nth_error (ext_t_funcs t_imps) n = Some t_imp -> 
-  instantiation.external_typing host_function s (MED_func (Mk_funcidx v_imp)) (ET_func t_imp) ->
+  instantiation_spec.external_typing host_function s (MED_func (Mk_funcidx v_imp)) (ET_func t_imp) ->
   option_map cl_type (nth_error (s_funcs s) v_imp) = Some t_imp.
 Proof.
   move => Hvimp Htimp Htyping.
@@ -450,11 +445,10 @@ Proof.
   by rewrite H3.
 Qed.
 
-
 Lemma external_typing_tab s v_imps t_imps n v_imp t_imp:
   nth_error (map (λ '(Mk_tableidx i), i) (ext_tabs v_imps)) n = Some v_imp ->
   nth_error (ext_t_tabs t_imps) n = Some t_imp -> 
-  instantiation.external_typing host_function s (MED_table (Mk_tableidx v_imp)) (ET_tab t_imp) ->
+  instantiation_spec.external_typing host_function s (MED_table (Mk_tableidx v_imp)) (ET_tab t_imp) ->
   exists ti, (nth_error (s_tables s) v_imp = Some ti) /\
           tab_typing ti t_imp.
 Proof.
@@ -486,7 +480,7 @@ Definition module_export_entity_relate (R : module_export_desc → extern_t → 
            end.
 
 Lemma external_typing_relate s :
-  module_export_entity_relate (instantiation.external_typing host_function s).
+  module_export_entity_relate (instantiation_spec.external_typing host_function s).
 Proof.
   rewrite /module_export_entity_relate => vi ti HR.
   inversion HR => //.
@@ -535,7 +529,7 @@ Proof.
 Qed.
 
 Lemma external_typing_funcs_aux s n v_imps v_imp t_imps t_imp:
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps ->
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps ->
   nth_error (map (λ '(Mk_funcidx i), i) (ext_funcs v_imps)) n = Some v_imp ->
   nth_error (ext_t_funcs t_imps) n = Some t_imp -> 
   option_map cl_type (nth_error (s_funcs s) v_imp) = Some t_imp. 
@@ -598,7 +592,7 @@ Proof.
 Qed.
 
 Lemma external_typing_globs_aux s n v_imps v_imp t_imps t_imp:
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps ->
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps ->
   nth_error (map (λ '(Mk_globalidx i), i) (ext_globs v_imps)) n = Some v_imp ->
   nth_error (ext_t_globs t_imps) n = Some t_imp ->
   option_map (λ g : global, global_agree g t_imp) (nth_error (s_globals s) v_imp) = Some true. 
@@ -661,7 +655,7 @@ Proof.
 Qed.
 
 Lemma external_typing_tabs_aux s n v_imps v_imp t_imps t_imp:
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps ->
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps ->
   nth_error (map (λ '(Mk_tableidx i), i) (ext_tabs v_imps)) n = Some v_imp ->
   nth_error (ext_t_tabs t_imps) n = Some t_imp ->
   tabi_agree (s_tables s) v_imp t_imp.
@@ -726,7 +720,7 @@ Proof.
 Qed.
 
 Lemma external_typing_mems_aux s n v_imps v_imp t_imps t_imp:
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps ->
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps ->
   nth_error (map (λ '(Mk_memidx i), i) (ext_mems v_imps)) n = Some v_imp ->
   nth_error (ext_t_mems t_imps) n = Some t_imp ->
   memi_agree (s_mems s) v_imp t_imp.
@@ -762,7 +756,7 @@ Qed.
 Lemma alloc_module_sound s s' m v_imps t_imps v_exps t_exps inst gvs hs: 
   alloc_module host_function s m v_imps gvs (s', inst, v_exps) ->
   module_typing m t_imps t_exps ->
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps -> 
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps -> 
   instantiate_globals host_function host_instance inst hs s' m gvs -> 
   store_typing s ->
   ((store_typing s' /\
@@ -1413,7 +1407,7 @@ Proof.
   rewrite /store_typing /typing.store_typing in Htyping.
   destruct s. simpl in *.
   destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
-  assert (Hle: taddr < length s_tables). { by eapply nth_error_Some_length. }.
+  assert (Hle: taddr < length s_tables). { by eapply nth_error_Some_length. }
   rewrite insert_at_insert => //.
   apply Forall2_all2.
   eapply Forall2_insert_2; [ by apply Forall2_all2, all2_tab_extension_same | eauto | ].
@@ -1491,7 +1485,7 @@ Proof.
     
     destruct tab => /=.
     subst s_funcs0 s_mems0 s_globals0.
-    assert (Hlt: taddr < length s_tables). { by eapply nth_error_Some_length. }.
+    assert (Hlt: taddr < length s_tables). { by eapply nth_error_Some_length. }
     rewrite insert_at_insert in Heqs' => //.
 
     inversion Heqs'; subst s_tables0; clear Heqs'.
@@ -1615,7 +1609,7 @@ Proof.
       
       destruct tinst1. simpl in *.
       assert (H3: taddr1 < length (s_tables s)).
-      { by eapply nth_error_Some_length .}
+      { by eapply nth_error_Some_length. }
       erewrite insert_at_insert => //.
       destruct (decide (taddr0 = taddr1)).
       * (* taddr0 = taddr1 *)
@@ -1737,7 +1731,7 @@ Proof.
   simpl in Hbound.
 
   move/N.leb_spec0 in Hbound.
-  replace (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off))).
+  replace (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (memory_list.ml_data mem_data)) with (ssrnat.nat_of_bin (Z.to_N (Wasm_int.Int32.intval d_off))).
   2 : { rewrite /N_of_int in Hbound.
         repeat rewrite nat_bin.
         by lias. }
@@ -1833,7 +1827,7 @@ Proof.
 
     rewrite nat_bin.
 
-    replace (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))).
+    replace (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (memory_list.ml_data mem_data)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))).
     2 : { by lias. }
 
     rewrite plus_assoc.
@@ -1917,17 +1911,17 @@ Proof.
         rewrite <- e.
         rewrite nth_error_lookup => //.
         rewrite list_lookup_insert => //.
-        rewrite /instantiation.mem_length /memory_list.mem_length.
+        rewrite /instantiation_spec.mem_length /memory_list.mem_length.
         simpl.
 
         (* from addr = addr1, we could know that minst1 = minst0 (has been destructed) *)
         rewrite <- e in Hinst1.
         rewrite Hinst1 in Hminst.
         inversion Hminst; subst. clear Hminst.
-        rewrite /instantiation.mem_length /memory_list.mem_length in H1.
+        rewrite /instantiation_spec.mem_length /memory_list.mem_length in H1.
         simpl in H1.
 
-        rewrite /instantiation.mem_length /memory_list.mem_length in H2.
+        rewrite /instantiation_spec.mem_length /memory_list.mem_length in H2.
         simpl in H2.
         
         repeat rewrite app_length.
@@ -1943,7 +1937,7 @@ Proof.
         
         rewrite nat_bin.
         
-        replace (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (ml_data mem_data)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))).
+        replace (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) `min` length (memory_list.ml_data mem_data)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))).
         2 : { by lias. }
 
         rewrite plus_assoc.
@@ -1989,7 +1983,7 @@ Qed.
 Lemma init_tabs_preserve_typing_aux s s' m v_imps t_imps v_exps t_exps inst gvs hs: 
   alloc_module host_function s m v_imps gvs (s', inst, v_exps) ->
   module_typing m t_imps t_exps ->
-  Forall2 (instantiation.external_typing host_function s) v_imps t_imps -> 
+  Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps -> 
   instantiate_globals host_function host_instance inst hs s' m gvs ->
   store_typing s -> 
   length (inst_funcs inst) = length (ext_t_funcs t_imps) + length (mod_funcs m) /\
@@ -2110,21 +2104,6 @@ Lemma module_typing_export_sound s m v_imps g_inits s' inst C v_exps t_imps t_ex
   inst_typing s' inst C ->
   List.Forall (fun x => exists t, external_typing s' (modexp_desc x) t) v_exps.
 Proof.
-  move => Halloc Hmodtype Hinsttype.
-  
-  apply alloc_module_extract_export in Halloc; subst.
-
-  apply Forall_forall.
-  move => x Hin.
-  apply In_nth_error in Hin as [n Hnth].
-  rewrite Coqlib.list_map_nth in Hnth.
-  destruct (nth_error (mod_exports m) n) eqn:Hnth' => //.
-  simpl in Hnth; injection Hnth; clear Hnth.
-  move => <-.
-  remember (modexp_desc m0) as mdesc.
-  destruct mdesc => //=.
-  - destruct f => //.
-    
 Admitted.
 
 Lemma store_extension_export_typing s s' v_exp t_exp:
@@ -2167,7 +2146,7 @@ Lemma instantiation_sound: forall (s: store_record) m v_imps s' inst v_exps star
 Proof.
   move => s m v_imps s' inst v_exps start HStoreType HInst.
 
-  unfold instantiate, instantiation.instantiate in HInst.
+  unfold instantiate, instantiation_spec.instantiate in HInst.
   destruct HInst as [t_imps [t_exps [hs' [s'_end [g_inits [e_offs [d_offs [HModType [HImpType [HAllocModule H]]]]]]]]]].
 
   destruct H as [HInstGlob [HInstElem [HInstData [HBoundElem [HBoundData [HStart HStore]]]]]].

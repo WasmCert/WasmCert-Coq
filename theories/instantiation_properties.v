@@ -1,12 +1,9 @@
 Require Import Coq.Program.Equality.
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
-Require Export datatypes operations properties opsem instantiation.
+Require Export instantiation_spec.
 From stdpp Require Import list fin_maps gmap.
 Require Export stdpp_aux.
 Require Export type_preservation type_progress.
-
-
-
   
 Section module_typing_det.
   
@@ -470,7 +467,7 @@ Lemma alloc_func_gen_index modfuncs ws inst ws' l:
   ws.(s_mems) = ws'.(s_mems) /\
   ws.(s_globals) = ws'.(s_globals).
 Proof.
-  unfold alloc_funcs, instantiation.alloc_funcs, alloc_Xs.
+  unfold alloc_funcs, instantiation_spec.alloc_funcs, alloc_Xs.
   generalize dependent l.
   generalize dependent ws'.
   generalize dependent ws.
@@ -508,7 +505,7 @@ Lemma alloc_tab_gen_index modtabtypes ws ws' l:
   ws.(s_mems) = ws'.(s_mems) /\
   ws.(s_globals) = ws'.(s_globals).
 Proof.
-  unfold alloc_tabs, instantiation.alloc_tabs, alloc_Xs.
+  unfold alloc_tabs, instantiation_spec.alloc_tabs, alloc_Xs.
   generalize dependent l.
   generalize dependent ws'.
   generalize dependent ws.
@@ -550,7 +547,7 @@ Lemma alloc_mem_gen_index modmemtypes ws ws' l:
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_globals) = ws'.(s_globals).
 Proof.
-  unfold alloc_mems, instantiation.alloc_mems, alloc_Xs.
+  unfold alloc_mems, instantiation_spec.alloc_mems, alloc_Xs.
   generalize dependent l.
   generalize dependent ws'.
   generalize dependent ws.
@@ -591,7 +588,7 @@ Lemma alloc_glob_gen_index modglobs ws g_inits ws' l:
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems).
 Proof.
-  unfold alloc_globs, instantiation.alloc_globs, alloc_Xs.
+  unfold alloc_globs, instantiation_spec.alloc_globs, alloc_Xs.
   generalize dependent l.
   generalize dependent ws'.
   generalize dependent ws.
@@ -644,14 +641,14 @@ Lemma init_tabs_preserve ws inst e_inits melem ws':
   ws.(s_globals) = ws'.(s_globals).
 Proof.
   move => Hinit.
-  unfold init_tabs, instantiation.init_tabs in Hinit.
+  unfold init_tabs, instantiation_spec.init_tabs in Hinit.
   rewrite - Hinit.
   apply fold_left_preserve => //.
   move => x [n me] Heq.
   destruct ws, x.
   simpl in *.
   destruct Heq as [-> [-> ->]].
-  unfold init_tab, instantiation.init_tab => /=.
+  unfold init_tab, instantiation_spec.init_tab => /=.
   by destruct (nth _ _) eqn:Hl => /=.
 Qed.
 
@@ -662,14 +659,14 @@ Lemma init_mems_preserve ws inst d_inits mdata ws':
   ws.(s_globals) = ws'.(s_globals).
 Proof.
   move => Hinit.
-  unfold init_mems, instantiation.init_mems in Hinit.
+  unfold init_mems, instantiation_spec.init_mems in Hinit.
   rewrite - Hinit.
   apply fold_left_preserve => //.
   move => x [n md] Heq.
   destruct ws, x.
   simpl in *.
   destruct Heq as [-> [-> ->]].
-  by unfold init_mem, instantiation.init_mem => /=.
+  by unfold init_mem, instantiation_spec.init_mem => /=.
 Qed.
 
 Lemma mod_imps_len_t m t_imps t_exps:
@@ -895,7 +892,7 @@ Lemma module_glob_init_det m v_imps t_imps inst hs1 s1 hs2 s2 gi1 gi2:
 Proof.
   move => Hmt Hgi1 Hgi2 Hsgveq.
   unfold module_typing in Hmt.
-  unfold instantiate_globals, instantiation.instantiate_globals in *.
+  unfold instantiate_globals, instantiation_spec.instantiate_globals in *.
   destruct m; simpl in *.
   destruct Hmt as [fts [gts [_ [_ [_ [Hmgt _]]]]]].
   assert (length gi1 = length gi2) as Hlen; first by (apply Forall2_length in Hgi1; apply Forall2_length in Hgi2; rewrite Hgi1 in Hgi2).
@@ -952,7 +949,7 @@ Lemma module_elem_init_det m v_imps t_imps inst hs1 hs2 s eo1 eo2:
 Proof.
   move => Hmt Heo1 Heo2.
   unfold module_typing in Hmt.
-  unfold instantiate_elem, instantiation.instantiate_elem in *.
+  unfold instantiate_elem, instantiation_spec.instantiate_elem in *.
   destruct m; simpl in *.
   destruct Hmt as [fts [gts [_ [_ [_ [_ [Hmet _]]]]]]].
   assert (length eo1 = length eo2) as Hlen; first by (apply Forall2_length in Heo1; apply Forall2_length in Heo2; rewrite Heo1 in Heo2).
@@ -1001,7 +998,7 @@ Lemma module_data_init_det m v_imps t_imps inst hs1 hs2 s do1 do2:
 Proof.
   move => Hmt Hdo1 Hdo2.
   unfold module_typing in Hmt.
-  unfold instantiate_data, instantiation.instantiate_data in *.
+  unfold instantiate_data, instantiation_spec.instantiate_data in *.
   destruct m; simpl in *.
   destruct Hmt as [fts [gts [_ [_ [_ [_ [_ [Hmdt _]]]]]]]].
   assert (length do1 = length do2) as Hlen; first by (apply Forall2_length in Hdo1; apply Forall2_length in Hdo2; rewrite Hdo1 in Hdo2).
@@ -1073,14 +1070,14 @@ Lemma alloc_module_det hs1 hs2 s m v_imps t_imps t_exps g_inits g_inits' s_res1 
   (s_res1 = s_res2).
 Proof.
   move => Hmt Hexttype Hglen1 Hglen2 Ham1 Ham2 Hinitg1 Hinitg2.
-  unfold alloc_module, instantiation.alloc_module in *.
-  remember (instantiation.alloc_funcs host_function s (mod_funcs m) inst) as res_f.
+  unfold alloc_module, instantiation_spec.alloc_module in *.
+  remember (instantiation_spec.alloc_funcs host_function s (mod_funcs m) inst) as res_f.
   destruct res_f as [s0 idf].
-  remember (instantiation.alloc_tabs host_function s0 (map modtab_type (mod_tables m))) as res_t.
+  remember (instantiation_spec.alloc_tabs host_function s0 (map modtab_type (mod_tables m))) as res_t.
   destruct res_t as [s1 idt].
-  remember (instantiation.alloc_mems host_function s1 (mod_mems m)) as res_m.
+  remember (instantiation_spec.alloc_mems host_function s1 (mod_mems m)) as res_m.
   destruct res_m as [s2 idm].
-  remember (instantiation.alloc_globs host_function s2 (mod_globals m) g_inits) as res_g.
+  remember (instantiation_spec.alloc_globs host_function s2 (mod_globals m) g_inits) as res_g.
   destruct res_g as [s3 idg].
   symmetry in Heqres_f.
   symmetry in Heqres_t.
@@ -1096,13 +1093,13 @@ Proof.
   destruct Heqres_m as [Hidm [-> [<- [<- <-]]]].
   destruct Heqres_g as [Hidg [-> [<- [<- <-]]]].
   
-  remember (instantiation.alloc_funcs host_function s (mod_funcs m) inst') as res_f'.
+  remember (instantiation_spec.alloc_funcs host_function s (mod_funcs m) inst') as res_f'.
   destruct res_f' as [s0' idf'].
-  remember (instantiation.alloc_tabs host_function s0' (map modtab_type (mod_tables m))) as res_t'.
+  remember (instantiation_spec.alloc_tabs host_function s0' (map modtab_type (mod_tables m))) as res_t'.
   destruct res_t' as [s1' idt'].
-  remember (instantiation.alloc_mems host_function s1' (mod_mems m)) as res_m'.
+  remember (instantiation_spec.alloc_mems host_function s1' (mod_mems m)) as res_m'.
   destruct res_m' as [s2' idm'].
-  remember (instantiation.alloc_globs host_function s2' (mod_globals m) g_inits') as res_g'.
+  remember (instantiation_spec.alloc_globs host_function s2' (mod_globals m) g_inits') as res_g'.
   destruct res_g' as [s3' idg'].
   symmetry in Heqres_f'.
   symmetry in Heqres_t'.
@@ -1270,7 +1267,7 @@ Proof.
   move => Hinst1 Hinst2.
   destruct res as [[[s1 inst1] exp1] start1].
   destruct res' as [[[s2 inst2] exp2] start2].
-  unfold instantiate, instantiation.instantiate in *.
+  unfold instantiate, instantiation_spec.instantiate in *.
   destruct Hinst1 as (t_imps1 & t_exps1 & hs1 & ws1 & g_inits1 & e_offs1 & d_offs1 & Hmodtype1 & Hexttype1 & Hallocmodule1 & Hinstglob1 & Hinstelem1 & Hinstdata1 & Hcbelem1 & Hcbdata1 & Hcstart1 & Hws1).
   destruct Hinst2 as [t_imps2 [t_exps2 [hs2 [ws2 [g_inits2 [e_offs2 [d_offs2 [Hmodtype2 [Hexttype2 [Hallocmodule2 [Hinstglob2 [Hinstelem2 [Hinstdata2 [Hcbelem2 [Hcbdata2 [Hcstart2 Hws2]]]]]]]]]]]]]]]].
 

@@ -23,10 +23,6 @@ Unset Printing Implicit Defensive.
 (* TODO: Documentation. *)
 
 (* TODO: make these have structure; this will require monad-ifying the whole thing *)
-Definition host := unit.
-Definition host_state := unit.
-
-Definition depth := nat.
 
 Definition immediate (* i *) :=
   (* TODO: this is not a great representation *)
@@ -581,24 +577,7 @@ Inductive extern_t : Type :=
 .
 
 
-(** Some types used in the interpreter. **)
-
-Definition config_tuple : Type := host_state * store_record * frame * list administrative_instruction.
-
-Definition config_one_tuple_without_e : Type := host_state * store_record * frame * list value.
-
-Inductive res_crash : Type :=
-  | C_error : res_crash
-  .
-
-Inductive res_step : Type :=
-  | RS_crash : res_crash -> res_step
-  | RS_break : nat -> seq value -> res_step
-  | RS_return : seq value -> res_step
-  | RS_normal : seq administrative_instruction -> res_step
-  .
-
-Definition res_tuple : Type := host_state * store_record * frame * res_step.
+Definition config_tuple : Type := store_record * frame * list administrative_instruction.
 
 End Host.
 Arguments FC_func_native [host_function].
