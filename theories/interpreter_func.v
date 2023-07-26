@@ -3051,6 +3051,8 @@ Qed.
 
 End Host_func.
 
+(** Extraction **)
+
 Module EmptyHost.
 
 Definition host_function := void.
@@ -3086,7 +3088,7 @@ Definition host_state := host_state host_instance.
 
 End EmptyHost.
 
-Module Interpreter_func.
+Module Interpreter_func_extract.
 
 Export EmptyHost.
 
@@ -3112,4 +3114,4 @@ Definition run_step_compat := run_step_compat host_application_impl_correct.
 Definition is_const_list : list administrative_instruction -> option (list value) :=
   @those_const_list.
 
-End Interpreter_func.
+End Interpreter_func_extract.

@@ -6,9 +6,11 @@ From Coq Require Extraction.
 From Wasm Require Import
   datatypes_properties
   binary_format_parser
-  instantiation
-  type_checker
+  instantiation_func
   interpreter_func
+  type_checker
+(*  instantiation_itree
+  interpreter_itree *)
   pp.
 
 From Coq Require Import
@@ -20,8 +22,10 @@ Extraction Language OCaml.
 
 Extraction "extract"
   run_parse_module
-  Instantiation
-  Interpreter_func
+  Instantiation_func_extract
+  Interpreter_func_extract
+(*  Instantiation_itree_extract
+  Interpreter_itree_extract*)
   value_rec_safe
   PP
   DummyHost.

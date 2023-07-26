@@ -5,7 +5,7 @@ From Coq Require Import BinNat.
 Section Instantiation_func.
 
 Import EmptyHost.
-Import Interpreter_func.
+Import Interpreter_func_extract.
 
 Let alloc_funcs := alloc_funcs host_function_eqType.
 Let alloc_tabs := alloc_tabs host_function_eqType.
@@ -311,7 +311,9 @@ Definition lookup_exported_function (n : name) (store_inst_exps : host_state * s
 
 End Instantiation_func.
 
-Module Instantiation.
+(** Extraction **)
+
+Module Instantiation_func_extract.
 
 Import EmptyHost.
 
@@ -325,4 +327,4 @@ Definition interp_instantiate_wrapper :
   option (host_state * store_record * instance * seq module_export * option nat) :=
   interp_instantiate_wrapper.
 
-End Instantiation.
+End Instantiation_func_extract.

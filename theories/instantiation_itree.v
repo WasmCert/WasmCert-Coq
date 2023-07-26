@@ -328,9 +328,11 @@ Definition lookup_exported_function (n : name) (store_inst_exps : store_record *
 
 End Instantiation_itree.
 
+(** Extraction **)
+
 (** As-is, [eqType] tends not to extract well.
   This section provides alternative definitions for better extraction. **)
-Module Instantiation (EH : Executable_Host).
+Module Instantiation_itree_extract (EH : Executable_Host).
 
 Module Exec := convert_to_executable_host EH.
 Import Exec.
@@ -346,4 +348,4 @@ Definition interp_instantiate_wrapper :
     (store_record * instance * seq module_export * option nat) :=
   @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
 
-End Instantiation.
+End Instantiation_itree_extract.

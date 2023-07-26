@@ -547,6 +547,8 @@ Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : itree e
 
 End RunStep.
 
+(** Extraction **)
+  
 Section Run.
 
 Context {eff : Type -> Type}.
@@ -619,7 +621,7 @@ Definition monad_functor := Functor_Monad (M := monad_monad).
 
 End convert_target_monad.
 
-Module Interpreter (EH : Executable_Host) (TM : TargetMonad EH).
+Module Interpreter_itree_extract (EH : Executable_Host) (TM : TargetMonad EH).
 
 Module Exec := convert_to_executable_host EH.
 Import Exec.
@@ -651,4 +653,4 @@ Definition itree_to_option (E : Type -> Type) (tr : forall T A, E T -> A) :
     forall R, itree E R -> option R :=
   fun _ tree => option_of_itree_void (translate (fun T => tr T _) tree).
 
-End Interpreter.
+End Interpreter_itree_extract.

@@ -11,8 +11,8 @@ Require Import ansi list_extra.
 Open Scope string_scope.
 
 Section Host.
-
-Import Interpreter_func.
+  
+Import Interpreter_func_extract.
 
 Variable show_host_function : host_function -> string.
 

@@ -82,8 +82,9 @@ module Interpreter =
       let* b = b in
       pure (a, b)
 
-    module Interpreter = Extract.Interpreter_func
-    module Instantiation = Extract.Instantiation
+    (* We are based on the functional version of the interpreter for now *)
+    module Interpreter = Extract.Interpreter_func_extract
+    module Instantiation = Extract.Instantiation_func_extract
     module PP = Extract.PP
 
     type store_record = Extract.EmptyHost.store_record
