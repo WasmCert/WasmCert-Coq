@@ -2098,6 +2098,8 @@ Proof.
   by remove_bools_options.
 Qed.
 
+(* This lemma is admitted for now; it is required to show that the exports are of the correct types. 
+   Without this lemma, the final instantiation soundness can still be proved but the external typing goal needs to be dropped. *)
 Lemma module_typing_export_sound s m v_imps g_inits s' inst C v_exps t_imps t_exps:
   alloc_module host_function s m v_imps g_inits (s', inst, v_exps) ->
   module_typing m t_imps t_exps ->
