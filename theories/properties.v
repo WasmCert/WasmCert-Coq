@@ -1,5 +1,4 @@
 (** Miscellaneous properties about Wasm operations **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -15,17 +14,6 @@ Unset Printing Implicit Defensive.
 Section Host.
 
 Variable host_function : eqType.
-
-(*Let administrative_instruction := administrative_instruction host_function.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
-Let lfilled := @lfilled host_function.
-Let lfilledInd := @lfilledInd host_function.
-Let es_is_basic := @es_is_basic host_function.
-Let to_e_list := @to_e_list host_function.
-Let e_is_trap := @e_is_trap host_function.
-Let es_is_trap := @es_is_trap host_function.*)
-
 
 Lemma length_is_size: forall {X:Type} (l: list X),
     length l = size l.
@@ -359,8 +347,6 @@ Proof.
   move => bes2. simpl. by f_equal.
 Qed.
 
-(* Maybe there are better/standard tactics for dealing with these, but I didn't find
-     anything helpful *)
 Lemma concat_cancel_last: forall {X:Type} (l1 l2: seq X) (e1 e2:X),
     l1 ++ [::e1] = l2 ++ [::e2] ->
     l1 = l2 /\ e1 = e2.
@@ -596,13 +582,6 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(* Let administrative_instruction := administrative_instruction host_function. 
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
-Let lfilled := @lfilled host_function.
-Let lfilledInd := @lfilledInd host_function.
-Let es_is_basic := @es_is_basic host_function.
-Let to_e_list := @to_e_list host_function.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 
@@ -613,10 +592,8 @@ Lemma lfilled_collapse1: forall n lh vs es LI l,
     exists lh', lfilledInd n lh' ((drop (length vs-l) vs) ++ es) LI.
 Proof.
   move => n lh vs es LI l HLF HConst HLen.
-  (* Comparing this proof to the original proof in Isabelle, it seems that (induction X rule: Y) in Isabelle means induction on proposition Y remembering X (in Coq). *)
   remember (vs++es) as es'. induction HLF; subst.
   - exists (LH_base (vs0 ++ (take (length vs - l) vs)) es').
-    (* The proof to this case should really have finished here; the below is just rearranging brackets and applying cat_take_drop and assumptions. *)
     replace (vs0++(vs++es)++es') with ((vs0++take (length vs - l) vs) ++ (drop (length vs - l) vs ++ es) ++ es').
     { apply LfilledBase. apply const_list_concat => //=.
       by apply const_list_take. }
@@ -1012,13 +989,6 @@ Proof.
   by rewrite cats0 in H.
 Qed.
 
-(*
-  This is actually very non-trivial to prove, unlike I first thought.
-  The main difficulty arises due to the two rules bet_composition and bet_weakening,
-    which will apply for EVERY hypothesis of be_typing when doing inversion/induction.
-  Moreover, bet_weakening has a reversed inductive structure, so the proof in fact
-    required induction (where one would hardly expect an induction here!).
-*)
 Lemma empty_typing: forall C t1s t2s,
     be_typing C [::] (Tf t1s t2s) ->
     t1s = t2s.

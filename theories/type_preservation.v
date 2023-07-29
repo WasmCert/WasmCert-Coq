@@ -100,8 +100,6 @@ Proof.
   by apply bet_const.
 Qed.
 
-(* It seems very hard to refactor the i32 and i64 cases into one because of
-     the polymorphism of app_testop_i. *)
 Lemma t_Testop_i32_preserve: forall C c testop tf,
     be_typing C [::BI_const (VAL_int32 c); BI_testop T_i32 testop] tf ->
     be_typing C [::BI_const (VAL_int32 (wasm_bool (app_testop_i testop c)))] tf.
@@ -378,7 +376,6 @@ Proof.
   move => bes bes' es es' C tf HType HReduce HAI_basic1 HAI_basic2 HBES1 HBES2.
   destruct tf.
   inversion HReduce; b_to_a_revert; subst; simpl in HType => //; basic_inversion.
-(* The proof itself should be refactorable further into tactics as well. *)
   - (* Unop *)
     by eapply t_Unop_preserve; eauto => //=.
   - (* Binop_success *)
@@ -495,7 +492,6 @@ Theorem t_simple_preservation: forall s i es es' C loc lab ret tf,
 Proof.
   move => s i es es' C loc lab ret tf HInstType HType HReduce.
   inversion HReduce; subst; try (by (apply et_to_bet in HType => //; auto_basic; apply ety_a' => //; auto_basic; eapply t_be_simple_preservation; try by eauto; auto_basic)); try by apply ety_trap.
-  (* Though only a few cases, these cases are expected to be much more difficult. *)
   - (* Block *)
     destruct tf.
     apply et_to_bet in HType.

@@ -1,5 +1,4 @@
-(** Proof of preservation **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
+(** Typing inversion lemmas **)
 
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
