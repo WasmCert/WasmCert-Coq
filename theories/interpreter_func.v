@@ -73,11 +73,7 @@ Inductive res_step'
     const_list es \/ es_is_trap es ->
     res_step' hs s f es
 | RS'_error :
-    (~ exists C C' ret lab ts,
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C es (Tf [::] ts)) ->
+    (~ fragment_typeable s f [::] es) ->
     res_step' hs s f es
 | RS'_break k bvs :
     (exists i j lh,
@@ -212,18 +208,14 @@ Ltac simpl_reduce_simple :=
 Lemma error_rec : forall s f e es es' es'' ves,
   es' = e :: es'' ->
   split_vals_e es = (ves, es') ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev [seq typeof i | i <- rev ves] = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\ e_typing s C [:: e] (Tf t1s t2s)) ->
-  ~ (exists C C' ret lab ts,
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      inst_typing s f.(f_inst) C' /\ store_typing s /\ e_typing s C es (Tf [::] ts)).
+  ~ fragment_typeable s f (rev ves) [::e] ->
+  ~ fragment_typeable s f [::] es.
 Proof.
-  intros s f e es es' es'' ves ? Hsplit Hrec [C [C' [ret [lab [? [? [? [? Hetype]]]]]]]].
+  intros s f e es es' es'' ves ? Hsplit Hrec Hcontra.
+  destruct Hcontra as [C [C' [ret [lab [? [? [? [? [Hcat [? [? Hetype]]]]]]]]]]].
   apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
   apply e_composition_typing in Hetype as [? [t1s [? [? [Ht1s [? [Hetypeves Hetype]]]]]]].
+  apply_cat0_inv Hcat.
   apply_cat0_inv Ht1s.
   rewrite <- cat1s in Hetype.
   apply e_composition_typing in Hetype as [ts [t2s [? [t3s [Ht2s [? [??]]]]]]].
@@ -232,7 +224,7 @@ Proof.
   apply Const_list_typing in Hbtypeves.
   apply Hrec. exists C, C', ret, lab, (ts ++ t2s), (ts ++ t3s), [::].
   repeat split => //; try by apply ety_weakening.
-  rewrite map_rev. rewrite revK.
+  rewrite map_rev revK.
   rewrite <- Ht2s. by rewrite Hbtypeves.
 Qed.
 
@@ -1361,9 +1353,7 @@ Proof.
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
-  (* XXX why is host_instance needed for Grow_memory_typing
-   * and not for Binop_typing etc? *)
-  by apply (Grow_memory_typing host_instance) in Hbtype as [[|] [? [??]]].
+  by eapply Grow_memory_typing in Hbtype as [[|] [? [??]]]; eauto => //.
 Qed.
 
 Lemma grow_memory_error_jth : forall s f ves ves' j c,
@@ -1771,23 +1761,14 @@ Proof.
 Qed.
 
 Lemma label_error_rec : forall s f es ves ln les,
-  ~ (exists C C' ret lab ts,
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C es (Tf [::] ts)) ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
+  ~ fragment_typeable s f [::] es ->
+  ~ fragment_typeable s f ves [:: AI_label ln les es]. 
 Proof.
   intros s f es ves ln les H [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
   apply Label_typing in Hetype as [t1s' [t2s' [? [? [??]]]]].
   remember ([:: t1s'] ++ tc_label C) as lab' eqn:?.
   apply H.
-  exists (upd_label C lab'), C', ret, lab', t2s'.
+  exists (upd_label C lab'), C', ret, lab', [::], t2s', [::].
   repeat split => //.
   by subst C.
 Qed.
@@ -1946,12 +1927,7 @@ Lemma label_error_break_rec : forall s f ves bvs ln les es,
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
     empty_vs_base lh) ->
   (ln <= length bvs) = false ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_label ln les es] (Tf t1s t2s)).
+  ~ fragment_typeable s f ves [:: AI_label ln les es].
 Proof.
   intros s f ves bvs ln les es [i [j [lh [Heqj [HLF Hbase]]]]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
@@ -1991,12 +1967,7 @@ Qed.
 Lemma local_error_const_len : forall s f es ves ln lf,
   const_list es ->
   (length es == ln) = false ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+  ~ fragment_typeable s f ves [::AI_local ln lf es].
 Proof.
   intros s f es ves ln lf Hconst Hlen [C [C' [ret [lab [t1s [t2s [ts [? [? [Hinst [? Hetype]]]]]]]]]]].
   apply Local_typing in Hetype as [ts' [? [Hstype Hlen']]].
@@ -2004,9 +1975,9 @@ Proof.
   apply et_to_bet in Hetype as Hbtype; last by apply const_list_is_basic.
   apply const_es_exists in Hconst as [vs ?]; subst es.
   apply Const_list_typing in Hbtype; simpl in Hbtype; subst ts'.
-  (* XXX could this be shorter? *)
-  rewrite List.map_length in Hlen'. repeat rewrite length_is_size in Hlen, Hlen'.
-  rewrite v_to_e_size in Hlen. by move/eqP in Hlen.
+  rewrite length_is_size size_map in Hlen'.
+  rewrite length_is_size v_to_e_size in Hlen.
+  by move/eqP in Hlen.
 Qed.
 
 Lemma lfilled_collapse': forall n lh vs es LI,
@@ -2021,17 +1992,8 @@ Proof.
 Qed.
 
 Lemma local_error_rec : forall s f es ves ln lf,
-  ~ (exists C C' ret lab ts,
-      C = upd_label (upd_local_return C' (map typeof lf.(f_locs)) ret) lab /\
-      inst_typing s lf.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C es (Tf [::] ts)) ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+  ~ fragment_typeable s lf [::] es ->
+  ~ fragment_typeable s f ves [:: AI_local ln lf es].
 Proof.
   intros s f es ves ln lf IH [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
   apply Local_typing in Hetype as [ts' [? [Hstype ?]]].
@@ -2039,13 +2001,9 @@ Proof.
   destruct Hftype as [s i ts'' C''' lf Hitype' Heqi Heqts''].
   subst i ts''.
   apply IH.
-  exists
-    (upd_label (upd_local C'' (map typeof lf.(f_locs))) [::]),
-    C''',
-    ret',
-    [::],
-    ts'.
-  subst C''; repeat split => //.
+  eexists.
+  exists C''', ret', [::], [::], ts', [::].
+  subst C''; repeat split => //=.
   unfold upd_local in Hetype. unfold upd_return in Hetype. simpl in Hetype.
   replace (tc_local C''') with ([::] : seq value_type) in Hetype;
     last by apply inst_t_context_local_empty in Hitype'.
@@ -2094,12 +2052,7 @@ Lemma local_error_break_rec : forall s f es ves ln lf n bvs,
     i + n = j /\
     lfilledInd i lh (vs_to_es bvs ++ [:: AI_basic (BI_br j)]) es /\
     empty_vs_base lh) ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+  ~ fragment_typeable s f ves [:: AI_local ln lf es].
 Proof.
   intros s f es ves ln lf n bvs [i [j [lh [Heqj [HLF Hbase]]]]]
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
@@ -2126,7 +2079,6 @@ Proof.
 
   eapply r_label with (k := 0) (lh := LH_base (vs_to_es ves) [::]);
     try by solve_lfilled.
-
   assert (length (v_to_e_list (rev (take ln rvs))) = ln).
   {
     rewrite length_is_size in Hlen. rewrite length_is_size.
@@ -2214,12 +2166,7 @@ Lemma local_return_error : forall s f ln lf es rvs ves,
     lfilledInd i lh (vs_to_es rvs ++ [:: AI_basic BI_return]) es /\
     empty_vs_base lh) ->
   (ln <= length rvs) = false ->
-  ~ (exists C C' ret lab t1s t2s t1s',
-      C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-      rev (map typeof ves) = t1s' ++ t1s /\
-      inst_typing s f.(f_inst) C' /\
-      store_typing s /\
-      e_typing s C [:: AI_local ln lf es] (Tf t1s t2s)).
+  ~ fragment_typeable s f ves [:: AI_local ln lf es].
 Proof.
   intros s f ln lf es rvs ves [i [lh [Hlf Hbase]]] Hlen
     [C [C' [ret [lab [t1s [t2s [ts [? [? [Hitype [? Hetype]]]]]]]]]]].
@@ -3021,7 +2968,7 @@ Proof.
   - (* RS'_error *)
     exfalso.
     apply Herr.
-    exists C, C', ret, lab, t2s.
+    exists C, C', ret, lab, [::], t2s, [::].
     repeat split => //.
     apply et_composition' with (t2s := t1s) => //.
     apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
