@@ -43,7 +43,7 @@ module type InterpreterType = sig
 
     (** Run the interpreter until reaching a result. *)
     (* val run_v : *)
-    (*   int (** The depth *) -> Extract.instance -> config_tuple -> *)
+    (*   Extract.instance -> config_tuple -> *)
     (*   (store_record * Extract.res) host_event *)
 
     val run_v :
@@ -53,7 +53,7 @@ module type InterpreterType = sig
 
     (** Run one step of the interpreter. *)
     val run_step_compat :
-      Extract.nat (** The depth *) -> config_tuple -> Extract.res_tuple
+      config_tuple -> Extract.res_tuple
 
     (** State whether a list of administrative instructions is actually just a list of values. *)
     val is_const_list : administrative_instruction list -> Extract.value0 list option

@@ -48,7 +48,6 @@ Variable host_instance : host.
 Let store_record := store_record host_function.
 Let host_state := host_state host_instance.
 
-
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.
 
@@ -58,6 +57,7 @@ Variable host_application_impl : host_state -> store_record -> function_type -> 
 Hypothesis host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
 
+(* Predicate for determining if a program fragment is typeable in some context, instead of a full program *)
 Definition fragment_typeable s f ves es :=
   exists C C' ret lab t1s t2s t1s',
     C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
@@ -65,12 +65,6 @@ Definition fragment_typeable s f ves es :=
     inst_typing s f.(f_inst) C' /\
     store_typing s /\
     e_typing s C es (Tf t1s t2s).
-
-Inductive res_step : Type :=
-| RS_crash : res_crash -> res_step
-| RS_break : nat -> list value -> res_step
-| RS_return : list value -> res_step
-| RS_normal : list administrative_instruction -> res_step.
 
 Inductive res_step'
   (hs : host_state) (s : store_record) (f : frame)
@@ -134,27 +128,9 @@ Notation "<< hs' , s' , f' , es' >>'" := (@RS''_normal _ _ _ _ _ hs' s' f' es').
 Notation "break( k , bvs )" := (@RS''_break _ _ _ _ _ k bvs).
 (* TODO return notation? *)
 
-Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
-Proof. decidable_equality. Defined.
-
-Definition res_step_eqb (r1 r2 : res_step) : bool := res_step_eq_dec r1 r2.
-Definition eqres_stepP : Equality.axiom res_step_eqb :=
-  eq_dec_Equality_axiom res_step_eq_dec.
-
-Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
-Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
-
-Definition crash_error := RS_crash C_error.
-
-Definition depth := nat.
-
-Definition fuel := nat.
-
 Definition config_tuple := ((host_state * store_record * frame * list administrative_instruction)%type).
 
 Definition config_one_tuple_without_e := (host_state * store_record * frame * list value)%type.
-
-Definition res_tuple := (host_state * store_record * frame * res_step)%type.
 
 (* TODO use some ltacs from progress/preservation? invert_typeof_vcs etc *)
 
@@ -2975,14 +2951,32 @@ Defined.
 Definition run_step_with_measure hs s f es :=
   @run_step (run_step_measure es) hs s f es (Logic.eq_refl (run_step_measure es)).
 
-Definition run_step_compat (d : depth) (cfg : config_tuple) : res_tuple :=
+(* Extracting a pure interpreter without proofs *)
+Inductive res_step : Type :=
+| RS_crash : res_crash -> res_step
+| RS_break : nat -> list value -> res_step
+| RS_return : list value -> res_step
+| RS_normal : list administrative_instruction -> res_step.
+
+Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
+Proof. decidable_equality. Defined.
+
+Definition res_step_eqb (r1 r2 : res_step) : bool := res_step_eq_dec r1 r2.
+Definition eqres_stepP : Equality.axiom res_step_eqb :=
+  eq_dec_Equality_axiom res_step_eq_dec.
+
+Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
+Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
+Definition res_tuple := (host_state * store_record * frame * res_step)%type.
+
+Definition run_step_compat (cfg : config_tuple) : res_tuple :=
   let: (hs, s, f, es) := cfg in
   match run_step_with_measure hs s f es with
   | RS'_normal hs' s' f' es' _ => (hs', s', f', RS_normal es')
   | _ => (hs, s, f, RS_crash C_error)
   end.
 
-Fixpoint run_v hs s f es (fuel : fuel) : ((host_state * store_record * res)%type) :=
+Fixpoint run_v hs s f es (fuel : nat) : ((host_state * store_record * res)%type) :=
   match fuel with
   | 0 => (hs, s, R_crash C_exhaustion)
   | fuel.+1 =>
@@ -3006,7 +3000,7 @@ Definition not_lf_return (es: seq administrative_instruction) (n: nat) :=
   forall lh, ~ lfilled n lh [::AI_basic BI_return] es.
 
 (* XXX do not separate vcs and es? *)
-Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : host_state),
+Lemma t_progress_e_interpreter : forall s C C' f vcs es t1s t2s lab ret (hs : host_state),
     e_typing s C es (Tf t1s t2s) ->
     C = (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab) ->
     inst_typing s f.(f_inst) C' ->
@@ -3017,7 +3011,7 @@ Lemma t_progress_e' : forall (d : depth) s C C' f vcs es t1s t2s lab ret (hs : h
     terminal_form (v_to_e_list vcs ++ es) \/
     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'.
 Proof.
-  intros d s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
+  intros s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
   destruct (run_step_with_measure hs s f (v_to_e_list vcs ++ es))
     as [Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
   - (* RS'_value *)

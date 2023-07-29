@@ -3,7 +3,7 @@
 open Convert
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
+let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
@@ -35,12 +35,12 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name (to_nat depth)
+    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name depth srcs =
-  process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name depth srcs
+let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name _depth srcs =
+  process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -80,7 +80,7 @@ let func_name =
   Arg.(required & pos ~rev:true 1 (some string) None & info [] ~docv:"NAME" ~doc)
 
 let depth =
-  let doc = "Depth to which to run the Wasm evaluator." in
+  let doc = "Depth to which to run the Wasm evaluator (not in use)" in
   Arg.(required & pos ~rev:true 0 (some int) None & info [] ~docv:"DEPTH" ~doc)
 
 let srcs =

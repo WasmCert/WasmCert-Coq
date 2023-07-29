@@ -73,9 +73,9 @@ let tuple_drop_hs res =
   match res with
   | (((_, s), f), r) -> ((s, f), r)
 
-let take_step verbosity depth i cfg =
+let take_step verbosity i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
-  let res = run_step_compat depth cfg in
+  let res = run_step_compat cfg in
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
   debug_info result verbosity (fun _ ->
@@ -95,8 +95,7 @@ let take_step verbosity depth i cfg =
   | ((s', vs'), Extract.RS_normal es) ->
     pure ((s', vs'), es)
 
-(* XXX had to remove (depth : int) to resolve int/nat issues *)
-let repl verbosity sies (name : string) depth =
+let repl verbosity sies (name : string) =
   LNoise.set_hints_callback (fun line ->
       (* FIXME: Documentation is needed here. I don’t know what these lines do. *)
       if line <> "git remote add " then None
@@ -130,7 +129,7 @@ let repl verbosity sies (name : string) depth =
       if from_user = "quit" then exit 0;
       LNoise.history_add from_user |> ignore;
       LNoise.history_save ~filename:"history.txt" |> ignore;
-      if from_user = "" || from_user = "step" then take_step verbosity depth i cfg
+      if from_user = "" || from_user = "step" then take_step verbosity i cfg
       else if from_user = "s" || from_user = "store" then
         (let (((_, s), _), _) = cfg in
          Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
@@ -141,7 +140,7 @@ let repl verbosity sies (name : string) depth =
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
     |> (fun cb -> user_input "> " cb cfg0)
 
-let interpret verbosity error_code_on_crash sies name depth =
+let interpret verbosity error_code_on_crash sies name =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
@@ -152,7 +151,7 @@ let interpret verbosity error_code_on_crash sies name depth =
         | None -> Error ("unknown function `" ^ name ^ "`")
         | Some cfg0 -> OK cfg0)) in
   let rec eval gen cfg =
-    let cfg_res = run_step_compat depth cfg in
+    let cfg_res = run_step_compat cfg in
     print_step_header gen ;
     debug_info verbosity intermediate
       (fun _ -> pp_res_tuple_except_store (tuple_drop_hs cfg_res));
@@ -196,13 +195,13 @@ let interpret verbosity error_code_on_crash sies name depth =
   if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
   else pure ()
 
-let instantiate_interpret verbosity interactive error_code_on_crash m name depth =
+let instantiate_interpret verbosity interactive error_code_on_crash m name =
   let* store_inst_exps =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
         match interp_instantiate_wrapper m with
         | None -> Error "instantiation error"
         | Some (store_inst_exps, _) -> OK store_inst_exps)) in
-  if interactive then repl verbosity store_inst_exps name depth
-  else interpret verbosity error_code_on_crash store_inst_exps name depth
+  if interactive then repl verbosity store_inst_exps name
+  else interpret verbosity error_code_on_crash store_inst_exps name
 
