@@ -193,7 +193,6 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
     | Some cl => tf == operations.cl_type cl
     end
   | (MED_table (Mk_tableidx i), ET_tab tf) =>
-(* TODO   let '{| tt_limits := lim; tt_elem_type := elem_type_tt |} := tf in*)
     (i < List.length s.(s_tables)) &&
     match List.nth_error s.(s_tables) i with
     | None => false
@@ -214,7 +213,7 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   | (_, _) => false
   end.
 
-Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value (* TODO: isa mismatch *) :=
+Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
   match run_v s (Build_frame [::] inst) (operations.to_e_list b_es) 2 with
   | (_, interpreter_func.R_value vs) =>
     match vs with
@@ -224,7 +223,7 @@ Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_
   | _ => None
   end.
 
-Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction) : option i32 (* TODO: isa mismatch *) :=
+Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction) : option i32 :=
   match interp_get_v s inst b_es with
   | Some (VAL_int32 c) => Some c
   | _ => None
@@ -297,7 +296,6 @@ Definition lookup_exported_function (n : name) (store_inst_exps : host_state * s
         if e.(modexp_name) == n then
           match e.(modexp_desc) with
           | MED_func (Mk_funcidx fi) =>
-(*            Some (s, (Build_frame nil inst), [::AI_invoke fi])*)
             match List.nth_error s.(s_funcs) fi with
             | None => None
             | Some fc => Some (hs, s, (Build_frame nil inst), [::AI_invoke fi])
