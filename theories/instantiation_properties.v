@@ -1,3 +1,6 @@
+(* Properties of instantiation spec *)
+(* Taken from the Iris branch, so some dependencies on stdpp *)
+
 Require Import Coq.Program.Equality.
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
 Require Export instantiation_spec.

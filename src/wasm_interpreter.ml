@@ -39,7 +39,7 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name _depth srcs =
+let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name srcs =
   process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs
   |> Execute.Host.to_out |> Output.Out.convert
 
@@ -79,9 +79,11 @@ let func_name =
   let doc = "Name of the Wasm function to run." in
   Arg.(required & pos ~rev:true 1 (some string) None & info [] ~docv:"NAME" ~doc)
 
+(*
 let depth =
-  let doc = "Depth to which to run the Wasm evaluator (not in use)" in
+  let doc = "Depth to which to run the Wasm evaluator" in
   Arg.(required & pos ~rev:true 0 (some int) None & info [] ~docv:"DEPTH" ~doc)
+  *)
 
 let srcs =
   let doc = "Source file(s) to interpret." in
@@ -95,7 +97,7 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/WasmCert/WasmCert-Coq/issues"; ]
   in
-  (Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ depth $ srcs)),
+  (Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs)),
    Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
