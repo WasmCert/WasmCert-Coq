@@ -17,8 +17,8 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [x] Finish type soundness result.
 - [ ] Validate WasmRef (conformance tests).
 - [x] Verify executable type checker correctness.
-- [ ] Verify instantiation correctness properties.
-- [ ] Link WasmCert to CompCert.
+- [x] Verify instantiation correctness properties.
+- [x] Link WasmCert to CompCert.
 - [x] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native).
 
 This repository contains some experimental work on a binary parser and Iris integration. 
@@ -68,14 +68,14 @@ The [tests](./tests) folder contains Markdown files checked by `mdx` during the 
 ## Using the project
 
 A file `wasm_interpreter` will have been generated.
-It takes as argument a list of Wasm files, followed by a function name, followed by a depth.
+It takes as argument a list of Wasm files, followed by a function name.
 For instance, to interpret the function `hello` defined in [tests/const.wasm](tests/const.wasm), run:
 ```bash
-./wasm_interpreter tests/const.wasm hello 10
+./wasm_interpreter tests/const.wasm hello
 ```
 The interpreter can display intermediate states of the operational semantics:
 ```bash
-./wasm_interpreter tests/const.wasm hello 10 --vi
+./wasm_interpreter tests/const.wasm hello --vi
 ```
 for example
 ```
