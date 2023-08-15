@@ -1071,7 +1071,7 @@ Defined.
 Lemma glob_extension_update_nth: forall sglobs n g g',
   List.nth_error sglobs n = Some g ->
   glob_extension g g' ->
-  all2 glob_extension sglobs (update_list_at sglobs n g').
+  all2 glob_extension sglobs (set_nth g' sglobs n g').
 Proof.
   move => sglobs n.
   generalize dependent sglobs.
@@ -1080,13 +1080,10 @@ Proof.
     apply/andP; split => //=.
     by apply all2_glob_extension_same.
   - assert ((n.+1 < length (g0 :: sglobs))%coq_nat); first by rewrite -List.nth_error_Some; rewrite HN.
-    rewrite -update_list_at_is_set_nth; last by lias.
     simpl.
     apply/andP. split.
     + by apply glob_extension_refl. 
-    + rewrite update_list_at_is_set_nth.
-      * by eapply IHn; eauto.
-      * simpl in H. rewrite length_is_size in H. by lias.
+    + by eapply IHn; eauto.
 Qed.
 
 Lemma tc_reference_glob_type: forall s i C n m gt g,
@@ -1113,7 +1110,7 @@ Qed.
 Lemma mem_extension_update_nth: forall smems n m m',
   List.nth_error smems n = Some m ->
   mem_extension m m' ->
-  all2 mem_extension smems (update_list_at smems n m').
+  all2 mem_extension smems (set_nth m' smems n m').
 Proof.
   move => smems n.
   generalize dependent smems.
@@ -1122,14 +1119,11 @@ Proof.
     apply/andP. split; first apply Hext.
    by apply all2_mem_extension_same.
   - assert ((n.+1 < length (m0 :: smems))%coq_nat); first by rewrite -List.nth_error_Some; rewrite HN.
-    rewrite -update_list_at_is_set_nth; last by lias.
     simpl.
     apply/andP. split.
     + unfold mem_extension. apply/andP; split => //.
       apply N.leb_le; by lias.
-    + rewrite update_list_at_is_set_nth.
-      * by eapply IHn; eauto.
-      * simpl in H. rewrite length_is_size in H. by lias.
+    + by eapply IHn; eauto.
 Qed.
 
 Lemma bytes_takefill_size: forall c l vs,
@@ -1421,27 +1415,43 @@ Proof.
     simpl in HMap. inversion HMap. subst.
     by apply IHn.
 Qed.
-    
-Lemma nth_error_update_list_hit: forall {X:Type} l n {x:X},
-    n < length l ->
-    List.nth_error (update_list_at l n x) n = Some x.
+
+Lemma nth_error_nth: forall {X: Type} l n {x:X},
+  n < length l ->
+  List.nth_error l n = Some (nth x l n).
 Proof.
-  move => X l n. generalize dependent l.
-  induction n => //=; destruct l => //=.
-  - move => x' HLength.
-    simpl. rewrite -cat1s.
-    assert (n < length l); first by lias.
-    assert (length (take n l) = n).
-    { rewrite length_is_size. rewrite length_is_size in H.
-      rewrite size_take. by rewrite H. }
-    assert (List.nth_error (take n l ++ [:: x'] ++ List.skipn (n+1)%Nrec l) (length (take n l)) = Some x'); first by apply list_nth_prefix.
-    by rewrite H0 in H1.
+  induction l; destruct n => //=.
+  by apply IHl.
 Qed.
 
-Lemma nth_error_update_list_others: forall {X:Type} l n m {x:X},
+Lemma nth_error_set_nth_length: forall {X: Type} l n {x0 x xd: X},
+  List.nth_error l n = Some x0 ->
+  length (set_nth xd l n x) = length l.
+Proof.
+  move => X l n x0 x xd Hnth.
+  apply nth_error_Some_length in Hnth.
+  repeat rewrite length_is_size.
+  rewrite size_set_nth -length_is_size.
+  unfold maxn.
+  destruct (n.+1 < _) eqn:Hlt => //.
+  by lias.
+Qed.
+
+Lemma nth_error_set_eq: forall {X:Type} l n {x xd:X},
+    n < length l ->
+    List.nth_error (set_nth xd l n x) n = Some x.
+Proof.
+  move => X l n x xd Hlen.
+  rewrite -> nth_error_nth with (x0 := xd); first by rewrite nth_set_nth /= eq_refl.
+  rewrite length_is_size size_set_nth -length_is_size.
+  unfold maxn.
+  by destruct (n.+1 < length l).
+Qed.
+
+Lemma nth_error_set_neq: forall {X:Type} l n m {x xd:X},
     n <> m ->
     n < length l ->
-    List.nth_error (update_list_at l n x) m = List.nth_error l m.
+    List.nth_error (set_nth xd l n x) m = List.nth_error l m.
 Proof.
   move => X l n. move: l.
   induction n => //=; move => l m x Hne HLength.
@@ -1454,28 +1464,15 @@ Proof.
       by apply IHn; lias.
 Qed.
 
-Lemma Forall_update: forall {X:Type} f l n {x:X},
+Lemma Forall_set: forall {X:Type} f l n {x xd:X},
     List.Forall f l ->
     f x ->
     n < length l ->
-    List.Forall f (update_list_at l n x).
+    List.Forall f (set_nth xd l n x).
 Proof.
-  move => X f l n x HA Hf HLength.
-  rewrite -> List.Forall_forall in HA.
-  rewrite List.Forall_forall.
-  move => x0 HIN.
-  apply List.In_nth_error in HIN.
-  destruct HIN as [n' HN].
-  assert (n' < length (update_list_at l n x))%coq_nat.
-  { rewrite <- List.nth_error_Some. by rewrite HN. }
-  move/ltP in H.
-  destruct (n == n') eqn:H1 => //=.
-  - move/eqP in H1. subst.
-    rewrite nth_error_update_list_hit in HN => //=. by inversion HN; subst.
-  - move/eqP in H1.
-    rewrite nth_error_update_list_others in HN => //=.
-    apply HA.
-    by eapply List.nth_error_In; eauto.
+  move => X f l. induction l; destruct n; move => x xd Hall Hf Hlen => //; constructor => //=; try by inversion Hall.
+  apply IHl => //.
+  by inversion Hall.
 Qed.
 
 Lemma store_typed_mem_agree: forall s n m,
@@ -1545,22 +1542,26 @@ Qed.
 Lemma store_extension_mem: forall s i mem mem',
   List.nth_error s.(s_mems) i = Some mem ->
   mem_extension mem mem' ->
-  store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem')).
+  store_extension s (upd_s_mem s (set_nth mem' (s_mems s) i mem')).
 Proof.
   move => s i mem mem' Hnth Hext.
   unfold store_extension => //=.
   repeat (apply/andP; split) => //=.
   - by rewrite length_is_size take_size; apply all2_func_extension_same.
   - by rewrite length_is_size take_size; apply all2_tab_extension_same.
-  - rewrite update_list_at_length => //.
-    by apply/ltP; rewrite - List.nth_error_Some; rewrite Hnth.
+  - apply nth_error_Some_length in Hnth.
+    repeat rewrite length_is_size.
+    rewrite size_set_nth - length_is_size.
+    unfold maxn.
+    destruct (i.+1 < length (datatypes.s_mems s)) eqn:Hlt => //.
+    by lias.
   - match goal with
     | |- context [take ?n ?l] => remember l as l'
     | _ => idtac
     end.
     assert (length l' = length s.(s_mems)) as Hlen.
-    { subst l'; apply update_list_at_length.
-      by apply/ltP; rewrite - List.nth_error_Some; rewrite Hnth.
+    { subst l'.
+      by eapply nth_error_set_nth_length; eauto.
     }
     rewrite - Hlen.
     rewrite length_is_size take_size.
@@ -1611,15 +1612,14 @@ Proof.
       -- by rewrite length_is_size take_size; apply all2_func_extension_same.
       -- by rewrite length_is_size take_size; apply all2_tab_extension_same.
       -- by rewrite length_is_size take_size; apply all2_mem_extension_same.
-      -- rewrite update_list_at_length => //.
-         by apply/ltP; rewrite - List.nth_error_Some; rewrite Hoption0.
+      -- by erewrite nth_error_set_nth_length; eauto.
       -- match goal with
          | |- context [take ?n ?l] => remember l as l'
          | _ => idtac
          end.
          assert (length l' = length s.(s_globals)) as Hlen.
-         { subst l'; apply update_list_at_length.
-           by apply/ltP; rewrite - List.nth_error_Some; rewrite Hoption0.
+         { subst l'.
+           by erewrite nth_error_set_nth_length; eauto.
          }
          rewrite - Hlen.
          rewrite length_is_size take_size.
@@ -1641,7 +1641,7 @@ Proof.
     apply concat_cancel_last_n in H7 => //.
     remove_bools_options.
     inversion H4. subst. clear H4.
-    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
+    assert (store_extension s (upd_s_mem s (set_nth mem' (s_mems s) i mem'))) as Hext.
     { eapply store_extension_mem => //; first by rewrite H1.
       by eapply mem_extension_store; eauto.
     }
@@ -1655,7 +1655,7 @@ Proof.
     assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite H1. }
     inversion H0; subst. clear H0.
-    apply Forall_update => //=.
+    apply Forall_set => //=.
     eapply store_mem_agree; eauto.
     * by destruct v => //=.
     * by move/ltP in H3.
@@ -1670,7 +1670,7 @@ Proof.
     apply concat_cancel_last_n in H7 => //.
     remove_bools_options.
     inversion H4. subst. clear H4.
-    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
+    assert (store_extension s (upd_s_mem s (set_nth mem' (s_mems s) i mem'))) as Hext.
     { eapply store_extension_mem => //; first by rewrite H1.
       by eapply mem_extension_store; eauto.
     }
@@ -1683,7 +1683,7 @@ Proof.
     simpl in H1.
     assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite H1. }
-    apply Forall_update => //=.
+    apply Forall_set => //=.
     eapply store_mem_agree; eauto.
     * by destruct tp => //=.
     * by move/ltP in H3.
@@ -1696,7 +1696,7 @@ Proof.
     apply (Grow_memory_typing host_instance) in H6.
     destruct H6 as [ts' [H7 [H8 H9]]]. subst.
     apply concat_cancel_last in H9 => //. destruct H9. subst.
-    assert (store_extension s (upd_s_mem s (update_list_at (s_mems s) i mem'))) as Hext.
+    assert (store_extension s (upd_s_mem s (set_nth mem' (s_mems s) i mem'))) as Hext.
     { eapply store_extension_mem => //; first by rewrite H0.
       by eapply mem_extension_grow_memory; eauto.
     }
@@ -1709,7 +1709,7 @@ Proof.
     simpl in H0.
     assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite H0. }
-    apply Forall_update => //=.
+    apply Forall_set => //=.
     eapply mem_grow_mem_agree; eauto. by move/ltP in H1.
   - (* r_label *)
     eapply lfilled_es_type_exists in HType; eauto.

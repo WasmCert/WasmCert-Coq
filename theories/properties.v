@@ -11,9 +11,32 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Lemmas **)
 
-Section Host.
+(** List operations **)
 
-Variable host_function : eqType.
+Lemma cat_app {A} (l1 : list A) l2 :
+  cat l1 l2 = app l1 l2.
+Proof. done. Qed.
+
+Lemma app_eq_singleton: forall T (l1 l2 : list T) (a : T),
+    l1 ++ l2 = [::a] ->
+    (l1 = [::a] /\ l2 = [::]) \/ (l1 = [::] /\ l2 = [::a]).
+Proof.
+  intros.
+  apply List.app_eq_unit in H as [?|?]; by [ right | left ].
+Qed.
+
+Lemma combine_app {T1 T2: Type} (l1 l3: list T1) (l2 l4: list T2):
+  length l1 = length l2 ->
+  List.combine (l1 ++ l3) (l2 ++ l4) = List.combine l1 l2 ++ List.combine l3 l4.
+Proof.
+  move: l2 l3 l4.
+  induction l1; move => l2 l3 l4 Hlen => /=; first by destruct l2 => //.
+  - destruct l2 => //=.
+    simpl in Hlen.
+    inversion Hlen; subst; clear Hlen.
+    f_equal.
+    by apply IHl1.
+Qed.
 
 Lemma length_is_size: forall {X:Type} (l: list X),
     length l = size l.
@@ -123,7 +146,6 @@ Proof.
   - move=> >. by apply: ReflectF.
 Qed.
 
-
 Lemma split_n_is_take_drop: forall es n,
     split_n es n = (take n es, drop n es).
 Proof.
@@ -133,30 +155,18 @@ Proof.
     + by rewrite IH.
 Qed.
 
-Lemma update_list_at_is_set_nth: forall {X:Type} (l:list X) n x,
-    n < size l ->
-    set_nth x l n x = update_list_at l n x.
+Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
+  P acc ->
+  (forall (x:A) (act: B), P x -> P (f x act)) ->
+  P (List.fold_left f l acc).
 Proof.
-  move => X l n x. move: n. elim: l => //=.
-  move => a l IH n HLen. destruct n => //=.
-  unfold update_list_at. simpl. f_equal. by apply IH.
-Qed.
-
-Lemma update_list_at_length {T: Type} (l: list T) (x: T) n:
-  n < length l ->
-  length (update_list_at l n x) = length l.
-Proof.
-  move => Hlen.
-  unfold update_list_at.
-  repeat rewrite List.app_length => /=.
-  rewrite List.skipn_length.
-  repeat rewrite length_is_size.
-  rewrite size_take.
-  repeat rewrite -length_is_size.
-  rewrite Hlen.
-  by lias.
-Qed.
-
+  rewrite -List.fold_left_rev_right.
+  revert acc.
+  induction l;simpl;auto.
+  intros acc Ha Hnext.
+  rewrite List.fold_right_app => /=. apply IHl =>//.
+  by apply Hnext.
+Qed.    
 
 Lemma v_to_e_take_exchange: forall vs n,
     v_to_e_list (take n vs) = take n (v_to_e_list vs).
@@ -411,8 +421,35 @@ Proof.
   move => X. induction l1 => //=.
 Qed.
 
-End Host.
+(** Numerics **)
 
+Lemma N_nat_bin n:
+  n = N.of_nat (ssrnat.nat_of_bin n).
+Proof.
+  destruct n => //=.
+  replace (ssrnat.nat_of_pos p) with (Pos.to_nat p); first by rewrite positive_nat_N.
+  induction p => //=.
+  - rewrite Pos2Nat.inj_xI.
+    f_equal.
+    rewrite IHp.
+    rewrite ssrnat.NatTrec.doubleE.
+    rewrite - ssrnat.mul2n.
+    by lias.
+  - rewrite Pos2Nat.inj_xO.
+    rewrite IHp.
+    rewrite ssrnat.NatTrec.doubleE.
+    rewrite - ssrnat.mul2n.
+    by lias.
+Qed.
+
+Lemma nat_bin n:
+  ssrnat.nat_of_bin n = N.to_nat n.
+Proof.
+  rewrite -> (N_nat_bin n).
+  rewrite Nat2N.id.
+  by rewrite <- N_nat_bin.
+Qed.
+  
 
 (** * Tactics **)
 
@@ -940,6 +977,8 @@ Proof.
   move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
 
+(** Typing lemmas **)
+
 (* A reformulation of [ety_a] that is easier to be used. *)
 Lemma ety_a': forall s C es ts,
     es_is_basic es ->
@@ -1016,17 +1055,13 @@ Proof.
   + apply bet_weakening. by eapply IHHType => //.
 Qed.
 
-(* TODO is this a good place for this lemma?
- * is it even needed? maybe this is obtainable from empty_typing in a simpler way *)
 Lemma empty_e_typing: forall s C t1s t2s,
     e_typing s C [::] (Tf t1s t2s) ->
     t1s = t2s.
 Proof.
   move => s C t1s t2s HType.
-  gen_ind_subst HType => //.
-  - assert (bes = [::]). by destruct bes => //. subst bes. by apply (empty_typing H).
-  - by destruct es => //.
-  - assert (t1s = t2s). by eapply IHHType => //. by subst t1s.
+  apply et_to_bet in HType => //.
+  by apply empty_typing in HType.
 Qed.
 
 Section composition_typing_proofs.
@@ -1785,4 +1820,3 @@ Proof.
 Qed.
 
 End Host.
-

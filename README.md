@@ -18,7 +18,7 @@ This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm o
 - [ ] Validate WasmRef (conformance tests).
 - [x] Verify executable type checker correctness.
 - [x] Verify instantiation correctness properties.
-- [x] Link WasmCert to CompCert.
+- [ ] Link WasmCert to CompCert.
 - [x] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native).
 
 This repository contains some experimental work on a binary parser and Iris integration. 

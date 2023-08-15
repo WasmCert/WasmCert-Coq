@@ -316,7 +316,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
   | AI_basic (BI_set_local j) =>
     if ves is v :: ves' then
       if j < length f.(f_locs)
-      then ret (s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
+      then ret (s, Build_frame (set_nth v f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
 
@@ -376,7 +376,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                  expect
                    (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
                    (fun mem' =>
-                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
+                      (ret (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
                    (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
@@ -394,7 +394,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                  expect
                    (store_packed mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
-                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
+                      (ret (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
                    (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
@@ -419,7 +419,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
               let: l := mem_size s_mem_s_j in
               let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
               if mem' is Some mem'' then
-                ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), f,
+                ret (upd_s_mem s (set_nth mem'' s.(s_mems) j mem''), f,
                      RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               else ret (s, f, crash_error)
             else ret (s, f, crash_error))
