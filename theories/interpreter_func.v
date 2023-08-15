@@ -888,7 +888,7 @@ Qed.
 Lemma reduce_set_local : forall (hs : host_state) s f f' v ves ves' j,
   ves = v :: ves' ->
   j < length f.(f_locs) ->
-  f' = Build_frame (update_list_at f.(f_locs) j v) f.(f_inst) ->
+  f' = Build_frame (set_nth v f.(f_locs) j v) f.(f_inst) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_set_local j)])
     hs s f' (vs_to_es ves').
@@ -896,7 +896,6 @@ Proof.
   intros hs s f f' v ves ves' j ???. subst ves f'.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
   - apply r_set_local with (i := j) (v := v) (vd := v) => //.
-    by rewrite update_list_at_is_set_nth => //.
   - by solve_lfilled.
   - by solve_lfilled.
 Qed.
@@ -1139,7 +1138,7 @@ Lemma reduce_store_packed_success : forall (hs : host_state) s f c v ves ves' t 
   store_packed mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (tp_length tp) = Some mem' ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_store t (Some tp) a off)])
-    hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) f (vs_to_es ves').
+    hs (upd_s_mem s (set_nth mem' s.(s_mems) j mem')) f (vs_to_es ves').
 Proof.
   intros hs s f c v ves ves' t tp a off j mem_s_j mem' ?????. subst ves.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
@@ -1173,7 +1172,7 @@ Lemma reduce_store_success : forall (hs : host_state) s f c v ves ves' t a off j
   store mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (t_length t) = Some mem' ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_basic (BI_store t None a off)])
-    hs (upd_s_mem s (update_list_at s.(s_mems) j mem')) f (vs_to_es ves').
+    hs (upd_s_mem s (set_nth mem' s.(s_mems) j mem')) f (vs_to_es ves').
 Proof.
   intros hs s f c v ves ves' t a off j mem_s_j mem' ?????. subst ves.
   eapply r_label with (k := 0) (lh := (LH_base (vs_to_es ves') [::])).
@@ -1318,7 +1317,7 @@ Lemma reduce_grow_memory : forall (hs : host_state) s s' f c v ves' mem'' s_mem_
   List.nth_error (s_mems s) j = Some s_mem_s_j ->
   l = mem_size s_mem_s_j ->
   Some mem'' = mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) ->
-  s' = upd_s_mem s (update_list_at (s_mems s) j mem'') ->
+  s' = upd_s_mem s (set_nth mem'' (s_mems s) j mem'') ->
   v = VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) ->
   reduce
     hs s f (vs_to_es (VAL_int32 c :: ves') ++ [:: AI_basic BI_grow_memory])
@@ -2493,7 +2492,7 @@ Proof.
       + (* v :: ves' *)
         destruct (j < length f.(f_locs)) eqn:?.
         -- (* true *)
-           apply <<hs, s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), vs_to_es ves'>>'.
+           apply <<hs, s, Build_frame (set_nth v f.(f_locs) j v) f.(f_inst), vs_to_es ves'>>'.
            by eapply reduce_set_local.
         -- (* false *)
            apply RS''_error. by eapply set_local_error_length.
@@ -2593,7 +2592,7 @@ Proof.
            ** (* Some mem_s_j *)
               destruct (store_packed mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (tp_length tp)) as [mem'|] eqn:?.
               ++ (* Some mem' *)
-                 apply <<hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, vs_to_es ves'>>'.
+                 apply <<hs, upd_s_mem s (set_nth mem' s.(s_mems) j mem'), f, vs_to_es ves'>>'.
                  by eapply reduce_store_packed_success with (mem_s_j := mem_s_j).
               ++ (* None *)
                  apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
@@ -2620,7 +2619,7 @@ Proof.
            ** (* Some mem_s_j *)
               destruct (store mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (t_length t)) as [mem'|] eqn:?.
               ++ (* Some mem' *)
-                 apply <<hs, upd_s_mem s (update_list_at s.(s_mems) j mem'), f, vs_to_es ves'>>'.
+                 apply <<hs, upd_s_mem s (set_nth mem' s.(s_mems) j mem'), f, vs_to_es ves'>>'.
                  by eapply reduce_store_success with (mem_s_j := mem_s_j).
               ++ (* None *)
                  apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
@@ -2660,7 +2659,7 @@ Proof.
            destruct mem' as [mem''|].
            ** (* Some mem'' *)
               remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
-              remember (upd_s_mem s (update_list_at s.(s_mems) j mem'')) as s'.
+              remember (upd_s_mem s (set_nth mem'' s.(s_mems) j mem'')) as s'.
               apply <<hs, s', f, (vs_to_es (v' :: ves'))>>'.
               by eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
            ** (* None *)

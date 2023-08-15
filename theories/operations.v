@@ -429,14 +429,11 @@ Definition stab (s : store_record) (i : instance) (j : nat) : option function_cl
   | k :: _ => stab_s s k j
   end.
 
-Definition update_list_at {A : Type} (l : seq A) (k : nat) (a : A) :=
-  take k l ++ [::a] ++ List.skipn (k + 1) l.
-
 Definition supdate_glob_s (s : store_record) (k : nat) (v : value) : option store_record :=
   option_map
     (fun g =>
       let: g' := Build_global (g_mut g) v in
-      let: gs' := update_list_at (s_globals s) k g' in
+      let: gs' := set_nth g' (s_globals s) k g' in
       Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs')
     (List.nth_error (s_globals s) k).
 

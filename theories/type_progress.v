@@ -636,7 +636,7 @@ Proof.
     + (* Store Some *)
       simpl in H0. remove_bools_options.
       destruct (store_packed m (Wasm_int.N_of_uint i32m s0) off (bits v0) (tp_length tp)) eqn:HStoreResult.
-      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), f, [::], hs.
+      * exists (upd_s_mem s (set_nth m0 s.(s_mems) n m0)), f, [::], hs.
         eapply r_store_packed_success; eauto.
         by unfold types_agree; apply/eqP.
       * exists s, f, [::AI_trap], hs.
@@ -645,7 +645,7 @@ Proof.
     + (* Store None *)
       simpl in H0.
       destruct (store m (Wasm_int.N_of_uint i32m s0) off (bits v0) (t_length (typeof v0))) eqn:HStoreResult.
-      * exists (upd_s_mem s (update_list_at s.(s_mems) n m0)), f, [::], hs.
+      * exists (upd_s_mem s (set_nth m0 s.(s_mems) n m0)), f, [::], hs.
         eapply r_store_success; eauto.
         by unfold types_agree; apply/eqP.
       * exists s, f, [::AI_trap], hs.
@@ -763,20 +763,19 @@ Proof.
   move/lfilledP in HLF.
   dependent induction HLF; move => s C ts2 HType.
   - invert_e_typing.
-    destruct ts => //=; destruct t1s => //=; clear H1.
-    rewrite add0n in H5.
+    destruct ts, t1s => //=.
     apply et_to_bet in H5; auto_basic.
+    simpl in *.
     simpl in H5. eapply Break_typing in H5; eauto.
-    destruct H5 as [ts [ts2 [H7 [H8 H9]]]].
-    unfold plop2 in H8. move/eqP in H8.
+    destruct H5 as [ts [ts2 [? [Hplop ?]]]].
+    unfold plop2 in Hplop. move/eqP in Hplop.
     apply/ltP.
-    apply List.nth_error_Some. by rewrite H8.
+    apply List.nth_error_Some. by rewrite Hplop.
   - invert_e_typing.
-    destruct ts => //=; destruct t1s => //=; clear H1.
-    assert (Inf : k+1 < length (tc_label (upd_label C ([::ts1] ++ tc_label C)))).
-    { eapply IHHLF; eauto.
-      repeat (f_equal; try by lias). }
-    simpl in Inf. by lias.
+    destruct ts => //=; destruct t1s => //=.
+    eapply IHHLF with (k1 := k+1) in H4; eauto.
+    + simpl in *; lias.
+    + do 3 f_equal; lias.
 Qed.
 
 Lemma return_reduce_return_some: forall n lh es s C ts2,
@@ -904,15 +903,6 @@ Proof.
     by apply HLength.
 Qed.
 
-Lemma le_add: forall n m,
-    n <= m ->
-    exists k, m = n+k.
-Proof.
-  move => n m Hleq.
-  exists (m-n).
-  by lias.
-Qed.
-
 (*
   These two guarantees that the extra conditions we put in progress_e are true -- the second
     being true only if the function doesn't return anything (so we are not in the middle of some
@@ -926,13 +916,12 @@ Proof.
   inversion HType. inversion H. subst.
   destruct (k<n) eqn: H3 => //=.
   move/ltP in H3.
-  assert (Inf : n <= k); first by lias.
-  apply le_add in Inf.
-  destruct Inf as [j Inf]. subst.
-  eapply br_reduce_label_length in H1; eauto.
-  simpl in H1.
-  assert (E : tc_label C1 = [::]); first by eapply inst_t_context_label_empty; eauto.
-  by rewrite E in H1.
+  eapply br_reduce_label_length with (k := k-n) (n := n) in H1; eauto.
+  - simpl in H1.
+    assert (E : tc_label C1 = [::]); first by eapply inst_t_context_label_empty; eauto.
+    by rewrite E in H1.
+  - replace (n + (k - n)) with k; last by lias.
+    eassumption.
 Qed.
 
 Lemma s_typing_lf_return: forall s f es ts,
@@ -1164,12 +1153,6 @@ Proof.
       repeat rewrite length_is_size. by rewrite size_map.
     + (* Host *)
       right.
-      (* There are two possible reduction paths dependning on whether the host
-         call was successful. However for the proof here we just have to show that
-         on exists -- so just use the easier failure case. *)
-      (* UPD: with the new host and the related reductions, this shortcut no longer
-         works. We will now need to consider the result of host execution and 
-         specify the reduction resultion result in either case. *)
       assert (HApply: exists hs' res, host_application hs s (Tf (map typeof vcs) ts2) h vcs hs' res). apply host_application_exists.
       destruct HApply as [hs' [res HApply]].
       destruct res as [opres |].

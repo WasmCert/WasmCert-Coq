@@ -228,9 +228,6 @@ Definition alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs
   (inst.(inst_globs) == List.map (fun '(Mk_globalidx i) => i) (List.app (ext_globs imps) i_gs)) &&
   (exps == (List.map (fun m_exp => {| modexp_name := m_exp.(modexp_name); modexp_desc := (export_get_v_ext inst m_exp.(modexp_desc)) |}) m.(mod_exports) : seq module_export)).
 
-Definition insert_at {A} (v : A) (n : nat) (l : list A) : list A :=
-List.app (List.firstn n l) (List.app [::v] (List.skipn (n + 1) l)).
-
 Definition dummy_table := {| table_data := nil; table_max_opt := None; |}.
 
 Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : module_element) : store_record :=
@@ -238,8 +235,9 @@ Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : modu
   let '{|table_data := tab_e; table_max_opt := maxo |} := List.nth t_ind s.(s_tables) dummy_table in
   let e_pay := List.map (fun i => List.nth_error inst.(inst_funcs) (match i with Mk_funcidx j => j end)) e.(modelem_init) in
   let tab'_e := List.app (List.firstn e_ind tab_e) (List.app e_pay (List.skipn (e_ind + length e_pay) tab_e)) in
+  let tab' := {| table_data := tab'_e; table_max_opt := maxo |} in
   {| s_funcs := s.(s_funcs);
-     s_tables := insert_at {| table_data := tab'_e; table_max_opt := maxo |} t_ind s.(s_tables);
+     s_tables := set_nth tab' s.(s_tables) t_ind tab';
      s_mems := s.(s_mems);
      s_globals := s.(s_globals) |}.
 
@@ -259,7 +257,8 @@ Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module
   let mem := List.nth m_ind s.(s_mems) dummy_mem in
   let d_pay := List.map bytes.compcert_byte_of_byte d.(moddata_init) in
   let mem'_e := List.app (List.firstn d_ind mem.(mem_data).(ml_data)) (List.app d_pay (List.skipn (d_ind + length d_pay) mem.(mem_data).(ml_data))) in
-  let mems' := insert_at {| mem_data := {| ml_data := mem'_e; ml_init := mem.(mem_data).(ml_init) |}; mem_max_opt := mem.(mem_max_opt) |} m_ind s.(s_mems) in
+  let mem' := {| mem_data := {| ml_data := mem'_e; ml_init := mem.(mem_data).(ml_init) |}; mem_max_opt := mem.(mem_max_opt) |} in
+  let mems' := set_nth mem' s.(s_mems) m_ind mem' in
   {| s_funcs := s.(s_funcs);
      s_tables := s.(s_tables);
      s_mems := mems';
