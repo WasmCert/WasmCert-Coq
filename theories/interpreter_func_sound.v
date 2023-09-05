@@ -4,6 +4,7 @@
 Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Wf_nat.
+Require Import PeanoNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -578,9 +579,9 @@ Local Lemma max_fold_left_run_step_fuel : forall es,
           end) es).
 Proof.
   move=> es. match goal with |- is_true (_ <= TProp.max ?F) => set Fm := F end.
-  rewrite -(Max.max_0_l (TProp.max Fm)). move: 0. induction es => n /=.
+  rewrite -(Nat.max_0_l (TProp.max Fm)). move: 0. induction es => n /=.
   - by lias.
-  - rewrite maxn_nat_max Max.max_assoc. by apply: IHes.
+  - rewrite maxn_nat_max Nat.max_assoc. by apply: IHes.
 Qed.
 
 Local Lemma run_step_fuel_enough_aux : forall d hs s f es hs' s' f' r',
@@ -615,7 +616,7 @@ Proof.
           move: E. clear. move: (List.fold_left _ _ 0). induction les' => /=.
           - move=> v E. exists v. by lias.
           - move=> v E. apply: IHles'.
-            rewrite Max.max_comm in E. rewrite Max.max_assoc in E. by apply: E.
+            rewrite Nat.max_comm in E. rewrite Nat.max_assoc in E. by apply: E.
         }
         move=> [v E']. by lias.
     + rewrite HSplitVals. apply Coqlib.in_app. right. by left.

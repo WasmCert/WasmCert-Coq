@@ -3,6 +3,7 @@
 /node_modules/
 /_esy/
 /_opam/
+/_destdir/
 
 .merlin
 *.install
