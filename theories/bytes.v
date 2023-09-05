@@ -9,6 +9,7 @@ From parseque Require Import Char.
 
 Definition byte := Integers.byte.
 
+#[export]
 Instance EqDec_byte : EqDec.EqDec byte := {
   EqDec.eq_dec := Integers.Byte.eq_dec;
 }.

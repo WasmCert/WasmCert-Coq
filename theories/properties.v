@@ -700,7 +700,16 @@ Proof.
     by apply IHl1.
 Qed.
 
+Fixpoint ai_gen_measure (e: administrative_instruction) : nat :=
+  match e with
+  | AI_label _ _ es => 1 + List.list_max (map ai_gen_measure es)
+  | _ => 0
+  end.
 
+Definition lfilled_pickable_rec_gen_measure (LI: list administrative_instruction) : nat :=
+  List.list_max (map ai_gen_measure LI).
+
+(*
 (** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
 Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
   TProp.max
@@ -711,35 +720,37 @@ Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction
        (fun _ LI1 LI2 m1 m2 => 1 + TProp.max m2)
        (fun _ _ LI' m => 0)
        LI).
+ *)
 
 Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
   lfilled_pickable_rec_gen_measure LI <= lfilled_pickable_rec_gen_measure (I :: LI).
 Proof.
-  move=> I LI. by apply: leq_maxr.
+  move=> I LI.
+  unfold lfilled_pickable_rec_gen_measure => /=.
+  by lias.
 Qed.
 
 Lemma lfilled_pickable_rec_gen_measure_concat_l : forall LI1 LI2,
   lfilled_pickable_rec_gen_measure LI1 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
 Proof.
-  move => LI1 LI2. induction LI1 => /=.
-  - rewrite {1} /lfilled_pickable_rec_gen_measure /=. by lias.
-  - rewrite /lfilled_pickable_rec_gen_measure /=.
-    by apply: maxn_congruence_r.
+  unfold lfilled_pickable_rec_gen_measure => /=.
+  move => LI1 LI2. rewrite map_cat List.list_max_app.
+  by lias.
 Qed.
 
 Lemma lfilled_pickable_rec_gen_measure_concat_r : forall LI1 LI2,
   lfilled_pickable_rec_gen_measure LI2 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
 Proof.
-  move => LI1 LI2. induction LI1 => /=.
-  - rewrite {1} /lfilled_pickable_rec_gen_measure /=. by lias.
-  - rewrite /lfilled_pickable_rec_gen_measure /=. eapply leq_trans; first by apply: IHLI1.
-    by apply: leq_maxr.
+  unfold lfilled_pickable_rec_gen_measure => /=.
+  move => LI1 LI2. rewrite map_cat List.list_max_app.
+  by lias.
 Qed.
 
 Lemma lfilled_pickable_rec_gen_measure_label_r : forall n es LI LI',
   lfilled_pickable_rec_gen_measure LI < lfilled_pickable_rec_gen_measure (AI_label n es LI :: LI').
 Proof.
-  move=> n es LI LI'. rewrite /lfilled_pickable_rec_gen_measure /=. by apply: leq_maxl.
+  move=> n es LI LI'. rewrite /lfilled_pickable_rec_gen_measure /=.
+  destruct (List.list_max (map ai_gen_measure LI')); by lias.
 Qed.
 
 (** A helper definition for [lfilled_decidable_rec]. **)

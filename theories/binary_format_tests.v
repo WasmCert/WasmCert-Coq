@@ -1,5 +1,5 @@
 (** Tests for the binary parser. **)
-Require Import Byte.
+Require Import Strings.Byte.
 From parseque Require Import Parseque.
 From Wasm Require Import binary_format_parser binary_format_printer
                          datatypes_properties check_toks.

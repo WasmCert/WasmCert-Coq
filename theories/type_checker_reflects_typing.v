@@ -1020,9 +1020,9 @@ Lemma nth_to_ct_list: forall ts n x,
   List.nth_error ts n = Some x ->
   List.nth_error (to_ct_list ts) n = Some (CTA_some x).
 Proof.
-  intros.
+  intros ts n x H.
   assert (n < length ts)%coq_nat as Hsize; first by rewrite - List.nth_error_Some; rewrite H.
-  apply nth_error_ssr with (x1 := x) in H.
+  eapply nth_error_ssr with (x0 := x) in H.
   assert (nth (CTA_some x) (to_ct_list ts) n = CTA_some x) as Hssr.
   { unfold to_ct_list. rewrite -> nth_map with (x1 := x); last by lias. by rewrite H. }
   by apply ssr_nth_error in Hssr; last by unfold to_ct_list; rewrite size_map; lias.
