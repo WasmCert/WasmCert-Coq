@@ -1,6 +1,6 @@
 Require Import Coq.Strings.String.
 Open Scope string_scope.
-Require Import Byte.
+Require Import Strings.Byte.
 
 (* for pretty-printing *)
 Definition hex_small_no_prefix_of_byte (b : byte) :=

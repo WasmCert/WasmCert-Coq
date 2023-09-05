@@ -2,9 +2,11 @@
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 Require Import common.
-From Coq Require ZArith.Int ZArith.BinInt.
+From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+
+From Flocq Require Import Core.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1181,6 +1183,8 @@ Import Raux.
 
 Import Floats.
 
+Import ZArith.BinInt.
+
 Parameters prec emax : Z.
 
 Parameter prec_gt_0 : FLX.Prec_gt_0 prec.
@@ -1219,6 +1223,8 @@ Import Floats.
 
 Include Float32.
 
+Import ZArith.BinInt.
+
 Definition prec : BinNums.Z := 24.
 Definition emax : BinNums.Z := 128.
 
@@ -1245,6 +1251,9 @@ Import Floats.
 
 Include Float.
 
+
+Import ZArith.BinInt.
+
 Definition prec : BinNums.Z := 53.
 Definition emax : BinNums.Z := 1024.
 
@@ -1267,12 +1276,11 @@ End FloatSize64.
 
 Module Make (FS : FloatSize).
 
+(* Import Zpower BinIntDef. *)
 Import Integers.
-
 Import Raux.
-
+Import ZArith.
 Import Floats.
-
 Export FS.
 
 Definition eqb v1 v2 := is_left (eq_dec v1 v2).
@@ -1306,6 +1314,7 @@ Definition pos_zero : T := Binary.B754_zero _ _ false.
 
 (** [-0] **)
 Definition neg_zero : T := Binary.B754_zero _ _ true.
+
 
 (** The canonical [NaN] payload. **)
 Definition canonical_pl := shift_pos (Z.to_pos prec - 2) 1.
@@ -1484,11 +1493,12 @@ Proof.
   by apply: (svalP unspec_nan_nan).
 Defined.
 
+
 (** Given a mantissa and an exponent (in radix two), produce a representation for a float.
   The sign is not specified if given 0 as a mantissa. **)
 Definition normalise (m e : Z) : T :=
   Binary.binary_normalize _ _ prec_gt_0 Hmax
-    Binary.mode_NE m e ltac:(abstract exact false).
+    BinarySingleNaN.mode_NE m e ltac:(abstract exact false).
 
 (** As Flocq is unfortunately undocumented, let us introduce a unit test here, to check
   that indeed we have the correct understanding of definitions.
@@ -1501,7 +1511,7 @@ Local Definition normalise_unit_test :=
   let: half := normalise 1 (-1) in
   let: twice_half :=
     Binary.Bplus _ _ prec_gt_0 Hmax (fun _ _ => unspec_nan_nan)
-      Binary.mode_NE half half : T in
+      BinarySingleNaN.mode_NE half half : T in
   let: one := Binary.Bone _ _ prec_gt_0 Hmax in
   cmp Ceq twice_half one = true.
 
@@ -1531,7 +1541,7 @@ Qed.
 (** Importing the square root of floats from the Flocq library with the
   round-to-nearest ties-to-even mode. **)
 Definition sqrt (z : T) : T :=
-  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun z => exist _ _ (nans_is_nan [:: z])) Binary.mode_NE z.
+  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun z => exist _ _ (nans_is_nan [:: z])) BinarySingleNaN.mode_NE z.
 
 (** Square root following the Wasm standard. **)
 
@@ -1938,14 +1948,14 @@ Definition wasm_demote (z : f64) : f32 :=
   else if Wasm_float.Float64.is_nan z then
     Wasm_float.Float32.nans [:: Wasm_float.Float32.BofZ (BinIntDef.Z.of_nat 1)]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize32.prec_gt_0 Wasm_float.FloatSize32.Hmax
-         (fun _ => Wasm_float.Float32.unspec_nan_nan) Binary.mode_NE z.
+         (fun _ => Wasm_float.Float32.unspec_nan_nan) BinarySingleNaN.mode_NE z.
 
 Definition wasm_promote (z : f32) : f64 :=
   if Wasm_float.Float32.is_canonical z then Wasm_float.Float64.nans [::]
   else if Wasm_float.Float32.is_nan z then
     Wasm_float.Float64.nans [:: Wasm_float.Float64.BofZ (BinIntDef.Z.of_nat 1)]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize64.prec_gt_0 Wasm_float.FloatSize64.Hmax
-         (fun _ => Wasm_float.Float64.unspec_nan_nan) Binary.mode_NE z.
+         (fun _ => Wasm_float.Float64.unspec_nan_nan) BinarySingleNaN.mode_NE z.
 
 Definition wasm_bool (b : bool) : i32 :=
   if b then Wasm_int.Int32.one else Wasm_int.Int32.zero.

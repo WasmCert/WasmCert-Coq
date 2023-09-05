@@ -1,7 +1,7 @@
 (** Common useful definitions **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-From Coq Require Import Lia.
+From Coq Require Import Lia Wf_nat.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
 From Wasm Require Export pickability.
@@ -25,7 +25,7 @@ Lemma Pos_eqP : Equality.axiom BinPosDef.Pos.eqb.
 Proof.
   move=> x y. apply: Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
 Qed.
-                                                                      
+
 Definition Pos_eqMixin := EqMixin Pos_eqP.
 
 Canonical Structure Pos_eqType := EqType BinNums.positive Pos_eqMixin.
@@ -633,9 +633,6 @@ Defined.
 
 End TProp.
 
-
-(** * Stronger Induction Principles **)
-
 (** Try to fold an expression everywhere.
   More robust than [fold e in *]. **)
 Ltac efold e :=
@@ -1014,3 +1011,69 @@ Ltac is_variable x cont1 cont2 :=
   | _ => cont1
   end.
 
+(** *  Induction principles **)
+
+Section Inductions.
+
+  Variable P : nat -> Type.
+
+  Hypotheses
+    (P0 : P 0)
+    (P1 : P 1)
+    (P2 : P 2)
+    (P3 : P 3)
+    (P4 : P 4)
+    (P5 : P 5).
+
+  Lemma rect2 :
+    (forall n, P n -> P (2 + n)) ->
+    forall n, P n.
+  Proof.
+    intros IH n. induction (lt_wf n) as [n _ H].
+    do 2 (destruct n as [|n]; auto).
+    apply IH. auto.
+  Qed.
+
+  Lemma rect3 :
+    (forall n, P n -> P (3 + n)) ->
+    forall n, P n.
+  Proof.
+    intros IH n. induction (lt_wf n) as [n _ H].
+    do 3 (destruct n as [|n]; auto).
+    apply IH. auto.
+  Qed.
+
+  Lemma rect4 :
+    (forall n, P n -> P (4 + n)) ->
+    forall n, P n.
+  Proof.
+    intros IH n. induction (lt_wf n) as [n _ H].
+    do 4 (destruct n as [|n]; auto).
+    apply IH. auto 10.
+  Qed.
+
+  Lemma rect5 :
+    (forall n, P n -> P (5 + n)) ->
+    forall n, P n.
+  Proof.
+    intros IH n. induction (lt_wf n) as [n _ H].
+    do 5 (destruct n as [|n]; auto).
+    apply IH. auto 10.
+  Qed.
+
+  Lemma rect6 :
+    (forall n, P n -> P (6 + n)) ->
+    forall n, P n.
+  Proof.
+    intros IH n. induction (lt_wf n) as [n _ H].
+    do 6 (destruct n as [|n]; auto).
+    apply IH. auto 10.
+  Qed.
+
+End Inductions.
+
+Definition induction2 (P : nat -> Prop) := @rect2 P.
+Definition induction3 (P : nat -> Prop) := @rect3 P.
+Definition induction4 (P : nat -> Prop) := @rect4 P.
+Definition induction5 (P : nat -> Prop) := @rect5 P.
+Definition induction6 (P : nat -> Prop) := @rect6 P.

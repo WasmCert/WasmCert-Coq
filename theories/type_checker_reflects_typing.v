@@ -3,8 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
-From Coq Require Import Program.
-From StrongInduction Require Import StrongInduction Inductions.
+From Coq Require Import Program Wf_nat.
 
 Require Import Lia.
 
@@ -1021,9 +1020,9 @@ Lemma nth_to_ct_list: forall ts n x,
   List.nth_error ts n = Some x ->
   List.nth_error (to_ct_list ts) n = Some (CTA_some x).
 Proof.
-  intros.
+  intros ts n x H.
   assert (n < length ts)%coq_nat as Hsize; first by rewrite - List.nth_error_Some; rewrite H.
-  apply nth_error_ssr with (x1 := x) in H.
+  eapply nth_error_ssr with (x0 := x) in H.
   assert (nth (CTA_some x) (to_ct_list ts) n = CTA_some x) as Hssr.
   { unfold to_ct_list. rewrite -> nth_map with (x1 := x); last by lias. by rewrite H. }
   by apply ssr_nth_error in Hssr; last by unfold to_ct_list; rewrite size_map; lias.
@@ -1659,7 +1658,7 @@ Lemma tc_to_bet_conj d:
   c_types_agree cts' tm ->
   exists tn, c_types_agree cts tn /\ be_typing C ([:: e]) (Tf tn tm)).
 Proof with auto_rewrite_cond.
-  strong induction d => //=.
+  induction (lt_wf d) as [d _ H] => //=.
   split.
   (* List *) 
   - move => c cts bes.
