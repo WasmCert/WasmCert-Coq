@@ -2,7 +2,7 @@
 
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Bool Program.Equality Wf_nat.
+From Coq Require Import Bool Program.Equality NArith ZArith Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1379,7 +1379,7 @@ Proof.
     move/andP in H'; destruct H' as [Heqvs Heqe'].
     move/eqP in Heqvs. move/eqP in Heqe'.
     by inversion Heqe'; split => //.
-  - move/leP in H. apply Lt.le_lt_or_eq in H as [H|] => //.
+  - move/leP in H. apply Nat.lt_eq_cases in H as [H|] => //.
     assert (size vs' < size vs). { by lias. }
     apply f_equal with (f := size) in H'.
     repeat rewrite size_cat in H'.
