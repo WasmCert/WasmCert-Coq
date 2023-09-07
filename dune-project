@@ -2,7 +2,7 @@
 (using coq 0.2)
 (using mdx 0.1)
 (name wasm_coq)
-(version 8c4efcd-dirty)
+(version c9b010d-dirty)
 
 (generate_opam_files true)
 (license MIT)
@@ -20,6 +20,7 @@
     (coq-parseque (>= 0.1.0))
     (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
+    mdx
   )
   (authors
     "Martin Bodin"
