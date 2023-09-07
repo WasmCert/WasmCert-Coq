@@ -14,7 +14,8 @@ jobs:
     strategy:
       matrix:
         opam_file:
-          - 'Wasm.opam'
+          - 'Wasm_coq.opam'
+          - 'Wasm_coq_interpreter.opam'
         coq_version:
           - '8.16.1'
       fail-fast: true
