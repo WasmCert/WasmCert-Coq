@@ -87,7 +87,8 @@ let depth =
 
 let srcs =
   let doc = "Source file(s) to interpret." in
-  Arg.(non_empty & pos_left ~rev:true 1 file [] & info [] ~docv:"FILE" ~doc)
+  Arg.(non_empty & pos_left ~rev:true 0 file [] & info [] ~docv:"FILE" ~doc)
+
 
 let cmd = 
   let doc = "Interpret WebAssembly files" in
