@@ -13,9 +13,10 @@
 )
 
 ;(install
+;  (files wasm_coq_interpreter.exe)
 ;  (package wasm_coq_interpreter)
 ;  (section bin)
-;  (files (wasm_interpreter.exe as wasm_interpreter)))
+;)
 
 ;(rule
 ;	(targets "extract.ml" "extract.mli")

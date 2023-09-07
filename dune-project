@@ -31,6 +31,9 @@
 
 (package
   (name wasm_coq_interpreter)
-  (depends wasm_coq)
+  (depends 
+     wasm_coq
+     (cmdliner (>= 1.1.0))
+  )
   (synopsis "Wasm interpreter extracted from the Coq formalisation")
 )

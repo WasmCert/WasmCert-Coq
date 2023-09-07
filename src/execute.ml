@@ -73,7 +73,7 @@ let tuple_drop_hs res =
   match res with
   | (((_, s), f), r) -> ((s, f), r)
 
-let take_step verbosity i cfg =
+let take_step verbosity _i cfg =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
   let res = run_step_compat cfg in
   let ((s', _), _)  = (*Convert.from_triple*) res in
@@ -150,7 +150,7 @@ let interpret verbosity error_code_on_crash sies name =
         match lookup_exported_function name sies with
         | None -> Error ("unknown function `" ^ name ^ "`")
         | Some cfg0 -> OK cfg0)) in
-  let rec eval gen cfg =
+  let rec eval_cfg gen cfg =
     let cfg_res = run_step_compat cfg in
     print_step_header gen ;
     debug_info verbosity intermediate
@@ -182,12 +182,12 @@ let interpret verbosity error_code_on_crash sies name =
     | (((hs', s'), vs'), RS_normal es) ->
       begin match is_const_list es with
       | Some vs -> pure (Some vs)
-      | None -> eval (gen + 1) ((((hs', s'), vs'), es))
+      | None -> eval_cfg (gen + 1) ((((hs', s'), vs'), es))
       end in
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\n%s\n" (pp_config_tuple_except_store (tuple_drop_hs cfg0)));
-  let* res = eval 1 cfg0 in
+  let* res = eval_cfg 1 cfg0 in
   debug_info_span verbosity result stage (fun _ ->
     match res with
     | Some vs -> pp_values vs

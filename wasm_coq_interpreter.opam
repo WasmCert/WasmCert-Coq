@@ -8,6 +8,7 @@ bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "2.9"}
   "wasm_coq"
+  "cmdliner" {>= "1.1.0"}
   "odoc" {with-doc}
 ]
 build: [

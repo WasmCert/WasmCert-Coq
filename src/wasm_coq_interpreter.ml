@@ -1,6 +1,6 @@
 (** Main file for the Wasm interpreter **)
 
-open Convert
+(*open Convert*)
 
 (** Main function *)
 let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs =
@@ -77,7 +77,7 @@ let error_code_on_crash =
 
 let func_name =
   let doc = "Name of the Wasm function to run." in
-  Arg.(required & pos ~rev:true 1 (some string) None & info [] ~docv:"NAME" ~doc)
+  Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"NAME" ~doc)
 
 (*
 let depth =
@@ -89,16 +89,25 @@ let srcs =
   let doc = "Source file(s) to interpret." in
   Arg.(non_empty & pos_left ~rev:true 1 file [] & info [] ~docv:"FILE" ~doc)
 
-let cmd =
+let cmd = 
   let doc = "Interpret WebAssembly files" in
   let man_xrefs = [] in
-  let exits = Term.default_exits in
+  let exits = Cmd.Exit.defaults in
   let man =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/WasmCert/WasmCert-Coq/issues"; ]
   in
-  (Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs)),
-   Term.info "wasm_interpreter" ~version:"141c45d-dirty" ~doc ~exits ~man ~man_xrefs)
+  (*  (Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs)),
+   Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
+*)
+  Cmd.v 
+     (Cmd.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs))
 
-let () = Term.(exit @@ eval cmd)
+  
+let () = Stdlib.exit @@ 
+   match Cmd.eval_value cmd with
+   | Ok _ -> Cmd.Exit.ok
+   | Error _ -> Cmd.Exit.some_error
+   
 
