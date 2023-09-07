@@ -1442,7 +1442,7 @@ Lemma nth_error_set_eq: forall {X:Type} l n {x xd:X},
     List.nth_error (set_nth xd l n x) n = Some x.
 Proof.
   move => X l n x xd Hlen.
-  rewrite -> nth_error_nth with (x0 := xd); first by rewrite nth_set_nth /= eq_refl.
+  rewrite -> nth_error_nth with (x := xd); first by rewrite nth_set_nth /= eq_refl.
   rewrite length_is_size size_set_nth -length_is_size.
   unfold maxn.
   by destruct (n.+1 < length l).

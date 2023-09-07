@@ -1388,7 +1388,6 @@ Proof.
       apply ext_globs_lookup_exist in Heqgi as [k Hvi].
       eapply Forall2_lookup in Hexttype; eauto.
       destruct Hexttype as [y [Hnth Hexttype]].
-      Search n.
       inversion Hexttype; subst; clear Hexttype.
       by move/ssrnat.ltP in H0.
     }

@@ -1,12 +1,12 @@
 (executable
-  (name wasm_interpreter)
+  (name wasm_coq_interpreter)
   (libraries cmdliner linenoise)
   (modes (best exe)))
 
 (install
-  (package wasm_interpreter)
+  (package wasm_coq_interpreter)
   (section bin)
-  (files (wasm_interpreter.exe as wasm_interpreter)))
+  (files (wasm_coq_interpreter.exe as wasm_coq_interpreter)))
 
 ; FIXME somehow ../extract.{ml,mli} get deleted when rebuilding
 ; workaround: rm _build/default/theories/extraction.vo
@@ -16,10 +16,6 @@
 	(action
 		(progn
 			(run cp "../extract.ml" "../extract.mli" "./")
-			; (run chmod "u+w" "./extract.ml")
-			; What follows is a dirty trick to try to fix Coq’s output and make it accepted by OCaml… (see issue https://github.com/coq/coq/issues/12813 )
-			; (run patch extract.ml extract_newer.patch)
-			; (run chmod "a-w" "./extract.ml")
 		)))
 
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50))))

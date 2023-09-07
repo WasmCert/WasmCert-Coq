@@ -1,6 +1,6 @@
 (coq.theory
   (name Wasm)
-  (package Wasm)
+  (package wasm_coq)
   (flags -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier))
 
 ;(coq.extraction

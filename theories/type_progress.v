@@ -773,7 +773,7 @@ Proof.
     apply List.nth_error_Some. by rewrite Hplop.
   - invert_e_typing.
     destruct ts => //=; destruct t1s => //=.
-    eapply IHHLF with (k1 := k+1) in H4; eauto.
+    eapply IHHLF with (k := k+1) in H4; eauto.
     + simpl in *; lias.
     + do 3 f_equal; lias.
 Qed.

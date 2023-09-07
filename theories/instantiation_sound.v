@@ -790,7 +790,7 @@ Proof.
                inversion Hidxs_nth; subst. clear Hidxs_nth.
 
                rewrite nth_error_app2; last by lias.
-               rewrite minus_plus.
+               rewrite Nat.add_comm Nat.add_sub.
                rewrite Coqlib.list_map_nth.
                by rewrite Hfuncs_nth.
     -- (* globals_agree *)
@@ -876,7 +876,7 @@ Proof.
                inversion Hidxs_nth; subst. clear Hidxs_nth.
 
                rewrite nth_error_app2; last by lias.
-               rewrite minus_plus.
+               rewrite Nat.add_comm Nat.add_sub.
                rewrite Coqlib.list_map_nth.
 
                specialize (nth_error_same_length_list _ _ _ _ _ _ (Logic.eq_sym Hgvs_len) Hglobs_nth) as Hgvs_nth.
@@ -984,7 +984,7 @@ Proof.
              }
              {
                rewrite nth_error_app2; last by lias.
-               rewrite minus_plus.
+               rewrite Nat.add_comm Nat.add_sub.
                rewrite Coqlib.list_map_nth.
                rewrite Htts_nth.
                
@@ -1029,7 +1029,7 @@ Proof.
          }
          {
            rewrite nth_error_app2; last by lias.
-           rewrite minus_plus.
+           rewrite Nat.add_comm Nat.add_sub.
            rewrite Coqlib.list_map_nth.
            rewrite Hmts_nth.
 
@@ -1419,7 +1419,7 @@ Proof.
       
       move => i e_off1 mod_elem1 Hoffs_nth Helems_nth.
     
-      eapply Forall2_lookup with (i0 := i) in H3 as [? [Hnth Hlookup]]; eauto.
+      eapply Forall2_lookup with (i := i) in H3 as [? [Hnth Hlookup]]; eauto.
       rewrite Helems_nth in Hnth.
       injection Hnth as <-.
       
@@ -1467,7 +1467,7 @@ Proof.
         rewrite Nat.add_assoc.
         replace (Nat.add (Z.to_nat (Wasm_int.Int32.intval e_off)) (length modelem_init0)) with (Z.to_nat (Wasm_int.Int32.intval e_off) + length modelem_init0); last by lias.
         
-        rewrite le_plus_minus_r => //.
+        rewrite Nat.add_comm Nat.sub_add => //.
         by lias.
       * (* taddr0 /= taddr1 *)
         rewrite nth_error_set_neq => //; last lias.
@@ -1653,10 +1653,10 @@ Proof.
 
     replace (Init.Nat.min (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))) (length (memory_list.ml_data mem_data))) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))); last by lias.
     
-    rewrite plus_assoc.
+    rewrite Nat.add_assoc.
     replace (ssrnat.addn (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))) (length moddata_init)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) + length moddata_init); last by lias.
     
-    rewrite le_plus_minus_r => //; last by lias.
+    rewrite Nat.add_comm Nat.sub_add => //; last by lias.
 Qed.
 
 Lemma init_mems_sound s s' inst m x:
@@ -1757,9 +1757,9 @@ Proof.
 
       replace (Init.Nat.min (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))) (length (memory_list.ml_data mem_data))) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))); last by lias.
 
-      rewrite plus_assoc.
+      rewrite Nat.add_assoc.
       replace (ssrnat.addn (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off))) (length moddata_init0)) with (N.to_nat (Z.to_N (Wasm_int.Int32.intval d_off)) + length moddata_init0); last by lias.
-      rewrite le_plus_minus_r => //. 
+      rewrite Nat.add_comm Nat.sub_add => //. 
       by lias.
     * (* maddr /= maddr1 *)
       rewrite nth_error_set_neq; eauto.

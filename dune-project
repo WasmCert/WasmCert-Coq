@@ -2,14 +2,14 @@
 (using coq 0.1)
 (using mdx 0.1)
 (name Wasm)
-(version acc9c5b-dirty)
+(version 141c45d-dirty)
 
 (generate_opam_files true)
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
 
 (package
-  (name Wasm)
+  (name wasm_coq)
   (synopsis "Wasm formalisation in Coq")
   (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
   (depends
@@ -18,6 +18,7 @@
     (coq-mathcomp-ssreflect (and (>= 1.16.0) (<= 1.17.0)))
     (coq-itree (>= 3.1.0))
     (coq-parseque (>= 0.1.0))
+    (linenoise (>= 1.4.0))
   )
   (authors
     "Martin Bodin"
@@ -30,7 +31,7 @@
 )
 
 (package
-  (name wasm_interpreter)
-	(depends Wasm)
+  (name wasm_coq_interpreter)
+  (depends wasm_coq)
   (synopsis "Wasm interpreter extracted from the Coq formalisation")
 )

@@ -1,7 +1,7 @@
 
 From compcert Require Import Integers.
 From parseque Require Import Parseque Running.
-Require Import Coq.Arith.Le.
+Require Import PeanoNat.
 
 Section Check.
 
@@ -15,7 +15,7 @@ Definition check_toks : list Byte.byte -> [ Parser (SizedList Byte.byte) Byte.by
   let tokens := s in
   let n      := List.length tokens in
   let input  := mkSizedList tokens in
-  let result := runParser (p n) (le_refl n) input in
+  let result := runParser (p n) (Nat.le_refl n) input in
   let valid  := fun s => match Success.size s with | O => Some (Success.value s) | _ => None end in
   match mapM valid (runMonad result) with
     | Some (cons hd _) => @Singleton A hd
@@ -26,7 +26,7 @@ Definition check_toks : list Byte.byte -> [ Parser (SizedList Byte.byte) Byte.by
   let tokens := List.map Ascii.ascii_of_byte s in
   let n      := List.length tokens in
   let input  := mkSizedList tokens in
-  let result := runParser (p n) (le_refl n) input in
+  let result := runParser (p n) (Nat.le_refl n) input in
   let valid  := fun s => match Success.size s with | O => Some (Success.value s) | _ => None end in
   match mapM valid (runMonad result) with
     | Some (cons hd _) => Some hd

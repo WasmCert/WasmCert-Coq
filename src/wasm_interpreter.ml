@@ -98,7 +98,7 @@ let cmd =
       `P "Report them at https://github.com/WasmCert/WasmCert-Coq/issues"; ]
   in
   (Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs)),
-   Term.info "wasm_interpreter" ~version:"%%VERSION%%" ~doc ~exits ~man ~man_xrefs)
+   Term.info "wasm_interpreter" ~version:"141c45d-dirty" ~doc ~exits ~man ~man_xrefs)
 
 let () = Term.(exit @@ eval cmd)
 
