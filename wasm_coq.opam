@@ -17,6 +17,7 @@ depends: [
   "coq-mathcomp-ssreflect" {>= "1.16.0" & <= "1.17.0"}
   "coq-itree" {>= "3.1.0"}
   "coq-parseque" {>= "0.1.0"}
+  "cmdliner" {>= "1.1.0"}
   "linenoise" {>= "1.4.0"}
   "odoc" {with-doc}
 ]

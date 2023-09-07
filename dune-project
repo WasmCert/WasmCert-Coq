@@ -18,6 +18,7 @@
     (coq-mathcomp-ssreflect (and (>= 1.16.0) (<= 1.17.0)))
     (coq-itree (>= 3.1.0))
     (coq-parseque (>= 0.1.0))
+    (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
   )
   (authors
@@ -29,11 +30,11 @@
   )
 )
 
-(package
-  (name wasm_coq_interpreter)
-  (depends 
-     wasm_coq
-     (cmdliner (>= 1.1.0))
-  )
-  (synopsis "Wasm interpreter extracted from the Coq formalisation")
-)
+;(package
+;  (name wasm_coq_interpreter)
+;  (depends 
+;     wasm_coq
+;     (cmdliner (>= 1.1.0))
+;  )
+;  (synopsis "Wasm interpreter extracted from the Coq formalisation")
+;)

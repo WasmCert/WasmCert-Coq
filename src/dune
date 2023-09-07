@@ -9,7 +9,7 @@
   (libraries cmdliner linenoise)
   (modes (best exe))
   (public_name wasm_coq_interpreter)
-  (package wasm_coq_interpreter)
+  (package wasm_coq)
 )
 
 ;(install

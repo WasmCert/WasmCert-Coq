@@ -14,9 +14,10 @@ jobs:
     strategy:
       matrix:
         opam_file:
-          - 'wasm_coq_interpreter.opam'
+          - 'wasm_coq.opam'
         coq_version:
           - '8.16.1'
+          - dev
       fail-fast: true
 
     steps:
@@ -45,4 +46,4 @@ jobs:
             endGroup
             startGroup "Test suites"
               dune test
-            endGrouop
+            endGroup
