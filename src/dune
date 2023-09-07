@@ -1,22 +1,29 @@
+(coq.extraction
+  (prelude extraction)
+  (extracted_modules extract)
+  (theories Wasm)
+)
+
 (executable
   (name wasm_coq_interpreter)
   (libraries cmdliner linenoise)
-  (modes (best exe)))
-
-(install
+  (modes (best exe))
+  (public_name wasm_coq_interpreter)
   (package wasm_coq_interpreter)
-  (section bin)
-  (files (wasm_coq_interpreter.exe as wasm_coq_interpreter)))
+)
 
-; FIXME somehow ../extract.{ml,mli} get deleted when rebuilding
-; workaround: rm _build/default/theories/extraction.vo
-(rule
-	(targets "extract.ml" "extract.mli")
-	(deps "../theories/extraction.vo")
-	(action
-		(progn
-			(run cp "../extract.ml" "../extract.mli" "./")
-		)))
+;(install
+;  (package wasm_coq_interpreter)
+;  (section bin)
+;  (files (wasm_interpreter.exe as wasm_interpreter)))
+
+;(rule
+;	(targets "extract.ml" "extract.mli")
+;	(deps "../theories/extraction.vo")
+;	(action
+;		(progn
+;			(run cp "../extract.ml" "../extract.mli" "./")
+;		)))
 
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
 ; Removing the following warnings:

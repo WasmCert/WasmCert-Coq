@@ -1,8 +1,8 @@
 (lang dune 2.9)
-(using coq 0.1)
+(using coq 0.2)
 (using mdx 0.1)
-(name Wasm)
-(version 141c45d-dirty)
+(name wasm_coq)
+(version 8c4efcd-dirty)
 
 (generate_opam_files true)
 (license MIT)
@@ -27,7 +27,6 @@
     "Xiaojia Rao"
     "Conrad Watt"
   )
-
 )
 
 (package

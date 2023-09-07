@@ -3,6 +3,3 @@
   (package wasm_coq)
   (flags -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier))
 
-;(coq.extraction
-;	(prelude extraction)
-;	(extracted_modules extract))
