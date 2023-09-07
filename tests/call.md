@@ -1,7 +1,7 @@
 This test defines a function `$hello` (returning `i32.const 42`) and calls it.
 
 ```sh
-$ wasm_interpreter --vr call.wasm hello 1
+$ wasm_coq_interpreter call.wasm main
 i32.const 42
 
 ```

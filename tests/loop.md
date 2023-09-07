@@ -2,7 +2,7 @@ This test contains three simple examples of the usage of `br`.
 
 One is located in a loop, and exits it (`br 0` would infinitively loop):
 ```wasm
-loop
+main
 	br 1
 ```
 The second one is located in a block, and also exits it:
@@ -16,10 +16,10 @@ br 0
 ```
 
 ```sh
-$ wasm_interpreter --vr loop.wasm loop_br 1
+$ wasm_coq_interpreter loop.wasm main
 
-$ wasm_interpreter --vr loop.wasm block_br 1
+$ wasm_coq_interpreter loop.wasm block_br
 
-$ wasm_interpreter --vr loop.wasm br 1
+$ wasm_coq_interpreter loop.wasm br
 
 ```

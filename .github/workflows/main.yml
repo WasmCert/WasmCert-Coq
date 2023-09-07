@@ -43,3 +43,6 @@ jobs:
               cd .ci/
               coqc import_test.v
             endGroup
+            startGroup "Test suites"
+              dune test
+            endGrouop

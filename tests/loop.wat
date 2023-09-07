@@ -1,5 +1,5 @@
 (module
-	(func (export "loop_br")
+	(func (export "main")
 		(loop
 			br 1))
 	(func (export "block_br")
