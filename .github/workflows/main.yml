@@ -39,10 +39,10 @@ jobs:
             startGroup "List installed packages"
               opam list
             endGroup
+            startGroup "Test suites"
+              dune test
+            endGroup
             startGroup "Test import"
               cd .ci/
               coqc import_test.v
-            endGroup
-            startGroup "Test suites"
-              dune test
             endGroup
