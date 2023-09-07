@@ -1,6 +1,6 @@
-(lang dune 2.9)
+(lang dune 3.0)
 (using coq 0.2)
-(using mdx 0.1)
+(using mdx 0.2)
 (name wasm_coq)
 (version c9b010d-dirty)
 
@@ -20,7 +20,7 @@
     (coq-parseque (>= 0.1.0))
     (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
-    mdx
+    (mdx (>= 1.9.0))
   )
   (authors
     "Martin Bodin"

@@ -11,7 +11,7 @@ license: "MIT"
 homepage: "https://github.com/WasmCert/WasmCert-Coq"
 bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
-  "dune" {>= "2.9"}
+  "dune" {>= "3.0"}
   "coq" {>= "8.15" & <= "8.16.1"}
   "coq-compcert" {>= "3.11"}
   "coq-mathcomp-ssreflect" {>= "1.16.0" & <= "1.17.0"}
@@ -19,7 +19,7 @@ depends: [
   "coq-parseque" {>= "0.1.0"}
   "cmdliner" {>= "1.1.0"}
   "linenoise" {>= "1.4.0"}
-  "mdx"
+  "mdx" {>= "1.9.0"}
   "odoc" {with-doc}
 ]
 build: [
@@ -31,11 +31,9 @@ build: [
     name
     "-j"
     jobs
-    "--promote-install-files=false"
     "@install"
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
-  ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/WasmCert/WasmCert-Coq.git"

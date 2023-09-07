@@ -40,9 +40,11 @@ jobs:
               opam list
             endGroup
             startGroup "Test suites"
+              eval $(opam env)
               dune test
             endGroup
             startGroup "Test import"
               cd .ci/
               coqc import_test.v
+              cd ..
             endGroup
