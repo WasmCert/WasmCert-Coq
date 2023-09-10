@@ -1,4 +1,1 @@
-(mdx
-    (deps (package wasm_coq))
-)
-
+(mdx)
