@@ -1929,9 +1929,7 @@ Proof with auto_rewrite_cond.
       destruct Hct2 as [tn' [Hct bet]]; subst.
       exists (tn' ++ [::v0]); split => //.
       apply bet_weakening.
-      unfold convert_cond in if_expr0...
-      apply bet_convert => //.
-      by move/eqP in H0.
+      by apply bet_convert => //.
     + replace ([::CTA_some v0]) with (to_ct_list [::v0]) in Hct2 => //=.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hct bet]]; subst.
@@ -1947,8 +1945,7 @@ Lemma tc_to_bet_list: forall C cts bes tm cts',
 Proof.
   intros.
   specialize tc_to_bet_conj with (be_size_list bes).
-  move => H1.
-  destruct H1 as [H1 _].
+  move => [H1 _].
   by eapply H1; eauto.
 Qed.
 
@@ -1968,7 +1965,6 @@ Proof with auto_rewrite_cond.
     move => Hbet.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
     induction Hbet; subst => //=; unfold type_update => //=; try destruct t, op; try by inversion H...
-    + unfold convert_cond...
     + unfold same_lab => //=.
       remember (ins ++ [::i]) as l.
       rewrite - Heql.
