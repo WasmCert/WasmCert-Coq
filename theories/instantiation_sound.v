@@ -303,31 +303,6 @@ Proof.
     by rewrite N.div_mul.
 Qed.
 
-(*
-Lemma external_typing_func s v_imps t_imps n v_imp t_imp:
-  nth_error (map (fun '((Mk_funcidx i), i) => (ext_funcs v_imps))) n = Some v_imp ->
-  nth_error (ext_t_funcs t_imps) n = Some t_imp -> 
-  instantiation_spec.external_typing host_function s (MED_func (Mk_funcidx v_imp)) (ET_func t_imp) ->
-  option_map cl_type (nth_error (s_funcs s) v_imp) = Some t_imp.
-Proof.
-  move => Hvimp Htimp Htyping.
-  inversion Htyping; subst.
-  by rewrite H3.
-Qed.
-
-Lemma external_typing_tab s v_imps t_imps n v_imp t_imp:
-  nth_error (map (λ '(Mk_tableidx i), i) (ext_tabs v_imps)) n = Some v_imp ->
-  nth_error (ext_t_tabs t_imps) n = Some t_imp -> 
-  instantiation_spec.external_typing host_function s (MED_table (Mk_tableidx v_imp)) (ET_tab t_imp) ->
-  exists ti, (nth_error (s_tables s) v_imp = Some ti) /\
-          tab_typing ti t_imp.
-Proof.
-  move => Hvimp Htimp Htyping.
-  inversion Htyping; subst.
-  exists ti. split => //=.
-Qed.
-*)
-
 Definition module_export_entity_relate (R : module_export_desc -> extern_t -> Prop) : Prop :=
   forall vi ti, R vi ti ->
            match vi with
@@ -621,6 +596,80 @@ Proof.
     inversion Hall; subst; assumption.
 Qed.
   
+Lemma ext_typing_exists_func addr s:
+  addr < length s.(s_funcs) ->
+  exists t, external_typing s (MED_func (Mk_funcidx addr)) t.
+Proof.
+  move => Hlen.
+  assert (exists f, s.(s_funcs) !! addr = Some f) as Hnth.
+  { destruct (s.(s_funcs) !! addr) eqn:Hnth'; try by eexists => //.
+    exfalso.
+    apply nth_error_Some in Hnth'; by lias. }
+  destruct Hnth as [f Hnth].
+  eexists.
+  econstructor; eauto.
+Qed.
+
+Lemma ext_typing_exists_tab addr s:
+  addr < length s.(s_tables) ->
+  exists t, external_typing s (MED_table (Mk_tableidx addr)) t.
+Proof.
+  move => Hlen.
+  assert (exists tab, s.(s_tables) !! addr = Some tab) as Hnth.
+  { destruct (s.(s_tables) !! addr) eqn:Hnth'; try by eexists => //.
+    exfalso.
+    apply nth_error_Some in Hnth'; by lias. }
+  destruct Hnth as [tab Hnth].
+  
+  (* Note that all tables can be tab_typed. This lemma needs more information if
+     this is no longer true in the future. *)
+  exists (ET_tab {| tt_limits := {| lim_min := N.of_nat (tab_size tab); lim_max := table_max_opt tab |} ; tt_elem_type := ELT_funcref |}).
+  econstructor; eauto.
+  unfold tab_typing => /=.
+  apply/andP; split => //.
+  rewrite nat_bin.
+  by lias.
+Qed.
+
+Lemma ext_typing_exists_mem addr s:
+  addr < length s.(s_mems) ->
+  exists t, external_typing s (MED_mem (Mk_memidx addr)) t.
+Proof.
+  move => Hlen.
+  assert (exists mem, s.(s_mems) !! addr = Some mem) as Hnth.
+  { destruct (s.(s_mems) !! addr) eqn:Hnth'; try by eexists => //.
+    exfalso.
+    apply nth_error_Some in Hnth'; by lias. }
+  destruct Hnth as [mem Hnth].
+  
+  (* Similar to tab_typing *)
+  exists (ET_mem {| lim_min := N.of_nat (mem_size mem); lim_max := mem_max_opt mem |}).
+  econstructor; eauto.
+  unfold mem_typing => /=.
+  apply/andP; split => //.
+  rewrite nat_bin N2Nat.id.
+  by apply N.leb_refl.
+Qed.
+
+Lemma ext_typing_exists_glob addr s:
+  addr < length s.(s_globals) ->
+  exists t, external_typing s (MED_global (Mk_globalidx addr)) t.
+Proof.
+  move => Hlen.
+  assert (exists glob, s.(s_globals) !! addr = Some glob) as Hnth.
+  { destruct (s.(s_globals) !! addr) eqn:Hnth'; try by eexists => //.
+    exfalso.
+    apply nth_error_Some in Hnth'; by lias. }
+  destruct Hnth as [glob Hnth].
+  
+  (* Note that all tables can be tab_typed. This lemma needs more information if
+     this is no longer true in the future. *)
+  exists (ET_glob {| tg_mut := g_mut glob; tg_t := typeof (g_val glob) |}).
+  econstructor; eauto.
+  unfold global_agree => /=.
+  by apply/andP.
+Qed.
+
 Lemma alloc_module_sound s s' m v_imps t_imps v_exps t_exps inst gvs hs: 
   alloc_module host_function s m v_imps gvs (s', inst, v_exps) ->
   module_typing m t_imps t_exps ->
@@ -629,7 +678,8 @@ Lemma alloc_module_sound s s' m v_imps t_imps v_exps t_exps inst gvs hs:
   store_typing s ->
   ((store_typing s' /\
    (exists C, inst_typing s' inst C)) /\
-   store_extension s s'
+   store_extension s s' /\
+   List.Forall (fun x => exists t, external_typing s' (modexp_desc x) t) v_exps
   ).  
 Proof.
   move => Halloc Hmod_typing Himp_typing Hinit_globs Hstore_typing.
@@ -1142,6 +1192,98 @@ Proof.
     apply/andP; split; last by clear; eapply comp_extension_extend; eauto; apply all2_mem_extension_same.
     apply/andP; split; last by clear; eapply comp_extension_extend; eauto; apply all2_tab_extension_same.
     clear; eapply comp_extension_extend; eauto; apply all2_func_extension_same.
+  - (* export typing *) 
+    apply Forall_forall.
+    move => vexp Hin.
+    apply In_nth_error in Hin as [n Hnth].
+    rewrite nth_error_map in Hnth.
+    destruct (mod_exports !! n) as [mexp | ] eqn:Hnthexp => //.
+    simpl in Hnth; injection Hnth as <- => /=.
+    
+    eapply Forall2_lookup with (i := n) in HExpValid; eauto.
+    destruct HExpValid as [extt [Hnthtexp Hexptype]].
+    destruct mexp as [mname mdesc].
+    unfold module_export_typing in Hexptype.
+    
+    unfold export_get_v_ext => /=.
+    destruct mdesc as [o | o | o | o]; destruct o as [i]; destruct extt => //; simpl in *.
+  - apply ext_typing_exists_func.
+    assert (i < length (inst_funcs inst_new)) as Hlen.
+    {
+      unfold inst_typing in HIT; destruct inst_new, C.
+      remove_bools_options; simpl in *.
+      repeat rewrite length_is_size.
+      destruct tc_local, tc_label, tc_return => //.
+      remove_bools_options.
+      replace (size inst_funcs) with (size tc_func_t) => //.
+      symmetry. by eapply all2_size; eauto.
+    }
+    assert (exists a, (inst_funcs inst_new) !! i = Some a) as [a Hnth].
+    {
+      destruct ((inst_funcs inst_new) !! i) eqn:Hnth; try by eexists.
+      exfalso.
+      by apply nth_error_Some in Hnth; lias.
+    }
+    erewrite nth_error_nth; last by apply Hnth.
+    eapply inst_typing_func in Hnth as [cl Hnthcl]; eauto.
+    by apply nth_error_Some_length in Hnthcl; lias.
+  - apply ext_typing_exists_tab.
+    assert (i < length (inst_tab inst_new)) as Hlen.
+    {
+      unfold inst_typing in HIT; destruct inst_new, C.
+      remove_bools_options; simpl in *.
+      repeat rewrite length_is_size.
+      destruct tc_local, tc_label, tc_return => //.
+      remove_bools_options.
+      replace (size inst_tab) with (size tc_table) => //.
+      symmetry. by eapply all2_size; eauto.
+    }
+    assert (exists a, (inst_tab inst_new) !! i = Some a) as [a Hnth].
+    {
+      destruct ((inst_tab inst_new) !! i) eqn:Hnth; try by eexists.
+      exfalso.
+      by apply nth_error_Some in Hnth; lias.
+    }
+    erewrite nth_error_nth; last by apply Hnth.
+    by eapply inst_typing_tab; eauto.
+  - apply ext_typing_exists_mem.
+    assert (i < length (inst_memory inst_new)) as Hlen.
+    {
+      unfold inst_typing in HIT; destruct inst_new, C.
+      remove_bools_options; simpl in *.
+      repeat rewrite length_is_size.
+      destruct tc_local, tc_label, tc_return => //.
+      remove_bools_options.
+      replace (size inst_memory) with (size tc_memory) => //.
+      symmetry. by eapply all2_size; eauto.
+    }
+    assert (exists a, (inst_memory inst_new) !! i = Some a) as [a Hnth].
+    {
+      destruct ((inst_memory inst_new) !! i) eqn:Hnth; try by eexists.
+      exfalso.
+      by apply nth_error_Some in Hnth; lias.
+    }
+    erewrite nth_error_nth; last by apply Hnth.
+    by eapply inst_typing_mem; eauto.
+  - apply ext_typing_exists_glob.
+    assert (i < length (inst_globs inst_new)) as Hlen.
+    {
+      unfold inst_typing in HIT; destruct inst_new, C.
+      remove_bools_options; simpl in *.
+      repeat rewrite length_is_size.
+      destruct tc_local, tc_label, tc_return => //.
+      remove_bools_options.
+      replace (size inst_globs) with (size tc_global) => //.
+      symmetry. by eapply all2_size; eauto.
+    }
+    assert (exists a, (inst_globs inst_new) !! i = Some a) as [a Hnth].
+    {
+      destruct ((inst_globs inst_new) !! i) eqn:Hnth; try by eexists.
+      exfalso.
+      by apply nth_error_Some in Hnth; lias.
+    }
+    erewrite nth_error_nth; last by apply Hnth.
+    by eapply inst_typing_glob; eauto.
 Qed.
 
 Lemma init_tab_preserve ws inst e_inits melem ws':
@@ -1908,16 +2050,6 @@ Proof.
   by remove_bools_options.
 Qed.
 
-(* This lemma is admitted for now; it is required to show that the exports are of the correct types. 
-   Without this lemma, the final instantiation soundness can still be proved but the external typing goal needs to be dropped. *)
-Lemma module_typing_export_sound s m v_imps g_inits s' inst C v_exps t_imps t_exps:
-  alloc_module host_function s m v_imps g_inits (s', inst, v_exps) ->
-  module_typing m t_imps t_exps ->
-  inst_typing s' inst C ->
-  List.Forall (fun x => exists t, external_typing s' (modexp_desc x) t) v_exps.
-Proof.
-Admitted.
-
 Lemma store_extension_export_typing s s' v_exp t_exp:
   store_extension s s' ->
   external_typing s v_exp t_exp ->
@@ -1965,10 +2097,8 @@ Proof.
 
   specialize (alloc_module_sound _ _ _ _ _ _ _ _ _ _ HAllocModule HModType HImpType HInstGlob HStoreType) as Htyping. rename s'_end into s1.
 
-  destruct Htyping as [[Hstype' [C Hinsttype]] Hext].
+  destruct Htyping as [[Hstype' [C Hinsttype]] [Hext Hexptype]].
 
-  specialize (module_typing_export_sound _ _ _ _ _ _ _ _ _ _ HAllocModule HModType Hinsttype) as Hexptype.
-  
   remember (init_tabs host_function s1 inst [seq Z.to_nat (Wasm_int.Int32.intval o) | o <- e_offs] (mod_elem m)) as s2.
   
   specialize (init_tabs_preserve_typing_aux _ _ _ _ _ _ _ _ _ _  HAllocModule HModType HImpType HInstGlob HStoreType) as Hinit_tabs_aux.

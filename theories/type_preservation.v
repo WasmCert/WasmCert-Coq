@@ -1780,18 +1780,60 @@ Proof.
     by eapply IHHReduce; eauto.
 Qed.
 
-Lemma inst_typing_func: forall s i j C a x,
+Lemma inst_typing_func: forall s i j C a,
   inst_typing s i C ->
   List.nth_error i.(inst_funcs) j = Some a ->
-  List.nth_error (tc_func_t C) j = Some x ->
   exists cl, List.nth_error s.(s_funcs) a = Some cl.
 Proof.
-  move => s i j C a x HIT HNth1 HNth2.
+  move => s i j C a HIT HNth.
     destruct s; destruct i; destruct C; destruct tc_local; destruct tc_label; destruct tc_return; unfold inst_typing, typing.inst_typing in * => //=; remove_bools_options; simpl in * => //=.
     remove_bools_options.
     unfold typing.functions_agree in H3.
+    specialize (all2_element H3 HNth) as [? HNth'].
     eapply all2_projection in H3; eauto.
-    remove_bools_options; eauto.
+    remove_bools_options; by eauto.
+Qed.
+
+Lemma inst_typing_tab: forall s i j C a,
+  inst_typing s i C ->
+  List.nth_error i.(inst_tab) j = Some a ->
+  a < length s.(s_tables).
+Proof.
+  move => s i j C a HIT HNth.
+    destruct s; destruct i; destruct C; destruct tc_local; destruct tc_label; destruct tc_return; unfold inst_typing, typing.inst_typing in * => //=; remove_bools_options; simpl in * => //=.
+    remove_bools_options.
+    specialize (all2_element H1 HNth) as [? HNth'].
+    unfold tabi_agree in H1.
+    eapply all2_projection in H1; eauto.
+    remove_bools_options; by eauto.
+Qed.
+
+Lemma inst_typing_mem: forall s i j C a,
+  inst_typing s i C ->
+  List.nth_error i.(inst_memory) j = Some a ->
+  a < length s.(s_mems).
+Proof.
+  move => s i j C a HIT HNth.
+    destruct s; destruct i; destruct C; destruct tc_local; destruct tc_label; destruct tc_return; unfold inst_typing, typing.inst_typing in * => //=; remove_bools_options; simpl in * => //=.
+    remove_bools_options.
+    specialize (all2_element H0 HNth) as [? HNth'].
+    unfold memi_agree in H0.
+    eapply all2_projection in H0; eauto.
+    remove_bools_options; by eauto.
+Qed.
+
+Lemma inst_typing_glob: forall s i j C a,
+  inst_typing s i C ->
+  List.nth_error i.(inst_globs) j = Some a ->
+  a < length s.(s_globals).
+Proof.
+  move => s i j C a HIT HNth.
+    destruct s; destruct i; destruct C; destruct tc_local; destruct tc_label; destruct tc_return; unfold inst_typing, typing.inst_typing in * => //=; remove_bools_options; simpl in * => //=.
+    remove_bools_options.
+    specialize (all2_element H2 HNth) as [? HNth'].
+    unfold globals_agree in H2.
+    eapply all2_projection in H2; eauto.
+    remove_bools_options; by eauto.
 Qed.
 
 Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret hs hs',
