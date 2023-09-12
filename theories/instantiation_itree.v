@@ -286,12 +286,13 @@ Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_e
     else trigger_inl1 Instantiation_error
   end.
 
+(*
+(* TODO: soundness of extracted version (itree). Currently not in use. *)
 Lemma interp_instantiate_imp_instantiate :
   forall s m v_imps s_end inst v_exps start,
   interp_instantiate s m v_imps ≈ ret ((s_end, inst, v_exps), start) ->
   instantiate s m v_imps ((s_end, inst, v_exps), start).
-Proof.
-Admitted. (* TODO *)
+*)
 
 Definition empty_store_record : store_record := {|
     s_funcs := nil;

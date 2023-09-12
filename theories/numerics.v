@@ -529,37 +529,6 @@ Proof.
   - by apply: Zbits_Z_one_bits_uniq.
 Qed.
 
-(* FIXME: We might want to prove these lemmas.
-Lemma convert_to_bits_disjunct_sum : forall a b,
-  seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
-  convert_to_bits (repr (a + b))
-  = allpairs orb (convert_to_bits (repr a)) (convert_to_bits (repr b)).
-Proof.
-  rewrite /convert_to_bits /repr /intval.
-
-  elim: wordsize; first by [].
-  move=> ws IH a b E.
-Admitted. (* TODO *)
-
-Lemma convert_to_bits_testbit : forall n x,
-  n < wordsize ->
-  seq.nth false (convert_to_bits x) n
-  = Z.testbit (intval x) (wordsize - n - 1).
-Proof.
-  rewrite /convert_to_bits.
-
-  move=> n. elim: n.
-  - move=> x _. admit.
-  - move=> {} n IH x I. simpl.
-
-  elim: wordsize => ws; first by [].
-  move=> IH n x I. elim: n => /=.
-  /=.
-  simpl. rewrite <- IHws.
-  destruct n.
-  - simpl. case O: Z.odd.
-Qed.
-*)
 
 (** Once the conversion to and from lists of bits have been defined,
   the bit-related functions are easy to define. **)
@@ -979,7 +948,6 @@ Definition ishr_s (i1 i2 : T) :=
 (* LATER
 Lemma ishr_s_shr : forall i1 i2,
   ishr_s i1 i2 = shr i1 i2.
-Admitted.
 *)
 *)
 

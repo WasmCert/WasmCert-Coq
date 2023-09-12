@@ -268,12 +268,13 @@ Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) 
     else None
   end.
 
+(* TODO: soundness of extracted version. Does not affect the mechanisation itself. *)
 Lemma interp_instantiate_imp_instantiate :
   forall (hs : host_state) s m v_imps hs s_end inst v_exps start,
   interp_instantiate hs s m v_imps = Some ((hs, s_end, inst, v_exps), start) ->
   instantiate s m v_imps ((s_end, inst, v_exps), start).
 Proof.
-Admitted. (* TODO *)
+Admitted.
 
 Definition empty_store_record : store_record := {|
     s_funcs := nil;

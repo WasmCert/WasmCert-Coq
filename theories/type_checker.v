@@ -16,7 +16,6 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
 
 
 Inductive checker_type_aux : Type :=
@@ -49,16 +48,6 @@ Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type check
 
 Definition to_ct_list (ts : seq value_type) : seq checker_type_aux :=
   map CTA_some ts.
-
-(**
-Fixpoint ct_suffix (ts ts' : seq checker_type_aux) : bool :=
-  (ts == ts')
-  ||
-  match ts' with
-  | [::] => false
-  | _ :: ts'' => ct_suffix ts ts''
-  end.
-**)
 
 Definition ct_compat (t1 t2: checker_type_aux) : bool :=
   match t1 with
@@ -249,7 +238,7 @@ in
                   else CT_bot
     end
   | BI_cvtop t1 CVO_convert t2 sx =>
-    if typing.convert_cond t1 t2 sx
+    if typing.convert_helper sx t1 t2
     then type_update ts [::CTA_some t2] (CT_type [::t1])
     else CT_bot
   | BI_cvtop t1 CVO_reinterpret t2 sxo =>
@@ -278,12 +267,7 @@ in
     then
       match List.nth_error (tc_label C) i with
       | Some xx => type_update ts (to_ct_list xx) (CT_top_type [::])
-      | None => CT_bot (* Isa mismatch *)
-                  (* There are many cases of this 'Isa mismatch'. What does it 
-                       mean exactly? I checked and in each of this cases there's a 
-                       length comparison immediately before and a call to
-                       List.nth_error, which would never give None since we've already
-                       checked the length. Maybe this is the reason for the comment? *)
+      | None => CT_bot 
       end
     else CT_bot
   | BI_br_if i =>
@@ -291,7 +275,7 @@ in
     then
       match List.nth_error (tc_label C) i with
       | Some xx => type_update ts (to_ct_list (xx ++ [::T_i32])) (CT_type xx)
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       end
     else CT_bot
   | BI_br_table iss i =>
@@ -308,7 +292,7 @@ in
     if i < length (tc_func_t C)
     then
       match List.nth_error (tc_func_t C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some (Tf tn tm) =>
         type_update ts (to_ct_list tn) (CT_type tm)
       end
@@ -317,7 +301,7 @@ in
     if (1 <= length C.(tc_table)) && (i < length C.(tc_types_t))
     then
       match List.nth_error (tc_types_t C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some (Tf tn tm) =>
         type_update ts (to_ct_list (tn ++ [::T_i32])) (CT_type tm)
       end
@@ -326,7 +310,7 @@ in
     if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some xx => type_update ts [::] (CT_type [::xx])
       end
     else CT_bot
@@ -334,7 +318,7 @@ in
     if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some xx => type_update ts [::CTA_some xx] (CT_type [::])
       end
     else CT_bot
@@ -342,7 +326,7 @@ in
     if i < length (tc_local C)
     then
       match List.nth_error (tc_local C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some xx => type_update ts [::CTA_some xx] (CT_type [::xx])
       end
     else CT_bot
@@ -350,7 +334,7 @@ in
     if i < length (tc_global C)
     then
       match List.nth_error (tc_global C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some xx => type_update ts [::] (CT_type [::tg_t xx])
       end
     else CT_bot
@@ -358,7 +342,7 @@ in
     if i < length (tc_global C)
     then
       match List.nth_error (tc_global C) i with
-      | None => CT_bot (* Isa mismatch *)
+      | None => CT_bot 
       | Some xx =>
         if is_mut xx
         then type_update ts [::CTA_some (tg_t xx)] (CT_type [::])

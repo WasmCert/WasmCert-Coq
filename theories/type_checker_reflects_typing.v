@@ -1,6 +1,3 @@
-(** The Wasm type checker reflects typing (soundness and completeness) **)
-(* (C) J. Pichon - see LICENSE.txt *)
-
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 From Coq Require Import Program Wf_nat.
