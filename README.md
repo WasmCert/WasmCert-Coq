@@ -32,7 +32,7 @@ The project can be installed using opam-build.
 Compiling the dependencies requires having at least 4-8 GB of RAM on your computer.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam build
+opam install .
 ```
 
 ## Testing the Installation
