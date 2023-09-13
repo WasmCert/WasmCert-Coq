@@ -140,54 +140,63 @@ let repl verbosity sies (name : string) =
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
     |> (fun cb -> user_input "> " cb cfg0)
 
-let interpret verbosity error_code_on_crash sies name =
+let interpret verbosity error_code_on_crash sies name fuel =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
+  let print_exhaustion gen = 
+    debug_info verbosity intermediate ~style:bold
+      (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in
   let* cfg0 =
     TopHost.from_out (
       ovpending verbosity stage "interpreting" (fun _ ->
         match lookup_exported_function name sies with
         | None -> Error ("unknown function `" ^ name ^ "`")
         | Some cfg0 -> OK cfg0)) in
-  let rec eval_cfg gen cfg =
-    let cfg_res = run_step_compat cfg in
-    print_step_header gen ;
-    debug_info verbosity intermediate
-      (fun _ -> pp_res_tuple_except_store (tuple_drop_hs cfg_res));
-    debug_info_span verbosity intermediate intermediate
-      (fun () ->
-        let (((_, s), _), _) = cfg in
-        let (((_, s'), _), _) = cfg_res in
-        let store_status = if s = s' then "unchanged" else "changed" in
-        Printf.sprintf "and store %s\n" store_status);
-    debug_info verbosity store
-      (fun () ->
-        let (((_, s'), _), _) = cfg_res in
-        Printf.sprintf "and store\n%s" (pp_store 1 s'));
-    match cfg_res with
-    | (_, RS_crash _) ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:red (fun _ -> "crash\n");
-      pure None
-    | (_, RS_break _) ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:bold (fun _ -> "break\n");
-      pure None
-    | (_, RS_return vs) ->
-      wait_message verbosity;
-      debug_info verbosity result ~style:green (fun _ -> "return");
-      debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
-      pure (Some vs)
-    | (((hs', s'), vs'), RS_normal es) ->
-      begin match is_const_list es with
-      | Some vs -> pure (Some vs)
-      | None -> eval_cfg (gen + 1) ((((hs', s'), vs'), es))
-      end in
+  let rec eval_cfg gen cfg max_steps =
+    if (gen >= max_steps) then 
+      (print_exhaustion gen;
+      debug_info verbosity result ~style:bold (fun _ -> "fuel exhaustion\n");
+      pure None)
+    else 
+      (let cfg_res = run_step_compat cfg in
+      print_step_header gen ;
+      debug_info verbosity intermediate
+        (fun _ -> pp_res_tuple_except_store (tuple_drop_hs cfg_res));
+      debug_info_span verbosity intermediate intermediate
+        (fun () ->
+          let (((_, s), _), _) = cfg in
+          let (((_, s'), _), _) = cfg_res in
+          let store_status = if s = s' then "unchanged" else "changed" in
+          Printf.sprintf "and store %s\n" store_status);
+      debug_info verbosity store
+        (fun () ->
+          let (((_, s'), _), _) = cfg_res in
+          Printf.sprintf "and store\n%s" (pp_store 1 s'));
+      match cfg_res with
+      | (_, RS_crash _) ->
+        wait_message verbosity;
+        debug_info verbosity result ~style:red (fun _ -> "crash\n");
+        pure None
+      | (_, RS_break _) ->
+        wait_message verbosity;
+        debug_info verbosity result ~style:bold (fun _ -> "break\n");
+        pure None
+      | (_, RS_return vs) ->
+        wait_message verbosity;
+        debug_info verbosity result ~style:green (fun _ -> "return");
+        debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
+        pure (Some vs)
+      | (((hs', s'), vs'), RS_normal es) ->
+        begin match is_const_list es with
+        | Some vs -> pure (Some vs)
+        | None -> eval_cfg (gen + 1) ((((hs', s'), vs'), es)) max_steps
+        end) in
+
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\n%s\n" (pp_config_tuple_except_store (tuple_drop_hs cfg0)));
-  let* res = eval_cfg 1 cfg0 in
+  let* res = eval_cfg 1 cfg0 fuel in
   debug_info_span verbosity result stage (fun _ ->
     match res with
     | Some vs -> pp_values vs
@@ -195,7 +204,7 @@ let interpret verbosity error_code_on_crash sies name =
   if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
   else pure ()
 
-let instantiate_interpret verbosity interactive error_code_on_crash m name =
+let instantiate_interpret verbosity interactive error_code_on_crash m name fuel =
   let* store_inst_exps =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
@@ -203,5 +212,5 @@ let instantiate_interpret verbosity interactive error_code_on_crash m name =
         | None -> Error "instantiation error"
         | Some (store_inst_exps, _) -> OK store_inst_exps)) in
   if interactive then repl verbosity store_inst_exps name
-  else interpret verbosity error_code_on_crash store_inst_exps name
+  else interpret verbosity error_code_on_crash store_inst_exps name fuel
 

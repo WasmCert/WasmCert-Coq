@@ -6,7 +6,7 @@ i32.reinterpret_f32
 ```
 
 ```sh
-$ wasm_coq_interpreter nan.wasm main
+$ wasm_coq_interpreter nan.wasm main 100
 i32.const 2143289344
 
 ```

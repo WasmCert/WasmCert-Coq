@@ -45,14 +45,14 @@ dune test
 ## Using the project
 
 A file `wasm_coq_interpreter` will have been generated.
-It takes as argument a list of Wasm files, followed by a function name.
+It takes as argument a list of Wasm files, followed by a function name, followed by the number of steps of execution (fuel).
 For instance, to interpret the function `main` defined in [tests/floatmul.wasm](tests/floatmul.wasm), run:
 ```bash
-dune exec -- wasm_coq_interpreter tests/floatmul.wasm main
+dune exec -- wasm_coq_interpreter tests/floatmul.wasm main 10
 ```
 The interpreter can display intermediate states of the operational semantics:
 ```bash
-dune exec -- wasm_coq_interpreter tests/floatmul.wasm main --vi
+dune exec -- wasm_coq_interpreter tests/floatmul.wasm main 10 --vi
 ```
 would produce:
 ```bash
