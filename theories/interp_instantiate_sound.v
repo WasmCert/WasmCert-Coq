@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import instantiation_func instantiation_properties type_checker_reflects_typing.
+From Wasm Require Import interpreter_func instantiation_func instantiation_properties type_checker_reflects_typing.
 
 Lemma those_length {T: Type} (l1: list (option T)) l2:
   those l1 = Some l2 ->
@@ -43,6 +43,13 @@ Lemma module_type_checker_sound: forall m t_imps t_exps,
 Proof.
 Admitted.
 
+Section Interp_instantiate.
+  
+Import EmptyHost.
+Import Interpreter_func_extract.
+
+Let instantiate := instantiate host_function_eqType host_instance.
+
 Lemma external_type_checker_sound: forall s ext t,
   external_type_checker s ext t = true ->
   external_typing host_function_eqType s ext t.
@@ -50,7 +57,7 @@ Proof.
 Admitted.
   
 Lemma interp_alloc_sound: forall s m v_imps g_inits s' inst' v_exps',
-  interp_alloc_module s m v_imps g_inits = (s', inst', v_exps') ->
+  interp_alloc_module host_function_eqType s m v_imps g_inits = (s', inst', v_exps') ->
   alloc_module host_function_eqType s m v_imps g_inits (s', inst', v_exps').
 Proof.
 Admitted.
@@ -67,10 +74,10 @@ Proof.
   destruct (module_type_checker m) as [[t_imps t_exps] |] eqn:Hmodcheck => //.
   destruct (all2 (external_type_checker s) v_imps t_imps) eqn:Hextcheck => //.
   destruct (those (map _ (mod_globals m))) as [g_inits |] eqn:Hglobinit => //.
-  destruct (interp_alloc_module s m v_imps g_inits) as [[s' inst'] v_exps'] eqn:Halloc => //.
+  destruct (interp_alloc_module _ s m v_imps g_inits) as [[s' inst'] v_exps'] eqn:Halloc => //.
   destruct (those (map _ (mod_elem m))) as [e_offs | ] eqn:Helem => //.
   destruct (those (map _ (mod_data m))) as [d_offs | ] eqn:Hdata => //.
-  destruct (check_bounds_elem _ _ _ _ && check_bounds_data _ _ _ _) eqn:Hbounds => //.
+  destruct (check_bounds_elem _ _ _ _ _ && check_bounds_data _ _ _ _ _) eqn:Hbounds => //.
   move/andP in Hbounds.
   destruct Hbounds as [Helembounds Hdatabounds].
   injection Hinterp as <-<-<-<-.
@@ -103,10 +110,10 @@ Proof.
 
   repeat split => //.
   - (* module_typing *)
-    unfold module_typing.
+    admit.
   - eapply Forall2_all2_impl; eauto.
     by apply external_type_checker_sound.
-  - by apply interp_alloc_sound.
+  - admit.
   - clear - Hglobinit.
     unfold instantiate_globals.
     unfold interp_get_v in Hglobinit.
