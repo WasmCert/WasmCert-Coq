@@ -229,6 +229,7 @@ Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basi
   | _ => None
   end.
 
+(* Executable version of instantiation for extraction adapted from Isabelle; unverified yet *)
 Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) (v_imps : list v_ext) : option ((host_state * store_record * instance * list module_export) * option nat) :=
   match module_type_checker m with
   | None => None
@@ -267,14 +268,6 @@ Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) 
       end
     else None
   end.
-
-(* TODO: soundness of extracted version. Does not affect the mechanisation itself. *)
-Lemma interp_instantiate_imp_instantiate :
-  forall (hs : host_state) s m v_imps hs s_end inst v_exps start,
-  interp_instantiate hs s m v_imps = Some ((hs, s_end, inst, v_exps), start) ->
-  instantiate s m v_imps ((s_end, inst, v_exps), start).
-Proof.
-Admitted.
 
 Definition empty_store_record : store_record := {|
     s_funcs := nil;
