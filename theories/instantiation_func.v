@@ -230,7 +230,7 @@ Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basi
   end.
 
 (* Executable version of instantiation for extraction adapted from Isabelle; unverified yet *)
-Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) (v_imps : list v_ext) : option ((host_state * store_record * instance * list module_export) * option nat) :=
+Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext) : option ((store_record * instance * list module_export) * option nat) :=
   match module_type_checker m with
   | None => None
   | Some (t_imps, t_exps) =>
@@ -261,7 +261,7 @@ Definition interp_instantiate (hs : host_state) (s : store_record) (m : module) 
               let start : option nat := operations.option_bind (fun i_s => List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
               let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
               let s_end := init_mems s'' inst (List.map N_of_int d_offs) m.(mod_data) in
-              Some ((hs, s_end, inst, v_exps), start)
+              Some ((s_end, inst, v_exps), start)
             else None
           end
         end
@@ -276,8 +276,12 @@ Definition empty_store_record : store_record := {|
     s_globals := nil;
   |}.
 
+(* Add an empty host and provide an initial empty store *)
 Definition interp_instantiate_wrapper (m : module) : option ((host_state * store_record * instance * list module_export) * option nat) :=
-  interp_instantiate tt empty_store_record m nil.
+  match interp_instantiate empty_store_record m nil with
+  | Some ((s, i, es), on) => Some ((tt, s, i, es), on)
+  | None => None
+  end.
 
 Definition lookup_exported_function (n : name) (store_inst_exps : host_state * store_record * instance * list module_export)
     : option (host_state * store_record * frame * seq administrative_instruction) :=
