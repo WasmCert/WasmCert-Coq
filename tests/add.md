@@ -6,7 +6,7 @@ i32.add
 ```
 
 ```sh
-$ wasm_coq_interpreter add.wasm main
+$ wasm_coq_interpreter add.wasm main 100
 i32.const 42
 
 ```

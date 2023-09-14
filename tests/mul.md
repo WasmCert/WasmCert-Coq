@@ -7,7 +7,7 @@ This test contains an integer multiplication.
 ```
 
 ```sh
-$ wasm_coq_interpreter mul.wasm main
+$ wasm_coq_interpreter mul.wasm main 100
 i32.const 21
 
 ```

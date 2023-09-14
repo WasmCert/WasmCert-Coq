@@ -22,6 +22,10 @@
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
   )
+  (maintainers
+    "Xiaojia Rao"
+    "Martin Bodin"
+  )
   (authors
     "Martin Bodin"
     "Philippa Gardner"

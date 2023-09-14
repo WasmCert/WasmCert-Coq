@@ -4,6 +4,7 @@ version: "54bf820"
 synopsis: "Wasm formalisation in Coq"
 description:
   "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt"
+maintainer: ["Xiaojia Rao" "Martin Bodin"]
 authors: [
   "Martin Bodin" "Philippa Gardner" "Jean Pichon" "Xiaojia Rao" "Conrad Watt"
 ]
