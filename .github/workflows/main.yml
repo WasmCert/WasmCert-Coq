@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - opam-interpreter-8.16
   workflow_dispatch:
     inputs:
 
