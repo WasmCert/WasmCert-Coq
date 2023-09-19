@@ -23,8 +23,17 @@ Lemma those_spec {T: Type} (l1: list (option T)) l2:
   (forall i x, List.nth_error l2 i = Some x ->
           List.nth_error l1 i = Some (Some x)).
 Proof.
-Admitted.
-
+  rewrite -those_those0.
+  move: l2. induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; move => Heq i z; destruct i => //=; move => Hnth; destruct x => //.
+  - injection Hnth as ->.
+    destruct (those0 l1) eqn:Hthose => //.
+    simpl in Heq.
+    by injection Heq as ->.
+  - destruct (those0 l1) eqn:Hthose => //.
+    simpl in Heq.
+    injection Heq as ->->.
+    eapply IHl1; by eauto.
+Qed.
 
 Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
   (forall x y, f x y = true -> fprop x y) ->
@@ -42,6 +51,50 @@ Lemma module_type_checker_sound: forall m t_imps t_exps,
   module_type_checker m = Some (t_imps, t_exps) ->
   module_typing m t_imps t_exps.
 Proof.
+  move => m t_imps t_exps Hmodcheck.
+  unfold module_type_checker in Hmodcheck.
+  destruct m.
+  destruct (gather_m_f_types mod_types mod_funcs) as [fts | ] eqn:Hmftypes => //;
+  destruct (module_imports_typer mod_types mod_imports) as [impts | ] eqn:Hmitypes => //.
+  destruct (all _ _ && _ && _ && _ && _ && _ && _ ) eqn:Hallcond => //.
+  destruct (module_exports_typer _ mod_exports) eqn:Hmexptypes => //.
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hstartcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hdatacheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Helemcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hglobcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hmemcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hfunccheck Htabcheck].
+  simpl in *.
+  unfold module_typing.
+  injection Hmodcheck as ->->.
+  
+  exists fts, (gather_m_g_types mod_globals).
+  repeat split => //.
+  
+  (* funcs *)
+  { clear - Hfunccheck Hmftypes.
+    unfold gather_m_f_types in Hmftypes.
+    apply Forall2_spec; first by apply those_length in Hmftypes; rewrite List.map_length in Hmftypes.
+    move => n mfunc tf Hfuncnth Hftsnth.
+    eapply all_projection in Hfunccheck; eauto.
+    eapply those_spec in Hmftypes; eauto.
+    rewrite List.nth_error_map in Hmftypes.
+    destruct (mod_funcs !! n) as [mf |] eqn:Hmfnth => //.
+    destruct mfunc, modfunc_type, mf, modfunc_type.
+    unfold gather_m_f_type in Hmftypes.
+    Opaque type_checker.b_e_type_checker.
+    simpl in *.
+    destruct (n1 < length mod_types) eqn:Hlt => //.
+    injection Hmftypes as Hmtnth.
+    injection Hfuncnth as ->->->.
+    rewrite Hlt Hmtnth in Hfunccheck.
+    move/andP in Hfunccheck; destruct Hfunccheck as [_ Hfunccheck].
+    destruct tf as [tn tm].
+    move/b_e_type_checker_reflects_typing in Hfunccheck.
+    repeat split => //.
+    erewrite List.nth_error_nth; by eauto.
+  }
+  (* tables *)
 Admitted.
 
 Section Interp_instantiate.
@@ -173,15 +226,40 @@ Proof.
     by apply IHHred.
 Qed.
 
-Lemma interp_get_i32_reduce: forall hs s c inst bes k,
+Lemma interp_get_i32_reduce: forall hs s c inst k bes,
     const_exprs c bes ->
+    be_typing c bes (Tf [::] [::T_i32]) ->
     interp_get_i32 s inst bes = Some k ->
     @reduce_trans host_function_eqType host_instance (hs, s, (Build_frame nil inst), (to_e_list bes))
                  (hs, s, (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 k))]).
 Proof.
-Admitted.
+  move => hs s c inst bes k Hconst Hbet Heval.
+  unfold interp_get_i32, interp_get_v in Heval.
+  eapply const_exprs_impl in Hconst; eauto; last exact host_instance.
+  destruct Hconst as [be [-> Hconst]].
+  destruct be => //=.
+  - simpl in Heval.
+    destruct (run_step_with_measure _ _ _ _) as [ | | | | ???? Hred] => //.
+    constructor.
+    unfold reduce_tuple.
+    destruct (es_is_trap es') => //.
+    destruct (const_list es') eqn:Hconstlist => //; last by destruct (run_step_with_measure _ hs' s' f' es').
+    destruct (split_vals_e es') eqn:Hsplit => //; simpl in Heval.
+    do 2 destruct l as [ | ? l] => //.
+    destruct v => //.
+    injection Heval as ->.
+    specialize (const_split_vals es' Hconstlist) as Hsplitempty.
+    rewrite Hsplit in Hsplitempty; simpl in Hsplitempty; subst l0.
+    apply split_vals_e_v_to_e_duality in Hsplit as ->.
+    simpl in Hred.
+    apply reduce_get_globs in Hred.
+    by apply r_get_global.
+  - simpl in Heval.
+    destruct v => //=.
+    injection Heval as ->.
+    by constructor.
+Qed.
 
-(* TODO: soundness of extracted version. Does not affect the mechanisation itself. *)
 Lemma interp_instantiate_imp_instantiate :
   forall s m v_imps s_end inst v_exps start,
   interp_instantiate s m v_imps = Some ((s_end, inst, v_exps), start) ->
@@ -315,8 +393,9 @@ Proof.
     destruct Hmodcheck as [c Helemcheck].
     eapply all_projection in Helemcheck; eauto.
     unfold module_elem_type_checker in Helemcheck.
-    destruct melem, modelem_table; simpl in *.
+    destruct melem, modelem_table => /=.
     remove_bools_options.
+    move/b_e_type_checker_reflects_typing in H2.
     by eapply interp_get_i32_reduce; eauto.
   - clear - instantiate Hmodcheck Hdata.
     unfold instantiate_data.
@@ -333,8 +412,9 @@ Proof.
     destruct Hmodcheck as [c Hdatacheck].
     eapply all_projection in Hdatacheck; eauto.
     unfold module_data_type_checker in Hdatacheck.
-    destruct mdata, moddata_data; simpl in *.
+    destruct mdata, moddata_data => /=.
     remove_bools_options.
+    move/b_e_type_checker_reflects_typing in H1.
     by eapply interp_get_i32_reduce; eauto.
   - by unfold check_start.
 Qed.
