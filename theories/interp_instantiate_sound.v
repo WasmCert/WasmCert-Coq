@@ -2,39 +2,6 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import interpreter_func instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
 From Coq Require Import Program.
 
-Lemma those_length {T: Type} (l1: list (option T)) l2:
-  those l1 = Some l2 ->
-  length l1 = length l2.
-Proof.
-  move: l2.
-  rewrite - those_those0.
-  induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; destruct x => //=; move => Hthose.
-  - by destruct (those0 l1) => //.
-  - f_equal.
-    destruct (those0 l1) eqn:Hthose0 => //=.
-    apply IHl1.
-    simpl in Hthose.
-    injection Hthose as ->.
-    by f_equal.
-Qed.
-
-Lemma those_spec {T: Type} (l1: list (option T)) l2:
-  those l1 = Some l2 ->
-  (forall i x, List.nth_error l2 i = Some x ->
-          List.nth_error l1 i = Some (Some x)).
-Proof.
-  rewrite -those_those0.
-  move: l2. induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; move => Heq i z; destruct i => //=; move => Hnth; destruct x => //.
-  - injection Hnth as ->.
-    destruct (those0 l1) eqn:Hthose => //.
-    simpl in Heq.
-    by injection Heq as ->.
-  - destruct (those0 l1) eqn:Hthose => //.
-    simpl in Heq.
-    injection Heq as ->->.
-    eapply IHl1; by eauto.
-Qed.
-
 Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
   (forall x y, f x y = true -> fprop x y) ->
   all2 f l1 l2 ->
@@ -94,8 +61,123 @@ Proof.
     repeat split => //.
     erewrite List.nth_error_nth; by eauto.
   }
-  (* tables *)
-Admitted.
+  (* globals *)
+  { clear -Hglobcheck.
+    unfold gather_m_g_types.
+    apply Forall2_spec; first by rewrite List.map_length.
+    move => n mglob gt Hgnth Hmgnth.
+    erewrite List.map_nth_error in Hmgnth; last by eauto.
+    injection Hmgnth as <-.
+    unfold module_glob_typing.
+    destruct mglob => /=.
+    eapply all_projection in Hglobcheck; eauto.
+    unfold module_glob_type_checker in Hglobcheck.
+    move/andP in Hglobcheck; destruct Hglobcheck as [? Hbet].
+    by move/b_e_type_checker_reflects_typing in Hbet.
+  }
+  (* elem *)
+  { clear -Helemcheck.
+    apply Forall_spec.
+    move => n x Hnth.
+    eapply all_projection in Helemcheck; eauto.
+    unfold module_elem_typing.
+    unfold module_elem_type_checker in Helemcheck.
+    destruct x, modelem_table => /=.
+    move/andP in Helemcheck; destruct Helemcheck as [Helemcheck Hinit].
+    move/andP in Helemcheck; destruct Helemcheck as [Helemcheck Hlen].
+    move/andP in Helemcheck; destruct Helemcheck as [Hconst Hbet].
+    by move/b_e_type_checker_reflects_typing in Hbet.
+  }
+  (* data *)
+  { clear -Hdatacheck.
+    apply Forall_spec.
+    move => n x Hnth.
+    eapply all_projection in Hdatacheck; eauto.
+    unfold module_data_typing.
+    unfold module_data_type_checker in Hdatacheck.
+    destruct x, moddata_data => /=.
+    move/andP in Hdatacheck; destruct Hdatacheck as [Hdatacheck Hinit].
+    move/andP in Hdatacheck; destruct Hdatacheck as [Hconst Hbet].
+    by move/b_e_type_checker_reflects_typing in Hbet.
+  }
+  (* imports *)
+  { clear - Hmitypes.
+    unfold module_imports_typer in Hmitypes.
+    apply Forall2_spec; first by apply those_length in Hmitypes; rewrite List.map_length in Hmitypes.
+    move => n mi extt Hminth Htinth.
+    eapply those_spec in Hmitypes; eauto.
+    rewrite List.nth_error_map in Hmitypes.
+    rewrite Hminth in Hmitypes.
+    simpl in Hmitypes.
+    destruct mi; simpl in *.
+    injection Hmitypes as Hmitypes.
+    unfold module_import_typer in Hmitypes.
+    unfold module_import_typing.
+    destruct imp_desc => //=.
+    (* func *)
+    { destruct (n0 < length mod_types) eqn:Hlt => //.
+      destruct (mod_types !! n0) eqn:Hmtnth => //.
+      injection Hmitypes as <-.
+      by apply/andP.
+    }
+    (* tab *)
+    { destruct (module_tab_typing _) eqn:Hmtt => //.
+      injection Hmitypes as <-.
+      by apply/andP.
+    }
+    (* mem *)
+    { destruct (module_mem_typing _) eqn:Hmtt => //.
+      injection Hmitypes as <-.
+      by apply/andP.
+    }
+    (* glob *)
+    { by injection Hmitypes as <-. }
+  }
+  (* exports *)
+  { clear - Hmexptypes.
+    unfold module_exports_typer in Hmexptypes.
+    apply Forall2_spec; first by apply those_length in Hmexptypes; rewrite List.map_length in Hmexptypes.
+    move => n me extt Hmexpth Htexpth.
+    eapply those_spec in Hmexptypes; eauto.
+    rewrite List.nth_error_map in Hmexptypes.
+    rewrite Hmexpth in Hmexptypes.
+    simpl in Hmexptypes.
+    destruct me; simpl in *.
+    injection Hmexptypes as Hmexptypes.
+    unfold module_export_typer in Hmexptypes.
+    unfold module_export_typing.
+    simpl in *.
+    destruct modexp_desc => //=.
+    (* func *)
+    { destruct f => /=.
+      destruct (n0 < _) eqn:Hlt => //.
+      destruct (_ !! n0) eqn:Hnth => //.
+      injection Hmexptypes as <-.
+      by apply/andP.
+    }
+    (* tab *)
+    { destruct t.
+      destruct (n0 < _) eqn:Hlt => //.
+      destruct (_ !! n0) eqn:Hnth => //.
+      injection Hmexptypes as <-.
+      by apply/andP.
+    }
+    (* mem *)
+    { destruct m.
+      destruct (n0 < _) eqn:Hlt => //.
+      destruct (_ !! n0) eqn:Hnth => //.
+      injection Hmexptypes as <-.
+      by apply/andP.
+    }
+    (* glob *)
+    { destruct g.
+      destruct (n0 < _) eqn:Hlt => //.
+      destruct (_ !! n0) eqn:Hnth => //.
+      injection Hmexptypes as <-.
+      by apply/andP.
+    }
+  }
+Qed.
 
 Section Interp_instantiate.
   
@@ -108,13 +190,68 @@ Lemma external_type_checker_sound: forall s ext t,
   external_type_checker s ext t = true ->
   external_typing host_function_eqType s ext t.
 Proof.
-Admitted.
+  move => s ext t Hextcheck.
+  unfold external_type_checker in Hextcheck.
+  destruct ext as [[i] | [i] | [i] | [i]]; destruct t => //; remove_bools_options; subst.
+  - by eapply ETY_func; eauto.
+  - by eapply ETY_tab; eauto.
+  - by eapply ETY_mem; eauto.
+  - by eapply ETY_glob; eauto.
+Qed.
 
 Lemma interp_alloc_sound: forall s m v_imps g_inits s' inst' v_exps',
+  length g_inits = length m.(mod_globals) ->
   interp_alloc_module host_function_eqType s m v_imps g_inits = (s', inst', v_exps') ->
   alloc_module host_function_eqType s m v_imps g_inits (s', inst', v_exps').
 Proof.
-Admitted.
+  move => s m v_imps g_inits s' inst' v_exps' Hgvs_len Halloc.
+  unfold interp_alloc_module in Halloc.
+  unfold alloc_module.
+  destruct (alloc_funcs _ _ _ _) as [s1 ifs] eqn:Hallocfuncs.
+  destruct (alloc_tabs _ _ _) as [s2 its] eqn:Halloctabs.
+  destruct (alloc_mems _ _ _) as [s3 ims] eqn:Hallocmems.
+  destruct (alloc_globs _ _ _) as [s4 igs] eqn:Hallocglobs.
+
+  injection Halloc as <-<-<-.
+  rewrite Hallocfuncs Halloctabs Hallocmems Hallocglobs => /=.
+  apply alloc_func_gen_index in Hallocfuncs.
+  apply alloc_tab_gen_index in Halloctabs.
+  apply alloc_mem_gen_index in Hallocmems.
+  
+  apply alloc_glob_gen_index in Hallocglobs; last assumption.
+
+  destruct Hallocfuncs as [Hifs [Hfunc1 [Htab1 [Hmem1 Hglob1]]]]; simpl in *.
+  destruct Halloctabs as [Hits [Htab2 [Hfunc2 [Hmem2 Hglob2]]]]; simpl in *.
+  destruct Hallocmems as [Hims [Hmem3 [Hfunc3 [Htab3 Hglob3]]]]; simpl in *.
+  destruct Hallocglobs as [Higs [Hglob4 [Hfunc4 [Htab4 Hmem4]]]]; simpl in *.
+
+  destruct s, s1, s2, s3, s4; simpl in *.
+  rewrite <- Hfunc4 in *. rewrite <- Hfunc3 in *. rewrite <- Hfunc2 in *. rewrite -> Hfunc1 in *.
+  rewrite <- Htab4 in *. rewrite <- Htab3 in *. rewrite -> Htab2 in *. rewrite <- Htab1 in *.
+  rewrite <- Hmem4 in *. rewrite -> Hmem3 in *. rewrite <- Hmem2 in *. rewrite <- Hmem1 in *.
+  rewrite -> Hglob4 in *. rewrite <- Hglob3 in *. rewrite <- Hglob2 in *. rewrite <- Hglob1 in *.
+  rewrite gen_index_iota in Hifs.
+  rewrite List.map_length gen_index_iota in Hits.
+  rewrite gen_index_iota in Hims.
+  rewrite gen_index_iota in Higs.
+  repeat (apply/andP; split => //).
+  - rewrite - Hifs => /=.
+    apply/eqP; repeat f_equal.
+    clear.
+    by induction ifs as [ | a ?] => //=; destruct a; f_equal => //.
+  - rewrite - Hits => /=.
+    apply/eqP; repeat f_equal.
+    clear.
+    by induction its as [ | a ?] => //=; destruct a; f_equal => //.
+  - rewrite - Hims => /=.
+    apply/eqP; repeat f_equal.
+    clear.
+    by induction ims as [ | a ?] => //=; destruct a; f_equal => //.
+  - rewrite Hgvs_len PeanoNat.Nat.min_id -Higs => /=.
+    apply/eqP; repeat f_equal.
+    clear.
+    by induction igs as [ | a ?] => //=; destruct a; f_equal => //.
+Qed.
 
 (* Breaking circularity: the global initialisers need to be well-typed under a
    context with only the imported globals added. *)
@@ -285,7 +422,7 @@ Proof.
   (* Proving these first so they can be used in the reasoning for initialisers later *)
   assert (module_typing m t_imps t_exps) as Hmodtype; first by apply module_type_checker_sound.
   
-  assert (alloc_module _ s m v_imps g_inits (s', inst', v_exps')) as Hallocmodule; first by apply interp_alloc_sound.
+  assert (alloc_module _ s m v_imps g_inits (s', inst', v_exps')) as Hallocmodule; first by apply interp_alloc_sound; apply those_length in Hglobinit; rewrite length_is_size size_map -length_is_size in Hglobinit.
   
   assert (List.Forall2 (external_typing _ s) v_imps t_imps) as Hexttype; first by eapply Forall2_all2_impl; eauto; by apply external_type_checker_sound.
   
@@ -418,3 +555,5 @@ Proof.
     by eapply interp_get_i32_reduce; eauto.
   - by unfold check_start.
 Qed.
+
+End Interp_instantiate.

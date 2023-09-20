@@ -38,9 +38,42 @@ Proof.
 Qed.
 
 Lemma length_is_size: forall {X:Type} (l: list X),
-    length l = size l.
+  length l = size l.
 Proof.
   move => X l. by elim: l.
+Qed.
+
+Lemma those_length {T: Type} (l1: list (option T)) l2:
+  those l1 = Some l2 ->
+  length l1 = length l2.
+Proof.
+  move: l2.
+  rewrite - those_those0.
+  induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; destruct x => //=; move => Hthose.
+  - by destruct (those0 l1) => //.
+  - f_equal.
+    destruct (those0 l1) eqn:Hthose0 => //=.
+    apply IHl1.
+    simpl in Hthose.
+    injection Hthose as ->.
+    by f_equal.
+Qed.
+
+Lemma those_spec {T: Type} (l1: list (option T)) l2:
+  those l1 = Some l2 ->
+  (forall i x, List.nth_error l2 i = Some x ->
+          List.nth_error l1 i = Some (Some x)).
+Proof.
+  rewrite -those_those0.
+  move: l2. induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; move => Heq i z; destruct i => //=; move => Hnth; destruct x => //.
+  - injection Hnth as ->.
+    destruct (those0 l1) eqn:Hthose => //.
+    simpl in Heq.
+    by injection Heq as ->.
+  - destruct (those0 l1) eqn:Hthose => //.
+    simpl in Heq.
+    injection Heq as ->->.
+    eapply IHl1; by eauto.
 Qed.
 
 Lemma const_list_concat: forall vs1 vs2,

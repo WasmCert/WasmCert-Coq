@@ -238,15 +238,6 @@ Proof.
   by rewrite PeanoNat.Nat.add_0_r.
 Qed.
 
-Lemma repeat_lookup {T: Type} (x: T) n i:
-  i < n ->
-  List.nth_error (List.repeat x n) i = Some x.
-Proof.
-  move: i.
-  induction n; destruct i => //=; move => H; try by inversion H.
-  by apply IHn; lias.
-Qed.
-
 Lemma repeat_lookup_Some {T: Type} (x y: T) n i:
   List.nth_error (List.repeat x n) i = Some y ->
   x = y /\ i < n.
@@ -282,7 +273,7 @@ Proof.
   move => Hlen.
   unfold gen_index.
   rewrite list_lookup_imap => /=.
-  eapply repeat_lookup with (x := 0) in Hlen.
+  eapply List.nth_error_repeat with (a := 0) in Hlen.
   rewrite Hlen.
   simpl.
   f_equal.
@@ -345,6 +336,32 @@ Proof.
   move => H.
   apply gen_index_lookup_Some in H as [-> Hlt].
   by lias.
+Qed.
+
+Lemma gen_index_lookup_None: forall n m i,
+  i >= m ->
+  List.nth_error (gen_index n m) i = None.
+Proof.
+  move => n m i Hge.
+  rewrite list_lookup_imap.
+  destruct (_ !! i) eqn:Hnth => //.
+  by apply repeat_lookup_Some in Hnth as [_ ?]; lias.
+Qed.
+
+Lemma gen_index_iota: forall n m,
+  gen_index n m = iota n m.
+Proof.
+  move => n m.
+  apply list_eq.
+  move => i.
+  destruct (Nat.ltb i m) eqn:Hlt; move/PeanoNat.Nat.ltb_spec0 in Hlt.
+  - rewrite gen_index_lookup; last by lias.
+    rewrite -> nth_error_nth with (x := 0), nth_iota; try by lias.
+    by rewrite length_is_size size_iota; lias.
+  - rewrite gen_index_lookup_None; last by lias.
+    symmetry.
+    apply List.nth_error_None.
+    by rewrite length_is_size size_iota; lias.
 Qed.
 
 Lemma module_typing_det_import_aux m it1 et1 it2 et2:
