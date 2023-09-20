@@ -292,7 +292,7 @@ Proof.
   rewrite N2Nat.id.
   rewrite /page_size.
   destruct lim_min as [ | min].
-  + rewrite N.div_0_l => //.
+  + rewrite N.Div0.div_0_l => //.
     by apply N.le_0_l.
   + remove_bools_options.
     clear - H0.

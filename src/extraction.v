@@ -9,8 +9,6 @@ From Wasm Require Import
   instantiation_func
   interpreter_func
   type_checker
-(*  instantiation_itree
-  interpreter_itree *)
   pp.
 
 From Coq Require Import
@@ -18,14 +16,11 @@ From Coq Require Import
   extraction.ExtrOcamlString.
 
 Extraction Language OCaml.
-(*Set Extraction Conservative Types.*)
 
 Extraction "extract"
   run_parse_module
   Instantiation_func_extract
   Interpreter_func_extract
-(*  Instantiation_itree_extract
-  Interpreter_itree_extract*)
   value_rec_safe
   PP
   DummyHost.

@@ -215,7 +215,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           (ret (s, f, RS_normal ((vs_to_es ves') ++ [::AI_trap])))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
-  | AI_basic (BI_cvtop t2 CVO_Reinterpret t1 sx) =>
+  | AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) =>
     if ves is v :: ves' then
       if types_agree t1 v && (sx == None)
       then ret (s, f, RS_normal (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))

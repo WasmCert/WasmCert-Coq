@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - opam-interpreter-8.16
+      - opam-8.17
   workflow_dispatch:
     inputs:
 
@@ -16,7 +16,7 @@ jobs:
         opam_file:
           - 'wasm_coq.opam'
         coq_version:
-          - '8.16.1'
+          - '8.17.1'
       fail-fast: true
 
     steps:

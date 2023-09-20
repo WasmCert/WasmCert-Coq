@@ -13,7 +13,7 @@ homepage: "https://github.com/WasmCert/WasmCert-Coq"
 bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "3.0"}
-  "coq" {>= "8.15" & <= "8.16.1"}
+  "coq" {>= "8.15" & <= "8.17.1"}
   "coq-compcert" {>= "3.11"}
   "coq-mathcomp-ssreflect" {>= "1.16.0" & <= "1.17.0"}
   "coq-itree" {>= "3.1.0"}
