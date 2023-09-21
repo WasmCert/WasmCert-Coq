@@ -196,7 +196,7 @@ Proof.
   by refine {|
       host_state := unit_eqType ;
       host_application _ _ _ _ _ _ _ := False
-    |}; intros; exfalso; auto.
+    |}.
 Defined.
 
 (* TODO: host_spec *)

@@ -2994,7 +2994,8 @@ Qed.
 End Host_func.
 
 (** Extraction **)
-
+(* A workaround to use the monadic host defined in host.v to avoid reworking shim;
+   need a unified approach in the future *)
 Module EmptyHost.
 
 Definition host_function := void.
@@ -3020,7 +3021,7 @@ Proof.
   by refine {|
       host_state := unit_eqType ;
       host_application _ _ _ _ _ _ _ := False
-    |}; intros; exfalso; auto.
+    |}.
 Defined.
 
 Definition config_tuple := config_tuple host_instance.
@@ -3034,6 +3035,7 @@ Module Interpreter_func_extract.
 
 Export EmptyHost.
 
+(* No host function exists *)
 Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
                                    (host_state * option (store_record * result)).
 Proof.
