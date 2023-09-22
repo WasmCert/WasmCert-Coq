@@ -48,7 +48,7 @@ module TopHost = Host
 
 open Host
 open Interpreter
-
+(*
 let config_tuple_patch cfg =
   let ((s, f), es) = cfg in
   (((Obj.magic s, s), f), es)
@@ -56,7 +56,7 @@ let config_tuple_patch cfg =
 let config_tuple_patch_flat cfg =
   let ((s, f), es) = cfg in
   (Obj.magic s, s, f, es)
-
+*)
 (* read-eval-print loop; work in progress *)
 let rec user_input prompt cb st =
   match LNoise.linenoise prompt with

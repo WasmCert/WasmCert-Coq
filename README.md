@@ -1,43 +1,42 @@
 # wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, based on the [official formalisation](https://www.w3.org/TR/wasm-core-1/).
+WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the [official formalisation](https://www.w3.org/TR/wasm-core-1/).
 Our definitions and proofs draw from those given in the [Isabelle mechanisation of Conrad Watt](https://www.isa-afp.org/entries/WebAssembly.html).
 
-(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, R. Xiaojia 2019-2020 - see LICENSE.txt
+(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2023 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
 
-This work is in progress, comprising WasmCert, a Coq-Specification of the Wasm operational semantics, and WasmRef, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. 
+This work is in progress, comprising WasmCert-Coq, a Coq-Specification of the Wasm operational semantics, and WasmRef-Coq, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. 
 
 # TODOs
 
-- [x] Give core definitions of WasmCert and WasmRef.
-- [x] Prove soundness result for WasmRef with respect to WasmCert.
-- [x] Update the definition of WebAssembly's global store to match the 1.0 standard.
-- [x] Update the function frame and related definitions to match the 1.0 standard.
+- [x] Give core definitions of WasmCert-Coq and WasmRef-Coq.
+- [x] Prove soundness results for WasmRef-Coq (interpreter) with respect to WasmCert-Coq.
 - [x] Finish type soundness result.
-- [ ] Validate WasmRef (conformance tests).
-- [x] Verify executable type checker correctness.
-- [x] Verify instantiation correctness properties.
-- [ ] Link WasmCert to CompCert.
-- [x] Provide Iris Wasm [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native).
+- [ ] Validate WasmRef-Coq (conformance tests).
+- [x] Verify executable type checker soundness.
+- [x] Verify instantiation soundness properties.
+- [x] Implement numerics using CompCert numerics.
+- [x] Instantiate a Wasm program logic using Iris [iris branch](https://github.com/WasmCert-Coq/WasmCert-Coq/tree/iris-wasm-native).
 
-This repository contains some experimental work on a binary parser and Iris integration. 
+This repository also contains some experimental work on a parser for the binary format which is currently unverified. 
 
 # Usage
 
 ## Installation and Compilation
 
-The project can be installed using opam-build.
+The project can be installed using dune/opam. 
 
 Compiling the dependencies requires having at least 4-8 GB of RAM on your computer.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
+dune build
 ```
 
 ## Testing the Installation
 
-The project comes with a small set of tests for its extracted interpreter:
+The project comes with a small set of tests for the extracted interpreter:
 ```bash
 dune test
 ```

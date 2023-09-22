@@ -106,9 +106,9 @@ module Interpreter =
 
     let interp_instantiate_wrapper m =
       Instantiation.interp_instantiate_wrapper m
-
+(*
     let show_host_function_char_list h = Utils.explode (show_host_function h)
-
+*)
     let run_parse_module m = Extract.run_parse_module (Utils.explode m)
 
     let pp_values l =
