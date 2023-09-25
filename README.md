@@ -25,7 +25,7 @@ This repository also contains some experimental work on a parser for the binary 
 
 ## Installation and Compilation
 
-The project can be installed using dune/opam. 
+The project can be installed using opam.
 
 Compiling the dependencies requires having at least 4-8 GB of RAM on your computer.
 ```bash

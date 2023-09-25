@@ -1,3 +1,5 @@
+(** Executable instantiation **)
+
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import opsem interpreter_func instantiation_spec.
 From Coq Require Import BinNat.

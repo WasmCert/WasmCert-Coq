@@ -1,3 +1,7 @@
+(** Soundness of the executable instantiation wrt the relational version. **)
+(** The main proof to be done is the algorithm for breaking circularities
+    in the evaluation of various initialisers. **)
+
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import interpreter_func instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
 From Coq Require Import Program.

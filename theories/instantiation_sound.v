@@ -1,3 +1,8 @@
+(** Several soundness properties of the relational instantiation. **)
+(** Most notably, the post-instantiation store is a well-typed extension
+    of the old store, and the generated module instance is well-typed in 
+    that store. **)
+
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import instantiation_spec instantiation_properties.
 From Coq Require Import BinNat NArith ZArith.

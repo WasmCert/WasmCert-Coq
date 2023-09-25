@@ -1,5 +1,5 @@
 (** Wasm operational semantics **)
-(** The interpreter in the [interpreter] module is an executable version of this operational semantics. **)
+(** The interpreter in the [interpreter_func] module is an executable version of this operational semantics. **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Coq Require Import ZArith.BinInt.

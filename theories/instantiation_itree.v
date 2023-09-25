@@ -1,3 +1,6 @@
+(** Wasm Instantiation using itree **)
+(* File currently not in use for extraction *)
+
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From ITree Require Import ITree.
 From ITree Require ITreeFacts.

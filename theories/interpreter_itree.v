@@ -1,4 +1,5 @@
 (** Wasm interpreter using Itree **)
+(* File currently not in use for extraction *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Import common.

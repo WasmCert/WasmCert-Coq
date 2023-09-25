@@ -1,4 +1,4 @@
-(* Instantiation *)
+(** Relational instantiation in the spec **)
 (* see https://webassembly.github.io/spec/core/exec/modules.html#exec-instantiation *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
@@ -9,8 +9,6 @@ From Wasm Require Import list_extra datatypes datatypes_properties
 From Coq Require Import BinNat.
 
 (* TODO: Documentation *)
-
-(* TODO: separate algorithmic aspects from specification, incl. dependencies *)
 
 Section Instantiation_spec.
   
@@ -71,7 +69,7 @@ Definition add_func (s : store_record) funcinst := {|
 
 Definition alloc_func (s : store_record) (m_f : module_func) (mi : instance) : store_record * funcidx :=
   let funcaddr := List.length s.(s_funcs) in
-  let functype := List.nth (match m_f.(modfunc_type) with | Mk_typeidx n => n end) mi.(inst_types) (Tf nil nil (* TODO: partiality problem *) ) in
+  let functype := List.nth (match m_f.(modfunc_type) with | Mk_typeidx n => n end) mi.(inst_types) (Tf nil nil) in
   let funcinst := FC_func_native mi functype m_f.(modfunc_locals) m_f.(modfunc_body) in
   let S' := add_func s funcinst in
   (S', Mk_funcidx funcaddr).
@@ -135,8 +133,6 @@ Definition alloc_glob (s : store_record) (m_g_v : module_glob * value) : store_r
 
 Definition alloc_globs s m_gs vs :=
   alloc_Xs alloc_glob s (List.combine m_gs vs).
-
-(* TODO: lemmas *)
 
 Definition v_ext := module_export_desc.
 
@@ -373,8 +369,7 @@ Definition module_export_typing (c : t_context) (d : module_export_desc) (e : ex
     (i < List.length c.(tc_memory)) &&
     match List.nth_error c.(tc_memory) i with
     | None => false
-    | Some lim' => t_m == lim' (* TODO: should check for equality of `memory_type`s *)
-                            (* UPD: changed a bit *)
+    | Some lim' => t_m == lim'
     end
   | (MED_global (Mk_globalidx i), ET_glob gt) =>
     (i < List.length c.(tc_global)) &&
@@ -414,7 +409,7 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
     tc_func_t := List.app ifts fts;
     tc_global := List.app igs gts;
     tc_table := List.app its (List.map (fun t => t.(modtab_type)) ts);
-    tc_memory := List.app ims ms; (* TODO: should use `mem_type`s *) (* UPD: fixed? *)
+    tc_memory := List.app ims ms; 
     tc_local := nil;
     tc_label := nil;
     tc_return := None;
@@ -451,7 +446,7 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   i < List.length s.(s_tables) ->
   List.nth_error s.(s_tables) i = Some ti ->
   typing.tab_typing ti tt ->
-  external_typing s (MED_table (Mk_tableidx i)) (ET_tab tt) (* {| tt_limits := lim; tt_elem_type := ELT_funcref |})*)
+  external_typing s (MED_table (Mk_tableidx i)) (ET_tab tt) 
 | ETY_mem :
   forall (s : store_record) (i : nat) (m : memory) (mt : memory_type),
   i < List.length s.(s_mems) ->
@@ -532,8 +527,7 @@ Definition check_start m inst start : bool :=
     m.(mod_start) in
   start' == start.
 
-Definition instantiate (* FIXME: Do we need to use this: [(hs : host_state)] ? *)
-                       (s : store_record) (m : module) (v_imps : list v_ext)
+Definition instantiate (s : store_record) (m : module) (v_imps : list v_ext)
                        (z : (store_record * instance * list module_export) * option nat) : Prop :=
   let '((s_end, inst, v_exps), start) := z in
   exists t_imps t_exps hs' s' g_inits e_offs d_offs,
