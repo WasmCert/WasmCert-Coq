@@ -31,7 +31,6 @@ Compiling the dependencies requires having at least 4-8 GB of RAM on your comput
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
-dune build
 ```
 
 ## Testing the Installation
