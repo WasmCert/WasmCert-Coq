@@ -4,21 +4,15 @@ Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
-Require Import bytes_pp datatypes interpreter.
+Require Import bytes_pp datatypes interpreter_func.
 Require Import BinNat.
 Require Import ansi list_extra.
 
 Open Scope string_scope.
 
 Section Host.
-
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-Let function_closure := function_closure host_function.
-Let config_tuple := config_tuple host_function.
-Let res_tuple := res_tuple host_function.
+  
+Import Interpreter_func_extract.
 
 Variable show_host_function : host_function -> string.
 
@@ -137,14 +131,14 @@ Definition pp_f32 (f : float32) : string :=
   match BinIntDef.Z.to_N ((Float32.to_bits f).(Integers.Int.intval)) with
   | BinNums.N0 => "0"
   | BinNums.Npos p =>
-    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (bool_list_of_pos nil p))
+    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (List.rev (bool_list_of_pos nil p)))
   end.
 
 Definition pp_f64 (f : float) : string :=
   match BinIntDef.Z.to_N ((Float.to_bits f).(Integers.Int64.intval)) with
   | BinNums.N0 => "0"
   | BinNums.Npos p =>
-    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (bool_list_of_pos nil p))
+    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (List.rev (bool_list_of_pos nil p)))
   end.
 
 Definition pp_value (v : value) : string :=
@@ -393,20 +387,35 @@ Definition pp_globals (n : indentation) (gs : list global) : string :=
   String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ pp_global g ++ newline)) gs).
 
 Definition pp_memories (n : indentation) (ms : list memory) : string :=
-String.concat "" (mapi (fun i g => indent n (string_of_nat i ++ ": " ++ "TODO: memory" ++ newline)) ms).
+  String.concat "" (mapi (fun i m => indent n (string_of_nat i ++ ": " ++ "TODO: memory" ++ newline)) ms).
+
+Definition pp_funcelem (elem: funcelem) : string :=
+  match elem with
+  | Some n => string_of_nat n
+  | None => "none"
+  end.
+
+Definition pp_table (n: indentation) (t : tableinst) : string :=
+  String.concat "" (mapi (fun i elem => indent n (string_of_nat i ++ ": " ++ pp_funcelem elem ++ newline)) t.(table_data)).
+
+Definition pp_tables (n : indentation) (ms : list tableinst) : string :=
+  String.concat "" (mapi (fun i t => indent n (string_of_nat i ++ ": " ++ pp_table n t)) ms).
 
 Definition pp_store (n : indentation) (s : store_record) : string :=
   indent n ("globals" ++ newline) ++
   pp_globals (n.+1) s.(s_globals) ++
   indent n ("memories" ++ newline) ++
-  pp_memories (n.+1) s.(s_mems).
+  pp_memories (n.+1) s.(s_mems) ++
+  indent n ("tables" ++ newline) ++
+  pp_tables (n.+1) s.(s_tables).
 
-Definition pp_config_tuple_except_store (cfg : config_tuple) : string :=
+(* XXX disambiguate between cfg/res tuple with/without hs? *)
+Definition pp_config_tuple_except_store (cfg : store_record * frame * list administrative_instruction) : string :=
   let '(s, f, es) := cfg in
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
-Definition pp_res_tuple_except_store (res_cfg : res_tuple) : string :=
+Definition pp_res_tuple_except_store (res_cfg : store_record * frame * res_step) : string :=
   let '(s, f, res) := res_cfg in
   match res with
   | RS_crash _ =>
@@ -428,24 +437,21 @@ End Host.
 
 (** As-is, [eqType] tends not to extract well.
   This section provides alternative definitions for better extraction. **)
-Module PP (EH : Executable_Host).
+Module PP.
 
-Module Exec := convert_to_executable_host EH.
-Import Exec.
+Import EmptyHost.
 
 Section Show.
 
-(*Variable show_host_function : EH.host_function -> string.*)
-
 Definition pp_values : list value -> string := pp_values.
 
-Definition pp_store : nat -> store_record -> string := pp_store _.
+Definition pp_store : nat -> store_record -> string := pp_store.
 
-Definition pp_res_tuple_except_store : res_tuple -> string :=
-  pp_res_tuple_except_store _.
+Definition pp_res_tuple_except_store : store_record * frame * res_step -> string :=
+  pp_res_tuple_except_store.
 
-Definition pp_config_tuple_except_store : config_tuple -> string :=
-  pp_config_tuple_except_store _.
+Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
+  pp_config_tuple_except_store.
 
 End Show.
 

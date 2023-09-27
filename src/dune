@@ -1,0 +1,37 @@
+(coq.extraction
+  (prelude extraction)
+  (extracted_modules extract)
+  (theories Wasm)
+)
+
+(executable
+  (name wasm_coq_interpreter)
+  (libraries cmdliner linenoise)
+  (modes (best exe))
+  (public_name wasm_coq_interpreter)
+  (package wasm_coq)
+)
+
+;(install
+;  (files wasm_coq_interpreter.exe)
+;  (package wasm_coq_interpreter)
+;  (section bin)
+;)
+
+;(rule
+;	(targets "extract.ml" "extract.mli")
+;	(deps "../theories/extraction.vo")
+;	(action
+;		(progn
+;			(run cp "../extract.ml" "../extract.mli" "./")
+;		)))
+
+(env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
+; Removing the following warnings:
+; - 50: unattached documentation comment, as it doesn’t fit the way we document our code.
+; - 39: unused rec flag, as Coq generates a lot of these in its extraction.
+; We could also remove the following, as Coq generates a lot of these in its extraction, but these are useful to track issues in the shim:
+; - 20: this argument will not be used by the function.
+; - 34: unused type
+; - 32: unused value.
+

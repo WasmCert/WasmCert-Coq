@@ -2,6 +2,8 @@
 /_build/
 /node_modules/
 /_esy/
+/_opam/
+/_destdir/
 
 .merlin
 *.install
@@ -17,14 +19,13 @@
 *.vok
 *.glob
 *.aux
+*.orig
 .DS_Store
 .lia.cache
 .nia.cache
 
-/theories/extract.ml
-/theories/extract.mli
-
 .saves
+.DS_Store
 
 /wasm_interpreter
 /history.txt

@@ -86,14 +86,36 @@ Lemma bar : forall A n n' (l : list A) v,
   List.nth_error (take n' l ++ v :: drop (n' + 1) l) n =
   List.nth_error l n.
 Proof.
-(* TODO *)
-Admitted.
+  move => A.
+  induction n; move => n' l v; destruct n', l => //=; try lia; move => Hneq Hlen; first by rewrite drop0.
+  apply IHn => //; lia.
+Qed.
+  
+Lemma length_is_size: forall {X:Type} (l: list X),
+  length l = size l.
+Proof.
+  move => X l. by elim: l.
+Qed.
 
 Lemma split_preserves_length : forall A i b (l : list A),
   i < List.length l ->
   List.length (take i l ++ b :: drop (i + 1) l) = List.length l.
 Proof.
-Admitted.
+  move => A i b l Hlen.
+  repeat rewrite length_is_size.
+  rewrite size_cat => /=.
+  rewrite size_take size_drop.
+  rewrite length_is_size in Hlen.
+  move/ssrnat.ltP in Hlen.
+  rewrite Hlen.
+  rewrite PeanoNat.Nat.add_1_r.
+  rewrite ssrnat.subnSK => //.
+  rewrite ssrnat.subnKC => //.
+  move/ssrnat.ltP in Hlen.
+  apply/ssrnat.leP.
+  (* lia come on? *)
+  by apply PeanoNat.Nat.lt_le_incl.
+Qed.
 
 Lemma memory_list_ax_lookup_make : Memory.mem_ax_lookup_make memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.

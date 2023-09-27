@@ -529,37 +529,6 @@ Proof.
   - by apply: Zbits_Z_one_bits_uniq.
 Qed.
 
-(* FIXME: We might want to prove these lemmas.
-Lemma convert_to_bits_disjunct_sum : forall a b,
-  seq.all2 (fun a b => ~~ (a && b)) (convert_to_bits (repr a)) (convert_to_bits (repr b)) ->
-  convert_to_bits (repr (a + b))
-  = allpairs orb (convert_to_bits (repr a)) (convert_to_bits (repr b)).
-Proof.
-  rewrite /convert_to_bits /repr /intval.
-
-  elim: wordsize; first by [].
-  move=> ws IH a b E.
-Admitted. (* TODO *)
-
-Lemma convert_to_bits_testbit : forall n x,
-  n < wordsize ->
-  seq.nth false (convert_to_bits x) n
-  = Z.testbit (intval x) (wordsize - n - 1).
-Proof.
-  rewrite /convert_to_bits.
-
-  move=> n. elim: n.
-  - move=> x _. admit.
-  - move=> {} n IH x I. simpl.
-
-  elim: wordsize => ws; first by [].
-  move=> IH n x I. elim: n => /=.
-  /=.
-  simpl. rewrite <- IHws.
-  destruct n.
-  - simpl. case O: Z.odd.
-Qed.
-*)
 
 (** Once the conversion to and from lists of bits have been defined,
   the bit-related functions are easy to define. **)
@@ -979,7 +948,6 @@ Definition ishr_s (i1 i2 : T) :=
 (* LATER
 Lemma ishr_s_shr : forall i1 i2,
   ishr_s i1 i2 = shr i1 i2.
-Admitted.
 *)
 *)
 
@@ -1720,10 +1688,10 @@ Definition fmul (z1 z2 : T) :=
   else if is_infinity z1 && is_infinity z2 then
     if sign z1 == sign z2 then pos_infinity
     else neg_infinity
-  else if is_infinity z2 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z2 && sign z1 != sign z2 then neg_infinity
-  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
+  else if is_infinity z2 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z1 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z2 && (sign z1 != sign z2) then neg_infinity
+  else if is_infinity z1 && (sign z1 != sign z2) then neg_infinity
   else if is_zero z1 && is_zero z2 then
     if sign z1 == sign z2 then pos_zero
     else (** [z1 = ±0], [z2 = ∓0] **) neg_zero
@@ -1733,14 +1701,14 @@ Definition fdiv (z1 z2 : T) :=
   if is_nan z1 || is_nan z2 then nans [:: z1; z2]
   else if is_infinity z1 && is_infinity z2 then nans [:: ]
   else if is_zero z2 && is_zero z1 then nans [:: z1; z2]
-  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
-  else if is_infinity z2 && sign z1 == sign z2 then pos_zero
-  else if is_infinity z2 && sign z1 != sign z2 then neg_zero
-  else if is_zero z1 && sign z1 == sign z2 then pos_zero
-  else if is_zero z1 && sign z1 != sign z2 then neg_zero
-  else if is_zero z2 && sign z1 == sign z2 then pos_infinity
-  else if is_zero z2 && sign z1 != sign z2 then pos_infinity
+  else if is_infinity z1 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z1 && (sign z1 != sign z2) then neg_infinity
+  else if is_infinity z2 && (sign z1 == sign z2) then pos_zero
+  else if is_infinity z2 && (sign z1 != sign z2) then neg_zero
+  else if is_zero z1 && (sign z1 == sign z2) then pos_zero
+  else if is_zero z1 && (sign z1 != sign z2) then neg_zero
+  else if is_zero z2 && (sign z1 == sign z2) then pos_infinity
+  else if is_zero z2 && (sign z1 != sign z2) then pos_infinity
   else div z1 z2.
 
 Definition fmin (z1 z2 : T) :=
@@ -1748,7 +1716,7 @@ Definition fmin (z1 z2 : T) :=
   else if (z1 == neg_infinity) || (z2 == neg_infinity) then neg_infinity
   else if z1 == pos_infinity then z2
   else if z2 == pos_infinity then z1
-  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then neg_zero
+  else if is_zero z1 && is_zero z2 && (sign z1 != sign z2) then neg_zero
   else if cmp Clt z1 z2 then z1 else z2.
 
 Definition fmax (z1 z2 : T) :=
@@ -1756,7 +1724,7 @@ Definition fmax (z1 z2 : T) :=
   else if (z1 == pos_infinity) || (z2 == pos_infinity) then pos_infinity
   else if z1 == neg_infinity then z2
   else if z2 == neg_infinity then z1
-  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then pos_zero
+  else if is_zero z1 && is_zero z2 && (sign z1 != sign z2) then pos_zero
   else if cmp Cgt z1 z2 then z1 else z2.
 
 Definition fcopysign (f1 f2 : T) :=

@@ -5,7 +5,8 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import common datatypes operations typing.
 From ITree Require Import ITree ITreeFacts.
 
-Import Monads.
+(* XXX unused? *)
+(* Import Monads. *)
 
 Set Implicit Arguments.
 
@@ -138,16 +139,14 @@ Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
 Definition host_functionP : Equality.axiom host_function_eqb :=
   eq_dec_Equality_axiom host_function_eq_dec.
 
-Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Canonical Structure host_function :=
+Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Global Canonical Structure host_function :=
   Eval hnf in EqType _ host_function_eqMixin.
 
 Definition executable_host := executable_host H.host_function.
 Definition store_record := store_record H.host_function.
-Definition config_tuple := config_tuple H.host_function.
-(*Definition administrative_instruction := administrative_instruction H.host_function.*)
 Definition function_closure := function_closure H.host_function.
-Definition res_tuple := res_tuple H.host_function.
+Definition config_tuple := config_tuple H.host_function.
 
 Definition host_monad : Monad host_event := {|
     ret := host_ret ;
@@ -197,7 +196,7 @@ Proof.
   by refine {|
       host_state := unit_eqType ;
       host_application _ _ _ _ _ _ _ := False
-    |}; intros; exfalso; auto.
+    |}.
 Defined.
 
 (* TODO: host_spec *)

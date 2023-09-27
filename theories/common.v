@@ -464,8 +464,8 @@ Lemma maxn_nat_max : forall n m,
   maxn n m = Nat.max n m.
 Proof.
   move=> n m. rewrite /maxn. case E: (n < m).
-  - rewrite Max.max_r => //. by lias.
-  - rewrite -> Max.max_l => //. have: (~ n < m)%coq_nat; last by lias.
+  - rewrite PeanoNat.Nat.max_r => //. by lias.
+  - rewrite -> PeanoNat.Nat.max_l => //. have: (~ n < m)%coq_nat; last by lias.
     move: E => /negP E I. apply: E. by lias.
 Qed.
 

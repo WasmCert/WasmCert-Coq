@@ -1,9 +1,8 @@
 (** Miscellaneous properties about Wasm operations **)
-(* (C) Rao Xiaojia, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Bool Program.Equality Wf_nat.
+From Coq Require Import Bool Program.Equality NArith ZArith Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -11,20 +10,71 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Lemmas **)
 
-Section Host.
+(** List operations **)
 
-Variable host_function : eqType.
+Lemma cat_app {A} (l1 : list A) l2 :
+  cat l1 l2 = app l1 l2.
+Proof. done. Qed.
 
-(*Let administrative_instruction := administrative_instruction host_function.
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
-Let lfilled := @lfilled host_function.
-Let lfilledInd := @lfilledInd host_function.
-Let es_is_basic := @es_is_basic host_function.
-Let to_e_list := @to_e_list host_function.
-Let e_is_trap := @e_is_trap host_function.
-Let es_is_trap := @es_is_trap host_function.*)
+Lemma app_eq_singleton: forall T (l1 l2 : list T) (a : T),
+    l1 ++ l2 = [::a] ->
+    (l1 = [::a] /\ l2 = [::]) \/ (l1 = [::] /\ l2 = [::a]).
+Proof.
+  intros.
+  apply List.app_eq_unit in H as [?|?]; by [ right | left ].
+Qed.
 
+Lemma combine_app {T1 T2: Type} (l1 l3: list T1) (l2 l4: list T2):
+  length l1 = length l2 ->
+  List.combine (l1 ++ l3) (l2 ++ l4) = List.combine l1 l2 ++ List.combine l3 l4.
+Proof.
+  move: l2 l3 l4.
+  induction l1; move => l2 l3 l4 Hlen => /=; first by destruct l2 => //.
+  - destruct l2 => //=.
+    simpl in Hlen.
+    inversion Hlen; subst; clear Hlen.
+    f_equal.
+    by apply IHl1.
+Qed.
+
+Lemma length_is_size: forall {X:Type} (l: list X),
+  length l = size l.
+Proof.
+  move => X l. by elim: l.
+Qed.
+
+Lemma those_length {T: Type} (l1: list (option T)) l2:
+  those l1 = Some l2 ->
+  length l1 = length l2.
+Proof.
+  move: l2.
+  rewrite - those_those0.
+  induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; destruct x => //=; move => Hthose.
+  - by destruct (those0 l1) => //.
+  - f_equal.
+    destruct (those0 l1) eqn:Hthose0 => //=.
+    apply IHl1.
+    simpl in Hthose.
+    injection Hthose as ->.
+    by f_equal.
+Qed.
+
+Lemma those_spec {T: Type} (l1: list (option T)) l2:
+  those l1 = Some l2 ->
+  (forall i x, List.nth_error l2 i = Some x ->
+          List.nth_error l1 i = Some (Some x)).
+Proof.
+  rewrite -those_those0.
+  move: l2. induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; move => Heq i z; destruct i => //=; move => Hnth; destruct x => //.
+  - injection Hnth as ->.
+    destruct (those0 l1) eqn:Hthose => //.
+    simpl in Heq.
+    by injection Heq as ->.
+  - destruct (those0 l1) eqn:Hthose => //.
+    simpl in Heq.
+    injection Heq as ->->.
+    eapply IHl1; by eauto.
+Qed.
 
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
@@ -128,8 +178,6 @@ Proof.
   - move=> >. by apply: ReflectF.
 Qed.
 
-
-(* Check with Martin for split_n: it's just take+drop *)
 Lemma split_n_is_take_drop: forall es n,
     split_n es n = (take n es, drop n es).
 Proof.
@@ -139,26 +187,19 @@ Proof.
     + by rewrite IH.
 Qed.
 
-(* Ask Martin *)
-Lemma update_list_at_is_set_nth: forall {X:Type} (l:list X) n x,
-    n < size l ->
-    set_nth x l n x = update_list_at l n x.
+Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
+  P acc ->
+  (forall (x:A) (act: B), P x -> P (f x act)) ->
+  P (List.fold_left f l acc).
 Proof.
-  move => X l n x. move: n. elim: l => //=.
-  move => a l IH n HLen. destruct n => //=.
-  unfold update_list_at. simpl. f_equal. by apply IH.
-Qed.
+  rewrite -List.fold_left_rev_right.
+  revert acc.
+  induction l;simpl;auto.
+  intros acc Ha Hnext.
+  rewrite List.fold_right_app => /=. apply IHl =>//.
+  by apply Hnext.
+Qed.    
 
-(* Check with Martin: size is the standard function used in ssreflect.seq; should we
-   change all occurrences of length to size instead? *)
-Lemma length_is_size: forall {X:Type} (l: list X),
-    length l = size l.
-Proof.
-  move => X l. by elim: l.
-Qed.
-
-(* Very interestingly, the following lemma has EXACTLY the same proof as the
-   lemma split_n_is_take_drop, although they are not related at all! *)
 Lemma v_to_e_take_exchange: forall vs n,
     v_to_e_list (take n vs) = take n (v_to_e_list vs).
 Proof.
@@ -348,8 +389,6 @@ Proof.
   move => bes2. simpl. by f_equal.
 Qed.
 
-(* Maybe there are better/standard tactics for dealing with these, but I didn't find
-     anything helpful *)
 Lemma concat_cancel_last: forall {X:Type} (l1 l2: seq X) (e1 e2:X),
     l1 ++ [::e1] = l2 ++ [::e2] ->
     l1 = l2 /\ e1 = e2.
@@ -414,8 +453,35 @@ Proof.
   move => X. induction l1 => //=.
 Qed.
 
-End Host.
+(** Numerics **)
 
+Lemma N_nat_bin n:
+  n = N.of_nat (ssrnat.nat_of_bin n).
+Proof.
+  destruct n => //=.
+  replace (ssrnat.nat_of_pos p) with (Pos.to_nat p); first by rewrite positive_nat_N.
+  induction p => //=.
+  - rewrite Pos2Nat.inj_xI.
+    f_equal.
+    rewrite IHp.
+    rewrite ssrnat.NatTrec.doubleE.
+    rewrite - ssrnat.mul2n.
+    by lias.
+  - rewrite Pos2Nat.inj_xO.
+    rewrite IHp.
+    rewrite ssrnat.NatTrec.doubleE.
+    rewrite - ssrnat.mul2n.
+    by lias.
+Qed.
+
+Lemma nat_bin n:
+  ssrnat.nat_of_bin n = N.to_nat n.
+Proof.
+  rewrite -> (N_nat_bin n).
+  rewrite Nat2N.id.
+  by rewrite <- N_nat_bin.
+Qed.
+  
 
 (** * Tactics **)
 
@@ -585,13 +651,6 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-(* Let administrative_instruction := administrative_instruction host_function. 
-Let const_list : seq administrative_instruction -> bool := @const_list _.
-Let v_to_e_list : seq value -> seq administrative_instruction := @v_to_e_list _.
-Let lfilled := @lfilled host_function.
-Let lfilledInd := @lfilledInd host_function.
-Let es_is_basic := @es_is_basic host_function.
-Let to_e_list := @to_e_list host_function.*)
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 
@@ -602,10 +661,8 @@ Lemma lfilled_collapse1: forall n lh vs es LI l,
     exists lh', lfilledInd n lh' ((drop (length vs-l) vs) ++ es) LI.
 Proof.
   move => n lh vs es LI l HLF HConst HLen.
-  (* Comparing this proof to the original proof in Isabelle, it seems that (induction X rule: Y) in Isabelle means induction on proposition Y remembering X (in Coq). *)
   remember (vs++es) as es'. induction HLF; subst.
   - exists (LH_base (vs0 ++ (take (length vs - l) vs)) es').
-    (* The proof to this case should really have finished here; the below is just rearranging brackets and applying cat_take_drop and assumptions. *)
     replace (vs0++(vs++es)++es') with ((vs0++take (length vs - l) vs) ++ (drop (length vs - l) vs ++ es) ++ es').
     { apply LfilledBase. apply const_list_concat => //=.
       by apply const_list_take. }
@@ -649,6 +706,19 @@ Proof.
   symmetry. move: HLF'. by apply/eqseqP. 
 Qed.  
 
+
+(** Additional List properties **)
+
+Lemma nth_error_Some_length:
+  forall A (l : seq.seq A) (i : nat) (m : A),
+  List.nth_error l i = Some m -> 
+  (i < length l)%coq_nat.
+Proof.
+  move => A l i m H1.
+  assert (H2 : List.nth_error l i <> None) by rewrite H1 => //.
+  by apply List.nth_error_Some in H2.
+Qed.
+
 Lemma all_projection: forall {X:Type} f (l:seq X) n x,
     all f l ->
     List.nth_error l n = Some x ->
@@ -678,6 +748,63 @@ Proof.
     eapply IHn; by eauto.
 Qed.
 
+Lemma all2_element {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
+  all2 f l1 l2 ->
+  List.nth_error l1 n = Some x ->
+  exists y, List.nth_error l2 n = Some y.
+Proof.
+  move => Hall2 Hnth.
+  destruct (List.nth_error l2 n) eqn:Hnth'; first by eauto.
+  exfalso.
+  apply List.nth_error_None in Hnth'.
+  apply all2_size in Hall2.
+  repeat rewrite - length_is_size in Hall2.
+  rewrite -Hall2 in Hnth'.
+  apply nth_error_Some_length in Hnth.
+  by lias.
+Qed.
+
+Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
+    size l1 = size l2 ->
+    (forall n x y, List.nth_error l1 n = Some x ->
+          List.nth_error l2 n = Some y ->
+          f x y) ->
+    all2 f l1 l2.
+Proof.
+  move => X Y f l1.
+  induction l1; move => l2; destruct l2 => //=.
+  move => Hsize Hf.
+  apply/andP; split.
+  { specialize (Hf 0 a y); simpl in *; by apply Hf. }
+  { apply IHl1; first by lias.
+    move => n x1 y1 Hnl1 Hnl2.
+    specialize (Hf (n.+1) x1 y1).
+    by apply Hf.
+  }
+Qed.
+
+Lemma all2_weaken {T1 T2: Type} (l1: list T1) (l2: list T2) (f1 f2: T1 -> T2 -> bool):
+  (forall x y, f1 x y -> f2 x y) ->
+  all2 f1 l1 l2 ->
+  all2 f2 l1 l2.
+Proof.
+  move => Himpl Hall2.
+  apply all2_spec; first by apply all2_size in Hall2.
+  move => n x y Hn1 Hn2.
+  apply Himpl.
+  by apply (all2_projection Hall2 Hn1 Hn2).
+Qed.
+
+Lemma nth_error_take {T: Type} (l: list T) (x: T) (k n: nat):
+  List.nth_error l n = Some x ->
+  n < k ->
+  List.nth_error (take k l) n = Some x.
+Proof.
+  move: x k n.
+  induction l; move => x k n Hnth Hlt; destruct n, k => //=.
+  by apply IHl.
+Qed.
+ 
 Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
   forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
 
@@ -700,7 +827,16 @@ Proof.
     by apply IHl1.
 Qed.
 
+Fixpoint ai_gen_measure (e: administrative_instruction) : nat :=
+  match e with
+  | AI_label _ _ es => 1 + List.list_max (map ai_gen_measure es)
+  | _ => 0
+  end.
 
+Definition lfilled_pickable_rec_gen_measure (LI: list administrative_instruction) : nat :=
+  List.list_max (map ai_gen_measure LI).
+
+(*
 (** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
 Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
   TProp.max
@@ -711,35 +847,37 @@ Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction
        (fun _ LI1 LI2 m1 m2 => 1 + TProp.max m2)
        (fun _ _ LI' m => 0)
        LI).
+ *)
 
 Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
   lfilled_pickable_rec_gen_measure LI <= lfilled_pickable_rec_gen_measure (I :: LI).
 Proof.
-  move=> I LI. by apply: leq_maxr.
+  move=> I LI.
+  unfold lfilled_pickable_rec_gen_measure => /=.
+  by lias.
 Qed.
 
 Lemma lfilled_pickable_rec_gen_measure_concat_l : forall LI1 LI2,
   lfilled_pickable_rec_gen_measure LI1 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
 Proof.
-  move => LI1 LI2. induction LI1 => /=.
-  - rewrite {1} /lfilled_pickable_rec_gen_measure /=. by lias.
-  - rewrite /lfilled_pickable_rec_gen_measure /=.
-    by apply: maxn_congruence_r.
+  unfold lfilled_pickable_rec_gen_measure => /=.
+  move => LI1 LI2. rewrite map_cat List.list_max_app.
+  by lias.
 Qed.
 
 Lemma lfilled_pickable_rec_gen_measure_concat_r : forall LI1 LI2,
   lfilled_pickable_rec_gen_measure LI2 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
 Proof.
-  move => LI1 LI2. induction LI1 => /=.
-  - rewrite {1} /lfilled_pickable_rec_gen_measure /=. by lias.
-  - rewrite /lfilled_pickable_rec_gen_measure /=. eapply leq_trans; first by apply: IHLI1.
-    by apply: leq_maxr.
+  unfold lfilled_pickable_rec_gen_measure => /=.
+  move => LI1 LI2. rewrite map_cat List.list_max_app.
+  by lias.
 Qed.
 
 Lemma lfilled_pickable_rec_gen_measure_label_r : forall n es LI LI',
   lfilled_pickable_rec_gen_measure LI < lfilled_pickable_rec_gen_measure (AI_label n es LI :: LI').
 Proof.
-  move=> n es LI LI'. rewrite /lfilled_pickable_rec_gen_measure /=. by apply: leq_maxl.
+  move=> n es LI LI'. rewrite /lfilled_pickable_rec_gen_measure /=.
+  destruct (List.list_max (map ai_gen_measure LI')); by lias.
 Qed.
 
 (** A helper definition for [lfilled_decidable_rec]. **)
@@ -882,6 +1020,8 @@ Proof.
   move=> es D. by apply: lfilled_pickable_rec_gen.
 Defined.
 
+(** Typing lemmas **)
+
 (* A reformulation of [ety_a] that is easier to be used. *)
 Lemma ety_a': forall s C es ts,
     es_is_basic es ->
@@ -931,13 +1071,6 @@ Proof.
   by rewrite cats0 in H.
 Qed.
 
-(*
-  This is actually very non-trivial to prove, unlike I first thought.
-  The main difficulty arises due to the two rules bet_composition and bet_weakening,
-    which will apply for EVERY hypothesis of be_typing when doing inversion/induction.
-  Moreover, bet_weakening has a reversed inductive structure, so the proof in fact
-    required induction (where one would hardly expect an induction here!).
-*)
 Lemma empty_typing: forall C t1s t2s,
     be_typing C [::] (Tf t1s t2s) ->
     t1s = t2s.
@@ -963,6 +1096,15 @@ Proof.
     * by eapply IHHType1 => //.
     * by eapply IHHType2 => //.
   + apply bet_weakening. by eapply IHHType => //.
+Qed.
+
+Lemma empty_e_typing: forall s C t1s t2s,
+    e_typing s C [::] (Tf t1s t2s) ->
+    t1s = t2s.
+Proof.
+  move => s C t1s t2s HType.
+  apply et_to_bet in HType => //.
+  by apply empty_typing in HType.
 Qed.
 
 Section composition_typing_proofs.
@@ -1182,5 +1324,542 @@ Qed.
 
 End composition_typing_proofs.
 
-End Host.
+(************ these come from the certified itp *************)
 
+(* XXX does this exist elsewhere? *)
+Lemma bet_const' : forall C vs,
+  be_typing C (map BI_const vs) (Tf [::] (map typeof vs)).
+Proof.
+  intros C vs. induction vs as [|vs' v IHvs] using last_ind.
+  - apply bet_empty.
+  - rewrite <- cats1. rewrite map_cat.
+    apply bet_composition with (t2s := map typeof vs') => //.
+    rewrite map_cat.
+    replace (map typeof vs') with ((map typeof vs') ++ [::]) at 1;
+      last by rewrite cats0.
+    by apply bet_weakening; apply bet_const.
+Qed.
+
+Lemma to_b_v_to_e_is_bi_const : forall vs,
+  to_b_list (v_to_e_list vs) = map BI_const vs.
+Proof.
+  induction vs as [|v vs' IH] => //.
+  rewrite <- cat1s.
+  unfold v_to_e_list. unfold to_b_list.
+  unfold v_to_e_list in IH. unfold to_b_list in IH.
+  repeat rewrite map_cat.
+  f_equal => //.
+Qed.
+
+Lemma cats_injective : forall T (s1 : seq T),
+  injective (fun s2 => s1 ++ s2).
+Proof.
+  intros T s1 s2 s2' Heq.
+  induction s1 => //.
+  by injection Heq => //.
+Qed.
+
+Lemma seq_split_predicate : forall (T : eqType) (xs xs' ys ys' : seq T) (y : T) (P : pred T),
+  xs ++ [:: y] ++ ys = xs' ++ ys' ->
+  all P xs ->
+  all P xs' ->
+  ~ P y ->
+  size xs >= size xs'.
+Proof.
+  intros T xs xs' ys ys' y P H HPxs HPxs' HnPy.
+  destruct (size xs < size xs') eqn:Hsize => //; last by lias.
+  exfalso; apply HnPy.
+  apply f_equal with (f := drop (size xs)) in H.
+  rewrite drop_size_cat in H => //.
+  rewrite drop_cat in H.
+  rewrite Hsize in H.
+  assert (size (drop (size xs) xs') > 0). { by rewrite size_drop; lias. }
+  destruct (drop (size xs) xs') as [|x xs''] eqn:Heqdrop => //.
+  assert (List.In x xs').
+  {
+    rewrite <- cat_take_drop with (n0 := size xs).
+    apply List.in_or_app; right.
+    by rewrite Heqdrop; apply List.in_eq.
+  }
+  inversion H; subst x.
+  by apply list_all_forall with (l := xs').
+Qed.
+
+Lemma concat_cancel_first_n: forall (T : eqType) (l1 l2 l3 l4: seq T),
+    l1 ++ l2 = l3 ++ l4 ->
+    size l1 = size l3 ->
+    (l1 == l3) && (l2 == l4).
+Proof.
+  move => T l1 l2 l3 l4 HCat HSize.
+  rewrite -eqseq_cat; first by apply/eqP.
+  assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
+  repeat rewrite size_cat in H.
+  rewrite HSize in H. by lias.
+Qed.
+
+Lemma ves_cat_e_split : forall vs vs' e e' es',
+  vs ++ [:: e] ++ es' = vs' ++ [:: e'] ->
+  const_list vs ->
+  const_list vs' ->
+  ~ is_const e ->
+  vs = vs' /\ e = e' /\ es' = [::].
+Proof.
+  intros vs vs' e e' es' H Hconst Hconst' Hnconst.
+  assert (H' : vs ++ [:: e] ++ es' = vs' ++ [:: e']) => //.
+  apply seq_split_predicate with (P := is_const) in H => //.
+  destruct (size vs' == size vs) eqn:Heqb; move/eqP in Heqb.
+  - apply concat_cancel_first_n in H' => //.
+    move/andP in H'; destruct H' as [Heqvs Heqe'].
+    move/eqP in Heqvs. move/eqP in Heqe'.
+    by inversion Heqe'; split => //.
+  - move/leP in H. apply Nat.lt_eq_cases in H as [H|] => //.
+    assert (size vs' < size vs). { by lias. }
+    apply f_equal with (f := size) in H'.
+    repeat rewrite size_cat in H'.
+    simpl in H'.
+    by lias.
+Qed.
+
+Lemma es_split_by_non_const : forall vs vs' e es es',
+  vs ++ [:: e] ++ es = vs' ++ es' ->
+  const_list vs ->
+  const_list vs' ->
+  ~ is_const e ->
+  exists vs'', vs = vs' ++ vs''.
+Proof.
+  intros vs vs' e es es' H Hconstvs Hconstvs' Hnconste.
+  assert (Hsize : size vs >= size vs').
+  { by apply (seq_split_predicate H Hconstvs Hconstvs' Hnconste). }
+  exists (drop (size vs') vs).
+  assert (H' : vs ++ e :: es = vs' ++ es') => //.
+  apply f_equal with (f := take (size vs')) in H.
+  rewrite take_cat in H.
+  destruct (size vs' < size vs) eqn:?.
+  - rewrite take_cat ltnn subnn take0 cats0 in H.
+    remember (size vs') as n eqn:Heqn.
+    clear Heqn.
+    subst vs'.
+    by rewrite cat_take_drop.
+  - assert (Heqsize : size vs' = size vs). { by lias. }
+    rewrite Heqsize.
+    rewrite drop_size.
+    rewrite cats0.
+    apply concat_cancel_first_n in H' => //.
+    move/andP in H'.
+    destruct H'.
+    by apply/eqP.
+Qed.
+
+Fixpoint empty_vs_base lh : bool :=
+  match lh with
+  | LH_base [::] _ => true
+  | LH_rec _ _ _ lh _ => empty_vs_base lh
+  | _ => false
+  end.
+
+Lemma lfilled_collapse_empty_vs_base : forall i lh rvs vcs e es,
+  lfilledInd i lh (vs_to_es rvs ++ [:: e]) (v_to_e_list vcs ++ es) ->
+  ~ is_const e ->
+  empty_vs_base lh ->
+  exists lh', lfilledInd i lh' [:: e] es.
+Proof.
+  (* XXX fragile names *)
+  induction i as [|i]; intros lh rvs vcs e es Hlf He Hbase.
+  - inversion Hlf; subst.
+    destruct vs => //. simpl in *.
+    rewrite <- catA in H.
+    assert (Heqrvs : exists vcs', vs_to_es rvs = v_to_e_list vcs ++ vcs').
+    { by apply (es_split_by_non_const H) => //; try by apply v_to_e_is_const_list. }
+    destruct Heqrvs as [vcs' Heqrvs]; rewrite Heqrvs in H, Hlf.
+    rewrite <- catA in H.
+    apply cats_injective in H; subst es.
+    exists (LH_base vcs' es').
+    apply LfilledBase.
+    eapply const_list_split.
+    rewrite <- Heqrvs.
+    by apply v_to_e_is_const_list.
+  - inversion Hlf; subst.
+    destruct (split_vals_e LI) as [LIvs LIes] eqn:HsplitLI.
+    apply split_vals_e_v_to_e_duality in HsplitLI. subst LI.
+    destruct (IHi lh' rvs LIvs e LIes H4 He Hbase) as [lh'' Hlf''].
+    assert (Heqvs : exists vcs', vs = v_to_e_list vcs ++ vcs').
+    { by apply (es_split_by_non_const H0) => //; last by apply v_to_e_is_const_list. }
+    destruct Heqvs as [vcs' ->].
+    rewrite <- catA in H0.
+    apply cats_injective in H0; subst es.
+    apply lfilled_collapse1 with (l := 0) in H4 as [lh''' H4] => //;
+      last by apply v_to_e_is_const_list.
+    rewrite subn0 drop_size in H4 => //.
+    eexists.
+    apply LfilledRec; first by apply const_list_split in H1 as [??].
+    by apply H4.
+Qed.
+
+(************ certified itp properties *************)
+Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
+  xs ++ (y :: ys) <> [::].
+Proof. move => T xs y ys E. by move: (List.app_eq_nil _ _ E) => [? ?]. Qed.
+
+Lemma not_reduce_simple_nil : forall es', ~ reduce_simple [::] es'.
+Proof.
+  assert (forall es es', reduce_simple es es' -> es = [::] -> False) as H.
+  { move => es es' H.
+    elim: {es es'} H => //=.
+    { move => vs es _ _ t1s t2s _ _ _ _ H.
+      apply: cat_cons_not_nil. exact H. }
+    { move => vs es _ _ t1s t2s _ _ _ _ H.
+      apply: cat_cons_not_nil. exact H. }
+    { move => es lh _ H Hes.
+      rewrite Hes {es Hes} /lfilled /operations.lfilled /= in H.
+      case: lh H => //=.
+      { move => es es2.
+        case_eq (const_list es) => //=.
+        move=> _ /eqP H.
+        symmetry in H.
+        by move: (List.app_eq_nil _ _ H) => [? ?]. } } }
+  { move => es' H2.
+    apply: H. exact H2. done. }
+Qed.
+
+
+Lemma lfill_cons_not_Some_nil : forall i lh es es' e es0,
+  lfill i lh es = es' -> es = e :: es0 -> es' <> Some [::].
+Proof.
+  elim.
+  { elim; last by intros; subst.
+    move=> l l0 es es' /=.
+    case: (const_list l).
+    { move => Hfill H1 H2 H3 H4.
+      rewrite H4 in H2.
+      injection H2 => H5 {H2}.
+      rewrite H3 in H5.
+      apply: cat_cons_not_nil.
+      exact H5.
+       }
+    { intros; subst; discriminate. } }
+  { move=> n IH.
+    elim; first by intros; subst.
+    intros.
+    rewrite /= in H0.
+    move: H0.
+    case: (const_list l).
+    { rewrite H1 {H1}.
+      case_eq (lfill n l1 (e :: es0)).
+      { move=> l3 H1 H2 H3.
+        rewrite H3 in H2.
+        injection H2.
+        move=> {} H2.
+        apply: cat_cons_not_nil.
+        exact H2. }
+      { intros; subst; discriminate. } }
+    { intros; subst; discriminate. } }
+Qed.
+
+Lemma lfilled_not_nil : forall i lh es es', lfilled i lh es es' -> es <> [::] -> es' <> [::].
+Proof.
+  move => i lh es es' H Hes Hes'.
+  move: (List.exists_last Hes) => [e [e0 H']].
+  rewrite H' in H.
+  move: H.
+  rewrite /lfilled /operations.lfilled.
+  case_eq (operations.lfill i lh es).
+  { intros; subst.
+    rewrite H in H0.
+    assert ([::] = l) as H0'.
+    { apply/eqP.
+      apply H0. }
+    { rewrite H0' in H.
+      rewrite /= in H.
+      case E: (e ++ (e0 :: l)%SEQ)%list; first by move: (List.app_eq_nil _ _ E) => [? ?].
+      apply: lfill_cons_not_Some_nil.
+      apply: H.
+      apply: E.
+      by rewrite H0'. } }
+  { intros; subst.
+    rewrite H in H0.
+    done. }
+Qed.
+
+Variable host_instance: host host_function.
+
+Local Definition reduce := @reduce host_function host_instance.
+
+Lemma reduce_not_nil : forall hs hs' σ1 f es σ2 f' es',
+  reduce hs σ1 f es hs' σ2 f' es' -> es <> [::].
+Proof.
+  move => hs hs' σ1 f es σ2 f' es' Hred.
+  elim: {σ1 f es f' σ2} Hred => //;
+    try solve [ repeat intro;
+                match goal with
+                | H : (_ ++ _)%SEQ = [::] |- _ =>
+                  by move: (app_eq_nil _ _ H) => [? ?]
+                end ].
+  { move => e e' _ _ _ Hreds He.
+    rewrite He in Hreds.
+    apply: not_reduce_simple_nil.
+    apply: Hreds. }
+  { intros. destruct ves => //. }
+  { intros. destruct ves => //. }
+  { intros. by destruct ves => //. }
+  { intros. apply: lfilled_not_nil. exact H1. exact H0. }
+Qed.
+
+(** Store extension properties **)
+
+Let func_extension: function_closure -> function_closure -> bool := @func_extension _.
+Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+
+Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
+    reflexive f ->
+    all2 f l l.
+Proof.
+  move => X f l.
+  induction l; move => H; unfold reflexive in H => //=.
+  apply/andP. split => //=.
+  by apply IHl.
+Qed.
+
+Lemma func_extension_refl: forall f,
+    func_extension f f.
+Proof.
+  move => f. by unfold func_extension, operations.func_extension.
+Qed.
+
+Lemma all2_func_extension_same: forall f,
+    all2 func_extension f f.
+Proof.
+  move => f.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply func_extension_refl.
+Qed.
+
+Lemma tab_extension_refl: forall t,
+    tab_extension t t.
+Proof.
+  move => t. unfold tab_extension.
+  by apply/andP.
+Qed.
+
+Lemma all2_tab_extension_same: forall t,
+    all2 tab_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply tab_extension_refl.
+Qed.
+
+Lemma mem_extension_refl: forall m,
+    mem_extension m m.
+Proof.
+  move => m.
+  unfold mem_extension.
+  apply/andP; split => //.
+  by apply N.leb_le; lias.
+Qed.
+
+Lemma all2_mem_extension_same: forall t,
+    all2 mem_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply mem_extension_refl.
+Qed.
+
+Lemma glob_extension_refl: forall t,
+    glob_extension t t.
+Proof.
+  move => t.
+  unfold glob_extension.
+  do 2 (apply/andP; split => //).
+  apply/orP.
+  by right.
+Qed.
+
+Lemma all2_glob_extension_same: forall t,
+    all2 glob_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive. by apply glob_extension_refl.
+Qed.
+
+Lemma comp_extension_same_refl {T: Type} (l: list T) f:
+    reflexive f ->
+    comp_extension l l f.
+Proof.
+  move => Hrefl.
+  unfold comp_extension.
+  apply/andP; split; first by lias.
+  rewrite length_is_size take_size.
+  by apply reflexive_all2_same.
+Qed.
+
+Lemma func_extension_trans:
+  transitive func_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold func_extension, operations.func_extension in *.
+  remove_bools_options.
+  by apply/eqP; subst.
+Qed.
+  
+Lemma tab_extension_trans:
+  transitive tab_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold tab_extension in *.
+  remove_bools_options.
+  apply/andP; split; last apply/eqP.
+  - by lias.
+  - by destruct x2; simpl in *; subst.
+Qed.
+    
+Lemma mem_extension_trans:
+  transitive mem_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold mem_extension in *.
+  remove_bools_options.
+  apply/andP; split; last apply/eqP.
+  - move/N.leb_spec0 in H.
+    move/N.leb_spec0 in H1.
+    apply/N.leb_spec0.
+    by lias.
+  - by destruct x2; simpl in *; subst.
+Qed.
+    
+Lemma glob_extension_trans:
+  transitive glob_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  unfold glob_extension in *.
+  destruct x1, x2, x3 => /=; simpl in *.
+  remove_bools_options; rewrite - H3 in H0; subst => /=; try by apply/eqP.
+  repeat (apply/andP; split => //).
+  apply/orP; by right.
+Qed.
+
+Lemma nth_error_take_longer {T: Type} (l: list T) n k:
+  n < k ->
+  List.nth_error l n = List.nth_error (take k l) n.
+Proof.
+  move: k l.
+  induction n; move => k l Hlt; destruct l, k => //=.
+  apply IHn; by lias.
+Qed.
+
+Lemma comp_extension_trans {T: Type} (l1 l2 l3: list T) f:
+  comp_extension l1 l2 f ->
+  comp_extension l2 l3 f ->
+  transitive f ->
+  comp_extension l1 l3 f.
+Proof.
+  move => Hext1 Hext2 Htrans.
+  unfold comp_extension in *.
+  remove_bools_options.
+  apply/andP; split; first by lias.
+  apply all2_spec.
+  - rewrite size_take.
+    repeat rewrite length_is_size in H H0 H1 H2.
+    rewrite length_is_size.
+    assert (size l1 <= size l3); first lias.
+    destruct (size l1 < size l3) eqn: Hlt => //; last by lias.
+  - move => n x y Hnth1 Hnth2.
+    specialize (all2_element H2 Hnth1) as [z Hnth3].
+    assert (f x z) as Htrans1; first by eapply all2_projection; eauto.
+    assert (f z y) as Htrans2; last eauto.
+    apply nth_error_Some_length in Hnth1.
+    rewrite - nth_error_take_longer in Hnth2; last by lias.
+    rewrite - nth_error_take_longer in Hnth3; last by lias.
+    eapply all2_projection; [by apply H0 | eauto | ].
+    rewrite - nth_error_take_longer => //.
+    by lias.
+Qed.
+    
+Lemma store_extension_trans (s1 s2 s3: store_record):
+  store_extension s1 s2 ->
+  store_extension s2 s3 ->
+  store_extension s1 s3.
+Proof.
+  move => Hext1 Hext2.
+  unfold store_extension, operations.store_extension in *.
+  remove_bools_options.
+  apply/andP; split; last by eapply comp_extension_trans; eauto; apply glob_extension_trans.
+  apply/andP; split; last by eapply comp_extension_trans; eauto; apply mem_extension_trans.
+  apply/andP; split; last by eapply comp_extension_trans; eauto; apply tab_extension_trans.
+  by eapply comp_extension_trans; eauto; apply func_extension_trans.
+Qed.
+  
+Lemma store_extension_same: forall s,
+    store_extension s s.
+Proof.
+  move => s. unfold store_extension.
+  repeat (apply/andP; split => //); rewrite length_is_size take_size.
+  + by apply all2_func_extension_same.
+  + by apply all2_tab_extension_same.
+  + by apply all2_mem_extension_same.
+  + by apply all2_glob_extension_same.
+Qed.
+
+Lemma comp_extension_lookup {T: Type} (l1 l2: list T) f n x:
+  comp_extension l1 l2 f ->
+  List.nth_error l1 n = Some x ->
+  exists y, (List.nth_error l2 n = Some y /\ f x y).
+Proof.
+  move => Hext Hnth.
+  unfold comp_extension in Hext.
+  remove_bools_options.
+  assert (lt n (length l1)) as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
+  destruct (List.nth_error l2 n) as [y |] eqn:Hnth'; last by apply List.nth_error_None in Hnth'; lias.
+  apply (nth_error_take (k := length l1)) in Hnth'; last by lias.
+  specialize (all2_projection H0 Hnth Hnth') as Hproj.
+  by exists y.
+Qed.
+
+Lemma store_extension_lookup_func: forall s s' n cl,
+    store_extension s s' ->
+    List.nth_error (s_funcs s) n = Some cl ->
+    List.nth_error (s_funcs s') n = Some cl.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  eapply comp_extension_lookup in Hnth; eauto.
+  unfold operations.func_extension in Hnth.
+  destruct Hnth as [? [Hnth Heq]].
+  by move/eqP in Heq; subst.
+Qed.
+
+Lemma store_extension_lookup_tab: forall s s' n x,
+    store_extension s s' ->
+    List.nth_error (s_tables s) n = Some x ->
+    exists x', List.nth_error (s_tables s') n = Some x' /\ tab_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply comp_extension_lookup in Hnth; eauto.
+Qed.
+
+Lemma store_extension_lookup_mem: forall s s' n x,
+    store_extension s s' ->
+    List.nth_error (s_mems s) n = Some x ->
+    exists x', List.nth_error (s_mems s') n = Some x' /\ mem_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply comp_extension_lookup in Hnth; eauto.
+Qed.
+
+Lemma store_extension_lookup_glob: forall s s' n x,
+    store_extension s s' ->
+    List.nth_error (s_globals s) n = Some x ->
+    exists x', List.nth_error (s_globals s') n = Some x' /\ glob_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply comp_extension_lookup in Hnth; eauto.
+Qed.
+
+End Host.

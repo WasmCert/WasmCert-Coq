@@ -1,4 +1,5 @@
-(** Wasm interpreter **)
+(** Wasm interpreter using Itree **)
+(* File currently not in use for extraction *)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Import common.
@@ -18,15 +19,14 @@ Unset Strict Implicit.
 
 Unset Printing Implicit Defensive.
 
+Definition depth : Type := nat.
+
 Section Host.
 
 Variable host_function : eqType.
-
+  
 Let config_tuple := config_tuple host_function.
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.*)
-
-(*Let vs_to_es := @vs_to_es host_function.*)
 
 Let executable_host := executable_host host_function.
 Variable executable_host_instance : executable_host.
@@ -36,6 +36,7 @@ Let host_monad : Monad host_event := host_monad executable_host_instance.
 Let host_apply : store_record -> function_type -> host_function -> seq value ->
                  host_event (option (store_record * result)) :=
   @host_apply _ executable_host_instance.
+
 
 Section ITreeExtract.
 (** Some helper functions to extract an interactive tree to a simple-to-interact-with function,
@@ -69,6 +70,44 @@ Definition run_extraction d i cfg : M R :=
 
 End ITreeExtract.
 
+(** Some types used in the interpreter. **)
+Definition config_one_tuple_without_e : Type := store_record * frame * list value.
+
+Inductive res_crash : Type :=
+  | C_error : res_crash
+  .
+
+Inductive res_step : Type :=
+  | RS_crash : res_crash -> res_step
+  | RS_break : nat -> seq value -> res_step
+  | RS_return : seq value -> res_step
+  | RS_normal : seq administrative_instruction -> res_step
+  .
+
+Definition res_tuple : Type := store_record * frame * res_step.
+
+Scheme Equality for res_crash.
+Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
+Definition eqres_crashP : Equality.axiom res_crash_eqb :=
+  eq_dec_Equality_axiom res_crash_eq_dec.
+
+Canonical Structure res_crash_eqMixin := EqMixin eqres_crashP.
+Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_eqMixin.
+
+Definition res_step_eq_dec : forall r1 r2 : res_step, {r1 = r2} + {r1 <> r2}.
+Proof.
+  (decidable_equality_step;
+    last by apply: (eq_comparable (_ : seq administrative_instruction)));
+    decidable_equality.
+Defined.
+
+Definition res_step_eqb (r1 r2 : res_step) : bool := res_step_eq_dec r1 r2.
+Definition eqres_stepP : Equality.axiom res_step_eqb :=
+  eq_dec_Equality_axiom res_step_eq_dec.
+
+Canonical Structure res_step_eqMixin := EqMixin eqres_stepP.
+Canonical Structure res_step_eqType := Eval hnf in EqType res_step res_step_eqMixin.
+
 
 (** * Types used by the interpreter **)
 
@@ -87,10 +126,6 @@ Definition eqresP : Equality.axiom res_eqb :=
 
 Canonical Structure res_eqMixin := EqMixin eqresP.
 Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
-
-(*Let ret res_step := res_step host_function.*)
-Let res_tuple := res_tuple host_function.
-Let config_one_tuple_without_e := config_one_tuple_without_e host_function.
 
 Definition crash_error : res_step := RS_crash C_error.
 
@@ -181,7 +216,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
           (ret (s, f, RS_normal ((vs_to_es ves') ++ [::AI_trap])))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
-  | AI_basic (BI_cvtop t2 CVO_Reinterpret t1 sx) =>
+  | AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) =>
     if ves is v :: ves' then
       if types_agree t1 v && (sx == None)
       then ret (s, f, RS_normal (vs_to_es (wasm_deserialise (bits v) t2 :: ves')))
@@ -282,7 +317,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
   | AI_basic (BI_set_local j) =>
     if ves is v :: ves' then
       if j < length f.(f_locs)
-      then ret (s, Build_frame (update_list_at f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
+      then ret (s, Build_frame (set_nth v f.(f_locs) j v) f.(f_inst), RS_normal (vs_to_es ves'))
       else ret (s, f, crash_error)
     else ret (s, f, crash_error)
 
@@ -342,7 +377,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                  expect
                    (store mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (t_length t))
                    (fun mem' =>
-                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
+                      (ret (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
                    (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
@@ -360,7 +395,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
                  expect
                    (store_packed mem_s_j (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp))
                    (fun mem' =>
-                      (ret (upd_s_mem s (update_list_at s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
+                      (ret (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), f, RS_normal (vs_to_es ves'))))
                    (ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap])))
                else ret (s, f, crash_error))
             (ret (s, f, crash_error))
@@ -385,7 +420,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
               let: l := mem_size s_mem_s_j in
               let: mem' := mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c) in
               if mem' is Some mem'' then
-                ret (upd_s_mem s (update_list_at s.(s_mems) j mem''), f,
+                ret (upd_s_mem s (set_nth mem'' s.(s_mems) j mem''), f,
                      RS_normal (vs_to_es (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat l)) :: ves')))
               else ret (s, f, crash_error)
             else ret (s, f, crash_error))
@@ -449,7 +484,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       | RS_crash error => ret (s', f', RS_crash error)
       end
 
-  | AI_local ln f0 es =>
+  | AI_local ln f es =>
     if es_is_trap es
     then ret (s, f, RS_normal (vs_to_es ves ++ [::AI_trap]))
     else
@@ -459,7 +494,7 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
         then ret (s, f, RS_normal (vs_to_es ves ++ es))
         else ret (s, f, crash_error)
       else
-        '(s', f', res) <- call _ (call_run_step_base d (s, f0, es)) ;;
+        '(s', f', res) <- call _ (call_run_step_base d (s, f, es)) ;;
         match res return itree (run_stepE +' eff) res_tuple with
         | RS_return rvs =>
           if length rvs >= ln
@@ -513,6 +548,8 @@ Definition run_step (d : depth) (inst : instance) (cfg : config_tuple) : itree e
 
 End RunStep.
 
+(** Extraction **)
+  
 Section Run.
 
 Context {eff : Type -> Type}.
@@ -585,13 +622,15 @@ Definition monad_functor := Functor_Monad (M := monad_monad).
 
 End convert_target_monad.
 
-Module Interpreter (EH : Executable_Host) (TM : TargetMonad EH).
+Module Interpreter_itree_extract (EH : Executable_Host) (TM : TargetMonad EH).
 
 Module Exec := convert_to_executable_host EH.
 Import Exec.
 
 Module Target := convert_target_monad EH TM.
 Import Target.
+
+Local Definition res_tuple := res_tuple host_function.
 
 Definition run_step
   : depth -> instance -> config_tuple -> monad res_tuple :=
@@ -615,5 +654,4 @@ Definition itree_to_option (E : Type -> Type) (tr : forall T A, E T -> A) :
     forall R, itree E R -> option R :=
   fun _ tree => option_of_itree_void (translate (fun T => tr T _) tree).
 
-End Interpreter.
-
+End Interpreter_itree_extract.
