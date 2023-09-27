@@ -3,8 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
-From Coq Require Import Program.
-From StrongInduction Require Import StrongInduction Inductions.
+From Coq Require Import Program Wf_nat.
 
 Require Import Lia.
 
@@ -1659,7 +1658,7 @@ Lemma tc_to_bet_conj d:
   c_types_agree cts' tm ->
   exists tn, c_types_agree cts tn /\ be_typing C ([:: e]) (Tf tn tm)).
 Proof with auto_rewrite_cond.
-  strong induction d => //=.
+  induction (lt_wf d) as [d _ H] => //=.
   split.
   (* List *) 
   - move => c cts bes.

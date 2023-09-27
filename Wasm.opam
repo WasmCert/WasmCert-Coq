@@ -3,11 +3,19 @@ opam-version: "2.0"
 synopsis: "Wasm formalisation in Coq"
 description:
   "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt"
+authors: [
+  "Martin Bodin" "Philippa Gardner" "Jean Pichon" "Xiaojia Rao" "Conrad Watt"
+]
 license: "MIT"
 homepage: "https://github.com/WasmCert/WasmCert-Coq"
 bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "2.9"}
+  "coq" {>= "8.14.1" & < "8.15"}
+  "coq-compcert" {>= "3.11"}
+  "coq-mathcomp-ssreflect" {>= "1.16.0"}
+  "coq-itree" {>= "3.1.0"}
+  "coq-parseque" {>= "0.1.0"}
   "odoc" {with-doc}
 ]
 build: [

@@ -3,8 +3,8 @@
 
 From Wasm Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From StrongInduction Require Import StrongInduction Inductions.
 From ITree Require Import ITree ITreeFacts.
+From Coq Require Import Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1089,7 +1089,7 @@ Lemma run_step_soundness_aux : forall fuel d i s vs es s' vs' es',
   = (s', vs', RS_normal es') ->
   reduce s vs es i s' vs' es'.
 Proof.
-  strong induction fuel.
+  move=> f. induction (lt_wf f) as [fuel _ H].
   move=> d i s vs es s' vs' es' /=. destruct fuel as [|fuel] => //=.
   destruct (split_vals_e es) as [lconst les] eqn:HSplitVals.
   apply split_vals_e_v_to_e_duality in HSplitVals. rewrite {} HSplitVals.

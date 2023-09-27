@@ -1,8 +1,8 @@
 (** Tests for the binary parser. **)
 Require Import Byte.
 From parseque Require Import Parseque.
-From Wasm Require Import binary_format_parser binary_format_printer bytes_pp
-                         datatypes_properties check_toks pp.
+From Wasm Require Import binary_format_parser binary_format_printer
+                         datatypes_properties check_toks.
 
 Open Scope string_scope.
 Import Coq.Strings.String.StringSyntax.
