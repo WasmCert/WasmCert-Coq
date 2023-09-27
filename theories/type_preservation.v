@@ -1311,7 +1311,7 @@ Proof.
       repeat rewrite length_is_size.
       rewrite size_cat.
       apply N.leb_le.
-      apply N.Div0.div_le_mono => //.
+      apply N.div_le_mono => //.
       by lias.
       }
   - inversion HMGrow; subst; clear HMGrow.
@@ -1321,7 +1321,7 @@ Proof.
     apply N.leb_le.
     repeat rewrite length_is_size.
     rewrite size_cat.
-    apply N.Div0.div_le_mono => //.
+    apply N.div_le_mono => //.
     by lias.
 Qed.
   
