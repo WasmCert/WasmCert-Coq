@@ -17,9 +17,13 @@ This work is in progress, comprising WasmCert-Coq, a Coq-Specification of the Wa
 - [x] Verify executable type checker soundness.
 - [x] Verify instantiation soundness properties.
 - [x] Implement numerics using CompCert numerics.
-- [x] Instantiate a Wasm program logic using Iris [iris branch](https://github.com/WasmCert-Coq/WasmCert-Coq/tree/iris-wasm-native).
 
-This repository also contains some experimental work on a parser for the binary format which is currently unverified. 
+# Program Logic
+
+This repository contains an instantiation of a Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native).
+
+# Binary Parser (experimental)
+This repository contains some experimental work on a parser for the binary format which is currently unverified. 
 
 # Usage
 
@@ -32,6 +36,9 @@ Compiling the dependencies requires having at least 4-8 GB of RAM on your comput
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
 ```
+
+## Build Based on Esy
+The previous esy-based build is now deprecated; it is moved to [esy branch](https://github.com/WasmCert/WasmCert-Coq/tree/esy-8.13).
 
 ## Testing the Installation
 
