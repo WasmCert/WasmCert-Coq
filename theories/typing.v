@@ -171,7 +171,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
 | bet_store : forall C a off tp t,
   tc_memory C <> nil ->
   load_store_t_bounds a tp t ->
-  be_typing C [::BI_store t tp a off] (Tf [::T_i32; t] [::]) (* FIXME: Same here: two Isabelle rules have been merged here. *)
+  be_typing C [::BI_store t tp a off] (Tf [::T_i32; t] [::]) (* two Isabelle rules have been merged here. *)
 | bet_current_memory : forall C,
   tc_memory C <> nil ->
   be_typing C [::BI_current_memory] (Tf [::] [::T_i32])

@@ -1189,7 +1189,7 @@ Proof.
     { rewrite upd_label_overwrite. simpl. eauto. }
     { unfold br_reduce in HEMF.
       move => n lh k HLF.
-      assert (Inf : k < n.+1). (* FIXME: Proof items to be added here. *)
+      assert (Inf : k < n.+1).
       { eapply HBI_brDepth.
       move/lfilledP in HLF.
       apply/lfilledP.

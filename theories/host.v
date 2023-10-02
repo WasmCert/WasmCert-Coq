@@ -39,7 +39,7 @@ Record host := {
     host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
                        host_state -> option (store_record * result) -> Prop
                        (** An application of the host function. **)
-    (* FIXME: Should the resulting [host_state] be part of the [option]?
+    (* Should the resulting [host_state] be part of the [option]?
       (See https://github.com/rems-project/wasm_coq/issues/16#issuecomment-616402508
        for a discussion about this.) *) ;
 

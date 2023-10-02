@@ -2,7 +2,7 @@
 (using coq 0.2)
 (using mdx 0.2)
 (name wasm_coq)
-(version 1.0)
+(version 0.1)
 
 (generate_opam_files true)
 (license MIT)

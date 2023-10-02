@@ -128,7 +128,6 @@ Definition result_type : Type :=
 (** Note from the specification:
   In the current version of WebAssembly, at most one value is allowed as a result.
   However, this may be generalized to sequences of values in future versions. **)
-(* FIXME: Do we want to enforce it? *)
 
 
 (** std-doc:
@@ -141,7 +140,6 @@ Inductive function_type := (* tf *)
   | Tf : result_type -> result_type -> function_type
   (** Note from the specification:
     In the current version of Wasm, the result list has an arity of at most [1]. **)
-  (* FIXME: Shouldn’t we enforce it? *)
   .
 
 (** std-doc:
