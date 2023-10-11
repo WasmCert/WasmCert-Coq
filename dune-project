@@ -1,7 +1,7 @@
 (lang dune 3.0)
 (using coq 0.2)
 (using mdx 0.2)
-(name wasm_coq)
+(name coq-wasm)
 (version 0.1)
 
 (generate_opam_files true)
@@ -9,7 +9,7 @@
 (source (github WasmCert/WasmCert-Coq))
 
 (package
-  (name wasm_coq)
+  (name coq-wasm)
   (synopsis "Wasm formalisation in Coq")
   (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
   (depends
@@ -35,11 +35,3 @@
   )
 )
 
-;(package
-;  (name wasm_coq_interpreter)
-;  (depends 
-;     wasm_coq
-;     (cmdliner (>= 1.1.0))
-;  )
-;  (synopsis "Wasm interpreter extracted from the Coq formalisation")
-;)

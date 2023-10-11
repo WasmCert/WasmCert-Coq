@@ -1,0 +1,3 @@
+default:
+	opam install .
+
