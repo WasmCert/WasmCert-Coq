@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         opam_file:
-          - 'wasm_coq.opam'
+          - 'coq-wasm.opam'
         coq_version:
           - '8.17.1'
           - '8.16.1'
