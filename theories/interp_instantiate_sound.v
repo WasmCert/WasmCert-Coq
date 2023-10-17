@@ -380,11 +380,11 @@ Proof.
   destruct Hconst as [be [-> Hconst]].
   destruct be => //=.
   - simpl in Heval.
-    destruct (run_step_with_measure _ _ _ _) as [ | | | | ???? Hred] => //.
+    destruct (interpreter_func.run_step _ _ _ _) as [ | | | | ???? Hred] => //.
     constructor.
     unfold reduce_tuple.
     destruct (es_is_trap es') => //.
-    destruct (const_list es') eqn:Hconstlist => //; last by destruct (run_step_with_measure _ hs' s' f' es').
+    destruct (const_list es') eqn:Hconstlist => //; last by destruct (interpreter_func.run_step _ hs' s' f' es').
     destruct (split_vals_e es') eqn:Hsplit => //; simpl in Heval.
     do 2 destruct l as [ | ? l] => //.
     destruct v => //.
@@ -486,9 +486,9 @@ Proof.
       simpl in *.
       destruct Hconst as [Hlen Himps].
       destruct (ext_t_globs t_imps !! i) eqn:Himpslookup => //.
-      destruct (run_step_with_measure _ _ _ _) as [ | | | | ???? Hred] => //.
+      destruct (interpreter_func.run_step _ _ _ _) as [ | | | | ???? Hred] => //.
       destruct (es_is_trap es') => //.
-      destruct (const_list es') eqn:Hconstlist => //; last by destruct (run_step_with_measure _ hs' s'0 f' es').
+      destruct (const_list es') eqn:Hconstlist => //; last by destruct (interpreter_func.run_step _ hs' s'0 f' es').
       destruct (split_vals_e es') eqn:Hsplit => //; simpl in Hglobinit.
       do 2 destruct l as [ | ? l] => //.
       injection Hglobinit as ->.

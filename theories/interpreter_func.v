@@ -2244,50 +2244,9 @@ Proof.
     destruct (split_vals_e es'') eqn:Hes.
     by inversion Hsplitvals.
 Qed.
-    
-Theorem run_step (measure: nat) hs s f (es: list administrative_instruction) (Hmeasure: run_step_measure es = measure): res_step' hs s f es
-  with
-  run_one_step'' (measure: nat) hs s f ves e (Htrap : (e_is_trap e) = false) (Hconst : (is_const e) = false) (Hmeasure: run_one_step_measure e = measure) : res_step'_separate_e hs s f ves e.
-Proof.
-  (* run_step *)
-  (** Framing out constants. **)
-  {
-    clear run_step.
-    unfold run_step_measure in Hmeasure.
-    destruct (split_vals_e es) as [ves es'] eqn:Heqes.
-    destruct es' as [|e es''] eqn:Heqes'.
-    * (* es' = [::] *)
-      apply RS'_value. by apply value_split_0 with (ves := ves).
-    * (* es' = e :: es'' *)
-      destruct (e_is_trap e) eqn:Htrap.
-      + destruct ((es'' != [::]) || (ves != [::])) eqn:?.
-        -- apply <<hs, s, f, [:: AI_trap]>>.
-           by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
-        -- apply RS'_value.
-           by apply value_trap with (e := e) (es'' := es'') (ves := ves).
-      + remember (split_vals_e_not_const Heqes) as Hconst.
-        destruct measure as [|measure']=> //.
-        injection Hmeasure; clear Hmeasure; move => Hmeasure.
-        remember (run_one_step'' measure' hs s f (rev ves) e Htrap Hconst Hmeasure) as r.
-        destruct r as [| k bvs Hbr | rvs | hs' s' f' res].
-        -- (* RS''_error *)
-           apply RS'_error.
-           by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
-        -- (* RS''_break *)
-           apply RS'_break with (k := k) (bvs := bvs).
-           (* XXX why is there rev ves (unfoldfed v_to_e_list) in Hbr? *)
-           by apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
-        -- (* RS''_return rvs *)
-           apply RS'_return with (rvs := rvs).
-           by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
-        -- (* RS''_normal hs' s' f' res *)
-           apply <<hs', s', f', (res ++ es'')>>.
-           by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
-  }
-  
-  (* run_one_step'' *)
-  {
-    clear run_one_step''.
+
+Theorem run_one_step'' hs s f ves e: (forall hs s f es, (run_step_measure es < S (run_one_step_measure e))%coq_nat -> res_step' hs s f es) -> e_is_trap e = false -> is_const e = false -> res_step'_separate_e hs s f ves e.
+  move => run_step_aux Htrap Hconst.
   (* initial es, useful as an arg for reduce *)
   remember ((vs_to_es ves) ++ [::e]) as es0 eqn:Heqes0.
     destruct e as [
@@ -2354,7 +2313,7 @@ Proof.
         by apply reduce_select_false.
       + (* false *)
         apply <<hs, s, f, vs_to_es (v1 :: ves')>>'.
-        by apply reduce_select_true; lias.
+        by apply reduce_select_true; clear run_step_aux; lias.
 
     * (* AI_basic (BI_block (Tf t1s t2s) es) *)
       destruct (length ves >= length t1s) eqn:?.
@@ -2367,7 +2326,7 @@ Proof.
         apply RS''_error.
         (* TODO should use length in lemmas instead? *)
         repeat rewrite length_is_size in Heqb.
-        by apply block_error; lias.
+        by apply block_error; clear - Heqb; lias.
 
     * (* AI_basic (BI_loop (Tf t1s t2s) es) *)
       destruct (length ves >= length t1s) eqn:?.
@@ -2379,7 +2338,7 @@ Proof.
         by apply reduce_loop.
       + (* false *)
         apply RS''_error.
-        apply loop_error; repeat rewrite -length_is_size; lias.
+        apply loop_error; repeat rewrite -length_is_size; clear run_step_aux; lias.
 
     * (* AI_basic (BI_if tf es1 es2) *)
       destruct ves as [|v ves'] eqn:?;
@@ -2413,7 +2372,7 @@ Proof.
          by eapply reduce_br_if_false.
       ** (* false *)
          apply <<hs, s, f, vs_to_es ves' ++ [:: AI_basic (BI_br j)]>>'.
-         by eapply reduce_br_if_true; lias.
+         by eapply reduce_br_if_true; clear run_step_aux; lias.
 
     * (* AI_basic (BI_br_table js j) *)
       destruct ves as [|v ves'];
@@ -2433,7 +2392,7 @@ Proof.
            by apply br_table_error_kth with (k := k) (c := c) (ves' := ves').
       + (* false *)
         apply <<hs, s, f, vs_to_es ves' ++ [::AI_basic (BI_br j)]>>'.
-        by apply reduce_br_table_length with (k := k); lias.
+        by apply reduce_br_table_length with (k := k); clear run_step_aux; lias.
 
     * (* AI_basic BI_return *)
       apply RS''_return with (rvs := ves).
@@ -2483,7 +2442,7 @@ Proof.
         -- (* None *)
            apply RS''_error. by apply get_local_error_jth_none.
       + (* false *)
-        apply RS''_error. by apply get_local_error_length; lias.
+        apply RS''_error. by apply get_local_error_length; clear run_step_aux; lias.
 
     * (* AI_basic (BI_set_local j) *)
       destruct ves as [|v ves'] eqn:?.
@@ -2571,9 +2530,9 @@ Proof.
                  apply <<hs, s, f, vs_to_es ves' ++ [:: AI_trap]>>'.
                  by apply reduce_load_failure
                    with (c := c) (j := j) (mem_s_j := mem_s_j).
-           ** (* None*)
+           ** (* None *)
               apply RS''_error. by eapply load_error_jth with (j := j).
-        -- (* None*)
+        -- (* None *)
            apply RS''_error. by eapply load_error_smem_ind.
 
     * (* AI_basic (BI_store t (Some tp) a off) *)
@@ -2815,11 +2774,10 @@ Proof.
            apply <<hs, s, f, vs_to_es ves ++ es>>'.
            by apply reduce_label_const.
         -- (* false *)
-          simpl in Hmeasure.
-          destruct measure as [|measure'] => //.
-          injection Hmeasure; clear Hmeasure; move => Hmeasure.
-          rewrite - run_step_measure_eq in Hmeasure; last done.
-          destruct (run_step measure' hs s f es Hmeasure) as
+          assert (run_step_measure es < S (run_one_step_measure (AI_label ln les es)))%coq_nat as Hmeasure.
+          { simpl. by rewrite run_step_measure_eq; lias. }
+          specialize (run_step_aux hs s f es Hmeasure).
+          destruct run_step_aux as
              [ Hv | Herr | n bvs H | rvs H | hs' s' f' es'] eqn:?.
            ** (* RS'_value hs s f Hv *)
               exfalso. by apply const_trap_contradiction with (es := es).
@@ -2864,12 +2822,11 @@ Proof.
               apply RS''_error.
               by apply local_error_const_len.
         -- (* false *)
-          simpl in Hmeasure.
-          destruct measure as [|measure'] => //.
-          injection Hmeasure; clear Hmeasure; move => Hmeasure.
-          rewrite - run_step_measure_eq in Hmeasure; last done.
-           destruct (run_step measure' hs s lf es Hmeasure) as
-             [ Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?.
+           assert (run_step_measure es < S (run_one_step_measure (AI_local ln lf es)))%coq_nat as Hmeasure.
+           { simpl. by rewrite run_step_measure_eq; lias. }
+           specialize (run_step_aux hs s lf es Hmeasure).
+           destruct run_step_aux as
+             [ Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?; clear Hmeasure.
            ** (* RS'_value hs s f Hv *)
               exfalso. by apply const_trap_contradiction with (es := es).
            ** (* RS'_error hs Herr *)
@@ -2889,16 +2846,57 @@ Proof.
            ** (* RS'_normal hs s f es hs' s' f' es' *)
               apply <<hs', s', f, vs_to_es ves ++ [:: AI_local ln f' es']>>'.
               by apply reduce_local_rec.
-  }
 Defined.
 
+Definition run_step_aux hs s f (es: list administrative_instruction) (run_step_aux_rec: forall hs s f es0, (run_step_measure es0 < run_step_measure es)%coq_nat -> res_step' hs s f es0) : res_step' hs s f es.
+Proof.
+  (** Framing out constants. **)
+  destruct (split_vals_e es) as [ves es'] eqn:Heqes.
+  destruct es' as [|e es''] eqn:Heqes'.
+  * (* es' = [::] *)
+    apply RS'_value. by apply value_split_0 with (ves := ves).
+  * (* es' = e :: es'' *)
+    destruct (e_is_trap e) eqn:Htrap.
+  + destruct ((es'' != [::]) || (ves != [::])) eqn:?.
+    -- apply <<hs, s, f, [:: AI_trap]>>.
+       by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
+    -- apply RS'_value.
+       by apply value_trap with (e := e) (es'' := es'') (ves := ves).
+  + remember (split_vals_e_not_const Heqes) as Hconst.
+    assert (run_step_measure es = S (run_one_step_measure e)) as Hmeasure.
+    { unfold run_step_measure. by rewrite Heqes. }
+    rewrite Hmeasure in run_step_aux_rec.
+    remember (run_one_step'' hs s f (rev ves) run_step_aux_rec Htrap Hconst) as r.
+    destruct r as [| k bvs Hbr | rvs | hs' s' f' res].
+    -- (* RS''_error *)
+      apply RS'_error.
+      by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
+    -- (* RS''_break *)
+      apply RS'_break with (k := k) (bvs := bvs).
+      (* XXX why is there rev ves (unfoldfed v_to_e_list) in Hbr? *)
+      by apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
+    -- (* RS''_return rvs *)
+      apply RS'_return with (rvs := rvs).
+      by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
+    -- (* RS''_normal hs' s' f' res *)
+      apply <<hs', s', f', (res ++ es'')>>.
+      by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
+Defined.
+
+Program Fixpoint run_step hs s f es {measure (run_step_measure es)}: res_step' hs s f es :=
+  run_step_aux hs s f run_step.
+
+  (*
+
+
+*)  
+  (* run_one_step'' *)
+ 
+    
+
+
+
 (***************************************)
-
-Definition run_step_with_measure hs s f es :=
-  @run_step (run_step_measure es) hs s f es (Logic.eq_refl (run_step_measure es)).
-
-
-
 
 (* Extracting a pure interpreter without proofs *)
 Inductive res_step : Type :=
@@ -2920,7 +2918,7 @@ Definition res_tuple := (host_state * store_record * frame * res_step)%type.
 
 Definition run_step_compat (cfg : config_tuple) : res_tuple :=
   let: (hs, s, f, es) := cfg in
-  match run_step_with_measure hs s f es with
+  match run_step hs s f es with
   | RS'_normal hs' s' f' es' _ => (hs', s', f', RS_normal es')
   | _ => (hs, s, f, RS_crash C_error)
   end.
@@ -2935,7 +2933,7 @@ Fixpoint run_v hs s f es (fuel : nat) : ((host_state * store_record * res)%type)
       if const_list es
       then (hs, s, R_value (fst (split_vals_e es)))
       else
-        match run_step_with_measure hs s f es with
+        match run_step hs s f es with
         | RS'_normal hs' s' f' es' _ => run_v hs' s' f' es' fuel
         | RS'_error _ => (hs, s, R_crash C_error)
         | _ => (hs, s, R_crash C_error)
@@ -2961,7 +2959,7 @@ Lemma t_progress_e_interpreter : forall s C C' f vcs es t1s t2s lab ret (hs : ho
     exists s' f' es' hs', reduce hs s f (v_to_e_list vcs ++ es) hs' s' f' es'.
 Proof.
   intros s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
-  destruct (run_step_with_measure hs s f (v_to_e_list vcs ++ es))
+  destruct (run_step hs s f (v_to_e_list vcs ++ es))
     as [Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
   - (* RS'_value *)
     left. unfold terminal_form.
