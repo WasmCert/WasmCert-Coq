@@ -456,9 +456,14 @@ Inductive administrative_instruction : Type := (* e *)
 | AI_local : nat -> frame -> seq administrative_instruction -> administrative_instruction
 .
 
-Inductive lholed : Type :=
-| LH_base : list administrative_instruction -> list administrative_instruction -> lholed
-| LH_rec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+(** std-doc:
+In order to specify the reduction of branches, the following syntax of block contexts is defined, indexed by the count k of labels surrounding a hole [_] that marks the place where the next step of computation is taking place:
+https://www.w3.org/TR/wasm-core-1/#syntax-ctxt-block
+ *)
+
+Inductive lholed : nat -> Type :=
+| LH_base : list value -> list administrative_instruction -> lholed 0
+| LH_rec {k: nat}: list value -> nat -> list administrative_instruction -> lholed k -> list administrative_instruction -> lholed (S k)
 .
 
 (** std-doc:

@@ -351,19 +351,11 @@ Proof.
   - by inversion H.
   - by do 2 destruct vcs as [| ? vcs] => //.
   - by do 2 destruct vcs as [| ? vcs] => //.
-  - move/lfilledP in H.
-    move/lfilledP in H0.
-    inversion H; inversion H0; subst; clear H; clear H0; try by destruct k0.
-    2: { by do 2 destruct vs as [| ? vs] => //. }
-    injection H8 as ->; subst.
-    destruct vs as [ | a ?] => //; last by destruct a; try by destruct b => //.
-    destruct es, es'; simpl in *; subst => //.
-    { by destruct es'. }
-    { by destruct es. }
-    destruct es, es', es'0 => //.
-    simpl in *.
-    injection H1 as ->.
-    injection H6 as ->.
+  - destruct lh as [vs ? | ? vs]; simpl in *; last by destruct vs.
+    destruct vs => //; simpl in *.
+    destruct es; first by simpl in *; subst; do 2 destruct es' as [| ? es'] => //.
+    destruct es'; first by simpl in *; subst; do 2 destruct es as [| ? es] => //.
+    destruct es, es', l => //; simpl in *; subst.
     by apply IHHred.
 Qed.
 

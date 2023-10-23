@@ -221,9 +221,6 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.
-Let res_step := res_step host_function.*)
 
 Let administrative_instruction_rect :=
   @administrative_instruction_rect (*host_function*)
@@ -334,18 +331,6 @@ Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrati
 Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
-Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality.
-       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
-Defined.
-
-Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
-Definition eqlholedP : Equality.axiom lholed_eqb :=
-  eq_dec_Equality_axiom lholed_eq_dec.
-
-Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
-Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
-
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.
@@ -376,3 +361,43 @@ Canonical Structure memory_type_eqType := Eval hnf in EqType memory_type memory_
 
 End Host.
 
+Require Import Program.
+
+Section lholed_eq.
+
+Ltac decide_eq_arg x y :=
+  let Heq := fresh "Heq" in
+  let Hcontra := fresh "Hcontra" in
+  destruct (x == y) eqn:Heq; move/eqP in Heq; subst; last by right; move => Hcontra; injection Hcontra.
+  
+Definition lholed_eq_dec {k: nat} : forall v1 v2 : lholed k, {v1 = v2} + {v1 <> v2}.
+Proof.
+  move => v1.
+  induction v1 as [vs1 es1 | ? vs1 k1 es1 lh1 IHlh es1']; dependent destruction v2 => //.
+  {
+    decide_eq_arg vs1 l.
+    decide_eq_arg es1 l0.
+    by left.
+  }
+  {
+    decide_eq_arg vs1 l.
+    decide_eq_arg k1 n.
+    decide_eq_arg es1 l0.
+    decide_eq_arg es1' l1.
+    destruct (IHlh v2) as [ | Hneq]; subst; first by left.
+    right. move => Hcontra; apply Hneq.
+    clear - Hcontra.
+    inversion Hcontra; subst; clear Hcontra.
+    by apply inj_pair2 in H0.
+  }
+Defined.
+
+Definition lholed_eqb {k} (v1 v2: lholed k) : bool := lholed_eq_dec v1 v2.
+
+Definition eqlholedP {k} :=
+  eq_dec_Equality_axiom (@lholed_eq_dec k).
+
+Canonical Structure lholed_eqMixin {k} := EqMixin (@eqlholedP k).
+Canonical Structure lholed_eqType {k} := Eval hnf in EqType (@lholed k) (@lholed_eqMixin k).
+
+End lholed_eq.
