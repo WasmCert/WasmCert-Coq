@@ -1,11 +1,7 @@
-(include_subdirs qualified)
-
-
 (coq.theory
   (name Wasm)
+  (package coq-iris-wasm)
   (flags -w -ambiguous-paths -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier))
 
-;(coq.extraction
-;	(prelude extraction)
-;	(extracted_modules extract))
+(include_subdirs qualified)
 

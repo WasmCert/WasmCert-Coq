@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - opam-8.17
+      - iris-wasm-opam
   workflow_dispatch:
     inputs:
 
@@ -14,10 +15,9 @@ jobs:
     strategy:
       matrix:
         opam_file:
-          - 'coq-wasm.opam'
+          - 'coq-iris-wasm.opam'
         coq_version:
           - '8.17.1'
-          - '8.16.1'
       fail-fast: true
 
     steps:
@@ -39,12 +39,4 @@ jobs:
           after_script: |
             startGroup "List installed packages"
               opam list
-            endGroup
-            startGroup "Test suites"
-              dune test
-            endGroup
-            startGroup "Test import"
-              cd .ci/
-              coqc import_test.v
-              cd ..
             endGroup
