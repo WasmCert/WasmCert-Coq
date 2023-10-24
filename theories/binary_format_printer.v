@@ -2,7 +2,7 @@
 Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
 Require Import datatypes_properties numerics.
 From compcert Require Integers.
-Require Import Byte.
+Require Import Strings.Byte.
 Require leb128.
 Require Import Coq.Arith.Le.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -40,10 +40,10 @@ Definition binary_of_memarg a o : list byte :=
   binary_of_u32_nat a ++ binary_of_u32_nat o.
 
 Definition binary_of_i32 (x : i32) : list byte :=
-  leb128.encode_signed x.(Wasm_int.Int32.intval).
+  leb128.encode_signed (Wasm_int.Int32.signed x).
 
 Definition binary_of_i64 (x : i64) : list byte :=
-  leb128.encode_signed x.(Wasm_int.Int64.intval).
+  leb128.encode_signed (Wasm_int.Int64.signed x).
 
 Definition binary_of_f32 (x : f32) : list byte :=
   List.map byte_of_compcert_byte (serialise_f32 x).
@@ -418,7 +418,7 @@ Definition binary_of_module_start (s : module_start) : list byte :=
   binary_of_funcidx s.(modstart_func).
 
 Definition binary_of_startsec (s : module_start) : list byte :=
-  x08 :: with_length (binary_of_vec binary_of_module_start (cons s nil)).
+  x08 :: with_length (binary_of_module_start s).
 
 Definition binary_of_module_elem (e : module_element) : list byte :=
   binary_of_tableidx e.(modelem_table) ++

@@ -2,8 +2,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
-From Coq Require Import Program.
-From StrongInduction Require Import StrongInduction Inductions.
+From Coq Require Import Program Wf_nat.
 
 Require Import Lia.
 
@@ -1653,7 +1652,7 @@ Lemma tc_to_bet_conj d:
   c_types_agree cts' tm ->
   exists tn, c_types_agree cts tn /\ be_typing C ([:: e]) (Tf tn tm)).
 Proof with auto_rewrite_cond.
-  strong induction d => //=.
+  induction (lt_wf d) as [d _ IHd] => //=.
   split.
   (* List *) 
   - move => c cts bes.
@@ -1673,7 +1672,7 @@ Proof with auto_rewrite_cond.
       symmetry in Heqbesct.
       assert (be_size_single e < d)%coq_nat as Hmeasure; first by lias.
       assert (be_size_list bes < d)%coq_nat as Hmeasure2; first by lias.
-      specialize H with (be_size_single e) as Hs1.
+      specialize IHd with (be_size_single e) as Hs1.
       apply Hs1 in Hmeasure.
       destruct Hmeasure as [_ Hmeasure].
       eapply Hmeasure in Heqect => //; last by apply Hbetc.
@@ -1718,13 +1717,13 @@ Proof with auto_rewrite_cond.
         rewrite size_cat take_cat => /=.
         replace (size l + 1 - 1) with (size l); last by lias.
         rewrite take_size subnn cats0.
-        replace (size l < size l) with false; last by clear H; lias.
+        replace (size l < size l) with false; last by clear IHd; lias.
         apply bet_weakening_empty_2.
         by apply bet_drop.
     + by apply type_update_select_agree_bet.
     + fold_remember_check.
       assert (be_size_list l < d)%coq_nat as Hmeasure; first by unfold be_size_list; lias.
-      apply H in Hmeasure.
+      apply IHd in Hmeasure.
       destruct Hmeasure as [IH _].
       eapply IH in if_expr0 => //; last by rewrite Heqres_check.
       destruct if_expr0 as [tn'' [Hct1 Hbet]].
@@ -1737,7 +1736,7 @@ Proof with auto_rewrite_cond.
       by apply bet_weakening.
     + fold_remember_check.
       assert (be_size_list l < d)%coq_nat as Hmeasure; first by unfold be_size_list; lias.
-      apply H in Hmeasure.
+      apply IHd in Hmeasure.
       destruct Hmeasure as [IH _].
       eapply IH in if_expr0 => //; last by rewrite Heqres_check.
       destruct if_expr0 as [tn'' [Hct1 Hbet]].
@@ -1753,14 +1752,14 @@ Proof with auto_rewrite_cond.
       fold (be_size_list l0) in Hs.
       assert (be_size_list l < d)%coq_nat as Hmeasure1; first by lias.
       assert (be_size_list l0 < d)%coq_nat as Hmeasure2; first by lias.
-      apply H in Hmeasure1.
+      apply IHd in Hmeasure1.
       destruct Hmeasure1 as [IH1 _].
-      apply H in Hmeasure2.
+      apply IHd in Hmeasure2.
       destruct Hmeasure2 as [IH2 _].
-      eapply IH1 in H0 => //; last by rewrite Heqres_check0.
-      eapply IH2 in H1 => //; last by rewrite Heqres_check.
-      destruct H0 as [tn1'' [Hctif1 Hbet1]].
-      destruct H1 as [tn2'' [Hctif2 Hbet2]].
+      eapply IH2 in H0 => //; last by rewrite Heqres_check.
+      eapply IH1 in H => //; last by rewrite Heqres_check0.
+      destruct H as [tn1'' [Hctif1 Hbet1]].
+      destruct H0 as [tn2'' [Hctif2 Hbet2]].
       simpl in *.
       move/eqP in Hctif1; subst.
       move/eqP in Hctif2; subst.
@@ -1929,13 +1928,13 @@ Proof with auto_rewrite_cond.
       apply bet_weakening.
       unfold convert_cond in if_expr0...
       apply bet_convert => //.
-      by move/eqP in H0.
+      by move/eqP in H.
     + replace ([::CTA_some v0]) with (to_ct_list [::v0]) in Hct2 => //=.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hct bet]]; subst.
       exists (tn' ++ [::v0]); split => //.
       apply bet_weakening.
-      apply bet_reinterpret => //; by [ move/eqP in H0 | rewrite H2; apply/eqP].
+      apply bet_reinterpret => //; by [ move/eqP in H | rewrite H1; apply/eqP].
 Qed.
 
 Lemma tc_to_bet_list: forall C cts bes tm cts',

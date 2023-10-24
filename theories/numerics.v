@@ -2,9 +2,11 @@
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 Require Import common.
-From Coq Require ZArith.Int ZArith.BinInt.
+From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+
+From Flocq Require Import Core.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -31,7 +33,7 @@ Coercion Z.of_nat : nat >-> Z.
   These are typically used in the specification to convert to and
   from list lengths and other computed values:
   - [int_of_Z] converts a [Z] into [int_t].  The number is considered
-    modulo the maximum representable interger.  It doesn’t matter
+    modulo the maximum representable integer.  It doesn’t matter
     whether the number is meant to be considered as signed or unsigned,
     as both would return the same representation: signedness is only
     important when interpreting the stored integer, not when converting
@@ -648,6 +650,46 @@ Proof.
   - move: wordsize_modulus. by lias.
 Qed.
 
+Lemma ctz_wordsize : forall i,
+  ctz i = repr wordsize ->
+  i = repr 0.
+Proof.
+  rewrite/clz. move=> i E.
+  apply repr_inv in E.
+  - have: ~~ seq.has (fun b => b == true) (rev (convert_to_bits i)).
+    { rewrite has_find. rewrite size_rev convert_to_bits_size. by lias. }
+    rewrite -all_predC => N.
+    have Ec: (rev (convert_to_bits i) = convert_to_bits zero).
+    {
+      move/all_nthP: N => /= F. rewrite size_rev convert_to_bits_size in F.
+      apply (@seq_nth_eq _ false).
+      - rewrite size_rev. by repeat rewrite convert_to_bits_size.
+      - rewrite size_rev convert_to_bits_size => n I. rewrite convert_to_bits_zero nth_nseq.
+        move: (F false n I). move/eqP. destruct nth => //.
+          by destruct leq.
+    }
+    apply rev_move in Ec.
+    have Ep: (rev (convert_to_bits zero) = convert_to_bits zero).
+    { by rewrite convert_to_bits_zero rev_nseq => //. }
+    rewrite Ep in Ec.
+    apply: convert_to_bits_inj Ec.
+  - split; first by lias. apply: (Z.le_lt_trans _ _ _ _ wordsize_modulus).
+    match goal with |- context C [find ?p ?l] => move: (find_size p l) end.
+    rewrite size_rev convert_to_bits_size. by lias.
+  - move: wordsize_modulus. by lias.
+Qed.
+
+(* FIXME: stuff that we may want to prove. 
+Lemma popcnt_wordsize : forall i,
+  popcnt i = repr wordsize ->
+  i = repr 0.
+
+Lemma ctz_shl : forall i k,
+  ctz (shl i k) = min wordsize (ctz i + k).
+
+Lemma clz_shr : forall i k,
+  clz (shr i k) = min wordsize (clz i + k).
+*)
 
 (** The following definitions mirrors as close as possible the specification
   of the corresponding operation in
@@ -875,7 +917,8 @@ Definition ixor : T -> T -> T := xor.
 
 (** Return the result of shifting left the first number by the second. **)
 Definition ishl (i1 i2 : T) : T :=
-(* TODO: We would like to better the specification here.  Something like:
+(* TODO: We could slightly improve the specification here to make it closer to the Wasm specification.
+Something like:
 [[
   let: k := (unsigned i1 mod wordsize)%Z in
   shl k i2.
@@ -887,6 +930,26 @@ Definition ishl (i1 i2 : T) : T :=
 (* TODO: Make it match better the specification. *)
 Definition ishr_u : T -> T -> T := shru.
 
+(* TODO
+(** Shift [i] by [k] bits, extended with the most significant bit of the original value. **)
+Definition shift_signed l k :=
+  if k is k.+1 then
+    if l is d :: l then
+      let: l := d :: d :: l (* TODO: Drop the last one. *) in
+      shift_signed l k
+    else l
+  else l.
+
+Definition ishr_s (i1 i2 : T) :=
+  let: k := unsigned i2 mod wordsize in
+  let: r := shift_signed (convert_to_bits i1) k in
+  (* TODO: convert back to a number. *)
+
+(* LATER
+Lemma ishr_s_shr : forall i1 i2,
+  ishr_s i1 i2 = shr i1 i2.
+*)
+*)
 
 Definition Tmixin : mixin_of T := {|
      int_zero := zero ;
@@ -1088,6 +1151,8 @@ Import Raux.
 
 Import Floats.
 
+Import ZArith.BinInt.
+
 Parameters prec emax : Z.
 
 Parameter prec_gt_0 : FLX.Prec_gt_0 prec.
@@ -1126,6 +1191,8 @@ Import Floats.
 
 Include Float32.
 
+Import ZArith.BinInt.
+
 Definition prec : BinNums.Z := 24.
 Definition emax : BinNums.Z := 128.
 
@@ -1152,6 +1219,9 @@ Import Floats.
 
 Include Float.
 
+
+Import ZArith.BinInt.
+
 Definition prec : BinNums.Z := 53.
 Definition emax : BinNums.Z := 1024.
 
@@ -1174,12 +1244,11 @@ End FloatSize64.
 
 Module Make (FS : FloatSize).
 
+(* Import Zpower BinIntDef. *)
 Import Integers.
-
 Import Raux.
-
+Import ZArith.
 Import Floats.
-
 Export FS.
 
 Definition eqb v1 v2 := is_left (eq_dec v1 v2).
@@ -1213,6 +1282,7 @@ Definition pos_zero : T := Binary.B754_zero _ _ false.
 
 (** [-0] **)
 Definition neg_zero : T := Binary.B754_zero _ _ true.
+
 
 (** The canonical [NaN] payload. **)
 Definition canonical_pl := shift_pos (Z.to_pos prec - 2) 1.
@@ -1391,11 +1461,12 @@ Proof.
   by apply: (svalP unspec_nan_nan).
 Defined.
 
+
 (** Given a mantissa and an exponent (in radix two), produce a representation for a float.
   The sign is not specified if given 0 as a mantissa. **)
 Definition normalise (m e : Z) : T :=
   Binary.binary_normalize _ _ prec_gt_0 Hmax
-    Binary.mode_NE m e ltac:(abstract exact false).
+    BinarySingleNaN.mode_NE m e ltac:(abstract exact false).
 
 (** As Flocq is unfortunately undocumented, let us introduce a unit test here, to check
   that indeed we have the correct understanding of definitions.
@@ -1408,7 +1479,7 @@ Local Definition normalise_unit_test :=
   let: half := normalise 1 (-1) in
   let: twice_half :=
     Binary.Bplus _ _ prec_gt_0 Hmax (fun _ _ => unspec_nan_nan)
-      Binary.mode_NE half half : T in
+      BinarySingleNaN.mode_NE half half : T in
   let: one := Binary.Bone _ _ prec_gt_0 Hmax in
   cmp Ceq twice_half one = true.
 
@@ -1438,7 +1509,7 @@ Qed.
 (** Importing the square root of floats from the Flocq library with the
   round-to-nearest ties-to-even mode. **)
 Definition sqrt (z : T) : T :=
-  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun z => exist _ _ (nans_is_nan [:: z])) Binary.mode_NE z.
+  Binary.Bsqrt _ _ prec_gt_0 Hmax (fun z => exist _ _ (nans_is_nan [:: z])) BinarySingleNaN.mode_NE z.
 
 (** Square root following the Wasm standard. **)
 
@@ -1617,10 +1688,10 @@ Definition fmul (z1 z2 : T) :=
   else if is_infinity z1 && is_infinity z2 then
     if sign z1 == sign z2 then pos_infinity
     else neg_infinity
-  else if is_infinity z2 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z2 && sign z1 != sign z2 then neg_infinity
-  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
+  else if is_infinity z2 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z1 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z2 && (sign z1 != sign z2) then neg_infinity
+  else if is_infinity z1 && (sign z1 != sign z2) then neg_infinity
   else if is_zero z1 && is_zero z2 then
     if sign z1 == sign z2 then pos_zero
     else (** [z1 = ±0], [z2 = ∓0] **) neg_zero
@@ -1630,14 +1701,14 @@ Definition fdiv (z1 z2 : T) :=
   if is_nan z1 || is_nan z2 then nans [:: z1; z2]
   else if is_infinity z1 && is_infinity z2 then nans [:: ]
   else if is_zero z2 && is_zero z1 then nans [:: z1; z2]
-  else if is_infinity z1 && sign z1 == sign z2 then pos_infinity
-  else if is_infinity z1 && sign z1 != sign z2 then neg_infinity
-  else if is_infinity z2 && sign z1 == sign z2 then pos_zero
-  else if is_infinity z2 && sign z1 != sign z2 then neg_zero
-  else if is_zero z1 && sign z1 == sign z2 then pos_zero
-  else if is_zero z1 && sign z1 != sign z2 then neg_zero
-  else if is_zero z2 && sign z1 == sign z2 then pos_infinity
-  else if is_zero z2 && sign z1 != sign z2 then pos_infinity
+  else if is_infinity z1 && (sign z1 == sign z2) then pos_infinity
+  else if is_infinity z1 && (sign z1 != sign z2) then neg_infinity
+  else if is_infinity z2 && (sign z1 == sign z2) then pos_zero
+  else if is_infinity z2 && (sign z1 != sign z2) then neg_zero
+  else if is_zero z1 && (sign z1 == sign z2) then pos_zero
+  else if is_zero z1 && (sign z1 != sign z2) then neg_zero
+  else if is_zero z2 && (sign z1 == sign z2) then pos_infinity
+  else if is_zero z2 && (sign z1 != sign z2) then pos_infinity
   else div z1 z2.
 
 Definition fmin (z1 z2 : T) :=
@@ -1645,7 +1716,7 @@ Definition fmin (z1 z2 : T) :=
   else if (z1 == neg_infinity) || (z2 == neg_infinity) then neg_infinity
   else if z1 == pos_infinity then z2
   else if z2 == pos_infinity then z1
-  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then neg_zero
+  else if is_zero z1 && is_zero z2 && (sign z1 != sign z2) then neg_zero
   else if cmp Clt z1 z2 then z1 else z2.
 
 Definition fmax (z1 z2 : T) :=
@@ -1653,7 +1724,7 @@ Definition fmax (z1 z2 : T) :=
   else if (z1 == pos_infinity) || (z2 == pos_infinity) then pos_infinity
   else if z1 == neg_infinity then z2
   else if z2 == neg_infinity then z1
-  else if is_zero z1 && is_zero z2 && sign z1 != sign z2 then pos_zero
+  else if is_zero z1 && is_zero z2 && (sign z1 != sign z2) then pos_zero
   else if cmp Cgt z1 z2 then z1 else z2.
 
 Definition fcopysign (f1 f2 : T) :=
@@ -1793,6 +1864,42 @@ Module Float64.
 Include Make(FloatSize64).
 End Float64.
 
+(** ** Unit Tests **)
+
+Lemma normalise_unit_test_64 : Float64.normalise_unit_test.
+Proof. reflexivity. Qed.
+
+Lemma ceil_unit_test_1_ok : Float64.ceil_unit_test_1.
+Proof. reflexivity. Qed.
+
+Lemma ceil_unit_test_2_ok : Float64.ceil_unit_test_2.
+Proof. reflexivity. Qed.
+
+Lemma floor_unit_test_1_ok : Float64.floor_unit_test_1.
+Proof. reflexivity. Qed.
+
+Lemma floor_unit_test_2_ok : Float64.floor_unit_test_2.
+Proof. reflexivity. Qed.
+
+Lemma trunc_unit_test_1_ok : Float64.trunc_unit_test_1.
+Proof. reflexivity. Qed.
+
+Lemma trunc_unit_test_2_ok : Float64.trunc_unit_test_2.
+Proof. reflexivity. Qed.
+
+Lemma nearest_unit_test_1_ok : Float64.nearest_unit_test_1.
+Proof. reflexivity. Qed.
+
+Lemma nearest_unit_test_2_ok : Float64.nearest_unit_test_2.
+Proof. reflexivity. Qed.
+
+Lemma nearest_unit_test_3_ok : Float64.nearest_unit_test_3.
+Proof. reflexivity. Qed.
+
+Lemma nearest_unit_test_4_ok : Float64.nearest_unit_test_4.
+Proof. reflexivity. Qed.
+
+
 End Wasm_float.
 
 Definition f32 : eqType := Wasm_float.Float32.eqType.
@@ -1809,14 +1916,14 @@ Definition wasm_demote (z : f64) : f32 :=
   else if Wasm_float.Float64.is_nan z then
     Wasm_float.Float32.nans [:: Wasm_float.Float32.BofZ (BinIntDef.Z.of_nat 1)]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize32.prec_gt_0 Wasm_float.FloatSize32.Hmax
-         (fun _ => Wasm_float.Float32.unspec_nan_nan) Binary.mode_NE z.
+         (fun _ => Wasm_float.Float32.unspec_nan_nan) BinarySingleNaN.mode_NE z.
 
 Definition wasm_promote (z : f32) : f64 :=
   if Wasm_float.Float32.is_canonical z then Wasm_float.Float64.nans [::]
   else if Wasm_float.Float32.is_nan z then
     Wasm_float.Float64.nans [:: Wasm_float.Float64.BofZ (BinIntDef.Z.of_nat 1)]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize64.prec_gt_0 Wasm_float.FloatSize64.Hmax
-         (fun _ => Wasm_float.Float64.unspec_nan_nan) Binary.mode_NE z.
+         (fun _ => Wasm_float.Float64.unspec_nan_nan) BinarySingleNaN.mode_NE z.
 
 Definition wasm_bool (b : bool) : i32 :=
   if b then Wasm_int.Int32.one else Wasm_int.Int32.zero.

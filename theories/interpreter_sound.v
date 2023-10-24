@@ -3,7 +3,6 @@
 
 From Wasm Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From StrongInduction Require Import StrongInduction Inductions.
 From ITree Require Import ITree ITreeFacts.
 
 Set Implicit Arguments.
