@@ -13,6 +13,7 @@
   (synopsis "Wasm formalisation in Coq")
   (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
   (depends
+    (ocaml (>= 4.08.0))
     (coq (and (>= 8.13.2) (<= 8.13.2)))
     coq-compcert
     (coq-mathcomp-ssreflect (<= 1.17.0))
