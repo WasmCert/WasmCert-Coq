@@ -20,7 +20,6 @@
     (coq-iris (<= 3.6.0))
     coq-stdpp
     (coq-parseque (>= 0.1.0))
-    (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
   )
