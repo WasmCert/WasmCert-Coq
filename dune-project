@@ -2,7 +2,7 @@
 (using coq 0.2)
 (using mdx 0.2)
 (name coq-iris-wasm)
-(version 0.1)
+(version da711c7-dirty)
 
 (generate_opam_files true)
 (license MIT)
@@ -13,7 +13,6 @@
   (synopsis "Wasm formalisation in Coq")
   (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
   (depends
-    (ocaml (>= 4.08.0))
     (coq (and (>= 8.13.2) (<= 8.13.2)))
     coq-compcert
     (coq-mathcomp-ssreflect (<= 1.17.0))

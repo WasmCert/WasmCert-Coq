@@ -3,7 +3,6 @@ name: Test compilation
 on:
   push:
     branches:
-      - master
       - iris-wasm-opam
   workflow_dispatch:
     inputs:
@@ -17,6 +16,8 @@ jobs:
           - 'coq-iris-wasm.opam'
         coq_version:
           - '8.13.2'
+        ocaml_version:
+          - '4.08.0'
       fail-fast: true
 
     steps:

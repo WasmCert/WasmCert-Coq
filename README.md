@@ -9,7 +9,7 @@ The old `esy` build can still be found on the branch `iris-wasm-native`, or on Z
 
 The project can be installed using opam.
 
-Compiling the dependencies requires having at least 4-8 GB of RAM on your computer.
+Compiling the dependencies and codebase requires having at least 8 GB of RAM on your computer and may take around 30 minutes.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
