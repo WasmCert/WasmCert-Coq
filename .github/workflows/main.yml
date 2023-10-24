@@ -1,0 +1,50 @@
+name: Test compilation
+
+on:
+  push:
+    branches:
+      - master
+      - opam-8.17
+  workflow_dispatch:
+    inputs:
+
+jobs:
+  build-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        opam_file:
+          - 'coq-wasm.opam'
+        coq_version:
+          - '8.17.1'
+          - '8.16.1'
+      fail-fast: true
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: coq-community/docker-coq-action@v1
+        with:
+          opam_file: ${{ matrix.opam_file }}
+          coq_version: ${{ matrix.coq_version }}
+
+          before_install: |
+            startGroup "install dependencies"
+              sudo apt update
+              sudo apt install nano --yes
+
+              sudo chmod 777 ~/. -R
+              sudo chmod 777 . -R
+            endGroup
+          after_script: |
+            startGroup "List installed packages"
+              opam list
+            endGroup
+            startGroup "Test suites"
+              dune test
+            endGroup
+            startGroup "Test import"
+              cd .ci/
+              coqc import_test.v
+              cd ..
+            endGroup
