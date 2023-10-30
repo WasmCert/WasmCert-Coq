@@ -20,7 +20,7 @@ This work is in progress, comprising WasmCert-Coq, a Coq-Specification of the Wa
 
 # Program Logic
 
-This repository contains an instantiation of a Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native).
+This repository contains an instantiation of a Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-opam).
 
 # Binary Parser (experimental)
 This repository contains some experimental work on a parser for the binary format which is currently unverified. 
