@@ -987,8 +987,8 @@ Proof.
     }
     destruct es => //=; first by apply reduce_not_nil in Hred.
     destruct es, es'0 => //=.
-    simpl in H1.
-    inversion H1; subst; clear H1.
+    simpl in *.
+    inversion H5; subst; clear H5.
     by eapply IHHred.
   }
 Qed.
@@ -1017,25 +1017,20 @@ Proof.
   { inversion H; subst; clear H; try by repeat destruct vs => //.
     move/lfilledP in H1.
     inversion H1; subst.
-    destruct vs => //.
-    inversion H; subst.
     by destruct vs => //.
   }
   { by exists v. }
   { move/lfilledP in H.
     inversion H; subst; clear H; last by repeat destruct vs => //.
-    destruct vs => //=; last first.
-    { inversion H1; subst.
-      by destruct vs => //=.
-    }
-    simpl in H1.
+    destruct vs => //=.
+    simpl in *.
     destruct es => //=; first by apply reduce_not_nil in Hred.
     destruct es, es'0 => //=.
-    simpl in H1.
-    inversion H1; subst; clear H1.
-    move/lfilledP in H0.
-    inversion H0; subst; clear H0.
-    simpl; rewrite cats0.
+    simpl in *.
+    inversion H5; subst; clear H5.
+    unfold lfilled in H0; simpl in *.
+    move/eqP in H0; subst => /=.
+    rewrite app_nil_r.
     by apply IHHred.
   }
 Qed.

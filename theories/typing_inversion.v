@@ -1009,12 +1009,10 @@ Proof.
   - move => lh tss LI HLF ts2 ts HType HTSSLength.
     rewrite add0n in HLF.
     repeat rewrite catA in HType.
-    inversion HLF.
-    apply const_es_exists in H. destruct H. subst.
+    inversion HLF; subst; clear HLF.
     apply e_composition_typing in HType.
     destruct HType as [ts0 [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]].
-    destruct ts0 => //=.
-    destruct t1s => //=.
+    destruct ts0, t1s => //=.
     subst. clear H1.
     apply e_composition_typing in H4.
     destruct H4 as [ts0' [t1s' [t2s' [t3s' [H5 [H6 [H7 H8]]]]]]].
@@ -1057,10 +1055,8 @@ Proof.
     rewrite upd_label_overwrite in H12.
     rewrite -cat1s in H12. repeat rewrite catA in H12.
     remember ([::ts0''] ++ tss) as tss'. rewrite -catA in H12.
-    replace (n.+1+length tss) with (n + length tss') in H1.
-    eapply IHn => //=.
-    + by apply H1.
-    + by apply H12.
+    replace (n.+1+length tss) with (n + length tss') in H0.
+    eapply IHn => //=; eassumption.
     (* replace *)
     assert (length tss' = length tss + 1).
     { rewrite Heqtss'. rewrite cat1s. simpl. by rewrite addn1. }
@@ -1150,9 +1146,7 @@ Proof.
 
     (* from H11 : typing.e_typing s (upd_label C lab) vs0 (Tf [::] t3s2) *)
     (* show : t3s2 = map typeof vs0' *)
-    apply et_to_bet in H11; last by apply const_list_is_basic.
-    (* XXX fragile name H *)
-    apply const_es_exists in H. destruct H as [vs0' ?]. subst vs0.
+    apply et_to_bet in H11; last by apply const_list_is_basic, v_to_e_is_const_list.
     apply Const_list_typing in H11.
     simpl in H11. subst t3s2.
 
@@ -1193,7 +1187,7 @@ Proof.
     simpl in H12.
     apply H12.
     apply/lfilledP.
-    by apply H1.
+    eassumption.
 Qed.
 
 Lemma Local_return_typing: forall s C vs f LI tf n lh,

@@ -457,8 +457,8 @@ Inductive administrative_instruction : Type := (* e *)
 .
 
 Inductive lholed : Type :=
-| LH_base : list administrative_instruction -> list administrative_instruction -> lholed
-| LH_rec : list administrative_instruction -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
+| LH_base : list value -> list administrative_instruction -> lholed
+| LH_rec : list value -> nat -> list administrative_instruction -> lholed -> list administrative_instruction -> lholed
 .
 
 (** std-doc:
