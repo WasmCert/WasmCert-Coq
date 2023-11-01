@@ -3,7 +3,7 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
 Require Import Coq.Program.Equality List NArith.
 Require Export instantiation_spec.
-Require Export type_preservation type_progress.
+Require Export type_preservation type_progress properties.
 
 Notation "l !! n" := (List.nth_error l n) (at level 10).
 
@@ -973,22 +973,17 @@ Proof.
   move => Hred.
   dependent induction Hred; subst; try by repeat destruct vcs => //.
   { inversion H; subst; clear H; try by repeat destruct vs => //.
-    move/lfilledP in H1.
-    inversion H1; subst.
-    destruct vs => //.
-    inversion H; subst.
-    by destruct vs => //.
+    destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
   }
-  { move/lfilledP in H.
-    inversion H; subst; clear H; last by repeat destruct vs => //.
+  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //=.
     destruct vs => //=; last first.
-    { destruct vs, es, es'0 => //=.
+    { destruct vs, es, l => //=.
       by apply reduce_not_nil in Hred.
     }
     destruct es => //=; first by apply reduce_not_nil in Hred.
-    destruct es, es'0 => //=.
+    destruct es, l => //=.
     simpl in *.
-    inversion H5; subst; clear H5.
+    inversion H; subst; clear H.
     by eapply IHHred.
   }
 Qed.
@@ -1015,23 +1010,17 @@ Proof.
   move => Hred.
   dependent induction Hred; subst; try by repeat destruct vcs => //.
   { inversion H; subst; clear H; try by repeat destruct vs => //.
-    move/lfilledP in H1.
-    inversion H1; subst.
-    by destruct vs => //.
+    destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
   }
   { by exists v. }
-  { move/lfilledP in H.
-    inversion H; subst; clear H; last by repeat destruct vs => //.
+  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //=.
     destruct vs => //=.
-    simpl in *.
     destruct es => //=; first by apply reduce_not_nil in Hred.
-    destruct es, es'0 => //=.
+    destruct es, l => //=.
     simpl in *.
-    inversion H5; subst; clear H5.
-    unfold lfilled in H0; simpl in *.
-    move/eqP in H0; subst => /=.
-    rewrite app_nil_r.
-    by apply IHHred.
+    inversion H; subst; clear H.
+    rewrite cats0.
+    by eapply IHHred.
   }
 Qed.
     
@@ -1067,23 +1056,6 @@ Proof.
       by apply const_exprs_impl in Hbet; eauto.
     + by eapply IHmodglobs; eauto.
 Qed.
-
-(*
-Lemma modelems_const: forall tc modelems et,
-  Forall (module_elem_typing) modelems et ->
-  Forall (fun g => exists e, g.(modelem_init) = [::e] /\ const_expr tc e) modelems.
-Proof.
-  move => tc modglobs. move: tc.
-  induction modglobs; move => tc gt Hall2; destruct gt => //=.
-  - by apply Forall2_length in Hall2.
-  - inversion Hall2 as [ | ???? Ha Hall2']; subst.
-    constructor.
-    + unfold module_glob_typing in Ha.
-      destruct a => /=; destruct Ha as [Hconst [-> Hbet]].
-      by apply const_exprs_impl in Hbet; eauto.
-    + by eapply IHmodglobs; eauto.
-Qed.
-*)
 
 Local Definition instantiate_globals := instantiate_globals host_function host_instance.
 Local Definition instantiate_elem := instantiate_elem host_function host_instance.

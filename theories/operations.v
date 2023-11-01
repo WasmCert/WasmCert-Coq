@@ -564,8 +564,6 @@ Definition es_is_trap (es : seq administrative_instruction) : bool :=
   | _ => false
   end.
 
-
-
 (** Converting a result into a stack. **)
 Definition result_to_stack (r : result) :=
   match r with
@@ -573,28 +571,20 @@ Definition result_to_stack (r : result) :=
   | result_trap => [:: AI_trap]
   end.
 
-Fixpoint lfill (k : nat) (lh : lholed) (es : list administrative_instruction) : option (list administrative_instruction) :=
-  match k with
-  | 0 =>
-    if lh is LH_base vs es' then Some (app (v_to_e_list vs) (app es es'))
-    else None
-  | k'.+1 =>
-      if lh is LH_rec vs n es' lh' es'' then
-        if lfill k' lh' es is Some lfilledk then
-          Some (app (v_to_e_list vs) (cons (AI_label n es' lfilledk) es''))
-            else None
-    else None
+
+Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=
+  match lh with
+  | LH_base vs es' => v_to_e_list vs ++ es ++ es'
+  | LH_rec _ vs n es' lh' es'' => v_to_e_list vs ++ [:: AI_label n es' (lfill lh' es)] ++ es''
   end.
 
-Definition lfilled (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
-  if lfill k lh es is Some es'' then es' == es'' else false.
-
-Inductive lfilledInd : nat -> lholed -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
+(*
+Inductive lfilledInd {k}: lholed k -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
 | LfilledBase: forall vs es es',
-    lfilledInd 0 (LH_base vs es') es (v_to_e_list vs ++ es ++ es')
-| LfilledRec: forall k vs n es' lh' es'' es LI,
-    lfilledInd k lh' es LI ->
-    lfilledInd (k.+1) (LH_rec vs n es' lh' es'') es (v_to_e_list vs ++ [ :: (AI_label n es' LI) ] ++ es'').
+    lfilledInd (LH_base vs es') es (v_to_e_list vs ++ es ++ es')
+| LfilledRec: forall vs n es' lh' es'' es LI,
+    lfilledInd lh' es LI ->
+    lfilledInd (LH_rec vs n es' lh' es'') es (v_to_e_list vs ++ [ :: (AI_label n es' LI) ] ++ es'').
 
 Lemma lfilled_Ind_Equivalent: forall k lh es LI,
     lfilled k lh es LI <-> lfilledInd k lh es LI.
@@ -627,6 +617,24 @@ Proof.
   - apply ReflectF. move=> HContra. apply lfilled_Ind_Equivalent in HContra.
     by rewrite HLFBool in HContra.
 Qed.
+
+Fixpoint lfill_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
+  match k with
+  | 0 =>
+    if lh is LH_base nil nil then Some es else None
+  | k'.+1 =>
+    if lh is LH_rec vs n es' lh' es'' then
+      if const_list vs then
+        if lfill_exact k' lh' es is Some lfilledk then
+          Some (app vs (cons (AI_label n es' lfilledk) es''))
+        else None
+      else None
+    else None
+  end.
+
+Definition lfilled_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
+  if lfill_exact k lh es is Some es'' then es' == es'' else false.
+*)
 
 Definition result_types_agree (ts : result_type) r :=
   match r with
