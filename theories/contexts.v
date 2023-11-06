@@ -8,37 +8,98 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+
+(** Decidable equality of lholed without pulling in unnecessary 
+    equality axioms **)
+Section lholed_eqdec.
+
+Definition lholed_cast {k k'} (lh: lholed k) (Heq: k = k'): lholed k' :=
+  eq_rect k lholed lh k' Heq.
+
+(* Some combinations of theorem from standard library should give these as well,
+   but it's not clear which ones are axiom free *)
+Theorem nat_eqdec_refl: forall k, Nat.eq_dec k k = left (erefl k).
+Proof.
+  elim => //=.
+  move => k IH.
+  by rewrite IH.
+Defined.
+
+Definition nat_eqdec_canon k k' (H: k = k') : k = k' :=
+  match (Nat.eq_dec k k') with
+  | left e => e
+  | right ne => False_ind _ (ne H)
+  end.
+
+Theorem nat_eqdec_aux: forall (k: nat) (H: k = k), H = nat_eqdec_canon H.
+Proof.
+  move => k H.
+  case H.
+  unfold nat_eqdec_canon.
+  by rewrite nat_eqdec_refl.
+Defined.
+
+Theorem nat_eqdec_unique: forall (k: nat) (H: k = k), H = erefl k.
+Proof.
+  move => k H.
+  rewrite (nat_eqdec_aux H).
+  unfold nat_eqdec_canon.
+  by rewrite nat_eqdec_refl.
+Defined.
+
+Theorem lh_cast_eq {k} (lh: lholed k) (Heq: k = k):
+  @lholed_cast k k lh Heq = lh.
+Proof.
+  by rewrite (nat_eqdec_unique Heq).
+Qed.
+
 Ltac decide_eq_arg x y :=
   let Heq := fresh "Heq" in
   let Hcontra := fresh "Hcontra" in
   destruct (x == y) eqn:Heq; move/eqP in Heq; subst; last by right; move => Hcontra; injection Hcontra.
 
-(* Decidable equality of lholed *)
+Definition lh_case: forall n (P: lholed n -> Type),
+    (forall (H: 0 = n) vs es, P (lholed_cast (LH_base vs es) H)) ->
+    (forall n' (H: S n' = n) vs k es (lh: lholed n') es', P (lholed_cast (LH_rec vs k es lh es') H)) ->
+    (forall (lh: lholed n), P lh).
+Proof.
+  move => n P H0 Hrec lh.
+  destruct lh as [lvs les | n lvs k les lh les'].
+  - by specialize (H0 (erefl 0) lvs les).
+  - by specialize (Hrec _ (erefl (S n)) lvs k les lh les'). 
+Defined.
+
+(* Decidable equality of lholed without eq_rect_eq *)
 Definition lholed_eq_dec : forall k (lh1 lh2 : lholed k), {lh1 = lh2} + {lh1 <> lh2}.
 Proof.
   elim.
   {
-    move => lh1 lh2.
-    (* TODO: avoid using dependent destruction to remove dependency on axioms like eq_rect_eq *)
-    dependent destruction lh1.
-    dependent destruction lh2.
-    decide_eq_arg l l1.
-    decide_eq_arg l0 l2.
+    move => lh1.
+    eapply lh_case; last done.
+    move => H vs es; rewrite lh_cast_eq.
+    move: lh1.
+    eapply lh_case; last done.
+    move => H' vs' es'; rewrite lh_cast_eq.
+    decide_eq_arg vs' vs.
+    decide_eq_arg es' es.
     by left.
   }
   {
-    move => n IH lh1 lh2.
-    dependent destruction lh1.
-    dependent destruction lh2.
-    decide_eq_arg l l2.
-    decide_eq_arg n0 n1.
-    decide_eq_arg l0 l3.
-    decide_eq_arg l1 l4.
+    move => n IH lh.
+    eapply lh_case; first done.
+    move => n1 H1 vs1 k1 es1 lh1 es1'; injection H1 as ->; rewrite lh_cast_eq.
+    move: lh.
+    eapply lh_case; first done.
+    move => n2 H2 vs2 k2 es2 lh2 es2'; injection H2 as ->; rewrite lh_cast_eq.
+    decide_eq_arg vs2 vs1.
+    decide_eq_arg k2 k1.
+    decide_eq_arg es2 es1.
+    decide_eq_arg es2' es1'.
     destruct (IH lh1 lh2) as [ | Hneq]; subst; first by left.
     right. move => Hcontra; apply Hneq.
     clear - Hcontra.
     inversion Hcontra.
-    (* This one should be axiom free -- check *)
+    (* This one is axiom free *)
     apply Eqdep_dec.inj_pair2_eq_dec in H0 => //.
     decide equality.
   }
@@ -52,6 +113,7 @@ Definition eqlholedP {k} :=
 Canonical Structure lholed_eqMixin {k} := EqMixin (@eqlholedP k).
 Canonical Structure lholed_eqType {k} := Eval hnf in EqType (@lholed k) (@lholed_eqMixin k).
 
+End lholed_eqdec.
 
 Lemma lfilled_not_nil {k}: forall (lh: lholed k) es es', lfill lh es = es' -> es <> [::] -> es' <> [::].
 Proof.
@@ -182,9 +244,6 @@ Fixpoint ai_gen_measure (e: administrative_instruction) : nat :=
 
 Definition ais_gen_measure (LI: list administrative_instruction) : nat :=
   List.list_max (map ai_gen_measure LI).
-
-Definition lholed_cast {k k'} (lh: lholed k) (Heq: k = k'): lholed k' :=
-  eq_rect k lholed lh k' Heq.
 
 Lemma lfill_const: forall k (lh: lholed k) e lf,
     const_list lf ->
