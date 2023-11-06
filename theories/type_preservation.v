@@ -3,7 +3,7 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export operations datatypes_properties typing opsem properties typing_inversion tactic.
+From Wasm Require Export typing opsem properties contexts typing_inversion tactic.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -521,7 +521,7 @@ Proof.
          by apply bet_empty.
       -- apply ety_a' => //=.
          ++ apply basic_split.
-            * apply const_list_is_basic. by apply v_to_e_is_const_list.
+            * apply const_list_is_basic. by apply v_to_e_const.
             * by apply to_e_list_basic.
          ++ rewrite to_b_list_concat. simpl in H8.
             eapply bet_composition'; first by apply Const_list_typing_empty.
@@ -557,7 +557,7 @@ Proof.
          ++ by apply bet_loop.
       -- apply ety_a' => //=.
          ++ apply basic_split.
-            * apply const_list_is_basic. by apply v_to_e_is_const_list.
+            * apply const_list_is_basic. by apply v_to_e_const.
             * by apply to_e_list_basic.
          ++ rewrite to_b_list_concat. simpl in H8.
             eapply bet_composition'; first by apply Const_list_typing_empty.
@@ -1877,7 +1877,7 @@ Proof.
     invert_e_typing.
     eapply Invoke_func_native_typing in H0; eauto.
     destruct H0 as [ts2 [C2 [H9 [H10 [H11 H12]]]]]. subst.
-    apply et_to_bet in H3; last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply et_to_bet in H3; last by apply const_list_is_basic; apply v_to_e_const.
     apply Const_list_typing in H3.
     apply concat_cancel_last_n in H3; last by (repeat rewrite length_is_size in H2; rewrite size_map).
     remove_bools_options. subst.
@@ -1903,7 +1903,7 @@ Proof.
     subst.
     eapply Invoke_func_host_typing in H8; eauto.
     destruct H8 as [ts [H8 H9]]. subst.
-    apply et_to_bet in H7; last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply et_to_bet in H7; last by apply const_list_is_basic; apply v_to_e_const.
     apply Const_list_typing in H7.
     apply concat_cancel_last_n in H7; last by (repeat rewrite length_is_size in H2; rewrite size_map).
     remove_bools_options. subst.
@@ -2078,7 +2078,7 @@ Proof.
       eapply et_composition'; eauto.
       * instantiate (1 := ts ++ ts0 ++ t1s0).
         apply ety_weakening.
-        eapply t_const_ignores_context; eauto; last by apply v_to_e_is_const_list.
+        eapply t_const_ignores_context; eauto; last by apply v_to_e_const.
       * eapply et_composition'.
         { instantiate (1 := ts ++ ts0 ++ t3s0).
           do 2 apply ety_weakening.
@@ -2112,7 +2112,7 @@ Proof.
       eapply et_composition'.
       * instantiate (1 := ts ++ ts0 ++ t1s0).
         apply ety_weakening.
-        eapply t_const_ignores_context; eauto; last by apply v_to_e_is_const_list.
+        eapply t_const_ignores_context; eauto; last by apply v_to_e_const.
       * rewrite -cat1s.
         do 2 apply ety_weakening.
         eapply et_composition'.

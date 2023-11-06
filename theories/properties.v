@@ -76,14 +76,22 @@ Proof.
     eapply IHl1; by eauto.
 Qed.
 
+Lemma const_list_cat: forall vs1 vs2,
+    const_list (vs1 ++ vs2) = const_list vs1 && const_list vs2.
+Proof.
+  move => vs1 vs2.
+  repeat rewrite cat_app.
+  unfold const_list.
+  by rewrite List.forallb_app.
+Qed.
+
 Lemma const_list_concat: forall vs1 vs2,
     const_list vs1 ->
     const_list vs2 ->
     const_list (vs1 ++ vs2).
 Proof.
-  move => vs1 vs2. elim vs1 => {vs1} //=.
-  - move => a vs1' IHvs1 H1 H2. simpl in H1. simpl.
-    apply andb_true_iff in H1. destruct H1. rewrite IHvs1 //=. by rewrite andbT.
+  move => vs1 vs2.
+  rewrite const_list_cat; by lias.
 Qed.
 
 Lemma const_list_split: forall vs1 vs2,
@@ -91,11 +99,9 @@ Lemma const_list_split: forall vs1 vs2,
     const_list vs1 /\
     const_list vs2.
 Proof.
-  induction vs1 => //=; move => vs2 HConst.
-  move/andP in HConst. destruct HConst.
-  apply IHvs1 in H0. destruct H0.
-  split => //.
-  by apply/andP.
+  move => vs1 vs2 Hconst.
+  rewrite const_list_cat in Hconst.
+  by move/andP in Hconst.
 Qed.    
 
 (** This lemma justifies the computation “to the first non-[const_list]”. **)
@@ -124,7 +130,7 @@ Proof.
       apply andb_true_iff. split => //. by apply IHvs.
 Qed.
 
-Lemma v_to_e_is_const_list: forall vs,
+Lemma v_to_e_const: forall vs,
     const_list (v_to_e_list vs).
 Proof.
   move => vs. by elim: vs.
@@ -137,7 +143,7 @@ Proof.
   - move => a l IH vs2. by rewrite IH.
 Qed.
 
-Lemma split_vals_e_v_to_e_duality: forall es vs es',
+Lemma split_vals_inv: forall es vs es',
     split_vals_e es = (vs, es') ->
     es = (v_to_e_list vs) ++ es'.
 Proof.
@@ -152,6 +158,43 @@ Proof.
     fold split_vals_e in HSplit.
     destruct (split_vals_e es) eqn:Heqn. inversion HSplit; subst.
     simpl. f_equal. by apply: H.
+Qed.
+
+Lemma split_vals_nconst: forall es vs e es',
+    split_vals_e es = (vs, e :: es') ->
+    ~ is_const e.
+Proof.
+  elim; first by move => ??? /=? => //.
+  move => e es IH vs0 e0 es' Hsplit.
+  destruct (is_const e) eqn:Hconst.
+  - destruct e as [b | | | |] => //; destruct b => //; clear Hconst.
+    simpl in Hsplit.
+    destruct (split_vals_e es) as [vs' es''] eqn:Hsplit2.
+    injection Hsplit as <- ->.
+    by eapply IH.
+  - destruct e as [b | | | |]; first destruct b => //; simpl in Hsplit; by injection Hsplit as <- <-.
+Qed.
+
+Lemma value_split_0 : forall es ves,
+  split_vals_e es = (ves, [::]) ->
+  const_list es \/ es_is_trap es.
+Proof.
+  intros es ves Hsplit. left.
+  apply split_vals_inv in Hsplit. subst es.
+  rewrite cats0. by apply v_to_e_const.
+Qed.
+
+Lemma value_trap : forall e es es'' ves,
+  split_vals_e es = (ves, e :: es'') ->
+  e_is_trap e ->
+  ((es'' != [::]) || (ves != [::])) = false ->
+  const_list es \/ es_is_trap es.
+Proof.
+  intros e es es'' ves Hsplit Htrap Hesves. right.
+  apply split_vals_inv in Hsplit. subst es.
+  rewrite <- negb_and in Hesves. move/andP in Hesves. destruct Hesves as [Hes Hves].
+  move/eqP in Hes. move/eqP in Hves. subst es'' ves.
+  by destruct e.
 Qed.
 
 Lemma const_list_cons : forall a l,
@@ -782,224 +825,17 @@ Fixpoint ai_gen_measure (e: administrative_instruction) : nat :=
   | _ => 0
   end.
 
-Definition lfilled_pickable_rec_gen_measure (LI: list administrative_instruction) : nat :=
-  List.list_max (map ai_gen_measure LI).
-
-(*
-(** The decreasing measure used in the definition of [lfilled_pickable_rec_gen]. **)
-Definition lfilled_pickable_rec_gen_measure (LI : seq administrative_instruction) :=
-  TProp.max
-    (seq_administrative_instruction_rect'
-       (fun _ => 0)
-       0
-       (fun _ => 0)
-       (fun _ LI1 LI2 m1 m2 => 1 + TProp.max m2)
-       (fun _ _ LI' m => 0)
-       LI).
- *)
-
-Lemma lfilled_pickable_rec_gen_measure_cons : forall I LI,
-  lfilled_pickable_rec_gen_measure LI <= lfilled_pickable_rec_gen_measure (I :: LI).
-Proof.
-  move=> I LI.
-  unfold lfilled_pickable_rec_gen_measure => /=.
-  by lias.
-Qed.
-
-Lemma lfilled_pickable_rec_gen_measure_concat_l : forall LI1 LI2,
-  lfilled_pickable_rec_gen_measure LI1 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
-Proof.
-  unfold lfilled_pickable_rec_gen_measure => /=.
-  move => LI1 LI2. rewrite map_cat List.list_max_app.
-  by lias.
-Qed.
-
-Lemma lfilled_pickable_rec_gen_measure_concat_r : forall LI1 LI2,
-  lfilled_pickable_rec_gen_measure LI2 <= lfilled_pickable_rec_gen_measure (LI1 ++ LI2).
-Proof.
-  unfold lfilled_pickable_rec_gen_measure => /=.
-  move => LI1 LI2. rewrite map_cat List.list_max_app.
-  by lias.
-Qed.
-
-Lemma lfilled_pickable_rec_gen_measure_label_r : forall n es LI LI',
-  lfilled_pickable_rec_gen_measure LI < lfilled_pickable_rec_gen_measure (AI_label n es LI :: LI').
-Proof.
-  move=> n es LI LI'. rewrite /lfilled_pickable_rec_gen_measure /=.
-  destruct (List.list_max (map ai_gen_measure LI')); by lias.
-Qed.
-
 (* Avoid changing everything to type or making other large-scale changes *)
 Lemma vcs_exist_constructive: forall vs P,
   (exists vcs, vs = v_to_e_list vcs /\ P vcs) ->
   { vcs | vs = v_to_e_list vcs /\ P vcs }.
 Proof.
   move => vs P Hexist.
-  assert (const_list vs) as Hconst; first by destruct Hexist as [? [-> ?]]; apply v_to_e_is_const_list.
+  assert (const_list vs) as Hconst; first by destruct Hexist as [? [-> ?]]; apply v_to_e_const.
   apply const_es_exists in Hconst as [vcs Heq].
   assert (P vcs) as HP; first by (destruct Hexist as [? [-> HP]]; subst; apply v_to_e_inj in Heq; subst).
   by exists vcs.
 Qed.
-
-(** A helper definition for [lfilled_decidable_rec]. **)
-Definition lfilledInd_pickable_rec_gen : forall fes,
-  (forall es' lh lh' n0, decidable (lfilledInd 0 lh (fes n0 lh') es')) ->
-  forall es', pickable2 (fun n lh => lfilledInd n lh (fes n lh) es').
-Proof.
-  move=> fes D0 es'.
-  apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')); first by [].
-  move: 0 => k.
-  have [m E]: { m | lfilled_pickable_rec_gen_measure es' = m }; first by eexists.
-  move: fes D0 es' E k. induction (lt_wf m) as [m _ IH]. move=> fes D0 es' E k.
-  have Dcl: forall vs, decidable (const_list vs).
-  { move=> vs. by apply: is_true_decidable. }
-  (** First, we check whether we can set [n = 0]. **)
-  have P0: pickable3 (fun vs vcs es'' =>
-                       let lh := LH_base vcs es'' in
-                       let es := fes k lh in
-                       es' = vs ++ es ++ es'' /\ vs = v_to_e_list vcs /\ lfilledInd 0 lh es es').
-  {
-    have: pickable3 (fun vs es es'' =>
-      es' = vs ++ es ++ es'' /\ exists vcs, vs = v_to_e_list vcs /\ let lh := LH_base vcs es'' in
-      es = fes k lh /\ lfilledInd 0 lh es es').
-    {
-      apply: list_split_pickable3_gen. move=> vs es es'' Ees /=.
-      destruct (const_list vs) eqn:HConst.
-      {
-        apply const_es_exists in HConst as [vcs ->].
-        case E': (es == fes k (LH_base vcs es'')); move/eqP: E' => E'.
-        - rewrite E'. apply pickable_decidable.
-          rewrite - E' Ees.
-          left. exists vcs; repeat split => //.
-          apply/lfilledP; unfold lfilled => /=; by apply/eqP.
-        - right. move=> [vcs' [Ees2 [Cl I]]].
-          by apply v_to_e_inj in Ees2 as <-.
-      }
-      { right; move => [vcs [HContra _]]; subst; by rewrite v_to_e_is_const_list in HConst. }
-    }
-    case.
-    - move=> [[[vs es] es''] [-> /=H]].
-      apply vcs_exist_constructive in H.
-      destruct H as [vcs [-> [-> Hlf]]].
-      left. exists (v_to_e_list vcs, vcs, es''). by subst.
-    - move=> Ex. right. move=> [vs [es'' [E' [Cl [Hvs I]]]]]. apply: Ex; subst vs.
-      repeat eexists; eassumption.
-  }
-  case P0.
-  {
-    move=> [[[vs vcs] es''] [E' [Cvs I]]]. left. exists (0, LH_base vcs es'').
-    subst. rewrite_by (k + 0 = k). by apply: LfilledBase.
-  }
-  move=> nE.
-  (** Otherwise, we have to apply [LfilledRec]. **)
-  have Dparse: forall es' : seq administrative_instruction,
-    decidable (exists n es1 LI es2, es' = [:: AI_label n es1 LI] ++ es2).
-  {
-    clear. move=> es'.
-    have Pparse: pickable4 (fun n es1 LI es2 => es' = [:: AI_label n es1 LI] ++ es2).
-    {
-      let no := by intros; right; intros (?&?&?&?&?) in
-      (case es'; first by no); case; try by no.
-      move=> n l1 l2 l3. left. by exists (n, l1, l2, l3).
-    }
-    convert_pickable Pparse.
-  }
-  case: (list_split_pickable2 (fun vs es => decidable_and (Dcl vs) (Dparse es)) es').
-  - move=> [[vs es''] [E1 [C Ex]]].
-    destruct es'' as [| [| | | n es1 LI |] es2];
-      try solve [ exfalso; move: Ex => [? [? [? [? E']]]]; inversion E' ].
-    clear Ex. rewrite E1.
-    have I_LI: (lfilled_pickable_rec_gen_measure LI < m)%coq_nat.
-    {
-      rewrite -E E1. apply/leP. eapply leq_trans.
-      - by eapply lfilled_pickable_rec_gen_measure_label_r.
-      - by apply: lfilled_pickable_rec_gen_measure_concat_r.
-    }
-    apply const_es_exists in C as [vcs C].
-    set fes' := fun k lh => fes (k + 1) (LH_rec vcs n es1 lh es2).
-    have D1: forall es' lh lh' n0, decidable (lfilledInd 0 lh (fes' n0 lh') es').
-    { move=> ? ? ? ?. by apply: D0. }
-    move: (IH _ I_LI fes' D1 LI (erefl _) k) => [[[n' lh] LF]|NP].
-    - eapply LfilledRec with (vs := vcs) in LF => //.
-      left. exists (n'.+1, LH_rec vcs n es1 lh es2). subst vs.
-      move: LF. rewrite /fes'. rewrite_by (k + n' + 1 = k + n'.+1) => /= LF. by apply: LF.
-    - right. move=> [n' [lh FI]]. apply: NP. inversion FI; subst.
-      + exfalso. apply: nE. exists (v_to_e_list vs0), vs0, es'0. repeat split => //.
-        * rewrite -H3. by rewrite_by (k + 0 = k).
-        * by rewrite_by (k = k + 0).
-      + apply const_list_concat_inv in H => //; try by apply v_to_e_is_const_list.
-        move: H => [Hvs [E ?]]. inversion E; subst.
-        apply v_to_e_inj in Hvs as ->.
-        exists k0. eexists. rewrite /fes'. rewrite_by (k + k0 + 1 = k + k0.+1). by apply: H3.
-  - move=> nE'. right. move=> [n [lh I]]. inversion I; subst.
-    + apply: nE. do 3 eexists. rewrite_by (k + 0 = k). repeat split; try eassumption.
-      by apply: LfilledBase.
-    + apply: nE'. repeat eexists; try eassumption.
-      by apply v_to_e_is_const_list.
-Defined.
-
-Definition lfilled_pickable_rec_gen : forall fes,
-  (forall es' lh lh' n0, decidable (lfilled 0 lh (fes n0 lh') es')) ->
-  forall es', pickable2 (fun n lh => lfilled n lh (fes n lh) es').
-Proof.
-  move=> fes D0 es'.
-  apply: (@pickable2_equiv _ _ (fun n lh => lfilledInd n lh (fes (0+n) lh) es')).
-  { move=> n lh. by split; apply lfilled_Ind_Equivalent. }
-  apply: lfilledInd_pickable_rec_gen => es'' lh lh' n0.
-  by apply: decidable_equiv; first by apply: lfilled_Ind_Equivalent.
-Defined.
-
-(** We can always decide [lfilled 0]. **)
-Lemma lfilled_decidable_base : forall es es' lh,
-  decidable (lfilled 0 lh es es').
-Proof.
-  move=> es es' lh. apply: (@decidable_equiv (lfilledInd 0 lh es es')).
-  { by split; apply lfilled_Ind_Equivalent. }
-  case lh.
-  - move=> vsh esh.
-    have: pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ vs = v_to_e_list vsh /\ es'' = esh).
-    {
-      apply: list_search_split_pickable2.
-      - by apply: administrative_instruction_eq_dec.
-      - move=> ? ?. by repeat apply: decidable_and; apply: eq_comparable.
-    }
-    case.
-    + move=> [[vs es''] [-> [-> ->]]]. left. by constructor.
-    + move=> nE. right. move=> I. apply: nE. inversion I. subst. by repeat eexists.
-  - move=> vs n es'' lh' es'''. right. move=> I. by inversion I.
-Defined.
-
-(** We can furthermore rebuild the stack [lh] for any [lfilled 0] predicate. **)
-Lemma lfilled_pickable_base : forall es es',
-  pickable (fun lh => lfilled 0 lh es es').
-Proof.
-  move=> es es'. apply: (@pickable_equiv _ (fun lh => lfilledInd 0 lh es es')).
-  { move=> lh. by split; apply lfilled_Ind_Equivalent. }
-  have: pickable2 (fun vs es'' => es' = vs ++ es ++ es'' /\ const_list vs /\ True).
-  {
-    apply: list_search_split_pickable2.
-    - by apply: administrative_instruction_eq_dec.
-    - move=> ? ?. apply: decidable_and.
-      + by apply: is_true_decidable.
-      + by left.
-  }
-  case.
-  - move=> [[vs es''] [-> [C _]]]. left.
-    apply const_es_exists in C as [vs' C].
-    eexists. subst. by constructor.
-  - move=> nE. right. move=> [lh I]. apply: nE. inversion I. subst.
-    repeat eexists.
-    by apply v_to_e_is_const_list.
-Defined.
-
-(** A helper definition for the decidability of [br_reduce] and [return_reduce]
-  (see type_soundness.v). **)
-Definition lfilled_pickable_rec : forall es,
-  (forall es' lh, decidable (lfilled 0 lh es es')) ->
-  forall es', pickable2 (fun n lh => lfilled n lh es es').
-Proof.
-  move=> es D. by apply: lfilled_pickable_rec_gen.
-Defined.
 
 (** Typing lemmas **)
 
@@ -1431,114 +1267,6 @@ Proof.
     by apply/eqP.
 Qed.
 
-(* label context arithmetics *)
-Fixpoint empty_vs_base {k} (lh: lholed k) : bool :=
-  match lh with
-  | LH_base [::] _ => true
-  | LH_rec _ _ _ _ lh _ => empty_vs_base lh
-  | _ => false
-  end.
-
-Fixpoint lh_push_base_vs {k} (lh: lholed k) rvs: lholed k :=
-  match lh with
-  | LH_base vs es => LH_base (vs ++ rvs) es
-  | LH_rec _ vs n es lh' es' =>
-      let lh_pushed := lh_push_base_vs lh' rvs in
-      LH_rec vs n es lh_pushed es'
-  end.
-
-Definition lh_push_front_vs {k} vcs (lh: lholed k): lholed k :=
-  match lh with
-  | LH_base vs es => LH_base (vcs ++ vs) es
-  | LH_rec _ vs n es lh' es' => LH_rec (vcs ++ vs) n es lh' es'
-  end.
-
-Definition lh_drop_vs {k} l (lh: lholed k): lholed k :=
-  match lh with
-  | LH_base vs es => LH_base (drop l vs) es
-  | LH_rec _ vs n es lh' es' => LH_rec (drop l vs) n es lh' es'
-  end.
-
-Definition lh_drop_vs_o {k} l (lh: lholed k): option (lholed k) :=
-  match lh with
-  | LH_base vs es =>
-      if l <= length vs then Some (LH_base (drop l vs) es)
-      else None
-  | LH_rec _ vs n es lh' es' =>
-      if l <= length vs then Some (LH_rec (drop l vs) n es lh' es')
-      else None
-  end.
-
-Definition lh_push_back_es {k} es0 (lh: lholed k): lholed k :=
-  match lh with
-  | LH_base vs es => LH_base vs (es ++ es0)
-  | LH_rec _ vs n es lh' es' => LH_rec vs n es lh' (es' ++ es0)
-  end.
-
-Lemma lfill_push_base_vs {k} : forall (lh: lholed k) vs ves es,
-  ves = v_to_e_list vs ->
-  lfill lh (ves ++ es) = lfill (lh_push_base_vs lh vs) es.
-Proof.
-  induction lh as [vs es | ? vs n es lh' IH es'']; intros rvs vcs e ->; simpl in *.
-  - by rewrite/v_to_e_list map_cat -catA -catA.
-  - do 3 f_equal.
-    by eapply IH; eauto.
-Qed.
-
-Lemma lfill_push_base_vs' {k}: forall (lh: lholed k) vs ves es l,
-    ves = v_to_e_list vs ->
-    length ves >= l ->
-    lfill lh (ves ++ es) = lfill (lh_push_base_vs lh (take (length ves - l) vs)) ((drop (length ves - l) ves) ++ es).
-Proof.
-  move => lh vs ves es l Hves Hlen.
-  rewrite -(cat_take_drop (length ves - l) ves) -catA.
-  erewrite <-lfill_push_base_vs; eauto.
-  subst.
-  repeat rewrite catA cat_take_drop v_to_e_take.
-  by rewrite length_is_size v_to_e_size catA cat_take_drop.
-Qed.
-
-Lemma lfill_push_front_vs {k} : forall (lh: lholed k) vs es LI,
-    lfill lh es = LI ->
-    lfill (lh_push_front_vs vs lh) es = v_to_e_list vs ++ LI.
-Proof.
-  move => lh vs es LI <-.
-  by destruct lh => //=; rewrite - v_to_e_cat -catA.
-Qed.
-
-Lemma lfill_drop_impl {k}: forall (lh: lholed k) ves e es LI,
-    const_list ves ->
-    is_const e = false ->
-    lfill lh (e :: es) = ves ++ LI ->
-    lh_drop_vs_o (length ves) lh = Some (lh_drop_vs (length ves) lh).
-Proof.
-  move => lh ves e es LI Hconst Hnconst Heq.
-  destruct lh; simpl in * => //.
-  all: apply es_split_by_non_const in Heq; eauto; (try by apply v_to_e_is_const_list); destruct Heq as [? Heq].
-  all: replace (length ves <= length l) with true; (apply f_equal with (f := @size administrative_instruction) in Heq; rewrite size_cat v_to_e_size in Heq; simpl in Heq; repeat rewrite length_is_size; by lias).
-Qed.
-  
-Lemma lfill_drop_vs {k}: forall (lh: lholed k) ves e es LI,
-    const_list ves ->
-    is_const e = false ->
-    lfill lh (e :: es) = ves ++ LI ->
-    lfill (lh_drop_vs (length ves) lh) (e :: es) = LI.
-Proof.
-  move => lh ves e es LI Hconst Hnconst Heq.
-  destruct lh; simpl in * => //.
-  all: specialize (es_split_by_non_const Heq) as Heq2; destruct Heq2 as [xs Heq2]; eauto; (try by apply v_to_e_is_const_list).
-  all: rewrite -(cat_take_drop (length ves) l) -v_to_e_cat -catA in Heq.
-  all: apply concat_cancel_first_n in Heq; last by rewrite v_to_e_size size_take; apply f_equal with (f := size) in Heq2; rewrite v_to_e_size size_cat in Heq2; rewrite length_is_size; destruct (size ves < size l) eqn:?; lias.
-  all: move/andP in Heq; destruct Heq as [Heqves HeqLI]; move/eqP in Heqves; by move/eqP in HeqLI.
-Qed.
-
-Lemma lfill_push_back_es {k}: forall (lh: lholed k) es es0,
-    lfill (lh_push_back_es es0 lh) es = lfill lh es ++ es0.
-Proof.
-  move => lh es es0.
-  destruct lh; simpl in * => //; by repeat rewrite -catA => //.
-Qed.
-
 (************ certified itp properties *************)
 Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
   xs ++ (y :: ys) <> [::].
@@ -1566,42 +1294,6 @@ Proof.
   }
   { move => es' H2.
     apply: H => //; by exact H2. }
-Qed.
-
-Lemma lfilled_not_nil {k}: forall (lh: lholed k) es es', lfill lh es = es' -> es <> [::] -> es' <> [::].
-Proof.
-  elim => /=.
-  { move => vs ? es ? <- ?.
-    by destruct es, vs => //.
-  }
-  { move => k' vs n es lh' IH vs' ?? <- ?.
-    by destruct vs.
-  }
-Qed.
-
-
-Variable host_instance: host host_function.
-
-Local Definition reduce := @reduce host_function host_instance.
-
-Lemma reduce_not_nil : forall hs hs' σ1 f es σ2 f' es',
-  reduce hs σ1 f es hs' σ2 f' es' -> es <> [::].
-Proof.
-  move => hs hs' σ1 f es σ2 f' es' Hred.
-  elim: {σ1 f es f' σ2} Hred => //;
-    try solve [ repeat intro;
-                match goal with
-                | H : (_ ++ _)%SEQ = [::] |- _ =>
-                  by move: (app_eq_nil _ _ H) => [? ?]
-                end ].
-  { move => e e' _ _ _ Hreds He.
-    rewrite He in Hreds.
-    apply: not_reduce_simple_nil.
-    apply: Hreds. }
-  { intros. destruct ves => //. }
-  { intros. destruct ves => //. }
-  { intros. by destruct ves => //. }
-  { intros. apply: lfilled_not_nil. exact H1. exact H0. }
 Qed.
 
 (** Store extension properties **)

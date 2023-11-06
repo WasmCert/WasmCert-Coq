@@ -1016,17 +1016,17 @@ Proof.
     unfold plop2 in Hnth. simpl in Hnth. move/eqP in Hnth.
     rewrite list_nth_prefix in Hnth.
     injection Hnth as <-.
-    apply et_to_bet in HType5; last by (apply const_list_is_basic; apply v_to_e_is_const_list).
+    apply et_to_bet in HType5; last by (apply const_list_is_basic; apply v_to_e_const).
     apply Const_list_typing in HType5 as ->.
     simpl in *.
-    apply et_to_bet in HType6; last by (apply const_list_is_basic; apply v_to_e_is_const_list).
+    apply et_to_bet in HType6; last by (apply const_list_is_basic; apply v_to_e_const).
     apply Const_list_typing in HType6.
     repeat rewrite length_is_size in HTSSLength.
     rewrite size_map in HTSSLength.
     apply concat_cancel_last_n in HType6; last by rewrite size_map.
     move/andP in HType6.
     destruct HType6 as [Heq1 Heq2]; move/eqP in Heq1; move/eqP in Heq2; subst; clear HTSSLength.
-    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_const.
     by apply Const_list_typing_empty.
   - move => k0 vs m es lh' IH es' tss LI /= <- ts2 ts HType HTSSLength.
     apply e_composition_typing in HType as [ts0 [t1s [t2s [t3s [Heq [-> [HType1 HType2]]]]]]].
@@ -1112,7 +1112,7 @@ Proof.
 
     (* from H11 : typing.e_typing s (upd_label C lab) vs0 (Tf [::] t3s2) *)
     (* show : t3s2 = map typeof vs0' *)
-    apply et_to_bet in HType1; last by apply const_list_is_basic, v_to_e_is_const_list.
+    apply et_to_bet in HType1; last by apply const_list_is_basic, v_to_e_const.
     apply Const_list_typing in HType1; simpl in HType1; subst.
 
     (* from H12 : typing.e_typing s (upd_label C lab) vs (Tf t3s2 (ts2 ++ ts1)) *)
@@ -1131,7 +1131,7 @@ Proof.
     }
 
     subst ts.
-    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_const.
     by apply Const_list_typing_empty.
   - apply e_composition_typing in HType as [ts0 [t1s0 [t2s0 [t3s0 [Heq [-> [HType1 HType2]]]]]]].
     destruct ts0, t1s0 => //=; clear Heq.
@@ -1155,9 +1155,9 @@ Proof.
   inversion Hstype as [s' f' es' ovs rs C1 C2 Hftype -> Hetype [ _ | ]]; subst => //; clear Hstype.
   apply et_weakening_empty_1.
   apply const_es_exists in HConst as [? ->].
-  apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
-  eapply Lfilled_return_typing in Hetype; eauto; last by apply v_to_e_is_const_list.
-  apply et_to_bet in Hetype; last by apply const_list_is_basic, v_to_e_is_const_list.
+  apply ety_a'; first by apply const_list_is_basic; apply v_to_e_const.
+  eapply Lfilled_return_typing in Hetype; eauto; last by apply v_to_e_const.
+  apply et_to_bet in Hetype; last by apply const_list_is_basic, v_to_e_const.
   apply Const_list_typing in Hetype; subst; simpl in *.
   by apply Const_list_typing_empty.
 Qed.

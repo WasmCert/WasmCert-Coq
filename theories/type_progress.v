@@ -2,7 +2,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith.
-From Wasm Require Export operations typing datatypes_properties typing opsem properties type_preservation typing_inversion.
+From Wasm Require Export type_preservation typing_inversion.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -44,10 +44,7 @@ Proof.
   move => vs HConst H.
   apply const_es_exists in HConst as [vcs ->].
   destruct vcs as [ | v vcs] => //=; eapply rs_trap => //=.
-  assert (LF : lfilledInd 0 (LH_base (v::vcs) [::]) [::AI_trap] (v_to_e_list (v::vcs) ++ [::AI_trap])).
-  { by apply LfilledBase. }
-  apply/lfilledP.
-  by apply LF.
+  by instantiate (1 := LH_base (v :: vcs) nil) => /=.
 Qed.
 
 Lemma v_e_trap: forall vs es,
@@ -225,11 +222,10 @@ Lemma nlfbr_left: forall es n cs vcs,
     not_lf_br es n.
 Proof.
   unfold not_lf_br.
-  move => es n cs HConst HNLF k lh ?.
+  move => es n vcs cs -> IH k lh ?.
   subst es.
-  apply const_es_exists in HConst as [vs ->].
-  erewrite <- lfill_push_front_vs in HNLF; eauto.
-  by eapply HNLF.
+  erewrite <- lfill_push_front_vs in IH; eauto.
+  by eapply IH.
 Qed.
 
 Lemma nlfret_left: forall es n cs vcs,
@@ -238,10 +234,10 @@ Lemma nlfret_left: forall es n cs vcs,
     not_lf_return es n.
 Proof.
   unfold not_lf_return.
-  move => es n cs HConst HNLF lh ?; subst es.
-  apply const_es_exists in HConst as [vs ->].
-  erewrite <- lfill_push_front_vs in HNLF; eauto.
-  by eapply HNLF.
+  move => es n vcs cs -> IH lh ?.
+  subst es.
+  erewrite <- lfill_push_front_vs in IH; eauto.
+  by eapply IH.
 Qed.
 
 Ltac split_et_composition:=
@@ -355,12 +351,12 @@ Proof.
   - (* Unreachable *)
     right.
     exists s, f, (v_to_e_list vcs ++ [::AI_trap]), hs.
-    apply reduce_composition_left; first by apply v_to_e_is_const_list.
+    apply reduce_composition_left; first by apply v_to_e_const.
     apply r_simple. by constructor.
   - (* Nop *)
     right.
     exists s, f, (v_to_e_list vcs ++ [::]), hs.
-    apply reduce_composition_left; first by apply v_to_e_is_const_list.
+    apply reduce_composition_left; first by apply v_to_e_const.
     apply r_simple. by constructor.
   - (* Drop *)
     right. invert_typeof_vcs. solve_progress.
@@ -372,7 +368,7 @@ Proof.
     right.
     exists s, f, [::AI_label (length tm) [::] (v_to_e_list vcs ++ to_e_list es)], hs.
     apply r_simple. eapply rs_block; eauto.
-    + by apply v_to_e_is_const_list.
+    + by apply v_to_e_const.
     + repeat rewrite length_is_size.
       rewrite v_to_e_size.
       subst.
@@ -382,7 +378,7 @@ Proof.
     exists s, f, [::AI_label (length vcs) [::AI_basic (BI_loop (Tf ts1 ts2) es)] (v_to_e_list vcs ++ to_e_list es)], hs.
     apply r_simple. rewrite HConstType.
     eapply rs_loop; eauto; repeat rewrite length_is_size.
-    + by apply v_to_e_is_const_list.
+    + by apply v_to_e_const.
     + by rewrite v_to_e_size.
     + rewrite -HConstType. by rewrite size_map.
   - (* if *)
@@ -394,11 +390,11 @@ Proof.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
     + exists s, f, (v_to_e_list (take (size tn) vcs) ++ [::AI_basic (BI_block (Tf tn ts2) es2)]), hs.
-      apply reduce_composition_left; first by apply v_to_e_is_const_list.
+      apply reduce_composition_left; first by apply v_to_e_const.
       apply r_simple. by eapply rs_if_false.
     + exists s, f, (v_to_e_list (take (size tn) vcs) ++ [::AI_basic (BI_block (Tf tn ts2) es1)]), hs.
-      apply reduce_composition_left; first by apply v_to_e_is_const_list.
-      by apply r_simple; eauto.
+      apply reduce_composition_left; first by apply v_to_e_const.
+      by apply r_simple; unfold v_to_e; eauto.
   - (* BI_br *)
     subst.
     exfalso.
@@ -413,11 +409,11 @@ Proof.
     destruct v => //=.
     destruct (s0 == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
     + exists s, f, (v_to_e_list (take (size ts2) vcs) ++ [::]), hs.
-      apply reduce_composition_left; first by apply v_to_e_is_const_list.
-      by apply r_simple; eauto.
+      apply reduce_composition_left; first by apply v_to_e_const.
+      by apply r_simple; econstructor.
     + exists s, f, (v_to_e_list (take (size ts2) vcs) ++ [::AI_basic (BI_br i)]), hs.
-      apply reduce_composition_left; first by apply v_to_e_is_const_list.
-      by apply r_simple; eauto.
+      apply reduce_composition_left; first by apply v_to_e_const.
+      by apply r_simple; econstructor.
   - (* BI_br_table *)
     right.
     apply cat_split in HConstType. destruct HConstType.
@@ -435,7 +431,7 @@ Proof.
       destruct (List.nth_error ins (Wasm_int.nat_of_uint i32m s0)) eqn:HN => //=.
       exists s, f, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::AI_basic (BI_br n)]), hs.
       apply reduce_composition_left.
-      { by apply const_list_concat; apply v_to_e_is_const_list. }
+      { apply const_list_concat; by apply v_to_e_const. }
       apply r_simple. apply rs_br_table => //.
       by lias.
     + assert (Inf : length ins <= Wasm_int.nat_of_uint i32m s0); first by lias.
@@ -444,7 +440,7 @@ Proof.
       apply List.nth_error_None in Inf.
       exists s, f, ((v_to_e_list (take (size t1s) vcs) ++ v_to_e_list (take (size ts) (drop (size t1s) vcs))) ++ [::AI_basic (BI_br i)]), hs.
       apply reduce_composition_left.
-      { by apply const_list_concat; apply v_to_e_is_const_list. }
+      { apply const_list_concat; by apply v_to_e_const. }
       apply r_simple. apply rs_br_table_length => //.
       by lias.
   - (* Return *)
@@ -457,7 +453,7 @@ Proof.
     simpl in *. clear H1 H2 H3 H4.
     eapply func_context_store in H; eauto. destruct H as [a H].
     exists s, f, (v_to_e_list vcs ++ [:: (AI_invoke a)]), hs.
-    apply reduce_composition_left; first by apply v_to_e_is_const_list.
+    apply reduce_composition_left; first by apply v_to_e_const.
     by apply r_call => //. 
   - (* Call_indirect *)
     right.
@@ -473,15 +469,15 @@ Proof.
       destruct Hstabaddr as [cl Hstabaddr].
       destruct (stypes s f.(f_inst) i == Some (cl_type cl)) eqn:Hclt; move/eqP in Hclt.
       * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_invoke a]), hs.
-        apply reduce_composition_left; first by apply v_to_e_is_const_list.
+        apply reduce_composition_left; first by apply v_to_e_const.
         simpl.
         by eapply r_call_indirect_success; eauto.
       * exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_trap]), hs.
-        apply reduce_composition_left; first by apply v_to_e_is_const_list.
+        apply reduce_composition_left; first by apply v_to_e_const.
         by eapply r_call_indirect_failure1; eauto.
     + (* None *)
       exists (v_to_e_list (take (size t1s) vcs) ++ [::AI_trap]), hs.
-      apply reduce_composition_left; first by apply v_to_e_is_const_list.
+      apply reduce_composition_left; first by apply v_to_e_const.
       by apply r_call_indirect_failure2.
 
   - (* Get_local *)
@@ -614,19 +610,19 @@ Proof.
     + (* Const *)
       apply const_es_exists in H. destruct H as [cs HConst].
       apply b_e_elim in HConst. destruct HConst. subst.
-      rewrite e_b_inverse in HNRet; last by apply const_list_is_basic; apply v_to_e_is_const_list.
-      rewrite e_b_inverse in HNBI_br; last by apply const_list_is_basic; apply v_to_e_is_const_list.
+      rewrite e_b_inverse in HNRet; last by apply const_list_is_basic; apply v_to_e_const.
+      rewrite e_b_inverse in HNBI_br; last by apply const_list_is_basic; apply v_to_e_const.
       apply Const_list_typing in HType1. subst.
       edestruct IHHType2; eauto.
-      { by eapply nlfbr_left; try apply v_to_e_is_const_list; eauto. }
-      { by eapply nlfret_left; try apply v_to_e_is_const_list; eauto. }
+      { by eapply nlfbr_left; try apply v_to_e_const; eauto. }
+      { by eapply nlfret_left; try apply v_to_e_const; eauto. }
       { by rewrite -map_cat. }
       * left. rewrite to_e_list_cat. apply const_list_concat => //.
-        by rewrite e_b_inverse => //; apply v_to_e_is_const_list.
+        by rewrite e_b_inverse => //; apply v_to_e_const.
       * destruct H as [es' HReduce].
         right.
         rewrite to_e_list_cat.
-        rewrite e_b_inverse; last by apply const_list_is_basic; apply v_to_e_is_const_list.
+        rewrite e_b_inverse; last by apply const_list_is_basic; apply v_to_e_const.
         exists es'.
         rewrite catA.
         by rewrite v_to_e_cat.
@@ -650,7 +646,7 @@ Proof.
     rewrite -v_to_e_cat. rewrite -catA.
     exists s', f', (v_to_e_list (take (size ts) vcs) ++ es'), hs'.
     apply reduce_composition_left => //.
-    by apply v_to_e_is_const_list.
+    by apply v_to_e_const.
 Qed. 
 
 Definition br_reduce (es: seq administrative_instruction) :=
@@ -659,23 +655,31 @@ Definition br_reduce (es: seq administrative_instruction) :=
 Definition return_reduce (es: seq administrative_instruction) :=
   exists n (lh: lholed n), lfill lh [::AI_basic BI_return] = es.
 
-Fixpoint ai_gen_measure (e: administrative_instruction) : nat :=
-  match e with
-  | AI_label _ _ es => 1 + List.list_max (map ai_gen_measure es)
-  | _ => 0
-  end.
-
-Definition ais_gen_measure (LI: list administrative_instruction) : nat :=
-  List.list_max (map ai_gen_measure LI).
-
 (** [br_reduce] is decidable. **)
 Lemma br_reduce_decidable : forall es, decidable (br_reduce es).
-Admitted.
+  move => es.
+  destruct (lfill_factorise (fun n => AI_basic (BI_br n)) es) as [[n [lh Heq]] | He].
+  - subst es.
+    left.
+    by repeat eexists.
+  - right.
+    move => [n [lh Heq]].
+    by apply (He n lh).
+Qed.
   
 (** [return_reduce] is decidable. **)
 Lemma return_reduce_decidable : forall es, decidable (return_reduce es).
-Admitted.
-
+Proof.
+  move => es.
+  destruct (lfill_factorise (fun _ => AI_basic BI_return) es) as [[n [lh Heq]] | He].
+  - subst es.
+    left.
+    by repeat eexists.
+  - right.
+    move => [n [lh Heq]].
+    by apply (He n lh).
+Qed.
+  
 Lemma br_reduce_label_length: forall n k (lh: lholed n) es s C ts2,
     lfill lh [::AI_basic (BI_br (n + k))] = es ->
     e_typing s C es (Tf [::] ts2) ->
@@ -735,7 +739,7 @@ Proof.
     destruct ts0, t1s => //.
     apply et_to_bet in Ht5; auto_basic.
     eapply Break_typing in Ht5 as [ts3 [ts3' [Hsize [Hplop ?]]]]; eauto; subst.
-    apply et_to_bet in Ht3; last by apply const_list_is_basic, v_to_e_is_const_list.
+    apply et_to_bet in Ht3; last by apply const_list_is_basic, v_to_e_const.
     apply Const_list_typing in Ht3; simpl in *.
     unfold plop2 in Hplop. move/eqP in Hplop.
     rewrite Hnth in Hplop; injection Hplop as <-.
@@ -744,7 +748,7 @@ Proof.
     replace vs with (take (size (ts1 ++ ts3')) vs ++ drop (size (ts1 ++ ts3')) vs); last by apply cat_take_drop.
     exists (v_to_e_list (drop (size (ts1 ++ ts3')) vs)), (LH_base (take (size (ts1 ++ ts3')) vs) es).
     repeat split => /=.
-    + by apply v_to_e_is_const_list.
+    + by apply v_to_e_const.
     + rewrite -v_to_e_cat. repeat rewrite -catA.
       by rewrite cat1s.
     + subst.
@@ -783,14 +787,14 @@ Proof.
     simpl in *.
     eapply Return_typing in Ht5 as [ts2 [ts2' [? Hret']]]; eauto; subst.
     rewrite Hret in Hret'. inversion Hret'; subst; clear Hret'.
-    apply et_to_bet in Ht3; last by apply const_list_is_basic, v_to_e_is_const_list.
+    apply et_to_bet in Ht3; last by apply const_list_is_basic, v_to_e_const.
     apply Const_list_typing in Ht3. simpl in Ht3.
     rewrite catA in Ht3. symmetry in Ht3.
     apply cat_split in Ht3. destruct Ht3 as [Heq ->].
     replace vs with (take (size (ts1 ++ ts2')) vs ++ drop (size (ts1 ++ ts2')) vs); last by apply cat_take_drop.
     exists (v_to_e_list (drop (size (ts1 ++ ts2')) vs)), (LH_base (take (size (ts1 ++ ts2')) vs) es).
     repeat split => /=.
-    + by apply v_to_e_is_const_list.
+    + by apply v_to_e_const.
     + rewrite -v_to_e_cat -(cat1s _ es).
       by repeat rewrite catA.
     + rewrite Heq.
@@ -802,7 +806,7 @@ Proof.
     destruct ts0, t1s => //.
     eapply IH in Ht4 as [es2 [lh' [Hconst [Hlf HLength]]]]; eauto.
     apply const_es_exists in Hconst as [vs' ->].
-    repeat eexists; eauto; first by apply v_to_e_is_const_list.
+    repeat eexists; eauto; first by apply v_to_e_const.
     instantiate (1 := (LH_rec vs (length ts2) es lh' es')) => /=.
     by rewrite Hlf.
 Qed.
@@ -883,7 +887,7 @@ Proof.
     destruct HType as [HType | [s' [vs' [es' [hs' HType]]]]].
     + left.
       unfold terminal_form; left.
-      apply const_list_concat => //. by apply v_to_e_is_const_list.
+      apply const_list_concat => //; by apply v_to_e_const.
     + right.
       repeat eexists. by apply HType.
     + unfold not_lf_br. move => k lh HContra.
@@ -965,10 +969,10 @@ Proof.
       destruct H => //=.
       * (* Const *)
         left. unfold terminal_form. left.
-        rewrite -catA. apply const_list_concat => //.
-        by apply v_to_e_is_const_list.
+        rewrite -catA.
+        apply const_list_concat => //; by apply v_to_e_const.
       * (* AI_trap *)
-        apply v_e_trap in H; last by apply v_to_e_is_const_list.
+        apply v_e_trap in H; last by apply v_to_e_const.
         destruct H. subst.
         rewrite H.
         destruct (drop (size ts) vcs) eqn:HDrop => //=.
@@ -980,13 +984,13 @@ Proof.
            exists s, f, [::AI_trap], hs'.
            apply r_simple.
            apply reduce_trap_left => //.
-           by apply v_to_e_is_const_list.
+           by apply v_to_e_const.
     + (* reduce *)
       destruct H as [s' [f' [es' [hs'' HReduce]]]].
       right.
       exists s', f', (v_to_e_list (take (size ts) vcs) ++ es'), hs''.
       rewrite -catA.
-      apply reduce_composition_left => //; first by apply v_to_e_is_const_list.
+      apply reduce_composition_left => //; first by apply v_to_e_const.
       by eapply HReduce.
       
   - (* AI_trap *)
@@ -995,7 +999,7 @@ Proof.
     exists s, f, [::AI_trap], hs.
     apply r_simple.
     apply reduce_trap_left => //.
-    by apply v_to_e_is_const_list.
+    by apply v_to_e_const.
   - (* Local *)
     move => s C n f0 es ts HType IHHType HLength.
     move => f C' vcs ts1 ts2 lab ret hs HTF HContext HInst HConstType HST HBI_brDepth HNRet.
@@ -1115,7 +1119,7 @@ Proof.
         exists s, f, [::AI_trap], hs.
         apply r_simple.
         by apply rs_label_trap.
-        by apply v_to_e_is_const_list.
+        by apply v_to_e_const.
     + (* reduce *)
       destruct H as [s' [f' [es' [hs' HReduce]]]].
       right.

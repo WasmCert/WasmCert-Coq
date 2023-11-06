@@ -500,10 +500,20 @@ Fixpoint es_is_basic (es: seq administrative_instruction) :=
     e_is_basic e /\ es_is_basic es'
   end.
 
+Definition v_to_e (v: value) : administrative_instruction :=
+  AI_basic (BI_const v).
+
 (** [v_to_e_list]: 
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
-  map (fun v => AI_basic (BI_const v)) ves.
+  map v_to_e ves.
+
+(* Filling label context hole *)
+Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=
+  match lh with
+  | LH_base vs es' => v_to_e_list vs ++ es ++ es'
+  | LH_rec _ vs n es' lh' es'' => v_to_e_list vs ++ [:: AI_label n es' (lfill lh' es)] ++ es''
+  end.
 
 (* interpreter related *)
 
@@ -570,71 +580,6 @@ Definition result_to_stack (r : result) :=
   | result_values vs => v_to_e_list vs
   | result_trap => [:: AI_trap]
   end.
-
-
-Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=
-  match lh with
-  | LH_base vs es' => v_to_e_list vs ++ es ++ es'
-  | LH_rec _ vs n es' lh' es'' => v_to_e_list vs ++ [:: AI_label n es' (lfill lh' es)] ++ es''
-  end.
-
-(*
-Inductive lfilledInd {k}: lholed k -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
-| LfilledBase: forall vs es es',
-    lfilledInd (LH_base vs es') es (v_to_e_list vs ++ es ++ es')
-| LfilledRec: forall vs n es' lh' es'' es LI,
-    lfilledInd lh' es LI ->
-    lfilledInd (LH_rec vs n es' lh' es'') es (v_to_e_list vs ++ [ :: (AI_label n es' LI) ] ++ es'').
-
-Lemma lfilled_Ind_Equivalent: forall k lh es LI,
-    lfilled k lh es LI <-> lfilledInd k lh es LI.
-Proof.
-  move => k. split.
-  - move: lh es LI. induction k; move => lh es LI HFix.
-    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
-      * replace LI with (v_to_e_list l++es++l0); first by apply LfilledBase.
-        symmetry. move: HFix. by apply/eqseqP.
-    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
-      * { destruct (lfill k lh es) eqn:HLF => //=.
-          { replace LI with (v_to_e_list l ++ [ :: (AI_label n l0 l2)] ++ l1).
-          apply LfilledRec.
-          apply IHk. unfold lfilled; first by rewrite HLF.
-          symmetry. move: HFix. by apply/eqseqP. }
-        }
-  - move => HLF. induction HLF.
-    + unfold lfilled. unfold lfill. by apply/eqP.
-    + unfold lfilled. 
-      unfold lfilled in IHHLF => /=. destruct (lfill k lh' es) => //=.
-      * move/eqP in IHHLF; subst.
-        by apply/eqP.
-Qed.
-
-Lemma lfilledP: forall k lh es LI,
-    reflect (lfilledInd k lh es LI) (lfilled k lh es LI).
-Proof.
-  move => k lh es LI. destruct (lfilled k lh es LI) eqn:HLFBool.
-  - apply ReflectT. by apply lfilled_Ind_Equivalent.
-  - apply ReflectF. move=> HContra. apply lfilled_Ind_Equivalent in HContra.
-    by rewrite HLFBool in HContra.
-Qed.
-
-Fixpoint lfill_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
-  match k with
-  | 0 =>
-    if lh is LH_base nil nil then Some es else None
-  | k'.+1 =>
-    if lh is LH_rec vs n es' lh' es'' then
-      if const_list vs then
-        if lfill_exact k' lh' es is Some lfilledk then
-          Some (app vs (cons (AI_label n es' lfilledk) es''))
-        else None
-      else None
-    else None
-  end.
-
-Definition lfilled_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
-  if lfill_exact k lh es is Some es'' then es' == es'' else false.
-*)
 
 Definition result_types_agree (ts : result_type) r :=
   match r with
@@ -759,3 +704,5 @@ End Host.
 
 Arguments cl_type {host_function}.
 
+#[export]
+Hint Unfold v_to_e: core.

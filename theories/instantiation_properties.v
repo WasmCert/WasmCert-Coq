@@ -3,7 +3,7 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
 Require Import Coq.Program.Equality List NArith.
 Require Export instantiation_spec.
-Require Export type_preservation type_progress properties.
+Require Export type_preservation type_progress properties opsem_properties.
 
 Notation "l !! n" := (List.nth_error l n) (at level 10).
 

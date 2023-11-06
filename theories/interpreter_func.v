@@ -1,6 +1,6 @@
 (** Proof-carrying interpreter for Wasm **)
 
-From Wasm Require Import common opsem properties tactic typing_inversion.
+From Wasm Require Import common properties opsem_properties tactic typing_inversion contexts.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
@@ -133,7 +133,7 @@ Definition config_one_tuple_without_e := (host_state * store_record * frame * li
 (* TODO auto instantiate lh, k? *)
 Ltac solve_lfilled :=
   unfold lfill, vs_to_es;
-  try rewrite v_to_e_is_const_list; apply/eqP; simplify_lists => //;
+  try rewrite v_to_e_const; apply/eqP; simplify_lists => //;
   repeat rewrite List.app_nil_r.
 
 (* get f z = x from (H : rev (map f (z :: zs)) = xs ++ ys ++ [:: x]) *)
@@ -213,14 +213,14 @@ Lemma error_rec : forall s f e es es' es'' ves,
 Proof.
   intros s f e es es' es'' ves ? Hsplit Hrec Hcontra.
   destruct Hcontra as [C [C' [ret [lab [? [? [? [? [Hcat [? [? Hetype]]]]]]]]]]].
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es es'.
+  apply split_vals_inv in Hsplit. subst es es'.
   apply e_composition_typing in Hetype as [? [t1s [? [? [Ht1s [? [Hetypeves Hetype]]]]]]].
   apply_cat0_inv Hcat.
   apply_cat0_inv Ht1s.
   rewrite <- cat1s in Hetype.
   apply e_composition_typing in Hetype as [ts [t2s [? [t3s [Ht2s [? [??]]]]]]].
   apply et_to_bet in Hetypeves as Hbtypeves;
-    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    last by apply const_list_is_basic; apply v_to_e_const.
   apply Const_list_typing in Hbtypeves.
   apply Hrec. exists C, C', ret, lab, (ts ++ t2s), (ts ++ t3s), [::].
   repeat split => //; try by apply ety_weakening.
@@ -242,18 +242,20 @@ Lemma break_rec : forall e es es'' ves k bvs,
 Proof.
   intros e es es'' ves k bvs Hsplit
     [i [j [[lh_vs lh_es | k0 lh_vs n lh_es' lh' lh_es] [Heqj [Hlf Hbase]]]]];
-    apply split_vals_e_v_to_e_duality in Hsplit; subst es; unfold vs_to_es.
+    apply split_vals_inv in Hsplit; subst es; unfold vs_to_es.
   - destruct lh_vs => //.
-    inversion Hlf as [??? H1 H2 H3 Heqes|]; subst; clear Hlf.
-    exists 0, k, (LH_base [::] es''). repeat split => //.
-    rewrite /vs_to_es revK in Heq.
-    rewrite add0n in Heqj; subst j.
-    rewrite Heq.
+    simpl in Hlf.
+    exists 0, k, (LH_base [::] es''). repeat split => //=.
+    rewrite -catA in Hlf.
+    apply ves_cat_e_split in Hlf as [Heq1 [Heq2 Heq3]] => //; try by apply v_to_e_const.
+    subst.
+    apply v_to_e_inj in Heq1.
+    rewrite add0n Heq1 revK.
     by solve_lfilled.
   - simpl in Hlf.
     rewrite/vs_to_es revK in Hlf.
     apply ves_cat_e_split in Hlf as [Heq [<- ->]] => //;
-      try by apply v_to_e_is_const_list.
+      try by apply v_to_e_const.
     exists k0.+1, j, (LH_rec ves n lh_es' lh' es'').
     by repeat split => //.
 Qed.
@@ -270,7 +272,7 @@ Lemma return_rec : forall e es es'' ves rvs,
   empty_vs_base lh.
 Proof.
   intros e es es'' ves rvs Hsplit H.
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  apply split_vals_inv in Hsplit. subst es.
   destruct H as [[??] | [ln [les [es [i [lh [? [HLF Hbase]]]]]]]]; subst e.
   - subst rvs. unfold vs_to_es. rewrite revK.
     exists 0, (LH_base [::] es'').
@@ -288,21 +290,12 @@ Lemma reduce_rec : forall (hs hs' : host_state) s s' f f' e es es' es'' ves res,
   reduce hs s f es hs' s' f' (res ++ es'').
 Proof.
   intros hs hs' s s' f f' e es es' es'' ves res ?? Hreduce.
-  assert (es = v_to_e_list ves ++ es'). { by apply split_vals_e_v_to_e_duality. }
+  assert (es = v_to_e_list ves ++ es'). { by apply split_vals_inv. }
   subst es es'.
   eapply r_label with (k := 0) (lh := (LH_base [::] es'')).
   - by apply Hreduce.
   - by solve_lfilled. 
   - by solve_lfilled.
-Qed.
-
-Lemma value_split_0 : forall es ves,
-  split_vals_e es = (ves, [::]) ->
-  const_list es \/ es_is_trap es.
-Proof.
-  intros es ves Hsplit. left.
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
-  rewrite cats0. by apply v_to_e_is_const_list.
 Qed.
 
 Lemma reduce_trap : forall (hs : host_state) s f e es es'' ves,
@@ -313,7 +306,7 @@ Lemma reduce_trap : forall (hs : host_state) s f e es es'' ves,
 Proof.
   intros hs s f e es es'' ves Hsplit Htrap Hesves.
   destruct e => //.
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
+  apply split_vals_inv in Hsplit. subst es.
   move/orP in Hesves.
   apply r_simple. eapply rs_trap with (lh := LH_base ves es'');
     try by solve_lfilled.
@@ -322,41 +315,6 @@ Proof.
     intros Hcontr. by size_unequal Hcontr.
   - assert (size ves > 0); first by destruct ves => //.
     intros Hcontr. by size_unequal Hcontr.
-Qed.
-
-Lemma value_trap : forall e es es'' ves,
-  split_vals_e es = (ves, e :: es'') ->
-  e_is_trap e ->
-  ((es'' != [::]) || (ves != [::])) = false ->
-  const_list es \/ es_is_trap es.
-Proof.
-  intros e es es'' ves Hsplit Htrap Hesves. right.
-  apply split_vals_e_v_to_e_duality in Hsplit. subst es.
-  rewrite <- negb_and in Hesves. move/andP in Hesves. destruct Hesves as [Hes Hves].
-  move/eqP in Hes. move/eqP in Hves. subst es'' ves.
-  by destruct e.
-Qed.
-
-Lemma split_vals_e_not_const : forall e es es'' ves,
-  split_vals_e es = (ves, e :: es'') ->
-  (is_const e) = false.
-Proof.
-  intros e es es'' ves. apply contraPF. intros Hconst Hsplit.
-  assert (Hsplit' : split_vals_e es = (ves, e :: es'')). { by assumption. }
-  apply split_vals_e_v_to_e_duality in Hsplit'. subst es.
-  unfold is_const in Hconst.
-  destruct e as [b| | | |] => //. destruct b => //.
-  dependent induction ves.
-  - replace (v_to_e_list [::] ++ AI_basic (BI_const v) :: es'')
-      with (AI_basic (BI_const v) :: es'') in Hsplit;
-      last by auto.
-    simpl in Hsplit.
-    destruct (split_vals_e es'') => //.
-  - apply IHves => //.
-    simpl in Hsplit.
-    destruct (split_vals_e (v_to_e_list ves ++ AI_basic (BI_const v) :: es'')) => //.
-    injection Hsplit as ??.
-    by apply pair_equal_spec.
 Qed.
 
 Lemma reduce_unreachable : forall (hs : host_state) s f ves,
@@ -475,7 +433,7 @@ Proof.
   apply r_simple.
   eapply rs_block
     with (vs := vs_to_es ves') (t1s := t1s) => //.
-  - by apply v_to_e_is_const_list.
+  - by apply v_to_e_const.
   - repeat rewrite length_is_size.
     simpl_vs_to_es_size.
     (* TODO ltac for this? *)
@@ -520,7 +478,7 @@ Proof.
     (k := 0) (lh := (LH_base (rev ves'') [::])).
   - apply r_simple.
     eapply rs_loop with (vs := vs_to_es ves') (t1s := t1s) (t2s := t2s) (es := es) => //.
-    * by apply v_to_e_is_const_list.
+    * by apply v_to_e_const.
     * unfold vs_to_es.
       repeat rewrite length_is_size.
       rewrite v_to_e_size.
@@ -1798,7 +1756,7 @@ Proof.
   eapply r_label with (k := 0) (lh := LH_base (rev ves) [::]);
     try by solve_lfilled.
   subst es.
-  apply r_simple. eapply rs_br; first by apply v_to_e_is_const_list.
+  apply r_simple. eapply rs_br; first by apply v_to_e_const.
   - rewrite length_is_size v_to_e_size size_rev size_takel => //; rewrite length_is_size in Hlen.
   - do 2 (erewrite lfill_push_base_vs; eauto).
     by rewrite length_is_size v_to_e_size size_rev rev_take v_to_e_drop.
@@ -1840,7 +1798,7 @@ Proof.
   }
   subst ts'0 t1s'.
   apply et_to_bet in Hetypebvs;
-    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    last by apply const_list_is_basic; apply v_to_e_const.
   apply Const_list_typing in Hetypebvs.
   simpl in Hetypebvs.
   apply f_equal with (f := size) in Hetypebvs.
@@ -2041,7 +1999,7 @@ Proof.
 
   erewrite lfill_push_base_vs' in HLF; last (by rewrite length_is_size v_to_e_size size_rev; rewrite length_is_size in Hlen; apply Hlen); try by eauto.
   apply r_simple.
-  eapply rs_return; eauto; [ by apply v_to_e_is_const_list | rewrite length_is_size v_to_e_size size_rev size_takel => //; rewrite length_is_size in Hlen | ].
+  eapply rs_return; eauto; [ by apply v_to_e_const | rewrite length_is_size v_to_e_size size_rev size_takel => //; rewrite length_is_size in Hlen | ].
   subst es.
   by rewrite length_is_size v_to_e_size size_rev rev_take v_to_e_drop.
 Qed.
@@ -2091,7 +2049,7 @@ Proof.
   injection Heqret; subst; clear Heqret.
   move => <-.
   apply et_to_bet in Hetypervs;
-    last by apply const_list_is_basic; apply v_to_e_is_const_list.
+    last by apply const_list_is_basic; apply v_to_e_const.
   apply Const_list_typing in Hetypervs.
   simpl in Hetypervs.
   apply f_equal with (f := size) in Hetypervs.
@@ -2185,9 +2143,9 @@ Proof.
   move: es es'.
   induction vs; move => es es' Hsplitvals Hnconst => //=.
   - destruct es' => /=.
-    + apply split_vals_e_v_to_e_duality in Hsplitvals; by subst es.
-    + specialize (split_vals_e_not_const Hsplitvals) as Hnconsta.
-      apply split_vals_e_v_to_e_duality in Hsplitvals; subst es => /=.
+    + apply split_vals_inv in Hsplitvals; by subst es.
+    + specialize (split_vals_nconst Hsplitvals) as Hnconsta.
+      apply split_vals_inv in Hsplitvals; subst es => /=.
       destruct a => //=.
       by destruct b.
   - destruct es as [ | e es''] => //.
@@ -2816,7 +2774,7 @@ Proof.
        by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
     -- apply RS'_value.
        by apply value_trap with (e := e) (es'' := es'') (ves := ves).
-  + remember (split_vals_e_not_const Heqes) as Hconst.
+  + assert (Hconst: is_const e = false); first by specialize (split_vals_nconst Heqes); lias.
     assert (run_step_measure es = S (run_one_step_measure e)) as Hmeasure.
     { unfold run_step_measure. by rewrite Heqes. }
     rewrite Hmeasure in run_step_aux_rec.
@@ -2839,16 +2797,6 @@ Defined.
 
 Program Fixpoint run_step hs s f es {measure (run_step_measure es)}: res_step' hs s f es :=
   run_step_aux hs s f run_step.
-
-  (*
-
-
-*)  
-  (* run_one_step'' *)
- 
-    
-
-
 
 (***************************************)
 
@@ -2925,7 +2873,7 @@ Proof.
     exists C, C', ret, lab, [::], t2s, [::].
     repeat split => //.
     apply et_composition' with (t2s := t1s) => //.
-    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_is_const_list.
+    apply ety_a'; first by apply const_list_is_basic; apply v_to_e_const.
     rewrite to_b_v_to_e_is_bi_const. subst t1s.
     by apply bet_const'.
   - (* RS'_break *)
@@ -2933,13 +2881,13 @@ Proof.
     destruct Hbr as [i [j [lh [Heqj [HLF Hbase]]]]].
     unfold vs_to_es in HLF.
     erewrite lfill_push_base_vs in HLF => //.
-    eapply lfill_drop_vs in HLF => //; last by apply v_to_e_is_const_list.
+    eapply lfill_drop_vs in HLF => //; last by apply v_to_e_const.
     by apply HLFbr in HLF; lias.
   - (* RS'_return *)
     exfalso.
     destruct Hret as [i [lh [HLF Hbase]]].
     erewrite lfill_push_base_vs in HLF => //.
-    eapply lfill_drop_vs in HLF => //; last by apply v_to_e_is_const_list.
+    eapply lfill_drop_vs in HLF => //; last by apply v_to_e_const.
     by apply HLFret in HLF; lias.
   - right. exists s', f', es', hs' => //.
 Qed.

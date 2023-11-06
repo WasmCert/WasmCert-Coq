@@ -383,7 +383,7 @@ Proof.
     injection Heval as ->.
     specialize (const_split_vals es' Hconstlist) as Hsplitempty.
     rewrite Hsplit in Hsplitempty; simpl in Hsplitempty; subst l0.
-    apply split_vals_e_v_to_e_duality in Hsplit as ->.
+    apply split_vals_inv in Hsplit as ->.
     simpl in Hred.
     apply reduce_get_globs in Hred.
     by apply r_get_global.
@@ -488,7 +488,7 @@ Proof.
       rewrite Hsplit in Hsplitempty; simpl in Hsplitempty; subst l0.
       apply Relation_Operators.rt_step => /=.
       apply r_get_global => /=.
-      apply split_vals_e_v_to_e_duality in Hsplit as ->.
+      apply split_vals_inv in Hsplit as ->.
       apply reduce_get_globs in Hred.
       unfold sglob_val, sglob, sglob_ind in *.
       simpl in *.

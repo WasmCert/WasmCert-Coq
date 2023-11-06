@@ -307,15 +307,18 @@ Qed.
 
 (** If [List.nth_error] succeeds, then the list can be split into three parts. **)
 Lemma split3: forall {X:Type} (l:seq X) n v,
-    n < size l ->
     List.nth_error l n = Some v ->
     l = take n l ++ [::v] ++ drop (n+1) l.
 Proof.
   move => X.
-  elim => //= a l IH n v.
-  elim: n => [_ [H]|n IH2 Ha Hb].
-  - by rewrite /= H drop0.
-  - by rewrite /= -(IH _ _ Ha Hb).
+  elim; first by case.
+  move => a l IH; case => //.
+  - move => v /=; case => <-.
+    f_equal.
+    by rewrite drop0.
+  - move => n v /= Hnth.
+    apply (IH n v) in Hnth; simpl in Hnth.
+    by rewrite - Hnth.
 Qed.
 
 Lemma rev_move: forall {X:Type} (l1 l2:seq X),
