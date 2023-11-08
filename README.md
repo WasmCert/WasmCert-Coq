@@ -30,7 +30,7 @@ This work is in progress. While our initial work used the definitions published 
 # Program Logic
 
 This repository contains a mechanised Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-opam). 
-This is migrated from an older build for the [artefact](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native) submitted along with the Iris-Wasm publication at [PLDI'23](https://dl.acm.org/doi/10.1145/3591265).
+This is migrated from an older build for the [artefact](https://zenodo.org/records/7808708) submitted along with the Iris-Wasm publication at [PLDI'23](https://dl.acm.org/doi/10.1145/3591265).
 
 # Binary Parser (experimental)
 This repository contains some experimental work on a parser for the binary format which is currently unverified.
