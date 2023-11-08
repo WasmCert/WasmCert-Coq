@@ -1,29 +1,39 @@
 # wasm_coq
 WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the [official formalisation](https://www.w3.org/TR/wasm-core-1/).
-Our definitions and proofs draw from those given in the [Isabelle mechanisation of Conrad Watt](https://www.isa-afp.org/entries/WebAssembly.html).
+Our definitions and proofs initially drew from those given in the [Isabelle mechanisation of Conrad Watt](https://www.isa-afp.org/entries/WebAssembly.html).
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2023 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
 
-This work is in progress, comprising WasmCert-Coq, a Coq-Specification of the Wasm operational semantics, and WasmRef-Coq, a Coq-representation of the Wasm pseudo-code standard which yields an OCAML interpreter. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. 
+This work is in progress. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. A large part of the work has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with more additions to the repository since then.
 
-# TODOs
+# Components of the Repository
 
-- [x] Give core definitions of WasmCert-Coq and WasmRef-Coq.
-- [x] Prove soundness results for WasmRef-Coq (interpreter) with respect to WasmCert-Coq.
-- [x] Finish type soundness result.
+## In Publication
+
+- [x] Core definitions of WasmCert-Coq and WasmRef-Coq.
+- [x] Soundness results for WasmRef-Coq (interpreter) with respect to WasmCert-Coq.
+- [x] Type safety results for Wasm typing system.
+- [x] Soundness and completeness results for the type checker with respect to the typing system.
+- [x] Implementing Wasm numerics (via CompCert numerics).
+
+## Merged
+- [x] Soundness results for module instantiation.
+- [x] Proof carrying interpreter deriving progress.
+
+## Unmerged/Future Work
+- [x] Generalised framework for evaluation contexts.
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [x] Verify executable type checker soundness.
-- [x] Verify instantiation soundness properties.
-- [x] Implement numerics using CompCert numerics.
+- [ ] Optimise interpreter for contexts.
 
 # Program Logic
 
-This repository contains an instantiation of a Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-opam).
+This repository contains a mechanised Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-opam). 
+This is migrated from an older build for the [artefact](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-native) submitted along with the Iris-Wasm publication at [PLDI'23](https://dl.acm.org/doi/10.1145/3591265).
 
 # Binary Parser (experimental)
-This repository contains some experimental work on a parser for the binary format which is currently unverified. 
+This repository contains some experimental work on a parser for the binary format which is currently unverified.
 
 # Usage
 
@@ -38,7 +48,8 @@ opam install .
 ```
 
 ## Build Based on Esy
-The previous esy-based build is now deprecated; it is moved to [esy branch](https://github.com/WasmCert/WasmCert-Coq/tree/esy-8.13).
+
+The previous esy-based build is now deprecated; it is moved to esy branch.
 
 ## Testing the Installation
 
