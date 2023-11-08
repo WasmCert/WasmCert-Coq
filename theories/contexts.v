@@ -126,7 +126,6 @@ Proof.
   }
 Qed.
 
-
 (** label context arithmetics **)
 Fixpoint empty_vs_base {k} (lh: lholed k) : bool :=
   match lh with
@@ -333,3 +332,75 @@ Defined.
 
 Program Fixpoint lfill_factorise fe es {measure (ais_gen_measure es)} :=
   @lfill_factorise_aux fe es lfill_factorise.
+
+
+(** Inductively defined contexts extract to code that run very poorly. This alternative defines an
+    additional context stack to replace the inductive definition, since the evaluation context tree is
+    always guaranteed to be linear. **)
+Module EvalContext.
+
+Class eval_ctx (ctx_t: Type): Type :=
+  {
+    ctx_fill: ctx_t -> list administrative_instruction -> list administrative_instruction;
+  }.
+
+Notation "ctx [[ es ]]" := (ctx_fill ctx es) (at level 5).
+
+(* Sequence context: vs ++ [_] ++ es. This is only used in the base level *)
+Definition seq_ctx : Type := (list value) * (list administrative_instruction).
+
+#[export]
+Instance seq_ctx_eval : eval_ctx seq_ctx :=
+  {| ctx_fill := (fun ctx es => (v_to_e_list (fst ctx) ++ es ++ (snd ctx))) |}.
+
+(* Label context: LC_val ++ [::AI_label LC_arity LC_cont [_]) ++ LC_post; can be nested *)
+Record label_ctx: Type :=
+  { LC_val: list value;
+    LC_arity: nat;
+    LC_cont: list administrative_instruction;
+    LC_post: list administrative_instruction;
+  }.
+
+Definition label_ctx_fill := (fun ctx es => (v_to_e_list (LC_val ctx) ++ [::AI_label (LC_arity ctx) (LC_cont ctx) es] ++ LC_post ctx)).
+
+#[export]
+Instance label_ctx_eval: eval_ctx label_ctx :=
+  {| ctx_fill := label_ctx_fill |}.
+
+Canonical label_ctx_eval.
+
+#[export]
+Instance list_ctx_eval {T: Type} (f: eval_ctx T): eval_ctx (list T) :=
+  {| ctx_fill := (fun ctxs es => foldr f.(ctx_fill) es ctxs) |}.
+
+Definition label_list_ctx: Type := list label_ctx.
+
+(* Frame context: FC_val ++ [::AI_local FC_arity FC_frame [_]) ++ FC_post *)
+Record frame_ctx: Type :=
+  { FC_val: list value;
+    FC_arity: nat;
+    FC_frame: frame;
+    FC_post: list administrative_instruction;
+  }.
+
+#[export]
+Instance frame_ctx_eval: eval_ctx frame_ctx :=
+  {| ctx_fill := (fun ctx es => (v_to_e_list (FC_val ctx) ++ [::AI_local (FC_arity ctx) (FC_frame ctx) es] ++ FC_post ctx)) |}.
+
+Definition closure_ctx : Type := (option frame_ctx) * label_ctx * seq_ctx.
+
+Definition closure_ctx_fill (cc: closure_ctx) es :=
+  match cc with
+  | (Some fc, lc, sc) => fc [[ lc [[ sc [[ es ]] ]] ]]
+  | (None, lc, sc) => lc [[ sc [[ es ]] ]]
+  end.
+
+#[export]
+Instance closure_ctx_eval: eval_ctx closure_ctx :=
+  {| ctx_fill := closure_ctx_fill |}.
+
+(* A configuration is now represented as (S; F; ctx [[ e ]]), with the hole holding at most one instruction.
+   The hole is allowed to be empty (in which case the inner context is then exitted. *)
+Definition cfg_tuple_ctx {host_function: eqType}: Type := (store_record host_function) * frame * list closure_ctx * option administrative_instruction.
+
+End EvalContext.
