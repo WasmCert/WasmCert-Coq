@@ -448,9 +448,6 @@ Definition is_const (e : administrative_instruction) : bool :=
 Definition const_list (es : seq administrative_instruction) : bool :=
   List.forallb is_const es.
 
-Definition those_const_list (es : list administrative_instruction) : option (list value) :=
-  those (List.map (fun e => match e with | AI_basic (BI_const v) => Some v | _ => None end) es).
-
 Definition glob_extension (g1 g2: global) : bool :=
   ((g_mut g1 == MUT_mut) || ((g_val g1) == (g_val g2))) &&
     (g_mut g1 == g_mut g2) &&
@@ -481,6 +478,7 @@ Definition vs_to_vts (vs : seq value) := map typeof vs.
 Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruction :=
   map AI_basic bes.
 
+(* Two versions of converting admin instructions back to basic *)
 Definition to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
   | AI_basic x => x
@@ -489,6 +487,15 @@ Definition to_b_single (e: administrative_instruction) : basic_instruction :=
 
 Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
   map to_b_single es.
+
+Definition to_b_single_opt (e: administrative_instruction) : option basic_instruction :=
+  match e with
+  | AI_basic x => Some x
+  | _ => None
+  end.
+
+Definition to_b_list_opt (es: seq administrative_instruction) : option (seq basic_instruction) :=
+  those (map to_b_single_opt es).
 
 Definition e_is_basic (e: administrative_instruction) :=
   exists be, e = AI_basic be.
@@ -507,6 +514,25 @@ Definition v_to_e (v: value) : administrative_instruction :=
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
   map v_to_e ves.
+
+(* Two versions of converting admin instructions into values *)
+Definition e_to_v (e: administrative_instruction) : value :=
+  match e with
+  | AI_basic (BI_const v) => v
+  | _ => VAL_int32 (Wasm_int.Int32.zero)
+  end.
+
+Definition e_to_v_list (es: seq administrative_instruction) : list value :=
+  map e_to_v es.
+
+Definition e_to_v_opt (e: administrative_instruction) : option value :=
+  match e with
+  | AI_basic (BI_const v) => Some v
+  | _ => None
+  end.
+
+Definition e_to_v_list_opt (es: list administrative_instruction) : option (list value) :=
+  those (map e_to_v_opt es).
 
 (* Filling label context hole *)
 Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=

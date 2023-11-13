@@ -1,6 +1,6 @@
 (** Proof-carrying interpreter for Wasm **)
 
-From Wasm Require Import common properties opsem_properties tactic typing_inversion contexts.
+From Wasm Require Import common properties opsem_properties tactic typing_inversion.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
@@ -2957,6 +2957,6 @@ Definition run_step_compat := run_step_compat host_application_impl_correct.
 
 (** State whether a list of administrative instruction is a final value. **)
 Definition is_const_list : list administrative_instruction -> option (list value) :=
-  @those_const_list.
+  @e_to_v_list_opt.
 
 End Interpreter_func_extract.
