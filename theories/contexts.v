@@ -56,6 +56,18 @@ Record label_ctx: Type :=
     LC_post: list administrative_instruction;
   }.
 
+Definition label_ctx_eq_dec (v1 v2 : label_ctx): {v1 = v2} + {v1 <> v2}.
+Proof.
+  by decidable_equality.
+Qed.
+
+Definition label_ctx_eqb (v1 v2: label_ctx) : bool := label_ctx_eq_dec v1 v2.
+Definition eqlabel_ctx :=
+  eq_dec_Equality_axiom label_ctx_eq_dec.
+
+Canonical Structure label_ctx_eqMixin := EqMixin eqlabel_ctx.
+Canonical Structure label_ctx_eqType := Eval hnf in EqType label_ctx label_ctx_eqMixin.
+
 Definition label_ctx_fill := (fun es ctx => (vs_to_es (LC_val ctx) ++ [::AI_label (LC_arity ctx) (LC_cont ctx) es] ++ (LC_post ctx))).
 
 #[refine, export]
@@ -73,6 +85,18 @@ Record frame_ctx: Type :=
     FC_frame: frame;
     FC_post: list administrative_instruction;
   }.
+
+Definition frame_ctx_eq_dec (v1 v2 : frame_ctx): {v1 = v2} + {v1 <> v2}.
+Proof.
+  by decidable_equality.
+Qed.
+
+Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
+Definition eqframe_ctx :=
+  eq_dec_Equality_axiom frame_ctx_eq_dec.
+
+Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
+Canonical Structure frame_ctx_eqType := Eval hnf in EqType frame_ctx frame_ctx_eqMixin.
 
 #[refine, export]
 Instance frame_ctx_eval: eval_ctx frame_ctx :=
@@ -215,7 +239,7 @@ Defined.
    Note that no frame is held in the tuple, since all frames should have been pushed into the local contexts.
    The contexts are represented in a reversed stack-like structure: the head of each list is the innermost context.
    The hole is allowed to be empty (in which case the inner context is then exitted on the next step). *)
-Definition cfg_tuple_ctx {host_function: eqType}: Type := (store_record host_function) * list closure_ctx * seq_ctx * option administrative_instruction.
+Definition cfg_tuple_ctx: Type := (store_record host_function) * list closure_ctx * seq_ctx * option administrative_instruction.
 
 Definition valid_hole (e: administrative_instruction) : bool :=
   match e with
@@ -231,14 +255,17 @@ Definition valid_split (sc: seq_ctx) oe: bool :=
   | None => snd sc == nil
   end.
 
+Definition valid_ccs (ccs: list closure_ctx) (oe: option administrative_instruction): bool :=
+  (ccs != nil) || (oe == None).
+
 (* The canonical form of a context config tuple: 
    - The ves split has to be valid;
-   - The closure can only be empty if the entire instruction is already a value. 
+   - The closure can only be empty if the entire instruction is already a value.
 *)
-Definition valid_cfg_ctx {host_function: eqType} (cfg: @cfg_tuple_ctx host_function) : Prop :=
+Definition valid_cfg_ctx (cfg: cfg_tuple_ctx) : Prop :=
   match cfg with
   | (_, cc, sc, oe) =>
-      (cc = nil -> oe = None /\ snd sc = nil) /\ valid_split sc oe
+      valid_ccs cc oe /\ valid_split sc oe
   end.
 
 Definition olist {T: Type} (ot: option T) : list T :=
@@ -377,7 +404,7 @@ Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list c
           match e with
           | AI_label k ces es =>
               match acc with
-              | nil => None (* ctx_decompose_aux (es, [:: (empty_frame_ctx, [::Build_label_ctx vs k ces es'])]) *)
+              | nil => None
               | (fc, lcs) :: ccs' => ctx_decompose_aux (es, (fc, (Build_label_ctx vs k ces es') :: lcs) :: ccs')
               end
           | AI_local k f es =>
@@ -407,6 +434,45 @@ Defined.
 
 Definition ctx_decompose ves := ctx_decompose_aux (ves, nil).
 
+Definition e_is_label e :=
+  match e with
+  | AI_label _ _ _ => true
+  | _ => false
+  end.
+
+Lemma ctx_decompose_aux_none_impl: forall ves acc,
+    ctx_decompose_aux (ves, acc) = None ->
+    acc = nil /\ exists vs e es, split_vals' ves = (vs, e :: es) /\ e_is_label e.
+Proof.
+  move => ves.
+  remember (ais_measure ves) as m.
+  move: Heqm.
+  move: ves.
+  induction m as [m' IH] using (lt_wf_ind).
+  move => ves ? acc Hdecomp; subst m'.
+  rewrite ctx_decompose_aux_equation in Hdecomp.
+  destruct (split_vals' ves) as [vs es] eqn:Hsplit.
+  apply split_vals'_spec, split_vals_inv in Hsplit as ->.
+  destruct es as [ | e es'] => //.
+  destruct e => //.
+  (* Label *)
+  - destruct acc as [ | [fc lcs] ccs'] => //.
+    split => //.
+    by repeat eexists.
+  - eapply IH in Hdecomp as [Hcontra ?]; eauto; first by inversion Hcontra.
+    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+  - eapply IH in Hdecomp as [Hcontra ?]; eauto; first by inversion Hcontra.
+    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+Qed.
+
+Lemma ctx_decompose_acc_some: forall ves acc,
+    acc <> nil ->
+    ctx_decompose_aux (ves, acc) <> None.
+Proof.
+  move => ves acc Hnil Hcontra.
+  by apply ctx_decompose_aux_none_impl in Hcontra as [-> ?].
+Qed.
+
 (* Auxiliary definitions for maintaining the canonical decomposition during execution. These avoid the need to
    invoke split_vals again unless the hole itself is a const *)
 Definition ctx_update_nconst (acc: list closure_ctx) (sctx: seq_ctx) e :=
@@ -433,6 +499,35 @@ Definition ctx_update (acc: list closure_ctx) (sctx: seq_ctx) e :=
       end
   | None => ctx_update_nconst acc sctx e
   end.
+
+Lemma ctx_decompose_valid_ccs_aux: forall ves acc ccs sctx oe,
+    acc != nil ->
+    ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
+    valid_ccs ccs oe.
+Proof.
+  move => ves.
+  remember (ais_measure ves) as m.
+  move: Heqm.
+  move: ves.
+  induction m as [m' IH] using (lt_wf_ind).
+  move => ves ? acc ccs sctx oe Hnil Hdecomp; subst m'.
+  rewrite ctx_decompose_aux_equation in Hdecomp.
+  destruct (split_vals' ves) as [vs es] eqn:Hsplit.
+  apply split_vals'_spec in Hsplit.
+  destruct es as [ | e es']; first by injection Hdecomp as <- <- <-; unfold valid_ccs; apply/orP; right.
+  destruct e as
+    [ b
+    |
+    | addr
+    | n ces es
+    | n f es
+    ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_ccs; apply/orP; left).
+  - destruct acc as [ | [fc lcs] ccs'] => //.
+    eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
+    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+  - eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
+    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+Qed.
 
 Lemma ctx_decompose_valid_aux: forall ves acc ccs sctx oe,
     ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
@@ -465,7 +560,7 @@ Proof.
     by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
 Qed.
 
-Lemma ctx_decompose_valid: forall ves ccs sctx oe,
+Lemma ctx_decompose_valid_split: forall ves ccs sctx oe,
     ctx_decompose ves = Some (ccs, sctx, oe) ->
     valid_split sctx oe.
 Proof.
@@ -473,6 +568,20 @@ Proof.
   by eapply ctx_decompose_valid_aux; eauto.
 Qed.
 
+Lemma ctx_update_nconst_valid_ccs: forall sctx e ccs ccs' sctx' oe,
+    ccs != nil ->
+    ctx_update_nconst ccs sctx e = Some (ccs', sctx', oe) ->
+    valid_ccs ccs' oe.
+Proof.
+  move => [vs es] e ccs ccs' [vs' es'] oe Hnil Hupdate.
+  unfold ctx_update_nconst in Hupdate; unfold valid_ccs.
+  destruct e; first destruct b; try (injection Hupdate as <- <- <-; subst => //); try (by apply/orP; left).
+  (* Label *)
+  - destruct ccs as [ | [fc lcs] ccs0] => //.
+    by eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
+  - by eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
+Qed.
+  
 Lemma ctx_update_nconst_valid: forall sctx e ccs ccs' sctx' oe,
     ~ is_const e ->
     ctx_update_nconst ccs sctx e = Some (ccs', sctx', oe) ->
@@ -486,6 +595,21 @@ Proof.
     by apply ctx_decompose_valid_aux in Hupdate.
   (* Local *)
   -  by apply ctx_decompose_valid_aux in Hupdate.
+Qed.
+
+Lemma ctx_update_valid_ccs: forall sctx e ccs ccs' sctx' oe,
+    ccs != nil ->
+    ctx_update ccs sctx e = Some (ccs', sctx', oe) ->
+    valid_ccs ccs' oe.
+Proof.
+  move => [vs es] e ccs ccs' [vs' es'] oe Hnil Hupdate.
+  unfold ctx_update in Hupdate; unfold valid_ccs.
+  destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
+  - destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
+    destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
+    apply split_vals'_spec, split_vals_nconst in Hsplit.
+    by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+  - by apply ctx_update_nconst_valid_ccs in Hupdate => //.
 Qed.
 
 Lemma ctx_update_valid: forall sctx e ccs ccs' sctx' oe,

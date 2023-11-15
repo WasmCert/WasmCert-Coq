@@ -16,7 +16,6 @@ Section Host.
 Import EvalContext.
   
 Let host := host EvalContext.host_function.
-Let cfg_tuple_ctx := @cfg_tuple_ctx EvalContext.host_function.
 
 Let store_record := store_record EvalContext.host_function.
 Let host_state := host_state EvalContext.host_instance.
@@ -37,29 +36,6 @@ Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
       | (s', ccs', sc', oe') => reduce hs s empty_frame (ccs ⦃ sc ⦃ olist oe ⦄ ⦄) hs' s' empty_frame (ccs' ⦃ sc' ⦃ olist oe' ⦄ ⦄)
       end
   end.
-
-(*
-Lemma reduce_ctx_reduce (hs hs': host_state) s f s' f' es es':
-  (forall ccs sc oe ccs' sc' oe', ccs ⦃ sc ⦃ olist oe ⦄ ⦄ = es ->
-  ccs' ⦃ sc' ⦃ olist oe' ⦄ ⦄ = es' ->
-  reduce_ctx hs hs' (s, f, ccs, sc, oe) (s', f', ccs', sc', oe')) <->
-  reduce hs s f es hs' s' f' es'.
-Proof.
-  split; last by intros; subst.
-  move => Hred.
-  remember (ctx_decompose es) as de.
-  destruct de as [[ccs sc] oe].
-  symmetry in Heqde.
-  remember (ctx_decompose es') as de'.
-  destruct de' as [[ccs' sc'] oe'].
-  symmetry in Heqde'.
-  apply decompose_fill_id in Heqde.
-  apply decompose_fill_id in Heqde'.
-  specialize (Hred _ _ _ _ _ _ Heqde Heqde').
-  unfold reduce_ctx in Hred.
-  by rewrite Heqde Heqde' in Hred.
-Qed.
-*)
 
 Ltac red_ctx_simpl :=
   repeat lazymatch goal with
@@ -89,6 +65,16 @@ Ltac infer_hole :=
       rewrite -catA
   end.
 
+Ltac resolve_valid_ccs :=
+  repeat lazymatch goal with
+    | |- _ /\ _ =>
+        split => //
+    | |- context C [valid_ccs _] =>
+        unfold valid_ccs => /=
+    | |- context C [ (_ || _) ] =>
+        apply/orP; (try by left); (try by right)
+    end.
+
 Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : valid_cfg_ctx cfg -> {hs' & {cfg' | reduce_ctx hs hs' cfg cfg' /\ valid_cfg_ctx cfg'}} + False.
 Proof.
   move => Hvalid.
@@ -96,7 +82,7 @@ Proof.
   destruct oe as [e | ]; last first.
   (* Exitting from contexts *)
   {
-    unfold valid_cfg_ctx in Hvalid; destruct sc as [vs es]; subst; simpl in *.
+    unfold valid_cfg_ctx in Hvalid; destruct sc as [vs es]; subst; simpl in Hvalid.
     destruct Hvalid as [? Heq]; move/eqP in Heq; subst es.
     destruct ccs as [ | [fc lcs] ccs'].
     { (* entire instruction is const *)
@@ -111,22 +97,35 @@ Proof.
           destruct les as [ | e les'].
           { (* No instruction in the hole *)
             left; exists hs, (s, ccs', (vs ++ lvs, nil), None) => /=.
-            split => //.
+            split; last by resolve_valid_ccs.
             red_ctx_simpl => //.
             repeat rewrite cats0.
             eapply r_label with (lh := LH_base (rev lvs) nil) => /=; infer_hole.
             by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
           }
-          { (* e is in the hole *)
-            left; exists hs, (s, ccs', (vs ++ lvs, les'), Some e) => /=.
-            split => //.
-            red_ctx_simpl => //.
-            rewrite cats0.
-            eapply r_label with (lh := LH_base (rev lvs) (e :: les')) => /=; infer_hole.
-            by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
+          { (* e is in the hole; push any context e has into the stack *)
+            remember (ctx_update ccs' (vs ++ lvs, les') e) as cfg_new; symmetry in Heqcfg_new.
+            destruct cfg_new as [[[ccs0 [vs0 es0]] oe] | ].
+            - destruct (valid_ccs ccs0 oe) eqn:Hccsnil.
+              { left; exists hs, (s, ccs0, (vs0, es0), oe).
+                split.
+                + apply ctx_update_fill in Heqcfg_new.
+                  unfold reduce_ctx.
+                  rewrite -Heqcfg_new => /=.
+                  red_ctx_simpl => //.
+                  rewrite cats0.
+                  eapply r_label with (lh := LH_base (rev lvs) (e :: les')) => /=; infer_hole.
+                  by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
+                + split => //; by apply ctx_update_valid in Heqcfg_new.
+              }
+              { (* The generated context is invalid as there are no wrapping contexts left*)
+                right. admit.
+              }
+            - (* Same -- invalid context *)
+              right. admit.
           }
         }
-        (* length doesn't match *)
+        (* length doesn't match -- no reduce *)
         { right. admit. }
       }
       (* Exitting a label *)
@@ -158,9 +157,7 @@ Proof.
         }
       }
   }
-  { destruct cc as [ | cc ccs]; first exact None.
-    destruct cc as [[fctx lctx] [vs es]].
-    destruct e as [
+  { destruct e as [
       (* AI_basic *) [
       (* BI_unreachable *) |
       (* BI_nop *) |
