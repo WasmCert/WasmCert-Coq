@@ -15,9 +15,9 @@
   (depends
     (coq (and (>= 8.16) (<= 8.17.1)))
     (coq-compcert (>= 3.11))
-    (coq-mathcomp-ssreflect (and (>= 1.16.0) (<= 1.17.0)))
+    (coq-mathcomp-ssreflect (and (>= 1.16.0) (<= 1.18.0)))
     (coq-itree (>= 3.1.0))
-    (coq-parseque (>= 0.1.0))
+    (coq-parseque (>= 0.2.0))
     (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
