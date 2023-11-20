@@ -62,7 +62,7 @@ Proof.
 Qed.
 
 Definition label_ctx_eqb (v1 v2: label_ctx) : bool := label_ctx_eq_dec v1 v2.
-Definition eqlabel_ctx :=
+Definition eqlabel_ctx: Equality.axiom label_ctx_eqb :=
   eq_dec_Equality_axiom label_ctx_eq_dec.
 
 Canonical Structure label_ctx_eqMixin := EqMixin eqlabel_ctx.
@@ -92,7 +92,7 @@ Proof.
 Qed.
 
 Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
-Definition eqframe_ctx :=
+Definition eqframe_ctx: Equality.axiom frame_ctx_eqb :=
   eq_dec_Equality_axiom frame_ctx_eq_dec.
 
 Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
@@ -703,5 +703,121 @@ Proof.
     repeat rewrite -v_to_e_cat.
     by rewrite -catA.
 Qed.
+
+(** conversion between lholed and contexts **)
+
+Fixpoint lh_to_ctx_aux {k} (lh: lholed k) (acc: list label_ctx): seq_ctx * (list label_ctx) :=
+  match lh with
+  | LH_base vs es => ((rev vs, es), acc)
+  | @LH_rec _ vs k ces lh' es => lh_to_ctx_aux lh' ((Build_label_ctx (rev vs) k ces es) :: acc)
+  end.
+
+Definition lh_to_ctx {k} (lh: lholed k) :=
+  lh_to_ctx_aux lh nil.
+
+(* It's better to express the result as a sigma type for better computation. *)
+Fixpoint ctx_to_lh_aux {k} (lcs: list label_ctx) (acc: lholed k): {j & lholed j}.
+Proof.
+  destruct lcs as [ | [lvs lk lces les]].
+  - exists k; by exact acc.
+  - exact (ctx_to_lh_aux (S k) lcs (LH_rec (rev lvs) lk lces acc les)).
+Defined.
+
+Definition ctx_to_lh (sc: seq_ctx) (lcs: list label_ctx) : {j & lholed j} :=
+  ctx_to_lh_aux lcs (LH_base (rev sc.1) sc.2).
+
+Lemma ctx_to_lh_aux_len: forall lcs k (acc: lholed k),
+    projT1 (ctx_to_lh_aux lcs acc) = k + length lcs.
+Proof.
+  induction lcs as [ | [lvs lk lces les]]; move => k acc => //=; first by rewrite addn0.
+  by rewrite IHlcs; lias.
+Qed.
+
+Lemma ctx_to_lh_len: forall sc lcs,
+    projT1 (ctx_to_lh sc lcs) = length lcs.
+Proof.
+  move => sc lcs.
+  by apply ctx_to_lh_aux_len.
+Qed.
+
+Lemma lh_ctx_fill_aux: forall lcs k (acc: lholed k) es lf,
+    lcs ⦃ (lfill acc es) ⦄ = lf ->
+    lfill (projT2 (ctx_to_lh_aux lcs acc)) es = lf.
+Proof.
+  induction lcs as [ | [lvs lk lces les]]; move => k acc es lf Hctxfill => /=; first done.
+  apply IHlcs; simpl in *.
+  by apply Hctxfill.
+Qed.
+
+Lemma lh_ctx_fill: forall lcs es lf,
+    lcs ⦃ es ⦄ = lf ->
+    lfill (projT2 (ctx_to_lh (nil, nil) lcs)) es = lf.
+Proof.
+  intros lcs es lf Hctx.
+  by apply lh_ctx_fill_aux with (acc := LH_base nil nil) => /=; rewrite cats0.
+Qed.
+
+(*
+Lemma lh_ctx_id {k}: forall sc lcs acc (lh: lholed k) (Heq: k = length lcs - length acc),
+    lh_to_ctx_aux lh acc = (sc, lcs) ->
+    {lcs0 & {Heq' | lcs = lcs0 ++ acc /\ ctx_to_lh sc lcs0 = lholed_cast lh Heq'} }.
+Proof.
+  move => sc lcs acc lh Heq.
+  move: sc acc Heq.
+  move: lcs.
+  unfold ctx_to_lh.
+  induction lh using lholed_rect; destruct lcs as [ | [lvs lk lces les]] => //=; unfold lh_to_ctx => /=; move => sc acc Heq Hconv.
+  - injection Hconv as ??; subst => /=.
+    exists nil, (erefl 0).
+    rewrite revK => /=.
+    split => //.
+    unfold eq_rect_r.
+    rewrite <- Eqdep_dec.eq_rect_eq_dec => //; last by decidable_equality.
+  - injection Hconv as ??; subst => /=.
+    exists nil, (erefl 0) => /=.
+    rewrite revK => /=.
+    split => //.
+    unfold eq_rect_r.
+    rewrite <- Eqdep_dec.eq_rect_eq_dec => //; last by decidable_equality.
+  - assert (Heq': k = length lcs - length acc); first by lias.
+    clear Heq.
+    destruct (IHlh ((Build_label_ctx lvs lk lces les) :: lcs) sc ((Build_label_ctx (rev l) n l0 l1) :: acc)) as [lcs0 [Heq'' Hcond]] => //.
+    destruct Hcond as [Heq Hrec].
+    exists (lcs0 ++ [:: Build_label_ctx (rev l) n l0 l1]).
+    eexists; split => //=; first by rewrite -catA.
+Admitted.
+*)
+
+
+(** context reduction lemmas **)
+
+Lemma reduce_focus_ctx: forall hs s lcs ccs es hs' s' lcs' es' f0 fc fc',
+    fc.(FC_val) = fc'.(FC_val) ->
+    fc.(FC_post) = fc'.(FC_post) ->
+    fc.(FC_arity) = fc'.(FC_arity) ->
+    reduce hs s fc.(FC_frame) (lcs ⦃ es ⦄) hs' s' fc'.(FC_frame) (lcs' ⦃ es' ⦄) ->
+    reduce hs s f0 (((fc, lcs) :: ccs) ⦃ es ⦄) hs' s' f0 (((fc', lcs') :: ccs) ⦃ es' ⦄).
+Proof.
+  intros ???????????? Heqval Heqpost Heqarity => /=.
+  rewrite - Heqpost -Heqval -Heqarity.
+  move => Hred.
+  apply (list_closure_ctx_eval.(ctx_reduce)) => //.
+  eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
+  by apply r_local.
+Qed.
+
+Lemma reduce_focus_ctx_id: forall hs s lcs ccs es hs' s' es' f0 fc fc',
+    fc.(FC_val) = fc'.(FC_val) ->
+    fc.(FC_post) = fc'.(FC_post) ->
+    fc.(FC_arity) = fc'.(FC_arity) ->
+    reduce hs s fc.(FC_frame) es hs' s' fc'.(FC_frame) es' ->
+    reduce hs s f0 (((fc, lcs) :: ccs) ⦃ es ⦄) hs' s' f0 (((fc', lcs) :: ccs) ⦃ es' ⦄).
+Proof.
+  intros ??????????? Heqval Heqpost Heqarity Hred.
+  apply reduce_focus_ctx => //.
+  by apply (list_label_ctx_eval.(ctx_reduce)).
+Qed.
+
+
 
 End EvalContext.

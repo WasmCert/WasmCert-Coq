@@ -350,7 +350,6 @@ Proof.
   dependent induction Hred; subst => //.
   - by inversion H.
   - by do 2 destruct vcs as [| ? vcs] => //.
-  - by do 2 destruct vcs as [| ? vcs] => //.
   - destruct lh as [vs ? | ? vs]; simpl in *; last by destruct vs.
     destruct vs => //; simpl in *.
     destruct es; first by simpl in *; subst; do 2 destruct es' as [| ? es'] => //.

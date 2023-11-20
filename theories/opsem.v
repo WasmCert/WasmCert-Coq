@@ -219,7 +219,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         length t1s = n ->
         length t2s = m ->
         host_application hs s (Tf t1s t2s) h vcs hs' None ->
-        reduce hs s f (ves ++ [::AI_invoke a]) hs' s f (ves ++ [::AI_invoke a])
+        reduce hs s f (ves ++ [::AI_invoke a]) hs' s f [::AI_trap]
 
   (** get, set, load, and store operations **)
   | r_get_local :

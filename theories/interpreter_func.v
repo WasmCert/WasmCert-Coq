@@ -1616,7 +1616,7 @@ Lemma reduce_invoke_host_diverge : forall (hs hs' : host_state) s f a ves ves' v
   host_application_impl hs s (Tf t1s t2s) cl' (rev ves') = (hs', None) ->
   reduce
     hs s f (vs_to_es ves ++ [:: AI_invoke a])
-    hs' s f (vs_to_es ves ++ [:: AI_invoke a]).
+    hs' s f (vs_to_es ves'' ++ [::AI_trap]).
 Proof.
   intros hs hs' s f a ves ves' ves'' n m t1s t2s cl cl' ?? Hn ?? Hsplit ?.
   subst n m cl.
@@ -2665,7 +2665,7 @@ Theorem run_one_step'' hs s f ves e: (forall hs s f es, (run_step_measure es < S
                  by eapply reduce_invoke_host_success with
                    (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl') (ves' := ves').
               ++ (* (hs', None) *)
-                 apply <<hs', s, f, vs_to_es ves ++ [::AI_invoke a]>>'.
+                 apply <<hs', s, f, vs_to_es ves'' ++ [::AI_trap]>>'.
                  by eapply reduce_invoke_host_diverge with
                    (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl') (ves' := ves') (ves'' := ves'') => //.
            ** (* false *)
