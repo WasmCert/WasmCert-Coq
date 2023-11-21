@@ -11,11 +11,13 @@ type style = string
 (* TODO: use notty rather than this ad-hoc mess *)
 let ansi_bold = "\x1b[1m"
 let ansi_reset = "\x1b[0m"
-let ansi_green = "\x1b[32m"
 let ansi_red = "\x1b[31m"
+let ansi_green = "\x1b[32m"
+let ansi_yellow = "\x1b[33m"
 
 let normal = ansi_reset
 let bold = ansi_bold
+let yellow = ansi_yellow
 let green = ansi_green
 let red = ansi_red
 

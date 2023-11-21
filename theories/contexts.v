@@ -11,11 +11,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module EvalContext.
 
-Parameter host_function: eqType.
+Section EvalContext.
 
-Parameter host_instance: host host_function.
+Variable host_function: eqType.
+
+Variable host_instance: host host_function.
 
 #[local]
 Definition reduce := @reduce host_function host_instance.
@@ -31,7 +32,19 @@ Class eval_ctx (ctx_t: Type): Type :=
       reduce hs s f (ctx_fill es ctx) hs' s' f' (ctx_fill es' ctx);
   }.
 
+End EvalContext.
+
 Notation "ctx ⦃ es ⦄" := (ctx_fill es ctx) (at level 1).
+
+
+Section Host.
+
+Variable host_function: eqType.
+
+Variable host_instance: host host_function.
+
+Notation eval_ctx := (@eval_ctx host_function host_instance).
+
 
 Definition fmask0 {T1 T2: Type} := (fun (_: T1) => @id T2).
 
@@ -47,6 +60,7 @@ Proof.
   move => ctx hs s f es hs' s' f' es' _ Hred.
   by eapply r_label with (lh := LH_base (rev (fst ctx)) (snd ctx)); eauto.
 Defined.
+
 
 (* Label context: rev LC_val ++ [::AI_label LC_arity LC_cont [_]) ++ LC_post; can be nested *)
 Record label_ctx: Type :=
@@ -77,6 +91,7 @@ Proof.
   move => [lvs lk lces les] hs s f es hs' s' f' es' _ Hred.
   eapply r_label with (lh := LH_rec (rev lvs) lk lces (LH_base nil nil) les); eauto => //; by rewrite /label_ctx_fill /= cats0.
 Defined.
+
 
 (* Frame context: rev FC_val ++ [::AI_local FC_arity FC_frame [_]) ++ FC_post *)
 Record frame_ctx: Type :=
@@ -110,6 +125,9 @@ Proof.
   by apply r_local.
 Defined.
 
+
+(* A general instance for lists of evaluation contexts *)
+
 Fixpoint ctx_frame_cond_list {T: Type} {ctx_p: eval_ctx T} (ctxs: list T) (f1 f2: frame): Prop :=
   match ctxs with
   | nil => True
@@ -118,7 +136,6 @@ Fixpoint ctx_frame_cond_list {T: Type} {ctx_p: eval_ctx T} (ctxs: list T) (f1 f2
       ctx_frame_cond_list ctxs' f1 f2
   end.
 
-(* A general instance for lists of evaluation contexts *)
 #[refine, export]
 Instance list_ctx_eval {T: Type} (ctx_p: eval_ctx T): eval_ctx (list T) :=
   {| ctx_fill := (fun es ctxs => foldl ctx_p.(ctx_fill) es ctxs);
@@ -132,6 +149,7 @@ Proof.
   by apply IH in Hred => //=.
 Defined.
 
+  
 Lemma ctx_frame_cond_list_label: forall (lcs: list label_ctx) f,
   ctx_frame_cond_list lcs f f.
 Proof.
@@ -205,9 +223,8 @@ Instance closure_ctx_eval: eval_ctx closure_ctx :=
   |}.
 Proof.
   move => [fc lcs] hs s f es hs' s' f' es' <- Hred.
-  apply (@ctx_reduce _ _ fc) => //.
-  apply (@ctx_reduce _ _ lcs) => /=; first by apply ctx_frame_cond_list_label.
-  by rewrite foldr_id.
+  apply ctx_reduce => //.
+  by apply list_label_ctx_eval.(ctx_reduce) => //. 
 Defined.
 
 #[refine, export]
@@ -488,16 +505,26 @@ Definition ctx_update_nconst (acc: list closure_ctx) (sctx: seq_ctx) e :=
   | _ => Some (acc, (vs, es0), Some e)
   end.
 
-Definition ctx_update (acc: list closure_ctx) (sctx: seq_ctx) e :=
-  match e_to_v_opt e with
-  | Some v =>
+Definition ctx_update (acc: list closure_ctx) (sctx: seq_ctx) (oe: option administrative_instruction) :=
+  match oe with
+  | Some e =>
+      match e_to_v_opt e with
+      | Some v =>
+          let '(vs, es) := sctx in
+          let '(vs', es') := split_vals' es in
+          match es' with
+          | nil => Some (acc, (vs' ++ [::v] ++ vs, nil), None)
+          | e' :: es'' => ctx_update_nconst acc (vs' ++ [::v] ++ vs, es'') e'
+          end
+      | None => ctx_update_nconst acc sctx e
+      end
+  | None =>
       let '(vs, es) := sctx in
       let '(vs', es') := split_vals' es in
       match es' with
-      | nil => Some (acc, (vs' ++ [::v] ++ vs, nil), None)
-      | e' :: es'' => ctx_update_nconst acc (vs' ++ [::v] ++ vs, es'') e'
+      | nil => Some (acc, (vs' ++ vs, nil), None)
+      | e' :: es'' => ctx_update_nconst acc (vs' ++ vs, es'') e'
       end
-  | None => ctx_update_nconst acc sctx e
   end.
 
 Lemma ctx_decompose_valid_ccs_aux: forall ves acc ccs sctx oe,
@@ -597,34 +624,44 @@ Proof.
   -  by apply ctx_decompose_valid_aux in Hupdate.
 Qed.
 
-Lemma ctx_update_valid_ccs: forall sctx e ccs ccs' sctx' oe,
+Lemma ctx_update_valid_ccs: forall sctx ccs ccs' sctx' oe oe',
     ccs != nil ->
-    ctx_update ccs sctx e = Some (ccs', sctx', oe) ->
-    valid_ccs ccs' oe.
+    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
+    valid_ccs ccs' oe'.
 Proof.
-  move => [vs es] e ccs ccs' [vs' es'] oe Hnil Hupdate.
+  move => [vs es] ccs ccs' [vs' es'] oe oe' Hnil Hupdate.
   unfold ctx_update in Hupdate; unfold valid_ccs.
-  destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
+  destruct oe as [e | ].
+  - destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
+    + destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
+      destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
+      apply split_vals'_spec, split_vals_nconst in Hsplit.
+      by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+    + by apply ctx_update_nconst_valid_ccs in Hupdate => //.
   - destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
     destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
     apply split_vals'_spec, split_vals_nconst in Hsplit.
     by apply ctx_update_nconst_valid_ccs in Hupdate => //.
-  - by apply ctx_update_nconst_valid_ccs in Hupdate => //.
 Qed.
 
-Lemma ctx_update_valid: forall sctx e ccs ccs' sctx' oe,
-    ctx_update ccs sctx e = Some (ccs', sctx', oe) ->
-    valid_split sctx' oe.
+Lemma ctx_update_valid: forall sctx ccs ccs' sctx' oe oe',
+    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
+    valid_split sctx' oe'.
 Proof.
-  move => [vs es] e ccs ccs' [vs' es'] oe Hupdate.
+  move => [vs es] ccs ccs' [vs' es'] oe oe' Hupdate.
   unfold ctx_update in Hupdate.
-  destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
+  destruct oe as [e | ].
+  - destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
+    + destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
+      destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //.
+      apply split_vals'_spec, split_vals_nconst in Hsplit.
+      by apply ctx_update_nconst_valid in Hupdate => //.
+    + apply ctx_update_nconst_valid in Hupdate => //.
+      by destruct e => //; destruct b.
   - destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
     destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //.
     apply split_vals'_spec, split_vals_nconst in Hsplit.
     by apply ctx_update_nconst_valid in Hupdate => //.
-  - apply ctx_update_nconst_valid in Hupdate => //.
-    by destruct e => //; destruct b.
 Qed.
 
 Lemma ctx_decompose_fill_aux: forall ves acc ccs sctx oe,
@@ -680,28 +717,42 @@ Proof.
   - by apply ctx_decompose_fill_aux in Hupdate.
 Qed.
   
-Lemma ctx_update_fill: forall sctx e ccs ccs' sctx' oe,
-    ctx_update ccs sctx e = Some (ccs', sctx', oe) ->
-    ccs ⦃ sctx ⦃ [::e] ⦄ ⦄ = ccs' ⦃ sctx' ⦃ olist oe ⦄ ⦄.
+Lemma ctx_update_fill: forall sctx ccs ccs' sctx' oe oe',
+    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
+    ccs ⦃ sctx ⦃ olist oe ⦄ ⦄ = ccs' ⦃ sctx' ⦃ olist oe' ⦄ ⦄.
 Proof.
-  move => [vs es] e ccs ccs' [vs' es'] oe Hupdate.
+  move => [vs es] ccs ccs' [vs' es'] oe oe' Hupdate.
   unfold ctx_update in Hupdate.
-  destruct (e_to_v_opt e) as [v | ] eqn:Hetov; last by apply ctx_update_nconst_fill in Hupdate.
-  destruct (split_vals' es) as [vs0 es0] eqn:Hsplit.
-  apply split_vals'_spec, split_vals_inv in Hsplit as ->.
-  destruct es0.
-  - injection Hupdate as <- <- <-; subst; rewrite cats0 => //.
-    destruct e => //; destruct b => //; simpl in Hetov; injection Hetov as -> => /=.
-    f_equal.
-    rewrite cats0 /vs_to_es rev_cat rev_cons -cats1 -catA.
-    by repeat rewrite -v_to_e_cat.
-  - destruct e => //; destruct b => //; simpl in Hetov; injection Hetov as ->.
-    apply ctx_update_nconst_fill in Hupdate.
-    rewrite - Hupdate => /=.
-    f_equal.
-    rewrite /vs_to_es rev_cat rev_cons -cats1 -catA.
-    repeat rewrite -v_to_e_cat.
-    by rewrite -catA.
+  destruct oe as [e | ].
+  { destruct (e_to_v_opt e) as [v | ] eqn:Hetov; last by apply ctx_update_nconst_fill in Hupdate.
+    destruct (split_vals' es) as [vs0 es0] eqn:Hsplit.
+    apply split_vals'_spec, split_vals_inv in Hsplit as ->.
+    destruct es0.
+    - injection Hupdate as <- <- <-; subst; rewrite cats0 => //.
+      destruct e => //; destruct b => //; simpl in Hetov; injection Hetov as -> => /=.
+      f_equal.
+      rewrite cats0 /vs_to_es rev_cat rev_cons -cats1 -catA.
+      by repeat rewrite -v_to_e_cat.
+    - destruct e => //; destruct b => //; simpl in Hetov; injection Hetov as ->.
+      apply ctx_update_nconst_fill in Hupdate.
+      rewrite - Hupdate => /=.
+      f_equal.
+      rewrite /vs_to_es rev_cat rev_cons -cats1 -catA.
+      repeat rewrite -v_to_e_cat.
+      by rewrite -catA.
+  }
+  {
+    destruct (split_vals' es) as [vs0 es0] eqn:Hsplit.
+    apply split_vals'_spec, split_vals_inv in Hsplit as ->.
+    destruct es0 as [ | e es0].
+    - injection Hupdate as <- <- <-; subst; rewrite cats0 => //=.
+      f_equal.
+      by rewrite cats0 /vs_to_es rev_cat -v_to_e_cat.
+    - apply ctx_update_nconst_fill in Hupdate.
+      rewrite - Hupdate => /=.
+      f_equal.
+      by rewrite /vs_to_es rev_cat -v_to_e_cat -catA.
+  }
 Qed.
 
 (** conversion between lholed and contexts **)
@@ -788,8 +839,9 @@ Proof.
 Admitted.
 *)
 
-
 (** context reduction lemmas **)
+
+Let reduce := @reduce host_function host_instance.
 
 Lemma reduce_focus_ctx: forall hs s lcs ccs es hs' s' lcs' es' f0 fc fc',
     fc.(FC_val) = fc'.(FC_val) ->
@@ -801,7 +853,7 @@ Proof.
   intros ???????????? Heqval Heqpost Heqarity => /=.
   rewrite - Heqpost -Heqval -Heqarity.
   move => Hred.
-  apply (list_closure_ctx_eval.(ctx_reduce)) => //.
+  apply (list_closure_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
   eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
   by apply r_local.
 Qed.
@@ -818,6 +870,4 @@ Proof.
   by apply (list_label_ctx_eval.(ctx_reduce)).
 Qed.
 
-
-
-End EvalContext.
+End Host.

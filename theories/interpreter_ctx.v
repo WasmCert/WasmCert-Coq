@@ -13,21 +13,38 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Import EvalContext.
-  
-Let host := host EvalContext.host_function.
+Variable host_function: eqType.
 
-Let store_record := store_record EvalContext.host_function.
-Let host_state := host_state EvalContext.host_instance.
+Let host := host host_function.
 
-Let e_typing := @e_typing EvalContext.host_function.
-Let inst_typing := @inst_typing EvalContext.host_function.
+Variable host_instance : host.
+
+Let store_record := store_record host_function.
+Let host_state := host_state host_instance.
+
+Let e_typing := @e_typing host_function.
+Let inst_typing := @inst_typing host_function.
+ 
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
 
 Hypothesis host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+
+Let ctx_fill := @ctx_fill host_function host_instance.
+Notation "ctx ⦃ es ⦄" := (ctx_fill _ es ctx) (at level 1).
+
+(* Ugly *)
+Let valid_cfg_ctx := @valid_cfg_ctx host_function.
+Let cfg_tuple_ctx := @cfg_tuple_ctx host_function.
+Let label_ctx_eval := @label_ctx_eval host_function host_instance.
+Let frame_ctx_eval := @frame_ctx_eval host_function host_instance.
+Let closure_ctx_eval := @closure_ctx_eval host_function host_instance.
+Let list_label_ctx_eval := @list_label_ctx_eval host_function host_instance.
+Let list_closure_ctx_eval := @list_closure_ctx_eval host_function host_instance.
+Let lh_ctx_fill_aux := @lh_ctx_fill_aux host_function host_instance.
+
 
 Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
   match cfg with
@@ -45,7 +62,7 @@ Ltac red_ctx_simpl :=
       apply reduce_focus_ctx
   | |- reduce _ _ _ (?ccs ⦃ _ ⦃ _ ⦄ ⦄) _ _ _ (?ccs ⦃ _ ⦃ _ ⦄ ⦄) =>
       apply (list_closure_ctx_eval.(ctx_reduce))
-  | |- reduce _ _ _ (foldl closure_ctx_fill _ _) _ _ _ (foldl closure_ctx_fill _ _) =>
+  | |- reduce _ _ _ (foldl (@closure_ctx_fill _ _) _ _) _ _ _ (foldl (@closure_ctx_fill _ _) _ _) =>
       apply (list_closure_ctx_eval.(ctx_reduce))
   | |- reduce _ _ _ (foldl label_ctx_fill _ _) _ _ _ (foldl label_ctx_fill _ _) =>
       apply (list_label_ctx_eval.(ctx_reduce))
@@ -95,12 +112,6 @@ Ltac resolve_valid_ccs :=
         apply/orP; (try by left); (try by right)
     end.
 
-Ltac get_cc ccs Hvalid :=
-  let fc := fresh "fc" in 
-  let lcs := fresh "lcs" in 
-  let ccs' := fresh "ccs'" in 
-  destruct ccs as [ | [fc lcs] ccs']; first by unfold valid_cfg_ctx, valid_ccs in Hvalid; inversion Hvalid.
-
 Definition s_of_cfg (cfg: cfg_tuple_ctx) :=
   match cfg with
   | (s, _, _, _) => s
@@ -115,8 +126,11 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
 | RSC_normal hs' cfg':
   reduce_ctx hs hs' cfg cfg' ->
   run_step_ctx_result hs cfg
-| RSC_value:
-  const_list (es_of_cfg cfg) ->
+| RSC_value vs:
+  es_of_cfg cfg = v_to_e_list vs ->
+  run_step_ctx_result hs cfg
+| RSC_invalid :
+  (valid_cfg_ctx cfg -> False) ->
   run_step_ctx_result hs cfg
 | RSC_error:
   forall ts, (config_typing (s_of_cfg cfg) empty_frame (es_of_cfg cfg) ts -> False) ->
@@ -136,6 +150,12 @@ Ltac admit_rsc :=
 
 Notation "<< hs , cfg >>" := (@RSC_normal _ _ hs cfg).
 
+Ltac get_cc ccs :=
+  let fc := fresh "fc" in 
+  let lcs := fresh "lcs" in 
+  let ccs' := fresh "ccs'" in 
+  destruct ccs as [ | [fc lcs] ccs']; first by apply RSC_invalid => /=; unfold valid_ccs; move => [??].
+
 Definition empty_label_ctx := Build_label_ctx nil 0 nil nil.
 
 Lemma nth_nth_error {T: Type}: forall (l: list T) k x0 v,
@@ -148,11 +168,10 @@ Proof.
 Qed.
 
 Definition run_ctx_br: forall hs s ccs sc j,
-  valid_cfg_ctx (s, ccs, sc, Some (AI_basic (BI_br j))) ->
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic (BI_br j))).
 Proof.
-  intros hs s ccs [vs es] j Hvalid.
-  get_cc ccs Hvalid.
+  intros hs s ccs [vs es] j.
+  get_cc ccs.
   destruct (j < length lcs) eqn:Hlablen.
   - destruct (List.nth_error lcs j) as [lab | ] eqn:Htar; last by apply List.nth_error_None in Htar; move/ltP in Hlablen; lias.
     destruct lab as [lvs lk lces les].
@@ -187,11 +206,10 @@ Proof.
 Qed.
     
 Definition run_ctx_return: forall hs s ccs sc,
-  valid_cfg_ctx (s, ccs, sc, Some (AI_basic BI_return)) ->
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic BI_return)).
 Proof.  
-  intros hs s ccs [vs es] Hvalid.
-  get_cc ccs Hvalid.
+  intros hs s ccs [vs es].
+  get_cc ccs.
   destruct fc as [lvs lk lf les].
   destruct (lk <= length vs) eqn:Hvslen.
   - apply <<hs, (s, ccs', (take lk vs ++ lvs, les), None)>> => /=.
@@ -207,21 +225,114 @@ Proof.
   - (* Not enough values *)
     by admit_rsc.
 Qed.
-    
-(* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
-Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : valid_cfg_ctx cfg -> run_step_ctx_result hs cfg.
+
+(* Invoke does not need a frame context. This is useful for handling the starting invocation of a module *)
+
+Definition run_ctx_invoke hs s ccs vs0 es0 a:
+    run_step_ctx_result hs (s, ccs, (vs0, es0), Some (AI_invoke a)).
 Proof.
-  move => Hvalid.
+  destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
+  - (* Some cl *)
+    destruct cl as [i [t1s t2s] ts es | [t1s t2s] cl'] eqn:?.
+    + (* FC_func_native i (Tf t1s t2s) ts es *)
+      remember (length t1s) as n eqn:?.
+      remember (length t2s) as m eqn:?.
+      destruct (length vs0 >= n) eqn:Hlen.
+      * (* true *)
+        destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
+        remember (n_zeros ts) as zs eqn:?.
+        apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: ccs, (nil, nil), Some (AI_basic (BI_block (Tf [::] t2s) es)))>> => /=.
+        red_ctx_simpl => //=.
+        rewrite split_n_is_take_drop in Hsplit.
+        injection Hsplit as ??.
+        eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+        2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+             by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+        }
+        eapply r_invoke_native; eauto.
+        repeat rewrite length_is_size.
+        repeat rewrite length_is_size in Hlen.
+        by rewrite size_rev size_takel => //.
+      * (* false *)
+        by admit_rsc.
+    (* apply RS''_error.
+              by eapply invoke_func_native_error_n with
+                (n := n) (t1s := t1s) (t2s := t2s) (i := i) (ts := ts) (es := es). *)
+    + (* FC_func_host (Tf t1s t2s) cl' *)
+      remember (length t1s) as n eqn:?.
+      remember (length t2s) as m eqn:?.
+      destruct (length vs0 >= n) eqn:Hlen.
+      * (* true *)
+        destruct (split_n vs0 n) as [vs' vs''] eqn: Hsplit.
+        destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev vs')) as [hs' [[s' rves]|]] eqn:?.
+        -- (* (hs', Some (s', rves)) *)
+          destruct rves as [rvs | ].
+          ++ apply <<hs', (s', ccs, (rev rvs ++ vs'', es0), None)>> => /=.
+             red_ctx_simpl => //.
+             rewrite split_n_is_take_drop in Hsplit.
+             injection Hsplit as ??.
+             eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+             2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+                  by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+             }
+             rewrite revK.
+             unfold fmask0 => /=.
+             fold (result_to_stack (result_values rvs)).
+             eapply r_invoke_host_success; eauto.
+             repeat rewrite length_is_size.
+             by rewrite size_rev size_takel => //.
+          ++ apply <<hs', (s', ccs, (vs'', es0), Some AI_trap)>> => /=.
+             red_ctx_simpl => //.
+             rewrite split_n_is_take_drop in Hsplit.
+             injection Hsplit as ??.
+             eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+             2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+                  by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+             }
+             unfold fmask0 => /=.
+             fold (result_to_stack result_trap).
+             eapply r_invoke_host_success; eauto.
+             repeat rewrite length_is_size.
+             by rewrite size_rev size_takel => //.
+  - (* (hs', None) *)
+    apply <<hs', (s, ccs, (vs'', es0), Some AI_trap)>> => /=.
+    red_ctx_simpl => //.
+    rewrite split_n_is_take_drop in Hsplit.
+    injection Hsplit as ??.
+    eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+    2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+         by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+    }
+    unfold fmask0 => /=.
+    eapply r_invoke_host_diverge; eauto.
+    repeat rewrite length_is_size.
+    by rewrite size_rev size_takel => //.
+    * (* false *)
+      by admit_rsc.
+  (*
+              apply RS''_error.
+              by eapply invoke_func_host_error_n with
+                (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl').
+   *)
+  - (* None *)
+    by admit_rsc.
+    (* apply RS''_error. by apply invoke_host_error_ath. *)
+Defined.
+
+(* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
+Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
+Proof.
   destruct cfg as [[[s ccs] sc] oe].
   destruct oe as [e | ]; last first.
   (* Exitting from contexts *)
   {
-    unfold valid_cfg_ctx in Hvalid; destruct sc as [vs es]; subst; simpl in Hvalid.
-    destruct Hvalid as [? Heq]; move/eqP in Heq; subst es.
+  (*  unfold valid_cfg_ctx in Hvalid; destruct sc as [vs es]; subst; simpl in Hvalid.
+    destruct Hvalid as [? Heq]; move/eqP in Heq; subst es.*)
+    destruct sc as [vs es]; subst.
+    destruct es as [ | ??]; last by apply RSC_invalid => /=; move => [??].
     destruct ccs as [ | [fc lcs] ccs'].
     { (* entire instruction is const *)
-      apply RSC_value => /=.
-      by rewrite cats0; apply v_to_e_const.
+      by apply (@RSC_value _ _ (rev vs)) => /=; rewrite cats0.
     }
     { destruct lcs as [ | lc lcs'].
       (* Exitting a local *)
@@ -470,7 +581,7 @@ Proof.
       by apply run_ctx_return.
 
     - (* AI_basic (BI_call j) *)
-      get_cc ccs Hvalid.
+      get_cc ccs.
       destruct (List.nth_error fc.(FC_frame).(f_inst).(inst_funcs) j) as [a|] eqn: Hnth.
       + (* Some a *)
         apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_invoke a))>>.
@@ -482,7 +593,7 @@ Proof.
         by apply call_error. *)
 
     - (* AI_basic (BI_call_indirect j) *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       destruct vs0 as [|v vs0]; first by admit_rsc.
       (*  try by (apply RS''_error; apply call_indirect_error_0). *)
       (* v :: ves' *)
@@ -517,7 +628,7 @@ Proof.
         by eapply r_call_indirect_failure2; subst.
 
     - (* AI_basic (BI_get_local j) *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct (j < length f.(f_locs)) eqn:?.
       + (* true *)
@@ -534,7 +645,7 @@ Proof.
         (* apply RS''_error. by apply get_local_error_length; clear run_step_aux; lias. *)
 
     - (* AI_basic (BI_set_local j) *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct vs0 as [|v vs0].
       + (* [::] *)
@@ -561,7 +672,7 @@ Proof.
         by eapply r_simple, rs_tee_local.
 
     - (* AI_basic (BI_get_global j) *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct (sglob_val s f.(f_inst) j) as [v|] eqn:Hsglob.
       + (* Some xx *)
@@ -573,7 +684,7 @@ Proof.
         (* apply RS''_error. by apply get_global_error. *)
 
     - (* AI_basic (BI_set_global j) *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct vs0 as [|v vs0].
       + (* [::] *)
@@ -588,7 +699,7 @@ Proof.
           by admit_rsc.
 
     - (* AI_basic (BI_load t ops (Some (tp, sx)) a off) *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct vs0 as [|v vs0].
       + (* [::] *)
@@ -661,7 +772,7 @@ Proof.
 
     - (* AI_basic (BI_store t (Some tp) a off) *)
       (* TODO dedupe with the branch below by matching tp later? *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct vs0 as [|v [|v' vs0]].
       1,2: by admit_rsc.
@@ -711,7 +822,7 @@ Proof.
         (*apply RS''_error. by apply store_error_types_disagree with (v := v) (c := c) (ves' := ves'). *)
 
     - (* AI_basic BI_current_memory *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
       + (* Some j *)
@@ -729,7 +840,7 @@ Proof.
         (* apply RS''_error. by apply current_memory_error_smem => //. *)
 
     - (* AI_basic BI_grow_memory *)
-      get_cc ccs Hvalid.    
+      get_cc ccs.    
       remember (fc.(FC_frame)) as f.
       destruct vs0 as [|v vs0]; first by admit_rsc.
       (*  try by (apply RS''_error; apply grow_memory_error_0). *)
@@ -762,8 +873,7 @@ Proof.
         (* apply RS''_error. by eapply grow_memory_error_smem => //. *)
 
     - (* AI_basic (BI_const _) *)
-      unfold valid_cfg_ctx, valid_ccs, valid_split in Hvalid => /=.
-      by inversion Hvalid.
+      apply RSC_invalid => /=; by move => [??].
 
     - (* AI_basic (BI_unop t op) *)
       destruct vs0 as [|v vs0].
@@ -856,7 +966,7 @@ Proof.
         (* apply RS''_error. by eapply cvtop_error_types_disagree. *)
 
     - (* AI_trap *)
-      get_cc ccs Hvalid.
+      get_cc ccs.
       destruct ((vs0 == nil) && (es0 == nil)) eqn:Hscnil; move/andP in Hscnil.
       + destruct Hscnil as [Heq1 Heq2]; move/eqP in Heq1; move/eqP in Heq2; subst.
         destruct lcs as [ | lc lcs'].
@@ -884,192 +994,91 @@ Proof.
         assert (H: size es0 = 0); first (by lias); by destruct es0.
 
     - (* AI_invoke a *)
-      get_cc ccs Hvalid.    
-      destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
-      + (* Some cl *)
-        destruct cl as [i [t1s t2s] ts es | [t1s t2s] cl'] eqn:?.
-        * (* FC_func_native i (Tf t1s t2s) ts es *)
-           remember (length t1s) as n eqn:?.
-           remember (length t2s) as m eqn:?.
-           destruct (length vs0 >= n) eqn:Hlen.
-           -- (* true *)
-             destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
-             remember (n_zeros ts) as zs eqn:?.
-             apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_basic (BI_block (Tf [::] t2s) es)))>> => /=.
-             red_ctx_simpl => //.
-             eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; infer_hole.
-             apply r_local.
-             red_ctx_simpl => //=.
-             rewrite split_n_is_take_drop in Hsplit.
-             injection Hsplit as ??.
-             eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-             2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-                  by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-             }
-             eapply r_invoke_native; eauto.
-             repeat rewrite length_is_size.
-             repeat rewrite length_is_size in Hlen.
-             by rewrite size_rev size_takel => //.
-           -- (* false *)
-             by admit_rsc.
-             (* apply RS''_error.
-              by eapply invoke_func_native_error_n with
-                (n := n) (t1s := t1s) (t2s := t2s) (i := i) (ts := ts) (es := es). *)
-        * (* FC_func_host (Tf t1s t2s) cl' *)
-           remember (length t1s) as n eqn:?.
-           remember (length t2s) as m eqn:?.
-           destruct (length vs0 >= n) eqn:Hlen.
-           -- (* true *)
-              destruct (split_n vs0 n) as [vs' vs''] eqn: Hsplit.
-              destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev vs')) as [hs' [[s' rves]|]] eqn:?.
-              ++ (* (hs', Some (s', rves)) *)
-                destruct rves as [rvs | ].
-                ** apply <<hs', (s', (fc, lcs) :: ccs', (rev rvs ++ vs'', es0), None)>> => /=.
-                   red_ctx_simpl => //.
-                   eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; infer_hole.
-                   apply r_local.
-                   red_ctx_simpl => //=.
-                   rewrite split_n_is_take_drop in Hsplit.
-                   injection Hsplit as ??.
-                   eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-                   2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-                        by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-                   }
-                   rewrite revK.
-                   unfold fmask0 => /=.
-                   fold (result_to_stack (result_values rvs)).
-                   eapply r_invoke_host_success; eauto.
-                   repeat rewrite length_is_size.
-                   by rewrite size_rev size_takel => //.
-                ** apply <<hs', (s', (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => /=.
-                   red_ctx_simpl => //.
-                   eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; infer_hole.
-                   apply r_local.
-                   red_ctx_simpl => //=.
-                   rewrite split_n_is_take_drop in Hsplit.
-                   injection Hsplit as ??.
-                   eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-                   2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-                        by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-                   }
-                   unfold fmask0 => /=.
-                   fold (result_to_stack result_trap).
-                   eapply r_invoke_host_success; eauto.
-                   repeat rewrite length_is_size.
-                   by rewrite size_rev size_takel => //.
-              ++ (* (hs', None) *)
-                   apply <<hs', (s, (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => /=.
-                   red_ctx_simpl => //.
-                   eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; infer_hole.
-                   apply r_local.
-                   red_ctx_simpl => //=.
-                   rewrite split_n_is_take_drop in Hsplit.
-                   injection Hsplit as ??.
-                   eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-                   2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-                        by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-                   }
-                   unfold fmask0 => /=.
-                   eapply r_invoke_host_diverge; eauto.
-                   repeat rewrite length_is_size.
-                   by rewrite size_rev size_takel => //.
-           -- (* false *)
-             by admit_rsc.
-             (*
-              apply RS''_error.
-              by eapply invoke_func_host_error_n with
-                (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl').
-              *)
-      + (* None *)
-        by admit_rsc.
-        (* apply RS''_error. by apply invoke_host_error_ath. *)
-
+      by apply run_ctx_invoke.
         
     - (* AI_label ln les es *)
-      by inversion Hvalid.
+      by apply RSC_invalid => /=; move => [??].
 
     * (* AI_local ln lf es *)
-      by inversion Hvalid.
+      by apply RSC_invalid => /=; move => [??].
   }
 Defined.
 
+Definition hs_cfg_ctx : Type := host_state * cfg_tuple_ctx.
+
+(* reformation to a valid configuration, if possible *)
+Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx.
+Proof.
+  destruct cfg as [[[s ccs] sc] oe].
+ (* destruct ccs as [ | cc ccs]; first by right. *)
+  destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
+  exact (Some (s, ccs', sc', oe')).
+  Defined.
+ (* unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
+  by eapply ctx_update_valid; eauto.*)
+ (* destruct (@run_one_step_ctx hs cfg Hvalid) as [hs' [[[s ccs] sc] oe] Hred | Hconst | Herror | Hadmit].
+  - destruct ccs as [ | cc ccs]; first by right.
+    destruct (ctx_update (cc :: ccs) sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
+    left; exists (hs', (s, ccs', sc', oe')).
+    left. unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
+    by eapply ctx_update_valid; eauto.
+  - left; exists (hs, cfg).
+    by right.
+  - by right.
+  - by right.
+Qed.*)
+
+(*
+(* Multistep interpreter *)
+Fixpoint run_v_ctx_valid (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx): valid_cfg_ctx cfg -> option hs_cfg_ctx.
+Proof.
+  destruct fuel as [| fuel]; first by right.
+  intros Hvalid.
+  destruct (@run_one_step_ctx hs cfg Hvalid) as [hs' [[[s ccs] sc] oe] Hred | Hconst | Herror | Hadmit].
+  - destruct ccs as [ | cc ccs].
+    + left. exact (hs', (s, nil, sc, oe)).
+    + destruct (ctx_update (cc :: ccs) sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
+      apply (run_v_ctx_valid fuel hs' (s, ccs', sc', oe')).
+      unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
+      by eapply ctx_update_valid; eauto.
+  - left. exact (hs, cfg).
+  - by right.
+  - by right.
+Defined.
+*)
+
+Definition run_v_init (s: store_record) (es: list administrative_instruction) : option cfg_tuple_ctx :=
+  match ctx_decompose es with
+  | Some (ccs, sc, oe) => (Some (s, ccs, sc, oe))
+  | None => None
+  end.
+
 End Host.
 
-Inductive res_crash : Type :=
-| C_error : res_crash
-| C_exhaustion : res_crash.
 
-Scheme Equality for res_crash.
-Definition res_crash_eqb c1 c2 := is_left (res_crash_eq_dec c1 c2).
-Definition eqres_crashP : Equality.axiom res_crash_eqb :=
-  eq_dec_Equality_axiom res_crash_eq_dec.
+Module Interpreter_ctx_extract.
 
-Canonical Structure res_crash_eqMixin := EqMixin eqres_crashP.
-Canonical Structure res_crash_eqType := Eval hnf in EqType res_crash res_crash_eqMixin.
+Import EmptyHost.
 
-Inductive res : Type :=
-| R_crash : res_crash -> res
-| R_trap : res
-| R_value : list value -> res.
+(* No host function exists *)
+Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
+                                   (host_state * option (store_record * result)).
+Proof.
+  move => ??? hf; by inversion hf.
+Defined.
 
-Definition res_eq_dec : forall r1 r2 : res, {r1 = r2} + {r1 <> r2}.
-Proof. decidable_equality. Defined.
-
-Definition res_eqb (r1 r2 : res) : bool := res_eq_dec r1 r2.
-Definition eqresP : Equality.axiom res_eqb :=
-  eq_dec_Equality_axiom res_eq_dec.
-
-Canonical Structure res_eqMixin := EqMixin eqresP.
-Canonical Structure res_eqType := Eval hnf in EqType res res_eqMixin.
-
-Section Host_func.
-
-Variable host_function : eqType.
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let store_record := store_record host_function.
-Let host_state := host_state host_instance.
-
-Let e_typing := @e_typing host_function.
-Let inst_typing := @inst_typing host_function.
-
-Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
-                       (host_state * option (store_record * result)).
-
-Hypothesis host_application_impl_correct :
+Definition host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+Proof.
+  move => ??? hf; by inversion hf.
+Defined.
 
-(* Predicate for determining if a program fragment is typeable in some context, instead of a full program *)
-Definition fragment_typeable s f ves es :=
-  exists C C' ret lab t1s t2s t1s',
-    C = upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab /\
-    rev [seq typeof i | i <- ves] = t1s' ++ t1s /\
-    inst_typing s f.(f_inst) C' /\
-    store_typing s /\
-    e_typing s C es (Tf t1s t2s).
+Definition run_one_step_ctx := run_one_step_ctx host_application_impl_correct.
 
-Inductive res_step'
-  (hs : host_state) (s : store_record) (f : frame)
-  (es : list administrative_instruction) : Type :=
-| RS'_value :
-    const_list es \/ es_is_trap es ->
-    res_step' hs s f es
-| RS'_error :
-    (~ fragment_typeable s f [::] es) ->
-    res_step' hs s f es
-| RS'_break k bvs :
-    (exists i j (lh: lholed i),
-      i + k = j /\
-      lfill lh (vs_to_es bvs ++ [::AI_basic (BI_br j)]) = es /\
-      empty_vs_base lh) ->
-    res_step' hs s f es
-| RS'_return rvs :
-    (exists i (lh: lholed i),
-      lfill lh (vs_to_es rvs ++ [:: AI_basic BI_return]) = es /\
-      empty_vs_base lh) ->
-    res_step' hs s f es
-| RS'_normal hs' s' f' es' :
-    reduce hs s f es hs' s' f' es' ->
-    res_step' hs s f es.
+Definition run_step_cfg_ctx_reform := @run_step_cfg_ctx_reform host_function_eqType.
+
+Definition run_v_init := @run_v_init host_function_eqType.
+
+Definition es_of_cfg := @es_of_cfg host_function_eqType host_instance.
+
+End Interpreter_ctx_extract.

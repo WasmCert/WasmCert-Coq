@@ -12,20 +12,6 @@
   (package coq-wasm)
 )
 
-;(install
-;  (files wasm_coq_interpreter.exe)
-;  (package wasm_coq_interpreter)
-;  (section bin)
-;)
-
-;(rule
-;	(targets "extract.ml" "extract.mli")
-;	(deps "../theories/extraction.vo")
-;	(action
-;		(progn
-;			(run cp "../extract.ml" "../extract.mli" "./")
-;		)))
-
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
 ; Removing the following warnings:
 ; - 50: unattached documentation comment, as it doesn’t fit the way we document our code.
