@@ -140,25 +140,25 @@ let repl verbosity sies (name : string) =
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
     |> (fun cb -> user_input "> " cb cfg0)
 
-let interpret verbosity error_code_on_crash sies (name: string) fuel =
+let interpret verbosity error_code_on_crash sies (name: string) =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let print_exhaustion gen = 
+ (* let print_exhaustion gen = 
     debug_info verbosity intermediate ~style:bold
-      (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in
+      (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in*)
   let* cfg0 =
     TopHost.from_out (
       ovpending verbosity stage "interpreting" (fun _ ->
         match lookup_exported_function name sies with
         | None -> Error ("unknown function `" ^ name ^ "`")
         | Some cfg0 -> OK cfg0)) in
-  let rec eval_cfg gen cfg max_steps =
-    if (gen >= max_steps) then 
+  let rec eval_cfg gen cfg =
+   (* if (gen >= max_steps) then 
       (print_exhaustion gen;
       debug_info verbosity result ~style:bold (fun _ -> "fuel exhaustion\n");
       pure None)
-    else 
+    else *)
       (let cfg_res = run_step_compat cfg in
       print_step_header gen ;
       debug_info verbosity intermediate
@@ -189,15 +189,17 @@ let interpret verbosity error_code_on_crash sies (name: string) fuel =
         pure (Some vs)
       | (((hs', s'), vs'), RS_normal es) ->
         begin match is_const_list es with
-        | Some vs -> pure (Some vs)
-        | None -> eval_cfg (gen + 1) ((((hs', s'), vs'), es)) max_steps
+        | Some vs -> 
+          debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+          pure (Some vs)
+        | None -> eval_cfg (gen + 1) ((((hs', s'), vs'), es))
         end) in
 
   debug_info verbosity result ~style:yellow (fun _ -> "Context optimisation disabled\n");
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\n%s\n" (pp_config_tuple_except_store (tuple_drop_hs cfg0)));
-  let* res = eval_cfg 1 cfg0 fuel in
+  let* res = eval_cfg 1 cfg0 in
   debug_info_span verbosity result stage (fun _ ->
     match res with
     | Some vs -> pp_values vs
@@ -226,26 +228,21 @@ module Interpreter_ctx_extract :
 
 include Extract.Interpreter_ctx_extract
 
-  let interpret_ctx verbosity error_code_on_crash sies (name: string) fuel =
+  let interpret_ctx verbosity error_code_on_crash sies (name: string) =
     let print_step_header gen =
       debug_info verbosity intermediate ~style:bold
         (fun () -> Printf.sprintf "step %d:\n" gen) in
-    let print_exhaustion gen = 
+   (* let print_exhaustion gen = 
       debug_info verbosity intermediate ~style:bold
-        (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in
+        (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in*)
     let* cfg0 =
       TopHost.from_out (
         ovpending verbosity stage "interpreting" (fun _ ->
           match lookup_exported_function name sies with
           | None -> Error ("unknown function `" ^ name ^ "`")
           | Some cfg0 -> OK cfg0)) in
-    let rec eval_cfg gen (hs: Extract.Equality.sort) (cfg: Extract.cfg_tuple_ctx) max_steps =
-      if (gen >= max_steps) then 
-        (print_exhaustion gen;
-        debug_info verbosity result ~style:bold (fun _ -> "fuel exhaustion\n");
-        pure None)
-      else 
-        (let run_step_res = run_one_step_ctx hs cfg in
+    let rec eval_cfg gen (hs: Extract.Equality.sort) (cfg: Extract.cfg_tuple_ctx) =
+      (let run_step_res = run_one_step_ctx hs cfg in
         print_step_header gen ;
         match run_step_res with
         | Extract.RSC_error _ ->
@@ -261,7 +258,7 @@ include Extract.Interpreter_ctx_extract
           debug_info verbosity result ~style:red (fun _ -> "crash_invalid\n");
           pure None
         | Extract.RSC_value vs ->
-          debug_info verbosity result ~style:green (fun _ -> "success\n");
+          debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
           pure (Some vs)
         | Extract.RSC_normal (hs_res, cfg_res) ->
           debug_info verbosity intermediate
@@ -278,11 +275,10 @@ include Extract.Interpreter_ctx_extract
             let (((s', _), _), _) = cfg_res in
               Printf.sprintf "and store\n%s" (pp_store 1 s'));
           (match run_step_cfg_ctx_reform cfg_res with
-          | Some cfg_res' -> eval_cfg (gen + 1) hs_res cfg_res' max_steps
+          | Some cfg_res' -> eval_cfg (gen + 1) hs_res cfg_res'
           | None -> pure None
           )
         ) in
-    debug_info verbosity result ~style:green (fun _ -> "Context optimisation on!\n");
     print_step_header 0 ;
 
     let (((hs, s), _), es) = cfg0 in
@@ -292,7 +288,7 @@ include Extract.Interpreter_ctx_extract
     let cfg_init = run_v_init s es in
     (match cfg_init with
     | Some cfg_init' ->
-      let* res = eval_cfg 0 hs cfg_init' fuel in
+      let* res = eval_cfg 0 hs cfg_init' in
       (debug_info_span verbosity result stage (fun _ ->
         match res with
         | Some vs -> pp_values vs
@@ -304,7 +300,7 @@ include Extract.Interpreter_ctx_extract
     | None -> debug_info verbosity result ~style:red (fun _ -> "invalid starting es\n"); exit 1
     )
 
-let instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m name fuel =
+let instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m name =
   let* store_inst_exps =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
@@ -312,5 +308,5 @@ let instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_cr
         | None -> Error "instantiation error"
         | Some (store_inst_exps, _) -> OK store_inst_exps)) in
   if interactive then repl verbosity store_inst_exps name
-  else if no_ctx_optimise then interpret verbosity error_code_on_crash store_inst_exps name fuel
-  else interpret_ctx verbosity error_code_on_crash store_inst_exps name fuel
+  else if no_ctx_optimise then interpret verbosity error_code_on_crash store_inst_exps name
+  else interpret_ctx verbosity error_code_on_crash store_inst_exps name
