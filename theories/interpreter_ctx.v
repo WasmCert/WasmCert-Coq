@@ -24,6 +24,7 @@ Let host_state := host_state host_instance.
 
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.
+Let frame_typing := @frame_typing host_function.
  
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
@@ -44,6 +45,157 @@ Let closure_ctx_eval := @closure_ctx_eval host_function host_instance.
 Let list_label_ctx_eval := @list_label_ctx_eval host_function host_instance.
 Let list_closure_ctx_eval := @list_closure_ctx_eval host_function host_instance.
 Let lh_ctx_fill_aux := @lh_ctx_fill_aux host_function host_instance.
+
+(*
+Print List.Forall2.
+Search BI_drop.
+
+Definition lab_cont_typing (lc: label_ctx) (lab: list value_type) (rs: result_type): Prop :=
+  match lc with
+  | (lvs, lk, lces, les) => e_typing s C
+
+(** Typing with evaluation contexts **)
+Lemma e_typing_lc: forall (lcs: list label_ctx_eval) es ts1 ts2 C0,
+    e_typing s C0 (lcs ⦃ es ⦄) (Tf ts1 ts2) ->
+    exists (labs: list value_type),
+      e_typing s (upd_label (labs ++ tc_label C0)) es (Tf ts1 ts2) /\
+      List.Forall2 lcs labs (fun 
+ *)
+
+Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
+    e_typing s C0 (fc ⦃ es ⦄) tf ->
+    exists C ret,
+      frame_typing s fc.(FC_frame) C /\
+        length ret = fc.(FC_arity) /\
+        e_typing s (upd_return C (Some ret)) es (Tf nil ret).
+Proof.
+  move => fc es s C [ts1 ts2] /= Htype.
+  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [_ Htype]]]]]]].
+  rewrite -cat1s in Htype.
+  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [Htype _]]]]]]].
+  apply Local_typing in Htype as [? [-> [Htype Hlen]]].
+  inversion Htype as [??????? Hftype ? Hetype]; subst; clear Htype.
+  clear - Hftype Hetype Hlen.
+  by do 2 eexists; repeat split; eauto.
+Qed.
+
+Lemma lc_typing: forall (lc: label_ctx) es s C0 tf,
+    e_typing s C0 (lc ⦃ es ⦄) tf ->
+    exists ts1 ts2,
+      e_typing s C0 (lc.(LC_cont)) (Tf ts1 ts2) /\ 
+      e_typing s (upd_label C0 ([::ts1] ++ C0.(tc_label))) es (Tf nil ts2).
+Proof.
+  move => lc es s C [ts1 ts2] /= Htype.
+  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [_ Htype]]]]]]].
+  rewrite -cat1s in Htype.
+  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [Htype _]]]]]]].
+  apply Label_typing in Htype as [? [? [-> [Hconttype [Htype Hlen]]]]].
+  by do 2 eexists; split; eauto.
+Qed.
+
+Lemma lcs_typing_exists: forall lc (lcs: list label_ctx) es s C0 tf,
+    e_typing s C0 ((lc :: lcs) ⦃ es ⦄) tf ->
+    exists labs ts2,
+      e_typing s (upd_label C0 (labs ++ C0.(tc_label))) es (Tf nil ts2).
+Proof.
+  move => lc lcs.
+  move: lc.
+  induction lcs as [|lc' lcs']; move => lc es s C0 tf Htype.
+  - apply lc_typing in Htype as [ts1 [ts2 [_ Htype]]].
+    by do 2 eexists; eauto.
+  - apply IHlcs' in Htype as [labs [ts2 Htype]].
+    apply lc_typing in Htype as [? [? [_ Htype]]].
+    simpl in Htype.
+    rewrite upd_label_overwrite in Htype.
+    rewrite -cat1s catA in Htype.
+    by do 2 eexists; eauto.
+Qed.
+
+Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
+    e_typing s C0 cc ⦃ es ⦄ tf ->
+    exists C ret labs ts2,
+      frame_typing s (cc.1).(FC_frame) C /\
+        length ret = (cc.1).(FC_arity) /\
+        e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
+Proof.
+  move => [fc lcs] es s C0 tf Htype.
+  apply fc_typing in Htype as [C [ret [? [? Htype]]]].
+  destruct lcs; simpl in *; first by do 4 eexists; repeat split; eauto.
+  apply lcs_typing_exists in Htype as [labs [? Htype]].
+  by do 4 eexists; repeat split; eauto.
+Qed.
+
+Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
+    e_typing s C0 (cc :: ccs) ⦃ es ⦄ tf ->
+    exists C ret labs ts2,
+      frame_typing s (cc.1).(FC_frame) C /\
+        length ret = (cc.1).(FC_arity) /\
+        e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
+Proof.
+  move => cc ccs.
+  move: cc.
+  induction ccs as [| cc' ccs']; move => [fc lcs] es s C0 tf Htype.
+  - by eapply cc_typing_exists; eauto.
+  - apply IHccs' in Htype as [? [? [? [? [? [??]]]]]].
+    by eapply cc_typing_exists; eauto.
+Qed.
+
+Lemma sc_typing_args: forall (sc: seq_ctx) es s C ts0,
+    e_typing s C (sc ⦃ es ⦄) (Tf nil ts0) ->
+    exists k ts2, e_typing s C es (Tf (map typeof (drop k (rev sc.1))) ts2).
+Proof.
+  move => [vs0 es0] es s C ts0 /=Htype.
+  apply e_composition_typing in Htype as [ts1 [ts2 [ts3 [ts4 [Heq [? [Htype1 Htype2]]]]]]].
+  destruct ts1, ts2 => //; subst; clear Heq.
+  apply et_to_bet in Htype1; last by apply const_list_is_basic, v_to_e_const.
+  apply Const_list_typing in Htype1 as ->.
+  simpl in Htype2.
+  apply e_composition_typing in Htype2 as [ts1 [ts2 [ts4 [ts5 [Heq [-> [Htype _]]]]]]].
+  exists (size ts1), ts5.
+  by rewrite map_drop Heq drop_size_cat.
+Qed.
+
+Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 ts0,
+    e_typing s C0 (ccs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
+    exists C' k ts, e_typing s C' es (Tf (map typeof (drop k (rev sc.1))) ts).
+Proof.
+  move => ccs [vs0 es0] es s C0 ts0.
+  destruct ccs as [ | cc' ccs']; move => Htype.
+  - apply sc_typing_args in Htype as [? [? Htype]].
+    by do 3 eexists; eauto.
+  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
+    apply sc_typing_args in Htype as [? [? Htype]].
+    by do 3 eexists; eauto.
+Qed.
+
+Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C0 tf,
+    e_typing s C0 ((cc :: ccs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
+    exists C C' ret labs k ts,
+      frame_typing s (cc.1).(FC_frame) C /\
+        length ret = (cc.1).(FC_arity) /\
+        C' = (upd_label (upd_return C (Some ret)) labs) /\
+        e_typing s C' es (Tf (map typeof (drop k (rev sc.1))) ts).
+Proof.
+  move => cc ccs [vs0 es0] es s C0 tf Htype.
+  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
+    apply sc_typing_args in Htype as [? [? Htype]].
+    by do 6 eexists; eauto.
+Qed.
+
+Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
+
+Lemma config_typing_empty_inv: forall s es ts (C: t_context),
+    config_typing s empty_frame es ts ->
+    C = empty_t_context ->
+    store_typing s /\ e_typing s C es (Tf [::] ts).
+Proof.
+  move => s es ts C Htype ?; subst.
+  inversion Htype as [???? Hstype Htype']; subst; split => //; clear Hstype Htype.
+  inversion Htype' as [?????? C0 Hftype ? Htype _]; subst; clear Htype'.
+  inversion Hftype as [????? Hinsttype]; subst; clear Hftype.
+  destruct C; simpl in *.
+  by destruct tc_local, tc_label, tc_return => //; destruct tc_types_t, tc_func_t, tc_global, tc_table, tc_memory => //.
+Qed.
 
 
 Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
@@ -133,7 +285,7 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   (valid_cfg_ctx cfg -> False) ->
   run_step_ctx_result hs cfg
 | RSC_error:
-  forall ts, (config_typing (s_of_cfg cfg) empty_frame (es_of_cfg cfg) ts -> False) ->
+  (forall ts, config_typing (s_of_cfg cfg) empty_frame (es_of_cfg cfg) ts -> False) ->
   run_step_ctx_result hs cfg
 | RSC_admit:
   False ->
@@ -147,6 +299,22 @@ Admitted.
 Ltac admit_rsc :=
   by apply RSC_admit; apply rsc_admit_inhab.
 
+
+Ltac resolve_invalid_typing :=
+  let ts := fresh "ts" in
+  let ts' := fresh "ts'" in
+  let Htype := fresh "Htype" in
+  let Hftype := fresh "Hftype" in
+  apply RSC_error; move => ts Htype; unfold s_of_cfg, es_of_cfg in Htype;
+  eapply config_typing_empty_inv in Htype as [_ Htype]; eauto;
+  match type of Htype with
+  | e_typing _ _ ((_ :: _) ⦃ _ ⦃ _ ⦄ ⦄) _ =>
+    apply e_typing_ops_local in Htype as [? [? [? [? [? [ts' [Hftype [? [? Htype]]]]]]]]]
+  | e_typing _ _ (_ ⦃ _ ⦃ _ ⦄ ⦄) (Tf nil _) =>
+    apply e_typing_ops in Htype as [? [? [ts' Htype]]]
+  end;
+  simpl in Htype;
+  apply et_to_bet in Htype; last by auto_basic.
 
 Notation "<< hs , cfg >>" := (@RSC_normal _ _ hs cfg).
 
@@ -431,7 +599,9 @@ Proof.
     - (* AI_basic BI_drop *)
       destruct vs0 as [ | v vs0].
       + (* [::] *)
-        by admit_rsc.
+        resolve_invalid_typing.
+        apply Drop_typing in Htype as [??].
+        by destruct ts'.
       + (* v :: vs0 *)
         apply <<hs, (s, ccs, (vs0, es0), None)>> => /=.
         resolve_reduce_ctx vs0 es0.
@@ -439,13 +609,20 @@ Proof.
       
     - (* AI_basic BI_select *)
       destruct vs0 as [|v3 [|v2 [|v1 vs0]]].
-        (*  try by (apply RS''_error; apply select_error_size). *)
-        1,2,3: by admit_rsc.
+      (* Not enough arguments *)
+      1,2,3: resolve_invalid_typing;
+      apply Select_typing in Htype as [ts0 [?[Hops ?]]];
+      apply (f_equal size) in Hops; rewrite size_cat /= in Hops; try rewrite size_map size_drop size_rev in Hops; simpl in Hops; by lias.
       (* [:: v3, v2, v1 & vs0] *)
-        destruct v3 as [c| | |] eqn:?.
-        2,3,4: by admit_rsc.
- (*       try by
-          (apply RS''_error; eapply select_error_i32 with (v3 := v3); subst v3).*)
+      destruct v3 as [c| | |] eqn:?.
+      (* Conclude a contradiction by comparing the last element. However, `last` computes very badly *)
+      2,3,4:
+        resolve_invalid_typing;
+        apply Select_typing in Htype as [ts0 [?[Hops ?]]];
+        apply (f_equal rev) in Hops;
+        rewrite rev_cat -map_rev rev_drop revK size_rev map_take take_cons in Hops; simpl in Hops;
+        by destruct ((size vs0).+3-x0) eqn:? => //.
+      
       (* VAL_int32 c *)
       destruct (c == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
       + (* true *)
@@ -477,6 +654,8 @@ Proof.
         repeat rewrite length_is_size in Hlen.
         by rewrite size_rev size_takel.
       + (* false *)
+        resolve_invalid_typing.
+        apply Block_typing in Htype.
         by admit_rsc.
         (* apply RS''_error.
         (* TODO should use length in lemmas instead? *)
