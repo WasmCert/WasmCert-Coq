@@ -404,8 +404,8 @@ Proof.
   intros s f ves Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply_cat0_inv Ht1s.
-  apply Drop_typing in Hbtype as [??]. by destruct t2s.
+  simpl in Hbtype; invert_be_typing.
+  by apply_cat0_inv Ht1s.
 Qed.
 
 Lemma reduce_select_false : forall (hs : host_state) s f c v2 v1 ves',
@@ -444,11 +444,10 @@ Proof.
   intros s f v3 v2 v1 ves ves' Hv Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Select_typing in Hbtype as [? [? [??]]]. subst t1s t2s.
-
-  (* TODO move this into the ltac? *)
-  replace ([:: x0; x0; T_i32]) with ([:: x0; x0] ++ [:: T_i32]) in Ht1s => //.
-  by cats1_last_eq Ht1s.
+  simpl in Hbtype; invert_be_typing.
+  apply (f_equal rev) in Ht1s.
+  rewrite revK rev_cat rev_cat in Ht1s; simpl in Ht1s.
+  by inversion Ht1s.
 Qed.
 
 Lemma select_error_size : forall s f ves,
@@ -457,8 +456,8 @@ Lemma select_error_size : forall s f ves,
 Proof.
   intros s f ves ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Select_typing in Hbtype as [ts [? [??]]].
-  subst t1s t2s.
+  simpl in Hbtype; invert_be_typing.
+  subst.
   by size_unequal Ht1s.
 Qed.
 
@@ -498,8 +497,8 @@ Lemma block_error : forall s f ves bt1s bt2s es,
 Proof.
   intros s f ves bt1s bt2s es ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Block_typing host_instance) in Hbtype as [ts [? [??]]] => //.
-  subst t1s. by size_unequal Ht1s.
+  simpl in Hbtype; invert_be_typing.
+  subst. by size_unequal Ht1s.
 Qed.
 
 Lemma reduce_loop : forall (hs : host_state) s f ves ves' ves'' t1s t2s es,
@@ -548,8 +547,8 @@ Lemma loop_error : forall s f ves lt1s lt2s es,
 Proof.
   intros s f ves lt1s lt2s es Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Loop_typing host_instance) in Hbtype as [ts [? [??]]] => //.
-  subst t1s t2s. by size_unequal Ht1s.
+  simpl in Hbtype; invert_be_typing.
+  subst. by size_unequal Ht1s.
 Qed.
 
 Lemma reduce_if_false : forall (hs : host_state) s f c ves ves' tf es1 es2,
@@ -591,7 +590,7 @@ Proof.
   intros s f ves tf es1 es2 ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves. destruct tf.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
+  simpl in Hbtype; invert_be_typing.
   by size_unequal Ht1s.
 Qed.
 
@@ -603,7 +602,7 @@ Proof.
   intros s f v ves ves' tf es1 es2 ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves. destruct tf.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply If_typing in Hbtype as [? [? [? [??]]]]. subst t1s.
+  simpl in Hbtype; invert_be_typing.
   by cats1_last_eq Ht1s.
 Qed.
 
@@ -662,7 +661,7 @@ Proof.
   intros s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Br_if_typing in Hbtype as [ts [ts' [? [? [??]]]]]. subst t1s t2s.
+  simpl in Hbtype; invert_be_typing.
   by apply_cat0_inv Ht1s.
 Qed.
 
@@ -674,7 +673,7 @@ Proof.
   intros s f v ves ves' j ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Br_if_typing in Hbtype as [? [? [? [? [??]]]]]. subst t1s t2s.
+  simpl in Hbtype; invert_be_typing.
   by cats1_last_eq Ht1s.
 Qed.
 
@@ -714,7 +713,7 @@ Proof.
   intros s f ves js j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Br_table_typing in Hbtype as [ts [ts' [??]]]. subst t1s.
+  simpl in Hbtype; invert_be_typing.
   by apply_cat0_inv Ht1s.
 Qed.
 
@@ -728,7 +727,7 @@ Proof.
   intros s f c ves ves' k js j ??? Hkth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves k.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Br_table_typing in Hbtype as [? [? [??]]]. subst t1s.
+  simpl in Hbtype; invert_be_typing.
   apply List.nth_error_None in Hkth.
   by lias.
 Qed.
@@ -763,9 +762,8 @@ Lemma call_error : forall (hs : host_state) s f ves j,
 Proof.
   intros s f v ves j Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Call_typing host_instance) in Hbtype as [? [t1s'' [t2s'' [? [? [??]]]]]].
-  apply func_context_store with (j := j) (x := Tf t1s'' t2s'') in Hitype
-    as [? Hjth'] => //; try by subst C.
+  simpl in Hbtype; invert_be_typing.
+  eapply func_context_store in Hitype as [? Hjth']; eauto.
   by rewrite Hjth' in Hjth.
 Qed.
 
@@ -820,8 +818,8 @@ Lemma call_indirect_error_0 : forall s f ves j,
 Proof.
   intros s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
-  subst t1s. by size_unequal Ht1s.
+  simpl in Hbtype; invert_be_typing.
+  by size_unequal Ht1s.
 Qed.
 
 Lemma call_indirect_error_typeof : forall s f v ves ves' j,
@@ -831,8 +829,8 @@ Lemma call_indirect_error_typeof : forall s f v ves ves' j,
 Proof.
   intros s f v ves ves' j Hv ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
-  subst t1s. by cats1_last_eq Ht1s.
+  simpl in Hbtype; invert_be_typing.
+  by cats1_last_eq Ht1s.
 Qed.
 
 Lemma call_indirect_error_ath : forall s f c ves ves' j a,
@@ -843,7 +841,7 @@ Lemma call_indirect_error_ath : forall s f c ves ves' j a,
 Proof.
   intros s f c ves ves' j a ?? Hath [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Call_indirect_typing host_instance) in Hbtype as [? [? [? [? [? [? [??]]]]]]].
+  simpl in Hbtype; invert_be_typing.
   eapply store_typing_stabaddr with (a := a) (c := Wasm_int.nat_of_uint i32m c) in Hitype as [? Hath'] => //.
   by rewrite Hath in Hath'.
 Qed.
@@ -870,7 +868,7 @@ Proof.
   (* TODO rename Hitype to Hitype everywhere *)
   intros s f ves j Hjth ? [C [C' [ret [lab [t1s [t2s [t1s' [? [? [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Get_local_typing host_instance) in Hbtype as [? [Hjth' [??]]].
+  simpl in Hbtype; invert_be_typing.
   by apply List.nth_error_None in Hjth; lias.
 Qed.
 
@@ -881,8 +879,9 @@ Proof.
   intros s f ves j Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [? [? Hetype]]]]]]]]]]].
   subst C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Get_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
-  by rewrite List.map_length in Hlen'; lias.
+  simpl in Hbtype; invert_be_typing.
+  simpl in *.
+  by rewrite List.map_length in H3_getlocal; lias.
 Qed.
 
 Lemma reduce_set_local : forall (hs : host_state) s f f' v ves ves' j,
@@ -907,7 +906,7 @@ Proof.
   intros hs s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
-  apply (Set_local_typing host_instance) in Hbtype as [? [? [??]]].
+  simpl in Hbtype; invert_be_typing.
   by destruct t2s => //.
 Qed.
 
@@ -919,8 +918,8 @@ Proof.
   intros hs s f v ves ves' j ? Hlen [C [C' [ret [lab [t1s [t2s [t1s' [? [? [? [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Set_local_typing host_instance) in Hbtype as [? [? [? Hlen']]].
-  by rewrite List.map_length in Hlen'; lias.
+  simpl in Hbtype; invert_be_typing.
+  by rewrite List.map_length in H3_setlocal; lias.
 Qed.
 
 Lemma reduce_tee_local : forall (hs : host_state) s f v ves ves' j,
@@ -944,8 +943,8 @@ Lemma tee_local_error_0 : forall (hs : host_state) s f ves j,
 Proof.
   intros hs s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply_cat0_inv Ht1s.
-  by apply Tee_local_typing in Hbtype as [[|] [? [? [? [??]]]]] => //.
+  simpl in Hbtype; invert_be_typing.
+  by apply_cat0_inv Ht1s.
 Qed.
 
 Lemma reduce_get_global : forall (hs : host_state) s f ves j xx,
@@ -967,8 +966,9 @@ Lemma get_global_error : forall (hs : host_state) s f ves j,
 Proof.
   intros hs s f ves j Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Get_global_typing host_instance) in Hbtype as [t [Hjth' [??]]].
-  destruct (List.nth_error (tc_global C) j) eqn:Heqg; subst C => //.
+  simpl in Hbtype; invert_be_typing.
+  simpl in *.
+  destruct (List.nth_error (tc_global C') j) eqn:Heqg => //.
   eapply glob_context_store with (j := j) in Hitype => //;
     last by (rewrite Heqg; f_equal).
   unfold sglob_val, option_map in Hjth.
@@ -997,7 +997,7 @@ Proof.
   intros hs s f ves j ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]]. subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
   apply_cat0_inv Ht1s.
-  apply (Set_global_typing host_instance) in Hbtype as [? [? [? [? [? [??]]]]]].
+  simpl in Hbtype; invert_be_typing.
   by destruct t2s => //.
 Qed.
 
@@ -1009,8 +1009,8 @@ Proof.
   intros hs s f v ves ves' j ? Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Set_global_typing host_instance) in Hbtype as [g [? [Hjth' [? [? [??]]]]]].
-  apply glob_context_store with (j := j) (g := g) in Hitype => //.
+  simpl in Hbtype; invert_be_typing.
+  apply glob_context_store with (j := j) (g := g_setglobal) in Hitype => //.
   unfold sglob in Hitype. unfold option_bind in Hitype.
   unfold supdate_glob in Hjth. unfold option_bind in Hjth.
   destruct (sglob_ind s f.(f_inst) j) eqn:? => //.
@@ -1087,7 +1087,8 @@ Proof.
   intros s f ves t tp_sx a off ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves. apply_cat0_inv Ht1s.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  by apply (Load_typing host_instance) in Hbtype as [[|] [? [? [??]]]].
+  simpl in Hbtype; invert_be_typing.
+  by destruct ts_load.
 Qed.
 
 Lemma load_error_typeof : forall s f v ves ves' t tp_sx a off,
@@ -1098,7 +1099,7 @@ Proof.
   intros s f v ves ves' t tp_sx a off Hv ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]]. subst t1s t2s.
+  simpl in Hbtype; invert_be_typing.
   by cats1_last_eq Ht1s.
 Qed.
 
@@ -1111,7 +1112,7 @@ Proof.
   intros s f ves ves' c t tp_sx a off j ? Hsmem Hjth [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth']] => //.
   rewrite Hsmem in Hsmem'. injection Hsmem' as Hsmem'. subst j'.
   by apply Hjth'.
@@ -1125,7 +1126,7 @@ Proof.
   intros s f ves ves' c t tp_sx a off ? Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Load_typing host_instance) in Hbtype as [? [? [? [??]]]].
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
   by rewrite Hsmem' in Hsmem.
 Qed.
@@ -1205,8 +1206,8 @@ Lemma store_error_size : forall s f ves t tp a off,
 Proof.
   intros s f ves t tp a off ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Store_typing host_instance) in Hbtype as [? [??]].
-  subst t1s. by size_unequal Ht1s.
+  simpl in Hbtype; invert_be_typing.
+  subst. by size_unequal Ht1s.
 Qed.
 
 Lemma store_error_typeof : forall s f v v' ves ves' t tp a off,
@@ -1217,8 +1218,8 @@ Proof.
   intros s f v v' ves ves' t tp a off ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Store_typing host_instance) in Hbtype as [? [??]].
-  subst t1s.
+  simpl in Hbtype; invert_be_typing.
+  subst.
   (* TODO move this into the ltac? *)
   replace [:: T_i32; t] with ([:: T_i32] ++ [:: t]) in Ht1s => //.
   by repeat cats1_last_eq Ht1s.
@@ -1232,8 +1233,8 @@ Proof.
   intros s f v c ves ves' t tp a off ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Store_typing host_instance) in Hbtype as [? [??]].
-  subst t1s.
+  simpl in Hbtype; invert_be_typing.
+  subst.
   replace [:: T_i32; t] with ([:: T_i32] ++ [:: t]) in Ht1s => //.
   cats1_last_eq Ht1s. by destruct v, t => //.
 Qed.
@@ -1249,7 +1250,7 @@ Proof.
     [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth']] => //.
   (* TODO this repeats elsewhere -- make a lemma / ltac? *)
   rewrite Hsmem in Hsmem'. injection Hsmem' as Hsmem'. subst j'.
@@ -1265,7 +1266,7 @@ Proof.
   intros s f v c ves ves' t tp a off ?? Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Store_typing host_instance) in Hbtype as [? [??]].
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
   by rewrite Hsmem in Hsmem'.
 Qed.
@@ -1293,7 +1294,7 @@ Proof.
   intros s f ves j Hsmem ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Current_memory_typing host_instance) in Hbtype as [??] => //.
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
   rewrite Hsmem' in Hsmem. injection Hsmem as Hsmem. subst j'.
   by apply Hjth.
@@ -1306,7 +1307,7 @@ Proof.
   intros s f ves Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Current_memory_typing host_instance) in Hbtype as [??] => //.
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
   by rewrite Hsmem' in Hsmem.
 Qed.
@@ -1364,7 +1365,7 @@ Proof.
   intros s f ves ves' j c ? Hsmem ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //.
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [j' [Hsmem' Hjth]] => //.
   rewrite Hsmem' in Hsmem. injection Hsmem as Hsmem. subst j'.
   by apply Hjth.
@@ -1378,7 +1379,7 @@ Proof.
   intros s f ves ves' c ? Hsmem [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [Hitype [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //.
+  simpl in Hbtype; invert_be_typing.
   apply mem_context_store in Hitype as [? [Hsmem' ?]] => //.
   by rewrite Hsmem' in Hsmem.
 Qed.
@@ -1391,7 +1392,7 @@ Proof.
   intros s f v ves ves' Hv Heqves [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves C.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply (Grow_memory_typing host_instance) in Hbtype as [? [? [??]]] => //. subst t1s t2s.
+  simpl in Hbtype; invert_be_typing.
   by cats1_last_eq Ht1s.
 Qed.
 
@@ -1857,14 +1858,14 @@ Proof.
       as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypebvs Hetypebr]]]]]]].
   apply_cat0_inv Ht0s; simpl in *; subst.
   apply et_to_bet in Hetypebr; last by auto_basic.
-  apply (Break_typing host_instance) in Hetypebr
-    as [ts'0 [ts'' [Hj [Hplop' Heqt1s']]]].
-  assert (ts'0 = t_br).
+  simpl in Hetypebr; invert_be_typing.
+  assert (t_br = ts_br).
   {
-    unfold plop2 in Hplop, Hplop'. move/eqP in Hplop. move/eqP in Hplop'.
-    rewrite Hplop' in Hplop. by injection Hplop.
+    unfold plop2 in *.
+    remove_bools_options.
+    by rewrite Hplop in H2_br; injection H2_br.
   }
-  subst ts'0 t1s'.
+  subst.
   apply et_to_bet in Hetypebvs;
     last by apply const_list_is_basic; apply v_to_e_is_const_list.
   apply Const_list_typing in Hetypebvs.
@@ -2024,7 +2025,7 @@ Proof.
     apply e_composition_typing in Hetype as [? [? [? [? [-> [-> [Hetype _]]]]]]].
     apply e_composition_typing in Hetype as [? [? [? [? [-> [-> [_ Hetypebr]]]]]]].
     apply et_to_bet in Hetypebr; last by auto_basic.
-    by apply (Break_typing host_instance) in Hetypebr as [? [? [Hj [??]]]]; auto.
+    by simpl in Hetypebr; invert_be_typing.
   - subst i k vs0 m' es'0 lh'0 es''0 es0 es.
     apply e_composition_typing in Hetype as [? [t0s [? [t1s' [-> [-> [_ Hetype]]]]]]].
     apply e_composition_typing in Hetype as [? [t1s [? [t2s' [-> [-> [Hetype _]]]]]]].
@@ -2131,9 +2132,8 @@ Proof.
       as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypervs Hetyperet]]]]]]].
   apply_cat0_inv Ht0s; simpl in *; subst.
   apply et_to_bet in Hetyperet; last by auto_basic.
-  apply (Return_typing host_instance) in Hetyperet
-      as [ts'0 [ts'' [Heqt0s Heqts'0]]].
-  rewrite Heqts'0 in Heqret.
+  simpl in Hetyperet; invert_be_typing.
+  rewrite H2_return in Heqret.
   injection Heqret; subst; clear Heqret.
   move => <-.
   apply et_to_bet in Hetypervs;
