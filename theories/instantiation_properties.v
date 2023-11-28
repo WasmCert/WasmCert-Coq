@@ -902,23 +902,15 @@ Proof.
   { apply empty_typing in Hbet. by subst. }
   { apply empty_typing in Hbet. by subst. }
   { rewrite <- cat1s in Hbet.
-    apply composition_typing in Hbet.
-    destruct Hbet as [ts [t1s [t2s [t3s [-> [Heqt2 [Hbet1 Hbet2]]]]]]].
-    destruct ts, t2s => //=.
+    invert_be_typing; subst.
+    destruct ts1_comp, ts3_comp => //; clear H2_comp.
     simpl in Hconst.
     move/andP in Hconst.
     destruct Hconst as [Hconst Hconsts].
-    apply IHes in Hbet2 => //.
-    destruct es, t3s => //=.
+    apply IHes in H4_comp => //.
+    destruct es, ts4_comp => //=.
     unfold const_expr in Hconst.
-    destruct a => //.
-    { apply (Get_global_typing host_instance) in Hbet1.
-      destruct Hbet1 as [t [? [HContra ?]]].
-      by destruct t1s.
-    }
-    { apply BI_const_typing in Hbet1.
-      by destruct t1s.
-    }
+    destruct a => //; invert_be_typing; by destruct ts2_comp.
   }
   { rewrite <- cat1s in Hbet.
     apply composition_typing in Hbet.
@@ -932,20 +924,7 @@ Proof.
       by lias.
     }
     unfold const_expr in Hconst.
-    destruct a => //.
-    { apply (Get_global_typing host_instance) in Hbet1.
-      destruct Hbet1 as [t [? [HContra ?]]].
-      subst.
-      rewrite -> app_length in *.
-      simpl in *.
-      by lias.
-    }
-    { apply BI_const_typing in Hbet1.
-      subst.
-      rewrite -> app_length in *.
-      simpl in *.
-      by lias.
-    }
+    destruct a => //; invert_be_typing; rewrite -> app_length in *; simpl in *; by lias.
   }
 Qed.
   

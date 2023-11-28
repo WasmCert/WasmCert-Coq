@@ -956,7 +956,7 @@ Proof.
                eapply Forall2_lookup in HGlobType; last by apply Hglobs_nth.
                destruct HGlobType as [y [Hnth [Hconst [-> Hbet]]]].
 
-               specialize (const_exprs_impl host_function host_instance _ _ _ Hconst Hbet) as Hexprs.
+               specialize (const_exprs_impl _ _ _ Hconst Hbet) as Hexprs.
                clear Hconst.
                destruct Hexprs as [expr [-> Hconst]]; remove_bools_options.
                rewrite /const_expr in Hconst. simpl in Hconst.
