@@ -376,7 +376,7 @@ Lemma interp_get_i32_reduce: forall hs s c inst k bes,
 Proof.
   move => hs s c inst bes k Hconst Hbet Heval.
   unfold interp_get_i32, interp_get_v in Heval.
-  eapply const_exprs_impl in Hconst; eauto; last exact host_instance.
+  eapply const_exprs_impl in Hconst; eauto.
   destruct Hconst as [be [-> Hconst]].
   destruct be => //=.
   - simpl in Heval.
@@ -477,7 +477,7 @@ Proof.
     move/andP in Hmodcheck.
     destruct Hmodcheck as [Hconstexpr Hbetype].
     move/b_e_type_checker_reflects_typing in Hbetype.
-    eapply const_exprs_impl in Hconstexpr; [ | instantiate (1 := host_function_eqType); exact host_instance | by eauto].
+    eapply const_exprs_impl in Hconstexpr; last by eauto.
     destruct Hconstexpr as [e [-> Hconst]].
     unfold const_expr in Hconst.
     destruct e => //.
