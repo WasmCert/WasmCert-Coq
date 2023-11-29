@@ -66,7 +66,8 @@ Qed.
 Lemma lc_typing: forall (lc: label_ctx) es s C0 tf,
     e_typing s C0 (lc ⦃ es ⦄) tf ->
     exists ts1 ts2,
-      e_typing s C0 (lc.(LC_cont)) (Tf ts1 ts2) /\ 
+      e_typing s C0 (lc.(LC_cont)) (Tf ts1 ts2) /\
+      length ts1 = lc.(LC_arity) /\
       e_typing s (upd_label C0 ([::ts1] ++ C0.(tc_label))) es (Tf nil ts2).
 Proof.
   move => lc es s C [ts1 ts2] /= Htype.
@@ -77,22 +78,27 @@ Proof.
   by do 2 eexists; split; eauto.
 Qed.
 
-Lemma lcs_typing_exists: forall lc (lcs: list label_ctx) es s C0 tf,
-    e_typing s C0 ((lc :: lcs) ⦃ es ⦄) tf ->
-    exists labs ts2,
-      e_typing s (upd_label C0 (labs ++ C0.(tc_label))) es (Tf nil ts2).
+Definition lab_lc_agree (lab: list value_type) (lc: label_ctx) : bool :=
+  length lab == lc.(LC_arity).
+
+Lemma lcs_typing_exists: forall (lcs: list label_ctx) es s C0 tf,
+    e_typing s C0 (lcs ⦃ es ⦄) tf ->
+    exists labs ts1 ts2,
+      e_typing s (upd_label C0 (labs ++ C0.(tc_label))) es (Tf ts1 ts2) /\
+      all2 lab_lc_agree labs lcs /\
+      (lcs <> nil -> ts1 = nil).
 Proof.
-  move => lc lcs.
-  move: lc.
-  induction lcs as [|lc' lcs']; move => lc es s C0 tf Htype.
-  - apply lc_typing in Htype as [ts1 [ts2 [_ Htype]]].
-    by do 2 eexists; eauto.
-  - apply IHlcs' in Htype as [labs [ts2 Htype]].
-    apply lc_typing in Htype as [? [? [_ Htype]]].
-    simpl in Htype.
+  induction lcs as [|lc' lcs']; move => es s C0 [ts1 ts2] Htype.
+  - exists nil, ts1, ts2.
+    by destruct C0.
+  - apply IHlcs' in Htype as [labs [ts1' [ts2' [Htype [Hagree Hconsume]]]]].
+    apply lc_typing in Htype as [? [? [Hctype [Hartiy Htype]]]].
+    simpl in *.
     rewrite upd_label_overwrite in Htype.
     rewrite -cat1s catA in Htype.
-    by do 2 eexists; eauto.
+    do 3 eexists; repeat split; eauto => /=.
+    apply/andP; split => //.
+    by apply/eqP.
 Qed.
 
 Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
@@ -104,9 +110,10 @@ Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
 Proof.
   move => [fc lcs] es s C0 tf Htype.
   apply fc_typing in Htype as [C [ret [? [? Htype]]]].
-  destruct lcs; simpl in *; first by do 4 eexists; repeat split; eauto.
-  apply lcs_typing_exists in Htype as [labs [? Htype]].
-  by do 4 eexists; repeat split; eauto.
+  destruct lcs; first by do 4 eexists; repeat split; eauto.
+  apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
+  do 4 eexists; repeat split; eauto.
+  by rewrite Hconsume in Htype => //; eauto.
 Qed.
 
 Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
@@ -122,6 +129,22 @@ Proof.
   - by eapply cc_typing_exists; eauto.
   - apply IHccs' in Htype as [? [? [? [? [? [??]]]]]].
     by eapply cc_typing_exists; eauto.
+Qed.
+
+Lemma ccs_typing_focus: forall cc ccs es s C0 tf,
+    e_typing s C0 (cc :: ccs) ⦃ es ⦄ tf ->
+    exists C ret labs tf,
+     e_typing s (upd_label (upd_return C ret) labs) (cc ⦃ es ⦄) tf.
+Proof.
+  move => cc ccs.
+  move: cc.
+  induction ccs as [| cc' ccs']; move => [fc lcs] es s C0 tf Htype.
+  - exists C0, (tc_return C0), (tc_label C0), tf.
+    by destruct C0.
+  - apply IHccs' in Htype as [? [? [? [? Htype]]]].
+    apply cc_typing_exists in Htype as [C [ret [lab [ts2 [Hftype [Hlen Htype]]]]]].
+    exists C, (Some ret), lab, (Tf nil ts2).
+    by apply Htype.
 Qed.
 
 Lemma sc_typing_args: forall (sc: seq_ctx) es s C ts0,
@@ -290,7 +313,7 @@ Ltac resolve_invalid_typing :=
     apply e_typing_ops in Htype as [? [? [ts' Htype]]]
   end;
   simpl in Htype;
-  apply et_to_bet in Htype; last by auto_basic.
+  try (apply et_to_bet in Htype; last by auto_basic).
 
 Ltac last_unequal H :=
   apply (f_equal rev) in H;
@@ -358,10 +381,49 @@ Proof.
       }
       
     + (* Not enough values *)
-      by admit_rsc.
+      apply RSC_error.
+      destruct lcs as [| lc lcs] => //.
+      intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
+      eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
+      apply ccs_typing_focus in Htype as [? [? [? [tf Htype]]]].
+      apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]].
+      apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
+      rewrite -> Hconsume in * => //; clear Hconsume.
+      apply sc_typing_args in Htype as [k [ts3 Htype]]; simpl in Htype.
+      apply et_to_bet in Htype; last by auto_basic.
+      simpl in Htype; invert_be_typing.
+      unfold plop2 in H2_br; move/eqP in H2_br.
+      inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
+      destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
+      apply inst_t_context_label_empty in Hit; rewrite -> Hit, cats0 in *; simpl in *; clear Hit.
+      eapply all2_projection in Hagree; eauto.
+      move/eqP in Hagree; simpl in Hagree; subst.
+      apply (f_equal size) in H3_br.
+      rewrite size_map size_cat drop_rev size_rev size_takel in H3_br; last by lias.
+      repeat rewrite length_is_size in Hvslen.
+      by lias.
+      
   - (* Not enough labels *)
-    by admit_rsc.
-Qed.
+    apply RSC_error.
+    intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
+    eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
+    apply ccs_typing_focus in Htype as [? [? [? [tf Htype]]]].
+    apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]].
+    apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
+    simpl in Htype.
+    apply e_composition_typing in Htype as [? [? [? [? [? [? [Htype1 Htype2]]]]]]]; subst.
+    rewrite -cat1s in Htype2.
+    apply e_composition_typing in Htype2 as [? [? [? [? [? [? [Htype3 Htype4]]]]]]]; subst.
+    apply et_to_bet in Htype3; last by auto_basic.
+    simpl in Htype3; invert_be_typing.
+    inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
+    destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
+    apply inst_t_context_label_empty in Hit; rewrite -> Hit in *; simpl in *.
+    apply all2_size in Hagree.
+    rewrite length_is_size in Hlablen.
+    rewrite cats0 in H1_br.
+    by rewrite Hagree in H1_br; lias.
+Defined.
     
 Definition run_ctx_return: forall hs s ccs sc,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic BI_return)).
@@ -381,11 +443,16 @@ Proof.
       by repeat rewrite - catA => /=.
     }
   - (* Not enough values *)
-    by admit_rsc.
-Qed.
-
+    resolve_invalid_typing; simpl in Htype; invert_be_typing.
+    simpl in *; subst.
+    injection H2_return as ->.
+    apply (f_equal size) in H1_return.
+    rewrite size_map size_cat drop_rev size_rev size_takel in H1_return; last by lias.
+    repeat rewrite length_is_size in Hvslen.
+    by lias.
+Defined.
+    
 (* Invoke does not need a frame context. This is useful for handling the starting invocation of a module *)
-
 Definition run_ctx_invoke hs s ccs vs0 es0 a:
     run_step_ctx_result hs (s, ccs, (vs0, es0), Some (AI_invoke a)).
 Proof.
@@ -411,11 +478,13 @@ Proof.
         repeat rewrite length_is_size.
         repeat rewrite length_is_size in Hlen.
         by rewrite size_rev size_takel => //.
-      * (* false *)
-        by admit_rsc.
-    (* apply RS''_error.
-              by eapply invoke_func_native_error_n with
-                (n := n) (t1s := t1s) (t2s := t2s) (i := i) (ts := ts) (es := es). *)
+      * (* not enough arguments *)
+        resolve_invalid_typing.
+        eapply Invoke_func_native_typing in Htype as [ts1 [C' [Hvstype [? [Hit Hbet]]]]]; eauto; subst.
+        apply (f_equal size) in Hvstype.
+        rewrite size_map size_cat drop_rev size_rev size_takel in Hvstype; last by lias.
+        repeat rewrite length_is_size in Hlen.
+        by lias.
     + (* FC_func_host (Tf t1s t2s) cl' *)
       remember (length t1s) as n eqn:?.
       remember (length t2s) as m eqn:?.
@@ -466,15 +535,16 @@ Proof.
     repeat rewrite length_is_size.
     by rewrite size_rev size_takel => //.
     * (* false *)
-      by admit_rsc.
-  (*
-              apply RS''_error.
-              by eapply invoke_func_host_error_n with
-                (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl').
-   *)
+      resolve_invalid_typing.
+      eapply Invoke_func_host_typing in Htype as [ts1 [Hvstype ?]]; eauto; subst.
+      apply (f_equal size) in Hvstype.
+      rewrite size_map size_cat drop_rev size_rev size_takel in Hvstype; last by lias.
+      repeat rewrite length_is_size in Hlen.
+      by lias.
   - (* None *)
-    by admit_rsc.
-    (* apply RS''_error. by apply invoke_host_error_ath. *)
+    resolve_invalid_typing.
+    eapply Invoke_func_typing in Htype as [cl Hnth]; eauto.
+    by rewrite Hnth in Heqo.
 Defined.
 
 (* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
@@ -514,7 +584,21 @@ Proof.
           }
         }
         (* length doesn't match -- ill-typed *)
-        { by admit_rsc. }
+        {
+          apply RSC_error.
+          intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
+          eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
+          apply ccs_typing_focus in Htype as [C [? [? [[ts1 ts2] Htype]]]].
+          rewrite /= cats0 in Htype.
+          apply e_composition_typing in Htype as [ts' [ts1' [ts2' [ts3 [? [? [Htype1 Htype2]]]]]]]; subst.
+          rewrite -cat1s in Htype2.
+          apply e_composition_typing in Htype2 as [? [? [? [? [? [? [Htype3 Htype4]]]]]]]; subst.
+          apply Local_typing in Htype3 as [? [? [Htype ?]]]; subst.
+          inversion Htype as [????????? Hvstype]; subst; clear Htype.
+          apply et_to_bet in Hvstype; last by apply const_list_is_basic, v_to_e_const.
+          apply Const_list_typing in Hvstype; subst; simpl in *.
+          by repeat rewrite length_is_size in Hlen; rewrite size_map size_rev in Hlen.
+        }
       }
       (* Exitting a label *)
       { destruct lc as [lvs lk lces les].
@@ -1175,7 +1259,8 @@ Proof.
  (* destruct ccs as [ | cc ccs]; first by right. *)
   destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
   exact (Some (s, ccs', sc', oe')).
-  Defined.
+Defined.
+
  (* unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
   by eapply ctx_update_valid; eauto.*)
  (* destruct (@run_one_step_ctx hs cfg Hvalid) as [hs' [[[s ccs] sc] oe] Hred | Hconst | Herror | Hadmit].
