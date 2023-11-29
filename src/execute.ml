@@ -245,13 +245,9 @@ include Extract.Interpreter_ctx_extract
       (let run_step_res = run_one_step_ctx hs cfg in
         print_step_header gen ;
         match run_step_res with
-        | Extract.RSC_error _ ->
+        | Extract.RSC_error ->
           wait_message verbosity;
           debug_info verbosity result ~style:red (fun _ -> "crash_error\n");
-          pure None
-        | Extract.RSC_admit ->
-          wait_message verbosity;
-          debug_info verbosity result ~style:red (fun _ -> "crash_admit\n");
           pure None
         | Extract.RSC_invalid ->
           wait_message verbosity;
