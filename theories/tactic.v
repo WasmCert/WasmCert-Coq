@@ -1,6 +1,11 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import operations opsem properties typing_inversion.
 
+Ltac size_unequal H :=
+  apply (f_equal size) in H;
+  revert H;
+  repeat rewrite size_cat; repeat rewrite size_rev; repeat rewrite size_map; repeat rewrite size_drop; repeat rewrite size_take; simpl; lias.
+
 (** A common pattern in the proof: using an hypothesis on the form [rev l = l'] to rewrite [l]. **)
 Ltac subst_rev_const_list :=
  repeat lazymatch goal with

@@ -161,11 +161,6 @@ Ltac if_lias :=
     destruct cond eqn:?; lias
   end.
 
-Ltac size_unequal H :=
-  apply (f_equal size) in H;
-  revert H;
-  repeat rewrite size_cat; try rewrite size_rev; try rewrite size_map; simpl; lias.
-
 Lemma vs_to_es_cons : forall v ves,
   vs_to_es ves ++ [:: AI_basic (BI_const v)] = vs_to_es (v :: ves).
 Proof.
@@ -1418,8 +1413,7 @@ Lemma testop_i32_error : forall s f v ves ves' testop,
 Proof.
   intros s f v ves ves' testop ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Testop_typing in Hbtype as [? [ts' ?]].
-  subst ves t1s t2s.
+  simpl in Hbtype; invert_be_typing; subst.
   by cats1_last_eq Ht1s.
 Qed.
 
@@ -1436,18 +1430,16 @@ Lemma testop_i64_error : forall s f v ves ves' testop,
 Proof.
   intros s f v ves ves' testop ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Testop_typing in Hbtype as [? [ts' ?]].
-  subst ves t1s t2s.
+  simpl in Hbtype; invert_be_typing; subst.
   by cats1_last_eq Ht1s.
 Qed.
 
-(* TODO dedupe testop_*_error *)
 Lemma testop_f32_error : forall s f ves testop,
   ~ fragment_typeable s f ves [:: AI_basic (BI_testop T_f32 testop)].
 Proof.
   intros s f ves testop [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Testop_typing_is_int_t in Hbtype => //.
+  by simpl in Hbtype; invert_be_typing; subst.
 Qed.
 
 Lemma testop_f64_error : forall s f ves testop,
@@ -1455,7 +1447,7 @@ Lemma testop_f64_error : forall s f ves testop,
 Proof.
   intros s f ves testop [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Testop_typing_is_int_t in Hbtype => //.
+  by simpl in Hbtype; invert_be_typing; subst.
 Qed.
 
 Lemma reduce_relop : forall (hs : host_state) s f t op v1 v2 ves',
@@ -1506,8 +1498,8 @@ Proof.
   intros s f ves t1 t2 cvtop sx ? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply_cat0_inv Ht1s.
-  by apply Cvtop_typing in Hbtype as [[|] [??]].
+  simpl in Hbtype; invert_be_typing; subst.
+  by apply_cat0_inv Ht1s.
 Qed.
 
 Lemma cvtop_error_types_disagree : forall s f v ves ves' t1 t2 cvtop sx,
@@ -1518,11 +1510,10 @@ Proof.
   intros s f v ves ves' t1 t2 cvtop sx ? Hdisagree [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  apply Cvtop_typing in Hbtype as [? [??]].
-  subst t1s. cats1_last_eq Ht1s.
+  simpl in Hbtype; invert_be_typing; subst.
+  cats1_last_eq Ht1s.
   unfold types_agree in Hdisagree.
-  destruct (typeof v == t1) eqn:Hv => //.
-  assert (Hv' : typeof v <> t1). { apply/eqP. by rewrite Hv. } by apply Hv'.
+  by move/eqP in Hdisagree.
 Qed.
 
 Lemma cvtop_error_reinterpret_sx : forall s f v ves ves' t1 t2 sx,
@@ -1533,7 +1524,8 @@ Proof.
   intros s f v ves ves' t1 t2 sx ?? [C [C' [ret [lab [t1s [t2s [t1s' [? [Ht1s [? [? Hetype]]]]]]]]]]].
   subst ves.
   apply et_to_bet in Hetype as Hbtype; last by auto_basic.
-  by apply Cvtop_reinterpret_typing in Hbtype.
+  simpl in Hbtype; invert_be_typing; subst.
+  by specialize (H3_cvtop erefl).
 Qed.
 
 Lemma reduce_reinterpret : forall (hs : host_state) s f t1 t2 v ves',

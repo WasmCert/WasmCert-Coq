@@ -105,25 +105,15 @@ Qed.
 
 Lemma Testop_typing: forall C t op t1s t2s,
     be_typing C [::BI_testop t op] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t] /\ t2s = ts ++ [::T_i32].
+    exists ts, t1s = ts ++ [::t] /\ t2s = ts ++ [::T_i32] /\ is_int_t t.
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
   - by exists [::].
   - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [?[??]] => //=; subst.
+  - edestruct IHHType as [?[?[??]]] => //=; subst.
     repeat rewrite -cat_app; repeat rewrite catA.
     by eexists.
-Qed.
-
-Lemma Testop_typing_is_int_t: forall C t op t1s t2s,
-    be_typing C [::BI_testop t op] (Tf t1s t2s) ->
-    is_int_t t.
-Proof.
-  move => C t op t1s t2s HType.
-  gen_ind_subst HType => //=.
-  - by resolve_compose Econs HType1 IHHType2.
-  - by eapply IHHType.
 Qed.
 
 Lemma Relop_typing: forall C t op t1s t2s,
@@ -141,24 +131,14 @@ Qed.
 
 Lemma Cvtop_typing: forall C t1 t2 op sx t1s t2s,
     be_typing C [::BI_cvtop t2 op t1 sx] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::t1] /\ t2s = ts ++ [::t2].
+    exists ts, t1s = ts ++ [::t1] /\ t2s = ts ++ [::t2] /\ (op = CVO_reinterpret -> sx = None).
 Proof.
   move => C t1 t2 op sx t1s t2s HType.
   gen_ind_subst HType; try by exists nil.
   - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [?[??]] => //=; subst.
+  - edestruct IHHType as [?[?[??]]] => //=; subst.
     repeat rewrite -cat_app; repeat rewrite catA.
     by eexists.
-Qed.
-
-Lemma Cvtop_reinterpret_typing: forall C t1 t2 sx t1s t2s,
-    be_typing C [::BI_cvtop t2 CVO_reinterpret t1 sx] (Tf t1s t2s) ->
-    sx = None.
-Proof.
-  move => C t1 t2 sx t1s t2s HType.
-  gen_ind_subst HType => //.
-  - by resolve_compose Econs HType1 IHHType2.
-  - by edestruct IHHType.
 Qed.
 
 Lemma Nop_typing: forall C t1s t2s,
@@ -502,7 +482,8 @@ Ltac invert_be_typing:=
     let ts := fresh "ts_testop" in
     let H1 := fresh "H1_testop" in
     let H2 := fresh "H2_testop" in
-    apply Testop_typing in H; destruct H as [ts [H1 H2]]; subst
+    let H3 := fresh "H3_testop" in
+    apply Testop_typing in H; destruct H as [ts [H1 [H2 H3]]]; subst
   | H: be_typing _ [::BI_relop _ _] _ |- _ =>
     let ts := fresh "ts_relop" in
     let H1 := fresh "H1_relop" in
@@ -512,7 +493,8 @@ Ltac invert_be_typing:=
     let ts := fresh "ts_cvtop" in
     let H1 := fresh "H1_cvtop" in
     let H2 := fresh "H2_cvtop" in
-    apply Cvtop_typing in H; destruct H as [ts [H1 H2]]; subst
+    let H3 := fresh "H3_cvtop" in
+    apply Cvtop_typing in H; destruct H as [ts [H1 [H2 H3]]]; subst
   | H: be_typing _ [::BI_drop] _ |- _ =>
     apply Drop_typing in H; destruct H; subst
   | H: be_typing _ [::BI_select] _ |- _ =>
