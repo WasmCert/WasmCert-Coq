@@ -1261,44 +1261,106 @@ Proof.
   exact (Some (s, ccs', sc', oe')).
 Defined.
 
- (* unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
-  by eapply ctx_update_valid; eauto.*)
- (* destruct (@run_one_step_ctx hs cfg Hvalid) as [hs' [[[s ccs] sc] oe] Hred | Hconst | Herror | Hadmit].
-  - destruct ccs as [ | cc ccs]; first by right.
-    destruct (ctx_update (cc :: ccs) sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
-    left; exists (hs', (s, ccs', sc', oe')).
-    left. unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
-    by eapply ctx_update_valid; eauto.
-  - left; exists (hs, cfg).
-    by right.
-  - by right.
-  - by right.
-Qed.*)
-
-(*
-(* Multistep interpreter *)
-Fixpoint run_v_ctx_valid (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx): valid_cfg_ctx cfg -> option hs_cfg_ctx.
-Proof.
-  destruct fuel as [| fuel]; first by right.
-  intros Hvalid.
-  destruct (@run_one_step_ctx hs cfg Hvalid) as [hs' [[[s ccs] sc] oe] Hred | Hconst | Herror | Hadmit].
-  - destruct ccs as [ | cc ccs].
-    + left. exact (hs', (s, nil, sc, oe)).
-    + destruct (ctx_update (cc :: ccs) sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
-      apply (run_v_ctx_valid fuel hs' (s, ccs', sc', oe')).
-      unfold valid_cfg_ctx; split; first by eapply ctx_update_valid_ccs; eauto.
-      by eapply ctx_update_valid; eauto.
-  - left. exact (hs, cfg).
-  - by right.
-  - by right.
-Defined.
-*)
-
 Definition run_v_init (s: store_record) (es: list administrative_instruction) : option cfg_tuple_ctx :=
   match ctx_decompose es with
-  | Some (ccs, sc, oe) => (Some (s, ccs, sc, oe))
+  | Some (ccs, sc, oe) => Some (s, ccs, sc, oe)
   | None => None
   end.
+
+
+Section Interp_ctx_progress.
+  
+(* The only case where run_v_init produces an invalid cfg is when there is no call context (which is only possible
+   in real Wasm execution at module entrance with a single Invoke *)
+Lemma run_v_init_valid: forall (s s': store_record) es ccs sc oe,
+    store_typing s ->
+    run_v_init s es = Some (s', ccs, sc, oe) ->
+    ccs <> nil ->
+    valid_cfg_ctx (s', ccs, sc, oe).
+Proof.
+  move => s s' es ccs sc oe Hstype Hinit Hneq.
+  unfold run_v_init in Hinit.
+  destruct (ctx_decompose es) as [[[ccs' sc'] oe'] | ] eqn:Hdecomp => //; inversion Hinit; subst; clear Hinit.
+  destruct ccs as [| cc ccs] => //.
+  split => //.
+  by apply ctx_decompose_valid_split in Hdecomp.
+Qed.
+
+Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
+  match es with
+  | [::AI_invoke _]
+  | [::AI_local _ _ _] => true
+  | _ => false
+  end.
+
+Definition valid_init_Some s es:
+  valid_wasm_instr es ->
+  run_v_init s es <> None.
+Proof.
+  move => Hvalid.
+  destruct es as [| e es] => //; destruct e, es => //.
+  rewrite /run_v_init /ctx_decompose ctx_decompose_aux_equation /=.
+  destruct (ctx_decompose_aux _) as [[[??]?]|] eqn:Hdecomp => //; by apply ctx_decompose_acc_some in Hdecomp.
+Qed.
+
+Definition t_progress_interp_ctx: forall (hs: host_state) (s: store_record) es ts,
+  valid_wasm_instr es ->
+  config_typing s empty_frame es ts ->
+  terminal_form es \/
+  exists hs' s' es', reduce hs s empty_frame es hs' s' empty_frame es'.
+Proof.
+  move => hs s es ts Hvalid Htype.
+  destruct (run_v_init s es) as [[[[s0 ccs] sc] oe]|] eqn:Hinit; last by eapply valid_init_Some in Hvalid; apply Hvalid in Hinit.
+  destruct es as [| e es] => //; destruct e, es => //.
+  (* Invoke *)
+  { unfold run_v_init in Hinit.
+    rewrite /ctx_decompose ctx_decompose_aux_equation /= in Hinit.
+    injection Hinit as <- <- <- <-.
+    { remember (run_one_step_ctx hs (s, nil, (nil, nil), Some (AI_invoke f))) as res.
+      destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred | vs Heq | Hcontra | Hcontra]; clear Heqres.
+      - right.
+        unfold reduce_ctx in Hred.
+        simpl in *.
+        repeat eexists. by eauto.
+      - left.
+        simpl in *.
+        subst; rewrite Heq.
+        left; by apply v_to_e_const.
+      - exfalso; by apply Hcontra.
+      - simpl in Hcontra. by apply Hcontra in Htype.
+    }
+  }
+  (* Label *)
+  { remember Hinit as Hinit2; clear HeqHinit2.
+    unfold run_v_init in Hinit.
+    rewrite /ctx_decompose ctx_decompose_aux_equation /= in Hinit.
+    destruct (ctx_decompose_aux _) as [[[ccs' sc'] oe'] | ] eqn:Hdecomp => //; injection Hinit as <- -> -> ->.
+    { remember (run_one_step_ctx hs (s, ccs, sc, oe)) as res.
+      destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred | vs Heq | Hcontra | Hcontra]; clear Heqres.
+      1,2,4:
+      unfold run_v_init in Hinit2; destruct (ctx_decompose _) as [[[ccs2 sc2] oe2]|] eqn:Hdecomp' => //;
+      apply (@ctx_decompose_fill_id host_function host_instance) in Hdecomp';
+      simpl in Hdecomp';
+      injection Hinit2 as -> -> ->.
+      - right.
+        unfold reduce_ctx in Hred.
+        simpl in *.
+        rewrite Hdecomp' in Hred.
+        repeat eexists. by eauto.
+      - exfalso.
+        simpl in *.
+        rewrite Hdecomp' in Heq.
+        by destruct vs.
+      - simpl in Hcontra. rewrite Hdecomp' in Hcontra. by apply Hcontra in Htype.
+      - exfalso; apply Hcontra; clear Hcontra.
+        split;
+        by [apply ctx_decompose_valid_ccs_aux in Hdecomp
+           | apply ctx_decompose_valid_aux in Hdecomp ].
+    }
+  }
+Qed.
+
+End Interp_ctx_progress.
 
 End Host.
 

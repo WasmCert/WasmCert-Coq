@@ -272,8 +272,15 @@ Definition valid_split (sc: seq_ctx) oe: bool :=
   | None => snd sc == nil
   end.
 
+Definition oe_noframe (oe: option administrative_instruction) :=
+  match oe with
+  | None
+  | Some (AI_invoke _) => true
+  | _ => false
+  end.
+
 Definition valid_ccs (ccs: list closure_ctx) (oe: option administrative_instruction): bool :=
-  (ccs != nil) || (oe == None).
+  (ccs != nil) || (oe_noframe oe).
 
 (* The canonical form of a context config tuple: 
    - The ves split has to be valid;
