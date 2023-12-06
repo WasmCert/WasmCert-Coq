@@ -554,8 +554,6 @@ Proof.
   destruct oe as [e | ]; last first.
   (* Exitting from contexts *)
   {
-  (*  unfold valid_cfg_ctx in Hvalid; destruct sc as [vs es]; subst; simpl in Hvalid.
-    destruct Hvalid as [? Heq]; move/eqP in Heq; subst es.*)
     destruct sc as [vs es]; subst.
     destruct es as [ | ??]; last by apply RSC_invalid => /=; move => [??].
     destruct ccs as [ | [fc lcs] ccs'].
@@ -575,9 +573,6 @@ Proof.
             by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
           }
           { (* e is in the hole *)
-          (*  remember (ctx_update ccs' (vs ++ lvs, les') e) as cfg_new; symmetry in Heqcfg_new.
-            destruct cfg_new as [[[ccs0 [vs0 es0]] oe] | ].
-            - destruct (valid_ccs ccs0 oe) eqn:Hccsnil. *)
             apply <<hs, (s, ccs', (vs ++ lvs, les'), Some e)>> => /=.
             resolve_reduce_ctx lvs (e :: les').
             by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
@@ -645,16 +640,16 @@ Proof.
       (* BI_tee_local j *) j |
       (* BI_get_global j *) j |
       (* BI_set_global j *) j |
-      (* BI_load t [Some (tp, sx)|None] a off *) t ops(*[[tp sx]|]*) a off |
-      (* BI_store t [Some tp|None] a off *) t op(*[tp|]*) a off |
+      (* BI_load t [Some (tp, sx)|None] a off *) t ops a off |
+      (* BI_store t [Some tp|None] a off *) t op a off |
       (* BI_current_memory *) |
       (* BI_grow_memory *) |
       (* BI_const _ *) |
       (* BI_unop t op *) t op |
       (* BI_binop t op *) t op |
-      (* BI_testop [T_i32|T_i64|T_f32|T_f64] testop *) t(*[| | |]*) testop |
+      (* BI_testop t testop *) t testop |
       (* BI_relop t op *) t op |
-      (* BI_cvtop t2 [CVO_convert|CVO_reinterpret] t1 sx *) t2 cvtop (*[|]*) t1 sx ] |
+      (* BI_cvtop t2 cvtop t1 sx *) t2 cvtop t1 sx ] |
       (* AI_trap *) |
       (* AI_invoke a *) a |
       (* AI_label ln les es *) ln les es |

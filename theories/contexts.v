@@ -815,37 +815,6 @@ Proof.
   by apply lh_ctx_fill_aux with (acc := LH_base nil nil) => /=; rewrite cats0.
 Qed.
 
-(*
-Lemma lh_ctx_id {k}: forall sc lcs acc (lh: lholed k) (Heq: k = length lcs - length acc),
-    lh_to_ctx_aux lh acc = (sc, lcs) ->
-    {lcs0 & {Heq' | lcs = lcs0 ++ acc /\ ctx_to_lh sc lcs0 = lholed_cast lh Heq'} }.
-Proof.
-  move => sc lcs acc lh Heq.
-  move: sc acc Heq.
-  move: lcs.
-  unfold ctx_to_lh.
-  induction lh using lholed_rect; destruct lcs as [ | [lvs lk lces les]] => //=; unfold lh_to_ctx => /=; move => sc acc Heq Hconv.
-  - injection Hconv as ??; subst => /=.
-    exists nil, (erefl 0).
-    rewrite revK => /=.
-    split => //.
-    unfold eq_rect_r.
-    rewrite <- Eqdep_dec.eq_rect_eq_dec => //; last by decidable_equality.
-  - injection Hconv as ??; subst => /=.
-    exists nil, (erefl 0) => /=.
-    rewrite revK => /=.
-    split => //.
-    unfold eq_rect_r.
-    rewrite <- Eqdep_dec.eq_rect_eq_dec => //; last by decidable_equality.
-  - assert (Heq': k = length lcs - length acc); first by lias.
-    clear Heq.
-    destruct (IHlh ((Build_label_ctx lvs lk lces les) :: lcs) sc ((Build_label_ctx (rev l) n l0 l1) :: acc)) as [lcs0 [Heq'' Hcond]] => //.
-    destruct Hcond as [Heq Hrec].
-    exists (lcs0 ++ [:: Build_label_ctx (rev l) n l0 l1]).
-    eexists; split => //=; first by rewrite -catA.
-Admitted.
-*)
-
 (** context reduction lemmas **)
 
 Let reduce := @reduce host_function host_instance.
