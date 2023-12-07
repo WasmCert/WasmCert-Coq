@@ -1265,28 +1265,26 @@ Definition run_v_init (s: store_record) (es: list administrative_instruction) : 
 
 Section Interp_ctx_progress.
   
-(* The only case where run_v_init produces an invalid cfg is when there is no call context (which is only possible
-   in real Wasm execution at module entrance with a single Invoke *)
-Lemma run_v_init_valid: forall (s s': store_record) es ccs sc oe,
-    store_typing s ->
-    run_v_init s es = Some (s', ccs, sc, oe) ->
-    ccs <> nil ->
-    valid_cfg_ctx (s', ccs, sc, oe).
-Proof.
-  move => s s' es ccs sc oe Hstype Hinit Hneq.
-  unfold run_v_init in Hinit.
-  destruct (ctx_decompose es) as [[[ccs' sc'] oe'] | ] eqn:Hdecomp => //; inversion Hinit; subst; clear Hinit.
-  destruct ccs as [| cc ccs] => //.
-  split => //.
-  by apply ctx_decompose_valid_split in Hdecomp.
-Qed.
-
 Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
   match es with
   | [::AI_invoke _]
   | [::AI_local _ _ _] => true
   | _ => false
   end.
+
+(*
+Lemma valid_instr_preserve (hs: host_state) s f es hs' s' f' es':
+  reduce hs s f es hs' s' f' es' ->
+  valid_wasm_instr es ->
+  valid_wasm_instr es' \/ terminal_form es'.
+Proof.
+  move => Hred.
+  induction Hred => //; move => Hvalid.
+  - destruct e as [ | e es] => //; destruct e, es => //.
+    inversion H; subst; clear H; try by destruct vs as [ | v vs] => //; destruct vs.
+    Search lholed.
+Qed.
+*)
 
 Definition valid_init_Some s es:
   valid_wasm_instr es ->
@@ -1298,6 +1296,31 @@ Proof.
   destruct (ctx_decompose_aux _) as [[[??]?]|] eqn:Hdecomp => //; by apply ctx_decompose_acc_some in Hdecomp.
 Qed.
 
+(* The only case where run_v_init produces an invalid cfg is when there is no call context (which is only possible
+   in real Wasm execution at module entrance with a single Invoke *)
+Lemma run_v_init_valid: forall (s: store_record) es,
+    store_typing s ->
+    valid_wasm_instr es ->
+    exists s' ccs sc oe, run_v_init s es = Some (s', ccs, sc, oe) /\ valid_cfg_ctx (s', ccs, sc, oe).
+Proof.
+  move => s es Hstype Hvalid.
+  destruct (run_v_init s es) as [[[[s' ccs] sc] oe]|] eqn:Hinit; last by eapply valid_init_Some in Hvalid; apply Hvalid in Hinit.
+  exists s', ccs, sc, oe; split => //.
+  unfold run_v_init in Hinit.
+  destruct (ctx_decompose es) as [[[ccs' sc'] oe'] | ] eqn:Hdecomp => //; inversion Hinit; subst; clear Hinit.
+  split; last by apply ctx_decompose_valid_split in Hdecomp.
+  unfold ctx_decompose in Hdecomp.
+  destruct es as [| e es'] => //; destruct e, es' => //;
+  rewrite ctx_decompose_aux_equation in Hdecomp; simpl in Hdecomp.
+  - apply/orP; right.
+    injection Hdecomp as <- <-; by subst => /=.
+  - by apply ctx_decompose_valid_ccs_aux in Hdecomp => //.
+Qed.
+
+(* The induced progress for this version looks slightly weaker, as it only applies to valid instructions directly.
+   However, every function call starts with a valid instruction and continues to be one until the call is exited 
+   (preservation of valid instructions).
+*)
 Definition t_progress_interp_ctx: forall (hs: host_state) (s: store_record) es ts,
   valid_wasm_instr es ->
   config_typing s empty_frame es ts ->
