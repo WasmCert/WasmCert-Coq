@@ -1,6 +1,6 @@
 (** Proof-carrying interpreter for Wasm, optimised for contexts **)
 
-From Wasm Require Import common properties opsem_properties tactic typing_inversion interpreter_func contexts.
+From Wasm Require Import common properties tactic typing_inversion interpreter_func contexts.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
@@ -1272,19 +1272,30 @@ Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
   | _ => false
   end.
 
-(*
 Lemma valid_instr_preserve (hs: host_state) s f es hs' s' f' es':
   reduce hs s f es hs' s' f' es' ->
   valid_wasm_instr es ->
   valid_wasm_instr es' \/ terminal_form es'.
 Proof.
   move => Hred.
-  induction Hred => //; move => Hvalid.
+  induction Hred => //; subst; move => Hvalid; (try by left); (try by (right; (try by left); (try by right))).
   - destruct e as [ | e es] => //; destruct e, es => //.
-    inversion H; subst; clear H; try by destruct vs as [ | v vs] => //; destruct vs.
-    Search lholed.
+    + inversion H; subst; clear H; try by destruct vs as [ | v vs] => //; destruct vs.
+      by right; right.
+    + inversion H; subst; clear H; (try by destruct vs as [ | v vs] => //; destruct vs); try by (right; (try by left); (try by right)).
+  - right.
+    destruct r => /=; by [left; apply v_to_e_const | right].
+  - destruct lh using lh_case; destruct k => //.
+    + rewrite -> lh_cast_eq in *.
+      simpl in *.
+      destruct vs => //.
+      destruct es as [ | e es]; first by apply reduce_not_nil in Hred.
+      destruct e, es, es0 => //; by apply IHHred in Hvalid; rewrite cats0.
+    + inversion H; subst.
+      rewrite -> lh_cast_eq in *; clear H.
+      simpl in Hvalid.
+      by destruct vs.
 Qed.
-*)
 
 Definition valid_init_Some s es:
   valid_wasm_instr es ->
