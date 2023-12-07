@@ -1593,6 +1593,8 @@ Ltac decide_eq_arg x y :=
   let Hcontra := fresh "Hcontra" in
   destruct (x == y) eqn:Heq; move/eqP in Heq; subst; last by right; move => Hcontra; injection Hcontra.
 
+(* Destruct principle for a (lh n).
+   Usage: either direct application, or `destruct ... using lh_case.` *)
 Definition lh_case: forall n (P: lholed n -> Type),
     (forall (H: 0 = n) vs es, P (lholed_cast (LH_base vs es) H)) ->
     (forall n' (H: S n' = n) vs k es (lh: lholed n') es', P (lholed_cast (LH_rec vs k es lh es') H)) ->
