@@ -46,8 +46,6 @@ Let list_label_ctx_eval := @list_label_ctx_eval host_function host_instance.
 Let list_closure_ctx_eval := @list_closure_ctx_eval host_function host_instance.
 Let lh_ctx_fill_aux := @lh_ctx_fill_aux host_function host_instance.
 
-Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
-
 Lemma config_typing_empty_inv: forall s es ts (C: t_context),
     config_typing s empty_frame es ts ->
     C = empty_t_context ->

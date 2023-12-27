@@ -372,7 +372,8 @@ Record instance : Type := (* inst *) {
   inst_memory : list memaddr;
   inst_globs : list globaladdr;
   (* TODO: exports field? *)
-}.
+  }.
+
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively
 is a closure of the original function over the runtime module instance of its

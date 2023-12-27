@@ -11,12 +11,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
-
-Variable host_function : eqType.
-
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
+Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
 
 (** read `len` bytes from `m` starting at `start_idx` *)
 Definition read_bytes (m : memory) (start_idx : N) (len : nat) : option bytes :=
@@ -44,75 +39,6 @@ Definition write_bytes (m : memory) (start_idx : N) (bs : bytes) : option memory
   | Some dat => Some {| mem_data := dat; mem_max_opt := m.(mem_max_opt); |}
   | None => None
   end.
-
-Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
-  s_funcs := s.(s_funcs);
-  s_tables := s.(s_tables);
-  s_mems := m;
-  s_globals := s.(s_globals);
-|}.
-
-Definition page_size : N := (64 % N) * (1024 % N).
-
-Definition page_limit : N := 65536%N.
-
-Definition ml_valid (m: memory_list) : Prop :=
-  N.modulo (memory_list.mem_length m) page_size = 0%N.
-
-Definition mem_length (m : memory) : N :=
-  mem_length m.(mem_data).
-
-Definition mem_size (m : memory) : N :=
-  N.div (mem_length m) page_size.
-
-(** Grow the memory a given number of pages.
-  * @param len_delta: the number of pages to grow the memory by
-  *)
-
-Definition mem_grow (m : memory) (len_delta : N) : option memory :=
-  let new_size := N.add (mem_size m) len_delta in
-  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
-  if N.leb new_size page_limit then
-  match m.(mem_max_opt) with
-  | Some maxlim =>
-    if N.leb new_size maxlim then
-        Some {|
-          mem_data := new_mem_data;
-          mem_max_opt := m.(mem_max_opt);
-          |}
-    else None
-  | None =>
-    Some {|
-      mem_data := new_mem_data;
-      mem_max_opt := m.(mem_max_opt);
-      |}
-  end
-  else None.
-
-(* TODO: We crucially need documentation here. *)
-
-Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
-  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
-  then read_bytes m (N.add n off) l
-  else None.
-
-Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
-(* TODO
-  let: msb := msb (msbyte bytes) in
-  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
-  bytes_takefill byte l bytes
-*)
-
-Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
-  option_map (sign_extend s l) (load m n off lp).
-
-Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
-  if N.leb (n + off + N.of_nat l) (mem_length m)
-  then write_bytes m (n + off) (bytes_takefill #00 l bs)
-  else None.
-
-Definition store_packed := store.
 
 Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
   match vt with
@@ -351,12 +277,6 @@ Definition app_relop (op: relop) (v1: value) (v2: value) :=
 Definition types_agree (t : value_type) (v : value) : bool :=
   (typeof v) == t.
 
-Definition cl_type (cl : function_closure) : function_type :=
-  match cl with
-  | FC_func_native _ tf _ _ => tf
-  | FC_func_host tf _ => tf
-  end.
-
 Definition rglob_is_mut (g : global) : bool :=
   g_mut g == MUT_mut.
 
@@ -365,6 +285,88 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   | None => None
   | Some y => f y
   end.
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let function_closure := function_closure host_function.
+Let store_record := store_record host_function.
+
+Definition cl_type (cl : function_closure) : function_type :=
+  match cl with
+  | FC_func_native _ tf _ _ => tf
+  | FC_func_host tf _ => tf
+  end.
+
+Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := s.(s_tables);
+  s_mems := m;
+  s_globals := s.(s_globals);
+|}.
+
+Definition page_size : N := (64 % N) * (1024 % N).
+
+Definition page_limit : N := 65536%N.
+
+Definition ml_valid (m: memory_list) : Prop :=
+  N.modulo (memory_list.mem_length m) page_size = 0%N.
+
+Definition mem_length (m : memory) : N :=
+  mem_length m.(mem_data).
+
+Definition mem_size (m : memory) : N :=
+  N.div (mem_length m) page_size.
+
+(** Grow the memory a given number of pages.
+  * @param len_delta: the number of pages to grow the memory by
+  *)
+
+Definition mem_grow (m : memory) (len_delta : N) : option memory :=
+  let new_size := N.add (mem_size m) len_delta in
+  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
+  if N.leb new_size page_limit then
+  match m.(mem_max_opt) with
+  | Some maxlim =>
+    if N.leb new_size maxlim then
+        Some {|
+          mem_data := new_mem_data;
+          mem_max_opt := m.(mem_max_opt);
+          |}
+    else None
+  | None =>
+    Some {|
+      mem_data := new_mem_data;
+      mem_max_opt := m.(mem_max_opt);
+      |}
+  end
+  else None.
+
+(* TODO: We crucially need documentation here. *)
+
+Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
+  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+  then read_bytes m (N.add n off) l
+  else None.
+
+Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
+  (* TODO: implement sign extension *) bs.
+(* TODO
+  let: msb := msb (msbyte bytes) in
+  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
+  bytes_takefill byte l bytes
+*)
+
+Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
+  option_map (sign_extend s l) (load m n off lp).
+
+Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
+  if N.leb (n + off + N.of_nat l) (mem_length m)
+  then write_bytes m (n + off) (bytes_takefill #00 l bs)
+  else None.
+
+Definition store_packed := store.
 
 Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
   List.nth_error (inst_types i) j.
@@ -723,8 +725,6 @@ Definition bitzero (t : value_type) : value :=
 
 Definition n_zeros (ts : seq value_type) : seq value :=
   map bitzero ts.
-
-(* TODO: lots of lemmas *)
 
 End Host.
 
