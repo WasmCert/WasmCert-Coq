@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import common datatypes operations typing.
-From ITree Require Import ITree ITreeFacts.
+From ExtLib Require Import Structures.Monad.
 
 (* XXX unused? *)
 (* Import Monads. *)
