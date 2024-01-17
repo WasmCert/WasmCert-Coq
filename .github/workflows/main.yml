@@ -2,8 +2,10 @@ name: Test compilation
 
 on:
   push:
-    branches_ignore:
-      
+    branches:
+      - master
+      - opam-8.17
+  pull_request:
   workflow_dispatch:
     inputs:
 

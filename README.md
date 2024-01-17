@@ -25,7 +25,7 @@ This work is in progress. While our initial work used the definitions published 
 ## Unmerged/Future Work
 - [x] Generalised framework for evaluation contexts.
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [ ] Optimise interpreter for contexts.
+- [x] Optimise interpreter for contexts.
 
 # Program Logic
 
