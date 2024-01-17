@@ -4,6 +4,7 @@
 Set Implicit Arguments.
 
 From Coq Require Import List.
+From ExtLib Require Import Structures.Monad.
 
 (** Given list of option types, check that all options are [Some]
    and return the corresponding list of values. **)
@@ -114,12 +115,8 @@ Definition fold_lefti {A B} (f : nat -> A -> B -> A) (xs : list B) (acc0 : A) : 
       (0, acc0) in
   acc_end.
 
-From ITree Require ITree ITreeFacts.
-
 Section Monad.
 
-Import ITree ITreeFacts.
-Import Monads.
 Import MonadNotation.
 
 Open Scope monad_scope.
