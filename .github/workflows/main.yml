@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - opam-8.17
+  pull_request:
   workflow_dispatch:
     inputs:
 
