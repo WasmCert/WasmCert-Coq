@@ -83,9 +83,19 @@ Ltac red_ctx_simpl :=
   end.
 
 Ltac infer_hole :=
-  repeat lazymatch goal with
+  repeat match goal with
   | |- context C [vs_to_es _] =>
-      rewrite /vs_to_es
+      rewrite /vs_to_es => /=
+  | |- context C [ _ ++ [::] ] =>
+      rewrite cats0 => /=
+  | |- context C [v_to_e_list (rev (?x :: ?l2))] =>
+      rewrite rev_cons -cats1 -v_to_e_cat => //=
+  | |- context C [v_to_e_list (rev (?l1 ++ ?l2))] =>
+      rewrite rev_cat -v_to_e_cat => //=
+  | |- context C [v_to_e_list [:: ?x] ] =>
+      unfold v_to_e_list, v_to_e => //=
+  | |- context C [ ( _ ++ _) ++ _ ] =>
+      rewrite -catA => /=
   | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?l2 =>
       try by instantiate (1 := [::x1; x2; x3; x4]) => //
   | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?l2 =>
@@ -97,24 +107,13 @@ Ltac infer_hole :=
   | |- ?l ++ ?les = ?les =>
       try by instantiate (1 := nil) => //
   | |- ?l1 ++ ?l2 = ?l3 ++ ?x :: ?l2 =>
-      try instantiate (1 := l3 ++ [::x]); rewrite -catA => //
+      try instantiate (1 := l3 ++ [::x]); rewrite -catA => //=
   | _: _ |- ?l ++ _ = ?l ++ _ =>
-      f_equal => //
-  | |- context C [ _ ++ [::] ] =>
-      rewrite cats0
-  | |- context C [v_to_e_list (rev (?x :: ?l2))] =>
-      rewrite rev_cons -cats1 -v_to_e_cat => //
-  | |- context C [v_to_e_list (rev (?l1 ++ ?l2))] =>
-      rewrite rev_cat -v_to_e_cat => //
-  | |- context C [v_to_e_list [:: ?x] ] =>
-      unfold v_to_e_list, v_to_e => //=
-  | |- context C [ ( _ ++ _) ++ _ ] =>
-      rewrite -catA
+      f_equal => //=
   end.
 
 Ltac resolve_reduce_ctx vs es :=
-  (* Sometimes 1 infer_hole isn't enough, which supposedly shouldn't occur *)
-  unfold reduce_ctx; red_ctx_simpl => //=; try (eapply r_label with (lh := LH_base (rev vs) es) => /=; do 2 infer_hole => /=).
+  unfold reduce_ctx; red_ctx_simpl => //=; try (eapply r_label with (lh := LH_base (rev vs) es) => /=; infer_hole).
 
 Ltac resolve_valid_ccs :=
   repeat lazymatch goal with

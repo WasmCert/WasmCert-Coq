@@ -322,31 +322,6 @@ Proof.
   done.
 Qed.
 
-(*
-Definition ai_rect' (P: administrative_instruction -> Type)
-  (e : administrative_instruction)
-  (f_basic : forall b : basic_instruction, P (AI_basic b)) 
-  (f_trap : P AI_trap)
-  (f_invoke : forall addr : funcaddr, P (AI_invoke addr))
-  (f_label : forall (n : nat) (ces es : seq administrative_instruction), ais_measure es < ai_measure e -> P (AI_label n ces es))
-  (f_local : forall (n : nat) (f : frame) (es : seq administrative_instruction), ais_measure es < ai_measure e -> P (AI_local n f es))
-  : (P e).
-Proof.
-  destruct e as
-    [ b
-    |
-    | addr
-    | n ces es
-    | n f es
-    ].
-  - exact (f_basic b).
-  - exact (f_trap).
-  - exact (f_invoke addr).
-  - by apply f_label.
-  - by apply f_local.
-Defined.
-*)
-
 Definition empty_instance := Build_instance nil nil nil nil nil.
 
 Definition empty_frame := Build_frame nil empty_instance.
@@ -439,11 +414,6 @@ Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list c
       end
   end.
 Proof.
- (* { move => [ves acc] ves' acc' vs ? e es' k ces es ?? Hsplit ? [? ?]; subst.
-    apply split_vals'_spec, split_vals_inv in Hsplit as ->.
-    rewrite ais_measure_cat ais_measure_cons /ais_measure => /=.
-    by lias.
-  }*)
   { move => [ves acc] ves' acc' vs ? e es' k ces es ?? Hsplit cc ccs fc lcs ?? [? ?]; subst.
     apply split_vals'_spec, split_vals_inv in Hsplit as ->.
     rewrite ais_measure_cat ais_measure_cons /ais_measure => /=.
