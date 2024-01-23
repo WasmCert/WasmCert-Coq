@@ -21,6 +21,13 @@ Variable host_instance: host host_function.
 #[local]
 Definition reduce := @reduce host_function host_instance.
 
+(* Typeclass for a Wasm evaluation context.
+   ctx_frame_mask and ctx_frame_cond are auxiliary functions for defining
+   the ctx_reduce relation, which instructs on how reductions of instructions
+   within the hole could affect the configuration on the outer context (well, in
+   principle they shouldn't do so in a normal language, but the frame reduction
+   rule necessitates such a practice here).
+*)
 Class eval_ctx (ctx_t: Type): Type :=
   {
     ctx_fill: list administrative_instruction -> ctx_t -> list administrative_instruction;
@@ -255,7 +262,8 @@ Defined.
 (* A configuration is now represented as (S; ctxs ⦃ sc ⦃ option e ⦄ ⦄), with the hole holding at most one instruction which needs to be non-constant.
    Note that no frame is held in the tuple, since all frames should have been pushed into the local contexts.
    The contexts are represented in a reversed stack-like structure: the head of each list is the innermost context.
-   The hole is allowed to be empty (in which case the inner context is then exitted on the next step). *)
+   The hole is allowed to be empty (in which case the inner context is then exitted on the next step). However, the sequence context sc should not hold any
+   non-empty instruction in the continuation. *)
 Definition cfg_tuple_ctx: Type := (store_record host_function) * list closure_ctx * seq_ctx * option administrative_instruction.
 
 Definition valid_hole (e: administrative_instruction) : bool :=
