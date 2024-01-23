@@ -5,6 +5,7 @@ Require Import Coq.Program.Equality List NArith.
 Require Export instantiation_spec.
 Require Export type_preservation type_progress properties.
 
+(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notation for now *)
 Notation "l !! n" := (List.nth_error l n) (at level 10).
 
 Section module_typing_det.
@@ -913,7 +914,7 @@ Proof.
     destruct a => //; invert_be_typing; by destruct ts2_comp.
   }
   { rewrite <- cat1s in Hbet.
-    apply composition_typing in Hbet.
+    apply be_composition_typing in Hbet.
     destruct Hbet as [ts [t1s [t2s [t3s [-> [Heqt2 [Hbet1 Hbet2]]]]]]].
     simpl in Hconst.
     move/andP in Hconst.

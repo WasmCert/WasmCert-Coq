@@ -9,6 +9,11 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+
+Section Typing_inversion_be.
+
+Hint Constructors be_typing : core.
+
 Lemma upd_label_overwrite: forall C l1 l2,
     upd_label (upd_label C l1) l2 = upd_label C l2.
 Proof.
@@ -62,18 +67,6 @@ Proof.
   - rewrite - catA -cat_app.
     f_equal.
     by eapply IHHType.
-Qed.
-
-Lemma Const_list_typing_empty: forall C vs,
-    be_typing C (to_b_list (v_to_e_list vs)) (Tf [::] (vs_to_vts vs)).
-Proof.
-  move => C.
-  induction vs => //=.
-  - by apply bet_empty.
-  - rewrite - cat1s.
-    replace (typeof a :: vs_to_vts vs) with ([::typeof a] ++ vs_to_vts vs) => //.
-    eapply bet_composition'; eauto; first by apply bet_const.
-    by apply bet_weakening_empty_1.
 Qed.
 
 Lemma Unop_typing: forall C t op t1s t2s,
@@ -431,6 +424,110 @@ Proof.
     by resolve_weaken.
 Qed.
 
+(** A helper tactic for proving [composition_typing_single]. **)
+Ltac auto_prove_bet:=
+  repeat lazymatch goal with
+  | H: _ |- exists ts t1s t2s t3s, ?tn = ts ++ t1s /\ ?tm = ts ++ t2s /\
+                                   be_typing _ [::] (Tf _ _) /\ _ =>
+    try exists [::], tn, tm, tn; try eauto
+  | H: _ |- _ /\ _ =>
+    split => //=; try eauto
+  | H: _ |- be_typing _ [::] (Tf ?es ?es) =>
+    apply bet_weakening_empty_both; try by []
+  end.
+
+Lemma be_composition_typing_single: forall C es1 e t1s t2s,
+    be_typing C (es1 ++ [::e]) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             be_typing C es1 (Tf t1s' t3s) /\
+                             be_typing C [::e] (Tf t3s t2s').
+Proof.
+  move => C es1 e t1s t2s HType.
+  gen_ind_subst HType; extract_listn; auto_prove_bet.
+  + by apply bet_block.
+  + by destruct es1 => //=.
+  + apply concat_cancel_last in H1. destruct H1. subst.
+    by exists [::], t1s0, t2s0, t2s.
+  + edestruct IHHType; eauto.
+    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
+    exists (ts ++ x), t1s', t2s', t3s'.
+    by repeat split => //=; rewrite -catA.
+Qed.
+
+Lemma be_composition_typing: forall C es1 es2 t1s t2s,
+    be_typing C (es1 ++ es2) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             be_typing C es1 (Tf t1s' t3s) /\
+                             be_typing C es2 (Tf t3s t2s').
+Proof.
+  move => C es1 es2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1.
+  clear Heqes2'. subst.
+  induction es2' => //=; move => es1 t1s t2s HType.
+  - unfold rev in HType; simpl in HType. subst.
+    rewrite cats0 in HType.
+    exists [::], t1s, t2s, t2s.
+    repeat split => //=.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - rewrite rev_cons in HType.
+    rewrite -cats1 in HType. subst.
+    rewrite catA in HType.
+    apply be_composition_typing_single in HType.
+    destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]]. subst.
+    apply IHes2' in H3.
+    destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
+    exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
+    repeat split => //.
+    + by apply bet_weakening.
+    + rewrite rev_cons. rewrite -cats1.
+      eapply bet_composition; eauto.
+      by apply bet_weakening.
+Qed.
+
+Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
+    be_typing C es1 (Tf t1s t2s) ->
+    be_typing C es2 (Tf t2s t3s) ->
+    be_typing C (es1 ++ es2) (Tf t1s t3s).
+Proof.
+  move => C es1 es2 t1s t2s t3s HType1 HType2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1. generalize dependent es2.
+  generalize dependent t1s. generalize dependent t2s.
+  generalize dependent t3s.
+  induction es2' => //=.
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1. destruct es2 => //=. rewrite cats0.
+    apply empty_typing in HType2. by subst.
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1.
+    rewrite rev_cons in H2. rewrite -cats1 in H2.
+    rewrite H2 in HType2.
+    apply be_composition_typing in HType2.
+    destruct HType2 as [ts [t1s' [t2s' [t3s' [H3 [H4 [H5 H6]]]]]]]. subst.
+    rewrite catA. eapply bet_composition => //=.
+    instantiate (1 := (ts ++ t3s')).
+    eapply IHes2' => //.
+    instantiate (1 := (ts ++ t1s')); first by apply bet_weakening.
+    symmetry. by apply revK.
+    by apply HType1.
+    by apply bet_weakening.
+Qed.
+
+Lemma bet_composition_front: forall C e es t1s t2s t3s,
+    be_typing C [::e] (Tf t1s t2s) ->
+    be_typing C es (Tf t2s t3s) ->
+    be_typing C (e :: es) (Tf t1s t3s).
+Proof.
+  intros.
+  rewrite - cat1s.
+  by eapply bet_composition'; eauto.
+Qed.
+
+
 Lemma Const_list_typing: forall C vs t1s t2s,
     be_typing C (to_b_list (v_to_e_list vs)) (Tf t1s t2s) ->
     t2s = t1s ++ (map typeof vs).
@@ -440,7 +537,7 @@ Proof.
   - apply empty_typing in HType. subst. by rewrite cats0.
   - rewrite -cat1s in HType.
     rewrite -cat1s.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [ts1' [ts2' [ts3 [H1 [H2 [H3 H4]]]]]]].
     subst.
     apply BI_const_typing in H3.
@@ -449,7 +546,19 @@ Proof.
     by repeat rewrite catA.
 Qed.
 
-(* TODO use this in itp completeness lemmas? *)
+Lemma Const_list_typing_empty: forall C vs,
+    be_typing C (to_b_list (v_to_e_list vs)) (Tf [::] (vs_to_vts vs)).
+Proof.
+  move => C.
+  induction vs => //=.
+  rewrite - cat1s.
+  replace (typeof a :: vs_to_vts vs) with ([::typeof a] ++ vs_to_vts vs) => //.
+  eapply bet_composition'; eauto.
+  by apply bet_weakening_empty_1.
+Qed.
+
+End Typing_inversion_be.
+
 Ltac invert_be_typing:=
   repeat lazymatch goal with
   | H: (?es ++ [::?e])%list = [::_] |- _ =>
@@ -634,7 +743,7 @@ Ltac invert_be_typing:=
     let H2 := fresh "H2_comp" in
     let H3 := fresh "H3_comp" in
     let H4 := fresh "H4_comp" in
-    apply composition_typing in H; destruct H as [ts1 [ts2 [ts3 [ts4 [H1 [H2 [H3 H4]]]]]]]
+    apply be_composition_typing in H; destruct H as [ts1 [ts2 [ts3 [ts4 [H1 [H2 [H3 H4]]]]]]]
   | H: be_typing _ [::_;_] _ |- _ =>
     rewrite -cat1s in H
   | H: be_typing _ [::_;_;_] _ |- _ =>
@@ -681,8 +790,10 @@ Ltac et_dependent_ind' H :=
   | _ => fail "hypothesis not an e_typing relation"
   end; intros; subst.
 
+
+Section Typing_inversion_e.
+
 (* As we get to e_typing, host comes into play. *)
-Section Host.
   
 Variable host_function : eqType.
 
@@ -714,6 +825,115 @@ Ltac et_dependent_ind H :=
       unfold e_typing in H
   | _ => et_dependent_ind' H
   end.
+
+Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
+    e_typing s C (es1 ++ [::e]) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             e_typing s C es1 (Tf t1s' t3s) /\
+                             e_typing s C [::e] (Tf t3s t2s').
+Proof.
+  move => s C es1 es2 t1s t2s HType.
+  gen_ind_subst HType; extract_listn.
+  - (* basic *)
+    apply b_e_elim in H3. destruct H3. subst.
+    rewrite to_b_list_concat in H.
+    apply be_composition_typing in H.
+    apply basic_concat in H1. destruct H1.
+    destruct H as [ts' [t1s' [t2s' [t3s' [H2 [H3 [H4 H5]]]]]]]. subst.
+    exists ts', t1s', t2s', t3s'.
+    by repeat split => //=; apply ety_a' => //=.
+  - (* composition *)
+    apply concat_cancel_last in H2. destruct H2. subst.
+    by exists [::], t1s0, t2s0, t2s.
+  - (* weakening *)
+    edestruct IHHType; eauto.
+    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
+    exists (ts ++ x), t1s', t2s', t3s'.
+    by repeat split => //; rewrite catA.
+  - (* Trap *)
+    exists [::], t1s, t2s, t1s.
+    repeat split => //=.
+    + apply ety_a' => //. apply bet_weakening_empty_both. by apply bet_empty.
+    + by apply ety_trap.
+  - (* Local *)
+    exists [::], [::], t2s, [::]. repeat split => //=.
+    + by apply ety_a' => //; apply bet_empty.
+    + by apply ety_local.
+  - (* Invoke *)
+    exists [::], t1s, t2s, t1s. repeat split => //=.
+    + apply ety_a' => //. apply bet_weakening_empty_both. by apply bet_empty.
+    + by eapply ety_invoke; eauto.
+  - (* Label *)
+    exists [::], [::], t2s0, [::]. repeat split => //=.
+    + by apply ety_a' => //; apply bet_empty.
+    + by eapply ety_label; eauto.
+Qed.
+
+Lemma e_composition_typing: forall s C es1 es2 t1s t2s,
+    e_typing s C (es1 ++ es2) (Tf t1s t2s) ->
+    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
+                             t2s = ts ++ t2s' /\
+                             e_typing s C es1 (Tf t1s' t3s) /\
+                             e_typing s C es2 (Tf t3s t2s').
+Proof.
+  move => s C es1 es2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1.
+  clear Heqes2'. subst.
+  induction es2' => //=; move => es1 t1s t2s HType.
+  - unfold rev in HType; simpl in HType. subst.
+    rewrite cats0 in HType.
+    exists [::], t1s, t2s, t2s.
+    repeat split => //=.
+    apply ety_a' => //=.
+    apply bet_weakening_empty_both.
+    by apply bet_empty.
+  - rewrite rev_cons in HType.
+    rewrite -cats1 in HType. subst.
+    rewrite catA in HType.
+    apply e_composition_typing_single in HType.
+    destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]]. subst.
+    apply IHes2' in H3.
+    destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
+    exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
+    repeat split => //.
+    + by apply ety_weakening.
+    + rewrite rev_cons. rewrite -cats1.
+      eapply ety_composition; eauto.
+      by apply ety_weakening.
+Qed.
+
+Lemma et_composition': forall s C es1 es2 t1s t2s t3s,
+    e_typing s C es1 (Tf t1s t2s) ->
+    e_typing s C es2 (Tf t2s t3s) ->
+    e_typing s C (es1 ++ es2) (Tf t1s t3s).
+Proof.
+  move => s C es1 es2 t1s t2s t3s HType1 HType2.
+  remember (rev es2) as es2'.
+  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
+  generalize dependent es1. generalize dependent es2.
+  generalize dependent t1s. generalize dependent t2s.
+  generalize dependent t3s.
+  induction es2' => //=.
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1. destruct es2 => //=. rewrite cats0.
+    apply et_to_bet in HType2. apply empty_typing in HType2. by subst.
+  - by [].
+  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1.
+    rewrite rev_cons in H2. rewrite -cats1 in H2.
+    rewrite H2 in HType2.
+    apply e_composition_typing in HType2.
+    destruct HType2 as [ts [t1s' [t2s' [t3s' [H3 [H4 [H5 H6]]]]]]]. subst.
+    rewrite catA. eapply ety_composition => //=.
+    instantiate (1 := (ts ++ t3s')).
+    eapply IHes2' => //.
+    instantiate (1 := (ts ++ t1s')); first by apply ety_weakening.
+    symmetry. by apply revK.
+    by apply HType1.
+    by apply ety_weakening.
+Qed.
+
 
 Lemma Invoke_func_typing: forall s C a t1s t2s,
     e_typing s C [::AI_invoke a] (Tf t1s t2s) ->
@@ -1036,7 +1256,7 @@ Proof.
     apply e_composition_typing in HType3 as [ts0'' [t1s'' [t2s'' [t3s'' [Heq [-> [HType5 HType6]]]]]]].
     destruct ts0'', t1s'' => //=; clear Heq.
     simpl in HType4.
-    apply et_to_bet in HType4; try auto_basic.
+    apply et_to_bet in HType4; last by auto_basic.
     apply Break_typing in HType4 as [ts0 [ts1 [_ [Hnth ->]]]]. 
     unfold plop2 in Hnth. simpl in Hnth. move/eqP in Hnth.
     rewrite list_nth_prefix in Hnth.
@@ -1170,4 +1390,4 @@ Proof.
   by apply Const_list_typing_empty.
 Qed.
 
-End Host.
+End Typing_inversion_e.

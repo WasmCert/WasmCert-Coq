@@ -454,7 +454,7 @@ Proof.
     simpl. rewrite rev_cons. rewrite -cats1.
     rewrite -to_b_list_rev in HType.
     simpl in HType. rewrite rev_cons in HType. rewrite -cats1 in HType.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s' [t2s' [t3s H]]]].
     destruct H as [H1 [H2 [H3 H4]]].
     subst.
@@ -493,7 +493,7 @@ Proof.
       + split => //=. unfold e_is_basic. by eauto.
       }
     rewrite to_b_list_concat in HType. simpl in HType.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s' [t2s' [t3s [H2 [H3 [H4 H5]]]]]]]. subst.
     apply const_es_exists in H. destruct H. subst.
     apply Const_list_typing in H4. subst.
@@ -531,7 +531,7 @@ Proof.
       + split => //=. unfold e_is_basic. by eauto.
     }
     rewrite to_b_list_concat in HType. simpl in HType.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s' [t2s' [t3s [H2 [H3 [H4 H5]]]]]]]. subst.
     apply const_es_exists in H. destruct H. subst.
     apply Const_list_typing in H4. subst.
@@ -1575,7 +1575,7 @@ Proof.
   - (* update glob *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const v; BI_set_global i] with ([::BI_const v] ++ [::BI_set_global i]) in HType => //=.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]. subst.
     invert_be_typing.
     unfold supdate_glob in H.
@@ -1616,7 +1616,7 @@ Proof.
   - (* update memory : store none *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const (VAL_int32 k); BI_const v; BI_store t None a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t None a off]) in HType => //.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
     remove_bools_options.
@@ -1641,7 +1641,7 @@ Proof.
   - (* another update memory : store some *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const (VAL_int32 k); BI_const v; BI_store t (Some tp) a off] with ([::BI_const (VAL_int32 k); BI_const v] ++ [::BI_store t (Some tp) a off]) in HType => //.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
     remove_bools_options.
@@ -1665,7 +1665,7 @@ Proof.
   - (* again update memory : grow_memory *)
     apply et_to_bet in HType; auto_basic. simpl in HType.
     replace [::BI_const (VAL_int32 c); BI_grow_memory] with ([::BI_const (VAL_int32 c)] ++ [::BI_grow_memory]) in HType => //.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts [t1s [t2s [t3s [H3 [H4 [H5 H6]]]]]]]. subst.
     invert_be_typing.
     assert (store_extension s (upd_s_mem s (set_nth mem' (s_mems s) i mem'))) as Hext.
@@ -1737,7 +1737,7 @@ Proof.
   induction HReduce => //; move => lab t1s t2s HType.
   - convert_et_to_bet.
     replace [::BI_const v; BI_set_local i] with ([::BI_const v] ++ [::BI_set_local i]) in HType => //=.
-    apply composition_typing in HType.
+    apply be_composition_typing in HType.
     destruct HType as [ts' [t1s' [t2s' [t3s' [? [? [? Hbet]]]]]]]; subst.
     invert_be_typing.
     replace (tc_local C) with ([::]: list value_type) in *; last by symmetry; eapply inst_t_context_local_empty; eauto.

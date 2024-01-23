@@ -10,7 +10,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-From Wasm Require Import common operations typing type_checker properties.
+From Wasm Require Import type_checker typing_inversion.
 
 Section Host.
 

@@ -1,9 +1,8 @@
 (** Proof-carrying interpreter for Wasm **)
 
-From Wasm Require Import common properties tactic typing_inversion.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Export operations host.
+From Wasm Require Export tactic typing_inversion host.
 Require Import BinNat.
 
 Set Implicit Arguments.
