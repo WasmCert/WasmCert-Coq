@@ -11,12 +11,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Host.
-
-Variable host_function : eqType.
-
-Let function_closure := function_closure host_function.
-Let store_record := store_record host_function.
+Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
 
 (** read `len` bytes from `m` starting at `start_idx` *)
 Definition read_bytes (m : memory) (start_idx : N) (len : nat) : option bytes :=
@@ -44,75 +39,6 @@ Definition write_bytes (m : memory) (start_idx : N) (bs : bytes) : option memory
   | Some dat => Some {| mem_data := dat; mem_max_opt := m.(mem_max_opt); |}
   | None => None
   end.
-
-Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
-  s_funcs := s.(s_funcs);
-  s_tables := s.(s_tables);
-  s_mems := m;
-  s_globals := s.(s_globals);
-|}.
-
-Definition page_size : N := (64 % N) * (1024 % N).
-
-Definition page_limit : N := 65536%N.
-
-Definition ml_valid (m: memory_list) : Prop :=
-  N.modulo (memory_list.mem_length m) page_size = 0%N.
-
-Definition mem_length (m : memory) : N :=
-  mem_length m.(mem_data).
-
-Definition mem_size (m : memory) : N :=
-  N.div (mem_length m) page_size.
-
-(** Grow the memory a given number of pages.
-  * @param len_delta: the number of pages to grow the memory by
-  *)
-
-Definition mem_grow (m : memory) (len_delta : N) : option memory :=
-  let new_size := N.add (mem_size m) len_delta in
-  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
-  if N.leb new_size page_limit then
-  match m.(mem_max_opt) with
-  | Some maxlim =>
-    if N.leb new_size maxlim then
-        Some {|
-          mem_data := new_mem_data;
-          mem_max_opt := m.(mem_max_opt);
-          |}
-    else None
-  | None =>
-    Some {|
-      mem_data := new_mem_data;
-      mem_max_opt := m.(mem_max_opt);
-      |}
-  end
-  else None.
-
-(* TODO: We crucially need documentation here. *)
-
-Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
-  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
-  then read_bytes m (N.add n off) l
-  else None.
-
-Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
-(* TODO
-  let: msb := msb (msbyte bytes) in
-  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
-  bytes_takefill byte l bytes
-*)
-
-Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
-  option_map (sign_extend s l) (load m n off lp).
-
-Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
-  if N.leb (n + off + N.of_nat l) (mem_length m)
-  then write_bytes m (n + off) (bytes_takefill #00 l bs)
-  else None.
-
-Definition store_packed := store.
 
 Definition wasm_deserialise (bs : bytes) (vt : value_type) : value :=
   match vt with
@@ -351,12 +277,6 @@ Definition app_relop (op: relop) (v1: value) (v2: value) :=
 Definition types_agree (t : value_type) (v : value) : bool :=
   (typeof v) == t.
 
-Definition cl_type (cl : function_closure) : function_type :=
-  match cl with
-  | FC_func_native _ tf _ _ => tf
-  | FC_func_host tf _ => tf
-  end.
-
 Definition rglob_is_mut (g : global) : bool :=
   g_mut g == MUT_mut.
 
@@ -365,6 +285,88 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   | None => None
   | Some y => f y
   end.
+
+Section Host.
+
+Variable host_function : eqType.
+
+Let function_closure := function_closure host_function.
+Let store_record := store_record host_function.
+
+Definition cl_type (cl : function_closure) : function_type :=
+  match cl with
+  | FC_func_native _ tf _ _ => tf
+  | FC_func_host tf _ => tf
+  end.
+
+Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
+  s_funcs := s.(s_funcs);
+  s_tables := s.(s_tables);
+  s_mems := m;
+  s_globals := s.(s_globals);
+|}.
+
+Definition page_size : N := (64 % N) * (1024 % N).
+
+Definition page_limit : N := 65536%N.
+
+Definition ml_valid (m: memory_list) : Prop :=
+  N.modulo (memory_list.mem_length m) page_size = 0%N.
+
+Definition mem_length (m : memory) : N :=
+  mem_length m.(mem_data).
+
+Definition mem_size (m : memory) : N :=
+  N.div (mem_length m) page_size.
+
+(** Grow the memory a given number of pages.
+  * @param len_delta: the number of pages to grow the memory by
+  *)
+
+Definition mem_grow (m : memory) (len_delta : N) : option memory :=
+  let new_size := N.add (mem_size m) len_delta in
+  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
+  if N.leb new_size page_limit then
+  match m.(mem_max_opt) with
+  | Some maxlim =>
+    if N.leb new_size maxlim then
+        Some {|
+          mem_data := new_mem_data;
+          mem_max_opt := m.(mem_max_opt);
+          |}
+    else None
+  | None =>
+    Some {|
+      mem_data := new_mem_data;
+      mem_max_opt := m.(mem_max_opt);
+      |}
+  end
+  else None.
+
+(* TODO: We crucially need documentation here. *)
+
+Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
+  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+  then read_bytes m (N.add n off) l
+  else None.
+
+Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
+  (* TODO: implement sign extension *) bs.
+(* TODO
+  let: msb := msb (msbyte bytes) in
+  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
+  bytes_takefill byte l bytes
+*)
+
+Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
+  option_map (sign_extend s l) (load m n off lp).
+
+Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
+  if N.leb (n + off + N.of_nat l) (mem_length m)
+  then write_bytes m (n + off) (bytes_takefill #00 l bs)
+  else None.
+
+Definition store_packed := store.
 
 Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
   List.nth_error (inst_types i) j.
@@ -448,9 +450,6 @@ Definition is_const (e : administrative_instruction) : bool :=
 Definition const_list (es : seq administrative_instruction) : bool :=
   List.forallb is_const es.
 
-Definition those_const_list (es : list administrative_instruction) : option (list value) :=
-  those (List.map (fun e => match e with | AI_basic (BI_const v) => Some v | _ => None end) es).
-
 Definition glob_extension (g1 g2: global) : bool :=
   ((g_mut g1 == MUT_mut) || ((g_val g1) == (g_val g2))) &&
     (g_mut g1 == g_mut g2) &&
@@ -481,6 +480,7 @@ Definition vs_to_vts (vs : seq value) := map typeof vs.
 Definition to_e_list (bes : seq basic_instruction) : seq administrative_instruction :=
   map AI_basic bes.
 
+(* Two versions of converting admin instructions back to basic *)
 Definition to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
   | AI_basic x => x
@@ -489,6 +489,15 @@ Definition to_b_single (e: administrative_instruction) : basic_instruction :=
 
 Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
   map to_b_single es.
+
+Definition to_b_single_opt (e: administrative_instruction) : option basic_instruction :=
+  match e with
+  | AI_basic x => Some x
+  | _ => None
+  end.
+
+Definition to_b_list_opt (es: seq administrative_instruction) : option (seq basic_instruction) :=
+  those (map to_b_single_opt es).
 
 Definition e_is_basic (e: administrative_instruction) :=
   exists be, e = AI_basic be.
@@ -500,10 +509,39 @@ Fixpoint es_is_basic (es: seq administrative_instruction) :=
     e_is_basic e /\ es_is_basic es'
   end.
 
+Definition v_to_e (v: value) : administrative_instruction :=
+  AI_basic (BI_const v).
+
 (** [v_to_e_list]: 
     takes a list of [v] and gives back a list where each [v] is mapped to [Basic (EConst v)]. **)
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
-  map (fun v => AI_basic (BI_const v)) ves.
+  map v_to_e ves.
+
+(* Two versions of converting admin instructions into values *)
+Definition e_to_v (e: administrative_instruction) : value :=
+  match e with
+  | AI_basic (BI_const v) => v
+  | _ => VAL_int32 (Wasm_int.Int32.zero)
+  end.
+
+Definition e_to_v_list (es: seq administrative_instruction) : list value :=
+  map e_to_v es.
+
+Definition e_to_v_opt (e: administrative_instruction) : option value :=
+  match e with
+  | AI_basic (BI_const v) => Some v
+  | _ => None
+  end.
+
+Definition e_to_v_list_opt (es: list administrative_instruction) : option (list value) :=
+  those (map e_to_v_opt es).
+
+(* Filling label context hole *)
+Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=
+  match lh with
+  | LH_base vs es' => v_to_e_list vs ++ es ++ es'
+  | LH_rec _ vs n es' lh' es'' => v_to_e_list vs ++ [:: AI_label n es' (lfill lh' es)] ++ es''
+  end.
 
 (* interpreter related *)
 
@@ -564,93 +602,12 @@ Definition es_is_trap (es : seq administrative_instruction) : bool :=
   | _ => false
   end.
 
-
-
 (** Converting a result into a stack. **)
 Definition result_to_stack (r : result) :=
   match r with
   | result_values vs => v_to_e_list vs
   | result_trap => [:: AI_trap]
   end.
-
-Fixpoint lfill (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
-  match k with
-  | 0 =>
-    if lh is LH_base vs es' then
-      if const_list vs then Some (app vs (app es es')) else None
-    else None
-  | k'.+1 =>
-    if lh is LH_rec vs n es' lh' es'' then
-      if const_list vs then
-        if lfill k' lh' es is Some lfilledk then
-          Some (app vs (cons (AI_label n es' lfilledk) es''))
-        else None
-      else None
-    else None
-  end.
-
-Definition lfilled (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
-  if lfill k lh es is Some es'' then es' == es'' else false.
-
-Inductive lfilledInd : nat -> lholed -> seq administrative_instruction -> seq administrative_instruction -> Prop :=
-| LfilledBase: forall vs es es',
-    const_list vs ->
-    lfilledInd 0 (LH_base vs es') es (vs ++ es ++ es')
-| LfilledRec: forall k vs n es' lh' es'' es LI,
-    const_list vs ->
-    lfilledInd k lh' es LI ->
-    lfilledInd (k.+1) (LH_rec vs n es' lh' es'') es (vs ++ [ :: (AI_label n es' LI) ] ++ es'').
-
-Lemma lfilled_Ind_Equivalent: forall k lh es LI,
-    lfilled k lh es LI <-> lfilledInd k lh es LI.
-Proof.
-  move => k. split.
-  - move: lh es LI. induction k; move => lh es LI HFix.
-    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
-      * destruct (const_list l) eqn:HConst => //=.
-        { replace LI with (l++es++l0); first by apply LfilledBase.
-          symmetry. move: HFix. by apply/eqseqP. }
-    + unfold lfilled in HFix. simpl in HFix. destruct lh => //=.
-      * destruct (const_list l) eqn:HConst => //=.
-        { destruct (lfill k lh es) eqn:HLF => //=.
-          { replace LI with (l ++ [ :: (AI_label n l0 l2)] ++ l1).
-          apply LfilledRec; first by [].
-          apply IHk. unfold lfilled; first by rewrite HLF.
-          symmetry. move: HFix. by apply/eqseqP. }
-        }
-  - move => HLF. induction HLF.
-    + unfold lfilled. unfold lfill. by rewrite H.
-    + unfold lfilled. unfold lfill. rewrite H. fold lfill.
-      unfold lfilled in IHHLF. destruct (lfill k lh' es) => //=.
-      * replace LI with l => //=.
-        symmetry. by apply/eqseqP.
-Qed.
-
-Lemma lfilledP: forall k lh es LI,
-    reflect (lfilledInd k lh es LI) (lfilled k lh es LI).
-Proof.
-  move => k lh es LI. destruct (lfilled k lh es LI) eqn:HLFBool.
-  - apply ReflectT. by apply lfilled_Ind_Equivalent.
-  - apply ReflectF. move=> HContra. apply lfilled_Ind_Equivalent in HContra.
-    by rewrite HLFBool in HContra.
-Qed.
-
-Fixpoint lfill_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) : option (seq administrative_instruction) :=
-  match k with
-  | 0 =>
-    if lh is LH_base nil nil then Some es else None
-  | k'.+1 =>
-    if lh is LH_rec vs n es' lh' es'' then
-      if const_list vs then
-        if lfill_exact k' lh' es is Some lfilledk then
-          Some (app vs (cons (AI_label n es' lfilledk) es''))
-        else None
-      else None
-    else None
-  end.
-
-Definition lfilled_exact (k : nat) (lh : lholed) (es : seq administrative_instruction) (es' : seq administrative_instruction) : bool :=
-  if lfill_exact k lh es is Some es'' then es' == es'' else false.
 
 Definition result_types_agree (ts : result_type) r :=
   match r with
@@ -769,9 +726,9 @@ Definition bitzero (t : value_type) : value :=
 Definition n_zeros (ts : seq value_type) : seq value :=
   map bitzero ts.
 
-(* TODO: lots of lemmas *)
-
 End Host.
 
 Arguments cl_type {host_function}.
 
+#[export]
+Hint Unfold v_to_e: core.

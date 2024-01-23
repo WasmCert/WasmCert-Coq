@@ -109,10 +109,10 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
       forall n es,
         reduce_simple [::AI_label n es [::AI_trap]] [::AI_trap]
   | rs_br :
-      forall n vs es i LI lh,
+      forall n vs es i LI (lh: lholed i),
         const_list vs ->
         length vs = n ->
-        lfilled i lh (vs ++ [::AI_basic (BI_br i)]) LI ->
+        lfill lh (vs ++ [::AI_basic (BI_br i)]) = LI ->
         reduce_simple [::AI_label n es LI] (vs ++ es)
   | rs_br_if_false :
       forall n i,
@@ -139,20 +139,20 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
   | rs_local_trap :
       forall n f,
         reduce_simple [::AI_local n f [::AI_trap]] [::AI_trap]
-  | rs_return : (* ??? *)
-      forall n i vs es lh f,
+  | rs_return :
+      forall n i vs es (lh: lholed i) f,
         const_list vs ->
         length vs = n ->
-        lfilled i lh (vs ++ [::AI_basic BI_return]) es ->
+        lfill lh (vs ++ [::AI_basic BI_return]) = es ->
         reduce_simple [::AI_local n f es] vs
   | rs_tee_local :
       forall i v,
         is_const v ->
         reduce_simple [::v; AI_basic (BI_tee_local i)] [::v; v; AI_basic (BI_set_local i)]
   | rs_trap :
-      forall es lh,
+      forall es (lh: lholed 0),
         es <> [::AI_trap] ->
-        lfilled 0 lh [::AI_trap] es ->
+        lfill lh [::AI_trap] = es ->
         reduce_simple es [::AI_trap]
   .
 
@@ -219,7 +219,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         length t1s = n ->
         length t2s = m ->
         host_application hs s (Tf t1s t2s) h vcs hs' None ->
-        reduce hs s f (ves ++ [::AI_invoke a]) hs' s f (ves ++ [::AI_invoke a])
+        reduce hs s f (ves ++ [::AI_invoke a]) hs' s f [::AI_trap]
 
   (** get, set, load, and store operations **)
   | r_get_local :
@@ -316,10 +316,10 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 
   (** label and local **)
   | r_label :
-      forall s f es les s' f' es' les' k lh hs hs',
+      forall s f es les s' f' es' les' k (lh: lholed k) hs hs',
         reduce hs s f es hs' s' f' es' ->
-        lfilled k lh es les ->
-        lfilled k lh es' les' ->
+        lfill lh es = les ->
+        lfill lh es' = les' ->
         reduce hs s f les hs' s' f' les'
   | r_local :
       forall s f es s' f' es' n f0 hs hs',

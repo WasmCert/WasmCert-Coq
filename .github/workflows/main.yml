@@ -2,9 +2,6 @@ name: Test compilation
 
 on:
   push:
-    branches:
-      - master
-      - opam-8.17
   pull_request:
   workflow_dispatch:
     inputs:
@@ -18,7 +15,6 @@ jobs:
           - 'coq-wasm.opam'
         coq_version:
           - '8.17.1'
-          - '8.16.1'
       fail-fast: true
 
     steps:

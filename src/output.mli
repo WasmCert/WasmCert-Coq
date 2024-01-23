@@ -14,6 +14,7 @@ type style
 val normal : style
 val bold : style
 val green : style
+val yellow : style
 val red : style
 
 (** Given the current verbosity level, the minimum verbosity level required, and a function,

@@ -16,10 +16,10 @@ br 0
 ```
 
 ```sh
-$ wasm_coq_interpreter loop.wasm main 100
+$ wasm_coq_interpreter loop.wasm -r main
 
-$ wasm_coq_interpreter loop.wasm block_br 100
+$ wasm_coq_interpreter loop.wasm -r block_br
 
-$ wasm_coq_interpreter loop.wasm br 100
+$ wasm_coq_interpreter loop.wasm -r br
 
 ```

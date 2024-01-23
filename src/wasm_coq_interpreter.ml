@@ -3,7 +3,7 @@
 (*open Convert*)
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs fuel =
+let process_args_and_run verbosity text no_exec interactive no_ctx_optimise error_code_on_crash (srcs: string list) func_name =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
@@ -35,12 +35,12 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name fuel
+    else Execute.instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m func_name
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name srcs fuel =
-  process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs fuel
+let process_args_and_run_out verbosity text no_exec interactive no_ctx_optimise error_code_on_crash srcs func_name =
+  process_args_and_run verbosity text no_exec interactive no_ctx_optimise error_code_on_crash srcs func_name
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -71,23 +71,29 @@ let interactive =
   let doc = "Interactive execution." in
   Arg.(value & flag & info ["i"; "interactive"] ~doc)
 
+let no_ctx_optimise = 
+  let doc = "Disable context optimisation." in
+  Arg.(value & flag & info ["nc"; "nocontext"] ~doc)
+
+  (*
+let fuel =
+  let doc = "Specify maximum amount of steps to run." in
+  Arg.(value & opt (some int) None & info ["f"; "fuel"] ~doc)
+*)
 let error_code_on_crash =
   let doc = "Return an error code on crash." in
   Arg.(value & flag & info ["E"; "error-if-crash"] ~doc)
 
 let func_name =
   let doc = "Name of the Wasm function to run." in
-  Arg.(required & pos ~rev:true 1 (some string) None & info [] ~docv:"NAME" ~doc)
-
-
-let fuel =
-  let doc = "FUEL to which to run the Wasm evaluator" in
-  Arg.(required & pos ~rev:true 0 (some int) None & info [] ~docv:"FUEL" ~doc)
+  Arg.(value & opt string "start" & info ["r"; "run"] ~docv:"NAME" ~doc)
   
 
 let srcs =
   let doc = "Source file(s) to interpret." in
-  Arg.(non_empty & pos_left ~rev:true 1 file [] & info [] ~docv:"FILE" ~doc)
+  let docinfo = 
+    Arg.info [] ~docv:"FILE" ~doc:doc in
+  Arg.(non_empty & pos_all file [] & docinfo)
 
 
 let cmd = 
@@ -98,12 +104,9 @@ let cmd =
     [ `S Manpage.s_bugs;
       `P "Report them at https://github.com/WasmCert/WasmCert-Coq/issues"; ]
   in
-  (*  (Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs)),
-   Term.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-*)
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs $ fuel ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ no_ctx_optimise $ error_code_on_crash $ srcs $ func_name ))
 
   
 let () = Stdlib.exit @@ 

@@ -643,7 +643,7 @@ Definition run_v
 
 (** State whether a list of administrative instruction is a final value. **)
 Definition is_const_list : list administrative_instruction -> option (list value) :=
-  @those_const_list.
+  @e_to_v_list_opt.
 
 (** A useful definition for converting [itree] to [option] without executing anything,
   assuming a way to remove events.

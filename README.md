@@ -21,11 +21,12 @@ This work is in progress. While our initial work used the definitions published 
 ## Merged
 - [x] Soundness results for module instantiation.
 - [x] Proof carrying interpreter deriving progress.
+- [x] Interpreter with optimised context representations.
 
 ## Unmerged/Future Work
-- [x] Generalised framework for evaluation contexts.
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [x] Optimise interpreter for contexts.
+- [ ] Updates for Wasm 2.0 (except SIMD).
+- [ ] Updates for further extension proposals (SIMD, GC, tail calls, etc).
 
 # Program Logic
 
@@ -60,15 +61,15 @@ dune test
 
 ## Using the project
 
-A file `wasm_coq_interpreter` will have been generated.
-It takes as argument a list of Wasm files, followed by a function name, followed by the number of steps of execution (fuel).
+A file `wasm_coq_interpreter` will have been generated under `_build/install`.
+It takes as argument a list of Wasm files, followed by a function name to run (with the `-r` flag).
 For instance, to interpret the function `main` defined in [tests/floatmul.wasm](tests/floatmul.wasm), run:
 ```bash
-dune exec -- wasm_coq_interpreter tests/floatmul.wasm main 10
+dune exec -- wasm_coq_interpreter tests/floatmul.wasm -r main
 ```
 The interpreter can display intermediate states of the operational semantics:
 ```bash
-dune exec -- wasm_coq_interpreter tests/floatmul.wasm main 10 --vi
+dune exec -- wasm_coq_interpreter tests/floatmul.wasm -r main --vi
 ```
 would produce:
 ```bash

@@ -12,21 +12,10 @@
   (package coq-wasm)
 )
 
-;(install
-;  (files wasm_coq_interpreter.exe)
-;  (package wasm_coq_interpreter)
-;  (section bin)
-;)
-
-;(rule
-;	(targets "extract.ml" "extract.mli")
-;	(deps "../theories/extraction.vo")
-;	(action
-;		(progn
-;			(run cp "../extract.ml" "../extract.mli" "./")
-;		)))
-
-(env (dev (flags (:standard -warn-error -A -w -39 -w -50))))
+(env (dev (flags (:standard -warn-error -A -w -39 -w -50)))
+  (release  ;; <- notice the change here
+      (flags (:standard -w -50-32-27-9-69-34-37-33))
+      (ocamlopt_flags (:standard -unsafe -noassert -inline 100))))
 ; Removing the following warnings:
 ; - 50: unattached documentation comment, as it doesn’t fit the way we document our code.
 ; - 39: unused rec flag, as Coq generates a lot of these in its extraction.

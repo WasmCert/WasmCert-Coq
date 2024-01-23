@@ -221,9 +221,6 @@ Variable host_function : eqType.
 
 Let function_closure := function_closure host_function.
 Let store_record := store_record host_function.
-(*Let administrative_instruction := administrative_instruction host_function.
-Let lholed := lholed host_function.
-Let res_step := res_step host_function.*)
 
 Let administrative_instruction_rect :=
   @administrative_instruction_rect (*host_function*)
@@ -334,18 +331,6 @@ Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrati
 Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
-Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality.
-       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
-Defined.
-
-Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
-Definition eqlholedP : Equality.axiom lholed_eqb :=
-  eq_dec_Equality_axiom lholed_eq_dec.
-
-Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
-Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
-
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.
@@ -375,4 +360,3 @@ Canonical Structure memory_type_eqMixin := EqMixin eqmemory_typeP.
 Canonical Structure memory_type_eqType := Eval hnf in EqType memory_type memory_type_eqMixin.
 
 End Host.
-

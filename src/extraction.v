@@ -8,6 +8,7 @@ From Wasm Require Import
   binary_format_parser
   instantiation_func
   interpreter_func
+  interpreter_ctx
   type_checker
   pp.
 
@@ -21,7 +22,10 @@ Extraction "extract"
   run_parse_module
   Instantiation_func_extract
   Interpreter_func_extract
+  Interpreter_ctx_extract
   value_rec_safe
   PP
-  DummyHost.
+  DummyHost
+  .
+
 

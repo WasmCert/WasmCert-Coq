@@ -9,7 +9,7 @@ Note: 0x46fe500f = 32552.029; 208.333 * 156.25 = 32552.0312.
 ```
 
 ```sh
-$ wasm_coq_interpreter floatmul.wasm main 100
+$ wasm_coq_interpreter floatmul.wasm -r main
 f32.const 46fe500f
 
 ```

@@ -84,6 +84,8 @@ module type InterpreterType = sig
     val pp_config_tuple_except_store :
       ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
       string
+    val pp_es : Extract.administrative_instruction list -> string
+
 
   end
 
