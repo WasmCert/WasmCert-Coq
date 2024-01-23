@@ -3,7 +3,7 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export operations datatypes_properties typing opsem properties.
+From Wasm Require Export properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -427,9 +427,8 @@ Qed.
 (** A helper tactic for proving [composition_typing_single]. **)
 Ltac auto_prove_bet:=
   repeat lazymatch goal with
-  | H: _ |- exists ts t1s t2s t3s, ?tn = ts ++ t1s /\ ?tm = ts ++ t2s /\
-                                   be_typing _ [::] (Tf _ _) /\ _ =>
-    try exists [::], tn, tm, tn; try eauto
+  | H: _ |- exists t3s, be_typing _ [::] (Tf ?tx _) /\ _ =>
+    try exists tx; try eauto
   | H: _ |- _ /\ _ =>
     split => //=; try eauto
   | H: _ |- be_typing _ [::] (Tf ?es ?es) =>
@@ -438,55 +437,39 @@ Ltac auto_prove_bet:=
 
 Lemma be_composition_typing_single: forall C es1 e t1s t2s,
     be_typing C (es1 ++ [::e]) (Tf t1s t2s) ->
-    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
-                             t2s = ts ++ t2s' /\
-                             be_typing C es1 (Tf t1s' t3s) /\
-                             be_typing C [::e] (Tf t3s t2s').
+    exists t3s, be_typing C es1 (Tf t1s t3s) /\
+           be_typing C [::e] (Tf t3s t2s).
 Proof.
   move => C es1 e t1s t2s HType.
   gen_ind_subst HType; extract_listn; auto_prove_bet.
   + by apply bet_block.
   + by destruct es1 => //=.
-  + apply concat_cancel_last in H1. destruct H1. subst.
-    by exists [::], t1s0, t2s0, t2s.
-  + edestruct IHHType; eauto.
-    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
-    exists (ts ++ x), t1s', t2s', t3s'.
-    by repeat split => //=; rewrite -catA.
+  + apply concat_cancel_last in Ecat as [-> ->].
+    by exists t2s.
+  + edestruct IHHType as [t3s [??]]; eauto; subst.
+    exists (ts ++ t3s).
+    by split; apply bet_weakening.
 Qed.
 
 Lemma be_composition_typing: forall C es1 es2 t1s t2s,
     be_typing C (es1 ++ es2) (Tf t1s t2s) ->
-    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
-                             t2s = ts ++ t2s' /\
-                             be_typing C es1 (Tf t1s' t3s) /\
-                             be_typing C es2 (Tf t3s t2s').
+    exists t3s, be_typing C es1 (Tf t1s t3s) /\
+           be_typing C es2 (Tf t3s t2s).
 Proof.
   move => C es1 es2.
-  remember (rev es2) as es2'.
-  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
-  generalize dependent es1.
-  clear Heqes2'. subst.
-  induction es2' => //=; move => es1 t1s t2s HType.
-  - unfold rev in HType; simpl in HType. subst.
-    rewrite cats0 in HType.
-    exists [::], t1s, t2s, t2s.
+  move: es1.
+  induction es2 using List.rev_ind; move => es1 t1s t2s HType.
+  - rewrite cats0 in HType.
+    exists t2s.
     repeat split => //=.
     apply bet_weakening_empty_both.
     by apply bet_empty.
-  - rewrite rev_cons in HType.
-    rewrite -cats1 in HType. subst.
-    rewrite catA in HType.
-    apply be_composition_typing_single in HType.
-    destruct HType as [ts' [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]]. subst.
-    apply IHes2' in H3.
-    destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
-    exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
+  - rewrite catA in HType.
+    apply be_composition_typing_single in HType as [ts3 [Hbet1 Hbet2]].
+    apply IHes2 in Hbet1 as [ts3' [Hbet3 Hbet4]].
+    exists ts3'.
     repeat split => //.
-    + by apply bet_weakening.
-    + rewrite rev_cons. rewrite -cats1.
-      eapply bet_composition; eauto.
-      by apply bet_weakening.
+    by eapply bet_composition; eauto.
 Qed.
 
 Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
@@ -494,27 +477,13 @@ Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
     be_typing C es2 (Tf t2s t3s) ->
     be_typing C (es1 ++ es2) (Tf t1s t3s).
 Proof.
-  move => C es1 es2 t1s t2s t3s HType1 HType2.
-  remember (rev es2) as es2'.
-  assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
-  generalize dependent es1. generalize dependent es2.
-  generalize dependent t1s. generalize dependent t2s.
-  generalize dependent t3s.
-  induction es2' => //=.
-  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1. destruct es2 => //=. rewrite cats0.
-    apply empty_typing in HType2. by subst.
-  - move => t3s t2s t1s es2 HType2 H1 H2 es1 HType1.
-    rewrite rev_cons in H2. rewrite -cats1 in H2.
-    rewrite H2 in HType2.
-    apply be_composition_typing in HType2.
-    destruct HType2 as [ts [t1s' [t2s' [t3s' [H3 [H4 [H5 H6]]]]]]]. subst.
-    rewrite catA. eapply bet_composition => //=.
-    instantiate (1 := (ts ++ t3s')).
-    eapply IHes2' => //.
-    instantiate (1 := (ts ++ t1s')); first by apply bet_weakening.
-    symmetry. by apply revK.
-    by apply HType1.
-    by apply bet_weakening.
+  move => C es1 es2.
+  move: es1.
+  induction es2 using List.rev_ind; move => es1 t1s t2s t3s Hbet1 Hbet2.
+  - apply empty_typing in Hbet2; by rewrite cats0; subst.
+  - apply be_composition_typing in Hbet2 as [ts3 [Hbet3 Hbet4]].
+    rewrite catA. eapply bet_composition; last by eauto.
+    by eapply IHes2; eauto.
 Qed.
 
 Lemma bet_composition_front: forall C e es t1s t2s t3s,
@@ -527,7 +496,6 @@ Proof.
   by eapply bet_composition'; eauto.
 Qed.
 
-
 Lemma Const_list_typing: forall C vs t1s t2s,
     be_typing C (to_b_list (v_to_e_list vs)) (Tf t1s t2s) ->
     t2s = t1s ++ (map typeof vs).
@@ -537,11 +505,9 @@ Proof.
   - apply empty_typing in HType. subst. by rewrite cats0.
   - rewrite -cat1s in HType.
     rewrite -cat1s.
-    apply be_composition_typing in HType.
-    destruct HType as [ts [ts1' [ts2' [ts3 [H1 [H2 [H3 H4]]]]]]].
-    subst.
-    apply BI_const_typing in H3.
-    apply IHvs in H4.
+    apply be_composition_typing in HType as [ts3 [Hbet1 Hbet2]].
+    apply BI_const_typing in Hbet1.
+    apply IHvs in Hbet2.
     subst.
     by repeat rewrite catA.
 Qed.
