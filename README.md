@@ -21,11 +21,12 @@ This work is in progress. While our initial work used the definitions published 
 ## Merged
 - [x] Soundness results for module instantiation.
 - [x] Proof carrying interpreter deriving progress.
+- [x] Interpreter with optimised context representations.
 
 ## Unmerged/Future Work
-- [x] Generalised framework for evaluation contexts.
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [x] Optimise interpreter for contexts.
+- [ ] Updates for Wasm 2.0 (except SIMD).
+- [ ] Updates for further extension proposals (SIMD, GC, tail calls, etc).
 
 # Program Logic
 
