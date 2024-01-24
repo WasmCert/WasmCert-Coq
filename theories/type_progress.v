@@ -23,6 +23,9 @@ Let smem_ind : store_record -> instance -> option nat := @smem_ind _.
 
 Let host := host host_function.
 
+Ltac invert_e_typing' :=
+  unfold e_typing in *; invert_e_typing.
+
 Variable host_instance : host.
 
 Let host_state := host_state host_instance.
@@ -239,58 +242,6 @@ Proof.
   erewrite <- lfill_push_front_vs in IH; eauto.
   by eapply IH.
 Qed.
-
-Ltac split_et_composition:=
-  lazymatch goal with
-  | H: e_typing _ _ (_ ++ _) _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let t2s := fresh "t2s" in
-    let t3s := fresh "t3s" in
-    let Ht1 := fresh "Ht1" in
-    let Ht2 := fresh "Ht2" in
-    let Ht3 := fresh "Ht3" in
-    let Ht4 := fresh "Ht4" in
-    apply e_composition_typing in H;
-    destruct H as [ts [t1s [t2s [t3s [Ht1 [Ht2 [Ht3 Ht4]]]]]]]; subst
-  | H: typing.e_typing _ _ (_ ++ _) _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let t2s := fresh "t2s" in
-    let t3s := fresh "t3s" in
-    let Ht1 := fresh "Ht1" in
-    let Ht2 := fresh "Ht2" in
-    let Ht3 := fresh "Ht3" in
-    let Ht4 := fresh "Ht4" in
-    apply e_composition_typing in H;
-    destruct H as [ts [t1s [t2s [t3s [Ht1 [Ht2 [Ht3 Ht4]]]]]]]; subst
-  end.
-
-Ltac invert_e_typing:=
-  repeat lazymatch goal with
-  | H: e_typing _ _ (_ ++ _) _ |- _ =>
-    split_et_composition
-  | H: typing.e_typing _ _ (_ ++ _) _ |- _ =>
-    split_et_composition
-  | H: e_typing _ _ [::AI_label _ _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let Ht1 := fresh "Ht1" in
-    let Ht2 := fresh "Ht2" in
-    let Ht3 := fresh "Ht3" in
-    let Ht4 := fresh "Ht4" in
-    apply Label_typing in H;
-    destruct H as [ts [t1s [Ht1 [Ht2 [Ht3 Ht4]]]]]; subst
-  | H: typing.e_typing _ _ [::AI_label _ _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let Ht1 := fresh "Ht1" in
-    let Ht2 := fresh "Ht2" in
-    let Ht3 := fresh "Ht3" in
-    let Ht4 := fresh "Ht4" in
-    eapply Label_typing in H; eauto;
-    destruct H as [ts [t1s [Ht1 [Ht2 [Ht3 Ht4]]]]]; subst
-         end.
 
 Ltac auto_basic :=
   repeat lazymatch goal with
@@ -690,16 +641,14 @@ Proof.
   elim.
   - move => vs es k es' s C ts <- /=Hetype.
     rewrite -cat1s add0n in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //=.
-    apply et_to_bet in Ht5; auto_basic.
-    simpl in *. by eapply Break_typing in Ht5 as [ts1 [ts2 [? [Hplop ?]]]]; eauto => //.
+    invert_e_typing'.
+    apply et_to_bet in H1_comp0; auto_basic.
+    simpl in *.
+    by invert_be_typing.
   - move => k vs n0 es lh IH es' k0 es'' s C ts <- /=Hetype.
     rewrite -cat1s in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //=.
-    simpl in *.
-    by eapply IH in Ht4; eauto; last by (do 4 f_equal; instantiate (1 := k0.+1); lias).
+    invert_e_typing'.
+    by eapply IH in H3_label; eauto; last by (do 4 f_equal; instantiate (1 := k0.+1); lias).
 Qed.
 
 Lemma return_reduce_return_some: forall n (lh: lholed n) es s C ts2,
@@ -711,15 +660,15 @@ Proof.
   elim.
   - move => vs es es' s C ts <- /=Hetype.
     rewrite -cat1s in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //=.
-    apply et_to_bet in Ht5; auto_basic.
-    simpl in *. eapply Return_typing in Ht5 as [? [? [? Hret]]]; eauto.
-    by rewrite Hret.
+    invert_e_typing'.
+    apply et_to_bet in H1_comp0; auto_basic.
+    simpl in *.
+    invert_be_typing.
+    by rewrite H2_return.
   - move => k vs n0 es lh IH es' es'' s C ts <- /=Hetype.
     rewrite -cat1s in Hetype.
-    invert_e_typing.
-    by assert (tc_return (upd_label C ([::ts1] ++ tc_label C)) <> None); first by eapply IH; eauto.
+    invert_e_typing'.
+    by assert (tc_return (upd_label C ([::ts_label] ++ tc_label C)) <> None); first by eapply IH; eauto.
 Qed.
 
 Lemma br_reduce_extract_vs: forall n k (lh: lholed n) es s C ts ts2,
@@ -735,36 +684,37 @@ Proof.
   elim.
   - move => vs es k es' s C ts rs <- /=Hetype Hnth.
     rewrite -cat1s add0n in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //.
-    apply et_to_bet in Ht5; auto_basic.
-    eapply Break_typing in Ht5 as [ts3 [ts3' [Hsize [Hplop ?]]]]; eauto; subst.
-    apply et_to_bet in Ht3; last by apply const_list_is_basic, v_to_e_const.
-    apply Const_list_typing in Ht3; simpl in *.
-    unfold plop2 in Hplop. move/eqP in Hplop.
-    rewrite Hnth in Hplop; injection Hplop as <-.
-    rewrite catA in Ht3. symmetry in Ht3.
-    apply cat_split in Ht3. destruct Ht3.
-    replace vs with (take (size (ts1 ++ ts3')) vs ++ drop (size (ts1 ++ ts3')) vs); last by apply cat_take_drop.
-    exists (v_to_e_list (drop (size (ts1 ++ ts3')) vs)), (LH_base (take (size (ts1 ++ ts3')) vs) es).
+    invert_e_typing'.
+    apply et_to_bet in H1_comp; auto_basic; last by apply const_list_is_basic, v_to_e_const.
+    apply et_to_bet in H1_comp0; auto_basic.
+    simpl in *.
+    invert_be_typing; simpl in *; subst.
+    unfold plop2 in H2_br. move/eqP in H2_br.
+    rewrite Hnth in H2_br; injection H2_br as <-.
+    
+    replace vs with (take (size ts0_br) vs ++ drop (size ts0_br) vs); last by apply cat_take_drop.
+    exists (v_to_e_list (drop (size ts0_br) vs)), (LH_base (take (size ts0_br) vs) es).
     repeat split => /=.
     + by apply v_to_e_const.
     + rewrite -v_to_e_cat. repeat rewrite -catA.
       by rewrite cat1s.
     + subst.
       repeat rewrite length_is_size.
-      by rewrite v_to_e_size size_drop size_drop size_map.
+      rewrite v_to_e_size size_drop.
+      apply f_equal with (f := size) in H1_comp.
+      rewrite size_map size_cat in H1_comp.
+      rewrite <- H1_comp.
+      by lias.
   - move => k vs n0 es lh IH es' k0 es'' s C ts rs <- /=Hetype Hnth.
     rewrite -cat1s in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //.
-    eapply IH in Ht4 as [es0 [lh' [HConst [Heq Hlen]]]].
+    invert_e_typing'.
+    eapply IH in H3_label as [es0 [lh' [HConst [Heq Hlen]]]].
     2: { instantiate (1 := k0.+1).
         (do 4 f_equal; try by lias). }
     2: { by eauto. }
     replace (k.+1+k0) with (k+k0.+1); last by lias.
     repeat eexists; eauto. 
-    instantiate (1 := (LH_rec vs (length ts2) es lh' es')) => /=.
+    instantiate (1 := (LH_rec vs (length ts_label) es lh' es')) => /=.
     rewrite Heq.
     by rewrite addnS.
 Qed.
@@ -781,33 +731,32 @@ Proof.
   elim.
   - move => vs es es' s C ts rs <- /=Hetype Hret.
     rewrite -cat1s in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //.
-    apply et_to_bet in Ht5; auto_basic.
+    invert_e_typing'.
+    apply et_to_bet in H1_comp0; auto_basic.
+    apply et_to_bet in H1_comp; last by apply const_list_is_basic, v_to_e_const.
     simpl in *.
-    eapply Return_typing in Ht5 as [ts2 [ts2' [? Hret']]]; eauto; subst.
-    rewrite Hret in Hret'. inversion Hret'; subst; clear Hret'.
-    apply et_to_bet in Ht3; last by apply const_list_is_basic, v_to_e_const.
-    apply Const_list_typing in Ht3. simpl in Ht3.
-    rewrite catA in Ht3. symmetry in Ht3.
-    apply cat_split in Ht3. destruct Ht3 as [Heq ->].
-    replace vs with (take (size (ts1 ++ ts2')) vs ++ drop (size (ts1 ++ ts2')) vs); last by apply cat_take_drop.
-    exists (v_to_e_list (drop (size (ts1 ++ ts2')) vs)), (LH_base (take (size (ts1 ++ ts2')) vs) es).
+    invert_be_typing; simpl in *; subst.
+    replace vs with (take (size ts0_return) vs ++ drop (size ts0_return) vs); last by apply cat_take_drop.
+    exists (v_to_e_list (drop (size ts0_return) vs)), (LH_base (take (size ts0_return) vs) es).
     repeat split => /=.
     + by apply v_to_e_const.
     + rewrite -v_to_e_cat -(cat1s _ es).
       by repeat rewrite catA.
-    + rewrite Heq.
-      repeat rewrite length_is_size.
-      by rewrite v_to_e_size -map_drop size_map cat_take_drop.
+    + repeat rewrite length_is_size.
+      rewrite v_to_e_size size_drop.
+      apply f_equal with (f := size) in H1_comp.
+      rewrite size_map size_cat in H1_comp.
+      rewrite <- H1_comp.
+      rewrite Hret in H2_return.
+      injection H2_return as <-.
+      by lias.
   - move => k vs n0 es lh IH es' es'' s C ts rs <- /=Hetype Hret.
     rewrite - cat1s in Hetype.
-    invert_e_typing.
-    destruct ts0, t1s => //.
-    eapply IH in Ht4 as [es2 [lh' [Hconst [Hlf HLength]]]]; eauto.
+    invert_e_typing'.
+    eapply IH in H3_label as [es2 [lh' [Hconst [Hlf HLength]]]]; eauto.
     apply const_es_exists in Hconst as [vs' ->].
     repeat eexists; eauto; first by apply v_to_e_const.
-    instantiate (1 := (LH_rec vs (length ts2) es lh' es')) => /=.
+    instantiate (1 := (LH_rec vs (length ts_label) es lh' es')) => /=.
     by rewrite Hlf.
 Qed.
 
