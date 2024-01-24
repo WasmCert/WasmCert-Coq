@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Import operations opsem properties typing_inversion.
+From Wasm Require Import typing_inversion.
 
 Ltac size_unequal H :=
   apply (f_equal size) in H;
@@ -51,59 +51,6 @@ Ltac simplify_lists :=
   | |- context C [v_to_e_list [:: _]] => rewrite v_to_e_list1
   end;
   try subst_rev_const_list.
-
-(* TODO: find better fixes than the current duplication. *)
-Ltac split_et_composition:=
-  lazymatch goal with
-  | H: e_typing _ _ (_ ++ _) _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let t2s := fresh "t2s" in
-    let t3s := fresh "t3s" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply e_composition_typing in H;
-    destruct H as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]; subst
-  | H: typing.e_typing _ _ (_ ++ _) _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let t2s := fresh "t2s" in
-    let t3s := fresh "t3s" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply e_composition_typing in H;
-    destruct H as [ts [t1s [t2s [t3s [H1 [H2 [H3 H4]]]]]]]; subst
-  end.
-
-Ltac invert_e_typing:=
-  repeat lazymatch goal with
-  | H: e_typing _ _ (_ ++ _) _ |- _ =>
-    split_et_composition
-  | H: typing.e_typing _ _ (_ ++ _) _ |- _ =>
-    split_et_composition
-  | H: e_typing _ _ [::AI_label _ _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    apply Label_typing in H;
-    destruct H as [ts [t1s [H1 [H2 [H3 H4]]]]]; subst
-  | H: typing.e_typing _ _ [::AI_label _ _ _] _ |- _ =>
-    let ts := fresh "ts" in
-    let t1s := fresh "t1s" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    eapply Label_typing in H; eauto;
-    destruct H as [ts [t1s [H1 [H2 [H3 H4]]]]]; subst
-         end.
 
 Ltac auto_basic :=
   repeat lazymatch goal with

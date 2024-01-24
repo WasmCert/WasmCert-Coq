@@ -93,7 +93,8 @@ Definition label_ctx_fill := (fun es ctx => (vs_to_es (LC_val ctx) ++ [::AI_labe
 
 #[refine, export]
 Instance label_ctx_eval: eval_ctx label_ctx :=
-  {| ctx_fill := label_ctx_fill; ctx_frame_mask := fmask0; ctx_frame_cond := fcond0 |}.
+  {| ctx_fill := label_ctx_fill;
+     ctx_frame_mask := fmask0; ctx_frame_cond := fcond0 |}.
 Proof.
   move => [lvs lk lces les] hs s f es hs' s' f' es' _ Hred.
   eapply r_label with (lh := LH_rec (rev lvs) lk lces (LH_base nil nil) les); eauto => //; by rewrite /label_ctx_fill /= cats0.
@@ -825,11 +826,15 @@ Proof.
 Qed.
 
 
+(** Typing propagations for contexts **)
 Section Typing.
 
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.
 Let frame_typing := @frame_typing host_function.
+
+Ltac invert_e_typing' :=
+  unfold e_typing in *; invert_e_typing.
 
 Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
     e_typing s C0 (fc ⦃ es ⦄) tf ->
@@ -839,12 +844,9 @@ Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
         e_typing s (upd_return C (Some ret)) es (Tf nil ret).
 Proof.
   move => fc es s C [ts1 ts2] /= Htype.
-  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [_ Htype]]]]]]].
-  rewrite -cat1s in Htype.
-  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [Htype _]]]]]]].
-  apply Local_typing in Htype as [? [-> [Htype Hlen]]].
-  inversion Htype as [??????? Hftype ? Hetype]; subst; clear Htype.
-  clear - Hftype Hetype Hlen.
+  rewrite - cat1s in Htype.
+  invert_e_typing'.
+  inversion H2_local as [??????? Hftype ? Hetype]; subst; clear H2_local.
   by do 2 eexists; repeat split; eauto.
 Qed.
 
@@ -856,10 +858,8 @@ Lemma lc_typing: forall (lc: label_ctx) es s C0 tf,
       e_typing s (upd_label C0 ([::ts1] ++ C0.(tc_label))) es (Tf nil ts2).
 Proof.
   move => lc es s C [ts1 ts2] /= Htype.
-  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [_ Htype]]]]]]].
-  rewrite -cat1s in Htype.
-  apply e_composition_typing in Htype as [? [? [? [? [-> [-> [Htype _]]]]]]].
-  apply Label_typing in Htype as [? [? [-> [Hconttype [Htype Hlen]]]]].
+  unfold label_ctx_fill in Htype.
+  invert_e_typing'.
   by do 2 eexists; split; eauto.
 Qed.
 
@@ -934,43 +934,40 @@ Qed.
 
 Lemma sc_typing_args: forall (sc: seq_ctx) es s C ts0,
     e_typing s C (sc ⦃ es ⦄) (Tf nil ts0) ->
-    exists k ts2, e_typing s C es (Tf (map typeof (drop k (rev sc.1))) ts2).
+    exists ts2, e_typing s C es (Tf (map typeof (rev sc.1)) ts2).
 Proof.
   move => [vs0 es0] es s C ts0 /=Htype.
-  apply e_composition_typing in Htype as [ts1 [ts2 [ts3 [ts4 [Heq [? [Htype1 Htype2]]]]]]].
-  destruct ts1, ts2 => //; subst; clear Heq.
-  apply et_to_bet in Htype1; last by apply const_list_is_basic, v_to_e_const.
-  apply Const_list_typing in Htype1 as ->.
-  simpl in Htype2.
-  apply e_composition_typing in Htype2 as [ts1 [ts2 [ts4 [ts5 [Heq [-> [Htype _]]]]]]].
-  exists (size ts1), ts5.
-  by rewrite map_drop Heq drop_size_cat.
+  invert_e_typing'.
+  apply et_to_bet in H1_comp; last by apply const_list_is_basic, v_to_e_const.
+  apply Const_list_typing in H1_comp as ->.
+  simpl in *.
+  by exists ts3_comp0.
 Qed.
 
 Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 ts0,
     e_typing s C0 (ccs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
-    exists C' k ts, e_typing s C' es (Tf (map typeof (drop k (rev sc.1))) ts).
+    exists C' ts, e_typing s C' es (Tf (map typeof (rev sc.1)) ts).
 Proof.
   move => ccs [vs0 es0] es s C0 ts0.
   destruct ccs as [ | cc' ccs']; move => Htype.
-  - apply sc_typing_args in Htype as [? [? Htype]].
-    by do 3 eexists; eauto.
+  - apply sc_typing_args in Htype as [? Htype].
+    by do 2 eexists; eauto.
   - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
-    apply sc_typing_args in Htype as [? [? Htype]].
-    by do 3 eexists; eauto.
+    apply sc_typing_args in Htype as [? Htype].
+    by do 2 eexists; eauto.
 Qed.
 
 Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C0 tf,
     e_typing s C0 ((cc :: ccs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
-    exists C C' ret labs k ts,
+    exists C C' ret labs ts,
       frame_typing s (cc.1).(FC_frame) C /\
         length ret = (cc.1).(FC_arity) /\
         C' = (upd_label (upd_return C (Some ret)) labs) /\
-        e_typing s C' es (Tf (map typeof (drop k (rev sc.1))) ts).
+        e_typing s C' es (Tf (map typeof (rev sc.1)) ts).
 Proof.
   move => cc ccs [vs0 es0] es s C0 tf Htype.
   - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
-    apply sc_typing_args in Htype as [? [? Htype]].
+    apply sc_typing_args in Htype as [? Htype].
     by do 6 eexists; eauto.
 Qed.
 
