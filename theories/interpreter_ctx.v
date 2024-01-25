@@ -150,6 +150,7 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   run_step_ctx_result hs cfg
 .
 
+Check e_typing_ops_local.
 
 Ltac resolve_invalid_typing :=
   apply RSC_error;
@@ -162,9 +163,9 @@ Ltac resolve_invalid_typing :=
   eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto;
   match type of Htype with
   | e_typing _ _ ((_ :: _) ⦃ _ ⦃ _ ⦄ ⦄) _ =>
-    apply e_typing_ops_local in Htype as [? [? [? [? [? [ts' [Hftype [? [? Htype]]]]]]]]]
+    apply e_typing_ops_local in Htype as [? [? [? [? [ts' [Hftype [? [? Htype]]]]]]]]
   | e_typing _ _ (_ ⦃ _ ⦃ _ ⦄ ⦄) (Tf nil _) =>
-    apply e_typing_ops in Htype as [? [? [ts' Htype]]]
+    apply e_typing_ops in Htype as [? [ts' Htype]]
   end;
   simpl in Htype;
   try (apply et_to_bet in Htype; last by auto_basic).
@@ -178,9 +179,11 @@ Ltac last_unequal H :=
   repeat rewrite size_rev in H;
   repeat rewrite map_take in H;
   simpl in H;
+  (try by inversion H);
   match type of H with
   | context C [take ?n _] =>
       try by destruct n
+  | _ => fail "unable to obtain a contradiction"
   end.
 
 Notation "<< hs , cfg >>" := (@RSC_normal _ _ hs cfg).
@@ -243,7 +246,7 @@ Proof.
       apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]] => //.
       apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
       rewrite -> Hconsume in * => //; clear Hconsume.
-      apply sc_typing_args in Htype as [k [ts3 Htype]]; simpl in Htype.
+      apply sc_typing_args in Htype as [ts3 Htype]; simpl in Htype.
       apply et_to_bet in Htype; last by auto_basic.
       simpl in Htype; invert_be_typing.
       unfold plop2 in H2_br; move/eqP in H2_br.
@@ -253,7 +256,7 @@ Proof.
       eapply all2_projection in Hagree; eauto.
       move/eqP in Hagree; simpl in Hagree; subst.
       apply (f_equal size) in H3_br.
-      rewrite size_map size_cat drop_rev size_rev size_takel in H3_br; last by lias.
+      rewrite size_map size_cat size_rev in H3_br.
       repeat rewrite length_is_size in Hvslen.
       by lias.
       
@@ -265,11 +268,10 @@ Proof.
     apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]] => //.
     apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
     simpl in Htype.
-    apply e_composition_typing in Htype as [? [? [? [? [? [? [Htype1 Htype2]]]]]]]; subst.
-    rewrite -cat1s in Htype2.
-    apply e_composition_typing in Htype2 as [? [? [? [? [? [? [Htype3 Htype4]]]]]]]; subst.
-    apply et_to_bet in Htype3; last by auto_basic.
-    simpl in Htype3; invert_be_typing.
+    rewrite -cat1s in Htype.
+    invert_e_typing.
+    apply et_to_bet in H1_comp0; last by auto_basic.
+    simpl in H1_comp0; invert_be_typing.
     inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
     destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
     apply inst_t_context_label_empty in Hit; rewrite -> Hit in *; simpl in *.
@@ -299,10 +301,10 @@ Proof.
   - (* Not enough values *)
     resolve_invalid_typing; simpl in Htype; invert_be_typing.
     simpl in *; subst.
-    injection H2_return as ->.
     apply (f_equal size) in H1_return.
-    rewrite size_map size_cat drop_rev size_rev size_takel in H1_return; last by lias.
+    rewrite size_map size_cat size_rev in H1_return.
     repeat rewrite length_is_size in Hvslen.
+    injection H2_return as ->.
     by lias.
 Defined.
     
@@ -336,7 +338,7 @@ Proof.
         resolve_invalid_typing.
         eapply Invoke_func_native_typing in Htype as [ts1 [C' [Hvstype [? [Hit Hbet]]]]]; eauto; subst.
         apply (f_equal size) in Hvstype.
-        rewrite size_map size_cat drop_rev size_rev size_takel in Hvstype; last by lias.
+        rewrite size_map size_cat size_rev in Hvstype.
         repeat rewrite length_is_size in Hlen.
         by lias.
     + (* FC_func_host (Tf t1s t2s) cl' *)
@@ -392,7 +394,7 @@ Proof.
       resolve_invalid_typing.
       eapply Invoke_func_host_typing in Htype as [ts1 [Hvstype ?]]; eauto; subst.
       apply (f_equal size) in Hvstype.
-      rewrite size_map size_cat drop_rev size_rev size_takel in Hvstype; last by lias.
+      rewrite size_map size_cat size_rev in Hvstype.
       repeat rewrite length_is_size in Hlen.
       by lias.
   - (* None *)
@@ -439,14 +441,15 @@ Proof.
           eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
           apply ccs_typing_focus in Htype as [C [? [? [[ts1 ts2] Htype]]]].
           rewrite /= cats0 in Htype.
-          apply e_composition_typing in Htype as [ts' [ts1' [ts2' [ts3 [? [? [Htype1 Htype2]]]]]]]; subst.
-          rewrite -cat1s in Htype2.
-          apply e_composition_typing in Htype2 as [? [? [? [? [? [? [Htype3 Htype4]]]]]]]; subst.
-          apply Local_typing in Htype3 as [? [? [Htype ?]]]; subst.
-          inversion Htype as [????????? Hvstype]; subst; clear Htype.
+          rewrite -cat1s in Htype.
+          invert_e_typing.
+          inversion H2_local as [????????? Hvstype]; subst; clear H2_local.
           apply et_to_bet in Hvstype; last by apply const_list_is_basic, v_to_e_const.
-          apply Const_list_typing in Hvstype; subst; simpl in *.
-          by repeat rewrite length_is_size in Hlen; rewrite size_map size_rev in Hlen.
+          unfold vs_to_es in *.
+          invert_be_typing.
+          simpl in *; subst.
+          repeat rewrite length_is_size in Hlen.
+          by rewrite size_map size_rev in Hlen.
         }
       }
       (* Exitting a label *)
@@ -572,7 +575,7 @@ Proof.
         resolve_invalid_typing.
         simpl in Htype; invert_be_typing.
         apply (f_equal size) in H1_block.
-        rewrite size_map size_cat drop_rev size_rev size_takel in H1_block; last by lias.
+        rewrite size_map size_cat size_rev in H1_block.
         repeat rewrite length_is_size in Hlen.
         by lias.
 
@@ -599,7 +602,7 @@ Proof.
         resolve_invalid_typing.
         simpl in Htype; invert_be_typing.
         apply (f_equal size) in H1_loop.
-        rewrite size_map size_cat drop_rev size_rev size_takel in H1_loop; last by lias.
+        rewrite size_map size_cat size_rev in H1_loop.
         repeat rewrite length_is_size in Hlen.
         by lias.
 
@@ -855,8 +858,7 @@ Proof.
         resolve_invalid_typing; simpl in Htype; invert_be_typing;
         simpl in *;
         apply (f_equal rev) in H1_store;
-        rewrite rev_cat -map_rev rev_drop revK size_rev map_take /= in H1_store;
-        destruct ((size vs0).+2 - x3) => //=; by destruct n.
+        rewrite rev_cat -map_rev revK /= in H1_store; by inversion H1_store.
       (* VAL_int32 c *)
       destruct (types_agree t v) eqn:?.
       + (* true *)
@@ -904,9 +906,7 @@ Proof.
         resolve_invalid_typing; simpl in Htype; invert_be_typing.
         simpl in *.
         unfold types_agree in Heqb; move/eqP in Heqb.
-        last_unequal H1_store.
-        destruct ((size vs0).+2-x3) => //; simpl in *.
-        by inversion H1_store.
+        by last_unequal H1_store.
 
     - (* AI_basic BI_current_memory *)
       get_cc ccs.    
@@ -1057,8 +1057,7 @@ Proof.
       + (* false *)
         resolve_invalid_typing; simpl in Htype; invert_be_typing.
         unfold types_agree in Ht1; move/eqP in Ht1.
-        last_unequal H1_cvtop.
-        by destruct ((size vs0).+1 - x0) => //; inversion H1_cvtop.
+        by last_unequal H1_cvtop.
 
     - (* AI_trap *)
       get_cc ccs.
@@ -1247,6 +1246,43 @@ End Interp_ctx_progress.
 
 End Host.
 
+
+(** Extraction **)
+(* TODO: A workaround to use the monadic host defined in host.v to avoid reworking shim;
+   need a unified approach in the future *)
+Module EmptyHost.
+
+Definition host_function := void.
+
+Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+Proof. decidable_equality. Defined.
+
+Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Global Canonical Structure host_function_eqType :=
+  Eval hnf in EqType host_function host_function_eqMixin.
+
+Definition host : Type := host host_function_eqType.
+
+Definition store_record := store_record host_function.
+Definition function_closure := function_closure host_function.
+
+Definition host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}.
+Defined.
+
+Definition config_tuple := @config_tuple host_function.
+
+Definition host_state := host_state host_instance.
+
+End EmptyHost.
 
 Module Interpreter_ctx_extract.
 

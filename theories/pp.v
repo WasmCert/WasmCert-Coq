@@ -4,17 +4,13 @@ Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
-Require Import bytes_pp datatypes interpreter_func.
+Require Import bytes_pp datatypes interpreter_ctx.
 Require Import BinNat.
 Require Import ansi list_extra.
 
 Open Scope string_scope.
 
 Section Host.
-
-  (*
-Import Interpreter_func_extract.
-   *)
 
 Variable host_function: eqType.
   
@@ -420,6 +416,7 @@ Definition pp_config_tuple_except_store (cfg : store_record host_function * fram
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
+(*
 Definition pp_res_tuple_except_store (res_cfg : store_record host_function * frame * res_step) : string :=
   let '(s, f, res) := res_cfg in
   match res with
@@ -437,6 +434,7 @@ Definition pp_res_tuple_except_store (res_cfg : store_record host_function * fra
     String.concat "" (List.map (pp_administrative_instruction 1) es) ++
     "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   end.
+*)
 
 End Host.
 
@@ -452,11 +450,14 @@ Definition pp_values : list value -> string := pp_values.
 
 Definition pp_store : nat -> store_record -> string := pp_store host_function_eqType.
 
+(*
 Definition pp_res_tuple_except_store : store_record * frame * res_step -> string :=
   pp_res_tuple_except_store host_function_eqType.
+ *)
 
 Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
   pp_config_tuple_except_store host_function_eqType.
+
 
 Definition pp_administrative_instructions : nat -> list administrative_instruction -> string :=
   pp_administrative_instructions.

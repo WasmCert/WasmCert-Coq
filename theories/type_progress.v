@@ -36,9 +36,6 @@ Let reduce : host_state -> store_record -> frame -> seq administrative_instructi
              host_state -> store_record -> frame -> seq administrative_instruction -> Prop
   := @reduce _ _.
 
-Definition terminal_form (es: seq administrative_instruction) :=
-  const_list es \/ es = [::AI_trap].
-
 Lemma reduce_trap_left: forall vs,
     const_list vs ->
     vs <> [::] ->

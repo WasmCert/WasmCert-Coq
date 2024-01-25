@@ -1,3 +1,7 @@
+(*
+Old version of 'fancy' certified interpreter; currently not in use
+
+
 (** Proof-carrying interpreter for Wasm **)
 
 From Coq Require Import ZArith.BinInt Program.Equality.
@@ -2951,3 +2955,4 @@ Definition is_const_list : list administrative_instruction -> option (list value
   @e_to_v_list_opt.
 
 End Interpreter_func_extract.
+*)
