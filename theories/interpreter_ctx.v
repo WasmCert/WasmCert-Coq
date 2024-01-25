@@ -59,7 +59,7 @@ Proof.
   by destruct tc_local, tc_label, tc_return => //; destruct tc_types_t, tc_func_t, tc_global, tc_table, tc_memory => //.
 Qed.
 
-
+(** Auxiliary definition for reductions between context tuples **)
 Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
   match cfg with
   | (s, ccs, sc, oe) =>
@@ -82,6 +82,7 @@ Ltac red_ctx_simpl :=
       apply (list_label_ctx_eval.(ctx_reduce))
   end.
 
+(** Automatically trying to infer what to put aside using the L0 context (r_label) **)
 Ltac infer_hole :=
   repeat match goal with
   | |- context C [vs_to_es _] =>
@@ -150,8 +151,7 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   run_step_ctx_result hs cfg
 .
 
-Check e_typing_ops_local.
-
+(** The usual start of a crash certification **)
 Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
@@ -205,6 +205,7 @@ Proof.
   by move => ?? [<-].
 Qed.
 
+(** Br exits from one label context. **)
 Definition run_ctx_br: forall hs s ccs sc j,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic (BI_br j))).
 Proof.
@@ -280,7 +281,8 @@ Proof.
     rewrite cats0 in H1_br.
     by rewrite Hagree in H1_br; lias.
 Defined.
-    
+
+(** Return exits from the innermost frame and all label contexts **)
 Definition run_ctx_return: forall hs s ccs sc,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic BI_return)).
 Proof.  
@@ -308,7 +310,10 @@ Proof.
     by lias.
 Defined.
     
-(* Invoke does not need a frame context. This is useful for handling the starting invocation of a module *)
+(** Invoke does not need a frame context. 
+    This is useful for handling the starting invocation of a module, as the execution otherwise always assumes
+    the existence of one frame context, which is in fact true in the spec representation (due to the frame in the
+    config tuple) **)
 Definition run_ctx_invoke hs s ccs vs0 es0 a:
     run_step_ctx_result hs (s, ccs, (vs0, es0), Some (AI_invoke a)).
 Proof.
@@ -1098,13 +1103,10 @@ Proof.
   }
 Defined.
 
-Definition hs_cfg_ctx : Type := host_state * cfg_tuple_ctx.
-
 (* reformation to a valid configuration, if possible *)
 Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx.
 Proof.
   destruct cfg as [[[s ccs] sc] oe].
- (* destruct ccs as [ | cc ccs]; first by right. *)
   destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
   exact (Some (s, ccs', sc', oe')).
 Defined.
@@ -1115,9 +1117,41 @@ Definition run_v_init (s: store_record) (es: list administrative_instruction) : 
   | None => None
   end.
 
+Definition hs_cfg_ctx : Type := host_state * cfg_tuple_ctx.
+
+Fixpoint run_multi_step_ctx (fuel: nat) (hcfg: hs_cfg_ctx) : (option hs_cfg_ctx) + (list value) :=
+  match fuel with
+  | 0 => inl None
+  | S n =>
+      let (hs, cfg) := hcfg in
+      match run_one_step_ctx hs cfg with
+      | RSC_normal hs' cfg' HReduce =>
+          run_multi_step_ctx n (hs', cfg')
+      | RSC_value vs _ => inr vs
+      | _ => inl None
+      end
+  end.
+
+(** Auxiliary definition for running arbitrary expressions, not necessarily with a frame.
+    Requires knowing about the number of return values beforehand (can be obtained from typing).
+ **)
+
+Definition run_multi_step_raw (fuel: nat) (hs: host_state) (s: store_record) (f: frame) (es: list administrative_instruction) (arity: nat) : (option hs_cfg_ctx) + (list value) :=
+  match run_v_init s [::AI_local arity f es] with
+  | Some cfg => run_multi_step_ctx fuel (hs, cfg)
+  | None => inl None
+  end.
 
 Section Interp_ctx_progress.
-  
+
+(** A definition to what is considered a 'valid' tuple by the ctx interpreter.
+    This constraint seems restrictive, but in fact all Wasm runtime configuration can be expressed in this form:
+    the runtime configuration tuple (S; F; es) always has a frame F, which can be used to form the frame context
+    [AI_local n F es] (with the right choice of n).
+
+    The only exception is at the start of a module invocation (in fact not an exception, since the Wasm spec uses
+    an empty frame at the start), where the Invoke part comes to the rescue; but in principle it is not even needed.
+ **)
 Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
   match es with
   | [::AI_invoke _]
@@ -1309,4 +1343,7 @@ Definition run_v_init := @run_v_init host_function_eqType.
 
 Definition es_of_cfg := @es_of_cfg host_function_eqType host_instance.
 
+Definition run_multi_step_raw := @run_multi_step_raw host_function_eqType host_instance.
+
 End Interpreter_ctx_extract.
+
