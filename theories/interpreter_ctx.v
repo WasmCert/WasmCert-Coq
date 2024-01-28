@@ -766,12 +766,11 @@ Proof.
 
     - (* AI_basic (BI_get_global j) *)
       get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct (sglob_val s f.(f_inst) j) as [v|] eqn:Hsglob.
+      destruct (sglob_val s fc.(FC_frame).(f_inst) j) as [v|] eqn:Hsglob.
       + (* Some xx *)
         apply <<hs, (s, (fc, lcs) :: ccs', (v :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
-        by eapply r_get_global; subst.
+        by apply r_get_global.
       + (* None *)
         resolve_invalid_typing; simpl in Htype; invert_be_typing.
         inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
@@ -1132,15 +1131,18 @@ Fixpoint run_multi_step_ctx (fuel: nat) (hcfg: hs_cfg_ctx) : (option hs_cfg_ctx)
       end
   end.
 
-(** Auxiliary definition for running arbitrary expressions, not necessarily with a frame.
+(** Auxiliary definition for running arbitrary expressions, not necessarily with a frame within the expression decomposition.
     Requires knowing about the number of return values beforehand (can be obtained from typing).
+    Note that this definition should *never* be used in the extracted code due to the inefficient
+    usage of fuel. It is only used internally during module instantiation.
  **)
 
-Definition run_multi_step_raw (fuel: nat) (hs: host_state) (s: store_record) (f: frame) (es: list administrative_instruction) (arity: nat) : (option hs_cfg_ctx) + (list value) :=
+Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction) (arity: nat) : (option hs_cfg_ctx) + (list value) :=
   match run_v_init s [::AI_local arity f es] with
   | Some cfg => run_multi_step_ctx fuel (hs, cfg)
   | None => inl None
   end.
+
 
 Section Interp_ctx_progress.
 
@@ -1280,47 +1282,10 @@ End Interp_ctx_progress.
 
 End Host.
 
-
 (** Extraction **)
-(* TODO: A workaround to use the monadic host defined in host.v to avoid reworking shim;
-   need a unified approach in the future *)
-Module EmptyHost.
-
-Definition host_function := void.
-
-Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
-Proof. decidable_equality. Defined.
-
-Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
-Definition host_functionP : Equality.axiom host_function_eqb :=
-  eq_dec_Equality_axiom host_function_eq_dec.
-
-Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Global Canonical Structure host_function_eqType :=
-  Eval hnf in EqType host_function host_function_eqMixin.
-
-Definition host : Type := host host_function_eqType.
-
-Definition store_record := store_record host_function.
-Definition function_closure := function_closure host_function.
-
-Definition host_instance : host.
-Proof.
-  by refine {|
-      host_state := unit_eqType ;
-      host_application _ _ _ _ _ _ _ := False
-    |}.
-Defined.
-
-Definition config_tuple := @config_tuple host_function.
-
-Definition host_state := host_state host_instance.
-
-End EmptyHost.
-
 Module Interpreter_ctx_extract.
 
-Import EmptyHost.
+Import interpreter_func.EmptyHost.
 
 (* No host function exists *)
 Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
@@ -1343,7 +1308,7 @@ Definition run_v_init := @run_v_init host_function_eqType.
 
 Definition es_of_cfg := @es_of_cfg host_function_eqType host_instance.
 
-Definition run_multi_step_raw := @run_multi_step_raw host_function_eqType host_instance.
+Definition run_multi_step_raw := @run_multi_step_raw host_function_eqType host_instance host_application_impl host_application_impl_correct tt.
 
 End Interpreter_ctx_extract.
 

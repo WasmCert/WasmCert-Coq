@@ -3,7 +3,7 @@
     in the evaluation of various initialisers. **)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import interpreter_func instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
+From Wasm Require Import interpreter_ctx instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
 From Coq Require Import Program.
 
 Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
@@ -185,8 +185,8 @@ Qed.
 
 Section Interp_instantiate.
   
-Import EmptyHost.
-Import Interpreter_func_extract.
+Import interpreter_func.EmptyHost.
+Import Interpreter_ctx_extract.
 
 Let instantiate := instantiate host_function_eqType host_instance.
 
@@ -330,64 +330,63 @@ Proof.
   by eexists; apply Hdatacheck.
 Qed.
 
-Lemma const_split_vals: forall es,
-    const_list es ->
-    snd (split_vals_e es) = nil.
+(* A slightly difficult proof due to having to prove additional properties of the certified interpreter.
+   Note that the reduction property can be obtained trivially, but any additional proofs on top are difficult.
+   In this case, we're 'misusing' the interpreter (running with the technically 'wrong' store) and proving that 
+   the result is still correct regardless -- therefore the predictable trouble here. *)
+Lemma interp_get_v_sglob: forall s inst j k,
+    interp_get_v s inst [::BI_get_global j] = Some k ->
+    sglob_val s inst j = Some k.
 Proof.
-  induction es => //; move => Hconst => /=.
-  simpl in Hconst; move/andP in Hconst; destruct Hconst as [Hconst Hconstes].
-  destruct a => //=.
-  destruct b => //=.
-  destruct (split_vals_e es) eqn:Hsplit => //=.
-  by apply IHes in Hconstes.
-Qed.
+  move => s inst j k Heval.
+  unfold interp_get_v, run_multi_step_raw, interpreter_ctx.run_multi_step_raw in Heval.
+  destruct (interpreter_ctx.run_v_init s _) eqn:Hrvi => //.
+  cbn in Hrvi.
+  injection Hrvi as <-.
+  destruct (run_multi_step_ctx _ _) as [ | vs] eqn:Hrmsc => //.
+  do 2 destruct vs => //.
+  injection Heval as ->.
+  unfold run_multi_step_ctx in Hrmsc.
+  
+  destruct (interpreter_ctx.run_one_step_ctx _ _) as [? cfg Hred | rvs | | ] eqn:Hrosc => //; last by destruct rvs => //.
+  destruct cfg as [[[hs ccs] sc] e].
+  simpl in Hred.
 
-Lemma reduce_get_globs {hf hi}: forall hs s f i hs' s' f' v,
-    @reduce hf hi hs s f [::AI_basic (BI_get_global i)] hs' s' f' [::AI_basic (BI_const v)] ->
-    sglob_val s f.(f_inst) i = Some v.
-Proof.
-  move => hs s f i hs' s' f' v' Hred.
-  dependent induction Hred; subst => //.
-  - by inversion H.
-  - by do 2 destruct vcs as [| ? vcs] => //.
-  - destruct lh as [vs ? | ? vs]; simpl in *; last by destruct vs.
-    destruct vs => //; simpl in *.
-    destruct es; first by simpl in *; subst; do 2 destruct es' as [| ? es'] => //.
-    destruct es'; first by simpl in *; subst; do 2 destruct es as [| ? es] => //.
-    destruct es, es', l => //; simpl in *; subst.
-    by apply IHHred.
-Qed.
+  simpl in Hrosc.
 
-Lemma interp_get_i32_reduce: forall hs s c inst k bes,
+  move: Hrosc.
+
+  (* Coq's destruct has no clue on how to generalize the terms correctly. *)
+  move: (@Logic.eq_refl (option value) (sglob_val s inst j)).
+  case: {2 3} (sglob_val s inst j) => /=.
+
+  - move => v Hsglob Heval.
+    inversion Heval; subst; clear Heval.
+    simpl in Hrmsc.
+    inversion Hrmsc; subst.
+    exact Hsglob.
+    
+  - move => ? Hcontra.
+    by inversion Hcontra.
+Qed.
+    
+Lemma interp_get_v_reduce: forall hs s c inst k bes,
     const_exprs c bes ->
     be_typing c bes (Tf [::] [::T_i32]) ->
-    interp_get_i32 s inst bes = Some k ->
+    interp_get_v s inst bes = Some k ->
     @reduce_trans host_function_eqType host_instance (hs, s, (Build_frame nil inst), (to_e_list bes))
-                 (hs, s, (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 k))]).
+                 (hs, s, (Build_frame nil inst), [::AI_basic (BI_const k)]).
 Proof.
   move => hs s c inst bes k Hconst Hbet Heval.
-  unfold interp_get_i32, interp_get_v in Heval.
   eapply const_exprs_impl in Hconst; eauto.
   destruct Hconst as [be [-> Hconst]].
   destruct be => //=.
-  - simpl in Heval.
-    destruct (interpreter_func.run_step _ _ _ _) as [ | | | | ???? Hred] => //.
+  - apply interp_get_v_sglob in Heval.
     constructor.
     unfold reduce_tuple.
-    destruct (es_is_trap es') => //.
-    destruct (const_list es') eqn:Hconstlist => //; last by destruct (interpreter_func.run_step _ hs' s' f' es').
-    destruct (split_vals_e es') eqn:Hsplit => //; simpl in Heval.
-    do 2 destruct l as [ | ? l] => //.
-    destruct v => //.
-    injection Heval as ->.
-    specialize (const_split_vals es' Hconstlist) as Hsplitempty.
-    rewrite Hsplit in Hsplitempty; simpl in Hsplitempty; subst l0.
-    apply split_vals_inv in Hsplit as ->.
-    simpl in Hred.
-    apply reduce_get_globs in Hred.
     by apply r_get_global.
-  - simpl in Heval.
-    destruct v => //=.
+  - unfold interp_get_v in Heval.
+    simpl in Heval.
     injection Heval as ->.
     by constructor.
 Qed.
@@ -410,7 +409,6 @@ Proof.
   move/andP in Hbounds.
   destruct Hbounds as [Helembounds Hdatabounds].
   injection Hinterp as <-<-<-<-.
-
 
   exists t_imps, t_exps, tt, s', g_inits, e_offs, d_offs.
 
@@ -455,7 +453,6 @@ Proof.
   - (* global initialisers -- hardest case, since it's the main difference in the 
        executable version *)
     unfold instantiate_globals.
-    unfold interp_get_v in Hglobinit.
     apply Forall2_spec; first by apply those_length in Hglobinit; rewrite length_is_size size_map in Hglobinit.
     move => n mglob gv Hnth1 Hnth2.
     eapply those_spec in Hglobinit; last by eauto.
@@ -477,32 +474,22 @@ Proof.
       simpl in *.
       destruct Hconst as [Hlen Himps].
       destruct (ext_t_globs t_imps !! i) eqn:Himpslookup => //.
-      destruct (interpreter_func.run_step _ _ _ _) as [ | | | | ???? Hred] => //.
-      destruct (es_is_trap es') => //.
-      destruct (const_list es') eqn:Hconstlist => //; last by destruct (interpreter_func.run_step _ hs' s'0 f' es').
-      destruct (split_vals_e es') eqn:Hsplit => //; simpl in Hglobinit.
-      do 2 destruct l as [ | ? l] => //.
-      injection Hglobinit as ->.
-      specialize (const_split_vals es' Hconstlist) as Hsplitempty.
-      rewrite Hsplit in Hsplitempty; simpl in Hsplitempty; subst l0.
-      apply Relation_Operators.rt_step => /=.
+      apply interp_get_v_sglob in Hglobinit.
+      constructor.
       apply r_get_global => /=.
-      apply split_vals_inv in Hsplit as ->.
-      apply reduce_get_globs in Hred.
       unfold sglob_val, sglob, sglob_ind in *.
       simpl in *.
-      rewrite List.nth_error_map in Hred.
+      remove_bools_options.
+      rewrite List.nth_error_map in Hoption.
       destruct ((ext_globs v_imps) !! i) as [[i0] | ] eqn:Hextv => //.
-      simpl in Hred.
       eapply vt_imps_globs_lookup in Hexttype; eauto; last by apply external_typing_relate.
       destruct Hexttype as [n' [Hvimpslookup Htimpslookup]].
       injection Halloc as <-<-<-.
       simpl in *.
       rewrite List.nth_error_map List.nth_error_app1; last by apply nth_error_Some_length in Hextv.
       rewrite Hextv => /=.
-      destruct (s_globals !! i0) eqn:Hsglob => //.
-      rewrite List.nth_error_app1; last by apply nth_error_Some_length in Hsglob.
-      by rewrite Hsglob.
+      rewrite List.nth_error_app1; last by apply nth_error_Some_length in Hoption.
+      by rewrite Hoption.
     }
     { (* const *)
       simpl in Hglobinit.
@@ -528,7 +515,9 @@ Proof.
     destruct melem, modelem_table => /=.
     remove_bools_options.
     move/b_e_type_checker_reflects_typing in H2.
-    by eapply interp_get_i32_reduce; eauto.
+    unfold interp_get_i32 in Helem; remove_bools_options.
+    destruct v => //; injection Helem as ->.
+    by eapply interp_get_v_reduce; eauto.
   - clear - instantiate Hmodcheck Hdata.
     unfold instantiate_data.
     apply Forall2_spec.
@@ -547,7 +536,9 @@ Proof.
     destruct mdata, moddata_data => /=.
     remove_bools_options.
     move/b_e_type_checker_reflects_typing in H1.
-    by eapply interp_get_i32_reduce; eauto.
+    unfold interp_get_i32 in Hdata; remove_bools_options.
+    destruct v => //; injection Hdata as ->.
+    by eapply interp_get_v_reduce; eauto.
   - by unfold check_start.
 Qed.
 

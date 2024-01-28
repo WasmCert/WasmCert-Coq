@@ -6,7 +6,7 @@ From Coq Require Import BinNat.
 
 Section Instantiation_func.
 
-Import EmptyHost.
+Import interpreter_func.EmptyHost.
 Import Interpreter_ctx_extract.
 
 Let alloc_funcs := alloc_funcs host_function_eqType.
@@ -20,7 +20,6 @@ Let init_mems := init_mems host_function_eqType.
 
 Let instantiate := instantiate host_function_eqType host_instance.
 Let interp_alloc_module := interp_alloc_module host_function_eqType.
-
 
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   let '(Mk_typeidx i) := m_f.(modfunc_type) in
@@ -214,8 +213,8 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   end.
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
-  match run_v s (Build_frame [::] inst) (operations.to_e_list b_es) 2 with
-  | (_, interpreter_func.R_value vs) =>
+  match run_multi_step_raw 5 s (Build_frame [::] inst) (operations.to_e_list b_es) 1 with
+  | inr vs =>
     match vs with
     | [:: v] => Some v
     | _ => None
@@ -311,7 +310,7 @@ End Instantiation_func.
 
 Module Instantiation_func_extract.
 
-Import EmptyHost.
+Import interpreter_func.EmptyHost.
 
 Definition lookup_exported_function :
     name -> host_state * store_record * instance * seq module_export ->
