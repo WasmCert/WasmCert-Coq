@@ -296,6 +296,7 @@ include Extract.Interpreter_ctx_extract
     | None -> debug_info verbosity result ~style:red (fun _ -> "invalid starting es\n"); exit 1
     )
 
+(* TODO: update the interactive to use the context-optimised version as well *)
 let instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m name =
   let* store_inst_exps =
     TopHost.from_out (

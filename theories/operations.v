@@ -450,6 +450,10 @@ Definition is_const (e : administrative_instruction) : bool :=
 Definition const_list (es : seq administrative_instruction) : bool :=
   List.forallb is_const es.
 
+(* The expected terminal instructions *)
+Definition terminal_form (es: seq administrative_instruction) :=
+  const_list es \/ es = [::AI_trap].
+
 Definition glob_extension (g1 g2: global) : bool :=
   ((g_mut g1 == MUT_mut) || ((g_val g1) == (g_val g2))) &&
     (g_mut g1 == g_mut g2) &&

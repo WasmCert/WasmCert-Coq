@@ -12,10 +12,6 @@ Open Scope string_scope.
 
 Section Host.
 
-  (*
-Import Interpreter_func_extract.
-   *)
-
 Variable host_function: eqType.
   
 Variable show_host_function : host_function -> string.
@@ -457,6 +453,7 @@ Definition pp_res_tuple_except_store : store_record * frame * res_step -> string
 
 Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
   pp_config_tuple_except_store host_function_eqType.
+
 
 Definition pp_administrative_instructions : nat -> list administrative_instruction -> string :=
   pp_administrative_instructions.

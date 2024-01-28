@@ -59,7 +59,7 @@ Proof.
   by destruct tc_local, tc_label, tc_return => //; destruct tc_types_t, tc_func_t, tc_global, tc_table, tc_memory => //.
 Qed.
 
-
+(** Auxiliary definition for reductions between context tuples **)
 Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
   match cfg with
   | (s, ccs, sc, oe) =>
@@ -82,6 +82,7 @@ Ltac red_ctx_simpl :=
       apply (list_label_ctx_eval.(ctx_reduce))
   end.
 
+(** Automatically trying to infer what to put aside using the L0 context (r_label) **)
 Ltac infer_hole :=
   repeat match goal with
   | |- context C [vs_to_es _] =>
@@ -150,7 +151,7 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   run_step_ctx_result hs cfg
 .
 
-
+(** The usual start of a crash certification **)
 Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
@@ -162,9 +163,9 @@ Ltac resolve_invalid_typing :=
   eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto;
   match type of Htype with
   | e_typing _ _ ((_ :: _) ⦃ _ ⦃ _ ⦄ ⦄) _ =>
-    apply e_typing_ops_local in Htype as [? [? [? [? [? [ts' [Hftype [? [? Htype]]]]]]]]]
+    apply e_typing_ops_local in Htype as [? [? [? [? [ts' [Hftype [? [? Htype]]]]]]]]
   | e_typing _ _ (_ ⦃ _ ⦃ _ ⦄ ⦄) (Tf nil _) =>
-    apply e_typing_ops in Htype as [? [? [ts' Htype]]]
+    apply e_typing_ops in Htype as [? [ts' Htype]]
   end;
   simpl in Htype;
   try (apply et_to_bet in Htype; last by auto_basic).
@@ -178,9 +179,11 @@ Ltac last_unequal H :=
   repeat rewrite size_rev in H;
   repeat rewrite map_take in H;
   simpl in H;
+  (try by inversion H);
   match type of H with
   | context C [take ?n _] =>
       try by destruct n
+  | _ => fail "unable to obtain a contradiction"
   end.
 
 Notation "<< hs , cfg >>" := (@RSC_normal _ _ hs cfg).
@@ -202,6 +205,7 @@ Proof.
   by move => ?? [<-].
 Qed.
 
+(** Br exits from one label context. **)
 Definition run_ctx_br: forall hs s ccs sc j,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic (BI_br j))).
 Proof.
@@ -243,7 +247,7 @@ Proof.
       apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]] => //.
       apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
       rewrite -> Hconsume in * => //; clear Hconsume.
-      apply sc_typing_args in Htype as [k [ts3 Htype]]; simpl in Htype.
+      apply sc_typing_args in Htype as [ts3 Htype]; simpl in Htype.
       apply et_to_bet in Htype; last by auto_basic.
       simpl in Htype; invert_be_typing.
       unfold plop2 in H2_br; move/eqP in H2_br.
@@ -253,7 +257,7 @@ Proof.
       eapply all2_projection in Hagree; eauto.
       move/eqP in Hagree; simpl in Hagree; subst.
       apply (f_equal size) in H3_br.
-      rewrite size_map size_cat drop_rev size_rev size_takel in H3_br; last by lias.
+      rewrite size_map size_cat size_rev in H3_br.
       repeat rewrite length_is_size in Hvslen.
       by lias.
       
@@ -265,11 +269,10 @@ Proof.
     apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]] => //.
     apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
     simpl in Htype.
-    apply e_composition_typing in Htype as [? [? [? [? [? [? [Htype1 Htype2]]]]]]]; subst.
-    rewrite -cat1s in Htype2.
-    apply e_composition_typing in Htype2 as [? [? [? [? [? [? [Htype3 Htype4]]]]]]]; subst.
-    apply et_to_bet in Htype3; last by auto_basic.
-    simpl in Htype3; invert_be_typing.
+    rewrite -cat1s in Htype.
+    invert_e_typing.
+    apply et_to_bet in H1_comp0; last by auto_basic.
+    simpl in H1_comp0; invert_be_typing.
     inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
     destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
     apply inst_t_context_label_empty in Hit; rewrite -> Hit in *; simpl in *.
@@ -278,7 +281,8 @@ Proof.
     rewrite cats0 in H1_br.
     by rewrite Hagree in H1_br; lias.
 Defined.
-    
+
+(** Return exits from the innermost frame and all label contexts **)
 Definition run_ctx_return: forall hs s ccs sc,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic BI_return)).
 Proof.  
@@ -299,14 +303,17 @@ Proof.
   - (* Not enough values *)
     resolve_invalid_typing; simpl in Htype; invert_be_typing.
     simpl in *; subst.
-    injection H2_return as ->.
     apply (f_equal size) in H1_return.
-    rewrite size_map size_cat drop_rev size_rev size_takel in H1_return; last by lias.
+    rewrite size_map size_cat size_rev in H1_return.
     repeat rewrite length_is_size in Hvslen.
+    injection H2_return as ->.
     by lias.
 Defined.
     
-(* Invoke does not need a frame context. This is useful for handling the starting invocation of a module *)
+(** Invoke does not need a frame context. 
+    This is useful for handling the starting invocation of a module, as the execution otherwise always assumes
+    the existence of one frame context, which is in fact true in the spec representation (due to the frame in the
+    config tuple) **)
 Definition run_ctx_invoke hs s ccs vs0 es0 a:
     run_step_ctx_result hs (s, ccs, (vs0, es0), Some (AI_invoke a)).
 Proof.
@@ -336,7 +343,7 @@ Proof.
         resolve_invalid_typing.
         eapply Invoke_func_native_typing in Htype as [ts1 [C' [Hvstype [? [Hit Hbet]]]]]; eauto; subst.
         apply (f_equal size) in Hvstype.
-        rewrite size_map size_cat drop_rev size_rev size_takel in Hvstype; last by lias.
+        rewrite size_map size_cat size_rev in Hvstype.
         repeat rewrite length_is_size in Hlen.
         by lias.
     + (* FC_func_host (Tf t1s t2s) cl' *)
@@ -392,7 +399,7 @@ Proof.
       resolve_invalid_typing.
       eapply Invoke_func_host_typing in Htype as [ts1 [Hvstype ?]]; eauto; subst.
       apply (f_equal size) in Hvstype.
-      rewrite size_map size_cat drop_rev size_rev size_takel in Hvstype; last by lias.
+      rewrite size_map size_cat size_rev in Hvstype.
       repeat rewrite length_is_size in Hlen.
       by lias.
   - (* None *)
@@ -439,14 +446,15 @@ Proof.
           eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
           apply ccs_typing_focus in Htype as [C [? [? [[ts1 ts2] Htype]]]].
           rewrite /= cats0 in Htype.
-          apply e_composition_typing in Htype as [ts' [ts1' [ts2' [ts3 [? [? [Htype1 Htype2]]]]]]]; subst.
-          rewrite -cat1s in Htype2.
-          apply e_composition_typing in Htype2 as [? [? [? [? [? [? [Htype3 Htype4]]]]]]]; subst.
-          apply Local_typing in Htype3 as [? [? [Htype ?]]]; subst.
-          inversion Htype as [????????? Hvstype]; subst; clear Htype.
+          rewrite -cat1s in Htype.
+          invert_e_typing.
+          inversion H2_local as [????????? Hvstype]; subst; clear H2_local.
           apply et_to_bet in Hvstype; last by apply const_list_is_basic, v_to_e_const.
-          apply Const_list_typing in Hvstype; subst; simpl in *.
-          by repeat rewrite length_is_size in Hlen; rewrite size_map size_rev in Hlen.
+          unfold vs_to_es in *.
+          invert_be_typing.
+          simpl in *; subst.
+          repeat rewrite length_is_size in Hlen.
+          by rewrite size_map size_rev in Hlen.
         }
       }
       (* Exitting a label *)
@@ -572,7 +580,7 @@ Proof.
         resolve_invalid_typing.
         simpl in Htype; invert_be_typing.
         apply (f_equal size) in H1_block.
-        rewrite size_map size_cat drop_rev size_rev size_takel in H1_block; last by lias.
+        rewrite size_map size_cat size_rev in H1_block.
         repeat rewrite length_is_size in Hlen.
         by lias.
 
@@ -599,7 +607,7 @@ Proof.
         resolve_invalid_typing.
         simpl in Htype; invert_be_typing.
         apply (f_equal size) in H1_loop.
-        rewrite size_map size_cat drop_rev size_rev size_takel in H1_loop; last by lias.
+        rewrite size_map size_cat size_rev in H1_loop.
         repeat rewrite length_is_size in Hlen.
         by lias.
 
@@ -758,12 +766,11 @@ Proof.
 
     - (* AI_basic (BI_get_global j) *)
       get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct (sglob_val s f.(f_inst) j) as [v|] eqn:Hsglob.
+      destruct (sglob_val s fc.(FC_frame).(f_inst) j) as [v|] eqn:Hsglob.
       + (* Some xx *)
         apply <<hs, (s, (fc, lcs) :: ccs', (v :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
-        by eapply r_get_global; subst.
+        by apply r_get_global.
       + (* None *)
         resolve_invalid_typing; simpl in Htype; invert_be_typing.
         inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
@@ -855,8 +862,7 @@ Proof.
         resolve_invalid_typing; simpl in Htype; invert_be_typing;
         simpl in *;
         apply (f_equal rev) in H1_store;
-        rewrite rev_cat -map_rev rev_drop revK size_rev map_take /= in H1_store;
-        destruct ((size vs0).+2 - x3) => //=; by destruct n.
+        rewrite rev_cat -map_rev revK /= in H1_store; by inversion H1_store.
       (* VAL_int32 c *)
       destruct (types_agree t v) eqn:?.
       + (* true *)
@@ -904,9 +910,7 @@ Proof.
         resolve_invalid_typing; simpl in Htype; invert_be_typing.
         simpl in *.
         unfold types_agree in Heqb; move/eqP in Heqb.
-        last_unequal H1_store.
-        destruct ((size vs0).+2-x3) => //; simpl in *.
-        by inversion H1_store.
+        by last_unequal H1_store.
 
     - (* AI_basic BI_current_memory *)
       get_cc ccs.    
@@ -1057,8 +1061,7 @@ Proof.
       + (* false *)
         resolve_invalid_typing; simpl in Htype; invert_be_typing.
         unfold types_agree in Ht1; move/eqP in Ht1.
-        last_unequal H1_cvtop.
-        by destruct ((size vs0).+1 - x0) => //; inversion H1_cvtop.
+        by last_unequal H1_cvtop.
 
     - (* AI_trap *)
       get_cc ccs.
@@ -1099,13 +1102,10 @@ Proof.
   }
 Defined.
 
-Definition hs_cfg_ctx : Type := host_state * cfg_tuple_ctx.
-
 (* reformation to a valid configuration, if possible *)
 Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx.
 Proof.
   destruct cfg as [[[s ccs] sc] oe].
- (* destruct ccs as [ | cc ccs]; first by right. *)
   destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
   exact (Some (s, ccs', sc', oe')).
 Defined.
@@ -1116,9 +1116,44 @@ Definition run_v_init (s: store_record) (es: list administrative_instruction) : 
   | None => None
   end.
 
+Definition hs_cfg_ctx : Type := host_state * cfg_tuple_ctx.
+
+Fixpoint run_multi_step_ctx (fuel: nat) (hcfg: hs_cfg_ctx) : (option hs_cfg_ctx) + (list value) :=
+  match fuel with
+  | 0 => inl None
+  | S n =>
+      let (hs, cfg) := hcfg in
+      match run_one_step_ctx hs cfg with
+      | RSC_normal hs' cfg' HReduce =>
+          run_multi_step_ctx n (hs', cfg')
+      | RSC_value vs _ => inr vs
+      | _ => inl None
+      end
+  end.
+
+(** Auxiliary definition for running arbitrary expressions, not necessarily with a frame within the expression decomposition.
+    Requires knowing about the number of return values beforehand (can be obtained from typing).
+    Note that this definition should *never* be used in the extracted code due to the inefficient
+    usage of fuel. It is only used internally during module instantiation.
+ **)
+
+Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction) (arity: nat) : (option hs_cfg_ctx) + (list value) :=
+  match run_v_init s [::AI_local arity f es] with
+  | Some cfg => run_multi_step_ctx fuel (hs, cfg)
+  | None => inl None
+  end.
+
 
 Section Interp_ctx_progress.
-  
+
+(** A definition to what is considered a 'valid' tuple by the ctx interpreter.
+    This constraint seems restrictive, but in fact all Wasm runtime configuration can be expressed in this form:
+    the runtime configuration tuple (S; F; es) always has a frame F, which can be used to form the frame context
+    [AI_local n F es] (with the right choice of n).
+
+    The only exception is at the start of a module invocation (in fact not an exception, since the Wasm spec uses
+    an empty frame at the start), where the Invoke part comes to the rescue; but in principle it is not even needed.
+ **)
 Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
   match es with
   | [::AI_invoke _]
@@ -1247,10 +1282,10 @@ End Interp_ctx_progress.
 
 End Host.
 
-
+(** Extraction **)
 Module Interpreter_ctx_extract.
 
-Import EmptyHost.
+Import interpreter_func.EmptyHost.
 
 (* No host function exists *)
 Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
@@ -1273,4 +1308,7 @@ Definition run_v_init := @run_v_init host_function_eqType.
 
 Definition es_of_cfg := @es_of_cfg host_function_eqType host_instance.
 
+Definition run_multi_step_raw := @run_multi_step_raw host_function_eqType host_instance host_application_impl host_application_impl_correct tt.
+
 End Interpreter_ctx_extract.
+

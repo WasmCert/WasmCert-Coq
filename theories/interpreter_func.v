@@ -1,9 +1,12 @@
+(*
+Old version of 'fancy' certified interpreter; currently not in use
+*)
+
 (** Proof-carrying interpreter for Wasm **)
 
-From Wasm Require Import common properties tactic typing_inversion.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Export operations host.
+From Wasm Require Export tactic typing_inversion host.
 Require Import BinNat.
 
 Set Implicit Arguments.
@@ -50,6 +53,9 @@ Let host_state := host_state host_instance.
 
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.
+
+Ltac invert_e_typing' :=
+  unfold e_typing in *; invert_e_typing.
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
@@ -209,18 +215,16 @@ Proof.
   intros s f e es es' es'' ves ? Hsplit Hrec Hcontra.
   destruct Hcontra as [C [C' [ret [lab [? [? [? [? [Hcat [? [? Hetype]]]]]]]]]]].
   apply split_vals_inv in Hsplit. subst es es'.
-  apply e_composition_typing in Hetype as [? [t1s [? [? [Ht1s [? [Hetypeves Hetype]]]]]]].
+  rewrite - cat1s in Hetype.
+  invert_e_typing'.
   apply_cat0_inv Hcat.
-  apply_cat0_inv Ht1s.
-  rewrite <- cat1s in Hetype.
-  apply e_composition_typing in Hetype as [ts [t2s [? [t3s [Ht2s [? [??]]]]]]].
-  apply et_to_bet in Hetypeves as Hbtypeves;
+  apply et_to_bet in H1_comp as Hbtypeves;
     last by apply const_list_is_basic; apply v_to_e_const.
   apply Const_list_typing in Hbtypeves.
-  apply Hrec. exists C, C', ret, lab, (ts ++ t2s), (ts ++ t3s), [::].
+  apply Hrec. exists (upd_label (upd_local_return C' (map typeof f.(f_locs)) ret) lab), C', ret, lab, ts3_comp, ts3_comp0, [::].
   repeat split => //; try by apply ety_weakening.
   rewrite map_rev revK.
-  rewrite <- Ht2s. by rewrite Hbtypeves.
+  done.
 Qed.
 
 Lemma break_rec : forall e es es'' ves k bvs,
@@ -1778,11 +1782,9 @@ Lemma br_arguments_length: forall s C ts t_br j bvs,
   length bvs >= length t_br.
 Proof.
   move => s C ts t_br j bvs Hetype Hplop.
-  apply e_composition_typing in Hetype
-      as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypebvs Hetypebr]]]]]]].
-  apply_cat0_inv Ht0s; simpl in *; subst.
-  apply et_to_bet in Hetypebr; last by auto_basic.
-  simpl in Hetypebr; invert_be_typing.
+  invert_e_typing'.
+  apply et_to_bet in H2_comp; last by auto_basic.
+  simpl in H2_comp; invert_be_typing.
   assert (t_br = ts_br).
   {
     unfold plop2 in *.
@@ -1790,12 +1792,12 @@ Proof.
     by rewrite Hplop in H2_br; injection H2_br.
   }
   subst.
-  apply et_to_bet in Hetypebvs;
+  apply et_to_bet in H1_comp;
     last by apply const_list_is_basic; apply v_to_e_const.
-  apply Const_list_typing in Hetypebvs.
-  simpl in Hetypebvs.
-  apply f_equal with (f := size) in Hetypebvs.
-  rewrite size_map size_cat size_rev in Hetypebvs.
+  apply Const_list_typing in H1_comp.
+  simpl in *.
+  apply f_equal with (f := size) in H1_comp.
+  rewrite size_map size_cat size_rev in H1_comp.
   repeat rewrite length_is_size; by lias.
 Qed.
 
@@ -1813,20 +1815,12 @@ Proof.
   - destruct vs => //.
     simpl in Hetype.
     apply e_composition_typing in Hetype
-      as [? [t0s [ts' [t1s' [Heq [-> [Hetypebvs Hetype]]]]]]].
-    apply_cat0_inv Heq => /=.
+      as  [t1s' [Hetypebvs Hetype]].
     by exists t1s', C.
   - simpl in *.
-    apply e_composition_typing in Hetype
-      as [? [t0s [ts' [t1s' [Ht0s [-> [Hetypevs Hetype]]]]]]].
-    apply_cat0_inv Ht0s.
     rewrite - cat1s in Hetype.
-    apply e_composition_typing in Hetype
-      as [? [t0s' [ts'' [t1s'' [-> [-> [Hetypebvs Hetype]]]]]]].
-    apply Label_typing in Hetypebvs
-      as [? [t2s' [-> [Hetypees' [HetypeLI Hlen]]]]].
-
-    eapply IH with (bvs := bvs) (m := m.+1) in HetypeLI
+    invert_e_typing'.
+    eapply IH with (bvs := bvs) (m := m.+1) in H3_label
       as [ts''' [C' [Hlab Hetypebase]]] => //; last by lias.
     by exists ts''', C' => //.
 Qed.
@@ -1935,15 +1929,12 @@ Proof.
   move => i.
   induction lh as [vs es' | k0 vs m es' lh' IH];
     intros j k s C bvs es t1s t2s Hlab Hetype Hlf; subst; simpl in Hetype; repeat rewrite catA in Hetype.
-  - apply e_composition_typing in Hetype as [? [? [? [? [-> [-> [Hetype _]]]]]]].
-    apply e_composition_typing in Hetype as [? [? [? [? [-> [-> [_ Hetypebr]]]]]]].
-    apply et_to_bet in Hetypebr; last by auto_basic.
-    by simpl in Hetypebr; invert_be_typing.
+  - invert_e_typing'.
+    apply et_to_bet in H2_comp0; last by auto_basic.
+    by simpl in H2_comp0; invert_be_typing.
   - rewrite - cat1s in Hetype.
-    apply e_composition_typing in Hetype as [? [t0s [? [t1s' [-> [-> [_ Hetype]]]]]]].
-    apply e_composition_typing in Hetype as [? [t1s [? [t2s' [-> [-> [Hetype _]]]]]]].
-    apply Label_typing in Hetype as [ts [t3s' [-> [_ [HetypeLI Hlen]]]]].
-    eapply IH in HetypeLI => //.
+    invert_e_typing'.
+    eapply IH in H3_label => //.
     simpl in *; by lias.
 Qed.
 
@@ -2010,20 +2001,12 @@ Proof.
   - destruct vs => //.
     inversion Hlf; subst; simpl in *.
     apply e_composition_typing in Hetype
-        as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypervs Hetype]]]]]]].
-    apply_cat0_inv Ht0s; simpl in *; subst.
+        as [t1s' [Hetypervs Hetype]].
     by exists t1s', C.
   - subst. simpl in *.
     rewrite - cat1s in Hetype.
-    repeat rewrite catA in Hlf.
-    apply e_composition_typing in Hetype
-        as [? [t0s [ts' [t1s' [Ht0s [-> [Hetypevs Hetype]]]]]]].
-    apply_cat0_inv Ht0s; subst.
-    apply e_composition_typing in Hetype
-        as [? [t0s' [ts'' [t1s'' [-> [-> [Hetypervs Hetype]]]]]]].
-    apply Label_typing in Hetypervs
-        as [? [ts2' [-> [Hetypees' [HetypeLI Hlen]]]]].
-    by eapply IH in HetypeLI; eauto.
+    invert_e_typing'.
+    by eapply IH in H3_label; eauto.
 Qed.
 
 Lemma return_arguments_length: forall s C ts t_ret rvs,
@@ -2032,20 +2015,18 @@ Lemma return_arguments_length: forall s C ts t_ret rvs,
     length rvs >= length t_ret.
 Proof.
   move => s C ts t_ret rvs Hetype Heqret.
-  apply e_composition_typing in Hetype
-      as [? [t0s [ts' [t1s' [Ht0s [Hts'' [Hetypervs Hetyperet]]]]]]].
-  apply_cat0_inv Ht0s; simpl in *; subst.
-  apply et_to_bet in Hetyperet; last by auto_basic.
-  simpl in Hetyperet; invert_be_typing.
+  invert_e_typing'.
+  apply et_to_bet in H2_comp; last by auto_basic.
+  simpl in H2_comp; invert_be_typing.
   rewrite H2_return in Heqret.
   injection Heqret; subst; clear Heqret.
   move => <-.
-  apply et_to_bet in Hetypervs;
+  apply et_to_bet in H1_comp;
     last by apply const_list_is_basic; apply v_to_e_const.
-  apply Const_list_typing in Hetypervs.
-  simpl in Hetypervs.
-  apply f_equal with (f := size) in Hetypervs.
-  rewrite size_map size_cat size_rev in Hetypervs.
+  apply Const_list_typing in H1_comp.
+  simpl in H1_comp.
+  apply f_equal with (f := size) in H1_comp.
+  rewrite size_map size_cat size_rev in H1_comp.
   repeat rewrite length_is_size; by lias.
 Qed.
 

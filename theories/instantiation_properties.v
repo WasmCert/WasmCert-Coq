@@ -5,6 +5,7 @@ Require Import Coq.Program.Equality List NArith.
 Require Export instantiation_spec.
 Require Export type_preservation type_progress properties.
 
+(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations for now *)
 Notation "l !! n" := (List.nth_error l n) (at level 10).
 
 Section module_typing_det.
@@ -903,27 +904,21 @@ Proof.
   { apply empty_typing in Hbet. by subst. }
   { rewrite <- cat1s in Hbet.
     invert_be_typing; subst.
-    destruct ts1_comp, ts3_comp => //; clear H2_comp.
-    simpl in Hconst.
-    move/andP in Hconst.
-    destruct Hconst as [Hconst Hconsts].
-    apply IHes in H4_comp => //.
-    destruct es, ts4_comp => //=.
-    unfold const_expr in Hconst.
-    destruct a => //; invert_be_typing; by destruct ts2_comp.
+    exfalso.
+    simpl in *.
+    remove_bools_options.
+    apply IHes in H2_comp => //.
+    destruct es, ts3_comp => //=.
+    unfold const_expr in H.
+    destruct a => //; invert_be_typing; by destruct t1.
   }
   { rewrite <- cat1s in Hbet.
-    apply composition_typing in Hbet.
-    destruct Hbet as [ts [t1s [t2s [t3s [-> [Heqt2 [Hbet1 Hbet2]]]]]]].
-    simpl in Hconst.
-    move/andP in Hconst.
-    destruct Hconst as [Hconst Hconsts].
-    eapply IHes in Hbet2 => //.
-    assert (length t2 + 1 = length ts + length t2s) as Hlent2.
-    { rewrite - app_length - cat_app - Heqt2.
-      by lias.
-    }
-    unfold const_expr in Hconst.
+    invert_be_typing.
+    simpl in *.
+    remove_bools_options.
+    eapply IHes in H2_comp => //.
+    simpl in H2_comp.
+    unfold const_expr in H.
     destruct a => //; invert_be_typing; rewrite -> app_length in *; simpl in *; by lias.
   }
 Qed.
