@@ -787,13 +787,20 @@ Proof.
   move => m m' y Htype Hext.
   unfold mem_typing in *.
   unfold mem_extension in Hext.
-  remove_bools_options.
-  apply/andP; split; last by apply/eqP; rewrite -H2 -H0.
-  { apply/N.leb_spec0.
-    move/N.leb_spec0 in H.
+  unfold limit_match in *.
+  remove_bools_options; simpl in *.
+  - apply/andP; split => /=.
+    { move/N.leb_spec0 in H.
+      move/N.leb_spec0 in H1.
+      apply/N.leb_spec0.
+      by lias.
+    }
+    by rewrite - H0 Hoption0.
+  - move/N.leb_spec0 in H.
     move/N.leb_spec0 in H1.
+    rewrite Bool.andb_true_r.
+    apply/N.leb_spec0.
     by lias.
-  }
 Qed.
 
 Lemma mem_extension_C: forall sm sm' im tcm,
@@ -822,9 +829,19 @@ Proof.
   move => t t' y Htype Hext.
   unfold tab_typing in *.
   unfold tab_extension in Hext.
-  remove_bools_options.
-  apply/andP; split; last by apply/eqP; rewrite -H0; lias.
-  by lias.
+  unfold limit_match in *.
+  simpl in *.
+  remove_bools_options; cbn.
+  - apply/andP; split.
+    { move/N.leb_spec0 in H1.
+      apply/N.leb_spec0.
+      by lias.
+    }
+    by rewrite -H0.
+  - move/N.leb_spec0 in H1.
+    rewrite Bool.andb_true_r.
+    apply/N.leb_spec0.
+    by lias.
 Qed.
 
 Lemma tab_extension_C: forall st st' it tct,

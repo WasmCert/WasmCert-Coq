@@ -629,10 +629,10 @@ Proof.
      this is no longer true in the future. *)
   exists (ET_tab {| tt_limits := {| lim_min := N.of_nat (tab_size tab); lim_max := table_max_opt tab |} ; tt_elem_type := ELT_funcref |}).
   econstructor; eauto.
-  unfold tab_typing => /=.
-  apply/andP; split => //.
-  rewrite nat_bin.
-  by lias.
+  unfold tab_typing, limit_match => /=.
+  apply/andP; split => //=; first by apply/N.leb_spec0; lias.
+  destruct (table_max_opt tab) eqn:Hopt => //.
+  by apply/N.leb_spec0; lias.
 Qed.
 
 Lemma ext_typing_exists_mem addr s:
@@ -647,12 +647,12 @@ Proof.
   destruct Hnth as [mem Hnth].
   
   (* Similar to tab_typing *)
-  exists (ET_mem {| lim_min := N.of_nat (mem_size mem); lim_max := mem_max_opt mem |}).
+  exists (ET_mem {| lim_min := mem_size mem; lim_max := mem_max_opt mem |}).
   econstructor; eauto.
-  unfold mem_typing => /=.
-  apply/andP; split => //.
-  rewrite nat_bin N2Nat.id.
-  by apply N.leb_refl.
+  unfold mem_typing, limit_match => /=.
+  apply/andP; split => //=; first by apply/N.leb_spec0; lias.
+  destruct (mem_max_opt mem) eqn:Hopt => //.
+  by apply/N.leb_spec0; lias.
 Qed.
 
 Lemma ext_typing_exists_glob addr s:
@@ -666,8 +666,6 @@ Proof.
     apply nth_error_Some in Hnth'; by lias. }
   destruct Hnth as [glob Hnth].
   
-  (* Note that all tables can be tab_typed. This lemma needs more information if
-     this is no longer true in the future. *)
   exists (ET_glob {| tg_mut := g_mut glob; tg_t := typeof (g_val glob) |}).
   econstructor; eauto.
   unfold global_agree => /=.
@@ -1044,9 +1042,13 @@ Proof.
                
                destruct tt. destruct tt_limits. simpl.
                rewrite /tab_typing. simpl.
-               apply/andP. split => //=.
-               rewrite /tab_size. simpl. 
-               by rewrite repeat_length.
+               apply/andP. split => /=.
+               - rewrite /tab_size. simpl. 
+                 rewrite repeat_length.
+                 apply/N.leb_spec0.
+                 by rewrite nat_bin N2Nat.id; lias.
+               - destruct lim_max => //.
+                 by apply/N.leb_spec0; lias.
              }
     -- (* memi_agree *)
       rewrite <- Forall2_all2 => /=.
@@ -1089,7 +1091,7 @@ Proof.
 
            destruct mt. 
            rewrite /mem_typing. simpl.
-           apply/andP. split => //=.
+           apply/andP. split => //=; last by destruct lim_max => //; apply/N.leb_spec0; lias.
            rewrite /mem_size /operations.mem_length /memory_list.mem_length. simpl.
            destruct lim_min => //.
            rewrite /page_size. simpl.
