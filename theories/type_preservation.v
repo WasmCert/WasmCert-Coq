@@ -1659,7 +1659,7 @@ Lemma t_preservation_vs_type: forall s f es s' f' es' C C' lab ret t1s t2s hs hs
     store_typing s' ->
     inst_typing s f.(f_inst) C ->
     inst_typing s' f.(f_inst) C' ->
-    e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) es (Tf t1s t2s) ->
+    e_typing s (upd_label (upd_local_return C (map typeof f.(f_locs) ++ tc_local C) ret) lab) es (Tf t1s t2s) ->
     map typeof f.(f_locs) = map typeof f'.(f_locs).
 Proof.
   move => s f es s' f' es' C C' lab ret t1s t2s hs hs' HReduce HST1 HST2 HIT1 HIT2 HType.
@@ -1670,10 +1670,11 @@ Proof.
     replace [::BI_const v; BI_set_local i] with ([::BI_const v] ++ [::BI_set_local i]) in HType => //=.
     invert_be_typing.
     replace (tc_local C) with ([::]: list value_type) in *; last by symmetry; eapply inst_t_context_local_empty; eauto.
+    rewrite -> cats0 in *.
     rewrite H1.
     rewrite set_nth_map => //.
     by rewrite set_nth_same_unchanged.
-  - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
+  - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (map typeof f.(f_locs) ++ tc_local C) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
     destruct H1 as [lab' [t1s' [t2s' Het]]].
     rewrite upd_label_overwrite in Het.
     by eapply IHHReduce; eauto.
@@ -1741,8 +1742,8 @@ Lemma t_preservation_e: forall s f es s' f' es' C t1s t2s lab ret hs hs',
     store_typing s' ->
     inst_typing s f.(f_inst) C ->
     inst_typing s' f.(f_inst) C ->
-    e_typing s (upd_label (upd_local_return C (tc_local C ++ map typeof f.(f_locs)) ret) lab) es (Tf t1s t2s) ->
-    e_typing s' (upd_label (upd_local_return C (tc_local C ++ map typeof f'.(f_locs)) ret) lab) es' (Tf t1s t2s).
+    e_typing s (upd_label (upd_local_return C (map typeof f.(f_locs) ++ tc_local C) ret) lab) es (Tf t1s t2s) ->
+    e_typing s' (upd_label (upd_local_return C (map typeof f'.(f_locs) ++ tc_local C) ret) lab) es' (Tf t1s t2s).
 Proof.
   move => s f es s' f' es' C t1s t2s lab ret hs hs' HReduce HST1 HST2.
   move: C ret lab t1s t2s.
@@ -1779,19 +1780,19 @@ Proof.
     remove_bools_options. subst.
     apply et_weakening_empty_1.
     assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite HCEmpty. simpl.
+    rewrite HCEmpty cats0. simpl.
     apply ety_local => //.
     eapply mk_s_typing; eauto.
     eapply mk_frame_typing; eauto.
     apply ety_a'; auto_basic => //=.
-    assert (HC2Empty: tc_label C2 = [::]); first by eapply inst_t_context_label_empty; eauto.
-    rewrite HC2Empty in H12.
     apply bet_block. simpl.
-    rewrite HC2Empty.
     rewrite H8.
     rewrite map_cat => //=.
     rewrite n_zeros_typing.
-    by destruct C2.
+    assert (HC2Empty: tc_local C2 = [::]); first by eapply inst_t_context_local_empty; eauto.
+    rewrite HC2Empty cats0.
+    assert (HC2EmptyLab: tc_label C2 = [::]); first by eapply inst_t_context_label_empty; eauto.
+    by rewrite HC2EmptyLab.
   - (* Invoke host *)
     invert_e_typing'.
     eapply Invoke_func_host_typing in H2_comp as [ts [H8 H9]]; eauto. subst.
@@ -1815,7 +1816,7 @@ Proof.
     invert_be_typing.
     apply ety_a'; auto_basic => //=.
     assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-    rewrite -> HCEmpty in *.
+    rewrite -> HCEmpty, cats0 in *.
     simpl in *.
     apply nth_error_map in H1_getlocal as [v' [HNth Hvt]]. subst.
     apply bet_weakening_empty_1.
@@ -1921,7 +1922,7 @@ Proof.
       * eapply et_const_agnostic; eauto; last by apply v_to_e_const.
       * eapply et_composition'; eauto.
         { assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
-          rewrite HCEmpty in H2_comp0. rewrite HCEmpty.
+          rewrite -> HCEmpty in H1_comp.
           replace (map typeof f'.(f_locs)) with (map typeof f.(f_locs)); last by eapply t_preservation_vs_type; eauto.
           eapply store_extension_e_typing; try apply HST1 => //; try by [].
           eapply store_extension_reduce; eauto.

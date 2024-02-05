@@ -934,7 +934,7 @@ Lemma Invoke_func_native_typing: forall s i C a cl tn tm ts es t1s t2s,
     cl = FC_func_native i (Tf tn tm) ts es ->
     exists ts' C', t1s = ts' ++ tn /\ t2s = ts' ++ tm /\
                 inst_typing s i C' /\
-               be_typing (upd_local_label_return C' (tc_local C' ++ tn ++ ts) ([::tm] ++ tc_label C') (Some tm)) es (Tf [::] tm).
+               be_typing (upd_local_label_return C' (tn ++ ts) ([::tm]) (Some tm)) es (Tf [::] tm).
 Proof.
   move => s i C a cl tn tm ts es t1s t2s HType HNth Hcl.
   gen_ind_subst HType => //.

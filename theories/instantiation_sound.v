@@ -92,7 +92,6 @@ Proof.
     by rewrite -> H.
 Qed.
 
-
 Let cl_type_check_single := @cl_type_check_single host_function.
 
 Lemma cl_type_check_single_aux s_funcs s_tables s_mems s_globals func funcs tabs mems globs:
@@ -111,7 +110,7 @@ Proof.
     rename H4 into Hinst_typing. rename H8 into Hbe_typing.
     apply cl_typing_native
       with (C := C)
-           (C' := upd_local_label_return C (tc_local C ++ t1s ++ ts) ([::t2s] ++ tc_label C) (Some t2s))
+           (C' := upd_local_label_return C (t1s ++ ts) ([::t2s]) (Some t2s))
           => //=.
     destruct C.
     rewrite /inst_typing. simpl.

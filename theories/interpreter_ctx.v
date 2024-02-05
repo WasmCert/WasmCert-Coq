@@ -734,7 +734,7 @@ Proof.
         inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
         destruct fc as [fvs fk ff fes]; simpl in *.
         apply inst_t_context_local_empty in Hit; rewrite -> Hit in *; simpl in *.
-        rewrite length_is_size size_map -length_is_size in H3_getlocal; by lias.
+        rewrite cats0 length_is_size size_map -length_is_size in H3_getlocal; by lias.
 
     - (* AI_basic (BI_set_local j) *)
       get_cc ccs.    
@@ -753,7 +753,7 @@ Proof.
           inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
           destruct fc as [fvs fk ff fes]; simpl in *.
           apply inst_t_context_local_empty in Hit; rewrite -> Hit in *; simpl in *.
-          rewrite length_is_size size_map -length_is_size in H3_setlocal; by lias.
+          rewrite cats0 length_is_size size_map -length_is_size in H3_setlocal; by lias.
 
     - (* AI_basic (BI_tee_local j) *)
       destruct vs0 as [|v vs0].

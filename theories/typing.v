@@ -283,7 +283,7 @@ Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
     inst_typing s i C ->
     f.(f_inst) = i ->
     map typeof f.(f_locs) = tvs ->
-    frame_typing s f (upd_local C (tc_local C ++ tvs))
+    frame_typing s f (upd_local C (tvs ++ tc_local C))
   .
 
 Lemma functions_agree_injective: forall s i t t',
@@ -305,7 +305,7 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
   | cl_typing_native : forall i s C C' ts t1s t2s es tf,
     inst_typing s i C ->
     tf = Tf t1s t2s ->
-    C' = upd_local_label_return C (tc_local C ++ t1s ++ ts) ([::t2s] ++ tc_label C) (Some t2s) ->
+    C' = upd_local_label_return C (t1s ++ ts) ([::t2s]) (Some t2s) ->
     be_typing C' es (Tf [::] t2s) ->
     cl_typing s (FC_func_native i tf ts es) (Tf t1s t2s)
   | cl_typing_host : forall s tf h,
