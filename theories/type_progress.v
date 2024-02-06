@@ -1082,7 +1082,7 @@ Proof.
     { (* Context *)
       assert (E : tc_local C1 = [::]).
       { by eapply inst_t_context_local_empty; eauto. }
-      rewrite E. simpl.
+      rewrite E cats0. simpl.
       by fold_upd_context. }
     { by instantiate (1 := [::]). }
     + unfold terminal_form in H0. destruct H0.
@@ -1114,7 +1114,7 @@ Proof.
     fold_upd_context.
     assert (E' : tc_label (upd_local_return C1 (map typeof f.(f_locs)) None) = [::]).
     { simpl. by eapply inst_t_context_label_empty; eauto. }
-    rewrite -E'.
+    rewrite -E' cats0.
     by destruct C1.
   - by eapply s_typing_lf_br; eauto.
   - by eapply s_typing_lf_return; eauto.

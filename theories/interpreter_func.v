@@ -1917,6 +1917,7 @@ Proof.
     last by apply inst_t_context_local_empty in Hitype'.
   replace (tc_label C''') with ([::] : seq (seq value_type)) in Hetype;
     last by apply inst_t_context_label_empty in Hitype'.
+  rewrite cats0 in Hetype.
   by apply Hetype.
 Qed.
 

@@ -241,9 +241,32 @@ Definition global_agree (g : global) (tg : global_type) : bool :=
 Definition globals_agree (gs : seq global) (n : nat) (tg : global_type) : bool :=
   (n < length gs) && (option_map (fun g => global_agree g tg) (List.nth_error gs n) == Some true).
 
+Definition functions_agree (fs : seq function_closure) (n : nat) (f : function_type) : bool :=
+  (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
+
+Definition limit_match (l1 l2: limits) : bool :=
+  (N.leb l2.(lim_min) l1.(lim_min)) &&
+    match l2.(lim_max) with
+    | None => true
+    | Some lmax2 =>
+        match l1.(lim_max) with
+        | Some lmax1 => (N.leb lmax1 lmax2)
+        | None => false
+        end
+    end.
+
+Definition tab_typing (t : tableinst) (tt : table_type) : bool :=
+  limit_match (Build_limits (N.of_nat (tab_size t)) t.(table_max_opt)) tt.(tt_limits).
+
+Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool :=
+  (n < List.length ts) &&
+  match List.nth_error ts n with
+  | None => false
+  | Some x => tab_typing x tab_t
+  end.
+
 Definition mem_typing (m : memory) (m_t : memory_type) : bool :=
-  (N.leb m_t.(lim_min) (mem_size m)) &&
-  (m.(mem_max_opt) == m_t.(lim_max)) (* TODO: mismatch *).
+  limit_match (Build_limits (mem_size m) m.(mem_max_opt)) m_t.
 
 Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool :=
   (n < length ms) &&
@@ -252,19 +275,6 @@ Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool 
   | None => false
   end.
 
-Definition functions_agree (fs : seq function_closure) (n : nat) (f : function_type) : bool :=
-  (n < length fs) && (option_map cl_type (List.nth_error fs n) == Some f).
-
-Definition tab_typing (t : tableinst) (tt : table_type) : bool :=
-  (tt.(tt_limits).(lim_min) <= tab_size t) &&
-  (t.(table_max_opt) <= tt.(tt_limits).(lim_max)).
-
-Definition tabi_agree ts (n : nat) (tab_t : table_type) : bool :=
-  (n < List.length ts) &&
-  match List.nth_error ts n with
-  | None => false
-  | Some x => tab_typing x tab_t
-  end.
 
 Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bool :=
   let '{| inst_types := ts; inst_funcs := fs; inst_tab := tbs; inst_memory := ms; inst_globs := gs; |} := inst in
@@ -283,7 +293,7 @@ Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
     inst_typing s i C ->
     f.(f_inst) = i ->
     map typeof f.(f_locs) = tvs ->
-    frame_typing s f (upd_local C (tc_local C ++ tvs))
+    frame_typing s f (upd_local C (tvs ++ tc_local C))
   .
 
 Lemma functions_agree_injective: forall s i t t',
@@ -305,7 +315,7 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
   | cl_typing_native : forall i s C C' ts t1s t2s es tf,
     inst_typing s i C ->
     tf = Tf t1s t2s ->
-    C' = upd_local_label_return C (tc_local C ++ t1s ++ ts) ([::t2s] ++ tc_label C) (Some t2s) ->
+    C' = upd_local_label_return C (t1s ++ ts) ([::t2s]) (Some t2s) ->
     be_typing C' es (Tf [::] t2s) ->
     cl_typing s (FC_func_native i tf ts es) (Tf t1s t2s)
   | cl_typing_host : forall s tf h,

@@ -275,8 +275,8 @@ Definition module_func_typing (c : t_context) (m : module_func) (tf : function_t
     tc_global := c.(tc_global);
     tc_table := c.(tc_table);
     tc_memory := c.(tc_memory);
-    tc_local := c.(tc_local) ++ tn ++ t_locs;
-    tc_label := tm :: c.(tc_label);
+    tc_local := tn ++ t_locs;
+    tc_label := [::tm];
     tc_return := Some tm;
   |} in
   typing.be_typing c' b_es (Tf [::] tm).
