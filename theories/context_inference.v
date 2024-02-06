@@ -106,31 +106,94 @@ Proof.
   by lias.
 Qed.
 
+Lemma mem_typing_inf_agree: forall xs n x,
+    mem_typing_inf xs n = Some x ->
+    memi_agree xs n x.
+Proof.
+  move => xs n x.
+  unfold mem_typing_inf, memi_agree, mem_typing, limit_match.
+  destruct (List.nth_error xs n) as [ x' | ] eqn:Hnth => //=.
+  assert (n < length xs)%coq_nat as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
+  move => Hinf.
+  move/ltP in Hlen.
+  rewrite Hlen => /=.
+  injection Hinf as <-.
+  cbn.
+  rewrite Bool.andb_true_r.
+  apply/N.leb_spec0.
+  by lias.
+Qed.
 
-Lemma those_all2_agree {X Y Z: eqType}: forall (xs: list X) (ns: list Y) (ts: list Z) (f: list X -> Y -> option Z) (g: list X -> Y -> Z -> bool),
-    (forall xs n x, (f xs n == Some x) = g xs n x) ->
-    ((those (map (f xs) ns) == Some ts) = all2 (g xs) ns ts).
+Lemma global_typing_inf_agree: forall xs n x,
+    (global_typing_inf xs n = Some x) ->
+    globals_agree xs n x.
+Proof.
+  move => xs n x.
+  unfold global_typing_inf, globals_agree, global_agree.
+  destruct (List.nth_error xs n) as [ x' | ] eqn:Hnth => //=.
+  assert (n < length xs)%coq_nat as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
+    move/ltP in Hlen.
+    rewrite Hlen => /=.
+    move => [<-] => /=.
+    apply/eqP; f_equal.
+    by lias.
+Qed.
+
+Lemma those_all2_impl {X Y Z: Type}: forall (xs: list X) (ns: list Y) (ts: list Z) (f: list X -> Y -> option Z) (g: list X -> Y -> Z -> bool),
+    (forall xs n x, f xs n = Some x -> g xs n x) ->
+    (those (map (f xs) ns) = Some ts) ->
+    all2 (g xs) ns ts.
 Proof.
   setoid_rewrite <- those_those0.
   move => xs.
-  elim => //=.
-  move => y ys IH ts f g Heq.
-  destruct (f xs y) as [t | ] eqn:Hf => /=; move/eqP in Hf; destruct ts => //=; 
-  destruct (those0 (map (f xs) ys)) as [ts' | ] eqn:Hthose => //=; cbn;
-  try (erewrite <- IH; last by apply Heq);
-  try (rewrite Hthose); cbn;
-  try (move/eqP in Hf; rewrite -Heq Hf); cbn => //.
-  by lias.
+  elim => //=; first by intros; destruct ts.
+  move => y ys IH ts f g Heq Himpl.
+  remove_bools_options.
+  apply Heq in Hoption.
+  eapply IH in Hoption0; last by apply Heq.
+  by rewrite Hoption Hoption0.
 Qed.
   
-Lemma funcs_typing_inf_agree: forall s inst fts,
-  (funcs_typing_inf s inst == Some fts) =
-  all2 (functions_agree s.(s_funcs)) inst.(inst_funcs) fts.
+Lemma funcs_typing_inf_agree: forall s inst xts,
+  (funcs_typing_inf s inst = Some xts) ->
+  all2 (functions_agree s.(s_funcs)) inst.(inst_funcs) xts.
 Proof.
-  move => f inst fts.
-  unfold funcs_typing_inf.
-  apply those_all2_agree.
-  by apply func_typing_inf_agree.
+  move => f inst xts Hinf.
+  unfold funcs_typing_inf in Hinf.
+  eapply those_all2_impl; eauto.
+  intros.
+  rewrite <- func_typing_inf_agree.
+  by apply/eqP.
+Qed.
+
+Lemma tabs_typing_inf_agree: forall s inst xts,
+  (tabs_typing_inf s inst = Some xts) ->
+  all2 (tabi_agree s.(s_tables)) inst.(inst_tab) xts.
+Proof.
+  move => f inst fts Hinf.
+  eapply those_all2_impl; eauto.
+  intros.
+  by apply tab_typing_inf_agree.
+Qed.
+
+Lemma mems_typing_inf_agree: forall s inst xts,
+  (mems_typing_inf s inst = Some xts) ->
+  all2 (memi_agree s.(s_mems)) inst.(inst_memory) xts.
+Proof.
+  move => f inst fts Hinf.
+  eapply those_all2_impl; eauto.
+  intros.
+  by apply mem_typing_inf_agree.
+Qed.
+
+Lemma globals_typing_inf_agree: forall s inst xts,
+  (globals_typing_inf s inst = Some xts) ->
+  all2 (globals_agree s.(s_globals)) inst.(inst_globs) xts.
+Proof.
+  move => f inst fts Hinf.
+  eapply those_all2_impl; eauto.
+  intros.
+  by apply global_typing_inf_agree.
 Qed.
 
 Lemma inst_typing_inf_impl: forall s inst C,
@@ -141,7 +204,11 @@ Proof.
   unfold inst_typing_inf in Hinf.
   destruct inst.
   remove_bools_options => /=.
-  apply/andP; split.
-Admitted.
+  apply/andP; split; last by apply mems_typing_inf_agree in Hoption1.
+  apply/andP; split; last by apply tabs_typing_inf_agree in Hoption0.
+  apply/andP; split; last by apply globals_typing_inf_agree in Hoption2.
+  apply/andP; split; last by apply funcs_typing_inf_agree in Hoption.
+  by apply/eqP.
+Defined.
   
 End Context_inference.
