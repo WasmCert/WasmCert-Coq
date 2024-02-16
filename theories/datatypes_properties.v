@@ -194,6 +194,15 @@ Definition eqvalue_refP : Equality.axiom value_ref_eqb :=
 Canonical Structure value_ref_eqMixin := EqMixin eqvalue_refP.
 Canonical Structure value_ref_eqType := Eval hnf in EqType value_ref value_ref_eqMixin.
 
+Definition u32_eq_dec : forall v1 v2: u32, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition u32_eqb v1 v2 : bool := u32_eq_dec v1 v2.
+Definition equ32P : Equality.axiom u32_eqb := eq_dec_Equality_axiom u32_eq_dec.
+
+Canonical Structure u32_eqMixin := EqMixin equ32P.
+Canonical Structure u32_eqType := Eval hnf in EqType u32 u32_eqMixin.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
@@ -203,7 +212,22 @@ Definition basic_instruction_ind' (P : basic_instruction -> Prop) :=
 
 Definition basic_instruction_eq_dec : forall e1 e2 : basic_instruction,
   {e1 = e2} + {e1 <> e2}.
-Proof. decidable_equality_using basic_instruction_rect'. Defined.
+Proof.
+  induction e1; move => e2; destruct e2; (try by right; discriminate).
+  by decide_equality_injection; decidable_equality.
+  by decide_equality_injection; decidable_equality.
+  by decide_equality_injection; decidable_equality.
+  Print decide_equality_injection.
+  Print number_type.
+  Print testop.
+  decidable_equality.
+  by decide_equality_injection; decidable_equality.
+  by decide_equality_injection; decidable_equality.
+  by decide_equality_injection; decidable_equality.
+  by decide_equality_injection; decidable_equality.
+  by decide_equality_injection; decidable_equality.
+
+  Print Ltac decidable_equality_using. decidable_equality_using basic_instruction_rect'. Defined.
 
 Definition basic_instruction_eqb cl1 cl2 : bool :=
   basic_instruction_eq_dec cl1 cl2.

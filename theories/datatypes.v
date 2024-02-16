@@ -35,17 +35,17 @@ Label indices reference structured control instructions inside an instruction se
 
 [https://www.w3.org/TR/wasm-core-2/syntax/modules.html#indices]
 *)
-Definition u32 : Type := N.
+Definition u32 : Set := N.
 
-Definition typeidx : Type := u32.
-Definition funcidx : Type := u32.
-Definition tableidx : Type := u32.
-Definition memidx : Type := u32.
-Definition globalidx : Type := u32.
-Definition elemidx : Type := u32.
-Definition dataidx : Type := u32.
-Definition localidx : Type := u32.
-Definition labelidx : Type := u32.
+Definition typeidx : Set := u32.
+Definition funcidx : Set := u32.
+Definition tableidx : Set := u32.
+Definition memidx : Set := u32.
+Definition globalidx : Set := u32.
+Definition elemidx : Set := u32.
+Definition dataidx : Set := u32.
+Definition localidx : Set := u32.
+Definition labelidx : Set := u32.
 
 
 (** std-doc:
@@ -63,13 +63,13 @@ instances or immutable globals).
 
 Definition addr := N.
 
-Definition funcaddr : Type := addr.
-Definition tableaddr : Type := addr.
-Definition memaddr : Type := addr.
-Definition globaladdr : Type := addr.
-Definition elemaddr : Type := addr.
-Definition dataaddr : Type := addr.
-Definition externaddr : Type := addr.
+Definition funcaddr : Set := addr.
+Definition tableaddr : Set := addr.
+Definition memaddr : Set := addr.
+Definition globaladdr : Set := addr.
+Definition elemaddr : Set := addr.
+Definition dataaddr : Set := addr.
+Definition externaddr : Set := addr.
 
 (** std-doc:
 WebAssembly programs operate on primitive numeric values. Moreover, in the definition of programs, immutable sequences of values occur to represent more complex data, such as text strings or other vectors.
@@ -83,7 +83,7 @@ Inductive value_num : Type :=
 .
 
 (* We are not implementing SIMD at the moment. *)
-Inductive value_vec : Type :=
+Inductive value_vec : Set :=
   | VAL_vec128: unit -> value_vec
 .
 
@@ -101,7 +101,7 @@ The types f32 and f64 classify 32 and 64 bit floating-point data, respectively. 
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#number-types]
 *)
-Inductive number_type : Type := 
+Inductive number_type : Set := 
   | T_i32
   | T_i64
   | T_f32
@@ -120,7 +120,7 @@ Vector types, like number types are transparent, meaning that their bit patterns
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#vector-types]
 *)
   
-Inductive vector_type : Type :=
+Inductive vector_type : Set :=
 | T_v128
 .
 
@@ -136,7 +136,7 @@ Reference types are opaque, meaning that neither their size nor their bit patter
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#reference-types]
 *)
-Inductive reference_type : Type := 
+Inductive reference_type : Set := 
 | T_funcref
 | T_externref
 .
@@ -147,7 +147,7 @@ Value types classify the individual values that WebAssembly code can compute wit
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#value-types]
 *)
-Inductive value_type: Type := (* t *)
+Inductive value_type: Set := (* t *)
 | T_num: number_type -> value_type
 | T_vec: vector_type -> value_type
 | T_ref: reference_type -> value_type
@@ -159,7 +159,7 @@ Result types classify the result of executing instructions or functions, which i
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#result-types]
 *)
-Definition result_type : Type :=
+Definition result_type : Set :=
   list value_type.
 
 
@@ -182,7 +182,7 @@ If no maximum is given, the respective storage can grow to any size.
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#limits]
 *)
-Record limits : Type := {
+Record limits : Set := {
   lim_min : u32;
   lim_max : option u32;
 }.
@@ -205,7 +205,7 @@ optionally maximum size. The limits are given in numbers of entries.
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#table-types]
 *)
-Record table_type : Type := {
+Record table_type : Set := {
   tt_limits : limits;
   tt_elem_type : reference_type;
 }.
@@ -215,7 +215,7 @@ Record table_type : Type := {
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#global-types]
 *)
-Inductive mutability : Type := (* mut *)
+Inductive mutability : Set := (* mut *)
   | MUT_const
   | MUT_var
   .
@@ -226,7 +226,7 @@ Global types classify global variables, which hold a value and can either be mut
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#global-types]
 *)
-Record global_type : Type := (* tg *) {
+Record global_type : Set := (* tg *) {
   tg_mut : mutability;
   tg_t : value_type
 }.
@@ -238,7 +238,7 @@ External types classify imports and external values with their respective types.
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#external-types]
 *)
   
-Inductive extern_type : Type :=
+Inductive extern_type : Set :=
 | ET_func : function_type -> extern_type
 | ET_table : table_type -> extern_type
 | ET_mem : memory_type -> extern_type
@@ -248,7 +248,7 @@ Inductive extern_type : Type :=
 (** std-doc:
 A structured instruction can consume input and produce output on the operand stack according to its annotated block type. 
 *)
-Inductive block_type : Type :=
+Inductive block_type : Set :=
 | BT_id: typeidx -> block_type
 | BT_valtype: option value_type -> block_type
 .
@@ -282,12 +282,12 @@ End Byte_Index.
 
 Module Byte_array := array.Make Byte_Index.
 
-Record data_vec : Type := {
+Record data_vec : Set := {
   dv_length : N;
   dv_array : Byte_array.array;
 }.
 
-Record memory : Type := {
+Record memory : Set := {
   mem_data : memory_list;
   mem_max_opt: option N; (* TODO: should be u32 *)
 }.
@@ -299,18 +299,18 @@ Section Instructions.
 (** * Basic Instructions **)
 
 
-Inductive sx : Type :=
+Inductive sx : Set :=
   | SX_S
   | SX_U
   .
 
-Inductive unop_i : Type :=
+Inductive unop_i : Set :=
   | UOI_clz
   | UOI_ctz
   | UOI_popcnt
   .
 
-Inductive unop_f : Type :=
+Inductive unop_f : Set :=
   | UOF_abs
   | UOF_neg
   | UOF_sqrt
@@ -320,12 +320,12 @@ Inductive unop_f : Type :=
   | UOF_nearest
   .
 
-Inductive unop : Type :=
+Inductive unop : Set :=
   | Unop_i : unop_i -> unop
   | Unop_f : unop_f -> unop
   .
 
-Inductive binop_i : Type :=
+Inductive binop_i : Set :=
   | BOI_add
   | BOI_sub
   | BOI_mul
@@ -340,7 +340,7 @@ Inductive binop_i : Type :=
   | BOI_rotr
   .
 
-Inductive binop_f : Type :=
+Inductive binop_f : Set :=
   | BOF_add
   | BOF_sub
   | BOF_mul
@@ -350,16 +350,16 @@ Inductive binop_f : Type :=
   | BOF_copysign
   .
 
-Inductive binop : Type :=
+Inductive binop : Set :=
   | Binop_i : binop_i -> binop
   | Binop_f : binop_f -> binop
   .
   
-Inductive testop : Type :=
+Inductive testop : Set :=
   | TO_eqz
   .
 
-Inductive relop_i : Type :=
+Inductive relop_i : Set :=
   | ROI_eq
   | ROI_ne
   | ROI_lt : sx -> relop_i
@@ -368,7 +368,7 @@ Inductive relop_i : Type :=
   | ROI_ge : sx -> relop_i
   .
 
-Inductive relop_f : Type :=
+Inductive relop_f : Set :=
   | ROF_eq
   | ROF_ne
   | ROF_lt
@@ -377,18 +377,18 @@ Inductive relop_f : Type :=
   | ROF_ge
   .
   
-Inductive relop : Type :=
+Inductive relop : Set :=
   | Relop_i : relop_i -> relop
   | Relop_f : relop_f -> relop
   .
 
 (* TODO: comment on the other cvtops *)
-Inductive cvtop : Type :=
+Inductive cvtop : Set :=
   | CVO_convert
   | CVO_reinterpret
   .
 
-Inductive packed_type : Type := (* tp *)
+Inductive packed_type : Set := (* tp *)
   | Tp_i8
   | Tp_i16
   | Tp_i32
@@ -485,7 +485,7 @@ const instructions and ref.null producing them.
 
 References other than null are represented with additional administrative instructions. They either are function references, pointing to a specific function address, or external references pointing to an uninterpreted form of extern address that can be defined by the embedder to represent its own objects.
 *)
-Inductive value_ref : Type :=
+Inductive value_ref : Set :=
 | VAL_ref_null: reference_type -> value_ref
 | VAL_ref_func: funcaddr -> value_ref
 | VAL_ref_extern: externaddr -> value_ref
@@ -513,18 +513,17 @@ Every import defines an index in the respective index space. In each index space
 [https://www.w3.org/TR/wasm-core-2/syntax/modules.html#imports]
 
 *)
-Inductive module_import_desc : Type :=
+Inductive module_import_desc : Set :=
 | MID_func : typeidx -> module_import_desc
 | MID_table : table_type -> module_import_desc
 | MID_mem : memory_type -> module_import_desc
 | MID_global : global_type -> module_import_desc.
 
-Record module_import : Type := {
+Record module_import : Set := {
   imp_module : name;
   imp_name : name;
   imp_desc : module_import_desc;
 }.
-
 
 Record module_func : Type := {
   modfunc_type : typeidx;
@@ -532,11 +531,11 @@ Record module_func : Type := {
   modfunc_body : expr;
 }.
 
-Record module_table : Type := {
+Record module_table : Set := {
   modtab_type : table_type;
 }.
 
-Record module_mem : Type := {
+Record module_mem : Set := {
   modmem_type : memory_type;
 }.
 
@@ -607,18 +606,18 @@ Record module_data : Type := {
   moddata_mode : module_datamode;  
 }.
 
-Record module_start : Type := {
+Record module_start : Set := {
   modstart_func : funcidx;
 }.
 
 
-Inductive module_export_desc : Type :=
+Inductive module_export_desc : Set :=
 | MED_func : funcidx -> module_export_desc
 | MED_table : tableidx -> module_export_desc
 | MED_mem : memidx -> module_export_desc
 | MED_global : globalidx -> module_export_desc.
 
-Record module_export : Type := {
+Record module_export : Set := {
   modexp_name : name;
   modexp_desc : module_export_desc;
 }.
@@ -680,9 +679,9 @@ as validation of an instruction sequence proceeds.
 [https://www.w3.org/TR/wasm-core-2/valid/conventions.html#contexts]
  *)
 
-Definition ok: Type := unit.
+Definition ok: Set := unit.
 
-Record t_context : Type := {
+Record t_context : Set := {
   tc_types : list function_type;
   tc_funcs : list function_type;
   tc_tables : list table_type;
@@ -709,7 +708,7 @@ Inductive result : Type :=
 Section Host.
 
 (** We assume a family of host functions. **)
-Variable host_function : Type.
+Variable host_function : Set.
 
 
 
@@ -726,7 +725,7 @@ never exceeds the maximum size of tabletype, if present.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#table-instances]
 *)
-Record tableinst : Type := {
+Record tableinst : Set := {
   tableinst_type : table_type;
   tableinst_elem : list value_ref;
 }.
@@ -747,7 +746,7 @@ size, never exceeds the maximum size of memtype, if present.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#memory-instances]
 *)
-Record meminst : Type := {
+Record meminst : Set := {
   meminst_type : memory_type;
   meminst_data: memory_list;
 }.
@@ -776,7 +775,7 @@ of references and their common type.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#element-instances]
 *)
-Record eleminst : Type := {
+Record eleminst : Set := {
   eleminst_type : reference_type;
   eleminst_elem : list value_ref;
 }.
@@ -787,7 +786,7 @@ A data instance is the runtime representation of a data segment. It holds a vect
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#data-instances]
 *)
-Record datainst : Type := {
+Record datainst : Set := {
   datainst_data : list byte;
 }.
 
@@ -877,7 +876,7 @@ instance, or global instances in the shared store.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#external-values]
 *)
-Inductive extern_value: Type :=
+Inductive extern_value: Set :=
 | extern_func: funcaddr -> extern_value
 | extern_table: tableaddr -> extern_value
 | extern_mem: memaddr -> extern_value
