@@ -20,26 +20,31 @@ Unset Printing Implicit Defensive.
 
 (** * Basic Datatypes **)
 
-(* TODO: need to have an appropriate definition of u32. *)
+(* TODO: use a more faithful definition of u32. *)
 
+(** std-doc:
+Definitions are referenced with zero-based indices. Each class of definition has its own index space, as distinguished by the following classes.
+
+The index space for functions, tables, memories and globals includes respective imports declared in the same module. The indices of these imports precede the indices of other definitions in the same index space.
+
+Element indices reference element segments and data indices reference data segments.
+
+The index space for locals is only accessible inside a function and includes the parameters of that function, which precede the local variables.
+
+Label indices reference structured control instructions inside an instruction sequence.
+
+[https://www.w3.org/TR/wasm-core-2/syntax/modules.html#indices]
+*)
 Definition u32 : Type := N.
 
 Definition typeidx : Type := u32.
-  
 Definition funcidx : Type := u32.
-
 Definition tableidx : Type := u32.
-
 Definition memidx : Type := u32.
-
 Definition globalidx : Type := u32.
-
 Definition elemidx : Type := u32.
-
 Definition dataidx : Type := u32.
-
 Definition localidx : Type := u32.
-
 Definition labelidx : Type := u32.
 
 
@@ -66,6 +71,24 @@ Definition elemaddr : Type := addr.
 Definition dataaddr : Type := addr.
 Definition externaddr : Type := addr.
 
+(** std-doc:
+WebAssembly programs operate on primitive numeric values. Moreover, in the definition of programs, immutable sequences of values occur to represent more complex data, such as text strings or other vectors.
+*)
+
+Inductive value_num : Type := 
+  | VAL_int32 : i32 -> value_num
+  | VAL_int64 : i64 -> value_num
+  | VAL_float32 : f32 -> value_num
+  | VAL_float64 : f64 -> value_num
+.
+
+(* We are not implementing SIMD at the moment. *)
+Inductive value_vec : Type :=
+  | VAL_vec128: unit -> value_vec
+.
+
+(* TODO: Unicode support? *)
+Definition name := list Byte.byte.
 
 Section Types.
 
@@ -75,6 +98,7 @@ Number types classify numeric values.
 The types i32 and i64 classify 32 and 64 bit integers, respectively. Integers are not inherently signed or unsigned, their interpretation is determined by individual operations.
 
 The types f32 and f64 classify 32 and 64 bit floating-point data, respectively. They correspond to the respective binary floating-point representations, also known as single and double precision, as defined by the IEEE 754-2019 standard (Section 3.3).
+
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#number-types]
 *)
 Inductive number_type : Type := 
@@ -159,8 +183,8 @@ If no maximum is given, the respective storage can grow to any size.
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#limits]
 *)
 Record limits : Type := {
-  lim_min : N; (* TODO: should be u32 *)
-  lim_max : option N; (* TODO: should be u32 *)
+  lim_min : u32;
+  lim_max : option u32;
 }.
 
 
@@ -178,7 +202,6 @@ Table types classify tables over elements of reference types within a size range
 
 Like memories, tables are constrained by limits for their minimum and
 optionally maximum size. The limits are given in numbers of entries.
-
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#table-types]
 *)
@@ -206,7 +229,7 @@ Global types classify global variables, which hold a value and can either be mut
 Record global_type : Type := (* tg *) {
   tg_mut : mutability;
   tg_t : value_type
-  }.
+}.
 
   
 (** std-doc:
@@ -232,13 +255,10 @@ Inductive block_type : Type :=
 
 End Types.
 
-(* TODO: Documentation. *)
 
-(* TODO: make these have structure; this will require monad-ifying the whole thing *)
+Definition static_offset := (* off *) u32. 
 
-Definition static_offset := (* off *) N. (* TODO: should be u32 *)
-
-Definition alignment_exponent := (* a *) N. (* TODO: should be u32 *)
+Definition alignment_exponent := (* a *) u32. 
 
 Definition serialise_i32 (i : i32) : bytes :=
   common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
@@ -272,92 +292,6 @@ Record memory : Type := {
   mem_max_opt: option N; (* TODO: should be u32 *)
 }.
 *)
-
-(** Typing context. **)
-(** std-doc:
-Validity of an individual definition is specified relative to a context, which
-collects relevant information about the surrounding module and the definitions
-in scope:
-- Types: the list of types defined in the current module.
-- Functions: the list of functions declared in the current module, represented
-  by their function type.
-- Tables: the list of tables declared in the current module, represented by
-  their table type.
-- Memories: the list of memories declared in the current module, represented by
-  their memory type.
-- Globals: the list of globals declared in the current module, represented by
-  their global type.
-- Element Segments: the list of element segments declared in the current module,
-  represented by their element type.
-- Data Segments: the list of data segments declared in the current module, each
-  represented by an ok entry.
-- Locals: the list of locals declared in the current function (including
-  parameters), represented by their value type.
-- Labels: the stack of labels accessible from the current position, represented
-  by their result type.
-- Return: the return type of the current function, represented as an optional
-  result type that is absent when no return is allowed, as in free-standing
-  expressions.
-- References: the list of function indices that occur in the module outside functions and can hence be used to form references inside them.
-
-In other words, a context contains a sequence of suitable types for each index
-space, describing each defined entry in that space. Locals, labels and return
-type are only used for validating instructions in function bodies, and are left
-empty elsewhere. The label stack is the only part of the context that changes
-as validation of an instruction sequence proceeds.
-
-https://www.w3.org/TR/wasm-core-2/valid/conventions.html#contexts
-*)
-Record t_context : Type := {
-  tc_type : list function_type;
-  tc_func : list function_type;
-  tc_table : list table_type;
-  tc_memory : list memory_type;
-  tc_global : list global_type;
-  tc_elem : list reference_type;
-  tc_data : list unit;
-  tc_local : list value_type;
-  tc_label : list (list value_type);
-  tc_return : option (list value_type);
-  tc_ref : list funcidx;
-}.
-
-(* TODO: update the name *)
-(** std-doc:
-WebAssembly computations manipulate values of the four basic value types:
-integers and floating-point data of 32 or 64 bit width each, respectively.
- *)
-
-Inductive value_num : Type := 
-  | VAL_int32 : i32 -> value_num
-  | VAL_int64 : i64 -> value_num
-  | VAL_float32 : f32 -> value_num
-  | VAL_float64 : f64 -> value_num
-.
-
-(* We are not implementing SIMD at the moment. *)
-Inductive value_vec : Type :=
-  | VAL_vec128: unit -> value_vec
-.
-
-Inductive value_ref : Type :=
-| VAL_ref_null: reference_type -> value_ref
-| VAL_ref_func: funcaddr -> value_ref
-| VAL_ref_extern: externaddr -> value_ref
-.
-
-Inductive value : Type :=
-| VAL_num: value_num -> value
-| VAL_vec: value_vec -> value
-| VAL_ref: value_ref -> value
-.
-
-Inductive result : Type :=
-| result_values : list value -> result
-(** Note from the specification:
-  In the current version of WebAssembly, a result can consist of at most one value. **)
-| result_trap : result
-.
 
   
 Section Instructions.
@@ -461,11 +395,64 @@ Inductive packed_type : Type := (* tp *)
   .
 
 Inductive basic_instruction : Type := (* be *)
+(** std-doc:
+Numeric instructions provide basic operations over numeric values of specific type. These operations closely match respective operations available in hardware.
+ **)
+  | BI_const_num : value_num -> basic_instruction
+  | BI_unop : number_type -> unop -> basic_instruction
+  | BI_binop : number_type -> binop -> basic_instruction
+  | BI_testop : number_type -> testop -> basic_instruction
+  | BI_relop : number_type -> relop -> basic_instruction
+  | BI_cvtop : number_type -> cvtop -> number_type -> option sx -> basic_instruction
+(** std-doc: (not implemented yet)
+Vector instructions (also known as SIMD instructions, single data multiple value) provide basic operations over values of vector type.
+**)
+  | BI_const_vec : value_vec -> basic_instruction
+(** std-doc:
+Instructions in this group are concerned with accessing references.
+**)
   | BI_ref_null : reference_type -> basic_instruction  
   | BI_ref_is_null
-  | BI_ref_func : funcidx -> basic_instruction  
+  | BI_ref_func : funcidx -> basic_instruction
+(** std-doc:
+Instructions in this group can operate on operands of any value type.
+**)
   | BI_drop
   | BI_select : option (list value_type) -> basic_instruction
+(** std-doc: 
+Variable instructions are concerned with access to local or global variables.
+**)
+  | BI_local_get : localidx -> basic_instruction
+  | BI_local_set : localidx -> basic_instruction
+  | BI_local_tee : localidx -> basic_instruction
+  | BI_global_get : globalidx -> basic_instruction
+| BI_global_set : globalidx -> basic_instruction
+(** std-doc:
+Instructions in this group are concerned with tables.
+**)
+  | BI_table_get : tableidx -> basic_instruction
+  | BI_table_set : tableidx -> basic_instruction
+  | BI_table_size : tableidx -> basic_instruction
+  | BI_table_grow : tableidx -> basic_instruction
+  | BI_table_fill : tableidx -> basic_instruction
+  | BI_table_copy : tableidx -> tableidx -> basic_instruction
+  | BI_table_init : tableidx -> elemidx -> basic_instruction
+  | BI_elem_drop : elemidx -> basic_instruction
+(** std-doc:
+Instructions in this group are concerned with linear memory.
+**)
+(* TODO: add comments on the implemented subset of memory load/store instructions *)                     
+  | BI_load : number_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
+  | BI_store : number_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
+  | BI_memory_size
+  | BI_memory_grow
+  | BI_memory_fill
+  | BI_memory_copy
+  | BI_memory_init: dataidx -> basic_instruction
+  | BI_data_drop: dataidx -> basic_instruction
+(** std-doc:
+Instructions in this group affect the flow of control.
+**)
   | BI_nop
   | BI_unreachable
   | BI_block : block_type -> list basic_instruction -> basic_instruction
@@ -477,34 +464,6 @@ Inductive basic_instruction : Type := (* be *)
   | BI_return
   | BI_call : funcidx -> basic_instruction
   | BI_call_indirect : tableidx -> typeidx -> basic_instruction
-  | BI_local_get : localidx -> basic_instruction
-  | BI_local_set : localidx -> basic_instruction
-  | BI_local_tee : localidx -> basic_instruction
-  | BI_global_get : globalidx -> basic_instruction
-  | BI_global_set : globalidx -> basic_instruction
-  | BI_table_get : tableidx -> basic_instruction
-  | BI_table_set : tableidx -> basic_instruction
-  | BI_table_size : tableidx -> basic_instruction
-  | BI_table_grow : tableidx -> basic_instruction
-  | BI_table_fill : tableidx -> basic_instruction
-  | BI_table_copy : tableidx -> tableidx -> basic_instruction
-  | BI_table_init : tableidx -> elemidx -> basic_instruction
-  | BI_elem_drop : elemidx -> basic_instruction
-  (* TODO: add comments on the implemented subset of instructions *)                     
-  | BI_load : number_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
-  | BI_store : number_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
-  | BI_memory_size
-  | BI_memory_grow
-  | BI_memory_fill
-  | BI_memory_copy
-  | BI_memory_init: dataidx -> basic_instruction
-  | BI_data_drop: dataidx -> basic_instruction
-  | BI_const : value -> basic_instruction
-  | BI_unop : number_type -> unop -> basic_instruction
-  | BI_binop : number_type -> binop -> basic_instruction
-  | BI_testop : number_type -> testop -> basic_instruction
-  | BI_relop : number_type -> relop -> basic_instruction
-  | BI_cvtop : number_type -> cvtop -> number_type -> option sx -> basic_instruction
   .
 
 
@@ -518,8 +477,25 @@ Definition expr := list basic_instruction.
 
 End Instructions.
 
-(* TODO: Unicode support? *)
-Definition name := list Byte.byte.
+(** std-doc:
+WebAssembly computations manipulate values of either the four basic number types, i.e., integers and floating-point data of 32 or 64 bit width each, of vectors of 128 bit width, or of reference type.
+
+In most places of the semantics, values of different types can occur. In order to avoid ambiguities, values are therefore represented with an abstract syntax that makes their type explicit. It is convenient to reuse the same notation as for the 
+const instructions and ref.null producing them.
+
+References other than null are represented with additional administrative instructions. They either are function references, pointing to a specific function address, or external references pointing to an uninterpreted form of extern address that can be defined by the embedder to represent its own objects.
+*)
+Inductive value_ref : Type :=
+| VAL_ref_null: reference_type -> value_ref
+| VAL_ref_func: funcaddr -> value_ref
+| VAL_ref_extern: externaddr -> value_ref
+.
+
+Inductive value : Type :=
+| VAL_num: value_num -> value
+| VAL_vec: value_vec -> value
+| VAL_ref: value_ref -> value
+.
 
 
 Section Modules.    
@@ -556,16 +532,13 @@ Record module_func : Type := {
   modfunc_body : expr;
 }.
 
-
 Record module_table : Type := {
   modtab_type : table_type;
 }.
 
-
 Record module_mem : Type := {
   modmem_type : memory_type;
 }.
-
 
 Record module_global : Type := {
   modglob_type : global_type;
@@ -634,7 +607,6 @@ Record module_data : Type := {
   moddata_mode : module_datamode;  
 }.
 
-
 Record module_start : Type := {
   modstart_func : funcidx;
 }.
@@ -670,6 +642,66 @@ Record module : Type := {
     
 End Modules.
 
+(** Validation **)
+
+(** Typing context. **)
+(** std-doc:
+Validity of an individual definition is specified relative to a context, which
+collects relevant information about the surrounding module and the definitions
+in scope:
+- Types: the list of types defined in the current module.
+- Functions: the list of functions declared in the current module, represented
+  by their function type.
+- Tables: the list of tables declared in the current module, represented by
+  their table type.
+- Memories: the list of memories declared in the current module, represented by
+  their memory type.
+- Globals: the list of globals declared in the current module, represented by
+  their global type.
+- Element Segments: the list of element segments declared in the current module,
+  represented by their element type.
+- Data Segments: the list of data segments declared in the current module, each
+  represented by an ok entry.
+- Locals: the list of locals declared in the current function (including
+  parameters), represented by their value type.
+- Labels: the stack of labels accessible from the current position, represented
+  by their result type.
+- Return: the return type of the current function, represented as an optional
+  result type that is absent when no return is allowed, as in free-standing
+  expressions.
+- References: the list of function indices that occur in the module outside functions and can hence be used to form references inside them.
+
+In other words, a context contains a sequence of suitable types for each index
+space, describing each defined entry in that space. Locals, labels and return
+type are only used for validating instructions in function bodies, and are left
+empty elsewhere. The label stack is the only part of the context that changes
+as validation of an instruction sequence proceeds.
+
+[https://www.w3.org/TR/wasm-core-2/valid/conventions.html#contexts]
+ *)
+
+Definition ok: Type := unit.
+
+Record t_context : Type := {
+  tc_types : list function_type;
+  tc_funcs : list function_type;
+  tc_tables : list table_type;
+  tc_mems : list memory_type;
+  tc_globals : list global_type;
+  tc_elems : list reference_type;
+  tc_datas : list ok;
+  tc_locals : list value_type;
+  tc_labels : list result_type;
+  tc_return : option result_type;
+  tc_ref : list funcidx;
+}.
+
+Inductive result : Type :=
+| result_values : list value -> result
+(** Note from the specification:
+  In the current version of WebAssembly, a result can consist of at most one value. **)
+| result_trap : result
+.
 
 
 (** * Functions and Store **)
@@ -788,7 +820,7 @@ instance have different names.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#module-instances]
 *)
-Record instance : Type := (* inst *) {
+Record moduleinst : Type := (* inst *) {
   inst_types : list function_type;
   inst_funcs : list funcaddr;
   inst_tables : list tableaddr;
@@ -798,7 +830,6 @@ Record instance : Type := (* inst *) {
   inst_datas : list dataaddr;
   inst_exports: list exportinst;  
 }.
-
 
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively
@@ -814,12 +845,10 @@ constraints that ensure the integrity of the runtime.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#function-instances]
 *)
-Inductive function_closure : Type := (* cl *)
-  | FC_func_native : instance -> function_type -> list value_type -> list basic_instruction -> function_closure
-  | FC_func_host : function_type -> host_function -> function_closure
+Inductive funcinst : Type := (* cl *)
+  | FC_func_native : function_type -> moduleinst -> module_func -> funcinst
+  | FC_func_host : function_type -> host_function -> funcinst
 .
-
-
 
 (** std-doc:
 The store represents all global state that can be manipulated by WebAssembly programs. 
@@ -833,7 +862,7 @@ anywhere else but the owning module instances.
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#store]
 *)
 Record store_record : Type := (* s *) {
-  s_funcs : list function_closure;
+  s_funcs : list funcinst;
   s_tables : list tableinst;
   s_mems : list meminst;
   s_globals : list globalinst;
@@ -862,7 +891,7 @@ Inductive extern_value: Type :=
 *)
 Record frame : Type := (* f *) {
   f_locs: list value;
-  f_inst: instance
+  f_inst: moduleinst
 }.
 
 
@@ -891,7 +920,7 @@ Inductive administrative_instruction : Type := (* e *)
 | AI_ref_extern: externaddr -> administrative_instruction
 | AI_invoke : funcaddr -> administrative_instruction
 | AI_label : nat -> list administrative_instruction -> list administrative_instruction -> administrative_instruction
-| AI_local : nat -> frame -> list administrative_instruction -> administrative_instruction
+| AI_frame : nat -> frame -> list administrative_instruction -> administrative_instruction
 .
 
 (** std-doc:
@@ -923,9 +952,6 @@ Definition thread : Type := frame * list administrative_instruction.
 Definition config_tuple : Type := store_record * thread.
 
 End Host.
-
-Notation "$VA v" := (AI_basic (BI_const (VAL_num v))) (at level 60). 
-Notation "$VB v" := (BI_const (VAL_num v)) (at level 60). 
 
 Arguments FC_func_native [host_function].
 
