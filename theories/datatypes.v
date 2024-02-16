@@ -922,21 +922,6 @@ Definition thread : Type := frame * list administrative_instruction.
 
 Definition config_tuple : Type := store_record * thread.
 
-Definition config_one_tuple_without_e : Type := store_record * frame * seq value.
-
-Inductive res_crash : Type :=
-  | C_error : res_crash
-  .
-
-Inductive res_step : Type :=
-  | RS_crash : res_crash -> res_step
-  | RS_break : nat -> seq value -> res_step
-  | RS_return : seq value -> res_step
-  | RS_normal : seq administrative_instruction -> res_step
-  .
-
-Definition res_tuple : Type := store_record * frame * res_step.
-
 End Host.
 
 Notation "$VA v" := (AI_basic (BI_const (VAL_num v))) (at level 60). 
