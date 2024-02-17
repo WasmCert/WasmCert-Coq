@@ -11,7 +11,11 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
+(* Placeholder for better array lookup in the future *)
+Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
+  List.nth_error l (N.to_nat n).
+
+Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil nil nil None nil.
 
 (** read `len` bytes from `m` starting at `start_idx` *)
 Definition read_bytes (m : meminst) (start_idx : N) (len : nat) : option bytes :=
@@ -39,16 +43,6 @@ Definition write_bytes (m : meminst) (start_idx : N) (bs : bytes) : option memin
   | Some dat => Some {| meminst_data := dat; meminst_type := m.(meminst_type); |}
   | None => None
   end.
-
-Definition upd_s_mem (s : store_record) (m : list meminst) : store_record :=
-  {|
-    s_funcs := s.(s_funcs);
-    s_tables := s.(s_tables);
-    s_mems := m;
-    s_globals := s.(s_globals);
-    s_elems := s.(s_elems);
-    s_datas := s.(s_datas);
-|}.
 
 Definition page_size : N := 65536%N.
 
@@ -376,12 +370,6 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
 Definition types_agree (t : value_type) (v : value) : bool :=
   (typeof v) == t.
 
-Definition cl_type (cl : function_closure) : function_type :=
-  match cl with
-  | FC_func_native _ tf _ _ => tf
-  | FC_func_host tf _ => tf
-  end.
-
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
 
@@ -395,112 +383,53 @@ Section Host.
 
 Variable host_function : eqType.
 
-Let function_closure := function_closure host_function.
+Let funcinst := funcinst host_function.
 Let store_record := store_record host_function.
 
-Definition cl_type (cl : function_closure) : function_type :=
+Definition cl_type (cl : funcinst) : function_type :=
   match cl with
-  | FC_func_native _ tf _ _ => tf
+  | FC_func_native tf _ _ => tf
   | FC_func_host tf _ => tf
   end.
 
-Definition upd_s_mem (s : store_record) (m : list memory) : store_record := {|
-  s_funcs := s.(s_funcs);
-  s_tables := s.(s_tables);
-  s_mems := m;
-  s_globals := s.(s_globals);
-|}.
+Definition upd_s_mem (s : store_record) (m : list meminst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := s.(s_tables);
+    s_mems := m;
+    s_globals := s.(s_globals);
+    s_elems := s.(s_elems);
+    s_datas := s.(s_datas);
+  |}.
 
-Definition page_size : N := (64 % N) * (1024 % N).
-
-Definition page_limit : N := 65536%N.
-
-Definition ml_valid (m: memory_list) : Prop :=
-  N.modulo (memory_list.mem_length m) page_size = 0%N.
-
-Definition mem_length (m : memory) : N :=
-  mem_length m.(mem_data).
-
-Definition mem_size (m : memory) : N :=
-  N.div (mem_length m) page_size.
-
-(** Grow the memory a given number of pages.
-  * @param len_delta: the number of pages to grow the memory by
-  *)
-
-Definition mem_grow (m : memory) (len_delta : N) : option memory :=
-  let new_size := N.add (mem_size m) len_delta in
-  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(mem_data) in
-  if N.leb new_size page_limit then
-  match m.(mem_max_opt) with
-  | Some maxlim =>
-    if N.leb new_size maxlim then
-        Some {|
-          mem_data := new_mem_data;
-          mem_max_opt := m.(mem_max_opt);
-          |}
-    else None
-  | None =>
-    Some {|
-      mem_data := new_mem_data;
-      mem_max_opt := m.(mem_max_opt);
-      |}
-  end
-  else None.
-
-(* TODO: We crucially need documentation here. *)
-
-Definition load (m : memory) (n : N) (off : static_offset) (l : nat) : option bytes :=
-  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
-  then read_bytes m (N.add n off) l
-  else None.
-
-Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
-(* TODO
-  let: msb := msb (msbyte bytes) in
-  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
-  bytes_takefill byte l bytes
-*)
-
-Definition load_packed (s : sx) (m : memory) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
-  option_map (sign_extend s l) (load m n off lp).
-
-Definition store (m : memory) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option memory :=
-  if N.leb (n + off + N.of_nat l) (mem_length m)
-  then write_bytes m (n + off) (bytes_takefill #00 l bs)
-  else None.
-
-Definition store_packed := store.
-
-Definition stypes (s : store_record) (i : instance) (j : nat) : option function_type :=
+Definition stypes (s : store_record) (i : moduleinst) (j : nat) : option function_type :=
   List.nth_error (inst_types i) j.
 
 
-Definition sfunc_ind (s : store_record) (i : instance) (j : nat) : option funcaddr :=
+Definition sfunc_ind (s : store_record) (i : moduleinst) (j : nat) : option funcaddr :=
   List.nth_error (inst_funcs i) j.
 
-Definition sfunc (s : store_record) (i : instance) (j : nat) : option function_closure :=
+Definition sfunc (s : store_record) (i : moduleinst) (j : nat) : option funcinst :=
   match sfunc_ind s i j with
   | Some a => List.nth_error (s_funcs s) (N.to_nat a)
   | None => None
   end.
 
                                          
-Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option globaladdr :=
+Definition sglob_ind (s : store_record) (i : moduleinst) (j : nat) : option globaladdr :=
   List.nth_error (inst_globals i) j.
 
-Definition sglob (s : store_record) (i : instance) (j : nat) : option globalinst :=
+Definition sglob (s : store_record) (i : moduleinst) (j : nat) : option globalinst :=
   match sglob_ind s i j with
   | Some a => List.nth_error (s_globals s) (N.to_nat a)
   | None => None
   end.
 
-Definition sglob_val (s : store_record) (i : instance) (j : nat) : option value :=
+Definition sglob_val (s : store_record) (i : moduleinst) (j : nat) : option value :=
   option_map g_val (sglob s i j).
 
 
-Definition smem_ind (s : store_record) (i : instance) : option memaddr :=
+Definition smem_ind (s : store_record) (i : moduleinst) : option memaddr :=
   match i.(inst_mems) with
   | nil => None
   | cons k _ => Some k
@@ -510,7 +439,7 @@ Definition tab_size (t: tableinst) : nat :=
   length (tableinst_elem t).
 
 
-Definition stab_elem (s: store_record) (inst: instance) (x: tableaddr) (i: nat) : option value_ref :=
+Definition stab_elem (s: store_record) (inst: moduleinst) (x: tableaddr) (i: nat) : option value_ref :=
   match List.nth_error inst.(inst_tables) x with
   | Some tabaddr =>
       match List.nth_error s.(s_tables) tabaddr with
@@ -521,7 +450,7 @@ Definition stab_elem (s: store_record) (inst: instance) (x: tableaddr) (i: nat) 
   end.
 
 
-Definition stab_update (s: store_record) (inst: instance) (x: tableaddr) (i: nat) (tabv: value_ref) : option store_record :=
+Definition stab_update (s: store_record) (inst: moduleinst) (x: tableaddr) (i: nat) (tabv: value_ref) : option store_record :=
   match List.nth_error inst.(inst_tables) x with
   | Some tabaddr =>
       match List.nth_error s.(s_tables) tabaddr with
@@ -564,13 +493,13 @@ Definition stab_addr (s: store_record) (f: frame) (c: nat) : option nat :=
   end.
 
 
-Definition stab_s (s : store_record) (i j : nat) : option function_closure :=
+Definition stab_s (s : store_record) (i j : nat) : option funcinst :=
   let n := stab_index s i j in
   option_bind
     (fun id => List.nth_error (s_funcs s) id)
   n.
 
-Definition stab (s : store_record) (i : instance) (j : nat) : option function_closure :=
+Definition stab (s : store_record) (i : moduleinst) (j : nat) : option funcinst :=
   match i.(inst_tab) with
   | nil => None
   | k :: _ => stab_s s k j
@@ -585,22 +514,13 @@ Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : opti
       Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs' (s_elems s) (s_datas s))
     (List.nth_error (s_globals s) k).
 
-Definition supdate_glob (s : store_record) (i : instance) (j : nat) (v : value) : option store_record :=
+Definition supdate_glob (s : store_record) (i : moduleinst) (j : nat) (v : value) : option store_record :=
   option_bind
     (fun k => supdate_glob_s s k v)
     (sglob_ind s i j).
 
-Definition is_const (e : administrative_instruction) : bool :=
-  if e is AI_basic (BI_const _) then true else false.
 
-Definition const_list (es : list administrative_instruction) : bool :=
-  List.forallb is_const es.
-
-(* The expected terminal instructions *)
-Definition terminal_form (es: seq administrative_instruction) :=
-  const_list es \/ es = [::AI_trap].
-
-Definition func_extension (f1 f2: function_closure) : bool :=
+Definition func_extension (f1 f2: funcinst) : bool :=
   f1 == f2.
 
 Definition table_extension (t1 t2 : tableinst) :=
@@ -626,9 +546,6 @@ Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list 
   (length l1 <= length l2) &&
   all2 ext_rel l1 (List.firstn (length l1) l2).
 
-Definition func_extension (f1 f2: function_closure) :=
-  f1 == f2.
-
 Definition comp_extension {T: Type} (l1 l2: list T) (f: T -> T -> bool) : bool :=
   (length l1 <= length l2) &&
   (all2 f l1 (take (length l1) l2)).
@@ -643,6 +560,20 @@ Definition store_extension (s s' : store_record) : bool :=
 
 
 
+Definition is_const (e : administrative_instruction) : bool :=
+  match e with
+  | AI_basic (BI_const_num _) => true
+  | AI_basic (BI_const_vec _) => true
+  | _ => false
+  end.
+
+Definition const_list (es : list administrative_instruction) : bool :=
+  List.forallb is_const es.
+
+(* The expected terminal instructions *)
+Definition terminal_form (es: seq administrative_instruction) :=
+  const_list es \/ es = [::AI_trap].
+
 Definition vs_to_vts (vs : list value) : list value_type := map typeof vs.
 
 Definition to_e_list (bes : list basic_instruction) : seq administrative_instruction :=
@@ -652,7 +583,7 @@ Definition to_e_list (bes : list basic_instruction) : seq administrative_instruc
 Definition to_b_single (e: administrative_instruction) : basic_instruction :=
   match e with
   | AI_basic x => x
-  | _ => BI_const (VAL_num (VAL_int32 (Wasm_int.Int32.zero)))
+  | _ => BI_const_num (VAL_int32 (Wasm_int.Int32.zero))
   end.
 
 Definition to_b_list (es: seq administrative_instruction) : seq basic_instruction :=
@@ -667,25 +598,56 @@ Definition to_b_single_opt (e: administrative_instruction) : option basic_instru
 Definition to_b_list_opt (es: seq administrative_instruction) : option (seq basic_instruction) :=
   those (map to_b_single_opt es).
 
-Definition e_is_basic (e: administrative_instruction) :=
-  exists be, e = AI_basic be.
+Definition e_is_basic (e: administrative_instruction) : bool :=
+  match e with
+  | AI_basic _ => true
+  | _ => false
+  end.
 
-Definition es_is_basic (es: list administrative_instruction) :=
-  List.Forall e_is_basic es.
+Definition es_is_basic (es: list administrative_instruction): bool :=
+  all e_is_basic es.
+
+Definition vref_to_e (vref: value_ref) : administrative_instruction :=
+  match vref with
+  | VAL_ref_null t => AI_basic (BI_ref_null t)
+  | VAL_ref_func addr => AI_ref addr
+  | VAL_ref_extern eaddr => AI_ref_extern eaddr
+  end.
 
 Definition v_to_e (v: value) : administrative_instruction :=
-  AI_basic (BI_const v).
+  match v with
+  | VAL_num v => AI_basic (BI_const_num v)
+  | VAL_vec v => AI_basic (BI_const_vec v)
+  | VAL_ref v => vref_to_e v
+  end.                      
 
 (** [v_to_e_list]: 
     takes a list of [v] and gives back a list where each [v] is mapped to the corresponding administrative instruction. **)
 Definition v_to_e_list (ves : seq value) : seq administrative_instruction :=
   map v_to_e ves.
 
+Definition e_to_vref (e: administrative_instruction) : value_ref :=
+  match e with
+  | AI_basic (BI_ref_null t) => VAL_ref_null t
+  | AI_ref addr => VAL_ref_func addr
+  | AI_ref_extern eaddr => VAL_ref_extern eaddr
+  | _ => VAL_ref_null T_funcref
+  end.
+
+Definition e_to_vref_opt (e: administrative_instruction) : option value_ref :=
+  match e with
+  | AI_basic (BI_ref_null t) => Some (VAL_ref_null t)
+  | AI_ref addr => Some (VAL_ref_func addr)
+  | AI_ref_extern eaddr => Some (VAL_ref_extern eaddr)
+  | _ => None
+  end.
+
 (* Two versions of converting admin instructions into values *)
 Definition e_to_v (e: administrative_instruction) : value :=
   match e with
-  | AI_basic (BI_const v) => v
-  | _ => VAL_int32 (Wasm_int.Int32.zero)
+  | AI_basic (BI_const_num v) => VAL_num v
+  | AI_basic (BI_const_vec v) => VAL_vec v
+  | _ => (VAL_ref (e_to_vref e))
   end.
 
 Definition e_to_v_list (es: seq administrative_instruction) : list value :=
@@ -693,8 +655,9 @@ Definition e_to_v_list (es: seq administrative_instruction) : list value :=
 
 Definition e_to_v_opt (e: administrative_instruction) : option value :=
   match e with
-  | AI_basic (BI_const v) => Some v
-  | _ => None
+  | AI_basic (BI_const_num v) => Some (VAL_num v)
+  | AI_basic (BI_const_vec v) => Some (VAL_vec v)
+  | _ => option_map VAL_ref (e_to_vref_opt e)
   end.
 
 Definition e_to_v_list_opt (es: list administrative_instruction) : option (list value) :=
@@ -711,10 +674,14 @@ Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq a
 
 Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruction :=
   match es with
-  | (BI_const v) :: es' =>
-    let: (vs', es'') := split_vals es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
+  | e :: es' =>
+      match e_to_v_opt (AI_basic e) with
+        | Some v => 
+            let: (vs', es'') := split_vals es' in
+            (v :: vs', es'')
+      | None => (nil, es)
+      end
+  | nil => (nil, nil)
   end.
 
 (** [split_vals_e es]: takes the maximum initial segment of [es] whose elements
@@ -723,10 +690,14 @@ Fixpoint split_vals (es : seq basic_instruction) : seq value * seq basic_instruc
     segment and [es] is the remainder of the original [es]. **)
 Fixpoint split_vals_e (es : seq administrative_instruction) : seq value * seq administrative_instruction :=
   match es with
-  | (AI_basic (BI_const v)) :: es' =>
-    let: (vs', es'') := split_vals_e es' in
-    (v :: vs', es'')
-  | _ => ([::], es)
+  | e :: es' =>
+      match e_to_v_opt e with
+        | Some v => 
+            let: (vs', es'') := split_vals_e es' in
+            (v :: vs', es'')
+      | None => (nil, es)
+      end
+  | nil => (nil, nil)
   end.
 
 Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
@@ -774,7 +745,7 @@ Definition result_types_agree (ts : result_type) r :=
 (** std-doc:
 https://www.w3.org/TR/wasm-core-2/exec/runtime.html#exec-expand
 **)
-Definition expand (inst: instance) (tb: block_type) : option function_type :=
+Definition expand (inst: moduleinst) (tb: block_type) : option function_type :=
   match tb with
   | BT_id n => List.nth_error inst.(inst_types) n
   | BT_valtype (Some t) => Some (Tf [::] [::t])
@@ -783,7 +754,7 @@ Definition expand (inst: instance) (tb: block_type) : option function_type :=
   
 Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
   match tb with
-  | BT_id n => List.nth_error C.(tc_type) n
+  | BT_id n => List.nth_error C.(tc_types) n
   | BT_valtype (Some t) => Some (Tf [::] [::t])
   | BT_valtype None => Some (Tf [::] [::])
   end.

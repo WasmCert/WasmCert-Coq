@@ -38,6 +38,14 @@ Definition eqnumber_typeP : Equality.axiom number_type_eqb :=
 Canonical Structure number_type_eqMixin := EqMixin eqnumber_typeP.
 Canonical Structure number_type_eqType := Eval hnf in EqType number_type number_type_eqMixin.
 
+Scheme Equality for reference_type.
+Definition reference_type_eqb v1 v2 : bool := reference_type_eq_dec v1 v2.
+Definition eqreference_typeP : Equality.axiom reference_type_eqb :=
+  eq_dec_Equality_axiom reference_type_eq_dec.
+
+Canonical Structure reference_type_eqMixin := EqMixin eqreference_typeP.
+Canonical Structure reference_type_eqType := Eval hnf in EqType reference_type reference_type_eqMixin.
+
 Scheme Equality for value_type.
 Definition value_type_eqb v1 v2 : bool := value_type_eq_dec v1 v2.
 Definition eqvalue_typeP : Equality.axiom value_type_eqb :=
@@ -203,6 +211,16 @@ Definition equ32P : Equality.axiom u32_eqb := eq_dec_Equality_axiom u32_eq_dec.
 Canonical Structure u32_eqMixin := EqMixin equ32P.
 Canonical Structure u32_eqType := Eval hnf in EqType u32 u32_eqMixin.
 
+Definition extern_type_eq_dec : forall v1 v2 : extern_type, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition extern_type_eqb v1 v2 : bool := extern_type_eq_dec v1 v2.
+Definition eqextern_typeP : Equality.axiom extern_type_eqb :=
+  eq_dec_Equality_axiom extern_type_eq_dec.
+
+Canonical Structure extern_type_eqMixin := EqMixin eqextern_typeP.
+Canonical Structure extern_type_eqType := Eval hnf in EqType extern_type extern_type_eqMixin.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
@@ -212,22 +230,7 @@ Definition basic_instruction_ind' (P : basic_instruction -> Prop) :=
 
 Definition basic_instruction_eq_dec : forall e1 e2 : basic_instruction,
   {e1 = e2} + {e1 <> e2}.
-Proof.
-  induction e1; move => e2; destruct e2; (try by right; discriminate).
-  by decide_equality_injection; decidable_equality.
-  by decide_equality_injection; decidable_equality.
-  by decide_equality_injection; decidable_equality.
-  Print decide_equality_injection.
-  Print number_type.
-  Print testop.
-  decidable_equality.
-  by decide_equality_injection; decidable_equality.
-  by decide_equality_injection; decidable_equality.
-  by decide_equality_injection; decidable_equality.
-  by decide_equality_injection; decidable_equality.
-  by decide_equality_injection; decidable_equality.
-
-  Print Ltac decidable_equality_using. decidable_equality_using basic_instruction_rect'. Defined.
+Proof. decidable_equality_using basic_instruction_rect'. Defined.
 
 Definition basic_instruction_eqb cl1 cl2 : bool :=
   basic_instruction_eq_dec cl1 cl2.
@@ -238,147 +241,39 @@ Canonical Structure basic_instruction_eqMixin := EqMixin eqbasic_instructionP.
 Canonical Structure basic_instruction_eqType :=
   Eval hnf in EqType basic_instruction basic_instruction_eqMixin.
 
-Definition instance_eq_dec : forall (i1 i2 : instance), {i1 = i2} + {i1 <> i2}.
+Definition moduleinst_eq_dec : forall (i1 i2 : moduleinst), {i1 = i2} + {i1 <> i2}.
 Proof. decidable_equality. Defined.
 
-Definition instance_eqb i1 i2 : bool := instance_eq_dec i1 i2.
+Definition moduleinst_eqb i1 i2 : bool := moduleinst_eq_dec i1 i2.
 
-Definition eqinstanceP : Equality.axiom instance_eqb :=
-  eq_dec_Equality_axiom instance_eq_dec.
+Definition eqmoduleinstP : Equality.axiom moduleinst_eqb :=
+  eq_dec_Equality_axiom moduleinst_eq_dec.
 
-Canonical Structure instance_eqMixin := EqMixin eqinstanceP.
-Canonical Structure instance_eqType := Eval hnf in EqType instance instance_eqMixin.
-
-(** Decidable equality of lholed without pulling in unnecessary 
-    equality axioms **)
-Section lholed_eqdec.
-
-Definition lholed_cast {k k'} (lh: lholed k) (Heq: k = k'): lholed k' :=
-  eq_rect k lholed lh k' Heq.
-
-(* Some combinations of theorem from standard library should give these as well,
-   but it's not clear which ones are axiom free *)
-Theorem nat_eqdec_refl: forall k, Nat.eq_dec k k = left (erefl k).
-Proof.
-  elim => //=.
-  move => k IH.
-  by rewrite IH.
-Defined.
-
-Definition nat_eqdec_canon k k' (H: k = k') : k = k' :=
-  match (Nat.eq_dec k k') with
-  | left e => e
-  | right ne => False_ind _ (ne H)
-  end.
-
-Theorem nat_eqdec_aux: forall (k: nat) (H: k = k), H = nat_eqdec_canon H.
-Proof.
-  move => k H.
-  case H.
-  unfold nat_eqdec_canon.
-  by rewrite nat_eqdec_refl.
-Defined.
-
-Theorem nat_eqdec_unique: forall (k: nat) (H: k = k), H = erefl k.
-Proof.
-  move => k H.
-  rewrite (nat_eqdec_aux H).
-  unfold nat_eqdec_canon.
-  by rewrite nat_eqdec_refl.
-Defined.
-
-Theorem lh_cast_eq {k} (lh: lholed k) (Heq: k = k):
-  @lholed_cast k k lh Heq = lh.
-Proof.
-  by rewrite (nat_eqdec_unique Heq).
-Qed.
-
-Ltac decide_eq_arg x y :=
-  let Heq := fresh "Heq" in
-  let Hcontra := fresh "Hcontra" in
-  destruct (x == y) eqn:Heq; move/eqP in Heq; subst; last by right; move => Hcontra; injection Hcontra.
-
-(* Destruct principle for a (lh n).
-   Usage: either direct application, or `destruct ... using lh_case.` *)
-Definition lh_case: forall n (P: lholed n -> Type),
-    (forall (H: 0 = n) vs es, P (lholed_cast (LH_base vs es) H)) ->
-    (forall n' (H: S n' = n) vs k es (lh: lholed n') es', P (lholed_cast (LH_rec vs k es lh es') H)) ->
-    (forall (lh: lholed n), P lh).
-Proof.
-  move => n P H0 Hrec lh.
-  destruct lh as [lvs les | n lvs k les lh les'].
-  - by specialize (H0 (erefl 0) lvs les).
-  - by specialize (Hrec _ (erefl (S n)) lvs k les lh les'). 
-Defined.
-
-(* Decidable equality of lholed without eq_rect_eq *)
-Definition lholed_eq_dec : forall k (lh1 lh2 : lholed k), {lh1 = lh2} + {lh1 <> lh2}.
-Proof.
-  elim.
-  {
-    move => lh1.
-    eapply lh_case; last done.
-    move => H vs es; rewrite lh_cast_eq.
-    move: lh1.
-    eapply lh_case; last done.
-    move => H' vs' es'; rewrite lh_cast_eq.
-    decide_eq_arg vs' vs.
-    decide_eq_arg es' es.
-    by left.
-  }
-  {
-    move => n IH lh.
-    eapply lh_case; first done.
-    move => n1 H1 vs1 k1 es1 lh1 es1'; injection H1 as ->; rewrite lh_cast_eq.
-    move: lh.
-    eapply lh_case; first done.
-    move => n2 H2 vs2 k2 es2 lh2 es2'; injection H2 as ->; rewrite lh_cast_eq.
-    decide_eq_arg vs2 vs1.
-    decide_eq_arg k2 k1.
-    decide_eq_arg es2 es1.
-    decide_eq_arg es2' es1'.
-    destruct (IH lh1 lh2) as [ | Hneq]; subst; first by left.
-    right. move => Hcontra; apply Hneq.
-    clear - Hcontra.
-    inversion Hcontra.
-    (* This one is axiom free *)
-    apply Eqdep_dec.inj_pair2_eq_dec in H0 => //.
-    decide equality.
-  }
-Defined.
-
-Definition lholed_eqb {k} (v1 v2: lholed k) : bool := lholed_eq_dec v1 v2.
-
-Definition eqlholedP {k} :=
-  eq_dec_Equality_axiom (@lholed_eq_dec k).
-
-Canonical Structure lholed_eqMixin {k} := EqMixin (@eqlholedP k).
-Canonical Structure lholed_eqType {k} := Eval hnf in EqType (@lholed k) (@lholed_eqMixin k).
-
-End lholed_eqdec.
+Canonical Structure moduleinst_eqMixin := EqMixin eqmoduleinstP.
+Canonical Structure moduleinst_eqType := Eval hnf in EqType moduleinst moduleinst_eqMixin.
 
 Section Host.
 
 Variable host_function : eqType.
 
-Let function_closure := function_closure host_function.
+Let funcinst := funcinst host_function.
 Let store_record := store_record host_function.
 
 Let administrative_instruction_rect :=
   @administrative_instruction_rect (*host_function*)
   : forall (P : administrative_instruction -> Type), _.
 
-Definition function_closure_eq_dec : forall (cl1 cl2 : function_closure),
+Definition funcinst_eq_dec : forall (cl1 cl2 : funcinst),
   {cl1 = cl2} + {cl1 <> cl2}.
 Proof. decidable_equality. Defined.
 
-Definition function_closure_eqb cl1 cl2 : bool := function_closure_eq_dec cl1 cl2.
-Definition eqfunction_closureP : Equality.axiom function_closure_eqb :=
-  eq_dec_Equality_axiom function_closure_eq_dec.
+Definition funcinst_eqb cl1 cl2 : bool := funcinst_eq_dec cl1 cl2.
+Definition eqfuncinstP : Equality.axiom funcinst_eqb :=
+  eq_dec_Equality_axiom funcinst_eq_dec.
 
-Canonical Structure function_closure_eqMixin := EqMixin eqfunction_closureP.
-Canonical Structure function_closure_eqType :=
-  Eval hnf in EqType function_closure function_closure_eqMixin.
+Canonical Structure funcinst_eqMixin := EqMixin eqfuncinstP.
+Canonical Structure funcinst_eqType :=
+  Eval hnf in EqType funcinst funcinst_eqMixin.
 
 Definition tableinst_eq_dec : forall v1 v2 : tableinst, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
@@ -493,17 +388,114 @@ Canonical Structure administrative_instruction_eqMixin := EqMixin eqadministrati
 Canonical Structure administrative_instruction_eqType :=
   Eval hnf in EqType administrative_instruction administrative_instruction_eqMixin.
 
-Definition lholed_eq_dec : forall v1 v2 : lholed, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality.
-       (*decidable_equality_step; efold administrative_instruction; decidable_equality.*)
+End Host.
+
+(** Decidable equality of lholed without pulling in unnecessary 
+    equality axioms **)
+Section lholed_eqdec.
+
+Definition lholed_cast {k k'} (lh: lholed k) (Heq: k = k'): lholed k' :=
+  eq_rect k lholed lh k' Heq.
+
+(* Some combinations of theorem from standard library should give these as well,
+   but it's not clear which ones are axiom free *)
+Theorem nat_eqdec_refl: forall k, PeanoNat.Nat.eq_dec k k = left (erefl k).
+Proof.
+  elim => //=.
+  move => k IH.
+  by rewrite IH.
 Defined.
 
-Definition lholed_eqb v1 v2 : bool := lholed_eq_dec v1 v2.
-Definition eqlholedP : Equality.axiom lholed_eqb :=
-  eq_dec_Equality_axiom lholed_eq_dec.
+Definition nat_eqdec_canon k k' (H: k = k') : k = k' :=
+  match (PeanoNat.Nat.eq_dec k k') with
+  | left e => e
+  | right ne => False_ind _ (ne H)
+  end.
 
-Canonical Structure lholed_eqMixin := EqMixin eqlholedP.
-Canonical Structure lholed_eqType := Eval hnf in EqType lholed lholed_eqMixin.
+Theorem nat_eqdec_aux: forall (k: nat) (H: k = k), H = nat_eqdec_canon H.
+Proof.
+  move => k H.
+  case H.
+  unfold nat_eqdec_canon.
+  by rewrite nat_eqdec_refl.
+Defined.
+
+Theorem nat_eqdec_unique: forall (k: nat) (H: k = k), H = erefl k.
+Proof.
+  move => k H.
+  rewrite (nat_eqdec_aux H).
+  unfold nat_eqdec_canon.
+  by rewrite nat_eqdec_refl.
+Defined.
+
+Theorem lh_cast_eq {k} (lh: lholed k) (Heq: k = k):
+  @lholed_cast k k lh Heq = lh.
+Proof.
+  by rewrite (nat_eqdec_unique Heq).
+Qed.
+
+Ltac decide_eq_arg x y :=
+  let Heq := fresh "Heq" in
+  let Hcontra := fresh "Hcontra" in
+  destruct (x == y) eqn:Heq; move/eqP in Heq; subst; last by right; move => Hcontra; injection Hcontra.
+
+(* Destruct principle for a (lh n).
+   Usage: either direct application, or `destruct ... using lh_case.` *)
+Definition lh_case: forall n (P: lholed n -> Type),
+    (forall (H: 0 = n) vs es, P (lholed_cast (LH_base vs es) H)) ->
+    (forall n' (H: S n' = n) vs k es (lh: lholed n') es', P (lholed_cast (LH_rec vs k es lh es') H)) ->
+    (forall (lh: lholed n), P lh).
+Proof.
+  move => n P H0 Hrec lh.
+  destruct lh as [lvs les | n lvs k les lh les'].
+  - by specialize (H0 (erefl 0) lvs les).
+  - by specialize (Hrec _ (erefl (S n)) lvs k les lh les'). 
+Defined.
+
+(* Decidable equality of lholed without eq_rect_eq *)
+Definition lholed_eq_dec : forall k (lh1 lh2 : lholed k), {lh1 = lh2} + {lh1 <> lh2}.
+Proof.
+  elim.
+  {
+    move => lh1.
+    eapply lh_case; last done.
+    move => H vs es; rewrite lh_cast_eq.
+    move: lh1.
+    eapply lh_case; last done.
+    move => H' vs' es'; rewrite lh_cast_eq.
+    decide_equality_injection; by decidable_equality.
+  }
+  {
+    move => n IH lh.
+    eapply lh_case; first done.
+    move => n1 H1 vs1 k1 es1 lh1 es1'; injection H1 as ->; rewrite lh_cast_eq.
+    move: lh.
+    eapply lh_case; first done.
+    move => n2 H2 vs2 k2 es2 lh2 es2'; injection H2 as ->; rewrite lh_cast_eq.
+    decide_eq_arg vs2 vs1.
+    decide_eq_arg k2 k1.
+    decide_eq_arg es2 es1.
+    decide_eq_arg es2' es1'.
+    destruct (IH lh1 lh2) as [ | Hneq]; subst; first by left.
+    right. move => Hcontra; apply Hneq.
+    clear - Hcontra.
+    inversion Hcontra.
+    (* This one is axiom free *)
+    apply Eqdep_dec.inj_pair2_eq_dec in H0 => //.
+    decide equality.
+  }
+Defined.
+
+Definition lholed_eqb {k} (v1 v2: lholed k) : bool := lholed_eq_dec v1 v2.
+
+Definition eqlholedP {k} :=
+  eq_dec_Equality_axiom (@lholed_eq_dec k).
+
+Canonical Structure lholed_eqMixin {k} := EqMixin (@eqlholedP k).
+Canonical Structure lholed_eqType {k} := Eval hnf in EqType (@lholed k) (@lholed_eqMixin k).
+
+End lholed_eqdec.
+
 
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
@@ -533,4 +525,3 @@ Definition eqmemory_typeP : Equality.axiom memory_type_eqb :=
 Canonical Structure memory_type_eqMixin := EqMixin eqmemory_typeP.
 Canonical Structure memory_type_eqType := Eval hnf in EqType memory_type memory_type_eqMixin.
 
-End Host.

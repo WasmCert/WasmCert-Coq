@@ -175,6 +175,17 @@ Inductive function_type := (* tf *)
 | Tf : result_type -> result_type -> function_type
 .
 
+(*
+This is technically part of the spec, but the actual definitions never used the bottom case concretely except for the type checking algorithm.
+(** std-doc:
+Instructions are classified by stack types [t1∗]→[t2∗] that describe how instructions manipulate the operand stack.
+ *)
+Definition operand_type := option value_type.
+
+Inductive stack_type :=
+| Tfs: list operand_type -> list operand_type -> stack_type
+.
+*)
 
 (** std-doc:
 Limits classify the size range of resizeable storage associated with memory types and table types.
@@ -708,8 +719,7 @@ Inductive result : Type :=
 Section Host.
 
 (** We assume a family of host functions. **)
-Variable host_function : Set.
-
+Variable host_function : Type.
 
 
 (** std-doc:
@@ -790,6 +800,20 @@ Record datainst : Set := {
   datainst_data : list byte;
 }.
 
+(** std-doc:
+An external value is the runtime representation of an entity that can be imported or 
+exported. It is an address denoting either a function instance, table instance, memory 
+instance, or global instances in the shared store.
+
+[https://www.w3.org/TR/wasm-core-2/exec/runtime.html#external-values]
+*)
+Inductive extern_value: Set :=
+| extern_func: funcaddr -> extern_value
+| extern_table: tableaddr -> extern_value
+| extern_mem: memaddr -> extern_value
+| extern_global: globaladdr -> extern_value
+.
+
 
 (** std-doc:
 An export instance is the runtime representation of an export. It defines the export’s 
@@ -799,7 +823,7 @@ name and the associated external value.
 *)
 Record exportinst : Type := {
   exportinst_name: name;
-  exportinst_val: value;
+  exportinst_val: extern_value;
 }.
 
 
@@ -868,20 +892,6 @@ Record store_record : Type := (* s *) {
   s_elems: list eleminst;
   s_datas: list datainst;
 }.
-
-(** std-doc:
-An external value is the runtime representation of an entity that can be imported or 
-exported. It is an address denoting either a function instance, table instance, memory 
-instance, or global instances in the shared store.
-
-[https://www.w3.org/TR/wasm-core-2/exec/runtime.html#external-values]
-*)
-Inductive extern_value: Set :=
-| extern_func: funcaddr -> extern_value
-| extern_table: tableaddr -> extern_value
-| extern_mem: memaddr -> extern_value
-| extern_global: globaladdr -> extern_value
-.
 
                             
 (** std-doc:
