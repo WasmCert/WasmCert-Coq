@@ -64,7 +64,7 @@ Definition mem_size (m : meminst) : N :=
 Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
   let new_size := N.add (mem_size m) len_delta in
   let new_mem_data := mem_grow (N.mul len_delta page_size) m.(meminst_data) in
-  if N.leb new_size page_limit then
+  if N.leb new_size mem_limit_bound then
   match m.(meminst_type).(lim_max) with
   | Some maxlim =>
     if N.leb new_size maxlim then
@@ -428,32 +428,41 @@ Definition sglob (s : store_record) (i : moduleinst) (j : nat) : option globalin
 Definition sglob_val (s : store_record) (i : moduleinst) (j : nat) : option value :=
   option_map g_val (sglob s i j).
 
-
 Definition smem_ind (s : store_record) (i : moduleinst) : option memaddr :=
   match i.(inst_mems) with
   | nil => None
   | cons k _ => Some k
   end.
 
+Definition smem (s: store_record) (inst: moduleinst) : option meminst :=
+  match inst.(inst_mems) with
+  | nil => None
+  | cons k _ => List.nth_error s.(s_mems) k
+  end.
+
 Definition tab_size (t: tableinst) : nat :=
   length (tableinst_elem t).
 
+Definition stab (s: store_record) (inst: moduleinst) (x: tableidx): option tableinst :=
+  match lookup_N inst.(inst_tables) x with
+  | Some a => lookup_N s.(s_tables) a
+  | None => None
+  end.
 
-Definition stab_elem (s: store_record) (inst: moduleinst) (x: tableaddr) (i: nat) : option value_ref :=
-  match List.nth_error inst.(inst_tables) x with
+Definition stab_elem (s: store_record) (inst: moduleinst) (x: tableidx) (i: nat) : option value_ref :=
+  match lookup_N inst.(inst_tables) x with
   | Some tabaddr =>
-      match List.nth_error s.(s_tables) tabaddr with
+      match lookup_N s.(s_tables) tabaddr with
       | Some tab => List.nth_error tab.(tableinst_elem) i
       | _ => None
       end
   | _ => None
   end.
 
-
-Definition stab_update (s: store_record) (inst: moduleinst) (x: tableaddr) (i: nat) (tabv: value_ref) : option store_record :=
-  match List.nth_error inst.(inst_tables) x with
+Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: nat) (tabv: value_ref) : option store_record :=
+  match lookup_N inst.(inst_tables) x with
   | Some tabaddr =>
-      match List.nth_error s.(s_tables) tabaddr with
+      match lookup_N s.(s_tables) tabaddr with
       | Some tab =>
           if i < tab_size tab then
             let: tab' := {| tableinst_type := tab.(tableinst_type);
@@ -465,46 +474,67 @@ Definition stab_update (s: store_record) (inst: moduleinst) (x: tableaddr) (i: n
       end
   | None => None
   end.
-    
 
+Definition growtable (tab: tableinst) (n: N) (tabinit: value_ref) : option tableinst :=
+  let len := (N.of_nat (tab_size tab) + n)%N in
+  if N.leb u32_bound len then None
+  else
+    let: {| tt_limits := lim; tt_elem_type := tabtype |} := tab.(tableinst_type) in
+    let lim' := {| lim_min := len; lim_max := lim.(lim_max) |} in
+    if limit_valid_range lim' table_limit_bound then
+      let elem' := tab.(tableinst_elem) ++ (List.repeat tabinit (N.to_nat n)) in
+      let tab' := {| tableinst_type := {| tt_limits := lim'; tt_elem_type := tabtype |}; tableinst_elem := elem' |} in
+      Some tab'
+    else
+      None.
 
-(**
-  Get the ith table in the store s, and then get the jth index in the table;
-  in the end, retrieve the corresponding function closure from the store.
- **)
-(**
-  There is the interesting use of option_bind (fun x => x) to convert an element
-  of type option (option x) to just option x.
- **)
-(* TODO: update wrt the new table instructions *)
-(*
-Definition stab_index (s: store_record) (i j: nat) : option nat :=
-  let: stabinst := List.nth_error (s_tables s) i in
-  option_bind (fun x => x) (
-    option_bind
-      (fun stab_i => List.nth_error (tableinst_elem stab_i) j)
-  stabinst).
-
-
-Definition stab_addr (s: store_record) (f: frame) (c: nat) : option nat :=
-  match f.(f_inst).(inst_tableaddrs) with
-  | nil => None
-  | ta :: _ => stab_index s ta c
+Definition stab_grow (s: store_record) (inst: moduleinst) (x: N) (n: N) (tabinit: value_ref) : option store_record :=
+  match stab s inst x with
+  | Some tab =>
+      match growtable tab n tabinit with
+      | Some tab' => 
+          let tabs' := (set_nth tab' s.(s_tables) (N.to_nat x) tab') in
+          Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
+      | None => None
+      end
+  | None => None
   end.
 
+Definition elem_size (e: eleminst) : nat :=
+  length (eleminst_elem e).
 
-Definition stab_s (s : store_record) (i j : nat) : option funcinst :=
-  let n := stab_index s i j in
-  option_bind
-    (fun id => List.nth_error (s_funcs s) id)
-  n.
-
-Definition stab (s : store_record) (i : moduleinst) (j : nat) : option funcinst :=
-  match i.(inst_tab) with
-  | nil => None
-  | k :: _ => stab_s s k j
+Definition selem (s: store_record) (inst: moduleinst) (x: elemaddr): option eleminst :=
+  match lookup_N inst.(inst_elems) x with
+  | Some eaddr => lookup_N s.(s_elems) eaddr
+  | _ => None
   end.
- *)
+
+Definition selem_drop (s: store_record) (inst: moduleinst) (x: elemaddr) : option store_record :=
+  match selem s inst x with
+  | Some elem =>
+      let empty_elem := {| eleminst_type := elem.(eleminst_type); eleminst_elem := [::] |} in
+      let: elems' := set_nth empty_elem s.(s_elems) (N.to_nat x) empty_elem in
+      Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) elems' (s_datas s))
+  | None => None
+  end.
+
+Definition data_size (d: datainst) : nat :=
+  length (datainst_data d).
+
+Definition sdata (s: store_record) (inst: moduleinst) (x: dataaddr): option datainst :=
+  match lookup_N inst.(inst_datas) x with
+  | Some daddr => lookup_N s.(s_datas) daddr
+  | _ => None
+  end.
+
+Definition sdata_drop (s: store_record) (inst: moduleinst) (x: dataaddr) : option store_record :=
+  match sdata s inst x with
+  | Some data =>
+      let empty_data := {| datainst_data := [::] |} in
+      let: datas' := set_nth empty_data s.(s_datas) (N.to_nat x) empty_data in
+      Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) (s_elems s) datas')
+  | None => None
+  end.   
 
 Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : option store_record :=
   option_map

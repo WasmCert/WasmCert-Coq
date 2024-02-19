@@ -145,7 +145,7 @@ Global Canonical Structure host_function :=
 
 Definition executable_host := executable_host H.host_function.
 Definition store_record := store_record H.host_function.
-Definition function_closure := function_closure H.host_function.
+Definition funcinst := funcinst H.host_function.
 Definition config_tuple := config_tuple H.host_function.
 
 Definition host_monad : Monad host_event := {|

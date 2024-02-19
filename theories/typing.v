@@ -342,33 +342,7 @@ https://www.w3.org/TR/wasm-core-2/appendix/properties.html#store-validity
 **)
 
 Section Store_validity.
-
-(* 2^32 - 1 *)
-Definition FFFFFFFF := 4294967295%N.
   
-(** std-doc:
-Limits must have meaningful bounds that are within a given range.
-https://www.w3.org/TR/wasm-core-2/valid/types.html#limits
-**)
-Definition limit_valid_range (lim: limits) (k: N) : bool :=
-  (N.leb lim.(lim_min) k) &&
-    match lim.(lim_max) with
-    | Some lmax => (N.leb lim.(lim_min) lmax) && (N.leb lmax k)
-    | None => true
-    end.
-
-Definition functype_valid (ft: function_type) : bool :=
-  true.
-
-Definition tabletype_valid (tt: table_type) : bool :=
-  limit_valid_range tt.(tt_limits) FFFFFFFF.
-
-Definition memtype_valid (mt: memory_type) : bool :=
-  limit_valid_range mt 65536%N.
-
-Definition globaltype_valid (gt: global_type) : bool :=
-  true.
-
 (*
 Definition limit_match (l1 l2: limits) : bool :=
   (N.leb l2.(lim_min) l1.(lim_min)) &&
@@ -652,7 +626,7 @@ Definition mem_agree (m : meminst) : Prop :=
   end.
  *)
 
-Definition store_valid (s : store_record) : Prop :=
+Definition store_typing (s : store_record) : Prop :=
   match s with
   | Build_store_record fs tabs ms gs es ds =>
     List.Forall (funcinst_valid s) fs /\
@@ -664,7 +638,7 @@ Definition store_valid (s : store_record) : Prop :=
   end.
 
 Definition config_typing (s: store_record) (th: thread) (ts: result_type) : Prop :=
-  store_valid s /\ thread_typing s None th ts.
+  store_typing s /\ thread_typing s None th ts.
 
 End Store_validity.
 

@@ -6,12 +6,12 @@
 (* TODO: use better representations than "nat", which is expensive;
    maybe N? maybe a 32-bit word type? *)
 
-Require Import BinNat.
 From Wasm Require array.
 From Wasm Require Import common memory memory_list.
 From Wasm Require Export numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require common.Memdata.
+Require Import BinNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -37,6 +37,9 @@ Label indices reference structured control instructions inside an instruction se
 *)
 Definition u32 : Set := N.
 
+(* 2^32 *)
+Definition u32_bound : N := 4294967296%N.
+
 Definition typeidx : Set := u32.
 Definition funcidx : Set := u32.
 Definition tableidx : Set := u32.
@@ -46,7 +49,6 @@ Definition elemidx : Set := u32.
 Definition dataidx : Set := u32.
 Definition localidx : Set := u32.
 Definition labelidx : Set := u32.
-
 
 (** std-doc:
 Function instances, table instances, memory instances, and global instances, element instances, 
@@ -198,6 +200,17 @@ Record limits : Set := {
   lim_max : option u32;
 }.
 
+(** std-doc:
+Limits must have meaningful bounds that are within a given range.
+https://www.w3.org/TR/wasm-core-2/valid/types.html#limits
+**)
+Definition limit_valid_range (lim: limits) (k: N) : bool :=
+  (N.leb lim.(lim_min) k) &&
+    match lim.(lim_max) with
+    | Some lmax => (N.leb lim.(lim_min) lmax) && (N.leb lmax k)
+    | None => true
+    end.
+
 
 (** std-doc:
 Memory types classify linear memories and their size range.
@@ -263,6 +276,22 @@ Inductive block_type : Set :=
 | BT_id: typeidx -> block_type
 | BT_valtype: option value_type -> block_type
 .
+
+Definition functype_valid (ft: function_type) : bool :=
+  true.
+
+Definition table_limit_bound : N := (N.sub u32_bound 1%N).
+
+Definition tabletype_valid (tt: table_type) : bool :=
+  limit_valid_range tt.(tt_limits) table_limit_bound.
+
+Definition mem_limit_bound : N := 65536%N.
+
+Definition memtype_valid (mt: memory_type) : bool :=
+  limit_valid_range mt mem_limit_bound.
+
+Definition globaltype_valid (gt: global_type) : bool :=
+  true.
 
 End Types.
 
@@ -522,7 +551,6 @@ Each import is labeled by a two-level name space, consisting of a module name an
 Every import defines an index in the respective index space. In each index space, the indices of imports go before the first index of any definition contained in the module itself.
 
 [https://www.w3.org/TR/wasm-core-2/syntax/modules.html#imports]
-
 *)
 Inductive module_import_desc : Set :=
 | MID_func : typeidx -> module_import_desc
@@ -959,8 +987,10 @@ the current function originates from.
 Definition thread : Type := frame * list administrative_instruction.
 
 Definition config_tuple : Type := store_record * thread.
-
 End Host.
+
+(* Notations for values to basic/admin instructions *)
+Notation "$VA v" := (AI_basic (BI_const_num v)) (at level 60).
 
 Arguments FC_func_native [host_function].
 

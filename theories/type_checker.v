@@ -15,7 +15,7 @@ Section Host.
 Variable host_function : eqType.
 
 Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
+Let funcinst := funcinst host_function.
 
 
 Inductive checker_type_aux : Type :=
@@ -418,7 +418,7 @@ Definition inst_type_check (s : store_record) (i : instance) : t_context := {|
   tc_return := None;
 |}.
 
-Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
+Definition cl_type_check (s : store_record) (cl : funcinst) : bool :=
   match cl with
   | Func_native i tf ts es =>
     let '(Tf t1s t2s) := tf in
