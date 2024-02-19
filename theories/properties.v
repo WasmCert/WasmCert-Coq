@@ -130,96 +130,9 @@ Proof.
       apply andb_true_iff. split => //. by apply IHvs.
 Qed.
 
-Lemma v_to_e_const: forall vs,
-    const_list (v_to_e_list vs).
-Proof.
-  move => vs. by elim: vs.
-Qed.
-
-Lemma v_to_e_cat: forall vs1 vs2,
-    v_to_e_list vs1 ++ v_to_e_list vs2 = v_to_e_list (vs1 ++ vs2).
-Proof.
-  move => vs1. elim: vs1 => //=.
-  - move => a l IH vs2. by rewrite IH.
-Qed.
-
-Lemma split_vals_inv: forall es vs es',
-    split_vals_e es = (vs, es') ->
-    es = (v_to_e_list vs) ++ es'.
-Proof.
-  move => es vs. move: es. elim: vs => //.
-  - move=> es es'. destruct es => //=.
-    + by inversion 1.
-    + case a; try by inversion 1; [idtac].
-      move => b. case b; try by inversion 1.
-      move => v H.  by destruct (split_vals_e es).
-  - move => a l H es es' HSplit. unfold split_vals_e in HSplit.
-    destruct es => //. destruct a0 => //. destruct b => //.
-    fold split_vals_e in HSplit.
-    destruct (split_vals_e es) eqn:Heqn. inversion HSplit; subst.
-    simpl. f_equal. by apply: H.
-Qed.
-
-Lemma split_vals_nconst: forall es vs e es',
-    split_vals_e es = (vs, e :: es') ->
-    ~ is_const e.
-Proof.
-  elim; first by move => ??? /=? => //.
-  move => e es IH vs0 e0 es' Hsplit.
-  destruct (is_const e) eqn:Hconst.
-  - destruct e as [b | | | |] => //; destruct b => //; clear Hconst.
-    simpl in Hsplit.
-    destruct (split_vals_e es) as [vs' es''] eqn:Hsplit2.
-    injection Hsplit as <- ->.
-    by eapply IH.
-  - destruct e as [b | | | |]; first destruct b => //; simpl in Hsplit; by injection Hsplit as <- <-.
-Qed.
-
-Lemma value_split_0 : forall es ves,
-  split_vals_e es = (ves, [::]) ->
-  const_list es \/ es_is_trap es.
-Proof.
-  intros es ves Hsplit. left.
-  apply split_vals_inv in Hsplit. subst es.
-  rewrite cats0. by apply v_to_e_const.
-Qed.
-
-Lemma value_trap : forall e es es'' ves,
-  split_vals_e es = (ves, e :: es'') ->
-  e_is_trap e ->
-  ((es'' != [::]) || (ves != [::])) = false ->
-  const_list es \/ es_is_trap es.
-Proof.
-  intros e es es'' ves Hsplit Htrap Hesves. right.
-  apply split_vals_inv in Hsplit. subst es.
-  rewrite <- negb_and in Hesves. move/andP in Hesves. destruct Hesves as [Hes Hves].
-  move/eqP in Hes. move/eqP in Hves. subst es'' ves.
-  by destruct e.
-Qed.
-
 Lemma const_list_cons : forall a l,
   const_list (a :: l) = is_const a && const_list l.
 Proof. by []. Qed.
-
-Lemma v_to_e_list0 : v_to_e_list [::] = [::].
-Proof. reflexivity. Qed.
-
-Lemma v_to_e_list1 : forall v, v_to_e_list [:: v] = [:: AI_basic (BI_const v)].
-Proof. reflexivity. Qed.
-
-Lemma e_is_trapP : forall e, reflect (e = AI_trap) (e_is_trap e).
-Proof.
-  case => //= >; by [ apply: ReflectF | apply: ReflectT ].
-Qed.
-
-Lemma es_is_trapP : forall l, reflect (l = [::AI_trap]) (es_is_trap l).
-Proof.
-  case; first by apply: ReflectF.
-  move=> // a l. case l => //=.
-  - apply: (iffP (e_is_trapP _)); first by elim.
-    by inversion 1.
-  - move=> >. by apply: ReflectF.
-Qed.
 
 Lemma split_n_is_take_drop: forall es n,
     split_n es n = (take n es, drop n es).
@@ -242,6 +155,12 @@ Proof.
   rewrite List.fold_right_app => /=. apply IHl =>//.
   by apply Hnext.
 Qed.    
+
+Lemma v_to_e_cat: forall vs1 vs2,
+    v_to_e_list vs1 ++ v_to_e_list vs2 = v_to_e_list (vs1 ++ vs2).
+Proof.
+  intros; by rewrite - map_cat.
+Qed.
 
 Lemma v_to_e_size: forall vs,
     size (v_to_e_list vs) = size vs.
@@ -283,13 +202,36 @@ Proof.
   intros; by apply map_rev.
 Qed.
 
+Lemma ve_inv: forall v e,
+    (v_to_e v) = e <->
+    e_to_v_opt e = Some v.
+Proof.
+  split.
+  - case v => //=; move => v' <- => //=.
+    by case v' => //=.
+  - case e => //=; move => e'. 2,3: by move => [<-].
+    case e' => //=; by move => ? [<-] => //.
+Qed.
+
+Lemma v2e2v: forall v,
+    e_to_v_opt (v_to_e v) = Some v.
+Proof.
+  move => v.
+  remember (v_to_e v) as e.
+  by apply ve_inv.
+Qed.
+
 Lemma v_to_e_inj: forall l1 l2,
     v_to_e_list l1 = v_to_e_list l2 ->
     l1 = l2.
 Proof.
   elim => //=; first by case.
-  move => v l IH; case => //=; move => v' l' H; injection H; move => ? <-.
-  f_equal; by apply IH.
+  move => v l IH; case => //=; move => v' l' H; injection H.
+  move => ? Hveq.
+  f_equal; last by apply IH.
+  apply ve_inv in Hveq.
+  move: Hveq.
+  case v' => //=; move => v1; case v1 => //; by move => ? [<-].
 Qed.
 
 Lemma to_b_list_concat: forall es1 es2,
@@ -307,19 +249,18 @@ Qed.
 Lemma to_e_list_basic: forall bes,
     es_is_basic (to_e_list bes).
 Proof.
-  induction bes => //=.
-  split => //=.
-  unfold e_is_basic. by eauto.
+  by induction bes => //=.
 Qed.
 
 Lemma basic_concat: forall es1 es2,
     es_is_basic (es1 ++ es2) ->
-    es_is_basic es1 /\ es_is_basic es2.
+    es_is_basic es1 && es_is_basic es2.
 Proof.
   induction es1 => //=.
-  move => es2 H. destruct H.
-  apply IHes1 in H0. destruct H0.
-  by repeat split => //=.
+  move => es2 H; move/andP in H. destruct H.
+  apply IHes1 in H0; move/andP in H0; destruct H0.
+  apply/andP; split => //=.
+  by apply/andP; split => //=.
 Qed.
 
 Lemma basic_split: forall es1 es2,
@@ -329,21 +270,11 @@ Lemma basic_split: forall es1 es2,
 Proof.
   induction es1 => //=.
   move => es2 H1 H2.
+  move/andP in H1.
   destruct H1.
+  apply/andP.
   split => //=.
   by apply IHes1.
-Qed.
-
-Lemma const_list_is_basic: forall es,
-    const_list es ->
-    es_is_basic es.
-Proof.
-  induction es => //=.
-  move => H. move/andP in H. destruct H.
-  split.
-  - destruct a => //.
-    unfold e_is_basic. by eauto.
-  - by apply IHes.                                 
 Qed.
 
 Lemma vs_to_vts_cat: forall vs1 vs2,
@@ -362,7 +293,17 @@ Proof.
   rewrite vs_to_vts_cat.
   by rewrite IHvs.
 Qed.
-  
+
+Lemma is_const_exists: forall e,
+    is_const e ->
+    {v | e = v_to_e v}.
+Proof.
+  move => e HConst.
+  unfold is_const in HConst.
+  destruct (e_to_v_opt e) as [v | ] eqn:Hetov => //.
+  apply ve_inv in Hetov; by exists v.
+Qed.
+
 Lemma const_es_exists: forall es,
     const_list es ->
     {vs | es = v_to_e_list vs}.
@@ -370,10 +311,10 @@ Proof.
   induction es => //=.
   - by exists [::].
   - move => HConst.
-    move/andP in HConst. destruct HConst as [? HConst].
-    destruct a => //=. destruct b => //=.
-    apply IHes in HConst as [vs ->].
-    by exists (v :: vs).
+    move/andP in HConst. destruct HConst as [Ha HConst].
+    apply IHes in HConst as [vs Heq].
+    apply is_const_exists in Ha as [v Heqv]; subst.
+    by exists (v :: vs) => //=.
 Qed.
 
 Lemma const_those_const: forall vs vcs,
@@ -383,7 +324,76 @@ Proof.
   setoid_rewrite <- those_those0.
   move => ? vcs ->.
   induction vcs => //=.
+  rewrite v2e2v.
   by rewrite IHvcs.
+Qed.
+
+Lemma v_to_e_const: forall vs,
+    const_list (v_to_e_list vs).
+Proof.
+  elim => //=.
+  move => v vs Hconst.
+  unfold is_const.
+  by rewrite v2e2v.
+Qed.
+
+Lemma split_vals_inv: forall es vs es',
+    split_vals_e es = (vs, es') ->
+    es = (v_to_e_list vs) ++ es'.
+Proof.
+  move => es vs. move: es. elim: vs => //.
+  - move=> es es'. destruct es => //=.
+    + by inversion 1.
+    + destruct (e_to_v_opt a) as [v | ] eqn:Hconst => //.
+      destruct (split_vals_e es) eqn:IH => //.
+      by inversion 1.
+  - move => a l H es es' HSplit.
+    destruct es => //.
+    simpl in HSplit.
+    destruct (e_to_v_opt a0) as [v | ] eqn:Hconst => //.
+    destruct (split_vals_e es) eqn:IH => //.
+    injection HSplit as -> -> ->.
+    apply H in IH; subst => /=.
+    f_equal.
+    by apply ve_inv in Hconst.
+Qed.
+
+Lemma split_vals_nconst: forall es vs e es',
+    split_vals_e es = (vs, e :: es') ->
+    ~ is_const e.
+Proof.
+  elim; first by move => ??? /=? => //.
+  move => e es IH vs0 e0 es' Hsplit.
+  simpl in *.
+  destruct (e_to_v_opt e) as [v | ] eqn:Hconst => //.
+  - destruct (split_vals_e es) eqn: IHes => //.
+    injection Hsplit as <- ->.
+    by eapply IH; eauto.
+  - injection Hsplit as <- <- <-.
+    unfold is_const.
+    by rewrite Hconst.
+Qed.
+
+Lemma value_split_0 : forall es ves,
+  split_vals_e es = (ves, [::]) ->
+  const_list es \/ es_is_trap es.
+Proof.
+  intros es ves Hsplit. left.
+  apply split_vals_inv in Hsplit. subst es.
+  rewrite cats0. by apply v_to_e_const.
+Qed.
+
+Lemma value_trap : forall e es es'' ves,
+  split_vals_e es = (ves, e :: es'') ->
+  e_is_trap e ->
+  ((es'' != [::]) || (ves != [::])) = false ->
+  const_list es \/ es_is_trap es.
+Proof.
+  intros e es es'' ves Hsplit Htrap Hesves. right.
+  apply split_vals_inv in Hsplit. subst es.
+  rewrite <- negb_and in Hesves. move/andP in Hesves. destruct Hesves as [Hes Hves].
+  move/eqP in Hes. move/eqP in Hves. subst es'' ves.
+  by destruct e.
 Qed.
 
 Lemma b_e_elim: forall bes es,
@@ -395,8 +405,8 @@ Proof.
   - simpl in H. assert (es = to_e_list (a :: bes)) as H1.
     + by rewrite -H.
     + rewrite H1. split.
-      -- simpl. f_equal. by apply IHbes.
-      -- by apply to_e_list_basic.
+      * simpl. f_equal. by apply IHbes.
+      * by apply to_e_list_basic.
 Qed.
 
 Lemma e_b_elim: forall bes es,
@@ -406,12 +416,14 @@ Lemma e_b_elim: forall bes es,
 Proof.
   induction bes; move => es H1 H2 => //=.
   - by destruct es => //=.
-  - destruct es => //=. simpl in H1. simpl in H2. destruct H2.
+  - destruct es => //=. simpl in H1. simpl in H2.
+    move/andP in H2.
+    destruct H2.
     inversion H1; subst.
-    inversion H; subst => //=.
-    f_equal. apply IHbes => //=.
+    destruct a0 => //=.
+    f_equal. by apply IHbes => //=.
 Qed.
-    
+
 Lemma to_e_list_injective: forall bes bes',
     to_e_list bes = to_e_list bes' ->
     bes = bes'.
@@ -637,7 +649,7 @@ Ltac basic_inversion :=
          | H: es_is_basic (_ ++ _) |- _ =>
            let Ha := fresh H in
            let Hb := fresh H in
-           apply basic_concat in H; destruct H as [Ha Hb]
+           apply basic_concat in H; move/andP in H; destruct H as [Ha Hb]
          | H: es_is_basic [::] |- _ =>
            clear H
          | H: es_is_basic [::_] |- _ =>
@@ -671,6 +683,7 @@ Ltac extract_listn :=
   | H: _ :: _ = _ ++ _ |- _ => symmetry in H
          end.
 
+(*
 Ltac fold_upd_context :=
   lazymatch goal with
   | |- context [upd_local (upd_return ?C ?ret) ?loc] =>
@@ -680,7 +693,7 @@ Ltac fold_upd_context :=
     replace (upd_return (upd_local C ret) loc) with
         (upd_local_return C ret loc); try by destruct C
   end.
-
+*)
 
 
 (** * More Advanced Lemmas **)
@@ -690,7 +703,7 @@ Section Host.
 Variable host_function : eqType.
 
 Let store_record := store_record host_function.
-Let function_closure := function_closure host_function.
+Let funcinst := funcinst host_function.
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
 
@@ -894,10 +907,13 @@ Lemma et_to_bet: forall s C es ts,
     be_typing C (to_b_list es) ts.
 Proof.
   move => s C es ts HBasic HType.
-  dependent induction HType; basic_inversion.
+  dependent induction HType; basic_inversion => //.
   + replace (to_b_list (to_e_list bes)) with bes => //.
     by apply b_e_elim.
   + rewrite to_b_list_concat.
+    apply basic_concat in HBasic.
+    move/andP in HBasic.
+    destruct HBasic as [Hbes Hbe].
     eapply bet_composition.
     * by eapply IHHType1 => //.
     * by eapply IHHType2 => //.
@@ -914,18 +930,17 @@ Proof.
 Qed.
 
 (************ these come from the certified itp *************)
-
+(*
 Lemma bet_const' : forall C vs,
-  be_typing C (map BI_const vs) (Tf [::] (map typeof vs)).
+  be_typing C (map BI_const_num vs) (Tf [::] (map (fun v => T_num (typeof_num v)) vs)).
 Proof.
   intros C vs. induction vs as [|vs' v IHvs] using last_ind.
   - apply bet_empty.
   - rewrite <- cats1. rewrite map_cat.
-    apply bet_composition with (t2s := map typeof vs') => //.
+    eapply bet_composition; eauto => //.
     rewrite map_cat.
-    replace (map typeof vs') with ((map typeof vs') ++ [::]) at 1;
-      last by rewrite cats0.
-    by apply bet_weakening; apply bet_const.
+    apply bet_weakening_empty_1.
+    by apply bet_const_num.
 Qed.
 
 Lemma to_b_v_to_e_is_bi_const : forall vs,
@@ -946,7 +961,7 @@ Proof.
   induction s1 => //.
   by injection Heq => //.
 Qed.
-
+*)
 Lemma seq_split_predicate : forall (T : eqType) (xs xs' ys ys' : seq T) (y : T) (P : pred T),
   xs ++ [:: y] ++ ys = xs' ++ ys' ->
   all P xs ->
@@ -1045,31 +1060,14 @@ Proof. move => T xs y ys E. by move: (List.app_eq_nil _ _ E) => [? ?]. Qed.
 
 Lemma not_reduce_simple_nil : forall es', ~ reduce_simple [::] es'.
 Proof.
-  assert (forall es es', reduce_simple es es' -> es = [::] -> False) as H.
-  { move => es es' H.
-    elim: {es es'} H => //=.
-    { move => vs es _ _ t1s t2s _ _ _ _ H.
-      apply: cat_cons_not_nil. exact H. }
-    { move => vs es _ _ t1s t2s _ _ _ _ H.
-      apply: cat_cons_not_nil. exact H. }
-    { move => es lh _ H Hes.
-      rewrite Hes {es Hes} /= in H.
-      case: lh H => //=.
-      { move => es es2.
-        by destruct es => //.
-      }
-      { move => k vs n es lh es' Hcontra.
-        by destruct vs => //.
-      }
-    }
-  }
-  { move => es' H2.
-    apply: H => //; by exact H2. }
+  move => ? Hcontra.
+  inversion Hcontra; subst.
+  destruct lh as [vs | ? vs] => //; by destruct vs => //.
 Qed.
 
 (** Store extension properties **)
 
-Let func_extension: function_closure -> function_closure -> bool := @func_extension _.
+Let func_extension: funcinst -> funcinst -> bool := @func_extension _.
 Let store_extension: store_record -> store_record -> Prop := @store_extension _.
 
 Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
@@ -1096,19 +1094,19 @@ Proof.
   by apply func_extension_refl.
 Qed.
 
-Lemma tab_extension_refl: forall t,
-    tab_extension t t.
+Lemma table_extension_refl: forall t,
+    table_extension t t.
 Proof.
-  move => t. unfold tab_extension.
+  move => t. unfold table_extension.
   by apply/andP.
 Qed.
 
-Lemma all2_tab_extension_same: forall t,
-    all2 tab_extension t t.
+Lemma all2_table_extension_same: forall t,
+    all2 table_extension t t.
 Proof.
   move => t.
   apply reflexive_all2_same. unfold reflexive.
-  by apply tab_extension_refl.
+  by apply table_extension_refl.
 Qed.
 
 Lemma mem_extension_refl: forall m,
@@ -1116,8 +1114,7 @@ Lemma mem_extension_refl: forall m,
 Proof.
   move => m.
   unfold mem_extension.
-  apply/andP; split => //.
-  by apply N.leb_le; lias.
+  by apply/andP; split => //.
 Qed.
 
 Lemma all2_mem_extension_same: forall t,
@@ -1128,31 +1125,64 @@ Proof.
   by apply mem_extension_refl.
 Qed.
 
-Lemma glob_extension_refl: forall t,
-    glob_extension t t.
+Lemma global_extension_refl: forall t,
+    global_extension t t.
 Proof.
-  move => t.
-  unfold glob_extension.
-  do 2 (apply/andP; split => //).
+  move => [[??]?] => /=.
+  unfold global_extension => /=.
+  (apply/andP; split => //).
   apply/orP.
   by right.
 Qed.
 
-Lemma all2_glob_extension_same: forall t,
-    all2 glob_extension t t.
+Lemma all2_global_extension_same: forall t,
+    all2 global_extension t t.
 Proof.
   move => t.
-  apply reflexive_all2_same. unfold reflexive. by apply glob_extension_refl.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply global_extension_refl.
 Qed.
 
-Lemma comp_extension_same_refl {T: Type} (l: list T) f:
+Lemma elem_extension_refl: forall t,
+    elem_extension t t.
+Proof.
+  move => ? => /=.
+  unfold elem_extension => /=.
+  by rewrite eq_refl.
+Qed.
+
+Lemma all2_elem_extension_same: forall t,
+    all2 elem_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply elem_extension_refl.
+Qed.
+
+Lemma data_extension_refl: forall t,
+    data_extension t t.
+Proof.
+  move => ? => /=.
+  unfold data_extension => /=.
+  by rewrite eq_refl.
+Qed.
+
+Lemma all2_data_extension_same: forall t,
+    all2 data_extension t t.
+Proof.
+  move => t.
+  apply reflexive_all2_same. unfold reflexive.
+  by apply data_extension_refl.
+Qed.
+
+Lemma component_extension_same_refl {T: Type} (l: list T) f:
     reflexive f ->
-    comp_extension l l f.
+    component_extension f l l.
 Proof.
   move => Hrefl.
-  unfold comp_extension.
+  unfold component_extension.
   apply/andP; split; first by lias.
-  rewrite length_is_size take_size.
+  rewrite take_size.
   by apply reflexive_all2_same.
 Qed.
 
@@ -1165,42 +1195,61 @@ Proof.
   by apply/eqP; subst.
 Qed.
   
-Lemma tab_extension_trans:
-  transitive tab_extension.
+Lemma table_extension_trans:
+  transitive table_extension.
 Proof.
   move => x1 x2 x3 Hext1 Hext2.
-  unfold tab_extension in *.
+  destruct x1, x2, x3.
+  unfold table_extension in *; simpl in *.
   remove_bools_options.
   apply/andP; split; last apply/eqP.
-  - by lias.
-  - by destruct x2; simpl in *; subst.
+  - apply/eqP. by rewrite H1.
+  - simpl in *; subst.
+    by lias.
 Qed.
     
 Lemma mem_extension_trans:
   transitive mem_extension.
 Proof.
   move => x1 x2 x3 Hext1 Hext2.
-  unfold mem_extension in *.
+  destruct x1, x2, x3.
+  unfold mem_extension in *; simpl in *.
   remove_bools_options.
   apply/andP; split; last apply/eqP.
-  - move/N.leb_spec0 in H.
-    move/N.leb_spec0 in H1.
-    apply/N.leb_spec0.
+  - apply/eqP; by rewrite H1.
+  - simpl in *; subst.
     by lias.
-  - by destruct x2; simpl in *; subst.
 Qed.
     
-Lemma glob_extension_trans:
-  transitive glob_extension.
+Lemma global_extension_trans:
+  transitive global_extension.
 Proof.
-  move => x1 x2 x3 Hext1 Hext2.
-  unfold glob_extension in *.
-  destruct x1, x2, x3 => /=; simpl in *.
-  remove_bools_options; rewrite - H3 in H0; subst => /=; try by apply/eqP.
-  repeat (apply/andP; split => //).
+  move => [[??]?] [[??]?] [[??]?] Hext1 Hext2.
+  unfold global_extension in *; simpl in *.
+  remove_bools_options; subst; inversion H; inversion H1; subst; apply/andP; split => //.
   apply/orP; by right.
 Qed.
 
+Lemma elem_extension_trans:
+  transitive elem_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  destruct x1, x2, x3.
+  unfold elem_extension in *; simpl in *.
+  remove_bools_options; subst => //; try by apply/orP; right.
+  by rewrite eq_refl.
+Qed.
+    
+Lemma data_extension_trans:
+  transitive data_extension.
+Proof.
+  move => x1 x2 x3 Hext1 Hext2.
+  destruct x1, x2, x3.
+  unfold data_extension in *; simpl in *.
+  remove_bools_options; subst => //; try by apply/orP; right.
+  by rewrite eq_refl.
+Qed.
+    
 Lemma nth_error_take_longer {T: Type} (l: list T) n k:
   n < k ->
   List.nth_error l n = List.nth_error (take k l) n.
@@ -1210,14 +1259,14 @@ Proof.
   apply IHn; by lias.
 Qed.
 
-Lemma comp_extension_trans {T: Type} (l1 l2 l3: list T) f:
-  comp_extension l1 l2 f ->
-  comp_extension l2 l3 f ->
+Lemma component_extension_trans {T: Type} (l1 l2 l3: list T) f:
+  component_extension f l1 l2 ->
+  component_extension f l2 l3 ->
   transitive f ->
-  comp_extension l1 l3 f.
+  component_extension f l1 l3.
 Proof.
   move => Hext1 Hext2 Htrans.
-  unfold comp_extension in *.
+  unfold component_extension in *.
   remove_bools_options.
   apply/andP; split; first by lias.
   apply all2_spec.
@@ -1246,10 +1295,12 @@ Proof.
   move => Hext1 Hext2.
   unfold store_extension, operations.store_extension in *.
   remove_bools_options.
-  apply/andP; split; last by eapply comp_extension_trans; eauto; apply glob_extension_trans.
-  apply/andP; split; last by eapply comp_extension_trans; eauto; apply mem_extension_trans.
-  apply/andP; split; last by eapply comp_extension_trans; eauto; apply tab_extension_trans.
-  by eapply comp_extension_trans; eauto; apply func_extension_trans.
+  apply/andP; split; last by eapply component_extension_trans; eauto; apply data_extension_trans.
+  apply/andP; split; last by eapply component_extension_trans; eauto; apply elem_extension_trans.
+  apply/andP; split; last by eapply component_extension_trans; eauto; apply global_extension_trans.
+  apply/andP; split; last by eapply component_extension_trans; eauto; apply mem_extension_trans.
+  apply/andP; split; last by eapply component_extension_trans; eauto; apply table_extension_trans.
+  by eapply component_extension_trans; eauto; apply func_extension_trans.
 Qed.
   
 Lemma store_extension_same: forall s,
@@ -1258,18 +1309,20 @@ Proof.
   move => s. unfold store_extension.
   repeat (apply/andP; split => //); rewrite length_is_size take_size.
   + by apply all2_func_extension_same.
-  + by apply all2_tab_extension_same.
+  + by apply all2_table_extension_same.
   + by apply all2_mem_extension_same.
-  + by apply all2_glob_extension_same.
+  + by apply all2_global_extension_same.
+  + by apply all2_elem_extension_same.
+  + by apply all2_data_extension_same.
 Qed.
 
-Lemma comp_extension_lookup {T: Type} (l1 l2: list T) f n x:
-  comp_extension l1 l2 f ->
+Lemma component_extension_lookup {T: Type} (l1 l2: list T) f n x:
+  component_extension f l1 l2 ->
   List.nth_error l1 n = Some x ->
   exists y, (List.nth_error l2 n = Some y /\ f x y).
 Proof.
   move => Hext Hnth.
-  unfold comp_extension in Hext.
+  unfold component_extension in Hext.
   remove_bools_options.
   assert (lt n (length l1)) as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
   destruct (List.nth_error l2 n) as [y |] eqn:Hnth'; last by apply List.nth_error_None in Hnth'; lias.
@@ -1286,7 +1339,7 @@ Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
   remove_bools_options.
-  eapply comp_extension_lookup in Hnth; eauto.
+  eapply component_extension_lookup in Hnth; eauto.
   unfold operations.func_extension in Hnth.
   destruct Hnth as [? [Hnth Heq]].
   by move/eqP in Heq; subst.
@@ -1295,12 +1348,12 @@ Qed.
 Lemma store_extension_lookup_tab: forall s s' n x,
     store_extension s s' ->
     List.nth_error (s_tables s) n = Some x ->
-    exists x', List.nth_error (s_tables s') n = Some x' /\ tab_extension x x'.
+    exists x', List.nth_error (s_tables s') n = Some x' /\ table_extension x x'.
 Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
   remove_bools_options.
-  by eapply comp_extension_lookup in Hnth; eauto.
+  by eapply component_extension_lookup in Hnth; eauto.
 Qed.
 
 Lemma store_extension_lookup_mem: forall s s' n x,
@@ -1311,129 +1364,21 @@ Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
   remove_bools_options.
-  by eapply comp_extension_lookup in Hnth; eauto.
+  by eapply component_extension_lookup in Hnth; eauto.
 Qed.
 
 Lemma store_extension_lookup_glob: forall s s' n x,
     store_extension s s' ->
     List.nth_error (s_globals s) n = Some x ->
-    exists x', List.nth_error (s_globals s') n = Some x' /\ glob_extension x x'.
+    exists x', List.nth_error (s_globals s') n = Some x' /\ global_extension x x'.
 Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
   remove_bools_options.
-  by eapply comp_extension_lookup in Hnth; eauto.
+  by eapply component_extension_lookup in Hnth; eauto.
 Qed.
 
 End Host.
-
-(** Decidable equality of lholed without pulling in unnecessary 
-    equality axioms **)
-Section lholed_eqdec.
-
-Definition lholed_cast {k k'} (lh: lholed k) (Heq: k = k'): lholed k' :=
-  eq_rect k lholed lh k' Heq.
-
-(* Some combinations of theorem from standard library should give these as well,
-   but it's not clear which ones are axiom free *)
-Theorem nat_eqdec_refl: forall k, Nat.eq_dec k k = left (erefl k).
-Proof.
-  elim => //=.
-  move => k IH.
-  by rewrite IH.
-Defined.
-
-Definition nat_eqdec_canon k k' (H: k = k') : k = k' :=
-  match (Nat.eq_dec k k') with
-  | left e => e
-  | right ne => False_ind _ (ne H)
-  end.
-
-Theorem nat_eqdec_aux: forall (k: nat) (H: k = k), H = nat_eqdec_canon H.
-Proof.
-  move => k H.
-  case H.
-  unfold nat_eqdec_canon.
-  by rewrite nat_eqdec_refl.
-Defined.
-
-Theorem nat_eqdec_unique: forall (k: nat) (H: k = k), H = erefl k.
-Proof.
-  move => k H.
-  rewrite (nat_eqdec_aux H).
-  unfold nat_eqdec_canon.
-  by rewrite nat_eqdec_refl.
-Defined.
-
-Theorem lh_cast_eq {k} (lh: lholed k) (Heq: k = k):
-  @lholed_cast k k lh Heq = lh.
-Proof.
-  by rewrite (nat_eqdec_unique Heq).
-Qed.
-
-Ltac decide_eq_arg x y :=
-  let Heq := fresh "Heq" in
-  let Hcontra := fresh "Hcontra" in
-  destruct (x == y) eqn:Heq; move/eqP in Heq; subst; last by right; move => Hcontra; injection Hcontra.
-
-(* Destruct principle for a (lh n).
-   Usage: either direct application, or `destruct ... using lh_case.` *)
-Definition lh_case: forall n (P: lholed n -> Type),
-    (forall (H: 0 = n) vs es, P (lholed_cast (LH_base vs es) H)) ->
-    (forall n' (H: S n' = n) vs k es (lh: lholed n') es', P (lholed_cast (LH_rec vs k es lh es') H)) ->
-    (forall (lh: lholed n), P lh).
-Proof.
-  move => n P H0 Hrec lh.
-  destruct lh as [lvs les | n lvs k les lh les'].
-  - by specialize (H0 (erefl 0) lvs les).
-  - by specialize (Hrec _ (erefl (S n)) lvs k les lh les'). 
-Defined.
-
-(* Decidable equality of lholed without eq_rect_eq *)
-Definition lholed_eq_dec : forall k (lh1 lh2 : lholed k), {lh1 = lh2} + {lh1 <> lh2}.
-Proof.
-  elim.
-  {
-    move => lh1.
-    eapply lh_case; last done.
-    move => H vs es; rewrite lh_cast_eq.
-    move: lh1.
-    eapply lh_case; last done.
-    move => H' vs' es'; rewrite lh_cast_eq.
-    decide_eq_arg vs' vs.
-    decide_eq_arg es' es.
-    by left.
-  }
-  {
-    move => n IH lh.
-    eapply lh_case; first done.
-    move => n1 H1 vs1 k1 es1 lh1 es1'; injection H1 as ->; rewrite lh_cast_eq.
-    move: lh.
-    eapply lh_case; first done.
-    move => n2 H2 vs2 k2 es2 lh2 es2'; injection H2 as ->; rewrite lh_cast_eq.
-    decide_eq_arg vs2 vs1.
-    decide_eq_arg k2 k1.
-    decide_eq_arg es2 es1.
-    decide_eq_arg es2' es1'.
-    destruct (IH lh1 lh2) as [ | Hneq]; subst; first by left.
-    right. move => Hcontra; apply Hneq.
-    clear - Hcontra.
-    inversion Hcontra.
-    (* This one is axiom free *)
-    apply Eqdep_dec.inj_pair2_eq_dec in H0 => //.
-    decide equality.
-  }
-Defined.
-
-Definition lholed_eqb {k} (v1 v2: lholed k) : bool := lholed_eq_dec v1 v2.
-
-Definition eqlholedP {k} :=
-  eq_dec_Equality_axiom (@lholed_eq_dec k).
-
-Canonical Structure lholed_eqMixin {k} := EqMixin (@eqlholedP k).
-Canonical Structure lholed_eqType {k} := Eval hnf in EqType (@lholed k) (@lholed_eqMixin k).
-
-End lholed_eqdec.
 
 Lemma lfilled_not_nil {k}: forall (lh: lholed k) es es', lfill lh es = es' -> es <> [::] -> es' <> [::].
 Proof.
@@ -1566,9 +1511,8 @@ Proof.
     apply const_list_split in Hconst as [_ Hconst].
     simpl in Hconst.
     move/andP in Hconst; destruct Hconst as [? Hconst].
-    destruct e as [b | | | |] => //; destruct b => //.
-    exists lvs, les, (Logic.eq_refl 0).
-    by split => //.
+    destruct e as [b | | | | | | ] => //; try destruct b => //;
+    exists lvs, les, (Logic.eq_refl 0); by split => //.
   - move => e lf Hconst Hlf. subst.
     exfalso.
     apply const_list_split in Hconst as [_ Hconst].
@@ -1583,15 +1527,17 @@ Proof.
   destruct (e == fe 0) eqn:H; move/eqP in H.
   - subst.
     left; by exists nil, ves'.
-  - destruct (is_const e) eqn:Hconst.
-    { destruct e as [ b | | | |] => //; destruct b => //.
-      destruct (IHves' fe) as [[vs [es ->]] | Hcontra]; first by left; exists (v :: vs), es.
-      right; move => vs es Heq.
-      destruct vs as [| v0 vs'] => //; simpl in *; first by inversion Heq.
-      apply (Hcontra vs' es) => /=; by inversion Heq.
+  - destruct (e_to_v_opt e) as [v | ] eqn:Hconst.
+    { destruct e as [ b | | | | | |] => //; first destruct b => //.
+      all: apply ve_inv in Hconst; destruct (IHves' fe) as [[vs [es ->]] | Hcontra]; first by (left; exists (v :: vs), es); rewrite - Hconst.
+      all: right; move => vs es Heq;
+      destruct vs as [| v' vs'] => //; simpl in *; first by inversion Heq.
+      all: apply (Hcontra vs' es) => /=; by inversion Heq.
     }
     { right; move => vs es Heq.
-      destruct vs as [| v0 vs'] => //; simpl in *; by inversion Heq; subst.
+      destruct vs as [| v0 vs'] => //; simpl in *; first by inversion Heq; subst.
+      inversion Heq; subst.
+      by rewrite v2e2v in Hconst.
     }
 Qed.
 
@@ -1624,8 +1570,8 @@ Proof.
     by apply Hcontra in Heq.
   - specialize (split_vals_nconst Hsplit) as Hnconst.
     apply split_vals_inv in Hsplit as ->.
-    destruct e as [ | | | j lvs les |].
-    4: {
+    destruct e as [ | | | | | j lvs les |].
+    6: {
       destruct (Hrec (fun n => fe (S n)) les) as [IH | IH] => /=.
       (* measure *)
       {
@@ -1675,9 +1621,8 @@ Proof.
     rewrite He in Hreds.
     apply: not_reduce_simple_nil.
     apply: Hreds. }
-  { intros. destruct ves => //. }
-  { intros. destruct ves => //. }
-  { intros. by destruct ves => //. }
+  all: try by destruct vs.
+  all: try by destruct ves.
   { intros. apply: lfilled_not_nil. exact H1. exact H0. }
 Qed.
 

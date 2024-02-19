@@ -574,11 +574,7 @@ Definition data_extension (d1 d2: datainst) : bool :=
 
 Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list T): bool :=
   (length l1 <= length l2) &&
-  all2 ext_rel l1 (List.firstn (length l1) l2).
-
-Definition comp_extension {T: Type} (l1 l2: list T) (f: T -> T -> bool) : bool :=
-  (length l1 <= length l2) &&
-  (all2 f l1 (take (length l1) l2)).
+  all2 ext_rel l1 (take (length l1) l2).
 
 Definition store_extension (s s' : store_record) : bool :=
   component_extension func_extension s.(s_funcs) s'.(s_funcs) &&
@@ -589,20 +585,6 @@ Definition store_extension (s s' : store_record) : bool :=
   component_extension data_extension s.(s_datas) s'.(s_datas).
 
 
-
-Definition is_const (e : administrative_instruction) : bool :=
-  match e with
-  | AI_basic (BI_const_num _) => true
-  | AI_basic (BI_const_vec _) => true
-  | _ => false
-  end.
-
-Definition const_list (es : list administrative_instruction) : bool :=
-  List.forallb is_const es.
-
-(* The expected terminal instructions *)
-Definition terminal_form (es: seq administrative_instruction) :=
-  const_list es \/ es = [::AI_trap].
 
 Definition vs_to_vts (vs : list value) : list value_type := map typeof vs.
 
@@ -692,6 +674,19 @@ Definition e_to_v_opt (e: administrative_instruction) : option value :=
 
 Definition e_to_v_list_opt (es: list administrative_instruction) : option (list value) :=
   those (map e_to_v_opt es).
+
+Definition is_const (e : administrative_instruction) : bool :=
+  match e_to_v_opt e with
+  | Some _ => true
+  | None => false
+  end.
+
+Definition const_list (es : list administrative_instruction) : bool :=
+  List.forallb is_const es.
+
+(* The expected terminal instructions *)
+Definition terminal_form (es: seq administrative_instruction) :=
+  const_list es \/ es = [::AI_trap].
 
 (* Filling label context hole *)
 Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=
