@@ -215,74 +215,74 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
   be_typing (upd_label C ([::tm] ++ (tc_labels C))) es2 (Tf tn tm) ->
   be_typing C [::BI_if tb es1 es2] (Tf (tn ++ [::T_num T_i32]) tm)
 | bet_br : forall C i t1s ts t2s,
-  List.nth_error C.(tc_labels) (N.to_nat i) = Some ts ->
+  lookup_N C.(tc_labels) i = Some ts ->
   be_typing C [::BI_br i] (Tf (t1s ++ ts) t2s)
 | bet_br_if : forall C i ts,
-  List.nth_error C.(tc_labels) (N.to_nat i) = Some ts ->
+  lookup_N C.(tc_labels) i = Some ts ->
   be_typing C [::BI_br_if i] (Tf (ts ++ [::T_num T_i32]) ts)
 | bet_br_table : forall C i ins ts t1s t2s,
-  List.Forall (fun i => (List.nth_error C.(tc_labels) (N.to_nat i) = Some ts)) (ins ++ [::i])  ->
+  List.Forall (fun i => (lookup_N C.(tc_labels) i) = Some ts) (ins ++ [::i]) ->
   be_typing C [::BI_br_table ins i] (Tf (t1s ++ (ts ++ [::T_num T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
   tc_return C = Some ts ->
   be_typing C [::BI_return] (Tf (app t1s ts) t2s)
 | bet_call : forall C i tf,
-  List.nth_error (tc_funcs C) (N.to_nat i) = Some tf ->
+  lookup_N (tc_funcs C) i = Some tf ->
   be_typing C [::BI_call i] tf
 | bet_call_indirect : forall C x y tabtype t1s t2s,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = T_funcref ->
-  List.nth_error (tc_types C) (N.to_nat y) = Some (Tf t1s t2s) ->
+  lookup_N (tc_types C) y = Some (Tf t1s t2s) ->
   be_typing C [::BI_call_indirect x y] (Tf (t1s ++ [::T_num T_i32]) t2s)
 | bet_local_get : forall C x t,
-  List.nth_error (tc_locals C) (N.to_nat x) = Some t ->
+  lookup_N (tc_locals C) x = Some t ->
   be_typing C [::BI_local_get x] (Tf [::] [::t])
 | bet_local_set : forall C x t,
-  List.nth_error (tc_locals C) (N.to_nat x) = Some t ->
+  lookup_N (tc_locals C) x = Some t ->
   be_typing C [::BI_local_set x] (Tf [::t] [::])
 | bet_local_tee : forall C x t,
-  List.nth_error (tc_locals C) (N.to_nat x) = Some t ->
+  lookup_N (tc_locals C) x = Some t ->
   be_typing C [::BI_local_tee x] (Tf [::t] [::t])
 | bet_global_get : forall C x t,
-  option_map tg_t (List.nth_error (tc_globals C) (N.to_nat x)) = Some t ->
+  option_map tg_t (lookup_N (tc_globals C) x) = Some t ->
   be_typing C [::BI_global_get x] (Tf [::] [::t])
 | bet_global_set : forall C x g t,
-  List.nth_error (tc_globals C) (N.to_nat x) = Some g ->  
+  lookup_N (tc_globals C) x = Some g ->  
   tg_t g = t ->
   is_mut g ->
   be_typing C [::BI_global_set x] (Tf [::t] [::])
 | bet_table_get : forall C x tabtype t,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_get x] (Tf [::T_num T_i32] [::T_ref t])
 | bet_table_set : forall C x tabtype t,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_set x] (Tf [::T_num T_i32; T_ref t] [::])
 | bet_table_size : forall C x tabtype,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   be_typing C [::BI_table_size x] (Tf [::] [::T_num T_i32])
 | bet_table_grow : forall C x tabtype t,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_grow x] (Tf [::T_ref t; T_num T_i32] [::T_num T_i32])
 | bet_table_fill : forall C x tabtype t,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
   be_typing C [::BI_table_fill x] (Tf [::T_num T_i32; T_ref t; T_num T_i32] [::T_num T_i32])
 | bet_table_copy : forall C x y tabtype1 tabtype2 t,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype1 ->
+  lookup_N (tc_tables C) x = Some tabtype1 ->
   tabtype1.(tt_elem_type) = t ->
-  List.nth_error (tc_tables C) (N.to_nat y) = Some tabtype2 ->
+  lookup_N (tc_tables C) y = Some tabtype2 ->
   tabtype2.(tt_elem_type) = t ->
   be_typing C [::BI_table_copy x y] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
 | bet_table_init : forall C x y tabtype t,
-  List.nth_error (tc_tables C) (N.to_nat x) = Some tabtype ->
+  lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
-  List.nth_error (tc_elems C) (N.to_nat y) = Some t ->
+  lookup_N (tc_elems C) y = Some t ->
   be_typing C [::BI_table_init x y] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
 | bet_elem_drop : forall C x t,
-  List.nth_error (tc_elems C) (N.to_nat x) = Some t ->
+  lookup_N (tc_elems C) x = Some t ->
   be_typing C [::BI_elem_drop x] (Tf [::] [::])
 | bet_load : forall C a off tp_sx t,
   tc_mems C <> nil ->

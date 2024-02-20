@@ -402,30 +402,29 @@ Definition upd_s_mem (s : store_record) (m : list meminst) : store_record :=
     s_datas := s.(s_datas);
   |}.
 
-Definition stypes (s : store_record) (i : moduleinst) (j : nat) : option function_type :=
-  List.nth_error (inst_types i) j.
+Definition stypes (s : store_record) (i : moduleinst) (j : typeidx) : option function_type :=
+  lookup_N (inst_types i) j.
 
 
-Definition sfunc_ind (s : store_record) (i : moduleinst) (j : nat) : option funcaddr :=
-  List.nth_error (inst_funcs i) j.
+Definition sfunc_ind (s : store_record) (i : moduleinst) (j : funcidx) : option funcaddr :=
+  lookup_N (inst_funcs i) j.
 
-Definition sfunc (s : store_record) (i : moduleinst) (j : nat) : option funcinst :=
+Definition sfunc (s : store_record) (i : moduleinst) (j : funcidx) : option funcinst :=
   match sfunc_ind s i j with
-  | Some a => List.nth_error (s_funcs s) (N.to_nat a)
+  | Some a => lookup_N (s_funcs s) a
   | None => None
   end.
 
-                                         
-Definition sglob_ind (s : store_record) (i : moduleinst) (j : nat) : option globaladdr :=
+Definition sglob_ind (s : store_record) (i : moduleinst) (j : globalidx) : option globaladdr :=
   List.nth_error (inst_globals i) j.
 
-Definition sglob (s : store_record) (i : moduleinst) (j : nat) : option globalinst :=
+Definition sglob (s : store_record) (i : moduleinst) (j : globalidx) : option globalinst :=
   match sglob_ind s i j with
-  | Some a => List.nth_error (s_globals s) (N.to_nat a)
+  | Some a => lookup_N (s_globals s) a
   | None => None
   end.
 
-Definition sglob_val (s : store_record) (i : moduleinst) (j : nat) : option value :=
+Definition sglob_val (s : store_record) (i : moduleinst) (j : globalidx) : option value :=
   option_map g_val (sglob s i j).
 
 Definition smem_ind (s : store_record) (i : moduleinst) : option memaddr :=
@@ -437,7 +436,7 @@ Definition smem_ind (s : store_record) (i : moduleinst) : option memaddr :=
 Definition smem (s: store_record) (inst: moduleinst) : option meminst :=
   match inst.(inst_mems) with
   | nil => None
-  | cons k _ => List.nth_error s.(s_mems) k
+  | k :: _ => lookup_N s.(s_mems) k
   end.
 
 Definition tab_size (t: tableinst) : nat :=
@@ -488,7 +487,7 @@ Definition growtable (tab: tableinst) (n: N) (tabinit: value_ref) : option table
     else
       None.
 
-Definition stab_grow (s: store_record) (inst: moduleinst) (x: N) (n: N) (tabinit: value_ref) : option store_record :=
+Definition stab_grow (s: store_record) (inst: moduleinst) (x: tableidx) (n: N) (tabinit: value_ref) : option store_record :=
   match stab s inst x with
   | Some tab =>
       match growtable tab n tabinit with
@@ -542,9 +541,9 @@ Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : opti
       let: g' := Build_globalinst (g_type g) v in
       let: gs' := set_nth g' (s_globals s) k g' in
       Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs' (s_elems s) (s_datas s))
-    (List.nth_error (s_globals s) k).
+    (lookup_N (s_globals s) k).
 
-Definition supdate_glob (s : store_record) (i : moduleinst) (j : nat) (v : value) : option store_record :=
+Definition supdate_glob (s : store_record) (i : moduleinst) (j : globalidx) (v : value) : option store_record :=
   option_bind
     (fun k => supdate_glob_s s k v)
     (sglob_ind s i j).
@@ -583,7 +582,6 @@ Definition store_extension (s s' : store_record) : bool :=
   component_extension global_extension s.(s_globals) s'.(s_globals) &&
   component_extension elem_extension s.(s_elems) s'.(s_elems) &&
   component_extension data_extension s.(s_datas) s'.(s_datas).
-
 
 
 Definition vs_to_vts (vs : list value) : list value_type := map typeof vs.
@@ -772,14 +770,14 @@ https://www.w3.org/TR/wasm-core-2/exec/runtime.html#exec-expand
 **)
 Definition expand (inst: moduleinst) (tb: block_type) : option function_type :=
   match tb with
-  | BT_id n => List.nth_error inst.(inst_types) n
+  | BT_id n => lookup_N inst.(inst_types) n
   | BT_valtype (Some t) => Some (Tf [::] [::t])
   | BT_valtype None => Some (Tf [::] [::])
   end.
   
 Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
   match tb with
-  | BT_id n => List.nth_error C.(tc_types) n
+  | BT_id n => lookup_N C.(tc_types) n
   | BT_valtype (Some t) => Some (Tf [::] [::t])
   | BT_valtype None => Some (Tf [::] [::])
   end.

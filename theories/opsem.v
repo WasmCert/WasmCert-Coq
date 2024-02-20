@@ -217,7 +217,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         reduce hs s f (ves ++ [::AI_invoke addr]) hs s f [::AI_frame m (Build_frame (vs ++ defaults) inst) [::AI_label m [::] (to_e_list es)]]
   | r_invoke_host_success :
       forall a cl h t1s t2s ves vcs m n s s' r f hs hs',
-        List.nth_error s.(s_funcs) (N.to_nat a) = Some cl ->
+        lookup_N s.(s_funcs) a = Some cl ->
         cl = FC_func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
@@ -227,7 +227,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         reduce hs s f (ves ++ [::AI_invoke a]) hs' s' f (result_to_stack r)
   | r_invoke_host_diverge :
       forall a cl t1s t2s h ves vcs n m s f hs hs',
-        List.nth_error s.(s_funcs) (N.to_nat a) = Some cl ->
+        lookup_N s.(s_funcs) a = Some cl ->
         cl = FC_func_host (Tf t1s t2s) h ->
         ves = v_to_e_list vcs ->
         length vcs = n ->
@@ -239,7 +239,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
   (** get, set, load, and store operations **)
   | r_local_get :
       forall f v j s hs,
-        List.nth_error f.(f_locs) (N.to_nat j) = Some v ->
+        lookup_N f.(f_locs) j = Some v ->
         reduce hs s f [::AI_basic (BI_local_get j)] hs s f [::v_to_e v]
   | r_local_set :
       forall f f' i v s vd hs,
@@ -249,11 +249,11 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         reduce hs s f [::v_to_e v; AI_basic (BI_local_set i)] hs s f' [::]
   | r_global_get :
       forall s f i v hs,
-        sglob_val s f.(f_inst) (N.to_nat i) = Some v ->
+        sglob_val s f.(f_inst) i = Some v ->
         reduce hs s f [::AI_basic (BI_global_get i)] hs s f [::v_to_e v]
   | r_global_set :
       forall s f i v s' hs,
-        supdate_glob s f.(f_inst) (N.to_nat i) v = Some s' ->
+        supdate_glob s f.(f_inst) i v = Some s' ->
         reduce hs s f [::v_to_e v; AI_basic (BI_global_set i)] hs s' f [::]
 
 (** table **)
