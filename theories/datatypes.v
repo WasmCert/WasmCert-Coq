@@ -880,7 +880,10 @@ Record moduleinst : Type := (* inst *) {
   inst_elems : list elemaddr;
   inst_datas : list dataaddr;
   inst_exports: list exportinst;  
-}.
+  }.
+
+Definition empty_moduleinst := Build_moduleinst nil nil nil nil nil nil nil nil.
+
 
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively
@@ -930,6 +933,8 @@ Record frame : Type := (* f *) {
   f_locs: list value;
   f_inst: moduleinst
 }.
+
+Definition empty_frame := Build_frame nil empty_moduleinst.
 
 
 (** * Administrative Instructions **)

@@ -47,28 +47,10 @@ Ltac simplify_lists :=
   | |- context C [rcons _ _] => rewrite -cats1
   | |- context C [(_ ++ _) ++ _] => rewrite -catA
   | |- context C [rev [::]] => rewrite rev0
-  | |- context C [v_to_e_list [::]] => rewrite v_to_e_list0
-  | |- context C [v_to_e_list [:: _]] => rewrite v_to_e_list1
+  | |- context C [v_to_e_list [::]] => simpl v_to_e_list at 1
+  | |- context C [v_to_e_list [:: _]] => simpl v_to_e_list at 1
   end;
   try subst_rev_const_list.
-
-Ltac auto_basic :=
-  repeat lazymatch goal with
-  | |- context C [v_to_e _] =>
-    unfold v_to_e    
-  | |- context C [vs_to_es _] =>
-    unfold vs_to_es
-  | |- es_is_basic [::AI_basic _; AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _] =>
-    simpl; repeat split
-  | |- e_is_basic (AI_basic ?e) =>
-    by unfold e_is_basic; exists e
-  end.
 
 (** A common scheme in the progress proof, with a continuation. **)
 Ltac solve_progress_cont cont :=
