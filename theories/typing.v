@@ -314,6 +314,9 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
   tc_mems C <> nil ->
   N.to_nat x < length (tc_datas C) ->
   be_typing C [::BI_memory_init x] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
+| bet_data_drop : forall C x,
+  N.to_nat x < length (tc_datas C) ->
+  be_typing C [::BI_data_drop x] (Tf [::] [::])
 | bet_empty : forall C,
   be_typing C [::] (Tf [::] [::])
 | bet_composition : forall C es e t1s t2s t3s,
