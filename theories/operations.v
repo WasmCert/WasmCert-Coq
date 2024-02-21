@@ -416,7 +416,7 @@ Definition sfunc (s : store_record) (i : moduleinst) (j : funcidx) : option func
   end.
 
 Definition sglob_ind (s : store_record) (i : moduleinst) (j : globalidx) : option globaladdr :=
-  List.nth_error (inst_globals i) j.
+  lookup_N (inst_globals i) j.
 
 Definition sglob (s : store_record) (i : moduleinst) (j : globalidx) : option globalinst :=
   match sglob_ind s i j with
@@ -442,30 +442,33 @@ Definition smem (s: store_record) (inst: moduleinst) : option meminst :=
 Definition tab_size (t: tableinst) : nat :=
   length (tableinst_elem t).
 
+Definition stab_ind (s: store_record) (inst: moduleinst) (x: tableidx) : option tableaddr :=
+  lookup_N inst.(inst_tables) x.
+
 Definition stab (s: store_record) (inst: moduleinst) (x: tableidx): option tableinst :=
   match lookup_N inst.(inst_tables) x with
   | Some a => lookup_N s.(s_tables) a
   | None => None
   end.
 
-Definition stab_elem (s: store_record) (inst: moduleinst) (x: tableidx) (i: nat) : option value_ref :=
+Definition stab_elem (s: store_record) (inst: moduleinst) (x: tableidx) (i: elemidx) : option value_ref :=
   match lookup_N inst.(inst_tables) x with
   | Some tabaddr =>
       match lookup_N s.(s_tables) tabaddr with
-      | Some tab => List.nth_error tab.(tableinst_elem) i
+      | Some tab => lookup_N tab.(tableinst_elem) i
       | _ => None
       end
   | _ => None
   end.
 
-Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: nat) (tabv: value_ref) : option store_record :=
+Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: elemidx) (tabv: value_ref) : option store_record :=
   match lookup_N inst.(inst_tables) x with
   | Some tabaddr =>
       match lookup_N s.(s_tables) tabaddr with
       | Some tab =>
           if i < tab_size tab then
             let: tab' := {| tableinst_type := tab.(tableinst_type);
-                           tableinst_elem := set_nth tabv tab.(tableinst_elem) i tabv |} in
+                           tableinst_elem := set_nth tabv tab.(tableinst_elem) (N.to_nat i) tabv |} in
             let: tabs' := set_nth tab' s.(s_tables) x tab' in
             Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
           else None

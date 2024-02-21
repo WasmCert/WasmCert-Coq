@@ -78,8 +78,8 @@ Definition value_typing (s: store_record) (v: value) : option value_type :=
   | VAL_ref v' => value_ref_typing s v'
   end.                      
 
-(* TODO: Documentation *)
-
+Definition values_typing (s: store_record) (vs: list value) : option (list value_type) :=
+  those (map (value_typing s) vs).
 
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   match (sxo, t1, t2) with
@@ -124,7 +124,7 @@ Definition upd_local_label_return C loc lab ret :=
     loc
     lab
     ret
-    (tc_ref C).
+    (tc_refs C).
 
 Definition upd_local C loc :=
   upd_local_label_return C loc (tc_labels C) (tc_return C).
@@ -184,6 +184,12 @@ https://www.w3.org/TR/wasm-core-2/valid/instructions.html
 Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
 | bet_const_num : forall C v, be_typing C [::BI_const_num v] (Tf [::] [::T_num (typeof_num v)])
 | bet_const_vec : forall C v, be_typing C [::BI_const_vec v] (Tf [::] [::T_vec (typeof_vec v)])
+| bet_ref_null: forall C t, be_typing C [::BI_ref_null t] (Tf [::] [::T_ref t])
+| bet_ref_is_null: forall C t, be_typing C [::BI_ref_is_null] (Tf [::T_ref t] [::T_num T_i32])
+| bet_ref_func: forall C t x,
+    lookup_N (tc_funcs C) x = Some t ->
+    List.In x (tc_refs C) ->
+    be_typing C [::BI_ref_func x] (Tf [::] [::T_ref T_funcref])
 | bet_unop : forall C t op,
     unop_type_agree t op -> be_typing C [::BI_unop t op] (Tf [::T_num t] [::T_num t])
 | bet_binop : forall C t op,

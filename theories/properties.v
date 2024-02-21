@@ -59,7 +59,7 @@ Proof.
     by f_equal.
 Qed.
 
-Lemma those_spec {T: Type} (l1: list (option T)) l2:
+Lemma those_lookup_inv {T: Type} (l1: list (option T)) l2:
   those l1 = Some l2 ->
   (forall i x, List.nth_error l2 i = Some x ->
           List.nth_error l1 i = Some (Some x)).
@@ -74,6 +74,29 @@ Proof.
     simpl in Heq.
     injection Heq as ->->.
     eapply IHl1; by eauto.
+Qed.
+
+Lemma those_lookup {T: Type} (l1: list (option T)) l2:
+  those l1 = Some l2 ->
+  (forall i x, List.nth_error l1 i = Some (Some x) ->
+          List.nth_error l2 i = Some x).
+Proof.
+  rewrite -those_those0.
+  move: l2. induction l1 as [|x l1]; destruct l2 as [|y l2] => //=; intros; remove_bools_options; destruct i; simpl in * => //=; first by injection H0 as <-.
+  by apply IHl1.
+Qed.
+
+Lemma those_spec_None {T: Type} (l1: list (option T)) n:
+  those l1 <> None ->
+  n < length l1 ->
+  exists y, List.nth_error l1 n = Some (Some y).
+Proof.
+  rewrite -those_those0.
+  move: n.
+  induction l1 as [| x l1] => //=.
+  move => n Hx Hlen; destruct n => //=; destruct x => //=; first by eexists.
+  apply IHl1 => //.
+  move => Hcontra; by rewrite Hcontra in Hx.
 Qed.
 
 Lemma const_list_cat: forall vs1 vs2,
@@ -336,7 +359,7 @@ Proof.
   unfold is_const.
   by rewrite v2e2v.
 Qed.
-
+  
 Lemma split_vals_inv: forall es vs es',
     split_vals_e es = (vs, es') ->
     es = (v_to_e_list vs) ++ es'.
@@ -706,6 +729,15 @@ Let store_record := store_record host_function.
 Let funcinst := funcinst host_function.
 Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
   @e_typing _.
+
+Lemma values_typing_length: forall s vs ts,
+    @values_typing host_function s vs = Some ts ->
+    length vs = length ts.
+Proof.
+  move => s vs ts Hvts.
+  apply those_length in Hvts.
+  by rewrite length_is_size size_map -length_is_size in Hvts.
+Qed.
 
 (** Additional List properties **)
 

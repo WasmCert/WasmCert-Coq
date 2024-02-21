@@ -731,7 +731,7 @@ Record t_context : Set := {
   tc_locals : list value_type;
   tc_labels : list result_type;
   tc_return : option result_type;
-  tc_ref : list funcidx;
+  tc_refs : list funcidx;
 }.
 
 Inductive result : Type :=

@@ -180,28 +180,28 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         reduce hs s f [::AI_basic (BI_call i)] hs s f [::AI_invoke a]
   | r_call_indirect_success :
       forall s f x (y: typeidx) a cl i hs,
-        stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_func a) ->
+        stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a) ->
         List.nth_error s.(s_funcs) a = Some cl ->
         List.nth_error f.(f_inst).(inst_types) y = Some (cl_type cl) ->
         reduce hs s f [::$VA (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_invoke a]
   | r_call_indirect_failure1 :
       forall s f x (y: typeidx) a cl i hs,
-        stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_func a) ->
+        stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a) ->
         List.nth_error s.(s_funcs) a = Some cl ->
         List.nth_error f.(f_inst).(inst_types) y <> Some (cl_type cl) ->
         reduce hs s f [::$VA (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
   | r_call_indirect_failure2 :
       forall s f x (y: typeidx) a i hs,
-        stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_func a) ->
+        stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a) ->
         List.nth_error s.(s_funcs) a = None ->
         reduce hs s f [::$VA (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
   | r_call_indirect_failure3 :
       forall s f x (y: typeidx) i hs,
-        stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = None ->
+        stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = None ->
         reduce hs s f [::$VA (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
   | r_call_indirect_failure4 :
       forall s f x (y: typeidx) i hs t,
-        stab_elem s f.(f_inst) x (Wasm_int.nat_of_uint i32m i) = Some (VAL_ref_null t) ->
+        stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_null t) ->
         reduce hs s f [::$VA (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
   | r_invoke_native :
       forall addr cl ts1 ts2 code x ts es ves vs n m k defaults s f inst hs,
