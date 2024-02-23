@@ -1249,7 +1249,9 @@ Ltac invert_e_typing :=
     let ts3 := fresh "ts3_comp" in
     let H1 := fresh "H1_comp" in
     let H2 := fresh "H2_comp" in
-    apply e_composition_typing in H as [ts3 [H1 H2]]; subst
+    apply e_composition_typing in H as [ts3 [H1 H2]]; subst;
+    repeat rewrite -catA in H1;
+    repeat rewrite -catA in H2
   | H: @e_typing _ _ _ [:: AI_basic _] _ |- _ =>
     apply et_to_bet in H => //; simpl in H; invert_be_typing; subst
   | H: @e_typing _ _ _ [::$V _] _ |- _ =>
@@ -1288,8 +1290,11 @@ Ltac invert_e_typing :=
     let H3 := fresh "H3_frame" in
     eapply Frame_typing in H; eauto;
     destruct H as [ts [H1 [H2 H3]]]; subst
-  | H: @e_typing _ _ _ [::?x;_] _ |- _ =>
+  | H: @e_typing _ _ _ (cons ?x _) _ |- _ =>
     rewrite -(cat1s x) in H
+  | H: T_num _ = T_num _ |- _ =>
+    let Hteq := fresh "Hteq" in
+    injection H as Hteq; subst
   end.
 
 Section Typing_inversion_e.
