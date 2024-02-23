@@ -1194,7 +1194,7 @@ Lemma elem_extension_refl: forall t,
 Proof.
   move => ? => /=.
   unfold elem_extension => /=.
-  by rewrite eq_refl.
+  by repeat rewrite eq_refl.
 Qed.
 
 Lemma all2_elem_extension_same: forall t,
@@ -1282,8 +1282,7 @@ Proof.
   move => x1 x2 x3 Hext1 Hext2.
   destruct x1, x2, x3.
   unfold elem_extension in *; simpl in *.
-  remove_bools_options; subst => //; try by apply/orP; right.
-  by rewrite eq_refl.
+  remove_bools_options; subst => //; try repeat rewrite eq_refl; by lias.
 Qed.
     
 Lemma data_extension_trans:
@@ -1364,14 +1363,15 @@ Qed.
 
 Lemma component_extension_lookup {T: Type} (l1 l2: list T) f n x:
   component_extension f l1 l2 ->
-  List.nth_error l1 n = Some x ->
-  exists y, (List.nth_error l2 n = Some y /\ f x y).
+  lookup_N l1 n = Some x ->
+  exists y, (lookup_N l2 n = Some y /\ f x y).
 Proof.
   move => Hext Hnth.
   unfold component_extension in Hext.
   remove_bools_options.
-  assert (lt n (length l1)) as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
-  destruct (List.nth_error l2 n) as [y |] eqn:Hnth'; last by apply List.nth_error_None in Hnth'; lias.
+  unfold lookup_N in *.
+  assert (lt (N.to_nat n) (length l1)) as Hlen; first by apply List.nth_error_Some; rewrite Hnth.
+  destruct (List.nth_error l2 (N.to_nat n)) as [y |] eqn:Hnth'; last by apply List.nth_error_None in Hnth'; lias.
   apply (nth_error_take (k := length l1)) in Hnth'; last by lias.
   specialize (all2_projection H0 Hnth Hnth') as Hproj.
   by exists y.
@@ -1379,8 +1379,8 @@ Qed.
 
 Lemma store_extension_lookup_func: forall s s' n cl,
     store_extension s s' ->
-    List.nth_error (s_funcs s) n = Some cl ->
-    List.nth_error (s_funcs s') n = Some cl.
+    lookup_N (s_funcs s) n = Some cl ->
+    lookup_N (s_funcs s') n = Some cl.
 Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
@@ -1391,10 +1391,10 @@ Proof.
   by move/eqP in Heq; subst.
 Qed.
 
-Lemma store_extension_lookup_tab: forall s s' n x,
+Lemma store_extension_lookup_table: forall s s' n x,
     store_extension s s' ->
-    List.nth_error (s_tables s) n = Some x ->
-    exists x', List.nth_error (s_tables s') n = Some x' /\ table_extension x x'.
+    lookup_N (s_tables s) n = Some x ->
+    exists x', lookup_N (s_tables s') n = Some x' /\ table_extension x x'.
 Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
@@ -1404,8 +1404,8 @@ Qed.
 
 Lemma store_extension_lookup_mem: forall s s' n x,
     store_extension s s' ->
-    List.nth_error (s_mems s) n = Some x ->
-    exists x', List.nth_error (s_mems s') n = Some x' /\ mem_extension x x'.
+    lookup_N (s_mems s) n = Some x ->
+    exists x', lookup_N (s_mems s') n = Some x' /\ mem_extension x x'.
 Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.
@@ -1413,10 +1413,32 @@ Proof.
   by eapply component_extension_lookup in Hnth; eauto.
 Qed.
 
-Lemma store_extension_lookup_glob: forall s s' n x,
+Lemma store_extension_lookup_global: forall s s' n x,
     store_extension s s' ->
-    List.nth_error (s_globals s) n = Some x ->
-    exists x', List.nth_error (s_globals s') n = Some x' /\ global_extension x x'.
+    lookup_N (s_globals s) n = Some x ->
+    exists x', lookup_N (s_globals s') n = Some x' /\ global_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply component_extension_lookup in Hnth; eauto.
+Qed.
+
+Lemma store_extension_lookup_elem: forall s s' n x,
+    store_extension s s' ->
+    lookup_N (s_elems s) n = Some x ->
+    exists x', lookup_N (s_elems s') n = Some x' /\ elem_extension x x'.
+Proof.
+  move => s s' n cl Hext Hnth.
+  unfold store_extension, operations.store_extension in Hext.
+  remove_bools_options.
+  by eapply component_extension_lookup in Hnth; eauto.
+Qed.
+
+Lemma store_extension_lookup_data: forall s s' n x,
+    store_extension s s' ->
+    lookup_N (s_datas s) n = Some x ->
+    exists x', lookup_N (s_datas s') n = Some x' /\ data_extension x x'.
 Proof.
   move => s s' n cl Hext Hnth.
   unfold store_extension, operations.store_extension in Hext.

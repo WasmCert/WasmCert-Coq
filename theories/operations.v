@@ -568,8 +568,10 @@ Definition global_extension (g1 g2: globalinst) : bool :=
     let (mut, t) := g_type g1 in
     ((mut == MUT_var) || (g_val g1 == g_val g2)).
 
+(* Note: std spec has a bug. *)
 Definition elem_extension (e1 e2: eleminst) : bool :=
-  (eleminst_elem e1 == eleminst_elem e2) || (eleminst_elem e2 == [::]).
+  ((eleminst_elem e1 == eleminst_elem e2) || (eleminst_elem e2 == [::])) &&
+    (eleminst_type e1 == eleminst_type e2).
 
 Definition data_extension (d1 d2: datainst) : bool :=
   (datainst_data d1 == datainst_data d2) || (datainst_data d2 == [::]).
