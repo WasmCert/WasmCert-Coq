@@ -62,6 +62,19 @@ Proof.
     by eapply IHHType.
 Qed.
 
+Lemma Basic_value_typing: forall C v bv ts1 ts2,
+    be_typing C [::bv] (Tf ts1 ts2) ->
+    $V v = AI_basic bv ->
+    ts2 = ts1 ++ [::typeof v].
+Proof.
+  move => C v bv ts1 ts2 HType HConst.
+  destruct v; inversion HConst; subst; clear HConst.
+  - by apply BI_const_num_typing in HType.
+  - by apply BI_const_vec_typing in HType.
+  - destruct v; inversion H0; subst; clear H0.
+    by apply BI_ref_null_typing in HType.
+Qed.
+
 Lemma BI_const_num2_typing: forall C econst1 econst2 t1s t2s,
     be_typing C [::BI_const_num econst1; BI_const_num econst2] (Tf t1s t2s) ->
     t2s = t1s ++ [::T_num (typeof_num econst1); T_num (typeof_num econst2)].
@@ -194,6 +207,19 @@ Proof.
   - edestruct IHHType as [? [?[?[??]]]] => //=; subst.
     repeat rewrite -cat_app; repeat rewrite catA.
     by repeat eexists.
+Qed.
+
+Lemma Ref_is_null_typing: forall C ts1 ts2,
+    be_typing C [::BI_ref_is_null] (Tf ts1 ts2) ->
+    exists ts t, ts1 = ts ++ [::T_ref t] /\ ts2 = ts ++ [::T_num T_i32].
+Proof.
+  move => C ts1 ts2 HType.
+  gen_ind_subst HType => //.
+  - exists nil, t; by eauto.
+  - by resolve_compose Econs HType1 IHHType2.
+  - edestruct IHHType as [ts' [t' [??]]] => //=; subst.
+    exists (ts ++ ts'), t'.
+    by resolve_weaken.
 Qed.
 
 Lemma If_typing: forall C tb e1s e2s ts ts',
@@ -696,6 +722,8 @@ Ltac invert_be_typing:=
     apply BI_const_num_typing in H; subst
   | H: be_typing _ [:: BI_const_vec _] _ |- _ =>
     apply BI_const_vec_typing in H; subst
+  | H: be_typing _ [:: BI_ref_null _] _ |- _ =>
+    apply BI_ref_null_typing in H; subst
   | H: be_typing _ [:: BI_const_num _; BI_const_num _] _ |- _ =>
     apply BI_const_num2_typing in H; subst
   | H: be_typing _ [:: BI_const_num _; BI_const_num _; BI_const_num _] _ |- _ =>
@@ -731,13 +759,19 @@ Ltac invert_be_typing:=
     apply Nop_typing in H; destruct H; subst
   | H: be_typing _ [::BI_drop] _ |- _ =>
     apply Drop_typing in H; destruct H; subst
-  | H: be_typing _ [::BI_select] _ |- _ =>
+  | H: be_typing _ [::BI_select _] _ |- _ =>
     let ts := fresh "ts_select" in
     let t := fresh "t_select" in
     let H1 := fresh "H1_select" in
     let H2 := fresh "H2_select" in
     let H3 := fresh "H3_select" in
     apply Select_typing in H; destruct H as [ts [t [H1 [H2 H3]]]]; subst
+  | H: be_typing _ [::BI_ref_is_null] _ |- _ =>
+    let ts := fresh "ts_ref_is_null" in
+    let t := fresh "t_ref_is_null" in
+    let H1 := fresh "H1_ref_is_null" in
+    let H2 := fresh "H2_ref_is_null" in
+    apply Ref_is_null_typing in H; destruct H as [ts [t [H1 H2]]]; subst
   | H: be_typing _ [::BI_if _ _ _] _ |- _ =>
     let ts := fresh "ts_if" in
     let ts1 := fresh "ts1_if" in
@@ -1155,7 +1189,7 @@ Proof.
 Qed.
 
 (* In Wasm 2.0, values are no longer always well-typed, and typing needs to be done under e_typing. *)
-Lemma et_value: forall s C v t,
+Lemma et_value_typing: forall s C v t,
     value_typing s v = Some t ->
     e_typing s C [::v_to_e v] (Tf nil [::t]).
 Proof.
@@ -1167,7 +1201,7 @@ Proof.
   - by apply ety_ref_extern.
 Qed.
 
-Lemma et_values: forall s C vs ts,
+Lemma et_values_typing: forall s C vs ts,
     values_typing s vs = Some ts ->
     e_typing s C (v_to_e_list vs) (Tf nil ts).
 Proof.
@@ -1181,7 +1215,7 @@ Proof.
     cbn in Hvts.
     remove_bools_options.
     rewrite -cat1s.
-    apply et_composition' with (t2s := [::v0]); first by apply et_value.
+    apply et_composition' with (t2s := [::v0]); first by apply et_value_typing.
     rewrite <- (cat1s v0 l).
     apply et_weakening_empty_1.
     apply IH.
@@ -1210,12 +1244,20 @@ Qed.
 End Typing_inversion_e.
 
 Ltac invert_e_typing :=
-  repeat lazymatch goal with
+  repeat match goal with
   | H: @e_typing _ _ _ (_ ++ _) _ |- _ =>
     let ts3 := fresh "ts3_comp" in
     let H1 := fresh "H1_comp" in
     let H2 := fresh "H2_comp" in
     apply e_composition_typing in H as [ts3 [H1 H2]]; subst
+  | H: @e_typing _ _ _ [:: AI_basic _] _ |- _ =>
+    apply et_to_bet in H => //; simpl in H; invert_be_typing; subst
+  | H: @e_typing _ _ _ [::$V _] _ |- _ =>
+    let ts := fresh "ts_value" in
+    let H1 := fresh "H1_value" in
+    let H2 := fresh "H2_value" in
+    eapply Value_typing_inversion in H; eauto;
+    destruct H as [ts [H1 H2]]; subst
   | H: @e_typing _ _ _ (v_to_e_list _) _ |- _ =>
     let ts := fresh "ts_values" in
     let H1 := fresh "H1_values" in
@@ -1246,6 +1288,8 @@ Ltac invert_e_typing :=
     let H3 := fresh "H3_frame" in
     eapply Frame_typing in H; eauto;
     destruct H as [ts [H1 [H2 H3]]]; subst
+  | H: @e_typing _ _ _ [::?x;_] _ |- _ =>
+    rewrite -(cat1s x) in H
   end.
 
 Section Typing_inversion_e.
@@ -1453,91 +1497,7 @@ Proof.
   by eexists.
 Qed.
 
-Ltac auto_basic :=
-  repeat lazymatch goal with
-  | |- es_is_basic [::AI_basic _; AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- es_is_basic [::AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _; AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _; AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _; AI_basic _] =>
-    simpl; repeat split
-  | |- operations.es_is_basic [::AI_basic _] =>
-    simpl; repeat split
-  | |- operations.e_is_basic (AI_basic ?e) =>
-    by unfold e_is_basic; exists e
-end.
 *)
-
-Ltac uapply H :=
-  lazymatch type of H with
-  | ?P ?x1 ?x2 ?x3 ?x4 ?x5 ?x6 =>
-      lazymatch goal with
-      | [ |- ?P ?y1 ?y2 ?y3 ?y4 ?y5 ?y6] =>
-          replace y1 with x1;
-          first replace y2 with x2;
-          first replace y3 with x3;
-          first replace y4 with x4;
-          first replace y5 with x5;
-          first replace y6 with x6;
-          first (apply H); try by []
-      | _ => fail "hypothesis cannot be converted to goal6"
-      end
-  | ?P ?x1 ?x2 ?x3 ?x4 ?x5 =>
-      lazymatch goal with
-      | [ |- ?P ?y1 ?y2 ?y3 ?y4 ?y5 ] =>
-          replace y1 with x1;
-          first replace y2 with x2;
-          first replace y3 with x3;
-          first replace y4 with x4;
-          first replace y5 with x5;
-          first (apply H); try by []
-      | _ => fail "hypothesis cannot be converted to goal5"
-      end
-  | ?P ?x1 ?x2 ?x3 ?x4 =>
-      lazymatch goal with
-      | [ |- ?P ?y1 ?y2 ?y3 ?y4] =>
-          replace y1 with x1;
-          first replace y2 with x2;
-          first replace y3 with x3;
-          first replace y4 with x4;
-          first (apply H); try by []
-      | _ => fail "hypothesis cannot be converted to goal4"
-      end
-  | ?P ?x1 ?x2 ?x3 =>
-      lazymatch goal with
-      | [ |- ?P ?y1 ?y2 ?y3] =>
-          replace y1 with x1;
-          first replace y2 with x2;
-          first replace y3 with x3;
-          first (apply H); try by []
-      | _ => fail "hypothesis cannot be converted to goal3"
-      end
-  | ?P ?x1 ?x2 =>
-      lazymatch goal with
-      | [ |- ?P ?y1 ?y2] =>
-          replace y1 with x1;
-          first replace y2 with x2;
-          first (apply H); try by []
-      | _ => fail "hypothesis cannot be converted to goal2"
-      end
-  | ?P ?x1 =>
-      lazymatch goal with
-      | [ |- ?P ?y1] =>
-          replace y1 with x1;
-          first (apply H); try by []
-      | _ => fail "hypothesis cannot be converted to goal1"
-      end
-  | _ => fail "the goal of current shape cannot be resolved"
-  end.
-
 
 Lemma Lfilled_break_typing: forall n m k (lh: lholed n) vs LI ts s C t2s tss,
     e_typing s (upd_label C (tss ++ [::ts] ++ tc_labels C)) LI (Tf [::] t2s) ->
@@ -1560,16 +1520,14 @@ Proof.
     rewrite add0n in HType.
     repeat rewrite catA in HType.
     invert_e_typing'.
-    apply et_to_bet in H2_comp0 => //.
     simpl in *.
-    invert_be_typing; simpl in *; subst.
     unfold lookup_N in *.
     rewrite Nat2N.id in H1_br.
     rewrite list_nth_prefix in H1_br.
     injection H1_br as <-.
-    apply concat_cancel_last_n in H2_br.
+    apply concat_cancel_last_n in H1_values.
     + remove_bools_options; subst.
-      by apply et_values.
+      by apply et_values_typing.
     + apply values_typing_length in H2_values.
       repeat rewrite length_is_size in HTSSLength.
       rewrite size_map in HTSSLength.
@@ -1600,14 +1558,12 @@ Proof.
   induction lh; move => vs LI ts s C0 C t2s HType Heqret HConst HLength /=HLF HReturn; subst => //=.
   - apply const_es_exists in HConst as [? ->].
     invert_e_typing'.
-    apply et_to_bet in H2_comp => //.
     simpl in *.
-    invert_be_typing; subst.
     rewrite H2_return in Heqret.
     rewrite - HReturn in Heqret.
     injection Heqret as <-.
-    apply concat_cancel_last_n in H1_return; remove_bools_options; subst.
-    + apply et_values.
+    apply concat_cancel_last_n in H1_values; remove_bools_options; subst.
+    + apply et_values_typing.
       by rewrite H2_values.
     + repeat rewrite length_is_size in HLength.
       rewrite size_map in HLength.
@@ -1633,7 +1589,7 @@ Proof.
   remove_bools_options.
   apply et_weakening_empty_1.
   apply const_es_exists in HConst as [? ->].
-  apply et_values.
+  apply et_values_typing.
   eapply Lfilled_return_typing in H6; eauto; last by apply v_to_e_const.
   by invert_e_typing'.
 Qed.

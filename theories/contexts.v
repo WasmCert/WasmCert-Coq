@@ -130,7 +130,7 @@ Instance frame_ctx_eval: eval_ctx frame_ctx :=
 Proof.
   move => [lvs lk lf les] hs s f es hs' s' f' es' /= <- Hred /=.
   eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-  by apply r_local.
+  by apply r_frame.
 Defined.
 
 
@@ -216,11 +216,11 @@ Proof.
   elim => //.
   - move => [lvs lk lf les] hs s f es hs' s' f' es' <- /=Hred /=.
     eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    by apply r_local.
+    by apply r_frame.
   - move => ctx ctxs' IH [lvs lk lf les] hs s f es hs' s' f' es' <- /=Hred.
     apply IH => //=.
     eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    by apply r_local.
+    by apply r_frame.
 Defined.
 
 #[refine, export]
@@ -251,12 +251,12 @@ Proof.
   elim => //.
   - move => [[lvs lk lf les] lcs] hs s f es hs' s' f' es' <- /=Hred /=.
     eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    apply r_local.
+    apply r_frame.
     by apply (list_label_ctx_eval.(ctx_reduce)).
   - move => ctx ctxs' IH [[lvs lk lf les] lcs] hs s f es hs' s' f' es' <- /=Hred.
     apply IH => //=.
     eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    apply r_local.
+    apply r_frame.
     by apply (list_label_ctx_eval.(ctx_reduce)).
 Defined.
 
@@ -812,7 +812,7 @@ Proof.
   move => Hred.
   apply (list_closure_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
   eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
-  by apply r_local.
+  by apply r_frame.
 Qed.
 
 Lemma reduce_focus_ctx_id: forall hs s lcs ccs es hs' s' es' f0 fc fc',

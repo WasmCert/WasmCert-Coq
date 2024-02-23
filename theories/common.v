@@ -143,6 +143,69 @@ Ltac remove_bools_options :=
     destruct exp eqn:Hoption; try by []
   end.
 
+(* Apply but turning unification errors into equality obligations *)
+Ltac uapply H :=
+  lazymatch type of H with
+  | ?P ?x1 ?x2 ?x3 ?x4 ?x5 ?x6 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3 ?y4 ?y5 ?y6] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first replace y4 with x4;
+          first replace y5 with x5;
+          first replace y6 with x6;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal6"
+      end
+  | ?P ?x1 ?x2 ?x3 ?x4 ?x5 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3 ?y4 ?y5 ] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first replace y4 with x4;
+          first replace y5 with x5;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal5"
+      end
+  | ?P ?x1 ?x2 ?x3 ?x4 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3 ?y4] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first replace y4 with x4;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal4"
+      end
+  | ?P ?x1 ?x2 ?x3 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal3"
+      end
+  | ?P ?x1 ?x2 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal2"
+      end
+  | ?P ?x1 =>
+      lazymatch goal with
+      | [ |- ?P ?y1] =>
+          replace y1 with x1;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal1"
+      end
+  | _ => fail "the goal of current shape cannot be resolved"
+  end.
+
 
 (** A useful lemma to link the results of [Scheme Equality] to [Equality.axiom]. **)
 Lemma eq_dec_Equality_axiom : forall t (eq_dec : forall x y : t, {x = y} + {x <> y}),

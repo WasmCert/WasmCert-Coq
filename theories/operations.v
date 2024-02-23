@@ -916,3 +916,5 @@ Arguments cl_type {host_function}.
 
 #[export]
 Hint Unfold v_to_e: core.
+
+Notation "$V v" := (v_to_e v) (at level 60).

@@ -244,17 +244,21 @@ Proof.
   by apply ve_inv.
 Qed.
 
+Lemma ve_inj: forall v1 v2,
+    v_to_e v1 = v_to_e v2 ->
+    v1 = v2.
+Proof.
+  move => v1 v2.
+  destruct v1 as [ | | [| |]]; destruct v2 as [ | | [| |]] => //=; by move => [<-].
+Qed.
+
 Lemma v_to_e_inj: forall l1 l2,
     v_to_e_list l1 = v_to_e_list l2 ->
     l1 = l2.
 Proof.
-  elim => //=; first by case.
-  move => v l IH; case => //=; move => v' l' H; injection H.
-  move => ? Hveq.
-  f_equal; last by apply IH.
-  apply ve_inv in Hveq.
-  move: Hveq.
-  case v' => //=; move => v1; case v1 => //; by move => ? [<-].
+  apply inj_map.
+  unfold injective.
+  by apply ve_inj.
 Qed.
 
 Lemma to_b_list_concat: forall es1 es2,
@@ -959,6 +963,16 @@ Proof.
   move => s C t1s t2s HType.
   apply et_to_bet in HType => //.
   by apply empty_typing in HType.
+Qed.
+
+Lemma bet_value_typing: forall C bv v,
+    $V v = AI_basic bv ->
+    be_typing C [::bv] (Tf nil [::typeof v]).
+Proof.
+  move => C bv v HConst.
+  destruct v; inversion HConst; subst; clear HConst; try by constructor.
+  destruct v; inversion H0; subst; clear H0.
+  by constructor.
 Qed.
 
 (************ these come from the certified itp *************)

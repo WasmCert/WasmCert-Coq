@@ -995,7 +995,7 @@ Definition config_tuple : Type := store_record * thread.
 End Host.
 
 (* Notations for values to basic/admin instructions *)
-Notation "$VA v" := (AI_basic (BI_const_num v)) (at level 60).
+Notation "$VN v" := (AI_basic (BI_const_num v)) (at level 60).
 
 Arguments FC_func_native [host_function].
 
