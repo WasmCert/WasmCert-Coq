@@ -75,6 +75,23 @@ Proof.
     by apply BI_ref_null_typing in HType.
 Qed.
 
+Lemma BI_ref_func_typing: forall C x t1s t2s,
+    be_typing C [::BI_ref_func x] (Tf t1s t2s) ->
+    exists tf, lookup_N (tc_funcs C) x = Some tf /\
+           List.In x (tc_refs C) /\
+           t2s = t1s ++ [::T_ref T_funcref].
+Proof.
+  move => C x t1s t2s HType.
+  gen_ind_subst HType => //.
+  - exists t; by eauto.
+  - by resolve_compose Econs HType1 IHHType2.
+  - rewrite - catA -cat_app.
+    edestruct IHHType as [tf [? [??]]]; eauto; subst.
+    by exists tf.
+Qed.
+
+
+
 Lemma BI_const_num2_typing: forall C econst1 econst2 t1s t2s,
     be_typing C [::BI_const_num econst1; BI_const_num econst2] (Tf t1s t2s) ->
     t2s = t1s ++ [::T_num (typeof_num econst1); T_num (typeof_num econst2)].
@@ -724,6 +741,12 @@ Ltac invert_be_typing:=
     apply BI_const_vec_typing in H; subst
   | H: be_typing _ [:: BI_ref_null _] _ |- _ =>
     apply BI_ref_null_typing in H; subst
+  | H: be_typing _ [:: BI_ref_func _] _ |- _ =>
+    let tf := fresh "tf_ref_func" in
+    let H1 := fresh "H1_ref_func" in
+    let H2 := fresh "H2_ref_func" in
+    let H3 := fresh "H3_ref_func" in
+    apply BI_ref_func_typing in H; destruct H as [tf [H1 [H2 H3]]]; subst
   | H: be_typing _ [:: BI_const_num _; BI_const_num _] _ |- _ =>
     apply BI_const_num2_typing in H; subst
   | H: be_typing _ [:: BI_const_num _; BI_const_num _; BI_const_num _] _ |- _ =>
@@ -1295,7 +1318,7 @@ Ltac invert_e_typing :=
   | H: T_num _ = T_num _ |- _ =>
     let Hteq := fresh "Hteq" in
     injection H as Hteq; subst
-  end.
+  end; invert_be_typing.
 
 Section Typing_inversion_e.
 
@@ -1303,7 +1326,7 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let funcinst := funcinst host_function.
-Let funcinst_valid := @funcinst_valid host_function.
+Let funcinst_typing := @funcinst_typing host_function.
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.
 
@@ -1326,10 +1349,11 @@ Let s_globals : store_record -> seq globalinst := @s_globals _.
 Let s_mems : store_record -> seq meminst := @s_mems _.
 Let cl_type : funcinst -> function_type := @cl_type _.
 Let store_extension: store_record -> store_record -> Prop := @store_extension _.
+
 Lemma store_typed_cl_typed: forall s n f,
     lookup_N (s_funcs s) n = Some f ->
     store_typing s ->
-    funcinst_valid s f.
+    exists tf, funcinst_typing s f tf.
 Proof.
   move => s n f HN HST.
   unfold store_typing in HST.
@@ -1382,8 +1406,10 @@ Proof.
   destruct s; remove_bools_options.
   destruct Hst as [? [? [? [Hglobtype ?]]]].
   eapply those_lookup_inv in Hoption5; eauto.
-  apply those_spec_None with (n := (N.to_nat g1)) in Hglobtype as [gt Hglobtype].
-  { rewrite List.nth_error_map in Hglobtype.
+  eapply Forall_lookup with (n := (N.to_nat g1)) in Hglobtype as [gt Hglobtype]; eauto.
+  {
+    unfold globalinst_typing in Hglobtype.
+    destruct g0.
     rewrite List.nth_error_map in Hoption5.
     unfold ext_global_typing in Hoption5.
     remove_bools_options; simpl in *.
@@ -1392,15 +1418,7 @@ Proof.
     injection Hoption8 as <-.
     rewrite Hoption0 in Hoption5.
     injection Hoption5 as <-.
-    rewrite Hoption0 in Hoption9.
-    injection Hoption9 as ->.
-    destruct g.
-    unfold globalinst_typing in H4; simpl in *.
-    remove_bools_options. by move/eqP in Hif0.
-  }
-  { apply nth_error_Some_length in Hoption0; simpl in *.
-    rewrite length_is_size size_map -length_is_size.
-    by lias.
+    by move/eqP in Hif1.
   }
 Qed.
 

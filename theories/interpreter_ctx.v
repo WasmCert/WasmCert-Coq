@@ -1,6 +1,6 @@
 (** Proof-carrying interpreter for Wasm, optimised for contexts **)
 
-From Wasm Require Import common properties tactic typing_inversion interpreter_func contexts.
+From Wasm Require Import common properties tactic typing_inversion contexts.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
@@ -25,7 +25,6 @@ Let host_state := host_state host_instance.
 Let e_typing := @e_typing host_function.
 Let inst_typing := @inst_typing host_function.
 Let frame_typing := @frame_typing host_function.
- 
 
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
@@ -36,7 +35,6 @@ Hypothesis host_application_impl_correct :
 Let ctx_fill := @ctx_fill host_function host_instance.
 Notation "ctx ⦃ es ⦄" := (ctx_fill _ es ctx) (at level 1).
 
-(* Slightly ugly *)
 Let valid_cfg_ctx := @valid_cfg_ctx host_function.
 Let cfg_tuple_ctx := @cfg_tuple_ctx host_function.
 Let label_ctx_eval := @label_ctx_eval host_function host_instance.
@@ -47,12 +45,12 @@ Let list_closure_ctx_eval := @list_closure_ctx_eval host_function host_instance.
 Let lh_ctx_fill_aux := @lh_ctx_fill_aux host_function host_instance.
 
 Lemma config_typing_empty_inv: forall s es ts (C: t_context),
-    config_typing s empty_frame es ts ->
+    config_typing s (empty_frame, es) ts ->
     C = empty_t_context ->
     store_typing s /\ e_typing s C es (Tf [::] ts).
 Proof.
   move => s es ts C Htype ?; subst.
-  inversion Htype as [???? Hstype Htype']; subst; split => //; clear Hstype Htype.
+  inversion Htype as [? [?? Hstype Htype']]; subst; split => //. clear Hstype Htype.
   inversion Htype' as [?????? C0 Hftype ? Htype _]; subst; clear Htype'.
   inversion Hftype as [????? Hinsttype]; subst; clear Hftype.
   destruct C; simpl in *.

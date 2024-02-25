@@ -755,12 +755,23 @@ Proof.
   by apply List.nth_error_Some in H2.
 Qed.
 
+Lemma Forall_lookup: forall {X:Type} f (l:seq X) n x,
+    List.Forall f l ->
+    List.nth_error l n = Some x ->
+    f x.
+Proof.
+  move => X f l n x.
+  generalize dependent l.
+  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //; inversion HF; subst => //.
+  eapply IHn; by eauto.
+Qed.
+
 Lemma all_projection: forall {X:Type} f (l:seq X) n x,
     all f l ->
     List.nth_error l n = Some x ->
     f x.
 Proof.
-  move => X f l n x.
+  move => X f l n x Hall Hnth.
   generalize dependent l.
   induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //.
   eapply IHn; by eauto.
@@ -1126,8 +1137,8 @@ Proof.
   by apply IHl.
 Qed.
 
-Lemma func_extension_refl: forall f,
-    func_extension f f.
+Lemma func_extension_refl:
+    reflexive func_extension.
 Proof.
   move => f. by unfold func_extension, operations.func_extension.
 Qed.
@@ -1140,8 +1151,8 @@ Proof.
   by apply func_extension_refl.
 Qed.
 
-Lemma table_extension_refl: forall t,
-    table_extension t t.
+Lemma table_extension_refl:
+    reflexive table_extension.
 Proof.
   move => t. unfold table_extension.
   by apply/andP.
@@ -1155,8 +1166,8 @@ Proof.
   by apply table_extension_refl.
 Qed.
 
-Lemma mem_extension_refl: forall m,
-    mem_extension m m.
+Lemma mem_extension_refl:
+    reflexive mem_extension.
 Proof.
   move => m.
   unfold mem_extension.
@@ -1171,8 +1182,8 @@ Proof.
   by apply mem_extension_refl.
 Qed.
 
-Lemma global_extension_refl: forall t,
-    global_extension t t.
+Lemma global_extension_refl:
+    reflexive global_extension.
 Proof.
   move => [[??]?] => /=.
   unfold global_extension => /=.
@@ -1189,8 +1200,8 @@ Proof.
   by apply global_extension_refl.
 Qed.
 
-Lemma elem_extension_refl: forall t,
-    elem_extension t t.
+Lemma elem_extension_refl:
+    reflexive elem_extension.
 Proof.
   move => ? => /=.
   unfold elem_extension => /=.
@@ -1205,8 +1216,8 @@ Proof.
   by apply elem_extension_refl.
 Qed.
 
-Lemma data_extension_refl: forall t,
-    data_extension t t.
+Lemma data_extension_refl:
+    reflexive data_extension.
 Proof.
   move => ? => /=.
   unfold data_extension => /=.

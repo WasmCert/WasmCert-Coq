@@ -119,8 +119,8 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
         reduce_simple [::$VN (VAL_int32 n); AI_basic (BI_br_if i)] [::AI_basic (BI_br i)]
   | rs_br_table :
       forall iss c i j,
-        length iss > Wasm_int.nat_of_uint i32m c ->
-        List.nth_error iss (Wasm_int.nat_of_uint i32m c) = Some j ->
+        N.of_nat (length iss) > Wasm_int.N_of_uint i32m c ->
+        lookup_N iss (Wasm_int.N_of_uint i32m c) = Some j ->
         reduce_simple [::$VN (VAL_int32 c); AI_basic (BI_br_table iss i)] [::AI_basic (BI_br j)]
   | rs_br_table_length :
       forall iss c i,
@@ -179,24 +179,24 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
   (** calling operations **)
   | r_call :
       forall s f (i: funcidx) a hs,
-        List.nth_error f.(f_inst).(inst_funcs) i = Some a ->
+        lookup_N f.(f_inst).(inst_funcs) i = Some a ->
         reduce hs s f [::AI_basic (BI_call i)] hs s f [::AI_invoke a]
   | r_call_indirect_success :
       forall s f x (y: typeidx) a cl i hs,
         stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a) ->
-        List.nth_error s.(s_funcs) a = Some cl ->
-        List.nth_error f.(f_inst).(inst_types) y = Some (cl_type cl) ->
+        lookup_N s.(s_funcs) a = Some cl ->
+        lookup_N f.(f_inst).(inst_types) y = Some (cl_type cl) ->
         reduce hs s f [::$VN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_invoke a]
   | r_call_indirect_failure1 :
       forall s f x (y: typeidx) a cl i hs,
         stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a) ->
-        List.nth_error s.(s_funcs) a = Some cl ->
-        List.nth_error f.(f_inst).(inst_types) y <> Some (cl_type cl) ->
+        lookup_N s.(s_funcs) a = Some cl ->
+        lookup_N f.(f_inst).(inst_types) y <> Some (cl_type cl) ->
         reduce hs s f [::$VN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
   | r_call_indirect_failure2 :
       forall s f x (y: typeidx) a i hs,
         stab_elem s f.(f_inst) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a) ->
-        List.nth_error s.(s_funcs) a = None ->
+        lookup_N s.(s_funcs) a = None ->
         reduce hs s f [::$VN (VAL_int32 i); AI_basic (BI_call_indirect x y)] hs s f [::AI_trap]
   | r_call_indirect_failure3 :
       forall s f x (y: typeidx) i hs,

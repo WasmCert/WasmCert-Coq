@@ -130,6 +130,13 @@ Ltac remove_bools_options :=
     |- _ =>
     let Hoption := fresh "Hoption" in
     destruct exp eqn:Hoption; try by []
+  | H: match ?exp with
+       | Some _ => _
+       | None => False
+       end
+    |- _ =>
+    let Hoption := fresh "Hoption" in
+    destruct exp eqn:Hoption; try by []
   | H: (if ?exp then _ else _ ) = _
     |- _ =>
     let Hif := fresh "Hif" in

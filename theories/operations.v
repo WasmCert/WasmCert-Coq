@@ -555,11 +555,11 @@ Definition supdate_glob (s : store_record) (i : moduleinst) (j : globalidx) (v :
 Definition func_extension (f1 f2: funcinst) : bool :=
   f1 == f2.
 
-Definition table_extension (t1 t2 : tableinst) :=
+Definition table_extension (t1 t2 : tableinst) : bool :=
   (tableinst_type t1 == tableinst_type t2) &&
   (tab_size t1 <= tab_size t2).
 
-Definition mem_extension (m1 m2 : meminst) :=
+Definition mem_extension (m1 m2 : meminst) : bool :=
   (meminst_type m1 == meminst_type m2) &&
   (mem_length m1 <= mem_length m2).
 

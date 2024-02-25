@@ -585,16 +585,17 @@ with thread_typing : store_record -> option result_type -> thread -> result_type
 Scheme e_typing_ind' := Induction for e_typing Sort Prop
   with thread_typing_ind' := Induction for thread_typing Sort Prop.
 
-Definition funcinst_valid (s: store_record) (fi: funcinst) : Prop :=
+Definition funcinst_typing (s: store_record) (fi: funcinst) (tf0: function_type): Prop :=
+  cl_type fi = tf0 /\
   match fi with
-  | FC_func_native ft inst code =>
-      functype_valid ft /\
+  | FC_func_native tf inst code =>
+      functype_valid tf /\
         match inst_typing s inst with
-        | Some C => func_typing C code ft
+        | Some C => func_typing C code tf
         | None => False
         end
-  | FC_func_host ft hf =>
-      functype_valid ft (* No host function assumptions *)
+  | FC_func_host tf hf =>
+      functype_valid tf (* No host function assumptions *)
   end.
 
 (*
@@ -638,12 +639,12 @@ Definition mem_agree (m : meminst) : Prop :=
 Definition store_typing (s : store_record) : Prop :=
   match s with
   | Build_store_record fs tabs ms gs es ds =>
-    List.Forall (funcinst_valid s) fs /\
-    those (map (tableinst_typing s) tabs) <> None /\
-    those (map (meminst_typing s) ms) <> None /\
-    those (map (globalinst_typing s) gs) <> None /\
-    those (map (eleminst_typing s) es) <> None /\
-    those (map (datainst_typing s) ds) <> None
+    (List.Forall (fun x => exists t, funcinst_typing s x t) fs) /\
+    (List.Forall (fun x => exists t, tableinst_typing s x = Some t) tabs) /\
+    (List.Forall (fun x => exists t, meminst_typing s x = Some t) ms) /\
+    (List.Forall (fun x => exists t, globalinst_typing s x = Some t) gs) /\
+    (List.Forall (fun x => exists t, eleminst_typing s x = Some t) es) /\
+    (List.Forall (fun x => exists t, datainst_typing s x = Some t) ds)
   end.
 
 Definition config_typing (s: store_record) (th: thread) (ts: result_type) : Prop :=
