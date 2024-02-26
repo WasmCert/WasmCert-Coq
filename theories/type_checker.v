@@ -183,6 +183,9 @@ Fixpoint validate (C: t_context) (vts: val_stack) (ctrls: ctrl_stack) (be: opcod
     | Unop_f _ => if is_float_t t
                   then type_update vts ctrls [::T_num t] [::T_num t]
                   else None
+    | Unop_extend _ => if is_int_t t 
+                  then type_update vts ctrls [::T_num t] [::T_num t]
+                  else None
     end
   | BI_binop t op =>
     match op with

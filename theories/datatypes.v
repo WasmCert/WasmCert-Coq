@@ -363,6 +363,7 @@ Inductive unop_f : Set :=
 Inductive unop : Set :=
   | Unop_i : unop_i -> unop
   | Unop_f : unop_f -> unop
+  | Unop_extend : N -> unop
   .
 
 Inductive binop_i : Set :=
@@ -424,7 +425,13 @@ Inductive relop : Set :=
 
 (* TODO: comment on the other cvtops *)
 Inductive cvtop : Set :=
+  | CVO_wrap
+  | CVO_extend
+  | CVO_trunc
+  | CVO_trunc_sat
   | CVO_convert
+  | CVO_demote
+  | CVO_promote
   | CVO_reinterpret
   .
 
@@ -998,5 +1005,3 @@ End Host.
 Notation "$VN v" := (AI_basic (BI_const_num v)) (at level 60).
 
 Arguments FC_func_native [host_function].
-
-

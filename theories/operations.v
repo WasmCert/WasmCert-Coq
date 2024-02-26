@@ -213,6 +213,10 @@ Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -
   | UOF_sqrt => Wasm_float.float_sqrt mx
   end.
 
+(* TODO: implement new extendN_s numerics *)
+Definition app_unop_extend (n: N) (v: value_num) :=
+  v.
+
 Definition app_unop (op: unop) (v: value_num) :=
   match op with
   | Unop_i iop =>
@@ -227,6 +231,7 @@ Definition app_unop (op: unop) (v: value_num) :=
     | VAL_float64 c => VAL_float64 (@app_unop_f f64t fop c)
     | _ => v
     end
+  | Unop_extend n => app_unop_extend n v
   end.
 
 Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
