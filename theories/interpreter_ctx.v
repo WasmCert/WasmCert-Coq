@@ -1281,9 +1281,47 @@ End Interp_ctx_progress.
 End Host.
 
 (** Extraction **)
+(* A workaround to use the monadic host defined in host.v to avoid reworking shim;
+   need a unified approach in the future *)
+Module EmptyHost.
+
+Definition host_function := void.
+
+Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+Proof. decidable_equality. Defined.
+
+Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Global Canonical Structure host_function_eqType :=
+  Eval hnf in EqType host_function host_function_eqMixin.
+
+Definition host : Type := host host_function_eqType.
+
+Definition store_record := store_record host_function_eqType.
+Definition function_closure := function_closure host_function_eqType.
+
+Definition host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}.
+Defined.
+
+Definition config_tuple := config_tuple host_instance.
+Definition res_tuple := res_tuple host_instance.
+
+Definition host_state := host_state host_instance.
+
+End EmptyHost.
+
+(** Extraction **)
 Module Interpreter_ctx_extract.
 
-Import interpreter_func.EmptyHost.
+Import EmptyHost.
 
 (* No host function exists *)
 Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->

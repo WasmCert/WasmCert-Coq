@@ -1,6 +1,7 @@
 (** Tests for the binary parser. **)
 Require Import Strings.Byte.
 From parseque Require Import Parseque.
+Require Import BinNat.
 From Wasm Require Import binary_format_parser binary_format_printer
                          datatypes_properties check_toks.
 
@@ -16,7 +17,7 @@ Proof. vm_compute. reflexivity. Qed.
 
 (** An example program. **)
 Definition test :=
-  BI_if (Tf nil nil) (BI_testop T_i64 TO_eqz :: nil) (BI_testop T_i64 TO_eqz :: nil).
+  BI_if (BT_valtype None) (BI_testop T_i64 TO_eqz :: nil) (BI_testop T_i64 TO_eqz :: nil).
 
 (** Its byte representation. **)
 Definition test_bytes : list Byte.byte :=
@@ -64,15 +65,15 @@ Definition test_wikipedia_byte : list Byte.byte :=
   :: nil.
 
 Definition test_wikipedia :=
-  (BI_get_local 0
+  (BI_local_get 0%N
    :: BI_testop T_i64 TO_eqz
-   :: BI_if (Tf nil (T_i64 :: nil))
-        (BI_const (VAL_int64 Wasm_int.Int64.one) :: nil)
-        (BI_get_local 0
-         :: BI_get_local 0
-         :: BI_const (VAL_int64 Wasm_int.Int64.one)
+   :: BI_if (BT_valtype (Some (T_num T_i64)))
+        (BI_const_num (VAL_int64 Wasm_int.Int64.one) :: nil)
+        (BI_local_get 0%N
+         :: BI_local_get 0%N
+         :: BI_const_num (VAL_int64 Wasm_int.Int64.one)
          :: BI_binop T_i64 (Binop_i BOI_sub)
-         :: BI_call 0
+         :: BI_call 0%N
          :: BI_binop T_i64 (Binop_i BOI_mul) :: nil) :: nil).
 
 Lemma test_wikipedia_correct : run_parse_bes test_wikipedia_byte = Some test_wikipedia.
@@ -95,7 +96,7 @@ Lemma empty_module_round_trip : run_parse_module (binary_of_module empty_module)
 Proof. vm_compute. reflexivity. Qed.
 
 Definition module_type := {|
-  mod_types := cons (Tf nil (cons T_i32 nil)) nil;
+  mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs := nil;
   mod_tables := nil;
   mod_mems := nil;
@@ -112,9 +113,9 @@ Lemma module_type_round_trip :
 Proof. vm_compute. reflexivity. Qed.
 
 Definition module_type_fun := {|
-  mod_types := cons (Tf nil (cons T_i32 nil)) nil;
+  mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs :=
-    cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := nil |} nil;
+    cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
   mod_globals := nil;
@@ -130,10 +131,10 @@ Lemma module_type_fun_round_trip :
 Proof. vm_compute. reflexivity. Qed.
 
 Definition module_42 := {|
-  mod_types := cons (Tf nil (cons T_i32 nil)) nil;
+  mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs :=
-    let e := BI_const (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
-    cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
+    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
   mod_globals := nil;
@@ -149,10 +150,10 @@ Lemma module_42_round_trip :
 Proof. vm_compute. reflexivity. Qed.
 
 Definition module_42_exported := {|
-  mod_types := cons (Tf nil (cons T_i32 nil)) nil;
+  mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs :=
-    let e := BI_const (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
-    cons {| modfunc_type := Mk_typeidx 0; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
+    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
   mod_globals := nil;
@@ -160,7 +161,7 @@ Definition module_42_exported := {|
   mod_data := nil;
   mod_start := None;
   mod_imports := nil;
-  mod_exports := cons {| modexp_name := String.list_byte_of_string "hello"; modexp_desc := MED_func (Mk_funcidx 0); |} nil;
+  mod_exports := cons {| modexp_name := String.list_byte_of_string "hello"; modexp_desc := MED_func 0%N; |} nil;
 |}.
 
 Lemma module_42_exported_round_trip :
