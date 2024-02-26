@@ -462,10 +462,6 @@ Definition binary_of_module_start (s : module_start) : list byte :=
 Definition binary_of_startsec (s : module_start) : list byte :=
   x08 :: with_length (binary_of_module_start s).
 
-Print module_element.
-
-Print module_elemmode.
-
 (* Messy, but so is the spec. Note that the parsing function is not injective, so
    this printing function is not surjective *)
 Definition binary_of_module_elem (e : module_element) : list byte :=
