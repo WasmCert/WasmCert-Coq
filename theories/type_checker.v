@@ -9,25 +9,17 @@ Unset Printing Implicit Defensive.
 
 Require Import operations typing datatypes_properties.
 
-(** std-doc: 
-
-The specification of WebAssembly validation is purely declarative. It describes the constraints that must be met by a module or instruction sequence to be valid.
-
-This section sketches the skeleton of a sound and complete algorithm for effectively validating code, i.e., sequences of instructions. (Other aspects of validation are straightforward to implement.)
-
-[https://webassembly.github.io/spec/core/appendix/algorithm.html#validation-algorithm]
-**)
 
 Section Host.
 
 Variable host_function : eqType.
 
 Let store_record := store_record host_function.
-Let funcinst := funcinst host_function.
+Let function_closure := function_closure host_function.
 
 
-Inductive checker_type_aux : Set :=
-| CTA_unknown : checker_type_aux
+Inductive checker_type_aux : Type :=
+| CTA_any : checker_type_aux
 | CTA_some : value_type -> checker_type_aux.
 
 Scheme Equality for checker_type_aux.
@@ -39,167 +31,36 @@ Canonical Structure checker_type_aux_eqMixin := EqMixin eqchecker_type_auxP.
 Canonical Structure checker_type_aux_eqType :=
   Eval hnf in EqType checker_type_aux checker_type_aux_eqMixin.
 
-Definition val_stack : Set := list checker_type_aux.
+Inductive checker_type : Type :=
+| CT_top_type : seq checker_type_aux -> checker_type
+| CT_type : seq value_type -> checker_type
+| CT_bot : checker_type.
 
-Definition opcode: Type := basic_instruction.
-
-Record ctrl_frame : Type := {
-    opc: opcode;
-    start_types: list value_type;
-    end_types: list value_type;
-    height: nat;
-    unreachable: bool;
-  }.
-
-Definition ctrl_stack : Type := list ctrl_frame.
-              
-Definition ctrl_frame_eq_dec : forall v1 v2 : ctrl_frame, {v1 = v2} + {v1 <> v2}.
+Definition checker_type_eq_dec : forall v1 v2 : checker_type, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 
-Definition ctrl_frame_eqb v1 v2 : bool := ctrl_frame_eq_dec v1 v2.
-Definition eqctrl_frameP : Equality.axiom ctrl_frame_eqb :=
-  eq_dec_Equality_axiom ctrl_frame_eq_dec.
+Definition checker_type_eqb v1 v2 : bool := checker_type_eq_dec v1 v2.
+Definition eqchecker_typeP : Equality.axiom checker_type_eqb :=
+  eq_dec_Equality_axiom checker_type_eq_dec.
 
-Canonical Structure ctrl_frame_eqMixin := EqMixin eqctrl_frameP.
-Canonical Structure ctrl_frame_eqType := Eval hnf in EqType ctrl_frame ctrl_frame_eqMixin.
+Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
+Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
 Definition to_ct_list (ts : seq value_type) : seq checker_type_aux :=
   map CTA_some ts.
 
-(* Front of the list being the top of stack *)
-Definition push_val (vts: val_stack) (t: checker_type_aux) :=
-  t :: vts.
-
-Definition pop_val (vts: val_stack) (ctrls: ctrl_stack) : option (val_stack * checker_type_aux) :=
-  match ctrls with
-  | f :: _ =>
-      if (length vts == f.(height))
-      then
-        if f.(unreachable)
-        then Some (vts, CTA_unknown)
-        else None
-      else
-        match List.nth_error vts 0 with
-        | Some t => Some (drop 1 vts, t)
-        | None => None
-        end
-  | nil => None
-  end.
-
 Definition ct_compat (t1 t2: checker_type_aux) : bool :=
   match t1 with
-  | CTA_unknown => true
+  | CTA_any => true
   | CTA_some vt1 =>
     match t2 with
-    | CTA_unknown => true
+    | CTA_any => true
     | CTA_some vt2 => (vt1 == vt2)
     end
   end.
 
 Definition ct_list_compat (l1 l2: list checker_type_aux) : bool :=
   all2 ct_compat l1 l2.
-
-Definition pop_val_expect (vts: val_stack) (ctrls: ctrl_stack) (expect: checker_type_aux): option (val_stack * checker_type_aux) :=
-  match pop_val vts ctrls with
-  | Some (vts', t) =>
-      if ct_compat expect t
-      then Some (vts', t)
-      else None
-  | None => None
-  end.
-
-Fixpoint push_vals (vts: val_stack) (ts: list checker_type_aux) :=
-  match ts with
-  | nil => vts
-  | t :: ts' =>
-      push_vals (push_val vts t) ts'
-  end.
-
-Fixpoint pop_vals (vts: val_stack) (ctrls: ctrl_stack) (expects: list checker_type_aux) : option (val_stack * list checker_type_aux) :=
-  match expects with
-  | nil => Some (vts, nil)
-  | t :: expects' =>
-      match pop_val_expect vts ctrls t with
-      | Some (vts', t') =>
-          match pop_vals vts' ctrls expects' with
-          | Some (vts'', ts') => Some (vts'', t' :: ts')
-          | None => None
-          end
-      | None => None
-      end
-  end.
-
-Definition push_ctrl (opc: opcode) (ts_in: list value_type) (ts_out: list value_type) (vts: val_stack) (ctrls: ctrl_stack) : (val_stack * ctrl_stack) :=
-  let f := Build_ctrl_frame opc ts_in ts_out (length vts) false in
-  (push_vals vts (to_ct_list ts_in), f :: ctrls).
-
-Definition pop_ctrl (vts: val_stack) (ctrls: ctrl_stack) : option (val_stack * ctrl_stack * ctrl_frame) :=
-  match ctrls with
-  | f :: ctrls' =>
-      match pop_vals vts ctrls (to_ct_list f.(end_types)) with
-      | Some (vts', ts) =>
-          if length vts' != f.(height)
-          then None
-          else Some (vts', ctrls', f)
-      | None => None
-      end
-  | nil => None
-  end.
-
-Definition label_types (f: ctrl_frame) : list value_type :=
-  match f.(opc) with
-  | BI_loop _ _ => f.(start_types)
-  | _ => f.(end_types)
-  end.
-
-Definition set_unreachable (vts: val_stack) (ctrls: ctrl_stack) : option (val_stack * ctrl_stack) :=
-  match ctrls with
-  | f :: ctrls' =>
-      let f_new := Build_ctrl_frame f.(opc) f.(start_types) f.(end_types) f.(height) true in
-      Some (List.repeat CTA_unknown f.(height), f_new :: ctrls')
-  | _ => None
-  end.
-
-Definition consume (vts: val_stack) (ctrls: ctrl_stack) (ts: list value_type) :=
-  pop_vals vts ctrls (to_ct_list ts).
-
-Definition produce (vts: val_stack) (ts: list value_type) :=
-  push_vals vts (to_ct_list ts).
-
-Definition type_update (vts: val_stack) (ctrls: ctrl_stack) (ts_pop: list value_type) (ts_push: list value_type) :=
-  match consume vts ctrls ts_pop with
-  | Some (vts', _) =>
-      Some (produce vts' ts_push, ctrls)
-  | None => None
-  end.
-
-Fixpoint validate (C: t_context) (vts: val_stack) (ctrls: ctrl_stack) (be: opcode) : option (val_stack * ctrl_stack) :=
-  match be with
-  | BI_unop t op =>
-    match op with
-    | Unop_i _ => if is_int_t t 
-                  then type_update vts ctrls [::T_num t] [::T_num t]
-                  else None
-    | Unop_f _ => if is_float_t t
-                  then type_update vts ctrls [::T_num t] [::T_num t]
-                  else None
-    | Unop_extend _ => if is_int_t t 
-                  then type_update vts ctrls [::T_num t] [::T_num t]
-                  else None
-    end
-  | BI_binop t op =>
-    match op with
-    | Binop_i _ => if is_int_t t 
-                  then type_update vts ctrls [::T_num t; T_num t] [::T_num t]
-                  else None
-    | Binop_f _ => if is_float_t t
-                  then type_update vts ctrls [::T_num t; T_num t] [::T_num t]
-                  else None
-    end
-  | _ => None
-  end.
-
-(*
 
 Definition ct_suffix (ts ts' : list checker_type_aux) : bool :=
   (size ts <= size ts') && (ct_list_compat (drop (size ts' - size ts) ts') ts).
@@ -243,8 +104,8 @@ Definition type_update (curr_type : checker_type) (cons : seq checker_type_aux) 
 
 Definition select_return_top (ts : seq checker_type_aux) (cta1 cta2 : checker_type_aux) : checker_type :=
   match (cta1, cta2) with
-  | (_, CTA_unknown) => CT_top_type (take (length ts - 3) ts ++ [::cta1])
-  | (CTA_unknown, _) => CT_top_type (take (length ts - 3) ts ++ [::cta2])
+  | (_, CTA_any) => CT_top_type (take (length ts - 3) ts ++ [::cta1])
+  | (CTA_any, _) => CT_top_type (take (length ts - 3) ts ++ [::cta2])
   | (CTA_some t1, CTA_some t2) =>
     if t1 == t2
     then CT_top_type (take (length ts - 3) ts ++ [::CTA_some t1])
@@ -255,17 +116,17 @@ Definition type_update_select (t : checker_type) : checker_type :=
   match t with
   | CT_type ts =>
     if (length ts >= 3) && (List.nth_error ts (length ts - 2) == List.nth_error ts (length ts - 3))
-    then (consume (CT_type ts) [::CTA_unknown; CTA_some T_i32])
+    then (consume (CT_type ts) [::CTA_any; CTA_some T_i32])
     else CT_bot
   | CT_top_type ts =>
     match length ts with
-    | 0 => CT_top_type [::CTA_unknown]
-    | 1 => type_update (CT_top_type ts) [::CTA_some T_i32] (CT_top_type [::CTA_unknown])
+    | 0 => CT_top_type [::CTA_any]
+    | 1 => type_update (CT_top_type ts) [::CTA_some T_i32] (CT_top_type [::CTA_any])
     | 2 => consume (CT_top_type ts) [::CTA_some T_i32]
     | _ =>
       match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
       | Some ts_at_2, Some ts_at_3 =>
-        type_update (CT_top_type ts) [::CTA_unknown; CTA_unknown; CTA_some T_i32]
+        type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some T_i32]
                     (select_return_top ts ts_at_2 ts_at_3)
                 (* UPD: this is now the correct verified version *)
                     
@@ -386,7 +247,7 @@ in
     else CT_bot
   | BI_unreachable => type_update ts [::] (CT_top_type [::])
   | BI_nop => ts
-  | BI_drop => type_update ts [::CTA_unknown] (CT_type [::])
+  | BI_drop => type_update ts [::CTA_any] (CT_type [::])
   | BI_select => type_update_select ts
   | BI_block (Tf tn tm) es =>
     if b_e_type_checker (upd_label C ([::tm] ++ tc_label C)) es (Tf tn tm)
@@ -557,7 +418,7 @@ Definition inst_type_check (s : store_record) (i : instance) : t_context := {|
   tc_return := None;
 |}.
 
-Definition cl_type_check (s : store_record) (cl : funcinst) : bool :=
+Definition cl_type_check (s : store_record) (cl : function_closure) : bool :=
   match cl with
   | Func_native i tf ts es =>
     let '(Tf t1s t2s) := tf in
@@ -567,7 +428,4 @@ Definition cl_type_check (s : store_record) (cl : funcinst) : bool :=
   | Func_host tf h => true
   end.
 *)
-*)
-
 End Host.
-
