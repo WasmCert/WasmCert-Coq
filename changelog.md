@@ -23,6 +23,9 @@ Due to the use of store addresses, the new reference values can only be typed gi
 of a separate `value_typing` relation with respect to a store. In addition, value typing relation now has to be done at the
 `e_typing` level (for administrative instructions) as they are no longer converted to basic instructions.
 
+##Threads
+Threads are now properly spelt out as a separate type that constitutes the configuration tuple. The old thread-related definitions (e.g. `s_typing`) are renamed to the names used in the standard (e.g. `thread_typing`).
+
 
 #Refactorings and Feature Improvements
 

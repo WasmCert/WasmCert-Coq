@@ -45,10 +45,10 @@ Definition ext_global_typing (s: store_record) (addr: globaladdr) : option globa
 
 Definition ext_typing (s: store_record) (v: extern_value) : option extern_type :=
   match v with
-  | extern_func a => option_map ET_func (ext_func_typing s a)
-  | extern_table a => option_map ET_table (ext_table_typing s a)
-  | extern_mem a => option_map ET_mem (ext_mem_typing s a)
-  | extern_global a => option_map ET_global (ext_global_typing s a)
+  | EV_func a => option_map ET_func (ext_func_typing s a)
+  | EV_table a => option_map ET_table (ext_table_typing s a)
+  | EV_mem a => option_map ET_mem (ext_mem_typing s a)
+  | EV_global a => option_map ET_global (ext_global_typing s a)
    end.                                 
 
 (** std-doc:

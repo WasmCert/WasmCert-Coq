@@ -678,8 +678,8 @@ Record module : Type := {
   mod_tables : list module_table;
   mod_mems : list module_mem;
   mod_globals : list module_global;
-  mod_elem : list module_element;
-  mod_data : list module_data;
+  mod_elems : list module_element;
+  mod_datas : list module_data;
   mod_start : option module_start;
   mod_imports : list module_import;
   mod_exports : list module_export;
@@ -843,10 +843,10 @@ instance, or global instances in the shared store.
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#external-values]
 *)
 Inductive extern_value: Set :=
-| extern_func: funcaddr -> extern_value
-| extern_table: tableaddr -> extern_value
-| extern_mem: memaddr -> extern_value
-| extern_global: globaladdr -> extern_value
+| EV_func: funcaddr -> extern_value
+| EV_table: tableaddr -> extern_value
+| EV_mem: memaddr -> extern_value
+| EV_global: globaladdr -> extern_value
 .
 
 
