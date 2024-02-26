@@ -177,7 +177,7 @@ Qed.
 
 Lemma Cvtop_typing: forall C t1 t2 op sx t1s t2s,
     be_typing C [::BI_cvtop t2 op t1 sx] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::T_num t1] /\ t2s = ts ++ [::T_num t2] /\ (op = CVO_reinterpret -> sx = None).
+    exists ts, t1s = ts ++ [::T_num t1] /\ t2s = ts ++ [::T_num t2] /\ cvtop_valid t2 op t1 sx.
 Proof.
   move => C t1 t2 op sx t1s t2s HType.
   gen_ind_subst HType; try by exists nil.

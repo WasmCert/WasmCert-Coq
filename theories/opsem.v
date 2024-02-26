@@ -46,21 +46,19 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
   | rs_relop: forall v1 v2 t op,
     reduce_simple [::$VN v1; $VN v2; AI_basic (BI_relop t op)] [::$VN (VAL_int32 (wasm_bool (app_relop op v1 v2)))]
                     
-  (** convert and reinterpret **)
+  (** cvtop **)
   | rs_convert_success :
-    forall t1 t2 v v' sx,
+    forall t1 t2 v v' op sx,
     types_agree (T_num t1) (VAL_num v) ->
-    cvt t2 sx v = Some v' ->
-    reduce_simple [::$VN v; AI_basic (BI_cvtop t2 CVO_convert t1 sx)] [::$VN v']
+    cvtop_valid t2 op t1 sx ->  
+    eval_cvt t2 op sx v = Some v' ->
+    reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::$VN v']
   | rs_convert_failure :
-    forall t1 t2 v sx,
+    forall t1 t2 v sx op,
     types_agree (T_num t1) (VAL_num v) ->
-    cvt t2 sx v = None ->
-    reduce_simple [::$VN v; AI_basic (BI_cvtop t2 CVO_convert t1 sx)] [::AI_trap]
-  | rs_reinterpret :
-    forall t1 t2 v,
-    types_agree (T_num t1) (VAL_num v) ->
-    reduce_simple [::$VN v; AI_basic (BI_cvtop t2 CVO_reinterpret t1 None)] [::$VN (wasm_deserialise (bits v) t2)]
+    cvtop_valid t2 op t1 sx ->  
+    eval_cvt t2 op sx v = None ->
+    reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::AI_trap]
 
   (** reference operations **)
   | rs_ref_is_null_true:

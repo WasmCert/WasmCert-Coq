@@ -55,6 +55,17 @@ Proof.
   by elim: op; elim: v1; elim: v2 => //=; move => c1 c2 op H; destruct op; remove_bools_options.
 Qed.
 
+Lemma eval_cvt_type_preserve: forall op t1 t2 sx v1 v2,
+    cvtop_valid t2 op t1 sx ->
+    typeof_num v1 = t1 ->
+    eval_cvt t2 op sx v1 = Some v2 ->
+    typeof_num v2 = t2.
+Proof.
+  move => op t1 t2 sx v1 v2 Hcvtvalid Htype Heval.
+  (* Just use brute force -- probably sledgehammer in some other theorem prover *)
+  destruct op, t1, t2 => //; destruct sx as [[|] |] => //; cbn in Hcvtvalid => //; destruct v1 => //; simpl in * => //; by remove_bools_options => //=; inversion Heval.
+Qed.
+
 (* Not completely agnostic now -- since reference typings are dependent on the store. *)
 Lemma et_const_agnostic: forall s C C' es tf,
     const_list es ->
@@ -123,13 +134,10 @@ Proof.
     inversion H0; subst; clear H0.
     apply et_weakening_empty_1, ety_a' => //=.
     by apply bet_const_num.
-  (* Cvtop Convert *)
+  (* Cvtop *)
   - apply et_weakening_empty_1, ety_a' => //=.
-    destruct t2, v => //; simpl in *; remove_bools_options; by apply bet_const_num.
-  (* Cvtop Reinterpret *)
-  - apply et_weakening_empty_1, ety_a' => //=.
-    uapply (bet_const_num C (wasm_deserialise (bits v) t2)) => //.
-    by destruct t2.
+    eapply eval_cvt_type_preserve in H3_cvtop; eauto; subst.
+    by apply bet_const_num.
   - (* Ref_is_null true *)
     invert_be_typing.
     apply et_weakening_empty_1, ety_a' => //=.

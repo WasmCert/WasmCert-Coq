@@ -115,6 +115,28 @@ Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   end.
 
 
+Definition bitzero (t : number_type) : value_num :=
+  match t with
+  | T_i32 => VAL_int32 (Wasm_int.int_zero i32m)
+  | T_i64 => VAL_int64 (Wasm_int.int_zero i64m)
+  | T_f32 => VAL_float32 (Wasm_float.float_zero f32m)
+  | T_f64 => VAL_float64 (Wasm_float.float_zero f64m)
+  end.
+
+(** std-doc:
+Each value type has an associated default value; it is the respective value 0 for number types and
+ null for reference types.
+
+https://www.w3.org/TR/wasm-core-2/exec/runtime.html#default-val
+**)
+Definition default_val (t: value_type) : value :=
+  match t with
+  | T_num t => VAL_num (bitzero t)
+  | T_vec t => VAL_vec (VAL_vec128 tt)
+  | T_ref t => VAL_ref (VAL_ref_null t)
+  end.
+
+
 Definition typeof_num (v : value_num) : number_type :=
   match v with
   | VAL_int32 _ => T_i32
@@ -875,13 +897,131 @@ Definition cvt_f64 (s : option sx) (v : value_num) : option f64 :=
   | VAL_float64 c => None
   end.
 
-
-Definition cvt (t : number_type) (s : option sx) (v : value_num) : option value_num :=
+Definition cvt_wrap t v : option value_num :=
   match t with
-  | T_i32 => option_map VAL_int32 (cvt_i32 s v)
-  | T_i64 => option_map VAL_int64 (cvt_i64 s v)
-  | T_f32 => option_map VAL_float32 (cvt_f32 s v)
-  | T_f64 => option_map VAL_float64 (cvt_f64 s v)
+  | T_i32 =>
+      match v with
+      | VAL_int64 c => Some (VAL_int32 (wasm_wrap c))
+      | _ => None
+      end
+  | _ => None
+  end.
+
+Definition cvt_trunc t s v : option value_num :=
+  match t with
+  | T_i32 =>
+      option_map VAL_int32
+        (match v with
+         | VAL_float32 c =>
+             match s with
+             | Some SX_U => Wasm_float.float_ui32_trunc f32m c
+             | Some SX_S => Wasm_float.float_ui32_trunc f32m c
+             | None => None
+             end
+         | VAL_float64 c =>
+             match s with
+             | Some SX_U => Wasm_float.float_ui32_trunc f64m c
+             | Some SX_S => Wasm_float.float_ui32_trunc f64m c
+             | None => None
+             end
+         | _ => None
+         end)
+  | T_i64 =>
+      option_map VAL_int64
+        (match v with
+         | VAL_float32 c =>
+             match s with
+             | Some SX_U => Wasm_float.float_ui64_trunc f32m c
+             | Some SX_S => Wasm_float.float_si64_trunc f32m c
+             | None => None
+             end
+         | VAL_float64 c =>
+             match s with
+             | Some SX_U => Wasm_float.float_ui64_trunc f64m c
+             | Some SX_S => Wasm_float.float_si64_trunc f64m c
+             | None => None
+             end
+         | _ => None
+         end)
+  | _ => None
+  end.
+
+(* TODO: implement the actual definition *)
+Definition cvt_trunc_sat (t: number_type) (s: option sx) (v: value_num) : option value_num :=
+  Some (bitzero t).
+
+Definition cvt_extend t s v: option value_num :=
+  match t with
+  | T_i64 =>
+      match v with
+      | VAL_int32 c =>
+          match s with
+          | Some SX_U => Some (VAL_int64 (wasm_extend_u c))
+          | Some SX_S => Some (VAL_int64 (wasm_extend_s c))
+          | None => None
+          end
+      | _ => None
+      end
+  | _ => None
+  end.
+
+Definition cvt_convert t s v : option value_num :=
+  match t with
+  | T_f32 =>
+      option_map VAL_float32
+        (match v with
+         | VAL_int32 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_convert_ui32 f32m c)
+             | Some SX_S => Some (Wasm_float.float_convert_si32 f32m c)
+             | None => None
+             end
+         | VAL_int64 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_convert_ui64 f32m c)
+             | Some SX_S => Some (Wasm_float.float_convert_si64 f32m c)
+             | None => None
+             end
+         | _ => None
+         end)
+  | T_f64 =>
+      option_map VAL_float64
+        (match v with
+         | VAL_int32 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_convert_ui32 f64m c)
+             | Some SX_S => Some (Wasm_float.float_convert_si32 f64m c)
+             | None => None
+             end
+         | VAL_int64 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_convert_ui64 f64m c)
+             | Some SX_S => Some (Wasm_float.float_convert_si64 f64m c)
+             | None => None
+             end
+         | _ => None
+         end)
+  | _ => None
+  end.
+
+Definition cvt_demote t v : option value_num :=
+  match t with
+  | T_f32 =>
+      match v with
+      | VAL_float64 c => Some (VAL_float32 (wasm_demote c))
+      | _ => None
+      end
+  | _ => None
+  end.
+
+Definition cvt_promote t v : option value_num :=
+  match t with
+  | T_f64 =>
+      match v with
+      | VAL_float32 c => Some (VAL_float64 (wasm_promote c))
+      | _ => None
+      end
+  | _ => None
   end.
 
 Definition bits (v : value_num) : bytes :=
@@ -892,27 +1032,28 @@ Definition bits (v : value_num) : bytes :=
   | VAL_float64 c => serialise_f64 c
   end.
 
-Definition bitzero (t : number_type) : value_num :=
-  match t with
-  | T_i32 => VAL_int32 (Wasm_int.int_zero i32m)
-  | T_i64 => VAL_int64 (Wasm_int.int_zero i64m)
-  | T_f32 => VAL_float32 (Wasm_float.float_zero f32m)
-  | T_f64 => VAL_float64 (Wasm_float.float_zero f64m)
+Definition eval_cvt (t : number_type) (op: cvtop) (s : option sx) (v : value_num) : option value_num :=
+  match op with
+  | CVO_wrap => cvt_wrap t v
+  | CVO_extend => cvt_extend t s v
+  | CVO_trunc => cvt_trunc t s v
+  | CVO_trunc_sat => cvt_trunc_sat t s v
+  | CVO_convert => cvt_convert t s v
+  | CVO_demote => cvt_demote t v
+  | CVO_promote => cvt_promote t v
+  | CVO_reinterpret => Some (wasm_deserialise (bits v) t)
   end.
 
-
-(** std-doc:
-Each value type has an associated default value; it is the respective value 0 for number types and
- null for reference types.
-
-https://www.w3.org/TR/wasm-core-2/exec/runtime.html#default-val
-**)
-Definition default_val (t: value_type) : value :=
-  match t with
-  | T_num t => VAL_num (bitzero t)
-  | T_vec t => VAL_vec (VAL_vec128 tt)
-  | T_ref t => VAL_ref (VAL_ref_null t)
-  end.
+(* Enumerates all the valid argument types for each convert operations *)
+Definition cvtop_valid (t2: number_type) (op: cvtop) (t1: number_type) (s: option sx): bool :=
+  ((op == CVO_wrap) && (t2 == T_i32) && (t1 == T_i64) && (s == None)) ||
+  ((op == CVO_extend) && (t2 == T_i64) && (t1 == T_i32) && (s != None)) ||
+  ((op == CVO_trunc) && (is_int_t t2) && (is_float_t t1) && (s != None)) ||
+  ((op == CVO_trunc_sat) && (is_int_t t2) && (is_float_t t1) && (s != None)) ||
+  ((op == CVO_convert) && (is_float_t t2) && (is_int_t t1) && (s != None)) ||
+  ((op == CVO_demote) && (t2 == T_f32) && (t1 == T_f64) && (s == None)) ||
+  ((op == CVO_promote) && (t2 == T_f64) && (t1 == T_f32) && (s == None)) ||
+  ((op == CVO_reinterpret) && ((is_int_t t2 && is_float_t t1) || (is_float_t t2 && is_int_t t1)) && (s == None)).
 
 Definition n_zeros (ts : seq value_type) : seq value :=
   map default_val ts.
