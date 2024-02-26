@@ -209,6 +209,13 @@ Definition is_float_t (t : number_type) : bool :=
   | T_f64 => true
   end.
 
+Definition is_ref_t (t: value_type) : bool :=
+  match t with
+  | T_ref _ => true
+  | _ => false
+  end.
+
+
 Definition is_mut (tg : global_type) : bool :=
   tg_mut tg == MUT_var.
 

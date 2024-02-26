@@ -33,7 +33,7 @@ Threads are now properly spelt out as a separate type that constitutes the confi
 - Refactored the old collection of conversion operations *cvtop* to be split up by their individual constructors.
 
 ##Name Changes
-- Changed the name of some types, instructionrs, and constructors to better match the official spec.
+- Changed the name of some types, instructions, and constructors to better match the official spec.
 - Instance indices are now reduced to the base `u32` type without additional constructors.
 
 ##Binary Parser/Printer
