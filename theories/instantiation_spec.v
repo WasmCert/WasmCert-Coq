@@ -470,8 +470,45 @@ Definition pred_option {A} (p : A -> bool) (a_opt : option A) : bool :=
 Definition module_export_typing (c: t_context) (exp: module_export) (e: extern_type) :=
   module_export_desc_typing c exp.(modexp_desc) e.
 
-(* TODO: ??? *)
-Definition module_funcidx (m: module) : list funcidx := nil.
+Definition nlist_nodup : list N -> list N := List.nodup N.eq_dec.
+
+(* This filters duplicate using the most native method. The spec is ambiguous on what a 'set' is to be fair. *)
+Fixpoint be_get_funcidx (be: basic_instruction) : list funcidx :=
+  match be with
+  | BI_ref_func x => [:: x]
+  | BI_call x => [:: x]
+  | BI_block _ bes => nlist_nodup (List.concat (List.map be_get_funcidx bes))
+  | BI_if _ bes1 bes2 => nlist_nodup (List.concat (List.map be_get_funcidx bes1) ++ List.concat (List.map be_get_funcidx bes2))
+  | BI_loop _ bes => nlist_nodup (List.concat (List.map be_get_funcidx bes))
+  | _ => nil
+  end.
+
+Definition expr_get_funcidx (bes: expr) : list funcidx :=
+  nlist_nodup (List.concat (List.map be_get_funcidx bes)).
+
+Definition module_globals_get_funcidx (gs: list module_global) :=
+  nlist_nodup (List.concat (List.map (fun x => expr_get_funcidx x.(modglob_init)) gs)).
+
+Definition module_elem_get_funcidx (el: module_element) :=
+  nlist_nodup (List.concat (List.map expr_get_funcidx el.(modelem_init)) ++
+    match el.(modelem_mode) with
+    | ME_active _ es => expr_get_funcidx es
+    | _ => nil
+    end).
+
+Definition module_elems_get_funcidx (els: list module_element) :=
+  nlist_nodup (List.concat (List.map module_elem_get_funcidx els)).
+
+(** std-doc: the set of function indices occurring in the module, except in its
+  functions or start function.
+
+  Used in generating the refs components.
+ **)
+(* But then, what is left -- just the global initialisers and elems? *)
+Definition module_filter_funcidx (m: module) : list funcidx :=
+  nlist_nodup
+    (module_globals_get_funcidx m.(mod_globals) ++
+     module_elems_get_funcidx m.(mod_elems)).
 
 Definition export_name_unique (exps: list module_export) :=
   List.NoDup (map modexp_name exps).
@@ -495,7 +532,7 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   let its := ext_t_tabs impts in
   let ims := ext_t_mems impts in
   let igs := ext_t_globs impts in
-  let xs := module_funcidx m in
+  let xs := module_filter_funcidx m in
   let c := {|
     tc_types := tfs;
     tc_funcs := List.app ifts fts;
@@ -579,55 +616,6 @@ Definition instantiate_elems f (hs : host_state) (s' : store_record) m (r_inits:
     m.(mod_elems)
     r_inits.
 
-(*
-Definition nat_of_int (i : i32) : nat :=
-  BinInt.Z.to_nat i.(Wasm_int.Int32.intval).
-
-Definition N_of_int (i : i32) : N :=
-  BinInt.Z.to_N i.(Wasm_int.Int32.intval).
-
-Definition check_bounds_elem (inst : instance) (s : store_record) (m : module) (e_offs : seq i32) : bool :=
-  seq.all2
-    (fun e_off e =>
-      match List.nth_error inst.(inst_tab) (match e.(modelem_table) with Mk_tableidx i => i end) with
-      | None => false
-      | Some i =>
-        match List.nth_error s.(s_tables) i with
-        | None => false
-        | Some ti =>
-          N.leb (N.add (N_of_int e_off) (N.of_nat (List.length e.(modelem_init)))) (N.of_nat (List.length ti.(table_data)))
-        end
-      end)
-      e_offs
-      m.(mod_elem).
-
-Definition mem_length (m : memory) : N :=
-  mem_length m.(mem_data).
-
-Definition check_bounds_data (inst : instance) (s : store_record) (m : module) (d_offs : seq i32) : bool :=
-  seq.all2
-    (fun d_off d =>
-      match List.nth_error inst.(inst_memory) (match d.(moddata_data) with Mk_memidx i => i end) with
-      | None => false
-      | Some i =>
-        match List.nth_error s.(s_mems) i with
-        | None => false
-        | Some mem =>
-          N.leb (N.add (N_of_int d_off) (N.of_nat (List.length d.(moddata_init)))) (mem_length mem)
-        end
-      end)
-      d_offs
-      m.(mod_data).
-
-Definition check_start m inst start : bool :=
-  let start' :=
-    operations.option_bind
-    (fun i_s =>
-      List.nth_error inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end))
-    m.(mod_start) in
-  start' == start.
-*)
-
 Definition limit_subtyping (l1 l2: limits) : Prop :=
   l1.(lim_min) >= l2.(lim_min) /\
     match l1.(lim_max), l2.(lim_max) with
@@ -650,9 +638,6 @@ Definition import_subtyping (t1 t2: extern_type) : Prop :=
   | _, _ => False
   end.
 
-Definition list_concat {T: Type} (l: list (list T)): list T :=
-  List.fold_left (fun l1 l2 => l1 ++ l2) l nil.
-
 Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instruction :=
   match elem.(modelem_mode) with
   | ME_passive => nil
@@ -662,7 +647,7 @@ Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instr
   end.
 
 Definition get_init_expr_elems (elems: list module_element) : list basic_instruction :=
-  list_concat (mapi (fun n => get_init_expr_elem n) elems).
+  List.concat (mapi (fun n => get_init_expr_elem n) elems).
 
 Definition get_init_expr_data (i: nat) (data: module_data) : list basic_instruction :=
   match data.(moddata_mode) with
@@ -672,7 +657,7 @@ Definition get_init_expr_data (i: nat) (data: module_data) : list basic_instruct
   end.
 
 Definition get_init_expr_datas (datas: list module_data) : list basic_instruction :=
-  list_concat (mapi (fun n => get_init_expr_data n) datas).
+  List.concat (mapi (fun n => get_init_expr_data n) datas).
 
 Definition get_init_expr_start (mstart: option module_start) : list basic_instruction :=
   match mstart with
