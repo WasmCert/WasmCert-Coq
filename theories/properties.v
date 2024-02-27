@@ -99,6 +99,35 @@ Proof.
   move => Hcontra; by rewrite Hcontra in Hx.
 Qed.
 
+Lemma those_map_lookup {T T': Type}: forall f (l: list T) (l': list T') n x,
+    those (map f l) = Some l' ->
+    List.nth_error l n = Some x ->
+    exists y, f x = Some y /\ List.nth_error l' n = Some y.
+Proof.
+  setoid_rewrite <- those_those0.
+  move => f. elim => //=.
+  - case => //; by case.
+  - move => x l IH.
+    case => y l' => //; intros; remove_bools_options.
+    destruct n as [ | n']; simpl in *.
+    + injection H0 as <-.
+      by exists y.
+    + by apply IH.
+Qed.
+
+Lemma those_cat {T: Type}: forall (l1 l2: list (option T)) l1' l2',
+    those l1 = Some l1' ->
+    those l2 = Some l2' ->
+    those (l1 ++ l2) = Some (l1' ++ l2').
+Proof.
+  setoid_rewrite <- those_those0.
+  elim.
+  - move => l2; by case => //=.
+  - move => x l1 IH l2 l1' l2' /= Hthose1 Hthose2 => /=.
+    remove_bools_options.
+    by erewrite IH; eauto.
+Qed.
+
 Lemma const_list_cat: forall vs1 vs2,
     const_list (vs1 ++ vs2) = const_list vs1 && const_list vs2.
 Proof.
@@ -731,8 +760,7 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let funcinst := funcinst host_function.
-Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
-  @e_typing _.
+Let e_typing := (@e_typing host_function).
 
 Lemma values_typing_length: forall s vs ts,
     @values_typing host_function s vs = Some ts ->
@@ -743,6 +771,29 @@ Proof.
   by rewrite length_is_size size_map -length_is_size in Hvts.
 Qed.
 
+Lemma default_value_typing: forall s t v,
+    default_val t = v ->
+    @value_typing host_function s v = Some t.
+Proof.
+  move => s t v Hval.
+  destruct t, v => //; simpl in *; try inversion Hval; subst => //=.
+  - by destruct n.
+  - by destruct v0.
+Qed.
+
+Lemma default_values_typing: forall s ts vs,
+    map default_val ts = vs ->
+    @values_typing host_function s vs = Some ts.
+Proof.
+  move => s; elim => /=; first by case.
+  move => t ts IH; case => //= v vs <-.
+  unfold values_typing.
+  rewrite - those_those0 => /=.
+  erewrite default_value_typing; eauto => /=.
+  rewrite those_those0.
+  by unfold values_typing in IH; rewrite IH.
+Qed.
+  
 (** Additional List properties **)
 
 Lemma nth_error_Some_length:
@@ -753,6 +804,15 @@ Proof.
   move => A l i m H1.
   assert (H2 : List.nth_error l i <> None) by rewrite H1 => //.
   by apply List.nth_error_Some in H2.
+Qed.
+
+Lemma nth_error_app_Some {T: Type} (l1 l2 : list T) n x:
+  List.nth_error l1 n = Some x ->
+  List.nth_error (l1 ++ l2) n = Some x.
+Proof.
+  move => Hnth.
+  rewrite List.nth_error_app1 => //.
+  by eapply nth_error_Some_length; eauto.
 Qed.
 
 Lemma Forall_lookup: forall {X:Type} f (l:seq X) n x,

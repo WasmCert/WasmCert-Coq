@@ -409,16 +409,14 @@ Qed.
 
 Lemma Table_fill_typing: forall C x ts1 ts2,
     be_typing C [::BI_table_fill x] (Tf ts1 ts2) ->
-    exists ts tabt, ts1 = ts ++ [::T_num T_i32; T_ref (tabt.(tt_elem_type)); T_num T_i32] /\
-                 ts2 = ts ++ [::T_num T_i32] /\
-                 lookup_N (tc_tables C) x = Some tabt.
+    exists tabt, ts1 = ts2 ++ [::T_num T_i32; T_ref (tabt.(tt_elem_type)); T_num T_i32] /\
+            lookup_N (tc_tables C) x = Some tabt.
 Proof.
   move => ???? HType.
   gen_ind_subst HType => //=.
-  - by exists nil, tabtype; eauto.
+  - by exists tabtype; eauto.
   - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [? [? [?[??]]]]; eauto => //=.
-    exists (ts ++ x).
+  - edestruct IHHType as [? [??]]; eauto => //=.
     by resolve_weaken.
 Qed.
 
@@ -873,22 +871,19 @@ Ltac invert_be_typing:=
     let H3 := fresh "H3_table_grow" in
     apply Table_grow_typing in H; destruct H as [ts [tabt [H1 [H2 H3]]]]; subst
   | H: be_typing _ [::BI_table_fill _] _ |- _ =>
-    let ts := fresh "ts_table_fill" in
     let tabt := fresh "tabt_table_fill" in
     let H1 := fresh "H1_table_fill" in
     let H2 := fresh "H2_table_fill" in
-    let H3 := fresh "H3_table_fill" in
-    apply Table_fill_typing in H; destruct H as [ts [tabt [H1 [H2 H3]]]]; subst
+    apply Table_fill_typing in H; destruct H as [tabt [H1 H2]]; subst
   | H: be_typing _ [::BI_table_copy _ _] _ |- _ =>
-    let ts := fresh "ts_table_copy" in
     let tabt1 := fresh "tabt1_table_copy" in
     let tabt2 := fresh "tabt2_table_copy" in
     let H1 := fresh "H1_table_copy" in
     let H2 := fresh "H2_table_copy" in
     let H3 := fresh "H3_table_copy" in
     let H4 := fresh "H4_table_copy" in
-    apply Table_copy_typing in H; destruct H as [ts [tabt1 [tabt2 [H1 [H2 [H3 H4]]]]]]; subst
-  | H: be_typing _ [::BI_table_init _] _ |- _ =>
+    apply Table_copy_typing in H; destruct H as [tabt1 [tabt2 [H1 [H2 [H3 H4]]]]]; subst
+  | H: be_typing _ [::BI_table_init _ _] _ |- _ =>
     let tabt := fresh "tabt_table_init" in
     let H1 := fresh "H1_table_init" in
     let H2 := fresh "H2_table_init" in
@@ -929,7 +924,7 @@ Ltac invert_be_typing:=
     let H1 := fresh "H1_memory_copy" in
     let H2 := fresh "H2_memory_copy" in
     apply Memory_copy_typing in H; destruct H as [H1 H2]; subst
-  | H: be_typing _ [::BI_memory_init] _ |- _ =>
+  | H: be_typing _ [::BI_memory_init _] _ |- _ =>
     let H1 := fresh "H1_memory_init" in
     let H2 := fresh "H2_memory_init" in
     let H3 := fresh "H3_memory_init" in
@@ -1002,6 +997,14 @@ Ltac invert_be_typing:=
     rewrite catA in H; apply concat_cancel_last in H; destruct H; subst
   | H: _ ++ _ ++ [::_] = _ ++ [::_] |- _ =>
     rewrite catA in H; apply concat_cancel_last in H; destruct H; subst
+  | H: _ ++ [::_; _] = (_ ++ [::_]) ++ [::_] |- _ =>
+    rewrite -catA in H; simpl in H; apply concat_cancel_last_n in H; remove_bools_options
+  | H: (_ ++ [::_; _]) ++ [::_] = _ ++ [::_;_;_] |- _ =>
+    rewrite -catA in H; simpl in H; apply concat_cancel_last_n in H; remove_bools_options
+  | H: [:: _; _] = [::_; _] |- _ =>
+    inversion H; subst; clear H
+  | H: [:: _; _; _] = [::_; _; _] |- _ =>
+    inversion H; subst; clear H
   end.
 
 Section Typing_inversion_e.
@@ -1477,50 +1480,6 @@ Proof.
   remove_bools_options; simpl in *.
   exists m0; by rewrite Hoption1.
 Qed.
-
-(*
-Lemma store_typing_stabind: forall s i C c a,
-  stab_ind s i c = Some a ->
-  inst_typing s i = Some C ->
-  store_typing s ->
-  exists cl, List.nth_error s.(s_funcs) a = Some cl.
-Proof.
-  move => s i C c a HStab HIT HST.
-  unfold inst_typing, typing.inst_typing in HIT.
-  unfold store_typing in HST.
-  destruct s, i; simpl in *.
-  destruct HST as [? [Htabletype ?]].
-  remove_bools_options.
-  unfold stab_ind in HStab; simpl in *.
-  unfold ext_table_typing in Hoption0.
-  unfold lookup_N in *.
-  apply those_spec_None in Hoption0.
-  destruct s => //=. destruct f => //=. destruct f_inst. destruct f_inst. destruct C => //=.
-  destruct tc_locals => //=. destruct tc_labels => //=. destruct tc_return => //=.
-  remove_bools_options.
-  simpl in *. destruct inst_tab0 => //=.
-  unfold stab_index in HStab. unfold option_bind in HStab.
-  remove_bools_options.
-  subst. simpl in *.
-  destruct tc_tables => //=.
-  remove_bools_options.
-  destruct HST.
-  destruct H5.
-  rewrite -> List.Forall_forall in H5.
-  assert (HIN1: List.In t0 s_tables).
-  { by apply List.nth_error_In in Hoption0. }
-  apply H5 in HIN1. destruct HIN1 as [HIN1 _].
-  rewrite -> List.Forall_forall in HIN1.
-  assert (HIN2: List.In (Some a) (table_data t0)).
-  { by apply List.nth_error_In in Hoption. }
-  apply HIN1 in HIN2.
-  move/ltP in HIN2.
-  apply List.nth_error_Some in HIN2.
-  destruct (List.nth_error s_funcs a) eqn:HNth => //.
-  by eexists.
-Qed.
-
-*)
 
 Lemma Lfilled_break_typing: forall n m k (lh: lholed n) vs LI ts s C t2s tss,
     e_typing s (upd_label C (tss ++ [::ts] ++ tc_labels C)) LI (Tf [::] t2s) ->

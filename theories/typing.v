@@ -81,6 +81,21 @@ Definition value_typing (s: store_record) (v: value) : option value_type :=
 Definition values_typing (s: store_record) (vs: list value) : option (list value_type) :=
   those (map (value_typing s) vs).
 
+Definition result_types_agree (s: store_record) (ts : result_type) r :=
+  match r with
+  | result_values vs => values_typing s vs = Some ts
+  | result_trap => true
+  end.
+
+(** std-doc:
+https://www.w3.org/TR/wasm-core-2/exec/runtime.html#exec-expand
+**)
+Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
+  match tb with
+  | BT_id n => lookup_N C.(tc_types) n
+  | BT_valtype (Some t) => Some (Tf [::] [::t])
+  | BT_valtype None => Some (Tf [::] [::])
+  end.
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   match (sxo, t1, t2) with
   | (Some SX_U, T_i32, T_i64)  (* i32.wrap_i64 *)
@@ -274,7 +289,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
 | bet_table_fill : forall C x tabtype t,
   lookup_N (tc_tables C) x = Some tabtype ->
   tabtype.(tt_elem_type) = t ->
-  be_typing C [::BI_table_fill x] (Tf [::T_num T_i32; T_ref t; T_num T_i32] [::T_num T_i32])
+  be_typing C [::BI_table_fill x] (Tf [::T_num T_i32; T_ref t; T_num T_i32] [::])
 | bet_table_copy : forall C x y tabtype1 tabtype2 t,
   lookup_N (tc_tables C) x = Some tabtype1 ->
   tabtype1.(tt_elem_type) = t ->
@@ -334,6 +349,7 @@ Definition func_typing (C: t_context) (code: module_func) (tf: function_type) : 
   let: {| modfunc_type := x; modfunc_locals := ts; modfunc_body := bes |} := code in
   match lookup_N C.(tc_types) x with
   | Some (Tf ts1 ts2) =>
+      tf = (Tf ts1 ts2) /\
       let C' := upd_local_label_return C (ts1 ++ ts) [:: ts2] (Some ts2) in
       expr_typing C' bes ts2
   | None => False

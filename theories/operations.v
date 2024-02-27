@@ -462,15 +462,12 @@ Definition sglob_val (s : store_record) (i : moduleinst) (j : globalidx) : optio
   option_map g_val (sglob s i j).
 
 Definition smem_ind (s : store_record) (i : moduleinst) : option memaddr :=
-  match i.(inst_mems) with
-  | nil => None
-  | cons k _ => Some k
-  end.
+  lookup_N i.(inst_mems) 0%N.
 
 Definition smem (s: store_record) (inst: moduleinst) : option meminst :=
-  match inst.(inst_mems) with
-  | nil => None
-  | k :: _ => lookup_N s.(s_mems) k
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some a => lookup_N s.(s_mems) a
+  | None => None
   end.
 
 Definition tab_size (t: tableinst) : nat :=
@@ -790,23 +787,6 @@ Definition e_is_trap (e : administrative_instruction) : bool :=
 Definition es_is_trap (es : seq administrative_instruction) : bool :=
   (es == [:: AI_trap]).
 
-
-(** Converting a result into a stack. **)
-Definition result_to_stack (r : result) :=
-  match r with
-  | result_values vs => v_to_e_list vs
-  | result_trap => [:: AI_trap]
-  end.
-
-Definition result_types_agree (ts : result_type) r :=
-  match r with
-  | result_values vs => all2 types_agree ts vs
-  | result_trap => true
-  end.
-
-(** std-doc:
-https://www.w3.org/TR/wasm-core-2/exec/runtime.html#exec-expand
-**)
 Definition expand (inst: moduleinst) (tb: block_type) : option function_type :=
   match tb with
   | BT_id n => lookup_N inst.(inst_types) n
@@ -814,13 +794,13 @@ Definition expand (inst: moduleinst) (tb: block_type) : option function_type :=
   | BT_valtype None => Some (Tf [::] [::])
   end.
   
-Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
-  match tb with
-  | BT_id n => lookup_N C.(tc_types) n
-  | BT_valtype (Some t) => Some (Tf [::] [::t])
-  | BT_valtype None => Some (Tf [::] [::])
+(** Converting a result into a stack. **)
+Definition result_to_stack (r : result) :=
+  match r with
+  | result_values vs => v_to_e_list vs
+  | result_trap => [:: AI_trap]
   end.
-  
+
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
   | None => Nat.pow 2 a <= tnum_length t
