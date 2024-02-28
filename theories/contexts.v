@@ -917,43 +917,44 @@ Proof.
     by apply Htype.
 Qed.
 
-Lemma sc_typing_args: forall (sc: seq_ctx) es s C vts ts0,
+Lemma sc_typing_args: forall (sc: seq_ctx) es s C ts0,
     e_typing s C (sc ⦃ es ⦄) (Tf nil ts0) ->
-    values_typing s (rev sc.1) = Some vts ->
-    exists ts2, e_typing s C es (Tf vts ts2).
+    exists vts ts2,
+      values_typing s (rev sc.1) = Some vts /\
+      e_typing s C es (Tf vts ts2).
 Proof.
-  move => [vs0 es0] es s C vts ts0 /=Htype Hvts.
+  move => [vs0 es0] es s C ts0 /=Htype.
   unfold vs_to_es in Htype.
   invert_e_typing.
-  rewrite H2_values in Hvts; injection Hvts as <-.
-  by exists ts3_comp0.
+  by exists ts_values, ts3_comp0.
 Qed.
 
-Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 vts ts0,
+Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 ts0,
     e_typing s C0 (ccs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
-    values_typing s (rev sc.1) = Some vts ->
-    exists C' ts, e_typing s C' es (Tf vts ts).
+    exists C' vts ts,
+      values_typing s (rev sc.1) = Some vts /\
+      e_typing s C' es (Tf vts ts).
 Proof.
-  move => ccs [vs0 es0] es s C0 vts ts0.
-  destruct ccs as [ | cc' ccs']; move => Htype Hvts.
+  move => ccs [vs0 es0] es s C0 ts0.
+  destruct ccs as [ | cc' ccs']; move => Htype.
   - by eapply sc_typing_args in Htype as [? Htype]; eauto.
   - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
     by eapply sc_typing_args in Htype as [? Htype]; eauto.
 Qed.
 
-Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C0 vts tf,
+Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C0 tf,
     e_typing s C0 ((cc :: ccs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
-    values_typing s (rev sc.1) = Some vts ->
-    exists C C' ret labs ts,
+    exists C C' ret labs vts ts,
+      values_typing s (rev sc.1) = Some vts /\
       frame_typing s (cc.1).(FC_frame) = Some C /\
         length ret = (cc.1).(FC_arity) /\
         C' = (upd_label (upd_return C (Some ret)) labs) /\
         e_typing s C' es (Tf vts ts).
 Proof.
-  move => cc ccs [vs0 es0] es s C0 vts tf Htype Hvts.
+  move => cc ccs [vs0 es0] es s C0 tf Htype.
   - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
-    eapply sc_typing_args in Htype as [? Htype]; eauto.
-    by do 6 eexists; eauto.
+    eapply sc_typing_args in Htype as [? [? [Hvstype Htype]]]; eauto.
+    by do 7 eexists; eauto.
 Qed.
 
 End Typing.
