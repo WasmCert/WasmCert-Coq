@@ -14,12 +14,7 @@ Unset Printing Implicit Defensive.
 
 Section EvalContext.
 
-Variable host_function: eqType.
-
-Variable host_instance: host host_function.
-
-#[local]
-Definition reduce := @reduce host_function host_instance.
+Context `{ho: host}.
 
 (* Typeclass for a Wasm evaluation context.
    ctx_frame_mask and ctx_frame_cond are auxiliary functions for defining
@@ -46,12 +41,7 @@ Notation "ctx ⦃ es ⦄" := (ctx_fill es ctx) (at level 1).
 
 Section Host.
 
-Variable host_function: eqType.
-
-Variable host_instance: host host_function.
-
-Notation eval_ctx := (@eval_ctx host_function host_instance).
-
+Context `{ho: host}.
 
 Definition fmask0 {T1 T2: Type} := (fun (_: T1) => @id T2).
 
@@ -265,7 +255,7 @@ Defined.
    The contexts are represented in a reversed stack-like structure: the head of each list is the innermost context.
    The hole is allowed to be empty (in which case the inner context is then exitted on the next step). However, the sequence context sc should not hold any
    non-empty instruction in the continuation. *)
-Definition cfg_tuple_ctx: Type := (store_record host_function) * list closure_ctx * seq_ctx * option administrative_instruction.
+Definition cfg_tuple_ctx: Type := store_record * list closure_ctx * seq_ctx * option administrative_instruction.
 
 Definition valid_hole (e: administrative_instruction) : bool :=
   (negb (is_const e)) &&
@@ -798,8 +788,6 @@ Qed.
 
 (** context reduction lemmas **)
 
-Let reduce := @reduce host_function host_instance.
-
 Lemma reduce_focus_ctx: forall hs s lcs ccs es hs' s' lcs' es' f0 fc fc',
     fc.(FC_val) = fc'.(FC_val) ->
     fc.(FC_post) = fc'.(FC_post) ->
@@ -831,13 +819,6 @@ Qed.
 (** Typing propagations for contexts **)
 Section Typing.
 
-Let e_typing := @e_typing host_function.
-Let inst_typing := @inst_typing host_function.
-Let frame_typing := @frame_typing host_function.
-
-Ltac invert_e_typing' :=
-  unfold e_typing in *; invert_e_typing.
-
 Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
     e_typing s C0 (fc ⦃ es ⦄) tf ->
     exists C ret,
@@ -848,7 +829,7 @@ Proof.
   move => fc es s C [ts1 ts2] /= Htype.
   rewrite - cat1s in Htype.
   unfold vs_to_es in Htype.
-  invert_e_typing'.
+  invert_e_typing.
   inversion H2_frame as [??????? Hftype ? Hetype]; subst; clear H2_frame.
   move/eqP in Hftype.
   by do 2 eexists; repeat split; eauto.
@@ -863,7 +844,7 @@ Lemma lc_typing: forall (lc: label_ctx) es s C0 tf,
 Proof.
   move => lc es s C [ts1 ts2] /= Htype.
   unfold label_ctx_fill in Htype.
-  invert_e_typing'.
+  invert_e_typing.
   by do 2 eexists; split; eauto.
 Qed.
 
@@ -943,7 +924,7 @@ Lemma sc_typing_args: forall (sc: seq_ctx) es s C vts ts0,
 Proof.
   move => [vs0 es0] es s C vts ts0 /=Htype Hvts.
   unfold vs_to_es in Htype.
-  invert_e_typing'.
+  invert_e_typing.
   rewrite H2_values in Hvts; injection Hvts as <-.
   by exists ts3_comp0.
 Qed.

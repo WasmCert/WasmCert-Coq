@@ -12,13 +12,7 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Variable host_function : eqType.
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let store_record := store_record host_function.
-Let host_state := host_state host_instance.
+Context `{ho: host}.
 
 Inductive reduce_simple : seq administrative_instruction -> seq administrative_instruction -> Prop :=
 

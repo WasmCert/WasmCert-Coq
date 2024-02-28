@@ -415,10 +415,7 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
 
 Section Host.
 
-Variable host_function : eqType.
-
-Let funcinst := funcinst host_function.
-Let store_record := store_record host_function.
+Context `{hfc: host_function_class}.
 
 Definition cl_type (cl : funcinst) : function_type :=
   match cl with
@@ -500,7 +497,7 @@ Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: el
           if i < tab_size tab then
             let: tab' := {| tableinst_type := tab.(tableinst_type);
                            tableinst_elem := set_nth tabv tab.(tableinst_elem) (N.to_nat i) tabv |} in
-            let: tabs' := set_nth tab' s.(s_tables) x tab' in
+            let: tabs' := set_nth tab' s.(s_tables) (N.to_nat x) tab' in
             Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
           else None
       | None => None
@@ -573,7 +570,7 @@ Definition supdate_glob_s (s : store_record) (k : globaladdr) (v : value) : opti
   option_map
     (fun g =>
       let: g' := Build_globalinst (g_type g) v in
-      let: gs' := set_nth g' (s_globals s) k g' in
+      let: gs' := set_nth g' (s_globals s) (N.to_nat k) g' in
       Build_store_record (s_funcs s) (s_tables s) (s_mems s) gs' (s_elems s) (s_datas s))
     (lookup_N (s_globals s) k).
 
@@ -1046,8 +1043,6 @@ Definition n_zeros (ts : seq value_type) : seq value :=
   map default_val ts.
 
 End Host.
-
-Arguments cl_type {host_function}.
 
 #[export]
 Hint Unfold v_to_e: core.

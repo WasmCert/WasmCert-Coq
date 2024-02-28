@@ -13,11 +13,7 @@ Require Import operations typing datatypes_properties.
 
 Section Host.
 
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let funcinst := funcinst host_function.
-
+Context `{hfc: host_function_class}.
 
 Inductive checker_type_aux : Type :=
 | CTA_any : checker_type_aux

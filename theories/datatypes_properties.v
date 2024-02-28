@@ -9,7 +9,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
 Definition ascii_eq_dec : forall tf1 tf2 : Ascii.ascii,
   {tf1 = tf2} + {tf1 <> tf2}.
 Proof. decidable_equality. Defined.
@@ -252,20 +251,19 @@ Definition eqmoduleinstP : Equality.axiom moduleinst_eqb :=
 Canonical Structure moduleinst_eqMixin := EqMixin eqmoduleinstP.
 Canonical Structure moduleinst_eqType := Eval hnf in EqType moduleinst moduleinst_eqMixin.
 
+Let administrative_instruction_rect :=
+  @administrative_instruction_rect
+  : forall (P : administrative_instruction -> Type), _.
+
 Section Host.
 
-Variable host_function : eqType.
-
-Let funcinst := funcinst host_function.
-Let store_record := store_record host_function.
-
-Let administrative_instruction_rect :=
-  @administrative_instruction_rect (*host_function*)
-  : forall (P : administrative_instruction -> Type), _.
+Context `{host_function_class}.
 
 Definition funcinst_eq_dec : forall (cl1 cl2 : funcinst),
   {cl1 = cl2} + {cl1 <> cl2}.
-Proof. decidable_equality. Defined.
+Proof. decidable_equality.
+       by apply host_function_eq_dec.
+Defined.
 
 Definition funcinst_eqb cl1 cl2 : bool := funcinst_eq_dec cl1 cl2.
 Definition eqfuncinstP : Equality.axiom funcinst_eqb :=

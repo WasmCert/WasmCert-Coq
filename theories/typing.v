@@ -10,10 +10,7 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Variable host_function : eqType.
-
-Let funcinst := funcinst host_function.
-Let store_record := store_record host_function.
+Context `{hfc: host_function_class}.
 
 
 (** std-doc:

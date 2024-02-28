@@ -13,36 +13,15 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Variable host_function: eqType.
-
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let store_record := store_record host_function.
-Let host_state := host_state host_instance.
-
-Let e_typing := @e_typing host_function.
-Let inst_typing := @inst_typing host_function.
-Let frame_typing := @frame_typing host_function.
-
+Context `{ho: host}.
+  
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
                        (host_state * option (store_record * result)).
 
 Hypothesis host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
 
-Let ctx_fill := @ctx_fill host_function host_instance.
 Notation "ctx ⦃ es ⦄" := (ctx_fill _ es ctx) (at level 1).
-
-Let valid_cfg_ctx := @valid_cfg_ctx host_function.
-Let cfg_tuple_ctx := @cfg_tuple_ctx host_function.
-Let label_ctx_eval := @label_ctx_eval host_function host_instance.
-Let frame_ctx_eval := @frame_ctx_eval host_function host_instance.
-Let closure_ctx_eval := @closure_ctx_eval host_function host_instance.
-Let list_label_ctx_eval := @list_label_ctx_eval host_function host_instance.
-Let list_closure_ctx_eval := @list_closure_ctx_eval host_function host_instance.
-Let lh_ctx_fill_aux := @lh_ctx_fill_aux host_function host_instance.
 
 Lemma config_typing_empty_inv: forall s es ts (C: t_context),
     config_typing s (empty_frame, es) ts ->

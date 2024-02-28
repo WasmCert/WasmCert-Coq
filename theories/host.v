@@ -23,18 +23,15 @@ Set Implicit Arguments.
 
 Section Predicate.
 
+Context `{hfc: host_function_class}.
 (** We assume a set of host functions. **)
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let store_extension : store_record -> store_record -> bool := @store_extension _.
 
 (** The application of a host function either:
   - returns [Some (st', result)], returning a new Wasm store and a result (which can be [Trap]),
   - diverges, represented as [None].
   This can be non-deterministic. **)
 
-Record host := {
+Class host := {
     host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
     host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
                        host_state -> option (store_record * result) -> Prop
@@ -58,20 +55,15 @@ Record host := {
 
 End Predicate.
 
-Arguments host_application [_ _].
-
 (** ** Executable Host **)
 
 (** We start with a host expressed as a predicate, useful for proofs. **)
 
 Section Executable.
 
-(** We assume a set of host functions.
-  To help with the extraction, it is expressed as a [Type] and not an [eqType]. **)
-Variable host_function : Type.
+Context `{hfc: host_function_class}.
 
-Let store_record := store_record host_function.
-Record executable_host := make_executable_host {
+Class executable_host := make_executable_host {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
     host_monad : Monad host_event (** They form a monad. **) ;
     host_apply : store_record -> function_type -> host_function -> seq value ->
@@ -87,14 +79,8 @@ Arguments host_apply [_ _].
 
 Section Parameterised.
 
-Variable host_function : eqType.
+Context `{ho: host}.
 
-Let store_record := store_record host_function.
-
-Let host : Type := host host_function.
-Let executable_host : Type := executable_host host_function.
-
-Variable phost : host.
 Variable ehost : executable_host.
 
 (* TODO. What we really need is the property with the interactive tree interpretation.
@@ -106,7 +92,6 @@ Definition host_spec :=
 *)
 
 End Parameterised.
-
 
 (** * Extractible module **)
 
@@ -123,15 +108,21 @@ Parameter host_event : Type -> Type.
 Parameter host_ret : forall t : Type, t -> host_event t.
 Parameter host_bind : forall t u : Type, host_event t -> (t -> host_event u) -> host_event u.
 
-Parameter host_apply : store_record host_function -> function_type -> host_function -> seq value ->
-                       host_event (option (store_record host_function * result)).
+#[local]
+Instance hfc: host_function_class.
+Proof.
+  exact (Build_host_function_class host_function_eq_dec).
+Defined.
+
+Parameter host_apply : @store_record hfc -> function_type -> host_function -> seq value ->
+                       host_event (option (@store_record hfc * result)).
 
 End Executable_Host.
 
 (** Such a module can easily be converted into an [executable_host] definition. **)
 
 Module convert_to_executable_host (H : Executable_Host).
-
+  
 Export H.
 
 Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
@@ -140,13 +131,8 @@ Definition host_functionP : Equality.axiom host_function_eqb :=
   eq_dec_Equality_axiom host_function_eq_dec.
 
 Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Global Canonical Structure host_function :=
+Global Canonical Structure host_function_eqType :=
   Eval hnf in EqType _ host_function_eqMixin.
-
-Definition executable_host := executable_host H.host_function.
-Definition store_record := store_record H.host_function.
-Definition funcinst := funcinst H.host_function.
-Definition config_tuple := config_tuple H.host_function.
 
 Definition host_monad : Monad host_event := {|
     ret := host_ret ;
@@ -175,12 +161,20 @@ Definition host_function := void.
 Definition host_event := ident.
 Definition host_ret := @ret _ Monad_ident.
 Definition host_bind := @bind _ Monad_ident.
-Definition store_record := store_record host_function.
-Definition host_apply (_ : store_record) (_ : function_type) :=
-  of_void (seq value -> ident (option (store_record * result))).
 
 Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
 Proof. decidable_equality. Defined.
+
+#[local]
+Instance hfc: host_function_class.
+Proof.
+  exact (Build_host_function_class host_function_eq_dec).
+Defined.
+
+Definition store_record := @store_record hfc.
+Definition host_apply (_ : store_record) (_ : function_type) :=
+  of_void (seq value -> ident (option (store_record * result))).
+
 
 End DummyHost.
 
@@ -189,9 +183,7 @@ Module DummyHosts.
 Module Exec := convert_to_executable_host DummyHost.
 Export Exec.
 
-Definition host : Type := host host_function.
-
-Definition host_instance : host.
+Definition host_instance : @host hfc.
 Proof.
   by refine {|
       host_state := unit_eqType ;

@@ -4,8 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 From Coq Require Import Program Wf_nat.
 
-Require Import Lia.
-
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -14,8 +12,8 @@ From Wasm Require Import type_checker typing_inversion.
 
 Section Host.
 
-Variable host_function : eqType.
-
+Context {hfc: host_function_class}.
+  
 Lemma result_typingP : forall r ts,
   reflect (result_typing r ts) (result_types_agree ts r).
 Proof.

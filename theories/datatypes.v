@@ -16,7 +16,7 @@ Require Import BinNat.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
+ 
 
 (** * Basic Datatypes **)
 
@@ -751,11 +751,6 @@ Inductive result : Type :=
 
 (** * Functions and Store **)
 
-Section Host.
-
-(** We assume a family of host functions. **)
-Variable host_function : Type.
-
 
 (** std-doc:
 A table instance is the runtime representation of a table. It records its type and 
@@ -892,6 +887,16 @@ Record moduleinst : Type := (* inst *) {
 Definition empty_moduleinst := Build_moduleinst nil nil nil nil nil nil nil nil.
 
 
+(** We assume a family of host functions. **)
+Class host_function_class : Type :=
+  { host_function : Type; 
+    host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}
+  }.
+
+Section Host.
+
+  Context `{host_function_class}.
+
 (** std-doc:
 A function instance is the runtime representation of a function. It effectively
 is a closure of the original function over the runtime module instance of its
@@ -908,7 +913,7 @@ constraints that ensure the integrity of the runtime.
 *)
 Inductive funcinst : Type := (* cl *)
   | FC_func_native : function_type -> moduleinst -> module_func -> funcinst
-  | FC_func_host : function_type -> host_function -> funcinst
+  | FC_func_host (tf: function_type) (hf: host_function) : funcinst
 .
 
 (** std-doc:
@@ -1003,5 +1008,3 @@ End Host.
 
 (* Notations for values to basic/admin instructions *)
 Notation "$VN v" := (AI_basic (BI_const_num v)) (at level 60).
-
-Arguments FC_func_native [host_function].

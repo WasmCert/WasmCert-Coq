@@ -12,19 +12,10 @@ From Coq Require Import BinNat.
 
 Section Instantiation_spec.
   
-Variable host_function : eqType.
-Let host := host host_function.
-
-Variable host_instance : host.
-
-Let store_record_eq_dec := @store_record_eq_dec host_function.
-Let store_record_eqType := @store_record_eqType host_function.
+Context `{ho: host}.
 
 (* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
 Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
-
-Let store_record := store_record host_function.
-Let host_state := host_state host_instance.
 
 Definition alloc_Xs {A B} f (s : store_record) (xs : list A) : store_record * list B :=
   let '(s', fas) :=

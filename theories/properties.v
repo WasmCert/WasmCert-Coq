@@ -605,8 +605,8 @@ Ltac gen_ind_pre H :=
     | ?f ?x =>
       let only_do_if_ok_direct t cont :=
         lazymatch t with
-        | Type => idtac
-        | host _ => idtac
+        | host_function_class => idtac
+        | host => idtac
         | _ => cont tt
         end in
       let t := type of x in
@@ -756,14 +756,10 @@ Ltac fold_upd_context :=
 
 Section Host.
 
-Variable host_function : eqType.
-
-Let store_record := store_record host_function.
-Let funcinst := funcinst host_function.
-Let e_typing := (@e_typing host_function).
+Context `{hfc: host_function_class}.
 
 Lemma values_typing_length: forall s vs ts,
-    @values_typing host_function s vs = Some ts ->
+    values_typing s vs = Some ts ->
     length vs = length ts.
 Proof.
   move => s vs ts Hvts.
@@ -773,7 +769,7 @@ Qed.
 
 Lemma default_value_typing: forall s t v,
     default_val t = v ->
-    @value_typing host_function s v = Some t.
+    value_typing s v = Some t.
 Proof.
   move => s t v Hval.
   destruct t, v => //; simpl in *; try inversion Hval; subst => //=.
@@ -783,7 +779,7 @@ Qed.
 
 Lemma default_values_typing: forall s ts vs,
     map default_val ts = vs ->
-    @values_typing host_function s vs = Some ts.
+    values_typing s vs = Some ts.
 Proof.
   move => s; elim => /=; first by case.
   move => t ts IH; case => //= v vs <-.
@@ -1182,6 +1178,88 @@ Proof.
   destruct lh as [vs | ? vs] => //; by destruct vs => //.
 Qed.
 
+(* further list operations *)
+Lemma nth_error_map: forall {X Y:Type} l n (f: X -> Y) fv,
+    List.nth_error (map f l) n = Some fv ->
+    exists v,
+      List.nth_error l n = Some v /\
+      f v = fv.
+Proof.
+  move => X Y l n.
+  move: l.
+  induction n => //=; move => l f fv HNth; destruct l => //=.
+  - destruct (map f (x::l)) eqn:HMap => //=.
+    inversion HNth; subst.
+    simpl in HMap. inversion HMap. subst.
+    by eexists.
+  - destruct (map f (x::l)) eqn:HMap => //=.
+    simpl in HMap. inversion HMap. subst.
+    by apply IHn.
+Qed.
+
+Lemma nth_error_nth: forall {X: Type} l n {x:X},
+  n < length l ->
+  List.nth_error l n = Some (nth x l n).
+Proof.
+  induction l; destruct n => //=.
+  by apply IHl.
+Qed.
+
+Lemma nth_error_set_nth_length: forall {X: Type} l n {x0 x xd: X},
+  List.nth_error l n = Some x0 ->
+  length (set_nth xd l n x) = length l.
+Proof.
+  move => X l n x0 x xd Hnth.
+  apply nth_error_Some_length in Hnth.
+  repeat rewrite length_is_size.
+  rewrite size_set_nth -length_is_size.
+  unfold maxn.
+  destruct (n.+1 < _) eqn:Hlt => //.
+  by lias.
+Qed.
+
+Lemma nth_error_set_eq: forall {X:Type} l n {x xd:X},
+    List.nth_error (set_nth xd l n x) n = Some x.
+Proof.
+  move => X l n x xd.
+  rewrite set_nthE.
+  destruct (n < size l) eqn:Hsize.
+  - replace (n.+1) with (n+1)%coq_nat; last by lias.
+    apply memory_list.lookup_split; by lias.
+  - rewrite List.nth_error_app2; last by rewrite length_is_size; lias.
+    rewrite - cat_nseq.
+    rewrite List.nth_error_app2; last by repeat rewrite length_is_size; rewrite size_nseq.
+    repeat rewrite length_is_size; rewrite size_nseq.
+    by replace (_ - _) with 0; last by lias.
+Qed.
+
+Lemma nth_error_set_neq: forall {X:Type} l n m {x xd:X},
+    n <> m ->
+    n < length l ->
+    List.nth_error (set_nth xd l n x) m = List.nth_error l m.
+Proof.
+  move => X l n. move: l.
+  induction n => //=; move => l m x Hne HLength.
+  - destruct m => //=.
+    by destruct l => //=.
+  - destruct m => //=.
+    + by destruct l => //=.
+    + destruct l => //=.
+      simpl in HLength.
+      by apply IHn; lias.
+Qed.
+
+Lemma Forall_set: forall {X:Type} f l n {x xd:X},
+    List.Forall f l ->
+    f x ->
+    n < length l ->
+    List.Forall f (set_nth xd l n x).
+Proof.
+  move => X f l. induction l; destruct n; move => x xd Hall Hf Hlen => //; constructor => //=; try by inversion Hall.
+  apply IHl => //.
+  by inversion Hall.
+Qed.
+
 (** Store extension properties **)
 
 Let func_extension: funcinst -> funcinst -> bool := @func_extension _.
@@ -1373,6 +1451,31 @@ Proof.
   move: k l.
   induction n; move => k l Hlt; destruct l, k => //=.
   apply IHn; by lias.
+Qed.
+
+Lemma component_extension_update {T: Type} (l: list T) n x y y0 f:
+  reflexive f ->
+  List.nth_error l n = Some x ->
+  f x y ->
+  component_extension f l (set_nth y0 l n y).
+Proof.
+  move => Hrefl Hnth Hf.
+  assert (length l = length (set_nth y0 l n y)) as Hlen; first by erewrite <- nth_error_set_nth_length; eauto.
+  
+  unfold component_extension; apply/andP; split; first by lias.
+  rewrite Hlen length_is_size take_size.
+  apply all2_spec => //.
+  move => i x' y' Hnth' Hnth2.
+  destruct (i == n) eqn:Heqn.
+  - move/eqP in Heqn; subst.
+    rewrite Hnth' in Hnth.
+    injection Hnth as ->.
+    rewrite nth_error_set_eq in Hnth2.
+    by injection Hnth2 as <-.
+  - move/eqP in Heqn.
+    rewrite nth_error_set_neq in Hnth2; eauto; last by apply nth_error_Some_length in Hnth; lias.
+    rewrite Hnth' in Hnth2; injection Hnth2 as <-.
+    by apply Hrefl.
 Qed.
 
 Lemma component_extension_trans {T: Type} (l1 l2 l3: list T) f:
@@ -1741,10 +1844,7 @@ Program Fixpoint lfill_factorise fe es {measure (ais_gen_measure es)} :=
 
 Section Host.
 
-Variable host_function: eqType.
-Variable host_instance: host host_function.
-
-Local Definition reduce := @reduce host_function host_instance.
+Context `{ho: host}.
 
 Lemma reduce_not_nil : forall hs hs' σ1 f es σ2 f' es',
   reduce hs σ1 f es hs' σ2 f' es' -> es <> [::].
