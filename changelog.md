@@ -10,15 +10,15 @@ This release for Wasm 2.0 implemented the following changes in the official spec
 The new sign extension, non-trapping float-to-int conversion, and vector types are added but without any concrete implementation.
 
 ## Updated Components:
-[x] Base opsem/typing definitions;
-[x] Type preservation theorem (except store extension theorems for now);
-[x] Interpreter and progress theorem;
-[x] Instantiation;
-[ ] Instantiation soundness theorems;
-[x] Type checker;
-[ ] Type checker correctness theorem;
-[x] Binary printer/parser;
-[x] Code pretty printer.
+- [x] Base opsem/typing definitions;
+- [x] Type preservation theorem (except store extension theorems for now);
+- [x] Interpreter and progress theorem;
+- [x] Instantiation;
+- [ ] Instantiation soundness theorems;
+- [x] Type checker;
+- [ ] Type checker correctness theorem;
+- [x] Binary printer/parser;
+- [x] Code pretty printer.
 
 # Major Structural Changes
 
