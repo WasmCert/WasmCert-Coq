@@ -9,6 +9,16 @@ This release for Wasm 2.0 implemented the following changes in the official spec
 
 The new sign extension, non-trapping float-to-int conversion, and vector types are added but without any concrete implementation.
 
+##Updated Components:
+[x] Base opsem/typing definitions;
+[x] Type preservation theorem;
+[x] Interpreter and progress theorem;
+[x] Instantiation;
+[ ] Instantiation soundness theorems;
+[x] Type checker;
+[ ] Type checker correctness theorem;
+[x] Binary printer/parser;
+[x] Code pretty printer.
 
 #Major Necesary Structural Changes
 
@@ -28,6 +38,11 @@ Threads are now properly spelt out as a separate type that constitutes the confi
 
 
 #Refactorings and Feature Improvements
+
+##Host Formulation
+The parametric host language is now defined using typeclasses. 
+The main major benefit is the automatic filling of implicit host parameter, instead of needing to redefine all operations involving anything downstream from function instances and stores. The proof context is also greatly simplified since all these redefinitions no longer exist to occupy a major chunk of the buffer window.
+
 
 ##Numerics
 - Refactored the old collection of conversion operations *cvtop* to be split up by their individual constructors.

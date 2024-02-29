@@ -53,28 +53,6 @@ Proof.
   apply ety_a' => //=; by apply bet_weakening_empty_both, bet_empty.
 Qed.
 
-(*
-Ltac et_dependent_ind H :=
-  let Ht := type of H in
-  lazymatch Ht with
-  | e_typing ?s ?C ?es ?tf =>
-    let s2 := fresh "s2" in
-    let C2 := fresh "C2" in
-    let es2 := fresh "es2" in
-    let tf2 := fresh "tf2" in
-    remember s as s2 eqn:Hrems;
-    remember C as C2 eqn:HremC;
-    remember es as es2 eqn:Hremes;
-    remember tf as tf2 eqn:Hremtf;
-    generalize dependent Hrems;
-    generalize dependent HremC;
-    generalize dependent Hremtf;
-    generalize dependent s; generalize dependent C;
-    generalize dependent tf;
-    induction H
-  end.
- *)
-
 Definition inst_match C C' : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (C.(tc_funcs) == C'.(tc_funcs)) &&
@@ -112,27 +90,33 @@ Ltac resolve_e_typing :=
         apply et_empty
     | _ : _ |- e_typing _ _ _ (Tf ?x (?x ++ _)) =>
         apply et_weakening_empty_1
+    | H : value_ref_typing ?s ?tabv = Some ?t |-
+        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) nil) (Tf ?ts1 _) =>
+        try apply et_weakening_empty_1; apply et_value_typing => /=; rewrite H => //=
+    | H : value_typing ?s ?v = Some ?t |-
+        e_typing ?s _ (cons ($V ?v) nil) (Tf ?ts1 _) =>
+        try apply et_weakening_empty_1; apply et_value_typing => //=
+    | H : value_ref_typing ?s ?tabv = Some ?t |-
+        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) ?l) (Tf ?ts1 _) =>
+        rewrite -(cat1s ($V (VAL_ref tabv)) l); apply et_composition' with (t2s := ts1 ++ [::T_ref t]); first by try apply et_weakening_empty_1; apply et_value_typing => /=; rewrite H => //=
+    | H : value_typing ?s ?v = Some ?t |-
+        e_typing ?s _ (cons ($V ?v) ?l) (Tf ?ts1 _) =>
+        rewrite -(cat1s ($V v) l); apply et_composition' with (t2s := ts1 ++ [::t]); first by try apply et_weakening_empty_1; apply et_value_typing => //=
+    | _ : value_typing ?s ?v = Some ?t |-
+        e_typing ?s _ [::($V ?v)] (Tf ?ts1 _) =>
+        try apply et_weakening_empty_1; try by apply et_value_typing; eauto => /=
     | _ : _ |- e_typing _ _ (cons ($VN ?x) _) (Tf _ _) =>
         replace ($VN x) with ($V (VAL_num x)); last done
     | _ : _ |- e_typing  _ _ (cons (vref_to_e ?x) _) (Tf _ _) =>
         replace (vref_to_e x) with ($V (VAL_ref x)); last done
-    | _ : _ |- e_typing _ _ [:: vref_to_e ?x] (Tf _ _) =>
-        replace (vref_to_e x) with ($V (VAL_ref x)); last done
     | _ : _ |- e_typing _ _ [:: $V _] (Tf nil _) =>
-        apply et_value_typing => /=
+        try apply et_value_typing => //=
     | _ : _ |- e_typing _ _ [:: $V _] (Tf ?x ?y) =>
-        try apply et_weakening_empty_1; et_value_typing => /=
+        try apply et_weakening_empty_1; first by apply et_value_typing => //= 
+    | _ : _ |- e_typing _ _ (cons ($V (VAL_num ?v)) ?l) (Tf ?ts1 _) =>
+        rewrite -(cat1s ($V (VAL_num v)) l); apply et_composition' with (t2s := ts1 ++ [::T_num (typeof_num v)]); eauto; first by try apply et_weakening_empty_1; apply et_value_typing; eauto => //=
     | _ : _ |- e_typing _ _ (v_to_e_list _) (Tf _ _) =>
         try apply et_values_typing => /=
-    | _ : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ (cons ($V ?v) ?l) (Tf ?ts1 _) =>
-        rewrite - (cat1s ($V v) l); apply et_composition' with (t2s := ts1 ++ [::t]); first try by apply et_value_typing; eauto => /=
-    | _ : value_ref_typing ?s ?tabv = Some ?t |-
-        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) _) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V VAL_ref tabv)); first apply et_composition' with (t2s := ts1 ++ [::t])
-    | _ : _ |-
-        e_typing ?s _ (cons ($V (VAL_num ?v)) ?l) (Tf ?ts1 _) =>
-        try rewrite - (cat1s ($V (VAL_num v)) l); apply et_composition' with (t2s := ts1 ++ [::T_num (typeof_num v)]); eauto => //=
     | H : is_true (const_list _) |- _ =>
         let vs := fresh "vs" in
         apply const_es_exists in H as [vs ->]; invert_e_typing
@@ -748,7 +732,9 @@ Lemma value_typing_extension: forall s s' v t,
 Proof.
   move => s s' v t Hext Htype.
   destruct v; simpl in * => //=.
-  by eapply value_ref_typing_extension; eauto.
+  remove_bools_options.
+  eapply value_ref_typing_extension in Hoption; eauto.
+  by rewrite Hoption.
 Qed.
   
 Lemma values_typing_extension: forall s s' vs ts,
@@ -863,8 +849,7 @@ Proof.
   rewrite Hoption.
   erewrite those_map_impl => //; last by apply Hoption0.
   move => v vt Hvt.
-  destruct v; simpl in * => //.
-  by eapply value_ref_typing_extension in Hvt; eauto.
+  by eapply value_typing_extension in Hvt; eauto.
 Qed.
 
 Ltac convert_et_to_bet:=
@@ -1656,7 +1641,8 @@ Proof.
     rewrite Hnthtabt in H3_table_get.
     injection H3_table_get as <-.
     eapply all_projection in Hif1; eauto.
-    by move/eqP in Hif1.
+    move/eqP in Hif1.
+    by rewrite Hif1.
   - (* Table fill *)
     destruct tab; simpl in *.
     remove_bools_options.
@@ -1664,7 +1650,8 @@ Proof.
     injection H2_table_fill as <-.
     simpl in *.
     rewrite -cat1s; apply et_composition' with (t2s := ty).
-    + rewrite -catA; apply ety_a' => //; apply bet_weakening_empty_2.
+    + resolve_e_typing.
+      rewrite -catA; apply ety_a' => //; apply bet_weakening_empty_2.
       by eapply bet_table_set; eauto.
     + resolve_e_typing => //.
       apply ety_a' => //.
@@ -1865,7 +1852,7 @@ Proof.
         by repeat rewrite eq_refl.
     }
 
-    fold (typing.values_typing s f.(f_locs)) in Hoption2.
+    fold (values_typing s f.(f_locs)) in Hoption2.
     assert (values_typing s' f'.(f_locs) = Some l0) as Hvaltype.
     {
       eapply t_preservation_locs_type; eauto => /=.

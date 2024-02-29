@@ -2,7 +2,7 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import typing_inversion.
 
 Ltac size_unequal H :=
-  apply (f_equal size) in H;
+  repeat rewrite length_is_size in H;
   revert H;
   repeat rewrite size_cat; repeat rewrite size_rev; repeat rewrite size_map; repeat rewrite size_drop; repeat rewrite size_take; simpl; lias.
 

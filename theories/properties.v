@@ -12,9 +12,22 @@ Unset Printing Implicit Defensive.
 
 (** List operations **)
 
+(* Friction between seq and List *)
 Lemma cat_app {A} (l1 : list A) l2 :
   cat l1 l2 = app l1 l2.
 Proof. done. Qed.
+
+Lemma length_is_size: forall {X:Type} (l: list X),
+  length l = size l.
+Proof.
+  move => X l. by elim: l.
+Qed.
+
+Lemma rev_length {T} (l: list T):
+  length (rev l) = length l.
+Proof.
+  by repeat rewrite length_is_size; rewrite size_rev.
+Qed.
 
 Lemma app_eq_singleton: forall T (l1 l2 : list T) (a : T),
     l1 ++ l2 = [::a] ->
@@ -35,12 +48,6 @@ Proof.
     inversion Hlen; subst; clear Hlen.
     f_equal.
     by apply IHl1.
-Qed.
-
-Lemma length_is_size: forall {X:Type} (l: list X),
-  length l = size l.
-Proof.
-  move => X l. by elim: l.
 Qed.
 
 Lemma those_length {T: Type} (l1: list (option T)) l2:
@@ -115,6 +122,16 @@ Proof.
     + by apply IH.
 Qed.
 
+Lemma those_cons_impl {T: Type}: forall (l: list (option T)) l' x y,
+    those (x :: l) = Some (y :: l') ->
+    x = Some y /\
+    those l = Some l'.
+Proof.
+  setoid_rewrite <- those_those0.
+  move => k k' x y /=Hthose.
+  by remove_bools_options.
+Qed.
+  
 Lemma those_cat {T: Type}: forall (l1 l2: list (option T)) l1' l2',
     those l1 = Some l1' ->
     those l2 = Some l2' ->
@@ -126,6 +143,25 @@ Proof.
   - move => x l1 IH l2 l1' l2' /= Hthose1 Hthose2 => /=.
     remove_bools_options.
     by erewrite IH; eauto.
+Qed.
+
+Lemma those_spec {T: Type}: forall (l1: list (option T)) l2,
+    length l1 = length l2 ->
+    (forall n x, List.nth_error l2 n = Some x ->
+            List.nth_error l1 n = Some (Some x)) ->
+    those l1 = Some l2.
+Proof.
+  setoid_rewrite <- those_those0.
+  induction l1; move => l2 Hlen Hspec => /=.
+  - by destruct l2.
+  - specialize (Hspec 0) as Hspec0; destruct l2 => //; simpl in *.
+    specialize (Hspec0 t erefl) as Heq.
+    inversion Heq; subst; clear Heq.
+    unfold option_map.
+    erewrite IHl1; eauto.
+    move => n x Hnth.
+    specialize (Hspec (S n) x); simpl in *.
+    by apply Hspec.
 Qed.
 
 Lemma const_list_cat: forall vs1 vs2,
@@ -739,19 +775,6 @@ Ltac extract_listn :=
   | H: _ :: _ = _ ++ _ |- _ => symmetry in H
          end.
 
-(*
-Ltac fold_upd_context :=
-  lazymatch goal with
-  | |- context [upd_local (upd_return ?C ?ret) ?loc] =>
-    replace (upd_local (upd_return C ret) loc) with
-        (upd_local_return C ret loc); try by destruct C
-  | |- context [upd_return (upd_local ?C ?ret) ?loc] =>
-    replace (upd_return (upd_local C ret) loc) with
-        (upd_local_return C ret loc); try by destruct C
-  end.
-*)
-
-
 (** * More Advanced Lemmas **)
 
 Section Host.
@@ -765,6 +788,15 @@ Proof.
   move => s vs ts Hvts.
   apply those_length in Hvts.
   by rewrite length_is_size size_map -length_is_size in Hvts.
+Qed.
+
+Lemma values_typing_cons_impl: forall s v t vs ts,
+    values_typing s (v :: vs) = Some (t :: ts) ->
+    value_typing s v = Some t /\
+    values_typing s vs = Some ts.
+Proof.
+  move => s v t vs ts Hvaltype.
+  by apply those_cons_impl in Hvaltype as [??].
 Qed.
 
 Lemma default_value_typing: forall s t v,
@@ -908,6 +940,46 @@ Proof.
   by apply IHl.
 Qed.
  
+Lemma nth_error_rev {T} (l: list T) n x:
+  List.nth_error l n = Some x ->
+  List.nth_error (rev l) (length l - (S n)) = Some x.
+Proof.
+  move: x n; induction l; first by destruct n.
+  move => x n; destruct n => //=.
+  - move => [->] => /=.
+    rewrite rev_cons -cats1.
+    replace (S (length l) - 1) with (length l); last by lias.
+    rewrite List.nth_error_app2; last by rewrite rev_length.
+    by rewrite rev_length Nat.sub_diag.
+  - move => Hnth.
+    rewrite subSS.
+    rewrite rev_cons -cats1.
+    apply IHl in Hnth.
+    by apply nth_error_app_Some.
+Qed. 
+
+Lemma those_rev {T: Type}: forall (l1: list (option T)) l2,
+    those (rev l1) = Some l2 ->
+    those l1 = Some (rev l2).
+Proof.
+  move => l1 l2; move => Hthose.
+  apply those_spec; first by (apply those_length in Hthose; rewrite (rev_length l2); rewrite (rev_length l1) in Hthose).
+  move => n x Hnth.
+  assert (n < length l2) as Hlen; first by apply nth_error_Some_length in Hnth; rewrite rev_length in Hnth; lias.
+  apply nth_error_rev in Hnth.
+  rewrite revK in Hnth.
+  eapply those_lookup_inv in Hnth; eauto.
+  apply nth_error_rev in Hnth.
+  rewrite revK in Hnth.
+  rewrite <- Hnth.
+  f_equal.
+  apply those_length in Hthose.
+  rewrite rev_length in Hthose.
+  repeat rewrite rev_length.
+  rewrite Hthose.
+  by lias.
+Qed.
+
 Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
   forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
 
