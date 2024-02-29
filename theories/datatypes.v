@@ -277,6 +277,10 @@ Inductive block_type : Set :=
 | BT_valtype: option value_type -> block_type
 .
 
+(** std-doc: 
+Most types are universally valid. However, restrictions apply to limits, which must be checked during validation. Moreover, block types are converted to plain function types for ease of processing.
+**)
+
 Definition functype_valid (ft: function_type) : bool :=
   true.
 

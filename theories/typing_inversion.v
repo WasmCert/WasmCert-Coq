@@ -1031,6 +1031,14 @@ Section Typing_inversion_e.
 
 Context {hfc: host_function_class}.
   
+Lemma et_empty: forall s C ts1 ts2,
+    ts1 = ts2 ->
+    e_typing s C nil (Tf ts1 ts2).
+Proof.
+  move => s C ts1 ts2 <-.
+  apply ety_a' => //=; by apply bet_weakening_empty_both, bet_empty.
+Qed.
+
 Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
     e_typing s C (es1 ++ [::e]) (Tf t1s t2s) ->
     exists t3s, e_typing s C es1 (Tf t1s t3s) /\

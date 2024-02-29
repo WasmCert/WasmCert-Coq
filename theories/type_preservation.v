@@ -45,83 +45,12 @@ Proof.
   by apply et_values_typing.
 Qed.
 
-Lemma et_empty: forall s C ts1 ts2,
-    ts1 = ts2 ->
-    e_typing s C nil (Tf ts1 ts2).
-Proof.
-  move => s C ts1 ts2 <-.
-  apply ety_a' => //=; by apply bet_weakening_empty_both, bet_empty.
-Qed.
-
 Definition inst_match C C' : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (C.(tc_funcs) == C'.(tc_funcs)) &&
   (C.(tc_tables) == C'.(tc_tables)) &&
   (C.(tc_mems) == C'.(tc_mems)) &&
   (C.(tc_globals) == C'.(tc_globals)).
-
-Ltac unfold_store_operations :=
-  repeat match goal with
-    | _: context [ stab_update _ _ _ _ ] |- _ =>
-        remove_bools_options
-    | _: context [ supdate_glob _ _ _ _ ] |- _ =>
-        unfold supdate_glob, supdate_glob_s, sglob_ind, option_bind, option_map in *; remove_bools_options
-    | _: context [ sglob_val _ _ ] |- _ =>
-        unfold sglob_val, sglob, sglob_ind in *; remove_bools_options
-    | _: context [ stab_elem _ _ ] |- _ =>
-        unfold stab_elem in *; remove_bools_options
-    | _: context [ stab _ _ ] |- _ =>
-        unfold stab in *; remove_bools_options
-    | _: context [ smem _ _ ] |- _ =>
-        unfold smem in *; remove_bools_options
-    | _: context [ selem _ _ ] |- _ =>
-        unfold selem in *; remove_bools_options
-    | _: context [ sdata _ _ ] |- _ =>
-        unfold sdata in *; remove_bools_options
-    | _: context [ selem_drop _ _ _ ] |- _ =>
-        unfold selem_drop, selem in *; remove_bools_options
-    | _: context [ sdata_drop _ _ _ ] |- _ =>
-        unfold sdata_drop, sdata in *; remove_bools_options
-    end.
-
-Ltac resolve_e_typing :=
-  repeat lazymatch goal with
-    | _ : _ |- e_typing _ _ nil (Tf _ _) =>
-        apply et_empty
-    | _ : _ |- e_typing _ _ _ (Tf ?x (?x ++ _)) =>
-        apply et_weakening_empty_1
-    | H : value_ref_typing ?s ?tabv = Some ?t |-
-        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) nil) (Tf ?ts1 _) =>
-        try apply et_weakening_empty_1; apply et_value_typing => /=; rewrite H => //=
-    | H : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ (cons ($V ?v) nil) (Tf ?ts1 _) =>
-        try apply et_weakening_empty_1; apply et_value_typing => //=
-    | H : value_ref_typing ?s ?tabv = Some ?t |-
-        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) ?l) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V (VAL_ref tabv)) l); apply et_composition' with (t2s := ts1 ++ [::T_ref t]); first by try apply et_weakening_empty_1; apply et_value_typing => /=; rewrite H => //=
-    | H : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ (cons ($V ?v) ?l) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V v) l); apply et_composition' with (t2s := ts1 ++ [::t]); first by try apply et_weakening_empty_1; apply et_value_typing => //=
-    | _ : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ [::($V ?v)] (Tf ?ts1 _) =>
-        try apply et_weakening_empty_1; try by apply et_value_typing; eauto => /=
-    | _ : _ |- e_typing _ _ (cons ($VN ?x) _) (Tf _ _) =>
-        replace ($VN x) with ($V (VAL_num x)); last done
-    | _ : _ |- e_typing  _ _ (cons (vref_to_e ?x) _) (Tf _ _) =>
-        replace (vref_to_e x) with ($V (VAL_ref x)); last done
-    | _ : _ |- e_typing _ _ [:: $V _] (Tf nil _) =>
-        try apply et_value_typing => //=
-    | _ : _ |- e_typing _ _ [:: $V _] (Tf ?x ?y) =>
-        try apply et_weakening_empty_1; first by apply et_value_typing => //= 
-    | _ : _ |- e_typing _ _ (cons ($V (VAL_num ?v)) ?l) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V (VAL_num v)) l); apply et_composition' with (t2s := ts1 ++ [::T_num (typeof_num v)]); eauto; first by try apply et_weakening_empty_1; apply et_value_typing; eauto => //=
-    | _ : _ |- e_typing _ _ (v_to_e_list _) (Tf _ _) =>
-        try apply et_values_typing => /=
-    | H : is_true (const_list _) |- _ =>
-        let vs := fresh "vs" in
-        apply const_es_exists in H as [vs ->]; invert_e_typing
-    | _ => unfold_store_operations
-    end.
 
 Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es tf ->
@@ -183,254 +112,6 @@ Proof.
     by apply v_to_e_const.
 Qed.
 
-
-Lemma inst_typing_type_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_types) n = Some x ->
-    lookup_N C.(tc_types) n = Some x.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  by eauto.
-Qed.
-
-Lemma inst_typing_func_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_funcs) n = Some x ->
-    exists t, ext_func_typing s x = Some t /\
-         lookup_N C.(tc_funcs) n = Some t.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  by eapply those_map_lookup in Hoption; eauto.
-Qed.
-  
-Lemma inst_typing_table_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_tables) n = Some x ->
-    exists t, ext_table_typing s x = Some t /\
-         lookup_N C.(tc_tables) n = Some t.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  by eapply those_map_lookup in Hoption0; eauto.
-Qed.
-  
-Lemma inst_typing_mem_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_mems) n = Some x ->
-    exists t, ext_mem_typing s x = Some t /\
-         lookup_N C.(tc_mems) n = Some t.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  by eapply those_map_lookup in Hoption1; eauto.
-Qed.
-  
-Lemma inst_typing_global_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_globals) n = Some x ->
-    exists t, ext_global_typing s x = Some t /\
-         lookup_N C.(tc_globals) n = Some t.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  by eapply those_map_lookup in Hoption2; eauto.
-Qed.
-
-Lemma inst_typing_elem_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_elems) n = Some x ->
-    exists t ei, lookup_N (s_elems s) x = Some ei /\
-            eleminst_typing s ei = Some t /\
-            lookup_N C.(tc_elems) n = Some t.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  eapply those_map_lookup in Hoption3; eauto.
-  destruct Hoption3 as [t [Hnthelem Hnthl]].
-  remove_bools_options.
-  by exists t, e.
-Qed.
-
-Lemma inst_typing_data_lookup: forall s inst C n x,
-    inst_typing s inst = Some C ->
-    lookup_N inst.(inst_datas) n = Some x ->
-    exists t di, lookup_N (s_datas s) x = Some di /\
-            datainst_typing s di = Some t /\
-            lookup_N C.(tc_datas) n = Some t.
-Proof.
-  move => s inst C n x Hit Hnth.
-  unfold inst_typing, inst_typing in Hit.
-  destruct inst; remove_bools_options; simpl in *.
-  eapply those_map_lookup in Hoption4; eauto.
-  destruct Hoption4 as [t [Hnthdata Hnthl]].
-  remove_bools_options.
-  by exists t, d.
-Qed.
-
-Lemma store_typing_func_lookup: forall s n x,
-    store_typing s ->
-    lookup_N s.(s_funcs) n = Some x ->
-    exists t, funcinst_typing s x t.
-Proof.
-  move => s n x Hst Hnth.
-  unfold store_typing in Hst; destruct s.
-  destruct Hst as [Hf _]; simpl in *.
-  by eapply Forall_lookup in Hf; eauto.
-Qed.
-
-Lemma store_typing_table_lookup: forall s n x,
-    store_typing s ->
-    lookup_N s.(s_tables) n = Some x ->
-    exists t, tableinst_typing s x = Some t.
-Proof.
-  move => s n x Hst Hnth.
-  unfold store_typing in Hst; destruct s.
-  destruct Hst as [Hf [Ht _]]; simpl in *.
-  by eapply Forall_lookup in Ht; eauto.
-Qed.
-
-Lemma store_typing_mem_lookup: forall s n x,
-    store_typing s ->
-    lookup_N s.(s_mems) n = Some x ->
-    exists t, meminst_typing s x = Some t.
-Proof.
-  move => s n x Hst Hnth.
-  unfold store_typing in Hst; destruct s.
-  destruct Hst as [Hf [Ht [Hm _]]]; simpl in *.
-  by eapply Forall_lookup in Hm; eauto.
-Qed.
-
-Lemma store_typing_global_lookup: forall s n x,
-    store_typing s ->
-    lookup_N s.(s_globals) n = Some x ->
-    exists t, globalinst_typing s x = Some t.
-Proof.
-  move => s n x Hst Hnth.
-  unfold store_typing in Hst; destruct s.
-  destruct Hst as [_ [_ [_ [Hg _]]]]; simpl in *.
-  by eapply Forall_lookup in Hg; eauto.
-Qed.
-
-Lemma store_typing_elem_lookup: forall s n x,
-    store_typing s ->
-    lookup_N s.(s_elems) n = Some x ->
-    exists t, eleminst_typing s x = Some t.
-Proof.
-  move => s n x Hst Hnth.
-  unfold store_typing in Hst; destruct s.
-  destruct Hst as [_ [_ [_ [_ [He _]]]]]; simpl in *.
-  by eapply Forall_lookup in He; eauto.
-Qed.
-
-Lemma store_typing_data_lookup: forall s n x,
-    store_typing s ->
-    lookup_N s.(s_datas) n = Some x ->
-    exists t, datainst_typing s x = Some t.
-Proof.
-  move => s n x Hst Hnth.
-  unfold store_typing in Hst; destruct s.
-  destruct Hst as [_ [_ [_ [_ [_ Hd]]]]]; simpl in *.
-  by eapply Forall_lookup in Hd; eauto.
-Qed.
-
-Ltac inst_typing_lookup :=
-  try multimatch goal with
-  | H1: inst_typing ?s ?i = Some ?t,
-    H2: lookup_N (inst_funcs ?i) _ = Some _ |- _ =>
-      let ft := fresh "ft" in
-      let Hextft := fresh "Hextft" in
-      let Hnthft := fresh "Hnthft" in
-      specialize (inst_typing_func_lookup H1 H2) as [ft [Hextft Hnthft]];
-      unfold ext_func_typing in Hextft
-  | H1: inst_typing ?s ?i = Some ?t,
-    H2: lookup_N (inst_tables ?i) _ = Some _ |- _ =>
-      let tabt := fresh "tabt" in
-      let Hexttabt := fresh "Hexttabt" in
-      let Hnthtabt := fresh "Hnthtabt" in
-      specialize (inst_typing_table_lookup H1 H2) as [tabt [Hexttabt Hnthtabt]];
-      unfold ext_table_typing in Hexttabt
-  | H1: inst_typing ?s ?i = Some ?t,
-    H2: lookup_N (inst_mems ?i) _ = Some _ |- _ =>
-      let mt := fresh "mt" in
-      let Hextmt := fresh "Hextmt" in
-      let Hnthmt := fresh "Hnthmt" in
-      specialize (inst_typing_mem_lookup H1 H2) as [mt [Hextmt Hnthmt]];
-      unfold ext_mem_typing in Hextmt
-  | H1: inst_typing ?s ?i = Some ?t,
-    H2: lookup_N (inst_globals ?i) _ = Some _ |- _ =>
-      let gt := fresh "gt" in
-      let Hextgt := fresh "Hextgt" in
-      let Hnthgt := fresh "Hnthgt" in
-      specialize (inst_typing_global_lookup H1 H2) as [gt [Hextgt Hnthgt]];
-      unfold ext_global_typing in Hextgt
-  | H1: inst_typing ?s ?i = Some ?t,
-    H2: lookup_N (inst_elems ?i) _ = Some _ |- _ =>
-      let et := fresh "et" in
-      let ei := fresh "ei" in
-      let Hnthselem := fresh "Hnthselem" in
-      let Helemtype := fresh "Helemtype" in
-      let Hnthet := fresh "Hnthet" in
-      specialize (inst_typing_elem_lookup H1 H2) as [et [ei [Hnthselem [Helemtype Hnthet]]]]
-  | H1: inst_typing ?s ?i = Some ?t,
-    H2: lookup_N (inst_datas ?i) _ = Some _ |- _ =>
-      let dt := fresh "et" in
-      let di := fresh "di" in
-      let Hnthsdata := fresh "Hnthsdata" in
-      let Hdatatype := fresh "Hdatatype" in
-      let Hnthdt := fresh "Hnthdt" in
-      specialize (inst_typing_data_lookup H1 H2) as [dt [di [Hnthsdata [Hdatatype Hnthdt]]]]
-  end.
-
-Ltac store_typing_lookup :=
-  try multimatch goal with
-  | H1: store_typing ?s,
-      H2: lookup_N (s_funcs ?s) _ = Some _ |- _ =>
-      let ft := fresh "ft" in
-      let Hft := fresh "Hft" in
-      specialize (store_typing_func_lookup H1 H2) as [ft Hft];
-      unfold funcinst_typing in Hft
-  | H1: store_typing ?s,
-      H2: lookup_N (s_tables ?s) _ = Some _ |- _ =>
-      let tabt := fresh "tabt" in
-      let Htabt := fresh "Htabt" in
-      specialize (store_typing_table_lookup H1 H2) as [tabt Htabt];
-      unfold tableinst_typing in Htabt
-  | H1: store_typing ?s,
-      H2: lookup_N (s_mems ?s) _ = Some _ |- _ =>
-      let mt := fresh "mt" in
-      let Hmt := fresh "Hmt" in
-      specialize (store_typing_mem_lookup H1 H2) as [mt Hmt];
-      unfold meminst_typing in Hmt
-  | H1: store_typing ?s,
-      H2: lookup_N (s_globals ?s) _ = Some _ |- _ =>
-      let gt := fresh "gt" in
-      let Hgt := fresh "Hgt" in
-      specialize (store_typing_global_lookup H1 H2) as [gt Hgt];
-      unfold globalinst_typing in Hgt
-  | H1: store_typing ?s,
-      H2: lookup_N (s_elems ?s) _ = Some _ |- _ =>
-      let et := fresh "et" in
-      let Het := fresh "Het" in
-      specialize (store_typing_elem_lookup H1 H2) as [et Het];
-      unfold eleminst_typing in Het
-  | H1: store_typing ?s,
-      H2: lookup_N (s_datas ?s) _ = Some _ |- _ =>
-      let dt := fresh "dt" in
-      let Hdt := fresh "Hdt" in
-      specialize (store_typing_data_lookup H1 H2) as [dt Hdt];
-      unfold datainst_typing in Hdt
-  end.
-
-Ltac resolve_store_inst_lookup :=
-  store_typing_lookup; inst_typing_lookup.
 (*
 Lemma globs_agree_function: forall s,
     function (globals_agree (s_globals s)).
@@ -806,7 +487,7 @@ Lemma inst_typing_extension: forall s s' i C,
     inst_typing s' i = Some C.
 Proof.
   move => s s' i C HST HIT.
-  unfold inst_typing, inst_typing in *.
+  unfold inst_typing in *.
   destruct i.
   remove_bools_options.
   erewrite those_map_impl; last (by apply Hoption); last by intros; eapply ext_func_typing_extension; eauto.
@@ -847,16 +528,9 @@ Proof.
   remove_bools_options.
   eapply inst_typing_extension in Hoption; eauto.
   rewrite Hoption.
-  erewrite those_map_impl => //; last by apply Hoption0.
-  move => v vt Hvt.
-  by eapply value_typing_extension in Hvt; eauto.
+  eapply values_typing_extension in Hoption0; eauto.
+  by rewrite Hoption0.
 Qed.
-
-Ltac convert_et_to_bet:=
-  lazymatch goal with
-  | H: e_typing _ _ _ _ |- _ =>
-    apply et_to_bet in H; simpl in H
-  end.
 
 Lemma lfilled_es_type_exists {k}: forall (lh: lholed k) es les s C tf,
     lfill lh es = les ->
@@ -1526,8 +1200,8 @@ Proof.
   - (* Block *)
     assert (Some (Tf t1s t2s) = Some (Tf ts1_block ts2_block)) as Hteq.
     { destruct tb; last destruct o => //; simpl in *; try by rewrite - Hexpand -H => //.
-      eapply inst_typing_type_lookup in H; eauto.
-      by rewrite H in Hexpand.
+      resolve_store_inst_lookup.
+      by rewrite Hteq in Hexpand.
     }
     inversion Hteq; subst; clear Hteq.
     apply concat_cancel_last_n in H1_values; last first.
@@ -1547,8 +1221,8 @@ Proof.
   - (* Loop *)
     assert (Some (Tf t1s t2s) = Some (Tf ts1_loop ts2_loop)) as Hteq.
     { destruct tb; last destruct o => //; simpl in *; try by rewrite - Hexpand -H => //.
-      eapply inst_typing_type_lookup in H; eauto.
-      by rewrite H in Hexpand.
+      inst_typing_lookup.
+      by rewrite Hteq in Hexpand.
     }
     inversion Hteq; subst; clear Hteq.
     apply concat_cancel_last_n in H1_values; last first.
@@ -1575,8 +1249,7 @@ Proof.
     apply ety_weakening, ety_invoke.
     unfold stab_elem in H.
     remove_bools_options.
-    eapply inst_typing_type_lookup in H1; eauto.
-    rewrite H1 in H3_callindirect; injection H3_callindirect as <-.
+    rewrite Hteq in H3_callindirect; injection H3_callindirect as <-.
     unfold ext_func_typing.
     by rewrite H0.
   - (* Invoke native *)
@@ -1597,9 +1270,7 @@ Proof.
     unfold expr_typing in Hexprtype; subst.
     econstructor; eauto.
     + unfold frame_typing; rewrite Hoption2 => /=.
-      rewrite map_cat.
-      erewrite those_cat; eauto.
-      fold (values_typing s (map default_val ts)).
+      erewrite values_typing_cat; eauto.
       by eapply default_values_typing.
     + eapply ety_label; eauto.
       * apply ety_a' => //=; by apply bet_weakening_empty_both, bet_empty.
@@ -1868,9 +1539,7 @@ Proof.
     eapply mk_thread_typing; (try by apply H6); eauto.
     apply/eqP.
     unfold frame_typing.
-    rewrite Hoption1 => /=.
-    unfold values_typing in Hvaltype.
-    rewrite Hvaltype => /=.
+    rewrite Hoption1 Hvaltype => /=.
     erewrite -> inst_t_context_local_empty; eauto.
     by rewrite cats0.
 Qed.
@@ -1907,8 +1576,6 @@ Proof.
     rewrite Hit'.
     erewrite -> inst_t_context_local_empty in *; eauto.
     rewrite -> cats0 in *.
-    fold (values_typing s' f'.(f_locs)).
-    fold (values_typing s f.(f_locs)) in Hoption0.
     eapply t_preservation_locs_type in Hoption0; eauto.
     + rewrite Hoption0; by rewrite cats0.
     + unfold inst_match; by repeat rewrite eq_refl.

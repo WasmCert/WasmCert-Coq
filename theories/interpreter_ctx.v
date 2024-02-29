@@ -421,17 +421,28 @@ Ltac resolve_invalid_value :=
   | H: values_typing _ (rev (?v :: _)) = Some _ |- _ =>
     apply values_typing_rev in H
   | H: values_typing _ (_ :: _) = Some (rev (?l ++ [::?t])) |- _ =>
-    rewrite cats1 rev_rcons in H;
+    rewrite cats1 rev_rcons in H
+  | H: values_typing _ (_ :: _) = Some (_ :: _) |- _ =>
     apply values_typing_cons_impl in H as [??];
     simpl in *;
     remove_bools_options => //
-  | H: values_typing _ (_ :: _ :: _) = Some (rev (?l ++ [::?t; _])) |- _ =>
+  | H: values_typing _ (_ :: _ :: _) = Some (rev (?l ++ _)) |- _ =>
     rewrite rev_cat in H;
     apply values_typing_cons_impl in H as [??];
     simpl in *;
     remove_bools_options => //
 end.
 
+Ltac assert_value_type v :=
+  move: v; case => v;
+  try by resolve_invalid_typing; resolve_invalid_value.
+
+Ltac no_args :=
+  resolve_invalid_typing;
+  repeat match goal with
+    | Hvtstype : values_typing _ _ = Some _ |- _ =>
+      by apply values_typing_length in Hvtstype; size_unequal Hvtstype
+    end.
 
 (* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
 Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
@@ -560,31 +571,22 @@ Proof.
       (* AI_local ln lf es *) ln lf es ]; destruct sc as [vs0 es0].
 
     - (* AI_basic (BI_const _) *)
+      (* This along with other value instructions are invalid, as it doesn't respect
+the condition that all values should live in the operand stack. *)
       apply RSC_invalid => /=; by move => [??].
 
     - (* AI_basic (BI_unop t op) *)
-      destruct vs0 as [|v vs0].
-      + (* [::] *)
-        resolve_invalid_typing.
-        by apply values_typing_length in Hvtstype; simpl in *; size_unequal Hvtstype.
-
-      + (* v :: ves' *)
-        destruct v as [v | |].
-        2,3: resolve_invalid_typing; resolve_invalid_value.
-        apply <<hs, (s, ccs, (VAL_num (app_unop op v) :: vs0, es0), None)>>.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_simple, rs_unop.
+      destruct vs0 as [|v vs0]; first by no_args.
+      (* v :: ves' *)
+      assert_value_type v.
+      apply <<hs, (s, ccs, (VAL_num (app_unop op v) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_unop.
 
     - (* AI_basic (BI_binop t op) *)
-      destruct vs0 as [|v2 [|v1 vs0]].
-      1,2: by resolve_invalid_typing; apply values_typing_length in Hvtstype; cbn in *; size_unequal Hvtstype.
-      simpl in *.
-
-      destruct v2 as [v2 | |].
-      2,3: by resolve_invalid_typing; resolve_invalid_value.
-      destruct v1 as [v1 | |].
-      2,3: by resolve_invalid_typing; resolve_invalid_value.
-      
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_value_type v2.
+      assert_value_type v1.
       (* [:: v2, v1 & ves'] *)
       destruct (app_binop op v1 v2) as [v|] eqn:?.
       + (* Some v *)
@@ -597,52 +599,44 @@ Proof.
         by apply r_simple, rs_binop_failure.
 
     - (* AI_basic (BI_testop t testop) *)
-      destruct vs0 as [| v vs0].
-      + (* [::] *)
-        by resolve_invalid_typing; apply values_typing_length in Hvtstype; cbn in *; size_unequal Hvtstype.
-        
-      + (* v :: ves' *)
-        destruct v as [v | |].
-        2,3: by resolve_invalid_typing; resolve_invalid_value.
-        
-        destruct t as [| | |].
-        3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H1_testop.
-        (* i32 *)
-        * destruct v as [c| | |].
-          2,3,4: by resolve_invalid_typing; resolve_invalid_value. 
-          apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: vs0, es0), None)>>.
-          resolve_reduce_ctx vs0 es0.
-          by apply r_simple, rs_testop_i32.
-        (* i64 *)
-        * destruct v as [|c | |].
-          1,3,4: by resolve_invalid_typing; resolve_invalid_value.
-          apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: vs0, es0), None)>>.
-          resolve_reduce_ctx vs0 es0.
-          by apply r_simple, rs_testop_i64.
+      destruct vs0 as [| v vs0]; first by no_args.
+      (* v :: ves' *)
+      assert_value_type v.
+      destruct t as [| | |].
+      3,4: by resolve_invalid_typing; last_unequal H1_testop.
+      (* i32 *)
+      + destruct v as [c| | |].
+        2,3,4: by resolve_invalid_typing; resolve_invalid_value. 
+        apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_testop_i32.
+      (* i64 *)
+      + destruct v as [|c | |].
+        1,3,4: by resolve_invalid_typing; resolve_invalid_value.
+        apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_testop_i64.
 
     - (* AI_basic (BI_relop t op) *)
-      destruct vs0 as [|v2 [|v1 vs0]].
-      1,2: by resolve_invalid_typing; apply values_typing_length in Hvtstype; cbn in *; size_unequal Hvtstype.
-      
-      destruct v2 as [v2 | |].
-      2,3: resolve_invalid_typing; resolve_invalid_value.
-      destruct v1 as [v1 | |].
-      2,3: resolve_invalid_typing; resolve_invalid_value.
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_value_type v2.
+      assert_value_type v1.
       (* [:: v2, v1 & ves'] *)
       apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (@app_relop op v1 v2))) :: vs0, es0), None)>>.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_relop.
 
     - (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
-      destruct vs0 as [|v vs0]; first by resolve_invalid_typing; simpl in Htype; invert_be_typing; size_unequal H1_cvtop.
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v.
       (* v :: ves' *)
-      destruct (types_agree t1 v) eqn:Ht1.
+      destruct (types_agree (T_num t1) (VAL_num v)) eqn:Ht1.
       + (* true *)
-        destruct cvtop.
-        (* convert *)
-        * destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
+        destruct (cvtop_valid t2 cvtop t1 sx) eqn:Hcvtvalid.
+        * (* true *)
+          destruct (eval_cvt t2 cvtop sx v) as [v'|] eqn:Heval.
           { (* Some v' *)
-            apply <<hs, (s, ccs, (v' :: vs0, es0), None)>>.
+            apply <<hs, (s, ccs, (VAL_num v' :: vs0, es0), None)>>.
             resolve_reduce_ctx vs0 es0.
             by apply r_simple, rs_convert_success.
           }
@@ -651,22 +645,206 @@ Proof.
             resolve_reduce_ctx vs0 es0.
             by apply r_simple, rs_convert_failure.
           }
-        (* Reinterpret *)
-        * destruct sx eqn:Heqsx.
-          { (* Some _ *)
-            resolve_invalid_typing; simpl in Htype; invert_be_typing.
-            by specialize (H3_cvtop erefl).
-          }
-          { (* None *)
-            apply <<hs, (s, ccs, ((wasm_deserialise (bits v) t2) :: vs0, es0), None)>>.
-            resolve_reduce_ctx vs0 es0.
-            by apply r_simple, rs_reinterpret.
-          }
+        * (* false *)
+          by resolve_invalid_typing; lias.
       + (* false *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        unfold types_agree in Ht1; move/eqP in Ht1.
-        by last_unequal H1_cvtop.
+        resolve_invalid_typing. resolve_invalid_value.
+        unfold types_agree, value_num_typing in *; simpl in *.
+        by move/eqP in Ht1.
 
+    - (* AI_basic BI_const_vec v *)
+      apply RSC_invalid => /=; by move => [??].
+      
+    - (* AI_basic BI_ref_null t *)
+      apply RSC_invalid => /=; by move => [??].
+
+    - (* AI_basic BI_ref_is_null *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v.
+      destruct v as [ v | v | v ].
+      (* ref_null *)
+      + apply <<hs, (s, ccs, ((VAL_num (VAL_int32 Wasm_int.Int32.one)) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_ref_is_null_true.
+      (* ref_func *)
+      + apply <<hs, (s, ccs, ((VAL_num (VAL_int32 Wasm_int.Int32.zero)) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        replace (AI_ref v) with ($V (VAL_ref (VAL_ref_func v))) => //.
+        by apply r_simple, rs_ref_is_null_false.
+      (* ref_extern *)
+      + apply <<hs, (s, ccs, ((VAL_num (VAL_int32 Wasm_int.Int32.zero)) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        replace (AI_ref_extern v) with ($V (VAL_ref (VAL_ref_extern v))) => //.
+        by apply r_simple, rs_ref_is_null_false.
+
+    - (* AI_basic (BI_ref_func x) *)
+      get_cc ccs.
+      destruct (lookup_N (inst_funcs (f_inst fc.(FC_frame))) x) as [addr | ] eqn:Hnth.
+      + apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_ref (VAL_ref_func addr)) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_ref_func.
+      + resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options.
+        simpl in *.
+        eapply inst_typing_func_lookup_inv in H1_ref_func; eauto.
+        destruct H1_ref_func as [f [Hext Hnthf]].
+        by rewrite Hnthf in Hnth.
+      
+    - (* AI_basic BI_drop *)
+      destruct vs0 as [ | v vs0]; first by no_args.
+      (* v :: vs0 *)
+      apply <<hs, (s, ccs, (vs0, es0), None)>> => /=.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_drop.
+      
+    - (* AI_basic BI_select *)
+      destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
+
+      (* v3 has to be i32, but the other two can be of any numeric type. Note that neitehr the spec nor the opsem checks for this during runtime *)
+      assert_value_type v3.
+      destruct v3 as [c| | |] eqn:?; subst.
+      (* Conclude a contradiction by comparing the last element. However, `last` computes very badly *)
+      2,3,4: resolve_invalid_typing; simpl in *; resolve_invalid_value. 
+      (* VAL_int32 c *)
+      destruct (c == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
+      + (* true *)
+        apply <<hs, (s, ccs, (vs0, es0), Some ($V v2))>> => /=.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple; apply rs_select_false.
+      + (* false *)
+        apply <<hs, (s, ccs, (vs0, es0), Some ($V v1))>> => /=.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple; apply rs_select_true.
+        
+    - (* AI_basic (BI_local_get j) *)
+      get_cc ccs.
+      destruct (lookup_N fc.(FC_frame).(f_locs) j) as [vs_at_j|] eqn:?.
+      * (* Some vs_at_j *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (vs_at_j :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_local_get; subst.
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        erewrite inst_t_context_local_empty in H1_getlocal; eauto.
+        rewrite cats0 in H1_getlocal.
+        unfold lookup_N in *.
+        apply nth_error_Some_length in H1_getlocal.
+        apply values_typing_length in Hoption0.
+        rewrite List.nth_error_None in Heqo.
+        by lias.
+        
+    - (* AI_basic (BI_local_set j) *)
+      get_cc ccs.    
+      destruct vs0 as [|v vs0]; first by no_args.
+      (* v :: ves' *)
+      destruct (N.to_nat j < length fc.(FC_frame).(f_locs)) eqn:Hlen.
+      + (* true *)
+        apply <<hs, (s, ((Build_frame_ctx (fc.(FC_val)) fc.(FC_arity) (Build_frame (set_nth v fc.(FC_frame).(f_locs) (N.to_nat j) v) fc.(FC_frame).(f_inst)) fc.(FC_post)), lcs) :: ccs', (vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_local_set with (vd := v). 
+      + (* false *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        erewrite inst_t_context_local_empty in H1_setlocal; eauto.
+        rewrite cats0 in H1_setlocal.
+        unfold lookup_N in *.
+        apply nth_error_Some_length in H1_setlocal.
+        apply values_typing_length in Hoption0.
+        by lias.
+
+    - (* AI_basic (BI_local_tee j) *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      (* v :: ves' *)
+      apply <<hs, (s, ccs, (v :: v :: vs0, es0), Some (AI_basic (BI_local_set j)))>> => /=.
+      resolve_reduce_ctx vs0 es0.
+      by eapply r_simple, rs_local_tee.
+
+    - (* AI_basic (BI_global_get j) *)
+      get_cc ccs.
+      destruct (sglob_val s fc.(FC_frame).(f_inst) j) as [v|] eqn:Hsglob.
+      + (* Some xx *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (v :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_global_get.
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        * inst_typing_lookup.
+          by rewrite Hoption2 in Hextgt.
+        * eapply inst_typing_global_lookup_inv in Hoption; eauto.
+          destruct Hoption as [? [? Hnthg]].
+          by rewrite Hoption3 in Hnthg.
+
+    - (* AI_basic (BI_global_set j) *)
+      get_cc ccs.    
+      destruct vs0 as [|v vs0]; first by no_args.
+      (* v :: ves' *)
+      destruct (supdate_glob s fc.(FC_frame).(f_inst) j v) as [s'|] eqn:Hsupdate.
+      * (* Some s' *)
+        apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_global_set; subst.
+      * (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        * inst_typing_lookup.
+          by rewrite Hoption2 in Hextgt.
+        * eapply inst_typing_global_lookup_inv in Hoption; eauto.
+          destruct Hoption as [? [? Hnthg]].
+          by rewrite Hoption1 in Hnthg.
+
+    - (* AI_basic (BI_table_get x) *)
+      get_cc ccs.
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v.
+      assert_value_type v.
+      destruct (stab_elem s fc.(FC_frame).(f_inst) x (Wasm_int.N_of_uint i32m v)) as [tabv|] eqn:Hstab.
+      + (* Some xx *)
+        apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_ref tabv) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_table_get_success.
+      + (* None *)
+        (* Note that the stab_elem specification in the opsem matches the spec for typed expressions only -- it produces traps in some untyped scenarios which is undefined in spec. But that is not a problem anyway *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_table_get_failure.
+
+    - (* AI_basic (BI_table_set x) *)
+      get_cc ccs.
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      (* v2 needs to be a ref and v1 needs to be a i32 num *)
+      assert_value_type v2.
+      assert_value_type v1; assert_value_type v1.
+      destruct (stab_update s fc.(FC_frame).(f_inst) x (Wasm_int.N_of_uint i32m v1) v2) as [s'|] eqn:Hsupdate.
+      + (* Some xx *)
+        apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_table_set_success.
+      + (* None *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_table_set_failure.
+        
+    - (* AI_basic (BI_table_size x) *)
+      get_cc ccs.
+      destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
+      + (* Some xx *)
+        apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_num (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (tab_size tab))))) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_table_size; eauto.
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        * inst_typing_lookup.
+          by rewrite Hstab in Hexttabt.
+        * eapply inst_typing_table_lookup_inv in Hoption; eauto.
+          destruct Hoption as [? [? Hnthtab]].
+          by rewrite Hoption1 in Hnthtab.
+      
     - (* AI_basic BI_unreachable *)
       apply <<hs, (s, ccs, (vs0, es0), Some AI_trap)>> => /=.
       resolve_reduce_ctx vs0 es0.
@@ -677,35 +855,6 @@ Proof.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_nop.
 
-    - (* AI_basic BI_drop *)
-      destruct vs0 as [ | v vs0].
-      + (* [::] *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        by destruct ts'.
-      + (* v :: vs0 *)
-        apply <<hs, (s, ccs, (vs0, es0), None)>> => /=.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_simple, rs_drop.
-      
-    - (* AI_basic BI_select *)
-      destruct vs0 as [|v3 [|v2 [|v1 vs0]]].
-      (* Not enough arguments *)
-      1,2,3: resolve_invalid_typing; simpl in Htype; invert_be_typing; try by size_unequal H1_select.
-      (* [:: v3, v2, v1 & vs0] *)
-      destruct v3 as [c| | |] eqn:?.
-      (* Conclude a contradiction by comparing the last element. However, `last` computes very badly *)
-      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H1_select.
-      (* VAL_int32 c *)
-      destruct (c == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
-      + (* true *)
-        apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_const v2)))>> => /=.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_simple; apply rs_select_false.
-      + (* false *)
-        apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_const v1)))>> => /=.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_simple; apply rs_select_true.
-      
 
     - (* AI_basic (BI_block (Tf t1s t2s) es) *)
       destruct (length vs0 >= length t1s) eqn:Hlen.
@@ -866,90 +1015,6 @@ Proof.
         apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap))>>.
         resolve_reduce_ctx vs0 es0.
         by eapply r_call_indirect_failure2; subst.
-
-    - (* AI_basic (BI_local_get j) *)
-      get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct (j < length f.(f_locs)) eqn:?.
-      + (* true *)
-        destruct (List.nth_error f.(f_locs) j) as [vs_at_j|] eqn:?.
-        * (* Some vs_at_j *)
-          apply <<hs, (s, (fc, lcs) :: ccs', (vs_at_j :: vs0, es0), None)>>.
-          resolve_reduce_ctx vs0 es0.
-          by eapply r_local_get; subst.
-        * (* None *)
-          apply List.nth_error_None in Heqo; by lias.
-      + (* false *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-        destruct fc as [fvs fk ff fes]; simpl in *.
-        apply inst_t_context_local_empty in Hit; rewrite -> Hit in *; simpl in *.
-        rewrite cats0 length_is_size size_map -length_is_size in H3_getlocal; by lias.
-
-    - (* AI_basic (BI_local_set j) *)
-      get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct vs0 as [|v vs0].
-      + (* [::] *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing; by size_unequal H2_setlocal.
-      + (* v :: ves' *)
-        destruct (j < length f.(f_locs)) eqn:Hlen.
-        * (* true *)
-           apply <<hs, (s, ((Build_frame_ctx (fc.(FC_val)) fc.(FC_arity) (Build_frame (set_nth v f.(f_locs) j v) f.(f_inst)) fc.(FC_post)), lcs) :: ccs', (vs0, es0), None)>>.
-           resolve_reduce_ctx vs0 es0.
-           by eapply r_local_set; subst => //.
-        * (* false *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk ff fes]; simpl in *.
-          apply inst_t_context_local_empty in Hit; rewrite -> Hit in *; simpl in *.
-          rewrite cats0 length_is_size size_map -length_is_size in H3_setlocal; by lias.
-
-    - (* AI_basic (BI_local_tee j) *)
-      destruct vs0 as [|v vs0].
-      + (* [::] *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing; by size_unequal H2_teelocal.
-      + (* v :: ves' *)
-        apply <<hs, (s, ccs, (v :: v :: vs0, es0), Some (AI_basic (BI_local_set j)))>> => /=.
-        resolve_reduce_ctx vs0 es0.
-        by eapply r_simple, rs_local_tee.
-
-    - (* AI_basic (BI_global_get j) *)
-      get_cc ccs.    
-      destruct (sglob_val s fc.(FC_frame).(f_inst) j) as [v|] eqn:Hsglob.
-      + (* Some xx *)
-        apply <<hs, (s, (fc, lcs) :: ccs', (v :: vs0, es0), None)>>.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_global_get.
-      + (* None *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-        destruct fc as [fvs fk ff fes]; simpl in *.
-        unfold sglob_val, sglob, sglob_ind in Hsglob.
-        remove_bools_options.
-        by eapply glob_context_store in Hoption; eauto.
-
-    - (* AI_basic (BI_global_set j) *)
-      get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct vs0 as [|v vs0].
-      + (* [::] *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing; by size_unequal H4_setglobal.
-      + (* v :: ves' *)
-        destruct (supdate_glob s f.(f_inst) j v) as [s'|] eqn:Hsupdate.
-        * (* Some s' *)
-          apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
-          resolve_reduce_ctx vs0 es0.
-          by eapply r_global_set; subst.
-        * (* None *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-          unfold supdate_glob, supdate_glob_s in Hsupdate.
-          eapply glob_context_store in H5_setglobal; eauto.
-          unfold sglob in H5_setglobal.
-          destruct (sglob_ind s fi j) as [sglobi|] eqn:Hsglobi => //; simpl in *.
-          by destruct (List.nth_error (s_globals s) sglobi) => //.
 
     - (* AI_basic (BI_load t ops (Some (tp, sx)) a off) *)
       get_cc ccs.    

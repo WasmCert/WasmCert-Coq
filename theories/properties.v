@@ -799,6 +799,17 @@ Proof.
   by apply those_cons_impl in Hvaltype as [??].
 Qed.
 
+Lemma values_typing_cat: forall s vs1 vs2 ts1 ts2,
+    values_typing s vs1 = Some ts1 ->
+    values_typing s vs2 = Some ts2 ->
+    values_typing s (vs1 ++ vs2) = Some (ts1 ++ ts2).
+Proof.
+  move => s vs1 vs2 ts1 ts2.
+  unfold values_typing.
+  intros.
+  by rewrite map_cat; erewrite those_cat.
+Qed.
+  
 Lemma default_value_typing: forall s t v,
     default_val t = v ->
     value_typing s v = Some t.
@@ -1690,6 +1701,223 @@ Proof.
   unfold store_extension, operations.store_extension in Hext.
   remove_bools_options.
   by eapply component_extension_lookup in Hnth; eauto.
+Qed.
+
+(** Lookups connecting module instance, store, and typing context *)
+Lemma inst_typing_type_lookup: forall s inst C n,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_types) n = lookup_N C.(tc_types) n.
+Proof.
+  move => s inst C n Hit.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  by eauto.
+Qed.
+
+Lemma inst_typing_func_lookup: forall s inst C n x,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_funcs) n = Some x ->
+    exists t, ext_func_typing s x = Some t /\
+         lookup_N C.(tc_funcs) n = Some t.
+Proof.
+  move => s inst C n x Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  by eapply those_map_lookup in Hoption; eauto.
+Qed.
+
+Lemma inst_typing_table_lookup: forall s inst C n x,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_tables) n = Some x ->
+    exists t, ext_table_typing s x = Some t /\
+         lookup_N C.(tc_tables) n = Some t.
+Proof.
+  move => s inst C n x Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  by eapply those_map_lookup in Hoption0; eauto.
+Qed.
+  
+Lemma inst_typing_mem_lookup: forall s inst C n x,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_mems) n = Some x ->
+    exists t, ext_mem_typing s x = Some t /\
+         lookup_N C.(tc_mems) n = Some t.
+Proof.
+  move => s inst C n x Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  by eapply those_map_lookup in Hoption1; eauto.
+Qed.
+  
+Lemma inst_typing_global_lookup: forall s inst C n x,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_globals) n = Some x ->
+    exists t, ext_global_typing s x = Some t /\
+         lookup_N C.(tc_globals) n = Some t.
+Proof.
+  move => s inst C n x Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  by eapply those_map_lookup in Hoption2; eauto.
+Qed.
+
+Lemma inst_typing_elem_lookup: forall s inst C n x,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_elems) n = Some x ->
+    exists t ei, lookup_N (s_elems s) x = Some ei /\
+            eleminst_typing s ei = Some t /\
+            lookup_N C.(tc_elems) n = Some t.
+Proof.
+  move => s inst C n x Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  eapply those_map_lookup in Hoption3; eauto.
+  destruct Hoption3 as [t [Hnthelem Hnthl]].
+  remove_bools_options.
+  by exists t, e.
+Qed.
+
+Lemma inst_typing_data_lookup: forall s inst C n x,
+    inst_typing s inst = Some C ->
+    lookup_N inst.(inst_datas) n = Some x ->
+    exists t di, lookup_N (s_datas s) x = Some di /\
+            datainst_typing s di = Some t /\
+            lookup_N C.(tc_datas) n = Some t.
+Proof.
+  move => s inst C n x Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  eapply those_map_lookup in Hoption4; eauto.
+  destruct Hoption4 as [t [Hnthdata Hnthl]].
+  remove_bools_options.
+  by exists t, d.
+Qed.
+
+Lemma inst_typing_func_lookup_inv: forall s inst C n t,
+    inst_typing s inst = Some C ->
+    lookup_N C.(tc_funcs) n = Some t ->
+    exists x, ext_func_typing s x = Some t /\
+         lookup_N inst.(inst_funcs) n = Some x.
+Proof.
+  move => s inst C n t Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  unfold lookup_N in *.
+  eapply those_lookup_inv in Hoption; eauto.
+  apply nth_error_map in Hoption as [a [??]].
+  by exists a.
+Qed.
+
+Lemma inst_typing_table_lookup_inv: forall s inst C n t,
+    inst_typing s inst = Some C ->
+    lookup_N C.(tc_tables) n = Some t ->
+    exists x, ext_table_typing s x = Some t /\
+         lookup_N inst.(inst_tables) n = Some x.
+Proof.
+  move => s inst C n t Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  unfold lookup_N in *.
+  eapply those_lookup_inv in Hoption0; eauto.
+  apply nth_error_map in Hoption0 as [a [??]].
+  by exists a.
+Qed.
+
+Lemma inst_typing_mem_lookup_inv: forall s inst C n t,
+    inst_typing s inst = Some C ->
+    lookup_N C.(tc_mems) n = Some t ->
+    exists x, ext_mem_typing s x = Some t /\
+         lookup_N inst.(inst_mems) n = Some x.
+Proof.
+  move => s inst C n t Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  unfold lookup_N in *.
+  eapply those_lookup_inv in Hoption1; eauto.
+  apply nth_error_map in Hoption1 as [a [??]].
+  by exists a.
+Qed.
+
+Lemma inst_typing_global_lookup_inv: forall s inst C n t,
+    inst_typing s inst = Some C ->
+    lookup_N C.(tc_globals) n = Some t ->
+    exists x, ext_global_typing s x = Some t /\
+         lookup_N inst.(inst_globals) n = Some x.
+Proof.
+  move => s inst C n t Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  unfold lookup_N in *.
+  eapply those_lookup_inv in Hoption2; eauto.
+  apply nth_error_map in Hoption2 as [a [??]].
+  by exists a.
+Qed.
+  
+Lemma store_typing_func_lookup: forall s n x,
+    store_typing s ->
+    lookup_N s.(s_funcs) n = Some x ->
+    exists t, funcinst_typing s x t.
+Proof.
+  move => s n x Hst Hnth.
+  unfold store_typing in Hst; destruct s.
+  destruct Hst as [Hf _]; simpl in *.
+  by eapply Forall_lookup in Hf; eauto.
+Qed.
+
+Lemma store_typing_table_lookup: forall s n x,
+    store_typing s ->
+    lookup_N s.(s_tables) n = Some x ->
+    exists t, tableinst_typing s x = Some t.
+Proof.
+  move => s n x Hst Hnth.
+  unfold store_typing in Hst; destruct s.
+  destruct Hst as [Hf [Ht _]]; simpl in *.
+  by eapply Forall_lookup in Ht; eauto.
+Qed.
+
+Lemma store_typing_mem_lookup: forall s n x,
+    store_typing s ->
+    lookup_N s.(s_mems) n = Some x ->
+    exists t, meminst_typing s x = Some t.
+Proof.
+  move => s n x Hst Hnth.
+  unfold store_typing in Hst; destruct s.
+  destruct Hst as [Hf [Ht [Hm _]]]; simpl in *.
+  by eapply Forall_lookup in Hm; eauto.
+Qed.
+
+Lemma store_typing_global_lookup: forall s n x,
+    store_typing s ->
+    lookup_N s.(s_globals) n = Some x ->
+    exists t, globalinst_typing s x = Some t.
+Proof.
+  move => s n x Hst Hnth.
+  unfold store_typing in Hst; destruct s.
+  destruct Hst as [_ [_ [_ [Hg _]]]]; simpl in *.
+  by eapply Forall_lookup in Hg; eauto.
+Qed.
+
+Lemma store_typing_elem_lookup: forall s n x,
+    store_typing s ->
+    lookup_N s.(s_elems) n = Some x ->
+    exists t, eleminst_typing s x = Some t.
+Proof.
+  move => s n x Hst Hnth.
+  unfold store_typing in Hst; destruct s.
+  destruct Hst as [_ [_ [_ [_ [He _]]]]]; simpl in *.
+  by eapply Forall_lookup in He; eauto.
+Qed.
+
+Lemma store_typing_data_lookup: forall s n x,
+    store_typing s ->
+    lookup_N s.(s_datas) n = Some x ->
+    exists t, datainst_typing s x = Some t.
+Proof.
+  move => s n x Hst Hnth.
+  unfold store_typing in Hst; destruct s.
+  destruct Hst as [_ [_ [_ [_ [_ Hd]]]]]; simpl in *.
+  by eapply Forall_lookup in Hd; eauto.
 Qed.
 
 End Host.

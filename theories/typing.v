@@ -12,7 +12,6 @@ Section Host.
 
 Context `{hfc: host_function_class}.
 
-
 (** std-doc:
 For the purpose of checking external values against imports, such values are classified by external types. The following auxiliary typing rules specify this typing relation relative to a store S in which the referenced instances live.
  **)
@@ -362,95 +361,7 @@ To that end, each kind of instance is classified by a respective function, table
 https://www.w3.org/TR/wasm-core-2/appendix/properties.html#store-validity
 **)
 
-Section Store_validity.
-  
-(*
-Definition limit_match (l1 l2: limits) : bool :=
-  (N.leb l2.(lim_min) l1.(lim_min)) &&
-    match l2.(lim_max) with
-    | None => true
-    | Some lmax2 =>
-        match l1.(lim_max) with
-        | Some lmax1 => (N.leb lmax1 lmax2)
-        | None => false
-        end
-    end.
-*)
-
-(*
-
-Definition funci_agree (fs : seq funcinst) (n : funcaddr) (f : function_type) : bool :=
-  option_map cl_type (List.nth_error fs n) == Some f.
-
-Definition tab_typing (t : tableinst) (tt : table_type) : bool :=
-  limit_match t.(tableinst_type) tt.(tt_limits).
-
-Definition mem_typing (m : memory) (m_t : memory_type) : bool :=
-  limit_match (Build_limits (mem_size m) m.(mem_max_opt)) m_t.
-
-Definition global_agree (g : global) (tg : global_type) : bool :=
-  (tg_mut tg == g_mut g) && (tg_t tg == typeof (g_val g)).
-
-Definition globali_agree (gs : list globalinst) (n : globaladdr) (tg : global_type) : bool :=
-  option_map g_type (List.nth_error gs n) == Some tg.
-
-
-Definition memi_agree (ms : list memory) (n : nat) (mem_t : memory_type) : bool :=
-  (n < length ms) &&
-  match List.nth_error ms n with
-  | Some mem => mem_typing mem mem_t
-  | None => false
-  end.
-*)
-
-(*
-
-(* TODO: figure out what's missing for elem/data/ref *)
-
-Lemma inst_typing_expand (s: store_record) (inst: instance) (C: t_context) (tb: block_type) :
-  inst_typing s inst C ->
-  expand inst tb = expand_t C tb.
-Proof.
-  destruct tb, inst, C => //=.
-  destruct tc_elem, tc_data, tc_local, tc_label, tc_return, tc_ref => //.
-  move => Htype.
-  repeat (move/andP in Htype; destruct Htype as [Htype _]).
-  by move/eqP in Htype; subst.
-Qed.
-
-
-Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
-| mk_frame_typing: forall s i tvs C f,
-    inst_typing s i C ->
-    f.(f_inst) = i ->
-    map typeof f.(f_locs) = tvs ->
-    frame_typing s f (upd_local C (tvs ++ tc_locals C))
-  .
-
-Lemma functions_agree_injective: forall s i t t',
-  funci_agree s i t ->
-  funci_agree s i t' ->
-  t = t'.
-Proof.
-  move => s i t t' H1 H2.
-  unfold funci_agree in *.
-  move/eqP in H1. move/eqP in H2.
-  rewrite H2 in H1 => {H2}.
-  by move: H1 => [H1].
-Qed.
-
-Inductive cl_typing : store_record -> funcinst -> function_type -> Prop :=
-  | cl_typing_native : forall i s C C' ts t1s t2s es tf,
-    inst_typing s i C ->
-    tf = Tf t1s t2s ->
-    C' = upd_local_label_return C (t1s ++ ts) ([::t2s]) (Some t2s) ->
-    be_typing C' es (Tf [::] t2s) ->
-    cl_typing s (FC_func_native i tf ts es) (Tf t1s t2s)
-  | cl_typing_host : forall s tf h,
-    cl_typing s (FC_func_host tf h) tf
-  .
-
- *)
+Section Store_validity. 
 
 (* funcinst typing is dependent on a later definition, although stated before it in the spec document. *)
 Definition tableinst_typing (s: store_record) (ti: tableinst) : option table_type :=
@@ -540,7 +451,7 @@ Definition inst_typecheck (s: store_record) (inst: moduleinst) (C: t_context) : 
 Definition frame_typing (s: store_record) (f: frame) : option t_context :=
   match inst_typing s f.(f_inst) with
   | Some C =>
-      match those (map (value_typing s) f.(f_locs)) with
+      match (values_typing s) f.(f_locs) with
       | Some ts => Some (upd_local C (ts ++ tc_locals C))
       | None => None
       end

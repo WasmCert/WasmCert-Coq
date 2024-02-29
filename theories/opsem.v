@@ -267,11 +267,10 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 | r_table_set_failure :
   forall x i tabv s f hs,
     stab_update s f.(f_inst) x (Wasm_int.N_of_uint i32m i) tabv = None ->
-    reduce hs s f [::$VN (VAL_int32 i); v_to_e (VAL_ref tabv); AI_basic (BI_table_set x)] hs s f [::]
+    reduce hs s f [::$VN (VAL_int32 i); v_to_e (VAL_ref tabv); AI_basic (BI_table_set x)] hs s f [::AI_trap]
 | r_table_size :
-  forall x a tab sz s f hs,
-    lookup_N f.(f_inst).(inst_tables) x = Some a ->
-    lookup_N s.(s_tables) a = Some tab ->
+  forall x tab sz s f hs,
+    stab s f.(f_inst) x = Some tab ->
     tab_size tab = sz ->
     reduce hs s f [:: AI_basic (BI_table_size x)] hs s f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat sz)))]
 | r_table_grow_success :
