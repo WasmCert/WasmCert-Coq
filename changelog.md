@@ -11,7 +11,7 @@ The new sign extension, non-trapping float-to-int conversion, and vector types a
 
 ##Updated Components:
 [x] Base opsem/typing definitions;
-[x] Type preservation theorem;
+[x] Type preservation theorem (except store extension theorems for now);
 [x] Interpreter and progress theorem;
 [x] Instantiation;
 [ ] Instantiation soundness theorems;
@@ -20,7 +20,7 @@ The new sign extension, non-trapping float-to-int conversion, and vector types a
 [x] Binary printer/parser;
 [x] Code pretty printer.
 
-#Major Necesary Structural Changes
+#Major Structural Changes
 
 ##Values vs Instructions
 Due to the introduction of reference values, values are no longer necessarily basic instructions; funcref and external ref are
@@ -59,6 +59,7 @@ The main major benefit is the automatic filling of implicit host parameter, inst
 
 ##Typing
 - Massively improved the scope and automation of the typing inversion lemmas.
+- Provided a new tactic `resolve_e_typing` that automatically tries to resolve `e_typing` goals, dealing mostly with the operands.
 
 ##Miscellaneous
 - Introduced many additional excerpts in comments from the official spec for various definitions.
