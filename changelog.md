@@ -23,15 +23,15 @@ The new sign extension, non-trapping float-to-int conversion, and vector types a
 # Major Structural Changes
 
 ## Values vs Instructions
-Due to the introduction of reference values, values are no longer necessarily basic instructions; funcref and external ref are
-expressed as administrative instructions due to their direct usage of store addresses instead of module indices. This change
-has broken some assumptions that many original proofs based on. Total/partial conversion operations are now provided for 
-conversion between values and their corresponding instructions.
+Due to the introduction of reference values, values are no longer necessarily basic instructions; function references and external references are expressed as administrative instructions due to their direct usage of store addresses instead of module indices. This change has broken some assumptions that many original proofs and definitions based on -- mostly those related to value typing (see below). 
+Total and partial conversion operations are now provided for conversion between values and their corresponding instructions:
+- `v_to_e/e_to_v` for total conversions;
+- `e_to_v_opt` for partial operations.
 
 ## Value typing validity depends on store
 Due to the use of store addresses, the new reference values can only be typed given a store. This necessitated the introduction
 of a separate `value_typing` relation with respect to a store. In addition, value typing relation now has to be done at the
-`e_typing` level (for administrative instructions) as they are no longer converted to basic instructions.
+`e_typing` level (for administrative instructions) as they can no longer be converted to basic instructions and typed using the `const` rule in `be_typing`. New value typing inversion lemmas were added to help reasoning with this change; search for terms involving `value_typing` and `values_typing`.
 
 ## Threads
 Threads are now properly spelt out as a separate type that constitutes the configuration tuple. The old thread-related definitions (e.g. `s_typing`) are renamed to the names used in the standard (e.g. `thread_typing`).
@@ -43,16 +43,11 @@ Threads are now properly spelt out as a separate type that constitutes the confi
 The parametric host language is now defined using typeclasses. 
 The main major benefit is the automatic filling of implicit host parameter, instead of needing to redefine all operations involving anything downstream from function instances and stores. The proof context is also greatly simplified since all these redefinitions no longer exist to occupy a major chunk of the buffer window.
 
-
 ## Numerics
-- Refactored the old collection of conversion operations *cvtop* to be split up by their individual constructors.
-
+- Refactored the old collection of conversion operations *cvtop* to be split up by their individual constructors to better match the spec.
 ## Name Changes
 - Changed the name of some types, instructions, and constructors to better match the official spec.
-- Instance indices are now reduced to the base `u32` type without additional constructors.
-
-## Binary Parser/Printer
-- 
+- Instance indices are now simplified to the base `u32` type without additional constructors.
 
 ## Pretty Printer
 - Implemented pretty printing for conversion operations.
