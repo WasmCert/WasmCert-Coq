@@ -464,11 +464,52 @@ Qed.
 
 Lemma Load_typing: forall C t a off tp_sx t1s t2s,
     be_typing C [::BI_load t tp_sx a off] (Tf t1s t2s) ->
-    exists ts, t1s = ts ++ [::T_num T_i32] /\ t2s = ts ++ [::T_num t] /\
-                    tc_mems C <> nil /\
+    exists ts mem, t1s = ts ++ [::T_num T_i32] /\ t2s = ts ++ [::T_num t] /\
+                    lookup_N (tc_mems C) 0%N = Some mem /\
                     load_store_t_bounds a (option_projl tp_sx) t.
 Proof.
   intros ??????? HType.
+  gen_ind_subst HType => //=.
+  - by exists nil; eauto.
+  - by resolve_compose Econs HType1 IHHType2.
+  - edestruct IHHType as [ts0 [? [? [? [? ?]]]]]; subst => //=.
+    exists (ts ++ ts0).
+    by resolve_weaken.
+Qed.
+
+Lemma Store_typing: forall C t a off tp t1s t2s,
+    be_typing C [::BI_store t tp a off] (Tf t1s t2s) ->
+    exists mem, t1s = t2s ++ [::T_num T_i32; T_num t] /\
+             lookup_N (tc_mems C) 0%N = Some mem /\
+             load_store_t_bounds a tp t.
+Proof.
+  intros ??????? HType.
+  gen_ind_subst HType => //=.
+  - by exists mem.
+  - by resolve_compose Econs HType1 IHHType2.
+  - edestruct IHHType as [? [? [??]]]; subst=> //=.
+    by resolve_weaken.
+Qed.
+
+Lemma Memory_size_typing: forall C t1s t2s,
+    be_typing C [::BI_memory_size] (Tf t1s t2s) ->
+    exists mem, lookup_N (tc_mems C) 0%N = Some mem /\
+           t2s = t1s ++ [::T_num T_i32].
+Proof.
+  intros ??? HType.
+  gen_ind_subst HType => //=.
+  - by exists mem.
+  - by resolve_compose Econs HType1 IHHType2.
+  - edestruct IHHType as [? [??]]; subst=> //=.
+    by resolve_weaken.
+Qed.
+
+Lemma Memory_grow_typing: forall C t1s t2s,
+    be_typing C [::BI_memory_grow] (Tf t1s t2s) ->
+    exists ts mem, lookup_N (tc_mems C) 0%N = Some mem /\
+              t2s = t1s /\ t1s = ts ++ [::T_num T_i32].
+Proof.
+  intros ??? HType.
   gen_ind_subst HType => //=.
   - by exists nil; eauto.
   - by resolve_compose Econs HType1 IHHType2.
@@ -477,87 +518,57 @@ Proof.
     by resolve_weaken.
 Qed.
 
-Lemma Store_typing: forall C t a off tp t1s t2s,
-    be_typing C [::BI_store t tp a off] (Tf t1s t2s) ->
-    t1s = t2s ++ [::T_num T_i32; T_num t] /\
-    tc_mems C <> nil /\
-    load_store_t_bounds a tp t.
-Proof.
-  intros ??????? HType.
-  gen_ind_subst HType => //=.
-  - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [? [??]]; subst=> //=.
-    by resolve_weaken.
-Qed.
-
-Lemma Memory_size_typing: forall C t1s t2s,
-    be_typing C [::BI_memory_size] (Tf t1s t2s) ->
-    tc_mems C <> nil /\ t2s = t1s ++ [::T_num T_i32].
-Proof.
-  intros ??? HType.
-  gen_ind_subst HType => //=.
-  - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType; subst=> //=.
-    by resolve_weaken.
-Qed.
-
-Lemma Memory_grow_typing: forall C t1s t2s,
-    be_typing C [::BI_memory_grow] (Tf t1s t2s) ->
-    exists ts, tc_mems C <> nil /\ t2s = t1s /\ t1s = ts ++ [::T_num T_i32].
-Proof.
-  intros ??? HType.
-  gen_ind_subst HType => //=.
-  - by exists nil; eauto.
-  - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [ts0 [? [? ?]]]; subst => //=.
-    exists (ts ++ ts0).
-    by resolve_weaken.
-Qed.
-
 Lemma Memory_fill_typing: forall C ts1 ts2,
     be_typing C [::BI_memory_fill] (Tf ts1 ts2) ->
-    tc_mems C <> nil /\ ts1 = ts2 ++ [::T_num T_i32; T_num T_i32; T_num T_i32].
+    exists mem, lookup_N (tc_mems C) 0%N = Some mem /\
+           ts1 = ts2 ++ [::T_num T_i32; T_num T_i32; T_num T_i32].
 Proof.
   intros ??? HType.
   gen_ind_subst HType => //=.
+  - by exists mem.
   - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [??]; subst => //=.
+  - edestruct IHHType as [? [??]]; subst => //=.
     by resolve_weaken.
 Qed.
 
 Lemma Memory_copy_typing: forall C ts1 ts2,
     be_typing C [::BI_memory_copy] (Tf ts1 ts2) ->
-    tc_mems C <> nil /\ ts1 = ts2 ++ [::T_num T_i32; T_num T_i32; T_num T_i32].
+    exists mem, lookup_N (tc_mems C) 0%N = Some mem /\
+           ts1 = ts2 ++ [::T_num T_i32; T_num T_i32; T_num T_i32].
 Proof.
   intros ??? HType.
   gen_ind_subst HType => //=.
+  - by exists mem.
   - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [??]; subst => //=.
+  - edestruct IHHType as [? [??]]; subst => //=.
     by resolve_weaken.
 Qed.
 
 Lemma Memory_init_typing: forall C x ts1 ts2,
     be_typing C [::BI_memory_init x] (Tf ts1 ts2) ->
-    tc_mems C <> nil /\
-      N.to_nat x < length (tc_datas C) /\
-      ts1 = ts2 ++ [::T_num T_i32; T_num T_i32; T_num T_i32].
+    exists mem dat, lookup_N (tc_mems C) 0%N = Some mem /\
+           lookup_N (tc_datas C) x = Some dat /\
+           ts1 = ts2 ++ [::T_num T_i32; T_num T_i32; T_num T_i32].
 Proof.
   intros ???? HType.
   gen_ind_subst HType => //=.
+  - by exists mem, dat.
   - by resolve_compose Econs HType1 IHHType2.
-  - edestruct IHHType as [?[??]]; subst => //=.
+  - edestruct IHHType as [? [? [? [??]]]]; subst => //=.
     by resolve_weaken.
 Qed.
 
 Lemma Data_drop_typing: forall C x ts1 ts2,
     be_typing C [::BI_data_drop x] (Tf ts1 ts2) ->
-    N.to_nat x < length (tc_datas C) /\
-      ts1 = ts2.
+    exists dat, lookup_N (tc_datas C) x = Some dat /\
+           ts1 = ts2.
 Proof.
   intros ???? HType.
   gen_ind_subst HType => //=.
+  - by exists dat.
   - by resolve_compose Econs HType1 IHHType2.
-  - by edestruct IHHType as [??]; subst => //=.
+  - edestruct IHHType as [? [??]]; eauto; subst => //=.
+    by resolve_weaken.
 Qed.
 
 Lemma Block_typing: forall C tb es tn tm,
@@ -839,34 +850,34 @@ Ltac invert_be_typing :=
     let H2 := fresh "H2_brtable" in
     apply Br_table_typing in H; destruct H as [ts [ts' [H1 H2]]]; subst
   | H: be_typing _ [::BI_local_tee _] _ |- _ =>
-    let ts := fresh "ts_teelocal" in
-    let t := fresh "t_teelocal" in
-    let H1 := fresh "H1_teelocal" in
-    let H2 := fresh "H2_teelocal" in
-    let H3 := fresh "H3_teelocal" in
+    let ts := fresh "ts_local_tee" in
+    let t := fresh "t_local_tee" in
+    let H1 := fresh "H1_local_tee" in
+    let H2 := fresh "H2_local_tee" in
+    let H3 := fresh "H3_local_tee" in
     apply Tee_local_typing in H; destruct H as [ts [t [H1 [H2 H3]]]]; subst
   | H: be_typing _ [::BI_local_get _] _ |- _ =>
-    let ts := fresh "ts_getlocal" in
-    let H1 := fresh "H1_getlocal" in
-    let H2 := fresh "H2_getlocal" in
+    let ts := fresh "ts_local_get" in
+    let H1 := fresh "H1_local_get" in
+    let H2 := fresh "H2_local_get" in
     apply Get_local_typing in H; destruct H as [ts [H1 H2]]; subst
   | H: be_typing _ [::BI_local_set _] _ |- _ =>
-    let ts := fresh "ts_setlocal" in
-    let H1 := fresh "H1_setlocal" in
-    let H2 := fresh "H2_setlocal" in
+    let ts := fresh "ts_local_set" in
+    let H1 := fresh "H1_local_set" in
+    let H2 := fresh "H2_local_set" in
     apply Set_local_typing in H; destruct H as [ts [H1 H2]]; subst
   | H: be_typing _ [::BI_global_get _] _ |- _ =>
-    let ts := fresh "ts_getglobal" in
-    let H1 := fresh "H1_getglobal" in
-    let H2 := fresh "H2_getglobal" in
+    let ts := fresh "ts_global_get" in
+    let H1 := fresh "H1_global_get" in
+    let H2 := fresh "H2_global_get" in
     apply Get_global_typing in H; destruct H as [ts [H1 H2]]; subst
   | H: be_typing _ [::BI_global_set _] _ |- _ =>
-    let g := fresh "g_setglobal" in
-    let t := fresh "t_setglobal" in
-    let H1 := fresh "H1_setglobal" in
-    let H2 := fresh "H2_setglobal" in
-    let H3 := fresh "H3_setglobal" in
-    let H4 := fresh "H4_setglobal" in
+    let g := fresh "g_global_set" in
+    let t := fresh "t_global_set" in
+    let H1 := fresh "H1_global_set" in
+    let H2 := fresh "H2_global_set" in
+    let H3 := fresh "H3_global_set" in
+    let H4 := fresh "H4_global_set" in
     apply Set_global_typing in H; destruct H as [g [t [H1 [H2 [H3 H4]]]]]; subst
   | H: be_typing _ [::BI_table_get _] _ |- _ =>
     let ts := fresh "ts_table_get" in
@@ -918,47 +929,57 @@ Ltac invert_be_typing :=
     apply Elem_drop_typing in H; destruct H as [t [H1 H2]]; subst
   | H: be_typing _ [::BI_load _ _ _ _] _ |- _ =>
     let ts := fresh "ts_load" in
+    let mem := fresh "mem_load" in
     let H1 := fresh "H1_load" in
     let H2 := fresh "H2_load" in
     let H3 := fresh "H3_load" in
     let H4 := fresh "H4_load" in
-    apply Load_typing in H; destruct H as [ts [H1 [H2 [H3 H4]]]]; subst
+    apply Load_typing in H; destruct H as [ts [mem [H1 [H2 [H3 H4]]]]]; subst
   | H: be_typing _ [::BI_store _ _ _ _] _ |- _ =>
+    let mem := fresh "mem_load" in
     let H1 := fresh "H1_store" in
     let H2 := fresh "H2_store" in
     let H3 := fresh "H3_store" in
-    apply Store_typing in H; destruct H as [H1 [H2 H3]]; subst
+    apply Store_typing in H; destruct H as [mem [H1 [H2 H3]]]; subst
   | H: be_typing _ [::BI_memory_size] _ |- _ =>
+    let mem := fresh "mem_load" in
     let H1 := fresh "H1_memory_size" in
     let H2 := fresh "H2_memory_size" in
-    apply Memory_size_typing in H; destruct H as [H1 H2]; subst
+    apply Memory_size_typing in H; destruct H as [mem [H1 H2]]; subst
   | H: be_typing _ [::BI_memory_grow] _ |- _ =>
+    let mem := fresh "mem_load" in
     let ts := fresh "ts_memory_grow" in
     let H1 := fresh "H1_memory_grow" in
     let H2 := fresh "H2_memory_grow" in
     let H3 := fresh "H3_memory_grow" in
-    apply Memory_grow_typing in H; destruct H as [ts [H1 [H2 H3]]]; subst
+    apply Memory_grow_typing in H; destruct H as [ts [mem [H1 [H2 H3]]]]; subst
   | H: be_typing _ [::BI_memory_fill] _ |- _ =>
+    let mem := fresh "mem_load" in
     let H1 := fresh "H1_memory_fill" in
     let H2 := fresh "H2_memory_fill" in
-    apply Memory_fill_typing in H; destruct H as [H1 H2]; subst
+    apply Memory_fill_typing in H; destruct H as [mem [H1 H2]]; subst
   | H: be_typing _ [::BI_memory_copy] _ |- _ =>
+    let mem := fresh "mem_load" in
     let H1 := fresh "H1_memory_copy" in
     let H2 := fresh "H2_memory_copy" in
-    apply Memory_copy_typing in H; destruct H as [H1 H2]; subst
+    apply Memory_copy_typing in H; destruct H as [mem [H1 H2]]; subst
   | H: be_typing _ [::BI_memory_init _] _ |- _ =>
+    let mem := fresh "mem_load" in
+    let dat := fresh "dat_load" in
     let H1 := fresh "H1_memory_init" in
     let H2 := fresh "H2_memory_init" in
     let H3 := fresh "H3_memory_init" in
-    apply Memory_init_typing in H; destruct H as [H1 [H2 H3]]; subst
+    apply Memory_init_typing in H; destruct H as [mem [dat [H1 [H2 H3]]]]; subst
   | H: be_typing _ [::BI_data_drop _] _ |- _ =>
+    let dat := fresh "dat_load" in
     let H1 := fresh "H1_data_drop" in
     let H2 := fresh "H2_data_drop" in
-    apply Data_drop_typing in H; destruct H as [H1 H2]; subst
+    apply Data_drop_typing in H; destruct H as [dat [H1 H2]]; subst
   | H: be_typing _ [::BI_block _ _] _ |- _ =>
     let ts := fresh "ts_block" in
     let ts1 := fresh "ts1_block" in
     let ts2 := fresh "ts2_block" in
+    let Hexpand := fresh "Hexpand_block" in
     let H1 := fresh "H1_block" in
     let H2 := fresh "H2_block" in
     let H3 := fresh "H3_block" in
@@ -967,6 +988,7 @@ Ltac invert_be_typing :=
     let ts := fresh "ts_loop" in
     let ts1 := fresh "ts1_loop" in
     let ts2 := fresh "ts2_loop" in
+    let Hexpand := fresh "Hexpand_block" in
     let H1 := fresh "H1_loop" in
     let H2 := fresh "H2_loop" in
     let H3 := fresh "H3_loop" in

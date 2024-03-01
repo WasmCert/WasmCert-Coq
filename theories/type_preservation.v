@@ -45,13 +45,6 @@ Proof.
   by apply et_values_typing.
 Qed.
 
-Definition inst_match C C' : bool :=
-  (C.(tc_types) == C'.(tc_types)) &&
-  (C.(tc_funcs) == C'.(tc_funcs)) &&
-  (C.(tc_tables) == C'.(tc_tables)) &&
-  (C.(tc_mems) == C'.(tc_mems)) &&
-  (C.(tc_globals) == C'.(tc_globals)).
-
 Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es tf ->
     reduce_simple es es' ->
@@ -1156,8 +1149,8 @@ Proof.
     rewrite set_nth_map => //=.
     rewrite set_nth_same_unchanged => //.
     unfold lookup_N in *.
-    eapply those_lookup_inv in H1_setlocal; eauto.
-    rewrite H1_setlocal.
+    eapply those_lookup_inv in H1_local_set; eauto.
+    rewrite H1_local_set.
     by rewrite H2_value.
   - eapply lfilled_es_type_exists in HType; eauto.
     destruct HType as [lab' [ts1 [ts2 Hetype]]].
@@ -1198,12 +1191,8 @@ Proof.
     destruct H as [tf [Hext Hnth]].
     by eapply ety_ref; eauto.
   - (* Block *)
-    assert (Some (Tf t1s t2s) = Some (Tf ts1_block ts2_block)) as Hteq.
-    { destruct tb; last destruct o => //; simpl in *; try by rewrite - Hexpand -H => //.
-      resolve_store_inst_lookup.
-      by rewrite Hteq in Hexpand.
-    }
-    inversion Hteq; subst; clear Hteq.
+    erewrite <- inst_typing_expand_eq in Hexpand_block; eauto; last by unfold inst_match; destruct t; lias.
+    rewrite Hexpand_block in H; injection H as <- <-.
     apply concat_cancel_last_n in H1_values; last first.
     { apply values_typing_length in H2_values.
       rewrite v_to_e_length in H2.
@@ -1219,12 +1208,9 @@ Proof.
         by eapply ety_a in H3_block; eauto.
     }
   - (* Loop *)
-    assert (Some (Tf t1s t2s) = Some (Tf ts1_loop ts2_loop)) as Hteq.
-    { destruct tb; last destruct o => //; simpl in *; try by rewrite - Hexpand -H => //.
-      inst_typing_lookup.
-      by rewrite Hteq in Hexpand.
-    }
-    inversion Hteq; subst; clear Hteq.
+    remember Hexpand_block as Het; clear HeqHet.
+    erewrite <- inst_typing_expand_eq in Hexpand_block; eauto; last by unfold inst_match; destruct t; lias.
+    rewrite Hexpand_block in H; injection H as <- <-.
     apply concat_cancel_last_n in H1_values; last first.
     { apply values_typing_length in H2_values.
       rewrite v_to_e_length in H2.
@@ -1298,8 +1284,8 @@ Proof.
     unfold lookup_N in *.
     eapply those_map_lookup in Hoption0; eauto.
     destruct Hoption0 as [vt [Hvaltype Hnth]].
-    erewrite nth_error_app_Some in H1_getlocal; eauto.
-    by injection H1_getlocal as <-.
+    erewrite nth_error_app_Some in H1_local_get; eauto.
+    by injection H1_local_get as <-.
   - (* Global_get *)
     destruct g0.
     remove_bools_options.
@@ -1401,12 +1387,12 @@ Proof.
     rewrite -cat1s; apply et_composition' with (t2s := ty).
     + apply ety_a' => //=.
       rewrite -catA; apply bet_weakening_empty_2.
-      by apply bet_store.
+      by eapply bet_store; eauto.
     + resolve_e_typing => //.
       repeat rewrite -catA.
       apply ety_a' => //=.
       apply bet_weakening_empty_2.
-      by apply bet_memory_fill.
+      by eapply bet_memory_fill; eauto.
 
   - (* Memory copy 1 *)
     destruct mem.
@@ -1415,16 +1401,17 @@ Proof.
     rewrite -cat1s; apply et_composition' with (t2s := (ty ++ [::T_num T_i32]) ++ [::T_num T_i32]).
     + apply ety_a' => //=.
       apply bet_weakening.
-      by apply bet_load.
+      by eapply bet_load; eauto.
     + rewrite -cat1s; apply et_composition' with (t2s := ty).
       * apply ety_a' => //=.
+        simpl in *.
         rewrite -catA; apply bet_weakening_empty_2.
-        by apply bet_store.
+        by eapply bet_store; eauto.
       * resolve_e_typing => //.
         repeat rewrite -catA.
         apply ety_a' => //=.
         apply bet_weakening_empty_2.
-        by apply bet_memory_copy.
+        by eapply bet_memory_copy; eauto.
         
   - (* Memory copy 2 *)
     destruct mem.
@@ -1433,16 +1420,16 @@ Proof.
     rewrite -cat1s; apply et_composition' with (t2s := (ty ++ [::T_num T_i32]) ++ [::T_num T_i32]).
     + apply ety_a' => //=.
       apply bet_weakening.
-      by apply bet_load.
+      by eapply bet_load; eauto.
     + rewrite -cat1s; apply et_composition' with (t2s := ty).
       * apply ety_a' => //=.
         rewrite -catA; apply bet_weakening_empty_2.
-        by apply bet_store.
+        by eapply bet_store; eauto.
       * resolve_e_typing => //.
         repeat rewrite -catA.
         apply ety_a' => //=.
         apply bet_weakening_empty_2.
-        by apply bet_memory_copy.
+        by eapply bet_memory_copy; eauto.
 
   - (* Memory init *)
     destruct mem.
@@ -1451,12 +1438,12 @@ Proof.
     rewrite -cat1s; apply et_composition' with (t2s := ty).
     + apply ety_a' => //=.
       rewrite -catA; apply bet_weakening_empty_2.
-      by apply bet_store.
+      by eapply bet_store; eauto.
     + resolve_e_typing => //.
       repeat rewrite -catA.
       apply ety_a' => //=.
       apply bet_weakening_empty_2.
-      by apply bet_memory_init.
+      by eapply bet_memory_init; eauto.
         
   - (* Label *)
     assert (store_extension s s') as Hext.

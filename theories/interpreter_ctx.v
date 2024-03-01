@@ -4,7 +4,7 @@ From Wasm Require Import common properties tactic typing_inversion contexts.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
-Require Import BinNat NArith.
+Require Import BinNat NArith BinNums ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -57,7 +57,7 @@ Ltac red_ctx_simpl :=
       apply reduce_focus_ctx
   | |- reduce _ _ _ (?ccs ⦃ _ ⦃ _ ⦄ ⦄) _ _ _ (?ccs ⦃ _ ⦃ _ ⦄ ⦄) =>
       apply (list_closure_ctx_eval.(ctx_reduce))
-  | |- reduce _ _ _ (foldl (@closure_ctx_fill _ _) _ _) _ _ _ (foldl (@closure_ctx_fill _ _) _ _) =>
+  | |- reduce _ _ _ (foldl closure_ctx_fill _ _) _ _ _ (foldl closure_ctx_fill _ _) =>
       apply (list_closure_ctx_eval.(ctx_reduce))
   | |- reduce _ _ _ (foldl label_ctx_fill _ _) _ _ _ (foldl label_ctx_fill _ _) =>
       apply (list_label_ctx_eval.(ctx_reduce))
@@ -78,6 +78,14 @@ Ltac infer_hole :=
       unfold v_to_e_list, v_to_e => //=
   | |- context C [ ( _ ++ _) ++ _ ] =>
       rewrite -catA => /=
+  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?x6 :: ?x7 :: ?x8 :: ?l2 =>
+      try by instantiate (1 := [::x1; x2; x3; x4; x5; x6; x7; x8]) => //
+  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?x6 :: ?x7 :: ?l2 =>
+      try by instantiate (1 := [::x1; x2; x3; x4; x5; x6; x7]) => //
+  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?x6 :: ?l2 =>
+      try by instantiate (1 := [::x1; x2; x3; x4; x5; x6]) => //
+  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?l2 =>
+      try by instantiate (1 := [::x1; x2; x3; x4; x5]) => //
   | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?l2 =>
       try by instantiate (1 := [::x1; x2; x3; x4]) => //
   | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?l2 =>
@@ -420,6 +428,8 @@ Ltac resolve_invalid_value :=
   repeat match goal with
   | H: values_typing _ (rev (?v :: _)) = Some _ |- _ =>
     apply values_typing_rev in H
+  | H: values_typing _ (_ :: _) = Some (rev (?l1 ++ ?l2 ++ [::?t])) |- _ =>
+    rewrite (catA l1 l2 [::t]) in H
   | H: values_typing _ (_ :: _) = Some (rev (?l ++ [::?t])) |- _ =>
     rewrite cats1 rev_rcons in H
   | H: values_typing _ (_ :: _) = Some (_ :: _) |- _ =>
@@ -443,6 +453,10 @@ Ltac no_args :=
     | Hvtstype : values_typing _ _ = Some _ |- _ =>
       by apply values_typing_length in Hvtstype; size_unequal Hvtstype
     end.
+
+Notation "$u32oz v" := (Wasm_int.int_of_Z i32m v) (at level 90).
+Notation "$zou32 v" := (Wasm_int.Z_of_uint i32m v) (at level 90).
+Notation "$nou32 v" := (Wasm_int.N_of_uint i32m v) (at level 90).
 
 (* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
 Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
@@ -561,14 +575,14 @@ Proof.
       (* BI_br_if j *) j |
       (* BI_br_table js j *) js j |
       (* BI_return *) |
-      (* BI_call j *) j |
-      (* BI_call_indirect j *) j ] |
+      (* BI_call j *) x |
+      (* BI_call_indirect j *) x y ] |
       (* AI_trap *) |
       (* AI_ref a *) a |
       (* AI_ref_extern a *) a |
       (* AI_invoke a *) a |
       (* AI_label ln les es *) ln les es |
-      (* AI_local ln lf es *) ln lf es ]; destruct sc as [vs0 es0].
+      (* AI_frame ln lf es *) ln lf es ]; destruct sc as [vs0 es0].
 
     - (* AI_basic (BI_const _) *)
       (* This along with other value instructions are invalid, as it doesn't respect
@@ -726,10 +740,10 @@ the condition that all values should live in the operand stack. *)
       + (* None *)
         resolve_invalid_typing.
         unfold frame_typing in Hftype; remove_bools_options; simpl in *.
-        erewrite inst_t_context_local_empty in H1_getlocal; eauto.
-        rewrite cats0 in H1_getlocal.
+        erewrite inst_t_context_local_empty in H1_local_get; eauto.
+        rewrite cats0 in H1_local_get.
         unfold lookup_N in *.
-        apply nth_error_Some_length in H1_getlocal.
+        apply nth_error_Some_length in H1_local_get.
         apply values_typing_length in Hoption0.
         rewrite List.nth_error_None in Heqo.
         by lias.
@@ -746,10 +760,10 @@ the condition that all values should live in the operand stack. *)
       + (* false *)
         resolve_invalid_typing.
         unfold frame_typing in Hftype; remove_bools_options; simpl in *.
-        erewrite inst_t_context_local_empty in H1_setlocal; eauto.
-        rewrite cats0 in H1_setlocal.
+        erewrite inst_t_context_local_empty in H1_local_set; eauto.
+        rewrite cats0 in H1_local_set.
         unfold lookup_N in *.
-        apply nth_error_Some_length in H1_setlocal.
+        apply nth_error_Some_length in H1_local_set.
         apply values_typing_length in Hoption0.
         by lias.
 
@@ -792,8 +806,8 @@ the condition that all values should live in the operand stack. *)
         unfold_store_operations.
         * inst_typing_lookup.
           by rewrite Hoption2 in Hextgt.
-        * eapply inst_typing_global_lookup_inv in Hoption; eauto.
-          destruct Hoption as [? [? Hnthg]].
+        * eapply inst_typing_global_lookup_inv in H1_global_set; eauto.
+          destruct H1_global_set as [? [? Hnthg]].
           by rewrite Hoption1 in Hnthg.
 
     - (* AI_basic (BI_table_get x) *)
@@ -801,7 +815,7 @@ the condition that all values should live in the operand stack. *)
       destruct vs0 as [|v vs0]; first by no_args.
       assert_value_type v.
       assert_value_type v.
-      destruct (stab_elem s fc.(FC_frame).(f_inst) x (Wasm_int.N_of_uint i32m v)) as [tabv|] eqn:Hstab.
+      destruct (stab_elem s fc.(FC_frame).(f_inst) x ($nou32 v)) as [tabv|] eqn:Hstab.
       + (* Some xx *)
         apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_ref tabv) :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
@@ -818,7 +832,7 @@ the condition that all values should live in the operand stack. *)
       (* v2 needs to be a ref and v1 needs to be a i32 num *)
       assert_value_type v2.
       assert_value_type v1; assert_value_type v1.
-      destruct (stab_update s fc.(FC_frame).(f_inst) x (Wasm_int.N_of_uint i32m v1) v2) as [s'|] eqn:Hsupdate.
+      destruct (stab_update s fc.(FC_frame).(f_inst) x ($nou32 v1) v2) as [s'|] eqn:Hsupdate.
       + (* Some xx *)
         apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
@@ -832,7 +846,7 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
       + (* Some xx *)
-        apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_num (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (tab_size tab))))) :: vs0, es0), None)>>.
+        apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_num (VAL_int32 ($u32oz (Z.of_nat (tab_size tab))))) :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
         by eapply r_table_size; eauto.
       + (* None *)
@@ -841,89 +855,741 @@ the condition that all values should live in the operand stack. *)
         unfold_store_operations.
         * inst_typing_lookup.
           by rewrite Hstab in Hexttabt.
-        * eapply inst_typing_table_lookup_inv in Hoption; eauto.
-          destruct Hoption as [? [? Hnthtab]].
+        * eapply inst_typing_table_lookup_inv in H2_table_size; eauto.
+          destruct H2_table_size as [? [? Hnthtab]].
           by rewrite Hoption1 in Hnthtab.
-      
-    - (* AI_basic BI_unreachable *)
-      apply <<hs, (s, ccs, (vs0, es0), Some AI_trap)>> => /=.
-      resolve_reduce_ctx vs0 es0.
-      by apply r_simple, rs_unreachable.
+
+    - (* AI_basic (BI_table_grow x) *)
+      get_cc ccs.
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      (* Takes an i32 and a reference value *)
+      assert_value_type v2; assert_value_type v2.
+      assert_value_type v1.
+      destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
+      + (* Some xx *)
+        destruct (growtable tab (Wasm_int.N_of_uint i32m v2) v1) as [tab' | ] eqn:Htabgrow.
+        * (* Some *)
+          apply <<hs, (upd_s_table s (set_nth tab' (s_tables s) (N.to_nat x) tab'), (fc, lcs) :: ccs', ((VAL_num (VAL_int32 ($u32oz (Z.of_nat (tab_size tab))))) :: vs0, es0), None)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_table_grow_success; eauto.
+        * (* None *)
+          apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_num (VAL_int32 int32_minus_one)) :: vs0, es0), None)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_table_grow_failure; eauto.
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        * inst_typing_lookup.
+          by rewrite Hstab in Hexttabt.
+        * eapply inst_typing_table_lookup_inv in H3_table_grow; eauto.
+          destruct H3_table_grow as [? [? Hnthtab]].
+          by rewrite Hoption1 in Hnthtab.
+
+    - (* AI_basic (BI_table_fill x) *)
+      get_cc ccs.
+      destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
+      (* Takes i32; val; i32 *)
+      assert_value_type v3; assert_value_type v3.
+      assert_value_type v2.
+      assert_value_type v1; assert_value_type v1.
+      destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
+      + (* Some xx *)
+        destruct (Z.ltb (Z.of_nat (tab_size tab)) (($zou32 v1) + ($zou32 v3))) eqn:Hbound; move/Z.ltb_spec0 in Hbound.
+        * (* Out of bound *)
+          apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_table_fill_bound; eauto; lias.
+        * destruct (($zou32 v3) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+          { (* Return *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_table_fill_return; eauto; simpl in *; lias.
+          }
+          {
+            (* Step *)
+            apply <<hs, (s, (fc, lcs) :: ccs',
+                          ((VAL_ref v2) :: (VAL_num (VAL_int32 v1)) :: vs0,
+                            [::($VN (VAL_int32 ($u32oz (Z.add ($zou32 v1) 1)))); ($V (VAL_ref v2)); ($VN (VAL_int32 ($u32oz (Z.sub ($zou32 v3) 1)))); (AI_basic (BI_table_fill x))] ++ es0),
+                          Some (AI_basic (BI_table_set x)))>>.
+            resolve_reduce_ctx vs0 es0; simpl in *.
+            by eapply r_table_fill_step; eauto; lias.
+          }
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        * inst_typing_lookup.
+          by rewrite Hstab in Hexttabt.
+        * eapply inst_typing_table_lookup_inv in H2_table_fill; eauto.
+          destruct H2_table_fill as [? [? Hnthtab]].
+          by rewrite Hoption1 in Hnthtab.
+          
+    - (* AI_basic (BI_table_copy x y) *)
+      get_cc ccs.
+      destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
+      (* Takes i32; i32; i32 *)
+      assert_value_type n; assert_value_type n.
+      assert_value_type src; assert_value_type src.
+      assert_value_type dst; assert_value_type dst.
+      destruct (stab s fc.(FC_frame).(f_inst) x) as [tabx|] eqn:Hstabx.
+      + (* Some xx *)
+        destruct (stab s fc.(FC_frame).(f_inst) y) as [taby|] eqn:Hstaby.
+        * (* Some xx *)
+          destruct (Z.ltb (Z.of_nat (tab_size taby)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
+          { (* taby Out of bound *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_table_copy_bound; eauto; lias.
+          }
+          destruct (Z.ltb (Z.of_nat (tab_size tabx)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
+          { (* tabx Out of bound *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_table_copy_bound; eauto; lias.
+          }
+          {
+            (* In bound for both tables *)
+            destruct (($zou32 n) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+            { (* Return *)
+              apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>>.
+              resolve_reduce_ctx vs0 es0.
+              by eapply r_table_copy_return; eauto; simpl in *; lias.
+            }
+            destruct (Z.leb ($zou32 dst) ($zou32 src)) eqn:Hdir; move/Z.leb_spec0 in Hdir.
+            { (* copy -- forward *)
+              apply <<hs, (s, (fc, lcs) :: ccs',
+                            ((VAL_num (VAL_int32 src)) :: (VAL_num (VAL_int32 dst)) :: vs0,
+                              [::(AI_basic (BI_table_set x)); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_table_copy x y)] ++ es0),
+                            Some (AI_basic (BI_table_get y)))>>.
+              resolve_reduce_ctx vs0 es0.
+              by eapply r_table_copy_forward; eauto; simpl in *; lias.
+            }
+            { (* copy -- backward *)
+              apply <<hs, (s, (fc, lcs) :: ccs',
+                            ((VAL_num (VAL_int32 ($u32oz (Z.sub (Z.add ($zou32 src) ($zou32 n)) 1)))) ::
+                            (VAL_num (VAL_int32 ($u32oz (Z.sub (Z.add ($zou32 dst) ($zou32 n)) 1)))) ::
+                            vs0,
+                              [::(AI_basic (BI_table_set x)); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_table_copy x y)] ++ es0),
+                            Some (AI_basic (BI_table_get y)))>>.
+              resolve_reduce_ctx vs0 es0.
+              eapply r_table_copy_backward; eauto; simpl in *; try by lias.
+            }
+          }
+
+        * (* staby = None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          {  inst_typing_lookup.
+             by rewrite Hstaby in Hexttabt.
+          }
+          { eapply inst_typing_table_lookup_inv in H3_table_copy; eauto.
+            destruct H3_table_copy as [? [? Hnthtab]].
+            by rewrite Hoption1 in Hnthtab.
+          }
+          
+      + (* stabx = None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        {  inst_typing_lookup.
+           by rewrite Hstabx in Hexttabt.
+        }
+        { eapply inst_typing_table_lookup_inv in H2_table_copy; eauto.
+          destruct H2_table_copy as [? [? Hnthtab]].
+          by rewrite Hoption1 in Hnthtab.
+        }
+        
+    - (* AI_basic (BI_table_init x y) *)
+      get_cc ccs.
+      destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
+      (* Takes i32; i32; i32 *)
+      assert_value_type n; assert_value_type n.
+      assert_value_type src; assert_value_type src.
+      assert_value_type dst; assert_value_type dst.
+      destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
+      + (* Some xx *)
+        destruct (selem s fc.(FC_frame).(f_inst) y) as [elem|] eqn:Hselem.
+        * (* Some xx *)
+          destruct (Z.ltb (Z.of_nat (elem_size elem)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
+          { (* elem Out of bound *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_table_init_bound; eauto; lias.
+          }
+          destruct (Z.ltb (Z.of_nat (tab_size tab)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
+          { (* tab Out of bound *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_table_init_bound; eauto; lias.
+          }
+          {
+            (* In bound for both table and elem *)
+            destruct (($zou32 n) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+            { (* Return *)
+              apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>>.
+              resolve_reduce_ctx vs0 es0.
+              by eapply r_table_init_return; eauto; simpl in *; lias.
+            }
+            { (* Step -- but need to lookup first *)
+              destruct (lookup_N elem.(eleminst_elem) ($nou32 src)) as [v | ] eqn:Hnthelem.
+              { (* Step *)
+                apply <<hs, (s, (fc, lcs) :: ccs',
+                              ((VAL_ref v) :: (VAL_num (VAL_int32 dst)) :: vs0,
+                                [::$VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1)));
+                                 $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1)));
+                                 $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1)));
+                                 AI_basic (BI_table_init x y)
+                                ] ++ es0),
+                              Some (AI_basic (BI_table_set x)))>>.
+                resolve_reduce_ctx vs0 es0.
+                by eapply r_table_init_step; eauto; simpl in *; lias.
+              }
+              { (* lookup oob *)
+                resolve_invalid_typing.
+                destruct elem; unfold elem_size in Hboundy; simpl in *.
+                unfold lookup_N in *; apply List.nth_error_None in Hnthelem.
+                apply Hboundy.
+                apply Z2Nat.inj_lt; try by lias.
+                { specialize (Wasm_int.Int32.unsigned_range_2 src) as Ha1.
+                  specialize (Wasm_int.Int32.unsigned_range_2 n) as Ha2.
+                  by lias.
+                }
+                rewrite Nat2Z.id.
+                assert (Wasm_int.Int32.unsigned n > 0)%Z as Hngt.
+                { specialize (Wasm_int.Int32.unsigned_range_2 n) as Ha.
+                  by lias.
+                }
+                rewrite Z_N_nat in Hnthelem.
+                rewrite Z2Nat.inj_add; try by lias.
+                by specialize (Wasm_int.Int32.unsigned_range_2 src) as ?; lias.
+              }
+            }
+          }
+
+        * (* selem = None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          { eapply inst_typing_elem_lookup_inv in H3_table_init; eauto.
+            destruct H3_table_init as [? [? [Hinstelem [Hnthelem ?]]]].
+            rewrite Hoption2 in Hinstelem; injection Hinstelem as <-.
+            by rewrite Hselem in Hnthelem.
+          }
+          { eapply inst_typing_elem_lookup_inv in H3_table_init; eauto.
+            destruct H3_table_init as [? [? [Hinstelem [Hnthelem ?]]]].
+            by rewrite Hoption2 in Hinstelem.
+          }
+          
+      + (* stab = None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        {  inst_typing_lookup.
+           by rewrite Hstab in Hexttabt.
+        }
+        { eapply inst_typing_table_lookup_inv in H2_table_init; eauto.
+          destruct H2_table_init as [? [? Hnthtab]].
+          by rewrite Hoption1 in Hnthtab.
+        }
+        
+    - (* AI_basic BI_elem_drop x *)
+      get_cc ccs.
+      destruct (selem_drop s fc.(FC_frame).(f_inst) x) as [s'|] eqn:Hs'.
+      + apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_elem_drop.
+      + resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { eapply inst_typing_elem_lookup_inv in H2_elem_drop; eauto.
+          destruct H2_elem_drop as [? [? [Hinstelem [Hnthelem ?]]]].
+          rewrite Hoption2 in Hinstelem; injection Hinstelem as <-. 
+          by rewrite Hoption1 in Hnthelem.
+        }
+        { eapply inst_typing_elem_lookup_inv in H2_elem_drop; eauto.
+          destruct H2_elem_drop as [? [? [Hinstelem [Hnthelem ?]]]].
+          by rewrite Hoption2 in Hinstelem.
+        }
+
+    - (* AI_basic (BI_load t ops (Some (tp, sx)) a off) *)
+      get_cc ccs.    
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v; assert_value_type v.
+      (* VAL_int32 v :: ves' *)
+      destruct (smem s fc.(FC_frame).(f_inst)) as [mem_s_j|] eqn:?.
+      { (* Some mem_s_j *)
+        destruct ops as [[tp sx] | ].
+        (* Some (tp, sx) *)
+        - destruct (load_packed sx (mem_s_j) ($nou32 v) off (tp_length tp) (tnum_length t)) as [bs|] eqn:Hload.
+          + (* Some bs *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (wasm_deserialise bs t) :: vs0, es0), None)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_load_packed_success; subst; eauto.
+          + (* None *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_load_packed_failure; subst; eauto.
+        - destruct (load (mem_s_j) ($nou32 v) off (tnum_length t)) as [bs|] eqn:Hload.
+          + (* Some bs *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (wasm_deserialise bs t) :: vs0, es0), None)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_load_success; subst; eauto.
+          + (* None *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_load_failure; subst; eauto.
+      }
+      { (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { inst_typing_lookup.
+          by rewrite Heqo in Hextmt.
+        }
+        { eapply inst_typing_mem_lookup_inv in H3_load; eauto.
+          destruct H3_load as [? [? Hnthmem]].
+          by rewrite Hoption1 in Hnthmem.
+        }
+      }
+
+    - (* AI_basic (BI_store t (Some tp) a off) *)
+      get_cc ccs. 
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_value_type v1; assert_value_type v1.
+      assert_value_type v2.
+      destruct (typeof_num v2 == t) eqn:Heq; move/eqP in Heq.
+      + (* true *)
+        destruct (smem_ind s fc.(FC_frame).(f_inst)) as [j|] eqn:?.
+        * (* Some j *)
+           destruct (lookup_N s.(s_mems) j) as [mem_s_j|] eqn:?.
+           { (* Some mem_s_j *)
+             destruct op as [tp | ].
+              - (* Some tp *)
+                destruct (store_packed mem_s_j ($nou32 v1) off (bits v2) (tp_length tp)) as [mem'|] eqn:?.
+                + (* Some mem' *)
+                  apply <<hs, (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), (fc, lcs) :: ccs', (vs0, es0), None)>>.
+                  resolve_reduce_ctx vs0 es0.
+                  by eapply r_store_packed_success; subst; eauto.
+                + (* None *)
+                  apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+                  resolve_reduce_ctx vs0 es0.
+                  by eapply r_store_packed_failure; subst; eauto.
+                  (* None *)
+              - destruct (store mem_s_j ($nou32 v1) off (bits v2) (tnum_length t)) as [mem'|] eqn:?.
+                + (* Some mem' *)
+                  apply <<hs, (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), (fc, lcs) :: ccs', (vs0, es0), None)>>.
+                  resolve_reduce_ctx vs0 es0.
+                  by eapply r_store_success; subst; eauto.
+                + (* None *)
+                  apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+                  resolve_reduce_ctx vs0 es0.
+                  by eapply r_store_failure; subst; eauto.
+           }
+           
+           { (* None *)
+             resolve_invalid_typing.
+             unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+             unfold_store_operations.
+             eapply inst_typing_mem_lookup_inv in H2_store; eauto.
+             destruct H2_store as [? [Hextmt Hnthmem]].
+             rewrite Heqo in Hnthmem; injection Hnthmem as <-.
+             unfold ext_mem_typing in Hextmt.
+             by rewrite Heqo0 in Hextmt.
+           }
+           
+        * (* None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          eapply inst_typing_mem_lookup_inv in H2_store; eauto.
+          destruct H2_store as [? [Hextmt Hnthmem]].
+          by rewrite Heqo in Hnthmem.
+          
+      + (* false *)
+        by resolve_invalid_typing; resolve_invalid_value.
+
+    - (* AI_basic BI_memory_size *)
+      get_cc ccs.    
+      destruct (smem s fc.(FC_frame).(f_inst)) as [s_mem_s_j|] eqn:?.
+      + (* Some j *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 ($u32oz (Z.of_N (mem_size (s_mem_s_j))))) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by subst; eapply r_memory_size; eauto.
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { eapply inst_typing_mem_lookup_inv in H1_memory_size; eauto.
+          destruct H1_memory_size as [? [Hextmt Hnthmem]].
+          rewrite Hoption1 in Hnthmem; injection Hnthmem as <-.
+          unfold ext_mem_typing in Hextmt.
+          by rewrite Heqo in Hextmt.
+        }
+        { eapply inst_typing_mem_lookup_inv in H1_memory_size; eauto.
+          destruct H1_memory_size as [? [Hextmt Hnthmem]].
+          by rewrite Hoption1 in Hnthmem.
+        }
+
+    - (* AI_basic BI_memory_grow *)
+      get_cc ccs.
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v; assert_value_type v.
+      (* VAL_int32 c *)
+      destruct (smem_ind s fc.(FC_frame).(f_inst)) as [j|] eqn:?.
+      + (* Some j *)
+        destruct (lookup_N s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
+        * (* Some s_mem_s_j *)
+           destruct (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m v)) as [mem' | ] eqn:Hgrow.
+           -- (* Some mem'' *)
+              remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
+              remember (upd_s_mem s (set_nth mem' s.(s_mems) j mem')) as s'.
+              apply <<hs, (s', (fc, lcs) :: ccs', (VAL_num (VAL_int32 ($u32oz (Z.of_N (mem_size s_mem_s_j)))) :: vs0, es0), None)>>.
+              resolve_reduce_ctx vs0 es0.
+              by subst; eapply r_memory_grow_success; eauto.
+           -- (* None *)
+              apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 int32_minus_one) :: vs0, es0), None)>>.
+              resolve_reduce_ctx vs0 es0.
+              by subst; eapply r_memory_grow_failure; eauto.
+        * (* None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          eapply inst_typing_mem_lookup_inv in H1_memory_grow; eauto.
+          destruct H1_memory_grow as [? [Hextmt Hnthmem]].
+          rewrite Heqo in Hnthmem; injection Hnthmem as <-.
+          unfold ext_mem_typing in Hextmt.
+          by rewrite Heqsmem in Hextmt.
+      + (* None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          eapply inst_typing_mem_lookup_inv in H1_memory_grow; eauto.
+          destruct H1_memory_grow as [? [Hextmt Hnthmem]].
+          by rewrite Heqo in Hnthmem.
+
+    - (* AI_basic BI_memory_fill *)
+      get_cc ccs.
+      destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
+      (* Takes i32; i32; i32 *)
+      assert_value_type v3; assert_value_type v3.
+      assert_value_type v2; assert_value_type v2.
+      assert_value_type v1; assert_value_type v1.
+      destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
+      + (* Some *)
+        destruct (Z.ltb (Z.of_nat (mem_length mem)) (Z.add ($zou32 v1) ($zou32 v3))) eqn:Hlt; move/Z.ltb_spec0 in Hlt.
+        * (* true *)
+          apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_memory_fill_bound; eauto; lias.
+        * (* false *)
+          destruct (($zou32 v3) == 0)%Z eqn:Heq0; move/eqP in Heq0.
+          { (* Return *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_memory_fill_return; eauto; lias.
+          }
+          { (* Step *)
+            apply <<hs, (s, (fc, lcs) :: ccs',
+                          ((VAL_num (VAL_int32 v2)) :: (VAL_num (VAL_int32 v1)) :: vs0,
+                            [::$VN (VAL_int32 ($u32oz (Z.add ($zou32 v1) 1)));
+                             $VN (VAL_int32 v2);
+                             $VN (VAL_int32 ($u32oz (Z.sub ($zou32 v3) 1)));
+                            AI_basic (BI_memory_fill)] ++ es0),
+                          Some (AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)))>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_memory_fill_step; eauto; lias.
+          }
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { eapply inst_typing_mem_lookup_inv in H1_memory_fill; eauto.
+          destruct H1_memory_fill as [? [Hextmt Hnthmem]].
+          rewrite Hoption1 in Hnthmem; injection Hnthmem as <-.
+          unfold ext_mem_typing in Hextmt.
+          by rewrite Hsmem in Hextmt.
+        }
+        { eapply inst_typing_mem_lookup_inv in H1_memory_fill; eauto.
+          destruct H1_memory_fill as [? [? Hnthmem]].
+          by rewrite Hoption1 in Hnthmem.
+        }
+        
+    - (* AI_basic BI_memory_copy *)
+      get_cc ccs.
+      destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
+      (* Takes i32; i32; i32 *)
+      assert_value_type n; assert_value_type n.
+      assert_value_type src; assert_value_type src.
+      assert_value_type dst; assert_value_type dst.
+      destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
+      + (* Some *)
+        destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
+        { (* y Out of bound *)
+          apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_memory_copy_bound; eauto; lias.
+        }
+        destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
+        { (* x Out of bound *)
+          apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_memory_copy_bound; eauto; lias.
+        }
+        {
+          (* In bound for both memories *)
+          destruct (($zou32 n) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+          { (* Return *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_memory_copy_return; eauto; simpl in *; lias.
+          }
+          destruct (Z.leb ($zou32 dst) ($zou32 src)) eqn:Hdir; move/Z.leb_spec0 in Hdir.
+          Print BI_store.
+          { (* copy -- forward *)
+            apply <<hs, (s, (fc, lcs) :: ccs',
+                          ((VAL_num (VAL_int32 src)) :: (VAL_num (VAL_int32 dst)) :: vs0,
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) 0%N 0%N)))>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_memory_copy_forward; eauto; simpl in *; lias.
+          }
+          { (* copy -- backward *)
+            apply <<hs, (s, (fc, lcs) :: ccs',
+                          ((VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 src) (Z.sub ($zou32 n) 1))))) ::
+                             (VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 dst) (Z.sub ($zou32 n) 1))))) ::
+                             vs0,
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) 0%N 0%N)))>>.
+            resolve_reduce_ctx vs0 es0.
+            eapply r_memory_copy_backward; eauto; simpl in *; try by lias.
+          }
+        }
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { eapply inst_typing_mem_lookup_inv in H1_memory_copy; eauto.
+          destruct H1_memory_copy as [? [Hextmt Hnthmem]].
+          rewrite Hoption1 in Hnthmem; injection Hnthmem as <-.
+          unfold ext_mem_typing in Hextmt.
+          by rewrite Hsmem in Hextmt.
+        }
+        { eapply inst_typing_mem_lookup_inv in H1_memory_copy; eauto.
+          destruct H1_memory_copy as [? [? Hnthmem]].
+          by rewrite Hoption1 in Hnthmem.
+        }
+        
+    - (* AI_basic BI_memory_init *)
+      get_cc ccs.
+      destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
+      (* Takes i32; i32; i32 *)
+      assert_value_type n; assert_value_type n.
+      assert_value_type src; assert_value_type src.
+      assert_value_type dst; assert_value_type dst.
+      destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
+      + (* Some *)
+        destruct (sdata s fc.(FC_frame).(f_inst) x) as [data|] eqn:Hsdata.
+        * (* Some *)
+          destruct (Z.ltb (Z.of_nat (data_size data)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
+          { (* y Out of bound *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_memory_init_bound; eauto; lias.
+          }
+          destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
+          { (* x Out of bound *)
+            apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+            resolve_reduce_ctx vs0 es0.
+            by eapply r_memory_init_bound; eauto; lias.
+          }
+          {
+            (* In bound for both table and elem *)
+            destruct (($zou32 n) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+            { (* Return *)
+              apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>>.
+              resolve_reduce_ctx vs0 es0.
+              by eapply r_memory_init_return; eauto; simpl in *; lias.
+            }
+            { (* Step -- but need to lookup first *)
+              destruct (lookup_N data.(datainst_data) ($nou32 src)) as [b | ] eqn:Hnthdata.
+              { (* Step *)
+                apply <<hs, (s, (fc, lcs) :: ccs',
+                              ((VAL_num (wasm_deserialise [::b] T_i32)) :: (VAL_num (VAL_int32 dst)) :: vs0,
+                                [::$VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1)));
+                                 $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1)));
+                                 $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1)));
+                                 AI_basic (BI_memory_init x)
+                                ] ++ es0),
+                              Some (AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)))>>.
+                resolve_reduce_ctx vs0 es0.
+                by eapply r_memory_init_step; eauto; simpl in *; lias.
+              }
+              { (* lookup oob *)
+                resolve_invalid_typing.
+                destruct data; unfold data_size in Hboundy; simpl in *.
+                unfold lookup_N in *; apply List.nth_error_None in Hnthdata.
+                apply Hboundy.
+                apply Z2Nat.inj_lt; try by lias.
+                { specialize (Wasm_int.Int32.unsigned_range_2 src) as Ha1.
+                  specialize (Wasm_int.Int32.unsigned_range_2 n) as Ha2.
+                  by lias.
+                }
+                rewrite Nat2Z.id.
+                assert (Wasm_int.Int32.unsigned n > 0)%Z as Hngt.
+                { specialize (Wasm_int.Int32.unsigned_range_2 n) as Ha.
+                  by lias.
+                }
+                rewrite Z_N_nat in Hnthdata.
+                rewrite Z2Nat.inj_add; try by lias.
+                by specialize (Wasm_int.Int32.unsigned_range_2 src) as ?; lias.
+              }
+            }
+          }
+
+        * (* sdata = None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          { eapply inst_typing_data_lookup_inv in H2_memory_init; eauto.
+            destruct H2_memory_init as [? [? [Hinstdata [Hnthdata ?]]]].
+            rewrite Hoption2 in Hinstdata; injection Hinstdata as <-.
+            by rewrite Hsdata in Hnthdata.
+          }
+          { eapply inst_typing_data_lookup_inv in H2_memory_init; eauto.
+            destruct H2_memory_init as [? [? [Hinstdata [Hnthdata ?]]]].
+            by rewrite Hoption2 in Hinstdata.
+          }
+
+      + (* None *)
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { eapply inst_typing_mem_lookup_inv in H1_memory_init; eauto.
+          destruct H1_memory_init as [? [Hextmt Hnthmem]].
+          rewrite Hoption1 in Hnthmem; injection Hnthmem as <-.
+          unfold ext_mem_typing in Hextmt.
+          by rewrite Hsmem in Hextmt.
+        }
+        { eapply inst_typing_mem_lookup_inv in H1_memory_init; eauto.
+          destruct H1_memory_init as [? [? Hnthmem]].
+          by rewrite Hoption1 in Hnthmem.
+        }
+          
+    - (* AI_basic BI_data_drop x *)
+      get_cc ccs.
+      destruct (sdata_drop s fc.(FC_frame).(f_inst) x) as [s'|] eqn:Hs'.
+      + apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_data_drop.
+      + resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        unfold_store_operations.
+        { eapply inst_typing_data_lookup_inv in H1_data_drop; eauto.
+          destruct H1_data_drop as [? [? [Hinstdata [Hnthdata ?]]]].
+          rewrite Hoption2 in Hinstdata; injection Hinstdata as <-. 
+          by rewrite Hoption1 in Hnthdata.
+        }
+        { eapply inst_typing_data_lookup_inv in H1_data_drop; eauto.
+          destruct H1_data_drop as [? [? [Hinstdata [Hnthdata ?]]]].
+          by rewrite Hoption2 in Hinstdata.
+        }
 
     - (* AI_basic BI_nop *)
       apply <<hs, (s, ccs, (vs0, es0), None)>> => /=.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_nop.
 
+    - (* AI_basic BI_unreachable *)
+      apply <<hs, (s, ccs, (vs0, es0), Some AI_trap)>> => /=.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_unreachable.
 
-    - (* AI_basic (BI_block (Tf t1s t2s) es) *)
-      destruct (length vs0 >= length t1s) eqn:Hlen.
-      + (* true *)
-        destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
-        remember (AI_label (length t2s) [::] (vs_to_es ves' ++ to_e_list es)) as e'.
-        apply <<hs, (s, ccs, (ves'', es0), Some e')>> => /=.
-        red_ctx_simpl => //.
-        rewrite split_n_is_take_drop in Hsplit; injection Hsplit as ??; subst.
-        eapply r_label with (lh := LH_base (rev (drop (length t1s) vs0)) es0) => /=; infer_hole => /=.
-        2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0))) ++ [::AI_basic (BI_block (Tf t1s t2s) es)]).
-             repeat rewrite catA.
-             rewrite v_to_e_cat -rev_cat cat_take_drop.
-             by infer_hole.
-        }
-        apply r_simple; eapply rs_block; eauto; first by apply v_to_e_const.
-        rewrite v_to_e_length.
-        repeat rewrite length_is_size.
-        repeat rewrite length_is_size in Hlen.
-        by rewrite size_rev size_takel.
-      + (* false *)
+    - (* AI_basic (BI_block bt es) *)
+      get_cc ccs.
+      destruct (expand fc.(FC_frame).(f_inst) bt) as [[t1s t2s] | ] eqn:Hexpand.
+      + (* Some t1s t2s *)
+        destruct (length vs0 >= length t1s) eqn:Hlen.
+        * (* true *)
+          destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
+          apply <<hs, (s, (fc, lcs) :: ccs', (ves'', es0), Some (AI_label (length t2s) nil (vs_to_es ves' ++ to_e_list es)))>>.
+          rewrite split_n_is_take_drop in Hsplit; injection Hsplit as ??; subst.
+          resolve_reduce_ctx ves'' es0.
+          resolve_reduce_ctx (drop (length t1s) vs0) es0.
+          2: {
+            instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0))) ++ [::AI_basic (BI_block bt es)]).
+            repeat rewrite catA.
+            rewrite v_to_e_cat -rev_cat cat_take_drop.
+            by infer_hole.
+          }
+          eapply r_block; eauto; first by apply v_to_e_const.
+          rewrite v_to_e_length.
+          repeat rewrite length_is_size.
+          repeat rewrite length_is_size in Hlen.
+          by rewrite size_rev size_takel.
+        * (* false *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          erewrite <- inst_typing_expand_eq in Hexpand_block; eauto; last by unfold inst_match; destruct t; lias.
+          rewrite Hexpand_block in Hexpand; injection Hexpand as <- <-.
+          apply values_typing_length in Hvtstype.
+          move/leP in Hlen; apply Hlen.
+          rewrite rev_length List.app_length in Hvtstype.
+          by lias.
+      + (* None *)
         resolve_invalid_typing.
-        simpl in Htype; invert_be_typing.
-        apply (f_equal size) in H1_block.
-        rewrite size_map size_cat size_rev in H1_block.
-        repeat rewrite length_is_size in Hlen.
-        by lias.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        erewrite <- inst_typing_expand_eq in Hexpand_block; eauto; last by unfold inst_match; destruct t; lias.
+        by rewrite Hexpand_block in Hexpand.
 
-    - (* AI_basic (BI_loop (Tf t1s t2s) es) *)
-      destruct (length vs0 >= length t1s) eqn:Hlen.
-      + (* true *)
-        destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
-        remember (AI_label (length t1s) [::AI_basic (BI_loop (Tf t1s t2s) es)] (vs_to_es ves' ++ to_e_list es)) as e'.
-        apply <<hs, (s, ccs, (ves'', es0), Some e')>> => /=.
-        red_ctx_simpl => //.
-        rewrite split_n_is_take_drop in Hsplit; injection Hsplit as ??; subst.
-        eapply r_label with (lh := LH_base (rev (drop (length t1s) vs0)) es0) => /=; infer_hole => /=.
-        2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0))) ++ [::AI_basic (BI_loop (Tf t1s t2s) es)]).
-             repeat rewrite catA.
-             rewrite v_to_e_cat -rev_cat cat_take_drop.
-             by infer_hole.
-        }
-        apply r_simple; eapply rs_loop; eauto; first by apply v_to_e_const.
-        rewrite v_to_e_length.
-        repeat rewrite length_is_size.
-        repeat rewrite length_is_size in Hlen.
-        by rewrite size_rev size_takel.
-      + (* false *)
+    - (* AI_basic (BI_loop bt es) *)
+      get_cc ccs.
+      destruct (expand fc.(FC_frame).(f_inst) bt) as [[t1s t2s] | ] eqn:Hexpand.
+      + (* Some t1s t2s *)
+        destruct (length vs0 >= length t1s) eqn:Hlen.
+        * (* true *)
+          destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
+          apply <<hs, (s, (fc, lcs) :: ccs', (ves'', es0), Some (AI_label (length t1s) [::AI_basic (BI_loop bt es)] (vs_to_es ves' ++ to_e_list es)))>>.
+          rewrite split_n_is_take_drop in Hsplit; injection Hsplit as ??; subst.
+          resolve_reduce_ctx ves'' es0.
+          resolve_reduce_ctx (drop (length t1s) vs0) es0.
+          2: {
+            instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0))) ++ [::AI_basic (BI_loop bt es)]).
+            repeat rewrite catA.
+            rewrite v_to_e_cat -rev_cat cat_take_drop.
+            by infer_hole.
+          }
+          eapply r_loop; eauto; first by apply v_to_e_const.
+          rewrite v_to_e_length.
+          repeat rewrite length_is_size.
+          repeat rewrite length_is_size in Hlen.
+          by rewrite size_rev size_takel.
+        * (* false *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          erewrite <- inst_typing_expand_eq in Hexpand_block; eauto; last by unfold inst_match; destruct t; lias.
+          rewrite Hexpand_block in Hexpand; injection Hexpand as <- <-.
+          apply values_typing_length in Hvtstype.
+          move/leP in Hlen; apply Hlen.
+          rewrite rev_length List.app_length in Hvtstype.
+          by lias.
+      + (* None *)
         resolve_invalid_typing.
-        simpl in Htype; invert_be_typing.
-        apply (f_equal size) in H1_loop.
-        rewrite size_map size_cat size_rev in H1_loop.
-        repeat rewrite length_is_size in Hlen.
-        by lias.
-
-    - (* AI_basic (BI_if tf es1 es2) *)
-      destruct vs0 as [|v vs0].
-      resolve_invalid_typing; simpl in Htype; invert_be_typing; by size_unequal H1_if.
-      (* v :: ves' *)
-      destruct v as [c| | |].
-      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H1_if.
-      (* VAL_int32 c *)
-      destruct (c == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        erewrite <- inst_typing_expand_eq in Hexpand_block; eauto; last by unfold inst_match; destruct t; lias.
+        by rewrite Hexpand_block in Hexpand.
+        
+    - (* AI_basic (BI_if tb es1 es2) *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v;  assert_value_type v.
+      destruct (v == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
       + (* true *)
-        apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_block (Tf t1s t2s) es2)))>> => /=.
+        apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_block bt es2)))>> => /=.
         resolve_reduce_ctx vs0 es0.
         by apply r_simple; apply rs_if_false.
       + (* false *)
-        apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_block (Tf t1s t2s) es1)))>> => /=.
+        apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_block bt es1)))>> => /=.
         resolve_reduce_ctx vs0 es0.
         by apply r_simple; apply rs_if_true.
 
@@ -931,12 +1597,9 @@ the condition that all values should live in the operand stack. *)
       by apply run_ctx_br.
 
     - (* AI_basic (BI_br_if j) *)
-      destruct vs0 as [|v vs0]; first by resolve_invalid_typing; simpl in Htype; invert_be_typing; size_unequal H2_brif.
-      (* v :: ves' *)
-      destruct v as [c| | |] eqn:?.
-      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H2_brif.
-      (* VAL_int32 c *)
-      destruct (c == Wasm_int.int_zero i32m) eqn:Heqc; move/eqP in Heqc.
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v; assert_value_type v.
+      destruct (v == Wasm_int.int_zero i32m) eqn:Heqc; move/eqP in Heqc.
       + (* 0 *)
         apply <<hs, (s, ccs, (vs0, es0), None)>> => /=.
         resolve_reduce_ctx vs0 es0.
@@ -947,19 +1610,17 @@ the condition that all values should live in the operand stack. *)
         by apply r_simple; apply rs_br_if_true.
 
     - (* AI_basic (BI_br_table js j) *)
-      destruct vs0 as [|v vs0]; first by resolve_invalid_typing; simpl in Htype; invert_be_typing; size_unequal H1_brtable.
-      (* v :: ves' *)
-      destruct v as [c| | |] eqn:?.
-      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H1_brtable.
-      remember (Wasm_int.nat_of_uint i32m c) as k.
-      destruct (k < length js) eqn:Hlen.
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v; assert_value_type v.
+      destruct (N.ltb ($nou32 v) (N.of_nat (length js))) eqn:Hlen; move/N.ltb_spec0 in Hlen.
       + (* true *)
-        destruct (List.nth_error js k) as [js_at_k|] eqn: Hnth.
+        destruct (lookup_N js ($nou32 v)) as [js_at_k|] eqn: Hnth.
         * (* Some js_at_k *)
           apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_br js_at_k)))>> => /=.
           resolve_reduce_ctx vs0 es0.
           by apply r_simple; subst; apply rs_br_table.
         * (* None *)
+          unfold lookup_N in Hnth.
           apply List.nth_error_None in Hnth.
           by lias.
       + (* false *)
@@ -970,225 +1631,68 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic BI_return *)
       by apply run_ctx_return.
 
-    - (* AI_basic (BI_call j) *)
+    - (* AI_basic (BI_call x) *)
       get_cc ccs.
-      destruct (List.nth_error fc.(FC_frame).(f_inst).(inst_funcs) j) as [a|] eqn: Hnth.
+      destruct (lookup_N fc.(FC_frame).(f_inst).(inst_funcs) x) as [a|] eqn: Hnth.
       + (* Some a *)
         apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_invoke a))>>.
         resolve_reduce_ctx vs0 es0.
         by apply r_call.
       + (* None *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-        destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-        eapply func_context_store in Hit as [? Hnth']; eauto.
-        by rewrite Hnth in Hnth'.
+        resolve_invalid_typing.
+        unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+        eapply inst_typing_func_lookup_inv in H1_call; eauto.
+        destruct H1_call as [? [Hextft Hnthft]].
+        by rewrite Hnthft in Hnth.
 
-    - (* AI_basic (BI_call_indirect j) *)
-      get_cc ccs.    
-      destruct vs0 as [|v vs0]; first by resolve_invalid_typing; simpl in Htype; invert_be_typing; size_unequal H4_callindirect.
-      (* v :: ves' *)
-      destruct v as [c| | |] eqn:?.
-      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H4_callindirect.
-      (* VAL_int32 c *)
-      remember (fc.(FC_frame)) as f.
-      destruct (stab_addr s f (Wasm_int.nat_of_uint i32m c)) as [a|] eqn:?.
+    - (* AI_basic (BI_call_indirect x y) *)
+      get_cc ccs.
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_type v; assert_value_type v.
+      destruct (stab_elem s fc.(FC_frame).(f_inst) x ($nou32 v)) as [vref|] eqn:?.
       + (* Some a *)
-        destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
-        * (* Some cl *)
-           destruct (stypes s f.(f_inst) j == Some (cl_type cl)) eqn:Hcl; move/eqP in Hcl.
-           -- (* true *)
-             apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_invoke a))>>.
-             resolve_reduce_ctx vs0 es0.
-             by eapply r_call_indirect_success; subst; eauto.
-           -- (* false *)
-             apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap))>>.
-             resolve_reduce_ctx vs0 es0.
-             by eapply r_call_indirect_failure1; subst; eauto.
-        * (* None *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk ff fes]; simpl in *.
-          eapply store_typing_stabaddr in Hit as [? Hnth']; eauto.
-          by rewrite Heqo0 in Hnth'.
+        destruct vref as [t | a | a].
+        * (* ref_null *)
+          apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_call_indirect_failure_null_ref; eauto.
+        * (* funcref *)
+          destruct (lookup_N s.(s_funcs) a) as [cl | ] eqn:Hnthcl.
+          -- (* Some *)
+            destruct (lookup_N (inst_types (f_inst (fc.(FC_frame)))) y == Some (cl_type cl)) eqn:Hcl; move/eqP in Hcl.
+            ++ (* true *)
+              apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_invoke a))>>.
+              resolve_reduce_ctx vs0 es0.
+              by eapply r_call_indirect_success; subst; eauto.
+            ++ (* false *)
+              apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap))>>.
+              resolve_reduce_ctx vs0 es0.
+              by eapply r_call_indirect_failure_mismatch; subst; eauto.
+          -- (* None *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          resolve_store_inst_lookup.
+          destruct t1; remove_bools_options; simpl in *.
+          unfold lookup_N in Hnthtabt.
+          eapply all_projection in Hif1; eauto.
+          move/eqP in Hif1; simpl in Hif1.
+          unfold ext_func_typing in Hif1.
+          by rewrite Hnthcl in Hif1.
+        * (* externref *)
+          resolve_invalid_typing.
+          unfold frame_typing in Hftype; remove_bools_options; simpl in *.
+          unfold_store_operations.
+          resolve_store_inst_lookup.
+          destruct t1; remove_bools_options; simpl in *.
+          eapply all_projection in Hif1; eauto.
+          move/eqP in Hif1; simpl in Hif1.
+          rewrite Hnthtabt in H1_callindirect; injection H1_callindirect as <-.
+          by rewrite H2_callindirect in Hif1.
       + (* None *)
         apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap))>>.
         resolve_reduce_ctx vs0 es0.
-        by eapply r_call_indirect_failure2; subst.
-
-    - (* AI_basic (BI_load t ops (Some (tp, sx)) a off) *)
-      get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct vs0 as [|v vs0].
-      + (* [::] *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing; by size_unequal H1_load.
-      + (* v :: ves' *)
-        destruct v as [c| | |] eqn:?.
-        2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H1_load.
-        (* VAL_int32 c *)
-        destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
-        * (* Some j *)
-           destruct (List.nth_error s.(s_mems) j) as [mem_s_j|] eqn:?.
-           { (* Some mem_s_j*)
-             destruct ops as [[tp sx] | ].
-             (* Some (tp, sx) *)
-             - destruct (load_packed sx (mem_s_j) (Wasm_int.N_of_uint i32m c) off (tp_length tp) (t_length t)) as [bs|] eqn:Hload.
-               + (* Some bs *)
-                 apply <<hs, (s, (fc, lcs) :: ccs', (wasm_deserialise bs t :: vs0, es0), None)>>.
-                 resolve_reduce_ctx vs0 es0.
-                 by eapply r_load_packed_success; subst; eauto.
-               + (* None *)
-                 apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
-                 resolve_reduce_ctx vs0 es0.
-                 by eapply r_load_packed_failure; subst; eauto.
-             - destruct (load (mem_s_j) (Wasm_int.N_of_uint i32m c) off (t_length t)) as [bs|] eqn:Hload.
-               + (* Some bs *)
-                 apply <<hs, (s, (fc, lcs) :: ccs', (wasm_deserialise bs t :: vs0, es0), None)>>.
-                 resolve_reduce_ctx vs0 es0.
-                 by eapply r_load_success; subst; eauto.
-               + (* None *)
-                 apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
-                 resolve_reduce_ctx vs0 es0.
-                 by eapply r_load_failure; subst; eauto.
-           }
-           { (* None *)
-             resolve_invalid_typing; simpl in Htype; invert_be_typing.
-             inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-             destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-             eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-             rewrite Heqo in Hsmemi; injection Hsmemi as ->.
-             by rewrite Heqo0 in Hnth.
-           }
-        * (* None *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-          eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-          by rewrite Heqo in Hsmemi.
-
-    - (* AI_basic (BI_store t (Some tp) a off) *)
-      get_cc ccs. 
-      remember (fc.(FC_frame)) as f.
-      destruct vs0 as [|v [|v' vs0]].
-      1,2: resolve_invalid_typing; simpl in Htype; invert_be_typing; by size_unequal H1_store.
-      (* v :: v' :: ves' *)
-      destruct v' as [c| | |] eqn:?.
-      2,3,4:
-        resolve_invalid_typing; simpl in Htype; invert_be_typing;
-        simpl in *;
-        apply (f_equal rev) in H1_store;
-        rewrite rev_cat -map_rev revK /= in H1_store; by inversion H1_store.
-      (* VAL_int32 c *)
-      destruct (types_agree t v) eqn:?.
-      + (* true *)
-        destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
-        * (* Some j *)
-           destruct (List.nth_error s.(s_mems) j) as [mem_s_j|] eqn:?.
-           { (* Some mem_s_j *)
-             destruct op as [tp | ].
-              - (* Some tp*)
-                destruct (store_packed mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (tp_length tp)) as [mem'|] eqn:?.
-                + (* Some mem' *)
-                  apply <<hs, (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), (fc, lcs) :: ccs', (vs0, es0), None)>>.
-                  resolve_reduce_ctx vs0 es0.
-                  by eapply r_store_packed_success; subst; eauto.
-                + (* None *)
-                  apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
-                  resolve_reduce_ctx vs0 es0.
-                  by eapply r_store_packed_failure; subst; eauto.
-                  (* None *)
-              - destruct (store mem_s_j (Wasm_int.N_of_uint i32m c) off (bits v) (t_length t)) as [mem'|] eqn:?.
-                + (* Some mem' *)
-                  apply <<hs, (upd_s_mem s (set_nth mem' s.(s_mems) j mem'), (fc, lcs) :: ccs', (vs0, es0), None)>>.
-                  resolve_reduce_ctx vs0 es0.
-                  by eapply r_store_success; subst; eauto.
-                + (* None *)
-                  apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
-                  resolve_reduce_ctx vs0 es0.
-                  by eapply r_store_failure; subst; eauto.
-           }
-           { (* None *)
-             resolve_invalid_typing; simpl in Htype; invert_be_typing.
-             inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-             destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-             eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-             rewrite Heqo in Hsmemi; injection Hsmemi as ->.
-             by rewrite Heqo0 in Hnth.
-           }
-        * (* None *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-          eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-          by rewrite Heqo in Hsmemi.
-      + (* false *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        simpl in *.
-        unfold types_agree in Heqb; move/eqP in Heqb.
-        by last_unequal H1_store.
-
-    - (* AI_basic BI_memory_size *)
-      get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
-      + (* Some j *)
-        destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:?.
-        * (* Some j *)
-          remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v' eqn:?.
-          apply <<hs, (s, (fc, lcs) :: ccs', (v' :: vs0, es0), None)>>.
-          resolve_reduce_ctx vs0 es0.
-          by subst; eapply r_memory_size; eauto.
-        * (* None *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-          eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-          rewrite Heqo in Hsmemi; injection Hsmemi as ->.
-          by rewrite Heqo0 in Hnth.
-      + (* None *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-        destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-        eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-        by rewrite Heqo in Hsmemi.
-
-    - (* AI_basic BI_memory_grow *)
-      get_cc ccs.    
-      remember (fc.(FC_frame)) as f.
-      destruct vs0 as [|v vs0]; first by resolve_invalid_typing; simpl in Htype; invert_be_typing; size_unequal H3_growmemory.
-      (* v :: ves' *)
-      destruct v as [c| | |] eqn:?.
-      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H3_growmemory.
-      (* VAL_int32 c *)
-      destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
-      + (* Some j *)
-        destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
-        * (* Some s_mem_s_j *)
-           remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
-           destruct mem' as [mem''|].
-           -- (* Some mem'' *)
-              remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
-              remember (upd_s_mem s (set_nth mem'' s.(s_mems) j mem'')) as s'.
-              apply <<hs, (s', (fc, lcs) :: ccs', (v' :: vs0, es0), None)>>.
-              resolve_reduce_ctx vs0 es0.
-              by subst; eapply r_memory_grow_success; eauto.
-           -- (* None *)
-              apply <<hs, (s, (fc, lcs) :: ccs', (VAL_int32 int32_minus_one :: vs0, es0), None)>>.
-              resolve_reduce_ctx vs0 es0.
-              by subst; eapply r_memory_grow_failure; eauto.
-        * (* None *)
-          resolve_invalid_typing; simpl in Htype; invert_be_typing.
-          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-          destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-          eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-          rewrite Heqo in Hsmemi; injection Hsmemi as ->.
-          by rewrite Heqsmem in Hnth.
-      + (* None *)
-        resolve_invalid_typing; simpl in Htype; invert_be_typing.
-        inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
-        destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-        eapply mem_context_store in Hit as [? [Hsmemi Hnth]]; eauto.
-        by rewrite Heqo in Hsmemi.
+        by eapply r_call_indirect_failure_bound; subst.
 
     - (* AI_trap *)
       get_cc ccs.
@@ -1218,13 +1722,19 @@ the condition that all values should live in the operand stack. *)
         assert (H: size vs0 = 0); first (by lias); destruct vs0 => //; clear H.
         assert (H: size es0 = 0); first (by lias); by destruct es0.
 
+    - (* AI_ref a *)
+      by apply RSC_invalid => /=; move => [??].
+      
+    - (* AI_ref_extern a *)
+      by apply RSC_invalid => /=; move => [??].
+       
     - (* AI_invoke a *)
       by apply run_ctx_invoke.
         
     - (* AI_label ln les es *)
       by apply RSC_invalid => /=; move => [??].
 
-    * (* AI_local ln lf es *)
+    - (* AI_frame ln lf es *)
       by apply RSC_invalid => /=; move => [??].
   }
 Defined.
@@ -1265,7 +1775,7 @@ Fixpoint run_multi_step_ctx (fuel: nat) (hcfg: hs_cfg_ctx) : (option hs_cfg_ctx)
  **)
 
 Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction) (arity: nat) : (option hs_cfg_ctx) + (list value) :=
-  match run_v_init s [::AI_local arity f es] with
+  match run_v_init s [::AI_frame arity f es] with
   | Some cfg => run_multi_step_ctx fuel (hs, cfg)
   | None => inl None
   end.
@@ -1276,7 +1786,7 @@ Section Interp_ctx_progress.
 (** A definition to what is considered a 'valid' tuple by the ctx interpreter.
     This constraint seems restrictive, but in fact all Wasm runtime configuration can be expressed in this form:
     the runtime configuration tuple (S; F; es) always has a frame F, which can be used to form the frame context
-    [AI_local n F es] (with the right choice of n).
+    [AI_frame n F es] (with the right choice of n).
 
     The only exception is at the start of a module invocation (in fact not an exception, since the Wasm spec uses
     an empty frame at the start), where the Invoke part comes to the rescue; but in principle it is not even needed.
@@ -1284,7 +1794,7 @@ Section Interp_ctx_progress.
 Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
   match es with
   | [::AI_invoke _]
-  | [::AI_local _ _ _] => true
+  | [::AI_frame _ _ _] => true
   | _ => false
   end.
 

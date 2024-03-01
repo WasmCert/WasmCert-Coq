@@ -1794,6 +1794,17 @@ Proof.
   by exists t, d.
 Qed.
 
+Lemma inst_typing_expand_eq: forall s inst C C' tb,
+    inst_typing s inst = Some C ->
+    inst_match C C' ->
+    expand inst tb = expand_t C' tb.
+Proof.
+  move => s inst C C' tb Hit Hmatch.
+  destruct tb => //=.
+  replace (tc_types C') with (tc_types C); last by unfold inst_match in Hmatch; destruct C; remove_bools_options.
+  by eapply inst_typing_type_lookup; eauto.
+Qed.
+
 Lemma inst_typing_func_lookup_inv: forall s inst C n t,
     inst_typing s inst = Some C ->
     lookup_N C.(tc_funcs) n = Some t ->
@@ -1852,6 +1863,40 @@ Proof.
   eapply those_lookup_inv in Hoption2; eauto.
   apply nth_error_map in Hoption2 as [a [??]].
   by exists a.
+Qed.
+
+Lemma inst_typing_elem_lookup_inv: forall s inst C n t,
+    inst_typing s inst = Some C ->
+    lookup_N C.(tc_elems) n = Some t ->
+    exists a ei, lookup_N inst.(inst_elems) n = Some a /\
+           lookup_N s.(s_elems) a = Some ei /\
+           eleminst_typing s ei = Some t.
+Proof.
+  move => s inst C n t Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  unfold lookup_N in *.
+  eapply those_lookup_inv in Hoption3; eauto.
+  apply nth_error_map in Hoption3 as [a [??]].
+  remove_bools_options.
+  by exists a, e.
+Qed.
+  
+Lemma inst_typing_data_lookup_inv: forall s inst C n t,
+    inst_typing s inst = Some C ->
+    lookup_N C.(tc_datas) n = Some t ->
+    exists a ei, lookup_N inst.(inst_datas) n = Some a /\
+           lookup_N s.(s_datas) a = Some ei /\
+           datainst_typing s ei = Some t.
+Proof.
+  move => s inst C n t Hit Hnth.
+  unfold inst_typing in Hit.
+  destruct inst; remove_bools_options; simpl in *.
+  unfold lookup_N in *.
+  eapply those_lookup_inv in Hoption4; eauto.
+  apply nth_error_map in Hoption4 as [a [??]].
+  remove_bools_options.
+  by exists a, d.
 Qed.
   
 Lemma store_typing_func_lookup: forall s n x,

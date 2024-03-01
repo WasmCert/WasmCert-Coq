@@ -423,14 +423,64 @@ Definition cl_type (cl : funcinst) : function_type :=
   | FC_func_host tf _ => tf
   end.
 
-Definition upd_s_mem (s : store_record) (m : list meminst) : store_record :=
+Definition upd_s_func (s : store_record) (fs: list funcinst) : store_record :=
   {|
-    s_funcs := s.(s_funcs);
+    s_funcs := fs;
     s_tables := s.(s_tables);
-    s_mems := m;
+    s_mems := s.(s_mems);
     s_globals := s.(s_globals);
     s_elems := s.(s_elems);
     s_datas := s.(s_datas);
+  |}.
+
+Definition upd_s_table (s : store_record) (ts: list tableinst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := ts;
+    s_mems := s.(s_mems);
+    s_globals := s.(s_globals);
+    s_elems := s.(s_elems);
+    s_datas := s.(s_datas);
+  |}.
+
+Definition upd_s_mem (s : store_record) (ms : list meminst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := s.(s_tables);
+    s_mems := ms;
+    s_globals := s.(s_globals);
+    s_elems := s.(s_elems);
+    s_datas := s.(s_datas);
+  |}.
+
+Definition upd_s_global (s : store_record) (gs : list globalinst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := s.(s_tables);
+    s_mems := s.(s_mems);
+    s_globals := gs;
+    s_elems := s.(s_elems);
+    s_datas := s.(s_datas);
+  |}.
+
+Definition upd_s_elem (s : store_record) (es : list eleminst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := s.(s_tables);
+    s_mems := s.(s_mems);
+    s_globals := s.(s_globals);
+    s_elems := es;
+    s_datas := s.(s_datas);
+  |}.
+
+Definition upd_s_data (s : store_record) (ds : list datainst) : store_record :=
+  {|
+    s_funcs := s.(s_funcs);
+    s_tables := s.(s_tables);
+    s_mems := s.(s_mems);
+    s_globals := s.(s_globals);
+    s_elems := s.(s_elems);
+    s_datas := ds;
   |}.
 
 Definition stypes (s : store_record) (i : moduleinst) (j : typeidx) : option function_type :=

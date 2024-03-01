@@ -146,6 +146,13 @@ Definition upd_label C lab :=
 Definition upd_return C ret :=
   upd_local_label_return C (tc_locals C) (tc_labels C) ret.
 
+Definition inst_match C C' : bool :=
+  (C.(tc_types) == C'.(tc_types)) &&
+  (C.(tc_funcs) == C'.(tc_funcs)) &&
+  (C.(tc_tables) == C'.(tc_tables)) &&
+  (C.(tc_mems) == C'.(tc_mems)) &&
+  (C.(tc_globals) == C'.(tc_globals)).
+
 
 Inductive result_typing : result -> result_type -> Prop :=
   | result_typing_values : forall vs, result_typing (result_values vs) (map typeof vs)
@@ -300,32 +307,32 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
 | bet_elem_drop : forall C x t,
   lookup_N (tc_elems C) x = Some t ->
   be_typing C [::BI_elem_drop x] (Tf [::] [::])
-| bet_load : forall C a off tp_sx t,
-  tc_mems C <> nil ->
+| bet_load : forall C a off tp_sx t mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
   load_store_t_bounds a (option_projl tp_sx) t ->
   be_typing C [::BI_load t tp_sx a off] (Tf [::T_num T_i32] [::T_num t])
-| bet_store : forall C a off tp t,
-  tc_mems C <> nil ->
+| bet_store : forall C a off tp t mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
   load_store_t_bounds a tp t ->
   be_typing C [::BI_store t tp a off] (Tf [::T_num T_i32; T_num t] [::])
-| bet_memory_size : forall C,
-  tc_mems C <> nil ->
+| bet_memory_size : forall C mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
   be_typing C [::BI_memory_size] (Tf [::] [::T_num T_i32])
-| bet_memory_grow : forall C,
-  tc_mems C <> nil ->
+| bet_memory_grow : forall C mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
   be_typing C [::BI_memory_grow] (Tf [::T_num T_i32] [::T_num T_i32])
-| bet_memory_fill : forall C,
-  tc_mems C <> nil ->
+| bet_memory_fill : forall C mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
   be_typing C [::BI_memory_fill] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
-| bet_memory_copy : forall C,
-  tc_mems C <> nil ->
+| bet_memory_copy : forall C mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
   be_typing C [::BI_memory_copy] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
-| bet_memory_init : forall C x,
-  tc_mems C <> nil ->
-  N.to_nat x < length (tc_datas C) ->
+| bet_memory_init : forall C x mem dat,
+  lookup_N (tc_mems C) 0%N = Some mem ->
+  lookup_N (tc_datas C) x = Some dat ->
   be_typing C [::BI_memory_init x] (Tf [::T_num T_i32; T_num T_i32; T_num T_i32] [::])
-| bet_data_drop : forall C x,
-  N.to_nat x < length (tc_datas C) ->
+| bet_data_drop : forall C x dat,
+  lookup_N (tc_datas C) x = Some dat ->
   be_typing C [::BI_data_drop x] (Tf [::] [::])
 | bet_empty : forall C,
   be_typing C [::] (Tf [::] [::])
