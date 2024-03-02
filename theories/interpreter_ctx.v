@@ -1928,7 +1928,12 @@ Import DummyHost.
 
 Definition run_one_step_ctx := run_one_step_ctx host_application_impl_correct.
 
+Definition run_step_cfg_ctx_reform := run_step_cfg_ctx_reform.
+
+Definition run_v_init := run_v_init.
+
+Definition es_of_cfg := es_of_cfg.
+
 Definition run_multi_step_raw := run_multi_step_raw host_application_impl_correct tt.
 
 End Interpreter_ctx_extract.
-

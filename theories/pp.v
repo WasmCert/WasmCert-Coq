@@ -4,7 +4,7 @@ Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
-Require Import bytes_pp datatypes interpreter_func.
+Require Import bytes_pp datatypes interpreter_ctx.
 Require Import BinNat.
 Require Import ansi list_extra.
 
@@ -12,10 +12,9 @@ Open Scope string_scope.
 
 Section Host.
 
-Variable host_function: eqType.
+Context `{hfc: host_function_class}.
   
 Variable show_host_function : host_function -> string.
-
 
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
 
@@ -426,7 +425,7 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
 Definition pp_basic_instructions n bes :=
   String.concat "" (List.map (pp_basic_instruction n) bes).
 
-Definition pp_funcinst (n : indentation) (fc : funcinst host_function) : string :=
+Definition pp_funcinst (n : indentation) (fc : funcinst) : string :=
   match fc with
   | FC_func_native ft inst mfunc =>
     (* TODO: show instance? *)
@@ -500,7 +499,7 @@ Definition pp_table (n: indentation) (t : tableinst) : string :=
 Definition pp_tables (n : indentation) (ms : list tableinst) : string :=
   String.concat "" (mapi (fun i t => indent n (string_of_nat i ++ ": " ++ pp_table n t)) ms).
 
-Definition pp_store (n : indentation) (s : store_record host_function) : string :=
+Definition pp_store (n : indentation) (s : store_record) : string :=
   indent n ("globals" ++ newline) ++
   pp_globals (n.+1) s.(s_globals) ++
   indent n ("memories" ++ newline) ++
@@ -509,56 +508,28 @@ Definition pp_store (n : indentation) (s : store_record host_function) : string 
   pp_tables (n.+1) s.(s_tables).
 
 (* XXX disambiguate between cfg/res tuple with/without hs? *)
-Definition pp_config_tuple_except_store (cfg : store_record host_function * frame * list administrative_instruction) : string :=
+Definition pp_config_tuple_except_store (cfg : store_record * frame * list administrative_instruction) : string :=
   let '(s, f, es) := cfg in
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
-(*
-Definition pp_res_tuple_except_store (res_cfg : store_record host_function * frame * res_step) : string :=
-  let '(s, f, res) := res_cfg in
-  match res with
-  | RS_crash _ =>
-    "crash" ++ newline ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  | RS_break n vs =>
-    "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  | RS_return vs_res =>
-    "return " ++ pp_values_hint_empty vs_res ++ newline ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  | RS_normal es =>
-    "normal" ++ newline ++
-    String.concat "" (List.map (pp_administrative_instruction 1) es) ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  end.
-*)
-
 End Host.
-
-Require Import interpreter_ctx.
 
 (** As-is, [eqType] tends not to extract well.
   This section provides alternative definitions for better extraction. **)
 Module PP.
 
-Import interpreter_ctx.emptyHost.
-
+Import DummyHost.
+  
 Section Show.
 
-Definition pp_values : list value -> string := pp_values.
+Definition pp_values := pp_values.
 
-Definition pp_store : nat -> store_record -> string := pp_store host_function_eqType.
+Definition pp_store := pp_store.
 
-Definition pp_res_tuple_except_store : store_record * frame * res_step -> string :=
-  pp_res_tuple_except_store host_function_eqType.
+Definition pp_config_tuple_except_store := pp_config_tuple_except_store.
 
-Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
-  pp_config_tuple_except_store host_function_eqType.
-
-
-Definition pp_administrative_instructions : nat -> list administrative_instruction -> string :=
-  pp_administrative_instructions.
+Definition pp_administrative_instructions := pp_administrative_instructions.
 
 End Show.
 
