@@ -108,14 +108,23 @@ Parameter host_event : Type -> Type.
 Parameter host_ret : forall t : Type, t -> host_event t.
 Parameter host_bind : forall t u : Type, host_event t -> (t -> host_event u) -> host_event u.
 
-#[local]
+#[export]
 Instance hfc: host_function_class.
 Proof.
   exact (Build_host_function_class host_function_eq_dec).
 Defined.
 
-Parameter host_apply : @store_record hfc -> function_type -> host_function -> seq value ->
-                       host_event (option (@store_record hfc * result)).
+Parameter host_apply : store_record -> function_type -> host_function -> seq value ->
+                       host_event (option (store_record * result)).
+
+#[export]
+Instance host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}.
+Defined.
 
 End Executable_Host.
 
@@ -155,8 +164,8 @@ From ExtLib Require Import IdentityMonad.
 
 (** This host provides no function. **)
 
-Module DummyHost : Executable_Host.
-
+Module DummyHost <: Executable_Host.
+  
 Definition host_function := void.
 Definition host_event := ident.
 Definition host_ret := @ret _ Monad_ident.
@@ -165,25 +174,17 @@ Definition host_bind := @bind _ Monad_ident.
 Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
 Proof. decidable_equality. Defined.
 
-#[local]
+#[export]
 Instance hfc: host_function_class.
 Proof.
   exact (Build_host_function_class host_function_eq_dec).
 Defined.
 
-Definition store_record := @store_record hfc.
 Definition host_apply (_ : store_record) (_ : function_type) :=
   of_void (seq value -> ident (option (store_record * result))).
 
-
-End DummyHost.
-
-Module DummyHosts.
-
-Module Exec := convert_to_executable_host DummyHost.
-Export Exec.
-
-Definition host_instance : @host hfc.
+#[export]
+Instance host_instance : host.
 Proof.
   by refine {|
       host_state := unit_eqType ;
@@ -191,7 +192,25 @@ Proof.
     |}.
 Defined.
 
-(* TODO: host_spec *)
+Definition host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
+                                   (host_state * option (store_record * result)).
+Proof.
+  move => ??? hf.
+  by refine ((of_void _) hf).
+Defined.
+
+Definition host_application_impl_correct :
+  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+Proof.
+  move => ??? hf; by inversion hf.
+Defined.
+
+End DummyHost.
+
+Module DummyHosts.
+
+Module Exec := convert_to_executable_host DummyHost.
+Export Exec.
 
 End DummyHosts.
 

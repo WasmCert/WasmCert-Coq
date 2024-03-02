@@ -1346,7 +1346,6 @@ the condition that all values should live in the operand stack. *)
             by eapply r_memory_copy_return; eauto; simpl in *; lias.
           }
           destruct (Z.leb ($zou32 dst) ($zou32 src)) eqn:Hdir; move/Z.leb_spec0 in Hdir.
-          Print BI_store.
           { (* copy -- forward *)
             apply <<hs, (s, (fc, lcs) :: ccs',
                           ((VAL_num (VAL_int32 src)) :: (VAL_num (VAL_int32 dst)) :: vs0,
@@ -1809,18 +1808,21 @@ Proof.
     + inversion H; subst; clear H; try by destruct vs as [ | v vs] => //; destruct vs.
       by right; right.
     + inversion H; subst; clear H; (try by destruct vs as [ | v vs] => //; destruct vs); try by (right; (try by left); (try by right)).
+  - by destruct vs as [| v vs] => //; destruct v => //.
+  - by destruct vs as [| v vs] => //; destruct v => //.
   - right.
     destruct r => /=; by [left; apply v_to_e_const | right].
+    (* Frame *)
   - destruct lh using lh_case; destruct k => //.
     + rewrite -> lh_cast_eq in *.
       simpl in *.
-      destruct vs => //.
+      destruct vs => //=; last destruct v as [v | v | v] => //=; try by destruct v => //.
       destruct es as [ | e es]; first by apply reduce_not_nil in Hred.
       destruct e, es, es0 => //; by apply IHHred in Hvalid; rewrite cats0.
     + inversion H; subst.
       rewrite -> lh_cast_eq in *; clear H.
       simpl in Hvalid.
-      by destruct vs.
+      destruct vs as [| v vs] => //; destruct v as [v|v|v] => //=; by destruct v.
 Qed.
 
 Definition valid_init_Some s es:
@@ -1860,7 +1862,7 @@ Qed.
 *)
 Definition t_progress_interp_ctx: forall (hs: host_state) (s: store_record) es ts,
   valid_wasm_instr es ->
-  config_typing s empty_frame es ts ->
+  config_typing s (empty_frame, es) ts ->
   terminal_form es \/
   exists hs' s' es', reduce hs s empty_frame es hs' s' empty_frame es'.
 Proof.
@@ -1885,7 +1887,7 @@ Proof.
       - simpl in Hcontra. by apply Hcontra in Htype.
     }
   }
-  (* Label *)
+  (* Frame *)
   { remember Hinit as Hinit2; clear HeqHinit2.
     unfold run_v_init in Hinit.
     rewrite /ctx_decompose ctx_decompose_aux_equation /= in Hinit.
@@ -1894,7 +1896,7 @@ Proof.
       destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred | vs Heq | Hcontra | Hcontra]; clear Heqres.
       1,2,4:
       unfold run_v_init in Hinit2; destruct (ctx_decompose _) as [[[ccs2 sc2] oe2]|] eqn:Hdecomp' => //;
-      apply (@ctx_decompose_fill_id host_function host_instance) in Hdecomp';
+      apply ctx_decompose_fill_id in Hdecomp';
       simpl in Hdecomp';
       injection Hinit2 as -> -> ->.
       - right.
@@ -1905,7 +1907,7 @@ Proof.
       - exfalso.
         simpl in *.
         rewrite Hdecomp' in Heq.
-        by destruct vs.
+        by destruct vs as [|v vs] => //; destruct v as [|v|] => //; by destruct v.
       - simpl in Hcontra. rewrite Hdecomp' in Hcontra. by apply Hcontra in Htype.
       - exfalso; apply Hcontra; clear Hcontra.
         split;
@@ -1920,70 +1922,13 @@ End Interp_ctx_progress.
 End Host.
 
 (** Extraction **)
-(* A workaround to use the monadic host defined in host.v to avoid reworking shim;
-   need a unified approach in the future *)
-Module EmptyHost.
-
-Definition host_function := void.
-
-Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
-Proof. decidable_equality. Defined.
-
-Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
-Definition host_functionP : Equality.axiom host_function_eqb :=
-  eq_dec_Equality_axiom host_function_eq_dec.
-
-Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Global Canonical Structure host_function_eqType :=
-  Eval hnf in EqType host_function host_function_eqMixin.
-
-Definition host : Type := host host_function_eqType.
-
-Definition store_record := store_record host_function_eqType.
-Definition function_closure := function_closure host_function_eqType.
-
-Definition host_instance : host.
-Proof.
-  by refine {|
-      host_state := unit_eqType ;
-      host_application _ _ _ _ _ _ _ := False
-    |}.
-Defined.
-
-Definition config_tuple := config_tuple host_instance.
-Definition res_tuple := res_tuple host_instance.
-
-Definition host_state := host_state host_instance.
-
-End EmptyHost.
-
-(** Extraction **)
 Module Interpreter_ctx_extract.
 
-Import EmptyHost.
-
-(* No host function exists *)
-Definition host_application_impl : host_state -> store_record -> function_type -> host_function_eqType -> seq value ->
-                                   (host_state * option (store_record * result)).
-Proof.
-  move => ??? hf; by inversion hf.
-Defined.
-
-Definition host_application_impl_correct :
-  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
-Proof.
-  move => ??? hf; by inversion hf.
-Defined.
+Import DummyHost.
 
 Definition run_one_step_ctx := run_one_step_ctx host_application_impl_correct.
 
-Definition run_step_cfg_ctx_reform := @run_step_cfg_ctx_reform host_function_eqType.
-
-Definition run_v_init := @run_v_init host_function_eqType.
-
-Definition es_of_cfg := @es_of_cfg host_function_eqType host_instance.
-
-Definition run_multi_step_raw := @run_multi_step_raw host_function_eqType host_instance host_application_impl host_application_impl_correct tt.
+Definition run_multi_step_raw := run_multi_step_raw host_application_impl_correct tt.
 
 End Interpreter_ctx_extract.
 
