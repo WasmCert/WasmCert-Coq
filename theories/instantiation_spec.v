@@ -161,8 +161,6 @@ Definition alloc_data (s: store_record) (m_d: list byte) : store_record * dataad
 Definition alloc_datas (s : store_record) (m_d: list module_data) : store_record * list dataaddr :=
   alloc_Xs alloc_data s (map moddata_init m_d).
 
-(* TODO: lemmas *)
-
 Definition export_get_v_ext (inst : moduleinst) (exp : module_export_desc) : extern_value :=
   (* we circumvent partiality by providing 0 as a default *)
   match exp with
@@ -263,53 +261,6 @@ Definition alloc_module (s : store_record) (m : module) (imps : list extern_valu
 
 Definition dummy_table : tableinst := {| tableinst_elem := nil; tableinst_type := Build_table_type (Build_limits N0 None) T_funcref |}.
 
-(*
-Definition init_tab (s : store_record) (inst : instance) (e_ind : nat) (e : module_element) : store_record :=
-  let t_ind := List.nth (match e.(modelem_table) with Mk_tableidx i => i end) inst.(inst_tables) 0 in
-  let '{|table_data := tab_e; table_max_opt := maxo |} := List.nth t_ind s.(s_tables) dummy_table in
-  let e_pay := List.map (fun i => List.nth_error inst.(inst_funcs) (match i with Mk_funcidx j => j end)) e.(modelem_init) in
-  let tab'_e := List.app (List.firstn e_ind tab_e) (List.app e_pay (List.skipn (e_ind + length e_pay) tab_e)) in
-  {| s_funcs := s.(s_funcs);
-     s_tables := insert_at {| table_data := tab'_e; table_max_opt := maxo |} t_ind s.(s_tables);
-     s_mems := s.(s_mems);
-     s_globals := s.(s_globals) |}.
-
-Definition init_tabs (s : store_record) (inst : instance) (e_inds : list nat) (es : list module_element) : store_record :=
-  List.fold_left (fun s' '(e_ind, e) => init_tab s' inst e_ind e) (List.combine e_inds es) s.
-
-Definition dummy_data_vec :=
-  mem_make Integers.Byte.zero (N.zero).
-
-Definition dummy_mem := {|
-  mem_data := dummy_data_vec;
-  mem_max_opt := None
-|}.
-
-Definition init_mem (s : store_record) (inst : instance) (d_ind : N) (d : module_data) : store_record :=
-  let m_ind := List.nth (match d.(moddata_data) with Mk_memidx i => i end) inst.(inst_memory) 0 in
-  let mem := List.nth m_ind s.(s_mems) dummy_mem in
-  let d_pay := List.map bytes.compcert_byte_of_byte d.(moddata_init) in
-  let mem'_e := List.app (List.firstn d_ind mem.(mem_data).(ml_data)) (List.app d_pay (List.skipn (d_ind + length d_pay) mem.(mem_data).(ml_data))) in
-  let mems' := insert_at {| mem_data := {| ml_data := mem'_e; ml_init := #00 |}; mem_max_opt := mem.(mem_max_opt) |} m_ind s.(s_mems) in
-  {| s_funcs := s.(s_funcs);
-     s_tables := s.(s_tables);
-     s_mems := mems';
-     s_globals := s.(s_globals); |}.
-
-Definition init_mems (s : store_record) (inst : instance) (d_inds : list N) (ds : list module_data) : store_record :=
-  List.fold_left (fun s' '(d_ind, d) => init_mem s' inst d_ind d) (List.combine d_inds ds) s.
- *)
-
-Definition function_type_valid (tf: function_type) : bool := true.
-
-Definition table_type_valid (t: table_type) : bool :=
-  limit_valid_range t.(tt_limits) (N.sub (N.pow 2 32) 1%N).
-
-Definition memory_type_valid (t: memory_type) : bool :=
-  limit_valid_range t (N.pow 2 16).
-
-Definition global_type_valid (g: global_type) : bool := true.
-
 
 Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_type) : Prop :=
   let '{| modfunc_type := x; modfunc_locals := t_locs; modfunc_body := b_es |} := mf in
@@ -331,11 +282,11 @@ Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_
   |} in
   typing.be_typing c' b_es (Tf [::] tm).
 
-Definition module_tab_typing (c: t_context) (t : module_table) : bool :=
-  table_type_valid t.(modtab_type).
+Definition module_table_typing (c: t_context) (t : module_table) : bool :=
+  tabletype_valid t.(modtab_type).
 
 Definition module_mem_typing (c: t_context) (m : module_mem) : bool :=
-  memory_type_valid m.(modmem_type).
+  memtype_valid m.(modmem_type).
 
 Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
   match b_e with
@@ -344,11 +295,10 @@ Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
   | BI_ref_null _ => true
   | BI_ref_func _ => true
   | BI_global_get k =>
-    (k < N.of_nat (length c.(tc_globals))) &&
-    match lookup_N c.(tc_globals) k with
-    | None => false
-    | Some t => t.(tg_mut) == MUT_const
-    end
+      match lookup_N c.(tc_globals) k with
+      | None => false
+      | Some t => t.(tg_mut) == MUT_const
+      end
   | _ => false
   end.
 
@@ -366,7 +316,6 @@ Definition elemmode_valid (c: t_context) (emode: module_elemmode) (t: reference_
   | ME_passive => True
   | ME_active tidx es =>
       exists tabtype,
-      tidx < N.of_nat (length c.(tc_tables)) /\
       lookup_N c.(tc_tables) tidx = Some tabtype /\
       let '{| tt_limits := t_lim; tt_elem_type := rt |} := tabtype in
       rt = t /\
@@ -386,7 +335,6 @@ Definition datamode_valid (c: t_context) (dmode: module_datamode) : Prop :=
   | MD_passive => True
   | MD_active midx es =>
       exists memtype,
-      midx < N.of_nat (length c.(tc_mems)) /\
       lookup_N c.(tc_mems) midx = Some memtype /\
       typing.be_typing c es (Tf nil [::T_num T_i32]) /\
       const_exprs c es
@@ -398,26 +346,19 @@ Definition module_data_typing (c : t_context) (m_d : module_data) : Prop :=
 
 Definition module_start_typing (c : t_context) (ms : module_start) : bool :=
   let x := ms.(modstart_func) in
-  (x < N.of_nat (length c.(tc_funcs))) &&
   match lookup_N c.(tc_funcs) x with
   | None => false
   | Some tf => tf == (Tf nil nil)
   end.
 
-Definition module_import_desc_typing (c : t_context) (d : module_import_desc) (e : extern_type) : bool :=
-  match (d, e) with
-  | (MID_func i, ET_func tf) =>
-    (i < N.of_nat (List.length c.(tc_types))) &&
-    match lookup_N c.(tc_types) i with
-    | None => false
-    | Some tf' => tf == tf'
-    end
-  | (MID_table t_t, ET_table t_t') =>
-    (t_t == t_t') && module_tab_typing c {| modtab_type := t_t |}
-  | (MID_mem mt, ET_mem mt') =>
-    (mt == mt') && module_mem_typing c {| modmem_type := mt |}
-  | (MID_global gt, ET_global gt') => gt == gt'
-  | _ => false
+Definition module_import_desc_typing (c : t_context) (imp_desc : module_import_desc) (e : extern_type) : bool := 
+  match imp_desc with
+  | MID_func i => (option_map ET_func (lookup_N c.(tc_funcs) i) == Some e)
+  | MID_table t_t =>
+      module_table_typing c {| modtab_type := t_t |} == Some e
+  | MID_mem mt =>
+      module_mem_typing c {| modmem_type := mt |} == Some e
+  | MID_global gt => ET_global gt == e
   end.
 
 Definition module_import_typing (c: t_context) (imp: module_import) (e: extern_type) :=
@@ -426,25 +367,21 @@ Definition module_import_typing (c: t_context) (imp: module_import) (e: extern_t
 Definition module_export_desc_typing (c : t_context) (d : module_export_desc) (e : extern_type) : bool :=
   match (d, e) with
   | (MED_func i, ET_func tf) =>
-    (i < N.of_nat (List.length c.(tc_funcs))) &&
     match lookup_N c.(tc_funcs) i with
     | None => false
     | Some tf' => tf == tf'
     end
   | (MED_table i, ET_table t_t) =>
-    (i < N.of_nat (List.length c.(tc_tables))) &&
     match lookup_N c.(tc_tables) i with
     | None => false
     | Some lim' => t_t == lim'
     end
   | (MED_mem i, ET_mem t_m) =>
-    (i < N.of_nat (List.length c.(tc_mems))) &&
     match lookup_N c.(tc_mems) i with
     | None => false
     | Some lim' => t_m == lim' 
     end
   | (MED_global i, ET_global gt) =>
-    (i < N.of_nat (List.length c.(tc_globals))) &&
     match lookup_N c.(tc_globals) i with
     | None => false
     | Some gt' => gt == gt'
@@ -526,10 +463,10 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   let xs := module_filter_funcidx m in
   let c := {|
     tc_types := tfs;
-    tc_funcs := List.app ifts fts;
-    tc_tables := List.app its tts;
-    tc_mems := List.app ims mts;
-    tc_globals := List.app igs gts;
+    tc_funcs := ifts ++ fts;
+    tc_tables := its ++ tts;
+    tc_mems := ims ++ mts;
+    tc_globals := igs ++ gts;
     tc_elems := rts;
     tc_datas := List.repeat tt (length ds);
     tc_locals := nil;
@@ -550,19 +487,17 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
     tc_return := None;
     tc_refs := xs;
   |} in
-  List.Forall function_type_valid tfs /\
+  List.Forall functype_valid tfs /\
   List.Forall2 (module_func_typing c) fs fts /\
   pred_option (module_start_typing c) i_opt /\
   List.Forall2 (module_import_typing c) imps impts /\
   List.Forall2 (module_export_typing c) exps expts /\
-  seq.all (module_tab_typing c') ts /\
+  seq.all (module_table_typing c') ts /\
   seq.all (module_mem_typing c') ms /\
   List.Forall2 (module_glob_typing c') gs gts /\
   List.Forall2 (module_elem_typing c') els rts /\
   List.Forall (module_data_typing c') ds /\
   export_name_unique exps. 
-
-
 
 (** std-doc:
 For the purpose of checking external values against imports, such values are classified by external types. The following auxiliary typing rules specify this typing relation relative to a store S in which the referenced instances live.
@@ -570,22 +505,18 @@ For the purpose of checking external values against imports, such values are cla
 Inductive external_typing : store_record -> extern_value -> extern_type -> Prop :=
 | ETY_func :
   forall (s : store_record) (i : N) cl,
-  i < N.of_nat (List.length s.(s_funcs)) ->
   lookup_N s.(s_funcs) i = Some cl ->
   external_typing s (EV_func i) (ET_func (cl_type cl))
 | ETY_tab :
   forall (s : store_record) (i : N) (ti : tableinst),
-  i < N.of_nat (List.length s.(s_tables)) ->
   lookup_N s.(s_tables) i = Some ti ->
   external_typing s (EV_table i) (ET_table ti.(tableinst_type))
 | ETY_mem :
   forall (s : store_record) (i : N) (m : meminst),
-  i < N.of_nat (List.length s.(s_mems)) ->
   lookup_N s.(s_mems) i = Some m ->
   external_typing s (EV_mem i) (ET_mem m.(meminst_type))
 | ETY_glob :
   forall (s : store_record) (i : N) (g : globalinst),
-  i < N.of_nat (List.length s.(s_globals)) ->
   lookup_N s.(s_globals) i = Some g ->
   external_typing s (EV_global i) (ET_global g.(g_type)).
 
@@ -644,7 +575,7 @@ Definition get_init_expr_data (i: nat) (data: module_data) : list basic_instruct
   match data.(moddata_mode) with
   | MD_passive => nil
   | MD_active midx bes =>
-      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length data.(moddata_init))))); BI_memory_init (N.of_nat i); BI_data_drop (N.of_nat i)]
+      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_zero i32m)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length data.(moddata_init))))); BI_memory_init (N.of_nat i); BI_data_drop (N.of_nat i)]
   end.
 
 Definition get_init_expr_datas (datas: list module_data) : list basic_instruction :=
