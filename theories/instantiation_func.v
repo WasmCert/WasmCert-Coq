@@ -1,12 +1,12 @@
 (** Executable instantiation **)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import opsem interpreter_ctx instantiation_spec.
+From Wasm Require Export opsem interpreter_ctx instantiation_spec.
 From Coq Require Import BinNat.
 
 Section Instantiation_func.
 
-Context `{hfc: host_function_class}.
+Import Interpreter_ctx_extract.
   
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   lookup_N tfs m_f.(modfunc_type).
@@ -28,13 +28,25 @@ Definition module_import_desc_typer (tfs: list function_type) (imp_desc : module
 Definition module_imports_typer (tfs: list function_type) (imps : list module_import) : option (list extern_type) :=
   those (map (fun imp => module_import_desc_typer tfs imp.(imp_desc)) imps).
 
-(* Spec has a mistake? *)
+(* prepass *)
 Definition gather_m_e_type (tts: list table_type) (emode: module_elemmode) : option reference_type :=
   match emode with
   | ME_passive => Some T_funcref
   | ME_active x offset => option_map tt_elem_type (lookup_N tts x)
   | ME_declarative => Some T_funcref
   end.
+
+Definition gather_m_e_types (tts: list table_type) (els: list module_element) : option (list reference_type) :=
+  those (map (fun elem => gather_m_e_type tts elem.(modelem_mode)) els).
+
+Definition gather_m_d_type (mts: list memory_type) (dmode: module_datamode) : option ok :=
+  match dmode with
+  | MD_passive => Some tt
+  | MD_active x offset => option_map (fun _ => tt) (lookup_N mts x)
+  end.
+
+Definition gather_m_d_types (mts: list memory_type) (els: list module_data) : option (list ok) :=
+  those (map (fun data => gather_m_d_type mts data.(moddata_mode)) els).
 
 Definition module_export_typer (C : t_context) (exp : module_export_desc) : option extern_type :=
   match exp with
@@ -45,7 +57,7 @@ Definition module_export_typer (C : t_context) (exp : module_export_desc) : opti
   end.
 
 Definition module_exports_typer (c : t_context) exps :=
-  those (List.map (fun exp => module_export_typer c exp.(modexp_desc)) exps).
+  those (map (fun exp => module_export_typer c exp.(modexp_desc)) exps).
 
 Definition gather_m_g_types (mgs : list module_global) : list global_type :=
   List.map (fun mg => mg.(modglob_type)) mgs.
@@ -71,13 +83,27 @@ Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
     type_checker.b_e_type_checker c' b_es (Tf [::] tm)
   end.
 
-Definition module_tab_type_checker := module_table_typing.
+Definition module_table_type_checker := module_table_typing.
 Definition module_memory_type_checker := module_mem_typing.
 
 Definition module_global_type_checker (c : t_context) (mg : module_global) : bool :=
   let '{| modglob_type := tg; modglob_init := es |} := mg in
   const_exprs c es &&
   type_checker.b_e_type_checker c es (Tf nil [::tg.(tg_t)]).
+
+Definition module_elem_mode_checker (c: t_context) (emode: module_elemmode) (reftype: reference_type): bool :=
+  match emode with
+  | ME_passive => true
+  | ME_active x offset =>
+      match lookup_N c.(tc_tables) x with
+      | Some tab =>
+          (tab.(tt_elem_type) == reftype) &&
+          type_checker.b_e_type_checker c offset (Tf nil [::T_num T_i32]) &&
+            const_exprs c offset
+      | None => false
+      end
+  | ME_declarative => true
+  end.
 
 Definition module_elem_type_checker (c : t_context) (e : module_element) : bool :=
   let '{| modelem_type := t; modelem_init := e_inits; modelem_mode := emode |} := e in
@@ -104,11 +130,6 @@ Definition module_data_type_checker (c : t_context) (d : module_data) : bool :=
 Definition module_start_type_checker (c : t_context) (ms : module_start) : bool :=
   module_start_typing c ms.
 
-Definition gather_m_e_type (tts: list table_type) (elem: module_element) : option refernece_type :=
-  match elem. with
-  | ME_
-
-
 Definition module_type_checker (m : module) : option ((list extern_type) * (list extern_type)) :=
   let '{|
     mod_types := tfs;
@@ -121,7 +142,7 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
     mod_start := i_opt;
     mod_imports := imps;
     mod_exports := exps;
-    |} := m in
+  |} := m in
   match (gather_m_f_types tfs fs, module_imports_typer tfs imps) with
   | (Some fts, Some impts) =>
     let ifts := ext_t_funcs impts in
@@ -129,73 +150,59 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
     let ims := ext_t_mems impts in
     let igs := ext_t_globs impts in
     let gts := gather_m_g_types gs in
-    let rts := gather_
+    let tts := its ++ (map modtab_type ts) in
+    let mts := ims ++ (map modmem_type ms) in
+    match (gather_m_e_types tts els, gather_m_d_types mts ds) with
+    | (Some rts, Some dts) =>
+    let xs := module_filter_funcidx m in
+    let c := {|
       tc_types := tfs;
       tc_funcs := ifts ++ fts;
       tc_globals := igs ++ gts;
-      tc_tables := its ++ (map modtab_type ts);
-      tc_mems := ims ++ (map modmem_type ms);
+      tc_tables := tts;
+      tc_mems := mts;
       tc_elems := rts;
-      tc_datas := List.repeat tt (length ds);
+      tc_datas := dts;
       tc_locals := nil;
       tc_labels := nil;
-      tc_return := None |} in
+      tc_return := None;
+      tc_refs := xs
+            |} in
     let c' := {|
       tc_types := nil;
       tc_funcs := nil;
       tc_globals := igs;
-      tc_tables := nil;
-      tc_mems := nil;
+      tc_tables := tts;
+      tc_mems := mts;
+      tc_elems := rts;
+      tc_datas := dts;
       tc_locals := nil;
       tc_labels := nil;
-      tc_return := None
+      tc_return := None;
+      tc_refs := xs
     |} in
     if seq.all (module_func_type_checker c) fs &&
-       seq.all module_tab_type_checker ts &&
-       seq.all module_memory_type_checker ms &&
+       seq.all (module_table_type_checker c) ts &&
+       seq.all (module_memory_type_checker c) ms &&
        seq.all (module_global_type_checker c') gs &&
-       seq.all (module_elem_type_checker c) els &&
-       seq.all (module_data_type_checker c) ds &&
+       seq.all (module_elem_type_checker c') els &&
+       seq.all (module_data_type_checker c') ds &&
        pred_option (module_start_type_checker c) i_opt then
        match module_exports_typer c exps with
        | Some expts => Some (impts, expts)
        | None => None
        end
     else None
+    | _ => None
+    end
   | (Some _, None) | (None, Some _) | (None, None) => None
   end.
 
-Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_type) : bool :=
-  match (v, e) with
-  | (MED_func (Mk_funcidx i), ET_func tf) =>
-    (i < List.length s.(s_funcs)) &&
-    match lookup_N s.(s_funcs) i with
-    | None => false
-    | Some cl => tf == operations.cl_type cl
-    end
-  | (MED_table (Mk_tableidx i), ET_table tf) =>
-    (i < List.length s.(s_tables)) &&
-    match lookup_N s.(s_tables) i with
-    | None => false
-    | Some ti => typing.tab_typing ti tf
-    end
-  | (MED_mem (Mk_memidx i), ET_mem mt) =>
-    (i < List.length s.(s_mems)) &&
-    match lookup_N s.(s_mems) i with
-    | None => false
-    | Some m => typing.mem_typing m mt
-    end
-  | (MED_global (Mk_globalidx i), ET_global gt) =>
-    (i < List.length s.(s_globals)) &&
-    match lookup_N s.(s_globals) i with
-    | None => false
-    | Some g => typing.global_agree g gt
-    end
-  | (_, _) => false
-  end.
+Definition external_type_checker (s : store_record) (v : extern_value) (e : extern_type) : bool :=
+  typing.ext_typing s v == Some e.
 
-Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
-  match run_multi_step_raw 5 s (Build_frame [::] inst) (operations.to_e_list b_es) 1 with
+Definition interp_get_v (s : store_record) (f : frame) (b_es : list basic_instruction) : option value :=
+  match run_multi_step_raw 5 s f (operations.to_e_list b_es) 1 with
   | inr vs =>
     match vs with
     | [:: v] => Some v
@@ -204,50 +211,70 @@ Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_
   | _ => None
   end.
 
-Definition interp_get_i32 (s : store_record) (inst : instance) (b_es : list basic_instruction) : option i32 :=
-  match interp_get_v s inst b_es with
-  | Some (VAL_int32 c) => Some c
+Definition interp_get_vref (s : store_record) (f: frame) (b_es : list basic_instruction) : option value_ref :=
+  match interp_get_v s f b_es with
+  | Some (VAL_ref vref) => Some vref
   | _ => None
   end.
 
-(* Executable version of instantiation for extraction adapted from Isabelle; unverified yet *)
-Definition interp_instantiate (s : store_record) (m : module) (v_imps : list v_ext) : option ((store_record * instance * list module_export) * option nat) :=
+Definition interp_get_i32 (s : store_record) (f: frame) (b_es : list basic_instruction) : option i32 :=
+  match interp_get_v s f b_es with
+  | Some (VAL_num (VAL_int32 c)) => Some c
+  | _ => None
+  end.
+
+(*
+Definition instantiate (s : store_record) (m : module) (v_imps : list extern_value)
+                       (z : (store_record * frame * list basic_instruction)) : Prop :=
+  let '(s_end, f, bes) := z in
+  exists t_imps_mod t_imps t_exps hs' s' inst g_inits r_inits,
+    module_typing m t_imps_mod t_exps /\
+    List.Forall2 (external_typing s) v_imps t_imps /\
+    List.Forall2 import_subtyping t_imps t_imps_mod /\
+    alloc_module s m v_imps g_inits r_inits (s', inst) /\
+    let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globs v_imps) nil nil nil in
+    let f_init := Build_frame nil inst_init in
+    instantiate_globals f_init hs' s' m g_inits /\
+    instantiate_elems f_init hs' s' m r_inits /\
+    f = Build_frame nil inst /\
+      bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
+ *)
+
+Definition get_global_inits (s: store_record) (f: frame) (gs: list module_global) : option (list value):=
+  those (map (fun g => interp_get_v s f g.(modglob_init)) gs).
+
+Definition get_elem_inits (s: store_record) (f: frame) (els: list module_element) : option (list (list value_ref)):=
+  those (map (fun el => those (map (fun e => interp_get_vref s f e) el.(modelem_init))) els).
+
+Definition interp_instantiate (s : store_record) (m : module) (v_imps : list extern_value) : option ((store_record * frame * list basic_instruction)) :=
   match module_type_checker m with
   | None => None
   | Some (t_imps, t_exps) =>
-    if seq.all2 (external_type_checker s) v_imps t_imps then
-      let g_inits_opt :=
-        let c := {|
-          inst_types := nil;
-          inst_funcs := nil;
-          inst_tab := nil;
-          inst_memory := nil;
-          inst_globs := List.map (fun '(Mk_globalidx i) => i) (ext_globs v_imps);
-        |} in
-        those (map (fun g => interp_get_v s c g.(modglob_init)) m.(mod_globals)) in
-      match g_inits_opt with
-      | None => None
-      | Some g_inits =>
-        let '(s', inst, v_exps) := interp_alloc_module s m v_imps g_inits in
-        let e_offs_opt := those (map (fun e => interp_get_i32 s' inst e.(modelem_offset)) m.(mod_elem)) in
-        match e_offs_opt with
+      if all2 (external_type_checker s) v_imps t_imps then
+        let inst_init :=
+          {|
+            inst_types := nil;
+            inst_funcs := (ext_funcs v_imps) ++ (map N.of_nat (iota (length (s_funcs s)) (length (mod_funcs m))));
+            inst_tables := nil;
+            inst_mems := nil;
+            inst_globals := ext_globs v_imps;
+            inst_elems := nil;
+            inst_datas := nil;
+            inst_exports := nil;
+          |} in
+        let f_init := Build_frame nil inst_init in
+        match get_global_inits s f_init m.(mod_globals) with
         | None => None
-        | Some e_offs =>
-          let d_offs_opt := those (map (fun d => interp_get_i32 s' inst d.(moddata_offset)) m.(mod_data)) in
-          match d_offs_opt with
-          | None => None
-          | Some d_offs =>
-            if check_bounds_elem inst s' m e_offs &&
-               check_bounds_data inst s' m d_offs then
-              let start : option nat := operations.option_bind (fun i_s => lookup_N inst.(inst_funcs) (match i_s.(modstart_func) with Mk_funcidx i => i end)) m.(mod_start) in
-              let s'' := init_tabs s' inst (List.map nat_of_int e_offs) m.(mod_elem) in
-              let s_end := init_mems s'' inst (List.map N_of_int d_offs) m.(mod_data) in
-              Some ((s_end, inst, v_exps), start)
-            else None
-          end
+        | Some g_inits =>
+            match get_elem_inits s f_init m.(mod_elems) with
+            | Some r_inits =>
+                let '(s', inst_final) := interp_alloc_module s m v_imps g_inits r_inits in
+                let f_final := Build_frame nil inst_final in
+                Some (s', f_final, get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start))
+            | None => None
+            end
         end
-      end
-    else None
+      else None
   end.
 
 Definition empty_store_record : store_record := {|
@@ -255,16 +282,18 @@ Definition empty_store_record : store_record := {|
     s_tables := nil;
     s_mems := nil;
     s_globals := nil;
+    s_elems := nil;
+    s_datas := nil;
   |}.
 
 (* Add an empty host and provide an initial empty store *)
-Definition interp_instantiate_wrapper (m : module) : option ((host_state * store_record * instance * list module_export) * option nat) :=
+Definition interp_instantiate_wrapper (m : module) : option ((host_state * store_record * moduleinst * list module_export) * option nat) :=
   match interp_instantiate empty_store_record m nil with
   | Some ((s, i, es), on) => Some ((tt, s, i, es), on)
   | None => None
   end.
 
-Definition lookup_exported_function (n : name) (store_inst_exps : host_state * store_record * instance * list module_export)
+Definition lookup_exported_function (n : name) (store_inst_exps : host_state * store_record * moduleinst * list module_export)
     : option (host_state * store_record * frame * seq administrative_instruction) :=
   let '(hs, s, inst, exps) := store_inst_exps in
   List.fold_left
@@ -295,13 +324,13 @@ Module Instantiation_func_extract.
 Import interpreter_func.EmptyHost.
 
 Definition lookup_exported_function :
-    name -> host_state * store_record * instance * seq module_export ->
+    name -> host_state * store_record * moduleinst * seq module_export ->
     option (host_state * store_record * frame * seq administrative_instruction) :=
   lookup_exported_function.
 
 Definition interp_instantiate_wrapper :
   module ->
-  option (host_state * store_record * instance * seq module_export * option nat) :=
+  option (host_state * store_record * moduleinst * seq module_export * option nat) :=
   interp_instantiate_wrapper.
 
 End Instantiation_func_extract.

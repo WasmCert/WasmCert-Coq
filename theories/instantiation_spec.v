@@ -98,14 +98,14 @@ Definition add_mem (s : store_record) (m_m : meminst) : store_record := {|
   s_datas := s.(s_datas);
 |}.
 
-Definition alloc_mem (s : store_record) (m_m : module_mem) : store_record * memaddr :=
-  let '{| modmem_type := {| lim_min := min; lim_max := maxo |} |} := m_m in
+Definition alloc_mem (s : store_record) (m_mt : memory_type) : store_record * memaddr :=
+  let '{| lim_min := min; lim_max := maxo |} := m_mt in
   let memaddr := N.of_nat (List.length s.(s_mems)) in
-  let meminst := mem_mk m_m.(modmem_type) in
+  let meminst := mem_mk m_mt in
   (add_mem s meminst, memaddr).
 
-Definition alloc_mems (s : store_record) (m_ms : list module_mem) : store_record * list memaddr :=
-  alloc_Xs alloc_mem s m_ms.
+Definition alloc_mems (s : store_record) (m_mts : list memory_type) : store_record * list memaddr :=
+  alloc_Xs alloc_mem s m_mts.
 
 Definition add_glob (s : store_record) (m_g : globalinst) : store_record := {|
   s_funcs := s.(s_funcs);
@@ -242,20 +242,20 @@ Definition alloc_module (s : store_record) (m : module) (imps : list extern_valu
     (s'_inst : store_record * moduleinst) : bool :=
   let '(s'_goal, inst) := s'_inst in
   let '(s1, i_fs) := alloc_funcs s m.(mod_funcs) inst in
-  let '(s2, i_ts) := alloc_tabs s1 (List.map (fun t => t.(modtab_type)) m.(mod_tables)) in
-  let '(s3, i_ms) := alloc_mems s2 m.(mod_mems) in
+  let '(s2, i_ts) := alloc_tabs s1 (map modtab_type m.(mod_tables)) in
+  let '(s3, i_ms) := alloc_mems s2 (map modmem_type m.(mod_mems)) in
   let '(s4, i_gs) := alloc_globs s3 m.(mod_globals) gvs in
   let '(s5, i_es) := alloc_elems s4 m.(mod_elems) rvs in
   let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in
   (s'_goal == s') &&
   (inst.(inst_types) == m.(mod_types)) &&
-  (inst.(inst_funcs) == (List.app (ext_funcs imps) i_fs)) &&
-  (inst.(inst_tables) == (List.app (ext_tabs imps) i_ts)) &&
-  (inst.(inst_mems) == (List.app (ext_mems imps) i_ms)) &&
-  (inst.(inst_globals) == (List.app (ext_globs imps) i_gs)) &&
+  (inst.(inst_funcs) == ((ext_funcs imps) ++ i_fs)) &&
+  (inst.(inst_tables) == ((ext_tabs imps) ++ i_ts)) &&
+  (inst.(inst_mems) == ((ext_mems imps) ++ i_ms)) &&
+  (inst.(inst_globals) == ((ext_globs imps) ++ i_gs)) &&
   (inst.(inst_elems) == i_es) &&
   (inst.(inst_datas) == i_ds) &&
-  (inst.(inst_exports) == (List.map (get_exportinst
+  (inst.(inst_exports) == (map (get_exportinst
                                          (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil))
                                m.(mod_exports))).
 
@@ -477,8 +477,8 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   let c' := {|
     tc_types := nil;
     tc_funcs := c.(tc_funcs);
-    tc_tables := nil;
-    tc_mems := nil;
+    tc_tables := c.(tc_tables);
+    tc_mems := c.(tc_mems);
     tc_globals := igs;
     tc_elems := c.(tc_elems);
     tc_datas := c.(tc_datas);
@@ -502,24 +502,8 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
 (** std-doc:
 For the purpose of checking external values against imports, such values are classified by external types. The following auxiliary typing rules specify this typing relation relative to a store S in which the referenced instances live.
 *)
-Inductive external_typing : store_record -> extern_value -> extern_type -> Prop :=
-| ETY_func :
-  forall (s : store_record) (i : N) cl,
-  lookup_N s.(s_funcs) i = Some cl ->
-  external_typing s (EV_func i) (ET_func (cl_type cl))
-| ETY_tab :
-  forall (s : store_record) (i : N) (ti : tableinst),
-  lookup_N s.(s_tables) i = Some ti ->
-  external_typing s (EV_table i) (ET_table ti.(tableinst_type))
-| ETY_mem :
-  forall (s : store_record) (i : N) (m : meminst),
-  lookup_N s.(s_mems) i = Some m ->
-  external_typing s (EV_mem i) (ET_mem m.(meminst_type))
-| ETY_glob :
-  forall (s : store_record) (i : N) (g : globalinst),
-  lookup_N s.(s_globals) i = Some g ->
-  external_typing s (EV_global i) (ET_global g.(g_type)).
-
+Definition external_typing (s: store_record) (e: extern_value) (t: extern_type) :=
+  ext_typing s e = Some t.
 
 Definition instantiate_globals f (hs : host_state) (s' : store_record) m (g_inits: list value) : Prop :=
   List.Forall2 (fun g v =>
@@ -595,10 +579,10 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list extern_val
     List.Forall2 (external_typing s) v_imps t_imps /\
     List.Forall2 import_subtyping t_imps t_imps_mod /\
     alloc_module s m v_imps g_inits r_inits (s', inst) /\
-    let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil inst.(inst_globals) nil nil nil in
+    let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globs v_imps) nil nil nil in
     let f_init := Build_frame nil inst_init in
-    instantiate_globals f hs' s' m g_inits /\
-    instantiate_elems f hs' s' m r_inits /\
+    instantiate_globals f_init hs' s' m g_inits /\
+    instantiate_elems f_init hs' s' m r_inits /\
     f = Build_frame nil inst /\
       bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
 
@@ -611,18 +595,17 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list exte
   let i_ds := List.map N.of_nat (seq.iota (List.length s.(s_datas)) (List.length m.(mod_datas))) in
   let inst := {|
     inst_types := m.(mod_types);
-    inst_funcs := (List.app (ext_funcs imps) i_fs);
-    inst_tables := (List.app (ext_tabs imps) i_ts);
-    inst_mems := (List.app (ext_mems imps) i_ms);
-    inst_globals := (List.app (ext_globs imps) i_gs);
+    inst_funcs := (ext_funcs imps ++ i_fs);
+    inst_tables := (ext_tabs imps ++ i_ts);
+    inst_mems := (ext_mems imps ++ i_ms);
+    inst_globals := (ext_globs imps ++ i_gs);
     inst_elems := (i_es);
     inst_datas := (i_ds);
-                inst_exports := (List.map (get_exportinst
-                                             (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil)) m.(mod_exports))
+    inst_exports := (map (get_exportinst (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil)) m.(mod_exports))
   |} in
   let '(s1, _) := alloc_funcs s m.(mod_funcs) inst in
-  let '(s2, _) := alloc_tabs s1 (List.map (fun t => t.(modtab_type)) m.(mod_tables)) in
-  let '(s3, _) := alloc_mems s2 m.(mod_mems) in
+  let '(s2, _) := alloc_tabs s1 (map modtab_type m.(mod_tables)) in
+  let '(s3, _) := alloc_mems s2 (map modmem_type m.(mod_mems)) in
   let '(s4, i_gs) := alloc_globs s3 m.(mod_globals) gvs in
   let '(s5, i_es) := alloc_elems s4 m.(mod_elems) rvs in
   let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in

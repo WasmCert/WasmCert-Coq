@@ -1924,7 +1924,7 @@ End Host.
 (** Extraction **)
 Module Interpreter_ctx_extract.
 
-Import DummyHost.
+Export DummyHost.
 
 Definition run_one_step_ctx := run_one_step_ctx host_application_impl_correct.
 
