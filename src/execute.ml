@@ -48,15 +48,7 @@ module TopHost = Host
 
 open Host
 open Interpreter
-(*
-let config_tuple_patch cfg =
-  let ((s, f), es) = cfg in
-  (((Obj.magic s, s), f), es)
 
-let config_tuple_patch_flat cfg =
-  let ((s, f), es) = cfg in
-  (Obj.magic s, s, f, es)
-*)
 (* read-eval-print loop; work in progress *)
 let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
@@ -73,14 +65,15 @@ let tuple_drop_hs res =
   match res with
   | (((_, s), f), r) -> ((s, f), r)
 
+(*
 let take_step verbosity _i cfg =
-  let ((s, _), _)  = (*Convert.from_triple*) cfg in
   let res = run_step_compat cfg in
-  let ((s', _), _)  = (*Convert.from_triple*) res in
+  (*
   let store_status = if s = s' then "unchanged" else "changed" in
   debug_info result verbosity (fun _ ->
     Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store (tuple_drop_hs res)) store_status) ;
-  match (*Convert.from_triple*) res with
+  *)
+  match res with
   | ((_, _), Extract.RS_crash _) ->
     debug_info result verbosity ~style:red (fun _ -> "crash:") ;
     debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
@@ -96,6 +89,7 @@ let take_step verbosity _i cfg =
     pure ((s', vs'), es)
 
 let repl verbosity sies (name : string) =
+  error ("unimplemented")
   LNoise.set_hints_callback (fun line ->
       (* FIXME: Documentation is needed here. I don’t know what these lines do. *)
       if line <> "git remote add " then None
@@ -139,171 +133,93 @@ let repl verbosity sies (name : string) =
          pure cfg)
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
     |> (fun cb -> user_input "> " cb cfg0)
+*)
 
-let interpret verbosity error_code_on_crash sies (name: string) =
+let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
- (* let print_exhaustion gen = 
-    debug_info verbosity intermediate ~style:bold
-      (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in*)
-  let* cfg0 =
-    TopHost.from_out (
-      ovpending verbosity stage "interpreting" (fun _ ->
-        match lookup_exported_function name sies with
-        | None -> Error ("unknown function `" ^ name ^ "`")
-        | Some cfg0 -> OK cfg0)) in
-  let rec eval_cfg gen cfg =
-   (* if (gen >= max_steps) then 
-      (print_exhaustion gen;
-      debug_info verbosity result ~style:bold (fun _ -> "fuel exhaustion\n");
-      pure None)
-    else *)
-      (let cfg_res = run_step_compat cfg in
+  let (((hs, s), f_invocation), es_invocation) = hsfes in
+  
+  let rec eval_cfg gen hs cfg =
+      (let cfg_res = run_step_compat hs cfg in
       print_step_header gen ;
       debug_info verbosity intermediate
-        (fun _ -> pp_res_tuple_except_store (tuple_drop_hs cfg_res));
-      debug_info_span verbosity intermediate intermediate
-        (fun () ->
-          let (((_, s), _), _) = cfg in
-          let (((_, s'), _), _) = cfg_res in
-          let store_status = if s = s' then "unchanged" else "changed" in
-          Printf.sprintf "and store %s\n" store_status);
-      debug_info verbosity store
-        (fun () ->
-          let (((_, s'), _), _) = cfg_res in
-          Printf.sprintf "and store\n%s" (pp_store 1 s'));
+        (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
       match cfg_res with
-      | (_, RS_crash _) ->
-        wait_message verbosity;
-        debug_info verbosity result ~style:red (fun _ -> "crash\n");
+      | RSC_normal (hs', cfg') ->
+        Printf.printf "\nReforming the configuration for the next step...\n";
+        begin match run_step_cfg_ctx_reform cfg' with
+        | Some cfg_next -> 
+            eval_cfg (gen+1) hs' cfg_next
+        | None ->
+          debug_info verbosity stage ~style:red (fun _ -> "Reformation failure\n");
+          pure None
+        end
+      | RSC_value (hs, s, vs) ->
+        debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+        pure (Some (hs, s, vs))
+      | RSC_value_frame (hs, s, vs, _, _) ->
+        debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+        pure (Some (hs, s, vs))
+      | RSC_invalid ->
+        debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
         pure None
-      | (_, RS_break _) ->
-        wait_message verbosity;
-        debug_info verbosity result ~style:bold (fun _ -> "break\n");
+      | RSC_error ->
+        debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
         pure None
-      | (_, RS_return vs) ->
-        wait_message verbosity;
-        debug_info verbosity result ~style:green (fun _ -> "return");
-        debug_info verbosity result (fun _ -> Printf.sprintf " %s\n" (pp_values vs));
-        pure (Some vs)
-      | (((hs', s'), vs'), RS_normal es) ->
-        begin match is_const_list es with
-        | Some vs -> 
-          debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
-          pure (Some vs)
-        | None -> eval_cfg (gen + 1) ((((hs', s'), vs'), es))
-        end) in
-
-  debug_info verbosity result ~style:yellow (fun _ -> "Context optimisation disabled\n");
-  print_step_header 0 ;
+      )
+    in
   debug_info verbosity intermediate (fun _ ->
-    Printf.sprintf "\n%s\n" (pp_config_tuple_except_store (tuple_drop_hs cfg0)));
-  let* res = eval_cfg 1 cfg0 in
-  debug_info_span verbosity result stage (fun _ ->
-    match res with
-    | Some vs -> pp_values vs
-    | None -> "");
-  if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
-  else pure ()
-
-  (*
-module Interpreter_ctx_extract :
- sig
-  val host_application_impl :
-    Equality.sort -> EmptyHost.store_record -> function_type -> Equality.sort
-    -> value list -> Equality.sort * (EmptyHost.store_record * result) option
-
-  val run_one_step_ctx : Equality.sort -> cfg_tuple_ctx -> run_step_ctx_result
-
-  val run_step_cfg_ctx_reform : cfg_tuple_ctx -> cfg_tuple_ctx option
-
-  val run_v_init :
-    Equality.sort store_record -> administrative_instruction list ->
-    cfg_tuple_ctx option
-
-  val es_of_cfg : cfg_tuple_ctx -> administrative_instruction list
- end
- *)
-
-include Extract.Interpreter_ctx_extract
-
-  let interpret_ctx verbosity error_code_on_crash sies (name: string) =
-    let print_step_header gen =
-      debug_info verbosity intermediate ~style:bold
-        (fun () -> Printf.sprintf "step %d:\n" gen) in
-   (* let print_exhaustion gen = 
-      debug_info verbosity intermediate ~style:bold
-        (fun () -> Printf.sprintf "step %d: \n Execution halted due to fuel exhaustion\n" gen) in*)
-    let* cfg0 =
-      TopHost.from_out (
-        ovpending verbosity stage "interpreting" (fun _ ->
-          match lookup_exported_function name sies with
-          | None -> Error ("unknown function `" ^ name ^ "`")
-          | Some cfg0 -> OK cfg0)) in
-    let rec eval_cfg gen (hs: Extract.Equality.sort) (cfg: Extract.cfg_tuple_ctx) =
-      (let run_step_res = run_one_step_ctx hs cfg in
-        print_step_header gen ;
-        match run_step_res with
-        | Extract.RSC_error ->
-          wait_message verbosity;
-          debug_info verbosity result ~style:red (fun _ -> "crash_error\n");
-          pure None
-        | Extract.RSC_invalid ->
-          wait_message verbosity;
-          debug_info verbosity result ~style:red (fun _ -> "crash_invalid\n");
-          pure None
-        | Extract.RSC_value vs ->
-          debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
-          pure (Some vs)
-        | Extract.RSC_normal (hs_res, cfg_res) ->
-          debug_info verbosity intermediate
-          (fun () -> pp_es (es_of_cfg cfg_res)); 
-          debug_info verbosity intermediate
-          (fun () -> 
-            let (((s, _), _), _) = cfg in
-            let (((s', _), _), _) = cfg_res in 
-            let store_status = if s = s' then "unchanged" else "changed" in
-              Printf.sprintf "and store %s\n" store_status
-            ); 
-          debug_info verbosity store
-          (fun () ->
-            let (((s', _), _), _) = cfg_res in
-              Printf.sprintf "and store\n%s" (pp_store 1 s'));
-          (match run_step_cfg_ctx_reform cfg_res with
-          | Some cfg_res' -> eval_cfg (gen + 1) hs_res cfg_res'
-          | None -> pure None
-          )
-        ) in
-    print_step_header 0 ;
-
-    let (((hs, s), _), es) = cfg0 in
-    debug_info verbosity intermediate
-    (fun () -> pp_es es); 
-
-    let cfg_init = run_v_init s es in
-    (match cfg_init with
-    | Some cfg_init' ->
-      let* res = eval_cfg 0 hs cfg_init' in
-      (debug_info_span verbosity result stage (fun _ ->
-        match res with
-        | Some vs -> pp_values vs
-        | None -> ""
-        );
+    Printf.sprintf "\nPost-instantiation initialisation stage...\n");
+  
+  match run_v_init_with_frame s f_invocation O es_invocation with
+  | Some cfg_invocation -> 
+    let* res = eval_cfg 1 hs cfg_invocation in
+    begin match res with
+    | Some (hs', s', vs') ->
+      debug_info verbosity intermediate (fun _ ->
+      Printf.sprintf "\nInstantiation success\n");
+      let* es_init =
+        TopHost.from_out (
+          ovpending verbosity stage "interpreting" (fun _ ->
+            match lookup_exported_function name s f_invocation with
+            | None -> Error ("unknown function `" ^ name ^ "`")
+            | Some es_init -> OK es_init)
+            ) in
+      begin match run_v_init_with_frame s' Extract.empty_frame O es_init with
+      | Some cfg_init -> 
+        print_step_header 0 ;
+        debug_info verbosity intermediate (fun _ ->
+          Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store cfg_init));
+        let* res = eval_cfg 1 hs' cfg_init in
+        debug_info_span verbosity result stage (fun _ ->
+          match res with
+          | Some (_, _, vs) -> pp_values vs
+          | None -> "");
         if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
         else pure ()
-      )
-    | None -> debug_info verbosity result ~style:red (fun _ -> "invalid starting es\n"); exit 1
-    )
+      | None -> Printf.printf "Unable to construct initial configuration for named function";
+      pure ()
+      end
+    | None -> Printf.printf "Invocation failed"; pure ()
+    end
+  | None -> Printf.printf "Unable to construct initial configuration for invocation"; pure ()
+
+
+
+
+
+  
 
 (* TODO: update the interactive to use the context-optimised version as well *)
 let instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m name =
-  let* store_inst_exps =
+  let* hs_s_f_es =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
         match interp_instantiate_wrapper m with
         | None -> Error "instantiation error"
-        | Some (store_inst_exps, _) -> OK store_inst_exps)) in
-  if interactive then repl verbosity store_inst_exps name
+        | Some hs_s_f_es -> OK hs_s_f_es)) in
+  (*if interactive then repl verbosity store_inst_exps name
   else if no_ctx_optimise then interpret verbosity error_code_on_crash store_inst_exps name
-  else interpret_ctx verbosity error_code_on_crash store_inst_exps name
+  else*) invocation_interpret verbosity error_code_on_crash hs_s_f_es name

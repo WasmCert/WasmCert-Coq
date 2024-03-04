@@ -117,15 +117,6 @@ Defined.
 Parameter host_apply : store_record -> function_type -> host_function -> seq value ->
                        host_event (option (store_record * result)).
 
-#[export]
-Instance host_instance : host.
-Proof.
-  by refine {|
-      host_state := unit_eqType ;
-      host_application _ _ _ _ _ _ _ := False
-    |}.
-Defined.
-
 End Executable_Host.
 
 (** Such a module can easily be converted into an [executable_host] definition. **)
@@ -165,7 +156,7 @@ From ExtLib Require Import IdentityMonad.
 (** This host provides no function. **)
 
 Module DummyHost <: Executable_Host.
-  
+
 Definition host_function := void.
 Definition host_event := ident.
 Definition host_ret := @ret _ Monad_ident.
@@ -179,6 +170,8 @@ Instance hfc: host_function_class.
 Proof.
   exact (Build_host_function_class host_function_eq_dec).
 Defined.
+
+Definition store_record :Type := store_record.
 
 Definition host_apply (_ : store_record) (_ : function_type) :=
   of_void (seq value -> ident (option (store_record * result))).

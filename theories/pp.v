@@ -4,7 +4,7 @@ Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
-Require Import bytes_pp datatypes interpreter_ctx.
+Require Export bytes_pp datatypes interpreter_ctx.
 Require Import BinNat.
 Require Import ansi list_extra.
 
@@ -12,7 +12,7 @@ Open Scope string_scope.
 
 Section Host.
 
-Context `{hfc: host_function_class}.
+Context `{ho: host}.
   
 Variable show_host_function : host_function -> string.
 
@@ -469,7 +469,7 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
     (* TODO: inst? *)
     indent n (with_fg ae_style "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline) ++
     pp_administrative_instructions (n.+1) es ++
-    indent n (with_fg ae_style "end local" ++ newline)
+    indent n (with_fg ae_style "end frame" ++ newline)
   end.
 
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
@@ -513,6 +513,24 @@ Definition pp_config_tuple_except_store (cfg : store_record * frame * list admin
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
+Definition pp_cfg_tuple_ctx_except_store (cfg: cfg_tuple_ctx) : string :=
+  let '(s, ccs, sc, oe) := cfg in
+  pp_administrative_instructions 0 (ccs ⦃ sc ⦃ olist oe ⦄ ⦄).
+
+Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) : string :=
+  match res with
+  | RSC_normal hs' cfg' _ =>
+      "Reduction to:" ++ newline ++ pp_cfg_tuple_ctx_except_store cfg' ++ newline
+  | RSC_value _ _ vs _ _ _ =>
+      "Value:" ++ newline ++ pp_values vs ++ newline
+  | RSC_value_frame _ _ vs _ _ _ _ _ =>
+      "Value (f):" ++ newline ++ pp_values vs ++ newline
+  | RSC_invalid _ =>
+      "Invalid context. This should not happen when executing a module start function. Please report a bug if this error arises during invocation of module start functions." ++ newline
+  | RSC_error _ =>
+      "Ill-typed input configuration"
+  end.
+
 End Host.
 
 (** As-is, [eqType] tends not to extract well.
@@ -527,7 +545,9 @@ Definition pp_values := pp_values.
 
 Definition pp_store := pp_store.
 
-Definition pp_config_tuple_except_store := pp_config_tuple_except_store.
+Definition pp_cfg_tuple_ctx_except_store := pp_cfg_tuple_ctx_except_store.
+
+Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) := pp_res_cfg_except_store res.
 
 Definition pp_administrative_instructions := pp_administrative_instructions.
 

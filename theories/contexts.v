@@ -91,7 +91,9 @@ Proof.
 Defined.
 
 
-(* Frame context: rev FC_val ++ [::AI_frame FC_arity FC_frame [_]) ++ FC_post *)
+(* Frame context: rev FC_val ++ [::AI_frame FC_arity FC_frame [_]) ++ FC_post 
+   Note that the outermost frame  is technically only a framestate as stated in the 2.0 spec.
+*)
 Record frame_ctx: Type :=
   { FC_val: list value;
     FC_arity: nat;
@@ -122,7 +124,6 @@ Proof.
   eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
   by apply r_frame.
 Defined.
-
 
 (* A general instance for lists of evaluation contexts *)
 
@@ -250,12 +251,12 @@ Proof.
     by apply (list_label_ctx_eval.(ctx_reduce)).
 Defined.
 
-(* A configuration is now represented as (S; ctxs ⦃ sc ⦃ option e ⦄ ⦄), with the hole holding at most one instruction which needs to be non-constant.
-   Note that no frame is held in the tuple, since all frames should have been pushed into the local contexts.
+(* A configuration is now represented as (S; ⦃ ctxs ⦃ sc ⦃ option e ⦄ ⦄), with the hole holding at most one instruction which needs to be non-constant.
+   Note that no frame is held in the tuple, since all frames should been pushed into the local contexts. The validity predicate later asserts that the length of the closure contexts stack must be at least one, and the outermost context must not have any continuations or operands.
    The contexts are represented in a reversed stack-like structure: the head of each list is the innermost context.
    The hole is allowed to be empty (in which case the inner context is then exitted on the next step). However, the sequence context sc should not hold any
    non-empty instruction in the continuation. *)
-Definition cfg_tuple_ctx: Type := store_record * list closure_ctx * seq_ctx * option administrative_instruction.
+Definition cfg_tuple_ctx: Type := store_record * (list closure_ctx) * seq_ctx * option administrative_instruction.
 
 Definition valid_hole (e: administrative_instruction) : bool :=
   (negb (is_const e)) &&
@@ -270,16 +271,29 @@ Definition valid_split (sc: seq_ctx) oe: bool :=
   | Some e => valid_hole e
   | None => snd sc == nil
   end.
-
+(*
 Definition oe_noframe (oe: option administrative_instruction) :=
   match oe with
   | None
   | Some (AI_invoke _) => true
   | _ => false
   end.
+ *)
 
-Definition valid_ccs (ccs: list closure_ctx) (oe: option administrative_instruction): bool :=
-  (ccs != nil) || (oe_noframe oe).
+Definition valid_ccs (ccs: list closure_ctx): bool :=
+  match ccs with
+  | nil => false
+  | cc0 :: _ =>
+      let '(fc, lcs) := last cc0 ccs in
+      (fc.(FC_val) == nil) && (fc.(FC_post) == nil)
+  end.
+
+Lemma valid_ccs_change_labs fc labs labs' ccs:
+  valid_ccs ((fc, labs) :: ccs) ->
+  valid_ccs ((fc, labs') :: ccs).
+Proof.
+  by destruct ccs => /=.
+Qed.
 
 (* The canonical form of a context config tuple: 
    - The ves split has to be valid;
@@ -288,7 +302,7 @@ Definition valid_ccs (ccs: list closure_ctx) (oe: option administrative_instruct
 Definition valid_cfg_ctx (cfg: cfg_tuple_ctx) : Prop :=
   match cfg with
   | (_, cc, sc, oe) =>
-      valid_ccs cc oe /\ valid_split sc oe
+      valid_ccs cc /\ valid_split sc oe
   end.
 
 Definition olist {T: Type} (ot: option T) : list T :=
@@ -321,9 +335,9 @@ Proof.
   done.
 Qed.
 
-(* Placeholder so that ctx_decompose can be useful for instructions without the outer frame, although not the
-   intended purpose *)
-Definition empty_frame_ctx := Build_frame_ctx nil 0 empty_frame nil.
+(* Convert frame state to frame context *)
+Definition to_frame_ctx (f: frame) (n: nat) :=
+  Build_frame_ctx nil n f nil.
 
 (* Tail recursive version of split_vals_e, also producing the reversed vs list used in the contexts *)
 Fixpoint split_vals'_aux (ves: list administrative_instruction) (acc: list value) : (list value) * (list administrative_instruction) :=
@@ -384,33 +398,34 @@ Proof.
     by rewrite cats0 revK.
 Qed.
 
-Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list closure_ctx)) {measure (fun '(ves, acc) => ais_measure ves)} : option (list closure_ctx * seq_ctx * option administrative_instruction) :=
-  let '(ves, acc) := ves_acc in
+Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list closure_ctx)) {measure (fun '(ves, ccs) => ais_measure ves)} : option (list closure_ctx * seq_ctx * option administrative_instruction) :=
+  let '(ves, ccs) := ves_acc in
   match split_vals' ves with
   | (vs, es) =>
       match es with
-      | nil => Some (acc, (vs, nil), None)
+      | nil => Some (ccs, (vs, nil), None)
       | e :: es' =>
           match e with
           | AI_label k ces es =>
-              match acc with
+              match ccs with
               | nil => None
-              | (fc, lcs) :: ccs' => ctx_decompose_aux (es, (fc, (Build_label_ctx vs k ces es') :: lcs) :: ccs')
+              | (fc, lcs) :: ccs' =>
+                  ctx_decompose_aux (es, (fc, (Build_label_ctx vs k ces es') :: lcs) :: ccs')
               end
           | AI_frame k f es =>
-              ctx_decompose_aux (es, (Build_frame_ctx vs k f es', nil) :: acc)
+              ctx_decompose_aux (es, (Build_frame_ctx vs k f es', nil) :: ccs)
           | _ => (* In this case, we know that e cannot be const due to a lemma *)
-              Some (acc, (vs, es'), Some e)
+              Some (ccs, (vs, es'), Some e)
           end
       end
   end.
 Proof.
-  { move => [ves acc] ves' acc' vs ? e es' k ces es ?? Hsplit cc ccs fc lcs ?? [? ?]; subst.
+  { move => [ves acc] ves' ccs' vs ? e es' k ces es ?? Hsplit cc ccs fc lcs ?? [? ?]; subst.
     apply split_vals'_spec, split_vals_inv in Hsplit as ->.
     rewrite ais_measure_cat ais_measure_cons /ais_measure => /=.
     by lias.
   }
-  { move => [ves acc] ves' acc' [? ?] vs ? e es' k f ??? Hsplit; subst.
+  { move => [ves acc] ves' ccs' [? ?] vs ? e es' k f ??? Hsplit; subst.
     apply split_vals'_spec, split_vals_inv in Hsplit as ->.
     rewrite ais_measure_cat ais_measure_cons /ais_measure => /=.
     by lias.
@@ -495,10 +510,11 @@ Definition ctx_update (acc: list closure_ctx) (sctx: seq_ctx) (oe: option admini
       end
   end.
 
+
 Lemma ctx_decompose_valid_ccs_aux: forall ves acc ccs sctx oe,
-    acc != nil ->
+    valid_ccs acc ->
     ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
-    valid_ccs ccs oe.
+    valid_ccs ccs.
 Proof.
   move => ves.
   remember (ais_measure ves) as m.
@@ -509,7 +525,7 @@ Proof.
   rewrite ctx_decompose_aux_equation in Hdecomp.
   destruct (split_vals' ves) as [vs es] eqn:Hsplit.
   apply split_vals'_spec in Hsplit.
-  destruct es as [ | e es']; first by injection Hdecomp as <- <- <-; unfold valid_ccs; apply/orP; right.
+  destruct es as [ | e es']; first by injection Hdecomp as <- <- <-; unfold valid_ccs.
   destruct e as
     [ b
     |
@@ -518,12 +534,14 @@ Proof.
     | addr
     | n ces es
     | n f es
-    ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_ccs; apply/orP; left).
+    ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_ccs).
   - destruct acc as [ | [fc lcs] ccs'] => //.
     eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
-    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+    + by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+    + by eapply valid_ccs_change_labs; eauto.
   - eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
-    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+    + by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+    + by destruct acc.
 Qed.
 
 Lemma ctx_decompose_valid_aux: forall ves acc ccs sctx oe,
@@ -572,17 +590,19 @@ Proof.
 Qed.
 
 Lemma ctx_update_nconst_valid_ccs: forall sctx e ccs ccs' sctx' oe,
-    ccs != nil ->
+    valid_ccs ccs ->
     ctx_update_nconst ccs sctx e = Some (ccs', sctx', oe) ->
-    valid_ccs ccs' oe.
+    valid_ccs ccs'.
 Proof.
   move => [vs es] e ccs ccs' [vs' es'] oe Hnil Hupdate.
   unfold ctx_update_nconst in Hupdate; unfold valid_ccs.
   destruct e; first destruct b; try (injection Hupdate as <- <- <-; subst => //); try (by apply/orP; left).
   (* Label *)
   - destruct ccs as [ | [fc lcs] ccs0] => //.
-    by eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-  - by eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
+    eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
+    by eapply valid_ccs_change_labs; eauto.
+  - eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
+    by destruct ccs.
 Qed.
   
 Lemma ctx_update_nconst_valid: forall sctx e ccs ccs' sctx' oe,
@@ -596,14 +616,14 @@ Proof.
   (* Label *)
   - destruct ccs as [ | [fc lcs] ccs0] => //.
     by apply ctx_decompose_valid_aux in Hupdate.
-  (* Local *)
-  -  by apply ctx_decompose_valid_aux in Hupdate.
+  (* Frame *)
+  - by apply ctx_decompose_valid_aux in Hupdate.
 Qed.
 
 Lemma ctx_update_valid_ccs: forall sctx ccs ccs' sctx' oe oe',
-    ccs != nil ->
+    valid_ccs ccs ->
     ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
-    valid_ccs ccs' oe'.
+    valid_ccs ccs'.
 Proof.
   move => [vs es] ccs ccs' [vs' es'] oe oe' Hnil Hupdate.
   unfold ctx_update in Hupdate; unfold valid_ccs.
@@ -669,7 +689,7 @@ Proof.
     + destruct acc as [ | [fc lcs] ccs']; first by inversion Hdecomp => /=.
       eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->; first by rewrite Hdecomp.
       by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
-    (* Local *)
+    (* Frame *)
     + eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->; first by rewrite Hdecomp.
       by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
 Qed.
@@ -823,7 +843,7 @@ Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
     e_typing s C0 (fc ⦃ es ⦄) tf ->
     exists C ret,
       frame_typing s fc.(FC_frame) = Some C /\
-        length ret = fc.(FC_arity) /\
+        fc.(FC_arity) = (length ret) /\
         e_typing s (upd_return C (Some ret)) es (Tf nil ret).
 Proof.
   move => fc es s C [ts1 ts2] /= Htype.
@@ -875,7 +895,7 @@ Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
     e_typing s C0 cc ⦃ es ⦄ tf ->
     exists C ret labs ts2,
       frame_typing s (cc.1).(FC_frame) = Some C /\
-        length ret = (cc.1).(FC_arity) /\
+        (cc.1).(FC_arity) = (length ret) /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
   move => [fc lcs] es s C0 tf Htype.
@@ -890,7 +910,7 @@ Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
     e_typing s C0 (cc :: ccs) ⦃ es ⦄ tf ->
     exists C ret labs ts2,
       frame_typing s (cc.1).(FC_frame) = Some C /\
-        length ret = (cc.1).(FC_arity) /\
+        (cc.1).(FC_arity) = length ret /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
   move => cc ccs.
@@ -947,7 +967,7 @@ Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C
     exists C C' ret labs vts ts,
       values_typing s (rev sc.1) = Some vts /\
       frame_typing s (cc.1).(FC_frame) = Some C /\
-        length ret = (cc.1).(FC_arity) /\
+        (cc.1).(FC_arity) = length ret/\
         C' = (upd_label (upd_return C (Some ret)) labs) /\
         e_typing s C' es (Tf vts ts).
 Proof.

@@ -20,15 +20,14 @@ module Host : sig
   end
 
 module Interpreter : Shim.InterpreterType with type 'a host_event = 'a Host.host_event
-
+(*
 (** Read-eval-print-loop. *)
-val repl : Output.verbosity -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.instance) * Extract.module_export list -> string -> unit Host.host_event
+val repl : Output.verbosity -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.frame) * Extract.module_export list -> string -> unit Host.host_event
+*)
 
 (** Given a verbosity level, a boolean stating whether the program should crash if the interpreted
    code does, a configuration tuple, a function name, interpret the Wasm function. *)
-val interpret : Output.verbosity -> bool -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.instance) * Extract.module_export list -> string -> unit Host.host_event
-
-val interpret_ctx : Output.verbosity -> bool -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.instance) * Extract.module_export list -> string -> unit Host.host_event
+val invocation_interpret : Output.verbosity -> bool -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.frame) * Extract.administrative_instruction list -> string -> unit Host.host_event
 
 (** Given a verbosity level, a boolean stating whether interactive mode is enable, another boolan
    stating whether the program should crash if the interpreted code does, a module, a function name,

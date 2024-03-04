@@ -202,7 +202,7 @@ Definition external_type_checker (s : store_record) (v : extern_value) (e : exte
   typing.ext_typing s v == Some e.
 
 Definition interp_get_v (s : store_record) (f : frame) (b_es : list basic_instruction) : option value :=
-  match run_multi_step_raw 5 s f (operations.to_e_list b_es) 1 with
+  match run_multi_step_raw tt 5 s f 1 (operations.to_e_list b_es) with
   | inr vs =>
     match vs with
     | [:: v] => Some v
@@ -222,23 +222,6 @@ Definition interp_get_i32 (s : store_record) (f: frame) (b_es : list basic_instr
   | Some (VAL_num (VAL_int32 c)) => Some c
   | _ => None
   end.
-
-(*
-Definition instantiate (s : store_record) (m : module) (v_imps : list extern_value)
-                       (z : (store_record * frame * list basic_instruction)) : Prop :=
-  let '(s_end, f, bes) := z in
-  exists t_imps_mod t_imps t_exps hs' s' inst g_inits r_inits,
-    module_typing m t_imps_mod t_exps /\
-    List.Forall2 (external_typing s) v_imps t_imps /\
-    List.Forall2 import_subtyping t_imps t_imps_mod /\
-    alloc_module s m v_imps g_inits r_inits (s', inst) /\
-    let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globs v_imps) nil nil nil in
-    let f_init := Build_frame nil inst_init in
-    instantiate_globals f_init hs' s' m g_inits /\
-    instantiate_elems f_init hs' s' m r_inits /\
-    f = Build_frame nil inst /\
-      bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
- *)
 
 Definition get_global_inits (s: store_record) (f: frame) (gs: list module_global) : option (list value):=
   those (map (fun g => interp_get_v s f g.(modglob_init)) gs).
@@ -286,33 +269,33 @@ Definition empty_store_record : store_record := {|
     s_datas := nil;
   |}.
 
-(* Add an empty host and provide an initial empty store *)
-Definition interp_instantiate_wrapper (m : module) : option ((host_state * store_record * moduleinst * list module_export) * option nat) :=
+(* Add an empty host and provide an initial empty store, and convert the 
+   starting expression to administrative *)
+Definition interp_instantiate_wrapper (m : module) : option (host_state * store_record * frame * list administrative_instruction) :=
   match interp_instantiate empty_store_record m nil with
-  | Some ((s, i, es), on) => Some ((tt, s, i, es), on)
+  | Some (s, i, bes) => Some (tt, s, i, to_e_list bes)
   | None => None
   end.
 
-Definition lookup_exported_function (n : name) (store_inst_exps : host_state * store_record * moduleinst * list module_export)
-    : option (host_state * store_record * frame * seq administrative_instruction) :=
-  let '(hs, s, inst, exps) := store_inst_exps in
+Definition lookup_exported_function (n : name) (s: store_record) (f: frame)
+    : option (list administrative_instruction) :=
   List.fold_left
     (fun acc e =>
       match acc with
       | Some cfg => Some cfg
       | None =>
-        if e.(modexp_name) == n then
-          match e.(modexp_desc) with
-          | MED_func (Mk_funcidx fi) =>
+        if e.(exportinst_name) == n then
+          match e.(exportinst_val) with
+          | EV_func fi =>
             match lookup_N s.(s_funcs) fi with
             | None => None
-            | Some fc => Some (hs, s, (Build_frame nil inst), [::AI_invoke fi])
+            | Some fc => Some ([::AI_invoke fi])
             end
           | _ => None
           end
         else None
       end)
-    exps
+    f.(f_inst).(inst_exports)
     None.
 
 End Instantiation_func.
@@ -321,16 +304,12 @@ End Instantiation_func.
 
 Module Instantiation_func_extract.
 
-Import interpreter_func.EmptyHost.
-
-Definition lookup_exported_function :
-    name -> host_state * store_record * moduleinst * seq module_export ->
-    option (host_state * store_record * frame * seq administrative_instruction) :=
+Definition lookup_exported_function : name -> store_record -> frame -> option (list administrative_instruction) :=
   lookup_exported_function.
 
 Definition interp_instantiate_wrapper :
   module ->
-  option (host_state * store_record * moduleinst * seq module_export * option nat) :=
+  option (host_state * store_record * frame * list administrative_instruction) :=
   interp_instantiate_wrapper.
 
 End Instantiation_func_extract.

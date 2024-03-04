@@ -1,6 +1,6 @@
 (** Proof-carrying interpreter for Wasm, optimised for contexts **)
 
-From Wasm Require Import common properties tactic typing_inversion contexts.
+From Wasm Require Export common properties tactic typing_inversion contexts.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
@@ -23,24 +23,30 @@ Hypothesis host_application_impl_correct :
 
 Notation "ctx ⦃ es ⦄" := (ctx_fill es ctx) (at level 1).
 
-Lemma config_typing_empty_inv: forall s es ts (C: t_context),
-    config_typing s (empty_frame, es) ts ->
-    C = empty_t_context ->
-    store_typing s /\ e_typing s C es (Tf [::] ts).
+Lemma config_typing_inv: forall s (f: frame) es ts,
+    config_typing s (f, es) ts ->
+    exists C,
+      store_typing s /\
+      frame_typing s f = Some C /\
+      e_typing s C es (Tf [::] ts).
 Proof.
-  move => s es ts C Htype ?; subst.
+  move => s f es ts Htype; subst.
   destruct Htype as [Hstoretype Hthtype].
-  split => //.
-  inversion Hthtype as [s' f es' ors rs C Hstype Hftype Hetype]; subst; clear Hthtype.
+  inversion Hthtype as [s' f' es' ors rs C' Hstype Hftype ? Hetype]; subst; clear Hthtype.
   move/eqP in Hftype.
-  uapply H.
-  unfold frame_typing in Hftype; remove_bools_options.
-  unfold empty_frame.
-  unfold inst_typing in Hoption; simpl in *; remove_bools_options =>/=.
-  by inversion Hoption0; subst.
+  exists C'.
+  repeat split => //.
+  uapply Hetype.
+  unfold upd_return, upd_local_label_return.
+  destruct C', f, f_inst => /=; f_equal; simpl in *.
+  unfold frame_typing in Hftype; remove_bools_options => /=.
+  by unfold inst_typing in Hoption; simpl in *; remove_bools_options =>/=.
 Qed.
-  
-(** Auxiliary definition for reductions between context tuples **)
+
+(** Auxiliary definition for reductions between context tuples.
+    Technically there's an auxiliary empty frame added; but that allows precisely
+    the same set of instructions.
+ **)
 Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
   match cfg with
   | (s, ccs, sc, oe) =>
@@ -111,8 +117,6 @@ Ltac resolve_valid_ccs :=
         split => //
     | |- context C [valid_ccs _] =>
         unfold valid_ccs => /=
-    | |- context C [ (_ || _) ] =>
-        apply/orP; (try by left); (try by right)
     end.
 
 Definition s_of_cfg (cfg: cfg_tuple_ctx) :=
@@ -129,8 +133,15 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
 | RSC_normal hs' cfg':
   reduce_ctx hs hs' cfg cfg' ->
   run_step_ctx_result hs cfg
-| RSC_value vs:
+| RSC_value hs' s vs:
+  hs = hs' ->
+  s_of_cfg cfg = s ->
   es_of_cfg cfg = v_to_e_list vs ->
+  run_step_ctx_result hs cfg
+| RSC_value_frame hs' s vs n f:
+  hs = hs' ->
+  s_of_cfg cfg = s ->
+  es_of_cfg cfg = [::AI_frame n f (v_to_e_list vs)] ->
   run_step_ctx_result hs cfg
 | RSC_invalid :
   (valid_cfg_ctx cfg -> False) ->
@@ -140,12 +151,22 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   run_step_ctx_result hs cfg
 .
 
-Ltac invert_ctx_typing Hetype :=
-  match type of Hetype with
+Ltac invert_ctx_typing Hetype0 :=
+  match type of Hetype0 with
   | e_typing _ _ ((_ :: _) ⦃ _ ⦃ _ ⦄ ⦄) _ =>
-    apply e_typing_ops_local in Hetype as [? [? [? [? [vts [ts' [Hvtstype [Hftype [Harity [? Hetype]]]]]]]]]]
+    let vts := fresh "vts" in
+    let ts' := fresh "ts'" in
+    let Hvtsype := fresh "Hvtsype" in
+    let Hftype := fresh "Hftype" in
+    let Hetype := fresh "Hetype" in
+    let Harity := fresh "Harity" in
+    apply e_typing_ops_local in Hetype0 as [? [? [? [? [vts [ts' [Hvtstype [Hftype [Harity [? Hetype]]]]]]]]]]
   | e_typing _ _ (_ ⦃ _ ⦃ _ ⦄ ⦄) (Tf nil _) =>
-    apply e_typing_ops in Hetype as [? [vts [ts' [Hvtstype Hetype]]]]
+    let vts := fresh "vts" in
+    let ts' := fresh "ts'" in
+    let Hvtsype := fresh "Hvtsype" in
+    let Hetype := fresh "Hetype" in
+    apply e_typing_ops in Hetype0 as [? [vts [ts' [Hvtstype Hetype]]]]
   end;
   simpl in *; invert_e_typing.
 
@@ -154,12 +175,13 @@ Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
   let ts' := fresh "ts'" in
+  let C0 := fresh "C0" in
   let Htype := fresh "Htype" in
   let Hetype := fresh "Hetype" in
   let Hftype := fresh "Hftype" in
   let Hstype := fresh "Hstype" in
   intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype;
-  eapply config_typing_empty_inv in Htype as [Hstype Hetype]; eauto;
+  eapply config_typing_inv in Htype as [C0 [Hstype [Hftype0 Hetype]]]; eauto;
   invert_ctx_typing Hetype.
 
 Ltac last_unequal H :=
@@ -213,13 +235,13 @@ Definition run_ctx_br: forall hs s ccs sc j,
 Proof.
   intros hs s ccs [vs es] j.
   get_cc ccs.
-  destruct ((N.to_nat j) < length lcs) eqn:Hlablen.
-  - destruct (List.nth_error lcs (N.to_nat j)) as [lab | ] eqn:Htar; last by apply List.nth_error_None in Htar; move/ltP in Hlablen; lias.
-    destruct lab as [lvs lk lces les].
+  destruct (lookup_N lcs j) as [lab | ] eqn:Htar.
+  - destruct lab as [lvs lk lces les].
+    specialize (nth_error_Some_length Htar) as Hlablen; move/ltP in Hlablen.
     destruct (lk <= length vs) eqn:Hvslen.
-    + apply <<hs, (s, ((fc, drop (S (N.to_nat j)) lcs) :: ccs'), (take lk vs ++ lvs, lces ++ les), None)>>.
+    + apply <<hs, (s, ((fc, drop (S (N.to_nat j)) lcs) :: ccs'), (take lk vs ++ lvs, lces ++ les), None)>> => //.
       apply reduce_focus_ctx => //=.
-      rewrite - (cat_take_drop ((N.to_nat j).+1) lcs) drop_size_cat; last by rewrite size_takel => //.
+      rewrite - (cat_take_drop ((N.to_nat j).+1) lcs) drop_size_cat; last by rewrite size_takel; apply nth_error_Some_length in Htar; lias => //.
       rewrite foldl_cat.
       apply list_label_ctx_eval.(ctx_reduce) => //=.
       rewrite /fmask0.
@@ -237,8 +259,7 @@ Proof.
       { apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop lk vs)) es)) (lcs := take (N.to_nat j) lcs) => /=.
         rewrite ctx_to_lh_aux_len => /=.
         repeat rewrite - catA => /=.
-        rewrite length_is_size in Hlablen.
-        rewrite add0n length_is_size size_takel; last by lias.
+        rewrite add0n length_is_size size_takel; last by rewrite length_is_size in Hlablen; lias.
         by rewrite N2Nat.id. 
       }
       
@@ -246,18 +267,16 @@ Proof.
       apply RSC_error.
       destruct lcs as [| lc lcs] => //.
       intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
-      eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
-      apply ccs_typing_focus in Htype as [? [? [? [tf Htype]]]].
-      apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]] => //.
-      apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
+      eapply config_typing_inv in Htype as [C [Hstype [_ Hetype]]]; eauto.
+      apply ccs_typing_focus in Hetype as [? [? [? [tf Hetype]]]].
+      apply fc_typing in Hetype as [? [? [Hftype [Hlen Hetype]]]] => //.
+      apply lcs_typing_exists in Hetype as [labs [ts1 [ts2 [Hetype [Hagree Hconsume]]]]].
       rewrite -> Hconsume in * => //; clear Hconsume.
-      eapply sc_typing_args in Htype as [ts3 [ts4 [Hvstype Htype]]]; simpl in Htype.
-      apply et_to_bet in Htype => //.
-      simpl in Htype; invert_be_typing.
-      unfold frame_typing in Hftype.
-      remove_bools_options.
+      eapply sc_typing_args in Hetype as [ts3 [ts4 [Hvstype Hetype]]]; simpl in Hetype.
+      invert_e_typing.
       simpl in *.
       destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
+      unfold frame_typing in Hftype; remove_bools_options; simpl in *.
       erewrite -> inst_t_context_label_empty in H1_br; eauto.
       rewrite cats0 in H1_br.
       eapply all2_projection in Hagree; eauto.
@@ -271,13 +290,13 @@ Proof.
   - (* Not enough labels *)
     apply RSC_error.
     intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
-    eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
-    apply ccs_typing_focus in Htype as [? [? [? [tf Htype]]]].
-    apply fc_typing in Htype as [? [? [Hftype [Hlen Htype]]]] => //.
-    apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
-    simpl in Htype.
-    rewrite -cat1s in Htype.
-    unfold vs_to_es in Htype.
+    eapply config_typing_inv in Htype as [C [Hstype [_ Hetype]]]; eauto.
+    apply ccs_typing_focus in Hetype as [? [? [? [tf Hetype]]]].
+    apply fc_typing in Hetype as [? [? [Hftype [Hlen Hetype]]]] => //.
+    apply lcs_typing_exists in Hetype as [labs [ts1 [ts2 [Hetype [Hagree Hconsume]]]]].
+    simpl in Hetype.
+    rewrite -cat1s in Hetype.
+    unfold vs_to_es in Hetype.
     invert_e_typing.
     unfold frame_typing in Hftype.
     remove_bools_options.
@@ -285,14 +304,15 @@ Proof.
     erewrite -> inst_t_context_label_empty in *; eauto.
     rewrite -> cats0 in *.
     apply all2_size in Hagree.
-    rewrite length_is_size in Hlablen.
+    apply List.nth_error_None in Htar.
+    rewrite length_is_size in Htar.
     unfold lookup_N in H1_br.
     apply nth_error_Some_length in H1_br.
     rewrite length_is_size Hagree in H1_br.
     by lias.
 Defined.
 
-(** Return exits from the innermost frame and all label contexts **)
+(** Return exits from the innermost frame and all label contexts. **)
 Definition run_ctx_return: forall hs s ccs sc,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic BI_return)).
 Proof.  
@@ -300,7 +320,7 @@ Proof.
   get_cc ccs.
   destruct fc as [lvs lk lf les].
   destruct (lk <= length vs) eqn:Hvslen.
-  - apply <<hs, (s, ccs', (take lk vs ++ lvs, les), None)>> => /=.
+  - apply <<hs, (s, ccs', (take lk vs ++ lvs, les), None)>> => //=.
     rewrite - (cat_take_drop lk vs) take_size_cat; last by rewrite size_takel => //.
     rewrite /vs_to_es rev_cat -v_to_e_cat rev_cat -v_to_e_cat -cat1s -catA.
     resolve_reduce_ctx lvs les; last rewrite catA; eauto => //=.
@@ -458,7 +478,7 @@ Notation "$u32oz v" := (Wasm_int.int_of_Z i32m v) (at level 90).
 Notation "$zou32 v" := (Wasm_int.Z_of_uint i32m v) (at level 90).
 Notation "$nou32 v" := (Wasm_int.N_of_uint i32m v) (at level 90).
 
-(* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
+(* One step of execution; does not perform the context update in the end to shift to the new instruction nor the validity check. *)
 Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
 Proof.
   destruct cfg as [[[s ccs] sc] oe].
@@ -468,11 +488,12 @@ Proof.
     destruct sc as [vs es]; subst.
     destruct es as [ | ??]; last by apply RSC_invalid => /=; move => [??].
     destruct ccs as [ | [fc lcs] ccs'].
-    { (* entire instruction is const *)
-      by apply (@RSC_value _ _ (rev vs)) => /=; rewrite cats0.
+    { (* Only values left, with no context. This case should have been removed in the
+         restructure function *)
+      eapply RSC_value with (vs := rev vs) => //=.
+      by rewrite cats0.
     }
     { destruct lcs as [ | lc lcs'].
-      (* Exitting a local *)
       {
         destruct fc as [lvs lk lf les].
         destruct (length vs == lk) eqn:Hlen; move/eqP in Hlen.
@@ -489,21 +510,28 @@ Proof.
             by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
           }
         }
-        (* length doesn't match -- ill-typed *)
+        (* length doesn't match -- ill-typed. However, in this case we check if it's only a frame containing values *)
         {
-          apply RSC_error.
-          intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
-          eapply config_typing_empty_inv in Htype as [Hstype Htype]; eauto.
-          apply ccs_typing_focus in Htype as [C [? [? [[ts1 ts2] Htype]]]].
-          rewrite /= cats0 in Htype.
-          rewrite -cat1s in Htype.
-          unfold vs_to_es in Htype.
-          invert_e_typing.
-          inversion H2_frame as [??????? Hftype ? Hetype Hvstype]; subst; clear H2_frame.
-          invert_e_typing.
-          apply values_typing_length in H2_values0.
-          rewrite - H2_values0 in Hlen.
-          by repeat rewrite length_is_size in Hlen; rewrite size_rev in Hlen.
+          destruct ((ccs' == nil) && (lvs == nil) && (les == nil)) eqn:Hfv.
+          { remove_bools_options; subst.
+            apply (@RSC_value_frame _ _ hs s (rev vs) lk lf) => //=.
+            by rewrite cats0.
+          }
+          {
+            apply RSC_error.
+            intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
+            eapply config_typing_inv in Htype as [C0 [Hstype [Hftype0 Hetype]]]; eauto.
+            apply ccs_typing_focus in Hetype as [C [? [? [[ts1 ts2] Hetype]]]].
+            rewrite /= cats0 in Hetype.
+            rewrite -cat1s in Hetype.
+            unfold vs_to_es in Hetype.
+            invert_e_typing.
+            inversion H2_frame as [??????? Hftype ? Hetype Hvstype]; subst; clear H2_frame.
+            invert_e_typing.
+            apply values_typing_length in H2_values0.
+            rewrite - H2_values0 in Hlen.
+            by repeat rewrite length_is_size in Hlen; rewrite size_rev in Hlen.
+          }
         }
       }
       (* Exitting a label *)
@@ -1738,11 +1766,13 @@ the condition that all values should live in the operand stack. *)
   }
 Defined.
 
-(* reformation to a valid configuration, if possible *)
+(* reformation to a valid configuration, if possible.
+   If the cfg is already a value, report that.
+ *)
 Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx.
 Proof.
   destruct cfg as [[[s ccs] sc] oe].
-  destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by right.
+  destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hctxupdate; last by exact None.
   exact (Some (s, ccs', sc', oe')).
 Defined.
 
@@ -1752,30 +1782,39 @@ Definition run_v_init (s: store_record) (es: list administrative_instruction) : 
   | None => None
   end.
 
+Definition run_v_init_with_frame (s: store_record) (f: frame) (n: nat) (es: list administrative_instruction) : option cfg_tuple_ctx :=
+  run_v_init s [::AI_frame n f es].
+
 Definition hs_cfg_ctx : Type := host_state * cfg_tuple_ctx.
 
-Fixpoint run_multi_step_ctx (fuel: nat) (hcfg: hs_cfg_ctx) : (option hs_cfg_ctx) + (list value) :=
+Definition empty_store_record := Build_store_record nil nil nil nil nil nil.
+
+(* TODO: include proofs *)
+Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) : (option unit) + (list value) :=
   match fuel with
   | 0 => inl None
   | S n =>
-      let (hs, cfg) := hcfg in
       match run_one_step_ctx hs cfg with
       | RSC_normal hs' cfg' HReduce =>
-          run_multi_step_ctx n (hs', cfg')
-      | RSC_value vs _ => inr vs
+          match run_step_cfg_ctx_reform cfg' with
+          | Some cfg'' => run_multi_step_ctx n hs' cfg''
+          | None => inl None
+          end
+      | RSC_value _ _ vs _ _ _ => inr vs
+      | RSC_value_frame _ _ vs _ _ _ _ _ => inr vs
       | _ => inl None
       end
   end.
 
 (** Auxiliary definition for running arbitrary expressions, not necessarily with a frame within the expression decomposition.
     Requires knowing about the number of return values beforehand (can be obtained from typing).
-    Note that this definition should *never* be used in the extracted code due to the inefficient
+    Note that this function should *never* be used in the extracted code due to the inefficient
     usage of fuel. It is only used internally during module instantiation.
  **)
 
-Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction) (arity: nat) : (option hs_cfg_ctx) + (list value) :=
-  match run_v_init s [::AI_frame arity f es] with
-  | Some cfg => run_multi_step_ctx fuel (hs, cfg)
+Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (arity: nat) (es: list administrative_instruction): (option unit) + (list value) :=
+  match run_v_init_with_frame s f arity es with
+  | Some cfg => run_multi_step_ctx fuel hs cfg
   | None => inl None
   end.
 
@@ -1786,45 +1825,23 @@ Section Interp_ctx_progress.
     This constraint seems restrictive, but in fact all Wasm runtime configuration can be expressed in this form:
     the runtime configuration tuple (S; F; es) always has a frame F, which can be used to form the frame context
     [AI_frame n F es] (with the right choice of n).
-
-    The only exception is at the start of a module invocation (in fact not an exception, since the Wasm spec uses
-    an empty frame at the start), where the Invoke part comes to the rescue; but in principle it is not even needed.
  **)
 Definition valid_wasm_instr (es: list administrative_instruction) : bool :=
   match es with
-  | [::AI_invoke _]
   | [::AI_frame _ _ _] => true
   | _ => false
   end.
 
-Lemma valid_instr_preserve (hs: host_state) s f es hs' s' f' es':
-  reduce hs s f es hs' s' f' es' ->
-  valid_wasm_instr es ->
-  valid_wasm_instr es' \/ terminal_form es'.
-Proof.
-  move => Hred.
-  induction Hred => //; subst; move => Hvalid; (try by left); (try by (right; (try by left); (try by right))).
-  - destruct e as [ | e es] => //; destruct e, es => //.
-    + inversion H; subst; clear H; try by destruct vs as [ | v vs] => //; destruct vs.
-      by right; right.
-    + inversion H; subst; clear H; (try by destruct vs as [ | v vs] => //; destruct vs); try by (right; (try by left); (try by right)).
-  - by destruct vs as [| v vs] => //; destruct v => //.
-  - by destruct vs as [| v vs] => //; destruct v => //.
-  - right.
-    destruct r => /=; by [left; apply v_to_e_const | right].
-    (* Frame *)
-  - destruct lh using lh_case; destruct k => //.
-    + rewrite -> lh_cast_eq in *.
-      simpl in *.
-      destruct vs => //=; last destruct v as [v | v | v] => //=; try by destruct v => //.
-      destruct es as [ | e es]; first by apply reduce_not_nil in Hred.
-      destruct e, es, es0 => //; by apply IHHred in Hvalid; rewrite cats0.
-    + inversion H; subst.
-      rewrite -> lh_cast_eq in *; clear H.
-      simpl in Hvalid.
-      destruct vs as [| v vs] => //; destruct v as [v|v|v] => //=; by destruct v.
-Qed.
-
+(* Due to the representation of the outermost frame in the ctx interpreter, the
+  terminal values are expanded to include an outermost frame  *)
+Definition terminal_form_ctx (es: list administrative_instruction) : bool :=
+  const_list es ||
+  match es with
+  | [:: AI_frame _ _ es'] => const_list es'
+  | [:: AI_trap] => true
+  | _ => false
+  end.
+                    
 Definition valid_init_Some s es:
   valid_wasm_instr es ->
   run_v_init s es <> None.
@@ -1849,11 +1866,44 @@ Proof.
   destruct (ctx_decompose es) as [[[ccs' sc'] oe'] | ] eqn:Hdecomp => //; inversion Hinit; subst; clear Hinit.
   split; last by apply ctx_decompose_valid_split in Hdecomp.
   unfold ctx_decompose in Hdecomp.
-  destruct es as [| e es'] => //; destruct e, es' => //;
+  destruct es as [| e es'] => //; destruct e, es' => //.
   rewrite ctx_decompose_aux_equation in Hdecomp; simpl in Hdecomp.
-  - apply/orP; right.
-    injection Hdecomp as <- <-; by subst => /=.
-  - by apply ctx_decompose_valid_ccs_aux in Hdecomp => //.
+  by apply ctx_decompose_valid_ccs_aux in Hdecomp.
+Qed.
+
+(* Somewhat subsumed by the lemma below, although this might still be helpful
+in places where typing term is not available *)
+Lemma valid_instr_preserve (hs: host_state) s f es hs' s' f' es':
+  reduce hs s f es hs' s' f' es' ->
+  valid_wasm_instr es ->
+  valid_wasm_instr es' \/ terminal_form_ctx es'.
+Proof.
+  move => Hred.
+  induction Hred => //; subst; move => Hvalid; (try by left); (try by (right; (try by left); (try by right))).
+  (* Simple *)
+  - destruct e as [ | e es] => //; destruct e, es => //.
+    + inversion H; subst; clear H; (try by destruct vs as [ | v vs] => //; destruct vs); (try by right => /=).
+  - by right; unfold terminal_form_ctx; rewrite H4.
+  - by right; unfold terminal_form_ctx; rewrite H3.
+  (* Block *)
+  - by destruct vs as [| v vs] => //; destruct v => //.
+  (* Loop *)
+  - by destruct vs as [| v vs] => //; destruct v => //.
+  (* Host *)
+  - right.
+    destruct r => //=.
+    unfold terminal_form_ctx; by rewrite v_to_e_const.
+  (* Frame *)
+  - destruct lh using lh_case; destruct k => //.
+    + rewrite -> lh_cast_eq in *.
+      simpl in *.
+      destruct vs => //=; last destruct v as [v | v | v] => //=; try by destruct v => //.
+      destruct es as [ | e es]; first by apply reduce_not_nil in Hred.
+      destruct e, es, es0 => //; by apply IHHred in Hvalid; rewrite cats0.
+    + inversion H; subst.
+      rewrite -> lh_cast_eq in *; clear H.
+      simpl in Hvalid.
+      destruct vs as [| v vs] => //; destruct v as [v|v|v] => //=; by destruct v.
 Qed.
 
 (* The induced progress for this version looks slightly weaker, as it only applies to valid instructions directly.
@@ -1863,38 +1913,21 @@ Qed.
 Definition t_progress_interp_ctx: forall (hs: host_state) (s: store_record) es ts,
   valid_wasm_instr es ->
   config_typing s (empty_frame, es) ts ->
-  terminal_form es \/
-  exists hs' s' es', reduce hs s empty_frame es hs' s' empty_frame es'.
+  terminal_form_ctx es \/
+    (exists hs' s' es', reduce hs s empty_frame es hs' s' empty_frame es' /\
+                     valid_wasm_instr es).
 Proof.
   move => hs s es ts Hvalid Htype.
   destruct (run_v_init s es) as [[[[s0 ccs] sc] oe]|] eqn:Hinit; last by eapply valid_init_Some in Hvalid; apply Hvalid in Hinit.
   destruct es as [| e es] => //; destruct e, es => //.
-  (* Invoke *)
-  { unfold run_v_init in Hinit.
-    rewrite /ctx_decompose ctx_decompose_aux_equation /= in Hinit.
-    injection Hinit as <- <- <- <-.
-    { remember (run_one_step_ctx hs (s, nil, (nil, nil), Some (AI_invoke f))) as res.
-      destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred | vs Heq | Hcontra | Hcontra]; clear Heqres.
-      - right.
-        unfold reduce_ctx in Hred.
-        simpl in *.
-        repeat eexists. by eauto.
-      - left.
-        simpl in *.
-        subst; rewrite Heq.
-        left; by apply v_to_e_const.
-      - exfalso; by apply Hcontra.
-      - simpl in Hcontra. by apply Hcontra in Htype.
-    }
-  }
   (* Frame *)
   { remember Hinit as Hinit2; clear HeqHinit2.
     unfold run_v_init in Hinit.
     rewrite /ctx_decompose ctx_decompose_aux_equation /= in Hinit.
     destruct (ctx_decompose_aux _) as [[[ccs' sc'] oe'] | ] eqn:Hdecomp => //; injection Hinit as <- -> -> ->.
     { remember (run_one_step_ctx hs (s, ccs, sc, oe)) as res.
-      destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred | vs Heq | Hcontra | Hcontra]; clear Heqres.
-      1,2,4:
+      destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred | hs0 s0 vs ? ? Heq | hs0 s0 vs n0 f0 ? ? Heq | Hcontra | Hcontra]; clear Heqres.
+      1,2,3,5:
       unfold run_v_init in Hinit2; destruct (ctx_decompose _) as [[[ccs2 sc2] oe2]|] eqn:Hdecomp' => //;
       apply ctx_decompose_fill_id in Hdecomp';
       simpl in Hdecomp';
@@ -1904,10 +1937,13 @@ Proof.
         simpl in *.
         rewrite Hdecomp' in Hred.
         repeat eexists. by eauto.
-      - exfalso.
-        simpl in *.
+      - simpl in *.
         rewrite Hdecomp' in Heq.
-        by destruct vs as [|v vs] => //; destruct v as [|v|] => //; by destruct v.
+        destruct vs as [ | v vs] => //; destruct v, vs => //; by destruct v.
+      - simpl in *.
+        rewrite Hdecomp' in Heq.
+        injection Heq as -> -> ->.
+        left; unfold terminal_form_ctx; by rewrite v_to_e_const.
       - simpl in Hcontra. rewrite Hdecomp' in Hcontra. by apply Hcontra in Htype.
       - exfalso; apply Hcontra; clear Hcontra.
         split;
@@ -1926,14 +1962,56 @@ Module Interpreter_ctx_extract.
 
 Export DummyHost.
 
-Definition run_one_step_ctx := run_one_step_ctx host_application_impl_correct.
+#[export]
+Instance host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}.
+Defined.
 
-Definition run_step_cfg_ctx_reform := run_step_cfg_ctx_reform.
+Definition host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
+                                   (host_state * option (store_record * result)).
+Proof.
+  move => ??? hf.
+  by refine ((of_void _) hf).
+Defined.
 
-Definition run_v_init := run_v_init.
+Definition host_application_impl_correct :
+  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
+Proof.
+  move => ??? hf; by inversion hf.
+Defined.
 
-Definition es_of_cfg := es_of_cfg.
+Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
-Definition run_multi_step_raw := run_multi_step_raw host_application_impl_correct tt.
+Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> Type := run_step_ctx_result.
+
+Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg := run_one_step_ctx host_application_impl_correct hs cfg.
+
+Definition run_step_cfg_ctx_reform : cfg_tuple_ctx -> option cfg_tuple_ctx := run_step_cfg_ctx_reform.
+
+Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
+
+Definition run_v_init_with_frame : store_record -> frame -> nat -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init_with_frame.
+
+Definition run_multi_step_raw : host_state -> nat -> store_record -> frame -> nat -> list administrative_instruction -> (option unit) + (list value) := run_multi_step_raw host_application_impl_correct.
+
+Definition es_of_cfg : cfg_tuple_ctx -> list administrative_instruction := es_of_cfg.
+
+Definition s_of_cfg : cfg_tuple_ctx -> store_record := s_of_cfg.
+
+(*
+Definition cfg_init := run_v_init_with_frame empty_store_record empty_frame 0 [::AI_frame 1 empty_frame [::AI_label 0 nil [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m 40%Z)); $VN (VAL_int32 (Wasm_int.int_of_Z i32m 2%Z)); AI_basic (BI_binop T_i32 (Binop_i BOI_add))]]].
+
+Definition cfg2 :=
+  match cfg_init with
+  | Some cfg => Some (run_one_step_ctx tt cfg)
+  | None => None
+  end.
+*)
 
 End Interpreter_ctx_extract.
+
+
