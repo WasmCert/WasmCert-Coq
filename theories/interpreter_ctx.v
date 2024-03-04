@@ -2002,16 +2002,5 @@ Definition es_of_cfg : cfg_tuple_ctx -> list administrative_instruction := es_of
 
 Definition s_of_cfg : cfg_tuple_ctx -> store_record := s_of_cfg.
 
-(*
-Definition cfg_init := run_v_init_with_frame empty_store_record empty_frame 0 [::AI_frame 1 empty_frame [::AI_label 0 nil [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m 40%Z)); $VN (VAL_int32 (Wasm_int.int_of_Z i32m 2%Z)); AI_basic (BI_binop T_i32 (Binop_i BOI_add))]]].
-
-Definition cfg2 :=
-  match cfg_init with
-  | Some cfg => Some (run_one_step_ctx tt cfg)
-  | None => None
-  end.
-*)
-
 End Interpreter_ctx_extract.
-
 

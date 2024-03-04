@@ -164,13 +164,17 @@ Ltac resolve_store_inst_lookup :=
 Ltac unfold_store_operations :=
   repeat match goal with
     | _: context [ stab_update _ _ _ _ ] |- _ =>
-        remove_bools_options
+        unfold stab_update in *; remove_bools_options
     | _: context [ supdate_glob _ _ _ _ ] |- _ =>
         unfold supdate_glob, supdate_glob_s, sglob_ind, option_bind, option_map in *; remove_bools_options
     | _: context [ sglob_val _ _ ] |- _ =>
         unfold sglob_val, sglob, sglob_ind in *; remove_bools_options
     | _: context [ stab_elem _ _ ] |- _ =>
         unfold stab_elem in *; remove_bools_options
+    | _: context [ stab_grow _ _ ] |- _ =>
+        unfold stab_grow, growtable in *; remove_bools_options
+    | _: context [ mem_grow _ _ ] |- _ =>
+        unfold mem_grow in *; remove_bools_options
     | _: context [ stab _ _ ] |- _ =>
         unfold stab in *; remove_bools_options
     | _: context [ smem _ _ ] |- _ =>

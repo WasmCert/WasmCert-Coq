@@ -215,7 +215,6 @@ Definition is_ref_t (t: value_type) : bool :=
   | _ => false
   end.
 
-
 Definition is_mut (tg : global_type) : bool :=
   tg_mut tg == MUT_var.
 
@@ -544,10 +543,10 @@ Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: el
   | Some tabaddr =>
       match lookup_N s.(s_tables) tabaddr with
       | Some tab =>
-          if i < tab_size tab then
+          if (N.ltb i (N.of_nat (tab_size tab))) then
             let: tab' := {| tableinst_type := tab.(tableinst_type);
                            tableinst_elem := set_nth tabv tab.(tableinst_elem) (N.to_nat i) tabv |} in
-            let: tabs' := set_nth tab' s.(s_tables) (N.to_nat x) tab' in
+            let: tabs' := set_nth tab' s.(s_tables) (N.to_nat tabaddr) tab' in
             Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
           else None
       | None => None
@@ -568,13 +567,17 @@ Definition growtable (tab: tableinst) (n: N) (tabinit: value_ref) : option table
     else
       None.
 
-Definition stab_grow (s: store_record) (inst: moduleinst) (x: tableidx) (n: N) (tabinit: value_ref) : option store_record :=
-  match stab s inst x with
-  | Some tab =>
-      match growtable tab n tabinit with
-      | Some tab' => 
-          let tabs' := (set_nth tab' s.(s_tables) (N.to_nat x) tab') in
-          Some (Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s))
+Definition stab_grow (s: store_record) (inst: moduleinst) (x: tableidx) (n: N) (tabinit: value_ref) : option (store_record * nat) :=
+  match lookup_N inst.(inst_tables) x with
+  | Some tabaddr =>
+      match lookup_N s.(s_tables) tabaddr with
+      | Some tab =>
+          match growtable tab n tabinit with
+          | Some tab' => 
+              let tabs' := (set_nth tab' s.(s_tables) (N.to_nat tabaddr) tab') in
+              Some ((Build_store_record (s_funcs s) tabs' (s_mems s) (s_globals s) (s_elems s) (s_datas s)), tab_size tab)
+          | None => None
+          end
       | None => None
       end
   | None => None
@@ -583,36 +586,44 @@ Definition stab_grow (s: store_record) (inst: moduleinst) (x: tableidx) (n: N) (
 Definition elem_size (e: eleminst) : nat :=
   length (eleminst_elem e).
 
-Definition selem (s: store_record) (inst: moduleinst) (x: elemaddr): option eleminst :=
+Definition selem (s: store_record) (inst: moduleinst) (x: elemidx): option eleminst :=
   match lookup_N inst.(inst_elems) x with
   | Some eaddr => lookup_N s.(s_elems) eaddr
   | _ => None
   end.
 
-Definition selem_drop (s: store_record) (inst: moduleinst) (x: elemaddr) : option store_record :=
-  match selem s inst x with
-  | Some elem =>
-      let empty_elem := {| eleminst_type := elem.(eleminst_type); eleminst_elem := [::] |} in
-      let: elems' := set_nth empty_elem s.(s_elems) (N.to_nat x) empty_elem in
-      Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) elems' (s_datas s))
+Definition selem_drop (s: store_record) (inst: moduleinst) (x: elemidx) : option store_record :=
+  match lookup_N inst.(inst_elems) x with
+  | Some eaddr =>
+      match lookup_N s.(s_elems) eaddr with
+      | Some elem =>
+          let empty_elem := {| eleminst_type := elem.(eleminst_type); eleminst_elem := [::] |} in
+          let: elems' := set_nth empty_elem s.(s_elems) (N.to_nat eaddr) empty_elem in
+          Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) elems' (s_datas s))
+      | None => None
+      end
   | None => None
   end.
 
 Definition data_size (d: datainst) : nat :=
   length (datainst_data d).
 
-Definition sdata (s: store_record) (inst: moduleinst) (x: dataaddr): option datainst :=
+Definition sdata (s: store_record) (inst: moduleinst) (x: dataidx): option datainst :=
   match lookup_N inst.(inst_datas) x with
   | Some daddr => lookup_N s.(s_datas) daddr
   | _ => None
   end.
 
-Definition sdata_drop (s: store_record) (inst: moduleinst) (x: dataaddr) : option store_record :=
-  match sdata s inst x with
-  | Some data =>
-      let empty_data := {| datainst_data := [::] |} in
-      let: datas' := set_nth empty_data s.(s_datas) (N.to_nat x) empty_data in
-      Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) (s_elems s) datas')
+Definition sdata_drop (s: store_record) (inst: moduleinst) (x: dataidx) : option store_record :=
+  match lookup_N inst.(inst_datas) x with
+  | Some daddr =>
+      match lookup_N s.(s_datas) daddr with
+      | Some data =>
+          let empty_data := {| datainst_data := [::] |} in
+          let: datas' := set_nth empty_data s.(s_datas) (N.to_nat daddr) empty_data in
+          Some (Build_store_record (s_funcs s) (s_tables s) (s_mems s) (s_globals s) (s_elems s) datas')
+      | None => None
+      end
   | None => None
   end.   
 
@@ -633,12 +644,21 @@ Definition supdate_glob (s : store_record) (i : moduleinst) (j : globalidx) (v :
 Definition func_extension (f1 f2: funcinst) : bool :=
   f1 == f2.
 
+Definition limits_extension (l1 l2: limits) : bool :=
+  (l1.(lim_min) <= l2.(lim_min)) &&
+    (l1.(lim_max) == l2.(lim_max)).
+
+Definition table_type_extension (t1 t2: table_type) : bool :=
+  (t1.(tt_elem_type) == t2.(tt_elem_type)) &&
+  (limits_extension t1.(tt_limits) t2.(tt_limits)).
+  
+(* Spec has an error here -- same for mem extension *)
 Definition table_extension (t1 t2 : tableinst) : bool :=
-  (tableinst_type t1 == tableinst_type t2) &&
+  (table_type_extension t1.(tableinst_type) t2.(tableinst_type)) &&
   (tab_size t1 <= tab_size t2).
 
 Definition mem_extension (m1 m2 : meminst) : bool :=
-  (meminst_type m1 == meminst_type m2) &&
+  (limits_extension m1.(meminst_type) m2.(meminst_type)) &&
   (mem_length m1 <= mem_length m2).
 
 Definition global_extension (g1 g2: globalinst) : bool :=
@@ -657,6 +677,16 @@ Definition data_extension (d1 d2: datainst) : bool :=
 Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list T): bool :=
   (length l1 <= length l2) &&
   all2 ext_rel l1 (take (length l1) l2).
+
+Definition context_extension C C' : bool :=
+  (C.(tc_types) == C'.(tc_types)) &&
+  (C.(tc_funcs) == C'.(tc_funcs)) &&
+  (all2 table_type_extension C.(tc_tables) C'.(tc_tables)) &&
+  (all2 limits_extension C.(tc_mems) C'.(tc_mems)) &&
+  (C.(tc_globals) == C'.(tc_globals)) &&
+  (C.(tc_elems) == C'.(tc_elems)) &&
+  (C.(tc_datas) == C'.(tc_datas)) &&
+  (C.(tc_refs) == C'.(tc_refs)).
 
 Definition store_extension (s s' : store_record) : bool :=
   component_extension func_extension s.(s_funcs) s'.(s_funcs) &&

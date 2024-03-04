@@ -1375,8 +1375,8 @@ Qed.
 Lemma table_extension_refl:
     reflexive table_extension.
 Proof.
-  move => t. unfold table_extension.
-  by apply/andP.
+  move => t. unfold table_extension, limits_extension.
+  by do 3 (apply/andP; split => //).
 Qed.
 
 Lemma all2_table_extension_same: forall t,
@@ -1390,9 +1390,8 @@ Qed.
 Lemma mem_extension_refl:
     reflexive mem_extension.
 Proof.
-  move => m.
-  unfold mem_extension.
-  by apply/andP; split => //.
+  move => m. unfold table_extension, limits_extension.
+  by do 2 (apply/andP; split => //).
 Qed.
 
 Lemma all2_mem_extension_same: forall t,
@@ -1478,12 +1477,13 @@ Lemma table_extension_trans:
 Proof.
   move => x1 x2 x3 Hext1 Hext2.
   destruct x1, x2, x3.
-  unfold table_extension in *; simpl in *.
-  remove_bools_options.
-  apply/andP; split; last apply/eqP.
-  - apply/eqP. by rewrite H1.
-  - simpl in *; subst.
-    by lias.
+  unfold table_extension, table_type_extension, limits_extension in *; simpl in *.
+  remove_bools_options; simpl in *; subst.
+  do 3 (try (apply/andP; split)).
+  - by apply/eqP; rewrite H3.
+  - by lias.
+  - by apply/eqP; rewrite H6.
+  - by lias.
 Qed.
     
 Lemma mem_extension_trans:
@@ -1491,12 +1491,12 @@ Lemma mem_extension_trans:
 Proof.
   move => x1 x2 x3 Hext1 Hext2.
   destruct x1, x2, x3.
-  unfold mem_extension in *; simpl in *.
-  remove_bools_options.
-  apply/andP; split; last apply/eqP.
-  - apply/eqP; by rewrite H1.
-  - simpl in *; subst.
-    by lias.
+  unfold mem_extension, limits_extension in *; simpl in *.
+  remove_bools_options; simpl in *; subst.
+  do 2 (try (apply/andP; split)).
+  - by lias.
+  - apply/eqP; by rewrite H4.
+  - by lias.
 Qed.
     
 Lemma global_extension_trans:
@@ -1796,12 +1796,12 @@ Qed.
 
 Lemma inst_typing_expand_eq: forall s inst C C' tb,
     inst_typing s inst = Some C ->
-    inst_match C C' ->
+    tc_types C = tc_types C' ->
     expand inst tb = expand_t C' tb.
 Proof.
-  move => s inst C C' tb Hit Hmatch.
+  move => s inst C C' tb Hit Hteq.
   destruct tb => //=.
-  replace (tc_types C') with (tc_types C); last by unfold inst_match in Hmatch; destruct C; remove_bools_options.
+  rewrite -Hteq.
   by eapply inst_typing_type_lookup; eauto.
 Qed.
 

@@ -269,16 +269,13 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     tab_size tab = sz ->
     reduce hs s f [:: AI_basic (BI_table_size x)] hs s f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat sz)))]
 | r_table_grow_success :
-  forall x n tab sz tabinit s f hs tab',
-    stab s f.(f_inst) x = Some tab ->
-    tab_size tab = sz ->
-    growtable tab (Wasm_int.N_of_uint i32m n) tabinit = Some tab' ->
+  forall x n sz tabinit s f s' hs,
+    stab_grow s f.(f_inst) x (Wasm_int.N_of_uint i32m n) tabinit = Some (s', sz) ->
     reduce hs s f [::v_to_e (VAL_ref tabinit); $VN (VAL_int32 n); AI_basic (BI_table_grow x)]
-      hs (upd_s_table s (set_nth tab' s.(s_tables) (N.to_nat x) tab')) f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat sz)))]
+      hs s' f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat sz)))]
 | r_table_grow_failure :
-  forall x n tab sz tabinit s f hs,
-    stab s f.(f_inst) x = Some tab ->
-    tab_size tab = sz ->
+  forall x n tabinit s f hs,
+    stab_grow s f.(f_inst) x (Wasm_int.N_of_uint i32m n) tabinit = None ->
     reduce hs s f [::v_to_e (VAL_ref tabinit); $VN (VAL_int32 n); AI_basic (BI_table_grow x)]
       hs s f [::$VN (VAL_int32 int32_minus_one)]
 | r_table_fill_bound :
@@ -467,16 +464,16 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     mem_size m = n ->
     reduce hs s f [::AI_basic (BI_memory_size)] hs s f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_N n)))]
 | r_memory_grow_success :
-  forall s i f m n mem' c hs,
-    smem_ind s f.(f_inst) = Some i ->
-    lookup_N s.(s_mems) i = Some m ->
+  forall s addr f m n mem' c hs,
+    smem_ind s f.(f_inst) = Some addr ->
+    lookup_N s.(s_mems) addr = Some m ->
     mem_size m = n ->
     mem_grow m (Wasm_int.N_of_uint i32m c) = Some mem' ->
-    reduce hs s f [::$VN (VAL_int32 c); AI_basic BI_memory_grow] hs (upd_s_mem s (set_nth mem' s.(s_mems) i mem')) f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_N n)))]
+    reduce hs s f [::$VN (VAL_int32 c); AI_basic BI_memory_grow] hs (upd_s_mem s (set_nth mem' s.(s_mems) addr mem')) f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_N n)))]
 | r_memory_grow_failure :
-  forall i f m n s c hs,
-    smem_ind s f.(f_inst) = Some i ->
-    lookup_N s.(s_mems) i = Some m ->
+  forall addr f m n s c hs,
+    smem_ind s f.(f_inst) = Some addr ->
+    lookup_N s.(s_mems) addr = Some m ->
     mem_size m = n ->
     reduce hs s f [::$VN (VAL_int32 c); AI_basic BI_memory_grow] hs s f [::$VN (VAL_int32 int32_minus_one)]
 | r_memory_fill_bound:

@@ -146,13 +146,6 @@ Definition upd_label C lab :=
 Definition upd_return C ret :=
   upd_local_label_return C (tc_locals C) (tc_labels C) ret.
 
-Definition inst_match C C' : bool :=
-  (C.(tc_types) == C'.(tc_types)) &&
-  (C.(tc_funcs) == C'.(tc_funcs)) &&
-  (C.(tc_tables) == C'.(tc_tables)) &&
-  (C.(tc_mems) == C'.(tc_mems)) &&
-  (C.(tc_globals) == C'.(tc_globals)).
-
 
 Inductive result_typing : result -> result_type -> Prop :=
   | result_typing_values : forall vs, result_typing (result_values vs) (map typeof vs)
@@ -374,7 +367,7 @@ Section Store_validity.
 Definition tableinst_typing (s: store_record) (ti: tableinst) : option table_type :=
   let '{| tableinst_type := ti_type; tableinst_elem := refs |} := ti in
   if tabletype_valid ti_type then
-    if length refs == ti_type.(tt_limits).(lim_min) then
+    if N.of_nat (length refs) == ti_type.(tt_limits).(lim_min) then
       if all (fun ref => (value_ref_typing s ref == Some (ti_type.(tt_elem_type)))) refs then
         Some ti_type
       else None
