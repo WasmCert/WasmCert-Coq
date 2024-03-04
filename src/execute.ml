@@ -148,7 +148,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
       match cfg_res with
       | RSC_normal (hs', cfg') ->
-        Printf.printf "\nReforming the configuration for the next step...\n";
+        debug_info verbosity intermediate ~style:yellow (fun _ -> "\nReforming the configuration for the next step...\n");
         begin match run_step_cfg_ctx_reform cfg' with
         | Some cfg_next -> 
             eval_cfg (gen+1) hs' cfg_next
