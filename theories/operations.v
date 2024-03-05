@@ -686,7 +686,10 @@ Definition context_extension C C' : bool :=
   (C.(tc_globals) == C'.(tc_globals)) &&
   (C.(tc_elems) == C'.(tc_elems)) &&
   (C.(tc_datas) == C'.(tc_datas)) &&
-  (C.(tc_refs) == C'.(tc_refs)).
+  (C.(tc_refs) == C'.(tc_refs)) &&
+  (C.(tc_locals) == C'.(tc_locals)) &&
+  (C.(tc_labels) == C'.(tc_labels)) &&
+  (C.(tc_return) == C'.(tc_return)).
 
 Definition store_extension (s s' : store_record) : bool :=
   component_extension func_extension s.(s_funcs) s'.(s_funcs) &&
