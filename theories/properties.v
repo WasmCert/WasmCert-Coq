@@ -894,20 +894,22 @@ Proof.
     eapply IHn; by eauto.
 Qed.
 
-Lemma all2_element {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
+Lemma all2_nth_impl {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
   all2 f l1 l2 ->
   List.nth_error l1 n = Some x ->
-  exists y, List.nth_error l2 n = Some y.
+  exists y, List.nth_error l2 n = Some y /\ f x y.
 Proof.
   move => Hall2 Hnth.
-  destruct (List.nth_error l2 n) eqn:Hnth'; first by eauto.
-  exfalso.
-  apply List.nth_error_None in Hnth'.
-  apply all2_size in Hall2.
-  repeat rewrite - length_is_size in Hall2.
-  rewrite -Hall2 in Hnth'.
-  apply nth_error_Some_length in Hnth.
-  by lias.
+  destruct (List.nth_error l2 n) eqn:Hnth'.
+  - exists t; split => //.
+    by eapply all2_projection; eauto.
+  - exfalso.
+    apply List.nth_error_None in Hnth'.
+    apply all2_size in Hall2.
+    repeat rewrite - length_is_size in Hall2.
+    rewrite -Hall2 in Hnth'.
+    apply nth_error_Some_length in Hnth.
+    by lias.
 Qed.
 
 Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
@@ -1578,8 +1580,7 @@ Proof.
     assert (size l1 <= size l3); first lias.
     destruct (size l1 < size l3) eqn: Hlt => //; last by lias.
   - move => n x y Hnth1 Hnth2.
-    specialize (all2_element H2 Hnth1) as [z Hnth3].
-    assert (f x z) as Htrans1; first by eapply all2_projection; eauto.
+    specialize (all2_nth_impl H2 Hnth1) as [z [Hnth3 Hf]].
     assert (f z y) as Htrans2; last eauto.
     apply nth_error_Some_length in Hnth1.
     rewrite - nth_error_take_longer in Hnth2; last by lias.

@@ -11,17 +11,17 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-  Context `{ho: host}.
+Context `{ho: host}.
   
-  Definition inst_match C C' : bool :=
-    (C.(tc_types) == C'.(tc_types)) &&
-      (C.(tc_funcs) == C'.(tc_funcs)) &&
-      (C.(tc_tables) == C'.(tc_tables)) &&
-      (C.(tc_mems) == C'.(tc_mems)) &&
-      (C.(tc_globals) == C'.(tc_globals)) &&
-      (C.(tc_elems) == C'.(tc_elems)) &&
-      (C.(tc_datas) == C'.(tc_datas)) &&
-      (C.(tc_refs) == C'.(tc_refs)).
+Definition inst_match C C' : bool :=
+  (C.(tc_types) == C'.(tc_types)) &&
+  (C.(tc_funcs) == C'.(tc_funcs)) &&
+  (C.(tc_tables) == C'.(tc_tables)) &&
+  (C.(tc_mems) == C'.(tc_mems)) &&
+  (C.(tc_globals) == C'.(tc_globals)) &&
+  (C.(tc_elems) == C'.(tc_elems)) &&
+  (C.(tc_datas) == C'.(tc_datas)) &&
+  (C.(tc_refs) == C'.(tc_refs)).
   
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
@@ -568,7 +568,30 @@ Proof.
     by edestruct IH; eauto.
 Qed.
 
-Ltac resolve_context_extension:=
+Lemma update_label_extension C C' lab:
+  context_extension C C' ->
+  context_extension (upd_label C lab) (upd_label C' lab).
+Proof.
+  unfold context_extension in *; destruct C, C'; simpl in *; remove_bools_options; subst; by repeat rewrite eq_rect => /=; lias.
+Qed.
+
+Lemma context_extension_table_elem_type C C' n tabt reft:
+  context_extension C C' ->
+  lookup_N C.(tc_tables) n = Some tabt ->
+  tt_elem_type tabt = reft ->
+  exists tabt', lookup_N C'.(tc_tables) n = Some tabt' /\
+             tt_elem_type tabt' = reft.
+Proof.
+  move => Hext Hnth Htabelem.
+  unfold context_extension in Hext; remove_bools_options.
+  unfold lookup_N in *.
+  eapply all2_nth_impl in H8 as [tabt' [Hnth' Htabext]]; eauto.
+  exists tabt'; split => //.
+  unfold table_type_extension in Htabext; remove_bools_options.
+  by rewrite - H8.
+Qed.
+
+Ltac rewrite_context_extension:=
   repeat match goal with
     | Hext: is_true (context_extension ?C ?C') |-
       context [ tc_types ?C' ] =>
@@ -597,6 +620,15 @@ Ltac resolve_context_extension:=
     | Hext: is_true (context_extension ?C ?C') |-
       context [ tc_refs ?C' ] =>
         replace (tc_refs C') with (tc_refs C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
+    | _ : is_true (context_extension ?C ?C') |- is_true (context_extension (upd_label ?C ?lab) (upd_label ?C' ?lab)) =>
+        by apply update_label_extension
+    | Hext : is_true (context_extension ?C ?C'),
+      Hnth : lookup_N ?C.(tc_tables) ?n = Some ?t,
+      Helemtype : tt_elem_type ?tabt = ?reft |- _ =>
+      let tabt' := fresh "tabt'" in   
+      let Hnth' := fresh "Hnth'" in   
+      let Helemtype' := fresh "Helemtype'" in   
+      specialize (context_extension_table_elem_type Hext Hnth Helemtype) as [tabt' [Hnth' Helemtype']]; clear Helemtype
     end.
 
 Lemma context_extension_be_typing: forall C C' es tf,
@@ -606,9 +638,22 @@ Lemma context_extension_be_typing: forall C C' es tf,
 Proof.
   move => C C' es tf Hext Hetype.
   move: C' Hext.
-  induction Hetype; move => C' Hext; try by econstructor; eauto; resolve_context_extension.
-  - econstructor; eauto.
-    resolve_context_extension.
+  induction Hetype; move => C' Hext; try by econstructor; eauto; rewrite_context_extension.
+  - econstructor; eauto; unfold expand_t in *; rewrite_context_extension.
+    apply IHHetype; by rewrite_context_extension.
+  - econstructor; eauto; unfold expand_t in *; rewrite_context_extension.
+    apply IHHetype; by rewrite_context_extension.
+  - econstructor; eauto; unfold expand_t in *; rewrite_context_extension.
+    + apply IHHetype1; by rewrite_context_extension.
+    + apply IHHetype2; by rewrite_context_extension.
+  - unfold context_extension in Hext; remove_bools_options.
+    unfold lookup_N in *.
+    eapply all2_nth_impl in H11 as [tabt [Hnth Htabext]]; eauto.
+    econstructor; first (by apply Hnth).
+    + unfold table_type_extension in Htabext; remove_bools_options.
+      by rewrite - H11.
+    + by rewrite - H2.
+  - econstructor.
   - apply bet_block; last eapply IHHetype; eauto.
     + unfold expand_t in *; destruct tb => //.
       replace (tc_types C') with (tc_types C) => //; by resolve_context_extension C C'.
