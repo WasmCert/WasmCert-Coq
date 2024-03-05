@@ -167,12 +167,21 @@ Proof.
   elim; first by move => ??? /=? => //.
   move => e es IH vs0 e0 es' Hsplit.
   destruct (is_const e) eqn:Hconst.
-  - destruct e as [b | | | |] => //; destruct b => //; clear Hconst.
+  - destruct e as [b | | | | |] => //; destruct b => //; clear Hconst.
     simpl in Hsplit.
     destruct (split_vals_e es) as [vs' es''] eqn:Hsplit2.
     injection Hsplit as <- ->.
     by eapply IH.
-  - destruct e as [b | | | |]; first destruct b => //; simpl in Hsplit; by injection Hsplit as <- <-.
+  - destruct e as [b | | | | |]; first destruct b => //; simpl in Hsplit; by injection Hsplit as <- <-.
+Qed.
+
+Lemma split_vals_const: forall vs vs' es es',
+  split_vals_e es = (vs', es') ->
+  split_vals_e ((v_to_e_list vs) ++ es) = (vs ++ vs', es').
+Proof.
+  elim; first by (move => ??? /=?; subst).
+  move => a l IH vs es es' Hsplit=>//=.
+  by erewrite IH.
 Qed.
 
 Lemma value_split_0 : forall es ves,
@@ -439,12 +448,12 @@ Proof.
   rewrite - (revK l1). rewrite H3. split => //. by apply revK.
 Qed.
 
-Lemma concat_cancel_last_n: forall (l1 l2 l3 l4: seq value_type),
+Lemma concat_cancel_last_n: forall {X: eqType} (l1 l2 l3 l4: seq X),
     l1 ++ l2 = l3 ++ l4 ->
     size l2 = size l4 ->
     (l1 == l3) && (l2 == l4).
 Proof.
-  move => l1 l2 l3 l4 HCat HSize.
+  move => X l1 l2 l3 l4 HCat HSize.
   rewrite -eqseq_cat; first by apply/eqP.
   assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
   repeat rewrite size_cat in H.
@@ -1566,7 +1575,7 @@ Proof.
     apply const_list_split in Hconst as [_ Hconst].
     simpl in Hconst.
     move/andP in Hconst; destruct Hconst as [? Hconst].
-    destruct e as [b | | | |] => //; destruct b => //.
+    destruct e as [b | | | | |] => //; destruct b => //.
     exists lvs, les, (Logic.eq_refl 0).
     by split => //.
   - move => e lf Hconst Hlf. subst.
@@ -1584,7 +1593,7 @@ Proof.
   - subst.
     left; by exists nil, ves'.
   - destruct (is_const e) eqn:Hconst.
-    { destruct e as [ b | | | |] => //; destruct b => //.
+    { destruct e as [ b | | | | |] => //; destruct b => //.
       destruct (IHves' fe) as [[vs [es ->]] | Hcontra]; first by left; exists (v :: vs), es.
       right; move => vs es Heq.
       destruct vs as [| v0 vs'] => //; simpl in *; first by inversion Heq.
@@ -1624,8 +1633,8 @@ Proof.
     by apply Hcontra in Heq.
   - specialize (split_vals_nconst Hsplit) as Hnconst.
     apply split_vals_inv in Hsplit as ->.
-    destruct e as [ | | | j lvs les |].
-    4: {
+    destruct e as [ | | | | j lvs les |].
+    5: {
       destruct (Hrec (fun n => fe (S n)) les) as [IH | IH] => /=.
       (* measure *)
       {
@@ -1653,6 +1662,83 @@ Defined.
 Program Fixpoint lfill_factorise fe es {measure (ais_gen_measure es)} :=
   @lfill_factorise_aux fe es lfill_factorise.
 
+
+(* TODO: the following should be combined with lfill_factorise above *)
+Definition is_return_invoke (instr : administrative_instruction) :=
+  match instr with
+  | AI_return_invoke _ => true
+  | _ => false
+  end.
+
+Lemma const_seq_factorise_return_invoke (ves: list administrative_instruction):
+  {vs & {es & {a & ves = v_to_e_list vs ++ [::AI_return_invoke a] ++ es}}} + {forall vs es a, ves <> v_to_e_list vs ++ [::AI_return_invoke a] ++ es}.
+Proof.
+  induction ves as [ | e ves']; first by right; destruct vs => //.
+  destruct (is_return_invoke e) eqn:H; move/eqP in H.
+  - subst.
+    destruct e => //.
+    left; by exists nil, ves', f.
+  - destruct (is_const e) eqn:Hconst.
+    { destruct e as [ b | | | | |] => //; destruct b => //.
+      destruct IHves' as [[vs [es [a ->]]] | Hcontra]; first by left; exists (v :: vs), es, a.
+      right; move => vs es a Heq.
+      destruct vs as [| v0 vs'] => //; simpl in *. inversion Heq. subst.
+      now eapply Hcontra.
+    }
+    { right; move => vs es a Heq.
+      destruct vs as [| v0 vs'] => //; simpl in *; by inversion Heq; subst.
+    }
+Qed.
+
+Definition lf_decide_return_invoke es: Type :=
+  {a & {n & {lh: lholed n | lfill lh [::AI_return_invoke a] = es}}} +
+  {forall a n (lh: lholed n), lfill lh [::AI_return_invoke a] <> es}.
+
+Definition lfill_return_invoke_factorise_aux (es: list administrative_instruction) (Hrec: forall es', (ais_gen_measure es' < ais_gen_measure es)%coq_nat -> lf_decide_return_invoke es'):
+    lf_decide_return_invoke es.
+Proof.
+  (* First, decide if lfill0 hold *)
+  destruct (const_seq_factorise_return_invoke es) as [[vs' [es'' [a Heq]]] | Hcontra]; first by left; exists a, 0, (LH_base vs' es'').
+  (* If not, then look at the top of instruction stack *)
+  destruct (split_vals_e es) as [vs es'] eqn:Hsplit.
+  destruct es' as [| e es'].
+  (* Instruction stack is empty *)
+  - right. move => a n lh Hlf.
+    apply split_vals_inv in Hsplit as ->; rewrite cats0 in Hlf.
+    rewrite cats0 in Hcontra.
+    apply lfill_const in Hlf; last by apply v_to_e_const.
+    destruct Hlf as [vs' [es [-> [? Heq]]]]; simpl in *; subst.
+    by apply Hcontra in Heq.
+  - specialize (split_vals_nconst Hsplit) as Hnconst.
+    apply split_vals_inv in Hsplit as ->.
+    destruct e as [ | | | | j lvs les |].
+    5: {
+      destruct (Hrec les) as [IH | IH] => /=.
+      (* measure *)
+      {
+        unfold ais_gen_measure.
+        rewrite - cat1s map_cat map_cat cat_app cat_app.
+        repeat rewrite List.list_max_app => /=.
+        destruct (List.list_max (map ai_gen_measure es')); by lias.
+      }
+      { destruct IH as [a' [n' [lh' Hlf]]].
+        left.
+        exists a', (S n'), (LH_rec vs j lvs lh' es') => /=.
+        by rewrite Hlf.
+      }
+      { right. move => a n lh Hlf.
+        destruct lh as [lvs' les' | n' lvs' les' lh' les'']; simpl in *; first by apply (Hcontra lvs' les' a).
+        apply const_list_concat_inv in Hlf as [Heq [Heqlab <-]] => //; try by apply v_to_e_const.
+        apply v_to_e_inj in Heq as ->.
+        injection Heqlab as <- <- <-.
+        by eapply IH.
+      }
+    }
+    all: try by right; move => a' n' lh Hlf; destruct lh as [lvs' les' | n' lvs' les' lh' les'']; simpl in *; (try by apply (Hcontra lvs' les' a')); apply const_list_concat_inv in Hlf as [Heq [Heqlab <-]] => //; by apply v_to_e_const.
+Defined.
+
+Program Fixpoint lfill_return_invoke_factorise es {measure (ais_gen_measure es)} :=
+  @lfill_return_invoke_factorise_aux es lfill_return_invoke_factorise.
 
 Section Host.
 

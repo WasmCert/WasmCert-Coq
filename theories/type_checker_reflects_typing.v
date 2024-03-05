@@ -1811,6 +1811,23 @@ Proof with auto_rewrite_cond.
       apply bet_weakening.
       apply bet_call_indirect => //=.
       by destruct (tc_table C) => //=.
+    + destruct f...
+      unfold type_update in Hct2.
+      assert (consume cts (to_ct_list r) <> CT_bot) as Hconsume; first by destruct (consume _ _).
+      apply tc_to_bet_br in Hconsume.
+      destruct Hconsume as [tn Hcts].
+      exists (tn ++ r); split => //.
+      eapply bet_return_call...
+    + destruct f...
+    + destruct f...
+      unfold type_update in Hct2.
+      assert (consume cts (to_ct_list (r ++ [:: T_i32])) <> CT_bot) as Hconsume; first by destruct (consume _ _).
+      apply tc_to_bet_br in Hconsume.
+      destruct Hconsume as [tn Hcts].
+      exists (tn ++ r ++ [:: T_i32]); split => //.
+      eapply bet_return_call_indirect...
+      by destruct (tc_table C) => //=.
+    + destruct f...
     + replace ([::]) with (to_ct_list [::]) in Hct2 => //=.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hct bet]]; subst.
@@ -1940,6 +1957,8 @@ Proof with auto_rewrite_cond.
       apply bet_reinterpret => //; by [ move/eqP in H0 | rewrite H2; apply/eqP].
 Qed.
 
+
+
 Lemma tc_to_bet_list: forall C cts bes tm cts',
   check C bes cts = cts' ->
   c_types_agree cts' tm ->
@@ -1991,6 +2010,8 @@ Proof with auto_rewrite_cond.
     + unfold type_update => //=...
     + unfold type_update => //=...
     + by destruct (tc_table C) eqn:Hctable => //=.
+    + destruct (tc_table C) eqn:Hctable => //=.
+      apply ct_suffix_empty.
     + rewrite List.fold_left_app => //=.
       unfold c_types_agree in IHHbet1.
       destruct (List.fold_left _ es _) eqn:Htc => //=.

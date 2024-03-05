@@ -361,7 +361,7 @@ Proof.
     + move => [<- <-]; by eexists; split.
   - move => e ves' IH acc vs es.
     destruct (e_to_v_opt e) as [v |] eqn:Hetov.
-    + destruct e as [b | | | |] => //; destruct b => //=.
+    + destruct e as [b | | | | |] => //; destruct b => //=.
       simpl in Hetov; injection Hetov as ->; move => /= Hsplit.
       apply IH in Hsplit as [vs0 [-> ->]].
       eexists; split => //=.
@@ -369,7 +369,7 @@ Proof.
     + move => [<- <-].
       exists nil.
       split => //.
-      destruct e as [b | | | |] => //; by destruct b.
+      destruct e as [b | | | | |] => //; by destruct b.
 Qed.
 
 Lemma split_vals'_aux_spec: forall ves acc vs es vs0,
@@ -382,12 +382,12 @@ Proof.
   - move => e ves' IH acc vs es vs0 Heq ->.
     destruct (split_vals_e ves') as [vs' es'] eqn:Hsplit.
     destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
-    + destruct e as [b | | | |] => //; destruct b => //=.
+    + destruct e as [b | | | | |] => //; destruct b => //=.
       simpl in Hetov; injection Hetov as ->.
       injection Heq as <- <-.
       erewrite IH; eauto.
       by rewrite rev_cons -cats1 -catA cat1s.
-    + destruct e as [b | | | |]; first (destruct b); by injection Heq as <- <-.
+    + destruct e as [b | | | | |]; first (destruct b); by injection Heq as <- <-.
 Qed.
 
 Lemma split_vals'_spec: forall ves vs es,
@@ -531,6 +531,7 @@ Proof.
   destruct e as
     [ b
     |
+    |
     | addr
     | n ces es
     | n f es
@@ -558,6 +559,7 @@ Proof.
   destruct es as [ | e es']; first by injection Hdecomp as <- <- <-.
   destruct e as
     [ b
+    |
     |
     | addr
     | n ces es
@@ -668,6 +670,7 @@ Proof.
     by apply split_vals_inv in Hsplit as ->.
   - destruct e as
       [ b
+      |
       |
       | addr
       | n ces es

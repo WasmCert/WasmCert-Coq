@@ -187,6 +187,24 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
 (*        stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) = None ->*)
         stab_addr s f (Wasm_int.nat_of_uint i32m c) = None ->
         reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_trap]
+
+  (* https://webassembly.github.io/tail-call/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-return-call-x *)
+  | r_return_call :
+      forall s f i a hs,
+        reduce hs s f [::AI_basic (BI_call i)] hs s f [::AI_invoke a] ->
+        reduce hs s f [::AI_basic (BI_return_call i)] hs s f [::AI_return_invoke a]
+
+  (* https://webassembly.github.io/tail-call/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-return-call-indirect-x-y *)
+  | r_return_call_indirect_success :
+      forall s f i a c hs,
+        reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_invoke a] ->
+        reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_return_call_indirect i)] hs s f [::AI_return_invoke a]
+
+  | r_return_call_indirect_failure :
+      forall s f i c hs,
+        reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_call_indirect i)] hs s f [::AI_trap] ->
+        reduce hs s f [::AI_basic (BI_const (VAL_int32 c)); AI_basic (BI_return_call_indirect i)] hs s f [::AI_trap]
+
   | r_invoke_native :
       forall a cl t1s t2s ts es ves vcs n m k zs s f f' i hs,
         List.nth_error s.(s_funcs) a = Some cl ->
@@ -221,6 +239,17 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         host_application hs s (Tf t1s t2s) h vcs hs' None ->
         reduce hs s f (ves ++ [::AI_invoke a]) hs' s f [::AI_trap]
 
+  (* https://webassembly.github.io/tail-call/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-return-call-indirect-x-y *)
+  | r_return_invoke :
+      forall a cl t1s t2s n m vs es i (lh: lholed i) f f' hs s,
+        List.nth_error s.(s_funcs) a = Some cl ->
+        cl_type cl = Tf t1s t2s ->
+        length t1s = n ->
+        length t2s = m ->
+        const_list vs ->
+        length vs = n ->
+        lfill lh (vs ++ [::AI_return_invoke a]) = es ->
+        reduce hs s f [::AI_local m f' es] hs s f (vs ++ [::AI_invoke a])
   (** get, set, load, and store operations **)
   | r_get_local :
       forall f v j s hs,

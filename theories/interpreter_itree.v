@@ -304,6 +304,30 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
       end
     else ret (s, f, crash_error)
 
+  | AI_basic (BI_return_call j) =>
+    (*    if sfunc s f.(f_inst) j is Some sfunc_i_j then*)
+    if List.nth_error f.(f_inst).(inst_funcs) j is Some a then
+      ret (s, f, RS_normal (vs_to_es ves ++ [::AI_return_invoke a]))
+    else ret (s, f, crash_error)
+
+  | AI_basic (BI_return_call_indirect j) =>
+    if ves is VAL_int32 c :: ves' then
+(*      match stab s f.(f_inst) (Wasm_int.nat_of_uint i32m c) with
+      | Some cl =>*)
+      match stab_addr s f (Wasm_int.nat_of_uint i32m c) with
+      | Some a =>
+        match List.nth_error s.(s_funcs) a with
+        | Some cl =>
+          if stypes s f.(f_inst) j == Some (cl_type cl)
+          then ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_return_invoke a]))
+          else ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+     (* Not Trap because this is not supposed to happen after validation *)
+        | None => ret (s, f, crash_error)
+        end
+      | None => ret (s, f, RS_normal (vs_to_es ves' ++ [::AI_trap]))
+      end
+    else ret (s, f, crash_error)
+
   | AI_basic BI_return => ret (s, f, RS_return ves)
 
   | AI_basic (BI_get_local j) =>
@@ -463,6 +487,9 @@ Definition run_one_step (call : run_stepE ~> itree (run_stepE +' eff))
             end
         | None => ret (s, f, crash_error)
       end
+
+  (* FIXME: reduce to standard invoke for now *)
+  | AI_return_invoke i => ret (s, f, RS_normal [::AI_invoke i])
 
   | AI_label ln les es =>
     if es_is_trap es

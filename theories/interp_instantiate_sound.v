@@ -365,11 +365,10 @@ Proof.
     simpl in Hrmsc.
     inversion Hrmsc; subst.
     exact Hsglob.
-    
   - move => ? Hcontra.
     by inversion Hcontra.
 Qed.
-    
+
 Lemma interp_get_v_reduce: forall hs s c inst k bes,
     const_exprs c bes ->
     be_typing c bes (Tf [::] [::T_i32]) ->

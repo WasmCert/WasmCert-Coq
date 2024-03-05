@@ -157,6 +157,12 @@ Definition parse_call {n} : byte_parser basic_instruction n :=
 Definition parse_call_indirect {n} : byte_parser basic_instruction n :=
   exact_byte x11 &> (extract_typeidx BI_call_indirect <$> parse_typeidx <& exact_byte x00).
 
+Definition parse_return_call {n} : byte_parser basic_instruction n :=
+  exact_byte x12 &> (extract_funcidx BI_return_call <$> parse_funcidx).
+
+Definition parse_return_call_indirect {n} : byte_parser basic_instruction n :=
+  exact_byte x13 &> (extract_typeidx BI_return_call_indirect <$> parse_typeidx <& exact_byte x00).
+
 Definition parse_drop {n} : byte_parser basic_instruction n :=
   exact_byte x1a $> BI_drop.
 
@@ -487,6 +493,8 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
     parse_return <|>
     parse_call <|>
     parse_call_indirect <|>
+    parse_return_call <|>
+    parse_return_call_indirect <|>
     parse_parametric_instruction <|>
     parse_variable_instruction <|>
     parse_memory_instruction <|>
