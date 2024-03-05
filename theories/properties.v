@@ -1128,38 +1128,6 @@ Proof.
 Qed.
 
 (************ these come from the certified itp *************)
-(*
-Lemma bet_const' : forall C vs,
-  be_typing C (map BI_const_num vs) (Tf [::] (map (fun v => T_num (typeof_num v)) vs)).
-Proof.
-  intros C vs. induction vs as [|vs' v IHvs] using last_ind.
-  - apply bet_empty.
-  - rewrite <- cats1. rewrite map_cat.
-    eapply bet_composition; eauto => //.
-    rewrite map_cat.
-    apply bet_weakening_empty_1.
-    by apply bet_const_num.
-Qed.
-
-Lemma to_b_v_to_e_is_bi_const : forall vs,
-  to_b_list (v_to_e_list vs) = map BI_const vs.
-Proof.
-  induction vs as [|v vs' IH] => //.
-  rewrite <- cat1s.
-  unfold v_to_e_list. unfold to_b_list.
-  unfold v_to_e_list in IH. unfold to_b_list in IH.
-  repeat rewrite map_cat.
-  f_equal => //.
-Qed.
-
-Lemma cats_injective : forall T (s1 : seq T),
-  injective (fun s2 => s1 ++ s2).
-Proof.
-  intros T s1 s2 s2' Heq.
-  induction s1 => //.
-  by injection Heq => //.
-Qed.
-*)
 Lemma seq_split_predicate : forall (T : eqType) (xs xs' ys ys' : seq T) (y : T) (P : pred T),
   xs ++ [:: y] ++ ys = xs' ++ ys' ->
   all P xs ->
@@ -1347,9 +1315,6 @@ Qed.
 
 (** Store extension properties **)
 
-Let func_extension: funcinst -> funcinst -> bool := @func_extension _.
-Let store_extension: store_record -> store_record -> Prop := @store_extension _.
-
 Lemma reflexive_all2_same: forall {X:Type} f (l: seq X),
     reflexive f ->
     all2 f l l.
@@ -1378,7 +1343,8 @@ Lemma table_extension_refl:
     reflexive table_extension.
 Proof.
   move => t. unfold table_extension, limits_extension.
-  by do 3 (apply/andP; split => //).
+  do 3 (apply/andP; split => //).
+  apply/N.leb_spec0; by lias.
 Qed.
 
 Lemma all2_table_extension_same: forall t,
@@ -1393,7 +1359,8 @@ Lemma mem_extension_refl:
     reflexive mem_extension.
 Proof.
   move => m. unfold table_extension, limits_extension.
-  by do 2 (apply/andP; split => //).
+  do 2 (apply/andP; split => //).
+  apply/N.leb_spec0; by lias.
 Qed.
 
 Lemma all2_mem_extension_same: forall t,
@@ -1481,11 +1448,9 @@ Proof.
   destruct x1, x2, x3.
   unfold table_extension, table_type_extension, limits_extension in *; simpl in *.
   remove_bools_options; simpl in *; subst.
-  do 3 (try (apply/andP; split)).
-  - by apply/eqP; rewrite H3.
-  - by lias.
-  - by apply/eqP; rewrite H6.
-  - by lias.
+  do 3 (try (apply/andP; split)); try by lias.
+  - rewrite - H; by lias.
+  - rewrite - H2; by lias.
 Qed.
     
 Lemma mem_extension_trans:
@@ -1495,10 +1460,8 @@ Proof.
   destruct x1, x2, x3.
   unfold mem_extension, limits_extension in *; simpl in *.
   remove_bools_options; simpl in *; subst.
-  do 2 (try (apply/andP; split)).
-  - by lias.
-  - apply/eqP; by rewrite H4.
-  - by lias.
+  do 2 (try (apply/andP; split)); try by lias.
+  rewrite - H1; by lias.
 Qed.
     
 Lemma global_extension_trans:

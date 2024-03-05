@@ -431,32 +431,22 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     load_packed sx m (Wasm_int.N_of_uint i32m k) off (tp_length tp) (tnum_length t) = None ->
     reduce hs s f [::$VN (VAL_int32 k); AI_basic (BI_load t (Some (tp, sx)) a off)] hs s f [::AI_trap]
 | r_store_success :
-  forall t v s i f mem' k a off m hs,
-    typeof_num v = t ->
-    smem_ind s f.(f_inst) = Some i ->
-    lookup_N s.(s_mems) i = Some m ->
-    store m (Wasm_int.N_of_uint i32m k) off (bits v) (tnum_length t) = Some mem' ->
-    reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t None a off)] hs (upd_s_mem s (set_nth mem' s.(s_mems) i mem')) f [::]
+  forall t v s f k a off s' hs,
+    smem_store s f.(f_inst) (Wasm_int.N_of_uint i32m k) off v t = Some s' ->
+    reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t None a off)] hs s' f [::]
 | r_store_failure :
-  forall t v s i f m k off a hs,
-    typeof_num v = t ->
-    smem_ind s f.(f_inst) = Some i ->
-    lookup_N s.(s_mems) i = Some m ->
-    store m (Wasm_int.N_of_uint i32m k) off (bits v) (tnum_length t) = None ->
+  forall t v s f k off a hs,
+    smem_store s f.(f_inst) (Wasm_int.N_of_uint i32m k) off v t = None ->
     reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t None a off)] hs s f [::AI_trap]
 | r_store_packed_success :
-  forall t v s i f m k off a mem' tp hs,
+  forall t v s s' a f k off tp hs,
+    smem_store_packed s f.(f_inst) (Wasm_int.N_of_uint i32m k) off v tp = Some s' ->
     typeof_num v = t ->
-    smem_ind s f.(f_inst) = Some i ->
-    lookup_N s.(s_mems) i = Some m ->
-    store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = Some mem' ->
-    reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t (Some tp) a off)] hs (upd_s_mem s (set_nth mem' s.(s_mems) i mem')) f [::]
+    reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t (Some tp) a off)] hs s' f [::]
 | r_store_packed_failure :
-  forall t v s i f m k off a tp hs,
+  forall t v s a f k off tp hs,
+    smem_store_packed s f.(f_inst) (Wasm_int.N_of_uint i32m k) off v tp = None ->
     typeof_num v = t ->
-    smem_ind s f.(f_inst) = Some i ->
-    lookup_N s.(s_mems) i = Some m ->
-    store_packed m (Wasm_int.N_of_uint i32m k) off (bits v) (tp_length tp) = None ->
     reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t (Some tp) a off)] hs s f [::AI_trap]
 | r_memory_size :
   forall f m n s hs,
@@ -464,17 +454,12 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     mem_size m = n ->
     reduce hs s f [::AI_basic (BI_memory_size)] hs s f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_N n)))]
 | r_memory_grow_success :
-  forall s addr f m n mem' c hs,
-    smem_ind s f.(f_inst) = Some addr ->
-    lookup_N s.(s_mems) addr = Some m ->
-    mem_size m = n ->
-    mem_grow m (Wasm_int.N_of_uint i32m c) = Some mem' ->
-    reduce hs s f [::$VN (VAL_int32 c); AI_basic BI_memory_grow] hs (upd_s_mem s (set_nth mem' s.(s_mems) addr mem')) f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_N n)))]
+  forall s f s' sz c hs,
+    smem_grow s f.(f_inst) (Wasm_int.N_of_uint i32m c) = Some (s', sz) ->
+    reduce hs s f [::$VN (VAL_int32 c); AI_basic BI_memory_grow] hs s' f [::$VN (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_N sz)))]
 | r_memory_grow_failure :
-  forall addr f m n s c hs,
-    smem_ind s f.(f_inst) = Some addr ->
-    lookup_N s.(s_mems) addr = Some m ->
-    mem_size m = n ->
+  forall s f c hs,
+    smem_grow s f.(f_inst) (Wasm_int.N_of_uint i32m c) = None ->
     reduce hs s f [::$VN (VAL_int32 c); AI_basic BI_memory_grow] hs s f [::$VN (VAL_int32 int32_minus_one)]
 | r_memory_fill_bound:
   forall s f mem d n v hs,

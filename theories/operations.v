@@ -44,6 +44,15 @@ Definition write_bytes (m : meminst) (start_idx : N) (bs : bytes) : option memin
   | None => None
   end.
 
+Definition bits (v : value_num) : bytes :=
+  match v with
+  | VAL_int32 c => serialise_i32 c
+  | VAL_int64 c => serialise_i64 c
+  | VAL_float32 c => serialise_f32 c
+  | VAL_float64 c => serialise_f64 c
+  end.
+
+
 Definition page_size : N := 65536%N.
 
 Definition page_limit : N := 65536%N.
@@ -554,6 +563,51 @@ Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: el
   | None => None
   end.
 
+Definition smem_store (s: store_record) (inst: moduleinst) (n: N) (off: static_offset) (v: value_num) (t: number_type) : option store_record :=
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some addr =>
+      match lookup_N s.(s_mems) addr with
+      | Some mem =>
+        match store mem n off (bits v) (tnum_length t) with
+        | Some mem' =>
+           Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
+        | None => None
+        end
+      | None => None
+      end
+  | None => None
+  end.
+
+Definition smem_store_packed (s: store_record) (inst: moduleinst) (n: N) (off: static_offset) (v: value_num) (tp: packed_type) : option store_record :=
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some addr =>
+      match lookup_N s.(s_mems) addr with
+      | Some mem =>
+        match store_packed mem n off (bits v) (tp_length tp) with
+        | Some mem' =>
+           Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
+        | None => None
+        end
+      | None => None
+      end
+  | None => None
+  end.
+
+Definition smem_grow (s: store_record) (inst: moduleinst) (n: N) : option (store_record * N) :=
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some addr =>
+      match lookup_N s.(s_mems) addr with
+      | Some mem =>
+          match mem_grow mem n with
+          | Some mem' =>
+              Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'), mem_size mem)
+          | None => None
+          end
+      | None => None
+      end
+  | None => None
+  end.
+
 Definition growtable (tab: tableinst) (n: N) (tabinit: value_ref) : option tableinst :=
   let len := (N.of_nat (tab_size tab) + n)%N in
   if N.leb u32_bound len then None
@@ -645,7 +699,7 @@ Definition func_extension (f1 f2: funcinst) : bool :=
   f1 == f2.
 
 Definition limits_extension (l1 l2: limits) : bool :=
-  (l1.(lim_min) <= l2.(lim_min)) &&
+  (N.leb l1.(lim_min) l2.(lim_min)) &&
     (l1.(lim_max) == l2.(lim_max)).
 
 Definition table_type_extension (t1 t2: table_type) : bool :=
@@ -1089,14 +1143,6 @@ Definition cvt_promote t v : option value_num :=
       | _ => None
       end
   | _ => None
-  end.
-
-Definition bits (v : value_num) : bytes :=
-  match v with
-  | VAL_int32 c => serialise_i32 c
-  | VAL_int64 c => serialise_i64 c
-  | VAL_float32 c => serialise_f32 c
-  | VAL_float64 c => serialise_f64 c
   end.
 
 Definition eval_cvt (t : number_type) (op: cvtop) (s : option sx) (v : value_num) : option value_num :=

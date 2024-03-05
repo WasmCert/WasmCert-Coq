@@ -47,9 +47,12 @@ Ltac lias_simpl :=
   | |- context C [subn] => rewrite /subn /subn_rec
   | |- context C [addn] => rewrite /addn /addn_rec
   | |- is_true (leq _ _) => apply/leP
+  | |- is_true (BinNat.N.leb _ _) => apply/BinNat.N.leb_spec0
+  | |- is_true (BinNat.N.ltb _ _) => apply/BinNat.N.ltb_spec0
   | |- is_true (@eq_op nat_eqType _ _) => rewrite -eqnE; apply/eqnP
   | |- is_true (@eq_op Z_eqType _ _) => apply/Z_eqP
   | |- is_true (@eq_op Pos_eqType _ _) => apply/Pos_eqP
+  | |- is_true (@eq_op _ _ _) => apply/eqP
   | |- context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n);
     rewrite <- (Znat.Nat2Z.inj_succ n)
@@ -67,9 +70,12 @@ Ltac lias_simpl :=
     have L: (~ a <= b)%coq_nat;
     [ move=> ?; apply: H; apply/leP; by lia | clear H ]
   | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
+  | H: context C [is_true (BinNat.N.leb _ _)] |- _ => move: H => /BinNat.N.leb_spec0 H
+  | H: context C [is_true (BinNat.N.ltb _ _)] |- _ => move: H => /BinNat.N.ltb_spec0 H
   | H: context C [is_true (@eq_op nat_eqType _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
   | H: context C [is_true (@eq_op Z_eqType _ _)] |- _ => move: H => /Z_eqP H
   | H: context C [is_true (@eq_op Pos_eqType _ _)] |- _ => move: H => /Pos_eqP H
+  | H: context C [is_true (@eq_op _ _ _)] |- _ => move: H => /eqP H
   | H: context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] |- _ =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n) in H;
     rewrite <- (Znat.Nat2Z.inj_succ n) in H
