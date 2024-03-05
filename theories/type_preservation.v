@@ -1132,6 +1132,166 @@ Proof.
   by induction HReduce.
 Qed.
 
+Lemma context_extension_func_typing: forall C C' x t,
+    context_extension C C' ->
+    func_typing C x t ->
+    func_typing C' x t.
+Proof.
+  move => C C' x t Hcext Hft.
+  unfold func_typing in *; destruct x; remove_bools_options.
+  rewrite_context_extension.
+  rewrite Hoption.
+  destruct f; destruct Hft as [-> Het]; split => //.
+  eapply context_extension_be_typing; eauto.
+  unfold context_extension in *; remove_bools_options; destruct C, C'; subst; by lias.
+Qed.
+  
+Lemma store_extension_funcinst_typing: forall s s' x t,
+    store_extension s s' ->
+    funcinst_typing s x t ->
+    funcinst_typing s' x t.
+Proof.
+  move => s s' x t Hst Hft.
+  unfold funcinst_typing in *; destruct Hft as [<- Hft]; remove_bools_options; split => //.
+  destruct x => //; destruct Hft as [? Hft]; split => //.
+  remove_bools_options.
+  eapply inst_typing_extension in Hoption; last by apply Hst.
+  destruct Hoption as [C' [Hit' Hcext]].
+  rewrite Hit'.
+  unfold func_typing in *.
+  by eapply context_extension_func_typing; eauto.
+Qed.
+
+Lemma store_extension_tableinst_typing: forall s s' x t,
+    store_extension s s' ->
+    tableinst_typing s x = Some t ->
+    tableinst_typing s' x = Some t.
+Proof.
+  move => s s' x t Hst Ht.
+  unfold tableinst_typing in *; destruct x; remove_bools_options.
+  assert (all (fun ref => value_ref_typing s' ref == Some (tt_elem_type t)) tableinst_elem = true) as Hall; last by rewrite Hall.
+  apply list_all_forall.
+  move => a Hin.
+  move/allP in Hif1.
+  move/inP in Hin.
+  apply Hif1 in Hin.
+  move/eqP in Hin.
+  by eapply value_ref_typing_extension in Hin; eauto; apply/eqP.
+Qed.
+
+Lemma store_extension_meminst_typing: forall s s' x t,
+    store_extension s s' ->
+    meminst_typing s x = Some t ->
+    meminst_typing s' x = Some t.
+Proof.
+  move => s s' x t Hst Ht.
+  by unfold meminst_typing in *; destruct x; remove_bools_options.
+Qed.
+
+Lemma store_extension_globalinst_typing: forall s s' x t,
+    store_extension s s' ->
+    globalinst_typing s x = Some t ->
+    globalinst_typing s' x = Some t.
+Proof.
+  move => s s' x t Hst Ht.
+  unfold globalinst_typing in *; destruct x; remove_bools_options.
+  move/eqP in Hif0.
+  eapply value_typing_extension in Hif0; eauto.
+  by rewrite Hif0 eq_refl => /=.
+Qed.
+
+Lemma store_extension_eleminst_typing: forall s s' x t,
+    store_extension s s' ->
+    eleminst_typing s x = Some t ->
+    eleminst_typing s' x = Some t.
+Proof.
+  move => s s' x t Hst Ht.
+  unfold eleminst_typing in *; destruct x; remove_bools_options.
+  assert (all (fun ref => value_ref_typing s' ref == Some t) eleminst_elem = true) as Hall; last by rewrite Hall.
+  apply list_all_forall.
+  move => a Hin.
+  move/allP in Hif.
+  move/inP in Hin.
+  apply Hif in Hin.
+  move/eqP in Hin.
+  by eapply value_ref_typing_extension in Hin; eauto; apply/eqP.
+Qed.
+
+Lemma store_extension_datainst_typing: forall s s' x t,
+    store_extension s s' ->
+    datainst_typing s x = Some t ->
+    datainst_typing s' x = Some t.
+Proof.
+  move => s s' x t Hst Ht.
+  by unfold datainst_typing in *; destruct x; remove_bools_options.
+Qed.
+
+Lemma store_extension_funcs_typing: forall s s' xs,
+    store_extension s s' ->
+    List.Forall (fun x => exists t, funcinst_typing s x t) xs ->
+    List.Forall (fun x => exists t, funcinst_typing s' x t) xs.
+Proof.
+  move => s s' xs Hst Hall.
+  eapply List.Forall_impl; eauto.
+  move => x /=[t Ht].
+  by exists t; eapply store_extension_funcinst_typing; eauto.
+Qed.
+
+Lemma store_extension_tables_typing: forall s s' xs,
+    store_extension s s' ->
+    List.Forall (fun x => exists t, tableinst_typing s x = Some t) xs ->
+    List.Forall (fun x => exists t, tableinst_typing s' x = Some t) xs.
+Proof.
+  move => s s' xs Hst Hall.
+  eapply List.Forall_impl; eauto.
+  move => x /=[t Ht].
+  by exists t; eapply store_extension_tableinst_typing; eauto.
+Qed.
+
+Lemma store_extension_mems_typing: forall s s' xs,
+    store_extension s s' ->
+    List.Forall (fun x => exists t, meminst_typing s x = Some t) xs ->
+    List.Forall (fun x => exists t, meminst_typing s' x = Some t) xs.
+Proof.
+  move => s s' xs Hst Hall.
+  eapply List.Forall_impl; eauto.
+  move => x /=[t Ht].
+  by exists t; eapply store_extension_meminst_typing; eauto.
+Qed.
+
+Lemma store_extension_globals_typing: forall s s' xs,
+    store_extension s s' ->
+    List.Forall (fun x => exists t, globalinst_typing s x = Some t) xs ->
+    List.Forall (fun x => exists t, globalinst_typing s' x = Some t) xs.
+Proof.
+  move => s s' xs Hst Hall.
+  eapply List.Forall_impl; eauto.
+  move => x /=[t Ht].
+  by exists t; eapply store_extension_globalinst_typing; eauto.
+Qed.
+
+Lemma store_extension_elems_typing: forall s s' xs,
+    store_extension s s' ->
+    List.Forall (fun x => exists t, eleminst_typing s x = Some t) xs ->
+    List.Forall (fun x => exists t, eleminst_typing s' x = Some t) xs.
+Proof.
+  move => s s' xs Hst Hall.
+  eapply List.Forall_impl; eauto.
+  move => x /=[t Ht].
+  by exists t; eapply store_extension_eleminst_typing; eauto.
+Qed.
+
+Lemma store_extension_datas_typing: forall s s' xs,
+    store_extension s s' ->
+    List.Forall (fun x => exists t, datainst_typing s x = Some t) xs ->
+    List.Forall (fun x => exists t, datainst_typing s' x = Some t) xs.
+Proof.
+  move => s s' xs Hst Hall.
+  eapply List.Forall_impl; eauto.
+  move => x /=[t Ht].
+  by exists t; eapply store_extension_datainst_typing; eauto.
+Qed.
+
 Ltac resolve_store_extension :=
   repeat lazymatch goal with
   | |- context [ component_extension (@operations.func_extension _) ?x ?x ] =>
@@ -1148,6 +1308,23 @@ Ltac resolve_store_extension :=
       rewrite -> component_extension_same_refl with (f := data_extension); last by apply data_extension_refl
     | _ => repeat rewrite andbT
     end; cbn.
+
+Ltac resolve_store_typing :=
+  repeat split;
+  repeat lazymatch goal with
+  | |- List.Forall (fun x => exists t, funcinst_typing ?s x t) _ =>
+      by eapply store_extension_funcs_typing; eauto
+  | |- List.Forall (fun x => exists t, tableinst_typing ?s x = Some t) _ =>
+      by eapply store_extension_tables_typing; eauto
+  | |- List.Forall (fun x => exists t, meminst_typing ?s x = Some t) _ =>
+      by eapply store_extension_mems_typing; eauto
+  | |- List.Forall (fun x => exists t, globalinst_typing ?s x = Some t) _ =>
+      by eapply store_extension_globals_typing; eauto
+  | |- List.Forall (fun x => exists t, eleminst_typing ?s x = Some t) _ =>
+      by eapply store_extension_elems_typing; eauto
+  | |- List.Forall (fun x => exists t, datainst_typing ?s x = Some t) _ =>
+      by eapply store_extension_datas_typing; eauto
+    end.
 
 Lemma supdate_glob_extension: forall s f i v s' C gt,
   store_typing s ->
@@ -1173,6 +1350,25 @@ Proof.
   injection Hnth as <-.
   unfold is_mut in *; simpl in *; by move/eqP in Hmut.
 Qed.
+
+Lemma supdate_glob_typing: forall s f i v s' C gt,
+  store_typing s ->
+  supdate_glob s (f_inst f) i v = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  value_typing s v = Some (tg_t gt) ->
+  lookup_N (tc_globals C) i = Some gt ->
+  is_mut gt ->
+  store_typing s'.
+Proof.
+  move => s f i v s' C gt Hst Hupd Hinst Hvaltype Hnth Hmut.
+  assert (store_extension s s') as Hstext; first by eapply supdate_glob_extension; eauto.
+  unfold store_typing in *; destruct s, s'; simpl in *.
+  unfold_store_operations; remove_bools_options.
+  destruct Hst as [Hft [Htt [Hmt [Hgt [Het Hdt]]]]].
+  resolve_store_typing.
+Qed.
+    
+  
 
 Lemma stab_update_extension: forall s f x i v s' C tabt,
   store_typing s ->
@@ -1321,7 +1517,6 @@ Proof.
   unfold data_extension => /=; rewrite eq_refl. by lias.
 Qed.
 
-
 (* Note that although config_typing gives quite a stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
 Lemma store_extension_reduce: forall s f es s' f' es' C C' tf hs hs',
     reduce hs s f es hs' s' f' es' ->
@@ -1335,7 +1530,6 @@ Proof.
   move: tf C C'.
   induction HReduce => //; subst; try (move => tf C C' HIT Hmatch HType HST; intros; destruct tf; invert_e_typing => //; (try by apply store_extension_same)).
   - (* Invoke host *)
-    unfold store_extension; unfold_store_operations; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
     by eapply host_application_extension; eauto.
   - (* global_set *)
     eapply supdate_glob_extension; eauto.
@@ -1381,6 +1575,12 @@ Lemma store_typing_reduce: forall s f es s' f' es' C C' tf hs hs',
     store_typing s ->
     store_typing s'.
 Proof.
+  move => s f es s' f' es' C C' tf hs hs' HReduce.
+  move: tf C C'.
+  induction HReduce => //; subst; try (move => tf C C' HIT Hmatch HType HST; intros; destruct tf; invert_e_typing => //).
+  - (* host call *)
+    by eapply host_application_typing; eauto.
+  -     
 Admitted.
 
 (*
