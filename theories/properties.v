@@ -1258,17 +1258,25 @@ Proof.
   by apply IHl.
 Qed.
 
+Lemma set_nth_length: forall {X: Type} l n {x xd: X},
+    n < length l ->
+    length (set_nth xd l n x) = length l.
+Proof.
+  move => X l n x xd Hnth.
+  repeat rewrite length_is_size.
+  rewrite size_set_nth -length_is_size.
+  unfold maxn.
+  destruct (n.+1 < _) eqn:Hlt => //.
+  by lias.
+Qed.
+
 Lemma nth_error_set_nth_length: forall {X: Type} l n {x0 x xd: X},
   List.nth_error l n = Some x0 ->
   length (set_nth xd l n x) = length l.
 Proof.
   move => X l n x0 x xd Hnth.
   apply nth_error_Some_length in Hnth.
-  repeat rewrite length_is_size.
-  rewrite size_set_nth -length_is_size.
-  unfold maxn.
-  destruct (n.+1 < _) eqn:Hlt => //.
-  by lias.
+  by eapply set_nth_length; lias.
 Qed.
 
 Lemma nth_error_set_eq: forall {X:Type} l n {x xd:X},
@@ -1300,6 +1308,19 @@ Proof.
     + destruct l => //=.
       simpl in HLength.
       by apply IHn; lias.
+Qed.
+
+Lemma set_nth_In: forall {X: Type} y l n {x xd: X},
+    n < length l ->
+    List.In y (set_nth xd l n x) ->
+    y = x \/ (exists m, n <> m /\ List.nth_error l m = Some y).
+Proof.
+  move => X y l n x xd Hlen Hin.
+  apply List.In_nth_error in Hin as [m Hnth].
+  destruct (n == m) eqn:Heq; move/eqP in Heq; subst.
+  - by left; rewrite nth_error_set_eq in Hnth; injection Hnth.
+  - right; exists m; split => //.
+    by erewrite <- nth_error_set_neq; eauto => //.
 Qed.
 
 Lemma Forall_set: forall {X:Type} f l n {x xd:X},

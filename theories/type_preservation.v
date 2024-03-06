@@ -1326,6 +1326,16 @@ Ltac resolve_store_typing :=
       by eapply store_extension_datas_typing; eauto
     end.
 
+Ltac resolve_if_true_eq :=
+  match goal with
+  | _ : _ |- match ?expr with
+            | true => Some ?x
+            | false => None
+            end = Some ?x =>
+      let Htrue := fresh "Htrue" in
+      assert (expr = true) as Htrue; last by rewrite Htrue
+  end.
+
 Lemma supdate_glob_extension: forall s f i v s' C gt,
   store_typing s ->
   supdate_glob s (f_inst f) i v = Some s' ->
@@ -1362,14 +1372,21 @@ Lemma supdate_glob_typing: forall s f i v s' C gt,
 Proof.
   move => s f i v s' C gt Hst Hupd Hinst Hvaltype Hnth Hmut.
   assert (store_extension s s') as Hstext; first by eapply supdate_glob_extension; eauto.
-  unfold store_typing in *; destruct s, s'; simpl in *.
+  unfold_store_operations; remove_bools_options.
+  resolve_store_inst_lookup; destruct g0; remove_bools_options; simpl in *.
+  rewrite Hnthgt in Hnth; injection Hnth as ->.
+  eapply value_typing_extension in Hvaltype; eauto.
+  unfold store_typing in *; destruct s; simpl in *.
   unfold_store_operations; remove_bools_options.
   destruct Hst as [Hft [Htt [Hmt [Hgt [Het Hdt]]]]].
-  resolve_store_typing.
+  resolve_store_typing; simpl in *; clear Hft Htt Hmt Het Hdt.
+  eapply Forall_set; eauto; last by apply nth_error_Some_length in Hoption1; lias.
+  eapply Forall_lookup in Hoption1; eauto; simpl in *.
+  destruct Hoption1 as [t Ht]; remove_bools_options.
+  rewrite Hvaltype.
+  by exists t; rewrite eq_refl.
 Qed.
     
-  
-
 Lemma stab_update_extension: forall s f x i v s' C tabt,
   store_typing s ->
   stab_update s (f_inst f) x i v = Some s' ->
@@ -1389,6 +1406,39 @@ Proof.
   apply nth_error_nth with (x := (VAL_ref_null T_funcref)).
   move/N.ltb_spec0 in Hif.
   by lias.
+Qed.
+
+Lemma stab_update_typing: forall s f x i v s' C tabt,
+  store_typing s ->
+  stab_update s (f_inst f) x i v = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  value_typing s (VAL_ref v) = Some (T_ref (tt_elem_type tabt)) ->
+  lookup_N (tc_tables C) x = Some tabt ->
+  store_typing s'.
+Proof.
+  move => s f x i v s' C tabt Hst Hupd Hinst Hvaltype Hnth.
+  assert (store_extension s s') as Hstext; first by eapply stab_update_extension; eauto.
+  unfold_store_operations; remove_bools_options.
+  resolve_store_inst_lookup; destruct t0; remove_bools_options; simpl in *.
+  rewrite Hnthtabt in Hnth; injection Hnth as ->.
+  unfold store_typing in *; destruct s; simpl in *.
+  unfold_store_operations; remove_bools_options.
+  destruct Hst as [Hft [Htt [Hmt [Hgt [Het Hdt]]]]].
+  resolve_store_typing; simpl in *; clear Hft Hmt Hgt Het Hdt.
+  eapply Forall_set; eauto; last by apply nth_error_Some_length in Hoption1; lias.
+  eapply Forall_lookup in Hoption1; eauto; simpl in *.
+  destruct Hoption1 as [vt Ht]; remove_bools_options.
+  unfold tab_size in *; simpl in *.
+  erewrite set_nth_length; last by lias.
+  move/eqP in Hif4.
+  rewrite Hif4 eq_refl.
+  exists vt.
+  resolve_if_true_eq.
+  apply list_all_forall.
+  move => a Hin.
+  apply set_nth_In in Hin.
+  eapply list_all_forall in Hif5. eauto.
+  Search all.
 Qed.
 
 Lemma stab_grow_extension: forall s f x i v s' sz C tabt,
@@ -2059,3 +2109,5 @@ Proof.
 Qed.
 
 End Host.
+
+
