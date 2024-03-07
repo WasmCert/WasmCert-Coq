@@ -79,13 +79,14 @@ Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
     if N.leb new_size maxlim then
         Some {|
           meminst_data := new_mem_data;
-          meminst_type := m.(meminst_type);
+            meminst_type :=
+              Build_limits new_size m.(meminst_type).(lim_max);
           |}
     else None
   | None =>
     Some {|
       meminst_data := new_mem_data;
-      meminst_type := m.(meminst_type);
+      meminst_type := Build_limits new_size m.(meminst_type).(lim_max);
       |}
   end
   else None.

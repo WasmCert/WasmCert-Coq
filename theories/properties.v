@@ -865,6 +865,15 @@ Proof.
   eapply IHn; by eauto.
 Qed.
 
+Lemma all_repeat: forall {X: Type} (f: X -> bool) v n,
+    f v = true ->
+    all f (List.repeat v n).
+Proof.
+  move => X f v. elim => //=.
+  move => n IH Hf.
+  rewrite Hf => /=; by apply IH.
+Qed.
+
 Lemma all_projection: forall {X:Type} f (l:seq X) n x,
     all f l ->
     List.nth_error l n = Some x ->
