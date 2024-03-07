@@ -11,7 +11,7 @@ The new sign extension, non-trapping float-to-int conversion, and vector types a
 
 ## Updated Components:
 - [x] Base opsem/typing definitions;
-- [x] Type preservation theorem (except store extension theorems for now);
+- [x] Preservation theorems;
 - [x] Interpreter and progress theorem;
 - [x] Instantiation;
 - [ ] Instantiation soundness theorems;
