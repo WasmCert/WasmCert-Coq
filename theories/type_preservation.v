@@ -1577,7 +1577,7 @@ Proof.
   move => r ts s C HResType.
   destruct r => /=; last by apply ety_trap.
   simpl in *.
-  by apply et_values_typing.
+  by apply et_values_typing; move/eqP in HResType.
 Qed.
 
 Lemma t_preservation_locs_type_aux: forall s f es s' f' es' C C0 ts t1s t2s hs hs',

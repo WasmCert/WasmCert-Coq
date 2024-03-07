@@ -77,9 +77,9 @@ Definition value_typing (s: store_record) (v: value) : option value_type :=
 Definition values_typing (s: store_record) (vs: list value) : option (list value_type) :=
   those (map (value_typing s) vs).
 
-Definition result_types_agree (s: store_record) (ts : result_type) r :=
+Definition result_types_agree (s: store_record) (ts : result_type) r : bool :=
   match r with
-  | result_values vs => values_typing s vs = Some ts
+  | result_values vs => values_typing s vs == Some ts
   | result_trap => true
   end.
 
