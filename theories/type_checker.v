@@ -229,6 +229,7 @@ in
                   then type_update ts [::CTA_some (T_num t)] (CT_type [::T_num t])
                   else CT_bot
     | Unop_extend _ =>
+        (* Technically, this needs to check validity of the extend arg; but such instruction can never arise from parsing *)
                   if is_int_t t
                   then type_update ts [::CTA_some (T_num t)] (CT_type [::T_num t])
                   else CT_bot

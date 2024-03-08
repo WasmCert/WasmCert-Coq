@@ -1267,6 +1267,13 @@ Proof.
   by apply IHl.
 Qed.
 
+Lemma nth_error_nth': forall {T: Type} (l: list T) n (x x0:T),
+  List.nth_error l n = Some x -> nth x0 l n = x.
+Proof.
+  induction l => //=; destruct n => //=; intros; first by inversion H.
+  by apply IHl.
+Qed.
+
 Lemma set_nth_length: forall {X: Type} l n {x xd: X},
     n < length l ->
     length (set_nth xd l n x) = length l.

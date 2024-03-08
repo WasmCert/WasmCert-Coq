@@ -157,6 +157,8 @@ Inductive unop_type_agree: number_type -> unop -> Prop :=
   | Unop_i64_agree: forall op, unop_type_agree T_i64 (Unop_i op)
   | Unop_f32_agree: forall op, unop_type_agree T_f32 (Unop_f op)
   | Unop_f64_agree: forall op, unop_type_agree T_f64 (Unop_f op)
+  | Unop_extend_agree_i32: forall n, unop_type_agree T_i32 (Unop_extend n)
+  | Unop_extend_agree_i64: forall n, unop_type_agree T_i64 (Unop_extend n)
   .
    
 Inductive binop_type_agree: number_type -> binop -> Prop :=
