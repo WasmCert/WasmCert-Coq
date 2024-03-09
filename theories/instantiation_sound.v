@@ -8,6 +8,8 @@ From Wasm Require Import instantiation_spec instantiation_properties.
 From Coq Require Import BinNat NArith ZArith.
 Require Import Coq.Program.Equality List.
 
+Import instantiation_properties_notations.
+
 Section Host.
 
 Variable host_function : eqType.

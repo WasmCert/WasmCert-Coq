@@ -6,7 +6,12 @@ Require Export instantiation_spec.
 Require Export type_preservation type_progress properties.
 
 (* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations for now *)
+
+(* Notation in a module to avoid conflicts. *)
+Module instantiation_properties_notations.
 Notation "l !! n" := (List.nth_error l n) (at level 10).
+End instantiation_properties_notations.
+Import instantiation_properties_notations.
 
 Section module_typing_det.
 
