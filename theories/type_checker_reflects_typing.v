@@ -1686,34 +1686,60 @@ Qed.
 
 Ltac resolve_no_consume cts rt tm :=
   let Hct3 := fresh "Hct3" in
-  assert (c_types_agree (type_update cts (to_ct_list [::]) (CT_type [::rt])) tm) as Hct3; first (by simplify_type_update; unfold produce => //=);
+  assert (c_types_agree (type_update cts (to_ct_list [::]) (CT_type rt)) tm) as Hct3; first (by simplify_type_update; unfold produce => //=);
   apply type_update_type_agree in Hct3;
   destruct Hct3 as [tn' [Hct bet]]; subst;
   rewrite cats0 in Hct;
   exists tn'; split => //;
   apply bet_weakening_empty_1;
-  try by econstructor.
+  try by econstructor; eauto.
 
+Ltac fold_type_update H :=
+  match type of H with
+  | context [ consume ?cts ?ts ]  =>
+    replace (consume cts ts) with (type_update cts ts (CT_type nil)); last by unfold type_update; rewrite produce_empty
+  end.
+
+(* Resolving update agree when the types being consumed are non-polymorphic, which is true for most of the instructions. *)
 Ltac resolve_update_agree :=
   match goal with
-  | Hct2: is_true (c_types_agree (type_update ?cts [::CTA_some ?t1] (CT_type [:: _])) ?tm) |- _ =>
+  | Hct2: is_true (c_types_agree (type_update ?cts nil (CT_type _)) ?tm) |- _ =>
+    let tn' := fresh "tn'" in
+    let Hct := fresh "Hct" in
+    let bet := fresh "bet" in
+    replace nil with (to_ct_list nil) in Hct2 => //=;
+    apply type_update_type_agree in Hct2 as [tn' [Hct bet]]; subst;
+    rewrite -> cats0 in *;
+    exists tn'; split => //;
+    try apply bet_weakening; try apply bet_weakening_empty_1;
+    try by repeat econstructor; eauto
+  | Hct2: is_true (c_types_agree (type_update ?cts [::CTA_some ?t1] (CT_type _)) ?tm) |- _ =>
     let tn' := fresh "tn'" in
     let Hct := fresh "Hct" in
     let bet := fresh "bet" in
     replace ([::CTA_some t1]) with (to_ct_list [:: t1]) in Hct2 => //=;
     apply type_update_type_agree in Hct2 as [tn' [Hct bet]]; subst;
     exists (tn' ++ [::t1]); split => //;
-    apply bet_weakening;
-    try by repeat econstructor
-  | Hct2: is_true (c_types_agree (type_update ?cts [::CTA_some ?t1; CTA_some ?t2] (CT_type [:: _])) ?tm) |- _ =>
+    try apply bet_weakening; try apply bet_weakening_empty_1;
+    try by repeat econstructor; eauto
+  | Hct2: is_true (c_types_agree (type_update ?cts [::CTA_some ?t1; CTA_some ?t2] (CT_type _)) ?tm) |- _ =>
     let tn' := fresh "tn'" in
     let Hct := fresh "Hct" in
     let bet := fresh "bet" in
     replace ([::CTA_some t1; CTA_some t2]) with (to_ct_list [:: t1; t2]) in Hct2 => //=;
     apply type_update_type_agree in Hct2 as [tn' [Hct bet]]; subst;
     exists (tn' ++ [::t1; t2]); split => //;
-    apply bet_weakening;
-    try by repeat econstructor
+    try apply bet_weakening; try apply bet_weakening_empty_1;
+    try by repeat econstructor; eauto
+  | Hct2: is_true (c_types_agree (type_update ?cts [::CTA_some ?t1; CTA_some ?t2; CTA_some ?t3] (CT_type _)) ?tm) |- _ =>
+    let tn' := fresh "tn'" in
+    let Hct := fresh "Hct" in
+    let bet := fresh "bet" in
+    replace ([::CTA_some t1; CTA_some t2; CTA_some t3]) with (to_ct_list [:: t1; t2; t3]) in Hct2 => //=;
+    apply type_update_type_agree in Hct2 as [tn' [Hct bet]]; subst;
+    exists (tn' ++ [::t1; t2; t3]); split => //;
+    try apply bet_weakening; try apply bet_weakening_empty_1;
+    try by repeat econstructor; eauto
   end.
 
 (*
@@ -1767,7 +1793,7 @@ Proof with auto_rewrite_cond.
   (* Single *)
   - destruct e => //=; (try destruct f as [tn' tm']); auto_rewrite_cond; move => ? Hs Hct Hct2; simplify_type_update => //...
     (* Const_num *)
-    + by resolve_no_consume cts (T_num (typeof_num v)) tm.
+    + by resolve_no_consume cts [::T_num (typeof_num v)] tm.
     (* Unop_i *)
     + resolve_update_agree.
       constructor; destruct n => //=; by econstructor.
@@ -1794,14 +1820,14 @@ Proof with auto_rewrite_cond.
     (* Cvtop *)
     + by resolve_update_agree.
     (* Const_vec *)
-    + by resolve_no_consume cts (T_vec (typeof_vec v)) tm.
+    + by resolve_no_consume cts [::T_vec (typeof_vec v)] tm.
     (* Const_vec *)
-    + by resolve_no_consume cts (T_ref r) tm.
+    + by resolve_no_consume cts [::T_ref r] tm.
     (* Ref_is_null *)
     + unfold type_update_ref_is_null in Hct2.
       admit.
     (* Ref_func *)
-    + resolve_no_consume cts (T_ref T_funcref) tm.
+    + resolve_no_consume cts [::T_ref T_funcref] tm.
       econstructor; eauto.
       by move/inP in if_expr0.
     (* Drop *)
@@ -1837,14 +1863,41 @@ Proof with auto_rewrite_cond.
         replace (size l < size l) with false; last by clear H; lias.
         apply bet_weakening_empty_2.
         by apply bet_drop.
-    (* select *)
-    + by apply type_update_select_agree_bet.
-    + replace ([::CTA_some (T_num n0)]) with (to_ct_list [::T_num n0]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      exists (tn' ++ [::T_num n0]); split => //.
-      apply bet_weakening.
-      apply bet_reinterpret => //; by [ move/eqP in H0 | rewrite H2; apply/eqP].
+    (* Select *)
+    + (* by apply type_update_select_agree_bet. *)
+      admit.
+      (* Local_get *)
+    + by resolve_update_agree.
+      (* Local_set *)
+    + by resolve_update_agree.
+      (* Local_tee *)
+    + by resolve_update_agree.
+      (* Global_set *)
+    + resolve_update_agree.
+      by econstructor; rewrite match_expr => /=.
+      (* Global_get *)
+    + by resolve_update_agree.
+      (* Table_get *)
+    + by resolve_update_agree.
+      (* Table_set *)
+    + by resolve_update_agree.
+      (* Table_size *)
+    + by resolve_no_consume cts [::T_num T_i32] tm.
+      (* Table_grow *)
+    + by resolve_update_agree.
+      (* Table_fill *)
+    + by resolve_update_agree.
+      (* Table_copy *)
+    + fold_type_update Hct2.
+    + replace (consume cts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)]) with (type_update cts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)) => /=; last first.
+      unfold type_update; by rewrite produce_empty.
+      resolve_no_consume cts (@nil value_type) tm.
+    + fold (type_update cts _ (CT_type nil)) in Hct2.
+    + resolve_no_consume cts (T_num T_i32) tm.
+    + resolve_update_agree.
+      apply bet_table_copy.
+      econstructor.
+      apply bet_table_set.
     + exists (populate_ct cts); split; by [apply populate_ct_agree | apply bet_unreachable].
     + exists tm; split => //.
       apply bet_weakening_empty_both.
@@ -1934,38 +1987,6 @@ Proof with auto_rewrite_cond.
       apply bet_weakening.
       apply bet_call_indirect => //=.
       by destruct (tc_table C) => //=.
-    + replace ([::]) with (to_ct_list [::]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      rewrite cats0 in Hct.
-      exists tn'; split => //=.
-      apply bet_weakening_empty_1.
-      by apply bet_get_local.
-    + replace ([::CTA_some (T_num n)]) with (to_ct_list [::T_num n]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      exists (tn' ++ [::T_num n]); split => //.
-      apply bet_weakening.
-      by apply bet_set_local.
-    + replace ([::CTA_some (T_num n)]) with (to_ct_list [::T_num n]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      exists (tn' ++ [::T_num n]); split => //.
-      apply bet_weakening.
-      by apply bet_tee_local.
-    + replace ([::]) with (to_ct_list [::]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      rewrite cats0 in Hct.
-      exists tn'; split => //=.
-      apply bet_weakening_empty_1.
-      apply bet_get_global => //=; by auto_rewrite_cond.
-    + replace ([::CTA_some (tg_t g)]) with (to_ct_list [::tg_t g]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      exists (tn' ++ [::tg_t g]); split => //.
-      apply bet_weakening.
-      by eapply bet_set_global; eauto.
     + replace ([::CTA_some T_i32]) with (to_ct_list [::T_i32]) in Hct2 => //=.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hct bet]]; subst.

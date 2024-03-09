@@ -365,7 +365,7 @@ in
       match lookup_N (tc_tables C) x with
       | None => CT_bot 
       | Some tabt =>
-          type_update ts [::CTA_some (T_ref tabt.(tt_elem_type)); CTA_some (T_num T_i32)] (CT_type nil)
+          type_update ts [::CTA_some (T_num T_i32); CTA_some (T_ref tabt.(tt_elem_type))] (CT_type nil)
       end
   | BI_table_size x =>
       match lookup_N (tc_tables C) x with
@@ -392,7 +392,7 @@ in
           match lookup_N (tc_tables C) y with
           | Some tabt2 =>
               if tabt1.(tt_elem_type) == tabt2.(tt_elem_type)
-              then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type [::T_num T_i32])
+              then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
               else CT_bot
           | None => CT_bot
           end
@@ -404,7 +404,7 @@ in
           match lookup_N (tc_elems C) y with
           | Some t =>
               if tabt.(tt_elem_type) == t
-              then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type [::T_num T_i32])
+              then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
               else CT_bot
           | None => CT_bot
           end
@@ -462,18 +462,6 @@ in
       | None => CT_bot
       end
   end.
-
-(*
-Fixpoint collect_at_inds A (l : seq A) (ns : seq nat) : seq A :=
-  match ns with
-  | n :: ns' =>
-    match (lookup_N l n) with
-    | Some x => x :: collect_at_inds l ns'
-    | None => collect_at_inds l ns'
-    end
-  | [::] => [::]
-  end.
-*)
 
 Definition check (C : t_context) (es : list basic_instruction) (ts : checker_type): checker_type :=
   List.fold_left (check_single C) es ts.
