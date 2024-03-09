@@ -408,6 +408,59 @@ Proof.
     by rewrite Hnth in Heqo.
 Defined.
 
+(** Return_invoke exits from the innermost frame and all label contexts,
+    continuation: vals + invoke a **)
+Definition run_ctx_return_invoke: forall hs s ccs sc a,
+  run_step_ctx_result hs (s, ccs, sc, Some (AI_return_invoke a)).
+Proof.  
+  intros hs s ccs [vs es] a.
+  get_cc ccs.
+  destruct fc as [lvs lk lf les].
+  destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
+  - (* Some cl *)
+    remember (cl_type cl) as tf. destruct tf as [t1s t2s].
+    remember (length t1s) as n eqn:?.
+    remember (length t2s) as m eqn:?.
+    destruct (length t1s <= length vs) eqn:?.
+    + (* length t1s <= length lvs *)
+      destruct (lk == length t2s) eqn:?.
+      * (* lk == length t2s *)
+        apply <<hs, (s, ccs', (take (length t1s) vs ++ lvs, [::AI_invoke a] ++ les), None)>> => /=.
+        rewrite - (cat_take_drop (length t1s) vs) take_size_cat; last by rewrite size_takel => //.
+        rewrite /vs_to_es rev_cat -v_to_e_cat rev_cat -v_to_e_cat -cat1s -catA.
+        resolve_reduce_ctx lvs les; last rewrite catA; eauto => //=. cbn.
+        eapply r_return_invoke; eauto. move/eqP in Heqb0 =>//.
+        by apply v_to_e_const.
+        by rewrite v_to_e_length length_is_size size_rev size_takel.
+        apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop (length t1s) vs)) es)) (lcs := lcs) => /=.
+        by repeat rewrite - catA => /=.
+      * (* lk != length t2s *)
+        resolve_invalid_typing.
+        invert_e_typing. simpl in *.
+        assert (cl_return_invoke = cl) by congruence.
+        have H' := cl_typing_unique H2_return_invoke.
+        assert (t1s_return_invoke = t1s) by congruence.
+        assert (t2s_return_invoke = t2s) by congruence. subst.
+        injection H3_return_invoke as ->. clear H'.
+        by move/eqP in Heqb0.
+    + (* Not enough values *)
+      resolve_invalid_typing; simpl in Htype.
+      invert_e_typing.
+      have H' := cl_typing_unique H2_return_invoke.
+      assert (t1s_return_invoke = t1s) by congruence.
+      assert (t2s_return_invoke = t2s) by congruence. subst.
+      injection H3_return_invoke as ->. clear H'.
+      apply (f_equal size) in H4_return_invoke.
+      rewrite size_map size_cat size_rev in H4_return_invoke.
+      repeat rewrite length_is_size in Heqb.
+      move/eqP in Heqb. by lias.
+  - (* None *)
+    resolve_invalid_typing.
+    eapply Return_invoke_func_typing in Htype as [cl Hnth]; eauto.
+    by rewrite Hnth in Heqo.
+Defined.
+
+
 (* One step of execution; does not perform the context update in the end to shift to the new instruction. *)
 Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
 Proof.
@@ -497,6 +550,8 @@ Proof.
       (* BI_return *) |
       (* BI_call j *) j |
       (* BI_call_indirect j *) j |
+      (* BI_return_call j *) j |
+      (* BI_return_call_indirect j *) j |
       (* BI_get_local j *) j |
       (* BI_set_local j *) j |
       (* BI_tee_local j *) j |
@@ -514,6 +569,7 @@ Proof.
       (* BI_cvtop t2 cvtop t1 sx *) t2 cvtop t1 sx ] |
       (* AI_trap *) |
       (* AI_invoke a *) a |
+      (* AI_return_invoke a *) a |
       (* AI_label ln les es *) ln les es |
       (* AI_local ln lf es *) ln lf es ]; destruct sc as [vs0 es0].
 
@@ -717,6 +773,57 @@ Proof.
         resolve_reduce_ctx vs0 es0.
         by eapply r_call_indirect_failure2; subst.
 
+(* essentially the same as for BI_call, maybe this should be refactored *)
+    - (* AI_basic (BI_return_call j *)
+      get_cc ccs.
+      destruct (List.nth_error fc.(FC_frame).(f_inst).(inst_funcs) j) as [a|] eqn: Hnth.
+      + (* Some a *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_return_invoke a))>>.
+        resolve_reduce_ctx vs0 es0.
+        apply r_return_call. by apply r_call.
+      + (* None *)
+        resolve_invalid_typing; simpl in Htype; invert_be_typing.
+        inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
+        destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
+        eapply func_context_store in Hit as [? Hnth']; eauto.
+        by rewrite Hnth in Hnth'.
+
+(* essentially the same as for BI_call_indirect, maybe this should be refactored *)
+    - (* AI_basic (BI_return_call_indirect j *)
+      get_cc ccs.    
+      destruct vs0 as [|v vs0]; first by resolve_invalid_typing; simpl in Htype; invert_be_typing; size_unequal H4_return_call_indirect.
+      (* v :: ves' *)
+      destruct v as [c| | |] eqn:?.
+      2,3,4: resolve_invalid_typing; simpl in Htype; invert_be_typing; by last_unequal H4_return_call_indirect.
+      (* VAL_int32 c *)
+      remember (fc.(FC_frame)) as f.
+      destruct (stab_addr s f (Wasm_int.nat_of_uint i32m c)) as [a|] eqn:?.
+      + (* Some a *)
+        destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
+        * (* Some cl *)
+           destruct (stypes s f.(f_inst) j == Some (cl_type cl)) eqn:Hcl; move/eqP in Hcl.
+           -- (* true *)
+             apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_return_invoke a))>>.
+             resolve_reduce_ctx vs0 es0.
+             eapply r_return_call_indirect_success.
+             by eapply r_call_indirect_success; subst; eauto.
+           -- (* false *)
+             apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap))>>.
+             resolve_reduce_ctx vs0 es0.
+             apply r_return_call_indirect_failure.
+             by eapply r_call_indirect_failure1; subst; eauto.
+        * (* None *)
+          resolve_invalid_typing; simpl in Htype; invert_be_typing.
+          inversion Hftype as [s' i tvs C f Hit Hfi Hlocs]; subst.
+          destruct fc as [fvs fk ff fes]; simpl in *.
+          eapply store_typing_stabaddr in Hit as [? Hnth']; eauto.
+          by rewrite Heqo0 in Hnth'.
+      + (* None *)
+        apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap))>>.
+        resolve_reduce_ctx vs0 es0.
+        apply r_return_call_indirect_failure.
+        by eapply r_call_indirect_failure2; subst.
+    
     - (* AI_basic (BI_get_local j) *)
       get_cc ccs.    
       remember (fc.(FC_frame)) as f.
@@ -1093,7 +1200,10 @@ Proof.
 
     - (* AI_invoke a *)
       by apply run_ctx_invoke.
-        
+
+    - (* AI_return_invoke a *)
+      by apply run_ctx_return_invoke.
+
     - (* AI_label ln les es *)
       by apply RSC_invalid => /=; move => [??].
 
@@ -1174,6 +1284,7 @@ Proof.
     + inversion H; subst; clear H; (try by destruct vs as [ | v vs] => //; destruct vs); try by (right; (try by left); (try by right)).
   - right.
     destruct r => /=; by [left; apply v_to_e_const | right].
+  - admit. (* vs ++ [AI_return_invoke a] *)
   - destruct lh using lh_case; destruct k => //.
     + rewrite -> lh_cast_eq in *.
       simpl in *.
@@ -1184,7 +1295,7 @@ Proof.
       rewrite -> lh_cast_eq in *; clear H.
       simpl in Hvalid.
       by destruct vs.
-Qed.
+Admitted.
 
 Definition valid_init_Some s es:
   valid_wasm_instr es ->

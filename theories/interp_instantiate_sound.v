@@ -6,6 +6,8 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import interpreter_ctx instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
 From Coq Require Import Program.
 
+Import instantiation_properties_notations.
+
 Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
   (forall x y, f x y = true -> fprop x y) ->
   all2 f l1 l2 ->
@@ -365,11 +367,10 @@ Proof.
     simpl in Hrmsc.
     inversion Hrmsc; subst.
     exact Hsglob.
-    
   - move => ? Hcontra.
     by inversion Hcontra.
 Qed.
-    
+
 Lemma interp_get_v_reduce: forall hs s c inst k bes,
     const_exprs c bes ->
     be_typing c bes (Tf [::] [::T_i32]) ->

@@ -321,6 +321,8 @@ Inductive basic_instruction : Type := (* be *)
   | BI_return
   | BI_call : immediate -> basic_instruction
   | BI_call_indirect : immediate -> basic_instruction
+  | BI_return_call : immediate -> basic_instruction
+  | BI_return_call_indirect : immediate -> basic_instruction
   | BI_get_local : immediate -> basic_instruction
   | BI_set_local : immediate -> basic_instruction
   | BI_tee_local : immediate -> basic_instruction
@@ -453,6 +455,7 @@ Inductive administrative_instruction : Type := (* e *)
 | AI_basic : basic_instruction -> administrative_instruction
 | AI_trap
 | AI_invoke : funcaddr -> administrative_instruction
+| AI_return_invoke : funcaddr -> administrative_instruction
 | AI_label : nat -> seq administrative_instruction -> seq administrative_instruction -> administrative_instruction
 | AI_local : nat -> frame -> seq administrative_instruction -> administrative_instruction
 .

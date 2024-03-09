@@ -285,6 +285,10 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
     indent i (with_fg be_style "call " ++ pp_immediate x ++ newline)
   | BI_call_indirect x =>
     indent i (with_fg be_style "call_indirect " ++ pp_immediate x ++ newline)
+  | BI_return_call x =>
+    indent i (with_fg be_style "return_call " ++ pp_immediate x ++ newline)
+  | BI_return_call_indirect x =>
+    indent i (with_fg be_style "return_call_indirect " ++ pp_immediate x ++ newline)
   | BI_get_local x =>
     indent i (with_fg be_style "local.get " ++ pp_immediate x ++ newline)
   | BI_set_local x =>
@@ -356,6 +360,8 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
   | AI_trap => indent n (with_fg ae_style "trap" ++ newline)
   | AI_invoke a =>
     indent n (with_fg ae_style "invoke " ++ string_of_nat a ++ newline)
+  | AI_return_invoke a =>
+    indent n (with_fg ae_style "return_invoke " ++ string_of_nat a ++ newline)
   (*    pp_function_closure (n.+1) fc*)
            
   | AI_label k es1 es2 =>
@@ -427,6 +433,9 @@ Definition pp_res_tuple_except_store (res_cfg : store_record host_function * fra
     "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   | RS_return vs_res =>
     "return " ++ pp_values_hint_empty vs_res ++ newline ++
+    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
+  | RS_return_invoke vs_res a =>
+      "return_invoke " ++ string_of_nat a ++ "  " ++ pp_values_hint_empty vs_res ++ newline ++
     "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   | RS_normal es =>
     "normal" ++ newline ++
