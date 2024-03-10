@@ -415,13 +415,21 @@ in
       | Some tabt => ts
       end
   | BI_load t tp_sx a off =>
-    if (C.(tc_mems) != nil) && load_store_t_bounds a (option_projl tp_sx) t
-    then type_update ts [::CTA_some (T_num T_i32)] (CT_type [::T_num t])
-    else CT_bot
+      match lookup_N C.(tc_mems) 0%N with
+      | Some _ =>
+          if load_store_t_bounds a (option_projl tp_sx) t
+          then type_update ts [::CTA_some (T_num T_i32)] (CT_type [::T_num t])
+          else CT_bot
+      | None => CT_bot
+      end
   | BI_store t tp a off =>
-    if (C.(tc_mems) != nil) && load_store_t_bounds a tp t
-    then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num t)] (CT_type [::])
-    else CT_bot
+      match lookup_N C.(tc_mems) 0%N with
+      | Some _ =>
+          if load_store_t_bounds a tp t
+          then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num t)] (CT_type [::])
+          else CT_bot
+      | None => CT_bot
+      end
   | BI_memory_size =>
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>

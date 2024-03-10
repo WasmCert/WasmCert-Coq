@@ -607,42 +607,31 @@ Proof.
   - by rewrite check_single_bot in Htc.
 Qed.
 
-(*
 Lemma same_lab_h_condition: forall C ts l,
-  all (fun i: nat => (i < length (tc_labels C)) && plop2 C i ts) l ->
+  List.Forall (fun i => lookup_N C.(tc_labels) i = Some ts) l ->
   same_lab_h l (tc_labels C) ts = Some ts.
 Proof.
   move => C ts l.
   move: C ts.
   induction l => //=.
   move => C ts H.
-  move/andP in H; destruct H as [H1 H2].
-  move/andP in H1; destruct H1 as [H1 H3].
-  replace (length (tc_labels C) <= a) with false; last by lias.
-  move/ltP in H1.
-  unfold plop2 in H3.
-  move/eqP in H3.
-  rewrite H3.
-  rewrite eq_refl.
+  inversion H; subst; clear H.
+  rewrite H2 eq_refl.
   by apply IHl.
 Qed.
 
 Lemma same_lab_h_all: forall C ts l,
   same_lab_h l (tc_labels C) ts = Some ts ->
-  all (fun i: nat => (i < length (tc_labels C)) && plop2 C i ts) l.
+  List.Forall (fun i => lookup_N C.(tc_labels) i = Some ts) l.
 Proof.
   move => C ts l.
   move: C ts.
   induction l => //=.
   move => C ts H.
-  destruct (length (tc_labels C) <= a) eqn:Hsize => //=.
-  destruct (List.nth_error (tc_labels C)) eqn:Hnth => //=.
-  destruct (l0 == ts) eqn:Heq => //=.
-  move/eqP in Heq; subst.
-  apply/andP; split; last by apply IHl.
-  apply/andP; split; first by lias.
-  unfold plop2.
-  by rewrite Hnth.
+  remove_bools_options.
+  move/eqP in Hif; subst.
+  constructor => //.
+  by apply IHl.
 Qed.
   
 Lemma same_lab_h_rec: forall x l C ts,
@@ -651,10 +640,8 @@ Lemma same_lab_h_rec: forall x l C ts,
 Proof.
   move => x l C ts H.
   simpl in H.
-  destruct (length (tc_labels C) <= x) => //=.
-  destruct (List.nth_error (tc_labels C) x) => //=.
-  destruct (l0 == ts) eqn:Heq => //=.
-  move/eqP in Heq. by subst.
+  remove_bools_options.
+  by move/eqP in Hif; subst.
 Qed.
 
 Lemma same_lab_h_consistent: forall l lab ts ts',
@@ -662,10 +649,8 @@ Lemma same_lab_h_consistent: forall l lab ts ts',
   ts = ts'.
 Proof.
   induction l => //=; intros; first by inversion H.
-  destruct (length lab <= a) => //=.
-  destruct (List.nth_error lab a) => //=.
-  destruct (l0 == ts') eqn:Heq => //=.
-  move/eqP in Heq; subst.
+  remove_bools_options.
+  move/eqP in Hif; subst.
   by apply IHl in H.
 Qed.
 
@@ -675,15 +660,22 @@ Lemma same_lab_same_lab_h: forall l lab ts,
 Proof.
   move => l lab ts H.
   unfold same_lab in H.
-  destruct l => //=.
-  destruct (length lab <= n) eqn:Hsize => //=.
-  destruct (List.nth_error lab n) eqn: Hnth => //=.
+  destruct l => //=; remove_bools_options.
   rewrite H.
   replace l0 with ts => //=; first by rewrite eq_refl.
   by apply same_lab_h_consistent in H.
 Qed.
-*)
 
+Lemma same_lab_h_same_lab: forall l lab ts,
+  same_lab_h l lab ts = Some ts ->
+  l <> nil ->  
+  same_lab l lab = Some ts.
+Proof.
+  move => l lab ts H Hnil.
+  unfold same_lab_h in H.
+  by destruct l => //=; remove_bools_options.
+Qed.
+  
 Lemma ct_list_compat_trans: forall ts1 ts2 ts,
   ct_list_compat (to_ct_list ts) ts1 ->
   ct_list_compat (to_ct_list ts) ts2 ->
@@ -1696,8 +1688,9 @@ Ltac resolve_no_consume cts rt tm :=
 
 Ltac fold_type_update H :=
   match type of H with
-  | context [ consume ?cts ?ts ]  =>
-    replace (consume cts ts) with (type_update cts ts (CT_type nil)); last by unfold type_update; rewrite produce_empty
+  | context [ consume ?cts ?ts ] =>
+    let Hct3 := fresh "Hct3" in
+    assert (consume cts ts = type_update cts ts (CT_type nil)) as Hct3; first (unfold type_update; rewrite produce_empty; reflexivity); rewrite Hct3 in H
   end.
 
 (* Resolving update agree when the types being consumed are non-polymorphic, which is true for most of the instructions. *)
@@ -1889,46 +1882,73 @@ Proof with auto_rewrite_cond.
     + by resolve_update_agree.
       (* Table_copy *)
     + fold_type_update Hct2.
-    + replace (consume cts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)]) with (type_update cts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)) => /=; last first.
-      unfold type_update; by rewrite produce_empty.
-      resolve_no_consume cts (@nil value_type) tm.
-    + fold (type_update cts _ (CT_type nil)) in Hct2.
-    + resolve_no_consume cts (T_num T_i32) tm.
-    + resolve_update_agree.
-      apply bet_table_copy.
-      econstructor.
-      apply bet_table_set.
-    + exists (populate_ct cts); split; by [apply populate_ct_agree | apply bet_unreachable].
+      resolve_update_agree.
+      by econstructor; eauto.
+      (* Table_init *)
+    + fold_type_update Hct2.
+      by resolve_update_agree.
+      (* Elem_drop *)
     + exists tm; split => //.
-      apply bet_weakening_empty_both.
-      by apply bet_nop.
-    + fold_remember_check.
+      by apply bet_weakening_empty_both; econstructor; eauto.
+      (* Load *)
+    + by resolve_update_agree.
+      (* Store *)
+    + fold_type_update Hct2.
+      by resolve_update_agree.
+      (* Memory_size *)
+    + by resolve_no_consume cts [::T_num T_i32] tm.
+      (* Memory_grow *)
+    + by resolve_update_agree.
+      (* Memory_fill *)
+    + fold_type_update Hct2.
+      by resolve_update_agree.
+      (* Memory_copy *)
+    + fold_type_update Hct2.
+      by resolve_update_agree.
+      (* Memory_init *)
+    + fold_type_update Hct2.
+      by resolve_update_agree.
+      (* Data_drop *)
+    + exists tm; split => //.
+      by apply bet_weakening_empty_both; econstructor; eauto.
+      (* Nop *)
+    + exists tm; split => //.
+      by apply bet_weakening_empty_both; econstructor; eauto.
+      (* Unreachable *)
+    + exists (populate_ct cts); split; by [apply populate_ct_agree | apply bet_unreachable].
+      (* Block *)
+    + destruct f.
+      fold_remember_check.
       assert (be_size_list l < d)%coq_nat as Hmeasure; first by unfold be_size_list; lias.
       apply H in Hmeasure.
       destruct Hmeasure as [IH _].
-      eapply IH in if_expr0 => //; last by rewrite Heqres_check.
+      auto_rewrite_cond.
+      eapply IH in if_expr0 => //; eauto.
       destruct if_expr0 as [tn'' [Hct1 Hbet]].
       simpl in Hct1.
       move/eqP in Hct1; subst.
-      apply bet_block in Hbet.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [lp [Hct1 Heq]]; subst.
       exists (lp ++ tn''); split => //.
-      by apply bet_weakening.
-    + fold_remember_check.
+      by apply bet_weakening; econstructor; eauto.
+      (* Loop *)
+    + destruct f.
+      fold_remember_check.
       assert (be_size_list l < d)%coq_nat as Hmeasure; first by unfold be_size_list; lias.
       apply H in Hmeasure.
       destruct Hmeasure as [IH _].
-      eapply IH in if_expr0 => //; last by rewrite Heqres_check.
+      auto_rewrite_cond.
+      eapply IH in if_expr0 => //.
       destruct if_expr0 as [tn'' [Hct1 Hbet]].
       simpl in Hct1.
       move/eqP in Hct1; subst.
-      apply bet_loop in Hbet.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [lp [Hct1 Heq]]; subst.
       exists (lp ++ tn''); split => //.
-      by apply bet_weakening.
-    + fold_remember_check.
+      by apply bet_weakening; econstructor; eauto.
+      (* If *)
+    + destruct f.
+      fold_remember_check.
       fold (be_size_list l) in Hs.
       fold (be_size_list l0) in Hs.
       assert (be_size_list l < d)%coq_nat as Hmeasure1; first by lias.
@@ -1937,44 +1957,46 @@ Proof with auto_rewrite_cond.
       destruct Hmeasure1 as [IH1 _].
       apply H in Hmeasure2.
       destruct Hmeasure2 as [IH2 _].
-      eapply IH1 in H0 => //; last by rewrite Heqres_check0.
-      eapply IH2 in H1 => //; last by rewrite Heqres_check.
+      auto_rewrite_cond.
+      eapply IH1 in H0 => //.
+      eapply IH2 in H1 => //.
       destruct H0 as [tn1'' [Hctif1 Hbet1]].
       destruct H1 as [tn2'' [Hctif2 Hbet2]].
       simpl in *.
       move/eqP in Hctif1; subst.
       move/eqP in Hctif2; subst.
-      apply bet_if_wasm with (es1 := l) in Hbet2 => //.
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [lp [Hct1 Heq]]; subst.
-      exists (lp ++ tn2'' ++ [::T_i32]); split => //.
-      by apply bet_weakening.
+      exists (lp ++ tn2'' ++ [::T_num T_i32]); split => //.
+      by apply bet_weakening; econstructor; eauto.
+      (* Br *)
     + unfold type_update in Hct2.
-      assert (consume cts (to_ct_list l) <> CT_bot) as Hconsume; first by destruct (consume _ _).
+      assert (consume cts (to_ct_list r) <> CT_bot) as Hconsume; first by destruct (consume _ _).
       apply tc_to_bet_br in Hconsume.
       destruct Hconsume as [tn Hcts].
-      exists (tn ++ l); split => //.
-      apply bet_br => //; by unfold plop2; rewrite match_expr.
+      exists (tn ++ r); split => //.
+      by constructor.
+      (* Br_if *)
     + apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hctif Hbet]]. subst.
-      exists (tn' ++ l ++ [::T_i32]); split => //.
+      exists (tn' ++ r ++ [::T_num T_i32]); split => //.
       apply bet_weakening.
-      apply bet_br_if => //; by unfold plop2; rewrite match_expr.
+      by constructor.
+      (* Br_table *)
     + unfold type_update in Hct2.
-      assert (consume cts (to_ct_list (l0 ++ [::T_i32])) <> CT_bot) as Hconsume; first by destruct (consume _ _).
-      apply tc_to_bet_br in Hconsume.
-      destruct Hconsume as [tn Hcts].
-      exists (tn ++ l0 ++ [::T_i32]); split => //.
-      apply bet_br_table.
-      apply same_lab_h_all.
-      by apply same_lab_same_lab_h.
+      assert (consume cts (to_ct_list (l1 ++ [::T_num T_i32])) <> CT_bot) as Hconsume; first by destruct (consume _ _).
+      apply tc_to_bet_br in Hconsume as [tn Hcts].
+      exists (tn ++ l1 ++ [::T_num T_i32]); split => //.
+      econstructor.
+      apply same_lab_same_lab_h in match_expr.
+      by apply same_lab_h_all.
+      (* Return *)
     + unfold type_update in Hct2.
-      assert (consume cts (to_ct_list l) <> CT_bot) as Hconsume; first by destruct (consume _ _).
-      apply tc_to_bet_br in Hconsume.
-      destruct Hconsume as [tn Hcts].
-      exists (tn ++ l); split => //.
+      assert (consume cts (to_ct_list r) <> CT_bot) as Hconsume; first by destruct (consume _ _).
+      apply tc_to_bet_br in Hconsume as [tn Hcts].
+      exists (tn ++ r); split => //.
       by apply bet_return.
-    + destruct f...
+    + destruct f0...
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hct Hbet]]; subst.
       exists (tn' ++ r); split => //=.
@@ -1983,38 +2005,11 @@ Proof with auto_rewrite_cond.
     + destruct f...
       apply type_update_type_agree in Hct2.
       destruct Hct2 as [tn' [Hct Hbet]]; subst.
-      exists (tn' ++ r ++ [::T_i32]); split => //=.
+      exists (tn' ++ r ++ [::T_num T_i32]); split => //=.
       apply bet_weakening.
-      apply bet_call_indirect => //=.
-      by destruct (tc_table C) => //=.
-    + replace ([::CTA_some T_i32]) with (to_ct_list [::T_i32]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      exists (tn' ++ [::T_i32]); split => //.
-      apply bet_weakening.
-      apply bet_load => //; by destruct C.(tc_memory) => //=.
-    + replace ([::CTA_some T_i32; CTA_some (T_num n)]) with (to_ct_list [::T_i32; v]) in Hct2 => //.
-      apply consume_type_agree in Hct2.
-      exists (tm ++ [::T_i32; v]); split => //.
-      apply bet_weakening_empty_2.
-      apply bet_store => //; by destruct C.(tc_memory) => //=.
-    + assert (c_types_agree (type_update cts (to_ct_list [::]) (CT_type [::T_i32])) tm) as Hct3.
-      * simplify_type_update.
-        by unfold produce => //=.
-      * apply type_update_type_agree in Hct3.
-        destruct Hct3 as [tn' [Hct bet]]; subst.
-        rewrite cats0 in Hct.
-        exists tn'; split => //.
-        apply bet_weakening_empty_1.
-        apply bet_current_memory => //; by destruct C.(tc_memory) => //=.
-    + replace ([::CTA_some T_i32]) with (to_ct_list [::T_i32]) in Hct2 => //=.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [tn' [Hct bet]]; subst.
-      exists (tn' ++ [::T_i32]); split => //.
-      apply bet_weakening.
-      apply bet_grow_memory => //; by destruct C.(tc_memory) => //=.
-Qed.
-
+      by eapply bet_call_indirect; eauto => //=.
+Admitted.
+      
 Lemma tc_to_bet_list: forall C cts bes tm cts',
   check C bes cts = cts' ->
   c_types_agree cts' tm ->
@@ -2042,30 +2037,20 @@ Proof with auto_rewrite_cond.
     move => Hbet.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
     induction Hbet; subst => //=; unfold type_update => //=; try destruct t, op; try by inversion H...
-    + unfold same_lab => //=.
-      remember (ins ++ [::i]) as l.
-      rewrite - Heql.
-      destruct l => //=; first by destruct ins.
-      remember H as H2; clear HeqH2.
-      move/allP in H2.
-      assert (n \in (ins ++ [::i])) as Hn; first by rewrite - Heql; rewrite mem_head.
-      apply H2 in Hn.
-      move/andP in Hn; destruct Hn as [H3 H4].
-      unfold plop2 in H4.
-      replace (length (tc_labels C) <= n) with false; last by lias.
-      move/eqP in H4.
-      rewrite H4.
-      apply same_lab_h_condition in H.
-      replace (ins ++ [::i])%list with (ins ++ [::i]) in H; last by lias.
-      rewrite - Heql in H.
-      apply same_lab_h_rec in H.
+    (* Ref_func *)
+    + (* inP is slightly stupid *)
+      move/(@inP u32_eqType) in H0.
+      by rewrite H0.
+    (* Block? *)
+    + rewrite H IHHbet1 IHHbet2 => /=.
+      by auto_rewrite_cond.
+    (* Br_table *)
+    + apply same_lab_h_condition in H.
+      apply same_lab_h_same_lab in H; last by destruct ins.
       rewrite H.
-      rewrite ct_suffix_suffix...
+      by auto_rewrite_cond.
     + destruct tf as [t1 t2] => //=...
-    + destruct (List.nth_error (tc_global C) i) => //=...
     + unfold type_update => //=...
-    + unfold type_update => //=...
-    + by destruct (tc_table C) eqn:Hctable => //=.
     + rewrite List.fold_left_app => //=.
       unfold c_types_agree in IHHbet1.
       destruct (List.fold_left _ es _) eqn:Htc => //=.
