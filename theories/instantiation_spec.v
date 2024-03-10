@@ -489,14 +489,14 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   |} in
   List.Forall functype_valid tfs /\
   List.Forall2 (module_func_typing c) fs fts /\
-  pred_option (module_start_typing c) i_opt /\
-  List.Forall2 (module_import_typing c) imps impts /\
-  List.Forall2 (module_export_typing c) exps expts /\
   seq.all (module_table_typing c') ts /\
   seq.all (module_mem_typing c') ms /\
   List.Forall2 (module_glob_typing c') gs gts /\
   List.Forall2 (module_elem_typing c') els rts /\
   List.Forall (module_data_typing c') ds /\
+  pred_option (module_start_typing c) i_opt /\
+  List.Forall2 (module_import_typing c) imps impts /\
+  List.Forall2 (module_export_typing c) exps expts /\
   export_name_unique exps. 
 
 (** std-doc:

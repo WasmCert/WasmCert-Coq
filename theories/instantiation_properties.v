@@ -21,28 +21,6 @@ Proof.
     by specialize (H (S i)).
 Qed.
 
-Lemma Forall2_length {T1 T2: Type} (f: T1 -> T2 -> Prop) l1 l2:
-  List.Forall2 f l1 l2 ->
-  length l1 = length l2.
-Proof.
-  move: l1 l2.
-  induction l1; destruct l2 => //=; move => H; inversion H; subst; clear H.
-  f_equal; by apply IHl1.
-Qed.
-
-Lemma Forall_lookup {T: Type} (P: T -> Prop) l i x:
-  List.Forall P l ->
-  List.nth_error l i = Some x ->
-  P x.
-Proof.
-  move: l i x.
-  induction l; destruct i => //=; move => x Hall Hnth.
-  - injection Hnth as ->.
-    by inversion Hall.
-  - eapply IHl; eauto => //.
-    by inversion Hall.
-Qed.
-
 Lemma Forall_spec {T: Type} (P: T -> Prop) (l: list T):
   (forall n x, List.nth_error l n = Some x -> P x) ->
   Forall P l.
@@ -364,6 +342,7 @@ Proof.
     by rewrite length_is_size size_iota; lias.
 Qed.
 
+(*
 Lemma module_typing_det_import_aux m it1 et1 it2 et2:
   module_typing m it1 et1 ->
   module_typing m it2 et2 ->
@@ -372,17 +351,21 @@ Proof.
   move => Hmt1 Hmt2.
   unfold module_typing in Hmt1, Hmt2.
   destruct m.
-  destruct Hmt1 as [fts1 [gts1 [Hmft1 [Hmtt1 [Hmmt1 [Hmgt1 [Hmet1 [Hmdt1 [Hmst1 [Hmimt1 Hmext1]]]]]]]]]].
-  destruct Hmt2 as [fts2 [gts2 [Hmft2 [Hmtt2 [Hmmt2 [Hmgt2 [Hmet2 [Hmdt2 [Hmst2 [Hmimt2 Hmext2]]]]]]]]]].
+  destruct Hmt1 as [fts1 [tts1 [mts1 [gts1 [rts1 [Htt1 [Hmft1 [Hmtt1 [Hmmt1 [Hmgt1 [Hmet1 [Hmdt1 [Hmst1 [Hmimt1 Hmext1]]]]]]]]]]]]]].
+  destruct Hmt2 as [fts2 [tts2 [mts2 [gts2 [rts2 [Htt2 [Hmft2 [Hmtt2 [Hmmt2 [Hmgt2 [Hmet2 [Hmdt2 [Hmst2 [Hmimt2 Hmext2]]]]]]]]]]]]]].
   
   clear - Hmimt1 Hmimt2.
   eapply Forall2_function_eq; eauto.
   move => x y z Heq1 Heq2; simpl in *.
-  unfold module_import_typing in *.
+  unfold module_import_typing, module_import_desc_typing in *.
   destruct x => /=; simpl in *.
-  destruct imp_desc; simpl in *; destruct y, z => //; remove_bools_options; by subst.
+  destruct imp_desc; simpl in *; destruct y, z => //; remove_bools_options => //.
+  
+  by subst.
 Qed.
+*)
 
+(*
 Lemma module_typing_det m it1 et1 it2 et2:
   module_typing m it1 et1 ->
   module_typing m it2 et2 ->
@@ -433,63 +416,33 @@ Proof.
   simpl in *.
   destruct x, modexp_desc; [destruct f | destruct t | destruct m | destruct g]; destruct y, z; simpl in *; remove_bools_options; by subst => //.
 Qed.    
-  
+*)
 End module_typing_det.
 
-Definition exp_default := MED_func (Mk_funcidx 0).
-
-Definition ext_func_addrs := (map (fun x => match x with | Mk_funcidx i => i end)) \o ext_funcs.
-Definition ext_tab_addrs := (map (fun x => match x with | Mk_tableidx i => i end)) \o ext_tabs.
-Definition ext_mem_addrs := (map (fun x => match x with | Mk_memidx i => i end)) \o ext_mems.
-Definition ext_glob_addrs := (map (fun x => match x with | Mk_globalidx i => i end)) \o ext_globs.
-
-Lemma ext_func_addrs_aux l:
-  ext_func_addrs l = map (fun '(Mk_funcidx i) => i) (ext_funcs l).
-Proof.
-  by [].
-Qed.
-
-Lemma ext_tab_addrs_aux l:
-  ext_tab_addrs l = map (fun '(Mk_tableidx i) => i) (ext_tabs l).
-Proof.
-  by [].
-Qed.
-
-Lemma ext_mem_addrs_aux l:
-  ext_mem_addrs l = map (fun '(Mk_memidx i) => i) (ext_mems l).
-Proof.
-  by [].
-Qed.
-
-Lemma ext_glob_addrs_aux l:
-  ext_glob_addrs l = map (fun '(Mk_globalidx i) => i) (ext_globs l).
-Proof.
-  by [].
-Qed.
+Definition exp_default := MED_func 0%N.
 
 (* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later. *)
 Definition get_import_func_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_func id => Some id
+                                                                   | MID_func id => Some id
                                                                    | _ => None
                                                                     end) m.(mod_imports)).
 
 Definition get_import_table_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_table id => Some id
+                                                                   | MID_table id => Some id
                                                                    | _ => None
                                                                     end) m.(mod_imports)).
 Definition get_import_mem_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_mem id => Some id
+                                                                   | MID_mem id => Some id
                                                                    | _ => None
                                                                     end) m.(mod_imports)).
 Definition get_import_global_count (m: module) := length (pmap (fun x => match x.(imp_desc) with
-                                                                   | ID_global id => Some id
+                                                                   | MID_global id => Some id
                                                                    | _ => None
                                                                       end) m.(mod_imports)).
 
-
-Lemma ext_funcs_lookup_exist (modexps: list module_export_desc) n fn:
+Lemma ext_funcs_lookup_exist (modexps: list extern_value) n fn:
   (ext_funcs modexps) !! n = Some fn ->
-  exists k, modexps !! k = Some (MED_func fn).
+  exists k, modexps !! k = Some (EV_func fn).
 Proof.
   move: n fn.
   induction modexps; move => n tn Hextfunclookup; try by destruct n => //=.
@@ -507,9 +460,9 @@ Proof.
   all: by exists (S k).
 Qed.
 
-Lemma ext_tabs_lookup_exist (modexps: list module_export_desc) n tn:
+Lemma ext_tabs_lookup_exist (modexps: list extern_value) n tn:
   (ext_tabs modexps) !! n = Some tn ->
-  exists k, modexps !! k = Some (MED_table tn).
+  exists k, modexps !! k = Some (EV_table tn).
 Proof.
   move: n tn.
   induction modexps; move => n tn Hexttablookup; try by destruct n => //=.
@@ -527,9 +480,9 @@ Proof.
   all: by exists (S k).
 Qed.
 
-Lemma ext_mems_lookup_exist (modexps: list module_export_desc) n mn:
+Lemma ext_mems_lookup_exist (modexps: list extern_value) n mn:
   (ext_mems modexps) !! n = Some mn ->
-  exists k, modexps !! k = Some (MED_mem mn).
+  exists k, modexps !! k = Some (EV_mem mn).
 Proof.
   move: n mn.
   induction modexps; move => n mn Hextmemlookup; try by destruct n => //=.
@@ -547,9 +500,9 @@ Proof.
   all: by exists (S k).
 Qed.
 
-Lemma ext_globs_lookup_exist (modexps: list module_export_desc) n fn:
+Lemma ext_globs_lookup_exist (modexps: list extern_value) n fn:
   (ext_globs modexps) !! n = Some fn ->
-  exists k, modexps !! k = Some (MED_global fn).
+  exists k, modexps !! k = Some (EV_global fn).
 Proof.
   move: n fn.
   induction modexps; move => n tn Hextgloblookup; try by destruct n => //=.
@@ -567,8 +520,8 @@ Proof.
   all: by exists (S k).
 Qed.
 
-Lemma ext_funcs_lookup_exist_inv (modexps: list module_export_desc) n idx:
-  modexps !! n = Some (MED_func idx) ->
+Lemma ext_funcs_lookup_exist_inv (modexps: list extern_value) n idx:
+  modexps !! n = Some (EV_func idx) ->
   exists k, ((ext_funcs modexps) !! k = Some idx).
 Proof.
   move : n idx.
@@ -581,8 +534,8 @@ Proof.
   by exists (S k).
 Qed.
 
-Lemma ext_tabs_lookup_exist_inv (modexps: list module_export_desc) n idx:
-  modexps !! n = Some (MED_table idx) ->
+Lemma ext_tabs_lookup_exist_inv (modexps: list extern_value) n idx:
+  modexps !! n = Some (EV_table idx) ->
   exists k, ((ext_tabs modexps) !! k = Some idx).
 Proof.
   move : n idx.
@@ -595,8 +548,8 @@ Proof.
   by exists (S k).
 Qed.
 
-Lemma ext_mems_lookup_exist_inv (modexps: list module_export_desc) n idx:
-  modexps !! n = Some (MED_mem idx) ->
+Lemma ext_mems_lookup_exist_inv (modexps: list extern_value) n idx:
+  modexps !! n = Some (EV_mem idx) ->
   exists k, ((ext_mems modexps) !! k = Some idx).
 Proof.
   move : n idx.
@@ -609,8 +562,8 @@ Proof.
   by exists (S k).
 Qed.
 
-Lemma ext_globs_lookup_exist_inv (modexps: list module_export_desc) n idx:
-  modexps !! n = Some (MED_global idx) ->
+Lemma ext_globs_lookup_exist_inv (modexps: list extern_value) n idx:
+  modexps !! n = Some (EV_global idx) ->
   exists k, ((ext_globs modexps) !! k = Some idx).
 Proof.
   move : n idx.
@@ -624,37 +577,21 @@ Proof.
 Qed.
 
 Section Host.
-  
-Variable host_function: eqType.
 
-Local Definition function_closure := function_closure host_function.
-Local Definition store_record := store_record host_function.
+Context `{ho: host}.
 
-Local Definition alloc_Xs := @alloc_Xs host_function.
-Local Definition alloc_funcs := alloc_funcs host_function.
-Local Definition alloc_tabs := alloc_tabs host_function.
-Local Definition alloc_mems := alloc_mems host_function.
-Local Definition alloc_globs := alloc_globs host_function.
-Local Definition alloc_module := alloc_module host_function.
-
-Local Definition init_tab := init_tab host_function.
-Local Definition init_tabs := init_tabs host_function.
-Local Definition init_mem := init_mem host_function.
-Local Definition init_mems := init_mems host_function.
-
-Variable host_instance: host host_function.
-
-Local Definition reduce := @reduce host_function host_instance.
-
-Definition gen_func_instance mf inst : function_closure :=
-  let ft := List.nth match modfunc_type mf with
-                | Mk_typeidx n => n
-                end (inst_types inst) (Tf [::] [::]) in
-  FC_func_native inst ft (modfunc_locals mf) (modfunc_body mf).
+Definition gen_func_instance mf inst : funcinst :=
+  match lookup_N inst.(inst_types) mf.(modfunc_type) with
+  | Some ft =>
+      FC_func_native ft inst mf
+  | None =>
+      (* Will not happen for well-typed modules *)
+      FC_func_native (Tf nil nil) inst mf
+  end.
                 
 (* Proving relations between stores obtained by alloc_Xs *)
 Lemma alloc_Xs_IP {A B: Type} (f: store_record -> A -> store_record * B) s_init xs s_end ys (R: store_record -> store_record -> list A -> list B -> Prop) :
-  alloc_Xs _ _ f s_init xs = (s_end, ys) ->
+  alloc_Xs f s_init xs = (s_end, ys) ->
   (R s_init s_init [::] [::]) ->
   (forall s s0 x xs' ys' s' y,
     (s, y) = f s' x ->
@@ -682,9 +619,10 @@ Proof.
     by rewrite <- Heqfold_res.
 Qed.
 
+(*
 Lemma alloc_func_gen_index modfuncs ws inst ws' l:
   alloc_funcs ws modfuncs inst = (ws', l) ->
-  map (fun x => match x with | Mk_funcidx i => i end) l = gen_index (length (s_funcs ws)) (length modfuncs) /\
+  l = gen_index (length (s_funcs ws)) (length modfuncs) /\
   ws'.(s_funcs) = ws.(s_funcs) ++ map (fun mf => gen_func_instance mf inst) modfuncs /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
@@ -1402,5 +1340,5 @@ Proof.
 Qed.
   
 End Instantiation_det.
-
+*)
 End Host.
