@@ -120,7 +120,17 @@ Definition type_update_select (t : checker_type) (ots: option (list value_type))
           match length ts with
           | 0 => CT_top_type [::CTA_any]
           | 1 => type_update (CT_top_type ts) [::CTA_some (T_num T_i32)] (CT_top_type [::CTA_any])
-          | 2 => consume (CT_top_type ts) [::CTA_some (T_num T_i32)]
+          | 2 =>
+              match List.nth_error ts (length ts - 2) with
+              | Some (CTA_some ts_at_2) =>
+                  (* The consumed type needs to be a numeric type; therefore we cannot simply just consume everything and produce an i32 here *)
+                  if is_numeric_type ts_at_2
+                  then consume (CT_top_type ts) [::CTA_some (T_num T_i32)]
+                  else CT_bot
+              | Some CTA_any =>
+                  consume (CT_top_type ts) [::CTA_some (T_num T_i32)]
+              | None => CT_bot
+              end
           | _ =>
               match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
               | Some ts_at_2, Some ts_at_3 =>
