@@ -92,6 +92,7 @@ Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
   | BT_valtype (Some t) => Some (Tf [::] [::t])
   | BT_valtype None => Some (Tf [::] [::])
   end.
+
 Definition convert_helper (sxo : option sx) t1 t2 : bool :=
   match (sxo, t1, t2) with
   | (Some SX_U, T_i32, T_i64)  (* i32.wrap_i64 *)
@@ -145,12 +146,6 @@ Definition upd_label C lab :=
 
 Definition upd_return C ret :=
   upd_local_label_return C (tc_locals C) (tc_labels C) ret.
-
-
-Inductive result_typing : result -> result_type -> Prop :=
-  | result_typing_values : forall vs, result_typing (result_values vs) (map typeof vs)
-  | result_typing_trap : forall ts, result_typing result_trap ts
-  .
 
 Inductive unop_type_agree: number_type -> unop -> Prop :=
   | Unop_i32_agree: forall op, unop_type_agree T_i32 (Unop_i op)
@@ -334,10 +329,11 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
 | bet_composition : forall C es e t1s t2s t3s,
   be_typing C es (Tf t1s t2s) ->
   be_typing C [::e] (Tf t2s t3s) ->
-  be_typing C (app es [::e]) (Tf t1s t3s)
-| bet_weakening : forall C es ts t1s t2s,
-  be_typing C es (Tf t1s t2s) ->
-  be_typing C es (Tf (app ts t1s) (app ts t2s))
+  be_typing C (es ++ [::e]) (Tf t1s t3s)
+| bet_subtyping : forall C es tf tf',
+  be_typing C es tf ->
+  functype_subtyping tf tf' ->
+  be_typing C es tf'
 .
 
 Definition expr_typing (C: t_context) (bes: list basic_instruction) (ts: result_type) : Prop :=
@@ -476,9 +472,10 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   e_typing s C es (Tf t1s t2s) ->
   e_typing s C [::e] (Tf t2s t3s) ->
   e_typing s C (es ++ [::e]) (Tf t1s t3s)
-| ety_weakening : forall s C es ts t1s t2s,
-  e_typing s C es (Tf t1s t2s) ->
-  e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s))
+| ety_subtyping : forall s C es tf tf',
+  e_typing s C es tf ->
+  functype_subtyping tf tf' ->
+  e_typing s C es tf'
 | ety_trap : forall s C tf,
   e_typing s C [::AI_trap] tf
 | ety_ref_extern : forall s C a,
@@ -578,4 +575,3 @@ Definition config_typing (s: store_record) (th: thread) (ts: result_type) : Prop
 End Store_validity.
 
 End Host.
-

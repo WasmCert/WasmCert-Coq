@@ -124,7 +124,6 @@ Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   | T_f64 => VAL_float64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
   end.
 
-
 Definition bitzero (t : number_type) : value_num :=
   match t with
   | T_i32 => VAL_int32 (Wasm_int.int_zero i32m)
@@ -137,15 +136,40 @@ Definition bitzero (t : number_type) : value_num :=
 Each value type has an associated default value; it is the respective value 0 for number types and
  null for reference types.
 
+Note that this verison is pre-defined as an option for forward extensions (GC) that introduce non-defaultable types.
+
 https://www.w3.org/TR/wasm-core-2/exec/runtime.html#default-val
 **)
-Definition default_val (t: value_type) : value :=
+Definition default_val (t: value_type) : option value :=
   match t with
-  | T_num t => VAL_num (bitzero t)
-  | T_vec t => VAL_vec (VAL_vec128 tt)
-  | T_ref t => VAL_ref (VAL_ref_null t)
+  | T_num t => Some (VAL_num (bitzero t))
+  | T_vec t => Some (VAL_vec (VAL_vec128 tt))
+  | T_ref t => Some (VAL_ref (VAL_ref_null t))
+  | T_bot => None
   end.
 
+Definition default_vals (ts : seq value_type) : option (seq value) :=
+  those (map default_val ts).
+
+Definition value_subtyping (t1: value_type) (t2: value_type) : bool :=
+  (t1 == t2) || (t1 == T_bot).
+
+Definition values_subtyping (ts1: list value_type) (ts2: list value_type) : bool :=
+  all2 value_subtyping ts1 ts2.
+
+Definition functype_subtyping (tf tf': function_type) : Prop :=
+  let '(Tf ts1 ts2) := tf in
+  let '(Tf ts1' ts2') := tf' in
+  exists ts ts' ts1_sub ts2_sub,
+    ts1' = ts ++ ts1_sub /\
+    ts2' = ts' ++ ts2_sub /\
+    values_subtyping ts ts' /\  
+    values_subtyping ts1_sub ts1 /\
+    values_subtyping ts2 ts2_sub.
+
+Notation "t1 <t: t2" := (value_subtyping t1 t2) (at level 30).
+Notation "ts1 <ts: ts2" := (values_subtyping ts1 ts2) (at level 60).
+Notation "tf1 <tf: tf2" := (functype_subtyping tf1 tf2) (at level 60).
 
 Definition typeof_num (v : value_num) : number_type :=
   match v with
@@ -159,22 +183,6 @@ Definition typeof_vec (v: value_vec) : vector_type :=
   match v with
   | VAL_vec128 _ => T_v128
   end.
-
-Definition typeof_ref (v: value_ref) : reference_type :=
-  match v with
-  | VAL_ref_null vt => vt
-  | VAL_ref_func _ => T_funcref
-  | VAL_ref_extern _ => T_externref
-  end.
-
-Definition typeof (v: value) : value_type :=
-  match v with
-  | VAL_num v' => T_num (typeof_num v')
-  | VAL_vec v' => T_vec (typeof_vec v')
-  | VAL_ref v' => T_ref (typeof_ref v')
-  end.
-    
-
 
 Definition option_projl (A B : Type) (x : option (A * B)) : option A :=
   option_map fst x.
@@ -409,9 +417,6 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     | _ => false
     end
   end.
-
-Definition types_agree (t : value_type) (v : value) : bool :=
-  (typeof v) == t.
 
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
@@ -754,8 +759,6 @@ Definition store_extension (s s' : store_record) : bool :=
   component_extension elem_extension s.(s_elems) s'.(s_elems) &&
   component_extension data_extension s.(s_datas) s'.(s_datas).
 
-
-Definition vs_to_vts (vs : list value) : list value_type := map typeof vs.
 
 Definition to_e_list (bes : list basic_instruction) : seq administrative_instruction :=
   map AI_basic bes.
@@ -1168,9 +1171,6 @@ Definition cvtop_valid (t2: number_type) (op: cvtop) (t1: number_type) (s: optio
   ((op == CVO_demote) && (t2 == T_f32) && (t1 == T_f64) && (s == None)) ||
   ((op == CVO_promote) && (t2 == T_f64) && (t1 == T_f32) && (s == None)) ||
   ((op == CVO_reinterpret) && ((is_int_t t2 && is_float_t t1) || (is_float_t t2 && is_int_t t1)) && (s == None)).
-
-Definition n_zeros (ts : seq value_type) : seq value :=
-  map default_val ts.
 
 End Host.
 

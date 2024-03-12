@@ -3,7 +3,7 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export typing opsem properties contexts typing_inversion tactic.
+From Wasm Require Export typing opsem properties typing_inversion tactic.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -43,6 +43,7 @@ Proof.
 Qed.
 
 (* Not completely agnostic now -- since reference typings are dependent on the store. *)
+(*
 Lemma et_const_agnostic: forall s C C' es tf,
     const_list es ->
     e_typing s C es tf ->
@@ -54,6 +55,7 @@ Proof.
   apply et_weakening_empty_1.
   by apply et_values_typing.
 Qed.
+*)
 
 Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es tf ->
@@ -61,9 +63,11 @@ Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es' tf.
 Proof.
   move => s es es' C [ts1 ts2] HType HReduce.
-  inversion HReduce; subst; (try by apply ety_trap); invert_e_typing; resolve_e_typing => //.
+  inversion HReduce; subst; (try by apply ety_trap) (*; invert_e_typing; resolve_e_typing*) => //.
   (* Unop *)
-  - by destruct op, v.
+  - apply ety_a' => //=.
+    eapply bet_subtyping; first by apply bet_const_num.
+    by destruct op, v.
   (* Binop_success *)
   - apply app_binop_type_preserve in H.
     unfold value_num_typing.

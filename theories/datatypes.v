@@ -3,9 +3,6 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-(* TODO: use better representations than "nat", which is expensive;
-   maybe N? maybe a 32-bit word type? *)
-
 From Wasm Require array.
 From Wasm Require Import common memory memory_list.
 From Wasm Require Export numerics bytes.
@@ -149,12 +146,13 @@ Value types classify the individual values that WebAssembly code can compute wit
 
 [https://www.w3.org/TR/wasm-core-2/syntax/types.html#value-types]
 *)
+(* Note here that we incorporate the bottom type (indicating that the type is unconstrained) in the operand types as part of the base value type, so that we can later drop the distinction between function types and stack types (and operand type vs value type). This is also a preparation for future extensions such as the funcref/GC proposal. *)
 Inductive value_type: Set := (* t *)
 | T_num: number_type -> value_type
 | T_vec: vector_type -> value_type
 | T_ref: reference_type -> value_type
+| T_bot: value_type
 .
-
 
 (** std-doc:
 Result types classify the result of executing instructions or functions, which is a sequence of values, written with brackets.
@@ -163,7 +161,6 @@ Result types classify the result of executing instructions or functions, which i
 *)
 Definition result_type : Set :=
   list value_type.
-
 
 (** std-doc:
 

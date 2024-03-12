@@ -369,23 +369,6 @@ Proof.
   by apply IHes1.
 Qed.
 
-Lemma vs_to_vts_cat: forall vs1 vs2,
-    vs_to_vts (vs1 ++ vs2) = vs_to_vts vs1 ++ vs_to_vts vs2.
-Proof.
-  induction vs1 => //=.
-  move => vs2. by rewrite IHvs1.
-Qed.
-  
-Lemma vs_to_vts_rev: forall vs,
-    vs_to_vts (rev vs) = rev (vs_to_vts vs).
-Proof.
-  induction vs => //=.
-  repeat rewrite rev_cons.
-  repeat rewrite -cats1.
-  rewrite vs_to_vts_cat.
-  by rewrite IHvs.
-Qed.
-
 Lemma is_const_exists: forall e,
     is_const e ->
     {v | e = v_to_e v}.
@@ -597,6 +580,226 @@ Proof.
   move => X. induction l1 => //=.
 Qed.
 
+(** Additional List properties **)
+
+Lemma nth_error_Some_length:
+  forall A (l : seq.seq A) (i : nat) (m : A),
+  List.nth_error l i = Some m -> 
+  (i < length l)%coq_nat.
+Proof.
+  move => A l i m H1.
+  assert (H2 : List.nth_error l i <> None) by rewrite H1 => //.
+  by apply List.nth_error_Some in H2.
+Qed.
+
+Lemma nth_error_app_Some {T: Type} (l1 l2 : list T) n x:
+  List.nth_error l1 n = Some x ->
+  List.nth_error (l1 ++ l2) n = Some x.
+Proof.
+  move => Hnth.
+  rewrite List.nth_error_app1 => //.
+  by eapply nth_error_Some_length; eauto.
+Qed.
+
+Lemma Forall_lookup: forall {X:Type} f (l:seq X) n x,
+    List.Forall f l ->
+    List.nth_error l n = Some x ->
+    f x.
+Proof.
+  move => X f l n x.
+  generalize dependent l.
+  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //; inversion HF; subst => //.
+  eapply IHn; by eauto.
+Qed.
+
+Lemma all_repeat: forall {X: Type} (f: X -> bool) v n,
+    f v = true ->
+    all f (List.repeat v n).
+Proof.
+  move => X f v. elim => //=.
+  move => n IH Hf.
+  rewrite Hf => /=; by apply IH.
+Qed.
+
+Lemma all_projection: forall {X:Type} f (l:seq X) n x,
+    all f l ->
+    List.nth_error l n = Some x ->
+    f x.
+Proof.
+  move => X f l n x Hall Hnth.
+  generalize dependent l.
+  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //.
+  eapply IHn; by eauto.
+Qed.
+
+Lemma all2_projection: forall {X Y:Type} f (l1:seq X) (l2:seq Y) n x1 x2,
+    all2 f l1 l2 ->
+    List.nth_error l1 n = Some x1 ->
+    List.nth_error l2 n = Some x2 ->
+    f x1 x2.
+Proof.
+  move => X Y f l1 l2 n.
+  generalize dependent l1.
+  generalize dependent l2.
+  induction n => //=; move => l2 l1 x1 x2 HALL HN1 HN2.
+  - destruct l1 => //=. destruct l2 => //=.
+    inversion HN1. inversion HN2. subst. clear HN1. clear HN2.
+    simpl in HALL. move/andP in HALL. by destruct HALL.
+  - destruct l1 => //=. destruct l2 => //=.
+    simpl in HALL. move/andP in HALL. destruct HALL.
+    eapply IHn; by eauto.
+Qed.
+
+Lemma all2_nth_impl {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
+  all2 f l1 l2 ->
+  List.nth_error l1 n = Some x ->
+  exists y, List.nth_error l2 n = Some y /\ f x y.
+Proof.
+  move => Hall2 Hnth.
+  destruct (List.nth_error l2 n) eqn:Hnth'.
+  - exists t; split => //.
+    by eapply all2_projection; eauto.
+  - exfalso.
+    apply List.nth_error_None in Hnth'.
+    apply all2_size in Hall2.
+    repeat rewrite - length_is_size in Hall2.
+    rewrite -Hall2 in Hnth'.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+Qed.
+
+Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
+    size l1 = size l2 ->
+    (forall n x y, List.nth_error l1 n = Some x ->
+          List.nth_error l2 n = Some y ->
+          f x y) ->
+    all2 f l1 l2.
+Proof.
+  move => X Y f l1.
+  induction l1; move => l2; destruct l2 => //=.
+  move => Hsize Hf.
+  apply/andP; split.
+  { specialize (Hf 0 a y); simpl in *; by apply Hf. }
+  { apply IHl1; first by lias.
+    move => n x1 y1 Hnl1 Hnl2.
+    specialize (Hf (n.+1) x1 y1).
+    by apply Hf.
+  }
+Qed.
+
+Lemma all2_weaken {T1 T2: Type} (l1: list T1) (l2: list T2) (f1 f2: T1 -> T2 -> bool):
+  (forall x y, f1 x y -> f2 x y) ->
+  all2 f1 l1 l2 ->
+  all2 f2 l1 l2.
+Proof.
+  move => Himpl Hall2.
+  apply all2_spec; first by apply all2_size in Hall2.
+  move => n x y Hn1 Hn2.
+  apply Himpl.
+  by apply (all2_projection Hall2 Hn1 Hn2).
+Qed.
+
+Lemma all2_cat {T1 T2: Type} (l1 l3: list T1) (l2 l4: list T2) (f: T1 -> T2 -> bool):
+  size l1 = size l2 ->
+  all2 f (l1 ++ l3) (l2 ++ l4) = all2 f l1 l2 && all2 f l3 l4.
+Proof.
+  move : l2 l3 l4.
+  induction l1 as [ | x l1] => //=; destruct l2 as [ | y l2]; move => l3 l4 Hsize => //; simpl in *.
+  erewrite IHl1; by lias.
+Qed.
+
+Lemma all2_split1 {T1 T2: Type} (l1: list T1) (l2 l3: list T2) (f: T1 -> T2 -> bool):
+  all2 f l1 (l2 ++ l3) ->
+  all2 f (take (size l2) l1) l2 && all2 f (drop (size l2) l1) l3.
+Proof.
+  move => Hall.
+  assert (size l1 = size l2 + size l3) as Hsize; first by apply all2_size in Hall; rewrite size_cat in Hall.
+  rewrite <- (cat_take_drop (size l2) l1) in Hall.
+  by rewrite all2_cat in Hall; last by rewrite size_takel; lias.
+Qed.
+
+Lemma all2_split2 {T1 T2: Type} (l1 l2: list T1) (l3: list T2) (f: T1 -> T2 -> bool):
+  all2 f (l1 ++ l2) l3 ->
+  all2 f l1 (take (size l1) l3) && all2 f l2 (drop (size l1) l3).
+Proof.
+  move => Hall.
+  assert (size l3 = size l1 + size l2) as Hsize; first by apply all2_size in Hall; rewrite size_cat in Hall.
+  rewrite <- (cat_take_drop (size l1) l3) in Hall.
+  by rewrite all2_cat in Hall; last by rewrite size_takel; lias.
+Qed.
+
+Lemma nth_error_take {T: Type} (l: list T) (x: T) (k n: nat):
+  List.nth_error l n = Some x ->
+  n < k ->
+  List.nth_error (take k l) n = Some x.
+Proof.
+  move: x k n.
+  induction l; move => x k n Hnth Hlt; destruct n, k => //=.
+  by apply IHl.
+Qed.
+ 
+Lemma nth_error_rev {T} (l: list T) n x:
+  List.nth_error l n = Some x ->
+  List.nth_error (rev l) (length l - (S n)) = Some x.
+Proof.
+  move: x n; induction l; first by destruct n.
+  move => x n; destruct n => //=.
+  - move => [->] => /=.
+    rewrite rev_cons -cats1.
+    replace (S (length l) - 1) with (length l); last by lias.
+    rewrite List.nth_error_app2; last by rewrite rev_length.
+    by rewrite rev_length Nat.sub_diag.
+  - move => Hnth.
+    rewrite subSS.
+    rewrite rev_cons -cats1.
+    apply IHl in Hnth.
+    by apply nth_error_app_Some.
+Qed. 
+
+Lemma those_rev {T: Type}: forall (l1: list (option T)) l2,
+    those (rev l1) = Some l2 ->
+    those l1 = Some (rev l2).
+Proof.
+  move => l1 l2; move => Hthose.
+  apply those_spec; first by (apply those_length in Hthose; rewrite (rev_length l2); rewrite (rev_length l1) in Hthose).
+  move => n x Hnth.
+  assert (n < length l2) as Hlen; first by apply nth_error_Some_length in Hnth; rewrite rev_length in Hnth; lias.
+  apply nth_error_rev in Hnth.
+  rewrite revK in Hnth.
+  eapply those_lookup_inv in Hnth; eauto.
+  apply nth_error_rev in Hnth.
+  rewrite revK in Hnth.
+  rewrite <- Hnth.
+  f_equal.
+  apply those_length in Hthose.
+  rewrite rev_length in Hthose.
+  repeat rewrite rev_length.
+  rewrite Hthose.
+  by lias.
+Qed.
+
+Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
+  forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
+
+Lemma all2_function_unique: forall {X Y:Type} f (l1:seq X) (l2 l3:seq Y),
+    all2 f l1 l2 ->
+    all2 f l1 l3 ->
+    function f ->
+    l2 = l3.
+Proof.
+  move => X Y f l1.
+  induction l1 => //=; move => l2 l3 HA1 HA2 HF.
+  - destruct l2 => //. by destruct l3 => //.
+  - destruct l2 => //=; destruct l3 => //=.
+    simpl in HA1. simpl in HA2.
+    move/andP in HA1. move/andP in HA2.
+    destruct HA1. destruct HA2.
+    unfold function in HF.
+    assert (y = y0); first by eapply HF; eauto.
+    rewrite H3. f_equal.
+    by apply IHl1.
+Qed.
+
 (** Numerics **)
 
 Lemma N_nat_bin n:
@@ -775,6 +978,159 @@ Ltac extract_listn :=
   | H: _ :: _ = _ ++ _ |- _ => symmetry in H
          end.
 
+Lemma value_subtyping_eq: forall t,
+    t <t: t.
+Proof.
+  move => t.
+  unfold value_subtyping => /=.
+  rewrite eq_refl.
+  by lias.
+Qed.
+
+Lemma value_subtyping_trans: forall t1 t2 t3,
+    t1 <t: t2 ->
+    t2 <t: t3 ->
+    t1 <t: t3.
+Proof.
+  unfold value_subtyping.
+  move => t1 t2 t3 Hs1 Hs2; remove_bools_options; subst; rewrite eq_refl; by lias.
+Qed.
+
+Lemma values_subtyping_eq: forall ts,
+    ts <ts: ts.
+Proof.
+  induction ts => //=.
+  by rewrite value_subtyping_eq.
+Qed.
+
+Lemma values_subtyping_trans: forall ts1 ts2 ts3,
+    ts1 <ts: ts2 ->
+    ts2 <ts: ts3 ->
+    ts1 <ts: ts3.
+Proof.
+  induction ts1 as [ | x ts1]; destruct ts2 as [ | y ts2] => //; destruct ts3 as [ | z ts3] => //=; move => Hs1 Hs2; remove_bools_options.
+  by erewrite value_subtyping_trans; eauto.
+Qed.
+
+Lemma values_subtyping_cat_trans: forall ts1 ts2 ts3 ts4,
+    ts1 <ts: ts2 ->
+    (ts2 ++ ts3) <ts: ts4 ->
+    (ts1 ++ ts3) <ts: ts4.                        
+Proof.
+  induction ts1 as [ | x ts1]; destruct ts2 as [ | y ts2]; destruct ts4 as [ | z ts4] => //=.
+  move => Hsub1 Hsub2; remove_bools_options.
+  by erewrite value_subtyping_trans; eauto.
+Qed.
+
+Lemma values_subtyping_cat: forall tx1 tx2 ty1 ty2,
+    tx1 <ts: ty1 ->
+    tx2 <ts: ty2 ->
+    (tx1 ++ tx2) <ts: (ty1 ++ ty2).
+Proof.
+  move => tx1 tx2 ty1 ty2.
+  unfold values_subtyping.
+  move => Hsub1 Hsub2.
+  rewrite all2_cat => //; first by lias.
+  by apply all2_size in Hsub1.
+Qed.
+
+Lemma values_subtyping_split1: forall ts ts1 ts2,
+    ts <ts: (ts1 ++ ts2) ->
+    ((take (size ts1) ts) <ts: ts1) && ((drop (size ts1) ts) <ts: ts2).
+Proof.
+  move => ts ts1 ts2; unfold values_subtyping.
+  by apply all2_split1.
+Qed.
+
+Lemma values_subtyping_split2: forall ts ts1 ts2,
+    (ts1 ++ ts2) <ts: ts ->
+    (ts1 <ts: (take (size ts1) ts)) && (ts2 <ts: (drop (size ts1) ts)).
+Proof.
+  move => ts ts1 ts2; unfold values_subtyping.
+  by apply all2_split2.
+Qed.
+  
+Lemma functype_subtyping_eq: forall tf,
+    tf <tf: tf.
+Proof.
+  move => [ts1 ts2].
+  unfold functype_subtyping.
+  exists nil, nil, ts1, ts2; repeat split => //; by apply values_subtyping_eq.
+Qed.
+
+(*
+Definition functype_subtyping (tf tf': function_type) : Prop :=
+  let '(Tf ts1 ts2) := tf in
+  let '(Tf ts1' ts2') := tf' in
+  exists ts ts' ts1_sub ts2_sub,
+    ts1' = ts ++ ts1_sub /\
+    ts2' = ts' ++ ts2_sub /\
+    ts <: ts' /\  
+    ts1_sub <: ts1 /\
+    ts2 <: ts2_sub.
+*)
+Lemma functype_subtyping_trans: forall tf1 tf2 tf3,
+    tf1 <tf: tf2 ->
+    tf2 <tf: tf3 ->
+    tf1 <tf: tf3.
+Proof.
+  [...]
+Qed.
+         
+Ltac resolve_subtyping :=
+  repeat match goal with
+  | |- context [ ?t <t: ?t ] =>
+    rewrite value_subtyping_eq
+  | |- context [ ?ts <ts: ?ts ] =>
+    rewrite values_subtyping_eq
+  | _: is_true (?ts1 <ts: ?ts2),
+    _: is_true ((?ts2 ++ ?ts3) <ts: ?ts4) |-
+       context [ (?ts1 ++ ?ts3) <ts: ?ts4 ] =>
+    erewrite values_subtyping_cat_trans; try by eauto
+  | _: is_true (?ts1 <ts: ?ts2) |-
+       context [ (?ts ++ ?ts1) <ts: (?ts ++ ?ts2) ] =>
+    erewrite values_subtyping_frame; try by eauto
+  | |- context [ ?tf <tf: ?tf ] =>
+    rewrite functype_subtyping_eq
+  | |- functype_subtyping (Tf nil ?ts) (Tf ?ts0 ?ts0) =>
+    by exists ts0; repeat rewrite cats0 => //
+  | |- functype_subtyping (Tf nil ?ts) (Tf ?ts0 (?ts0 ++ ?ts)) =>
+    by exists ts0; rewrite cats0 => //
+  | |- functype_subtyping (Tf ?ts nil) (Tf (?ts0 ++ ?ts) ?ts0) =>
+    by exists ts0; rewrite cats0 => //
+  | |- functype_subtyping (Tf ?ts1 ?ts2) (Tf (?ts0 ++ ?ts1) (?ts0 ++ ?ts2)) =>
+    by exists ts0
+  end.
+
+(* Some quality of life lemmas *)
+(* Upd: this lemmas are deprecated; it is encouraged to directly use the resolve_subtyping tactic. *)
+Lemma bet_weakening_empty_1: forall C es ts t2s,
+    be_typing C es (Tf [::] t2s) ->
+    be_typing C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => C es ts t2s HType.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma bet_weakening_empty_2: forall C es ts t1s,
+    be_typing C es (Tf t1s [::]) ->
+    be_typing C es (Tf (ts ++ t1s) ts).
+Proof.
+  move => C es ts t1s HType.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma bet_weakening_empty_both: forall C es ts,
+    be_typing C es (Tf [::] [::]) ->
+    be_typing C es (Tf ts ts).
+Proof.
+  move => C es ts HType.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
 (** * More Advanced Lemmas **)
 
 Section Host.
@@ -809,9 +1165,9 @@ Proof.
   intros.
   by rewrite map_cat; erewrite those_cat.
 Qed.
-  
+
 Lemma default_value_typing: forall s t v,
-    default_val t = v ->
+    default_val t = Some v ->
     value_typing s v = Some t.
 Proof.
   move => s t v Hval.
@@ -821,207 +1177,15 @@ Proof.
 Qed.
 
 Lemma default_values_typing: forall s ts vs,
-    map default_val ts = vs ->
+    default_vals ts = Some vs ->
     values_typing s vs = Some ts.
 Proof.
+  unfold default_vals, values_typing.
+  setoid_rewrite <- those_those0.
   move => s; elim => /=; first by case.
-  move => t ts IH; case => //= v vs <-.
-  unfold values_typing.
-  rewrite - those_those0 => /=.
-  erewrite default_value_typing; eauto => /=.
-  rewrite those_those0.
-  by unfold values_typing in IH; rewrite IH.
-Qed.
-  
-(** Additional List properties **)
-
-Lemma nth_error_Some_length:
-  forall A (l : seq.seq A) (i : nat) (m : A),
-  List.nth_error l i = Some m -> 
-  (i < length l)%coq_nat.
-Proof.
-  move => A l i m H1.
-  assert (H2 : List.nth_error l i <> None) by rewrite H1 => //.
-  by apply List.nth_error_Some in H2.
-Qed.
-
-Lemma nth_error_app_Some {T: Type} (l1 l2 : list T) n x:
-  List.nth_error l1 n = Some x ->
-  List.nth_error (l1 ++ l2) n = Some x.
-Proof.
-  move => Hnth.
-  rewrite List.nth_error_app1 => //.
-  by eapply nth_error_Some_length; eauto.
-Qed.
-
-Lemma Forall_lookup: forall {X:Type} f (l:seq X) n x,
-    List.Forall f l ->
-    List.nth_error l n = Some x ->
-    f x.
-Proof.
-  move => X f l n x.
-  generalize dependent l.
-  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //; inversion HF; subst => //.
-  eapply IHn; by eauto.
-Qed.
-
-Lemma all_repeat: forall {X: Type} (f: X -> bool) v n,
-    f v = true ->
-    all f (List.repeat v n).
-Proof.
-  move => X f v. elim => //=.
-  move => n IH Hf.
-  rewrite Hf => /=; by apply IH.
-Qed.
-
-Lemma all_projection: forall {X:Type} f (l:seq X) n x,
-    all f l ->
-    List.nth_error l n = Some x ->
-    f x.
-Proof.
-  move => X f l n x Hall Hnth.
-  generalize dependent l.
-  induction n => //; destruct l => //=; move => HF HS; remove_bools_options => //.
-  eapply IHn; by eauto.
-Qed.
-
-Lemma all2_projection: forall {X Y:Type} f (l1:seq X) (l2:seq Y) n x1 x2,
-    all2 f l1 l2 ->
-    List.nth_error l1 n = Some x1 ->
-    List.nth_error l2 n = Some x2 ->
-    f x1 x2.
-Proof.
-  move => X Y f l1 l2 n.
-  generalize dependent l1.
-  generalize dependent l2.
-  induction n => //=; move => l2 l1 x1 x2 HALL HN1 HN2.
-  - destruct l1 => //=. destruct l2 => //=.
-    inversion HN1. inversion HN2. subst. clear HN1. clear HN2.
-    simpl in HALL. move/andP in HALL. by destruct HALL.
-  - destruct l1 => //=. destruct l2 => //=.
-    simpl in HALL. move/andP in HALL. destruct HALL.
-    eapply IHn; by eauto.
-Qed.
-
-Lemma all2_nth_impl {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
-  all2 f l1 l2 ->
-  List.nth_error l1 n = Some x ->
-  exists y, List.nth_error l2 n = Some y /\ f x y.
-Proof.
-  move => Hall2 Hnth.
-  destruct (List.nth_error l2 n) eqn:Hnth'.
-  - exists t; split => //.
-    by eapply all2_projection; eauto.
-  - exfalso.
-    apply List.nth_error_None in Hnth'.
-    apply all2_size in Hall2.
-    repeat rewrite - length_is_size in Hall2.
-    rewrite -Hall2 in Hnth'.
-    apply nth_error_Some_length in Hnth.
-    by lias.
-Qed.
-
-Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
-    size l1 = size l2 ->
-    (forall n x y, List.nth_error l1 n = Some x ->
-          List.nth_error l2 n = Some y ->
-          f x y) ->
-    all2 f l1 l2.
-Proof.
-  move => X Y f l1.
-  induction l1; move => l2; destruct l2 => //=.
-  move => Hsize Hf.
-  apply/andP; split.
-  { specialize (Hf 0 a y); simpl in *; by apply Hf. }
-  { apply IHl1; first by lias.
-    move => n x1 y1 Hnl1 Hnl2.
-    specialize (Hf (n.+1) x1 y1).
-    by apply Hf.
-  }
-Qed.
-
-Lemma all2_weaken {T1 T2: Type} (l1: list T1) (l2: list T2) (f1 f2: T1 -> T2 -> bool):
-  (forall x y, f1 x y -> f2 x y) ->
-  all2 f1 l1 l2 ->
-  all2 f2 l1 l2.
-Proof.
-  move => Himpl Hall2.
-  apply all2_spec; first by apply all2_size in Hall2.
-  move => n x y Hn1 Hn2.
-  apply Himpl.
-  by apply (all2_projection Hall2 Hn1 Hn2).
-Qed.
-
-Lemma nth_error_take {T: Type} (l: list T) (x: T) (k n: nat):
-  List.nth_error l n = Some x ->
-  n < k ->
-  List.nth_error (take k l) n = Some x.
-Proof.
-  move: x k n.
-  induction l; move => x k n Hnth Hlt; destruct n, k => //=.
-  by apply IHl.
-Qed.
- 
-Lemma nth_error_rev {T} (l: list T) n x:
-  List.nth_error l n = Some x ->
-  List.nth_error (rev l) (length l - (S n)) = Some x.
-Proof.
-  move: x n; induction l; first by destruct n.
-  move => x n; destruct n => //=.
-  - move => [->] => /=.
-    rewrite rev_cons -cats1.
-    replace (S (length l) - 1) with (length l); last by lias.
-    rewrite List.nth_error_app2; last by rewrite rev_length.
-    by rewrite rev_length Nat.sub_diag.
-  - move => Hnth.
-    rewrite subSS.
-    rewrite rev_cons -cats1.
-    apply IHl in Hnth.
-    by apply nth_error_app_Some.
-Qed. 
-
-Lemma those_rev {T: Type}: forall (l1: list (option T)) l2,
-    those (rev l1) = Some l2 ->
-    those l1 = Some (rev l2).
-Proof.
-  move => l1 l2; move => Hthose.
-  apply those_spec; first by (apply those_length in Hthose; rewrite (rev_length l2); rewrite (rev_length l1) in Hthose).
-  move => n x Hnth.
-  assert (n < length l2) as Hlen; first by apply nth_error_Some_length in Hnth; rewrite rev_length in Hnth; lias.
-  apply nth_error_rev in Hnth.
-  rewrite revK in Hnth.
-  eapply those_lookup_inv in Hnth; eauto.
-  apply nth_error_rev in Hnth.
-  rewrite revK in Hnth.
-  rewrite <- Hnth.
-  f_equal.
-  apply those_length in Hthose.
-  rewrite rev_length in Hthose.
-  repeat rewrite rev_length.
-  rewrite Hthose.
-  by lias.
-Qed.
-
-Definition function {X Y:Type} (f: X -> Y -> Prop) : Prop :=
-  forall x y1 y2, ((f x y1 /\ f x y2) -> y1 = y2).
-
-Lemma all2_function_unique: forall {X Y:Type} f (l1:seq X) (l2 l3:seq Y),
-    all2 f l1 l2 ->
-    all2 f l1 l3 ->
-    function f ->
-    l2 = l3.
-Proof.
-  move => X Y f l1.
-  induction l1 => //=; move => l2 l3 HA1 HA2 HF.
-  - destruct l2 => //. by destruct l3 => //.
-  - destruct l2 => //=; destruct l3 => //=.
-    simpl in HA1. simpl in HA2.
-    move/andP in HA1. move/andP in HA2.
-    destruct HA1. destruct HA2.
-    unfold function in HF.
-    assert (y = y0); first by eapply HF; eauto.
-    rewrite H3. f_equal.
-    by apply IHl1.
+  move => t ts IH vs Hdefaults; destruct vs => //; remove_bools_options => /=.
+  erewrite default_value_typing; eauto.
+  by erewrite IH; eauto.
 Qed.
 
 (* Avoid changing everything to type or making other large-scale changes *)
@@ -1050,51 +1214,26 @@ Proof.
   - symmetry. by apply e_b_elim.
 Qed.
 
-(* Some quality of life lemmas *)
-Lemma bet_weakening_empty_1: forall C es ts t2s,
-    be_typing C es (Tf [::] t2s) ->
-    be_typing C es (Tf ts (ts ++ t2s)).
-Proof.
-  move => C es ts t2s HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply bet_weakening.
-  by rewrite cats0 in H.
-Qed.
-
 Lemma et_weakening_empty_1: forall s C es ts t2s,
     e_typing s C es (Tf [::] t2s) ->
     e_typing s C es (Tf ts (ts ++ t2s)).
 Proof.
   move => s C es ts t2s HType.
-  assert (e_typing s C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply ety_weakening.
-  by rewrite cats0 in H.
-Qed.
-
-Lemma bet_weakening_empty_2: forall C es ts t1s,
-    be_typing C es (Tf t1s [::]) ->
-    be_typing C es (Tf (ts ++ t1s) ts).
-Proof.
-  move => C es ts t1s HType.
-  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))); first by apply bet_weakening.
-  by rewrite cats0 in H.
-Qed.
-
-Lemma bet_weakening_empty_both: forall C es ts,
-    be_typing C es (Tf [::] [::]) ->
-    be_typing C es (Tf ts ts).
-Proof.
-  move => C es ts HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
-  by rewrite cats0 in H.
+  eapply ety_subtyping; eauto.
+  by resolve_subtyping.
 Qed.
 
 Lemma empty_typing: forall C t1s t2s,
     be_typing C [::] (Tf t1s t2s) ->
-    t1s = t2s.
+    values_subtyping t1s t2s.
 Proof.
   move => C t1s t2s HType.
   gen_ind_subst HType => //.
   - by destruct es.
-  - f_equal. by eapply IHHType.
+  - destruct tf as [ts1' ts2'].
+    destruct H as [ts [-> ->]].
+    specialize (IHHType erefl _ erefl _ _ erefl).
+    by resolve_subtyping.
 Qed.
 
 (* A convenient lemma to invert e_typing back to be_typing. *)
@@ -1114,26 +1253,17 @@ Proof.
     eapply bet_composition.
     * by eapply IHHType1 => //.
     * by eapply IHHType2 => //.
-  + apply bet_weakening. by eapply IHHType => //.
+  + apply IHHType in HBasic.
+    by eapply bet_subtyping; eauto.
 Qed.
 
 Lemma empty_e_typing: forall s C t1s t2s,
     e_typing s C [::] (Tf t1s t2s) ->
-    t1s = t2s.
+    values_subtyping t1s t2s.
 Proof.
   move => s C t1s t2s HType.
   apply et_to_bet in HType => //.
   by apply empty_typing in HType.
-Qed.
-
-Lemma bet_value_typing: forall C bv v,
-    $V v = AI_basic bv ->
-    be_typing C [::bv] (Tf nil [::typeof v]).
-Proof.
-  move => C bv v HConst.
-  destruct v; inversion HConst; subst; clear HConst; try by constructor.
-  destruct v; inversion H0; subst; clear H0.
-  by constructor.
 Qed.
 
 (************ these come from the certified itp *************)

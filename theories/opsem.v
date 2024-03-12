@@ -43,13 +43,13 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
   (** cvtop **)
   | rs_convert_success :
     forall t1 t2 v v' op sx,
-    types_agree (T_num t1) (VAL_num v) ->
+    typeof_num v = t1 ->
     cvtop_valid t2 op t1 sx ->  
     eval_cvt t2 op sx v = Some v' ->
     reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::$VN v']
   | rs_convert_failure :
     forall t1 t2 v sx op,
-    types_agree (T_num t1) (VAL_num v) ->
+    typeof_num v = t1 ->
     cvtop_valid t2 op t1 sx ->  
     eval_cvt t2 op sx v = None ->
     reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::AI_trap]
@@ -203,7 +203,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         length ts = k ->
         length ts1 = n ->
         length ts2 = m ->
-        map default_val ts = defaults ->
+        default_vals ts = Some defaults ->
         reduce hs s f (ves ++ [::AI_invoke addr]) hs s f [::AI_frame m (Build_frame (vs ++ defaults) inst) [::AI_label m [::] (to_e_list es)]]
   | r_invoke_host_success :
       forall a cl h t1s t2s ves vcs m n s s' r f hs hs',

@@ -32,6 +32,7 @@ Definition binary_of_value_type (t : value_type) : byte :=
   | T_num t' => binary_of_number_type t'
   | T_vec t' => binary_of_vector_type t'
   | T_ref t' => binary_of_reference_type t'
+  | T_bot => x00 (* will not happen *)
   end.
 
 Definition binary_of_u32 (n: BinNums.N) : list byte :=

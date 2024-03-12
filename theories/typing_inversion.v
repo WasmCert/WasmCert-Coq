@@ -19,86 +19,92 @@ Proof.
   by [].
 Qed.
 
-Ltac resolve_compose Hcat Hempty IH :=
-  apply extract_list1 in Hcat; destruct Hcat; subst;
-  apply empty_typing in Hempty; subst; try by eapply IH.
+Ltac extract_premise :=
+  repeat match goal with
+  | H: forall x, ?x0 = x -> _ |- _ =>
+    try specialize (H _ erefl)
+  | H: forall x, [:: ?c ?x0] = [:: ?c x] -> _ |- _ =>
+    try specialize (H _ erefl)
+  | H: forall x y, [:: ?c ?x0 ?y0] = [:: ?c y x] -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: forall x y z, [:: ?c ?x0 ?y0 ?z0] = [:: ?c z y x] -> _ |- _ =>
+    try specialize (H _ _ _ erefl)
+  | H: forall x y, (Tf ?x0 ?y0) = (Tf y x) -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: exists t, ?P |- _ =>
+    let x := fresh "x" in
+    let Hprem := fresh "Hprem" in  
+    destruct H as [x Hprem]
+  | H: ?P /\ ?Q |- _ =>
+    let Hprem1 := fresh "Hprem1" in  
+    let Hprem2 := fresh "Hprem2" in  
+    destruct H as [Hprem1 Hprem2]
+ end.
 
-Ltac resolve_weaken :=
-  repeat eexists; repeat split; eauto => //=; subst; repeat rewrite -catA => //.
+Ltac resolve_compose Hcat Hempty IH :=
+  (try apply extract_list1 in Hcat);
+  (try apply extract_list2 in Hcat);
+  destruct Hcat; subst;
+  apply empty_typing in Hempty; subst; extract_premise; subst; try by repeat eexists; repeat split; eauto; resolve_subtyping.
+
+Ltac resolve_weaken tf Htfsub IH:=
+  destruct tf as [??]; destruct Htfsub as [? [-> ->]];
+  specialize (IH _ erefl _ erefl _ _ erefl); extract_premise; subst; try repeat eexists; repeat split; eauto; try rewrite -catA; resolve_subtyping.
 
 Lemma BI_const_num_typing: forall C econst t1s t2s,
     be_typing C [::BI_const_num econst] (Tf t1s t2s) ->
-    t2s = t1s ++ [::T_num (typeof_num econst)].
+    (t1s ++ [::T_num (typeof_num econst)]) <ts: t2s.
 Proof.
   move => C econst t1s t2s HType.
-  gen_ind_subst HType => //.
-  - by resolve_compose Econs HType1 IHHType2.
-  - rewrite - catA -cat_app.
-    f_equal.
-    by eapply IHHType.
+  gen_ind_subst HType => //=.
+  - by resolve_subtyping.
+  - resolve_compose Econs HType1 IHHType2.
+  - resolve_weaken tf H IHHType.
 Qed.
 
 Lemma BI_const_vec_typing: forall C econst t1s t2s,
     be_typing C [::BI_const_vec econst] (Tf t1s t2s) ->
-    t2s = t1s ++ [::T_vec (typeof_vec econst)].
+    (t1s ++ [::T_vec (typeof_vec econst)]) <ts: t2s.
 Proof.
   move => C econst t1s t2s HType.
-  gen_ind_subst HType => //.
+  gen_ind_subst HType => //=.
+  - by resolve_subtyping.
   - by resolve_compose Econs HType1 IHHType2.
-  - rewrite - catA -cat_app.
-    f_equal.
-    by eapply IHHType.
+  - by resolve_weaken tf H IHHType.
 Qed.
 
 Lemma BI_ref_null_typing: forall C t t1s t2s,
     be_typing C [::BI_ref_null t] (Tf t1s t2s) ->
-    t2s = t1s ++ [::T_ref t].
+    (t1s ++ [::T_ref t]) <ts: t2s.
 Proof.
   move => C econst t1s t2s HType.
-  gen_ind_subst HType => //.
+  gen_ind_subst HType => //=.
+  - by resolve_subtyping.
   - by resolve_compose Econs HType1 IHHType2.
-  - rewrite - catA -cat_app.
-    f_equal.
-    by eapply IHHType.
-Qed.
-
-Lemma Basic_value_typing: forall C v bv ts1 ts2,
-    be_typing C [::bv] (Tf ts1 ts2) ->
-    $V v = AI_basic bv ->
-    ts2 = ts1 ++ [::typeof v].
-Proof.
-  move => C v bv ts1 ts2 HType HConst.
-  destruct v; inversion HConst; subst; clear HConst.
-  - by apply BI_const_num_typing in HType.
-  - by apply BI_const_vec_typing in HType.
-  - destruct v; inversion H0; subst; clear H0.
-    by apply BI_ref_null_typing in HType.
+  - by resolve_weaken tf H IHHType.
 Qed.
 
 Lemma BI_ref_func_typing: forall C x t1s t2s,
     be_typing C [::BI_ref_func x] (Tf t1s t2s) ->
     exists tf, lookup_N (tc_funcs C) x = Some tf /\
            List.In x (tc_refs C) /\
-           t2s = t1s ++ [::T_ref T_funcref].
+           (t1s ++ [::T_ref T_funcref]) <ts: t2s.
 Proof.
   move => C x t1s t2s HType.
-  gen_ind_subst HType => //.
+  gen_ind_subst HType => //=.
   - exists t; by eauto.
   - by resolve_compose Econs HType1 IHHType2.
-  - rewrite - catA -cat_app.
-    edestruct IHHType as [tf [? [??]]]; eauto; subst.
-    by exists tf.
+  - by resolve_weaken tf H IHHType.
 Qed.
 
-
-
+(*
 Lemma BI_const_num2_typing: forall C econst1 econst2 t1s t2s,
     be_typing C [::BI_const_num econst1; BI_const_num econst2] (Tf t1s t2s) ->
     t2s = t1s ++ [::T_num (typeof_num econst1); T_num (typeof_num econst2)].
 Proof.
   move => C econst1 econst2 t1s t2s HType.
   gen_ind_subst HType => //.
-  - apply extract_list2 in H1; inversion H1; subst.
+  - apply extract_list2 in H1. destruct H1; subst.
     apply BI_const_num_typing in HType1; subst.
     apply BI_const_num_typing in HType2; subst.
     by rewrite -catA.
@@ -121,15 +127,21 @@ Proof.
     f_equal.
     by eapply IHHType.
 Qed.
+*)
 
+(*
 Lemma Unop_typing: forall C t op t1s t2s,
     be_typing C [::BI_unop t op] (Tf t1s t2s) ->
-    t1s = t2s /\ exists ts, t1s = ts ++ [::T_num t].
+    exists ts t0,
+      t1s = ts ++ [::t0] /\
+      t2s = ts ++ [::T_num t] /\
+      value_subtyping t0 (T_num t).
 Proof.
   move => C t op t1s t2s HType.
-  gen_ind_subst HType.
-  - by split => //=; exists nil.
-  - by resolve_compose Econs HType1 IHHType2.
+  gen_ind_subst HType => //.
+  - exists nil, (T_num t0); split => //; by resolve_subtyping.
+  - resolve_compose Econs HType1 IHHType2.
+    exists x, x0; repeat split => //.
   - edestruct IHHType as [?[??]] => //=; subst.
     split => //.
     by eexists; rewrite -cat_app catA.
@@ -669,6 +681,7 @@ Ltac auto_prove_bet:=
   | H: _ |- be_typing _ [::] (Tf ?es ?es) =>
     apply bet_weakening_empty_both; try by []
   end.
+ *)
 
 Lemma be_composition_typing_single: forall C es1 e t1s t2s,
     be_typing C (es1 ++ [::e]) (Tf t1s t2s) ->
@@ -685,6 +698,7 @@ Proof.
     by split; apply bet_weakening.
 Qed.
 
+(*
 Lemma be_composition_typing: forall C es1 es2 t1s t2s,
     be_typing C (es1 ++ es2) (Tf t1s t2s) ->
     exists t3s, be_typing C es1 (Tf t1s t3s) /\
@@ -729,9 +743,9 @@ Proof.
   rewrite - cat1s.
   by eapply bet_composition'; eauto.
 Qed.
-
+*)
 End Typing_inversion_be.
-
+(*
 Ltac resolve_list_eq :=
   repeat match goal with(*
   | H: (?es ++ [::?e])%list = [::_] |- _ =>
@@ -1593,3 +1607,4 @@ Proof.
 Qed.
 
 End Typing_inversion_e.
+*)

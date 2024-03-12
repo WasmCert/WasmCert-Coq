@@ -197,6 +197,7 @@ Ltac unfold_store_operations :=
         unfold sdata_drop, sdata in *; remove_bools_options
     end.
 
+(*
 Ltac resolve_e_typing :=
   repeat lazymatch goal with
     | _ : _ |- e_typing _ _ nil (Tf _ _) =>
@@ -235,3 +236,4 @@ Ltac resolve_e_typing :=
         apply const_es_exists in H as [vs ->]; invert_e_typing
     | _ => unfold_store_operations
     end.
+*)
