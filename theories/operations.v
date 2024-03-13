@@ -157,7 +157,13 @@ Definition value_subtyping (t1: value_type) (t2: value_type) : bool :=
 Definition values_subtyping (ts1: list value_type) (ts2: list value_type) : bool :=
   all2 value_subtyping ts1 ts2.
 
-Definition functype_subtyping (tf tf': function_type) : Prop :=
+Definition func_subtyping (tf tf': function_type) : Prop :=
+  let '(Tf ts1 ts2) := tf in
+  let '(Tf ts1' ts2') := tf' in
+    values_subtyping ts1' ts1 /\
+    values_subtyping ts2 ts2'.
+
+Definition instr_subtyping (tf tf': function_type) : Prop :=
   let '(Tf ts1 ts2) := tf in
   let '(Tf ts1' ts2') := tf' in
   exists ts ts' ts1_sub ts2_sub,
@@ -169,7 +175,8 @@ Definition functype_subtyping (tf tf': function_type) : Prop :=
 
 Notation "t1 <t: t2" := (value_subtyping t1 t2) (at level 30).
 Notation "ts1 <ts: ts2" := (values_subtyping ts1 ts2) (at level 60).
-Notation "tf1 <tf: tf2" := (functype_subtyping tf1 tf2) (at level 60).
+Notation "tf1 <ti: tf2" := (instr_subtyping tf1 tf2) (at level 60).
+Notation "tf1 <tf: tf2" := (func_subtyping tf1 tf2) (at level 60).
 
 Definition typeof_num (v : value_num) : number_type :=
   match v with

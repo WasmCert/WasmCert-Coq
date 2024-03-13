@@ -198,42 +198,4 @@ Ltac unfold_store_operations :=
     end.
 
 (*
-Ltac resolve_e_typing :=
-  repeat lazymatch goal with
-    | _ : _ |- e_typing _ _ nil (Tf _ _) =>
-        apply et_empty
-    | _ : _ |- e_typing _ _ _ (Tf ?x (?x ++ _)) =>
-        apply et_weakening_empty_1
-    | H : value_ref_typing ?s ?tabv = Some ?t |-
-        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) nil) (Tf ?ts1 _) =>
-        try apply et_weakening_empty_1; apply et_value_typing => /=; rewrite H => //=
-    | H : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ (cons ($V ?v) nil) (Tf ?ts1 _) =>
-        try apply et_weakening_empty_1; apply et_value_typing => //=
-    | H : value_ref_typing ?s ?tabv = Some ?t |-
-        e_typing ?s _ (cons ($V (VAL_ref ?tabv)) ?l) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V (VAL_ref tabv)) l); apply et_composition' with (t2s := ts1 ++ [::T_ref t]); first by try apply et_weakening_empty_1; apply et_value_typing => /=; rewrite H => //=
-    | H : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ (cons ($V ?v) ?l) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V v) l); apply et_composition' with (t2s := ts1 ++ [::t]); first by try apply et_weakening_empty_1; apply et_value_typing => //=
-    | _ : value_typing ?s ?v = Some ?t |-
-        e_typing ?s _ [::($V ?v)] (Tf ?ts1 _) =>
-        try apply et_weakening_empty_1; try by apply et_value_typing; eauto => /=
-    | _ : _ |- e_typing _ _ (cons ($VN ?x) _) (Tf _ _) =>
-        replace ($VN x) with ($V (VAL_num x)); last done
-    | _ : _ |- e_typing  _ _ (cons (vref_to_e ?x) _) (Tf _ _) =>
-        replace (vref_to_e x) with ($V (VAL_ref x)); last done
-    | _ : _ |- e_typing _ _ [:: $V _] (Tf nil _) =>
-        try apply et_value_typing => //=
-    | _ : _ |- e_typing _ _ [:: $V _] (Tf ?x ?y) =>
-        try apply et_weakening_empty_1; first by apply et_value_typing => //= 
-    | _ : _ |- e_typing _ _ (cons ($V (VAL_num ?v)) ?l) (Tf ?ts1 _) =>
-        rewrite -(cat1s ($V (VAL_num v)) l); apply et_composition' with (t2s := ts1 ++ [::T_num (typeof_num v)]); eauto; first by try apply et_weakening_empty_1; apply et_value_typing; eauto => //=
-    | _ : _ |- e_typing _ _ (v_to_e_list _) (Tf _ _) =>
-        try apply et_values_typing => /=
-    | H : is_true (const_list _) |- _ =>
-        let vs := fresh "vs" in
-        apply const_es_exists in H as [vs ->]; invert_e_typing
-    | _ => unfold_store_operations
-    end.
 *)

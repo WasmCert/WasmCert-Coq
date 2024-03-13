@@ -86,7 +86,7 @@ Definition result_types_agree (s: store_record) (ts : result_type) r : bool :=
 (** std-doc:
 https://www.w3.org/TR/wasm-core-2/exec/runtime.html#exec-expand
 **)
-Definition expand_t (C: t_context) (tb: block_type) : option function_type :=
+Definition expand_t (C: t_context) (tb: block_type) : option instr_type :=
   match tb with
   | BT_id n => lookup_N C.(tc_types) n
   | BT_valtype (Some t) => Some (Tf [::] [::t])
@@ -189,7 +189,7 @@ types in a point-wise manner.
 
 https://www.w3.org/TR/wasm-core-2/valid/instructions.html
  **)
-Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
+Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :=
 | bet_const_num : forall C v, be_typing C [::BI_const_num v] (Tf [::] [::T_num (typeof_num v)])
 | bet_const_vec : forall C v, be_typing C [::BI_const_vec v] (Tf [::] [::T_vec (typeof_vec v)])
 | bet_ref_null: forall C t, be_typing C [::BI_ref_null t] (Tf [::] [::T_ref t])
@@ -238,7 +238,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
   be_typing C [::BI_br_table ins i] (Tf (t1s ++ (ts ++ [::T_num T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
   tc_return C = Some ts ->
-  be_typing C [::BI_return] (Tf (app t1s ts) t2s)
+  be_typing C [::BI_return] (Tf (t1s ++ ts) t2s)
 | bet_call : forall C i tf,
   lookup_N (tc_funcs C) i = Some tf ->
   be_typing C [::BI_call i] tf
@@ -256,13 +256,14 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
 | bet_local_tee : forall C x t,
   lookup_N (tc_locals C) x = Some t ->
   be_typing C [::BI_local_tee x] (Tf [::t] [::t])
-| bet_global_get : forall C x t,
-  option_map tg_t (lookup_N (tc_globals C) x) = Some t ->
+| bet_global_get : forall C x gt t,
+  lookup_N (tc_globals C) x = Some gt ->  
+  tg_t gt = t ->
   be_typing C [::BI_global_get x] (Tf [::] [::t])
-| bet_global_set : forall C x g t,
-  lookup_N (tc_globals C) x = Some g ->  
-  tg_t g = t ->
-  is_mut g ->
+| bet_global_set : forall C x gt t,
+  lookup_N (tc_globals C) x = Some gt ->  
+  tg_t gt = t ->
+  is_mut gt ->
   be_typing C [::BI_global_set x] (Tf [::t] [::])
 | bet_table_get : forall C x tabtype t,
   lookup_N (tc_tables C) x = Some tabtype ->
@@ -330,10 +331,10 @@ Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Pro
   be_typing C es (Tf t1s t2s) ->
   be_typing C [::e] (Tf t2s t3s) ->
   be_typing C (es ++ [::e]) (Tf t1s t3s)
-| bet_subtyping : forall C es tf tf',
-  be_typing C es tf ->
-  functype_subtyping tf tf' ->
-  be_typing C es tf'
+| bet_subtyping : forall C es t1s t2s t1s' t2s',
+  be_typing C es (Tf t1s t2s) ->
+  (Tf t1s t2s) <ti: (Tf t1s' t2s') ->
+  be_typing C es (Tf t1s' t2s')
 .
 
 Definition expr_typing (C: t_context) (bes: list basic_instruction) (ts: result_type) : Prop :=
@@ -465,17 +466,17 @@ pre-existing rules, but it is accessed in the extra rules for administrative ins
 https://www.w3.org/TR/wasm-core-2/appendix/properties.html#administrative-instructions
 **)
 
-Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> instr_type -> Prop :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
 | ety_composition : forall s C es e t1s t2s t3s,
   e_typing s C es (Tf t1s t2s) ->
   e_typing s C [::e] (Tf t2s t3s) ->
   e_typing s C (es ++ [::e]) (Tf t1s t3s)
-| ety_subtyping : forall s C es tf tf',
-  e_typing s C es tf ->
-  functype_subtyping tf tf' ->
-  e_typing s C es tf'
+| ety_subtyping : forall s C es t1s t2s t1s' t2s',
+  e_typing s C es (Tf t1s t2s) ->
+  (Tf t1s t2s) <ti: (Tf t1s' t2s') ->
+  e_typing s C es (Tf t1s' t2s')
 | ety_trap : forall s C tf,
   e_typing s C [::AI_trap] tf
 | ety_ref_extern : forall s C a,

@@ -174,6 +174,10 @@ Inductive function_type := (* tf *)
 | Tf : result_type -> result_type -> function_type
 .
 
+(* This is a definition for future extensions, where instruction types are no longer
+the same as function types. *)
+Definition instr_type := function_type.
+
 (*
 This is technically part of the spec, but the actual definitions never used the bottom case concretely except for the type checking algorithm.
 (** std-doc:

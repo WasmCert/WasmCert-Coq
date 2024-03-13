@@ -43,7 +43,7 @@ Proof.
 Qed.
 
 (* Not completely agnostic now -- since reference typings are dependent on the store. *)
-(*
+
 Lemma et_const_agnostic: forall s C C' es tf,
     const_list es ->
     e_typing s C es tf ->
@@ -51,26 +51,103 @@ Lemma et_const_agnostic: forall s C C' es tf,
 Proof.
   move => s C C' es [ts1 ts2] HConst HType.
   apply const_es_exists in HConst as [vs Hve]; subst.
-  apply Values_typing_inversion in HType as [ts [-> Hvts]].
-  apply et_weakening_empty_1.
-  by apply et_values_typing.
+  invert_e_typing.
+  eapply ety_subtyping; first by apply et_values_typing; eauto.
+  done.
 Qed.
-*)
 
+Ltac resolve_e_typing :=
+  repeat lazymatch goal with
+    | _ : _ |- e_typing _ _ [::$VN ?v] _ =>
+        replace ($VN v) with ($V (VAL_num v)); last done
+    | _ : _ |- e_typing _ _ [::$V _] _ =>
+        try eapply ety_subtyping; first by apply et_value_typing => /=; eauto => //=
+    | _ : _ |- e_typing _ _ (v_to_e_list _) _ =>
+        try eapply ety_subtyping; first by apply et_values_typing => /=; eauto => //=
+    | H : is_true (const_list _) |- _ =>
+        let vs := fresh "vs" in
+        apply const_es_exists in H as [vs ->]; invert_e_typing
+    | _ => unfold_store_operations
+    end.
+
+Lemma instr_subtyping_strengthen1: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (tx1 <ts: ts) ->
+    ((Tf ts ty1) <ti: (Tf tx2 ty2)).
+Proof.
+  intros.
+  unfold instr_subtyping in *; extract_premise.
+  exists extr, extr0, extr1, extr2.
+  by resolve_subtyping.
+Qed.
+
+Lemma instr_subtyping_strengthen2: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ty2 <ts: ts) ->
+    ((Tf tx1 ty1) <ti: (Tf tx2 ts)).
+Proof.
+  intros ?????? Hsub.
+  unfold instr_subtyping in *; extract_premise.
+  apply values_subtyping_split2 in Hsub; remove_bools_options.
+  exists extr, (take (size extr0) ts), extr1, (drop (size extr0) ts); rewrite cat_take_drop.
+  by resolve_subtyping.
+Qed.
+
+Lemma instr_subtyping_weaken1: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ts <ts: ty1) ->
+    ((Tf tx1 ts) <ti: (Tf tx2 ty2)).
+Proof.
+  intros.
+  unfold instr_subtyping in *; extract_premise.
+  exists extr, extr0, extr1, extr2.
+  by resolve_subtyping.
+Qed.
+
+Lemma instr_subtyping_weaken2: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ts <ts: tx2) ->
+    ((Tf tx1 ty1) <ti: (Tf ts ty2)).
+Proof.
+  intros ?????? Hsub.
+  unfold instr_subtyping in *; extract_premise.
+  apply values_subtyping_split1 in Hsub; remove_bools_options.
+  exists (take (size extr) ts), extr0, (drop (size extr) ts), extr2; rewrite cat_take_drop.
+  by resolve_subtyping.
+Qed.
+  
+Lemma instr_subtyping_compose: forall tx0 ty0 ty0' tz0 tx ty tz,
+    ((Tf tx0 ty0) <ti: (Tf tx ty)) ->
+    ((Tf ty0' tz0) <ti: (Tf ty tz)) ->
+    size ty0 = size ty0' ->
+    ((Tf tx0 tz0) <ti: (Tf tx tz)) /\ (ty0 <ts: ty0').
+Proof.
+  intros ??????? Hsubi1 Hsubi2 Hsize.
+  unfold instr_subtyping in *; extract_premise.
+  assert (size extr6 = size extr1) as Hsize'.
+  { apply values_subtyping_size in Hextr4.
+    apply values_subtyping_size in Hextr10.
+    by lias.
+  }
+  apply concat_cancel_last_n in Hextr2 => //; remove_bools_options; subst; clear Hsize'.
+  split; last by resolve_subtyping.
+  exists extr3, extr0, extr5, extr2; by resolve_subtyping.
+Qed.
+  
 Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es tf ->
     reduce_simple es es' ->
     e_typing s C es' tf.
 Proof.
   move => s es es' C [ts1 ts2] HType HReduce.
-  inversion HReduce; subst; (try by apply ety_trap) (*; invert_e_typing; resolve_e_typing*) => //.
+  inversion HReduce; subst; (try by apply ety_trap); invert_e_typing; extract_premise; resolve_e_typing => //.
   (* Unop *)
-  - apply ety_a' => //=.
-    eapply bet_subtyping; first by apply bet_const_num.
-    by destruct op, v.
+  - replace (value_num_typing s (app_unop op v)) with (typeof_num v); last by destruct op, v.
+    specialize (instr_subtyping_compose Htisub0 Htisub erefl) as [Htisub1 Htssub].
+    by specialize (instr_subtyping_weaken1 Htisub1 Htssub). (*
   (* Binop_success *)
   - apply app_binop_type_preserve in H.
-    unfold value_num_typing.
+    unfold value_num_typing; rewrite H.
     by rewrite H -H1.
   - (* Cvtop *)
     by eapply eval_cvt_type_preserve in H3_cvtop; eauto; subst.
@@ -117,7 +194,9 @@ Proof.
     inversion H2_frame; subst.
     eapply Lfilled_return_typing in H6; (try reflexivity); eauto; first by invert_e_typing.
     by apply v_to_e_const.
-Qed.
+Qed.*)
+Admitted.
+
 
 Lemma set_nth_same_unchanged: forall {X:Type} (l:seq X) e i vd,
     List.nth_error l i = Some e ->
@@ -147,14 +226,6 @@ Proof.
     by simpl in HSize.
 Qed.
 
-Lemma n_zeros_typing: forall ts,
-    map typeof (n_zeros ts) = ts.
-Proof.
-  induction ts => //=.
-  destruct a => //=; f_equal => //.
-  - by destruct n.
-  - by destruct v.
-Qed.
 Lemma ext_func_typing_extension: forall s s' a tf,
     store_extension s s' ->
     ext_func_typing s a = Some tf ->
@@ -555,7 +626,7 @@ Proof.
     apply ety_a.
     by eapply context_extension_be_typing; eauto.
   - (* Label *)
-    econstructor; eauto.
+    eapply ety_label; eauto.
     eapply IHHetype2.
     by rewrite_context_extension.
 Qed.
@@ -588,9 +659,9 @@ Proof.
     eapply ety_composition.
     + by apply IHHType1.
     + by apply IHHType2.
-  (* weakening *)
-  - move=> s C es tf t1s t2s HType IHHType s' HST1 HST2 Hext.
-    eapply ety_weakening. by apply IHHType.
+  (* subtyping *)
+  - move=> s C es t1s t2s t1s' t2s' HType IHHType Hsub s' HST1 HST2 Hext.
+    by eapply ety_subtyping; eauto.
   (* trap *)
   - move=> s C tf s' HST1 HST2 Hext.
     by apply ety_trap.
@@ -1464,16 +1535,19 @@ Proof.
     by eapply host_application_extension; eauto.
   - (* global_set *)
     eapply supdate_glob_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H1_global_set; f_equal.
+    + admit.
+    + by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr0; f_equal.
   - (* table update *)
     eapply stab_update_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_table_set; f_equal.
+    + admit.
+    + by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr0; f_equal.
   - (* table grow *)
     eapply stab_grow_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H3_table_grow; f_equal.
+    + admit.
+    + by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr0; f_equal.
   - (* elem drop *)
     eapply selem_drop_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_elem_drop; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr2; f_equal.
   - (* memory store *)
     eapply smem_store_extension; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply H2_store; f_equal.

@@ -958,23 +958,16 @@ Ltac basic_inversion :=
 (** Rewrite hypotheses on the form [_ ++ [:: _] = _] as some easier to use equalities. **)
 Ltac extract_listn :=
   repeat lazymatch goal with
-  | H: (?es ++ [::?e])%list = [::_] |- _ =>
-    apply extract_list1 in H; destruct H; subst
   | H: ?es ++ [::?e] = [::_] |- _ =>
     apply extract_list1 in H; destruct H; subst
-  | H: (?es ++ [::?e])%list = [::_; _] |- _ =>
-    apply extract_list2 in H; destruct H; subst
   | H: ?es ++ [::?e] = [::_; _] |- _ =>
     apply extract_list2 in H; destruct H; subst
   | H: ?es ++ [::?e] = [::_; _; _] |- _ =>
     apply extract_list3 in H; destruct H; subst
-  | H: (?es ++ [::?e])%list = [::_; _; _] |- _ =>
-    apply extract_list3 in H; destruct H; subst
-  | H: (?es ++ [::?e])%list = [::_; _; _; _] |- _ =>
-    apply extract_list4 in H; destruct H; subst
   | H: ?es ++ [::?e] = [::_; _; _; _] |- _ =>
     apply extract_list4 in H; destruct H; subst
-  | H: _ :: _ = (_ ++ _)%list |- _ => symmetry in H
+  | H: ?es ++ [::?e] = ?es' ++ [::?e'] |- _ =>
+    apply concat_cancel_last in H as [??]; subst
   | H: _ :: _ = _ ++ _ |- _ => symmetry in H
          end.
 
@@ -1003,6 +996,14 @@ Proof.
   by rewrite value_subtyping_eq.
 Qed.
 
+Lemma values_subtyping_size: forall ts1 ts2,
+    ts1 <ts: ts2 ->
+    size ts1 = size ts2.
+Proof.
+  move => ts1 ts2 Hsub.
+  by apply all2_size in Hsub.
+Qed.
+
 Lemma values_subtyping_trans: forall ts1 ts2 ts3,
     ts1 <ts: ts2 ->
     ts2 <ts: ts3 ->
@@ -1023,15 +1024,12 @@ Proof.
 Qed.
 
 Lemma values_subtyping_cat: forall tx1 tx2 ty1 ty2,
-    tx1 <ts: ty1 ->
-    tx2 <ts: ty2 ->
-    (tx1 ++ tx2) <ts: (ty1 ++ ty2).
+  size tx1 = size ty1 ->  
+  (tx1 ++ tx2) <ts: (ty1 ++ ty2) = (tx1 <ts: ty1) && (tx2 <ts: ty2).
 Proof.
-  move => tx1 tx2 ty1 ty2.
+  move => tx1 tx2 ty1 ty2 Hsize.
   unfold values_subtyping.
-  move => Hsub1 Hsub2.
-  rewrite all2_cat => //; first by lias.
-  by apply all2_size in Hsub1.
+  by rewrite all2_cat => //.
 Qed.
 
 Lemma values_subtyping_split1: forall ts ts1 ts2,
@@ -1050,60 +1048,117 @@ Proof.
   by apply all2_split2.
 Qed.
   
-Lemma functype_subtyping_eq: forall tf,
+Lemma func_subtyping_eq: forall tf,
     tf <tf: tf.
 Proof.
   move => [ts1 ts2].
-  unfold functype_subtyping.
-  exists nil, nil, ts1, ts2; repeat split => //; by apply values_subtyping_eq.
+  unfold func_subtyping.
+  repeat split => //; by apply values_subtyping_eq.
 Qed.
 
-(*
-Definition functype_subtyping (tf tf': function_type) : Prop :=
-  let '(Tf ts1 ts2) := tf in
-  let '(Tf ts1' ts2') := tf' in
-  exists ts ts' ts1_sub ts2_sub,
-    ts1' = ts ++ ts1_sub /\
-    ts2' = ts' ++ ts2_sub /\
-    ts <: ts' /\  
-    ts1_sub <: ts1 /\
-    ts2 <: ts2_sub.
-*)
-Lemma functype_subtyping_trans: forall tf1 tf2 tf3,
+Lemma func_subtyping_trans: forall tf1 tf2 tf3,
     tf1 <tf: tf2 ->
     tf2 <tf: tf3 ->
     tf1 <tf: tf3.
 Proof.
-  [...]
+  move => [tx1 ty1] [tx2 ty2] [tx3 ty3].
+  unfold func_subtyping.
+  move => [??] [??].
+  split; by eapply values_subtyping_trans; eauto.
 Qed.
-         
+
+Lemma instr_subtyping_eq: forall tf,
+    tf <ti: tf.
+Proof.
+  move => [ts1 ts2].
+  unfold instr_subtyping.
+  exists nil, nil, ts1, ts2; repeat split => //; by apply values_subtyping_eq.
+Qed.
+
+Lemma instr_subtyping_trans: forall tf1 tf2 tf3,
+    tf1 <ti: tf2 ->
+    tf2 <ti: tf3 ->
+    tf1 <ti: tf3.
+Proof.
+  move => [tx1 ty1] [tx2 ty2] [tx3 ty3].
+  unfold instr_subtyping.
+  move => [ts1 [ts1' [tsubx12 [tsuby12 [-> [-> [Hsub1 [Hsubx1 Hsuby1]]]]]]]].
+  move => [ts2 [ts2' [tsubx23 [tsuby23 [-> [-> [Hsub2 [Hsubx2 Hsuby2]]]]]]]].
+  apply values_subtyping_split1 in Hsubx2.
+  apply values_subtyping_split2 in Hsuby2.
+  remove_bools_options.
+  (* Slightly difficult -- draw it out on paper *)
+  exists (ts2 ++ (take (size ts1) tsubx23)), (ts2' ++ (take (size ts1') tsuby23)), (drop (size ts1) tsubx23), (drop (size ts1') tsuby23); repeat rewrite -catA cat_take_drop.
+  repeat split => //; try by eapply values_subtyping_trans; eauto.
+  rewrite values_subtyping_cat => //; last by apply values_subtyping_size.
+  rewrite Hsub2 => /=.
+  by (do 2 (eapply values_subtyping_trans; eauto)).
+Qed.
+
+(* Simplifying subtyping goals *)
 Ltac resolve_subtyping :=
   repeat match goal with
+  | H: is_true ?b |-
+      context [ ?b ] =>
+      rewrite H => /=
+                    
   | |- context [ ?t <t: ?t ] =>
-    rewrite value_subtyping_eq
+      rewrite value_subtyping_eq => //
+                                     
   | |- context [ ?ts <ts: ?ts ] =>
-    rewrite values_subtyping_eq
+    rewrite values_subtyping_eq => //
+  | _: is_true (?ts1 <ts: ?ts1') |-
+      context [(?ts1 ++ ?ts2) <ts: (?ts1' ++ ?ts2')] =>
+      erewrite values_subtyping_cat; eauto; last by apply values_subtyping_size
   | _: is_true (?ts1 <ts: ?ts2),
     _: is_true ((?ts2 ++ ?ts3) <ts: ?ts4) |-
        context [ (?ts1 ++ ?ts3) <ts: ?ts4 ] =>
-    erewrite values_subtyping_cat_trans; try by eauto
-  | _: is_true (?ts1 <ts: ?ts2) |-
-       context [ (?ts ++ ?ts1) <ts: (?ts ++ ?ts2) ] =>
-    erewrite values_subtyping_frame; try by eauto
+      erewrite values_subtyping_cat_trans; try by eauto
+                                                    
   | |- context [ ?tf <tf: ?tf ] =>
-    rewrite functype_subtyping_eq
-  | |- functype_subtyping (Tf nil ?ts) (Tf ?ts0 ?ts0) =>
-    by exists ts0; repeat rewrite cats0 => //
-  | |- functype_subtyping (Tf nil ?ts) (Tf ?ts0 (?ts0 ++ ?ts)) =>
-    by exists ts0; rewrite cats0 => //
-  | |- functype_subtyping (Tf ?ts nil) (Tf (?ts0 ++ ?ts) ?ts0) =>
-    by exists ts0; rewrite cats0 => //
-  | |- functype_subtyping (Tf ?ts1 ?ts2) (Tf (?ts0 ++ ?ts1) (?ts0 ++ ?ts2)) =>
-    by exists ts0
+      rewrite func_subtyping_eq => //
+                                    
+  | |- context [ ?tf <ti: ?tf ] =>
+    rewrite instr_subtyping_eq => //
+  | |- (Tf nil nil) <ti: (Tf ?ts0 ?ts0) =>
+    exists ts0, ts0, nil, nil; repeat split; repeat rewrite cats0 => //
+  | |- (Tf nil ?ts) <ti: (Tf ?ts0 (?ts0 ++ ?ts)) =>
+    exists ts0, ts0, nil, ts; repeat split; repeat rewrite cats0 => //
+  | |- (Tf ?ts nil) <ti: (Tf (?ts0 ++ ?ts) ?ts0) =>
+    exists ts0, ts0, ts, nil; repeat split; repeat rewrite cats0 => //
+  | |- (Tf ?ts1 ?ts2) <ti: (Tf (?ts0 ++ ?ts1) (?ts0 ++ ?ts2)) =>
+    exists ts0, ts0, ts1, ts2; repeat split; repeat rewrite cats0 => //
+
+  (* transitivities, up to a chain of length 3 *)
+  | H1: is_true (?a <ts: ?b),
+    H2: is_true (?b <ts: ?c) |-
+      context [ ?a <ts: ?c ] =>
+      rewrite (values_subtyping_trans H1 H2) => /=
+  | H1: is_true (?a <ts: ?b),
+    H2: is_true (?b <ts: ?c),
+    H3: is_true (?c <ts: ?d) |-
+      context [ ?a <ts: ?d ] =>
+      rewrite (values_subtyping_trans (values_subtyping_trans H1 H2) H3) => /=
+                                                                             
+  | H1: (?a <ti: ?b),
+    H2: (?b <ti: ?c) |-
+      context [ ?a <ti: ?c ] =>
+      apply (instr_subtyping_trans H1 H2) => /=
+  | H1: (?a <ti: ?b),
+    H2: (?b <ti: ?c),
+    H3: (?c <ti: ?d) |-
+      context [ ?a <ti: ?d ] =>
+      apply (instr_subtyping_trans (instr_subtyping_trans H1 H2) H3) => /=
+
+  (* subtyping of empty *)
+  | H: is_true (?ts <ts: nil) |- _ =>
+      destruct ts => //; clear H
+  | H: is_true (nil <ts: ?ts) |- _ =>
+      destruct ts => //; clear H
   end.
 
 (* Some quality of life lemmas *)
-(* Upd: this lemmas are deprecated; it is encouraged to directly use the resolve_subtyping tactic. *)
+(* Upd: these lemmas are deprecated; it is encouraged to directly use subtyping rule. *)
 Lemma bet_weakening_empty_1: forall C es ts t2s,
     be_typing C es (Tf [::] t2s) ->
     be_typing C es (Tf ts (ts ++ t2s)).
@@ -1223,26 +1278,22 @@ Proof.
   by resolve_subtyping.
 Qed.
 
-Lemma empty_typing: forall C t1s t2s,
-    be_typing C [::] (Tf t1s t2s) ->
-    values_subtyping t1s t2s.
+Lemma et_weakening_empty_2: forall s C es ts t2s,
+    e_typing s C es (Tf t2s nil) ->
+    e_typing s C es (Tf (ts ++ t2s) ts).
 Proof.
-  move => C t1s t2s HType.
-  gen_ind_subst HType => //.
-  - by destruct es.
-  - destruct tf as [ts1' ts2'].
-    destruct H as [ts [-> ->]].
-    specialize (IHHType erefl _ erefl _ _ erefl).
-    by resolve_subtyping.
+  move => s C es ts t2s HType.
+  eapply ety_subtyping; eauto.
+  by resolve_subtyping.
 Qed.
 
 (* A convenient lemma to invert e_typing back to be_typing. *)
-Lemma et_to_bet: forall s C es ts,
+Lemma et_to_bet: forall s C es tf,
     es_is_basic es ->
-    e_typing s C es ts ->
-    be_typing C (to_b_list es) ts.
+    e_typing s C es tf ->
+    be_typing C (to_b_list es) tf.
 Proof.
-  move => s C es ts HBasic HType.
+  move => s C es tf HBasic HType.
   dependent induction HType; basic_inversion => //.
   + replace (to_b_list (to_e_list bes)) with bes => //.
     by apply b_e_elim.
@@ -1255,15 +1306,6 @@ Proof.
     * by eapply IHHType2 => //.
   + apply IHHType in HBasic.
     by eapply bet_subtyping; eauto.
-Qed.
-
-Lemma empty_e_typing: forall s C t1s t2s,
-    e_typing s C [::] (Tf t1s t2s) ->
-    values_subtyping t1s t2s.
-Proof.
-  move => s C t1s t2s HType.
-  apply et_to_bet in HType => //.
-  by apply empty_typing in HType.
 Qed.
 
 (************ these come from the certified itp *************)
