@@ -850,7 +850,7 @@ Proof.
   rewrite - cat1s in Htype.
   unfold vs_to_es in Htype.
   invert_e_typing.
-  inversion H2_frame as [??????? Hftype ? Hetype]; subst; clear H2_frame.
+  inversion Hextr0 as [??????? Hftype ? Hetype]; subst; clear Hextr0.
   move/eqP in Hftype.
   by do 2 eexists; repeat split; eauto.
 Qed.
@@ -946,7 +946,10 @@ Proof.
   move => [vs0 es0] es s C ts0 /=Htype.
   unfold vs_to_es in Htype.
   invert_e_typing.
-  by exists ts_values, ts3_comp0.
+  exists ts_values, ts3_comp0; split => //.
+  eapply ety_subtyping; eauto.
+  simplify_subtyping.
+  exists nil, nil, ts_values, ts3_comp0; by resolve_subtyping.
 Qed.
 
 Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 ts0,

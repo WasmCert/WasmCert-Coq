@@ -1047,6 +1047,19 @@ Proof.
   move => ts ts1 ts2; unfold values_subtyping.
   by apply all2_split2.
 Qed.
+
+Lemma values_subtyping_split: forall ts1 ts2 n,
+    n <= size ts1 ->
+    (ts1 <ts: ts2) ->
+    ((take n ts1) <ts: (take n ts2)) /\
+    ((drop n ts1) <ts: (drop n ts2)).
+Proof.
+  move => ts1 ts2 n Hbound Hsub.
+  rewrite - (cat_take_drop n ts1) in Hsub.
+  apply values_subtyping_split2 in Hsub; remove_bools_options.
+  rewrite size_takel in H => //.
+  by rewrite size_takel in H0.
+Qed.
   
 Lemma func_subtyping_eq: forall tf,
     tf <tf: tf.
@@ -1095,7 +1108,7 @@ Proof.
   by (do 2 (eapply values_subtyping_trans; eauto)).
 Qed.
 
-(* Simplifying subtyping goals *)
+(* Trying to resolve subtyping goals in a non-breaking way. A different tactic is provided below that performs more destructive unfolds on instr and func subtyping relations. *)
 Ltac resolve_subtyping :=
   repeat match goal with
   | H: is_true ?b |-
@@ -1119,7 +1132,8 @@ Ltac resolve_subtyping :=
       rewrite func_subtyping_eq => //
                                     
   | |- context [ ?tf <ti: ?tf ] =>
-    rewrite instr_subtyping_eq => //
+    try by apply instr_subtyping_eq => //
+                                     
   | |- (Tf nil nil) <ti: (Tf ?ts0 ?ts0) =>
     exists ts0, ts0, nil, nil; repeat split; repeat rewrite cats0 => //
   | |- (Tf nil ?ts) <ti: (Tf ?ts0 (?ts0 ++ ?ts)) =>
@@ -1130,6 +1144,16 @@ Ltac resolve_subtyping :=
     exists ts0, ts0, ts1, ts2; repeat split; repeat rewrite cats0 => //
 
   (* transitivities, up to a chain of length 3 *)
+  | H1: is_true (?a <t: ?b),
+    H2: is_true (?b <t: ?c) |-
+      context [ ?a <t: ?c ] =>
+      rewrite (value_subtyping_trans H1 H2) => /=
+  | H1: is_true (?a <t: ?b),
+    H2: is_true (?b <t: ?c),
+    H3: is_true (?c <t: ?d) |-
+      context [ ?a <t: ?d ] =>
+      rewrite (value_subtyping_trans (values_subtyping_trans H1 H2) H3) => /=
+                                                                             
   | H1: is_true (?a <ts: ?b),
     H2: is_true (?b <ts: ?c) |-
       context [ ?a <ts: ?c ] =>
@@ -1157,6 +1181,260 @@ Ltac resolve_subtyping :=
       destruct ts => //; clear H
   end.
 
+Ltac extract_premise :=
+  repeat match goal with
+  | H: ?x = ?x -> _ |- _ =>
+    specialize (H erefl)
+  | H: forall x, ?x0 = x -> _ |- _ =>
+    try specialize (H _ erefl)
+  | H: forall x, [::?x0] = [::x] -> _ |- _ =>
+    try specialize (H _ erefl)
+  | H: forall x, [:: ?c ?x0] = [:: ?c x] -> _ |- _ =>
+    try specialize (H _ erefl)
+  | H: forall x y, [:: ?c ?x0 ?y0] = [:: ?c y x] -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: forall x y, [:: ?c ?x0 ?y0] = [:: ?c x y] -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: forall t ts, ?ts0 ++ [::?t0] = ts ++ [::t] -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: forall x y z, [:: ?c ?x0 ?y0 ?z0] = [:: ?c z y x] -> _ |- _ =>
+    try specialize (H _ _ _ erefl)
+  | H: forall x y, (Tf ?x0 ?y0) = (Tf y x) -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: forall x y, (Tf ?x0 ?y0) = (Tf x y) -> _ |- _ =>
+    try specialize (H _ _ erefl)
+  | H: exists t, ?P |- _ =>
+    let extr := fresh "extr" in
+    let Hextr := fresh "Hextr" in  
+    destruct H as [extr Hextr]
+  | H: ?P /\ ?Q |- _ =>
+    let Hconjl := fresh "Hconjl" in  
+    let Hconjr := fresh "Hconjr" in  
+    destruct H as [Hconjl Hconjr]
+  | _ => (repeat rewrite -> cats0 in * ); (repeat rewrite -> cat0s in * ); resolve_subtyping; subst
+    end.
+
+Lemma instr_subtyping_strengthen1: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (tx1 <ts: ts) ->
+    ((Tf ts ty1) <ti: (Tf tx2 ty2)).
+Proof.
+  intros.
+  unfold instr_subtyping in *; extract_premise.
+  exists extr, extr0, extr1, extr2.
+  by resolve_subtyping.
+Qed.
+
+Lemma instr_subtyping_strengthen2: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ty2 <ts: ts) ->
+    ((Tf tx1 ty1) <ti: (Tf tx2 ts)).
+Proof.
+  intros ?????? Hsub.
+  unfold instr_subtyping in *; extract_premise.
+  apply values_subtyping_split2 in Hsub; remove_bools_options.
+  exists extr, (take (size extr0) ts), extr1, (drop (size extr0) ts); rewrite cat_take_drop.
+  by resolve_subtyping.
+Qed.
+
+Lemma instr_subtyping_weaken1: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ts <ts: ty1) ->
+    ((Tf tx1 ts) <ti: (Tf tx2 ty2)).
+Proof.
+  intros.
+  unfold instr_subtyping in *; extract_premise.
+  exists extr, extr0, extr1, extr2.
+  by resolve_subtyping.
+Qed.
+
+Lemma instr_subtyping_weaken2: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ts <ts: tx2) ->
+    ((Tf tx1 ty1) <ti: (Tf ts ty2)).
+Proof.
+  intros ?????? Hsub.
+  unfold instr_subtyping in *; extract_premise.
+  apply values_subtyping_split1 in Hsub; remove_bools_options.
+  exists (take (size extr) ts), extr0, (drop (size extr) ts), extr2; rewrite cat_take_drop.
+  by resolve_subtyping.
+Qed.
+
+Lemma num_subtyping: forall tn t,
+    (T_num tn <t: t) ->
+    t = T_num tn.
+Proof.
+  by intros; unfold value_subtyping in *; remove_bools_options.
+Qed.
+
+Lemma vec_subtyping: forall tn t,
+    (T_vec tn <t: t) ->
+    t = T_vec tn.
+Proof.
+  by intros; unfold value_subtyping in *; remove_bools_options.
+Qed.
+
+Lemma ref_subtyping: forall tn t,
+    (T_ref tn <t: t) ->
+    t = T_ref tn.
+Proof.
+  by intros; unfold value_subtyping in *; remove_bools_options.
+Qed.
+
+(* Only use this tactic if desperate *)
+Ltac simplify_subtyping :=
+  repeat match goal with
+  | H: is_true true |- _ => clear H
+  | H: ?x = ?x |- _ => clear H
+                              
+  | H: is_true (T_num ?t <t: ?t') |- _ =>
+    apply num_subtyping in H => //
+  | H: is_true (T_vec ?t <t: ?t') |- _ =>
+    apply vec_subtyping in H => //
+  | H: is_true (T_ref ?t <t: ?t') |- _ =>
+    apply ref_subtyping in H => //
+
+  | H: T_num ?t1 = T_num ?t2 |- _ =>
+    inversion H; subst; clear H
+                                
+  | H: T_vec ?t1 = T_vec ?t2 |- _ =>
+    inversion H; subst; clear H
+                                
+  | H: T_ref ?t1 = T_ref ?t2 |- _ =>
+    inversion H; subst; clear H
+      
+  (* Structural splits of values_typing *)
+  | H: is_true (?ts <ts: (?ts1 ++ ?ts2)) |- _ =>
+    let Hsubs1 := fresh "Hsubs1" in
+    let Hsubs2 := fresh "Hsubs2" in
+    apply values_subtyping_split1 in H; move/andP in H; destruct H as [Hsubs1 Hsubs2] => //
+  | H: is_true ((?ts1 ++ ?ts2) <ts: ?ts) |- _ =>
+    let Hsubs1 := fresh "Hsubs1" in
+    let Hsubs2 := fresh "Hsubs2" in
+    apply values_subtyping_split2 in H; move/andP in H; destruct H as [Hsubs1 Hsubs2] => //
+  | _ => (* real desperation mode *)
+        unfold instr_subtyping, func_subtyping in *; resolve_subtyping => //; remove_bools_options => //; extract_premise; subst => //; extract_listn; subst => //; simpl in *; remove_bools_options; subst => //
+  end.
+
+(* Auxiliary lemmas for composing types only knowing a principal type. In 1.0 the subtypings are simple concatenations, which made things a lot easier. *)
+Lemma instr_subtyping_compose_le: forall tx0 ty0 ty0' tz0 tx ty tz,
+    ((Tf tx0 ty0) <ti: (Tf tx ty)) ->
+    ((Tf ty0' tz0) <ti: (Tf ty tz)) ->
+    size ty0 <= size ty0' ->
+    ((Tf ((take (size ty0' - size ty0) ty0') ++ tx0) tz0) <ti: (Tf tx tz)) /\ (ty0 <ts: drop (size ty0' - size ty0) ty0').
+Proof.
+  intros ??????? Hsubi1 Hsubi2 Hsize.
+  simplify_subtyping.
+  specialize (values_subtyping_size Hconjl2) as Hsize'.
+  apply values_subtyping_split with (n := size ty0' - size ty0) in Hconjl2 as [Hsubs1 Hsubs2]; last by lias.
+  rewrite - (cat_take_drop (size ty0' - size ty0) extr1) catA in Hconjl.
+  specialize (values_subtyping_size Hconjr1) as Hsize''.
+  apply concat_cancel_last_n in Hconjl => //; remove_bools_options; subst; last by rewrite size_drop; lias.
+  simplify_subtyping; split => //.
+  exists (take (size extr) extr3), extr0, (drop (size extr) extr3 ++ extr5), extr2.
+  repeat split; resolve_subtyping => //.
+  - by rewrite catA cat_take_drop.
+  - rewrite values_subtyping_cat; first by resolve_subtyping.
+    apply values_subtyping_size in Hsubs3.
+    rewrite Hsubs3.
+    repeat rewrite size_takel; by lias.
+Qed.
+
+Lemma instr_subtyping_compose_ge: forall tx0 ty0 ty0' tz0 tx ty tz,
+    ((Tf tx0 ty0) <ti: (Tf tx ty)) ->
+    ((Tf ty0' tz0) <ti: (Tf ty tz)) ->
+    size ty0' <= size ty0 ->
+    ((Tf tx0 ((take (size ty0 - size ty0') ty0) ++ tz0)) <ti: (Tf tx tz)) /\ (drop (size ty0 - size ty0') ty0 <ts: ty0').
+Proof.
+  intros ??????? Hsubi1 Hsubi2 Hsize.
+  simplify_subtyping.
+  specialize (values_subtyping_size Hconjr1) as Hsize'.
+  apply values_subtyping_split with (n := size ty0 - size ty0') in Hconjr1 as [Hsubs1 Hsubs2]; last by lias.
+  rewrite - (cat_take_drop (size ty0 - size ty0') extr6) catA in Hconjl.
+  specialize (values_subtyping_size Hconjl2) as Hsize''.
+  apply concat_cancel_last_n in Hconjl => //; remove_bools_options; subst; last by rewrite size_drop; lias.
+  simplify_subtyping; split => //.
+  exists extr3, (take (size extr4) extr0), extr5, (drop (size extr4) extr0 ++ extr2).
+  repeat split; resolve_subtyping => //.
+  - by rewrite catA cat_take_drop.
+  - rewrite values_subtyping_cat; first by resolve_subtyping.
+    apply values_subtyping_size in Hsubs3.
+    rewrite - Hsubs3.
+    repeat rewrite size_takel; by lias.
+Qed.
+
+(* A few special cases *)
+Lemma instr_subtyping_compose_eq: forall tx0 ty0 ty0' tz0 tx ty tz,
+    ((Tf tx0 ty0) <ti: (Tf tx ty)) ->
+    ((Tf ty0' tz0) <ti: (Tf ty tz)) ->
+    size ty0 = size ty0' ->
+    ((Tf tx0 tz0) <ti: (Tf tx tz)) /\ (ty0 <ts: ty0').
+Proof.
+  intros ??????? Hsubi1 Hsubi2 Hsize.
+  specialize (instr_subtyping_compose_le Hsubi1 Hsubi2) as Hsub.
+  rewrite Hsize subnn take0 drop0 in Hsub.
+  apply Hsub; by lias.
+Qed.
+
+Lemma instr_subtyping_compose_nil1: forall tx0 ty0 tz0 tx ty tz,
+    ((Tf tx0 nil) <ti: (Tf tx ty)) ->
+    ((Tf ty0 tz0) <ti: (Tf ty tz)) ->
+    (Tf (ty0 ++ tx0) tz0) <ti: (Tf tx tz).
+Proof.
+  intros ?????? Hsubi1 Hsubi2.
+  specialize (instr_subtyping_compose_le Hsubi1 Hsubi2) as Hsub.
+  destruct Hsub as [Hsub _] => //.
+  uapply Hsub; do 2 f_equal => /=.
+  by rewrite subn0 take_size.
+Qed.
+
+Lemma instr_subtyping_compose_nil2: forall tx0 ty0 tz0 tx ty tz,
+    ((Tf tx0 ty0) <ti: (Tf tx ty)) ->
+    ((Tf nil tz0) <ti: (Tf ty tz)) ->
+    (Tf tx0 (ty0 ++ tz0)) <ti: (Tf tx tz).
+Proof.
+  intros ?????? Hsubi1 Hsubi2.
+  specialize (instr_subtyping_compose_ge Hsubi1 Hsubi2) as Hsub.
+  destruct Hsub as [Hsub _] => //.
+  uapply Hsub; do 2 f_equal => /=.
+  by rewrite subn0 take_size.
+Qed.
+
+Ltac unify_principal :=
+  repeat match goal with
+  | H1: (Tf ?ts1 ?ts2) <ti: (Tf ?tx ?ty),
+    H2: (Tf ?ts3 ?ts4) <ti: (Tf ?ty ?tz) |- _ =>
+    let Hprincipal := fresh "Hprincipal" in  
+    let Hsubs := fresh "Hsubs" in
+    (* syntactic sugar for matching 2 variables doesn't work in Ltac *)
+    match ts2 with
+    | nil => specialize (instr_subtyping_compose_nil1 H1 H2) as Hprincipal; clear H1 H2
+    | [::_] =>
+        match ts3 with
+        | nil => specialize (instr_subtyping_compose_nil2 H1 H2) as Hprincipal
+        | [::_] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
+        | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
+        end; clear H1 H2
+    | [::_; _] =>
+        match ts3 with
+        | nil => specialize (instr_subtyping_compose_nil2 H1 H2) as Hprincipal
+        | [::_] => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsubs] => //
+        | [::_; _] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
+        | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
+        end; clear H1 H2
+    | [::_; _; _] =>
+        match ts3 with
+        | nil => specialize (instr_subtyping_compose_nil2 H1 H2) as Hprincipal
+        | [::_; _] => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsubs] => //
+        | [::_; _] => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsubs] => //
+        | [::_; _; _] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
+        | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
+        end; clear H1 H2
+    | _ => idtac "unification is too complicated"
+    end; try (move: Hprincipal; rewrite (lock instr_subtyping) /= -lock; move => Hprincipal)
+  | |- is_true (size _ <= size _) =>
+    try by repeat rewrite size_cat; lias
+  end.
 (* Some quality of life lemmas *)
 (* Upd: these lemmas are deprecated; it is encouraged to directly use subtyping rule. *)
 Lemma bet_weakening_empty_1: forall C es ts t2s,

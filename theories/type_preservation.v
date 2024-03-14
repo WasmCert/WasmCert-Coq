@@ -58,10 +58,14 @@ Qed.
 
 Ltac resolve_e_typing :=
   repeat lazymatch goal with
+    | _ : _ |- e_typing _ _ nil _ =>
+        try eapply ety_subtyping; first by apply ety_a' => //; apply bet_empty => /=; eauto => //=
     | _ : _ |- e_typing _ _ [::$VN ?v] _ =>
         replace ($VN v) with ($V (VAL_num v)); last done
     | _ : _ |- e_typing _ _ [::$V _] _ =>
         try eapply ety_subtyping; first by apply et_value_typing => /=; eauto => //=
+    | _ : _ |- e_typing _ _ [::AI_basic _] _ =>
+        try eapply ety_subtyping; first by apply ety_a' => //; econstructor => /=; eauto => //=
     | _ : _ |- e_typing _ _ (v_to_e_list _) _ =>
         try eapply ety_subtyping; first by apply et_values_typing => /=; eauto => //=
     | H : is_true (const_list _) |- _ =>
@@ -70,101 +74,41 @@ Ltac resolve_e_typing :=
     | _ => unfold_store_operations
     end.
 
-Lemma instr_subtyping_strengthen1: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (tx1 <ts: ts) ->
-    ((Tf ts ty1) <ti: (Tf tx2 ty2)).
-Proof.
-  intros.
-  unfold instr_subtyping in *; extract_premise.
-  exists extr, extr0, extr1, extr2.
-  by resolve_subtyping.
-Qed.
-
-Lemma instr_subtyping_strengthen2: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (ty2 <ts: ts) ->
-    ((Tf tx1 ty1) <ti: (Tf tx2 ts)).
-Proof.
-  intros ?????? Hsub.
-  unfold instr_subtyping in *; extract_premise.
-  apply values_subtyping_split2 in Hsub; remove_bools_options.
-  exists extr, (take (size extr0) ts), extr1, (drop (size extr0) ts); rewrite cat_take_drop.
-  by resolve_subtyping.
-Qed.
-
-Lemma instr_subtyping_weaken1: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (ts <ts: ty1) ->
-    ((Tf tx1 ts) <ti: (Tf tx2 ty2)).
-Proof.
-  intros.
-  unfold instr_subtyping in *; extract_premise.
-  exists extr, extr0, extr1, extr2.
-  by resolve_subtyping.
-Qed.
-
-Lemma instr_subtyping_weaken2: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (ts <ts: tx2) ->
-    ((Tf tx1 ty1) <ti: (Tf ts ty2)).
-Proof.
-  intros ?????? Hsub.
-  unfold instr_subtyping in *; extract_premise.
-  apply values_subtyping_split1 in Hsub; remove_bools_options.
-  exists (take (size extr) ts), extr0, (drop (size extr) ts), extr2; rewrite cat_take_drop.
-  by resolve_subtyping.
-Qed.
-  
-Lemma instr_subtyping_compose: forall tx0 ty0 ty0' tz0 tx ty tz,
-    ((Tf tx0 ty0) <ti: (Tf tx ty)) ->
-    ((Tf ty0' tz0) <ti: (Tf ty tz)) ->
-    size ty0 = size ty0' ->
-    ((Tf tx0 tz0) <ti: (Tf tx tz)) /\ (ty0 <ts: ty0').
-Proof.
-  intros ??????? Hsubi1 Hsubi2 Hsize.
-  unfold instr_subtyping in *; extract_premise.
-  assert (size extr6 = size extr1) as Hsize'.
-  { apply values_subtyping_size in Hextr4.
-    apply values_subtyping_size in Hextr10.
-    by lias.
-  }
-  apply concat_cancel_last_n in Hextr2 => //; remove_bools_options; subst; clear Hsize'.
-  split; last by resolve_subtyping.
-  exists extr3, extr0, extr5, extr2; by resolve_subtyping.
-Qed.
-  
 Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es tf ->
     reduce_simple es es' ->
     e_typing s C es' tf.
 Proof.
   move => s es es' C [ts1 ts2] HType HReduce.
-  inversion HReduce; subst; (try by apply ety_trap); invert_e_typing; extract_premise; resolve_e_typing => //.
-  (* Unop *)
-  - replace (value_num_typing s (app_unop op v)) with (typeof_num v); last by destruct op, v.
-    specialize (instr_subtyping_compose Htisub0 Htisub erefl) as [Htisub1 Htssub].
-    by specialize (instr_subtyping_weaken1 Htisub1 Htssub). (*
-  (* Binop_success *)
-  - apply app_binop_type_preserve in H.
+  inversion HReduce; subst; (try by apply ety_trap); invert_e_typing; extract_premise => //; unify_principal => //; resolve_e_typing => //.
+  - (* Unop *)
+    replace (value_num_typing s (app_unop op v)) with (typeof_num v); last by destruct op, v.
+    by specialize (instr_subtyping_weaken1 Hprincipal Hsubs). 
+  - (* Binop_success *)
+    apply app_binop_type_preserve in H.
     unfold value_num_typing; rewrite H.
-    by rewrite H -H1.
+    uapply Hprincipal0.
+    by simplify_subtyping.
   - (* Cvtop *)
-    by eapply eval_cvt_type_preserve in H3_cvtop; eauto; subst.
-  - (* If_true *)
-    apply ety_weakening.
-    by apply ety_a', bet_block => //=.
-  - (* If_false *)
-    apply ety_weakening.
-    by apply ety_a', bet_block => //=.
-  - (* Br *)
-    eapply et_composition'; eauto.
-    eapply Lfilled_break_typing with (tss := nil) => /=; eauto; last by lias.
-    by apply v_to_e_const.
+    uapply Hprincipal; repeat f_equal.
+    by erewrite eval_cvt_type_preserve; eauto.
+  - (* Select 2 *)
+    simplify_subtyping.
+    exists extr0, extr1, nil, [::v]; rewrite cats0; repeat split => //.
+    by resolve_subtyping.
+  - (* Select 1 *)
+    simplify_subtyping.
+    exists extr0, extr1, nil, [::v]; rewrite cats0; repeat split => //.
+    by resolve_subtyping.
+  - (* Label_const *)
+    by resolve_subtyping.
   - (* Br_if_true *)
-    apply ety_a' => //=.
-    eapply bet_br in H3_brif.
-    by apply H3_brif.
+    rewrite size_cat addnK take_size_cat in Hprincipal => //.
+    by rewrite cats0 in Hprincipal.
+  - (* Br_if_false *)
+    rewrite size_cat addnK take_size_cat in Hprincipal => //.
+    by rewrite cats0 in Hprincipal.
+  - (* Br *)
   - (* Br_br_table *)
     apply ety_a' => //=.
     rewrite List.Forall_forall in H2_brtable.

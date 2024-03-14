@@ -9,39 +9,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Ltac extract_premise :=
-  repeat match goal with
-  | H: ?x = ?x -> _ |- _ =>
-    specialize (H erefl)
-  | H: forall x, ?x0 = x -> _ |- _ =>
-    try specialize (H _ erefl)
-  | H: forall x, [::?x0] = [::x] -> _ |- _ =>
-    try specialize (H _ erefl)
-  | H: forall x, [:: ?c ?x0] = [:: ?c x] -> _ |- _ =>
-    try specialize (H _ erefl)
-  | H: forall x y, [:: ?c ?x0 ?y0] = [:: ?c y x] -> _ |- _ =>
-    try specialize (H _ _ erefl)
-  | H: forall x y, [:: ?c ?x0 ?y0] = [:: ?c x y] -> _ |- _ =>
-    try specialize (H _ _ erefl)
-  | H: forall t ts, ?ts0 ++ [::?t0] = ts ++ [::t] -> _ |- _ =>
-    try specialize (H _ _ erefl)
-  | H: forall x y z, [:: ?c ?x0 ?y0 ?z0] = [:: ?c z y x] -> _ |- _ =>
-    try specialize (H _ _ _ erefl)
-  | H: forall x y, (Tf ?x0 ?y0) = (Tf y x) -> _ |- _ =>
-    try specialize (H _ _ erefl)
-  | H: forall x y, (Tf ?x0 ?y0) = (Tf x y) -> _ |- _ =>
-    try specialize (H _ _ erefl)
-  | H: exists t, ?P |- _ =>
-    let extr := fresh "extr" in
-    let Hextr := fresh "Hextr" in  
-    destruct H as [extr Hextr]
-  | H: ?P /\ ?Q |- _ =>
-    let Hextr1 := fresh "Hextr1" in  
-    let Hextr2 := fresh "Hextr2" in  
-    destruct H as [Hextr1 Hextr2]
-  | _ => (repeat rewrite -> cats0 in * ); (repeat rewrite -> cat0s in * ); resolve_subtyping; subst
-  end.
-
 Section Typing_inversion_be.
 
 Hint Constructors be_typing : core.
@@ -594,7 +561,7 @@ Proof.
     (* ref *)
     + apply e_typing_inversion in HType; simpl in *; unfold instr_subtyping in *.
       extract_premise.
-      rewrite Hextr2.
+      rewrite Hconjr.
       exists (T_ref T_funcref).
       split => //.
       by exists extr, extr1, nil, extr3; rewrite cats0.
@@ -621,21 +588,21 @@ Proof.
     apply e_composition_typing in Htype as [ts3 [Het1 Het2]].
     apply Value_typing_inversion in Het1 as [t [Hsub Hvt]].
     apply IH in Het2; unfold instr_subtyping in *; extract_premise; resolve_subtyping.
-    apply values_subtyping_split2 in Hextr4; remove_bools_options.
+    apply values_subtyping_split2 in Hconjl1; remove_bools_options.
     exists (t :: extr).
     split.
     + exists extr0, (take (size extr1) extr5), nil, ((drop (size extr1) extr5) ++ extr7); repeat split; resolve_subtyping => //.
       * by rewrite cats0.
       * by rewrite catA cat_take_drop.
       * rewrite -cat1s values_subtyping_cat; first by erewrite values_subtyping_trans; eauto.
-        apply values_subtyping_size in H0, Hextr11.
+        apply values_subtyping_size in H0, Hconjr2.
         by lias.
     + unfold values_typing.
       rewrite - those_those0 => /=.
       rewrite Hvt.
       rewrite those_those0.
       fold (values_typing s vs).
-      by rewrite Hextr2.
+      by rewrite Hconjr.
 Qed.
 
 (* In Wasm 2.0, values are no longer always well-typed, and typing needs to be done under e_typing. *)
@@ -838,7 +805,6 @@ Proof.
   exists m0; by rewrite Hoption1.
 Qed.
 
-(*
 Lemma Lfilled_break_typing: forall n m k (lh: lholed n) vs LI ts s C t2s tss,
     e_typing s (upd_label C (tss ++ [::ts] ++ tc_labels C)) LI (Tf [::] t2s) ->
     const_list vs ->
@@ -860,30 +826,32 @@ Proof.
     rewrite add0n in HType.
     repeat rewrite catA in HType.
     invert_e_typing.
-    unfold instr_subtyping in *.
-    simpl in *; extract_premise.
     unfold lookup_N in *.
-    rewrite Nat2N.id in Hextr4.
-    rewrite list_nth_prefix in Hextr4.
-    injection Hextr4 as <-.
-    apply et_values_typing.
-    rewrite H2_values.
-    apply concat_cancel_last_n in H1_values => //; remove_bools_options; subst => //.
-    rewrite v_to_e_length in HTSSLength.
-    apply values_typing_length in H2_values.
-    repeat rewrite -length_is_size.
-    by rewrite - H2_values.
+    rewrite Nat2N.id list_nth_prefix in Hconjr; injection Hconjr as <-.
+    eapply ety_subtyping; first by apply et_values_typing; eauto.
+    simplify_subtyping.
+    exists nil, nil, nil, ts; repeat split => //.
+    repeat rewrite length_is_size in HTSSLength.
+    rewrite v_to_e_size in HTSSLength.
+    rewrite - (cat_take_drop (size extr) extr3) catA in Hconjl.
+    apply concat_cancel_last_n in Hconjl; last first.
+    { apply values_subtyping_size in Hconjr1, Hsubs2.
+      apply values_typing_length in H2_values.
+      repeat rewrite length_is_size in H2_values.
+      by lias.
+    }
+    remove_bools_options; subst.
+    by resolve_subtyping.
   - move => k0 vs m es lh' IH es' tss LI /= <- ts2 ts HType HTSSLength.
     rewrite - (cat1s _ es') in HType.
     invert_e_typing.
-    simpl in *.
-    rewrite upd_label_overwrite -cat1s catA in H3_label.
-    remember ([::ts_label] ++ tss) as tss'.
-    eapply IH with (tss := tss') (ts2 := ts1_label); eauto.
-    uapply H3_label.
-    repeat f_equal.
-    subst tss' => /=.
-    by lias.
+    rewrite upd_label_overwrite -cat1s catA in Hconjl1.
+    remember ([::extr] ++ tss) as tss'.
+    eapply ety_subtyping; first eapply IH.
+    + reflexivity.
+    + subst tss'. uapply Hconjl1; repeat f_equal; by lias.
+    + done.
+    + by resolve_subtyping.
 Qed.
 
 Lemma Lfilled_return_typing {k}: forall (lh: lholed k) vs LI ts s C0 C t2s,

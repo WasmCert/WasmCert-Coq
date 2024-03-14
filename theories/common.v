@@ -154,6 +154,22 @@ Ltac remove_bools_options :=
     |- _ =>
     let Hoption := fresh "Hoption" in
     destruct exp eqn:Hoption; try by []
+  | H: is_true match ?l with
+       | nil => false
+       | _ :: _ => _
+       end
+    |- _ =>
+      let Hcons := fresh "Hcons" in
+      let cons_l := fresh "cons_l" in
+      destruct l as [| ? cons_l] eqn:Hcons; first by []
+  | H: is_true match ?l with
+       | nil => _
+       | _ :: _ => false
+       end
+    |- _ => 
+      let Hcons := fresh "Hcons" in
+      let cons_l := fresh "cons_l" in
+      destruct l as [| ? cons_l] eqn:Hcons; last by []
   end.
 
 (* Apply but turning unification errors into equality obligations *)
