@@ -1181,6 +1181,23 @@ Ltac resolve_subtyping :=
       destruct ts => //; clear H
   end.
 
+Lemma values_subtyping_cat_suffix: forall ts1 ts2 ts3 ts4 tx ty n,
+    ts1 ++ ts2 = ts3 ++ ts4 ->
+    (tx <ts: ts2) ->
+    (drop n ts4 <ts: ty) ->
+    size tx = size ty ->
+    tx <ts: ty.
+Proof.
+  intros ??????? Hcat Hsubs1 Hsubs2 Hsize.
+  rewrite - (cat_take_drop n ts4) catA in Hcat.
+  apply concat_cancel_last_n in Hcat; last first.
+  { apply values_subtyping_size in Hsubs1, Hsubs2.
+    by lias.
+  }
+  remove_bools_options; subst.
+  by resolve_subtyping.
+Qed.
+
 Ltac extract_premise :=
   repeat match goal with
   | H: ?x = ?x -> _ |- _ =>

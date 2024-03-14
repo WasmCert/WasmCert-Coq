@@ -833,15 +833,10 @@ Proof.
     exists nil, nil, nil, ts; repeat split => //.
     repeat rewrite length_is_size in HTSSLength.
     rewrite v_to_e_size in HTSSLength.
-    rewrite - (cat_take_drop (size extr) extr3) catA in Hconjl.
-    apply concat_cancel_last_n in Hconjl; last first.
-    { apply values_subtyping_size in Hconjr1, Hsubs2.
-      apply values_typing_length in H2_values.
-      repeat rewrite length_is_size in H2_values.
-      by lias.
-    }
-    remove_bools_options; subst.
-    by resolve_subtyping.
+    apply values_typing_length in H2_values.
+    repeat rewrite length_is_size in H2_values.
+    eapply values_subtyping_cat_suffix; eauto.
+    by lias.
   - move => k0 vs m es lh' IH es' tss LI /= <- ts2 ts HType HTSSLength.
     rewrite - (cat1s _ es') in HType.
     invert_e_typing.
@@ -853,7 +848,7 @@ Proof.
     + done.
     + by resolve_subtyping.
 Qed.
-
+  
 Lemma Lfilled_return_typing {k}: forall (lh: lholed k) vs LI ts s C0 C t2s,
     e_typing s C0 LI (Tf [::] t2s) ->
     tc_return C = tc_return C0 ->
@@ -863,25 +858,22 @@ Lemma Lfilled_return_typing {k}: forall (lh: lholed k) vs LI ts s C0 C t2s,
     Some ts = tc_return C ->
     e_typing s C vs (Tf [::] ts).
 Proof.
-  induction lh; move => vs LI ts s C0 C t2s HType Heqret HConst HLength /=HLF HReturn; subst => //=.
-  - apply const_es_exists in HConst as [? ->].
+  induction lh; move => vs LI ts s C0 C t2s HType Heqret HConst HLength /=HLF HReturn; subst => //=; invert_e_typing.
+  - apply const_es_exists in HConst as [vs0 ->].
     invert_e_typing.
-    simpl in *.
-    rewrite H2_return in Heqret.
+    rewrite Hconjr in Heqret.
     rewrite - HReturn in Heqret.
     injection Heqret as <-.
-    apply concat_cancel_last_n in H1_values; remove_bools_options; subst.
-    + apply et_values_typing.
-      by rewrite H2_values.
-    + repeat rewrite length_is_size in HLength.
-      rewrite size_map in HLength.
-      rewrite HLength.
-      apply values_typing_length in H2_values.
-      by repeat rewrite - length_is_size.
-  - rewrite - cat1s in HType.
-    invert_e_typing.
-    simpl in *.
-    by eapply IHlh; eauto.
+    eapply ety_subtyping; first by apply et_values_typing; eauto.
+    simplify_subtyping.
+    exists nil, nil, nil, ts; repeat split => //.
+    apply values_typing_length in H2_values0.
+    rewrite v_to_e_length in HLength.
+    repeat rewrite length_is_size in H2_values0.
+    repeat rewrite length_is_size in HLength.
+    eapply values_subtyping_cat_suffix; eauto.
+    by lias.
+  - by eapply IHlh; eauto.
 Qed.
 
 Lemma Frame_return_typing {k}: forall s C vs f LI tf (lh: lholed k),
@@ -893,14 +885,13 @@ Proof.
   move => s C vs f LI tf lh HType HConst Hlf.
   destruct tf as [t1s t2s].
   invert_e_typing.
-  inversion H2_frame; subst; clear H2_frame.
+  inversion Hconjl0; subst; clear Hconjl0.
   remove_bools_options.
-  apply et_weakening_empty_1.
   apply const_es_exists in HConst as [? ->].
-  apply et_values_typing.
   eapply Lfilled_return_typing in H6; eauto; last by apply v_to_e_const.
-  by invert_e_typing.
+  invert_e_typing.
+  eapply ety_subtyping; first apply et_values_typing; eauto.
+  by resolve_subtyping.
 Qed.
 
-*)
 End Typing_inversion_e.
