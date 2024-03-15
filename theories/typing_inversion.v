@@ -719,7 +719,7 @@ Lemma global_type_reference: forall s i j C v t,
     inst_typing s i = Some C ->
     sglob_val s i j = Some v ->
     option_map tg_t (lookup_N (tc_globals C) j) = Some t ->
-    value_typing s v = Some t.
+    exists t', value_typing s v = Some t' /\ t' <t: t.
 Proof.
   move => s i j C v t Hst HInstType Hvref Htref.
   unfold sglob_val in Hvref.
@@ -745,7 +745,7 @@ Proof.
     injection Hoption8 as <-.
     rewrite Hoption0 in Hoption5.
     injection Hoption5 as <-.
-    by move/eqP in Hif1.
+    by exists v; rewrite Hoption9 => /=.
   }
 Qed.
 

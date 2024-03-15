@@ -199,3 +199,13 @@ Ltac unfold_store_operations :=
 
 (*
 *)
+
+Ltac resolve_if_true_eq :=
+  match goal with
+  | _ : _ |- match ?expr with
+            | true => Some ?x
+            | false => None
+            end = Some ?x =>
+      let Htrue := fresh "Htrue" in
+      assert (expr = true) as Htrue; last by rewrite Htrue
+  end.

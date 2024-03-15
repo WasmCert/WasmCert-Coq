@@ -363,11 +363,16 @@ https://www.w3.org/TR/wasm-core-2/appendix/properties.html#store-validity
 Section Store_validity. 
 
 (* funcinst typing is dependent on a later definition, although stated before it in the spec document. *)
+  
 Definition tableinst_typing (s: store_record) (ti: tableinst) : option table_type :=
   let '{| tableinst_type := ti_type; tableinst_elem := refs |} := ti in
   if tabletype_valid ti_type then
     if N.of_nat (length refs) == ti_type.(tt_limits).(lim_min) then
-      if all (fun ref => (value_ref_typing s ref == Some (ti_type.(tt_elem_type)))) refs then
+      if all (fun ref =>
+                (match value_ref_typing s ref with
+                 | Some tref => (T_ref tref) <t: (T_ref (ti_type.(tt_elem_type)))
+                 | None => false
+                 end)) refs then
         Some ti_type
       else None
     else None
@@ -384,14 +389,22 @@ Definition meminst_typing (s: store_record) (mi: meminst) : option memory_type :
 Definition globalinst_typing (s: store_record) (gi: globalinst) : option global_type :=
   let '{| g_type := gi_type; g_val := gv |} := gi in
   if globaltype_valid gi_type then
-    if value_typing s gv == Some (gi_type.(tg_t)) then
-      Some gi_type
-    else None
+    match value_typing s gv with
+    | Some t' =>
+        if t' <t: (gi_type.(tg_t)) then
+          Some gi_type
+        else None
+    | None => None
+    end
   else None.
 
 Definition eleminst_typing (s: store_record) (ei: eleminst) : option reference_type :=
   let '{| eleminst_type := ei_type; eleminst_elem := refs |} := ei in
-  if all (fun ref => (value_ref_typing s ref == Some ei_type)) refs then
+  if all (fun ref =>
+            (match value_ref_typing s ref with
+             | Some tref => (T_ref tref) <t: (T_ref ei_type)
+             | None => false
+             end)) refs then
     Some ei_type
   else None.
 

@@ -302,11 +302,9 @@ Proof.
   unfold eleminst_typing in *.
   unfold elem_extension in *.
   move: ei' Hext.
-  induction ei; move => ei' Hext; simpl in *; remove_bools_options => //.
-  simpl in *.
-  eapply value_ref_typing_extension in H1; eauto.
-  rewrite H1 => /=.
-  rewrite eq_refl => /=.
+  induction ei; move => ei' Hext; simpl in *; remove_bools_options => //=.
+  eapply value_ref_typing_extension in Hoption; eauto.
+  rewrite Hoption; resolve_subtyping => /=.
   apply IHei; first by rewrite H2.
   repeat rewrite eq_refl.
   by lias.
@@ -864,14 +862,15 @@ Lemma store_extension_tableinst_typing: forall s s' x t,
 Proof.
   move => s s' x t Hst Ht.
   unfold tableinst_typing in *; destruct x; remove_bools_options.
-  assert (all (fun ref => value_ref_typing s' ref == Some (tt_elem_type t)) tableinst_elem = true) as Hall; last by rewrite Hall.
+  resolve_if_true_eq.
   apply list_all_forall.
   move => a Hin.
   move/allP in Hif1.
   move/inP in Hin.
   apply Hif1 in Hin.
-  move/eqP in Hin.
-  by eapply value_ref_typing_extension in Hin; eauto; apply/eqP.
+  remove_bools_options.
+  eapply value_ref_typing_extension in Hoption; eauto.
+  by rewrite Hoption.
 Qed.
 
 Lemma store_extension_meminst_typing: forall s s' x t,
@@ -890,9 +889,7 @@ Lemma store_extension_globalinst_typing: forall s s' x t,
 Proof.
   move => s s' x t Hst Ht.
   unfold globalinst_typing in *; destruct x; remove_bools_options.
-  move/eqP in Hif0.
-  eapply value_typing_extension in Hif0; eauto.
-  by rewrite Hif0 eq_refl => /=.
+  eapply value_typing_extension in Hoption; eauto; by rewrite Hoption Hif0.
 Qed.
 
 Lemma store_extension_eleminst_typing: forall s s' x t,
@@ -902,14 +899,16 @@ Lemma store_extension_eleminst_typing: forall s s' x t,
 Proof.
   move => s s' x t Hst Ht.
   unfold eleminst_typing in *; destruct x; remove_bools_options.
-  assert (all (fun ref => value_ref_typing s' ref == Some t) eleminst_elem = true) as Hall; last by rewrite Hall.
+  resolve_if_true_eq.
   apply list_all_forall.
   move => a Hin.
   move/allP in Hif.
   move/inP in Hin.
   apply Hif in Hin.
   move/eqP in Hin.
-  by eapply value_ref_typing_extension in Hin; eauto; apply/eqP.
+  remove_bools_options.
+  eapply value_ref_typing_extension in Hoption; eauto.
+  by rewrite Hoption.
 Qed.
 
 Lemma store_extension_datainst_typing: forall s s' x t,
@@ -1021,26 +1020,17 @@ Ltac resolve_store_typing :=
       by eapply store_extension_datas_typing; eauto
     end.
 
-Ltac resolve_if_true_eq :=
-  match goal with
-  | _ : _ |- match ?expr with
-            | true => Some ?x
-            | false => None
-            end = Some ?x =>
-      let Htrue := fresh "Htrue" in
-      assert (expr = true) as Htrue; last by rewrite Htrue
-  end.
-
-Lemma supdate_glob_extension: forall s f i v s' C gt,
+Lemma supdate_glob_extension: forall s f i v s' C t gt,
   store_typing s ->
   supdate_glob s (f_inst f) i v = Some s' ->
   inst_typing s (f_inst f) = Some C -> 
-  value_typing s v = Some (tg_t gt) ->
+  value_typing s v = Some t ->
   lookup_N (tc_globals C) i = Some gt ->
+  t <t: (tg_t gt) ->
   is_mut gt ->
   store_extension s s'.
 Proof.
-  move => s f i v s' C gt Hst Hupd Hinst Hvaltype Hnth Hmut.
+  move => s f i v s' C t gt Hst Hupd Hinst Hvaltype Hnth Hsubt Hmut.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   destruct g0.
   remove_bools_options.
@@ -1056,16 +1046,17 @@ Proof.
   unfold is_mut in *; simpl in *; by move/eqP in Hmut.
 Qed.
 
-Lemma supdate_glob_typing: forall s f i v s' C gt,
+Lemma supdate_glob_typing: forall s f i v s' C t gt,
   store_typing s ->
   supdate_glob s (f_inst f) i v = Some s' ->
   inst_typing s (f_inst f) = Some C -> 
-  value_typing s v = Some (tg_t gt) ->
+  value_typing s v = Some t ->
   lookup_N (tc_globals C) i = Some gt ->
+  t <t: (tg_t gt) ->
   is_mut gt ->
   store_typing s'.
 Proof.
-  move => s f i v s' C gt Hst Hupd Hinst Hvaltype Hnth Hmut.
+  move => s f i v s' C t gt Hst Hupd Hinst Hvaltype Hnth Hsubt Hmut.
   assert (store_extension s s') as Hstext; first by eapply supdate_glob_extension; eauto.
   unfold_store_operations; remove_bools_options.
   resolve_store_inst_lookup; destruct g0; remove_bools_options; simpl in *.
@@ -1077,20 +1068,21 @@ Proof.
   resolve_store_typing; simpl in *; clear Hft Htt Hmt Het Hdt.
   eapply Forall_set; eauto; last by apply nth_error_Some_length in Hoption1; lias.
   eapply Forall_lookup in Hoption1; eauto; simpl in *.
-  destruct Hoption1 as [t Ht]; remove_bools_options.
-  rewrite Hvaltype.
-  by exists t; rewrite eq_refl.
+  destruct Hoption1 as [t' Ht]; remove_bools_options.
+  exists t'; rewrite Hvaltype.
+  by resolve_subtyping.
 Qed.
     
-Lemma stab_update_extension: forall s f x i v s' C tabt,
+Lemma stab_update_extension: forall s f x i v s' C vt tabt,
   store_typing s ->
   stab_update s (f_inst f) x i v = Some s' ->
   inst_typing s (f_inst f) = Some C -> 
-  value_typing s (VAL_ref v) = Some (T_ref (tt_elem_type tabt)) ->
+  value_typing s (VAL_ref v) = Some vt ->
   lookup_N (tc_tables C) x = Some tabt ->
+  vt <t: (T_ref (tt_elem_type tabt)) ->
   store_extension s s'.
 Proof.
-  move => s f x i v s' C tabt Hst Hupd Hinst Hvaltype Hnth.
+  move => s f x i v s' C vt tabt Hst Hupd Hinst Hvaltype Hnth Hsubt.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   destruct t0; remove_bools_options; simpl in *.
   eapply component_extension_update; eauto; first by apply table_extension_refl.
@@ -1103,15 +1095,16 @@ Proof.
   by lias.
 Qed.
 
-Lemma stab_update_typing: forall s f x i v s' C tabt,
+Lemma stab_update_typing: forall s f x i v s' C vt tabt,
   store_typing s ->
   stab_update s (f_inst f) x i v = Some s' ->
   inst_typing s (f_inst f) = Some C -> 
-  value_typing s (VAL_ref v) = Some (T_ref (tt_elem_type tabt)) ->
+  value_typing s (VAL_ref v) = Some vt ->
   lookup_N (tc_tables C) x = Some tabt ->
+  vt <t: (T_ref (tt_elem_type tabt)) ->
   store_typing s'.
 Proof.
-  move => s f x i v s' C tabt Hst Hupd Hinst Hvaltype Hnth.
+  move => s f x i v s' C vt tabt Hst Hupd Hinst Hvaltype Hnth Hsubt.
   assert (store_extension s s') as Hstext; first by eapply stab_update_extension; eauto.
   unfold_store_operations; remove_bools_options.
   resolve_store_inst_lookup; destruct t0; remove_bools_options; simpl in *.
@@ -1133,21 +1126,23 @@ Proof.
   move => a Hin.
   apply set_nth_In in Hin.
   destruct Hin as [-> | [m [Hneq Hnth]]].
-  - by apply/eqP; eapply value_ref_typing_extension in Hoption0; eauto.
+  - eapply value_ref_typing_extension in Hoption0; eauto.
+    rewrite Hoption0; by resolve_subtyping.
   - eapply list_all_forall in Hif5; eauto.
     + by apply List.nth_error_In in Hnth.
     + by lias.
 Qed.
 
-Lemma stab_grow_extension: forall s f x i v s' sz C tabt,
+Lemma stab_grow_extension: forall s f x i v s' sz C vt tabt,
   store_typing s ->
   stab_grow s (f_inst f) x i v = Some (s', sz) ->
   inst_typing s (f_inst f) = Some C -> 
-  value_typing s (VAL_ref v) = Some (T_ref (tt_elem_type tabt)) ->
+  value_typing s (VAL_ref v) = Some vt ->
   lookup_N (tc_tables C) x = Some tabt ->
+  vt <t: (T_ref (tt_elem_type tabt)) ->
   store_extension s s'.
 Proof.
-  move => s f x i v s' sz C tabt Hst Hupd Hinst Hvaltype Hnth.
+  move => s f x i v s' sz C vt tabt Hst Hupd Hinst Hvaltype Hnth Hsubt.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   destruct t0, tabt0; simpl in *; remove_bools_options; simpl in *.
   eapply component_extension_update; eauto; first by apply table_extension_refl.
@@ -1160,15 +1155,16 @@ Proof.
   by lias.
 Qed.
 
-Lemma stab_grow_typing: forall s f x i v s' sz C tabt,
+Lemma stab_grow_typing: forall s f x i v s' sz C vt tabt,
   store_typing s ->
   stab_grow s (f_inst f) x i v = Some (s', sz) ->
   inst_typing s (f_inst f) = Some C -> 
-  value_typing s (VAL_ref v) = Some (T_ref (tt_elem_type tabt)) ->
+  value_typing s (VAL_ref v) = Some vt ->
   lookup_N (tc_tables C) x = Some tabt ->
+  vt <t: (T_ref (tt_elem_type tabt)) ->
   store_typing s'.
 Proof.
-  move => s f x i v s' sz C tabt Hst Hupd Hinst Hvaltype Hnth.
+  move => s f x i v s' sz C vt tabt Hst Hupd Hinst Hvaltype Hnth Hsubt.
   assert (store_extension s s') as Hstext; first by eapply stab_grow_extension; eauto.
   unfold_store_operations; remove_bools_options.
   resolve_store_inst_lookup; destruct t0, tabt0; simpl in *; remove_bools_options; simpl in *.
@@ -1192,8 +1188,8 @@ Proof.
       rewrite all_cat.
       apply/andP; split => //.
       apply all_repeat.
-      apply/eqP.
-      by eapply value_ref_typing_extension; eauto.
+      eapply value_ref_typing_extension in Hoption0; try by apply Hstext.
+      by rewrite Hoption0.
     }
   - eapply List.Forall_forall in Htt; eauto.
     + by apply List.nth_error_In in Hnth.
@@ -1292,14 +1288,14 @@ Proof.
     by lias.
 Qed.
 
-Lemma smem_store_extension: forall s f n off v s' C mt,
+Lemma smem_store_extension: forall s f n off v s' C t mt,
   store_typing s ->
-  smem_store s (f_inst f) n off v (typeof_num v) = Some s' ->
+  smem_store s (f_inst f) n off v t = Some s' ->
   inst_typing s (f_inst f) = Some C -> 
   lookup_N (tc_mems C) 0%N = Some mt ->
   store_extension s s'.
 Proof.
-  move => s f n off v s' C a Hst Hupd Hit Hnth.
+  move => s f n off v s' C t mt Hst Hupd Hit Hnth.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   rewrite Hnth in Hnthmt; injection Hnthmt as ->.
   destruct m0; simpl in *; remove_bools_options; simpl in *.
@@ -1307,14 +1303,14 @@ Proof.
   by apply mem_extension_store in Hoption1.
 Qed.
 
-Lemma smem_store_typing: forall s f n off v s' C mt,
+Lemma smem_store_typing: forall s f n off v s' C t mt,
   store_typing s ->
-  smem_store s (f_inst f) n off v (typeof_num v) = Some s' ->
+  smem_store s (f_inst f) n off v t = Some s' ->
   inst_typing s (f_inst f) = Some C -> 
   lookup_N (tc_mems C) 0%N = Some mt ->
   store_typing s'.
 Proof.
-  move => s f n off v s' C a Hst Hupd Hit Hnth.
+  move => s f n off v s' C t mt Hst Hupd Hit Hnth.
   assert (store_extension s s') as Hstext; first by eapply smem_store_extension; eauto.
   unfold_store_operations; remove_bools_options.
   resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
@@ -1496,38 +1492,38 @@ Proof.
   - (* Invoke host *)
     by eapply host_application_extension; eauto.
   - (* global_set *)
+    unify_principal; simpl in Hsubs; remove_bools_options.
     eapply supdate_glob_extension; eauto.
-    + admit.
-    + by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr0; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* table update *)
+    unify_principal; simpl in Hsubs; remove_bools_options.
     eapply stab_update_extension; eauto.
-    + admit.
-    + by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr0; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* table grow *)
+    unify_principal; simpl in Hsubs0; remove_bools_options.
     eapply stab_grow_extension; eauto.
-    + admit.
-    + by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr0; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* elem drop *)
     eapply selem_drop_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply Hextr2; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
   - (* memory store *)
     eapply smem_store_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_store; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory store_packed *)
     eapply smem_store_packed_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_store; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory grow *)
     eapply smem_grow_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H1_memory_grow; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
   - (* data drop *)
     eapply sdata_drop_extension; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H1_data_drop; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
   - (* label *)
     eapply lfilled_es_type_exists in HType; eauto.
     destruct HType as [lab [t1s [t2s Hetype]]].
     by eapply IHHReduce in Hetype; eauto.
   - (* frame *)
-    inversion H2_frame as [s2 f2 es2 ors rs C2 Hstype Hftype ? Hetype]; subst; clear H2_frame.
+    inversion Hconjl0 as [s2 f2 es2 ors rs C2 Hstype Hftype ? Hetype]; subst; clear Hconjl0.
     move/eqP in Hftype.
     unfold frame_typing in Hftype; remove_bools_options.
     eapply IHHReduce in Hetype; eauto.
@@ -1547,36 +1543,39 @@ Proof.
   induction HReduce => //; subst; try (move => tf C C' HIT Hmatch HType HST; intros; destruct tf; invert_e_typing => //).
   - (* host call *)
     by eapply host_application_typing; eauto.
-  - (* update global *)
+  - (* global_set *)
+    unify_principal; simpl in Hsubs; remove_bools_options.
     eapply supdate_glob_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H1_global_set; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* table update *)
+    unify_principal; simpl in Hsubs; remove_bools_options.
     eapply stab_update_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_table_set; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* table grow *)
+    unify_principal; simpl in Hsubs0; remove_bools_options.
     eapply stab_grow_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H3_table_grow; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* elem drop *)
     eapply selem_drop_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_elem_drop; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
   - (* memory store *)
     eapply smem_store_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_store; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory store_packed *)
     eapply smem_store_packed_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H2_store; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory grow *)
     eapply smem_grow_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H1_memory_grow; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
   - (* data drop *)
     eapply sdata_drop_typing; eauto.
-    by unfold inst_match in Hmatch; remove_bools_options; uapply H1_data_drop; f_equal.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
   - (* label *)
     eapply lfilled_es_type_exists in HType; eauto.
     destruct HType as [lab [t1s [t2s Hetype]]].
     by eapply IHHReduce in Hetype; eauto.
   - (* frame *)
-    inversion H2_frame as [s2 f2 es2 ors rs C2 Hstype Hftype ? Hetype]; subst; clear H2_frame.
+    inversion Hconjl0 as [s2 f2 es2 ors rs C2 Hstype Hftype ? Hetype]; subst; clear Hconjl0.
     move/eqP in Hftype.
     unfold frame_typing in Hftype; remove_bools_options.
     eapply IHHReduce in Hetype; eauto.
@@ -1620,6 +1619,20 @@ Proof.
   by apply et_values_typing; move/eqP in HResType.
 Qed.
 
+Lemma those_set_nth: forall {T: Type} (l: list (option T)) l' x x0 y y0 n,
+    those l = Some l' ->
+    List.nth_error l n = Some x ->
+    those (set_nth x0 l n (Some y)) = Some (set_nth y0 l' n y).
+Proof.
+Admitted.
+
+Lemma all2_set_nth1: forall {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2 n x y x0,
+    List.nth_error l2 n = Some y ->
+    f x y ->
+    all2 f (set_nth x0 l1 n x) l2.
+Proof.
+Admitted.
+
 Lemma t_preservation_locs_type_aux: forall s f es s' f' es' C C0 ts t1s t2s hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->
@@ -1628,20 +1641,22 @@ Lemma t_preservation_locs_type_aux: forall s f es s' f' es' C C0 ts t1s t2s hs h
     C0.(tc_locals) = ts ->
     e_typing s C0 es (Tf t1s t2s) ->
     values_typing s f.(f_locs) = Some ts ->
-    values_typing s f'.(f_locs) = Some ts.
+    exists ts', values_typing s f'.(f_locs) = Some ts' /\ ts' <ts: ts.
 Proof.
   move => s f es s' f' es' C C0 ts t1s t2s hs hs' HReduce HST HIT.
   move: C0 t1s t2s.
-  induction HReduce => //; move => C0 t1s t2s Hmatch Hlocs HType Hvaltype; invert_e_typing.
-  - rewrite H1.
-    simpl in *.
+  induction HReduce => //; move => C0 t1s' t2s' Hmatch Hlocs HType Hvaltype; invert_e_typing; try by eexists; rewrite Hvaltype; split => //; resolve_subtyping.
+  - unify_principal.
+    simpl in Hsubs; remove_bools_options.
+    rewrite H1.
     unfold values_typing in *.
     rewrite set_nth_map => //=.
-    rewrite set_nth_same_unchanged => //.
-    unfold lookup_N in *.
-    eapply those_lookup_inv in H1_local_set; eauto.
-    rewrite H1_local_set.
-    by rewrite H2_value.
+    rewrite H2_value.
+    specialize (those_lookup_inv Hvaltype Hconjr) as Hvt.
+    exists (set_nth extr (tc_locals C0) (N.to_nat i) ts_value).
+    erewrite those_set_nth; eauto.
+    split; first by eauto.
+    by eapply all2_set_nth1; eauto.
   - eapply lfilled_es_type_exists in HType; eauto.
     destruct HType as [lab' [ts1 [ts2 Hetype]]].
     by eapply IHHReduce; (try apply Hetype); eauto.
@@ -1655,14 +1670,24 @@ Lemma t_preservation_locs_type: forall s f es s' f' es' C C0 ts t1s t2s hs hs',
     C0.(tc_locals) = ts ->
     e_typing s C0 es (Tf t1s t2s) ->
     values_typing s f.(f_locs) = Some ts ->
-    values_typing s' f'.(f_locs) = Some ts.
+    exists ts', values_typing s' f'.(f_locs) = Some ts' /\ ts' <ts: ts.
 Proof.
   move => s f es s' f' es' C C0 ts t1s t2s hs hs' HReduce HST HIT Hmatch Hlocs HType Hvaltype.
-  eapply t_preservation_locs_type_aux in Hvaltype; eauto.
-  eapply values_typing_extension; eauto.
+  eapply t_preservation_locs_type_aux in Hvaltype as [ts' [Hvaltype Hsubt]]; eauto.
+  eapply values_typing_extension in Hvaltype; eauto.
   by eapply store_extension_reduce; eauto.
 Qed.
 
+Ltac simplify_multieq :=
+  repeat match goal with
+  | H1: ?expr = ?x,
+    H2: ?expr = ?y |- _ =>
+      rewrite H1 in H2
+  | H: Some ?x = Some ?y |- _ =>
+      let Hinj := fresh "Hinj" in
+     injection H as Hinj; try subst
+  end.
+      
 Lemma t_preservation_e: forall s f es s' f' es' C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->
@@ -1674,16 +1699,37 @@ Lemma t_preservation_e: forall s f es s' f' es' C C' t1s t2s lab ret hs hs',
 Proof.
   move => s f es s' f' es' C C' t1s t2s lab ret hs hs' HReduce.
   move: C C' ret lab t1s t2s.
-  induction HReduce; move => C C' ret lab tx ty HST1 HST2 HFT1 HFT2 HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; unfold frame_typing in *; remove_bools_options; simpl in *; resolve_e_typing; resolve_store_inst_lookup => //.
+  (* Better method? *)
+  Opaque instr_subtyping.
+  induction HReduce; move => C C' ret lab tx ty HST1 HST2 HFT1 HFT2 HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; unfold frame_typing in *; remove_bools_options; simpl in *; resolve_e_typing; resolve_store_inst_lookup; remove_bools_options => //=.
+  Transparent instr_subtyping.
   - (* reduce_simple *)
     by eapply t_simple_preservation; eauto.
   - (* Ref_func *)
     eapply inst_typing_func_lookup in H; eauto.
     destruct H as [tf [Hext Hnth]].
-    by eapply ety_ref; eauto.
+    simplify_multieq.
+    by eapply ety_subtyping; first eapply ety_ref; eauto.
   - (* Block *)
-    erewrite <- inst_typing_expand_eq in Hexpand_block; eauto.
-    rewrite Hexpand_block in H; injection H as <- <-.
+    erewrite <- inst_typing_expand_eq in Hconjl0; eauto.
+    rewrite Hconjl0 in H; injection H as <- <-.
+    apply values_typing_length in H2_values.
+    repeat rewrite length_is_size in H2.
+    repeat rewrite length_is_size in H2_values.
+    rewrite v_to_e_size in H2.
+    specialize (instr_subtyping_compose_eq H1_values Htisub) as [Hsubi Hsubt]; first by lias.
+    clear H1_values Htisub.
+    eapply ety_subtyping; last by apply Hsubi.
+    {
+      eapply ety_label.
+      2: {
+        simpl.
+        resolve_e_typing; eauto.
+      resolve_e_typing.
+      - simpl.
+        eapply ety_a in Hconjr0; eauto.
+        eapply ety_subtyping.
+    }
     apply concat_cancel_last_n in H1_values; last first.
     { apply values_typing_length in H2_values.
       rewrite v_to_e_length in H2.
