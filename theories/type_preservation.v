@@ -58,20 +58,25 @@ Qed.
 
 Ltac resolve_e_typing :=
   repeat lazymatch goal with
-    | _ : _ |- e_typing _ _ nil _ =>
-        try eapply ety_subtyping; first by apply ety_a' => //; apply bet_empty => /=; eauto => //=
-    | _ : _ |- e_typing _ _ [::$VN ?v] _ =>
+    | |- e_typing _ _ nil _ =>
+        try eapply ety_subtyping; first (by apply ety_a' => //; apply bet_empty; eauto; try apply instr_subtyping_eq); eauto => //
+    | |- e_typing _ _ [::$VN ?v] _ =>
         replace ($VN v) with ($V (VAL_num v)); last done
-    | _ : _ |- e_typing _ _ [::$V _] _ =>
-        try eapply ety_subtyping; first by apply et_value_typing => /=; eauto => //=
-    | _ : _ |- e_typing _ _ [::AI_basic _] _ =>
-        try eapply ety_subtyping; first by apply ety_a' => //; econstructor => /=; eauto => //=
-    | _ : _ |- e_typing _ _ (v_to_e_list _) _ =>
-        try eapply ety_subtyping; first by apply et_values_typing => /=; eauto => //=
+    | |- e_typing _ _ [::$V _] _ =>
+        try eapply ety_subtyping; first (by apply et_value_typing; eauto; try apply instr_subtyping_eq); eauto => //
+    | |- e_typing _ _ [::AI_basic _] _ =>
+        try eapply ety_subtyping; first (by apply ety_a' => //; econstructor; eauto; try apply instr_subtyping_eq); eauto => //
+    | |- e_typing _ _ (v_to_e_list _) _ =>
+        try eapply ety_subtyping; first (by eapply et_values_typing; eauto; try apply instr_subtyping_eq); eauto => //
+    | |- e_typing _ _ (_ ++ _) _ =>
+        try eapply ety_subtyping; first (eapply et_composition'; eauto; try apply instr_subtyping_eq); eauto => //
+    | |- e_typing _ _ ((cons ($V ?v) (cons ?x ?t))) _ =>
+        rewrite - (cat1s ($V v) (cons x t));
+        try eapply ety_subtyping; first (eapply et_composition'; eauto; try apply instr_subtyping_eq); eauto => //
     | H : is_true (const_list _) |- _ =>
         let vs := fresh "vs" in
         apply const_es_exists in H as [vs ->]; invert_e_typing
-    | _ => unfold_store_operations
+    | _ => unfold_store_operations; try apply instr_subtyping_eq
     end.
 
 Theorem t_simple_preservation: forall s es es' C tf,
@@ -102,45 +107,58 @@ Proof.
     by resolve_subtyping.
   - (* Label_const *)
     by resolve_subtyping.
-  - (* Br_if_true *)
+  - (* If_true *)
     rewrite size_cat addnK take_size_cat in Hprincipal => //.
     by rewrite cats0 in Hprincipal.
-  - (* Br_if_false *)
+  - (* If_false *)
     rewrite size_cat addnK take_size_cat in Hprincipal => //.
     by rewrite cats0 in Hprincipal.
   - (* Br *)
+    + eapply Lfilled_break_typing with (tss := nil) in Hconjl1; eauto => //=; try (by apply v_to_e_const); last by lias.
+  - (* Br_if false *)
+    rewrite size_cat addnK take_size_cat in Hprincipal => //.
+    rewrite cats0 in Hprincipal.
+    assert (Tf nil nil <ti: Tf extr extr) as Hsubi; first by resolve_subtyping.
+    by resolve_subtyping.
+  - (* Br_if true *)
+    rewrite size_cat addnK take_size_cat in Hprincipal => //.
+    rewrite cats0 in Hprincipal.
+    uapply Hprincipal; f_equal => //; by instantiate (1 := nil).
   - (* Br_br_table *)
-    apply ety_a' => //=.
-    rewrite List.Forall_forall in H2_brtable.
-    apply bet_br.
-    apply H2_brtable.
-    unfold lookup_N in *.
-    simpl in *.
-    rewrite Z_N_nat in H0.
-    apply List.nth_error_In with (n := Z.to_nat (Wasm_int.Int32.unsigned c)).
-    rewrite List.nth_error_app1 => //.
-    apply List.nth_error_Some; by rewrite H0.
+    rewrite catA size_cat addnK take_size_cat in Hprincipal => //.
+    rewrite cats0 in Hprincipal.
+    try eapply ety_subtyping; first (apply ety_a' => //; econstructor; eauto => //).
+    { unfold lookup_N in *.
+      eapply Forall_lookup in Hconjr; eauto.
+      rewrite List.nth_error_app1 => //; eauto.
+      (* Implicit parameters *)
+      unfold labelidx, u32 in H.
+      by lias.
+    }
+    by uapply Hprincipal. 
   - (* Br_br_table_oob *)
-    apply ety_a' => //=.
-    rewrite List.Forall_forall in H2_brtable.
-    apply bet_br.
-    apply H2_brtable.
-    apply List.in_or_app; by right; constructor.
+    rewrite catA size_cat addnK take_size_cat in Hprincipal => //.
+    rewrite cats0 in Hprincipal.
+    try eapply ety_subtyping; first (apply ety_a' => //; econstructor; eauto => //).
+    { unfold lookup_N in *.
+      eapply Forall_lookup in Hconjr; eauto.
+      rewrite List.nth_error_app2 => //; eauto.
+      by rewrite Nat.sub_diag.
+    }
+    by uapply Hprincipal. 
   - (* Frame_const *)
-    inversion H2_frame; subst.
-    by invert_e_typing.
+    inversion Hconjl0; subst.
+    by eapply ety_subtyping; first (eapply et_const_agnostic in H6; eauto => //; by apply v_to_e_const).
   - (* Local_tee *)
-    apply ety_a' => //=.
-    rewrite -(cat1s ts_value).
-    apply bet_weakening_empty_2.
-    by constructor.
+    + by eapply instr_subtyping_strengthen1; eauto; apply instr_subtyping_eq.
+    + simplify_subtyping.
+      exists [::ts_value], [::extr], nil, nil; repeat rewrite cats0 => /=; by resolve_subtyping. 
   - (* Frame_return *)
-    inversion H2_frame; subst.
-    eapply Lfilled_return_typing in H6; (try reflexivity); eauto; first by invert_e_typing.
-    by apply v_to_e_const.
-Qed.*)
-Admitted.
-
+    inversion Hconjl0; subst; clear Hconjl0.
+    eapply Lfilled_return_typing in H6; (try reflexivity); eauto.
+    + by eapply ety_subtyping; first (eapply et_const_agnostic in H6; eauto => //; by apply v_to_e_const).
+    + by apply v_to_e_const.
+Qed.
 
 Lemma set_nth_same_unchanged: forall {X:Type} (l:seq X) e i vd,
     List.nth_error l i = Some e ->
