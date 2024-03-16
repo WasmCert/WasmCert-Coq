@@ -1673,15 +1673,8 @@ Ltac simplify_multieq :=
   | H: Some ?x = Some ?y |- _ =>
       let Hinj := fresh "Hinj" in
      injection H as Hinj; try subst
-  end.
+    end.
 
-Lemma t_locs_type_weaken: forall s C vts es tf,
-    e_typing s C es tf ->
-    vts <ts: C.(tc_locals) ->
-    e_typing s (upd_local C vts) es tf.
-Proof.
-Admitted.
-  
 Lemma t_preservation_e: forall s f es s' f' es' C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->

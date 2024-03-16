@@ -668,6 +668,24 @@ Proof.
     by lias.
 Qed.
 
+Lemma all2_nth_impl' {T1 T2: Type} (l1: list T1) (l2: list T2) f n y:
+  all2 f l1 l2 ->
+  List.nth_error l2 n = Some y ->
+  exists x, List.nth_error l1 n = Some x /\ f x y.
+Proof.
+  move => Hall2 Hnth.
+  destruct (List.nth_error l1 n) eqn:Hnth'.
+  - exists t; split => //.
+    by eapply all2_projection; eauto.
+  - exfalso.
+    apply List.nth_error_None in Hnth'.
+    apply all2_size in Hall2.
+    repeat rewrite - length_is_size in Hall2.
+    rewrite Hall2 in Hnth'.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+Qed.
+
 Lemma all2_spec: forall {X Y:Type} (f: X -> Y -> bool) (l1:seq X) (l2:seq Y),
     size l1 = size l2 ->
     (forall n x y, List.nth_error l1 n = Some x ->
