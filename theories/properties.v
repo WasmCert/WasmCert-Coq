@@ -800,6 +800,32 @@ Proof.
     by apply IHl1.
 Qed.
 
+Lemma those_set_nth: forall {T: Type} (l: list (option T)) l' x x0 y y0 n,
+    those l = Some l' ->
+    List.nth_error l n = Some x ->
+    those (set_nth x0 l n (Some y)) = Some (set_nth y0 l' n y).
+Proof.
+  setoid_rewrite <- those_those0.
+  induction l as [ | x l]; destruct l' as [ | y l'] => //; move => x' x0 y' y0 n; destruct n => //; destruct x => //=; move => Heq; remove_bools_options => //=.
+  move => Hnth.
+  by erewrite IHl with (y0 := y0); eauto.
+Qed.
+  
+Lemma all2_set_nth1: forall {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2 n x y x0,
+    List.nth_error l2 n = Some y ->
+    f x y ->
+    all2 f l1 l2 ->
+    all2 f (set_nth x0 l1 n x) l2.
+Proof.
+  induction l1 as [ | ? l1]; destruct l2 as [ | ? l2] => //; move => n x y x0 Hnth Hf Hall; destruct n; simpl in * => //=.
+  - injection Hnth as ->; subst.
+    remove_bools_options.
+    by lias.
+  - remove_bools_options.
+    rewrite H => /=.
+    by eapply IHl1; eauto.
+Qed.
+
 (** Numerics **)
 
 Lemma N_nat_bin n:

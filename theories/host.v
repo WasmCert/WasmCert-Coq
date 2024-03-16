@@ -47,8 +47,9 @@ Class host := {
       host_application s st t h vs s' (Some (st', r)) ->
       store_typing st ->
       store_typing st' (** [host_application] preserves store typing. **) ;
-    host_application_respect : forall s t1s t2s st h vs s' st' r,
-      values_typing st vs = Some t1s ->
+    host_application_respect : forall s ts t1s t2s st h vs s' st' r,
+      values_typing st vs = Some ts ->
+      ts <ts: t1s ->
       host_application s st (Tf t1s t2s) h vs s' (Some (st', r)) ->
       result_types_agree st' t2s r (** [host_application] respects types. **)
   }.

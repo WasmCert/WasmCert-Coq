@@ -1619,20 +1619,6 @@ Proof.
   by apply et_values_typing; move/eqP in HResType.
 Qed.
 
-Lemma those_set_nth: forall {T: Type} (l: list (option T)) l' x x0 y y0 n,
-    those l = Some l' ->
-    List.nth_error l n = Some x ->
-    those (set_nth x0 l n (Some y)) = Some (set_nth y0 l' n y).
-Proof.
-Admitted.
-
-Lemma all2_set_nth1: forall {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2 n x y x0,
-    List.nth_error l2 n = Some y ->
-    f x y ->
-    all2 f (set_nth x0 l1 n x) l2.
-Proof.
-Admitted.
-
 Lemma t_preservation_locs_type_aux: forall s f es s' f' es' C C0 ts t1s t2s hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->
@@ -1656,7 +1642,8 @@ Proof.
     exists (set_nth extr (tc_locals C0) (N.to_nat i) ts_value).
     erewrite those_set_nth; eauto.
     split; first by eauto.
-    by eapply all2_set_nth1; eauto.
+    eapply all2_set_nth1; eauto.
+    by apply values_subtyping_eq.
   - eapply lfilled_es_type_exists in HType; eauto.
     destruct HType as [lab' [ts1 [ts2 Hetype]]].
     by eapply IHHReduce; (try apply Hetype); eauto.
@@ -1687,7 +1674,14 @@ Ltac simplify_multieq :=
       let Hinj := fresh "Hinj" in
      injection H as Hinj; try subst
   end.
-      
+
+Lemma t_locs_type_weaken: forall s C vts es tf,
+    e_typing s C es tf ->
+    vts <ts: C.(tc_locals) ->
+    e_typing s (upd_local C vts) es tf.
+Proof.
+Admitted.
+  
 Lemma t_preservation_e: forall s f es s' f' es' C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->
@@ -1701,7 +1695,7 @@ Proof.
   move: C C' ret lab t1s t2s.
   (* Better method? *)
   Opaque instr_subtyping.
-  induction HReduce; move => C C' ret lab tx ty HST1 HST2 HFT1 HFT2 HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; unfold frame_typing in *; remove_bools_options; simpl in *; resolve_e_typing; resolve_store_inst_lookup; remove_bools_options => //=.
+  induction HReduce; move => C C' ret lab tx ty HST1 HST2 HFT1 HFT2 HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; unfold frame_typing in *; remove_bools_options; simpl in *; resolve_e_typing; unfold_store_operations; resolve_store_inst_lookup; remove_bools_options => //=; simpl in *; try by unify_principal.
   Transparent instr_subtyping.
   - (* reduce_simple *)
     by eapply t_simple_preservation; eauto.
@@ -1713,122 +1707,120 @@ Proof.
   - (* Block *)
     erewrite <- inst_typing_expand_eq in Hconjl0; eauto.
     rewrite Hconjl0 in H; injection H as <- <-.
-    apply values_typing_length in H2_values.
+    specialize (values_typing_length H2_values) as Hlen.
     repeat rewrite length_is_size in H2.
-    repeat rewrite length_is_size in H2_values.
+    repeat rewrite length_is_size in Hlen.
     rewrite v_to_e_size in H2.
     specialize (instr_subtyping_compose_eq H1_values Htisub) as [Hsubi Hsubt]; first by lias.
     clear H1_values Htisub.
     eapply ety_subtyping; last by apply Hsubi.
     {
-      eapply ety_label.
-      2: {
-        simpl.
-        resolve_e_typing; eauto.
-      resolve_e_typing.
-      - simpl.
-        eapply ety_a in Hconjr0; eauto.
-        eapply ety_subtyping.
-    }
-    apply concat_cancel_last_n in H1_values; last first.
-    { apply values_typing_length in H2_values.
-      rewrite v_to_e_length in H2.
-      by rewrite H2_values in H2.
-    }
-    {
-      remove_bools_options; subst.
-      apply et_weakening_empty_1.
-      eapply ety_label => //=; eauto.
-      - apply ety_a' => //=.
-        by apply bet_weakening_empty_both; constructor.
-      - eapply et_composition'; first by apply et_values_typing; eauto.
-        by eapply ety_a in H3_block; eauto.
+      eapply ety_label; eauto; first by apply et_empty; resolve_subtyping.
+      simpl.
+      resolve_e_typing; eauto.
+      eapply ety_a in Hconjr0; eauto.
+      eapply ety_subtyping; eauto.
+      eapply instr_subtyping_strengthen1; eauto.
+      by resolve_subtyping.
     }
   - (* Loop *)
-    remember Hexpand_block as Het; clear HeqHet.
-    erewrite <- inst_typing_expand_eq in Hexpand_block; eauto.
-    rewrite Hexpand_block in H; injection H as <- <-.
-    apply concat_cancel_last_n in H1_values; last first.
-    { apply values_typing_length in H2_values.
-      rewrite v_to_e_length in H2.
-      by rewrite H2_values in H2.
-    }
+    remember Hconjl0 as Het; clear HeqHet.
+    erewrite <- inst_typing_expand_eq in Hconjl0; eauto.
+    rewrite Hconjl0 in H; injection H as <- <-.
+    specialize (values_typing_length H2_values) as Hlen.
+    repeat rewrite length_is_size in H2.
+    repeat rewrite length_is_size in Hlen.
+    rewrite v_to_e_size in H2.
+    specialize (instr_subtyping_compose_eq H1_values Htisub) as [Hsubi Hsubt]; first by lias.
+    clear H1_values Htisub.
+    eapply ety_subtyping; last by apply Hsubi.
     {
-      remove_bools_options; subst.
-      apply et_weakening_empty_1.
-      eapply ety_label => //=; eauto.
-      - apply ety_a' => //=.
-        by apply bet_loop.
-      - eapply et_composition'; first by apply et_values_typing; eauto.
-        by eapply ety_a in H3_loop; eauto.
+      eapply ety_label; eauto.
+      { apply ety_a' => //=.
+        by apply bet_loop; eauto.
+      }
+      { simpl.
+        resolve_e_typing; eauto.
+        eapply ety_a in Hconjr0; eauto.
+        eapply ety_subtyping; eauto.
+        eapply instr_subtyping_strengthen1; eauto.
+        by resolve_subtyping.
+      }
+      rewrite v_to_e_length.
+      by repeat rewrite - length_is_size in H2.
     }
   - (* Call *)
-    apply ety_weakening, ety_invoke.
-    eapply inst_typing_func_lookup in H; eauto.
-    destruct H as [t0 [Hft Hnth]].
-    rewrite Hnth in H1_call.
-    by injection H1_call as <-.
+    eapply inst_typing_func_lookup in H as [t0 [Hft Hnth]]; eauto.
+    destruct extr as [ts1 ts2].
+    simplify_multieq.
+    by eapply ety_subtyping; first by apply ety_invoke; eauto; rewrite -> Hinj.
   - (* Call_indirect *)
-    apply ety_weakening, ety_invoke.
-    unfold stab_elem in H.
-    remove_bools_options.
-    rewrite Hteq in H3_callindirect; injection H3_callindirect as <-.
-    unfold ext_func_typing.
-    by rewrite H0.
+    destruct Hft as [<- ?].
+    simplify_multieq.
+    eapply ety_subtyping; first apply ety_invoke; eauto; rewrite -> Hinj.
+    { unfold ext_func_typing.
+      by rewrite H0.
+    }
+    { rewrite - Hinj.
+      unify_principal.
+      uapply Hprincipal; f_equal.
+      by rewrite cats0 size_cat addnK take_size_cat.
+    }
+    
   - (* Invoke native *)
-    unfold ext_func_typing in H3_invoke.
-    remove_bools_options; simpl in *.
-    inversion H1; subst; clear H1.
-    assert (length vs = length ts_values) as Hlen; first by apply values_typing_length in H2_values.
-    apply concat_cancel_last_n in H1_invoke; last by repeat rewrite -length_is_size; rewrite - Hlen.
-    remove_bools_options; subst.
-    apply et_weakening_empty_1.
-    apply ety_frame => //.
-    destruct Hft as [Hcltype [_ Hfunctype]].
-    simpl in *.
-    remove_bools_options.
-    destruct f0.
-    destruct Hfunctype as [Hctype Hexprtype].
-    injection Hctype as <-<-.
-    unfold expr_typing in Hexprtype; subst.
-    econstructor; eauto.
-    + unfold frame_typing; rewrite Hoption2 => /=.
+    destruct extr as [ts1' ts2'].
+    destruct Hft as [<- [Hvalid Hftype]].
+    simpl in Hftype; remove_bools_options; destruct f0.
+    destruct Hftype as [Heq Hetype].
+    injection Heq as <- <-.
+    unfold ext_func_typing in Hconjr.
+    rewrite H in Hconjr; simpl in Hconjr; injection Hconjr as <- <-.
+    specialize (values_typing_length H2_values) as Hlen.
+    repeat rewrite length_is_size in H5.
+    repeat rewrite length_is_size in Hlen.
+    specialize (instr_subtyping_compose_eq H1_values Htisub) as [Hsubi Hsubt]; first by lias.
+    clear H1_values Htisub.
+    eapply ety_subtyping; first apply ety_frame; try by eauto.
+    econstructor.
+    + unfold frame_typing; rewrite Hoption1 => /=.
       erewrite values_typing_cat; eauto.
-      by eapply default_values_typing.
+      by eapply default_values_typing; eauto.
+    + done.
     + eapply ety_label; eauto.
-      * apply ety_a' => //=; by apply bet_weakening_empty_both, bet_empty.
-      * apply ety_a with (s := s) in Hexprtype.
-        uapply Hexprtype => /=.
+      * eapply ety_subtyping with (t1s := nil) (t2s := nil); first apply et_empty; by resolve_subtyping.
+      * apply ety_a with (s := s) in Hetype.
+        apply t_locs_type_weaken with (vts := (ts_values ++ ts)) in Hetype => /=; last by resolve_subtyping.
+        uapply Hetype => /=.
         erewrite inst_t_context_label_empty; eauto.
         erewrite inst_t_context_local_empty; eauto.
         by rewrite cats0.
+        
   - (* Invoke host *)
-    unfold typing.ext_func_typing in H3_invoke.
-    remove_bools_options; simpl in *.
-    inversion H1; subst; clear H1.
+    unfold ext_func_typing in Hconjr.
+    remove_bools_options; simpl in Hft; destruct Hft as [<- Hvalid].
+    simpl cl_type in Htisub.
     assert (length vcs = length ts_values) as Hlen; first by apply values_typing_length in H2_values.
-    apply concat_cancel_last_n in H1_invoke; last by repeat rewrite -length_is_size; rewrite - Hlen.
-    remove_bools_options; subst.
-    apply et_weakening_empty_1.
-    destruct Hft as [Hcltype _]; subst.
-    (* We require an axiomatic correctness assumption about the host. *)
-    assert (result_types_agree s' ts3_invoke r).
-    {
-      by eapply host_application_respect; eauto.
-    }
-    by apply result_e_type.
+    rewrite - H3 in Hlen.
+    repeat rewrite length_is_size in Hlen.
+    specialize (instr_subtyping_compose_eq H1_values Htisub) as [Hsubi Hsubt]; first by lias.
+    clear H1_values Htisub.
+    by eapply ety_subtyping; first apply result_e_type; first eapply host_application_respect; eauto.
+    
   - (* Local_get *)
     unfold lookup_N in *.
     eapply those_map_lookup in Hoption0; eauto.
     destruct Hoption0 as [vt [Hvaltype Hnth]].
-    erewrite nth_error_app_Some in H1_local_get; eauto.
-    by injection H1_local_get as <-.
+    erewrite nth_error_app_Some in Hconjr; eauto.
+    injection Hconjr as <-.
+    by resolve_e_typing.
   - (* Global_get *)
-    destruct g0.
+    destruct g.
     remove_bools_options.
-    move/eqP in Hif0.
-    simpl in *.
-    by rewrite Hoption in Hnthgt; injection Hnthgt as ->.
+    simplify_multieq.
+    eapply ety_subtyping; first by apply et_value_typing; eauto.
+    eapply instr_subtyping_trans; eauto.
+    eapply instr_subtyping_strengthen2; eauto; first by apply instr_subtyping_eq.
+    simpl; by rewrite Hif.
   - (* Table_get *)
     destruct t1; remove_bools_options.
     simpl in *.
