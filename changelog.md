@@ -28,7 +28,7 @@ Total and partial conversion operations are now provided for conversion between 
 - `v_to_e/e_to_v` for total conversions;
 - `e_to_v_opt` for partial operations.
 
-## Value typing validity depends on store
+## Value Typing and the Store
 Due to the use of store addresses, the new reference values can only be typed given a store. This necessitated the introduction
 of a separate `value_typing` relation with respect to a store. In addition, value typing relation now has to be done at the
 `e_typing` level (for administrative instructions) as they can no longer be converted to basic instructions and typed using the `const` rule in `be_typing`. New value typing inversion lemmas were added to help reasoning with this change; search for terms involving `value_typing` and `values_typing`.
@@ -36,6 +36,10 @@ of a separate `value_typing` relation with respect to a store. In addition, valu
 ## Threads
 Threads are now properly spelt out as a separate type that constitutes the configuration tuple. The old thread-related definitions (e.g. `s_typing`) are renamed to the names used in the standard (e.g. `thread_typing`).
 
+## Type System and Subtyping
+In addition, this release also implements subtyping introduced in the future funcret/GC proposal as a forward-looking move. There is currently no observable effect in Wasm 2.0 except for typing instructions past unconditional branches, as there is no non-trivial subtypings between any of the base value types. There exists a principal type (potentially with some free type parameters) for every value/instruction, which all possible types of it are supertypes of.
+The largest impact of this type system change is that, in the future, values can no longer uniquely typed even if it is well typed. This is not the case in Wasm 2.0 yet, but examples can be introduced in future proposals.
+The old `weakening` typing rules are replaced by a subtyping rule as a result of this change, which reflects the shift in the future proposals.
 
 # Refactorings and Feature Improvements
 
@@ -45,6 +49,7 @@ The main major benefit is the automatic filling of implicit host parameter, inst
 
 ## Numerics
 - Refactored the old collection of conversion operations *cvtop* to be split up by their individual constructors to better match the spec.
+
 ## Name Changes
 - Changed the name of some types, instructions, and constructors to better match the official spec.
 - Instance indices are now simplified to the base `u32` type without additional constructors.
@@ -55,6 +60,7 @@ The main major benefit is the automatic filling of implicit host parameter, inst
 ## Typing
 - Massively improved the scope and automation of the typing inversion lemmas.
 - Provided a new tactic `resolve_e_typing` that automatically tries to resolve `e_typing` goals, dealing mostly with the operands.
+- Provided a separate file for the new subtyping lemmas and tactics.
 
 ## Miscellaneous
 - Introduced many additional excerpts in comments from the official spec for various definitions.
