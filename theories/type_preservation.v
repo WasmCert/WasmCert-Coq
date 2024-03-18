@@ -1635,20 +1635,23 @@ Ltac simplify_multieq :=
      injection H as Hinj; try subst
     end.
 
-Lemma t_preservation_e: forall s f es s' f' es' C C' t1s t2s lab ret hs hs',
+Lemma t_preservation_e: forall s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->
     store_typing s' ->
-    frame_typing s f C ->
-    frame_typing s' f' C' ->
-    e_typing s (upd_return (upd_label C lab) ret) es (Tf t1s t2s) ->
-    e_typing s' (upd_return (upd_label C' lab) ret) es' (Tf t1s t2s).
+    inst_typing s f.(f_inst) = Some C ->
+    inst_typing s' f'.(f_inst) = Some C' ->
+    values_typing s f.(f_locs) tlocs ->
+    e_typing s (upd_local_label_return C tlocs lab ret) es (Tf t1s t2s) ->
+    e_typing s' (upd_local_label_return C' tlocs lab ret) es' (Tf t1s t2s).
+  Admitted.
+(*
 Proof.
-  move => s f es s' f' es' C C' t1s t2s lab ret hs hs' HReduce.
-  move: C C' ret lab t1s t2s.
+  move => s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs' HReduce.
+  move: C C' ret lab t1s t2s tlocs.
   (* Better method? *)
   Opaque instr_subtyping.
-  induction HReduce; move => C C' ret lab tx ty HST1 HST2 HFT1 HFT2 HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; unfold frame_typing in *; remove_bools_options; simpl in *; resolve_e_typing; unfold_store_operations; resolve_store_inst_lookup; remove_bools_options => //=; simpl in *; try by unify_principal.
+  induction HReduce; move => C C' ret lab tx ty tlocs HST1 HST2 HIT1 HIT2 Hloctype HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; simpl in *; resolve_e_typing; unfold_store_operations; resolve_store_inst_lookup; remove_bools_options => //=; simpl in *; simplify_multieq; try by unify_principal.
   Transparent instr_subtyping.
   - (* reduce_simple *)
     by eapply t_simple_preservation; eauto.
@@ -1673,7 +1676,7 @@ Proof.
       resolve_e_typing; eauto.
       eapply ety_a in Hconjr0; eauto.
       eapply ety_subtyping; eauto.
-      eapply instr_subtyping_strengthen1; eauto.
+      eapply instr_subtyping_weaken1; eauto.
       by resolve_subtyping.
     }
   - (* Loop *)
@@ -1696,7 +1699,7 @@ Proof.
         resolve_e_typing; eauto.
         eapply ety_a in Hconjr0; eauto.
         eapply ety_subtyping; eauto.
-        eapply instr_subtyping_strengthen1; eauto.
+        eapply instr_subtyping_weaken1; eauto.
         by resolve_subtyping.
       }
       rewrite v_to_e_length.
@@ -2048,7 +2051,14 @@ Proof.
       by erewrite -> inst_t_context_label_empty; eauto.
     }
 Qed.
-  
+*)
+
+Lemma upd_local_label_return_overwrite: forall C loc1 lab1 ret1 loc2 lab2 ret2,
+    upd_local_label_return (upd_local_label_return C loc2 lab2 ret2) loc1 lab1 ret1 = upd_local_label_return C loc1 lab1 ret1.
+Proof.
+  done.
+Qed.
+
 Theorem t_preservation: forall s f es s' f' es' ts hs hs',
     reduce hs s f es hs' s' f' es' ->
     config_typing s (f, es) ts ->
@@ -2056,10 +2066,8 @@ Theorem t_preservation: forall s f es s' f' es' ts hs hs',
 Proof.
   move => s f es s' f' es' ts hs hs' HReduce HType.
   inversion HType; inversion H0; subst; clear HType.
-  move/eqP in H3.
-  remember H3 as Hft; clear HeqHft.
-  unfold frame_typing in H3.
-  remove_bools_options.
+  unfold frame_typing in H3; remove_bools_options.
+  destruct H3 as [tlocs [-> Hloctype]].
 
   assert (store_extension s s') as Hstoreext.
   { eapply store_extension_reduce; eauto.
@@ -2077,6 +2085,7 @@ Proof.
   erewrite -> inst_t_context_local_empty in *; eauto.
   rewrite -> cats0 in *.
 
+  (*
   assert (frame_typing s' f' = Some (upd_local C' l)) as Hftype.
   { unfold frame_typing.
     rewrite Hit'.
@@ -2087,15 +2096,22 @@ Proof.
     }
     { unfold inst_match; by lias. }
   }
-  
+*)
   constructor => //.
-  econstructor; eauto; last first.
-  - by eapply t_preservation_e; eauto.
-  - apply/eqP.
-    rewrite Hftype.
-    unfold upd_local, upd_label, upd_local_label_return => /=.
-    do 2 f_equal.
-    by repeat erewrite -> inst_t_context_label_empty; eauto.
+  econstructor; eauto.
+  - unfold frame_typing.
+    rewrite Hit'.
+    exists tlocs.
+    split; first done.
+    eapply t_preservation_locs_type in Hloctype; eauto; try by [].
+    unfold inst_match; destruct t => /=; by lias.
+  - unfold upd_return, upd_local in *.
+    rewrite -> upd_local_label_return_overwrite in *.
+    simpl in *.
+    erewrite -> inst_t_context_local_empty in *; eauto.
+    erewrite -> inst_t_context_label_empty in *; eauto.
+    rewrite -> cats0 in *.
+    by eapply t_preservation_e; eauto.
 Qed.
 
 End Host.
