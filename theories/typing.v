@@ -50,13 +50,8 @@ Definition ext_typing (s: store_record) (v: extern_value) : option extern_type :
 (** std-doc:
 For the purpose of checking argument values against the parameter types of exported functions, values are classified by value types. The following auxiliary typing rules specify this typing relation relative to a store S in which possibly referenced addresses live.
  **)
-Definition value_num_typing (s: store_record) (v: value_num) : number_type :=
-  typeof_num v.
 
-Definition value_vec_typing (s: store_record) (v: value_vec) : vector_type :=
-  typeof_vec v.
-
-Definition value_ref_typing (s: store_record) (v: value_ref) : option reference_type :=
+Definition typeof_ref (s: store_record) (v: value_ref) : option reference_type :=
   match v with
   | VAL_ref_null t => Some t
   | VAL_ref_func addr =>
@@ -67,19 +62,26 @@ Definition value_ref_typing (s: store_record) (v: value_ref) : option reference_
   | VAL_ref_extern eaddr => Some T_externref
   end.
 
-Definition value_typing (s: store_record) (v: value) : option value_type :=
+Definition typeof_value (s: store_record) (v: value) : option value_type :=
   match v with
-  | VAL_num v' => Some (T_num (value_num_typing s v'))
-  | VAL_vec v' => Some (T_vec (value_vec_typing s v'))
-  | VAL_ref v' => option_map T_ref (value_ref_typing s v')
+  | VAL_num v' => Some (T_num (typeof_num v'))
+  | VAL_vec v' => Some (T_vec (typeof_vec v'))
+  | VAL_ref v' => option_map T_ref (typeof_ref s v')
   end.                      
 
-Definition values_typing (s: store_record) (vs: list value) : option (list value_type) :=
-  those (map (value_typing s) vs).
+(* This works as long as the principal type of values is not a scheme. Otherwise, this needs to be a Prop in future extensions *)
+Definition value_typing (s: store_record) (v: value) (t: value_type) : bool :=
+  match typeof_value s v with
+  | Some vt => (vt <t: t)
+  | None => false
+  end.
+
+Definition values_typing (s: store_record) (vs: list value) (tf: list value_type) : bool :=
+  all2 (value_typing s) vs tf.
 
 Definition result_types_agree (s: store_record) (ts : result_type) r : bool :=
   match r with
-  | result_values vs => values_typing s vs == Some ts
+  | result_values vs => values_typing s vs ts
   | result_trap => true
   end.
 
@@ -368,11 +370,7 @@ Definition tableinst_typing (s: store_record) (ti: tableinst) : option table_typ
   let '{| tableinst_type := ti_type; tableinst_elem := refs |} := ti in
   if tabletype_valid ti_type then
     if N.of_nat (length refs) == ti_type.(tt_limits).(lim_min) then
-      if all (fun ref =>
-                (match value_ref_typing s ref with
-                 | Some tref => (T_ref tref) <t: (T_ref (ti_type.(tt_elem_type)))
-                 | None => false
-                 end)) refs then
+      if all (fun ref => value_typing s (VAL_ref ref) (T_ref (ti_type.(tt_elem_type)))) refs then
         Some ti_type
       else None
     else None
@@ -389,22 +387,14 @@ Definition meminst_typing (s: store_record) (mi: meminst) : option memory_type :
 Definition globalinst_typing (s: store_record) (gi: globalinst) : option global_type :=
   let '{| g_type := gi_type; g_val := gv |} := gi in
   if globaltype_valid gi_type then
-    match value_typing s gv with
-    | Some t' =>
-        if t' <t: (gi_type.(tg_t)) then
-          Some gi_type
-        else None
-    | None => None
-    end
+    if value_typing s gv (gi_type.(tg_t)) then
+      Some gi_type
+    else None
   else None.
 
 Definition eleminst_typing (s: store_record) (ei: eleminst) : option reference_type :=
   let '{| eleminst_type := ei_type; eleminst_elem := refs |} := ei in
-  if all (fun ref =>
-            (match value_ref_typing s ref with
-             | Some tref => (T_ref tref) <t: (T_ref ei_type)
-             | None => false
-             end)) refs then
+  if all (fun ref => value_typing s (VAL_ref ref) (T_ref ei_type)) refs then
     Some ei_type
   else None.
 
@@ -420,6 +410,8 @@ Definition exportinst_typing (s: store_record) (expi: exportinst) : option ok :=
   
 (** std-doc:
 [https://webassembly.github.io/spec/core/appendix/properties.html#module-instances-xref-exec-runtime-syntax-moduleinst-mathit-moduleinst]
+
+This definition is currently computable -- hopefully it remains so in the future; otherwise we need to make it back to a Prop/Bool.
  **)
 Definition inst_typing (s : store_record) (inst : moduleinst) : option t_context :=
   let '{| inst_types := ts; inst_funcs := fs; inst_tables := tbs; inst_mems := ms; inst_globals := gs; inst_elems := es; inst_datas := ds; inst_exports := exps |} := inst in
@@ -460,14 +452,12 @@ Definition inst_typing (s : store_record) (inst : moduleinst) : option t_context
 Definition inst_typecheck (s: store_record) (inst: moduleinst) (C: t_context) : bool :=
   inst_typing s inst == Some C.
 
-Definition frame_typing (s: store_record) (f: frame) : option t_context :=
+Definition frame_typing (s: store_record) (f: frame) (C: t_context): Prop :=
   match inst_typing s f.(f_inst) with
-  | Some C =>
-      match (values_typing s) f.(f_locs) with
-      | Some ts => Some (upd_local C (ts ++ tc_locals C))
-      | None => None
-      end
-  | None => None
+  | Some C0 =>
+      exists ts, C = upd_local C0 (ts ++ tc_locals C0) /\
+              values_typing s f.(f_locs) ts
+  | None => False
   end.
 
 (** std-doc:
@@ -512,7 +502,7 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
 
 with thread_typing : store_record -> option result_type -> thread -> result_type -> Prop :=
 | mk_thread_typing : forall s f es rs ts C C',
-  frame_typing s f == Some C ->
+  frame_typing s f C ->
   C' = upd_return C rs ->
   e_typing s C' es (Tf nil ts) ->
   thread_typing s rs (f, es) ts

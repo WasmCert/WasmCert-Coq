@@ -3,13 +3,43 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export properties.
+From Wasm Require Export properties subtyping_properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Typing_inversion_be.
+  
+(* Some quality of life lemmas *)
+(* Upd: these lemmas are deprecated; it is encouraged to directly use subtyping rule. *)
+Lemma bet_weakening_empty_1: forall C es ts t2s,
+    be_typing C es (Tf [::] t2s) ->
+    be_typing C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => C es ts t2s HType.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma bet_weakening_empty_2: forall C es ts t1s,
+    be_typing C es (Tf t1s [::]) ->
+    be_typing C es (Tf (ts ++ t1s) ts).
+Proof.
+  move => C es ts t1s HType.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma bet_weakening_empty_both: forall C es ts,
+    be_typing C es (Tf [::] [::]) ->
+    be_typing C es (Tf ts ts).
+Proof.
+  move => C es ts HType.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
 
 Hint Constructors be_typing : core.
 
@@ -384,6 +414,59 @@ Section Typing_inversion_e.
              
 Context {hfc: host_function_class}.
 
+(** Typing lemmas **)
+
+(* A reformulation of [ety_a] that is easier to be used. *)
+Lemma ety_a': forall s C es ts,
+    es_is_basic es ->
+    be_typing C (to_b_list es) ts ->
+    e_typing s C es ts.
+Proof.
+  move => s C es ts HBasic HType.
+  replace es with (to_e_list (to_b_list es)).
+  - by apply ety_a.
+  - symmetry. by apply e_b_elim.
+Qed.
+
+Lemma et_weakening_empty_1: forall s C es ts t2s,
+    e_typing s C es (Tf [::] t2s) ->
+    e_typing s C es (Tf ts (ts ++ t2s)).
+Proof.
+  move => s C es ts t2s HType.
+  eapply ety_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma et_weakening_empty_2: forall s C es ts t2s,
+    e_typing s C es (Tf t2s nil) ->
+    e_typing s C es (Tf (ts ++ t2s) ts).
+Proof.
+  move => s C es ts t2s HType.
+  eapply ety_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
+(* A convenient lemma to invert e_typing back to be_typing. *)
+Lemma et_to_bet: forall s C es tf,
+    es_is_basic es ->
+    e_typing s C es tf ->
+    be_typing C (to_b_list es) tf.
+Proof.
+  move => s C es tf HBasic HType.
+  dependent induction HType; basic_inversion => //.
+  + replace (to_b_list (to_e_list bes)) with bes => //.
+    by apply b_e_elim.
+  + rewrite to_b_list_concat.
+    apply basic_concat in HBasic.
+    move/andP in HBasic.
+    destruct HBasic as [Hbes Hbe].
+    eapply bet_composition.
+    * by eapply IHHType1 => //.
+    * by eapply IHHType2 => //.
+  + apply IHHType in HBasic.
+    by eapply bet_subtyping; eauto.
+Qed.
+
 Definition e_principal_typing (s: store_record) (C: t_context) (e: administrative_instruction) (tf: instr_type) : Prop :=
   match e with
   | AI_basic b =>
@@ -538,45 +621,40 @@ Qed.
 Lemma Value_typing_inversion: forall s C v ts1 ts2,
     e_typing s C [::v_to_e v] (Tf ts1 ts2) ->
     exists t, (Tf nil [::t]) <ti: (Tf ts1 ts2) /\
-           value_typing s v = Some t.
+           value_typing s v t.
 Proof.
   move => s C v ts1 ts2 HType.
+  Opaque instr_subtyping.
   destruct v; simpl in HType; try (apply et_to_bet in HType; last done); simpl in HType; invert_be_typing; simpl in *; subst.
-  - exists (T_num (typeof_num v)).
-    unfold instr_subtyping in *; extract_premise.
-    split => //.
-    by exists extr, extr0, nil, extr2; rewrite cats0.
-  - exists (T_vec (typeof_vec v)).
-    unfold instr_subtyping in *; extract_premise.
-    split => //.
-    by exists extr, extr0, nil, extr2; rewrite cats0.
+  - exists (T_num (typeof_num v)); split => //.
+    by destruct v.
+  - exists (T_vec (typeof_vec v)); split => //.
+    by destruct v.
   (* ref -- slightly annoying, since one is basic and the other ones are not *)
   - destruct v; simpl in *.
     (* ref_null *)
     + apply et_to_bet in HType; last done; simpl in *.
       invert_be_typing.
-      unfold instr_subtyping in *; extract_premise.
       exists (T_ref r); split => //.
-      by exists extr, extr0, nil, extr2; rewrite cats0.
+      by destruct r.
     (* ref *)
-    + apply e_typing_inversion in HType; simpl in *; unfold instr_subtyping in *.
+    + apply e_typing_inversion in HType; simpl in *.
       extract_premise.
-      rewrite Hconjr.
-      exists (T_ref T_funcref).
-      split => //.
-      by exists extr, extr1, nil, extr3; rewrite cats0.
+      eexists; split; eauto.
+      unfold value_typing => /=.
+      by rewrite Hconjr.
     (* ref_extern *)
-    + apply e_typing_inversion in HType; simpl in *; unfold instr_subtyping in *.
+    + apply e_typing_inversion in HType; simpl in *.
       extract_premise.
       exists (T_ref T_externref).
-      split => //.
-      by exists extr, extr0, nil, extr2; rewrite cats0.
+      by split => //.
+  Transparent instr_subtyping.
 Qed.
 
 Lemma Values_typing_inversion: forall s C vs ts1 ts2,
     e_typing s C (v_to_e_list vs) (Tf ts1 ts2) ->
     exists ts, (Tf nil ts) <ti: (Tf ts1 ts2) /\
-           values_typing s vs = Some ts.
+           values_typing s vs ts.
 Proof.
   move => s C; elim => /=.
   - move => tx ty Htype.
@@ -590,53 +668,51 @@ Proof.
     apply IH in Het2; unfold instr_subtyping in *; extract_premise; resolve_subtyping.
     apply values_subtyping_split2 in Hconjl1; remove_bools_options.
     exists (t :: extr).
-    split.
-    + exists extr0, (take (size extr1) extr5), nil, ((drop (size extr1) extr5) ++ extr7); repeat split; resolve_subtyping => //.
-      * by rewrite cats0.
-      * by rewrite catA cat_take_drop.
-      * rewrite -cat1s values_subtyping_cat; first by erewrite values_subtyping_trans; eauto.
-        apply values_subtyping_size in H0, Hconjr2.
-        by lias.
-    + unfold values_typing.
-      rewrite - those_those0 => /=.
-      rewrite Hvt.
-      rewrite those_those0.
-      fold (values_typing s vs).
-      by rewrite Hconjr.
+    split; last by lias.
+    exists extr0, (take (size extr1) extr5), nil, ((drop (size extr1) extr5) ++ extr7); repeat split; resolve_subtyping => //.
+    + by rewrite cats0.
+    + by rewrite catA cat_take_drop.
+    + rewrite -cat1s values_subtyping_cat; first by erewrite values_subtyping_trans; eauto.
+      apply values_subtyping_size in H0, Hconjr2.
+      by lias.
 Qed.
 
 (* In Wasm 2.0, values are no longer always well-typed, and typing needs to be done under e_typing. *)
 Lemma et_value_typing: forall s C v t,
-    value_typing s v = Some t ->
+    value_typing s v t ->
     e_typing s C [::v_to_e v] (Tf nil [::t]).
 Proof.
   move => s C v t Hvt.
-  destruct v as [| | v]=> /=; simpl in *; try injection Hvt as <-; try by apply ety_a' => //=; constructor.
-  destruct v as [| f | e] => /=; simpl in *; try injection Hvt as <-; try by apply ety_a' => //=; try by econstructor; eauto.
-  - remove_bools_options.
-    by eapply ety_ref; eauto.
-  - by apply ety_ref_extern.
+  destruct v as [| | v]=> /=; unfold value_typing in Hvt; remove_bools_options; simpl in *; try injection Hoption as <-.
+  - apply ety_a' => //=.
+    econstructor; first by econstructor.
+    apply instr_subtyping_weaken2 with (ty2 := [::T_num (typeof_num v)]); by resolve_subtyping.
+  - apply ety_a' => //=.
+    econstructor; first by econstructor.
+    apply instr_subtyping_weaken2 with (ty2 := [::T_vec (typeof_vec v)]); by resolve_subtyping.
+  - destruct v as [| f | e] => /=; simpl in *; try injection Hoption as <-; remove_bools_options.
+    + apply ety_a' => //=.
+      econstructor; first by econstructor.
+      apply instr_subtyping_weaken2 with (ty2 := [::T_ref r]); by resolve_subtyping.
+    + eapply ety_subtyping; first by eapply ety_ref; eauto.
+      apply instr_subtyping_weaken2 with (ty2 := [::T_ref T_funcref]); by resolve_subtyping.
+    + eapply ety_subtyping; first by eapply ety_ref_extern; eauto.
+      apply instr_subtyping_weaken2 with (ty2 := [::T_ref T_externref]); by resolve_subtyping.
 Qed.
 
 Lemma et_values_typing: forall s C vs ts,
-    values_typing s vs = Some ts ->
+    values_typing s vs ts ->
     e_typing s C (v_to_e_list vs) (Tf nil ts).
 Proof.
   move => s C; elim => /=.
-  - move => ts Hvts; cbn in Hvts.
-    injection Hvts as <-.
+  - move => ts Hvts; destruct ts => //.
     apply ety_a' => //=. by apply bet_empty.
-  - move => v vs IH ts Hvts.
-    unfold values_typing in Hvts.
-    rewrite - those_those0 in Hvts.
-    cbn in Hvts.
-    remove_bools_options.
+  - move => v vs IH ts Hvts; remove_bools_options.
     rewrite -cat1s.
     apply et_composition' with (t2s := [::v0]); first by apply et_value_typing.
-    rewrite <- (cat1s v0 l).
-    apply et_weakening_empty_1.
-    apply IH.
-    by rewrite those_those0 in Hoption0.
+    rewrite <- (cat1s v0 cons_l).
+    eapply ety_subtyping; first by eapply IH; eauto.
+    by resolve_subtyping.
 Qed.
 
 End Typing_inversion_e.
@@ -719,7 +795,7 @@ Lemma global_type_reference: forall s i j C v t,
     inst_typing s i = Some C ->
     sglob_val s i j = Some v ->
     option_map tg_t (lookup_N (tc_globals C) j) = Some t ->
-    exists t', value_typing s v = Some t' /\ t' <t: t.
+    value_typing s v t.
 Proof.
   move => s i j C v t Hst HInstType Hvref Htref.
   unfold sglob_val in Hvref.
@@ -744,8 +820,7 @@ Proof.
     rewrite Hoption1 in Hoption8.
     injection Hoption8 as <-.
     rewrite Hoption0 in Hoption5.
-    injection Hoption5 as <-.
-    by exists v; rewrite Hoption9 => /=.
+    by injection Hoption5 as <-.
   }
 Qed.
 
