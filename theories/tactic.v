@@ -25,6 +25,7 @@ Ltac simplify_lists :=
     | rewrite size_take
     | rewrite size_drop
     | rewrite size_rev
+    | rewrite size_cat
     | rewrite v_to_e_size
     | rewrite rev_cat
     | rewrite rev_cons -cats1
@@ -44,6 +45,9 @@ Ltac simplify_lists :=
   repeat lazymatch goal with
   | |- context C [[::] ++ _] => rewrite cat0s
   | |- context C [_ ++ [::]] => rewrite cats0
+  | |- context C [_ + ?n - ?n] => rewrite addnK
+  | |- context C [size (_ ++ _)] => rewrite size_cat
+  | |- context C [take (size ?l) (?l ++ _)] => rewrite take_size_cat
   | |- context C [rcons _ _] => rewrite -cats1
   | |- context C [(_ ++ _) ++ _] => rewrite -catA
   | |- context C [rev [::]] => rewrite rev0

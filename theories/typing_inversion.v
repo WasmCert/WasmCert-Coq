@@ -715,6 +715,25 @@ Proof.
     by resolve_subtyping.
 Qed.
 
+(* Helpers for more efficiently dealing with these due to subtyping *)
+Lemma et_value_typing': forall s C v t tf,
+    value_typing s v t ->
+    (Tf nil [::t]) <ti: tf ->
+    e_typing s C [::v_to_e v] tf.
+Proof.
+  move => s C v t [tx ty] Hvaltype Hsub.
+  eapply ety_subtyping; eauto; by apply et_value_typing; eauto.
+Qed.
+
+Lemma et_values_typing': forall s C vs ts tf,
+    values_typing s vs ts ->
+    (Tf nil ts) <ti: tf ->
+    e_typing s C (v_to_e_list vs) tf.
+Proof.
+  move => s C v t [tx ty] Hvaltype Hsub.
+  eapply ety_subtyping; eauto; by apply et_values_typing; eauto.
+Qed.
+
 End Typing_inversion_e.
 
 Ltac invert_e_typing :=

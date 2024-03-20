@@ -95,7 +95,7 @@ Proof.
   rewrite size_takel in H => //.
   by rewrite size_takel in H0.
 Qed.
-  
+
 Lemma func_subtyping_eq: forall tf,
     tf <tf: tf.
 Proof.
@@ -143,6 +143,39 @@ Proof.
   by (do 2 (eapply values_subtyping_trans; eauto)).
 Qed.
 
+(* All the subtyping relations are preorders *)
+#[global]
+Instance value_sub_preorder: RelationClasses.PreOrder value_subtyping.
+Proof.
+  constructor.
+  - move => x. by apply value_subtyping_eq.
+  - move => ???. by apply value_subtyping_trans.
+Qed.
+
+#[global]
+Instance values_sub_preorder: RelationClasses.PreOrder values_subtyping.
+Proof.
+  constructor.
+  - move => x. by apply values_subtyping_eq.
+  - move => ???. by apply values_subtyping_trans.
+Qed.
+
+#[global]
+Instance func_sub_preorder: RelationClasses.PreOrder func_subtyping.
+Proof.
+  constructor.
+  - move => x. by apply func_subtyping_eq.
+  - move => ???. by apply func_subtyping_trans.
+Qed.
+
+#[global]
+Instance instr_sub_preorder: RelationClasses.PreOrder instr_subtyping.
+Proof.
+  constructor.
+  - move => x. by apply instr_subtyping_eq.
+  - move => x y z. by apply instr_subtyping_trans.
+Qed.
+
 Lemma values_subtyping_cat_suffix: forall ts1 ts2 ts3 ts4 tx ty n,
     ts1 ++ ts2 = ts3 ++ ts4 ->
     (tx <ts: ts2) ->
@@ -188,14 +221,88 @@ Proof.
   by unfold values_subtyping => /=; lias.
 Qed.
 
+Lemma instr_subtyping_empty_impl: forall ts1 ts2,
+    ts1 <ts: ts2 ->
+    (Tf nil nil <ti: Tf ts1 ts2).
+Proof.
+  intros.
+  exists ts1, ts2, nil, nil.
+  by repeat rewrite cats0.
+Qed.
+
+Lemma instr_subtyping_empty_impl': forall ts1 ts2,
+    (Tf nil nil <ti: Tf ts1 ts2) -> 
+    ts1 <ts: ts2.
+Proof.
+  intros.
+  unfold instr_subtyping in H.
+  destruct H as [ts [ts' [sub1 [sub2 [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  destruct sub1, sub2 => //.
+  by repeat rewrite cats0.
+Qed.
+
+Lemma instr_subtyping_empty1_impl: forall ts ts1 ts2,
+    ((ts1 ++ ts) <ts: ts2) ->
+    (Tf nil ts <ti: Tf ts1 ts2).
+Proof.
+  intros.
+  apply values_subtyping_split2 in H; remove_bools_options.
+  exists ts1, (take (size ts1) ts2), nil, (drop (size ts1) ts2).
+  rewrite cats0.
+  repeat split => //.
+  by rewrite cat_take_drop.
+Qed.
+
+Lemma instr_subtyping_empty1_impl': forall ts ts1 ts2,
+    (Tf nil ts <ti: Tf ts1 ts2) ->
+    ((ts1 ++ ts) <ts: ts2).
+Proof.
+  intros.
+  unfold instr_subtyping in H.
+  destruct H as [ts0 [ts' [sub1 [sub2 [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  destruct sub1 => //.
+  rewrite cats0.
+  rewrite values_subtyping_cat; first by lias.
+  by apply all2_size in Hsub1.
+Qed.
+
+Lemma values_subtyping_weaken: forall ts1 ts2 ts,
+    (ts1 <ts: ts2) ->
+    ((ts ++ ts1) <ts: (ts ++ ts2)).
+Proof.
+  intros.
+  rewrite values_subtyping_cat => //.
+  rewrite H.
+  by rewrite values_subtyping_eq.
+Qed.
+
+Lemma instr_subtyping_weaken: forall ts1 ts2 ts3 ts4 ts,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    (Tf ts1 ts2 <ti: Tf (ts ++ ts3) (ts ++ ts4)).
+Proof.
+  intros; unfold instr_subtyping in *.
+  destruct H as [ts0 [ts' [sub1 [sub2 [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  exists (ts ++ ts0), (ts ++ ts'), sub1, sub2; repeat split => //; try by rewrite catA.
+  by apply values_subtyping_weaken.
+Qed.
+  
 (* Trying to resolve subtyping goals in a non-breaking way. A different tactic is provided below that performs more destructive unfolds on instr and func subtyping relations. *)
 Ltac resolve_subtyping :=
   repeat match goal with
+  (* Simple cleaning and rewriting *)
   | H: is_true ?b |-
       context [ ?b ] =>
       rewrite H => /=
   | H: is_true true |- _ => clear H
   | H: ?x = ?x |- _ => clear H
+  | H: is_true (_ && true) |- _ => move/andP in H; destruct H as [H _]
+  | |- context [_ && true] => rewrite andb_true_r
+
+  (* Instruction subtyping with nils *)
+  | |- (Tf nil nil <ti: Tf ?ts1 ?ts2) =>
+    apply instr_subtyping_empty_impl
+  | H: Tf nil nil <ti: Tf ?ts1 ?ts2 |- _ =>
+    apply instr_subtyping_empty_impl' in H
 
   (* Resolving top-level types *)
   | H: is_true (T_num ?t <t: ?t') |- _ =>
@@ -541,6 +648,21 @@ Proof.
   unfold value_typing.
   move => s v t t' Hvaltype Hsub; remove_bools_options.
   by resolve_subtyping.
+Qed.
+
+Lemma values_typing_trans: forall s vs ts1 ts2,
+    values_typing s vs ts1 ->
+    ts1 <ts: ts2 ->
+    values_typing s vs ts2.
+Proof.
+  intros s vs ts1 ts2 Hvt Hsub.
+  unfold values_typing in *.
+  apply all2_spec; first by apply values_subtyping_size in Hsub; apply all2_size in Hvt; lias.
+  move => n v vt Hnth1 Hnth2.
+  eapply all2_nth_impl in Hvt; eauto.
+  destruct Hvt as [vt' [Hnth3 Hvt']].
+  eapply all2_projection in Hsub; eauto.
+  by eapply value_typing_trans; eauto.
 Qed.
 
 End Host.
