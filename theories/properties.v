@@ -1059,22 +1059,31 @@ Proof.
   by apply all2_size in H.
 Qed.
 
+Lemma all2_rev {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2:
+    all2 f l1 l2 ->
+    all2 f (rev l1) (rev l2).
+Proof.
+  move: l2.
+  induction l1 using last_ind; move => ts Hvt => /=.
+  - by destruct ts.
+  - destruct ts using last_ind.
+    + by apply all2_size in Hvt; rewrite size_rcons in Hvt.
+    + clear IHts.
+      repeat rewrite rev_rcons => /=.
+      repeat rewrite -cats1 in Hvt.
+      assert (size l1 = size ts) as Hsize; first by apply all2_size in Hvt; repeat rewrite size_cat in Hvt; simpl in *; lias.
+      rewrite all2_cat in Hvt => //.
+      remove_bools_options; simpl in *; remove_bools_options.
+      rewrite H0 => /=.
+      by apply IHl1.
+Qed.
+  
 Lemma values_typing_rev: forall s vs ts,
     values_typing s (rev vs) ts ->
     values_typing s vs (rev ts).
 Proof.
-  move => s vs.
-  induction vs using last_ind; move => ts Hvt; destruct ts => //=.
-  - apply all2_size in Hvt; by rewrite size_rev size_rcons in Hvt.
-  - repeat rewrite - cats1 in Hvt.
-    rewrite rev_cat in Hvt.
-    simpl in *; remove_bools_options.
-    rewrite rev_cons.
-    repeat rewrite -cats1.
-    rewrite values_typing_cat => //.
-    + by apply IHvs.
-    + simpl.
-      by rewrite H.
+  move => s vs ts Hvt.
+  apply all2_rev in Hvt; by rewrite revK in Hvt.
 Qed.
 
 Lemma default_value_typing: forall s t v,

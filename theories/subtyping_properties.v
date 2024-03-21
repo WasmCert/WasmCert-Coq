@@ -1,3 +1,5 @@
+(* Lemmas and Tactics for dealing with subtypings *)
+
 From Wasm Require Export operations properties.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Bool Program NArith ZArith Wf_nat.
@@ -221,6 +223,7 @@ Proof.
   by unfold values_subtyping => /=; lias.
 Qed.
 
+(* It is generally a really bad idea to unfold instruction subtyping definition due to its complexity. Instead, it is much better to prove lemmas for any use cases. *)
 Lemma instr_subtyping_empty_impl: forall ts1 ts2,
     ts1 <ts: ts2 ->
     (Tf nil nil <ti: Tf ts1 ts2).
@@ -574,6 +577,44 @@ Proof.
   destruct Hsub as [Hsub _] => //.
   uapply Hsub; do 2 f_equal => /=.
   by rewrite subn0 take_size.
+Qed.
+
+Lemma instr_subtyping_size_bound: forall ts1 ts2 ts3 ts4,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    size ts1 <= size ts3 /\ size ts2 <= size ts4.
+Proof.
+  intros.
+  simplify_subtyping.
+  apply values_subtyping_size in Hconjl2.
+  apply values_subtyping_size in Hconjr0.
+  repeat rewrite size_cat.
+  by lias.
+Qed.
+
+Lemma instr_subtyping_size_exact: forall ts1 ts2 ts3 ts4,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    size ts1 + size ts4 = size ts2 + size ts3.
+Proof.
+  intros.
+  simplify_subtyping.
+  apply values_subtyping_size in Hconjl1.
+  apply values_subtyping_size in Hconjl2.
+  apply values_subtyping_size in Hconjr0.
+  repeat rewrite size_cat.
+  by lias.
+Qed.
+
+Lemma instr_subtyping_consumed_rev_prefix: forall ts1 ts2 ts3 ts4,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    exists ts_prefix, rev ts3 = (ts_prefix ++ (drop (size ts1) (rev ts3))) /\
+              (ts_prefix <ts: rev ts1).
+Proof.
+  move => ts1 ts2 ts3 ts4 Htisub.
+  exists (take (size ts1) (rev ts3)); split; first by rewrite cat_take_drop.
+  simplify_subtyping.
+  rewrite rev_cat.
+  rewrite take_size_cat; last by rewrite size_rev; apply values_subtyping_size in Hconjl2.
+  by apply all2_rev.
 Qed.
 
 Ltac unify_principal :=

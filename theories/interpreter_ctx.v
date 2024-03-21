@@ -165,7 +165,7 @@ Ltac invert_ctx_typing Hetype0 :=
     let Hetype := fresh "Hetype" in
     apply e_typing_ops in Hetype0 as [? [vts [ts' [Hvtstype Hetype]]]]
   end;
-  simpl in *; invert_e_typing.
+  simpl in *; invert_e_typing; remove_bools_options.
 
 (** The usual start of a crash certification **)
 Ltac resolve_invalid_typing :=
@@ -205,32 +205,33 @@ Ltac get_cc ccs :=
   let ccs' := fresh "ccs'" in 
   destruct ccs as [ | [fc lcs] ccs']; first by apply RSC_invalid => /=; unfold valid_ccs; move => [??].
 
+(* Note that this destroys the original premises, so should only be used as a terminal most of time. *)
+Ltac discriminate_size :=
+  repeat match goal with
+  | H: is_true (values_typing _ _ _) |- _ =>
+    apply values_typing_size in H
+  | H: Tf _ _ <ti: Tf _ _ |- _ =>
+    let Hsize_add := fresh "Hsize_add" in
+    let Hsize_bound1 := fresh "Hsize_bound1" in
+    let Hsize_bound2 := fresh "Hsize_bound2" in
+    specialize (instr_subtyping_size_exact H) as Hsize_add;
+    apply instr_subtyping_size_bound in H as [Hsize_bound1 Hsize_bound2]; clear H
+  | H: context C [length _] |- _ =>
+    rewrite length_is_size in H
+  | H: context C [size (rev _)] |- _ =>
+    rewrite size_rev in H
+  | H: context C [size (cat _ _)] |- _ =>
+    rewrite size_cat in H
+  | H: is_true (all2 _ _ _) |- _ =>
+    apply all2_size in H
+  | H: List.nth_error _ _ = Some _ |- _ =>
+    apply nth_error_Some_length in H
+  | H: List.nth_error _ _ = None |- _ =>
+    apply List.nth_error_None in H
+  | _ => unfold lookup_N in *; simplify_lists; simpl in *; subst; try by lias
+    end.
+
 Definition empty_label_ctx := Build_label_ctx nil 0 nil nil.
-
-Lemma instr_subtyping_size_bound: forall ts1 ts2 ts3 ts4,
-    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
-    size ts1 <= size ts3 /\ size ts2 <= size ts4.
-Proof.
-  intros.
-  simplify_subtyping.
-  apply values_subtyping_size in Hconjl2.
-  apply values_subtyping_size in Hconjr0.
-  repeat rewrite size_cat.
-  by lias.
-Qed.
-
-Lemma instr_subtyping_size_exact: forall ts1 ts2 ts3 ts4,
-    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
-    size ts1 + size ts4 = size ts2 + size ts3.
-Proof.
-  intros.
-  simplify_subtyping.
-  apply values_subtyping_size in Hconjl1.
-  apply values_subtyping_size in Hconjl2.
-  apply values_subtyping_size in Hconjr0.
-  repeat rewrite size_cat.
-  by lias.
-Qed.
 
 Opaque instr_subtyping.
 
@@ -288,13 +289,7 @@ Proof.
       rewrite cats0 in Hconjr.
       eapply all2_projection in Hagree; eauto.
       move/eqP in Hagree; simpl in Hagree; subst.
-      apply values_typing_size in Hvstype.
-      repeat rewrite -> length_is_size in *.
-      rewrite length_is_size in Hvslen.
-      rewrite size_rev in Hvstype.
-      apply instr_subtyping_size_bound in Htisub as [??].
-      rewrite size_cat in H.
-      by lias.
+      by discriminate_size.
       
   - (* Not enough labels *)
     apply RSC_error.
@@ -313,13 +308,7 @@ Proof.
     destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
     erewrite -> inst_t_context_label_empty in *; eauto.
     rewrite -> cats0 in *.
-    apply all2_size in Hagree.
-    apply List.nth_error_None in Htar.
-    rewrite length_is_size in Htar.
-    unfold lookup_N in *.
-    apply nth_error_Some_length in Hconjr.
-    rewrite length_is_size Hagree in Hconjr.
-    by lias.
+    by discriminate_size.
 Defined.
 
 (** Return exits from the innermost frame and all label contexts. **)
@@ -343,21 +332,8 @@ Proof.
   - (* Not enough values *)
     resolve_invalid_typing.
     simpl in *; injection Hconjr as ->.
-    apply values_typing_size in Hvtstype.
-    apply instr_subtyping_size_bound in Htisub as [Hsz ?].
-    rewrite size_cat in Hsz.
-    rewrite size_rev in Hvtstype.
-    repeat rewrite length_is_size in Hvslen.
-    by lias.
+    by discriminate_size.
 Defined.
-
-(*
-Ltac discriminate_size :=
-  repeat match goal with
-  | H: is_true (values_typing _ _ _) |- _ =>
-    apply values_typing_size in H
-  | H: tf <
-*)
 
 (** Invoke does not need a frame context. 
     This is useful for handling the starting invocation of a module, as the execution otherwise always assumes
@@ -405,11 +381,7 @@ Proof.
         resolve_invalid_typing.
         unfold ext_func_typing in Hconjr.
         remove_bools_options; simpl in *.
-        apply values_typing_size in Hvtstype.
-        apply instr_subtyping_size_bound in Htisub as [??].
-        rewrite size_rev in Hvtstype.
-        repeat rewrite length_is_size in Hlen.
-        by lias.
+        by discriminate_size.
     + (* FC_func_host (Tf t1s t2s) cl' *)
       remember (length t1s) as n eqn:?.
       remember (length t2s) as m eqn:?.
@@ -461,49 +433,100 @@ Proof.
     by rewrite size_rev size_takel => //.
     * (* false *)
       resolve_invalid_typing.
-      unfold ext_func_typing in H3_invoke.
+      unfold ext_func_typing in Hconjr.
       remove_bools_options; simpl in *.
-      inversion H0; subst; clear H0.
-      apply values_typing_length in Hvtstype.
-      repeat rewrite length_is_size in Hvtstype.
-      rewrite size_cat size_rev in Hvtstype.
-      repeat rewrite length_is_size in Hlen.
-      by lias.
+      by discriminate_size.
   - (* None *)
     resolve_invalid_typing.
-    unfold ext_func_typing in H3_invoke.
+    unfold ext_func_typing in Hconjr.
     by remove_bools_options; simpl in *.
 Defined.
 
+(* Lemma for eliminating subtypes *)
+Lemma operand_subtyping: forall s ops ops0 vts ts1 ts2 ts',
+  values_typing s (rev (ops ++ ops0)) vts ->
+  (Tf ts1 ts2 <ti: Tf vts ts') ->
+  size ops = size ts1 ->
+  values_typing s ops (rev ts1).
+Proof.
+  move => s ops ops0 vts ts1 ts2 ts' Hvt Hsub Hsize.
+  apply values_typing_rev in Hvt.
+  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
+  rewrite Heqrev in Hvt.
+  unfold values_typing in Hvt.
+  rewrite all2_cat in Hvt; remove_bools_options; first by eapply values_typing_trans; eauto.
+  apply values_subtyping_size in Hsub.
+  by rewrite size_rev in Hsub; lias.
+Qed.
+
+(* Instances for tactic *)
+Lemma operand_subtyping1: forall s v1 ops0 vts t1 ts2 ts',
+  values_typing s (rev (v1 :: ops0)) vts ->
+  (Tf [::t1] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1] [::t1].
+Proof.
+  intros ??????? Hvt Hsub.
+  rewrite -cat1s in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping2: forall s v1 v2 ops0 vts t1 t2 ts2 ts',
+  values_typing s (rev (v1 :: v2 :: ops0)) vts ->
+  (Tf [::t1; t2] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1; v2] [::t2; t1].
+Proof.
+  intros ????????? Hvt Hsub.
+  rewrite -(cat1s v1) -(cat1s v2) catA in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping3: forall s v1 v2 v3 ops0 vts t1 t2 t3 ts2 ts',
+  values_typing s (rev (v1 :: v2 :: v3 :: ops0)) vts ->
+  (Tf [::t1; t2; t3] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1; v2; v3] [::t3; t2; t1].
+Proof.
+  intros ??????????? Hvt Hsub.
+  rewrite -(cat1s v1) -(cat1s v2) -(cat1s v3) catA catA in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma value_typing_ref_impl: forall s v t,
+  value_typing s (VAL_ref v) t ->
+  exists tref, t = T_ref tref.
+Proof.
+  move => s v t Hvt.
+  unfold value_typing in Hvt; remove_bools_options.
+  simpl in *; remove_bools_options.
+  apply ref_subtyping in Hvt; subst.
+  by eexists.
+Qed.
+
 Ltac resolve_invalid_value :=
   repeat match goal with
-  | H: values_typing _ (rev (?v :: _)) = Some _ |- _ =>
-    apply values_typing_rev in H
-  | H: values_typing _ (_ :: _) = Some (rev (?l1 ++ ?l2 ++ [::?t])) |- _ =>
-    rewrite (catA l1 l2 [::t]) in H
-  | H: values_typing _ (_ :: _) = Some (rev (?l ++ [::?t])) |- _ =>
-    rewrite cats1 rev_rcons in H
-  | H: values_typing _ (_ :: _) = Some (_ :: _) |- _ =>
-    apply values_typing_cons_impl in H as [??];
-    simpl in *;
-    remove_bools_options => //
-  | H: values_typing _ (_ :: _ :: _) = Some (rev (?l ++ _)) |- _ =>
-    rewrite rev_cat in H;
-    apply values_typing_cons_impl in H as [??];
-    simpl in *;
-    remove_bools_options => //
+  | Hvaltype : is_true (values_typing _ (rev (_ :: _)) _),
+    Hsub: (Tf [::_] _ <ti: _) |- _ =>
+      specialize (operand_subtyping1 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
+  | Hvaltype : is_true (values_typing _ (rev (_ :: _ :: _)) _),
+    Hsub: (Tf [::_; _] _ <ti: _) |- _ =>
+      specialize (operand_subtyping2 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
+  | Hvaltype : is_true (values_typing _ (rev (_ :: _ :: _ :: _)) _),
+    Hsub: (Tf [::_; _; _] _ <ti: _) |- _ =>
+      specialize (operand_subtyping3 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
+  | Hvaltype : is_true (value_typing _ (VAL_ref _) (T_num _)) |- _ =>
+      apply value_typing_ref_impl in Hvaltype as [? Hteq] => //
+  | Hvaltype : is_true (value_typing _ (VAL_num _) (T_num _)) |- _ =>
+      unfold value_typing in Hvaltype; simpl in Hvaltype; remove_bools_options => //
+  | _ => simpl in *; remove_bools_options; subst => //
 end.
 
-Ltac assert_value_type v :=
-  move: v; case => v;
-  try by resolve_invalid_typing; resolve_invalid_value.
+Ltac discriminate_value_type :=
+  resolve_invalid_typing; resolve_invalid_value.
+
+Ltac assert_value_num v :=
+  destruct v as [v | |]; [ | by discriminate_value_type | by discriminate_value_type].
 
 Ltac no_args :=
-  resolve_invalid_typing;
-  repeat match goal with
-    | Hvtstype : values_typing _ _ = Some _ |- _ =>
-      by apply values_typing_length in Hvtstype; size_unequal Hvtstype
-    end.
+  resolve_invalid_typing; discriminate_size.
 
 Notation "$u32oz v" := (Wasm_int.int_of_Z i32m v) (at level 90).
 Notation "$zou32 v" := (Wasm_int.Z_of_uint i32m v) (at level 90).
@@ -557,11 +580,9 @@ Proof.
             rewrite -cat1s in Hetype.
             unfold vs_to_es in Hetype.
             invert_e_typing.
-            inversion H2_frame as [??????? Hftype ? Hetype Hvstype]; subst; clear H2_frame.
+            inversion Hconjl0 as [??????? Hftype ? Hetype Hvstype]; subst; clear Hconjl0.
             invert_e_typing.
-            apply values_typing_length in H2_values0.
-            rewrite - H2_values0 in Hlen.
-            by repeat rewrite length_is_size in Hlen; rewrite size_rev in Hlen.
+            by discriminate_size.
           }
         }
       }
@@ -650,16 +671,16 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic (BI_unop t op) *)
       destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_num v.
       (* v :: ves' *)
-      assert_value_type v.
       apply <<hs, (s, ccs, (VAL_num (app_unop op v) :: vs0, es0), None)>>.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_unop.
 
     - (* AI_basic (BI_binop t op) *)
       destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
-      assert_value_type v2.
-      assert_value_type v1.
+      assert_value_num v2.
+      assert_value_num v1.
       (* [:: v2, v1 & ves'] *)
       destruct (app_binop op v1 v2) as [v|] eqn:?.
       + (* Some v *)
@@ -674,7 +695,7 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic (BI_testop t testop) *)
       destruct vs0 as [| v vs0]; first by no_args.
       (* v :: ves' *)
-      assert_value_type v.
+      assert_value_num v.
       destruct t as [| | |].
       3,4: by resolve_invalid_typing; last_unequal H1_testop.
       (* i32 *)
@@ -692,8 +713,8 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic (BI_relop t op) *)
       destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
-      assert_value_type v2.
-      assert_value_type v1.
+      assert_value_num v2.
+      assert_value_num v1.
       (* [:: v2, v1 & ves'] *)
       apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (@app_relop op v1 v2))) :: vs0, es0), None)>>.
       resolve_reduce_ctx vs0 es0.
@@ -701,9 +722,9 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v.
+      assert_value_num v.
       (* v :: ves' *)
-      destruct (types_agree (T_num t1) (VAL_num v)) eqn:Ht1.
+      destruct (typeof_num v == t1) eqn:Ht1; move/eqP in Ht1.
       + (* true *)
         destruct (cvtop_valid t2 cvtop t1 sx) eqn:Hcvtvalid.
         * (* true *)
@@ -721,9 +742,8 @@ the condition that all values should live in the operand stack. *)
         * (* false *)
           by resolve_invalid_typing; lias.
       + (* false *)
-        resolve_invalid_typing. resolve_invalid_value.
-        unfold types_agree, value_num_typing in *; simpl in *.
-        by move/eqP in Ht1.
+        discriminate_value_type.
+        apply num_subtyping in H; by inversion H; subst.
 
     - (* AI_basic BI_const_vec v *)
       apply RSC_invalid => /=; by move => [??].
@@ -733,7 +753,7 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic BI_ref_is_null *)
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v.
+      assert_value_num v.
       destruct v as [ v | v | v ].
       (* ref_null *)
       + apply <<hs, (s, ccs, ((VAL_num (VAL_int32 Wasm_int.Int32.one)) :: vs0, es0), None)>>.
@@ -774,7 +794,7 @@ the condition that all values should live in the operand stack. *)
       destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
 
       (* v3 has to be i32, but the other two can be of any numeric type. Note that neitehr the spec nor the opsem checks for this during runtime *)
-      assert_value_type v3.
+      assert_value_num v3.
       destruct v3 as [c| | |] eqn:?; subst.
       (* Conclude a contradiction by comparing the last element. However, `last` computes very badly *)
       2,3,4: resolve_invalid_typing; simpl in *; resolve_invalid_value. 
@@ -872,8 +892,8 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic (BI_table_get x) *)
       get_cc ccs.
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v.
-      assert_value_type v.
+      assert_value_num v.
+      assert_value_num v.
       destruct (stab_elem s fc.(FC_frame).(f_inst) x ($nou32 v)) as [tabv|] eqn:Hstab.
       + (* Some xx *)
         apply <<hs, (s, (fc, lcs) :: ccs', ((VAL_ref tabv) :: vs0, es0), None)>>.
@@ -889,8 +909,8 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
       (* v2 needs to be a ref and v1 needs to be a i32 num *)
-      assert_value_type v2.
-      assert_value_type v1; assert_value_type v1.
+      assert_value_num v2.
+      assert_value_num v1; assert_value_num v1.
       destruct (stab_update s fc.(FC_frame).(f_inst) x ($nou32 v1) v2) as [s'|] eqn:Hsupdate.
       + (* Some xx *)
         apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
@@ -922,8 +942,8 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
       (* Takes an i32 and a reference value *)
-      assert_value_type v2; assert_value_type v2.
-      assert_value_type v1.
+      assert_value_num v2; assert_value_num v2.
+      assert_value_num v1.
       destruct (stab_grow s fc.(FC_frame).(f_inst) x ($nou32 v2) v1) as [[s' sz]|] eqn:Hstabgrow.
       + apply <<hs, (s', (fc, lcs) :: ccs', ((VAL_num (VAL_int32 ($u32oz (Z.of_nat sz)))) :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
@@ -937,9 +957,9 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
       (* Takes i32; val; i32 *)
-      assert_value_type v3; assert_value_type v3.
-      assert_value_type v2.
-      assert_value_type v1; assert_value_type v1.
+      assert_value_num v3; assert_value_num v3.
+      assert_value_num v2.
+      assert_value_num v1; assert_value_num v1.
       destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
       + (* Some xx *)
         destruct (Z.ltb (Z.of_nat (tab_size tab)) (($zou32 v1) + ($zou32 v3))) eqn:Hbound; move/Z.ltb_spec0 in Hbound.
@@ -976,9 +996,9 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
       (* Takes i32; i32; i32 *)
-      assert_value_type n; assert_value_type n.
-      assert_value_type src; assert_value_type src.
-      assert_value_type dst; assert_value_type dst.
+      assert_value_num n; assert_value_num n.
+      assert_value_num src; assert_value_num src.
+      assert_value_num dst; assert_value_num dst.
       destruct (stab s fc.(FC_frame).(f_inst) x) as [tabx|] eqn:Hstabx.
       + (* Some xx *)
         destruct (stab s fc.(FC_frame).(f_inst) y) as [taby|] eqn:Hstaby.
@@ -1052,9 +1072,9 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
       (* Takes i32; i32; i32 *)
-      assert_value_type n; assert_value_type n.
-      assert_value_type src; assert_value_type src.
-      assert_value_type dst; assert_value_type dst.
+      assert_value_num n; assert_value_num n.
+      assert_value_num src; assert_value_num src.
+      assert_value_num dst; assert_value_num dst.
       destruct (stab s fc.(FC_frame).(f_inst) x) as [tab|] eqn:Hstab.
       + (* Some xx *)
         destruct (selem s fc.(FC_frame).(f_inst) y) as [elem|] eqn:Hselem.
@@ -1163,7 +1183,7 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic (BI_load t ops (Some (tp, sx)) a off) *)
       get_cc ccs.    
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v; assert_value_type v.
+      assert_value_num v; assert_value_num v.
       (* VAL_int32 v :: ves' *)
       destruct (smem s fc.(FC_frame).(f_inst)) as [mem_s_j|] eqn:?.
       { (* Some mem_s_j *)
@@ -1204,8 +1224,8 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic (BI_store t (Some tp) a off) *)
       get_cc ccs. 
       destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
-      assert_value_type v1; assert_value_type v1.
-      assert_value_type v2.
+      assert_value_num v1; assert_value_num v1.
+      assert_value_num v2.
       destruct (typeof_num v2 == t) eqn:Heq; move/eqP in Heq; last by resolve_invalid_typing; resolve_invalid_value.
       destruct op as [tp | ].
       (* packed *)
@@ -1252,7 +1272,7 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic BI_memory_grow *)
       get_cc ccs.
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v; assert_value_type v.
+      assert_value_num v; assert_value_num v.
       destruct (smem_grow s fc.(FC_frame).(f_inst) ($nou32 v)) as [[s' sz] | ] eqn:Hsmem.
       + (* Some mem'' *)
         apply <<hs, (s', (fc, lcs) :: ccs', (VAL_num (VAL_int32 ($u32oz (Z.of_N sz))) :: vs0, es0), None)>>.
@@ -1267,9 +1287,9 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
       (* Takes i32; i32; i32 *)
-      assert_value_type v3; assert_value_type v3.
-      assert_value_type v2; assert_value_type v2.
-      assert_value_type v1; assert_value_type v1.
+      assert_value_num v3; assert_value_num v3.
+      assert_value_num v2; assert_value_num v2.
+      assert_value_num v1; assert_value_num v1.
       destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
       + (* Some *)
         destruct (Z.ltb (Z.of_nat (mem_length mem)) (Z.add ($zou32 v1) ($zou32 v3))) eqn:Hlt; move/Z.ltb_spec0 in Hlt.
@@ -1314,9 +1334,9 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
       (* Takes i32; i32; i32 *)
-      assert_value_type n; assert_value_type n.
-      assert_value_type src; assert_value_type src.
-      assert_value_type dst; assert_value_type dst.
+      assert_value_num n; assert_value_num n.
+      assert_value_num src; assert_value_num src.
+      assert_value_num dst; assert_value_num dst.
       destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
       + (* Some *)
         destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
@@ -1378,9 +1398,9 @@ the condition that all values should live in the operand stack. *)
       get_cc ccs.
       destruct vs0 as [|n [|src [|dst vs0]]]; try by no_args.
       (* Takes i32; i32; i32 *)
-      assert_value_type n; assert_value_type n.
-      assert_value_type src; assert_value_type src.
-      assert_value_type dst; assert_value_type dst.
+      assert_value_num n; assert_value_num n.
+      assert_value_num src; assert_value_num src.
+      assert_value_num dst; assert_value_num dst.
       destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
       + (* Some *)
         destruct (sdata s fc.(FC_frame).(f_inst) x) as [data|] eqn:Hsdata.
@@ -1575,7 +1595,7 @@ the condition that all values should live in the operand stack. *)
         
     - (* AI_basic (BI_if tb es1 es2) *)
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v;  assert_value_type v.
+      assert_value_num v;  assert_value_num v.
       destruct (v == Wasm_int.int_zero i32m) eqn:Heq0; move/eqP in Heq0.
       + (* true *)
         apply <<hs, (s, ccs, (vs0, es0), Some (AI_basic (BI_block bt es2)))>> => /=.
@@ -1591,7 +1611,7 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic (BI_br_if j) *)
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v; assert_value_type v.
+      assert_value_num v; assert_value_num v.
       destruct (v == Wasm_int.int_zero i32m) eqn:Heqc; move/eqP in Heqc.
       + (* 0 *)
         apply <<hs, (s, ccs, (vs0, es0), None)>> => /=.
@@ -1604,7 +1624,7 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic (BI_br_table js j) *)
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v; assert_value_type v.
+      assert_value_num v; assert_value_num v.
       destruct (N.ltb ($nou32 v) (N.of_nat (length js))) eqn:Hlen; move/N.ltb_spec0 in Hlen.
       + (* true *)
         destruct (lookup_N js ($nou32 v)) as [js_at_k|] eqn: Hnth.
@@ -1641,7 +1661,7 @@ the condition that all values should live in the operand stack. *)
     - (* AI_basic (BI_call_indirect x y) *)
       get_cc ccs.
       destruct vs0 as [|v vs0]; first by no_args.
-      assert_value_type v; assert_value_type v.
+      assert_value_num v; assert_value_num v.
       destruct (stab_elem s fc.(FC_frame).(f_inst) x ($nou32 v)) as [vref|] eqn:?.
       + (* Some a *)
         destruct vref as [t | a | a].
