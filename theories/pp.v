@@ -61,6 +61,7 @@ Definition pp_value_type (vt: value_type) : string :=
   | T_num t => pp_number_type t
   | T_vec t => pp_vector_type t
   | T_ref t => pp_reference_type t
+  | T_bot => "Bot" (* Should not happen *)
   end.
 
 Definition pp_value_types (vts : list value_type) : string :=
