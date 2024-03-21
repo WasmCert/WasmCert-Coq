@@ -108,8 +108,6 @@ Ltac simplify_multieq :=
      injection H as Hinj; try subst
     end.
 
-Search values_subtyping instr_subtyping.
-
 Ltac resolve_e_typing :=
   repeat lazymatch goal with
     (* This is usually required and should be applied at highest priority *)
@@ -891,7 +889,7 @@ Proof.
   unfold func_typing in *; destruct x; remove_bools_options.
   rewrite_context_extension.
   rewrite Hoption.
-  destruct f; destruct Hft as [-> Het]; split => //.
+  destruct f; destruct Hft as [-> [Het Hdefault]]; repeat split => //.
   eapply context_extension_be_typing; eauto.
   unfold context_extension in *; remove_bools_options; destruct C, C'; subst; by lias.
 Qed.
@@ -1789,7 +1787,7 @@ Proof.
     destruct extr as [ts1' ts2'].
     destruct Hft as [<- [Hvalid Hftype]].
     simpl in Hftype; remove_bools_options; destruct f0.
-    destruct Hftype as [Heq Hetype].
+    destruct Hftype as [Heq [Hetype _]].
     injection Heq as <- <-.
     unfold ext_func_typing in Hconjr.
     rewrite H in Hconjr; simpl in Hconjr; injection Hconjr as <- <-.

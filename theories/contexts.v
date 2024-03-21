@@ -842,7 +842,7 @@ Section Typing.
 Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
     e_typing s C0 (fc ⦃ es ⦄) tf ->
     exists C ret,
-      frame_typing s fc.(FC_frame) = Some C /\
+      frame_typing s fc.(FC_frame) C /\
         fc.(FC_arity) = (length ret) /\
         e_typing s (upd_return C (Some ret)) es (Tf nil ret).
 Proof.
@@ -850,8 +850,7 @@ Proof.
   rewrite - cat1s in Htype.
   unfold vs_to_es in Htype.
   invert_e_typing.
-  inversion Hextr0 as [??????? Hftype ? Hetype]; subst; clear Hextr0.
-  move/eqP in Hftype.
+  inversion Hconjl0 as [??????? Hftype ? Hetype]; subst; clear Hconjl0.
   by do 2 eexists; repeat split; eauto.
 Qed.
 
@@ -894,7 +893,7 @@ Qed.
 Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
     e_typing s C0 cc ⦃ es ⦄ tf ->
     exists C ret labs ts2,
-      frame_typing s (cc.1).(FC_frame) = Some C /\
+      frame_typing s (cc.1).(FC_frame) C /\
         (cc.1).(FC_arity) = (length ret) /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
@@ -909,7 +908,7 @@ Qed.
 Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
     e_typing s C0 (cc :: ccs) ⦃ es ⦄ tf ->
     exists C ret labs ts2,
-      frame_typing s (cc.1).(FC_frame) = Some C /\
+      frame_typing s (cc.1).(FC_frame) C /\
         (cc.1).(FC_arity) = length ret /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
@@ -940,7 +939,7 @@ Qed.
 Lemma sc_typing_args: forall (sc: seq_ctx) es s C ts0,
     e_typing s C (sc ⦃ es ⦄) (Tf nil ts0) ->
     exists vts ts2,
-      values_typing s (rev sc.1) = Some vts /\
+      values_typing s (rev sc.1) vts /\
       e_typing s C es (Tf vts ts2).
 Proof.
   move => [vs0 es0] es s C ts0 /=Htype.
@@ -948,6 +947,7 @@ Proof.
   invert_e_typing.
   exists ts_values, ts3_comp0; split => //.
   eapply ety_subtyping; eauto.
+  resolve_subtyping.
   simplify_subtyping.
   exists nil, nil, ts_values, ts3_comp0; by resolve_subtyping.
 Qed.
@@ -955,7 +955,7 @@ Qed.
 Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 ts0,
     e_typing s C0 (ccs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
     exists C' vts ts,
-      values_typing s (rev sc.1) = Some vts /\
+      values_typing s (rev sc.1) vts /\
       e_typing s C' es (Tf vts ts).
 Proof.
   move => ccs [vs0 es0] es s C0 ts0.
@@ -968,9 +968,9 @@ Qed.
 Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C0 tf,
     e_typing s C0 ((cc :: ccs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
     exists C C' ret labs vts ts,
-      values_typing s (rev sc.1) = Some vts /\
-      frame_typing s (cc.1).(FC_frame) = Some C /\
-        (cc.1).(FC_arity) = length ret/\
+      values_typing s (rev sc.1) vts /\
+      frame_typing s (cc.1).(FC_frame) C /\
+        (cc.1).(FC_arity) = length ret /\
         C' = (upd_label (upd_return C (Some ret)) labs) /\
         e_typing s C' es (Tf vts ts).
 Proof.

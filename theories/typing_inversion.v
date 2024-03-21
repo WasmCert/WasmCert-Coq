@@ -772,22 +772,6 @@ Section Typing_inversion_e.
 
 Context `{hfc: host_function_class}.
   
-Lemma store_typed_cl_typed: forall s n f,
-    lookup_N (s_funcs s) n = Some f ->
-    store_typing s ->
-    exists tf, funcinst_typing s f tf.
-Proof.
-  move => s n f HN HST.
-  unfold store_typing in HST.
-  destruct s => //=.
-  remove_bools_options.
-  simpl in HN.
-  destruct HST.
-  rewrite -> List.Forall_forall in H.
-  apply List.nth_error_In in HN.
-  by apply H in HN.
-Qed.
-
 (* inst_typing inversion *)
 Lemma inst_t_context_local_empty: forall s i C,
     inst_typing s i = Some C ->

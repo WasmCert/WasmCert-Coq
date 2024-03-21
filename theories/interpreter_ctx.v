@@ -27,20 +27,17 @@ Lemma config_typing_inv: forall s (f: frame) es ts,
     config_typing s (f, es) ts ->
     exists C,
       store_typing s /\
-      frame_typing s f = Some C /\
+      frame_typing s f C /\
       e_typing s C es (Tf [::] ts).
 Proof.
   move => s f es ts Htype; subst.
   destruct Htype as [Hstoretype Hthtype].
   inversion Hthtype as [s' f' es' ors rs C' Hstype Hftype ? Hetype]; subst; clear Hthtype.
-  move/eqP in Hftype.
-  exists C'.
-  repeat split => //.
-  uapply Hetype.
-  unfold upd_return, upd_local_label_return.
-  destruct C', f, f_inst => /=; f_equal; simpl in *.
-  unfold frame_typing in Hftype; remove_bools_options => /=.
-  by unfold inst_typing in Hoption; simpl in *; remove_bools_options =>/=.
+  replace (upd_return C' None) with C' in Hetype; first by exists C'.
+  unfold frame_typing in Hftype.
+  remove_bools_options.
+  destruct Hftype as [ts' [-> Hvaltype]] => /=.
+  by unfold inst_typing in Hoption; destruct f, f_inst, t; unfold upd_return, upd_local, upd_local_label_return in *; simpl in *; remove_bools_options.
 Qed.
 
 (** Auxiliary definition for reductions between context tuples.
@@ -210,24 +207,32 @@ Ltac get_cc ccs :=
 
 Definition empty_label_ctx := Build_label_ctx nil 0 nil nil.
 
-Lemma nth_nth_error {T: Type}: forall (l: list T) k x0 v,
-    List.nth_error l k = Some v ->
-    nth x0 l k = v.
+Lemma instr_subtyping_size_bound: forall ts1 ts2 ts3 ts4,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    size ts1 <= size ts3 /\ size ts2 <= size ts4.
 Proof.
-  elim; first by case => //.
-  move => ???; case => //=.
-  by move => ?? [<-].
+  intros.
+  simplify_subtyping.
+  apply values_subtyping_size in Hconjl2.
+  apply values_subtyping_size in Hconjr0.
+  repeat rewrite size_cat.
+  by lias.
 Qed.
 
-Lemma values_typing_rev: forall s vs ts,
-    values_typing s (rev vs) = Some ts ->
-    values_typing s vs = Some (rev ts).
+Lemma instr_subtyping_size_exact: forall ts1 ts2 ts3 ts4,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    size ts1 + size ts4 = size ts2 + size ts3.
 Proof.
-  move => s vs ts Hvaltype.
-  unfold values_typing in *.
-  rewrite map_rev in Hvaltype.
-  by apply those_rev.
+  intros.
+  simplify_subtyping.
+  apply values_subtyping_size in Hconjl1.
+  apply values_subtyping_size in Hconjl2.
+  apply values_subtyping_size in Hconjr0.
+  repeat rewrite size_cat.
+  by lias.
 Qed.
+
+Opaque instr_subtyping.
 
 (** Br exits from one label context. **)
 Definition run_ctx_br: forall hs s ccs sc j,
@@ -277,14 +282,18 @@ Proof.
       simpl in *.
       destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
       unfold frame_typing in Hftype; remove_bools_options; simpl in *.
-      erewrite -> inst_t_context_label_empty in H1_br; eauto.
-      rewrite cats0 in H1_br.
+      destruct Hftype as [ts0 [-> Hvt]].
+      simpl in *.
+      erewrite -> inst_t_context_label_empty in Hconjr; eauto.
+      rewrite cats0 in Hconjr.
       eapply all2_projection in Hagree; eauto.
       move/eqP in Hagree; simpl in Hagree; subst.
-      apply values_typing_length in Hvstype.
+      apply values_typing_size in Hvstype.
       repeat rewrite -> length_is_size in *.
-      rewrite length_is_size in Hvstype.
-      rewrite size_rev size_cat in Hvstype.
+      rewrite length_is_size in Hvslen.
+      rewrite size_rev in Hvstype.
+      apply instr_subtyping_size_bound in Htisub as [??].
+      rewrite size_cat in H.
       by lias.
       
   - (* Not enough labels *)
@@ -298,7 +307,8 @@ Proof.
     rewrite -cat1s in Hetype.
     unfold vs_to_es in Hetype.
     invert_e_typing.
-    unfold frame_typing in Hftype.
+    unfold frame_typing in Hftype; remove_bools_options.
+    destruct Hftype as [ts0 [-> Hvt]].
     remove_bools_options.
     destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
     erewrite -> inst_t_context_label_empty in *; eauto.
@@ -306,9 +316,9 @@ Proof.
     apply all2_size in Hagree.
     apply List.nth_error_None in Htar.
     rewrite length_is_size in Htar.
-    unfold lookup_N in H1_br.
-    apply nth_error_Some_length in H1_br.
-    rewrite length_is_size Hagree in H1_br.
+    unfold lookup_N in *.
+    apply nth_error_Some_length in Hconjr.
+    rewrite length_is_size Hagree in Hconjr.
     by lias.
 Defined.
 
@@ -332,14 +342,23 @@ Proof.
     }
   - (* Not enough values *)
     resolve_invalid_typing.
-    simpl in *; injection H2_return as ->.
-    apply values_typing_length in Hvtstype.
-    repeat rewrite length_is_size in Hvtstype.
-    rewrite size_cat size_rev in Hvtstype.
+    simpl in *; injection Hconjr as ->.
+    apply values_typing_size in Hvtstype.
+    apply instr_subtyping_size_bound in Htisub as [Hsz ?].
+    rewrite size_cat in Hsz.
+    rewrite size_rev in Hvtstype.
     repeat rewrite length_is_size in Hvslen.
     by lias.
 Defined.
-    
+
+(*
+Ltac discriminate_size :=
+  repeat match goal with
+  | H: is_true (values_typing _ _ _) |- _ =>
+    apply values_typing_size in H
+  | H: tf <
+*)
+
 (** Invoke does not need a frame context. 
     This is useful for handling the starting invocation of a module, as the execution otherwise always assumes
     the existence of one frame context, which is in fact true in the spec representation (due to the frame in the
@@ -356,27 +375,39 @@ Proof.
       destruct (length vs0 >= n) eqn:Hlen.
       * (* true *)
         destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
-        remember (n_zeros ts) as zs eqn:?.
-        apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: ccs, (nil, nil), Some (AI_label m nil (to_e_list es)))>> => /=.
-        red_ctx_simpl => //=.
-        rewrite split_n_is_take_drop in Hsplit.
-        injection Hsplit as ??.
-        eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-        2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-             by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+        destruct (default_vals ts) as [zs |] eqn:Hdefault.
+        (* types are all defaultable *)
+        { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: ccs, (nil, nil), Some (AI_label m nil (to_e_list es)))>> => /=.
+          red_ctx_simpl => //=.
+          rewrite split_n_is_take_drop in Hsplit.
+          injection Hsplit as ??.
+          eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+          2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+               by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+          }
+          eapply r_invoke_native; eauto.
+          repeat rewrite length_is_size.
+          repeat rewrite length_is_size in Hlen.
+          by rewrite size_rev size_takel => //.
         }
-        eapply r_invoke_native; eauto.
-        repeat rewrite length_is_size.
-        repeat rewrite length_is_size in Hlen.
-        by rewrite size_rev size_takel => //.
+        (* Not defaultable *)
+        { resolve_invalid_typing.
+          specialize (store_typing_func_lookup Hstype Heqo) as Hftype.
+          destruct Hftype as [ft Hftype].
+          unfold funcinst_typing in Hftype; simpl in *.
+          destruct Hftype as [<- [_ Hftype]].
+          remove_bools_options.
+          destruct f.
+          destruct Hftype as [Heqtf [Hetype Hdefault']].
+          done.
+        }
       * (* not enough arguments *)
         resolve_invalid_typing.
-        unfold ext_func_typing in H3_invoke.
+        unfold ext_func_typing in Hconjr.
         remove_bools_options; simpl in *.
-        inversion H0; subst; clear H0.
-        apply values_typing_length in Hvtstype.
-        repeat rewrite length_is_size in Hvtstype.
-        rewrite size_cat size_rev in Hvtstype.
+        apply values_typing_size in Hvtstype.
+        apply instr_subtyping_size_bound in Htisub as [??].
+        rewrite size_rev in Hvtstype.
         repeat rewrite length_is_size in Hlen.
         by lias.
     + (* FC_func_host (Tf t1s t2s) cl' *)

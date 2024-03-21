@@ -348,7 +348,9 @@ Definition func_typing (C: t_context) (code: module_func) (tf: function_type) : 
   | Some (Tf ts1 ts2) =>
       tf = (Tf ts1 ts2) /\
       let C' := upd_local_label_return C (ts1 ++ ts) [:: ts2] (Some ts2) in
-      expr_typing C' bes ts2
+      expr_typing C' bes ts2 /\
+      (* This is an artificial restriction added due to the implementation of subtyping from the future GC proposal, but without the implementing non-defaultable locals *)
+      default_vals ts <> None
   | None => False
   end.
     

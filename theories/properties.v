@@ -1059,6 +1059,24 @@ Proof.
   by apply all2_size in H.
 Qed.
 
+Lemma values_typing_rev: forall s vs ts,
+    values_typing s (rev vs) ts ->
+    values_typing s vs (rev ts).
+Proof.
+  move => s vs.
+  induction vs using last_ind; move => ts Hvt; destruct ts => //=.
+  - apply all2_size in Hvt; by rewrite size_rev size_rcons in Hvt.
+  - repeat rewrite - cats1 in Hvt.
+    rewrite rev_cat in Hvt.
+    simpl in *; remove_bools_options.
+    rewrite rev_cons.
+    repeat rewrite -cats1.
+    rewrite values_typing_cat => //.
+    + by apply IHvs.
+    + simpl.
+      by rewrite H.
+Qed.
+
 Lemma default_value_typing: forall s t v,
     default_val t = Some v ->
     value_typing s v t.
@@ -1198,6 +1216,15 @@ Proof.
 Qed.
 
 (* further list operations *)
+Lemma nth_nth_error {T: Type}: forall (l: list T) k x0 v,
+    List.nth_error l k = Some v ->
+    nth x0 l k = v.
+Proof.
+  elim; first by case => //.
+  move => ???; case => //=.
+  by move => ?? [<-].
+Qed.
+
 Lemma nth_error_map: forall {X Y:Type} l n (f: X -> Y) fv,
     List.nth_error (map f l) n = Some fv ->
     exists v,

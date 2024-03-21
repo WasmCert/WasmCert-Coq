@@ -606,7 +606,7 @@ Ltac unify_principal :=
         | [::_; _; _] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
         | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
         end; clear H1 H2
-    | _ => idtac "unification is too complicated"
+    | _ => idtac
     end; try (move: Hprincipal; rewrite (lock instr_subtyping) /= -lock; move => Hprincipal)
   | |- is_true (size _ <= size _) =>
     try by repeat rewrite size_cat; lias
