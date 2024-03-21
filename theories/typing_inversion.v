@@ -972,4 +972,46 @@ Proof.
   by resolve_subtyping.
 Qed.
 
+(* Auxiliary lemmas for the tactics resolving e_typing *)
+Lemma value_cons_e_typing: forall s C v t es tx ty,
+    value_typing s v t ->
+    e_typing s C es (Tf (tx ++ [::t]) ty) ->
+    e_typing s C (cons ($V v) es) (Tf tx ty).
+Proof.
+  move => s C v t es tx ty Hvt Het.
+  rewrite -cat1s; eapply et_composition'; eauto.
+  eapply et_value_typing'; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma values_cat_e_typing: forall s C vs ts es tx ty,
+    values_typing s vs ts ->
+    e_typing s C es (Tf (tx ++ ts) ty) ->
+    e_typing s C (v_to_e_list vs ++ es) (Tf tx ty).
+Proof.
+  move => s C vs ts es tx ty Hvt Het.
+  eapply et_composition'; eauto.
+  eapply et_values_typing'; eauto.
+  by resolve_subtyping.
+Qed.
+
+Lemma value_num_cons_e_typing: forall s C v es tx ty,
+    e_typing s C es (Tf (tx ++ [::T_num (typeof_num v)]) ty) ->
+    e_typing s C (cons ($VN v) es) (Tf tx ty).
+Proof.
+  intros.
+  replace ($VN v) with ($V (VAL_num v)) => //.
+  eapply value_cons_e_typing; eauto.
+  by apply value_num_principal_typing.
+Qed.
+
+Lemma value_vec_cons_e_typing: forall s C v es tx ty,
+    e_typing s C es (Tf (tx ++ [::T_vec (typeof_vec v)]) ty) ->
+    e_typing s C (cons ($V (VAL_vec v)) es) (Tf tx ty).
+Proof.
+  intros.
+  eapply value_cons_e_typing; eauto.
+  by apply value_vec_principal_typing.
+Qed.
+
 End Typing_inversion_e.

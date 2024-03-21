@@ -201,9 +201,6 @@ Ltac unfold_store_operations :=
         unfold sdata_drop, sdata in *; remove_bools_options
     end.
 
-(*
-*)
-
 Ltac resolve_if_true_eq :=
   match goal with
   | _ : _ |- match ?expr with
@@ -213,3 +210,54 @@ Ltac resolve_if_true_eq :=
       let Htrue := fresh "Htrue" in
       assert (expr = true) as Htrue; last by rewrite Htrue
   end.
+
+Ltac simplify_multieq :=
+  repeat match goal with
+  | H1: ?expr = ?x,
+    H2: ?expr = ?y |- _ =>
+      rewrite H1 in H2
+  | H: Some ?x = Some ?y |- _ =>
+      let Hinj := fresh "Hinj" in
+     injection H as Hinj; try subst
+    end.
+
+Ltac resolve_e_typing :=
+  repeat lazymatch goal with
+    (* This is usually required and should be applied at highest priority *)
+    | H: is_true (?ts1 <ts: ?ts2) |-
+        e_typing _ _ _ (Tf ?ts1 ?ts2) =>
+        eapply ety_subtyping; try by eapply instr_subtyping_empty_impl; apply H
+    | H: ((Tf ?ts1 ?ts2) <ti: (Tf ?ts3 ?ts4)) |-
+        e_typing _ _ _ (Tf ?ts3 ?ts4) =>
+        eapply ety_subtyping; try by apply H
+    | |- e_typing _ _ nil _ =>
+        try eapply ety_subtyping; first (by apply ety_a' => //; apply bet_empty; eauto; try apply instr_subtyping_eq); eauto => //
+(*    | |- context [$VN ?v] =>
+        replace ($VN v) with ($V (VAL_num v)); last done*)
+(*    | |- e_typing _ _ [::$V _] _ =>
+        try eapply ety_subtyping; first (by apply et_value_typing; resolve_value_principal_typing; eauto); eauto => //*)
+    | |- e_typing _ _ [::AI_basic _] _ =>
+        try eapply ety_subtyping; first (by apply ety_a' => //; econstructor; eauto; try apply instr_subtyping_eq); eauto => //
+    | |- e_typing _ _ (v_to_e_list _) _ =>
+        try eapply ety_subtyping; first (by eapply et_values_typing; eauto); eauto => //
+(*    | |- e_typing _ _ (_ ++ _) _ =>
+        try eapply ety_subtyping; first (eapply et_composition'; eauto); eauto => //*)
+    | |- e_typing _ _ ((cons ($VN ?v) ?es)) _ =>
+        apply value_num_cons_e_typing
+    | |- e_typing _ _ ((cons ($V (VAL_vec ?v)) ?es)) _ =>
+        apply value_vec_cons_e_typing
+    | H: is_true (value_typing ?s ?v ?t) |-
+        e_typing _ _ ((cons ($V ?v) ?es)) _ =>
+        apply (value_cons_e_typing H)
+    | H: is_true (value_typing ?s (VAL_ref ?v) ?t) |-
+        e_typing _ _ ((cons (vref_to_e ?v) ?es)) _ =>
+        replace (vref_to_e v) with ($V (VAL_ref v)); last done;
+        apply (value_cons_e_typing H)
+    | H: is_true (values_typing ?s ?vs ?ts) |-
+        e_typing _ _ ((v_to_e_list ?vs ++ ?es)) _ =>
+        apply (values_cat_e_typing H)
+    | H : is_true (const_list _) |- _ =>
+        let vs := fresh "vs" in
+        apply const_es_exists in H as [vs ->]; invert_e_typing
+    | _ => unfold_store_operations; resolve_subtyping => //; simplify_lists; simplify_multieq; simpl in * => //
+    end.
