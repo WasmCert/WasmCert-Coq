@@ -172,10 +172,13 @@ Inductive relop_type_agree: number_type -> relop -> Prop :=
   | Relop_f64_agree: forall op, relop_type_agree T_f64 (Relop_f op)
   .
 
+(* Helper for typing Select. Needs to get an update when updating to GC to implement
+   subtyping *)
 Definition is_numeric_type (t: value_type) : bool :=
   match t with
   | T_num _ => true
   | T_vec _ => true
+  | T_bot => true
   | _ => false
   end.
 

@@ -340,9 +340,11 @@ Ltac resolve_subtyping :=
                                      
   | |- context [ ?ts <ts: ?ts ] =>
     rewrite values_subtyping_eq => //
+  | |- context [(?ts1 ++ ?ts2) <ts: (?ts1 ++ ?ts2')] =>
+      erewrite values_subtyping_cat; (try reflexivity); eauto => //
   | _: is_true (?ts1 <ts: ?ts1') |-
       context [(?ts1 ++ ?ts2) <ts: (?ts1' ++ ?ts2')] =>
-      erewrite values_subtyping_cat; eauto; last by apply values_subtyping_size
+      erewrite values_subtyping_cat; eauto => //; last by apply values_subtyping_size
   | _: is_true (?ts1 <ts: ?ts2),
     _: is_true ((?ts2 ++ ?ts3) <ts: ?ts4) |-
        context [ (?ts1 ++ ?ts3) <ts: ?ts4 ] =>

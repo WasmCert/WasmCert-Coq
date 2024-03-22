@@ -169,7 +169,6 @@ Definition same_lab (iss : seq tableidx) (lab_c : seq (seq value_type)) : option
       end
   end.
 
-
 Definition c_types_agree (ct : checker_type) (ts' : seq value_type) : bool :=
   match ct with
   | CT_type ts => ts == ts'
@@ -191,7 +190,7 @@ Definition type_update_ref_is_null (t : checker_type) : checker_type :=
       else CT_bot
   | CT_top_type ts =>
       match length ts with
-      | 0 => CT_top_type [::CTA_any]
+      | 0 => type_update (CT_top_type ts) nil (CT_type [::T_num T_i32])
       | _ =>
           match List.nth_error ts (length ts - 1) with
           | Some ts_at_1 =>
@@ -209,7 +208,6 @@ Definition type_update_ref_is_null (t : checker_type) : checker_type :=
   | CT_bot => CT_bot
   end.
     
-
 Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
   let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
     let: (Tf tn tm) := tf in
