@@ -40,7 +40,7 @@ Definition globals_of_externals (evs : list extern_value) : list globaladdr :=
   seq.pmap (fun ev => match ev with | EV_global ta => Some ta | _ => None end) evs.
 
 Definition add_func (s : store_record) funcinst := {|
-  s_funcs := List.app s.(s_funcs) [::funcinst];
+  s_funcs := cat s.(s_funcs) [::funcinst];
   s_tables := s.(s_tables);
   s_mems := s.(s_mems);
   s_globals := s.(s_globals);
@@ -48,11 +48,19 @@ Definition add_func (s : store_record) funcinst := {|
   s_datas := s.(s_datas);
 |}.
 
+Definition gen_func_instance mf inst : funcinst :=
+  match lookup_N inst.(inst_types) mf.(modfunc_type) with
+  | Some ft =>
+      FC_func_native ft inst mf
+  | None =>
+      (* Will not happen for well-typed modules *)
+      FC_func_native (Tf nil nil) inst mf
+  end.
+                
 Definition alloc_func (s : store_record) (m_f : module_func) (mi : moduleinst) : store_record * funcaddr :=
   let funcaddr := N.of_nat (List.length s.(s_funcs)) in
   (* Spec didn't say what if this is out of bound; but it cannot happen to valid modules *)
-  let functype := List.nth m_f.(modfunc_type) mi.(inst_types) (Tf nil nil) in
-  let funcinst := FC_func_native functype mi m_f in
+  let funcinst := gen_func_instance m_f mi in
   let S' := add_func s funcinst in
   (S', funcaddr).
 
@@ -61,20 +69,23 @@ Definition alloc_funcs (s : store_record) (m_fs : list module_func) (mi : module
 
 Definition add_table (s : store_record) (ti : tableinst) : store_record := {|
   s_funcs := s.(s_funcs);
-  s_tables := List.app s.(s_tables) [::ti];
+  s_tables := cat s.(s_tables) [::ti];
   s_mems := s.(s_mems);
   s_globals := s.(s_globals);
   s_elems := s.(s_elems);
   s_datas := s.(s_datas);
 |}.
 
+Definition gen_table_instance (mt: table_type) ref: tableinst :=
+  let '{| tt_limits := {| lim_min := min; lim_max := maxo |} as lim; tt_elem_type := ety |} := mt in
+  {| tableinst_elem := (List.repeat ref (N.to_nat min));
+    tableinst_type := mt;
+  |}.
+  
 Definition alloc_tab_ref (s : store_record) (tty : table_type) (ref: value_ref) : store_record * tableaddr :=
   let '{| tt_limits := {| lim_min := min; lim_max := maxo |} as lim; tt_elem_type := ety |} := tty in
   let tableaddr := N.of_nat (List.length s.(s_tables)) in
-  let tableinst := {|
-    tableinst_elem := (List.repeat ref min);
-    tableinst_type := tty;
-  |} in
+  let tableinst := gen_table_instance tty ref in
   (add_table s tableinst, tableaddr).
 
 Definition alloc_tab s tty: store_record * tableaddr :=
@@ -83,7 +94,7 @@ Definition alloc_tab s tty: store_record * tableaddr :=
 Definition alloc_tabs (s : store_record) (ts : list table_type) : store_record * list tableaddr :=
   alloc_Xs alloc_tab s ts.
 
-Definition mem_mk (lim : limits) : meminst :=
+Definition gen_mem_instance (lim : limits) : meminst :=
   let len := BinNatDef.N.mul page_size lim.(lim_min) in
   {| meminst_data := mem_make Integers.Byte.zero len;
     meminst_type := lim;
@@ -92,7 +103,7 @@ Definition mem_mk (lim : limits) : meminst :=
 Definition add_mem (s : store_record) (m_m : meminst) : store_record := {|
   s_funcs := s.(s_funcs);
   s_tables := s.(s_tables);
-  s_mems := List.app s.(s_mems) [::m_m];
+  s_mems := cat s.(s_mems) [::m_m];
   s_globals := s.(s_globals);
   s_elems := s.(s_elems);
   s_datas := s.(s_datas);
@@ -101,7 +112,7 @@ Definition add_mem (s : store_record) (m_m : meminst) : store_record := {|
 Definition alloc_mem (s : store_record) (m_mt : memory_type) : store_record * memaddr :=
   let '{| lim_min := min; lim_max := maxo |} := m_mt in
   let memaddr := N.of_nat (List.length s.(s_mems)) in
-  let meminst := mem_mk m_mt in
+  let meminst := gen_mem_instance m_mt in
   (add_mem s meminst, memaddr).
 
 Definition alloc_mems (s : store_record) (m_mts : list memory_type) : store_record * list memaddr :=
@@ -111,15 +122,21 @@ Definition add_glob (s : store_record) (m_g : globalinst) : store_record := {|
   s_funcs := s.(s_funcs);
   s_tables := s.(s_tables);
   s_mems := s.(s_mems);
-  s_globals := List.app s.(s_globals) [::m_g];
+  s_globals := cat s.(s_globals) [::m_g];
   s_elems := s.(s_elems);
   s_datas := s.(s_datas);
 |}.
 
+Definition gen_global_instance (gt: module_global) (v: value): globalinst :=
+  {|
+    g_type := gt.(modglob_type);
+    g_val := v
+  |}.
+    
 Definition alloc_glob (s : store_record) (m_g_v : module_global * value) : store_record * globaladdr :=
   let '(mg_type, v) := m_g_v in
   let globaddr := N.of_nat (List.length s.(s_globals)) in
-  let globinst := Build_globalinst (Build_global_type mg_type.(modglob_type).(tg_mut) mg_type.(modglob_type).(tg_t)) v in
+  let globinst := gen_global_instance mg_type v in
   (add_glob s globinst, globaddr).
 
 Definition alloc_globs s m_gs vs :=
@@ -130,7 +147,7 @@ Definition add_elem (s : store_record) (m_e : eleminst) : store_record := {|
   s_tables := s.(s_tables);
   s_mems := s.(s_mems);
   s_globals := s.(s_globals);
-  s_elems := List.app s.(s_elems) [::m_e];
+  s_elems := cat s.(s_elems) [::m_e];
   s_datas := s.(s_datas);
 |}.
 
@@ -150,16 +167,16 @@ Definition add_data (s : store_record) (m_d : datainst) : store_record := {|
   s_mems := s.(s_mems);
   s_globals := s.(s_globals);
   s_elems := s.(s_elems);
-  s_datas := List.app s.(s_datas) [::m_d];
+  s_datas := cat s.(s_datas) [::m_d];
 |}.
 
-Definition alloc_data (s: store_record) (m_d: list byte) : store_record * dataaddr :=
+Definition alloc_data (s: store_record) (m_d: module_data) : store_record * dataaddr :=
   let dataaddr := N.of_nat (List.length s.(s_datas)) in
-  let datainst := Build_datainst m_d in
+  let datainst := Build_datainst m_d.(moddata_init) in
   (add_data s datainst, dataaddr).
 
 Definition alloc_datas (s : store_record) (m_d: list module_data) : store_record * list dataaddr :=
-  alloc_Xs alloc_data s (map moddata_init m_d).
+  alloc_Xs alloc_data s m_d.
 
 Definition export_get_v_ext (inst : moduleinst) (exp : module_export_desc) : extern_value :=
   (* we circumvent partiality by providing 0 as a default *)
@@ -264,8 +281,7 @@ Definition dummy_table : tableinst := {| tableinst_elem := nil; tableinst_type :
 Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_type) : Prop :=
   let '{| modfunc_type := x; modfunc_locals := t_locs; modfunc_body := b_es |} := mf in
   let '(Tf tn tm) := tf in
-  x < N.of_nat (List.length c.(tc_types)) /\
-  lookup_N c.(tc_types) x == Some (Tf tn tm) /\
+  lookup_N c.(tc_types) x = Some (Tf tn tm) /\
   let c' := {|
     tc_types := c.(tc_types);
     tc_funcs := c.(tc_funcs);
@@ -339,7 +355,7 @@ Definition datamode_valid (c: t_context) (dmode: module_datamode) : Prop :=
       const_exprs c es
   end.
 
-Definition module_data_typing (c : t_context) (m_d : module_data) : Prop :=
+Definition module_data_typing (c : t_context) (m_d : module_data) (t: ok): Prop :=
   let '{| moddata_init := bs; moddata_mode := dmode |} := m_d in
   datamode_valid c dmode.
 
@@ -352,7 +368,7 @@ Definition module_start_typing (c : t_context) (ms : module_start) : bool :=
 
 Definition module_import_desc_typing (c : t_context) (imp_desc : module_import_desc) (e : extern_type) : bool := 
   match imp_desc with
-  | MID_func i => (option_map ET_func (lookup_N c.(tc_funcs) i) == Some e)
+  | MID_func i => (option_map ET_func (lookup_N c.(tc_types) i) == Some e)
   | MID_table t_t =>
       module_table_typing c {| modtab_type := t_t |} == Some e
   | MID_mem mt =>
@@ -437,13 +453,13 @@ Definition module_filter_funcidx (m: module) : list funcidx :=
     (module_globals_get_funcidx m.(mod_globals) ++
      module_elems_get_funcidx m.(mod_elems)).
 
-Definition export_name_unique (exps: list module_export) :=
-  List.NoDup (map modexp_name exps).
+Definition export_name_unique (exps: list module_export) : bool :=
+  List.nodup name_eqb (map modexp_name exps) == (map modexp_name exps).
 
 (* We deliberately omit the artificial restriction on the length of memory here. *)
 Definition module_typing (m : module) (impts : list extern_type) (expts : list extern_type) : Prop :=
-  exists fts tts mts gts rts,
-  let '{| 
+  exists fts tts mts gts rts dts,
+  let '{|
     mod_types := tfs;
     mod_funcs := fs;
     mod_tables := ts;
@@ -467,7 +483,7 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
     tc_mems := ims ++ mts;
     tc_globals := igs ++ gts;
     tc_elems := rts;
-    tc_datas := List.repeat tt (length ds);
+    tc_datas := dts;
     tc_locals := nil;
     tc_labels := nil;
     tc_return := None;
@@ -479,8 +495,8 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
     tc_tables := c.(tc_tables);
     tc_mems := c.(tc_mems);
     tc_globals := igs;
-    tc_elems := c.(tc_elems);
-    tc_datas := c.(tc_datas);
+    tc_elems := nil;
+    tc_datas := nil;
     tc_locals := nil;
     tc_labels := nil;
     tc_return := None;
@@ -492,7 +508,7 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   seq.all (module_mem_typing c') ms /\
   List.Forall2 (module_glob_typing c') gs gts /\
   List.Forall2 (module_elem_typing c') els rts /\
-  List.Forall (module_data_typing c') ds /\
+  List.Forall2 (module_data_typing c') ds dts /\
   pred_option (module_start_typing c) i_opt /\
   List.Forall2 (module_import_typing c) imps impts /\
   List.Forall2 (module_export_typing c) exps expts /\
@@ -521,26 +537,26 @@ Definition instantiate_elems f (hs : host_state) (s' : store_record) m (r_inits:
     m.(mod_elems)
     r_inits.
 
-Definition limit_subtyping (l1 l2: limits) : Prop :=
-  l1.(lim_min) >= l2.(lim_min) /\
+Definition limit_subtyping (l1 l2: limits) : bool :=
+  (l1.(lim_min) >= l2.(lim_min)) &&
     match l1.(lim_max), l2.(lim_max) with
-    | _, None => True
+    | _, None => true
     | Some max1, Some max2 => N.leb max1 max2
-    | _, _ => False
+    | _, _ => false
     end.
 
-Definition import_subtyping (t1 t2: extern_type) : Prop :=
+Definition import_subtyping (t1 t2: extern_type) : bool :=
   match t1, t2 with
   | ET_func tf1, ET_func tf2 =>
-      tf1 = tf2
+      tf1 == tf2
   | ET_table tt1, ET_table tt2 =>
-      tt1.(tt_elem_type) = tt2.(tt_elem_type) /\
+      (tt1.(tt_elem_type) == tt2.(tt_elem_type)) &&
       limit_subtyping tt1.(tt_limits) tt2.(tt_limits)
   | ET_mem tm1, ET_mem tm2 =>
       limit_subtyping tm1 tm2
   | ET_global tg1, ET_global tg2 =>
-      tg1 = tg2
-  | _, _ => False
+      tg1 == tg2
+  | _, _ => true
   end.
 
 Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instruction :=
@@ -586,13 +602,16 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list extern_val
     f = Build_frame nil inst /\
       bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
 
+Definition gen_addrs (offset: nat) (len: nat) : list addr :=
+  List.map N.of_nat (seq.iota offset len).
+
 Definition interp_alloc_module (s : store_record) (m : module) (imps : list extern_value) (gvs : list value) (rvs: list (list value_ref)) : (store_record * moduleinst) :=
-  let i_fs := List.map N.of_nat (seq.iota (List.length s.(s_funcs)) (List.length m.(mod_funcs))) in
-  let i_ts := List.map N.of_nat (seq.iota (List.length s.(s_tables)) (List.length m.(mod_tables))) in
-  let i_ms := List.map N.of_nat (seq.iota (List.length s.(s_mems)) (List.length m.(mod_mems))) in
-  let i_gs := List.map N.of_nat (seq.iota (List.length s.(s_globals)) (min (List.length m.(mod_globals)) (List.length gvs))) in
-  let i_es := List.map N.of_nat (seq.iota (List.length s.(s_elems)) (List.length m.(mod_elems))) in
-  let i_ds := List.map N.of_nat (seq.iota (List.length s.(s_datas)) (List.length m.(mod_datas))) in
+  let i_fs := gen_addrs (length s.(s_funcs)) (length m.(mod_funcs)) in
+  let i_ts := gen_addrs (length s.(s_tables)) (length m.(mod_tables)) in
+  let i_ms := gen_addrs (length s.(s_mems)) (length m.(mod_mems)) in
+  let i_gs := gen_addrs (length s.(s_globals)) (length m.(mod_globals)) in
+  let i_es := gen_addrs (length s.(s_elems)) (length m.(mod_elems)) in
+  let i_ds := gen_addrs (length s.(s_datas)) (length m.(mod_datas)) in
   let inst := {|
     inst_types := m.(mod_types);
     inst_funcs := (ext_funcs imps ++ i_fs);

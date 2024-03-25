@@ -1,7 +1,7 @@
 (** Properties of instantiation spec **)
 
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
-Require Import Coq.Program.Equality List NArith.
+Require Import Coq.Program.Equality NArith.
 Require Export instantiation_spec.
 Require Export type_preservation type_progress properties.
 
@@ -23,7 +23,7 @@ Qed.
 
 Lemma Forall_spec {T: Type} (P: T -> Prop) (l: list T):
   (forall n x, List.nth_error l n = Some x -> P x) ->
-  Forall P l.
+  List.Forall P l.
 Proof.
   induction l; move => Hspec => //.
   constructor.
@@ -63,8 +63,8 @@ Proof.
     rewrite Hnth1 Hnth2; f_equal.
     by eapply Heq; eauto.
   }
-  { apply Forall2_length in Hall2f.
-    apply Forall2_length in Hall2g.
+  { apply List.Forall2_length in Hall2f.
+    apply List.Forall2_length in Hall2g.
     apply List.nth_error_None in Hnth.
     specialize (List.nth_error_None l2 i) as [_ Hnone1].
     rewrite Hnone1; last by lias.
@@ -100,7 +100,7 @@ Proof.
     * inversion Hall2. destruct l2 => //.
       move/andP in H0. destruct H0.
       specialize (IHl1 l2 H0).
-      apply Forall2_cons => //.
+      apply List.Forall2_cons => //.
 Qed.
 
 Lemma all2_and: forall A B (f g h : A -> B -> bool) l1 l2,
@@ -148,13 +148,13 @@ Qed.
 Lemma nth_error_same_length_list:
   forall (A B : Type) (l1 : seq.seq A) (l2 : seq.seq B) (i : nat) (m : A),
      length l1 = length l2 ->
-     nth_error l1 i = Some m -> 
-     exists n, nth_error l2 i = Some n.
+     List.nth_error l1 i = Some m -> 
+     exists n, List.nth_error l2 i = Some n.
 Proof.
   move => A B l1 l2 i m Hlen Hl1.
   apply nth_error_Some_length in Hl1.
   rewrite Hlen in Hl1.
-  apply nth_error_Some in Hl1.
+  apply List.nth_error_Some in Hl1.
   by destruct (l2 !! i) => //; eexists.
 Qed.
 
@@ -167,7 +167,7 @@ Fixpoint imap_aux {T1 T2: Type} (f: nat -> T1 -> T2) (l: list T1) (i: nat) : lis
 Definition imap {T1 T2: Type} (f: nat -> T1 -> T2) l := imap_aux f l 0.
 
 Lemma imap_extend_aux {T1 T2: Type} (f: nat -> T1 -> T2) l e j:
-  imap_aux f (app l [:: e]) j = app (imap_aux f l j) [:: f (length l + j) e].
+  imap_aux f (cat l [:: e]) j = cat (imap_aux f l j) [:: f (length l + j) e].
 Proof.
   move: j.
   induction l => //=; move => j.
@@ -177,7 +177,7 @@ Proof.
 Qed.
 
 Lemma imap_extend {T1 T2: Type} (f: nat -> T1 -> T2) l e:
-  imap f (app l [:: e]) = app (imap f l) [:: f (length l) e].
+  imap f (cat l [:: e]) = cat (imap f l) [:: f (length l) e].
 Proof.
   unfold imap.
   rewrite (imap_extend_aux f l e 0).
@@ -304,7 +304,7 @@ Lemma gen_index_len offset len:
 Proof.
   unfold gen_index.
   rewrite imap_length.
-  by rewrite repeat_length.
+  by rewrite List.repeat_length.
 Qed.
 
 Lemma gen_index_in n i offset len:
@@ -340,6 +340,14 @@ Proof.
     symmetry.
     apply List.nth_error_None.
     by rewrite length_is_size size_iota; lias.
+Qed.
+
+(* TODO: remove the use of gen_index in the future and use iota everywhere *)
+Lemma gen_addrs_gen_index: forall n m,
+  gen_addrs n m = map N.of_nat (gen_index n m).
+Proof.
+  intros.
+  by rewrite gen_index_iota.
 Qed.
 
 (*
@@ -580,15 +588,6 @@ Section Host.
 
 Context `{ho: host}.
 
-Definition gen_func_instance mf inst : funcinst :=
-  match lookup_N inst.(inst_types) mf.(modfunc_type) with
-  | Some ft =>
-      FC_func_native ft inst mf
-  | None =>
-      (* Will not happen for well-typed modules *)
-      FC_func_native (Tf nil nil) inst mf
-  end.
-                
 (* Proving relations between stores obtained by alloc_Xs *)
 Lemma alloc_Xs_IP {A B: Type} (f: store_record -> A -> store_record * B) s_init xs s_end ys (R: store_record -> store_record -> list A -> list B -> Prop) :
   alloc_Xs f s_init xs = (s_end, ys) ->
@@ -600,107 +599,115 @@ Lemma alloc_Xs_IP {A B: Type} (f: store_record -> A -> store_record * B) s_init 
   R s_init s_end xs ys.
 Proof.
   move: s_init s_end ys.
-  induction xs using rev_ind => //=; move => s_init s_end ys Hallocxs Hinit IH; simpl in *.
-  - unfold alloc_Xs, instantiation_spec.alloc_Xs in Hallocxs.
+  induction xs using List.rev_ind => //=; move => s_init s_end ys Hallocxs Hinit IH; simpl in *.
+  - unfold alloc_Xs in Hallocxs.
     simpl in Hallocxs.
     by injection Hallocxs as ->; subst.
-  - unfold alloc_Xs, instantiation_spec.alloc_Xs in Hallocxs.
-    rewrite fold_left_app in Hallocxs.
+  - unfold alloc_Xs in Hallocxs.
+    rewrite List.fold_left_app in Hallocxs.
     simpl in Hallocxs.
     
-    remember (fold_left _ xs _) as fold_res.
+    remember (List.fold_left _ xs _) as fold_res.
     destruct fold_res as [s0 ys0].
     remember (f s0 x) as sf.
     destruct sf as [s' y'].
     injection Hallocxs as ->; subst.
     eapply IH; eauto.
     apply IHxs; eauto.
-    unfold alloc_Xs, instantiation_spec.alloc_Xs.
+    unfold alloc_Xs.
     by rewrite <- Heqfold_res.
 Qed.
 
-(*
-Lemma alloc_func_gen_index modfuncs ws inst ws' l:
+Lemma alloc_func_gen_addrs modfuncs ws inst ws' l:
   alloc_funcs ws modfuncs inst = (ws', l) ->
-  l = gen_index (length (s_funcs ws)) (length modfuncs) /\
+  l = gen_addrs (length (s_funcs ws)) (length modfuncs) /\
   ws'.(s_funcs) = ws.(s_funcs) ++ map (fun mf => gen_func_instance mf inst) modfuncs /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
-  ws.(s_globals) = ws'.(s_globals).
+  ws.(s_globals) = ws'.(s_globals) /\
+  ws.(s_elems) = ws'.(s_elems) /\
+  ws.(s_datas) = ws'.(s_datas).
 Proof.
-  unfold alloc_funcs, instantiation_spec.alloc_funcs.
+  unfold alloc_funcs.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => map _ ys = gen_index _ _ /\ _))
+    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_index, imap => /=.
+  - unfold gen_addrs => /=.
     repeat split.
-    by rewrite app_nil_r.
-  - move => s s0 x xs' ys' s' y Hallocx [Hys [Hcomp [? [? ?]]]].
+    by rewrite cats0.
+  - move => s s0 x xs' ys' s' y Hallocx [Hys [Hcomp [? [? [?[??]]]]]].
+    repeat rewrite -> gen_addrs_gen_index in *.
     unfold alloc_func, add_func in Hallocx; injection Hallocx as ->; subst => /=.
-    rewrite app_length map_app gen_index_extend Hys Hcomp => /=.
+    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite app_length map_length.
-    + rewrite map_app.
-      unfold gen_func_instance => /=.
-      by rewrite app_assoc.
+    + by rewrite List.app_length List.map_length map_cat.
+    + by rewrite catA => /=.
 Qed.
 
-Lemma alloc_tab_gen_index modtabtypes ws ws' l:
-  alloc_tabs ws modtabtypes = (ws', l) ->
-  map (fun x => match x with | Mk_tableidx i => i end) l = gen_index (length (s_tables ws)) (length modtabtypes) /\
-  ws'.(s_tables) = ws.(s_tables) ++ map (fun '{| tt_limits := {| lim_min := min; lim_max := maxo |} |} => {| table_data := repeat None (ssrnat.nat_of_bin min); table_max_opt := maxo |}) modtabtypes /\
+Lemma alloc_table_gen_addrs modtables ws ws' l:
+  alloc_tabs ws modtables = (ws', l) ->
+  l = gen_addrs (length (s_tables ws)) (length modtables) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
+  ws'.(s_tables) = ws.(s_tables) ++ map (fun mf => gen_table_instance mf (VAL_ref_null (mf.(tt_elem_type)))) modtables /\
   ws.(s_mems) = ws'.(s_mems) /\
-  ws.(s_globals) = ws'.(s_globals).
+  ws.(s_globals) = ws'.(s_globals) /\
+  ws.(s_elems) = ws'.(s_elems) /\
+  ws.(s_datas) = ws'.(s_datas).
 Proof.
-  unfold alloc_tabs, instantiation_spec.alloc_tabs.
+  unfold alloc_tabs.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => map _ ys = gen_index _ _ /\ _))
+    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_index, imap => /=.
+  - unfold gen_addrs => /=.
     repeat split.
-    by rewrite app_nil_r.
-  - move => s s0 x xs' ys' s' y Hallocx [Hys [Hcomp [? [? ?]]]].
-    unfold alloc_tab, add_table in Hallocx. destruct x as [[lim_min lim_max]]. injection Hallocx as ->; subst => /=.
-    rewrite app_length map_app gen_index_extend Hys Hcomp => /=.
+    by rewrite cats0.
+  - move => s s0 x xs' ys' s' y Hallocx [Hys [? [Hcomp [? [?[??]]]]]].
+    repeat rewrite -> gen_addrs_gen_index in *.
+    unfold alloc_tab, alloc_tab_ref, add_table in Hallocx.
+    destruct x, tt_limits.
+    injection Hallocx as ->; subst => /=.
+    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite app_length map_length.
-    + rewrite map_app.
-      by rewrite app_assoc.
+    + by rewrite List.app_length List.map_length map_cat => /=.
+    + by rewrite catA => /=.
 Qed.
 
-Lemma alloc_mem_gen_index modmemtypes ws ws' l:
-  alloc_mems ws modmemtypes = (ws', l) ->
-  map (fun x => match x with | Mk_memidx i => i end) l = gen_index (length (s_mems ws)) (length modmemtypes) /\
-  ws'.(s_mems) = ws.(s_mems) ++ map (fun '{| lim_min := min; lim_max := maxo |} => {| mem_data := memory_list.mem_make #00%byte (page_size * min)%N; mem_max_opt := maxo |}) modmemtypes /\
+Lemma alloc_mem_gen_addrs modmems ws ws' l:
+  alloc_mems ws modmems = (ws', l) ->
+  l = gen_addrs (length (s_mems ws)) (length modmems) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
-  ws.(s_globals) = ws'.(s_globals).
+  ws'.(s_mems) = ws.(s_mems) ++ map (fun mf => gen_mem_instance mf) modmems /\
+  ws.(s_globals) = ws'.(s_globals) /\
+  ws.(s_elems) = ws'.(s_elems) /\
+  ws.(s_datas) = ws'.(s_datas).
 Proof.
-  unfold alloc_mems, instantiation_spec.alloc_mems.
+  unfold alloc_mems.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => map _ ys = gen_index _ _ /\ _))
+    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_index, imap => /=.
+  - unfold gen_addrs => /=.
     repeat split.
-    by rewrite app_nil_r.
-  - move => s s0 x xs' ys' s' y Hallocx [Hys [Hcomp [? [? ?]]]].
-    unfold alloc_mem, add_mem in Hallocx. destruct x as [memid]. injection Hallocx as ->; subst => /=.
-    rewrite app_length map_app gen_index_extend Hys Hcomp => /=.
+    by rewrite cats0.
+  - move => s s0 x xs' ys' s' y Hallocx [Hys [? [? [Hcomp [?[??]]]]]].
+    repeat rewrite -> gen_addrs_gen_index in *.
+    unfold alloc_mem, add_mem in Hallocx.
+    destruct x.
+    injection Hallocx as ->; subst => /=.
+    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite app_length map_length.
-    + rewrite map_app.
-      by rewrite app_assoc.
+    + by rewrite List.app_length List.map_length map_cat => /=.
+    + by rewrite catA => /=.
 Qed.
 
 Lemma combine_snoc {T1 T2: Type}: forall (l1: list T1) (l2: list T2) lc x,
-  lc ++ [::x] = combine l1 l2 ->
+  lc ++ [::x] = List.combine l1 l2 ->
   length l1 = length l2 ->
   exists l1' l2' a b,
-    (l1 = l1' ++ [::a] /\ l2 = l2' ++ [::b] /\ lc = combine l1' l2' /\ x = (a, b)).
+    (l1 = l1' ++ [::a] /\ l2 = l2' ++ [::b] /\ lc = List.combine l1' l2' /\ x = (a, b)).
 Proof.
   induction l1 as [| a l1']; move => l2 lc x Hcomb Hlen; first by destruct lc.
   destruct l2 as [|b l2'], lc as [|p lc'] => //; simpl in *; try by rewrite combine_nil in Hcomb.
@@ -715,46 +722,116 @@ Proof.
     by exists (a :: l1''), (b :: l2''), a', b'.
 Qed.
 
-Lemma alloc_glob_gen_index modglobs ws g_inits ws' l:
-  length g_inits = length modglobs ->
-  alloc_globs ws modglobs g_inits = (ws', l) ->
-  map (fun x => match x with | Mk_globalidx i => i end) l = gen_index (length (s_globals ws)) (length modglobs) /\
-  ws'.(s_globals) = ws.(s_globals) ++ map (fun '({| modglob_type := gt; modglob_init := ge |}, v) => {| g_mut := gt.(tg_mut); g_val := v |} ) (combine modglobs g_inits) /\
+Lemma alloc_global_gen_addrs modglobals g_inits ws ws' l:
+  alloc_globs ws modglobals g_inits = (ws', l) ->
+  length g_inits = length modglobals ->
+  l = gen_addrs (length (s_globals ws)) (length modglobals) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
-  ws.(s_mems) = ws'.(s_mems).
+  ws.(s_mems) = ws'.(s_mems) /\
+  ws'.(s_globals) = ws.(s_globals) ++ map (fun '({| modglob_type := gt; modglob_init := ge |}, v) => {| g_type := gt; g_val := v |} ) (List.combine modglobals g_inits) /\
+  ws.(s_elems) = ws'.(s_elems) /\
+  ws.(s_datas) = ws'.(s_datas).
 Proof.
-  unfold alloc_globs, instantiation_spec.alloc_globs.
-  move => Hgloblen Halloc.
-  move : Hgloblen.
-  remember (combine modglobs g_inits) as comb.
-  move : Heqcomb.
-  move : modglobs g_inits.
+  unfold alloc_globs.
+  move => Halloc.
+  remember (List.combine modglobals g_inits) as comb.
+  move : modglobals g_inits Heqcomb.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => forall globs g_inits, xs = combine globs g_inits -> length g_inits = length globs -> map _ ys = gen_index _ _ /\ _))
-    in Halloc; eauto => //.
-  - unfold gen_index, imap => /=.
-    move => modglobs g_inits Hcomb Hgloblen.
-    destruct g_inits, modglobs => //=.
-    repeat split.
-    by rewrite app_nil_r.
-  - move => s s0 x xs' ys' s' y Hallocx Hind modglobs g_inits Hcomb Hgloblen.
+    (R := (fun s_i s_e xs ys => forall globs g_inits, xs = List.combine globs g_inits -> length g_inits = length globs -> ys = gen_addrs _ _ /\ _))
+    in Halloc; eauto => //=.
+  - unfold gen_addrs => /=.
+    repeat split; last by rewrite cats0.
+    by destruct globs, g_inits => //.
+  - repeat setoid_rewrite gen_addrs_gen_index.
+    move => s s0 x xs' ys' s' y Hallocx Hind modglobs g_inits Hcomb Hgloblen.
     apply combine_snoc in Hcomb; last by lias.
     destruct Hcomb as [modglobs' [g_inits' [g [v [-> [-> [-> ->]]]]]]].
-    destruct (Hind modglobs' g_inits') as [Hys [Hcomp [? [? ?]]]] => //; clear Hind.
-    { repeat rewrite app_length in Hgloblen; simpl in Hgloblen. by lias. }
+    destruct (Hind modglobs' g_inits') as [Hys [? [? [? [Hcomp [??]]]]]] => //; clear Hind.
+    { repeat rewrite List.app_length in Hgloblen; simpl in Hgloblen. by lias. }
     unfold alloc_glob, add_glob in Hallocx. injection Hallocx as ->; subst => /=.
-    rewrite app_length map_app gen_index_extend Hys Hcomp => /=.
+    rewrite map_cat List.app_length gen_index_extend Hcomp => /=.
+    rewrite List.app_length.
     repeat split => //=.
-    + rewrite app_length map_length combine_length.
+    + rewrite map_cat => /=.
       do 3 f_equal.
-      repeat rewrite app_length in Hgloblen; simpl in Hgloblen.
+      repeat rewrite List.app_length in Hgloblen; simpl in Hgloblen.
+      rewrite List.map_length List.combine_length.
       by lias.
-    + rewrite map_app.
-      rewrite app_assoc => /=.
+    + rewrite -catA.
       by destruct g.
 Qed.
 
+Lemma alloc_elem_gen_addrs modelems r_inits ws ws' l:
+  alloc_elems ws modelems r_inits = (ws', l) ->
+  length r_inits = length modelems ->
+  l = gen_addrs (length (s_elems ws)) (length modelems) /\
+  ws.(s_funcs) = ws'.(s_funcs) /\
+  ws.(s_tables) = ws'.(s_tables) /\
+  ws.(s_mems) = ws'.(s_mems) /\
+  ws.(s_globals) = ws'.(s_globals) /\
+  ws'.(s_elems) = ws.(s_elems) ++ map (fun '(elem, refs) => {| eleminst_type := elem.(modelem_type); eleminst_elem := refs |} ) (List.combine modelems r_inits) /\
+  ws.(s_datas) = ws'.(s_datas).
+Proof.
+  unfold alloc_elems.
+  move => Halloc.
+  remember (List.combine modelems r_inits) as comb.
+  move : modelems r_inits Heqcomb.
+  eapply alloc_Xs_IP with
+    (R := (fun s_i s_e xs ys => forall elems r_inits, xs = List.combine elems r_inits -> length r_inits = length elems -> ys = gen_addrs _ _ /\ _))
+    in Halloc; eauto => //=.
+  - unfold gen_addrs => /=.
+    repeat split; last by rewrite cats0.
+    by destruct elems, r_inits => //.
+  - repeat setoid_rewrite gen_addrs_gen_index.
+    move => s s0 x xs' ys' s' y Hallocx Hind modelems r_inits Hcomb Helemlen.
+    apply combine_snoc in Hcomb; last by lias.
+    destruct Hcomb as [modelems' [r_inits' [r [v [-> [-> [-> ->]]]]]]].
+    destruct (Hind modelems' r_inits') as [Hys [? [? [? [? [Hcomp ?]]]]]] => //; clear Hind.
+    { repeat rewrite List.app_length in Helemlen; simpl in Helemlen. by lias. }
+    unfold alloc_elem, add_elem in Hallocx. injection Hallocx as ->; subst => /=.
+    rewrite map_cat List.app_length gen_index_extend Hcomp => /=.
+    rewrite List.app_length.
+    repeat split => //=.
+    + rewrite map_cat => /=.
+      do 3 f_equal.
+      repeat rewrite List.app_length in Helemlen; simpl in Helemlen.
+      rewrite List.map_length List.combine_length.
+      by lias.
+    + rewrite -catA.
+      by destruct r.
+Qed.
+
+Lemma alloc_data_gen_addrs moddatas ws ws' l:
+  alloc_datas ws moddatas = (ws', l) ->
+  l = gen_addrs (length (s_datas ws)) (length moddatas) /\
+  ws.(s_funcs) = ws'.(s_funcs) /\
+  ws.(s_tables) = ws'.(s_tables) /\
+  ws.(s_mems) = ws'.(s_mems) /\
+  ws.(s_globals) = ws'.(s_globals) /\
+  ws.(s_elems) = ws'.(s_elems) /\
+  ws'.(s_datas) = ws.(s_datas) ++ map (fun md => {| datainst_data := md.(moddata_init) |} ) moddatas.
+Proof.
+  unfold alloc_datas.
+  move => Halloc.
+  eapply alloc_Xs_IP with
+    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
+    in Halloc; eauto => //=.
+  - unfold gen_addrs => /=.
+    repeat split.
+    by rewrite cats0.
+  - move => s s0 x xs' ys' s' y Hallocx [Hys [? [? [? [? [? Hcomp]]]]]].
+    repeat rewrite -> gen_addrs_gen_index in *.
+    unfold alloc_data, add_data in Hallocx.
+    destruct x.
+    injection Hallocx as ->; subst => /=.
+    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
+    repeat split => //=.
+    + by rewrite List.app_length List.map_length map_cat => /=.
+    + by rewrite catA => /=.
+Qed.
+
+(*
 Lemma init_tabs_preserve ws inst e_inits melem ws':
   init_tabs ws inst e_inits melem = ws' ->
   ws.(s_funcs) = ws'.(s_funcs) /\
@@ -762,14 +839,14 @@ Lemma init_tabs_preserve ws inst e_inits melem ws':
   ws.(s_globals) = ws'.(s_globals).
 Proof.
   move => Hinit.
-  unfold init_tabs, instantiation_spec.init_tabs in Hinit.
+  unfold init_tabs in Hinit.
   rewrite - Hinit.
   apply fold_left_preserve => //.
   move => x [n me] Heq.
   destruct ws, x.
   simpl in *.
   destruct Heq as [-> [-> ->]].
-  unfold init_tab, instantiation_spec.init_tab => /=.
+  unfold init_tab => /=.
   by destruct (nth _ _) eqn:Hl => /=.
 Qed.
 
@@ -780,14 +857,14 @@ Lemma init_mems_preserve ws inst d_inits mdata ws':
   ws.(s_globals) = ws'.(s_globals).
 Proof.
   move => Hinit.
-  unfold init_mems, instantiation_spec.init_mems in Hinit.
+  unfold init_mems in Hinit.
   rewrite - Hinit.
   apply fold_left_preserve => //.
   move => x [n md] Heq.
   destruct ws, x.
   simpl in *.
   destruct Heq as [-> [-> ->]].
-  by unfold init_mem, instantiation_spec.init_mem => /=.
+  by unfold init_mem => /=.
 Qed.
 
 Lemma mod_imps_len_t m t_imps t_exps:
@@ -828,8 +905,7 @@ Proof.
     repeat split => //.
     by f_equal.
 Qed.
-
-Section Instantiation_det.
+*)
 
 Lemma bet_const_exprs_len tc es t1 t2:
   const_exprs tc es ->
@@ -837,27 +913,30 @@ Lemma bet_const_exprs_len tc es t1 t2:
   length t2 = length es + length t1.
 Proof.
   move: t1 t2.
-  induction es; move => t1 t2 Hconst Hbet; destruct t2 => //=.
-  { apply empty_typing in Hbet. by subst. }
-  { apply empty_typing in Hbet. by subst. }
-  { rewrite <- cat1s in Hbet.
-    invert_be_typing; subst.
-    exfalso.
-    simpl in *.
-    remove_bools_options.
-    apply IHes in H2_comp => //.
-    destruct es, ts3_comp => //=.
-    unfold const_expr in H.
-    destruct a => //; invert_be_typing; by destruct t1.
+  induction es; move => t1 t2 Hconst Hbet.
+  { invert_be_typing; subst.
+    apply values_subtyping_size in Hbet.
+    by repeat rewrite length_is_size.
   }
   { rewrite <- cat1s in Hbet.
     invert_be_typing.
-    simpl in *.
-    remove_bools_options.
+    simpl in Hconst; remove_bools_options.
+    destruct tf_principal.
     eapply IHes in H2_comp => //.
-    simpl in H2_comp.
     unfold const_expr in H.
-    destruct a => //; invert_be_typing; rewrite -> app_length in *; simpl in *; by lias.
+    rewrite H2_comp => /=.
+    destruct a => //; invert_be_typing; simpl in Hinvgoal.
+    all: try by
+      (injection Hinvgoal as -> ->;
+      apply instr_subtyping_size_exact in Htisub; simpl in *;
+      repeat rewrite length_is_size;
+         by lias).
+    all: by
+      (extract_premise;
+       injection Hconjl as -> ->;
+      apply instr_subtyping_size_exact in Htisub; simpl in *;
+      repeat rewrite length_is_size;
+         by lias).
   }
 Qed.
   
@@ -875,15 +954,13 @@ Proof.
   move/andP in Hconst.
   by destruct Hconst.
 Qed.
-
-Local Definition host_state := host_state host_instance.
-
+(*
 Lemma const_no_reduce (hs hs': host_state) s f v s' f' e':
-  reduce hs s f [::AI_basic (BI_const v)] hs' s' f' e' ->
+  reduce hs s f [::$V v] hs' s' f' e' ->
   False.
 Proof.
   move => Hred.
-  dependent induction Hred; subst; try by repeat destruct vcs => //.
+  destruct v as [v | v | v]; destruct v; simpl in *; dependent induction Hred; subst; try by repeat destruct vcs => //.
   { inversion H; subst; clear H; try by repeat destruct vs => //.
     destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
   }
@@ -899,8 +976,6 @@ Proof.
     by eapply IHHred.
   }
 Qed.
-
-Local Definition reduce_trans := @reduce_trans host_function host_instance.
 
 Lemma reduce_trans_const hs1 s1 f1 v1 hs2 s2 f2 v2:
   reduce_trans (hs1, s1, f1, [::AI_basic (BI_const v1)]) (hs2, s2, f2, [::AI_basic (BI_const v2)]) ->
@@ -953,6 +1028,8 @@ Proof.
   destruct y as [[[??]?]?].
   by apply const_no_reduce in H.
 Qed.
+
+Section Instantiation_det.
 
 Lemma modglobs_const: forall tc modglobs gt,
   Forall2 (module_glob_typing tc) modglobs gt ->

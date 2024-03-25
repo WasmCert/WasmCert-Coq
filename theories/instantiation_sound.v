@@ -2063,9 +2063,6 @@ Proof.
     apply nth_error_Some_length in Hnth.
     by lias.
 Qed.
-*)
-
-Print instantiate.
 
 Lemma instantiation_sound: forall (s: store_record) m v_imps s' inst v_exps start,
   store_typing s ->
@@ -2163,5 +2160,6 @@ Proof.
     exists t.
     by do 2 (eapply store_extension_export_typing; eauto).
 Qed.
+*)
 
 End Host.

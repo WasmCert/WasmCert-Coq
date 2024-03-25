@@ -29,6 +29,17 @@ Canonical Structure byte_eqMixin := EqMixin eqbyteP.
 Canonical Structure byte_eqType :=
   Eval hnf in EqType Byte.byte byte_eqMixin.
 
+Definition name_eq_dec : forall tf1 tf2 : name,
+  {tf1 = tf2} + {tf1 <> tf2}.
+Proof. decidable_equality. Defined.
+Definition name_eqb v1 v2 := is_left (name_eq_dec v1 v2).
+Definition eqnameP  : Equality.axiom name_eqb :=
+  eq_dec_Equality_axiom name_eq_dec.
+
+Canonical Structure name_eqMixin := EqMixin eqnameP.
+Canonical Structure name_eqType :=
+  Eval hnf in EqType name name_eqMixin.
+
 Scheme Equality for number_type.
 Definition number_type_eqb v1 v2 : bool := number_type_eq_dec v1 v2.
 Definition eqnumber_typeP : Equality.axiom number_type_eqb :=
