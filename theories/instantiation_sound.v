@@ -10,26 +10,9 @@ Require Import Coq.Program.Equality List.
 
 Section Host.
 
-Variable host_function : eqType.
-Let host := host host_function.
+Context `{ho: host}.
 
-Variable host_instance : host.
-
-Let functions_agree := @functions_agree host_function.
-
-Let store_record := store_record host_function.
-Let host_state := host_state host_instance.
-
-Let store_typing := @store_typing host_function.
-
-Let external_typing := @external_typing host_function.
-
-Let executable_host := executable_host host_function.
-Variable executable_host_instance : executable_host.
-Let host_event := host_event executable_host_instance.
-
-Let instantiate := instantiate host_function host_instance.
-
+(*
 Lemma functions_agree_aux s_funcs funcs f tf: 
   functions_agree s_funcs f tf ->
   functions_agree (List.app s_funcs funcs) f tf.
@@ -91,8 +74,6 @@ Proof.
     { apply nth_error_app1. by apply/ssrnat.ltP. }
     by rewrite -> H.
 Qed.
-
-Let cl_type_check_single := @cl_type_check_single host_function.
 
 Lemma cl_type_check_single_aux s_funcs s_tables s_mems s_globals func funcs tabs mems globs:
   cl_type_check_single {| s_funcs := s_funcs; s_tables := s_tables; s_mems := s_mems; s_globals := s_globals |} func ->
@@ -2044,7 +2025,7 @@ Proof.
 Qed.
 
 Lemma alloc_module_extract_export s m v_imps g_inits s' inst v_exps:
-  alloc_module host_function s m v_imps g_inits (s', inst, v_exps) ->
+  alloc_module s m v_imps g_inits (s', inst, v_exps) ->
   v_exps = map (fun m_exp => {| modexp_name := modexp_name m_exp; modexp_desc := export_get_v_ext inst (modexp_desc m_exp) |}) (mod_exports m).
 Proof.
   move => Halloc.
@@ -2082,6 +2063,9 @@ Proof.
     apply nth_error_Some_length in Hnth.
     by lias.
 Qed.
+*)
+
+Print instantiate.
 
 Lemma instantiation_sound: forall (s: store_record) m v_imps s' inst v_exps start,
   store_typing s ->

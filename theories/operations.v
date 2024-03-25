@@ -237,6 +237,7 @@ Definition is_float_t (t : number_type) : bool :=
 Definition is_ref_t (t: value_type) : bool :=
   match t with
   | T_ref _ => true
+  | T_bot => true
   | _ => false
   end.
 

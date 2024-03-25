@@ -29,6 +29,18 @@ Proof.
   by repeat rewrite length_is_size; rewrite size_rev.
 Qed.
 
+Lemma dropl_cat {T: Type}: forall (l1 l2: list T) n,
+    n <= size l1 ->
+    drop n (l1 ++ l2) = drop n l1 ++ l2.
+Proof.
+  move => l1 l2 n Hsize.
+  rewrite drop_cat.
+  destruct (n < size l1) eqn:Hlt => //.
+  assert (n = size l1); first by lias.
+  subst; rewrite subnn drop_size.
+  by rewrite drop0.
+Qed.
+
 Lemma app_eq_singleton: forall T (l1 l2 : list T) (a : T),
     l1 ++ l2 = [::a] ->
     (l1 = [::a] /\ l2 = [::]) \/ (l1 = [::] /\ l2 = [::a]).
@@ -746,6 +758,46 @@ Proof.
   by rewrite all2_cat in Hall; last by rewrite size_takel; lias.
 Qed.
 
+Lemma all2_rev {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2:
+    all2 f l1 l2 ->
+    all2 f (rev l1) (rev l2).
+Proof.
+  move: l2.
+  induction l1 using last_ind; move => ts Hvt => /=.
+  - by destruct ts.
+  - destruct ts using last_ind.
+    + by apply all2_size in Hvt; rewrite size_rcons in Hvt.
+    + clear IHts.
+      repeat rewrite rev_rcons => /=.
+      repeat rewrite -cats1 in Hvt.
+      assert (size l1 = size ts) as Hsize; first by apply all2_size in Hvt; repeat rewrite size_cat in Hvt; simpl in *; lias.
+      rewrite all2_cat in Hvt => //.
+      remove_bools_options; simpl in *; remove_bools_options.
+      rewrite H0 => /=.
+      by apply IHl1.
+Qed.
+
+Lemma all2_take {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2 n:
+    all2 f l1 l2 ->
+    all2 f (take n l1) (take n l2).
+Proof.
+  move : l2 n.
+  induction l1; destruct l2, n => //=.
+  move => H; remove_bools_options.
+  rewrite H => /=.
+  by apply IHl1.
+Qed.
+
+Lemma all2_drop {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2 n:
+    all2 f l1 l2 ->
+    all2 f (drop n l1) (drop n l2).
+Proof.
+  move : l2 n.
+  induction l1; destruct l2, n => //=.
+  move => H; remove_bools_options.
+  by apply IHl1.
+Qed.
+
 Lemma nth_error_take {T: Type} (l: list T) (x: T) (k n: nat):
   List.nth_error l n = Some x ->
   n < k ->
@@ -1059,25 +1111,6 @@ Proof.
   by apply all2_size in H.
 Qed.
 
-Lemma all2_rev {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2:
-    all2 f l1 l2 ->
-    all2 f (rev l1) (rev l2).
-Proof.
-  move: l2.
-  induction l1 using last_ind; move => ts Hvt => /=.
-  - by destruct ts.
-  - destruct ts using last_ind.
-    + by apply all2_size in Hvt; rewrite size_rcons in Hvt.
-    + clear IHts.
-      repeat rewrite rev_rcons => /=.
-      repeat rewrite -cats1 in Hvt.
-      assert (size l1 = size ts) as Hsize; first by apply all2_size in Hvt; repeat rewrite size_cat in Hvt; simpl in *; lias.
-      rewrite all2_cat in Hvt => //.
-      remove_bools_options; simpl in *; remove_bools_options.
-      rewrite H0 => /=.
-      by apply IHl1.
-Qed.
-  
 Lemma values_typing_rev: forall s vs ts,
     values_typing s (rev vs) ts ->
     values_typing s vs (rev ts).

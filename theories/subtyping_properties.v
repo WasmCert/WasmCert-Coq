@@ -279,6 +279,24 @@ Proof.
   by rewrite values_subtyping_eq.
 Qed.
 
+Lemma values_subtyping_take: forall ts1 ts2 n,
+    (ts1 <ts: ts2) ->
+    (take n ts1 <ts: take n ts2).
+Proof.
+  intros.
+  unfold values_subtyping.
+  by rewrite all2_take.
+Qed.
+
+Lemma values_subtyping_drop: forall ts1 ts2 n,
+    (ts1 <ts: ts2) ->
+    (drop n ts1 <ts: drop n ts2).
+Proof.
+  intros.
+  unfold values_subtyping.
+  by rewrite all2_drop.
+Qed.
+
 Lemma instr_subtyping_weaken: forall ts1 ts2 ts3 ts4 ts,
     (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
     (Tf ts1 ts2 <ti: Tf (ts ++ ts3) (ts ++ ts4)).
@@ -307,7 +325,7 @@ Ltac resolve_subtyping :=
   | H: Tf nil nil <ti: Tf ?ts1 ?ts2 |- _ =>
     apply instr_subtyping_empty_impl' in H
 
-  (* Resolving top-level types *)
+  (* Resolving top-level types. Need to be changed when a supremum type is introduced in future proposals *)
   | H: is_true (T_num ?t <t: ?t') |- _ =>
     apply num_subtyping in H => //; subst
   | H: is_true (T_vec ?t <t: ?t') |- _ =>
@@ -329,6 +347,15 @@ Ltac resolve_subtyping :=
       destruct ts => //; clear H
   | H: is_true (nil <ts: ?ts) |- _ =>
       destruct ts => //; clear H
+
+  (* subtyping of take/drop *)
+  | H: is_true (?ts1 <ts: ?t2) |-
+      context [ take ?n ?ts1 <ts: take ?n ?ts2 ] =>
+      rewrite (values_subtyping_take n H) => //
+                                              
+  | H: is_true (?ts1 <ts: ?t2) |-
+      context [ drop ?n ?ts1 <ts: drop ?n ?ts2 ] =>
+      rewrite (values_subtyping_drop n H) => //
                         
   (* singleton list subtyping *)
   | H: is_true ([::?t1] <ts: [::?t2]) |- _ =>

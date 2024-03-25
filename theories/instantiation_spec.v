@@ -256,11 +256,10 @@ Definition alloc_module (s : store_record) (m : module) (imps : list extern_valu
   (inst.(inst_elems) == i_es) &&
   (inst.(inst_datas) == i_ds) &&
   (inst.(inst_exports) == (map (get_exportinst
-                                         (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil))
+                                    (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil))
                                m.(mod_exports))).
 
 Definition dummy_table : tableinst := {| tableinst_elem := nil; tableinst_type := Build_table_type (Build_limits N0 None) T_funcref |}.
-
 
 Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_type) : Prop :=
   let '{| modfunc_type := x; modfunc_locals := t_locs; modfunc_body := b_es |} := mf in
@@ -574,15 +573,16 @@ Definition get_init_expr_start (mstart: option module_start) : list basic_instru
 Definition instantiate (s : store_record) (m : module) (v_imps : list extern_value)
                        (z : (store_record * frame * list basic_instruction)) : Prop :=
   let '(s_end, f, bes) := z in
-  exists t_imps_mod t_imps t_exps hs' s' inst g_inits r_inits,
+  exists t_imps_mod t_imps t_exps hs' inst g_inits r_inits,
     module_typing m t_imps_mod t_exps /\
     List.Forall2 (external_typing s) v_imps t_imps /\
     List.Forall2 import_subtyping t_imps t_imps_mod /\
-    alloc_module s m v_imps g_inits r_inits (s', inst) /\
+    alloc_module s m v_imps g_inits r_inits (s_end, inst) /\
     let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globs v_imps) nil nil nil in
     let f_init := Build_frame nil inst_init in
-    instantiate_globals f_init hs' s' m g_inits /\
-    instantiate_elems f_init hs' s' m r_inits /\
+    (* Init values *)
+    instantiate_globals f_init hs' s_end m g_inits /\
+    instantiate_elems f_init hs' s_end m r_inits /\
     f = Build_frame nil inst /\
       bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
 
@@ -612,4 +612,3 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list exte
   (s', inst).
 
 End Instantiation_spec.
-
