@@ -8,12 +8,6 @@ Section Instantiation_func.
 
 Context `{ho: host}.
   
-Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
-                       (host_state * option (store_record * result)).
-
-Hypothesis host_application_impl_correct :
-  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
-
   (*
 Import Interpreter_ctx_extract.
   *)
@@ -217,37 +211,43 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
   end.
 
 Definition external_type_checker (s : store_record) (v : extern_value): option extern_type :=
-  typing.ext_typing s v.
+  ext_typing s v.
 
-Definition interp_get_v (hs: host_state) (s : store_record) (f : frame) (b_es : list basic_instruction) : option value :=
-  match run_multi_step_raw host_application_impl_correct hs 5 s f 1 (operations.to_e_list b_es) with
-  | inr vs =>
-    match vs with
-    | [:: v] => Some v
-    | _ => None
-    end
+(* Auxiliary definition for evaluating constant expressios, instead of using the full interpreter. *)
+Definition interp_get_const (s : store_record) (f : frame) (b_es : list basic_instruction) : option value :=
+  match b_es with
+  | [::BI_const_num v] => Some (VAL_num v)
+  | [::BI_const_vec v] => Some (VAL_vec v)
+  | [::BI_ref_null t] => Some (VAL_ref (VAL_ref_null t))
+  | [::BI_ref_func i] =>
+      match lookup_N f.(f_inst).(inst_funcs) i with
+      | Some addr => Some (VAL_ref (VAL_ref_func addr))
+      | None => None
+      end
+  | [::BI_global_get i] =>
+      sglob_val s f.(f_inst) i
   | _ => None
   end.
 
-Definition interp_get_vref (hs: host_state) (s : store_record) (f: frame) (b_es : list basic_instruction) : option value_ref :=
-  match interp_get_v hs s f b_es with
+Definition interp_get_vref (s : store_record) (f: frame) (b_es : list basic_instruction) : option value_ref :=
+  match interp_get_const s f b_es with
   | Some (VAL_ref vref) => Some vref
   | _ => None
   end.
 
-Definition interp_get_i32 (hs: host_state) (s : store_record) (f: frame) (b_es : list basic_instruction) : option i32 :=
-  match interp_get_v hs s f b_es with
+Definition interp_get_i32 (s : store_record) (f: frame) (b_es : list basic_instruction) : option i32 :=
+  match interp_get_const s f b_es with
   | Some (VAL_num (VAL_int32 c)) => Some c
   | _ => None
   end.
 
-Definition get_global_inits (hs: host_state) (s: store_record) (f: frame) (gs: list module_global) : option (list value):=
-  those (map (fun g => interp_get_v hs s f g.(modglob_init)) gs).
+Definition get_global_inits (s: store_record) (f: frame) (gs: list module_global) : option (list value):=
+  those (map (fun g => interp_get_const s f g.(modglob_init)) gs).
 
-Definition get_elem_inits (hs: host_state) (s: store_record) (f: frame) (els: list module_element) : option (list (list value_ref)):=
-  those (map (fun el => those (map (fun e => interp_get_vref hs s f e) el.(modelem_init))) els).
+Definition get_elem_inits (s: store_record) (f: frame) (els: list module_element) : option (list (list value_ref)):=
+  those (map (fun el => those (map (fun e => interp_get_vref s f e) el.(modelem_init))) els).
 
-Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option ((host_state * store_record * frame * list basic_instruction)) :=
+Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option (host_state * store_record * frame * list basic_instruction) :=
   match module_type_checker m with
   | None => None
   | Some (t_imps_mod, t_exps) =>
@@ -266,10 +266,10 @@ Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (
                 inst_exports := nil;
               |} in
             let f_init := Build_frame nil inst_init in
-            match get_global_inits hs s f_init m.(mod_globals) with
+            match get_global_inits s f_init m.(mod_globals) with
             | None => None
             | Some g_inits =>
-                match get_elem_inits hs s f_init m.(mod_elems) with
+                match get_elem_inits s f_init m.(mod_elems) with
                 | Some r_inits =>
                     let '(s', inst_final) := interp_alloc_module s m v_imps g_inits r_inits in
                     let f_final := Build_frame nil inst_final in
@@ -302,7 +302,7 @@ Import Interpreter_ctx_extract.
 (* Add an empty host and provide an initial empty store, and convert the 
    starting expression to administrative *)
 Definition interp_instantiate_wrapper (m : module) : option (host_state * store_record * frame * list administrative_instruction) :=
-  match interp_instantiate host_application_impl host_application_impl_correct tt empty_store_record m nil with
+  match interp_instantiate tt empty_store_record m nil with
   | Some (hs, s, i, bes) => Some (hs, s, i, to_e_list bes)
   | None => None
   end.

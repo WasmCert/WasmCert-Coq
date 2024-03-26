@@ -717,6 +717,18 @@ Proof.
   }
 Qed.
 
+Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
+  (forall x y, f x y = true -> fprop x y) ->
+  all2 f l1 l2 ->
+  List.Forall2 fprop l1 l2.
+Proof.
+  move: l2.
+  induction l1; destruct l2 => //=; move => Himpl Hall.
+  move/andP in Hall; destruct Hall as [Hf Hall].
+  constructor; last by apply IHl1.
+  by apply Himpl.
+Qed.
+
 Lemma all2_weaken {T1 T2: Type} (l1: list T1) (l2: list T2) (f1 f2: T1 -> T2 -> bool):
   (forall x y, f1 x y -> f2 x y) ->
   all2 f1 l1 l2 ->
