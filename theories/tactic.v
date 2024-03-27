@@ -203,12 +203,19 @@ Ltac unfold_store_operations :=
 
 Ltac resolve_if_true_eq :=
   match goal with
-  | _ : _ |- match ?expr with
+  | |- match ?expr with
             | true => Some ?x
             | false => None
             end = Some ?x =>
       let Htrue := fresh "Htrue" in
       assert (expr = true) as Htrue; last by rewrite Htrue
+  | |- match ?expr with
+            | Some _ => _
+            | None => None
+            end = Some ?x =>
+      let Hsome := fresh "Hsome" in
+      let x := fresh "x" in
+      assert (exists x, expr = Some x) as [x Hsome]; last rewrite Hsome
   end.
 
 Ltac simplify_multieq :=

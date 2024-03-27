@@ -613,6 +613,20 @@ Proof.
   by eapply nth_error_Some_length; eauto.
 Qed.
 
+Lemma Forall_all {X: Type} (f: X -> bool) l:
+  all f l = true <->
+  List.Forall f l.
+Proof.
+  induction l => //=.
+  split; move => H => /=.
+  - remove_bools_options.
+    constructor => //.
+    by apply IHl.
+  - inversion H; subst; clear H.
+    apply/andP; split => //.
+    by apply IHl.
+Qed.
+
 Lemma Forall_lookup: forall {X:Type} f (l:seq X) n x,
     List.Forall f l ->
     List.nth_error l n = Some x ->
