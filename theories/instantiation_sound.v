@@ -2054,47 +2054,6 @@ Proof.
 Qed.
 *)
 
-Lemma those_exists {T: Type}: forall (l: list (option T)),
-    (forall n x, List.nth_error l n = Some x -> exists y, x = Some y) ->
-    exists l', those l = Some l'.
-Proof.
-  setoid_rewrite <- those_those0.
-  induction l; first by exists nil.
-  move => Hnth; simpl in *.
-  specialize (Hnth 0 a) as Ha; simpl in *.
-  destruct Ha as [y ->] => //=.
-  unfold option_map.
-  destruct IHl as [l' Heq].
-  - move => n x Hnth'.
-    specialize (Hnth (S n) x); simpl in Hnth.
-    by apply Hnth.
-  - by rewrite Heq; eexists.
-Qed.
-
-Lemma cat_lookup {T: Type}: forall (l1 l2: list T) n x,
-    List.nth_error (l1 ++ l2) n = Some x ->
-    List.nth_error l1 n = Some x \/
-      List.nth_error l2 (n - length l1) = Some x.
-Proof.
-  move => l1 l2 n x Hnth.
-  destruct (n < length l1) eqn:Hlt.
-  - rewrite List.nth_error_app1 in Hnth; last by lias.
-    by left.
-  - rewrite List.nth_error_app2 in Hnth; last by lias.
-    by right.
-Qed.
-
-Definition component_extension_extend {T: Type} (l1 l2 l3: list T) f:
-  l2 = l1 ++ l3 ->
-  (forall l, all2 f l l) ->
-  component_extension f l1 l2.
-Proof.
-  move => -> Hrefl.
-  unfold component_extension.
-  apply/andP; split; first by rewrite List.app_length; lias.
-  by rewrite length_is_size take_size_cat.
-Qed.
-
 Lemma instantiation_sound: forall (s: store_record) m v_imps s' f exps,
   store_typing s ->
   instantiate s m v_imps (s', f, exps) ->
@@ -2139,12 +2098,14 @@ Proof.
 
   assert (exists C, inst_typing s' f.(f_inst) = Some C) as [C HIT].
   {
+    extract_premise.
+    destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
     destruct m; unfold module_typing in Hmodtype; simpl in *.
     destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]].
-    subst f => /=.
     destruct inst; subst; simpl in *.
     replace (all functype_valid inst_types) with true; last by symmetry; apply Forall_all.
-    assert (exists tfs, those (map (ext_func_typing s6) inst_funcs) = Some tfs) as Hfts.
+    resolve_if_true_eq.
+    (* Functions *)
     {
       apply those_exists.
       move => n oft Hnth.
@@ -2153,13 +2114,132 @@ Proof.
       apply cat_lookup in Hoption.
       destruct Hoption as [Hnth | Hnth].
       - (* Imports *)
-        Search ext_funcs List.nth_error.
         apply ext_funcs_lookup_exist in Hnth as [k Hnth].
         eapply Forall2_lookup in Himptype as [t [Hntht Hexttype]]; eauto.
         unfold external_typing, ext_typing in Hexttype.
         remove_bools_options.
         by eapply ext_func_typing_extension in Hoption; eauto.
       - (* New *)
+        unfold ext_func_typing => /=.
+        resolve_if_true_eq; last by eexists.
+        apply nth_error_exists.
+        rewrite gen_addrs_gen_index in Hnth.
+        apply nth_error_map in Hnth as [k [Hnth Hmap]].
+        apply gen_index_lookup_Some in Hnth as [??]; subst.
+        rewrite Nat2N.id List.app_length List.map_length.
+        by lias.
+    }
+    resolve_if_true_eq.
+    (* Tables *)
+    {
+      apply those_exists.
+      move => n oft Hnth.
+      rewrite List.nth_error_map in Hnth.
+      remove_bools_options.
+      apply cat_lookup in Hoption.
+      destruct Hoption as [Hnth | Hnth].
+      - (* Imports *)
+        apply ext_tabs_lookup_exist in Hnth as [k Hnth].
+        eapply Forall2_lookup in Himptype as [t' [Hntht Hexttype]]; eauto.
+        unfold external_typing, ext_typing in Hexttype.
+        remove_bools_options.
+        by eapply ext_table_typing_extension in Hoption as [? [??]]; eauto.
+      - (* New *)
+        unfold ext_table_typing => /=.
+        resolve_if_true_eq; last by eexists.
+        apply nth_error_exists.
+        rewrite gen_addrs_gen_index in Hnth.
+        apply nth_error_map in Hnth as [k [Hnth Hmap]].
+        apply gen_index_lookup_Some in Hnth as [??]; subst.
+        rewrite Nat2N.id List.app_length List.map_length.
+        by lias.
+    }
+    resolve_if_true_eq.
+    (* Memories *)
+    {
+      apply those_exists.
+      move => n oft Hnth.
+      rewrite List.nth_error_map in Hnth.
+      remove_bools_options.
+      apply cat_lookup in Hoption.
+      destruct Hoption as [Hnth | Hnth].
+      - (* Imports *)
+        apply ext_mems_lookup_exist in Hnth as [k Hnth].
+        eapply Forall2_lookup in Himptype as [t' [Hntht Hexttype]]; eauto.
+        unfold external_typing, ext_typing in Hexttype.
+        remove_bools_options.
+        by eapply ext_mem_typing_extension in Hoption as [? [??]]; eauto.
+      - (* New *)
+        unfold ext_mem_typing => /=.
+        rewrite List.map_length in Hnth.
+        resolve_if_true_eq; last by eexists.
+        apply nth_error_exists.
+        rewrite gen_addrs_gen_index in Hnth.
+        apply nth_error_map in Hnth as [k [Hnth Hmap]].
+        apply gen_index_lookup_Some in Hnth as [??]; subst.
+        rewrite Nat2N.id List.app_length; repeat rewrite List.map_length.
+        by lias.
+    }
+    resolve_if_true_eq.
+    (* Globals *)
+    {
+      apply those_exists.
+      move => n oft Hnth.
+      rewrite List.nth_error_map in Hnth.
+      remove_bools_options.
+      apply cat_lookup in Hoption.
+      destruct Hoption as [Hnth | Hnth].
+      - (* Imports *)
+        apply ext_globs_lookup_exist in Hnth as [k Hnth].
+        eapply Forall2_lookup in Himptype as [t' [Hntht Hexttype]]; eauto.
+        unfold external_typing, ext_typing in Hexttype.
+        remove_bools_options.
+        by eapply ext_global_typing_extension in Hoption; eauto.
+      - (* New *)
+        unfold ext_global_typing => /=.
+        resolve_if_true_eq; last by eexists.
+        apply nth_error_exists.
+        rewrite gen_addrs_gen_index in Hnth.
+        apply nth_error_map in Hnth as [k [Hnth Hmap]].
+        apply gen_index_lookup_Some in Hnth as [??]; subst.
+        rewrite Nat2N.id List.app_length List.map_length List.combine_length.
+        apply List.Forall2_length in Hinstglob; simpl in Hinstglob; rewrite Hinstglob.
+        by lias.
+    }
+    resolve_if_true_eq.
+    (* Elements *)
+    {
+      apply those_exists.
+      move => n oft Hnth.
+      rewrite List.nth_error_map in Hnth.
+      remove_bools_options.
+      rewrite gen_addrs_gen_index in Hoption.
+      apply nth_error_map in Hoption as [k [Hnth Hmap]].
+      apply gen_index_lookup_Some in Hnth as [??]; subst.
+      (* New *)
+      resolve_if_true_eq.
+      - apply nth_error_exists.
+        rewrite Nat2N.id List.app_length List.map_length List.combine_length.
+        apply List.Forall2_length in Hinstelem; simpl in Hinstelem; rewrite Hinstelem.
+        by lias.
+      - destruct y3; unfold eleminst_typing, value_typing => /=.
+        resolve_if_true_eq; last by eexists.
+        apply Forall_all, Forall_spec.
+        move => m vref Hnth.
+        apply cat_lookup2 in Hsome3; last by lias.
+        apply nth_error_map in Hsome3 as [[elem vrefs] [Hnthcombine Heq]].
+        injection Heq as <- ->.
+        rewrite Nat2N.id in Hnthcombine.
+        replace ((_ + _)%coq_nat - _) with n in Hnthcombine; last by lias.
+        apply combine_lookup in Hnthcombine as [Hnthelem Hnthinit].
+        eapply Forall2_lookup in Hinstelem as [vref' [Hnthinit' Hmap]] => /=; last by apply Hnthelem.
+        simplify_multieq.
+        eapply Forall2_nth_impl' in Hmap as [be [Hnth' Hreduce]]; eauto.
+        eapply Forall2_nth_impl in Hmelemtype as [et [Hnthet Helemtype]]; last by apply Hnthelem.
+        destruct elem; unfold module_elem_typing in Helemtype.
+        destruct Helemtype as [-> [Hall Hvalidmode]].
+        eapply Forall_lookup in Hall; last by apply Hnth'.
+    }
   }
 
   assert (store_typing s') as HST'.
@@ -2192,92 +2272,6 @@ Proof.
         apply nth_error_map in Hnth as [mf [Hnth Hmap]].
         subst.
       
-  
-  unfold instantiate, instantiation_spec.instantiate in HInst.
-  destruct HInst as [t_imps [t_exps [hs' [s'_end [g_inits [e_offs [d_offs [HModType [HImpType [HAllocModule H]]]]]]]]]].
-
-  destruct H as [HInstGlob [HInstElem [HInstData [HBoundElem [HBoundData [HStart HStore]]]]]].
-
-  simpl in *.
-
-  specialize (alloc_module_sound _ _ _ _ _ _ _ _ _ _ HAllocModule HModType HImpType HInstGlob HStoreType) as Htyping. rename s'_end into s1.
-
-  destruct Htyping as [[Hstype' [C Hinsttype]] [Hext Hexptype]].
-
-  remember (init_tabs host_function s1 inst [seq Z.to_nat (Wasm_int.Int32.intval o) | o <- e_offs] (mod_elem m)) as s2.
-  
-  specialize (init_tabs_preserve_typing_aux _ _ _ _ _ _ _ _ _ _  HAllocModule HModType HImpType HInstGlob HStoreType) as Hinit_tabs_aux.
-  destruct Hinit_tabs_aux as [Hinst_funcs_len Hinst_func_typing].
-
-  specialize (elem_typing_proj_is _ _ _ HModType) as Hinit_typing.
-  rewrite <- Hinst_funcs_len in Hinit_typing.
-
-  specialize (init_tabs_preserve _ _ _ _ _ (Logic.eq_sym Heqs2)) as Hs2.
-  destruct Hs2 as [Hs2_funcs [Hs2_mems Hs2_globs]].
-  
-  eapply init_tabs_sound with (s' := s2) in Hstype'; eauto => //.
-  destruct Hstype' as [Hext2 Hstype2].
-
-  assert (store_extension s1 s2) as Hsext2.
-  { unfold store_extension.
-    rewrite - Hs2_funcs - Hs2_mems - Hs2_globs.
-    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply glob_extension_refl.
-    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply mem_extension_refl.
-    apply/andP; split; first by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply func_extension_refl.
-    done.
-  }
-  
-  assert (inst_typing s2 inst C) as Hinsttype2.
-  { by eapply inst_typing_extension; eauto. }
-  
-  move/eqP in HStore.
-  rewrite /check_bounds_data in HBoundData.
-  rewrite Hs2_mems in HBoundData.
-  
-  specialize (init_mems_preserve _ _ _ _ _ (Logic.eq_sym HStore)) as Hs'.
-  destruct Hs' as [Hs'_funcs [Hs'_tabs Hs'_globs]].
-  
-  eapply init_mems_sound in Hstype2; eauto => //.
-  destruct Hstype2 as [Hext3 Hstype3].
-  
-  assert (store_extension s2 s') as Hsext3.
-  { unfold store_extension.
-    rewrite - Hs'_funcs - Hs'_tabs - Hs'_globs.
-    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply glob_extension_refl.
-    apply/andP; split => //.
-    apply/andP; split; last by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply tab_extension_refl.
-    by apply comp_extension_same_refl; unfold ssrbool.reflexive; apply func_extension_refl.
-  }
-
-  assert (inst_typing s' inst C) as Hinsttype'; first by eapply inst_typing_extension; eauto.
-  
-  repeat split => //.
-  - by do 2 (eapply store_extension_trans; eauto).
-  - by exists C.
-  - destruct start => //=.
-    clear - HStart Hinsttype'.
-    unfold check_start in HStart.
-    destruct m, mod_start as [mstart |] => //=; simpl in HStart.
-    move/eqP in HStart.
-    destruct mstart as [[mstart]]; simpl in HStart.
-    destruct inst, C => /=.
-    unfold inst_typing in Hinsttype'.
-    destruct tc_local, tc_label, tc_return => //.
-    remove_bools_options.
-    simpl in HStart.
-    specialize (all2_element H3 HStart) as [y Hnth'].
-    eapply all2_projection in H3; eauto.
-    unfold typing.functions_agree in H3.
-    remove_bools_options.
-    apply/Nat.ltb_spec0.
-    by apply nth_error_Some_length in Hoption.
-  - eapply Forall_impl; eauto => //.
-    move => y Hexttype.
-    simpl in Hexttype.
-    destruct Hexttype as [t Hexttype].
-    exists t.
-    by do 2 (eapply store_extension_export_typing; eauto).
 Qed.
-*)
 
 End Host.

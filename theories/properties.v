@@ -731,6 +731,175 @@ Proof.
   }
 Qed.
 
+Lemma list_eq {T: Type} (l1 l2: list T):
+  (forall i, List.nth_error l1 i = List.nth_error l2 i) -> l1 = l2.
+Proof.
+  move: l1 l2.
+  induction l1; destruct l2 => //=; move => H; try by specialize (H 0).
+  f_equal.
+  - specialize (H 0); by injection H.
+  - apply IHl1; move => i.
+    by specialize (H (S i)).
+Qed.
+
+Lemma Forall_spec {T: Type} (P: T -> Prop) (l: list T):
+  (forall n x, List.nth_error l n = Some x -> P x) ->
+  List.Forall P l.
+Proof.
+  induction l; move => Hspec => //.
+  constructor.
+  - by eapply (Hspec 0 a).
+  - apply IHl.
+    move => n x Hnth.
+    by apply (Hspec (S n) x).
+Qed.
+
+Lemma Forall2_lookup {T1 T2: Type} (f: T1 -> T2 -> Prop) l1 l2 i x:
+  List.Forall2 f l1 l2 ->
+  List.nth_error l1 i = Some x ->
+  exists y, List.nth_error l2 i = Some y /\ f x y.
+Proof.
+  move: l1 l2 i x.
+  induction l1; destruct l2, i => //=; move => x Hall2 Hnth; try by inversion Hall2.
+  - injection Hnth as ->. eexists; split => //.
+    by inversion Hall2.
+  - apply IHl1 => //.
+    by inversion Hall2.
+Qed.
+
+Lemma Forall2_function_eq_cond {T1 T2: Type} (P: T1 -> Prop) (f g: T1 -> T2 -> Prop) l1 l2 l3:
+  List.Forall P l1 ->
+  List.Forall2 f l1 l2 ->
+  List.Forall2 g l1 l3 ->
+  (forall x y z, P x -> f x y -> g x z -> y = z) ->
+  l2 = l3.
+Proof.
+  move => Hall Hall2f Hall2g Heq.
+  apply list_eq.
+  move => i.
+  destruct (List.nth_error l1 i) eqn:Hnth.
+  { eapply Forall_lookup in Hall; eauto => //.
+    eapply Forall2_lookup in Hall2f as [y [Hnth1 Hf]]; eauto => //.
+    eapply Forall2_lookup in Hall2g as [z [Hnth2 Hg]]; eauto => //.
+    rewrite Hnth1 Hnth2; f_equal.
+    by eapply Heq; eauto.
+  }
+  { apply List.Forall2_length in Hall2f.
+    apply List.Forall2_length in Hall2g.
+    apply List.nth_error_None in Hnth.
+    specialize (List.nth_error_None l2 i) as [_ Hnone1].
+    rewrite Hnone1; last by lias.
+    symmetry. rewrite -> List.nth_error_None. by lias.
+  }
+Qed.
+
+Lemma Forall2_function_eq {T1 T2: Type} (f g: T1 -> T2 -> Prop) l1 l2 l3:
+  List.Forall2 f l1 l2 ->
+  List.Forall2 g l1 l3 ->
+  (forall x y z, f x y -> g x z -> y = z) ->
+  l2 = l3.
+Proof.
+  move => Hall2f Hall2g Heq.
+  eapply Forall2_function_eq_cond with (P := fun _ => True) in Hall2g; eauto.
+  clear. by induction l1; constructor.
+Qed.
+
+Lemma Forall2_all2: forall {A B: Type} (R : A -> B -> bool) (l1 : seq.seq A) (l2 : seq.seq B),
+    List.Forall2 R l1 l2 <-> all2 R l1 l2.
+Proof.
+  move => A B R l1.
+  split.
+  - move: l2.
+    induction l1; move => l2 HForall2.
+    * by inversion HForall2.
+    * inversion HForall2; subst.
+      specialize (IHl1 l' H3).
+      apply/andP. split => //.
+  - move: l2.
+    induction l1; move => l2 Hall2.
+    * inversion Hall2. by destruct l2 => //.
+    * inversion Hall2. destruct l2 => //.
+      move/andP in H0. destruct H0.
+      specialize (IHl1 l2 H0).
+      apply List.Forall2_cons => //.
+Qed.
+
+Lemma all2_and: forall A B (f g h : A -> B -> bool) l1 l2,
+  (forall a b, f a b = (g a b) && (h a b)) -> 
+  all2 g l1 l2 /\ all2 h l1 l2 -> 
+  all2 f l1 l2.
+Proof.
+  move => A B f g h l1 l2 Hand [Hg Hh].
+  apply all2_spec; first by apply all2_size in Hg.
+  move => n x y Hnth1 Hnth2.
+  eapply all2_projection in Hg; eauto.
+  eapply all2_projection in Hh; eauto.
+  rewrite Hand; by lias.
+Qed.
+
+Lemma Forall2_nth_error: forall A B R (l1 : seq.seq A) (l2 : seq.seq B) n m k,
+    List.Forall2 R l1 l2 ->
+    List.nth_error l1 n = Some m ->
+    List.nth_error l2 n = Some k ->
+    R m k.
+Proof.
+  move => A B R l1 l2 n m k HForall2 Hnth1 Hnth2.
+  eapply Forall2_lookup in Hnth1; eauto.
+  destruct Hnth1 as [y [Hnth2' HR]].
+  rewrite Hnth2' in Hnth2; by injection Hnth2 as ->.
+Qed.
+
+Lemma Forall2_spec: forall A B (R : A -> B -> Prop) (l1 : seq.seq A) (l2 : seq.seq B),
+    List.length l1 = List.length l2 -> 
+    (forall n m k,
+    List.nth_error l1 n = Some m -> 
+    List.nth_error l2 n = Some k ->
+    R m k) ->
+    List.Forall2 R l1 l2.
+Proof.
+  move => A B R l1.
+  induction l1; move => l2 Hlen Hlookup; destruct l2 => //; simpl in *.
+  constructor.
+  - by apply (Hlookup 0 a b).
+  - apply IHl1; first by lias.
+    move => i x y Hl1 Hl2.
+    by eapply (Hlookup (S i)) => //.
+Qed.
+
+Lemma Forall2_nth_impl {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
+  List.Forall2 f l1 l2 ->
+  List.nth_error l1 n = Some x ->
+  exists y, List.nth_error l2 n = Some y /\ f x y.
+Proof.
+  move => Hall2 Hnth.
+  destruct (List.nth_error l2 n) eqn:Hnth'.
+  - exists t; split => //.
+    eapply Forall2_lookup in Hall2 as [? [Hnth'' ?]]; eauto.
+    by rewrite Hnth' in Hnth''; injection Hnth'' as <-.
+  - exfalso.
+    apply List.nth_error_None in Hnth'.
+    apply List.Forall2_length in Hall2.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+Qed.
+
+Lemma Forall2_nth_impl' {T1 T2: Type} (l1: list T1) (l2: list T2) f n y:
+  List.Forall2 f l1 l2 ->
+  List.nth_error l2 n = Some y ->
+  exists x, List.nth_error l1 n = Some x /\ f x y.
+Proof.
+  move => Hall2 Hnth.
+  destruct (List.nth_error l1 n) eqn:Hnth'.
+  - exists t; split => //.
+    eapply Forall2_lookup in Hall2 as [? [Hnth'' ?]]; eauto.
+    by rewrite Hnth in Hnth''; injection Hnth'' as <-.
+  - exfalso.
+    apply List.nth_error_None in Hnth'.
+    apply List.Forall2_length in Hall2.
+    apply nth_error_Some_length in Hnth.
+    by lias.
+Qed.
+
 Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
   (forall x y, f x y = true -> fprop x y) ->
   all2 f l1 l2 ->
@@ -1590,6 +1759,65 @@ Proof.
   apply IHn; by lias.
 Qed.
 
+Lemma those_exists {T: Type}: forall (l: list (option T)),
+    (forall n x, List.nth_error l n = Some x -> exists y, x = Some y) ->
+    exists l', those l = Some l'.
+Proof.
+  setoid_rewrite <- those_those0.
+  induction l; first by exists nil.
+  move => Hnth; simpl in *.
+  specialize (Hnth 0 a) as Ha; simpl in *.
+  destruct Ha as [y ->] => //=.
+  unfold option_map.
+  destruct IHl as [l' Heq].
+  - move => n x Hnth'.
+    specialize (Hnth (S n) x); simpl in Hnth.
+    by apply Hnth.
+  - by rewrite Heq; eexists.
+Qed.
+
+Lemma cat_lookup {T: Type}: forall (l1 l2: list T) n x,
+    List.nth_error (l1 ++ l2) n = Some x ->
+    List.nth_error l1 n = Some x \/
+      List.nth_error l2 (n - length l1) = Some x.
+Proof.
+  move => l1 l2 n x Hnth.
+  destruct (n < length l1) eqn:Hlt.
+  - rewrite List.nth_error_app1 in Hnth; last by lias.
+    by left.
+  - rewrite List.nth_error_app2 in Hnth; last by lias.
+    by right.
+Qed.
+
+Lemma cat_lookup2 {T: Type}: forall (l1 l2: list T) n x,
+    List.nth_error (l1 ++ l2) n = Some x ->
+    (length l1 <= n) ->
+    List.nth_error l2 (n - length l1) = Some x.
+Proof.
+  move => l1 l2 n x Hnth Hlength.
+  by rewrite List.nth_error_app2 in Hnth; last by lias.
+Qed.
+
+Lemma combine_lookup {T1 T2: Type}: forall (l1: list T1) (l2: list T2) n x y,
+    List.nth_error (List.combine l1 l2) n = Some (x, y) ->
+    List.nth_error l1 n = Some x /\ List.nth_error l2 n = Some y.
+Proof.
+  induction l1; destruct l2, n => //=.
+  - by move => x y [-> ->].
+  - move => ???; by apply IHl1.
+Qed.
+
+Lemma nth_error_exists {T: Type}: forall (l: list T) n,
+    n < length l ->
+    exists x, List.nth_error l n = Some x.
+Proof.
+  move => l n Hnth.
+  destruct (List.nth_error l n) eqn:Hnth'; first by eexists.
+  exfalso.
+  apply List.nth_error_None in Hnth'.
+  by lias.
+Qed.
+
 Lemma component_extension_update {T: Type} (l: list T) n x y y0 f:
   reflexive f ->
   List.nth_error l n = Some x ->
@@ -1685,6 +1913,17 @@ Proof.
   apply (nth_error_take (k := length l1)) in Hnth'; last by lias.
   specialize (all2_projection H0 Hnth Hnth') as Hproj.
   by exists y.
+Qed.
+
+Definition component_extension_extend {T: Type} (l1 l2 l3: list T) f:
+  l2 = l1 ++ l3 ->
+  (forall l, all2 f l l) ->
+  component_extension f l1 l2.
+Proof.
+  move => -> Hrefl.
+  unfold component_extension.
+  apply/andP; split; first by rewrite List.app_length; lias.
+  by rewrite length_is_size take_size_cat.
 Qed.
 
 Lemma store_extension_lookup_func: forall s s' n cl,

@@ -209,6 +209,12 @@ Ltac resolve_if_true_eq :=
             end = Some ?x =>
       let Htrue := fresh "Htrue" in
       assert (expr = true) as Htrue; last by rewrite Htrue
+  | |- exists x, match ?expr with
+            | true => _
+            | false => None
+            end = Some x =>
+      let Htrue := fresh "Htrue" in
+      assert (expr = true) as Htrue; last rewrite Htrue
   | |- match ?expr with
             | Some _ => _
             | None => None
@@ -216,6 +222,13 @@ Ltac resolve_if_true_eq :=
       let Hsome := fresh "Hsome" in
       let x := fresh "x" in
       assert (exists x, expr = Some x) as [x Hsome]; last rewrite Hsome
+  | |- exists x, match ?expr with
+            | Some _ => _
+            | None => None
+            end = Some x =>
+      let Hsome := fresh "Hsome" in
+      let y := fresh "y" in
+      assert (exists y, expr = Some y) as [y Hsome]; last rewrite Hsome
   end.
 
 Ltac simplify_multieq :=
