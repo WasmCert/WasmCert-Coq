@@ -19,7 +19,7 @@ Proof.
   destruct m.
   destruct (gather_m_f_types mod_types mod_funcs) as [fts | ] eqn:Hmftypes => //;
   destruct (module_imports_typer mod_types mod_imports) as [impts | ] eqn:Hmitypes => //.
-  destruct (gather_m_e_types (ext_t_tabs impts ++ map modtab_type mod_tables) mod_elems) as [ets | ] eqn:Hmetypes => //.
+  destruct (gather_m_e_types (ext_t_tables impts ++ map modtab_type mod_tables) mod_elems) as [ets | ] eqn:Hmetypes => //.
   destruct (gather_m_d_types (ext_t_mems impts ++ map modmem_type mod_mems) mod_datas) as [dts | ] eqn:Hmdtypes => //.
   destruct (all _ _ && _ && _ && _ && _ && _ && _ && _) eqn:Hallcond => //.
   destruct (module_exports_typer _ mod_exports) eqn:Hmexptypes => //.
@@ -53,6 +53,8 @@ Proof.
     simplify_multieq.
     split => //.
     rewrite Hmap in Hfunccheck.
+    remove_bools_options.
+    split => //; last by apply/eqP.
     by apply/b_e_type_checker_reflects_typing.
   }
   (* globals *)

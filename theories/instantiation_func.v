@@ -90,7 +90,7 @@ Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
       tc_return := Some tm;
       tc_refs := c.(tc_refs)
     |} in
-    type_checker.b_e_type_checker c' b_es (Tf [::] tm)
+    type_checker.b_e_type_checker c' b_es (Tf [::] tm) && (default_vals t_locs != None)
   end.
 
 Definition module_table_type_checker := module_table_typing.
@@ -156,9 +156,9 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
   match (gather_m_f_types tfs fs, module_imports_typer tfs imps) with
   | (Some fts, Some impts) =>
     let ifts := ext_t_funcs impts in
-    let its := ext_t_tabs impts in
+    let its := ext_t_tables impts in
     let ims := ext_t_mems impts in
-    let igs := ext_t_globs impts in
+    let igs := ext_t_globals impts in
     let gts := gather_m_g_types gs in
     let tts := its ++ (map modtab_type ts) in
     let mts := ims ++ (map modmem_type ms) in
@@ -260,7 +260,7 @@ Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (
                 inst_funcs := (ext_funcs v_imps) ++ (map N.of_nat (iota (length (s_funcs s)) (length (mod_funcs m))));
                 inst_tables := nil;
                 inst_mems := nil;
-                inst_globals := ext_globs v_imps;
+                inst_globals := ext_globals v_imps;
                 inst_elems := nil;
                 inst_datas := nil;
                 inst_exports := nil;

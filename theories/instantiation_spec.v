@@ -195,7 +195,7 @@ Definition ext_funcs :=
       | _ => None
       end).
 
-Definition ext_tabs :=
+Definition ext_tables :=
   seq.pmap
     (fun x =>
       match x with
@@ -211,7 +211,7 @@ Definition ext_mems :=
       | _ => None
       end).
 
-Definition ext_globs :=
+Definition ext_globals :=
   seq.pmap
     (fun x =>
       match x with
@@ -227,7 +227,7 @@ Definition ext_t_funcs :=
       | _ => None
       end).
 
-Definition ext_t_tabs :=
+Definition ext_t_tables :=
   seq.pmap
     (fun x =>
       match x with
@@ -243,7 +243,7 @@ Definition ext_t_mems :=
       | _ => None
       end).
 
-Definition ext_t_globs :=
+Definition ext_t_globals :=
   seq.pmap
     (fun x =>
       match x with
@@ -267,9 +267,9 @@ Definition alloc_module (s : store_record) (m : module) (imps : list extern_valu
   (s'_goal == s') &&
   (inst.(inst_types) == m.(mod_types)) &&
   (inst.(inst_funcs) == ((ext_funcs imps) ++ i_fs)) &&
-  (inst.(inst_tables) == ((ext_tabs imps) ++ i_ts)) &&
+  (inst.(inst_tables) == ((ext_tables imps) ++ i_ts)) &&
   (inst.(inst_mems) == ((ext_mems imps) ++ i_ms)) &&
-  (inst.(inst_globals) == ((ext_globs imps) ++ i_gs)) &&
+  (inst.(inst_globals) == ((ext_globals imps) ++ i_gs)) &&
   (inst.(inst_elems) == i_es) &&
   (inst.(inst_datas) == i_ds) &&
   (inst.(inst_exports) == (map (get_exportinst
@@ -462,9 +462,9 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
     mod_exports := exps;
   |} := m in
   let ifts := ext_t_funcs impts in
-  let its := ext_t_tabs impts in
+  let its := ext_t_tables impts in
   let ims := ext_t_mems impts in
-  let igs := ext_t_globs impts in
+  let igs := ext_t_globals impts in
   let xs := module_filter_funcidx m in
   let c := {|
     tc_types := tfs;
@@ -588,7 +588,7 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list extern_val
     List.Forall2 (external_typing s) v_imps t_imps /\
     List.Forall2 import_subtyping t_imps t_imps_mod /\
     alloc_module s m v_imps g_inits r_inits (s_end, inst) /\
-    let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globs v_imps) nil nil nil in
+    let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globals v_imps) nil nil nil in
     let f_init := Build_frame nil inst_init in
     (* Init values *)
     instantiate_globals f_init hs' s_end m g_inits /\
@@ -609,9 +609,9 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list exte
   let inst := {|
     inst_types := m.(mod_types);
     inst_funcs := (ext_funcs imps ++ i_fs);
-    inst_tables := (ext_tabs imps ++ i_ts);
+    inst_tables := (ext_tables imps ++ i_ts);
     inst_mems := (ext_mems imps ++ i_ms);
-    inst_globals := (ext_globs imps ++ i_gs);
+    inst_globals := (ext_globals imps ++ i_gs);
     inst_elems := (i_es);
     inst_datas := (i_ds);
     inst_exports := (map (get_exportinst (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil)) m.(mod_exports))

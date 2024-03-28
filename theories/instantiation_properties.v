@@ -333,8 +333,8 @@ Proof.
   all: by exists (S k).
 Qed.
 
-Lemma ext_tabs_lookup_exist (modexps: list extern_value) n tn:
-  (ext_tabs modexps) !! n = Some tn ->
+Lemma ext_tables_lookup_exist (modexps: list extern_value) n tn:
+  (ext_tables modexps) !! n = Some tn ->
   exists k, modexps !! k = Some (EV_table tn).
 Proof.
   move: n tn.
@@ -373,8 +373,8 @@ Proof.
   all: by exists (S k).
 Qed.
 
-Lemma ext_globs_lookup_exist (modexps: list extern_value) n fn:
-  (ext_globs modexps) !! n = Some fn ->
+Lemma ext_globals_lookup_exist (modexps: list extern_value) n fn:
+  (ext_globals modexps) !! n = Some fn ->
   exists k, modexps !! k = Some (EV_global fn).
 Proof.
   move: n fn.
@@ -407,9 +407,9 @@ Proof.
   by exists (S k).
 Qed.
 
-Lemma ext_tabs_lookup_exist_inv (modexps: list extern_value) n idx:
+Lemma ext_tables_lookup_exist_inv (modexps: list extern_value) n idx:
   modexps !! n = Some (EV_table idx) ->
-  exists k, ((ext_tabs modexps) !! k = Some idx).
+  exists k, ((ext_tables modexps) !! k = Some idx).
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -435,9 +435,9 @@ Proof.
   by exists (S k).
 Qed.
 
-Lemma ext_globs_lookup_exist_inv (modexps: list extern_value) n idx:
+Lemma ext_globals_lookup_exist_inv (modexps: list extern_value) n idx:
   modexps !! n = Some (EV_global idx) ->
-  exists k, ((ext_globs modexps) !! k = Some idx).
+  exists k, ((ext_globals modexps) !! k = Some idx).
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -735,9 +735,9 @@ Qed.
 Lemma mod_imps_len_t m t_imps t_exps:
   module_typing m t_imps t_exps ->
   get_import_func_count m = length (ext_t_funcs t_imps) /\
-  get_import_table_count m = length (ext_t_tabs t_imps) /\
+  get_import_table_count m = length (ext_t_tables t_imps) /\
   get_import_mem_count m = length (ext_t_mems t_imps) /\
-  get_import_global_count m = length (ext_t_globs t_imps).
+  get_import_global_count m = length (ext_t_globals t_imps).
 Proof.
   unfold get_import_func_count, get_import_table_count, get_import_mem_count, get_import_global_count.
   unfold module_typing.
@@ -961,7 +961,7 @@ Lemma module_glob_init_det m v_imps t_imps inst hs1 s1 hs2 s2 gi1 gi2:
   module_typing m v_imps t_imps ->
   instantiate_globals inst hs1 s1 m gi1 ->
   instantiate_globals inst hs2 s2 m gi2 ->
-  (forall i, i < length (ext_t_globs v_imps) -> sglob_val s1 inst i = sglob_val s2 inst i) ->
+  (forall i, i < length (ext_t_globals v_imps) -> sglob_val s1 inst i = sglob_val s2 inst i) ->
   gi1 = gi2.
 Proof.
   move => Hmt Hgi1 Hgi2 Hsgveq.
@@ -1065,22 +1065,41 @@ Proof.
     by injection Heq2.
   }
 Qed.
+*)
 
-Lemma vt_imps_comp_len hs s (v_imps: list v_ext) t_imps:
-  Forall2 (external_typing hs s) v_imps t_imps ->
+Lemma vt_imps_comp_len s (v_imps: list extern_value) t_imps:
+  List.Forall2 (external_typing s) v_imps t_imps ->
   (length (ext_funcs v_imps) = length (ext_t_funcs t_imps) /\
-    length (ext_tabs v_imps) = length (ext_t_tabs t_imps) /\
+    length (ext_tables v_imps) = length (ext_t_tables t_imps) /\
     length (ext_mems v_imps) = length (ext_t_mems t_imps) /\
-    length (ext_globs v_imps) = length (ext_t_globs t_imps)).
+    length (ext_globals v_imps) = length (ext_t_globals t_imps)).
 Proof.
   move: t_imps.
-  induction v_imps; move => t_imps Hexttype; destruct t_imps; try by apply Forall2_length in Hexttype.
+  induction v_imps; move => t_imps Hexttype; destruct t_imps; try by apply List.Forall2_length in Hexttype.
   inversion Hexttype; subst; clear Hexttype.
   apply IHv_imps in H4.
   destruct H4 as [Hft [Htt [Hmt Hgt]]].
-  destruct a; inversion H2; subst; clear H2 => //=; by repeat split; lias.
+  unfold external_typing, ext_typing in H2.
+  destruct a, e; simpl in H2; remove_bools_options => //=; repeat split; try by f_equal.
 Qed.
 
+Lemma subtyping_comp_len t_imps1 t_imps2:
+  List.Forall2 import_subtyping t_imps1 t_imps2->
+  (length (ext_t_funcs t_imps1) = length (ext_t_funcs t_imps2) /\
+    length (ext_t_tables t_imps1) = length (ext_t_tables t_imps2) /\
+    length (ext_t_mems t_imps1) = length (ext_t_mems t_imps2) /\
+    length (ext_t_globals t_imps1) = length (ext_t_globals t_imps2)).
+Proof.
+  move: t_imps2.
+  induction t_imps1; move => t_imps2 Hexttype; destruct t_imps2; try by apply List.Forall2_length in Hexttype.
+  inversion Hexttype; subst; clear Hexttype.
+  apply IHt_imps1 in H4.
+  destruct H4 as [Hft [Htt [Hmt Hgt]]].
+  unfold import_subtyping in H2.
+  destruct a, e; simpl in H2; remove_bools_options => //=; repeat split; try by lias.
+Qed.
+
+(*
 Local Definition external_typing := external_typing host_function.
 
 Lemma alloc_module_det hs1 hs2 s m v_imps t_imps t_exps g_inits g_inits' s_res1 s_res2 inst inst' exps exps':
@@ -1253,7 +1272,7 @@ Proof.
     repeat rewrite nth_error_lookup.
     repeat rewrite map_map.
     repeat rewrite list_lookup_map.
-    remember ((ext_globs v_imps ++ idg') !! i) as gi.
+    remember ((ext_globals v_imps ++ idg') !! i) as gi.
     specialize (vt_imps_comp_len _ _ _ _ Hexttype) as Hcomplen.
     destruct Hcomplen as [_ [_ [_ Hglen]]].
     rewrite <- Hglen in Hilen.
@@ -1264,7 +1283,7 @@ Proof.
     { unfold module_typing in Hmt.
       destruct m; simpl in *.
       destruct Hmt as [fts [gts [_ [_ [_ [_ [_ [_ [_ [Hit _]]]]]]]]]].
-      apply ext_globs_lookup_exist in Heqgi as [k Hvi].
+      apply ext_globals_lookup_exist in Heqgi as [k Hvi].
       eapply Forall2_lookup in Hexttype; eauto.
       destruct Hexttype as [y [Hnth Hexttype]].
       inversion Hexttype; subst; clear Hexttype.

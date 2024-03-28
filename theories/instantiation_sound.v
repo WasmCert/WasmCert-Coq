@@ -162,8 +162,8 @@ Qed.
 Lemma external_typing_aux s v_imps t_imps:
   Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps -> 
   length (ext_funcs v_imps) = length (ext_t_funcs t_imps) /\
-  length (ext_globs v_imps) = length (ext_t_globs t_imps) /\
-  length (ext_tabs v_imps) = length (ext_t_tabs t_imps) /\
+  length (ext_globals v_imps) = length (ext_t_globals t_imps) /\
+  length (ext_tables v_imps) = length (ext_t_tables t_imps) /\
   length (ext_mems v_imps) = length (ext_t_mems t_imps).
 Proof.
   generalize t_imps.
@@ -380,14 +380,14 @@ Qed.
 (*
 Lemma external_typing_globs_aux s n v_imps v_imp t_imps t_imp:
   Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps ->
-  nth_error (map (fun '(Mk_globalidx i) => i) (ext_globs v_imps)) n = Some v_imp ->
-  nth_error (ext_t_globs t_imps) n = Some t_imp ->
+  nth_error (map (fun '(Mk_globalidx i) => i) (ext_globals v_imps)) n = Some v_imp ->
+  nth_error (ext_t_globals t_imps) n = Some t_imp ->
   option_map (fun g => global_agree g t_imp) (nth_error (s_globals s) v_imp) = Some true. 
 Proof.
   move => Htyping Hmvimps_nth Htimps_nth.
   rewrite Coqlib.list_map_nth in Hmvimps_nth.
   rewrite /Coqlib.option_map in Hmvimps_nth.
-  destruct (nth_error (ext_globs v_imps) n) eqn: Hvimps_nth => //.
+  destruct (nth_error (ext_globals v_imps) n) eqn: Hvimps_nth => //.
   destruct g as [gidx]. inversion Hmvimps_nth.
   rewrite <- H0 in *. clear Hmvimps_nth H0.
   specialize (external_typing_relate s) as HR.
@@ -400,8 +400,8 @@ Qed.
 Lemma vt_imps_tabs_lookup v_imps t_imps tn tt (k: nat) R:
   module_export_entity_relate R ->
   Forall2 R v_imps t_imps ->
-  (ext_tabs v_imps) !! k = Some tn ->
-  (ext_t_tabs t_imps) !! k = Some tt ->
+  (ext_tables v_imps) !! k = Some tn ->
+  (ext_t_tables t_imps) !! k = Some tt ->
   exists n, v_imps !! n = Some (MED_table tn) /\ t_imps !! n = Some (ET_tab tt).
 Proof.
   move: t_imps k.
@@ -426,8 +426,8 @@ Qed.
 Lemma vt_imps_tabs_relate v_imps t_imps tn tt (k: nat) R:
   module_export_entity_relate R ->
   Forall2 R v_imps t_imps ->
-  (ext_tabs v_imps) !! k = Some tn ->
-  (ext_t_tabs t_imps) !! k = Some tt ->
+  (ext_tables v_imps) !! k = Some tn ->
+  (ext_t_tables t_imps) !! k = Some tt ->
   R (MED_table tn) (ET_tab tt).
 Proof.
   move => HR HForall2 Hvl Htl.
@@ -440,14 +440,14 @@ Qed.
 
 Lemma external_typing_tabs_aux s n v_imps v_imp t_imps t_imp:
   Forall2 (instantiation_spec.external_typing host_function s) v_imps t_imps ->
-  nth_error (map (fun '(Mk_tableidx i) => i) (ext_tabs v_imps)) n = Some v_imp ->
-  nth_error (ext_t_tabs t_imps) n = Some t_imp ->
+  nth_error (map (fun '(Mk_tableidx i) => i) (ext_tables v_imps)) n = Some v_imp ->
+  nth_error (ext_t_tables t_imps) n = Some t_imp ->
   tabi_agree (s_tables s) v_imp t_imp.
 Proof.
   move => Htyping Hmvimps_nth Htimps_nth.
   rewrite Coqlib.list_map_nth in Hmvimps_nth.
   rewrite /Coqlib.option_map in Hmvimps_nth.
-  destruct (nth_error (ext_tabs v_imps) n) eqn: Hvimps_nth => //.
+  destruct (nth_error (ext_tables v_imps) n) eqn: Hvimps_nth => //.
   destruct t as [tidx]. inversion Hmvimps_nth.
   rewrite <- H0 in *. clear Hmvimps_nth H0.
   specialize (external_typing_relate s) as HR.
@@ -808,9 +808,9 @@ Proof.
                move => i n0 Hnth _.
                
                rewrite Coqlib.list_map_nth in Hnth.
-               destruct (ext_globs v_imps !! i) eqn: Hvimp => //.
+               destruct (ext_globals v_imps !! i) eqn: Hvimp => //.
                simpl in Hnth.
-               apply ext_globs_lookup_exist in Hvimp.
+               apply ext_globals_lookup_exist in Hvimp.
                destruct Hvimp as [k Hvimp].
 
                eapply Forall2_lookup in Himp_typing; last by apply Hvimp.
@@ -907,10 +907,10 @@ Proof.
                  destruct Hbet as [ty [Hextlookup [H1 _]]].
                  injection H1 as <-.
                  rewrite /option_map in Hextlookup.
-                 destruct (nth_error (ext_t_globs t_imps) i0) eqn: Htl => //.
+                 destruct (nth_error (ext_t_globals t_imps) i0) eqn: Htl => //.
 
                  rewrite Coqlib.list_map_nth in Heq2.
-                 assert (Heq3: (ext_globs v_imps ++ igs) !! i0 = ext_globs v_imps !! i0).
+                 assert (Heq3: (ext_globals v_imps ++ igs) !! i0 = ext_globals v_imps !! i0).
                  { apply nth_error_Some_length in Htl.
                    rewrite <- Himps_glob_len in Htl.
                    eapply nth_error_app1 with (l' := igs) in Htl.
@@ -2021,10 +2021,76 @@ Proof.
   by induction l; destruct n => //=.
 Qed.
 
+Lemma vt_imps_funcs_lookup s v_imps t_imps gn gt (k: nat):
+  List.Forall2 (external_typing s) v_imps t_imps ->
+  List.nth_error (ext_funcs v_imps) k = Some gn ->
+  List.nth_error (ext_t_funcs t_imps) k = Some gt ->
+  exists n, v_imps !! n = Some (EV_func gn) /\ t_imps !! n = Some (ET_func gt).
+Proof.
+  move: t_imps k gn gt.
+  induction v_imps; destruct t_imps; move => k; try by destruct k eqn:Hk => //=.
+  move => gn gt Hall2 Hv Ht.
+  unfold ssrfun.Option.apply in *.
+  inversion Hall2; subst; clear Hall2.
+  unfold external_typing, ext_typing in H2.
+  destruct a, e => //; (try by simpl in H2); remove_bools_options; simpl ext_funcs in Hv; simpl ext_t_funcs in Ht.
+  1 : {
+    destruct k; first by exists 0; inversion Hv; inversion Ht; subst.
+    simpl in *.
+    eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto.
+    by exists (S n).
+  }
+  all: eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto; by exists (S n).
+Qed.
+
+Lemma vt_imps_tables_lookup s v_imps t_imps gn gt (k: nat):
+  List.Forall2 (external_typing s) v_imps t_imps ->
+  List.nth_error (ext_tables v_imps) k = Some gn ->
+  List.nth_error (ext_t_tables t_imps) k = Some gt ->
+  exists n, v_imps !! n = Some (EV_table gn) /\ t_imps !! n = Some (ET_table gt).
+Proof.
+  move: t_imps k gn gt.
+  induction v_imps; destruct t_imps; move => k; try by destruct k eqn:Hk => //=.
+  move => gn gt Hall2 Hv Ht.
+  unfold ssrfun.Option.apply in *.
+  inversion Hall2; subst; clear Hall2.
+  unfold external_typing, ext_typing in H2.
+  destruct a, e => //; (try by simpl in H2); remove_bools_options; simpl ext_tables in Hv; simpl ext_t_tables in Ht.
+  2 : {
+    destruct k; first by exists 0; inversion Hv; inversion Ht; subst.
+    simpl in *.
+    eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto.
+    by exists (S n).
+  }
+  all: eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto; by exists (S n).
+Qed.
+
+Lemma vt_imps_mems_lookup s v_imps t_imps gn gt (k: nat):
+  List.Forall2 (external_typing s) v_imps t_imps ->
+  List.nth_error (ext_mems v_imps) k = Some gn ->
+  List.nth_error (ext_t_mems t_imps) k = Some gt ->
+  exists n, v_imps !! n = Some (EV_mem gn) /\ t_imps !! n = Some (ET_mem gt).
+Proof.
+  move: t_imps k gn gt.
+  induction v_imps; destruct t_imps; move => k; try by destruct k eqn:Hk => //=.
+  move => gn gt Hall2 Hv Ht.
+  unfold ssrfun.Option.apply in *.
+  inversion Hall2; subst; clear Hall2.
+  unfold external_typing, ext_typing in H2.
+  destruct a, e => //; (try by simpl in H2); remove_bools_options; simpl ext_mems in Hv; simpl ext_t_mems in Ht.
+  3 : {
+    destruct k; first by exists 0; inversion Hv; inversion Ht; subst.
+    simpl in *.
+    eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto.
+    by exists (S n).
+  }
+  all: eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto; by exists (S n).
+Qed.
+
 Lemma vt_imps_globs_lookup s v_imps t_imps gn gt (k: nat):
   List.Forall2 (external_typing s) v_imps t_imps ->
-  List.nth_error (ext_globs v_imps) k = Some gn ->
-  List.nth_error (ext_t_globs t_imps) k = Some gt ->
+  List.nth_error (ext_globals v_imps) k = Some gn ->
+  List.nth_error (ext_t_globals t_imps) k = Some gt ->
   exists n, v_imps !! n = Some (EV_global gn) /\ t_imps !! n = Some (ET_global gt).
 Proof.
   move: t_imps k gn gt.
@@ -2033,7 +2099,7 @@ Proof.
   unfold ssrfun.Option.apply in *.
   inversion Hall2; subst; clear Hall2.
   unfold external_typing, ext_typing in H2.
-  destruct a, e => //; (try by simpl in H2); remove_bools_options; simpl ext_globs in Hv; simpl ext_t_globs in Ht.
+  destruct a, e => //; (try by simpl in H2); remove_bools_options; simpl ext_globals in Hv; simpl ext_t_globals in Ht.
   4 : {
     destruct k; first by exists 0; inversion Hv; inversion Ht; subst.
     simpl in *.
@@ -2045,8 +2111,8 @@ Qed.
 
 Lemma import_subtyping_globs_impl': forall t_imps_mod t_imps i gt,
     List.Forall2 import_subtyping t_imps t_imps_mod ->
-    List.nth_error (ext_t_globs t_imps_mod) i = Some gt ->
-    exists gt', List.nth_error (ext_t_globs t_imps) i = Some gt' /\ global_subtyping gt' gt.
+    List.nth_error (ext_t_globals t_imps_mod) i = Some gt ->
+    exists gt', List.nth_error (ext_t_globals t_imps) i = Some gt' /\ global_subtyping gt' gt.
 Proof.
   induction t_imps_mod; destruct t_imps => //; (try by destruct i); first by move => ?? Hcontra; inversion Hcontra.
   move => i gt Hall2 Hnth.
@@ -2062,8 +2128,8 @@ Qed.
 
 Lemma vt_imps_globs_typing s v_imps t_imps gn gt (k: nat):
   List.Forall2 (external_typing s) v_imps t_imps ->
-  (ext_globs v_imps) !! k = Some gn ->
-  (ext_t_globs t_imps) !! k = Some gt ->
+  (ext_globals v_imps) !! k = Some gn ->
+  (ext_t_globals t_imps) !! k = Some gt ->
   external_typing s (EV_global gn) (ET_global gt).
 Proof.
   move => HForall2 Hvl Htl.
@@ -2119,9 +2185,9 @@ Proof.
   destruct m; unfold module_typing in Hmodtype; simpl in *.
   destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]].
 
-  remember (Build_t_context mod_types (ext_t_funcs t_imps_mod ++ fts) (ext_t_tabs t_imps_mod ++ tts) (ext_t_mems t_imps_mod ++ mts) (ext_t_globs t_imps_mod ++ gts) rts dts nil nil None nil) as C.
+(*  remember (Build_t_context mod_types (ext_t_funcs t_imps_mod ++ fts) (ext_t_tables t_imps_mod ++ tts) (ext_t_mems t_imps_mod ++ mts) (ext_t_globals t_imps_mod ++ gts) rts dts nil nil None nil) as C.*)
 
-  assert (inst_typing s' f.(f_inst) = Some C) as HIT.
+  assert (exists C, inst_typing s' f.(f_inst) = Some C) as [C HIT].
   {
     extract_premise.
     destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
@@ -2130,12 +2196,23 @@ Proof.
     resolve_if_true_eq.
     (* Functions *)
     {
+     (* exists (ext_t_funcs t_imps_mod ++ fts).
+      apply those_spec.
+      { subst. rewrite List.map_length.
+        apply List.Forall2_length in Hmfunctype.
+        repeat rewrite List.app_length.
+        rewrite gen_addrs_gen_index List.map_length gen_index_len.
+        f_equal => //.
+        apply vt_imps_comp_len in Himptype as [? [? [??]]].
+        apply subtyping_comp_len in Hsubtype as [? [? [??]]].
+        by lias.
+      }
+      *)
       apply those_exists.
       move => n oft Hnth.
       rewrite List.nth_error_map in Hnth.
       remove_bools_options.
-      apply cat_lookup in Hoption.
-      destruct Hoption as [Hnth | Hnth].
+      apply cat_lookup in Hoption as [Hnth | Hnth].
       - (* Imports *)
         apply ext_funcs_lookup_exist in Hnth as [k Hnth].
         eapply Forall2_lookup in Himptype as [t [Hntht Hexttype]]; eauto.
@@ -2159,10 +2236,9 @@ Proof.
       move => n oft Hnth.
       rewrite List.nth_error_map in Hnth.
       remove_bools_options.
-      apply cat_lookup in Hoption.
-      destruct Hoption as [Hnth | Hnth].
+      apply cat_lookup in Hoption as [Hnth | Hnth].
       - (* Imports *)
-        apply ext_tabs_lookup_exist in Hnth as [k Hnth].
+        apply ext_tables_lookup_exist in Hnth as [k Hnth].
         eapply Forall2_lookup in Himptype as [t' [Hntht Hexttype]]; eauto.
         unfold external_typing, ext_typing in Hexttype.
         remove_bools_options.
@@ -2213,7 +2289,7 @@ Proof.
       apply cat_lookup in Hoption.
       destruct Hoption as [Hnth | Hnth].
       - (* Imports *)
-        apply ext_globs_lookup_exist in Hnth as [k Hnth].
+        apply ext_globals_lookup_exist in Hnth as [k Hnth].
         eapply Forall2_lookup in Himptype as [t' [Hntht Hexttype]]; eauto.
         unfold external_typing, ext_typing in Hexttype.
         remove_bools_options.
@@ -2245,7 +2321,7 @@ Proof.
         rewrite Nat2N.id List.app_length List.map_length List.combine_length.
         apply List.Forall2_length in Hinstelem; simpl in Hinstelem; rewrite Hinstelem.
         by lias.
-      - destruct y0; unfold eleminst_typing => /=.
+      - destruct y3; unfold eleminst_typing => /=.
         resolve_if_true_eq; last by eexists.
         apply Forall_all, Forall_spec.
         move => m vref Hnth.
@@ -2349,8 +2425,12 @@ Proof.
         by exists tt.
       }
     }
-    subst.
-    admit.
+    by eexists.
+(*    subst.
+    do 2 f_equal.
+    (* Functions eq *)
+    {
+    admit.*)
   }
 
   assert (store_typing s') as HST'.
@@ -2383,9 +2463,6 @@ Proof.
         unfold gen_func_instance => /=.
         rewrite Hnthmf; split => //.
         rewrite HIT => /=.
-        rewrite Hnthmf; split => //.
-        unfold expr_typing.
-        split => //.
         admit.
       }
     }
@@ -2476,6 +2553,6 @@ Proof.
   unfold frame_typing; rewrite HIT.
   exists nil; subst => /=.
   by destruct C.
-Qed.
-
+Admitted.
+  
 End Host.
