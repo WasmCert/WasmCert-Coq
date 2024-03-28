@@ -46,13 +46,6 @@ let to_triple (a, b, c) = Extract.Pair (Extract.Pair (a, b), c)
 
 let from_string str = Utils.implode str
 
-let string_of_value =
-  Extract.value_rec_safe
-    (fun v -> Printf.sprintf "Int32: %s" (from_string (Extract.pp_i32 v)))
-    (fun v -> Printf.sprintf "Int64: %s" (from_string (Extract.pp_i64 v)))
-    (fun v -> Printf.sprintf "Float32: %s" (from_string (Extract.pp_f32 v)))
-    (fun v -> Printf.sprintf "Float64: %s" (from_string (Extract.pp_f64 v)))
-
 let rec to_nat = function
   | 0 -> Extract.O
   | n when n > 0 -> Extract.S (to_nat (n - 1))

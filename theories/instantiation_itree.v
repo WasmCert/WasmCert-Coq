@@ -1,6 +1,7 @@
 (** Wasm Instantiation using itree **)
 (* File currently not in use for extraction *)
 
+(*
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From ITree Require Import ITree.
 From ITree Require ITreeFacts.
@@ -353,3 +354,4 @@ Definition interp_instantiate_wrapper :
   @interp_instantiate_wrapper _ executable_host_instance _ (fun T e => e).
 
 End Instantiation_itree_extract.
+*)

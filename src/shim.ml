@@ -1,6 +1,22 @@
-
 module type Host = sig
-  include Extract.Executable_Host
+
+  (** The type of host functions. *)
+  type host_function
+
+  (** Equality of host functions. *)
+  val host_function_eq_dec : host_function -> host_function -> bool
+
+  (** The monad of host events. *)
+  type 'a host_event
+  val host_ret : 'a -> 'a host_event
+  val host_bind : 'a host_event -> ('a -> 'b host_event) -> 'b host_event
+
+  (** Application of a host function in the host monad. *)
+  val host_apply :
+    Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
+    (Extract.store_record * Extract.result) option host_event
+
+  (** Printing a host function. *)
   val show_host_function : host_function -> string
 end
 
@@ -20,44 +36,45 @@ module type InterpreterType = sig
   val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
   val pure : 'a -> 'a host_event
 
-  type store_record = Extract.EmptyHost.store_record
-  type config_tuple = Extract.config_tuple
-  type res_tuple = Extract.res_tuple
+  type store_record = Extract.DummyHost.store_record
+  type frame = Extract.frame
+  type config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
+  type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
+  type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
+  type moduleinst = Extract.moduleinst
 
-  val run_v :
-    Extract.nat ->
-    Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
-    (Obj.t * Obj.t Extract.store_record) * Extract.res
-
+  (** Run one step of the interpreter. *)
   val run_step_compat :
-    config_tuple -> Extract.res_tuple
+    Obj.t -> config_tuple -> res_tuple
 
-  val is_const_list : administrative_instruction list -> Extract.value0 list option
+  (* Reform the one step result back to a cfg tuple, if possible *)
+  val run_step_cfg_ctx_reform:
+    config_tuple -> config_tuple option
 
+  val run_v_init : 
+    store_record -> administrative_instruction list -> config_tuple option
+
+  val run_v_init_with_frame : 
+    store_record -> frame -> Extract.nat -> administrative_instruction list -> config_tuple option
+
+  (** Look-up a specific extracted function of the instantiation. *)
   val lookup_exported_function :
-    (* string -> ((store_record * Extract.instance) * Extract.module_export list) -> *)
-    (* config_tuple option *)
-    (* XXX where does "Dune__exe__Extract" come from? should it be exposed? *)
-    string ->
-    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) ->
-    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.administrative_instruction list) option
+    string -> store_record -> frame -> (administrative_instruction list) option
 
+  (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    (* Extract.module0 -> *)
-    (* (((store_record * Extract.instance) * Extract.module_export list) * int option) option *)
-    Extract.module0 ->
-    ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * Extract.nat option) option
+    Extract.module0 -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
 
   val run_parse_module : string -> Extract.module0 option
 
   val pp_values : Extract.value0 list -> string
-  val pp_store : int -> Dune__exe__Extract.EmptyHost.store_record -> string
-  val pp_res_tuple_except_store :
-    ((Extract.EmptyHost.store_record * Extract.frame) * Extract.res_step) -> string
-  val pp_config_tuple_except_store :
-    ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
-    string
+  val pp_store : int -> Dune__exe__Extract.DummyHost.store_record -> string
+  val pp_cfg_tuple_ctx_except_store :
+    config_tuple -> string
+    
+  val pp_res_cfg_except_store :
+    Obj.t -> config_tuple -> res_tuple -> string
   val pp_es : Extract.administrative_instruction list -> string
 
 end
@@ -83,24 +100,29 @@ functor (EH : Host) -> struct
     let* b = b in
     pure (a, b)
 
-  (* We are based on the functional version of the interpreter for now *)
-  module Interpreter = Extract.Interpreter_func_extract
+  module Interpreter = Extract.Interpreter_ctx_extract
   module Instantiation = Extract.Instantiation_func_extract
   module PP = Extract.PP
 
-  type store_record = Extract.EmptyHost.store_record
-  type config_tuple = Extract.config_tuple
-  type res_tuple = Extract.res_tuple
+  type store_record = Extract.DummyHost.store_record
+  type frame = Extract.frame
+  type config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
+  type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
+  type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
+  type moduleinst = Extract.moduleinst
 
-  let run_v i cfg =
-    let (hs, s, f, es) = cfg in
-    Interpreter.run_v hs s f es i
 
-  let run_step_compat cfg =
-    Interpreter.run_step_compat cfg
+  (** Run one step of the interpreter. *)
+  let run_step_compat = 
+    Interpreter.run_one_step_ctx
 
-  let is_const_list = Interpreter.is_const_list
+  (* Reform the one step result back to a cfg tuple, if possible *)
+  let run_step_cfg_ctx_reform = Interpreter.run_step_cfg_ctx_reform
+
+  let run_v_init = Interpreter.run_v_init
+
+  let run_v_init_with_frame = Interpreter.run_v_init_with_frame
 
   let lookup_exported_function name =
     Instantiation.lookup_exported_function (Utils.explode name)
@@ -118,11 +140,11 @@ functor (EH : Host) -> struct
   let pp_store i st =
     Utils.implode (PP.pp_store (Convert.to_nat i) st)
 
-  let pp_res_tuple_except_store r =
-    Utils.implode (PP.pp_res_tuple_except_store r)
-
-  let pp_config_tuple_except_store cfg =
-    Utils.implode (PP.pp_config_tuple_except_store cfg)
+  let pp_cfg_tuple_ctx_except_store r =
+    Utils.implode (PP.pp_cfg_tuple_ctx_except_store r)  
+    
+  let pp_res_cfg_except_store hs cfg res =
+    Utils.implode (PP.pp_res_cfg_except_store hs cfg res)
 
   let pp_es es =
     Utils.implode (PP.pp_administrative_instructions O es)

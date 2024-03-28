@@ -10,7 +10,9 @@ From Wasm Require Import
   interpreter_func
   interpreter_ctx
   type_checker
-  pp.
+  pp
+  host
+.
 
 From Coq Require Import
   extraction.ExtrOcamlBasic
@@ -21,11 +23,8 @@ Extraction Language OCaml.
 Extraction "extract"
   run_parse_module
   Instantiation_func_extract
-  Interpreter_func_extract
   Interpreter_ctx_extract
-  value_rec_safe
   PP
   DummyHost
+  empty_frame
   .
-
-

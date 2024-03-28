@@ -51,6 +51,4 @@ val from_positive : Extract.positive -> int
 (** Convert [Extract.z] to [int]. *)
 val from_z : Extract.z -> int
 
-(** Print a Wasm value. *) (* TODO: Removed, now subsumed by [Execute.Interpreter.pp_values]. *)
-val string_of_value : Extract.value0 -> string
 

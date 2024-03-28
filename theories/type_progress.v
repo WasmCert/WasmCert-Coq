@@ -1,5 +1,8 @@
 (** Proof of progress **)
 
+(* Old proof of progress -- subsumed by progress induced by ctx interpreter *)
+
+(*
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith.
 From Wasm Require Export type_preservation typing_inversion.
@@ -1121,3 +1124,4 @@ Proof.
 Qed.
 
 End Host.
+*)

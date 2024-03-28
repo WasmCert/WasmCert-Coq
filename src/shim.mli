@@ -15,8 +15,8 @@ module type Host = sig
 
   (** Application of a host function in the host monad. *)
   val host_apply :
-    host_function Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
-    (host_function Extract.store_record * Extract.result) option host_event
+    Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
+    (Extract.store_record * Extract.result) option host_event
 
   (** Printing a host function. *)
   val show_host_function : host_function -> string
@@ -36,40 +36,35 @@ module type InterpreterType = sig
   val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
   val pure : 'a -> 'a host_event
 
-  type store_record = Extract.EmptyHost.store_record
-  type config_tuple = Extract.config_tuple
-  type res_tuple = Extract.res_tuple
+  type store_record = Extract.DummyHost.store_record
+  type frame = Extract.frame
+  type config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
+  type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
+  type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
-
-  (** Run the interpreter until reaching a result. *)
-  (* val run_v : *)
-  (*   Extract.instance -> config_tuple -> *)
-  (*   (store_record * Extract.res) host_event *)
-
-  val run_v :
-    Extract.nat ->
-    Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
-    (Obj.t * Obj.t Extract.store_record) * Extract.res
+  type moduleinst = Extract.moduleinst
 
   (** Run one step of the interpreter. *)
   val run_step_compat :
-    config_tuple -> Extract.res_tuple
+    Obj.t -> config_tuple -> res_tuple
 
-  (** State whether a list of administrative instructions is actually just a list of values. *)
-  val is_const_list : administrative_instruction list -> Extract.value0 list option
+  (* Reform the one step result back to a cfg tuple, if possible *)
+  val run_step_cfg_ctx_reform:
+    config_tuple -> config_tuple option
+
+  val run_v_init : 
+    store_record -> administrative_instruction list -> config_tuple option
+
+  val run_v_init_with_frame : 
+    store_record -> frame -> Extract.nat -> administrative_instruction list-> config_tuple option
 
   (** Look-up a specific extracted function of the instantiation. *)
   val lookup_exported_function :
-    (* string -> (store_record * Extract.instance) * Extract.module_export list -> *)
-    (* config_tuple option *)
-    string ->
-    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) ->
-    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.administrative_instruction list) option
+    string -> store_record -> frame -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    Extract.module0 ->
-    ((((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) * Extract.nat option) option
+    Extract.module0 -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
 
   (** Parsing. *)
 
@@ -79,11 +74,13 @@ module type InterpreterType = sig
 
   val pp_values : Extract.value0 list -> string
   val pp_store : int (** The indentation level *) -> store_record -> string
-  val pp_res_tuple_except_store :
-    ((Extract.EmptyHost.store_record * Extract.frame) * Extract.res_step) -> string
-  val pp_config_tuple_except_store :
-    ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
-    string
+
+  val pp_cfg_tuple_ctx_except_store :
+    config_tuple -> string
+    
+  val pp_res_cfg_except_store :
+    Obj.t -> config_tuple -> res_tuple -> string
+
   val pp_es : Extract.administrative_instruction list -> string
 
 

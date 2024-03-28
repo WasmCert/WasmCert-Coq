@@ -7,37 +7,38 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(*
 Section Context_inference.
 
 Variable host_function : eqType.
 
-Let function_closure := function_closure host_function.
+Let funcinst := funcinst host_function.
 Let store_record := store_record host_function.
 
-Definition func_typing_inf (fs: list function_closure) (n: nat) : option function_type :=
-  option_map cl_type (List.nth_error fs n).
+Definition func_typing_inf (fs: list funcinst) (n: funcaddr) : option function_type :=
+  option_map cl_type (lookup_N fs n).
 
-Definition funcs_typing_inf (s: store_record) (inst: instance) : option (list function_type) :=
+Definition funcs_typing_inf (s: store_record) (inst: moduleinst) : option (list function_type) :=
   those (map (fun i => func_typing_inf s.(s_funcs) i) inst.(inst_funcs)).
 
 (* Choosing the most lenient bound *)
-Definition tab_typing_inf (ts: list tableinst) (n: nat) : option table_type :=
-  match List.nth_error ts n with
-  | Some _ => Some (Build_table_type (Build_limits 0%N None) ELT_funcref)
+Definition tab_typing_inf (ts: list tableinst) (n: tableaddr) : option table_type :=
+  match lookup_N ts n with
+  | Some _ => Some (Build_table_type (Build_limits 0%N None) T_funcref)
   | _ => None
   end.
 
-Definition tabs_typing_inf (s: store_record) (inst: instance) : option (list table_type) :=
+Definition tabs_typing_inf (s: store_record) (inst: moduleinst) : option (list table_type) :=
   those (map (fun i => tab_typing_inf s.(s_tables) i) inst.(inst_tab)).
 
 (* Choosing the most lenient bound *)
-Definition mem_typing_inf (ms: list memory) (n: nat) : option memory_type :=
+Definition mem_typing_inf (ms: list memory) (n: memoryaddr) : option memory_type :=
   match List.nth_error ms n with
   | Some _ => Some (Build_limits 0%N None)
   | _ => None
   end.
 
-Definition mems_typing_inf (s: store_record) (inst: instance) : option (list memory_type) :=
+Definition mems_typing_inf (s: store_record) (inst: moduleinst) : option (list memory_type) :=
   those (map (fun i => mem_typing_inf s.(s_mems) i) inst.(inst_memory)).
 
 Definition global_typing_inf (gs: list global) (n: nat) : option global_type :=
@@ -46,10 +47,10 @@ Definition global_typing_inf (gs: list global) (n: nat) : option global_type :=
   | _ => None
   end.
 
-Definition globals_typing_inf (s: store_record) (inst: instance) : option (list global_type) :=
+Definition globals_typing_inf (s: store_record) (inst: moduleinst) : option (list global_type) :=
   those (map (fun i => global_typing_inf s.(s_globals) i) inst.(inst_globs)).
 
-Definition inst_typing_inf (s: store_record) (inst: instance) : option t_context :=
+Definition inst_typing_inf (s: store_record) (inst: moduleinst) : option t_context :=
   match funcs_typing_inf s inst with
   | Some fts =>
       match tabs_typing_inf s inst with
@@ -212,3 +213,4 @@ Proof.
 Defined.
   
 End Context_inference.
+*)
