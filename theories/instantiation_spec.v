@@ -283,7 +283,9 @@ Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_
   let '(Tf tn tm) := tf in
   lookup_N c.(tc_types) x = Some (Tf tn tm) /\
   let c' := upd_local_label_return c (tn ++ t_locs) [::tm] (Some tm) in
-  be_typing c' b_es (Tf [::] tm).
+  be_typing c' b_es (Tf [::] tm) /\
+  (* Revise when non-defaultable types are added *)
+  default_vals t_locs <> None.
 
 Definition module_table_typing (c: t_context) (t : module_table) : bool :=
   tabletype_valid t.(modtab_type).

@@ -2364,15 +2364,10 @@ Proof.
       rewrite List.Forall_app; split.
       (* Originals *)
       {
-        eapply List.Forall_impl; eauto; unfold funcinst_typing => /=.
-        move => fi [ft [-> Hft]].
-        destruct fi; last by exists ft.
-        destruct Hft as [? Hft].
-        remove_bools_options.
-        exists ft; repeat split => //.
-        eapply inst_typing_extension in Hoption as [C' [HIT' Hext]]; eauto.
-        rewrite HIT'.
-        by eapply context_extension_func_typing; eauto.
+        eapply List.Forall_impl; eauto => /=.
+        move => fi [ft Hft].
+        exists ft.
+        by eapply store_extension_funcinst_typing; eauto.
       }
       (* New *)
       {
@@ -2384,18 +2379,95 @@ Proof.
         eexists; split; first by eauto.
         eapply Forall2_lookup in Hmfunctype as [tf [Hnthtf Hmftype]]; eauto.
         unfold module_func_typing in Hmftype; destruct mf, tf; simpl in *.
-        destruct Hmftype as [Hnthmf Hbet].
+        destruct Hmftype as [Hnthmf [Hbet Hdefaultable]].
         unfold gen_func_instance => /=.
         rewrite Hnthmf; split => //.
         rewrite HIT => /=.
         rewrite Hnthmf; split => //.
         unfold expr_typing.
+        split => //.
         admit.
       }
     }
-    admit.
-    admit.
-    admit.
+    (* Tables *)
+    {
+      rewrite List.Forall_app; split.
+      (* Originals *)
+      {
+        eapply List.Forall_impl; eauto => /=.
+        move => ti [tabt Htabt].
+        exists tabt.
+        by eapply store_extension_tableinst_typing; eauto.
+      }
+      (* New *)
+      {
+        apply Forall_spec.
+        move => n fi Hnth.
+        apply nth_error_map in Hnth as [mt [Hnth <-]].
+        apply nth_error_map in Hnth as [mtab [Hnth <-]].
+        eapply all_projection in Hmtabletype; eauto.
+        unfold module_table_typing in Hmtabletype.
+        destruct mtab, modtab_type, tt_limits.
+        unfold tableinst_typing, gen_table_instance; simpl in *.
+        rewrite Hmtabletype List.repeat_length N2Nat.id eq_refl.
+        rewrite all_repeat; first by eexists.
+        unfold value_typing => /=.
+        by rewrite value_subtyping_eq.
+      }
+    }
+    (* Memories *)
+    {
+      rewrite List.Forall_app; split.
+      (* Originals *)
+      {
+        eapply List.Forall_impl; eauto => /=.
+        move => ? [t ?].
+        exists t.
+        by eapply store_extension_meminst_typing; eauto.
+      }
+      (* New *)
+      {
+        apply Forall_spec.
+        move => n fi Hnth.
+        apply nth_error_map in Hnth as [mt [Hnth <-]].
+        apply nth_error_map in Hnth as [mm [Hnth <-]].
+        eapply all_projection in Hmmemtype; eauto.
+        unfold module_mem_typing in Hmmemtype.
+        unfold meminst_typing, gen_mem_instance, memory_list.mem_make, memory_list.mem_length.
+        rewrite Hmmemtype List.repeat_length N2Nat.id N.mul_comm eq_refl.
+        by eexists.
+      }
+    }
+    (* Globals *)
+    {
+      rewrite List.Forall_app; split.
+      (* Originals *)
+      {
+        eapply List.Forall_impl; eauto => /=.
+        move => ? [t ?].
+        exists t.
+        by eapply store_extension_globalinst_typing; eauto.
+      }
+      (* New *)
+      {
+        apply Forall_spec.
+        move => n fi Hnth.
+        apply nth_error_map in Hnth as [[mg gv] [Hnth <-]].
+        apply combine_lookup in Hnth as [Hnthmg Hnthgv].
+        eapply Forall2_lookup in Hmglobaltype as [gt [Hnth Hmap]]; eauto.
+        unfold module_glob_typing in Hmap.
+        destruct mg; destruct Hmap as [Hconst [<- Hbet]].
+        unfold globalinst_typing.
+        exists gt.
+        destruct gt => /=.
+        resolve_if_true_eq.
+        simpl in *.
+        eapply Forall2_lookup in Hinstglob as [v [Hnthv Hreduce]]; eauto.
+        simplify_multieq.
+        simpl in *.
+        admit.
+      }
+    }
     admit.
     admit.
   }
