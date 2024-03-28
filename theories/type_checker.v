@@ -1,36 +1,20 @@
 (** Wasm type checker **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
-Require Import common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import BinNat.
+Require Import common operations typing datatypes_properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import operations typing datatypes_properties.
-
-
 Section Host.
 
 Context `{hfc: host_function_class}.
 
-Inductive checker_type_aux : Type :=
-| CTA_any : checker_type_aux
-| CTA_some : value_type -> checker_type_aux.
-
-Scheme Equality for checker_type_aux.
-Definition checker_type_aux_eqb v1 v2 := is_left (checker_type_aux_eq_dec v1 v2).
-Definition eqchecker_type_auxP  : Equality.axiom checker_type_aux_eqb :=
-  eq_dec_Equality_axiom checker_type_aux_eq_dec.
-
-Canonical Structure checker_type_aux_eqMixin := EqMixin eqchecker_type_auxP.
-Canonical Structure checker_type_aux_eqType :=
-  Eval hnf in EqType checker_type_aux checker_type_aux_eqMixin.
-
 Inductive checker_type : Type :=
-| CT_top_type : seq checker_type_aux -> checker_type
-| CT_type : seq value_type -> checker_type
+(* flag for unreachable. Operand stack is represented in reverse direction (stack) *)
+| CT_type : seq value_type -> bool -> checker_type
 | CT_error : checker_type.
 
 Definition checker_type_eq_dec : forall v1 v2 : checker_type, {v1 = v2} + {v1 <> v2}.
@@ -43,104 +27,96 @@ Definition eqchecker_typeP : Equality.axiom checker_type_eqb :=
 Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
 Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
 
-Definition to_ct_list (ts : seq value_type) : seq checker_type_aux :=
-  map CTA_some ts.
+Fixpoint consume (ts: list value_type) (unr: bool) (cons : list value_type) : checker_type :=
+  match cons with
+  | nil => CT_type ts unr
+  | t_cons :: cons' =>
+      match ts with
+      | nil =>
+          match unr with
+          | true => CT_type nil true
+          | false => CT_error
+          end
+      | t :: ts' =>
+          if t <t: t_cons then
+            consume ts' unr cons'
+          else CT_error
+      end
+  end.
 
-Definition ct_compat (t1 t2: checker_type_aux) : bool :=
+Definition produce (t1 : checker_type) (t2: list value_type) : checker_type :=
   match t1 with
-  | CTA_any => true
-  | CTA_some vt1 =>
-    match t2 with
-    | CTA_any => true
-    | CTA_some vt2 => (vt1 == vt2)
-    end
+  | CT_type ts unr =>
+      CT_type (t2 ++ ts) unr
+  | CT_error => CT_error
   end.
 
-Definition ct_list_compat (l1 l2: list checker_type_aux) : bool :=
-  all2 ct_compat l1 l2.
-
-Definition ct_suffix (ts ts' : list checker_type_aux) : bool :=
-  (size ts <= size ts') && (ct_list_compat (drop (size ts' - size ts) ts') ts).
-
-Definition consume (t : checker_type) (cons : seq checker_type_aux) : checker_type :=
-  match t with
-  | CT_type ts =>
-    if ct_suffix cons (to_ct_list ts)
-    then CT_type (take (size ts - size cons) ts)
-    else CT_error
-  | CT_top_type cts =>
-    if ct_suffix cons cts
-    then CT_top_type (take (size cts - size cons) cts)
-    else
-      (if ct_suffix cts cons
-       then CT_top_type [::]
-       else CT_error)
-  | _ => CT_error
+Definition type_update (curr_type : checker_type) (cons : list value_type) (prods : list value_type) : checker_type :=
+  match curr_type with
+  | CT_type ts unr => produce (consume ts unr cons) prods
+  | CT_error => CT_error
   end.
 
-Definition produce (t1 t2 : checker_type) : checker_type :=
-  match (t1, t2) with
-  | (CT_top_type ts, CT_type ts') => CT_top_type (ts ++ (to_ct_list ts'))
-  | (CT_type ts, CT_type ts') => CT_type (ts ++ ts')
-  | (CT_type ts', CT_top_type ts) => CT_top_type ts
-  | (CT_top_type ts', CT_top_type ts) => CT_top_type ts
-  | _ => CT_error
+Definition type_update_top (curr_type : checker_type) (cons : list value_type) (prods : list value_type) : checker_type :=
+  match curr_type with
+  | CT_type ts unr =>
+      match consume ts unr cons with
+      | CT_type _ _ => CT_type prods true
+      | CT_error => CT_error
+      end
+  | CT_error => CT_error
   end.
 
-Definition type_update (curr_type : checker_type) (cons : seq checker_type_aux) (prods : checker_type) : checker_type :=
-  produce (consume curr_type cons) prods.
-
-Definition select_return_top (ts : seq checker_type_aux) (cta1 cta2 : checker_type_aux) : checker_type :=
-  match (cta1, cta2) with
-  | (_, CTA_any) => CT_top_type (take (length ts - 3) ts ++ [::cta1])
-  | (CTA_any, _) => CT_top_type (take (length ts - 3) ts ++ [::cta2])
-  | (CTA_some t1, CTA_some t2) =>
-    if is_numeric_type t1 && (t1 == t2)
-    then CT_top_type (take (length ts - 3) ts ++ [::CTA_some t1])
-    else CT_error
-  end.
-
-Definition type_update_select (t : checker_type) (ots: option (list value_type)) : checker_type :=
+Definition type_update_select (ct : checker_type) (ots: option (list value_type)) : checker_type :=
   match ots with
-  | Some [::vt] => type_update t (to_ct_list [:: vt; vt; T_num T_i32]) (CT_type [:: vt])
+  | Some [::vt] => type_update ct ([:: T_num T_i32; vt; vt]) [::vt]
   | Some _ => CT_error
   | None =>
-      match t with
-      | CT_type ts =>
-          if (length ts >= 3) then
-            match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
-            | Some ts_at_2, Some ts_at_3 =>
-                if (is_numeric_type ts_at_2 && (ts_at_2 == ts_at_3))
-                then (consume (CT_type ts) [::CTA_any; CTA_some (T_num T_i32)])
-                else CT_error
-            | _ , _ => CT_error
-            end
-          else CT_error
-      | CT_top_type ts =>
-          match length ts with
-          | 0 => CT_top_type [::CTA_any]
-          | 1 => type_update (CT_top_type ts) [::CTA_some (T_num T_i32)] (CT_top_type [::CTA_any])
-          | 2 =>
-              match List.nth_error ts (length ts - 2) with
-              | Some (CTA_some ts_at_2) =>
-                  (* The consumed type needs to be a numeric type; therefore we cannot simply just consume everything and produce an i32 here *)
-                  if is_numeric_type ts_at_2
-                  then consume (CT_top_type ts) [::CTA_some (T_num T_i32)]
-                  else CT_error
-              | Some CTA_any =>
-                  consume (CT_top_type ts) [::CTA_some (T_num T_i32)]
-              | None => CT_error
-              end
-          | _ =>
-              match List.nth_error ts (length ts - 2), List.nth_error ts (length ts - 3) with
-              | Some ts_at_2, Some ts_at_3 =>
-                  type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some (T_num T_i32)]
-                    (select_return_top ts ts_at_2 ts_at_3)
-              | _, _ => CT_error
-              end
+      match ct with
+      | CT_type ts unr =>
+          match ts with
+          | [:: t1; t2] =>
+              if (is_numeric_type t2) && unr then
+                CT_type [::t2] true
+              else CT_error
+          | t1 :: t2 :: t3 :: _ =>
+              if (is_numeric_type t2) && (t2 == t3) then
+                type_update ct [::T_num T_i32; t2; t3] [::t2]
+              else CT_error
+          | _ => type_update ct [::T_num T_i32] [::T_bot]
           end
       | CT_error => CT_error
       end
+  end.
+
+Definition type_update_ref_is_null (ct : checker_type) : checker_type :=
+  match ct with
+  | CT_type ts unr =>
+      match ts with
+      | nil =>
+          if unr then
+            CT_type [::T_num T_i32] true
+          else CT_error
+      | t :: ts =>
+          if is_ref_t t then
+            CT_type ts unr
+          else CT_error
+      end
+  | CT_error => CT_error
+  end.
+
+Definition type_update_drop (ct : checker_type) : checker_type :=
+  match ct with
+  | CT_type ts unr =>
+      match ts with
+      | nil =>
+          if unr then
+            CT_type nil true
+          else CT_error
+      | t :: ts =>
+          CT_type ts unr
+      end
+  | CT_error => CT_error
   end.
 
 Fixpoint same_lab_h (iss : seq tableidx) (lab_c : seq (seq value_type)) (ts : seq value_type) : option (seq value_type) :=
@@ -171,112 +147,81 @@ Definition same_lab (iss : seq tableidx) (lab_c : seq (seq value_type)) : option
 
 Definition c_types_agree (ct : checker_type) (ts' : seq value_type) : bool :=
   match ct with
-  | CT_type ts => ts == ts'
-  | CT_top_type ts => ct_suffix ts (to_ct_list ts')
+  | CT_type ts false => ts <ts: ts'
+  | CT_type ts true => ts <ts: (take (size ts) ts')
   | CT_error => false
   end.
 
-Definition type_update_ref_is_null (t : checker_type) : checker_type :=
-  match t with
-  | CT_type ts =>
-      if (length ts >= 1) then
-        match List.nth_error ts (length ts - 1) with
-        | Some ts_at_1 =>
-            if is_ref_t ts_at_1
-            then (type_update (CT_type ts) [::CTA_any] (CT_type [::T_num T_i32]))
-            else CT_error
-        | _ => CT_error
-        end
-      else CT_error
-  | CT_top_type ts =>
-      match length ts with
-      | 0 => type_update (CT_top_type ts) nil (CT_type [::T_num T_i32])
-      | _ =>
-          match List.nth_error ts (length ts - 1) with
-          | Some ts_at_1 =>
-              match ts_at_1 with
-              | CTA_any => 
-                  type_update (CT_top_type ts) [::CTA_any] (CT_type [::T_num T_i32])
-              | CTA_some vt =>
-                  if is_ref_t vt
-                  then type_update (CT_top_type ts) [::CTA_any] (CT_type [::T_num T_i32])
-                  else CT_error
-              end
-          | _ => CT_error
-          end
-      end
-  | CT_error => CT_error
-  end.
-    
+(* Using an auxiliary context with all locals/labels/returns reversed for optimisation, avoiding excessive reversing during execution *)
 Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
   let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
     let: (Tf tn tm) := tf in
-      c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm 
+      c_types_agree (List.fold_left (check_single C) es (CT_type tn false)) tm 
 in
   if ts == CT_error then CT_error
   else
   match be with
-  | BI_const_num v => type_update ts [::] (CT_type [::T_num (typeof_num v)])
-  | BI_const_vec v => type_update ts [::] (CT_type [::T_vec (typeof_vec v)])
-  | BI_ref_null t => type_update ts [::] (CT_type [::T_ref t])
+  | BI_const_num v => type_update ts [::] [::T_num (typeof_num v)]
+  | BI_const_vec v => type_update ts [::] [::T_vec (typeof_vec v)]
+  | BI_ref_null t => type_update ts [::]  [::T_ref t]
   | BI_ref_is_null => type_update_ref_is_null ts
   | BI_ref_func x =>
       match lookup_N C.(tc_funcs) x with
       | Some _ =>
           if x \in C.(tc_refs)
-          then type_update ts [::] (CT_type [::T_ref T_funcref])
+          then type_update ts [::] [::T_ref T_funcref]
           else CT_error
       | _ => CT_error
       end
   | BI_unop t op =>
     match op with
     | Unop_i _ => if is_int_t t
-                  then type_update ts [::CTA_some (T_num t)] (CT_type [::T_num t])
+                  then type_update ts [::(T_num t)] [::T_num t]
                   else CT_error
     | Unop_f _ => if is_float_t t
-                  then type_update ts [::CTA_some (T_num t)] (CT_type [::T_num t])
+                  then type_update ts [::(T_num t)] [::T_num t]
                   else CT_error
     | Unop_extend _ =>
         (* Technically, this needs to check validity of the extend arg; but such instruction can never arise from parsing *)
                   if is_int_t t
-                  then type_update ts [::CTA_some (T_num t)] (CT_type [::T_num t])
+                  then type_update ts [::(T_num t)] [::T_num t]
                   else CT_error
     end
   | BI_binop t op =>
     match op with
     | Binop_i _ => if is_int_t t
-                  then type_update ts [::CTA_some (T_num t); CTA_some (T_num t)] (CT_type [::(T_num t)])
+                  then type_update ts [::(T_num t); (T_num t)] [::(T_num t)]
                   else CT_error
     | Binop_f _ => if is_float_t t
-                  then type_update ts [::CTA_some (T_num t); CTA_some (T_num t)] (CT_type [::(T_num t)])
+                  then type_update ts [::(T_num t); (T_num t)] [::(T_num t)]
                   else CT_error
     end
   | BI_testop t _ =>
     if is_int_t t
-    then type_update ts [::CTA_some (T_num t)] (CT_type [::(T_num T_i32)])
+    then type_update ts [::(T_num t)] [::(T_num T_i32)]
     else CT_error
   | BI_relop t op =>
     match op with
     | Relop_i _ => if is_int_t t
-                  then type_update ts [::CTA_some (T_num t); CTA_some (T_num t)] (CT_type [::(T_num T_i32)])
+                  then type_update ts [::(T_num t); (T_num t)] [::(T_num T_i32)]
                   else CT_error
     | Relop_f _ => if is_float_t t
-                  then type_update ts [::CTA_some (T_num t); CTA_some (T_num t)] (CT_type [::(T_num T_i32)])
+                  then type_update ts [::(T_num t); (T_num t)] [::(T_num T_i32)]
                   else CT_error
     end
   | BI_cvtop t2 op t1 sx =>
     if cvtop_valid t2 op t1 sx
-    then type_update ts [::CTA_some (T_num t1)] (CT_type [::(T_num t2)])
+    then type_update ts [::(T_num t1)] [::(T_num t2)]
     else CT_error
-  | BI_unreachable => type_update ts [::] (CT_top_type [::])
+  | BI_unreachable => CT_type nil true
   | BI_nop => ts
-  | BI_drop => type_update ts [::CTA_any] (CT_type [::])
+  | BI_drop => type_update_drop ts
   | BI_select ot => type_update_select ts ot
   | BI_block bt es =>
       match expand_t C bt with
       | Some (Tf tn tm) =>
           if b_e_type_checker (upd_label C ([::tm] ++ tc_labels C)) es (Tf tn tm)
-          then type_update ts (to_ct_list tn) (CT_type tm)
+          then type_update ts (tn) tm
           else CT_error
       | None => CT_error
       end
@@ -284,7 +229,7 @@ in
       match expand_t C bt with
       | Some (Tf tn tm) =>
           if b_e_type_checker (upd_label C ([::tn] ++ tc_labels C)) es (Tf tn tm)
-          then type_update ts (to_ct_list tn) (CT_type tm)
+          then type_update ts (tn) tm
           else CT_error
       | None => CT_error
       end
@@ -293,35 +238,35 @@ in
       | Some (Tf tn tm) =>
           if b_e_type_checker (upd_label C ([::tm] ++ tc_labels C)) es1 (Tf tn tm)
              && b_e_type_checker (upd_label C ([::tm] ++ tc_labels C)) es2 (Tf tn tm)
-          then type_update ts (to_ct_list (tn ++ [::(T_num T_i32)])) (CT_type tm)
+          then type_update ts ((tn ++ [::(T_num T_i32)])) tm
           else CT_error
       | None => CT_error
       end
   | BI_br i =>
       match lookup_N (tc_labels C) i with
-      | Some xx => type_update ts (to_ct_list xx) (CT_top_type [::])
+      | Some xx => type_update_top ts (xx) nil
       | None => CT_error 
       end
   | BI_br_if i =>
       match lookup_N (tc_labels C) i with
-      | Some xx => type_update ts (to_ct_list (xx ++ [::(T_num T_i32)])) (CT_type xx)
+      | Some xx => type_update ts ((T_num T_i32 :: xx)) xx
       | None => CT_error 
       end
   | BI_br_table iss i =>
     match same_lab (iss ++ [::i]) (tc_labels C) with
     | None => CT_error
-    | Some tls => type_update ts (to_ct_list (tls ++ [::(T_num T_i32)])) (CT_top_type [::])
+    | Some tls => type_update_top ts ((T_num T_i32 :: tls)) nil
     end
   | BI_return =>
     match tc_return C with
     | None => CT_error
-    | Some tls => type_update ts (to_ct_list tls) (CT_top_type [::])
+    | Some tls => type_update_top ts (tls) nil
     end
   | BI_call x =>
       match lookup_N (tc_funcs C) x with
       | None => CT_error 
       | Some (Tf tn tm) =>
-          type_update ts (to_ct_list tn) (CT_type tm)
+          type_update ts (tn) tm
       end
   | BI_call_indirect x y =>
       match lookup_N C.(tc_tables) x with
@@ -329,7 +274,7 @@ in
           if tabt.(tt_elem_type) == T_funcref then
             match lookup_N (tc_types C) y with
             | Some (Tf tn tm) =>
-                type_update ts (to_ct_list (tn ++ [::(T_num T_i32)])) (CT_type tm)
+                type_update ts ((tn ++ [::(T_num T_i32)])) tm
             | None => CT_error 
             end
           else CT_error
@@ -338,60 +283,60 @@ in
   | BI_local_get i =>
       match lookup_N (tc_locals C) i with
       | None => CT_error 
-      | Some xx => type_update ts [::] (CT_type [::xx])
+      | Some xx => type_update ts [::] [::xx]
       end
   | BI_local_set i =>
       match lookup_N (tc_locals C) i with
       | None => CT_error 
-      | Some xx => type_update ts [::CTA_some xx] (CT_type [::])
+      | Some xx => type_update ts [::xx] [::]
       end
   | BI_local_tee i =>
       match lookup_N (tc_locals C) i with
       | None => CT_error 
-      | Some xx => type_update ts [::CTA_some xx] (CT_type [::xx])
+      | Some xx => type_update ts [::xx] [::xx]
       end
   | BI_global_get i =>
       match lookup_N (tc_globals C) i with
       | None => CT_error 
-      | Some xx => type_update ts [::] (CT_type [::tg_t xx])
+      | Some xx => type_update ts [::] [::tg_t xx]
       end
   | BI_global_set i =>
       match lookup_N (tc_globals C) i with
       | None => CT_error 
       | Some xx =>
           if is_mut xx
-          then type_update ts [::CTA_some (tg_t xx)] (CT_type [::])
+          then type_update ts [::(tg_t xx)] [::]
           else CT_error
       end
   | BI_table_get x =>
       match lookup_N (tc_tables C) x with
       | None => CT_error 
       | Some tabt =>
-          type_update ts [::CTA_some (T_num T_i32)] (CT_type [::T_ref tabt.(tt_elem_type)])
+          type_update ts [::(T_num T_i32)] [::T_ref tabt.(tt_elem_type)]
       end
   | BI_table_set x =>
       match lookup_N (tc_tables C) x with
       | None => CT_error 
       | Some tabt =>
-          type_update ts [::CTA_some (T_num T_i32); CTA_some (T_ref tabt.(tt_elem_type))] (CT_type nil)
+          type_update ts [::(T_ref tabt.(tt_elem_type)); (T_num T_i32)] nil
       end
   | BI_table_size x =>
       match lookup_N (tc_tables C) x with
       | None => CT_error 
       | Some tabt =>
-          type_update ts nil (CT_type [::T_num T_i32])
+          type_update ts nil [::T_num T_i32]
       end
   | BI_table_grow x =>
       match lookup_N (tc_tables C) x with
       | None => CT_error 
       | Some tabt =>
-          type_update ts [::CTA_some (T_ref tabt.(tt_elem_type)); CTA_some (T_num T_i32)] (CT_type [::T_num T_i32])
+          type_update ts [::T_num T_i32; (T_ref tabt.(tt_elem_type))] [::T_num T_i32]
       end
   | BI_table_fill x =>
       match lookup_N (tc_tables C) x with
       | None => CT_error 
       | Some tabt =>
-          type_update ts [::CTA_some (T_num T_i32); CTA_some (T_ref tabt.(tt_elem_type)); CTA_some (T_num T_i32)] (CT_type nil)
+          type_update ts [::(T_num T_i32); (T_ref tabt.(tt_elem_type)); (T_num T_i32)] nil
       end
   | BI_table_copy x y =>
       match lookup_N (tc_tables C) x with
@@ -400,7 +345,7 @@ in
           match lookup_N (tc_tables C) y with
           | Some tabt2 =>
               if tabt1.(tt_elem_type) == tabt2.(tt_elem_type)
-              then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
+              then type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
               else CT_error
           | None => CT_error
           end
@@ -412,7 +357,7 @@ in
           match lookup_N (tc_elems C) y with
           | Some t =>
               if tabt.(tt_elem_type) == t
-              then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
+              then type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
               else CT_error
           | None => CT_error
           end
@@ -426,7 +371,7 @@ in
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
           if load_store_t_bounds a (option_projl tp_sx) t
-          then type_update ts [::CTA_some (T_num T_i32)] (CT_type [::T_num t])
+          then type_update ts [::(T_num T_i32)] [::T_num t]
           else CT_error
       | None => CT_error
       end
@@ -434,32 +379,32 @@ in
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
           if load_store_t_bounds a tp t
-          then type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num t)] (CT_type [::])
+          then type_update ts [::(T_num T_i32); (T_num t)] [::]
           else CT_error
       | None => CT_error
       end
   | BI_memory_size =>
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
-          type_update ts [::] (CT_type [::(T_num T_i32)])
+          type_update ts [::] [::(T_num T_i32)]
       | None => CT_error
       end
   | BI_memory_grow =>
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
-          type_update ts [::CTA_some (T_num T_i32)] (CT_type [::(T_num T_i32)])
+          type_update ts [::(T_num T_i32)] [::(T_num T_i32)]
       | None => CT_error
       end
   | BI_memory_fill =>
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
-          type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
+          type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
       | None => CT_error
       end
   | BI_memory_copy =>
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
-          type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
+          type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
       | None => CT_error
       end
   | BI_memory_init x =>
@@ -467,7 +412,7 @@ in
       | Some _ =>
           match lookup_N C.(tc_datas) x with
           | Some _ =>
-              type_update ts [::CTA_some (T_num T_i32); CTA_some (T_num T_i32); CTA_some (T_num T_i32)] (CT_type nil)
+              type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
           | None => CT_error
           end
       | None => CT_error
@@ -482,8 +427,18 @@ in
 Definition check (C : t_context) (es : list basic_instruction) (ts : checker_type): checker_type :=
   List.fold_left (check_single C) es ts.
 
+Definition b_e_type_checker_aux (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
+  let: (Tf tn tm) := tf in
+  c_types_agree (List.fold_left (check_single C) es (CT_type tn false)) tm.
+
+(*
+  A context with local/label/return reversed for optimised validation.
+*)
+Definition context_reverse (C: t_context): t_context :=
+  upd_local_label_return C (rev C.(tc_locals)) (rev C.(tc_labels)) (option_map rev C.(tc_return)).
+
 Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
   let: (Tf tn tm) := tf in
-  c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm.
+  b_e_type_checker_aux (context_reverse C) es (Tf (rev tn) (rev tm)).
 
 End Host.

@@ -191,7 +191,7 @@ Definition pp_value (v: value) : string :=
   end.
 
 Definition pp_values (vs : list value) : string :=
-  String.concat " " (List.map pp_value vs).
+  String.concat "" (List.map pp_value vs).
 
 Definition pp_values_hint_empty (vs : list value) : string :=
   match vs with
