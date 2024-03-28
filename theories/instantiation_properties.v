@@ -819,54 +819,93 @@ Proof.
   move/andP in Hconst.
   by destruct Hconst.
 Qed.
-(*
-Lemma const_no_reduce (hs hs': host_state) s f v s' f' e':
+
+Lemma value_no_reduce (hs hs': host_state) s f v s' f' e':
   reduce hs s f [::$V v] hs' s' f' e' ->
   False.
 Proof.
   move => Hred.
-  destruct v as [v | v | v]; destruct v; simpl in *; dependent induction Hred; subst; try by repeat destruct vcs => //.
-  { inversion H; subst; clear H; try by repeat destruct vs => //.
-    destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
+  dependent induction Hred; subst; (try by repeat destruct vs => //; destruct v as [v | v | v]; destruct v => //); (try by repeat destruct vcs => //; destruct v as [v | v | v]; destruct v => //).
+  { inversion H; subst; clear H; try by destruct v as [v | v | v]; destruct v => //.
+    by destruct lh as [vs ? | ? vs]; simpl in H1; destruct v as [v | v | v]; destruct v; do 2 destruct vs => //.
   }
-  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //=.
+  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by destruct v as [v | v | v]; destruct v => //; do 2 destruct vs => //=.
     destruct vs => //=; last first.
     { destruct vs, es, l => //=.
       by apply reduce_not_nil in Hred.
     }
     destruct es => //=; first by apply reduce_not_nil in Hred.
-    destruct es, l => //=.
-    simpl in *.
-    inversion H; subst; clear H.
-    by eapply IHHred.
+    by destruct es, l => //=.
   }
 Qed.
 
-Lemma reduce_trans_const hs1 s1 f1 v1 hs2 s2 f2 v2:
-  reduce_trans (hs1, s1, f1, [::AI_basic (BI_const v1)]) (hs2, s2, f2, [::AI_basic (BI_const v2)]) ->
+Lemma reduce_trans_value hs1 s1 f1 v1 hs2 s2 f2 v2:
+  reduce_trans (hs1, s1, f1, [::$V v1]) (hs2, s2, f2, [::$V v2]) ->
   v1 = v2.
 Proof.
   move => Hred.
   unfold reduce_trans in Hred.
   apply Operators_Properties.clos_rt_rt1n_iff in Hred.
-  inversion Hred => //.
+  inversion Hred => //; first by apply ve_inj.
   unfold reduce_tuple in H.
   destruct y as [[[??]?]?].
-  by apply const_no_reduce in H.
+  by apply value_no_reduce in H.
 Qed.
 
-Lemma reduce_get_global hs s f hs' s' f' i e:
-  reduce hs s f [::AI_basic (BI_get_global i)] hs' s' f' e ->
-  exists v, sglob_val s (f_inst f) i = Some v /\ e = [::AI_basic (BI_const v)].
+Lemma reduce_ref_func hs s f hs' s' f' i e:
+  reduce hs s f [::AI_basic (BI_ref_func i)] hs' s' f' e ->
+  exists addr, lookup_N f.(f_inst).(inst_funcs) i = Some addr /\ e = [::$V (VAL_ref (VAL_ref_func addr))].
 Proof.
   move => Hred.
-  dependent induction Hred; subst; try by repeat destruct vcs => //.
+  dependent induction Hred; subst; (try by repeat destruct vcs => //); (try by repeat destruct vs => //).
+  { inversion H; subst; clear H; try by repeat destruct vs => //.
+    destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
+  }
+  { by exists addr. }
+  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //.
+    destruct vs as [ | v ?]; last by destruct v as [v | v | v]; destruct v => //=.
+    destruct es => //=; first by apply reduce_not_nil in Hred.
+    destruct es, l => //=.
+    simpl in *.
+    inversion H; subst; clear H.
+    rewrite cats0.
+    by eapply IHHred.
+  }
+Qed.
+
+Lemma reduce_trans_ref_func hs1 s1 f1 x hs2 s2 f2 vref:
+  reduce_trans (hs1, s1, f1, [:: AI_basic (BI_ref_func x)]) (hs2, s2, f2, [::$V (VAL_ref vref)]) ->
+  exists addr, lookup_N f1.(f_inst).(inst_funcs) x = Some addr /\ vref = VAL_ref_func addr.
+Proof.
+  move => Hred.
+  unfold reduce_trans in Hred.
+  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
+  inversion Hred; subst; clear Hred; first by destruct vref.
+  destruct y as [[[??]?]?].
+  unfold reduce_tuple, opsem.reduce_tuple in H.
+  apply reduce_ref_func in H.
+  destruct H as [addr [Hnth ->]].
+  inversion H0; subst; clear H0 => //.
+  - destruct vref => //; simpl in H4.
+    injection H4 as <-.
+    by exists addr.
+  - unfold reduce_tuple, opsem.reduce_tuple in H.
+    destruct y as [[[??]?]?].
+    by apply value_no_reduce in H.
+Qed.
+
+Lemma reduce_global_get hs s f hs' s' f' i e:
+  reduce hs s f [::AI_basic (BI_global_get i)] hs' s' f' e ->
+  exists v, sglob_val s (f_inst f) i = Some v /\ e = [::$V v].
+Proof.
+  move => Hred.
+  dependent induction Hred; subst; (try by repeat destruct vcs => //); (try by repeat destruct vs => //).
   { inversion H; subst; clear H; try by repeat destruct vs => //.
     destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
   }
   { by exists v. }
-  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //=.
-    destruct vs => //=.
+  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //.
+    destruct vs as [ | v ?]; last by destruct v as [v | v | v]; destruct v => //=.
     destruct es => //=; first by apply reduce_not_nil in Hred.
     destruct es, l => //=.
     simpl in *.
@@ -876,24 +915,27 @@ Proof.
   }
 Qed.
     
-Lemma reduce_trans_get_global hs s f hs' s' f' i v:
-  reduce_trans (hs, s, f, [::AI_basic (BI_get_global i)]) (hs', s', f', [::AI_basic (BI_const v)]) ->
+Lemma reduce_trans_global_get hs s f hs' s' f' i v:
+  reduce_trans (hs, s, f, [::AI_basic (BI_global_get i)]) (hs', s', f', [::$V v]) ->
   sglob_val s (f_inst f) i = Some v.
 Proof.
   move => Hred.
   unfold reduce_trans, opsem.reduce_trans in *.
   apply Operators_Properties.clos_rt_rt1n_iff in Hred.
-  inversion Hred; subst; clear Hred.
+  inversion Hred; subst; clear Hred; first by repeat destruct v.
   destruct y as [[[??]?]?].
   unfold reduce_tuple, opsem.reduce_tuple in H.
-  apply reduce_get_global in H.
+  apply reduce_global_get in H.
   destruct H as [v' [Hsgv ->]].
   inversion H0; subst; clear H0 => //.
-  unfold reduce_tuple, opsem.reduce_tuple in H.
-  destruct y as [[[??]?]?].
-  by apply const_no_reduce in H.
+  - uapply Hsgv; f_equal.
+    by apply ve_inj.
+  - unfold reduce_tuple, opsem.reduce_tuple in H.
+    destruct y as [[[??]?]?].
+    by apply value_no_reduce in H.
 Qed.
 
+(*
 Section Instantiation_det.
 
 Lemma modglobs_const: forall tc modglobs gt,
@@ -941,8 +983,8 @@ Proof.
   unfold const_expr in Hconst.
   rewrite Heqtc in Hconst; simpl in Hconst.
   destruct e; simpl in * => //; remove_bools_options.
-  { apply reduce_trans_get_global in Heq1.
-    apply reduce_trans_get_global in Heq2.
+  { apply reduce_trans_global_get in Heq1.
+    apply reduce_trans_global_get in Heq2.
     specialize (Hsgveq i).
     rewrite Hsgveq in Heq1; last by move/ssrnat.ltP in H; lias.
     rewrite Heq1 in Heq2.
@@ -977,8 +1019,8 @@ Proof.
   destruct Hbet as [e [-> Hconst]].
   unfold const_expr in Hconst; simpl in Hconst.
   destruct e; simpl in * => //; remove_bools_options.
-  { apply reduce_trans_get_global in Heq1.
-    apply reduce_trans_get_global in Heq2.
+  { apply reduce_trans_global_get in Heq1.
+    apply reduce_trans_global_get in Heq2.
     rewrite Heq1 in Heq2.
     by injection Heq2.
   }
@@ -1012,8 +1054,8 @@ Proof.
   destruct Hbet as [e [-> Hconst]].
   unfold const_expr in Hconst; simpl in Hconst.
   destruct e; simpl in * => //; remove_bools_options.
-  { apply reduce_trans_get_global in Heq1.
-    apply reduce_trans_get_global in Heq2.
+  { apply reduce_trans_global_get in Heq1.
+    apply reduce_trans_global_get in Heq2.
     rewrite Heq1 in Heq2.
     by injection Heq2.
   }
