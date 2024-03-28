@@ -282,20 +282,8 @@ Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_
   let '{| modfunc_type := x; modfunc_locals := t_locs; modfunc_body := b_es |} := mf in
   let '(Tf tn tm) := tf in
   lookup_N c.(tc_types) x = Some (Tf tn tm) /\
-  let c' := {|
-    tc_types := c.(tc_types);
-    tc_funcs := c.(tc_funcs);
-    tc_tables := c.(tc_tables);
-    tc_mems := c.(tc_mems);
-    tc_globals := c.(tc_globals);
-    tc_elems := c.(tc_elems);
-    tc_datas := c.(tc_datas);
-    tc_locals := tn ++ t_locs;
-    tc_labels := [::tm];
-    tc_return := Some tm;
-    tc_refs := c.(tc_refs);
-  |} in
-  typing.be_typing c' b_es (Tf [::] tm).
+  let c' := upd_local_label_return c (tn ++ t_locs) [::tm] (Some tm) in
+  be_typing c' b_es (Tf [::] tm).
 
 Definition module_table_typing (c: t_context) (t : module_table) : bool :=
   tabletype_valid t.(modtab_type).
@@ -537,6 +525,7 @@ Definition instantiate_elems f (hs : host_state) (s' : store_record) m (r_inits:
     m.(mod_elems)
     r_inits.
 
+(* The following definitions needs a revisit when implementing the GC/funcref proposal *)
 Definition limit_subtyping (l1 l2: limits) : bool :=
   (l1.(lim_min) >= l2.(lim_min)) &&
     match l1.(lim_max), l2.(lim_max) with
@@ -544,6 +533,9 @@ Definition limit_subtyping (l1 l2: limits) : bool :=
     | Some max1, Some max2 => N.leb max1 max2
     | _, _ => false
     end.
+
+Definition global_subtyping (gt1 gt2: global_type) : bool :=
+  gt1 == gt2.
 
 Definition import_subtyping (t1 t2: extern_type) : bool :=
   match t1, t2 with
@@ -555,8 +547,8 @@ Definition import_subtyping (t1 t2: extern_type) : bool :=
   | ET_mem tm1, ET_mem tm2 =>
       limit_subtyping tm1 tm2
   | ET_global tg1, ET_global tg2 =>
-      tg1 == tg2
-  | _, _ => true
+      global_subtyping tg1 tg2
+  | _, _ => false
   end.
 
 Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instruction :=

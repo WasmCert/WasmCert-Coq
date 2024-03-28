@@ -2028,7 +2028,7 @@ Lemma vt_imps_globs_lookup s v_imps t_imps gn gt (k: nat):
   exists n, v_imps !! n = Some (EV_global gn) /\ t_imps !! n = Some (ET_global gt).
 Proof.
   move: t_imps k gn gt.
-  induction v_imps; destruct t_imps; unfold lookup_N in *; move => k; try by destruct k eqn:Hk => //=.
+  induction v_imps; destruct t_imps; move => k; try by destruct k eqn:Hk => //=.
   move => gn gt Hall2 Hv Ht.
   unfold ssrfun.Option.apply in *.
   inversion Hall2; subst; clear Hall2.
@@ -2042,6 +2042,23 @@ Proof.
   }
   all: eapply IHv_imps in H4 as [n [Hnthv Hntht]]; eauto; by exists (S n).
 Qed.
+
+Lemma import_subtyping_globs_impl': forall t_imps_mod t_imps i gt,
+    List.Forall2 import_subtyping t_imps t_imps_mod ->
+    List.nth_error (ext_t_globs t_imps_mod) i = Some gt ->
+    exists gt', List.nth_error (ext_t_globs t_imps) i = Some gt' /\ global_subtyping gt' gt.
+Proof.
+  induction t_imps_mod; destruct t_imps => //; (try by destruct i); first by move => ?? Hcontra; inversion Hcontra.
+  move => i gt Hall2 Hnth.
+  inversion Hall2; subst; clear Hall2.
+  unfold import_subtyping in H2.
+  destruct a, e => //; (try by simpl in H2); remove_bools_options; subst; simpl in *.
+  4: { destruct i; simpl in * => //.
+       - exists g0; by inversion Hnth; subst.
+       - by eapply IHt_imps_mod => //.
+  }
+  all: by eapply IHt_imps_mod; eauto.
+Qed.            
 
 Lemma vt_imps_globs_typing s v_imps t_imps gn gt (k: nat):
   List.Forall2 (external_typing s) v_imps t_imps ->
@@ -2099,12 +2116,15 @@ Proof.
     erewrite component_extension_extend; eauto; last by apply all2_data_extension_same.
   }
 
-  assert (exists C, inst_typing s' f.(f_inst) = Some C) as [C HIT].
+  destruct m; unfold module_typing in Hmodtype; simpl in *.
+  destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]].
+
+  remember (Build_t_context mod_types (ext_t_funcs t_imps_mod ++ fts) (ext_t_tabs t_imps_mod ++ tts) (ext_t_mems t_imps_mod ++ mts) (ext_t_globs t_imps_mod ++ gts) rts dts nil nil None nil) as C.
+
+  assert (inst_typing s' f.(f_inst) = Some C) as HIT.
   {
     extract_premise.
     destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-    destruct m; unfold module_typing in Hmodtype; simpl in *.
-    destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]].
     destruct inst; subst; simpl in *.
     replace (all functype_valid inst_types) with true; last by symmetry; apply Forall_all.
     resolve_if_true_eq.
@@ -2225,7 +2245,7 @@ Proof.
         rewrite Nat2N.id List.app_length List.map_length List.combine_length.
         apply List.Forall2_length in Hinstelem; simpl in Hinstelem; rewrite Hinstelem.
         by lias.
-      - destruct y3; unfold eleminst_typing => /=.
+      - destruct y0; unfold eleminst_typing => /=.
         resolve_if_true_eq; last by eexists.
         apply Forall_all, Forall_spec.
         move => m vref Hnth.
@@ -2243,7 +2263,7 @@ Proof.
         destruct Helemtype as [-> [Hall Hvalidmode]].
         eapply Forall_lookup in Hall as [Hconst Hbet]; last by apply Hnth'.
         eapply const_exprs_impl in Hconst as [be [-> Hconst]]; last by apply Hbet.
-        destruct be => //.
+        destruct be => //=.
         (* VAL_num *)
         { replace (to_e_list [::BI_const_num v]) with ([::$V (VAL_num v)]) in Hreduce; last done.
           by apply reduce_trans_value in Hreduce.
@@ -2289,40 +2309,31 @@ Proof.
         (* global_get *)
         { apply reduce_trans_global_get in Hreduce.
           unfold sglob_val, sglob, sglob_ind in Hreduce.
-          remove_bools_options; simpl in *.
+          simpl in *; remove_bools_options.
           invert_be_typing.
-          rewrite Hconjl0 in Hconst.
- (*         eapply vt_imps_globs_typing in Hoption0; eauto; last first.
-          eapply Forall2_nth_impl in Hsubtype; eauto.
-          simpl in Hreduce.
-          destruct vref => //=.
           apply instr_subtyping_empty1_impl' in Htisub; simpl in *; remove_bools_options.
-          apply cat_lookup in Hnthaddr.
-          destruct Hnthaddr as [Hnthaddr | Hnthaddr].
-          - apply ext_funcs_lookup_exist in Hnthaddr as [k Hnthaddr].
-            eapply Forall2_nth_impl in Himptype as [et [Hnthext Hext]]; last by apply Hnthaddr.
-            unfold external_typing, ext_typing, ext_func_typing in Hext; simpl in Hext.
-            remove_bools_options.
-            unfold lookup_N in *.
-            by erewrite nth_error_app_Some; eauto.
-          - rewrite gen_addrs_gen_index in Hnthaddr.
-            apply nth_error_map in Hnthaddr as [k [Hnthindex <-]].
-            apply gen_index_lookup_Some in Hnthindex as [-> Hlength].
-            unfold lookup_N.
-            rewrite List.nth_error_app2; last by lias.
-            rewrite Nat2N.id nth_error_map'.
-            replace (_ + _ - _) with (N.to_nat f - length (ext_funcs v_imps)); last by lias.
-            move/ltP in Hlength.
-            apply nth_error_exists in Hlength as [mf Hnthmf].
-            by rewrite Hnthmf.*)
-          admit.
+          simplify_multieq.
+          eapply import_subtyping_globs_impl' in Hsubtype as [gt' [Hnthsub Hsub]]; eauto.
+          unfold global_subtyping in Hsub; remove_bools_options; subst.
+          eapply vt_imps_globs_typing in Hoption0; eauto.
+          simpl in Hoption0.
+          unfold external_typing, ext_typing, ext_global_typing in Hoption0.
+          simpl in Hoption0; remove_bools_options.
+          unfold lookup_N in *.
+          rewrite List.nth_error_app1 in Hoption; last by apply nth_error_Some_length in Hoption0.
+          simplify_multieq.
+          eapply Forall_lookup in Hconjl4 as [gt Hgtype]; eauto.
+          destruct g0; unfold globalinst_typing in Hgtype.
+          remove_bools_options; simpl in *.
+          eapply value_typing_extension; eauto.
+          by eapply value_typing_trans; eauto.
         }
     }
-    resolve_if_true_eq; last by eexists.
+    resolve_if_true_eq.
     (* data *)
     {
       apply those_exists.
-      move => n x Hnth.
+      move => n xok Hnth.
       apply nth_error_map in Hnth as [v [Hnth Hmap]].
       rewrite - Hmap.
       resolve_if_true_eq.
@@ -2338,14 +2349,14 @@ Proof.
         by exists tt.
       }
     }
+    subst.
+    admit.
   }
 
   assert (store_typing s') as HST'.
   {
     extract_premise.
     destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-    destruct m; unfold module_typing in Hmodtype; simpl in *.
-    destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]].
     destruct HST as [Hsfunctype [Hstabletype [Hsmemtype [Hsglobaltype [Hselemtype Hsdatatype]]]]].
     repeat split => //.
     (* Functions *)
@@ -2369,6 +2380,16 @@ Proof.
         move => n fi Hnth.
         apply nth_error_map in Hnth as [mf [Hnth Hmap]].
         subst.
+        unfold funcinst_typing.
+        eexists; split; first by eauto.
+        eapply Forall2_lookup in Hmfunctype as [tf [Hnthtf Hmftype]]; eauto.
+        unfold module_func_typing in Hmftype; destruct mf, tf; simpl in *.
+        destruct Hmftype as [Hnthmf Hbet].
+        unfold gen_func_instance => /=.
+        rewrite Hnthmf; split => //.
+        rewrite HIT => /=.
+        rewrite Hnthmf; split => //.
+        unfold expr_typing.
         admit.
       }
     }
