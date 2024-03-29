@@ -1480,6 +1480,12 @@ Proof.
     by apply IHn.
 Qed.
 
+Lemma nth_error_map' {T1 T2: Type}: forall (f: T1 -> T2) (l: list T1) n,
+    List.nth_error (map f l) n = option_map f (List.nth_error l n).
+Proof.
+  by induction l; destruct n => //=.
+Qed.
+
 Lemma nth_error_nth: forall {X: Type} l n {x:X},
   n < length l ->
   List.nth_error l n = Some (nth x l n).

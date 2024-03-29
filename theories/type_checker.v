@@ -97,9 +97,9 @@ Definition type_update_ref_is_null (ct : checker_type) : checker_type :=
           if unr then
             CT_type [::T_num T_i32] true
           else CT_error
-      | t :: ts =>
+      | t :: ts' =>
           if is_ref_t t then
-            CT_type ts unr
+            CT_type (T_num T_i32 :: ts') unr
           else CT_error
       end
   | CT_error => CT_error
@@ -113,8 +113,8 @@ Definition type_update_drop (ct : checker_type) : checker_type :=
           if unr then
             CT_type nil true
           else CT_error
-      | t :: ts =>
-          CT_type ts unr
+      | t :: ts' =>
+          CT_type ts' unr
       end
   | CT_error => CT_error
   end.
@@ -238,7 +238,7 @@ in
       | Some (Tf tn tm) =>
           if b_e_type_checker (upd_label C ([::tm] ++ tc_labels C)) es1 (Tf tn tm)
              && b_e_type_checker (upd_label C ([::tm] ++ tc_labels C)) es2 (Tf tn tm)
-          then type_update ts ((tn ++ [::(T_num T_i32)])) tm
+          then type_update ts ((T_num T_i32 :: tn)) tm
           else CT_error
       | None => CT_error
       end
@@ -274,7 +274,7 @@ in
           if tabt.(tt_elem_type) == T_funcref then
             match lookup_N (tc_types C) y with
             | Some (Tf tn tm) =>
-                type_update ts ((tn ++ [::(T_num T_i32)])) tm
+                type_update ts ((T_num T_i32 :: tn)) tm
             | None => CT_error 
             end
           else CT_error
@@ -379,7 +379,7 @@ in
       match lookup_N C.(tc_mems) 0%N with
       | Some _ =>
           if load_store_t_bounds a tp t
-          then type_update ts [::(T_num T_i32); (T_num t)] [::]
+          then type_update ts [::T_num t; T_num T_i32] [::]
           else CT_error
       | None => CT_error
       end
@@ -434,8 +434,26 @@ Definition b_e_type_checker_aux (C : t_context) (es : list basic_instruction) (t
 (*
   A context with local/label/return reversed for optimised validation.
 *)
+
+Definition rev_tf (tf: function_type) :=
+  match tf with
+  | Tf tn tm => Tf (rev tn) (rev tm)
+  end.
+
 Definition context_reverse (C: t_context): t_context :=
-  upd_local_label_return C (rev C.(tc_locals)) (rev C.(tc_labels)) (option_map rev C.(tc_return)).
+  {|
+    tc_types := map rev_tf C.(tc_types);
+    tc_funcs := map rev_tf C.(tc_funcs);
+    tc_tables := C.(tc_tables);
+    tc_mems := C.(tc_mems);
+    tc_globals := C.(tc_globals);
+    tc_elems := C.(tc_elems);
+    tc_datas := C.(tc_datas);
+    tc_locals := C.(tc_locals);
+    tc_labels := map rev C.(tc_labels);
+    tc_return := option_map rev C.(tc_return);
+    tc_refs := C.(tc_refs);
+  |}.
 
 Definition b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
   let: (Tf tn tm) := tf in

@@ -14,6 +14,230 @@ Section Host.
 
 Context {hfc: host_function_class}.
 
+Lemma lookup_N_map {T1 T2: Type}: forall (f: T1 -> T2) (l: list T1) n,
+    lookup_N (map f l) n = option_map f (lookup_N l n).
+Proof.
+  move => f l n.
+  by apply nth_error_map'.
+Qed.
+
+Lemma expand_t_context_reverse: forall C tb tf,
+    expand_t C tb = Some tf ->
+    expand_t (context_reverse C) tb = Some (rev_tf tf).
+Proof.
+  intros.
+  unfold expand_t in *; destruct tb => //=; first by rewrite lookup_N_map H.
+  by remove_bools_options.
+Qed.
+
+Lemma consume_self: forall ts unr,
+    consume ts unr ts = CT_type nil unr.
+Proof.
+  induction ts => //=; by resolve_subtyping.
+Qed.
+
+Lemma consume_prefix: forall ts1 ts2 unr,
+    consume (ts1 ++ ts2) unr ts1 = CT_type ts2 unr.
+Proof.
+  induction ts1; destruct ts2 => //=; by resolve_subtyping.
+Qed.
+
+Ltac simplify_tc_goal := 
+  repeat match goal with
+  | H: ?expr = _ |-
+    context [match ?expr with | _ => _ end] =>
+      rewrite H
+  | H: is_true ?expr |-
+    context [if ?expr then _ else _] =>
+      rewrite H
+  | H: ?expr = _ |-
+    context [?expr] =>
+      rewrite H
+  | H: unop_type_agree ?t ?op |- _ =>
+      destruct t, op; inversion H; subst; clear H
+  | H: binop_type_agree ?t ?op |- _ =>
+      destruct t, op; inversion H; subst; clear H
+  | H: relop_type_agree ?t ?op |- _ =>
+      destruct t, op; inversion H; subst; clear H
+  | H: lookup_N ?l ?n = ?x
+    |- context [lookup_N (map _ ?l) ?n] =>
+    rewrite lookup_N_map H
+  | H: expand_t ?C ?tb = ?tf
+    |- context [expand_t (context_reverse ?C) ?tb] =>
+    rewrite (expand_t_context_reverse H)
+  | |- context [ consume ?ts _ ?ts ] => rewrite consume_self
+  | |- context [ consume (?ts ++ _) _ ?ts ] => rewrite consume_prefix
+  | |- context [ take 0 _ ] => rewrite take0
+  | |- context [ _ ++ nil ] => rewrite cats0
+  | |- context [ rev (_ ++ _) ] => rewrite rev_cat
+  | |- context [ _ = _ ] => rewrite eq_refl
+  | |- context [ _ == _ ] => rewrite eq_refl
+  | _ => simpl in *; subst; resolve_subtyping => //
+  end.
+
+Lemma same_lab_h_condition: forall labs ts l,
+  List.Forall (fun i => lookup_N labs i = Some ts) l ->
+  same_lab_h l labs ts = Some ts.
+Proof.
+  move => C ts l.
+  move: C ts.
+  induction l => //=.
+  move => C ts H.
+  inversion H; subst; clear H.
+  rewrite H2 eq_refl.
+  by apply IHl.
+Qed.
+
+Lemma same_lab_h_all: forall labs ts l,
+  same_lab_h l labs ts = Some ts ->
+  List.Forall (fun i => lookup_N labs i = Some ts) l.
+Proof.
+  move => C ts l.
+  move: C ts.
+  induction l => //=.
+  move => C ts H.
+  remove_bools_options.
+  move/eqP in Hif; subst.
+  constructor => //.
+  by apply IHl.
+Qed.
+  
+Lemma same_lab_h_rec: forall x l labs ts,
+  same_lab_h (x :: l) labs ts = Some ts ->
+  same_lab_h l labs ts = Some ts.
+Proof.
+  move => x l C ts H.
+  simpl in H.
+  remove_bools_options.
+  by move/eqP in Hif; subst.
+Qed.
+
+Lemma same_lab_h_consistent: forall l lab ts ts',
+  same_lab_h l lab ts' = Some ts ->
+  ts = ts'.
+Proof.
+  induction l => //=; intros; first by inversion H.
+  remove_bools_options.
+  move/eqP in Hif; subst.
+  by apply IHl in H.
+Qed.
+
+Lemma same_lab_same_lab_h: forall l lab ts,
+  same_lab l lab = Some ts ->
+  same_lab_h l lab ts = Some ts.
+Proof.
+  move => l lab ts H.
+  unfold same_lab in H.
+  destruct l => //=; remove_bools_options.
+  rewrite H.
+  replace l0 with ts => //=; first by rewrite eq_refl.
+  by apply same_lab_h_consistent in H.
+Qed.
+
+Lemma same_lab_h_same_lab: forall l lab ts,
+  same_lab_h l lab ts = Some ts ->
+  l <> nil ->  
+  same_lab l lab = Some ts.
+Proof.
+  move => l lab ts H Hnil.
+  unfold same_lab_h in H.
+  by destruct l => //=; remove_bools_options.
+Qed.
+
+Lemma same_lab_rev: forall iss lab_c ts,
+    same_lab iss lab_c = Some ts ->
+    same_lab iss (map rev lab_c) = Some (rev ts).
+Proof.
+  move => iss lab_c ts Hlab.
+  destruct iss => //.
+  apply same_lab_h_same_lab => //.
+  apply same_lab_h_condition.
+  apply same_lab_same_lab_h, same_lab_h_all in Hlab.
+  apply Forall_spec.
+  move => n x Hnth.
+  eapply Forall_lookup in Hlab; eauto.
+  by rewrite lookup_N_map Hlab.
+Qed.
+
+(*
+Lemma c_types_agree_suffix_single: forall l C ts ts2 e,
+  c_types_agree (check_single C (CT_type ts) e) ts2 ->
+  ct_suffix l (to_ct_list ts) ->
+  c_types_agree (check_single C (CT_top_type l) e) ts2.
+Proof with auto_rewrite_cond.
+  move => l C ts ts2 e.
+  move: l C ts ts2.
+  induction e; move => topt C ts ts2 H Hsuffix; simpl in H => //=; auto_rewrite_cond; simplify_goal; (try destruct i); (try destruct c); (try by eapply type_update_agree_suffix; eauto) => //=...
+  (* Ref_is_null *)
+  - specialize (type_update_agree_suffix H Hsuffix) as Hsuffix'.
+    destruct topt => //=.
+    + unfold type_update in H...
+      replace (_.+1 - 1) with (length topt); last by lias.
+      destruct (List.nth_error (c :: topt) (length topt)) eqn:Hnth; last first.
+      { apply List.nth_error_None in Hnth; simpl in Hnth; by lias. }
+      { destruct c0...
+        replace (length topt) with (length (c :: topt) - 1) in Hnth; last by lias.
+        assert (ct_compat (CTA_some v0) (CTA_some v)) as Hcompat.
+        { eapply ct_suffix_compat_index; try apply Hnth; eauto.
+          apply nth_to_ct_list.
+          uapply match_expr.
+          do 2 f_equal.
+          unfold to_ct_list.
+          repeat rewrite length_is_size; by rewrite size_map.
+        }
+        by auto_rewrite_cond.
+      }
+  - by eapply type_update_select_agree; eauto.
+  - simplify_goal.
+    by eapply type_update_agree_suffix; eauto.
+Qed.
+Lemma c_types_agree_subtyping: forall C es ts1 ts1' ts2 ts2',
+  c_types_agree (check C es (CT_type ts1)) ts2 ->
+  ts1' <ts: ts1 ->
+  ts2 <ts: ts2' ->
+  c_types_agree (check C es (CT_type ts1')) ts2'.
+*)
+Lemma b_e_type_checker_reflects_typing:
+  forall C bes tf,
+    reflect (be_typing C bes tf) (b_e_type_checker C bes tf).
+Proof.
+  move => C bes tf.
+  destruct tf as [tn tm].
+  destruct (b_e_type_checker C bes (Tf tn tm)) eqn: Htc_bool.
+  - apply ReflectT.
+    unfold b_e_type_checker, b_e_type_checker_aux in Htc_bool.
+    fold (check (context_reverse C) bes (CT_type (rev tn) false)) in Htc_bool.
+(*    eapply tc_to_bet_list in Htc_bool; eauto.
+    by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.
+ *)
+    admit.
+  - apply ReflectF.
+    move => Hbet.
+    assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
+    induction Hbet; subst => //=; try rewrite H; simplify_tc_goal.
+    (* Ref_func *)
+    + (* inP is slightly stupid *)
+      move/(@inP u32_eqType) in H0.
+      by rewrite H0.
+    (* Br_table *)
+    + apply same_lab_h_condition in H.
+      apply same_lab_h_same_lab in H; last by destruct ins.
+      apply same_lab_rev in H.
+      by simplify_tc_goal.
+    (* Call *)
+    + destruct tf as [t1 t2]; by simplify_tc_goal.
+    (* Composition *)
+    + rewrite List.fold_left_app => //=.
+      unfold c_types_agree in IHHbet1.
+      destruct (List.fold_left _ es _) eqn:Htc => //=.
+      destruct b.
+      * admit.
+      * admit.
+    + simplify_subtyping.
+      admit.
+Admitted.
+      
+(*
 Lemma size_ct_list: forall l,
   size (to_ct_list l) = size l.
 Proof.
@@ -618,75 +842,6 @@ Proof.
   - by rewrite check_single_bot in Htc.
 Qed.
 
-Lemma same_lab_h_condition: forall C ts l,
-  List.Forall (fun i => lookup_N C.(tc_labels) i = Some ts) l ->
-  same_lab_h l (tc_labels C) ts = Some ts.
-Proof.
-  move => C ts l.
-  move: C ts.
-  induction l => //=.
-  move => C ts H.
-  inversion H; subst; clear H.
-  rewrite H2 eq_refl.
-  by apply IHl.
-Qed.
-
-Lemma same_lab_h_all: forall C ts l,
-  same_lab_h l (tc_labels C) ts = Some ts ->
-  List.Forall (fun i => lookup_N C.(tc_labels) i = Some ts) l.
-Proof.
-  move => C ts l.
-  move: C ts.
-  induction l => //=.
-  move => C ts H.
-  remove_bools_options.
-  move/eqP in Hif; subst.
-  constructor => //.
-  by apply IHl.
-Qed.
-  
-Lemma same_lab_h_rec: forall x l C ts,
-  same_lab_h (x :: l) (tc_labels C) ts = Some ts ->
-  same_lab_h l (tc_labels C) ts = Some ts.
-Proof.
-  move => x l C ts H.
-  simpl in H.
-  remove_bools_options.
-  by move/eqP in Hif; subst.
-Qed.
-
-Lemma same_lab_h_consistent: forall l lab ts ts',
-  same_lab_h l lab ts' = Some ts ->
-  ts = ts'.
-Proof.
-  induction l => //=; intros; first by inversion H.
-  remove_bools_options.
-  move/eqP in Hif; subst.
-  by apply IHl in H.
-Qed.
-
-Lemma same_lab_same_lab_h: forall l lab ts,
-  same_lab l lab = Some ts ->
-  same_lab_h l lab ts = Some ts.
-Proof.
-  move => l lab ts H.
-  unfold same_lab in H.
-  destruct l => //=; remove_bools_options.
-  rewrite H.
-  replace l0 with ts => //=; first by rewrite eq_refl.
-  by apply same_lab_h_consistent in H.
-Qed.
-
-Lemma same_lab_h_same_lab: forall l lab ts,
-  same_lab_h l lab ts = Some ts ->
-  l <> nil ->  
-  same_lab l lab = Some ts.
-Proof.
-  move => l lab ts H Hnil.
-  unfold same_lab_h in H.
-  by destruct l => //=; remove_bools_options.
-Qed.
-  
 Lemma ct_list_compat_trans: forall ts1 ts2 ts,
   ct_list_compat (to_ct_list ts) ts1 ->
   ct_list_compat (to_ct_list ts) ts2 ->
@@ -2085,45 +2240,5 @@ Proof.
   move => [H1 _].
   by eapply H1; eauto.
 Qed.
-
-Lemma b_e_type_checker_reflects_typing:
-  forall C bes tf,
-    reflect (be_typing C bes tf) (b_e_type_checker C bes tf).
-Proof with auto_rewrite_cond.
-  move => C bes tf.
-  destruct tf as [tn tm].
-  destruct (b_e_type_checker C bes (Tf tn tm)) eqn: Htc_bool.
-  - apply ReflectT.
-    unfold b_e_type_checker in Htc_bool.
-    fold (check C bes (CT_type tn)) in Htc_bool.
-    eapply tc_to_bet_list in Htc_bool; eauto.
-    by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.
-  - apply ReflectF.
-    move => Hbet.
-    assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
-    induction Hbet; subst => //=; unfold type_update => //=; try destruct t, op; try by inversion H...
-    (* Ref_func *)
-    + (* inP is slightly stupid *)
-      move/(@inP u32_eqType) in H0.
-      by rewrite H0.
-    (* Block? *)
-    + rewrite H IHHbet1 IHHbet2 => /=.
-      by auto_rewrite_cond.
-    (* Br_table *)
-    + apply same_lab_h_condition in H.
-      apply same_lab_h_same_lab in H; last by destruct ins.
-      rewrite H.
-      by auto_rewrite_cond.
-    + destruct tf as [t1 t2] => //=...
-    + unfold type_update => //=...
-    + rewrite List.fold_left_app => //=.
-      unfold c_types_agree in IHHbet1.
-      destruct (List.fold_left _ es _) eqn:Htc => //=.
-      * by eapply c_types_agree_suffix_single; eauto.
-      * move/eqP in IHHbet1. by subst.
-    + simplify_subtyping.
-      apply c_types_agree_subtyping with (ts1 := extr0 ++ t1s) (ts2 := extr0 ++ t2s); try by resolve_subtyping.
-      by apply c_types_agree_weakening.
-Qed.
-
+ *)
 End Host.

@@ -2015,12 +2015,6 @@ Proof.
 Qed.
  *)
 
-Lemma nth_error_map' {T1 T2: Type}: forall (f: T1 -> T2) (l: list T1) n,
-    List.nth_error (map f l) n = option_map f (List.nth_error l n).
-Proof.
-  by induction l; destruct n => //=.
-Qed.
-
 Lemma vt_imps_funcs_lookup s v_imps t_imps gn gt (k: nat):
   List.Forall2 (external_typing s) v_imps t_imps ->
   List.nth_error (ext_funcs v_imps) k = Some gn ->
