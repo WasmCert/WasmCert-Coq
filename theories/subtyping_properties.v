@@ -69,6 +69,14 @@ Proof.
   by rewrite all2_cat => //.
 Qed.
 
+Lemma values_subtyping_rev: forall ts1 ts2,
+    ts1 <ts: ts2 ->
+    rev ts1 <ts: rev ts2.
+Proof.
+  move => ts1 ts2 Hsub.
+  by apply all2_rev.
+Qed.
+
 Lemma values_subtyping_split1: forall ts ts1 ts2,
     ts <ts: (ts1 ++ ts2) ->
     ((take (size ts1) ts) <ts: ts1) && ((drop (size ts1) ts) <ts: ts2).
