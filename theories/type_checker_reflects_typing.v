@@ -410,14 +410,14 @@ Admitted.
 Lemma tc_to_bet_conj d:
   ( forall C cts bes tm cts',
   be_size_list bes <= d ->
-  check C bes (Some cts) = Some cts' ->
+  check (context_reverse C) bes (Some cts) = Some cts' ->
   c_types_agree cts' tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C bes (Tf tn tm)) /\
+  exists tn, c_types_agree cts tn /\ be_typing C bes (Tf (rev tn) (rev tm))) /\
   ( forall C cts tm e cts',
   be_size_single e <= d ->
-  check_single C (Some cts) e = (Some cts') ->
+  check_single (context_reverse C) (Some cts) e = (Some cts') ->
   c_types_agree cts' tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C ([:: e]) (Tf tn tm)).
+  exists tn, c_types_agree cts tn /\ be_typing C ([:: e]) (Tf (rev tn) (rev tm))).
 Proof.
   induction (lt_wf d) as [d _ H] => //=.
   split.
@@ -431,7 +431,7 @@ Proof.
     + rewrite be_size_list_rcons in Hs.
       rewrite -cats1 in Hct1.
       rewrite check_rcons in Hct1.
-      remember (check C bes (Some cts)) as obesct.
+      remember (check (context_reverse C) bes (Some cts)) as obesct.
       destruct obesct as [besct | ]; last by destruct e.
       symmetry in Heqobesct.
       assert (be_size_single e < d)%coq_nat as Hmeasure; first by lias.
@@ -445,7 +445,8 @@ Proof.
       split => //.
       by eapply bet_composition; eauto.
   (* Single *)
-  - destruct e => //=; (try destruct i as [tn' tm']); auto_rewrite_cond; move => ? Hs Hct Hct2; simplify_type_update => //...
+  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal; move => cts' Hs Hct Hct2 => //.
+    (*
     (* Const_num *)
     + by resolve_no_consume cts [::T_num (typeof_num v)] tm.
     (* Unop_i *)
@@ -659,11 +660,13 @@ Proof.
       apply bet_weakening.
       by eapply bet_call_indirect; eauto => //=.
 Qed.
+     *)
+    Admitted.
       
 Lemma tc_to_bet_list: forall C cts bes tm cts',
-  check C bes cts = cts' ->
+  check (context_reverse C) bes (Some cts) = Some cts' ->
   c_types_agree cts' tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C bes (Tf tn tm).
+  exists tn, c_types_agree cts tn /\ be_typing C bes (Tf (rev tn) (rev tm)).
 Proof.
   intros.
   specialize tc_to_bet_conj with (be_size_list bes).
@@ -681,10 +684,14 @@ Proof.
   - apply ReflectT.
     unfold b_e_type_checker, b_e_type_checker_aux in Htc_bool.
     fold (check (context_reverse C) bes (Some <<(rev tn), false>>)) in Htc_bool.
-(*    eapply tc_to_bet_list in Htc_bool; eauto.
-    by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.
- *)
-    admit.
+    remove_bools_options.
+    eapply tc_to_bet_list in Htc_bool; eauto.
+    destruct Htc_bool as [ts [Hagree Hbet]].
+    unfold c_types_agree in Hagree; simpl in *.
+    apply values_subtyping_rev in Hagree.
+    rewrite -> revK in *.
+    eapply bet_subtyping; eauto.
+    eapply instr_subtyping_weaken1; first reflexivity; by resolve_subtyping.
   - apply ReflectF.
     move => Hbet.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
