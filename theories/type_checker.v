@@ -71,7 +71,9 @@ Definition type_update_select (ct : checker_type) (ots: option (list value_type)
           if (is_numeric_type t2) && (t2 == t3) then
             type_update ct [::T_num T_i32; t2; t3] [::t2]
           else None
-      | _ => type_update ct [::T_num T_i32] [::T_bot]
+      | _ =>
+          if ct.(CT_unr) then type_update ct [::T_num T_i32] [::T_bot]
+          else None
       end
   end.
 

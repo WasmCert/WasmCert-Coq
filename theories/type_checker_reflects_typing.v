@@ -193,15 +193,6 @@ Lemma check_single_subtyping: forall C ct e ct' ts ts',
 Proof.
 Admitted.
 
-Lemma check_single_extend: forall C ct e ts ts' ts2 ts2',
-  check_single C (Some <<ts, false>>) e = Some ct ->
-  c_types_agree ct ts' ->
-  ts2 <ts: ts2' ->
-  exists ct', check_single C (Some <<ts ++ ts2, false>>) e = Some ct' /\
-            c_types_agree ct' (ts' ++ ts2').
-Proof.
-Admitted.
-
 Lemma c_types_agree_extend: forall ts1 ts2 ts,
     c_types_agree <<ts1, false>> ts2 ->
     c_types_agree <<ts1 ++ ts, false>> (ts2 ++ ts).
@@ -213,29 +204,6 @@ Lemma c_types_agree_subtyping: forall ct ts ts',
     ts <ts: ts' ->
     c_types_agree ct ts'.
 Proof.
-Admitted.
-  
-Lemma check_extend: forall C ct es ts ts' ts2 ts2',
-  check C es (Some <<ts, false>>) = Some ct ->
-  c_types_agree ct ts' ->
-  ts2 <ts: ts2' ->
-  exists ct', check C es (Some <<ts ++ ts2, false>>) = Some ct' /\
-            c_types_agree ct' (ts' ++ ts2').
-Proof.
-  move => C ct es.
-  induction es as [| e es'] using last_ind => //=; move => ts ts' ts2 ts2' Hcheck Hagree Hsub.
-  - injection Hcheck as <-.
-    exists <<ts ++ ts2, false >>.
-    split => //.
-    apply c_types_agree_extend with (ts := ts2) in Hagree; eauto.
-    eapply c_types_agree_subtyping; eauto.
-    by resolve_subtyping.
-  - rewrite <- cats1 in *.
-    unfold check in *.
-    rewrite List.fold_left_app in Hcheck.
-    rewrite List.fold_left_app.
-    simpl in *.
-    destruct (List.fold_left _ e (Some <<ts, false>>)) eqn:Hchecksingle; simpl in * => //; last by destruct es'.
 Admitted.
 
 Ltac simplify_tc_goal := 
@@ -377,7 +345,7 @@ Proof.
     + do 2 destruct l => //.
       by eapply type_update_reachable; eauto.
     + destruct ct as [c_ts unr]; simpl in *.
-      do 3 (try destruct c_ts as [ | ? c_ts] => //); try by eapply type_update_reachable in Htc.
+      destruct unr; do 3 (try destruct c_ts as [ | ? c_ts] => //); try by eapply type_update_reachable in Htc.
       * by simplify_tc_goal.
       * simplify_tc_goal; by eapply type_update_reachable in Htc.
   - destruct f0; by eapply type_update_reachable; eauto.
@@ -391,29 +359,47 @@ Proof.
   by destruct e => //=.
 Qed.
   
-Lemma check_single_weaken: forall C e ts ts2 ts0,
+Lemma check_single_extend: forall C e ts ts2 ts0,
   check_single C (Some <<ts, false>>) e = Some <<ts0, false>> ->
   check_single C (Some <<ts ++ ts2, false>>) e = Some <<ts0 ++ ts2, false>>.
 Proof.
   move => C e.
   move : C.
-  induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond; simplify_goal; subst => //=; try by apply type_update_prefix...
-  - unfold type_update in Htc; auto_rewrite_cond.
-    destruct ts => //...
-    rewrite List.app_length => //.
-    (* Numerical disaster *)
-    replace (_ < _) with true => /=; last by lias.
-    repeat (rewrite List.nth_error_app2; last by rewrite length_is_size; lias).
-    replace (_ - 1 - length ts2) with (length ts); last by lias.
-    replace ((length ts).+1 - 1) with (length ts) in match_expr; last by lias.
-    rewrite match_expr if_expr0.
-    apply type_update_prefix.
-    unfold type_update; by auto_rewrite_cond.
-  - by apply type_update_select_prefix.
-  - destruct i => //=.
-    simplify_goal.
-    by apply type_update_prefix.
+  induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_tc_goal; (try destruct i); (try destruct f); (try destruct f0); simplify_tc_goal; (try by apply type_update_extend with (l2 := ts2) in Htc); (try by unfold type_update_top in *; simplify_tc_goal).
+  - by unfold type_update_ref_is_null in *; destruct ts; simplify_tc_goal.
+  - by unfold type_update_drop in *; destruct ts; simplify_tc_goal.
+  - unfold type_update_select in *.
+    destruct o => //.
+    + do 2 destruct l => //. by apply type_update_extend with (l2 := ts2) in Htc.
+    + simpl in *.
+      do 3 (try destruct ts => //; simpl in * ); simplify_tc_goal.
+      by apply type_update_extend with (l2 := ts2) in Htc.
 Qed.
+
+(*
+Lemma check_extend: forall C ct es ts ts' ts2 ts2',
+  check C es (Some <<ts, false>>) = Some ct ->
+  c_types_agree ct ts' ->
+  ts2 <ts: ts2' ->
+  exists ct', check C es (Some <<ts ++ ts2, false>>) = Some ct' /\
+            c_types_agree ct' (ts' ++ ts2').
+Proof.
+  move => C ct es.
+  induction es as [| e es'] using last_ind => //=; move => ts ts' ts2 ts2' Hcheck Hagree Hsub.
+  - injection Hcheck as <-.
+    exists <<ts ++ ts2, false >>.
+    split => //.
+    apply c_types_agree_extend with (ts := ts2) in Hagree; eauto.
+    eapply c_types_agree_subtyping; eauto.
+    by resolve_subtyping.
+  - rewrite <- cats1 in *.
+    unfold check in *.
+    rewrite List.fold_left_app in Hcheck.
+    rewrite List.fold_left_app.
+    simpl in *.
+    destruct (List.fold_left _ e (Some <<ts, false>>)) eqn:Hchecksingle; simpl in * => //; last by destruct es'.
+Admitted.
+*)
     
 (*
   The first part of the conjunction is what is required, but we need to prove it by simultaneous
@@ -443,23 +429,21 @@ Proof.
       split => //; first by injection Hct1 as ->.
       by apply bet_weakening_empty_both, bet_empty.
     + rewrite be_size_list_rcons in Hs.
-      rewrite check_rcons in Hbetc.
-      remember (check C bes cts) as besct.
-      remember (check_single C besct e) as ect.
-      symmetry in Heqect.
-      symmetry in Heqbesct.
+      rewrite -cats1 in Hct1.
+      rewrite check_rcons in Hct1.
+      remember (check C bes (Some cts)) as obesct.
+      destruct obesct as [besct | ]; last by destruct e.
+      symmetry in Heqobesct.
       assert (be_size_single e < d)%coq_nat as Hmeasure; first by lias.
       assert (be_size_list bes < d)%coq_nat as Hmeasure2; first by lias.
-      specialize H with (be_size_single e) as Hs1.
-      apply Hs1 in Hmeasure.
-      destruct Hmeasure as [_ Hmeasure].
-      eapply Hmeasure in Heqect => //; last by apply Hbetc.
-      destruct Heqect as [tn' [Hct Hbet]].
-      eapply IHbes in Heqbesct => //; (try apply Hct); last by apply/leP; lias.
-      destruct Heqbesct as [tn'' [Hcts Hbets]].
-      exists tn''; split => //.
-      eapply bet_composition; last by apply Hbet.
-      by apply Hbets.
+      apply H in Hmeasure as [_ Hmeasure].
+      eapply Hmeasure in Hbetc as [ts1 [Hagree1 Hbet1]]; eauto.
+      eapply IHbes in Heqobesct as [ts2 [Hagree2 Hbet2]]; eauto; last by lias.
+      apply H in Hmeasure2 as [_ Hmeasure2].
+      exists ts2.
+      rewrite -cats1.
+      split => //.
+      by eapply bet_composition; eauto.
   (* Single *)
   - destruct e => //=; (try destruct i as [tn' tm']); auto_rewrite_cond; move => ? Hs Hct Hct2; simplify_type_update => //...
     (* Const_num *)
