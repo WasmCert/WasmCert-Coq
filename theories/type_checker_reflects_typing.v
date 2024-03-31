@@ -376,22 +376,18 @@ Proof.
       by apply type_update_extend with (l2 := ts2) in Htc.
 Qed.
 
-(*
-Lemma check_extend: forall C ct es ts ts' ts2 ts2',
+Lemma check_extend: forall C ct es ts ts' ts2,
   check C es (Some <<ts, false>>) = Some ct ->
   c_types_agree ct ts' ->
-  ts2 <ts: ts2' ->
   exists ct', check C es (Some <<ts ++ ts2, false>>) = Some ct' /\
-            c_types_agree ct' (ts' ++ ts2').
+            c_types_agree ct' (ts' ++ ts2).
 Proof.
   move => C ct es.
-  induction es as [| e es'] using last_ind => //=; move => ts ts' ts2 ts2' Hcheck Hagree Hsub.
+  induction es as [| e es'] using last_ind => //=; move => ts ts' ts2 Hcheck Hagree.
   - injection Hcheck as <-.
     exists <<ts ++ ts2, false >>.
     split => //.
-    apply c_types_agree_extend with (ts := ts2) in Hagree; eauto.
-    eapply c_types_agree_subtyping; eauto.
-    by resolve_subtyping.
+    by apply c_types_agree_extend with (ts := ts2) in Hagree; eauto.
   - rewrite <- cats1 in *.
     unfold check in *.
     rewrite List.fold_left_app in Hcheck.
@@ -399,7 +395,6 @@ Proof.
     simpl in *.
     destruct (List.fold_left _ e (Some <<ts, false>>)) eqn:Hchecksingle; simpl in * => //; last by destruct es'.
 Admitted.
-*)
     
 (*
   The first part of the conjunction is what is required, but we need to prove it by simultaneous
@@ -717,12 +712,14 @@ Proof.
     + simplify_subtyping.
       apply values_subtyping_rev in Hconjl2.
       apply values_subtyping_rev in Hconjr0.
+      apply values_subtyping_rev in Hconjl1.
       simplify_tc_goal.
-      eapply check_subtyping in Hoption as [ct' [Hcheck Hagree]]; eauto.
-      
-      rewrite Hoption.
-      admit.
-Admitted.
+      eapply check_extend with (ts2 := rev extr) in Hoption as [ct [Hcheck' Hagree']]; eauto.
+      eapply check_subtyping with (ts1' := rev extr1 ++ rev extr) (ts2' := rev extr2 ++ rev extr0) in Hcheck' as [ct' [Hcheck Hagree]]; eauto; resolve_subtyping => //.
+      fold (check (context_reverse C) es (Some <<rev extr1 ++ rev extr, false>>)).
+      rewrite Hcheck.
+      done.
+Qed.
       
 (*
 Lemma size_ct_list: forall l,
