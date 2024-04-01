@@ -524,6 +524,14 @@ Proof.
       by apply type_update_preserve_unr in Htc.
 Qed.
 
+Lemma value_type_select_subtyping: forall v1 v2 v3 v4 v,
+    value_type_select v1 v2 = Some v ->
+    v3 <t: v1 ->
+    v4 <t: v2 ->
+    exists v', value_type_select v3 v4 = Some v' /\ v' <t: v.
+Proof.
+Admitted.
+
 Lemma check_single_subtyping: forall C ct e ct' ts ts',
   check_single C (Some <<ts, false>>) e = Some ct' ->
   c_types_agree ct ts ->
@@ -534,7 +542,53 @@ Proof.
   move => C ct e.
   move: C ct.
   induction e; move => C ct ct' ts ts' Hcheck Hagree1 Hagree2; simplify_tc_goal; (try destruct i); (try destruct f0); (try destruct f); simplify_tc_goal; (try by eapply type_update_subtyping in Hcheck; eauto).
-  - unfold type_update_ref_is_null in *; simplify_tc_goal.
+  - unfold type_update_ref_is_null in *; destruct ts; simplify_tc_goal.
+    unfold c_types_agree in *.
+    destruct ct as [[| t cts] [|]] => //; simpl in *; simplify_tc_goal.
+    + eexists; split; eauto => /=.
+      by rewrite take0.
+    + exists (<<T_num T_i32 :: cts, true>>) => /=.
+      replace (is_ref_t t) with true; last by destruct t,v.
+      split => //.
+      apply values_subtyping_take with (n := size cts) in H2.
+      by resolve_subtyping.
+    + exists (<<T_num T_i32 :: cts, false>>) => /=.
+      replace (is_ref_t t) with true; last by destruct t,v.
+      split => //.
+      by resolve_subtyping.
+  - unfold type_update_drop in *; simplify_tc_goal.
+    destruct ts => //.
+    unfold c_types_agree in *.
+    destruct ct as [[| t cts] [|]] => //; simpl in *; simplify_tc_goal; eexists; split; eauto; simpl; simplify_tc_goal.
+    by apply values_subtyping_take with (n := size cts) in Hagree2; resolve_subtyping.
+  - unfold type_update_select in *.
+    destruct o => //; simpl in *.
+    + do 2 (try destruct l => //).
+      by eapply type_update_subtyping in Hcheck; eauto.
+    + do 3 (try destruct ts => //); simplify_tc_goal.
+      destruct ct as [cts unr].
+      do 3 (try destruct cts => //=); unfold type_update, produce, c_types_agree in *; simplify_tc_goal => //=; unfold value_type_select in Hoption; (try (destruct unr; last by remove_bools_options; done)).
+      * eexists; split; eauto => /=.
+        rewrite take0; by destruct v3.
+      * replace (v3 <t: T_num T_i32) with true => /=; last by destruct v3, v => //; resolve_subtyping.
+        eexists; split; eauto => /=.
+        rewrite take0; by destruct v4.
+      * replace (is_numeric_type v4) with true => /=; last first.
+        { simplify_tc_goal; try by destruct v4; (try destruct v2); (try destruct v1); (try destruct v0). }
+        eexists; split; eauto => /=.
+        simplify_tc_goal.
+        by destruct v4, v5, v0 => //.
+      * clear Hif0 Hif1.
+        assert (v3 <t: v /\ v4 <t: v0 /\ v5 <t: v1) as [Hsub1 [Hsub2 Hsub3]]; first by destruct unr; remove_bools_options.
+        eapply value_type_select_subtyping in Hoption as [v' [Hvtselect Hsub]]; eauto.
+        rewrite Hvtselect.
+        replace (v3 <t: T_num T_i32) with true; last by destruct v3, v; resolve_subtyping.
+        eexists; split; eauto => /=.
+        simplify_tc_goal.
+        destruct unr => //; remove_bools_options; last by resolve_subtyping.
+        apply values_subtyping_take with (n := size cts) in H0.
+        by resolve_subtyping.
+        
 Admitted.
 
 

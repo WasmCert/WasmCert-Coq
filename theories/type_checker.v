@@ -58,6 +58,15 @@ Definition type_update_top (ct : checker_type) (cons : list value_type) (prods :
   | None => None
   end.
 
+(* Needs an update in GC *)
+Definition value_type_select (t1 t2: value_type) : option value_type :=
+  if is_numeric_type t1 && is_numeric_type t2 then
+    if t1 == T_bot then Some t2
+    else if t2 == T_bot then Some t1
+         else if (t1 == t2) then Some t1
+              else None
+  else None.
+
 Definition type_update_select (ct : checker_type) (ots: option (list value_type)) : option checker_type :=
   match ots with
   | Some [::vt] => type_update ct ([:: T_num T_i32; vt; vt]) [::vt]
@@ -68,9 +77,11 @@ Definition type_update_select (ct : checker_type) (ots: option (list value_type)
           if (is_numeric_type t2) && ct.(CT_unr) then Some <<[::t2], true>>
           else None
       | t1 :: t2 :: t3 :: _ =>
-          if (is_numeric_type t2) && (t2 == t3) then
-            type_update ct [::T_num T_i32; t2; t3] [::t2]
-          else None
+          match value_type_select t2 t3 with
+          | Some tsup =>
+             type_update ct [::T_num T_i32; t2; t3] [::tsup]
+          | None => None
+          end
       | _ =>
           if ct.(CT_unr) then type_update ct [::T_num T_i32] [::T_bot]
           else None
