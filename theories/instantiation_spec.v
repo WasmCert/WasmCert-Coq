@@ -529,7 +529,7 @@ Definition instantiate_elems f (hs : host_state) (s' : store_record) m (r_inits:
     r_inits.
 
 (* The following definitions needs a revisit when implementing the GC/funcref proposal *)
-Definition limit_subtyping (l1 l2: limits) : bool :=
+Definition limits_subtyping (l1 l2: limits) : bool :=
   (l1.(lim_min) >= l2.(lim_min)) &&
     match l1.(lim_max), l2.(lim_max) with
     | _, None => true
@@ -537,20 +537,29 @@ Definition limit_subtyping (l1 l2: limits) : bool :=
     | _, _ => false
     end.
 
-Definition global_subtyping (gt1 gt2: global_type) : bool :=
-  gt1 == gt2.
+Definition import_func_subtyping (t1 t2: function_type) : bool :=
+  t1 == t2.
+
+Definition import_table_subtyping (t1 t2: table_type) : bool :=
+  (t1.(tt_elem_type) == t2.(tt_elem_type)) &&
+    limits_subtyping t1.(tt_limits) t2.(tt_limits).
+
+Definition import_mem_subtyping (t1 t2: memory_type) : bool :=
+  limits_subtyping t1 t2.
+
+Definition import_global_subtyping (t1 t2: global_type) : bool :=
+  t1 == t2.
 
 Definition import_subtyping (t1 t2: extern_type) : bool :=
   match t1, t2 with
   | ET_func tf1, ET_func tf2 =>
-      tf1 == tf2
+      import_func_subtyping tf1 tf2
   | ET_table tt1, ET_table tt2 =>
-      (tt1.(tt_elem_type) == tt2.(tt_elem_type)) &&
-      limit_subtyping tt1.(tt_limits) tt2.(tt_limits)
+      import_table_subtyping tt1 tt2
   | ET_mem tm1, ET_mem tm2 =>
-      limit_subtyping tm1 tm2
+      import_mem_subtyping tm1 tm2
   | ET_global tg1, ET_global tg2 =>
-      global_subtyping tg1 tg2
+      import_global_subtyping tg1 tg2
   | _, _ => false
   end.
 

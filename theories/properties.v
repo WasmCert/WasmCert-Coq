@@ -742,6 +742,21 @@ Proof.
     by specialize (H (S i)).
 Qed.
 
+Lemma list_eq' {T: Type} (l1 l2: list T):
+  length l1 = length l2 ->
+  (forall i x, List.nth_error l1 i = Some x ->
+          List.nth_error l2 i = Some x) ->
+  l1 = l2.
+Proof.
+  move: l1 l2.
+  induction l1; destruct l2 => //=; move => Hlen Hnth.
+  f_equal.
+  - specialize (Hnth 0 a erefl); by inversion Hnth.
+  - apply IHl1; first by lias.
+    move => i x.
+    by specialize (Hnth (S i) x).
+Qed.
+
 Lemma Forall_spec {T: Type} (P: T -> Prop) (l: list T):
   (forall n x, List.nth_error l n = Some x -> P x) ->
   List.Forall P l.

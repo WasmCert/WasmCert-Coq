@@ -438,7 +438,7 @@ Definition inst_typing (s : store_record) (inst : moduleinst) : option t_context
                                                 | None => None
                                                 end) ds) with
                         | Some tds =>
-                            Some (Build_t_context ts tfs tts tms tgs tes tds nil nil None (iota_N 0 (length fs - 1)))
+                            Some (Build_t_context ts tfs tts tms tgs tes tds nil nil None (iota_N 0 (length fs)))
                         | None => None
                         end
                     | None => None

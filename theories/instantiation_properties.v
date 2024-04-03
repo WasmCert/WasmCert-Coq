@@ -1002,7 +1002,7 @@ Proof.
   destruct a, e; simpl in H2; remove_bools_options => //=; repeat split; try by f_equal.
 Qed.
 
-Lemma subtyping_comp_len t_imps1 t_imps2:
+Lemma import_subtyping_comp_len t_imps1 t_imps2:
   List.Forall2 import_subtyping t_imps1 t_imps2->
   (length (ext_t_funcs t_imps1) = length (ext_t_funcs t_imps2) /\
     length (ext_t_tables t_imps1) = length (ext_t_tables t_imps2) /\
@@ -1016,6 +1016,17 @@ Proof.
   destruct H4 as [Hft [Htt [Hmt Hgt]]].
   unfold import_subtyping in H2.
   destruct a, e; simpl in H2; remove_bools_options => //=; repeat split; try by lias.
+Qed.
+
+Lemma import_subtyping_components: forall t_imps1 t_imps2,
+    List.Forall2 import_subtyping t_imps1 t_imps2 ->
+    List.Forall2 import_func_subtyping (ext_t_funcs t_imps1) (ext_t_funcs t_imps2) /\
+    List.Forall2 import_table_subtyping (ext_t_tables t_imps1) (ext_t_tables t_imps2) /\
+    List.Forall2 import_mem_subtyping (ext_t_mems t_imps1) (ext_t_mems t_imps2) /\
+    List.Forall2 import_global_subtyping (ext_t_globals t_imps1) (ext_t_globals t_imps2).
+Proof.
+  induction t_imps1; destruct t_imps2 => //=; move => Hall2; inversion Hall2; subst; clear Hall2 => /=.
+  destruct a, e => //=; repeat split; (try constructor) => //; by apply IHt_imps1.
 Qed.
 
 (*
