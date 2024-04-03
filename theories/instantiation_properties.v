@@ -1,6 +1,6 @@
 (** Properties of instantiation spec **)
 
-From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun.
+From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun ssrnat.
 Require Import Coq.Program.Equality NArith.
 Require Export instantiation_spec.
 Require Export type_preservation type_progress properties.
@@ -21,64 +21,6 @@ Proof.
   rewrite Hlen in Hl1.
   apply List.nth_error_Some in Hl1.
   by destruct (l2 !! i) => //; eexists.
-Qed.
-
-Fixpoint imap_aux {T1 T2: Type} (f: nat -> T1 -> T2) (l: list T1) (i: nat) : list T2 :=
-  match l with
-  | [::] => [::]
-  | e :: l' => (f i e) :: imap_aux f l' (S i)
-  end.
-
-Definition imap {T1 T2: Type} (f: nat -> T1 -> T2) l := imap_aux f l 0.
-
-Lemma imap_extend_aux {T1 T2: Type} (f: nat -> T1 -> T2) l e j:
-  imap_aux f (cat l [:: e]) j = cat (imap_aux f l j) [:: f (length l + j) e].
-Proof.
-  move: j.
-  induction l => //=; move => j.
-  f_equal. rewrite (IHl (S j)).
-  repeat f_equal.
-  by lias.
-Qed.
-
-Lemma imap_extend {T1 T2: Type} (f: nat -> T1 -> T2) l e:
-  imap f (cat l [:: e]) = cat (imap f l) [:: f (length l) e].
-Proof.
-  unfold imap.
-  rewrite (imap_extend_aux f l e 0).
-  repeat f_equal.
-  by lias.
-Qed.
-
-Lemma imap_length_aux {T1 T2: Type} (f: nat -> T1 -> T2) l j:
-  length (imap_aux f l j) = length l.
-Proof.
-  move: j.
-  induction l => //=; move => j.
-  f_equal; by apply IHl.
-Qed.
-
-Lemma imap_length {T1 T2: Type} (f: nat -> T1 -> T2) l:
-  length (imap f l) = length l.
-Proof.
-  by apply (imap_length_aux f l 0).
-Qed.
-
-Lemma list_lookup_imap_aux {T1 T2: Type} (f: nat -> T1 -> T2) l i j:
-  List.nth_error (imap_aux f l j) i = option_map (f (i + j)) (List.nth_error l i).
-Proof.
-  move: l i j.
-  induction l; destruct i; move => j => //=.
-  specialize (IHl i (S j)).
-  rewrite IHl; repeat f_equal. by lias.
-Qed.
-
-Lemma list_lookup_imap {T1 T2: Type} (f: nat -> T1 -> T2) l i:
-  List.nth_error (imap f l) i = option_map (f i) (List.nth_error l i).
-Proof.
-  unfold imap.
-  rewrite -> (list_lookup_imap_aux f l i 0).
-  by rewrite PeanoNat.Nat.add_0_r.
 Qed.
 
 Lemma repeat_lookup_Some {T: Type} (x y: T) n i:
@@ -105,114 +47,93 @@ Proof.
     specialize (H (S i) (S j) x); simpl in H.
     by apply H in Hnth1; lias.
 Qed.
-    
-Definition gen_index offset len : list nat :=
-  imap (fun i x => i+offset+x) (List.repeat 0 len).
 
-Lemma gen_index_lookup offset len k:
+Lemma iota_lookup offset len k:
   k < len ->
-  (gen_index offset len) !! k = Some (offset + k).
+  List.nth_error (iota offset len) k = Some (offset + k).
+Proof.
+  move : offset len.
+  induction k; move => offset len; destruct len => //=; move => Hsize; try by lias.
+  - by rewrite addn0.
+  - rewrite addnS -addSn.
+    by apply IHk.
+Qed.
+
+Lemma iota_lookup_Some offset len k x:
+  List.nth_error (iota offset len) k = Some x ->
+  x = offset + k /\ k < len.
+Proof.
+  move : offset len.
+  induction k; move => offset len; destruct len => //=; move => Hsize; try by lias.
+  - inversion Hsize; subst; clear Hsize.
+    by rewrite addn0.
+  - rewrite addnS -addSn.
+    by apply IHk.
+Qed.
+    
+Lemma iota_N_lookup offset len k:
+  k < len ->
+  List.nth_error (iota_N offset len) k = Some (N.of_nat (offset + k)).
 Proof.
   move => Hlen.
-  unfold gen_index.
-  rewrite list_lookup_imap => /=.
-  eapply List.nth_error_repeat with (a := 0) in Hlen.
-  rewrite Hlen.
-  simpl.
-  f_equal.
-  by lias.
+  unfold iota_N.
+  by rewrite nth_error_map' iota_lookup.
 Qed.
 
-Lemma gen_index_lookup_Some n l i x:
-  (gen_index n l) !! i = Some x ->
-  x = n + i /\ i < l.
+Lemma iota_N_lookup_Some n l i x:
+  List.nth_error (iota_N n l) i = Some x ->
+  x = N.of_nat (n + i) /\ i < l.
 Proof.
-  unfold gen_index.
+  unfold iota_N.
   move => Hl.
-  rewrite list_lookup_imap in Hl.
-  destruct (List.repeat _ _ !! i) eqn: Hrl => //.
-  simpl in Hl.
-  inversion Hl; subst; clear Hl.
-  apply repeat_lookup_Some in Hrl as [<- ?].
-  by lias.
+  apply nth_error_map in Hl as [v [Hnth Hmap]]; subst.
+  by apply iota_lookup_Some in Hnth as [-> ?].
 Qed.
  
-Lemma gen_index_NoDup n l:
-  List.NoDup (gen_index n l).
+Lemma iota_N_NoDup n l:
+  List.NoDup (iota_N n l).
 Proof.
   apply NoDup_alt.
   move => i j x Hli Hlj.
-  apply gen_index_lookup_Some in Hli as [-> ?].
-  apply gen_index_lookup_Some in Hlj as [? ?].
+  apply iota_N_lookup_Some in Hli as [-> ?].
+  apply iota_N_lookup_Some in Hlj as [? ?].
   by lias.
 Qed.
 
-Lemma gen_index_length n len:
-  length (gen_index n len) = len.
+Lemma iota_N_length n len:
+  length (iota_N n len) = len.
 Proof.
-  unfold gen_index.
-  rewrite imap_length.
-  by rewrite List.repeat_length.
+  unfold iota_N.
+  by rewrite List.map_length length_is_size size_iota.
 Qed.
 
-Lemma gen_index_extend offset len:
-  gen_index offset (len+1) = gen_index offset len ++ [::offset+len].
+Lemma iota_N_extend offset len:
+  iota_N offset (len+1) = iota_N offset len ++ [::N.of_nat (offset+len)].
 Proof.
-  unfold gen_index.
-  rewrite List.repeat_app imap_extend List.repeat_length => /=.
-  do 2 f_equal.
-  by lias.
+  unfold iota_N.
+  by rewrite iotaD map_cat => //=.
 Qed.
 
-Lemma gen_index_len offset len:
-  length (gen_index offset len) = len.
-Proof.
-  unfold gen_index.
-  rewrite imap_length.
-  by rewrite List.repeat_length.
-Qed.
-
-Lemma gen_index_in n i offset len:
-  (gen_index offset len) !! n = Some i  ->
-  i < offset + len.
+Lemma iota_N_in n i offset len:
+  List.nth_error (iota_N offset len) n = Some i  ->
+  (i < N.of_nat (offset + len))%N.
 Proof.
   move => H.
-  apply gen_index_lookup_Some in H as [-> Hlt].
+  apply iota_N_lookup_Some in H as [-> Hlt].
+  repeat rewrite Nat2N.inj_add.
+  rewrite <- N.add_lt_mono_l.
   by lias.
 Qed.
 
-Lemma gen_index_lookup_None: forall n m i,
+Lemma iota_N_lookup_None: forall n m i,
   i >= m ->
-  List.nth_error (gen_index n m) i = None.
+  List.nth_error (iota_N n m) i = None.
 Proof.
   move => n m i Hge.
-  rewrite list_lookup_imap.
-  destruct (_ !! i) eqn:Hnth => //.
-  by apply repeat_lookup_Some in Hnth as [_ ?]; lias.
-Qed.
-
-Lemma gen_index_iota: forall n m,
-  gen_index n m = iota n m.
-Proof.
-  move => n m.
-  apply list_eq.
-  move => i.
-  destruct (Nat.ltb i m) eqn:Hlt; move/PeanoNat.Nat.ltb_spec0 in Hlt.
-  - rewrite gen_index_lookup; last by lias.
-    rewrite -> nth_error_nth with (x := 0), nth_iota; try by lias.
-    by rewrite length_is_size size_iota; lias.
-  - rewrite gen_index_lookup_None; last by lias.
-    symmetry.
-    apply List.nth_error_None.
-    by rewrite length_is_size size_iota; lias.
-Qed.
-
-(* TODO: remove the use of gen_index in the future and use iota everywhere *)
-Lemma gen_addrs_gen_index: forall n m,
-  gen_addrs n m = map N.of_nat (gen_index n m).
-Proof.
-  intros.
-  by rewrite gen_index_iota.
+  destruct (List.nth_error (iota_N n m) i) eqn:Hnth => //.
+  exfalso.
+  apply iota_N_lookup_Some in Hnth as [-> ?].
+  by lias.
 Qed.
 
 (*
@@ -483,9 +404,9 @@ Proof.
     by rewrite <- Heqfold_res.
 Qed.
 
-Lemma alloc_func_gen_addrs modfuncs ws inst ws' l:
+Lemma alloc_func_iota_N modfuncs ws inst ws' l:
   alloc_funcs ws modfuncs inst = (ws', l) ->
-  l = gen_addrs (length (s_funcs ws)) (length modfuncs) /\
+  l = iota_N (length (s_funcs ws)) (length modfuncs) /\
   ws'.(s_funcs) = ws.(s_funcs) ++ map (fun mf => gen_func_instance mf inst) modfuncs /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
@@ -496,23 +417,23 @@ Proof.
   unfold alloc_funcs.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
+    (R := (fun s_i s_e xs ys => ys = iota_N _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_addrs => /=.
+  - unfold iota_N => /=.
     repeat split.
     by rewrite cats0.
   - move => s s0 x xs' ys' s' y Hallocx [Hys [Hcomp [? [? [?[??]]]]]].
-    repeat rewrite -> gen_addrs_gen_index in *.
+    repeat rewrite -> iota_N_iota_N in *.
     unfold alloc_func, add_func in Hallocx; injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
+    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length map_cat.
+    + by rewrite List.app_length List.map_length.
     + by rewrite catA => /=.
 Qed.
 
-Lemma alloc_table_gen_addrs modtables ws ws' l:
+Lemma alloc_table_iota_N modtables ws ws' l:
   alloc_tabs ws modtables = (ws', l) ->
-  l = gen_addrs (length (s_tables ws)) (length modtables) /\
+  l = iota_N (length (s_tables ws)) (length modtables) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws'.(s_tables) = ws.(s_tables) ++ map (fun mf => gen_table_instance mf (VAL_ref_null (mf.(tt_elem_type)))) modtables /\
   ws.(s_mems) = ws'.(s_mems) /\
@@ -523,25 +444,25 @@ Proof.
   unfold alloc_tabs.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
+    (R := (fun s_i s_e xs ys => ys = iota_N _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_addrs => /=.
+  - unfold iota_N => /=.
     repeat split.
     by rewrite cats0.
   - move => s s0 x xs' ys' s' y Hallocx [Hys [? [Hcomp [? [?[??]]]]]].
-    repeat rewrite -> gen_addrs_gen_index in *.
+    repeat rewrite -> iota_N_iota_N in *.
     unfold alloc_tab, alloc_tab_ref, add_table in Hallocx.
     destruct x, tt_limits.
     injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
+    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length map_cat => /=.
+    + by rewrite List.app_length List.map_length => /=.
     + by rewrite catA => /=.
 Qed.
 
-Lemma alloc_mem_gen_addrs modmems ws ws' l:
+Lemma alloc_mem_iota_N modmems ws ws' l:
   alloc_mems ws modmems = (ws', l) ->
-  l = gen_addrs (length (s_mems ws)) (length modmems) /\
+  l = iota_N (length (s_mems ws)) (length modmems) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws'.(s_mems) = ws.(s_mems) ++ map (fun mf => gen_mem_instance mf) modmems /\
@@ -552,19 +473,19 @@ Proof.
   unfold alloc_mems.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
+    (R := (fun s_i s_e xs ys => ys = iota_N _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_addrs => /=.
+  - unfold iota_N => /=.
     repeat split.
     by rewrite cats0.
   - move => s s0 x xs' ys' s' y Hallocx [Hys [? [? [Hcomp [?[??]]]]]].
-    repeat rewrite -> gen_addrs_gen_index in *.
+    repeat rewrite -> iota_N_iota_N in *.
     unfold alloc_mem, add_mem in Hallocx.
     destruct x.
     injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
+    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length map_cat => /=.
+    + by rewrite List.app_length List.map_length => /=.
     + by rewrite catA => /=.
 Qed.
 
@@ -587,10 +508,10 @@ Proof.
     by exists (a :: l1''), (b :: l2''), a', b'.
 Qed.
 
-Lemma alloc_global_gen_addrs modglobals g_inits ws ws' l:
+Lemma alloc_global_iota_N modglobals g_inits ws ws' l:
   alloc_globs ws modglobals g_inits = (ws', l) ->
   length g_inits = length modglobals ->
-  l = gen_addrs (length (s_globals ws)) (length modglobals) /\
+  l = iota_N (length (s_globals ws)) (length modglobals) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
@@ -603,23 +524,22 @@ Proof.
   remember (List.combine modglobals g_inits) as comb.
   move : modglobals g_inits Heqcomb.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => forall globs g_inits, xs = List.combine globs g_inits -> length g_inits = length globs -> ys = gen_addrs _ _ /\ _))
+    (R := (fun s_i s_e xs ys => forall globs g_inits, xs = List.combine globs g_inits -> length g_inits = length globs -> ys = iota_N _ _ /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_addrs => /=.
+  - unfold iota_N => /=.
     repeat split; last by rewrite cats0.
     by destruct globs, g_inits => //.
-  - repeat setoid_rewrite gen_addrs_gen_index.
+  - repeat setoid_rewrite iota_N_iota_N.
     move => s s0 x xs' ys' s' y Hallocx Hind modglobs g_inits Hcomb Hgloblen.
     apply combine_snoc in Hcomb; last by lias.
     destruct Hcomb as [modglobs' [g_inits' [g [v [-> [-> [-> ->]]]]]]].
     destruct (Hind modglobs' g_inits') as [Hys [? [? [? [Hcomp [??]]]]]] => //; clear Hind.
     { repeat rewrite List.app_length in Hgloblen; simpl in Hgloblen. by lias. }
     unfold alloc_glob, add_glob in Hallocx. injection Hallocx as ->; subst => /=.
-    rewrite map_cat List.app_length gen_index_extend Hcomp => /=.
+    rewrite map_cat List.app_length iota_N_extend Hcomp => /=.
     rewrite List.app_length.
     repeat split => //=.
-    + rewrite map_cat => /=.
-      do 3 f_equal.
+    + do 3 f_equal.
       repeat rewrite List.app_length in Hgloblen; simpl in Hgloblen.
       rewrite List.map_length List.combine_length.
       by lias.
@@ -627,10 +547,10 @@ Proof.
       by destruct g.
 Qed.
 
-Lemma alloc_elem_gen_addrs modelems r_inits ws ws' l:
+Lemma alloc_elem_iota_N modelems r_inits ws ws' l:
   alloc_elems ws modelems r_inits = (ws', l) ->
   length r_inits = length modelems ->
-  l = gen_addrs (length (s_elems ws)) (length modelems) /\
+  l = iota_N (length (s_elems ws)) (length modelems) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
@@ -643,23 +563,22 @@ Proof.
   remember (List.combine modelems r_inits) as comb.
   move : modelems r_inits Heqcomb.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => forall elems r_inits, xs = List.combine elems r_inits -> length r_inits = length elems -> ys = gen_addrs _ _ /\ _))
+    (R := (fun s_i s_e xs ys => forall elems r_inits, xs = List.combine elems r_inits -> length r_inits = length elems -> ys = iota_N _ _ /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_addrs => /=.
+  - unfold iota_N => /=.
     repeat split; last by rewrite cats0.
     by destruct elems, r_inits => //.
-  - repeat setoid_rewrite gen_addrs_gen_index.
+  - repeat setoid_rewrite iota_N_iota_N.
     move => s s0 x xs' ys' s' y Hallocx Hind modelems r_inits Hcomb Helemlen.
     apply combine_snoc in Hcomb; last by lias.
     destruct Hcomb as [modelems' [r_inits' [r [v [-> [-> [-> ->]]]]]]].
     destruct (Hind modelems' r_inits') as [Hys [? [? [? [? [Hcomp ?]]]]]] => //; clear Hind.
     { repeat rewrite List.app_length in Helemlen; simpl in Helemlen. by lias. }
     unfold alloc_elem, add_elem in Hallocx. injection Hallocx as ->; subst => /=.
-    rewrite map_cat List.app_length gen_index_extend Hcomp => /=.
+    rewrite map_cat List.app_length iota_N_extend Hcomp => /=.
     rewrite List.app_length.
     repeat split => //=.
-    + rewrite map_cat => /=.
-      do 3 f_equal.
+    + do 3 f_equal.
       repeat rewrite List.app_length in Helemlen; simpl in Helemlen.
       rewrite List.map_length List.combine_length.
       by lias.
@@ -667,9 +586,9 @@ Proof.
       by destruct r.
 Qed.
 
-Lemma alloc_data_gen_addrs moddatas ws ws' l:
+Lemma alloc_data_iota_N moddatas ws ws' l:
   alloc_datas ws moddatas = (ws', l) ->
-  l = gen_addrs (length (s_datas ws)) (length moddatas) /\
+  l = iota_N (length (s_datas ws)) (length moddatas) /\
   ws.(s_funcs) = ws'.(s_funcs) /\
   ws.(s_tables) = ws'.(s_tables) /\
   ws.(s_mems) = ws'.(s_mems) /\
@@ -680,19 +599,19 @@ Proof.
   unfold alloc_datas.
   move => Halloc.
   eapply alloc_Xs_IP with
-    (R := (fun s_i s_e xs ys => ys = gen_addrs _ (length xs) /\ _))
+    (R := (fun s_i s_e xs ys => ys = iota_N _ (length xs) /\ _))
     in Halloc; eauto => //=.
-  - unfold gen_addrs => /=.
+  - unfold iota_N => /=.
     repeat split.
     by rewrite cats0.
   - move => s s0 x xs' ys' s' y Hallocx [Hys [? [? [? [? [? Hcomp]]]]]].
-    repeat rewrite -> gen_addrs_gen_index in *.
+    repeat rewrite -> iota_N_iota_N in *.
     unfold alloc_data, add_data in Hallocx.
     destruct x.
     injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat gen_index_extend Hcomp => /=.
+    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length map_cat => /=.
+    + by rewrite List.app_length List.map_length => /=.
     + by rewrite catA => /=.
 Qed.
 
@@ -1129,10 +1048,10 @@ Proof.
   symmetry in Heqres_t.
   symmetry in Heqres_m.
   symmetry in Heqres_g.
-  apply alloc_func_gen_index in Heqres_f.
-  apply alloc_tab_gen_index in Heqres_t.
-  apply alloc_mem_gen_index in Heqres_m.
-  apply alloc_glob_gen_index in Heqres_g => //.
+  apply alloc_func_iota_N in Heqres_f.
+  apply alloc_tab_iota_N in Heqres_t.
+  apply alloc_mem_iota_N in Heqres_m.
+  apply alloc_glob_iota_N in Heqres_g => //.
   destruct s0, s1, s2, s3; simpl in *.
   destruct Heqres_f as [Hidf [-> [<- [<- <-]]]].
   destruct Heqres_t as [Hidt [-> [<- [<- <-]]]].
@@ -1151,10 +1070,10 @@ Proof.
   symmetry in Heqres_t'.
   symmetry in Heqres_m'.
   symmetry in Heqres_g'.
-  apply alloc_func_gen_index in Heqres_f'.
-  apply alloc_tab_gen_index in Heqres_t'.
-  apply alloc_mem_gen_index in Heqres_m'.
-  apply alloc_glob_gen_index in Heqres_g' => //.
+  apply alloc_func_iota_N in Heqres_f'.
+  apply alloc_tab_iota_N in Heqres_t'.
+  apply alloc_mem_iota_N in Heqres_m'.
+  apply alloc_glob_iota_N in Heqres_g' => //.
   destruct s0', s1', s2', s3'; simpl in *.
   destruct Heqres_f' as [Hidf' [-> [<- [<- <-]]]].
   destruct Heqres_t' as [Hidt' [-> [<- [<- <-]]]].

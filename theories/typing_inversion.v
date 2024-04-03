@@ -52,8 +52,7 @@ Proof.
   gen_ind_subst HType => //; extract_premise.
   - by destruct es.
   - unfold instr_subtyping in *.
-    extract_premise; subst.
-    by resolve_subtyping.
+    by extract_premise; subst.
 Qed.
 
 Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr_type) : Prop :=

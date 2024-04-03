@@ -596,16 +596,13 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list extern_val
     f = Build_frame nil inst /\
       bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
 
-Definition gen_addrs (offset: nat) (len: nat) : list addr :=
-  List.map N.of_nat (seq.iota offset len).
-
 Definition interp_alloc_module (s : store_record) (m : module) (imps : list extern_value) (gvs : list value) (rvs: list (list value_ref)) : (store_record * moduleinst) :=
-  let i_fs := gen_addrs (length s.(s_funcs)) (length m.(mod_funcs)) in
-  let i_ts := gen_addrs (length s.(s_tables)) (length m.(mod_tables)) in
-  let i_ms := gen_addrs (length s.(s_mems)) (length m.(mod_mems)) in
-  let i_gs := gen_addrs (length s.(s_globals)) (length m.(mod_globals)) in
-  let i_es := gen_addrs (length s.(s_elems)) (length m.(mod_elems)) in
-  let i_ds := gen_addrs (length s.(s_datas)) (length m.(mod_datas)) in
+  let i_fs := iota_N (length s.(s_funcs)) (length m.(mod_funcs)) in
+  let i_ts := iota_N (length s.(s_tables)) (length m.(mod_tables)) in
+  let i_ms := iota_N (length s.(s_mems)) (length m.(mod_mems)) in
+  let i_gs := iota_N (length s.(s_globals)) (length m.(mod_globals)) in
+  let i_es := iota_N (length s.(s_elems)) (length m.(mod_elems)) in
+  let i_ds := iota_N (length s.(s_datas)) (length m.(mod_datas)) in
   let inst := {|
     inst_types := m.(mod_types);
     inst_funcs := (ext_funcs imps ++ i_fs);

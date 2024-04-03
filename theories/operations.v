@@ -52,7 +52,6 @@ Definition bits (v : value_num) : bytes :=
   | VAL_float64 c => serialise_f64 c
   end.
 
-
 Definition page_size : N := 65536%N.
 
 Definition page_limit : N := 65536%N.
@@ -504,6 +503,9 @@ Definition upd_s_data (s : store_record) (ds : list datainst) : store_record :=
     s_elems := s.(s_elems);
     s_datas := ds;
   |}.
+
+Definition iota_N (offset: nat) (len: nat) : list N :=
+  map N.of_nat (iota offset len).
 
 Definition stypes (s : store_record) (i : moduleinst) (j : typeidx) : option function_type :=
   lookup_N (inst_types i) j.

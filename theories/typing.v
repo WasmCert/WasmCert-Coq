@@ -412,7 +412,6 @@ Definition exportinst_typing (s: store_record) (expi: exportinst) : option ok :=
     Some tt
   else None.
 
-  
 (** std-doc:
 [https://webassembly.github.io/spec/core/appendix/properties.html#module-instances-xref-exec-runtime-syntax-moduleinst-mathit-moduleinst]
 
@@ -439,7 +438,7 @@ Definition inst_typing (s : store_record) (inst : moduleinst) : option t_context
                                                 | None => None
                                                 end) ds) with
                         | Some tds =>
-                            Some (Build_t_context ts tfs tts tms tgs tes tds nil nil None nil)
+                            Some (Build_t_context ts tfs tts tms tgs tes tds nil nil None (iota_N 0 (length fs - 1)))
                         | None => None
                         end
                     | None => None

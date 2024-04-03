@@ -431,10 +431,22 @@ Ltac resolve_subtyping :=
       context [ ?a <ti: ?d ] =>
       apply (instr_subtyping_trans (instr_subtyping_trans H1 H2) H3) => /=
 
+  (* Certain composite implications *)
+  | H1: is_true (?ts1 <ts: take ?n ?ts2),
+    H2: is_true (?ts2 <ts: ?ts3) |-
+        context [?ts1 <ts: take ?n ?ts3] =>
+    rewrite (values_subtyping_trans H1 (values_subtyping_take n H2))
+  | H1: is_true (?ts1 <ts: drop ?n ?ts2),
+    H2: is_true (?ts2 <ts: ?ts3) |-
+        context [?ts1 <ts: drop ?n ?ts3] =>
+    rewrite (values_subtyping_trans H1 (values_subtyping_drop n H2))
+      
   (* proving singleton list subtyping *)
   | H: is_true (?t1 <t: ?t2) |-
       context [[::?t1] <ts: [::?t2]] =>
       rewrite (value_values_subtyping H)
+
+  | _ => try by []
   end.
 
 Ltac extract_premise :=
