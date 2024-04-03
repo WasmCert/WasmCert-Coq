@@ -792,20 +792,20 @@ Proof.
   }
 Qed.
 
-Lemma reduce_trans_ref_func hs1 s1 f1 x hs2 s2 f2 vref:
-  reduce_trans (hs1, s1, f1, [:: AI_basic (BI_ref_func x)]) (hs2, s2, f2, [::$V (VAL_ref vref)]) ->
-  exists addr, lookup_N f1.(f_inst).(inst_funcs) x = Some addr /\ vref = VAL_ref_func addr.
+Lemma reduce_trans_ref_func hs1 s1 f1 x hs2 s2 f2 v:
+  reduce_trans (hs1, s1, f1, [:: AI_basic (BI_ref_func x)]) (hs2, s2, f2, [::$V v]) ->
+  exists addr, lookup_N f1.(f_inst).(inst_funcs) x = Some addr /\ v = VAL_ref (VAL_ref_func addr).
 Proof.
   move => Hred.
   unfold reduce_trans in Hred.
   apply Operators_Properties.clos_rt_rt1n_iff in Hred.
-  inversion Hred; subst; clear Hred; first by destruct vref.
+  inversion Hred; subst; clear Hred; first by (apply (f_equal e_to_v_opt) in H3; simpl in *; rewrite v2e2v in H3).
   destruct y as [[[??]?]?].
   unfold reduce_tuple, opsem.reduce_tuple in H.
   apply reduce_ref_func in H.
   destruct H as [addr [Hnth ->]].
   inversion H0; subst; clear H0 => //.
-  - destruct vref => //; simpl in H4.
+  - apply (f_equal e_to_v_opt) in H4; rewrite v2e2v in H4; simpl in H4.
     injection H4 as <-.
     by exists addr.
   - unfold reduce_tuple, opsem.reduce_tuple in H.
@@ -858,7 +858,7 @@ Qed.
 Section Instantiation_det.
 
 Lemma modglobs_const: forall tc modglobs gt,
-  Forall2 (module_glob_typing tc) modglobs gt ->
+  Forall2 (module_global_typing tc) modglobs gt ->
   Forall (fun g => exists e, g.(modglob_init) = [::e] /\ const_expr tc e) modglobs.
 Proof.
   move => tc modglobs. move: tc.
@@ -866,7 +866,7 @@ Proof.
   - by apply Forall2_length in Hall2.
   - inversion Hall2 as [ | ???? Ha Hall2']; subst.
     constructor.
-    + unfold module_glob_typing in Ha.
+    + unfold module_global_typing in Ha.
       destruct a => /=; destruct Ha as [Hconst [-> Hbet]].
       by apply const_exprs_impl in Hbet; eauto.
     + by eapply IHmodglobs; eauto.

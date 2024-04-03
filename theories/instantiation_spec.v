@@ -287,11 +287,11 @@ Definition module_func_typing (c : t_context) (mf : module_func) (tf : function_
   (* Revise when non-defaultable types are added *)
   default_vals t_locs <> None.
 
-Definition module_table_typing (c: t_context) (t : module_table) : bool :=
-  tabletype_valid t.(modtab_type).
+Definition module_table_typing (c: t_context) (t : module_table) (tabt: table_type) : bool :=
+  tabletype_valid t.(modtab_type) && (t.(modtab_type) == tabt).
 
-Definition module_mem_typing (c: t_context) (m : module_mem) : bool :=
-  memtype_valid m.(modmem_type).
+Definition module_mem_typing (c: t_context) (m : module_mem) (mt: memory_type) : bool :=
+  memtype_valid m.(modmem_type) && (m.(modmem_type) == mt).
 
 Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
   match b_e with
@@ -310,7 +310,7 @@ Definition const_expr (c : t_context) (b_e : basic_instruction) : bool :=
 Definition const_exprs (c : t_context) (es : list basic_instruction) : bool :=
   seq.all (const_expr c) es.
 
-Definition module_glob_typing (c : t_context) (g : module_global) (tg : global_type) : Prop :=
+Definition module_global_typing (c : t_context) (g : module_global) (tg : global_type) : Prop :=
   let '{| modglob_type := tg'; modglob_init := es |} := g in
   const_exprs c es /\
   tg = tg' /\
@@ -347,7 +347,8 @@ Definition datamode_valid (c: t_context) (dmode: module_datamode) : Prop :=
 
 Definition module_data_typing (c : t_context) (m_d : module_data) (t: ok): Prop :=
   let '{| moddata_init := bs; moddata_mode := dmode |} := m_d in
-  datamode_valid c dmode.
+  datamode_valid c dmode /\
+  t = tt.
 
 Definition module_start_typing (c : t_context) (ms : module_start) : bool :=
   let x := ms.(modstart_func) in
@@ -360,9 +361,9 @@ Definition module_import_desc_typing (c : t_context) (imp_desc : module_import_d
   match imp_desc with
   | MID_func i => (option_map ET_func (lookup_N c.(tc_types) i) == Some e)
   | MID_table t_t =>
-      module_table_typing c {| modtab_type := t_t |} == Some e
+      tabletype_valid t_t && (e == ET_table t_t)
   | MID_mem mt =>
-      module_mem_typing c {| modmem_type := mt |} == Some e
+      memtype_valid mt && (e == ET_mem mt)
   | MID_global gt => ET_global gt == e
   end.
 
@@ -494,9 +495,9 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   |} in
   List.Forall functype_valid tfs /\
   List.Forall2 (module_func_typing c) fs fts /\
-  seq.all (module_table_typing c') ts /\
-  seq.all (module_mem_typing c') ms /\
-  List.Forall2 (module_glob_typing c') gs gts /\
+  List.Forall2 (module_table_typing c') ts tts /\
+  List.Forall2 (module_mem_typing c') ms mts /\
+  List.Forall2 (module_global_typing c') gs gts /\
   List.Forall2 (module_elem_typing c') els rts /\
   List.Forall2 (module_data_typing c') ds dts /\
   pred_option (module_start_typing c) i_opt /\

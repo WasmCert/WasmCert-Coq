@@ -21,9 +21,9 @@ Definition module_import_desc_typer (tfs: list function_type) (imp_desc : module
   match imp_desc with
   | MID_func i => option_map ET_func (lookup_N tfs i)
   | MID_table t_t =>
-    if module_table_typing empty_t_context {| modtab_type := t_t |} then Some (ET_table t_t) else None
+    if tabletype_valid t_t then Some (ET_table t_t) else None
   | MID_mem mt =>
-    if module_mem_typing empty_t_context {| modmem_type := mt |} then Some (ET_mem mt) else None
+    if memtype_valid mt then Some (ET_mem mt) else None
   | MID_global gt => Some (ET_global gt)
   end.
 
@@ -93,8 +93,9 @@ Definition module_func_type_checker (c : t_context) (m : module_func) : bool :=
     type_checker.b_e_type_checker c' b_es (Tf [::] tm) && (default_vals t_locs != None)
   end.
 
-Definition module_table_type_checker := module_table_typing.
-Definition module_memory_type_checker := module_mem_typing.
+Definition module_table_type_checker (C: t_context) mt := tabletype_valid mt.(modtab_type).
+
+Definition module_mem_type_checker (C: t_context) mm := memtype_valid mm.(modmem_type).
 
 Definition module_global_type_checker (c : t_context) (mg : module_global) : bool :=
   let '{| modglob_type := tg; modglob_init := es |} := mg in
@@ -193,7 +194,7 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
     |} in
     if seq.all (module_func_type_checker c) fs &&
        seq.all (module_table_type_checker c) ts &&
-       seq.all (module_memory_type_checker c) ms &&
+       seq.all (module_mem_type_checker c) ms &&
        seq.all (module_global_type_checker c') gs &&
        seq.all (module_elem_type_checker c') els &&
        seq.all (module_data_type_checker c') ds &&
