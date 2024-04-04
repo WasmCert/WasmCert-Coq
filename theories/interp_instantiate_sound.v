@@ -27,9 +27,9 @@ Proof.
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hstartcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hdatacheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Helemcheck].
-  move/andP in Hallcond; destruct Hallcond as [Hallcond Hglobcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hglobalcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hmemcheck].
-  move/andP in Hallcond; destruct Hallcond as [Hfunccheck Htabcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hfunccheck Htablecheck].
   unfold module_typing.
   injection Hmodcheck as ->->.
   
@@ -57,18 +57,38 @@ Proof.
     split => //; last by apply/eqP.
     by apply/b_e_type_checker_reflects_typing.
   }
+  (* tables *)
+  { apply Forall2_spec => //; first by rewrite List.map_length.
+    move => n mtable [tx ty] Htablenth Hftsnth.
+    eapply all_projection in Htablecheck; eauto.
+    simpl in *.
+    unfold module_table_typing, module_table_type_checker in *; rewrite Htablecheck => /=.
+    apply nth_error_map in Hftsnth as [mtab [??]].
+    simplify_multieq.
+    by apply/eqP.
+  }
+  (* memories *)
+  { apply Forall2_spec => //; first by rewrite List.map_length.
+    move => n mmem [tx ty] Hmemnth Hftsnth.
+    eapply all_projection in Hmemcheck; eauto.
+    simpl in *.
+    unfold module_mem_typing, module_mem_type_checker in *; rewrite Hmemcheck => /=.
+    apply nth_error_map in Hftsnth as [mtab [??]].
+    simplify_multieq.
+    by apply/eqP.
+  }
   (* globals *)
-  { clear -Hglobcheck hfc.
+  { clear -Hglobalcheck hfc.
     unfold gather_m_g_types.
     apply Forall2_spec; first by rewrite List.map_length.
     move => n mglob gt Hgnth Hmgnth.
     erewrite List.map_nth_error in Hmgnth; last by eauto.
     injection Hmgnth as <-.
-    unfold module_glob_typing.
+    unfold module_global_typing.
     destruct mglob => /=.
-    eapply all_projection in Hglobcheck; eauto.
-    unfold module_global_type_checker in Hglobcheck.
-    move/andP in Hglobcheck; destruct Hglobcheck as [? Hbet].
+    eapply all_projection in Hglobalcheck; eauto.
+    unfold module_global_type_checker in Hglobalcheck.
+    move/andP in Hglobalcheck; destruct Hglobalcheck as [? Hbet].
     repeat split => //.
     by move/b_e_type_checker_reflects_typing in Hbet.
   }
@@ -117,8 +137,7 @@ Proof.
     unfold module_data_typing.
     unfold module_data_type_checker in Hdatacheck.
     destruct x; simpl in *.
-    unfold module_data_mode_checker in Hdatacheck; destruct moddata_mode; simpl in * => //.
-    remove_bools_options.
+    unfold module_data_mode_checker in Hdatacheck; destruct moddata_mode; simpl in * => //; try repeat split => //; remove_bools_options => //.
     eexists; split; first by eauto.
     repeat split => //.
     by move/b_e_type_checker_reflects_typing in H.
@@ -133,7 +152,7 @@ Proof.
     destruct mi; simpl in *.
     unfold module_import_desc_typer in Hmap.
     unfold module_import_typing.
-    destruct imp_desc; apply/eqP => /=; by remove_bools_options.
+    destruct imp_desc; apply/eqP => /=; remove_bools_options => //; by rewrite eq_refl.
   }
   (* exports *)
   { clear - Hmexptypes.
@@ -177,12 +196,12 @@ Proof.
 
   injection Halloc as <-<-.
   rewrite Hallocfuncs Halloctabs Hallocmems Hallocglobs Hallocelems Hallocdatas => /=.
-  apply alloc_func_gen_addrs in Hallocfuncs.
-  apply alloc_table_gen_addrs in Halloctabs.
-  apply alloc_mem_gen_addrs in Hallocmems.
-  apply alloc_global_gen_addrs in Hallocglobs; last assumption.
-  apply alloc_elem_gen_addrs in Hallocelems; last assumption.
-  apply alloc_data_gen_addrs in Hallocdatas.
+  apply alloc_func_iota_N in Hallocfuncs.
+  apply alloc_table_iota_N in Halloctabs.
+  apply alloc_mem_iota_N in Hallocmems.
+  apply alloc_global_iota_N in Hallocglobs; last assumption.
+  apply alloc_elem_iota_N in Hallocelems; last assumption.
+  apply alloc_data_iota_N in Hallocdatas.
 
   extract_premise.
 
@@ -280,12 +299,12 @@ Proof.
   destruct (alloc_datas _ _) as [s6 ids] eqn:Hallocdatas.
 
   injection Halloc as <- Heqinst.
-  specialize (alloc_func_gen_addrs _ _ _ _ _ Hallocfuncs) as Hfuncaddrs.
-  specialize (alloc_table_gen_addrs _ _ _ _ Halloctabs) as Htableaddrs.
-  specialize (alloc_mem_gen_addrs _ _ _ _ Hallocmems) as Hmemaddrs.
-  specialize (alloc_global_gen_addrs _ _ _ _ _ Hallocglobs Hgvs_len) as Hglobaladdrs.
-  specialize (alloc_elem_gen_addrs _ _ _ _ _ Hallocelems Hrvs_len) as Helemaddrs.
-  specialize (alloc_data_gen_addrs _ _ _ _ Hallocdatas) as Hdataaddrs.
+  specialize (alloc_func_iota_N Hallocfuncs) as Hfuncaddrs.
+  specialize (alloc_table_iota_N Halloctabs) as Htableaddrs.
+  specialize (alloc_mem_iota_N Hallocmems) as Hmemaddrs.
+  specialize (alloc_global_iota_N Hallocglobs Hgvs_len) as Hglobaladdrs.
+  specialize (alloc_elem_iota_N Hallocelems Hrvs_len) as Helemaddrs.
+  specialize (alloc_data_iota_N Hallocdatas) as Hdataaddrs.
 
   extract_premise.
 

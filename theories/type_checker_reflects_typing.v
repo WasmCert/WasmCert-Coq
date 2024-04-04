@@ -181,6 +181,20 @@ Proof.
   move => ts1 ts2 ts Hagree.
   by unfold c_types_agree in *; simpl in *; resolve_subtyping.
 Qed.
+
+Lemma c_types_agree_extend_top: forall ts1 ts2 ts unr,
+    c_types_agree <<ts1, unr>> ts2 ->
+    c_types_agree <<ts1, true>> (ts2 ++ ts).
+Proof.
+  move => ts1 ts2 ts unr Hagree.
+  unfold c_types_agree in *; simpl in *; resolve_subtyping.
+  destruct unr.
+  - rewrite takel_cat => //.
+    apply values_subtyping_size in Hagree; rewrite size_take_min in Hagree.
+    by symmetry in Hagree; move/minn_idPl in Hagree.
+  - replace (size ts1) with (size ts2); last by apply values_subtyping_size in Hagree.
+    by rewrite take_size_cat.
+Qed.
   
 Lemma c_types_agree_subtyping: forall ct ts ts',
     c_types_agree ct ts ->
@@ -667,7 +681,6 @@ Proof.
       by eapply c_types_agree_subtyping; eauto.
 Admitted.
 
-(*
 Lemma check_extend: forall C ct es ts ts' ts2,
   check C es (Some <<ts, false>>) = Some ct ->
   c_types_agree ct ts' ->
@@ -685,11 +698,22 @@ Proof.
     rewrite -> check_rcons in *.
     destruct (check C e (Some <<ts, false>>)) as [cts | ] eqn:Hcheck'; last by rewrite check_single_None in Hcheck.
     destruct cts as [c_ts [|]].
-    + admit.
-    + apply check_single_extend in Hcheck.
-
+    + eapply IHes with (ts' := c_ts) (ts2 := ts2) in Hcheck' as [ct' [Hcheck' Hagree']]; eauto.
+      * admit.
+      * by unfold c_types_agree => /=; rewrite take_size; resolve_subtyping.
+    + eapply IHes with (ts' := c_ts) (ts2 := ts2) in Hcheck' as [ct' [Hcheck' Hagree']]; eauto.
+      * rewrite Hcheck'.
+        destruct ct as [c_ts' [|]].
+        { apply check_single_extend_top with (ts2 := ts2) in Hcheck.
+          eapply check_single_subtyping in Hcheck; eauto.
+          by eapply c_types_agree_extend_top; eauto.
+        }
+        { apply check_single_extend with (ts2 := ts2) in Hcheck.
+          eapply check_single_subtyping in Hcheck; eauto.
+          by eapply c_types_agree_extend; eauto.
+        }
+      * by unfold c_types_agree => /=; resolve_subtyping.
 Admitted.
-*)
     
 (*
   The first part of the conjunction is what is required, but we need to prove it by simultaneous

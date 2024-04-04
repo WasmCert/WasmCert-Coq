@@ -25,7 +25,7 @@ Proof.
   eapply context_agree_be_typing; eauto.
   unfold context_agree => /=.
   repeat rewrite eq_refl => /=.
-  specialize (import_subtyping_comp_len _ _ Hall2) as [Hflen [Htlen [Hmlen Hglen]]].
+  specialize (import_subtyping_comp_len Hall2) as [Hflen [Htlen [Hmlen Hglen]]].
   apply import_subtyping_components in Hall2 as [Hfsub [Htsub [Hmsub Hgsub]]].
   repeat rewrite length_is_size in Hflen.
   repeat rewrite length_is_size in Htlen.
