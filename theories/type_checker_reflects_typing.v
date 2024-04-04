@@ -14,6 +14,12 @@ Section Host.
 
 Context {hfc: host_function_class}.
 
+Definition ct_subtyping (ct1 ct2: checker_type) :=
+  c_types_agree ct1 ct2.(CT_type) &&
+    ((ct1.(CT_unr) == true) || (ct2.(CT_unr) == false)).
+
+Notation "ct1 <ct: ct2" := (ct_subtyping ct1 ct2) (at level 5).
+
 Lemma lookup_N_map {T1 T2: Type}: forall (f: T1 -> T2) (l: list T1) n,
     lookup_N (map f l) n = option_map f (lookup_N l n).
 Proof.
@@ -195,15 +201,7 @@ Proof.
   - replace (size ts1) with (size ts2); last by apply values_subtyping_size in Hagree.
     by rewrite take_size_cat.
 Qed.
-  
-Lemma c_types_agree_subtyping: forall ct ts ts',
-    c_types_agree ct ts ->
-    ts <ts: ts' ->
-    c_types_agree ct ts'.
-Proof.
-  move => [cts [|]] ts ts' Hagree Hsub; unfold c_types_agree in *; simpl in *; by resolve_subtyping => //.
-Qed.
-  
+             
 Ltac simplify_tc_goal := 
   repeat match goal with
   | H: ?expr = _ |-
@@ -356,65 +354,87 @@ Proof.
   by erewrite consume_extend; eauto.
 Qed.
 
-Lemma consume_Some_impl: forall ts l res,
-    consume <<ts, false>> l = Some <<res, false>> ->
-    (take (size l) ts <ts: l) /\ (res = drop (size l) ts).
+Lemma c_types_agree_cons: forall cts unr t t' ts,
+    c_types_agree <<t :: cts, unr>> (t' :: ts) ->
+    t <t: t' /\ c_types_agree <<cts, unr>> ts.
 Proof.
-  move => ts l.
-  move: ts.
-  induction l => //=; move => ts res Hconsume.
-  - rewrite take0 drop0.
-    by inversion Hconsume.
-  - destruct ts => //; simplify_tc_goal.
-    by apply IHl in Hconsume.
+  by unfold c_types_agree; move => ? [|] ????; simplify_tc_goal.
+Qed.
+  
+Lemma consume_Some_impl: forall ct l ct',
+    consume ct l = Some ct' ->
+    c_types_agree <<take (size l) ct.(CT_type), ct.(CT_unr)>> l /\
+    ct' = << drop (size l) ct.(CT_type), ct.(CT_unr) >>.
+Proof.
+  move => ct l.
+  move: ct.
+  induction l => //=; unfold c_types_agree; simplify_tc_goal; move => ct ct' Hconsume.
+  - injection Hconsume as <-.
+    by destruct ct as [? [|]] => //=; rewrite take0 drop0.
+  - destruct ct as [cts [|]]; simpl in *; destruct cts as [ | t cts] => //; simplify_tc_goal; by apply IHl in Hconsume.
 Qed.
 
-(* Technically true for both toptype and normal, but this lemma is never useful for top type due to length mismatches in the precondition. *)
-Lemma consume_Some_spec: forall ts l res,
-    (take (size l) ts <ts: l) ->
-    (res = drop (size l) ts) ->
-    consume <<ts, false>> l = Some <<res, false>>.
+Lemma consume_Some_spec: forall ct l ct',
+    c_types_agree <<take (size l) ct.(CT_type), ct.(CT_unr)>> l ->
+    ct' = << drop (size l) ct.(CT_type), ct.(CT_unr) >> ->
+    consume ct l = Some ct'.
 Proof.
-  move => ts l.
-  move: ts.
-  induction l => //=; move => ts res Hsub Hsuffix.
-  - by rewrite drop0 in Hsuffix; subst.
-  - destruct ts => //; simplify_tc_goal.
-    by apply IHl.
+  move => ct l.
+  move: ct.
+  induction l => //=; move => ct ct' Hagree ->.
+  - by rewrite drop0; destruct ct.
+  - destruct ct as [[ | t cts] [|]]; simplify_tc_goal; apply c_types_agree_cons in Hagree as [-> Hagree]; by apply IHl.
 Qed.
 
-Lemma consume_Some_spec_top: forall ts l res,
-    (take (size l) ts <ts: take (size ts) l) ->
-    (res = drop (size l) ts) ->
-    consume <<ts, true>> l = Some <<res, true>>.
+Lemma c_types_agree_subtyping: forall ct1 ct2 ts1 ts2,
+    c_types_agree ct1 ts1 ->
+    ct2 <ct: ct1 ->
+    ts1 <ts: ts2 ->
+    c_types_agree ct2 ts2.
 Proof.
-  move => ts l.
-  move: ts.
-  induction l => //=; move => ts res Hsub Hsuffix.
-  - by rewrite drop0 in Hsuffix; subst.
-  - destruct ts => //; simplify_tc_goal.
-    by apply IHl.
+  move => [cts1 [|]] [cts2 [|]] ts1 ts2 Hagree Hsub1 Hsub2; unfold ct_subtyping, c_types_agree in *; simpl in *; simplify_tc_goal.
+  - assert (size cts2 <= size cts1) as Hsize.
+    { apply values_subtyping_size in H.
+      rewrite size_take_min in H; symmetry in H.
+      by move/minn_idPl in H.
+    }
+    apply values_subtyping_take with (n := size cts2) in Hsub2.
+    apply values_subtyping_take with (n := size cts2) in Hagree.
+    do 2 (eapply values_subtyping_trans; eauto).
+    by rewrite take_takel => //.
+  - apply values_subtyping_take with (n := size cts2) in Hsub2.
+    apply values_subtyping_take with (n := size cts2) in Hagree.
+    by resolve_subtyping.
 Qed.
 
-Lemma consume_subtyping: forall ts ts' l res,
-    consume <<ts, false>> l = Some <<res, false>> ->
-    ts' <ts: ts ->  
-    exists res', consume <<ts', false>> l = Some <<res', false>> /\ res' <ts: res.
+Lemma consume_subtyping: forall ct1 ct1' ct2 ts,
+    consume ct1 ts = Some ct2 ->
+    ct1' <ct: ct1 ->  
+    exists ct2', consume ct1' ts = Some ct2' /\
+            ct2' <ct: ct2.
 Proof.
-  move => ts ts' l res Hconsume Hsub.
-  apply consume_Some_impl in Hconsume as [Hsub' Hsuffix].
-  exists (drop (size l) ts'); split.
-  - apply consume_Some_spec => //.
+  move => [cts1 [|]] [cts1' [|]] ct2 ts => //=; move => Hconsume Hsub; unfold ct_subtyping, c_types_agree in *; (try by apply consume_preserve_unr in Hconsume); (try apply consume_Some_impl_top in Hconsume as [Hsub' Hsuffix]); (try apply consume_Some_imp in Hconsume as [Hsub' Hsuffix]); subst; simpl in *; simplify_tc_goal.
+  { exists << drop (size cts1') ts, true>>; repeat split => //=.
+    apply consume_Some_spec_top. last by resolve_subtyping.
+  {
+    exists (drop (size l) ts'); split; last by resolve_subtyping.
+    replace (size ts') with (size ts); last by apply values_subtyping_size in Hsub.
     apply values_subtyping_take with (n := size l) in Hsub.
     by resolve_subtyping.
-  - apply values_subtyping_drop with (n := size l) in Hsub; subst.
+  }
+  { apply consume_Some_impl in Hconsume as [Hsub' ->].
+    exists (drop (size l) ts'); split; last by resolve_subtyping.
+    apply consume_Some_spec; last by resolve_subtyping.
+    apply values_subtyping_take with (n := size l) in Hsub.
     by resolve_subtyping.
+  }
 Qed.
 
 Lemma consume_subtyping_top: forall ts ts' l res,
     consume <<ts, false>> l = Some <<res, false>> ->
     ts' <ts: take (size ts') ts ->  
-    exists res', consume <<ts', true>> l = Some <<res', true>> /\ res' <ts: take (size res') res.
+    exists res', consume <<ts', true>> l = Some <<res', true>> /\
+            res' <ts: take (size res') res.
 Proof.
   move => ts ts' l res Hconsume Hsub.
   apply consume_Some_impl in Hconsume as [Hsub' Hsuffix]; subst.
@@ -437,55 +457,38 @@ Proof.
   by apply IHl1.
 Qed.
   
-Lemma type_update_subtyping: forall ts cons prod ct ct' ts',
-  type_update <<ts, false>> cons prod = Some ct' ->
-  c_types_agree ct ts ->
-  c_types_agree ct' ts' ->
-  exists ct'', type_update ct cons prod = Some ct'' /\
-  c_types_agree ct'' ts'.
+Lemma type_update_subtyping: forall ts1 ts1' ts2 unr1 unr2 cons prod,
+  type_update <<ts1, unr1>> cons prod = Some <<ts2, unr2>> ->
+  ts1' <ts: ts1 ->
+  exists ts2', type_update <<ts1', unr1>> cons prod = Some <<ts2', unr2>> /\
+  ts2' <ts: ts2.
 Proof.
-  move => ts cons prod ct ct' ts' Hupdate Hagree1 Hagree2.
+  move => ts1 ts1' ts2 unr1 unr2 cons prod Hupdate Hsub.
   unfold type_update in *.
   simplify_tc_goal.
-  destruct c as [ts0 [|]]; first by apply consume_preserve_unr in Hoption.
-  destruct ct as [ts0' [|]]; unfold c_types_agree in Hagree1; simplify_tc_goal.
-  - eapply consume_subtyping_top in Hoption as [res' [Hconsume Hsub]]; eauto.
-    rewrite Hconsume.
-    unfold produce, c_types_agree in *; simpl in *.
-    eexists; split; eauto.
-    simpl.
-    rewrite size_cat.
-    apply values_subtyping_take with (n := size prod + size res') in Hagree2.
-    eapply values_subtyping_trans; last by apply Hagree2.
-    rewrite take_size1_cat.
-    by resolve_subtyping.
-  - eapply consume_subtyping in Hoption as [res' [Hconsume Hsub]]; eauto.
-    rewrite Hconsume.
-    unfold produce, c_types_agree in *; simpl in *.
-    eexists; split; eauto.
-    simpl.
-    eapply values_subtyping_trans; eauto.
-    by resolve_subtyping.
+  destruct c as [ts0 unr'].
+  specialize (consume_preserve_unr Hoption) as H; simpl in H; subst.
+  eapply consume_subtyping in Hoption as [ts' [Hconsume Hsub']]; eauto.
+  rewrite Hconsume; unfold produce => /=.
+  exists (prod ++ ts'); split => //.
+  by resolve_subtyping.
 Qed.
 
-Lemma type_update_subtyping_top: forall ts cons prod ct ct' ts',
-  type_update_top <<ts, false>> cons prod = Some ct' ->
-  c_types_agree ct ts ->
-  c_types_agree ct' ts' ->
-  exists ct'', type_update_top ct cons prod = Some ct'' /\
-  c_types_agree ct'' ts'.
+Lemma type_update_subtyping_top: forall ts1 ts1' ts2 unr1 unr2 cons prod,
+  type_update_top <<ts1, unr1>> cons prod = Some <<ts2, unr2>> ->
+  ts1' <ts: ts1 ->
+  exists ts2', type_update_top <<ts1', unr1>> cons prod = Some <<ts2', unr2>> /\
+  ts2' <ts: ts2.
 Proof.
-  move => ts cons prod ct ct' ts' Hupdate Hagree1 Hagree2.
+  move => ts1 ts1' ts2 unr1 unr2 cons prod Hupdate Hsub.
   unfold type_update_top in *.
   simplify_tc_goal.
-  destruct c as [ts0 [|]]; first by apply consume_preserve_unr in Hoption.
-  destruct ct as [ts0' [|]]; unfold c_types_agree in Hagree1; simplify_tc_goal.
-  - eapply consume_subtyping_top in Hoption as [res' [Hconsume Hsub]]; eauto.
-    rewrite Hconsume.
-    by eexists; eauto.
-  - eapply consume_subtyping in Hoption as [res' [Hconsume Hsub]]; eauto.
-    rewrite Hconsume.
-    by eexists; eauto.
+  destruct c as [ts0 unr'].
+  specialize (consume_preserve_unr Hoption) as H; simpl in H; subst.
+  eapply consume_subtyping in Hoption as [ts' [Hconsume Hsub']]; eauto.
+  rewrite Hconsume; unfold produce => /=.
+  exists ts2; split => //.
+  by resolve_subtyping.
 Qed.
   
 Lemma check_single_reachable: forall C ct ts e,
@@ -581,106 +584,107 @@ Proof.
   move => ts [c_ts [|]] ts' Hagree1 Hagree2 => /=; by simplify_tc_goal.
 Qed.
 
-Lemma c_types_agree_subtyping2: forall ts1 ts2 ts1' ts2',
-  c_types_agree <<ts1, false>> ts2 ->
+Lemma c_types_agree_subtyping: forall ts1 ts2 ts1' ts2' unr,
+  c_types_agree <<ts1, unr>> ts2 ->
   ts1' <ts: ts1 ->
   ts2 <ts: ts2' ->
-  c_types_agree <<ts1', false>> ts2'.
+  c_types_agree <<ts1', unr>> ts2'.
 Proof.
   unfold c_types_agree.
-  move => ts1 ts2 ts1' ts2' => /= Hsub1 Hsub2 Hsub3.
+  move => ts1 ts2 ts1' ts2' unr => /= Hsub1 Hsub2 Hsub3.
+  destruct unr; last by resolve_subtyping.
+  replace (size ts1') with (size ts1); last by apply values_subtyping_size in Hsub2.
+  apply values_subtyping_take with (n := (size ts1)) in Hsub3.
   by resolve_subtyping.
 Qed.
 
-Lemma check_single_subtyping: forall C ct e ct' ts ts',
-  check_single C (Some <<ts, false>>) e = Some ct' ->
-  c_types_agree ct ts ->
-  c_types_agree ct' ts' ->
-  exists ct'', check_single C (Some ct) e = Some ct'' /\
-            c_types_agree ct'' ts'.
+Lemma check_single_subtyping: forall C e ts1 ts1' ts2 unr1 unr2,
+  check_single C (Some <<ts1, unr1>>) e = Some <<ts2, unr2>> ->
+  ts1' <ts: ts1 ->
+  exists ts2', check_single C (Some <<ts1', unr1>>) e = Some <<ts2', unr2>> /\
+          ts2' <ts: ts2.
 Proof.
-  move => C ct e.
-  move: C ct.
-  induction e; move => C ct ct' ts ts' Hcheck Hagree1 Hagree2; simplify_tc_goal; (try destruct i); (try destruct f0); (try destruct f); simplify_tc_goal; (try by eapply type_update_subtyping in Hcheck; eauto); (try by eapply type_update_subtyping_top in Hcheck; eauto).
-  - unfold type_update_ref_is_null in *; destruct ts; simplify_tc_goal.
-    unfold c_types_agree in *.
-    destruct ct as [[| t cts] [|]] => //; simpl in *; simplify_tc_goal.
-    + eexists; split; eauto => /=.
-      by rewrite take0.
-    + exists (<<T_num T_i32 :: cts, true>>) => /=.
-      replace (is_ref_t t) with true; last by destruct t,v.
-      split => //.
-      apply values_subtyping_take with (n := size cts) in H2.
-      by resolve_subtyping.
-    + exists (<<T_num T_i32 :: cts, false>>) => /=.
-      replace (is_ref_t t) with true; last by destruct t,v.
-      split => //.
-      by resolve_subtyping.
-  - unfold type_update_drop in *; simplify_tc_goal.
-    destruct ts => //.
-    unfold c_types_agree in *.
-    destruct ct as [[| t cts] [|]] => //; simpl in *; simplify_tc_goal; eexists; split; eauto; simpl; by simplify_tc_goal.
+  move => C e.
+  move: C.
+  induction e; move => C ts1 ts1' ts2 unr1 unr2 Hcheck Hsub; simplify_tc_goal; (try destruct i); (try destruct f0); (try destruct f); simplify_tc_goal; (try by eapply type_update_subtyping in Hcheck; eauto); (try by eapply type_update_subtyping_top in Hcheck; eauto); (try by eexists; split; eauto).
+  - unfold type_update_ref_is_null in *; simpl in *.
+    destruct ts1, ts1'; simpl in *; simplify_tc_goal; try by eexists.
+    replace (is_ref_t v0) with true; last by destruct v, v0.
+    by eexists.
+  - unfold type_update_drop in *; simpl in *.
+    destruct ts1, ts1'; simpl in *; simplify_tc_goal; by eexists.
   - unfold type_update_select in *.
     destruct o => //; simpl in *.
     + do 2 (try destruct l => //).
       by eapply type_update_subtyping in Hcheck; eauto.
-    + do 3 (try destruct ts => //); simplify_tc_goal.
-      destruct ct as [cts unr].
-      do 3 (try destruct cts => //=); unfold type_update, produce, c_types_agree in *; simplify_tc_goal => //=; unfold value_type_select in Hoption; (try (destruct unr; last by remove_bools_options; done)).
-      * eexists; split; eauto => /=.
-        rewrite take0; by destruct v3.
-      * replace (v3 <t: T_num T_i32) with true => /=; last by destruct v3, v => //; resolve_subtyping.
-        eexists; split; eauto => /=.
-        rewrite take0; by destruct v4.
-      * replace (is_numeric_type v4) with true => /=; last first.
-        { simplify_tc_goal; try by destruct v4; (try destruct v2); (try destruct v1); (try destruct v0). }
-        eexists; split; eauto => /=.
-        simplify_tc_goal.
-        by destruct v4, v5, v0 => //.
-      * clear Hif0 Hif1.
-        assert (v3 <t: v /\ v4 <t: v0 /\ v5 <t: v1) as [Hsub1 [Hsub2 Hsub3]]; first by destruct unr; remove_bools_options.
-        eapply value_type_select_subtyping in Hoption as [v' [Hvtselect Hsub]]; eauto.
+    + do 3 (try destruct ts1, ts1' => //); simplify_tc_goal.
+      * by eexists; split; eauto => //; resolve_subtyping.
+      * by eapply type_update_subtyping in Hcheck; eauto => /=; resolve_subtyping.
+      * replace (is_numeric_type v2) with true; last by destruct v1, v2.
+        by eexists; split; eauto => //=; resolve_subtyping.
+      * eapply value_type_select_subtyping in Hoption as [v' [Hvtselect Hsub]]; eauto.
         rewrite Hvtselect.
-        replace (v3 <t: T_num T_i32) with true; last by destruct v3, v; resolve_subtyping.
-        eexists; split; eauto => /=.
-        simplify_tc_goal.
-        destruct unr => //; remove_bools_options; by resolve_subtyping.
-  - eexists; eauto; split => //.
-    by eapply c_types_agree_trans; eauto.
-  - eexists; eauto; split => //.
-    by eapply c_types_agree_trans; eauto.
-  - eexists; eauto; split => //.
-    by eapply c_types_agree_trans; eauto.
-  - by eexists; eauto; split => //.
+        unfold type_update in *; simplify_tc_goal.
+        replace (v0 <t: T_num T_i32) with true; last by erewrite value_subtyping_trans; eauto.
+        unfold produce => /=.
+        exists (v' :: ts1'); split => //=.
+        by resolve_subtyping.
 Qed.
 
-Lemma check_subtyping: forall C es ts1 ts1' ts2 ts2' ct,
-  check C es (Some <<ts1, false>>) = Some ct ->
-  c_types_agree ct ts2 ->
+(*
+Lemma check_single_subtyping_top: forall C e ts1 ts1' ts2 unr1 unr2,
+  check_single C (Some <<ts1, false>>) e = Some <<ts2, unr2>> ->
+  ts1' <ts: take (size ts1') ts1 ->
+  exists ts2', check_single C (Some <<ts1', true>>) e = Some <<ts2', unr2>> /\
+          ts2' <ts: ts2.
+Proof.
+  move => C e.
+  move: C.
+  induction e; move => C ts1 ts1' ts2 unr1 unr2 Hcheck Hsub; simplify_tc_goal; (try destruct i); (try destruct f0); (try destruct f); simplify_tc_goal; (try by eapply type_update_subtyping in Hcheck; eauto); (try by eapply type_update_subtyping_top in Hcheck; eauto); (try by eexists; split; eauto).
+  - unfold type_update_ref_is_null in *; simpl in *.
+    destruct ts1, ts1'; simpl in *; simplify_tc_goal; try by eexists.
+    replace (is_ref_t v0) with true; last by destruct v, v0.
+    by eexists.
+  - unfold type_update_drop in *; simpl in *.
+    destruct ts1, ts1'; simpl in *; simplify_tc_goal; by eexists.
+  - unfold type_update_select in *.
+    destruct o => //; simpl in *.
+    + do 2 (try destruct l => //).
+      by eapply type_update_subtyping in Hcheck; eauto.
+    + do 3 (try destruct ts1, ts1' => //); simplify_tc_goal.
+      * by eexists; split; eauto => //; resolve_subtyping.
+      * by eapply type_update_subtyping in Hcheck; eauto => /=; resolve_subtyping.
+      * replace (is_numeric_type v2) with true; last by destruct v1, v2.
+        by eexists; split; eauto => //=; resolve_subtyping.
+      * eapply value_type_select_subtyping in Hoption as [v' [Hvtselect Hsub]]; eauto.
+        rewrite Hvtselect.
+        unfold type_update in *; simplify_tc_goal.
+        replace (v0 <t: T_num T_i32) with true; last by erewrite value_subtyping_trans; eauto.
+        unfold produce => /=.
+        exists (v' :: ts1'); split => //=.
+        by resolve_subtyping.
+Qed.
+*)
+Lemma check_subtyping: forall C es ts1 ts1' ts2 unr1 unr2,
+  check C es (Some <<ts1, unr1>>) = Some <<ts2, unr2>> ->
   ts1' <ts: ts1 ->
-  ts2 <ts: ts2' ->
-  exists ct', check C es (Some <<ts1', false>>) = Some ct' /\
-              c_types_agree ct' ts2'.
+  exists ts2', check C es (Some <<ts1', unr1>>) = Some <<ts2', unr2>> /\
+          ts2' <ts: ts2.
 Proof.
   move => C es; move : C.
-  induction es using last_ind; move => C ts1 ts1' ts2 ts2' ct Hcheck Hagree Hsub1 Hsub2.
-  - injection Hcheck as <- => /=.
-    exists <<ts1', false>>.
-    split => //.
-    by eapply c_types_agree_subtyping2; eauto.
+  induction es using last_ind; move => C ts1 ts1' ts2 unr1 unr2 Hcheck Hsub.
+  - injection Hcheck as <- => /=; subst.
+    exists ts1'.
+    by split => //.
   - rewrite -cats1 check_rcons in Hcheck.
     rewrite -cats1 check_rcons.
-    destruct (check C es (Some <<ts1, false>>)) as [cts |] eqn:Hcheck' => //; last by rewrite check_single_None in Hcheck.
-    destruct cts as [ts [|]].
-    + eapply IHes with (ts2 := ts) (ts2' := ts) in Hcheck' as [ct' [Hcheck' Hagree']]; eauto; resolve_subtyping; last by unfold c_types_agree => /=; rewrite take_size; resolve_subtyping.
-      rewrite Hcheck'.
-      admit.
-    + eapply IHes with (ts2 := ts) (ts2' := ts) in Hcheck' as [ct' [Hcheck' Hagree']]; eauto; resolve_subtyping; last by unfold c_types_agree => /=; resolve_subtyping.
-      rewrite Hcheck'.
-      eapply check_single_subtyping in Hcheck; eauto.
-      by eapply c_types_agree_subtyping; eauto.
-Admitted.
-
+    destruct (check C es (Some <<ts1, unr1>>)) as [cts |] eqn:Hcheck' => //; last by rewrite check_single_None in Hcheck.
+    destruct cts as [ts unr3].
+    eapply IHes in Hcheck' as [ts2' [Hcheck' Hsub']]; eauto.
+    rewrite Hcheck'.
+    by eapply check_single_subtyping; eauto.
+Qed.
+    
 Lemma check_extend: forall C ct es ts ts' ts2,
   check C es (Some <<ts, false>>) = Some ct ->
   c_types_agree ct ts' ->
@@ -705,12 +709,10 @@ Proof.
       * rewrite Hcheck'.
         destruct ct as [c_ts' [|]].
         { apply check_single_extend_top with (ts2 := ts2) in Hcheck.
-          eapply check_single_subtyping in Hcheck; eauto.
-          by eapply c_types_agree_extend_top; eauto.
+          admit.
         }
         { apply check_single_extend with (ts2 := ts2) in Hcheck.
-          eapply check_single_subtyping in Hcheck; eauto.
-          by eapply c_types_agree_extend; eauto.
+          admit.
         }
       * by unfold c_types_agree => /=; resolve_subtyping.
 Admitted.
@@ -1040,9 +1042,17 @@ Proof.
       rewrite Hoption0.
       destruct (List.fold_left _ es _) as [ct_res | ] eqn:Htc => //=.
       injection Hoption0 as <-.
-      unfold c_types_agree in IHHbet1.
-      eapply check_single_subtyping in Hoption as [ct'' [Hcheck Hagree]]; eauto.
-      by rewrite Hcheck.
+ (*     destruct ct_res as [ts [|]]; unfold c_types_agree in IHHbet1; simpl in IHHbet1.
+      { destruct c as [ts' unr].
+        Search check_single.
+        assert (check_single (context_reverse C) (Some <<ts, true>>) e = 
+        admit. }
+      { destruct c as [ts' unr].
+        eapply check_single_subtyping in Hoption as [ts2' [Hcheck Hsub]]; eauto.
+        rewrite Hcheck.
+        eapply c_types_agree_subtyping; eauto; by resolve_subtyping.
+      }*)
+      admit.
     + simplify_subtyping.
       apply values_subtyping_rev in Hconjl2.
       apply values_subtyping_rev in Hconjr0.
