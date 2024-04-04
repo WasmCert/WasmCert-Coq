@@ -23,6 +23,23 @@ Definition inst_match C C' : bool :=
   (C.(tc_datas) == C'.(tc_datas)) &&
   (C.(tc_refs) == C'.(tc_refs)).
 
+Lemma bet_skip_refcheck: forall C C' bes tf,
+  C' = upd_refs C (iota_N 0 (length C.(tc_funcs))) ->
+  be_typing C bes tf ->
+  be_typing C' bes tf.
+Proof.
+  move => C C' bes [tx ty] HC' Hbet.
+  move: C' HC'.
+  induction Hbet; move => C' HC'; subst C' => /=; (try by econstructor; eauto).
+  (* ref_func *)
+  - apply bet_ref_func with (t := t) => //=.
+    + apply nth_error_Some_length in H.
+      apply List.nth_error_In with (n := (N.to_nat x)).
+      rewrite iota_N_lookup.
+      by rewrite add0n N2Nat.id.
+    + by lias.
+Qed.
+
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
     typeof_num v = typeof_num v1.
@@ -74,16 +91,6 @@ Proof.
   - (* Cvtop *)
     erewrite eval_cvt_type_preserve; eauto.
     by resolve_subtyping.
-(*  - (* Select 2 *)
-    by eapply instr_subtyping_strengthen1; eauto; resolve_subtyping.
-  - (* Select 1 *)
-    by eapply instr_subtyping_strengthen1; eauto; resolve_subtyping.*)
-(*  - (* If_true *)
-    rewrite size_cat addnK take_size_cat in Hprincipal => //.
-    by rewrite cats0 in Hprincipal.
-  - (* If_false *)
-    rewrite size_cat addnK take_size_cat in Hprincipal => //.
-    by rewrite cats0 in Hprincipal.*)
   - (* Br *)
     eapply et_composition'; eauto; resolve_e_typing.
     by eapply Lfilled_break_typing with (tss := nil) in Hconjl1; eauto => //=; try (by apply v_to_e_const); last by lias.
@@ -91,16 +98,6 @@ Proof.
     instantiate (1 := extr).
     instantiate (1 := nil) => /=.
     by resolve_subtyping.
-(*    remove_bools_options.
-    resolve_subtyping.
-    rewrite size_cat addnK take_size_cat in Hprincipal => //.
-    rewrite cats0 in Hprincipal.
-    assert (Tf nil nil <ti: Tf extr extr) as Hsubi; first by resolve_subtyping.
-    by resolve_subtyping. *)
-(*  - (* Br_if true *)
-    rewrite size_cat addnK take_size_cat in Hprincipal => //.
-    rewrite cats0 in Hprincipal.
-    uapply Hprincipal; f_equal => //; by instantiate (1 := nil).*)
   - (* Br_br_table *)
     rewrite catA size_cat addnK take_size_cat => //.
     rewrite cats0.

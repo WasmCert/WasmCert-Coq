@@ -140,6 +140,21 @@ Definition upd_local_label_return C loc lab ret :=
     ret
     (tc_refs C).
 
+Definition upd_refs C refs :=
+{|
+  tc_types := tc_types C;
+  tc_funcs := tc_funcs C;
+  tc_tables := tc_tables C;
+  tc_mems := tc_mems C;
+  tc_globals := tc_globals C;
+  tc_elems := tc_elems C;
+  tc_datas := tc_datas C;
+  tc_locals := tc_locals C;
+  tc_labels := tc_labels C;
+  tc_return := tc_return C;
+  tc_refs := refs
+|}.
+
 Definition upd_local C loc :=
   upd_local_label_return C loc (tc_labels C) (tc_return C).
 
