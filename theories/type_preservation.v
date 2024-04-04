@@ -22,7 +22,7 @@ Definition inst_match C C' : bool :=
   (C.(tc_elems) == C'.(tc_elems)) &&
   (C.(tc_datas) == C'.(tc_datas)) &&
   (C.(tc_refs) == C'.(tc_refs)).
-  
+
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
     typeof_num v = typeof_num v1.
@@ -429,125 +429,143 @@ Proof.
     by edestruct IH; eauto.
 Qed.
 
-Lemma update_label_extension C C' lab:
-  context_extension C C' ->
-  context_extension (upd_label C lab) (upd_label C' lab).
+Lemma update_label_agree C C' lab:
+  context_agree C C' ->
+  context_agree (upd_label C lab) (upd_label C' lab).
 Proof.
-  unfold context_extension in *; destruct C, C'; simpl in *; remove_bools_options; subst; by repeat rewrite eq_rect => /=; lias.
+  unfold context_agree in *; destruct C, C'; simpl in *; intros; remove_bools_options; subst.
+  repeat rewrite eq_rect => /=; lias.
 Qed.
 
-Lemma context_extension_table_elem_type C C' n tabt reft:
-  context_extension C C' ->
-  lookup_N C.(tc_tables) n = Some tabt ->
-  tt_elem_type tabt = reft ->
-  exists tabt', lookup_N C'.(tc_tables) n = Some tabt' /\
-             tt_elem_type tabt' = reft.
+Lemma context_agree_func_type C C' n ft:
+  context_agree C C' ->
+  lookup_N C.(tc_funcs) n = Some ft ->
+  lookup_N C'.(tc_funcs) n = Some ft.
 Proof.
-  move => Hext Hnth Htabelem.
-  unfold context_extension in Hext; remove_bools_options.
+  move => Hext Hnth.
+  unfold context_agree in Hext; remove_bools_options.
   unfold lookup_N in *.
-  eapply all2_nth_impl in H8 as [tabt' [Hnth' Htabext]]; eauto.
-  exists tabt'; split => //.
-  unfold table_type_extension in Htabext; remove_bools_options.
-  by rewrite - H8.
+  eapply all2_nth_impl in H9 as [ft' [Hnth' Hfext]]; eauto.
+  by unfold func_agree in Hfext; remove_bools_options; subst.
+Qed.
+  
+Lemma context_agree_table_type C C' n tabt:
+  context_agree C C' ->
+  lookup_N C.(tc_tables) n = Some tabt ->
+  exists tabt', lookup_N C'.(tc_tables) n = Some tabt' /\
+             table_agree tabt tabt'.
+Proof.
+  move => Hext Hnth.
+  unfold context_agree in Hext; remove_bools_options.
+  unfold lookup_N in *.
+  by eapply all2_nth_impl in H8 as [tabt' [Hnth' Htabext]]; eauto.
 Qed.
 
-Lemma context_extension_mem_max C C' n memt:
-  context_extension C C' ->
+Lemma context_agree_mem_type C C' n memt:
+  context_agree C C' ->
   lookup_N C.(tc_mems) n = Some memt ->
   exists memt',
     lookup_N C'.(tc_mems) n = Some memt' /\
-      memt'.(lim_max) = memt.(lim_max).
+    mem_agree memt memt'.
 Proof.
   move => Hext Hnth.
-  unfold context_extension in Hext; remove_bools_options.
+  unfold context_agree in Hext; remove_bools_options.
   unfold lookup_N in *.
-  eapply all2_nth_impl in H7 as [memt' [Hnth' Hmemext]]; eauto.
-  exists memt'; split => //.
-  by unfold limits_extension in Hmemext; remove_bools_options.
+  by eapply all2_nth_impl in H7 as [memt' [Hnth' Hmemext]]; eauto.
 Qed.
 
-Ltac rewrite_context_extension:=
+Lemma context_agree_global_type C C' n gt:
+  context_agree C C' ->
+  lookup_N C.(tc_globals) n = Some gt ->
+  lookup_N C'.(tc_globals) n = Some gt.
+Proof.
+  move => Hext Hnth.
+  unfold context_agree in Hext; remove_bools_options.
+  unfold lookup_N in *.
+  eapply all2_nth_impl in H6 as [gt' [Hnth' Hfext]]; eauto.
+  by unfold global_agree in Hfext; remove_bools_options; subst.
+Qed.
+
+Ltac rewrite_context_agree:=
   repeat match goal with
-    | Hext: is_true (context_extension ?C ?C') |-
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_types ?C' ] =>
-        replace (tc_types C') with (tc_types C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
-      context [ tc_funcs ?C' ] =>
-        replace (tc_funcs C') with (tc_funcs C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
-      context [ tc_globals ?C' ] =>
-        replace (tc_globals C') with (tc_globals C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
+        replace (tc_types C') with (tc_types C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_elems ?C' ] =>
-        replace (tc_elems C') with (tc_elems C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
+        replace (tc_elems C') with (tc_elems C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_datas ?C' ] =>
-        replace (tc_datas C') with (tc_datas C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
+        replace (tc_datas C') with (tc_datas C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_locals ?C' ] =>
-        replace (tc_locals C') with (tc_locals C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
+        replace (tc_locals C') with (tc_locals C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_labels ?C' ] =>
-        replace (tc_labels C') with (tc_labels C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
+        replace (tc_labels C') with (tc_labels C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_return ?C' ] =>
-        replace (tc_return C') with (tc_return C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | Hext: is_true (context_extension ?C ?C') |-
+        replace (tc_return C') with (tc_return C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | Hext: is_true (context_agree ?C ?C') |-
       context [ tc_refs ?C' ] =>
-        replace (tc_refs C') with (tc_refs C) => //; eauto; last by unfold context_extension in Hext; remove_bools_options; destruct C, C'; lias
-    | _ : is_true (context_extension ?C ?C') |- is_true (context_extension (upd_label ?C ?lab) (upd_label ?C' ?lab)) =>
-        by apply update_label_extension
-    | Hext : is_true (context_extension ?C ?C'),
-      Hnth : lookup_N ?C.(tc_tables) ?n = Some ?t,
-      Helemtype : tt_elem_type ?tabt = ?reft |- _ =>
-      let tabt' := fresh "tabt'" in   
-      let Hnth' := fresh "Hnth'" in   
-      let Helemtype' := fresh "Helemtype'" in   
-      specialize (context_extension_table_elem_type Hext Hnth Helemtype) as [tabt' [Hnth' Helemtype']]; clear Helemtype
-    | Hext : is_true (context_extension ?C ?C'),
+        replace (tc_refs C') with (tc_refs C) => //; eauto; last by unfold context_agree in Hext; remove_bools_options; destruct C, C'; lias
+    | _ : is_true (context_agree ?C ?C') |- is_true (context_agree (upd_label ?C ?lab) (upd_label ?C' ?lab)) =>
+        by apply update_label_agree
+    | Hext : is_true (context_agree ?C ?C'),
+      Hnth : lookup_N ?C'.(tc_tables) ?n = Some ?t,
+      Helemtype: (tt_elem_type ?t) = ?tref |- _ =>
+      let Htableagree := fresh "Htableagree" in
+      specialize (context_agree_table_type Hext Hnth) as [tabt_ctxext [Hnth_ctxext Htableagree]]; unfold table_agree in Htableagree; remove_bools_options; subst; try rewrite - Htableagree
+    | Hext : is_true (context_agree ?C ?C'),
+      Hnth : lookup_N ?C.(tc_tables) ?n = Some ?t |- _ =>
+      specialize (context_agree_table_type Hext Hnth) as [tabt_ctxext [Hnth_ctxext Htableagree]]; unfold table_agree in *; remove_bools_options; subst
+    | Hext : is_true (context_agree ?C ?C'),
       Hnth : lookup_N ?C.(tc_mems) ?n = Some ?t |- _ =>
-(* Not creating fresh names to make sure this only triggers once -- a bit stupid *)
-      specialize (context_extension_mem_max Hext Hnth) as [memt_ctxext [Hnth_ctxext Hmemmax_ctxext]]
+      (* Not creating fresh names to make sure this only triggers once -- a bit stupid *)
+      specialize (context_agree_mem_type Hext Hnth) as [memt_ctxext [Hnth_ctxext Hmemagree]]
+    | Hext : is_true (context_agree ?C ?C'),
+      Hnth : lookup_N ?C.(tc_funcs) ?n = Some ?t |- _ =>
+      specialize (context_agree_func_type Hext Hnth) as Hnthfunc'
+    | Hext : is_true (context_agree ?C ?C'),
+      Hnth : lookup_N ?C.(tc_globals) ?n = Some ?t |- _ =>
+      specialize (context_agree_global_type Hext Hnth) as Hnthglobal'
     end.
 
-Lemma context_extension_be_typing: forall C C' es tf,
-    context_extension C C' ->
+(* Curiously, this lemma works in both directions *)
+Lemma context_agree_be_typing: forall C C' es tf,
+    context_agree C C' ->
     be_typing C es tf ->
     be_typing C' es tf.
 Proof.
   move => C C' es tf Hext Hetype.
   move: C' Hext.
-  induction Hetype; move => C' Hext; (try by econstructor; eauto); try (by econstructor; eauto; rewrite_context_extension); try (by rewrite_context_extension; econstructor; eauto).
-  - econstructor; eauto; unfold expand_t in *; rewrite_context_extension.
-    apply IHHetype; by rewrite_context_extension.
-  - econstructor; eauto; unfold expand_t in *; rewrite_context_extension.
-    apply IHHetype; by rewrite_context_extension.
-  - econstructor; eauto; unfold expand_t in *; rewrite_context_extension.
-    + apply IHHetype1; by rewrite_context_extension.
-    + apply IHHetype2; by rewrite_context_extension.
-  - unfold context_extension in Hext; remove_bools_options.
-    unfold lookup_N in *.
-    eapply all2_nth_impl in H11 as [tabt [Hnth Htabext]]; eauto.
-    econstructor; first (by apply Hnth).
-    + unfold table_type_extension in Htabext; remove_bools_options.
-      by rewrite - H11.
-    + by rewrite - H2.
-  - specialize (context_extension_table_elem_type Hext H erefl) as Heq.
-    destruct Heq as [tabt' [Hnth' Helemtype']].
-    by econstructor; eauto.
-  - specialize (context_extension_table_elem_type Hext H H0) as Heq.
-    destruct Heq as [tabt' [Hnth' Helemtype']].
+  induction Hetype; move => C' Hext; (try by econstructor; eauto); try (by econstructor; eauto; rewrite_context_agree; eauto); try (by rewrite_context_agree; econstructor; eauto; rewrite_context_agree).
+  - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
+    by apply IHHetype; rewrite_context_agree.
+  - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
+    by apply IHHetype; by rewrite_context_agree.
+  - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
+    + apply IHHetype1; by rewrite_context_agree.
+    + apply IHHetype2; by rewrite_context_agree.
+  - rewrite_context_agree.
     econstructor; eauto.
-    by rewrite_context_extension.
-  - specialize (context_extension_mem_max Hext H) as Heq.
-    destruct Heq as [memt' [Hnth' Hmemmax']].
-  - econstructor; eauto.
-    by rewrite_context_extension.
+    + by rewrite - Htableagree.
+    + by rewrite_context_agree.
+  - rewrite_context_agree.
+    eapply context_agree_table_type in H as [tabt [Hnth Hagree]]; eauto; unfold table_agree in *; move/eqP in Hagree.
+    econstructor.
+    + by apply Hnth.
+    + reflexivity.
+    + by apply Hnth_ctxext.
+    + by rewrite - Hagree - H2.
+  - rewrite_context_agree.
+    econstructor; first by eauto.
+    + by rewrite - Htableagree.
+    + by rewrite_context_agree.
 Qed.
 
-Lemma context_extension_typing: forall s C C' es tf,
-    context_extension C C' ->
+Lemma context_agree_typing: forall s C C' es tf,
+    context_agree C C' ->
     e_typing s C es tf ->
     e_typing s C' es tf.
 Proof.
@@ -556,13 +574,23 @@ Proof.
   induction Hetype; subst; move => C' Hext; try by econstructor; eauto.
   - (* be *)
     apply ety_a.
-    by eapply context_extension_be_typing; eauto.
+    by eapply context_agree_be_typing; eauto.
   - (* Label *)
     eapply ety_label; eauto.
     eapply IHHetype2.
-    by rewrite_context_extension.
+    by rewrite_context_agree.
 Qed.
 
+Lemma context_extension_typing: forall s C C' es tf,
+    context_extension C C' ->
+    e_typing s C es tf ->
+    e_typing s C' es tf.
+Proof.
+  intros.
+  eapply context_agree_typing; last by eauto.
+  by apply context_extension_agree.
+Qed.
+  
 Lemma store_extension_e_typing: forall s s' C es tf,
     store_typing s ->
     store_typing s' ->
@@ -793,11 +821,12 @@ Lemma context_extension_func_typing: forall C C' x t,
 Proof.
   move => C C' x t Hcext Hft.
   unfold func_typing in *; destruct x; remove_bools_options.
-  rewrite_context_extension.
+  specialize (context_extension_agree Hcext) as Hagree.
+  rewrite_context_agree.
   rewrite Hoption.
   destruct f; destruct Hft as [-> [Het Hdefault]]; repeat split => //.
-  eapply context_extension_be_typing; eauto.
-  unfold context_extension in *; remove_bools_options; destruct C, C'; subst; by lias.
+  eapply context_agree_be_typing; last by eauto.
+  unfold context_agree in *; remove_bools_options; destruct C, C'; subst; by lias.
 Qed.
   
 Lemma store_extension_funcinst_typing: forall s s' x t,

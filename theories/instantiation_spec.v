@@ -528,9 +528,36 @@ Definition instantiate_elems f (hs : host_state) (s' : store_record) m (r_inits:
     m.(mod_elems)
     r_inits.
 
+Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instruction :=
+  match elem.(modelem_mode) with
+  | ME_passive => nil
+  | ME_active tidx bes =>
+      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init))))); BI_table_init tidx (N.of_nat i); BI_elem_drop (N.of_nat i)]
+  | ME_declarative => [::BI_elem_drop (N.of_nat i)]
+  end.
+
+Definition get_init_expr_elems (elems: list module_element) : list basic_instruction :=
+  List.concat (mapi (fun n => get_init_expr_elem n) elems).
+
+Definition get_init_expr_data (i: nat) (data: module_data) : list basic_instruction :=
+  match data.(moddata_mode) with
+  | MD_passive => nil
+  | MD_active midx bes =>
+      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_zero i32m)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length data.(moddata_init))))); BI_memory_init (N.of_nat i); BI_data_drop (N.of_nat i)]
+  end.
+
+Definition get_init_expr_datas (datas: list module_data) : list basic_instruction :=
+  List.concat (mapi (fun n => get_init_expr_data n) datas).
+
+Definition get_init_expr_start (mstart: option module_start) : list basic_instruction :=
+  match mstart with
+  | Some (Build_module_start n) => [::BI_call n]
+  | _ => nil
+  end.
+
 (* The following definitions needs a revisit when implementing the GC/funcref proposal *)
 Definition limits_subtyping (l1 l2: limits) : bool :=
-  (l1.(lim_min) >= l2.(lim_min)) &&
+  (N.leb l2.(lim_min) l1.(lim_min)) &&
     match l1.(lim_max), l2.(lim_max) with
     | _, None => true
     | Some max1, Some max2 => N.leb max1 max2
@@ -561,33 +588,6 @@ Definition import_subtyping (t1 t2: extern_type) : bool :=
   | ET_global tg1, ET_global tg2 =>
       import_global_subtyping tg1 tg2
   | _, _ => false
-  end.
-
-Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instruction :=
-  match elem.(modelem_mode) with
-  | ME_passive => nil
-  | ME_active tidx bes =>
-      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init))))); BI_table_init tidx (N.of_nat i); BI_elem_drop (N.of_nat i)]
-  | ME_declarative => [::BI_elem_drop (N.of_nat i)]
-  end.
-
-Definition get_init_expr_elems (elems: list module_element) : list basic_instruction :=
-  List.concat (mapi (fun n => get_init_expr_elem n) elems).
-
-Definition get_init_expr_data (i: nat) (data: module_data) : list basic_instruction :=
-  match data.(moddata_mode) with
-  | MD_passive => nil
-  | MD_active midx bes =>
-      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_zero i32m)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length data.(moddata_init))))); BI_memory_init (N.of_nat i); BI_data_drop (N.of_nat i)]
-  end.
-
-Definition get_init_expr_datas (datas: list module_data) : list basic_instruction :=
-  List.concat (mapi (fun n => get_init_expr_data n) datas).
-
-Definition get_init_expr_start (mstart: option module_start) : list basic_instruction :=
-  match mstart with
-  | Some (Build_module_start n) => [::BI_call n]
-  | _ => nil
   end.
 
 Definition instantiate (s : store_record) (m : module) (v_imps : list extern_value)

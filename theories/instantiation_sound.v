@@ -2253,7 +2253,8 @@ Proof.
   move/eqP in Hsub.
   by subst.
 Qed.
-  
+
+(*
 Lemma bet_table_subtyping: forall ts fts tts1 tts2 mts gts ets dts locs labs ret refs bes tf,
     List.Forall2 import_table_subtyping tts2 tts1 ->
     be_typing (Build_t_context ts fts tts1 mts gts ets dts locs labs ret refs) bes tf ->
@@ -2282,31 +2283,33 @@ Proof.
   move/eqP in Hsub.
   by subst.
 Qed.
-  
+*)  
+
 Lemma bet_import_subtyping: forall ts fts tts mts gts ets dts locs labs ret refs imps1 imps2 bes tf,
     List.Forall2 import_subtyping imps2 imps1 ->
     be_typing (Build_t_context ts (ext_t_funcs imps1 ++ fts) (ext_t_tables imps1 ++ tts) (ext_t_mems imps1 ++ mts) (ext_t_globals imps1 ++ gts) ets dts locs labs ret refs) bes tf ->
     be_typing (Build_t_context ts (ext_t_funcs imps2 ++ fts) (ext_t_tables imps2 ++ tts) (ext_t_mems imps2 ++ mts) (ext_t_globals imps2 ++ gts) ets dts locs labs ret refs) bes tf.
 Proof.
   move => ts fts tts mts gts ets dts locs labs ret refs imps1 imps2 bes tf Hall2 Hbet.
+  eapply context_agree_be_typing; eauto.
+  unfold context_agree => /=.
+  repeat rewrite eq_refl => /=.
+  specialize (import_subtyping_comp_len _ _ Hall2) as [Hflen [Htlen [Hmlen Hglen]]].
   apply import_subtyping_components in Hall2 as [Hfsub [Htsub [Hmsub Hgsub]]].
-  apply bet_func_subtyping with (fts1 := ext_t_funcs imps1 ++ fts); eauto.
-  apply List.Forall2_app => //.
-  apply Forall2_all2, reflexive_all2_same; by move => ?; apply/eqP.
-  
-  apply bet_table_subtyping with (tts1 := ext_t_tables imps1 ++ tts); eauto.
-  apply List.Forall2_app => //.
-  apply Forall2_all2, reflexive_all2_same.
-  { case => lim ?. unfold import_table_subtyping, limits_subtyping; destruct lim, lim_max => //=; by lias. }
-  
-  apply bet_mem_subtyping with (mts1 := ext_t_mems imps1 ++ mts); eauto.
-  apply List.Forall2_app => //.
-  apply Forall2_all2, reflexive_all2_same.
-  { case => lim ?. unfold import_mem_subtyping, limits_subtyping; destruct lim, lim_max => //=; by lias. }
-  
-  apply bet_global_subtyping with (gts1 := ext_t_globals imps1 ++ gts); eauto.
-  apply List.Forall2_app => //.
-  apply Forall2_all2, reflexive_all2_same; by move => ?; apply/eqP.
+  repeat rewrite length_is_size in Hflen.
+  repeat rewrite length_is_size in Htlen.
+  repeat rewrite length_is_size in Hmlen.
+  repeat rewrite length_is_size in Hglen.
+  repeat (apply/andP; split) => //; rewrite all2_cat => //; (apply/andP; split; last by apply reflexive_all2_same; move => ?; apply/eqP); apply all2_spec => //; move => n t1 t2 Hnth1 Hnth2.
+  { eapply Forall2_lookup in Hfsub as [t [Hnth Hsub]]; eauto.
+    by unfold import_func_subtyping in Hsub; remove_bools_options; simplify_multieq; subst; apply/eqP.
+  }
+  { eapply Forall2_lookup in Htsub as [t [Hnth Hsub]]; eauto.
+    by unfold import_table_subtyping in Hsub; remove_bools_options; simplify_multieq; subst; apply/eqP.
+  }
+  { eapply Forall2_lookup in Hgsub as [t [Hnth Hsub]]; eauto.
+    by unfold import_global_subtyping in Hsub; remove_bools_options; simplify_multieq; subst; apply/eqP.
+  }
 Qed.
   
 Lemma instantiation_sound: forall (s: store_record) m v_imps s' f exps,

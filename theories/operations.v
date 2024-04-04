@@ -177,6 +177,31 @@ Notation "ts1 <ts: ts2" := (values_subtyping ts1 ts2) (at level 60).
 Notation "tf1 <ti: tf2" := (instr_subtyping tf1 tf2) (at level 60).
 Notation "tf1 <tf: tf2" := (func_subtyping tf1 tf2) (at level 60).
 
+Definition func_agree (t1 t2: function_type) : bool :=
+  t1 == t2.
+
+Definition table_agree (t1 t2: table_type) : bool :=
+  (t1.(tt_elem_type) == t2.(tt_elem_type)).
+
+Definition mem_agree (t1 t2: memory_type) : bool :=
+  true.
+  
+Definition global_agree (t1 t2: global_type) : bool :=
+  t1 == t2.
+
+Definition context_agree (C C': t_context) : bool :=
+  (C.(tc_types) == C'.(tc_types)) &&
+  (all2 func_agree C.(tc_funcs) C'.(tc_funcs)) &&
+  (all2 table_agree C.(tc_tables) C'.(tc_tables)) &&
+  (all2 mem_agree C.(tc_mems) C'.(tc_mems)) &&
+  (all2 global_agree C.(tc_globals) C'.(tc_globals)) &&
+  (C.(tc_elems) == C'.(tc_elems)) &&
+  (C.(tc_datas) == C'.(tc_datas)) &&
+  (C.(tc_refs) == C'.(tc_refs)) &&
+  (C.(tc_locals) == C'.(tc_locals)) &&
+  (C.(tc_labels) == C'.(tc_labels)) &&
+  (C.(tc_return) == C'.(tc_return)).
+
 Definition typeof_num (v : value_num) : number_type :=
   match v with
   | VAL_int32 _ => T_i32
@@ -768,7 +793,6 @@ Definition store_extension (s s' : store_record) : bool :=
   component_extension global_extension s.(s_globals) s'.(s_globals) &&
   component_extension elem_extension s.(s_elems) s'.(s_elems) &&
   component_extension data_extension s.(s_datas) s'.(s_datas).
-
 
 Definition to_e_list (bes : list basic_instruction) : seq administrative_instruction :=
   map AI_basic bes.

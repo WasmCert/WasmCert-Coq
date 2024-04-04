@@ -1770,7 +1770,25 @@ Proof.
   remove_bools_options; subst => //; try by apply/orP; right.
   by rewrite eq_refl.
 Qed.
-    
+
+Lemma context_extension_agree (C1 C2: t_context):
+  context_extension C1 C2 ->
+  context_agree C1 C2.
+Proof.
+  unfold context_extension, context_agree; destruct C1, C2; move => Hext; remove_bools_options; simpl in *; subst; repeat rewrite eq_refl => /=.
+  repeat (apply/andP; split) => //.
+  - apply reflexive_all2_same; by move => ?; apply/eqP.
+  - apply all2_spec; first by apply all2_size in H8.
+    move => n t1 t2 Hnth1 Hnth2.
+    eapply all2_projection in H8; eauto.
+    unfold table_type_extension, table_agree in *.
+    by remove_bools_options; lias.
+  - apply all2_spec; first by apply all2_size in H7.
+    move => n t1 t2 Hnth1 Hnth2.
+    done.
+  - apply reflexive_all2_same; by move => ?; apply/eqP.
+Qed.
+
 Lemma nth_error_take_longer {T: Type} (l: list T) n k:
   n < k ->
   List.nth_error l n = List.nth_error (take k l) n.
