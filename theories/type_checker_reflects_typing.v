@@ -311,13 +311,12 @@ Proof.
   by apply IHl in Hconsume.
 Qed.
 
-Lemma consume_extend: forall l l1 l2 l3,
-  consume <<l1, false>> l = Some <<l3, false>> ->
-  consume <<l1 ++ l2, false>> l = Some <<l3 ++ l2, false>>.
+Lemma consume_extend: forall l l1 l2 l3 unr,
+  consume <<l1, unr>> l = Some <<l3, false>> ->
+  consume <<l1 ++ l2, unr>> l = Some <<l3 ++ l2, false>>.
 Proof.
-  induction l => //=; first by move => ??? H; inversion H.
-  destruct l1 => //=; move => l2 ? Hconsume.
-  remove_bools_options.
+  induction l => //=; first by move => ???? H; inversion H.
+  destruct l1 => //=; move => l2 ? unr Hconsume; remove_bools_options.
   by apply IHl.
 Qed.
 
@@ -330,12 +329,13 @@ Proof.
   by apply consume_preserve_unr in Hoption.
 Qed.
 
-Lemma type_update_extend: forall l1 l2 l3 cons prod,
-  type_update (<<l1, false>>) cons prod = Some <<l3, false>> ->
-  type_update (<<l1 ++ l2, false>>) cons prod = Some <<l3 ++ l2, false>>.
+Lemma type_update_extend: forall l1 l2 l3 cons prod unr,
+  type_update (<<l1, unr>>) cons prod = Some <<l3, false>> ->
+  type_update (<<l1 ++ l2, unr>>) cons prod = Some <<l3 ++ l2, false>>.
 Proof.
   unfold type_update.
-  move => l1 l2 l3 cons prod H.
+  move => l1 l2 l3 cons prod unr Hupdate.
+  specialize (type_update_preserve_unr Hupdate) => /= ?; subst.
   simplify_tc_goal.
   destruct c as [ts [|]]; first by apply consume_preserve_unr in Hoption.
   erewrite consume_extend; eauto.
@@ -568,6 +568,14 @@ Proof.
   by destruct e => //=.
 Qed.
 
+Lemma check_None: forall C es,
+  check C es None = None.
+Proof.
+  move => C es.
+  induction es => //=.
+  by rewrite check_single_None.
+Qed.
+
 Lemma check_single_extend: forall C e ts ts2 ts0,
   check_single C (Some <<ts, false>>) e = Some <<ts0, false>> ->
   check_single C (Some <<ts ++ ts2, false>>) e = Some <<ts0 ++ ts2, false>>.
@@ -625,6 +633,15 @@ Lemma c_types_agree_trans: forall ts ct ts',
 Proof.
   unfold c_types_agree.
   move => ts [c_ts [|]] ts' Hagree1 Hagree2 => /=; by simplify_tc_goal.
+Qed.
+
+Lemma c_types_agree_refl: forall ts ct ,
+  ts = ct.(CT_type) ->
+  c_types_agree ct ts.
+Proof.
+  unfold c_types_agree.
+  move => ts [c_ts [|]] -> => /=; simplify_tc_goal.
+  by rewrite take_size; resolve_subtyping.
 Qed.
 
 Lemma check_single_subtyping: forall C e ct1 ct1' ct2,
@@ -773,39 +790,76 @@ Proof.
     rewrite Hcheck'.
     by eapply check_single_subtyping; eauto.
 Qed.
-    
-Lemma check_extend: forall C ct es ts ts' ts2,
-  check C es (Some <<ts, false>>) = Some ct ->
-  c_types_agree ct ts' ->
-  exists ct', check C es (Some <<ts ++ ts2, false>>) = Some ct' /\
-            c_types_agree ct' (ts' ++ ts2).
+
+Lemma type_update_preserve_top: forall cts1 cons prod cts2 unr,
+    type_update <<cts1, true>> cons prod = Some <<cts2, unr>> ->
+    unr = true.
+Proof.
+  intros.
+  unfold type_update, produce in *; simplify_tc_goal.
+  by apply consume_preserve_unr in Hoption.
+Qed.
+  
+Lemma check_single_preserve_top: forall C e cts1 cts2 unr,
+    check_single C (Some <<cts1, true>>) e = Some <<cts2, unr>> ->
+    unr = true.
+Proof.
+  move => C e; move :C.
+  induction e; move => C cts1 cts2 unr Hcheck; simplify_tc_goal; (try destruct i); (try destruct f0); (try destruct f); simplify_tc_goal; (try by apply type_update_preserve_top in Hcheck); (try by unfold type_update_top in Hcheck; simplify_tc_goal).
+  - unfold type_update_ref_is_null in Hcheck; simpl in *.
+    by destruct cts1 => //; simplify_tc_goal.
+  - unfold type_update_drop in Hcheck; simpl in *.
+    by destruct cts1 => //; simplify_tc_goal.
+  - unfold type_update_select in Hcheck; simpl in *.
+    destruct o => //; simplify_tc_goal.
+    + do 2 (try destruct l => //).
+      by apply type_update_preserve_top in Hcheck.
+    + do 3 (try destruct cts1 => //); simplify_tc_goal; by apply type_update_preserve_top in Hcheck.
+Qed.
+
+Lemma check_preserve_top: forall C es cts1 cts2 unr,
+    check C es (Some <<cts1, true>>) = Some <<cts2, unr>> ->
+    unr = true.
+Proof.
+  move => C es; move : C.
+  induction es => //=; move => C cts1 cts2 unr Hcheck; first by inversion Hcheck.
+  destruct (check_single C _ a) eqn: Hcheck'; last by rewrite check_None in Hcheck.
+  destruct c as [? [|]]; first by apply IHes in Hcheck.
+  by apply check_single_preserve_top in Hcheck'.
+Qed.
+  
+(* Needs to perform induction from head instead of tail, as the first conversion to a
+   top stack needs special proofs *)
+Lemma check_extend: forall C cts es ts ts2,
+  check C es (Some <<ts, false>>) = Some <<cts, false>> ->
+  check C es (Some <<ts ++ ts2, false>>) = Some <<cts ++ ts2, false>>.
 Proof.
   move => C ct es.
   move: ct.
-  induction es as [| e es'] using last_ind => //=; move => ct ts ts' ts2 Hcheck Hagree.
-  - injection Hcheck as <-.
-    exists <<ts ++ ts2, false >>.
-    split => //.
-    by apply c_types_agree_extend with (ts := ts2) in Hagree; eauto.
-  - rewrite <- cats1 in *.
-    rewrite -> check_rcons in *.
-    destruct (check C e (Some <<ts, false>>)) as [cts | ] eqn:Hcheck'; last by rewrite check_single_None in Hcheck.
-    destruct cts as [c_ts [|]].
-    + eapply IHes with (ts' := c_ts) (ts2 := ts2) in Hcheck' as [ct' [Hcheck' Hagree']]; eauto.
-      * admit.
-      * by unfold c_types_agree => /=; rewrite take_size; resolve_subtyping.
-    + eapply IHes with (ts' := c_ts) (ts2 := ts2) in Hcheck' as [ct' [Hcheck' Hagree']]; eauto.
-      * rewrite Hcheck'.
-        destruct ct as [c_ts' [|]].
-        { apply check_single_extend_top with (ts2 := ts2) in Hcheck.
-          admit.
-        }
-        { apply check_single_extend with (ts2 := ts2) in Hcheck.
-          admit.
-        }
-      * by unfold c_types_agree => /=; resolve_subtyping.
-Admitted.
-    
+  induction es as [| e es'] => //=; move => cts ts ts2 Hcheck.
+  - by injection Hcheck as <-.
+  - destruct (check_single C (Some <<ts, false>>) e) as [[c_ts [|]] | ] eqn:Hcheck'; last by rewrite check_None in Hcheck.
+    + by apply check_preserve_top in Hcheck.
+    + apply check_single_extend with (ts2 := ts2) in Hcheck'.
+      rewrite Hcheck'.
+      by eapply IHes' in Hcheck; eauto.
+Qed.
+
+(* Once the result becomes a top stack, the original stack type doesn't really matter. *)
+Lemma check_extend_top: forall C cts es ts ts2,
+  check C es (Some <<ts, false>>) = Some <<cts, true>> ->
+  check C es (Some <<ts ++ ts2, false>>) = Some <<cts, true>>.
+Proof.
+  move => C ct es.
+  move: ct.
+  induction es as [| e es'] => //=; move => cts ts ts2 Hcheck.
+  destruct (check_single C (Some <<ts, false>>) e) as [[c_ts [|]] | ] eqn:Hcheck'; last by rewrite check_None in Hcheck.
+  - apply check_single_extend_top with (ts2 := ts2) in Hcheck'.
+    by rewrite Hcheck'.
+  - apply check_single_extend with (ts2 := ts2) in Hcheck'.
+    rewrite Hcheck'.
+    by eapply IHes' in Hcheck; eauto.
+Qed.
 (*
   The first part of the conjunction is what is required, but we need to prove it by simultaneous
   induction on the following two lemmas.
@@ -1131,27 +1185,39 @@ Proof.
       rewrite Hoption0.
       destruct (List.fold_left _ es _) as [ct_res | ] eqn:Htc => //=.
       injection Hoption0 as <-.
- (*     destruct ct_res as [ts [|]]; unfold c_types_agree in IHHbet1; simpl in IHHbet1.
-      { destruct c as [ts' unr].
-        Search check_single.
-        assert (check_single (context_reverse C) (Some <<ts, true>>) e = 
-        admit. }
-      { destruct c as [ts' unr].
-        eapply check_single_subtyping in Hoption as [ts2' [Hcheck Hsub]]; eauto.
-        rewrite Hcheck.
-        eapply c_types_agree_subtyping; eauto; by resolve_subtyping.
-      }*)
-      admit.
+      assert (ct_res <ct: (<<rev t2s, false>>)) as Hctsub.
+      { unfold ct_subtyping; rewrite IHHbet1 => /=; by rewrite eq_refl; lias. }
+      eapply check_single_subtyping in Hoption as [ct2' [Hcheck Hagree]]; eauto.
+      rewrite Hcheck.
+      by eapply c_types_agree_subtyping; eauto; resolve_subtyping.
+    (* Subtyping *)
     + simplify_subtyping.
       apply values_subtyping_rev in Hconjl2.
       apply values_subtyping_rev in Hconjr0.
       apply values_subtyping_rev in Hconjl1.
       simplify_tc_goal.
-      eapply check_extend with (ts2 := rev extr) in Hoption as [ct [Hcheck' Hagree']]; eauto.
-      eapply check_subtyping with (ts1' := rev extr1 ++ rev extr) (ts2' := rev extr2 ++ rev extr0) in Hcheck' as [ct' [Hcheck Hagree]]; eauto; resolve_subtyping => //.
-      fold (check (context_reverse C) es (Some <<rev extr1 ++ rev extr, false>>)).
-      rewrite Hcheck.
-      done.
+      destruct c as [cts [|]].
+      { eapply check_extend_top with (ts2 := rev extr0) in Hoption; eauto.
+        eapply check_subtyping with (ct1' := <<rev extr1 ++ rev extr, false>>) in Hoption as [ct' [Hcheck Hagree]]; eauto; last by unfold ct_subtyping, c_types_agree => /=; resolve_subtyping => //.
+        fold (check (context_reverse C) es (Some <<rev extr1 ++ rev extr, false>>)).
+        rewrite Hcheck.
+        apply c_types_agree_extend_top with (ts := rev extr0) in IHHbet.
+        eapply c_types_agree_subtyping; eauto.
+        by resolve_subtyping.
+      }
+      { eapply check_extend with (ts2 := rev extr0) in Hoption; eauto.
+        eapply check_subtyping with (ct1' := <<rev extr1 ++ rev extr, false>>) in Hoption as [ct' [Hcheck Hagree]]; eauto; last by unfold ct_subtyping, c_types_agree => /=; resolve_subtyping => //.
+        fold (check (context_reverse C) es (Some <<rev extr1 ++ rev extr, false>>)).
+        rewrite Hcheck.
+        unfold ct_subtyping, c_types_agree in *; destruct ct' as [cts' [|]]; simplify_tc_goal => //.
+        - eapply values_subtyping_trans; eauto.
+          apply values_subtyping_take.
+          rewrite values_subtyping_cat; last by apply values_subtyping_size in IHHbet; apply values_subtyping_size in Hconjr0; lias.
+          by resolve_subtyping.
+        - eapply values_subtyping_trans; eauto.
+          rewrite values_subtyping_cat; last by apply values_subtyping_size in IHHbet; apply values_subtyping_size in Hconjr0; lias.
+          by resolve_subtyping.
+      }
 Qed.
       
 (*
