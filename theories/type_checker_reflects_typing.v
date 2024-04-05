@@ -204,6 +204,10 @@ Qed.
              
 Ltac simplify_tc_goal := 
   repeat match goal with
+  | H: context C [take 0 _] |- _ =>
+      rewrite take0 in H
+  | H: context C [drop 0 _] |- _ =>
+      rewrite drop0 in H
   | H: ?expr = _ |-
     context [match ?expr with | _ => _ end] =>
       rewrite H
@@ -360,7 +364,30 @@ Lemma c_types_agree_cons: forall cts unr t t' ts,
 Proof.
   by unfold c_types_agree; move => ? [|] ????; simplify_tc_goal.
 Qed.
-  
+
+Lemma c_types_agree_cons_split: forall cts unr t ts,
+    c_types_agree <<t :: cts, unr>> ts ->
+    exists t' ts', ts = t' :: ts' /\ t <t: t' /\ c_types_agree <<cts, unr>> ts'.
+Proof.
+  move => cts unr t [ | t' ts'] Hagree; simplify_tc_goal; try by destruct unr.
+  apply c_types_agree_cons in Hagree.
+  by eexists; eauto.
+Qed.
+
+Lemma c_types_agree_cat_split: forall cts unr ts0 ts,
+    c_types_agree <<ts0 ++ cts, unr>> ts ->
+    exists ts1 ts2, ts = ts1 ++ ts2 /\ ts0 <ts: ts1 /\ c_types_agree <<cts, unr>> ts2.
+Proof.
+  move => cts unr ts0.
+  move : cts unr.
+  induction ts0; move => cts unr ts Hagree; simpl in *.
+  - by exists nil, ts.
+  - apply c_types_agree_cons_split in Hagree as [t' [ts' [-> [Hsub Hagree]]]].
+    apply IHts0 in Hagree as [ts1' [ts2' [-> [Hsub' Hagree']]]].
+    exists (t' :: ts1'), ts2'; repeat split => //.
+    by lias.
+Qed.
+
 Lemma consume_Some_impl: forall ct l ct',
     consume ct l = Some ct' ->
     c_types_agree <<take (size l) ct.(CT_type), ct.(CT_unr)>> l /\
@@ -386,6 +413,16 @@ Proof.
   - destruct ct as [[ | t cts] [|]]; simplify_tc_goal; apply c_types_agree_cons in Hagree as [-> Hagree]; by apply IHl.
 Qed.
 
+Lemma type_update_Some_impl: forall ct ct' cons prod,
+    type_update ct cons prod = Some ct' ->
+    (c_types_agree << take (size cons) ct.(CT_type), ct.(CT_unr) >> cons) /\
+      ct' = <<prod ++ drop (size cons) ct.(CT_type), ct.(CT_unr)>>.
+Proof.
+  move => ct ct' cons prod Hupdate.
+  unfold type_update, produce in Hupdate; simplify_tc_goal.
+  by apply consume_Some_impl in Hoption as [? ->].
+Qed.
+  
 Lemma ct_subtyping_refl:
     reflexive ct_subtyping.
 Proof.
@@ -484,6 +521,7 @@ Proof.
     by eapply c_types_agree_subtyping; eauto; resolve_subtyping.
   - by apply ct_subtyping_drop.
 Qed.
+
 (*
 Lemma consume_subtyping_top: forall ts ts' l res,
     consume <<ts, false>> l = Some <<res, false>> ->
@@ -860,6 +898,26 @@ Proof.
     rewrite Hcheck'.
     by eapply IHes' in Hcheck; eauto.
 Qed.
+
+Ltac invert_update_agree :=
+  repeat match goal with
+    | H: type_update _ _ _ = Some _ |- _ =>
+         let Hagree := fresh "Hagree" in
+         apply type_update_Some_impl in H as [Hagree ->]
+    | H: is_true (c_types_agree << _ :: _, _ >> _) |- _ =>
+        let t := fresh "t" in
+        let ts := fresh "ts" in
+        let Hsub := fresh "Hsub" in
+        let Hagree := fresh "Hagree" in
+        apply c_types_agree_cons_split in H as [t [ts [-> [Hsub Hagree]]]]
+    | H: is_true (c_types_agree << _ ++ _, _ >> _) |- _ =>
+        let tx := fresh "tx" in
+        let ty := fresh "ty" in
+        let Hsub := fresh "Hsub" in
+        let Hagree := fresh "Hagree" in
+        apply c_types_agree_cons_split in H as [tx [ty [-> [Hsub Hagree]]]]
+    end.
+
 (*
   The first part of the conjunction is what is required, but we need to prove it by simultaneous
   induction on the following two lemmas.
@@ -904,11 +962,17 @@ Proof.
       split => //.
       by eapply bet_composition; eauto.
   (* Single *)
-  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal; move => cts' Hs Hct Hct2 => //.
-    (*
+  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal; move => cts' Hs Hupdate Hagree => //; simplify_tc_goal; invert_update_agree; simplify_tc_goal.
     (* Const_num *)
-    + by resolve_no_consume cts [::T_num (typeof_num v)] tm.
+    + eexists; split; eauto.
+      eapply bet_subtyping; first by constructor.
+      rewrite rev_cons -cats1.
+      by resolve_subtyping.
     (* Unop_i *)
+    + eexists; split; eauto.
+      eapply bet_subtyping; first by constructor.
+      rewrite rev_cons -cats1.
+      resolve_subtyping.
     + by destruct n; resolve_update_agree.
     (* Unop_f *)
     + by destruct n; resolve_update_agree.
