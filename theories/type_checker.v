@@ -74,7 +74,7 @@ Definition type_update_select (ct : checker_type) (ots: option (list value_type)
   | None =>
       match ct.(CT_type) with
       | [:: t1; t2] =>
-          if (is_numeric_type t2) && ct.(CT_unr) then Some <<[::t2], true>>
+          if (is_numeric_type t2) && ct.(CT_unr) then type_update ct [::T_num T_i32; t2] [::t2]
           else None
       | t1 :: t2 :: t3 :: _ =>
           match value_type_select t2 t3 with

@@ -41,6 +41,13 @@ Proof.
   by rewrite drop0.
 Qed.
 
+Lemma take_size1_cat {T: Type}: forall (l1 l2: list T) n,
+    take (size l1 + n) (l1 ++ l2) = l1 ++ take n l2.
+Proof.
+  induction l1 => //=.
+  intros; f_equal.
+  by apply IHl1.
+Qed.
 Lemma app_eq_singleton: forall T (l1 l2 : list T) (a : T),
     l1 ++ l2 = [::a] ->
     (l1 = [::a] /\ l2 = [::]) \/ (l1 = [::] /\ l2 = [::a]).
