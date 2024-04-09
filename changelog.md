@@ -1,11 +1,13 @@
-# Release 2.0
+# Release 2.0 + Subtyping
 
-This release for Wasm 2.0 implemented the following changes in the official spec release 2.0:
+This release for Wasm 2.0 + Subtyping implemented the following changes in the official spec release 2.0:
 - Multiple-value blocks;
 - Reference types;
 - Table instructions;
 - Multiple tables;
 - Bulk memory and table instructions.
+
+In addition, this release also implemented the subtyping system from the future funcref/GC proposals.
 
 The new sign extension, non-trapping float-to-int conversion, and vector types are added but without any concrete implementation.
 
@@ -14,11 +16,12 @@ The new sign extension, non-trapping float-to-int conversion, and vector types a
 - [x] Preservation theorems;
 - [x] Interpreter and progress theorem;
 - [x] Instantiation;
-- [ ] Instantiation soundness theorems;
+- [x] Instantiation soundness theorems;
 - [x] Type checker;
-- [ ] Type checker correctness theorem;
+- [x] Type checker correctness theorem;
 - [x] Binary printer/parser;
-- [x] Code pretty printer.
+- [x] Code pretty printer;
+- [x] Subtyping.
 
 # Major Structural Changes
 
@@ -61,6 +64,9 @@ The main major benefit is the automatic filling of implicit host parameter, inst
 - Massively improved the scope and automation of the typing inversion lemmas.
 - Provided a new tactic `resolve_e_typing` that automatically tries to resolve `e_typing` goals, dealing mostly with the operands.
 - Provided a separate file for the new subtyping lemmas and tactics.
+
+## Type Checker
+- Completely reimplemented the type checker, which should now be slightly more efficient (although this should hardly be observable).
 
 ## Miscellaneous
 - Introduced many additional excerpts in comments from the official spec for various definitions.

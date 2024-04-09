@@ -3,7 +3,7 @@ name: Test compilation
 on:
   push:
   pull_request:
-    types: [review_requested]
+    types: [ready_for_review]
   workflow_dispatch:
     inputs:
 
