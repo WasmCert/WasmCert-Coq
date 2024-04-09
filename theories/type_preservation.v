@@ -122,10 +122,6 @@ Proof.
     inversion Hconjl0; subst.
     invert_e_typing.
     by resolve_e_typing.
-  - (* Local_tee *)
-    eapply instr_subtyping_weaken1; eauto; first reflexivity.
-    simpl.
-    by resolve_subtyping.
   - (* Frame_return *)
     inversion Hconjl0; subst; clear Hconjl0.
     eapply Lfilled_return_typing in H6; (try reflexivity); eauto.

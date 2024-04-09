@@ -13,6 +13,15 @@ Section Typing_inversion_be.
   
 (* Some quality of life lemmas *)
 (* Upd: these lemmas are deprecated; it is encouraged to directly use subtyping rule. *)
+Lemma bet_weakening: forall C es ts ts1 ts2,
+    be_typing C es (Tf ts1 ts2) ->
+    be_typing C es (Tf (ts ++ ts1) (ts ++ ts2)).
+Proof.
+  intros ????? Hbet.
+  eapply bet_subtyping; eauto.
+  by resolve_subtyping.
+Qed.
+
 Lemma bet_weakening_empty_1: forall C es ts t2s,
     be_typing C es (Tf [::] t2s) ->
     be_typing C es (Tf ts (ts ++ t2s)).

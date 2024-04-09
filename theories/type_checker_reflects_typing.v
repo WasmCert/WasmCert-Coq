@@ -36,6 +36,30 @@ Proof.
   by remove_bools_options.
 Qed.
 
+Lemma rev_tfK:
+  involutive rev_tf.
+Proof.
+  move => [tx ty] => /=.
+  by repeat rewrite revK.
+Qed.
+  
+Lemma context_reverseK:
+    involutive context_reverse.
+Proof.
+  move => C.
+  destruct C; unfold context_reverse => /=; f_equal; try rewrite mapK => //; try (by apply rev_tfK); try by apply revK.
+  destruct tc_return => //=; by rewrite revK.
+Qed.
+
+Lemma upd_label_context_reverse: forall C labs,
+    upd_label (context_reverse C) labs = context_reverse (upd_label C (map rev labs)).
+Proof.
+  move => C labs.
+  unfold upd_label, upd_local_label_return, context_reverse => /=; f_equal.
+  rewrite mapK => //.
+  by apply revK.
+Qed.
+  
 Lemma consume_nil: forall ct,
     consume ct nil = Some ct.
 Proof.
@@ -240,6 +264,7 @@ Ltac simplify_tc_goal :=
   | |- context [ take 0 _ ] => rewrite take0
   | |- context [ _ ++ nil ] => rewrite cats0
   | |- context [ rev (_ ++ _) ] => rewrite rev_cat
+  | |- context [ rev [::?x] ] => replace (rev [::x]) with [::x]; last by lias
   | |- context [ _ = _ ] => rewrite eq_refl
   | |- context [ _ == _ ] => rewrite eq_refl
   | _ => simpl in *; subst; remove_bools_options; resolve_subtyping => //
@@ -359,10 +384,12 @@ Proof.
 Qed.
 
 Lemma c_types_agree_cons: forall cts unr t t' ts,
-    c_types_agree <<t :: cts, unr>> (t' :: ts) ->
+    c_types_agree <<t :: cts, unr>> (t' :: ts) <->
     t <t: t' /\ c_types_agree <<cts, unr>> ts.
 Proof.
-  by unfold c_types_agree; move => ? [|] ????; simplify_tc_goal.
+  split.
+  - by unfold c_types_agree; move => ?; destruct unr; simplify_tc_goal.
+  - by unfold c_types_agree => /=; move => [??]; destruct unr; simplify_tc_goal.
 Qed.
 
 Lemma c_types_agree_cons_split: forall cts unr t ts,
@@ -388,6 +415,37 @@ Proof.
     by lias.
 Qed.
 
+Lemma c_types_agree_size_sub: forall cts unr ts,
+    size cts = size ts ->
+    c_types_agree <<cts, unr>> ts ->
+    cts <ts: ts.
+Proof.
+  move => cts unr ts Hsize Hagree; unfold c_types_agree in Hagree; simplify_tc_goal.
+  destruct unr => //.
+  by rewrite Hsize take_size in Hagree.
+Qed.
+  
+Lemma c_types_agree_sub_cat: forall cts1 cts2 unr ts1 ts2,
+    cts1 <ts: ts1 ->
+    c_types_agree <<cts2, unr>> ts2 ->
+    c_types_agree <<cts1 ++ cts2, unr>> (ts1 ++ ts2).
+Proof.
+  induction cts1; move => cts2 unr ts1 ts2 Hsub Hagree; destruct ts1 => //; simplify_tc_goal.
+  apply c_types_agree_cons; split => //.
+  by apply IHcts1.
+Qed.
+
+Lemma c_types_agree_take_cat: forall cts1 cts2 unr ts1 ts2,
+    c_types_agree <<cts1, unr>> ts1 ->
+    c_types_agree <<cts2, unr>> ts2 ->
+    c_types_agree <<cts1 ++ cts2, unr>> (take (size cts1) ts1 ++ ts2).
+Proof.
+  induction cts1; move => cts2 unr ts1 ts2 Hagree1 Hagree2; destruct ts1 => //; simplify_tc_goal; first by unfold c_types_agree in *; destruct unr; simplify_tc_goal.
+  apply c_types_agree_cons_split in Hagree1 as [t' [ts' [Heq [Hsub Hagree]]]]; inversion Heq; subst; clear Heq.
+  apply c_types_agree_cons; split => //.
+  by apply IHcts1.
+Qed.
+  
 Lemma consume_Some_impl: forall ct l ct',
     consume ct l = Some ct' ->
     c_types_agree <<take (size l) ct.(CT_type), ct.(CT_unr)>> l /\
@@ -915,9 +973,208 @@ Ltac invert_update_agree :=
         let ty := fresh "ty" in
         let Hsub := fresh "Hsub" in
         let Hagree := fresh "Hagree" in
-        apply c_types_agree_cons_split in H as [tx [ty [-> [Hsub Hagree]]]]
+        apply c_types_agree_cat_split in H as [tx [ty [-> [Hsub Hagree]]]]
     end.
 
+Lemma resolve_type_update_agree_aux1: forall cts t1 ts,
+  c_types_agree << take 1 (CT_type cts), CT_unr cts >> [::t1] ->
+  c_types_agree << drop 1 (CT_type cts), CT_unr cts >> ts ->
+  c_types_agree cts ([::t1] ++ ts).
+Proof.
+  move => cts t1 ts Hagree1 Hagree2.
+  destruct cts as [[ | t cts] unr] => //.
+  apply c_types_agree_size_sub in Hagree1; last by rewrite size_takel => /=.
+  simplify_tc_goal.
+  by apply c_types_agree_cons.
+Qed.
+
+Lemma resolve_type_update_agree_aux2: forall cts t1 t2 ts,
+  c_types_agree << take 2 (CT_type cts), CT_unr cts >> [::t1; t2] ->
+  c_types_agree << drop 2 (CT_type cts), CT_unr cts >> ts ->
+  c_types_agree cts ([::t1; t2] ++ ts).
+Proof.
+  move => cts t1 t2 ts Hagree1 Hagree2.
+  destruct cts as [[ | t cts] unr] => //.
+  destruct cts as [ | t' cts] => //.
+  apply c_types_agree_size_sub in Hagree1; last by rewrite size_takel => /=.
+  simplify_tc_goal.
+  by repeat (apply c_types_agree_cons; split => //).
+Qed.
+
+Lemma resolve_type_update_agree_aux3: forall cts t1 t2 t3 ts,
+  c_types_agree << take 3 (CT_type cts), CT_unr cts >> [::t1; t2; t3] ->
+  c_types_agree << drop 3 (CT_type cts), CT_unr cts >> ts ->
+  c_types_agree cts ([::t1; t2; t3] ++ ts).
+Proof.
+  move => cts t1 t2 t3 ts Hagree1 Hagree2.
+  destruct cts as [[ | t cts] unr] => //.
+  destruct cts as [ | t' cts] => //.
+  destruct cts as [ | t'' cts] => //.
+  apply c_types_agree_size_sub in Hagree1; last by rewrite size_takel => /=.
+  simplify_tc_goal.
+  by repeat (apply c_types_agree_cons; split => //).
+Qed.
+
+Ltac resolve_check_agree :=
+  match goal with
+  | H: is_true (c_types_agree << CT_type ?cts, CT_unr ?cts >> ?ts) |-
+      exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
+      exists ts; split; first done
+  | H1: is_true (c_types_agree << take 1 (CT_type ?cts), CT_unr ?cts >> [::?t1]),
+    H2: is_true (c_types_agree << drop 1 (CT_type ?cts), CT_unr ?cts >> ?ts) |-
+      exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
+      exists ([::t1] ++ ts); split; first by apply resolve_type_update_agree_aux1
+  | H1: is_true (c_types_agree << take 2 (CT_type ?cts), CT_unr ?cts >> [::?t1; ?t2]),
+    H2: is_true (c_types_agree << drop 2 (CT_type ?cts), CT_unr ?cts >> ?ts) |-
+      exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
+      exists ([::t1; t2] ++ ts); split; first by apply resolve_type_update_agree_aux2
+  | H1: is_true (c_types_agree << take 3 (CT_type ?cts), CT_unr ?cts >> [::?t1; ?t2; ?t3]),
+    H2: is_true (c_types_agree << drop 3 (CT_type ?cts), CT_unr ?cts >> ?ts) |-
+      exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
+      exists ([::t1; t2; t3] ++ ts); split; first by apply resolve_type_update_agree_aux3
+  end.
+
+Ltac resolve_tc_be_typing :=
+  (try rewrite rev_cat); (try apply bet_weakening); (try apply bet_weakening_empty_1); try by (econstructor; eauto; resolve_subtyping); ((try unfold rev => /=); eapply bet_subtyping; first (by econstructor; eauto; resolve_subtyping); by resolve_subtyping).
+
+Lemma type_update_ref_is_null_bet: forall C cts cts' tm,
+  type_update_ref_is_null cts = Some cts' ->
+  c_types_agree cts' tm ->
+  exists tn, c_types_agree cts tn /\ be_typing C [::BI_ref_is_null] (Tf (rev tn) (rev tm)).
+Proof.
+  move => C cts cts' tm Hupdate Hct.
+  unfold type_update_ref_is_null in Hupdate.
+  destruct cts as [[ | t ts] unr]; simplify_tc_goal.
+  - apply c_types_agree_cons_split in Hct as [t' [ts' [-> [Hsub Hagree]]]].
+    exists ([::T_bot] ++ ts'); split => //.
+    rewrite rev_cons -cats1 rev_cat rev_cons -cats1.
+    apply bet_weakening => /=.
+    eapply bet_subtyping; first by apply bet_ref_is_null with (t := T_funcref).
+    resolve_subtyping.
+    apply instr_subtyping_weaken1 with (tx1 := [::T_bot]); by resolve_subtyping.
+  - apply c_types_agree_cons_split in Hct as [t' [ts' [-> [Hsub Hagree]]]].
+    exists ([::t] ++ ts'); split => //.
+    { by simpl; apply c_types_agree_cons; split; resolve_subtyping. }
+    rewrite rev_cons -cats1 rev_cat rev_cons -cats1.
+    apply bet_weakening => /=.
+    destruct t => //.
+    + eapply bet_subtyping; first by apply bet_ref_is_null with (t := r).
+      by resolve_subtyping.
+    + eapply bet_subtyping; first by apply bet_ref_is_null with (t := T_funcref).
+      resolve_subtyping.
+      apply instr_subtyping_weaken1 with (tx1 := [::T_bot]); by resolve_subtyping.
+Qed.
+      
+Lemma type_update_drop_bet: forall C cts cts' tm,
+  type_update_drop cts = Some cts' ->
+  c_types_agree cts' tm ->
+  exists tn, c_types_agree cts tn /\ be_typing C [::BI_drop] (Tf (rev tn) (rev tm)).
+Proof.
+  move => C cts cts' tm Hupdate Hct.
+  unfold type_update_drop in Hupdate.
+  destruct cts as [[ | t ts] unr]; simplify_tc_goal.
+  - exists ([::T_bot] ++ tm); split => //.
+    rewrite rev_cat rev_cons -cats1.
+    apply bet_weakening_empty_2 => /=.
+    by apply bet_drop.
+  - exists ([::t] ++ tm); split => //.
+    { by simpl; apply c_types_agree_cons; split; resolve_subtyping. }
+    rewrite rev_cat rev_cons -cats1.
+    apply bet_weakening_empty_2 => /=.
+    by apply bet_drop.
+Qed.
+
+Lemma type_update_select_bet: forall C cts cts' tm ots,
+  type_update_select cts ots = Some cts' ->
+  c_types_agree cts' tm ->
+  exists tn, c_types_agree cts tn /\ be_typing C [::BI_select ots] (Tf (rev tn) (rev tm)).
+Proof.
+  move => C cts cts' tm ots Hupdate Hct.
+  unfold type_update_select in Hupdate.
+  destruct ots as [ts |].
+  - do 3 (try destruct ts => //).
+    invert_update_agree; simplify_tc_goal.
+    resolve_check_agree.
+    rewrite rev_cat.
+    apply bet_weakening; unfold rev => /=.
+    eapply bet_subtyping; first by apply bet_select_Some.
+    by resolve_subtyping.
+  - destruct cts as [ts unr]; simplify_tc_goal.
+    destruct ts as [ | t1 ts]; simplify_tc_goal; invert_update_agree; simplify_tc_goal.
+    { exists ([::T_num T_i32; T_bot; T_bot] ++ ty); split => //.
+      rewrite rev_cat.
+      apply bet_weakening.
+      unfold rev => /=.
+      apply bet_subtyping with (t1s := [::T_bot; T_bot; T_num T_i32]) (t2s := [::T_bot]); first by apply bet_select_None.
+      by resolve_subtyping.
+    }
+    destruct ts as [ | t2 ts]; simplify_tc_goal; invert_update_agree; simplify_tc_goal.
+    { exists ([::T_num T_i32; T_bot; T_bot] ++ ty); split => //.
+      rewrite rev_cat.
+      apply bet_weakening.
+      unfold rev => /=.
+      apply bet_subtyping with (t1s := [::T_bot; T_bot; T_num T_i32]) (t2s := [::T_bot]); first by apply bet_select_None.
+      by resolve_subtyping.
+    }
+    destruct ts as [ | t3 ts]; simplify_tc_goal; invert_update_agree; simplify_tc_goal.
+    { exists ([::T_num T_i32; t2; T_bot] ++ ty); split => //.
+      { by unfold c_types_agree in *; destruct unr; simplify_tc_goal. }
+      repeat rewrite rev_cat.
+      unfold rev => /=.
+      apply bet_weakening.
+      apply bet_subtyping with (t1s := [::t2; t2; T_num T_i32]) (t2s := [::t2]); first by apply bet_select_None.
+      resolve_subtyping.
+      apply instr_subtyping_weaken1 with (tx1 := [::T_bot; t2; T_num T_i32]); first by resolve_subtyping.
+      simpl; resolve_subtyping; by destruct t2.
+    }
+    {
+      exists ([::T_num T_i32; t2; t3] ++ ty); split => //.
+      { by unfold c_types_agree in *; destruct unr; simplify_tc_goal. }
+      rewrite rev_cat.
+      apply bet_weakening.
+      unfold rev => /=.
+      assert (t1 <t: T_num T_i32) as Hsub.
+      { by unfold c_types_agree in * => /=; destruct unr; simplify_tc_goal. }
+      clear Hagree Hagree0.
+      unfold value_type_select in Hoption; simplify_tc_goal; move/eqP in Hif; try move/eqP in Hif0; try move/eqP in Hif1; subst.
+      { apply bet_subtyping with (t1s := [:: v; v; T_num T_i32]) (t2s := [::v]); first by apply bet_select_None => //.
+        resolve_subtyping.
+        apply instr_subtyping_weaken1 with (tx1 := [::v; T_bot; T_num T_i32]); resolve_subtyping => /=.
+        by resolve_subtyping; destruct v.
+      }
+      { apply bet_subtyping with (t1s := [:: v; v; T_num T_i32]) (t2s := [::v]); first by apply bet_select_None => //.
+        resolve_subtyping.
+        apply instr_subtyping_weaken1 with (tx1 := [::T_bot; v; T_num T_i32]); resolve_subtyping => /=.
+        by resolve_subtyping; destruct v.
+      }
+      { apply bet_subtyping with (t1s := [:: t3; t3; T_num T_i32]) (t2s := [::t3]); first by apply bet_select_None => //.
+        by resolve_subtyping.
+      }
+    }
+Qed.
+
+Lemma type_update_agree_subtyping: forall cts ts_cons ts_prod cts' tx,
+  type_update cts ts_cons ts_prod = Some cts' ->
+  c_types_agree cts' tx ->
+  exists tn, c_types_agree cts tn /\ (Tf (rev ts_cons) (rev ts_prod) <ti: Tf (rev tn) (rev tx)).
+Proof.
+  move => cts ts_cons.
+  move: cts.
+  Opaque instr_subtyping.
+  induction ts_cons; move => [ts unr] ts_prod cts' tx Hupdate Hagree; unfold type_update, produce in *; simplify_tc_goal.
+  - exists (ts_prod ++ tn).
+  
+Admitted.
+
+Lemma c_types_agree_impl_subtyping: forall cts unr ts,
+    c_types_agree <<cts, unr>> ts ->
+    cts <ts: take (size cts) ts.
+Proof.
+  move => cts unr ts Hagree; unfold c_types_agree in Hagree; destruct unr; simplify_tc_goal.
+  replace (size cts) with (size ts); last by apply values_subtyping_size in Hagree.
+  by rewrite take_size.
+Qed.
+  
 (*
   The first part of the conjunction is what is required, but we need to prove it by simultaneous
   induction on the following two lemmas.
@@ -962,191 +1219,198 @@ Proof.
       split => //.
       by eapply bet_composition; eauto.
   (* Single *)
-  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal; move => cts' Hs Hupdate Hagree => //; simplify_tc_goal; invert_update_agree; simplify_tc_goal.
+  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal; move => cts' Hs Hupdate Hagree => //; simplify_tc_goal; invert_update_agree; simplify_tc_goal; try resolve_check_agree; try rewrite rev_cat.
     (* Const_num *)
-    + eexists; split; eauto.
-      eapply bet_subtyping; first by constructor.
-      rewrite rev_cons -cats1.
-      by resolve_subtyping.
+    + by resolve_tc_be_typing.
     (* Unop_i *)
-    + eexists; split; eauto.
-      eapply bet_subtyping; first by constructor.
-      rewrite rev_cons -cats1.
-      resolve_subtyping.
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_unop.
+      destruct n, u => //; by constructor.
     (* Unop_f *)
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_unop.
+      destruct n, u => //; by constructor.
     (* Unop_extend *)
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_unop.
+      destruct n, n0 => //; by constructor.
     (* Binop_i *)
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_binop.
+      destruct n, b => //; by constructor.
     (* Binop_f *)
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_binop.
+      destruct n, b => //; by constructor.
     (* Testop *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
     (* Relop_i *)
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_relop.
+      destruct n, r => //; by constructor.
     (* Relop_f *)
-    + by destruct n; resolve_update_agree.
+    + apply bet_weakening, bet_relop.
+      destruct n, r => //; by constructor.
     (* Cvtop *)
-    + by resolve_update_agree.
+    + apply bet_weakening, bet_cvtop.
+      destruct n, n0 => //; by constructor.
     (* Const_vec *)
-    + by resolve_no_consume cts [::T_vec (typeof_vec v)] tm.
-    (* Const_vec *)
-    + by resolve_no_consume cts [::T_ref r] tm.
+    + by resolve_tc_be_typing.
+    (* Ref_null *)
+    + by resolve_tc_be_typing.
     (* Ref_is_null *)
-    + by apply type_update_ref_is_null_bet.
+    + by apply type_update_ref_is_null_bet with (cts' := cts').
     (* Ref_func *)
-    + resolve_no_consume cts [::T_ref T_funcref] tm.
-      econstructor; eauto.
-      by move/inP in if_expr0.
+    + move/inP in Hif.
+      apply bet_weakening_empty_1, bet_ref_func with (t := (rev_tf f0)) => //.
+      apply nth_error_map in Hoption as [ft [? <-]].
+      by destruct ft; unfold rev_tf; repeat rewrite revK.
     (* Drop *)
-    + destruct cts => //=; clear if_expr.
-      * move: Hct2. case/lastP : l => [| l x] => //=; move => Hsuf.
-        { exists (tm ++ [::T_num T_i32]); split; first by apply ct_suffix_empty.
-          apply bet_weakening_empty_2.
-          by apply bet_drop.
-        }
-        { exists (tm ++ [::populate_ct_aux_single x]).
-          split; last by apply bet_weakening_empty_2; apply bet_drop.
-          rewrite cats1.
-          unfold to_ct_list.
-          rewrite map_rcons.
-          apply ct_suffix_rcons.
-          split; first by destruct x => //=.
-          rewrite ct_suffix_any_1 in Hsuf; last by rewrite size_rcons.
-          rewrite - cats1 in Hsuf.
-          simpl in Hsuf.
-          rewrite size_cat take_cat in Hsuf.
-          simpl in Hsuf.
-          replace (size l + 1 - 1) with (size l) in Hsuf; last by lias.
-          rewrite subnn take_size cats0 in Hsuf.
-          by destruct (size l < size l) => //=.
-        }
-      * simpl in Hct2...
-        exists l; split => //.
-        move: if_expr. case/lastP: l => [|l x] => //=; move => _.
-        rewrite - cats1.
-        rewrite size_cat take_cat => /=.
-        replace (size l + 1 - 1) with (size l); last by lias.
-        rewrite take_size subnn cats0.
-        replace (size l < size l) with false; last by clear H; lias.
-        apply bet_weakening_empty_2.
-        by apply bet_drop.
+    + by apply type_update_drop_bet with (cts' := cts').
     (* Select *)
-    + by apply type_update_select_agree_bet.
-      (* Local_get *)
-    + by resolve_update_agree.
-      (* Local_set *)
-    + by resolve_update_agree.
-      (* Local_tee *)
-    + by resolve_update_agree.
-      (* Global_set *)
-    + by resolve_update_agree.
-      (* Global_get *)
-    + by resolve_update_agree.
-      (* Table_get *)
-    + by resolve_update_agree.
-      (* Table_set *)
-    + by resolve_update_agree.
-      (* Table_size *)
-    + by resolve_no_consume cts [::T_num T_i32] tm.
-      (* Table_grow *)
-    + by resolve_update_agree.
-      (* Table_fill *)
-    + by resolve_update_agree.
-      (* Table_copy *)
-    + fold_type_update Hct2.
-      by resolve_update_agree.
-      (* Table_init *)
-    + fold_type_update Hct2.
-      by resolve_update_agree.
-      (* Elem_drop *)
+    + by apply type_update_select_bet with (cts' := cts').
+    (* Local_get *)
+    + apply bet_weakening_empty_1.
+      eapply bet_subtyping; first (by econstructor; eauto; resolve_subtyping);
+      by resolve_subtyping.
+    (* Local_set *)
+    + by resolve_tc_be_typing.
+    (* Local_tee *)
+    + apply bet_weakening.
+      unfold rev => /=.
+      eapply bet_subtyping; first (by econstructor; eauto; resolve_subtyping).
+      by resolve_subtyping.
+    (* Global_set *)
+    + apply bet_weakening_empty_1.
+      eapply bet_subtyping; first by econstructor; eauto.
+      by resolve_subtyping.
+    (* Global_get *)
+    + by resolve_tc_be_typing.
+    (* Table_get *)
+    + by resolve_tc_be_typing.
+    (* Table_set *)
+    + by resolve_tc_be_typing.
+    (* Table_size *)
+    + by resolve_tc_be_typing.
+    (* Table_grow *)
+    + by resolve_tc_be_typing.
+    (* Table_fill *)
+    + by resolve_tc_be_typing.
+    (* Table_copy *)
+    + move/eqP in Hif.
+      by resolve_tc_be_typing.
+    (* Table_init *)
+    + move/eqP in Hif.
+      by resolve_tc_be_typing.
+    (* Elem_drop *)
     + exists tm; split => //.
       by apply bet_weakening_empty_both; econstructor; eauto.
-      (* Load *)
-    + by resolve_update_agree.
-      (* Store *)
-    + fold_type_update Hct2.
-      by resolve_update_agree.
-      (* Memory_size *)
-    + by resolve_no_consume cts [::T_num T_i32] tm.
-      (* Memory_grow *)
-    + by resolve_update_agree.
-      (* Memory_fill *)
-    + fold_type_update Hct2.
-      by resolve_update_agree.
-      (* Memory_copy *)
-    + fold_type_update Hct2.
-      by resolve_update_agree.
-      (* Memory_init *)
-    + fold_type_update Hct2.
-      by resolve_update_agree.
-      (* Data_drop *)
+    (* Load *)
+    + by resolve_tc_be_typing.
+    (* Store *)
+    + by resolve_tc_be_typing.
+    (* Memory_size *)
+    + by resolve_tc_be_typing.
+    (* Memory_grow *)
+    + by resolve_tc_be_typing.
+    (* Memory_fill *)
+    + by resolve_tc_be_typing.
+    (* Memory_copy *)
+    + by resolve_tc_be_typing.
+    (* Memory_init *)
+    + by resolve_tc_be_typing.
+    (* Data_drop *)
     + exists tm; split => //.
       by apply bet_weakening_empty_both; econstructor; eauto.
-      (* Nop *)
+    (* Nop *)
     + exists tm; split => //.
       by apply bet_weakening_empty_both; econstructor; eauto.
-      (* Unreachable *)
-    + exists (populate_ct cts); split; by [apply populate_ct_agree | apply bet_unreachable].
-      (* Block *)
+    (* Unreachable *)
+    + exists (CT_type cts); split => //; first by apply c_types_agree_refl.
+      by apply bet_unreachable.
+    (* Block *)
     + destruct i.
+      rewrite upd_label_context_reverse in Hupdate.
+      simpl in Hupdate.
+      rewrite mapK in Hupdate; last by apply revK.
+      apply expand_t_context_reverse in Hoption; simpl in Hoption.
+      rewrite context_reverseK in Hoption.
       fold_remember_check.
       assert (be_size_list l < d)%coq_nat as Hmeasure; first by unfold be_size_list; lias.
-      apply H in Hmeasure.
-      destruct Hmeasure as [IH _].
-      auto_rewrite_cond.
-      eapply IH in if_expr0 => //; eauto.
-      destruct if_expr0 as [tn'' [Hct1 Hbet]].
-      simpl in Hct1.
-      move/eqP in Hct1; subst.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [lp [Hct1 Heq]]; subst.
-      exists (lp ++ tn''); split => //.
-      by apply bet_weakening; econstructor; eauto.
-      (* Loop *)
+      apply H in Hmeasure; destruct Hmeasure as [IH _]; clear H.
+      simplify_tc_goal.
+      eapply IH in Hoption0 => //; last (by erewrite Hif); clear IH Hs.
+      destruct Hoption0 as [tn [Hct Hbet]].
+      unfold c_types_agree in Hct; simplify_tc_goal.
+      (* It is really difficult to work out what the consumed type should be, so it is slightly easier to construct towards the target typing judgement from the premises instead of inverting backwards. *)
+      apply values_subtyping_rev in Hct.
+      eapply bet_subtyping with (t1s' := rev r) (t2s' := rev r0) in Hbet; last by resolve_subtyping.
+      eapply bet_block in Hbet; last by eauto.
+      specialize (type_update_agree_subtyping Hupdate Hagree) as [tx [Hagree0 Hsub]].
+      eapply bet_subtyping in Hbet; last by apply Hsub.
+      by exists tx.
+    (* Loop *)
     + destruct i.
+      rewrite upd_label_context_reverse in Hupdate.
+      simpl in Hupdate.
+      rewrite mapK in Hupdate; last by apply revK.
+      apply expand_t_context_reverse in Hoption; simpl in Hoption.
+      rewrite context_reverseK in Hoption.
       fold_remember_check.
       assert (be_size_list l < d)%coq_nat as Hmeasure; first by unfold be_size_list; lias.
-      apply H in Hmeasure.
-      destruct Hmeasure as [IH _].
-      auto_rewrite_cond.
-      eapply IH in if_expr0 => //.
-      destruct if_expr0 as [tn'' [Hct1 Hbet]].
-      simpl in Hct1.
-      move/eqP in Hct1; subst.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [lp [Hct1 Heq]]; subst.
-      exists (lp ++ tn''); split => //.
-      by apply bet_weakening; econstructor; eauto.
-      (* If *)
+      apply H in Hmeasure; destruct Hmeasure as [IH _]; clear H.
+      simplify_tc_goal.
+      eapply IH in Hoption0 => //; last (by erewrite Hif); clear IH Hs.
+      destruct Hoption0 as [tn [Hct Hbet]].
+      unfold c_types_agree in Hct; simplify_tc_goal.
+      apply values_subtyping_rev in Hct.
+      eapply bet_subtyping with (t1s' := rev r) (t2s' := rev r0) in Hbet; last by resolve_subtyping.
+      eapply bet_loop in Hbet; last by eauto.
+      specialize (type_update_agree_subtyping Hupdate Hagree) as [tx [Hagree0 Hsub]].
+      eapply bet_subtyping in Hbet; last by apply Hsub.
+      by exists tx.
+    (* If *)
     + destruct i.
+      rewrite upd_label_context_reverse in Hupdate.
+      simpl in Hupdate.
+      rewrite mapK in Hupdate; last by apply revK.
+      apply expand_t_context_reverse in Hoption; simpl in Hoption.
+      rewrite context_reverseK in Hoption.
       fold_remember_check.
       fold (be_size_list l) in Hs.
       fold (be_size_list l0) in Hs.
       assert (be_size_list l < d)%coq_nat as Hmeasure1; first by lias.
       assert (be_size_list l0 < d)%coq_nat as Hmeasure2; first by lias.
-      apply H in Hmeasure1.
-      destruct Hmeasure1 as [IH1 _].
-      apply H in Hmeasure2.
-      destruct Hmeasure2 as [IH2 _].
-      auto_rewrite_cond.
-      eapply IH1 in H0 => //.
-      eapply IH2 in H1 => //.
-      destruct H0 as [tn1'' [Hctif1 Hbet1]].
-      destruct H1 as [tn2'' [Hctif2 Hbet2]].
-      simpl in *.
-      move/eqP in Hctif1; subst.
-      move/eqP in Hctif2; subst.
-      apply type_update_type_agree in Hct2.
-      destruct Hct2 as [lp [Hct1 Heq]]; subst.
-      exists (lp ++ tn2'' ++ [::T_num T_i32]); split => //.
-      by apply bet_weakening; econstructor; eauto.
-      (* Br *)
-    + unfold type_update in Hct2.
-      assert (consume cts (to_ct_list r) <> CT_error) as Hconsume; first by destruct (consume _ _).
-      apply tc_to_bet_br in Hconsume.
+      apply H in Hmeasure1; destruct Hmeasure1 as [IH1 _].
+      apply H in Hmeasure2; destruct Hmeasure2 as [IH2 _].
+      clear H; simplify_tc_goal.
+      eapply IH1 in Hoption1 => //; last by apply H; clear IH1.
+      eapply IH2 in Hoption0 => //; last by apply H0; clear IH2.
+      destruct Hoption0 as [tn1 [Hct1 Hbet1]].
+      destruct Hoption1 as [tn2 [Hct2 Hbet2]].
+      unfold c_types_agree in Hct1; unfold c_types_agree in Hct2; simplify_tc_goal.
+      apply values_subtyping_rev in Hct1.
+      apply values_subtyping_rev in Hct2.
+      eapply bet_subtyping with (t1s' := rev r) (t2s' := rev r0) in Hbet1; last by resolve_subtyping.
+      eapply bet_subtyping with (t1s' := rev r) (t2s' := rev r0) in Hbet2; last by resolve_subtyping.
+      eapply bet_if_wasm in Hbet1; (try by apply Hbet2); try by eauto.
+      specialize (type_update_agree_subtyping Hupdate Hagree) as [tx [Hagree0 Hsub]].
+      rewrite rev_cons -cats1 in Hsub.
+      eapply bet_subtyping in Hbet1; last by apply Hsub.
+      by exists tx.
+    (* Br *)
+    + unfold type_update_top in Hupdate; simplify_tc_goal.
+      assert (type_update << (CT_type cts), true >> r nil = Some << (CT_type c), true>>) as Hupdate.
+      { unfold type_update, produce.
+        apply consume_Some_impl in Hoption0 as [? ->].
+        erewrite consume_Some_spec => /=; eauto => //=.
+        done.
+      }
+      apply nth_error_map in Hoption as [ts [Hnth <-]].
+      exists (CT_type cts); split; first by apply c_types_agree_refl.
+      apply consume_Some_impl in Hoption0 as [Hagree' Heq].
+      rewrite size_rev in Hagree'.
+      apply c_types_agree_impl_subtyping in Hagree'.
+      apply bet_subtyping with (t1s := rev (drop (size ts) (CT_type cts)) ++ ts) (t2s := (rev tm)); first by apply bet_br.
+      eapply instr_subtyping_weaken1; first reflexivity.
+      resolve_subtyping => /=.
+      unfold c_types_agree in Hagree'.
+      
+      apply tc_to_bet_br.
       destruct Hconsume as [tn Hcts].
       exists (tn ++ r); split => //.
       by constructor.
@@ -1301,15 +1565,6 @@ Proof.
 Qed.
 
 (* Old weakening rule *)
-Lemma bet_weakening: forall C es ts ts1 ts2,
-    be_typing C es (Tf ts1 ts2) ->
-    be_typing C es (Tf (ts ++ ts1) (ts ++ ts2)).
-Proof.
-  intros ????? Hbet.
-  eapply bet_subtyping; eauto.
-  by resolve_subtyping.
-Qed.
-
 Lemma ct_compat_symmetry: forall c1 c2,
   ct_compat c1 c2 ->
   ct_compat c2 c1.
@@ -2675,34 +2930,6 @@ Ltac resolve_update_agree :=
     (try by do 2 econstructor; eauto)
   end.
 
-Lemma type_update_ref_is_null_bet: forall C cts tm,
-  c_types_agree (type_update_ref_is_null cts) tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C [::BI_ref_is_null] (Tf tn tm).
-(*
-Proof.
-  move => C cts tm Hct.
-  unfold type_update_ref_is_null in Hct.
-  destruct cts as [ts | ts | ].
-  - destruct ts => //.
-    unfold ct_suffix in Hct; auto_rewrite_cond.
-    exists ((take (size tm - 1) tm) ++ [::T_ref T_funcref]); split; first by apply ct_suffix_empty.
-    rewrite <- (cat_take_drop (size tm - 1) tm) at 3.
-    apply bet_weakening_empty_1.
-    unfold to_ct_list in H0; rewrite - map_drop in H0.
-    fold (to_ct_list (drop (size tm - 1) tm)) in H0.
-    replace ([::CTA_some (T_num T_i32)]) with (to_ct_list [::T_num T_i32]) in H0 => //.
-    apply ct_list_compat_to_ct in H0.
-    rewrite H0.
-    apply bet_ref_is_null.
-    unfold ct_list_compat in H0.
-    + move => Hct.
-      apply ct_suffix_1_impl in Hct as [t [ts ->]].
-      exists (ts ++ [::T_ref T_funcref]); split; first by apply ct_suffix_empty.
-      apply bet_weakening.
-      eapply bet_subtyping; first by constructor.
-      resolve_subtyping.
-*)
-Admitted.
 
 
 Lemma type_update_select_agree_bet: forall C cts ots tm,
@@ -2974,13 +3201,13 @@ Proof with auto_rewrite_cond.
     (* Binop_f *)
     + by destruct n; resolve_update_agree.
     (* Testop *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
     (* Relop_i *)
     + by destruct n; resolve_update_agree.
     (* Relop_f *)
     + by destruct n; resolve_update_agree.
     (* Cvtop *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
     (* Const_vec *)
     + by resolve_no_consume cts [::T_vec (typeof_vec v)] tm.
     (* Const_vec *)
@@ -3027,52 +3254,52 @@ Proof with auto_rewrite_cond.
     (* Select *)
     + by apply type_update_select_agree_bet.
       (* Local_get *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Local_set *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Local_tee *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Global_set *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Global_get *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Table_get *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Table_set *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Table_size *)
     + by resolve_no_consume cts [::T_num T_i32] tm.
       (* Table_grow *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Table_fill *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Table_copy *)
     + fold_type_update Hct2.
-      by resolve_update_agree.
+      by resolve_tc_be_typing.
       (* Table_init *)
     + fold_type_update Hct2.
-      by resolve_update_agree.
+      by resolve_tc_be_typing.
       (* Elem_drop *)
     + exists tm; split => //.
       by apply bet_weakening_empty_both; econstructor; eauto.
       (* Load *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Store *)
     + fold_type_update Hct2.
-      by resolve_update_agree.
+      by resolve_tc_be_typing.
       (* Memory_size *)
     + by resolve_no_consume cts [::T_num T_i32] tm.
       (* Memory_grow *)
-    + by resolve_update_agree.
+    + by resolve_tc_be_typing.
       (* Memory_fill *)
     + fold_type_update Hct2.
-      by resolve_update_agree.
+      by resolve_tc_be_typing.
       (* Memory_copy *)
     + fold_type_update Hct2.
-      by resolve_update_agree.
+      by resolve_tc_be_typing.
       (* Memory_init *)
     + fold_type_update Hct2.
-      by resolve_update_agree.
+      by resolve_tc_be_typing.
       (* Data_drop *)
     + exists tm; split => //.
       by apply bet_weakening_empty_both; econstructor; eauto.

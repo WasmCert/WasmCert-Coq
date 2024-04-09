@@ -314,6 +314,57 @@ Proof.
   exists (ts ++ ts0), (ts ++ ts'), sub1, sub2; repeat split => //; try by rewrite catA.
   by apply values_subtyping_weaken.
 Qed.
+
+Lemma instr_subtyping_weaken1: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (tx1 <ts: ts) ->
+    ((Tf ts ty1) <ti: (Tf tx2 ty2)).
+Proof.
+  intros.
+  unfold instr_subtyping in *.
+  destruct H as [ts0 [ts' [ts1_s [ts2_s [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  exists ts0, ts', ts1_s, ts2_s.
+  repeat split => //; by eapply values_subtyping_trans; eauto.
+Qed.
+
+Lemma instr_subtyping_weaken2: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ty2 <ts: ts) ->
+    ((Tf tx1 ty1) <ti: (Tf tx2 ts)).
+Proof.
+  intros ?????? Hsub.
+  unfold instr_subtyping in *.
+  destruct H as [ts0 [ts' [ts1_s [ts2_s [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  apply values_subtyping_split2 in Hsub; remove_bools_options.
+  exists ts0, (take (size ts') ts), ts1_s, (drop (size ts') ts); rewrite cat_take_drop.
+  repeat split => //; by eapply values_subtyping_trans; eauto.
+Qed.
+
+Lemma instr_subtyping_strengthen1: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ts <ts: ty1) ->
+    ((Tf tx1 ts) <ti: (Tf tx2 ty2)).
+Proof.
+  intros.
+  unfold instr_subtyping in *.
+  destruct H as [ts0 [ts' [ts1_s [ts2_s [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  exists ts0, ts', ts1_s, ts2_s.
+  repeat split => //; by eapply values_subtyping_trans; eauto.
+Qed.
+
+Lemma instr_subtyping_strengthen2: forall tx1 ty1 tx2 ty2 ts,
+    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
+    (ts <ts: tx2) ->
+    ((Tf tx1 ty1) <ti: (Tf ts ty2)).
+Proof.
+  intros ?????? Hsub.
+  unfold instr_subtyping in *.
+  destruct H as [ts0 [ts' [ts1_s [ts2_s [-> [-> [Hsub1 [Hsub2 Hsub3]]]]]]]].
+  apply values_subtyping_split1 in Hsub; remove_bools_options.
+  exists (take (size ts0) ts), ts', (drop (size ts0) ts), ts2_s; rewrite cat_take_drop.
+  repeat split => //; by eapply values_subtyping_trans; eauto.
+Qed.
+
   
 (* Trying to resolve subtyping goals in a non-breaking way. A different tactic is provided below that performs more destructive unfolds on instr and func subtyping relations. *)
 Ltac resolve_subtyping :=
@@ -444,8 +495,27 @@ Ltac resolve_subtyping :=
   (* proving singleton list subtyping *)
   | H: is_true (?t1 <t: ?t2) |-
       context [[::?t1] <ts: [::?t2]] =>
-      rewrite (value_values_subtyping H)
+      rewrite - (value_values_subtyping t1 t2)
+              
+  | H: is_true (?t1 <t: ?t2) |-
+      context [is_true ([::?t1] <ts: [::?t2])] =>
+      rewrite - (value_values_subtyping t1 t2)
 
+  (* Strengthening and weakening *)
+  | H: is_true (?t1 <t: ?t2) |-
+      (Tf [::?t2] _ <ti: Tf [::?t1] _) =>
+      apply instr_subtyping_weaken1 with (tx1 := [::t1]) => //
+  | H: is_true (?t1 <t: ?t2) |-
+      (Tf _ [::?t1] <ti: Tf _ [::?t2]) =>
+      apply instr_subtyping_strengthen1 with (ty1 := [::t2]) => //
+                                                            
+  | H: is_true (?ts1 <ts: ?ts2) |-
+      (Tf ?ts2 _ <ti: Tf ?ts1 _) =>
+      apply instr_subtyping_weaken1 with (tx1 := ts1) => // 
+  | H: is_true (?ts1 <ts: ?ts2) |-
+      (Tf _ ?ts1 <ti: Tf _ ?ts2) =>
+      apply instr_subtyping_strengthen1 with (ty1 := ts2) => //
+                  
   | _ => try by []
   end.
 
@@ -481,52 +551,6 @@ Ltac extract_premise :=
     destruct H as [Hconjl Hconjr]
   | _ => (repeat rewrite -> cats0 in * ); (repeat rewrite -> cat0s in * ); resolve_subtyping; subst
     end.
-
-Lemma instr_subtyping_weaken1: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (tx1 <ts: ts) ->
-    ((Tf ts ty1) <ti: (Tf tx2 ty2)).
-Proof.
-  intros.
-  unfold instr_subtyping in *; extract_premise.
-  exists extr, extr0, extr1, extr2.
-  repeat split => //; by eapply values_subtyping_trans; eauto.
-Qed.
-
-Lemma instr_subtyping_weaken2: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (ty2 <ts: ts) ->
-    ((Tf tx1 ty1) <ti: (Tf tx2 ts)).
-Proof.
-  intros ?????? Hsub.
-  unfold instr_subtyping in *; extract_premise.
-  apply values_subtyping_split2 in Hsub; remove_bools_options.
-  exists extr, (take (size extr0) ts), extr1, (drop (size extr0) ts); rewrite cat_take_drop.
-  repeat split => //; by eapply values_subtyping_trans; eauto.
-Qed.
-
-Lemma instr_subtyping_strengthen1: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (ts <ts: ty1) ->
-    ((Tf tx1 ts) <ti: (Tf tx2 ty2)).
-Proof.
-  intros.
-  unfold instr_subtyping in *; extract_premise.
-  exists extr, extr0, extr1, extr2.
-  repeat split => //; by eapply values_subtyping_trans; eauto.
-Qed.
-
-Lemma instr_subtyping_strengthen2: forall tx1 ty1 tx2 ty2 ts,
-    ((Tf tx1 ty1) <ti: (Tf tx2 ty2)) ->
-    (ts <ts: tx2) ->
-    ((Tf tx1 ty1) <ti: (Tf ts ty2)).
-Proof.
-  intros ?????? Hsub.
-  unfold instr_subtyping in *; extract_premise.
-  apply values_subtyping_split1 in Hsub; remove_bools_options.
-  exists (take (size extr) ts), extr0, (drop (size extr) ts), extr2; rewrite cat_take_drop.
-  repeat split => //; by eapply values_subtyping_trans; eauto.
-Qed.
 
 (* Only use this tactic if desperate *)
 Ltac simplify_subtyping :=
