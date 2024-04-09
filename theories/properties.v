@@ -1990,6 +1990,13 @@ Proof.
   by lias.
 Qed.
 
+Lemma lookup_N_map {T1 T2: Type}: forall (f: T1 -> T2) (l: list T1) n,
+    lookup_N (map f l) n = option_map f (lookup_N l n).
+Proof.
+  move => f l n.
+  by apply nth_error_map'.
+Qed.
+
 Lemma component_extension_update {T: Type} (l: list T) n x y y0 f:
   reflexive f ->
   List.nth_error l n = Some x ->

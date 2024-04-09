@@ -419,7 +419,6 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
       end
   end.
 
-
 Definition check (C : t_context) (es : list basic_instruction) (ct : option checker_type): option checker_type :=
   List.fold_left (check_single C) es ct.
 
