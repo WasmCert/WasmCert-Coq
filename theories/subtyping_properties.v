@@ -69,6 +69,17 @@ Proof.
   by rewrite all2_cat => //.
 Qed.
 
+Lemma values_subtyping_cat': forall tx1 tx2 ty1 ty2,
+  (tx1 <ts: ty1) ->
+  (tx2 <ts: ty2) ->
+  (tx1 ++ tx2) <ts: (ty1 ++ ty2).
+Proof.
+  intros.
+  unfold values_subtyping in *.
+  rewrite all2_cat => //; first by lias.
+  by apply all2_size in H.
+Qed.
+
 Lemma values_subtyping_rev: forall ts1 ts2,
     ts1 <ts: ts2 ->
     rev ts1 <ts: rev ts2.
@@ -515,7 +526,18 @@ Ltac resolve_subtyping :=
   | H: is_true (?ts1 <ts: ?ts2) |-
       (Tf _ ?ts1 <ti: Tf _ ?ts2) =>
       apply instr_subtyping_strengthen1 with (ty1 := ts2) => //
-                  
+
+  (* cat *)
+  | H1: is_true (?ts1 <ts: ?ts2),
+    H2: is_true (?ts1' <ts: ?ts2') |-
+      context [(?ts1 ++ ?ts1') <ts: (?ts2 ++ ?ts2')] =>
+      rewrite (values_subtyping_cat' H1 H2)
+              
+  (* reverse *)
+  | H: is_true (?ts1 <ts: ?ts2) |-
+      context [(rev ?ts1) <ts: (rev ?ts2)] =>
+      rewrite (values_subtyping_rev H)
+              
   | _ => try by []
   end.
 
