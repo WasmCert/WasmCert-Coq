@@ -4,7 +4,7 @@
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import list_extra datatypes datatypes_properties
-                         interpreter_func binary_format_parser operations
+                        binary_format_parser operations
                          typing opsem type_checker memory memory_list.
 From Coq Require Import BinNat.
 
@@ -13,9 +13,6 @@ From Coq Require Import BinNat.
 Section Instantiation_spec.
   
 Context `{ho: host}.
-
-(* Before adding a canonical structure to [name], we save the base one to ensure better extraction. *)
-Local Canonical Structure name_eqType := Eval hnf in EqType name (seq_eqMixin _).
 
 Definition alloc_Xs {A B} f (s : store_record) (xs : list A) : store_record * list B :=
   let '(s', fas) :=

@@ -8,9 +8,7 @@ Section Instantiation_func.
 
 Context `{ho: host}.
   
-  (*
-Import Interpreter_ctx_extract.
-  *)
+
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   lookup_N tfs m_f.(modfunc_type).
 

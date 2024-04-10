@@ -262,7 +262,7 @@ Definition eqmoduleinstP : Equality.axiom moduleinst_eqb :=
 Canonical Structure moduleinst_eqMixin := EqMixin eqmoduleinstP.
 Canonical Structure moduleinst_eqType := Eval hnf in EqType moduleinst moduleinst_eqMixin.
 
-Let administrative_instruction_rect :=
+Definition administrative_instruction_rect :=
   @administrative_instruction_rect
   : forall (P : administrative_instruction -> Type), _.
 

@@ -3,7 +3,7 @@
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun ssrnat.
 Require Import Coq.Program.Equality NArith.
 Require Export instantiation_spec.
-Require Export type_preservation type_progress properties.
+Require Export type_preservation properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -60,11 +60,6 @@ let rec user_input prompt cb st =
 let string_of_crash_reason = function
   | () -> "error"
 
-(* XXX fix this in Coq? *)
-let tuple_drop_hs res =
-  match res with
-  | (((_, s), f), r) -> ((s, f), r)
-
 (*
 let take_step verbosity _i cfg =
   let res = run_step_compat cfg in
@@ -177,7 +172,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   | Some cfg_invocation -> 
     let* res = eval_cfg 1 hs cfg_invocation in
     begin match res with
-    | Some (hs', s', vs') ->
+    | Some (hs', s', _) ->
       debug_info verbosity intermediate (fun _ ->
       Printf.sprintf "\nInstantiation success\n");
       let* es_init =
@@ -213,7 +208,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   
 
 (* TODO: update the interactive to use the context-optimised version as well *)
-let instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m name =
+let instantiate_interpret verbosity interactive error_code_on_crash m name =
   let* hs_s_f_es =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->

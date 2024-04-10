@@ -7,7 +7,6 @@ From Wasm Require Import
   datatypes_properties
   binary_format_parser
   instantiation_func
-  interpreter_func
   interpreter_ctx
   type_checker
   pp

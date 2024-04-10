@@ -32,5 +32,5 @@ val invocation_interpret : Output.verbosity -> bool -> ((Extract.Equality.sort *
 (** Given a verbosity level, a boolean stating whether interactive mode is enable, another boolan
    stating whether the program should crash if the interpreted code does, a module, a function name,
    instantiate, then interpret a parsed Wasm module. *)
-val instantiate_interpret : Output.verbosity -> bool -> bool -> bool -> Extract.module0 -> string -> unit Host.host_event
+val instantiate_interpret : Output.verbosity -> bool -> bool -> Extract.module0 -> string -> unit Host.host_event
 

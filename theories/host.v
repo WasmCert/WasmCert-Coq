@@ -35,10 +35,7 @@ Class host := {
     host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
     host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
                        host_state -> option (store_record * result) -> Prop
-                       (** An application of the host function. **)
-    (* Should the resulting [host_state] be part of the [option]?
-      (See https://github.com/rems-project/wasm_coq/issues/16#issuecomment-616402508
-       for a discussion about this.) *) ;
+                       (** An application of the host function. **) ;
 
     host_application_extension : forall s t st h vs s' st' r,
       host_application s st t h vs s' (Some (st', r)) ->
