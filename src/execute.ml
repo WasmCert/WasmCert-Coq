@@ -143,12 +143,11 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
       match cfg_res with
       | RSC_normal (hs', cfg') ->
-        debug_info verbosity intermediate ~style:yellow (fun _ -> "\nReforming the configuration for the next step...\n");
         begin match run_step_cfg_ctx_reform cfg' with
         | Some cfg_next -> 
             eval_cfg (gen+1) hs' cfg_next
         | None ->
-          debug_info verbosity stage ~style:red (fun _ -> "Reformation failure\n");
+          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure\n");
           pure None
         end
       | RSC_value (hs, s, vs) ->
@@ -166,7 +165,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
       )
     in
   debug_info verbosity intermediate (fun _ ->
-    Printf.sprintf "\nPost-instantiation initialisation stage...\n");
+    Printf.sprintf "\nPost-instantiation stage for table and memory initialisers...\n");
   
   match run_v_init_with_frame s f_invocation O es_invocation with
   | Some cfg_invocation -> 
