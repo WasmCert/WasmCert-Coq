@@ -208,7 +208,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   
 
 (* TODO: update the interactive to use the context-optimised version as well *)
-let instantiate_interpret verbosity interactive error_code_on_crash m name =
+let instantiate_interpret verbosity error_code_on_crash m name =
   let* hs_s_f_es =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
