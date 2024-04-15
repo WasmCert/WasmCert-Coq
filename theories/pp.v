@@ -457,7 +457,6 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
     indent n (with_fg ae_style "ref_extern " ++ pp_addr a ++ newline)
   | AI_invoke a =>
     indent n (with_fg ae_style "invoke " ++ pp_addr a ++ newline)
-  (*    pp_funcinst (n.+1) fc*)
            
   | AI_label k es1 es2 =>
     indent n (with_fg ae_style "label " ++ string_of_nat k ++ newline) ++
@@ -475,6 +474,10 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
 
 Definition pp_administrative_instructions (n : nat) (es : list administrative_instruction) : string :=
   String.concat "" (List.map (pp_administrative_instruction n) es).
+
+Definition pp_administrative_instructions_hint_empty (n : nat) (es : list administrative_instruction) : string :=
+  if es == nil then ("(empty)" ++ newline)%string
+  else String.concat "" (List.map (pp_administrative_instruction n) es).
 
 Definition pp_mutability (m : mutability) : string :=
   match m with
@@ -511,21 +514,21 @@ Definition pp_store (n : indentation) (s : store_record) : string :=
 (* XXX disambiguate between cfg/res tuple with/without hs? *)
 Definition pp_config_tuple_except_store (cfg : store_record * frame * list administrative_instruction) : string :=
   let '(s, f, es) := cfg in
-  pp_administrative_instructions 0 es ++
+  pp_administrative_instructions_hint_empty 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
 
 Definition pp_cfg_tuple_ctx_except_store (cfg: cfg_tuple_ctx) : string :=
   let '(s, ccs, sc, oe) := cfg in
-  pp_administrative_instructions 0 (ccs ⦃ sc ⦃ olist oe ⦄ ⦄).
+  pp_administrative_instructions_hint_empty 0 (ccs ⦃ sc ⦃ olist oe ⦄ ⦄).
 
 Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) : string :=
   match res with
   | RSC_normal hs' cfg' _ =>
-      "Reduction to:" ++ newline ++ pp_cfg_tuple_ctx_except_store cfg' ++ newline
+      pp_cfg_tuple_ctx_except_store cfg' ++ newline
   | RSC_value _ _ vs _ _ _ =>
-      "Value:" ++ newline ++ pp_values vs ++ newline
+      "Value:" ++ newline ++ pp_values_hint_empty vs ++ newline
   | RSC_value_frame _ _ vs _ _ _ _ _ =>
-      "Value (f):" ++ newline ++ pp_values vs ++ newline
+      "Value:" ++ newline ++ pp_values_hint_empty vs ++ newline
   | RSC_invalid _ =>
       "Invalid context. This should not happen when executing a module start function. Please report a bug if this error arises during invocation of module start functions." ++ newline
   | RSC_error _ =>

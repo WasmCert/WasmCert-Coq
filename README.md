@@ -72,16 +72,16 @@ dune exec -- wasm_coq_interpreter tests/add.wasm -r main --vi
 ```
 would produce:
 ```bash
-parsing OK                           
+parsing OK                            
 instantiation OK
 
 Post-instantiation stage for table and memory initialisers...
 step 1:
-Reduction to:
+(empty)
 
 step 2:
 Value:
-
+(empty)
 success after 2 steps
 
 Instantiation success
@@ -95,7 +95,6 @@ with values (empty)
 end frame
 
 step 1:
-Reduction to:
 frame 0
 with values (empty)
   frame 1
@@ -110,7 +109,6 @@ with values (empty)
 end frame
 
 step 2:
-Reduction to:
 frame 0
 with values (empty)
   frame 1
@@ -123,7 +121,6 @@ with values (empty)
 end frame
 
 step 3:
-Reduction to:
 frame 0
 with values (empty)
   frame 1
@@ -133,16 +130,14 @@ with values (empty)
 end frame
 
 step 4:
-Reduction to:
 frame 0
 with values (empty)
   i32.const 42
 end frame
 
 step 5:
-Value (f):
+Value:
 i32.const 42
 
 success after 5 steps
-
 ```
