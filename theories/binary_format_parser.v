@@ -604,6 +604,7 @@ Definition language : [ Language ] := Fix Language (fun k rec =>
     parse_reference_instruction <|>
     parse_parametric_instruction <|>
     parse_variable_instruction <|>
+    parse_table_instruction <|>
     parse_memory_instruction <|>
     parse_numeric_instruction in
   let parse_bes_end_with_x0b :=
@@ -691,13 +692,13 @@ Definition parse_module_element_4 {n} : byte_parser module_element n :=
   ((fun es els => {| modelem_type := T_funcref; modelem_init := els; modelem_mode := ME_active 0%N es; |}) <$> parse_expr) <*> parse_vec parse_expr.
 
 Definition parse_module_element_5 {n} : byte_parser module_element n :=
-  ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_passive; |}) <$> parse_elemkind) <*> parse_vec parse_expr.
+  ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_passive; |}) <$> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element_6 {n} : byte_parser module_element n :=
-  ((((fun (x: tableidx) es t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_active x es; |}) <$> parse_tableidx) <*> parse_expr) <*> parse_elemkind) <*> parse_vec parse_expr.
+  ((((fun (x: tableidx) es t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_active x es; |}) <$> parse_tableidx) <*> parse_expr) <*> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element_7 {n} : byte_parser module_element n :=
-  ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_declarative; |}) <$> parse_elemkind) <*> parse_vec parse_expr.
+  ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_declarative; |}) <$> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element {n}: byte_parser module_element n :=
   exact_byte x00 &> parse_module_element_0 <|>

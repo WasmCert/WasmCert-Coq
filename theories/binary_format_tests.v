@@ -167,3 +167,22 @@ Definition module_42_exported := {|
 Lemma module_42_exported_round_trip :
   run_parse_module (binary_of_module module_42_exported) = Some module_42_exported.
 Proof. vm_compute. reflexivity. Qed.
+
+Definition module_tableops := {|
+  mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
+  mod_funcs :=
+    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 1))) in
+    cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
+  mod_tables := (cons (Build_module_table (Build_table_type (Build_limits 0%N (Some 4%N)) T_funcref)) nil);
+  mod_mems := nil;
+                               mod_globals := nil;
+  mod_elems := (cons (Build_module_element T_funcref (cons (cons (BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 1)))) nil) nil) (ME_active 0%N (cons (BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 1)))) nil))) nil);
+  mod_datas := nil;
+  mod_start := None;
+  mod_imports := nil;
+  mod_exports := cons {| modexp_name := String.list_byte_of_string "hello"; modexp_desc := MED_func 0%N; |} nil;
+|}.
+
+Lemma module_tableops_exported_round_trip :
+  run_parse_module (binary_of_module module_tableops) = Some module_tableops.
+Proof. vm_compute. reflexivity. Qed.
