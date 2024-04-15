@@ -16,15 +16,25 @@ This test contains some compositions of table and element-related operations.
     i32.const 3
     table.get 0
     table.set 0
+    i32.const 3
+    table.get 0
+    i32.const 3
+    table.grow $t1
+    drop
+    i32.const 0
+    i32.const 1
+    i32.const 2
+    table.copy $t1 $t1
     i32.const 0
     call_indirect $t1 (type $type1)
   )
 )
+
 ```
 
 ```sh
-$ wasm_coq_interpreter tableops.wasm -r main
-i32.const 3
+$ wasm_coq_interpreter tablebulk.wasm -r main
+i32.const 1
 
 ```
 
