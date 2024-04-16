@@ -1,11 +1,11 @@
 # wasm_coq
-WebAssembly (aka Wasm) formalisation in Coq, based on the [official formalisation](https://webassembly.github.io/spec/core/).
+A WebAssembly (aka Wasm) formalisation in Coq, based on the [official specification](https://webassembly.github.io/spec/core/).
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2024 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
 
-The current master branch formalises Wasm 2.0 with subtyping systems from the future funcref/GC extension proposals. A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
+The current master branch formalises Wasm version 2.0, plus additional subtyping systems from the future funcref/GC extension proposals. A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
 
 # Components of the Repository
 
@@ -21,11 +21,11 @@ The current master branch formalises Wasm 2.0 with subtyping systems from the fu
 - [x] Soundness results for module instantiation.
 - [x] Proof carrying interpreter deriving progress.
 - [x] Interpreter with optimised context representations.
-- [x] Updates for Wasm 2.0 (except SIMD) + subtyping systems.
+- [x] Updates for Wasm 2.0 (except SIMD and new numerics ops) + subtyping systems.
 
 ## Unmerged/Future Work
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [ ] Updates for further extension proposals (SIMD, GC, tail calls, etc).
+- [ ] Updates for further extension proposals.
 
 # Program Logic
 
@@ -34,6 +34,7 @@ This is migrated from an older build for the [artefact](https://zenodo.org/recor
 
 # Binary Parser (experimental)
 This repository contains some experimental work on a parser for the binary format which is currently unverified.
+As the parser forms a part of the extracted interpreter, any error in the parser would result in the interpreter reporting `syntax error` for some valid Wasm binaries. Bug reports are appreciated!
 
 # Usage
 
@@ -46,10 +47,6 @@ Compiling the dependencies requires having at least 4-8 GB of RAM on your comput
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
 ```
-
-## Build Based on Esy
-
-The previous esy-based build is now deprecated; it is moved to esy branch.
 
 ## Testing the Installation
 
