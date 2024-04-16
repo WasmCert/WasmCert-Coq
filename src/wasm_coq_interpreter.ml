@@ -3,7 +3,7 @@
 (*open Convert*)
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec interactive no_ctx_optimise error_code_on_crash (srcs: string list) func_name =
+let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: string list) func_name =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
@@ -35,12 +35,12 @@ let process_args_and_run verbosity text no_exec interactive no_ctx_optimise erro
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else Execute.instantiate_interpret verbosity interactive no_ctx_optimise error_code_on_crash m func_name
+    else Execute.instantiate_interpret verbosity error_code_on_crash m func_name
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec interactive no_ctx_optimise error_code_on_crash srcs func_name =
-  process_args_and_run verbosity text no_exec interactive no_ctx_optimise error_code_on_crash srcs func_name
+let process_args_and_run_out verbosity text no_exec error_code_on_crash srcs func_name =
+  process_args_and_run verbosity text no_exec error_code_on_crash srcs func_name
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -67,14 +67,11 @@ let no_exec =
   let doc = "Stop before executing (only go up to typechecking)." in
   Arg.(value & flag & info ["no-exec"] ~doc)
 
+  (*
 let interactive =
   let doc = "Interactive execution." in
   Arg.(value & flag & info ["i"; "interactive"] ~doc)
-
-let no_ctx_optimise = 
-  let doc = "Disable context optimisation." in
-  Arg.(value & flag & info ["nc"; "nocontext"] ~doc)
-
+*)
   (*
 let fuel =
   let doc = "Specify maximum amount of steps to run." in
@@ -106,7 +103,7 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ no_ctx_optimise $ error_code_on_crash $ srcs $ func_name ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec (* $ interactive *) $ error_code_on_crash $ srcs $ func_name ))
 
   
 let () = Stdlib.exit @@ 

@@ -1,12 +1,11 @@
 # wasm_coq
-WebAssembly (aka Wasm) 1.0 formalisation in Coq, based on the [official formalisation](https://www.w3.org/TR/wasm-core-1/).
-Our definitions and proofs initially drew from those given in the [Isabelle mechanisation of Conrad Watt](https://www.isa-afp.org/entries/WebAssembly.html).
+A WebAssembly (aka Wasm) formalisation in Coq, based on the [official specification](https://webassembly.github.io/spec/core/).
 
-(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2023 - see LICENSE.txt
+(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2024 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
 
-This work is in progress. While our initial work used the definitions published in PLDI'17, we have now adapted the mechanisation to Wasm 1.0., the specification as ratified by the W3C. A large part of the work has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with more additions to the repository since then.
+The current master branch formalises Wasm version 2.0, plus additional subtyping systems from the future funcref/GC extension proposals. A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
 
 # Components of the Repository
 
@@ -22,11 +21,11 @@ This work is in progress. While our initial work used the definitions published 
 - [x] Soundness results for module instantiation.
 - [x] Proof carrying interpreter deriving progress.
 - [x] Interpreter with optimised context representations.
+- [x] Updates for Wasm 2.0 (except SIMD and new numerics ops) + subtyping systems.
 
 ## Unmerged/Future Work
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [ ] Updates for Wasm 2.0 (except SIMD).
-- [ ] Updates for further extension proposals (SIMD, GC, tail calls, etc).
+- [ ] Updates for further extension proposals.
 
 # Program Logic
 
@@ -35,6 +34,7 @@ This is migrated from an older build for the [artefact](https://zenodo.org/recor
 
 # Binary Parser (experimental)
 This repository contains some experimental work on a parser for the binary format which is currently unverified.
+As the parser forms a part of the extracted interpreter, any error in the parser would result in the interpreter reporting `syntax error` for some valid Wasm binaries. Bug reports are appreciated!
 
 # Usage
 
@@ -48,10 +48,6 @@ opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
 ```
 
-## Build Based on Esy
-
-The previous esy-based build is now deprecated; it is moved to esy branch.
-
 ## Testing the Installation
 
 The project comes with a small set of tests for the extracted interpreter:
@@ -63,71 +59,82 @@ dune test
 
 A file `wasm_coq_interpreter` will have been generated under `_build/install`.
 It takes as argument a list of Wasm files, followed by a function name to run (with the `-r` flag).
-For instance, to interpret the function `main` defined in [tests/floatmul.wasm](tests/floatmul.wasm), run:
+For instance, to interpret the function `main` defined in [tests/add.wasm](tests/add.wasm), run:
 ```bash
-dune exec -- wasm_coq_interpreter tests/floatmul.wasm -r main
+dune exec -- wasm_coq_interpreter tests/add.wasm -r main
 ```
 The interpreter can display intermediate states of the operational semantics:
 ```bash
-dune exec -- wasm_coq_interpreter tests/floatmul.wasm -r main --vi
+dune exec -- wasm_coq_interpreter tests/add.wasm -r main --vi
 ```
 would produce:
 ```bash
-parsing OK
+parsing OK                            
 instantiation OK
+
+Post-instantiation stage for table and memory initialisers...
+step 1:
+(empty)
+
+step 2:
+Value:
+(empty)
+success after 2 steps
+
+Instantiation success
 interpreting OK
 step 0:
 
-invoke 0
+Executing configuration:
+frame 0
 with values (empty)
+  invoke 0
+end frame
 
 step 1:
-normal
-  local 1
-  with values (empty)
-    block f32
-        f32.const 4350553f
-        f32.const 431c4000
-        f32.mul
-    end
-  end local
+frame 0
 with values (empty)
-and store unchanged
+  frame 1
+  with values (empty)
+    label 1
+    label_cont
+      i32.const 40
+      i32.const 2
+      i32.add
+    end label
+  end frame
+end frame
+
 step 2:
-normal
-  local 1
+frame 0
+with values (empty)
+  frame 1
   with values (empty)
     label 1
     label_cont
-      f32.const 4350553f
-      f32.const 431c4000
-      f32.mul
+      i32.const 42
     end label
-  end local
-with values (empty)
-and store unchanged
+  end frame
+end frame
+
 step 3:
-normal
-  local 1
-  with values (empty)
-    label 1
-    label_cont
-      f32.const 46fe500f
-    end label
-  end local
+frame 0
 with values (empty)
-and store unchanged
+  frame 1
+  with values (empty)
+    i32.const 42
+  end frame
+end frame
+
 step 4:
-normal
-  local 1
-  with values (empty)
-    f32.const 46fe500f
-  end local
+frame 0
 with values (empty)
-and store unchanged
+  i32.const 42
+end frame
+
 step 5:
-normal
-  f32.const 46fe500f
-with values (empty)
-and store unchanged
+Value:
+i32.const 42
+
+success after 5 steps
 ```

@@ -47,9 +47,12 @@ Ltac lias_simpl :=
   | |- context C [subn] => rewrite /subn /subn_rec
   | |- context C [addn] => rewrite /addn /addn_rec
   | |- is_true (leq _ _) => apply/leP
+  | |- is_true (BinNat.N.leb _ _) => apply/BinNat.N.leb_spec0
+  | |- is_true (BinNat.N.ltb _ _) => apply/BinNat.N.ltb_spec0
   | |- is_true (@eq_op nat_eqType _ _) => rewrite -eqnE; apply/eqnP
   | |- is_true (@eq_op Z_eqType _ _) => apply/Z_eqP
   | |- is_true (@eq_op Pos_eqType _ _) => apply/Pos_eqP
+  | |- is_true (@eq_op _ _ _) => apply/eqP
   | |- context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n);
     rewrite <- (Znat.Nat2Z.inj_succ n)
@@ -67,9 +70,12 @@ Ltac lias_simpl :=
     have L: (~ a <= b)%coq_nat;
     [ move=> ?; apply: H; apply/leP; by lia | clear H ]
   | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
+  | H: context C [is_true (BinNat.N.leb _ _)] |- _ => move: H => /BinNat.N.leb_spec0 H
+  | H: context C [is_true (BinNat.N.ltb _ _)] |- _ => move: H => /BinNat.N.ltb_spec0 H
   | H: context C [is_true (@eq_op nat_eqType _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
   | H: context C [is_true (@eq_op Z_eqType _ _)] |- _ => move: H => /Z_eqP H
   | H: context C [is_true (@eq_op Pos_eqType _ _)] |- _ => move: H => /Pos_eqP H
+  | H: context C [is_true (@eq_op _ _ _)] |- _ => move: H => /eqP H
   | H: context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] |- _ =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n) in H;
     rewrite <- (Znat.Nat2Z.inj_succ n) in H
@@ -130,6 +136,17 @@ Ltac remove_bools_options :=
     |- _ =>
     let Hoption := fresh "Hoption" in
     destruct exp eqn:Hoption; try by []
+  | H: match ?exp with
+       | Some _ => _
+       | None => False
+       end
+    |- _ =>
+    let Hoption := fresh "Hoption" in
+    destruct exp eqn:Hoption; try by []
+  | H: (if ?exp then _ else _ ) = _
+    |- _ =>
+    let Hif := fresh "Hif" in
+    destruct exp eqn:Hif; try by []
   | H: is_true match ?exp with
        | Some _ => _
        | None => _
@@ -137,6 +154,85 @@ Ltac remove_bools_options :=
     |- _ =>
     let Hoption := fresh "Hoption" in
     destruct exp eqn:Hoption; try by []
+  | H: is_true match ?l with
+       | nil => false
+       | _ :: _ => _
+       end
+    |- _ =>
+      let Hcons := fresh "Hcons" in
+      let cons_l := fresh "cons_l" in
+      destruct l as [| ? cons_l] eqn:Hcons; first by []
+  | H: is_true match ?l with
+       | nil => _
+       | _ :: _ => false
+       end
+    |- _ => 
+      let Hcons := fresh "Hcons" in
+      let cons_l := fresh "cons_l" in
+      destruct l as [| ? cons_l] eqn:Hcons; last by []
+  end.
+
+(* Apply but turning unification errors into equality obligations *)
+Ltac uapply H :=
+  lazymatch type of H with
+  | ?P ?x1 ?x2 ?x3 ?x4 ?x5 ?x6 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3 ?y4 ?y5 ?y6] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first replace y4 with x4;
+          first replace y5 with x5;
+          first replace y6 with x6;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal6"
+      end
+  | ?P ?x1 ?x2 ?x3 ?x4 ?x5 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3 ?y4 ?y5 ] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first replace y4 with x4;
+          first replace y5 with x5;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal5"
+      end
+  | ?P ?x1 ?x2 ?x3 ?x4 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3 ?y4] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first replace y4 with x4;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal4"
+      end
+  | ?P ?x1 ?x2 ?x3 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2 ?y3] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first replace y3 with x3;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal3"
+      end
+  | ?P ?x1 ?x2 =>
+      lazymatch goal with
+      | [ |- ?P ?y1 ?y2] =>
+          replace y1 with x1;
+          first replace y2 with x2;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal2"
+      end
+  | ?P ?x1 =>
+      lazymatch goal with
+      | [ |- ?P ?y1] =>
+          replace y1 with x1;
+          first (apply H); try by []
+      | _ => fail "hypothesis cannot be converted to goal1"
+      end
+  | _ => fail "the goal of current shape cannot be resolved"
   end.
 
 
