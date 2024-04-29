@@ -1,6 +1,6 @@
 (** Wasm AST to binary.
 Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
-Require Import datatypes_properties numerics.
+Require Import datatypes_properties numerics common list_extra.
 From compcert Require Integers.
 Require Import Strings.Byte.
 Require leb128.
@@ -464,7 +464,28 @@ Definition binary_of_startsec (s : module_start) : list byte :=
   x08 :: with_length (binary_of_module_start s).
 
 (* Messy, but so is the spec. Note that the parsing function is not injective, so
-   this printing function is not surjective *)
+   this printing function is not surjective. 
+   This tries to use Wasm 1.0 encodings as much as possible -- in particular, use 000 
+   when the elem fits Wasm 1.0 format. *)
+Definition to_ref_func (es: list basic_instruction): option funcidx :=
+  match es with
+  | [::BI_ref_func x] => Some x
+  | _ => None
+  end.
+
+Definition elem_of_wasm_1_0 (e: module_element): option (list byte) :=
+  match e.(modelem_mode) with
+  | ME_active N0 offset =>
+      if e.(modelem_type) == T_funcref then
+        match those (map to_ref_func e.(modelem_init)) with
+        | Some ys =>
+            Some (x00 :: binary_of_expr offset ++ binary_of_vec binary_of_funcidx ys)
+        | None => None
+        end
+      else None
+  | _ => None
+  end.
+  
 Definition binary_of_module_elem (e : module_element) : list byte :=
   match e.(modelem_mode) with
   | ME_passive =>
@@ -472,7 +493,10 @@ Definition binary_of_module_elem (e : module_element) : list byte :=
   | ME_declarative =>
       x07 :: binary_of_reference_type e.(modelem_type) :: binary_of_vec binary_of_expr e.(modelem_init)
   | ME_active x offset =>
-      x06 :: binary_of_tableidx x ++ binary_of_expr offset ++ binary_of_reference_type e.(modelem_type) :: binary_of_vec binary_of_expr e.(modelem_init)
+      match elem_of_wasm_1_0 e with
+      | Some bs => bs
+      | None => x06 :: binary_of_tableidx x ++ binary_of_expr offset ++ binary_of_reference_type e.(modelem_type) :: binary_of_vec binary_of_expr e.(modelem_init)
+      end
   end.
 
 Definition binary_of_elemsec (es : list module_element) : list byte :=
