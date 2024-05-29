@@ -1,4 +1,4 @@
-This test contains a few tests for numeric shifts/rotations.
+This test contains a few numeric shifts/rotations.
 
 ```wasm
 (module
