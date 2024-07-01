@@ -450,6 +450,57 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     end
   end.
 
+Definition app_unop_vec (op: unop_vec) (v1: value_vec) : value_vec :=
+  v1.
+
+Definition app_binop_vec (op: binop_vec) (v1 v2: value_vec) : value_vec :=
+  v1.
+
+Definition app_ternop_vec (op: ternop_vec) (v1 v2 v3: value_vec) : value_vec :=
+  v1.
+
+Definition app_test_vec (op: test_vec) (v1: value_vec) : bool :=
+  true.
+
+Definition app_shift_vec (op: shift_vec) (v1: value_vec) (v2: i32) : value_vec :=
+  v1.
+
+Definition app_splat_vec (shape: shape_vec) (v1: value_num) : value_vec :=
+  VAL_vec128 tt.
+
+Definition app_extract_vec (shape: shape_vec) (s: option sx) (n: laneidx) (v1: value_vec) : value_num :=
+  match shape with
+  | SV_ishape svi =>
+      match svi with
+      | SVI_64_2 => bitzero T_i64
+      | _ => bitzero T_i32
+      end
+  | SV_fshape svf =>
+      match svf with
+      | SVF_32_4 => bitzero T_f32
+      | SVF_64_2 => bitzero T_f64
+      end
+  end.
+
+Definition app_replace_vec (shape: shape_vec) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
+  v1.
+
+Definition shape_dim (shape: shape_vec) : N :=
+  match shape with
+  | SV_ishape svi =>
+      match svi with
+      | SVI_8_16 => 16
+      | SVI_16_8 => 8
+      | SVI_32_4 => 4
+      | SVI_64_2 => 2
+      end
+  | SV_fshape svf =>
+      match svf with
+      | SVF_32_4 => 4
+      | SVF_64_2 => 2
+      end
+  end.
+
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
 

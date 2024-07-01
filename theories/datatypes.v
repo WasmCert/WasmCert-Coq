@@ -33,6 +33,7 @@ Label indices reference structured control instructions inside an instruction se
 [https://www.w3.org/TR/wasm-core-2/syntax/modules.html#indices]
 *)
 Definition u32 : Set := N.
+Definition u8: Set := N.
 
 (* 2^32 *)
 Definition u32_bound : N := 4294967296%N.
@@ -446,6 +447,45 @@ Inductive packed_type : Set := (* tp *)
   | Tp_i32
   .
 
+Inductive shape_vec_i: Set :=
+  | SVI_8_16
+  | SVI_16_8
+  | SVI_32_4
+  | SVI_64_2
+  .
+  
+Inductive shape_vec_f: Set :=
+  | SVF_32_4
+  | SVF_64_2
+  .
+  
+Inductive shape_vec : Set := (* shape *)
+  | SV_ishape: shape_vec_i -> shape_vec
+  | SV_fshape: shape_vec_f -> shape_vec
+  .
+
+Inductive unop_vec : Set :=
+  | VUO_not
+  .
+  
+Inductive binop_vec : Set :=
+  | VBO_and
+  .
+  
+Inductive ternop_vec : Set :=
+  | VTO_bitselect
+  .
+  
+Inductive test_vec : Set :=
+  | VT_any_true
+  .
+  
+Inductive shift_vec : Set :=
+  | VSH_any_true
+  .
+
+Definition laneidx := u8.
+  
 Inductive basic_instruction : Type := (* be *)
 (** std-doc:
 Numeric instructions provide basic operations over numeric values of specific type. These operations closely match respective operations available in hardware.
@@ -458,8 +498,27 @@ Numeric instructions provide basic operations over numeric values of specific ty
   | BI_cvtop : number_type -> cvtop -> number_type -> option sx -> basic_instruction
 (** std-doc: (not implemented yet)
 Vector instructions (also known as SIMD instructions, single data multiple value) provide basic operations over values of vector type.
+Vector instructions can be grouped into several subcategories:
+
+Constants: return a static constant.
+Unary Operations: consume one v128 operand and produce one v128 result.
+Binary Operations: consume two v128 operands and produce one v128 result.
+Ternary Operations: consume three v128 operands and produce one v128 result.
+Tests: consume one v128 operand and produce a Boolean integer result.
+Shifts: consume a v128 operand and a i32 operand, producing one v128 result.
+Splats: consume a value of numeric type and produce a v128 result of a specified shape.
+Extract lanes: consume a v128 operand and return the numeric value in a given lane.
+Replace lanes: consume a v128 operand and a numeric value for a given lane, and produce a v128 result.
 **)
   | BI_const_vec : value_vec -> basic_instruction
+  | BI_unop_vec: unop_vec -> basic_instruction
+  | BI_binop_vec: binop_vec -> basic_instruction
+  | BI_ternop_vec: ternop_vec -> basic_instruction
+  | BI_test_vec: test_vec -> basic_instruction
+  | BI_shift_vec: shift_vec -> basic_instruction
+  | BI_splat_vec: shape_vec -> basic_instruction
+  | BI_extract_vec: shape_vec -> option sx -> laneidx -> basic_instruction
+  | BI_replace_vec: shape_vec -> laneidx -> basic_instruction
 (** std-doc:
 Instructions in this group are concerned with accessing references.
 **)
@@ -478,7 +537,7 @@ Variable instructions are concerned with access to local or global variables.
   | BI_local_set : localidx -> basic_instruction
   | BI_local_tee : localidx -> basic_instruction
   | BI_global_get : globalidx -> basic_instruction
-| BI_global_set : globalidx -> basic_instruction
+  | BI_global_set : globalidx -> basic_instruction
 (** std-doc:
 Instructions in this group are concerned with tables.
 **)
@@ -1013,3 +1072,4 @@ End Host.
 
 (* Notations for values to basic/admin instructions *)
 Notation "$VN v" := (AI_basic (BI_const_num v)) (at level 60).
+Notation "$VV v" := (AI_basic (BI_const_vec v)) (at level 60).

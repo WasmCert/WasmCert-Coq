@@ -54,6 +54,34 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     eval_cvt t2 op sx v = None ->
     reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::AI_trap]
 
+  (** vector instructions **)
+  | rs_unop_vec: 
+    forall v op,
+    reduce_simple [:: $VV v; AI_basic (BI_unop_vec op)] [::$VV (app_unop_vec op v)]
+  | rs_binop_vec: 
+    forall v1 v2 op,
+    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_binop_vec op)] [::$VV (app_binop_vec op v1 v2)]
+  | rs_ternop_vec: 
+    forall v1 v2 v3 op,
+    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_binop_vec op)] [::$VV (app_binop_vec op v1 v2)]
+  | rs_test_vec: 
+    forall v1 op,
+    reduce_simple [:: $VV v1; AI_basic (BI_test_vec op)] [::$VN (VAL_int32 (wasm_bool (app_test_vec op v1)))]
+  | rs_shift_vec: 
+    forall v1 v2 op,
+    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_shift_vec op)] [::$VV app_shift_vec op v1 v2]
+  | rs_splat_vec: 
+    forall v1 shape,
+    reduce_simple [:: $VN v1; AI_basic (BI_splat_vec shape)] [::$VV (app_splat_vec shape v1)]
+  | rs_extract_vec: 
+    forall v1 shape sx x,
+    N.lt x (shape_dim shape) ->
+    reduce_simple [:: $VV v1; AI_basic (BI_extract_vec shape sx x)] [::$VN (app_extract_vec shape sx x v1)]
+  | rs_replace_vec: 
+    forall v1 v2 shape x,
+    N.lt x (shape_dim shape) ->
+    reduce_simple [:: $VV v1; $VN v2; AI_basic (BI_replace_vec shape x)] [::$VV (app_replace_vec shape x v1 v2)]
+    
   (** reference operations **)
   | rs_ref_is_null_true:
     forall t,
