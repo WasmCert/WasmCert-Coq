@@ -63,7 +63,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_binop_vec op)] [::$VV (app_binop_vec op v1 v2)]
   | rs_ternop_vec: 
     forall v1 v2 v3 op,
-    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_binop_vec op)] [::$VV (app_binop_vec op v1 v2)]
+    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_ternop_vec op)] [::$VV (app_ternop_vec op v1 v2 v3)]
   | rs_test_vec: 
     forall v1 op,
     reduce_simple [:: $VV v1; AI_basic (BI_test_vec op)] [::$VN (VAL_int32 (wasm_bool (app_test_vec op v1)))]

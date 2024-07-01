@@ -213,6 +213,38 @@ Definition is_numeric_type (t: value_type) : bool :=
   | _ => false
   end.
 
+Definition ptv_to_nm (ptv: packed_type_vec) : N * N :=
+  match ptv with
+  | Tptv_8_8 => (8%N, 8%N)
+  | Tptv_16_4 => (16%N, 4%N)
+  | Tptv_32_2 => (32%N, 2%N)
+  end.
+
+Definition ztv_to_n (ztv: zero_type_vec) : N :=
+  match ztv with
+  | Tztv_32 => 32%N
+  | Tztv_64 => 64%N
+  end.
+
+Definition width_to_n (ww: width_vec) : N :=
+  match ww with
+  | Twv_8 => 8%N
+  | Twv_16 => 16%N
+  | Twv_32 => 32%N
+  | Twv_64 => 64%N
+  end.
+
+Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
+  match lv_arg with
+  | Load_packed ptv =>
+      let (n, m) := ptv_to_nm ptv in
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.mul (N.div n 8) m)
+  | Load_zero ztv =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (ztv_to_n ztv) 8)
+  | Load_splat width =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)
+  end.
+  
 (** std-doc:
 Instructions are classified by stack types that describe how instructions manipulate the operand stack.
 
@@ -352,14 +384,28 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
 | bet_elem_drop : forall C x t,
   lookup_N (tc_elems C) x = Some t ->
   be_typing C [::BI_elem_drop x] (Tf [::] [::])
-| bet_load : forall C a off tp_sx t mem,
+| bet_load : forall C m_arg tp_sx t mem,
   lookup_N (tc_mems C) 0%N = Some mem ->
-  load_store_t_bounds a (option_projl tp_sx) t ->
-  be_typing C [::BI_load t tp_sx a off] (Tf [::T_num T_i32] [::T_num t])
-| bet_store : forall C a off tp t mem,
+  load_store_t_bounds m_arg.(memarg_align) (option_projl tp_sx) t ->
+  be_typing C [::BI_load t tp_sx m_arg] (Tf [::T_num T_i32] [::T_num t])
+| bet_load_vec : forall C lv_arg m_arg t mem,
   lookup_N (tc_mems C) 0%N = Some mem ->
-  load_store_t_bounds a tp t ->
-  be_typing C [::BI_store t tp a off] (Tf [::T_num T_i32; T_num t] [::])
+  load_vec_bounds lv_arg m_arg ->
+  be_typing C [::BI_load_vec lv_arg m_arg] (Tf [::T_num T_i32] [::T_num t])
+| bet_load_vec_lane : forall C width m_arg x mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
+  ((N.le (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)) ->
+  (N.lt x (N.div 128 (width_to_n width)))) ->
+  be_typing C [::BI_load_vec_lane width m_arg x] (Tf [::T_num T_i32; T_vec T_v128] [::T_vec T_v128])
+| bet_store : forall C m_arg tp t mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
+  load_store_t_bounds m_arg.(memarg_align) tp t ->
+  be_typing C [::BI_store t tp m_arg] (Tf [::T_num T_i32; T_num t] [::])
+| bet_store_vec : forall C width m_arg x mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
+  ((N.le (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)) ->
+  (N.lt x (N.div 128 (width_to_n width)))) ->
+  be_typing C [::BI_store_vec width m_arg x] (Tf [::T_num T_i32; T_vec T_v128] [::])
 | bet_memory_size : forall C mem,
   lookup_N (tc_mems C) 0%N = Some mem ->
   be_typing C [::BI_memory_size] (Tf [::] [::T_num T_i32])

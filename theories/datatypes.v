@@ -485,6 +485,35 @@ Inductive shift_vec : Set :=
   .
 
 Definition laneidx := u8.
+
+Inductive packed_type_vec :=
+  | Tptv_8_8
+  | Tptv_16_4
+  | Tptv_32_2
+.
+
+Inductive zero_type_vec :=
+  | Tztv_32
+  | Tztv_64
+.
+
+Inductive width_vec :=
+  | Twv_8
+  | Twv_16
+  | Twv_32
+  | Twv_64
+  .
+
+Inductive load_vec_arg :=
+  | Load_packed: packed_type_vec -> load_vec_arg
+  | Load_zero: zero_type_vec -> load_vec_arg
+  | Load_splat: width_vec -> load_vec_arg
+  .
+
+Record memarg : Set :=
+  { memarg_offset : u32;
+    memarg_align: u32
+  }.
   
 Inductive basic_instruction : Type := (* be *)
 (** std-doc:
@@ -552,9 +581,12 @@ Instructions in this group are concerned with tables.
 (** std-doc:
 Instructions in this group are concerned with linear memory.
 **)
-(* TODO: add comments on the implemented subset of memory load/store instructions *)                     
-  | BI_load : number_type -> option (packed_type * sx) -> alignment_exponent -> static_offset -> basic_instruction
-  | BI_store : number_type -> option packed_type -> alignment_exponent -> static_offset -> basic_instruction
+  | BI_load : number_type -> option (packed_type * sx) -> memarg -> basic_instruction
+  | BI_store : number_type -> option packed_type -> memarg-> basic_instruction
+  | BI_load_vec : load_vec_arg -> memarg -> basic_instruction
+  (* the lane version has a different type signature *)
+  | BI_load_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
+  | BI_store_vec : width_vec -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
   | BI_memory_fill

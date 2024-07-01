@@ -1026,8 +1026,8 @@ Definition result_to_stack (r : result) :=
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
-  | None => Nat.pow 2 a <= tnum_length t
-  | Some tp' => (Nat.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
+  | None => N.pow 2 a <= tnum_length t
+  | Some tp' => (N.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
   end.
 
 Definition cvt_i32 (s : option sx) (v : value_num) : option i32 :=

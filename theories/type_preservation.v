@@ -91,6 +91,18 @@ Proof.
   - (* Cvtop *)
     erewrite eval_cvt_type_preserve; eauto.
     by resolve_subtyping.
+  - (* Unop_vec *)
+    replace (typeof_vec (app_unop_vec op v)) with (typeof_vec v); last by destruct op, v.
+    rewrite H0.
+    by resolve_subtyping.
+  - (* Binop_vec *)
+    replace (typeof_vec (app_binop_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
+    rewrite H0.
+    by resolve_subtyping.
+  - (* Ternop_vec *)
+    replace (typeof_vec (app_binop_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
+    rewrite H0.
+    by resolve_subtyping.
   - (* Br *)
     eapply et_composition'; eauto; resolve_e_typing.
     by eapply Lfilled_break_typing with (tss := nil) in Hconjl1; eauto => //=; try (by apply v_to_e_const); last by lias.
