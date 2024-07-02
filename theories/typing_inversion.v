@@ -230,16 +230,31 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
       exists t,
       tf = (Tf nil nil) /\
         lookup_N (tc_elems C) x = Some t
-  | BI_load t tp_sx a off =>
+  | BI_load t tp_sx marg =>
       exists mt,
       tf = (Tf [::T_num T_i32] [::T_num t]) /\
         lookup_N (tc_mems C) 0%N = Some mt /\
-        load_store_t_bounds a (option_projl tp_sx) t
-  | BI_store t tp a off =>
+        load_store_t_bounds marg.(memarg_align) (option_projl tp_sx) t
+  | BI_load_vec lvarg marg =>
+      exists mt,
+      tf = (Tf [::T_num T_i32] [::T_vec T_v128]) /\
+        lookup_N (tc_mems C) 0%N = Some mt /\
+        load_vec_bounds lvarg marg
+  | BI_load_vec_lane width marg x =>
+      exists mt,
+      tf = (Tf [::T_num T_i32; T_vec T_v128] [::T_vec T_v128]) /\
+        lookup_N (tc_mems C) 0%N = Some mt /\
+        load_vec_lane_bounds width marg x
+  | BI_store t tp marg =>
       exists mt,
       tf = (Tf [::T_num T_i32; T_num t] [::]) /\
         lookup_N (tc_mems C) 0%N = Some mt /\
-        load_store_t_bounds a tp t
+        load_store_t_bounds marg.(memarg_align) tp t
+  | BI_store_vec_lane width marg x =>
+      exists mt,
+      tf = (Tf [::T_num T_i32; T_vec T_v128] [::]) /\
+        lookup_N (tc_mems C) 0%N = Some mt /\
+        load_vec_lane_bounds width marg x
   | BI_memory_size =>
       exists mt,
       tf = (Tf [::] [::T_num T_i32]) /\
@@ -274,10 +289,7 @@ Lemma be_typing_inversion: forall C be tf,
       be_principal_typing C be tf_principal.
 Proof.
   move => C be tf HType.
-  gen_ind_subst HType => //; try by (eexists; split; first (by apply instr_subtyping_eq); try by repeat eexists; eauto).
-  (* Table copy -- needs a separate resolve since substitution simplified the premises by too much *)
-  - eexists; split; first (by apply instr_subtyping_eq).
-    by exists tabtype1, tabtype2, (tt_elem_type tabtype1).
+  gen_ind_subst HType => //; try by (eexists; split; first (by apply instr_subtyping_eq); try by repeat (eexists; eauto)).
   (* Composition *)
   - extract_listn; extract_premise.
     apply empty_typing in HType1.

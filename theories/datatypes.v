@@ -505,9 +505,9 @@ Inductive width_vec :=
   .
 
 Inductive load_vec_arg :=
-  | Load_packed: packed_type_vec -> load_vec_arg
-  | Load_zero: zero_type_vec -> load_vec_arg
-  | Load_splat: width_vec -> load_vec_arg
+  | LVA_packed: packed_type_vec -> sx -> load_vec_arg
+  | LVA_zero: zero_type_vec -> load_vec_arg
+  | LVA_splat: width_vec -> load_vec_arg
   .
 
 Record memarg : Set :=
@@ -582,11 +582,11 @@ Instructions in this group are concerned with tables.
 Instructions in this group are concerned with linear memory.
 **)
   | BI_load : number_type -> option (packed_type * sx) -> memarg -> basic_instruction
-  | BI_store : number_type -> option packed_type -> memarg-> basic_instruction
   | BI_load_vec : load_vec_arg -> memarg -> basic_instruction
   (* the lane version has a different type signature *)
   | BI_load_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
-  | BI_store_vec : width_vec -> memarg -> laneidx -> basic_instruction
+  | BI_store : number_type -> option packed_type -> memarg-> basic_instruction
+  | BI_store_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
   | BI_memory_fill

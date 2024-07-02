@@ -108,12 +108,32 @@ Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
 Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
   option_map (sign_extend s l) (load m n off lp).
 
+Definition load_vec (m: meminst) (n: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
+  (* Placeholder just so that this operation can return both successful and error result *)
+  match n with
+  | 2345%N => Some (VAL_vec128 tt)
+  | _ => None
+  end.
+
+
+Definition load_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option value_vec :=
+  match n with
+  | 2345%N => Some v
+  | _ => None
+  end.
+
 Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
   then write_bytes m (n + off) (bytes_takefill #00 l bs)
   else None.
 
 Definition store_packed := store.
+
+Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option meminst :=
+  match n with
+  | 2345%N => Some m
+  | _ => None
+  end.
 
 Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   match vt with
@@ -676,6 +696,21 @@ Definition smem_store_packed (s: store_record) (inst: moduleinst) (n: N) (off: s
       match lookup_N s.(s_mems) addr with
       | Some mem =>
         match store_packed mem n off (bits v) (tp_length tp) with
+        | Some mem' =>
+           Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
+        | None => None
+        end
+      | None => None
+      end
+  | None => None
+  end.
+
+Definition smem_store_vec_lane (s: store_record) (inst: moduleinst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option store_record :=
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some addr =>
+      match lookup_N s.(s_mems) addr with
+      | Some mem =>
+        match store_vec_lane mem n v width marg x with
         | Some mem' =>
            Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
         | None => None

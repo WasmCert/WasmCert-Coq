@@ -538,6 +538,8 @@ Ltac resolve_invalid_value :=
       apply value_typing_ref_impl in Hvaltype as [? Hteq] => //
   | Hvaltype : is_true (value_typing _ (VAL_num _) (T_num _)) |- _ =>
       unfold value_typing in Hvaltype; simpl in Hvaltype; remove_bools_options => //
+  | Hvaltype : is_true (value_typing _ (VAL_ref _) (T_vec _)) |- _ =>
+      apply value_typing_ref_impl in Hvaltype as [? Hteq] => //
   | _ => simpl in *; remove_bools_options; subst => //
 end.
 
@@ -545,7 +547,10 @@ Ltac discriminate_value_type :=
   resolve_invalid_typing; resolve_invalid_value.
 
 Ltac assert_value_num v :=
-  destruct v as [v | |]; [ | by discriminate_value_type | by discriminate_value_type].
+  destruct v as [v| |]; [ | by discriminate_value_type | by discriminate_value_type].
+
+Ltac assert_value_vec v :=
+  destruct v as [ |v|]; [ by discriminate_value_type | | by discriminate_value_type].
 
 Ltac assert_value_ref v :=
   destruct v as [ | |v]; [ by discriminate_value_type | by discriminate_value_type |].
@@ -654,6 +659,14 @@ Proof.
       (* BI_relop t op *) t op |
       (* BI_cvtop t2 cvtop t1 sx *) t2 cvtop t1 sx |
       (* BI_const_vec _ *) |
+      (* BI_unop_vec _ *) op |
+      (* BI_binop_vec _ *) op |
+      (* BI_ternop_vec _ *) op |
+      (* BI_test_vec _ *) tv |
+      (* BI_shift_vec _ *) sv |
+      (* BI_splat_vec _ *) shape |
+      (* BI_extract_vec shape_vec [Some sx | None] laneidx *) shape sx x |
+      (* BI_replace_vec shape_vec laneidx *) shape x |
       (* BI_ref_null t *) t |
       (* BI_ref_is_null *) |
       (* BI_ref_func x *) x |
@@ -672,8 +685,11 @@ Proof.
       (* BI_table_copy x y *) x y |
       (* BI_table_init x y *) x y |
       (* BI_elem_drop x *) x |
-      (* BI_load t [Some (tp, sx)|None] a off *) t ops a off |
-      (* BI_store t [Some tp|None] a off *) t op a off |
+      (* BI_load t [Some (tp, sx)|None] marg *) t ops marg |
+      (* BI_load_vec lvarg marg *) lvarg marg |
+      (* BI_load_vec_lane width marg laneidx *) width marg x |
+      (* BI_store t [Some tp|None] marg *) t op marg |
+      (* BI_store_vec_lane width marg laneidx *) width marg x |
       (* BI_memory_size *) |
       (* BI_memory_grow *) |
       (* BI_memory_fill *) |
@@ -781,6 +797,79 @@ the condition that all values should live in the operand stack. *)
 
     - (* AI_basic BI_const_vec v *)
       apply RSC_invalid => /=; by move => [??].
+      
+    - (* AI_basic BI_unop_vec op *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_vec v.
+      apply <<hs, (s, ccs, (VAL_vec (app_unop_vec op v) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_unop_vec.
+      
+    - (* AI_basic BI_binop_vec op *)
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_value_vec v1.
+      assert_value_vec v2.
+      apply <<hs, (s, ccs, (VAL_vec (app_binop_vec op v1 v2) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_binop_vec.
+      
+    - (* AI_basic BI_ternop_vec op *)
+      destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
+      assert_value_vec v1.
+      assert_value_vec v2.
+      assert_value_vec v3.
+      apply <<hs, (s, ccs, (VAL_vec (app_ternop_vec op v1 v2 v3) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_ternop_vec.
+      
+    - (* AI_basic BI_test_vec tv *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_vec v.
+      apply <<hs, (s, ccs, (VAL_num (VAL_int32 (wasm_bool (app_test_vec tv v))) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_test_vec.
+      
+    - (* AI_basic BI_shift_vec sv *)
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_value_vec v1.
+      assert_i32 v2.
+      apply <<hs, (s, ccs, (VAL_vec (app_shift_vec sv v1 v2) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_shift_vec.
+      
+    - (* AI_basic BI_splat_vec shape *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_num v.
+      apply <<hs, (s, ccs, (VAL_vec (app_splat_vec shape v) :: vs0, es0), None)>>.
+      resolve_reduce_ctx vs0 es0.
+      by apply r_simple, rs_splat_vec.
+      
+    - (* AI_basic (BI_extract_vec shape sx x) *)
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_value_vec v.
+      destruct (N.ltb x (shape_dim shape)) eqn:Hlanebound.
+      + (* in bound *)
+        move/N.ltb_spec0 in Hlanebound.
+        apply <<hs, (s, ccs, (VAL_num (app_extract_vec shape sx x v) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_extract_vec.
+      + (* out of bound *)
+        move/N.ltb_spec0 in Hlanebound.
+        by resolve_invalid_typing.
+        
+    - (* AI_basic (BI_replace_vec shape x) *)
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_value_vec v1.
+      assert_value_num v2.
+      destruct (N.ltb x (shape_dim shape)) eqn:Hlanebound.
+      + (* in bound *)
+        move/N.ltb_spec0 in Hlanebound.
+        apply <<hs, (s, ccs, (VAL_vec (app_replace_vec shape x v1 v2) :: vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_replace_vec.
+      + (* out of bound *)
+        move/N.ltb_spec0 in Hlanebound.
+        by resolve_invalid_typing.
       
     - (* AI_basic BI_ref_null t *)
       apply RSC_invalid => /=; by move => [??].
@@ -1178,7 +1267,7 @@ the condition that all values should live in the operand stack. *)
           by simplify_multieq.
         }
 
-    - (* AI_basic (BI_load t ops (Some (tp, sx)) a off) *)
+    - (* AI_basic (BI_load t ops (Some (tp, sx)) marg) *)
       get_cc ccs.    
       destruct vs0 as [|v vs0]; first by no_args.
       assert_i32 v.
@@ -1187,7 +1276,7 @@ the condition that all values should live in the operand stack. *)
       { (* Some mem_s_j *)
         destruct ops as [[tp sx] | ].
         (* Some (tp, sx) *)
-        - destruct (load_packed sx (mem_s_j) ($nou32 v) off (tp_length tp) (tnum_length t)) as [bs|] eqn:Hload.
+        - destruct (load_packed sx (mem_s_j) ($nou32 v) marg.(memarg_offset) (tp_length tp) (tnum_length t)) as [bs|] eqn:Hload.
           + (* Some bs *)
             apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (wasm_deserialise bs t) :: vs0, es0), None)>>.
             resolve_reduce_ctx vs0 es0.
@@ -1196,7 +1285,7 @@ the condition that all values should live in the operand stack. *)
             apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
             resolve_reduce_ctx vs0 es0.
             by eapply r_load_packed_failure; subst; eauto.
-        - destruct (load (mem_s_j) ($nou32 v) off (tnum_length t)) as [bs|] eqn:Hload.
+        - destruct (load (mem_s_j) ($nou32 v) marg.(memarg_offset) (tnum_length t)) as [bs|] eqn:Hload.
           + (* Some bs *)
             apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (wasm_deserialise bs t) :: vs0, es0), None)>>.
             resolve_reduce_ctx vs0 es0.
@@ -1216,6 +1305,57 @@ the condition that all values should live in the operand stack. *)
         }
       }
 
+    - (* AI_basic (BI_load_vec lvarg marg) *)
+      get_cc ccs.    
+      destruct vs0 as [|v vs0]; first by no_args.
+      assert_i32 v.
+      (* VAL_int32 v :: ves' *)
+      destruct (smem s fc.(FC_frame).(f_inst)) as [mem_s_j|] eqn:?.
+      { (* Some mem_s_j *)
+        destruct (load_vec mem_s_j ($nou32 v) lvarg marg) as [v' | ] eqn:Hload_vec.
+        - apply <<hs, (s, (fc, lcs) :: ccs', (VAL_vec v' :: vs0, es0), None)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_load_vec_success; subst; eauto.
+        - apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_load_vec_failure; subst; eauto.
+      }
+      { (* None *)
+        resolve_invalid_typing.
+        unfold_frame_type Hftype.
+        unfold_store_operations.
+        { inst_typing_lookup; by remove_bools_options. }
+        { eapply inst_typing_mem_lookup_inv in Hconjl0 as [? [??]]; eauto.
+          by simplify_multieq.
+        }
+      }
+
+    - (* AI_basic (BI_load_vec_lane width marg x) *)
+      get_cc ccs.    
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_i32 v1.
+      assert_value_vec v2.
+      (* VAL_int32 v :: ves' *)
+      destruct (smem s fc.(FC_frame).(f_inst)) as [mem_s_j|] eqn:?.
+      { (* Some mem_s_j *)
+        destruct (load_vec_lane mem_s_j ($nou32 v1) v2 width marg x) as [v' | ] eqn:Hload_vec_lane.
+        - apply <<hs, (s, (fc, lcs) :: ccs', (VAL_vec v' :: vs0, es0), None)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_load_vec_lane_success; subst; eauto.
+        - apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+          resolve_reduce_ctx vs0 es0.
+          by eapply r_load_vec_lane_failure; subst; eauto.
+      }
+      { (* None *)
+        resolve_invalid_typing.
+        unfold_frame_type Hftype.
+        unfold_store_operations.
+        { inst_typing_lookup; by remove_bools_options. }
+        { eapply inst_typing_mem_lookup_inv in Hconjl0 as [? [??]]; eauto.
+          by simplify_multieq.
+        }
+      }
+
     - (* AI_basic (BI_store t (Some tp) a off) *)
       get_cc ccs. 
       destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
@@ -1224,7 +1364,7 @@ the condition that all values should live in the operand stack. *)
       destruct (typeof_num v2 == t) eqn:Heq; move/eqP in Heq; last by discriminate_value_type; apply num_subtyping in H; inversion H; subst.
       destruct op as [tp | ].
       (* packed *)
-      + destruct (smem_store_packed s fc.(FC_frame).(f_inst) ($nou32 v1) off v2 tp) as [s' | ] eqn:Hsmem.
+      + destruct (smem_store_packed s fc.(FC_frame).(f_inst) ($nou32 v1) marg.(memarg_offset) v2 tp) as [s' | ] eqn:Hsmem.
         * apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
           resolve_reduce_ctx vs0 es0.
           by eapply r_store_packed_success; subst; eauto.
@@ -1233,7 +1373,7 @@ the condition that all values should live in the operand stack. *)
           resolve_reduce_ctx vs0 es0.
           by eapply r_store_packed_failure; subst; eauto.
       (* None *)
-      + destruct (smem_store s fc.(FC_frame).(f_inst) ($nou32 v1) off v2 t) as [s' | ] eqn:Hsmem.
+      + destruct (smem_store s fc.(FC_frame).(f_inst) ($nou32 v1) marg.(memarg_offset) v2 t) as [s' | ] eqn:Hsmem.
         * apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
           resolve_reduce_ctx vs0 es0.
           by eapply r_store_success; subst; eauto.
@@ -1242,6 +1382,19 @@ the condition that all values should live in the operand stack. *)
           resolve_reduce_ctx vs0 es0.
           by eapply r_store_failure; subst; eauto.
           
+    - (* AI_basic (BI_store_vec_lane width marg x) *)
+      get_cc ccs.    
+      destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_i32 v1.
+      assert_value_vec v2.
+      destruct (smem_store_vec_lane s fc.(FC_frame).(f_inst) ($nou32 v1) v2 width marg x) as [s' | ] eqn:Hstore_vec_lane.
+      - apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None)>>.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_store_vec_lane_success; subst; eauto.
+      - apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>>.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_store_vec_lane_failure; subst; eauto.
+      
     - (* AI_basic BI_memory_size *)
       get_cc ccs.    
       destruct (smem s fc.(FC_frame).(f_inst)) as [s_mem_s_j|] eqn:?.
@@ -1303,7 +1456,7 @@ the condition that all values should live in the operand stack. *)
                              $VN (VAL_int32 v2);
                              $VN (VAL_int32 ($u32oz (Z.sub ($zou32 v3) 1)));
                             AI_basic (BI_memory_fill)] ++ es0),
-                          Some (AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)))>>.
+                          Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))))>>.
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_fill_step; eauto; lias.
           }
@@ -1352,8 +1505,8 @@ the condition that all values should live in the operand stack. *)
           { (* copy -- forward *)
             apply <<hs, (s, (fc, lcs) :: ccs',
                           ((VAL_num (VAL_int32 src)) :: (VAL_num (VAL_int32 dst)) :: vs0,
-                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
-                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) 0%N 0%N)))>>.
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg 0%N 0%N))))>>.
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_copy_forward; eauto; simpl in *; lias.
           }
@@ -1362,8 +1515,8 @@ the condition that all values should live in the operand stack. *)
                           ((VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 src) (Z.sub ($zou32 n) 1))))) ::
                              (VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 dst) (Z.sub ($zou32 n) 1))))) ::
                              vs0,
-                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
-                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) 0%N 0%N)))>>.
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg 0%N 0%N))))>>.
             resolve_reduce_ctx vs0 es0.
             eapply r_memory_copy_backward; eauto; simpl in *; try by lias.
           }
@@ -1421,7 +1574,7 @@ the condition that all values should live in the operand stack. *)
                                  $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1)));
                                  AI_basic (BI_memory_init x)
                                 ] ++ es0),
-                              Some (AI_basic (BI_store T_i32 (Some Tp_i8) 0%N 0%N)))>>.
+                              Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))))>>.
                 resolve_reduce_ctx vs0 es0.
                 by eapply r_memory_init_step; eauto; simpl in *; lias.
               }
