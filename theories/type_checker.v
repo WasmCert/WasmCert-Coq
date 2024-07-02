@@ -207,6 +207,22 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           if cvtop_valid t2 op t1 sx
           then type_update ts [::(T_num t1)] [::(T_num t2)]
           else None
+      | BI_unop_vec op =>
+          type_update ts [::T_vec T_v128] [::T_vec T_v128]
+      | BI_binop_vec op =>
+          type_update ts [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
+      | BI_ternop_vec op =>
+          type_update ts [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
+      | BI_test_vec tv =>
+          type_update ts [::T_vec T_v128] [::T_num T_i32]
+      | BI_shift_vec sv =>
+          type_update ts [::T_vec T_v128; T_num T_i32] [::T_vec T_v128]
+      | BI_splat_vec shape =>
+          type_update ts [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128]
+      | BI_extract_vec shape sx x =>
+          type_update ts [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)]
+      | BI_replace_vec shape x =>
+          type_update ts [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)]
       | BI_unreachable => Some <<nil, true>>
       | BI_nop => Some ts
       | BI_drop => type_update_drop ts
@@ -361,18 +377,18 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None 
           | Some tabt => Some ts
           end
-      | BI_load t tp_sx a off =>
+      | BI_load t tp_sx marg =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              if load_store_t_bounds a (option_projl tp_sx) t
+              if load_store_t_bounds marg.(memarg_align) (option_projl tp_sx) t
               then type_update ts [::(T_num T_i32)] [::T_num t]
               else None
           | None => None
           end
-      | BI_store t tp a off =>
+      | BI_store t tp marg =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              if load_store_t_bounds a tp t
+              if load_store_t_bounds marg.(memarg_align) tp t
               then type_update ts [::T_num t; T_num T_i32] [::]
               else None
           | None => None
