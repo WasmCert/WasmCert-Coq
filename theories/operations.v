@@ -110,15 +110,14 @@ Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp 
 
 Definition load_vec (m: meminst) (n: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
   (* Placeholder just so that this operation can return both successful and error result *)
-  match n with
-  | 2345%N => Some (VAL_vec128 tt)
+  match (n == marg.(memarg_offset)) with
+  | true => Some (VAL_vec128 tt)
   | _ => None
   end.
 
-
 Definition load_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option value_vec :=
-  match n with
-  | 2345%N => Some v
+  match (n == marg.(memarg_offset)) with
+  | true => Some v
   | _ => None
   end.
 
@@ -130,8 +129,8 @@ Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : n
 Definition store_packed := store.
 
 Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option meminst :=
-  match n with
-  | 2345%N => Some m
+  match (n == marg.(memarg_offset)) with
+  | true => Some m
   | _ => None
   end.
 

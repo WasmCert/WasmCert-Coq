@@ -100,8 +100,19 @@ Proof.
     rewrite H0.
     by resolve_subtyping.
   - (* Ternop_vec *)
-    replace (typeof_vec (app_binop_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
+    replace (typeof_vec (app_ternop_vec op v1 v2 v3)) with (typeof_vec v1); last by destruct op, v1, v2, v3.
     rewrite H0.
+    by resolve_subtyping.
+  - (* Shift_vec *)
+    replace (typeof_vec (app_shift_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
+    rewrite H0.
+    by resolve_subtyping.
+  - (* Extract_vec *)
+    replace (typeof_num (app_extract_vec shape sx x v1)) with (typeof_shape_unpacked shape); last by destruct shape as [shape | shape]; destruct shape.
+    by resolve_subtyping.
+  - (* Replace_vec *)
+    replace (typeof_vec (app_replace_vec shape x v1 v2)) with (typeof_vec v1); last by destruct shape as [shape | shape]; destruct shape.
+    rewrite H1.
     by resolve_subtyping.
   - (* Br *)
     eapply et_composition'; eauto; resolve_e_typing.
@@ -1373,6 +1384,51 @@ Proof.
     + by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
+Lemma smem_store_vec_lane_extension: forall s f n v width marg x s' C mt,
+  store_typing s ->
+  smem_store_vec_lane s (f_inst f) n v width marg x = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  lookup_N (tc_mems C) 0%N = Some mt ->
+  store_extension s s'.
+Proof.
+  move => s f n v width marg x s' C a Hst Hupd Hit Hnth.
+  unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
+  rewrite Hnth in Hnthmt; injection Hnthmt as ->.
+  unfold store_vec_lane in Hoption1.
+  destruct m0; simpl in *; remove_bools_options; simpl in *.
+  eapply component_extension_update; eauto; first by apply mem_extension_refl.
+  by apply mem_extension_refl.
+Qed.
+
+Lemma smem_store_vec_lane_typing: forall s f n v width marg x s' C mt,
+  store_typing s ->
+  smem_store_vec_lane s (f_inst f) n v width marg x = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  lookup_N (tc_mems C) 0%N = Some mt ->
+  store_typing s'.
+Proof.
+  move => s f n v width marg x s' C a Hst Hupd Hit Hnth.
+  assert (store_extension s s') as Hstext; first by eapply smem_store_vec_lane_extension; eauto.
+  unfold_store_operations; remove_bools_options.
+  unfold store_vec_lane in Hoption1.
+  resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
+  rewrite Hnthmt in Hnth; injection Hnth as <-.
+  unfold store_typing in *; destruct s; simpl in *.
+  destruct Hst as [Hft [Htt [Hmt [Hgt [Het Hdt]]]]].
+  resolve_store_typing; simpl in *; clear Hft Htt Hgt Het Hdt.
+  apply List.Forall_forall.
+  move => x0 Hin.
+  apply set_nth_In in Hin.
+  destruct Hin as [-> | [m0 [Hneq Hnth']]] => //=.
+  - exists mt.
+    rewrite Hif.
+    resolve_if_true_eq.
+    by rewrite Hif0.
+  - eapply List.Forall_forall in Hmt; eauto.
+    + by apply List.nth_error_In in Hnth'.
+    + by apply nth_error_Some_length in Hoption2; lias.
+Qed.
+
 Lemma smem_grow_extension: forall s f n s' sz C mt,
   store_typing s ->
   smem_grow s (f_inst f) n = Some (s', sz) ->
@@ -1497,6 +1553,9 @@ Proof.
   - (* memory store_packed *)
     eapply smem_store_packed_extension; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
+  - (* memory store_vec_lane *)
+    eapply smem_store_vec_lane_extension; eauto.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory grow *)
     eapply smem_grow_extension; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjr; f_equal.
@@ -1548,6 +1607,9 @@ Proof.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory store_packed *)
     eapply smem_store_packed_typing; eauto.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
+  - (* memory store_vec_lane *)
+    eapply smem_store_vec_lane_typing; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory grow *)
     eapply smem_grow_typing; eauto.
@@ -1824,6 +1886,10 @@ Proof.
     destruct t => /=; by resolve_subtyping.
   - (* Load Some *)
     destruct t => /=; by resolve_subtyping.
+  - (* Load_vec *)
+    destruct v => /=; by resolve_subtyping.
+  - (* Load_lane_vec *)
+    destruct v' => /=; by resolve_subtyping.
   - (* Memory fill *)
     destruct mem.
     remove_bools_options.
