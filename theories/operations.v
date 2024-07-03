@@ -90,6 +90,42 @@ Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
   end
   else None.
 
+Definition ptv_to_nm (ptv: packed_type_vec) : N * N :=
+  match ptv with
+  | Tptv_8_8 => (8%N, 8%N)
+  | Tptv_16_4 => (16%N, 4%N)
+  | Tptv_32_2 => (32%N, 2%N)
+  end.
+
+Definition ztv_to_n (ztv: zero_type_vec) : N :=
+  match ztv with
+  | Tztv_32 => 32%N
+  | Tztv_64 => 64%N
+  end.
+
+Definition width_to_n (ww: width_vec) : N :=
+  match ww with
+  | Twv_8 => 8%N
+  | Twv_16 => 16%N
+  | Twv_32 => 32%N
+  | Twv_64 => 64%N
+  end.
+
+Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
+  match lv_arg with
+  | LVA_packed ptv sx =>
+      let (n, m) := ptv_to_nm ptv in
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.mul (N.div n 8) m)
+  | LVA_zero ztv =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (ztv_to_n ztv) 8)
+  | LVA_splat width =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)
+  end.
+
+Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
+   (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
+                         (N.ltb x (128 / width_to_n width)%N). 
+  
 (* TODO: We crucially need documentation here. *)
 
 Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
@@ -108,15 +144,25 @@ Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
 Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
   option_map (sign_extend s l) (load m n off lp).
 
-Definition load_vec (m: meminst) (n: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
+Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
+  VAL_int32 int32_minus_one.
+
+Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
   (* Placeholder just so that this operation can return both successful and error result *)
+(*  let ea := i + marg.(memarg_offset) in
+  match load_vec_arg with
+  | LVA_packed ptv sx =>
+      let (m, n) := ptv_to_nm in
+      if N.leb (ea + (N.div (N.mul m n) 8%N)) (m.(mem_length)) then
+        let bs = int_of_bytes (take (drop m
+  if ea + *)
   match (n == marg.(memarg_offset)) with
   | true => Some (VAL_vec128 tt)
   | _ => None
   end.
 
-Definition load_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option value_vec :=
-  match (n == marg.(memarg_offset)) with
+Definition load_vec_lane (m: meminst) (i: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option value_vec :=
+  match (i == marg.(memarg_offset)) with
   | true => Some v
   | _ => None
   end.

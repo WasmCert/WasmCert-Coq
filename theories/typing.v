@@ -213,42 +213,6 @@ Definition is_numeric_type (t: value_type) : bool :=
   | _ => false
   end.
 
-Definition ptv_to_nm (ptv: packed_type_vec) : N * N :=
-  match ptv with
-  | Tptv_8_8 => (8%N, 8%N)
-  | Tptv_16_4 => (16%N, 4%N)
-  | Tptv_32_2 => (32%N, 2%N)
-  end.
-
-Definition ztv_to_n (ztv: zero_type_vec) : N :=
-  match ztv with
-  | Tztv_32 => 32%N
-  | Tztv_64 => 64%N
-  end.
-
-Definition width_to_n (ww: width_vec) : N :=
-  match ww with
-  | Twv_8 => 8%N
-  | Twv_16 => 16%N
-  | Twv_32 => 32%N
-  | Twv_64 => 64%N
-  end.
-
-Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
-  match lv_arg with
-  | LVA_packed ptv sx =>
-      let (n, m) := ptv_to_nm ptv in
-      N.leb (N.pow 2 m_arg.(memarg_align)) (N.mul (N.div n 8) m)
-  | LVA_zero ztv =>
-      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (ztv_to_n ztv) 8)
-  | LVA_splat width =>
-      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)
-  end.
-
-Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
-   (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
-                         (N.ltb x (128 / width_to_n width)%N). 
-  
 (** std-doc:
 Instructions are classified by stack types that describe how instructions manipulate the operand stack.
 
