@@ -245,9 +245,9 @@ Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
       N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)
   end.
 
-Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : Prop :=
-   (N.le (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N /\
-                         (N.lt x (128 / width_to_n width)%N). 
+Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
+   (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
+                         (N.ltb x (128 / width_to_n width)%N). 
   
 (** std-doc:
 Instructions are classified by stack types that describe how instructions manipulate the operand stack.
@@ -293,10 +293,10 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
 | bet_splat_vec: forall C shape,
     be_typing C [::BI_splat_vec shape] (Tf [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])
 | bet_extract_vec: forall C shape sx x,
-    N.lt x (shape_dim shape) ->
+    N.ltb x (shape_dim shape) = true ->
     be_typing C [::BI_extract_vec shape sx x] (Tf [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)])
 | bet_replace_vec: forall C shape x,
-    N.lt x (shape_dim shape) ->
+    N.ltb x (shape_dim shape) = true ->
     be_typing C [::BI_replace_vec shape x] (Tf [::T_vec T_v128; T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])
 | bet_unreachable : forall C ts ts',
   be_typing C [::BI_unreachable] (Tf ts ts')

@@ -107,10 +107,10 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
       tf = (Tf [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])
   | BI_extract_vec shape sx x =>
       tf = (Tf [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)]) /\
-      N.lt x (shape_dim shape)
+      N.ltb x (shape_dim shape) = true
   | BI_replace_vec shape x =>
       tf = (Tf [::T_vec T_v128; T_num (typeof_shape_unpacked shape)] [::T_vec T_v128]) /\
-      N.lt x (shape_dim shape)
+      N.ltb x (shape_dim shape) = true
   | BI_unreachable =>
       True (* Equivalently, put existential quantifiers and trivial equalities *)
   | BI_nop =>

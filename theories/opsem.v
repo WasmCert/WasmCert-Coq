@@ -75,11 +75,11 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     reduce_simple [:: $VN v1; AI_basic (BI_splat_vec shape)] [::$VV (app_splat_vec shape v1)]
   | rs_extract_vec: 
     forall v1 shape sx x,
-    N.lt x (shape_dim shape) ->
+    N.ltb x (shape_dim shape) = true ->
     reduce_simple [:: $VV v1; AI_basic (BI_extract_vec shape sx x)] [::$VN (app_extract_vec shape sx x v1)]
   | rs_replace_vec: 
     forall v1 v2 shape x,
-    N.lt x (shape_dim shape) ->
+    N.ltb x (shape_dim shape) = true ->
     reduce_simple [:: $VV v1; $VN v2; AI_basic (BI_replace_vec shape x)] [::$VV (app_replace_vec shape x v1 v2)]
     
   (** reference operations **)

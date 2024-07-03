@@ -165,7 +165,7 @@ Ltac invert_ctx_typing Hetype0 :=
     let Hetype := fresh "Hetype" in
     apply e_typing_ops in Hetype0 as [? [vts [ts' [Hvtstype Hetype]]]]
   end;
-  simpl in *; invert_e_typing; remove_bools_options.
+  simpl in *; invert_e_typing; remove_bools_options; try by lias.
 
 (** The usual start of a crash certification **)
 Ltac resolve_invalid_typing :=
@@ -849,12 +849,10 @@ the condition that all values should live in the operand stack. *)
       assert_value_vec v.
       destruct (N.ltb x (shape_dim shape)) eqn:Hlanebound.
       + (* in bound *)
-        move/N.ltb_spec0 in Hlanebound.
         apply <<hs, (s, ccs, (VAL_num (app_extract_vec shape sx x v) :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
         by apply r_simple, rs_extract_vec.
       + (* out of bound *)
-        move/N.ltb_spec0 in Hlanebound.
         by resolve_invalid_typing.
         
     - (* AI_basic (BI_replace_vec shape x) *)
@@ -863,12 +861,10 @@ the condition that all values should live in the operand stack. *)
       assert_value_num v2.
       destruct (N.ltb x (shape_dim shape)) eqn:Hlanebound.
       + (* in bound *)
-        move/N.ltb_spec0 in Hlanebound.
         apply <<hs, (s, ccs, (VAL_vec (app_replace_vec shape x v1 v2) :: vs0, es0), None)>>.
         resolve_reduce_ctx vs0 es0.
         by apply r_simple, rs_replace_vec.
       + (* out of bound *)
-        move/N.ltb_spec0 in Hlanebound.
         by resolve_invalid_typing.
       
     - (* AI_basic BI_ref_null t *)

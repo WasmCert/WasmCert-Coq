@@ -216,13 +216,17 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
       | BI_test_vec tv =>
           type_update ts [::T_vec T_v128] [::T_num T_i32]
       | BI_shift_vec sv =>
-          type_update ts [::T_vec T_v128; T_num T_i32] [::T_vec T_v128]
+          type_update ts [::T_num T_i32; T_vec T_v128] [::T_vec T_v128]
       | BI_splat_vec shape =>
           type_update ts [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128]
       | BI_extract_vec shape sx x =>
-          type_update ts [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)]
+          if N.ltb x (shape_dim shape) then
+            type_update ts [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)]
+          else None
       | BI_replace_vec shape x =>
-          type_update ts [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)]
+          if N.ltb x (shape_dim shape) then
+            type_update ts [::T_num (typeof_shape_unpacked shape); T_vec T_v128] [::T_vec T_v128]
+          else None
       | BI_unreachable => Some <<nil, true>>
       | BI_nop => Some ts
       | BI_drop => type_update_drop ts
@@ -385,11 +389,35 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               else None
           | None => None
           end
+      | BI_load_vec lvarg marg =>
+          match lookup_N C.(tc_mems) 0%N with
+          | Some _ =>
+              if load_vec_bounds lvarg marg
+              then type_update ts [::(T_num T_i32)] [::T_vec T_v128]
+              else None
+          | None => None
+          end
+      | BI_load_vec_lane width marg x =>
+          match lookup_N C.(tc_mems) 0%N with
+          | Some _ =>
+              if load_vec_lane_bounds width marg x
+              then type_update ts [:: T_vec T_v128; T_num T_i32] [::T_vec T_v128]
+              else None
+          | None => None
+          end
       | BI_store t tp marg =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               if load_store_t_bounds marg.(memarg_align) tp t
               then type_update ts [::T_num t; T_num T_i32] [::]
+              else None
+          | None => None
+          end
+      | BI_store_vec_lane width marg x =>
+          match lookup_N C.(tc_mems) 0%N with
+          | Some _ =>
+              if load_vec_lane_bounds width marg x
+              then type_update ts [::T_vec T_v128; T_num T_i32] [::]
               else None
           | None => None
           end

@@ -1263,6 +1263,22 @@ Proof.
       destruct n, n0 => //; by constructor.
     (* Const_vec *)
     + by resolve_tc_be_typing.
+    (* Unop_vec *)
+    + by resolve_tc_be_typing.
+    (* Binop_vec *)
+    + by resolve_tc_be_typing.
+    (* Ternop_vec *)
+    + by resolve_tc_be_typing.
+    (* Test_vec *)
+    + by resolve_tc_be_typing.
+    (* Shift_vec *)
+    + by resolve_tc_be_typing.
+    (* Splat_vec *)
+    + by resolve_tc_be_typing.
+    (* Extract_vec *)
+    + by resolve_tc_be_typing.
+    (* Replace_vec *)
+    + by resolve_tc_be_typing.
     (* Ref_null *)
     + by resolve_tc_be_typing.
     (* Ref_is_null *)
@@ -1314,7 +1330,13 @@ Proof.
       by apply bet_weakening_empty_both; econstructor; eauto.
     (* Load *)
     + by resolve_tc_be_typing.
+    (* Load_vec *)
+    + by resolve_tc_be_typing.
+    (* Load_vec_lane *)
+    + by resolve_tc_be_typing.
     (* Store *)
+    + by resolve_tc_be_typing.
+    (* Store_vec_lane *)
     + by resolve_tc_be_typing.
     (* Memory_size *)
     + by resolve_tc_be_typing.
