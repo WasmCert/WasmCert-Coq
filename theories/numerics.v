@@ -315,7 +315,7 @@ Proof.
   rewrite IH //. move=> i I. apply: A. by apply: leq_trans I.
 Qed.
 
-Lemma power_index_to_bits_in : forall c l n,
+Lemma power_index_to_bits_in : forall c (l: seq Z) n,
   n < c ->
   seq.nth false (power_index_to_bits c l) (c - n - 1) = ((n : Z) \in l).
 Proof.
@@ -326,7 +326,7 @@ Qed.
 
 Lemma power_index_to_bits_nth : forall c l n,
   n < c ->
-  seq.nth false (power_index_to_bits c l) n = ((c - n - 1 : Z) \in l).
+  seq.nth false (power_index_to_bits c l) n = ((Z.of_nat (c - n - 1)) \in l).
 Proof.
   move=> c l n I. have E: (n = c - (c - n - 1) - 1); first by lias.
   rewrite {1} E. apply: power_index_to_bits_in. by lias.
@@ -356,7 +356,7 @@ Qed.
 Lemma convert_to_bits_nth : forall (p : nat) x,
   p < wordsize ->
   seq.nth false (convert_to_bits x) p
-  = ((wordsize - p - 1 : Z) \in Zbits.Z_one_bits wordsize (intval x) 0).
+  = (Z.of_nat (wordsize - p - 1) \in Zbits.Z_one_bits wordsize (intval x) 0).
 Proof.
   move=> p x I. rewrite /convert_to_bits. by rewrite power_index_to_bits_nth.
 Qed.
@@ -378,7 +378,7 @@ Proof.
         by rewrite_by (wordsize - 1 < wordsize - 1 = false).
       * rewrite_by (i < wordsize - 1 = true).
         rewrite in_cons in_nil Bool.orb_false_r.
-        rewrite_by (((wordsize - i - 1 : Z) == 0) = (wordsize - i - 1 == 0)).
+        rewrite_by ((Z.of_nat (wordsize - i - 1) == 0) = (wordsize - i - 1 == 0)).
         apply gtn_eqF. move/leP: I E. move: WS.wordsize_not_zero. rewrite/wordsize. by lias.
     + by lias.
 Qed.
