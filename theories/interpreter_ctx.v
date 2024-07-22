@@ -1722,6 +1722,81 @@ the condition that all values should live in the operand stack. *)
   }
 Defined.
 
+(** Auxiliary definition for reductions between context tuples.
+    Using a helper definition to strip the outermost frame from the combined frame
+    and instructions in an [:AI_frame _ _ _] format.
+ **)
+
+Definition fes_to_thread (fes: list administrative_instruction) : option thread :=
+  match fes with
+  | [::AI_frame n f es] => Some (f, es)
+  | _ => None
+  end.
+
+Definition reduce_ctx_thread (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
+  match cfg with
+  | (s, ccs, sc, oe) =>
+      match cfg' with
+      | (s', ccs', sc', oe') =>
+          match fes_to_thread ccs ⦃ sc ⦃ olist oe ⦄ ⦄ with
+          | Some (f, es) =>
+              match fes_to_thread ccs' ⦃ sc' ⦃ olist oe' ⦄ ⦄ with
+              | Some (f', es') =>
+                  reduce hs s f es hs' s' f' es'
+              | None => False
+              end
+          | None => False
+          end
+      end
+  end.
+
+(* The reduction of a combined frame and instructions projects back to a reduction 
+   between the original thread setups. *)
+Lemma reduce_fes_thread hs hs' s s' fes fes' f es f' es' f0 f0':
+  reduce hs s f0 fes hs' s' f0' fes' ->
+  fes_to_thread fes = Some (f, es) ->
+  fes_to_thread fes' = Some (f', es') ->
+  reduce hs s f es hs' s' f' es'.
+Proof.
+  move => Hred Hthread1 Hthred2.
+  unfold fes_to_thread in *.
+  destruct fes => //; destruct a => //; destruct fes => //.
+  destruct fes' => //; destruct a => //; destruct fes' => //.
+  remove_bools_options.
+  remember [::AI_frame n f es] as les.
+  remember [::AI_frame n0 f' es'] as les'.
+  induction Hred; subst => //.
+  - by inversion H; subst; clear H => //.
+  - by repeat (destruct vs as [|? vs] => //).
+  - by repeat (destruct vcs as [|? vcs] => //).
+  - destruct lh; simpl in *.
+    + destruct l as [ | ? l] => //; simpl in *; last by repeat destruct v => //.
+      destruct es0 as [|e es0]; first by apply reduce_not_nil in Hred.
+      destruct es0, l0 => //.
+      rewrite cats0 in H0; simpl in H; inversion H; subst.
+      by eapply IHHred; eauto.
+    + by repeat destruct l => //.
+  - by inversion Heqles; inversion Heqles'; subst.
+Qed.
+
+Lemma valid_ccs_thread ccs es:
+  valid_ccs ccs ->
+  exists f es', fes_to_thread (ccs ⦃ es ⦄) = Some (f, es').
+Proof.
+  unfold valid_ccs.
+  destruct ccs as [|cc ccs] => //.
+  move => Hvalid.
+  destruct (cc :: ccs) eqn:Hlast using last_ind => //.
+  rewrite last_rcons in Hvalid.
+  simpl.
+  rewrite foldl_rcons => /=.
+  destruct x as [fc lcs]; destruct fc; simpl in *.
+  remove_bools_options; subst.
+  by repeat eexists.
+Qed.
+
+Lemma reduce_ctx_valid_thread: 
+
 (* reformation to a valid configuration, if possible.
    If the cfg is already a value, report that.
  *)
