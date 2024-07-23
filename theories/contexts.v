@@ -281,12 +281,13 @@ Definition oe_noframe (oe: option administrative_instruction) :=
  *)
 
 Definition valid_ccs (ccs: list closure_ctx): bool :=
-  match ccs with
+  ccs != nil.
+  (*match ccs with
   | nil => false
   | cc0 :: _ =>
       let '(fc, lcs) := last cc0 ccs in
       (fc.(FC_val) == nil) && (fc.(FC_post) == nil)
-  end.
+  end.*)
 
 Lemma valid_ccs_change_labs fc labs labs' ccs:
   valid_ccs ((fc, labs) :: ccs) ->
@@ -537,11 +538,11 @@ Proof.
     ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_ccs).
   - destruct acc as [ | [fc lcs] ccs'] => //.
     eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
-    + by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
-    + by eapply valid_ccs_change_labs; eauto.
+    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+(*    + by eapply valid_ccs_change_labs; eauto. *)
   - eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
-    + by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
-    + by destruct acc.
+    by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
+(*    + by destruct acc. *)
 Qed.
 
 Lemma ctx_decompose_valid_aux: forall ves acc ccs sctx oe,
@@ -600,9 +601,9 @@ Proof.
   (* Label *)
   - destruct ccs as [ | [fc lcs] ccs0] => //.
     eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-    by eapply valid_ccs_change_labs; eauto.
+    (*by eapply valid_ccs_change_labs; eauto.*)
   - eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-    by destruct ccs.
+   (* by destruct ccs. *)
 Qed.
   
 Lemma ctx_update_nconst_valid: forall sctx e ccs ccs' sctx' oe,
@@ -804,35 +805,6 @@ Lemma lh_ctx_fill: forall lcs es lf,
 Proof.
   intros lcs es lf Hctx.
   by apply lh_ctx_fill_aux with (acc := LH_base nil nil) => /=; rewrite cats0.
-Qed.
-
-(** context reduction lemmas **)
-
-Lemma reduce_focus_ctx: forall hs s lcs ccs es hs' s' lcs' es' f0 fc fc',
-    fc.(FC_val) = fc'.(FC_val) ->
-    fc.(FC_post) = fc'.(FC_post) ->
-    fc.(FC_arity) = fc'.(FC_arity) ->
-    reduce hs s fc.(FC_frame) (lcs ⦃ es ⦄) hs' s' fc'.(FC_frame) (lcs' ⦃ es' ⦄) ->
-    reduce hs s f0 (((fc, lcs) :: ccs) ⦃ es ⦄) hs' s' f0 (((fc', lcs') :: ccs) ⦃ es' ⦄).
-Proof.
-  intros ???????????? Heqval Heqpost Heqarity => /=.
-  rewrite - Heqpost -Heqval -Heqarity.
-  move => Hred.
-  apply (list_closure_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
-  eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
-  by apply r_frame.
-Qed.
-
-Lemma reduce_focus_ctx_id: forall hs s lcs ccs es hs' s' es' f0 fc fc',
-    fc.(FC_val) = fc'.(FC_val) ->
-    fc.(FC_post) = fc'.(FC_post) ->
-    fc.(FC_arity) = fc'.(FC_arity) ->
-    reduce hs s fc.(FC_frame) es hs' s' fc'.(FC_frame) es' ->
-    reduce hs s f0 (((fc, lcs) :: ccs) ⦃ es ⦄) hs' s' f0 (((fc', lcs) :: ccs) ⦃ es' ⦄).
-Proof.
-  intros ??????????? Heqval Heqpost Heqarity Hred.
-  apply reduce_focus_ctx => //.
-  by apply (list_label_ctx_eval.(ctx_reduce)).
 Qed.
 
 

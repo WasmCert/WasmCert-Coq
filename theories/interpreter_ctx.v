@@ -23,6 +23,23 @@ Hypothesis host_application_impl_correct :
 
 Notation "ctx ⦃ es ⦄" := (ctx_fill es ctx) (at level 1).
 
+Definition ctx_to_cfg (cfg: cfg_tuple_ctx) : option config_tuple :=
+  match cfg with
+  | (s, ccs, sc, oe) =>
+      match rev ccs with
+      | nil => None
+      | (Build_frame_ctx fvs fk ff fes, lcs) :: ccs' =>
+          Some (s, (ff, lcs ⦃ (rev ccs') ⦃ sc ⦃ olist oe ⦄ ⦄ ⦄))
+      end
+  end.
+
+Definition ctx_cfg_typing (cfg: cfg_tuple_ctx) (ts: result_type) : Prop :=
+  match ctx_to_cfg cfg with
+  | Some (s, th) =>
+      config_typing s th ts
+  | None => False
+  end.
+
 Lemma config_typing_inv: forall s (f: frame) es ts,
     config_typing s (f, es) ts ->
     exists C,
@@ -40,6 +57,29 @@ Proof.
   by unfold inst_typing in Hoption; destruct f, f_inst, t; unfold upd_return, upd_local, upd_local_label_return in *; simpl in *; remove_bools_options.
 Qed.
 
+Lemma ctx_cfg_inv: forall s ccs sc oe ts,
+    ctx_cfg_typing (s, ccs, sc, oe) ts ->
+    exists C cc ccs',
+      store_typing s /\
+      ccs = ccs' ++ [:: cc] /\
+      frame_typing s cc.1.(FC_frame) C /\
+      e_typing s C (cc.2 ⦃ ccs' ⦃ sc ⦃ olist oe ⦄ ⦄ ⦄) (Tf nil ts).
+Proof.
+  move => s ccs sc oe ts Htype.
+  unfold ctx_cfg_typing in Htype; remove_bools_options.
+  unfold ctx_to_cfg in Hoption.
+  destruct ccs as [|ccs' [[fvs fk ff fes] lcs]] using last_ind => //; simpl in *.
+  clear IHccs.
+  rewrite rev_rcons in Hoption.
+  destruct c as [s' [f' es']].
+  injection Hoption as <- <- <-.
+  apply config_typing_inv in Htype as [C [Hstype [Hftype Hetype]]].
+  rewrite revK in Hetype.
+  rewrite - cats1.
+  by repeat eexists; eauto.
+Qed.
+
+(*
 (** Auxiliary definition for reductions between context tuples.
     Technically there's an auxiliary empty frame added; but that allows precisely
     the same set of instructions.
@@ -51,6 +91,105 @@ Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
       | (s', ccs', sc', oe') => reduce hs s empty_frame (ccs ⦃ sc ⦃ olist oe ⦄ ⦄) hs' s' empty_frame (ccs' ⦃ sc' ⦃ olist oe' ⦄ ⦄)
       end
   end.
+*)
+
+(** Auxiliary definition for reductions between context tuples. **)
+
+Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
+  match ctx_to_cfg cfg with
+  | Some (s, (f, es)) =>
+      match ctx_to_cfg cfg' with
+      | Some (s', (f', es')) =>
+          reduce hs s f es hs' s' f' es'
+      | None => False
+      end
+  | None => False
+  end.
+
+(** ctx reduction lemmas **)
+Lemma reduce_focus_ctx: forall ccs hs s lcs sc oe hs' s' lcs' sc' oe' fc fc',
+    fc.(FC_val) = fc'.(FC_val) ->
+    fc.(FC_post) = fc'.(FC_post) ->
+    fc.(FC_arity) = fc'.(FC_arity) ->
+    reduce hs s fc.(FC_frame) (lcs ⦃ sc ⦃ olist oe ⦄ ⦄) hs' s' fc'.(FC_frame) (lcs' ⦃ sc' ⦃ olist oe' ⦄ ⦄) ->
+    reduce_ctx hs hs' (s, (fc, lcs) :: ccs, sc, oe) (s', (fc', lcs') :: ccs, sc', oe').
+Proof.
+  induction ccs as [|ccs' cc] using last_ind.
+  - intros ???????????? Heqval Heqpost Heqarity Hred => /=.
+    unfold reduce_ctx, ctx_to_cfg => /=.
+    by destruct fc, fc'; simpl in *; apply Hred.
+  - intros ???????????? Heqval Heqpost Heqarity Hred => /=.
+    unfold reduce_ctx, ctx_to_cfg in * => /=.
+    rewrite rev_cons rev_rcons rcons_cons.
+    destruct cc as [fc0 lcs0].
+    destruct fc0 as [fvs0 fk0 ff0 fes0] => /=.
+    rewrite rev_cons rev_rcons rev_rcons rcons_cons revK rev_rcons revK.
+    apply (list_label_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
+    apply (list_closure_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
+    simpl.
+    rewrite - Heqval - Heqpost -Heqarity.
+    eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
+    by apply r_frame.
+Qed.
+
+Lemma reduce_focus_ctx_id: forall ccs hs s lcs sc oe hs' s' sc' oe' fc fc',
+    fc.(FC_val) = fc'.(FC_val) ->
+    fc.(FC_post) = fc'.(FC_post) ->
+    fc.(FC_arity) = fc'.(FC_arity) ->
+    reduce hs s fc.(FC_frame) (sc ⦃ olist oe ⦄) hs' s' fc'.(FC_frame) (sc' ⦃ olist oe' ⦄) ->
+    reduce_ctx hs hs' (s, (fc, lcs) :: ccs, sc, oe) (s', (fc', lcs) :: ccs, sc', oe').
+Proof.
+  intros ???????????? Heqval Heqpost Heqarity Hred => /=.
+  apply reduce_focus_ctx => //.
+  by apply (list_label_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
+Qed.
+
+(*
+(* The reduction of a combined frame and instructions projects back to a reduction 
+   between the original thread setups. *)
+Lemma reduce_fes_thread hs hs' s s' fes fes' f es f' es' f0 f0':
+  reduce hs s f0 fes hs' s' f0' fes' ->
+  fes_to_thread fes = Some (f, es) ->
+  fes_to_thread fes' = Some (f', es') ->
+  reduce hs s f es hs' s' f' es'.
+Proof.
+  move => Hred Hthread1 Hthred2.
+  unfold fes_to_thread in *.
+  destruct fes => //; destruct a => //; destruct fes => //.
+  destruct fes' => //; destruct a => //; destruct fes' => //.
+  remove_bools_options.
+  remember [::AI_frame n f es] as les.
+  remember [::AI_frame n0 f' es'] as les'.
+  induction Hred; subst => //.
+  - by inversion H; subst; clear H => //.
+  - by repeat (destruct vs as [|? vs] => //).
+  - by repeat (destruct vcs as [|? vcs] => //).
+  - destruct lh; simpl in *.
+    + destruct l as [ | ? l] => //; simpl in *; last by repeat destruct v => //.
+      destruct es0 as [|e es0]; first by apply reduce_not_nil in Hred.
+      destruct es0, l0 => //.
+      rewrite cats0 in H0; simpl in H; inversion H; subst.
+      by eapply IHHred; eauto.
+    + by repeat destruct l => //.
+  - by inversion Heqles; inversion Heqles'; subst.
+Qed.
+
+Lemma valid_ccs_thread ccs es:
+  valid_ccs ccs ->
+  exists f es', fes_to_thread (ccs ⦃ es ⦄) = Some (f, es').
+Proof.
+  unfold valid_ccs.
+  destruct ccs as [|cc ccs] => //.
+  move => Hvalid.
+  destruct (cc :: ccs) eqn:Hlast using last_ind => //.
+  rewrite last_rcons in Hvalid.
+  simpl.
+  rewrite foldl_rcons => /=.
+  destruct x as [fc lcs]; destruct fc; simpl in *.
+  remove_bools_options; subst.
+  by repeat eexists.
+Qed.
+ *)
 
 Ltac red_ctx_simpl :=
   repeat lazymatch goal with
@@ -105,6 +244,7 @@ Ltac infer_hole :=
       f_equal => //=
   end.
 
+
 Ltac resolve_reduce_ctx vs es :=
   unfold reduce_ctx; red_ctx_simpl => //=; try (eapply r_label with (lh := LH_base (rev vs) es) => /=; infer_hole).
 
@@ -130,21 +270,14 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
 | RSC_normal hs' cfg':
   reduce_ctx hs hs' cfg cfg' ->
   run_step_ctx_result hs cfg
-| RSC_value hs' s vs:
-  hs = hs' ->
-  s_of_cfg cfg = s ->
-  es_of_cfg cfg = v_to_e_list vs ->
-  run_step_ctx_result hs cfg
-| RSC_value_frame hs' s vs n f:
-  hs = hs' ->
-  s_of_cfg cfg = s ->
-  es_of_cfg cfg = [::AI_frame n f (v_to_e_list vs)] ->
+| RSC_value s f vs:
+  ctx_to_cfg cfg = Some (s, (f, v_to_e_list vs)) ->
   run_step_ctx_result hs cfg
 | RSC_invalid :
   (valid_cfg_ctx cfg -> False) ->
   run_step_ctx_result hs cfg
 | RSC_error:
-  (forall ts, config_typing (s_of_cfg cfg) (empty_frame, (es_of_cfg cfg)) ts -> False) ->
+  (forall ts, ctx_cfg_typing cfg ts -> False) ->
   run_step_ctx_result hs cfg
 .
 
@@ -172,14 +305,18 @@ Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
   let ts' := fresh "ts'" in
-  let C0 := fresh "C0" in
+  let C := fresh "C" in
+  let fc := fresh "fc" in
+  let lcs := fresh "lcs" in
+  let ccs0 := fresh "ccs0" in
   let Htype := fresh "Htype" in
   let Hetype := fresh "Hetype" in
+  let Heqcc := fresh "Heqcc" in
   let Hftype := fresh "Hftype" in
   let Hstype := fresh "Hstype" in
-  intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype;
-  eapply config_typing_inv in Htype as [C0 [Hstype [Hftype0 Hetype]]]; eauto;
-  invert_ctx_typing Hetype.
+  intros ts Htype;
+  eapply ctx_cfg_inv in Htype as [C [[fc lcs] [ccs0 [Hstype [Heqcc [Hftype Hetype]]]]]]; eauto;
+  try invert_ctx_typing Hetype.
 
 Ltac last_unequal H :=
   apply (f_equal rev) in H;
@@ -270,9 +407,10 @@ Proof.
       }
       
     + (* Not enough values *)
-      apply RSC_error.
-      destruct lcs as [| lc lcs] => //.
-      intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
+      resolve_invalid_typing.
+      apply lcs_typing_exists in Hetype as [labs [ts1 [ts2 [Hetype [Hagree Hconsume]]]]].
+      apply ccs_typing_focus in Hetype.
+      eapply ctx_cfg_inv in Htype as [C [cc [ccs0 [Hstype [? [_ Hetype]]]]]]; eauto.
       eapply config_typing_inv in Htype as [C [Hstype [_ Hetype]]]; eauto.
       apply ccs_typing_focus in Hetype as [? [? [? [tf Hetype]]]].
       apply fc_typing in Hetype as [? [? [Hftype [Hlen Hetype]]]] => //.
@@ -1721,81 +1859,6 @@ the condition that all values should live in the operand stack. *)
       by apply RSC_invalid => /=; move => [??].
   }
 Defined.
-
-(** Auxiliary definition for reductions between context tuples.
-    Using a helper definition to strip the outermost frame from the combined frame
-    and instructions in an [:AI_frame _ _ _] format.
- **)
-
-Definition fes_to_thread (fes: list administrative_instruction) : option thread :=
-  match fes with
-  | [::AI_frame n f es] => Some (f, es)
-  | _ => None
-  end.
-
-Definition reduce_ctx_thread (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
-  match cfg with
-  | (s, ccs, sc, oe) =>
-      match cfg' with
-      | (s', ccs', sc', oe') =>
-          match fes_to_thread ccs ⦃ sc ⦃ olist oe ⦄ ⦄ with
-          | Some (f, es) =>
-              match fes_to_thread ccs' ⦃ sc' ⦃ olist oe' ⦄ ⦄ with
-              | Some (f', es') =>
-                  reduce hs s f es hs' s' f' es'
-              | None => False
-              end
-          | None => False
-          end
-      end
-  end.
-
-(* The reduction of a combined frame and instructions projects back to a reduction 
-   between the original thread setups. *)
-Lemma reduce_fes_thread hs hs' s s' fes fes' f es f' es' f0 f0':
-  reduce hs s f0 fes hs' s' f0' fes' ->
-  fes_to_thread fes = Some (f, es) ->
-  fes_to_thread fes' = Some (f', es') ->
-  reduce hs s f es hs' s' f' es'.
-Proof.
-  move => Hred Hthread1 Hthred2.
-  unfold fes_to_thread in *.
-  destruct fes => //; destruct a => //; destruct fes => //.
-  destruct fes' => //; destruct a => //; destruct fes' => //.
-  remove_bools_options.
-  remember [::AI_frame n f es] as les.
-  remember [::AI_frame n0 f' es'] as les'.
-  induction Hred; subst => //.
-  - by inversion H; subst; clear H => //.
-  - by repeat (destruct vs as [|? vs] => //).
-  - by repeat (destruct vcs as [|? vcs] => //).
-  - destruct lh; simpl in *.
-    + destruct l as [ | ? l] => //; simpl in *; last by repeat destruct v => //.
-      destruct es0 as [|e es0]; first by apply reduce_not_nil in Hred.
-      destruct es0, l0 => //.
-      rewrite cats0 in H0; simpl in H; inversion H; subst.
-      by eapply IHHred; eauto.
-    + by repeat destruct l => //.
-  - by inversion Heqles; inversion Heqles'; subst.
-Qed.
-
-Lemma valid_ccs_thread ccs es:
-  valid_ccs ccs ->
-  exists f es', fes_to_thread (ccs ⦃ es ⦄) = Some (f, es').
-Proof.
-  unfold valid_ccs.
-  destruct ccs as [|cc ccs] => //.
-  move => Hvalid.
-  destruct (cc :: ccs) eqn:Hlast using last_ind => //.
-  rewrite last_rcons in Hvalid.
-  simpl.
-  rewrite foldl_rcons => /=.
-  destruct x as [fc lcs]; destruct fc; simpl in *.
-  remove_bools_options; subst.
-  by repeat eexists.
-Qed.
-
-Lemma reduce_ctx_valid_thread: 
 
 (* reformation to a valid configuration, if possible.
    If the cfg is already a value, report that.
