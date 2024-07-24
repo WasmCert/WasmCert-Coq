@@ -801,6 +801,36 @@ Proof.
   by remove_bools_options.
 Qed.
 
+Lemma inst_t_context_return_None: forall s i C,
+    inst_typing s i = Some C ->
+    tc_return C = None.
+Proof.
+  move => s i C HInstType.
+  unfold inst_typing, typing.inst_typing in HInstType.
+  destruct i => //=.
+  by remove_bools_options.
+Qed.
+
+Lemma frame_typing_label_empty: forall s f C,
+    frame_typing s f C ->
+    tc_labels C = nil.
+Proof.
+  move => s f C Hftype.
+  unfold frame_typing in Hftype; remove_bools_options.
+  destruct Hftype as [ts [-> Hvt]] => /=.
+  by eapply inst_t_context_label_empty; eauto.
+Qed.
+
+Lemma frame_typing_return_None: forall s f C,
+    frame_typing s f C ->
+    tc_return C = None.
+Proof.
+  move => s f C Hftype.
+  unfold frame_typing in Hftype; remove_bools_options.
+  destruct Hftype as [ts [-> Hvt]] => /=.
+  by eapply inst_t_context_return_None; eauto.
+Qed.
+
 Lemma global_type_reference: forall s i j C v t,
     store_typing s ->
     inst_typing s i = Some C ->

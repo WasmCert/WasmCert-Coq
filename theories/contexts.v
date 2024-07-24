@@ -862,19 +862,39 @@ Proof.
     by apply/eqP.
 Qed.
 
+Lemma lcs_typing_exists_nil: forall (lcs: list label_ctx) es s C0 ts,
+    e_typing s C0 (lcs ⦃ es ⦄) (Tf nil ts) ->
+    exists labs ts2,
+      e_typing s (upd_label C0 (labs ++ C0.(tc_labels))) es (Tf nil ts2) /\
+      all2 lab_lc_agree labs lcs.
+Proof.
+  move => lcs es s C0 ts Hetype.
+  destruct lcs.
+  - simpl in Hetype.
+    exists nil, ts.
+    split => //=.
+    by destruct C0.
+  - apply lcs_typing_exists in Hetype as [? [? [? [Hetype [? Hconsume]]]]].
+    rewrite Hconsume in Hetype => //.
+    by repeat eexists; eauto.
+Qed.
+
 Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
     e_typing s C0 cc ⦃ es ⦄ tf ->
     exists C ret labs ts2,
       frame_typing s (cc.1).(FC_frame) C /\
         (cc.1).(FC_arity) = (length ret) /\
+        (all2 lab_lc_agree labs cc.2) /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
   move => [fc lcs] es s C0 tf Htype.
   apply fc_typing in Htype as [C [ret [? [? Htype]]]].
-  destruct lcs; first by do 4 eexists; repeat split; eauto.
-  apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
-  do 4 eexists; repeat split; eauto.
-  by rewrite Hconsume in Htype => //; eauto.
+  apply lcs_typing_exists_nil in Htype as [labs [ts2 [Htype Hagree]]].
+  simpl in Htype.
+  do 3 eexists; exists ts2; repeat split; eauto.
+  uapply Htype.
+  f_equal.
+  by erewrite frame_typing_label_empty, cats0; eauto.
 Qed.
 
 Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
@@ -882,13 +902,14 @@ Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
     exists C ret labs ts2,
       frame_typing s (cc.1).(FC_frame) C /\
         (cc.1).(FC_arity) = length ret /\
+        (all2 lab_lc_agree labs cc.2) /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
   move => cc ccs.
   move: cc.
   induction ccs as [| cc' ccs']; move => [fc lcs] es s C0 tf Htype.
   - by eapply cc_typing_exists; eauto.
-  - apply IHccs' in Htype as [? [? [? [? [? [??]]]]]].
+  - apply IHccs' in Htype as [? [? [? [? [? [? [??]]]]]]].
     by eapply cc_typing_exists; eauto.
 Qed.
 
@@ -933,7 +954,7 @@ Proof.
   move => ccs [vs0 es0] es s C0 ts0.
   destruct ccs as [ | cc' ccs']; move => Htype.
   - by eapply sc_typing_args in Htype as [? Htype]; eauto.
-  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
+  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? [? Htype]]]]]]].
     by eapply sc_typing_args in Htype as [? Htype]; eauto.
 Qed.
 
@@ -947,7 +968,7 @@ Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C
         e_typing s C' es (Tf vts ts).
 Proof.
   move => cc ccs [vs0 es0] es s C0 tf Htype.
-  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
+  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? [? Htype]]]]]]].
     eapply sc_typing_args in Htype as [? [? [Hvstype Htype]]]; eauto.
     by do 7 eexists; eauto.
 Qed.

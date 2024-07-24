@@ -57,26 +57,49 @@ Proof.
   by unfold inst_typing in Hoption; destruct f, f_inst, t; unfold upd_return, upd_local, upd_local_label_return in *; simpl in *; remove_bools_options.
 Qed.
 
-Lemma ctx_cfg_inv: forall s ccs sc oe ts,
-    ctx_cfg_typing (s, ccs, sc, oe) ts ->
-    exists C cc ccs',
+(* Context typing inversion lemma *)
+Lemma ctx_cfg_inv: forall s cc ccs sc oe ts,
+    ctx_cfg_typing (s, (cc :: ccs), sc, oe) ts ->
+    exists C (ret: option result_type) labs ts2,
       store_typing s /\
-      ccs = ccs' ++ [:: cc] /\
       frame_typing s cc.1.(FC_frame) C /\
-      e_typing s C (cc.2 ⦃ ccs' ⦃ sc ⦃ olist oe ⦄ ⦄ ⦄) (Tf nil ts).
+      all2 lab_lc_agree labs cc.2 /\ 
+      (ccs != nil -> (option_map (@length _) ret = Some cc.1.(FC_arity))) /\
+      (ccs = nil -> ret = None) /\
+      e_typing s (upd_label (upd_return C ret) labs) (sc ⦃ olist oe ⦄) (Tf nil ts2).
 Proof.
-  move => s ccs sc oe ts Htype.
-  unfold ctx_cfg_typing in Htype; remove_bools_options.
-  unfold ctx_to_cfg in Hoption.
-  destruct ccs as [|ccs' [[fvs fk ff fes] lcs]] using last_ind => //; simpl in *.
-  clear IHccs.
-  rewrite rev_rcons in Hoption.
-  destruct c as [s' [f' es']].
-  injection Hoption as <- <- <-.
+  move => s cc ccs sc oe ts Htype.
+  unfold ctx_cfg_typing in Htype.
+  destruct (ctx_to_cfg (s, cc::ccs, sc, oe)) as [[s0 [f es]]|] eqn:Hcfg => //; unfold ctx_to_cfg in Hcfg.
+  destruct (rev (cc :: ccs)) as [ | [[? ? ff ?] lcs] ccs'] eqn:Hcc => //.
+  injection Hcfg as <- <- <-.
   apply config_typing_inv in Htype as [C [Hstype [Hftype Hetype]]].
-  rewrite revK in Hetype.
-  rewrite - cats1.
-  by repeat eexists; eauto.
+  apply lcs_typing_exists_nil in Hetype as [labs0 [ts2 [Hetype Hagree0]]].
+  destruct ccs' using last_ind.
+  + destruct ccs; simpl in * => //; last by apply (f_equal size) in Hcc; rewrite size_rev in Hcc.
+    rewrite rev_cons in Hcc; simpl in *.
+    injection Hcc as -> => /=.
+    exists C, None, labs0, ts2 => /=.
+    unfold upd_label, upd_return, upd_local_label_return => /=.
+    repeat split; try by destruct C.
+    unfold frame_typing in Hftype; remove_bools_options.
+    destruct Hftype as [? [-> ?]].
+    erewrite -> inst_t_context_local_empty, cats0 in Hetype; eauto.
+    simpl in *.
+    erewrite -> inst_t_context_local_empty, cats0; eauto.
+    erewrite -> inst_t_context_label_empty, cats0 in Hetype; eauto.
+    uapply Hetype => /=.
+    by erewrite <- inst_t_context_return_None; eauto.
+  + clear IHccs'.
+    rewrite rev_rcons in Hetype.
+    apply ccs_typing_exists in Hetype as [C0 [ret [labs [ts' [Hftype0 [Harity [Hagree Hetype]]]]]]].
+    rewrite rev_cons -rcons_cons in Hcc.
+    apply rcons_inj in Hcc.
+    injection Hcc as Hcc <-.
+    apply rev_move in Hcc; subst.
+    exists C0, (Some ret), labs, ts'.
+    repeat split => //; move => Hreveq => //=; last by apply (f_equal size) in Hreveq; rewrite size_rev in Hreveq.
+    by rewrite Harity.
 Qed.
 
 (*
@@ -304,19 +327,19 @@ Ltac invert_ctx_typing Hetype0 :=
 Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
-  let ts' := fresh "ts'" in
   let C := fresh "C" in
-  let fc := fresh "fc" in
-  let lcs := fresh "lcs" in
-  let ccs0 := fresh "ccs0" in
+  let ret := fresh "ret" in
+  let labs := fresh "labs" in
+  let ts' := fresh "ts'" in
+  let Hstype := fresh "Hstype" in
+  let Hftype := fresh "Hftype" in
+  let Hagree := fresh "Hagree" in
+  let Hretcons := fresh "Hretcons" in
+  let Hretnil := fresh "Hretnil" in
   let Htype := fresh "Htype" in
   let Hetype := fresh "Hetype" in
-  let Heqcc := fresh "Heqcc" in
-  let Hftype := fresh "Hftype" in
-  let Hstype := fresh "Hstype" in
-  intros ts Htype;
-  eapply ctx_cfg_inv in Htype as [C [[fc lcs] [ccs0 [Hstype [Heqcc [Hftype Hetype]]]]]]; eauto;
-  try invert_ctx_typing Hetype.
+  move => ts Htype;
+  apply ctx_cfg_inv in Htype as [C [ret [labs [ts' [Hstype [Hftype [Hagree [Hretcons [Hretnil Hetype]]]]]]]]].
 
 Ltac last_unequal H :=
   apply (f_equal rev) in H;
@@ -408,44 +431,21 @@ Proof.
       
     + (* Not enough values *)
       resolve_invalid_typing.
-      apply lcs_typing_exists in Hetype as [labs [ts1 [ts2 [Hetype [Hagree Hconsume]]]]].
-      apply ccs_typing_focus in Hetype.
-      eapply ctx_cfg_inv in Htype as [C [cc [ccs0 [Hstype [? [_ Hetype]]]]]]; eauto.
-      eapply config_typing_inv in Htype as [C [Hstype [_ Hetype]]]; eauto.
-      apply ccs_typing_focus in Hetype as [? [? [? [tf Hetype]]]].
-      apply fc_typing in Hetype as [? [? [Hftype [Hlen Hetype]]]] => //.
-      apply lcs_typing_exists in Hetype as [labs [ts1 [ts2 [Hetype [Hagree Hconsume]]]]].
-      rewrite -> Hconsume in * => //; clear Hconsume.
       eapply sc_typing_args in Hetype as [ts3 [ts4 [Hvstype Hetype]]]; simpl in Hetype.
       invert_e_typing.
       simpl in *.
       destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
       unfold frame_typing in Hftype; remove_bools_options; simpl in *.
       destruct Hftype as [ts0 [-> Hvt]].
-      simpl in *.
-      erewrite -> inst_t_context_label_empty in Hconjr; eauto.
-      rewrite cats0 in Hconjr.
       eapply all2_projection in Hagree; eauto.
       move/eqP in Hagree; simpl in Hagree; subst.
       by discriminate_size.
       
   - (* Not enough labels *)
-    apply RSC_error.
-    intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
-    eapply config_typing_inv in Htype as [C [Hstype [_ Hetype]]]; eauto.
-    apply ccs_typing_focus in Hetype as [? [? [? [tf Hetype]]]].
-    apply fc_typing in Hetype as [? [? [Hftype [Hlen Hetype]]]] => //.
-    apply lcs_typing_exists in Hetype as [labs [ts1 [ts2 [Hetype [Hagree Hconsume]]]]].
-    simpl in Hetype.
-    rewrite -cat1s in Hetype.
-    unfold vs_to_es in Hetype.
+    resolve_invalid_typing.
+    eapply sc_typing_args in Hetype as [ts3 [ts4 [Hvstype Hetype]]]; simpl in Hetype.
     invert_e_typing.
-    unfold frame_typing in Hftype; remove_bools_options.
-    destruct Hftype as [ts0 [-> Hvt]].
-    remove_bools_options.
-    destruct fc as [fvs fk [flocs fi] fes]; simpl in *.
-    erewrite -> inst_t_context_label_empty in *; eauto.
-    rewrite -> cats0 in *.
+    simpl in *.
     by discriminate_size.
 Defined.
 
