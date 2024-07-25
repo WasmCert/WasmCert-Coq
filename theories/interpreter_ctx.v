@@ -130,32 +130,45 @@ Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
   end.
 
 (** ctx reduction lemmas **)
-Lemma reduce_focus_ctx: forall ccs hs s lcs sc oe hs' s' lcs' sc' oe' fc fc',
+Lemma reduce_focus_pivot ccs0 ccs1: forall hs hs' s ccs sc oe s' sc' oe' cc0 cc0',
+    cc0.1.(FC_val) = cc0'.1.(FC_val) ->
+    cc0.1.(FC_post) = cc0'.1.(FC_post) ->
+    cc0.1.(FC_arity) = cc0'.1.(FC_arity) ->
+    reduce hs s cc0.1.(FC_frame) (cc0.2 ⦃ ccs0 ⦃ sc ⦃ olist oe ⦄ ⦄ ⦄) hs' s' cc0'.1.(FC_frame) (cc0'.2 ⦃ ccs1 ⦃ sc' ⦃ olist oe' ⦄ ⦄ ⦄) ->
+    reduce_ctx hs hs' (s, ccs0 ++ cc0 :: ccs, sc, oe) (s', ccs1 ++ cc0' :: ccs, sc', oe').
+Proof.
+  destruct ccs as [|ccs' cc] using last_ind.
+  - intros ????? [fc lcs] [fc' lcs'] ??? Hred => /=.
+    unfold reduce_ctx, ctx_to_cfg => /=.
+    destruct fc, fc'; simpl in *.
+    do 2 rewrite rev_cat /= revK.
+    exact Hred.
+  - intros ????? [fc lcs] [fc' lcs'] Heqval Heqpost Heqarity Hred.
+    unfold reduce_ctx, ctx_to_cfg in * => /=.
+    destruct cc as [[fvs0 fk0 ff0 fes0] lcs0].
+    rewrite rev_cat rev_cons rev_rcons /=.
+    repeat rewrite rev_cat rev_rcons revK.
+    rewrite rev_cat rev_cons rev_rcons revK /= rev_cat rev_rcons revK revK.
+    apply (list_label_ctx_eval.(ctx_reduce)) => //.
+    do 2 rewrite foldl_cat.
+    simpl in *.
+    apply (list_closure_ctx_eval.(ctx_reduce)) => //.
+    rewrite -Heqval -Heqpost -Heqarity.
+    eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
+    by apply r_frame.
+Qed.
+
+Lemma reduce_focus: forall ccs hs s lcs sc oe hs' s' lcs' sc' oe' fc fc',
     fc.(FC_val) = fc'.(FC_val) ->
     fc.(FC_post) = fc'.(FC_post) ->
     fc.(FC_arity) = fc'.(FC_arity) ->
     reduce hs s fc.(FC_frame) (lcs ⦃ sc ⦃ olist oe ⦄ ⦄) hs' s' fc'.(FC_frame) (lcs' ⦃ sc' ⦃ olist oe' ⦄ ⦄) ->
     reduce_ctx hs hs' (s, (fc, lcs) :: ccs, sc, oe) (s', (fc', lcs') :: ccs, sc', oe').
 Proof.
-  induction ccs as [|ccs' cc] using last_ind.
-  - intros ???????????? Heqval Heqpost Heqarity Hred => /=.
-    unfold reduce_ctx, ctx_to_cfg => /=.
-    by destruct fc, fc'; simpl in *; apply Hred.
-  - intros ???????????? Heqval Heqpost Heqarity Hred => /=.
-    unfold reduce_ctx, ctx_to_cfg in * => /=.
-    rewrite rev_cons rev_rcons rcons_cons.
-    destruct cc as [fc0 lcs0].
-    destruct fc0 as [fvs0 fk0 ff0 fes0] => /=.
-    rewrite rev_cons rev_rcons rev_rcons rcons_cons revK rev_rcons revK.
-    apply (list_label_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
-    apply (list_closure_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
-    simpl.
-    rewrite - Heqval - Heqpost -Heqarity.
-    eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
-    by apply r_frame.
+  intros; by apply (@reduce_focus_pivot nil nil).
 Qed.
 
-Lemma reduce_focus_ctx_id: forall ccs hs s lcs sc oe hs' s' sc' oe' fc fc',
+Lemma reduce_focus_id: forall ccs hs s lcs sc oe hs' s' sc' oe' fc fc',
     fc.(FC_val) = fc'.(FC_val) ->
     fc.(FC_post) = fc'.(FC_post) ->
     fc.(FC_arity) = fc'.(FC_arity) ->
@@ -163,7 +176,7 @@ Lemma reduce_focus_ctx_id: forall ccs hs s lcs sc oe hs' s' sc' oe' fc fc',
     reduce_ctx hs hs' (s, (fc, lcs) :: ccs, sc, oe) (s', (fc', lcs) :: ccs, sc', oe').
 Proof.
   intros ???????????? Heqval Heqpost Heqarity Hred => /=.
-  apply reduce_focus_ctx => //.
+  apply reduce_focus => //.
   by apply (list_label_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
 Qed.
 
@@ -217,9 +230,9 @@ Qed.
 Ltac red_ctx_simpl :=
   repeat lazymatch goal with
   | |- reduce _ _ _ (((_, ?lcs) :: ?ccs) ⦃ _ ⦃ _ ⦄ ⦄) _ _ _ (((_, ?lcs) :: ?ccs) ⦃ _ ⦃ _ ⦄ ⦄) =>
-      apply reduce_focus_ctx_id
+      apply reduce_focus_id
   | |- reduce _ _ _ (((_, _) :: ?ccs) ⦃ _ ⦃ _ ⦄ ⦄) _ _ _ (((_, _) :: ?ccs) ⦃ _ ⦃ _ ⦄ ⦄) =>
-      apply reduce_focus_ctx
+      apply reduce_focus
   | |- reduce _ _ _ (?ccs ⦃ _ ⦃ _ ⦄ ⦄) _ _ _ (?ccs ⦃ _ ⦃ _ ⦄ ⦄) =>
       apply (list_closure_ctx_eval.(ctx_reduce))
   | |- reduce _ _ _ (foldl closure_ctx_fill _ _) _ _ _ (foldl closure_ctx_fill _ _) =>
@@ -269,7 +282,7 @@ Ltac infer_hole :=
 
 
 Ltac resolve_reduce_ctx vs es :=
-  unfold reduce_ctx; red_ctx_simpl => //=; try (eapply r_label with (lh := LH_base (rev vs) es) => /=; infer_hole).
+  unfold reduce_ctx; try (eapply r_label with (lh := LH_base (rev vs) es) => /=; infer_hole).
 
 Ltac resolve_valid_ccs :=
   repeat lazymatch goal with
@@ -411,7 +424,7 @@ Proof.
     specialize (nth_error_Some_length Htar) as Hlablen; move/ltP in Hlablen.
     destruct (lk <= length vs) eqn:Hvslen.
     + apply <<hs, (s, ((fc, drop (S (N.to_nat j)) lcs) :: ccs'), (take lk vs ++ lvs, lces ++ les), None)>> => //.
-      apply reduce_focus_ctx => //=.
+      apply reduce_focus => //=.
       rewrite - (cat_take_drop ((N.to_nat j).+1) lcs) drop_size_cat; last by rewrite size_takel; apply nth_error_Some_length in Htar; lias => //.
       rewrite foldl_cat.
       apply list_label_ctx_eval.(ctx_reduce) => //=.
@@ -483,31 +496,29 @@ Proof.
       by discriminate_size.
 Defined.
 
-(** Invoke does not need a frame context. 
-    This is useful for handling the starting invocation of a module, as the execution otherwise always assumes
-    the existence of one frame context, which is in fact true in the spec representation (due to the frame in the
-    config tuple) **)
 Definition run_ctx_invoke hs s ccs vs0 es0 a:
     run_step_ctx_result hs (s, ccs, (vs0, es0), Some (AI_invoke a)).
 Proof.
+  get_cc ccs.
   destruct (lookup_N s.(s_funcs) a) as [cl|] eqn:?.
-  - (* Some cl *)
-    destruct cl as [[t1s t2s] i [tidx ts es] | [t1s t2s] cl'] eqn:?.
-    + (* FC_func_native i (Tf t1s t2s) ts es *)
-      remember (length t1s) as n eqn:?.
+  (* Some cl *)
+  - destruct cl as [[t1s t2s] i [tidx ts es] | [t1s t2s] cl'] eqn:?.
+    (* FC_func_native i (Tf t1s t2s) ts es *)
+    + remember (length t1s) as n eqn:?.
       remember (length t2s) as m eqn:?.
       destruct (length vs0 >= n) eqn:Hlen.
-      * (* true *)
-        destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
+      (* true *)
+      * destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
         destruct (default_vals ts) as [zs |] eqn:Hdefault.
-        (* types are all defaultable *)
-        { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: ccs, (nil, nil), Some (AI_label m nil (to_e_list es)))>> => /=.
-          red_ctx_simpl => //=.
-          rewrite split_n_is_take_drop in Hsplit.
-          injection Hsplit as ??.
-          eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-          2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-               by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+        (* types are all defaultable as of Wasm 2.0 *)
+        { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_label m nil (to_e_list es)))>> => /=.
+          apply (@reduce_focus_pivot nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
+          apply (list_label_ctx_eval.(ctx_reduce)) => //=.
+          rewrite split_n_is_take_drop in Hsplit; injection Hsplit as <- <-.
+          eapply r_label with (lh := LH_base (rev (drop n vs0)) es0) => /=; subst; infer_hole.
+          2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])) => /=.
+               repeat rewrite catA.
+               by rewrite v_to_e_cat -rev_cat cat_take_drop -catA.
           }
           eapply r_invoke_native; eauto.
           repeat rewrite length_is_size.
@@ -516,14 +527,12 @@ Proof.
         }
         (* Not defaultable *)
         { resolve_invalid_typing.
-          specialize (store_typing_func_lookup Hstype Heqo) as Hftype.
-          destruct Hftype as [ft Hftype].
-          unfold funcinst_typing in Hftype; simpl in *.
-          destruct Hftype as [<- [_ Hftype]].
+          specialize (store_typing_func_lookup Hstype Heqo) as [ft [<- [_ Hfunctype]]].
+          simpl in *.
           remove_bools_options.
           destruct f.
-          destruct Hftype as [Heqtf [Hetype Hdefault']].
-          done.
+          destruct Hfunctype as [Heqtf [Hetype Hdefault']].
+          by apply Hdefault'.
         }
       * (* not enough arguments *)
         resolve_invalid_typing.
@@ -539,8 +548,8 @@ Proof.
         destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev vs')) as [hs' [[s' rves]|]] eqn:?.
         -- (* (hs', Some (s', rves)) *)
           destruct rves as [rvs | ].
-          ++ apply <<hs', (s', ccs, (rev rvs ++ vs'', es0), None)>> => /=.
-             red_ctx_simpl => //.
+          ++ apply <<hs', (s', (fc, lcs) :: ccs', (rev rvs ++ vs'', es0), None)>> => /=.
+             apply reduce_focus_id => //.
              rewrite split_n_is_take_drop in Hsplit.
              injection Hsplit as ??.
              eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
@@ -553,8 +562,8 @@ Proof.
              eapply r_invoke_host_success; eauto.
              repeat rewrite length_is_size.
              by rewrite size_rev size_takel => //.
-          ++ apply <<hs', (s', ccs, (vs'', es0), Some AI_trap)>> => /=.
-             red_ctx_simpl => //.
+          ++ apply <<hs', (s', (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => /=.
+             apply reduce_focus_id => //.
              rewrite split_n_is_take_drop in Hsplit.
              injection Hsplit as ??.
              eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
@@ -567,8 +576,8 @@ Proof.
              repeat rewrite length_is_size.
              by rewrite size_rev size_takel => //.
   - (* (hs', None) *)
-    apply <<hs', (s, ccs, (vs'', es0), Some AI_trap)>> => /=.
-    red_ctx_simpl => //.
+    apply <<hs', (s, (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => /=.
+    apply reduce_focus_id => //.
     rewrite split_n_is_take_drop in Hsplit.
     injection Hsplit as ??.
     eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
@@ -775,7 +784,7 @@ Proof.
           apply <<hs, (s, (fc, lcs') :: ccs', (vs ++ lvs, nil), None)>> => /=.
           resolve_reduce_ctx (FC_val fc) (FC_post fc).
           eapply r_frame.
-          red_ctx_simpl => //=.
+          apply reduce_focus_id => //=.
           unfold fmask0, label_ctx_fill => /=.
           eapply r_label with (lh := LH_base (rev lvs) nil) => /=; infer_hole; eauto => /=.
           apply r_simple, rs_label_const; by apply v_to_e_const.
@@ -784,7 +793,7 @@ Proof.
           apply <<hs, (s, (fc, lcs') :: ccs', (vs ++ lvs, les'), Some e)>> => /=.
           resolve_reduce_ctx (FC_val fc) (FC_post fc).
           apply r_frame => /=.
-          red_ctx_simpl => //=.
+          apply reduce_focus_id => //=.
           unfold fmask0, label_ctx_fill => /=.
           eapply r_label with (lh := LH_base (rev lvs) (e :: les')) => /=; infer_hole.
           apply r_simple, rs_label_const; by apply v_to_e_const.
@@ -1837,7 +1846,7 @@ the condition that all values should live in the operand stack. *)
         * destruct lc as [lvs ? ? les].
           apply <<hs, (s, (fc, lcs') :: ccs', (lvs, les), Some AI_trap)>>.
           unfold reduce_ctx.
-          apply reduce_focus_ctx => //=.
+          apply reduce_focus => //=.
           apply list_label_ctx_eval.(ctx_reduce) => //=.
           unfold label_ctx_fill => /=.
           resolve_reduce_ctx lvs les.
