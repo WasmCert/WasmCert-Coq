@@ -58,6 +58,46 @@ Proof.
 Qed.
 
 (* Context typing inversion lemma *)
+Lemma ctx_cfg_inv_lcs: forall s cc ccs sc oe ts,
+    ctx_cfg_typing (s, (cc :: ccs), sc, oe) ts ->
+    exists C (ret: option result_type) ts2,
+      store_typing s /\
+      frame_typing s cc.1.(FC_frame) C /\
+      (ccs != nil -> (ret = Some ts2 /\ (option_map (@length _) ret = Some cc.1.(FC_arity)))) /\
+      (ccs = nil -> ret = None) /\
+      e_typing s (upd_return C ret) (cc.2 ⦃ sc ⦃ olist oe ⦄ ⦄) (Tf nil ts2).
+Proof.
+  move => s cc ccs sc oe ts Htype.
+  unfold ctx_cfg_typing in Htype.
+  destruct (ctx_to_cfg (s, cc::ccs, sc, oe)) as [[s0 [f es]]|] eqn:Hcfg => //; unfold ctx_to_cfg in Hcfg.
+  destruct (rev (cc :: ccs)) as [ | [[? ? ff ?] lcs] ccs'] eqn:Hcc => //.
+  injection Hcfg as <- <- <-.
+  apply config_typing_inv in Htype as [C [Hstype [Hftype Hetype]]].
+  destruct ccs' using last_ind.
+  + destruct ccs; simpl in * => //; last by apply (f_equal size) in Hcc; rewrite size_rev in Hcc.
+    rewrite rev_cons in Hcc; simpl in *.
+    injection Hcc as -> => /=.
+    exists C, None, ts => /=.
+    repeat split => //.
+    Search frame_typing tc_return.
+    by erewrite <- frame_typing_return_None; eauto; destruct C.
+  + clear IHccs'.
+    rewrite rev_rcons in Hetype.
+    apply lcs_typing_exists in Hetype as [labs0 [ts1 [ts2 [Hetype [Hagree0 Hconsume0]]]]].
+    rewrite rev_cons -rcons_cons in Hcc.
+    apply rcons_inj in Hcc.
+    injection Hcc as Hcc <-.
+    simpl in Hetype.
+    apply rev_move in Hcc; subst.
+    apply ccs_typing_focus in Hetype as [C' [ret [labs [[ts1' ts2'] Hetype]]]].
+    destruct cc as [fc lcs']; simpl in *.
+    invert_e_typing.
+    inversion Hconjl0; subst; clear Hconjl0.
+    exists C0, (Some extr), extr.
+    repeat split => //=; last by move => Hreveq => //=; apply (f_equal size) in Hreveq; rewrite size_rev in Hreveq.
+    by rewrite Hconjr0.
+Qed.
+
 Lemma ctx_cfg_inv: forall s cc ccs sc oe ts,
     ctx_cfg_typing (s, (cc :: ccs), sc, oe) ts ->
     exists C (ret: option result_type) labs ts2,
@@ -69,37 +109,14 @@ Lemma ctx_cfg_inv: forall s cc ccs sc oe ts,
       e_typing s (upd_label (upd_return C ret) labs) (sc ⦃ olist oe ⦄) (Tf nil ts2).
 Proof.
   move => s cc ccs sc oe ts Htype.
-  unfold ctx_cfg_typing in Htype.
-  destruct (ctx_to_cfg (s, cc::ccs, sc, oe)) as [[s0 [f es]]|] eqn:Hcfg => //; unfold ctx_to_cfg in Hcfg.
-  destruct (rev (cc :: ccs)) as [ | [[? ? ff ?] lcs] ccs'] eqn:Hcc => //.
-  injection Hcfg as <- <- <-.
-  apply config_typing_inv in Htype as [C [Hstype [Hftype Hetype]]].
+  apply ctx_cfg_inv_lcs in Htype as [C [ret [ts' [Hstype [Hftype [Hretcons [Hretnil Hetype]]]]]]].
   apply lcs_typing_exists_nil in Hetype as [labs0 [ts2 [Hetype Hagree0]]].
-  destruct ccs' using last_ind.
-  + destruct ccs; simpl in * => //; last by apply (f_equal size) in Hcc; rewrite size_rev in Hcc.
-    rewrite rev_cons in Hcc; simpl in *.
-    injection Hcc as -> => /=.
-    exists C, None, labs0, ts2 => /=.
-    unfold upd_label, upd_return, upd_local_label_return => /=.
-    repeat split; try by destruct C.
-    unfold frame_typing in Hftype; remove_bools_options.
-    destruct Hftype as [? [-> ?]].
-    erewrite -> inst_t_context_local_empty, cats0 in Hetype; eauto.
-    simpl in *.
-    erewrite -> inst_t_context_local_empty, cats0; eauto.
-    erewrite -> inst_t_context_label_empty, cats0 in Hetype; eauto.
-    uapply Hetype => /=.
-    by erewrite <- inst_t_context_return_None; eauto.
-  + clear IHccs'.
-    rewrite rev_rcons in Hetype.
-    apply ccs_typing_exists in Hetype as [C0 [ret [labs [ts' [Hftype0 [Harity [Hagree Hetype]]]]]]].
-    rewrite rev_cons -rcons_cons in Hcc.
-    apply rcons_inj in Hcc.
-    injection Hcc as Hcc <-.
-    apply rev_move in Hcc; subst.
-    exists C0, (Some ret), labs, ts'.
-    repeat split => //; move => Hreveq => //=; last by apply (f_equal size) in Hreveq; rewrite size_rev in Hreveq.
-    by rewrite Harity.
+  exists C, ret, labs0, ts2.
+  repeat split => //.
+  - move => H; by apply Hretcons in H as [??].
+  - uapply Hetype => /=.
+    f_equal.
+    by erewrite frame_typing_label_empty, cats0; eauto.
 Qed.
 
 (*
@@ -305,6 +322,7 @@ Definition es_of_cfg (cfg: cfg_tuple_ctx) :=
 Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
 | RSC_normal hs' cfg':
   reduce_ctx hs hs' cfg cfg' ->
+(*  valid_cfg_ctx cfg' ->*)
   run_step_ctx_result hs cfg
 | RSC_value s f vs:
   ctx_to_cfg cfg = Some (s, (f, v_to_e_list vs)) ->
@@ -357,7 +375,7 @@ Ltac resolve_invalid_typing :=
   move => ts Htype;
   apply ctx_cfg_inv in Htype as [C [ret [labs [ts' [Hstype [Hftype [Hagree [Hretcons [Hretnil Hetype]]]]]]]]];
   eapply sc_typing_args in Hetype as [ts3 [ts4 [Hvstype Hetype]]]; simpl in Hetype;
-  invert_e_typing; simpl in *.
+  invert_e_typing.
 
 Ltac last_unequal H :=
   apply (f_equal rev) in H;
@@ -726,54 +744,45 @@ Notation "$nou32 v" := (Wasm_int.N_of_uint i32m v) (at level 90).
 (* One step of execution; does not perform the context update in the end to shift to the new instruction nor the validity check. *)
 Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
 Proof.
-  destruct cfg as [[[s ccs] sc] oe].
+  destruct cfg as [[[s ccs] [vs es]] oe].
+  get_cc ccs.
   destruct oe as [e | ]; last first.
-  (* Exitting from contexts *)
+  (* Empty hole -- exiting from contexts *)
   {
-    destruct sc as [vs es]; subst.
     destruct es as [ | ??]; last by apply RSC_invalid => /=; move => [??].
-    destruct ccs as [ | [fc lcs] ccs'].
-    { (* Only values left, with no context. This case should have been removed in the
-         restructure function *)
-      eapply RSC_value with (vs := rev vs) => //=.
-      by rewrite cats0.
-    }
     { destruct lcs as [ | lc lcs'].
       {
-        destruct fc as [lvs lk lf les].
-        destruct (length vs == lk) eqn:Hlen; move/eqP in Hlen.
-        {
-          destruct les as [ | e les'].
-          { (* No instruction in the hole *)
-            apply <<hs, (s, ccs', (vs ++ lvs, nil), None)>> => /=.
-            resolve_reduce_ctx lvs (nil: list administrative_instruction).
-            by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
-          }
-          { (* e is in the hole *)
-            apply <<hs, (s, ccs', (vs ++ lvs, les'), Some e)>> => /=.
-            resolve_reduce_ctx lvs (e :: les').
-            by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
-          }
+        (* Exiting from frame -- we need to check if this is the last frame first *)
+        destruct ccs' as [| cc ccs'].
+        (* No more frames -- terminate *)
+        { apply (@RSC_value _ _ s fc.(FC_frame) (rev vs)) => /=.
+          by destruct fc; rewrite cats0.
         }
-        (* length doesn't match -- ill-typed. However, in this case we check if it's only a frame containing values *)
+        (* At least a frame left -- in this case, determine if the length of values match the arity *)
         {
-          destruct ((ccs' == nil) && (lvs == nil) && (les == nil)) eqn:Hfv.
-          { remove_bools_options; subst.
-            apply (@RSC_value_frame _ _ hs s (rev vs) lk lf) => //=.
-            by rewrite cats0.
+          destruct fc as [lvs lk lf les].
+          destruct (length vs == lk) eqn:Hlen; move/eqP in Hlen.
+          {
+            (* Exiting the frame now. Note that this implementation does not 
+               attempt to directly construct the next valid cfg (les can be non-empty) *)
+            apply <<hs, (s, cc :: ccs', (vs ++ lvs, les), None)>> => /=.
+            apply (@reduce_focus_pivot [:: (Build_frame_ctx lvs lk lf les, nil)] nil) => //=.
+            apply (list_label_ctx_eval.(ctx_reduce)) => //=.
+            repeat rewrite cats0.
+            resolve_reduce_ctx lvs les.
+            by apply r_simple, rs_local_const; [ by apply v_to_e_const | by rewrite length_is_size v_to_e_size size_rev ].
           }
           {
-            apply RSC_error.
-            intros ts Htype; unfold s_of_cfg, es_of_cfg in Htype.
-            eapply config_typing_inv in Htype as [C0 [Hstype [Hftype0 Hetype]]]; eauto.
-            apply ccs_typing_focus in Hetype as [C [? [? [[ts1 ts2] Hetype]]]].
-            rewrite /= cats0 in Hetype.
-            rewrite -cat1s in Hetype.
-            unfold vs_to_es in Hetype.
-            invert_e_typing.
-            inversion Hconjl0 as [??????? Hftype ? Hetype Hvstype]; subst; clear Hconjl0.
-            invert_e_typing.
+            apply RSC_error; move => ts Hetype.
+            unfold ctx_cfg_typing in Hetype; remove_bools_options.
+            destruct c as [s' [f es]].
+            simpl in *.
+            destruct
+            
+            simpl in *.
+            specialize (Hretcons isT).
             by discriminate_size.
+          }
           }
         }
       }

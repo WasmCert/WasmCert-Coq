@@ -771,6 +771,8 @@ Ltac invert_e_typing :=
     let Htisub := fresh "Htisub" in
     let Hinvgoal := fresh "Hinvgoal" in
     apply e_typing_inversion in H as [tf_principal [Htisub Hinvgoal]]; simpl in Hinvgoal; extract_premise
+  | H: e_typing _ _ nil _ |- _ =>
+    apply empty_e_typing in H
   | H: e_typing _ _ (cons ?x _) _ |- _ =>
     rewrite -(cat1s x) in H
   end; invert_be_typing; resolve_list_eq.
