@@ -271,23 +271,9 @@ Definition valid_split (sc: seq_ctx) oe: bool :=
   | Some e => valid_hole e
   | None => snd sc == nil
   end.
-(*
-Definition oe_noframe (oe: option administrative_instruction) :=
-  match oe with
-  | None
-  | Some (AI_invoke _) => true
-  | _ => false
-  end.
- *)
 
 Definition valid_ccs (ccs: list closure_ctx): bool :=
   ccs != nil.
-  (*match ccs with
-  | nil => false
-  | cc0 :: _ =>
-      let '(fc, lcs) := last cc0 ccs in
-      (fc.(FC_val) == nil) && (fc.(FC_post) == nil)
-  end.*)
 
 Lemma valid_ccs_change_labs fc labs labs' ccs:
   valid_ccs ((fc, labs) :: ccs) ->
@@ -511,7 +497,6 @@ Definition ctx_update (acc: list closure_ctx) (sctx: seq_ctx) (oe: option admini
       end
   end.
 
-
 Lemma ctx_decompose_valid_ccs_aux: forall ves acc ccs sctx oe,
     valid_ccs acc ->
     ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
@@ -539,10 +524,8 @@ Proof.
   - destruct acc as [ | [fc lcs] ccs'] => //.
     eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
     by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
-(*    + by eapply valid_ccs_change_labs; eauto. *)
   - eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
     by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
-(*    + by destruct acc. *)
 Qed.
 
 Lemma ctx_decompose_valid_aux: forall ves acc ccs sctx oe,
@@ -601,9 +584,7 @@ Proof.
   (* Label *)
   - destruct ccs as [ | [fc lcs] ccs0] => //.
     eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-    (*by eapply valid_ccs_change_labs; eauto.*)
   - eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-   (* by destruct ccs. *)
 Qed.
   
 Lemma ctx_update_nconst_valid: forall sctx e ccs ccs' sctx' oe,
@@ -621,24 +602,59 @@ Proof.
   - by apply ctx_decompose_valid_aux in Hupdate.
 Qed.
 
-Lemma ctx_update_valid_ccs: forall sctx ccs ccs' sctx' oe oe',
-    valid_ccs ccs ->
-    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
-    valid_ccs ccs'.
+Lemma ctx_update_nconst_none_impl: forall ccs sctx e,
+    ctx_update_nconst ccs sctx e = None ->
+    ccs = nil.
 Proof.
-  move => [vs es] ccs ccs' [vs' es'] oe oe' Hnil Hupdate.
+  move => ccs [vs es] e Hupdate.
+  unfold ctx_update_nconst in Hupdate.
+  destruct e, ccs as [ | [fc lcs] ccs'] => //; simpl in *; by apply ctx_decompose_aux_none_impl in Hupdate as [??].
+Qed.
+
+Lemma ctx_update_none_impl: forall acc sctx e,
+    ctx_update acc sctx e = None ->
+    acc = nil.
+Proof.
+  move => acc [vs es] e Hupdate.
+  unfold ctx_update in Hupdate.
+  remove_bools_options.
+  - destruct (split_vals' es) as [vs' es'] eqn:Hsplit => //.
+    destruct es' => //.
+    by apply ctx_update_nconst_none_impl in Hupdate.
+  - by apply ctx_update_nconst_none_impl in Hupdate.
+  - destruct (split_vals' es) as [vs' es'] eqn:Hsplit => //.
+    destruct es' => //.
+    by apply ctx_update_nconst_none_impl in Hupdate.
+Qed.
+
+Lemma ctx_update_valid_ccs: forall sctx ccs oe,
+    valid_ccs ccs ->
+    exists ccs' sctx' oe',
+      ctx_update ccs sctx oe = Some (ccs', sctx', oe') /\
+      valid_ccs ccs'.
+Proof.
+  move => [vs es] ccs oe Hvalid.
+  destruct (ctx_update ccs (vs, es) oe) as [cfg' | ] eqn:Hupdate; last by apply ctx_update_none_impl in Hupdate; unfold valid_ccs in Hvalid; subst.
   unfold ctx_update in Hupdate; unfold valid_ccs.
+  destruct cfg' as [[ccs' sctx'] oe'].
   destruct oe as [e | ].
   - destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
     + destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
-      destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
-      apply split_vals'_spec, split_vals_nconst in Hsplit.
-      by apply ctx_update_nconst_valid_ccs in Hupdate => //.
-    + by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+      destruct es'' as [ | e0 es''].
+      * injection Hupdate as <- <- <-; subst => //.
+        repeat eexists; by eauto.
+      * apply split_vals'_spec, split_vals_nconst in Hsplit.
+        repeat eexists; eauto.
+        by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+    + apply ctx_update_nconst_valid_ccs in Hupdate => //.
+      by repeat eexists; eauto.
   - destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
-    destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
-    apply split_vals'_spec, split_vals_nconst in Hsplit.
-    by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+    destruct es'' as [ | e0 es''].
+    + injection Hupdate as <- <- <-; subst => //.
+      repeat eexists; by eauto.
+    + apply split_vals'_spec, split_vals_nconst in Hsplit.
+      apply ctx_update_nconst_valid_ccs in Hupdate => //.
+      repeat eexists; by eauto.
 Qed.
 
 Lemma ctx_update_valid: forall sctx ccs ccs' sctx' oe oe',
