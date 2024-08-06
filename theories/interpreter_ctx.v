@@ -1776,12 +1776,15 @@ Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx :
 
 Lemma run_step_reform_valid s ccs sc oe :
   valid_ccs ccs ->
-  run_step_cfg_ctx_reform (s, ccs, sc, oe) <> None.
+  exists cfg, run_step_cfg_ctx_reform (s, ccs, sc, oe) = Some cfg /\
+         valid_cfg_ctx cfg.
 Proof.
-  move => Hvalid Hcontra.
-  unfold run_step_cfg_ctx_reform in Hcontra.
-  destruct (ctx_update ccs sc oe) as [[[ccs' sc'] oe'] | ] eqn:Hupdate => //.
-  by apply ctx_update_none_impl in Hupdate; subst.
+  move => Hvalid.
+  unfold run_step_cfg_ctx_reform.
+  eapply ctx_update_valid_ccs with (sctx := sc) (oe := oe) in Hvalid as [ccs' [sctx' [oe' [Hupdate Hvalid]]]].
+  rewrite Hupdate.
+  eexists; do 2 split => //.
+  by apply ctx_update_valid in Hupdate.
 Qed.
 
 Definition run_v_init (s: store_record) (es: list administrative_instruction) : option cfg_tuple_ctx :=

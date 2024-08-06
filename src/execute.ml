@@ -147,7 +147,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         | Some cfg_next -> 
             eval_cfg (gen+1) hs' cfg_next
         | None ->
-          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure\n");
+          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure; this should not happen for valid Wasm modules. Please file a bug report at GitHub/WasmCert-Coq.\n");
           pure None
         end
       | RSC_value (s, _f, vs) ->
