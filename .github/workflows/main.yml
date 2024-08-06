@@ -20,7 +20,7 @@ jobs:
         opam_file:
           - 'coq-wasm.opam'
         coq_version:
-          - '8.17.1'
+          - '8.19.2'
       fail-fast: true
 
     steps:

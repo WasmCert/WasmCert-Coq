@@ -56,7 +56,7 @@ module type InterpreterType = sig
     store_record -> administrative_instruction list -> config_tuple option
 
   val run_v_init_with_frame : 
-    store_record -> frame -> Extract.nat -> administrative_instruction list -> config_tuple option
+    store_record -> frame -> administrative_instruction list -> config_tuple
 
   (** Look-up a specific extracted function of the instantiation. *)
   val lookup_exported_function :
