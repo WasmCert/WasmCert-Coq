@@ -925,6 +925,10 @@ Definition ishr_u (i1 i2: T) : T :=
   let k := repr (unsigned i2 mod wordsize)%Z in
   shru i1 k.
 
+Definition ishr_s (i1 i2: T) : T :=
+  let k := repr (unsigned i2 mod wordsize)%Z in
+  shr i1 k.
+
 (* TODO
 (** Shift [i] by [k] bits, extended with the most significant bit of the original value. **)
 Definition shift_signed l k :=
@@ -966,7 +970,7 @@ Definition Tmixin : mixin_of T := {|
      int_xor := ixor ;
      int_shl := ishl ;
      int_shr_u := ishr_u ;
-     int_shr_s := shr (*TODO: ishr_s*) ;
+     int_shr_s := ishr_s (* TODO: check if this is correct *) ;
      int_rotl := rol ;
      int_rotr := ror ;
      (** Equalities **)
