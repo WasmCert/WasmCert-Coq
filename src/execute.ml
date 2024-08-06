@@ -147,15 +147,15 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         | Some cfg_next -> 
             eval_cfg (gen+1) hs' cfg_next
         | None ->
-          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure\n");
+          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure; this should not happen for valid Wasm modules. Please file a bug report at GitHub/WasmCert-Coq.\n");
           pure None
         end
-      | RSC_value (hs, s, vs) ->
+      | RSC_value (s, _f, vs) ->
         debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
         pure (Some (hs, s, vs))
-      | RSC_value_frame (hs, s, vs, _, _) ->
-        debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
-        pure (Some (hs, s, vs))
+      | RSC_trap (_s, _f) ->
+        debug_info verbosity stage ~style:green (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
+        pure None
       | RSC_invalid ->
         debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
         pure None
@@ -167,8 +167,8 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\nPost-instantiation stage for table and memory initialisers...\n");
   
-  match run_v_init_with_frame s f_invocation O es_invocation with
-  | Some cfg_invocation -> 
+  match run_v_init_with_frame s f_invocation es_invocation with
+  | cfg_invocation -> 
     let* res = eval_cfg 1 hs cfg_invocation in
     begin match res with
     | Some (hs', s', _) ->
@@ -181,8 +181,8 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
             | None -> Error ("unknown function `" ^ name ^ "`")
             | Some es_init -> OK es_init)
             ) in
-      begin match run_v_init_with_frame s' Extract.empty_frame O es_init with
-      | Some cfg_init -> 
+      begin match run_v_init_with_frame s' Extract.empty_frame es_init with
+      | cfg_init -> 
         print_step_header 0 ;
         debug_info verbosity intermediate (fun _ ->
           Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store cfg_init));
@@ -193,12 +193,9 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
           | None -> "");
         if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
         else pure ()
-      | None -> Printf.printf "Unable to construct initial configuration for named function";
-      pure ()
       end
     | None -> Printf.printf "Invocation failed"; pure ()
     end
-  | None -> Printf.printf "Unable to construct initial configuration for invocation"; pure ()
 
 
 

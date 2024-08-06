@@ -523,16 +523,16 @@ Definition pp_cfg_tuple_ctx_except_store (cfg: cfg_tuple_ctx) : string :=
 
 Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) : string :=
   match res with
-  | RSC_normal hs' cfg' _ =>
+  | RSC_normal hs' cfg' _ _ =>
       pp_cfg_tuple_ctx_except_store cfg' ++ newline
-  | RSC_value _ _ vs _ _ _ =>
+  | RSC_value _ _ vs _ =>
       "Value:" ++ newline ++ pp_values_hint_empty vs ++ newline
-  | RSC_value_frame _ _ vs _ _ _ _ _ =>
-      "Value:" ++ newline ++ pp_values_hint_empty vs ++ newline
+  | RSC_trap _ _ _ =>
+      "Trap" ++ newline
   | RSC_invalid _ =>
-      "Invalid context. This should not happen when executing a module start function. Please report a bug if this error arises during invocation of module start functions." ++ newline
+      "Invalid context decomposition. This result should not be observed when invoking valid Wasm modules. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
   | RSC_error _ =>
-      "Ill-typed input configuration"
+      "Ill-typed input configuration. This result should not be observed when invoking valid Wasm modules. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
   end.
 
 End Host.
@@ -558,4 +558,3 @@ Definition pp_administrative_instructions := pp_administrative_instructions.
 End Show.
 
 End PP.
-
