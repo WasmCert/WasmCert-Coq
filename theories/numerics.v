@@ -917,18 +917,17 @@ Definition ixor : T -> T -> T := xor.
 
 (** Return the result of shifting left the first number by the second. **)
 Definition ishl (i1 i2 : T) : T :=
-(* TODO: We could slightly improve the specification here to make it closer to the Wasm specification.
-Something like:
-[[
-  let: k := (unsigned i1 mod wordsize)%Z in
-  shl k i2.
-]]
-*)
-  shl i1 i2.
+  let k := repr (unsigned i2 mod wordsize)%Z in
+  shl i1 k.
 
 (** Return the result of shifting right the first number by the second. **)
-(* TODO: Make it match better the specification. *)
-Definition ishr_u : T -> T -> T := shru.
+Definition ishr_u (i1 i2: T) : T :=
+  let k := repr (unsigned i2 mod wordsize)%Z in
+  shru i1 k.
+
+Definition ishr_s (i1 i2: T) : T :=
+  let k := repr (unsigned i2 mod wordsize)%Z in
+  shr i1 k.
 
 (* TODO
 (** Shift [i] by [k] bits, extended with the most significant bit of the original value. **)
@@ -971,7 +970,7 @@ Definition Tmixin : mixin_of T := {|
      int_xor := ixor ;
      int_shl := ishl ;
      int_shr_u := ishr_u ;
-     int_shr_s := shr (*TODO: ishr_s*) ;
+     int_shr_s := ishr_s (* TODO: check if this is correct *) ;
      int_rotl := rol ;
      int_rotr := ror ;
      (** Equalities **)
