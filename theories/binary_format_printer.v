@@ -4,7 +4,6 @@ Require Import datatypes_properties numerics common list_extra.
 From compcert Require Integers.
 Require Import Strings.Byte.
 Require leb128.
-Require Import Coq.Arith.Le.
 Require Import BinNat.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 

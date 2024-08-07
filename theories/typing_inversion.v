@@ -801,6 +801,8 @@ Ltac invert_e_typing :=
     let Htisub := fresh "Htisub" in
     let Hinvgoal := fresh "Hinvgoal" in
     apply e_typing_inversion in H as [tf_principal [Htisub Hinvgoal]]; simpl in Hinvgoal; extract_premise
+  | H: e_typing _ _ nil _ |- _ =>
+    apply empty_e_typing in H
   | H: e_typing _ _ (cons ?x _) _ |- _ =>
     rewrite -(cat1s x) in H
   end; invert_be_typing; resolve_list_eq.
@@ -829,6 +831,36 @@ Proof.
   unfold inst_typing, typing.inst_typing in HInstType.
   destruct i => //=.
   by remove_bools_options.
+Qed.
+
+Lemma inst_t_context_return_None: forall s i C,
+    inst_typing s i = Some C ->
+    tc_return C = None.
+Proof.
+  move => s i C HInstType.
+  unfold inst_typing, typing.inst_typing in HInstType.
+  destruct i => //=.
+  by remove_bools_options.
+Qed.
+
+Lemma frame_typing_label_empty: forall s f C,
+    frame_typing s f C ->
+    tc_labels C = nil.
+Proof.
+  move => s f C Hftype.
+  unfold frame_typing in Hftype; remove_bools_options.
+  destruct Hftype as [ts [-> Hvt]] => /=.
+  by eapply inst_t_context_label_empty; eauto.
+Qed.
+
+Lemma frame_typing_return_None: forall s f C,
+    frame_typing s f C ->
+    tc_return C = None.
+Proof.
+  move => s f C Hftype.
+  unfold frame_typing in Hftype; remove_bools_options.
+  destruct Hftype as [ts [-> Hvt]] => /=.
+  by eapply inst_t_context_return_None; eauto.
 Qed.
 
 Lemma global_type_reference: forall s i j C v t,
