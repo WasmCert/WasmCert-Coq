@@ -156,7 +156,7 @@ Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : o
       if N.leb (ea + (N.div (N.mul m n) 8%N)) (m.(mem_length)) then
         let bs = int_of_bytes (take (drop m
   if ea + *)
-  match (n == marg.(memarg_offset)) with
+  match (i == marg.(memarg_offset)) with
   | true => Some (VAL_vec128 tt)
   | _ => None
   end.

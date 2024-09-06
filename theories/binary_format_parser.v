@@ -276,77 +276,77 @@ Definition parse_alignment_exponent {n} : byte_parser BinNat.N.t n :=
 Definition parse_static_offset {n} : byte_parser BinNat.N.t n :=
   (fun x => (Wasm_int.N_of_uint i32m x)) <$> parse_u32_as_int32.
 
-Definition parse_memarg {n} : byte_parser (alignment_exponent * static_offset) n :=
-  parse_alignment_exponent <&> parse_static_offset.
+Definition parse_memarg {n} : byte_parser memarg n :=
+  uncurry Build_memarg <$> (parse_alignment_exponent <&> parse_static_offset).
 
 Definition parse_i32_load {n} : byte_parser basic_instruction n :=
-  exact_byte x28 &> (uncurry (BI_load T_i32 None) <$> parse_memarg).
+  exact_byte x28 &> ((BI_load T_i32 None) <$> parse_memarg).
 
 Definition parse_i64_load {n} : byte_parser basic_instruction n :=
-  exact_byte x29 &> (uncurry (BI_load T_i64 None) <$> parse_memarg).
+  exact_byte x29 &> ((BI_load T_i64 None) <$> parse_memarg).
 
 Definition parse_f32_load {n} : byte_parser basic_instruction n :=
-  exact_byte x2a &> (uncurry (BI_load T_f32 None) <$> parse_memarg).
+  exact_byte x2a &> ((BI_load T_f32 None) <$> parse_memarg).
 
 Definition parse_f64_load {n} : byte_parser basic_instruction n :=
-  exact_byte x2b &> (uncurry (BI_load T_f64 None) <$> parse_memarg).
+  exact_byte x2b &> ((BI_load T_f64 None) <$> parse_memarg).
 
 Definition parse_i32_load8_s {n} : byte_parser basic_instruction n :=
-  exact_byte x2c &> (uncurry (BI_load T_i32 (Some (Tp_i8, SX_S))) <$> parse_memarg).
+  exact_byte x2c &> ((BI_load T_i32 (Some (Tp_i8, SX_S))) <$> parse_memarg).
 
 Definition parse_i32_load8_u {n} : byte_parser basic_instruction n :=
-  exact_byte x2d &> (uncurry (BI_load T_i32 (Some (Tp_i8, SX_U))) <$> parse_memarg).
+  exact_byte x2d &> ((BI_load T_i32 (Some (Tp_i8, SX_U))) <$> parse_memarg).
 
 Definition parse_i32_load16_s {n} : byte_parser basic_instruction n :=
-  exact_byte x2e &> (uncurry (BI_load T_i32 (Some (Tp_i16, SX_S))) <$> parse_memarg).
+  exact_byte x2e &> ((BI_load T_i32 (Some (Tp_i16, SX_S))) <$> parse_memarg).
 
 Definition parse_i32_load16_u {n} : byte_parser basic_instruction n :=
-  exact_byte x2f &> (uncurry (BI_load T_i32 (Some (Tp_i16, SX_U))) <$> parse_memarg).
+  exact_byte x2f &> ((BI_load T_i32 (Some (Tp_i16, SX_U))) <$> parse_memarg).
 
 Definition parse_i64_load8_s {n} : byte_parser basic_instruction n :=
-  exact_byte x30 &> (uncurry (BI_load T_i64 (Some (Tp_i8, SX_S))) <$> parse_memarg).
+  exact_byte x30 &> ((BI_load T_i64 (Some (Tp_i8, SX_S))) <$> parse_memarg).
 
 Definition parse_i64_load8_u {n} : byte_parser basic_instruction n :=
-  exact_byte x31 &> (uncurry (BI_load T_i64 (Some (Tp_i8, SX_U))) <$> parse_memarg).
+  exact_byte x31 &> ((BI_load T_i64 (Some (Tp_i8, SX_U))) <$> parse_memarg).
 
 Definition parse_i64_load16_s {n} : byte_parser basic_instruction n :=
-  exact_byte x32 &> (uncurry (BI_load T_i64 (Some (Tp_i16, SX_S))) <$> parse_memarg).
+  exact_byte x32 &> ((BI_load T_i64 (Some (Tp_i16, SX_S))) <$> parse_memarg).
 
 Definition parse_i64_load16_u {n} : byte_parser basic_instruction n :=
-  exact_byte x33 &> (uncurry (BI_load T_i64 (Some (Tp_i16, SX_U))) <$> parse_memarg).
+  exact_byte x33 &> ((BI_load T_i64 (Some (Tp_i16, SX_U))) <$> parse_memarg).
 
 Definition parse_i64_load32_s {n} : byte_parser basic_instruction n :=
-  exact_byte x34 &> (uncurry (BI_load T_i64 (Some (Tp_i32, SX_S))) <$> parse_memarg).
+  exact_byte x34 &> ((BI_load T_i64 (Some (Tp_i32, SX_S))) <$> parse_memarg).
 
 Definition parse_i64_load32_u {n} : byte_parser basic_instruction n :=
-  exact_byte x35 &> (uncurry (BI_load T_i64 (Some (Tp_i32, SX_U))) <$> parse_memarg).
+  exact_byte x35 &> ((BI_load T_i64 (Some (Tp_i32, SX_U))) <$> parse_memarg).
 
 Definition parse_i32_store {n} : byte_parser basic_instruction n :=
-  exact_byte x36 &> (uncurry (BI_store T_i32 None) <$> parse_memarg).
+  exact_byte x36 &> ((BI_store T_i32 None) <$> parse_memarg).
 
 Definition parse_i64_store {n} : byte_parser basic_instruction n :=
-  exact_byte x37 &> (uncurry (BI_store T_i64 None) <$> parse_memarg).
+  exact_byte x37 &> ((BI_store T_i64 None) <$> parse_memarg).
 
 Definition parse_f32_store {n} : byte_parser basic_instruction n :=
-  exact_byte x38 &> (uncurry (BI_store T_f32 None) <$> parse_memarg).
+  exact_byte x38 &> ((BI_store T_f32 None) <$> parse_memarg).
 
 Definition parse_f64_store {n} : byte_parser basic_instruction n :=
-  exact_byte x39 &> (uncurry (BI_store T_f64 None) <$> parse_memarg).
+  exact_byte x39 &> ((BI_store T_f64 None) <$> parse_memarg).
 
 Definition parse_i32_store8 {n} : byte_parser basic_instruction n :=
-  exact_byte x3a &> (uncurry (BI_store T_i32 (Some Tp_i8)) <$> parse_memarg).
+  exact_byte x3a &> ((BI_store T_i32 (Some Tp_i8)) <$> parse_memarg).
 
 Definition parse_i32_store16 {n} : byte_parser basic_instruction n :=
-  exact_byte x3b &> (uncurry (BI_store T_i32 (Some Tp_i16)) <$> parse_memarg).
+  exact_byte x3b &> ((BI_store T_i32 (Some Tp_i16)) <$> parse_memarg).
 
 Definition parse_i64_store8 {n} : byte_parser basic_instruction n :=
-  exact_byte x3c &> (uncurry (BI_store T_i32 (Some Tp_i8)) <$> parse_memarg).
+  exact_byte x3c &> ((BI_store T_i32 (Some Tp_i8)) <$> parse_memarg).
 
 Definition parse_i64_store16 {n} : byte_parser basic_instruction n :=
-  exact_byte x3d &> (uncurry (BI_store T_i32 (Some Tp_i16)) <$> parse_memarg).
+  exact_byte x3d &> ((BI_store T_i32 (Some Tp_i16)) <$> parse_memarg).
 
 Definition parse_i64_store32 {n} : byte_parser basic_instruction n :=
-  exact_byte x3e &> (uncurry (BI_store T_i32 (Some Tp_i32)) <$> parse_memarg).
+  exact_byte x3e &> ((BI_store T_i32 (Some Tp_i32)) <$> parse_memarg).
 
 Definition parse_memory_size {n} : byte_parser basic_instruction n :=
   exact_byte x3f &> (exact_byte x00 $> BI_memory_size).

@@ -277,8 +277,8 @@ Definition pp_rel_op_f (rof : relop_f) : string :=
   end.
 
 (* The alignment exponent is the exponent in both the spec and the binary, but needs to be the power in the text format. *)
-Definition pp_memarg (a: alignment_exponent) (o: static_offset) : string :=
-  "offset=" ++ pp_N o ++ " " ++ "align=" ++ pp_N (N.shiftl 1 a).
+Definition pp_memarg (marg: memarg) : string :=
+  "offset=" ++ pp_N marg.(memarg_offset) ++ " " ++ "align=" ++ pp_N (N.shiftl 1 marg.(memarg_align)).
 
 Definition pp_packing (p : packed_type) :=
   match p with
@@ -308,6 +308,42 @@ Definition pp_cvtop (cvt: cvtop) : string :=
   | CVO_trunc_sat => "trunc_sat"
   end.
 
+(* placeholder for vector operations added in 2.0, to be filled in a future update
+https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
+*)
+Definition pp_unop_vec (op: unop_vec) :=
+  "(not implemented)".
+
+Definition pp_binop_vec (op: binop_vec) :=
+  "(not implemented)".
+
+Definition pp_ternop_vec (op: ternop_vec) :=
+  "(not implemented)".
+
+Definition pp_test_vec (op: test_vec) :=
+  "(not implemented)".
+
+Definition pp_shift_vec (op: shift_vec) :=
+  "(not implemented)".
+
+Definition pp_splat_vec (sh: shape_vec) :=
+  "(not implemented)".
+
+Definition pp_extract_vec (sh: shape_vec) (s: option sx) (x: laneidx) :=
+  "(not implemented)".
+
+Definition pp_replace_vec (sh: shape_vec) (x: laneidx) :=
+  "(not implemented)".
+  
+Definition pp_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
+  "(not implemented)".
+
+Definition pp_load_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+  "(not implemented)".
+
+(* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
+Definition pp_store_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+  "(not implemented)".
 
 Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : string :=
   let pp_basic_instructions bes i :=
@@ -379,14 +415,14 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
   | BI_table_fill x =>
     indent i (with_fg be_style "table.fill " ++ pp_id x ++ newline)
              
-  | BI_load vt None a o =>
-    indent i (pp_number_type vt ++ ".load " ++ pp_memarg a o ++ newline)
-  | BI_load vt (Some ps) a o =>
-    indent i (pp_number_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_memarg a o ++ newline)
-  | BI_store vt None a o =>
-    indent i (pp_number_type vt ++ ".store " ++ pp_memarg a o ++ newline)
-  | BI_store vt (Some p) a o =>
-    indent i (pp_number_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_memarg a o ++ newline)
+  | BI_load vt None marg =>
+    indent i (pp_number_type vt ++ ".load " ++ pp_memarg marg ++ newline)
+  | BI_load vt (Some ps) marg =>
+    indent i (pp_number_type vt ++ ".load" ++ pp_ps ps ++ " " ++ pp_memarg marg ++ newline)
+  | BI_store vt None marg =>
+    indent i (pp_number_type vt ++ ".store " ++ pp_memarg marg ++ newline)
+  | BI_store vt (Some p) marg =>
+    indent i (pp_number_type vt ++ ".store" ++ pp_packing p ++ " " ++ pp_memarg marg ++ newline)
   | BI_memory_size =>
     indent i (with_fg be_style "memory.size" ++ newline ++ newline)
   | BI_memory_grow =>
@@ -421,6 +457,31 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
     indent i (pp_number_type vt ++ "." ++ pp_rel_op_f rof ++ newline)
   | BI_cvtop vt1 cvtop vt2 sxo =>
       indent i (pp_number_type vt1 ++ "." ++ pp_cvtop cvtop ++ "_" ++ pp_number_type vt2 ++ pp_sx_o sxo ++ newline)
+
+  (* vector instructions currently unimplemented *)
+  | BI_unop_vec op =>
+      indent i (pp_unop_vec op)
+  | BI_binop_vec op =>
+      indent i (pp_binop_vec op)
+  | BI_ternop_vec op =>
+      indent i (pp_ternop_vec op)
+  | BI_test_vec op =>
+      indent i (pp_test_vec op)
+  | BI_shift_vec op =>
+      indent i (pp_shift_vec op)
+  | BI_splat_vec sh =>
+      indent i (pp_splat_vec sh)
+  | BI_extract_vec sh s lanex =>
+      indent i (pp_extract_vec sh s lanex)
+  | BI_replace_vec sh lanex =>
+      indent i (pp_replace_vec sh lanex)
+
+  | BI_load_vec lvarg marg =>
+      indent i (pp_load_vec lvarg marg)
+  | BI_load_vec_lane width marg lanex =>
+      indent i (pp_load_vec_lane width marg lanex)
+  | BI_store_vec_lane width marg lanex =>
+      indent i (pp_store_vec_lane width marg lanex)
   end.
 
 Definition pp_basic_instructions n bes :=

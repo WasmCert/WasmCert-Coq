@@ -68,8 +68,8 @@ Definition binary_of_dataidx (t : dataidx) : list byte :=
 Definition binary_of_vec {A} (f : A -> list byte) (es : list A) : list byte :=
   (binary_of_u32_nat (List.length es)) ++ (List.concat (List.map f es)).
 
-Definition binary_of_memarg a o : list byte :=
-  binary_of_u32_nat a ++ binary_of_u32_nat o.
+Definition binary_of_memarg (marg: memarg) : list byte :=
+  binary_of_u32_nat marg.(memarg_align) ++ binary_of_u32_nat marg.(memarg_offset).
 
 Definition binary_of_i32 (x : i32) : list byte :=
   leb128.encode_signed (Wasm_int.Int32.signed x).
@@ -99,6 +99,47 @@ Definition binary_of_result_type rt : list byte :=
 (** An opaque definition for cases that can’t happen because of the well-formed properties. **)
 Definition dummy : list byte.
 Proof. exact (x00 :: x00 :: x00 :: nil). Qed.
+
+(* placeholder for vector values, not implemented *)
+Definition binary_of_valvec (v: value_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+(* placeholder for vector operations added in 2.0, to be filled in a future update
+https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
+*)
+Definition binary_of_unop_vec (op: unop_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_binop_vec (op: binop_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_ternop_vec (op: ternop_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_test_vec (op: test_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_shift_vec (op: shift_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_splat_vec (sh: shape_vec) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_extract_vec (sh: shape_vec) (s: option sx) (x: laneidx) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_replace_vec (sh: shape_vec) (x: laneidx) :=
+  xfd :: x0c :: (List.repeat x00 16).
+  
+Definition binary_of_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+Definition binary_of_load_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
+(* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
+Definition binary_of_store_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+  xfd :: x0c :: (List.repeat x00 16).
 
 Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   let binary_of_instrs bes := List.concat (List.map binary_of_be bes) in
@@ -143,35 +184,35 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   | BI_table_size x => xfc :: x10 :: binary_of_idx x
   | BI_table_fill x => xfc :: x11 :: binary_of_idx x
                           
-  | BI_load T_i32 None a o => x28 :: binary_of_memarg a o
-  | BI_load T_i64 None a o => x29 :: binary_of_memarg a o
-  | BI_load T_f32 None a o => x2a :: binary_of_memarg a o
-  | BI_load T_f32 (Some _) _ _ => dummy
-  | BI_load T_f64 None a o => x2b :: binary_of_memarg a o
-  | BI_load T_f64 (Some _) _ _ => dummy
-  | BI_load T_i32 (Some (Tp_i8, SX_S)) a o => x2c :: binary_of_memarg a o
-  | BI_load T_i32 (Some (Tp_i8, SX_U)) a o => x2d :: binary_of_memarg a o
-  | BI_load T_i32 (Some (Tp_i16, SX_S)) a o => x2e :: binary_of_memarg a o
-  | BI_load T_i32 (Some (Tp_i16, SX_U)) a o => x2f :: binary_of_memarg a o
-  | BI_load T_i32 (Some (Tp_i32, _)) _ _ => dummy
-  | BI_load T_i64 (Some (Tp_i8, SX_S)) a o => x30 :: binary_of_memarg a o
-  | BI_load T_i64 (Some (Tp_i8, SX_U)) a o => x31 :: binary_of_memarg a o
-  | BI_load T_i64 (Some (Tp_i16, SX_S)) a o => x32 :: binary_of_memarg a o
-  | BI_load T_i64 (Some (Tp_i16, SX_U)) a o => x33 :: binary_of_memarg a o
-  | BI_load T_i64 (Some (Tp_i32, SX_S)) a o => x34 :: binary_of_memarg a o
-  | BI_load T_i64 (Some (Tp_i32, SX_U)) a o => x35 :: binary_of_memarg a o
-  | BI_store T_i32 None a o => x36 :: binary_of_memarg a o
-  | BI_store T_i64 None a o => x37 :: binary_of_memarg a o
-  | BI_store T_f32 None a o => x38 :: binary_of_memarg a o
-  | BI_store T_f32 (Some _) _ _  => dummy
-  | BI_store T_f64 None a o => x39 :: binary_of_memarg a o
-  | BI_store T_f64 (Some _) _ _ => dummy
-  | BI_store T_i32 (Some Tp_i8) a o => x3a :: binary_of_memarg a o
-  | BI_store T_i32 (Some Tp_i16) a o => x3b :: binary_of_memarg a o
-  | BI_store T_i32 (Some Tp_i32) _ _ => dummy
-  | BI_store T_i64 (Some Tp_i8) a o => x3c :: binary_of_memarg a o
-  | BI_store T_i64 (Some Tp_i16) a o => x3d :: binary_of_memarg a o
-  | BI_store T_i64 (Some Tp_i32) a o => x3e :: binary_of_memarg a o
+  | BI_load T_i32 None marg => x28 :: binary_of_memarg marg
+  | BI_load T_i64 None marg => x29 :: binary_of_memarg marg
+  | BI_load T_f32 None marg => x2a :: binary_of_memarg marg
+  | BI_load T_f32 (Some _) _ => dummy
+  | BI_load T_f64 None marg => x2b :: binary_of_memarg marg
+  | BI_load T_f64 (Some _) _ => dummy
+  | BI_load T_i32 (Some (Tp_i8, SX_S)) marg => x2c :: binary_of_memarg marg
+  | BI_load T_i32 (Some (Tp_i8, SX_U)) marg => x2d :: binary_of_memarg marg
+  | BI_load T_i32 (Some (Tp_i16, SX_S)) marg => x2e :: binary_of_memarg marg
+  | BI_load T_i32 (Some (Tp_i16, SX_U)) marg => x2f :: binary_of_memarg marg
+  | BI_load T_i32 (Some (Tp_i32, _)) _ => dummy
+  | BI_load T_i64 (Some (Tp_i8, SX_S)) marg => x30 :: binary_of_memarg marg
+  | BI_load T_i64 (Some (Tp_i8, SX_U)) marg => x31 :: binary_of_memarg marg
+  | BI_load T_i64 (Some (Tp_i16, SX_S)) marg => x32 :: binary_of_memarg marg
+  | BI_load T_i64 (Some (Tp_i16, SX_U)) marg => x33 :: binary_of_memarg marg
+  | BI_load T_i64 (Some (Tp_i32, SX_S)) marg => x34 :: binary_of_memarg marg
+  | BI_load T_i64 (Some (Tp_i32, SX_U)) marg => x35 :: binary_of_memarg marg
+  | BI_store T_i32 None marg => x36 :: binary_of_memarg marg
+  | BI_store T_i64 None marg => x37 :: binary_of_memarg marg
+  | BI_store T_f32 None marg => x38 :: binary_of_memarg marg
+  | BI_store T_f32 (Some _) _  => dummy
+  | BI_store T_f64 None marg => x39 :: binary_of_memarg marg
+  | BI_store T_f64 (Some _) _ => dummy
+  | BI_store T_i32 (Some Tp_i8) marg => x3a :: binary_of_memarg marg
+  | BI_store T_i32 (Some Tp_i16) marg => x3b :: binary_of_memarg marg
+  | BI_store T_i32 (Some Tp_i32) _ => dummy
+  | BI_store T_i64 (Some Tp_i8) marg => x3c :: binary_of_memarg marg
+  | BI_store T_i64 (Some Tp_i16) marg => x3d :: binary_of_memarg marg
+  | BI_store T_i64 (Some Tp_i32) marg => x3e :: binary_of_memarg marg
   | BI_memory_size => x3f :: x00 :: nil
   | BI_memory_grow => x40 :: x00 :: nil
   | BI_memory_init x => xfc :: x08 :: binary_of_idx x ++ x00 :: nil
@@ -349,8 +390,20 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   | BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U) => xfc :: x07 :: nil
   | BI_cvtop _ CVO_trunc_sat _ _ => dummy
 
-  (* SIMD is not implemented *)
-  | BI_const_vec _ => xfd :: x0c :: (List.repeat x00 16)
+  | BI_const_vec v => binary_of_valvec v
+
+  | BI_unop_vec op => binary_of_unop_vec op
+  | BI_binop_vec op => binary_of_binop_vec op
+  | BI_ternop_vec op => binary_of_ternop_vec op
+  | BI_test_vec op => binary_of_test_vec op
+  | BI_shift_vec op => binary_of_shift_vec op
+  | BI_splat_vec sh => binary_of_splat_vec sh
+  | BI_extract_vec sh s lanex => binary_of_extract_vec sh s lanex
+  | BI_replace_vec sh lanex => binary_of_replace_vec sh lanex
+
+  | BI_load_vec lvarg marg => binary_of_load_vec lvarg marg
+  | BI_load_vec_lane width marg lanex => binary_of_load_vec_lane width marg lanex
+  | BI_store_vec_lane width marg lanex => binary_of_store_vec_lane width marg lanex
   end.
 
 (** Expressions are encoded by their instruction sequence terminated with an
