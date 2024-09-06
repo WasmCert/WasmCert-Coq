@@ -90,6 +90,42 @@ Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
   end
   else None.
 
+Definition ptv_to_nm (ptv: packed_type_vec) : N * N :=
+  match ptv with
+  | Tptv_8_8 => (8%N, 8%N)
+  | Tptv_16_4 => (16%N, 4%N)
+  | Tptv_32_2 => (32%N, 2%N)
+  end.
+
+Definition ztv_to_n (ztv: zero_type_vec) : N :=
+  match ztv with
+  | Tztv_32 => 32%N
+  | Tztv_64 => 64%N
+  end.
+
+Definition width_to_n (ww: width_vec) : N :=
+  match ww with
+  | Twv_8 => 8%N
+  | Twv_16 => 16%N
+  | Twv_32 => 32%N
+  | Twv_64 => 64%N
+  end.
+
+Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
+  match lv_arg with
+  | LVA_packed ptv sx =>
+      let (n, m) := ptv_to_nm ptv in
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.mul (N.div n 8) m)
+  | LVA_zero ztv =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (ztv_to_n ztv) 8)
+  | LVA_splat width =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)
+  end.
+
+Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
+   (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
+                         (N.ltb x (128 / width_to_n width)%N). 
+  
 (* TODO: We crucially need documentation here. *)
 
 Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
@@ -108,12 +144,41 @@ Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
 Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
   option_map (sign_extend s l) (load m n off lp).
 
+Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
+  VAL_int32 int32_minus_one.
+
+Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
+  (* Placeholder just so that this operation can return both successful and error result *)
+(*  let ea := i + marg.(memarg_offset) in
+  match load_vec_arg with
+  | LVA_packed ptv sx =>
+      let (m, n) := ptv_to_nm in
+      if N.leb (ea + (N.div (N.mul m n) 8%N)) (m.(mem_length)) then
+        let bs = int_of_bytes (take (drop m
+  if ea + *)
+  match (i == marg.(memarg_offset)) with
+  | true => Some (VAL_vec128 tt)
+  | _ => None
+  end.
+
+Definition load_vec_lane (m: meminst) (i: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option value_vec :=
+  match (i == marg.(memarg_offset)) with
+  | true => Some v
+  | _ => None
+  end.
+
 Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
   then write_bytes m (n + off) (bytes_takefill #00 l bs)
   else None.
 
 Definition store_packed := store.
+
+Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option meminst :=
+  match (n == marg.(memarg_offset)) with
+  | true => Some m
+  | _ => None
+  end.
 
 Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   match vt with
@@ -450,6 +515,57 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     end
   end.
 
+Definition app_unop_vec (op: unop_vec) (v1: value_vec) : value_vec :=
+  v1.
+
+Definition app_binop_vec (op: binop_vec) (v1 v2: value_vec) : value_vec :=
+  v1.
+
+Definition app_ternop_vec (op: ternop_vec) (v1 v2 v3: value_vec) : value_vec :=
+  v1.
+
+Definition app_test_vec (op: test_vec) (v1: value_vec) : bool :=
+  true.
+
+Definition app_shift_vec (op: shift_vec) (v1: value_vec) (v2: i32) : value_vec :=
+  v1.
+
+Definition app_splat_vec (shape: shape_vec) (v1: value_num) : value_vec :=
+  VAL_vec128 tt.
+
+Definition app_extract_vec (shape: shape_vec) (s: option sx) (n: laneidx) (v1: value_vec) : value_num :=
+  match shape with
+  | SV_ishape svi =>
+      match svi with
+      | SVI_64_2 => bitzero T_i64
+      | _ => bitzero T_i32
+      end
+  | SV_fshape svf =>
+      match svf with
+      | SVF_32_4 => bitzero T_f32
+      | SVF_64_2 => bitzero T_f64
+      end
+  end.
+
+Definition app_replace_vec (shape: shape_vec) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
+  v1.
+
+Definition shape_dim (shape: shape_vec) : N :=
+  match shape with
+  | SV_ishape svi =>
+      match svi with
+      | SVI_8_16 => 16
+      | SVI_16_8 => 8
+      | SVI_32_4 => 4
+      | SVI_64_2 => 2
+      end
+  | SV_fshape svf =>
+      match svf with
+      | SVF_32_4 => 4
+      | SVF_64_2 => 2
+      end
+  end.
+
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
 
@@ -625,6 +741,21 @@ Definition smem_store_packed (s: store_record) (inst: moduleinst) (n: N) (off: s
       match lookup_N s.(s_mems) addr with
       | Some mem =>
         match store_packed mem n off (bits v) (tp_length tp) with
+        | Some mem' =>
+           Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
+        | None => None
+        end
+      | None => None
+      end
+  | None => None
+  end.
+
+Definition smem_store_vec_lane (s: store_record) (inst: moduleinst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option store_record :=
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some addr =>
+      match lookup_N s.(s_mems) addr with
+      | Some mem =>
+        match store_vec_lane mem n v width marg x with
         | Some mem' =>
            Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
         | None => None
@@ -975,8 +1106,8 @@ Definition result_to_stack (r : result) :=
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
-  | None => Nat.pow 2 a <= tnum_length t
-  | Some tp' => (Nat.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
+  | None => N.pow 2 a <= tnum_length t
+  | Some tp' => (N.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
   end.
 
 Definition cvt_i32 (s : option sx) (v : value_num) : option i32 :=

@@ -1046,7 +1046,6 @@ Proof.
     injection Hcc as -> => /=.
     exists C, None, ts => /=.
     repeat split => //.
-    Search frame_typing tc_return.
     by erewrite <- frame_typing_return_None; eauto; destruct C.
   + clear IHccs'.
     rewrite rev_rcons in Hetype.
