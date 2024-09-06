@@ -1149,7 +1149,7 @@ Proof.
   move/eqP in Hif1; rewrite - Hif1.
   unfold tab_size in *; simpl in *.
   do 2 (try (apply/andP; split => //)); try by lias.
-  rewrite List.app_length List.repeat_length.
+  rewrite List.length_app List.repeat_length.
   by lias.
 Qed.
 
@@ -1178,7 +1178,7 @@ Proof.
   - unfold tableinst_typing => /=.
     exists (Build_table_type (Build_limits (N.of_nat (length tableinst_elem) + i)%N (lim_max tt_limits)) tt_elem_type).
     unfold tabletype_valid => /=.
-    rewrite Hif3 List.app_length List.repeat_length.
+    rewrite Hif3 List.length_app List.repeat_length.
     replace (_ == _) with true; last first.
     { symmetry; apply/eqP. by lias. }
     { resolve_if_true_eq.
@@ -1264,7 +1264,7 @@ Proof.
   simpl in *.
   move/eqP in Hif0.
   unfold memtype_valid, limit_valid_range in Hif.
-  remove_bools_options => /=; rewrite List.app_length List.repeat_length Nat2N.inj_add nat_of_add_bin eq_refl; split => /=; try by rewrite Hif0 N.div_mul; lias.
+  remove_bools_options => /=; rewrite List.length_app List.repeat_length Nat2N.inj_add nat_of_add_bin eq_refl; split => /=; try by rewrite Hif0 N.div_mul; lias.
   - unfold memtype_valid, limit_valid_range => /=.
     rewrite Hif0 N.div_mul in Hif1 => //=.
     rewrite Hif0 N.div_mul => //.
@@ -1273,14 +1273,14 @@ Proof.
     exists (Build_limits (N.add (lim_min t) c) (Some u)).
     resolve_if_true_eq.
     apply/eqP.
-    unfold memory_list.mem_length, memory_list.mem_grow; rewrite List.app_length List.repeat_length => /=.
+    unfold memory_list.mem_length, memory_list.mem_grow; rewrite List.length_app List.repeat_length => /=.
     by lias.
   - unfold memtype_valid, limit_valid_range => /=.
     rewrite Hif Hif0 N.div_mul => //=.
     exists (Build_limits (N.add (lim_min t) c) None).
     resolve_if_true_eq.
     apply/eqP.
-    unfold memory_list.mem_length, memory_list.mem_grow; rewrite List.app_length List.repeat_length => /=.
+    unfold memory_list.mem_length, memory_list.mem_grow; rewrite List.length_app List.repeat_length => /=.
     by lias.
 Qed.
 

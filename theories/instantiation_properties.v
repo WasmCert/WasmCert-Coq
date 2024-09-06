@@ -229,9 +229,9 @@ Proof.
   - move => s s0 x xs' ys' s' y Hallocx [Hys [Hcomp [? [? [?[??]]]]]].
     repeat rewrite -> iota_N_iota_N in *.
     unfold alloc_func, add_func in Hallocx; injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
+    rewrite List.length_app map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length.
+    + by rewrite List.length_app List.length_map.
     + by rewrite catA => /=.
 Qed.
 
@@ -258,9 +258,9 @@ Proof.
     unfold alloc_tab, alloc_tab_ref, add_table in Hallocx.
     destruct x, tt_limits.
     injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
+    rewrite List.length_app map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length => /=.
+    + by rewrite List.length_app List.length_map => /=.
     + by rewrite catA => /=.
 Qed.
 
@@ -287,9 +287,9 @@ Proof.
     unfold alloc_mem, add_mem in Hallocx.
     destruct x.
     injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
+    rewrite List.length_app map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length => /=.
+    + by rewrite List.length_app List.length_map => /=.
     + by rewrite catA => /=.
 Qed.
 
@@ -338,14 +338,14 @@ Proof.
     apply combine_snoc in Hcomb; last by lias.
     destruct Hcomb as [modglobs' [g_inits' [g [v [-> [-> [-> ->]]]]]]].
     destruct (Hind modglobs' g_inits') as [Hys [? [? [? [Hcomp [??]]]]]] => //; clear Hind.
-    { repeat rewrite List.app_length in Hgloblen; simpl in Hgloblen. by lias. }
+    { repeat rewrite List.length_app in Hgloblen; simpl in Hgloblen. by lias. }
     unfold alloc_glob, add_glob in Hallocx. injection Hallocx as ->; subst => /=.
-    rewrite map_cat List.app_length iota_N_extend Hcomp => /=.
-    rewrite List.app_length.
+    rewrite map_cat List.length_app iota_N_extend Hcomp => /=.
+    rewrite List.length_app.
     repeat split => //=.
     + do 3 f_equal.
-      repeat rewrite List.app_length in Hgloblen; simpl in Hgloblen.
-      rewrite List.map_length List.combine_length.
+      repeat rewrite List.length_app in Hgloblen; simpl in Hgloblen.
+      rewrite List.length_map List.length_combine.
       by lias.
     + rewrite -catA.
       by destruct g.
@@ -377,14 +377,14 @@ Proof.
     apply combine_snoc in Hcomb; last by lias.
     destruct Hcomb as [modelems' [r_inits' [r [v [-> [-> [-> ->]]]]]]].
     destruct (Hind modelems' r_inits') as [Hys [? [? [? [? [Hcomp ?]]]]]] => //; clear Hind.
-    { repeat rewrite List.app_length in Helemlen; simpl in Helemlen. by lias. }
+    { repeat rewrite List.length_app in Helemlen; simpl in Helemlen. by lias. }
     unfold alloc_elem, add_elem in Hallocx. injection Hallocx as ->; subst => /=.
-    rewrite map_cat List.app_length iota_N_extend Hcomp => /=.
-    rewrite List.app_length.
+    rewrite map_cat List.length_app iota_N_extend Hcomp => /=.
+    rewrite List.length_app.
     repeat split => //=.
     + do 3 f_equal.
-      repeat rewrite List.app_length in Helemlen; simpl in Helemlen.
-      rewrite List.map_length List.combine_length.
+      repeat rewrite List.length_app in Helemlen; simpl in Helemlen.
+      rewrite List.length_map List.length_combine.
       by lias.
     + rewrite -catA.
       by destruct r.
@@ -413,9 +413,9 @@ Proof.
     unfold alloc_data, add_data in Hallocx.
     destruct x.
     injection Hallocx as ->; subst => /=.
-    rewrite List.app_length map_cat iota_N_extend Hcomp => /=.
+    rewrite List.length_app map_cat iota_N_extend Hcomp => /=.
     repeat split => //=.
-    + by rewrite List.app_length List.map_length => /=.
+    + by rewrite List.length_app List.length_map => /=.
     + by rewrite catA => /=.
 Qed.
 

@@ -442,7 +442,7 @@ Definition module_filter_funcidx (m: module) : list funcidx :=
      module_elems_get_funcidx m.(mod_elems)).
 
 Definition export_name_unique (exps: list module_export) : bool :=
-  List.nodup name_eqb (map modexp_name exps) == (map modexp_name exps).
+  List.nodup name_eq_dec (map modexp_name exps) == (map modexp_name exps).
 
 (* We deliberately omit the artificial restriction on the length of memory here. *)
 Definition module_typing (m : module) (impts : list extern_type) (expts : list extern_type) : Prop :=

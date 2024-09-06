@@ -1958,7 +1958,7 @@ Lemma iota_N_length n len:
   length (iota_N n len) = len.
 Proof.
   unfold iota_N.
-  by rewrite List.map_length length_is_size size_iota.
+  by rewrite List.length_map length_is_size size_iota.
 Qed.
 
 Lemma iota_N_extend offset len:
@@ -2101,7 +2101,7 @@ Definition component_extension_extend {T: Type} (l1 l2 l3: list T) f:
 Proof.
   move => -> Hrefl.
   unfold component_extension.
-  apply/andP; split; first by rewrite List.app_length; lias.
+  apply/andP; split; first by rewrite List.length_app; lias.
   by rewrite length_is_size take_size_cat.
 Qed.
 
