@@ -1,14 +1,12 @@
 (** Soundness and correctness of the type checker **)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-
 From Coq Require Import Program Wf_nat.
+From Wasm Require Import type_checker typing_inversion.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-From Wasm Require Import type_checker typing_inversion.
 
 Section Host.
 

@@ -46,7 +46,7 @@ module Interpreter = Shim.Interpreter (Host)
 (** An alias of [Host] to be able to retrieve it later. *)
 module TopHost = Host
 
-open Host
+(*open Host*)
 open Interpreter
 
 (* read-eval-print loop; work in progress *)

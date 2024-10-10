@@ -4,6 +4,7 @@
 From Coq Require Import Lia Wf_nat.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
+Import ZArith.BinInt.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -284,8 +285,6 @@ Lemma reflect_BoolSpec : forall P b,
 Proof.
   move=> P b. by case; [ apply: BoolSpecT | apply: BoolSpecF ].
 Qed.
-
-Import ZArith.BinInt.
 
 Lemma gtb_spec0 : forall x y, reflect (x > y)%Z (x >? y)%Z.
 Proof.

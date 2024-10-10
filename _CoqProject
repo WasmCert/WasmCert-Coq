@@ -1,7 +1,8 @@
-
 -arg -w -arg -notation-overridden
 -arg -w -arg -abstract-large-number
 -arg -w -arg -extraction-reserved-identifier
+-arg -w -arg -hiding-delimiting-key
+-arg -w -arg -overwriting-delimiting-key
 
 -R _build/default/theories Wasm
 
