@@ -1,5 +1,5 @@
 (coq.theory
   (name Wasm)
   (package coq-wasm)
-  (flags -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier -w -overwriting-delimiting-key -w -hiding-delimiting-key))
-
+  (flags -w "-notation-overridden,-abstract-large-number,-hiding-delimiting-key,-overwriting-delimiting-key")
+)
