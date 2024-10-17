@@ -46,11 +46,11 @@ module Interpreter = Shim.Interpreter (Host)
 (** An alias of [Host] to be able to retrieve it later. *)
 module TopHost = Host
 
-open Host
+(*open Host*)
 open Interpreter
 
 (* read-eval-print loop; work in progress *)
-let rec user_input prompt cb st =
+(*let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
   | None -> pure ()
   | Some v ->
@@ -59,7 +59,7 @@ let rec user_input prompt cb st =
 
 let string_of_crash_reason = function
   | () -> "error"
-
+*)
 (*
 let take_step verbosity _i cfg =
   let res = run_step_compat cfg in

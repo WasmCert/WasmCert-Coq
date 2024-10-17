@@ -1,3 +1,5 @@
+(*
+
 (** Datatypes used in the binary parser. **)
 (* (C) J. Pichon - see LICENSE.txt *)
 
@@ -125,3 +127,4 @@ Record module : Type := {
   mod_exports : list export;
 }.
 
+*)

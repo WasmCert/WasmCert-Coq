@@ -1,4 +1,5 @@
 (mdx
   (deps 
+     (package coq-wasm)
      (glob_files *.wasm))
 )

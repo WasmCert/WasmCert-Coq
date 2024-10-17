@@ -2,6 +2,7 @@
   (prelude extraction)
   (extracted_modules extract)
   (theories Wasm)
+  (flags -w "-extraction-reserved-identifier")
 )
 
 (executable

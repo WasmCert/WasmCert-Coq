@@ -1,9 +1,8 @@
 (** Typing inversion lemmas **)
 
-From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export properties subtyping_properties.
+From Wasm Require Export common properties subtyping_properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -1,6 +1,6 @@
 (** Inductively defined contexts extract to code that run very poorly. This alternative defines an
     additional context stack to replace the inductive definition, since the evaluation context tree is
-    always guaranteed to be linear. **)
+    guaranteed to be linear. **)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program NArith ZArith Wf_nat.
@@ -385,6 +385,9 @@ Proof.
     by rewrite cats0 revK.
 Qed.
 
+(* Suppressing these two warnings locally *)
+Set Warnings "-funind-cannot-define-graph".
+Set Warnings "-funind-cannot-build-inversion".
 Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list closure_ctx)) {measure (fun '(ves, ccs) => ais_measure ves)} : option (list closure_ctx * seq_ctx * option administrative_instruction) :=
   let '(ves, ccs) := ves_acc in
   match split_vals' ves with
@@ -401,7 +404,7 @@ Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list c
               end
           | AI_frame k f es =>
               ctx_decompose_aux (es, (Build_frame_ctx vs k f es', nil) :: ccs)
-          | _ => (* In this case, we know that e cannot be const due to a lemma *)
+          | _ => (* In this case, we know that e cannot be const due to how split_vals' works *)
               Some (ccs, (vs, es'), Some e)
           end
       end
@@ -418,6 +421,8 @@ Proof.
     by lias.
   }
 Defined.
+Set Warnings "+funind-cannot-define-graph".
+Set Warnings "+funind-cannot-build-inversion".
 
 Definition ctx_decompose ves := ctx_decompose_aux (ves, nil).
 

@@ -44,7 +44,7 @@ let from_triple = function
 let to_triple (a, b, c) = Extract.Pair (Extract.Pair (a, b), c)
 *)
 
-let from_string str = Utils.implode str
+(*let from_string str = Utils.implode str*)
 
 let rec to_nat = function
   | 0 -> Extract.O

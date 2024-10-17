@@ -42,7 +42,7 @@ As the parser forms a part of the extracted interpreter, any error in the parser
 
 The project can be installed using opam.
 
-Compiling the dependencies requires having at least 4-8 GB of RAM on your computer.
+Compiling the dependencies and codebase requires having at least 8 GB of RAM on your computer.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install .
