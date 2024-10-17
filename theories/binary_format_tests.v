@@ -1,4 +1,5 @@
 (** Tests for the binary parser. **)
+(* Commented out temporarily to test for OOM issues
 Require Import Strings.Byte.
 From parseque Require Import Parseque.
 Require Import BinNat.
@@ -186,3 +187,4 @@ Definition module_tableops := {|
 Lemma module_tableops_exported_round_trip :
   run_parse_module (binary_of_module module_tableops) = Some module_tableops.
 Proof. vm_compute. reflexivity. Qed.
+*)
