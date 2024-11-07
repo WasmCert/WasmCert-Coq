@@ -3,7 +3,7 @@
 (*open Convert*)
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs fuel =
+let process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs fuel depth =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
@@ -35,12 +35,12 @@ let process_args_and_run verbosity text no_exec interactive error_code_on_crash 
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name fuel
+    else Execute.instantiate_interpret verbosity interactive error_code_on_crash m func_name fuel depth
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name srcs fuel =
-  process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs fuel
+let process_args_and_run_out verbosity text no_exec interactive error_code_on_crash func_name srcs fuel depth =
+  process_args_and_run verbosity text no_exec interactive error_code_on_crash func_name srcs fuel depth
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -84,6 +84,10 @@ let fuel =
   let doc = "FUEL to which to run the Wasm evaluator" in
   Arg.(required & pos ~rev:true 0 (some int) None & info [] ~docv:"FUEL" ~doc)
   
+let depth =
+  let doc = "DEPTH to which to run the Wasm evaluator" in
+  Arg.(required & pos ~rev:true 0 (some int) None & info [] ~docv:"DEPTH" ~doc)
+
 
 let srcs =
   let doc = "Source file(s) to interpret." in
@@ -103,7 +107,7 @@ let cmd =
 *)
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs $ fuel ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ interactive $ error_code_on_crash $ func_name $ srcs $ fuel $ depth))
 
   
 let () = Stdlib.exit @@ 

@@ -73,9 +73,9 @@ let tuple_drop_hs res =
   match res with
   | (((_, s), f), r) -> ((s, f), r)
 
-let take_step verbosity _i cfg =
+let take_step verbosity _i cfg depth =
   let ((s, _), _)  = (*Convert.from_triple*) cfg in
-  let res = run_step_compat cfg in
+  let res = run_step_compat depth cfg in
   let ((s', _), _)  = (*Convert.from_triple*) res in
   let store_status = if s = s' then "unchanged" else "changed" in
   debug_info result verbosity (fun _ ->
@@ -95,6 +95,7 @@ let take_step verbosity _i cfg =
   | ((s', vs'), Extract.RS_normal es) ->
     pure ((s', vs'), es)
 
+    (*
 let repl verbosity sies (name : string) =
   LNoise.set_hints_callback (fun line ->
       (* FIXME: Documentation is needed here. I don’t know what these lines do. *)
@@ -139,8 +140,9 @@ let repl verbosity sies (name : string) =
          pure cfg)
       else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
     |> (fun cb -> user_input "> " cb cfg0)
+*)
 
-let interpret verbosity error_code_on_crash sies name fuel =
+let interpret verbosity error_code_on_crash sies name fuel depth =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
@@ -159,7 +161,7 @@ let interpret verbosity error_code_on_crash sies name fuel =
       debug_info verbosity result ~style:bold (fun _ -> "fuel exhaustion\n");
       pure None)
     else 
-      (let cfg_res = run_step_compat cfg in
+      (let cfg_res = run_step_compat depth cfg in
       print_step_header gen ;
       debug_info verbosity intermediate
         (fun _ -> pp_res_tuple_except_store (tuple_drop_hs cfg_res));
@@ -204,13 +206,13 @@ let interpret verbosity error_code_on_crash sies name fuel =
   if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
   else pure ()
 
-let instantiate_interpret verbosity interactive error_code_on_crash m name fuel =
+let instantiate_interpret verbosity interactive error_code_on_crash m name fuel depth =
   let* store_inst_exps =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
         match interp_instantiate_wrapper m with
         | None -> Error "instantiation error"
         | Some (store_inst_exps, _) -> OK store_inst_exps)) in
-  if interactive then repl verbosity store_inst_exps name
-  else interpret verbosity error_code_on_crash store_inst_exps name fuel
+  (*if interactive then repl verbosity store_inst_exps name
+  else *)interpret verbosity error_code_on_crash store_inst_exps name fuel depth
 

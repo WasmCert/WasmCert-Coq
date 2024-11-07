@@ -216,7 +216,7 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   end.
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
-  match run_v s (Build_frame [::] inst) (operations.to_e_list b_es) 2 with
+  match run_v s (Build_frame [::] inst) (operations.to_e_list b_es) 2 100 with
   | (_, interpreter_func.R_value vs) =>
     match vs with
     | [:: v] => Some v
