@@ -1237,8 +1237,44 @@ Definition cvt_trunc t s v : option value_num :=
   end.
 
 (* TODO: implement the actual definition *)
-Definition cvt_trunc_sat (t: number_type) (s: option sx) (v: value_num) : option value_num :=
-  Some (bitzero t).
+Definition cvt_trunc_sat t s v : option value_num :=
+  match t with
+  | T_i32 =>
+      option_map VAL_int32
+        (match v with
+         | VAL_float32 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_ui32_trunc_sat f32m c)
+             | Some SX_S => Some (Wasm_float.float_si32_trunc_sat f32m c)
+             | None => None
+             end
+         | VAL_float64 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_ui32_trunc_sat f64m c)
+             | Some SX_S => Some (Wasm_float.float_si32_trunc_sat f64m c)
+             | None => None
+             end
+         | _ => None
+         end)
+  | T_i64 =>
+      option_map VAL_int64
+        (match v with
+         | VAL_float32 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_ui64_trunc_sat f32m c)
+             | Some SX_S => Some (Wasm_float.float_si64_trunc_sat f32m c)
+             | None => None
+             end
+         | VAL_float64 c =>
+             match s with
+             | Some SX_U => Some (Wasm_float.float_ui64_trunc_sat f64m c)
+             | Some SX_S => Some (Wasm_float.float_si64_trunc_sat f64m c)
+             | None => None
+             end
+         | _ => None
+         end)
+  | _ => None
+  end.
 
 Definition cvt_extend t s v: option value_num :=
   match t with

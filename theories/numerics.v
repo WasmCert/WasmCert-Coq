@@ -1118,6 +1118,10 @@ Record mixin_of (float_t : Type) := Mixin {
   float_si32_trunc : float_t -> option i32 ;
   float_ui64_trunc : float_t -> option i64 ;
   float_si64_trunc : float_t -> option i64 ;
+  float_ui32_trunc_sat : float_t -> i32 ;
+  float_si32_trunc_sat : float_t -> i32 ;
+  float_ui64_trunc_sat : float_t -> i64 ;
+  float_si64_trunc_sat : float_t -> i64 ;
   float_convert_ui32 : i32 -> float_t ;
   float_convert_si32 : i32 -> float_t ;
   float_convert_ui64 : i64 -> float_t ;
@@ -1559,6 +1563,22 @@ Definition flooro := ZofB_param div_down div_up.
 Definition trunco := ZofB_param div_down div_down.
 Definition nearesto := ZofB_param div_near div_near.
 
+(** trunc_sat
+**)
+
+Definition trunc_sat (intMin intMax : Z) (z : T) :=
+  match z with
+  | Binary.B754_zero _ => 0%Z
+  | Binary.B754_infinity s =>
+    if s then intMin else intMax
+  | Binary.B754_nan _ _ _ => 0%Z
+  | z => match trunco z with
+    | Some fin => if fin >? intMax then intMax else
+        if fin <? intMin then intMin else fin
+    | None => 4269
+    end
+  end.
+
 (** CompCert’s function [IEEE754_extra.ZofB] is exactly [trunco]. **)
 Lemma trunco_is_ZofB : forall z,
   trunco z = IEEE754_extra.ZofB _ _ z.
@@ -1798,6 +1818,15 @@ Definition ui64_trunc z :=
 Definition si64_trunc z :=
   Option.bind (to_int_range i64m Wasm_int.Int64.min_signed Wasm_int.Int32.max_signed) (trunco z).
 
+Definition ui32_trunc_sat z :=
+  Wasm_int.int_of_Z i32m (trunc_sat 0 Wasm_int.Int32.max_unsigned z).
+Definition si32_trunc_sat z :=
+  Wasm_int.int_of_Z i32m (trunc_sat Wasm_int.Int32.min_signed Wasm_int.Int32.max_signed z).
+Definition ui64_trunc_sat z :=
+  Wasm_int.int_of_Z i64m (trunc_sat 0 Wasm_int.Int64.max_unsigned z).
+Definition si64_trunc_sat z :=
+  Wasm_int.int_of_Z i64m (trunc_sat Wasm_int.Int64.min_signed Wasm_int.Int64.max_signed z).
+
 Definition convert_ui32 (i : i32) := BofZ (Wasm_int.Z_of_uint i32m i).
 Definition convert_si32 (i : i32) := BofZ (Wasm_int.Z_of_sint i32m i).
 Definition convert_ui64 (i : i64) := BofZ (Wasm_int.Z_of_uint i64m i).
@@ -1833,6 +1862,10 @@ Definition Tmixin : mixin_of T := {|
     float_si32_trunc := si32_trunc ;
     float_ui64_trunc := ui64_trunc ;
     float_si64_trunc := si64_trunc ;
+    float_ui32_trunc_sat := ui32_trunc_sat;
+    float_si32_trunc_sat := si32_trunc_sat;
+    float_ui64_trunc_sat := ui64_trunc_sat;
+    float_si64_trunc_sat := si64_trunc_sat;
     float_convert_ui32 := convert_ui32 ;
     float_convert_si32 := convert_si32 ;
     float_convert_ui64 := convert_ui64 ;
