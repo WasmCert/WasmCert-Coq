@@ -280,53 +280,53 @@ Proof.
       * (* true *)
         destruct (split_n vs0 n) as [vs' vs''] eqn: Hsplit.
         destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev vs')) as [hs' [[s' rves]|]] eqn:?.
-        -- (* (hs', Some (s', rves)) *)
-          destruct rves as [rvs | ].
-          ++ apply <<hs', (s', (fc, lcs) :: ccs', (rev rvs ++ vs'', es0), None)>> => //=.
-             apply reduce_focus_id => //.
-             rewrite split_n_is_take_drop in Hsplit.
-             injection Hsplit as ??.
-             eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-             2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-                  by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-             }
-             rewrite revK.
-             unfold fmask0 => /=.
-             fold (result_to_stack (result_values rvs)).
-             eapply r_invoke_host_success; eauto.
-             repeat rewrite length_is_size.
-             by rewrite size_rev size_takel => //.
-          ++ apply <<hs', (s', (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => //=.
-             apply reduce_focus_id => //.
-             rewrite split_n_is_take_drop in Hsplit.
-             injection Hsplit as ??.
-             eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-             2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-                  by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-             }
-             unfold fmask0 => /=.
-             fold (result_to_stack result_trap).
-             eapply r_invoke_host_success; eauto.
-             repeat rewrite length_is_size.
-             by rewrite size_rev size_takel => //.
-  - (* (hs', None) *)
-    apply <<hs', (s, (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => //=.
-    apply reduce_focus_id => //.
-    rewrite split_n_is_take_drop in Hsplit.
-    injection Hsplit as ??.
-    eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
-    2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
-         by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
-    }
-    unfold fmask0 => /=.
-    eapply r_invoke_host_diverge; eauto.
-    repeat rewrite length_is_size.
-    by rewrite size_rev size_takel => //.
-    * (* false *)
-      resolve_invalid_typing.
-      unfold ext_func_typing in Hconjr.
-      remove_bools_options; simpl in *.
-      by discriminate_size.
+        (* (hs', Some (s', rves)) *)
+        { destruct rves as [rvs | ].
+          - apply <<hs', (s', (fc, lcs) :: ccs', (rev rvs ++ vs'', es0), None)>> => //=.
+            apply reduce_focus_id => //.
+            rewrite split_n_is_take_drop in Hsplit.
+            injection Hsplit as ??.
+            eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+            2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+                 by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+            }
+            rewrite revK.
+            unfold fmask0 => /=.
+            fold (result_to_stack (result_values rvs)).
+            eapply r_invoke_host_success; eauto.
+            repeat rewrite length_is_size.
+            by rewrite size_rev size_takel => //.
+          - apply <<hs', (s', (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => //=.
+            apply reduce_focus_id => //.
+            rewrite split_n_is_take_drop in Hsplit.
+            injection Hsplit as ??.
+            eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+            2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+                by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+            }
+            unfold fmask0 => /=.
+            fold (result_to_stack result_trap).
+            eapply r_invoke_host_success; eauto.
+            repeat rewrite length_is_size.
+            by rewrite size_rev size_takel => //. }
+        (* (hs', None) *)
+        { apply <<hs', (s, (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => //=.
+          apply reduce_focus_id => //.
+          rewrite split_n_is_take_drop in Hsplit.
+          injection Hsplit as ??.
+          eapply r_label with (lh := LH_base (rev vs'') es0) => /=; subst; infer_hole.
+          2: { instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0)) ++ [::AI_invoke a])).
+              by rewrite catA catA v_to_e_cat -rev_cat cat_take_drop -catA.
+          }
+          unfold fmask0 => /=.
+          eapply r_invoke_host_diverge; eauto.
+          repeat rewrite length_is_size.
+          by rewrite size_rev size_takel => //. }
+      * (* false *)
+        resolve_invalid_typing.
+        unfold ext_func_typing in Hconjr.
+        remove_bools_options; simpl in *.
+        by discriminate_size.
   - (* None *)
     resolve_invalid_typing.
     unfold ext_func_typing in Hconjr.
