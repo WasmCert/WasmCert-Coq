@@ -1117,13 +1117,13 @@ Definition cvt_i32 (s : option sx) (v : value_num) : option i32 :=
   | VAL_float32 c =>
     match s with
     | Some SX_U => Wasm_float.float_ui32_trunc f32m c
-    | Some SX_S => Wasm_float.float_ui32_trunc f32m c
+    | Some SX_S => Wasm_float.float_si32_trunc f32m c
     | None => None
     end
   | VAL_float64 c =>
     match s with
     | Some SX_U => Wasm_float.float_ui32_trunc f64m c
-    | Some SX_S => Wasm_float.float_ui32_trunc f64m c
+    | Some SX_S => Wasm_float.float_si32_trunc f64m c
     | None => None
     end
   end.
@@ -1205,13 +1205,13 @@ Definition cvt_trunc t s v : option value_num :=
          | VAL_float32 c =>
              match s with
              | Some SX_U => Wasm_float.float_ui32_trunc f32m c
-             | Some SX_S => Wasm_float.float_ui32_trunc f32m c
+             | Some SX_S => Wasm_float.float_si32_trunc f32m c
              | None => None
              end
          | VAL_float64 c =>
              match s with
              | Some SX_U => Wasm_float.float_ui32_trunc f64m c
-             | Some SX_S => Wasm_float.float_ui32_trunc f64m c
+             | Some SX_S => Wasm_float.float_si32_trunc f64m c
              | None => None
              end
          | _ => None
