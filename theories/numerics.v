@@ -1563,8 +1563,9 @@ Definition flooro := ZofB_param div_down div_up.
 Definition trunco := ZofB_param div_down div_down.
 Definition nearesto := ZofB_param div_near div_near.
 
-(** Saturated truncation.
-  See https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-u **)
+(** Truncates a floating-point value to an integer using saturating semantics.
+  For more details on truncation semantics,
+  see https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-u **)
 Definition trunc_sat (intMin intMax : Z) (z : T) : Z.
 Proof.
   refine (
