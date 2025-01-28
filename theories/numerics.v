@@ -1563,19 +1563,18 @@ Definition flooro := ZofB_param div_down div_up.
 Definition trunco := ZofB_param div_down div_down.
 Definition nearesto := ZofB_param div_near div_near.
 
-(** trunc_sat
-**)
-
+(** Saturated truncation.
+  See https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-u **)
 Definition trunc_sat (intMin intMax : Z) (z : T) :=
   match z with
-  | Binary.B754_zero _ => 0%Z
   | Binary.B754_infinity s =>
     if s then intMin else intMax
   | Binary.B754_nan _ _ _ => 0%Z
+  | Binary.B754_zero _ => 0%Z
   | z => match trunco z with
     | Some fin => if fin >? intMax then intMax else
         if fin <? intMin then intMin else fin
-    | None => 4269
+    | None => 42 (** Not possible. May choose some other magic number. **)
     end
   end.
 
