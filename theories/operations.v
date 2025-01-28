@@ -1236,7 +1236,6 @@ Definition cvt_trunc t s v : option value_num :=
   | _ => None
   end.
 
-(* TODO: implement the actual definition *)
 Definition cvt_trunc_sat t s v : option value_num :=
   match t with
   | T_i32 =>
