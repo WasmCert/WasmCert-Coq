@@ -1565,18 +1565,23 @@ Definition nearesto := ZofB_param div_near div_near.
 
 (** Saturated truncation.
   See https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-u **)
-Definition trunc_sat (intMin intMax : Z) (z : T) :=
-  match z with
+Definition trunc_sat (intMin intMax : Z) (z : T) : Z.
+Proof.
+  refine (
+  match z as z' return z = z' -> Z with
   | Binary.B754_infinity s =>
-    if s then intMin else intMax
-  | Binary.B754_nan _ _ _ => 0%Z
-  | Binary.B754_zero _ => 0%Z
-  | z => match trunco z with
-    | Some fin => if fin >? intMax then intMax else
+    fun _ => if s then intMin else intMax
+  | Binary.B754_nan _ _ _ => fun _ => 0%Z
+  | Binary.B754_zero _ => fun _ => 0%Z
+  | Binary.B754_finite _ _ z0 _ => fun Heqz => (match trunco z as z_trunco return trunco z = z_trunco -> Z with
+    | Some fin => fun _ => if fin >? intMax then intMax else
         if fin <? intMin then intMin else fin
-    | None => 42 (** Not possible. May choose some other magic number. **)
-    end
-  end.
+    | None => fun Htrunco => (False_rec _ _) (** Not possible **)
+    end (Logic.eq_refl _))
+  end (Logic.eq_refl _)).
+  (* Impossible case *)
+  subst z; by destruct z0.
+Defined.
 
 (** CompCert’s function [IEEE754_extra.ZofB] is exactly [trunco]. **)
 Lemma trunco_is_ZofB : forall z,

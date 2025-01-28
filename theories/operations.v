@@ -1236,7 +1236,8 @@ Definition cvt_trunc t s v : option value_num :=
   | _ => None
   end.
 
-(* TODO: implement the actual definition *)
+(* This is still partial as there could be a mismatch between the input
+   value and type. The underlying operation trunc_sat is total. *)
 Definition cvt_trunc_sat t s v : option value_num :=
   match t with
   | T_i32 =>
