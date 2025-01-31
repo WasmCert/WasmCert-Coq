@@ -14,7 +14,8 @@ Unset Printing Implicit Defensive.
 Section Host.
 
 Context `{ho: host}.
-  
+
+(* This assumption on host function applications is required to establish the interpreter correctness result in the corresponding case *)
 Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value -> (host_state * option (store_record * result)).
 
 Hypothesis host_application_impl_correct :
@@ -146,7 +147,7 @@ Definition empty_label_ctx := Build_label_ctx nil 0 nil nil.
 
 Opaque instr_subtyping.
 
-(** Br exits from one label context. **)
+(** Br j exits from j labels and targets the continuation of the next. **)
 Definition run_ctx_br: forall hs s ccs sc j,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic (BI_br j))).
 Proof.
@@ -243,8 +244,11 @@ Proof.
       (* true *)
       * destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
         destruct (default_vals ts) as [zs |] eqn:Hdefault.
-        (* types are all defaultable as of Wasm 2.0. This potentially needs a 
-           small change in 3.0. *)
+        (* All types are defaultable as of Wasm 2.0. This potentially needs a 
+           small change in 3.0 where non-defaultable types are introduced. In particular,
+           the `default_vals` function needs to be made partial, and there should be
+           a case split on the failure case due to an attempt on using the default values
+           of non-defaultable types *)
         { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_label m nil (to_e_list es)))>> => //=.
           apply (@reduce_focus_pivot _ _ nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
           apply (list_label_ctx_eval.(ctx_reduce)) => //=.
@@ -293,7 +297,8 @@ Proof.
             rewrite revK.
             unfold fmask0 => /=.
             fold (result_to_stack (result_values rvs)).
-            eapply r_invoke_host_success; eauto.
+            (* host application correctness is used here *)
+            eapply r_invoke_host_success; try by eauto.
             repeat rewrite length_is_size.
             by rewrite size_rev size_takel => //.
           - apply <<hs', (s', (fc, lcs) :: ccs', (vs'', es0), Some AI_trap)>> => //=.
@@ -333,81 +338,6 @@ Proof.
     by remove_bools_options; simpl in *.
 Defined.
 
-(* Lemma for eliminating subtypes *)
-Lemma operand_subtyping: forall s ops ops0 vts ts1 ts2 ts',
-  values_typing s (rev (ops ++ ops0)) vts ->
-  (Tf ts1 ts2 <ti: Tf vts ts') ->
-  size ops = size ts1 ->
-  values_typing s ops (rev ts1).
-Proof.
-  move => s ops ops0 vts ts1 ts2 ts' Hvt Hsub Hsize.
-  apply values_typing_rev in Hvt.
-  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
-  rewrite Heqrev in Hvt.
-  unfold values_typing in Hvt.
-  rewrite all2_cat in Hvt; remove_bools_options; first by eapply values_typing_trans; eauto.
-  apply values_subtyping_size in Hsub.
-  by rewrite size_rev in Hsub; lias.
-Qed.
-
-(* Instances for tactic *)
-Lemma operand_subtyping1: forall s v1 ops0 vts t1 ts2 ts',
-  values_typing s (rev (v1 :: ops0)) vts ->
-  (Tf [::t1] ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1] [::t1].
-Proof.
-  intros ??????? Hvt Hsub.
-  rewrite -cat1s in Hvt.
-  by eapply operand_subtyping in Hsub; eauto.
-Qed.
-
-Lemma operand_subtyping2: forall s v1 v2 ops0 vts t1 t2 ts2 ts',
-  values_typing s (rev (v1 :: v2 :: ops0)) vts ->
-  (Tf [::t1; t2] ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1; v2] [::t2; t1].
-Proof.
-  intros ????????? Hvt Hsub.
-  rewrite -(cat1s v1) -(cat1s v2) catA in Hvt.
-  by eapply operand_subtyping in Hsub; eauto.
-Qed.
-
-Lemma operand_subtyping3: forall s v1 v2 v3 ops0 vts t1 t2 t3 ts2 ts',
-  values_typing s (rev (v1 :: v2 :: v3 :: ops0)) vts ->
-  (Tf [::t1; t2; t3] ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1; v2; v3] [::t3; t2; t1].
-Proof.
-  intros ??????????? Hvt Hsub.
-  rewrite -(cat1s v1) -(cat1s v2) -(cat1s v3) catA catA in Hvt.
-  by eapply operand_subtyping in Hsub; eauto.
-Qed.
-
-Lemma operand_subtyping_suffix1: forall s v1 ops0 vts ts0 t1 ts2 ts',
-  values_typing s (rev (v1 :: ops0)) vts ->
-  (Tf (ts0 ++ [::t1]) ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1] [::t1].
-Proof.
-  intros ???????? Hvt Hsub.
-  apply values_typing_rev in Hvt.
-  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
-  rewrite Heqrev in Hvt.
-  unfold values_typing in Hvt.
-  rewrite rev_cat in Hsub.
-  destruct ts_prefix as [|t ?] => //.
-  simpl in *; remove_bools_options.
-  by erewrite value_typing_trans; eauto.
-Qed.
-
-Lemma value_typing_ref_impl: forall s v t,
-  value_typing s (VAL_ref v) t ->
-  exists tref, t = T_ref tref.
-Proof.
-  move => s v t Hvt.
-  unfold value_typing in Hvt; remove_bools_options.
-  simpl in *; remove_bools_options.
-  apply ref_subtyping in Hvt; subst.
-  by eexists.
-Qed.
-
 Ltac resolve_invalid_value :=
   repeat match goal with
   | Hvaltype : is_true (values_typing _ (rev (_ :: _)) _),
@@ -437,8 +367,7 @@ end.
 Ltac discriminate_value_type :=
   resolve_invalid_typing; resolve_invalid_value.
 
-(* Directly destructs the top value of stack and automatically resolve the ill-typed
-   cases. *)
+(* Directly destructs the top value of stack and automatically resolve the ill-typed cases. *)
 Ltac assert_value_num v :=
   destruct v as [v| |]; [ | by discriminate_value_type | by discriminate_value_type].
 
@@ -508,7 +437,7 @@ Proof.
       }
       (* Exitting a label *)
       (* It is futile to try to push the next instruction e from lvs into the hole,
-         as that might be a value anyway *)
+         as that might be a value anyway. Instead, the entire context reformation is done in a separate function *)
       { destruct lc as [lvs lk lces les].
         apply <<hs, (s, (fc, lcs') :: ccs', (vs0 ++ lvs, les), None)>> => //=.
         apply reduce_focus => //=.
@@ -865,7 +794,7 @@ the condition that all values should live in the operand stack. *)
         resolve_reduce_ctx vs0 es0.
         by apply r_table_get_success.
       (* None *)
-      (* Note that the stab_elem specification in the opsem matches the spec for typed expressions only -- it produces traps in some untyped scenarios which is undefined in spec. But that is not a problem anyway *)
+      (* Note that the stab_elem specification in the opsem matches the spec for typed expressions only -- it produces traps in some untyped scenarios which is undefined in spec. But that is not a problem anyway for now. Maybe this should be changed in the future. *)
       + apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
         resolve_reduce_ctx vs0 es0.
         by apply r_table_get_failure.

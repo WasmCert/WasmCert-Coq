@@ -1,11 +1,8 @@
 From Wasm Require Export interpreter_ctx.
-From Coq Require Import ZArith.BinInt Program.Equality.
-From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Import BinNat NArith BinNums ZArith.
+From mathcomp Require Import ssreflect ssrbool eqtype.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
-
 Unset Printing Implicit Defensive.
 
 Section Host.
@@ -13,7 +10,7 @@ Section Host.
 Context `{ho: host}.
 
 (* The same host function well-formedness assumptions from the interpreter *)
-Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value -> (host_state * option (store_record * result)).
+Variable host_application_impl : host_state -> store_record -> function_type -> host_function -> list value -> (host_state * option (store_record * result)).
 
 Hypothesis host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).

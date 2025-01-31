@@ -127,13 +127,15 @@ Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) 
   
 (* TODO: We crucially need documentation here. *)
 
+(* Operation for the memory_load instruction. *)
 Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
   if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
   then read_bytes m (N.add n off) l
   else None.
 
+(* TODO: implement sign extension. *)
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
+  bs.
 (* TODO
   let: msb := msb (msbyte bytes) in
   let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
@@ -146,6 +148,7 @@ Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp 
 Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
   VAL_int32 int32_minus_one.
 
+(* TODO: placeholder for vector load -- currently unimplemented. *)
 Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
   (* Placeholder just so that this operation can return both successful and error result *)
 (*  let ea := i + marg.(memarg_offset) in
@@ -214,12 +217,29 @@ Definition default_val (t: value_type) : option value :=
 Definition default_vals (ts : seq value_type) : option (seq value) :=
   those (map default_val ts).
 
+
+(** The mechanisation implements a restricted version of the subtyping system
+from the upcoming GC proposal to the current set of Wasm 2.0 types.
+Namely, t_1 <: t_2 iff t_1 is the bottom type, or the two types are equal.
+
+This allows smoother transition into the upcoming proposals and avoids
+the need to deal with the artificial stack type in Wasm 2.0, which is a
+temporary solution.
+
+For more details on the GC proposal, check
+[https://github.com/WebAssembly/gc/blob/main/proposals/gc/Overview.md]
+**)
+Section Subtyping.
+
 Definition value_subtyping (t1: value_type) (t2: value_type) : bool :=
   (t1 == t2) || (t1 == T_bot).
 
 Definition values_subtyping (ts1: list value_type) (ts2: list value_type) : bool :=
   all2 value_subtyping ts1 ts2.
 
+(** Function subtyping and instruction subtyping are covariant on the types
+produced and contravariant on the types consumed.
+**)
 Definition func_subtyping (tf tf': function_type) : Prop :=
   let '(Tf ts1 ts2) := tf in
   let '(Tf ts1' ts2') := tf' in
@@ -235,6 +255,8 @@ Definition instr_subtyping (tf tf': function_type) : Prop :=
     values_subtyping ts ts' /\  
     values_subtyping ts1_sub ts1 /\
     values_subtyping ts2 ts2_sub.
+
+End Subtyping.
 
 Notation "t1 <t: t2" := (value_subtyping t1 t2) (at level 30).
 Notation "ts1 <ts: ts2" := (values_subtyping ts1 ts2) (at level 60).

@@ -49,7 +49,7 @@ module TopHost = Host
 (*open Host*)
 open Interpreter
 
-(* read-eval-print loop; work in progress *)
+(* artifact for interactive interpreter *)
 (*let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
   | None -> pure ()
@@ -143,6 +143,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
       match cfg_res with
       | RSC_normal (hs', cfg') ->
+        (* reforming the resulting interpreter cfg to the normal form *)
         begin match run_step_cfg_ctx_reform cfg' with
         | Some cfg_next -> 
             eval_cfg (gen+1) hs' cfg_next

@@ -1,9 +1,8 @@
 (** Proof of preservation **)
 
-From Wasm Require Export common.
+From Wasm Require Export typing_inversion tactic.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export typing opsem properties typing_inversion tactic.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -22,23 +21,6 @@ Definition inst_match C C' : bool :=
   (C.(tc_elems) == C'.(tc_elems)) &&
   (C.(tc_datas) == C'.(tc_datas)) &&
   (C.(tc_refs) == C'.(tc_refs)).
-
-Lemma bet_skip_refcheck: forall C C' bes tf,
-  C' = upd_refs C (iota_N 0 (length C.(tc_funcs))) ->
-  be_typing C bes tf ->
-  be_typing C' bes tf.
-Proof.
-  move => C C' bes [tx ty] HC' Hbet.
-  move: C' HC'.
-  induction Hbet; move => C' HC'; subst C' => /=; (try by econstructor; eauto).
-  (* ref_func *)
-  - apply bet_ref_func with (t := t) => //=.
-    + apply nth_error_Some_length in H.
-      apply List.nth_error_In with (n := (N.to_nat x)).
-      rewrite iota_N_lookup.
-      by rewrite add0n N2Nat.id.
-    + by lias.
-Qed.
 
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
@@ -59,7 +41,7 @@ Proof.
   destruct op, t1, t2 => //; destruct sx as [[|] |] => //; cbn in Hcvtvalid => //; destruct v1 => //; simpl in * => //; by remove_bools_options => //=; inversion Heval.
 Qed.
 
-(* Not completely agnostic now -- since reference typings are dependent on the store. *)
+(* Not completely agnostic in Wasm 2.0 now -- since reference typings are dependent on the store. *)
 Lemma et_const_agnostic: forall s C C' es tf,
     const_list es ->
     e_typing s C es tf ->
@@ -72,7 +54,7 @@ Proof.
   done.
 Qed.
 
-(* It's better to just set it opaque and unset it when necessary, since most of the times we do not want to unfold this definition by simpl. But the simpl nomatch method doesn't prevent it from being unfolded for some reason. *)
+(* It's better to just set `instr_subtyping` opaque and unset it when necessary, since most of the times we do not want to unfold this definition by simpl. But the simpl nomatch method doesn't prevent it from being unfolded for some reason. *)
 Opaque instr_subtyping.
 
 Theorem t_simple_preservation: forall s es es' C tf,
@@ -830,6 +812,8 @@ Proof.
   by induction HReduce.
 Qed.
 
+(** Interaction among instruction operations, store extensions, and types **)
+
 Lemma context_extension_func_typing: forall C C' x t,
     context_extension C C' ->
     func_typing C x t ->
@@ -1518,7 +1502,7 @@ Proof.
     by apply List.nth_error_In in Hnthsdata; eauto.
 Qed.
     
-(* Note that although config_typing gives quite a stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
+(* Note that although config_typing gives a much 1stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
 Lemma store_extension_reduce: forall s f es s' f' es' C C' tf hs hs',
     reduce hs s f es hs' s' f' es' ->
     inst_typing s f.(f_inst) = Some C ->

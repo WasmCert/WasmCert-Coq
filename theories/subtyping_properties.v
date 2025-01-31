@@ -752,6 +752,17 @@ Section Host.
 
 Context {hfc: host_function_class}.
   
+Lemma value_typing_ref_impl: forall s v t,
+  value_typing s (VAL_ref v) t ->
+  exists tref, t = T_ref tref.
+Proof.
+  move => s v t Hvt.
+  unfold value_typing in Hvt; remove_bools_options.
+  simpl in *; remove_bools_options.
+  apply ref_subtyping in Hvt; subst.
+  by eexists.
+Qed.
+
 Lemma value_num_principal_typing: forall s v,
     value_typing s (VAL_num v) (T_num (typeof_num v)).
 Proof.
@@ -799,6 +810,70 @@ Proof.
   destruct Hvt as [vt' [Hnth3 Hvt']].
   eapply all2_projection in Hsub; eauto.
   by eapply value_typing_trans; eauto.
+Qed.
+
+(* Lemma for eliminating subtypes *)
+Lemma operand_subtyping: forall s ops ops0 vts ts1 ts2 ts',
+  values_typing s (rev (ops ++ ops0)) vts ->
+  (Tf ts1 ts2 <ti: Tf vts ts') ->
+  size ops = size ts1 ->
+  values_typing s ops (rev ts1).
+Proof.
+  move => s ops ops0 vts ts1 ts2 ts' Hvt Hsub Hsize.
+  apply values_typing_rev in Hvt.
+  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
+  rewrite Heqrev in Hvt.
+  unfold values_typing in Hvt.
+  rewrite all2_cat in Hvt; remove_bools_options; first by eapply values_typing_trans; eauto.
+  apply values_subtyping_size in Hsub.
+  by rewrite size_rev in Hsub; lias.
+Qed.
+
+(* Instances for value elimination tactic used in interpreter *)
+Lemma operand_subtyping1: forall s v1 ops0 vts t1 ts2 ts',
+  values_typing s (rev (v1 :: ops0)) vts ->
+  (Tf [::t1] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1] [::t1].
+Proof.
+  intros ??????? Hvt Hsub.
+  rewrite -cat1s in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping2: forall s v1 v2 ops0 vts t1 t2 ts2 ts',
+  values_typing s (rev (v1 :: v2 :: ops0)) vts ->
+  (Tf [::t1; t2] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1; v2] [::t2; t1].
+Proof.
+  intros ????????? Hvt Hsub.
+  rewrite -(cat1s v1) -(cat1s v2) catA in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping3: forall s v1 v2 v3 ops0 vts t1 t2 t3 ts2 ts',
+  values_typing s (rev (v1 :: v2 :: v3 :: ops0)) vts ->
+  (Tf [::t1; t2; t3] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1; v2; v3] [::t3; t2; t1].
+Proof.
+  intros ??????????? Hvt Hsub.
+  rewrite -(cat1s v1) -(cat1s v2) -(cat1s v3) catA catA in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping_suffix1: forall s v1 ops0 vts ts0 t1 ts2 ts',
+  values_typing s (rev (v1 :: ops0)) vts ->
+  (Tf (ts0 ++ [::t1]) ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1] [::t1].
+Proof.
+  intros ???????? Hvt Hsub.
+  apply values_typing_rev in Hvt.
+  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
+  rewrite Heqrev in Hvt.
+  unfold values_typing in Hvt.
+  rewrite rev_cat in Hsub.
+  destruct ts_prefix as [|t ?] => //.
+  simpl in *; remove_bools_options.
+  by erewrite value_typing_trans; eauto.
 Qed.
 
 End Host.
