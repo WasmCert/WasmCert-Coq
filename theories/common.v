@@ -296,22 +296,6 @@ Proof.
   move=> x y. apply: Bool.iff_reflect. rewrite Z.geb_le. by lias.
 Qed.
 
-
-Definition curry A B C (f : A -> B -> C) (ab : A * B) :=
-  let: (a, b) := ab in
-  f a b.
-
-Definition uncurry A B C (f : A * B -> C) a b := f (a, b).
-
-Lemma curry_uncurry : forall A B C (f : A * B -> C) ab,
-  curry (uncurry f) ab = f ab.
-Proof. by move=> A B C f [a b]. Qed.
-
-Lemma uncurry_curry : forall A B C (f : A -> B -> C) a b,
-  uncurry (curry f) a b = f a b.
-Proof. by []. Qed.
-
-
 (** * Lemmas about lists. **)
 
 Lemma List_In_in_mem : forall (A : eqType) e (l : seq A),

@@ -6,7 +6,6 @@
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import instantiation_spec instantiation_properties type_preservation.
 From Coq Require Import BinNat NArith ZArith.
-Require Import Coq.Program.Equality.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -16,6 +15,7 @@ Section Host.
 
 Context `{ho: host}.
 
+(* Replacing the imported types by subtypes preserves the typing of a program *)
 Lemma bet_import_subtyping: forall ts fts tts mts gts ets dts locs labs ret refs imps1 imps2 bes tf,
     List.Forall2 import_subtyping imps2 imps1 ->
     be_typing (Build_t_context ts (ext_t_funcs imps1 ++ fts) (ext_t_tables imps1 ++ tts) (ext_t_mems imps1 ++ mts) (ext_t_globals imps1 ++ gts) ets dts locs labs ret refs) bes tf ->
@@ -42,7 +42,28 @@ Proof.
     by unfold import_global_subtyping in Hsub; remove_bools_options; simplify_multieq; subst; apply/eqP.
   }
 Qed.
-  
+
+Lemma bet_skip_refcheck: forall C C' bes tf,
+  C' = upd_refs C (iota_N 0 (length C.(tc_funcs))) ->
+  be_typing C bes tf ->
+  be_typing C' bes tf.
+Proof.
+  move => C C' bes [tx ty] HC' Hbet.
+  move: C' HC'.
+  induction Hbet; move => C' HC'; subst C' => /=; (try by econstructor; eauto).
+  (* ref_func *)
+  - apply bet_ref_func with (t := t) => //=.
+    + apply nth_error_Some_length in H.
+      apply List.nth_error_In with (n := (N.to_nat x)).
+      rewrite iota_N_lookup.
+      by rewrite add0n N2Nat.id.
+    + by lias.
+Qed.
+
+(** Soundness of the module instantiation operation
+The post-instantiation store is a valid extension of the old store,
+and the post-instantiation frame is well-typed within the new store.
+**)
 Lemma instantiation_sound: forall (s: store_record) m v_imps s' f exps,
   store_typing s ->
   instantiate s m v_imps (s', f, exps) ->

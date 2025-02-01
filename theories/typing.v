@@ -1,7 +1,7 @@
 (** Wasm typing rules **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Export operations.
+From Wasm Require Export operations subtyping.
 From Coq Require Import NArith.
 
 Set Implicit Arguments.

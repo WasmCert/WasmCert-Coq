@@ -1,7 +1,7 @@
 (** Wasm type checker **)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Import common operations typing datatypes_properties.
-Require Import BinNat.
+From Wasm Require Export typing datatypes_properties operations.
+From Coq Require Import BinNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -1,8 +1,7 @@
 (* Lemmas and Tactics for dealing with subtypings *)
 
-From Wasm Require Export operations properties.
+From Wasm Require Export operations subtyping properties.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Bool Program NArith ZArith Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -120,9 +119,7 @@ Qed.
 Lemma func_subtyping_eq: forall tf,
     tf <tf: tf.
 Proof.
-  move => [ts1 ts2].
-  unfold func_subtyping.
-  repeat split => //; by apply values_subtyping_eq.
+  move => [??] => /=; by repeat rewrite values_subtyping_eq.
 Qed.
 
 Lemma func_subtyping_trans: forall tf1 tf2 tf3,
@@ -130,10 +127,9 @@ Lemma func_subtyping_trans: forall tf1 tf2 tf3,
     tf2 <tf: tf3 ->
     tf1 <tf: tf3.
 Proof.
-  move => [tx1 ty1] [tx2 ty2] [tx3 ty3].
-  unfold func_subtyping.
-  move => [??] [??].
-  split; by eapply values_subtyping_trans; eauto.
+  move => [tx1 ty1] [tx2 ty2] [tx3 ty3] => /= /andP [Hsubx21 Hsuby21] /andP [Hsubx32 Hsuby32].
+  rewrite (@values_subtyping_trans _ tx2); eauto.
+  by rewrite (@values_subtyping_trans _ ty2); eauto.
 Qed.
 
 Lemma instr_subtyping_eq: forall tf,
@@ -214,6 +210,9 @@ Proof.
   by eapply values_subtyping_trans; eauto.
 Qed.
 
+(* Any subtyping relation with a non-bot type on the LHS reduces to an equality
+as of Wasm 2.0.
+*)
 Lemma num_subtyping: forall tn t,
     (T_num tn <t: t) ->
     t = T_num tn.
@@ -387,7 +386,7 @@ Ltac resolve_subtyping :=
   | H: is_true true |- _ => clear H
   | H: ?x = ?x |- _ => clear H
   | H: is_true (_ && true) |- _ => move/andP in H; destruct H as [H _]
-  | |- context [_ && true] => rewrite andb_true_r
+  | |- context [_ && true] => rewrite Bool.andb_true_r
 
   (* Instruction subtyping with nils *)
   | |- (Tf nil nil <ti: Tf ?ts1 ?ts2) =>
@@ -712,6 +711,11 @@ Proof.
   by apply all2_rev.
 Qed.
 
+(*
+Given a subtype of (tx -> ty) and a subtype of (ty -> tz),
+try to figure out the relations that have to be satisfied by the subtypes and
+simplify for premises.
+*)
 Ltac unify_principal :=
   repeat match goal with
   | H1: (Tf ?ts1 ?ts2) <ti: (Tf ?tx ?ty),
@@ -747,6 +751,7 @@ Ltac unify_principal :=
   | |- is_true (size _ <= size _) =>
     try by repeat rewrite size_cat; lias
   end.
+
 
 Section Host.
 
