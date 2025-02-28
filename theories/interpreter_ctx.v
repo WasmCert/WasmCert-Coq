@@ -540,24 +540,42 @@ the condition that all values should live in the operand stack. *)
     - destruct vs0 as [|v vs0]; first by no_args.
       assert_value_num v.
       (* v :: ves' *)
-      apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (app_unop op v) :: vs0, es0), None)>> => //.
-      resolve_reduce_ctx vs0 es0.
-      by apply r_simple, rs_unop.
+      (* typechecking the operation against the operands *)
+      destruct (unop_typecheck v t op) eqn:Htc.
+      + apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (app_unop op v) :: vs0, es0), None)>> => //.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_unop.
+      (* Ill-typed *)
+      + resolve_invalid_typing; resolve_invalid_value.
+        apply num_subtyping in H; injection H as ->.
+        unfold unop_typecheck in Htc.
+        by rewrite Hconjr eq_refl in Htc.
 
     (* AI_basic (BI_binop t op) *)
     - destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
       assert_value_num v2.
       assert_value_num v1.
       (* [:: v2, v1 & ves'] *)
-      destruct (app_binop op v1 v2) as [v|] eqn:?.
-      (* Some v *)
-      + apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num v :: vs0, es0), None)>> => //.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_simple, rs_binop_success.
-      (* None *)
-      + apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
-        resolve_reduce_ctx vs0 es0.
-        by apply r_simple, rs_binop_failure.
+      (* typechecking the operation against the operands *)
+      destruct (binop_typecheck v1 v2 t op) eqn:Htc.
+      { destruct (app_binop op v1 v2) as [v|] eqn:?.
+        (* Some v *)
+        + apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num v :: vs0, es0), None)>> => //.
+          resolve_reduce_ctx vs0 es0.
+          by apply r_simple, rs_binop_success.
+        (* None *)
+        + apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
+          resolve_reduce_ctx vs0 es0.
+          by apply r_simple, rs_binop_failure.
+      }
+      (* Ill-typed *)
+      {
+        resolve_invalid_typing; resolve_invalid_value.
+        apply num_subtyping in H; injection H as ->.
+        apply num_subtyping in H0; injection H0 as Hteq.
+        unfold binop_typecheck in Htc.
+        by rewrite Hconjr Hteq eq_refl in Htc.
+      }
 
     (* AI_basic (BI_testop t testop) *)
     - destruct vs0 as [| v vs0]; first by no_args.
@@ -583,9 +601,20 @@ the condition that all values should live in the operand stack. *)
       assert_value_num v2.
       assert_value_num v1.
       (* [:: v2, v1 & ves'] *)
-      apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (@app_relop op v1 v2))) :: vs0, es0), None)>> => //.
-      resolve_reduce_ctx vs0 es0.
-      by apply r_simple, rs_relop.
+      (* typechecking the operation against the operands *)
+      destruct (relop_typecheck v1 v2 t op) eqn:Htc.
+      { apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (@app_relop op v1 v2))) :: vs0, es0), None)>> => //.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_simple, rs_relop.
+      }
+      (* Ill-typed *)
+      {
+        resolve_invalid_typing; resolve_invalid_value.
+        apply num_subtyping in H; injection H as ->.
+        apply num_subtyping in H0; injection H0 as Hteq.
+        unfold relop_typecheck in Htc.
+        by rewrite Hconjr Hteq eq_refl in Htc.
+      }
 
     (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
     - destruct vs0 as [|v vs0]; first by no_args.
