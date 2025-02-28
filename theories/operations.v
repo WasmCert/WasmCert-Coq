@@ -1,10 +1,9 @@
 (** Basic operations over Wasm datatypes **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Import common memory_list.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
-From Wasm Require Export datatypes_properties list_extra.
+From Wasm Require Export common memory_list datatypes_properties list_extra.
 From Coq Require Import BinNat.
 
 Set Implicit Arguments.
@@ -128,13 +127,15 @@ Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) 
   
 (* TODO: We crucially need documentation here. *)
 
+(* Operation for the memory_load instruction. *)
 Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
   if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
   then read_bytes m (N.add n off) l
   else None.
 
+(* TODO: implement sign extension. *)
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
+  bs.
 (* TODO
   let: msb := msb (msbyte bytes) in
   let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
@@ -147,6 +148,7 @@ Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp 
 Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
   VAL_int32 int32_minus_one.
 
+(* TODO: placeholder for vector load -- currently unimplemented. *)
 Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
   (* Placeholder just so that this operation can return both successful and error result *)
 (*  let ea := i + marg.(memarg_offset) in
@@ -215,32 +217,6 @@ Definition default_val (t: value_type) : option value :=
 Definition default_vals (ts : seq value_type) : option (seq value) :=
   those (map default_val ts).
 
-Definition value_subtyping (t1: value_type) (t2: value_type) : bool :=
-  (t1 == t2) || (t1 == T_bot).
-
-Definition values_subtyping (ts1: list value_type) (ts2: list value_type) : bool :=
-  all2 value_subtyping ts1 ts2.
-
-Definition func_subtyping (tf tf': function_type) : Prop :=
-  let '(Tf ts1 ts2) := tf in
-  let '(Tf ts1' ts2') := tf' in
-    values_subtyping ts1' ts1 /\
-    values_subtyping ts2 ts2'.
-
-Definition instr_subtyping (tf tf': function_type) : Prop :=
-  let '(Tf ts1 ts2) := tf in
-  let '(Tf ts1' ts2') := tf' in
-  exists ts ts' ts1_sub ts2_sub,
-    ts1' = ts ++ ts1_sub /\
-    ts2' = ts' ++ ts2_sub /\
-    values_subtyping ts ts' /\  
-    values_subtyping ts1_sub ts1 /\
-    values_subtyping ts2 ts2_sub.
-
-Notation "t1 <t: t2" := (value_subtyping t1 t2) (at level 30).
-Notation "ts1 <ts: ts2" := (values_subtyping ts1 ts2) (at level 60).
-Notation "tf1 <ti: tf2" := (instr_subtyping tf1 tf2) (at level 60).
-Notation "tf1 <tf: tf2" := (func_subtyping tf1 tf2) (at level 60).
 
 Definition func_agree (t1 t2: function_type) : bool :=
   t1 == t2.
@@ -253,7 +229,7 @@ Definition mem_agree (t1 t2: memory_type) : bool :=
   
 Definition global_agree (t1 t2: global_type) : bool :=
   t1 == t2.
-
+          
 Definition context_agree (C C': t_context) : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (all2 func_agree C.(tc_funcs) C'.(tc_funcs)) &&
@@ -904,6 +880,11 @@ Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list 
   (length l1 <= length l2) &&
   all2 ext_rel l1 (take (length l1) l2).
 
+(* The invariant of the typing context preserved by the opsem.
+   The entire typing context used to be invariant in Wasm 1.0.
+   However, with the introduction of the full table/memory types in Wasm 2.0,
+   the table/memory grow instructions modify the corresponding types.
+*)
 Definition context_extension C C' : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (C.(tc_funcs) == C'.(tc_funcs)) &&

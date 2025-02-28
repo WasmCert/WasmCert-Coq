@@ -4,6 +4,7 @@
 From Coq Require Import Lia Wf_nat.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
+Import ZArith.BinInt.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -285,8 +286,6 @@ Proof.
   move=> P b. by case; [ apply: BoolSpecT | apply: BoolSpecF ].
 Qed.
 
-Import ZArith.BinInt.
-
 Lemma gtb_spec0 : forall x y, reflect (x > y)%Z (x >? y)%Z.
 Proof.
   move=> x y. apply: Bool.iff_reflect. rewrite Z.gtb_lt. by lias.
@@ -296,22 +295,6 @@ Lemma geb_spec0 : forall x y, reflect (x >= y)%Z (x >=? y)%Z.
 Proof.
   move=> x y. apply: Bool.iff_reflect. rewrite Z.geb_le. by lias.
 Qed.
-
-
-Definition curry A B C (f : A -> B -> C) (ab : A * B) :=
-  let: (a, b) := ab in
-  f a b.
-
-Definition uncurry A B C (f : A * B -> C) a b := f (a, b).
-
-Lemma curry_uncurry : forall A B C (f : A * B -> C) ab,
-  curry (uncurry f) ab = f ab.
-Proof. by move=> A B C f [a b]. Qed.
-
-Lemma uncurry_curry : forall A B C (f : A -> B -> C) a b,
-  uncurry (curry f) a b = f a b.
-Proof. by []. Qed.
-
 
 (** * Lemmas about lists. **)
 

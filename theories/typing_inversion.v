@@ -1,9 +1,8 @@
 (** Typing inversion lemmas **)
 
-From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export properties subtyping_properties.
+From Wasm Require Export common properties subtyping_properties.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -49,7 +48,6 @@ Proof.
   by resolve_subtyping.
 Qed.
 
-
 Hint Constructors be_typing : core.
 
 (* Structural inversions *)
@@ -64,6 +62,9 @@ Proof.
     by extract_premise; subst.
 Qed.
 
+(* Defining a principal typing 'condition' for each instruction.
+   
+ *)
 Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr_type) : Prop :=
   match be with
   | BI_const_num c =>

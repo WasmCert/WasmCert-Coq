@@ -1,7 +1,7 @@
 (** Wasm typing rules **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Import operations.
+From Wasm Require Export operations subtyping.
 From Coq Require Import NArith.
 
 Set Implicit Arguments.
@@ -397,6 +397,9 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
   be_typing C es (Tf t1s t2s) ->
   be_typing C [::e] (Tf t2s t3s) ->
   be_typing C (es ++ [::e]) (Tf t1s t3s)
+(** Subtyping rule from the upcoming GC proposal
+[https://github.com/WebAssembly/gc/blob/main/proposals/gc/Overview.md]
+**)
 | bet_subtyping : forall C es t1s t2s t1s' t2s',
   be_typing C es (Tf t1s t2s) ->
   (Tf t1s t2s) <ti: (Tf t1s' t2s') ->
@@ -533,7 +536,6 @@ pre-existing rules, but it is accessed in the extra rules for administrative ins
 
 https://www.w3.org/TR/wasm-core-2/appendix/properties.html#administrative-instructions
 **)
-
 Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> instr_type -> Prop :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
@@ -588,44 +590,6 @@ Definition funcinst_typing (s: store_record) (fi: funcinst) (tf0: function_type)
   | FC_func_host tf hf =>
       functype_valid tf (* No host function assumptions *)
   end.
-
-(*
-Definition cl_typing_self (s : store_record) (fc : funcinst) : Prop :=
-  cl_typing s fc (cl_type fc).
-
-Lemma cl_typing_unique : forall s cl tf, cl_typing s cl tf -> tf = cl_type cl.
-Proof.
-  move=> s + tf. case.
-  - move => i ts bes t H /=; by inversion H.
-  - move => f h H; by inversion H.
-Qed.
-
-Definition cl_type_check_single (s:store_record) (f:funcinst):=
-  exists tf, cl_typing s f tf.
-
-Definition tabcl_agree (s : store_record) (tref: reference_type) (v : value_ref) : Prop :=
-  match v with
-  | VAL_ref_null tref' => tref = tref'
-  | VAL_ref_func a => (a < length s.(s_funcs)) /\ (tref = T_funcref)
-  | VAL_ref_extern _ => tref = T_externref
-  end.
-
-Definition tabsize_agree (t: tableinst) : Prop :=
-  match t.(tableinst_type).(tt_limits).(lim_max) with
-  | None => True
-  | Some n => tab_size t <= n
-  end.
-
-Definition tab_agree (s: store_record) (t: tableinst): Prop :=
-  List.Forall (tabcl_agree s t.(tableinst_type).(tt_elem_type)) (t.(tableinst_elem)) /\
-  tabsize_agree t.
-
-Definition mem_agree (m : meminst) : Prop :=
-  match m.(meminst_type).(lim_max) with
-  | None => True
-  | Some n => mem_size m <= n
-  end.
- *)
 
 Definition store_typing (s : store_record) : Prop :=
   match s with

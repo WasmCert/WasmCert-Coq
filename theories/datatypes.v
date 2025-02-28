@@ -4,8 +4,8 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require array.
-From Wasm Require Import common memory memory_list.
-From Wasm Require Export numerics bytes.
+From Wasm Require Import memory memory_list.
+From Wasm Require Export common numerics bytes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require common.Memdata.
 Require Import BinNat.

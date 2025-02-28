@@ -1,8 +1,7 @@
 (* Lemmas and Tactics for dealing with subtypings *)
 
-From Wasm Require Export operations properties.
+From Wasm Require Export operations subtyping properties.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Bool Program NArith ZArith Wf_nat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -120,9 +119,7 @@ Qed.
 Lemma func_subtyping_eq: forall tf,
     tf <tf: tf.
 Proof.
-  move => [ts1 ts2].
-  unfold func_subtyping.
-  repeat split => //; by apply values_subtyping_eq.
+  move => [??] => /=; by repeat rewrite values_subtyping_eq.
 Qed.
 
 Lemma func_subtyping_trans: forall tf1 tf2 tf3,
@@ -130,10 +127,9 @@ Lemma func_subtyping_trans: forall tf1 tf2 tf3,
     tf2 <tf: tf3 ->
     tf1 <tf: tf3.
 Proof.
-  move => [tx1 ty1] [tx2 ty2] [tx3 ty3].
-  unfold func_subtyping.
-  move => [??] [??].
-  split; by eapply values_subtyping_trans; eauto.
+  move => [tx1 ty1] [tx2 ty2] [tx3 ty3] => /= /andP [Hsubx21 Hsuby21] /andP [Hsubx32 Hsuby32].
+  rewrite (@values_subtyping_trans _ tx2); eauto.
+  by rewrite (@values_subtyping_trans _ ty2); eauto.
 Qed.
 
 Lemma instr_subtyping_eq: forall tf,
@@ -214,6 +210,9 @@ Proof.
   by eapply values_subtyping_trans; eauto.
 Qed.
 
+(* Any subtyping relation with a non-bot type on the LHS reduces to an equality
+as of Wasm 2.0.
+*)
 Lemma num_subtyping: forall tn t,
     (T_num tn <t: t) ->
     t = T_num tn.
@@ -387,7 +386,7 @@ Ltac resolve_subtyping :=
   | H: is_true true |- _ => clear H
   | H: ?x = ?x |- _ => clear H
   | H: is_true (_ && true) |- _ => move/andP in H; destruct H as [H _]
-  | |- context [_ && true] => rewrite andb_true_r
+  | |- context [_ && true] => rewrite Bool.andb_true_r
 
   (* Instruction subtyping with nils *)
   | |- (Tf nil nil <ti: Tf ?ts1 ?ts2) =>
@@ -712,6 +711,11 @@ Proof.
   by apply all2_rev.
 Qed.
 
+(*
+Given a subtype of (tx -> ty) and a subtype of (ty -> tz),
+try to figure out the relations that have to be satisfied by the subtypes and
+simplify for premises.
+*)
 Ltac unify_principal :=
   repeat match goal with
   | H1: (Tf ?ts1 ?ts2) <ti: (Tf ?tx ?ty),
@@ -748,10 +752,22 @@ Ltac unify_principal :=
     try by repeat rewrite size_cat; lias
   end.
 
+
 Section Host.
 
 Context {hfc: host_function_class}.
   
+Lemma value_typing_ref_impl: forall s v t,
+  value_typing s (VAL_ref v) t ->
+  exists tref, t = T_ref tref.
+Proof.
+  move => s v t Hvt.
+  unfold value_typing in Hvt; remove_bools_options.
+  simpl in *; remove_bools_options.
+  apply ref_subtyping in Hvt; subst.
+  by eexists.
+Qed.
+
 Lemma value_num_principal_typing: forall s v,
     value_typing s (VAL_num v) (T_num (typeof_num v)).
 Proof.
@@ -799,6 +815,70 @@ Proof.
   destruct Hvt as [vt' [Hnth3 Hvt']].
   eapply all2_projection in Hsub; eauto.
   by eapply value_typing_trans; eauto.
+Qed.
+
+(* Lemma for eliminating subtypes *)
+Lemma operand_subtyping: forall s ops ops0 vts ts1 ts2 ts',
+  values_typing s (rev (ops ++ ops0)) vts ->
+  (Tf ts1 ts2 <ti: Tf vts ts') ->
+  size ops = size ts1 ->
+  values_typing s ops (rev ts1).
+Proof.
+  move => s ops ops0 vts ts1 ts2 ts' Hvt Hsub Hsize.
+  apply values_typing_rev in Hvt.
+  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
+  rewrite Heqrev in Hvt.
+  unfold values_typing in Hvt.
+  rewrite all2_cat in Hvt; remove_bools_options; first by eapply values_typing_trans; eauto.
+  apply values_subtyping_size in Hsub.
+  by rewrite size_rev in Hsub; lias.
+Qed.
+
+(* Instances for value elimination tactic used in interpreter *)
+Lemma operand_subtyping1: forall s v1 ops0 vts t1 ts2 ts',
+  values_typing s (rev (v1 :: ops0)) vts ->
+  (Tf [::t1] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1] [::t1].
+Proof.
+  intros ??????? Hvt Hsub.
+  rewrite -cat1s in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping2: forall s v1 v2 ops0 vts t1 t2 ts2 ts',
+  values_typing s (rev (v1 :: v2 :: ops0)) vts ->
+  (Tf [::t1; t2] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1; v2] [::t2; t1].
+Proof.
+  intros ????????? Hvt Hsub.
+  rewrite -(cat1s v1) -(cat1s v2) catA in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping3: forall s v1 v2 v3 ops0 vts t1 t2 t3 ts2 ts',
+  values_typing s (rev (v1 :: v2 :: v3 :: ops0)) vts ->
+  (Tf [::t1; t2; t3] ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1; v2; v3] [::t3; t2; t1].
+Proof.
+  intros ??????????? Hvt Hsub.
+  rewrite -(cat1s v1) -(cat1s v2) -(cat1s v3) catA catA in Hvt.
+  by eapply operand_subtyping in Hsub; eauto.
+Qed.
+
+Lemma operand_subtyping_suffix1: forall s v1 ops0 vts ts0 t1 ts2 ts',
+  values_typing s (rev (v1 :: ops0)) vts ->
+  (Tf (ts0 ++ [::t1]) ts2 <ti: Tf vts ts') ->
+  values_typing s [::v1] [::t1].
+Proof.
+  intros ???????? Hvt Hsub.
+  apply values_typing_rev in Hvt.
+  apply instr_subtyping_consumed_rev_prefix in Hsub as [ts_prefix [Heqrev Hsub]].
+  rewrite Heqrev in Hvt.
+  unfold values_typing in Hvt.
+  rewrite rev_cat in Hsub.
+  destruct ts_prefix as [|t ?] => //.
+  simpl in *; remove_bools_options.
+  by erewrite value_typing_trans; eauto.
 Qed.
 
 End Host.

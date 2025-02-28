@@ -1,20 +1,20 @@
 (** Wasm type checker **)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-Require Import BinNat.
-Require Import common operations typing datatypes_properties.
+From Wasm Require Export typing datatypes_properties operations.
+From Coq Require Import BinNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* flag for unreachable. Operand stack is represented in reverse direction (stack) *)
+(* Flag for unreachable.
+   The operand stack is represented in reverse direction (stack) *)
 Record checker_type: Type :=
   { CT_type: list value_type;
     CT_unr: bool;
   }.
 
-Notation "<< ts , unr >>" := (Build_checker_type ts unr) (at level 5).
+Notation "<< ts , unr >>" := (Build_checker_type ts unr) (at level 0).
 
 Definition checker_type_eq_dec : forall v1 v2 : checker_type, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.

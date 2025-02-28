@@ -46,11 +46,11 @@ module Interpreter = Shim.Interpreter (Host)
 (** An alias of [Host] to be able to retrieve it later. *)
 module TopHost = Host
 
-open Host
+(*open Host*)
 open Interpreter
 
-(* read-eval-print loop; work in progress *)
-let rec user_input prompt cb st =
+(* artifact for interactive interpreter *)
+(*let rec user_input prompt cb st =
   match LNoise.linenoise prompt with
   | None -> pure ()
   | Some v ->
@@ -59,7 +59,7 @@ let rec user_input prompt cb st =
 
 let string_of_crash_reason = function
   | () -> "error"
-
+*)
 (*
 let take_step verbosity _i cfg =
   let res = run_step_compat cfg in
@@ -143,6 +143,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
       match cfg_res with
       | RSC_normal (hs', cfg') ->
+        (* reforming the resulting interpreter cfg to the normal form *)
         begin match run_step_cfg_ctx_reform cfg' with
         | Some cfg_next -> 
             eval_cfg (gen+1) hs' cfg_next
@@ -154,7 +155,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
         pure (Some (hs, s, vs))
       | RSC_trap (_s, _f) ->
-        debug_info verbosity stage ~style:green (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
+        debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
         pure None
       | RSC_invalid ->
         debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
@@ -164,9 +165,11 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         pure None
       )
     in
+
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\nPost-instantiation stage for table and memory initialisers...\n");
   
+  (* In Wasm 2.0, module instantiation results in a series of table and memory initialiser instructions followed by an invocation of the start function *)  
   match run_v_init_with_frame s f_invocation es_invocation with
   | cfg_invocation -> 
     let* res = eval_cfg 1 hs cfg_invocation in
@@ -190,7 +193,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
         debug_info_span verbosity result stage (fun _ ->
           match res with
           | Some (_, _, vs) -> pp_values vs
-          | None -> "");
+          | None -> "Execution returned a trap or an error; run the interpreter in detailed mode (--vi) for more information\n");
         if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
         else pure ()
       end
@@ -203,7 +206,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
 
   
 
-(* TODO: update the interactive to use the context-optimised version as well *)
+(* TODO: update the interactive interpreter. The interactive flag is currently disabled. *)
 let instantiate_interpret verbosity error_code_on_crash m name =
   let* hs_s_f_es =
     TopHost.from_out (

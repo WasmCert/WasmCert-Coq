@@ -1,8 +1,7 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Import bytes common.
-Require Export datatypes.
+From Wasm Require Export datatypes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
 Set Implicit Arguments.
