@@ -8,7 +8,6 @@ Require Import BinNat NArith BinNums ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
-
 Unset Printing Implicit Defensive.
 
 Section Host.
@@ -60,13 +59,28 @@ Ltac infer_hole :=
       f_equal => //=
   end.
 
+(* Try to resolve a reduction goal between ctx configs to the `reduce`
+   relation by focusing on the innermost closure and attempting to choose
+   the right frame for applying `r_label`. *)
 Ltac resolve_reduce_ctx vs es :=
   try apply reduce_focus_id => //; try (eapply r_label with (lh := LH_base (rev vs) es) => /=; infer_hole).
 
+(* An interpreter config needs to always include an outermost frame.
+This is the part of the validity of the full cfg validity (valid_cfg_ctx). 
+ *)
 Definition valid_ccs_cfg (cfg: cfg_tuple_ctx) :=
   let '(s, ccs, sc, oe) := cfg in
   ccs <> nil.
 
+(**
+Results for the one-step interpreter.
+Normal = Normal step
+Value = Input is a list of val
+Trap = Input is Trap
+Invalid = Shape of input is invalid (should not occur for the result of
+a decomposition)
+Error = Input is ill-typed
+**)
 Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
 | RSC_normal hs' cfg':
   reduce_ctx hs hs' cfg cfg' ->
@@ -111,6 +125,7 @@ Ltac resolve_invalid_typing :=
 
 Notation "<< hs , cfg >>" := (@RSC_normal _ _ hs cfg).
 
+(* Tactic to get the outermost closure context from the validity condition *)
 Ltac get_cc ccs :=
   let fc := fresh "fc" in 
   let lcs := fresh "lcs" in 
@@ -195,7 +210,9 @@ Proof.
     by discriminate_size.
 Defined.
 
-(** Return exits from the innermost frame and all label contexts. **)
+(** Return exits from the innermost frame and all label contexts.
+    This can be implemented by exitting from one closure context.
+ **)
 Definition run_ctx_return: forall hs s ccs sc,
   run_step_ctx_result hs (s, ccs, sc, Some (AI_basic BI_return)).
 Proof.  

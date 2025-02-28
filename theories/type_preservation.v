@@ -11,7 +11,8 @@ Unset Printing Implicit Defensive.
 Section Host.
 
 Context `{ho: host}.
-  
+
+(* Equality for the stateful parts (instances) of the typing context *)
 Definition inst_match C C' : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (C.(tc_funcs) == C'.(tc_funcs)) &&
@@ -22,6 +23,7 @@ Definition inst_match C C' : bool :=
   (C.(tc_datas) == C'.(tc_datas)) &&
   (C.(tc_refs) == C'.(tc_refs)).
 
+(* Preservation for some less trivial operations *)
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
     typeof_num v = typeof_num v1.
@@ -41,7 +43,7 @@ Proof.
   destruct op, t1, t2 => //; destruct sx as [[|] |] => //; cbn in Hcvtvalid => //; destruct v1 => //; simpl in * => //; by remove_bools_options => //=; inversion Heval.
 Qed.
 
-(* Not completely agnostic in Wasm 2.0 now -- since reference typings are dependent on the store. *)
+(* Typing of constants is not completely agnostic in Wasm 2.0 now -- since reference typings are dependent on the store. *)
 Lemma et_const_agnostic: forall s C C' es tf,
     const_list es ->
     e_typing s C es tf ->
@@ -135,34 +137,7 @@ Proof.
     + by apply v_to_e_const.
 Qed.
 
-Lemma set_nth_same_unchanged: forall {X:Type} (l:seq X) e i vd,
-    List.nth_error l i = Some e ->
-    set_nth vd l i e = l.
-Proof.
-  move => X l e i.
-  generalize dependent l. generalize dependent e.
-  induction i; move => e l vd HNth => //=.
-  - destruct l => //=.
-    simpl in HNth. by inversion HNth.
-  - destruct l => //=.
-    f_equal. apply IHi.
-    by simpl in HNth.
-Qed.
-
-Lemma set_nth_map: forall {X Y:Type} (l:seq X) e i vd {f: X -> Y},
-    i < size l ->
-    map f (set_nth vd l i e) = set_nth (f vd) (map f l) i (f e).
-Proof.
-  move => X Y l e i.
-  generalize dependent l. generalize dependent e.
-  induction i; move => e l vd f HSize => //=.
-  - by destruct l => //=.
-  - destruct l => //=.
-    f_equal.
-    apply IHi.
-    by simpl in HSize.
-Qed.
-
+(* Various properties preserved by a store extension *)
 Lemma ext_func_typing_extension: forall s s' a tf,
     store_extension s s' ->
     ext_func_typing s a = Some tf ->
@@ -410,6 +385,9 @@ Proof.
     by lias.
 Qed.
 
+(* If a program fragment enclosed can be well-typed when enclosed in a
+   lh context, then it can be fragment-well-typed on its own with a
+   corresponding update on the typing context. *)
 Lemma lfilled_es_type_exists {k}: forall (lh: lholed k) es les s C tf,
     lfill lh es = les ->
     e_typing s C les tf ->
@@ -432,7 +410,7 @@ Lemma update_label_agree C C' lab:
   context_agree (upd_label C lab) (upd_label C' lab).
 Proof.
   unfold context_agree in *; destruct C, C'; simpl in *; intros; remove_bools_options; subst.
-  repeat rewrite eq_rect => /=; lias.
+  by lias.
 Qed.
 
 Lemma context_agree_func_type C C' n ft:
@@ -562,6 +540,7 @@ Proof.
     + by rewrite_context_agree.
 Qed.
 
+(* Two agreeing contexts respect typing of each other *)
 Lemma context_agree_typing: forall s C C' es tf,
     context_agree C C' ->
     e_typing s C es tf ->
@@ -579,6 +558,7 @@ Proof.
     by rewrite_context_agree.
 Qed.
 
+(* Context extension is a special case of context agreement. *)
 Lemma context_extension_typing: forall s C C' es tf,
     context_extension C C' ->
     e_typing s C es tf ->
@@ -588,7 +568,8 @@ Proof.
   eapply context_agree_typing; last by eauto.
   by apply context_extension_agree.
 Qed.
-  
+
+(* A valid store extension preserves the fragment typing relation. *)
 Lemma store_extension_e_typing: forall s s' C es tf,
     store_typing s ->
     store_typing s' ->
@@ -671,22 +652,7 @@ Proof.
     + by eapply IHn; eauto.
 Qed.
 
-Lemma bytes_takefill_size: forall c l vs,
-    size (bytes_takefill c l vs) = l.
-Proof.
-  move => c l. induction l => //=.
-  by destruct vs => //=; f_equal.
-Qed.
-
-Lemma bytes_replicate_size: forall n b,
-    size (bytes_replicate n b) = n.
-Proof.
-  induction n => //=.
-  by move => b; f_equal.
-Qed.
-
 (* Start of proof to write_bytes preserving memory type *)
-
 Lemma list_fold_left_rev_prop: forall {X Y: Type} P f (l: seq X) (a1 a2: Y),
     List.fold_left f l a1 = a2 ->
     P a2 ->
@@ -813,7 +779,6 @@ Proof.
 Qed.
 
 (** Interaction among instruction operations, store extensions, and types **)
-
 Lemma context_extension_func_typing: forall C C' x t,
     context_extension C C' ->
     func_typing C x t ->
@@ -1627,6 +1592,9 @@ Proof.
   eapply store_extension_reduce in Hreduce; by eauto.
 Qed.
 
+(* A weakening of the store_extension_e_typing lemma, so that the new
+   context only needs to be an extension of the old (instead of being equal).
+*)
 Lemma extensions_e_typing: forall s s' C C' es tf,
     store_typing s ->
     store_typing s' ->
@@ -1696,6 +1664,7 @@ Proof.
   by eapply store_extension_reduce; eauto.
 Qed.
 
+(* Main preservation lemma *)
 Lemma t_preservation_e: forall s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
     store_typing s ->
@@ -1708,7 +1677,10 @@ Lemma t_preservation_e: forall s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs
 Proof.
   move => s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs' HReduce.
   move: C C' ret lab t1s t2s tlocs.
-  induction HReduce; move => C C' ret lab tx ty tlocs HST1 HST2 HIT1 HIT2 Hloctype HType; subst; try eauto; try (by apply ety_trap); invert_e_typing; simpl in *; unify_principal; resolve_e_typing; unfold_store_operations; resolve_store_inst_lookup; remove_bools_options => //=; simpl in *; simplify_multieq; unify_principal; resolve_e_typing => //.
+  induction HReduce; move => C C' ret lab tx ty tlocs HST1 HST2 HIT1 HIT2 Hloctype HType; subst; try eauto.
+  all: try (by apply ety_trap).
+  all: try invert_e_typing; simpl in *; unify_principal; resolve_e_typing => //.
+  all: unfold_store_operations; resolve_store_inst_lookup; remove_bools_options => //=; simpl in *; simplify_multieq; unify_principal; resolve_e_typing.
   - (* reduce_simple *)
     by eapply t_simple_preservation; eauto.
   - (* Ref_func *)

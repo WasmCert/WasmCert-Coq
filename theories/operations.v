@@ -229,7 +229,7 @@ Definition mem_agree (t1 t2: memory_type) : bool :=
   
 Definition global_agree (t1 t2: global_type) : bool :=
   t1 == t2.
-
+          
 Definition context_agree (C C': t_context) : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (all2 func_agree C.(tc_funcs) C'.(tc_funcs)) &&
@@ -880,6 +880,11 @@ Definition component_extension {T: Type} (ext_rel: T -> T -> bool) (l1 l2: list 
   (length l1 <= length l2) &&
   all2 ext_rel l1 (take (length l1) l2).
 
+(* The invariant of the typing context preserved by the opsem.
+   The entire typing context used to be invariant in Wasm 1.0.
+   However, with the introduction of the full table/memory types in Wasm 2.0,
+   the table/memory grow instructions modify the corresponding types.
+*)
 Definition context_extension C C' : bool :=
   (C.(tc_types) == C'.(tc_types)) &&
   (C.(tc_funcs) == C'.(tc_funcs)) &&

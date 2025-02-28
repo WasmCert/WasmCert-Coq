@@ -48,7 +48,6 @@ Proof.
   by resolve_subtyping.
 Qed.
 
-
 Hint Constructors be_typing : core.
 
 (* Structural inversions *)
@@ -63,6 +62,9 @@ Proof.
     by extract_premise; subst.
 Qed.
 
+(* Defining a principal typing 'condition' for each instruction.
+   
+ *)
 Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr_type) : Prop :=
   match be with
   | BI_const_num c =>
