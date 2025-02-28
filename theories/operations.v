@@ -243,6 +243,26 @@ Definition context_agree (C C': t_context) : bool :=
   (C.(tc_labels) == C'.(tc_labels)) &&
   (C.(tc_return) == C'.(tc_return)).
 
+
+(* Auxiliary definitions for expressing numerics semantics and typing *)
+Definition unop_type_agree (t: number_type) (op: unop): bool :=
+  match op with
+  | Unop_i _ | Unop_extend _ => (t == T_i32) || (t == T_i64)
+  | Unop_f _ => (t == T_f32) || (t == T_f64)
+  end.
+
+Definition binop_type_agree (t: number_type) (op: binop): bool :=
+  match op with
+  | Binop_i _ => (t == T_i32) || (t == T_i64)
+  | Binop_f _ => (t == T_f32) || (t == T_f64)
+  end.
+
+Definition relop_type_agree (t: number_type) (op: relop): bool :=
+  match op with
+  | Relop_i _ => (t == T_i32) || (t == T_i64)
+  | Relop_f _ => (t == T_f32) || (t == T_f64)
+  end.
+
 Definition typeof_num (v : value_num) : number_type :=
   match v with
   | VAL_int32 _ => T_i32
@@ -250,6 +270,16 @@ Definition typeof_num (v : value_num) : number_type :=
   | VAL_float32 _ => T_f32
   | VAL_float64 _ => T_f64
   end.
+
+Definition unop_typecheck (v: value_num) (t: number_type) (op: unop): bool :=
+  (typeof_num v == t) && unop_type_agree t op.
+
+Definition binop_typecheck (v1 v2: value_num) (t: number_type) (op: binop) : bool :=
+  (typeof_num v1 == t) && (typeof_num v2 == t) && binop_type_agree t op.
+
+Definition relop_typecheck (v1 v2: value_num) (t: number_type) (op: relop) : bool :=
+  (typeof_num v1 == t) && (typeof_num v2 == t) && relop_type_agree t op.
+
 
 Definition typeof_vec (v: value_vec) : vector_type :=
   match v with

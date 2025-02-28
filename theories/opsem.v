@@ -18,13 +18,16 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
 
 (** unop **)
   | rs_unop : forall v op t,
+    unop_typecheck v t op ->
     reduce_simple [::$VN v; AI_basic (BI_unop t op)] [::$VN (@app_unop op v)]
                    
 (** binop **)
   | rs_binop_success : forall v1 v2 v op t,
+    binop_typecheck v1 v2 t op ->
     app_binop op v1 v2 = Some v ->
     reduce_simple [::$VN v1; $VN v2; AI_basic (BI_binop t op)] [::$VN v]
   | rs_binop_failure : forall v1 v2 op t,
+    binop_typecheck v1 v2 t op ->
     app_binop op v1 v2 = None ->
     reduce_simple [::$VN v1; $VN v2; AI_basic (BI_binop t op)] [::AI_trap]
                   
@@ -38,6 +41,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
 
   (** relops **)
   | rs_relop: forall v1 v2 t op,
+    relop_typecheck v1 v2 t op ->
     reduce_simple [::$VN v1; $VN v2; AI_basic (BI_relop t op)] [::$VN (VAL_int32 (wasm_bool (app_relop op v1 v2)))]
                     
   (** cvtop **)

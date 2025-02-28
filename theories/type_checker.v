@@ -168,40 +168,23 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | _ => None
           end
       | BI_unop t op =>
-          match op with
-          | Unop_i _ => if is_int_t t
-                       then type_update ts [::(T_num t)] [::T_num t]
-                       else None
-          | Unop_f _ => if is_float_t t
-                       then type_update ts [::(T_num t)] [::T_num t]
-                       else None
-          | Unop_extend _ =>
-              (* Technically, this needs to check validity of the extend arg; but such instruction can never arise from parsing *)
-              if is_int_t t
-              then type_update ts [::(T_num t)] [::T_num t]
-              else None
+          match unop_type_agree t op with
+          | true => type_update ts [::T_num t] [::T_num t]
+          | false => None
           end
       | BI_binop t op =>
-          match op with
-          | Binop_i _ => if is_int_t t
-                        then type_update ts [::(T_num t); (T_num t)] [::(T_num t)]
-                        else None
-          | Binop_f _ => if is_float_t t
-                        then type_update ts [::(T_num t); (T_num t)] [::(T_num t)]
-                        else None
+          match binop_type_agree t op with
+          | true => type_update ts [::T_num t; T_num t] [::T_num t]
+          | false => None
           end
       | BI_testop t _ =>
           if is_int_t t
           then type_update ts [::(T_num t)] [::(T_num T_i32)]
           else None
       | BI_relop t op =>
-          match op with
-          | Relop_i _ => if is_int_t t
-                        then type_update ts [::(T_num t); (T_num t)] [::(T_num T_i32)]
-                        else None
-          | Relop_f _ => if is_float_t t
-                        then type_update ts [::(T_num t); (T_num t)] [::(T_num T_i32)]
-                        else None
+          match relop_type_agree t op with
+          | true => type_update ts [::T_num t; T_num t] [::T_num T_i32]
+          | false => None
           end
       | BI_cvtop t2 op t1 sx =>
           if cvtop_valid t2 op t1 sx

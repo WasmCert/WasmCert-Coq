@@ -192,12 +192,12 @@ Ltac simplify_tc_goal :=
   | H: ?expr = _ |-
     context [?expr] =>
       rewrite H
-  | H: unop_type_agree ?t ?op |- _ =>
+(*  | H: unop_type_agree ?t ?op = true |- _ =>
       destruct t, op; inversion H; subst; clear H
-  | H: binop_type_agree ?t ?op |- _ =>
+  | H: binop_type_agree ?t ?op = true |- _ =>
       destruct t, op; inversion H; subst; clear H
-  | H: relop_type_agree ?t ?op |- _ =>
-      destruct t, op; inversion H; subst; clear H
+  | H: relop_type_agree ?t ?op = true |- _ =>
+      destruct t, op; inversion H; subst; clear H*)
   | H: lookup_N ?l ?n = ?x
     |- context [lookup_N (map _ ?l) ?n] =>
     rewrite lookup_N_map H
@@ -1230,30 +1230,24 @@ Proof.
       split => //.
       by eapply bet_composition; eauto.
   (* Single *)
-  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal; move => cts' Hs Hupdate Hagree => //; simplify_tc_goal; invert_update_agree; simplify_tc_goal; try resolve_check_agree; try rewrite rev_cat.
+  - destruct e => //=; (try destruct i as [tn' tm']); simplify_tc_goal;
+                 move => cts' Hs Hupdate Hagree => //; simplify_tc_goal;
+                 invert_update_agree; simplify_tc_goal;
+                 try resolve_check_agree; try rewrite rev_cat.
+    (* It is true that many cases can be automatically resolved. However,
+       we avoid doing so -- so that this proof is easier to be fixed when
+       there's a major update in the future. *)
     (* Const_num *)
     + by resolve_tc_be_typing.
-    (* Unop_i *)
+    (* Unop *)
     + apply bet_weakening, bet_unop.
       destruct n, u => //; by constructor.
-    (* Unop_f *)
-    + apply bet_weakening, bet_unop.
-      destruct n, u => //; by constructor.
-    (* Unop_extend *)
-    + apply bet_weakening, bet_unop.
-      destruct n, n0 => //; by constructor.
-    (* Binop_i *)
-    + apply bet_weakening, bet_binop.
-      destruct n, b => //; by constructor.
-    (* Binop_f *)
+    (* Binop *)
     + apply bet_weakening, bet_binop.
       destruct n, b => //; by constructor.
     (* Testop *)
     + by resolve_tc_be_typing.
-    (* Relop_i *)
-    + apply bet_weakening, bet_relop.
-      destruct n, r => //; by constructor.
-    (* Relop_f *)
+    (* Relop *)
     + apply bet_weakening, bet_relop.
       destruct n, r => //; by constructor.
     (* Cvtop *)

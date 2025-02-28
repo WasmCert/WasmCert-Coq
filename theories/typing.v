@@ -180,29 +180,6 @@ Definition upd_label C lab :=
 Definition upd_return C ret :=
   upd_local_label_return C (tc_locals C) (tc_labels C) ret.
 
-Inductive unop_type_agree: number_type -> unop -> Prop :=
-  | Unop_i32_agree: forall op, unop_type_agree T_i32 (Unop_i op)
-  | Unop_i64_agree: forall op, unop_type_agree T_i64 (Unop_i op)
-  | Unop_f32_agree: forall op, unop_type_agree T_f32 (Unop_f op)
-  | Unop_f64_agree: forall op, unop_type_agree T_f64 (Unop_f op)
-  | Unop_extend_agree_i32: forall n, unop_type_agree T_i32 (Unop_extend n)
-  | Unop_extend_agree_i64: forall n, unop_type_agree T_i64 (Unop_extend n)
-  .
-   
-Inductive binop_type_agree: number_type -> binop -> Prop :=
-  | Binop_i32_agree: forall op, binop_type_agree T_i32 (Binop_i op)
-  | Binop_i64_agree: forall op, binop_type_agree T_i64 (Binop_i op)
-  | Binop_f32_agree: forall op, binop_type_agree T_f32 (Binop_f op)
-  | Binop_f64_agree: forall op, binop_type_agree T_f64 (Binop_f op)
-  .
-  
-Inductive relop_type_agree: number_type -> relop -> Prop :=
-  | Relop_i32_agree: forall op, relop_type_agree T_i32 (Relop_i op)
-  | Relop_i64_agree: forall op, relop_type_agree T_i64 (Relop_i op)
-  | Relop_f32_agree: forall op, relop_type_agree T_f32 (Relop_f op)
-  | Relop_f64_agree: forall op, relop_type_agree T_f64 (Relop_f op)
-  .
-
 (* Helper for typing Select. Needs to get an update when updating to GC to implement
    subtyping *)
 Definition is_numeric_type (t: value_type) : bool :=
