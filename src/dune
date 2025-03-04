@@ -7,7 +7,8 @@
 
 (executable
   (name wasm_coq_interpreter)
-  (libraries cmdliner linenoise)
+  (libraries cmdliner linenoise landmarks)
+  (preprocess (pps landmarks-ppx --auto))
   (modes (best exe))
   (public_name wasm_coq_interpreter)
   (package coq-wasm)

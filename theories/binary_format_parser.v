@@ -2,6 +2,10 @@
 (* (C) J. Pichon - see LICENSE.txt *)
 (* TODO: all the numeric stuff is in dire need of testing *)
 
+(* Some documentation on the original agdarsec:
+   gallais.github.io/pdf/agdarsec18.pdf
+*)
+
 From Wasm Require Import datatypes_properties typing.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
@@ -1081,7 +1085,7 @@ Definition parse_typesec_onwards {n} : byte_parser parsing_module n :=
 Definition module_of_parsing_module (m : parsing_module) : module := {|
   mod_types := m.(pmod_types);
   mod_funcs :=
-    (* TODO: what if these lists are of different length? *)
+    (* These always have the same lengths due to Wasm's module definition *)
     List.map
       (fun '(a, (b, c)) =>
         {| modfunc_type := a; modfunc_locals := b; modfunc_body := c |})

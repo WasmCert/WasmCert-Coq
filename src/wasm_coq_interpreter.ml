@@ -25,9 +25,12 @@ let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: strin
           if text then
             Error "Text mode not yet implemented."
           else
+            let t = Sys.time() in
             match Execute.Interpreter.run_parse_module (String.concat "" files) with
             | None -> Error "syntax error"
-            | Some m -> OK m)) in
+            | Some m -> (Printf.printf "Execution time: %f\n" (Sys.time() -. t); OK m)
+            )
+            ) in
     (** Running. *)
     if no_exec then
       Output.(
