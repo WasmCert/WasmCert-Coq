@@ -2,7 +2,7 @@
 (* (C) J. Pichon - see LICENSE.txt *)
 (* TODO: all the numeric stuff is in dire need of testing *)
 
-(* Some documentation on the original agdarsec:
+(* Some documentation from the original agdarsec paper:
    gallais.github.io/pdf/agdarsec18.pdf
 *)
 
@@ -842,6 +842,21 @@ Definition merge_parsing_modules (m1 m2 : parsing_module) : parsing_module := {|
   pmod_code := List.app m1.(pmod_code) m2.(pmod_code);
 |}.
 
+
+Definition empty_parsing_module : parsing_module := {|
+    pmod_types := nil;
+    pmod_funcs := nil;
+    pmod_tables := nil;
+    pmod_mems := nil;
+    pmod_globals := nil;
+    pmod_elems := nil;
+    pmod_datas := nil;
+    pmod_start := None;
+    pmod_imports := nil;
+    pmod_exports := nil;
+    pmod_code := nil;
+|}.                                
+
 Definition parse_typesec_wrapper {n} : byte_parser parsing_module n :=
   (fun types => {|
     pmod_types := types;
@@ -1018,9 +1033,12 @@ Definition parse_datasec_wrapper {n} : byte_parser parsing_module n :=
   |}) <$>
   (parse_with_customsec_star_before parse_datasec).
 
-(** this is not in the spec, it is here to force productivity;
-    we make it be different from all section markers *)
-Definition end_marker : byte := x0c.
+(** This is not in the spec, it is here to force productivity of the parser;
+    we make it be different from all section markers.
+    This will need to be updated when the number of Wasm sections exceed
+    this number.
+ *)
+Definition end_marker : byte := x1f.
 
 Definition parse_module_end {n} : byte_parser parsing_module n :=
   (fun _ => {|
@@ -1038,49 +1056,31 @@ Definition parse_module_end {n} : byte_parser parsing_module n :=
   |}) <$>
   (parse_with_customsec_star_before (exact_byte end_marker)).
 
-Definition parse_datasec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_datasec_wrapper) <*> parse_module_end) <|>
-  parse_module_end.
+Definition map_maybe_module (opm: option parsing_module) : parsing_module :=
+  match opm with
+  | Some pm => pm
+  | None => empty_parsing_module
+  end.
 
-Definition parse_codesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_codesec_wrapper) <*> parse_datasec_onwards) <|>
-  parse_datasec_onwards.
+Definition merge_parsing_modules_maybe (opms: option parsing_module * parsing_module) : parsing_module :=
+  match opms with
+  | (opm, pm) =>
+      merge_parsing_modules (map_maybe_module opm) pm
+  end.
 
-Definition parse_elemsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_codesec_onwards) <|>
-  parse_codesec_onwards.
-
-Definition parse_startsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_startsec_wrapper) <*> parse_elemsec_onwards) <|>
-  parse_elemsec_onwards.
-
-Definition parse_exportsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_exportsec_wrapper) <*> parse_startsec_onwards) <|>
-  parse_startsec_onwards.
-
-Definition parse_globalsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_globalsec_wrapper) <*> parse_exportsec_onwards) <|>
-  parse_exportsec_onwards.
-
-Definition parse_memsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_memsec_wrapper) <*> parse_globalsec_onwards) <|>
-  parse_globalsec_onwards.
-
-Definition parse_tablesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_tablesec_wrapper) <*> parse_memsec_onwards) <|>
-  parse_memsec_onwards.
-
-Definition parse_funcsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_funcsec_wrapper) <*> parse_tablesec_onwards) <|>
-  parse_tablesec_onwards.
-
-Definition parse_importsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_importsec_wrapper) <*> parse_funcsec_onwards) <|>
-  parse_funcsec_onwards.
-
-Definition parse_typesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_typesec_wrapper) <*> parse_importsec_onwards) <|>
-  parse_importsec_onwards.
+Definition parse_module_sections {n} : byte_parser parsing_module n :=
+  merge_parsing_modules_maybe <$> parse_typesec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_importsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_funcsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_tablesec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_memsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_globalsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_exportsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_startsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_elemsec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_codesec_wrapper <?&>
+  (merge_parsing_modules_maybe <$> parse_datasec_wrapper <?&>
+  parse_module_end)))))))))).
 
 Definition module_of_parsing_module (m : parsing_module) : module := {|
   mod_types := m.(pmod_types);
@@ -1104,7 +1104,7 @@ Definition parse_module {n} : byte_parser module n :=
   module_of_parsing_module <$>
   (parse_magic &>
   parse_version &>
-  parse_typesec_onwards).
+  parse_module_sections).
 
 End Language.
 
