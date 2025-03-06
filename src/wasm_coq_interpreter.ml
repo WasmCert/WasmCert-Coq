@@ -27,7 +27,9 @@ let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: strin
           else
             match Execute.Interpreter.run_parse_module (String.concat "" files) with
             | None -> Error "syntax error"
-            | Some m -> OK m)) in
+            | Some m -> (OK m)
+            )
+            ) in
     (** Running. *)
     if no_exec then
       Output.(

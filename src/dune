@@ -10,7 +10,7 @@
   (libraries cmdliner linenoise)
   (modes (best exe))
   (public_name wasm_coq_interpreter)
-  (package coq-wasm)
+  (promote (into ../))
 )
 
 (env (dev (flags (:standard -warn-error -A -w -39 -w -50)))

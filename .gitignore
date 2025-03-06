@@ -1,5 +1,5 @@
 
-/_build/
+/_build/*
 /node_modules/
 /_esy/
 /_opam/
@@ -28,4 +28,9 @@
 .DS_Store
 
 /wasm_interpreter
+/wasm_coq_interpreter.exe
 /history.txt
+/profile.json
+
+!_build/
+!_build/default/src/extract.ml
