@@ -591,9 +591,9 @@ Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: r
   | RSC_trap _ _ _ =>
       "Trap" ++ newline
   | RSC_invalid _ =>
-      "Invalid context decomposition. This result should not be observed when invoking valid Wasm modules. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
+      "Invalid context decomposition. This result should not be observed when invoking valid Wasm module functions without arguments. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
   | RSC_error _ =>
-      "Ill-typed input configuration. This result should not be observed when invoking valid Wasm modules. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
+      "Ill-typed input configuration. This result should not be observed when invoking valid Wasm module functions without arguments. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
   end.
 
 End Host.

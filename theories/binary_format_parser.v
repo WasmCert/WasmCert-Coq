@@ -33,17 +33,12 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
     anyTok.
 
 (* TODO: need to make sure these do the right thing *)
-
 Definition parse_u32_as_N {n} : byte_parser N n :=
   extract parse_unsigned n.
 
 Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
-
-Definition parse_u32_zero_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
-  exact_byte x00 $> Wasm_int.Int32.zero.
 
 Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
@@ -63,7 +58,7 @@ Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
   (fun bs => Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 3).
 
 Definition parse_f64 {n} : byte_parser Wasm_float.FloatSize64.T n :=
-(fun bs => Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 7).
+  (fun bs => Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 7).
 
 Definition parse_u32_as_nat {n} : byte_parser nat n :=
   (fun x => (N.to_nat x)) <$> parse_u32_as_N.
@@ -72,18 +67,23 @@ Definition parse_vec_length {n} : byte_parser nat n :=
   (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32_as_int32.
 
 Fixpoint parse_vec_aux {B} {n} (f : byte_parser B n) (k : nat)
-  : byte_parser (list B) n :=
+  : byte_parser (list B) n :=  
   match k with
-  | 0 => (fun x => cons x nil) <$> f (* TODO: this is wrong in general, but OK with `vec`?!? *)
+  | 0 => fail (* nil *)
   | S 0 => (fun x => cons x nil) <$> f
   | S k' => (cons <$> f) <*> parse_vec_aux f k'
   end.
 
+(* parsing a length-indexed list *)
 Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
-  (* TODO: this is vomit-inducingly bad, but I have no clue how to avoid this :-( *)
-  (parse_u32_zero_as_int32 $> nil) <|>
-  (parse_vec_length >>= (fun k => parse_vec_aux f k)).
+  (fun len_list => 
+     match len_list with
+     | (_, Some xs) => xs
+     | (_, None) => nil
+     end) <$>
+  (parse_vec_length &?>>= (fun k => parse_vec_aux f k)).
 
+(* Kept as separate definitions in case a distincion is required in the future *)
 Definition parse_labelidx {n} : byte_parser labelidx n :=
   (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
 
@@ -132,13 +132,9 @@ Definition parse_value_type {n} : byte_parser value_type n :=
 Definition parse_block_type {n} : byte_parser block_type n :=
   (exact_byte x40 $> BT_valtype None) <|>
   (fun t => BT_valtype (Some t)) <$> parse_value_type <|>
-  BT_id <$> parse_typeidx.
+  BT_id <$> parse_typeidx. (* TODO: needs to be s33? *)
 
-(*
-Definition parse_block_type {n} : byte_parser function_type n :=
-  (exact_byte x40 $> Tf nil nil) <|>
-  (Tf nil <$> parse_block_type).
-*)
+
 
 Definition parse_unreachable {n} : byte_parser basic_instruction n :=
   exact_byte x00 $> BI_unreachable.
@@ -185,6 +181,7 @@ Definition parse_call_indirect {n} : byte_parser basic_instruction n :=
   exact_byte x11 &>
   ((BI_call_indirect <$> parse_typeidx) <*> parse_tableidx).
 
+
 (* Reference instructions *)
 Definition parse_ref_null {n}: byte_parser basic_instruction n :=
   exact_byte xd0 &> (BI_ref_null <$> parse_reference_type).
@@ -200,8 +197,8 @@ Definition parse_reference_instruction {n} : byte_parser basic_instruction n :=
   parse_ref_is_null <|>
   parse_ref_func.
 
-(* Variable instructions *)
 
+(* Variable instructions *)
 Definition parse_drop {n} : byte_parser basic_instruction n :=
   exact_byte x1a $> BI_drop.
 
@@ -246,8 +243,9 @@ Definition parse_table_get {n} : byte_parser basic_instruction n :=
 Definition parse_table_set {n} : byte_parser basic_instruction n :=
   exact_byte x26 &> (BI_table_set <$> parse_tableidx).
 
+(* Order of the arguments is reversed in the binary format *)
 Definition parse_table_init {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0c &> ((BI_table_init <$> parse_elemidx) <*> parse_tableidx).
+  exact_byte xfc &> exact_byte x0c &> (((fun y x => BI_table_init x y) <$> parse_elemidx) <*> parse_tableidx).
 
 Definition parse_elem_drop {n} : byte_parser basic_instruction n :=
   exact_byte xfc &> exact_byte x0d &> (BI_elem_drop <$> parse_elemidx).
@@ -275,10 +273,10 @@ Definition parse_table_instruction {n}: byte_parser basic_instruction n :=
   parse_table_fill.
 
 Definition parse_alignment_exponent {n} : byte_parser BinNat.N.t n :=
-  (fun x => (Wasm_int.N_of_uint i32m x)) <$> parse_u32_as_int32.
+  (Wasm_int.N_of_uint i32m) <$> parse_u32_as_int32.
 
 Definition parse_static_offset {n} : byte_parser BinNat.N.t n :=
-  (fun x => (Wasm_int.N_of_uint i32m x)) <$> parse_u32_as_int32.
+  (Wasm_int.N_of_uint i32m) <$> parse_u32_as_int32.
 
 Definition parse_memarg {n} : byte_parser memarg n :=
   uncurry Build_memarg <$> (parse_alignment_exponent <&> parse_static_offset).
@@ -627,7 +625,6 @@ Definition parse_be : [ byte_parser basic_instruction ] := fun n => _be n (langu
 Definition parse_bes_end_with_x0b : [ byte_parser (list basic_instruction) ] := fun n => _bes_end_with_x0b n (language n).
 
 Definition parse_expr {n} : byte_parser (list basic_instruction) n :=
-  (* TODO: is that right? *)
   parse_bes_end_with_x0b n.
 
 Definition parse_function_type {n} : byte_parser function_type n :=
@@ -680,6 +677,7 @@ Definition parse_elemkind {n}: byte_parser reference_type n :=
   exact_byte x00 $> T_funcref.
 
 (* Slightly messy, but so is the spec *)
+(* https://webassembly.github.io/spec/core/binary/modules.html#element-section *)
 Definition parse_module_element_0 {n} : byte_parser module_element n :=
   ((fun es (fids: list funcidx) => {| modelem_type := T_funcref; modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids; modelem_mode := ME_active 0%N es; |}) <$> parse_expr) <*> parse_vec parse_funcidx.
 
@@ -731,6 +729,7 @@ Definition parse_code {n} : byte_parser module_func_without_type n :=
     (fun sf =>
       match sf with
       (* TODO: we are supposed to check that the size matches *)
+      (* There's no obvious function in Parseque that returns the number of tokens conumed *)
       | (s, f) => (* if Nat.eqb s (func_size f) then *) Some f (* else None *)
       end)
     (parse_u32_as_nat <&> parse_code_func).
