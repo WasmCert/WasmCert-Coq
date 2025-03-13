@@ -812,43 +812,6 @@ Definition parse_with_customsec_star_before {A : Type} {n} f :=
 Definition parse_with_customsec_star_after {A : Type} {n} f :=
   @iteratel _ _ _ _ _ _ _ _ _ A n f parse_customsec_forget.
 
-
-(*
-Definition merge_parsing_modules (m1 m2 : parsing_module) : parsing_module := {|
-  pmod_types := List.app m1.(pmod_types) m2.(pmod_types);
-  pmod_funcs := List.app m1.(pmod_funcs) m2.(pmod_funcs);
-  pmod_tables := List.app m1.(pmod_tables) m2.(pmod_tables);
-  pmod_mems := List.app m1.(pmod_mems) m2.(pmod_mems);
-  pmod_globals := List.app m1.(pmod_globals) m2.(pmod_globals);
-  pmod_elems := List.app m1.(pmod_elems) m2.(pmod_elems);
-  pmod_datas := List.app m1.(pmod_datas) m2.(pmod_datas);
-  pmod_start :=
-    match (m1.(pmod_start), m2.(pmod_start)) with
-    | (None, Some st) => Some st
-    | (Some st, _) => Some st (* we break the tie *)
-    | (None, None) => None
-    end;
-  pmod_imports := List.app m1.(pmod_imports) m2.(pmod_imports);
-  pmod_exports := List.app m1.(pmod_exports) m2.(pmod_exports);
-  pmod_code := List.app m1.(pmod_code) m2.(pmod_code);
-|}.
-
-
-Definition empty_parsing_module : parsing_module := {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-|}.                                
-*)
-
 Record parsing_module : Type := {
   pmod_types : list function_type;
   pmod_funcs : list typeidx;
@@ -930,6 +893,7 @@ Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parse
          let datacount := option_to_nat odatacount in
          let codes := option_to_list ocodes in
          let datas := option_to_list odatas in
+   (* Check that the information across different sections are consistent *)
          if (Nat.eqb (List.length fts) (List.length codes)) then
            if (Nat.eqb (List.length datas) datacount) then
              Some {|
@@ -952,7 +916,9 @@ Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parse
          else None
      end
   )
-  (parse_with_customsec_star_after (((((((((((((f <&?>
+  (parse_with_customsec_star_after
+  (* "<&?>" is right associative, but we want the other way round here *)
+  (((((((((((((f <&?>
   parse_typesec_wrapper) <&?>
   parse_importsec_wrapper) <&?>
   parse_funcsec_wrapper) <&?>
@@ -965,27 +931,6 @@ Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parse
   parse_datacountsec_wrapper) <&?>
   parse_codesec_wrapper) <&?>
   parse_datasec_wrapper))).
-
-(*
-Definition module_of_parsing_module (m : parsing_module) : module := {|
-  mod_types := m.(pmod_types);
-  mod_funcs :=
-  (* These always have the same lengths due to Wasm's module definition. *)
-  (* Low priority: check sizes? *)
-    List.map
-      (fun '(a, (b, c)) =>
-        {| modfunc_type := a; modfunc_locals := b; modfunc_body := c |})
-      (List.combine m.(pmod_funcs) m.(pmod_code));
-  mod_tables := m.(pmod_tables);
-  mod_mems := m.(pmod_mems);
-  mod_globals := m.(pmod_globals);
-  mod_elems := m.(pmod_elems);
-  mod_datas := m.(pmod_datas);
-  mod_start := m.(pmod_start);
-  mod_imports := m.(pmod_imports);
-  mod_exports := m.(pmod_exports);
-|}.
-*)
 
 Definition parse_module {n} : byte_parser module n :=
   parse_module_sections_after
