@@ -2,6 +2,10 @@
 (* (C) J. Pichon - see LICENSE.txt *)
 (* TODO: all the numeric stuff is in dire need of testing *)
 
+(* Some documentation from the original agdarsec paper:
+   gallais.github.io/pdf/agdarsec18.pdf
+*)
+
 From Wasm Require Import datatypes_properties typing.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
@@ -29,17 +33,12 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
     anyTok.
 
 (* TODO: need to make sure these do the right thing *)
-
 Definition parse_u32_as_N {n} : byte_parser N n :=
   extract parse_unsigned n.
 
 Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
-
-Definition parse_u32_zero_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
-  exact_byte x00 $> Wasm_int.Int32.zero.
 
 Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
@@ -59,27 +58,32 @@ Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
   (fun bs => Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 3).
 
 Definition parse_f64 {n} : byte_parser Wasm_float.FloatSize64.T n :=
-(fun bs => Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 7).
+  (fun bs => Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 7).
 
 Definition parse_u32_as_nat {n} : byte_parser nat n :=
   (fun x => (N.to_nat x)) <$> parse_u32_as_N.
 
 Definition parse_vec_length {n} : byte_parser nat n :=
-  (fun x => (Wasm_int.nat_of_uint i32m x)) <$> parse_u32_as_int32.
+  parse_u32_as_nat.
 
 Fixpoint parse_vec_aux {B} {n} (f : byte_parser B n) (k : nat)
-  : byte_parser (list B) n :=
+  : byte_parser (list B) n :=  
   match k with
-  | 0 => (fun x => cons x nil) <$> f (* TODO: this is wrong in general, but OK with `vec`?!? *)
+  | 0 => fail (* nil *)
   | S 0 => (fun x => cons x nil) <$> f
   | S k' => (cons <$> f) <*> parse_vec_aux f k'
   end.
 
+(* parsing a length-indexed list *)
 Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
-  (* TODO: this is vomit-inducingly bad, but I have no clue how to avoid this :-( *)
-  (parse_u32_zero_as_int32 $> nil) <|>
-  (parse_vec_length >>= (fun k => parse_vec_aux f k)).
+  (fun len_list => 
+     match len_list with
+     | (_, Some xs) => xs
+     | (_, None) => nil
+     end) <$>
+  (parse_vec_length &?>>= (fun k => parse_vec_aux f k)).
 
+(* Kept as separate definitions in case a distincion is required in the future *)
 Definition parse_labelidx {n} : byte_parser labelidx n :=
   (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
 
@@ -128,13 +132,8 @@ Definition parse_value_type {n} : byte_parser value_type n :=
 Definition parse_block_type {n} : byte_parser block_type n :=
   (exact_byte x40 $> BT_valtype None) <|>
   (fun t => BT_valtype (Some t)) <$> parse_value_type <|>
-  BT_id <$> parse_typeidx.
+  BT_id <$> parse_typeidx. (* TODO: needs to be s33? *)
 
-(*
-Definition parse_block_type {n} : byte_parser function_type n :=
-  (exact_byte x40 $> Tf nil nil) <|>
-  (Tf nil <$> parse_block_type).
-*)
 
 Definition parse_unreachable {n} : byte_parser basic_instruction n :=
   exact_byte x00 $> BI_unreachable.
@@ -181,6 +180,7 @@ Definition parse_call_indirect {n} : byte_parser basic_instruction n :=
   exact_byte x11 &>
   ((BI_call_indirect <$> parse_typeidx) <*> parse_tableidx).
 
+
 (* Reference instructions *)
 Definition parse_ref_null {n}: byte_parser basic_instruction n :=
   exact_byte xd0 &> (BI_ref_null <$> parse_reference_type).
@@ -196,8 +196,8 @@ Definition parse_reference_instruction {n} : byte_parser basic_instruction n :=
   parse_ref_is_null <|>
   parse_ref_func.
 
-(* Variable instructions *)
 
+(* Variable instructions *)
 Definition parse_drop {n} : byte_parser basic_instruction n :=
   exact_byte x1a $> BI_drop.
 
@@ -242,8 +242,9 @@ Definition parse_table_get {n} : byte_parser basic_instruction n :=
 Definition parse_table_set {n} : byte_parser basic_instruction n :=
   exact_byte x26 &> (BI_table_set <$> parse_tableidx).
 
+(* Order of the arguments is reversed in the binary format *)
 Definition parse_table_init {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0c &> ((BI_table_init <$> parse_elemidx) <*> parse_tableidx).
+  exact_byte xfc &> exact_byte x0c &> (((fun y x => BI_table_init x y) <$> parse_elemidx) <*> parse_tableidx).
 
 Definition parse_elem_drop {n} : byte_parser basic_instruction n :=
   exact_byte xfc &> exact_byte x0d &> (BI_elem_drop <$> parse_elemidx).
@@ -271,13 +272,17 @@ Definition parse_table_instruction {n}: byte_parser basic_instruction n :=
   parse_table_fill.
 
 Definition parse_alignment_exponent {n} : byte_parser BinNat.N.t n :=
-  (fun x => (Wasm_int.N_of_uint i32m x)) <$> parse_u32_as_int32.
+  (Wasm_int.N_of_uint i32m) <$> parse_u32_as_int32.
 
 Definition parse_static_offset {n} : byte_parser BinNat.N.t n :=
-  (fun x => (Wasm_int.N_of_uint i32m x)) <$> parse_u32_as_int32.
+  (Wasm_int.N_of_uint i32m) <$> parse_u32_as_int32.
 
 Definition parse_memarg {n} : byte_parser memarg n :=
-  uncurry Build_memarg <$> (parse_alignment_exponent <&> parse_static_offset).
+  (fun ao =>
+     match ao with
+     | (a, o) => {| memarg_offset := o; memarg_align := a |}
+     end) <$>
+    (parse_alignment_exponent <&> parse_static_offset).
 
 Definition parse_i32_load {n} : byte_parser basic_instruction n :=
   exact_byte x28 &> ((BI_load T_i32 None) <$> parse_memarg).
@@ -623,7 +628,6 @@ Definition parse_be : [ byte_parser basic_instruction ] := fun n => _be n (langu
 Definition parse_bes_end_with_x0b : [ byte_parser (list basic_instruction) ] := fun n => _bes_end_with_x0b n (language n).
 
 Definition parse_expr {n} : byte_parser (list basic_instruction) n :=
-  (* TODO: is that right? *)
   parse_bes_end_with_x0b n.
 
 Definition parse_function_type {n} : byte_parser function_type n :=
@@ -676,6 +680,7 @@ Definition parse_elemkind {n}: byte_parser reference_type n :=
   exact_byte x00 $> T_funcref.
 
 (* Slightly messy, but so is the spec *)
+(* https://webassembly.github.io/spec/core/binary/modules.html#element-section *)
 Definition parse_module_element_0 {n} : byte_parser module_element n :=
   ((fun es (fids: list funcidx) => {| modelem_type := T_funcref; modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids; modelem_mode := ME_active 0%N es; |}) <$> parse_expr) <*> parse_vec parse_funcidx.
 
@@ -727,6 +732,7 @@ Definition parse_code {n} : byte_parser module_func_without_type n :=
     (fun sf =>
       match sf with
       (* TODO: we are supposed to check that the size matches *)
+      (* There's no obvious function in Parseque that returns the number of tokens conumed *)
       | (s, f) => (* if Nat.eqb s (func_size f) then *) Some f (* else None *)
       end)
     (parse_u32_as_nat <&> parse_code_func).
@@ -754,6 +760,7 @@ Definition parse_module_data {n}: byte_parser module_data n :=
 Definition parse_customsec {n} : byte_parser (list byte) n :=
   exact_byte x00 &> parse_vec anyTok.
 
+(* Low priority: check that the sections have the correct byte sizes? *)
 Definition parse_typesec {n} : byte_parser (list function_type) n :=
   exact_byte x01 &> parse_u32_as_int32 &> parse_vec parse_function_type.
 
@@ -787,6 +794,9 @@ Definition parse_codesec {n} : byte_parser (list module_func_without_type) n :=
 Definition parse_datasec {n} : byte_parser (list module_data) n :=
   exact_byte x0b &> parse_u32_as_int32 &> parse_vec parse_module_data.
 
+Definition parse_datacountsec {n} : byte_parser nat n :=
+  exact_byte x0c &> parse_u32_as_int32 &> parse_u32_as_nat.
+
 Definition parse_magic {n} : byte_parser unit n :=
   (exact_byte x00 &> exact_byte x61 &> exact_byte x73 &> exact_byte x6d) $> tt.
 
@@ -799,11 +809,8 @@ Definition parse_customsec_forget {A n} : byte_parser (A -> A) n :=
 Definition parse_with_customsec_star_before {A : Type} {n} f :=
   @iterater _ _ _ _ _ _ _ _ _ A n parse_customsec_forget f.
 
-(*
 Definition parse_with_customsec_star_after {A : Type} {n} f :=
   @iteratel _ _ _ _ _ _ _ _ _ A n f parse_customsec_forget.
-*)
-
 
 Record parsing_module : Type := {
   pmod_types : list function_type;
@@ -817,290 +824,118 @@ Record parsing_module : Type := {
   pmod_imports : list module_import;
   pmod_exports : list module_export;
   pmod_code : list module_func_without_type;
-}.
+  }.
 
-Definition merge_parsing_modules (m1 m2 : parsing_module) : parsing_module := {|
-  pmod_types := List.app m1.(pmod_types) m2.(pmod_types);
-  pmod_funcs := List.app m1.(pmod_funcs) m2.(pmod_funcs);
-  pmod_tables := List.app m1.(pmod_tables) m2.(pmod_tables);
-  pmod_mems := List.app m1.(pmod_mems) m2.(pmod_mems);
-  pmod_globals := List.app m1.(pmod_globals) m2.(pmod_globals);
-  pmod_elems := List.app m1.(pmod_elems) m2.(pmod_elems);
-  pmod_datas := List.app m1.(pmod_datas) m2.(pmod_datas);
-  pmod_start :=
-    match (m1.(pmod_start), m2.(pmod_start)) with
-    | (None, Some st) => Some st
-    | (Some st, _) => Some st (* we break the tie *)
-    | (None, None) => None
-    end;
-  pmod_imports := List.app m1.(pmod_imports) m2.(pmod_imports);
-  pmod_exports := List.app m1.(pmod_exports) m2.(pmod_exports);
-  pmod_code := List.app m1.(pmod_code) m2.(pmod_code);
-|}.
-
-Definition parse_typesec_wrapper {n} : byte_parser parsing_module n :=
-  (fun types => {|
-    pmod_types := types;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_typesec_wrapper {n} : byte_parser (list function_type) n :=
   (parse_with_customsec_star_before parse_typesec).
 
-Definition parse_importsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun imports => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := imports;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_importsec_wrapper {n} : byte_parser (list module_import) n :=
   (parse_with_customsec_star_before parse_importsec).
 
-Definition parse_funcsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun funcs => {|
-    pmod_types := nil;
-    pmod_funcs := funcs;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_funcsec_wrapper {n} : byte_parser (list typeidx) n :=
   (parse_with_customsec_star_before parse_funcsec).
 
-Definition parse_tablesec_wrapper {n} : byte_parser parsing_module n :=
-  (fun tables => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := tables;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_tablesec_wrapper {n} : byte_parser (list module_table) n :=
   (parse_with_customsec_star_before parse_tablesec).
 
-Definition parse_memsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun mems => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := mems;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_memsec_wrapper {n} : byte_parser (list module_mem) n :=
   (parse_with_customsec_star_before parse_memsec).
 
-Definition parse_globalsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun globals => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := globals;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_globalsec_wrapper {n} : byte_parser (list module_global) n :=
   (parse_with_customsec_star_before parse_globalsec).
 
-Definition parse_exportsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun exports => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := exports;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_exportsec_wrapper {n} : byte_parser (list module_export) n :=
   (parse_with_customsec_star_before parse_exportsec).
 
-Definition parse_startsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun start => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := Some start;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_startsec_wrapper {n} : byte_parser module_start n :=
   (parse_with_customsec_star_before parse_startsec).
 
-Definition parse_elemsec_wrapper {n} : byte_parser parsing_module n :=
-  (fun elem => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := elem;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_elemsec_wrapper {n} : byte_parser (list module_element) n :=
   (parse_with_customsec_star_before parse_elemsec).
 
-Definition parse_codesec_wrapper {n} : byte_parser parsing_module n :=
-  (fun code => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := code;
-  |}) <$>
+Definition parse_datacountsec_wrapper {n} : byte_parser nat n :=
+  (parse_with_customsec_star_before parse_datacountsec).
+
+Definition parse_codesec_wrapper {n} : byte_parser (list module_func_without_type) n :=
   (parse_with_customsec_star_before parse_codesec).
 
-Definition parse_datasec_wrapper {n} : byte_parser parsing_module n :=
-  (fun data => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := data;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
+Definition parse_datasec_wrapper {n} : byte_parser (list module_data) n :=
   (parse_with_customsec_star_before parse_datasec).
 
-(** this is not in the spec, it is here to force productivity;
-    we make it be different from all section markers *)
-Definition end_marker : byte := x0c.
+Definition parse_module_end {n} : byte_parser unit n :=
+  (parse_with_customsec_star_before (@fail _ _ _ _ _ _ unit _)) $> tt.
 
-Definition parse_module_end {n} : byte_parser parsing_module n :=
-  (fun _ => {|
-    pmod_types := nil;
-    pmod_funcs := nil;
-    pmod_tables := nil;
-    pmod_mems := nil;
-    pmod_globals := nil;
-    pmod_elems := nil;
-    pmod_datas := nil;
-    pmod_start := None;
-    pmod_imports := nil;
-    pmod_exports := nil;
-    pmod_code := nil;
-  |}) <$>
-  (parse_with_customsec_star_before (exact_byte end_marker)).
+Definition option_to_list {T: Type} (ol: option (list T)) : list T :=
+  match ol with
+  | Some l => l
+  | None => nil 
+  end.
 
-Definition parse_datasec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_datasec_wrapper) <*> parse_module_end) <|>
-  parse_module_end.
+Definition option_to_nat (on: option nat) : nat :=
+  match on with
+  | Some n => n
+  | None => 0
+  end.
 
-Definition parse_codesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_codesec_wrapper) <*> parse_datasec_onwards) <|>
-  parse_datasec_onwards.
-
-Definition parse_elemsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_elemsec_wrapper) <*> parse_codesec_onwards) <|>
-  parse_codesec_onwards.
-
-Definition parse_startsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_startsec_wrapper) <*> parse_elemsec_onwards) <|>
-  parse_elemsec_onwards.
-
-Definition parse_exportsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_exportsec_wrapper) <*> parse_startsec_onwards) <|>
-  parse_startsec_onwards.
-
-Definition parse_globalsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_globalsec_wrapper) <*> parse_exportsec_onwards) <|>
-  parse_exportsec_onwards.
-
-Definition parse_memsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_memsec_wrapper) <*> parse_globalsec_onwards) <|>
-  parse_globalsec_onwards.
-
-Definition parse_tablesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_tablesec_wrapper) <*> parse_memsec_onwards) <|>
-  parse_memsec_onwards.
-
-Definition parse_funcsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_funcsec_wrapper) <*> parse_tablesec_onwards) <|>
-  parse_tablesec_onwards.
-
-Definition parse_importsec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_importsec_wrapper) <*> parse_funcsec_onwards) <|>
-  parse_funcsec_onwards.
-
-Definition parse_typesec_onwards {n} : byte_parser parsing_module n :=
-  ((merge_parsing_modules <$> parse_typesec_wrapper) <*> parse_importsec_onwards) <|>
-  parse_importsec_onwards.
-
-Definition module_of_parsing_module (m : parsing_module) : module := {|
-  mod_types := m.(pmod_types);
-  mod_funcs :=
-    (* TODO: what if these lists are of different length? *)
-    List.map
-      (fun '(a, (b, c)) =>
-        {| modfunc_type := a; modfunc_locals := b; modfunc_body := c |})
-      (List.combine m.(pmod_funcs) m.(pmod_code));
-  mod_tables := m.(pmod_tables);
-  mod_mems := m.(pmod_mems);
-  mod_globals := m.(pmod_globals);
-  mod_elems := m.(pmod_elems);
-  mod_datas := m.(pmod_datas);
-  mod_start := m.(pmod_start);
-  mod_imports := m.(pmod_imports);
-  mod_exports := m.(pmod_exports);
-|}.
+Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parser module n :=
+  guardM
+  (fun results =>
+     match results with
+     | (_, otypes, oimports, ofts, otables, omems, oglobals, oexports, ostart, oelems, odatacount, ocodes, odatas) =>
+         let types := option_to_list otypes in
+         let imports := option_to_list oimports in
+         let fts := option_to_list ofts in
+         let tables := option_to_list otables in
+         let mems := option_to_list omems in
+         let globals := option_to_list oglobals in
+         let exports := option_to_list oexports in
+         let elems := option_to_list oelems in
+         let datacount := option_to_nat odatacount in
+         let codes := option_to_list ocodes in
+         let datas := option_to_list odatas in
+   (* Check that the information across different sections are consistent *)
+         if (Nat.eqb (List.length fts) (List.length codes)) then
+           if (Nat.eqb (List.length datas) datacount) then
+             Some {|
+               mod_types := types;
+               mod_funcs :=
+                 List.map
+                   (fun '(a, (b, c)) =>
+                      {| modfunc_type := a; modfunc_locals := b; modfunc_body := c |})
+                   (List.combine fts codes);
+               mod_tables := tables;
+               mod_mems := mems;
+               mod_globals := globals;
+               mod_elems := elems;
+               mod_datas := datas;
+               mod_start := ostart;
+               mod_imports := imports;
+               mod_exports := exports
+             |}
+           else None
+         else None
+     end
+  )
+  (parse_with_customsec_star_after
+  (* "<&?>" is right associative, but we want the other way round here *)
+  (((((((((((((f <&?>
+  parse_typesec_wrapper) <&?>
+  parse_importsec_wrapper) <&?>
+  parse_funcsec_wrapper) <&?>
+  parse_tablesec_wrapper) <&?>
+  parse_memsec_wrapper) <&?>
+  parse_globalsec_wrapper) <&?>
+  parse_exportsec_wrapper) <&?>
+  parse_startsec_wrapper) <&?>
+  parse_elemsec_wrapper) <&?>
+  parse_datacountsec_wrapper) <&?>
+  parse_codesec_wrapper) <&?>
+  parse_datasec_wrapper))).
 
 Definition parse_module {n} : byte_parser module n :=
-  module_of_parsing_module <$>
-  (parse_magic &>
-  parse_version &>
-  parse_typesec_onwards).
+  parse_module_sections_after
+    (parse_magic &>
+     parse_version).
 
 End Language.
 
@@ -1154,4 +989,4 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
   run_parse_expr (bs ++ (x0b :: nil)).
 
 Definition run_parse_module (bs : list byte) : option module :=
-  run (bs ++ cons end_marker nil) (fun n => parse_module).
+  run bs (fun n => parse_module).
