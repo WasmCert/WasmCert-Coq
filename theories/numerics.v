@@ -5,6 +5,7 @@ Require Import common.
 From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From HB Require Import structures.
 
 From Flocq Require Import Core.
 
@@ -91,6 +92,10 @@ Record mixin_of (int_t : Type) := Mixin {
   Z_of_sint : int_t -> Z ;
 }.
 
+Definition int_ne (int_t: Type) (mx: mixin_of int_t) : int_t -> int_t -> bool :=
+  fun x y => negb (int_eq mx x y).
+
+(*
 Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
 Local Coercion base : class_of >-> Equality.class_of.
 
@@ -100,6 +105,7 @@ Local Coercion sort : type >-> Sortclass.
 Definition int_ne (e : type) : sort e -> sort e -> bool :=
   let 'Pack _ (Class _ m) := e in
     fun x => fun y => negb (int_eq m x y).
+*)
 
 (** ** Definitions **)
 
@@ -378,7 +384,7 @@ Proof.
         by rewrite_by (wordsize - 1 < wordsize - 1 = false).
       * rewrite_by (i < wordsize - 1 = true).
         rewrite in_cons in_nil Bool.orb_false_r.
-        rewrite_by ((Z.of_nat (wordsize - i - 1) == 0) = (wordsize - i - 1 == 0)).
+        rewrite_by ((Z.of_nat (wordsize - i - 1) == 0%Z) = (wordsize - i - 1 == 0)).
         apply gtn_eqF. move/leP: I E. move: WS.wordsize_not_zero. rewrite/wordsize. by lias.
     + by lias.
 Qed.
@@ -1028,7 +1034,8 @@ Proof.
   move=> [i ?] /=. rewrite Coqlib.Z_to_nat_max. by rewrite Z.max_l; lias.
 Qed.
 
-Definition cT : type := Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
+(*
+Definition cT : Equality.type := Equality.Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
 
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
 Definition clone c of phant_id class c := @Pack T c.
@@ -1037,8 +1044,11 @@ Notation xclass := (class : class_of xT).
 
 Definition pack m :=
   fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
+ *)
+(* TODO: redundant? *)
+Definition eqType := T.
 
-Definition eqType := @Equality.Pack cT xclass.
+Definition eq_mixin := Tmixin.
 
 End Make.
 
@@ -1056,17 +1066,25 @@ End Int64.
 
 End Wasm_int.
 
-Definition i32 : eqType := Wasm_int.Int32.eqType.
+Definition i32 : Type := Wasm_int.Int32.T.
+Definition i32m := Wasm_int.Int32.Tmixin.
+HB.instance Definition i32_eqMixin := hasDecEq.Build i32 Wasm_int.Int32.eq_eqP.
+
+Definition i64 : Type :=  Wasm_int.Int64.T.
+Definition i64m := Wasm_int.Int64.Tmixin.
+HB.instance Definition i64_eqMixin := hasDecEq.Build i64 Wasm_int.Int64.eq_eqP.
+
+(*
 Definition i32r : Wasm_int.class_of i32 := Wasm_int.Int32.class.
 Definition i32t : Wasm_int.type := Wasm_int.Pack i32r.
 Definition i32m := Wasm_int.mixin i32r.
-Definition i64 : eqType :=  Wasm_int.Int64.eqType.
 Definition i64r : Wasm_int.class_of i64 := Wasm_int.Int64.class.
 Definition i64t : Wasm_int.type := Wasm_int.Pack i64r.
 Definition i64m := Wasm_int.mixin i64r.
+*)
 
 Definition wasm_wrap (i : i64) : i32 :=
-  Wasm_int.int_of_Z i32m (Wasm_int.Z_of_uint i64m i).
+  @Wasm_int.int_of_Z i32 i32m (Wasm_int.Z_of_uint i64m i).
 
 Definition wasm_extend_u (i : i32) : i64 :=
   Wasm_int.int_of_Z i64m (Wasm_int.Z_of_uint i32m i).
@@ -1128,6 +1146,10 @@ Record mixin_of (float_t : Type) := Mixin {
   float_convert_si64 : i64 -> float_t ;
 }.
 
+Definition float_ne (float_t: Type) (mx: mixin_of float_t) : float_t -> float_t -> bool :=
+  fun x y => negb (float_eq mx x y).
+
+(*
 Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
 Local Coercion base : class_of >-> Equality.class_of.
 
@@ -1137,6 +1159,7 @@ Local Coercion sort : type >-> Sortclass.
 Definition float_ne (e : type) : sort e -> sort e -> bool :=
   let 'Pack _ (Class _ m) := e in
     fun x => fun y => negb (float_eq m x y).
+*)
 
 (** ** Architectures **)
 
@@ -1257,8 +1280,7 @@ Export FS.
 Definition eqb v1 v2 := is_left (eq_dec v1 v2).
 Definition eqbP : Equality.axiom eqb := eq_dec_Equality_axiom eq_dec.
 
-Canonical Structure T_eqMixin := EqMixin eqbP.
-Canonical Structure T_eqType := Eval hnf in EqType T T_eqMixin.
+HB.instance Definition T_eqMixin := hasDecEq.Build T eqbP.
 
 (** State whether the given float is a [NaN]. **)
 Definition is_nan : T -> bool := Binary.is_nan _ _.
@@ -1877,6 +1899,7 @@ Definition Tmixin : mixin_of T := {|
     float_convert_si64 := convert_si64 ;
   |}.
 
+(*
 Definition cT : type := Pack {| base := T_eqMixin; mixin := Tmixin |}.
 
 Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
@@ -1886,8 +1909,8 @@ Notation xclass := (class : class_of xT).
 
 Definition pack m :=
   fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
-
-Definition eqType := @Equality.Pack cT xclass.
+*)
+Definition eqType := T.
 
 End Make.
 
@@ -1939,14 +1962,12 @@ Proof. reflexivity. Qed.
 
 End Wasm_float.
 
-Definition f32 : eqType := Wasm_float.Float32.eqType.
-Definition f32r : Wasm_float.class_of f32 := Wasm_float.Float32.class.
-Definition f32t : Wasm_float.type := Wasm_float.Pack f32r.
-Definition f32m := Wasm_float.mixin f32r.
-Definition f64 : eqType := Wasm_float.Float64.eqType.
-Definition f64r : Wasm_float.class_of f64 := Wasm_float.Float64.class.
-Definition f64t : Wasm_float.type := Wasm_float.Pack f64r.
-Definition f64m := Wasm_float.mixin f64r.
+Definition f32 := Wasm_float.Float32.eqType.
+Definition f32m := Wasm_float.Float32.Tmixin.
+HB.instance Definition f32_eqMixin := Wasm_float.Float32.T_eqMixin.
+Definition f64 := Wasm_float.Float64.eqType.
+Definition f64m := Wasm_float.Float64.Tmixin.
+HB.instance Definition f64_eqMixin := Wasm_float.Float64.T_eqMixin.
 
 Definition wasm_demote (z : f64) : f32 :=
   if Wasm_float.Float64.is_canonical z then Wasm_float.Float32.nans [::]

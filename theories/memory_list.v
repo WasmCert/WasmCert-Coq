@@ -172,6 +172,7 @@ Qed.
 
 
 Require Import bytes common.
+From HB Require Import structures.
 
 Definition memory_list_eq_dec : forall (i1 i2 : memory_list), {i1 = i2} + {i1 <> i2}.
 Proof. decidable_equality. Defined.
@@ -181,9 +182,12 @@ Definition memory_list_eqb i1 i2 : bool := memory_list_eq_dec i1 i2.
 Definition eqmemory_listP : Equality.axiom memory_list_eqb :=
   eq_dec_Equality_axiom memory_list_eq_dec.
 
+HB.instance Definition memory_list_eqMixin := hasDecEq.Build memory_list eqmemory_listP.
+
+(*
 Canonical Structure memory_list_eqMixin := EqMixin eqmemory_listP.
 Canonical Structure memory_list_eqType := Eval hnf in EqType memory_list memory_list_eqMixin.
-
+*)
 Definition list_memoryMixin :=
   Memory.Mixin
     memory_list_ax_lookup_out_of_bounds
@@ -191,5 +195,7 @@ Definition list_memoryMixin :=
     memory_list_ax_lookup_update
     memory_list_ax_lookup_skip
     memory_list_ax_length_constant_update.
+(*
 Definition list_memoryClass := Memory.Class memory_list_eqMixin list_memoryMixin.
 Canonical list_memoryType := @Memory.Pack memory_list list_memoryClass.
+*)

@@ -5,6 +5,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import common.
 From compcert Require Import Integers.
 From parseque Require Import Char.
+From HB Require Import structures.
 
 Definition byte := Integers.byte.
 
@@ -24,9 +25,7 @@ Definition byte_eqb a b := is_left (byte_eq_dec a b).
 Definition eqbyteP : Equality.axiom byte_eqb :=
   eq_dec_Equality_axiom byte_eq_dec.
 
-Canonical Structure byte_eqMixin := EqMixin eqbyteP.
-Canonical Structure byte_eqType := Eval hnf in EqType byte byte_eqMixin.
-
+HB.instance Definition _ := hasDecEq.Build byte eqbyteP.
 
 Definition bytes := seq byte.
 
