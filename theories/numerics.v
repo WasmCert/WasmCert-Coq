@@ -95,18 +95,6 @@ Record mixin_of (int_t : Type) := Mixin {
 Definition int_ne (int_t: Type) (mx: mixin_of int_t) : int_t -> int_t -> bool :=
   fun x y => negb (int_eq mx x y).
 
-(*
-Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
-Local Coercion base : class_of >-> Equality.class_of.
-
-Structure type := Pack {sort : Type; _ : class_of sort}.
-Local Coercion sort : type >-> Sortclass.
-
-Definition int_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ m) := e in
-    fun x => fun y => negb (int_eq m x y).
-*)
-
 (** ** Definitions **)
 
 Module Make (WS: Integers.WORDSIZE).
@@ -1034,18 +1022,7 @@ Proof.
   move=> [i ?] /=. rewrite Coqlib.Z_to_nat_max. by rewrite Z.max_l; lias.
 Qed.
 
-(*
-Definition cT : Equality.type := Equality.Pack {| base := EqMixin eq_eqP; mixin := Tmixin |}.
-
-Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
-Definition clone c of phant_id class c := @Pack T c.
-Local Definition xT := let: Pack T _ := cT in T.
-Notation xclass := (class : class_of xT).
-
-Definition pack m :=
-  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
- *)
-(* TODO: redundant? *)
+(* redundant redirections? *)
 Definition eqType := T.
 
 Definition eq_mixin := Tmixin.
@@ -1073,15 +1050,6 @@ HB.instance Definition i32_eqMixin := hasDecEq.Build i32 Wasm_int.Int32.eq_eqP.
 Definition i64 : Type :=  Wasm_int.Int64.T.
 Definition i64m := Wasm_int.Int64.Tmixin.
 HB.instance Definition i64_eqMixin := hasDecEq.Build i64 Wasm_int.Int64.eq_eqP.
-
-(*
-Definition i32r : Wasm_int.class_of i32 := Wasm_int.Int32.class.
-Definition i32t : Wasm_int.type := Wasm_int.Pack i32r.
-Definition i32m := Wasm_int.mixin i32r.
-Definition i64r : Wasm_int.class_of i64 := Wasm_int.Int64.class.
-Definition i64t : Wasm_int.type := Wasm_int.Pack i64r.
-Definition i64m := Wasm_int.mixin i64r.
-*)
 
 Definition wasm_wrap (i : i64) : i32 :=
   @Wasm_int.int_of_Z i32 i32m (Wasm_int.Z_of_uint i64m i).
@@ -1148,18 +1116,6 @@ Record mixin_of (float_t : Type) := Mixin {
 
 Definition float_ne (float_t: Type) (mx: mixin_of float_t) : float_t -> float_t -> bool :=
   fun x y => negb (float_eq mx x y).
-
-(*
-Record class_of T := Class { base : Equality.class_of T; mixin : mixin_of T }.
-Local Coercion base : class_of >-> Equality.class_of.
-
-Structure type := Pack {sort; _ : class_of sort}.
-Local Coercion sort : type >-> Sortclass.
-
-Definition float_ne (e : type) : sort e -> sort e -> bool :=
-  let 'Pack _ (Class _ m) := e in
-    fun x => fun y => negb (float_eq m x y).
-*)
 
 (** ** Architectures **)
 
@@ -1899,17 +1855,6 @@ Definition Tmixin : mixin_of T := {|
     float_convert_si64 := convert_si64 ;
   |}.
 
-(*
-Definition cT : type := Pack {| base := T_eqMixin; mixin := Tmixin |}.
-
-Definition class := let: Pack _ c as cT' := cT return class_of cT' in c.
-Definition clone c of phant_id class c := @Pack T c.
-Local Definition xT := let: Pack T _ := cT in T.
-Notation xclass := (class : class_of xT).
-
-Definition pack m :=
-  fun b bT & phant_id (Equality.class bT) b => Pack (@Class T b m).
-*)
 Definition eqType := T.
 
 End Make.

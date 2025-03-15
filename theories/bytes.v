@@ -28,13 +28,7 @@ Definition eqbyteP : Equality.axiom byte_eqb :=
 HB.instance Definition _ := hasDecEq.Build byte eqbyteP.
 
 Definition bytes := seq byte.
-
-Definition bytes_eq_dec : forall (a b : bytes), {a = b} + {a <> b}.
-Proof. apply: List.list_eq_dec. apply: byte_eq_dec. Defined.
-Definition bytes_eqb (a b : bytes) := is_left (bytes_eq_dec a b).
-Definition eqbytesP : Equality.axiom bytes_eqb :=
-  eq_dec_Equality_axiom bytes_eq_dec.
-
+  
 Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
   match n with
   | O => nil
