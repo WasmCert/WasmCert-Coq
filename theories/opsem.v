@@ -34,10 +34,10 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
   (** testops **)
   | rs_testop_i32 :
     forall c testop,
-    reduce_simple [::$VN (VAL_int32 c); AI_basic (BI_testop T_i32 testop)] [::$VN (VAL_int32 (wasm_bool (@app_testop_i i32t testop c)))]
+    reduce_simple [::$VN (VAL_int32 c); AI_basic (BI_testop T_i32 testop)] [::$VN (VAL_int32 (wasm_bool (app_testop_i i32m testop c)))]
   | rs_testop_i64 :
     forall c testop,
-    reduce_simple [::$VN (VAL_int64 c); AI_basic (BI_testop T_i64 testop)] [::$VN (VAL_int32 (wasm_bool (@app_testop_i i64t testop c)))]
+    reduce_simple [::$VN (VAL_int64 c); AI_basic (BI_testop T_i64 testop)] [::$VN (VAL_int32 (wasm_bool (app_testop_i i64m testop c)))]
 
   (** relops **)
   | rs_relop: forall v1 v2 t op,

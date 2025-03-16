@@ -2,7 +2,7 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From compcert Require lib.Floats.
+From compcert Require Floats.
 From Wasm Require Export common memory_list datatypes_properties list_extra.
 From Coq Require Import BinNat.
 
@@ -339,19 +339,14 @@ Definition is_ref_t (t: value_type) : bool :=
 Definition is_mut (tg : global_type) : bool :=
   tg_mut tg == MUT_var.
 
-
-Definition app_unop_i (e : Wasm_int.type) (iop : unop_i) : Wasm_int.sort e -> Wasm_int.sort e :=
-  let: Wasm_int.Pack u (Wasm_int.Class eqmx intmx) as e' := e
-    return Wasm_int.sort e' -> Wasm_int.sort e' in
+Definition app_unop_i {T: Type} (mx : Wasm_int.mixin_of T) (iop : unop_i) : T -> T :=
   match iop with
-  | UOI_ctz => Wasm_int.int_ctz intmx
-  | UOI_clz => Wasm_int.int_clz intmx
-  | UOI_popcnt => Wasm_int.int_popcnt intmx
+  | UOI_ctz => Wasm_int.int_ctz mx
+  | UOI_clz => Wasm_int.int_clz mx
+  | UOI_popcnt => Wasm_int.int_popcnt mx
   end.
 
-Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -> Wasm_float.sort e :=
-  let: Wasm_float.Pack u (Wasm_float.Class eqmx mx) as e' := e
-    return Wasm_float.sort e' -> Wasm_float.sort e' in
+Definition app_unop_f {T: Type} (mx : Wasm_float.mixin_of T) (fop : unop_f) : T -> T :=
   match fop with
   | UOF_neg => Wasm_float.float_neg mx
   | UOF_abs => Wasm_float.float_abs mx
@@ -370,23 +365,21 @@ Definition app_unop (op: unop) (v: value_num) :=
   match op with
   | Unop_i iop =>
     match v with
-    | VAL_int32 c => VAL_int32 (@app_unop_i i32t iop c)
-    | VAL_int64 c => VAL_int64 (@app_unop_i i64t iop c)
+    | VAL_int32 c => VAL_int32 (app_unop_i i32m iop c)
+    | VAL_int64 c => VAL_int64 (app_unop_i i64m iop c)
     | _ => v
     end
   | Unop_f fop =>
     match v with
-    | VAL_float32 c => VAL_float32 (@app_unop_f f32t fop c)
-    | VAL_float64 c => VAL_float64 (@app_unop_f f64t fop c)
+    | VAL_float32 c => VAL_float32 (app_unop_f f32m fop c)
+    | VAL_float64 c => VAL_float64 (app_unop_f f64m fop c)
     | _ => v
     end
   | Unop_extend n => app_unop_extend n v
   end.
 
-Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
-    : Wasm_int.sort e -> Wasm_int.sort e -> option (Wasm_int.sort e) :=
-  let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e
-    return Wasm_int.sort e' -> Wasm_int.sort e' -> option (Wasm_int.sort e') in
+Definition app_binop_i {T: Type} (mx : Wasm_int.mixin_of T) (iop : binop_i)
+    : T -> T -> option T :=
   let: add_some := fun f c1 c2 => Some (f c1 c2) in
   match iop with
   | BOI_add => add_some (Wasm_int.int_add mx)
@@ -406,10 +399,8 @@ Definition app_binop_i (e : Wasm_int.type) (iop : binop_i)
   | BOI_rotr => add_some (Wasm_int.int_rotr mx)
   end.
 
-Definition app_binop_f (e : Wasm_float.type) (fop : binop_f)
-    : Wasm_float.sort e -> Wasm_float.sort e -> option (Wasm_float.sort e) :=
-  let: Wasm_float.Pack u (Wasm_float.Class _ mx) as e' := e
-    return Wasm_float.sort e' -> Wasm_float.sort e' -> option (Wasm_float.sort e') in
+Definition app_binop_f {T: Type} (mx : Wasm_float.mixin_of T) (fop : binop_f)
+    : T -> T -> option T :=
   let: add_some := fun f c1 c2 => Some (f c1 c2) in
   match fop with
   | BOF_add => add_some (Wasm_float.float_add mx)
@@ -427,12 +418,12 @@ Definition app_binop (op: binop) (v1: value_num) (v2: value_num) :=
     match v1 with
     | VAL_int32 c1 =>
       match v2 with
-      | VAL_int32 c2 => option_map (fun v => VAL_int32 v) (@app_binop_i i32t iop c1 c2)
+      | VAL_int32 c2 => option_map (fun v => VAL_int32 v) (app_binop_i i32m iop c1 c2)
       |  _ => None
       end                              
     | VAL_int64 c1 =>
       match v2 with
-      | VAL_int64 c2 => option_map (fun v => VAL_int64 v) (@app_binop_i i64t iop c1 c2)
+      | VAL_int64 c2 => option_map (fun v => VAL_int64 v) (app_binop_i i64m iop c1 c2)
       |  _ => None
       end                              
     | _ => None
@@ -441,31 +432,28 @@ Definition app_binop (op: binop) (v1: value_num) (v2: value_num) :=
     match v1 with
     | VAL_float32 c1 =>
       match v2 with
-      | VAL_float32 c2 => option_map (fun v => VAL_float32 v) (@app_binop_f f32t fop c1 c2)
+      | VAL_float32 c2 => option_map (fun v => VAL_float32 v) (app_binop_f f32m fop c1 c2)
       |  _ => None
       end                              
     | VAL_float64 c1 =>
       match v2 with
-      | VAL_float64 c2 => option_map (fun v => VAL_float64 v) (@app_binop_f f64t fop c1 c2)
+      | VAL_float64 c2 => option_map (fun v => VAL_float64 v) (app_binop_f f64m fop c1 c2)
       |  _ => None
       end                              
     | _ => None
     end
   end.
 
-Definition app_testop_i (e : Wasm_int.type) (o : testop) : Wasm_int.sort e -> bool :=
-  let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e return Wasm_int.sort e' -> bool in
+Definition app_testop_i {T: Type} (mx : Wasm_int.mixin_of T) (o : testop) : T -> bool :=
   match o with
   | Eqz => Wasm_int.int_eqz mx
   end.
 
-Definition app_relop_i (e : Wasm_int.type) (rop : relop_i)
-    : Wasm_int.sort e -> Wasm_int.sort e -> bool :=
-  let: Wasm_int.Pack u (Wasm_int.Class _ mx) as e' := e
-    return Wasm_int.sort e' -> Wasm_int.sort e' -> bool in
+Definition app_relop_i {T: Type} (mx: Wasm_int.mixin_of T) (rop : relop_i)
+    : T -> T -> bool :=
   match rop with
   | ROI_eq => Wasm_int.int_eq mx
-  | ROI_ne => @Wasm_int.int_ne _
+  | ROI_ne => Wasm_int.int_ne mx
   | ROI_lt SX_U => Wasm_int.int_lt_u mx
   | ROI_lt SX_S => Wasm_int.int_lt_s mx
   | ROI_gt SX_U => Wasm_int.int_gt_u mx
@@ -476,13 +464,11 @@ Definition app_relop_i (e : Wasm_int.type) (rop : relop_i)
   | ROI_ge SX_S => Wasm_int.int_ge_s mx
   end.
 
-Definition app_relop_f (e : Wasm_float.type) (rop : relop_f)
-    : Wasm_float.sort e -> Wasm_float.sort e -> bool :=
-  let: Wasm_float.Pack u (Wasm_float.Class _ mx) as e' := e
-    return Wasm_float.sort e' -> Wasm_float.sort e' -> bool in
+Definition app_relop_f {T: Type} (mx: Wasm_float.mixin_of T) (rop : relop_f)
+    : T -> T -> bool :=
   match rop with
   | ROF_eq => Wasm_float.float_eq mx
-  | ROF_ne => @Wasm_float.float_ne _
+  | ROF_ne => Wasm_float.float_ne mx
   | ROF_lt => Wasm_float.float_lt mx
   | ROF_gt => Wasm_float.float_gt mx
   | ROF_le => Wasm_float.float_le mx
@@ -495,12 +481,12 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     match v1 with
     | VAL_int32 c1 =>
       match v2 with
-      | VAL_int32 c2 => @app_relop_i i32t iop c1 c2
+      | VAL_int32 c2 => app_relop_i i32m iop c1 c2
       |  _ => false
       end                              
     | VAL_int64 c1 =>
       match v2 with
-      | VAL_int64 c2 => @app_relop_i i64t iop c1 c2
+      | VAL_int64 c2 => app_relop_i i64m iop c1 c2
       |  _ => false
       end                              
     | _ => false
@@ -509,14 +495,14 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     match v1 with
     | VAL_float32 c1 =>
       match v2 with
-      | VAL_float32 c2 => @app_relop_f f32t fop c1 c2
+      | VAL_float32 c2 => app_relop_f f32m fop c1 c2
       |  _ => false
       end                              
     | VAL_float64 c1 =>
       match v2 with
-      | VAL_float64 c2 => @app_relop_f f64t fop c1 c2
+      | VAL_float64 c2 => app_relop_f f64m fop c1 c2
       |  _ => false
-      end                              
+      end
     | _ => false
     end
   end.

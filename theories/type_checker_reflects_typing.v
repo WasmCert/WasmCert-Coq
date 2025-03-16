@@ -1511,8 +1511,7 @@ Proof.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
     induction Hbet; subst => //=; (try rewrite H); unfold type_update, type_update_top, produce; simplify_tc_goal; (try by unfold c_types_agree in *; simplify_tc_goal).
     (* Ref_func *)
-    + (* inP is slightly stupid *)
-      move/(@inP u32_eqType) in H0.
+    + move/inP in H0.
       by rewrite H0.
     + rewrite value_type_select_refl => //.
       unfold c_types_agree.
