@@ -79,7 +79,6 @@ Theorem coq_byte_roundtrip: forall (b: Byte.byte),
 Proof.
   move => b.
   unfold compcert_byte_of_byte, byte_of_compcert_byte.
-  Search Byte.unsigned Byte.repr.
   rewrite Byte.unsigned_repr_eq Z2N.inj_mod; try by lias.
   rewrite N2Z.id.
   rewrite N.mod_small; first by rewrite Byte.of_to_N.
