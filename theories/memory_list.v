@@ -36,49 +36,49 @@ Definition mem_update : Memory.mem_update_t memory_list :=
 Lemma memory_list_ax_lookup_out_of_bounds :
   Memory.mem_ax_lookup_out_of_bounds memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
-move => mem i.
-rewrite /mem_length /mem_lookup.
-move => H.
-apply (List.nth_error_None mem.(ml_data) (N.to_nat i)).
-apply N.ge_le in H.
-move: H.
-set x := (length (ml_data mem)).
-move => H.
-lia.
+  move => mem i.
+  rewrite /mem_length /mem_lookup.
+  move => H.
+  apply (List.nth_error_None mem.(ml_data) (N.to_nat i)).
+  apply N.ge_le in H.
+  move: H.
+  set x := (length (ml_data mem)).
+  move => H.
+  lia.
 Qed.
   
 Lemma nth_repeat :
 forall A b i len, i < len ->
 @List.nth_error A (List.repeat b len) i = Some b.
 Proof.
-move => A b.
-elim => [|i].
-{ case => [|len]; first by lia.
-  by move => _. }
-{ move => IH len.
-  case: len => [|len'].
-  { move => Hctr.
-    exfalso.
-    lia. }
-  { move => Hlen /=.
-    apply: IH.
-    lia. } }
+  move => A b.
+  elim => [|i].
+  { case => [|len]; first by lia.
+    by move => _. }
+  { move => IH len.
+    case: len => [|len'].
+    { move => Hctr.
+      exfalso.
+      lia. }
+    { move => Hlen /=.
+      apply: IH.
+      lia. } }
 Qed.
   
 Lemma lookup_split : forall A (l : list A) i b,
   i < List.length l ->
   List.nth_error (take i l ++ b :: drop (i+1) l) i = Some b.
 Proof.
-move => A.
-elim => [|x l].
-{ move => i b /= Hlen.
-  exfalso.
-  lia. }
-{ move => IH.
-  case => [|i]; first by reflexivity.
-  move => b /= Hlen.
-  have Hlen': i < length l by lia.
-  by apply: IH. }
+  move => A.
+  elim => [|x l].
+  { move => i b /= Hlen.
+    exfalso.
+    lia. }
+  { move => IH.
+    case => [|i]; first by reflexivity.
+    move => b /= Hlen.
+    have Hlen': i < length l by lia.
+    by apply: IH. }
 Qed.
   
 Lemma bar : forall A n n' (l : list A) v,
@@ -119,59 +119,59 @@ Qed.
 
 Lemma memory_list_ax_lookup_make : Memory.mem_ax_lookup_make memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
-move => i len b mem.
-apply: nth_repeat.
-lia.
+  move => i len b mem.
+  apply: nth_repeat.
+  lia.
 Qed.
 
 Lemma memory_list_ax_lookup_update :
   Memory.mem_ax_lookup_update memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
-move => mem mem' i b H H0.
-rewrite /mem_update in H0.
-apply N.ltb_lt in H.
-rewrite /mem_length in H.
-rewrite H in H0.
-case: mem' H0 => init_ data_ [Hinit Hdata].
-rewrite Hinit Hdata /= {init_ data_ Hinit Hdata}.
-set nn := N.to_nat i.
-have Hx: nn < length (ml_data mem).
-apply N.ltb_lt in H.
-lia.
-by apply: lookup_split.
+  move => mem mem' i b H H0.
+  rewrite /mem_update in H0.
+  apply N.ltb_lt in H.
+  rewrite /mem_length in H.
+  rewrite H in H0.
+  case: mem' H0 => init_ data_ [Hinit Hdata].
+  rewrite Hinit Hdata /= {init_ data_ Hinit Hdata}.
+  set nn := N.to_nat i.
+  have Hx: nn < length (ml_data mem).
+  apply N.ltb_lt in H.
+  lia.
+  by apply: lookup_split.
 Qed.
 
 Lemma memory_list_ax_lookup_skip :
   Memory.mem_ax_lookup_skip memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
-move => mem mem' i i' b Hii' H0.
-case: mem' H0 => init_ data_.
-rewrite /mem_update /mem_lookup.
-case_eq (N.ltb i' (N.of_nat (length (ml_data mem)))); last by discriminate.
-move => Hlen [Hinit Hdata] /=.
-rewrite Hdata => {Hdata}.
-apply: bar.
-lia.
-apply N.ltb_lt in Hlen.
-lia.
+  move => mem mem' i i' b Hii' H0.
+  case: mem' H0 => init_ data_.
+  rewrite /mem_update /mem_lookup.
+  case_eq (N.ltb i' (N.of_nat (length (ml_data mem)))); last by discriminate.
+  move => Hlen [Hinit Hdata] /=.
+  rewrite Hdata => {Hdata}.
+  apply: bar.
+  lia.
+  apply N.ltb_lt in Hlen.
+  lia.
 Qed.
 
 Lemma memory_list_ax_length_constant_update :
   Memory.mem_ax_length_constant_update memory_list mem_make mem_length mem_grow mem_lookup mem_update.
 Proof.
-move => i b [dv_init1 dv_list1] [dv_init2 dv_list2].
-rewrite /mem_update /mem_length /=.
-case_eq (N.ltb i (N.of_nat (length dv_list1))); last by discriminate.
-move => Hlen [Hinit Hlist].
-apply N.ltb_lt in Hlen.
-rewrite Hlist.
-f_equal.
-apply: (split_preserves_length _ (N.to_nat i) b dv_list1).
-lia.
+  move => i b [dv_init1 dv_list1] [dv_init2 dv_list2].
+  rewrite /mem_update /mem_length /=.
+  case_eq (N.ltb i (N.of_nat (length dv_list1))); last by discriminate.
+  move => Hlen [Hinit Hlist].
+  apply N.ltb_lt in Hlen.
+  rewrite Hlist.
+  f_equal.
+  apply: (split_preserves_length _ (N.to_nat i) b dv_list1).
+  lia.
 Qed.
 
-
 Require Import bytes common.
+From HB Require Import structures.
 
 Definition memory_list_eq_dec : forall (i1 i2 : memory_list), {i1 = i2} + {i1 <> i2}.
 Proof. decidable_equality. Defined.
@@ -181,8 +181,7 @@ Definition memory_list_eqb i1 i2 : bool := memory_list_eq_dec i1 i2.
 Definition eqmemory_listP : Equality.axiom memory_list_eqb :=
   eq_dec_Equality_axiom memory_list_eq_dec.
 
-Canonical Structure memory_list_eqMixin := EqMixin eqmemory_listP.
-Canonical Structure memory_list_eqType := Eval hnf in EqType memory_list memory_list_eqMixin.
+HB.instance Definition memory_list_eqMixin := hasDecEq.Build memory_list eqmemory_listP.
 
 Definition list_memoryMixin :=
   Memory.Mixin
@@ -191,5 +190,3 @@ Definition list_memoryMixin :=
     memory_list_ax_lookup_update
     memory_list_ax_lookup_skip
     memory_list_ax_length_constant_update.
-Definition list_memoryClass := Memory.Class memory_list_eqMixin list_memoryMixin.
-Canonical list_memoryType := @Memory.Pack memory_list list_memoryClass.

@@ -5,30 +5,26 @@ From Coq Require Import Lia Wf_nat.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
 Import ZArith.BinInt.
+From HB Require Import structures.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (** * Structures **)
-
 Lemma Z_eqP : Equality.axiom Coqlib.zeq.
 Proof.
   move=> x y. case: Coqlib.zeq; by [ left | right ].
 Qed.
 
-Definition Z_eqMixin := EqMixin Z_eqP.
-
-Canonical Structure Z_eqType := EqType BinNums.Z Z_eqMixin.
+HB.instance Definition Z_eqMixin := hasDecEq.Build Z Z_eqP.
 
 Lemma Pos_eqP : Equality.axiom BinPosDef.Pos.eqb.
 Proof.
   move=> x y. apply: Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
 Qed.
 
-Definition Pos_eqMixin := EqMixin Pos_eqP.
-
-Canonical Structure Pos_eqType := EqType BinNums.positive Pos_eqMixin.
+HB.instance Definition positive_eqMixin := hasDecEq.Build BinNums.positive Pos_eqP.
 
 (** * Equalities **)
 
@@ -45,14 +41,15 @@ Ltac lias_simpl :=
   repeat lazymatch goal with
   | |- ~ _ => intro
   | |- is_true (~~ _) => apply/negP
-  | |- context C [subn] => rewrite /subn /subn_rec
-  | |- context C [addn] => rewrite /addn /addn_rec
+  | |- context C [subn] => rewrite /subn
+  | |- context C [addn] => rewrite /addn
   | |- is_true (leq _ _) => apply/leP
   | |- is_true (BinNat.N.leb _ _) => apply/BinNat.N.leb_spec0
   | |- is_true (BinNat.N.ltb _ _) => apply/BinNat.N.ltb_spec0
-  | |- is_true (@eq_op nat_eqType _ _) => rewrite -eqnE; apply/eqnP
-  | |- is_true (@eq_op Z_eqType _ _) => apply/Z_eqP
-  | |- is_true (@eq_op Pos_eqType _ _) => apply/Pos_eqP
+  (* Find a way to make this less ugly after migrating to mathcomp 2.x? *)                                        
+  | |- is_true (@eq_op Datatypes_nat__canonical__eqtype_Equality _ _) => rewrite -eqnE; apply/eqnP
+  | |- is_true (@eq_op BinNums_Z__canonical__eqtype_Equality _ _) => apply/Z_eqP
+  | |- is_true (@eq_op BinNums_positive__canonical__eqtype_Equality _ _) => apply/Pos_eqP
   | |- is_true (@eq_op _ _ _) => apply/eqP
   | |- context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n);
@@ -60,8 +57,8 @@ Ltac lias_simpl :=
   | |- _ /\ _ => split
   | |- is_true (_ && _) => apply/andP; split
   | |- _ <-> _ => split; intros
-  | H: context C [subn] |- _ => unfold subn, subn_rec in H
-  | H: context C [addn] |- _ => unfold addn, addn_rec in H
+  | H: context C [subn] |- _ => unfold subn in H
+  | H: context C [addn] |- _ => unfold addn in H
   | H: is_true (~~ _) |- _ => move/negP: H => H
   | H: _ /\ _ |- _ => move: H; intros [? ?]
   | H: _ <-> _ |- _ => move: H; intros [? ?]
@@ -73,9 +70,9 @@ Ltac lias_simpl :=
   | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
   | H: context C [is_true (BinNat.N.leb _ _)] |- _ => move: H => /BinNat.N.leb_spec0 H
   | H: context C [is_true (BinNat.N.ltb _ _)] |- _ => move: H => /BinNat.N.ltb_spec0 H
-  | H: context C [is_true (@eq_op nat_eqType _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
-  | H: context C [is_true (@eq_op Z_eqType _ _)] |- _ => move: H => /Z_eqP H
-  | H: context C [is_true (@eq_op Pos_eqType _ _)] |- _ => move: H => /Pos_eqP H
+  | H: context C [is_true (@eq_op Datatypes_nat__canonical__eqtype_Equality _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
+  | H: context C [is_true (@eq_op BinNums_Z__canonical__eqtype_Equality _ _)] |- _ => move: H => /Z_eqP H
+  | H: context C [is_true (@eq_op BinNums_positive__canonical__eqtype_Equality _ _)] |- _ => move: H => /Pos_eqP H 
   | H: context C [is_true (@eq_op _ _ _)] |- _ => move: H => /eqP H
   | H: context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] |- _ =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n) in H;

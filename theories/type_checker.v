@@ -1,5 +1,6 @@
 (** Wasm type checker **)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From HB Require Import structures.
 From Wasm Require Export typing datatypes_properties operations.
 From Coq Require Import BinNat.
 
@@ -23,8 +24,7 @@ Definition checker_type_eqb v1 v2 : bool := checker_type_eq_dec v1 v2.
 Definition eqchecker_typeP : Equality.axiom checker_type_eqb :=
   eq_dec_Equality_axiom checker_type_eq_dec.
 
-Canonical Structure checker_type_eqMixin := EqMixin eqchecker_typeP.
-Canonical Structure checker_type_eqType := Eval hnf in EqType checker_type checker_type_eqMixin.
+HB.instance Definition checker_type_eqMixin := hasDecEq.Build checker_type eqchecker_typeP.
 
 Fixpoint consume (ct: checker_type) (cons : list value_type) : option checker_type :=
   match cons with

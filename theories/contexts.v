@@ -3,6 +3,7 @@
     guaranteed to be linear. **)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From HB Require Import structures.
 From Coq Require Import Program NArith ZArith Wf_nat.
 From Wasm Require Export common operations datatypes_properties properties opsem typing_inversion tactic.
 Require Import FunInd Recdef.
@@ -73,11 +74,10 @@ Proof.
 Qed.
 
 Definition label_ctx_eqb (v1 v2: label_ctx) : bool := label_ctx_eq_dec v1 v2.
-Definition eqlabel_ctx: Equality.axiom label_ctx_eqb :=
+Definition eqlabel_ctxP: Equality.axiom label_ctx_eqb :=
   eq_dec_Equality_axiom label_ctx_eq_dec.
 
-Canonical Structure label_ctx_eqMixin := EqMixin eqlabel_ctx.
-Canonical Structure label_ctx_eqType := Eval hnf in EqType label_ctx label_ctx_eqMixin.
+HB.instance Definition label_ctx_eqMixin := hasDecEq.Build label_ctx eqlabel_ctxP.
 
 Definition label_ctx_fill := (fun es ctx => (vs_to_es (LC_val ctx) ++ [::AI_label (LC_arity ctx) (LC_cont ctx) es] ++ (LC_post ctx))).
 
@@ -107,11 +107,10 @@ Proof.
 Qed.
 
 Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
-Definition eqframe_ctx: Equality.axiom frame_ctx_eqb :=
+Definition eqframe_ctxP: Equality.axiom frame_ctx_eqb :=
   eq_dec_Equality_axiom frame_ctx_eq_dec.
 
-Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
-Canonical Structure frame_ctx_eqType := Eval hnf in EqType frame_ctx frame_ctx_eqMixin.
+HB.instance Definition frame_ctx_eqMixin := hasDecEq.Build frame_ctx eqframe_ctxP.
 
 #[refine, export]
 Instance frame_ctx_eval: eval_ctx frame_ctx :=

@@ -5,6 +5,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import common.
 From compcert Require Import Integers.
 From parseque Require Import Char.
+From HB Require Import structures.
 
 Definition byte := Integers.byte.
 
@@ -13,29 +14,15 @@ Instance EqDec_byte : EqDec.EqDec byte := {
   EqDec.eq_dec := Integers.Byte.eq_dec;
 }.
 
-Fixpoint encode (n : nat) : byte :=
-  match n with
-  | 0 => Integers.Byte.zero
-  | S n' => Integers.Byte.add Integers.Byte.one (encode n')
-  end.
-
 Definition byte_eq_dec : forall (a b : byte), _ := EqDec.eq_dec.
 Definition byte_eqb a b := is_left (byte_eq_dec a b).
 Definition eqbyteP : Equality.axiom byte_eqb :=
   eq_dec_Equality_axiom byte_eq_dec.
 
-Canonical Structure byte_eqMixin := EqMixin eqbyteP.
-Canonical Structure byte_eqType := Eval hnf in EqType byte byte_eqMixin.
-
+HB.instance Definition byte_eqMixin := hasDecEq.Build byte eqbyteP.
 
 Definition bytes := seq byte.
-
-Definition bytes_eq_dec : forall (a b : bytes), {a = b} + {a <> b}.
-Proof. apply: List.list_eq_dec. apply: byte_eq_dec. Defined.
-Definition bytes_eqb (a b : bytes) := is_left (bytes_eq_dec a b).
-Definition eqbytesP : Equality.axiom bytes_eqb :=
-  eq_dec_Equality_axiom bytes_eq_dec.
-
+  
 Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
   match n with
   | O => nil
@@ -56,15 +43,50 @@ Definition msbyte (bs : bytes) : option byte :=
   last_error bs.
 
 Definition compcert_byte_of_byte (b : Byte.byte) : byte :=
-  (* TODO: this is not great *)
-  encode (Byte.to_nat b).
+  Byte.repr (BinInt.Z.of_N (Byte.to_N b)).
+
+Definition encode (z: BinNums.Z) : byte :=
+  Byte.repr z.
 
 Definition byte_of_compcert_byte (b : byte) : Byte.byte :=
-  (* TODO: is that correct? *)
-  match Byte.of_nat (BinInt.Z.to_nat b.(Byte.intval)) with
+  match Byte.of_N (BinInt.Z.to_N (Byte.unsigned b)) with
   | None => Byte.x00
   | Some b' => b'
   end.
+
+Require Import ZArith.
+
+Theorem compcert_byte_roundtrip: forall (b: byte),
+    compcert_byte_of_byte (byte_of_compcert_byte b) = b.
+Proof.
+  move => b.
+  unfold compcert_byte_of_byte, byte_of_compcert_byte.
+  destruct (Byte.of_N _) as [b0 |] eqn:HofN.
+  - apply Byte.to_of_N in HofN.
+    rewrite HofN.
+    rewrite Znat.Z2N.id.
+    + by rewrite Byte.repr_unsigned.
+    + by apply Byte.unsigned_range.
+  - apply Byte.of_N_None_iff in HofN.
+    exfalso.
+    specialize (Byte.unsigned_range b) as [Hrange1 Hrange2].
+    unfold Byte.modulus, Byte.wordsize, Wordsize_8.wordsize in Hrange2.
+    replace (two_power_nat 8) with (256%Z) in Hrange2; by lias.
+Qed.
+
+Theorem coq_byte_roundtrip: forall (b: Byte.byte),
+    byte_of_compcert_byte (compcert_byte_of_byte b) = b.
+Proof.
+  move => b.
+  unfold compcert_byte_of_byte, byte_of_compcert_byte.
+  rewrite Byte.unsigned_repr_eq Z2N.inj_mod; try by lias.
+  rewrite N2Z.id.
+  rewrite N.mod_small; first by rewrite Byte.of_to_N.
+  unfold Byte.modulus, Byte.wordsize, Wordsize_8.wordsize.
+  replace (two_power_nat 8) with (256%Z) by lias.
+  specialize (Byte.to_N_bounded b).
+  by lias.
+Qed.
 
 Declare Scope byte_scope.
 Delimit Scope byte_scope with byte.
@@ -333,4 +355,3 @@ Notation "#FC" := (encode (#F * 16 + #C)) : byte_scope.
 Notation "#FD" := (encode (#F * 16 + #D)) : byte_scope.
 Notation "#FE" := (encode (#F * 16 + #E)) : byte_scope.
 Notation "#FF" := (encode (#F * 16 + #F)) : byte_scope.
-

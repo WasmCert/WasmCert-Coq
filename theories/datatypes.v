@@ -179,18 +179,6 @@ Inductive function_type := (* tf *)
 the same as function types. *)
 Definition instr_type := function_type.
 
-(*
-This is technically part of the spec, but the actual definitions never used the bottom case concretely except for the type checking algorithm.
-(** std-doc:
-Instructions are classified by stack types [t1∗]→[t2∗] that describe how instructions manipulate the operand stack.
- *)
-Definition operand_type := option value_type.
-
-Inductive stack_type :=
-| Tfs: list operand_type -> list operand_type -> stack_type
-.
-*)
-
 (** std-doc:
 Limits classify the size range of resizeable storage associated with memory types and table types.
 If no maximum is given, the respective storage can grow to any size.
@@ -317,27 +305,6 @@ Definition serialise_f32 (f : f32) : bytes :=
 
 Definition serialise_f64 (f : f64) : bytes :=
   common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
-
-(*
-(* TODO: factor this out, following the `memory` branch *)
-Module Byte_Index <: array.Index_Sig.
-Definition Index := N.
-Definition Value := byte.
-Definition index_eqb := N.eqb.
-End Byte_Index.
-
-Module Byte_array := array.Make Byte_Index.
-
-Record data_vec : Set := {
-  dv_length : N;
-  dv_array : Byte_array.array;
-}.
-
-Record memory : Set := {
-  mem_data : memory_list;
-  mem_max_opt: option N; (* TODO: should be u32 *)
-}.
-*)
 
   
 Section Instructions.

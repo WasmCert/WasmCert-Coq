@@ -2,6 +2,7 @@
 (* (C) M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From HB Require Import structures.
 From Wasm Require Import common datatypes operations typing.
 From ExtLib Require Import Structures.Monad.
 
@@ -127,9 +128,7 @@ Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
 Definition host_functionP : Equality.axiom host_function_eqb :=
   eq_dec_Equality_axiom host_function_eq_dec.
 
-Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Global Canonical Structure host_function_eqType :=
-  Eval hnf in EqType _ host_function_eqMixin.
+HB.instance Definition host_function_eqMixin := hasDecEq.Build host_function host_functionP.
 
 Definition host_monad : Monad host_event := {|
     ret := host_ret ;
@@ -177,7 +176,7 @@ Definition host_apply (_ : store_record) (_ : function_type) :=
 Instance host_instance : host.
 Proof.
   by refine {|
-      host_state := unit_eqType ;
+      host_state := unit;
       host_application _ _ _ _ _ _ _ := False
     |}.
 Defined.

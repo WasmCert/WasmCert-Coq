@@ -586,13 +586,13 @@ the condition that all values should live in the operand stack. *)
       (* i32 *)
       + destruct v as [c| | |].
         2,3,4: by resolve_invalid_typing; resolve_invalid_value. 
-        apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (@app_testop_i i32t testop c))) :: vs0, es0), None)>> => //.
+        apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (app_testop_i i32m testop c))) :: vs0, es0), None)>> => //.
         resolve_reduce_ctx vs0 es0.
         by apply r_simple, rs_testop_i32.
       (* i64 *)
       + destruct v as [|c | |].
         1,3,4: by resolve_invalid_typing; resolve_invalid_value.
-        apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (@app_testop_i i64t testop c))) :: vs0, es0), None)>> => //.
+        apply <<hs, (s, (fc, lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (app_testop_i i64m testop c))) :: vs0, es0), None)>> => //.
         resolve_reduce_ctx vs0 es0.
         by apply r_simple, rs_testop_i64.
 
@@ -1788,7 +1788,7 @@ Export DummyHost.
 Instance host_instance : host.
 Proof.
   by refine {|
-      host_state := unit_eqType ;
+      host_state := unit;
       host_application _ _ _ _ _ _ _ := False
     |}.
 Defined.
