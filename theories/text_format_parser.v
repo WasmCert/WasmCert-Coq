@@ -1,5 +1,5 @@
 (** Parser for the Wasm text format. **)
-(* (C) J. Pichon - see LICENSE.txt *)
+(* Only the numeric values are added currently for CLI arguments *)
 
 From Wasm Require Import datatypes_properties typing numerics.
 From compcert Require Import Integers.
@@ -125,11 +125,13 @@ Section Parse_float.
 Variable T: Type.
 Variable mx: Wasm_float.mixin_of T.
 
-(* TODO: do these lose precision? *)
 
-Definition float_1 := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m 1).
-Definition float_10 := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m 10).
-Definition float_16 := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m 16).
+Definition z2f (z: Z): T := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m z).
+
+Definition float_1 := z2f 1.
+Definition float_2 := z2f 2.
+Definition float_10 := z2f 10.
+Definition float_16 := z2f 16.
 
 Definition fneg a := Wasm_float.float_neg mx a.
 Definition fadd a b := Wasm_float.float_add mx a b.
@@ -159,13 +161,14 @@ Definition qpow (b: T) (e: Z) (one: T) : T :=
 
 Definition fp10 (e: Z) : T := qpow float_10 e float_1.
 
-Definition z2f (z: Z): T := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m z).
+Definition fp2 (e: Z) : T := qpow float_2 e float_1.
 
 Definition parse_digit_frac {n}: byte_parser T n :=
   (fun d => z2f d) <$> parse_digit.
 
 (* Needs to use iterater instead, as the Wasm spec essentially require
-   reading from the right *)
+   reading from the right. This aux function also returns the actual
+   frac value * 10 (which should be dealt with later). *)
 Definition parse_frac_aux {n} : byte_parser (T -> T) n :=
   (fun d p => (fadd d (fdiv10 p))) <$>
   ((fun res =>
@@ -179,15 +182,15 @@ Definition parse_frac_before {n} (f: byte_parser T n) : byte_parser T n :=
   @iterater _ _ _ _ _ _ _ _ _ _ n parse_frac_aux f.
 
 Definition parse_frac {n} : byte_parser T n :=
-  parse_frac_before parse_digit_frac.
+  fdiv10 <$> parse_frac_before parse_digit_frac.
 
 Definition parse_float1 {n}: byte_parser T n :=
-  (fun p => z2f p) <$> (parse_num <& exact_byte ".").
+  (fun p => z2f p) <$> (parse_num <&? exact_byte ".").
 
 Definition parse_float2 {n}: byte_parser T n :=
   (fun res =>
      match res with
-     | (p, _, q) => fadd (z2f p) (fdiv10 q)
+     | (p, _, q) => fadd (z2f p) q
      end
   ) <$>
     (parse_num <&> exact_byte "." <&> parse_frac).
@@ -195,15 +198,15 @@ Definition parse_float2 {n}: byte_parser T n :=
 Definition parse_float3 {n} : byte_parser T n :=
   (fun res =>
      match res with
-     | (z, _, _, sgn_e) => fmul (z2f z) (fp10 (get_signed_z sgn_e))
+     | (z, _, sgn_e) => fmul (z2f z) (fp10 (get_signed_z sgn_e))
      end
   )
-    <$> (parse_num <&> exact_byte "." <&> (exact_byte "E" <|> exact_byte "e") <&> (parse_opt_sign_before parse_num)).
+    <$> ((parse_num <&? exact_byte ".") <&> (exact_byte "E" <|> exact_byte "e") <&> (parse_opt_sign_before parse_num)).
   
 Definition parse_float4 {n} : byte_parser T n :=
   (fun res =>
      match res with
-     | (z, _, f, _, sgn_e) => fmul (fadd (z2f z) (fdiv10 f)) (fp10 (get_signed_z sgn_e))
+     | (z, _, f, _, sgn_e) => fmul (fadd (z2f z) f) (fp10 (get_signed_z sgn_e))
      end
   )
     <$> (parse_num <&> exact_byte "." <&> parse_frac <&> (exact_byte "E" <|> exact_byte "e") <&> (parse_opt_sign_before parse_num)).
@@ -215,8 +218,58 @@ Definition parse_decfloat {n}: byte_parser T n :=
   parse_float2 <|>
   parse_float1.
 
+Definition parse_hexdigit_frac {n}: byte_parser T n :=
+  (fun d => z2f d) <$> parse_hexdigit.
+
+Definition parse_hexfrac_aux {n} : byte_parser (T -> T) n :=
+  (fun d p => (fadd d (fdiv16 p))) <$>
+  ((fun res =>
+     match res with
+     | (d, _) => d
+     end
+  ) <$>
+  (parse_hexdigit_frac <&?> parse_underscore_forget)).
+
+Definition parse_hexfrac_before {n} (f: byte_parser T n) : byte_parser T n :=
+  @iterater _ _ _ _ _ _ _ _ _ _ n parse_hexfrac_aux f.
+
+Definition parse_hexfrac {n} : byte_parser T n :=
+  fdiv16 <$> parse_hexfrac_before parse_digit_frac.
+
+Definition parse_hexfloat1 {n}: byte_parser T n :=
+  (fun p => z2f p) <$> (parse_hexnum <&? exact_byte ".").
+
+Definition parse_hexfloat2 {n}: byte_parser T n :=
+  (fun res =>
+     match res with
+     | (p, q) => fadd (z2f p) q
+     end
+  ) <$>
+    ((parse_hexnum <& exact_byte ".") <&> parse_hexfrac).
+
+Definition parse_hexfloat3 {n} : byte_parser T n :=
+  (fun res =>
+     match res with
+     | (z, sgn_e) => fmul (z2f z) (fp2 (get_signed_z sgn_e))
+     end
+  )
+    <$> (((parse_hexnum <&? exact_byte ".") <& (exact_byte "P" <|> exact_byte "p")) <&> (parse_opt_sign_before parse_num)).
+  
+Definition parse_hexfloat4 {n} : byte_parser T n :=
+  (fun res =>
+     match res with
+     | (z, f, sgn_e) => fmul (fadd (z2f z) f) (fp2 (get_signed_z sgn_e))
+     end
+  )
+    <$> ((parse_hexnum <& exact_byte ".") <&> (parse_hexfrac <& (exact_byte "P" <|> exact_byte "p")) <&> (parse_opt_sign_before parse_num)).
+
 Definition parse_hexfloat {n} : byte_parser T n :=
-  fail.
+  exact_byte "0" &> exact_byte "x" &>
+  (parse_hexfloat4 <|>
+   parse_hexfloat3 <|>
+   parse_hexfloat2 <|>
+   parse_hexfloat1
+  ).
 
 Definition parse_floatinf {n} : byte_parser T n :=
   exact_byte "i" &> exact_byte "n" &> exact_byte "f" $> Wasm_float.float_inf mx.
@@ -234,12 +287,13 @@ Definition parse_float_nan_pl {n}: byte_parser T n :=
     exact_byte ":" &> exact_byte "0" &> exact_byte "x" &>
     parse_hexnum).
 
+(* decfloat needs to be later than hexfloat similarly *)
 Definition parse_fmag {n} : byte_parser T n :=
-  parse_decfloat <|>
   parse_hexfloat <|>
   parse_floatinf <|>
   parse_float_nan_pl <|>
-  parse_float_nan_canon.
+  parse_float_nan_canon <|>
+  parse_decfloat.
 
 Definition parse_float {n} : byte_parser T n :=
   (fun sgn_f =>

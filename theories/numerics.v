@@ -1271,10 +1271,6 @@ Definition neg_zero : T := Binary.B754_zero _ _ true.
 (** The canonical [NaN] payload. **)
 Definition canonical_pl := shift_pos (Z.to_pos prec - 2) 1.
 
-Print Binary.B754_nan.
-
-Print Binary.nan_pl.
-
 (** States whether a [NaN] is canonical. **)
 Definition is_canonical (z : T) :=
   if z is Binary.B754_nan _ pl _ then pl == canonical_pl else false.
